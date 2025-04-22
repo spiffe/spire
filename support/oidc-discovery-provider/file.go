@@ -36,7 +36,7 @@ type FileSource struct {
 	pollTime time.Time
 }
 
-func NewFileSource(config FileSourceConfig) (*FileSource, error) {
+func NewFileSource(config FileSourceConfig) *FileSource {
 	if config.PollInterval <= 0 {
 		config.PollInterval = DefaultFilePollInterval
 	}
@@ -52,7 +52,7 @@ func NewFileSource(config FileSourceConfig) (*FileSource, error) {
 	}
 
 	go s.pollEvery(ctx, config.Path, config.PollInterval)
-	return s, nil
+	return s
 }
 
 func (s *FileSource) Close() error {

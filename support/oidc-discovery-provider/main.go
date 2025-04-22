@@ -189,7 +189,7 @@ func newSource(log logrus.FieldLogger, config *Config) (JWKSSource, error) {
 			Log:          log,
 			Path:         config.File.Path,
 			PollInterval: config.File.PollInterval,
-		})
+		}), nil
 	default:
 		// This is defensive; LoadConfig should prevent this from happening.
 		return nil, errors.New("no source has been configured")

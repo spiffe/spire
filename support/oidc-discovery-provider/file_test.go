@@ -26,13 +26,12 @@ func TestFileSource(t *testing.T) {
 	log, _ := test.NewNullLogger()
 	clock := clock.NewMock(t)
 
-	source, err := NewFileSource(FileSourceConfig{
+	source := NewFileSource(FileSourceConfig{
 		Log:          log,
 		Path:         path,
 		PollInterval: pollInterval,
 		Clock:        clock,
 	})
-	require.NoError(t, err)
 	defer source.Close()
 
 	// Wait for the poll to happen and assert there is no key set available
@@ -43,7 +42,7 @@ func TestFileSource(t *testing.T) {
 	// Set a bundle without an entry for the trust domain, advance to the next
 	// period, wait for the poll to happen and assert there is no key set
 	// available
-	err = os.WriteFile(path, []byte("{}"), 0644)
+	err = os.WriteFile(path, []byte("{}"), 0600)
 
 	clock.Add(pollInterval)
 	clock.WaitForAfter(time.Minute, "failed to wait for the poll timer")
@@ -58,7 +57,7 @@ func TestFileSource(t *testing.T) {
 	require.NoError(t, err)
 	bundleBytes, err := bundle.Marshal()
 	require.NoError(t, err)
-	err = os.WriteFile(path, bundleBytes, 0644)
+	err = os.WriteFile(path, bundleBytes, 0600)
 	require.NoError(t, err)
 
 	clock.Add(pollInterval)
@@ -87,7 +86,7 @@ func TestFileSource(t *testing.T) {
 	require.NoError(t, err)
 	bundleBytes, err = bundle.Marshal()
 	require.NoError(t, err)
-	err = os.WriteFile(path, bundleBytes, 0644)
+	err = os.WriteFile(path, bundleBytes, 0600)
 	require.NoError(t, err)
 
 	clock.Add(pollInterval)
