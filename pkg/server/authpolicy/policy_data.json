@@ -168,6 +168,10 @@
 			"allow_local": true
 		},
 		{
+			"full_method": "/grpc.health.v1.Health/List",
+			"allow_local": true
+		},
+		{
 			"full_method": "/grpc.health.v1.Health/Watch",
 			"allow_local": true
 		},
