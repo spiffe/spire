@@ -530,6 +530,7 @@ func testHealthAPI(ctx context.Context, t *testing.T, conns testConns) {
 	t.Run("Local", func(t *testing.T) {
 		testAuthorization(ctx, t, grpc_health_v1.NewHealthClient(conns.local), map[string]bool{
 			"Check": true,
+			"List":  true,
 			"Watch": true,
 		})
 	})
@@ -1317,6 +1318,10 @@ func (healthServer) Check(_ context.Context, _ *grpc_health_v1.HealthCheckReques
 
 func (healthServer) Watch(_ *grpc_health_v1.HealthCheckRequest, stream grpc_health_v1.Health_WatchServer) error {
 	return stream.Send(&grpc_health_v1.HealthCheckResponse{})
+}
+
+func (healthServer) List(context.Context, *grpc_health_v1.HealthListRequest) (*grpc_health_v1.HealthListResponse, error) {
+	return &grpc_health_v1.HealthListResponse{}, nil
 }
 
 type loggerServer struct {
