@@ -40,8 +40,10 @@ func jwkThreshold(config *Config) time.Duration {
 	var duration time.Duration
 	if config.ServerAPI != nil {
 		duration = config.ServerAPI.PollInterval
-	} else {
+	} else if config.WorkloadAPI != nil {
 		duration = config.WorkloadAPI.PollInterval
+	} else {
+		duration = config.File.PollInterval
 	}
 	if duration*ThresholdMultiplicator < ThresholdMinTime {
 		duration = ThresholdMinTime
