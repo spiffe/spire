@@ -38,11 +38,12 @@ func NewHealthChecksHandler(source JWKSSource, config *Config) *HealthChecksHand
 // jwkThreshold determines the duration from the last successful poll before the server is considered unhealthy
 func jwkThreshold(config *Config) time.Duration {
 	var duration time.Duration
-	if config.ServerAPI != nil {
+	switch {
+	case config.ServerAPI != nil:
 		duration = config.ServerAPI.PollInterval
-	} else if config.WorkloadAPI != nil {
+	case config.WorkloadAPI != nil:
 		duration = config.WorkloadAPI.PollInterval
-	} else {
+	default:
 		duration = config.File.PollInterval
 	}
 	if duration*ThresholdMultiplicator < ThresholdMinTime {
