@@ -89,23 +89,16 @@ type Agent struct {
 }
 
 type FullEntryCache struct {
-	aliases map[spiffeID][]aliasEntry
-	entries map[spiffeID][]*types.Entry
+	aliases map[string][]aliasEntry
+	entries map[string][]*types.Entry
 }
 
 type selectorSet map[Selector]struct{}
-type seenSet map[spiffeID]struct{}
+type seenSet map[string]struct{}
 type stringSet map[string]struct{}
 
-type spiffeID struct {
-	// TrustDomain is the trust domain of the SPIFFE ID.
-	TrustDomain string
-	// Path is the path of the SPIFFE ID.
-	Path string
-}
-
 type aliasEntry struct {
-	id    spiffeID
+	id    string
 	entry *types.Entry
 }
 
@@ -118,14 +111,14 @@ func Build(ctx context.Context, entryIter EntryIterator, agentIter AgentIterator
 	}
 	bysel := make(map[Selector][]aliasInfo)
 
-	entries := make(map[spiffeID][]*types.Entry)
+	entries := make(map[string][]*types.Entry)
 	for entryIter.Next(ctx) {
 		entry := entryIter.Entry()
-		parentID := spiffeIDFromProto(entry.ParentId)
-		if parentID.Path == "/spire/server" {
+		parentID := entry.ParentId.Path
+		if entry.ParentId.Path == "/spire/server" {
 			alias := aliasInfo{
 				aliasEntry: aliasEntry{
-					id:    spiffeIDFromProto(entry.SpiffeId),
+					id:    entry.SpiffeId.Path,
 					entry: entry,
 				},
 				selectors: selectorSetFromProto(entry.Selectors),
@@ -144,10 +137,10 @@ func Build(ctx context.Context, entryIter EntryIterator, agentIter AgentIterator
 	aliasSeen := allocStringSet()
 	defer freeStringSet(aliasSeen)
 
-	aliases := make(map[spiffeID][]aliasEntry)
+	aliases := make(map[string][]aliasEntry)
 	for agentIter.Next(ctx) {
 		agent := agentIter.Agent()
-		agentID := spiffeIDFromID(agent.ID)
+		agentID := agent.ID.Path()
 		agentSelectors := selectorSetFromProto(agent.Selectors)
 		// track which aliases we've evaluated so far to make sure we don't
 		// add one twice.
@@ -179,7 +172,7 @@ func (c *FullEntryCache) LookupAuthorizedEntries(agentID spiffeid.ID, requestedE
 	defer freeSeenSet(seen)
 
 	foundEntries := make(map[string]api.ReadOnlyEntry)
-	c.crawl(spiffeIDFromID(agentID), seen, func(entry *types.Entry) {
+	c.crawl(agentID.Path(), seen, func(entry *types.Entry) {
 		if _, ok := requestedEntries[entry.Id]; ok {
 			foundEntries[entry.Id] = api.NewReadOnlyEntry(entry)
 		}
@@ -194,14 +187,14 @@ func (c *FullEntryCache) GetAuthorizedEntries(agentID spiffeid.ID) []api.ReadOnl
 	defer freeSeenSet(seen)
 
 	foundEntries := []api.ReadOnlyEntry{}
-	c.crawl(spiffeIDFromID(agentID), seen, func(entry *types.Entry) {
+	c.crawl(agentID.Path(), seen, func(entry *types.Entry) {
 		foundEntries = append(foundEntries, api.NewReadOnlyEntry(entry))
 	})
 
 	return foundEntries
 }
 
-func (c *FullEntryCache) crawl(parentID spiffeID, seen map[spiffeID]struct{}, visit func(*types.Entry)) {
+func (c *FullEntryCache) crawl(parentID string, seen map[string]struct{}, visit func(*types.Entry)) {
 	if _, ok := seen[parentID]; ok {
 		return
 	}
@@ -209,25 +202,11 @@ func (c *FullEntryCache) crawl(parentID spiffeID, seen map[spiffeID]struct{}, vi
 
 	for _, entry := range c.entries[parentID] {
 		visit(entry)
-		c.crawl(spiffeIDFromProto(entry.SpiffeId), seen, visit)
+		c.crawl(entry.SpiffeId.Path, seen, visit)
 	}
 
 	for _, alias := range c.aliases[parentID] {
 		c.crawl(alias.id, seen, visit)
-	}
-}
-
-func spiffeIDFromID(id spiffeid.ID) spiffeID {
-	return spiffeID{
-		TrustDomain: id.TrustDomain().Name(),
-		Path:        id.Path(),
-	}
-}
-
-func spiffeIDFromProto(id *types.SPIFFEID) spiffeID {
-	return spiffeID{
-		TrustDomain: id.TrustDomain,
-		Path:        id.Path,
 	}
 }
 
