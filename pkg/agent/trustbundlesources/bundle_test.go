@@ -10,9 +10,108 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/spiffe/spire/pkg/agent"
 	"github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/require"
 )
+
+func TestSetupTrustBundle(t *testing.T) {
+	testTBSPIFFE := `{
+    "keys": [
+        {
+            "use": "x509-svid",
+            "kty": "EC",
+            "crv": "P-384",
+            "x": "WjB-nSGSxIYiznb84xu5WGDZj80nL7W1c3zf48Why0ma7Y7mCBKzfQkrgDguI4j0",
+            "y": "Z-0_tDH_r8gtOtLLrIpuMwWHoe4vbVBFte1vj6Xt6WeE8lXwcCvLs_mcmvPqVK9j",
+            "x5c": [
+                "MIIBzDCCAVOgAwIBAgIJAJM4DhRH0vmuMAoGCCqGSM49BAMEMB4xCzAJBgNVBAYTAlVTMQ8wDQYDVQQKDAZTUElGRkUwHhcNMTgwNTEzMTkzMzQ3WhcNMjMwNTEyMTkzMzQ3WjAeMQswCQYDVQQGEwJVUzEPMA0GA1UECgwGU1BJRkZFMHYwEAYHKoZIzj0CAQYFK4EEACIDYgAEWjB+nSGSxIYiznb84xu5WGDZj80nL7W1c3zf48Why0ma7Y7mCBKzfQkrgDguI4j0Z+0/tDH/r8gtOtLLrIpuMwWHoe4vbVBFte1vj6Xt6WeE8lXwcCvLs/mcmvPqVK9jo10wWzAdBgNVHQ4EFgQUh6XzV6LwNazA+GTEVOdu07o5yOgwDwYDVR0TAQH/BAUwAwEB/zAOBgNVHQ8BAf8EBAMCAQYwGQYDVR0RBBIwEIYOc3BpZmZlOi8vbG9jYWwwCgYIKoZIzj0EAwQDZwAwZAIwE4Me13qMC9i6Fkx0h26y09QZIbuRqA9puLg9AeeAAyo5tBzRl1YL0KNEp02VKSYJAjBdeJvqjJ9wW55OGj1JQwDFD7kWeEB6oMlwPbI/5hEY3azJi16I0uN1JSYTSWGSqWc="
+            ]
+        }
+    ]
+}`
+	cases := []struct {
+		msg               string
+		insecureBootstrap bool
+		error             bool
+		trustBundlePath   string
+		trustBundleFormat string
+		trustBundleURL    bool
+		trustBundleSocket string
+	}{
+		{
+			msg:               "insecure mode",
+			insecureBootstrap: true,
+			error:             false,
+		},
+		{
+			msg:               "from file",
+			insecureBootstrap: false,
+			error:             false,
+			trustBundlePath:   "conf/agent/dummy_root_ca.crt",
+			trustBundleFormat: BundleFormatPEM,
+		},
+		{
+			msg:               "from file wrong format",
+			insecureBootstrap: false,
+			error:             true,
+			trustBundlePath:   "conf/agent/dummy_root_ca.crt",
+			trustBundleFormat: BundleFormatSPIFFE,
+		},
+		{
+			msg:               "from file that doesn't exist",
+			insecureBootstrap: false,
+			error:             true,
+			trustBundlePath:   "doesnotexist",
+			trustBundleFormat: BundleFormatPEM,
+		},
+		{
+			msg:               "from url ok",
+			insecureBootstrap: false,
+			error:             false,
+			trustBundleURL:    true,
+			trustBundleFormat: BundleFormatSPIFFE,
+		},
+		{
+			msg:               "from url socket, fail",
+			insecureBootstrap: false,
+			error:             true,
+			trustBundleURL:    true,
+			trustBundleFormat: BundleFormatSPIFFE,
+			trustBundleSocket: "doesnotexist",
+		},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.msg, func(t *testing.T) {
+			var err error
+			var ac agent.Config
+			var c Config = Config{
+				InsecureBootstrap:     testCase.insecureBootstrap,
+				TrustBundlePath:       testCase.trustBundlePath,
+				TrustBundleFormat:     testCase.trustBundleFormat,
+				TrustBundleUnixSocket: testCase.trustBundleSocket,
+			}
+			testServer := httptest.NewServer(http.HandlerFunc(
+				func(w http.ResponseWriter, r *http.Request) {
+					w.WriteHeader(http.StatusOK)
+					_, _ = io.WriteString(w, testTBSPIFFE)
+				}))
+			if testCase.trustBundleURL {
+				c.TrustBundleURL = testServer.URL
+			}
+			err = SetupTrustBundle(&ac, &c)
+			if testCase.error {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, ac.InsecureBootstrap, c.InsecureBootstrap)
+				if testCase.trustBundlePath != "" {
+					require.Equal(t, len(ac.TrustBundle), 1)
+				}
+			}
+		})
+	}
+}
 
 func TestDownloadTrustBundle(t *testing.T) {
 	testTB, _ := os.ReadFile(path.Join(util.ProjectRoot(), "conf/agent/dummy_root_ca.crt"))
