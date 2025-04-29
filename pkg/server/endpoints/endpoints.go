@@ -54,8 +54,8 @@ const (
 	// This is the default amount of time events live before they are pruned
 	defaultPruneEventsOlderThan = 12 * time.Hour
 
-	// This is the default SQL transaction timeout. This value matches Postgres's default.
-	defaultSQLTransactionTimeout = 24 * time.Hour
+	// This is the default amount of time to wait for an event before giving up
+	defaultEventTimeout = 15 * time.Minute
 )
 
 // Server manages gRPC and HTTP endpoint lifecycle
@@ -126,8 +126,8 @@ func New(ctx context.Context, c Config) (*Endpoints, error) {
 		c.PruneEventsOlderThan = defaultPruneEventsOlderThan
 	}
 
-	if c.SQLTransactionTimeout == 0 {
-		c.SQLTransactionTimeout = defaultSQLTransactionTimeout
+	if c.EventTimeout == 0 {
+		c.EventTimeout = defaultEventTimeout
 	}
 
 	ds := c.Catalog.GetDataStore()
@@ -135,7 +135,7 @@ func New(ctx context.Context, c Config) (*Endpoints, error) {
 	var ef api.AuthorizedEntryFetcher
 	var cacheRebuildTask, pruneEventsTask func(context.Context) error
 	if c.EventsBasedCache {
-		efEventsBasedCache, err := NewAuthorizedEntryFetcherWithEventsBasedCache(ctx, c.Log, c.Metrics, c.Clock, ds, c.CacheReloadInterval, c.PruneEventsOlderThan, c.SQLTransactionTimeout)
+		efEventsBasedCache, err := NewAuthorizedEntryFetcherWithEventsBasedCache(ctx, c.Log, c.Metrics, c.Clock, ds, c.CacheReloadInterval, c.PruneEventsOlderThan, c.EventTimeout)
 		if err != nil {
 			return nil, err
 		}
