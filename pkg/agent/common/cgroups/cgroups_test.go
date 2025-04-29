@@ -23,9 +23,21 @@ const (
 2:blkio:/user.slice
 1:name=systemd:/user.slice/user-1000.slice/session-2.scope
 `
-	// cgBadFormat is a malformed set of cgroup entries (no slash separator)
+	// cgBadFormat is a malformed set of cgroup entries (missing cgroup-path)
 	cgBadFormat = `11:hugetlb
 `
+	// cgUnified is a good set of cgroup entries including unified
+	cgUnified = `10:devices:/user.slice
+9:net_cls,net_prio:/
+8:blkio:/
+7:freezer:/
+6:perf_event:/
+5:cpuset:/
+4:memory:/user.slice
+3:pids:/user.slice/user-1000.slice/user@1000.service
+2:cpu,cpuacct:/
+1:name=systemd:/user.slice/user-1000.slice/user@1000.service/gnome-terminal-server.service
+0::/user.slice/user-1000.slice/user@1000.service/gnome-terminal-server.service`
 )
 
 var (
@@ -41,6 +53,20 @@ var (
 		{"3", "freezer", "/"},
 		{"2", "blkio", "/user.slice"},
 		{"1", "name=systemd", "/user.slice/user-1000.slice/session-2.scope"},
+	}
+
+	expectUnifiedCgroup = []Cgroup{
+		{"10", "devices", "/user.slice"},
+		{"9", "net_cls,net_prio", "/"},
+		{"8", "blkio", "/"},
+		{"7", "freezer", "/"},
+		{"6", "perf_event", "/"},
+		{"5", "cpuset", "/"},
+		{"4", "memory", "/user.slice"},
+		{"3", "pids", "/user.slice/user-1000.slice/user@1000.service"},
+		{"2", "cpu,cpuacct", "/"},
+		{"1", "name=systemd", "/user.slice/user-1000.slice/user@1000.service/gnome-terminal-server.service"},
+		{"0", "", "/user.slice/user-1000.slice/user@1000.service/gnome-terminal-server.service"},
 	}
 )
 
@@ -67,8 +93,19 @@ func TestCgroupsBadFormat(t *testing.T) {
 			"/proc/123/cgroup": cgBadFormat,
 		},
 	})
-	require.EqualError(t, err, `cgroup entry contains 2 colons, but expected at least 2 colons: "11:hugetlb"`)
+	require.EqualError(t, err, `invalid cgroup entry, contains 2 colon separated fields but expected at least 3: "11:hugetlb"`)
 	require.Nil(t, cgroups)
+}
+
+func TestUnifiedCgroups(t *testing.T) {
+	cgroups, err := GetCgroups(1234, FakeFileSystem{
+		Files: map[string]string{
+			"/proc/1234/cgroup": cgUnified,
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, cgroups, 11)
+	require.Equal(t, expectUnifiedCgroup, cgroups)
 }
 
 type FakeFileSystem struct {

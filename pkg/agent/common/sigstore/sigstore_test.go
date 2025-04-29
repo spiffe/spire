@@ -35,7 +35,6 @@ func TestNewVerifier(t *testing.T) {
 	config.IgnoreSCT = true
 	config.IgnoreTlog = true
 	config.IgnoreAttestations = true
-	config.RekorURL = "https://rekor.test.com"
 	config.RegistryCredentials = map[string]*RegistryCredential{
 		"docker.io": {
 			Username: "testuser",
@@ -45,6 +44,15 @@ func TestNewVerifier(t *testing.T) {
 			Username: "testuser",
 			Password: "testpassword",
 		},
+		"nopassword.io": { // should warn and ignore
+			Username: "testuser",
+			Password: "",
+		},
+		"nousername.io": { // should warn and ignore
+			Username: "",
+			Password: "testpassword",
+		},
+		"nil.io": nil, // should ignore
 	}
 
 	config.SkippedImages = map[string]struct{}{
@@ -58,6 +66,8 @@ func TestNewVerifier(t *testing.T) {
 
 	verifier := NewVerifier(config)
 	require.NotNil(t, verifier)
+	require.NotNil(t, verifier.config.Logger)
+	require.Equal(t, verifier.config.RekorURL, publicRekorURL) // verify default public RekorURL
 
 	identityPlainValues := cosign.Identity{
 		Issuer:  "test-issuer",
@@ -70,7 +80,11 @@ func TestNewVerifier(t *testing.T) {
 	expectedIdentites := []cosign.Identity{identityPlainValues, identityRegExp}
 
 	assert.Equal(t, config, verifier.config)
-	assert.Equal(t, len(config.RegistryCredentials), len(verifier.authOptions))
+	assert.NotNil(t, verifier.authOptions["docker.io"])
+	assert.NotNil(t, verifier.authOptions["other.io"])
+	assert.Nil(t, verifier.authOptions["nopassword.io"])
+	assert.Nil(t, verifier.authOptions["nousername.io"])
+	assert.Nil(t, verifier.authOptions["nil.io"])
 	assert.ElementsMatch(t, expectedIdentites, verifier.allowedIdentities)
 	assert.NotNil(t, verifier.sigstoreFunctions.verifyImageSignatures)
 	assert.NotNil(t, verifier.sigstoreFunctions.verifyImageAttestations)
@@ -377,6 +391,107 @@ func TestVerify(t *testing.T) {
 			expectedError:                 false,
 			expectedVerifyCallCount:       0,
 			expectedAttestationsCallCount: 0,
+		},
+		{
+			name: "fails to extract details from signatures missing cert",
+			configureTest: func(ctx context.Context, _ *ImageVerifier, signatureVerifyFake *fakeCosignVerifySignatureFn, attestationsVerifyFake *fakeCosignVerifyAttestationsFn) {
+				signature := &fakeSignature{
+					payload:         createFakePayload(),
+					base64Signature: "base64signature",
+					bundle:          createFakeBundle(),
+				}
+
+				signatureVerifyFake.Responses = append(signatureVerifyFake.Responses, struct {
+					Signatures     []oci.Signature
+					BundleVerified bool
+					Err            error
+				}{
+					Signatures:     []oci.Signature{signature},
+					BundleVerified: true,
+					Err:            nil,
+				})
+				attestationsVerifyFake.Responses = append(attestationsVerifyFake.Responses, struct {
+					Signatures     []oci.Signature
+					BundleVerified bool
+					Err            error
+				}{
+					Signatures:     []oci.Signature{signature},
+					BundleVerified: true,
+					Err:            nil,
+				})
+			},
+			expectedSelectors:             nil,
+			expectedError:                 true,
+			expectedVerifyCallCount:       1,
+			expectedAttestationsCallCount: 1,
+		},
+		{
+			name: "fails to extract details from signatures missing cert subject",
+			configureTest: func(ctx context.Context, _ *ImageVerifier, signatureVerifyFake *fakeCosignVerifySignatureFn, attestationsVerifyFake *fakeCosignVerifyAttestationsFn) {
+				signature := &fakeSignature{
+					payload:         createFakePayload(),
+					base64Signature: "base64signature",
+					cert:            createSubjectlessTestCert(),
+					bundle:          createFakeBundle(),
+				}
+
+				signatureVerifyFake.Responses = append(signatureVerifyFake.Responses, struct {
+					Signatures     []oci.Signature
+					BundleVerified bool
+					Err            error
+				}{
+					Signatures:     []oci.Signature{signature},
+					BundleVerified: true,
+					Err:            nil,
+				})
+				attestationsVerifyFake.Responses = append(attestationsVerifyFake.Responses, struct {
+					Signatures     []oci.Signature
+					BundleVerified bool
+					Err            error
+				}{
+					Signatures:     []oci.Signature{signature},
+					BundleVerified: true,
+					Err:            nil,
+				})
+			},
+			expectedSelectors:             nil,
+			expectedError:                 true,
+			expectedVerifyCallCount:       1,
+			expectedAttestationsCallCount: 1,
+		},
+		{
+			name: "fails to extract details from signatures empty names cert subject",
+			configureTest: func(ctx context.Context, _ *ImageVerifier, signatureVerifyFake *fakeCosignVerifySignatureFn, attestationsVerifyFake *fakeCosignVerifyAttestationsFn) {
+				signature := &fakeSignature{
+					payload:         createFakePayload(),
+					base64Signature: "base64signature",
+					cert:            createEmptynamesTestCert(),
+					bundle:          createFakeBundle(),
+				}
+
+				signatureVerifyFake.Responses = append(signatureVerifyFake.Responses, struct {
+					Signatures     []oci.Signature
+					BundleVerified bool
+					Err            error
+				}{
+					Signatures:     []oci.Signature{signature},
+					BundleVerified: true,
+					Err:            nil,
+				})
+				attestationsVerifyFake.Responses = append(attestationsVerifyFake.Responses, struct {
+					Signatures     []oci.Signature
+					BundleVerified bool
+					Err            error
+				}{
+					Signatures:     []oci.Signature{signature},
+					BundleVerified: true,
+					Err:            nil,
+				})
+			},
+			expectedSelectors:             nil,
+			expectedError:                 true,
+			expectedVerifyCallCount:       1,
+			expectedAttestationsCallCount: 1,
 		},
 	}
 
@@ -699,6 +814,32 @@ func createTestCert() *x509.Certificate {
 			CommonName: "test-common-name",
 		},
 		DNSNames: []string{"test-subject-san", "another-san"},
+		Extensions: []pkix.Extension{
+			{
+				Id:    []int{1, 3, 6, 1, 4, 1, 57264, 1, 1}, // OIDC issuer OID
+				Value: []byte("test-issuer"),
+			},
+		},
+	}
+}
+
+func createSubjectlessTestCert() *x509.Certificate {
+	return &x509.Certificate{
+		Extensions: []pkix.Extension{
+			{
+				Id:    []int{1, 3, 6, 1, 4, 1, 57264, 1, 1}, // OIDC issuer OID
+				Value: []byte("test-issuer"),
+			},
+		},
+	}
+}
+
+func createEmptynamesTestCert() *x509.Certificate {
+	return &x509.Certificate{
+		Subject: pkix.Name{
+			CommonName: "",
+		},
+		DNSNames: []string{""},
 		Extensions: []pkix.Extension{
 			{
 				Id:    []int{1, 3, 6, 1, 4, 1, 57264, 1, 1}, // OIDC issuer OID
