@@ -16,6 +16,7 @@ import (
 )
 
 func TestSetupTrustBundle(t *testing.T) {
+	testTrustBundlePath := path.Join(util.ProjectRoot(), "conf/agent/dummy_root_ca.crt")
 	testTBSPIFFE := `{
     "keys": [
         {
@@ -48,14 +49,14 @@ func TestSetupTrustBundle(t *testing.T) {
 			msg:               "from file",
 			insecureBootstrap: false,
 			error:             false,
-			trustBundlePath:   "conf/agent/dummy_root_ca.crt",
+			trustBundlePath:   testTrustBundlePath,
 			trustBundleFormat: BundleFormatPEM,
 		},
 		{
 			msg:               "from file wrong format",
 			insecureBootstrap: false,
 			error:             true,
-			trustBundlePath:   "conf/agent/dummy_root_ca.crt",
+			trustBundlePath:   testTrustBundlePath,
 			trustBundleFormat: BundleFormatSPIFFE,
 		},
 		{
