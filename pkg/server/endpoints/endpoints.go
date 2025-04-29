@@ -55,7 +55,7 @@ const (
 	defaultPruneEventsOlderThan = 12 * time.Hour
 
 	// This is the default amount of time to wait for an event before giving up
-	defaultEventTimeout = 5 * time.Minute
+	defaultEventTimeout = 15 * time.Minute
 )
 
 // Server manages gRPC and HTTP endpoint lifecycle
