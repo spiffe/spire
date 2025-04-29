@@ -305,6 +305,9 @@ func (s *Service) mintJWTSVID(ctx context.Context, protoID *types.SPIFFEID, audi
 	}
 
 	log = log.WithField(telemetry.SPIFFEID, id.String())
+	rpccontext.AddRPCAuditFields(ctx, logrus.Fields{
+		telemetry.SPIFFEID: id,
+	})
 
 	if len(audience) == 0 {
 		return nil, api.MakeErr(log, codes.InvalidArgument, "at least one audience is required", nil)
