@@ -123,6 +123,10 @@ func (b *Bundle) GetStartTime() (time.Time, error) {
 	return b.startTime, err
 }
 
+func (b *Bundle) IsStarted() bool {
+	return !b.startTime.IsZero()
+}
+
 func (b *Bundle) IsBootstrap() bool {
 	return b.use != UseRebootstrap
 }

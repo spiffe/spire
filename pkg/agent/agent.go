@@ -100,6 +100,16 @@ func (a *Agent) Run(ctx context.Context) error {
 	defer cat.Close()
 
 	healthChecker := health.NewChecker(a.c.HealthChecks, a.c.Log)
+	if err := healthChecker.AddCheck("agent", a); err != nil {
+		return fmt.Errorf("failed adding healthcheck: %w", err)
+	}
+	//FIXME KMF...
+	tasks := []func(context.Context) error{
+		healthChecker.ListenAndServe,
+	}
+	go func() {
+		_ = util.RunTasks(ctx, tasks...)
+	}()
 
 	nodeAttestor := nodeattestor.JoinToken(a.c.Log, a.c.JoinToken)
 	if a.c.JoinToken == "" {
@@ -225,17 +235,12 @@ func (a *Agent) Run(ctx context.Context) error {
 
 	endpoints := a.newEndpoints(metrics, manager, workloadAttestor)
 
-	if err := healthChecker.AddCheck("agent", a); err != nil {
-		return fmt.Errorf("failed adding healthcheck: %w", err)
-	}
-
-	tasks := []func(context.Context) error{
+	tasks = []func(context.Context) error{
 		manager.Run,
 		storeService.Run,
 		endpoints.ListenAndServe,
 		metrics.ListenAndServe,
 		catalog.ReconfigureTask(a.c.Log.WithField(telemetry.SubsystemName, "reconfigurer"), cat),
-		healthChecker.ListenAndServe,
 	}
 
 	if a.c.AdminBindAddress != nil {
@@ -477,18 +482,19 @@ func (a *Agent) newAdminEndpoints(metrics telemetry.Metrics, mgr manager.Manager
 func (a *Agent) CheckHealth() health.State {
 	err := a.checkWorkloadAPI()
 
+	isStarted := a.c.TrustBundleSources.IsStarted()
 	// Both liveness and readiness checks are done by
 	// agents ability to create new Workload API client
 	// for the X509SVID service.
 	// TODO: Better live check for agent.
 	return health.State{
 		Ready: err == nil,
-		Live:  err == nil,
+		Live:  (isStarted || err == nil),
 		ReadyDetails: agentHealthDetails{
-			WorkloadAPIErr: errString(err),
+			WorkloadAPIErr: errString(false, err),
 		},
 		LiveDetails: agentHealthDetails{
-			WorkloadAPIErr: errString(err),
+			WorkloadAPIErr: errString(isStarted, err),
 		},
 	}
 }
@@ -512,7 +518,10 @@ type agentHealthDetails struct {
 	WorkloadAPIErr string `json:"make_new_x509_err,omitempty"`
 }
 
-func errString(err error) string {
+func errString(supress bool, err error) string {
+	if supress {
+		return ""
+	}
 	if err != nil {
 		return err.Error()
 	}
