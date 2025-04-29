@@ -32,6 +32,7 @@ help:
 	@echo "  $(cyan)race-test$(reset)                             - run unit tests with race detection"
 	@echo "  $(cyan)integration$(reset)                           - run integration tests (requires Docker images)"
 	@echo "                                          support 'SUITES' variable for executing specific tests"
+	@echo "                                          and 'IGNORE_SUITES' variable for ignoring tests"
 	@echo "                                          e.g. SUITES='suites/join-token suites/k8s' make integration"
 	@echo "  $(cyan)integration-windows$(reset)                   - run integration tests for windows (requires Docker images)"
 	@echo "                                          support 'SUITES' variable for executing specific tests"
@@ -102,6 +103,8 @@ arch2=ppc64le
 else
 $(error unsupported ARCH: $(arch1))
 endif
+
+ignore_suites := $(IGNORE_SUITES)
 
 ############################################################################
 # Docker TLS detection for buildx
@@ -309,11 +312,11 @@ integration:
 ifeq ($(os1), windows)
 	$(error Integration tests are not supported on windows)
 else
-	$(E)$(go_path) ./test/integration/test.sh $(SUITES)
+	$(E)$(go_path) IGNORE_SUITES='$(ignore_suites)' ./test/integration/test.sh $(SUITES)
 endif
 
 integration-windows:
-	$(E)$(go_path) ./test/integration/test-windows.sh $(SUITES)
+	$(E)$(go_path) IGNORE_SUITES='$(ignore_suites)' ./test/integration/test-windows.sh $(SUITES)
 
 #############################################################################
 # Docker Images
