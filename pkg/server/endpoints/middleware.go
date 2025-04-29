@@ -183,6 +183,7 @@ func RateLimits(config RateLimitConfig) map[string]api.RateLimiter {
 		"/spire.api.server.localauthority.v1.LocalAuthority/RevokeX509Authority":         noLimit,
 		"/spire.api.server.localauthority.v1.LocalAuthority/RevokeX509UpstreamAuthority": noLimit,
 		"/grpc.health.v1.Health/Check":                                                   noLimit,
+		"/grpc.health.v1.Health/List":                                                    noLimit,
 		"/grpc.health.v1.Health/Watch":                                                   noLimit,
 	}
 }
