@@ -112,15 +112,15 @@ func (a *AuthorizedEntryFetcherWithEventsBasedCache) updateCache(ctx context.Con
 	return errors.Join(updateRegistrationEntriesCacheErr, updateAttestedNodesCacheErr)
 }
 
-func buildCache(ctx context.Context, log logrus.FieldLogger, metrics telemetry.Metrics, ds datastore.DataStore, clk clock.Clock, cacheReloadInterval, sqlTransactionTimeout time.Duration) (*authorizedentries.Cache, *registrationEntries, *attestedNodes, error) {
+func buildCache(ctx context.Context, log logrus.FieldLogger, metrics telemetry.Metrics, ds datastore.DataStore, clk clock.Clock, cacheReloadInterval, eventTimeout time.Duration) (*authorizedentries.Cache, *registrationEntries, *attestedNodes, error) {
 	cache := authorizedentries.NewCache(clk)
 
-	registrationEntries, err := buildRegistrationEntriesCache(ctx, log, metrics, ds, clk, cache, pageSize, cacheReloadInterval, sqlTransactionTimeout)
+	registrationEntries, err := buildRegistrationEntriesCache(ctx, log, metrics, ds, clk, cache, pageSize, cacheReloadInterval, eventTimeout)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
-	attestedNodes, err := buildAttestedNodesCache(ctx, log, metrics, ds, clk, cache, cacheReloadInterval, sqlTransactionTimeout)
+	attestedNodes, err := buildAttestedNodesCache(ctx, log, metrics, ds, clk, cache, cacheReloadInterval, eventTimeout)
 	if err != nil {
 		return nil, nil, nil, err
 	}

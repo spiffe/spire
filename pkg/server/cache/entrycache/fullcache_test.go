@@ -718,7 +718,7 @@ func buildBenchmarkData() ([]*types.Entry, []Agent) {
 	var workloadEntries1 []*types.Entry
 	for i := range 300 {
 		workloadEntries1 = append(workloadEntries1, &types.Entry{
-			Id: fmt.Sprintf("workload%d", i),
+			Id: fmt.Sprintf("alias1_workload%d", i),
 			SpiffeId: &types.SPIFFEID{
 				TrustDomain: "domain.test",
 				Path:        fmt.Sprintf("/workload%d", i),
@@ -733,7 +733,7 @@ func buildBenchmarkData() ([]*types.Entry, []Agent) {
 	var workloadEntries2 []*types.Entry
 	for i := range 300 {
 		workloadEntries2 = append(workloadEntries2, &types.Entry{
-			Id: fmt.Sprintf("workload%d", i),
+			Id: fmt.Sprintf("alias2_workload%d", i),
 			SpiffeId: &types.SPIFFEID{
 				TrustDomain: "domain.test",
 				Path:        fmt.Sprintf("/workload%d", i),

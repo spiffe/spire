@@ -447,7 +447,7 @@ func TestSearchBeforeFirstEntryEvent(t *testing.T) {
 				registrationEntryEvents: defaultRegistrationEntryEventsStartingAt60,
 			},
 
-			waitToPoll: time.Duration(2) * defaultSQLTransactionTimeout,
+			waitToPoll: time.Duration(2) * defaultEventTimeout,
 			// even with new before first events, they shouldn't load
 			polledEvents: []*datastore.RegistrationEntryEvent{
 				{
@@ -2025,7 +2025,7 @@ func NewEntryScenario(t *testing.T, setup *entryScenarioSetup) *entryScenario {
 }
 
 func (s *entryScenario) buildRegistrationEntriesCache() (*registrationEntries, error) {
-	registrationEntries, err := buildRegistrationEntriesCache(s.ctx, s.log, s.metrics, s.ds, s.clk, s.cache, s.pageSize, defaultCacheReloadInterval, defaultSQLTransactionTimeout)
+	registrationEntries, err := buildRegistrationEntriesCache(s.ctx, s.log, s.metrics, s.ds, s.clk, s.cache, s.pageSize, defaultCacheReloadInterval, defaultEventTimeout)
 	if registrationEntries != nil {
 		// clear out the fetches
 		for entry := range registrationEntries.fetchEntries {
