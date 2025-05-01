@@ -43,8 +43,8 @@ import (
 
 const (
 	bootstrapBackoffInterval = 5 * time.Second
-	// FIXME KMF what to do...
-	bootstrapBackoffMaxElapsedTime = 24 * time.Hour // 1 *time.Minute
+	bootstrapBackoffMaxElapsedTime = 1 *time.Minute
+	rebootstrapBackoffMaxElapsedTime = 24 * time.Hour
 )
 
 type Agent struct {
@@ -137,11 +137,14 @@ func (a *Agent) Run(ctx context.Context) error {
 
 	if a.c.RetryBootstrap {
 		attBackoffClock := clock.New()
+		backoffTime := bootstrapBackoffMaxElapsedTime
+		if a.c.RebootstrapMode != RebootstrapNever {
+			backoffTime = rebootstrapBackoffMaxElapsedTime
+		}
 		attBackoff := backoff.NewBackoff(
 			attBackoffClock,
 			bootstrapBackoffInterval,
-			backoff.WithMaxElapsedTime(bootstrapBackoffMaxElapsedTime),
-			// FIXME KMF how to ignore max time if rebootstrapping
+			backoff.WithMaxElapsedTime(backoffTime),
 		)
 
 		for {
@@ -372,11 +375,14 @@ func (a *Agent) newManager(ctx context.Context, sto storage.Storage, cat catalog
 	mgr := manager.New(config)
 	if a.c.RetryBootstrap {
 		initBackoffClock := clock.New()
+		backoffTime := bootstrapBackoffMaxElapsedTime
+		if a.c.RebootstrapMode != RebootstrapNever {
+			backoffTime = rebootstrapBackoffMaxElapsedTime
+		}
 		initBackoff := backoff.NewBackoff(
 			initBackoffClock,
 			bootstrapBackoffInterval,
-			backoff.WithMaxElapsedTime(bootstrapBackoffMaxElapsedTime),
-			// FIXME KMF how to ignore max time if rebootstrapping
+			backoff.WithMaxElapsedTime(backoffTime),
 		)
 
 		for {

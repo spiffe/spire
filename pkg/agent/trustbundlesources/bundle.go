@@ -30,7 +30,6 @@ type Bundle struct {
 	lastBundle         []*x509.Certificate
 }
 
-// FIXME KMF take in state interface...
 func New(config *Config, log logrus.FieldLogger) *Bundle {
 	return &Bundle{
 		config: config,
