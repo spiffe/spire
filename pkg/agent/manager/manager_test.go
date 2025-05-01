@@ -1331,6 +1331,7 @@ func TestSyncFailsWithUnknownAuthority(t *testing.T) {
 	err := tbs.SetStorage(sto)
 	require.NoError(t, err)
 
+	rebootstrapDelay, _ := time.ParseDuration("10m")
 	c := &Config{
 		ServerAddr:         api.addr,
 		SVID:               baseSVID,
@@ -1338,6 +1339,8 @@ func TestSyncFailsWithUnknownAuthority(t *testing.T) {
 		Log:                testLogger,
 		TrustDomain:        trustDomain,
 		TrustBundleSources: tbs,
+		RebootstrapMode:    "never",
+		RebootstrapDelay:   rebootstrapDelay,
 		Storage:            sto,
 		Bundle:             api.bundle,
 		Metrics:            &telemetry.Blackhole{},

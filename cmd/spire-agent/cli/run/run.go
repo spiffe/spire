@@ -391,15 +391,17 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 		return nil, err
 	}
 
-	switch ac.RebootstrapMode {
+	switch c.Agent.RebootstrapMode {
 	case agent.RebootstrapNever:
 	case agent.RebootstrapAuto:
 	case agent.RebootstrapAlways:
+	case "":
+		c.Agent.RebootstrapMode = agent.RebootstrapNever
 	default:
-		return nil, fmt.Errorf("unknown rebootstrap mode specified: %s", ac.RebootstrapMode)
+		return nil, fmt.Errorf("unknown rebootstrap mode specified: %s", c.Agent.RebootstrapMode)
 	}
 
-	if ac.RebootstrapMode != agent.RebootstrapNever {
+	if c.Agent.RebootstrapMode != agent.RebootstrapNever {
 		//Force on RetryBootstrap until removed in 1.14.0
 		c.Agent.RetryBootstrap = true
 
@@ -407,6 +409,9 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 
 	ac.RetryBootstrap = c.Agent.RetryBootstrap
 
+	if c.Agent.RebootstrapDelay == "" {
+		c.Agent.RebootstrapDelay = "10m"
+	}
 	delay, err := time.ParseDuration(c.Agent.RebootstrapDelay)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing rebootstrap delay duration: %w", err)
