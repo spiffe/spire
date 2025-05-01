@@ -402,9 +402,8 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 	}
 
 	if c.Agent.RebootstrapMode != agent.RebootstrapNever {
-		//Force on RetryBootstrap until removed in 1.14.0
+		// Force on RetryBootstrap until removed in 1.14.0
 		c.Agent.RetryBootstrap = true
-
 	}
 
 	ac.RetryBootstrap = c.Agent.RetryBootstrap
