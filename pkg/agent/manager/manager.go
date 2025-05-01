@@ -332,7 +332,7 @@ func (m *manager) runSynchronizer(ctx context.Context) error {
 		}
 		switch {
 		case x509util.IsUnknownAuthorityError(err):
-			if m.c.RebootstrapDelay == nil {
+			if m.c.RebootstrapMode == "never" {
 				m.c.Log.WithError(err).Info("Synchronize failed, non-recoverable error")
 				return fmt.Errorf("failed to sync with SPIRE Server: %w", err)
 			}
@@ -341,8 +341,8 @@ func (m *manager) runSynchronizer(ctx context.Context) error {
 				return err
 			}
 			seconds := time.Since(startTime)
-			if seconds < *m.c.RebootstrapDelay {
-				fmt.Printf("Trust Bandle and Server dont agree.... Ignoring for now. Rebootstrap timeout left: %s\n", *m.c.RebootstrapDelay-seconds)
+			if seconds < m.c.RebootstrapDelay {
+				fmt.Printf("Trust Bandle and Server dont agree.... Ignoring for now. Rebootstrap timeout left: %s\n", m.c.RebootstrapDelay-seconds)
 			} else {
 				fmt.Printf("Trust Bandle and Server dont agree.... rebootstrapping")
 				err = m.c.TrustBundleSources.SetForceRebootstrap()

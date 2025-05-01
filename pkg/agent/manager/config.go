@@ -36,7 +36,8 @@ type Config struct {
 	ServerAddr               string
 	Storage                  storage.Storage
 	TrustBundleSources       *trustbundlesources.Bundle
-	RebootstrapDelay         *time.Duration
+	RebootstrapMode          string
+	RebootstrapDelay         time.Duration
 	WorkloadKeyType          workloadkey.KeyType
 	SyncInterval             time.Duration
 	UseSyncAuthorizedEntries bool

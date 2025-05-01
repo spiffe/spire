@@ -68,7 +68,7 @@ type agentConfig struct {
 	AdminSocketPath               string    `hcl:"admin_socket_path"`
 	InsecureBootstrap             bool      `hcl:"insecure_bootstrap"`
 	RetryBootstrap                bool      `hcl:"retry_bootstrap"`
-	Rebootstrap                   bool      `hcl:"rebootstrap"`
+	RebootstrapMode               string    `hcl:"rebootstrap_mode"`
 	RebootstrapDelay              string    `hcl:"rebootstrap_delay"`
 	JoinToken                     string    `hcl:"join_token"`
 	LogFile                       string    `hcl:"log_file"`
@@ -348,7 +348,7 @@ func parseFlags(name string, args []string, output io.Writer) (*agentConfig, err
 	flags.BoolVar(&c.AllowUnauthenticatedVerifiers, "allowUnauthenticatedVerifiers", false, "If true, the agent permits the retrieval of X509 certificate bundles by unregistered clients")
 	flags.BoolVar(&c.InsecureBootstrap, "insecureBootstrap", false, "If true, the agent bootstraps without verifying the server's identity")
 	flags.BoolVar(&c.RetryBootstrap, "retryBootstrap", false, "If true, the agent retries bootstrap with backoff")
-	flags.BoolVar(&c.Rebootstrap, "rebootstrap", false, "If true, the agent will retry bootstrapping after seeing an x509 cert mismatch from the server")
+	flags.StringVar(&c.RebootstrapMode, "rebootstrapMode", "never", "Can be one of 'never', 'auto', or 'always'")
 	flags.StringVar(&c.RebootstrapDelay, "rebootstrapDelay", "10m", "The time to delay after seeing a x509 cert mismatch from the server before rebootstrapping")
 	flags.BoolVar(&c.ExpandEnv, "expandEnv", false, "Expand environment variables in SPIRE config file")
 
@@ -391,19 +391,30 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 		return nil, err
 	}
 
+	switch ac.RebootstrapMode {
+	case agent.RebootstrapNever:
+	case agent.RebootstrapAuto:
+	case agent.RebootstrapAlways:
+	default:
+		return nil, fmt.Errorf("unknown rebootstrap mode specified: %s", ac.RebootstrapMode)
+	}
+
+	if ac.RebootstrapMode != agent.RebootstrapNever {
+		//Force on RetryBootstrap until removed in 1.14.0
+		c.Agent.RetryBootstrap = true
+
+	}
+
 	ac.RetryBootstrap = c.Agent.RetryBootstrap
-	if c.Agent.Rebootstrap {
-		delay, err := time.ParseDuration(c.Agent.RebootstrapDelay)
-		if err != nil {
-			return nil, fmt.Errorf("error parsing duration: %w", err)
-		}
-		ac.RebootstrapDelay = &delay
-		if !ac.RetryBootstrap {
-			return nil, fmt.Errorf("RetryBootstrap needs to be true to support rebootstrapping")
-		}
-		if c.Agent.InsecureBootstrap {
-			return nil, fmt.Errorf("InsecureBootstrap can not be used with rebootstrapping")
-		}
+
+	delay, err := time.ParseDuration(c.Agent.RebootstrapDelay)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing rebootstrap delay duration: %w", err)
+	}
+	ac.RebootstrapMode = c.Agent.RebootstrapMode
+	ac.RebootstrapDelay = delay
+	if ac.RebootstrapMode != agent.RebootstrapNever && c.Agent.InsecureBootstrap {
+		return nil, fmt.Errorf("InsecureBootstrap can not be used with rebootstrapping")
 	}
 
 	if c.Agent.Experimental.SyncInterval != "" {

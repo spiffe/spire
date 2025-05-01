@@ -123,10 +123,15 @@ func (a *Agent) Run(ctx context.Context) error {
 		return err
 	}
 
-	if a.c.RebootstrapDelay != nil {
+	if a.c.RebootstrapMode != RebootstrapNever {
 		_, reattestable, err := sto.LoadSVID()
 		if err == nil && !reattestable {
-			return fmt.Errorf("You have requested rebootstrap support but the NodeAttestor plugin or the spire server configuration is not allowing it.")
+			if a.c.RebootstrapMode == RebootstrapAlways {
+				return fmt.Errorf("You have requested rebootstrap support but the NodeAttestor plugin or the spire server configuration is not allowing it.")
+			} else {
+				fmt.Printf("You have requested rebootstrap support but the NodeAttestor plugin or the spire server configuration is not allowing it. Disabling.")
+				a.c.RebootstrapMode = RebootstrapNever
+			}
 		}
 	}
 
@@ -152,10 +157,15 @@ func (a *Agent) Run(ctx context.Context) error {
 					if err != nil {
 						return err
 					}
-					if a.c.RebootstrapDelay != nil {
+					if a.c.RebootstrapMode != RebootstrapNever {
 						_, reattestable, err := sto.LoadSVID()
 						if err == nil && !reattestable {
-							return fmt.Errorf("You have requested rebootstrap support but the NodeAttestor plugin or the spire server configuration is not allowing it.")
+							if a.c.RebootstrapMode == RebootstrapAlways {
+								return fmt.Errorf("You have requested rebootstrap support but the NodeAttestor plugin or the spire server configuration is not allowing it.")
+							} else {
+								fmt.Printf("You have requested rebootstrap support but the NodeAttestor plugin or the spire server configuration is not allowing it. Disabling.")
+								a.c.RebootstrapMode = RebootstrapNever
+							}
 						}
 					}
 					break
@@ -164,14 +174,14 @@ func (a *Agent) Run(ctx context.Context) error {
 				if x509util.IsUnknownAuthorityError(err) {
 					if a.c.TrustBundleSources.IsBootstrap() {
 						fmt.Printf("Trust Bandle and Server dont agree.... bootstrapping again")
-					} else if a.c.RebootstrapDelay != nil {
+					} else if a.c.RebootstrapMode != RebootstrapNever {
 						startTime, err := a.c.TrustBundleSources.GetStartTime()
 						if err != nil {
 							return nil
 						}
 						seconds := time.Since(startTime)
-						if seconds < *a.c.RebootstrapDelay {
-							fmt.Printf("Trust Bandle and Server dont agree.... Ignoring for now. Rebootstrap timeout left: %s\n", *a.c.RebootstrapDelay-seconds)
+						if seconds < a.c.RebootstrapDelay {
+							fmt.Printf("Trust Bandle and Server dont agree.... Ignoring for now. Rebootstrap timeout left: %s\n", a.c.RebootstrapDelay-seconds)
 						} else {
 							fmt.Printf("Trust Bandle and Server dont agree.... rebootstrapping\n")
 							err = sto.StoreBundle(nil)
@@ -347,6 +357,7 @@ func (a *Agent) newManager(ctx context.Context, sto storage.Storage, cat catalog
 		WorkloadKeyType:          a.c.WorkloadKeyType,
 		Storage:                  sto,
 		TrustBundleSources:       a.c.TrustBundleSources,
+		RebootstrapMode:          a.c.RebootstrapMode,
 		RebootstrapDelay:         a.c.RebootstrapDelay,
 		SyncInterval:             a.c.SyncInterval,
 		UseSyncAuthorizedEntries: a.c.UseSyncAuthorizedEntries,
@@ -377,14 +388,14 @@ func (a *Agent) newManager(ctx context.Context, sto storage.Storage, cat catalog
 				}
 				return mgr, nil
 			}
-			if x509util.IsUnknownAuthorityError(err) && a.c.RebootstrapDelay != nil {
+			if x509util.IsUnknownAuthorityError(err) && a.c.RebootstrapMode != RebootstrapNever {
 				startTime, err := a.c.TrustBundleSources.GetStartTime()
 				if err != nil {
 					return nil, err
 				}
 				seconds := time.Since(startTime)
-				if seconds < *a.c.RebootstrapDelay {
-					fmt.Printf("Trust Bandle and Server dont agree.... Ignoring for now. Rebootstrap timeout left: %s\n", *a.c.RebootstrapDelay-seconds)
+				if seconds < a.c.RebootstrapDelay {
+					fmt.Printf("Trust Bandle and Server dont agree.... Ignoring for now. Rebootstrap timeout left: %s\n", a.c.RebootstrapDelay-seconds)
 				} else {
 					fmt.Printf("Trust Bandle and Server dont agree.... rebootstrapping")
 					err = a.c.TrustBundleSources.SetForceRebootstrap()
