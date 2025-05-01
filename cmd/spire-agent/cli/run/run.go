@@ -2,6 +2,7 @@ package run
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"flag"
 	"fmt"
@@ -398,7 +399,7 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 	case "":
 		c.Agent.RebootstrapMode = agent.RebootstrapNever
 	default:
-		return nil, fmt.Errorf("unknown rebootstrap mode specified: %s", c.Agent.RebootstrapMode)
+		return nil, fmt.Errorf("unknown rebootstrap mode specified: %s", base64.StdEncoding.EncodeToString(c.Agent.RebootstrapMode))
 	}
 
 	if c.Agent.RebootstrapMode != agent.RebootstrapNever {
