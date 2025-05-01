@@ -119,6 +119,7 @@ There are two options that relate to rebootstrapping
 The other option is `rebootstrap_delay`. It defaults to `10m`. This is the duration to wait between when a server is first seen that isn't trusted by the agents trust bundle and when to start the rebootstrapping process. No rebootstrappign is allowed during this delay period. If a secure server connection is established successfully during this delay period, the delay clock will be reset.
 
 Considerations for `rebootstra_delay` configuration:
+
 * In an environment where it is possible for someone to attempt a man in the middle attack between the agent and server, having the duration higher will minimize agent unavailability due to needless reboostrapping
 * Having the duration lower will allow for faster recovery of agent trust when it was offline too long or the server needed to be reinstalled in away that couldn't allow continuity in the trust bundle.
 
@@ -135,13 +136,13 @@ Considerations for `rebootstra_delay` configuration:
 
 These are the available profiles that can be set in the `profiling_names` configuration value:
 
-- `goroutine`
-- `threadcreate`
-- `heap`
-- `block`
-- `mutex`
-- `trace`
-- `cpu`
+* `goroutine`
+* `threadcreate`
+* `heap`
+* `block`
+* `mutex`
+* `trace`
+* `cpu`
 
 ### Availability Target
 
