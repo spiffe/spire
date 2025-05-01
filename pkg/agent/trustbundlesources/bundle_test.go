@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 	"testing"
 
-        "github.com/sirupsen/logrus/hooks/test"
+	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/pkg/agent/storage"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/util"
@@ -103,7 +103,7 @@ func TestGetBundle(t *testing.T) {
 			}
 			log, _ := test.NewNullLogger()
 			tbs := New(&c, log)
-		        dir := spiretest.TempDir(t)
+			dir := spiretest.TempDir(t)
 			sto := openStorage(t, dir)
 			err = tbs.SetStorage(sto)
 			require.NoError(t, err)
@@ -267,7 +267,7 @@ func TestDownloadTrustBundle(t *testing.T) {
 }
 
 func openStorage(t *testing.T, dir string) storage.Storage {
-        sto, err := storage.Open(dir)
-        require.NoError(t, err)
-        return sto
+	sto, err := storage.Open(dir)
+	require.NoError(t, err)
+	return sto
 }

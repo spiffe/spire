@@ -42,8 +42,8 @@ import (
 )
 
 const (
-	bootstrapBackoffInterval = 5 * time.Second
-	bootstrapBackoffMaxElapsedTime = 1 *time.Minute
+	bootstrapBackoffInterval         = 5 * time.Second
+	bootstrapBackoffMaxElapsedTime   = 1 * time.Minute
 	rebootstrapBackoffMaxElapsedTime = 24 * time.Hour
 )
 
@@ -103,7 +103,7 @@ func (a *Agent) Run(ctx context.Context) error {
 	if err := healthChecker.AddCheck("agent", a); err != nil {
 		return fmt.Errorf("failed adding healthcheck: %w", err)
 	}
-	//FIXME KMF...
+	// FIXME KMF...
 	tasks := []func(context.Context) error{
 		healthChecker.ListenAndServe,
 	}
@@ -535,8 +535,8 @@ type agentHealthDetails struct {
 	WorkloadAPIErr string `json:"make_new_x509_err,omitempty"`
 }
 
-func errString(supress bool, err error) string {
-	if supress {
+func errString(suppress bool, err error) string {
+	if suppress {
 		return ""
 	}
 	if err != nil {
