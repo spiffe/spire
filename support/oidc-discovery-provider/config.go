@@ -327,7 +327,7 @@ func ParseConfig(hclConfig string) (_ *Config, err error) {
 
 	switch methodCount {
 	case 0:
-		return nil, errors.New("only one of the server_api, workload_api, or file sections must be configured")
+		return nil, errors.New("exactly one of the server_api, workload_api, or file sections must be configured")
 	case 1:
 	default:
 		return nil, errors.New("the server_api, workload_api, and file sections are mutually exclusive")

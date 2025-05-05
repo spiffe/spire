@@ -16,10 +16,7 @@ import (
 func TestFileSource(t *testing.T) {
 	const pollInterval = time.Second
 
-	tempDir, err := os.MkdirTemp("", "testdir-*")
-	require.NoError(t, err)
-
-	defer os.RemoveAll(tempDir)
+	tempDir := t..TempDir()
 
 	path := filepath.Join(tempDir, "file.spiffe")
 
