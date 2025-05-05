@@ -16,7 +16,7 @@ import (
 func TestFileSource(t *testing.T) {
 	const pollInterval = time.Second
 
-	tempDir := t..TempDir()
+	tempDir := t.TempDir()
 
 	path := filepath.Join(tempDir, "file.spiffe")
 
@@ -39,7 +39,7 @@ func TestFileSource(t *testing.T) {
 	// Set a bundle without an entry for the trust domain, advance to the next
 	// period, wait for the poll to happen and assert there is no key set
 	// available
-	err = os.WriteFile(path, []byte("{}"), 0600)
+	err := os.WriteFile(path, []byte("{}"), 0600)
 	require.NoError(t, err)
 
 	clock.Add(pollInterval)
