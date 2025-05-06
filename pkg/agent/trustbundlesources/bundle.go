@@ -27,7 +27,7 @@ type Bundle struct {
 	connectionAttempts int
 	startTime          time.Time
 	log                logrus.FieldLogger
-        metrics            telemetry.Metrics
+	metrics            telemetry.Metrics
 	storage            storage.Storage
 	lastBundle         []*x509.Certificate
 }
@@ -225,13 +225,17 @@ func (b *Bundle) updateMetrics() {
 	if b.use != UseRebootstrap {
 		use = "bootstrap"
 	}
+	bootstrapped := 0
+	if b.startTime.IsZero() {
+		bootstrapped = 1
+	}
+	b.metrics.SetGaugeWithLabels([]string{"bootstraped"}, float32(bootstrapped), []telemetry.Label{})
 	b.metrics.SetGaugeWithLabels([]string{"bootstrap_seconds"}, float32(seconds), []telemetry.Label{
-                {Name: "mode", Value: use},
-        })
+		{Name: "mode", Value: use},
+	})
 	b.metrics.SetGaugeWithLabels([]string{"bootstrap_attempts"}, float32(b.connectionAttempts), []telemetry.Label{
-                {Name: "mode", Value: use},
-        })
-
+		{Name: "mode", Value: use},
+	})
 }
 
 func parseTrustBundle(bundleBytes []byte, trustBundleContentType string) ([]*x509.Certificate, error) {
