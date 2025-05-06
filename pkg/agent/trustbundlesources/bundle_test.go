@@ -12,6 +12,7 @@ import (
 
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/pkg/agent/storage"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/require"
@@ -105,6 +106,7 @@ func TestGetBundle(t *testing.T) {
 			tbs := New(&c, log)
 			dir := spiretest.TempDir(t)
 			sto := openStorage(t, dir)
+			tbs.SetMetrics(&telemetry.Blackhole{})
 			err = tbs.SetStorage(sto)
 			require.NoError(t, err)
 

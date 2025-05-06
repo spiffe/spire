@@ -90,6 +90,7 @@ func TestInitializationFailure(t *testing.T) {
 	}
 
 	tbs := trustbundlesources.New(ts, nil)
+	tbs.SetMetrics(&telemetry.Blackhole{})
 	err := tbs.SetStorage(sto)
 	require.NoError(t, err)
 
@@ -1223,6 +1224,7 @@ func TestSyncRetriesWithDefaultIntervalOnZeroSVIDSReturned(t *testing.T) {
 	}
 
 	tbs := trustbundlesources.New(ts, nil)
+	tbs.SetMetrics(&telemetry.Blackhole{})
 	err := tbs.SetStorage(sto)
 	require.NoError(t, err)
 
@@ -1328,6 +1330,7 @@ func TestSyncFailsWithUnknownAuthority(t *testing.T) {
 	}
 
 	tbs := trustbundlesources.New(ts, nil)
+	tbs.SetMetrics(&telemetry.Blackhole{})
 	err := tbs.SetStorage(sto)
 	require.NoError(t, err)
 
