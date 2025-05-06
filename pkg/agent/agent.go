@@ -106,6 +106,7 @@ func (a *Agent) Run(ctx context.Context) error {
 	// FIXME KMF...
 	tasks := []func(context.Context) error{
 		healthChecker.ListenAndServe,
+		metrics.ListenAndServe,
 	}
 	go func() {
 		_ = util.RunTasks(ctx, tasks...)
@@ -252,7 +253,6 @@ func (a *Agent) Run(ctx context.Context) error {
 		manager.Run,
 		storeService.Run,
 		endpoints.ListenAndServe,
-		metrics.ListenAndServe,
 		catalog.ReconfigureTask(a.c.Log.WithField(telemetry.SubsystemName, "reconfigurer"), cat),
 	}
 
