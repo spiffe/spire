@@ -119,6 +119,7 @@ func (a *Agent) Run(ctx context.Context) error {
 
 	var as *node_attestor.AttestationResult
 
+	a.c.TrustBundleSources.SetMetrics(metrics)
 	err = a.c.TrustBundleSources.SetStorage(sto)
 	if err != nil {
 		return err

@@ -18,6 +18,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/storage"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/pemutil"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 )
 
 type Bundle struct {
@@ -26,6 +27,7 @@ type Bundle struct {
 	connectionAttempts int
 	startTime          time.Time
 	log                logrus.FieldLogger
+        metrics            telemetry.Metrics
 	storage            storage.Storage
 	lastBundle         []*x509.Certificate
 }
@@ -35,6 +37,10 @@ func New(config *Config, log logrus.FieldLogger) *Bundle {
 		config: config,
 		log:    log,
 	}
+}
+
+func (b *Bundle) SetMetrics(metrics telemetry.Metrics) {
+	b.metrics = metrics
 }
 
 func (b *Bundle) SetStorage(sto storage.Storage) error {
@@ -50,11 +56,12 @@ func (b *Bundle) SetStorage(sto storage.Storage) error {
 			if !errors.Is(err, storage.ErrNotCached) {
 				return err
 			}
-			b.use = UseRebootstrap
+			b.use = UseBootstrap
 		} else if len(BootstrapTrustBundle) > 0 {
 			b.use = UseRebootstrap
 		}
 	}
+	b.updateMetrics()
 	return err
 }
 
@@ -68,6 +75,7 @@ func (b *Bundle) SetUse(use int) error {
 		if err != nil {
 			return err
 		}
+		b.updateMetrics()
 		return err
 	}
 	return nil
@@ -92,6 +100,7 @@ func (b *Bundle) SetSuccess() error {
 		if err != nil {
 			return err
 		}
+		b.updateMetrics()
 		err = b.storage.StoreBundle(b.lastBundle)
 	}
 	return err
@@ -105,6 +114,7 @@ func (b *Bundle) SetForceRebootstrap() error {
 	if err != nil {
 		return err
 	}
+	b.updateMetrics()
 	err = b.storage.DeleteSVID()
 	if err != nil {
 		return err
@@ -118,6 +128,7 @@ func (b *Bundle) GetStartTime() (time.Time, error) {
 	if b.startTime.IsZero() {
 		b.startTime = time.Now()
 		err = b.storage.StoreBootstrapState(b.use, b.startTime, b.connectionAttempts)
+		b.updateMetrics()
 	}
 	return b.startTime, err
 }
@@ -146,6 +157,7 @@ func (b *Bundle) GetBundle() ([]*x509.Certificate, bool, error) {
 	if err != nil {
 		return nil, false, err
 	}
+	b.updateMetrics()
 
 	switch {
 	case b.config.TrustBundleURL != "":
@@ -205,6 +217,21 @@ func (b *Bundle) GetBundle() ([]*x509.Certificate, bool, error) {
 
 func (b *Bundle) GetInsecureBootstrap() bool {
 	return b.config.InsecureBootstrap
+}
+
+func (b *Bundle) updateMetrics() {
+	seconds := b.startTime.Unix()
+	use := "rebootstrap"
+	if b.use != UseRebootstrap {
+		use = "bootstrap"
+	}
+	b.metrics.SetGaugeWithLabels([]string{"bootstrap_seconds"}, float32(seconds), []telemetry.Label{
+                {Name: "mode", Value: use},
+        })
+	b.metrics.SetGaugeWithLabels([]string{"bootstrap_attempts"}, float32(b.connectionAttempts), []telemetry.Label{
+                {Name: "mode", Value: use},
+        })
+
 }
 
 func parseTrustBundle(bundleBytes []byte, trustBundleContentType string) ([]*x509.Certificate, error) {
