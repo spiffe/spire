@@ -9,8 +9,8 @@
 
 ### Changed
 
-- Default timeout for the event-based cache is now configurable (#5988)
-- Server cache performance enhanced by batching updates to cache entries (#5966)
+- `sql_transaction_timeout` replaced by `event_timeout` and value reduced to 15 minutes (#5966)
+- Events based cache performance improvements by batch fetching updated entries (#5970)
 - Improved error messages when retrieving CGroups (#6030).
 
 ### Fixed
