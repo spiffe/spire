@@ -426,7 +426,7 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 		ac.LogReopener = log.ReopenOnSignal(logger, reopenableFile)
 	}
 
-	if ac.RetryBootstrap {
+	if c.Agent.RetryBootstrap {
 		ac.Log.Warn("The 'retry_bootstrap' configuration is deprecated. It will be enabled by default in SPIRE 1.13 and the option removed in SPIRE 1.14.")
 	}
 
