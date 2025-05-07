@@ -426,6 +426,10 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 		ac.LogReopener = log.ReopenOnSignal(logger, reopenableFile)
 	}
 
+	if ac.RetryBootstrap {
+		ac.Log.Warn("The 'retry_bootstrap' configuration is deprecated. It will be enabled by default in SPIRE 1.13 and the option removed in SPIRE 1.14.")
+	}
+
 	ac.UseSyncAuthorizedEntries = true
 	if c.Agent.Experimental.UseSyncAuthorizedEntries != nil {
 		ac.Log.Warn("The 'use_sync_authorized_entries' configuration is deprecated. The option to disable it will be removed in SPIRE 1.13.")
