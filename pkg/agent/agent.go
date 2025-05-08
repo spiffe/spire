@@ -103,14 +103,12 @@ func (a *Agent) Run(ctx context.Context) error {
 	if err := healthChecker.AddCheck("agent", a); err != nil {
 		return fmt.Errorf("failed adding healthcheck: %w", err)
 	}
-	// FIXME KMF...
 	tasks := []func(context.Context) error{
 		healthChecker.ListenAndServe,
 		metrics.ListenAndServe,
 	}
-	go func() {
-		_ = util.RunTasks(ctx, tasks...)
-	}()
+	taskRunner := util.NewTaskRunner(ctx)
+	taskRunner.StartTasks(tasks...)
 
 	nodeAttestor := nodeattestor.JoinToken(a.c.Log, a.c.JoinToken)
 	if a.c.JoinToken == "" {
@@ -266,7 +264,8 @@ func (a *Agent) Run(ctx context.Context) error {
 		tasks = append(tasks, a.c.LogReopener)
 	}
 
-	err = util.RunTasks(ctx, tasks...)
+	taskRunner.StartTasks(tasks...)
+	err = taskRunner.Wait()
 	if errors.Is(err, context.Canceled) {
 		err = nil
 	}
