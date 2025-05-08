@@ -15,6 +15,7 @@ import (
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
+	"github.com/spiffe/spire/pkg/common/protoutil"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/datastore"
 	sqlds "github.com/spiffe/spire/pkg/server/datastore/sqlstore"
@@ -129,30 +130,6 @@ func TestCache(t *testing.T) {
 	expected := entries[:3]
 	expected = append(expected, entries[4])
 	assertAuthorizedEntries(t, cache, rootID, entries, expected...)
-}
-
-func TestCacheReturnsClonedEntries(t *testing.T) {
-	ds := fakedatastore.New(t)
-
-	expected, err := api.RegistrationEntryToProto(createRegistrationEntry(context.Background(), t, ds, &common.RegistrationEntry{
-		ParentId:  "spiffe://domain.test/node",
-		SpiffeId:  "spiffe://domain.test/workload",
-		Selectors: []*common.Selector{{Type: "T", Value: "V"}},
-		DnsNames:  []string{"dns"},
-	}))
-	require.NoError(t, err)
-
-	cache, err := BuildFromDataStore(context.Background(), ds)
-	require.NoError(t, err)
-
-	actual := cache.GetAuthorizedEntries(spiffeid.RequireFromString("spiffe://domain.test/node"))
-	spiretest.RequireProtoListEqual(t, []*types.Entry{expected}, actual)
-
-	// Now mutate the returned entry, re-fetch, and assert the cache copy was
-	// not altered.
-	actual[0].DnsNames = nil
-	actual = cache.GetAuthorizedEntries(spiffeid.RequireFromString("spiffe://domain.test/node"))
-	spiretest.RequireProtoListEqual(t, []*types.Entry{expected}, actual)
 }
 
 func TestFullCacheNodeAliasing(t *testing.T) {
@@ -434,7 +411,7 @@ func TestFullCacheExcludesNodeSelectorMappedEntriesForExpiredAgents(t *testing.T
 
 	expectedEntry, err := api.RegistrationEntryToProto(workloadEntries[numWorkloadEntries-1])
 	require.NoError(t, err)
-	spiretest.AssertProtoEqual(t, expectedEntry, entries[0])
+	spiretest.AssertProtoEqual(t, expectedEntry, entries[0].Clone(protoutil.AllTrueEntryMask))
 }
 
 func TestBuildIteratorError(t *testing.T) {
@@ -799,7 +776,7 @@ func assertAuthorizedEntries(tb testing.TB, cache Cache, agentID spiffeid.ID, al
 	expected, err := api.RegistrationEntriesToProto(entries)
 	require.NoError(tb, err)
 
-	authorizedEntries := cache.GetAuthorizedEntries(agentID)
+	authorizedEntries := entriesFromReadOnlyEntries(cache.GetAuthorizedEntries(agentID))
 
 	sortEntries(expected)
 	sortEntries(authorizedEntries)
@@ -823,9 +800,17 @@ func assertLookupEntries(tb testing.TB, cache Cache, agentID spiffeid.ID, lookup
 	require.Len(tb, foundEntries, len(entries))
 }
 
+func entriesFromReadOnlyEntries(readOnlyEntries []api.ReadOnlyEntry) []*types.Entry {
+	entries := []*types.Entry{}
+	for _, readOnlyEntry := range readOnlyEntries {
+		entries = append(entries, readOnlyEntry.Clone(protoutil.AllTrueEntryMask))
+	}
+	return entries
+}
+
 func sortEntries(es []*types.Entry) {
 	sort.Slice(es, func(a, b int) bool {
-		return es[a].Id < es[b].Id
+		return es[a].GetId() < es[b].GetId()
 	})
 }
 

@@ -11,11 +11,129 @@ import (
 	"github.com/spiffe/spire/pkg/common/protoutil"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/proto/spire/common"
+	"google.golang.org/protobuf/proto"
 )
 
 const (
 	hintMaximumLength = 1024
 )
+
+type ReadOnlyEntry struct {
+	entry *types.Entry
+}
+
+func NewReadOnlyEntry(entry *types.Entry) ReadOnlyEntry {
+	return ReadOnlyEntry{
+		entry: entry,
+	}
+}
+
+func (e ReadOnlyEntry) GetId() string {
+	return e.entry.Id
+}
+
+func (e *ReadOnlyEntry) GetSpiffeId() *types.SPIFFEID {
+	return &types.SPIFFEID{
+		TrustDomain: e.entry.SpiffeId.TrustDomain,
+		Path:        e.entry.SpiffeId.Path,
+	}
+}
+
+func (e *ReadOnlyEntry) GetX509SvidTtl() int32 {
+	return e.entry.X509SvidTtl
+}
+
+func (e *ReadOnlyEntry) GetJwtSvidTtl() int32 {
+	return e.entry.JwtSvidTtl
+}
+
+func (e *ReadOnlyEntry) GetDnsNames() []string {
+	return slices.Clone(e.entry.DnsNames)
+}
+
+func (e *ReadOnlyEntry) GetRevisionNumber() int64 {
+	return e.entry.RevisionNumber
+}
+
+func (e *ReadOnlyEntry) GetCreatedAt() int64 {
+	return e.entry.CreatedAt
+}
+
+// Manually clone the entry instead of using the protobuf helpers
+// since those are two times slower.
+func (e *ReadOnlyEntry) Clone(mask *types.EntryMask) *types.Entry {
+	if mask == nil {
+		return proto.Clone(e.entry).(*types.Entry)
+	}
+
+	clone := &types.Entry{}
+	clone.Id = e.entry.Id
+	if mask.SpiffeId {
+		clone.SpiffeId = e.GetSpiffeId()
+	}
+
+	if mask.ParentId {
+		clone.ParentId = &types.SPIFFEID{
+			TrustDomain: e.entry.ParentId.TrustDomain,
+			Path:        e.entry.ParentId.Path,
+		}
+	}
+
+	if mask.Selectors {
+		for _, selector := range e.entry.Selectors {
+			clone.Selectors = append(clone.Selectors, &types.Selector{
+				Type:  selector.Type,
+				Value: selector.Value,
+			})
+		}
+	}
+
+	if mask.FederatesWith {
+		clone.FederatesWith = slices.Clone(e.entry.FederatesWith)
+	}
+
+	if mask.Admin {
+		clone.Admin = e.entry.Admin
+	}
+
+	if mask.Downstream {
+		clone.Downstream = e.entry.Admin
+	}
+
+	if mask.ExpiresAt {
+		clone.ExpiresAt = e.entry.ExpiresAt
+	}
+
+	if mask.DnsNames {
+		clone.DnsNames = slices.Clone(e.entry.DnsNames)
+	}
+
+	if mask.RevisionNumber {
+		clone.RevisionNumber = e.entry.RevisionNumber
+	}
+
+	if mask.StoreSvid {
+		clone.StoreSvid = e.entry.StoreSvid
+	}
+
+	if mask.X509SvidTtl {
+		clone.X509SvidTtl = e.entry.X509SvidTtl
+	}
+
+	if mask.JwtSvidTtl {
+		clone.JwtSvidTtl = e.entry.JwtSvidTtl
+	}
+
+	if mask.Hint {
+		clone.Hint = e.entry.Hint
+	}
+
+	if mask.CreatedAt {
+		clone.CreatedAt = e.entry.CreatedAt
+	}
+
+	return clone
+}
 
 // RegistrationEntriesToProto converts RegistrationEntry's into Entry's
 func RegistrationEntriesToProto(es []*common.RegistrationEntry) ([]*types.Entry, error) {
