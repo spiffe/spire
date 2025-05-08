@@ -18,15 +18,6 @@ func ProjectRoot() string {
 	return path.Join(p, "../../../")
 }
 
-// GetRegistrationEntries gets registration entries from a fixture
-func GetRegistrationEntries(fileName string) []*common.RegistrationEntry {
-	regEntries := &common.RegistrationEntries{}
-	path := path.Join(ProjectRoot(), "test/fixture/registration/", fileName)
-	dat, _ := os.ReadFile(path)
-	_ = json.Unmarshal(dat, &regEntries)
-	return regEntries.Entries
-}
-
 // GetRegistrationEntriesMap gets a map of registration entries from a fixture
 func GetRegistrationEntriesMap(fileName string) map[string][]*common.RegistrationEntry {
 	regEntriesMap := map[string]*common.RegistrationEntries{}
