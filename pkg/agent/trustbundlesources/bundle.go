@@ -57,9 +57,6 @@ func (b *Bundle) SetStorage(sto storage.Storage) error {
 				return err
 			}
 			b.use = UseBootstrap
-			if b.startTime.IsZero() {
-				b.startTime = time.Now()
-			}
 		} else if len(BootstrapTrustBundle) > 0 {
 			b.use = UseRebootstrap
 		}
