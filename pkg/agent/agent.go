@@ -49,6 +49,7 @@ const (
 
 type Agent struct {
 	c *Config
+	started bool
 }
 
 // Run the agent
@@ -248,6 +249,7 @@ func (a *Agent) Run(ctx context.Context) error {
 
 	endpoints := a.newEndpoints(metrics, manager, workloadAttestor)
 
+	a.started = true
 	tasks = []func(context.Context) error{
 		manager.Run,
 		storeService.Run,
@@ -499,19 +501,19 @@ func (a *Agent) newAdminEndpoints(metrics telemetry.Metrics, mgr manager.Manager
 func (a *Agent) CheckHealth() health.State {
 	err := a.checkWorkloadAPI()
 
-	isStarted := a.c.TrustBundleSources.IsStarted()
 	// Both liveness and readiness checks are done by
 	// agents ability to create new Workload API client
 	// for the X509SVID service.
 	// TODO: Better live check for agent.
 	return health.State{
+		Started: &a.started,
 		Ready: err == nil,
-		Live:  (isStarted || err == nil),
+		Live:  (a.started || err == nil),
 		ReadyDetails: agentHealthDetails{
 			WorkloadAPIErr: errString(false, err),
 		},
 		LiveDetails: agentHealthDetails{
-			WorkloadAPIErr: errString(isStarted, err),
+			WorkloadAPIErr: errString(!a.started, err),
 		},
 	}
 }

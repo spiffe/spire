@@ -57,6 +57,9 @@ func (b *Bundle) SetStorage(sto storage.Storage) error {
 				return err
 			}
 			b.use = UseBootstrap
+			if b.startTime.IsZero() {
+				b.startTime = time.Now()
+			}
 		} else if len(BootstrapTrustBundle) > 0 {
 			b.use = UseRebootstrap
 		}
@@ -131,10 +134,6 @@ func (b *Bundle) GetStartTime() (time.Time, error) {
 		b.updateMetrics()
 	}
 	return b.startTime, err
-}
-
-func (b *Bundle) IsStarted() bool {
-	return !b.startTime.IsZero()
 }
 
 func (b *Bundle) IsBootstrap() bool {
