@@ -119,7 +119,7 @@ func (c *cache) startRunner(ctx context.Context) {
 				checkTime: c.clk.Now(),
 			}
 			if err != nil {
-				if state.Started == nil || *state.Started == true {
+				if state.Started == nil || *state.Started {
 					c.log.WithField("check", name).
 						WithError(err).
 						Error("Health check has failed")

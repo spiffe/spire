@@ -48,7 +48,7 @@ const (
 )
 
 type Agent struct {
-	c *Config
+	c       *Config
 	started bool
 }
 
@@ -507,8 +507,8 @@ func (a *Agent) CheckHealth() health.State {
 	// TODO: Better live check for agent.
 	return health.State{
 		Started: &a.started,
-		Ready: err == nil,
-		Live:  (a.started || err == nil),
+		Ready:   err == nil,
+		Live:    (a.started || err == nil),
 		ReadyDetails: agentHealthDetails{
 			WorkloadAPIErr: errString(false, err),
 		},

@@ -139,7 +139,7 @@ func (c *checker) ListenAndServe(ctx context.Context) error {
 }
 
 // StartedState returns the global startup state.
-func (c *checker) StartedState() (bool) {
+func (c *checker) StartedState() bool {
 	startup, _, _, _, _ := c.checkStates()
 
 	return startup
@@ -166,7 +166,7 @@ func (c *checker) checkStates() (bool, bool, bool, any, any) {
 	readyDetails := make(map[string]any)
 	for subsystemName, subsystemState := range c.cache.getStatuses() {
 		state := subsystemState.details
-		if state.Started == nil || *state.Started == false {
+		if state.Started == nil || !*state.Started {
 			isStarted = false
 		}
 		if !state.Live {
