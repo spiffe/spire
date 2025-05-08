@@ -23,10 +23,6 @@ func LoadBlocks(path string) ([]Block, error) {
 	return loadBlocks(path, 0)
 }
 
-func ParseBlocks(pemBytes []byte) ([]Block, error) {
-	return parseBlocks(pemBytes, 0)
-}
-
 func loadBlock(path string, expectedTypes ...string) (*Block, error) {
 	blocks, err := loadBlocks(path, 1, expectedTypes...)
 	if err != nil {

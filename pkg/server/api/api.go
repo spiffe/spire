@@ -21,16 +21,6 @@ type AuthorizedEntryFetcher interface {
 	FetchAuthorizedEntries(ctx context.Context, id spiffeid.ID) ([]*types.Entry, error)
 }
 
-// AuthorizedEntryFetcherFunc is an implementation of AuthorizedEntryFetcher
-// using a function.
-type AuthorizedEntryFetcherFunc func(ctx context.Context, id spiffeid.ID) ([]*types.Entry, error)
-
-// FetchAuthorizedEntries fetches the entries that the specified
-// SPIFFE ID is authorized for
-func (fn AuthorizedEntryFetcherFunc) FetchAuthorizedEntries(ctx context.Context, id spiffeid.ID) ([]*types.Entry, error) {
-	return fn(ctx, id)
-}
-
 // AttestedNodeToProto converts an agent from the given *common.AttestedNode with
 // the provided selectors to *types.Agent
 func AttestedNodeToProto(node *common.AttestedNode, selectors []*types.Selector) (*types.Agent, error) {

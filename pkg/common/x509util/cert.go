@@ -22,10 +22,6 @@ func CreateCertificate(template, parent *x509.Certificate, publicKey, privateKey
 	return x509.ParseCertificate(certDER)
 }
 
-func CertificateMatchesPublicKey(certificate *x509.Certificate, publicKey crypto.PublicKey) (bool, error) {
-	return cryptoutil.PublicKeyEqual(certificate.PublicKey, publicKey)
-}
-
 func CertificateMatchesPrivateKey(certificate *x509.Certificate, privateKey crypto.PrivateKey) (bool, error) {
 	return cryptoutil.KeyMatches(privateKey, certificate.PublicKey)
 }
