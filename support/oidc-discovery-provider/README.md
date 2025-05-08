@@ -50,6 +50,7 @@ The configuration file is **required** by the provider. It contains
 | `log_requests`          | bool    | optional           | If true, all HTTP requests are logged at the debug level               | `false`  |
 | `server_api`            | section | required\[2\]      | Provides SPIRE Server API details.                                     |          |
 | `workload_api`          | section | required\[2\]      | Provides Workload API details.                                         |          |
+| `file`                  | section | required\[2\]      | Provides File details.                                                 |          |
 | `health_checks`         | section | optional           | Enable and configure health check endpoints                            |          |
 | `jwt_issuer`            | string  | optional           | Specifies the issuer for the OIDC provider configuration request       |          |
 | `jwks_uri`              | string  | optional           | Specifies the JWKS URI returned in the discovery document              |          |
@@ -75,7 +76,7 @@ The configuration file is **required** by the provider. It contains
 
 #### Considerations for all platforms
 
-[2]: One of `server_api` or `workload_api` must be defined. The provider relies on one of these two APIs to obtain the public key material used to construct the JWKS document.
+[2]: One of `server_api`, `workload_api`, or `file` must be defined. The provider relies on one of these APIs to obtain the public key material used to construct the JWKS document.
 
 The `domains` configurable contains the list of domains the provider is
 expected to be served from. If a request is received from a domain other than
@@ -128,6 +129,13 @@ will terminate if another domain is requested.
 | experimental      | Description                                             | Default |
 |:------------------|---------------------------------------------------------|---------|
 | `named_pipe_name` | Pipe name of the Workload API named pipe. Windows only. |         |
+
+#### File Section
+
+| Key             | Type     | Required? | Description                                               | Default |
+|-----------------|----------|-----------|-----------------------------------------------------------|---------|
+| `path`          | string   | required  | Path on disk to the spiffe formatted trust bundle to use. |         |
+| `poll_interval` | duration | optional  | How often to poll for changes to the public key material. | `"10s"` |
 
 #### Health Checks Section
 
