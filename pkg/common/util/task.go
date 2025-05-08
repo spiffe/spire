@@ -8,16 +8,16 @@ import (
 )
 
 type TaskRunner struct {
-	wg sync.WaitGroup
-	ctx context.Context
-	cancels []context.CancelFunc
-	errch chan error
+	wg        sync.WaitGroup
+	ctx       context.Context
+	cancels   []context.CancelFunc
+	errch     chan error
 	taskCount int
 }
 
 func NewTaskRunner(ctx context.Context) *TaskRunner {
 	return &TaskRunner{
-		ctx: ctx,
+		ctx:   ctx,
 		errch: make(chan error, 1),
 	}
 }
