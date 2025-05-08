@@ -80,11 +80,11 @@ require (
 	golang.org/x/crypto v0.37.0
 	golang.org/x/exp v0.0.0-20241108190413-2d47ceb2692f
 	golang.org/x/net v0.39.0
-	golang.org/x/sync v0.13.0
+	golang.org/x/sync v0.14.0
 	golang.org/x/sys v0.33.0
 	golang.org/x/time v0.11.0
-	google.golang.org/api v0.230.0
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20250425173222-7b384671a197
+	google.golang.org/api v0.232.0
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20250428153025-10db94c68c34
 	google.golang.org/grpc v1.72.0
 	google.golang.org/protobuf v1.36.6
 	k8s.io/api v0.33.0
@@ -100,7 +100,7 @@ require (
 	4d63.com/gochecknoglobals v0.2.2 // indirect
 	cel.dev/expr v0.20.0 // indirect
 	cloud.google.com/go v0.120.1 // indirect
-	cloud.google.com/go/auth v0.16.0 // indirect
+	cloud.google.com/go/auth v0.16.1 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.2.8 // indirect
 	cloud.google.com/go/compute/metadata v0.6.0 // indirect
 	cloud.google.com/go/longrunning v0.6.7 // indirect
@@ -424,7 +424,7 @@ require (
 	go.uber.org/zap v1.27.0 // indirect
 	golang.org/x/exp/typeparams v0.0.0-20250210185358-939b2ce775ac // indirect
 	golang.org/x/mod v0.24.0 // indirect
-	golang.org/x/oauth2 v0.29.0 // indirect
+	golang.org/x/oauth2 v0.30.0 // indirect
 	golang.org/x/term v0.31.0 // indirect
 	golang.org/x/text v0.24.0 // indirect
 	golang.org/x/tools v0.30.0 // indirect
