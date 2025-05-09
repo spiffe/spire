@@ -186,7 +186,7 @@ func (a *Agent) Run(ctx context.Context) error {
 						seconds := time.Since(startTime)
 						if seconds < a.c.RebootstrapDelay {
 							a.c.Log.WithFields(logrus.Fields{
-								"time left": a.c.RebootstrapDelay-seconds,
+								"time left": a.c.RebootstrapDelay - seconds,
 							}).Info("Trust Bandle and Server dont agree.... Ignoring for now.")
 						} else {
 							a.c.Log.Warn("Trust Bandle and Server dont agree.... rebootstrapping")
@@ -406,7 +406,7 @@ func (a *Agent) newManager(ctx context.Context, sto storage.Storage, cat catalog
 				seconds := time.Since(startTime)
 				if seconds < a.c.RebootstrapDelay {
 					a.c.Log.WithFields(logrus.Fields{
-						"time left": a.c.RebootstrapDelay-seconds,
+						"time left": a.c.RebootstrapDelay - seconds,
 					}).Info("Trust Bandle and Server dont agree.... Ignoring for now.")
 				} else {
 					a.c.Log.Info("Trust Bandle and Server dont agree.... rebootstrapping")

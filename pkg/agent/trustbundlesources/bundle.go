@@ -89,21 +89,19 @@ func (b *Bundle) SetSuccessIfRunning() error {
 }
 
 func (b *Bundle) SetSuccess() error {
-	var err error
 	b.log.Info(fmt.Sprintf("Success after %s attempts=%d", time.Since(b.startTime), b.connectionAttempts))
 	b.use = UseRebootstrap
 	b.connectionAttempts = 0
 	b.startTime = time.Time{}
 	b.log.Info("Setting use.")
 	if b.storage != nil {
-		err = b.storage.StoreBootstrapState(b.use, b.startTime, b.connectionAttempts)
-		if err != nil {
+		if err := b.storage.StoreBootstrapState(b.use, b.startTime, b.connectionAttempts); err != nil {
 			return err
 		}
 		b.updateMetrics()
-		err = b.storage.StoreBundle(b.lastBundle)
+		return b.storage.StoreBundle(b.lastBundle)
 	}
-	return err
+	return nil
 }
 
 func (b *Bundle) SetForceRebootstrap() error {
