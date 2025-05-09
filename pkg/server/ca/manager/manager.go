@@ -979,10 +979,8 @@ func (u *bundleUpdater) SyncX509Roots(ctx context.Context, roots []*x509certific
 		}
 	}
 
-	if _, err := u.appendBundle(ctx, bundle); err != nil {
-		return err
-	}
-	return nil
+	_, err = u.appendBundle(ctx, bundle)
+	return err
 }
 
 func (u *bundleUpdater) AppendJWTKeys(ctx context.Context, keys []*common.PublicKey) ([]*common.PublicKey, error) {

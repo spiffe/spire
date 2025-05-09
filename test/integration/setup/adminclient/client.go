@@ -737,11 +737,7 @@ func createJoinToken(ctx context.Context, c *itclient.Client) error {
 		return err
 	}
 	_, err = stream.Recv()
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return err
 }
 
 func countAgents(ctx context.Context, c *itclient.Client) error {
