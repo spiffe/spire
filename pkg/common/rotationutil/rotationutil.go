@@ -102,8 +102,8 @@ func halfLife(lifetime time.Duration) time.Duration {
 func calculateJitteredHalfLife(lifetime time.Duration) time.Duration {
 	halfLife := halfLife(lifetime)
 	delta := jitterHalfLifeDelta(halfLife)
-	min := halfLife - delta
-	return time.Duration(rand.Int63n(int64(delta)*2) + int64(min)) //nolint // gosec: no need for cryptographic randomness here
+	minHalfLife := halfLife - delta
+	return time.Duration(rand.Int63n(int64(delta)*2) + int64(minHalfLife)) //nolint // gosec: no need for cryptographic randomness here
 }
 
 // calculateJitteredAvailabilityTarget calculates jitter of the availability target.

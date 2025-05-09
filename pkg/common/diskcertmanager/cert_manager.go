@@ -101,7 +101,7 @@ func (m *DiskCertManager) syncCertificateFiles() {
 		return
 	}
 
-	if certFileInfo.ModTime() != m.certLastModified || keyFileInfo.ModTime() != m.keyLastModified {
+	if !certFileInfo.ModTime().Equal(m.certLastModified) || !keyFileInfo.ModTime().Equal(m.keyLastModified) {
 		m.log.Info("File change detected, reloading certificate and key...")
 
 		if err := m.loadCert(); err != nil {
