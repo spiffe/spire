@@ -130,7 +130,7 @@ func (a *Agent) Run(ctx context.Context) error {
 			if a.c.RebootstrapMode == RebootstrapAlways {
 				return fmt.Errorf("You have requested rebootstrap support but the NodeAttestor plugin or the spire server configuration is not allowing it.")
 			} else {
-				fmt.Printf("You have requested rebootstrap support but the NodeAttestor plugin or the spire server configuration is not allowing it. Disabling.")
+				a.c.Log.Warn("You have requested rebootstrap support but the NodeAttestor plugin or the spire server configuration is not allowing it. Disabling.")
 				a.c.RebootstrapMode = RebootstrapNever
 			}
 		}
@@ -167,7 +167,7 @@ func (a *Agent) Run(ctx context.Context) error {
 							if a.c.RebootstrapMode == RebootstrapAlways {
 								return fmt.Errorf("You have requested rebootstrap support but the NodeAttestor plugin or the spire server configuration is not allowing it.")
 							} else {
-								fmt.Printf("You have requested rebootstrap support but the NodeAttestor plugin or the spire server configuration is not allowing it. Disabling.")
+								a.c.Log.Warn("You have requested rebootstrap support but the NodeAttestor plugin or the spire server configuration is not allowing it. Disabling.")
 								a.c.RebootstrapMode = RebootstrapNever
 							}
 						}
@@ -177,7 +177,7 @@ func (a *Agent) Run(ctx context.Context) error {
 
 				if x509util.IsUnknownAuthorityError(err) {
 					if a.c.TrustBundleSources.IsBootstrap() {
-						fmt.Printf("Trust Bandle and Server dont agree.... bootstrapping again")
+						a.c.Log.Info("Trust Bandle and Server dont agree.... bootstrapping again")
 					} else if a.c.RebootstrapMode != RebootstrapNever {
 						startTime, err := a.c.TrustBundleSources.GetStartTime()
 						if err != nil {
@@ -185,9 +185,11 @@ func (a *Agent) Run(ctx context.Context) error {
 						}
 						seconds := time.Since(startTime)
 						if seconds < a.c.RebootstrapDelay {
-							fmt.Printf("Trust Bandle and Server dont agree.... Ignoring for now. Rebootstrap timeout left: %s\n", a.c.RebootstrapDelay-seconds)
+							a.c.Log.WithFields(logrus.Fields{
+								"time left": a.c.RebootstrapDelay-seconds,
+							}).Info("Trust Bandle and Server dont agree.... Ignoring for now.")
 						} else {
-							fmt.Printf("Trust Bandle and Server dont agree.... rebootstrapping\n")
+							a.c.Log.Warn("Trust Bandle and Server dont agree.... rebootstrapping")
 							err = sto.StoreBundle(nil)
 							if err != nil {
 								return err
@@ -403,9 +405,11 @@ func (a *Agent) newManager(ctx context.Context, sto storage.Storage, cat catalog
 				}
 				seconds := time.Since(startTime)
 				if seconds < a.c.RebootstrapDelay {
-					fmt.Printf("Trust Bandle and Server dont agree.... Ignoring for now. Rebootstrap timeout left: %s\n", a.c.RebootstrapDelay-seconds)
+					a.c.Log.WithFields(logrus.Fields{
+						"time left": a.c.RebootstrapDelay-seconds,
+					}).Info("Trust Bandle and Server dont agree.... Ignoring for now.")
 				} else {
-					fmt.Printf("Trust Bandle and Server dont agree.... rebootstrapping")
+					a.c.Log.Info("Trust Bandle and Server dont agree.... rebootstrapping")
 					err = a.c.TrustBundleSources.SetForceRebootstrap()
 					if err != nil {
 						return nil, err

@@ -392,9 +392,6 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 	}
 
 	ac.RebootstrapMode = c.Agent.RebootstrapMode
-	if ac.RebootstrapMode != agent.RebootstrapNever && c.Agent.InsecureBootstrap {
-		return nil, errors.New("insecure_bootstrap option can not be used with rebootstrapping")
-	}
 	switch ac.RebootstrapMode {
 	case agent.RebootstrapNever:
 	case agent.RebootstrapAuto:
@@ -403,6 +400,9 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 		ac.RebootstrapMode = agent.RebootstrapNever
 	default:
 		return nil, fmt.Errorf("unknown rebootstrap mode specified: %s", ac.RebootstrapMode)
+	}
+	if ac.RebootstrapMode != agent.RebootstrapNever && c.Agent.InsecureBootstrap {
+		return nil, errors.New("insecure_bootstrap option can not be used with rebootstrapping")
 	}
 	if ac.RebootstrapMode != agent.RebootstrapNever {
 		// Force on RetryBootstrap until removed in 1.15.0
