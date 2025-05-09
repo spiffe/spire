@@ -395,7 +395,7 @@ func TestLoadEntryCache(t *testing.T) {
 			require.Equal(t, 0, cacheStats.EntriesByEntryID,
 				"clearing all expected entry ids didn't clear cache")
 
-			var lastMetrics map[string]int = make(map[string]int)
+			var lastMetrics = make(map[string]int)
 			for _, metricItem := range scenario.metrics.AllMetrics() {
 				if metricItem.Type == fakemetrics.SetGaugeType {
 					key := strings.Join(metricItem.Key, " ")

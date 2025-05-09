@@ -215,7 +215,7 @@ func TestLoadNodeCache(t *testing.T) {
 			cacheStats = attestedNodes.cache.Stats()
 			require.Equal(t, 0, cacheStats.AgentsByID, "clearing all expected agent ids didn't clear cache")
 
-			var lastMetrics map[string]int = make(map[string]int)
+			var lastMetrics = make(map[string]int)
 			for _, metricItem := range scenario.metrics.AllMetrics() {
 				if metricItem.Type == fakemetrics.SetGaugeType {
 					key := strings.Join(metricItem.Key, " ")

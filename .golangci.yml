@@ -1,18 +1,6 @@
+version: "2"
 run:
-  # timeout for analysis, e.g. 30s, 5m, default is 1m
   timeout: 12m
-
-issues:
-  exclude-dirs:
-    - testdata$
-    - test/mock
-  exclude-files:
-    - ".*\\.pb\\.go$"
-  exclude-rules:
-    - linters: [ gosec ]
-      path: "(.*_test\\.go$)|(^test/.*)"
-      text: "integer overflow conversion"
-
 linters:
   enable:
     - bodyclose
@@ -21,28 +9,65 @@ linters:
     - errorlint
     - exptostd
     - gocritic
-    - gofmt
-    - goimports
     - gosec
     - intrange
+    - mirror
     - misspell
     - nakedret
     - nilnesserr
     - nolintlint
+    - predeclared
+    - reassign
     - revive
     - unconvert
     - unparam
     - wastedassign
     - whitespace
-
-linters-settings:
-  govet:
-    enable:
-      - sortslice
-      - unusedwrite
-  revive:
-    # minimal confidence for issues, default is 0.8
-    confidence: 0.0
+  settings:
+    govet:
+      enable:
+        - sortslice
+        - unusedwrite
+    revive:
+      confidence: 0
+      rules:
+        - name: atomic
+        - name: bool-literal-in-expr
+        - name: constant-logical-expr
+        - name: context-as-argument
+        - name: datarace
+        - name: error-naming
+        - name: error-return
+        - name: errorf
+        - name: increment-decrement
+        - name: modifies-value-receiver
+        - name: receiver-naming
+        - name: string-of-int
+        - name: time-equal
+        - name: unreachable-code
+        - name: use-any
+        - name: useless-break
+    staticcheck:
+      checks:
+        - all
+        - -ST1003
+        - -QF1001
+        - -QF1008
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
     rules:
-      - name: unused-parameter
-        disabled: true
+      - linters:
+          - gosec
+        path: (.*_test\.go$)|(^test/.*)
+        text: integer overflow conversion
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  exclusions:
+    generated: lax
