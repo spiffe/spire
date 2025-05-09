@@ -391,18 +391,21 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 		return nil, err
 	}
 
-	switch c.Agent.RebootstrapMode {
+	ac.RebootstrapMode = c.Agent.RebootstrapMode
+	if ac.RebootstrapMode != agent.RebootstrapNever && c.Agent.InsecureBootstrap {
+		return nil, errors.New("insecure_bootstrap option can not be used with rebootstrapping")
+	}
+	switch ac.RebootstrapMode {
 	case agent.RebootstrapNever:
 	case agent.RebootstrapAuto:
 	case agent.RebootstrapAlways:
 	case "":
-		c.Agent.RebootstrapMode = agent.RebootstrapNever
+		ac.RebootstrapMode = agent.RebootstrapNever
 	default:
-		return nil, fmt.Errorf("unknown rebootstrap mode specified: %s", c.Agent.RebootstrapMode)
+		return nil, fmt.Errorf("unknown rebootstrap mode specified: %s", ac.RebootstrapMode)
 	}
-
-	if c.Agent.RebootstrapMode != agent.RebootstrapNever {
-		// Force on RetryBootstrap until removed in 1.14.0
+	if ac.RebootstrapMode != agent.RebootstrapNever {
+		// Force on RetryBootstrap until removed in 1.15.0
 		c.Agent.RetryBootstrap = true
 	}
 
@@ -415,11 +418,7 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing rebootstrap delay duration: %w", err)
 	}
-	ac.RebootstrapMode = c.Agent.RebootstrapMode
 	ac.RebootstrapDelay = delay
-	if ac.RebootstrapMode != agent.RebootstrapNever && c.Agent.InsecureBootstrap {
-		return nil, errors.New("insecure_bootstrap option can not be used with rebootstrapping")
-	}
 
 	if c.Agent.Experimental.SyncInterval != "" {
 		var err error
