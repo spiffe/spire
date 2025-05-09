@@ -90,7 +90,7 @@ Once trust is established, the agent will automatically fetch up to date version
 
 There are two cases where this can not happen and Server Attestation must be performed.
 
-The first case is when bootstrapping a new agent. It's never securely talked to a spire server, so it can not download up to date trust bundles.
+The first case is when bootstrapping a new agent. It's never securely talked to a SPIRE Server, so it can not download up to date trust bundles.
 
 The second case is when trust is lost and must be reestablished, known as Reboostrapping. This can happen if an agent was unable to contact a server for too long that its trust bundle is too far out of date, or the server needed to be reinstalled in a way that couldn't allow continuity in the trust bundle.
 
@@ -98,11 +98,11 @@ The second case is when trust is lost and must be reestablished, known as Reboos
 
 There are three main options and a sub option:
 
-1. If the `trust_bundle_path` option is used, the agent will read a bootstrap trust bundle from the file at that path. You need to safely copy or share the file before starting the SPIRE agent.
+1. If the `trust_bundle_path` option is used, the agent will read a bootstrap trust bundle from the file at that path. You need to safely copy or share the file before starting the SPIRE Agent.
 2. If the `trust_bundle_url` option is used, the agent will read the bootstrap trust bundle from the specified URL.
     1. If trust_bundle_unix_socket is unset, **The URL must start with `https://` for security, and the server must have a valid certificate (verified with the system trust store).** This can be used to rapidly deploy SPIRE agents without having to manually share a file. Keep in mind the contents of the URL need to be kept up to date.
     2. If trust_bundle_unix_socket is set, **The URL must start with `http://`.** This can be used along with a local service running on the socket to fetch up to date trust bundles via some site specific, secure meachanism.
-3. If the `insecure_bootstrap` option is set to `true`, then the agent will not use a bootstrap trust bundle. It will connect to the SPIRE server without authenticating it. This is not a secure configuration, because a man-in-the-middle attacker could control the SPIRE infrastructure. It is included because it is a useful option for testing and development.
+3. If the `insecure_bootstrap` option is set to `true`, then the agent will not use a bootstrap trust bundle. It will connect to the SPIRE Server without authenticating it. This is not a secure configuration, because a man-in-the-middle attacker could control the SPIRE infrastructure. It is included because it is a useful option for testing and development.
 
 Only one of these three main options may be set at a time.
 
@@ -112,8 +112,8 @@ There are two options that relate to rebootstrapping
 
 `rebootstrap_mode` can be set to one of `never`, `auto`, or `always`.
 
-1. When set to `never`, the agent will be prevented from automated rebootstrapping, and manual recovery will be nessisary if trust is ever lost.
-2. When set to `always`, the agent will attempt to rebootstrap, attesting the server again using the `trust_bundel_path`, `trust_bundle_url`, and/or `trust_bundle_unix_socket` settings when needed. The ability to rebootstrap needs to be supported by the agent NodeAttestor plugin along with the configuration of the server. Always mode will fail the agent if the plugin, server, and configurations are incompatible.
+1. When set to `never`, the agent will be prevented from automated rebootstrapping, and manual recovery will be necessary if trust is ever lost.
+2. When set to `always`, the agent will attempt to rebootstrap, attesting the server again using the `trust_bundel_path`, `trust_bundle_url`, and/or `trust_bundle_unix_socket` settings when needed. The ability to rebootstrap needs to be supported by the agent NodeAttestor plugin along with the configuration of the server. The `always` mode will fail the agent if the plugin, server, and configurations are incompatible.
 3. `auto` mode functions like `always` except when unsupported, it will automatically disable rebootstrapping of the agent.
 
 The other option is `rebootstrap_delay`. It defaults to `10m`. This is the duration to wait between when a server is first seen that isn't trusted by the agents trust bundle and when to start the rebootstrapping process. No rebootstrappign is allowed during this delay period. If a secure server connection is established successfully during this delay period, the delay clock will be reset.

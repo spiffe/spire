@@ -418,7 +418,7 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 	ac.RebootstrapMode = c.Agent.RebootstrapMode
 	ac.RebootstrapDelay = delay
 	if ac.RebootstrapMode != agent.RebootstrapNever && c.Agent.InsecureBootstrap {
-		return nil, fmt.Errorf("InsecureBootstrap can not be used with rebootstrapping")
+		return nil, errors.New("insecure_bootstrap option can not be used with rebootstrapping")
 	}
 
 	if c.Agent.Experimental.SyncInterval != "" {
