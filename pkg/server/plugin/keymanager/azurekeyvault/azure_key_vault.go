@@ -658,14 +658,6 @@ func (p *Plugin) notifyDelete(err error) {
 	}
 }
 
-// min returns the minimum of the provided time durations.
-func min(x, y time.Duration) time.Duration {
-	if x < y {
-		return x
-	}
-	return y
-}
-
 func getCreateKeyParameters(keyType keymanagerv1.KeyType, keyTags map[string]*string) (*azkeys.CreateKeyParameters, error) {
 	result := &azkeys.CreateKeyParameters{}
 	switch keyType {

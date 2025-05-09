@@ -86,7 +86,7 @@ func TestSetupTrustBundle(t *testing.T) {
 		t.Run(testCase.msg, func(t *testing.T) {
 			var err error
 			var ac agent.Config
-			var c Config = Config{
+			var c = Config{
 				InsecureBootstrap:     testCase.insecureBootstrap,
 				TrustBundlePath:       testCase.trustBundlePath,
 				TrustBundleFormat:     testCase.trustBundleFormat,
