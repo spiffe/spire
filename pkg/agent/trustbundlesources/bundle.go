@@ -17,8 +17,8 @@ import (
 )
 
 type Bundle struct {
-	config             *Config
-	log                logrus.FieldLogger
+	config *Config
+	log    logrus.FieldLogger
 }
 
 func New(config *Config, log logrus.FieldLogger) *Bundle {
