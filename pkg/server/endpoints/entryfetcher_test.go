@@ -28,8 +28,8 @@ type staticEntryCache struct {
 	entries map[spiffeid.ID][]*types.Entry
 }
 
-func (f *staticEntryCache) LookupAuthorizedEntries(agentID spiffeid.ID, _ map[string]struct{}) map[string]*types.Entry {
-	entries := f.entries[agentID]
+func (c *staticEntryCache) LookupAuthorizedEntries(agentID spiffeid.ID, _ map[string]struct{}) map[string]*types.Entry {
+	entries := c.entries[agentID]
 
 	entriesMap := make(map[string]*types.Entry)
 	for _, entry := range entries {
@@ -39,8 +39,8 @@ func (f *staticEntryCache) LookupAuthorizedEntries(agentID spiffeid.ID, _ map[st
 	return entriesMap
 }
 
-func (sef *staticEntryCache) GetAuthorizedEntries(agentID spiffeid.ID) []*types.Entry {
-	return sef.entries[agentID]
+func (c *staticEntryCache) GetAuthorizedEntries(agentID spiffeid.ID) []*types.Entry {
+	return c.entries[agentID]
 }
 
 func newStaticEntryCache(entries map[spiffeid.ID][]*types.Entry) *staticEntryCache {
