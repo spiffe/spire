@@ -2,17 +2,23 @@ package agent
 
 import (
 	"context"
-	"crypto/x509"
 	"net"
 	"time"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire/pkg/agent/trustbundlesources"
 	"github.com/spiffe/spire/pkg/agent/workloadkey"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/health"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/tlspolicy"
+)
+
+const (
+	RebootstrapNever  = "never"
+	RebootstrapAuto   = "auto"
+	RebootstrapAlways = "always"
 )
 
 type Config struct {
@@ -37,11 +43,14 @@ type Config struct {
 	// The TLS Certificate resource name to use for the default X509-SVID with Envoy SDS
 	DefaultSVIDName string
 
-	// If true, the agent will bootstrap insecurely with the server
-	InsecureBootstrap bool
-
 	// If true, the agent retries bootstrap with backoff
 	RetryBootstrap bool
+
+	// How the agent will behave when seeing an unknown x509 cert from the server
+	RebootstrapMode string
+
+	// The agent will rebootstrap after configured amount of time on unknown x509 cert from the server
+	RebootstrapDelay time.Duration
 
 	// HealthChecks provides the configuration for health monitoring
 	HealthChecks health.Config
@@ -75,7 +84,9 @@ type Config struct {
 
 	// Trust domain and associated CA bundle
 	TrustDomain spiffeid.TrustDomain
-	TrustBundle []*x509.Certificate
+
+	// Sources for getting Trust Bundles
+	TrustBundleSources *trustbundlesources.Bundle
 
 	// Join token to use for attestation, if needed
 	JoinToken string

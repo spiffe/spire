@@ -48,17 +48,17 @@ type Attestor interface {
 }
 
 type Config struct {
-	Catalog           catalog.Catalog
-	Metrics           telemetry.Metrics
-	JoinToken         string
-	TrustDomain       spiffeid.TrustDomain
-	TrustBundle       []*x509.Certificate
-	InsecureBootstrap bool
-	Storage           storage.Storage
-	Log               logrus.FieldLogger
-	ServerAddress     string
-	NodeAttestor      nodeattestor.NodeAttestor
-	TLSPolicy         tlspolicy.Policy
+	Catalog              catalog.Catalog
+	Metrics              telemetry.Metrics
+	JoinToken            string
+	TrustDomain          spiffeid.TrustDomain
+	BootstrapTrustBundle []*x509.Certificate
+	InsecureBootstrap    bool
+	Storage              storage.Storage
+	Log                  logrus.FieldLogger
+	ServerAddress        string
+	NodeAttestor         nodeattestor.NodeAttestor
+	TLSPolicy            tlspolicy.Policy
 }
 
 type attestor struct {
@@ -157,12 +157,12 @@ func (a *attestor) loadBundle() (*spiffebundle.Bundle, error) {
 	bundle, err := a.c.Storage.LoadBundle()
 	if errors.Is(err, storage.ErrNotCached) {
 		if a.c.InsecureBootstrap {
-			if len(a.c.TrustBundle) > 0 {
+			if len(a.c.BootstrapTrustBundle) > 0 {
 				a.c.Log.Warn("Trust bundle will be ignored; performing insecure bootstrap")
 			}
 			return nil, nil
 		}
-		bundle = a.c.TrustBundle
+		bundle = a.c.BootstrapTrustBundle
 	} else if err != nil {
 		return nil, fmt.Errorf("load bundle: %w", err)
 	}

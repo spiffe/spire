@@ -317,16 +317,16 @@ func TestAttestor(t *testing.T) {
 			// create the attestor
 			log, _ := test.NewNullLogger()
 			attestor := attestor.New(&attestor.Config{
-				Catalog:           catalog,
-				Metrics:           telemetry.Blackhole{},
-				JoinToken:         testCase.agentService.joinToken,
-				Storage:           sto,
-				Log:               log,
-				TrustDomain:       trustDomain,
-				TrustBundle:       makeTrustBundle(testCase.bootstrapBundle),
-				InsecureBootstrap: testCase.insecureBootstrap,
-				ServerAddress:     listener.Addr().String(),
-				NodeAttestor:      agentNA,
+				Catalog:              catalog,
+				Metrics:              telemetry.Blackhole{},
+				JoinToken:            testCase.agentService.joinToken,
+				Storage:              sto,
+				Log:                  log,
+				TrustDomain:          trustDomain,
+				BootstrapTrustBundle: makeTrustBundle(testCase.bootstrapBundle),
+				InsecureBootstrap:    testCase.insecureBootstrap,
+				ServerAddress:        listener.Addr().String(),
+				NodeAttestor:         agentNA,
 			})
 
 			// perform attestation
