@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/google/go-containerregistry/pkg/name"
-	v1 "github.com/google/go-containerregistry/pkg/v1"
+	v1 "github.com/google/go-containerregistry/pkg/v1" //nolint:revive
 	"github.com/google/go-containerregistry/pkg/v1/types"
 	"github.com/hashicorp/go-hclog"
 	"github.com/sigstore/cosign/v2/pkg/cosign"

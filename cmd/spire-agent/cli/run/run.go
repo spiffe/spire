@@ -261,7 +261,7 @@ func (c *agentConfig) validate() error {
 	}
 
 	if c.TrustBundleUnixSocket != "" && c.TrustBundleURL == "" {
-		return fmt.Errorf("if trust_bundle_unix_socket is specified, so must be trust_bundle_url")
+		return errors.New("if trust_bundle_unix_socket is specified, so must be trust_bundle_url")
 	}
 	if c.TrustBundleURL != "" {
 		u, err := url.Parse(c.TrustBundleURL)

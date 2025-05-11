@@ -3,6 +3,7 @@ package delegatedidentity
 import (
 	"context"
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"sort"
 	"time"
@@ -261,7 +262,7 @@ func composeX509SVIDBySelectors(update *cache.WorkloadUpdate) (*delegatedidentit
 
 		// check if SVIDs exist for the identity
 		if len(identity.SVID) == 0 {
-			return nil, fmt.Errorf("unable to get SVID from identity")
+			return nil, errors.New("unable to get SVID from identity")
 		}
 
 		id, err := idutil.IDProtoFromString(identity.Entry.SpiffeId)
