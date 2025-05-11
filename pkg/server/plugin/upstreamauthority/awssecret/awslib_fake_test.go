@@ -5,7 +5,7 @@ import (
 	"crypto"
 	"crypto/ecdsa"
 	"crypto/x509"
-	"fmt"
+	"errors"
 	"math/big"
 	"net/url"
 	"testing"
@@ -39,7 +39,7 @@ func (sm *fakeSecretsManagerClient) GetSecretValue(_ context.Context, input *sec
 			SecretString: &value,
 		}, nil
 	}
-	return nil, fmt.Errorf("secret not found")
+	return nil, errors.New("secret not found")
 }
 
 func generateTestData(t *testing.T, clk clock.Clock) (*testKeysAndCerts, func(context.Context, *Configuration, string) (secretsManagerClient, error)) {

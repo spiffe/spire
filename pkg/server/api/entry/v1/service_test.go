@@ -4866,7 +4866,7 @@ func (f *entryFetcher) FetchAuthorizedEntries(ctx context.Context, agentID spiff
 	}
 
 	if caller != agentID {
-		return nil, fmt.Errorf("provided caller id is different to expected")
+		return nil, errors.New("provided caller id is different to expected")
 	}
 
 	entries := []api.ReadOnlyEntry{}

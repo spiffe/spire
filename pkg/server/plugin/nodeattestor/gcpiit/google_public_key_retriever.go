@@ -72,7 +72,7 @@ func (r *googlePublicKeyRetriever) downloadJWKS(ctx context.Context) error {
 		}
 		cert, err := x509.ParseCertificate(block.Bytes)
 		if err != nil {
-			return fmt.Errorf("unable to unmarshal certificate response: malformed certificate PEM")
+			return errors.New("unable to unmarshal certificate response: malformed certificate PEM")
 		}
 		jwks.Keys = append(jwks.Keys, jose.JSONWebKey{
 			KeyID:        k,

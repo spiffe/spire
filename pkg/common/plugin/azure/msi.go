@@ -83,7 +83,7 @@ func FetchMSIToken(cl HTTPClient, resource string) (string, error) {
 	}
 
 	if r.AccessToken == "" {
-		return "", fmt.Errorf("response missing access token")
+		return "", errors.New("response missing access token")
 	}
 
 	return r.AccessToken, nil
