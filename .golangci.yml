@@ -39,14 +39,25 @@ linters:
         - name: error-naming
         - name: error-return
         - name: errorf
+        - name: identical-branches
+        - name: if-return
         - name: increment-decrement
         - name: modifies-value-receiver
+        - name: optimize-operands-order
+        - name: range
         - name: receiver-naming
+        - name: redundant-import-alias
+        - name: redundant-test-main-exit
         - name: string-of-int
         - name: time-equal
+        - name: unconditional-recursion
+        - name: unnecessary-stmt
         - name: unreachable-code
         - name: use-any
+        - name: use-errors-new
         - name: useless-break
+        - name: var-declaration
+        - name: waitgroup-by-value
     staticcheck:
       checks:
         - all
@@ -65,6 +76,9 @@ linters:
           - gosec
         path: (.*_test\.go$)|(^test/.*)
         text: integer overflow conversion
+      - linters:
+          - revive
+        text: Import alias "v1" is redundant
 formatters:
   enable:
     - gofmt

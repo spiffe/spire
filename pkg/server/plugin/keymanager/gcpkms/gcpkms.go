@@ -1118,7 +1118,7 @@ func getPublicKeyFromCryptoKeyVersion(ctx context.Context, log hclog.Logger, kms
 
 	// Perform integrity verification.
 	if int64(crc32Checksum([]byte(kmsPublicKey.Pem))) != kmsPublicKey.PemCrc32C.Value {
-		return nil, fmt.Errorf("response corrupted in-transit")
+		return nil, errors.New("response corrupted in-transit")
 	}
 
 	pemBlock, _ := pem.Decode([]byte(kmsPublicKey.Pem))
