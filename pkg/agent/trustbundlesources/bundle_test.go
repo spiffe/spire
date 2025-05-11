@@ -84,9 +84,7 @@ func TestSetupTrustBundle(t *testing.T) {
 	}
 	for _, testCase := range cases {
 		t.Run(testCase.msg, func(t *testing.T) {
-			var err error
-			var ac agent.Config
-			var c = Config{
+			c := Config{
 				InsecureBootstrap:     testCase.insecureBootstrap,
 				TrustBundlePath:       testCase.trustBundlePath,
 				TrustBundleFormat:     testCase.trustBundleFormat,
@@ -100,7 +98,8 @@ func TestSetupTrustBundle(t *testing.T) {
 			if testCase.trustBundleURL {
 				c.TrustBundleURL = testServer.URL
 			}
-			err = SetupTrustBundle(&ac, &c)
+			var ac agent.Config
+			err := SetupTrustBundle(&ac, &c)
 			if testCase.error {
 				require.Error(t, err)
 			} else {
