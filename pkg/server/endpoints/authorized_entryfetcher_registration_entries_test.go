@@ -807,7 +807,7 @@ func TestSearchBeforeFirstEntryEvent(t *testing.T) {
 			require.NoError(t, err, "error while running the test")
 
 			require.ElementsMatch(t, tt.expectedEventsBeforeFirst, slices.Collect(maps.Keys(registrationEntries.eventsBeforeFirst)), "expected events before tracking mismatch")
-			require.ElementsMatch(t, tt.expectedFetches, slices.Collect[string](maps.Keys(registrationEntries.fetchEntries)), "expected fetches mismatch")
+			require.ElementsMatch(t, tt.expectedFetches, slices.Collect(maps.Keys(registrationEntries.fetchEntries)), "expected fetches mismatch")
 
 			require.Zero(t, scenario.hook.Entries)
 		})

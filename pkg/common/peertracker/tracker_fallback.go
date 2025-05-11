@@ -6,6 +6,6 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-func newTracker(log logrus.FieldLogger) (PeerTracker, error) {
+func newTracker(_ logrus.FieldLogger) (PeerTracker, error) {
 	return nil, ErrUnsupportedPlatform
 }
