@@ -28,7 +28,7 @@ func RunTasks(ctx context.Context, tasks ...func(context.Context) error) error {
 	runTask := func(task func(context.Context) error) (err error) {
 		defer func() {
 			if r := recover(); r != nil {
-				err = fmt.Errorf("panic: %v\n%s\n", r, string(debug.Stack()))
+				err = fmt.Errorf("panic: %v\n%s\n", r, string(debug.Stack())) //nolint: staticcheck
 			}
 			wg.Done()
 		}()
@@ -67,7 +67,7 @@ func SerialRun(tasks ...func(context.Context) error) func(ctx context.Context) e
 	return func(ctx context.Context) (err error) {
 		defer func() {
 			if r := recover(); r != nil {
-				err = fmt.Errorf("panic: %v\n%s\n", r, string(debug.Stack()))
+				err = fmt.Errorf("panic: %v\n%s\n", r, string(debug.Stack())) //nolint: staticcheck
 			}
 		}()
 

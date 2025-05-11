@@ -32,11 +32,7 @@ type traceDumper struct {
 }
 
 func (d *dumper) Prepare() error {
-	err := createProfilesFolder()
-	if err != nil {
-		return err
-	}
-	return nil
+	return createProfilesFolder()
 }
 
 func (d *dumper) Dump(timestamp string, name string) error {
@@ -85,11 +81,7 @@ func (d *traceDumper) Prepare() error {
 		return err
 	}
 	d.data = f
-	err = trace.Start(d.data)
-	if err != nil {
-		return err
-	}
-	return nil
+	return trace.Start(d.data)
 }
 
 func (d *traceDumper) Dump(timestamp string, name string) error {

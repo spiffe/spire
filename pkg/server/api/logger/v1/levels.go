@@ -1,7 +1,7 @@
 package logger
 
 import (
-	logrus "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	apitype "github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 )
 
