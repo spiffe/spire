@@ -467,11 +467,7 @@ func TestSVIDRotation(t *testing.T) {
 	m.GetRotationMtx().RUnlock()
 
 	// Loop until we detect an SVID rotation was called in separate process
-	util.RunWithTimeout(t, time.Minute, func() {
-		for !wasRotHookCalled() {
-
-		}
-	})
+	require.Eventually(t, wasRotHookCalled, time.Minute, 100*time.Millisecond)
 
 	s := m.GetCurrentCredentials()
 	svid = s.SVID
