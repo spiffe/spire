@@ -7,6 +7,7 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/asn1"
 	"errors"
 	"fmt"
 	"math/big"
@@ -17,6 +18,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/coretypes/x509certificate"
 	telemetry_server "github.com/spiffe/spire/pkg/common/telemetry/server"
 	"github.com/spiffe/spire/pkg/common/x509util"
@@ -24,6 +26,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/credtemplate"
 	"github.com/spiffe/spire/pkg/server/credvalidator"
 	"github.com/spiffe/spire/pkg/server/datastore"
+	"github.com/spiffe/spire/pkg/server/plugin/credentialcomposer"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
 	"github.com/spiffe/spire/pkg/server/plugin/notifier"
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
@@ -150,6 +153,25 @@ func TestGetCurrentX509CASlot(t *testing.T) {
 		require.NotNil(t, slot.publicKey)
 		require.Equal(t, expectIssuedAt, slot.issuedAt)
 		require.Equal(t, expectNotAfter, slot.notAfter)
+	})
+}
+
+func TestCAPolicyIdentifiers(t *testing.T) {
+	ctx := context.Background()
+
+	test := setupTest(t)
+	test.initSelfSignedManager()
+	test.cc.policyIdentifiers = []asn1.ObjectIdentifier{
+		asn1.ObjectIdentifier{1, 2, 3, 4},
+	}
+
+	t.Run("contains policy identifiers", func(t *testing.T) {
+		require.NoError(t, test.m.PrepareX509CA(ctx))
+
+		currentSlot := test.m.GetCurrentX509CASlot()
+		slot := currentSlot.(*x509CASlot)
+		require.NotNil(t, slot.x509CA)
+		require.Equal(t, slot.x509CA.Certificate.PolicyIdentifiers, test.cc.policyIdentifiers)
 	})
 }
 
@@ -1206,6 +1228,7 @@ type managerTest struct {
 	km      keymanager.KeyManager
 	ds      *fakedatastore.DataStore
 	cat     *fakeservercatalog.Catalog
+	cc      fakeCC
 
 	m *Manager
 }
@@ -1295,10 +1318,11 @@ func (m *managerTest) selfSignedConfig() Config {
 
 func (m *managerTest) selfSignedConfigWithKeyTypes(x509CAKeyType, jwtKeyType keymanager.KeyType) Config {
 	credBuilder, err := credtemplate.NewBuilder(credtemplate.Config{
-		TrustDomain:   testTrustDomain,
-		X509CASubject: pkix.Name{CommonName: "SPIRE"},
-		Clock:         m.clock,
-		X509CATTL:     testCATTL,
+		TrustDomain:         testTrustDomain,
+		X509CASubject:       pkix.Name{CommonName: "SPIRE"},
+		Clock:               m.clock,
+		X509CATTL:           testCATTL,
+		CredentialComposers: []credentialcomposer.CredentialComposer{&m.cc},
 	})
 	require.NoError(m.t, err)
 
@@ -1546,4 +1570,31 @@ func (s *fakeCA) SetJWTKey(jwtKey *ca.JWTKey) {
 
 func (s *fakeCA) NotifyTaintedX509Authorities(taintedAuthorities []*x509.Certificate) {
 	s.taintedAuthoritiesCh <- taintedAuthorities
+}
+
+type fakeCC struct {
+	catalog.PluginInfo
+
+	policyIdentifiers []asn1.ObjectIdentifier
+}
+
+func (cc fakeCC) ComposeServerX509CA(_ context.Context, attributes credentialcomposer.X509CAAttributes) (credentialcomposer.X509CAAttributes, error) {
+	attributes.PolicyIdentifiers = append(attributes.PolicyIdentifiers, cc.policyIdentifiers...)
+	return attributes, nil
+}
+
+func (cc fakeCC) ComposeServerX509SVID(_ context.Context, attributes credentialcomposer.X509SVIDAttributes) (credentialcomposer.X509SVIDAttributes, error) {
+	return attributes, nil
+}
+
+func (cc fakeCC) ComposeAgentX509SVID(_ context.Context, _ spiffeid.ID, _ crypto.PublicKey, attributes credentialcomposer.X509SVIDAttributes) (credentialcomposer.X509SVIDAttributes, error) {
+	return attributes, nil
+}
+
+func (cc fakeCC) ComposeWorkloadX509SVID(_ context.Context, _ spiffeid.ID, _ crypto.PublicKey, attributes credentialcomposer.X509SVIDAttributes) (credentialcomposer.X509SVIDAttributes, error) {
+	return attributes, nil
+}
+
+func (cc fakeCC) ComposeWorkloadJWTSVID(_ context.Context, _ spiffeid.ID, attributes credentialcomposer.JWTSVIDAttributes) (credentialcomposer.JWTSVIDAttributes, error) {
+	return attributes, nil
 }
