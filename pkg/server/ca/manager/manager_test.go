@@ -7,7 +7,6 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"crypto/x509/pkix"
-	"encoding/asn1"
 	"errors"
 	"fmt"
 	"math/big"
@@ -161,9 +160,9 @@ func TestCAPolicyIdentifiers(t *testing.T) {
 
 	test := setupTest(t)
 	test.initSelfSignedManager()
-	test.cc.policyIdentifiers = []asn1.ObjectIdentifier{
-		asn1.ObjectIdentifier{1, 2, 3, 4},
-	}
+	policy, err := x509.ParseOID("1.2.3.4")
+	require.NoError(t, err)
+	test.cc.policies = append(test.cc.policies, policy)
 
 	t.Run("contains policy identifiers", func(t *testing.T) {
 		require.NoError(t, test.m.PrepareX509CA(ctx))
@@ -171,7 +170,7 @@ func TestCAPolicyIdentifiers(t *testing.T) {
 		currentSlot := test.m.GetCurrentX509CASlot()
 		slot := currentSlot.(*x509CASlot)
 		require.NotNil(t, slot.x509CA)
-		require.Equal(t, slot.x509CA.Certificate.PolicyIdentifiers, test.cc.policyIdentifiers)
+		require.Equal(t, slot.x509CA.Certificate.Policies, test.cc.policies)
 	})
 }
 
@@ -1575,11 +1574,11 @@ func (s *fakeCA) NotifyTaintedX509Authorities(taintedAuthorities []*x509.Certifi
 type fakeCC struct {
 	catalog.PluginInfo
 
-	policyIdentifiers []asn1.ObjectIdentifier
+	policies []x509.OID
 }
 
 func (cc fakeCC) ComposeServerX509CA(_ context.Context, attributes credentialcomposer.X509CAAttributes) (credentialcomposer.X509CAAttributes, error) {
-	attributes.PolicyIdentifiers = append(attributes.PolicyIdentifiers, cc.policyIdentifiers...)
+	attributes.Policies = append(attributes.Policies, cc.policies...)
 	return attributes, nil
 }
 

@@ -3,8 +3,8 @@ package credentialcomposer
 import (
 	"context"
 	"crypto"
+	"crypto/x509"
 	"crypto/x509/pkix"
-	"encoding/asn1"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/catalog"
@@ -21,9 +21,9 @@ type CredentialComposer interface {
 }
 
 type X509CAAttributes struct {
-	Subject           pkix.Name
-	PolicyIdentifiers []asn1.ObjectIdentifier
-	ExtraExtensions   []pkix.Extension
+	Subject         pkix.Name
+	Policies        []x509.OID
+	ExtraExtensions []pkix.Extension
 }
 
 type X509SVIDAttributes struct {
