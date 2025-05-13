@@ -79,7 +79,7 @@ func TestParseConfig(t *testing.T) {
 					tos_accepted = true
 				}
 			`,
-			err: "either the server_api or workload_api section must be configured",
+			err: "exactly one of the server_api, workload_api, or file sections must be configured",
 		},
 	}
 	testCases = append(testCases, parseConfigCasesOS()...)
