@@ -15,6 +15,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
 	"github.com/spiffe/spire/pkg/agent/storage"
 	"github.com/spiffe/spire/pkg/agent/svid"
+	"github.com/spiffe/spire/pkg/agent/trustbundlesources"
 	"github.com/spiffe/spire/pkg/agent/workloadkey"
 	"github.com/spiffe/spire/pkg/common/rotationutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -34,6 +35,9 @@ type Config struct {
 	Metrics                  telemetry.Metrics
 	ServerAddr               string
 	Storage                  storage.Storage
+	TrustBundleSources       *trustbundlesources.Bundle
+	RebootstrapMode          string
+	RebootstrapDelay         time.Duration
 	WorkloadKeyType          workloadkey.KeyType
 	SyncInterval             time.Duration
 	UseSyncAuthorizedEntries bool
