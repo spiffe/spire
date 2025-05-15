@@ -2,7 +2,7 @@ package authorizedentries
 
 import (
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
-	"google.golang.org/protobuf/proto"
+	"github.com/spiffe/spire/pkg/server/api"
 )
 
 type entryRecord struct {
@@ -29,17 +29,13 @@ func entryRecordByParentID(a, b entryRecord) bool {
 	}
 }
 
-func cloneEntriesFromRecords(entryRecords []entryRecord) []*types.Entry {
+func cloneEntriesFromRecords(entryRecords []entryRecord) []api.ReadOnlyEntry {
 	if len(entryRecords) == 0 {
 		return nil
 	}
-	cloned := make([]*types.Entry, 0, len(entryRecords))
+	cloned := make([]api.ReadOnlyEntry, 0, len(entryRecords))
 	for _, entryRecord := range entryRecords {
-		cloned = append(cloned, cloneEntry(entryRecord.EntryCloneOnly))
+		cloned = append(cloned, api.NewReadOnlyEntry(entryRecord.EntryCloneOnly))
 	}
 	return cloned
-}
-
-func cloneEntry(entry *types.Entry) *types.Entry {
-	return proto.Clone(entry).(*types.Entry)
 }
