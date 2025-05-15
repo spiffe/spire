@@ -139,13 +139,13 @@ func (a *Agent) Run(ctx context.Context) error {
 		)
 
 		for {
-			InsecureBootstrap := false
-			BootstrapTrustBundle, err := sto.LoadBundle()
+			insecureBootstrap := false
+			bootstrapTrustBundle, err := sto.LoadBundle()
 			if errors.Is(err, storage.ErrNotCached) {
-				BootstrapTrustBundle, InsecureBootstrap, err = a.c.TrustBundleSources.GetBundle()
+				bootstrapTrustBundle, insecureBootstrap, err = a.c.TrustBundleSources.GetBundle()
 			}
 			if err == nil {
-				as, err = a.attest(ctx, sto, cat, metrics, nodeAttestor, BootstrapTrustBundle, InsecureBootstrap)
+				as, err = a.attest(ctx, sto, cat, metrics, nodeAttestor, bootstrapTrustBundle, insecureBootstrap)
 				if err == nil {
 					err = a.c.TrustBundleSources.SetSuccess()
 					if err != nil {
@@ -211,15 +211,15 @@ func (a *Agent) Run(ctx context.Context) error {
 			}
 		}
 	} else {
-		InsecureBootstrap := false
-		BootstrapTrustBundle, err := sto.LoadBundle()
+		insecureBootstrap := false
+		bootstrapTrustBundle, err := sto.LoadBundle()
 		if errors.Is(err, storage.ErrNotCached) {
-			BootstrapTrustBundle, InsecureBootstrap, err = a.c.TrustBundleSources.GetBundle()
+			bootstrapTrustBundle, insecureBootstrap, err = a.c.TrustBundleSources.GetBundle()
 		}
 		if err != nil {
 			return err
 		}
-		as, err = a.attest(ctx, sto, cat, metrics, nodeAttestor, BootstrapTrustBundle, InsecureBootstrap)
+		as, err = a.attest(ctx, sto, cat, metrics, nodeAttestor, bootstrapTrustBundle, insecureBootstrap)
 		if err != nil {
 			return err
 		}
