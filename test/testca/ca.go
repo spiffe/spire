@@ -4,12 +4,10 @@ import (
 	"bytes"
 	"crypto"
 	"crypto/rand"
-	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"fmt"
 	"math/big"
-	"net"
 	"net/url"
 	"testing"
 	"time"
@@ -23,14 +21,9 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/go-spiffe/v2/svid/jwtsvid"
 	"github.com/spiffe/go-spiffe/v2/svid/x509svid"
-	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/test/testkey"
 	"github.com/stretchr/testify/require"
-)
-
-var (
-	localhostIPs = []net.IP{net.IPv4(127, 0, 0, 1), net.IPv6loopback}
 )
 
 type CA struct {
@@ -242,19 +235,6 @@ func CreateCertificate(tb testing.TB, tmpl, parent *x509.Certificate, publicKey,
 	return cert
 }
 
-func CreateWebCredentials(t testing.TB) (*x509.CertPool, *tls.Certificate) {
-	rootCert, rootKey := CreateCACertificate(t, nil, nil)
-
-	childCert, childKey := CreateX509Certificate(t, rootCert, rootKey,
-		WithIPAddresses(localhostIPs...))
-
-	return util.NewCertPool(rootCert),
-		&tls.Certificate{
-			Certificate: [][]byte{childCert.Raw},
-			PrivateKey:  childKey,
-		}
-}
-
 func newSerial(tb testing.TB) *big.Int {
 	b := make([]byte, 8)
 	_, err := rand.Read(b)
@@ -278,12 +258,6 @@ func WithLifetime(notBefore, notAfter time.Time) CertificateOption {
 	return certificateOption(func(c *x509.Certificate) {
 		c.NotBefore = notBefore
 		c.NotAfter = notAfter
-	})
-}
-
-func WithIPAddresses(ips ...net.IP) CertificateOption {
-	return certificateOption(func(c *x509.Certificate) {
-		c.IPAddresses = ips
 	})
 }
 

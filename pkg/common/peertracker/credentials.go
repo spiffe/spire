@@ -55,15 +55,6 @@ func WatcherFromContext(ctx context.Context) (Watcher, bool) {
 	return ai.Watcher, true
 }
 
-func CallerFromContext(ctx context.Context) (CallerInfo, bool) {
-	ai, ok := AuthInfoFromContext(ctx)
-	if !ok {
-		return CallerInfo{}, false
-	}
-
-	return ai.Caller, true
-}
-
 func AuthInfoFromContext(ctx context.Context) (AuthInfo, bool) {
 	peer, ok := peer.FromContext(ctx)
 	if !ok {
