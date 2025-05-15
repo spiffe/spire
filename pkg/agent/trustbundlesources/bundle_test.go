@@ -10,12 +10,12 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/spiffe/spire/pkg/agent"
+	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/require"
 )
 
-func TestSetupTrustBundle(t *testing.T) {
+func TestGetBundle(t *testing.T) {
 	testTrustBundlePath := path.Join(util.ProjectRoot(), "conf/agent/dummy_root_ca.crt")
 	testTBSPIFFE := `{
     "keys": [
@@ -85,7 +85,6 @@ func TestSetupTrustBundle(t *testing.T) {
 	for _, testCase := range cases {
 		t.Run(testCase.msg, func(t *testing.T) {
 			var err error
-			var ac agent.Config
 			var c Config = Config{
 				InsecureBootstrap:     testCase.insecureBootstrap,
 				TrustBundlePath:       testCase.trustBundlePath,
@@ -100,14 +99,18 @@ func TestSetupTrustBundle(t *testing.T) {
 			if testCase.trustBundleURL {
 				c.TrustBundleURL = testServer.URL
 			}
-			err = SetupTrustBundle(&ac, &c)
+			log, _ := test.NewNullLogger()
+			tbs := New(&c, log)
+			require.NoError(t, err)
+
+			trustBundle, insecureBootstrap, err := tbs.GetBundle()
 			if testCase.error {
 				require.Error(t, err)
 			} else {
 				require.NoError(t, err)
-				require.Equal(t, ac.InsecureBootstrap, c.InsecureBootstrap)
+				require.Equal(t, insecureBootstrap, testCase.insecureBootstrap)
 				if testCase.trustBundlePath != "" {
-					require.Equal(t, len(ac.TrustBundle), 1)
+					require.Equal(t, len(trustBundle), 1)
 				}
 			}
 		})

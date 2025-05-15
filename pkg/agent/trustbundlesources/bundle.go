@@ -10,50 +10,60 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
-	"github.com/spiffe/spire/pkg/agent"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 )
 
-func SetupTrustBundle(ac *agent.Config, bconfig *Config) error {
-	// Either download the trust bundle if TrustBundleURL is set, or read it
-	// from disk if TrustBundlePath is set
-	ac.InsecureBootstrap = bconfig.InsecureBootstrap
+type Bundle struct {
+	config *Config
+	log    logrus.FieldLogger
+}
 
+func New(config *Config, log logrus.FieldLogger) *Bundle {
+	return &Bundle{
+		config: config,
+		log:    log,
+	}
+}
+
+func (b *Bundle) GetBundle() ([]*x509.Certificate, bool, error) {
 	var bundleBytes []byte
 	var err error
 
 	switch {
-	case bconfig.TrustBundleURL != "":
-		bundleBytes, err = downloadTrustBundle(bconfig.TrustBundleURL, bconfig.TrustBundleUnixSocket)
+	case b.config.TrustBundleURL != "":
+		bundleBytes, err = downloadTrustBundle(b.config.TrustBundleURL, b.config.TrustBundleUnixSocket)
 		if err != nil {
-			return err
+			return nil, false, err
 		}
-	case bconfig.TrustBundlePath != "":
-		bundleBytes, err = loadTrustBundle(bconfig.TrustBundlePath)
+	case b.config.TrustBundlePath != "":
+		bundleBytes, err = loadTrustBundle(b.config.TrustBundlePath)
 		if err != nil {
-			return fmt.Errorf("could not parse trust bundle: %w", err)
+			return nil, false, fmt.Errorf("could not parse trust bundle: %w", err)
 		}
 	default:
 		// If InsecureBootstrap is configured, the bundle is not required
-		if bconfig.InsecureBootstrap {
-			return nil
+		if b.config.InsecureBootstrap {
+			return nil, true, nil
 		}
 	}
 
-	bundle, err := parseTrustBundle(bundleBytes, bconfig.TrustBundleFormat)
+	bundle, err := parseTrustBundle(bundleBytes, b.config.TrustBundleFormat)
 	if err != nil {
-		return err
+		return nil, false, err
 	}
 
 	if len(bundle) == 0 {
-		return errors.New("no certificates found in trust bundle")
+		return nil, false, errors.New("no certificates found in trust bundle")
 	}
 
-	ac.TrustBundle = bundle
+	return bundle, false, nil
+}
 
-	return nil
+func (b *Bundle) GetInsecureBootstrap() bool {
+	return b.config.InsecureBootstrap
 }
 
 func parseTrustBundle(bundleBytes []byte, trustBundleContentType string) ([]*x509.Certificate, error) {
