@@ -240,7 +240,7 @@ jobs:
       test: ${{ steps.set-matrix.outputs.test }}
   
   integration:
-    name: integration (${{ matrix.arch }})
+    name: integration (${{ matrix.arch }}) (${{ strategy.job-index}}/${{ strategy.job-total }})
     runs-on: ${{ matrix.runs-on }}
     needs: [cache-deps, images]
     timeout-minutes: 45
