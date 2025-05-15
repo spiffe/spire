@@ -47,7 +47,7 @@ func (f *Facade) InitLog(log logrus.FieldLogger) {
 	f.Log = log
 }
 
-// WrapError wraps a given error such that it will be prefixed with the plugin
+// WrapErr wraps a given error such that it will be prefixed with the plugin
 // name. This method should be used by facade implementations to wrap errors
 // that come out of plugin implementations.
 func (f *Facade) WrapErr(err error) error {

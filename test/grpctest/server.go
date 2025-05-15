@@ -12,7 +12,6 @@ import (
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/test/bufconn"
 )
@@ -68,10 +67,6 @@ func StartServer(tb testing.TB, registerFn func(s grpc.ServiceRegistrar), opts .
 	serverOptions := []grpc.ServerOption{
 		grpc.ChainUnaryInterceptor(unaryInterceptors...),
 		grpc.ChainStreamInterceptor(streamInterceptors...),
-	}
-
-	if config.creds != nil {
-		serverOptions = append(serverOptions, grpc.Creds(config.creds))
 	}
 
 	var serverListener net.Listener
@@ -154,7 +149,6 @@ func StartServer(tb testing.TB, registerFn func(s grpc.ServiceRegistrar), opts .
 type serverConfig struct {
 	net                string
 	addr               string
-	creds              credentials.TransportCredentials
 	unaryInterceptors  []grpc.UnaryServerInterceptor
 	streamInterceptors []grpc.StreamServerInterceptor
 	contextOverride    func(context.Context) context.Context
@@ -166,19 +160,6 @@ func OverUDS() ServerOption {
 	}
 }
 
-func OverLocalhostTCP() ServerOption {
-	return func(c *serverConfig) {
-		c.net = "tcp"
-		c.addr = "localhost:0"
-	}
-}
-
-func Credentials(creds credentials.TransportCredentials) ServerOption {
-	return func(c *serverConfig) {
-		c.creds = creds
-	}
-}
-
 func Middleware(ms ...middleware.Middleware) ServerOption {
 	return func(c *serverConfig) {
 		for _, m := range ms {
@@ -186,18 +167,6 @@ func Middleware(ms ...middleware.Middleware) ServerOption {
 			c.unaryInterceptors = append(c.unaryInterceptors, unaryInterceptor)
 			c.streamInterceptors = append(c.streamInterceptors, streamInterceptor)
 		}
-	}
-}
-
-func UnaryServerInterceptor(interceptors ...grpc.UnaryServerInterceptor) ServerOption {
-	return func(c *serverConfig) {
-		c.unaryInterceptors = append(c.unaryInterceptors, interceptors...)
-	}
-}
-
-func StreamServerInterceptor(interceptors ...grpc.StreamServerInterceptor) ServerOption {
-	return func(c *serverConfig) {
-		c.streamInterceptors = append(c.streamInterceptors, interceptors...)
 	}
 }
 
