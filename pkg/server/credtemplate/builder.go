@@ -202,7 +202,7 @@ func (b *Builder) BuildUpstreamSignedX509CACSR(ctx context.Context, params Upstr
 	}
 
 	// Create the CertificateRequest from the Certificate template. The
-	// PolicyIdentifiers field is ignored since that can be applied by the
+	// Policies field is ignored since that can be applied by the
 	// upstream signer and isn't a part of the native CertificateRequest type.
 	// TODO: maybe revisit this if needed and embed the policy identifiers in
 	// the extra extensions.
@@ -458,9 +458,9 @@ func (b *Builder) computeX509SVIDLifetime(parentChain []*x509.Certificate, ttl t
 
 func x509CAAttributesFromTemplate(tmpl *x509.Certificate) credentialcomposer.X509CAAttributes {
 	return credentialcomposer.X509CAAttributes{
-		Subject:           tmpl.Subject,
-		PolicyIdentifiers: tmpl.PolicyIdentifiers,
-		ExtraExtensions:   tmpl.ExtraExtensions,
+		Subject:         tmpl.Subject,
+		Policies:        tmpl.Policies,
+		ExtraExtensions: tmpl.ExtraExtensions,
 	}
 }
 func x509SVIDAttributesFromTemplate(tmpl *x509.Certificate) credentialcomposer.X509SVIDAttributes {
@@ -473,7 +473,7 @@ func x509SVIDAttributesFromTemplate(tmpl *x509.Certificate) credentialcomposer.X
 
 func applyX509CAAttributes(tmpl *x509.Certificate, attribs credentialcomposer.X509CAAttributes) {
 	tmpl.Subject = attribs.Subject
-	tmpl.PolicyIdentifiers = attribs.PolicyIdentifiers
+	tmpl.Policies = attribs.Policies
 	tmpl.ExtraExtensions = attribs.ExtraExtensions
 }
 

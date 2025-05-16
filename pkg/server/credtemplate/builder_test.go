@@ -5,7 +5,6 @@ import (
 	"crypto"
 	"crypto/x509"
 	"crypto/x509/pkix"
-	"encoding/asn1"
 	"errors"
 	"fmt"
 	"math"
@@ -116,6 +115,9 @@ func TestNewBuilderAllowsConfigOverrides(t *testing.T) {
 }
 
 func TestBuildSelfSignedX509CATemplate(t *testing.T) {
+	oneTwoThreeFourOID, err := x509.ParseOID("1.2.3.4")
+	require.NoError(t, err)
+
 	for _, tc := range []struct {
 		desc             string
 		overrideConfig   func(config *credtemplate.Config)
@@ -170,23 +172,23 @@ func TestBuildSelfSignedX509CATemplate(t *testing.T) {
 		{
 			desc: "single composer",
 			overrideConfig: func(config *credtemplate.Config) {
-				config.CredentialComposers = []credentialcomposer.CredentialComposer{fakeCC{id: 1}}
+				config.CredentialComposers = []credentialcomposer.CredentialComposer{fakeCC{id: []byte{1, 2, 3, 4}}}
 			},
 			overrideExpected: func(expected *x509.Certificate) {
-				expected.Subject.CommonName = "OVERRIDE-1"
-				expected.PolicyIdentifiers = []asn1.ObjectIdentifier{{1}}
-				expected.ExtraExtensions = []pkix.Extension{{Id: makeOID(1), Value: []byte{1}}}
+				expected.Subject.CommonName = "OVERRIDE-[1 2 3 4]"
+				expected.Policies = []x509.OID{oneTwoThreeFourOID}
+				expected.ExtraExtensions = []pkix.Extension{{Id: makeOID(1, 2, 3, 4), Value: []byte{1, 2, 3, 4}}}
 			},
 		},
 		{
 			desc: "two composers",
 			overrideConfig: func(config *credtemplate.Config) {
-				config.CredentialComposers = []credentialcomposer.CredentialComposer{fakeCC{id: 1}, fakeCC{id: 2, onlyCommonName: true}}
+				config.CredentialComposers = []credentialcomposer.CredentialComposer{fakeCC{id: []byte{1, 2, 3, 4}}, fakeCC{id: []byte{2, 3, 4, 5}, onlyCommonName: true}}
 			},
 			overrideExpected: func(expected *x509.Certificate) {
-				expected.Subject.CommonName = "OVERRIDE-2"
-				expected.PolicyIdentifiers = []asn1.ObjectIdentifier{{1}}
-				expected.ExtraExtensions = []pkix.Extension{{Id: makeOID(1), Value: []byte{1}}}
+				expected.Subject.CommonName = "OVERRIDE-[2 3 4 5]"
+				expected.Policies = []x509.OID{oneTwoThreeFourOID}
+				expected.ExtraExtensions = []pkix.Extension{{Id: makeOID(1, 2, 3, 4), Value: []byte{1, 2, 3, 4}}}
 			},
 		},
 		{
@@ -285,21 +287,21 @@ func TestBuildUpstreamSignedX509CACSR(t *testing.T) {
 		{
 			desc: "single composer",
 			overrideConfig: func(config *credtemplate.Config) {
-				config.CredentialComposers = []credentialcomposer.CredentialComposer{fakeCC{id: 1}}
+				config.CredentialComposers = []credentialcomposer.CredentialComposer{fakeCC{id: []byte{1, 2, 3, 4}}}
 			},
 			overrideExpected: func(expected *x509.CertificateRequest) {
-				expected.Subject.CommonName = "OVERRIDE-1"
-				expected.ExtraExtensions = []pkix.Extension{{Id: makeOID(1), Value: []byte{1}}}
+				expected.Subject.CommonName = "OVERRIDE-[1 2 3 4]"
+				expected.ExtraExtensions = []pkix.Extension{{Id: makeOID(1, 2, 3, 4), Value: []byte{1, 2, 3, 4}}}
 			},
 		},
 		{
 			desc: "two composers",
 			overrideConfig: func(config *credtemplate.Config) {
-				config.CredentialComposers = []credentialcomposer.CredentialComposer{fakeCC{id: 1}, fakeCC{id: 2, onlyCommonName: true}}
+				config.CredentialComposers = []credentialcomposer.CredentialComposer{fakeCC{id: []byte{1, 2, 3, 4}}, fakeCC{id: []byte{2, 3, 4, 5}, onlyCommonName: true}}
 			},
 			overrideExpected: func(expected *x509.CertificateRequest) {
-				expected.Subject.CommonName = "OVERRIDE-2"
-				expected.ExtraExtensions = []pkix.Extension{{Id: makeOID(1), Value: []byte{1}}}
+				expected.Subject.CommonName = "OVERRIDE-[2 3 4 5]"
+				expected.ExtraExtensions = []pkix.Extension{{Id: makeOID(1, 2, 3, 4), Value: []byte{1, 2, 3, 4}}}
 			},
 		},
 		{
@@ -346,6 +348,9 @@ func TestBuildUpstreamSignedX509CACSR(t *testing.T) {
 }
 
 func TestBuildDownstreamX509CATemplate(t *testing.T) {
+	oneTwoThreeFourOID, err := x509.ParseOID("1.2.3.4")
+	require.NoError(t, err)
+
 	for _, tc := range []struct {
 		desc             string
 		overrideConfig   func(config *credtemplate.Config)
@@ -426,23 +431,23 @@ func TestBuildDownstreamX509CATemplate(t *testing.T) {
 		{
 			desc: "single composer",
 			overrideConfig: func(config *credtemplate.Config) {
-				config.CredentialComposers = []credentialcomposer.CredentialComposer{fakeCC{id: 1}}
+				config.CredentialComposers = []credentialcomposer.CredentialComposer{fakeCC{id: []byte{1, 2, 3, 4}}}
 			},
 			overrideExpected: func(expected *x509.Certificate) {
-				expected.Subject.CommonName = "OVERRIDE-1"
-				expected.PolicyIdentifiers = []asn1.ObjectIdentifier{{1}}
-				expected.ExtraExtensions = []pkix.Extension{{Id: makeOID(1), Value: []byte{1}}}
+				expected.Subject.CommonName = "OVERRIDE-[1 2 3 4]"
+				expected.Policies = []x509.OID{oneTwoThreeFourOID}
+				expected.ExtraExtensions = []pkix.Extension{{Id: makeOID(1, 2, 3, 4), Value: []byte{1, 2, 3, 4}}}
 			},
 		},
 		{
 			desc: "two composers",
 			overrideConfig: func(config *credtemplate.Config) {
-				config.CredentialComposers = []credentialcomposer.CredentialComposer{fakeCC{id: 1}, fakeCC{id: 2, onlyCommonName: true}}
+				config.CredentialComposers = []credentialcomposer.CredentialComposer{fakeCC{id: []byte{1, 2, 3, 4}}, fakeCC{id: []byte{2, 3, 4, 5}, onlyCommonName: true}}
 			},
 			overrideExpected: func(expected *x509.Certificate) {
-				expected.Subject.CommonName = "OVERRIDE-2"
-				expected.PolicyIdentifiers = []asn1.ObjectIdentifier{{1}}
-				expected.ExtraExtensions = []pkix.Extension{{Id: makeOID(1), Value: []byte{1}}}
+				expected.Subject.CommonName = "OVERRIDE-[2 3 4 5]"
+				expected.Policies = []x509.OID{oneTwoThreeFourOID}
+				expected.ExtraExtensions = []pkix.Extension{{Id: makeOID(1, 2, 3, 4), Value: []byte{1, 2, 3, 4}}}
 			},
 		},
 		{
@@ -561,23 +566,23 @@ func TestBuildServerX509SVIDTemplate(t *testing.T) {
 		{
 			desc: "single composer",
 			overrideConfig: func(config *credtemplate.Config) {
-				config.CredentialComposers = []credentialcomposer.CredentialComposer{fakeCC{id: 1}}
+				config.CredentialComposers = []credentialcomposer.CredentialComposer{fakeCC{id: []byte{1, 2, 3, 4}}}
 			},
 			overrideExpected: func(expected *x509.Certificate) {
-				expected.Subject.CommonName = "OVERRIDE-1"
-				expected.DNSNames = []string{"OVERRIDE-1"}
-				expected.ExtraExtensions = []pkix.Extension{{Id: makeOID(1), Value: []byte{1}}}
+				expected.Subject.CommonName = "OVERRIDE-[1 2 3 4]"
+				expected.DNSNames = []string{"OVERRIDE-[1 2 3 4]"}
+				expected.ExtraExtensions = []pkix.Extension{{Id: makeOID(1, 2, 3, 4), Value: []byte{1, 2, 3, 4}}}
 			},
 		},
 		{
 			desc: "two composers",
 			overrideConfig: func(config *credtemplate.Config) {
-				config.CredentialComposers = []credentialcomposer.CredentialComposer{fakeCC{id: 1}, fakeCC{id: 2, onlyCommonName: true}}
+				config.CredentialComposers = []credentialcomposer.CredentialComposer{fakeCC{id: []byte{1, 2, 3, 4}}, fakeCC{id: []byte{2, 3, 4, 5}, onlyCommonName: true}}
 			},
 			overrideExpected: func(expected *x509.Certificate) {
-				expected.Subject.CommonName = "OVERRIDE-2"
-				expected.DNSNames = []string{"OVERRIDE-1"}
-				expected.ExtraExtensions = []pkix.Extension{{Id: makeOID(1), Value: []byte{1}}}
+				expected.Subject.CommonName = "OVERRIDE-[2 3 4 5]"
+				expected.DNSNames = []string{"OVERRIDE-[1 2 3 4]"}
+				expected.ExtraExtensions = []pkix.Extension{{Id: makeOID(1, 2, 3, 4), Value: []byte{1, 2, 3, 4}}}
 			},
 		},
 		{
@@ -724,23 +729,23 @@ func TestBuildAgentX509SVIDTemplate(t *testing.T) {
 		{
 			desc: "single composer",
 			overrideConfig: func(config *credtemplate.Config) {
-				config.CredentialComposers = []credentialcomposer.CredentialComposer{fakeCC{id: 1}}
+				config.CredentialComposers = []credentialcomposer.CredentialComposer{fakeCC{id: []byte{1, 2, 3, 4}}}
 			},
 			overrideExpected: func(expected *x509.Certificate) {
-				expected.Subject.CommonName = "OVERRIDE-1"
-				expected.DNSNames = []string{"OVERRIDE-1"}
-				expected.ExtraExtensions = []pkix.Extension{{Id: makeOID(1), Value: []byte{1}}}
+				expected.Subject.CommonName = "OVERRIDE-[1 2 3 4]"
+				expected.DNSNames = []string{"OVERRIDE-[1 2 3 4]"}
+				expected.ExtraExtensions = []pkix.Extension{{Id: makeOID(1, 2, 3, 4), Value: []byte{1, 2, 3, 4}}}
 			},
 		},
 		{
 			desc: "two composers",
 			overrideConfig: func(config *credtemplate.Config) {
-				config.CredentialComposers = []credentialcomposer.CredentialComposer{fakeCC{id: 1}, fakeCC{id: 2, onlyCommonName: true}}
+				config.CredentialComposers = []credentialcomposer.CredentialComposer{fakeCC{id: []byte{1, 2, 3, 4}}, fakeCC{id: []byte{2, 3, 4, 5}, onlyCommonName: true}}
 			},
 			overrideExpected: func(expected *x509.Certificate) {
-				expected.Subject.CommonName = "OVERRIDE-2"
-				expected.DNSNames = []string{"OVERRIDE-1"}
-				expected.ExtraExtensions = []pkix.Extension{{Id: makeOID(1), Value: []byte{1}}}
+				expected.Subject.CommonName = "OVERRIDE-[2 3 4 5]"
+				expected.DNSNames = []string{"OVERRIDE-[1 2 3 4]"}
+				expected.ExtraExtensions = []pkix.Extension{{Id: makeOID(1, 2, 3, 4), Value: []byte{1, 2, 3, 4}}}
 			},
 		},
 		{
@@ -911,7 +916,7 @@ func TestBuildWorkloadX509SVIDTemplate(t *testing.T) {
 		{
 			desc: "with DNS names and subject and composer",
 			overrideConfig: func(config *credtemplate.Config) {
-				config.CredentialComposers = []credentialcomposer.CredentialComposer{fakeCC{id: 1, onlyCommonName: true}}
+				config.CredentialComposers = []credentialcomposer.CredentialComposer{fakeCC{id: []byte{1, 2, 3, 4}, onlyCommonName: true}}
 			},
 			overrideParams: func(params *credtemplate.WorkloadX509SVIDParams) {
 				params.DNSNames = []string{"DNSNAME1", "DNSNAME2"}
@@ -923,7 +928,7 @@ func TestBuildWorkloadX509SVIDTemplate(t *testing.T) {
 				// default even when Subject is explicit but the composer is
 				// allowed to override.
 				expected.Subject = pkix.Name{
-					CommonName: "OVERRIDE-1",
+					CommonName: "OVERRIDE-[1 2 3 4]",
 				}
 			},
 		},
@@ -949,23 +954,23 @@ func TestBuildWorkloadX509SVIDTemplate(t *testing.T) {
 		{
 			desc: "single composer",
 			overrideConfig: func(config *credtemplate.Config) {
-				config.CredentialComposers = []credentialcomposer.CredentialComposer{fakeCC{id: 1}}
+				config.CredentialComposers = []credentialcomposer.CredentialComposer{fakeCC{id: []byte{1, 2, 3, 4}}}
 			},
 			overrideExpected: func(expected *x509.Certificate) {
-				expected.Subject.CommonName = "OVERRIDE-1"
-				expected.DNSNames = []string{"OVERRIDE-1"}
-				expected.ExtraExtensions = []pkix.Extension{{Id: makeOID(1), Value: []byte{1}}}
+				expected.Subject.CommonName = "OVERRIDE-[1 2 3 4]"
+				expected.DNSNames = []string{"OVERRIDE-[1 2 3 4]"}
+				expected.ExtraExtensions = []pkix.Extension{{Id: makeOID(1, 2, 3, 4), Value: []byte{1, 2, 3, 4}}}
 			},
 		},
 		{
 			desc: "two composers",
 			overrideConfig: func(config *credtemplate.Config) {
-				config.CredentialComposers = []credentialcomposer.CredentialComposer{fakeCC{id: 1}, fakeCC{id: 2, onlyCommonName: true}}
+				config.CredentialComposers = []credentialcomposer.CredentialComposer{fakeCC{id: []byte{1, 2, 3, 4}}, fakeCC{id: []byte{2, 3, 4, 5}, onlyCommonName: true}}
 			},
 			overrideExpected: func(expected *x509.Certificate) {
-				expected.Subject.CommonName = "OVERRIDE-2"
-				expected.DNSNames = []string{"OVERRIDE-1"}
-				expected.ExtraExtensions = []pkix.Extension{{Id: makeOID(1), Value: []byte{1}}}
+				expected.Subject.CommonName = "OVERRIDE-[2 3 4 5]"
+				expected.DNSNames = []string{"OVERRIDE-[1 2 3 4]"}
+				expected.ExtraExtensions = []pkix.Extension{{Id: makeOID(1, 2, 3, 4), Value: []byte{1, 2, 3, 4}}}
 			},
 		},
 		{
@@ -1122,21 +1127,21 @@ func TestBuildWorkloadJWTSVIDClaims(t *testing.T) {
 		{
 			desc: "single composer",
 			overrideConfig: func(config *credtemplate.Config) {
-				config.CredentialComposers = []credentialcomposer.CredentialComposer{fakeCC{id: 1}}
+				config.CredentialComposers = []credentialcomposer.CredentialComposer{fakeCC{id: []byte{1, 2, 3, 4}}}
 			},
 			overrideExpected: func(expected map[string]any) {
-				expected["foo"] = "VALUE-1"
-				expected["bar"] = "VALUE-1"
+				expected["foo"] = "VALUE-[1 2 3 4]"
+				expected["bar"] = "VALUE-[1 2 3 4]"
 			},
 		},
 		{
 			desc: "two composers",
 			overrideConfig: func(config *credtemplate.Config) {
-				config.CredentialComposers = []credentialcomposer.CredentialComposer{fakeCC{id: 1}, fakeCC{id: 2, onlyFoo: true}}
+				config.CredentialComposers = []credentialcomposer.CredentialComposer{fakeCC{id: []byte{1, 2, 3, 4}}, fakeCC{id: []byte{2, 3, 4, 5}, onlyFoo: true}}
 			},
 			overrideExpected: func(expected map[string]any) {
-				expected["foo"] = "VALUE-2"
-				expected["bar"] = "VALUE-1"
+				expected["foo"] = "VALUE-[2 3 4 5]"
+				expected["bar"] = "VALUE-[1 2 3 4]"
 			},
 		},
 		{
@@ -1166,26 +1171,26 @@ func TestBuildWorkloadJWTSVIDClaims(t *testing.T) {
 		{
 			desc: "real grpc composer overriding first composer",
 			overrideConfig: func(config *credtemplate.Config) {
-				config.CredentialComposers = []credentialcomposer.CredentialComposer{fakeCC{id: 1, onlyFoo: true, addInt64: true}, loadGrpcPlugin(t)}
+				config.CredentialComposers = []credentialcomposer.CredentialComposer{fakeCC{id: []byte{1, 2, 3, 4}, onlyFoo: true, addInt64: true}, loadGrpcPlugin(t)}
 			},
 			overrideExpected: func(expected map[string]any) {
 				expected["aud"] = []any{"AUDIENCE"}
 				expected["iat"] = now.Unix()
 				expected["exp"] = jwtSVIDNotAfter.Unix()
-				expected["foo"] = "VALUE-1"
+				expected["foo"] = "VALUE-[1 2 3 4]"
 				expected["i64"] = float64(math.MaxInt64)
 			},
 		},
 		{
 			desc: "real grpc composer with second composer",
 			overrideConfig: func(config *credtemplate.Config) {
-				config.CredentialComposers = []credentialcomposer.CredentialComposer{loadGrpcPlugin(t), fakeCC{id: 1, onlyFoo: true, addInt64: true}}
+				config.CredentialComposers = []credentialcomposer.CredentialComposer{loadGrpcPlugin(t), fakeCC{id: []byte{1, 2, 3, 4}, onlyFoo: true, addInt64: true}}
 			},
 			overrideExpected: func(expected map[string]any) {
 				expected["aud"] = []any{"AUDIENCE"}
 				expected["iat"] = now.Unix()
 				expected["exp"] = jwtSVIDNotAfter.Unix()
-				expected["foo"] = "VALUE-1"
+				expected["foo"] = "VALUE-[1 2 3 4]"
 				expected["i64"] = math.MaxInt64
 			},
 		},
@@ -1264,7 +1269,7 @@ func (badCC) ComposeWorkloadJWTSVID(context.Context, spiffeid.ID, credentialcomp
 type fakeCC struct {
 	catalog.PluginInfo
 
-	id             byte
+	id             []byte
 	onlyCommonName bool
 	onlyFoo        bool
 	addInt64       bool
@@ -1272,9 +1277,19 @@ type fakeCC struct {
 
 func (cc fakeCC) ComposeServerX509CA(_ context.Context, attributes credentialcomposer.X509CAAttributes) (credentialcomposer.X509CAAttributes, error) {
 	attributes.Subject.CommonName = cc.applySuffix("OVERRIDE")
+
 	if !cc.onlyCommonName {
-		attributes.PolicyIdentifiers = []asn1.ObjectIdentifier{makeOID(cc.id)}
-		attributes.ExtraExtensions = []pkix.Extension{{Id: makeOID(cc.id), Value: []byte{cc.id}}}
+		var uids []uint64
+		for _, id := range cc.id {
+			uids = append(uids, uint64(id))
+		}
+		oid, err := x509.OIDFromInts(uids)
+		if err != nil {
+			return attributes, err
+		}
+
+		attributes.Policies = []x509.OID{oid}
+		attributes.ExtraExtensions = []pkix.Extension{{Id: makeOID(cc.id...), Value: cc.id}}
 	}
 	return attributes, nil
 }
@@ -1306,7 +1321,7 @@ func (cc fakeCC) overrideX509SVIDAttributes(attributes credentialcomposer.X509SV
 	attributes.Subject.CommonName = cc.applySuffix("OVERRIDE")
 	if !cc.onlyCommonName {
 		attributes.DNSNames = []string{cc.applySuffix("OVERRIDE")}
-		attributes.ExtraExtensions = []pkix.Extension{{Id: makeOID(cc.id), Value: []byte{cc.id}}}
+		attributes.ExtraExtensions = []pkix.Extension{{Id: makeOID(cc.id...), Value: cc.id}}
 	}
 	return attributes
 }
@@ -1315,8 +1330,12 @@ func (cc fakeCC) applySuffix(s string) string {
 	return fmt.Sprintf("%s-%d", s, cc.id)
 }
 
-func makeOID(id byte) []int {
-	return []int{int(id)}
+func makeOID(ids ...byte) []int {
+	var oid []int
+	for _, id := range ids {
+		oid = append(oid, int(id))
+	}
+	return oid
 }
 
 func idURIs(id spiffeid.ID) []*url.URL {

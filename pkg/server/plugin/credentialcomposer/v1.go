@@ -160,7 +160,7 @@ func x509CAAttributesToV1(attributes X509CAAttributes) (*credentialcomposerv1.X5
 	}
 	return &credentialcomposerv1.X509CAAttributes{
 		Subject:           subject,
-		PolicyIdentifiers: policyIdentifiersToV1(attributes.PolicyIdentifiers),
+		PolicyIdentifiers: policyIdentifiersToV1(attributes.Policies),
 		ExtraExtensions:   extraExtensionsToV1(attributes.ExtraExtensions),
 	}, nil
 }
@@ -174,7 +174,7 @@ func x509CAAttributesFromV1(pb *credentialcomposerv1.X509CAAttributes) (attribut
 	if err != nil {
 		return X509CAAttributes{}, fmt.Errorf("subject: %w", err)
 	}
-	attributes.PolicyIdentifiers, err = policyIdentifiersFromV1(pb.PolicyIdentifiers)
+	attributes.Policies, err = policyIdentifiersFromV1(pb.PolicyIdentifiers)
 	if err != nil {
 		return X509CAAttributes{}, fmt.Errorf("policy identifiers: %w", err)
 	}
@@ -283,13 +283,13 @@ func subjectToV1(in pkix.Name) (*credentialcomposerv1.DistinguishedName, error) 
 	}, nil
 }
 
-func policyIdentifiersFromV1(ins []string) ([]asn1.ObjectIdentifier, error) {
+func policyIdentifiersFromV1(ins []string) ([]x509.OID, error) {
 	if ins == nil {
 		return nil, nil
 	}
-	outs := make([]asn1.ObjectIdentifier, 0, len(ins))
+	outs := make([]x509.OID, 0, len(ins))
 	for _, in := range ins {
-		out, err := parseOID(in)
+		out, err := x509.ParseOID(in)
 		if err != nil {
 			return nil, err
 		}
@@ -298,7 +298,7 @@ func policyIdentifiersFromV1(ins []string) ([]asn1.ObjectIdentifier, error) {
 	return outs, nil
 }
 
-func policyIdentifiersToV1(ins []asn1.ObjectIdentifier) []string {
+func policyIdentifiersToV1(ins []x509.OID) []string {
 	if ins == nil {
 		return nil
 	}
