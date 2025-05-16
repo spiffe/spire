@@ -225,9 +225,10 @@ jobs:
       test: ${{ steps.set-matrix.outputs.test }}
 
   integration:
-    name: integration (linux)
-    runs-on: ubuntu-22.04
+    name: integration (${{ matrix.arch }}) (${{ strategy.job-index}}/${{ strategy.job-total }})
+    runs-on: ${{ matrix.runs-on }}
     needs: [cache-deps, images]
+    timeout-minutes: 45
 
     permissions:
       contents: read
@@ -235,8 +236,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        num_runners: [5]
-        runner_id: [1, 2, 3, 4, 5]
+        arch: [x64, arm64]
+        num_runners: [10]
+        runner_id: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+        include:
+          - arch: x64
+            runs-on: ubuntu-22.04
+          - arch: arm64
+            runs-on: ubuntu-22.04-arm
     steps:
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -285,14 +292,15 @@ jobs:
           NUM_RUNNERS: ${{ matrix.num_runners }}
           THIS_RUNNER: ${{ matrix.runner_id }}
           TERM: dumb
+          IGNORE_SUITES: ${{ matrix.arch == 'arm64' && 'suites/upstream-authority-ejbca' || '' }} # Waiting for EJBCA to support arm64 (https://github.com/spiffe/spire/issues/6060)
           # We don't need to specify CICD_TARGET_BRANCH since the upgrade
           # integration test will detect the annotated tag for version checking.
           # CICD_TARGET_BRANCH:
         run: ./.github/workflows/scripts/split.sh | xargs ./test/integration/test.sh
 
   integration-k8s:
-    name: integration-k8s
-    runs-on: ubuntu-22.04
+    name: integration-k8s-${{ matrix.test[0] }}-${{ matrix.arch }}
+    runs-on: ${{ matrix.runs-on }}
     needs: [cache-deps, images, build-matrix]
     timeout-minutes: 45
 
@@ -302,10 +310,18 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-         num_runners: [1]
-         runner_id: [1]
-         #Test elements should be added as [KubeCTLVersion, K8s-image, KindVersion]
-         test: ${{ fromJson(needs.build-matrix.outputs.test) }}
+        arch: [x64, arm64]
+        include:
+          - arch: x64
+            runs-on: ubuntu-22.04
+            num_runners: 1
+            runner_id: 1
+          - arch: arm64
+            runs-on: ubuntu-22.04-arm
+            num_runners: 1
+            runner_id: 1
+        #Test elements should be added as [KubeCTLVersion, K8s-image, KindVersion]
+        test: ${{ fromJson(needs.build-matrix.outputs.test) }}
     steps:
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -547,7 +563,7 @@ jobs:
 
   publish-artifacts:
     runs-on: ubuntu-22.04
-    needs: [lint, unit-test, unit-test-race-detector, artifacts, integration, lint-windows, unit-test-windows, artifacts-windows, integration-windows]
+    needs: [lint, unit-test, unit-test-race-detector, artifacts, integration, integration-k8s, lint-windows, unit-test-windows, artifacts-windows, integration-windows]
     permissions:
       contents: write
 
@@ -579,7 +595,7 @@ jobs:
 
   publish-images:
     runs-on: ubuntu-22.04
-    needs: [lint, unit-test, unit-test-race-detector, artifacts, integration, lint-windows, unit-test-windows, artifacts-windows, integration-windows]
+    needs: [lint, unit-test, unit-test-race-detector, artifacts, integration, integration-k8s, lint-windows, unit-test-windows, artifacts-windows, integration-windows]
     permissions:
       contents: read
       id-token: write
