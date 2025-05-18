@@ -1225,6 +1225,22 @@ func TestNewServerConfig(t *testing.T) {
 				require.Equal(t, true, c.TLSPolicy.RequirePQKEM)
 			},
 		},
+		{
+			msg:   "graceful_stop_wait is defaulted when unset",
+			input: func(c *Config) {},
+			test: func(t *testing.T, c *server.Config) {
+				require.Equal(t, 30*time.Second, c.GracefulStopWait)
+			},
+		},
+		{
+			msg: "graceful_stop_wait is correctly parsed when set",
+			input: func(c *Config) {
+				c.Server.GracefulStopWait = "1m"
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Equal(t, time.Minute, c.GracefulStopWait)
+			},
+		},
 	}
 	cases = append(cases, newServerConfigCasesOS(t)...)
 

@@ -86,6 +86,7 @@ type Endpoints struct {
 	AuthPolicyEngine             *authpolicy.Engine
 	AdminIDs                     []spiffeid.ID
 	TLSPolicy                    tlspolicy.Policy
+	GracefulStopWait             time.Duration
 }
 
 type APIServers struct {
@@ -179,6 +180,7 @@ func New(ctx context.Context, c Config) (*Endpoints, error) {
 		AuthPolicyEngine:             c.AuthPolicyEngine,
 		AdminIDs:                     c.AdminIDs,
 		TLSPolicy:                    c.TLSPolicy,
+		GracefulStopWait:             c.GracefulStopWait,
 	}, nil
 }
 
@@ -294,7 +296,21 @@ func (e *Endpoints) runTCPServer(ctx context.Context, server *grpc.Server) error
 		return err
 	case <-ctx.Done():
 		log.Info("Stopping Server APIs")
-		server.Stop()
+
+		stopComplete := make(chan struct{})
+		go func() {
+			log.Info("Attempting graceful stop")
+			server.GracefulStop()
+			close(stopComplete)
+		}()
+
+		shutdownDeadline := time.After(e.GracefulStopWait)
+		select {
+		case <-shutdownDeadline:
+			log.Infof("Graceful stop unsuccessful, forced stop after %s", e.GracefulStopWait.String())
+		case <-stopComplete:
+			log.Info("Graceful stop successful")
+		}
 		<-errChan
 		log.Info("Server APIs have stopped")
 		return nil
@@ -338,7 +354,20 @@ func (e *Endpoints) runLocalAccess(ctx context.Context, server *grpc.Server) err
 		return err
 	case <-ctx.Done():
 		log.Info("Stopping Server APIs")
-		server.Stop()
+		stopComplete := make(chan struct{})
+		go func() {
+			log.Info("Attempting graceful stop")
+			server.GracefulStop()
+			close(stopComplete)
+		}()
+
+		shutdownDeadline := time.After(e.GracefulStopWait)
+		select {
+		case <-shutdownDeadline:
+			log.Infof("Graceful stop unsuccessful, forced stop after %s", e.GracefulStopWait.String())
+		case <-stopComplete:
+			log.Info("Graceful stop successful")
+		}
 		<-errChan
 		log.Info("Server APIs have stopped")
 		return nil

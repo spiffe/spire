@@ -112,6 +112,11 @@ type Config struct {
 	// TLSPolicy determines the post-quantum-safe policy used for all TLS
 	// connections.
 	TLSPolicy tlspolicy.Policy
+
+	// GracefulStopWait determines how long the server will attempt to
+	// gracefully shut down - meaning, wait for clients to disconnect - before
+	// forcefully shutting down and closing open connections.
+	GracefulStopWait time.Duration
 }
 
 func (c *Config) maybeMakeBundleEndpointServer() (Server, func(context.Context) error) {

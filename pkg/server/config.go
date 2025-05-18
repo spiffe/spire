@@ -124,6 +124,11 @@ type Config struct {
 
 	// TLSPolicy determines the policy settings to apply to all TLS connections.
 	TLSPolicy tlspolicy.Policy
+
+	// GracefulStopWait determines how long the server will attempt to
+	// gracefully shut down - meaning, wait for clients to disconnect - before
+	// forcefully shutting down and closing open connections.
+	GracefulStopWait time.Duration
 }
 
 type ExperimentalConfig struct {
