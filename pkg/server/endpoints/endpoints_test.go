@@ -240,7 +240,6 @@ func TestListenAndServe(t *testing.T) {
 	prepareDataStore(t, ds, []*testca.CA{ca, federatedCA}, agentSVID)
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
-	defer cancel()
 
 	// Start listening
 	errCh := make(chan error)
