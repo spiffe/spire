@@ -208,6 +208,7 @@ jobs:
         with:
           path: ./bin/
           key: ${{ runner.os }}-executables-${{ hashFiles('**/*.exe') }}
+          fail-on-cache-miss: true
       - name: Build images
         run: make images-windows
       - name: Export images
