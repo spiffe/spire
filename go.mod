@@ -4,9 +4,9 @@ go 1.24.2
 
 require (
 	cloud.google.com/go/iam v1.5.2
-	cloud.google.com/go/kms v1.21.1
-	cloud.google.com/go/secretmanager v1.14.5
-	cloud.google.com/go/security v1.18.4
+	cloud.google.com/go/kms v1.21.2
+	cloud.google.com/go/secretmanager v1.14.7
+	cloud.google.com/go/security v1.18.5
 	cloud.google.com/go/storage v1.54.0
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.18.0
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.9.0
@@ -49,7 +49,7 @@ require (
 	github.com/google/go-containerregistry v0.20.3
 	github.com/google/go-tpm v0.9.5
 	github.com/google/go-tpm-tools v0.4.5
-	github.com/googleapis/gax-go/v2 v2.14.1
+	github.com/googleapis/gax-go/v2 v2.14.2
 	github.com/gorilla/handlers v1.5.2
 	github.com/hashicorp/go-hclog v1.6.3
 	github.com/hashicorp/go-metrics v0.5.4
@@ -104,7 +104,7 @@ require (
 	cloud.google.com/go/auth/oauth2adapt v0.2.8 // indirect
 	cloud.google.com/go/compute/metadata v0.6.0 // indirect
 	cloud.google.com/go/longrunning v0.6.7 // indirect
-	cloud.google.com/go/monitoring v1.24.0 // indirect
+	cloud.google.com/go/monitoring v1.24.2 // indirect
 	dario.cat/mergo v1.0.1 // indirect
 	filippo.io/edwards25519 v1.1.0 // indirect
 	github.com/4meepo/tagalign v1.4.1 // indirect
@@ -428,7 +428,7 @@ require (
 	golang.org/x/term v0.32.0 // indirect
 	golang.org/x/text v0.25.0 // indirect
 	golang.org/x/tools v0.30.0 // indirect
-	google.golang.org/genproto v0.0.0-20250303144028-a0af3efb3deb // indirect
+	google.golang.org/genproto v0.0.0-20250505200425-f936aa4a68b2 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20250505200425-f936aa4a68b2 // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.12.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
