@@ -195,7 +195,7 @@ func TestListenAndServe(t *testing.T) {
 	clk := clock.NewMock(t)
 
 	buildCacheFn := func(ctx context.Context) (entrycache.Cache, error) {
-		return entrycache.BuildFromDataStore(ctx, ds)
+		return entrycache.BuildFromDataStore(ctx, testTD.String(), ds)
 	}
 
 	ef, err := NewAuthorizedEntryFetcherWithFullCache(context.Background(), buildCacheFn, log, clk, ds, defaultCacheReloadInterval, defaultPruneEventsOlderThan)

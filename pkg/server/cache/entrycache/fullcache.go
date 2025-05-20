@@ -104,7 +104,7 @@ type aliasEntry struct {
 
 // Build queries the data source for all registration entries and Agent selectors and builds an in-memory
 // representation of the data that can be used for efficient lookups.
-func Build(ctx context.Context, entryIter EntryIterator, agentIter AgentIterator) (*FullEntryCache, error) {
+func Build(ctx context.Context, trustDomain string, entryIter EntryIterator, agentIter AgentIterator) (*FullEntryCache, error) {
 	type aliasInfo struct {
 		aliasEntry
 		selectors selectorSet
@@ -114,6 +114,13 @@ func Build(ctx context.Context, entryIter EntryIterator, agentIter AgentIterator
 	entries := make(map[string][]*types.Entry)
 	for entryIter.Next(ctx) {
 		entry := entryIter.Entry()
+		if entry.ParentId.TrustDomain != trustDomain {
+			continue
+		}
+		if entry.SpiffeId.TrustDomain != trustDomain {
+			continue
+		}
+
 		parentID := entry.ParentId.Path
 		if entry.ParentId.Path == "/spire/server" {
 			alias := aliasInfo{
@@ -140,6 +147,11 @@ func Build(ctx context.Context, entryIter EntryIterator, agentIter AgentIterator
 	aliases := make(map[string][]aliasEntry)
 	for agentIter.Next(ctx) {
 		agent := agentIter.Agent()
+
+		if agent.ID.TrustDomain().String() != trustDomain {
+			continue
+		}
+
 		agentID := agent.ID.Path()
 		agentSelectors := selectorSetFromProto(agent.Selectors)
 		// track which aliases we've evaluated so far to make sure we don't
