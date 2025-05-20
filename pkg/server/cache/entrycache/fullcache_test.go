@@ -124,12 +124,63 @@ func TestCache(t *testing.T) {
 	createAttestedNode(t, ds, node)
 	setNodeSelectors(ctx, t, ds, entryIDs[1], a1, b2)
 
-	cache, err := BuildFromDataStore(context.Background(), ds)
+	cache, err := BuildFromDataStore(context.Background(), "example.org", ds)
 	assert.NoError(t, err)
 
 	expected := entries[:3]
 	expected = append(expected, entries[4])
 	assertAuthorizedEntries(t, cache, rootID, entries, expected...)
+}
+
+func TestCacheAfterRenamingTrustDomain(t *testing.T) {
+	ds := fakedatastore.New(t)
+	ctx := context.Background()
+
+	irrelevantSelectors := []*common.Selector{
+		{Type: "not", Value: "relevant"},
+	}
+
+	entriesToCreate := []*common.RegistrationEntry{
+		{
+			ParentId:  "spiffe://example1.org/agent",
+			SpiffeId:  "spiffe://example1.org/workload",
+			Selectors: irrelevantSelectors,
+		},
+		{
+			ParentId:  "spiffe://example2.org/agent",
+			SpiffeId:  "spiffe://example1.org/anotherworkload",
+			Selectors: irrelevantSelectors,
+		},
+		// Only this entry should be returned as authorized by the agent
+		{
+			ParentId:  "spiffe://example2.org/agent",
+			SpiffeId:  "spiffe://example2.org/workload",
+			Selectors: irrelevantSelectors,
+		},
+	}
+
+	entries := make([]*common.RegistrationEntry, len(entriesToCreate))
+	for i, e := range entriesToCreate {
+		entries[i] = createRegistrationEntry(ctx, t, ds, e)
+	}
+
+	node := &common.AttestedNode{
+		SpiffeId:            "spiffe://example2.org/agent",
+		AttestationDataType: "test-nodeattestor",
+		CertSerialNumber:    "node-1",
+		CertNotAfter:        time.Now().Add(24 * time.Hour).Unix(),
+	}
+
+	createAttestedNode(t, ds, node)
+	a1 := &common.Selector{Type: "a", Value: "1"}
+	b2 := &common.Selector{Type: "b", Value: "2"}
+	setNodeSelectors(ctx, t, ds, "spiffe://example2.org/agent", a1, b2)
+
+	cache, err := BuildFromDataStore(context.Background(), "example2.org", ds)
+	assert.NoError(t, err)
+
+	expected := entries[2:3]
+	assertAuthorizedEntries(t, cache, spiffeid.RequireFromString("spiffe://example2.org/agent"), entries, expected...)
 }
 
 func TestFullCacheNodeAliasing(t *testing.T) {
@@ -206,7 +257,7 @@ func TestFullCacheNodeAliasing(t *testing.T) {
 	setNodeSelectors(ctx, t, ds, agentIDs[0].String(), s1, s2)
 	setNodeSelectors(ctx, t, ds, agentIDs[1].String(), s1, s3)
 
-	cache, err := BuildFromDataStore(context.Background(), ds)
+	cache, err := BuildFromDataStore(context.Background(), "example.org", ds)
 	assert.NoError(t, err)
 
 	assertAuthorizedEntries(t, cache, agentIDs[0], workloadEntries, workloadEntries[:2]...)
@@ -402,7 +453,7 @@ func TestFullCacheExcludesNodeSelectorMappedEntriesForExpiredAgents(t *testing.T
 		workloadEntries[i] = createRegistrationEntry(ctx, t, ds, workloadEntriesToCreate[i])
 	}
 
-	c, err := BuildFromDataStore(ctx, ds)
+	c, err := BuildFromDataStore(ctx, "example.org", ds)
 	require.NoError(t, err)
 	require.NotNil(t, c)
 
@@ -437,7 +488,7 @@ func TestBuildIteratorError(t *testing.T) {
 		entryIt := tt.entryIt
 		agentIt := tt.agentIt
 		t.Run(tt.desc, func(t *testing.T) {
-			cache, err := Build(ctx, entryIt, agentIt)
+			cache, err := Build(ctx, "example.org", entryIt, agentIt)
 			assert.Error(t, err)
 			assert.Nil(t, cache)
 		})
@@ -448,7 +499,7 @@ func BenchmarkBuildInMemory(b *testing.B) {
 	allEntries, agents := buildBenchmarkData()
 
 	for b.Loop() {
-		_, err := Build(context.Background(), makeEntryIterator(allEntries), makeAgentIterator(agents))
+		_, err := Build(context.Background(), "example.org", makeEntryIterator(allEntries), makeAgentIterator(agents))
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -457,7 +508,7 @@ func BenchmarkBuildInMemory(b *testing.B) {
 
 func BenchmarkGetAuthorizedEntriesInMemory(b *testing.B) {
 	allEntries, agents := buildBenchmarkData()
-	cache, err := Build(context.Background(), makeEntryIterator(allEntries), makeAgentIterator(agents))
+	cache, err := Build(context.Background(), "example.org", makeEntryIterator(allEntries), makeAgentIterator(agents))
 	require.NoError(b, err)
 	b.ResetTimer()
 	for i := range b.N {
@@ -495,7 +546,7 @@ func BenchmarkBuildSQL(b *testing.B) {
 	}
 
 	for b.Loop() {
-		_, err := BuildFromDataStore(ctx, ds)
+		_, err := BuildFromDataStore(ctx, "example.org", ds)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -875,7 +926,7 @@ func setupLookupTest(tb testing.TB, count int) (*FullEntryCache, []string) {
 		entries = append(entries, entry.EntryId)
 	}
 
-	cache, err := BuildFromDataStore(ctx, ds)
+	cache, err := BuildFromDataStore(ctx, "example.org", ds)
 	assert.NoError(tb, err)
 
 	return cache, entries
