@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.12.2] - 2025-05-19
+
+### Fixed
+
+- Regression where PolicyCredentials set by CredentialComposer plugins were not correctly applied to CA certificates. (#6074)
+
 ## [1.12.1] - 2025-05-06
 
 ### Added
