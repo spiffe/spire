@@ -88,7 +88,6 @@ type serverConfig struct {
 	RateLimit          rateLimitConfig    `hcl:"ratelimit"`
 	SocketPath         string             `hcl:"socket_path"`
 	TrustDomain        string             `hcl:"trust_domain"`
-	GracefulStopWait   string             `hcl:"graceful_stop_wait"`
 
 	ConfigPath string
 	ExpandEnv  bool
@@ -534,17 +533,6 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 			return nil, fmt.Errorf("could not parse agent ttl %q: %w", c.Server.AgentTTL, err)
 		}
 		sc.AgentTTL = ttl
-	}
-
-	switch {
-	case c.Server.GracefulStopWait != "":
-		gsw, err := time.ParseDuration(c.Server.GracefulStopWait)
-		if err != nil {
-			return nil, fmt.Errorf("could not parse graceful stop wait %q: %w", c.Server.GracefulStopWait, err)
-		}
-		sc.GracefulStopWait = gsw
-	default:
-		sc.GracefulStopWait = 30 * time.Second
 	}
 
 	switch {

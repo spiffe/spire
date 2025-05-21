@@ -56,6 +56,10 @@ const (
 
 	// This is the default amount of time to wait for an event before giving up
 	defaultEventTimeout = 15 * time.Minute
+
+	// This is the time to wait for graceful termination of the gRPC server
+	// before forcefully terminating.
+	defaultGracefulStopTimeout = 10 * time.Second
 )
 
 // Server manages gRPC and HTTP endpoint lifecycle
@@ -86,7 +90,6 @@ type Endpoints struct {
 	AuthPolicyEngine             *authpolicy.Engine
 	AdminIDs                     []spiffeid.ID
 	TLSPolicy                    tlspolicy.Policy
-	GracefulStopWait             time.Duration
 }
 
 type APIServers struct {
@@ -180,7 +183,6 @@ func New(ctx context.Context, c Config) (*Endpoints, error) {
 		AuthPolicyEngine:             c.AuthPolicyEngine,
 		AdminIDs:                     c.AdminIDs,
 		TLSPolicy:                    c.TLSPolicy,
-		GracefulStopWait:             c.GracefulStopWait,
 	}, nil
 }
 
@@ -295,24 +297,7 @@ func (e *Endpoints) runTCPServer(ctx context.Context, server *grpc.Server) error
 		log.WithError(err).Error("Server APIs stopped prematurely")
 		return err
 	case <-ctx.Done():
-		log.Info("Stopping Server APIs")
-
-		stopComplete := make(chan struct{})
-		go func() {
-			log.Info("Attempting graceful stop")
-			server.GracefulStop()
-			close(stopComplete)
-		}()
-
-		shutdownDeadline := time.After(e.GracefulStopWait)
-		select {
-		case <-shutdownDeadline:
-			log.Infof("Graceful stop unsuccessful, forced stop after %s", e.GracefulStopWait.String())
-		case <-stopComplete:
-			log.Info("Graceful stop successful")
-		}
-		<-errChan
-		log.Info("Server APIs have stopped")
+		e.handleShutdown(server, errChan, log)
 		return nil
 	}
 }
@@ -353,25 +338,34 @@ func (e *Endpoints) runLocalAccess(ctx context.Context, server *grpc.Server) err
 		log.WithError(err).Error("Server APIs stopped prematurely")
 		return err
 	case <-ctx.Done():
-		log.Info("Stopping Server APIs")
-		stopComplete := make(chan struct{})
-		go func() {
-			log.Info("Attempting graceful stop")
-			server.GracefulStop()
-			close(stopComplete)
-		}()
-
-		shutdownDeadline := time.After(e.GracefulStopWait)
-		select {
-		case <-shutdownDeadline:
-			log.Infof("Graceful stop unsuccessful, forced stop after %s", e.GracefulStopWait.String())
-		case <-stopComplete:
-			log.Info("Graceful stop successful")
-		}
-		<-errChan
-		log.Info("Server APIs have stopped")
+		e.handleShutdown(server, errChan, log)
 		return nil
 	}
+}
+
+// handleShutdown is a helper function for gracefully terminating the grpc server.
+// if the server does not terminate within the GratefulStopWait deadline, the server
+// will be forcibly stopped.
+func (e *Endpoints) handleShutdown(server *grpc.Server, errChan <-chan error, log *logrus.Entry) {
+	log.Info("Stopping Server APIs")
+
+	stopComplete := make(chan struct{})
+	go func() {
+		log.Info("Attempting graceful stop")
+		server.GracefulStop()
+		close(stopComplete)
+	}()
+
+	shutdownDeadline := time.After(defaultGracefulStopTimeout)
+	select {
+	case <-shutdownDeadline:
+		log.Infof("Graceful stop unsuccessful, forced stop after %s", defaultGracefulStopTimeout.String())
+		server.Stop()
+	case <-stopComplete:
+		log.Info("Graceful stop successful")
+	}
+	<-errChan
+	log.Info("Server APIs have stopped")
 }
 
 // getTLSConfig returns a TLS Config hook for the gRPC server
