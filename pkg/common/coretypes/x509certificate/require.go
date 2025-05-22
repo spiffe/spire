@@ -73,12 +73,6 @@ func RequireToPluginFromCertificates(x509Certificates []*x509.Certificate) []*pl
 	return pbs
 }
 
-func RequireToPluginFromCertificate(x509Certificate *x509.Certificate) *plugintypes.X509Certificate {
-	pb, err := ToPluginFromCertificate(x509Certificate)
-	panicOnError(err)
-	return pb
-}
-
 func panicOnError(err error) {
 	if err != nil {
 		panic(err)

@@ -363,7 +363,47 @@ func parseConfigCasesOS() []parseConfigCase {
 				server_api { address = "unix:///some/socket/path" }
 				workload_api { socket_path = "/some/socket/path" trust_domain="foo.test" }
 			`,
-			err: "the server_api and workload_api sections are mutually exclusive",
+			err: "the server_api, workload_api, and file sections are mutually exclusive",
+		},
+		{
+			name: "more than one source section configured",
+			in: `
+				domains = ["domain.test"]
+				acme {
+					email = "admin@domain.test"
+					tos_accepted = true
+				}
+				server_api { address = "unix:///some/socket/path" }
+				file { path = "/some/file.spiffe" }
+			`,
+			err: "the server_api, workload_api, and file sections are mutually exclusive",
+		},
+		{
+			name: "more than one source section configured",
+			in: `
+				domains = ["domain.test"]
+				acme {
+					email = "admin@domain.test"
+					tos_accepted = true
+				}
+				workload_api { socket_path = "/some/socket/path" trust_domain="foo.test" }
+				file { path = "/some/file.spiffe" }
+			`,
+			err: "the server_api, workload_api, and file sections are mutually exclusive",
+		},
+		{
+			name: "more than one source section configured",
+			in: `
+				domains = ["domain.test"]
+				acme {
+					email = "admin@domain.test"
+					tos_accepted = true
+				}
+				server_api { address = "unix:///some/socket/path" }
+				workload_api { socket_path = "/some/socket/path" trust_domain="foo.test" }
+				file { path = "/some/file.spiffe" }
+			`,
+			err: "the server_api, workload_api, and file sections are mutually exclusive",
 		},
 		{
 			name: "minimal server API config",
