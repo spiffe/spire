@@ -11,7 +11,6 @@ type TaskRunner struct {
 	wg        sync.WaitGroup
 	ctx       context.Context
 	cancel    context.CancelCauseFunc
-	taskCount int
 }
 
 func NewTaskRunner(ctx context.Context, cancel context.CancelCauseFunc) *TaskRunner {
@@ -32,9 +31,7 @@ func (t *TaskRunner) StartTasks(tasks ...func(context.Context) error) {
 		return task(t.ctx)
 	}
 
-	lenTasks := len(tasks)
-	t.taskCount += lenTasks
-	t.wg.Add(lenTasks)
+	t.wg.Add(len(tasks))
 	for _, task := range tasks {
 		go func() {
 			err := runTask(task)
