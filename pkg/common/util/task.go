@@ -10,22 +10,18 @@ import (
 type TaskRunner struct {
 	wg        sync.WaitGroup
 	ctx       context.Context
-	cancels   []context.CancelFunc
-	errch     chan error
+	cancel    context.CancelCauseFunc
 	taskCount int
 }
 
-func NewTaskRunner(ctx context.Context) *TaskRunner {
+func NewTaskRunner(ctx context.Context, cancel context.CancelCauseFunc) *TaskRunner {
 	return &TaskRunner{
-		ctx:   ctx,
-		errch: make(chan error, 1),
+		ctx:    ctx,
+		cancel: cancel,
 	}
 }
 
 func (t *TaskRunner) StartTasks(tasks ...func(context.Context) error) {
-	ctx, cancel := context.WithCancel(t.ctx)
-	t.cancels = append(t.cancels, cancel)
-
 	runTask := func(task func(context.Context) error) (err error) {
 		defer func() {
 			if r := recover(); r != nil {
@@ -33,7 +29,7 @@ func (t *TaskRunner) StartTasks(tasks ...func(context.Context) error) {
 			}
 			t.wg.Done()
 		}()
-		return task(ctx)
+		return task(t.ctx)
 	}
 
 	lenTasks := len(tasks)
@@ -41,32 +37,17 @@ func (t *TaskRunner) StartTasks(tasks ...func(context.Context) error) {
 	t.wg.Add(lenTasks)
 	for _, task := range tasks {
 		go func() {
-			t.errch <- runTask(task)
+			err := runTask(task)
+			if err != nil {
+				t.cancel(err)
+			}
 		}()
 	}
 }
 
 func (t *TaskRunner) Wait() error {
-	defer func() {
-		for _, cancel := range t.cancels {
-			cancel()
-		}
-		t.wg.Wait()
-	}()
-
-	for complete := 0; complete < t.taskCount; {
-		select {
-		case <-t.ctx.Done():
-			return t.ctx.Err()
-		case err := <-t.errch:
-			if err != nil {
-				return err
-			}
-			complete++
-		}
-	}
-
-	return nil
+	t.wg.Wait()
+	return t.ctx.Err()
 }
 
 // RunTasks executes all the provided functions concurrently and waits for
@@ -78,7 +59,8 @@ func (t *TaskRunner) Wait() error {
 // RunTasks MUST support cancellation via the provided context for RunTasks to
 // work properly.
 func RunTasks(ctx context.Context, tasks ...func(context.Context) error) error {
-	t := NewTaskRunner(ctx)
+        nctx, cancel := context.WithCancelCause(ctx)
+	t := NewTaskRunner(nctx, cancel)
 	t.StartTasks(tasks...)
 	return t.Wait()
 }

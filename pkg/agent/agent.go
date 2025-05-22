@@ -66,8 +66,8 @@ func (a *Agent) Run(ctx context.Context) error {
 		return fmt.Errorf("failed to open storage: %w", err)
 	}
 
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
+	ctx, cancel := context.WithCancelCause(ctx)
+	defer cancel(nil)
 
 	if a.c.ProfilingEnabled {
 		stopProfiling := a.setupProfiling(ctx)
@@ -105,7 +105,7 @@ func (a *Agent) Run(ctx context.Context) error {
 		healthChecker.ListenAndServe,
 		metrics.ListenAndServe,
 	}
-	taskRunner := util.NewTaskRunner(ctx)
+	taskRunner := util.NewTaskRunner(ctx, cancel)
 	taskRunner.StartTasks(tasks...)
 
 	nodeAttestor := nodeattestor.JoinToken(a.c.Log, a.c.JoinToken)
