@@ -243,14 +243,14 @@ func (p *Plugin) PublishJWTKeyAndSubscribe(req *upstreamauthorityv1.PublishJWTKe
 		newKeys := p.getBundle().JwtAuthorities
 		// Send response when new JWT authority
 		if !arePublicKeysEqual(keys, newKeys) {
-			keys = newKeys
 			err := stream.Send(&upstreamauthorityv1.PublishJWTKeyResponse{
-				UpstreamJwtKeys: keys,
+				UpstreamJwtKeys: newKeys,
 			})
 			if err != nil {
 				p.log.Error("Cannot send upstream JWT keys", "error", err)
 				return err
 			}
+			keys = newKeys
 		}
 		select {
 		case <-ticker.C:
