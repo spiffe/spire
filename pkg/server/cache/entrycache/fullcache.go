@@ -2,12 +2,11 @@ package entrycache
 
 import (
 	"context"
-	"slices"
 	"sync"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
-	"google.golang.org/protobuf/proto"
+	"github.com/spiffe/spire/pkg/server/api"
 )
 
 var (
@@ -29,8 +28,8 @@ var _ Cache = (*FullEntryCache)(nil)
 // Cache contains a snapshot of all registration entries and Agent selectors from the data source
 // at a particular moment in time.
 type Cache interface {
-	LookupAuthorizedEntries(agentID spiffeid.ID, entries map[string]struct{}) map[string]*types.Entry
-	GetAuthorizedEntries(agentID spiffeid.ID) []*types.Entry
+	LookupAuthorizedEntries(agentID spiffeid.ID, entries map[string]struct{}) map[string]api.ReadOnlyEntry
+	GetAuthorizedEntries(agentID spiffeid.ID) []api.ReadOnlyEntry
 }
 
 // Selector is a key-value attribute of a node or workload.
@@ -90,43 +89,43 @@ type Agent struct {
 }
 
 type FullEntryCache struct {
-	aliases map[spiffeID][]aliasEntry
-	entries map[spiffeID][]*types.Entry
+	aliases map[string][]aliasEntry
+	entries map[string][]*types.Entry
 }
 
 type selectorSet map[Selector]struct{}
-type seenSet map[spiffeID]struct{}
+type seenSet map[string]struct{}
 type stringSet map[string]struct{}
 
-type spiffeID struct {
-	// TrustDomain is the trust domain of the SPIFFE ID.
-	TrustDomain string
-	// Path is the path of the SPIFFE ID.
-	Path string
-}
-
 type aliasEntry struct {
-	id    spiffeID
+	id    string
 	entry *types.Entry
 }
 
 // Build queries the data source for all registration entries and Agent selectors and builds an in-memory
 // representation of the data that can be used for efficient lookups.
-func Build(ctx context.Context, entryIter EntryIterator, agentIter AgentIterator) (*FullEntryCache, error) {
+func Build(ctx context.Context, trustDomain string, entryIter EntryIterator, agentIter AgentIterator) (*FullEntryCache, error) {
 	type aliasInfo struct {
 		aliasEntry
 		selectors selectorSet
 	}
 	bysel := make(map[Selector][]aliasInfo)
 
-	entries := make(map[spiffeID][]*types.Entry)
+	entries := make(map[string][]*types.Entry)
 	for entryIter.Next(ctx) {
 		entry := entryIter.Entry()
-		parentID := spiffeIDFromProto(entry.ParentId)
-		if parentID.Path == "/spire/server" {
+		if entry.ParentId.TrustDomain != trustDomain {
+			continue
+		}
+		if entry.SpiffeId.TrustDomain != trustDomain {
+			continue
+		}
+
+		parentID := entry.ParentId.Path
+		if entry.ParentId.Path == "/spire/server" {
 			alias := aliasInfo{
 				aliasEntry: aliasEntry{
-					id:    spiffeIDFromProto(entry.SpiffeId),
+					id:    entry.SpiffeId.Path,
 					entry: entry,
 				},
 				selectors: selectorSetFromProto(entry.Selectors),
@@ -145,10 +144,15 @@ func Build(ctx context.Context, entryIter EntryIterator, agentIter AgentIterator
 	aliasSeen := allocStringSet()
 	defer freeStringSet(aliasSeen)
 
-	aliases := make(map[spiffeID][]aliasEntry)
+	aliases := make(map[string][]aliasEntry)
 	for agentIter.Next(ctx) {
 		agent := agentIter.Agent()
-		agentID := spiffeIDFromID(agent.ID)
+
+		if agent.ID.TrustDomain().String() != trustDomain {
+			continue
+		}
+
+		agentID := agent.ID.Path()
 		agentSelectors := selectorSetFromProto(agent.Selectors)
 		// track which aliases we've evaluated so far to make sure we don't
 		// add one twice.
@@ -175,73 +179,46 @@ func Build(ctx context.Context, entryIter EntryIterator, agentIter AgentIterator
 	}, nil
 }
 
-func (c *FullEntryCache) LookupAuthorizedEntries(agentID spiffeid.ID, requestedEntries map[string]struct{}) map[string]*types.Entry {
+func (c *FullEntryCache) LookupAuthorizedEntries(agentID spiffeid.ID, requestedEntries map[string]struct{}) map[string]api.ReadOnlyEntry {
 	seen := allocSeenSet()
 	defer freeSeenSet(seen)
 
-	foundEntries := make(map[string]*types.Entry)
-	c.lookupAuthorizedEntries(spiffeIDFromID(agentID), foundEntries, requestedEntries, seen)
+	foundEntries := make(map[string]api.ReadOnlyEntry)
+	c.crawl(agentID.Path(), seen, func(entry *types.Entry) {
+		if _, ok := requestedEntries[entry.Id]; ok {
+			foundEntries[entry.Id] = api.NewReadOnlyEntry(entry)
+		}
+	})
+
 	return foundEntries
 }
 
 // GetAuthorizedEntries gets all authorized registration entries for a given Agent SPIFFE ID.
-func (c *FullEntryCache) GetAuthorizedEntries(agentID spiffeid.ID) []*types.Entry {
+func (c *FullEntryCache) GetAuthorizedEntries(agentID spiffeid.ID) []api.ReadOnlyEntry {
 	seen := allocSeenSet()
 	defer freeSeenSet(seen)
 
-	return cloneEntries(c.getAuthorizedEntries(spiffeIDFromID(agentID), seen))
+	foundEntries := []api.ReadOnlyEntry{}
+	c.crawl(agentID.Path(), seen, func(entry *types.Entry) {
+		foundEntries = append(foundEntries, api.NewReadOnlyEntry(entry))
+	})
+
+	return foundEntries
 }
 
-func (c *FullEntryCache) lookupAuthorizedEntries(id spiffeID, foundEntries map[string]*types.Entry, requestedEntries map[string]struct{}, seen map[spiffeID]struct{}) {
-	for _, descendant := range c.crawl(id, seen) {
-		if _, ok := requestedEntries[descendant.Id]; ok {
-			foundEntries[descendant.Id] = proto.Clone(descendant).(*types.Entry)
-		}
-		c.lookupAuthorizedEntries(spiffeIDFromProto(descendant.SpiffeId), foundEntries, requestedEntries, seen)
-	}
-
-	for _, alias := range c.aliases[id] {
-		c.lookupAuthorizedEntries(alias.id, foundEntries, requestedEntries, seen)
-	}
-}
-
-func (c *FullEntryCache) getAuthorizedEntries(id spiffeID, seen map[spiffeID]struct{}) []*types.Entry {
-	entries := c.crawl(id, seen)
-	for _, descendant := range entries {
-		entries = append(entries, c.getAuthorizedEntries(spiffeIDFromProto(descendant.SpiffeId), seen)...)
-	}
-
-	for _, alias := range c.aliases[id] {
-		entries = append(entries, c.getAuthorizedEntries(alias.id, seen)...)
-	}
-	return entries
-}
-
-func (c *FullEntryCache) crawl(parentID spiffeID, seen map[spiffeID]struct{}) []*types.Entry {
+func (c *FullEntryCache) crawl(parentID string, seen map[string]struct{}, visit func(*types.Entry)) {
 	if _, ok := seen[parentID]; ok {
-		return nil
+		return
 	}
 	seen[parentID] = struct{}{}
 
-	// Make a copy so that the entries aren't aliasing the backing array
-	entries := slices.Clone(c.entries[parentID])
-	for _, entry := range entries {
-		entries = append(entries, c.crawl(spiffeIDFromProto(entry.SpiffeId), seen)...)
+	for _, entry := range c.entries[parentID] {
+		visit(entry)
+		c.crawl(entry.SpiffeId.Path, seen, visit)
 	}
-	return entries
-}
 
-func spiffeIDFromID(id spiffeid.ID) spiffeID {
-	return spiffeID{
-		TrustDomain: id.TrustDomain().Name(),
-		Path:        id.Path(),
-	}
-}
-
-func spiffeIDFromProto(id *types.SPIFFEID) spiffeID {
-	return spiffeID{
-		TrustDomain: id.TrustDomain,
-		Path:        id.Path,
+	for _, alias := range c.aliases[parentID] {
+		c.crawl(alias.id, seen, visit)
 	}
 }
 
@@ -293,15 +270,4 @@ func isSubset(sub, whole selectorSet) bool {
 		}
 	}
 	return true
-}
-
-func cloneEntries(entries []*types.Entry) []*types.Entry {
-	if len(entries) == 0 {
-		return entries
-	}
-	cloned := make([]*types.Entry, 0, len(entries))
-	for _, entry := range entries {
-		cloned = append(cloned, proto.Clone(entry).(*types.Entry))
-	}
-	return cloned
 }
