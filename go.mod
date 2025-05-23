@@ -9,7 +9,7 @@ require (
 	cloud.google.com/go/security v1.18.5
 	cloud.google.com/go/storage v1.54.0
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.18.0
-	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.9.0
+	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.10.0
 	github.com/Azure/azure-sdk-for-go/sdk/keyvault/azkeys v0.10.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute v1.0.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork v1.1.0
@@ -59,7 +59,7 @@ require (
 	github.com/hashicorp/vault/sdk v0.16.0
 	github.com/imdario/mergo v0.3.16
 	github.com/imkira/go-observer v1.0.3
-	github.com/jackc/pgx/v5 v5.7.4
+	github.com/jackc/pgx/v5 v5.7.5
 	github.com/jinzhu/gorm v1.9.16
 	github.com/lib/pq v1.10.9
 	github.com/mattn/go-sqlite3 v1.14.28
