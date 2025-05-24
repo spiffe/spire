@@ -8,9 +8,9 @@ import (
 )
 
 type TaskRunner struct {
-	wg        sync.WaitGroup
-	ctx       context.Context
-	cancel    context.CancelCauseFunc
+	wg     sync.WaitGroup
+	ctx    context.Context
+	cancel context.CancelCauseFunc
 }
 
 func NewTaskRunner(ctx context.Context, cancel context.CancelCauseFunc) *TaskRunner {
@@ -56,7 +56,7 @@ func (t *TaskRunner) Wait() error {
 // RunTasks MUST support cancellation via the provided context for RunTasks to
 // work properly.
 func RunTasks(ctx context.Context, tasks ...func(context.Context) error) error {
-        nctx, cancel := context.WithCancelCause(ctx)
+	nctx, cancel := context.WithCancelCause(ctx)
 	t := NewTaskRunner(nctx, cancel)
 	t.StartTasks(tasks...)
 	return t.Wait()
