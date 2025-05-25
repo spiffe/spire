@@ -44,7 +44,7 @@ func (t *TaskRunner) StartTasks(tasks ...func(context.Context) error) {
 
 func (t *TaskRunner) Wait() error {
 	t.wg.Wait()
-	return t.ctx.Err()
+	return context.Cause(t.ctx)
 }
 
 // RunTasks executes all the provided functions concurrently and waits for
