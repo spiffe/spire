@@ -284,16 +284,21 @@ func TestMintX509CA(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			csr, pubKey := c.getCSR()
 			// Get first response
-			x509CA, x509Authorities, stream, err := ua.MintX509CA(ctx, csr, c.ttl)
+			x509CA, x509AuthoritiesFromMint, _, err := ua.MintX509CA(ctx, csr, c.ttl)
 
 			spiretest.RequireGRPCStatusHasPrefix(t, err, c.expectCode, c.expectMsgPrefix)
 			if c.expectCode != codes.OK {
-				require.Nil(t, stream)
 				require.Nil(t, x509CA)
-				require.Nil(t, x509Authorities)
+				require.Nil(t, x509AuthoritiesFromMint)
 				cancel()
 				return
 			}
+
+			x509Authorities, _, stream, err := ua.SubscribeToLocalBundle(ctx)
+			require.NoError(t, err)
+			require.NotNil(t, stream)
+			require.NotNil(t, x509Authorities)
+			require.Equal(t, x509Authorities, x509AuthoritiesFromMint)
 
 			require.Equal(t, expectedX509Authorities, x509Authorities)
 
@@ -320,7 +325,7 @@ func TestMintX509CA(t *testing.T) {
 			mockClock.Add(internalPollFreq)
 
 			// Get bundle update
-			bundleUpdateResp, err := stream.RecvUpstreamX509Authorities()
+			bundleUpdateResp, _, err := stream.RecvLocalBundleUpdate()
 			require.NoError(t, err)
 
 			require.Equal(t, append(expectedX509Authorities, expectedServerUpdateAuthority...), bundleUpdateResp)
@@ -329,7 +334,7 @@ func TestMintX509CA(t *testing.T) {
 			cancel()
 
 			// Verify stream is closed
-			resp, err := stream.RecvUpstreamX509Authorities()
+			resp, _, err := stream.RecvLocalBundleUpdate()
 			spiretest.RequireGRPCStatusHasPrefix(t, err, codes.Canceled, "upstreamauthority(spire): context canceled")
 			require.Nil(t, resp)
 		})
@@ -363,15 +368,20 @@ func TestPublishJWTKey(t *testing.T) {
 
 	// Get first response
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	upstreamJwtKeys, stream, err := ua.PublishJWTKey(ctx, &common.PublicKey{
+	upstreamJwtKeysFromPublish, _, err := ua.PublishJWTKey(ctx, &common.PublicKey{
 		Kid:       "kid-2",
 		PkixBytes: pkixBytes,
 	})
+	require.NoError(t, err)
+	require.NotNil(t, upstreamJwtKeysFromPublish)
+
+	_, upstreamJwtKeys, stream, err := ua.SubscribeToLocalBundle(ctx)
 	require.NoError(t, err)
 	require.NotNil(t, stream)
 	require.NotNil(t, upstreamJwtKeys)
 
 	require.Len(t, upstreamJwtKeys, 3)
+	require.Equal(t, upstreamJwtKeys, upstreamJwtKeysFromPublish)
 	assert.Equal(t, upstreamJwtKeys[0].Kid, "C6vs25welZOx6WksNYfbMfiw9l96pMnD")
 	assert.Equal(t, upstreamJwtKeys[1].Kid, "gHTCunJbefYtnZnTctd84xeRWyMrEsWD")
 	assert.Equal(t, upstreamJwtKeys[2].Kid, "kid-2")
@@ -385,7 +395,7 @@ func TestPublishJWTKey(t *testing.T) {
 	mockClock.Add(internalPollFreq)
 
 	// Get bundle update
-	resp, err := stream.RecvUpstreamJWTAuthorities()
+	_, resp, err := stream.RecvLocalBundleUpdate()
 	require.NoError(t, err)
 	require.Len(t, resp, 4)
 	require.Equal(t, resp[3].Kid, "kid-3")
@@ -395,7 +405,7 @@ func TestPublishJWTKey(t *testing.T) {
 	cancel()
 
 	// Verify stream is closed
-	resp, err = stream.RecvUpstreamJWTAuthorities()
+	_, resp, err = stream.RecvLocalBundleUpdate()
 	require.Nil(t, resp)
 	spiretest.RequireGRPCStatusHasPrefix(t, err, codes.Canceled, "upstreamauthority(spire): context canceled")
 
@@ -409,6 +419,63 @@ func TestPublishJWTKey(t *testing.T) {
 	})
 	require.Nil(t, upstreamJwtKeys)
 	spiretest.RequireGRPCStatusHasPrefix(t, err, codes.Internal, "upstreamauthority(spire): failed to push JWT authority: rpc error: code = Unknown desc = some erro")
+}
+
+func TestGetTrustBundle(t *testing.T) {
+	ca := testca.New(t, trustDomain)
+	serverCert, serverKey := ca.CreateX509Certificate(
+		testca.WithID(spiffeid.RequireFromPath(trustDomain, "/spire/server")),
+	)
+	s := ca.CreateX509SVID(
+		spiffeid.RequireFromPath(trustDomain, "/workload"),
+	)
+	svidCert, svidKey, err := s.MarshalRaw()
+	require.NoError(t, err)
+
+	// Setup servers
+	mockClock := clock.NewMock(t)
+	server := testHandler{}
+	server.startTestServers(t, mockClock, ca, serverCert, serverKey, svidCert, svidKey)
+	ua := newWithDefault(t, mockClock, server.sAPIServer.addr, server.wAPIServer.workloadAPIAddr)
+
+	// Get first response
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	upstreamX509Roots, upstreamJwtKeys, stream, err := ua.SubscribeToLocalBundle(ctx)
+	require.NoError(t, err)
+	require.NotNil(t, stream)
+
+	require.Len(t, upstreamX509Roots, 1)
+	require.Len(t, upstreamJwtKeys, 2)
+	assert.Equal(t, upstreamJwtKeys[0].Kid, "C6vs25welZOx6WksNYfbMfiw9l96pMnD")
+	assert.Equal(t, upstreamJwtKeys[1].Kid, "gHTCunJbefYtnZnTctd84xeRWyMrEsWD")
+
+	key := testkey.NewEC256(t)
+	pkixBytes, err := x509.MarshalPKIXPublicKey(key.Public())
+	require.NoError(t, err)
+
+	// Update bundle to trigger another response. Move time forward at the
+	// upstream poll frequency twice to ensure the plugin picks up the change
+	// to the bundle.
+	server.sAPIServer.appendKey(&types.JWTKey{KeyId: "kid", PublicKey: pkixBytes})
+	mockClock.Add(upstreamPollFreq)
+	mockClock.Add(internalPollFreq)
+	mockClock.Add(upstreamPollFreq)
+
+	// Get bundle update
+	upstreamX509Roots, upstreamJwtKeys, err = stream.RecvLocalBundleUpdate()
+	require.NoError(t, err)
+	require.Len(t, upstreamX509Roots, 1)
+	require.Len(t, upstreamJwtKeys, 3)
+	require.Equal(t, upstreamJwtKeys[2].Kid, "kid")
+	require.Equal(t, upstreamJwtKeys[2].PkixBytes, pkixBytes)
+
+	cancel()
+
+	// Verify stream is closed
+	upstreamX509Roots, upstreamJwtKeys, err = stream.RecvLocalBundleUpdate()
+	require.Nil(t, upstreamX509Roots)
+	require.Nil(t, upstreamJwtKeys)
+	spiretest.RequireGRPCStatusHasPrefix(t, err, codes.Canceled, "upstreamauthority(spire): context canceled")
 }
 
 func newWithDefault(t *testing.T, mockClock *clock.Mock, serverAddr string, workloadAPIAddr net.Addr) *upstreamauthority.V1 {
