@@ -4,12 +4,18 @@ import (
 	"context"
 	"errors"
 	"io"
+	"net"
 
 	nodeattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/nodeattestor/v1"
 	"github.com/spiffe/spire/pkg/common/plugin"
 	"github.com/spiffe/spire/proto/spire/common"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
+)
+
+const (
+	XForwardedHostKey = "x-forwarded-host"
 )
 
 type V1 struct {
@@ -27,6 +33,10 @@ func (v1 *V1) Attest(ctx context.Context, payload []byte, challengeFn func(ctx c
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
+
+	// forward original request host to downstream plugins
+	originalHost := getOriginalHost(ctx)
+	ctx = metadata.AppendToOutgoingContext(ctx, XForwardedHostKey, originalHost)
 
 	stream, err := v1.NodeAttestorPluginClient.Attest(ctx)
 	if err != nil {
@@ -100,4 +110,18 @@ func (v1 *V1) streamError(err error) error {
 		return v1.Error(codes.Internal, "plugin closed stream unexpectedly")
 	}
 	return v1.WrapErr(err)
+}
+
+func getOriginalHost(ctx context.Context) string {
+	authority := metadata.ValueFromIncomingContext(ctx, ":authority")
+	if len(authority) == 0 {
+		return ""
+	}
+	// should be just one in a slice
+	// example value: spire-server-xyz.spiffe.io:8081
+	host, _, err := net.SplitHostPort(authority[0])
+	if err != nil {
+		return ""
+	}
+	return host
 }
