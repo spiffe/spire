@@ -458,10 +458,11 @@ func (b *V1Builder) Load(t *testing.T) upstreamauthority.UpstreamAuthority {
 type v1Plugin struct {
 	upstreamauthorityv1.UnimplementedUpstreamAuthorityServer
 
-	preSendErr             *error
-	postSendErr            error
-	mintX509CAResponses    []*upstreamauthorityv1.MintX509CAResponse
-	publishJWTKeyResponses []*upstreamauthorityv1.PublishJWTKeyResponse
+	preSendErr                      *error
+	postSendErr                     error
+	mintX509CAResponses             []*upstreamauthorityv1.MintX509CAResponse
+	publishJWTKeyResponses          []*upstreamauthorityv1.PublishJWTKeyResponse
+	subscribeToLocalBundleResponses []*upstreamauthorityv1.SubscribeToLocalBundleResponse
 }
 
 func (v1 *v1Plugin) MintX509CAAndSubscribe(req *upstreamauthorityv1.MintX509CARequest, stream upstreamauthorityv1.UpstreamAuthority_MintX509CAAndSubscribeServer) error {
@@ -495,6 +496,20 @@ func (v1 *v1Plugin) PublishJWTKeyAndSubscribe(req *upstreamauthorityv1.PublishJW
 	}
 
 	for _, response := range v1.publishJWTKeyResponses {
+		if err := stream.Send(response); err != nil {
+			return err
+		}
+	}
+
+	return v1.postSendErr
+}
+
+func (v1 *v1Plugin) SubscribeToLocalBundle(req *upstreamauthorityv1.SubscribeToLocalBundleRequest, stream upstreamauthorityv1.UpstreamAuthority_SubscribeToLocalBundleServer) error {
+	if v1.preSendErr != nil {
+		return *v1.preSendErr
+	}
+
+	for _, response := range v1.subscribeToLocalBundleResponses {
 		if err := stream.Send(response); err != nil {
 			return err
 		}
