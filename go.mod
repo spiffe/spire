@@ -4,7 +4,7 @@ go 1.24.3
 
 require (
 	cloud.google.com/go/iam v1.5.2
-	cloud.google.com/go/kms v1.21.2
+	cloud.google.com/go/kms v1.22.0
 	cloud.google.com/go/secretmanager v1.14.7
 	cloud.google.com/go/security v1.18.5
 	cloud.google.com/go/storage v1.54.0
