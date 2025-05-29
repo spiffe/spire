@@ -1631,6 +1631,8 @@ github.com/skratchdot/open-golang v0.0.0-20200116055534-eef842397966 h1:JIAuq3EE
 github.com/skratchdot/open-golang v0.0.0-20200116055534-eef842397966/go.mod h1:sUM3LWHvSMaG192sy56D9F7CNvL7jUJVXoqM1QKLnog=
 github.com/sonatard/noctx v0.1.0 h1:JjqOc2WN16ISWAjAk8M5ej0RfExEXtkEyExl2hLW+OM=
 github.com/sonatard/noctx v0.1.0/go.mod h1:0RvBxqY8D4j9cTTTWE8ylt2vqj2EPI8fHmrxHdsaZ2c=
+github.com/sorindumitru/spire-plugin-sdk v1.6.3-0.20250529203050-7b87310f61e9 h1:KHmCPXI1/cduCTXLKnxEPG9ScYcDzIHnSP8YxnK8+Gw=
+github.com/sorindumitru/spire-plugin-sdk v1.6.3-0.20250529203050-7b87310f61e9/go.mod h1:GA6o2PVLwyJdevT6KKt5ZXCY/ziAPna13y/seGk49Ik=
 github.com/sourcegraph/conc v0.3.0 h1:OQTbbt6P72L20UqAkXXuLOj79LfEanQ+YQFNpLA9ySo=
 github.com/sourcegraph/conc v0.3.0/go.mod h1:Sdozi7LEKbFPqYX2/J+iBAM6HpqSLTASQIKqDmF7Mt0=
 github.com/sourcegraph/go-diff v0.7.0 h1:9uLlrd5T46OXs5qpp8L/MTltk0zikUGi0sNNyCpA8G0=
@@ -1656,8 +1658,6 @@ github.com/spiffe/go-spiffe/v2 v2.5.0 h1:N2I01KCUkv1FAjZXJMwh95KK1ZIQLYbPfhaxw8W
 github.com/spiffe/go-spiffe/v2 v2.5.0/go.mod h1:P+NxobPc6wXhVtINNtFjNWGBTreew1GBUCwT2wPmb7g=
 github.com/spiffe/spire-api-sdk v1.2.5-0.20250109200630-101d5e7de758 h1:7zZbXRN0z8IFjx8CQbkK25nypdaFq+ntCiRQGTNfdvY=
 github.com/spiffe/spire-api-sdk v1.2.5-0.20250109200630-101d5e7de758/go.mod h1:4uuhFlN6KBWjACRP3xXwrOTNnvaLp1zJs8Lribtr4fI=
-github.com/spiffe/spire-plugin-sdk v1.4.4-0.20240701180828-594312f4444d h1:Upcyq8u1aWFHTQSEskwxBE2PehobpY+M21LXXDS/mPw=
-github.com/spiffe/spire-plugin-sdk v1.4.4-0.20240701180828-594312f4444d/go.mod h1:GA6o2PVLwyJdevT6KKt5ZXCY/ziAPna13y/seGk49Ik=
 github.com/ssgreg/nlreturn/v2 v2.2.1 h1:X4XDI7jstt3ySqGU86YGAURbxw3oTDPK9sPEi6YEwQ0=
 github.com/ssgreg/nlreturn/v2 v2.2.1/go.mod h1:E/iiPB78hV7Szg2YfRgyIrk1AD6JVMTRkkxBiELzh2I=
 github.com/stbenjam/no-sprintf-host-port v0.2.0 h1:i8pxvGrt1+4G0czLr/WnmyH7zbZ8Bg8etvARQ1rpyl4=
