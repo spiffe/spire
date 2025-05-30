@@ -1163,6 +1163,7 @@ func TestServiceBatchNewX509SVID(t *testing.T) {
 	}
 	invalidEntry := &types.Entry{
 		Id:       "invalid",
+		SpiffeId: &types.SPIFFEID{},
 		ParentId: api.ProtoFromID(agentID),
 	}
 	test.ef.entries = []*types.Entry{workloadEntry, dnsEntry, ttlEntry, x509TtlEntry, invalidEntry}
@@ -1329,7 +1330,7 @@ func TestServiceBatchNewX509SVID(t *testing.T) {
 						Message: "Entry has malformed SPIFFE ID",
 						Data: logrus.Fields{
 							telemetry.RegistrationID: "invalid",
-							logrus.ErrorKey:          "request must specify SPIFFE ID",
+							logrus.ErrorKey:          "trust domain is missing",
 						},
 					},
 					{
@@ -1341,7 +1342,7 @@ func TestServiceBatchNewX509SVID(t *testing.T) {
 							telemetry.RegistrationID: "invalid",
 							telemetry.Csr:            api.HashByte(m["invalid"]),
 							telemetry.StatusCode:     "Internal",
-							telemetry.StatusMessage:  "entry has malformed SPIFFE ID: request must specify SPIFFE ID",
+							telemetry.StatusMessage:  "entry has malformed SPIFFE ID: trust domain is missing",
 							telemetry.SPIFFEID:       "",
 						},
 					},
@@ -1661,7 +1662,7 @@ func TestServiceBatchNewX509SVID(t *testing.T) {
 						Message: "Entry has malformed SPIFFE ID",
 						Data: logrus.Fields{
 							telemetry.RegistrationID: "invalid",
-							logrus.ErrorKey:          "request must specify SPIFFE ID",
+							logrus.ErrorKey:          "trust domain is missing",
 						},
 					},
 					{
@@ -1673,7 +1674,7 @@ func TestServiceBatchNewX509SVID(t *testing.T) {
 							telemetry.RegistrationID: "invalid",
 							telemetry.Csr:            api.HashByte(m["invalid"]),
 							telemetry.StatusCode:     "Internal",
-							telemetry.StatusMessage:  "entry has malformed SPIFFE ID: request must specify SPIFFE ID",
+							telemetry.StatusMessage:  "entry has malformed SPIFFE ID: trust domain is missing",
 							telemetry.SPIFFEID:       "",
 						},
 					},
@@ -2178,13 +2179,13 @@ type entryFetcher struct {
 	entries []*types.Entry
 }
 
-func (f *entryFetcher) LookupAuthorizedEntries(ctx context.Context, agentID spiffeid.ID, _ map[string]struct{}) (map[string]*types.Entry, error) {
+func (f *entryFetcher) LookupAuthorizedEntries(ctx context.Context, agentID spiffeid.ID, _ map[string]struct{}) (map[string]api.ReadOnlyEntry, error) {
 	entries, err := f.FetchAuthorizedEntries(ctx, agentID)
 	if err != nil {
 		return nil, err
 	}
 
-	entriesMap := make(map[string]*types.Entry)
+	entriesMap := make(map[string]api.ReadOnlyEntry)
 	for _, entry := range entries {
 		entriesMap[entry.GetId()] = entry
 	}
@@ -2192,21 +2193,26 @@ func (f *entryFetcher) LookupAuthorizedEntries(ctx context.Context, agentID spif
 	return entriesMap, nil
 }
 
-func (f *entryFetcher) FetchAuthorizedEntries(ctx context.Context, agentID spiffeid.ID) ([]*types.Entry, error) {
+func (f *entryFetcher) FetchAuthorizedEntries(ctx context.Context, agentID spiffeid.ID) ([]api.ReadOnlyEntry, error) {
 	if f.err != "" {
 		return nil, status.Error(codes.Internal, f.err)
 	}
 
 	caller, ok := rpccontext.CallerID(ctx)
 	if !ok {
-		return nil, errors.New("no caller ID on context")
+		return nil, errors.New("missing caller ID")
 	}
 
 	if caller != agentID {
 		return nil, fmt.Errorf("provided caller id is different to expected")
 	}
 
-	return f.entries, nil
+	entries := []api.ReadOnlyEntry{}
+	for _, entry := range f.entries {
+		entries = append(entries, api.NewReadOnlyEntry(entry))
+	}
+
+	return entries, nil
 }
 
 type fakeRateLimiter struct {

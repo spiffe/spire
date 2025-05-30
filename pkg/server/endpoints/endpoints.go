@@ -146,7 +146,7 @@ func New(ctx context.Context, c Config) (*Endpoints, error) {
 		buildCacheFn := func(ctx context.Context) (_ entrycache.Cache, err error) {
 			call := telemetry.StartCall(c.Metrics, telemetry.Entry, telemetry.Cache, telemetry.Reload)
 			defer call.Done(&err)
-			return entrycache.BuildFromDataStore(ctx, c.Catalog.GetDataStore())
+			return entrycache.BuildFromDataStore(ctx, c.TrustDomain.String(), c.Catalog.GetDataStore())
 		}
 
 		efFullCache, err := NewAuthorizedEntryFetcherWithFullCache(ctx, buildCacheFn, c.Log, c.Clock, ds, c.CacheReloadInterval, c.PruneEventsOlderThan)

@@ -9,6 +9,7 @@ import (
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
+	"github.com/spiffe/spire/pkg/common/protoutil"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/cache/entrycache"
 	"github.com/spiffe/spire/proto/spire/common"
@@ -28,19 +29,23 @@ type staticEntryCache struct {
 	entries map[spiffeid.ID][]*types.Entry
 }
 
-func (f *staticEntryCache) LookupAuthorizedEntries(agentID spiffeid.ID, _ map[string]struct{}) map[string]*types.Entry {
+func (f *staticEntryCache) LookupAuthorizedEntries(agentID spiffeid.ID, _ map[string]struct{}) map[string]api.ReadOnlyEntry {
 	entries := f.entries[agentID]
 
-	entriesMap := make(map[string]*types.Entry)
+	entriesMap := make(map[string]api.ReadOnlyEntry)
 	for _, entry := range entries {
-		entriesMap[entry.GetId()] = entry
+		entriesMap[entry.GetId()] = api.NewReadOnlyEntry(entry)
 	}
 
 	return entriesMap
 }
 
-func (sef *staticEntryCache) GetAuthorizedEntries(agentID spiffeid.ID) []*types.Entry {
-	return sef.entries[agentID]
+func (sef *staticEntryCache) GetAuthorizedEntries(agentID spiffeid.ID) []api.ReadOnlyEntry {
+	entries := []api.ReadOnlyEntry{}
+	for _, entry := range sef.entries[agentID] {
+		entries = append(entries, api.NewReadOnlyEntry(entry))
+	}
+	return entries
 }
 
 func newStaticEntryCache(entries map[spiffeid.ID][]*types.Entry) *staticEntryCache {
@@ -80,6 +85,14 @@ func TestNewAuthorizedEntryFetcherWithFullCacheErrorBuildingCache(t *testing.T) 
 	assert.Nil(t, ef)
 }
 
+func entriesFromReadOnlyEntries(readOnlyEntries []api.ReadOnlyEntry) []*types.Entry {
+	entries := []*types.Entry{}
+	for _, readOnlyEntry := range readOnlyEntries {
+		entries = append(entries, readOnlyEntry.Clone(protoutil.AllTrueEntryMask))
+	}
+	return entries
+}
+
 func TestFetchRegistrationEntries(t *testing.T) {
 	ctx := context.Background()
 	log, _ := test.NewNullLogger()
@@ -102,7 +115,7 @@ func TestFetchRegistrationEntries(t *testing.T) {
 
 	entries, err := ef.FetchAuthorizedEntries(ctx, agentID)
 	assert.NoError(t, err)
-	assert.Equal(t, expected, entries)
+	assert.Equal(t, expected, entriesFromReadOnlyEntries(entries))
 }
 
 func TestRunRebuildCacheTask(t *testing.T) {
@@ -228,7 +241,7 @@ func TestRunRebuildCacheTask(t *testing.T) {
 	req = waitForRequest()
 	entries, err = ef.FetchAuthorizedEntries(ctx, agentID)
 	assert.NoError(t, err)
-	assert.Equal(t, expectedEntries, entries)
+	assert.Equal(t, expectedEntries, entriesFromReadOnlyEntries(entries))
 	sendResult(req, entryMap, nil)
 }
 
