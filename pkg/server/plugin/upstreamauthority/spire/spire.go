@@ -172,30 +172,74 @@ func (p *Plugin) MintX509CAAndSubscribe(request *upstreamauthorityv1.MintX509CAR
 	// Set X509 Authorities
 	p.setBundleX509Authorities(bundles)
 
-	rootCAs := []*plugintypes.X509Certificate{}
-
 	x509CAChain, err := x509certificate.ToPluginFromCertificates(certChain)
 	if err != nil {
 		return status.Errorf(codes.Internal, "unable to form response X.509 CA chain: %v", err)
 	}
 
+	err = stream.Send(&upstreamauthorityv1.MintX509CAResponse{
+		X509CaChain:       x509CAChain,
+		UpstreamX509Roots: bundles,
+	})
+	if err != nil {
+		p.log.Error("Cannot send X.509 CA chain and roots", "error", err)
+		return err
+	}
+
+	return nil
+}
+
+func (p *Plugin) SubscribeToLocalBundle(req *upstreamauthorityv1.SubscribeToLocalBundleRequest, stream upstreamauthorityv1.UpstreamAuthority_SubscribeToLocalBundleServer) error {
+	err := p.subscribeToPolling(stream.Context())
+	if err != nil {
+		return err
+	}
+	defer p.unsubscribeToPolling()
+
+	serverBundle, err := p.serverClient.getBundle(stream.Context())
+	if err != nil {
+		return status.Errorf(codes.Internal, "failed to fetch bundle from upstream server: %v", err)
+	}
+
+	bundles, err := x509certificate.ToPluginFromAPIProtos(serverBundle.X509Authorities)
+	if err != nil {
+		return status.Errorf(codes.Internal, "failed to parse X.509 authorities: %v", err)
+	}
+	rootCAs := bundles
+
+	var jwtKeys []*plugintypes.JWTKey
+	for _, jwtKey := range serverBundle.JwtAuthorities {
+		pluginKey, err := jwtkey.ToPluginFromAPIProto(jwtKey)
+		if err != nil {
+			return err
+		}
+		jwtKeys = append(jwtKeys, pluginKey)
+	}
+
+	err = stream.Send(&upstreamauthorityv1.SubscribeToLocalBundleResponse{
+		UpstreamX509Roots: rootCAs,
+		UpstreamJwtKeys:   jwtKeys,
+	})
+	if err != nil {
+		return err
+	}
+
+	p.setBundleX509Authorities(rootCAs)
+	p.setBundleJWTAuthorities(jwtKeys)
+
 	ticker := p.clk.Ticker(internalPollFreq)
 	defer ticker.Stop()
 	for {
 		newRootCAs := p.getBundle().X509Authorities
-		// Send response with new X509 authorities
-		if !areRootsEqual(rootCAs, newRootCAs) {
-			rootCAs = newRootCAs
-			err := stream.Send(&upstreamauthorityv1.MintX509CAResponse{
-				X509CaChain:       x509CAChain,
-				UpstreamX509Roots: rootCAs,
+		newJWTKeys := p.getBundle().JwtAuthorities
+		if !areRootsEqual(rootCAs, newRootCAs) || !arePublicKeysEqual(jwtKeys, newJWTKeys) {
+			err := stream.Send(&upstreamauthorityv1.SubscribeToLocalBundleResponse{
+				UpstreamX509Roots: newRootCAs,
+				UpstreamJwtKeys:   newJWTKeys,
 			})
-			if err != nil {
-				p.log.Error("Cannot send X.509 CA chain and roots", "error", err)
-				return err
-			}
-			if len(x509CAChain) > 0 {
-				x509CAChain = nil
+			if err == nil {
+				rootCAs = newRootCAs
+				jwtKeys = newJWTKeys
 			}
 		}
 		select {
@@ -236,28 +280,14 @@ func (p *Plugin) PublishJWTKeyAndSubscribe(req *upstreamauthorityv1.PublishJWTKe
 	// Set JWT authority
 	p.setBundleJWTAuthorities(jwtKeys)
 
-	keys := []*plugintypes.JWTKey{}
-	ticker := p.clk.Ticker(internalPollFreq)
-	defer ticker.Stop()
-	for {
-		newKeys := p.getBundle().JwtAuthorities
-		// Send response when new JWT authority
-		if !arePublicKeysEqual(keys, newKeys) {
-			keys = newKeys
-			err := stream.Send(&upstreamauthorityv1.PublishJWTKeyResponse{
-				UpstreamJwtKeys: keys,
-			})
-			if err != nil {
-				p.log.Error("Cannot send upstream JWT keys", "error", err)
-				return err
-			}
-		}
-		select {
-		case <-ticker.C:
-		case <-stream.Context().Done():
-			return nil
-		}
+	err = stream.Send(&upstreamauthorityv1.PublishJWTKeyResponse{
+		UpstreamJwtKeys: jwtKeys,
+	})
+	if err != nil {
+		p.log.Error("Cannot send upstream JWT keys", "error", err)
+		return err
 	}
+	return nil
 }
 
 func (p *Plugin) pollBundleUpdates(ctx context.Context) {
