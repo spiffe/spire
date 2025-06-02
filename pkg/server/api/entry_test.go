@@ -2,6 +2,8 @@ package api_test
 
 import (
 	"context"
+	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -13,6 +15,7 @@ import (
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 )
 
 func TestRegistrationEntryToProto(t *testing.T) {
@@ -646,5 +649,193 @@ func TestProtoToRegistrationEntry(t *testing.T) {
 			require.NoError(t, err)
 			spiretest.AssertProtoEqual(t, tt.expectEntry, entry)
 		})
+	}
+}
+
+func TestReadOnlyEntryIsReadOnly(t *testing.T) {
+	expiresAt := time.Now().Unix()
+	entry := &types.Entry{
+		Id:          "entry1",
+		ParentId:    &types.SPIFFEID{TrustDomain: "example.org", Path: "/foo"},
+		SpiffeId:    &types.SPIFFEID{TrustDomain: "example.org", Path: "/bar"},
+		X509SvidTtl: 70,
+		JwtSvidTtl:  80,
+		Selectors: []*types.Selector{
+			{Type: "unix", Value: "uid:1000"},
+			{Type: "unix", Value: "gid:1000"},
+		},
+		FederatesWith: []string{
+			"domain1.com",
+			"domain2.com",
+		},
+		Admin:          true,
+		ExpiresAt:      expiresAt,
+		DnsNames:       []string{"dns1", "dns2"},
+		Downstream:     true,
+		RevisionNumber: 99,
+		Hint:           "external",
+		CreatedAt:      1678731397,
+		StoreSvid:      true,
+	}
+	readOnlyEntry := api.NewReadOnlyEntry(entry)
+
+	clonedEntry := readOnlyEntry.Clone(protoutil.AllTrueEntryMask)
+	clonedEntry.Admin = false
+	clonedEntry.DnsNames = nil
+
+	require.NotEqual(t, entry.DnsNames, clonedEntry.DnsNames)
+	require.NotEqual(t, entry.Admin, clonedEntry.Admin)
+}
+
+func TestReadOnlyEntry(t *testing.T) {
+	expiresAt := time.Now().Unix()
+	entry := &types.Entry{
+		Id:          "entry1",
+		ParentId:    &types.SPIFFEID{TrustDomain: "example.org", Path: "/foo"},
+		SpiffeId:    &types.SPIFFEID{TrustDomain: "example.org", Path: "/bar"},
+		X509SvidTtl: 70,
+		JwtSvidTtl:  80,
+		Selectors: []*types.Selector{
+			{Type: "unix", Value: "uid:1000"},
+			{Type: "unix", Value: "gid:1000"},
+		},
+		FederatesWith: []string{
+			"domain1.com",
+			"domain2.com",
+		},
+		Admin:          true,
+		ExpiresAt:      expiresAt,
+		DnsNames:       []string{"dns1", "dns2"},
+		Downstream:     true,
+		RevisionNumber: 99,
+		Hint:           "external",
+		CreatedAt:      1678731397,
+		StoreSvid:      true,
+	}
+
+	// Verify that all getters return the expected value
+	readOnlyEntry := api.NewReadOnlyEntry(entry)
+	require.Equal(t, readOnlyEntry.GetId(), entry.Id)
+	require.Equal(t, readOnlyEntry.GetSpiffeId(), entry.SpiffeId)
+	require.Equal(t, readOnlyEntry.GetX509SvidTtl(), entry.X509SvidTtl)
+	require.Equal(t, readOnlyEntry.GetJwtSvidTtl(), entry.JwtSvidTtl)
+	require.Equal(t, readOnlyEntry.GetDnsNames(), entry.DnsNames)
+	require.Equal(t, readOnlyEntry.GetRevisionNumber(), entry.RevisionNumber)
+	require.Equal(t, readOnlyEntry.GetCreatedAt(), entry.CreatedAt)
+}
+
+func TestReadOnlyEntryClone(t *testing.T) {
+	expiresAt := time.Now().Unix()
+	entry := &types.Entry{
+		Id:          "entry1",
+		ParentId:    &types.SPIFFEID{TrustDomain: "example.org", Path: "/foo"},
+		SpiffeId:    &types.SPIFFEID{TrustDomain: "example.org", Path: "/bar"},
+		X509SvidTtl: 70,
+		JwtSvidTtl:  80,
+		Selectors: []*types.Selector{
+			{Type: "unix", Value: "uid:1000"},
+			{Type: "unix", Value: "gid:1000"},
+		},
+		FederatesWith: []string{
+			"domain1.com",
+			"domain2.com",
+		},
+		Admin:          true,
+		ExpiresAt:      expiresAt,
+		DnsNames:       []string{"dns1", "dns2"},
+		Downstream:     true,
+		RevisionNumber: 99,
+		Hint:           "external",
+		CreatedAt:      1678731397,
+		StoreSvid:      true,
+	}
+
+	// Verify that we our test entry has all fields set to make sure
+	// the Clone method doesn't miss any new fields.
+	value := reflect.ValueOf(entry).Elem()
+	valueType := value.Type()
+	for i := range value.NumField() {
+		fieldType := valueType.Field(i)
+		fieldValue := value.Field(i)
+		// Skip the protobuf internal fields
+		if strings.HasPrefix(fieldType.Name, "XXX_") {
+			continue
+		}
+		if slices.Index([]string{"state", "sizeCache", "unknownFields"}, fieldType.Name) != -1 {
+			continue
+		}
+
+		require.False(t, fieldValue.IsZero(), "Field '%s' is not set", value.Type().Field(i).Name)
+	}
+
+	readOnlyEntry := api.NewReadOnlyEntry(entry)
+
+	protoClone := proto.Clone(entry).(*types.Entry)
+	readOnlyClone := readOnlyEntry.Clone(protoutil.AllTrueEntryMask)
+
+	spiretest.AssertProtoEqual(t, protoClone, readOnlyClone)
+}
+
+func BenchmarkEntryClone(b *testing.B) {
+	expiresAt := time.Now().Unix()
+	entry := &types.Entry{
+		Id:          "entry1",
+		ParentId:    &types.SPIFFEID{TrustDomain: "example.org", Path: "/foo"},
+		SpiffeId:    &types.SPIFFEID{TrustDomain: "example.org", Path: "/bar"},
+		X509SvidTtl: 70,
+		JwtSvidTtl:  80,
+		Selectors: []*types.Selector{
+			{Type: "unix", Value: "uid:1000"},
+			{Type: "unix", Value: "gid:1000"},
+		},
+		FederatesWith: []string{
+			"domain1.com",
+			"domain2.com",
+		},
+		Admin:          true,
+		ExpiresAt:      expiresAt,
+		DnsNames:       []string{"dns1", "dns2"},
+		Downstream:     true,
+		RevisionNumber: 99,
+		Hint:           "external",
+		CreatedAt:      1678731397,
+		StoreSvid:      true,
+	}
+
+	for b.Loop() {
+		_ = proto.Clone(entry).(*types.Entry)
+	}
+}
+
+func BenchmarkReadOnlyEntryClone(b *testing.B) {
+	expiresAt := time.Now().Unix()
+	entry := &types.Entry{
+		Id:          "entry1",
+		ParentId:    &types.SPIFFEID{TrustDomain: "example.org", Path: "/foo"},
+		SpiffeId:    &types.SPIFFEID{TrustDomain: "example.org", Path: "/bar"},
+		X509SvidTtl: 70,
+		JwtSvidTtl:  80,
+		Selectors: []*types.Selector{
+			{Type: "unix", Value: "uid:1000"},
+			{Type: "unix", Value: "gid:1000"},
+		},
+		FederatesWith: []string{
+			"domain1.com",
+			"domain2.com",
+		},
+		Admin:          true,
+		ExpiresAt:      expiresAt,
+		DnsNames:       []string{"dns1", "dns2"},
+		Downstream:     true,
+		RevisionNumber: 99,
+		Hint:           "external",
+		CreatedAt:      1678731397,
+		StoreSvid:      true,
+	}
+	readOnlyEntry := api.NewReadOnlyEntry(entry)
+	allTrueMask := protoutil.AllTrueEntryMask
+
+	for b.Loop() {
+		_ = readOnlyEntry.Clone(allTrueMask)
 	}
 }

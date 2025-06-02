@@ -9,7 +9,6 @@ import (
 	"github.com/andres-erbsen/clock"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
-	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/cache/entrycache"
 	"github.com/spiffe/spire/pkg/server/datastore"
@@ -49,13 +48,13 @@ func NewAuthorizedEntryFetcherWithFullCache(ctx context.Context, buildCache entr
 	}, nil
 }
 
-func (a *AuthorizedEntryFetcherWithFullCache) LookupAuthorizedEntries(ctx context.Context, agentID spiffeid.ID, entryIDs map[string]struct{}) (map[string]*types.Entry, error) {
+func (a *AuthorizedEntryFetcherWithFullCache) LookupAuthorizedEntries(ctx context.Context, agentID spiffeid.ID, entryIDs map[string]struct{}) (map[string]api.ReadOnlyEntry, error) {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
 	return a.cache.LookupAuthorizedEntries(agentID, entryIDs), nil
 }
 
-func (a *AuthorizedEntryFetcherWithFullCache) FetchAuthorizedEntries(_ context.Context, agentID spiffeid.ID) ([]*types.Entry, error) {
+func (a *AuthorizedEntryFetcherWithFullCache) FetchAuthorizedEntries(_ context.Context, agentID spiffeid.ID) ([]api.ReadOnlyEntry, error) {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
 	return a.cache.GetAuthorizedEntries(agentID), nil

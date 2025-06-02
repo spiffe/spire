@@ -10,6 +10,7 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/common/idutil"
+	"github.com/spiffe/spire/pkg/server/api"
 )
 
 const (
@@ -59,7 +60,7 @@ func NewCache(clk clock.Clock) *Cache {
 	}
 }
 
-func (c *Cache) LookupAuthorizedEntries(agentID spiffeid.ID, requestedEntries map[string]struct{}) map[string]*types.Entry {
+func (c *Cache) LookupAuthorizedEntries(agentID spiffeid.ID, requestedEntries map[string]struct{}) map[string]api.ReadOnlyEntry {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
@@ -72,7 +73,7 @@ func (c *Cache) LookupAuthorizedEntries(agentID spiffeid.ID, requestedEntries ma
 	// updated with the node selectors for the agent.
 	agent, _ := c.agentsByID.Get(agentRecord{ID: agentID.String()})
 
-	foundEntries := make(map[string]*types.Entry)
+	foundEntries := make(map[string]api.ReadOnlyEntry)
 
 	parentSeen := allocStringSet()
 	defer freeStringSet(parentSeen)
@@ -87,7 +88,7 @@ func (c *Cache) LookupAuthorizedEntries(agentID spiffeid.ID, requestedEntries ma
 	return foundEntries
 }
 
-func (c *Cache) GetAuthorizedEntries(agentID spiffeid.ID) []*types.Entry {
+func (c *Cache) GetAuthorizedEntries(agentID spiffeid.ID) []api.ReadOnlyEntry {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
@@ -192,7 +193,7 @@ func (c *Cache) appendDescendents(records []entryRecord, parentID string, parent
 	return records
 }
 
-func (c *Cache) addDescendants(foundEntries map[string]*types.Entry, parentID string, requestedEntries map[string]struct{}, parentSeen stringSet) {
+func (c *Cache) addDescendants(foundEntries map[string]api.ReadOnlyEntry, parentID string, requestedEntries map[string]struct{}, parentSeen stringSet) {
 	if _, ok := parentSeen[parentID]; ok {
 		return
 	}
@@ -205,7 +206,7 @@ func (c *Cache) addDescendants(foundEntries map[string]*types.Entry, parentID st
 		}
 
 		if _, ok := requestedEntries[record.EntryID]; ok {
-			foundEntries[record.EntryID] = cloneEntry(record.EntryCloneOnly)
+			foundEntries[record.EntryID] = api.NewReadOnlyEntry(record.EntryCloneOnly)
 		}
 		c.addDescendants(foundEntries, record.SPIFFEID, requestedEntries, parentSeen)
 		return true

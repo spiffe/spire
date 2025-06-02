@@ -15,10 +15,10 @@ import (
 type AuthorizedEntryFetcher interface {
 	// LookupAuthorizedEntries fetches the entries in entryIDs that the
 	// specified SPIFFE ID is authorized for
-	LookupAuthorizedEntries(ctx context.Context, id spiffeid.ID, entryIDs map[string]struct{}) (map[string]*types.Entry, error)
+	LookupAuthorizedEntries(ctx context.Context, id spiffeid.ID, entryIDs map[string]struct{}) (map[string]ReadOnlyEntry, error)
 	// FetchAuthorizedEntries fetches the entries that the specified
 	// SPIFFE ID is authorized for
-	FetchAuthorizedEntries(ctx context.Context, id spiffeid.ID) ([]*types.Entry, error)
+	FetchAuthorizedEntries(ctx context.Context, id spiffeid.ID) ([]ReadOnlyEntry, error)
 }
 
 // AttestedNodeToProto converts an agent from the given *common.AttestedNode with
