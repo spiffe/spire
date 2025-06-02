@@ -66,7 +66,7 @@ require (
 	github.com/mitchellh/cli v1.1.5
 	github.com/open-policy-agent/opa v1.5.0
 	github.com/prometheus/client_golang v1.22.0
-	github.com/shirou/gopsutil/v4 v4.25.4
+	github.com/shirou/gopsutil/v4 v4.25.5
 	github.com/sigstore/cosign/v2 v2.5.0
 	github.com/sigstore/rekor v1.3.10
 	github.com/sigstore/sigstore v1.9.4
@@ -179,7 +179,7 @@ require (
 	github.com/docker/go-connections v0.5.0 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
-	github.com/ebitengine/purego v0.8.2 // indirect
+	github.com/ebitengine/purego v0.8.4 // indirect
 	github.com/emicklei/go-restful/v3 v3.11.0 // indirect
 	github.com/envoyproxy/protoc-gen-validate v1.2.1 // indirect
 	github.com/ettle/strcase v0.2.0 // indirect
