@@ -182,13 +182,13 @@ func (p *Plugin) PublishBundle(ctx context.Context, req *bundlepublisherv1.Publi
 	for _, cluster := range config.Clusters {
 		bundleBytes, err := formatter.Format(cluster.bundleFormat)
 		if err != nil {
-			allErrors = errors.Join(allErrors, fmt.Errorf("could not format bundle: %v", err))
+			allErrors = errors.Join(allErrors, fmt.Errorf("could not format bundle: %w", err))
 			continue
 		}
 
 		cm, err := cluster.k8sClient.GetConfigMap(ctx, cluster.Namespace, cluster.ConfigMapName)
 		if err != nil {
-			allErrors = errors.Join(allErrors, fmt.Errorf("failed to get ConfigMap: %v", err))
+			allErrors = errors.Join(allErrors, fmt.Errorf("failed to get ConfigMap: %w", err))
 			continue
 		}
 
@@ -199,7 +199,7 @@ func (p *Plugin) PublishBundle(ctx context.Context, req *bundlepublisherv1.Publi
 
 		err = cluster.k8sClient.UpdateConfigMap(ctx, cm)
 		if err != nil {
-			allErrors = errors.Join(allErrors, fmt.Errorf("failed to update ConfigMap: %v", err))
+			allErrors = errors.Join(allErrors, fmt.Errorf("failed to update ConfigMap: %w", err))
 			continue
 		}
 		p.log.Debug("Bundle published to Kubernetes ConfigMap",
