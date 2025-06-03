@@ -2,6 +2,8 @@ package k8sconfigmap
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"sync"
 
 	"github.com/hashicorp/go-hclog"
@@ -176,15 +178,18 @@ func (p *Plugin) PublishBundle(ctx context.Context, req *bundlepublisherv1.Publi
 
 	formatter := bundleformat.NewFormatter(req.Bundle)
 
+	var allErrors error
 	for _, cluster := range config.Clusters {
 		bundleBytes, err := formatter.Format(cluster.bundleFormat)
 		if err != nil {
-			return nil, status.Errorf(codes.Internal, "could not format bundle: %v", err.Error())
+			allErrors = errors.Join(allErrors, fmt.Errorf("could not format bundle: %v", err))
+			continue
 		}
 
 		cm, err := cluster.k8sClient.GetConfigMap(ctx, cluster.Namespace, cluster.ConfigMapName)
 		if err != nil {
-			return nil, status.Errorf(codes.Internal, "failed to get ConfigMap: %v", err)
+			allErrors = errors.Join(allErrors, fmt.Errorf("failed to get ConfigMap: %v", err))
+			continue
 		}
 
 		if cm.Data == nil {
@@ -194,7 +199,8 @@ func (p *Plugin) PublishBundle(ctx context.Context, req *bundlepublisherv1.Publi
 
 		err = cluster.k8sClient.UpdateConfigMap(ctx, cm)
 		if err != nil {
-			return nil, status.Errorf(codes.Internal, "failed to update ConfigMap: %v", err)
+			allErrors = errors.Join(allErrors, fmt.Errorf("failed to update ConfigMap: %v", err))
+			continue
 		}
 		p.log.Debug("Bundle published to Kubernetes ConfigMap",
 			"format", cluster.bundleFormat,
@@ -202,6 +208,10 @@ func (p *Plugin) PublishBundle(ctx context.Context, req *bundlepublisherv1.Publi
 			"namespace", cluster.Namespace,
 			"configmap", cluster.ConfigMapName,
 			"key", cluster.ConfigMapKey)
+	}
+
+	if allErrors != nil {
+		return nil, status.Error(codes.Internal, allErrors.Error())
 	}
 
 	p.setBundle(req.Bundle)
