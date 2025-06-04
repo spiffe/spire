@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
@@ -19,6 +20,16 @@ type AuthorizedEntryFetcher interface {
 	// FetchAuthorizedEntries fetches the entries that the specified
 	// SPIFFE ID is authorized for
 	FetchAuthorizedEntries(ctx context.Context, id spiffeid.ID) ([]ReadOnlyEntry, error)
+}
+
+type AttestedNodeCache interface {
+	// FetchAttestedNode returns the cached attested node with the time when
+	// the data was last refreshed by the cache.
+	FetchAttestedNode(nodeID string) (*common.AttestedNode, time.Time, error)
+	// RefreshAttestedNode requests refreshing the attested node information
+	// from the datastore. Is used by the middleware when an agent can't be
+	// validated against the cached data.
+	RefreshAttestedNode(ctx context.Context, nodeID string) (*common.AttestedNode, error)
 }
 
 // AttestedNodeToProto converts an agent from the given *common.AttestedNode with
