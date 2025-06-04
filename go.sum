@@ -2301,8 +2301,8 @@ google.golang.org/api v0.102.0/go.mod h1:3VFl6/fzoA+qNuS1N1/VfXY4LjoXN/wzeIp7Twe
 google.golang.org/api v0.103.0/go.mod h1:hGtW6nK1AC+d9si/UBhw8Xli+QMOf6xyNAyJw4qU9w0=
 google.golang.org/api v0.108.0/go.mod h1:2Ts0XTHNVWxypznxWOYUeI4g3WdP9Pk2Qk58+a/O9MY=
 google.golang.org/api v0.110.0/go.mod h1:7FC4Vvx1Mooxh8C5HWjzZHcavuS2f6pmJpZx60ca7iI=
-google.golang.org/api v0.235.0 h1:C3MkpQSRxS1Jy6AkzTGKKrpSCOd2WOGrezZ+icKSkKo=
-google.golang.org/api v0.235.0/go.mod h1:QpeJkemzkFKe5VCE/PMv7GsUfn9ZF+u+q1Q7w6ckxTg=
+google.golang.org/api v0.236.0 h1:CAiEiDVtO4D/Qja2IA9VzlFrgPnK3XVMmRoJZlSWbc0=
+google.golang.org/api v0.236.0/go.mod h1:X1WF9CU2oTc+Jml1tiIxGmWFK/UZezdqEu09gcxZAj4=
 google.golang.org/appengine v1.1.0/go.mod h1:EbEs0AVv82hx2wNQdGPgUI5lhzA/G0D9YwlJXL52JkM=
 google.golang.org/appengine v1.4.0/go.mod h1:xpcJRLb0r/rnEns0DIKYYv+WjYCduHsrkT7/EB5XEv4=
 google.golang.org/appengine v1.5.0/go.mod h1:xpcJRLb0r/rnEns0DIKYYv+WjYCduHsrkT7/EB5XEv4=
@@ -2432,8 +2432,8 @@ google.golang.org/genproto v0.0.0-20250505200425-f936aa4a68b2 h1:1tXaIXCracvtsRx
 google.golang.org/genproto v0.0.0-20250505200425-f936aa4a68b2/go.mod h1:49MsLSx0oWMOZqcpB3uL8ZOkAh1+TndpJ8ONoCBWiZk=
 google.golang.org/genproto/googleapis/api v0.0.0-20250512202823-5a2f75b736a9 h1:WvBuA5rjZx9SNIzgcU53OohgZy6lKSus++uY4xLaWKc=
 google.golang.org/genproto/googleapis/api v0.0.0-20250512202823-5a2f75b736a9/go.mod h1:W3S/3np0/dPWsWLi1h/UymYctGXaGBM2StwzD0y140U=
-google.golang.org/genproto/googleapis/rpc v0.0.0-20250512202823-5a2f75b736a9 h1:IkAfh6J/yllPtpYFU0zZN1hUPYdT0ogkBT/9hMxHjvg=
-google.golang.org/genproto/googleapis/rpc v0.0.0-20250512202823-5a2f75b736a9/go.mod h1:qQ0YXyHHx3XkvlzUtpXDkS29lDSafHMZBAZDc03LQ3A=
+google.golang.org/genproto/googleapis/rpc v0.0.0-20250528174236-200df99c418a h1:v2PbRU4K3llS09c7zodFpNePeamkAwG3mPrAery9VeE=
+google.golang.org/genproto/googleapis/rpc v0.0.0-20250528174236-200df99c418a/go.mod h1:qQ0YXyHHx3XkvlzUtpXDkS29lDSafHMZBAZDc03LQ3A=
 google.golang.org/grpc v1.8.0/go.mod h1:yo6s7OP7yaDglbqo1J04qKzAhqBH6lvTonzMVmEdcZw=
 google.golang.org/grpc v1.12.0/go.mod h1:yo6s7OP7yaDglbqo1J04qKzAhqBH6lvTonzMVmEdcZw=
 google.golang.org/grpc v1.19.0/go.mod h1:mqu4LbDTu4XGKhr4mRzUsmM4RtVoemTSY81AxZiDr8c=
