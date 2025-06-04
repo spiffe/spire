@@ -11,6 +11,7 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	"github.com/spiffe/spire/pkg/server/cache/nodecache"
 	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/clock"
@@ -27,7 +28,10 @@ func TestNewAuthorizedEntryFetcherWithEventsBasedCache(t *testing.T) {
 	ds := fakedatastore.New(t)
 	metrics := fakemetrics.New()
 
-	ef, err := NewAuthorizedEntryFetcherWithEventsBasedCache(ctx, log, metrics, clk, ds, defaultCacheReloadInterval, defaultPruneEventsOlderThan, defaultEventTimeout)
+	nodeCache, err := nodecache.New(ctx, ds, clk, false, true)
+	require.Nil(t, err)
+
+	ef, err := NewAuthorizedEntryFetcherWithEventsBasedCache(ctx, log, metrics, clk, ds, nodeCache, defaultCacheReloadInterval, defaultPruneEventsOlderThan, defaultEventTimeout)
 	assert.NoError(t, err)
 	assert.NotNil(t, ef)
 
@@ -136,7 +140,10 @@ func TestNewAuthorizedEntryFetcherWithEventsBasedCacheErrorBuildingCache(t *test
 	buildErr := errors.New("build error")
 	ds.SetNextError(buildErr)
 
-	ef, err := NewAuthorizedEntryFetcherWithEventsBasedCache(ctx, log, metrics, clk, ds, defaultCacheReloadInterval, defaultPruneEventsOlderThan, defaultEventTimeout)
+	nodeCache, err := nodecache.New(ctx, ds, clk, false, true)
+	require.Nil(t, err)
+
+	ef, err := NewAuthorizedEntryFetcherWithEventsBasedCache(ctx, log, metrics, clk, ds, nodeCache, defaultCacheReloadInterval, defaultPruneEventsOlderThan, defaultEventTimeout)
 	assert.Error(t, err)
 	assert.Nil(t, ef)
 
@@ -178,7 +185,10 @@ func TestBuildCacheSavesSkippedEvents(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, registrationEntries, attestedNodes, err := buildCache(ctx, log, metrics, ds, clk, defaultCacheReloadInterval, defaultEventTimeout)
+	nodeCache, err := nodecache.New(ctx, ds, clk, false, true)
+	require.Nil(t, err)
+
+	_, registrationEntries, attestedNodes, err := buildCache(ctx, log, metrics, ds, nodeCache, clk, defaultCacheReloadInterval, defaultEventTimeout)
 	require.NoError(t, err)
 	require.NotNil(t, registrationEntries)
 	require.NotNil(t, attestedNodes)
@@ -213,7 +223,10 @@ func TestRunUpdateCacheTaskPrunesExpiredAgents(t *testing.T) {
 	ds := fakedatastore.New(t)
 	metrics := fakemetrics.New()
 
-	ef, err := NewAuthorizedEntryFetcherWithEventsBasedCache(ctx, log, metrics, clk, ds, defaultCacheReloadInterval, defaultPruneEventsOlderThan, defaultEventTimeout)
+	nodeCache, err := nodecache.New(ctx, ds, clk, false, true)
+	require.Nil(t, err)
+
+	ef, err := NewAuthorizedEntryFetcherWithEventsBasedCache(ctx, log, metrics, clk, ds, nodeCache, defaultCacheReloadInterval, defaultPruneEventsOlderThan, defaultEventTimeout)
 	require.NoError(t, err)
 	require.NotNil(t, ef)
 
@@ -279,7 +292,10 @@ func TestUpdateRegistrationEntriesCacheSkippedEvents(t *testing.T) {
 	ds := fakedatastore.New(t)
 	metrics := fakemetrics.New()
 
-	ef, err := NewAuthorizedEntryFetcherWithEventsBasedCache(ctx, log, metrics, clk, ds, defaultCacheReloadInterval, defaultPruneEventsOlderThan, defaultEventTimeout)
+	nodeCache, err := nodecache.New(ctx, ds, clk, false, true)
+	require.Nil(t, err)
+
+	ef, err := NewAuthorizedEntryFetcherWithEventsBasedCache(ctx, log, metrics, clk, ds, nodeCache, defaultCacheReloadInterval, defaultPruneEventsOlderThan, defaultEventTimeout)
 	require.NoError(t, err)
 	require.NotNil(t, ef)
 
@@ -403,7 +419,10 @@ func TestUpdateRegistrationEntriesCacheSkippedStartupEvents(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create entry fetcher
-	ef, err := NewAuthorizedEntryFetcherWithEventsBasedCache(ctx, log, metrics, clk, ds, defaultCacheReloadInterval, defaultPruneEventsOlderThan, defaultEventTimeout)
+	nodeCache, err := nodecache.New(ctx, ds, clk, false, true)
+	require.Nil(t, err)
+
+	ef, err := NewAuthorizedEntryFetcherWithEventsBasedCache(ctx, log, metrics, clk, ds, nodeCache, defaultCacheReloadInterval, defaultPruneEventsOlderThan, defaultEventTimeout)
 	require.NoError(t, err)
 	require.NotNil(t, ef)
 
@@ -476,7 +495,10 @@ func TestUpdateAttestedNodesCacheSkippedEvents(t *testing.T) {
 	ds := fakedatastore.New(t)
 	metrics := fakemetrics.New()
 
-	ef, err := NewAuthorizedEntryFetcherWithEventsBasedCache(ctx, log, metrics, clk, ds, defaultCacheReloadInterval, defaultPruneEventsOlderThan, defaultEventTimeout)
+	nodeCache, err := nodecache.New(ctx, ds, clk, false, true)
+	require.Nil(t, err)
+
+	ef, err := NewAuthorizedEntryFetcherWithEventsBasedCache(ctx, log, metrics, clk, ds, nodeCache, defaultCacheReloadInterval, defaultPruneEventsOlderThan, defaultEventTimeout)
 	require.NoError(t, err)
 	require.NotNil(t, ef)
 
@@ -655,7 +677,10 @@ func TestUpdateAttestedNodesCacheSkippedStartupEvents(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create entry fetcher
-	ef, err := NewAuthorizedEntryFetcherWithEventsBasedCache(ctx, log, metrics, clk, ds, defaultCacheReloadInterval, defaultPruneEventsOlderThan, defaultEventTimeout)
+	nodeCache, err := nodecache.New(ctx, ds, clk, false, true)
+	require.Nil(t, err)
+
+	ef, err := NewAuthorizedEntryFetcherWithEventsBasedCache(ctx, log, metrics, clk, ds, nodeCache, defaultCacheReloadInterval, defaultPruneEventsOlderThan, defaultEventTimeout)
 	require.NoError(t, err)
 	require.NotNil(t, ef)
 

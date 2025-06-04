@@ -11,6 +11,7 @@ import (
 
 	"github.com/spiffe/go-spiffe/v2/spiffetls/tlsconfig"
 	"github.com/spiffe/spire/pkg/server/cache/entrycache"
+	"github.com/spiffe/spire/pkg/server/cache/nodecache"
 	"github.com/spiffe/spire/pkg/server/endpoints/bundle"
 	"golang.org/x/net/http2"
 	"google.golang.org/grpc"
@@ -83,6 +84,7 @@ type Endpoints struct {
 	Log                          logrus.FieldLogger
 	Metrics                      telemetry.Metrics
 	RateLimit                    RateLimitConfig
+	NodeCacheRebuildTask         func(context.Context) error
 	EntryFetcherCacheRebuildTask func(context.Context) error
 	EntryFetcherPruneEventsTask  func(context.Context) error
 	CertificateReloadTask        func(context.Context) error
@@ -90,6 +92,8 @@ type Endpoints struct {
 	AuthPolicyEngine             *authpolicy.Engine
 	AdminIDs                     []spiffeid.ID
 	TLSPolicy                    tlspolicy.Policy
+
+	nodeCache api.AttestedNodeCache
 }
 
 type APIServers struct {
@@ -136,17 +140,31 @@ func New(ctx context.Context, c Config) (*Endpoints, error) {
 
 	ds := c.Catalog.GetDataStore()
 
+	var nodeCache *nodecache.Cache
+
+	var err error
 	var ef api.AuthorizedEntryFetcher
-	var cacheRebuildTask, pruneEventsTask func(context.Context) error
+	var cacheRebuildTask, nodeCacheRebuildTask, pruneEventsTask func(context.Context) error
 	if c.EventsBasedCache {
-		efEventsBasedCache, err := NewAuthorizedEntryFetcherWithEventsBasedCache(ctx, c.Log, c.Metrics, c.Clock, ds, c.CacheReloadInterval, c.PruneEventsOlderThan, c.EventTimeout)
+		nodeCache, err = nodecache.New(ctx, ds, c.Clock, true, true)
+		if err != nil {
+			return nil, err
+		}
+
+		efEventsBasedCache, err := NewAuthorizedEntryFetcherWithEventsBasedCache(ctx, c.Log, c.Metrics, c.Clock, ds, nodeCache, c.CacheReloadInterval, c.PruneEventsOlderThan, c.EventTimeout)
 		if err != nil {
 			return nil, err
 		}
 		cacheRebuildTask = efEventsBasedCache.RunUpdateCacheTask
 		pruneEventsTask = efEventsBasedCache.PruneEventsTask
+		nodeCacheRebuildTask = nodeCache.PeriodicRebuild
 		ef = efEventsBasedCache
 	} else {
+		nodeCache, err = nodecache.New(ctx, ds, c.Clock, true, true)
+		if err != nil {
+			return nil, err
+		}
+
 		buildCacheFn := func(ctx context.Context) (_ entrycache.Cache, err error) {
 			call := telemetry.StartCall(c.Metrics, telemetry.Entry, telemetry.Cache, telemetry.Reload)
 			defer call.Done(&err)
@@ -159,6 +177,8 @@ func New(ctx context.Context, c Config) (*Endpoints, error) {
 		}
 		cacheRebuildTask = efFullCache.RunRebuildCacheTask
 		pruneEventsTask = efFullCache.PruneEventsTask
+		// cacheRebuildTask will take care of rebuilding the node cache
+		nodeCacheRebuildTask = func(ctx context.Context) error { return nil }
 		ef = efFullCache
 	}
 
@@ -176,6 +196,7 @@ func New(ctx context.Context, c Config) (*Endpoints, error) {
 		Log:                          c.Log,
 		Metrics:                      c.Metrics,
 		RateLimit:                    c.RateLimit,
+		NodeCacheRebuildTask:         nodeCacheRebuildTask,
 		EntryFetcherCacheRebuildTask: cacheRebuildTask,
 		EntryFetcherPruneEventsTask:  pruneEventsTask,
 		CertificateReloadTask:        certificateReloadTask,
@@ -183,6 +204,8 @@ func New(ctx context.Context, c Config) (*Endpoints, error) {
 		AuthPolicyEngine:             c.AuthPolicyEngine,
 		AdminIDs:                     c.AdminIDs,
 		TLSPolicy:                    c.TLSPolicy,
+
+		nodeCache: nodeCache,
 	}, nil
 }
 
@@ -224,6 +247,7 @@ func (e *Endpoints) ListenAndServe(ctx context.Context) error {
 			return e.runLocalAccess(ctx, udsServer)
 		},
 		e.EntryFetcherCacheRebuildTask,
+		e.NodeCacheRebuildTask,
 	}
 
 	if e.BundleEndpointServer != nil {
@@ -397,5 +421,5 @@ func (e *Endpoints) getTLSConfig(ctx context.Context) func(*tls.ClientHelloInfo)
 func (e *Endpoints) makeInterceptors() (grpc.UnaryServerInterceptor, grpc.StreamServerInterceptor) {
 	log := e.Log.WithField(telemetry.SubsystemName, "api")
 
-	return middleware.Interceptors(Middleware(log, e.Metrics, e.DataStore, clock.New(), e.RateLimit, e.AuthPolicyEngine, e.AuditLogEnabled, e.AdminIDs))
+	return middleware.Interceptors(Middleware(log, e.Metrics, e.DataStore, e.nodeCache, clock.New(), e.RateLimit, e.AuthPolicyEngine, e.AuditLogEnabled, e.AdminIDs))
 }
