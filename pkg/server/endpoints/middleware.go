@@ -3,6 +3,7 @@ package endpoints
 import (
 	"context"
 	"crypto/x509"
+	"time"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -23,11 +24,15 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-func Middleware(log logrus.FieldLogger, metrics telemetry.Metrics, ds datastore.DataStore, clk clock.Clock, rlConf RateLimitConfig, policyEngine *authpolicy.Engine, auditLogEnabled bool, adminIDs []spiffeid.ID) middleware.Middleware {
+const (
+	cacheExpiry = 15 * time.Second
+)
+
+func Middleware(log logrus.FieldLogger, metrics telemetry.Metrics, ds datastore.DataStore, nodeCache api.AttestedNodeCache, clk clock.Clock, rlConf RateLimitConfig, policyEngine *authpolicy.Engine, auditLogEnabled bool, adminIDs []spiffeid.ID) middleware.Middleware {
 	chain := []middleware.Middleware{
 		middleware.WithLogger(log),
 		middleware.WithMetrics(metrics),
-		middleware.WithAuthorization(policyEngine, EntryFetcher(ds), AgentAuthorizer(ds, clk), adminIDs),
+		middleware.WithAuthorization(policyEngine, EntryFetcher(ds), AgentAuthorizer(ds, nodeCache, clk), adminIDs),
 		middleware.WithRateLimits(RateLimits(rlConf), metrics),
 	}
 
@@ -57,7 +62,7 @@ func UpstreamPublisher(jwtKeyPublisher manager.JwtKeyPublisher) bundle.UpstreamP
 	return bundle.UpstreamPublisherFunc(jwtKeyPublisher.PublishJWTKey)
 }
 
-func AgentAuthorizer(ds datastore.DataStore, clk clock.Clock) middleware.AgentAuthorizer {
+func AgentAuthorizer(ds datastore.DataStore, nodeCache api.AttestedNodeCache, clk clock.Clock) middleware.AgentAuthorizer {
 	return middleware.AgentAuthorizerFunc(func(ctx context.Context, agentID spiffeid.ID, agentSVID *x509.Certificate) error {
 		id := agentID.String()
 		log := rpccontext.Logger(ctx)
@@ -67,7 +72,25 @@ func AgentAuthorizer(ds datastore.DataStore, clk clock.Clock) middleware.AgentAu
 			return errorutil.PermissionDenied(types.PermissionDeniedDetails_AGENT_EXPIRED, "agent %q SVID is expired", id)
 		}
 
-		attestedNode, err := ds.FetchAttestedNode(ctx, id)
+		cachedAgent, agentCacheTime, err := nodeCache.FetchAttestedNode(id)
+		switch {
+		case err != nil:
+			// AttestedNode not found in local cache, will fetch from the datastore
+		case cachedAgent == nil:
+			// AttestedNode not found in local cache, will fetch from the datastore
+		case clk.Now().Sub(agentCacheTime) >= cacheExpiry:
+			// Cached AttestedNode is stale, will attempt to refresh from the database
+		case cachedAgent.CertSerialNumber == "":
+			// Attested node was not found in the cache, will fetch from the datastore
+		case cachedAgent.CertSerialNumber == agentSVID.SerialNumber.String():
+			// AgentSVID matches the current serial number, access granted. We
+			return nil
+		default:
+			// Could not validate the agent using the cache attested node information
+			// so we'll try fetching the up to date data from the datastore.
+		}
+
+		attestedNode, err := nodeCache.RefreshAttestedNode(ctx, id)
 		switch {
 		case err != nil:
 			log.WithError(err).Error("Unable to look up agent information")
@@ -98,6 +121,7 @@ func AgentAuthorizer(ds datastore.DataStore, clk clock.Clock) middleware.AgentAu
 				}).WithError(err).Warningf("Unable to activate the new agent SVID")
 				return status.Errorf(codes.Internal, "unable to activate the new agent SVID: %v", err)
 			}
+			nodeCache.RefreshAttestedNode(ctx, id)
 			return nil
 		default:
 			log.WithFields(logrus.Fields{
