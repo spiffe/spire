@@ -59,7 +59,7 @@ const (
 
 	// This is the time to wait for graceful termination of the gRPC server
 	// before forcefully terminating.
-	defaultGracefulStopTimeout = 10 * time.Second
+	gracefulStopTimeout = 10 * time.Second
 )
 
 // Server manages gRPC and HTTP endpoint lifecycle
@@ -356,10 +356,10 @@ func (e *Endpoints) handleShutdown(server *grpc.Server, errChan <-chan error, lo
 		close(stopComplete)
 	}()
 
-	shutdownDeadline := time.After(defaultGracefulStopTimeout)
+	shutdownDeadline := time.After(gracefulStopTimeout)
 	select {
 	case <-shutdownDeadline:
-		log.Infof("Graceful stop unsuccessful, forced stop after %s", defaultGracefulStopTimeout.String())
+		log.Infof("Graceful stop unsuccessful, forced stop after %v", gracefulStopTimeout)
 		server.Stop()
 	case <-stopComplete:
 		log.Info("Graceful stop successful")
