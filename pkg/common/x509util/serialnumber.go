@@ -27,9 +27,9 @@ func NewSerialNumber() (*big.Int, error) {
 }
 
 func getMaxUint128() *big.Int {
-	max, ok := new(big.Int).SetString("340282366920938463463374607431768211455", 10) // (2^128 − 1)
+	m, ok := new(big.Int).SetString("340282366920938463463374607431768211455", 10) // (2^128 − 1)
 	if !ok {
 		panic("cannot parse value for max unsigned int 128")
 	}
-	return max
+	return m
 }

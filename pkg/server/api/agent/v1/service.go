@@ -552,10 +552,8 @@ func (s *Service) createJoinTokenRegistrationEntry(ctx context.Context, token st
 			{Type: "spiffe_id", Value: parentID.String()},
 		},
 	}
-	if _, err := s.ds.CreateRegistrationEntry(ctx, entry); err != nil {
-		return err
-	}
-	return nil
+	_, err = s.ds.CreateRegistrationEntry(ctx, entry)
+	return err
 }
 
 func (s *Service) updateAttestedNode(ctx context.Context, node *common.AttestedNode, mask *common.AttestedNodeMask, log logrus.FieldLogger) error {

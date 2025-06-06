@@ -757,7 +757,7 @@ func (c *fakeClient) ListAccounts(_ context.Context, input *organizations.ListAc
 		}
 	}
 	if input.NextToken != nil {
-		return nil, fmt.Errorf("failing request for pagination")
+		return nil, errors.New("failing request for pagination")
 	}
 	return c.ListAccountOutput, c.ListAccountError
 }

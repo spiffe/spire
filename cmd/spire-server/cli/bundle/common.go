@@ -85,11 +85,8 @@ func printBundle(out io.Writer, bundle *types.Bundle) error {
 		return err
 	}
 
-	if _, err := fmt.Fprintln(out, o.String()); err != nil {
-		return err
-	}
-
-	return nil
+	_, err = fmt.Fprintln(out, o.String())
+	return err
 }
 
 // bundleFromProto converts a bundle from the given *types.Bundle to *spiffebundle.Bundle
