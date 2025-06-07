@@ -963,11 +963,10 @@ func BenchmarkEntryLookup(b *testing.B) {
 
 	for b.Loop() {
 		for _, id := range entries {
-			entries := cache.LookupAuthorizedEntries(agentID, map[string]struct{}{
-				id:            {},
-				id + "/child": {},
+			foundEntries := cache.LookupAuthorizedEntries(agentID, map[string]struct{}{
+				id: {},
 			})
-			require.Len(b, entries, 1)
+			require.Len(b, foundEntries, 1)
 		}
 	}
 }
