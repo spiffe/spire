@@ -396,6 +396,141 @@ func TestV1PublishJWTKey(t *testing.T) {
 	}
 }
 
+func TestV1SubscribeToLocalBundle(t *testing.T) {
+	upstreamCA := testca.New(t, spiffeid.RequireTrustDomainFromString("example.org"))
+
+	var expectedUpstreamX509Roots []*x509certificate.X509Authority
+	for _, eachCert := range upstreamCA.X509Authorities() {
+		expectedUpstreamX509Roots = append(expectedUpstreamX509Roots, &x509certificate.X509Authority{
+			Certificate: eachCert,
+		})
+	}
+	validUpstreamX509Roots := x509certificate.RequireToPluginProtos(expectedUpstreamX509Roots)
+
+	key := testkey.NewEC256(t)
+	pkixBytes, err := x509.MarshalPKIXPublicKey(key.Public())
+	require.NoError(t, err)
+
+	expectedUpstreamJWTKeys := []*common.PublicKey{
+		{
+			Kid:       "UPSTREAM KEY",
+			PkixBytes: pkixBytes,
+		},
+	}
+	noJwtAuthorities := &upstreamauthorityv1.SubscribeToLocalBundleResponse{
+		UpstreamX509Roots: validUpstreamX509Roots,
+	}
+
+	fullResponse := &upstreamauthorityv1.SubscribeToLocalBundleResponse{
+		UpstreamX509Roots: validUpstreamX509Roots,
+		UpstreamJwtKeys:   jwtkey.RequireToPluginFromCommonProtos(expectedUpstreamJWTKeys),
+	}
+
+	builder := BuildV1()
+	for _, tt := range []struct {
+		test                            string
+		builder                         *V1Builder
+		expectCode                      codes.Code
+		expectMessage                   string
+		expectStreamUpdates             bool
+		expectStreamCode                codes.Code
+		expectStreamMessage             string
+		expectLogs                      []spiretest.LogEntry
+		expectUpstreamX509RootsResponse []*x509certificate.X509Authority
+	}{
+		{
+			test:          "plugin returns before sending first response",
+			builder:       builder.WithPreSendError(nil),
+			expectCode:    codes.Internal,
+			expectMessage: "upstreamauthority(test): plugin closed stream unexpectedly",
+		},
+		{
+			test:          "plugin fails before sending first response",
+			builder:       builder.WithPreSendError(errors.New("ohno")),
+			expectCode:    codes.Unknown,
+			expectMessage: "upstreamauthority(test): ohno",
+		},
+		{
+			test:                "success with empty JWT authorities",
+			builder:             builder.WithSubscribeToLocalBundleResponse(noJwtAuthorities),
+			expectCode:          codes.OK,
+			expectMessage:       "",
+			expectStreamUpdates: false,
+		},
+		{
+			test:                "success but plugin does not support streaming updates",
+			builder:             builder.WithSubscribeToLocalBundleResponse(fullResponse),
+			expectCode:          codes.OK,
+			expectMessage:       "",
+			expectStreamUpdates: false,
+		},
+		{
+			test: "success and plugin supports streaming updates",
+			builder: builder.
+				WithSubscribeToLocalBundleResponse(noJwtAuthorities).
+				WithSubscribeToLocalBundleResponse(fullResponse),
+			expectCode:                      codes.OK,
+			expectMessage:                   "",
+			expectStreamUpdates:             true,
+			expectStreamCode:                codes.OK,
+			expectStreamMessage:             "",
+			expectUpstreamX509RootsResponse: expectedUpstreamX509Roots,
+		},
+		{
+			test: "plugin fails to stream updates",
+			builder: builder.
+				WithSubscribeToLocalBundleResponse(fullResponse).
+				WithPostSendError(errors.New("ohno")),
+			expectCode:          codes.OK,
+			expectMessage:       "",
+			expectStreamUpdates: true,
+			expectStreamCode:    codes.Unknown,
+			expectStreamMessage: "upstreamauthority(test): ohno",
+		},
+	} {
+		t.Run(tt.test, func(t *testing.T) {
+			log, logHook := test.NewNullLogger()
+
+			ua := tt.builder.WithLog(log).Load(t)
+
+			_, _, stream, err := ua.SubscribeToLocalBundle(t.Context())
+			spiretest.RequireGRPCStatusHasPrefix(t, err, tt.expectCode, tt.expectMessage)
+			if tt.expectCode != codes.OK {
+				return
+			}
+			require.NotNil(t, stream, "valid stream should have been returned")
+			defer stream.Close()
+
+			expectUpstreamX509Roots := expectedUpstreamX509Roots
+			if tt.expectUpstreamX509RootsResponse != nil {
+				expectUpstreamX509Roots = tt.expectUpstreamX509RootsResponse
+			}
+
+			upstreamX509Roots, upstreamJWTKeys, err := stream.RecvLocalBundleUpdate()
+			switch {
+			case !tt.expectStreamUpdates:
+				assert.Equal(t, io.EOF, err, "stream should have returned EOF")
+				assert.Nil(t, upstreamX509Roots, "no roots should be received")
+				assert.Nil(t, upstreamJWTKeys, "no keys should be received")
+			case tt.expectStreamCode == codes.OK:
+				assert.NoError(t, err, "stream should have returned update")
+				expected := expectUpstreamX509Roots
+				if tt.expectUpstreamX509RootsResponse != nil {
+					expected = tt.expectUpstreamX509RootsResponse
+				}
+				assert.Equal(t, expected, upstreamX509Roots)
+				spiretest.AssertProtoListEqual(t, expectedUpstreamJWTKeys, upstreamJWTKeys)
+			default:
+				spiretest.RequireGRPCStatusHasPrefix(t, err, tt.expectStreamCode, tt.expectStreamMessage)
+				assert.Nil(t, upstreamX509Roots)
+				assert.Nil(t, upstreamJWTKeys)
+			}
+
+			spiretest.AssertLogs(t, logHook.AllEntries(), tt.expectLogs)
+		})
+	}
+}
+
 type V1Builder struct {
 	p   *v1Plugin
 	log logrus.FieldLogger
@@ -435,6 +570,12 @@ func (b *V1Builder) WithPublishJWTKeyResponse(response *upstreamauthorityv1.Publ
 	return b
 }
 
+func (b *V1Builder) WithSubscribeToLocalBundleResponse(response *upstreamauthorityv1.SubscribeToLocalBundleResponse) *V1Builder {
+	b = b.clone()
+	b.p.subscribeToLocalBundleResponses = append(b.p.subscribeToLocalBundleResponses, response)
+	return b
+}
+
 func (b *V1Builder) clone() *V1Builder {
 	return &V1Builder{
 		p:   b.p.clone(),
@@ -458,10 +599,11 @@ func (b *V1Builder) Load(t *testing.T) upstreamauthority.UpstreamAuthority {
 type v1Plugin struct {
 	upstreamauthorityv1.UnimplementedUpstreamAuthorityServer
 
-	preSendErr             *error
-	postSendErr            error
-	mintX509CAResponses    []*upstreamauthorityv1.MintX509CAResponse
-	publishJWTKeyResponses []*upstreamauthorityv1.PublishJWTKeyResponse
+	preSendErr                      *error
+	postSendErr                     error
+	mintX509CAResponses             []*upstreamauthorityv1.MintX509CAResponse
+	publishJWTKeyResponses          []*upstreamauthorityv1.PublishJWTKeyResponse
+	subscribeToLocalBundleResponses []*upstreamauthorityv1.SubscribeToLocalBundleResponse
 }
 
 func (v1 *v1Plugin) MintX509CAAndSubscribe(req *upstreamauthorityv1.MintX509CARequest, stream upstreamauthorityv1.UpstreamAuthority_MintX509CAAndSubscribeServer) error {
@@ -495,6 +637,20 @@ func (v1 *v1Plugin) PublishJWTKeyAndSubscribe(req *upstreamauthorityv1.PublishJW
 	}
 
 	for _, response := range v1.publishJWTKeyResponses {
+		if err := stream.Send(response); err != nil {
+			return err
+		}
+	}
+
+	return v1.postSendErr
+}
+
+func (v1 *v1Plugin) SubscribeToLocalBundle(req *upstreamauthorityv1.SubscribeToLocalBundleRequest, stream upstreamauthorityv1.UpstreamAuthority_SubscribeToLocalBundleServer) error {
+	if v1.preSendErr != nil {
+		return *v1.preSendErr
+	}
+
+	for _, response := range v1.subscribeToLocalBundleResponses {
 		if err := stream.Send(response); err != nil {
 			return err
 		}

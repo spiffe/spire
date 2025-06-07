@@ -319,8 +319,12 @@ func (p *Plugin) MintX509CAAndSubscribe(req *upstreamauthorityv1.MintX509CAReque
 }
 
 // The EJBCA UpstreamAuthority plugin does not support publishing JWT keys.
-func (p *Plugin) PublishJWTKeyAndSubscribe(_ *upstreamauthorityv1.PublishJWTKeyRequest, _ upstreamauthorityv1.UpstreamAuthority_PublishJWTKeyAndSubscribeServer) error {
+func (p *Plugin) PublishJWTKeyAndSubscribe(*upstreamauthorityv1.PublishJWTKeyRequest, upstreamauthorityv1.UpstreamAuthority_PublishJWTKeyAndSubscribeServer) error {
 	return status.Error(codes.Unimplemented, "publishing JWT keys is not supported by the EJBCA UpstreamAuthority plugin")
+}
+
+func (p *Plugin) SubscribeToLocalBundle(req *upstreamauthorityv1.SubscribeToLocalBundleRequest, stream upstreamauthorityv1.UpstreamAuthority_SubscribeToLocalBundleServer) error {
+	return status.Error(codes.Unimplemented, "fetching upstream trust bundle is unsupported")
 }
 
 // setConfig replaces the configuration atomically under a write lock.
