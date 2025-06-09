@@ -71,7 +71,7 @@ func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginco
 	}
 
 	if len(newConfig.Clusters) == 0 {
-		status.ReportInfo("no clusters configured, bundle will not be published")
+		status.ReportInfo("No clusters configured, bundle will not be published")
 	}
 
 	for id, cluster := range newConfig.Clusters {
@@ -133,9 +133,12 @@ func (p *Plugin) SetLogger(log hclog.Logger) {
 
 // Configure configures the plugin.
 func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
-	newConfig, _, err := pluginconf.Build(req, buildConfig)
+	newConfig, notes, err := pluginconf.Build(req, buildConfig)
 	if err != nil {
 		return nil, err
+	}
+	for _, note := range notes {
+		p.log.Warn(note)
 	}
 
 	for id := range newConfig.Clusters {
