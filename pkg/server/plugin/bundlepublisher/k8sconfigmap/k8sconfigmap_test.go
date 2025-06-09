@@ -521,7 +521,7 @@ func TestValidate(t *testing.T) {
 					TrustDomain: "example.org",
 				},
 			},
-			expectNotes: []string{"no clusters configured, bundle will not be published"},
+			expectNotes: []string{"No clusters configured, bundle will not be published"},
 		},
 
 		{
