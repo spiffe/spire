@@ -17,6 +17,8 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 const (
@@ -39,7 +41,7 @@ func New() *Plugin {
 
 // Config holds the configuration of the plugin.
 type Config struct {
-	Clusters []*Cluster `hcl:"clusters,block" json:"clusters"`
+	Clusters map[string]*Cluster `hcl:"clusters,block" json:"clusters"`
 }
 
 // Config holds the configuration of the plugin.
@@ -69,31 +71,29 @@ func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginco
 	}
 
 	if len(newConfig.Clusters) == 0 {
-		status.ReportError("configuration must have at least one cluster")
+		status.ReportInfo("no clusters configured, bundle will not be published")
 	}
 
-	inClusterUsed := false
-
-	for _, cluster := range newConfig.Clusters {
+	for id, cluster := range newConfig.Clusters {
 		if cluster.Format == "" {
-			status.ReportErrorf("missing bundle format in cluster configuration")
+			status.ReportErrorf("missing bundle format in cluster %q", id)
 			return nil
 		}
 		if cluster.Namespace == "" {
-			status.ReportErrorf("missing namespace in cluster configuration")
+			status.ReportErrorf("missing namespace in cluster %q", id)
 			return nil
 		}
 		if cluster.ConfigMapName == "" {
-			status.ReportErrorf("missing configmap name in cluster configuration")
+			status.ReportErrorf("missing configmap name in cluster %q", id)
 			return nil
 		}
 		if cluster.ConfigMapKey == "" {
-			status.ReportErrorf("missing configmap key in cluster configuration")
+			status.ReportErrorf("missing configmap key in cluster %q", id)
 			return nil
 		}
 		bundleFormat, err := bundleformat.FromString(cluster.Format)
 		if err != nil {
-			status.ReportErrorf("could not parse bundle format from cluster configuration: %v", err)
+			status.ReportErrorf("could not parse bundle format from cluster %q: %v", id, err)
 			return nil
 		}
 
@@ -106,14 +106,6 @@ func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginco
 			return nil
 		}
 		cluster.bundleFormat = bundleFormat
-
-		if cluster.KubeConfigPath == "" {
-			if inClusterUsed {
-				status.ReportError("only one cluster can use in-cluster configuratio (empty kubeconfig_path)")
-				return nil
-			}
-			inClusterUsed = true
-		}
 	}
 
 	return newConfig
@@ -146,12 +138,12 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 		return nil, err
 	}
 
-	for i := range newConfig.Clusters {
-		k8sClient, err := p.hooks.newK8sClientFunc(newConfig.Clusters[i].KubeConfigPath)
+	for id := range newConfig.Clusters {
+		k8sClient, err := p.hooks.newK8sClientFunc(newConfig.Clusters[id].KubeConfigPath)
 		if err != nil {
-			return nil, status.Errorf(codes.Internal, "failed to create Kubernetes client: %v", err)
+			return nil, status.Errorf(codes.Internal, "failed to create Kubernetes client for cluster %q: %v", id, err)
 		}
-		newConfig.Clusters[i].k8sClient = k8sClient
+		newConfig.Clusters[id].k8sClient = k8sClient
 	}
 
 	p.setConfig(newConfig)
@@ -179,16 +171,25 @@ func (p *Plugin) PublishBundle(ctx context.Context, req *bundlepublisherv1.Publi
 	formatter := bundleformat.NewFormatter(req.Bundle)
 
 	var allErrors error
-	for _, cluster := range config.Clusters {
+	for id, cluster := range config.Clusters {
 		bundleBytes, err := formatter.Format(cluster.bundleFormat)
 		if err != nil {
-			allErrors = errors.Join(allErrors, fmt.Errorf("could not format bundle: %w", err))
+			allErrors = errors.Join(allErrors, fmt.Errorf("could not format bundle when publishing to cluster %q: %w", id, err))
 			continue
 		}
 
-		cm, err := cluster.k8sClient.GetConfigMap(ctx, cluster.Namespace, cluster.ConfigMapName)
+		log := p.log.With(
+			"cluster_id", id,
+			"format", cluster.bundleFormat,
+			"kubeconfig_path", cluster.KubeConfigPath,
+			"namespace", cluster.Namespace,
+			"configmap", cluster.ConfigMapName,
+			"key", cluster.ConfigMapKey,
+		)
+
+		cm, err := p.getOrCreateConfigMap(ctx, cluster, id, log)
 		if err != nil {
-			allErrors = errors.Join(allErrors, fmt.Errorf("failed to get ConfigMap: %w", err))
+			allErrors = errors.Join(allErrors, err)
 			continue
 		}
 
@@ -197,17 +198,12 @@ func (p *Plugin) PublishBundle(ctx context.Context, req *bundlepublisherv1.Publi
 		}
 		cm.Data[cluster.ConfigMapKey] = string(bundleBytes)
 
-		err = cluster.k8sClient.UpdateConfigMap(ctx, cm)
-		if err != nil {
-			allErrors = errors.Join(allErrors, fmt.Errorf("failed to update ConfigMap: %w", err))
+		if err := cluster.k8sClient.UpdateConfigMap(ctx, cm); err != nil {
+			allErrors = errors.Join(allErrors, fmt.Errorf("failed to update ConfigMap for cluster %q: %w", id, err))
 			continue
 		}
-		p.log.Debug("Bundle published to Kubernetes ConfigMap",
-			"format", cluster.bundleFormat,
-			"kubeconfig_path", cluster.KubeConfigPath,
-			"namespace", cluster.Namespace,
-			"configmap", cluster.ConfigMapName,
-			"key", cluster.ConfigMapKey)
+
+		log.Debug("Bundle published to Kubernetes ConfigMap")
 	}
 
 	if allErrors != nil {
@@ -245,6 +241,32 @@ func (p *Plugin) getConfig() (*Config, error) {
 		return nil, status.Error(codes.FailedPrecondition, "not configured")
 	}
 	return p.config, nil
+}
+
+// getOrCreateConfigMap retrieves a ConfigMap or creates it if it doesn't exist
+func (p *Plugin) getOrCreateConfigMap(ctx context.Context, cluster *Cluster, clusterID string, log hclog.Logger) (*corev1.ConfigMap, error) {
+	cm, err := cluster.k8sClient.GetConfigMap(ctx, cluster.Namespace, cluster.ConfigMapName)
+	if err == nil {
+		return cm, nil
+	}
+
+	if status.Code(err) != codes.NotFound {
+		return nil, fmt.Errorf("failed to get ConfigMap from cluster %q: %w", clusterID, err)
+	}
+
+	log.Debug("ConfigMap not found, creating new ConfigMap")
+	cm = &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      cluster.ConfigMapName,
+			Namespace: cluster.Namespace,
+		},
+	}
+
+	if err := cluster.k8sClient.CreateConfigMap(ctx, cm); err != nil {
+		return nil, fmt.Errorf("failed to create ConfigMap for cluster %q: %w", clusterID, err)
+	}
+
+	return cm, nil
 }
 
 // setBundle updates the current bundle in the plugin with the provided bundle.

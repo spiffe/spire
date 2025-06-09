@@ -16,6 +16,9 @@ import (
 
 // kubernetesClient defines the interface for Kubernetes operations.
 type kubernetesClient interface {
+	// CreateConfigMap creates a new ConfigMap in the specified namespace.
+	CreateConfigMap(ctx context.Context, configMap *corev1.ConfigMap) error
+
 	// GetConfigMap retrieves a ConfigMap from the specified namespace.
 	GetConfigMap(ctx context.Context, namespace, name string) (*corev1.ConfigMap, error)
 

@@ -3,15 +3,24 @@
 The `k8s_configmap` plugin puts the current trust bundle of the server in a designated
 Kubernetes ConfigMap, keeping it updated. The plugin supports configuring multiple clusters.
 
-The plugin accepts the following configuration options:
+The plugin accepts the following configuration:
 
-| Configuration   | Description                                                                                                                                                                                            | Required                                    | Default |
-|-----------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------------|---------|
-| configmap_name  | The name of the ConfigMap.                                                                                                                                                                             | Yes.                                        |         |
-| configmap_key   | The key within the ConfigMap for the bundle.                                                                                                                                                           | Yes.                                        |         |
-| namespace       | The namespace containing the ConfigMap.                                                                                                                                                                | Yes.                                        |         |
-| kubeconfig_path | The path on disk to the kubeconfig containing configuration to enable interaction with the Kubernetes API server. If unset, in-cluster credentials will be used. Only one in-cluster can be configured.| Required when configuring a remote cluster. |         |
-| format          | Format in which the trust bundle is stored, &lt;spiffe &vert; jwks &vert; pem&gt;. See [Supported bundle formats](#supported-bundle-formats) for more details.                                         | Yes.                                        |         |
+| Configuration | Description                                                                                       | Default |
+|---------------|---------------------------------------------------------------------------------------------------|---------|
+| `clusters`    | A map of clusters, keyed by an arbitrary ID, where the plugin publishes the current trust bundle. |         |
+
+> [!WARNING]
+> When `clusters` is empty, the plugin does not publish the bundle.
+
+Each cluster in the main configuration has the following configuration options:
+
+| Configuration   | Description                                                                                                                                                                                            | Required | Default |
+|-----------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------|---------|
+| configmap_name  | The name of the ConfigMap.                                                                                                                                                                             | Yes.     |         |
+| configmap_key   | The key within the ConfigMap for the bundle.                                                                                                                                                           | Yes.     |         |
+| namespace       | The namespace containing the ConfigMap.                                                                                                                                                                | Yes.     |         |
+| kubeconfig_path | The path on disk to the kubeconfig containing configuration to enable interaction with the Kubernetes API server. If unset, in-cluster credentials will be used.                                       | No.      |         |
+| format          | Format in which the trust bundle is stored, &lt;spiffe &vert; jwks &vert; pem&gt;. See [Supported bundle formats](#supported-bundle-formats) for more details.                                         | Yes.     |         |
 
 ## Supported bundle formats
 
@@ -36,22 +45,22 @@ The following configuration keeps the local trust bundle updated in ConfigMaps f
 ```hcl
     BundlePublisher "k8s_configmap" {
         plugin_data {
-            clusters = [
-                {
-                    format = "spiffe"
-                    namespace = "spire"
+            clusters = {
+                "example-cluster-1" = {
                     configmap_name = "example.org"
-                    configmap_key = "trust-bundle"
-                    kubeconfig_path = "/file/path/cluster-1"
-                },
-                {
-                    format = "pem"
+                    configmap_key = "bundle"
                     namespace = "spire"
-                    configmap_name = "example.org2"
-                    configmap_key = "trust-bundle"
+                    kubeconfig_path = "/file/path/cluster-1"
+                    format = "spiffe"
+                },
+                "example-cluster-2" = {
+                    configmap_name = "example.org"
+                    configmap_key = "bundle"
+                    namespace = "spire"
                     kubeconfig_path = "/file/path/cluster-2"
+                    format = "pem"
                 }
-            ]
+            }
         }
     }
 ```

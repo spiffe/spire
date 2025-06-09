@@ -38,19 +38,19 @@ func TestConfigure(t *testing.T) {
 		{
 			name: "success",
 			hclConfig: `
-				clusters = [
-					{
+				clusters = {
+					"test-cluster" = {
 						format = "spiffe"
 						namespace = "spire"
 						configmap_name = "spire-bundle"
 						configmap_key = "bundle.json"
 						kubeconfig_path = "/path/to/kubeconfig"
 					}
-				]
+				}
 			`,
 			expectCfg: &Config{
-				Clusters: []*Cluster{
-					{
+				Clusters: map[string]*Cluster{
+					"test-cluster": {
 						Format:         "spiffe",
 						Namespace:      "spire",
 						ConfigMapName:  "spire-bundle",
@@ -61,122 +61,96 @@ func TestConfigure(t *testing.T) {
 			},
 		},
 		{
-			name:       "no clusters",
-			expectCode: codes.InvalidArgument,
-			expectMsg:  "configuration must have at least one cluster",
-		},
-		{
 			name: "no namespace",
 			hclConfig: `
-				clusters = [
-					{
+				clusters = {
+					"test-cluster" = {
 						format = "spiffe"
 						configmap_name = "spire-bundle"
 						configmap_key = "bundle.json"
 						kubeconfig_path = "/path/to/kubeconfig"
 					}
-				]
+				}
 			`,
 			expectCode: codes.InvalidArgument,
-			expectMsg:  "missing namespace in cluster configuration",
+			expectMsg:  "missing namespace in cluster \"test-cluster\"",
 		},
 		{
 			name: "no configmap name",
 			hclConfig: `
-				clusters = [
-					{
+				clusters = {
+					"test-cluster" = {
 						format = "spiffe"
 						namespace = "spire"
 						configmap_key = "bundle.json"
 						kubeconfig_path = "/path/to/kubeconfig"
 					}
-				]
+				}
 			`,
 			expectCode: codes.InvalidArgument,
-			expectMsg:  "missing configmap name in cluster configuration",
+			expectMsg:  "missing configmap name in cluster \"test-cluster\"",
 		},
 		{
 			name: "no configmap key",
 			hclConfig: `
-				clusters = [
-					{
+				clusters = {
+					"test-cluster" = {
 						format = "spiffe"
 						namespace = "spire"
 						configmap_name = "spire-bundle"
 						kubeconfig_path = "/path/to/kubeconfig"
 					}
-				]
+				}
 			`,
 			expectCode: codes.InvalidArgument,
-			expectMsg:  "missing configmap key in cluster configuration",
+			expectMsg:  "missing configmap key in cluster \"test-cluster\"",
 		},
 		{
 			name: "no bundle format",
 			hclConfig: `
-				clusters = [
-					{
+				clusters = {
+					"test-cluster" = {
 						namespace = "spire"
 						configmap_name = "spire-bundle"
 						configmap_key = "bundle.json"
 						kubeconfig_path = "/path/to/kubeconfig"
 					}
-				]
+				}
 			`,
 			expectCode: codes.InvalidArgument,
-			expectMsg:  "missing bundle format in cluster configuration",
-		},
-		{
-			name: "only one in-cluster configuration",
-			hclConfig: `
-				clusters = [
-					{
-						format = "spiffe"
-						namespace = "spire"
-						configmap_name = "spire-bundle-1"
-						configmap_key = "bundle.json"
-					},
-					{
-						format = "spiffe"
-						namespace = "spire"
-						configmap_name = "spire-bundle-2"
-						configmap_key = "bundle.json"
-					}
-				]
-			`,
-			expectCode: codes.InvalidArgument,
-			expectMsg:  "only one cluster can use in-cluster configuratio (empty kubeconfig_path)",
+			expectMsg:  "missing bundle format in cluster \"test-cluster\"",
 		},
 		{
 			name: "bundle format not supported",
 			hclConfig: `
-				clusters = [
-					{
+				clusters = {
+					"test-cluster" = {
 						format = "unsupported"
 						namespace = "spire"
 						configmap_name = "spire-bundle"
 						configmap_key = "bundle.json"
 						kubeconfig_path = "/path/to/kubeconfig"
 					}
-				]
+				}
 			`,
 			expectCode: codes.InvalidArgument,
-			expectMsg:  "could not parse bundle format from cluster configuration: unknown bundle format: \"unsupported\"",
+			expectMsg:  "could not parse bundle format from cluster \"test-cluster\": unknown bundle format: \"unsupported\"",
 		},
 		{
 			name: "client error",
 			hclConfig: `
-				clusters = [
-					{
+				clusters = {
+					"test-cluster" = {
 						format = "spiffe"
 						namespace = "spire"
 						configmap_name = "spire-bundle"
 						configmap_key = "bundle.json"
 						kubeconfig_path = "/path/to/kubeconfig"
 					}
-				]
+				}
 			`,
 			expectCode:   codes.Internal,
-			expectMsg:    "failed to create Kubernetes client: client creation error",
+			expectMsg:    "failed to create Kubernetes client for cluster \"test-cluster\"",
 			newClientErr: errors.New("client creation error"),
 		},
 		{
@@ -243,30 +217,66 @@ func TestPublishBundle(t *testing.T) {
 			name:   "success",
 			bundle: testBundle,
 			hclConfig: `
-				clusters = [
-					{
+				clusters = {
+					"test-cluster" = {
 						format = "spiffe"
 						namespace = "spire"
 						configmap_name = "spire-bundle"
 						configmap_key = "bundle.json"
 						kubeconfig_path = "/path/to/kubeconfig"
 					}
-				]
+				}
 			`,
 		},
+		{
+			name:   "success - create configmap",
+			bundle: testBundle,
+			hclConfig: `
+				clusters = {
+					"test-cluster" = {
+						format = "spiffe"
+						namespace = "spire"
+						configmap_name = "spire-bundle"
+						configmap_key = "bundle.json"
+						kubeconfig_path = "/path/to/kubeconfig"
+					}
+				}
+			`,
+			getConfigMapErr: status.Error(codes.NotFound, "configMap not found"),
+		},
+		{
+			name:   "create configmap failure",
+			bundle: testBundle,
+			hclConfig: `
+				clusters = {
+					"test-cluster" = {
+						format = "spiffe"
+						namespace = "spire"
+						configmap_name = "spire-bundle"
+						configmap_key = "bundle.json"
+						kubeconfig_path = "/path/to/kubeconfig"
+					}
+				}
+			`,
+			getConfigMapErr:    status.Error(codes.NotFound, "configMap not found"),
+			createConfigMapErr: errors.New("create error"),
+			expectCode:         codes.Internal,
+			expectMsg:          "failed to create ConfigMap for cluster \"test-cluster\": create error",
+		},
+
 		{
 			name:   "get configmap failure",
 			bundle: testBundle,
 			hclConfig: `
-				clusters = [
-					{
+				clusters = {
+					"test-cluster" = {
 						format = "spiffe"
 						namespace = "spire"
 						configmap_name = "spire-bundle"
 						configmap_key = "bundle.json"
 						kubeconfig_path = "/path/to/kubeconfig"
 					}
-				]
+				}
 			`,
 			getConfigMapErr: errors.New("get error"),
 			expectCode:      codes.Internal,
@@ -276,15 +286,15 @@ func TestPublishBundle(t *testing.T) {
 			name:   "update configmap failure",
 			bundle: testBundle,
 			hclConfig: `
-				clusters = [
-					{
+				clusters = {
+					"test-cluster" = {
 						format = "spiffe"
 						namespace = "spire"
 						configmap_name = "spire-bundle"
 						configmap_key = "bundle.json"
 						kubeconfig_path = "/path/to/kubeconfig"
 					}
-				]
+				}
 			`,
 			updateConfigMapErr: errors.New("update error"),
 			expectCode:         codes.Internal,
@@ -293,15 +303,15 @@ func TestPublishBundle(t *testing.T) {
 		{
 			name: "missing bundle",
 			hclConfig: `
-				clusters = [
-					{
+				clusters = {
+					"test-cluster" = {
 						format = "spiffe"
 						namespace = "spire"
 						configmap_name = "spire-bundle"
 						configmap_key = "bundle.json"
 						kubeconfig_path = "/path/to/kubeconfig"
 					}
-				]
+				}
 			`,
 			expectCode: codes.InvalidArgument,
 			expectMsg:  "missing bundle in request",
@@ -327,6 +337,7 @@ func TestPublishBundle(t *testing.T) {
 			// Set up test client
 			client := &fakeClient{
 				t:                  t,
+				createConfigMapErr: tt.createConfigMapErr,
 				getConfigMapErr:    tt.getConfigMapErr,
 				updateConfigMapErr: tt.updateConfigMapErr,
 			}
@@ -358,15 +369,15 @@ func TestPublishBundle(t *testing.T) {
 
 func TestPublishMultiple(t *testing.T) {
 	hclConfig := `
-		clusters = [
-			{
+		clusters = {
+			"test-cluster" = {
 				format = "spiffe"
 				namespace = "spire"
 				configmap_name = "spire-bundle"
 				configmap_key = "bundle.json"
 				kubeconfig_path = "/path/to/kubeconfig"
 			}
-		]`
+		}`
 
 	var err error
 	options := []plugintest.Option{
@@ -479,10 +490,11 @@ func TestValidate(t *testing.T) {
 	require.NotNil(t, p)
 
 	for _, tt := range []struct {
-		name       string
-		req        *configv1.ValidateRequest
-		expectCode codes.Code
-		expectMsg  string
+		name        string
+		req         *configv1.ValidateRequest
+		expectCode  codes.Code
+		expectMsg   string
+		expectNotes []string
 	}{
 		{
 			name: "valid configuration",
@@ -491,26 +503,25 @@ func TestValidate(t *testing.T) {
 					TrustDomain: "example.org",
 				},
 				HclConfiguration: `
-					clusters = [
-					{
-						format = "spiffe"
-						namespace = "spire"
-						configmap_name = "spire-bundle"
-						configmap_key = "bundle.json"
-						kubeconfig_path = "/path/to/kubeconfig"
-					}
-				]`,
+					clusters = {
+						"test-cluster" = {
+							format = "spiffe"
+							namespace = "spire"
+							configmap_name = "spire-bundle"
+							configmap_key = "bundle.json"
+							kubeconfig_path = "/path/to/kubeconfig"
+						}
+					}`,
 			},
 		},
 		{
-			name: "invalid configuration",
+			name: "note about no clusters",
 			req: &configv1.ValidateRequest{
 				CoreConfiguration: &configv1.CoreConfiguration{
 					TrustDomain: "example.org",
 				},
 			},
-			expectCode: codes.InvalidArgument,
-			expectMsg:  "configuration must have at least one cluster",
+			expectNotes: []string{"no clusters configured, bundle will not be published"},
 		},
 
 		{
@@ -527,6 +538,10 @@ func TestValidate(t *testing.T) {
 			if tt.expectMsg != "" {
 				spiretest.RequireGRPCStatusContains(t, err, tt.expectCode, tt.expectMsg)
 				return
+			}
+			if tt.expectNotes != nil {
+				require.NotNil(t, resp)
+				require.Equal(t, tt.expectNotes, resp.Notes)
 			}
 			require.NoError(t, err)
 			require.NotNil(t, resp)
@@ -799,9 +814,18 @@ func TestUpdateConfigMap(t *testing.T) {
 type fakeClient struct {
 	t *testing.T
 
+	createConfigMapErr error
 	getConfigMapErr    error
 	updateConfigMapErr error
 	updateCount        int
+}
+
+func (c *fakeClient) CreateConfigMap(ctx context.Context, configMap *corev1.ConfigMap) error {
+	if c.createConfigMapErr != nil {
+		return c.createConfigMapErr
+	}
+
+	return nil
 }
 
 func (c *fakeClient) GetConfigMap(ctx context.Context, namespace, name string) (*corev1.ConfigMap, error) {
