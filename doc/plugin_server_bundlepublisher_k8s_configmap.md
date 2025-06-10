@@ -46,6 +46,7 @@ To use this plugin, configure Kubernetes permissions for the SPIRE Server's Serv
 - For out-of-cluster SPIRE servers: grant permissions to the Service Account specified in the kubeconfig.
 
 The Service Account needs permission to:
+
 - `get` and `update` the specific ConfigMap (required).
 - `create` ConfigMaps in the namespace (optional, only if the ConfigMap doesn't exist).
 
