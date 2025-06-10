@@ -38,6 +38,53 @@ The trust bundle is encoded as an RFC 7517 compliant JWK Set, omitting SPIFFE-sp
 
 The trust bundle is formatted using PEM encoding. Only the X.509 authorities are included.
 
+## Configuring Kubernetes
+
+The following actions are required to set up the plugin:
+
+- Bind ClusterRole or Role that can `get` and `patch` the ConfigMap to Service Account.
+  - In the case of in-cluster SPIRE server, it is Service Account that runs the SPIRE Server.
+  - In the case of out-of-cluster SPIRE Server, it is Service Account that interacts with the Kubernetes API server.
+- Create the ConfigMap that the plugin pushes, or bind ClusterRole or Role that can additionally `create` the ConfigMap.
+
+For example:
+
+In this example, assume that Service Account is `spire-server`.
+
+```yaml
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: spire-server-cluster-role
+rules:
+- apiGroups: [""]
+  resources: ["configmaps"]
+  verbs: ["create", "get", "patch"] # create is not needed if the ConfigMap already exists.
+
+---
+
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: spire-server-cluster-role-binding
+subjects:
+- kind: ServiceAccount
+  name: spire-server
+  namespace: spire
+roleRef:
+  kind: ClusterRole
+  name: spire-server-cluster-role
+  apiGroup: rbac.authorization.k8s.io
+
+---
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: spire-bundle
+  namespace: spire
+```
+
 ## Sample configuration
 
 The following configuration keeps the local trust bundle updated in ConfigMaps from two different clusters.
