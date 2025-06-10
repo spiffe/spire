@@ -42,7 +42,7 @@ The trust bundle is formatted using PEM encoding. Only the X.509 authorities are
 
 The following actions are required to set up the plugin:
 
-- Bind ClusterRole or Role that can `get` and `patch` the ConfigMap to Service Account.
+- Bind ClusterRole or Role that can `get` and `update` the ConfigMap to Service Account.
   - In the case of in-cluster SPIRE server, it is Service Account that runs the SPIRE Server.
   - In the case of out-of-cluster SPIRE Server, it is Service Account that interacts with the Kubernetes API server.
 - Create the ConfigMap that the plugin pushes, or bind ClusterRole or Role that can additionally `create` the ConfigMap.
@@ -59,7 +59,7 @@ metadata:
 rules:
 - apiGroups: [""]
   resources: ["configmaps"]
-  verbs: ["create", "get", "patch"] # create is not needed if the ConfigMap already exists.
+  verbs: ["create", "get", "update"] # create is not needed if the ConfigMap already exists.
 
 ---
 
