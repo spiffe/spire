@@ -40,40 +40,48 @@ The trust bundle is formatted using PEM encoding. Only the X.509 authorities are
 
 ## Configuring Kubernetes
 
-The following actions are required to set up the plugin:
+To use this plugin, configure Kubernetes permissions for the SPIRE Server's Service Account:
 
-- Bind ClusterRole or Role that can `get` and `update` the ConfigMap to Service Account.
-  - In the case of in-cluster SPIRE server, it is Service Account that runs the SPIRE Server.
-  - In the case of out-of-cluster SPIRE Server, it is Service Account that interacts with the Kubernetes API server.
-- Create the ConfigMap that the plugin pushes, or bind ClusterRole or Role that can additionally `create` the ConfigMap.
+- For in-cluster SPIRE servers: grant permissions to the Service Account running SPIRE.
+- For out-of-cluster SPIRE servers: grant permissions to the Service Account specified in the kubeconfig.
+
+The Service Account needs permission to:
+- `get` and `update` the specific ConfigMap (required).
+- `create` ConfigMaps in the namespace (optional, only if the ConfigMap doesn't exist).
 
 ### Example
 
 In this example, assume that Service Account is `spire-server`.
 
 ```yaml
-kind: ClusterRole
+kind: Role  # Note: Using Role instead of ClusterRole for namespace-scoped permissions
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
-  name: spire-server-cluster-role
+  name: spire-server-role
+  namespace: spire
 rules:
 - apiGroups: [""]
   resources: ["configmaps"]
-  verbs: ["create", "get", "update"] # create is not needed if the ConfigMap already exists.
+  verbs: ["get", "update"]
+  resourceNames: ["spire-bundle"]  # Can only update this specific ConfigMap
+- apiGroups: [""]
+  resources: ["configmaps"]
+  verbs: ["create"]  # Can create any ConfigMap in the namespace if needed
 
 ---
 
-kind: ClusterRoleBinding
+kind: RoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
-  name: spire-server-cluster-role-binding
+  name: spire-server-role-binding
+  namespace: spire
 subjects:
 - kind: ServiceAccount
   name: spire-server
   namespace: spire
 roleRef:
-  kind: ClusterRole
-  name: spire-server-cluster-role
+  kind: Role
+  name: spire-server-role
   apiGroup: rbac.authorization.k8s.io
 
 ---
