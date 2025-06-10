@@ -47,7 +47,7 @@ The following actions are required to set up the plugin:
   - In the case of out-of-cluster SPIRE Server, it is Service Account that interacts with the Kubernetes API server.
 - Create the ConfigMap that the plugin pushes, or bind ClusterRole or Role that can additionally `create` the ConfigMap.
 
-For example:
+### Example
 
 In this example, assume that Service Account is `spire-server`.
 
