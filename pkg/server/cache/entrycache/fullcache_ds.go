@@ -23,8 +23,8 @@ var (
 )
 
 // BuildFromDataStore builds a Cache using the provided datastore as the data source
-func BuildFromDataStore(ctx context.Context, ds datastore.DataStore) (*FullEntryCache, error) {
-	return Build(ctx, makeEntryIteratorDS(ds), makeAgentIteratorDS(ds))
+func BuildFromDataStore(ctx context.Context, trustDomain string, ds datastore.DataStore) (*FullEntryCache, error) {
+	return Build(ctx, trustDomain, makeEntryIteratorDS(ds), makeAgentIteratorDS(ds))
 }
 
 type entryIteratorDS struct {

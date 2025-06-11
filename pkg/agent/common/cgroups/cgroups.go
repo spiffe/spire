@@ -43,7 +43,7 @@ func GetCgroups(pid int32, fs FileSystem) ([]Cgroup, error) {
 		token := scanner.Text()
 		substrings := strings.SplitN(token, ":", 3)
 		if len(substrings) < 3 {
-			return nil, fmt.Errorf("cgroup entry contains %v colons, but expected at least 2 colons: %q", len(substrings), token)
+			return nil, fmt.Errorf("invalid cgroup entry, contains %v colon separated fields but expected at least 3: %q", len(substrings), token)
 		}
 		cgroups = append(cgroups, Cgroup{
 			HierarchyID:    substrings[0],

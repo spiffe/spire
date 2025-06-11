@@ -210,7 +210,7 @@ func (s *Service) BatchNewX509SVID(ctx context.Context, req *svidv1.BatchNewX509
 	return &svidv1.BatchNewX509SVIDResponse{Results: results}, nil
 }
 
-func (s *Service) findEntries(ctx context.Context, log logrus.FieldLogger, entries map[string]struct{}) (map[string]*types.Entry, error) {
+func (s *Service) findEntries(ctx context.Context, log logrus.FieldLogger, entries map[string]struct{}) (map[string]api.ReadOnlyEntry, error) {
 	callerID, ok := rpccontext.CallerID(ctx)
 	if !ok {
 		return nil, api.MakeErr(log, codes.Internal, "caller ID missing from request context", nil)
@@ -224,7 +224,7 @@ func (s *Service) findEntries(ctx context.Context, log logrus.FieldLogger, entri
 }
 
 // newX509SVID creates an X509-SVID using data from registration entry and key from CSR
-func (s *Service) newX509SVID(ctx context.Context, param *svidv1.NewX509SVIDParams, entries map[string]*types.Entry) *svidv1.BatchNewX509SVIDResponse_Result {
+func (s *Service) newX509SVID(ctx context.Context, param *svidv1.NewX509SVIDParams, entries map[string]api.ReadOnlyEntry) *svidv1.BatchNewX509SVIDResponse_Result {
 	log := rpccontext.Logger(ctx)
 
 	switch {
@@ -305,6 +305,9 @@ func (s *Service) mintJWTSVID(ctx context.Context, protoID *types.SPIFFEID, audi
 	}
 
 	log = log.WithField(telemetry.SPIFFEID, id.String())
+	rpccontext.AddRPCAuditFields(ctx, logrus.Fields{
+		telemetry.SPIFFEID: id,
+	})
 
 	if len(audience) == 0 {
 		return nil, api.MakeErr(log, codes.InvalidArgument, "at least one audience is required", nil)

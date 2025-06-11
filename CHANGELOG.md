@@ -1,5 +1,28 @@
 # Changelog
 
+## [1.12.2] - 2025-05-19
+
+### Fixed
+
+- Regression where PolicyCredentials set by CredentialComposer plugins were not correctly applied to CA certificates. (#6074)
+
+## [1.12.1] - 2025-05-06
+
+### Added
+
+- Support for Unix sockets in trust bundle URLs (#5932)
+- Documentation improvements and additions (#5989, #6012)
+
+### Changed
+
+- `sql_transaction_timeout` replaced by `event_timeout` and value reduced to 15 minutes (#5966)
+- Experimental events-based cache performance improvements by batch fetching updated entries (#5970)
+- Improved error messages when retrieving CGroups (#6030).
+
+### Fixed
+
+- Corrected invalid `user-agent` value in OIDC Discovery Provider debug logs (#5981).
+
 ## [1.12.0] - 2025-03-21
 
 ### Added

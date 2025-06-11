@@ -54,8 +54,12 @@ const (
 	// This is the default amount of time events live before they are pruned
 	defaultPruneEventsOlderThan = 12 * time.Hour
 
-	// This is the default SQL transaction timeout. This value matches Postgres's default.
-	defaultSQLTransactionTimeout = 24 * time.Hour
+	// This is the default amount of time to wait for an event before giving up
+	defaultEventTimeout = 15 * time.Minute
+
+	// This is the time to wait for graceful termination of the gRPC server
+	// before forcefully terminating.
+	gracefulStopTimeout = 10 * time.Second
 )
 
 // Server manages gRPC and HTTP endpoint lifecycle
@@ -126,8 +130,8 @@ func New(ctx context.Context, c Config) (*Endpoints, error) {
 		c.PruneEventsOlderThan = defaultPruneEventsOlderThan
 	}
 
-	if c.SQLTransactionTimeout == 0 {
-		c.SQLTransactionTimeout = defaultSQLTransactionTimeout
+	if c.EventTimeout == 0 {
+		c.EventTimeout = defaultEventTimeout
 	}
 
 	ds := c.Catalog.GetDataStore()
@@ -135,7 +139,7 @@ func New(ctx context.Context, c Config) (*Endpoints, error) {
 	var ef api.AuthorizedEntryFetcher
 	var cacheRebuildTask, pruneEventsTask func(context.Context) error
 	if c.EventsBasedCache {
-		efEventsBasedCache, err := NewAuthorizedEntryFetcherWithEventsBasedCache(ctx, c.Log, c.Metrics, c.Clock, ds, c.CacheReloadInterval, c.PruneEventsOlderThan, c.SQLTransactionTimeout)
+		efEventsBasedCache, err := NewAuthorizedEntryFetcherWithEventsBasedCache(ctx, c.Log, c.Metrics, c.Clock, ds, c.CacheReloadInterval, c.PruneEventsOlderThan, c.EventTimeout)
 		if err != nil {
 			return nil, err
 		}
@@ -146,7 +150,7 @@ func New(ctx context.Context, c Config) (*Endpoints, error) {
 		buildCacheFn := func(ctx context.Context) (_ entrycache.Cache, err error) {
 			call := telemetry.StartCall(c.Metrics, telemetry.Entry, telemetry.Cache, telemetry.Reload)
 			defer call.Done(&err)
-			return entrycache.BuildFromDataStore(ctx, c.Catalog.GetDataStore())
+			return entrycache.BuildFromDataStore(ctx, c.TrustDomain.String(), c.Catalog.GetDataStore())
 		}
 
 		efFullCache, err := NewAuthorizedEntryFetcherWithFullCache(ctx, buildCacheFn, c.Log, c.Clock, ds, c.CacheReloadInterval, c.PruneEventsOlderThan)
@@ -293,10 +297,7 @@ func (e *Endpoints) runTCPServer(ctx context.Context, server *grpc.Server) error
 		log.WithError(err).Error("Server APIs stopped prematurely")
 		return err
 	case <-ctx.Done():
-		log.Info("Stopping Server APIs")
-		server.Stop()
-		<-errChan
-		log.Info("Server APIs have stopped")
+		e.handleShutdown(server, errChan, log)
 		return nil
 	}
 }
@@ -337,12 +338,34 @@ func (e *Endpoints) runLocalAccess(ctx context.Context, server *grpc.Server) err
 		log.WithError(err).Error("Server APIs stopped prematurely")
 		return err
 	case <-ctx.Done():
-		log.Info("Stopping Server APIs")
-		server.Stop()
-		<-errChan
-		log.Info("Server APIs have stopped")
+		e.handleShutdown(server, errChan, log)
 		return nil
 	}
+}
+
+// handleShutdown is a helper function for gracefully terminating the grpc server.
+// if the server does not terminate within the GratefulStopWait deadline, the server
+// will be forcibly stopped.
+func (e *Endpoints) handleShutdown(server *grpc.Server, errChan <-chan error, log *logrus.Entry) {
+	log.Info("Stopping Server APIs")
+
+	stopComplete := make(chan struct{})
+	go func() {
+		log.Info("Attempting graceful stop")
+		server.GracefulStop()
+		close(stopComplete)
+	}()
+
+	shutdownDeadline := time.After(gracefulStopTimeout)
+	select {
+	case <-shutdownDeadline:
+		log.Infof("Graceful stop unsuccessful, forced stop after %v", gracefulStopTimeout)
+		server.Stop()
+	case <-stopComplete:
+		log.Info("Graceful stop successful")
+	}
+	<-errChan
+	log.Info("Server APIs have stopped")
 }
 
 // getTLSConfig returns a TLS Config hook for the gRPC server

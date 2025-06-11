@@ -18,11 +18,6 @@ func UntrackedUDSCredentials() credentials.TransportCredentials {
 	return untrackedUDSCredentials{}
 }
 
-func IsUntrackedUDSAuth(authInfo credentials.AuthInfo) bool {
-	_, ok := authInfo.(UntrackedUDSAuthInfo)
-	return ok
-}
-
 type UntrackedUDSAuthInfo struct{}
 
 func (UntrackedUDSAuthInfo) AuthType() string { return "untracked-uds" }

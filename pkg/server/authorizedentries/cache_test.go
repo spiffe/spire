@@ -11,6 +11,7 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/common/idutil"
+	"github.com/spiffe/spire/pkg/common/protoutil"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/spiretest"
@@ -432,8 +433,16 @@ func assertAuthorizedEntries(tb testing.TB, cache *Cache, agentID spiffeid.ID, a
 		return m
 	}
 
+	readOnlyEntriesMap := func(entries []api.ReadOnlyEntry) map[string]*types.Entry {
+		m := make(map[string]*types.Entry)
+		for _, entry := range entries {
+			m[entry.GetId()] = entry.Clone(protoutil.AllTrueEntryMask)
+		}
+		return m
+	}
+
 	wantMap := entriesMap(wantEntries)
-	gotMap := entriesMap(cache.GetAuthorizedEntries(agentID))
+	gotMap := readOnlyEntriesMap(cache.GetAuthorizedEntries(agentID))
 
 	for id, want := range wantMap {
 		got, ok := gotMap[id]

@@ -27,7 +27,7 @@ func TestNewAuthorizedEntryFetcherWithEventsBasedCache(t *testing.T) {
 	ds := fakedatastore.New(t)
 	metrics := fakemetrics.New()
 
-	ef, err := NewAuthorizedEntryFetcherWithEventsBasedCache(ctx, log, metrics, clk, ds, defaultCacheReloadInterval, defaultPruneEventsOlderThan, defaultSQLTransactionTimeout)
+	ef, err := NewAuthorizedEntryFetcherWithEventsBasedCache(ctx, log, metrics, clk, ds, defaultCacheReloadInterval, defaultPruneEventsOlderThan, defaultEventTimeout)
 	assert.NoError(t, err)
 	assert.NotNil(t, ef)
 
@@ -136,7 +136,7 @@ func TestNewAuthorizedEntryFetcherWithEventsBasedCacheErrorBuildingCache(t *test
 	buildErr := errors.New("build error")
 	ds.SetNextError(buildErr)
 
-	ef, err := NewAuthorizedEntryFetcherWithEventsBasedCache(ctx, log, metrics, clk, ds, defaultCacheReloadInterval, defaultPruneEventsOlderThan, defaultSQLTransactionTimeout)
+	ef, err := NewAuthorizedEntryFetcherWithEventsBasedCache(ctx, log, metrics, clk, ds, defaultCacheReloadInterval, defaultPruneEventsOlderThan, defaultEventTimeout)
 	assert.Error(t, err)
 	assert.Nil(t, ef)
 
@@ -178,7 +178,7 @@ func TestBuildCacheSavesSkippedEvents(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, registrationEntries, attestedNodes, err := buildCache(ctx, log, metrics, ds, clk, defaultCacheReloadInterval, defaultSQLTransactionTimeout)
+	_, registrationEntries, attestedNodes, err := buildCache(ctx, log, metrics, ds, clk, defaultCacheReloadInterval, defaultEventTimeout)
 	require.NoError(t, err)
 	require.NotNil(t, registrationEntries)
 	require.NotNil(t, attestedNodes)
@@ -213,7 +213,7 @@ func TestRunUpdateCacheTaskPrunesExpiredAgents(t *testing.T) {
 	ds := fakedatastore.New(t)
 	metrics := fakemetrics.New()
 
-	ef, err := NewAuthorizedEntryFetcherWithEventsBasedCache(ctx, log, metrics, clk, ds, defaultCacheReloadInterval, defaultPruneEventsOlderThan, defaultSQLTransactionTimeout)
+	ef, err := NewAuthorizedEntryFetcherWithEventsBasedCache(ctx, log, metrics, clk, ds, defaultCacheReloadInterval, defaultPruneEventsOlderThan, defaultEventTimeout)
 	require.NoError(t, err)
 	require.NotNil(t, ef)
 
@@ -279,7 +279,7 @@ func TestUpdateRegistrationEntriesCacheSkippedEvents(t *testing.T) {
 	ds := fakedatastore.New(t)
 	metrics := fakemetrics.New()
 
-	ef, err := NewAuthorizedEntryFetcherWithEventsBasedCache(ctx, log, metrics, clk, ds, defaultCacheReloadInterval, defaultPruneEventsOlderThan, defaultSQLTransactionTimeout)
+	ef, err := NewAuthorizedEntryFetcherWithEventsBasedCache(ctx, log, metrics, clk, ds, defaultCacheReloadInterval, defaultPruneEventsOlderThan, defaultEventTimeout)
 	require.NoError(t, err)
 	require.NotNil(t, ef)
 
@@ -403,7 +403,7 @@ func TestUpdateRegistrationEntriesCacheSkippedStartupEvents(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create entry fetcher
-	ef, err := NewAuthorizedEntryFetcherWithEventsBasedCache(ctx, log, metrics, clk, ds, defaultCacheReloadInterval, defaultPruneEventsOlderThan, defaultSQLTransactionTimeout)
+	ef, err := NewAuthorizedEntryFetcherWithEventsBasedCache(ctx, log, metrics, clk, ds, defaultCacheReloadInterval, defaultPruneEventsOlderThan, defaultEventTimeout)
 	require.NoError(t, err)
 	require.NotNil(t, ef)
 
@@ -411,8 +411,8 @@ func TestUpdateRegistrationEntriesCacheSkippedStartupEvents(t *testing.T) {
 	entries, err := ef.FetchAuthorizedEntries(ctx, agentID)
 	require.NoError(t, err)
 	require.Equal(t, 1, len(entries))
-	require.Equal(t, entry2.EntryId, entries[0].Id)
-	require.Equal(t, entry2.SpiffeId, idutil.RequireIDProtoString(entries[0].SpiffeId))
+	require.Equal(t, entry2.EntryId, entries[0].GetId())
+	require.Equal(t, entry2.SpiffeId, idutil.RequireIDProtoString(entries[0].GetSpiffeId()))
 
 	// Recreate First Registration Entry and delete the event associated with this create
 	entry1, err = ds.CreateRegistrationEntry(ctx, &common.RegistrationEntry{
@@ -438,8 +438,8 @@ func TestUpdateRegistrationEntriesCacheSkippedStartupEvents(t *testing.T) {
 	entries, err = ef.FetchAuthorizedEntries(ctx, agentID)
 	require.NoError(t, err)
 	require.Equal(t, 1, len(entries))
-	require.Equal(t, entry2.EntryId, entries[0].Id)
-	require.Equal(t, entry2.SpiffeId, idutil.RequireIDProtoString(entries[0].SpiffeId))
+	require.Equal(t, entry2.EntryId, entries[0].GetId())
+	require.Equal(t, entry2.SpiffeId, idutil.RequireIDProtoString(entries[0].GetSpiffeId()))
 
 	// Add back in first event
 	err = ds.CreateRegistrationEntryEventForTesting(ctx, &datastore.RegistrationEntryEvent{
@@ -460,8 +460,8 @@ func TestUpdateRegistrationEntriesCacheSkippedStartupEvents(t *testing.T) {
 	entryIDs := make([]string, 0, 2)
 	spiffeIDs := make([]string, 0, 2)
 	for _, entry := range entries {
-		entryIDs = append(entryIDs, entry.Id)
-		spiffeIDs = append(spiffeIDs, idutil.RequireIDProtoString(entry.SpiffeId))
+		entryIDs = append(entryIDs, entry.GetId())
+		spiffeIDs = append(spiffeIDs, idutil.RequireIDProtoString(entry.GetSpiffeId()))
 	}
 	require.Contains(t, entryIDs, entry1.EntryId)
 	require.Contains(t, entryIDs, entry2.EntryId)
@@ -476,7 +476,7 @@ func TestUpdateAttestedNodesCacheSkippedEvents(t *testing.T) {
 	ds := fakedatastore.New(t)
 	metrics := fakemetrics.New()
 
-	ef, err := NewAuthorizedEntryFetcherWithEventsBasedCache(ctx, log, metrics, clk, ds, defaultCacheReloadInterval, defaultPruneEventsOlderThan, defaultSQLTransactionTimeout)
+	ef, err := NewAuthorizedEntryFetcherWithEventsBasedCache(ctx, log, metrics, clk, ds, defaultCacheReloadInterval, defaultPruneEventsOlderThan, defaultEventTimeout)
 	require.NoError(t, err)
 	require.NotNil(t, ef)
 
@@ -582,8 +582,8 @@ func TestUpdateAttestedNodesCacheSkippedEvents(t *testing.T) {
 	entries, err = ef.FetchAuthorizedEntries(ctx, agent2)
 	require.NoError(t, err)
 	require.Equal(t, 1, len(entries))
-	require.Equal(t, entry.EntryId, entries[0].Id)
-	require.Equal(t, entry.SpiffeId, idutil.RequireIDProtoString(entries[0].SpiffeId))
+	require.Equal(t, entry.EntryId, entries[0].GetId())
+	require.Equal(t, entry.SpiffeId, idutil.RequireIDProtoString(entries[0].GetSpiffeId()))
 }
 
 func TestUpdateAttestedNodesCacheSkippedStartupEvents(t *testing.T) {
@@ -655,7 +655,7 @@ func TestUpdateAttestedNodesCacheSkippedStartupEvents(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create entry fetcher
-	ef, err := NewAuthorizedEntryFetcherWithEventsBasedCache(ctx, log, metrics, clk, ds, defaultCacheReloadInterval, defaultPruneEventsOlderThan, defaultSQLTransactionTimeout)
+	ef, err := NewAuthorizedEntryFetcherWithEventsBasedCache(ctx, log, metrics, clk, ds, defaultCacheReloadInterval, defaultPruneEventsOlderThan, defaultEventTimeout)
 	require.NoError(t, err)
 	require.NotNil(t, ef)
 
@@ -713,8 +713,8 @@ func TestUpdateAttestedNodesCacheSkippedStartupEvents(t *testing.T) {
 	entries, err = ef.FetchAuthorizedEntries(ctx, agent1)
 	require.NoError(t, err)
 	require.Equal(t, 1, len(entries))
-	require.Equal(t, entry.EntryId, entries[0].Id)
-	require.Equal(t, entry.SpiffeId, idutil.RequireIDProtoString(entries[0].SpiffeId))
+	require.Equal(t, entry.EntryId, entries[0].GetId())
+	require.Equal(t, entry.SpiffeId, idutil.RequireIDProtoString(entries[0].GetSpiffeId()))
 }
 
 // AgentsByIDCacheCount

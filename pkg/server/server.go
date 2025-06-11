@@ -402,7 +402,7 @@ func (s *Server) newEndpointsServer(ctx context.Context, catalog catalog.Catalog
 		CacheReloadInterval:          s.config.CacheReloadInterval,
 		EventsBasedCache:             s.config.EventsBasedCache,
 		PruneEventsOlderThan:         s.config.PruneEventsOlderThan,
-		SQLTransactionTimeout:        s.config.SQLTransactionTimeout,
+		EventTimeout:                 s.config.EventTimeout,
 		AuditLogEnabled:              s.config.AuditLogEnabled,
 		AuthPolicyEngine:             authPolicyEngine,
 		BundleManager:                bundleManager,

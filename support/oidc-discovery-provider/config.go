@@ -73,6 +73,10 @@ type Config struct {
 	// as the source for the public keys. Only one source can be configured.
 	WorkloadAPI *WorkloadAPIConfig `hcl:"workload_api"`
 
+	// File is the configuration for using a file as the source for the public keys. Only one source can be
+	// configured.
+	File *FileConfig `hcl:"file"`
+
 	// Health checks enable Liveness and Readiness probes.
 	HealthChecks *HealthChecksConfig `hcl:"health_checks"`
 
@@ -169,6 +173,20 @@ type WorkloadAPIConfig struct {
 
 	// Experimental options that are subject to change or removal.
 	Experimental experimentalWorkloadAPIConfig `hcl:"experimental"`
+}
+
+type FileConfig struct {
+	// Path is the path to the file the bundle is stored in.
+	Path string `hcl:"path"`
+
+	// PollInterval controls how frequently the service polls the Workload
+	// API for the bundle containing the JWT public keys. This value is calculated
+	// by LoadConfig()/ParseConfig() from RawPollInterval.
+	PollInterval time.Duration `hcl:"-"`
+
+	// RawPollInterval holds the string version of the PollInterval. Consumers
+	// should use PollInterval instead.
+	RawPollInterval string `hcl:"poll_interval"`
 }
 
 type HealthChecksConfig struct {
@@ -283,6 +301,14 @@ func ParseConfig(hclConfig string) (_ *Config, err error) {
 		methodCount++
 	}
 
+	if c.File != nil {
+		c.File.PollInterval, err = parseDurationField(c.File.RawPollInterval, defaultPollInterval)
+		if err != nil {
+			return nil, fmt.Errorf("invalid poll_interval in the file configuration section: %w", err)
+		}
+		methodCount++
+	}
+
 	if c.HealthChecks != nil {
 		if c.HealthChecks.BindPort <= 0 {
 			c.HealthChecks.BindPort = defaultHealthChecksBindPort
@@ -301,10 +327,10 @@ func ParseConfig(hclConfig string) (_ *Config, err error) {
 
 	switch methodCount {
 	case 0:
-		return nil, errors.New("either the server_api or workload_api section must be configured")
+		return nil, errors.New("exactly one of the server_api, workload_api, or file sections must be configured")
 	case 1:
 	default:
-		return nil, errors.New("the server_api and workload_api sections are mutually exclusive")
+		return nil, errors.New("the server_api, workload_api, and file sections are mutually exclusive")
 	}
 	if c.JWTIssuer != "" {
 		jwtIssuer, err := url.Parse(c.JWTIssuer)
