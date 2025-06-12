@@ -124,7 +124,7 @@ type IIDAttestorConfig struct {
 	AssumeRole                      string               `hcl:"assume_role"`
 	Partition                       string               `hcl:"partition"`
 	ValidateOrgAccountID            *orgValidationConfig `hcl:"verify_organization"`
-	ValidateEKSClusterMemebership   *eksValidationConfig `hcl:"verify_eks_cluster_membership"`
+	ValidateEKSClusterMemebership   *eksValidationConfig `hcl:"validate_eks_cluster_membership"`
 	pathTemplate                    *agentpathtemplate.Template
 	trustDomain                     spiffeid.TrustDomain
 	getAWSCACertificate             func(string, PublicKeyType) (*x509.Certificate, error)
