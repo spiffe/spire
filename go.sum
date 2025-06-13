@@ -626,12 +626,16 @@ github.com/aws/aws-sdk-go-v2/internal/v4a v1.3.34 h1:ZNTqv4nIdE/DiBfUUfXcLZ/Spcu
 github.com/aws/aws-sdk-go-v2/internal/v4a v1.3.34/go.mod h1:zf7Vcd1ViW7cPqYWEHLHJkS50X0JS2IKz9Cgaj6ugrs=
 github.com/aws/aws-sdk-go-v2/service/acmpca v1.40.0 h1:+F0tG/QIUuKdkCP/H+AOvu0E4E5PAI0KOKeWH1OAkBQ=
 github.com/aws/aws-sdk-go-v2/service/acmpca v1.40.0/go.mod h1:v0S5xoRSVzO4z09Fyqm6zkpeYU20qRBXwVS+BOejpcE=
+github.com/aws/aws-sdk-go-v2/service/autoscaling v1.52.1 h1:wj4AION3NjQvjOiI8wm+TVU8y+8EsTl7fSgJAzk9cgc=
+github.com/aws/aws-sdk-go-v2/service/autoscaling v1.52.1/go.mod h1:CDqMoc3KRdZJ8qziW96J35lKH01Wq3B2aihtHj2JbRs=
 github.com/aws/aws-sdk-go-v2/service/ec2 v1.225.1 h1:J76cGc7WVOYvl2MMFtOdijDZKfyOGyd+qIsROFZAPhg=
 github.com/aws/aws-sdk-go-v2/service/ec2 v1.225.1/go.mod h1:x6tX41NB2h3WJfIXlBftg9JhawCddw/kcWVBYe7uNaw=
 github.com/aws/aws-sdk-go-v2/service/ecr v1.40.3 h1:a+210FCU/pR5hhKRaskRfX/ogcyyzFBrehcTk5DTAyU=
 github.com/aws/aws-sdk-go-v2/service/ecr v1.40.3/go.mod h1:dtD3a4sjUjVL86e0NUvaqdGvds5ED6itUiZPDaT+Gh8=
 github.com/aws/aws-sdk-go-v2/service/ecrpublic v1.31.2 h1:E6/Myrj9HgLF22medmDrKmbpm4ULsa+cIBNx3phirBk=
 github.com/aws/aws-sdk-go-v2/service/ecrpublic v1.31.2/go.mod h1:OQ8NALFcchBJ/qruak6zKUQodovnTKKaReTuCkc5/9Y=
+github.com/aws/aws-sdk-go-v2/service/eks v1.66.0 h1:t3F1y6P7ytAoeOVPVgwHv8XKK88nLBHF/qnsRsTGmhc=
+github.com/aws/aws-sdk-go-v2/service/eks v1.66.0/go.mod h1:P2bS5zLBmp8vYlFnKqI2uy7nSw/al941zXYxlcVfuhw=
 github.com/aws/aws-sdk-go-v2/service/iam v1.42.0 h1:G6+UzGvubaet9QOh0664E9JeT+b6Zvop3AChozRqkrA=
 github.com/aws/aws-sdk-go-v2/service/iam v1.42.0/go.mod h1:mPJkGQzeCoPs82ElNILor2JzZgYENr4UaSKUT8K27+c=
 github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.12.3 h1:eAh2A4b5IzM/lum78bZ590jy36+d/aFLgKF/4Vd1xPE=
