@@ -33,7 +33,7 @@ type UpstreamAuthority interface {
 	// will return io.EOF when called.
 	PublishJWTKey(ctx context.Context, jwtKey *common.PublicKey) (jwtAuthorities []*common.PublicKey, stream UpstreamJWTAuthorityStream, err error)
 
-	// GetUpstreamAuthorities can be used to sync the local trust bundle with
+	// SubscribeToLocalBundle can be used to sync the local trust bundle with
 	// the upstream trust bundle.
 	// Support for this method is optional but strongly recommended.
 	// The function returns the latest set of upstream authorities and a

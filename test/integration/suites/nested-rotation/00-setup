@@ -1,7 +1,5 @@
 #!/bin/bash
 
-pwd
-
 # create shared folder for root agent socket
 mkdir -p -m 777 shared/rootSocket
 

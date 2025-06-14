@@ -453,14 +453,21 @@ func (m *Manager) SubscribeToLocalBundle(ctx context.Context) error {
 		return nil
 	}
 
-	err := m.upstreamClient.SubscribeToLocalBundle(ctx)
-	switch {
-	case status.Code(err) == codes.Unimplemented:
-		return nil
-	case err != nil:
-		return err
-	default:
-		return nil
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(5 * time.Second):
+			err := m.upstreamClient.SubscribeToLocalBundle(ctx)
+			switch {
+			case status.Code(err) == codes.Unimplemented:
+				return nil
+			case err != nil:
+				return err
+			default:
+				return nil
+			}
+		}
 	}
 }
 
