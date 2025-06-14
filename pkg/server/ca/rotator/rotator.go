@@ -85,18 +85,7 @@ func (r *Rotator) Run(ctx context.Context) error {
 			return r.rotateEvery(ctx, rotateInterval)
 		},
 		func(ctx context.Context) error {
-			var lastError error
-			for {
-				select {
-				case <-ctx.Done():
-					return lastError
-				case <-time.After(5 * time.Second):
-					lastError = r.c.Manager.SubscribeToLocalBundle(ctx)
-					if lastError == nil {
-						return nil
-					}
-				}
-			}
+			return r.c.Manager.SubscribeToLocalBundle(ctx)
 		},
 		func(ctx context.Context) error {
 			return r.pruneBundleEvery(ctx, pruneBundleInterval)

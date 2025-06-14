@@ -261,13 +261,13 @@ func (s *v1LocalBundleStream) RecvLocalBundleUpdate() ([]*x509certificate.X509Au
 		}
 
 		x509Authorities, err := s.v1.parseX509Authorities(resp.UpstreamX509Roots)
-		if len(resp.UpstreamX509Roots) != 0 && err != nil {
+		if err != nil {
 			s.v1.Log.WithError(err).Warn("Failed to parse an X.509 root update from the upstream authority plugin. Please report this bug.")
 			continue
 		}
 
 		jwtKeys, err := s.v1.toCommonProtos(resp.UpstreamJwtKeys)
-		if len(resp.UpstreamJwtKeys) != 0 && err != nil {
+		if err != nil {
 			s.v1.Log.WithError(err).Warn("Failed to parse an JWT key update from the upstream authority plugin. Please report this bug.")
 			continue
 		}
