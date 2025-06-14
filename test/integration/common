@@ -249,7 +249,7 @@ download-kind() {
     elif [ "${ARCH}" = "aarch64" ]; then
         ARCH=arm64
     fi
-    echo "Ensuring kind version $KINDVERSION is available..." 
+    echo "Ensuring kind version $KINDVERSION is available..."
     KINDURL="https://github.com/kubernetes-sigs/kind/releases/download/$KINDVERSION/kind-$UNAME-$ARCH"
 
     local kind_link_or_path=$1
@@ -272,7 +272,7 @@ download-helm() {
         ARCH=arm64
     fi
 
-    echo "Ensuring helm version $HELMVERSION is available..." 
+    echo "Ensuring helm version $HELMVERSION is available..."
     HELMURL="https://get.helm.sh/helm-${HELMVERSION}-${UNAME}-${ARCH}.tar.gz"
 
     local helm_link_or_path=$1
