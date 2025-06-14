@@ -37,6 +37,8 @@ type CAManager interface {
 	ActivateJWTKey(ctx context.Context)
 	RotateJWTKey(ctx context.Context)
 
+	SubscribeToLocalBundle(ctx context.Context) error
+
 	PruneBundle(ctx context.Context) error
 	PruneCAJournals(ctx context.Context) error
 }
@@ -77,9 +79,13 @@ func (r *Rotator) Run(ctx context.Context) error {
 	if err := r.c.Manager.NotifyBundleLoaded(ctx); err != nil {
 		return err
 	}
+
 	err := util.RunTasks(ctx,
 		func(ctx context.Context) error {
 			return r.rotateEvery(ctx, rotateInterval)
+		},
+		func(ctx context.Context) error {
+			return r.c.Manager.SubscribeToLocalBundle(ctx)
 		},
 		func(ctx context.Context) error {
 			return r.pruneBundleEvery(ctx, pruneBundleInterval)

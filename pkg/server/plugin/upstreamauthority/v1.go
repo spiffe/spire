@@ -93,6 +93,39 @@ func (v1 *V1) PublishJWTKey(ctx context.Context, jwtKey *common.PublicKey) (_ []
 	return jwtKeys, &v1UpstreamJWTAuthorityStream{v1: v1, stream: stream, cancel: cancel}, nil
 }
 
+func (v1 *V1) SubscribeToLocalBundle(ctx context.Context) (_ []*x509certificate.X509Authority, _ []*common.PublicKey, _ LocalBundleUpdateStream, err error) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer func() {
+		// Only cancel the context if the function fails. Otherwise, the
+		// returned stream will be in charge of cancellation.
+		if err != nil {
+			defer cancel()
+		}
+	}()
+
+	stream, err := v1.UpstreamAuthorityPluginClient.SubscribeToLocalBundle(ctx, &upstreamauthorityv1.SubscribeToLocalBundleRequest{})
+	if err != nil {
+		return nil, nil, nil, v1.WrapErr(err)
+	}
+
+	resp, err := stream.Recv()
+	if err != nil {
+		return nil, nil, nil, v1.streamError(err)
+	}
+
+	jwtKeys, err := v1.toCommonProtos(resp.UpstreamJwtKeys)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	x509Authorities, err := v1.parseX509Authorities(resp.UpstreamX509Roots)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	return x509Authorities, jwtKeys, &v1LocalBundleStream{v1: v1, stream: stream, cancel: cancel}, nil
+}
+
 func (v1 *V1) parseMintX509CAFirstResponse(resp *upstreamauthorityv1.MintX509CAResponse) ([]*x509.Certificate, []*x509certificate.X509Authority, error) {
 	x509CA, err := x509certificate.FromPluginProtos(resp.X509CaChain)
 	if err != nil {
@@ -206,5 +239,43 @@ func (s *v1UpstreamJWTAuthorityStream) RecvUpstreamJWTAuthorities() ([]*common.P
 }
 
 func (s *v1UpstreamJWTAuthorityStream) Close() {
+	s.cancel()
+}
+
+type v1LocalBundleStream struct {
+	v1     *V1
+	stream upstreamauthorityv1.UpstreamAuthority_SubscribeToLocalBundleClient
+	cancel context.CancelFunc
+}
+
+func (s *v1LocalBundleStream) RecvLocalBundleUpdate() ([]*x509certificate.X509Authority, []*common.PublicKey, error) {
+	for {
+		resp, err := s.stream.Recv()
+		switch {
+		case errors.Is(err, io.EOF):
+			// This is expected if the plugin does not support streaming
+			// authority updates.
+			return nil, nil, err
+		case err != nil:
+			return nil, nil, s.v1.WrapErr(err)
+		}
+
+		x509Authorities, err := s.v1.parseX509Authorities(resp.UpstreamX509Roots)
+		if err != nil {
+			s.v1.Log.WithError(err).Warn("Failed to parse an X.509 root update from the upstream authority plugin. Please report this bug.")
+			continue
+		}
+
+		jwtKeys, err := s.v1.toCommonProtos(resp.UpstreamJwtKeys)
+		if err != nil {
+			s.v1.Log.WithError(err).Warn("Failed to parse an JWT key update from the upstream authority plugin. Please report this bug.")
+			continue
+		}
+
+		return x509Authorities, jwtKeys, nil
+	}
+}
+
+func (s *v1LocalBundleStream) Close() {
 	s.cancel()
 }

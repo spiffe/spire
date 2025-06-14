@@ -39,18 +39,21 @@ type UpstreamClientConfig struct {
 type UpstreamClient struct {
 	c UpstreamClientConfig
 
-	mintX509CAMtx       sync.Mutex
-	mintX509CAStream    *streamState
-	publishJWTKeyMtx    sync.Mutex
-	publishJWTKeyStream *streamState
+	mintX509CAMtx                   sync.Mutex
+	mintX509CAStream                *streamState
+	publishJWTKeyMtx                sync.Mutex
+	publishJWTKeyStream             *streamState
+	subscribeToLocalBundleStreamMtx sync.Mutex
+	subscribeToLocalBundleStream    *streamState
 }
 
 // NewUpstreamClient returns a new UpstreamAuthority plugin client.
 func NewUpstreamClient(config UpstreamClientConfig) *UpstreamClient {
 	return &UpstreamClient{
-		c:                   config,
-		mintX509CAStream:    newStreamState(),
-		publishJWTKeyStream: newStreamState(),
+		c:                            config,
+		mintX509CAStream:             newStreamState(),
+		publishJWTKeyStream:          newStreamState(),
+		subscribeToLocalBundleStream: newStreamState(),
 	}
 }
 
@@ -66,6 +69,11 @@ func (u *UpstreamClient) Close() error {
 		u.publishJWTKeyMtx.Lock()
 		defer u.publishJWTKeyMtx.Unlock()
 		u.publishJWTKeyStream.Stop()
+	}()
+	func() {
+		u.subscribeToLocalBundleStreamMtx.Lock()
+		defer u.subscribeToLocalBundleStreamMtx.Unlock()
+		u.subscribeToLocalBundleStream.Stop()
 	}()
 	return nil
 }
@@ -96,11 +104,6 @@ func (u *UpstreamClient) MintX509CA(ctx context.Context, csr []byte, ttl time.Du
 	}
 }
 
-// WaitUntilMintX509CAStreamDone waits until the MintX509CA stream has stopped.
-func (u *UpstreamClient) WaitUntilMintX509CAStreamDone(ctx context.Context) error {
-	return u.mintX509CAStream.WaitUntilStopped(ctx)
-}
-
 // PublishJWTKey publishes the JWT key to the UpstreamAuthority. It maintains
 // an open stream to the UpstreamAuthority plugin to receive and append JWT key
 // updates to the bundle. The stream remains open until another call to
@@ -127,9 +130,26 @@ func (u *UpstreamClient) PublishJWTKey(ctx context.Context, jwtKey *common.Publi
 	}
 }
 
-// WaitUntilPublishJWTKeyStreamDone waits until the MintX509CA stream has stopped.
-func (u *UpstreamClient) WaitUntilPublishJWTKeyStreamDone(ctx context.Context) error {
-	return u.publishJWTKeyStream.WaitUntilStopped(ctx)
+func (u *UpstreamClient) SubscribeToLocalBundle(ctx context.Context) (err error) {
+	u.subscribeToLocalBundleStreamMtx.Lock()
+	defer u.subscribeToLocalBundleStreamMtx.Unlock()
+
+	firstResultCh := make(chan bundleUpdatesResult, 1)
+	u.subscribeToLocalBundleStream.Start(func(streamCtx context.Context) {
+		u.runSubscribeToLocalBundleStream(streamCtx, firstResultCh)
+	})
+	defer func() {
+		if err != nil {
+			u.subscribeToLocalBundleStream.Stop()
+		}
+	}()
+
+	select {
+	case result := <-firstResultCh:
+		return result.err
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 func (u *UpstreamClient) runMintX509CAStream(ctx context.Context, csr []byte, ttl time.Duration, validateX509CA ValidateX509CAFunc, firstResultCh chan<- mintX509CAResult) {
@@ -223,12 +243,75 @@ func (u *UpstreamClient) runPublishJWTKeyStream(ctx context.Context, jwtKey *com
 	}
 }
 
+func (u *UpstreamClient) runSubscribeToLocalBundleStream(ctx context.Context, firstResultCh chan<- bundleUpdatesResult) {
+	x509CAs, jwtKeys, authorityStream, err := u.c.UpstreamAuthority.SubscribeToLocalBundle(ctx)
+	if err != nil {
+		firstResultCh <- bundleUpdatesResult{err: err}
+		return
+	}
+	defer authorityStream.Close()
+
+	err = u.c.BundleUpdater.SyncX509Roots(ctx, x509CAs)
+	if err != nil {
+		firstResultCh <- bundleUpdatesResult{err: err}
+		return
+	}
+	updatedKeys, err := u.c.BundleUpdater.AppendJWTKeys(ctx, jwtKeys)
+	if err != nil {
+		firstResultCh <- bundleUpdatesResult{err: err}
+		return
+	}
+
+	x509CA := []*x509.Certificate{}
+	for _, ca := range x509CAs {
+		x509CA = append(x509CA, ca.Certificate)
+	}
+
+	firstResultCh <- bundleUpdatesResult{
+		x509CA:  x509CA,
+		jwtKeys: updatedKeys,
+	}
+
+	for {
+		x509CA, jwtKeys, err := authorityStream.RecvLocalBundleUpdate()
+		if err != nil {
+			switch {
+			case errors.Is(err, io.EOF):
+				// This is normal if the plugin does not support streaming
+				// bundle updates.
+			case status.Code(err) == codes.Canceled:
+				// This is normal. This client cancels this stream when opening
+				// a new stream.
+			default:
+				u.c.BundleUpdater.LogError(err, "The upstream authority plugin stopped streaming authorities updates prematurely. Please report this bug. Will retry later.")
+			}
+			return
+		}
+
+		if err := u.c.BundleUpdater.SyncX509Roots(ctx, x509CA); err != nil {
+			u.c.BundleUpdater.LogError(err, "Failed to store X.509 CAs received by the upstream authority plugin.")
+			continue
+		}
+
+		if _, err := u.c.BundleUpdater.AppendJWTKeys(ctx, jwtKeys); err != nil {
+			u.c.BundleUpdater.LogError(err, "Failed to store JWT keys received by the upstream authority plugin.")
+			continue
+		}
+	}
+}
+
 type mintX509CAResult struct {
 	x509CA []*x509.Certificate
 	err    error
 }
 
 type publishJWTKeyResult struct {
+	jwtKeys []*common.PublicKey
+	err     error
+}
+
+type bundleUpdatesResult struct {
+	x509CA  []*x509.Certificate
 	jwtKeys []*common.PublicKey
 	err     error
 }
