@@ -196,6 +196,10 @@ func (p *Plugin) PublishJWTKeyAndSubscribe(*upstreamauthorityv1.PublishJWTKeyReq
 	return status.Error(codes.Unimplemented, "publishing upstream is unsupported")
 }
 
+func (p *Plugin) SubscribeToLocalBundle(req *upstreamauthorityv1.SubscribeToLocalBundleRequest, stream upstreamauthorityv1.UpstreamAuthority_SubscribeToLocalBundleServer) error {
+	return status.Error(codes.Unimplemented, "fetching upstream trust bundle is unsupported")
+}
+
 func (p *Plugin) loadUpstreamCAAndCerts(trustDomain spiffeid.TrustDomain, keyPEMstr, certsPEMstr, bundleCertsPEMstr string) (*x509svid.UpstreamCA, []*x509.Certificate, []*x509.Certificate, error) {
 	key, err := pemutil.ParsePrivateKey([]byte(keyPEMstr))
 	if err != nil {

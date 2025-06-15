@@ -506,6 +506,10 @@ func (f *fakeCAManager) RotateJWTKey(context.Context) {
 	f.jwtKeyCh <- struct{}{}
 }
 
+func (f *fakeCAManager) SubscribeToLocalBundle(ctx context.Context) error {
+	return nil
+}
+
 func (f *fakeCAManager) PruneBundle(context.Context) error {
 	defer func() {
 		f.pruneBundleCh <- struct{}{}

@@ -164,6 +164,10 @@ func (p *Plugin) PublishJWTKeyAndSubscribe(*upstreamauthorityv1.PublishJWTKeyReq
 	return status.Error(codes.Unimplemented, "publishing upstream is unsupported")
 }
 
+func (p *Plugin) SubscribeToLocalBundle(req *upstreamauthorityv1.SubscribeToLocalBundleRequest, stream upstreamauthorityv1.UpstreamAuthority_SubscribeToLocalBundleServer) error {
+	return status.Error(codes.Unimplemented, "fetching upstream trust bundle is unsupported")
+}
+
 func (p *Plugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
 	// Parse HCL config payload into config struct
 	newConfig, _, err := pluginconf.Build(req, buildConfig)
