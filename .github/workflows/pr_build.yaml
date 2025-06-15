@@ -207,7 +207,7 @@ jobs:
         uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.2.0
         with:
           path: ./bin/
-          key: ${{ runner.os }}-executables-${{ hashFiles('**/*.exe') }}
+          key: ${{ runner.os }}-executables-${{ github.sha }}
       - name: Build images
         run: make images-windows
       - name: Export images
@@ -592,7 +592,7 @@ jobs:
         uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.2.0
         with:
           path: ./bin/
-          key: ${{ runner.os }}-executables-${{ hashFiles('**/*.exe') }}
+          key: ${{ runner.os }}-executables-${{ github.sha }}
       - name: Build artifacts
         run: ./.github/workflows/scripts/build_artifacts.sh ${{ runner.os }}
       - name: Archive artifacts
