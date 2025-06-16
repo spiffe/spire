@@ -135,10 +135,20 @@ func (s *TokenSuite) TestValidateNoSubject() {
 	s.Require().Nil(claims)
 }
 
+func (s *TokenSuite) TestValidateNoExpiry() {
+	token := s.signJWTSVID(fakeSpiffeID, fakeAudience, time.Time{}, ec256Key, "ec256Key")
+
+	spiffeID, claims, err := ValidateToken(ctx, token, s.bundle, fakeAudience[0:1])
+	s.Require().EqualError(err, "token missing exp claim")
+	s.Require().Empty(spiffeID)
+	s.Require().Nil(claims)
+}
+
 func (s *TokenSuite) TestValidateSubjectNotForDomain() {
 	token := s.signToken(jose.ES256, jose.JSONWebKey{Key: ec256Key, KeyID: "ec256Key"}, jwt.Claims{
 		Subject:  "spiffe://other.org/foo",
 		Audience: []string{"audience"},
+		Expiry:   jwt.NewNumericDate(time.Now().Add(time.Hour)),
 	})
 
 	spiffeID, claims, err := ValidateToken(ctx, token, s.bundle, []string{"FOO"})
@@ -150,6 +160,7 @@ func (s *TokenSuite) TestValidateSubjectNotForDomain() {
 func (s *TokenSuite) TestValidateNoAudience() {
 	token := s.signToken(jose.ES256, jose.JSONWebKey{Key: ec256Key, KeyID: "ec256Key"}, jwt.Claims{
 		Subject: fakeSpiffeID.String(),
+		Expiry:  jwt.NewNumericDate(time.Now().Add(time.Hour)),
 	})
 
 	spiffeID, claims, err := ValidateToken(ctx, token, s.bundle, []string{"FOO"})
@@ -201,9 +212,12 @@ func (s *TokenSuite) signToken(alg jose.SignatureAlgorithm, key any, claims jwt.
 func (s *TokenSuite) signJWTSVID(id spiffeid.ID, audience []string, expires time.Time, signer crypto.Signer, kid string) string {
 	claims := jwt.Claims{
 		Subject:  id.String(),
-		Expiry:   jwt.NewNumericDate(expires),
 		Audience: audience,
 		IssuedAt: jwt.NewNumericDate(s.clock.Now()),
+	}
+
+	if !expires.IsZero() {
+		claims.Expiry = jwt.NewNumericDate(expires)
 	}
 
 	alg, err := cryptoutil.JoseAlgFromPublicKey(signer.Public())
