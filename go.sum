@@ -642,8 +642,8 @@ github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.12.16 h1:/ldKrPPX
 github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.12.16/go.mod h1:5vkf/Ws0/wgIMJDQbjI4p2op86hNW6Hie5QtebrDgT8=
 github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.18.15 h1:moLQUoVq91LiqT1nbvzDukyqAlCv89ZmwaHw/ZFlFZg=
 github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.18.15/go.mod h1:ZH34PJUc8ApjBIfgQCFvkWcUDBtl/WTD+uiYHjd8igA=
-github.com/aws/aws-sdk-go-v2/service/kms v1.40.1 h1:IGc0wn5dw/pliuvZbmuS0r9jLun8Xtd+sNMrzyjjuOQ=
-github.com/aws/aws-sdk-go-v2/service/kms v1.40.1/go.mod h1:RyhzxkWGcfixlkieewzpO3D4P4fTMxhIDqDZWsh0u/4=
+github.com/aws/aws-sdk-go-v2/service/kms v1.41.0 h1:2jKyib9msVrAVn+lngwlSplG13RpUZmzVte2yDao5nc=
+github.com/aws/aws-sdk-go-v2/service/kms v1.41.0/go.mod h1:RyhzxkWGcfixlkieewzpO3D4P4fTMxhIDqDZWsh0u/4=
 github.com/aws/aws-sdk-go-v2/service/organizations v1.38.0 h1:LdSzIkEV6rNj7QA0T/wV4q0t7vabjrrDM/qaBNzMib4=
 github.com/aws/aws-sdk-go-v2/service/organizations v1.38.0/go.mod h1:iYC/SPpI4WveHr4ZzPFWTmXRODyJub5Aif75W7Ll+yM=
 github.com/aws/aws-sdk-go-v2/service/rolesanywhere v1.17.0 h1:iocRlqOEAF27EJ7wNZRid6cClx3YMAG38eyJFax7E9U=

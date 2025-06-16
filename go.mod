@@ -27,7 +27,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/acmpca v1.40.0
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.225.1
 	github.com/aws/aws-sdk-go-v2/service/iam v1.42.0
-	github.com/aws/aws-sdk-go-v2/service/kms v1.40.1
+	github.com/aws/aws-sdk-go-v2/service/kms v1.41.0
 	github.com/aws/aws-sdk-go-v2/service/organizations v1.38.0
 	github.com/aws/aws-sdk-go-v2/service/rolesanywhere v1.17.0
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.80.0
