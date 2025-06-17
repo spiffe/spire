@@ -68,11 +68,8 @@ metadata:
 rules:
 - apiGroups: [""]
   resources: ["configmaps"]
-  verbs: ["get", "patch"]
-  resourceNames: ["spire-bundle"]  # Restrict to specific ConfigMap for get and patch operations
-- apiGroups: [""]
-  resources: ["configmaps"]
-  verbs: ["create"]  # Can create any ConfigMap in the namespace if needed
+  verbs: ["create", "get", "patch"]
+  resourceNames: ["spire-bundle"]  # Restrict to specific ConfigMap for create, get and patch operations
 
 ---
 
