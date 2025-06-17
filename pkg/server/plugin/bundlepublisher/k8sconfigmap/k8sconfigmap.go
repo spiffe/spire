@@ -17,8 +17,6 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 const (
@@ -190,19 +188,8 @@ func (p *Plugin) PublishBundle(ctx context.Context, req *bundlepublisherv1.Publi
 			"key", cluster.ConfigMapKey,
 		)
 
-		cm, err := p.getOrCreateConfigMap(ctx, cluster, id, log)
-		if err != nil {
-			allErrors = errors.Join(allErrors, err)
-			continue
-		}
-
-		if cm.Data == nil {
-			cm.Data = make(map[string]string)
-		}
-		cm.Data[cluster.ConfigMapKey] = string(bundleBytes)
-
-		if err := cluster.k8sClient.UpdateConfigMap(ctx, cm); err != nil {
-			allErrors = errors.Join(allErrors, fmt.Errorf("failed to update ConfigMap for cluster %q: %w", id, err))
+		if err := cluster.k8sClient.ApplyConfigMap(ctx, cluster, bundleBytes); err != nil {
+			allErrors = errors.Join(allErrors, fmt.Errorf("failed to apply ConfigMap for cluster %q: %w", id, err))
 			continue
 		}
 
@@ -244,32 +231,6 @@ func (p *Plugin) getConfig() (*Config, error) {
 		return nil, status.Error(codes.FailedPrecondition, "not configured")
 	}
 	return p.config, nil
-}
-
-// getOrCreateConfigMap retrieves a ConfigMap or creates it if it doesn't exist
-func (p *Plugin) getOrCreateConfigMap(ctx context.Context, cluster *Cluster, clusterID string, log hclog.Logger) (*corev1.ConfigMap, error) {
-	cm, err := cluster.k8sClient.GetConfigMap(ctx, cluster.Namespace, cluster.ConfigMapName)
-	if err == nil {
-		return cm, nil
-	}
-
-	if status.Code(err) != codes.NotFound {
-		return nil, fmt.Errorf("failed to get ConfigMap from cluster %q: %w", clusterID, err)
-	}
-
-	log.Debug("ConfigMap not found, creating new ConfigMap")
-	cm = &corev1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      cluster.ConfigMapName,
-			Namespace: cluster.Namespace,
-		},
-	}
-
-	if err := cluster.k8sClient.CreateConfigMap(ctx, cm); err != nil {
-		return nil, fmt.Errorf("failed to create ConfigMap for cluster %q: %w", clusterID, err)
-	}
-
-	return cm, nil
 }
 
 // setBundle updates the current bundle in the plugin with the provided bundle.
