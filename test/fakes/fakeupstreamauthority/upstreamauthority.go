@@ -36,6 +36,7 @@ type Config struct {
 	TrustDomain                 spiffeid.TrustDomain
 	UseIntermediate             bool
 	DisallowPublishJWTKey       bool
+	UseSubscribeToLocalBundle   bool
 	KeyUsage                    x509.KeyUsage
 	MutateMintX509CAResponse    func(*upstreamauthorityv1.MintX509CAResponse)
 	MutatePublishJWTKeyResponse func(*upstreamauthorityv1.PublishJWTKeyResponse)
@@ -94,6 +95,10 @@ func (ua *UpstreamAuthority) MintX509CAAndSubscribe(request *upstreamauthorityv1
 		return err
 	}
 
+	if ua.config.UseSubscribeToLocalBundle {
+		return nil
+	}
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -116,10 +121,9 @@ func (ua *UpstreamAuthority) PublishJWTKeyAndSubscribe(req *upstreamauthorityv1.
 	streamCh := ua.newPublishJWTKeyStream()
 	defer ua.removePublishJWTKeyStream(streamCh)
 
-	ctx := stream.Context()
-
 	ua.AppendJWTKey(jwtkey.RequireToCommonFromPluginProto(req.JwtKey))
 
+	ctx := stream.Context()
 	for {
 		select {
 		case <-ctx.Done():
@@ -130,6 +134,47 @@ func (ua *UpstreamAuthority) PublishJWTKeyAndSubscribe(req *upstreamauthorityv1.
 			}); err != nil {
 				return err
 			}
+
+			if ua.config.UseSubscribeToLocalBundle {
+				return nil
+			}
+		}
+	}
+}
+
+func (ua *UpstreamAuthority) SubscribeToLocalBundle(req *upstreamauthorityv1.SubscribeToLocalBundleRequest, stream upstreamauthorityv1.UpstreamAuthority_SubscribeToLocalBundleServer) error {
+	if !ua.config.UseSubscribeToLocalBundle {
+		return status.Error(codes.Unimplemented, "fetching upstream trust bundle is unsupported")
+	}
+
+	x509StreamCh := ua.newMintX509CAStream()
+	defer ua.removeMintX509CAStream(x509StreamCh)
+
+	jwtStreamCh := ua.newPublishJWTKeyStream()
+	defer ua.removePublishJWTKeyStream(jwtStreamCh)
+
+	// Send a first update on the stream, as required.
+	if err := stream.Send(&upstreamauthorityv1.SubscribeToLocalBundleResponse{
+		UpstreamX509Roots: x509certificate.RequireToPluginProtos(ua.X509Roots()),
+		UpstreamJwtKeys:   jwtkey.RequireToPluginFromCommonProtos(ua.JWTKeys()),
+	}); err != nil {
+		return err
+	}
+
+	ctx := stream.Context()
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-x509StreamCh:
+		case <-jwtStreamCh:
+		}
+
+		if err := stream.Send(&upstreamauthorityv1.SubscribeToLocalBundleResponse{
+			UpstreamX509Roots: x509certificate.RequireToPluginProtos(ua.X509Roots()),
+			UpstreamJwtKeys:   jwtkey.RequireToPluginFromCommonProtos(ua.JWTKeys()),
+		}); err != nil {
+			return err
 		}
 	}
 }

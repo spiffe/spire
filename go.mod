@@ -73,7 +73,7 @@ require (
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spiffe/go-spiffe/v2 v2.5.0
 	github.com/spiffe/spire-api-sdk v1.2.5-0.20250109200630-101d5e7de758
-	github.com/spiffe/spire-plugin-sdk v1.4.4-0.20240701180828-594312f4444d
+	github.com/spiffe/spire-plugin-sdk v1.4.4-0.20250606112051-68609d83ce7c
 	github.com/stretchr/testify v1.10.0
 	github.com/uber-go/tally/v4 v4.1.17
 	github.com/valyala/fastjson v1.6.4
