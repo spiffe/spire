@@ -71,7 +71,6 @@ Thanks to Edoardo Geraci for reporting this issue.
 This vulnerability has limited impact: by default, SPIRE does not issue JWT-SVIDs without an expiration claim. Exploitation would require federating with a misconfigured or non-compliant trust domain.
 Thanks to Edoardo Geraci for reporting this issue.
 
-
 ## [1.11.2] - 2025-02-13
 
 ### Added
