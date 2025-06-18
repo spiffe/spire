@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.12.3] - 2025-06-17
+
+### Security
+
+- Fixed an issue in spire-agent where the WorkloadAPI.ValidateJWTSVID endpoint did not enforce the presence of the exp (expiration) claim in JWT-SVIDs, as required by the SPIFFE specification.
+This vulnerability has limited impact: by default, SPIRE does not issue JWT-SVIDs without an expiration claim. Exploitation would require federating with a misconfigured or non-compliant trust domain.
+Thanks to Edoardo Geraci for reporting this issue.
+
 ## [1.12.2] - 2025-05-19
 
 ### Fixed
@@ -54,6 +62,14 @@
 ### Fixed
 
 - Issue where agents did not receive entry updates when new entries with the same entry ID were created while `use_sync_authorized_entries` was enabled (#5764)
+
+## [1.11.3] - 2025-06-17
+
+### Security
+
+- Fixed an issue in spire-agent where the WorkloadAPI.ValidateJWTSVID endpoint did not enforce the presence of the exp (expiration) claim in JWT-SVIDs, as required by the SPIFFE specification.
+This vulnerability has limited impact: by default, SPIRE does not issue JWT-SVIDs without an expiration claim. Exploitation would require federating with a misconfigured or non-compliant trust domain.
+Thanks to Edoardo Geraci for reporting this issue.
 
 ## [1.11.2] - 2025-02-13
 
