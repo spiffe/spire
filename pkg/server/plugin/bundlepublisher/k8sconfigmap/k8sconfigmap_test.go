@@ -16,12 +16,6 @@ import (
 	"github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/client-go/kubernetes/fake"
-	clienttesting "k8s.io/client-go/testing"
 )
 
 func TestConfigure(t *testing.T) {
@@ -204,14 +198,12 @@ func TestPublishBundle(t *testing.T) {
 	for _, tt := range []struct {
 		name string
 
-		hclConfig          string
-		newClientErr       error
-		expectCode         codes.Code
-		expectMsg          string
-		bundle             *types.Bundle
-		getConfigMapErr    error
-		createConfigMapErr error
-		updateConfigMapErr error
+		hclConfig         string
+		newClientErr      error
+		expectCode        codes.Code
+		expectMsg         string
+		bundle            *types.Bundle
+		applyConfigMapErr error
 	}{
 		{
 			name:   "success",
@@ -229,7 +221,7 @@ func TestPublishBundle(t *testing.T) {
 			`,
 		},
 		{
-			name:   "success - create configmap",
+			name:   "apply error",
 			bundle: testBundle,
 			hclConfig: `
 				clusters = {
@@ -242,63 +234,9 @@ func TestPublishBundle(t *testing.T) {
 					}
 				}
 			`,
-			getConfigMapErr: status.Error(codes.NotFound, "configMap not found"),
-		},
-		{
-			name:   "create configmap failure",
-			bundle: testBundle,
-			hclConfig: `
-				clusters = {
-					"test-cluster" = {
-						format = "spiffe"
-						namespace = "spire"
-						configmap_name = "spire-bundle"
-						configmap_key = "bundle.json"
-						kubeconfig_path = "/path/to/kubeconfig"
-					}
-				}
-			`,
-			getConfigMapErr:    status.Error(codes.NotFound, "configMap not found"),
-			createConfigMapErr: errors.New("create error"),
-			expectCode:         codes.Internal,
-			expectMsg:          "failed to create ConfigMap for cluster \"test-cluster\": create error",
-		},
-
-		{
-			name:   "get configmap failure",
-			bundle: testBundle,
-			hclConfig: `
-				clusters = {
-					"test-cluster" = {
-						format = "spiffe"
-						namespace = "spire"
-						configmap_name = "spire-bundle"
-						configmap_key = "bundle.json"
-						kubeconfig_path = "/path/to/kubeconfig"
-					}
-				}
-			`,
-			getConfigMapErr: errors.New("get error"),
-			expectCode:      codes.Internal,
-			expectMsg:       "failed to get ConfigMap",
-		},
-		{
-			name:   "update configmap failure",
-			bundle: testBundle,
-			hclConfig: `
-				clusters = {
-					"test-cluster" = {
-						format = "spiffe"
-						namespace = "spire"
-						configmap_name = "spire-bundle"
-						configmap_key = "bundle.json"
-						kubeconfig_path = "/path/to/kubeconfig"
-					}
-				}
-			`,
-			updateConfigMapErr: errors.New("update error"),
-			expectCode:         codes.Internal,
-			expectMsg:          "failed to update ConfigMap",
+			applyConfigMapErr: errors.New("apply error"),
+			expectCode:        codes.Internal,
+			expectMsg:         "failed to apply ConfigMap for cluster \"test-cluster\": apply error",
 		},
 		{
 			name: "missing bundle",
@@ -336,10 +274,8 @@ func TestPublishBundle(t *testing.T) {
 			}
 			// Set up test client
 			client := &fakeClient{
-				t:                  t,
-				createConfigMapErr: tt.createConfigMapErr,
-				getConfigMapErr:    tt.getConfigMapErr,
-				updateConfigMapErr: tt.updateConfigMapErr,
+				t:                 t,
+				applyConfigMapErr: tt.applyConfigMapErr,
 			}
 
 			newClient := func(kubeconfigPath string) (kubernetesClient, error) {
@@ -435,48 +371,6 @@ func TestPublishMultiple(t *testing.T) {
 	// PublishBundle was called with a different bundle, updateCount should
 	// be incremented to be 2.
 	require.Equal(t, 2, client.updateCount)
-
-	// Simulate that updating ConfigMap fails with an error.
-	client.updateConfigMapErr = errors.New("error updating ConfigMap")
-
-	resp, err = p.PublishBundle(context.Background(), &bundlepublisherv1.PublishBundleRequest{
-		Bundle: bundle,
-	})
-	// Since there is no change in the bundle, Update should not be called
-	// and there should be no error.
-	require.NoError(t, err)
-	require.NotNil(t, resp)
-
-	// The same bundle was used, the updateCount counter should be still 2.
-	require.Equal(t, 2, client.updateCount)
-
-	// Have a new bundle and call PublishBundle. Update should be called this
-	// time and return an error.
-	bundle = getTestBundle(t)
-	bundle.SequenceNumber = 3
-	resp, err = p.PublishBundle(t.Context(), &bundlepublisherv1.PublishBundleRequest{
-		Bundle: bundle,
-	})
-	require.Error(t, err)
-	require.Nil(t, resp)
-
-	// Since the bundle could not be published, updateCount should be
-	// still 2.
-	require.Equal(t, 2, client.updateCount)
-
-	// Clear the update error and call PublishBundle.
-	client.updateConfigMapErr = nil
-	resp, err = p.PublishBundle(t.Context(), &bundlepublisherv1.PublishBundleRequest{
-		Bundle: bundle,
-	})
-
-	// No error should happen this time.
-	require.NoError(t, err)
-	require.NotNil(t, resp)
-
-	// The updateCount counter should be incremented to 3, since the bundle
-	// should have been published successfully.
-	require.Equal(t, 3, client.updateCount)
 }
 
 func TestBuiltIn(t *testing.T) {
@@ -549,302 +443,16 @@ func TestValidate(t *testing.T) {
 	}
 }
 
-func TestGetConfigMap(t *testing.T) {
-	tests := []struct {
-		name       string
-		namespace  string
-		cmName     string
-		setupFunc  func(*fake.Clientset)
-		expectCM   *corev1.ConfigMap
-		expectCode codes.Code
-		expectMsg  string
-	}{
-		{
-			name:      "successful get",
-			namespace: "test-namespace",
-			cmName:    "test-configmap",
-			setupFunc: func(client *fake.Clientset) {
-				cm := &corev1.ConfigMap{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "test-configmap",
-						Namespace: "test-namespace",
-					},
-					Data: map[string]string{
-						"key1": "value1",
-						"key2": "value2",
-					},
-				}
-				_, err := client.CoreV1().ConfigMaps("test-namespace").Create(t.Context(), cm, metav1.CreateOptions{})
-				require.NoError(t, err)
-			},
-			expectCM: &corev1.ConfigMap{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-configmap",
-					Namespace: "test-namespace",
-				},
-				Data: map[string]string{
-					"key1": "value1",
-					"key2": "value2",
-				},
-			},
-		},
-		{
-			name:      "configmap not found",
-			namespace: "test-namespace",
-			cmName:    "non-existent-configmap",
-			setupFunc: func(client *fake.Clientset) {
-				// Don't create any ConfigMap
-			},
-			expectCode: codes.NotFound,
-			expectMsg:  "ConfigMap test-namespace/non-existent-configmap not found",
-		},
-		{
-			name:      "generic kubernetes error",
-			namespace: "test-namespace",
-			cmName:    "test-configmap",
-			setupFunc: func(client *fake.Clientset) {
-				client.PrependReactor("get", "configmaps", func(action clienttesting.Action) (handled bool, ret runtime.Object, err error) {
-					return true, nil, status.Errorf(codes.Internal, "some error")
-				})
-			},
-			expectCode: codes.Internal,
-			expectMsg:  "some error",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			fakeClient := fake.NewSimpleClientset()
-			tt.setupFunc(fakeClient)
-			client := &k8sClient{
-				clientset: fakeClient,
-			}
-
-			cm, err := client.GetConfigMap(context.Background(), tt.namespace, tt.cmName)
-			if tt.expectMsg != "" {
-				spiretest.RequireGRPCStatusContains(t, err, tt.expectCode, tt.expectMsg)
-				require.Nil(t, cm)
-				return
-			}
-			require.NoError(t, err)
-			require.Equal(t, tt.expectCM, cm)
-		})
-	}
-}
-
-func TestCreateConfigMap(t *testing.T) {
-	tests := []struct {
-		name      string
-		configMap *corev1.ConfigMap
-		setupFunc func(*fake.Clientset)
-		expectErr string
-	}{
-		{
-			name: "successful create",
-			configMap: &corev1.ConfigMap{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-configmap",
-					Namespace: "test-namespace",
-				},
-				Data: map[string]string{
-					"key1": "value1",
-					"key2": "value2",
-				},
-			},
-			setupFunc: func(client *fake.Clientset) {},
-		},
-		{
-			name: "configmap already exists",
-			configMap: &corev1.ConfigMap{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "existing-configmap",
-					Namespace: "test-namespace",
-				},
-				Data: map[string]string{
-					"key": "value",
-				},
-			},
-			setupFunc: func(client *fake.Clientset) {
-				// Create a ConfigMap with the same name
-				cm := &corev1.ConfigMap{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "existing-configmap",
-						Namespace: "test-namespace",
-					},
-				}
-				_, err := client.CoreV1().ConfigMaps("test-namespace").Create(context.Background(), cm, metav1.CreateOptions{})
-				require.NoError(t, err)
-			},
-			expectErr: "already exists",
-		},
-		{
-			name: "kubernetes error",
-			configMap: &corev1.ConfigMap{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-configmap",
-					Namespace: "test-namespace",
-				},
-			},
-			setupFunc: func(client *fake.Clientset) {
-				client.PrependReactor("create", "configmaps", func(action clienttesting.Action) (handled bool, ret runtime.Object, err error) {
-					return true, nil, errors.New("kubernetes API error")
-				})
-			},
-			expectErr: "kubernetes API error",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			fakeClient := fake.NewSimpleClientset()
-			if tt.setupFunc != nil {
-				tt.setupFunc(fakeClient)
-			}
-			client := &k8sClient{
-				clientset: fakeClient,
-			}
-
-			err := client.CreateConfigMap(context.Background(), tt.configMap)
-			if tt.expectErr != "" {
-				require.ErrorContains(t, err, tt.expectErr)
-				return
-			}
-
-			require.NoError(t, err)
-			cm, err := fakeClient.CoreV1().ConfigMaps(tt.configMap.Namespace).Get(t.Context(), tt.configMap.Name, metav1.GetOptions{})
-			require.NoError(t, err)
-			require.Equal(t, tt.configMap, cm)
-		})
-	}
-}
-
-func TestUpdateConfigMap(t *testing.T) {
-	tests := []struct {
-		name      string
-		configMap *corev1.ConfigMap
-		setupFunc func(*fake.Clientset)
-		expectErr string
-	}{
-		{
-			name: "successful update",
-			configMap: &corev1.ConfigMap{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-configmap",
-					Namespace: "test-namespace",
-				},
-				Data: map[string]string{
-					"key1": "updated-value1",
-					"key2": "updated-value2",
-				},
-			},
-			setupFunc: func(client *fake.Clientset) {
-				// Create the ConfigMap that will be updated
-				cm := &corev1.ConfigMap{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "test-configmap",
-						Namespace: "test-namespace",
-					},
-					Data: map[string]string{
-						"key1": "value1",
-						"key2": "value2",
-					},
-				}
-				_, err := client.CoreV1().ConfigMaps("test-namespace").Create(t.Context(), cm, metav1.CreateOptions{})
-				require.NoError(t, err)
-			},
-		},
-		{
-			name: "configmap not found",
-			configMap: &corev1.ConfigMap{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "non-existent-configmap",
-					Namespace: "test-namespace",
-				},
-				Data: map[string]string{
-					"key": "value",
-				},
-			},
-			setupFunc: func(client *fake.Clientset) {
-				// Don't create any ConfigMap
-			},
-			expectErr: "not found",
-		},
-		{
-			name: "kubernetes error",
-			configMap: &corev1.ConfigMap{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-configmap",
-					Namespace: "test-namespace",
-				},
-			},
-			setupFunc: func(client *fake.Clientset) {
-				client.PrependReactor("update", "configmaps", func(action clienttesting.Action) (handled bool, ret runtime.Object, err error) {
-					return true, nil, errors.New("kubernetes API error")
-				})
-			},
-			expectErr: "kubernetes API error",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			fakeClient := fake.NewSimpleClientset()
-			if tt.setupFunc != nil {
-				tt.setupFunc(fakeClient)
-			}
-			client := &k8sClient{
-				clientset: fakeClient,
-			}
-
-			err := client.UpdateConfigMap(context.Background(), tt.configMap)
-			if tt.expectErr != "" {
-				require.ErrorContains(t, err, tt.expectErr)
-				return
-			}
-			require.NoError(t, err)
-
-			// Verify the ConfigMap was updated
-			cm, err := fakeClient.CoreV1().ConfigMaps(tt.configMap.Namespace).Get(context.Background(), tt.configMap.Name, metav1.GetOptions{})
-			require.NoError(t, err)
-			require.Equal(t, tt.configMap.Data, cm.Data)
-		})
-	}
-}
-
 type fakeClient struct {
 	t *testing.T
 
-	createConfigMapErr error
-	getConfigMapErr    error
-	updateConfigMapErr error
-	updateCount        int
+	applyConfigMapErr error
+	updateCount       int
 }
 
-func (c *fakeClient) CreateConfigMap(ctx context.Context, configMap *corev1.ConfigMap) error {
-	if c.createConfigMapErr != nil {
-		return c.createConfigMapErr
-	}
-
-	return nil
-}
-
-func (c *fakeClient) GetConfigMap(ctx context.Context, namespace, name string) (*corev1.ConfigMap, error) {
-	if c.getConfigMapErr != nil {
-		return nil, c.getConfigMapErr
-	}
-
-	return &corev1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-		},
-		Data: map[string]string{},
-	}, nil
-}
-
-func (c *fakeClient) UpdateConfigMap(ctx context.Context, configMap *corev1.ConfigMap) error {
-	if c.updateConfigMapErr != nil {
-		return c.updateConfigMapErr
+func (c *fakeClient) ApplyConfigMap(ctx context.Context, cluster *Cluster, data []byte) error {
+	if c.applyConfigMapErr != nil {
+		return c.applyConfigMapErr
 	}
 
 	c.updateCount++

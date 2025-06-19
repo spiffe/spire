@@ -45,17 +45,22 @@ To use this plugin, configure Kubernetes permissions for the SPIRE Server's Serv
 - For in-cluster SPIRE servers: grant permissions to the Service Account running SPIRE.
 - For out-of-cluster SPIRE servers: grant permissions to the Service Account specified in the kubeconfig.
 
-The Service Account needs permission to:
+The plugin uses the Kubernetes Apply operation to manage ConfigMaps. This operation will create the ConfigMap if it doesn't exist, or update it if it does. The Service Account needs permission to use the `patch` verb on ConfigMaps in the specified namespace.
 
-- `get` and `update` the specific ConfigMap (required).
-- `create` ConfigMaps in the namespace (optional, only if the ConfigMap doesn't exist).
+### Required Permissions
+
+The Service Account needs the following permissions:
+
+- `get` on ConfigMaps (required for the Apply operation to read the current state)
+- `patch` on ConfigMaps (required for the Apply operation to update resources)
+- `create` on ConfigMaps (required if the ConfigMap doesn't exist)
 
 ### Example
 
 In this example, assume that Service Account is `spire-server`.
 
 ```yaml
-kind: Role  # Note: Using Role instead of ClusterRole for namespace-scoped permissions
+kind: Role # Note: Using Role instead of ClusterRole for namespace-scoped permissions
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: spire-server-role
@@ -63,11 +68,8 @@ metadata:
 rules:
 - apiGroups: [""]
   resources: ["configmaps"]
-  verbs: ["get", "update"]
-  resourceNames: ["spire-bundle"]  # Can only update this specific ConfigMap
-- apiGroups: [""]
-  resources: ["configmaps"]
-  verbs: ["create"]  # Can create any ConfigMap in the namespace if needed
+  verbs: ["create", "get", "patch"]
+  resourceNames: ["spire-bundle"]  # Restrict to specific ConfigMap for create, get and patch operations
 
 ---
 
@@ -93,6 +95,9 @@ metadata:
   name: spire-bundle
   namespace: spire
 ```
+
+> [!NOTE]
+> The Apply operation uses Server-Side Apply (SSA) with a field manager name of `spire-bundlepublisher-k8s_configmap`. This ensures that SPIRE's updates to the ConfigMap are tracked and can coexist with other controllers that might be managing different fields of the same ConfigMap.
 
 ## Sample configuration
 
