@@ -645,6 +645,37 @@ func TestUpstreamAuthorityWithPublishJWTKeyImplemented(t *testing.T) {
 	)
 }
 
+func TestUpstreamAuthorityWithSubscribeToBundleUpdate(t *testing.T) {
+	ctx := context.Background()
+	test := setupTest(t)
+	upstreamAuthority, ua := test.newFakeUpstreamAuthority(t, fakeupstreamauthority.Config{
+		TrustDomain:               testTrustDomain,
+		UseSubscribeToLocalBundle: true,
+		UseIntermediate:           true,
+	})
+	bundle := test.createBundle(ctx)
+	require.Len(t, bundle.JwtSigningKeys, 0)
+
+	test.initAndActivateUpstreamSignedManager(ctx, upstreamAuthority)
+
+	// X509 CA should be set up to be an intermediate and have two certs in
+	// its chain: itself and the upstream intermediate that signed it.
+	x509CA := test.currentX509CA()
+	assert.NotNil(t, x509CA.Signer)
+	if assert.NotNil(t, x509CA.Certificate) {
+		assert.Equal(t, ua.X509Intermediate().Subject, x509CA.Certificate.Issuer)
+	}
+	if assert.Len(t, x509CA.UpstreamChain, 2) {
+		assert.Equal(t, x509CA.Certificate, x509CA.UpstreamChain[0])
+		assert.Equal(t, ua.X509Intermediate(), x509CA.UpstreamChain[1])
+	}
+
+	// The trust bundle should contain the upstream root
+	test.requireBundleRootCAs(ctx, t, ua.X509Root())
+
+	spiretest.AssertProtoListEqual(t, ua.JWTKeys(), test.fetchBundle(ctx).JwtSigningKeys)
+}
+
 func TestX509CARotation(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()

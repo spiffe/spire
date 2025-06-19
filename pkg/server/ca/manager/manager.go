@@ -71,6 +71,7 @@ type AuthorityManager interface {
 	IsUpstreamAuthority() bool
 	PublishJWTKey(ctx context.Context, jwtKey *common.PublicKey) ([]*common.PublicKey, error)
 	NotifyTaintedX509Authority(ctx context.Context, authorityID string) error
+	SubscribeToLocalBundle(ctx context.Context) error
 }
 
 type Config struct {
@@ -445,6 +446,29 @@ func (m *Manager) PublishJWTKey(ctx context.Context, jwtKey *common.PublicKey) (
 	}
 
 	return bundle.JwtSigningKeys, nil
+}
+
+func (m *Manager) SubscribeToLocalBundle(ctx context.Context) error {
+	if m.upstreamClient == nil {
+		return nil
+	}
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(5 * time.Second):
+			err := m.upstreamClient.SubscribeToLocalBundle(ctx)
+			switch {
+			case status.Code(err) == codes.Unimplemented:
+				return nil
+			case err != nil:
+				return err
+			default:
+				return nil
+			}
+		}
+	}
 }
 
 func (m *Manager) PruneBundle(ctx context.Context) (err error) {
