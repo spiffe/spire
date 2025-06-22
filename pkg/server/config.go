@@ -99,6 +99,9 @@ type Config struct {
 	// CacheReloadInterval controls how often the in-memory entry cache reloads
 	CacheReloadInterval time.Duration
 
+	// FullCacheReloadInterval controls how often the in-memory entry goes through a full reload
+	FullCacheReloadInterval time.Duration
+
 	// EventsBasedCache enabled event driven cache reloads
 	EventsBasedCache bool
 

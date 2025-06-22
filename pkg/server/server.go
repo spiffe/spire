@@ -419,6 +419,7 @@ func (s *Server) newEndpointsServer(ctx context.Context, catalog catalog.Catalog
 		Uptime:                       uptime.Uptime,
 		Clock:                        clock.New(),
 		CacheReloadInterval:          s.config.CacheReloadInterval,
+		FullCacheReloadInterval:      s.config.FullCacheReloadInterval,
 		EventsBasedCache:             s.config.EventsBasedCache,
 		PruneEventsOlderThan:         s.config.PruneEventsOlderThan,
 		EventTimeout:                 s.config.EventTimeout,
