@@ -36,6 +36,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/endpoints"
 	"github.com/spiffe/spire/pkg/server/hostservice/agentstore"
 	"github.com/spiffe/spire/pkg/server/hostservice/identityprovider"
+	"github.com/spiffe/spire/pkg/server/node"
 	"github.com/spiffe/spire/pkg/server/plugin/bundlepublisher"
 	"github.com/spiffe/spire/pkg/server/registration"
 	"github.com/spiffe/spire/pkg/server/svid"
@@ -219,6 +220,11 @@ func (s *Server) run(ctx context.Context) (err error) {
 		tasks = append(tasks, s.config.LogReopener)
 	}
 
+	if s.config.PruneAttestedNodesExpiredFor != 0 {
+		nodeManager := s.newNodeManager(cat, metrics)
+		tasks = append(tasks, nodeManager.Run)
+	}
+
 	err = util.RunTasks(ctx, tasks...)
 	if errors.Is(err, context.Canceled) {
 		err = nil
@@ -369,6 +375,19 @@ func (s *Server) newRegistrationManager(cat catalog.Catalog, metrics telemetry.M
 		Metrics:   metrics,
 	})
 	return registrationManager
+}
+
+func (s *Server) newNodeManager(cat catalog.Catalog, metrics telemetry.Metrics) *node.Manager {
+	nodeManager := node.NewManager(node.ManagerConfig{
+		DataStore: cat.GetDataStore(),
+		Log:       s.config.Log.WithField(telemetry.SubsystemName, telemetry.NodeManager),
+		Metrics:   metrics,
+		PruneArgs: node.PruneArgs{
+			ExpiredFor:             s.config.PruneAttestedNodesExpiredFor,
+			IncludeNonReattestable: s.config.PruneNonReattestableNodes,
+		},
+	})
+	return nodeManager
 }
 
 func (s *Server) newSVIDRotator(ctx context.Context, serverCA ca.ServerCA, metrics telemetry.Metrics) (*svid.Rotator, error) {
