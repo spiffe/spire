@@ -13,13 +13,13 @@
 
 - The "Container id not found" log message in the `k8s` WorkloadAttestor has been lowered to Debug level (#6128)
 - Improvements in lookup performance for entries (#6100, #6034)
-- SPIRE Server gRPC servers are now gracefully stopped (#6076)
 - Agent no longer pulls the bundle from `trust_bundle_url` if it is not required (#6065)
 
 ### Fixed
 
 - The `subject_types_supported` value in the discovery document is now properly populated by the OIDC Discovery Provider (#6126)
 - Metrics and health checks delayed to start when `retry_bootstrap` was set (#6063)
+- SPIRE Server gRPC servers are now gracefully stopped (#6076)
 
 ## [1.12.3] - 2025-06-17
 
