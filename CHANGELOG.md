@@ -14,7 +14,7 @@
 - The "Container id not found" log message in the `k8s` WorkloadAttestor has been lowered to Debug level (#6128)
 - Improvements in lookup performance for entries (#6100, #6034)
 - SPIRE Server gRPC servers are now gracefully stopped (#6076)
-- Agents no longer request to `trust_bundle_url` if they don't need to (#6065)
+- Agent no longer pulls the bundle from `trust_bundle_url` if it is not required (#6065)
 
 ### Fixed
 
