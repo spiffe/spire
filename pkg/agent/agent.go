@@ -46,8 +46,7 @@ const (
 )
 
 type Agent struct {
-	c       *Config
-	started bool
+	c *Config
 }
 
 // Run the agent
@@ -67,8 +66,8 @@ func (a *Agent) Run(ctx context.Context) error {
 		return fmt.Errorf("failed to open storage: %w", err)
 	}
 
-	ctx, cancel := context.WithCancelCause(ctx)
-	defer cancel(nil)
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 
 	if a.c.ProfilingEnabled {
 		stopProfiling := a.setupProfiling(ctx)
@@ -99,15 +98,6 @@ func (a *Agent) Run(ctx context.Context) error {
 	defer cat.Close()
 
 	healthChecker := health.NewChecker(a.c.HealthChecks, a.c.Log)
-	if err := healthChecker.AddCheck("agent", a); err != nil {
-		return fmt.Errorf("failed adding healthcheck: %w", err)
-	}
-	tasks := []func(context.Context) error{
-		healthChecker.ListenAndServe,
-		metrics.ListenAndServe,
-	}
-	taskRunner := util.NewTaskRunner(ctx, cancel)
-	taskRunner.StartTasks(tasks...)
 
 	nodeAttestor := nodeattestor.JoinToken(a.c.Log, a.c.JoinToken)
 	if a.c.JoinToken == "" {
@@ -189,12 +179,17 @@ func (a *Agent) Run(ctx context.Context) error {
 
 	endpoints := a.newEndpoints(metrics, manager, workloadAttestor)
 
-	a.started = true
-	tasks = []func(context.Context) error{
+	if err := healthChecker.AddCheck("agent", a); err != nil {
+		return fmt.Errorf("failed adding healthcheck: %w", err)
+	}
+
+	tasks := []func(context.Context) error{
 		manager.Run,
 		storeService.Run,
 		endpoints.ListenAndServe,
+		metrics.ListenAndServe,
 		catalog.ReconfigureTask(a.c.Log.WithField(telemetry.SubsystemName, "reconfigurer"), cat),
+		healthChecker.ListenAndServe,
 	}
 
 	if a.c.AdminBindAddress != nil {
@@ -206,8 +201,7 @@ func (a *Agent) Run(ctx context.Context) error {
 		tasks = append(tasks, a.c.LogReopener)
 	}
 
-	taskRunner.StartTasks(tasks...)
-	err = taskRunner.Wait()
+	err = util.RunTasks(ctx, tasks...)
 	if errors.Is(err, context.Canceled) {
 		err = nil
 	}
@@ -418,14 +412,13 @@ func (a *Agent) CheckHealth() health.State {
 	// for the X509SVID service.
 	// TODO: Better live check for agent.
 	return health.State{
-		Started: &a.started,
-		Ready:   err == nil,
-		Live:    (a.started || err == nil),
+		Ready: err == nil,
+		Live:  err == nil,
 		ReadyDetails: agentHealthDetails{
-			WorkloadAPIErr: errString(false, err),
+			WorkloadAPIErr: errString(err),
 		},
 		LiveDetails: agentHealthDetails{
-			WorkloadAPIErr: errString(!a.started, err),
+			WorkloadAPIErr: errString(err),
 		},
 	}
 }
@@ -449,10 +442,7 @@ type agentHealthDetails struct {
 	WorkloadAPIErr string `json:"make_new_x509_err,omitempty"`
 }
 
-func errString(suppress bool, err error) string {
-	if suppress {
-		return ""
-	}
+func errString(err error) string {
 	if err != nil {
 		return err.Error()
 	}
