@@ -169,6 +169,13 @@ func (s *DataStore) DeleteAttestedNode(ctx context.Context, spiffeID string) (*c
 	return s.ds.DeleteAttestedNode(ctx, spiffeID)
 }
 
+func (s *DataStore) PruneAttestedExpiredNodes(ctx context.Context, expiredBefore time.Time, includeNonReattestable bool) error {
+	if err := s.getNextError(); err != nil {
+		return err
+	}
+	return s.ds.PruneAttestedExpiredNodes(ctx, expiredBefore, includeNonReattestable)
+}
+
 func (s *DataStore) ListAttestedNodeEvents(ctx context.Context, req *datastore.ListAttestedNodeEventsRequest) (*datastore.ListAttestedNodeEventsResponse, error) {
 	if err := s.getNextError(); err != nil {
 		return nil, err
