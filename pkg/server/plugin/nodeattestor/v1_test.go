@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 )
 
@@ -34,6 +35,7 @@ func TestV1(t *testing.T) {
 	for _, tt := range []struct {
 		test           string
 		plugin         *fakeV1Plugin
+		ctx            context.Context
 		payload        string
 		responseErr    error
 		expectAnyError bool
@@ -128,10 +130,32 @@ func TestV1(t *testing.T) {
 			expectMessage: "",
 			expectResult:  resultWithSelectorsAndCanReattest,
 		},
+		{
+			test:   "attestation succeeds with original authority forwarded",
+			plugin: &fakeV1Plugin{challenges: challenges, agentID: agentID, selectorValues: selectorValues},
+			ctx: metadata.NewIncomingContext(
+				context.Background(),
+				metadata.New(map[string]string{":authority": "spire-server-xyz.spiffe.io:8081"}),
+			),
+			payload:       "without-challenge",
+			expectCode:    codes.OK,
+			expectMessage: "",
+			expectResult: &nodeattestor.AttestResult{
+				AgentID: agentID,
+				Selectors: []*common.Selector{
+					{Type: "test", Value: "value"},
+					{Type: "test", Value: "spire-server-xyz.spiffe.io:8081"},
+				},
+			},
+		},
 	} {
 		t.Run(tt.test, func(t *testing.T) {
 			nodeattestor := loadV1Plugin(t, tt.plugin)
-			result, err := nodeattestor.Attest(context.Background(), []byte(tt.payload),
+			ctx := tt.ctx
+			if ctx == nil {
+				ctx = context.Background()
+			}
+			result, err := nodeattestor.Attest(ctx, []byte(tt.payload),
 				func(ctx context.Context, challenge []byte) ([]byte, error) {
 					// echo the challenge back
 					return challenge, tt.responseErr
@@ -219,11 +243,17 @@ func (plugin *fakeV1Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServ
 		}
 	}
 
+	selectorValues := plugin.selectorValues
+	originalAuthority := metadata.ValueFromIncomingContext(stream.Context(), nodeattestor.OriginalAuthorityKey)
+	if len(originalAuthority) != 0 {
+		selectorValues = append(selectorValues, originalAuthority[0])
+	}
+
 	return stream.Send(&nodeattestorv1.AttestResponse{
 		Response: &nodeattestorv1.AttestResponse_AgentAttributes{
 			AgentAttributes: &nodeattestorv1.AgentAttributes{
 				SpiffeId:       plugin.agentID,
-				SelectorValues: plugin.selectorValues,
+				SelectorValues: selectorValues,
 				CanReattest:    plugin.canReattest,
 			},
 		},
