@@ -63,6 +63,9 @@ func ValidateToken(ctx context.Context, token string, keyStore KeyStore, audienc
 	if claims.Subject == "" {
 		return spiffeid.ID{}, nil, errors.New("token missing subject claim")
 	}
+	if claims.Expiry == nil {
+		return spiffeid.ID{}, nil, errors.New("token missing exp claim")
+	}
 	spiffeID, err := spiffeid.FromString(claims.Subject)
 	if err != nil {
 		return spiffeid.ID{}, nil, fmt.Errorf("token has in invalid subject claim: %w", err)

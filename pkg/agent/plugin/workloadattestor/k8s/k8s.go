@@ -390,7 +390,7 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestReque
 		}
 
 		// wait a bit for containers to initialize before trying again.
-		log.Warn("Container id not found", telemetry.RetryInterval, config.PollRetryInterval)
+		log.Debug("Container id not found", telemetry.RetryInterval, config.PollRetryInterval)
 
 		select {
 		case <-p.clock.After(config.PollRetryInterval):

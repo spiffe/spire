@@ -40,7 +40,9 @@ func TestHandlerHTTPS(t *testing.T) {
   "response_types_supported": [
     "id_token"
   ],
-  "subject_types_supported": [],
+  "subject_types_supported": [
+    "public"
+  ],
   "id_token_signing_alg_values_supported": [
     "RS256",
     "ES256",
@@ -208,7 +210,9 @@ func TestHandlerHTTPInsecure(t *testing.T) {
   "response_types_supported": [
     "id_token"
   ],
-  "subject_types_supported": [],
+  "subject_types_supported": [
+    "public"
+  ],
   "id_token_signing_alg_values_supported": [
     "RS256",
     "ES256",
@@ -321,7 +325,9 @@ func TestHandlerHTTP(t *testing.T) {
   "response_types_supported": [
     "id_token"
   ],
-  "subject_types_supported": [],
+  "subject_types_supported": [
+    "public"
+  ],
   "id_token_signing_alg_values_supported": [
     "RS256",
     "ES256",
@@ -342,7 +348,9 @@ func TestHandlerHTTP(t *testing.T) {
   "response_types_supported": [
     "id_token"
   ],
-  "subject_types_supported": [],
+  "subject_types_supported": [
+    "public"
+  ],
   "id_token_signing_alg_values_supported": [
     "RS256",
     "ES256",
@@ -363,7 +371,9 @@ func TestHandlerHTTP(t *testing.T) {
   "response_types_supported": [
     "id_token"
   ],
-  "subject_types_supported": [],
+  "subject_types_supported": [
+    "public"
+  ],
   "id_token_signing_alg_values_supported": [
     "RS256",
     "ES256",
@@ -489,7 +499,9 @@ func TestHandlerProxied(t *testing.T) {
   "response_types_supported": [
     "id_token"
   ],
-  "subject_types_supported": [],
+  "subject_types_supported": [
+    "public"
+  ],
   "id_token_signing_alg_values_supported": [
     "RS256",
     "ES256",
@@ -600,7 +612,9 @@ func TestHandlerJWTIssuer(t *testing.T) {
   "response_types_supported": [
     "id_token"
   ],
-  "subject_types_supported": [],
+  "subject_types_supported": [
+    "public"
+  ],
   "id_token_signing_alg_values_supported": [
     "RS256",
     "ES256",
@@ -621,7 +635,9 @@ func TestHandlerJWTIssuer(t *testing.T) {
   "response_types_supported": [
     "id_token"
   ],
-  "subject_types_supported": [],
+  "subject_types_supported": [
+    "public"
+  ],
   "id_token_signing_alg_values_supported": [
     "RS256",
     "ES256",
@@ -642,7 +658,9 @@ func TestHandlerJWTIssuer(t *testing.T) {
   "response_types_supported": [
     "id_token"
   ],
-  "subject_types_supported": [],
+  "subject_types_supported": [
+    "public"
+  ],
   "id_token_signing_alg_values_supported": [
     "RS256",
     "ES256",
@@ -663,7 +681,9 @@ func TestHandlerJWTIssuer(t *testing.T) {
   "response_types_supported": [
     "id_token"
   ],
-  "subject_types_supported": [],
+  "subject_types_supported": [
+    "public"
+  ],
   "id_token_signing_alg_values_supported": [
     "RS256",
     "ES256",
@@ -684,7 +704,9 @@ func TestHandlerJWTIssuer(t *testing.T) {
   "response_types_supported": [
     "id_token"
   ],
-  "subject_types_supported": [],
+  "subject_types_supported": [
+    "public"
+  ],
   "id_token_signing_alg_values_supported": [
     "RS256",
     "ES256",
@@ -743,7 +765,9 @@ func TestHandlerJWTIssuerAndJWKSURI(t *testing.T) {
   "response_types_supported": [
     "id_token"
   ],
-  "subject_types_supported": [],
+  "subject_types_supported": [
+    "public"
+  ],
   "id_token_signing_alg_values_supported": [
     "RS256",
     "ES256",
@@ -801,7 +825,9 @@ func TestHandlerAdvertisedURL(t *testing.T) {
   "response_types_supported": [
     "id_token"
   ],
-  "subject_types_supported": [],
+  "subject_types_supported": [
+    "public"
+  ],
   "id_token_signing_alg_values_supported": [
     "RS256",
     "ES256",
@@ -822,7 +848,9 @@ func TestHandlerAdvertisedURL(t *testing.T) {
   "response_types_supported": [
     "id_token"
   ],
-  "subject_types_supported": [],
+  "subject_types_supported": [
+    "public"
+  ],
   "id_token_signing_alg_values_supported": [
     "RS256",
     "ES256",
@@ -843,7 +871,9 @@ func TestHandlerAdvertisedURL(t *testing.T) {
   "response_types_supported": [
     "id_token"
   ],
-  "subject_types_supported": [],
+  "subject_types_supported": [
+    "public"
+  ],
   "id_token_signing_alg_values_supported": [
     "RS256",
     "ES256",
@@ -864,7 +894,9 @@ func TestHandlerAdvertisedURL(t *testing.T) {
   "response_types_supported": [
     "id_token"
   ],
-  "subject_types_supported": [],
+  "subject_types_supported": [
+    "public"
+  ],
   "id_token_signing_alg_values_supported": [
     "RS256",
     "ES256",
@@ -885,7 +917,9 @@ func TestHandlerAdvertisedURL(t *testing.T) {
   "response_types_supported": [
     "id_token"
   ],
-  "subject_types_supported": [],
+  "subject_types_supported": [
+    "public"
+  ],
   "id_token_signing_alg_values_supported": [
     "RS256",
     "ES256",
@@ -942,7 +976,9 @@ func TestHandlerPrefix(t *testing.T) {
   "response_types_supported": [
     "id_token"
   ],
-  "subject_types_supported": [],
+  "subject_types_supported": [
+    "public"
+  ],
   "id_token_signing_alg_values_supported": [
     "RS256",
     "ES256",
@@ -963,7 +999,9 @@ func TestHandlerPrefix(t *testing.T) {
   "response_types_supported": [
     "id_token"
   ],
-  "subject_types_supported": [],
+  "subject_types_supported": [
+    "public"
+  ],
   "id_token_signing_alg_values_supported": [
     "RS256",
     "ES256",
@@ -984,7 +1022,9 @@ func TestHandlerPrefix(t *testing.T) {
   "response_types_supported": [
     "id_token"
   ],
-  "subject_types_supported": [],
+  "subject_types_supported": [
+    "public"
+  ],
   "id_token_signing_alg_values_supported": [
     "RS256",
     "ES256",
@@ -1005,7 +1045,9 @@ func TestHandlerPrefix(t *testing.T) {
   "response_types_supported": [
     "id_token"
   ],
-  "subject_types_supported": [],
+  "subject_types_supported": [
+    "public"
+  ],
   "id_token_signing_alg_values_supported": [
     "RS256",
     "ES256",

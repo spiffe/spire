@@ -2,7 +2,7 @@
 
 # Build stage
 ARG goversion
-FROM --platform=${BUILDPLATFORM} golang:${goversion}-alpine3.20 as base
+FROM --platform=${BUILDPLATFORM} golang:${goversion}-alpine3.22 as base
 WORKDIR /spire
 RUN apk --no-cache --update add file bash clang lld pkgconfig git make
 COPY go.* ./

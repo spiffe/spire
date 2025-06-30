@@ -184,10 +184,12 @@ func (c *FullEntryCache) LookupAuthorizedEntries(agentID spiffeid.ID, requestedE
 	defer freeSeenSet(seen)
 
 	foundEntries := make(map[string]api.ReadOnlyEntry)
-	c.crawl(agentID.Path(), seen, func(entry *types.Entry) {
+	c.crawl(agentID.Path(), seen, func(entry *types.Entry) bool {
 		if _, ok := requestedEntries[entry.Id]; ok {
 			foundEntries[entry.Id] = api.NewReadOnlyEntry(entry)
 		}
+
+		return len(foundEntries) != len(requestedEntries)
 	})
 
 	return foundEntries
@@ -199,21 +201,27 @@ func (c *FullEntryCache) GetAuthorizedEntries(agentID spiffeid.ID) []api.ReadOnl
 	defer freeSeenSet(seen)
 
 	foundEntries := []api.ReadOnlyEntry{}
-	c.crawl(agentID.Path(), seen, func(entry *types.Entry) {
+	c.crawl(agentID.Path(), seen, func(entry *types.Entry) bool {
 		foundEntries = append(foundEntries, api.NewReadOnlyEntry(entry))
+		return true
 	})
 
 	return foundEntries
 }
 
-func (c *FullEntryCache) crawl(parentID string, seen map[string]struct{}, visit func(*types.Entry)) {
+// Crawl the list of registration entries calling the visit function on all of them.
+// visit(entry) returns a boolean indicating if we should continue iterating (if true)
+// or if we should terminate the crawl (if false).
+func (c *FullEntryCache) crawl(parentID string, seen map[string]struct{}, visit func(*types.Entry) bool) {
 	if _, ok := seen[parentID]; ok {
 		return
 	}
 	seen[parentID] = struct{}{}
 
 	for _, entry := range c.entries[parentID] {
-		visit(entry)
+		if !visit(entry) {
+			return
+		}
 		c.crawl(entry.SpiffeId.Path, seen, visit)
 	}
 
