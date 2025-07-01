@@ -1,5 +1,25 @@
 # Changelog
 
+## [1.12.4] - 2025-07-01
+
+### Added
+
+- `k8s_configmap` BundlePublisher plugin (#6105, #6139)
+- UpstreamAuthority.SubscribeToLocalBundle RPC to stream updates in the local trust bundle (#6090)
+- Integration tests running on ARM64 platform (#6059)
+- The OIDC Discovery Provider can now read the trust bundle from a file (#6025)
+
+### Changed
+
+- The "Container id not found" log message in the `k8s` WorkloadAttestor has been lowered to Debug level (#6128)
+- Improvements in lookup performance for entries (#6100, #6034)
+- Agent no longer pulls the bundle from `trust_bundle_url` if it is not required (#6065)
+
+### Fixed
+
+- The `subject_types_supported` value in the discovery document is now properly populated by the OIDC Discovery Provider (#6126)
+- SPIRE Server gRPC servers are now gracefully stopped (#6076)
+
 ## [1.12.3] - 2025-06-17
 
 ### Security
