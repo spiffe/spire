@@ -29,6 +29,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/manager/storecache"
 	"github.com/spiffe/spire/pkg/agent/plugin/keymanager"
 	"github.com/spiffe/spire/pkg/agent/storage"
+	"github.com/spiffe/spire/pkg/agent/trustbundlesources"
 	"github.com/spiffe/spire/pkg/agent/workloadkey"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/idutil"
@@ -76,16 +77,34 @@ func TestInitializationFailure(t *testing.T) {
 	cat := fakeagentcatalog.New()
 	cat.SetKeyManager(km)
 
+	sto := openStorage(t, dir)
+	ts := &trustbundlesources.Config{
+		InsecureBootstrap:     false,
+		TrustBundleFormat:     "pem",
+		TrustBundlePath:       "",
+		TrustBundleURL:        "",
+		TrustBundleUnixSocket: "",
+		TrustDomain:           "example.org",
+		ServerAddress:         "localhost",
+		ServerPort:            1234,
+	}
+
+	tbs := trustbundlesources.New(ts, nil)
+	tbs.SetMetrics(&telemetry.Blackhole{})
+	err := tbs.SetStorage(sto)
+	require.NoError(t, err)
+
 	c := &Config{
-		SVID:           baseSVID,
-		SVIDKey:        baseSVIDKey,
-		Log:            testLogger,
-		Metrics:        &telemetry.Blackhole{},
-		TrustDomain:    trustDomain,
-		Storage:        openStorage(t, dir),
-		Clk:            clk,
-		Catalog:        cat,
-		SVIDStoreCache: storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
+		SVID:               baseSVID,
+		SVIDKey:            baseSVIDKey,
+		Log:                testLogger,
+		Metrics:            &telemetry.Blackhole{},
+		TrustDomain:        trustDomain,
+		TrustBundleSources: tbs,
+		Storage:            sto,
+		Clk:                clk,
+		Catalog:            cat,
+		SVIDStoreCache:     storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
 	}
 	m := newManager(c)
 	require.Error(t, m.Initialize(context.Background()))
@@ -1192,16 +1211,34 @@ func TestSyncRetriesWithDefaultIntervalOnZeroSVIDSReturned(t *testing.T) {
 	cat := fakeagentcatalog.New()
 	cat.SetKeyManager(km)
 
+	sto := openStorage(t, dir)
+	ts := &trustbundlesources.Config{
+		InsecureBootstrap:     false,
+		TrustBundleFormat:     "pem",
+		TrustBundlePath:       "",
+		TrustBundleURL:        "",
+		TrustBundleUnixSocket: "",
+		TrustDomain:           "example.org",
+		ServerAddress:         "localhost",
+		ServerPort:            1234,
+	}
+
+	tbs := trustbundlesources.New(ts, nil)
+	tbs.SetMetrics(&telemetry.Blackhole{})
+	err := tbs.SetStorage(sto)
+	require.NoError(t, err)
+
 	c := &Config{
-		ServerAddr:       api.addr,
-		SVID:             baseSVID,
-		SVIDKey:          baseSVIDKey,
-		Log:              testLogger,
-		TrustDomain:      trustDomain,
-		Storage:          openStorage(t, dir),
-		Bundle:           api.bundle,
-		Metrics:          &telemetry.Blackhole{},
-		RotationInterval: time.Hour,
+		ServerAddr:         api.addr,
+		SVID:               baseSVID,
+		SVIDKey:            baseSVIDKey,
+		Log:                testLogger,
+		TrustDomain:        trustDomain,
+		TrustBundleSources: tbs,
+		Storage:            sto,
+		Bundle:             api.bundle,
+		Metrics:            &telemetry.Blackhole{},
+		RotationInterval:   time.Hour,
 		// set sync interval to a high value to proof that synchronizer retries sync
 		// with the lower default interval in case 0 entries are returned
 		SyncInterval:     time.Hour,
@@ -1280,16 +1317,37 @@ func TestSyncFailsWithUnknownAuthority(t *testing.T) {
 	cat := fakeagentcatalog.New()
 	cat.SetKeyManager(km)
 
+	sto := openStorage(t, dir)
+	ts := &trustbundlesources.Config{
+		InsecureBootstrap:     false,
+		TrustBundleFormat:     "pem",
+		TrustBundlePath:       "",
+		TrustBundleURL:        "",
+		TrustBundleUnixSocket: "",
+		TrustDomain:           "example.org",
+		ServerAddress:         "localhost",
+		ServerPort:            1234,
+	}
+
+	tbs := trustbundlesources.New(ts, nil)
+	tbs.SetMetrics(&telemetry.Blackhole{})
+	err := tbs.SetStorage(sto)
+	require.NoError(t, err)
+
+	rebootstrapDelay, _ := time.ParseDuration("10m")
 	c := &Config{
-		ServerAddr:       api.addr,
-		SVID:             baseSVID,
-		SVIDKey:          baseSVIDKey,
-		Log:              testLogger,
-		TrustDomain:      trustDomain,
-		Storage:          openStorage(t, dir),
-		Bundle:           api.bundle,
-		Metrics:          &telemetry.Blackhole{},
-		RotationInterval: time.Hour,
+		ServerAddr:         api.addr,
+		SVID:               baseSVID,
+		SVIDKey:            baseSVIDKey,
+		Log:                testLogger,
+		TrustDomain:        trustDomain,
+		TrustBundleSources: tbs,
+		RebootstrapMode:    "never",
+		RebootstrapDelay:   rebootstrapDelay,
+		Storage:            sto,
+		Bundle:             api.bundle,
+		Metrics:            &telemetry.Blackhole{},
+		RotationInterval:   time.Hour,
 		// set sync interval to a high value to proof that synchronizer retries sync
 		// with the lower default interval in case 0 entries are returned
 		SyncInterval:     time.Hour,
@@ -1308,7 +1366,7 @@ func TestSyncFailsWithUnknownAuthority(t *testing.T) {
 	}
 
 	/// Sync to get expected error
-	err := m.runSynchronizer(ctx)
+	err = m.runSynchronizer(ctx)
 	spiretest.RequireErrorPrefix(t, err, "failed to sync with SPIRE Server:")
 }
 
