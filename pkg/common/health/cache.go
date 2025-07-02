@@ -104,6 +104,7 @@ func (c *cache) start(ctx context.Context) error {
 		return errors.New("no health checks defined")
 	}
 
+	time.Sleep(8 * time.Second)
 	c.startRunner(ctx)
 	return nil
 }

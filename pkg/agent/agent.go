@@ -420,7 +420,7 @@ func (a *Agent) CheckHealth() health.State {
 	return health.State{
 		Started: &a.started,
 		Ready:   err == nil,
-		Live:    (a.started || err == nil),
+		Live:    (!a.started || err == nil),
 		ReadyDetails: agentHealthDetails{
 			WorkloadAPIErr: errString(false, err),
 		},
