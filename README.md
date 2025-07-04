@@ -1,5 +1,7 @@
 ![SPIRE Logo](/doc/images/spire_logo.png)
 
+test
+
 [![CII Best Practices](https://bestpractices.coreinfrastructure.org/projects/3303/badge)](https://bestpractices.coreinfrastructure.org/projects/3303)
 [![Build Status](https://github.com/spiffe/spire/actions/workflows/pr_build.yaml/badge.svg)](https://github.com/spiffe/spire/actions/workflows/pr_build.yaml)
 [![Go Report Card](https://goreportcard.com/badge/github.com/spiffe/spire)](https://goreportcard.com/report/github.com/spiffe/spire)
