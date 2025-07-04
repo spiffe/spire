@@ -493,7 +493,7 @@ func migrateVersion(tx *gorm.DB, currVersion int, log logrus.FieldLogger) (versi
 	//   return nil
 	// }
 	//
-	switch currVersion { //nolint: gocritic // No upgrade required yet, keeping switch for future additions
+	switch currVersion { //nolint: gocritic,revive // No upgrade required yet, keeping switch for future additions
 	default:
 		err = newSQLError("no migration support for unknown schema version %d", currVersion)
 	}

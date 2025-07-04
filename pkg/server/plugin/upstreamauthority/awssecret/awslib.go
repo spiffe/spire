@@ -2,7 +2,7 @@ package awssecret
 
 import (
 	"context"
-	"fmt"
+	"errors"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -26,7 +26,7 @@ func readARN(ctx context.Context, sm secretsManagerClient, arn string) (string, 
 	}
 
 	if resp == nil || resp.SecretString == nil {
-		return "", fmt.Errorf("response or SecretString is nil")
+		return "", errors.New("response or SecretString is nil")
 	}
 
 	return *resp.SecretString, nil

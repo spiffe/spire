@@ -2,6 +2,7 @@ package awsiid
 
 import (
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"sync"
 
@@ -24,7 +25,7 @@ var certCache sync.Map
 func getAWSCACertificate(region string, keyType PublicKeyType) (*x509.Certificate, error) {
 	var cert string
 	if keyType == KeyTypeUnset {
-		return nil, fmt.Errorf("signature key type is unset")
+		return nil, errors.New("signature key type is unset")
 	}
 
 	cacheKey := fmt.Sprintf("%s:%d", region, keyType)

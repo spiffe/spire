@@ -772,10 +772,7 @@ func setBundleEndpointConfigProfile(config *bundleEndpointConfig, dataDir string
 			return nil
 		case profileConfig.HTTPSWeb.ServingCertFile != nil:
 			federationConfig.BundleEndpoint.DiskCertManager, err = configToDiskCertManager(profileConfig.HTTPSWeb.ServingCertFile, log)
-			if err != nil {
-				return err
-			}
-			return nil
+			return err
 		default:
 			return errors.New("malformed https_web profile configuration: 'acme' or 'serving_cert_file' is required")
 		}

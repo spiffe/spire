@@ -28,7 +28,7 @@ func RunTasks(ctx context.Context, tasks ...func(context.Context) error) error {
 	runTask := func(task func(context.Context) error) (err error) {
 		defer func() {
 			if r := recover(); r != nil {
-				err = fmt.Errorf("panic: %v\n%s\n", r, string(debug.Stack()))
+				err = fmt.Errorf("panic: %v\n%s", r, string(debug.Stack()))
 			}
 			wg.Done()
 		}()

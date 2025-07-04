@@ -5,6 +5,7 @@ package process
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"unsafe"
 
@@ -68,12 +69,7 @@ func (h *helper) GetContainerIDByProcess(pID int32, log hclog.Logger) (string, e
 
 	// Verify if process ID is a vmcompute process
 	isVmcomputeProcess := func(pID uint32) bool {
-		for _, vmID := range vmComputeProcessIds {
-			if pID == vmID {
-				return true
-			}
-		}
-		return false
+		return slices.Contains(vmComputeProcessIds, pID)
 	}
 
 	var jobNames []string

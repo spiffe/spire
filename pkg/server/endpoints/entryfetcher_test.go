@@ -29,8 +29,8 @@ type staticEntryCache struct {
 	entries map[spiffeid.ID][]*types.Entry
 }
 
-func (f *staticEntryCache) LookupAuthorizedEntries(agentID spiffeid.ID, _ map[string]struct{}) map[string]api.ReadOnlyEntry {
-	entries := f.entries[agentID]
+func (c *staticEntryCache) LookupAuthorizedEntries(agentID spiffeid.ID, _ map[string]struct{}) map[string]api.ReadOnlyEntry {
+	entries := c.entries[agentID]
 
 	entriesMap := make(map[string]api.ReadOnlyEntry)
 	for _, entry := range entries {
@@ -40,9 +40,9 @@ func (f *staticEntryCache) LookupAuthorizedEntries(agentID spiffeid.ID, _ map[st
 	return entriesMap
 }
 
-func (sef *staticEntryCache) GetAuthorizedEntries(agentID spiffeid.ID) []api.ReadOnlyEntry {
+func (c *staticEntryCache) GetAuthorizedEntries(agentID spiffeid.ID) []api.ReadOnlyEntry {
 	entries := []api.ReadOnlyEntry{}
-	for _, entry := range sef.entries[agentID] {
+	for _, entry := range c.entries[agentID] {
 		entries = append(entries, api.NewReadOnlyEntry(entry))
 	}
 	return entries

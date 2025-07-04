@@ -45,11 +45,7 @@ func (a *attestedNodes) captureChangedNodes(ctx context.Context) error {
 		return err
 	}
 	a.selectPolledEvents(ctx)
-	if err := a.scanForNewEvents(ctx); err != nil {
-		return err
-	}
-
-	return nil
+	return a.scanForNewEvents(ctx)
 }
 
 func (a *attestedNodes) searchBeforeFirstEvent(ctx context.Context) error {

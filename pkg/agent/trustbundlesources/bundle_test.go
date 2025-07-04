@@ -85,7 +85,7 @@ func TestGetBundle(t *testing.T) {
 	for _, testCase := range cases {
 		t.Run(testCase.msg, func(t *testing.T) {
 			var err error
-			var c Config = Config{
+			c := Config{
 				InsecureBootstrap:     testCase.insecureBootstrap,
 				TrustBundlePath:       testCase.trustBundlePath,
 				TrustBundleFormat:     testCase.trustBundleFormat,
