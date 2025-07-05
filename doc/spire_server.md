@@ -261,7 +261,7 @@ When setting a `bundle_endpoint`, it is `required` to specify the bundle profile
 
 Allowed profiles:
 
-- `https_web` allow to configure either the [Automated Certificate Management Environment](#Configuration options for `federation.bundle_endpoint.profile "https_web".acme`) or the [serving cert file](#Configure options for 'federation.bundle_endpoint.porfile "https_web".serving_cert_file') section.
+- `https_web` allow to configure either the [Automated Certificate Management Environment](#configuration-options-for-federationbundle_endpointprofile-https_webacme) or the [serving cert file](#configuration-options-for-federationbundle_endpointprofile-https_webserving_cert_file) section.
 - `https_spiffe`
 
 ### Configuration options for `federation.bundle_endpoint.profile "https_web".acme`
