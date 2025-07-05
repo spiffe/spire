@@ -1776,9 +1776,8 @@ func includeNonReattestable(include bool) func(db *gorm.DB) *gorm.DB {
 	return func(tx *gorm.DB) *gorm.DB {
 		if !include {
 			return tx.Where("can_reattest = ?", true)
-		} else {
-			return tx
 		}
+		return tx
 	}
 }
 
@@ -1789,22 +1788,21 @@ func pruneAttestedExpiredNodes(tx *gorm.DB, expiredBefore time.Time, include boo
 		return newWrappedSQLError(err)
 	}
 
+	var count int
+	defer func() { logger.WithField("count", count).Info("Pruned expired agents") }()
+
 	for _, node := range expiredNodes {
 		_, err := deleteAttestedNodeAndSelectors(tx, node.SpiffeID)
 		if err != nil {
 			return err
 		}
+		count++
+
 		if err := createAttestedNodeEvent(tx, &datastore.AttestedNodeEvent{
 			SpiffeID: node.SpiffeID,
 		}); err != nil {
 			return err
 		}
-
-		logger.WithFields(logrus.Fields{
-			telemetry.SPIFFEID:         node.SpiffeID,
-			telemetry.SVIDSerialNumber: node.SerialNumber,
-			telemetry.SerialNumber:     "CURRENT",
-		}).Info("Pruned an expired node")
 	}
 
 	return nil

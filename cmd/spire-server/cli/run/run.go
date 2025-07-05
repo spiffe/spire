@@ -86,7 +86,7 @@ type serverConfig struct {
 	LogFormat                    string             `hcl:"log_format"`
 	LogSourceLocation            bool               `hcl:"log_source_location"`
 	PruneAttestedNodesExpiredFor string             `hcl:"prune_attested_nodes_expired_for"`
-	PruneNonReattestableNodes    bool               `hcl:"prune_non_reattestable_nodes"`
+	PruneNonReattestableNodes    bool               `hcl:"prune_tofu_nodes"`
 	RateLimit                    rateLimitConfig    `hcl:"ratelimit"`
 	SocketPath                   string             `hcl:"socket_path"`
 	TrustDomain                  string             `hcl:"trust_domain"`

@@ -42,7 +42,9 @@ func (s *ManagerSuite) SetupTest() {
 func (s *ManagerSuite) TestPruning() {
 	expiredFor := 5 * time.Minute
 
-	done := s.setupAndRunManager(expiredFor)
+	ctx := s.T().Context()
+
+	done := s.setupAndRunManager(ctx, expiredFor)
 	defer done()
 
 	// banned node is never pruned
@@ -53,7 +55,8 @@ func (s *ManagerSuite) TestPruning() {
 		CanReattest:         true,
 		CertNotAfter:        s.clock.Now().Unix(),
 	}
-	attestedNodeBanned, err := s.ds.CreateAttestedNode(context.Background(), nodeBanned)
+
+	attestedNodeBanned, err := s.ds.CreateAttestedNode(ctx, nodeBanned)
 	s.NoError(err)
 
 	// non-reattestable node is pruned when IncludeNonReattestable == true
@@ -64,7 +67,7 @@ func (s *ManagerSuite) TestPruning() {
 		CanReattest:         false,
 		CertNotAfter:        s.clock.Now().Unix(),
 	}
-	attestedNodeNonReattestable, err := s.ds.CreateAttestedNode(context.Background(), nodeNonReattestable)
+	attestedNodeNonReattestable, err := s.ds.CreateAttestedNode(ctx, nodeNonReattestable)
 	s.NoError(err)
 
 	// expired on pruning time
@@ -76,7 +79,7 @@ func (s *ManagerSuite) TestPruning() {
 		CertNotAfter:        s.clock.Now().Unix(),
 	}
 
-	attestedNodeExpired0, err := s.ds.CreateAttestedNode(context.Background(), expired0)
+	attestedNodeExpired0, err := s.ds.CreateAttestedNode(ctx, expired0)
 	s.NoError(err)
 
 	// expires in pruning time + one minute
@@ -88,13 +91,13 @@ func (s *ManagerSuite) TestPruning() {
 		CertNotAfter:        s.clock.Now().Add(expiredFor + time.Minute).Unix(),
 	}
 
-	attestedNodeExpired1, err := s.ds.CreateAttestedNode(context.Background(), expired1)
+	attestedNodeExpired1, err := s.ds.CreateAttestedNode(ctx, expired1)
 	s.NoError(err)
 
 	// no pruning yet
 	s.clock.Add(expiredFor)
 	s.Require().Eventuallyf(func() bool {
-		listResp, err := s.ds.ListAttestedNodes(context.Background(), &datastore.ListAttestedNodesRequest{})
+		listResp, err := s.ds.ListAttestedNodes(ctx, &datastore.ListAttestedNodesRequest{})
 		s.NoError(err)
 		return reflect.DeepEqual([]*common.AttestedNode{
 			attestedNodeBanned,
@@ -107,7 +110,7 @@ func (s *ManagerSuite) TestPruning() {
 	// prune the first entry
 	s.clock.Add(expiredFor)
 	s.Require().Eventuallyf(func() bool {
-		listResp, err := s.ds.ListAttestedNodes(context.Background(), &datastore.ListAttestedNodesRequest{})
+		listResp, err := s.ds.ListAttestedNodes(ctx, &datastore.ListAttestedNodesRequest{})
 		s.NoError(err)
 		return reflect.DeepEqual([]*common.AttestedNode{
 			attestedNodeBanned,
@@ -119,7 +122,7 @@ func (s *ManagerSuite) TestPruning() {
 	// prune the second entry
 	s.clock.Add(expiredFor)
 	s.Require().Eventuallyf(func() bool {
-		listResp, err := s.ds.ListAttestedNodes(context.Background(), &datastore.ListAttestedNodesRequest{})
+		listResp, err := s.ds.ListAttestedNodes(ctx, &datastore.ListAttestedNodesRequest{})
 		s.NoError(err)
 		return reflect.DeepEqual([]*common.AttestedNode{
 			attestedNodeBanned,
@@ -130,8 +133,8 @@ func (s *ManagerSuite) TestPruning() {
 	// explicitly prune non-reattestable node using on-demand API,
 	// while overriding the existing pruning cadence
 	s.Require().Eventuallyf(func() bool {
-		s.m.Prune(context.Background(), 2*expiredFor, true)
-		listResp, err := s.ds.ListAttestedNodes(context.Background(), &datastore.ListAttestedNodesRequest{})
+		s.m.Prune(ctx, 2*expiredFor, true)
+		listResp, err := s.ds.ListAttestedNodes(ctx, &datastore.ListAttestedNodesRequest{})
 		s.Require().NoError(err)
 		return reflect.DeepEqual([]*common.AttestedNode{
 			attestedNodeBanned,
@@ -139,7 +142,7 @@ func (s *ManagerSuite) TestPruning() {
 	}, 1*time.Second, 100*time.Millisecond, "Failed to prune nodes correctly")
 }
 
-func (s *ManagerSuite) setupAndRunManager(expiredFor time.Duration) func() {
+func (s *ManagerSuite) setupAndRunManager(ctx context.Context, expiredFor time.Duration) func() {
 	s.m = NewManager(ManagerConfig{
 		Clock:     s.clock,
 		DataStore: s.ds,
@@ -151,7 +154,7 @@ func (s *ManagerSuite) setupAndRunManager(expiredFor time.Duration) func() {
 		},
 	})
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(ctx)
 	errCh := make(chan error, 1)
 	go func() {
 		errCh <- s.m.Run(ctx)
