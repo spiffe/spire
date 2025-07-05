@@ -373,6 +373,15 @@ func (ds *Plugin) DeleteAttestedNode(ctx context.Context, spiffeID string) (atte
 	return attestedNode, nil
 }
 
+// PruneAttestedExpiredNodes deletes attested nodes with expiration time further than a given duration in the past.
+// Non-reattestable nodes are not deleted by default, and have to be included explicitly by setting
+// includeNonReattestable = true. Banned nodes are not deleted.
+func (ds *Plugin) PruneAttestedExpiredNodes(ctx context.Context, expiredBefore time.Time, includeNonReattestable bool) error {
+	return ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
+		return pruneAttestedExpiredNodes(tx, expiredBefore, includeNonReattestable, ds.log)
+	})
+}
+
 // ListAttestedNodeEvents lists all attested node events
 func (ds *Plugin) ListAttestedNodeEvents(ctx context.Context, req *datastore.ListAttestedNodeEventsRequest) (resp *datastore.ListAttestedNodeEventsResponse, err error) {
 	if req.DataConsistency == datastore.TolerateStale && ds.roDb != nil {
@@ -1753,6 +1762,52 @@ func pruneAttestedNodeEvents(tx *gorm.DB, olderThan time.Duration) error {
 	return nil
 }
 
+func notBanned(tx *gorm.DB) *gorm.DB {
+	return tx.Where("serial_number <> ''")
+}
+
+func expiredForDuration(expiredBefore time.Time) func(db *gorm.DB) *gorm.DB {
+	return func(tx *gorm.DB) *gorm.DB {
+		return tx.Where("expires_at < ?", expiredBefore)
+	}
+}
+
+func includeNonReattestable(include bool) func(db *gorm.DB) *gorm.DB {
+	return func(tx *gorm.DB) *gorm.DB {
+		if !include {
+			return tx.Where("can_reattest = ?", true)
+		}
+		return tx
+	}
+}
+
+func pruneAttestedExpiredNodes(tx *gorm.DB, expiredBefore time.Time, include bool, logger logrus.FieldLogger) error {
+	var expiredNodes []AttestedNode
+
+	if err := tx.Scopes(expiredForDuration(expiredBefore), includeNonReattestable(include), notBanned).Limit(1000).Find(&expiredNodes).Error; err != nil {
+		return newWrappedSQLError(err)
+	}
+
+	var count int
+	defer func() { logger.WithField("count", count).Info("Pruned expired agents") }()
+
+	for _, node := range expiredNodes {
+		_, err := deleteAttestedNodeAndSelectors(tx, node.SpiffeID)
+		if err != nil {
+			return err
+		}
+		count++
+
+		if err := createAttestedNodeEvent(tx, &datastore.AttestedNodeEvent{
+			SpiffeID: node.SpiffeID,
+		}); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func fetchAttestedNodeEvent(db *sqlDB, eventID uint) (*datastore.AttestedNodeEvent, error) {
 	event := AttestedNodeEvent{}
 	if err := db.Find(&event, "id = ?", eventID).Error; err != nil {
@@ -1953,7 +2008,7 @@ func buildListAttestedNodesQueryCTE(req *datastore.ListAttestedNodesRequest, dbT
 	    FROM
 			filtered_nodes
 	    LEFT JOIN
-	 	    node_resolver_map_entries nr       
+	 	    node_resolver_map_entries nr
 	    ON
 	        nr.spiffe_id=filtered_nodes.spiffe_id
 	)
@@ -1976,7 +2031,7 @@ SELECT
 	if fetchSelectors {
 		builder.WriteString(`
 	selector_type,
-	selector_value 
+	selector_value
 	  `)
 	} else {
 		builder.WriteString(`
@@ -2095,7 +2150,7 @@ func buildListAttestedNodesQueryMySQL(req *datastore.ListAttestedNodesRequest) (
 
 	// Add expected fields
 	builder.WriteString(`
-SELECT 
+SELECT
 	N.id AS e_id,
 	N.spiffe_id,
 	N.data_type,
@@ -2108,9 +2163,9 @@ SELECT
 	if fetchSelectors {
 		builder.WriteString(`
 	S.type AS selector_type,
-	S.value AS selector_value 
+	S.value AS selector_value
 FROM attested_node_entries N
-LEFT JOIN 
+LEFT JOIN
 	node_resolver_map_entries S
 ON
 	N.spiffe_id = S.spiffe_id
