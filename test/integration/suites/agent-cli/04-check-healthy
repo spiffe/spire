@@ -6,28 +6,29 @@ HEALTHCHECK=0
 HEALTHCHECK_FAIL=0
 
 for ((m=1;m<=$RETRIES;m++)); do
-
     AGENTS=$(docker compose exec -T spire-server /opt/spire/bin/spire-server agent list)
     if [ "$AGENTS" != "No attested agents found" ]; then
         AGENT_FOUND=1  
-        break
     fi
 
+    HEALTH=$(docker compose exec -T spire-agent /opt/spire/bin/spire-agent healthcheck)
+    HEALTH_FAIL=$(docker compose exec -T spire-agent /opt/spire/bin/spire-agent healthcheck -socketPath invalid/path 2>&1 &)
+
+    if [[ "$HEALTH" =~ "Agent is healthy." ]]; then
+        HEALTHCHECK=1
+    else
+        log-info "Healthcheck failed: ${HEALTH}"
+    fi
+
+    if [[ "$HEALTH_FAIL" =~ "Agent is unhealthy: unable to determine health" ]]; then
+        HEALTHCHECK_FAIL=1
+    else
+        log-info "Healthcheck with invalid path did not provide the expected output: ${HEALTH_FAIL}"
+    fi
+
+    if [ $AGENT_FOUND -eq 1 ] && [ $HEALTHCHECK -eq 1 ] && [ $HEALTHCHECK_FAIL -eq 1 ]; then
+        exit 0
+    fi
 done
 
-HEALTH=$(docker compose exec -T spire-agent /opt/spire/bin/spire-agent healthcheck)
-HEALTH_FAIL=$(docker compose exec -T spire-agent /opt/spire/bin/spire-agent healthcheck -socketPath invalid/path 2>&1 &)
-
-if [[ "$HEALTH" =~ "Agent is healthy." ]]; then
-    HEALTHCHECK=1
-fi
-
-if [[ "$HEALTH_FAIL" =~ "Agent is unhealthy: unable to determine health" ]]; then
-    HEALTHCHECK_FAIL=1
-fi
-
-if [ $AGENT_FOUND -eq 1 ] && [ $HEALTHCHECK -eq 1 ] && [ $HEALTHCHECK_FAIL -eq 1 ]; then
-    exit 0
-else
-    exit 1
-fi
+fail-now "Agent not found or healthcheck failed."
