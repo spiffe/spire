@@ -946,13 +946,6 @@ func keySpecFromKeyType(keyType keymanagerv1.KeyType) (types.KeySpec, bool) {
 	}
 }
 
-func min(x, y time.Duration) time.Duration {
-	if x < y {
-		return x
-	}
-	return y
-}
-
 func getOrCreateServerID(idPath string) (string, error) {
 	// get id from path
 	data, err := os.ReadFile(idPath)

@@ -139,7 +139,7 @@ endif
 
 go_path := PATH="$(go_bin_dir):$(PATH)"
 
-golangci_lint_version := $(shell grep "github.com/golangci/golangci-lint v" go.mod | awk '{print $$2}')
+golangci_lint_version := $(shell awk '/golangci-lint/{print $$2}' .spire-tool-versions)
 golangci_lint_dir = $(build_dir)/golangci_lint/$(golangci_lint_version)
 golangci_lint_cache = $(golangci_lint_dir)/cache
 
@@ -406,7 +406,9 @@ lint: lint-code lint-md
 
 lint-code: | go-check
 	$(E)mkdir -p $(golangci_lint_cache)
-	$(E)$(go_path) GOLANGCI_LINT_CACHE="$(golangci_lint_cache)" go tool github.com/golangci/golangci-lint/cmd/golangci-lint run --max-issues-per-linter=0 --max-same-issues=0 ./...
+	$(E)$(go_path) GOLANGCI_LINT_CACHE="$(golangci_lint_cache)" \
+		go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(golangci_lint_version) \
+		run --max-issues-per-linter=0 --max-same-issues=0 ./...
 
 lint-md:
 	$(E)docker run --rm -v "$(DIR):/workdir" $(markdown_lint_image) "**/*.md"

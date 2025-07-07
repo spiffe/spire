@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
-	types "github.com/spiffe/spire-api-sdk/proto/spire/api/types"
+	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/proto/spire/common"
 )
 
