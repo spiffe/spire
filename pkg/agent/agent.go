@@ -118,7 +118,7 @@ func (a *Agent) Run(ctx context.Context) error {
 		_, reattestable, err := sto.LoadSVID()
 		if err == nil && !reattestable {
 			if a.c.RebootstrapMode == RebootstrapAlways {
-				return fmt.Errorf("You have requested rebootstrap support but the NodeAttestor plugin or the spire server configuration is not allowing it.")
+				return errors.New("You have requested rebootstrap support but the NodeAttestor plugin or the spire server configuration is not allowing it.")
 			} else {
 				a.c.Log.Warn("You have requested rebootstrap support but the NodeAttestor plugin or the spire server configuration is not allowing it. Disabling.")
 				a.c.RebootstrapMode = RebootstrapNever
@@ -155,7 +155,7 @@ func (a *Agent) Run(ctx context.Context) error {
 						_, reattestable, err := sto.LoadSVID()
 						if err == nil && !reattestable {
 							if a.c.RebootstrapMode == RebootstrapAlways {
-								return fmt.Errorf("You have requested rebootstrap support but the NodeAttestor plugin or the spire server configuration is not allowing it.")
+								return errors.New("You have requested rebootstrap support but the NodeAttestor plugin or the spire server configuration is not allowing it.")
 							} else {
 								a.c.Log.Warn("You have requested rebootstrap support but the NodeAttestor plugin or the spire server configuration is not allowing it. Disabling.")
 								a.c.RebootstrapMode = RebootstrapNever

@@ -349,7 +349,7 @@ func (m *manager) runSynchronizer(ctx context.Context) error {
 				if err != nil {
 					return err
 				}
-				return fmt.Errorf("Shutting down for rebootstrapping")
+				return errors.New("Shutting down for rebootstrapping")
 			}
 			m.synchronizeBackoff.Reset()
 			syncInterval = m.synchronizeBackoff.NextBackOff()
