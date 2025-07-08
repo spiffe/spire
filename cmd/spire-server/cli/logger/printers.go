@@ -33,8 +33,5 @@ func PrettyPrintLogger(env *commoncli.Env, results ...any) error {
 		return fmt.Errorf("internal error: logrus log level %d has no name; please report this as a bug", logrusLaunch)
 	}
 
-	if err := env.Printf("Logger Level : %s\nLaunch Level : %s\n\n", currentText, launchText); err != nil {
-		return err
-	}
-	return nil
+	return env.Printf("Logger Level : %s\nLaunch Level : %s\n\n", currentText, launchText)
 }

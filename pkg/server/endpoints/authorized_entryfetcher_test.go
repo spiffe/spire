@@ -411,8 +411,8 @@ func TestUpdateRegistrationEntriesCacheSkippedStartupEvents(t *testing.T) {
 	entries, err := ef.FetchAuthorizedEntries(ctx, agentID)
 	require.NoError(t, err)
 	require.Equal(t, 1, len(entries))
-	require.Equal(t, entry2.EntryId, entries[0].Id)
-	require.Equal(t, entry2.SpiffeId, idutil.RequireIDProtoString(entries[0].SpiffeId))
+	require.Equal(t, entry2.EntryId, entries[0].GetId())
+	require.Equal(t, entry2.SpiffeId, idutil.RequireIDProtoString(entries[0].GetSpiffeId()))
 
 	// Recreate First Registration Entry and delete the event associated with this create
 	entry1, err = ds.CreateRegistrationEntry(ctx, &common.RegistrationEntry{
@@ -438,8 +438,8 @@ func TestUpdateRegistrationEntriesCacheSkippedStartupEvents(t *testing.T) {
 	entries, err = ef.FetchAuthorizedEntries(ctx, agentID)
 	require.NoError(t, err)
 	require.Equal(t, 1, len(entries))
-	require.Equal(t, entry2.EntryId, entries[0].Id)
-	require.Equal(t, entry2.SpiffeId, idutil.RequireIDProtoString(entries[0].SpiffeId))
+	require.Equal(t, entry2.EntryId, entries[0].GetId())
+	require.Equal(t, entry2.SpiffeId, idutil.RequireIDProtoString(entries[0].GetSpiffeId()))
 
 	// Add back in first event
 	err = ds.CreateRegistrationEntryEventForTesting(ctx, &datastore.RegistrationEntryEvent{
@@ -460,8 +460,8 @@ func TestUpdateRegistrationEntriesCacheSkippedStartupEvents(t *testing.T) {
 	entryIDs := make([]string, 0, 2)
 	spiffeIDs := make([]string, 0, 2)
 	for _, entry := range entries {
-		entryIDs = append(entryIDs, entry.Id)
-		spiffeIDs = append(spiffeIDs, idutil.RequireIDProtoString(entry.SpiffeId))
+		entryIDs = append(entryIDs, entry.GetId())
+		spiffeIDs = append(spiffeIDs, idutil.RequireIDProtoString(entry.GetSpiffeId()))
 	}
 	require.Contains(t, entryIDs, entry1.EntryId)
 	require.Contains(t, entryIDs, entry2.EntryId)
@@ -582,8 +582,8 @@ func TestUpdateAttestedNodesCacheSkippedEvents(t *testing.T) {
 	entries, err = ef.FetchAuthorizedEntries(ctx, agent2)
 	require.NoError(t, err)
 	require.Equal(t, 1, len(entries))
-	require.Equal(t, entry.EntryId, entries[0].Id)
-	require.Equal(t, entry.SpiffeId, idutil.RequireIDProtoString(entries[0].SpiffeId))
+	require.Equal(t, entry.EntryId, entries[0].GetId())
+	require.Equal(t, entry.SpiffeId, idutil.RequireIDProtoString(entries[0].GetSpiffeId()))
 }
 
 func TestUpdateAttestedNodesCacheSkippedStartupEvents(t *testing.T) {
@@ -713,8 +713,8 @@ func TestUpdateAttestedNodesCacheSkippedStartupEvents(t *testing.T) {
 	entries, err = ef.FetchAuthorizedEntries(ctx, agent1)
 	require.NoError(t, err)
 	require.Equal(t, 1, len(entries))
-	require.Equal(t, entry.EntryId, entries[0].Id)
-	require.Equal(t, entry.SpiffeId, idutil.RequireIDProtoString(entries[0].SpiffeId))
+	require.Equal(t, entry.EntryId, entries[0].GetId())
+	require.Equal(t, entry.SpiffeId, idutil.RequireIDProtoString(entries[0].GetSpiffeId()))
 }
 
 // AgentsByIDCacheCount

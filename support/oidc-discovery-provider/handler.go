@@ -135,7 +135,7 @@ func (h *Handler) serveWellKnown(w http.ResponseWriter, r *http.Request) {
 
 		AuthorizationEndpoint:            "",
 		ResponseTypesSupported:           []string{"id_token"},
-		SubjectTypesSupported:            []string{},
+		SubjectTypesSupported:            []string{"public"},
 		IDTokenSigningAlgValuesSupported: []string{"RS256", "ES256", "ES384"},
 	}
 

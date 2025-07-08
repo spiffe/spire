@@ -14,7 +14,6 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/backoff"
 	"github.com/spiffe/spire/pkg/common/telemetry"
-	"github.com/spiffe/spire/pkg/common/telemetry/agent"
 	agentmetrics "github.com/spiffe/spire/pkg/common/telemetry/agent"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/proto/spire/common"
@@ -633,7 +632,7 @@ func (c *LRUCache) notifyTaintedBatchProcessed() {
 
 // processTaintedSVIDs identifies and removes tainted SVIDs from the cache that have been signed by the given tainted authorities.
 func (c *LRUCache) processTaintedSVIDs(entryIDs []string, taintedX509Authorities []*x509.Certificate) {
-	counter := telemetry.StartCall(c.metrics, telemetry.CacheManager, agent.CacheTypeWorkload, telemetry.ProcessTaintedX509SVIDs)
+	counter := telemetry.StartCall(c.metrics, telemetry.CacheManager, agentmetrics.CacheTypeWorkload, telemetry.ProcessTaintedX509SVIDs)
 	defer counter.Done(nil)
 
 	taintedSVIDs := 0

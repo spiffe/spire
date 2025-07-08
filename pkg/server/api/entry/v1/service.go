@@ -390,14 +390,13 @@ func (s *Service) GetAuthorizedEntries(ctx context.Context, req *entryv1.GetAuth
 	if err != nil {
 		return nil, err
 	}
-	for i, entry := range entries {
-		applyMask(entry, req.OutputMask)
-		entries[i] = entry
+
+	resp := &entryv1.GetAuthorizedEntriesResponse{}
+
+	for _, entry := range entries {
+		resp.Entries = append(resp.Entries, entry.Clone(req.OutputMask))
 	}
 
-	resp := &entryv1.GetAuthorizedEntriesResponse{
-		Entries: entries,
-	}
 	rpccontext.AuditRPC(ctx)
 
 	return resp, nil
@@ -423,7 +422,7 @@ func (s *Service) SyncAuthorizedEntries(stream entryv1.Entry_SyncAuthorizedEntri
 	return SyncAuthorizedEntries(stream, entries, s.entryPageSize)
 }
 
-func SyncAuthorizedEntries(stream entryv1.Entry_SyncAuthorizedEntriesServer, entries []*types.Entry, entryPageSize int) (err error) {
+func SyncAuthorizedEntries(stream entryv1.Entry_SyncAuthorizedEntriesServer, entries []api.ReadOnlyEntry, entryPageSize int) (err error) {
 	// Receive the initial request with the output mask.
 	req, err := stream.Recv()
 	if err != nil {
@@ -446,18 +445,17 @@ func SyncAuthorizedEntries(stream entryv1.Entry_SyncAuthorizedEntriesServer, ent
 
 	// Apply output mask to entries. The output mask field will be
 	// intentionally ignored on subsequent requests.
-	for i, entry := range entries {
-		applyMask(entry, req.OutputMask)
-		entries[i] = entry
-	}
+	initialOutputMask := req.OutputMask
 
 	// If the number of entries is less than or equal to the entry page size,
 	// then just send the full list back. Otherwise, we'll send a sparse list
 	// and then stream back full entries as requested.
 	if len(entries) <= entryPageSize {
-		return stream.Send(&entryv1.SyncAuthorizedEntriesResponse{
-			Entries: entries,
-		})
+		resp := &entryv1.SyncAuthorizedEntriesResponse{}
+		for _, entry := range entries {
+			resp.Entries = append(resp.Entries, entry.Clone(initialOutputMask))
+		}
+		return stream.Send(resp)
 	}
 
 	// Prepopulate the entry page used in the response with empty entry structs.
@@ -474,9 +472,9 @@ func SyncAuthorizedEntries(stream entryv1.Entry_SyncAuthorizedEntriesServer, ent
 			more = true
 		}
 		for j, entry := range entries[i : i+n] {
-			entryRevisions[j].Id = entry.Id
-			entryRevisions[j].RevisionNumber = entry.RevisionNumber
-			entryRevisions[j].CreatedAt = entry.CreatedAt
+			entryRevisions[j].Id = entry.GetId()
+			entryRevisions[j].RevisionNumber = entry.GetRevisionNumber()
+			entryRevisions[j].CreatedAt = entry.GetCreatedAt()
 		}
 
 		if err := stream.Send(&entryv1.SyncAuthorizedEntriesResponse{
@@ -529,7 +527,7 @@ func SyncAuthorizedEntries(stream entryv1.Entry_SyncAuthorizedEntriesServer, ent
 		entriesToSearch := entries
 		for _, id := range req.Ids {
 			i, found := sort.Find(len(entriesToSearch), func(i int) int {
-				return strings.Compare(id, entriesToSearch[i].Id)
+				return strings.Compare(id, entriesToSearch[i].GetId())
 			})
 			if found {
 				if len(resp.Entries) == entryPageSize {
@@ -542,7 +540,7 @@ func SyncAuthorizedEntries(stream entryv1.Entry_SyncAuthorizedEntriesServer, ent
 					}
 					resp.Entries = resp.Entries[:0]
 				}
-				resp.Entries = append(resp.Entries, entriesToSearch[i])
+				resp.Entries = append(resp.Entries, entriesToSearch[i].Clone(initialOutputMask))
 			}
 			entriesToSearch = entriesToSearch[i:]
 			if len(entriesToSearch) == 0 {
@@ -559,7 +557,7 @@ func SyncAuthorizedEntries(stream entryv1.Entry_SyncAuthorizedEntriesServer, ent
 }
 
 // fetchEntries fetches authorized entries using caller ID from context
-func (s *Service) fetchEntries(ctx context.Context, log logrus.FieldLogger) ([]*types.Entry, error) {
+func (s *Service) fetchEntries(ctx context.Context, log logrus.FieldLogger) ([]api.ReadOnlyEntry, error) {
 	callerID, ok := rpccontext.CallerID(ctx)
 	if !ok {
 		return nil, api.MakeErr(log, codes.Internal, "caller ID missing from request context", nil)
@@ -843,8 +841,8 @@ func fieldsFromCountEntryFilter(ctx context.Context, td spiffeid.TrustDomain, fi
 	return fields
 }
 
-func sortEntriesByID(entries []*types.Entry) {
+func sortEntriesByID(entries []api.ReadOnlyEntry) {
 	sort.Slice(entries, func(a, b int) bool {
-		return entries[a].Id < entries[b].Id
+		return entries[a].GetId() < entries[b].GetId()
 	})
 }

@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"net/http"
@@ -114,13 +115,20 @@ func (a *Agent) Run(ctx context.Context) error {
 		)
 
 		for {
-			as, err = a.attest(ctx, sto, cat, metrics, nodeAttestor)
-			if err == nil {
-				break
+			insecureBootstrap := false
+			bootstrapTrustBundle, err := sto.LoadBundle()
+			if errors.Is(err, storage.ErrNotCached) {
+				bootstrapTrustBundle, insecureBootstrap, err = a.c.TrustBundleSources.GetBundle()
 			}
+			if err == nil {
+				as, err = a.attest(ctx, sto, cat, metrics, nodeAttestor, bootstrapTrustBundle, insecureBootstrap)
+				if err == nil {
+					break
+				}
 
-			if status.Code(err) == codes.PermissionDenied {
-				return err
+				if status.Code(err) == codes.PermissionDenied {
+					return err
+				}
 			}
 
 			nextDuration := attBackoff.NextBackOff()
@@ -141,7 +149,15 @@ func (a *Agent) Run(ctx context.Context) error {
 			}
 		}
 	} else {
-		as, err = a.attest(ctx, sto, cat, metrics, nodeAttestor)
+		insecureBootstrap := false
+		bootstrapTrustBundle, err := sto.LoadBundle()
+		if errors.Is(err, storage.ErrNotCached) {
+			bootstrapTrustBundle, insecureBootstrap, err = a.c.TrustBundleSources.GetBundle()
+		}
+		if err != nil {
+			return err
+		}
+		as, err = a.attest(ctx, sto, cat, metrics, nodeAttestor, bootstrapTrustBundle, insecureBootstrap)
 		if err != nil {
 			return err
 		}
@@ -249,19 +265,19 @@ func (a *Agent) setupProfiling(ctx context.Context) (stop func()) {
 	}
 }
 
-func (a *Agent) attest(ctx context.Context, sto storage.Storage, cat catalog.Catalog, metrics telemetry.Metrics, na nodeattestor.NodeAttestor) (*node_attestor.AttestationResult, error) {
+func (a *Agent) attest(ctx context.Context, sto storage.Storage, cat catalog.Catalog, metrics telemetry.Metrics, na nodeattestor.NodeAttestor, bootstrapTrustBundle []*x509.Certificate, insecureBootstrap bool) (*node_attestor.AttestationResult, error) {
 	config := node_attestor.Config{
-		Catalog:           cat,
-		Metrics:           metrics,
-		JoinToken:         a.c.JoinToken,
-		TrustDomain:       a.c.TrustDomain,
-		TrustBundle:       a.c.TrustBundle,
-		InsecureBootstrap: a.c.InsecureBootstrap,
-		Storage:           sto,
-		Log:               a.c.Log.WithField(telemetry.SubsystemName, telemetry.Attestor),
-		ServerAddress:     a.c.ServerAddress,
-		NodeAttestor:      na,
-		TLSPolicy:         a.c.TLSPolicy,
+		Catalog:              cat,
+		Metrics:              metrics,
+		JoinToken:            a.c.JoinToken,
+		TrustDomain:          a.c.TrustDomain,
+		BootstrapTrustBundle: bootstrapTrustBundle,
+		InsecureBootstrap:    insecureBootstrap,
+		Storage:              sto,
+		Log:                  a.c.Log.WithField(telemetry.SubsystemName, telemetry.Attestor),
+		ServerAddress:        a.c.ServerAddress,
+		NodeAttestor:         na,
+		TLSPolicy:            a.c.TLSPolicy,
 	}
 	return node_attestor.New(&config).Attest(ctx)
 }

@@ -395,7 +395,7 @@ func TestLoadEntryCache(t *testing.T) {
 			require.Equal(t, 0, cacheStats.EntriesByEntryID,
 				"clearing all expected entry ids didn't clear cache")
 
-			var lastMetrics map[string]int = make(map[string]int)
+			lastMetrics := make(map[string]int)
 			for _, metricItem := range scenario.metrics.AllMetrics() {
 				if metricItem.Type == fakemetrics.SetGaugeType {
 					key := strings.Join(metricItem.Key, " ")
@@ -807,7 +807,7 @@ func TestSearchBeforeFirstEntryEvent(t *testing.T) {
 			require.NoError(t, err, "error while running the test")
 
 			require.ElementsMatch(t, tt.expectedEventsBeforeFirst, slices.Collect(maps.Keys(registrationEntries.eventsBeforeFirst)), "expected events before tracking mismatch")
-			require.ElementsMatch(t, tt.expectedFetches, slices.Collect[string](maps.Keys(registrationEntries.fetchEntries)), "expected fetches mismatch")
+			require.ElementsMatch(t, tt.expectedFetches, slices.Collect(maps.Keys(registrationEntries.fetchEntries)), "expected fetches mismatch")
 
 			require.Zero(t, scenario.hook.Entries)
 		})

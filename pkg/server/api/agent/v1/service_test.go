@@ -6,6 +6,7 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"io"
 	"net/url"
 	"testing"
 	"time"
@@ -3424,7 +3425,9 @@ func attest(t *testing.T, stream agentv1.Agent_AttestAgentClient, request *agent
 	for {
 		// send
 		err := stream.Send(request)
-		require.NoError(t, err)
+		if !errors.Is(err, io.EOF) {
+			require.NoError(t, err)
+		}
 
 		// recv
 		resp, err := stream.Recv()

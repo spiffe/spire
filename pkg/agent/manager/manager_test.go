@@ -375,7 +375,7 @@ func TestSVIDRotation(t *testing.T) {
 
 	clk := clock.NewMock(t)
 
-	baseTTL := 3
+	baseTTLSeconds := 3
 	api := newMockAPI(t, &mockAPIConfig{
 		km: km,
 		getAuthorizedEntries: func(*mockAPI, int32, *entryv1.GetAuthorizedEntriesRequest) (*entryv1.GetAuthorizedEntriesResponse, error) {
@@ -384,12 +384,12 @@ func TestSVIDRotation(t *testing.T) {
 		batchNewX509SVIDEntries: func(*mockAPI, int32) []*common.RegistrationEntry {
 			return makeBatchNewX509SVIDEntries("resp1", "resp2")
 		},
-		svidTTL: baseTTL,
+		svidTTL: baseTTLSeconds,
 		clk:     clk,
 	})
 
-	baseTTLSeconds := time.Duration(baseTTL) * time.Second
-	baseSVID, baseSVIDKey := api.newSVID(joinTokenID, baseTTLSeconds)
+	baseTTL := time.Duration(baseTTLSeconds) * time.Second
+	baseSVID, baseSVIDKey := api.newSVID(joinTokenID, baseTTL)
 
 	cat := fakeagentcatalog.New()
 	cat.SetKeyManager(km)
@@ -404,7 +404,7 @@ func TestSVIDRotation(t *testing.T) {
 		Storage:          openStorage(t, dir),
 		Bundle:           api.bundle,
 		Metrics:          &telemetry.Blackhole{},
-		RotationInterval: baseTTLSeconds / 2,
+		RotationInterval: baseTTL / 2,
 		SyncInterval:     1 * time.Hour,
 		Clk:              clk,
 		WorkloadKeyType:  workloadkey.ECP256,
@@ -449,7 +449,7 @@ func TestSVIDRotation(t *testing.T) {
 	// Now advance time enough that the cert is expiring soon enough that the
 	// manager will attempt to rotate, but be unable to since the read lock is
 	// held.
-	clk.Add(baseTTLSeconds)
+	clk.Add(baseTTL)
 
 	closer := runManager(t, m)
 	defer closer()
@@ -467,13 +467,7 @@ func TestSVIDRotation(t *testing.T) {
 	m.GetRotationMtx().RUnlock()
 
 	// Loop until we detect an SVID rotation was called in separate process
-	util.RunWithTimeout(t, time.Minute, func() {
-		for {
-			if wasRotHookCalled() {
-				break
-			}
-		}
-	})
+	require.Eventually(t, wasRotHookCalled, time.Minute, 100*time.Millisecond)
 
 	s := m.GetCurrentCredentials()
 	svid = s.SVID
@@ -1419,7 +1413,7 @@ func TestSurvivesCARotation(t *testing.T) {
 	km := fakeagentkeymanager.New(t, dir)
 
 	clk := clock.NewMock(t)
-	ttl := 3
+	ttlSeconds := 3
 	api := newMockAPI(t, &mockAPIConfig{
 		km: km,
 		getAuthorizedEntries: func(h *mockAPI, count int32, req *entryv1.GetAuthorizedEntriesRequest) (*entryv1.GetAuthorizedEntriesResponse, error) {
@@ -1432,15 +1426,15 @@ func TestSurvivesCARotation(t *testing.T) {
 		clk: clk,
 		// Give a low ttl to get expired entries on each synchronization, forcing
 		// the manager to fetch entries from the server.
-		svidTTL: ttl,
+		svidTTL: ttlSeconds,
 	})
 
 	baseSVID, baseSVIDKey := api.newSVID(joinTokenID, 1*time.Hour)
 	cat := fakeagentcatalog.New()
 	cat.SetKeyManager(km)
 
-	ttlSeconds := time.Duration(ttl) * time.Second
-	syncInterval := ttlSeconds / 2
+	ttl := time.Duration(ttlSeconds) * time.Second
+	syncInterval := ttl / 2
 	c := &Config{
 		ServerAddr:       api.addr,
 		SVID:             baseSVID,

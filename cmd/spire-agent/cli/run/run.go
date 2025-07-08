@@ -261,7 +261,7 @@ func (c *agentConfig) validate() error {
 	}
 
 	if c.TrustBundleUnixSocket != "" && c.TrustBundleURL == "" {
-		return fmt.Errorf("if trust_bundle_unix_socket is specified, so must be trust_bundle_url")
+		return errors.New("if trust_bundle_unix_socket is specified, so must be trust_bundle_url")
 	}
 	if c.TrustBundleURL != "" {
 		u, err := url.Parse(c.TrustBundleURL)
@@ -475,7 +475,6 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 	}
 	ac.DisableSPIFFECertValidation = c.Agent.SDS.DisableSPIFFECertValidation
 
-	ac.InsecureBootstrap = c.Agent.InsecureBootstrap
 	ts := &trustbundlesources.Config{
 		InsecureBootstrap:     c.Agent.InsecureBootstrap,
 		TrustBundleFormat:     c.Agent.TrustBundleFormat,
@@ -483,10 +482,8 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 		TrustBundleURL:        c.Agent.TrustBundleURL,
 		TrustBundleUnixSocket: c.Agent.TrustBundleUnixSocket,
 	}
-	err = trustbundlesources.SetupTrustBundle(ac, ts)
-	if err != nil {
-		return nil, err
-	}
+
+	ac.TrustBundleSources = trustbundlesources.New(ts, ac.Log.WithField("Logger", "TrustBundleSources"))
 
 	ac.WorkloadKeyType = workloadkey.ECP256
 	if c.Agent.WorkloadX509SVIDKeyType != "" {

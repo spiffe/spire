@@ -4,7 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/tls"
-	x509 "crypto/x509"
+	"crypto/x509"
 	"encoding/json"
 	"encoding/pem"
 	"errors"
@@ -16,7 +16,7 @@ import (
 	"time"
 
 	agent "github.com/spiffe/spire-api-sdk/proto/spire/api/server/agent/v1"
-	types "github.com/spiffe/spire-api-sdk/proto/spire/api/types"
+	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/plugin/x509pop"
 	"github.com/spiffe/spire/test/integration/setup/itclient"
@@ -169,7 +169,7 @@ func doRenewStep(ctx context.Context) error {
 	}
 	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: svid})
 	if string(certPEM) == *certificate {
-		return fmt.Errorf("renewed agent successfully, but the old cert and the new cert are identical")
+		return errors.New("renewed agent successfully, but the old cert and the new cert are identical")
 	}
 
 	// Print the certificate so it can easily be used in the next step

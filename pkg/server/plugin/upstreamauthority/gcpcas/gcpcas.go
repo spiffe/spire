@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/x509"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"path"
 	"sort"
@@ -162,6 +163,10 @@ func (p *Plugin) MintX509CAAndSubscribe(request *upstreamauthorityv1.MintX509CAR
 // PublishJWTKeyAndSubscribe is not yet supported. It will return with GRPC Unimplemented error
 func (p *Plugin) PublishJWTKeyAndSubscribe(*upstreamauthorityv1.PublishJWTKeyRequest, upstreamauthorityv1.UpstreamAuthority_PublishJWTKeyAndSubscribeServer) error {
 	return status.Error(codes.Unimplemented, "publishing upstream is unsupported")
+}
+
+func (p *Plugin) SubscribeToLocalBundle(req *upstreamauthorityv1.SubscribeToLocalBundleRequest, stream upstreamauthorityv1.UpstreamAuthority_SubscribeToLocalBundleServer) error {
+	return status.Error(codes.Unimplemented, "fetching upstream trust bundle is unsupported")
 }
 
 func (p *Plugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
@@ -445,7 +450,7 @@ func (client *gcpCAClient) LoadCertificateAuthorities(ctx context.Context, spec 
 			if selectedPool == "" && len(page) > 0 {
 				selectedPool = pool
 			} else if selectedPool != "" && pool != selectedPool && len(page) > 0 {
-				return nil, fmt.Errorf("found authorities with matching labels across multiple pools")
+				return nil, errors.New("found authorities with matching labels across multiple pools")
 			}
 
 			allCerts = append(allCerts, page...)

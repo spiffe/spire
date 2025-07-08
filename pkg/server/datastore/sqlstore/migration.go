@@ -251,9 +251,14 @@ import (
 // | v1.11.1 |        |                                                                           |
 // |---------|        |                                                                           |
 // | v1.11.2 |        |                                                                           |
+// |---------|        |                                                                           |
+// | v1.11.3 |        |                                                                           |
 // |*********|********|***************************************************************************|
 // | v1.12.0 |        |                                                                           |
 // | v1.12.1 |        |                                                                           |
+// | v1.12.2 |        |                                                                           |
+// | v1.12.3 |        |                                                                           |
+// | v1.12.4 |        |                                                                           |
 // ================================================================================================
 
 const (
@@ -488,7 +493,7 @@ func migrateVersion(tx *gorm.DB, currVersion int, log logrus.FieldLogger) (versi
 	//   return nil
 	// }
 	//
-	switch currVersion { //nolint: gocritic // No upgrade required yet, keeping switch for future additions
+	switch currVersion { //nolint: gocritic,revive // No upgrade required yet, keeping switch for future additions
 	default:
 		err = newSQLError("no migration support for unknown schema version %d", currVersion)
 	}

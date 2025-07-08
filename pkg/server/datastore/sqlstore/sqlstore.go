@@ -1427,11 +1427,7 @@ func taintX509CA(tx *gorm.DB, trustDomainID string, subjectKeyIDToTaint string) 
 	bundle.SequenceNumber++
 
 	_, err = updateBundle(tx, bundle, nil)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return err
 }
 
 func revokeX509CA(tx *gorm.DB, trustDomainID string, subjectKeyIDToRevoke string) error {

@@ -319,8 +319,12 @@ func (p *Plugin) MintX509CAAndSubscribe(req *upstreamauthorityv1.MintX509CAReque
 }
 
 // The EJBCA UpstreamAuthority plugin does not support publishing JWT keys.
-func (p *Plugin) PublishJWTKeyAndSubscribe(_ *upstreamauthorityv1.PublishJWTKeyRequest, _ upstreamauthorityv1.UpstreamAuthority_PublishJWTKeyAndSubscribeServer) error {
+func (p *Plugin) PublishJWTKeyAndSubscribe(*upstreamauthorityv1.PublishJWTKeyRequest, upstreamauthorityv1.UpstreamAuthority_PublishJWTKeyAndSubscribeServer) error {
 	return status.Error(codes.Unimplemented, "publishing JWT keys is not supported by the EJBCA UpstreamAuthority plugin")
+}
+
+func (p *Plugin) SubscribeToLocalBundle(req *upstreamauthorityv1.SubscribeToLocalBundleRequest, stream upstreamauthorityv1.UpstreamAuthority_SubscribeToLocalBundleServer) error {
+	return status.Error(codes.Unimplemented, "fetching upstream trust bundle is unsupported")
 }
 
 // setConfig replaces the configuration atomically under a write lock.
@@ -408,7 +412,7 @@ func (p *Plugin) getEndEntityName(config *Config, csr *x509.CertificateRequest) 
 	// If we get here, we were unable to determine the end entity name
 	logger.Error(fmt.Sprintf("the endEntityName option is set to %q, but no valid end entity name could be determined from the CertificateRequest", config.DefaultEndEntityName))
 
-	return "", fmt.Errorf("no valid end entity name could be determined from the CertificateRequest")
+	return "", errors.New("no valid end entity name could be determined from the CertificateRequest")
 }
 
 // parseEjbcaError parses an error returned by the EJBCA API and returns a gRPC status error.
