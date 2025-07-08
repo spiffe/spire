@@ -16,7 +16,6 @@ import (
 	"github.com/spiffe/spire/pkg/agent/workloadkey"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
-	"github.com/spiffe/spire/pkg/common/telemetry/agent"
 	telemetry_agent "github.com/spiffe/spire/pkg/common/telemetry/agent"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/common/x509util"
@@ -111,11 +110,11 @@ func (m *manager) synchronize(ctx context.Context) (err error) {
 		return err
 	}
 
-	if err := m.updateCache(ctx, cacheUpdate, m.c.Log.WithField(telemetry.CacheType, agent.CacheTypeWorkload), "", m.cache); err != nil {
+	if err := m.updateCache(ctx, cacheUpdate, m.c.Log.WithField(telemetry.CacheType, telemetry_agent.CacheTypeWorkload), "", m.cache); err != nil {
 		return err
 	}
 
-	if err := m.updateCache(ctx, storeUpdate, m.c.Log.WithField(telemetry.CacheType, agent.CacheTypeSVIDStore), agent.CacheTypeSVIDStore, m.svidStoreCache); err != nil {
+	if err := m.updateCache(ctx, storeUpdate, m.c.Log.WithField(telemetry.CacheType, telemetry_agent.CacheTypeSVIDStore), telemetry_agent.CacheTypeSVIDStore, m.svidStoreCache); err != nil {
 		return err
 	}
 

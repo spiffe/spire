@@ -59,7 +59,7 @@ func TestAuthorizedEntryFetcherWithFullCache(t *testing.T) {
 
 	entries, err := f.FetchAuthorizedEntries(context.Background(), agentID)
 	assert.NoError(t, err)
-	assert.ElementsMatch(t, expectedEntries, entries)
+	assert.ElementsMatch(t, expectedEntries, entriesFromReadOnlyEntries(entries))
 }
 
 func TestAgentAuthorizer(t *testing.T) {

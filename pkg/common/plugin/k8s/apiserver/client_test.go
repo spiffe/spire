@@ -363,18 +363,18 @@ func createNode(nodeName string) *v1.Node {
 
 func (s *ClientSuite) createSampleKubeConfigFile(kubeConfigPath string) {
 	caPath := filepath.Join(s.dir, "ca.crt")
-	err := os.WriteFile(caPath, kubeConfigCA, 0600)
+	err := os.WriteFile(caPath, kubeConfigCA, 0o600)
 	s.Require().NoError(err)
 
 	clientCrtPath := filepath.Join(s.dir, "client.crt")
-	err = os.WriteFile(clientCrtPath, kubeConfigClientCert, 0600)
+	err = os.WriteFile(clientCrtPath, kubeConfigClientCert, 0o600)
 	s.Require().NoError(err)
 
 	clientKeyPath := filepath.Join(s.dir, "client.key")
-	err = os.WriteFile(clientKeyPath, kubeConfigClientKey, 0600)
+	err = os.WriteFile(clientKeyPath, kubeConfigClientKey, 0o600)
 	s.Require().NoError(err)
 
 	kubeConfigContent := fmt.Appendf(nil, kubeConfig, caPath, clientCrtPath, clientKeyPath)
-	err = os.WriteFile(kubeConfigPath, kubeConfigContent, 0600)
+	err = os.WriteFile(kubeConfigPath, kubeConfigContent, 0o600)
 	s.Require().NoError(err)
 }

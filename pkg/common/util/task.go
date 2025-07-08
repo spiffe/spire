@@ -28,7 +28,7 @@ func RunTasks(ctx context.Context, tasks ...func(context.Context) error) error {
 	runTask := func(task func(context.Context) error) (err error) {
 		defer func() {
 			if r := recover(); r != nil {
-				err = fmt.Errorf("panic: %v\n%s\n", r, string(debug.Stack()))
+				err = fmt.Errorf("panic: %v\n%s", r, string(debug.Stack()))
 			}
 			wg.Done()
 		}()
@@ -55,27 +55,4 @@ func RunTasks(ctx context.Context, tasks ...func(context.Context) error) error {
 	}
 
 	return nil
-}
-
-// SerialRun executes all the provided functions serially.
-// If all functions finish to completion successfully, SerialRun
-// returns nil. If the context passed to SerialRun is canceled
-// then each function is canceled and SerialRun returns ctx.Err().
-// Tasks passed to SerialRun MUST support cancellation via the provided
-// context for SerialRun to work properly.
-func SerialRun(tasks ...func(context.Context) error) func(ctx context.Context) error {
-	return func(ctx context.Context) (err error) {
-		defer func() {
-			if r := recover(); r != nil {
-				err = fmt.Errorf("panic: %v\n%s\n", r, string(debug.Stack()))
-			}
-		}()
-
-		for _, task := range tasks {
-			if err := task(ctx); err != nil {
-				return err
-			}
-		}
-		return nil
-	}
 }

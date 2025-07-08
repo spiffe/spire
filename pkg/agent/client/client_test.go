@@ -21,6 +21,7 @@ import (
 	svidv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/svid/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/api/entry/v1"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/spiretest"
@@ -1023,7 +1024,13 @@ func (c *fakeEntryServer) GetAuthorizedEntries(_ context.Context, in *entryv1.Ge
 
 func (c *fakeEntryServer) SyncAuthorizedEntries(stream entryv1.Entry_SyncAuthorizedEntriesServer) error {
 	const entryPageSize = 2
-	return entry.SyncAuthorizedEntries(stream, c.entries, entryPageSize)
+
+	entries := []api.ReadOnlyEntry{}
+	for _, entry := range c.entries {
+		entries = append(entries, api.NewReadOnlyEntry(entry))
+	}
+
+	return entry.SyncAuthorizedEntries(stream, entries, entryPageSize)
 }
 
 type fakeBundleServer struct {

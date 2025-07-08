@@ -737,11 +737,7 @@ func createJoinToken(ctx context.Context, c *itclient.Client) error {
 		return err
 	}
 	_, err = stream.Recv()
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return err
 }
 
 func countAgents(ctx context.Context, c *itclient.Client) error {
@@ -771,7 +767,7 @@ func listAgents(ctx context.Context, c *itclient.Client) error {
 	case err != nil:
 		return err
 	case len(resp.Agents) != 1:
-		return fmt.Errorf("only one agent is expected")
+		return errors.New("only one agent is expected")
 	}
 
 	// Validate agent

@@ -1198,15 +1198,6 @@ func TestFetchSecrets(t *testing.T) {
 	}
 }
 
-func DeltaSecretsTest(t *testing.T) {
-	test := setupTest(t)
-	defer test.cleanup()
-
-	resp, err := test.handler.DeltaSecrets(context.Background())
-	spiretest.RequireGRPCStatus(t, err, codes.Unimplemented, "Method is not implemented")
-	require.Nil(t, resp)
-}
-
 func setupTest(t *testing.T) *handlerTest {
 	return setupTestWithManager(t, Config{}, NewFakeManager(t))
 }
@@ -1434,7 +1425,7 @@ func requireSecrets(t *testing.T, resp *discovery_v3.DiscoveryResponse, expected
 	var actualSecrets []*tls_v3.Secret
 	for _, resource := range resp.Resources {
 		secret := new(tls_v3.Secret)
-		require.NoError(t, resource.UnmarshalTo(secret)) //nolint: scopelint // pointer to resource isn't held
+		require.NoError(t, resource.UnmarshalTo(secret))
 		actualSecrets = append(actualSecrets, secret)
 	}
 

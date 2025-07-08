@@ -24,7 +24,7 @@ func TestPrint(t *testing.T) {
 		{
 			name:   "error_without_string_is_still_an_error",
 			err:    errors.New(""),
-			stdout: "An unknown error occurred\n",
+			stdout: "an unknown error occurred\n",
 			stderr: "",
 		},
 		{

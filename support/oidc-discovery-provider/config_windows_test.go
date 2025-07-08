@@ -390,9 +390,73 @@ func parseConfigCasesOS() []parseConfigCase {
 						named_pipe_name = "\\name\\for\\workload\\api"
 					}
 					trust_domain="foo.test"
-			}
+				}
 			`,
-			err: "the server_api and workload_api sections are mutually exclusive",
+			err: "the server_api, workload_api, and file sections are mutually exclusive",
+		},
+		{
+			name: "more than one source section configured",
+			in: `
+				domains = ["domain.test"]
+				acme {
+					email = "admin@domain.test"
+					tos_accepted = true
+				}
+				server_api {
+					experimental {
+						named_pipe_name = "\\name\\for\\server\\api"
+					}
+				}
+				file {
+					path = "test.spiffe"
+				}
+			`,
+			err: "the server_api, workload_api, and file sections are mutually exclusive",
+		},
+		{
+			name: "more than one source section configured",
+			in: `
+				domains = ["domain.test"]
+				acme {
+					email = "admin@domain.test"
+					tos_accepted = true
+				}
+				workload_api {
+					experimental {
+						named_pipe_name = "\\name\\for\\workload\\api"
+					}
+					trust_domain="foo.test"
+				}
+				file {
+					path = "test.spiffe"
+				}
+			`,
+			err: "the server_api, workload_api, and file sections are mutually exclusive",
+		},
+		{
+			name: "more than one source section configured",
+			in: `
+				domains = ["domain.test"]
+				acme {
+					email = "admin@domain.test"
+					tos_accepted = true
+				}
+				server_api {
+					experimental {
+						named_pipe_name = "\\name\\for\\server\\api"
+					}
+				}
+				workload_api {
+					experimental {
+						named_pipe_name = "\\name\\for\\workload\\api"
+					}
+					trust_domain="foo.test"
+				}
+				file {
+					path = "test.spiffe"
+				}
+			`,
+			err: "the server_api, workload_api, and file sections are mutually exclusive",
 		},
 		{
 			name: "minimal server API config",
