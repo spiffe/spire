@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -54,22 +55,22 @@ func CalculateResponse(_ *Challenge) (*Response, error) {
 
 func VerifyChallenge(ctx context.Context, client *http.Client, attestationData *AttestationData, challenge *Challenge) error {
 	if attestationData.HostName == "" {
-		return fmt.Errorf("hostname must be set")
+		return errors.New("hostname must be set")
 	}
 	if attestationData.AgentName == "" {
-		return fmt.Errorf("agentname must be set")
+		return errors.New("agentname must be set")
 	}
 	if attestationData.Port <= 0 {
-		return fmt.Errorf("port is invalid")
+		return errors.New("port is invalid")
 	}
 	if strings.Contains(attestationData.HostName, "/") {
-		return fmt.Errorf("hostname can not contain a slash")
+		return errors.New("hostname can not contain a slash")
 	}
 	if strings.Contains(attestationData.HostName, ":") {
-		return fmt.Errorf("hostname can not contain a colon")
+		return errors.New("hostname can not contain a colon")
 	}
 	if strings.Contains(attestationData.AgentName, ".") {
-		return fmt.Errorf("agentname can not contain a dot")
+		return errors.New("agentname can not contain a dot")
 	}
 	turl := url.URL{
 		Scheme: "http",

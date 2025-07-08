@@ -33,6 +33,7 @@ services:
     volumes:
       # Add root agent socket
       - ./shared/rootSocket:/opt/spire/sockets
+      - ./shared/intermediateA/data:/opt/spire/data/server
       - ./intermediateA/server:/opt/spire/conf/server
     command: ["-config", "/opt/spire/conf/server/server.conf"]
   intermediateA-agent:
@@ -82,6 +83,7 @@ services:
     volumes:
       # Add root agent socket
       - ./shared/rootSocket:/opt/spire/sockets
+      - ./shared/intermediateB/data:/opt/spire/data/server
       - ./intermediateB/server:/opt/spire/conf/server
     command: ["-config", "/opt/spire/conf/server/server.conf"]
   intermediateB-agent:

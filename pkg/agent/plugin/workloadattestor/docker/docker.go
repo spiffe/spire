@@ -143,10 +143,7 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestReque
 	var container container.InspectResponse
 	err = p.retryer.Retry(ctx, func() error {
 		container, err = p.docker.ContainerInspect(ctx, containerID)
-		if err != nil {
-			return err
-		}
-		return nil
+		return err
 	})
 	if err != nil {
 		return nil, err

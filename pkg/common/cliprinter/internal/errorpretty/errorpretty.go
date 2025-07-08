@@ -12,7 +12,7 @@ func Print(err error, stdout, _ io.Writer) error {
 	}
 
 	if err.Error() == "" {
-		err = errors.New("An unknown error occurred")
+		err = errors.New("an unknown error occurred")
 	}
 
 	_, e := fmt.Fprintln(stdout, err.Error())

@@ -31,7 +31,7 @@ var (
 )
 
 func TestUpstreamClientMintX509CA_HandlesBundleUpdates(t *testing.T) {
-	client, updater, ua := setUpUpstreamClientTest(t, fakeupstreamauthority.Config{
+	client, updater, ua := setupUpstreamClientTest(t, fakeupstreamauthority.Config{
 		TrustDomain:     trustDomain,
 		UseIntermediate: true,
 	})
@@ -101,7 +101,7 @@ func TestUpstreamClientMintX509CA_FailsOnBadFirstResponse(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			client, _, _ := setUpUpstreamClientTest(t, fakeupstreamauthority.Config{
+			client, _, _ := setupUpstreamClientTest(t, fakeupstreamauthority.Config{
 				TrustDomain:              trustDomain,
 				MutateMintX509CAResponse: tt.mutate,
 			})
@@ -120,7 +120,7 @@ func TestUpstreamClientMintX509CA_FailsOnBadFirstResponse(t *testing.T) {
 }
 
 func TestUpstreamClientPublishJWTKey_HandlesBundleUpdates(t *testing.T) {
-	client, updater, ua := setUpUpstreamClientTest(t, fakeupstreamauthority.Config{
+	client, updater, ua := setupUpstreamClientTest(t, fakeupstreamauthority.Config{
 		TrustDomain: trustDomain,
 	})
 
@@ -141,7 +141,7 @@ func TestUpstreamClientPublishJWTKey_HandlesBundleUpdates(t *testing.T) {
 }
 
 func TestUpstreamClientPublishJWTKey_NotImplemented(t *testing.T) {
-	client, _, _ := setUpUpstreamClientTest(t, fakeupstreamauthority.Config{
+	client, _, _ := setupUpstreamClientTest(t, fakeupstreamauthority.Config{
 		TrustDomain:           trustDomain,
 		DisallowPublishJWTKey: true,
 	})
@@ -151,7 +151,44 @@ func TestUpstreamClientPublishJWTKey_NotImplemented(t *testing.T) {
 	require.Nil(t, jwtKeys)
 }
 
-func setUpUpstreamClientTest(t *testing.T, config fakeupstreamauthority.Config) (*ca.UpstreamClient, *fakeBundleUpdater, *fakeupstreamauthority.UpstreamAuthority) {
+func TestUpstreamClientSubscribeToLocalBundle(t *testing.T) {
+	client, updater, ua := setupUpstreamClientTest(t, fakeupstreamauthority.Config{
+		TrustDomain:               trustDomain,
+		UseSubscribeToLocalBundle: true,
+	})
+
+	err := client.SubscribeToLocalBundle(t.Context())
+	require.NoError(t, err)
+
+	// We should get an update with the initial CA and a list of empty JWT keys since
+	// the fakeupstreamauthority does not create one by default.
+	require.Equal(t, ua.X509Roots(), updater.WaitForAppendedX509Roots(t))
+	require.Empty(t, updater.WaitForAppendedJWTKeys(t))
+
+	// Trigger an update to the upstream bundle by rotating the root
+	// certificate and wait for the bundle updater to receive the update.
+	ua.RotateX509CA()
+	require.Equal(t, ua.X509Roots(), updater.WaitForAppendedX509Roots(t))
+	require.Empty(t, updater.WaitForAppendedJWTKeys(t))
+
+	key1 := makePublicKey(t, "KEY1")
+	ua.AppendJWTKey(key1)
+	require.Equal(t, ua.X509Roots(), updater.WaitForAppendedX509Roots(t))
+	spiretest.RequireProtoListEqual(t, []*common.PublicKey{key1}, updater.WaitForAppendedJWTKeys(t))
+
+	// Trigger an update to the upstream bundle by rotating the root
+	// certificate and wait for the bundle updater to receive the update.
+	ua.RotateX509CA()
+	require.Equal(t, ua.X509Roots(), updater.WaitForAppendedX509Roots(t))
+	spiretest.RequireProtoListEqual(t, []*common.PublicKey{key1}, updater.WaitForAppendedJWTKeys(t))
+
+	key2 := makePublicKey(t, "KEY2")
+	ua.AppendJWTKey(key2)
+	require.Equal(t, ua.X509Roots(), updater.WaitForAppendedX509Roots(t))
+	spiretest.RequireProtoListEqual(t, []*common.PublicKey{key1, key2}, updater.WaitForAppendedJWTKeys(t))
+}
+
+func setupUpstreamClientTest(t *testing.T, config fakeupstreamauthority.Config) (*ca.UpstreamClient, *fakeBundleUpdater, *fakeupstreamauthority.UpstreamAuthority) {
 	plugin, upstreamAuthority := fakeupstreamauthority.Load(t, config)
 	updater := newFakeBundleUpdater()
 

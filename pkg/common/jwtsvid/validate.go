@@ -50,7 +50,7 @@ func ValidateToken(ctx context.Context, token string, keyStore KeyStore, audienc
 	// Obtain the key ID from the header
 	keyID := tok.Headers[0].KeyID
 	if keyID == "" {
-		return spiffeid.ID{}, nil, fmt.Errorf("token header missing key id")
+		return spiffeid.ID{}, nil, errors.New("token header missing key id")
 	}
 
 	// Parse out the unverified claims. We need to look up the key by the trust
@@ -62,6 +62,9 @@ func ValidateToken(ctx context.Context, token string, keyStore KeyStore, audienc
 	}
 	if claims.Subject == "" {
 		return spiffeid.ID{}, nil, errors.New("token missing subject claim")
+	}
+	if claims.Expiry == nil {
+		return spiffeid.ID{}, nil, errors.New("token missing exp claim")
 	}
 	spiffeID, err := spiffeid.FromString(claims.Subject)
 	if err != nil {

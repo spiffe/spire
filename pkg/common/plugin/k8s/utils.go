@@ -118,11 +118,11 @@ func GetNamesFromTokenStatus(tokenStatus *authv1.TokenReviewStatus) (string, str
 	}
 
 	if names[2] == "" {
-		return "", "", fmt.Errorf("missing namespace")
+		return "", "", errors.New("missing namespace")
 	}
 
 	if names[3] == "" {
-		return "", "", fmt.Errorf("missing service account name")
+		return "", "", errors.New("missing service account name")
 	}
 
 	return names[2], names[3], nil

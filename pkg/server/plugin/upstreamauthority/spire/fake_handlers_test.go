@@ -87,14 +87,9 @@ func (w *whandler) FetchX509SVID(_ *w_pb.X509SVIDRequest, stream w_pb.SpiffeWork
 	}
 
 	resp := new(w_pb.X509SVIDResponse)
-	resp.Svids = []*w_pb.X509SVID{}
-	resp.Svids = append(resp.Svids, svid)
+	resp.Svids = []*w_pb.X509SVID{svid}
 
-	err := stream.Send(resp)
-	if err != nil {
-		return err
-	}
-	return nil
+	return stream.Send(resp)
 }
 
 func (h *handler) startServerAPITestServer(t *testing.T) {
