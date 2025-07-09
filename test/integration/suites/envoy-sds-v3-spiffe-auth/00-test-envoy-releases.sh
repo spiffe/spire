@@ -2,8 +2,7 @@
 
 setup-tests() {
     # Bring up servers
-    docker-up upstream-spire-server
-    docker-up downstream-federated-spire-server
+    docker-spire-server-up upstream-spire-server downstream-federated-spire-server
 
     # Bootstrap agents
     log-debug "bootstrapping downstream federated agent..."
