@@ -1,4 +1,3 @@
 #!/bin/bash
 
-docker-up upstream-spire-server
-docker-up downstream-spire-server
+docker-spire-server-up upstream-spire-server downstream-spire-server
