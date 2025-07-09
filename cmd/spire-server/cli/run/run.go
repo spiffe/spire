@@ -584,10 +584,11 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 
 	// If the configured TTLs can lead to surprises, then do our best to log an
 	// accurate message and guide the user to resolution
-	ttlChecks := []struct {
+	type ttlCheck struct {
 		name string
 		ttl  time.Duration
-	}{
+	}
+	ttlChecks := []ttlCheck{
 		{
 			name: "default_x509_svid_ttl",
 			ttl:  sc.X509SVIDTTL,
@@ -596,6 +597,12 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 			name: "default_jwt_svid_ttl",
 			ttl:  sc.JWTSVIDTTL,
 		},
+	}
+	if sc.AgentTTL != 0 {
+		ttlChecks = append(ttlChecks, ttlCheck{
+			name: "agent_ttl",
+			ttl:  sc.AgentTTL,
+		})
 	}
 
 	for _, ttlCheck := range ttlChecks {
