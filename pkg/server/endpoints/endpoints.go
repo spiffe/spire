@@ -136,7 +136,7 @@ func New(ctx context.Context, c Config) (*Endpoints, error) {
 	}
 
 	if c.FullCacheReloadInterval <= c.CacheReloadInterval {
-		return nil, errors.New("Full cache reload interval must be greater than cache reload interval")
+		return nil, errors.New("full cache reload interval must be greater than cache reload interval")
 	}
 
 	if c.PruneEventsOlderThan == 0 {
