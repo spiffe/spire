@@ -584,7 +584,8 @@ func TestNewAgentConfig(t *testing.T) {
 		{
 			msg: "retry_bootstrap should be correctly set to false",
 			input: func(c *Config) {
-				c.Agent.RetryBootstrap = false
+				rb := false
+				c.Agent.RetryBootstrap = &rb
 			},
 			test: func(t *testing.T, c *agent.Config) {
 				require.False(t, c.RetryBootstrap)
@@ -593,7 +594,8 @@ func TestNewAgentConfig(t *testing.T) {
 		{
 			msg: "retry_bootstrap should be correctly set to true",
 			input: func(c *Config) {
-				c.Agent.RetryBootstrap = true
+				rb := true
+				c.Agent.RetryBootstrap = &rb
 			},
 			test: func(t *testing.T, c *agent.Config) {
 				require.True(t, c.RetryBootstrap)
