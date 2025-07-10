@@ -4,11 +4,6 @@
 # binaries from the environment that aren't a version match.
 mkdir -p ./bin
 
-KINDVERSION=v0.17.0
-KUBECTLVERSION=v1.25.3
-K8SIMAGE=kindest/node:v1.25.3
-HELMVERSION=v3.11.1
-
 KIND_PATH=./bin/kind
 KUBECTL_PATH=./bin/kubectl
 HELM_PATH=./bin/helm

@@ -412,7 +412,7 @@ func (p *Plugin) getEndEntityName(config *Config, csr *x509.CertificateRequest) 
 	// If we get here, we were unable to determine the end entity name
 	logger.Error(fmt.Sprintf("the endEntityName option is set to %q, but no valid end entity name could be determined from the CertificateRequest", config.DefaultEndEntityName))
 
-	return "", fmt.Errorf("no valid end entity name could be determined from the CertificateRequest")
+	return "", errors.New("no valid end entity name could be determined from the CertificateRequest")
 }
 
 // parseEjbcaError parses an error returned by the EJBCA API and returns a gRPC status error.

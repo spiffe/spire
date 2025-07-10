@@ -110,7 +110,6 @@ func (c *cache) start(ctx context.Context) error {
 
 func (c *cache) startRunner(ctx context.Context) {
 	c.log.Debug("Initializing health checkers")
-	seenStartupError := make(map[string]string)
 	checkFunc := func() {
 		for name, checker := range c.getCheckerSubsystems() {
 			state, err := verifyStatus(checker.checkable)
@@ -120,19 +119,9 @@ func (c *cache) startRunner(ctx context.Context) {
 				checkTime: c.clk.Now(),
 			}
 			if err != nil {
-				if state.Started == nil || *state.Started {
-					c.log.WithField("check", name).
-						WithError(err).
-						Error("Health check has failed")
-				} else {
-					strErr := err.Error()
-					if val, ok := seenStartupError[name]; !ok || val != strErr {
-						c.log.WithField("check", name).
-							WithError(err).
-							Warn("Health check has failed. Starting up still.")
-						seenStartupError[name] = strErr
-					}
-				}
+				c.log.WithField("check", name).
+					WithError(err).
+					Error("Health check has failed")
 				checkState.err = err
 			}
 

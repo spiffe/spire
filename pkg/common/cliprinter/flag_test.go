@@ -73,12 +73,11 @@ func TestAppendFlag(t *testing.T) {
 				fs.Var(defaultFlagValue, flagName, "")
 			}
 			err := fs.Parse(c.input)
-			switch {
-			case err == nil:
+			if err == nil {
 				if c.expectError {
 					t.Fatal("expected an error but got none")
 				}
-			default:
+			} else {
 				if !c.expectError {
 					t.Fatalf("got unexpected error: %v", err)
 				}

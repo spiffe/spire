@@ -215,7 +215,7 @@ func TestLoadNodeCache(t *testing.T) {
 			cacheStats = attestedNodes.cache.Stats()
 			require.Equal(t, 0, cacheStats.AgentsByID, "clearing all expected agent ids didn't clear cache")
 
-			var lastMetrics map[string]int = make(map[string]int)
+			lastMetrics := make(map[string]int)
 			for _, metricItem := range scenario.metrics.AllMetrics() {
 				if metricItem.Type == fakemetrics.SetGaugeType {
 					key := strings.Join(metricItem.Key, " ")
@@ -614,7 +614,7 @@ func TestSearchBeforeFirstNodeEvent(t *testing.T) {
 			t.Log(reflect.TypeOf(maps.Keys(attestedNodes.eventsBeforeFirst)))
 			require.ElementsMatch(t, tt.expectedEventsBeforeFirst, slices.Collect(maps.Keys(attestedNodes.eventsBeforeFirst)), "expected events before tracking mismatch")
 			require.ElementsMatch(t, tt.expectedEventsBeforeFirst, slices.Collect(maps.Keys(attestedNodes.eventsBeforeFirst)), "expected events before tracking mismatch")
-			require.ElementsMatch(t, tt.expectedFetches, slices.Collect[string](maps.Keys(attestedNodes.fetchNodes)), "expected fetches mismatch")
+			require.ElementsMatch(t, tt.expectedFetches, slices.Collect(maps.Keys(attestedNodes.fetchNodes)), "expected fetches mismatch")
 
 			require.Zero(t, scenario.hook.Entries)
 		})

@@ -34,7 +34,7 @@ func slicedEntryFromProto(e *types.Entry) (*common.RegistrationEntry, error) {
 	}
 
 	if e.Id == "" {
-		return nil, fmt.Errorf("missing entry ID")
+		return nil, errors.New("missing entry ID")
 	}
 
 	spiffeID, err := spiffeIDFromProto(e.SpiffeId)
