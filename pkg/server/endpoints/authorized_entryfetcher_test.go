@@ -301,7 +301,7 @@ func TestRunUpdateCacheTaskPrunesExpiredAgents(t *testing.T) {
 	go func() {
 		updateCacheTaskErr <- ef.RunUpdateCacheTask(ctx)
 	}()
-	clk.WaitForAfter(time.Second, "waiting for initial task pause")
+	clk.WaitForTickerMulti(time.Second, 2, "waiting to create tickers")
 	entries, err := ef.FetchAuthorizedEntries(ctx, agentID)
 	assert.NoError(t, err)
 	require.Zero(t, entries)
@@ -327,7 +327,6 @@ func TestRunUpdateCacheTaskPrunesExpiredAgents(t *testing.T) {
 
 	// Bump clock and rerun UpdateCacheTask
 	clk.Add(defaultCacheReloadInterval)
-	clk.WaitForAfter(time.Second, "waiting for task to pause after creating entries")
 	entries, err = ef.FetchAuthorizedEntries(ctx, agentID)
 	assert.NoError(t, err)
 	require.Equal(t, 1, len(entries))
@@ -339,7 +338,6 @@ func TestRunUpdateCacheTaskPrunesExpiredAgents(t *testing.T) {
 
 	// Bump clock so entry expires and is pruned
 	clk.Add(defaultCacheReloadInterval)
-	clk.WaitForAfter(time.Second, "waiting for task to pause after expiring agent")
 	assert.Equal(t, 1, hook.LastEntry().Data["count"])
 	assert.Equal(t, "Pruned expired agents from entry cache", hook.LastEntry().Message)
 
