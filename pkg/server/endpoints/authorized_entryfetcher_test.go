@@ -250,7 +250,9 @@ func TestRunUpdateCacheTaskDoesFullUpdate(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, ef)
 
+	ef.mu.RLock()
 	initialCache := ef.cache
+	ef.mu.RUnlock()
 
 	// Start Update Task
 	updateCacheTaskErr := make(chan error)
@@ -261,11 +263,15 @@ func TestRunUpdateCacheTaskDoesFullUpdate(t *testing.T) {
 
 	// First iteration, cache should not be rebuilt
 	clk.Add(2 * time.Second)
+	ef.mu.RLock()
 	require.Equal(t, initialCache, ef.cache)
+	ef.mu.RUnlock()
 
 	// Second iteration, cache should be rebuilt
 	clk.Add(2 * time.Second)
+	ef.mu.RLock()
 	require.NotEqual(t, initialCache, ef.cache)
+	ef.mu.RUnlock()
 
 	// Stop the task
 	cancel()
