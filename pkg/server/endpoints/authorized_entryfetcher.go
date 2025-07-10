@@ -11,6 +11,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/authorizedentries"
+	"github.com/spiffe/spire/pkg/server/cache/nodecache"
 	"github.com/spiffe/spire/pkg/server/datastore"
 )
 
@@ -35,9 +36,9 @@ type eventsBasedCache interface {
 	updateCache(ctx context.Context) error
 }
 
-func NewAuthorizedEntryFetcherWithEventsBasedCache(ctx context.Context, log logrus.FieldLogger, metrics telemetry.Metrics, clk clock.Clock, ds datastore.DataStore, cacheReloadInterval, pruneEventsOlderThan, sqlTransactionTimeout time.Duration) (*AuthorizedEntryFetcherWithEventsBasedCache, error) {
+func NewAuthorizedEntryFetcherWithEventsBasedCache(ctx context.Context, log logrus.FieldLogger, metrics telemetry.Metrics, clk clock.Clock, ds datastore.DataStore, nodeCache *nodecache.Cache, cacheReloadInterval, pruneEventsOlderThan, sqlTransactionTimeout time.Duration) (*AuthorizedEntryFetcherWithEventsBasedCache, error) {
 	log.Info("Building event-based in-memory entry cache")
-	cache, registrationEntries, attestedNodes, err := buildCache(ctx, log, metrics, ds, clk, cacheReloadInterval, sqlTransactionTimeout)
+	cache, registrationEntries, attestedNodes, err := buildCache(ctx, log, metrics, ds, nodeCache, clk, cacheReloadInterval, sqlTransactionTimeout)
 	if err != nil {
 		return nil, err
 	}
@@ -111,7 +112,7 @@ func (a *AuthorizedEntryFetcherWithEventsBasedCache) updateCache(ctx context.Con
 	return errors.Join(updateRegistrationEntriesCacheErr, updateAttestedNodesCacheErr)
 }
 
-func buildCache(ctx context.Context, log logrus.FieldLogger, metrics telemetry.Metrics, ds datastore.DataStore, clk clock.Clock, cacheReloadInterval, eventTimeout time.Duration) (*authorizedentries.Cache, *registrationEntries, *attestedNodes, error) {
+func buildCache(ctx context.Context, log logrus.FieldLogger, metrics telemetry.Metrics, ds datastore.DataStore, nodeCache *nodecache.Cache, clk clock.Clock, cacheReloadInterval, eventTimeout time.Duration) (*authorizedentries.Cache, *registrationEntries, *attestedNodes, error) {
 	cache := authorizedentries.NewCache(clk)
 
 	registrationEntries, err := buildRegistrationEntriesCache(ctx, log, metrics, ds, clk, cache, pageSize, cacheReloadInterval, eventTimeout)
@@ -119,7 +120,7 @@ func buildCache(ctx context.Context, log logrus.FieldLogger, metrics telemetry.M
 		return nil, nil, nil, err
 	}
 
-	attestedNodes, err := buildAttestedNodesCache(ctx, log, metrics, ds, clk, cache, cacheReloadInterval, eventTimeout)
+	attestedNodes, err := buildAttestedNodesCache(ctx, log, metrics, ds, clk, cache, nodeCache, cacheReloadInterval, eventTimeout)
 	if err != nil {
 		return nil, nil, nil, err
 	}

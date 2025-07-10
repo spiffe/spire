@@ -163,6 +163,7 @@ type ListAttestedNodesRequest struct {
 	FetchSelectors    bool
 	Pagination        *Pagination
 	ByCanReattest     *bool
+	ValidAt           time.Time
 }
 
 type ListAttestedNodesResponse struct {
