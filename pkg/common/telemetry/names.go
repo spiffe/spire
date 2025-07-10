@@ -753,6 +753,9 @@ const (
 	// NodeEvent functionality related to a node entity or type being created, updated, or deleted
 	NodeEvent = "node_event"
 
+	// NodeManager functionality related to managing expired node records
+	NodeManager = "node_manager"
+
 	// Notifier functionality related to some notifying entity; should be used with other tags
 	// to add clarity
 	Notifier = "notifier"
