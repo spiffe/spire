@@ -411,8 +411,8 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 	if ac.RebootstrapMode != agent.RebootstrapNever && c.Agent.InsecureBootstrap {
 		return nil, errors.New("insecure_bootstrap option can not be used with rebootstrapping")
 	}
-  if ac.RebootstrapMode != agent.RebootstrapNever && c.Agent.RetryBootstrap != nil {
-    return nil, fmt.Errorf("you can not set retry_bootstrap when using reboostrap_mode")
+	if ac.RebootstrapMode != agent.RebootstrapNever && c.Agent.RetryBootstrap != nil {
+		return nil, fmt.Errorf("you can not set retry_bootstrap when using reboostrap_mode")
 	}
 
 	if c.Agent.RebootstrapDelay == "" {
