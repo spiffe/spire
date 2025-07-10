@@ -53,7 +53,7 @@ const (
 
 	// This is the default amount of time between full refreshes of the in-memory
 	// entry cache.
-	defaultFullCacheReloadInterval = 6 * time.Hour
+	defaultFullCacheReloadInterval = 24 * time.Hour
 
 	// This is the default amount of time events live before they are pruned
 	defaultPruneEventsOlderThan = 12 * time.Hour

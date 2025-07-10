@@ -3,6 +3,7 @@ package endpoints
 import (
 	"context"
 	"errors"
+	"sync"
 	"time"
 
 	"github.com/andres-erbsen/clock"
@@ -34,6 +35,7 @@ type AuthorizedEntryFetcherEvents struct {
 	cache               *authorizedentries.Cache
 	registrationEntries eventsBasedCache
 	attestedNodes       eventsBasedCache
+	mu                  sync.RWMutex
 }
 
 type eventsBasedCache interface {
@@ -55,20 +57,27 @@ func NewAuthorizedEntryFetcherEvents(ctx context.Context, c AuthorizedEntryFetch
 }
 
 func (a *AuthorizedEntryFetcherEvents) LookupAuthorizedEntries(ctx context.Context, agentID spiffeid.ID, entryIDs map[string]struct{}) (map[string]api.ReadOnlyEntry, error) {
-	return a.cache.LookupAuthorizedEntries(agentID, entryIDs), nil
+	a.mu.RLock()
+	cache := a.cache
+	a.mu.RUnlock()
+
+	return cache.LookupAuthorizedEntries(agentID, entryIDs), nil
 }
 
 func (a *AuthorizedEntryFetcherEvents) FetchAuthorizedEntries(_ context.Context, agentID spiffeid.ID) ([]api.ReadOnlyEntry, error) {
-	return a.cache.GetAuthorizedEntries(agentID), nil
+	a.mu.RLock()
+	cache := a.cache
+	a.mu.RUnlock()
+
+	return cache.GetAuthorizedEntries(agentID), nil
 }
 
 // RunUpdateCacheTask starts a ticker which rebuilds the in-memory entry cache.
 func (a *AuthorizedEntryFetcherEvents) RunUpdateCacheTask(ctx context.Context) error {
 	var fullCacheReload bool
 
-	cacheReloadTicker := a.c.clk.Ticker(a.c.cacheReloadInterval)
+	cacheReloadTicker, fullCacheReloadTicker := a.startTickers()
 	defer cacheReloadTicker.Stop()
-	fullCacheReloadTicker := a.c.clk.Ticker(a.c.fullCacheReloadInterval)
 	defer fullCacheReloadTicker.Stop()
 
 	for {
@@ -140,9 +149,19 @@ func (a *AuthorizedEntryFetcherEvents) buildCache(ctx context.Context) error {
 		return err
 	}
 
+	a.mu.Lock()
 	a.cache = cache
+	a.mu.Unlock()
+
 	a.registrationEntries = registrationEntries
 	a.attestedNodes = attestedNodes
 
 	return nil
+}
+
+func (a *AuthorizedEntryFetcherEvents) startTickers() (*clock.Ticker, *clock.Ticker) {
+	cacheReloadTicker := a.c.clk.Ticker(a.c.cacheReloadInterval)
+	fullCacheReloadTicker := a.c.clk.Ticker(a.c.fullCacheReloadInterval)
+
+	return cacheReloadTicker, fullCacheReloadTicker
 }
