@@ -435,6 +435,9 @@ const (
 	// PreferredServiceName tags the preferred service name
 	PreferredServiceName = "preferred_service_name"
 
+	// Selectors tags some group of registration selector
+	PreviouslyAttestedSelectors = "previously_attested_selectors"
+
 	// Pruned flagging something has been pruned
 	Pruned = "pruned"
 
