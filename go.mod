@@ -64,7 +64,7 @@ require (
 	github.com/lib/pq v1.10.9
 	github.com/mattn/go-sqlite3 v1.14.28
 	github.com/mitchellh/cli v1.1.5
-	github.com/open-policy-agent/opa v1.5.1
+	github.com/open-policy-agent/opa v1.6.0
 	github.com/prometheus/client_golang v1.22.0
 	github.com/shirou/gopsutil/v4 v4.25.6
 	github.com/sigstore/cosign/v2 v2.5.2
@@ -189,7 +189,6 @@ require (
 	github.com/google/s2a-go v0.1.9 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.6 // indirect
-	github.com/gorilla/mux v1.8.1 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
 	github.com/hashicorp/go-immutable-radix v1.3.1 // indirect
@@ -271,7 +270,7 @@ require (
 	github.com/transparency-dev/merkle v0.0.2 // indirect
 	github.com/twmb/murmur3 v1.1.8 // indirect
 	github.com/vbatts/tar-split v0.12.1 // indirect
-	github.com/vektah/gqlparser/v2 v2.5.26 // indirect
+	github.com/vektah/gqlparser/v2 v2.5.28 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	github.com/xeipuuv/gojsonpointer v0.0.0-20190905194746-02993c407bfb // indirect
 	github.com/xeipuuv/gojsonreference v0.0.0-20180127040603-bd5ef7bd5415 // indirect
