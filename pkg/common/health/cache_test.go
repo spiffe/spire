@@ -106,7 +106,7 @@ func TestHealthFailsAndRecover(t *testing.T) {
 				Message: "Health check failed",
 				Data: logrus.Fields{
 					telemetry.Check:   "bar",
-					telemetry.Details: "{false false {} {}}",
+					telemetry.Details: "{<nil> false false {} {}}",
 					telemetry.Error:   "subsystem is not live or ready",
 				},
 			},
@@ -163,7 +163,7 @@ func TestHealthFailsAndRecover(t *testing.T) {
 				Message: "Health check recovered",
 				Data: logrus.Fields{
 					telemetry.Check:    "bar",
-					telemetry.Details:  "{true true {} {}}",
+					telemetry.Details:  "{<nil> true true {} {}}",
 					telemetry.Duration: "1",
 					telemetry.Error:    "subsystem is not live or ready",
 					telemetry.Failures: "1",
@@ -251,7 +251,7 @@ func TestHealthFailsAndRecover(t *testing.T) {
 				Message: "Health check failed",
 				Data: logrus.Fields{
 					telemetry.Check:   "foo",
-					telemetry.Details: "{false false {live is failing} {ready is failing}}",
+					telemetry.Details: "{<nil> false false {live is failing} {ready is failing}}",
 					telemetry.Error:   "subsystem is not live or ready",
 				},
 			},
@@ -354,7 +354,7 @@ func TestHealthFailsAndRecover(t *testing.T) {
 				Message: "Health check recovered",
 				Data: logrus.Fields{
 					telemetry.Check:    "foo",
-					telemetry.Details:  "{true true {} {}}",
+					telemetry.Details:  "{<nil> true true {} {}}",
 					telemetry.Duration: "120",
 					telemetry.Error:    "subsystem is not live or ready",
 					telemetry.Failures: "2",
