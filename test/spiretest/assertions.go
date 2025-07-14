@@ -134,6 +134,41 @@ func AssertProtoListEqual(tb testing.TB, expected, actual any) bool {
 	return true
 }
 
+func CheckProtoListEqual(tb testing.TB, expected, actual any) bool {
+	tb.Helper()
+	ev := reflect.ValueOf(expected)
+	et := ev.Type()
+	av := reflect.ValueOf(actual)
+	at := av.Type()
+
+	if et.Kind() != reflect.Slice {
+		return false
+	}
+	if !et.Elem().Implements(protoMessageType) {
+		return false
+	}
+
+	if at.Kind() != reflect.Slice {
+		return false
+	}
+	if !at.Elem().Implements(protoMessageType) {
+		return false
+	}
+
+	if ev.Len() != av.Len() {
+		return false
+	}
+	for i := range ev.Len() {
+		e := ev.Index(i).Interface().(proto.Message)
+		a := av.Index(i).Interface().(proto.Message)
+		if !CheckProtoEqual(tb, e, a) {
+			return false
+		}
+	}
+
+	return true
+}
+
 func RequireProtoEqual(tb testing.TB, expected, actual proto.Message, msgAndArgs ...any) {
 	tb.Helper()
 	if !AssertProtoEqual(tb, expected, actual, msgAndArgs...) {
@@ -144,6 +179,11 @@ func RequireProtoEqual(tb testing.TB, expected, actual proto.Message, msgAndArgs
 func AssertProtoEqual(tb testing.TB, expected, actual proto.Message, msgAndArgs ...any) bool {
 	tb.Helper()
 	return assert.Empty(tb, cmp.Diff(expected, actual, protocmp.Transform()), msgAndArgs...)
+}
+
+func CheckProtoEqual(tb testing.TB, expected, actual proto.Message) bool {
+	tb.Helper()
+	return cmp.Diff(expected, actual, protocmp.Transform()) == ""
 }
 
 func RequireErrorPrefix(tb testing.TB, err error, prefix string) {
