@@ -1779,8 +1779,10 @@ func (s *PluginSuite) TestNodeSelectors() {
 	// assert there are no selectors for foo
 	selectors := s.getNodeSelectors("foo", datastore.RequireCurrent)
 	s.Require().Empty(selectors)
-	selectors = s.getNodeSelectors("foo", datastore.TolerateStale)
-	s.Require().Empty(selectors)
+	s.Eventually(func() bool {
+		selectors = s.getNodeSelectors("foo", datastore.TolerateStale)
+		return len(selectors) == 0
+	}, time.Second, 10*time.Millisecond)
 
 	// set selectors on foo and bar
 	s.setNodeSelectors("foo", foo1)
