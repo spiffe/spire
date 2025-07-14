@@ -1791,7 +1791,7 @@ func (s *PluginSuite) TestNodeSelectors() {
 	s.RequireProtoListEqual(foo1, selectors)
 	s.Eventually(func() bool {
 		selectors := s.getNodeSelectors("foo", datastore.TolerateStale)
-		return s.AssertProtoListEqual(foo1, selectors)
+		return spiretest.CheckProtoListEqual(s.T(), foo1, selectors)
 	}, time.Second, 10*time.Millisecond)
 
 	// replace foo selectors
@@ -1800,7 +1800,7 @@ func (s *PluginSuite) TestNodeSelectors() {
 	s.RequireProtoListEqual(foo2, selectors)
 	s.Eventually(func() bool {
 		selectors := s.getNodeSelectors("foo", datastore.TolerateStale)
-		return s.AssertProtoListEqual(foo2, selectors)
+		return spiretest.CheckProtoListEqual(s.T(), foo2, selectors)
 	}, time.Second, 10*time.Millisecond)
 
 	// delete foo selectors
@@ -1817,7 +1817,7 @@ func (s *PluginSuite) TestNodeSelectors() {
 	s.RequireProtoListEqual(bar, selectors)
 	s.Eventually(func() bool {
 		selectors := s.getNodeSelectors("bar", datastore.TolerateStale)
-		return s.AssertProtoListEqual(bar, selectors)
+		return spiretest.CheckProtoListEqual(s.T(), bar, selectors)
 	}, time.Second, 10*time.Millisecond)
 }
 
