@@ -178,6 +178,10 @@ func TestWithMetrics(t *testing.T) {
 			methodName: "ListFederationRelationships",
 		},
 		{
+			key:        "datastore.node.prune",
+			methodName: "PruneAttestedExpiredNodes",
+		},
+		{
 			key:        "datastore.node_event.prune",
 			methodName: "PruneAttestedNodeEvents",
 		},
@@ -386,6 +390,10 @@ func (ds *fakeDataStore) CreateRegistrationEntryEventForTesting(context.Context,
 
 func (ds *fakeDataStore) DeleteAttestedNode(context.Context, string) (*common.AttestedNode, error) {
 	return &common.AttestedNode{}, ds.err
+}
+
+func (ds *fakeDataStore) PruneAttestedExpiredNodes(context.Context, time.Time, bool) error {
+	return ds.err
 }
 
 func (ds *fakeDataStore) DeleteAttestedNodeEventForTesting(context.Context, uint) error {

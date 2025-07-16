@@ -25,6 +25,12 @@ func StartDeleteNodeCall(m telemetry.Metrics) *telemetry.CallCounter {
 	return telemetry.StartCall(m, telemetry.Datastore, telemetry.Node, telemetry.Delete)
 }
 
+// StartPruneAttestedExpiredNodes return metric
+// for server's datastore, on pruning expired attested nodes.
+func StartPruneAttestedExpiredNodes(m telemetry.Metrics) *telemetry.CallCounter {
+	return telemetry.StartCall(m, telemetry.Datastore, telemetry.Node, telemetry.Prune)
+}
+
 // StartFetchNodeCall return metric
 // for server's datastore, on fetching a node.
 func StartFetchNodeCall(m telemetry.Metrics) *telemetry.CallCounter {
