@@ -2,7 +2,7 @@ package catalog
 
 import (
 	"context"
-	"fmt"
+	"errors"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -84,7 +84,7 @@ func (repo *Repository) Close() {
 
 func Load(ctx context.Context, config Config) (_ *Repository, err error) {
 	if c, ok := config.PluginConfigs.Find(nodeAttestorType, jointoken.PluginName); ok && c.IsEnabled() && c.IsExternal() {
-		return nil, fmt.Errorf("the built-in join_token node attestor cannot be overridden by an external plugin")
+		return nil, errors.New("the built-in join_token node attestor cannot be overridden by an external plugin")
 	}
 
 	// Load the plugins and populate the repository

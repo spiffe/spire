@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/x509"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"path"
 	"sort"
@@ -449,7 +450,7 @@ func (client *gcpCAClient) LoadCertificateAuthorities(ctx context.Context, spec 
 			if selectedPool == "" && len(page) > 0 {
 				selectedPool = pool
 			} else if selectedPool != "" && pool != selectedPool && len(page) > 0 {
-				return nil, fmt.Errorf("found authorities with matching labels across multiple pools")
+				return nil, errors.New("found authorities with matching labels across multiple pools")
 			}
 
 			allCerts = append(allCerts, page...)

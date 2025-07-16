@@ -365,14 +365,14 @@ func (p *Plugin) SignData(ctx context.Context, req *keymanagerv1.SignDataRequest
 	default:
 		return nil, status.Errorf(codes.InvalidArgument, "unsupported signer opts type %T", opts)
 	}
-	switch {
-	case hashAlgo == keymanagerv1.HashAlgorithm_UNSPECIFIED_HASH_ALGORITHM:
+	switch hashAlgo {
+	case keymanagerv1.HashAlgorithm_UNSPECIFIED_HASH_ALGORITHM:
 		return nil, status.Error(codes.InvalidArgument, "hash algorithm is required")
-	case hashAlgo == keymanagerv1.HashAlgorithm_SHA256:
+	case keymanagerv1.HashAlgorithm_SHA256:
 		digest = &kmspb.Digest{
 			Digest: &kmspb.Digest_Sha256{Sha256: req.Data},
 		}
-	case hashAlgo == keymanagerv1.HashAlgorithm_SHA384:
+	case keymanagerv1.HashAlgorithm_SHA384:
 		digest = &kmspb.Digest{
 			Digest: &kmspb.Digest_Sha384{Sha384: req.Data},
 		}
@@ -1012,14 +1012,14 @@ func cryptoKeyVersionAlgorithmFromKeyType(keyType keymanagerv1.KeyType) (kmspb.C
 	// algorithm and a SHA256 digest. Therefore, for RSA signing keys we
 	// choose the corresponding CryptoKeyVersion_CryptoKeyVersionAlgorithm using
 	// RSASSA-PKCS-v1_5 for padding and a SHA256 digest.
-	switch {
-	case keyType == keymanagerv1.KeyType_EC_P256:
+	switch keyType {
+	case keymanagerv1.KeyType_EC_P256:
 		return kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256, nil
-	case keyType == keymanagerv1.KeyType_EC_P384:
+	case keymanagerv1.KeyType_EC_P384:
 		return kmspb.CryptoKeyVersion_EC_SIGN_P384_SHA384, nil
-	case keyType == keymanagerv1.KeyType_RSA_2048:
+	case keymanagerv1.KeyType_RSA_2048:
 		return kmspb.CryptoKeyVersion_RSA_SIGN_PKCS1_2048_SHA256, nil
-	case keyType == keymanagerv1.KeyType_RSA_4096:
+	case keymanagerv1.KeyType_RSA_4096:
 		return kmspb.CryptoKeyVersion_RSA_SIGN_PKCS1_4096_SHA256, nil
 	default:
 		return kmspb.CryptoKeyVersion_CRYPTO_KEY_VERSION_ALGORITHM_UNSPECIFIED, fmt.Errorf("unsupported key type %q", keyType)
@@ -1118,7 +1118,7 @@ func getPublicKeyFromCryptoKeyVersion(ctx context.Context, log hclog.Logger, kms
 
 	// Perform integrity verification.
 	if int64(crc32Checksum([]byte(kmsPublicKey.Pem))) != kmsPublicKey.PemCrc32C.Value {
-		return nil, fmt.Errorf("response corrupted in-transit")
+		return nil, errors.New("response corrupted in-transit")
 	}
 
 	pemBlock, _ := pem.Decode([]byte(kmsPublicKey.Pem))
@@ -1128,14 +1128,6 @@ func getPublicKeyFromCryptoKeyVersion(ctx context.Context, log hclog.Logger, kms
 func makeFingerprint(pkixData []byte) string {
 	s := sha256.Sum256(pkixData)
 	return hex.EncodeToString(s[:])
-}
-
-// min returns the minimum of the provided time durations.
-func min(x, y time.Duration) time.Duration {
-	if x < y {
-		return x
-	}
-	return y
 }
 
 func validateCharacters(str string) bool {
