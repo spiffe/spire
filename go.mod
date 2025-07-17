@@ -25,12 +25,12 @@ require (
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.16.31
 	github.com/aws/aws-sdk-go-v2/feature/rds/auth v1.5.1
 	github.com/aws/aws-sdk-go-v2/service/acmpca v1.40.0
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.231.0
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.232.0
 	github.com/aws/aws-sdk-go-v2/service/iam v1.43.0
 	github.com/aws/aws-sdk-go-v2/service/kms v1.41.0
 	github.com/aws/aws-sdk-go-v2/service/organizations v1.39.0
 	github.com/aws/aws-sdk-go-v2/service/rolesanywhere v1.17.0
-	github.com/aws/aws-sdk-go-v2/service/s3 v1.83.0
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.84.0
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.35.0
 	github.com/aws/aws-sdk-go-v2/service/sts v1.34.0
 	github.com/aws/smithy-go v1.22.4
