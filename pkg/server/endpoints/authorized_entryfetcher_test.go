@@ -11,6 +11,7 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/authorizedentries"
 	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/proto/spire/common"
@@ -319,7 +320,7 @@ func TestRunUpdateCacheTaskPrunesExpiredAgents(t *testing.T) {
 	})
 	assert.NoError(t, err)
 
-	_, err = ds.CreateRegistrationEntry(ctx, &common.RegistrationEntry{
+	entry, err := ds.CreateRegistrationEntry(ctx, &common.RegistrationEntry{
 		SpiffeId: "spiffe://example.org/workload",
 		ParentId: agentID.String(),
 		Selectors: []*common.Selector{
@@ -334,8 +335,7 @@ func TestRunUpdateCacheTaskPrunesExpiredAgents(t *testing.T) {
 	// Bump clock and rerun UpdateCacheTask
 	clk.Add(defaultCacheReloadInterval)
 	entries, err = ef.FetchAuthorizedEntries(ctx, agentID)
-	assert.NoError(t, err)
-	require.Equal(t, 1, len(entries))
+	compareEntries(t, entries, entry)
 
 	// Make sure nothing was pruned yet
 	for _, entry := range hook.AllEntries() {
@@ -381,7 +381,7 @@ func TestUpdateRegistrationEntriesCacheSkippedEvents(t *testing.T) {
 	require.Zero(t, entries)
 
 	// Create Initial Registration Entry
-	entry, err := ds.CreateRegistrationEntry(ctx, &common.RegistrationEntry{
+	entry1, err := ds.CreateRegistrationEntry(ctx, &common.RegistrationEntry{
 		SpiffeId: "spiffe://example.org/workload",
 		ParentId: agentID.String(),
 		Selectors: []*common.Selector{
@@ -399,10 +399,10 @@ func TestUpdateRegistrationEntriesCacheSkippedEvents(t *testing.T) {
 
 	entries, err = ef.FetchAuthorizedEntries(ctx, agentID)
 	require.NoError(t, err)
-	require.Equal(t, 1, len(entries))
+	compareEntries(t, entries, entry1)
 
 	// Delete initial registration entry
-	_, err = ds.DeleteRegistrationEntry(ctx, entry.EntryId)
+	_, err = ds.DeleteRegistrationEntry(ctx, entry1.EntryId)
 	require.NoError(t, err)
 
 	// Delete the event for now and then add it back later to simulate out of order events
@@ -410,7 +410,7 @@ func TestUpdateRegistrationEntriesCacheSkippedEvents(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create Second entry
-	_, err = ds.CreateRegistrationEntry(ctx, &common.RegistrationEntry{
+	entry2, err := ds.CreateRegistrationEntry(ctx, &common.RegistrationEntry{
 		SpiffeId: "spiffe://example.org/workload2",
 		ParentId: agentID.String(),
 		Selectors: []*common.Selector{
@@ -428,12 +428,12 @@ func TestUpdateRegistrationEntriesCacheSkippedEvents(t *testing.T) {
 
 	entries, err = ef.FetchAuthorizedEntries(ctx, agentID)
 	require.NoError(t, err)
-	require.Equal(t, 2, len(entries))
+	compareEntries(t, entries, entry1, entry2)
 
 	// Add back in deleted event
 	err = ds.CreateRegistrationEntryEventForTesting(ctx, &datastore.RegistrationEntryEvent{
 		EventID: 2,
-		EntryID: entry.EntryId,
+		EntryID: entry1.EntryId,
 	})
 	require.NoError(t, err)
 
@@ -443,7 +443,7 @@ func TestUpdateRegistrationEntriesCacheSkippedEvents(t *testing.T) {
 
 	entries, err = ef.FetchAuthorizedEntries(ctx, agentID)
 	require.NoError(t, err)
-	require.Equal(t, 1, len(entries))
+	compareEntries(t, entries, entry2)
 }
 
 func TestUpdateRegistrationEntriesCacheSkippedStartupEvents(t *testing.T) {
@@ -689,9 +689,7 @@ func TestUpdateAttestedNodesCacheSkippedEvents(t *testing.T) {
 
 	entries, err = ef.FetchAuthorizedEntries(ctx, agent2)
 	require.NoError(t, err)
-	require.Equal(t, 1, len(entries))
-	require.Equal(t, entry.EntryId, entries[0].GetId())
-	require.Equal(t, entry.SpiffeId, idutil.RequireIDProtoString(entries[0].GetSpiffeId()))
+	compareEntries(t, entries, entry)
 }
 
 func TestUpdateAttestedNodesCacheSkippedStartupEvents(t *testing.T) {
@@ -828,9 +826,90 @@ func TestUpdateAttestedNodesCacheSkippedStartupEvents(t *testing.T) {
 
 	entries, err = ef.FetchAuthorizedEntries(ctx, agent1)
 	require.NoError(t, err)
-	require.Equal(t, 1, len(entries))
-	require.Equal(t, entry.EntryId, entries[0].GetId())
-	require.Equal(t, entry.SpiffeId, idutil.RequireIDProtoString(entries[0].GetSpiffeId()))
+	compareEntries(t, entries, entry)
+}
+
+func TestFullCacheReloadRecoversFromSkippedEvents(t *testing.T) {
+	ctx := context.Background()
+	log, _ := test.NewNullLogger()
+	clk := clock.NewMock(t)
+	ds := fakedatastore.New(t)
+	metrics := fakemetrics.New()
+
+	ef, err := NewAuthorizedEntryFetcherEvents(ctx, AuthorizedEntryFetcherEventsConfig{
+		log:                     log,
+		metrics:                 metrics,
+		clk:                     clk,
+		ds:                      ds,
+		cacheReloadInterval:     defaultCacheReloadInterval,
+		fullCacheReloadInterval: defaultFullCacheReloadInterval,
+		pruneEventsOlderThan:    defaultPruneEventsOlderThan,
+		eventTimeout:            defaultEventTimeout,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, ef)
+
+	agentID := spiffeid.RequireFromString("spiffe://example.org/myagent")
+
+	// Ensure no entries are in there to start
+	entries, err := ef.FetchAuthorizedEntries(ctx, agentID)
+	require.NoError(t, err)
+	require.Zero(t, entries)
+
+	// Create Initial Registration Entry
+	entry1, err := ds.CreateRegistrationEntry(ctx, &common.RegistrationEntry{
+		SpiffeId: "spiffe://example.org/workload",
+		ParentId: agentID.String(),
+		Selectors: []*common.Selector{
+			{
+				Type:  "workload",
+				Value: "one",
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	// Ensure it gets added to cache
+	err = ef.updateCache(ctx)
+	require.NoError(t, err)
+
+	entries, err = ef.FetchAuthorizedEntries(ctx, agentID)
+	require.NoError(t, err)
+	compareEntries(t, entries, entry1)
+
+	// Create Second entry
+	entry2, err := ds.CreateRegistrationEntry(ctx, &common.RegistrationEntry{
+		SpiffeId: "spiffe://example.org/workload2",
+		ParentId: agentID.String(),
+		Selectors: []*common.Selector{
+			{
+				Type:  "workload",
+				Value: "two",
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	// Delete the event
+	err = ds.DeleteRegistrationEntryEventForTesting(ctx, 2)
+	require.NoError(t, err)
+
+	// Check second entry is not added to cache
+	err = ef.updateCache(ctx)
+	require.NoError(t, err)
+
+	entries, err = ef.FetchAuthorizedEntries(ctx, agentID)
+	require.NoError(t, err)
+	compareEntries(t, entries, entry1)
+
+	// Rebuild the cache
+	err = ef.buildCache(ctx)
+	require.NoError(t, err)
+
+	// Should be 2 entries now
+	entries, err = ef.FetchAuthorizedEntries(ctx, agentID)
+	require.NoError(t, err)
+	compareEntries(t, entries, entry1, entry2)
 }
 
 // AgentsByIDCacheCount
@@ -902,5 +981,22 @@ func entriesSkippedEventMetric(val float32) fakemetrics.MetricItem {
 		Key:    []string{telemetry.Entry, telemetry.SkippedEntryEventIDs, telemetry.Count},
 		Val:    val,
 		Labels: nil,
+	}
+}
+
+func compareEntries(t *testing.T, authorizedEntries []api.ReadOnlyEntry, entries ...*common.RegistrationEntry) {
+	t.Helper()
+
+	require.Equal(t, len(authorizedEntries), len(entries))
+	entryIDs := make([]string, 0, len(authorizedEntries))
+	spiffeIDs := make([]string, 0, len(authorizedEntries))
+	for _, entry := range authorizedEntries {
+		entryIDs = append(entryIDs, entry.GetId())
+		spiffeIDs = append(spiffeIDs, idutil.RequireIDProtoString(entry.GetSpiffeId()))
+	}
+
+	for _, entry := range entries {
+		require.Contains(t, entryIDs, entry.EntryId)
+		require.Contains(t, spiffeIDs, entry.SpiffeId)
 	}
 }
