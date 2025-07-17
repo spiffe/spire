@@ -335,6 +335,7 @@ func TestRunUpdateCacheTaskPrunesExpiredAgents(t *testing.T) {
 	// Bump clock and rerun UpdateCacheTask
 	clk.Add(defaultCacheReloadInterval)
 	entries, err = ef.FetchAuthorizedEntries(ctx, agentID)
+	assert.NoError(t, err)
 	compareEntries(t, entries, entry)
 
 	// Make sure nothing was pruned yet
