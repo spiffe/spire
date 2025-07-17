@@ -1126,6 +1126,25 @@ func TestNewServerConfig(t *testing.T) {
 			},
 		},
 		{
+			msg: "full_cache_reload_interval is correctly parsed",
+			input: func(c *Config) {
+				c.Server.Experimental.FullCacheReloadInterval = "1h"
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Equal(t, time.Hour, c.FullCacheReloadInterval)
+			},
+		},
+		{
+			msg:         "invalid full_cache_reload_interval returns an error",
+			expectError: true,
+			input: func(c *Config) {
+				c.Server.Experimental.FullCacheReloadInterval = "c"
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
 			msg: "prune_events_older_than is correctly parsed",
 			input: func(c *Config) {
 				c.Server.Experimental.PruneEventsOlderThan = "1m"
