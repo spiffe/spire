@@ -8,17 +8,28 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
+	"strconv"
+	"time"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire/pkg/agent/storage"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/pemutil"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 )
 
 type Bundle struct {
-	config *Config
-	log    logrus.FieldLogger
+	config             *Config
+	use                int
+	connectionAttempts int
+	startTime          time.Time
+	log                logrus.FieldLogger
+	metrics            telemetry.Metrics
+	storage            storage.Storage
+	lastBundle         []*x509.Certificate
 }
 
 func New(config *Config, log logrus.FieldLogger) *Bundle {
@@ -28,13 +39,147 @@ func New(config *Config, log logrus.FieldLogger) *Bundle {
 	}
 }
 
+func (b *Bundle) SetMetrics(metrics telemetry.Metrics) {
+	b.metrics = metrics
+}
+
+func (b *Bundle) SetStorage(sto storage.Storage) error {
+	b.storage = sto
+	use, startTime, connectionAttempts, err := b.storage.LoadBootstrapState()
+	b.use = use
+	b.startTime = startTime
+	b.connectionAttempts = connectionAttempts
+	if use == UseUnspecified {
+		b.use = UseBootstrap
+		BootstrapTrustBundle, err := b.storage.LoadBundle()
+		if err != nil {
+			if !errors.Is(err, storage.ErrNotCached) {
+				return err
+			}
+			b.use = UseBootstrap
+		} else if len(BootstrapTrustBundle) > 0 {
+			b.use = UseRebootstrap
+		}
+	}
+	b.updateMetrics()
+	return err
+}
+
+func (b *Bundle) SetUse(use int) error {
+	if b.use != use {
+		b.use = use
+		b.connectionAttempts = 0
+		b.startTime = time.Now()
+		b.log.Info("Setting use.")
+		err := b.storage.StoreBootstrapState(use, b.startTime, b.connectionAttempts)
+		if err != nil {
+			return err
+		}
+		b.updateMetrics()
+		return err
+	}
+	return nil
+}
+
+func (b *Bundle) SetSuccessIfRunning() error {
+	if !b.startTime.IsZero() {
+		return b.SetSuccess()
+	}
+	return nil
+}
+
+func (b *Bundle) SetSuccess() error {
+	b.log.Info(fmt.Sprintf("Success after %s attempts=%d", time.Since(b.startTime), b.connectionAttempts))
+	b.use = UseRebootstrap
+	b.connectionAttempts = 0
+	b.startTime = time.Time{}
+	b.log.Info("Setting use.")
+	if b.storage != nil {
+		if err := b.storage.StoreBootstrapState(b.use, b.startTime, b.connectionAttempts); err != nil {
+			return err
+		}
+		b.updateMetrics()
+		return b.storage.StoreBundle(b.lastBundle)
+	}
+	return nil
+}
+
+func (b *Bundle) SetForceRebootstrap() error {
+	b.use = UseRebootstrap
+	b.startTime = time.Now()
+	b.connectionAttempts = 0
+	err := b.storage.StoreBootstrapState(b.use, b.startTime, b.connectionAttempts)
+	if err != nil {
+		return err
+	}
+	b.updateMetrics()
+	err = b.storage.DeleteSVID()
+	if err != nil {
+		return err
+	}
+	err = b.storage.StoreBundle(nil)
+	return err
+}
+
+func (b *Bundle) GetStartTime() (time.Time, error) {
+	var err error
+	if b.startTime.IsZero() {
+		b.startTime = time.Now()
+		err = b.storage.StoreBootstrapState(b.use, b.startTime, b.connectionAttempts)
+		b.updateMetrics()
+	}
+	return b.startTime, err
+}
+
+func (b *Bundle) IsBootstrap() bool {
+	return b.use != UseRebootstrap
+}
+
+func (b *Bundle) IsRebootstrap() bool {
+	return b.use == UseRebootstrap
+}
+
 func (b *Bundle) GetBundle() ([]*x509.Certificate, bool, error) {
 	var bundleBytes []byte
 	var err error
 
+	b.connectionAttempts++
+	if b.startTime.IsZero() {
+		b.startTime = time.Now()
+	}
+	err = b.storage.StoreBootstrapState(b.use, b.startTime, b.connectionAttempts)
+	if err != nil {
+		return nil, false, err
+	}
+	b.updateMetrics()
+
 	switch {
 	case b.config.TrustBundleURL != "":
-		bundleBytes, err = downloadTrustBundle(b.config.TrustBundleURL, b.config.TrustBundleUnixSocket)
+		u, err := url.Parse(b.config.TrustBundleURL)
+		if err != nil {
+			return nil, false, fmt.Errorf("unable to parse trust bundle URL: %w", err)
+		}
+		if b.config.TrustBundleUnixSocket != "" {
+			params := u.Query()
+			if b.use == UseRebootstrap {
+				params.Set("spire-attest-mode", "rebootstrap")
+			} else {
+				params.Set("spire-attest-mode", "bootstrap")
+			}
+			params.Set("spire-connection-attempts", strconv.Itoa(b.connectionAttempts))
+			params.Set("spire-attest-start-time", b.startTime.Format(time.RFC3339))
+			params.Set("spire-server-address", b.config.ServerAddress)
+			params.Set("spire-server-port", strconv.Itoa(b.config.ServerPort))
+			params.Set("spiffe-trust-domain", b.config.TrustDomain)
+			u.RawQuery = params.Encode()
+		}
+		if b.use == UseRebootstrap {
+			b.log.Info(fmt.Sprintf("Server reattestation attempt %d. Started %s.", b.connectionAttempts, b.startTime.Format(time.RFC3339)))
+		} else {
+			b.log.Info(fmt.Sprintf("Server attestation attempt %d. Started %s.", b.connectionAttempts, b.startTime.Format(time.RFC3339)))
+		}
+		b.log.Debug(fmt.Sprintf("Server attestation url: %s from: ", u.String()), b.config.TrustBundleUnixSocket)
+		bundleBytes, err = downloadTrustBundle(u.String(), b.config.TrustBundleUnixSocket)
 		if err != nil {
 			return nil, false, err
 		}
@@ -59,11 +204,32 @@ func (b *Bundle) GetBundle() ([]*x509.Certificate, bool, error) {
 		return nil, false, errors.New("no certificates found in trust bundle")
 	}
 
+	b.lastBundle = bundle
+
 	return bundle, false, nil
 }
 
 func (b *Bundle) GetInsecureBootstrap() bool {
 	return b.config.InsecureBootstrap
+}
+
+func (b *Bundle) updateMetrics() {
+	seconds := b.startTime.Unix()
+	use := "rebootstrap"
+	if b.use != UseRebootstrap {
+		use = "bootstrap"
+	}
+	bootstrapped := 0
+	if b.startTime.IsZero() {
+		bootstrapped = 1
+	}
+	b.metrics.SetGaugeWithLabels([]string{"bootstraped"}, float32(bootstrapped), []telemetry.Label{})
+	b.metrics.SetGaugeWithLabels([]string{"bootstrap_seconds"}, float32(seconds), []telemetry.Label{
+		{Name: "mode", Value: use},
+	})
+	b.metrics.SetGaugeWithLabels([]string{"bootstrap_attempts"}, float32(b.connectionAttempts), []telemetry.Label{
+		{Name: "mode", Value: use},
+	})
 }
 
 func parseTrustBundle(bundleBytes []byte, trustBundleContentType string) ([]*x509.Certificate, error) {
