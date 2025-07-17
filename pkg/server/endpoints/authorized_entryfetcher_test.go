@@ -92,7 +92,7 @@ func TestNewAuthorizedEntryFetcherEvents(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Create one registration entry parented to the agent directly
-	_, err = ds.CreateRegistrationEntry(ctx, &common.RegistrationEntry{
+	entry1, err := ds.CreateRegistrationEntry(ctx, &common.RegistrationEntry{
 		SpiffeId: "spiffe://example.org/viaagent",
 		ParentId: agentID.String(),
 		Selectors: []*common.Selector{
@@ -105,7 +105,7 @@ func TestNewAuthorizedEntryFetcherEvents(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Create one registration entry parented to the alias
-	_, err = ds.CreateRegistrationEntry(ctx, &common.RegistrationEntry{
+	entry2, err := ds.CreateRegistrationEntry(ctx, &common.RegistrationEntry{
 		SpiffeId: "spiffe://example.org/viaalias",
 		ParentId: "spiffe://example.org/alias",
 		Selectors: []*common.Selector{
@@ -122,7 +122,7 @@ func TestNewAuthorizedEntryFetcherEvents(t *testing.T) {
 
 	entries, err := ef.FetchAuthorizedEntries(ctx, agentID)
 	assert.NoError(t, err)
-	assert.Equal(t, 2, len(entries))
+	compareEntries(t, entries, entry1, entry2)
 
 	// Assert metrics
 	expectedMetrics := []fakemetrics.MetricItem{
@@ -830,7 +830,7 @@ func TestUpdateAttestedNodesCacheSkippedStartupEvents(t *testing.T) {
 	compareEntries(t, entries, entry)
 }
 
-func TestFullCacheReloadRecoversFromSkippedEvents(t *testing.T) {
+func TestFullCacheReloadRecoversFromSkippedRegistrationEntryEvents(t *testing.T) {
 	ctx := context.Background()
 	log, _ := test.NewNullLogger()
 	clk := clock.NewMock(t)
@@ -911,6 +911,119 @@ func TestFullCacheReloadRecoversFromSkippedEvents(t *testing.T) {
 	entries, err = ef.FetchAuthorizedEntries(ctx, agentID)
 	require.NoError(t, err)
 	compareEntries(t, entries, entry1, entry2)
+}
+
+func TestFullCacheReloadRecoversFromSkippedAttestedNodeEvents(t *testing.T) {
+	ctx := context.Background()
+	log, _ := test.NewNullLogger()
+	clk := clock.NewMock(t)
+	ds := fakedatastore.New(t)
+	metrics := fakemetrics.New()
+
+	ef, err := NewAuthorizedEntryFetcherEvents(ctx, AuthorizedEntryFetcherEventsConfig{
+		log:                     log,
+		metrics:                 metrics,
+		clk:                     clk,
+		ds:                      ds,
+		cacheReloadInterval:     defaultCacheReloadInterval,
+		fullCacheReloadInterval: defaultFullCacheReloadInterval,
+		pruneEventsOlderThan:    defaultPruneEventsOlderThan,
+		eventTimeout:            defaultEventTimeout,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, ef)
+
+	agent1 := spiffeid.RequireFromString("spiffe://example.org/myagent1")
+	agent2 := spiffeid.RequireFromString("spiffe://example.org/myagent2")
+
+	// Ensure no entries are in there to start
+	entries, err := ef.FetchAuthorizedEntries(ctx, agent2)
+	require.NoError(t, err)
+	require.Zero(t, entries)
+
+	// Create node alias for agent 2
+	alias, err := ds.CreateRegistrationEntry(ctx, &common.RegistrationEntry{
+		SpiffeId: "spiffe://example.org/alias",
+		ParentId: "spiffe://example.org/spire/server",
+		Selectors: []*common.Selector{
+			{
+				Type:  "test",
+				Value: "alias",
+			},
+		},
+	})
+	assert.NoError(t, err)
+
+	// Create a registration entry parented to the alias
+	entry, err := ds.CreateRegistrationEntry(ctx, &common.RegistrationEntry{
+		SpiffeId: "spiffe://example.org/viaalias",
+		ParentId: alias.SpiffeId,
+		Selectors: []*common.Selector{
+			{
+				Type:  "workload",
+				Value: "two",
+			},
+		},
+	})
+	assert.NoError(t, err)
+
+	// Create both Attested Nodes
+	_, err = ds.CreateAttestedNode(ctx, &common.AttestedNode{
+		SpiffeId:     agent1.String(),
+		CertNotAfter: time.Now().Add(5 * time.Hour).Unix(),
+	})
+	require.NoError(t, err)
+
+	_, err = ds.CreateAttestedNode(ctx, &common.AttestedNode{
+		SpiffeId:     agent2.String(),
+		CertNotAfter: time.Now().Add(5 * time.Hour).Unix(),
+	})
+	require.NoError(t, err)
+
+	// Create selectors for agent 2
+	err = ds.SetNodeSelectors(ctx, agent2.String(), []*common.Selector{
+		{
+			Type:  "test",
+			Value: "alias",
+		},
+		{
+			Type:  "test",
+			Value: "cluster2",
+		},
+	})
+	assert.NoError(t, err)
+
+	// Create selectors for agent 1
+	err = ds.SetNodeSelectors(ctx, agent1.String(), []*common.Selector{
+		{
+			Type:  "test",
+			Value: "cluster1",
+		},
+	})
+	assert.NoError(t, err)
+
+	// Delete the events for agent 2 for now and then add it back later to simulate out of order events
+	err = ds.DeleteAttestedNodeEventForTesting(ctx, 2)
+	require.NoError(t, err)
+	err = ds.DeleteAttestedNodeEventForTesting(ctx, 3)
+	require.NoError(t, err)
+
+	// Should not be in cache yet
+	err = ef.updateCache(ctx)
+	require.NoError(t, err)
+
+	entries, err = ef.FetchAuthorizedEntries(ctx, agent2)
+	require.NoError(t, err)
+	require.Len(t, entries, 0)
+
+	// Do full reload
+	err = ef.buildCache(ctx)
+	require.NoError(t, err)
+
+	// Make sure it gets processed and the initial entry is deleted
+	entries, err = ef.FetchAuthorizedEntries(ctx, agent2)
+	require.NoError(t, err)
+	compareEntries(t, entries, entry)
 }
 
 // AgentsByIDCacheCount
