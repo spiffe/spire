@@ -188,6 +188,10 @@ EOF
     docker build --target envoy-agent-mashup -t envoy-agent-mashup .
 }
 
+curl-with-retry() {
+    curl --retry 5 --retry-all-errors --retry-max-time 120 "$@"
+}
+
 envoy-releases() {
     # Get the version list by downloading the JSON release listing, grabbing all of
     # the tag names, cutting out the quoted version, and sorting by reverse version
@@ -198,7 +202,7 @@ envoy-releases() {
     # The rest of the command strips off the point release to produce a sorted,
     # unique list of minor versions. We take the most recent MAX_ENVOY_RELEASES_TO_TEST
     # number of versions to test.
-    ALL_ENVOY_RELEASES="$(curl -Ls https://api.github.com/repos/envoyproxy/envoy/releases?per_page=100 \
+    ALL_ENVOY_RELEASES="$(curl-with-retry -Ls https://api.github.com/repos/envoyproxy/envoy/releases?per_page=100 \
         | grep tag_name \
         | cut -d\" -f4-4 \
         | cut -d. -f-2 \
@@ -213,7 +217,7 @@ envoy-releases() {
     # earlier than v1.13, which is the first release to adopt the v3 API (v2 is
     # deprecated).
     for release in ${ALL_ENVOY_RELEASES}; do
-        if ! curl --silent -f -lSL "https://hub.docker.com/v2/repositories/envoyproxy/envoy/tags/${release}-latest" > /dev/null 2>/dev/null; then
+        if ! curl-with-retry --silent -f -lSL "https://hub.docker.com/v2/repositories/envoyproxy/envoy/tags/${release}-latest" > /dev/null 2>/dev/null; then
             continue
         fi
 
@@ -234,7 +238,7 @@ download-bin() {
     local bin_url=$2
     if [ ! -f "${bin_path}" ] ; then
         log-info "downloading $(basename "${bin_path}") from ${bin_url}..."
-        curl -# -f -Lo "${bin_path}" "${bin_url}"
+        curl-with-retry -# -f -Lo "${bin_path}" "${bin_url}"
         chmod +x "${bin_path}"
     fi
 }
@@ -280,7 +284,7 @@ download-helm() {
     if [ -x "${HELMPATH}" ] && "${HELMPATH}" version | grep -q "${HELMSION}"; then
         ln -s "${HELMPATH}" "${helm_link_or_path}"
     else
-        curl -# -f -LO "${HELMURL}"
+        curl-with-retry -# -f -LO "${HELMURL}"
         tar zxvf "helm-${HELMVERSION}-${UNAME}-${ARCH}.tar.gz"
         cp "${UNAME}-${ARCH}"/helm "${helm_link_or_path}"
         chmod +x "${helm_link_or_path}"
