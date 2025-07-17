@@ -14,7 +14,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute v1.0.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork v1.1.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources v1.2.0
-	github.com/GoogleCloudPlatform/cloudsql-proxy v1.37.7
+	github.com/GoogleCloudPlatform/cloudsql-proxy v1.37.8
 	github.com/Keyfactor/ejbca-go-client-sdk v1.0.2
 	github.com/Masterminds/sprig/v3 v3.3.0
 	github.com/Microsoft/go-winio v0.6.2
@@ -25,12 +25,12 @@ require (
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.16.31
 	github.com/aws/aws-sdk-go-v2/feature/rds/auth v1.5.1
 	github.com/aws/aws-sdk-go-v2/service/acmpca v1.40.0
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.231.0
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.232.0
 	github.com/aws/aws-sdk-go-v2/service/iam v1.43.0
 	github.com/aws/aws-sdk-go-v2/service/kms v1.41.0
 	github.com/aws/aws-sdk-go-v2/service/organizations v1.39.0
 	github.com/aws/aws-sdk-go-v2/service/rolesanywhere v1.17.0
-	github.com/aws/aws-sdk-go-v2/service/s3 v1.83.0
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.84.0
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.35.0
 	github.com/aws/aws-sdk-go-v2/service/sts v1.34.0
 	github.com/aws/smithy-go v1.22.4
@@ -87,11 +87,11 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250603155806-513f23925822
 	google.golang.org/grpc v1.73.0
 	google.golang.org/protobuf v1.36.6
-	k8s.io/api v0.33.2
-	k8s.io/apimachinery v0.33.2
-	k8s.io/client-go v0.33.2
-	k8s.io/kube-aggregator v0.33.2
-	k8s.io/mount-utils v0.33.2
+	k8s.io/api v0.33.3
+	k8s.io/apimachinery v0.33.3
+	k8s.io/client-go v0.33.3
+	k8s.io/kube-aggregator v0.33.3
+	k8s.io/mount-utils v0.33.3
 	sigs.k8s.io/controller-runtime v0.21.0
 )
 
