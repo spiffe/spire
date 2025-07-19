@@ -36,6 +36,7 @@ RUNDIR=$(_CS_DARWIN_USER_TEMP_DIR='' TMPDIR='' mktemp -d /tmp/spire-integration-
 export ROOTDIR
 export REPODIR
 export RUNDIR
+export TESTNAME
 
 export SUCCESS=
 
