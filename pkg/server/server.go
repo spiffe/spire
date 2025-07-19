@@ -110,7 +110,7 @@ func (s *Server) run(ctx context.Context) (err error) {
 		TrustDomain: s.config.TrustDomain,
 	})
 
-	healthChecker := health.NewChecker(s.config.HealthChecks, s.config.Log)
+	healthChecker := health.NewChecker(s.config.HealthChecks, s.config.Log, false)
 
 	// Create the agent store host service. It will not be functional
 	// until the call to SetDeps() below.

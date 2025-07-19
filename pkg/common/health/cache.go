@@ -36,11 +36,13 @@ type checkerSubsystem struct {
 	checkable Checkable
 }
 
-func newCache(log logrus.FieldLogger, clock clock.Clock) *cache {
+func newCache(log logrus.FieldLogger, clock clock.Clock, delayedStart bool) *cache {
 	return &cache{
 		checkerSubsystems: make(map[string]*checkerSubsystem),
 		log:               log,
 		clk:               clock,
+		startupComplete:   make(chan struct{}, 1),
+		delayedStart:      delayedStart,
 	}
 }
 
@@ -54,6 +56,8 @@ type cache struct {
 	hooks struct {
 		statusUpdated chan struct{}
 	}
+	startupComplete chan struct{}
+	delayedStart bool
 }
 
 func (c *cache) addCheck(name string, checkable Checkable) error {
@@ -96,7 +100,21 @@ func (c *cache) getStatuses() map[string]checkState {
 	return statuses
 }
 
+func (c *cache) StartupComplete() {
+        c.mtx.Lock()
+        defer c.mtx.Unlock()
+
+	c.startupComplete <- struct{}{}
+}
+
 func (c *cache) start(ctx context.Context) error {
+	if c.delayedStart {
+		select {
+		case <-c.startupComplete:
+		case <-time.After(8 * time.Second):
+		}
+	}
+
 	c.mtx.RLock()
 	defer c.mtx.RUnlock()
 
@@ -104,7 +122,6 @@ func (c *cache) start(ctx context.Context) error {
 		return errors.New("no health checks defined")
 	}
 
-	time.Sleep(8 * time.Second)
 	c.startRunner(ctx)
 	return nil
 }

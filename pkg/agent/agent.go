@@ -98,7 +98,7 @@ func (a *Agent) Run(ctx context.Context) error {
 	}
 	defer cat.Close()
 
-	healthChecker := health.NewChecker(a.c.HealthChecks, a.c.Log)
+	healthChecker := health.NewChecker(a.c.HealthChecks, a.c.Log, true)
 	if err := healthChecker.AddCheck("agent", a); err != nil {
 		return fmt.Errorf("failed adding healthcheck: %w", err)
 	}
@@ -206,6 +206,7 @@ func (a *Agent) Run(ctx context.Context) error {
 		tasks = append(tasks, a.c.LogReopener)
 	}
 
+	healthChecker.StartupComplete()
 	taskRunner.StartTasks(tasks...)
 	err = taskRunner.Wait()
 	if errors.Is(err, context.Canceled) {
