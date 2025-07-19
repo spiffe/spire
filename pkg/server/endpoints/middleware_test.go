@@ -255,9 +255,10 @@ func TestAgentAuthorizer(t *testing.T) {
 			if !tt.time.IsZero() {
 				clk.Set(tt.time)
 			}
-			cache, err := nodecache.New(t.Context(), ds, clk, true, false)
+			cache, err := nodecache.New(t.Context(), log, ds, clk, true, false)
 			require.NoError(t, err)
-			authorizer := AgentAuthorizer(ds, cache, clk)
+
+			authorizer := AgentAuthorizer(ds, cache, time.Second, clk)
 			ctx := context.Background()
 			ctx = rpccontext.WithLogger(ctx, log.WithFields(logrus.Fields{
 				telemetry.CallerAddr: "127.0.0.1",
@@ -314,10 +315,11 @@ func TestAgentAuthorizerCache(t *testing.T) {
 	require.NoError(t, err)
 
 	clk := clock.NewMock(t)
-	cache, err := nodecache.New(t.Context(), ds, clk, true, true)
+	cache, err := nodecache.New(t.Context(), log, ds, clk, true, true)
 	require.NoError(t, err)
 
-	authorizer := AgentAuthorizer(ds, cache, clk)
+	maxCacheValidity := 15 * time.Second
+	authorizer := AgentAuthorizer(ds, cache, maxCacheValidity, clk)
 
 	err = authorizer.AuthorizeAgent(ctx, agentID, initialAgentSVID)
 	require.NoError(t, err)
@@ -334,7 +336,7 @@ func TestAgentAuthorizerCache(t *testing.T) {
 
 	// After the cached attested node information expires, the agent is no longer
 	// considered authorized.
-	clk.Add(cacheExpiry + time.Second)
+	clk.Add(maxCacheValidity + time.Second)
 	err = authorizer.AuthorizeAgent(ctx, agentID, initialAgentSVID)
 	require.Error(t, err)
 
@@ -345,11 +347,12 @@ func TestAgentAuthorizerCache(t *testing.T) {
 
 	// Update the attested node in the datastore to validate switching to
 	// a new certificate scenario.
-	ds.UpdateAttestedNode(ctx, &common.AttestedNode{
+	_, err = ds.UpdateAttestedNode(ctx, &common.AttestedNode{
 		SpiffeId:            agentID.String(),
 		CertSerialNumber:    initialAgentSVID.SerialNumber.String(),
 		NewCertSerialNumber: renewedAgentSVID.SerialNumber.String(),
 	}, nil)
+	require.NoError(t, err)
 
 	// Can still authorize the agent using the old SVID via the cached SVID
 	err = authorizer.AuthorizeAgent(ctx, agentID, initialAgentSVID)
@@ -359,6 +362,14 @@ func TestAgentAuthorizerCache(t *testing.T) {
 	// the cache.
 	err = authorizer.AuthorizeAgent(ctx, agentID, renewedAgentSVID)
 	require.NoError(t, err)
+
+	// Will still be able to login while the cache is valid
+	err = authorizer.AuthorizeAgent(ctx, agentID, initialAgentSVID)
+	require.NoError(t, err)
+
+	// After the cache is reloaded, the old SVID should not longer be able
+	// to login.
+	clk.Add(maxCacheValidity + time.Second)
 
 	// Should no longer be able to login with the old SVID since it's
 	// no longer in the cache.
