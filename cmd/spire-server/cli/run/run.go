@@ -90,6 +90,7 @@ type serverConfig struct {
 	RateLimit                    rateLimitConfig    `hcl:"ratelimit"`
 	SocketPath                   string             `hcl:"socket_path"`
 	TrustDomain                  string             `hcl:"trust_domain"`
+	MaxAttestedNodeInfoStaleness *string            `hcl:"max_attested_node_info_staleness"`
 
 	ConfigPath string
 	ExpandEnv  bool
@@ -517,6 +518,15 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 	}
 
 	tlspolicy.LogPolicy(sc.TLSPolicy, log.NewHCLogAdapter(logger, "tlspolicy"))
+
+	if c.Server.MaxAttestedNodeInfoStaleness != nil {
+		maxAttestedNodeInfoStaleness, err := time.ParseDuration(*c.Server.MaxAttestedNodeInfoStaleness)
+		if err != nil {
+			return nil, fmt.Errorf("could not parse max attested node staleness %q: %w", *c.Server.MaxAttestedNodeInfoStaleness, err)
+		}
+
+		sc.MaxAttestedNodeInfoStaleness = maxAttestedNodeInfoStaleness
+	}
 
 	for _, adminID := range c.Server.AdminIDs {
 		id, err := spiffeid.FromString(adminID)
