@@ -1423,6 +1423,118 @@ func (s *PluginSuite) TestUpdateAttestedNode() {
 	}
 }
 
+func (s *PluginSuite) TestPruneAttestedExpiredNodes() {
+	clk := clock.NewMock(s.T())
+
+	now := clk.Now()
+
+	nodes := map[string](*common.AttestedNode){
+		"valid": &common.AttestedNode{
+			SpiffeId:            "valid",
+			AttestationDataType: "aws-tag",
+			CertSerialNumber:    "badcafe",
+			CanReattest:         true,
+			CertNotAfter:        now.Add(time.Hour).Unix(),
+		},
+		"expired": &common.AttestedNode{
+			SpiffeId:            "expired",
+			AttestationDataType: "aws-tag",
+			CertSerialNumber:    "badcafe",
+			CanReattest:         true,
+			CertNotAfter:        now.Add(-time.Hour).Unix(),
+		},
+		"expired-banned": &common.AttestedNode{
+			SpiffeId:            "expired-banned",
+			AttestationDataType: "aws-tag",
+			CertSerialNumber:    "",
+			CanReattest:         true,
+			CertNotAfter:        now.Add(-time.Hour).Unix(),
+		},
+		"expired-non-reattestable": &common.AttestedNode{
+			SpiffeId:            "expired-non-reattestable",
+			AttestationDataType: "aws-tag",
+			CertSerialNumber:    "badcafe",
+			CanReattest:         false,
+			CertNotAfter:        now.Add(-time.Hour).Unix(),
+		},
+	}
+	selectors := []*common.Selector{
+		{Type: "TYPE", Value: "VALUE"},
+	}
+
+	for _, node := range nodes {
+		_, err := s.ds.CreateAttestedNode(ctx, node)
+		s.NoError(err)
+		err = s.ds.SetNodeSelectors(ctx, node.SpiffeId, selectors)
+		s.NoError(err)
+	}
+
+	s.Run("prune before expiry", func() {
+		err := s.ds.PruneAttestedExpiredNodes(ctx, now.Add(-time.Hour), false)
+		s.Require().NoError(err)
+
+		// check that none of the nodes gets deleted
+		for _, node := range nodes {
+			attestedNode, err := s.ds.FetchAttestedNode(ctx, node.SpiffeId)
+			s.Require().NoError(err)
+			s.NotNil(attestedNode)
+		}
+	})
+
+	s.Run("prune expired attested nodes", func() {
+		err := s.ds.PruneAttestedExpiredNodes(ctx, now.Add(-time.Minute), false)
+		s.Require().NoError(err)
+
+		// check that the unexpired node is present
+		attestedValidNode, err := s.ds.FetchAttestedNode(ctx, nodes["valid"].SpiffeId)
+		s.Require().NoError(err)
+		s.NotNil(attestedValidNode)
+
+		// check that the expired node and its selectors have been deleted
+		attestedExpiredNode, err := s.ds.FetchAttestedNode(ctx, nodes["expired"].SpiffeId)
+		s.Require().NoError(err)
+		s.Nil(attestedExpiredNode)
+
+		deletedExpiredNodeSelectors, err := s.ds.GetNodeSelectors(ctx, nodes["expired"].SpiffeId, datastore.RequireCurrent)
+		s.Require().NoError(err)
+		s.Nil(deletedExpiredNodeSelectors)
+
+		// check that the expired node, which is also non-reattestable, has not been deleted
+		attestedNotReattestableNode, err := s.ds.FetchAttestedNode(ctx, nodes["expired-non-reattestable"].SpiffeId)
+		s.Require().NoError(err)
+		s.NotNil(attestedNotReattestableNode)
+
+		// check that the banned node has not been deleted, even if it is expired
+		attestedBannedNode, err := s.ds.FetchAttestedNode(ctx, nodes["expired-banned"].SpiffeId)
+		s.Require().NoError(err)
+		s.NotNil(attestedBannedNode)
+	})
+
+	s.Run("prune expired attested nodes including non-reattestable nodes", func() {
+		err := s.ds.PruneAttestedExpiredNodes(ctx, now.Add(-time.Minute), true)
+		s.Require().NoError(err)
+
+		// check that the valid node is still present
+		attestedValidNode, err := s.ds.FetchAttestedNode(ctx, nodes["valid"].SpiffeId)
+		s.Require().NoError(err)
+		s.NotNil(attestedValidNode)
+
+		// check that the expired non-reattestable node and its selectors have been deleled
+		attestedNotReattestableNode, err := s.ds.FetchAttestedNode(ctx, nodes["expired-non-reattestable"].SpiffeId)
+		s.Require().NoError(err)
+		s.Nil(attestedNotReattestableNode)
+
+		deletedExpiredNonReattestableNodeSelectors, err := s.ds.GetNodeSelectors(ctx, nodes["expired-non-reattestable"].SpiffeId, datastore.RequireCurrent)
+		s.Require().NoError(err)
+		s.Nil(deletedExpiredNonReattestableNodeSelectors)
+
+		// check that the banned node has not been deleted
+		attestedBannedNode, err := s.ds.FetchAttestedNode(ctx, nodes["expired-banned"].SpiffeId)
+		s.Require().NoError(err)
+		s.NotNil(attestedBannedNode)
+	})
+}
+
 func (s *PluginSuite) TestDeleteAttestedNode() {
 	entryFoo := &common.AttestedNode{
 		SpiffeId:            "foo",

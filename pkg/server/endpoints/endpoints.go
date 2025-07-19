@@ -51,6 +51,10 @@ const (
 	// entry cache.
 	defaultCacheReloadInterval = 5 * time.Second
 
+	// This is the default amount of time between full refreshes of the in-memory
+	// entry cache.
+	defaultFullCacheReloadInterval = 24 * time.Hour
+
 	// This is the default amount of time events live before they are pruned
 	defaultPruneEventsOlderThan = 12 * time.Hour
 
@@ -126,6 +130,15 @@ func New(ctx context.Context, c Config) (*Endpoints, error) {
 	if c.CacheReloadInterval == 0 {
 		c.CacheReloadInterval = defaultCacheReloadInterval
 	}
+
+	if c.FullCacheReloadInterval == 0 {
+		c.FullCacheReloadInterval = defaultFullCacheReloadInterval
+	}
+
+	if c.FullCacheReloadInterval <= c.CacheReloadInterval {
+		return nil, errors.New("full cache reload interval must be greater than cache reload interval")
+	}
+
 	if c.PruneEventsOlderThan == 0 {
 		c.PruneEventsOlderThan = defaultPruneEventsOlderThan
 	}
@@ -139,7 +152,16 @@ func New(ctx context.Context, c Config) (*Endpoints, error) {
 	var ef api.AuthorizedEntryFetcher
 	var cacheRebuildTask, pruneEventsTask func(context.Context) error
 	if c.EventsBasedCache {
-		efEventsBasedCache, err := NewAuthorizedEntryFetcherWithEventsBasedCache(ctx, c.Log, c.Metrics, c.Clock, ds, c.CacheReloadInterval, c.PruneEventsOlderThan, c.EventTimeout)
+		efEventsBasedCache, err := NewAuthorizedEntryFetcherEvents(ctx, AuthorizedEntryFetcherEventsConfig{
+			log:                     c.Log,
+			metrics:                 c.Metrics,
+			clk:                     c.Clock,
+			ds:                      ds,
+			cacheReloadInterval:     c.CacheReloadInterval,
+			fullCacheReloadInterval: c.FullCacheReloadInterval,
+			pruneEventsOlderThan:    c.PruneEventsOlderThan,
+			eventTimeout:            c.EventTimeout,
+		})
 		if err != nil {
 			return nil, err
 		}

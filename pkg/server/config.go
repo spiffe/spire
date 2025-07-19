@@ -99,6 +99,9 @@ type Config struct {
 	// CacheReloadInterval controls how often the in-memory entry cache reloads
 	CacheReloadInterval time.Duration
 
+	// FullCacheReloadInterval controls how often the in-memory entry goes through a full reload
+	FullCacheReloadInterval time.Duration
+
 	// EventsBasedCache enabled event driven cache reloads
 	EventsBasedCache bool
 
@@ -124,6 +127,16 @@ type Config struct {
 
 	// TLSPolicy determines the policy settings to apply to all TLS connections.
 	TLSPolicy tlspolicy.Policy
+
+	// PruneAttestedNodesExpiredFor enables periodic removal of attested nodes
+	// with X509-SVID expiration date further than a given time intervaln in the
+	// past. Non-reattestable nodes are not pruned by default. Banned nodes are
+	// not pruned.
+	PruneAttestedNodesExpiredFor time.Duration
+
+	// PruneNonReattestableNodes, if true, includes non-reattestable nodes in the list
+	// considered for pruning.
+	PruneNonReattestableNodes bool
 }
 
 type ExperimentalConfig struct {
