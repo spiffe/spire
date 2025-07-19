@@ -73,3 +73,8 @@ func (s *Suite) AssertProtoEqual(expected, actual proto.Message, msgAndArgs ...a
 	s.T().Helper()
 	return AssertProtoEqual(s.T(), expected, actual, msgAndArgs...)
 }
+
+func (s *Suite) CheckProtoListEqual(expected, actual any) bool {
+	s.T().Helper()
+	return CheckProtoListEqual(s.T(), expected, actual)
+}

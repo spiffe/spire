@@ -9,7 +9,7 @@ PKGDIR="${REPODIR}/pkg/server/datastore/sqlstore"
 log-debug "building mysql replication test harness..."
 (
 cd "${PKGDIR}"
-go test -c -o "${DIR}"/mysql-replicated.test -ldflags "-X github.com/spiffe/spire/pkg/server/datastore/sqlstore.TestDialect=mysql -X github.com/spiffe/spire/pkg/server/datastore/sqlstore.TestReadOnlyDelay=100ms -X github.com/spiffe/spire/pkg/server/datastore/sqlstore.TestConnString=spire:test@tcp(localhost:9999)/spire?parseTime=true -X github.com/spiffe/spire/pkg/server/datastore/sqlstore.TestROConnString=spire:test@tcp(localhost:10000)/spire?parseTime=true"
+go test -c -o "${DIR}"/mysql-replicated.test -ldflags "-X github.com/spiffe/spire/pkg/server/datastore/sqlstore.TestDialect=mysql -X github.com/spiffe/spire/pkg/server/datastore/sqlstore.TestConnString=spire:test@tcp(localhost:9999)/spire?parseTime=true -X github.com/spiffe/spire/pkg/server/datastore/sqlstore.TestROConnString=spire:test@tcp(localhost:10000)/spire?parseTime=true"
 )
 
 log-debug "copying over test data..."
