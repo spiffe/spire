@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/andres-erbsen/clock"
+	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/proto/spire/common"
 )
@@ -15,6 +16,7 @@ const (
 )
 
 type Cache struct {
+	log              logrus.FieldLogger
 	ds               datastore.DataStore
 	clk              clock.Clock
 	automaticRefresh bool
@@ -25,8 +27,9 @@ type Cache struct {
 	nodeRefreshTime  map[string]time.Time
 }
 
-func New(ctx context.Context, ds datastore.DataStore, clk clock.Clock, automaticRefresh, enableCache bool) (*Cache, error) {
+func New(ctx context.Context, log logrus.FieldLogger, ds datastore.DataStore, clk clock.Clock, automaticRefresh, enableCache bool) (*Cache, error) {
 	cache := &Cache{
+		log:              log,
 		ds:               ds,
 		clk:              clk,
 		automaticRefresh: automaticRefresh,
@@ -139,7 +142,9 @@ func (c *Cache) PeriodicRebuild(ctx context.Context) error {
 	case <-ctx.Done():
 		return ctx.Err()
 	case <-c.clk.Tick(rebuildInterval):
-		c.Rebuild(ctx)
+		if err := c.Rebuild(ctx); err != nil {
+			c.log.WithError(err).Error("Fail to rebuild the attested node cache")
+		}
 	}
 
 	return nil

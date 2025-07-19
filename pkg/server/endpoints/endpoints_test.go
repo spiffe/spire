@@ -212,7 +212,7 @@ func TestListenAndServe(t *testing.T) {
 	pe, err := authpolicy.DefaultAuthPolicy(ctx)
 	require.NoError(t, err)
 
-	nodeCache, err := nodecache.New(ctx, ds, clk, true, true)
+	nodeCache, err := nodecache.New(ctx, log, ds, clk, true, true)
 	require.NoError(t, err)
 
 	endpoints := Endpoints{
