@@ -1533,7 +1533,7 @@ func NewNodeScenario(t *testing.T, setup *nodeScenarioSetup) *scenario {
 }
 
 func (s *scenario) buildAttestedNodesCache() (*attestedNodes, error) {
-	nodeCache, err := nodecache.New(s.ctx, s.ds, s.clk, false, true)
+	nodeCache, err := nodecache.New(s.ctx, s.log, s.ds, s.clk, false, true)
 	if err != nil {
 		return nil, err
 	}

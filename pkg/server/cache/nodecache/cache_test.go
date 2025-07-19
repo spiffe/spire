@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
@@ -35,6 +36,7 @@ var (
 func TestCacheEnabled(t *testing.T) {
 	ds := fakedatastore.New(t)
 	clk := clock.NewMock(t)
+	log, _ := test.NewNullLogger()
 
 	_, err := ds.CreateAttestedNode(t.Context(), firstAgent)
 	require.NoError(t, err)
@@ -43,7 +45,7 @@ func TestCacheEnabled(t *testing.T) {
 	_, err = ds.CreateAttestedNode(t.Context(), expiredAgent)
 	require.NoError(t, err)
 
-	cache, err := New(t.Context(), ds, clk, true, true)
+	cache, err := New(t.Context(), log, ds, clk, true, true)
 	require.NoError(t, err)
 
 	cachedFirstAgent, firstAgentTime, err := cache.FetchAttestedNode(firstAgent.SpiffeId)
@@ -82,13 +84,14 @@ func TestCacheEnabled(t *testing.T) {
 
 func TestCacheDisabled(t *testing.T) {
 	ds := fakedatastore.New(t)
+	log, _ := test.NewNullLogger()
 
 	_, err := ds.CreateAttestedNode(t.Context(), firstAgent)
 	require.NoError(t, err)
 	_, err = ds.CreateAttestedNode(t.Context(), expiredAgent)
 	require.NoError(t, err)
 
-	cache, err := New(t.Context(), ds, clock.NewMock(t), true, false)
+	cache, err := New(t.Context(), log, ds, clock.NewMock(t), true, false)
 	require.NoError(t, err)
 
 	cachedFirstAgent, _, err := cache.FetchAttestedNode(firstAgent.SpiffeId)
@@ -104,14 +107,18 @@ func TestCacheDisabled(t *testing.T) {
 func TestCachePeriodicRebuild(t *testing.T) {
 	ds := fakedatastore.New(t)
 	clk := clock.NewMock(t)
+	log, _ := test.NewNullLogger()
 
 	_, err := ds.CreateAttestedNode(t.Context(), firstAgent)
 	require.NoError(t, err)
 
-	cache, err := New(t.Context(), ds, clk, true, true)
+	cache, err := New(t.Context(), log, ds, clk, true, true)
 	require.NoError(t, err)
 
-	go cache.PeriodicRebuild(t.Context())
+	go func() {
+		err := cache.PeriodicRebuild(t.Context())
+		require.NoError(t, err)
+	}()
 
 	cachedFirstAgent, _, err := cache.FetchAttestedNode(firstAgent.SpiffeId)
 	require.NoError(t, err)
@@ -122,6 +129,8 @@ func TestCachePeriodicRebuild(t *testing.T) {
 	require.Nil(t, cachedSecondAgent)
 
 	_, err = ds.CreateAttestedNode(t.Context(), secondAgent)
+	require.NoError(t, err)
+
 	cachedSecondAgent, _, err = cache.FetchAttestedNode(secondAgent.SpiffeId)
 	require.NoError(t, err)
 	require.Nil(t, cachedSecondAgent)
@@ -137,11 +146,12 @@ func TestCachePeriodicRebuild(t *testing.T) {
 func TestCacheWithoutPeriodicRebuild(t *testing.T) {
 	ds := fakedatastore.New(t)
 	clk := clock.NewMock(t)
+	log, _ := test.NewNullLogger()
 
 	firstNode, err := ds.CreateAttestedNode(t.Context(), firstAgent)
 	require.NoError(t, err)
 
-	cache, err := New(t.Context(), ds, clk, false, true)
+	cache, err := New(t.Context(), log, ds, clk, false, true)
 	require.NoError(t, err)
 
 	cachedFirstAgent, _, err := cache.FetchAttestedNode(firstAgent.SpiffeId)
@@ -159,6 +169,7 @@ func TestCacheWithoutPeriodicRebuild(t *testing.T) {
 	require.Nil(t, cachedSecondAgent)
 
 	secondNode, err := ds.CreateAttestedNode(t.Context(), secondAgent)
+	require.NoError(t, err)
 
 	cachedSecondAgent, _, err = cache.FetchAttestedNode(secondAgent.SpiffeId)
 	require.NoError(t, err)
