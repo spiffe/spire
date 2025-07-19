@@ -428,6 +428,7 @@ func (s *Server) newEndpointsServer(ctx context.Context, catalog catalog.Catalog
 		BundleManager:                bundleManager,
 		AdminIDs:                     s.config.AdminIDs,
 		UseLegacyDownstreamX509CATTL: s.config.UseLegacyDownstreamX509CATTL,
+		MaxAttestedNodeInfoStaleness: s.config.MaxAttestedNodeInfoStaleness,
 	}
 	if s.config.Federation.BundleEndpoint != nil {
 		config.BundleEndpoint.Address = s.config.Federation.BundleEndpoint.Address

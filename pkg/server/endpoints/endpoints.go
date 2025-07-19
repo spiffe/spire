@@ -96,6 +96,7 @@ type Endpoints struct {
 	AuthPolicyEngine             *authpolicy.Engine
 	AdminIDs                     []spiffeid.ID
 	TLSPolicy                    tlspolicy.Policy
+	MaxAttestedNodeInfoStaleness time.Duration
 
 	nodeCache api.AttestedNodeCache
 }
@@ -159,7 +160,7 @@ func New(ctx context.Context, c Config) (*Endpoints, error) {
 	var ef api.AuthorizedEntryFetcher
 	var cacheRebuildTask, nodeCacheRebuildTask, pruneEventsTask func(context.Context) error
 	if c.EventsBasedCache {
-		nodeCache, err = nodecache.New(ctx, ds, c.Clock, true, true)
+		nodeCache, err = nodecache.New(ctx, c.Log, ds, c.Clock, true, c.MaxAttestedNodeInfoStaleness != 0)
 		if err != nil {
 			return nil, err
 		}
@@ -183,7 +184,7 @@ func New(ctx context.Context, c Config) (*Endpoints, error) {
 		nodeCacheRebuildTask = nodeCache.PeriodicRebuild
 		ef = efEventsBasedCache
 	} else {
-		nodeCache, err = nodecache.New(ctx, ds, c.Clock, true, true)
+		nodeCache, err = nodecache.New(ctx, c.Log, ds, c.Clock, true, c.MaxAttestedNodeInfoStaleness != 0)
 		if err != nil {
 			return nil, err
 		}
@@ -227,6 +228,7 @@ func New(ctx context.Context, c Config) (*Endpoints, error) {
 		AuthPolicyEngine:             c.AuthPolicyEngine,
 		AdminIDs:                     c.AdminIDs,
 		TLSPolicy:                    c.TLSPolicy,
+		MaxAttestedNodeInfoStaleness: c.MaxAttestedNodeInfoStaleness,
 
 		nodeCache: nodeCache,
 	}, nil
@@ -444,5 +446,5 @@ func (e *Endpoints) getTLSConfig(ctx context.Context) func(*tls.ClientHelloInfo)
 func (e *Endpoints) makeInterceptors() (grpc.UnaryServerInterceptor, grpc.StreamServerInterceptor) {
 	log := e.Log.WithField(telemetry.SubsystemName, "api")
 
-	return middleware.Interceptors(Middleware(log, e.Metrics, e.DataStore, e.nodeCache, clock.New(), e.RateLimit, e.AuthPolicyEngine, e.AuditLogEnabled, e.AdminIDs))
+	return middleware.Interceptors(Middleware(log, e.Metrics, e.DataStore, e.nodeCache, e.MaxAttestedNodeInfoStaleness, clock.New(), e.RateLimit, e.AuthPolicyEngine, e.AuditLogEnabled, e.AdminIDs))
 }
