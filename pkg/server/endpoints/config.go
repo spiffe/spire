@@ -115,6 +115,8 @@ type Config struct {
 	// TLSPolicy determines the post-quantum-safe policy used for all TLS
 	// connections.
 	TLSPolicy tlspolicy.Policy
+
+	MaxAttestedNodeInfoStaleness time.Duration
 }
 
 func (c *Config) maybeMakeBundleEndpointServer() (Server, func(context.Context) error) {
