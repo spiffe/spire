@@ -101,9 +101,6 @@ func (c *cache) getStatuses() map[string]checkState {
 }
 
 func (c *cache) StartupComplete() {
-        c.mtx.Lock()
-        defer c.mtx.Unlock()
-
 	c.startupComplete <- struct{}{}
 }
 
@@ -111,6 +108,8 @@ func (c *cache) start(ctx context.Context) error {
 	if c.delayedStart {
 		select {
 		case <-c.startupComplete:
+			// Even when notified, it may take a tiny bit for the service to become responsive.
+			time.Sleep(200 * time.Millisecond)
 		case <-time.After(8 * time.Second):
 		}
 	}

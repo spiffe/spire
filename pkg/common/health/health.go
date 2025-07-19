@@ -99,9 +99,6 @@ type checker struct {
 }
 
 func (c *checker) StartupComplete() {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
-
 	c.cache.StartupComplete()
 }
 
