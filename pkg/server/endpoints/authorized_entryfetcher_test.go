@@ -339,8 +339,10 @@ func TestRunUpdateCacheTaskPrunesExpiredAgents(t *testing.T) {
 
 	// Bump clock and rerun UpdateCacheTask
 	clk.Add(defaultCacheReloadInterval)
-	entries, err = ef.FetchAuthorizedEntries(ctx, agentID)
-	assert.NoError(t, err)
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		entries, err = ef.FetchAuthorizedEntries(ctx, agentID)
+		assert.NoError(c, err)
+	}, time.Second, 50*time.Millisecond)
 	compareEntries(t, entries, entry)
 
 	// Make sure nothing was pruned yet
@@ -350,8 +352,10 @@ func TestRunUpdateCacheTaskPrunesExpiredAgents(t *testing.T) {
 
 	// Bump clock so entry expires and is pruned
 	clk.Add(defaultCacheReloadInterval)
-	assert.Equal(t, 1, hook.LastEntry().Data["count"])
-	assert.Equal(t, "Pruned expired agents from entry cache", hook.LastEntry().Message)
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		assert.Equal(c, 1, hook.LastEntry().Data["count"])
+		assert.Equal(c, "Pruned expired agents from entry cache", hook.LastEntry().Message)
+	}, time.Second, 50*time.Millisecond)
 
 	// Stop the task
 	cancel()
