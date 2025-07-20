@@ -57,7 +57,7 @@ type cache struct {
 		statusUpdated chan struct{}
 	}
 	startupComplete chan struct{}
-	delayedStart bool
+	delayedStart    bool
 }
 
 func (c *cache) addCheck(name string, checkable Checkable) error {
