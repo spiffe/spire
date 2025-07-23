@@ -6,11 +6,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/andres-erbsen/clock"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/pkg/common/health"
 	"github.com/spiffe/spire/pkg/server/ca/manager"
 	"github.com/spiffe/spire/proto/private/server/journal"
+	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/fakes/fakehealthchecker"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -29,7 +29,7 @@ func TestNewRotator(t *testing.T) {
 }
 
 func TestHealthChecks(t *testing.T) {
-	test := setupTest()
+	test := setupTest(t)
 
 	expectStateMap := map[string]health.State{
 		"server.ca.rotator": {
@@ -128,7 +128,7 @@ func TestInitialize(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			test := setupTest()
+			test := setupTest(t)
 
 			now := test.clock.Now()
 			test.fakeCAManager.currentJWTKeySlot = createSlot("jwt-a", now, tt.hasCurrent)
@@ -173,7 +173,7 @@ func TestRunNotifyBundleFails(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 
-	test := setupTest()
+	test := setupTest(t)
 	test.fakeCAManager.notifyBundleLoadedErr = errors.New("oh no")
 
 	err := test.rotator.Run(ctx)
@@ -183,7 +183,7 @@ func TestRunNotifyBundleFails(t *testing.T) {
 func TestRunJWTKeyRotation(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
-	test := setupTest()
+	test := setupTest(t)
 
 	go func() {
 		err := test.rotator.Run(ctx)
@@ -235,7 +235,7 @@ func TestRunJWTKeyRotation(t *testing.T) {
 func TestRunX509CARotation(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
-	test := setupTest()
+	test := setupTest(t)
 
 	go func() {
 		err := test.rotator.Run(ctx)
@@ -287,7 +287,7 @@ func TestRunX509CARotation(t *testing.T) {
 func TestPruneBundle(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
-	test := setupTest()
+	test := setupTest(t)
 
 	go func() {
 		err := test.rotator.Run(ctx)
@@ -323,12 +323,13 @@ func TestPruneBundle(t *testing.T) {
 func TestPruneCAJournals(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
-	test := setupTest()
+	test := setupTest(t)
 
 	go func() {
 		err := test.rotator.Run(ctx)
 		assert.NoError(t, err)
 	}()
+	test.clock.WaitForTicker(time.Minute, "waiting for the Run() ticker")
 
 	test.clock.Add(time.Minute + time.Second)
 	require.False(t, test.fakeCAManager.pruneCAJournalsWasCalled)
@@ -349,9 +350,9 @@ type rotationTest struct {
 	healthChecker *fakehealthchecker.Checker
 }
 
-func setupTest() *rotationTest {
+func setupTest(tb testing.TB) *rotationTest {
 	log, logHook := test.NewNullLogger()
-	clock := clock.NewMock()
+	clock := clock.NewMock(tb)
 	fManager := &fakeCAManager{
 		clk: clock,
 
