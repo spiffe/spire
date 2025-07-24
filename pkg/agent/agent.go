@@ -34,6 +34,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/uptime"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/common/version"
+	"github.com/spiffe/spire/pkg/common/x509util"
 	_ "golang.org/x/net/trace" // registers handlers on the DefaultServeMux
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -41,8 +42,9 @@ import (
 )
 
 const (
-	bootstrapBackoffInterval       = 5 * time.Second
-	bootstrapBackoffMaxElapsedTime = 1 * time.Minute
+	bootstrapBackoffInterval         = 5 * time.Second
+	bootstrapBackoffMaxElapsedTime   = 1 * time.Minute
+	rebootstrapBackoffMaxElapsedTime = 24 * time.Hour
 )
 
 type Agent struct {
@@ -106,12 +108,34 @@ func (a *Agent) Run(ctx context.Context) error {
 
 	var as *node_attestor.AttestationResult
 
+	a.c.TrustBundleSources.SetMetrics(metrics)
+	err = a.c.TrustBundleSources.SetStorage(sto)
+	if err != nil {
+		return err
+	}
+
+	if a.c.RebootstrapMode != RebootstrapNever {
+		_, reattestable, err := sto.LoadSVID()
+		if err == nil && !reattestable {
+			if a.c.RebootstrapMode == RebootstrapAlways {
+				return errors.New("you have requested rebootstrap support but the NodeAttestor plugin or the spire server configuration is not allowing it")
+			} else {
+				a.c.Log.Warn("you have requested rebootstrap support but the NodeAttestor plugin or the spire server configuration is not allowing it. Disabling")
+				a.c.RebootstrapMode = RebootstrapNever
+			}
+		}
+	}
+
 	if a.c.RetryBootstrap {
 		attBackoffClock := clock.New()
+		backoffTime := bootstrapBackoffMaxElapsedTime
+		if a.c.RebootstrapMode != RebootstrapNever {
+			backoffTime = rebootstrapBackoffMaxElapsedTime
+		}
 		attBackoff := backoff.NewBackoff(
 			attBackoffClock,
 			bootstrapBackoffInterval,
-			backoff.WithMaxElapsedTime(bootstrapBackoffMaxElapsedTime),
+			backoff.WithMaxElapsedTime(backoffTime),
 		)
 
 		for {
@@ -123,7 +147,45 @@ func (a *Agent) Run(ctx context.Context) error {
 			if err == nil {
 				as, err = a.attest(ctx, sto, cat, metrics, nodeAttestor, bootstrapTrustBundle, insecureBootstrap)
 				if err == nil {
+					err = a.c.TrustBundleSources.SetSuccess()
+					if err != nil {
+						return err
+					}
+					if a.c.RebootstrapMode != RebootstrapNever {
+						_, reattestable, err := sto.LoadSVID()
+						if err == nil && !reattestable {
+							if a.c.RebootstrapMode == RebootstrapAlways {
+								return errors.New("you have requested rebootstrap support but the NodeAttestor plugin or the spire server configuration is not allowing it")
+							} else {
+								a.c.Log.Warn("you have requested rebootstrap support but the NodeAttestor plugin or the spire server configuration is not allowing it. Disabling")
+								a.c.RebootstrapMode = RebootstrapNever
+							}
+						}
+					}
 					break
+				}
+
+				if x509util.IsUnknownAuthorityError(err) {
+					if a.c.TrustBundleSources.IsBootstrap() {
+						a.c.Log.Info("Trust Bandle and Server dont agree.... bootstrapping again")
+					} else if a.c.RebootstrapMode != RebootstrapNever {
+						startTime, err := a.c.TrustBundleSources.GetStartTime()
+						if err != nil {
+							return nil
+						}
+						seconds := time.Since(startTime)
+						if seconds < a.c.RebootstrapDelay {
+							a.c.Log.WithFields(logrus.Fields{
+								"time left": a.c.RebootstrapDelay - seconds,
+							}).Info("Trust Bandle and Server dont agree.... Ignoring for now.")
+						} else {
+							a.c.Log.Warn("Trust Bandle and Server dont agree.... rebootstrapping")
+							err = sto.StoreBundle(nil)
+							if err != nil {
+								return err
+							}
+						}
+					}
 				}
 
 				if status.Code(err) == codes.PermissionDenied {
@@ -295,6 +357,9 @@ func (a *Agent) newManager(ctx context.Context, sto storage.Storage, cat catalog
 		Metrics:                  metrics,
 		WorkloadKeyType:          a.c.WorkloadKeyType,
 		Storage:                  sto,
+		TrustBundleSources:       a.c.TrustBundleSources,
+		RebootstrapMode:          a.c.RebootstrapMode,
+		RebootstrapDelay:         a.c.RebootstrapDelay,
 		SyncInterval:             a.c.SyncInterval,
 		UseSyncAuthorizedEntries: a.c.UseSyncAuthorizedEntries,
 		X509SVIDCacheMaxSize:     a.c.X509SVIDCacheMaxSize,
@@ -308,16 +373,43 @@ func (a *Agent) newManager(ctx context.Context, sto storage.Storage, cat catalog
 	mgr := manager.New(config)
 	if a.c.RetryBootstrap {
 		initBackoffClock := clock.New()
+		backoffTime := bootstrapBackoffMaxElapsedTime
+		if a.c.RebootstrapMode != RebootstrapNever {
+			backoffTime = rebootstrapBackoffMaxElapsedTime
+		}
 		initBackoff := backoff.NewBackoff(
 			initBackoffClock,
 			bootstrapBackoffInterval,
-			backoff.WithMaxElapsedTime(bootstrapBackoffMaxElapsedTime),
+			backoff.WithMaxElapsedTime(backoffTime),
 		)
 
 		for {
 			err := mgr.Initialize(ctx)
 			if err == nil {
+				err = a.c.TrustBundleSources.SetSuccessIfRunning()
+				if err != nil {
+					return nil, err
+				}
 				return mgr, nil
+			}
+			if x509util.IsUnknownAuthorityError(err) && a.c.RebootstrapMode != RebootstrapNever {
+				startTime, err := a.c.TrustBundleSources.GetStartTime()
+				if err != nil {
+					return nil, err
+				}
+				seconds := time.Since(startTime)
+				if seconds < a.c.RebootstrapDelay {
+					a.c.Log.WithFields(logrus.Fields{
+						"time left": a.c.RebootstrapDelay - seconds,
+					}).Info("Trust Bandle and Server dont agree.... Ignoring for now.")
+				} else {
+					a.c.Log.Info("Trust Bandle and Server dont agree.... rebootstrapping")
+					err = a.c.TrustBundleSources.SetForceRebootstrap()
+					if err != nil {
+						return nil, err
+					}
+					return nil, errors.New("Agent needs to rebootstrap. shutting down")
+				}
 			}
 
 			if nodeutil.ShouldAgentReattest(err) || nodeutil.ShouldAgentShutdown(err) {
