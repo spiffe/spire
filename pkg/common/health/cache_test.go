@@ -16,13 +16,13 @@ import (
 func TestAddCheck(t *testing.T) {
 	log, _ := test.NewNullLogger()
 	t.Run("add check no error", func(t *testing.T) {
-		c := newCache(log, clock.NewMock(t))
+		c := newCache(log, clock.NewMock(t), false)
 		err := c.addCheck("foh", &fakeCheckable{})
 		require.NoError(t, err)
 	})
 
 	t.Run("add duplicated checker", func(t *testing.T) {
-		c := newCache(log, clock.NewMock(t))
+		c := newCache(log, clock.NewMock(t), false)
 		err := c.addCheck("foo", &fakeCheckable{})
 		require.NoError(t, err)
 
@@ -40,7 +40,7 @@ func TestStartNoCheckerSet(t *testing.T) {
 	log, hook := test.NewNullLogger()
 	log.Level = logrus.DebugLevel
 
-	c := newCache(log, clockMock)
+	c := newCache(log, clockMock, false)
 
 	err := c.start(context.Background())
 	require.EqualError(t, err, "no health checks defined")
@@ -53,7 +53,7 @@ func TestHealthFailsAndRecover(t *testing.T) {
 	waitFor := make(chan struct{}, 1)
 	clockMock := clock.NewMock(t)
 
-	c := newCache(log, clockMock)
+	c := newCache(log, clockMock, false)
 	c.hooks.statusUpdated = waitFor
 
 	fooChecker := &fakeCheckable{
@@ -106,7 +106,7 @@ func TestHealthFailsAndRecover(t *testing.T) {
 				Message: "Health check failed",
 				Data: logrus.Fields{
 					telemetry.Check:   "bar",
-					telemetry.Details: "{false false {} {}}",
+					telemetry.Details: "{<nil> false false {} {}}",
 					telemetry.Error:   "subsystem is not live or ready",
 				},
 			},
@@ -163,7 +163,7 @@ func TestHealthFailsAndRecover(t *testing.T) {
 				Message: "Health check recovered",
 				Data: logrus.Fields{
 					telemetry.Check:    "bar",
-					telemetry.Details:  "{true true {} {}}",
+					telemetry.Details:  "{<nil> true true {} {}}",
 					telemetry.Duration: "1",
 					telemetry.Error:    "subsystem is not live or ready",
 					telemetry.Failures: "1",
@@ -251,7 +251,7 @@ func TestHealthFailsAndRecover(t *testing.T) {
 				Message: "Health check failed",
 				Data: logrus.Fields{
 					telemetry.Check:   "foo",
-					telemetry.Details: "{false false {live is failing} {ready is failing}}",
+					telemetry.Details: "{<nil> false false {live is failing} {ready is failing}}",
 					telemetry.Error:   "subsystem is not live or ready",
 				},
 			},
@@ -354,7 +354,7 @@ func TestHealthFailsAndRecover(t *testing.T) {
 				Message: "Health check recovered",
 				Data: logrus.Fields{
 					telemetry.Check:    "foo",
-					telemetry.Details:  "{true true {} {}}",
+					telemetry.Details:  "{<nil> true true {} {}}",
 					telemetry.Duration: "120",
 					telemetry.Error:    "subsystem is not live or ready",
 					telemetry.Failures: "2",

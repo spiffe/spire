@@ -36,11 +36,13 @@ type checkerSubsystem struct {
 	checkable Checkable
 }
 
-func newCache(log logrus.FieldLogger, clock clock.Clock) *cache {
+func newCache(log logrus.FieldLogger, clock clock.Clock, delayedStart bool) *cache {
 	return &cache{
 		checkerSubsystems: make(map[string]*checkerSubsystem),
 		log:               log,
 		clk:               clock,
+		startupComplete:   make(chan struct{}, 1),
+		delayedStart:      delayedStart,
 	}
 }
 
@@ -54,6 +56,8 @@ type cache struct {
 	hooks struct {
 		statusUpdated chan struct{}
 	}
+	startupComplete chan struct{}
+	delayedStart    bool
 }
 
 func (c *cache) addCheck(name string, checkable Checkable) error {
@@ -96,7 +100,20 @@ func (c *cache) getStatuses() map[string]checkState {
 	return statuses
 }
 
+func (c *cache) StartupComplete() {
+	c.startupComplete <- struct{}{}
+}
+
 func (c *cache) start(ctx context.Context) error {
+	if c.delayedStart {
+		select {
+		case <-c.startupComplete:
+			// Even when notified, it may take a tiny bit for the service to become responsive.
+			time.Sleep(200 * time.Millisecond)
+		case <-time.After(8 * time.Second):
+		}
+	}
+
 	c.mtx.RLock()
 	defer c.mtx.RUnlock()
 
@@ -110,6 +127,7 @@ func (c *cache) start(ctx context.Context) error {
 
 func (c *cache) startRunner(ctx context.Context) {
 	c.log.Debug("Initializing health checkers")
+	seenStartupError := make(map[string]string)
 	checkFunc := func() {
 		for name, checker := range c.getCheckerSubsystems() {
 			state, err := verifyStatus(checker.checkable)
@@ -119,9 +137,19 @@ func (c *cache) startRunner(ctx context.Context) {
 				checkTime: c.clk.Now(),
 			}
 			if err != nil {
-				c.log.WithField("check", name).
-					WithError(err).
-					Error("Health check has failed")
+				if state.Started == nil || *state.Started {
+					c.log.WithField("check", name).
+						WithError(err).
+						Error("Health check has failed")
+				} else {
+					strErr := err.Error()
+					if val, ok := seenStartupError[name]; !ok || val != strErr {
+						c.log.WithField("check", name).
+							WithError(err).
+							Warn("Health check has failed. Starting up still.")
+						seenStartupError[name] = strErr
+					}
+				}
 				checkState.err = err
 			}
 
