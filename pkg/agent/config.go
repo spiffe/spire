@@ -15,6 +15,12 @@ import (
 	"github.com/spiffe/spire/pkg/common/tlspolicy"
 )
 
+const (
+	RebootstrapNever  = "never"
+	RebootstrapAuto   = "auto"
+	RebootstrapAlways = "always"
+)
+
 type Config struct {
 	// Address to bind the workload api to
 	BindAddress net.Addr
@@ -39,6 +45,12 @@ type Config struct {
 
 	// If true, the agent retries bootstrap with backoff
 	RetryBootstrap bool
+
+	// How the agent will behave when seeing an unknown x509 cert from the server
+	RebootstrapMode string
+
+	// The agent will rebootstrap after configured amount of time on unknown x509 cert from the server
+	RebootstrapDelay time.Duration
 
 	// HealthChecks provides the configuration for health monitoring
 	HealthChecks health.Config

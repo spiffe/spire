@@ -68,6 +68,8 @@ type agentConfig struct {
 	AdminSocketPath               string    `hcl:"admin_socket_path"`
 	InsecureBootstrap             bool      `hcl:"insecure_bootstrap"`
 	RetryBootstrap                *bool     `hcl:"retry_bootstrap"`
+	RebootstrapMode               string    `hcl:"rebootstrap_mode"`
+	RebootstrapDelay              string    `hcl:"rebootstrap_delay"`
 	JoinToken                     string    `hcl:"join_token"`
 	LogFile                       string    `hcl:"log_file"`
 	LogFormat                     string    `hcl:"log_format"`
@@ -347,6 +349,8 @@ func parseFlags(name string, args []string, output io.Writer) (*agentConfig, err
 	flags.BoolVar(&c.AllowUnauthenticatedVerifiers, "allowUnauthenticatedVerifiers", false, "If true, the agent permits the retrieval of X509 certificate bundles by unregistered clients")
 	flags.BoolVar(&c.InsecureBootstrap, "insecureBootstrap", false, "If true, the agent bootstraps without verifying the server's identity")
 	flags.BoolVar(&retryBootstrap, "retryBootstrap", true, "If true, the agent retries bootstrap with backoff")
+	flags.StringVar(&c.RebootstrapMode, "rebootstrapMode", "never", "Can be one of 'never', 'auto', or 'always'")
+	flags.StringVar(&c.RebootstrapDelay, "rebootstrapDelay", "10m", "The time to delay after seeing a x509 cert mismatch from the server before rebootstrapping")
 	flags.BoolVar(&c.ExpandEnv, "expandEnv", false, "Expand environment variables in SPIRE config file")
 
 	c.addOSFlags(flags)
@@ -393,6 +397,32 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 	if err := validateConfig(c); err != nil {
 		return nil, err
 	}
+
+	ac.RebootstrapMode = c.Agent.RebootstrapMode
+	switch ac.RebootstrapMode {
+	case agent.RebootstrapNever:
+	case agent.RebootstrapAuto:
+	case agent.RebootstrapAlways:
+	case "":
+		ac.RebootstrapMode = agent.RebootstrapNever
+	default:
+		return nil, fmt.Errorf("unknown rebootstrap mode specified: %s", ac.RebootstrapMode)
+	}
+	if ac.RebootstrapMode != agent.RebootstrapNever && c.Agent.InsecureBootstrap {
+		return nil, errors.New("insecure_bootstrap option can not be used with rebootstrapping")
+	}
+	if ac.RebootstrapMode != agent.RebootstrapNever && c.Agent.RetryBootstrap != nil {
+		return nil, errors.New("you can not set retry_bootstrap when using reboostrap_mode")
+	}
+
+	if c.Agent.RebootstrapDelay == "" {
+		c.Agent.RebootstrapDelay = "10m"
+	}
+	delay, err := time.ParseDuration(c.Agent.RebootstrapDelay)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing rebootstrap delay duration: %w", err)
+	}
+	ac.RebootstrapDelay = delay
 
 	if c.Agent.Experimental.SyncInterval != "" {
 		var err error
@@ -488,6 +518,9 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 		TrustBundlePath:       c.Agent.TrustBundlePath,
 		TrustBundleURL:        c.Agent.TrustBundleURL,
 		TrustBundleUnixSocket: c.Agent.TrustBundleUnixSocket,
+		TrustDomain:           c.Agent.TrustDomain,
+		ServerAddress:         c.Agent.ServerAddress,
+		ServerPort:            c.Agent.ServerPort,
 	}
 
 	ac.TrustBundleSources = trustbundlesources.New(ts, ac.Log.WithField("Logger", "TrustBundleSources"))
