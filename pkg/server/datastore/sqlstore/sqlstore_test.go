@@ -50,9 +50,6 @@ var (
 	TestDialect      string
 	TestConnString   string
 	TestROConnString string
-	// Replication to replica can take some time,
-	// if specified, this configuration setting tells the duration to wait before running queries in read-only databases
-	TestReadOnlyDelay string
 )
 
 const (
@@ -77,8 +74,6 @@ type PluginSuite struct {
 	nextID int
 	ds     *Plugin
 	hook   *test.Hook
-
-	readOnlyDelay time.Duration
 }
 
 func (s *PluginSuite) SetupSuite() {
@@ -109,12 +104,6 @@ func (s *PluginSuite) SetupSuite() {
 
 	s.cacert = cacert
 	s.cert = cert
-
-	if TestReadOnlyDelay != "" {
-		delay, err := time.ParseDuration(TestReadOnlyDelay)
-		s.Require().NoError(err, "failed to parse read-only delay")
-		s.readOnlyDelay = delay
-	}
 }
 
 func (s *PluginSuite) SetupTest() {
@@ -1788,41 +1777,50 @@ func (s *PluginSuite) TestNodeSelectors() {
 	}
 
 	// assert there are no selectors for foo
-	selectors := s.getNodeSelectors("foo", datastore.TolerateStale)
+	selectors := s.getNodeSelectors("foo", datastore.RequireCurrent)
 	s.Require().Empty(selectors)
-	selectors = s.getNodeSelectors("foo", datastore.RequireCurrent)
-	s.Require().Empty(selectors)
+	s.Eventually(func() bool {
+		selectors = s.getNodeSelectors("foo", datastore.TolerateStale)
+		return len(selectors) == 0
+	}, time.Second, 10*time.Millisecond)
 
 	// set selectors on foo and bar
 	s.setNodeSelectors("foo", foo1)
 	s.setNodeSelectors("bar", bar)
 
 	// get foo selectors
-	selectors = s.getNodeSelectors("foo", datastore.TolerateStale)
-	s.RequireProtoListEqual(foo1, selectors)
 	selectors = s.getNodeSelectors("foo", datastore.RequireCurrent)
 	s.RequireProtoListEqual(foo1, selectors)
+	s.Eventually(func() bool {
+		selectors := s.getNodeSelectors("foo", datastore.TolerateStale)
+		return spiretest.CheckProtoListEqual(s.T(), foo1, selectors)
+	}, time.Second, 10*time.Millisecond)
 
 	// replace foo selectors
 	s.setNodeSelectors("foo", foo2)
-	selectors = s.getNodeSelectors("foo", datastore.TolerateStale)
-	s.RequireProtoListEqual(foo2, selectors)
 	selectors = s.getNodeSelectors("foo", datastore.RequireCurrent)
 	s.RequireProtoListEqual(foo2, selectors)
+	s.Eventually(func() bool {
+		selectors := s.getNodeSelectors("foo", datastore.TolerateStale)
+		return spiretest.CheckProtoListEqual(s.T(), foo2, selectors)
+	}, time.Second, 10*time.Millisecond)
 
 	// delete foo selectors
 	s.setNodeSelectors("foo", []*common.Selector{})
-	selectors = s.getNodeSelectors("foo", datastore.TolerateStale)
-	s.Require().Empty(selectors)
 	selectors = s.getNodeSelectors("foo", datastore.RequireCurrent)
 	s.Require().Empty(selectors)
+	s.Eventually(func() bool {
+		selectors := s.getNodeSelectors("foo", datastore.TolerateStale)
+		return len(selectors) == 0
+	}, time.Second, 10*time.Millisecond)
 
-	// get bar selectors (make sure they weren't impacted by deleting foo)
-	selectors = s.getNodeSelectors("bar", datastore.TolerateStale)
-	s.RequireProtoListEqual(bar, selectors)
 	// get bar selectors (make sure they weren't impacted by deleting foo)
 	selectors = s.getNodeSelectors("bar", datastore.RequireCurrent)
 	s.RequireProtoListEqual(bar, selectors)
+	s.Eventually(func() bool {
+		selectors := s.getNodeSelectors("bar", datastore.TolerateStale)
+		return spiretest.CheckProtoListEqual(s.T(), bar, selectors)
+	}, time.Second, 10*time.Millisecond)
 }
 
 func (s *PluginSuite) TestListNodeSelectors() {
@@ -3044,12 +3042,6 @@ func (s *PluginSuite) testListRegistrationEntries(dataConsistency datastore.Data
 				for _, entryIn := range tt.entries {
 					entryOut := s.createRegistrationEntry(entryIn)
 					entryIDMap[entryOut.EntryId] = entryIn.EntryId
-				}
-
-				// Optionally sleep to give time for the entries to propagate to
-				// the replicas.
-				if dataConsistency == datastore.TolerateStale && s.readOnlyDelay > 0 {
-					time.Sleep(s.readOnlyDelay)
 				}
 
 				var pagination *datastore.Pagination
@@ -5465,9 +5457,6 @@ func makeFederatedRegistrationEntry() *common.RegistrationEntry {
 }
 
 func (s *PluginSuite) getNodeSelectors(spiffeID string, dataConsistency datastore.DataConsistency) []*common.Selector {
-	if dataConsistency == datastore.TolerateStale && TestReadOnlyDelay != "" {
-		time.Sleep(s.readOnlyDelay)
-	}
 	selectors, err := s.ds.GetNodeSelectors(ctx, spiffeID, dataConsistency)
 	s.Require().NoError(err)
 	return selectors
