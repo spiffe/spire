@@ -1,0 +1,28 @@
+services:
+  spire-server:
+    image: spire-server:latest-local
+    hostname: spire-server
+    volumes:
+      - ./conf/server:/opt/spire/conf/server
+    command: ["-config", "/opt/spire/conf/server/server.conf"]
+  spire-agent-1:
+    image: spire-agent:latest-local
+    hostname: spire-agent-1
+    depends_on: ["spire-server"]
+    volumes:
+      - ./conf/agent1:/opt/spire/conf/agent
+    command: ["-config", "/opt/spire/conf/agent/agent.conf"]
+  spire-agent-2:
+    image: spire-agent:latest-local
+    hostname: spire-agent-2
+    depends_on: ["spire-server"]
+    volumes:
+      - ./conf/agent2:/opt/spire/conf/agent
+    command: ["-config", "/opt/spire/conf/agent/agent.conf"]
+  spire-agent-3:
+    image: spire-agent:latest-local
+    hostname: spire-agent-3
+    depends_on: ["spire-server"]
+    volumes:
+      - ./conf/agent3:/opt/spire/conf/agent
+    command: ["-config", "/opt/spire/conf/agent/agent.conf"]
