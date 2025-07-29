@@ -16,7 +16,7 @@ sed -i.bak "s#TOKEN#${TOKEN}#g" conf/agent3/agent.conf
 
 docker-up spire-agent-1 spire-agent-2 spire-agent-3
 
-log-debug "Creating node-alis for x509pop:san:cluster:test"
+log-debug "Creating node-alias for x509pop:san:cluster:test"
 docker compose exec -T spire-server \
   /opt/spire/bin/spire-server entry create \
   -parentID "spiffe://domain.test/spire/server" \
