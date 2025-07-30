@@ -12,17 +12,19 @@ import (
 	server_telemetry "github.com/spiffe/spire/pkg/common/telemetry/server"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/authorizedentries"
+	"github.com/spiffe/spire/pkg/server/cache/nodecache"
 	"github.com/spiffe/spire/pkg/server/datastore"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
 type attestedNodes struct {
-	cache   *authorizedentries.Cache
-	clk     clock.Clock
-	ds      datastore.DataStore
-	log     logrus.FieldLogger
-	metrics telemetry.Metrics
+	cache     *authorizedentries.Cache
+	nodeCache *nodecache.Cache
+	clk       clock.Clock
+	ds        datastore.DataStore
+	log       logrus.FieldLogger
+	metrics   telemetry.Metrics
 
 	eventsBeforeFirst map[uint]struct{}
 
@@ -143,6 +145,7 @@ func (a *attestedNodes) loadCache(ctx context.Context) error {
 			continue
 		}
 		a.cache.UpdateAgent(node.SpiffeId, agentExpiresAt, api.ProtoFromSelectors(node.Selectors))
+		a.nodeCache.UpdateAttestedNode(node)
 	}
 
 	return nil
@@ -150,11 +153,12 @@ func (a *attestedNodes) loadCache(ctx context.Context) error {
 
 // buildAttestedNodesCache fetches all attested nodes and adds the unexpired ones to the cache.
 // It runs once at startup.
-func buildAttestedNodesCache(ctx context.Context, log logrus.FieldLogger, metrics telemetry.Metrics, ds datastore.DataStore, clk clock.Clock, cache *authorizedentries.Cache, cacheReloadInterval, eventTimeout time.Duration) (*attestedNodes, error) {
+func buildAttestedNodesCache(ctx context.Context, log logrus.FieldLogger, metrics telemetry.Metrics, ds datastore.DataStore, clk clock.Clock, cache *authorizedentries.Cache, nodeCache *nodecache.Cache, cacheReloadInterval, eventTimeout time.Duration) (*attestedNodes, error) {
 	pollPeriods := PollPeriods(cacheReloadInterval, eventTimeout)
 
 	attestedNodes := &attestedNodes{
 		cache:        cache,
+		nodeCache:    nodeCache,
 		clk:          clk,
 		ds:           ds,
 		log:          log,
@@ -210,6 +214,7 @@ func (a *attestedNodes) updateCachedNodes(ctx context.Context) error {
 
 		// Node was deleted
 		if node == nil {
+			a.nodeCache.RemoveAttestedNode(spiffeId)
 			a.cache.RemoveAgent(spiffeId)
 			delete(a.fetchNodes, spiffeId)
 			continue
@@ -223,6 +228,7 @@ func (a *attestedNodes) updateCachedNodes(ctx context.Context) error {
 
 		agentExpiresAt := time.Unix(node.CertNotAfter, 0)
 		a.cache.UpdateAgent(node.SpiffeId, agentExpiresAt, api.ProtoFromSelectors(node.Selectors))
+		a.nodeCache.UpdateAttestedNode(node)
 		delete(a.fetchNodes, spiffeId)
 	}
 	return nil
