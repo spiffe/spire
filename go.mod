@@ -65,7 +65,7 @@ require (
 	github.com/mattn/go-sqlite3 v1.14.30
 	github.com/mitchellh/cli v1.1.5
 	github.com/open-policy-agent/opa v1.7.0
-	github.com/prometheus/client_golang v1.22.0
+	github.com/prometheus/client_golang v1.23.0
 	github.com/shirou/gopsutil/v4 v4.25.6
 	github.com/sigstore/cosign/v2 v2.5.3
 	github.com/sigstore/rekor v1.3.10
@@ -248,8 +248,8 @@ require (
 	github.com/posener/complete v1.2.3 // indirect
 	github.com/power-devops/perfstat v0.0.0-20210106213030-5aafc221ea8c // indirect
 	github.com/prometheus/client_model v0.6.2 // indirect
-	github.com/prometheus/common v0.63.0 // indirect
-	github.com/prometheus/procfs v0.15.1 // indirect
+	github.com/prometheus/common v0.65.0 // indirect
+	github.com/prometheus/procfs v0.16.1 // indirect
 	github.com/rcrowley/go-metrics v0.0.0-20201227073835-cf1acfcdf475 // indirect
 	github.com/ryanuber/go-glob v1.0.0 // indirect
 	github.com/sagikazarmark/locafero v0.7.0 // indirect
