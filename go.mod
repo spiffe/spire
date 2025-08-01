@@ -64,7 +64,7 @@ require (
 	github.com/lib/pq v1.10.9
 	github.com/mattn/go-sqlite3 v1.14.30
 	github.com/mitchellh/cli v1.1.5
-	github.com/open-policy-agent/opa v1.7.0
+	github.com/open-policy-agent/opa v1.7.1
 	github.com/prometheus/client_golang v1.23.0
 	github.com/shirou/gopsutil/v4 v4.25.7
 	github.com/sigstore/cosign/v2 v2.5.3
