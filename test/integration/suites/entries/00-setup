@@ -1,0 +1,13 @@
+#!/bin/bash
+
+EVENTS_BASED_CACHE=false
+if [[ "${TESTNAME}" == "events-based-entries" ]]; then
+  EVENTS_BASED_CACHE=true
+fi
+sed -i.bak "s#EVENTS_BASED_CACHE#${EVENTS_BASED_CACHE}#g" conf/server/server.conf
+
+"${ROOTDIR}/setup/x509pop/setup.sh" -trust-domain domain.test -x509pop-san "cluster/test" conf/server conf/agent1 conf/agent2
+
+"${ROOTDIR}/setup/debugserver/build.sh" "${RUNDIR}/conf/server/debugclient"
+"${ROOTDIR}/setup/debugagent/build.sh" "${RUNDIR}/conf/agent1/debugclient"
+"${ROOTDIR}/setup/debugagent/build.sh" "${RUNDIR}/conf/agent2/debugclient"

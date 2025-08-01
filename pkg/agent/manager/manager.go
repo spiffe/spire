@@ -324,10 +324,37 @@ func (m *manager) runSynchronizer(ctx context.Context) error {
 		}
 
 		err := m.synchronize(ctx)
+		if err == nil {
+			err = m.c.TrustBundleSources.SetSuccessIfRunning()
+			if err != nil {
+				return err
+			}
+		}
 		switch {
 		case x509util.IsUnknownAuthorityError(err):
-			m.c.Log.WithError(err).Info("Synchronize failed, non-recoverable error")
-			return fmt.Errorf("failed to sync with SPIRE Server: %w", err)
+			if m.c.RebootstrapMode == "never" {
+				m.c.Log.WithError(err).Info("Synchronize failed, non-recoverable error")
+				return fmt.Errorf("failed to sync with SPIRE Server: %w", err)
+			}
+			startTime, err := m.c.TrustBundleSources.GetStartTime()
+			if err != nil {
+				return err
+			}
+			seconds := time.Since(startTime)
+			if seconds < m.c.RebootstrapDelay {
+				fmt.Printf("Trust Bandle and Server dont agree.... Ignoring for now. Rebootstrap timeout left: %s\n", m.c.RebootstrapDelay-seconds)
+			} else {
+				fmt.Printf("Trust Bandle and Server dont agree.... rebootstrapping")
+				err = m.c.TrustBundleSources.SetForceRebootstrap()
+				if err != nil {
+					return err
+				}
+				return errors.New("shutting down for rebootstrapping")
+			}
+			m.synchronizeBackoff.Reset()
+			syncInterval = m.synchronizeBackoff.NextBackOff()
+			syncInterval = min(syncInterval, defaultSyncInterval)
+			continue
 		case err != nil && nodeutil.ShouldAgentReattest(err):
 			fallthrough
 		case nodeutil.ShouldAgentShutdown(err):
