@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/open-policy-agent/opa/v1/ast"
 	"github.com/open-policy-agent/opa/v1/storage/inmem"
 	"github.com/open-policy-agent/opa/v1/util"
 	"github.com/sirupsen/logrus/hooks/test"
@@ -221,7 +220,7 @@ func TestPolicy(t *testing.T) {
 			ctx := context.Background()
 
 			// Check with NewEngineFromRego
-			pe, err := authpolicy.NewEngineFromRego(ctx, tt.rego, store, ast.RegoV1)
+			pe, err := authpolicy.NewEngineFromRego(ctx, tt.rego, store)
 			require.Nil(t, err, "failed to create policy engine")
 
 			res, err := pe.Eval(ctxIn, tt.input)
@@ -242,7 +241,6 @@ func TestPolicy(t *testing.T) {
 				LocalOpaProvider: &authpolicy.LocalOpaProviderConfig{
 					RegoPath:       regoFile,
 					PolicyDataPath: permsFile,
-					UseRegoV1:      true,
 				},
 			}
 			log, _ := test.NewNullLogger()
@@ -434,7 +432,7 @@ func TestNewEngineFromRego(t *testing.T) {
 			// a bad store
 			store := inmem.New()
 
-			_, err := authpolicy.NewEngineFromRego(ctx, tt.rego, store, ast.RegoV1)
+			_, err := authpolicy.NewEngineFromRego(ctx, tt.rego, store)
 			require.Equal(t, err == nil, tt.success)
 		})
 	}
