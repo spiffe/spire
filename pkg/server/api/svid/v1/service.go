@@ -30,21 +30,19 @@ func RegisterService(s grpc.ServiceRegistrar, service *Service) {
 
 // Config is the service configuration
 type Config struct {
-	EntryFetcher                 api.AuthorizedEntryFetcher
-	ServerCA                     ca.ServerCA
-	TrustDomain                  spiffeid.TrustDomain
-	DataStore                    datastore.DataStore
-	UseLegacyDownstreamX509CATTL bool
+	EntryFetcher api.AuthorizedEntryFetcher
+	ServerCA     ca.ServerCA
+	TrustDomain  spiffeid.TrustDomain
+	DataStore    datastore.DataStore
 }
 
 // New creates a new SVID service
 func New(config Config) *Service {
 	return &Service{
-		ca:                           config.ServerCA,
-		ef:                           config.EntryFetcher,
-		td:                           config.TrustDomain,
-		ds:                           config.DataStore,
-		useLegacyDownstreamX509CATTL: config.UseLegacyDownstreamX509CATTL,
+		ca: config.ServerCA,
+		ef: config.EntryFetcher,
+		td: config.TrustDomain,
+		ds: config.DataStore,
 	}
 }
 

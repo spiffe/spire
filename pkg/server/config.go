@@ -118,13 +118,6 @@ type Config struct {
 	// X509-SVID, are granted admin rights.
 	AdminIDs []spiffeid.ID
 
-	// UseLegacyDownstreamX509CATTL, if true, the downstream X509CAs will use
-	// the legacy TTL calculation (e.g. prefer downstream workload entry TTL,
-	// then fall back to the default workload X509-SVID TTL) v.s. the new TTL
-	// calculation (prefer the TTL passed by the downstream caller, then fall
-	// back to the default X509 CA TTL).
-	UseLegacyDownstreamX509CATTL bool
-
 	// TLSPolicy determines the policy settings to apply to all TLS connections.
 	TLSPolicy tlspolicy.Policy
 
@@ -139,8 +132,7 @@ type Config struct {
 	PruneNonReattestableNodes bool
 }
 
-type ExperimentalConfig struct {
-}
+type ExperimentalConfig struct{}
 
 type FederationConfig struct {
 	// BundleEndpoint contains the federation bundle endpoint configuration.
