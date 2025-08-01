@@ -36,13 +36,12 @@ type checkerSubsystem struct {
 	checkable Checkable
 }
 
-func newCache(log logrus.FieldLogger, clock clock.Clock, delayedStart bool) *cache {
+func newCache(log logrus.FieldLogger, clock clock.Clock) *cache {
 	return &cache{
 		checkerSubsystems: make(map[string]*checkerSubsystem),
 		log:               log,
 		clk:               clock,
 		startupComplete:   make(chan struct{}, 1),
-		delayedStart:      delayedStart,
 	}
 }
 
@@ -57,7 +56,6 @@ type cache struct {
 		statusUpdated chan struct{}
 	}
 	startupComplete chan struct{}
-	delayedStart    bool
 }
 
 func (c *cache) addCheck(name string, checkable Checkable) error {
@@ -100,20 +98,7 @@ func (c *cache) getStatuses() map[string]checkState {
 	return statuses
 }
 
-func (c *cache) StartupComplete() {
-	c.startupComplete <- struct{}{}
-}
-
 func (c *cache) start(ctx context.Context) error {
-	if c.delayedStart {
-		select {
-		case <-c.startupComplete:
-			// Even when notified, it may take a tiny bit for the service to become responsive.
-			time.Sleep(200 * time.Millisecond)
-		case <-time.After(8 * time.Second):
-		}
-	}
-
 	c.mtx.RLock()
 	defer c.mtx.RUnlock()
 

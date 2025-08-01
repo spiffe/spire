@@ -1140,6 +1140,11 @@ func (s *bundleEndpointServer) ListenAndServe(context.Context) error {
 	return nil
 }
 
+func (s *bundleEndpointServer) WaitForListening() {
+	// This method is a no-op for the bundle server since it does not have a
+	// separate listening hook.
+}
+
 func (s *bundleEndpointServer) Used() bool {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()

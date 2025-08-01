@@ -16,13 +16,13 @@ import (
 func TestAddCheck(t *testing.T) {
 	log, _ := test.NewNullLogger()
 	t.Run("add check no error", func(t *testing.T) {
-		c := newCache(log, clock.NewMock(t), false)
+		c := newCache(log, clock.NewMock(t))
 		err := c.addCheck("foh", &fakeCheckable{})
 		require.NoError(t, err)
 	})
 
 	t.Run("add duplicated checker", func(t *testing.T) {
-		c := newCache(log, clock.NewMock(t), false)
+		c := newCache(log, clock.NewMock(t))
 		err := c.addCheck("foo", &fakeCheckable{})
 		require.NoError(t, err)
 
@@ -40,7 +40,7 @@ func TestStartNoCheckerSet(t *testing.T) {
 	log, hook := test.NewNullLogger()
 	log.Level = logrus.DebugLevel
 
-	c := newCache(log, clockMock, false)
+	c := newCache(log, clockMock)
 
 	err := c.start(context.Background())
 	require.EqualError(t, err, "no health checks defined")
@@ -53,7 +53,7 @@ func TestHealthFailsAndRecover(t *testing.T) {
 	waitFor := make(chan struct{}, 1)
 	clockMock := clock.NewMock(t)
 
-	c := newCache(log, clockMock, false)
+	c := newCache(log, clockMock)
 	c.hooks.statusUpdated = waitFor
 
 	fooChecker := &fakeCheckable{

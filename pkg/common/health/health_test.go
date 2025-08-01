@@ -16,14 +16,14 @@ import (
 
 func TestServerDisabledByDefault(t *testing.T) {
 	log, _ := logtest.NewNullLogger()
-	checker := NewChecker(Config{}, log, false).(*checker)
+	checker := NewChecker(Config{}, log).(*checker)
 
 	assert.Nil(t, checker.server)
 }
 
 func TestServerEnabled(t *testing.T) {
 	log, _ := logtest.NewNullLogger()
-	checker := NewChecker(Config{ListenerEnabled: true}, log, false).(*checker)
+	checker := NewChecker(Config{ListenerEnabled: true}, log).(*checker)
 
 	assert.NotNil(t, checker.server)
 }
@@ -36,7 +36,7 @@ func TestCheckerListeners(t *testing.T) {
 		BindPort:        "12345",
 	}
 
-	servableChecker := NewChecker(config, log, false)
+	servableChecker := NewChecker(config, log)
 
 	fooChecker := &fakeCheckable{
 		state: State{

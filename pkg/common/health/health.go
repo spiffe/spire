@@ -57,17 +57,16 @@ type Checker interface {
 type ServableChecker interface {
 	Checker
 	ListenAndServe(ctx context.Context) error
-	StartupComplete()
 }
 
-func NewChecker(config Config, log logrus.FieldLogger, delayedStart bool) ServableChecker {
+func NewChecker(config Config, log logrus.FieldLogger) ServableChecker {
 	l := log.WithField(telemetry.SubsystemName, "health")
 
 	c := &checker{
 		config: config,
 		log:    l,
 
-		cache: newCache(l, clock.New(), delayedStart),
+		cache: newCache(l, clock.New()),
 	}
 
 	// Start HTTP server if ListenerEnabled is true
@@ -96,10 +95,6 @@ type checker struct {
 
 	log   logrus.FieldLogger
 	cache *cache
-}
-
-func (c *checker) StartupComplete() {
-	c.cache.StartupComplete()
 }
 
 func (c *checker) AddCheck(name string, checkable Checkable) error {

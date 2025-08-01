@@ -43,6 +43,7 @@ import (
 const (
 	bootstrapBackoffInterval       = 5 * time.Second
 	bootstrapBackoffMaxElapsedTime = 1 * time.Minute
+	startHealthChecksTimeout       = 8 * time.Second
 )
 
 type Agent struct {
@@ -98,16 +99,13 @@ func (a *Agent) Run(ctx context.Context) error {
 	}
 	defer cat.Close()
 
-	healthChecker := health.NewChecker(a.c.HealthChecks, a.c.Log, true)
+	healthChecker := health.NewChecker(a.c.HealthChecks, a.c.Log)
 	if err := healthChecker.AddCheck("agent", a); err != nil {
 		return fmt.Errorf("failed adding healthcheck: %w", err)
 	}
-	tasks := []func(context.Context) error{
-		healthChecker.ListenAndServe,
-		metrics.ListenAndServe,
-	}
+
 	taskRunner := util.NewTaskRunner(ctx, cancel)
-	taskRunner.StartTasks(tasks...)
+	taskRunner.StartTasks(metrics.ListenAndServe)
 
 	nodeAttestor := nodeattestor.JoinToken(a.c.Log, a.c.JoinToken)
 	if a.c.JoinToken == "" {
@@ -116,6 +114,10 @@ func (a *Agent) Run(ctx context.Context) error {
 
 	var as *node_attestor.AttestationResult
 
+	readyForHealthChecks := make(chan struct{})
+	go func() {
+		a.startHealthChecks(readyForHealthChecks, taskRunner, healthChecker)
+	}()
 	if a.c.RetryBootstrap {
 		attBackoffClock := clock.New()
 		attBackoff := backoff.NewBackoff(
@@ -187,13 +189,16 @@ func (a *Agent) Run(ctx context.Context) error {
 		Metrics: metrics,
 	})
 
-	endpoints := a.newEndpoints(metrics, manager, workloadAttestor)
+	agentEndpoints := a.newEndpoints(metrics, manager, workloadAttestor)
+	go func() {
+		agentEndpoints.WaitForListening(readyForHealthChecks)
+	}()
 
 	a.started = true
-	tasks = []func(context.Context) error{
+	tasks := []func(context.Context) error{
 		manager.Run,
 		storeService.Run,
-		endpoints.ListenAndServe,
+		agentEndpoints.ListenAndServe,
 		catalog.ReconfigureTask(a.c.Log.WithField(telemetry.SubsystemName, "reconfigurer"), cat),
 	}
 
@@ -206,7 +211,6 @@ func (a *Agent) Run(ctx context.Context) error {
 		tasks = append(tasks, a.c.LogReopener)
 	}
 
-	healthChecker.StartupComplete()
 	taskRunner.StartTasks(tasks...)
 	err = taskRunner.Wait()
 	if errors.Is(err, context.Canceled) {
@@ -458,4 +462,14 @@ func errString(suppress bool, err error) string {
 		return err.Error()
 	}
 	return ""
+}
+
+func (a *Agent) startHealthChecks(readyForHealthChecks chan struct{}, taskRunner *util.TaskRunner, healthChecker health.ServableChecker) {
+	select {
+	case <-readyForHealthChecks:
+		// Endpoints are ready for health checks, proceed with health checks.
+	case <-time.After(startHealthChecksTimeout):
+		// Timeout waiting for endpoints to start listening.
+	}
+	taskRunner.StartTasks(healthChecker.ListenAndServe)
 }

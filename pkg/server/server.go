@@ -111,7 +111,7 @@ func (s *Server) run(ctx context.Context) (err error) {
 		TrustDomain: s.config.TrustDomain,
 	})
 
-	healthChecker := health.NewChecker(s.config.HealthChecks, s.config.Log, false)
+	healthChecker := health.NewChecker(s.config.HealthChecks, s.config.Log)
 
 	// Create the agent store host service. It will not be functional
 	// until the call to SetDeps() below.
@@ -213,7 +213,6 @@ func (s *Server) run(ctx context.Context) (err error) {
 		registrationManager.Run,
 		bundlePublishingManager.Run,
 		catalog.ReconfigureTask(s.config.Log.WithField(telemetry.SubsystemName, "reconfigurer"), cat),
-		healthChecker.ListenAndServe,
 	}
 
 	if s.config.LogReopener != nil {
@@ -225,7 +224,17 @@ func (s *Server) run(ctx context.Context) (err error) {
 		tasks = append(tasks, nodeManager.Run)
 	}
 
-	err = util.RunTasks(ctx, tasks...)
+	ctx, cancel := context.WithCancelCause(ctx)
+	defer cancel(nil)
+	taskRunner := util.NewTaskRunner(ctx, cancel)
+	taskRunner.StartTasks(tasks...)
+
+	// Wait for the server to start listening before proceeding with health
+	// checks.
+	endpointsServer.WaitForListening()
+
+	taskRunner.StartTasks(healthChecker.ListenAndServe)
+	err = taskRunner.Wait()
 	if errors.Is(err, context.Canceled) {
 		err = nil
 	}
