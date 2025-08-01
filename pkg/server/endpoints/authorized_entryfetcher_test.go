@@ -243,8 +243,8 @@ func TestRunUpdateCacheTaskDoesFullUpdate(t *testing.T) {
 		metrics:                 metrics,
 		clk:                     clk,
 		ds:                      ds,
-		cacheReloadInterval:     2 * time.Second,
-		fullCacheReloadInterval: 3 * time.Second,
+		cacheReloadInterval:     3 * time.Second,
+		fullCacheReloadInterval: 5 * time.Second,
 		pruneEventsOlderThan:    defaultPruneEventsOlderThan,
 		eventTimeout:            defaultEventTimeout,
 	})
@@ -263,13 +263,18 @@ func TestRunUpdateCacheTaskDoesFullUpdate(t *testing.T) {
 	clk.WaitForTickerMulti(time.Second, 2, "waiting to create tickers")
 
 	// First iteration, cache should not be rebuilt
-	clk.Add(2 * time.Second)
+	clk.Add(4 * time.Second)
 	ef.mu.RLock()
 	require.Equal(t, initialCache, ef.cache)
 	ef.mu.RUnlock()
 
 	// Second iteration, cache should be rebuilt
-	clk.Add(2 * time.Second)
+	// First we wait for the fullCacheReloadTicker to
+	// set the fullCacheReload flag to true
+	clk.Add(5 * time.Second)
+	// And then once a gain wait some more for the
+	// cache reload ticker to tick again.
+	clk.Add(6 * time.Second)
 	ef.mu.RLock()
 	require.NotEqual(t, initialCache, ef.cache)
 	ef.mu.RUnlock()
@@ -334,8 +339,10 @@ func TestRunUpdateCacheTaskPrunesExpiredAgents(t *testing.T) {
 
 	// Bump clock and rerun UpdateCacheTask
 	clk.Add(defaultCacheReloadInterval)
-	entries, err = ef.FetchAuthorizedEntries(ctx, agentID)
-	assert.NoError(t, err)
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		entries, err = ef.FetchAuthorizedEntries(ctx, agentID)
+		assert.NoError(c, err)
+	}, time.Second, 50*time.Millisecond)
 	compareEntries(t, entries, entry)
 
 	// Make sure nothing was pruned yet
@@ -345,8 +352,10 @@ func TestRunUpdateCacheTaskPrunesExpiredAgents(t *testing.T) {
 
 	// Bump clock so entry expires and is pruned
 	clk.Add(defaultCacheReloadInterval)
-	assert.Equal(t, 1, hook.LastEntry().Data["count"])
-	assert.Equal(t, "Pruned expired agents from entry cache", hook.LastEntry().Message)
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		assert.Equal(c, 1, hook.LastEntry().Data["count"])
+		assert.Equal(c, "Pruned expired agents from entry cache", hook.LastEntry().Message)
+	}, time.Second, 50*time.Millisecond)
 
 	// Stop the task
 	cancel()
