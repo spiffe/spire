@@ -42,9 +42,9 @@ import (
 )
 
 const (
-	bootstrapBackoffInterval       = 5 * time.Second
-	bootstrapBackoffMaxElapsedTime = 1 * time.Minute
-	startHealthChecksTimeout       = 8 * time.Second
+	bootstrapBackoffInterval         = 5 * time.Second
+	bootstrapBackoffMaxElapsedTime   = 1 * time.Minute
+	startHealthChecksTimeout         = 8 * time.Second
 	rebootstrapBackoffMaxElapsedTime = 24 * time.Hour
 )
 
