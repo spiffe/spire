@@ -100,19 +100,18 @@ type WorkloadJWTSVIDParams struct {
 }
 
 type Config struct {
-	TrustDomain                  spiffeid.TrustDomain
-	Clock                        clock.Clock
-	X509CASubject                pkix.Name
-	X509CATTL                    time.Duration
-	X509SVIDSubject              pkix.Name
-	X509SVIDTTL                  time.Duration
-	JWTSVIDTTL                   time.Duration
-	JWTIssuer                    string
-	AgentSVIDTTL                 time.Duration
-	CredentialComposers          []credentialcomposer.CredentialComposer
-	NewSerialNumber              func() (*big.Int, error)
-	UseLegacyDownstreamX509CATTL bool
-	TLSPolicy                    tlspolicy.Policy
+	TrustDomain         spiffeid.TrustDomain
+	Clock               clock.Clock
+	X509CASubject       pkix.Name
+	X509CATTL           time.Duration
+	X509SVIDSubject     pkix.Name
+	X509SVIDTTL         time.Duration
+	JWTSVIDTTL          time.Duration
+	JWTIssuer           string
+	AgentSVIDTTL        time.Duration
+	CredentialComposers []credentialcomposer.CredentialComposer
+	NewSerialNumber     func() (*big.Int, error)
+	TLSPolicy           tlspolicy.Policy
 }
 
 type Builder struct {
@@ -225,12 +224,6 @@ func (b *Builder) BuildDownstreamX509CATemplate(ctx context.Context, params Down
 	}
 	tmpl.Subject = params.ParentChain[0].Subject
 	tmpl.Subject.OrganizationalUnit = []string{fmt.Sprintf("DOWNSTREAM-%d", len(params.ParentChain))}
-
-	if b.config.UseLegacyDownstreamX509CATTL {
-		// It's a bit gross, but SPIRE has historically signed downstream X509CA's with the X509-SVID ttl, so
-		// let's override the NotBefore/NotAfter fields set by buildX509CATemplate.
-		tmpl.NotBefore, tmpl.NotAfter = b.computeX509SVIDLifetime(params.ParentChain, params.TTL)
-	}
 
 	for _, cc := range b.config.CredentialComposers {
 		attributes, err := cc.ComposeServerX509CA(ctx, x509CAAttributesFromTemplate(tmpl))
@@ -463,6 +456,7 @@ func x509CAAttributesFromTemplate(tmpl *x509.Certificate) credentialcomposer.X50
 		ExtraExtensions: tmpl.ExtraExtensions,
 	}
 }
+
 func x509SVIDAttributesFromTemplate(tmpl *x509.Certificate) credentialcomposer.X509SVIDAttributes {
 	return credentialcomposer.X509SVIDAttributes{
 		Subject:         tmpl.Subject,

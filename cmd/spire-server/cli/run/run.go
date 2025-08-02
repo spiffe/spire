@@ -100,10 +100,6 @@ type serverConfig struct {
 	ProfilingFreq    int      `hcl:"profiling_freq"`
 	ProfilingNames   []string `hcl:"profiling_names"`
 
-	// Temporary configurables
-	// UseLegacyDownstreamX509CATTL is deprecated and should be removed in SPIRE 1.12.0.
-	UseLegacyDownstreamX509CATTL *bool `hcl:"use_legacy_downstream_x509_ca_ttl"`
-
 	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions"`
 }
 
@@ -569,20 +565,6 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 			return nil, fmt.Errorf("could not parse default CA ttl %q: %w", c.Server.CATTL, err)
 		}
 		sc.CATTL = ttl
-	}
-
-	if c.Server.UseLegacyDownstreamX509CATTL != nil {
-		sc.Log.Warn("'use_legacy_downstream_x509_ca_ttl' is deprecated and will be removed in a future release")
-		sc.UseLegacyDownstreamX509CATTL = *c.Server.UseLegacyDownstreamX509CATTL
-		if sc.UseLegacyDownstreamX509CATTL {
-			sc.Log.Warn("Using legacy downstream X509 CA TTL calculation; this option will be removed in a future release")
-		} else {
-			sc.Log.Info("Using preferred downstream X509 CA TTL calculation")
-		}
-	} else {
-		// The flag should be removed in SPIRE 1.13.0.
-		sc.UseLegacyDownstreamX509CATTL = false
-		sc.Log.Info("Using preferred downstream X509 CA TTL calculation")
 	}
 
 	// If the configured TTLs can lead to surprises, then do our best to log an
