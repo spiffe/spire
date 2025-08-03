@@ -104,8 +104,8 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *workload.JWTSVIDRequest
 
 	if len(resp.Svids) == 0 {
 		log.WithFields(logrus.Fields{
-			telemetry.Registered:                  false,
-			telemetry.PreviouslyAttestedSelectors: selectors,
+			telemetry.Registered: false,
+			telemetry.Selectors:  selectors,
 		}).Error("No identity issued")
 		return nil, status.Error(codes.PermissionDenied, "no identity issued")
 	}
@@ -306,8 +306,8 @@ func sendX509BundlesResponse(update *cache.WorkloadUpdate, stream workload.Spiff
 	if !allowUnauthenticatedVerifiers && !update.HasIdentity() {
 		if !quietLogging {
 			log.WithFields(logrus.Fields{
-				telemetry.Registered:                  false,
-				telemetry.PreviouslyAttestedSelectors: selectors,
+				telemetry.Registered: false,
+				telemetry.Selectors:  selectors,
 			}).Error("No identity issued")
 		}
 		return nil, status.Error(codes.PermissionDenied, "no identity issued")
@@ -355,8 +355,8 @@ func sendX509SVIDResponse(update *cache.WorkloadUpdate, stream workload.SpiffeWo
 	if len(update.Identities) == 0 {
 		if !quietLogging {
 			log.WithFields(logrus.Fields{
-				telemetry.Registered:                  false,
-				telemetry.PreviouslyAttestedSelectors: selectors,
+				telemetry.Registered: false,
+				telemetry.Selectors:  selectors,
 			}).Error("No identity issued")
 		}
 		return status.Error(codes.PermissionDenied, "no identity issued")
@@ -429,8 +429,8 @@ func composeX509SVIDResponse(update *cache.WorkloadUpdate) (*workload.X509SVIDRe
 func sendJWTBundlesResponse(update *cache.WorkloadUpdate, stream workload.SpiffeWorkloadAPI_FetchJWTBundlesServer, selectors []*common.Selector, log logrus.FieldLogger, allowUnauthenticatedVerifiers bool, previousResponse *workload.JWTBundlesResponse) (*workload.JWTBundlesResponse, error) {
 	if !allowUnauthenticatedVerifiers && !update.HasIdentity() {
 		log.WithFields(logrus.Fields{
-			telemetry.Registered:                  false,
-			telemetry.PreviouslyAttestedSelectors: selectors,
+			telemetry.Registered: false,
+			telemetry.Selectors:  selectors,
 		}).Error("No identity issued")
 		return nil, status.Error(codes.PermissionDenied, "no identity issued")
 	}
