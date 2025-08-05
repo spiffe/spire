@@ -255,9 +255,9 @@ func (a *Agent) Run(ctx context.Context) error {
 	agentEndpoints := a.newEndpoints(metrics, manager, workloadAttestor)
 	go func() {
 		agentEndpoints.WaitForListening(readyForHealthChecks)
+		a.started = true
 	}()
 
-	a.started = true
 	tasks := []func(context.Context) error{
 		manager.Run,
 		storeService.Run,
