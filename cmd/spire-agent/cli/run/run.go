@@ -349,8 +349,8 @@ func parseFlags(name string, args []string, output io.Writer) (*agentConfig, err
 	flags.BoolVar(&c.AllowUnauthenticatedVerifiers, "allowUnauthenticatedVerifiers", false, "If true, the agent permits the retrieval of X509 certificate bundles by unregistered clients")
 	flags.BoolVar(&c.InsecureBootstrap, "insecureBootstrap", false, "If true, the agent bootstraps without verifying the server's identity")
 	flags.BoolVar(&retryBootstrap, "retryBootstrap", true, "If true, the agent retries bootstrap with backoff")
-	flags.StringVar(&c.RebootstrapMode, "rebootstrapMode", "never", "Can be one of 'never', 'auto', or 'always'")
-	flags.StringVar(&c.RebootstrapDelay, "rebootstrapDelay", "10m", "The time to delay after seeing a x509 cert mismatch from the server before rebootstrapping")
+	flags.StringVar(&c.RebootstrapMode, "rebootstrapMode", "", "Can be one of 'never', 'auto', or 'always'")
+	flags.StringVar(&c.RebootstrapDelay, "rebootstrapDelay", "", "The time to delay after seeing a x509 cert mismatch from the server before rebootstrapping")
 	flags.BoolVar(&c.ExpandEnv, "expandEnv", false, "Expand environment variables in SPIRE config file")
 
 	c.addOSFlags(flags)
