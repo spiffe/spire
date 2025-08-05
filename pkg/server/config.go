@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	common "github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/health"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -17,6 +18,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/endpoints"
 	"github.com/spiffe/spire/pkg/server/endpoints/bundle"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
+	"google.golang.org/protobuf/proto"
 )
 
 type Config struct {
@@ -39,7 +41,10 @@ type Config struct {
 
 	// Directory to store runtime data
 	DataDir string
-
+	// a set of static entries that will be created when the server starts
+	InitialEntries []*types.Entry
+	// a function to print the results of registering the InitialEntries
+	InitialEntriesPrinter func(...proto.Message) error
 	// Trust domain
 	TrustDomain spiffeid.TrustDomain
 
