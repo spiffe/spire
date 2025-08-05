@@ -10,13 +10,17 @@ import (
 	"time"
 
 	"github.com/spiffe/go-spiffe/v2/spiffetls/tlsconfig"
+	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
+	"github.com/spiffe/spire/pkg/server/api/rpccontext"
 	"github.com/spiffe/spire/pkg/server/cache/entrycache"
 	"github.com/spiffe/spire/pkg/server/endpoints/bundle"
 	"golang.org/x/net/http2"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/keepalive"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/andres-erbsen/clock"
 	"github.com/sirupsen/logrus"
@@ -102,6 +106,8 @@ type Endpoints struct {
 		// test hook used to indicate that is listening
 		listening chan struct{}
 	}
+	initialEntries               []*types.Entry
+	initialEntriesPrinter        func(...proto.Message) error
 }
 
 type APIServers struct {
@@ -195,6 +201,8 @@ func New(ctx context.Context, c Config) (*Endpoints, error) {
 	bundleEndpointServer, certificateReloadTask := c.maybeMakeBundleEndpointServer()
 
 	return &Endpoints{
+		initialEntries:               c.InitialEntries,
+		initialEntriesPrinter:        c.InitialEntriesPrinter,
 		TCPAddr:                      c.TCPAddr,
 		LocalAddr:                    c.LocalAddr,
 		SVIDObserver:                 c.SVIDObserver,
@@ -271,6 +279,26 @@ func (e *Endpoints) ListenAndServe(ctx context.Context) error {
 
 	if e.CertificateReloadTask != nil {
 		tasks = append(tasks, e.CertificateReloadTask)
+	}
+
+	if e.initialEntries != nil {
+		tasks = append(tasks, func(ctx context.Context) error {
+			resp, err := e.APIServers.EntryServer.BatchCreateEntry(rpccontext.WithLogger(ctx, e.Log), &entryv1.BatchCreateEntryRequest{Entries: e.initialEntries})
+			if err != nil {
+				return err
+			}
+			if e.initialEntriesPrinter != nil {
+				for i, r := range resp.Results {
+					if r.Status.Code != int32(codes.OK) {
+						// The Entry API does not include in the results the entries that
+						// failed to be created, so we populate them from the request data.
+						r.Entry = e.initialEntries[i]
+					}
+				}
+				return e.initialEntriesPrinter(resp)
+			}
+			return nil
+		})
 	}
 
 	err := util.RunTasks(ctx, tasks...)

@@ -96,10 +96,10 @@ func protoToIDString(id *types.SPIFFEID) string {
 // parseFile parses JSON represented RegistrationEntries
 // if path is "-" read JSON from STDIN
 func parseFile(path string) ([]*types.Entry, error) {
-	return parseEntryJSON(os.Stdin, path)
+	return ParseEntryJSON(os.Stdin, path)
 }
 
-func parseEntryJSON(in io.Reader, path string) ([]*types.Entry, error) {
+func ParseEntryJSON(in io.Reader, path string) ([]*types.Entry, error) {
 	entries := &common.RegistrationEntries{}
 
 	r := in

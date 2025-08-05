@@ -28,6 +28,7 @@ import (
 	"github.com/mitchellh/cli"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire/cmd/spire-server/cli/entry"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
@@ -48,10 +49,10 @@ import (
 )
 
 const (
-	commandName = "run"
-
-	defaultConfigPath = "conf/server/server.conf"
-	defaultLogLevel   = "INFO"
+	commandName        = "run"
+	initialEntriesPath = "conf/server/initialEntries.json"
+	defaultConfigPath  = "conf/server/server.conf"
+	defaultLogLevel    = "INFO"
 )
 
 var defaultRateLimit = true
@@ -75,6 +76,7 @@ type serverConfig struct {
 	CASubject                    *caSubjectConfig   `hcl:"ca_subject"`
 	CATTL                        string             `hcl:"ca_ttl"`
 	DataDir                      string             `hcl:"data_dir"`
+	InitialEntriesFile           string             `hcl:"initial_entries_file"`
 	DefaultX509SVIDTTL           string             `hcl:"default_x509_svid_ttl"`
 	DefaultJWTSVIDTTL            string             `hcl:"default_jwt_svid_ttl"`
 	Experimental                 experimentalConfig `hcl:"experimental"`
@@ -423,7 +425,19 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 		return nil, err
 	}
 	sc.BindLocalAddress = addr
-
+	if c.Server.InitialEntriesFile != "" {
+		entries, err := entry.ParseEntryJSON(nil, c.Server.InitialEntriesFile)
+		if err != nil {
+			err = fmt.Errorf("could not parse initial_entries_file %q: %w", c.Server.InitialEntriesFile, err)
+			if c.Server.InitialEntriesFile != initialEntriesPath {
+				return nil, err
+			} else {
+				logger.Debugf("%v", err)
+			}
+		}
+		sc.InitialEntriesPrinter = entry.GetCreatePrinter()
+		sc.InitialEntries = entries
+	}
 	sc.DataDir = c.Server.DataDir
 	sc.AuditLogEnabled = c.Server.AuditLogEnabled
 
@@ -1040,12 +1054,13 @@ func checkForUnknownConfig(c *Config, l logrus.FieldLogger) (err error) {
 func defaultConfig() *Config {
 	return &Config{
 		Server: &serverConfig{
-			BindAddress:  "0.0.0.0",
-			BindPort:     8081,
-			CATTL:        credtemplate.DefaultX509CATTL.String(),
-			LogLevel:     defaultLogLevel,
-			LogFormat:    log.DefaultFormat,
-			Experimental: experimentalConfig{},
+			BindAddress:        "0.0.0.0",
+			BindPort:           8081,
+			CATTL:              credtemplate.DefaultX509CATTL.String(),
+			InitialEntriesFile: initialEntriesPath,
+			LogLevel:           defaultLogLevel,
+			LogFormat:          log.DefaultFormat,
+			Experimental:       experimentalConfig{},
 		},
 	}
 }
