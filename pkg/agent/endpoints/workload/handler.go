@@ -103,7 +103,10 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *workload.JWTSVIDRequest
 	}
 
 	if len(resp.Svids) == 0 {
-		log.WithField(telemetry.Registered, false).Error("No identity issued")
+		log.WithFields(logrus.Fields{
+			telemetry.Registered: false,
+			telemetry.Selectors:  selectors,
+		}).Error("No identity issued")
 		return nil, status.Error(codes.PermissionDenied, "no identity issued")
 	}
 
@@ -132,7 +135,7 @@ func (h *Handler) FetchJWTBundles(_ *workload.JWTBundlesRequest, stream workload
 	for {
 		select {
 		case update := <-subscriber.Updates():
-			if previousResp, err = sendJWTBundlesResponse(update, stream, log, h.c.AllowUnauthenticatedVerifiers, previousResp); err != nil {
+			if previousResp, err = sendJWTBundlesResponse(update, stream, selectors, log, h.c.AllowUnauthenticatedVerifiers, previousResp); err != nil {
 				return err
 			}
 		case <-ctx.Done():
@@ -232,7 +235,7 @@ func (h *Handler) FetchX509SVID(_ *workload.X509SVIDRequest, stream workload.Spi
 		select {
 		case update := <-subscriber.Updates():
 			update.Identities = filterIdentities(update.Identities, log)
-			if err := sendX509SVIDResponse(update, stream, log, quietLogging); err != nil {
+			if err := sendX509SVIDResponse(update, stream, selectors, log, quietLogging); err != nil {
 				return err
 			}
 		case <-ctx.Done():
@@ -266,7 +269,7 @@ func (h *Handler) FetchX509Bundles(_ *workload.X509BundlesRequest, stream worklo
 	for {
 		select {
 		case update := <-subscriber.Updates():
-			previousResp, err = sendX509BundlesResponse(update, stream, log, h.c.AllowUnauthenticatedVerifiers, previousResp, quietLogging)
+			previousResp, err = sendX509BundlesResponse(update, stream, selectors, log, h.c.AllowUnauthenticatedVerifiers, previousResp, quietLogging)
 			if err != nil {
 				return err
 			}
@@ -299,10 +302,13 @@ func (h *Handler) fetchJWTSVID(ctx context.Context, log logrus.FieldLogger, entr
 	}, nil
 }
 
-func sendX509BundlesResponse(update *cache.WorkloadUpdate, stream workload.SpiffeWorkloadAPI_FetchX509BundlesServer, log logrus.FieldLogger, allowUnauthenticatedVerifiers bool, previousResponse *workload.X509BundlesResponse, quietLogging bool) (*workload.X509BundlesResponse, error) {
+func sendX509BundlesResponse(update *cache.WorkloadUpdate, stream workload.SpiffeWorkloadAPI_FetchX509BundlesServer, selectors []*common.Selector, log logrus.FieldLogger, allowUnauthenticatedVerifiers bool, previousResponse *workload.X509BundlesResponse, quietLogging bool) (*workload.X509BundlesResponse, error) {
 	if !allowUnauthenticatedVerifiers && !update.HasIdentity() {
 		if !quietLogging {
-			log.WithField(telemetry.Registered, false).Error("No identity issued")
+			log.WithFields(logrus.Fields{
+				telemetry.Registered: false,
+				telemetry.Selectors:  selectors,
+			}).Error("No identity issued")
 		}
 		return nil, status.Error(codes.PermissionDenied, "no identity issued")
 	}
@@ -345,10 +351,13 @@ func composeX509BundlesResponse(update *cache.WorkloadUpdate) (*workload.X509Bun
 	}, nil
 }
 
-func sendX509SVIDResponse(update *cache.WorkloadUpdate, stream workload.SpiffeWorkloadAPI_FetchX509SVIDServer, log logrus.FieldLogger, quietLogging bool) (err error) {
+func sendX509SVIDResponse(update *cache.WorkloadUpdate, stream workload.SpiffeWorkloadAPI_FetchX509SVIDServer, selectors []*common.Selector, log logrus.FieldLogger, quietLogging bool) (err error) {
 	if len(update.Identities) == 0 {
 		if !quietLogging {
-			log.WithField(telemetry.Registered, false).Error("No identity issued")
+			log.WithFields(logrus.Fields{
+				telemetry.Registered: false,
+				telemetry.Selectors:  selectors,
+			}).Error("No identity issued")
 		}
 		return status.Error(codes.PermissionDenied, "no identity issued")
 	}
@@ -417,9 +426,12 @@ func composeX509SVIDResponse(update *cache.WorkloadUpdate) (*workload.X509SVIDRe
 	return resp, nil
 }
 
-func sendJWTBundlesResponse(update *cache.WorkloadUpdate, stream workload.SpiffeWorkloadAPI_FetchJWTBundlesServer, log logrus.FieldLogger, allowUnauthenticatedVerifiers bool, previousResponse *workload.JWTBundlesResponse) (*workload.JWTBundlesResponse, error) {
+func sendJWTBundlesResponse(update *cache.WorkloadUpdate, stream workload.SpiffeWorkloadAPI_FetchJWTBundlesServer, selectors []*common.Selector, log logrus.FieldLogger, allowUnauthenticatedVerifiers bool, previousResponse *workload.JWTBundlesResponse) (*workload.JWTBundlesResponse, error) {
 	if !allowUnauthenticatedVerifiers && !update.HasIdentity() {
-		log.WithField(telemetry.Registered, false).Error("No identity issued")
+		log.WithFields(logrus.Fields{
+			telemetry.Registered: false,
+			telemetry.Selectors:  selectors,
+		}).Error("No identity issued")
 		return nil, status.Error(codes.PermissionDenied, "no identity issued")
 	}
 
