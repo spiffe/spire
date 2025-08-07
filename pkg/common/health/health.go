@@ -20,6 +20,10 @@ const (
 
 // State is the health state of a subsystem.
 type State struct {
+	// Started is whether the subsystem is finished starting.
+	// if undefined, it is treated as started=true.
+	Started *bool
+
 	// Live is whether the subsystem is live (i.e. in a good state
 	// or in a state it can recover from while remaining alive). Global
 	// liveness is only reported true if all subsystems report live.
@@ -134,27 +138,38 @@ func (c *checker) ListenAndServe(ctx context.Context) error {
 	return nil
 }
 
+// StartedState returns the global startup state.
+func (c *checker) StartedState() bool {
+	startup, _, _, _, _ := c.checkStates()
+
+	return startup
+}
+
 // LiveState returns the global live state and details.
 func (c *checker) LiveState() (bool, any) {
-	live, _, details, _ := c.checkStates()
+	_, live, _, details, _ := c.checkStates()
 
 	return live, details
 }
 
 // ReadyState returns the global ready state and details.
 func (c *checker) ReadyState() (bool, any) {
-	_, ready, _, details := c.checkStates()
+	_, _, ready, _, details := c.checkStates()
 
 	return ready, details
 }
 
-func (c *checker) checkStates() (bool, bool, any, any) {
-	isLive, isReady := true, true
+func (c *checker) checkStates() (bool, bool, bool, any, any) {
+	isStarted, isLive, isReady := true, true, true
 
 	liveDetails := make(map[string]any)
 	readyDetails := make(map[string]any)
 	for subsystemName, subsystemState := range c.cache.getStatuses() {
 		state := subsystemState.details
+		if state.Started != nil {
+			isStarted = *state.Started
+		}
+
 		if !state.Live {
 			isLive = false
 		}
@@ -167,7 +182,7 @@ func (c *checker) checkStates() (bool, bool, any, any) {
 		readyDetails[subsystemName] = state.ReadyDetails
 	}
 
-	return isLive, isReady, liveDetails, readyDetails
+	return isStarted, isLive, isReady, liveDetails, readyDetails
 }
 
 func (c *checker) liveHandler(w http.ResponseWriter, _ *http.Request) {

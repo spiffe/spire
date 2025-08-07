@@ -83,6 +83,13 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 	}
 }
 
+func (s *Server) WaitForListening() {
+	// This method is a no-op for the bundle server since it does not have a
+	// separate listening hook like the agent endpoints.
+	// If needed, this can be implemented to signal when the server starts
+	// listening.
+}
+
 func (s *Server) serveHTTP(w http.ResponseWriter, req *http.Request) {
 	if req.Method != "GET" {
 		http.Error(w, "405 method not allowed", http.StatusMethodNotAllowed)
