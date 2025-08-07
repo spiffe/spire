@@ -443,5 +443,10 @@ func (e *Endpoints) triggerListeningHook() {
 }
 
 func (e *Endpoints) WaitForListening() {
+	if e.hooks.listening == nil {
+		e.Log.Warn("Listening hook not initialized, cannot wait for listening")
+		return
+	}
+
 	<-e.hooks.listening
 }

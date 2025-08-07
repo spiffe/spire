@@ -154,6 +154,11 @@ func (e *Endpoints) triggerListeningHook() {
 }
 
 func (e *Endpoints) WaitForListening(listening chan struct{}) {
+	if e.hooks.listening == nil {
+		e.log.Warn("Listening hook not initialized, cannot wait for listening")
+		return
+	}
+
 	<-e.hooks.listening
 	listening <- struct{}{}
 }
