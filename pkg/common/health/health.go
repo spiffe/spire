@@ -166,9 +166,10 @@ func (c *checker) checkStates() (bool, bool, bool, any, any) {
 	readyDetails := make(map[string]any)
 	for subsystemName, subsystemState := range c.cache.getStatuses() {
 		state := subsystemState.details
-		if state.Started == nil || !*state.Started {
-			isStarted = true
+		if state.Started != nil {
+			isStarted = *state.Started
 		}
+
 		if !state.Live {
 			isLive = false
 		}
