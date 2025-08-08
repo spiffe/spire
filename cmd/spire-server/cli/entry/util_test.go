@@ -56,7 +56,7 @@ func TestParseEntryJSON(t *testing.T) {
 				p = "-"
 			}
 
-			entries, err := parseEntryJSON(testCase.in, p)
+			entries, err := ParseEntryJSON(testCase.in, p)
 			if testCase.wantErr {
 				require.Error(t, err)
 				return

@@ -12,6 +12,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/tlspolicy"
@@ -33,13 +34,17 @@ import (
 	"github.com/spiffe/spire/pkg/server/catalog"
 	"github.com/spiffe/spire/pkg/server/endpoints/bundle"
 	"github.com/spiffe/spire/pkg/server/svid"
+	"google.golang.org/protobuf/proto"
 )
 
 // Config is a configuration for endpoints
 type Config struct {
 	// TPCAddr is the address to bind the TCP listener to.
 	TCPAddr *net.TCPAddr
-
+	// InitialEntries are a set of static entries that will be created when the server starts
+	InitialEntries []*types.Entry
+	// InitialEntriesPrinter is a function to print the results of registering the InitialEntries
+	InitialEntriesPrinter func(...proto.Message) error
 	// LocalAddr is the local address to bind the listener to.
 	LocalAddr net.Addr
 
