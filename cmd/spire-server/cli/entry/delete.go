@@ -145,7 +145,11 @@ func (c *deleteCommand) prettyPrintDelete(env *commoncli.Env, results ...any) er
 		return errors.New("failed to delete one or more entries")
 	}
 
-	env.Printf("Deleted %d entries successfully, but failed to delete %d entries", len(succeeded), len(failed))
+	if len(failed) > 0 {
+		env.Printf("Deleted %d entries successfully, but failed to delete %d entries", len(succeeded), len(failed))
+	} else {
+		env.Printf("Deleted %d entries successfully", len(succeeded))
+	}
 
 	return nil
 }
