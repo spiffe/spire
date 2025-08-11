@@ -73,6 +73,9 @@ func (cc *CLI) Run(ctx context.Context, args []string) int {
 		"entry create": func() (cli.Command, error) {
 			return entry.NewCreateCommand(), nil
 		},
+		"entry lock": func() (cli.Command, error) {
+			return entry.NewLockCommand(), nil
+		},
 		"entry update": func() (cli.Command, error) {
 			return entry.NewUpdateCommand(), nil
 		},

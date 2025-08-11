@@ -3,10 +3,12 @@ package entry
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"slices"
 	"sort"
 	"strings"
+	"sync/atomic"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -40,6 +42,7 @@ type Service struct {
 	ds            datastore.DataStore
 	ef            api.AuthorizedEntryFetcher
 	entryPageSize int
+	locked        atomic.Bool
 }
 
 // New creates a new v1 entry service.
@@ -277,7 +280,11 @@ func (s *Service) BatchCreateEntry(ctx context.Context, req *entryv1.BatchCreate
 
 func (s *Service) createEntry(ctx context.Context, e *types.Entry, outputMask *types.EntryMask) *entryv1.BatchCreateEntryResponse_Result {
 	log := rpccontext.Logger(ctx)
-
+	if lockStatus := s.checkLocked(log); lockStatus != nil {
+		return &entryv1.BatchCreateEntryResponse_Result{
+			Status: lockStatus,
+		}
+	}
 	cEntry, err := api.ProtoToRegistrationEntry(ctx, s.td, e)
 	if err != nil {
 		return &entryv1.BatchCreateEntryResponse_Result{
@@ -636,7 +643,11 @@ func applyMask(e *types.Entry, mask *types.EntryMask) {
 func (s *Service) updateEntry(ctx context.Context, e *types.Entry, inputMask *types.EntryMask, outputMask *types.EntryMask) *entryv1.BatchUpdateEntryResponse_Result {
 	log := rpccontext.Logger(ctx)
 	log = log.WithField(telemetry.RegistrationID, e.Id)
-
+	if lockStatus := s.checkLocked(log); lockStatus != nil {
+		return &entryv1.BatchUpdateEntryResponse_Result{
+			Status: lockStatus,
+		}
+	}
 	convEntry, err := api.ProtoToRegistrationEntryWithMask(ctx, s.td, e, inputMask)
 	if err != nil {
 		return &entryv1.BatchUpdateEntryResponse_Result{
@@ -685,6 +696,19 @@ func (s *Service) updateEntry(ctx context.Context, e *types.Entry, inputMask *ty
 		Status: api.OK(),
 		Entry:  tEntry,
 	}
+}
+
+func (s *Service) LockService(ctx context.Context, _ *entryv1.LockRequest) (*entryv1.LockResponse, error) {
+	s.locked.Store(true)
+	rpccontext.Logger(ctx).Info("Service locked. Entries can no longer be created or updated.")
+	return &entryv1.LockResponse{}, nil
+}
+
+func (s *Service) checkLocked(log logrus.FieldLogger) *types.Status {
+	if s.locked.Load() {
+		return api.MakeStatus(log, codes.PermissionDenied, "Service is locked", fmt.Errorf("entries cannot be modified or created"))
+	}
+	return nil
 }
 
 func fieldsFromEntryProto(ctx context.Context, proto *types.Entry, inputMask *types.EntryMask) logrus.Fields {
