@@ -712,6 +712,21 @@ func TestConfigure(t *testing.T) {
 		err := doConfig(t, coreConfig, `verify_organization = { management_account_id = "dummy_account" assume_org_role = "dummy_role" org_account_map_ttl = "1m30s" }`)
 		require.NoError(t, err)
 	})
+
+	t.Run("success, validate_eks_cluster_membership block without eks_cluster_names property set", func(t *testing.T) {
+		err := doConfig(t, coreConfig, `validate_eks_cluster_membership = {}`)
+		require.NoError(t, err)
+	})
+
+	t.Run("success, validate_eks_cluster_membership block with eks_cluster_names property set to empty list", func(t *testing.T) {
+		err := doConfig(t, coreConfig, `validate_eks_cluster_membership = { eks_cluster_names = [] }`)
+		require.NoError(t, err)
+	})
+
+	t.Run("success, validate_eks_cluster_membership block with eks_cluster_names property set to non-empty list", func(t *testing.T) {
+		err := doConfig(t, coreConfig, `validate_eks_cluster_membership = { eks_cluster_names = ["test-cluster-1", "test-cluster-2"] }`)
+		require.NoError(t, err)
+	})
 }
 
 func TestInstanceProfileArnParsing(t *testing.T) {
