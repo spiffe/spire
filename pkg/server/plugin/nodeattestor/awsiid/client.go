@@ -130,6 +130,8 @@ func newClient(ctx context.Context, config *SessionConfig, region string, assume
 		return nil, err
 	}
 
+	eksClient := eks.NewFromConfig(conf)
+
 	return struct {
 		iam.GetInstanceProfileAPIClient
 		ec2.DescribeInstancesAPIClient
@@ -142,7 +144,7 @@ func newClient(ctx context.Context, config *SessionConfig, region string, assume
 		DescribeInstancesAPIClient:         ec2.NewFromConfig(conf),
 		ListAccountsAPIClient:              organizations.NewFromConfig(orgConf),
 		DescribeAutoScalingGroupsAPIClient: autoscaling.NewFromConfig(conf),
-		ListNodegroupsAPIClient:            eks.NewFromConfig(conf),
-		DescribeNodegroupAPIClient:         eks.NewFromConfig(conf),
+		ListNodegroupsAPIClient:            eksClient,
+		DescribeNodegroupAPIClient:         eksClient,
 	}, nil
 }
