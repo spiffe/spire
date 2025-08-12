@@ -34,12 +34,12 @@ func TestIsNodeInCluster(t *testing.T) {
 	// pass valid node
 	ok, err := testEKSValidator.IsNodeInCluster(context.Background(), testEKSClient, testASGClient, testEKSInstanceID)
 	require.NoError(t, err)
-	require.Equal(t, true, ok)
+	require.True(t, ok)
 
 	// fail when node doesn't exist
 	ok, err = testEKSValidator.IsNodeInCluster(context.Background(), testEKSClient, testASGClient, "i-nonexistent")
 	require.NoError(t, err)
-	require.Equal(t, false, ok)
+	require.False(t, ok)
 }
 
 func TestCheckIfEKSNodeListIsStale(t *testing.T) {

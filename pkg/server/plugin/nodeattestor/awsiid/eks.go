@@ -31,7 +31,7 @@ type eksValidationConfig struct {
 }
 
 type eksValidator struct {
-	eksNodeList              map[string]any
+	eksNodeList              map[string]struct{}
 	eksNodeListValidDuration time.Time
 	eksConfig                *eksValidationConfig
 	mutex                    sync.RWMutex
@@ -121,18 +121,18 @@ func (o *eksValidator) validateCache(ctx context.Context, eksClient EKSClient, a
 	return true, nil
 }
 
-func (o *eksValidator) lookupCache(ctx context.Context, eksClient EKSClient, asClient autoscaling.DescribeAutoScalingGroupsAPIClient, accountIDOfNode string, reValidatedCache bool) (bool, error) {
+func (o *eksValidator) lookupCache(ctx context.Context, eksClient EKSClient, asClient autoscaling.DescribeAutoScalingGroupsAPIClient, nodeID string, reValidatedCache bool) (bool, error) {
 	o.mutex.RLock()
 	eksNodeList := o.eksNodeList
 	o.mutex.RUnlock()
 
-	_, accountIsmemberOfOrg := eksNodeList[accountIDOfNode]
+	_, nodeIsMemberOfCluster := eksNodeList[nodeID]
 
 	// Retry if it doesn't exist in cache and cache was not revalidated
 	if !accountIsmemberOfOrg && !reValidatedCache {
 		eksAccountList, err := o.refreshCache(ctx, eksClient, asClient)
 		if err != nil {
-			o.log.Error("Failed to refresh cache, while validating account id: %v", accountIDOfNode, "error", err.Error())
+			o.log.Error("Failed to refresh cache, while validating node id: %v", nodeID, "error", err.Error())
 			return false, err
 		}
 		_, accountIsmemberOfOrg = eksAccountList[accountIDOfNode]
