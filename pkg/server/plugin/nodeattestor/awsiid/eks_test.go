@@ -59,93 +59,104 @@ func TestReloadNodeList(t *testing.T) {
 	testEKSClient := newFakeEKSClient()
 	testASGClient := newFakeASGClient()
 
-	// check once config is provided correctly and catchburst is false, node list populated along with timestamp
-	_, err := testEKSValidator.reloadNodeList(context.Background(), testEKSClient, testASGClient, false)
-	require.NoError(t, err)
-	require.Len(t, testEKSValidator.eksNodeList, 2) // Two instances in the test setup
-	require.Greater(t, testEKSValidator.eksNodeListValidDuration, time.Now())
-	require.Equal(t, testEKSValidator.retries, eksRetries)
+	t.Run("reload node list with valid config", func(t *testing.T) {
+		_, err := testEKSValidator.reloadNodeList(context.Background(), testEKSClient, testASGClient, false)
+		require.NoError(t, err)
+		require.Len(t, testEKSValidator.eksNodeList, 2) // Two instances in the test setup
+		require.Greater(t, testEKSValidator.eksNodeListValidDuration, time.Now())
+		require.Equal(t, testEKSValidator.retries, eksRetries)
+	})
 
-	// check if the list of nodes is updated when catchburst is true
-	// but the timestamp is not updated
-	existingValidDuration := testEKSValidator.eksNodeListValidDuration
-	testEKSValidator.eksNodeList = make(map[string]struct{})
-	_, err = testEKSValidator.reloadNodeList(context.Background(), testEKSClient, testASGClient, true)
-	require.NoError(t, err)
-	require.Equal(t, existingValidDuration, testEKSValidator.eksNodeListValidDuration)
-	require.Len(t, testEKSValidator.eksNodeList, 2)
+	t.Run("reload node list with catch burst", func(t *testing.T) {
+		existingValidDuration := testEKSValidator.eksNodeListValidDuration
+		testEKSValidator.eksNodeList = make(map[string]struct{})
+		_, err := testEKSValidator.reloadNodeList(context.Background(), testEKSClient, testASGClient, true)
+		require.NoError(t, err)
+		require.Equal(t, existingValidDuration, testEKSValidator.eksNodeListValidDuration)
+		require.Len(t, testEKSValidator.eksNodeList, 2)
+	})
 
-	// set retry to 0 and make sure the list is not updated
-	testEKSValidator.retries = 0
-	testEKSValidator.eksNodeList = make(map[string]struct{})
-	_, err = testEKSValidator.reloadNodeList(context.Background(), testEKSClient, testASGClient, true)
-	require.NoError(t, err)
-	require.Empty(t, testEKSValidator.eksNodeList)
+	t.Run("reload node list with catch burst and no retries left", func(t *testing.T) {
+		// set retry to 0 and make sure the list is not updated
+		testEKSValidator.retries = 0
+		testEKSValidator.eksNodeList = make(map[string]struct{})
+		_, err := testEKSValidator.reloadNodeList(context.Background(), testEKSClient, testASGClient, true)
+		require.NoError(t, err)
+		require.Empty(t, testEKSValidator.eksNodeList)
+	})
 
 	// make sure retry is reset, once we are over TTL
 	// move clock ahead by 1 minute. And as our TTL is 30 seconds, it should refresh the list
-	testEKSValidator = buildEKSValidationClient()
-	_, err = testEKSValidator.reloadNodeList(context.Background(), testEKSClient, testASGClient, false)
-	require.NoError(t, err)
-	require.Len(t, testEKSValidator.eksNodeList, 2)
-	testEKSValidator.clk = buildEKSNewMockClock(1*time.Minute, testEKSClockMutAfter)
-	testEKSValidator.retries = 0 // trigger refresh to reset retries
-	require.Equal(t, testEKSValidator.retries, 0)
-	_, err = testEKSValidator.reloadNodeList(context.Background(), testEKSClient, testASGClient, false)
-	require.NoError(t, err)
-	require.Equal(t, testEKSValidator.retries, eksRetries)
+	t.Run("refresh cache after TTL expired", func(t *testing.T) {
+		testEKSValidator = buildEKSValidationClient()
+		_, err := testEKSValidator.reloadNodeList(context.Background(), testEKSClient, testASGClient, false)
+		require.NoError(t, err)
+		require.Len(t, testEKSValidator.eksNodeList, 2)
+		testEKSValidator.clk = buildEKSNewMockClock(1*time.Minute, testEKSClockMutAfter)
+		testEKSValidator.retries = 0 // trigger refresh to reset retries
 
-	// make sure error is handled when list nodegroups call fails
-	testEKSValidator = buildEKSValidationClient()
-	testEKSClient.ListNodegroupsError = errors.New("API error")
-	_, err = testEKSValidator.reloadNodeList(context.Background(), testEKSClient, testASGClient, false)
-	require.ErrorContains(t, err, "issue while getting list of EKS Nodegroups")
+		_, err = testEKSValidator.reloadNodeList(context.Background(), testEKSClient, testASGClient, false)
+		require.NoError(t, err)
+		require.Equal(t, testEKSValidator.retries, eksRetries)
+	})
 
-	// make sure error is handled when describe nodegroup call fails
-	testEKSValidator = buildEKSValidationClient()
-	testEKSClient = newFakeEKSClient()
-	testEKSClient.DescribeNodegroupError = errors.New("API error")
-	_, err = testEKSValidator.reloadNodeList(context.Background(), testEKSClient, testASGClient, false)
-	require.ErrorContains(t, err, "issue while getting list of EKS Node Groups")
+	t.Run("error, list nodegroups call fails", func(t *testing.T) {
+		testEKSValidator = buildEKSValidationClient()
+		testEKSClient.ListNodegroupsError = errors.New("API error")
+		_, err := testEKSValidator.reloadNodeList(context.Background(), testEKSClient, testASGClient, false)
+		require.ErrorContains(t, err, "issue while getting list of EKS Nodegroups")
+	})
 
-	// make sure error is handled when auto scaling groups call fails
-	testEKSValidator = buildEKSValidationClient()
-	testEKSClient = newFakeEKSClient()
-	testASGClient.DescribeAutoScalingGroupsError = errors.New("ASG API error")
-	_, err = testEKSValidator.reloadNodeList(context.Background(), testEKSClient, testASGClient, false)
-	require.ErrorContains(t, err, "issue while getting list of instances in AutoScalingGroup")
+	t.Run("error, describe nodegroup call fails", func(t *testing.T) {
+		testEKSValidator = buildEKSValidationClient()
+		testEKSClient = newFakeEKSClient()
+		testEKSClient.DescribeNodegroupError = errors.New("API error")
+		_, err := testEKSValidator.reloadNodeList(context.Background(), testEKSClient, testASGClient, false)
+		require.ErrorContains(t, err, "issue while getting list of EKS Node Groups")
+	})
 
-	// make sure error is handled when list nodegroups call fails with pagination
-	testEKSValidator = buildEKSValidationClient()
-	testToken := "randomtoken"
-	testEKSClient = newFakeEKSClient()
-	testEKSClient.ListNodegroupsOutput = &eks.ListNodegroupsOutput{
-		Nodegroups: []string{testEKSNodeGroupName},
-		NextToken:  &testToken,
-	}
-	testASGClient = newFakeASGClient() // Create new ASG client without errors
-	_, err = testEKSValidator.reloadNodeList(context.Background(), testEKSClient, testASGClient, false)
-	require.ErrorContains(t, err, "issue while getting list of EKS Nodegroups in pagination")
+	t.Run("error, describe auto scaling groups call fails", func(t *testing.T) {
+		testEKSValidator = buildEKSValidationClient()
+		testEKSClient = newFakeEKSClient()
+		testASGClient.DescribeAutoScalingGroupsError = errors.New("ASG API error")
+		_, err := testEKSValidator.reloadNodeList(context.Background(), testEKSClient, testASGClient, false)
+		require.ErrorContains(t, err, "issue while getting list of instances in AutoScalingGroup")
+	})
 
-	// make sure error is handled when describe auto scaling groups call fails with pagination
-	testEKSValidator = buildEKSValidationClient()
-	testEKSClient = newFakeEKSClient()
-	testASGClient = newFakeASGClient()
-	testASGClient.DescribeAutoScalingGroupsOutput = &autoscaling.DescribeAutoScalingGroupsOutput{
-		AutoScalingGroups: []autoscalingtypes.AutoScalingGroup{
-			{
-				AutoScalingGroupName: aws.String(testASGName),
-				Instances: []autoscalingtypes.Instance{
-					{
-						InstanceId: aws.String(testEKSInstanceID),
+	t.Run("error, list nodegroups call fails with pagination", func(t *testing.T) {
+		testEKSValidator = buildEKSValidationClient()
+		testToken := "randomtoken"
+		testEKSClient = newFakeEKSClient()
+		testEKSClient.ListNodegroupsOutput = &eks.ListNodegroupsOutput{
+			Nodegroups: []string{testEKSNodeGroupName},
+			NextToken:  &testToken,
+		}
+		testASGClient = newFakeASGClient() // Create new ASG client without errors
+		_, err := testEKSValidator.reloadNodeList(context.Background(), testEKSClient, testASGClient, false)
+		require.ErrorContains(t, err, "issue while getting list of EKS Nodegroups in pagination")
+	})
+
+	t.Run("error, describe auto scaling groups call fails with pagination", func(t *testing.T) {
+		testEKSValidator = buildEKSValidationClient()
+		testEKSClient = newFakeEKSClient()
+		testASGClient = newFakeASGClient()
+		testToken := "randomtoken"
+		testASGClient.DescribeAutoScalingGroupsOutput = &autoscaling.DescribeAutoScalingGroupsOutput{
+			AutoScalingGroups: []autoscalingtypes.AutoScalingGroup{
+				{
+					AutoScalingGroupName: aws.String(testASGName),
+					Instances: []autoscalingtypes.Instance{
+						{
+							InstanceId: aws.String(testEKSInstanceID),
+						},
 					},
 				},
 			},
-		},
-		NextToken: &testToken,
-	}
-	_, err = testEKSValidator.reloadNodeList(context.Background(), testEKSClient, testASGClient, false)
-	require.ErrorContains(t, err, "issue while getting list of instances in AutoScalingGroup in pagination")
+			NextToken: &testToken,
+		}
+		_, err := testEKSValidator.reloadNodeList(context.Background(), testEKSClient, testASGClient, false)
+		require.ErrorContains(t, err, "issue while getting list of instances in AutoScalingGroup in pagination")
+	})
 }
 
 func TestEKSCheckIfTTLIsExpired(t *testing.T) {
