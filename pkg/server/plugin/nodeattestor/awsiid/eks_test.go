@@ -69,7 +69,7 @@ func TestReloadNodeList(t *testing.T) {
 	// check if the list of nodes is updated when catchburst is true
 	// but the timestamp is not updated
 	existingValidDuration := testEKSValidator.eksNodeListValidDuration
-	testEKSValidator.eksNodeList = make(map[string]any)
+	testEKSValidator.eksNodeList = make(map[string]struct{})
 	_, err = testEKSValidator.reloadNodeList(context.Background(), testEKSClient, testASGClient, true)
 	require.NoError(t, err)
 	require.Equal(t, existingValidDuration, testEKSValidator.eksNodeListValidDuration)
@@ -77,7 +77,7 @@ func TestReloadNodeList(t *testing.T) {
 
 	// set retry to 0 and make sure the list is not updated
 	testEKSValidator.retries = 0
-	testEKSValidator.eksNodeList = make(map[string]any)
+	testEKSValidator.eksNodeList = make(map[string]struct{})
 	_, err = testEKSValidator.reloadNodeList(context.Background(), testEKSClient, testASGClient, true)
 	require.NoError(t, err)
 	require.Empty(t, testEKSValidator.eksNodeList)

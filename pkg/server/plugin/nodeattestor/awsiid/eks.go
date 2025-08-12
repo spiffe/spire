@@ -46,7 +46,7 @@ type eksValidator struct {
 
 func newEKSValidationBase(config *eksValidationConfig) *eksValidator {
 	client := &eksValidator{
-		eksNodeList: make(map[string]any),
+		eksNodeList: make(map[string]struct{}),
 		eksConfig:   config,
 		retries:     eksRetries,
 		clk:         clock.New(),
@@ -78,7 +78,7 @@ func (o *eksValidator) configure(config *eksValidationConfig) error {
 	o.eksConfig = config
 
 	// While doing configuration invalidate the map so we don't keep using old one.
-	o.eksNodeList = make(map[string]any)
+	o.eksNodeList = make(map[string]struct{})
 	o.retries = eksRetries
 
 	o.eksAccountListCacheTTL = eksNodeListDuration
@@ -129,23 +129,23 @@ func (o *eksValidator) lookupCache(ctx context.Context, eksClient EKSClient, asC
 	_, nodeIsMemberOfCluster := eksNodeList[nodeID]
 
 	// Retry if it doesn't exist in cache and cache was not revalidated
-	if !accountIsmemberOfOrg && !reValidatedCache {
+	if !nodeIsMemberOfCluster && !reValidatedCache {
 		eksAccountList, err := o.refreshCache(ctx, eksClient, asClient)
 		if err != nil {
 			o.log.Error("Failed to refresh cache, while validating node id: %v", nodeID, "error", err.Error())
 			return false, err
 		}
-		_, accountIsmemberOfOrg = eksAccountList[accountIDOfNode]
+		_, nodeIsMemberOfCluster = eksAccountList[nodeID]
 	}
 
-	return accountIsmemberOfOrg, nil
+	return nodeIsMemberOfCluster, nil
 }
 
 // refreshCache refreshes list with new cache if cache miss happens and check if element exist
-func (o *eksValidator) refreshCache(ctx context.Context, eksClient EKSClient, asClient autoscaling.DescribeAutoScalingGroupsAPIClient) (map[string]any, error) {
+func (o *eksValidator) refreshCache(ctx context.Context, eksClient EKSClient, asClient autoscaling.DescribeAutoScalingGroupsAPIClient) (map[string]struct{}, error) {
 	remTries := o.getRetries()
 
-	eksNodeList := make(map[string]any)
+	eksNodeList := make(map[string]struct{})
 	if remTries <= 0 {
 		return eksNodeList, nil
 	}
@@ -174,7 +174,7 @@ func (o *eksValidator) checkIfEKSNodeListIsStale() bool {
 }
 
 // reloadNodeList gets the list of nodes belonging to the EKS cluster and catch them
-func (o *eksValidator) reloadNodeList(ctx context.Context, eksClient EKSClient, asClient autoscaling.DescribeAutoScalingGroupsAPIClient, catchBurst bool) (map[string]any, error) {
+func (o *eksValidator) reloadNodeList(ctx context.Context, eksClient EKSClient, asClient autoscaling.DescribeAutoScalingGroupsAPIClient, catchBurst bool) (map[string]struct{}, error) {
 	o.mutex.Lock()
 	defer o.mutex.Unlock()
 
@@ -189,7 +189,7 @@ func (o *eksValidator) reloadNodeList(ctx context.Context, eksClient EKSClient, 
 	}
 
 	// Build new EKS nodes list
-	eksNodeMap := make(map[string]any)
+	eksNodeMap := make(map[string]struct{})
 
 	// Get the list of node groups belonging to the EKS clusters
 	for _, clusterName := range o.eksConfig.EKSClusterNames {
