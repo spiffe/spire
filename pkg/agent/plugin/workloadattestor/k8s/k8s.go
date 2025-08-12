@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/andres-erbsen/clock"
+	"github.com/aperturerobotics/fastjson"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
 	workloadattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/agent/workloadattestor/v1"
@@ -27,7 +28,6 @@ import (
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/pluginconf"
 	"github.com/spiffe/spire/pkg/common/telemetry"
-	"github.com/aperturerobotics/fastjson"
 	"golang.org/x/sync/singleflight"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
