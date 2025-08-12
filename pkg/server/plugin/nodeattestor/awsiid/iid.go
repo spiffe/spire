@@ -124,7 +124,7 @@ type IIDAttestorConfig struct {
 	AssumeRole                      string               `hcl:"assume_role"`
 	Partition                       string               `hcl:"partition"`
 	ValidateOrgAccountID            *orgValidationConfig `hcl:"verify_organization"`
-	ValidateEKSClusterMemebership   *eksValidationConfig `hcl:"validate_eks_cluster_membership"`
+	ValidateEKSClusterMembership    *eksValidationConfig `hcl:"validate_eks_cluster_membership"`
 	pathTemplate                    *agentpathtemplate.Template
 	trustDomain                     spiffeid.TrustDomain
 	getAWSCACertificate             func(string, PublicKeyType) (*x509.Certificate, error)
@@ -233,7 +233,7 @@ func (p *IIDAttestorPlugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServ
 	inTrustAcctList := slices.Contains(c.LocalValidAcctIDs, attestationData.AccountID)
 
 	// Feature node belongs to EKS cluster
-	if c.ValidateEKSClusterMemebership != nil {
+	if c.ValidateEKSClusterMembership != nil {
 		ctxValidateEKS, cancel := context.WithTimeout(stream.Context(), awsTimeout)
 		defer cancel()
 
@@ -342,8 +342,8 @@ func (p *IIDAttestorPlugin) Configure(_ context.Context, req *configv1.Configure
 		}
 	}
 
-	if newConfig.ValidateEKSClusterMemebership != nil {
-		if err := p.eksValidation.configure(newConfig.ValidateEKSClusterMemebership); err != nil {
+	if newConfig.ValidateEKSClusterMembership != nil {
+		if err := p.eksValidation.configure(newConfig.ValidateEKSClusterMembership); err != nil {
 			return nil, err
 		}
 	}
