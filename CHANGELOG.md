@@ -6,7 +6,7 @@
 
 - Server configurable for periodically purging expired agents (#6152)
 - The experimental events-based cache now implements a full cache reload (#6151)
-- Automatic agent rebootstrap on invalid server CA (#5892)
+- Support for automatic agent rebootstrap when the server CA goes invalid (#5892)
 
 ### Changed
 
