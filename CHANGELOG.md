@@ -11,7 +11,7 @@
 ### Changed
 
 - Default values for `rebootstrapMode` and `rebootstrapDelay` in SPIRE Agent (#6227)
-- "No identities issued" log now include attested selectors (#6179)
+- "No identities issued" error log now includes the attested selectors (#6179)
 - Server configuration validation to verify `agent_ttl` compatibility with current `ca_ttl` (#6178)
 - Small documentation improvements (#6169)
 
