@@ -141,10 +141,9 @@ func (c *deleteCommand) prettyPrintDelete(env *commoncli.Env, results ...any) er
 			result.Status.Message)
 	}
 
-	var summaryMsg string
 	if len(failed) > 0 {
 		env.Printf("\n\n")
-		summaryMsg = fmt.Sprintf("Deleted %d entries successfully, but failed to delete %d entries", len(succeeded), len(failed))
+		summaryMsg := fmt.Sprintf("Deleted %d entries successfully, but failed to delete %d entries", len(succeeded), len(failed))
 
 		if len(succeeded) == 0 {
 			summaryMsg = fmt.Sprintf("Failed to delete %d entries", len(failed))
