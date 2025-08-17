@@ -3,6 +3,7 @@ package endpoints
 import (
 	"context"
 	"crypto/x509"
+	"net"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -20,10 +21,15 @@ import (
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/clock"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 )
 
-func Middleware(log logrus.FieldLogger, metrics telemetry.Metrics, ds datastore.DataStore, clk clock.Clock, rlConf RateLimitConfig, policyEngine *authpolicy.Engine, auditLogEnabled bool, adminIDs []spiffeid.ID) middleware.Middleware {
+const (
+	XForwardedHostKey = "X-Forwarded-Host"
+)
+
+func Middleware(log logrus.FieldLogger, metrics telemetry.Metrics, ds datastore.DataStore, clk clock.Clock, rlConf RateLimitConfig, policyEngine *authpolicy.Engine, auditLogEnabled, forwardHostEnabled bool, adminIDs []spiffeid.ID) middleware.Middleware {
 	chain := []middleware.Middleware{
 		middleware.WithLogger(log),
 		middleware.WithMetrics(metrics),
@@ -34,6 +40,10 @@ func Middleware(log logrus.FieldLogger, metrics telemetry.Metrics, ds datastore.
 	if auditLogEnabled {
 		// Add audit log with local tracking enabled
 		chain = append(chain, middleware.WithAuditLog(true))
+	}
+
+	if forwardHostEnabled {
+		chain = append(chain, middleware.Preprocess(forwardHost))
 	}
 
 	return middleware.Chain(
@@ -186,4 +196,18 @@ func RateLimits(config RateLimitConfig) map[string]api.RateLimiter {
 		"/grpc.health.v1.Health/List":                                                    noLimit,
 		"/grpc.health.v1.Health/Watch":                                                   noLimit,
 	}
+}
+
+func forwardHost(ctx context.Context, _ string, _ any) (context.Context, error) {
+	authority := metadata.ValueFromIncomingContext(ctx, ":authority")
+	if len(authority) == 0 {
+		return ctx, nil
+	}
+	// should be just one in a slice
+	// example value: spire-server-xyz.spiffe.io:8081
+	host, _, err := net.SplitHostPort(authority[0])
+	if err != nil {
+		return ctx, nil
+	}
+	return metadata.AppendToOutgoingContext(ctx, XForwardedHostKey, host), nil
 }

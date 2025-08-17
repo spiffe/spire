@@ -75,6 +75,8 @@ type Config struct {
 
 	Metrics telemetry.Metrics
 
+	ForwardHostEnabled bool
+
 	// RateLimit holds rate limiting configurations.
 	RateLimit RateLimitConfig
 

@@ -89,6 +89,7 @@ type Endpoints struct {
 	BundleEndpointServer         Server
 	Log                          logrus.FieldLogger
 	Metrics                      telemetry.Metrics
+	ForwardHostEnabled           bool
 	RateLimit                    RateLimitConfig
 	EntryFetcherCacheRebuildTask func(context.Context) error
 	EntryFetcherPruneEventsTask  func(context.Context) error
@@ -205,6 +206,7 @@ func New(ctx context.Context, c Config) (*Endpoints, error) {
 		BundleEndpointServer:         bundleEndpointServer,
 		Log:                          c.Log,
 		Metrics:                      c.Metrics,
+		ForwardHostEnabled:           c.ForwardHostEnabled,
 		RateLimit:                    c.RateLimit,
 		EntryFetcherCacheRebuildTask: cacheRebuildTask,
 		EntryFetcherPruneEventsTask:  pruneEventsTask,
@@ -433,7 +435,7 @@ func (e *Endpoints) getTLSConfig(ctx context.Context) func(*tls.ClientHelloInfo)
 func (e *Endpoints) makeInterceptors() (grpc.UnaryServerInterceptor, grpc.StreamServerInterceptor) {
 	log := e.Log.WithField(telemetry.SubsystemName, "api")
 
-	return middleware.Interceptors(Middleware(log, e.Metrics, e.DataStore, clock.New(), e.RateLimit, e.AuthPolicyEngine, e.AuditLogEnabled, e.AdminIDs))
+	return middleware.Interceptors(Middleware(log, e.Metrics, e.DataStore, clock.New(), e.RateLimit, e.AuthPolicyEngine, e.AuditLogEnabled, e.ForwardHostEnabled, e.AdminIDs))
 }
 
 func (e *Endpoints) triggerListeningHook() {

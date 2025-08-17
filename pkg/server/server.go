@@ -423,6 +423,7 @@ func (s *Server) newEndpointsServer(ctx context.Context, catalog catalog.Catalog
 		RootLog:                 s.config.Log,
 		Metrics:                 metrics,
 		AuthorityManager:        authorityManager,
+		ForwardHostEnabled:      s.config.ForwardHostEnabled,
 		RateLimit:               s.config.RateLimit,
 		Uptime:                  uptime.Uptime,
 		Clock:                   clock.New(),
