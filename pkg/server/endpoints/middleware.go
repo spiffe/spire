@@ -25,10 +25,6 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-const (
-	XForwardedHostKey = "X-Forwarded-Host"
-)
-
 func Middleware(log logrus.FieldLogger, metrics telemetry.Metrics, ds datastore.DataStore, clk clock.Clock, rlConf RateLimitConfig, policyEngine *authpolicy.Engine, auditLogEnabled, forwardHostEnabled bool, adminIDs []spiffeid.ID) middleware.Middleware {
 	chain := []middleware.Middleware{
 		middleware.WithLogger(log),
@@ -209,5 +205,5 @@ func forwardHost(ctx context.Context, _ string, _ any) (context.Context, error) 
 	if err != nil {
 		return ctx, nil
 	}
-	return metadata.AppendToOutgoingContext(ctx, XForwardedHostKey, host), nil
+	return metadata.AppendToOutgoingContext(ctx, rpccontext.XForwardedHostKey, host), nil
 }
