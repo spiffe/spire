@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.12.6] - 2025-08-18
+
+### Security
+
+- Upgrade Go to 1.24.6 for [GO-2025-3849](https://pkg.go.dev/vuln/GO-2025-3849) (#6250)
+
 ## [1.12.4] - 2025-07-01
 
 ### Added
