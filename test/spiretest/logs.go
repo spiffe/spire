@@ -8,6 +8,9 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// NonZeroTTL acts as a semaphore for matching non-zero "ttl" log fields.
+const NonZeroTTL = "nonzero"
+
 type LogEntry struct {
 	Level   logrus.Level
 	Message string
@@ -16,22 +19,27 @@ type LogEntry struct {
 
 func AssertLogs(t *testing.T, entries []*logrus.Entry, expected []LogEntry) {
 	t.Helper()
-	assert.Equal(t, expected, convertLogEntries(entries), "unexpected logs")
+	assert.Equal(t, expected, convertLogEntries(entries, false), "unexpected logs")
+}
+
+func AssertLogsWithNonZeroTTL(t *testing.T, entries []*logrus.Entry, expected []LogEntry, nonZeroTTL bool) {
+	t.Helper()
+	assert.Equal(t, expected, convertLogEntries(entries, nonZeroTTL), "unexpected logs")
 }
 
 func AssertLogsAnyOrder(t *testing.T, entries []*logrus.Entry, expected []LogEntry) {
 	t.Helper()
-	assert.ElementsMatch(t, expected, convertLogEntries(entries), "unexpected logs")
+	assert.ElementsMatch(t, expected, convertLogEntries(entries, false), "unexpected logs")
 }
 
 func AssertLastLogs(t *testing.T, entries []*logrus.Entry, expected []LogEntry) {
 	t.Helper()
 	removeLen := len(entries) - len(expected)
 	if removeLen > 0 {
-		assert.Equal(t, expected, convertLogEntries(entries[removeLen:]), "unexpected logs")
+		assert.Equal(t, expected, convertLogEntries(entries[removeLen:], false), "unexpected logs")
 		return
 	}
-	assert.Equal(t, expected, convertLogEntries(entries), "unexpected logs")
+	assert.Equal(t, expected, convertLogEntries(entries, false), "unexpected logs")
 }
 
 func AssertLogsContainEntries(t *testing.T, entries []*logrus.Entry, expectedEntries []LogEntry) {
@@ -40,28 +48,33 @@ func AssertLogsContainEntries(t *testing.T, entries []*logrus.Entry, expectedEnt
 		return
 	}
 
-	logEntries := convertLogEntries(entries)
+	logEntries := convertLogEntries(entries, false)
 	for _, entry := range expectedEntries {
 		assert.Contains(t, logEntries, entry)
 	}
 }
 
-func convertLogEntries(entries []*logrus.Entry) (out []LogEntry) {
+func convertLogEntries(entries []*logrus.Entry, nonZeroTTL bool) (out []LogEntry) {
 	for _, entry := range entries {
 		out = append(out, LogEntry{
 			Level:   entry.Level,
 			Message: entry.Message,
-			Data:    normalizeData(entry.Data),
+			Data:    normalizeData(entry.Data, nonZeroTTL),
 		})
 	}
 	return out
 }
 
-func normalizeData(data logrus.Fields) logrus.Fields {
+func normalizeData(data logrus.Fields, nonZeroTTL bool) logrus.Fields {
 	if len(data) == 0 {
 		return nil
 	}
 	for key, field := range data {
+		if nonZeroTTL && key == "ttl" && data[key] != "0" {
+			data[key] = NonZeroTTL
+			continue
+		}
+
 		data[key] = fmt.Sprint(field)
 	}
 	return data

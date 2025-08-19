@@ -384,9 +384,10 @@ func sendX509SVIDResponse(update *cache.WorkloadUpdate, stream workload.SpiffeWo
 		for i, svid := range resp.Svids {
 			ttl := time.Until(update.Identities[i].SVID[0].NotAfter)
 			log.WithFields(logrus.Fields{
-				telemetry.SPIFFEID: svid.SpiffeId,
-				telemetry.TTL:      ttl.Seconds(),
-			}).Debug("Fetched X.509 SVID")
+				telemetry.SPIFFEID:  svid.SpiffeId,
+				telemetry.TTL:       ttl.Seconds(),
+				telemetry.Selectors: selectors,
+			}).Info("Fetched X.509 SVID")
 		}
 	}
 

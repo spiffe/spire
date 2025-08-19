@@ -81,16 +81,17 @@ func TestFetchX509SVID(t *testing.T) {
 	identities[4].Entry.CreatedAt = now + 7200
 
 	for _, tt := range []struct {
-		name       string
-		updates    []*cache.WorkloadUpdate
-		selectors  []*common.Selector
-		attestErr  error
-		managerErr error
-		asPID      int
-		expectCode codes.Code
-		expectMsg  string
-		expectResp *workloadPB.X509SVIDResponse
-		expectLogs []spiretest.LogEntry
+		name          string
+		updates       []*cache.WorkloadUpdate
+		selectors     []*common.Selector
+		attestErr     error
+		managerErr    error
+		asPID         int
+		expectCode    codes.Code
+		expectMsg     string
+		expectResp    *workloadPB.X509SVIDResponse
+		nonZeroTTLLog bool
+		expectLogs    []spiretest.LogEntry
 	}{
 		{
 			name:       "no identity issued",
@@ -198,6 +199,22 @@ func TestFetchX509SVID(t *testing.T) {
 					federatedBundle.TrustDomain().IDString(): x509util.DERFromCertificates(federatedBundle.X509Authorities()),
 				},
 			},
+			nonZeroTTLLog: true,
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "Fetched X.509 SVID",
+					Data: logrus.Fields{
+						"registered": "true",
+						"selectors":  "[]",
+						"service":    "WorkloadAPI",
+						"spiffe_id":  "spiffe://domain.test/one",
+						"method":     "FetchX509SVID",
+						"count":      "1",
+						"ttl":        spiretest.NonZeroTTL,
+					},
+				},
+			},
 		},
 		{
 			name: "with two identities",
@@ -225,6 +242,35 @@ func TestFetchX509SVID(t *testing.T) {
 						X509Svid:    x509util.DERFromCertificates(x509SVID2.Certificates),
 						X509SvidKey: pkcs8FromSigner(t, x509SVID2.PrivateKey),
 						Bundle:      x509util.DERFromCertificates(bundle.X509Authorities()),
+					},
+				},
+			},
+			nonZeroTTLLog: true,
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "Fetched X.509 SVID",
+					Data: logrus.Fields{
+						"registered": "true",
+						"selectors":  "[]",
+						"service":    "WorkloadAPI",
+						"spiffe_id":  "spiffe://domain.test/one",
+						"method":     "FetchX509SVID",
+						"count":      "2",
+						"ttl":        spiretest.NonZeroTTL,
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "Fetched X.509 SVID",
+					Data: logrus.Fields{
+						"registered": "true",
+						"selectors":  "[]",
+						"service":    "WorkloadAPI",
+						"spiffe_id":  "spiffe://domain.test/two",
+						"method":     "FetchX509SVID",
+						"count":      "2",
+						"ttl":        spiretest.NonZeroTTL,
 					},
 				},
 			},
@@ -261,6 +307,7 @@ func TestFetchX509SVID(t *testing.T) {
 					},
 				},
 			},
+			nonZeroTTLLog: true,
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.WarnLevel,
@@ -292,18 +339,58 @@ func TestFetchX509SVID(t *testing.T) {
 						telemetry.Service:        "WorkloadAPI",
 					},
 				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "Fetched X.509 SVID",
+					Data: logrus.Fields{
+						"registered": "true",
+						"selectors":  "[]",
+						"service":    "WorkloadAPI",
+						"spiffe_id":  "spiffe://domain.test/aaa",
+						"method":     "FetchX509SVID",
+						"count":      "3",
+						"ttl":        spiretest.NonZeroTTL,
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "Fetched X.509 SVID",
+					Data: logrus.Fields{
+						"registered": "true",
+						"selectors":  "[]",
+						"service":    "WorkloadAPI",
+						"spiffe_id":  "spiffe://domain.test/two",
+						"method":     "FetchX509SVID",
+						"count":      "3",
+						"ttl":        spiretest.NonZeroTTL,
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "Fetched X.509 SVID",
+					Data: logrus.Fields{
+						"registered": "true",
+						"selectors":  "[]",
+						"service":    "WorkloadAPI",
+						"spiffe_id":  "spiffe://domain.test/five",
+						"method":     "FetchX509SVID",
+						"count":      "3",
+						"ttl":        spiretest.NonZeroTTL,
+					},
+				},
 			},
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			params := testParams{
-				CA:         ca,
-				Updates:    tt.updates,
-				Selectors:  tt.selectors,
-				AttestErr:  tt.attestErr,
-				ExpectLogs: tt.expectLogs,
-				AsPID:      tt.asPID,
-				ManagerErr: tt.managerErr,
+				CA:            ca,
+				Updates:       tt.updates,
+				Selectors:     tt.selectors,
+				AttestErr:     tt.attestErr,
+				NonZeroTTLLog: tt.nonZeroTTLLog,
+				ExpectLogs:    tt.expectLogs,
+				AsPID:         tt.asPID,
+				ManagerErr:    tt.managerErr,
 			}
 			runTest(t, params,
 				func(ctx context.Context, client workloadPB.SpiffeWorkloadAPIClient) {
@@ -1560,6 +1647,7 @@ type testParams struct {
 	Selectors                     []*common.Selector
 	AttestErr                     error
 	ManagerErr                    error
+	NonZeroTTLLog                 bool
 	ExpectLogs                    []spiretest.LogEntry
 	AsPID                         int
 	AllowUnauthenticatedVerifiers bool
@@ -1612,7 +1700,7 @@ func runTest(t *testing.T, params testParams, fn func(ctx context.Context, clien
 
 	assert.Equal(t, 0, manager.Subscribers(), "there should be no more subscribers")
 
-	spiretest.AssertLogs(t, logHook.AllEntries(), params.ExpectLogs)
+	spiretest.AssertLogsWithNonZeroTTL(t, logHook.AllEntries(), params.ExpectLogs, params.NonZeroTTLLog)
 }
 
 type FakeManager struct {
