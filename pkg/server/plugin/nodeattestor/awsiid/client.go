@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/aws/aws-sdk-go-v2/service/autoscaling"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
+	"github.com/aws/aws-sdk-go-v2/service/eks"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/aws/aws-sdk-go-v2/service/organizations"
 	"google.golang.org/grpc/codes"
@@ -20,6 +22,9 @@ type Client interface {
 	ec2.DescribeInstancesAPIClient
 	iam.GetInstanceProfileAPIClient
 	organizations.ListAccountsAPIClient
+	autoscaling.DescribeAutoScalingGroupsAPIClient
+	eks.ListNodegroupsAPIClient
+	eks.DescribeNodegroupAPIClient
 }
 
 type clientsCache struct {
@@ -125,13 +130,21 @@ func newClient(ctx context.Context, config *SessionConfig, region string, assume
 		return nil, err
 	}
 
+	eksClient := eks.NewFromConfig(conf)
+
 	return struct {
 		iam.GetInstanceProfileAPIClient
 		ec2.DescribeInstancesAPIClient
 		organizations.ListAccountsAPIClient
+		autoscaling.DescribeAutoScalingGroupsAPIClient
+		eks.ListNodegroupsAPIClient
+		eks.DescribeNodegroupAPIClient
 	}{
-		GetInstanceProfileAPIClient: iam.NewFromConfig(conf),
-		DescribeInstancesAPIClient:  ec2.NewFromConfig(conf),
-		ListAccountsAPIClient:       organizations.NewFromConfig(orgConf),
+		GetInstanceProfileAPIClient:        iam.NewFromConfig(conf),
+		DescribeInstancesAPIClient:         ec2.NewFromConfig(conf),
+		ListAccountsAPIClient:              organizations.NewFromConfig(orgConf),
+		DescribeAutoScalingGroupsAPIClient: autoscaling.NewFromConfig(conf),
+		ListNodegroupsAPIClient:            eksClient,
+		DescribeNodegroupAPIClient:         eksClient,
 	}, nil
 }
