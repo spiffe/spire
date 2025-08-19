@@ -180,7 +180,7 @@ func (s *Service) SubscribeToX509SVIDs(req *delegatedidentityv1.SubscribeToX509S
 	log.WithFields(logrus.Fields{
 		"delegate_selectors": cachedSelectors,
 		"request_selectors":  selectors,
-	}).Info("Subscribing to cache changes")
+	}).Debug("Subscribing to cache changes")
 
 	subscriber, err := s.manager.SubscribeToCacheChanges(ctx, selectors)
 	if err != nil {
@@ -202,7 +202,7 @@ func (s *Service) SubscribeToX509SVIDs(req *delegatedidentityv1.SubscribeToX509S
 				return err
 			}
 
-			if err := sendX509SVIDResponse(update, stream, log); err != nil {
+			if err := sendX509SVIDResponse(update, stream, selectors, log); err != nil {
 				return err
 			}
 		case <-ctx.Done():
@@ -211,7 +211,7 @@ func (s *Service) SubscribeToX509SVIDs(req *delegatedidentityv1.SubscribeToX509S
 	}
 }
 
-func sendX509SVIDResponse(update *cache.WorkloadUpdate, stream delegatedidentityv1.DelegatedIdentity_SubscribeToX509SVIDsServer, log logrus.FieldLogger) (err error) {
+func sendX509SVIDResponse(update *cache.WorkloadUpdate, stream delegatedidentityv1.DelegatedIdentity_SubscribeToX509SVIDsServer, selectors []*common.Selector, log logrus.FieldLogger) (err error) {
 	resp, err := composeX509SVIDBySelectors(update)
 	if err != nil {
 		log.WithError(err).Error("Could not serialize X.509 SVID response")
@@ -236,7 +236,8 @@ func sendX509SVIDResponse(update *cache.WorkloadUpdate, stream delegatedidentity
 		log.WithFields(logrus.Fields{
 			telemetry.SPIFFEID: id,
 			telemetry.TTL:      ttl.Seconds(),
-		}).Debug("Fetched X.509 SVID for delegated identity")
+			telemetry.Selectors: selectors,
+		}).Info("Fetched X.509 SVID for delegated identity")
 	}
 
 	return nil
