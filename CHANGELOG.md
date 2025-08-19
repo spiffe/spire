@@ -1,5 +1,39 @@
 # Changelog
 
+## [1.13.0] - 2025-08-15
+
+### Added
+
+- Server configurable for periodically purging expired agents (#6152)
+- The experimental events-based cache now implements a full cache reload (#6151)
+- Support for automatic agent rebootstrap when the server CA goes invalid (#5892)
+
+### Changed
+
+- Default values for `rebootstrapMode` and `rebootstrapDelay` in SPIRE Agent (#6227)
+- "No identities issued" error log now includes the attested selectors (#6179)
+- Server configuration validation to verify `agent_ttl` compatibility with current `ca_ttl` (#6178)
+- Small documentation improvements (#6169)
+
+### Deprecated
+
+- `retry_bootstrap` experimental agent setting (#5906)
+
+### Fixed
+
+- Health checks and metrics initialization when `retry_bootstrap` is enabled (#6164)
+
+### Removed
+
+- The deprecated `use_legacy_downstream_x509_ca_ttl` server configurable (#5703)
+- The deprecated `use_rego_v1` server configurable (#6219)
+
+## [1.12.5] - 2025-08-18
+
+### Security
+
+- Upgrade Go to 1.24.6 for [GO-2025-3849](https://pkg.go.dev/vuln/GO-2025-3849) (#6250)
+
 ## [1.12.4] - 2025-07-01
 
 ### Added
