@@ -26,7 +26,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/feature/rds/auth v1.6.0
 	github.com/aws/aws-sdk-go-v2/service/acmpca v1.43.0
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.245.0
-	github.com/aws/aws-sdk-go-v2/service/iam v1.46.0
+	github.com/aws/aws-sdk-go-v2/service/iam v1.47.0
 	github.com/aws/aws-sdk-go-v2/service/kms v1.44.0
 	github.com/aws/aws-sdk-go-v2/service/organizations v1.43.0
 	github.com/aws/aws-sdk-go-v2/service/rolesanywhere v1.20.0
