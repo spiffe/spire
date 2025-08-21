@@ -48,17 +48,17 @@ func TestCacheEnabled(t *testing.T) {
 	cache, err := New(t.Context(), log, ds, clk, true, true)
 	require.NoError(t, err)
 
-	cachedFirstAgent, firstAgentTime, err := cache.FetchAttestedNode(firstAgent.SpiffeId)
+	cachedFirstAgent, firstAgentTime := cache.LookupAttestedNode(firstAgent.SpiffeId)
 	require.NoError(t, err)
 	spiretest.AssertProtoEqual(t, cachedFirstAgent, firstAgent)
 	require.Equal(t, firstAgentTime, clk.Now())
 
-	cachedSecondAgent, secondAgentTime, err := cache.FetchAttestedNode(secondAgent.SpiffeId)
+	cachedSecondAgent, secondAgentTime := cache.LookupAttestedNode(secondAgent.SpiffeId)
 	require.NoError(t, err)
 	spiretest.AssertProtoEqual(t, cachedSecondAgent, secondAgent)
 	require.Equal(t, secondAgentTime, clk.Now())
 
-	cachedExpiredAgent, _, err := cache.FetchAttestedNode(expiredAgent.SpiffeId)
+	cachedExpiredAgent, _ := cache.LookupAttestedNode(expiredAgent.SpiffeId)
 	require.NoError(t, err)
 	require.Nil(t, cachedExpiredAgent)
 
@@ -70,12 +70,12 @@ func TestCacheEnabled(t *testing.T) {
 	// will reflect the fact that it was refreshed.
 	clk.Add(time.Second)
 
-	refreshedSecondAgent, err := cache.RefreshAttestedNode(t.Context(), secondAgent.SpiffeId)
+	refreshedSecondAgent, err := cache.FetchAttestedNode(t.Context(), secondAgent.SpiffeId)
 	require.NoError(t, err)
 	require.NotNil(t, refreshedSecondAgent)
 	spiretest.AssertProtoEqual(t, refreshedSecondAgent, secondAgent)
 
-	cachedSecondAgent, secondAgentTimeAfterRefresh, err := cache.FetchAttestedNode(secondAgent.SpiffeId)
+	cachedSecondAgent, secondAgentTimeAfterRefresh := cache.LookupAttestedNode(secondAgent.SpiffeId)
 	require.NoError(t, err)
 	spiretest.AssertProtoEqual(t, cachedSecondAgent, secondAgent)
 	require.Greater(t, secondAgentTimeAfterRefresh, secondAgentTime)
@@ -94,11 +94,11 @@ func TestCacheDisabled(t *testing.T) {
 	cache, err := New(t.Context(), log, ds, clock.NewMock(t), true, false)
 	require.NoError(t, err)
 
-	cachedFirstAgent, _, err := cache.FetchAttestedNode(firstAgent.SpiffeId)
+	cachedFirstAgent, _ := cache.LookupAttestedNode(firstAgent.SpiffeId)
 	require.Nil(t, cachedFirstAgent)
 	require.NoError(t, err)
 
-	refreshedFirstAgent, err := cache.RefreshAttestedNode(t.Context(), firstAgent.SpiffeId)
+	refreshedFirstAgent, err := cache.FetchAttestedNode(t.Context(), firstAgent.SpiffeId)
 	require.NoError(t, err)
 	require.NotNil(t, refreshedFirstAgent)
 	spiretest.AssertProtoEqual(t, refreshedFirstAgent, firstAgent)
@@ -120,25 +120,25 @@ func TestCachePeriodicRebuild(t *testing.T) {
 		require.NoError(t, err)
 	}()
 
-	cachedFirstAgent, _, err := cache.FetchAttestedNode(firstAgent.SpiffeId)
+	cachedFirstAgent, _ := cache.LookupAttestedNode(firstAgent.SpiffeId)
 	require.NoError(t, err)
 	require.NotNil(t, cachedFirstAgent)
 
-	cachedSecondAgent, _, err := cache.FetchAttestedNode(secondAgent.SpiffeId)
+	cachedSecondAgent, _ := cache.LookupAttestedNode(secondAgent.SpiffeId)
 	require.NoError(t, err)
 	require.Nil(t, cachedSecondAgent)
 
 	_, err = ds.CreateAttestedNode(t.Context(), secondAgent)
 	require.NoError(t, err)
 
-	cachedSecondAgent, _, err = cache.FetchAttestedNode(secondAgent.SpiffeId)
+	cachedSecondAgent, _ = cache.LookupAttestedNode(secondAgent.SpiffeId)
 	require.NoError(t, err)
 	require.Nil(t, cachedSecondAgent)
 
 	clk.Add(rebuildInterval)
 	clk.Add(rebuildInterval)
 
-	cachedSecondAgent, _, err = cache.FetchAttestedNode(secondAgent.SpiffeId)
+	cachedSecondAgent, _ = cache.LookupAttestedNode(secondAgent.SpiffeId)
 	require.NoError(t, err)
 	require.NotNil(t, cachedSecondAgent)
 }
@@ -154,30 +154,30 @@ func TestCacheWithoutPeriodicRebuild(t *testing.T) {
 	cache, err := New(t.Context(), log, ds, clk, false, true)
 	require.NoError(t, err)
 
-	cachedFirstAgent, _, err := cache.FetchAttestedNode(firstAgent.SpiffeId)
+	cachedFirstAgent, _ := cache.LookupAttestedNode(firstAgent.SpiffeId)
 	require.NoError(t, err)
 	require.Nil(t, cachedFirstAgent)
 
 	cache.UpdateAttestedNode(firstNode)
 
-	cachedFirstAgent, _, err = cache.FetchAttestedNode(firstAgent.SpiffeId)
+	cachedFirstAgent, _ = cache.LookupAttestedNode(firstAgent.SpiffeId)
 	require.NoError(t, err)
 	require.NotNil(t, cachedFirstAgent)
 
-	cachedSecondAgent, _, err := cache.FetchAttestedNode(secondAgent.SpiffeId)
+	cachedSecondAgent, _ := cache.LookupAttestedNode(secondAgent.SpiffeId)
 	require.NoError(t, err)
 	require.Nil(t, cachedSecondAgent)
 
 	secondNode, err := ds.CreateAttestedNode(t.Context(), secondAgent)
 	require.NoError(t, err)
 
-	cachedSecondAgent, _, err = cache.FetchAttestedNode(secondAgent.SpiffeId)
+	cachedSecondAgent, _ = cache.LookupAttestedNode(secondAgent.SpiffeId)
 	require.NoError(t, err)
 	require.Nil(t, cachedSecondAgent)
 
 	cache.UpdateAttestedNode(secondNode)
 
-	cachedSecondAgent, _, err = cache.FetchAttestedNode(secondAgent.SpiffeId)
+	cachedSecondAgent, _ = cache.LookupAttestedNode(secondAgent.SpiffeId)
 	require.NoError(t, err)
 	require.NotNil(t, cachedSecondAgent)
 }

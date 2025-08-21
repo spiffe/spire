@@ -68,10 +68,8 @@ func AgentAuthorizer(ds datastore.DataStore, nodeCache api.AttestedNodeCache, ma
 			return errorutil.PermissionDenied(types.PermissionDeniedDetails_AGENT_EXPIRED, "agent %q SVID is expired", id)
 		}
 
-		cachedAgent, agentCacheTime, err := nodeCache.FetchAttestedNode(id)
+		cachedAgent, agentCacheTime := nodeCache.LookupAttestedNode(id)
 		switch {
-		case err != nil:
-			// AttestedNode not found in local cache, will fetch from the datastore
 		case cachedAgent == nil:
 			// AttestedNode not found in local cache, will fetch from the datastore
 		case clk.Now().Sub(agentCacheTime) >= maxAttestedNodeInfoStaleness:
@@ -79,14 +77,14 @@ func AgentAuthorizer(ds datastore.DataStore, nodeCache api.AttestedNodeCache, ma
 		case cachedAgent.CertSerialNumber == "":
 			// Attested node was not found in the cache, will fetch from the datastore
 		case cachedAgent.CertSerialNumber == agentSVID.SerialNumber.String():
-			// AgentSVID matches the current serial number, access granted. We
+			// AgentSVID matches the current serial number, access granted.
 			return nil
 		default:
 			// Could not validate the agent using the cache attested node information
 			// so we'll try fetching the up to date data from the datastore.
 		}
 
-		attestedNode, err := nodeCache.RefreshAttestedNode(ctx, id)
+		attestedNode, err := nodeCache.FetchAttestedNode(ctx, id)
 		switch {
 		case err != nil:
 			log.WithError(err).Error("Unable to look up agent information")

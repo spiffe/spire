@@ -23,13 +23,13 @@ type AuthorizedEntryFetcher interface {
 }
 
 type AttestedNodeCache interface {
-	// FetchAttestedNode returns the cached attested node with the time when
+	// LookupAttestedNode returns the cached attested node with the time when
 	// the data was last refreshed by the cache.
-	FetchAttestedNode(nodeID string) (*common.AttestedNode, time.Time, error)
-	// RefreshAttestedNode requests refreshing the attested node information
+	LookupAttestedNode(nodeID string) (*common.AttestedNode, time.Time)
+	// FetchAttestedNode fetches, caches and returns the attested node information
 	// from the datastore. Is used by the middleware when an agent can't be
 	// validated against the cached data.
-	RefreshAttestedNode(ctx context.Context, nodeID string) (*common.AttestedNode, error)
+	FetchAttestedNode(ctx context.Context, nodeID string) (*common.AttestedNode, error)
 }
 
 // AttestedNodeToProto converts an agent from the given *common.AttestedNode with

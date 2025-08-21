@@ -161,17 +161,14 @@ func New(ctx context.Context, c Config) (*Endpoints, error) {
 
 	ds := c.Catalog.GetDataStore()
 
-	var nodeCache *nodecache.Cache
+	nodeCache, err := nodecache.New(ctx, c.Log, ds, c.Clock, true, c.MaxAttestedNodeInfoStaleness != 0)
+	if err != nil {
+		return nil, err
+	}
 
-	var err error
 	var ef api.AuthorizedEntryFetcher
 	var cacheRebuildTask, nodeCacheRebuildTask, pruneEventsTask func(context.Context) error
 	if c.EventsBasedCache {
-		nodeCache, err = nodecache.New(ctx, c.Log, ds, c.Clock, true, c.MaxAttestedNodeInfoStaleness != 0)
-		if err != nil {
-			return nil, err
-		}
-
 		efEventsBasedCache, err := NewAuthorizedEntryFetcherEvents(ctx, AuthorizedEntryFetcherEventsConfig{
 			log:                     c.Log,
 			metrics:                 c.Metrics,
@@ -191,11 +188,6 @@ func New(ctx context.Context, c Config) (*Endpoints, error) {
 		nodeCacheRebuildTask = nodeCache.PeriodicRebuild
 		ef = efEventsBasedCache
 	} else {
-		nodeCache, err = nodecache.New(ctx, c.Log, ds, c.Clock, true, c.MaxAttestedNodeInfoStaleness != 0)
-		if err != nil {
-			return nil, err
-		}
-
 		buildCacheFn := func(ctx context.Context) (_ entrycache.Cache, err error) {
 			call := telemetry.StartCall(c.Metrics, telemetry.Entry, telemetry.Cache, telemetry.Reload)
 			defer call.Done(&err)
