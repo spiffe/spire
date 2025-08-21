@@ -46,9 +46,9 @@ func New(ctx context.Context, log logrus.FieldLogger, ds datastore.DataStore, cl
 	return cache, nil
 }
 
-func (c *Cache) FetchAttestedNode(id string) (*common.AttestedNode, time.Time, error) {
+func (c *Cache) LookupAttestedNode(id string) (*common.AttestedNode, time.Time) {
 	if !c.enableCache {
-		return nil, time.Time{}, nil
+		return nil, time.Time{}
 	}
 
 	c.mtx.RLock()
@@ -56,7 +56,7 @@ func (c *Cache) FetchAttestedNode(id string) (*common.AttestedNode, time.Time, e
 
 	node, ok := c.nodes[id]
 	if !ok {
-		return nil, time.Time{}, nil
+		return nil, time.Time{}
 	}
 
 	nodeRefreshTime, ok := c.nodeRefreshTime[id]
@@ -64,18 +64,13 @@ func (c *Cache) FetchAttestedNode(id string) (*common.AttestedNode, time.Time, e
 		nodeRefreshTime = c.buildTime
 	}
 
-	return node, nodeRefreshTime, nil
+	return node, nodeRefreshTime
 }
 
-func (c *Cache) RefreshAttestedNode(ctx context.Context, id string) (*common.AttestedNode, error) {
+func (c *Cache) FetchAttestedNode(ctx context.Context, id string) (*common.AttestedNode, error) {
 	node, err := c.ds.FetchAttestedNode(ctx, id)
 	if err != nil {
-		c.mtx.Lock()
-		defer c.mtx.Unlock()
-
-		delete(c.nodes, id)
-		delete(c.nodeRefreshTime, id)
-
+		c.RemoveAttestedNode(id)
 		return nil, err
 	}
 
