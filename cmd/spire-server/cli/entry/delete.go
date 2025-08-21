@@ -149,7 +149,7 @@ func (c *deleteCommand) prettyPrintDelete(env *commoncli.Env, results ...any) er
 			summaryMsg = fmt.Sprintf("Failed to delete %d entries", len(failed))
 		}
 
-		env.Printf("%s\n\n", summaryMsg)
+		env.Printf("%s", summaryMsg)
 		return errors.New("failed to delete one or more entries")
 	}
 
