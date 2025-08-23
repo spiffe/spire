@@ -93,6 +93,9 @@ type Config struct {
 	// trust domains.
 	Federation FederationConfig
 
+	// Forward original host to downstream plugins
+	ForwardHostEnabled bool
+
 	// RateLimit holds rate limiting configurations.
 	RateLimit endpoints.RateLimitConfig
 
