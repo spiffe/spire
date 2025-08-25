@@ -180,7 +180,7 @@ func (s *Service) SubscribeToX509SVIDs(req *delegatedidentityv1.SubscribeToX509S
 	log.WithFields(logrus.Fields{
 		"delegate_selectors": cachedSelectors,
 		"request_selectors":  selectors,
-	}).Info("Subscribing to cache changes")
+	}).Debug("Subscribing to cache changes")
 
 	subscriber, err := s.manager.SubscribeToCacheChanges(ctx, selectors)
 	if err != nil {
