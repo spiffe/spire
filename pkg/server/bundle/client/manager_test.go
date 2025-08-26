@@ -180,8 +180,14 @@ func TestManagerConfigPeriodicRefresh(t *testing.T) {
 	})
 
 	// Wait until the config is refreshed and a bundle refresh happens
-	test.AdvanceTime(bundleutil.MinimumRefreshHint + time.Millisecond)
+	test.AdvanceTime(configRefreshInterval + time.Millisecond)
 	test.WaitForConfigRefresh()
+	test.WaitForBundleRefresh(bundleutil.MinimumRefreshHint) // td3
+	assert.Equal(t, 1, test.UpdateCount(td1))
+	assert.Equal(t, 1, test.UpdateCount(td2))
+	assert.Equal(t, 1, test.UpdateCount(td3))
+
+	test.AdvanceTime(bundleutil.MinimumRefreshHint + time.Millisecond)
 	test.WaitForBundleRefresh(bundleutil.MinimumRefreshHint) // td2
 	test.WaitForBundleRefresh(bundleutil.MinimumRefreshHint) // td3
 
@@ -192,7 +198,7 @@ func TestManagerConfigPeriodicRefresh(t *testing.T) {
 	}, test.GetTrustDomainConfigs())
 	assert.Equal(t, 1, test.UpdateCount(td1))
 	assert.Equal(t, 2, test.UpdateCount(td2))
-	assert.Equal(t, 1, test.UpdateCount(td3))
+	assert.Equal(t, 2, test.UpdateCount(td3))
 }
 
 func TestManagerConfigManualRefresh(t *testing.T) {
