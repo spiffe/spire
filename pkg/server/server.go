@@ -340,6 +340,7 @@ func (s *Server) newCA(metrics telemetry.Metrics, credBuilder *credtemplate.Buil
 		CredBuilder:   credBuilder,
 		CredValidator: credValidator,
 		HealthChecker: healthChecker,
+		DisableJWT:    s.config.DisableJWT,
 	})
 }
 
@@ -354,6 +355,7 @@ func (s *Server) newCAManager(ctx context.Context, cat catalog.Catalog, metrics 
 		CredValidator: credValidator,
 		Dir:           s.config.DataDir,
 		X509CAKeyType: s.config.CAKeyType,
+		DisableJWT:    s.config.DisableJWT,
 		JWTKeyType:    s.config.JWTKeyType,
 	})
 	if err != nil {

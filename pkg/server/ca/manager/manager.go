@@ -69,6 +69,7 @@ type AuthorityManager interface {
 	PrepareX509CA(ctx context.Context) error
 	RotateX509CA(ctx context.Context)
 	IsUpstreamAuthority() bool
+	IsJWTDisabled() bool
 	PublishJWTKey(ctx context.Context, jwtKey *common.PublicKey) ([]*common.PublicKey, error)
 	NotifyTaintedX509Authority(ctx context.Context, authorityID string) error
 	SubscribeToLocalBundle(ctx context.Context) error
@@ -81,6 +82,7 @@ type Config struct {
 	Catalog       catalog.Catalog
 	TrustDomain   spiffeid.TrustDomain
 	X509CAKeyType keymanager.KeyType
+	DisableJWT    bool
 	JWTKeyType    keymanager.KeyType
 	Dir           string
 	Log           logrus.FieldLogger
@@ -135,6 +137,7 @@ func NewManager(ctx context.Context, c Config) (*Manager, error) {
 				updated:                     m.bundleUpdated,
 				upstreamAuthoritiesTainted:  m.notifyUpstreamAuthoritiesTainted,
 				processedTaintedAuthorities: map[string]struct{}{},
+				jwtDisabled:                 c.DisableJWT,
 			},
 		})
 		m.upstreamPluginName = upstreamAuthority.Name()
@@ -203,6 +206,10 @@ func (m *Manager) NotifyTaintedX509Authority(ctx context.Context, authorityID st
 
 	m.c.CA.NotifyTaintedX509Authorities([]*x509.Certificate{taintedAuthority})
 	return nil
+}
+
+func (m *Manager) IsJWTDisabled() bool {
+	return m.c.DisableJWT
 }
 
 func (m *Manager) GetCurrentX509CASlot() Slot {
@@ -323,6 +330,10 @@ func (m *Manager) GetNextJWTKeySlot() Slot {
 }
 
 func (m *Manager) PrepareJWTKey(ctx context.Context) (err error) {
+	if m.IsJWTDisabled() {
+		return nil
+	}
+
 	counter := telemetry_server.StartServerCAManagerPrepareJWTKeyCall(m.c.Metrics)
 	defer counter.Done(&err)
 
@@ -383,6 +394,9 @@ func (m *Manager) PrepareJWTKey(ctx context.Context) (err error) {
 }
 
 func (m *Manager) ActivateJWTKey(ctx context.Context) {
+	if m.IsJWTDisabled() {
+		return
+	}
 	m.jwtKeyMutex.RLock()
 	defer m.jwtKeyMutex.RUnlock()
 
@@ -390,6 +404,10 @@ func (m *Manager) ActivateJWTKey(ctx context.Context) {
 }
 
 func (m *Manager) RotateJWTKey(ctx context.Context) {
+	if m.IsJWTDisabled() {
+		return
+	}
+
 	m.jwtKeyMutex.Lock()
 	defer m.jwtKeyMutex.Unlock()
 
@@ -915,6 +933,7 @@ type bundleUpdater struct {
 	updated                     func()
 	upstreamAuthoritiesTainted  func([]*x509.Certificate)
 	processedTaintedAuthorities map[string]struct{}
+	jwtDisabled                 bool
 }
 
 func (u *bundleUpdater) SyncX509Roots(ctx context.Context, roots []*x509certificate.X509Authority) error {
