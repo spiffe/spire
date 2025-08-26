@@ -130,6 +130,9 @@ type Config struct {
 	// PruneNonReattestableNodes, if true, includes non-reattestable nodes in the list
 	// considered for pruning.
 	PruneNonReattestableNodes bool
+
+	// DisableJWT, if true, JWT-SVID profile is disabled
+	DisableJWT bool
 }
 
 type ExperimentalConfig struct{}
