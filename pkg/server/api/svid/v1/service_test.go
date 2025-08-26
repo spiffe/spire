@@ -594,14 +594,15 @@ func TestServiceMintJWTSVID(t *testing.T) {
 	for _, tt := range []struct {
 		name string
 
-		code        codes.Code
-		err         string
-		expiresAt   time.Time
-		id          spiffeid.ID
-		ttl         time.Duration
-		failMinting bool
-		audience    []string
-		expectLogs  []spiretest.LogEntry
+		code            codes.Code
+		err             string
+		expiresAt       time.Time
+		id              spiffeid.ID
+		ttl             time.Duration
+		disableJWTSVIDs bool
+		failMinting     bool
+		audience        []string
+		expectLogs      []spiretest.LogEntry
 	}{
 		{
 			name:      "success",
@@ -786,10 +787,36 @@ func TestServiceMintJWTSVID(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:            "jwt is disabled",
+			disableJWTSVIDs: true,
+			code:            codes.Unimplemented,
+			audience:        []string{"AUDIENCE"},
+			expiresAt:       expiresAt,
+			id:              workloadID,
+			err:             "JWT functionality is disabled",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "JWT functionality is disabled",
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:        "error",
+						telemetry.Type:          "audit",
+						telemetry.StatusCode:    "Unimplemented",
+						telemetry.StatusMessage: "JWT functionality is disabled",
+					},
+				},
+			},
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			test.logHook.Reset()
 
+			test.ca.SetDisableJWTSVIDs(tt.disableJWTSVIDs)
 			if tt.failMinting {
 				test.ca.SetError(errors.New("oh no"))
 			}
@@ -854,15 +881,16 @@ func TestServiceNewJWTSVID(t *testing.T) {
 	for _, tt := range []struct {
 		name string
 
-		code           codes.Code
-		err            string
-		expiresAt      time.Time
-		entry          *types.Entry
-		failMinting    bool
-		failCallerID   bool
-		audience       []string
-		rateLimiterErr error
-		expectLogs     []spiretest.LogEntry
+		code            codes.Code
+		err             string
+		expiresAt       time.Time
+		entry           *types.Entry
+		disableJWTSVIDs bool
+		failMinting     bool
+		failCallerID    bool
+		audience        []string
+		rateLimiterErr  error
+		expectLogs      []spiretest.LogEntry
 	}{
 		{
 			name:      "success",
@@ -1091,10 +1119,37 @@ func TestServiceNewJWTSVID(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:            "jwt is disabled",
+			disableJWTSVIDs: true,
+			code:            codes.Unimplemented,
+			audience:        []string{"AUDIENCE"},
+			entry:           entry,
+			err:             "JWT functionality is disabled",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "JWT functionality is disabled",
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:         "error",
+						telemetry.Type:           "audit",
+						telemetry.StatusCode:     "Unimplemented",
+						telemetry.StatusMessage:  "JWT functionality is disabled",
+						telemetry.Audience:       "AUDIENCE",
+						telemetry.RegistrationID: "agent-entry-id",
+					},
+				},
+			},
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			test.logHook.Reset()
 
+			test.ca.SetDisableJWTSVIDs(tt.disableJWTSVIDs)
 			if tt.failMinting {
 				test.ca.SetError(errors.New("oh no"))
 			}

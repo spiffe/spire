@@ -143,6 +143,11 @@ func (s *Service) MintX509SVID(ctx context.Context, req *svidv1.MintX509SVIDRequ
 }
 
 func (s *Service) MintJWTSVID(ctx context.Context, req *svidv1.MintJWTSVIDRequest) (*svidv1.MintJWTSVIDResponse, error) {
+	log := rpccontext.Logger(ctx)
+	if s.isJWTSVIDsDisabled() {
+		return nil, api.MakeErr(log, codes.Unimplemented, "JWT functionality is disabled", nil)
+	}
+
 	rpccontext.AddRPCAuditFields(ctx, s.fieldsFromJWTSvidParams(ctx, req.Id, req.Audience, req.Ttl))
 	jwtsvid, err := s.mintJWTSVID(ctx, req.Id, req.Audience, req.Ttl)
 	if err != nil {
@@ -349,6 +354,10 @@ func (s *Service) NewJWTSVID(ctx context.Context, req *svidv1.NewJWTSVIDRequest)
 		return nil, api.MakeErr(log, status.Code(err), "rejecting request due to JWT signing request rate limiting", err)
 	}
 
+	if s.isJWTSVIDsDisabled() {
+		return nil, api.MakeErr(log, codes.Unimplemented, "JWT functionality is disabled", nil)
+	}
+
 	entries := map[string]struct{}{
 		req.EntryId: {},
 	}
@@ -445,6 +454,10 @@ func (s *Service) NewDownstreamX509CA(ctx context.Context, req *svidv1.NewDownst
 		CaCertChain:     x509util.RawCertsFromCertificates(x509CASvid),
 		X509Authorities: rawRootCerts,
 	}, nil
+}
+
+func (s *Service) isJWTSVIDsDisabled() bool {
+	return s.ca.IsJWTSVIDsDisabled()
 }
 
 func (s Service) fieldsFromJWTSvidParams(ctx context.Context, protoID *types.SPIFFEID, audience []string, ttl int32) logrus.Fields {
