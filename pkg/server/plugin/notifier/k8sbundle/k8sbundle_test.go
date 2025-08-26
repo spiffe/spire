@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	identityproviderv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/hostservice/server/identityprovider/v1"
@@ -26,7 +27,6 @@ import (
 	"github.com/spiffe/spire/test/fakes/fakeidentityprovider"
 	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -258,7 +258,7 @@ kube_config_file_path = "/some/file/path"
 	require.Eventually(t, func() bool {
 		actualWebhook, err := test.webhookClient.Get(context.Background(), webhook.Namespace, webhook.Name)
 		require.NoError(t, err)
-		return assert.Equal(t, &admissionv1.MutatingWebhookConfiguration{
+		diff := cmp.Diff(&admissionv1.MutatingWebhookConfiguration{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:            webhook.Name,
 				ResourceVersion: "1",
@@ -271,6 +271,8 @@ kube_config_file_path = "/some/file/path"
 				},
 			},
 		}, actualWebhook)
+
+		return diff != ""
 	}, testTimeout, testPollInterval)
 }
 
@@ -290,7 +292,7 @@ kube_config_file_path = "/some/file/path"
 	require.Eventually(t, func() bool {
 		actualAPIService, err := test.apiServiceClient.Get(context.Background(), apiService.Namespace, apiService.Name)
 		require.NoError(t, err)
-		return assert.Equal(t, &apiregistrationv1.APIService{
+		diff := cmp.Diff(&apiregistrationv1.APIService{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:            apiService.Name,
 				ResourceVersion: "1",
@@ -299,6 +301,8 @@ kube_config_file_path = "/some/file/path"
 				CABundle: []byte(testBundleData),
 			},
 		}, actualAPIService)
+
+		return diff != ""
 	}, testTimeout, testPollInterval)
 }
 
@@ -739,6 +743,7 @@ func (c *fakeKubeClient) Get(_ context.Context, namespace, configMap string) (ru
 	}
 	return entry, nil
 }
+
 func (c *fakeKubeClient) GetList(context.Context) (runtime.Object, error) {
 	list := c.getConfigMapList()
 	if list.Items == nil {
