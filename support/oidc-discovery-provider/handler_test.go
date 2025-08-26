@@ -69,10 +69,8 @@ func TestHandlerHTTPS(t *testing.T) {
 			method: "GET",
 			path:   "/keys",
 			jwks:   new(jose.JSONWebKeySet),
-			code:   http.StatusOK,
-			body: `{
-  "keys": null
-}`,
+			code:   http.StatusNotImplemented,
+			body:   "jwt not supported/enabled in this service\n",
 		},
 		{
 			name:   "GET keys with key in set",
@@ -239,10 +237,8 @@ func TestHandlerHTTPInsecure(t *testing.T) {
 			method: "GET",
 			path:   "/keys",
 			jwks:   new(jose.JSONWebKeySet),
-			code:   http.StatusOK,
-			body: `{
-  "keys": null
-}`,
+			code:   http.StatusNotImplemented,
+			body:   "jwt not supported/enabled in this service\n",
 		},
 		{
 			name:   "GET keys with key in set",
@@ -409,10 +405,8 @@ func TestHandlerHTTP(t *testing.T) {
 			method: "GET",
 			path:   "/keys",
 			jwks:   new(jose.JSONWebKeySet),
-			code:   http.StatusOK,
-			body: `{
-  "keys": null
-}`,
+			code:   http.StatusNotImplemented,
+			body:   "jwt not supported/enabled in this service\n",
 		},
 		{
 			name:   "GET keys with key in set",
@@ -528,10 +522,8 @@ func TestHandlerProxied(t *testing.T) {
 			method: "GET",
 			path:   "/keys",
 			jwks:   new(jose.JSONWebKeySet),
-			code:   http.StatusOK,
-			body: `{
-  "keys": null
-}`,
+			code:   http.StatusNotImplemented,
+			body:   "jwt not supported/enabled in this service\n",
 		},
 		{
 			name:   "GET keys with key in set",
