@@ -599,6 +599,7 @@ func TestServiceMintJWTSVID(t *testing.T) {
 		expiresAt   time.Time
 		id          spiffeid.ID
 		ttl         time.Duration
+		disableJWT  bool
 		failMinting bool
 		audience    []string
 		expectLogs  []spiretest.LogEntry
@@ -786,10 +787,36 @@ func TestServiceMintJWTSVID(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:       "jwt is disabled",
+			disableJWT: true,
+			code:       codes.Unimplemented,
+			audience:   []string{"AUDIENCE"},
+			expiresAt:  expiresAt,
+			id:         workloadID,
+			err:        "JWT functionality is disabled",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "JWT functionality is disabled",
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:        "error",
+						telemetry.Type:          "audit",
+						telemetry.StatusCode:    "Unimplemented",
+						telemetry.StatusMessage: "JWT functionality is disabled",
+					},
+				},
+			},
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			test.logHook.Reset()
 
+			test.ca.SetDisableJWT(tt.disableJWT)
 			if tt.failMinting {
 				test.ca.SetError(errors.New("oh no"))
 			}
@@ -858,6 +885,7 @@ func TestServiceNewJWTSVID(t *testing.T) {
 		err            string
 		expiresAt      time.Time
 		entry          *types.Entry
+		disableJWT     bool
 		failMinting    bool
 		failCallerID   bool
 		audience       []string
@@ -1091,10 +1119,37 @@ func TestServiceNewJWTSVID(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:       "jwt is disabled",
+			disableJWT: true,
+			code:       codes.Unimplemented,
+			audience:   []string{"AUDIENCE"},
+			entry:      entry,
+			err:        "JWT functionality is disabled",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "JWT functionality is disabled",
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:         "error",
+						telemetry.Type:           "audit",
+						telemetry.StatusCode:     "Unimplemented",
+						telemetry.StatusMessage:  "JWT functionality is disabled",
+						telemetry.Audience:       "AUDIENCE",
+						telemetry.RegistrationID: "agent-entry-id",
+					},
+				},
+			},
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			test.logHook.Reset()
 
+			test.ca.SetDisableJWT(tt.disableJWT)
 			if tt.failMinting {
 				test.ca.SetError(errors.New("oh no"))
 			}

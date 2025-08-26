@@ -50,6 +50,7 @@ var (
 func TestGetJWTAuthorityState(t *testing.T) {
 	for _, tt := range []struct {
 		name        string
+		disableJWT  bool
 		currentSlot *fakeSlot
 		nextSlot    *fakeSlot
 		expectLogs  []spiretest.LogEntry
@@ -57,6 +58,30 @@ func TestGetJWTAuthorityState(t *testing.T) {
 		expectMsg   string
 		expectResp  *localauthorityv1.GetJWTAuthorityStateResponse
 	}{
+		{
+			name:        "JWT is disabled",
+			disableJWT:  true,
+			currentSlot: &fakeSlot{},
+			nextSlot:    &fakeSlot{},
+			expectCode:  codes.Unimplemented,
+			expectMsg:   "JWT functionality is disabled",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "JWT functionality is disabled",
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:        "error",
+						telemetry.Type:          "audit",
+						telemetry.StatusCode:    "Unimplemented",
+						telemetry.StatusMessage: "JWT functionality is disabled",
+					},
+				},
+			},
+		},
 		{
 			name:        "current is set",
 			currentSlot: createSlot(journal.Status_ACTIVE, authorityIDKeyA, keyA.Public(), notAfterCurrent),
@@ -206,6 +231,7 @@ func TestGetJWTAuthorityState(t *testing.T) {
 		test := setupServiceTest(t)
 		defer test.Cleanup()
 
+		test.ca.disableJWT = tt.disableJWT
 		test.ca.currentJWTKeySlot = tt.currentSlot
 		test.ca.nextJWTKeySlot = tt.nextSlot
 
@@ -220,6 +246,7 @@ func TestGetJWTAuthorityState(t *testing.T) {
 func TestPrepareJWTAuthority(t *testing.T) {
 	for _, tt := range []struct {
 		name        string
+		disableJWT  bool
 		currentSlot *fakeSlot
 		prepareErr  error
 		nextSlot    *fakeSlot
@@ -228,6 +255,30 @@ func TestPrepareJWTAuthority(t *testing.T) {
 		expectMsg   string
 		expectResp  *localauthorityv1.PrepareJWTAuthorityResponse
 	}{
+		{
+			name:        "JWT is disabled",
+			disableJWT:  true,
+			currentSlot: &fakeSlot{},
+			nextSlot:    &fakeSlot{},
+			expectCode:  codes.Unimplemented,
+			expectMsg:   "JWT functionality is disabled",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "JWT functionality is disabled",
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:        "error",
+						telemetry.Type:          "audit",
+						telemetry.StatusCode:    "Unimplemented",
+						telemetry.StatusMessage: "JWT functionality is disabled",
+					},
+				},
+			},
+		},
 		{
 			name:        "using next to prepare",
 			currentSlot: createSlot(journal.Status_ACTIVE, authorityIDKeyA, keyA.Public(), notAfterCurrent),
@@ -304,6 +355,7 @@ func TestPrepareJWTAuthority(t *testing.T) {
 			test := setupServiceTest(t)
 			defer test.Cleanup()
 
+			test.ca.disableJWT = tt.disableJWT
 			test.ca.currentJWTKeySlot = tt.currentSlot
 			test.ca.nextJWTKeySlot = tt.nextSlot
 			test.ca.prepareJWTKeyErr = tt.prepareErr
@@ -320,6 +372,7 @@ func TestPrepareJWTAuthority(t *testing.T) {
 func TestActivateJWTAuthority(t *testing.T) {
 	for _, tt := range []struct {
 		name        string
+		disableJWT  bool
 		currentSlot *fakeSlot
 		nextSlot    *fakeSlot
 
@@ -330,6 +383,30 @@ func TestActivateJWTAuthority(t *testing.T) {
 		expectMsg     string
 		expectResp    *localauthorityv1.ActivateJWTAuthorityResponse
 	}{
+		{
+			name:        "JWT is disabled",
+			disableJWT:  true,
+			currentSlot: &fakeSlot{},
+			nextSlot:    &fakeSlot{},
+			expectCode:  codes.Unimplemented,
+			expectMsg:   "JWT functionality is disabled",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "JWT functionality is disabled",
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:        "error",
+						telemetry.Type:          "audit",
+						telemetry.StatusCode:    "Unimplemented",
+						telemetry.StatusMessage: "JWT functionality is disabled",
+					},
+				},
+			},
+		},
 		{
 			name:          "activate successfully",
 			currentSlot:   createSlot(journal.Status_ACTIVE, authorityIDKeyA, keyA.Public(), notAfterCurrent),
@@ -439,6 +516,7 @@ func TestActivateJWTAuthority(t *testing.T) {
 			test := setupServiceTest(t)
 			defer test.Cleanup()
 
+			test.ca.disableJWT = tt.disableJWT
 			test.ca.currentJWTKeySlot = tt.currentSlot
 			test.ca.nextJWTKeySlot = tt.nextSlot
 
@@ -471,6 +549,7 @@ func TestTaintJWTAuthority(t *testing.T) {
 
 	for _, tt := range []struct {
 		name        string
+		disableJWT  bool
 		currentSlot *fakeSlot
 		nextSlot    *fakeSlot
 		keyToTaint  string
@@ -481,6 +560,30 @@ func TestTaintJWTAuthority(t *testing.T) {
 		expectResp       *localauthorityv1.TaintJWTAuthorityResponse
 		nextKeyIsTainted bool
 	}{
+		{
+			name:        "JWT is disabled",
+			disableJWT:  true,
+			currentSlot: &fakeSlot{},
+			nextSlot:    &fakeSlot{},
+			expectCode:  codes.Unimplemented,
+			expectMsg:   "JWT functionality is disabled",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "JWT functionality is disabled",
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:        "error",
+						telemetry.Type:          "audit",
+						telemetry.StatusCode:    "Unimplemented",
+						telemetry.StatusMessage: "JWT functionality is disabled",
+					},
+				},
+			},
+		},
 		{
 			name:        "taint old authority",
 			currentSlot: createSlot(journal.Status_ACTIVE, currentAuthorityID, currentKey.Public(), currentKeyNotAfter),
@@ -652,6 +755,7 @@ func TestTaintJWTAuthority(t *testing.T) {
 		test := setupServiceTest(t)
 		defer test.Cleanup()
 
+		test.ca.disableJWT = tt.disableJWT
 		test.ca.currentJWTKeySlot = tt.currentSlot
 		test.ca.nextJWTKeySlot = tt.nextSlot
 		_, err := test.ds.CreateBundle(ctx, &common.Bundle{
@@ -705,6 +809,7 @@ func TestRevokeJWTAuthority(t *testing.T) {
 
 	for _, tt := range []struct {
 		name          string
+		disableJWT    bool
 		currentSlot   *fakeSlot
 		nextSlot      *fakeSlot
 		keyToRevoke   string
@@ -715,6 +820,30 @@ func TestRevokeJWTAuthority(t *testing.T) {
 		expectMsg  string
 		expectResp *localauthorityv1.RevokeJWTAuthorityResponse
 	}{
+		{
+			name:        "JWT is disabled",
+			disableJWT:  true,
+			currentSlot: &fakeSlot{},
+			nextSlot:    &fakeSlot{},
+			expectCode:  codes.Unimplemented,
+			expectMsg:   "JWT functionality is disabled",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "JWT functionality is disabled",
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:        "error",
+						telemetry.Type:          "audit",
+						telemetry.StatusCode:    "Unimplemented",
+						telemetry.StatusMessage: "JWT functionality is disabled",
+					},
+				},
+			},
+		},
 		{
 			name:        "revoke authority from parameter",
 			currentSlot: createSlot(journal.Status_ACTIVE, currentAuthorityID, currentKey.Public(), currentKeyNotAfter),
@@ -892,6 +1021,7 @@ func TestRevokeJWTAuthority(t *testing.T) {
 			test := setupServiceTest(t)
 			defer test.Cleanup()
 
+			test.ca.disableJWT = tt.disableJWT
 			test.ca.currentJWTKeySlot = tt.currentSlot
 			test.ca.nextJWTKeySlot = tt.nextSlot
 
@@ -2484,6 +2614,7 @@ type fakeCAManager struct {
 	rotateJWTKeyCalled bool
 
 	prepareJWTKeyErr error
+	disableJWT       bool
 
 	prepareX509CAErr    error
 	isUpstreamAuthority bool
@@ -2534,6 +2665,10 @@ func (m *fakeCAManager) PrepareX509CA(context.Context) error {
 
 func (m *fakeCAManager) RotateX509CA(context.Context) {
 	m.rotateX509CACalled = true
+}
+
+func (m *fakeCAManager) IsJWTDisabled() bool {
+	return m.disableJWT
 }
 
 type fakeSlot struct {
