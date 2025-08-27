@@ -16,6 +16,7 @@ import (
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/pluginconf"
+	"github.com/spiffe/spire/pkg/server/plugin/bundlepublisher/common"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
@@ -46,10 +47,15 @@ type Config struct {
 	ObjectKey       string `hcl:"object_key" json:"object_key"`
 	Format          string `hcl:"format" json:"format"`
 	Endpoint        string `hcl:"endpoint" json:"endpoint"`
+	RefreshHint     string `hcl:"refresh_hint" json:"refresh_hint"`
 
 	// bundleFormat is used to store the content of Format, parsed
 	// as bundleformat.Format.
 	bundleFormat bundleformat.Format
+
+	// parsedRefreshHint is used to store the content of RefreshHint, parsed
+	// as an int64.
+	parsedRefreshHint int64
 }
 
 func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *Config {
@@ -93,6 +99,14 @@ func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginco
 		newConfig.bundleFormat = bundleFormat
 	}
 
+	if newConfig.RefreshHint != "" {
+		refreshHint, err := common.ParseRefreshHint(newConfig.RefreshHint, status)
+		if err != nil {
+			status.ReportErrorf("could not parse refresh_hint: %v", err)
+		}
+		newConfig.parsedRefreshHint = refreshHint
+	}
+
 	return newConfig
 }
 
@@ -119,9 +133,12 @@ func (p *Plugin) SetLogger(log hclog.Logger) {
 
 // Configure configures the plugin.
 func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
-	newConfig, _, err := pluginconf.Build(req, buildConfig)
+	newConfig, notes, err := pluginconf.Build(req, buildConfig)
 	if err != nil {
 		return nil, err
+	}
+	for _, note := range notes {
+		p.log.Warn(note)
 	}
 
 	// seems wrong to change plugin s3Client before config change
@@ -167,7 +184,12 @@ func (p *Plugin) PublishBundle(ctx context.Context, req *bundlepublisherv1.Publi
 		return &bundlepublisherv1.PublishBundleResponse{}, nil
 	}
 
-	formatter := bundleformat.NewFormatter(req.Bundle)
+	bundleToPublish := proto.Clone(req.Bundle).(*types.Bundle)
+	if config.parsedRefreshHint != 0 {
+		bundleToPublish.RefreshHint = config.parsedRefreshHint
+	}
+
+	formatter := bundleformat.NewFormatter(bundleToPublish)
 	bundleBytes, err := formatter.Format(config.bundleFormat)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "could not format bundle: %v", err.Error())
