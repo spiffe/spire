@@ -1756,9 +1756,15 @@ func (s *PluginSuite) TestPruneAttestedNodeEvents() {
 		s.T().Run(tt.name, func(t *testing.T) {
 			s.Require().Eventuallyf(func() bool {
 				err = s.ds.PruneAttestedNodeEvents(ctx, tt.olderThan)
-				s.Require().NoError(err)
+				if err != nil {
+					return false
+				}
+
 				resp, err := s.ds.ListAttestedNodeEvents(ctx, &datastore.ListAttestedNodeEventsRequest{})
-				s.Require().NoError(err)
+				if err != nil {
+					return false
+				}
+
 				return reflect.DeepEqual(tt.expectedEvents, resp.Events)
 			}, 10*time.Second, 50*time.Millisecond, "Failed to prune entries correctly")
 		})
@@ -4396,10 +4402,15 @@ func (s *PluginSuite) TestPruneRegistrationEntryEvents() {
 	} {
 		s.T().Run(tt.name, func(t *testing.T) {
 			s.Require().Eventuallyf(func() bool {
-				err = s.ds.PruneRegistrationEntryEvents(ctx, tt.olderThan)
-				s.Require().NoError(err)
+				if err = s.ds.PruneRegistrationEntryEvents(ctx, tt.olderThan); err != nil {
+					return false
+				}
+
 				resp, err := s.ds.ListRegistrationEntryEvents(ctx, &datastore.ListRegistrationEntryEventsRequest{})
-				s.Require().NoError(err)
+				if err != nil {
+					return false
+				}
+
 				return reflect.DeepEqual(tt.expectedEvents, resp.Events)
 			}, 10*time.Second, 50*time.Millisecond, "Failed to prune entries correctly")
 		})
