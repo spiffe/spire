@@ -1,6 +1,6 @@
 services:
-  postgres-10-readwrite:
-    image: postgres:10
+  postgres-13-readwrite:
+    image: postgres:13
     command: -c fsync=off
     environment:
       - POSTGRES_PASSWORD=password
@@ -12,8 +12,8 @@ services:
       - ./principal/init.sh:/docker-entrypoint-initdb.d/init.sh
     ports:
       - "9999:5432"
-  postgres-10-readonly:
-    image: postgres:10
+  postgres-13-readonly:
+    image: postgres:13
     command: -c fsync=off
     user: postgres
     environment:
@@ -21,14 +21,14 @@ services:
       - POSTGRES_USER=postgres
       - PG_REP_USER=rep
       - PG_REP_PASSWORD=pass
-      - PRINCIPAL_NAME=postgres-10-readwrite
+      - PRINCIPAL_NAME=postgres-13-readwrite
     entrypoint: ["/docker-entrypoint.sh", "postgres"]
     volumes:
       - ./replica/docker-entrypoint.sh:/docker-entrypoint.sh
     ports:
       - "10000:5432"
-  postgres-11-readwrite:
-    image: postgres:11
+  postgres-14-readwrite:
+    image: postgres:14
     command: -c fsync=off
     environment:
       - POSTGRES_PASSWORD=password
@@ -40,8 +40,8 @@ services:
       - ./principal/init.sh:/docker-entrypoint-initdb.d/init.sh
     ports:
       - "9999:5432"
-  postgres-11-readonly:
-    image: postgres:11
+  postgres-14-readonly:
+    image: postgres:14
     command: -c fsync=off
     user: postgres
     environment:
@@ -49,14 +49,14 @@ services:
       - POSTGRES_USER=postgres
       - PG_REP_USER=rep
       - PG_REP_PASSWORD=pass
-      - PRINCIPAL_NAME=postgres-11-readwrite
+      - PRINCIPAL_NAME=postgres-14-readwrite
     entrypoint: ["/docker-entrypoint.sh", "postgres"]
     volumes:
       - ./replica/docker-entrypoint.sh:/docker-entrypoint.sh
     ports:
       - "10000:5432"
-  postgres-12-readwrite:
-    image: postgres:12
+  postgres-15-readwrite:
+    image: postgres:15
     command: -c fsync=off
     environment:
       - POSTGRES_PASSWORD=password
@@ -68,8 +68,8 @@ services:
       - ./principal/init.sh:/docker-entrypoint-initdb.d/init.sh
     ports:
       - "9999:5432"
-  postgres-12-readonly:
-    image: postgres:12
+  postgres-15-readonly:
+    image: postgres:15
     command: -c fsync=off
     user: postgres
     environment:
@@ -77,9 +77,65 @@ services:
       - POSTGRES_USER=postgres
       - PG_REP_USER=rep
       - PG_REP_PASSWORD=pass
-      - PRINCIPAL_NAME=postgres-12-readwrite
+      - PRINCIPAL_NAME=postgres-15-readwrite
     entrypoint: ["/docker-entrypoint.sh", "postgres"]
     volumes:
-      - ./replica/v12/docker-entrypoint.sh:/docker-entrypoint.sh
+      - ./replica/docker-entrypoint.sh:/docker-entrypoint.sh
+    ports:
+      - "10000:5432"
+  postgres-16-readwrite:
+    image: postgres:16
+    command: -c fsync=off
+    environment:
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_USER=postgres
+      - POSTGRES_DB=spire
+      - PG_REP_USER=rep
+      - PG_REP_PASSWORD=pass
+    volumes:
+      - ./principal/init.sh:/docker-entrypoint-initdb.d/init.sh
+    ports:
+      - "9999:5432"
+  postgres-16-readonly:
+    image: postgres:16
+    command: -c fsync=off
+    user: postgres
+    environment:
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_USER=postgres
+      - PG_REP_USER=rep
+      - PG_REP_PASSWORD=pass
+      - PRINCIPAL_NAME=postgres-16-readwrite
+    entrypoint: ["/docker-entrypoint.sh", "postgres"]
+    volumes:
+      - ./replica/docker-entrypoint.sh:/docker-entrypoint.sh
+    ports:
+      - "10000:5432"
+  postgres-17-readwrite:
+    image: postgres:17
+    command: -c fsync=off
+    environment:
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_USER=postgres
+      - POSTGRES_DB=spire
+      - PG_REP_USER=rep
+      - PG_REP_PASSWORD=pass
+    volumes:
+      - ./principal/init.sh:/docker-entrypoint-initdb.d/init.sh
+    ports:
+      - "9999:5432"
+  postgres-17-readonly:
+    image: postgres:17
+    command: -c fsync=off
+    user: postgres
+    environment:
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_USER=postgres
+      - PG_REP_USER=rep
+      - PG_REP_PASSWORD=pass
+      - PRINCIPAL_NAME=postgres-17-readwrite
+    entrypoint: ["/docker-entrypoint.sh", "postgres"]
+    volumes:
+      - ./replica/docker-entrypoint.sh:/docker-entrypoint.sh
     ports:
       - "10000:5432"
