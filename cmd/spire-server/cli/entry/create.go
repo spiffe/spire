@@ -15,6 +15,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/util"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/protobuf/proto"
 )
 
 // NewCreateCommand creates a new "create" subcommand for "entry" command.
@@ -24,6 +25,12 @@ func NewCreateCommand() cli.Command {
 
 func newCreateCommand(env *commoncli.Env) cli.Command {
 	return serverutil.AdaptCommand(env, &createCommand{env: env})
+}
+
+func GetCreatePrinter() func(...proto.Message) error {
+	c := &createCommand{env: commoncli.DefaultEnv}
+	serverutil.AdaptCommand(commoncli.DefaultEnv, c)
+	return c.printer.PrintProto
 }
 
 type createCommand struct {
