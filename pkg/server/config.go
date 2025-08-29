@@ -130,6 +130,10 @@ type Config struct {
 	// PruneNonReattestableNodes, if true, includes non-reattestable nodes in the list
 	// considered for pruning.
 	PruneNonReattestableNodes bool
+
+	// MaxAttestedNodeInfoStaleness determines how long to trust cached attested
+	// node information, before requiring refreshing it from the datastore.
+	MaxAttestedNodeInfoStaleness time.Duration
 }
 
 type ExperimentalConfig struct{}

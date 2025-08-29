@@ -29,6 +29,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/authpolicy"
 	"github.com/spiffe/spire/pkg/server/ca/manager"
 	"github.com/spiffe/spire/pkg/server/cache/entrycache"
+	"github.com/spiffe/spire/pkg/server/cache/nodecache"
 	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/pkg/server/endpoints/bundle"
 	"github.com/spiffe/spire/pkg/server/svid"
@@ -198,10 +199,20 @@ func TestListenAndServe(t *testing.T) {
 		return entrycache.BuildFromDataStore(ctx, testTD.String(), ds)
 	}
 
+	// Prime the datastore with the:
+	// - bundle used to verify client certificates.
+	// - agent attested node information
+	// - admin registration entry
+	// - downstream registration entry
+	prepareDataStore(t, ds, []*testca.CA{ca, federatedCA}, agentSVID)
+
 	ef, err := NewAuthorizedEntryFetcherWithFullCache(context.Background(), buildCacheFn, log, clk, ds, defaultCacheReloadInterval, defaultPruneEventsOlderThan)
 	require.NoError(t, err)
 
 	pe, err := authpolicy.DefaultAuthPolicy(ctx)
+	require.NoError(t, err)
+
+	nodeCache, err := nodecache.New(ctx, log, ds, clk, true, true)
 	require.NoError(t, err)
 
 	endpoints := Endpoints{
@@ -226,18 +237,13 @@ func TestListenAndServe(t *testing.T) {
 		Log:                          log,
 		Metrics:                      metrics,
 		RateLimit:                    rateLimit,
+		NodeCacheRebuildTask:         nodeCache.PeriodicRebuild,
 		EntryFetcherCacheRebuildTask: ef.RunRebuildCacheTask,
 		EntryFetcherPruneEventsTask:  ef.PruneEventsTask,
 		AuthPolicyEngine:             pe,
 		AdminIDs:                     []spiffeid.ID{foreignAdminSVID.ID},
+		nodeCache:                    nodeCache,
 	}
-
-	// Prime the datastore with the:
-	// - bundle used to verify client certificates.
-	// - agent attested node information
-	// - admin registration entry
-	// - downstream registration entry
-	prepareDataStore(t, ds, []*testca.CA{ca, federatedCA}, agentSVID)
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
