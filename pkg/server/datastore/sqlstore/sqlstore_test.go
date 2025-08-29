@@ -1754,12 +1754,14 @@ func (s *PluginSuite) TestPruneAttestedNodeEvents() {
 		},
 	} {
 		s.T().Run(tt.name, func(t *testing.T) {
-			s.Require().Eventuallyf(func() bool {
+			s.Require().EventuallyWithTf(func(collect *assert.CollectT) {
 				err = s.ds.PruneAttestedNodeEvents(ctx, tt.olderThan)
-				s.Require().NoError(err)
+				require.NoError(t, err)
+
 				resp, err := s.ds.ListAttestedNodeEvents(ctx, &datastore.ListAttestedNodeEventsRequest{})
-				s.Require().NoError(err)
-				return reflect.DeepEqual(tt.expectedEvents, resp.Events)
+				require.NoError(t, err)
+
+				assert.True(collect, reflect.DeepEqual(tt.expectedEvents, resp.Events))
 			}, 10*time.Second, 50*time.Millisecond, "Failed to prune entries correctly")
 		})
 	}
@@ -4395,12 +4397,14 @@ func (s *PluginSuite) TestPruneRegistrationEntryEvents() {
 		},
 	} {
 		s.T().Run(tt.name, func(t *testing.T) {
-			s.Require().Eventuallyf(func() bool {
-				err = s.ds.PruneRegistrationEntryEvents(ctx, tt.olderThan)
-				s.Require().NoError(err)
+			s.Require().EventuallyWithTf(func(collect *assert.CollectT) {
+				err := s.ds.PruneRegistrationEntryEvents(ctx, tt.olderThan)
+				require.NoError(collect, err)
+
 				resp, err := s.ds.ListRegistrationEntryEvents(ctx, &datastore.ListRegistrationEntryEventsRequest{})
-				s.Require().NoError(err)
-				return reflect.DeepEqual(tt.expectedEvents, resp.Events)
+				require.NoError(collect, err)
+
+				assert.True(collect, reflect.DeepEqual(tt.expectedEvents, resp.Events))
 			}, 10*time.Second, 50*time.Millisecond, "Failed to prune entries correctly")
 		})
 	}
