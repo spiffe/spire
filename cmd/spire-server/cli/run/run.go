@@ -79,6 +79,7 @@ type serverConfig struct {
 	DefaultJWTSVIDTTL            string             `hcl:"default_jwt_svid_ttl"`
 	Experimental                 experimentalConfig `hcl:"experimental"`
 	Federation                   *federationConfig  `hcl:"federation"`
+	DisableJWT                   bool               `hcl:"disable_jwt"`
 	JWTIssuer                    string             `hcl:"jwt_issuer"`
 	JWTKeyType                   string             `hcl:"jwt_key_type"`
 	LogFile                      string             `hcl:"log_file"`
@@ -629,6 +630,8 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 			sc.Log.Warn(message)
 		}
 	}
+
+	sc.DisableJWT = c.Server.DisableJWT
 
 	if c.Server.CAKeyType != "" {
 		keyType, err := keyTypeFromString(c.Server.CAKeyType)

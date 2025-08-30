@@ -2484,6 +2484,7 @@ type fakeCAManager struct {
 	rotateJWTKeyCalled bool
 
 	prepareJWTKeyErr error
+	disableJWT       bool
 
 	prepareX509CAErr    error
 	isUpstreamAuthority bool
@@ -2534,6 +2535,10 @@ func (m *fakeCAManager) PrepareX509CA(context.Context) error {
 
 func (m *fakeCAManager) RotateX509CA(context.Context) {
 	m.rotateX509CACalled = true
+}
+
+func (m *fakeCAManager) IsJWTDisabled() bool {
+	return m.disableJWT
 }
 
 type fakeSlot struct {
