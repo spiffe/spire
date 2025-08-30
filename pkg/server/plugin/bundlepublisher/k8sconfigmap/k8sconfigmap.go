@@ -14,6 +14,7 @@ import (
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/pluginconf"
+	"github.com/spiffe/spire/pkg/server/plugin/bundlepublisher/common"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
@@ -49,6 +50,7 @@ type Cluster struct {
 	ConfigMapName  string `hcl:"configmap_name" json:"configmap_name"`
 	ConfigMapKey   string `hcl:"configmap_key" json:"configmap_key"`
 	KubeConfigPath string `hcl:"kubeconfig_path" json:"kubeconfig_path"`
+	RefreshHint    string `hcl:"refresh_hint" json:"refresh_hint"`
 
 	// bundleFormat is used to store the content of BundleFormat, parsed
 	// as bundleformat.Format.
@@ -57,6 +59,10 @@ type Cluster struct {
 	// k8sClient is the Kubernetes client used to interact with the cluster, set
 	// when the plugin is configured.
 	k8sClient kubernetesClient
+
+	// parsedRefreshHint is used to store the content of RefreshHint, parsed
+	// as an int64.
+	parsedRefreshHint int64
 }
 
 // buildConfig builds the plugin configuration from the provided HCL config.
@@ -104,6 +110,15 @@ func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginco
 			return nil
 		}
 		cluster.bundleFormat = bundleFormat
+
+		if cluster.RefreshHint != "" {
+			refreshHint, err := common.ParseRefreshHint(cluster.RefreshHint, status)
+			if err != nil {
+				status.ReportErrorf("could not parse refresh_hint from cluster %q: %v", id, err)
+				return nil
+			}
+			cluster.parsedRefreshHint = refreshHint
+		}
 	}
 
 	return newConfig
@@ -169,10 +184,15 @@ func (p *Plugin) PublishBundle(ctx context.Context, req *bundlepublisherv1.Publi
 		return &bundlepublisherv1.PublishBundleResponse{}, nil
 	}
 
-	formatter := bundleformat.NewFormatter(req.Bundle)
-
 	var allErrors error
 	for id, cluster := range config.Clusters {
+		bundleToPublish := proto.Clone(req.Bundle).(*types.Bundle)
+
+		if cluster.parsedRefreshHint != 0 {
+			bundleToPublish.RefreshHint = cluster.parsedRefreshHint
+		}
+
+		formatter := bundleformat.NewFormatter(bundleToPublish)
 		bundleBytes, err := formatter.Format(cluster.bundleFormat)
 		if err != nil {
 			allErrors = errors.Join(allErrors, fmt.Errorf("could not format bundle when publishing to cluster %q: %w", id, err))
