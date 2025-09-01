@@ -50,6 +50,7 @@ const (
 	testCATTL     = time.Hour
 	activateAfter = testCATTL - (testCATTL / 6)
 	prepareAfter  = testCATTL - (testCATTL / 2)
+	sha256hashing = true
 )
 
 var (
@@ -353,6 +354,7 @@ func TestUpstreamSigned(t *testing.T) {
 	upstreamAuthority, fakeUA := test.newFakeUpstreamAuthority(t, fakeupstreamauthority.Config{
 		TrustDomain:           testTrustDomain,
 		DisallowPublishJWTKey: true,
+		SHA256Hashing:         sha256hashing,
 	})
 
 	test.initAndActivateUpstreamSignedManager(ctx, upstreamAuthority)
@@ -409,6 +411,7 @@ func TestUpstreamProcessTaintedAuthority(t *testing.T) {
 	upstreamAuthority, fakeUA := fakeupstreamauthority.Load(t, fakeupstreamauthority.Config{
 		TrustDomain:           testTrustDomain,
 		DisallowPublishJWTKey: true,
+		SHA256Hashing:         sha256hashing,
 	})
 
 	test.initAndActivateUpstreamSignedManager(ctx, upstreamAuthority)
@@ -446,6 +449,7 @@ func TestUpstreamProcessTaintedAuthorityBackoff(t *testing.T) {
 	upstreamAuthority, fakeUA := fakeupstreamauthority.Load(t, fakeupstreamauthority.Config{
 		TrustDomain:           testTrustDomain,
 		DisallowPublishJWTKey: true,
+		SHA256Hashing:         sha256hashing,
 	})
 
 	test.initAndActivateUpstreamSignedManager(ctx, upstreamAuthority)
@@ -513,6 +517,7 @@ func TestGetCurrentX509CASlotUpstreamSigned(t *testing.T) {
 	upstreamAuthority, ua := test.newFakeUpstreamAuthority(t, fakeupstreamauthority.Config{
 		TrustDomain:           testTrustDomain,
 		DisallowPublishJWTKey: true,
+		SHA256Hashing:         sha256hashing,
 	})
 
 	test.initAndActivateUpstreamSignedManager(ctx, upstreamAuthority)
@@ -540,6 +545,7 @@ func TestGetNextX509CASlotUpstreamSigned(t *testing.T) {
 	upstreamAuthority, ua := test.newFakeUpstreamAuthority(t, fakeupstreamauthority.Config{
 		TrustDomain:           testTrustDomain,
 		DisallowPublishJWTKey: true,
+		SHA256Hashing:         sha256hashing,
 	})
 
 	test.initAndActivateUpstreamSignedManager(ctx, upstreamAuthority)
@@ -578,7 +584,8 @@ func TestUpstreamSignedProducesInvalidChain(t *testing.T) {
 		// We want to ensure that the manager is verifying the chain via
 		// go-spiffe, and the error message produced has go-spiffe specific
 		// markers in it. This is probably good enough.
-		KeyUsage: x509.KeyUsageDigitalSignature,
+		KeyUsage:      x509.KeyUsageDigitalSignature,
+		SHA256Hashing: sha256hashing,
 	})
 
 	test.cat.SetUpstreamAuthority(upstreamAuthority)
@@ -598,6 +605,7 @@ func TestUpstreamIntermediateSigned(t *testing.T) {
 		TrustDomain:           testTrustDomain,
 		DisallowPublishJWTKey: true,
 		UseIntermediate:       true,
+		SHA256Hashing:         sha256hashing,
 	})
 	test.initAndActivateUpstreamSignedManager(ctx, upstreamAuthority)
 
@@ -632,7 +640,8 @@ func TestUpstreamAuthorityWithPublishJWTKeyImplemented(t *testing.T) {
 	require.Len(t, bundle.JwtSigningKeys, 0)
 
 	upstreamAuthority, ua := test.newFakeUpstreamAuthority(t, fakeupstreamauthority.Config{
-		TrustDomain: testTrustDomain,
+		TrustDomain:   testTrustDomain,
+		SHA256Hashing: sha256hashing,
 	})
 	test.initAndActivateUpstreamSignedManager(ctx, upstreamAuthority)
 
@@ -652,6 +661,7 @@ func TestUpstreamAuthorityWithSubscribeToBundleUpdate(t *testing.T) {
 		TrustDomain:               testTrustDomain,
 		UseSubscribeToLocalBundle: true,
 		UseIntermediate:           true,
+		SHA256Hashing:             sha256hashing,
 	})
 	bundle := test.createBundle(ctx)
 	require.Len(t, bundle.JwtSigningKeys, 0)
@@ -907,8 +917,9 @@ func TestPruneCAJournals(t *testing.T) {
 	beforeThreshold := timeNow.Add(-safetyThresholdCAJournals).Add(-time.Minute).Unix()
 
 	jc := &journalConfig{
-		cat: test.cat,
-		log: test.log,
+		cat:           test.cat,
+		log:           test.log,
+		sha256hashing: sha256hashing,
 	}
 	testCases := []struct {
 		name         string
@@ -1209,7 +1220,8 @@ func TestAlternateKeyTypes(t *testing.T) {
 			// Optionally provide an upstream authority
 			if testCase.upstreamAuthority {
 				upstreamAuthority, _ := test.newFakeUpstreamAuthority(t, fakeupstreamauthority.Config{
-					TrustDomain: testTrustDomain,
+					TrustDomain:   testTrustDomain,
+					SHA256Hashing: sha256hashing,
 				})
 				test.cat.SetUpstreamAuthority(upstreamAuthority)
 			}
@@ -1353,6 +1365,7 @@ func (m *managerTest) selfSignedConfigWithKeyTypes(x509CAKeyType, jwtKeyType key
 		Clock:               m.clock,
 		X509CATTL:           testCATTL,
 		CredentialComposers: []credentialcomposer.CredentialComposer{&m.cc},
+		SHA256Hashing:       sha256hashing,
 	})
 	require.NoError(m.t, err)
 
@@ -1373,6 +1386,7 @@ func (m *managerTest) selfSignedConfigWithKeyTypes(x509CAKeyType, jwtKeyType key
 		Clock:         m.clock,
 		CredBuilder:   credBuilder,
 		CredValidator: credValidator,
+		SHA256Hashing: sha256hashing,
 	}
 }
 

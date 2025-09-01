@@ -33,7 +33,7 @@ import (
 	"google.golang.org/grpc/codes"
 )
 
-const sha256hashing = false
+const sha256hashing = true
 
 var (
 	ctx               = context.Background()
@@ -1293,19 +1293,19 @@ func TestTaintX509Authority(t *testing.T) {
 	template, err := testutil.NewCATemplate(clk, serverTrustDomain)
 	require.NoError(t, err)
 
-	currentCA, currentKey, err := testutil.SelfSign(template)
+	currentCA, currentKey, err := testutil.SelfSign(template, sha256hashing)
 	require.NoError(t, err)
 	currentKeySKI, err := x509util.GetSubjectKeyID(currentKey.Public(), sha256hashing)
 	require.NoError(t, err)
 	currentAuthorityID := x509util.SubjectKeyIDToString(currentKeySKI)
 
-	nextCA, nextKey, err := testutil.SelfSign(template)
+	nextCA, nextKey, err := testutil.SelfSign(template, sha256hashing)
 	require.NoError(t, err)
 	nextKeySKI, err := x509util.GetSubjectKeyID(nextKey.Public(), sha256hashing)
 	require.NoError(t, err)
 	nextAuthorityID := x509util.SubjectKeyIDToString(nextKeySKI)
 
-	oldCA, _, err := testutil.SelfSign(template)
+	oldCA, _, err := testutil.SelfSign(template, sha256hashing)
 	require.NoError(t, err)
 
 	defaultRootCAs := []*common.Certificate{
@@ -1891,20 +1891,20 @@ func TestRevokeX509Authority(t *testing.T) {
 	template, err := testutil.NewCATemplate(clk, serverTrustDomain)
 	require.NoError(t, err)
 
-	currentCA, currentKey, err := testutil.SelfSign(template)
+	currentCA, currentKey, err := testutil.SelfSign(template, sha256hashing)
 	require.NoError(t, err)
 
 	currentKeySKI, err := x509util.GetSubjectKeyID(currentKey.Public(), sha256hashing)
 	require.NoError(t, err)
 	currentAuthorityID := x509util.SubjectKeyIDToString(currentKeySKI)
 
-	nextCA, nextKey, err := testutil.SelfSign(template)
+	nextCA, nextKey, err := testutil.SelfSign(template, sha256hashing)
 	require.NoError(t, err)
 	nextKeySKI, err := x509util.GetSubjectKeyID(nextKey.Public(), sha256hashing)
 	require.NoError(t, err)
 	nextAuthorityID := x509util.SubjectKeyIDToString(nextKeySKI)
 
-	_, noStoredKey, err := testutil.SelfSign(template)
+	_, noStoredKey, err := testutil.SelfSign(template, sha256hashing)
 	require.NoError(t, err)
 	noStoredKeySKI, err := x509util.GetSubjectKeyID(noStoredKey.Public(), sha256hashing)
 	require.NoError(t, err)

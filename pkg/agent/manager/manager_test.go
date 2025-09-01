@@ -2045,7 +2045,7 @@ func createCA(t *testing.T, clk clock.Clock) (*x509.Certificate, *ecdsa.PrivateK
 		t.Fatalf("cannot create ca template: %v", err)
 	}
 
-	ca, caKey, err := util.SelfSign(tmpl)
+	ca, caKey, err := util.SelfSign(tmpl, true)
 	if err != nil {
 		t.Fatalf("cannot self sign ca template: %v", err)
 	}
@@ -2066,7 +2066,7 @@ func createSVIDWithKey(t *testing.T, clk clock.Clock, ca *x509.Certificate, caKe
 	tmpl.NotAfter = tmpl.NotBefore.Add(ttl)
 	tmpl.PublicKey = svidKey.Public()
 
-	svid, _, err := util.Sign(tmpl, ca, caKey)
+	svid, _, err := util.Sign(tmpl, ca, caKey, true)
 	require.NoError(t, err)
 
 	return []*x509.Certificate{svid}
@@ -2081,7 +2081,7 @@ func createSVIDFromCSR(t *testing.T, clk clock.Clock, ca *x509.Certificate, caKe
 	tmpl.PublicKey = req.PublicKey
 	tmpl.NotAfter = tmpl.NotBefore.Add(time.Duration(ttl) * time.Second)
 
-	svid, _, err := util.Sign(tmpl, ca, caKey)
+	svid, _, err := util.Sign(tmpl, ca, caKey, true)
 	require.NoError(t, err)
 
 	return []*x509.Certificate{svid}

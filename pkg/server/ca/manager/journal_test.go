@@ -45,7 +45,7 @@ func setupJournalTest(t *testing.T) *journalTest {
 	clk := clock.New()
 	credBuilder, err := credtemplate.NewBuilder(credtemplate.Config{
 		TrustDomain:   testTrustDomain,
-		SHA256Hashing: false,
+		SHA256Hashing: true,
 		X509CASubject: pkix.Name{CommonName: "SPIRE"},
 		Clock:         clk,
 		X509CATTL:     testCATTL,
@@ -82,7 +82,7 @@ func setupJournalTest(t *testing.T) *journalTest {
 	return &journalTest{
 		ds: ds,
 		jc: &journalConfig{
-			sha256hashing: false,
+			sha256hashing: true,
 			cat:           cat,
 			log:           log,
 		},
