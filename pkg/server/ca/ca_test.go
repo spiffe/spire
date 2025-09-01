@@ -24,7 +24,7 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
-const sha256hashing = true
+const hashAlgo = x509util.SHA256
 
 var (
 	testSigner, _ = pemutil.ParseSigner([]byte(`-----BEGIN PRIVATE KEY-----
@@ -626,7 +626,7 @@ func (s *CATestSuite) createCACertificate(cn string, parent *x509.Certificate) *
 }
 
 func createCACertificate(t *testing.T, clk clock.Clock, cn string, parent *x509.Certificate) *x509.Certificate {
-	keyID, err := x509util.GetSubjectKeyID(testSigner.Public(), sha256hashing)
+	keyID, err := x509util.GetSubjectKeyID(testSigner.Public(), hashAlgo)
 	require.NoError(t, err)
 
 	template := &x509.Certificate{

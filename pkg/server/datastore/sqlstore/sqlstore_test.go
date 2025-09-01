@@ -90,7 +90,7 @@ func (s *PluginSuite) SetupSuite() {
 	caTemplate.NotAfter = expiredNotAfterTime
 	caTemplate.NotBefore = expiredNotAfterTime.Add(-_ttl)
 
-	cacert, cakey, err := testutil.SelfSign(caTemplate, true)
+	cacert, cakey, err := testutil.SelfSign(caTemplate, x509util.SHA256)
 	s.Require().NoError(err)
 
 	svidTemplate, err := testutil.NewSVIDTemplate(clk, "spiffe://foo/id1")
@@ -99,7 +99,7 @@ func (s *PluginSuite) SetupSuite() {
 	svidTemplate.NotAfter = validNotAfterTime
 	svidTemplate.NotBefore = validNotAfterTime.Add(-_ttl)
 
-	cert, _, err := testutil.Sign(svidTemplate, cacert, cakey, true)
+	cert, _, err := testutil.Sign(svidTemplate, cacert, cakey, x509util.SHA256)
 	s.Require().NoError(err)
 
 	s.cacert = cacert

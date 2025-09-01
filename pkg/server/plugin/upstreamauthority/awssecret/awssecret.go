@@ -85,7 +85,7 @@ type Plugin struct {
 	bundleCerts   []*x509.Certificate
 	upstreamCA    *x509svid.UpstreamCA
 
-	sha256hashing bool
+	hashAlgorithm x509util.HashAlgorithm
 
 	hooks struct {
 		clock     clock.Clock
@@ -136,7 +136,7 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 		return nil, status.Errorf(codes.InvalidArgument, "trust_domain is malformed: %v", err)
 	}
 
-	sha256hashing := false // TODO: make configurable
+	hashAlgorithm := x509util.SHA1 // TODO: make configurable
 
 	p.mtx.Lock()
 	defer p.mtx.Unlock()
@@ -151,7 +151,7 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 	p.upstreamCerts = upstreamCerts
 	p.bundleCerts = bundleCerts
 	p.upstreamCA = upstreamCA
-	p.sha256hashing = sha256hashing
+	p.hashAlgorithm = hashAlgorithm
 
 	return &configv1.ConfigureResponse{}, nil
 }
@@ -274,8 +274,8 @@ func (p *Plugin) loadUpstreamCAAndCerts(trustDomain spiffeid.TrustDomain, keyPEM
 		x509util.NewMemoryKeypair(caCert, key),
 		trustDomain,
 		x509svid.UpstreamCAOptions{
-			Clock:         p.hooks.clock,
-			SHA256Hashing: p.sha256hashing,
+			Clock:    p.hooks.clock,
+			HashAlgo: p.hashAlgorithm,
 		},
 	), certs, trustBundle, nil
 }

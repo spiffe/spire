@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/spiffe/spire/pkg/agent/client"
+	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/assert"
@@ -99,7 +100,7 @@ func TestX509Expired(t *testing.T) {
 	mockClk := clock.NewMock(t)
 	temp, err := util.NewSVIDTemplate(mockClk, "spiffe://example.org/test")
 	require.NoError(t, err)
-	goodCert, _, err := util.SelfSign(temp, true)
+	goodCert, _, err := util.SelfSign(temp, x509util.SHA256)
 	require.NoError(t, err)
 
 	// Cert is brand new
@@ -108,7 +109,7 @@ func TestX509Expired(t *testing.T) {
 	// Cert that's almost expired
 	temp.NotBefore = mockClk.Now().Add(-1 * time.Hour)
 	temp.NotAfter = mockClk.Now()
-	stillGoodCert, _, err := util.SelfSign(temp, true)
+	stillGoodCert, _, err := util.SelfSign(temp, x509util.SHA256)
 	require.NoError(t, err)
 
 	assert.False(t, X509Expired(mockClk.Now(), stillGoodCert))
@@ -116,7 +117,7 @@ func TestX509Expired(t *testing.T) {
 	// Cert that's just expired
 	temp.NotBefore = mockClk.Now().Add(-1 * time.Hour)
 	temp.NotAfter = mockClk.Now().Add(-1 * time.Nanosecond)
-	justBadCert, _, err := util.SelfSign(temp, true)
+	justBadCert, _, err := util.SelfSign(temp, x509util.SHA256)
 	require.NoError(t, err)
 
 	assert.True(t, X509Expired(mockClk.Now(), justBadCert))

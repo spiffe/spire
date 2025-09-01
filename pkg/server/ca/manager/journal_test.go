@@ -45,7 +45,7 @@ func setupJournalTest(t *testing.T) *journalTest {
 	clk := clock.New()
 	credBuilder, err := credtemplate.NewBuilder(credtemplate.Config{
 		TrustDomain:   testTrustDomain,
-		SHA256Hashing: true,
+		HashAlgorithm: x509util.SHA256,
 		X509CASubject: pkix.Name{CommonName: "SPIRE"},
 		Clock:         clk,
 		X509CATTL:     testCATTL,
@@ -82,7 +82,7 @@ func setupJournalTest(t *testing.T) *journalTest {
 	return &journalTest{
 		ds: ds,
 		jc: &journalConfig{
-			sha256hashing: true,
+			hashAlgorithm: x509util.SHA256,
 			cat:           cat,
 			log:           log,
 		},
@@ -335,7 +335,7 @@ func TestBadProto(t *testing.T) {
 	test := setupJournalTest(t)
 	j := &Journal{
 		config:                test.jc,
-		activeX509AuthorityID: getOneX509AuthorityID(ctx, t, test.jc.cat.GetKeyManager(), test.jc.sha256hashing),
+		activeX509AuthorityID: getOneX509AuthorityID(ctx, t, test.jc.cat.GetKeyManager(), test.jc.hashAlgorithm),
 	}
 	caJournalID, err := j.saveInDatastore(ctx, []byte("FOO"))
 	require.NoError(t, err)
@@ -346,10 +346,10 @@ func TestBadProto(t *testing.T) {
 	require.Contains(t, err.Error(), `failed to load journal from datastore: unable to unmarshal entries from CA journal record:`)
 }
 
-func getOneX509AuthorityID(ctx context.Context, t *testing.T, km keymanager.KeyManager, sha256hashing bool) string {
+func getOneX509AuthorityID(ctx context.Context, t *testing.T, km keymanager.KeyManager, hashAlgo x509util.HashAlgorithm) string {
 	kmKeys, err := km.GetKeys(ctx)
 	require.NoError(t, err)
-	subjectKeyID, err := x509util.GetSubjectKeyID(kmKeys[0].Public(), sha256hashing)
+	subjectKeyID, err := x509util.GetSubjectKeyID(kmKeys[0].Public(), hashAlgo)
 	require.NoError(t, err)
 	return x509util.SubjectKeyIDToString(subjectKeyID)
 }

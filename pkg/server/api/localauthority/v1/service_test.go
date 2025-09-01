@@ -33,7 +33,7 @@ import (
 	"google.golang.org/grpc/codes"
 )
 
-const sha256hashing = true
+const hashAlgo = x509util.SHA256
 
 var (
 	ctx               = context.Background()
@@ -41,8 +41,8 @@ var (
 	keyA              = testkey.MustEC256()
 	keyB              = testkey.MustEC256()
 	keyC              = testkey.MustEC256()
-	keyABytes, _      = x509util.GetSubjectKeyID(keyA.Public(), sha256hashing)
-	keyBBytes, _      = x509util.GetSubjectKeyID(keyB.Public(), sha256hashing)
+	keyABytes, _      = x509util.GetSubjectKeyID(keyA.Public(), hashAlgo)
+	keyBBytes, _      = x509util.GetSubjectKeyID(keyB.Public(), hashAlgo)
 	authorityIDKeyA   = x509util.SubjectKeyIDToString(keyABytes)
 	authorityIDKeyB   = x509util.SubjectKeyIDToString(keyBBytes)
 	notAfterCurrent   = time.Now().Add(time.Minute)
@@ -1293,19 +1293,19 @@ func TestTaintX509Authority(t *testing.T) {
 	template, err := testutil.NewCATemplate(clk, serverTrustDomain)
 	require.NoError(t, err)
 
-	currentCA, currentKey, err := testutil.SelfSign(template, sha256hashing)
+	currentCA, currentKey, err := testutil.SelfSign(template, hashAlgo)
 	require.NoError(t, err)
-	currentKeySKI, err := x509util.GetSubjectKeyID(currentKey.Public(), sha256hashing)
+	currentKeySKI, err := x509util.GetSubjectKeyID(currentKey.Public(), hashAlgo)
 	require.NoError(t, err)
 	currentAuthorityID := x509util.SubjectKeyIDToString(currentKeySKI)
 
-	nextCA, nextKey, err := testutil.SelfSign(template, sha256hashing)
+	nextCA, nextKey, err := testutil.SelfSign(template, hashAlgo)
 	require.NoError(t, err)
-	nextKeySKI, err := x509util.GetSubjectKeyID(nextKey.Public(), sha256hashing)
+	nextKeySKI, err := x509util.GetSubjectKeyID(nextKey.Public(), hashAlgo)
 	require.NoError(t, err)
 	nextAuthorityID := x509util.SubjectKeyIDToString(nextKeySKI)
 
-	oldCA, _, err := testutil.SelfSign(template, sha256hashing)
+	oldCA, _, err := testutil.SelfSign(template, hashAlgo)
 	require.NoError(t, err)
 
 	defaultRootCAs := []*common.Certificate{
@@ -1891,22 +1891,22 @@ func TestRevokeX509Authority(t *testing.T) {
 	template, err := testutil.NewCATemplate(clk, serverTrustDomain)
 	require.NoError(t, err)
 
-	currentCA, currentKey, err := testutil.SelfSign(template, sha256hashing)
+	currentCA, currentKey, err := testutil.SelfSign(template, hashAlgo)
 	require.NoError(t, err)
 
-	currentKeySKI, err := x509util.GetSubjectKeyID(currentKey.Public(), sha256hashing)
+	currentKeySKI, err := x509util.GetSubjectKeyID(currentKey.Public(), hashAlgo)
 	require.NoError(t, err)
 	currentAuthorityID := x509util.SubjectKeyIDToString(currentKeySKI)
 
-	nextCA, nextKey, err := testutil.SelfSign(template, sha256hashing)
+	nextCA, nextKey, err := testutil.SelfSign(template, hashAlgo)
 	require.NoError(t, err)
-	nextKeySKI, err := x509util.GetSubjectKeyID(nextKey.Public(), sha256hashing)
+	nextKeySKI, err := x509util.GetSubjectKeyID(nextKey.Public(), hashAlgo)
 	require.NoError(t, err)
 	nextAuthorityID := x509util.SubjectKeyIDToString(nextKeySKI)
 
-	_, noStoredKey, err := testutil.SelfSign(template, sha256hashing)
+	_, noStoredKey, err := testutil.SelfSign(template, hashAlgo)
 	require.NoError(t, err)
-	noStoredKeySKI, err := x509util.GetSubjectKeyID(noStoredKey.Public(), sha256hashing)
+	noStoredKeySKI, err := x509util.GetSubjectKeyID(noStoredKey.Public(), hashAlgo)
 	require.NoError(t, err)
 	noStoredAuthorityID := x509util.SubjectKeyIDToString(noStoredKeySKI)
 

@@ -9,9 +9,16 @@ import (
 	"fmt"
 )
 
+type HashAlgorithm int
+
+const (
+	SHA1 HashAlgorithm = iota
+	SHA256
+)
+
 // GetSubjectKeyID calculates a subject key identifier by doing a hash
 // over the ASN.1 encoding of the public key.
-func GetSubjectKeyID(pubKey any, sha256skid bool) ([]byte, error) {
+func GetSubjectKeyID(pubKey any, hashAlgo HashAlgorithm) ([]byte, error) {
 	// Borrowed with love from cfssl under the BSD 2-Clause license.
 	encodedPubKey, err := x509.MarshalPKIXPublicKey(pubKey)
 	if err != nil {
@@ -26,7 +33,7 @@ func GetSubjectKeyID(pubKey any, sha256skid bool) ([]byte, error) {
 	}
 
 	// Borrowed with love from Go std lib crypto/x509 under the BSD 3-Clause license.
-	if sha256skid {
+	if hashAlgo == SHA256 {
 		// SubjectKeyId generated using method 1 in RFC 7093, Section 2:
 		//    1) The keyIdentifier is composed of the leftmost 160-bits of the
 		//    SHA-256 hash of the value of the BIT STRING subjectPublicKey

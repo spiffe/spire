@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/stretchr/testify/suite"
 )
@@ -23,22 +24,22 @@ func TestUpstreamCA(t *testing.T) {
 type UpstreamCASuite struct {
 	caSuite
 
-	clock         *clock.Mock
-	upstreamCA    *UpstreamCA
-	sha256hashing bool
+	clock      *clock.Mock
+	upstreamCA *UpstreamCA
+	hashAlgo   x509util.HashAlgorithm
 }
 
 func (s *UpstreamCASuite) SetupTest() {
 	s.clock = clock.NewMock(s.T())
 	s.caSuite.SetupTest()
-	s.sha256hashing = false
+	s.hashAlgo = x509util.SHA1
 	s.configure()
 }
 
 func (s *UpstreamCASuite) configure() {
 	s.upstreamCA = NewUpstreamCA(s.keypair, spiffeid.RequireTrustDomainFromString("example.org"), UpstreamCAOptions{
-		Clock:         s.clock,
-		SHA256Hashing: s.sha256hashing,
+		Clock:    s.clock,
+		HashAlgo: s.hashAlgo,
 	})
 }
 

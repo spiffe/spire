@@ -43,7 +43,7 @@ func builtin(p *Plugin) catalog.BuiltIn {
 
 type Configuration struct {
 	trustDomain   spiffeid.TrustDomain
-	sha256hashing bool
+	hashAlgorithm x509util.HashAlgorithm
 
 	CertFilePath   string `hcl:"cert_file_path" json:"cert_file_path"`
 	KeyFilePath    string `hcl:"key_file_path" json:"key_file_path"`
@@ -60,7 +60,7 @@ func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginco
 	newConfig.trustDomain = coreConfig.TrustDomain
 	// TODO: add field validation
 
-	newConfig.sha256hashing = false // TODO: make configurable
+	newConfig.hashAlgorithm = x509util.SHA1 // TODO: make configurable
 
 	return newConfig
 }
@@ -251,8 +251,8 @@ func (p *Plugin) loadUpstreamCAAndCerts(config *Configuration) (*x509svid.Upstre
 		x509util.NewMemoryKeypair(caCert, key),
 		config.trustDomain,
 		x509svid.UpstreamCAOptions{
-			Clock:         p.clock,
-			SHA256Hashing: config.sha256hashing,
+			Clock:    p.clock,
+			HashAlgo: config.hashAlgorithm,
 		},
 	), caCerts, nil
 }

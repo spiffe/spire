@@ -38,6 +38,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/log"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/tlspolicy"
+	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/pkg/server"
 	"github.com/spiffe/spire/pkg/server/authpolicy"
 	bundleClient "github.com/spiffe/spire/pkg/server/bundle/client"
@@ -88,7 +89,7 @@ type serverConfig struct {
 	PruneAttestedNodesExpiredFor string             `hcl:"prune_attested_nodes_expired_for"`
 	PruneNonReattestableNodes    bool               `hcl:"prune_tofu_nodes"`
 	RateLimit                    rateLimitConfig    `hcl:"ratelimit"`
-	SHA256Hashing                bool               `hcl:"sha256_hashing"`
+	HashAlgorithm                string             `hcl:"hash_algorithm"`
 	SocketPath                   string             `hcl:"socket_path"`
 	TrustDomain                  string             `hcl:"trust_domain"`
 
@@ -685,8 +686,14 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 		}
 	}
 
-	if c.Server.SHA256Hashing {
-		sc.SHA256Hashing = c.Server.SHA256Hashing
+	if c.Server.HashAlgorithm != "" {
+		hashAlgorithm, err := hashAlgoFromString(c.Server.HashAlgorithm)
+		if err != nil {
+			return nil, fmt.Errorf("error parsing hash_algorithm: %w", err)
+		}
+		sc.HashAlgorithm = hashAlgorithm
+	} else {
+		sc.HashAlgorithm = x509util.SHA1
 	}
 
 	if !allowUnknownConfig {
@@ -750,8 +757,6 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 	for _, f := range c.Server.Experimental.Flags {
 		sc.Log.Warnf("Developer feature flag %q has been enabled", f)
 	}
-
-	sc.SHA256Hashing = c.Server.SHA256Hashing
 
 	return sc, nil
 }
@@ -1069,6 +1074,17 @@ func keyTypeFromString(s string) (keymanager.KeyType, error) {
 		return keymanager.ECP384, nil
 	default:
 		return keymanager.KeyTypeUnset, fmt.Errorf("key type %q is unknown; must be one of [rsa-2048, rsa-4096, ec-p256, ec-p384]", s)
+	}
+}
+
+func hashAlgoFromString(s string) (x509util.HashAlgorithm, error) {
+	switch strings.ToLower(s) {
+	case "sha1":
+		return x509util.SHA1, nil
+	case "sha256":
+		return x509util.SHA256, nil
+	default:
+		return x509util.SHA1, fmt.Errorf("hash algorithm %q is unknown; must be one of [sha1, sha256]", s)
 	}
 }
 

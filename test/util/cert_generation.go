@@ -63,13 +63,13 @@ func NewCATemplate(clk clock.Clock, trustDomain spiffeid.TrustDomain) (*x509.Cer
 }
 
 // SelfSign creates a new self-signed certificate with the provided template.
-func SelfSign(req *x509.Certificate, sha256hashing bool) (*x509.Certificate, *ecdsa.PrivateKey, error) {
-	return Sign(req, req, nil, sha256hashing)
+func SelfSign(req *x509.Certificate, hashAlgo x509util.HashAlgorithm) (*x509.Certificate, *ecdsa.PrivateKey, error) {
+	return Sign(req, req, nil, hashAlgo)
 }
 
 // Sign creates a new certificate based on the provided template and signed using parent
 // certificate and signerPrivateKey.
-func Sign(req, parent *x509.Certificate, signerPrivateKey any, sha256hashing bool) (*x509.Certificate, *ecdsa.PrivateKey, error) {
+func Sign(req, parent *x509.Certificate, signerPrivateKey any, hashAlgo x509util.HashAlgorithm) (*x509.Certificate, *ecdsa.PrivateKey, error) {
 	var err error
 	var key *ecdsa.PrivateKey
 
@@ -80,7 +80,7 @@ func Sign(req, parent *x509.Certificate, signerPrivateKey any, sha256hashing boo
 			return nil, nil, err
 		}
 		publicKey = key.Public()
-		skID, err := x509util.GetSubjectKeyID(publicKey, sha256hashing)
+		skID, err := x509util.GetSubjectKeyID(publicKey, hashAlgo)
 		if err != nil {
 			return nil, nil, err
 		}

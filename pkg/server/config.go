@@ -11,6 +11,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/health"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/tlspolicy"
+	"github.com/spiffe/spire/pkg/common/x509util"
 	loggerv1 "github.com/spiffe/spire/pkg/server/api/logger/v1"
 	"github.com/spiffe/spire/pkg/server/authpolicy"
 	bundle_client "github.com/spiffe/spire/pkg/server/bundle/client"
@@ -122,7 +123,7 @@ type Config struct {
 	TLSPolicy tlspolicy.Policy
 
 	// PruneAttestedNodesExpiredFor enables periodic removal of attested nodes
-	// with X509-SVID expiration date further than a given time intervaln in the
+	// with X509-SVID expiration date further than a given time interval in the
 	// past. Non-reattestable nodes are not pruned by default. Banned nodes are
 	// not pruned.
 	PruneAttestedNodesExpiredFor time.Duration
@@ -131,8 +132,8 @@ type Config struct {
 	// considered for pruning.
 	PruneNonReattestableNodes bool
 
-	// SHA256Hashing generates SubjectKeyIDs by using the SHA-256 hash instead of SHA-1.
-	SHA256Hashing bool
+	// HashAlgorithm specifies the algorithm used to generate the SubjectKeyID (default: SHA-1).
+	HashAlgorithm x509util.HashAlgorithm
 }
 
 type ExperimentalConfig struct{}

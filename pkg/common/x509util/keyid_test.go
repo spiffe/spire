@@ -28,7 +28,7 @@ func TestSubjectKeyIDToString(t *testing.T) {
 		require.Equal(t, "01", str)
 	})
 
-	realSKI, err := x509util.GetSubjectKeyID(privateKey.Public(), false)
+	realSKI, err := x509util.GetSubjectKeyID(privateKey.Public(), x509util.SHA1)
 	require.NoError(t, err)
 
 	t.Run("real parsed ski (SHA-1)", func(t *testing.T) {
@@ -36,7 +36,7 @@ func TestSubjectKeyIDToString(t *testing.T) {
 		require.Equal(t, "42c702d94031c6bc849ec99fa361802a877bdade", str)
 	})
 
-	realSKI, err = x509util.GetSubjectKeyID(privateKey.Public(), true)
+	realSKI, err = x509util.GetSubjectKeyID(privateKey.Public(), x509util.SHA256)
 	require.NoError(t, err)
 
 	t.Run("real parsed ski (SHA-256)", func(t *testing.T) {
