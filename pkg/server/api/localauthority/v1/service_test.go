@@ -33,14 +33,16 @@ import (
 	"google.golang.org/grpc/codes"
 )
 
+const sha256hashing = false
+
 var (
 	ctx               = context.Background()
 	serverTrustDomain = spiffeid.RequireTrustDomainFromString("example.org")
 	keyA              = testkey.MustEC256()
 	keyB              = testkey.MustEC256()
 	keyC              = testkey.MustEC256()
-	keyABytes, _      = x509util.GetSubjectKeyID(keyA.Public())
-	keyBBytes, _      = x509util.GetSubjectKeyID(keyB.Public())
+	keyABytes, _      = x509util.GetSubjectKeyID(keyA.Public(), sha256hashing)
+	keyBBytes, _      = x509util.GetSubjectKeyID(keyB.Public(), sha256hashing)
 	authorityIDKeyA   = x509util.SubjectKeyIDToString(keyABytes)
 	authorityIDKeyB   = x509util.SubjectKeyIDToString(keyBBytes)
 	notAfterCurrent   = time.Now().Add(time.Minute)
@@ -1293,13 +1295,13 @@ func TestTaintX509Authority(t *testing.T) {
 
 	currentCA, currentKey, err := testutil.SelfSign(template)
 	require.NoError(t, err)
-	currentKeySKI, err := x509util.GetSubjectKeyID(currentKey.Public())
+	currentKeySKI, err := x509util.GetSubjectKeyID(currentKey.Public(), sha256hashing)
 	require.NoError(t, err)
 	currentAuthorityID := x509util.SubjectKeyIDToString(currentKeySKI)
 
 	nextCA, nextKey, err := testutil.SelfSign(template)
 	require.NoError(t, err)
-	nextKeySKI, err := x509util.GetSubjectKeyID(nextKey.Public())
+	nextKeySKI, err := x509util.GetSubjectKeyID(nextKey.Public(), sha256hashing)
 	require.NoError(t, err)
 	nextAuthorityID := x509util.SubjectKeyIDToString(nextKeySKI)
 
@@ -1617,9 +1619,9 @@ func TestTaintX509UpstreamAuthority(t *testing.T) {
 	activeUpstreamAuthority := testca.New(t, serverTrustDomain)
 	activeUpstreamAuthorityCert, activeUpstreamAuthorityID := getUpstreamCertAndSubjectID(activeUpstreamAuthority)
 
-	// Create newUpstreamAuthority childs
 	currentIntermediateCA := activeUpstreamAuthority.ChildCA(testca.WithID(serverTrustDomain.ID()))
 	nextIntermediateCA := activeUpstreamAuthority.ChildCA(testca.WithID(serverTrustDomain.ID()))
+	// Create newUpstreamAuthority children
 
 	// Create old upstream authority
 	deactivatedUpstreamAuthority := testca.New(t, serverTrustDomain)
@@ -1892,19 +1894,19 @@ func TestRevokeX509Authority(t *testing.T) {
 	currentCA, currentKey, err := testutil.SelfSign(template)
 	require.NoError(t, err)
 
-	currentKeySKI, err := x509util.GetSubjectKeyID(currentKey.Public())
+	currentKeySKI, err := x509util.GetSubjectKeyID(currentKey.Public(), sha256hashing)
 	require.NoError(t, err)
 	currentAuthorityID := x509util.SubjectKeyIDToString(currentKeySKI)
 
 	nextCA, nextKey, err := testutil.SelfSign(template)
 	require.NoError(t, err)
-	nextKeySKI, err := x509util.GetSubjectKeyID(nextKey.Public())
+	nextKeySKI, err := x509util.GetSubjectKeyID(nextKey.Public(), sha256hashing)
 	require.NoError(t, err)
 	nextAuthorityID := x509util.SubjectKeyIDToString(nextKeySKI)
 
 	_, noStoredKey, err := testutil.SelfSign(template)
 	require.NoError(t, err)
-	noStoredKeySKI, err := x509util.GetSubjectKeyID(noStoredKey.Public())
+	noStoredKeySKI, err := x509util.GetSubjectKeyID(noStoredKey.Public(), sha256hashing)
 	require.NoError(t, err)
 	noStoredAuthorityID := x509util.SubjectKeyIDToString(noStoredKeySKI)
 

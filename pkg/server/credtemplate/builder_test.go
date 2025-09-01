@@ -33,11 +33,11 @@ var (
 	td               = spiffeid.RequireTrustDomainFromString("domain.test")
 	sn               = big.NewInt(99)
 	publicKey        = testkey.MustEC256().Public()
-	publicKeyID, _   = x509util.GetSubjectKeyID(publicKey)
+	publicKeyID, _   = x509util.GetSubjectKeyID(publicKey, false)
 	parentTTL        = 7 * 24 * time.Hour
 	parentNotAfter   = now.Add(parentTTL)
 	parentKey        = testkey.MustEC256().Public()
-	parentKeyID, _   = x509util.GetSubjectKeyID(parentKey)
+	parentKeyID, _   = x509util.GetSubjectKeyID(parentKey, false)
 	parentChain      = []*x509.Certificate{{PublicKey: parentKey, SubjectKeyId: parentKeyID, NotAfter: parentNotAfter}}
 	caID             = td.ID()
 	notBefore        = now.Add(-10 * time.Second)

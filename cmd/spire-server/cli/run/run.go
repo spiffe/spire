@@ -88,6 +88,7 @@ type serverConfig struct {
 	PruneAttestedNodesExpiredFor string             `hcl:"prune_attested_nodes_expired_for"`
 	PruneNonReattestableNodes    bool               `hcl:"prune_tofu_nodes"`
 	RateLimit                    rateLimitConfig    `hcl:"ratelimit"`
+	SHA256Hashing                bool               `hcl:"sha256_hashing"`
 	SocketPath                   string             `hcl:"socket_path"`
 	TrustDomain                  string             `hcl:"trust_domain"`
 
@@ -684,6 +685,10 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 		}
 	}
 
+	if c.Server.SHA256Hashing {
+		sc.SHA256Hashing = c.Server.SHA256Hashing
+	}
+
 	if !allowUnknownConfig {
 		if err := checkForUnknownConfig(c, sc.Log); err != nil {
 			return nil, err
@@ -745,6 +750,8 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 	for _, f := range c.Server.Experimental.Flags {
 		sc.Log.Warnf("Developer feature flag %q has been enabled", f)
 	}
+
+	sc.SHA256Hashing = c.Server.SHA256Hashing
 
 	return sc, nil
 }

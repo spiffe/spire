@@ -323,6 +323,7 @@ func (s *Server) newCredBuilder(cat catalog.Catalog) (*credtemplate.Builder, err
 		JWTIssuer:           s.config.JWTIssuer,
 		CredentialComposers: cat.GetCredentialComposers(),
 		TLSPolicy:           s.config.TLSPolicy,
+		SHA256Hashing:       s.config.SHA256Hashing,
 	})
 }
 
@@ -348,6 +349,7 @@ func (s *Server) newCAManager(ctx context.Context, cat catalog.Catalog, metrics 
 		CA:            serverCA,
 		Catalog:       cat,
 		TrustDomain:   s.config.TrustDomain,
+		SHA256Hashing: s.config.SHA256Hashing,
 		Log:           s.config.Log.WithField(telemetry.SubsystemName, telemetry.CAManager),
 		Metrics:       metrics,
 		CredBuilder:   credBuilder,

@@ -130,6 +130,9 @@ type Config struct {
 	// PruneNonReattestableNodes, if true, includes non-reattestable nodes in the list
 	// considered for pruning.
 	PruneNonReattestableNodes bool
+
+	// SHA256Hashing generates SubjectKeyIDs by using the SHA-256 hash instead of SHA-1.
+	SHA256Hashing bool
 }
 
 type ExperimentalConfig struct{}

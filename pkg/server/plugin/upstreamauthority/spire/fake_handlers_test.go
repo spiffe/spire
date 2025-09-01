@@ -30,7 +30,8 @@ import (
 )
 
 type handler struct {
-	clock clock.Clock
+	clock         clock.Clock
+	sha256hashing bool
 
 	svidv1.SVIDServer
 	bundlev1.BundleServer
@@ -69,7 +70,7 @@ type testHandler struct {
 func (h *testHandler) startTestServers(t *testing.T, clk clock.Clock, ca *testca.CA, serverCert []*x509.Certificate, serverKey crypto.Signer,
 	svidCert []byte, svidKey []byte) {
 	h.wAPIServer = &whandler{cert: serverCert, key: serverKey, ca: ca, svidCert: svidCert, svidKey: svidKey}
-	h.sAPIServer = &handler{clock: clk, cert: serverCert, key: serverKey, ca: ca}
+	h.sAPIServer = &handler{clock: clk, cert: serverCert, key: serverKey, ca: ca, sha256hashing: true}
 	h.sAPIServer.startServerAPITestServer(t)
 	h.wAPIServer.startWAPITestServer(t)
 }
@@ -193,7 +194,8 @@ func (h *handler) NewDownstreamX509CA(ctx context.Context, req *svidv1.NewDownst
 		x509util.NewMemoryKeypair(h.cert[0], h.key),
 		trustDomain,
 		x509svid.UpstreamCAOptions{
-			Clock: h.clock,
+			Clock:         h.clock,
+			SHA256Hashing: h.sha256hashing,
 		})
 
 	cert, err := ca.SignCSR(ctx, req.Csr, time.Second*time.Duration(req.PreferredTtl))

@@ -112,6 +112,7 @@ type Config struct {
 	CredentialComposers []credentialcomposer.CredentialComposer
 	NewSerialNumber     func() (*big.Int, error)
 	TLSPolicy           tlspolicy.Policy
+	SHA256Hashing       bool
 }
 
 type Builder struct {
@@ -413,7 +414,7 @@ func (b *Builder) buildBaseTemplate(spiffeID spiffeid.ID, publicKey crypto.Publi
 		return nil, fmt.Errorf("failed to get new serial number: %w", err)
 	}
 
-	subjectKeyID, err := x509util.GetSubjectKeyID(publicKey)
+	subjectKeyID, err := x509util.GetSubjectKeyID(publicKey, b.config.SHA256Hashing)
 	if err != nil {
 		return nil, err
 	}

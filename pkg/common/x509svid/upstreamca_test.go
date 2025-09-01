@@ -23,19 +23,22 @@ func TestUpstreamCA(t *testing.T) {
 type UpstreamCASuite struct {
 	caSuite
 
-	clock      *clock.Mock
-	upstreamCA *UpstreamCA
+	clock         *clock.Mock
+	upstreamCA    *UpstreamCA
+	sha256hashing bool
 }
 
 func (s *UpstreamCASuite) SetupTest() {
 	s.clock = clock.NewMock(s.T())
 	s.caSuite.SetupTest()
+	s.sha256hashing = false
 	s.configure()
 }
 
 func (s *UpstreamCASuite) configure() {
 	s.upstreamCA = NewUpstreamCA(s.keypair, spiffeid.RequireTrustDomainFromString("example.org"), UpstreamCAOptions{
-		Clock: s.clock,
+		Clock:         s.clock,
+		SHA256Hashing: s.sha256hashing,
 	})
 }
 

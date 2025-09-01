@@ -45,7 +45,8 @@ type Slot interface {
 }
 
 type SlotLoader struct {
-	TrustDomain spiffeid.TrustDomain
+	TrustDomain   spiffeid.TrustDomain
+	SHA256Hashing bool
 
 	Log            logrus.FieldLogger
 	Dir            string
@@ -57,8 +58,9 @@ func (s *SlotLoader) load(ctx context.Context) (*Journal, map[SlotPosition]Slot,
 	log := s.Log
 
 	jc := &journalConfig{
-		cat: s.Catalog,
-		log: log,
+		cat:           s.Catalog,
+		log:           log,
+		sha256hashing: s.SHA256Hashing,
 	}
 
 	// Load the journal and see if we can figure out the next and current

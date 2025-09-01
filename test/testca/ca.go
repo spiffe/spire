@@ -170,7 +170,7 @@ func CreateCACertificate(tb testing.TB, parent *x509.Certificate, parentKey cryp
 	now := time.Now()
 	serial := newSerial(tb)
 	key := testkey.NewEC256(tb)
-	ski, _ := x509util.GetSubjectKeyID(key.Public())
+	ski, _ := x509util.GetSubjectKeyID(key.Public(), false)
 	tmpl := &x509.Certificate{
 		SerialNumber: serial,
 		Subject: pkix.Name{
