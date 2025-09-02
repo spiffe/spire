@@ -38,7 +38,6 @@ func main() {
 		os.Exit(0)
 	}
 
-	// Check for unexpected positional arguments
 	if args := flag.Args(); len(args) > 0 {
 		fmt.Fprintf(os.Stderr, "Error: unexpected arguments: %v\n", args)
 		fmt.Fprintf(os.Stderr, "Usage: %s [flags]\n", os.Args[0])
