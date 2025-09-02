@@ -1779,11 +1779,12 @@ func (s *PluginSuite) TestNodeSelectors() {
 	}
 
 	// assert there are no selectors for foo
-	selectors := s.getNodeSelectors("foo", datastore.RequireCurrent)
+	selectors := s.getNodeSelectors("foo")
 	s.Require().Empty(selectors)
-	s.Eventually(func() bool {
-		selectors = s.getNodeSelectors("foo", datastore.TolerateStale)
-		return len(selectors) == 0
+	s.EventuallyWithT(func(collect *assert.CollectT) {
+		selectors, err := s.ds.GetNodeSelectors(ctx, "foo", datastore.TolerateStale)
+		require.NoError(collect, err)
+		assert.Len(collect, selectors, 0)
 	}, time.Second, 10*time.Millisecond)
 
 	// set selectors on foo and bar
@@ -1791,37 +1792,41 @@ func (s *PluginSuite) TestNodeSelectors() {
 	s.setNodeSelectors("bar", bar)
 
 	// get foo selectors
-	selectors = s.getNodeSelectors("foo", datastore.RequireCurrent)
+	selectors = s.getNodeSelectors("foo")
 	s.RequireProtoListEqual(foo1, selectors)
-	s.Eventually(func() bool {
-		selectors := s.getNodeSelectors("foo", datastore.TolerateStale)
-		return spiretest.CheckProtoListEqual(s.T(), foo1, selectors)
+	s.EventuallyWithT(func(collect *assert.CollectT) {
+		selectors, err := s.ds.GetNodeSelectors(ctx, "foo", datastore.TolerateStale)
+		require.NoError(collect, err)
+		assert.True(collect, spiretest.CheckProtoListEqual(s.T(), foo1, selectors))
 	}, time.Second, 10*time.Millisecond)
 
 	// replace foo selectors
 	s.setNodeSelectors("foo", foo2)
-	selectors = s.getNodeSelectors("foo", datastore.RequireCurrent)
+	selectors = s.getNodeSelectors("foo")
 	s.RequireProtoListEqual(foo2, selectors)
-	s.Eventually(func() bool {
-		selectors := s.getNodeSelectors("foo", datastore.TolerateStale)
-		return spiretest.CheckProtoListEqual(s.T(), foo2, selectors)
+	s.EventuallyWithT(func(collect *assert.CollectT) {
+		selectors, err := s.ds.GetNodeSelectors(ctx, "foo", datastore.TolerateStale)
+		require.NoError(collect, err)
+		assert.True(collect, spiretest.CheckProtoListEqual(s.T(), foo2, selectors))
 	}, time.Second, 10*time.Millisecond)
 
 	// delete foo selectors
 	s.setNodeSelectors("foo", []*common.Selector{})
-	selectors = s.getNodeSelectors("foo", datastore.RequireCurrent)
+	selectors = s.getNodeSelectors("foo")
 	s.Require().Empty(selectors)
-	s.Eventually(func() bool {
-		selectors := s.getNodeSelectors("foo", datastore.TolerateStale)
-		return len(selectors) == 0
+	s.EventuallyWithT(func(collect *assert.CollectT) {
+		selectors, err := s.ds.GetNodeSelectors(ctx, "foo", datastore.TolerateStale)
+		require.NoError(collect, err)
+		assert.Len(collect, selectors, 0)
 	}, time.Second, 10*time.Millisecond)
 
 	// get bar selectors (make sure they weren't impacted by deleting foo)
-	selectors = s.getNodeSelectors("bar", datastore.RequireCurrent)
+	selectors = s.getNodeSelectors("bar")
 	s.RequireProtoListEqual(bar, selectors)
-	s.Eventually(func() bool {
-		selectors := s.getNodeSelectors("bar", datastore.TolerateStale)
-		return spiretest.CheckProtoListEqual(s.T(), bar, selectors)
+	s.EventuallyWithT(func(collect *assert.CollectT) {
+		selectors, err := s.ds.GetNodeSelectors(ctx, "bar", datastore.TolerateStale)
+		require.NoError(collect, err)
+		assert.True(collect, spiretest.CheckProtoListEqual(s.T(), bar, selectors))
 	}, time.Second, 10*time.Millisecond)
 }
 
@@ -5460,8 +5465,8 @@ func makeFederatedRegistrationEntry() *common.RegistrationEntry {
 	}
 }
 
-func (s *PluginSuite) getNodeSelectors(spiffeID string, dataConsistency datastore.DataConsistency) []*common.Selector {
-	selectors, err := s.ds.GetNodeSelectors(ctx, spiffeID, dataConsistency)
+func (s *PluginSuite) getNodeSelectors(spiffeID string) []*common.Selector {
+	selectors, err := s.ds.GetNodeSelectors(ctx, spiffeID, datastore.RequireCurrent)
 	s.Require().NoError(err)
 	return selectors
 }
