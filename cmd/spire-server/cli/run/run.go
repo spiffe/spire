@@ -80,6 +80,7 @@ type serverConfig struct {
 	DefaultJWTSVIDTTL            string             `hcl:"default_jwt_svid_ttl"`
 	Experimental                 experimentalConfig `hcl:"experimental"`
 	Federation                   *federationConfig  `hcl:"federation"`
+	HashAlgorithm                string             `hcl:"hash_algorithm"`
 	JWTIssuer                    string             `hcl:"jwt_issuer"`
 	JWTKeyType                   string             `hcl:"jwt_key_type"`
 	LogFile                      string             `hcl:"log_file"`
@@ -89,7 +90,6 @@ type serverConfig struct {
 	PruneAttestedNodesExpiredFor string             `hcl:"prune_attested_nodes_expired_for"`
 	PruneNonReattestableNodes    bool               `hcl:"prune_tofu_nodes"`
 	RateLimit                    rateLimitConfig    `hcl:"ratelimit"`
-	HashAlgorithm                string             `hcl:"hash_algorithm"`
 	SocketPath                   string             `hcl:"socket_path"`
 	TrustDomain                  string             `hcl:"trust_domain"`
 
