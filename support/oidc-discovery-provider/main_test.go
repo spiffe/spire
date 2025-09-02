@@ -73,7 +73,7 @@ func TestMain_UnexpectedArguments(t *testing.T) {
 				require.Contains(t, stderr.String(), tt.wantErr)
 
 				// Verify usage information is printed
-				require.Contains(t, stderr.String(), "Usage:")
+				require.Contains(t, stderr.String(), "Usage of")
 				require.Contains(t, stderr.String(), "-config string")
 				require.Contains(t, stderr.String(), "-expandEnv")
 				require.Contains(t, stderr.String(), "-version")
@@ -139,7 +139,7 @@ func TestMain_UsageOutput(t *testing.T) {
 	// Verify all expected usage components are present
 	expectedComponents := []string{
 		"Error: unexpected arguments:",
-		"Usage:",
+		"Usage of",
 		"-config string",
 		"configuration file (default \"oidc-discovery-provider.conf\")",
 		"-expandEnv",

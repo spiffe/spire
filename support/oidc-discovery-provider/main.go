@@ -40,10 +40,8 @@ func main() {
 
 	if args := flag.Args(); len(args) > 0 {
 		fmt.Fprintf(os.Stderr, "Error: unexpected arguments: %v\n", args)
-		fmt.Fprintf(os.Stderr, "Usage: %s [flags]\n", os.Args[0])
-		fmt.Fprintf(os.Stderr, "  -config string\n        configuration file (default \"oidc-discovery-provider.conf\")\n")
-		fmt.Fprintf(os.Stderr, "  -expandEnv\n        expand environment variables in config file\n")
-		fmt.Fprintf(os.Stderr, "  -version\n        print version\n")
+		fmt.Fprintf(os.Stderr, "Usage of %s:\n", os.Args[0])
+		flag.PrintDefaults()
 		os.Exit(1)
 	}
 
