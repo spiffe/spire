@@ -1,15 +1,19 @@
 package k8sconfigmap
 
 import (
+	"bytes"
 	"context"
 	"crypto/x509"
 	"errors"
+	"fmt"
 	"testing"
+	"time"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	bundlepublisherv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/bundlepublisher/v1"
 	"github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/types"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
+	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
@@ -50,6 +54,34 @@ func TestConfigure(t *testing.T) {
 						ConfigMapName:  "spire-bundle",
 						ConfigMapKey:   "bundle.json",
 						KubeConfigPath: "/path/to/kubeconfig",
+					},
+				},
+			},
+		},
+		{
+			name: "success with refresh hint",
+			hclConfig: `
+				clusters = {
+					"test-cluster" = {
+						format = "spiffe"
+						namespace = "spire"
+						configmap_name = "spire-bundle"
+						configmap_key = "bundle.json"
+						kubeconfig_path = "/path/to/kubeconfig"
+						refresh_hint = "1h"
+					}
+				}
+			`,
+			expectCfg: &Config{
+				Clusters: map[string]*Cluster{
+					"test-cluster": {
+						Format:            "spiffe",
+						Namespace:         "spire",
+						ConfigMapName:     "spire-bundle",
+						ConfigMapKey:      "bundle.json",
+						KubeConfigPath:    "/path/to/kubeconfig",
+						RefreshHint:       "1h",
+						parsedRefreshHint: 3600,
 					},
 				},
 			},
@@ -129,6 +161,23 @@ func TestConfigure(t *testing.T) {
 			`,
 			expectCode: codes.InvalidArgument,
 			expectMsg:  "could not parse bundle format from cluster \"test-cluster\": unknown bundle format: \"unsupported\"",
+		},
+		{
+			name: "bundle format not supported",
+			hclConfig: `
+				clusters = {
+					"test-cluster" = {
+						format = "spiffe"
+						namespace = "spire"
+						configmap_name = "spire-bundle"
+						configmap_key = "bundle.json"
+						kubeconfig_path = "/path/to/kubeconfig"
+						refresh_hint = "invalid-refresh-hint"
+					}
+				}
+			`,
+			expectCode: codes.InvalidArgument,
+			expectMsg:  "could not parse refresh_hint from cluster \"test-cluster\": could not parse refresh hint \"invalid-refresh-hint\": time: invalid duration \"invalid-refresh-hint\"",
 		},
 		{
 			name: "client error",
@@ -373,6 +422,158 @@ func TestPublishMultiple(t *testing.T) {
 	require.Equal(t, 2, client.updateCount)
 }
 
+func TestSetRefreshHint(t *testing.T) {
+	hclConfig := `
+		clusters = {
+			"test-cluster" = {
+				format = "spiffe"
+				namespace = "spire"
+				configmap_name = "spire-bundle"
+				configmap_key = "bundle.json"
+				kubeconfig_path = "/path/to/kubeconfig"
+				refresh_hint = "1h"
+			}
+		}`
+
+	var err error
+	options := []plugintest.Option{
+		plugintest.CaptureConfigureError(&err),
+		plugintest.CoreConfig(catalog.CoreConfig{
+			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
+		}),
+		plugintest.Configure(hclConfig),
+	}
+
+	client := &fakeClient{t: t}
+	newClientFunc := func(kubeconfigPath string) (kubernetesClient, error) {
+		return client, nil
+	}
+
+	p := newPlugin(newClientFunc)
+	plugintest.Load(t, builtin(p), nil, options...)
+	require.NoError(t, err)
+
+	bundle := getTestBundle(t)
+	resp, err := p.PublishBundle(t.Context(), &bundlepublisherv1.PublishBundleRequest{
+		Bundle: bundle,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+
+	publishedBundle, err := bundleutil.Decode(spiffeid.RequireTrustDomainFromString("example.org"), bytes.NewReader(client.writtenBytes["spire/spire-bundle/bundle.json"]))
+	require.NoError(t, err)
+	refreshHint, ok := publishedBundle.RefreshHint()
+	require.True(t, ok)
+	require.Equal(t, time.Hour, refreshHint)
+}
+
+// If the refresh hint is set, the bundle we publish is different from the one we received.
+// Makes sure we don't republish an unchanged bundle if we have set the refresh hint.
+func TestBundleWithRefreshHintPublishedOnce(t *testing.T) {
+	hclConfig := `
+		clusters = {
+			"test-cluster" = {
+				format = "spiffe"
+				namespace = "spire"
+				configmap_name = "spire-bundle"
+				configmap_key = "bundle.json"
+				kubeconfig_path = "/path/to/kubeconfig"
+				refresh_hint = "1h"
+			}
+		}`
+
+	var err error
+	options := []plugintest.Option{
+		plugintest.CaptureConfigureError(&err),
+		plugintest.CoreConfig(catalog.CoreConfig{
+			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
+		}),
+		plugintest.Configure(hclConfig),
+	}
+
+	client := &fakeClient{t: t}
+	newClientFunc := func(kubeconfigPath string) (kubernetesClient, error) {
+		return client, nil
+	}
+
+	p := newPlugin(newClientFunc)
+	plugintest.Load(t, builtin(p), nil, options...)
+	require.NoError(t, err)
+
+	bundle := getTestBundle(t)
+	resp, err := p.PublishBundle(t.Context(), &bundlepublisherv1.PublishBundleRequest{
+		Bundle: bundle,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+
+	resp, err = p.PublishBundle(t.Context(), &bundlepublisherv1.PublishBundleRequest{
+		Bundle: bundle,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+
+	require.Equal(t, 1, client.updateCount)
+}
+
+func TestRefreshHintMultipleClusters(t *testing.T) {
+	hclConfig := `
+		clusters = {
+			"test-cluster" = {
+				format = "spiffe"
+				namespace = "spire"
+				configmap_name = "spire-bundle"
+				configmap_key = "bundle.json"
+				kubeconfig_path = "/path/to/kubeconfig"
+				refresh_hint = "1h"
+			}
+			"test-cluster-2" = {
+				format = "spiffe"
+				namespace = "spire-2"
+				configmap_name = "spire-bundle"
+				configmap_key = "bundle.json"
+				kubeconfig_path = "/path/to/kubeconfig"
+			}
+		}`
+
+	var err error
+	options := []plugintest.Option{
+		plugintest.CaptureConfigureError(&err),
+		plugintest.CoreConfig(catalog.CoreConfig{
+			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
+		}),
+		plugintest.Configure(hclConfig),
+	}
+
+	client := &fakeClient{t: t}
+	newClientFunc := func(kubeconfigPath string) (kubernetesClient, error) {
+		return client, nil
+	}
+
+	p := newPlugin(newClientFunc)
+	plugintest.Load(t, builtin(p), nil, options...)
+	require.NoError(t, err)
+
+	bundle := getTestBundle(t)
+	resp, err := p.PublishBundle(t.Context(), &bundlepublisherv1.PublishBundleRequest{
+		Bundle: bundle,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+
+	publishedBundle, err := bundleutil.Decode(spiffeid.RequireTrustDomainFromString("example.org"), bytes.NewReader(client.writtenBytes["spire/spire-bundle/bundle.json"]))
+	require.NoError(t, err)
+	refreshHint, ok := publishedBundle.RefreshHint()
+	require.True(t, ok)
+	require.Equal(t, time.Hour, refreshHint)
+
+	publishedBundle, err = bundleutil.Decode(spiffeid.RequireTrustDomainFromString("example.org"), bytes.NewReader(client.writtenBytes["spire-2/spire-bundle/bundle.json"]))
+	require.NoError(t, err)
+	refreshHint, ok = publishedBundle.RefreshHint()
+	require.True(t, ok)
+	require.Equal(t, 1440*time.Second, refreshHint)
+}
+
 func TestBuiltIn(t *testing.T) {
 	p := BuiltIn()
 	require.NotNil(t, p)
@@ -448,12 +649,20 @@ type fakeClient struct {
 
 	applyConfigMapErr error
 	updateCount       int
+	writtenBytes      map[string][]byte
 }
 
 func (c *fakeClient) ApplyConfigMap(ctx context.Context, cluster *Cluster, data []byte) error {
 	if c.applyConfigMapErr != nil {
 		return c.applyConfigMapErr
 	}
+
+	id := fmt.Sprintf("%s/%s/%s", cluster.Namespace, cluster.ConfigMapName, cluster.ConfigMapKey)
+	if c.writtenBytes == nil {
+		c.writtenBytes = make(map[string][]byte)
+	}
+	c.writtenBytes[id] = make([]byte, len(data))
+	copy(c.writtenBytes[id], data)
 
 	c.updateCount++
 	return nil
