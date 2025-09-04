@@ -16,6 +16,7 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/log"
+	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/pkg/server"
 	bundleClient "github.com/spiffe/spire/pkg/server/bundle/client"
 	"github.com/spiffe/spire/pkg/server/credtemplate"
@@ -1242,6 +1243,25 @@ func TestNewServerConfig(t *testing.T) {
 			},
 			test: func(t *testing.T, c *server.Config) {
 				require.Equal(t, true, c.TLSPolicy.RequirePQKEM)
+			},
+		},
+		{
+			msg: "hash_algorithm is correctly parsed",
+			input: func(c *Config) {
+				c.Server.HashAlgorithm = "sha256"
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Equal(t, x509util.SHA256, c.HashAlgorithm)
+			},
+		},
+		{
+			msg:         "invalid hash_algorithm returns an error",
+			expectError: true,
+			input: func(c *Config) {
+				c.Server.HashAlgorithm = "sha123"
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Nil(t, c)
 			},
 		},
 	}
