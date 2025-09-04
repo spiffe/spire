@@ -12,6 +12,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/authorizedentries"
+	"github.com/spiffe/spire/pkg/server/cache/nodecache"
 	"github.com/spiffe/spire/pkg/server/datastore"
 )
 
@@ -27,6 +28,7 @@ type AuthorizedEntryFetcherEventsConfig struct {
 	pruneEventsOlderThan    time.Duration
 	eventTimeout            time.Duration
 	ds                      datastore.DataStore
+	nodeCache               *nodecache.Cache
 	metrics                 telemetry.Metrics
 }
 
@@ -144,7 +146,7 @@ func (a *AuthorizedEntryFetcherEvents) buildCache(ctx context.Context) error {
 		return err
 	}
 
-	attestedNodes, err := buildAttestedNodesCache(ctx, a.c.log, a.c.metrics, a.c.ds, a.c.clk, cache, a.c.cacheReloadInterval, a.c.eventTimeout)
+	attestedNodes, err := buildAttestedNodesCache(ctx, a.c.log, a.c.metrics, a.c.ds, a.c.clk, cache, a.c.nodeCache, a.c.cacheReloadInterval, a.c.eventTimeout)
 	if err != nil {
 		return err
 	}
