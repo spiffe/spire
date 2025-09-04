@@ -34,6 +34,7 @@ A Makefile is provided for common actions.
 * `make all` - builds all binaries, lints code, and runs all unit tests
 * `make bin/spire-server` - builds SPIRE server
 * `make bin/spire-agent` - builds SPIRE agent
+* `make bin/oidc-discovery-provider` - builds SPIRE oidc-discovery-provider
 * `make images` - builds SPIRE docker images
 * `make test` - runs unit tests
 

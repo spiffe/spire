@@ -255,10 +255,10 @@ kube_config_file_path = "/some/file/path"
 	waitForInformerWatcher(t, test.webhookClient.watcherStarted)
 	webhook := newMutatingWebhook(t, test.webhookClient.Interface, "spire-webhook", "")
 
-	require.Eventually(t, func() bool {
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		actualWebhook, err := test.webhookClient.Get(context.Background(), webhook.Namespace, webhook.Name)
-		require.NoError(t, err)
-		return assert.Equal(t, &admissionv1.MutatingWebhookConfiguration{
+		require.NoError(collect, err)
+		assert.Equal(collect, &admissionv1.MutatingWebhookConfiguration{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:            webhook.Name,
 				ResourceVersion: "1",
@@ -287,10 +287,10 @@ kube_config_file_path = "/some/file/path"
 	waitForInformerWatcher(t, test.apiServiceClient.watcherStarted)
 	apiService := newAPIService(t, test.apiServiceClient.Interface, "spire-apiservice", "")
 
-	require.Eventually(t, func() bool {
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		actualAPIService, err := test.apiServiceClient.Get(context.Background(), apiService.Namespace, apiService.Name)
-		require.NoError(t, err)
-		return assert.Equal(t, &apiregistrationv1.APIService{
+		require.NoError(collect, err)
+		assert.Equal(collect, &apiregistrationv1.APIService{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:            apiService.Name,
 				ResourceVersion: "1",
@@ -739,6 +739,7 @@ func (c *fakeKubeClient) Get(_ context.Context, namespace, configMap string) (ru
 	}
 	return entry, nil
 }
+
 func (c *fakeKubeClient) GetList(context.Context) (runtime.Object, error) {
 	list := c.getConfigMapList()
 	if list.Items == nil {

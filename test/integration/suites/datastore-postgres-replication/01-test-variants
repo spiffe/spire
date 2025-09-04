@@ -35,6 +35,8 @@ test-postgres() {
     docker-stop "${readwrite_service_name}" "${readonly_service_name}"
 }
 
-test-postgres postgres-10 || exit 1
-test-postgres postgres-11 || exit 1
-test-postgres postgres-12 || exit 1
+test-postgres postgres-13 || exit 1
+test-postgres postgres-14 || exit 1
+test-postgres postgres-15 || exit 1
+test-postgres postgres-16 || exit 1
+test-postgres postgres-17 || exit 1

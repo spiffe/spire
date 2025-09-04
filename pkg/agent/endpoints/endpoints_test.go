@@ -259,7 +259,7 @@ type FakeManager struct {
 
 type FakeWorkloadAPIServer struct {
 	Attestor PeerTrackerAttestor
-	*workload_pb.UnimplementedSpiffeWorkloadAPIServer
+	workload_pb.UnimplementedSpiffeWorkloadAPIServer
 }
 
 func (s FakeWorkloadAPIServer) FetchJWTSVID(ctx context.Context, _ *workload_pb.JWTSVIDRequest) (*workload_pb.JWTSVIDResponse, error) {
