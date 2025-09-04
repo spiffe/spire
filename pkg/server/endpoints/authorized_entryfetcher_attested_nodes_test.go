@@ -15,6 +15,7 @@ import (
 
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/authorizedentries"
+	"github.com/spiffe/spire/pkg/server/cache/nodecache"
 	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/clock"
@@ -1532,7 +1533,12 @@ func NewNodeScenario(t *testing.T, setup *nodeScenarioSetup) *scenario {
 }
 
 func (s *scenario) buildAttestedNodesCache() (*attestedNodes, error) {
-	attestedNodes, err := buildAttestedNodesCache(s.ctx, s.log, s.metrics, s.ds, s.clk, s.cache, defaultCacheReloadInterval, defaultEventTimeout)
+	nodeCache, err := nodecache.New(s.ctx, s.log, s.ds, s.clk, false, true)
+	if err != nil {
+		return nil, err
+	}
+
+	attestedNodes, err := buildAttestedNodesCache(s.ctx, s.log, s.metrics, s.ds, s.clk, s.cache, nodeCache, defaultCacheReloadInterval, defaultEventTimeout)
 	if attestedNodes != nil {
 		// clear out the fetches
 		for node := range attestedNodes.fetchNodes {
