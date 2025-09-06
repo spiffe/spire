@@ -22,6 +22,8 @@ type Metrics interface {
 	// A Gauge should retain the last value it is set to
 	SetGauge(key []string, val float32)
 	SetGaugeWithLabels(key []string, val float32, labels []Label)
+	SetPrecisionGauge(key []string, val float64)
+	SetPrecisionGaugeWithLabels(key []string, val float64, labels []Label)
 
 	// Should emit a Key/Value pair for each call
 	EmitKey(key []string, val float32)
@@ -131,6 +133,22 @@ func (m *MetricsImpl) SetGaugeWithLabels(key []string, val float32, labels []Lab
 	sanitizedLabels := SanitizeLabels(labels)
 	for _, s := range m.metricsSinks {
 		s.SetGaugeWithLabels(key, val, sanitizedLabels)
+	}
+}
+
+func (m *MetricsImpl) SetPrecisionGauge(key []string, val float64) {
+	m.SetPrecisionGaugeWithLabels(key, val, nil)
+}
+
+// SetPrecisionGaugeWithLabels delegates to embedded metrics, sanitizing labels
+func (m *MetricsImpl) SetPrecisionGaugeWithLabels(key []string, val float64, labels []Label) {
+	if m.enableTrustDomainLabel {
+		labels = append(labels, Label{Name: TrustDomain, Value: m.c.TrustDomain})
+	}
+
+	sanitizedLabels := SanitizeLabels(labels)
+	for _, s := range m.metricsSinks {
+		s.SetPrecisionGaugeWithLabels(key, val, sanitizedLabels)
 	}
 }
 
