@@ -14,12 +14,10 @@ import (
 	"sort"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/digitorus/pkcs7"
-	"github.com/go-jose/go-jose/v4"
 	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
@@ -31,6 +29,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/plugin/azure"
 	"github.com/spiffe/spire/pkg/common/pluginconf"
 	nodeattestorbase "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/base"
+	"go.step.sm/crypto/jose"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -40,14 +39,8 @@ const (
 )
 
 var (
-	reVirtualMachineID       = regexp.MustCompile(`^/subscriptions/[^/]+/resourceGroups/([^/]+)/providers/Microsoft.Compute/virtualMachines/([^/]+)$`)
-	reNetworkSecurityGroupID = regexp.MustCompile(`^/subscriptions/[^/]+/resourceGroups/([^/]+)/providers/Microsoft.Network/networkSecurityGroups/([^/]+)$`)
-	reNetworkInterfaceID     = regexp.MustCompile(`^/subscriptions/[^/]+/resourceGroups/([^/]+)/providers/Microsoft.Network/networkInterfaces/([^/]+)$`)
-	reVirtualNetworkSubnetID = regexp.MustCompile(`^/subscriptions/[^/]+/resourceGroups/([^/]+)/providers/Microsoft.Network/virtualNetworks/([^/]+)/subnets/([^/]+)$`)
-	reTenantId               = regexp.MustCompile(`^https://sts.windows.net/([^/]+)/$`)
-	// Azure doesn't appear to publicly document which signature algorithms they use for MSI tokens,
-	// but a couple examples online were showing RS256.
-	// To ensure compatibility, accept the most common signature algorithms that are known to be secure.
+	reTenantId = regexp.MustCompile(`^https://sts.windows.net/([^/]+)/$`)
+	// Used to make sure token is valid for credential assertion
 	allowedJWTSignatureAlgorithms = []jose.SignatureAlgorithm{
 		jose.RS256,
 		jose.RS384,
@@ -218,10 +211,8 @@ type IMDSAttestorPlugin struct {
 	config *msiAttestorConfig
 
 	hooks struct {
-		now                   func() time.Time
-		newClient             func(azcore.TokenCredential) (apiClient, error)
-		fetchInstanceMetadata func(azure.HTTPClient) (*azure.InstanceMetadata, error)
-		fetchCredential       func(string) (azcore.TokenCredential, error)
+		newClient       func(azcore.TokenCredential) (apiClient, error)
+		fetchCredential func(string) (azcore.TokenCredential, error)
 	}
 }
 
@@ -229,9 +220,7 @@ var _ nodeattestorv1.NodeAttestorServer = (*IMDSAttestorPlugin)(nil)
 
 func New() *IMDSAttestorPlugin {
 	p := &IMDSAttestorPlugin{}
-	p.hooks.now = time.Now
 	p.hooks.newClient = newAzureClient
-	p.hooks.fetchInstanceMetadata = azure.FetchInstanceMetadata
 	p.hooks.fetchCredential = func(tenantID string) (azcore.TokenCredential, error) {
 		return azidentity.NewDefaultAzureCredential(
 			&azidentity.DefaultAzureCredentialOptions{
@@ -361,7 +350,9 @@ func (p *IMDSAttestorPlugin) getConfig() (*msiAttestorConfig, error) {
 }
 func buildSelectors(ctx context.Context, tenant *tenantConfig, vmssName *string, vmID string, subscriptionID string, allowedSubscriptions []*string) ([]string, error) {
 	client := tenant.client
-
+	// build up a unique map of selectors. this is easier than deduping
+	// individual selectors (e.g. the virtual network for each interface)
+	selectorMap := map[string]bool{}
 	//Get the VMSS Instance or Virtual Machine
 	var (
 		vm  *VirtualMachine
@@ -374,31 +365,30 @@ func buildSelectors(ctx context.Context, tenant *tenantConfig, vmssName *string,
 		if err != nil {
 			return nil, err
 		}
+		selectorMap[selectorValue("vmss-name", vm.Name)] = true
 	default:
 		vm, err = client.GetVirtualMachine(ctx, vmID, &subscriptionID)
 		if err != nil {
 			return nil, err
 		}
 	}
-	// build up a unique map of selectors. this is easier than deduping
-	// individual selectors (e.g. the virtual network for each interface)
-	selectorMap := map[string]bool{
-		selectorValue("subscription-id", subscriptionID): true,
-		selectorValue("vm-name", vm.Name):                true,
-		selectorValue("vm-location", vm.Location):        true,
-	}
+
+	selectorMap[selectorValue("subscription-id", subscriptionID)] = true
+	selectorMap[selectorValue("vm-name", vm.Name)] = true
+	selectorMap[selectorValue("vm-location", vm.Location)] = true
+	selectorMap[selectorValue("resource-group", vm.ResourceGroup)] = true
 
 	// add tag selectors
 	if vm.Tags != nil {
 		for tag := range tenant.allowedTags {
 			if value, ok := vm.Tags[tag]; ok && value != nil {
-				selectorMap[selectorValue("tag", tag, value.(string))] = true
+				selectorMap[selectorValue("vm-tag", tag, value.(string))] = true
 			}
 		}
 	}
 
 	// add network interface selectors
-	networkInterfaces, err := client.GetNetworkInterfaces(ctx, vmID, &subscriptionID)
+	networkInterfaces, err := client.GetNetworkInterfaces(ctx, vm.ID, &subscriptionID)
 	if err != nil {
 		return nil, err
 	}
