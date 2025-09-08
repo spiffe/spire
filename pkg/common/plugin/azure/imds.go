@@ -1,0 +1,89 @@
+package azure
+
+import (
+	"encoding/json"
+	"errors"
+	"fmt"
+	"net/http"
+
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire/pkg/common/agentpathtemplate"
+	"github.com/spiffe/spire/pkg/common/idutil"
+)
+
+const (
+	ImdsPluginName = "azure_imds"
+)
+
+var DefaultIMDSAgentPathTemplate = agentpathtemplate.MustParse("/{{ .PluginName }}/{{ .TenantID }}/{{ .SubscriptionID }}/{{ .VMID }}")
+
+type QueryHint struct {
+	AgentDomain string  `json:"agentDomain"`
+	VMSSName    *string `json:"vmssName"`
+}
+
+type IMDSAttestedData struct {
+	Document  AttestedDocument `json:"document"`
+	QueryHint QueryHint        `json:"queryHint"`
+}
+
+type AttestedDocument struct {
+	Encoding  string `json:"encoding"`
+	Signature string `json:"signature"`
+}
+
+type AttestedDocumentPayload struct {
+	SubscriptionID string `json:"subscriptionId"`
+	VMID           string `json:"vmId"`
+	Nonce          string `json:"nonce"`
+	TenantID       string `json:"tid"`
+}
+
+func FetchAttestedDocument(cl HTTPClient) (*AttestedDocument, error) {
+	req, err := http.NewRequest("GET", "http://169.254.169.254/metadata/attested/document?api-version=2025-04-07", nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Add("Metadata", "true")
+
+	resp, err := cl.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("unexpected status code %d: %s", resp.StatusCode, tryRead(resp.Body))
+	}
+
+	metadata := new(AttestedDocument)
+	if err := json.NewDecoder(resp.Body).Decode(metadata); err != nil {
+		return nil, fmt.Errorf("unable to decode response: %w", err)
+	}
+
+	switch {
+	case metadata.Encoding == "":
+		return nil, errors.New("response missing encoding")
+	case metadata.Signature == "":
+		return nil, errors.New("response missing signature")
+
+	}
+
+	return metadata, nil
+}
+
+type imdsAgentPathTemplateData struct {
+	*AttestedDocumentPayload
+	PluginName string
+}
+
+func MakeIMDSAgentID(td spiffeid.TrustDomain, agentPathTemplate *agentpathtemplate.Template, data *AttestedDocumentPayload) (spiffeid.ID, error) {
+	agentPath, err := agentPathTemplate.Execute(imdsAgentPathTemplateData{
+		AttestedDocumentPayload: data,
+		PluginName:              ImdsPluginName,
+	})
+	if err != nil {
+		return spiffeid.ID{}, err
+	}
+
+	return idutil.AgentID(td, agentPath)
+}
