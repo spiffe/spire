@@ -28,6 +28,7 @@ type ComputeMetadata struct {
 	Name              string `json:"name"`
 	SubscriptionID    string `json:"subscriptionId"`
 	ResourceGroupName string `json:"resourceGroupName"`
+	VmScaleSetName    string `json:"vmScaleSetName"`
 }
 
 type InstanceMetadata struct {
