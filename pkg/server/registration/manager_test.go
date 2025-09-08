@@ -2,7 +2,6 @@ package registration
 
 import (
 	"context"
-	"reflect"
 	"testing"
 	"time"
 
@@ -14,6 +13,8 @@ import (
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
 	"github.com/spiffe/spire/test/fakes/fakemetrics"
 	"github.com/spiffe/spire/test/spiretest"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestManager(t *testing.T) {
@@ -101,34 +102,34 @@ func (s *ManagerSuite) TestPruning() {
 
 	// no pruning yet
 	s.clock.Add(_pruningCadence)
-	s.Require().Eventuallyf(func() bool {
+	s.Require().EventuallyWithT(func(c *assert.CollectT) {
 		listResp, err := s.ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{})
-		s.NoError(err)
-		return reflect.DeepEqual([]*common.RegistrationEntry{registrationEntry1, registrationEntry2, registrationEntry3}, listResp.Entries)
+		require.NoError(c, err)
+		require.Equal(c, []*common.RegistrationEntry{registrationEntry1, registrationEntry2, registrationEntry3}, listResp.Entries)
 	}, 1*time.Second, 100*time.Millisecond, "Expected no entries to have been pruned")
 
 	// prune first entry
 	s.clock.Add(_pruningCadence)
-	s.Require().Eventuallyf(func() bool {
+	s.Require().EventuallyWithT(func(c *assert.CollectT) {
 		listResp, err := s.ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{})
-		s.NoError(err)
-		return reflect.DeepEqual([]*common.RegistrationEntry{registrationEntry2, registrationEntry3}, listResp.Entries)
+		require.NoError(c, err)
+		require.Equal(c, []*common.RegistrationEntry{registrationEntry2, registrationEntry3}, listResp.Entries)
 	}, 1*time.Second, 100*time.Millisecond, "Expected one entry to have been pruned")
 
 	// prune second entry
 	s.clock.Add(_pruningCadence)
-	s.Require().Eventuallyf(func() bool {
+	s.Require().EventuallyWithT(func(c *assert.CollectT) {
 		listResp, err := s.ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{})
-		s.NoError(err)
-		return reflect.DeepEqual([]*common.RegistrationEntry{registrationEntry3}, listResp.Entries)
+		require.NoError(c, err)
+		require.Equal(c, []*common.RegistrationEntry{registrationEntry3}, listResp.Entries)
 	}, 1*time.Second, 100*time.Millisecond, "Expected two entries to have been pruned")
 
 	// prune third entry
 	s.clock.Add(_pruningCadence)
-	s.Require().Eventuallyf(func() bool {
+	s.Require().EventuallyWithT(func(c *assert.CollectT) {
 		listResp, err := s.ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{})
-		s.NoError(err)
-		return len(listResp.Entries) == 0
+		require.NoError(c, err)
+		require.Empty(c, listResp.Entries)
 	}, 1*time.Second, 100*time.Millisecond, "Expected all entries to have been pruned")
 }
 
