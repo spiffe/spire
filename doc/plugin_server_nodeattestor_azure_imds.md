@@ -180,15 +180,17 @@ NodeAttestor "azure_imds" {
 
 The plugin produces the following selectors.
 
-| Selector                       | Example                                                | Description                                                                                                  |
-| ------------------------------ | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
-| Subscription ID                | `subscription-id:d5b40d61-272e-48da-beb9-05f295c42bd6` | The subscription the node belongs to                                                                         |
-| Virtual Machine Name           | `vm-name:frontend:blog`                                | The name of the virtual machine (e.g. `blog`) qualified by the resource group (e.g. `frontend`)              |
-| Virtual Machine Scale Set Name | `vmss-name:frontend:myvmss`                            | The name of the virtual machine scale set (e.g. `myvmss`) qualified by the resource group (e.g. `frontend`)  |
-| Network Security Group         | `network-security-group:frontend:webservers`           | The name of the network security group (e.g. `webservers`) qualified by the resource group (e.g. `frontend`) |
-| Virtual Network                | `virtual-network:frontend:vnet`                        | The name of the virtual network (e.g. `vnet`) qualified by the resource group (e.g. `frontend`)              |
-| Virtual Network Subnet         | `virtual-network-subnet:frontend:vnet:default`         | The name of the virtual network subnet (e.g. `default`) qualified by the virtual network and resource group  |
-| Virtual Machine Tag            | `vm-tag:environment:production`                        | Tag key and value on the VM, formatted as `vm-tag:<key>:<value>`                                             |
+| Selector                       | Example                                                | Description                                                                                                 |
+| ------------------------------ | ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
+| Subscription ID                | `subscription-id:d5b40d61-272e-48da-beb9-05f295c42bd6` | The subscription the node belongs to                                                                        |
+| Virtual Machine Name           | `vm-name:blog`                                         | The name of the virtual machine (e.g. `blog`)                                                               |
+| Virtual Machine Scale Set Name | `vmss-name:myvmss`                                     | The name of the virtual machine scale set (e.g. `myvmss`)                                                   |
+| Network Security Group         | `network-security-group:webservers`                    | The name of the network security group (e.g. `webservers`)                                                  |
+| Resource Group                 | `resource-group:frontend`                              | The name of the resource group (e.g. `frontend`)                                                            |
+| Virtual Machine Location       | `vm-location:eastus`                                   | The location of the virtual machine (e.g. `eastus`)                                                         |
+| Virtual Network                | `virtual-network:vnet`                                 | The name of the virtual network (e.g. `vnet`)                                                               |
+| Virtual Network Subnet         | `virtual-network-subnet:vnet:default`                  | The name of the virtual network subnet (e.g. `default`) qualified by the virtual network and resource group |
+| Virtual Machine Tag            | `vm-tag:environment:production`                        | Tag key and value on the VM, formatted as `vm-tag:<key>:<value>`                                            |
 
 All the selectors have the type `azure_imds`.
 
