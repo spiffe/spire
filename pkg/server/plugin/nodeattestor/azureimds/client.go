@@ -45,12 +45,13 @@ func (c *azureClient) newScaleSetVMClient(subscriptionID string) (*armcompute.Vi
 
 // VirtualMachine is a subset of the fields returned by the Resource Graph API
 type VirtualMachine struct {
-	ID            string         `json:"id"`
-	Name          string         `json:"name"`
-	Location      string         `json:"location"`
-	Tags          map[string]any `json:"tags"`
-	VMID          string         `json:"vmId"`
-	ResourceGroup string         `json:"resourceGroup"`
+	ID            string              `json:"id"`
+	Name          string              `json:"name"`
+	Location      string              `json:"location"`
+	Tags          map[string]any      `json:"tags"`
+	VMID          string              `json:"vmId"`
+	ResourceGroup string              `json:"resourceGroup"`
+	Interfaces    []*NetworkInterface `json:"interfaces"`
 }
 
 func (c *azureClient) GetVirtualMachine(ctx context.Context, vmId string, subscriptionId *string) (*VirtualMachine, error) {
@@ -75,8 +76,16 @@ func (c *azureClient) GetVirtualMachine(ctx context.Context, vmId string, subscr
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "unable to get virtual machine: %v", err)
 	}
+	vm, err := extractArmResourceGraphItem[VirtualMachine](resp)
+	if err != nil {
+		return nil, err
+	}
+	vm.Interfaces, err = c.GetNetworkInterfaces(ctx, vm.ID, subscriptionId)
+	if err != nil {
+		return nil, err
+	}
+	return vm, nil
 
-	return extractArmResourceGraphItem[VirtualMachine](resp)
 }
 
 type Subnet struct {
@@ -177,25 +186,78 @@ func (c *azureClient) GetVMSSInstance(ctx context.Context, vmId, subscriptionID,
 
 		for _, instance := range page.Value {
 			if *instance.Properties.VMID == vmId {
-				v := &VirtualMachine{
-					ID:            *instance.ID,
-					Name:          *instance.Name,
-					Location:      *instance.Location,
-					VMID:          *instance.Properties.VMID,
-					ResourceGroup: info.ResourceGroup,
+				vm, err := buildVirtualMachineFromVMSSInstance(instance, info.ResourceGroup)
+				if err != nil {
+					return nil, err
 				}
-				if instance.Tags != nil {
-					v.Tags = make(map[string]any)
-					for key, value := range instance.Tags {
-						v.Tags[key] = value
-					}
-				}
-				return v, nil
+				return vm, nil
 			}
 		}
 
 	}
 	return nil, status.Errorf(codes.Internal, "VMSS instance %q not found", vmId)
+}
+
+// buildVirtualMachineFromVMSSInstance creates a VirtualMachine struct from a VMSS instance
+// with all network interfaces parsed and populated
+func buildVirtualMachineFromVMSSInstance(instance *armcompute.VirtualMachineScaleSetVM, resourceGroup string) (*VirtualMachine, error) {
+	if instance == nil {
+		return nil, status.Errorf(codes.Internal, "vmss instance is nil")
+	}
+
+	v := &VirtualMachine{
+		ID:            *instance.ID,
+		Name:          *instance.Name,
+		Location:      *instance.Location,
+		VMID:          *instance.Properties.VMID,
+		ResourceGroup: resourceGroup,
+		Interfaces:    []*NetworkInterface{},
+	}
+
+	if instance.Tags != nil {
+		v.Tags = make(map[string]any)
+		for key, value := range instance.Tags {
+			v.Tags[key] = value
+		}
+	}
+
+	for _, interfaceConfig := range instance.Properties.NetworkProfileConfiguration.NetworkInterfaceConfigurations {
+		ni, err := parseNetworkInterfaceConfig(interfaceConfig)
+		if err != nil {
+			return nil, err
+		}
+		v.Interfaces = append(v.Interfaces, ni)
+	}
+
+	return v, nil
+}
+
+// parseNetworkInterfaceConfig parses a network interface configuration from a VMSS instance
+// and returns a NetworkInterface with parsed security group and subnet information
+func parseNetworkInterfaceConfig(interfaceConfig *armcompute.VirtualMachineScaleSetNetworkConfiguration) (*NetworkInterface, error) {
+	nsgResourceGroup, nsgName, err := parseNetworkSecurityGroupID(*interfaceConfig.Properties.NetworkSecurityGroup.ID)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "unable to parse network security group ID: %v", err)
+	}
+
+	ni := &NetworkInterface{
+		ID:   *interfaceConfig.ID,
+		Name: *interfaceConfig.Name,
+		SecurityGroup: SecurityGroup{
+			ResourceGroup: nsgResourceGroup,
+			Name:          nsgName,
+		},
+	}
+
+	for _, subnet := range interfaceConfig.Properties.IPConfigurations {
+		_, networkName, subnetName, err := parseVirtualNetworkSubnetID(*subnet.ID)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "unable to parse virtual network subnet ID: %v", err)
+		}
+		ni.Subnets = append(ni.Subnets, Subnet{VNet: networkName, SubnetName: subnetName})
+	}
+
+	return ni, nil
 }
 
 func extractArmResourceGraphItems[T any](resp armresourcegraph.ClientResourcesResponse) ([]*T, error) {
@@ -227,6 +289,7 @@ func extractArmResourceGraphItems[T any](resp armresourcegraph.ClientResourcesRe
 	}
 	return resultSlice, nil
 }
+
 func extractArmResourceGraphItem[T any](resp armresourcegraph.ClientResourcesResponse) (*T, error) {
 	items, err := extractArmResourceGraphItems[T](resp)
 	if err != nil {
