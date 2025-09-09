@@ -87,15 +87,15 @@ func (p *MSIAttestorPlugin) AidAttestation(stream nodeattestorv1.NodeAttestor_Ai
 	if err != nil {
 		return status.Errorf(codes.Internal, "unable to fetch compute metadata: %v", err)
 	}
-	qh := azure.QueryHint{
+	qh := azure.AgentUntrustedMetadata{
 		AgentDomain: config.TenantDomain,
 	}
 	if computeMetadata.Compute.VmScaleSetName != "" {
 		qh.VMSSName = &computeMetadata.Compute.VmScaleSetName
 	}
-	payload, err := json.Marshal(azure.IMDSAttestedData{
-		Document:  *attestedDocument,
-		QueryHint: qh,
+	payload, err := json.Marshal(azure.IMDSAttestationPayload{
+		Document: *attestedDocument,
+		Metadata: qh,
 	})
 	if err != nil {
 		return status.Errorf(codes.Internal, "failed to marshal payload: %v", err)

@@ -18,6 +18,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/digitorus/pkcs7"
+	"github.com/go-jose/go-jose/v4"
 	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
@@ -29,7 +30,6 @@ import (
 	"github.com/spiffe/spire/pkg/common/plugin/azure"
 	"github.com/spiffe/spire/pkg/common/pluginconf"
 	nodeattestorbase "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/base"
-	"go.step.sm/crypto/jose"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -94,13 +94,13 @@ type tenantConfig struct {
 	allowedSubscriptions []*string
 }
 
-type msiAttestorConfig struct {
+type imdsAttestorConfig struct {
 	td             spiffeid.TrustDomain
 	tenants        map[string]*tenantConfig
 	idPathTemplate *agentpathtemplate.Template
 }
 
-func (p *IMDSAttestorPlugin) buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *msiAttestorConfig {
+func (p *IMDSAttestorPlugin) buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *imdsAttestorConfig {
 	newConfig := new(IMDSAttestorConfig)
 
 	if err := hcl.Decode(newConfig, hclText); err != nil {
@@ -119,6 +119,8 @@ func (p *IMDSAttestorPlugin) buildConfig(coreConfig catalog.CoreConfig, hclText 
 		if err != nil {
 			status.ReportErrorf("unable to lookup tenant ID: %v", err)
 		}
+		p.hooks.tenantIdMap[tenantDomain] = tenantID
+
 		// Use tenant-specific credentials for resolving selectors
 		switch {
 		case tenant.TokenAuth != nil:
@@ -193,7 +195,7 @@ func (p *IMDSAttestorPlugin) buildConfig(coreConfig catalog.CoreConfig, hclText 
 		}
 	}
 
-	return &msiAttestorConfig{
+	return &imdsAttestorConfig{
 		td:             coreConfig.TrustDomain,
 		tenants:        tenants,
 		idPathTemplate: tmpl,
@@ -208,9 +210,10 @@ type IMDSAttestorPlugin struct {
 	log hclog.Logger
 
 	mu     sync.RWMutex
-	config *msiAttestorConfig
+	config *imdsAttestorConfig
 
 	hooks struct {
+		tenantIdMap     map[string]string
 		newClient       func(azcore.TokenCredential) (apiClient, error)
 		fetchCredential func(string) (azcore.TokenCredential, error)
 	}
@@ -220,6 +223,7 @@ var _ nodeattestorv1.NodeAttestorServer = (*IMDSAttestorPlugin)(nil)
 
 func New() *IMDSAttestorPlugin {
 	p := &IMDSAttestorPlugin{}
+	p.hooks.tenantIdMap = make(map[string]string)
 	p.hooks.newClient = newAzureClient
 	p.hooks.fetchCredential = func(tenantID string) (azcore.TokenCredential, error) {
 		return azidentity.NewDefaultAzureCredential(
@@ -252,7 +256,7 @@ func (p *IMDSAttestorPlugin) Attest(stream nodeattestorv1.NodeAttestor_AttestSer
 		return status.Error(codes.InvalidArgument, "missing attestation payload")
 	}
 
-	attestationData := new(azure.IMDSAttestedData)
+	attestationData := new(azure.IMDSAttestationPayload)
 	if err := json.Unmarshal(payload, attestationData); err != nil {
 		return status.Errorf(codes.InvalidArgument, "failed to unmarshal data payload: %v", err)
 	}
@@ -274,15 +278,12 @@ func (p *IMDSAttestorPlugin) Attest(stream nodeattestorv1.NodeAttestor_AttestSer
 		return status.Errorf(codes.InvalidArgument, "missing subscription ID in attested document")
 	}
 
-	// parse the query hint
-	queryHint := attestationData.QueryHint
-
-	// if the query hint is a VMSS name, get the VMSS info and instance
+	untrustedMetadata := attestationData.Metadata
 
 	// if the query hint has a domain look up the tenant id
-	tenantID, err := lookupTenantID(queryHint.AgentDomain)
-	if err != nil {
-		return status.Errorf(codes.Internal, "unable to lookup tenant ID: %v", err)
+	tenantID, ok := p.hooks.tenantIdMap[untrustedMetadata.AgentDomain]
+	if !ok {
+		return status.Errorf(codes.PermissionDenied, "tenant %q is not authorized", untrustedMetadata.AgentDomain)
 	}
 	docData.TenantID = tenantID
 
@@ -296,13 +297,13 @@ func (p *IMDSAttestorPlugin) Attest(stream nodeattestorv1.NodeAttestor_AttestSer
 		return err
 	}
 
-	tenant, ok := config.tenants[queryHint.AgentDomain]
+	tenant, ok := config.tenants[untrustedMetadata.AgentDomain]
 	if !ok {
-		return status.Errorf(codes.PermissionDenied, "tenant %q is not authorized", queryHint.AgentDomain)
+		return status.Errorf(codes.PermissionDenied, "tenant %q is not authorized", untrustedMetadata.AgentDomain)
 	}
 
 	var selectorValues []string
-	selectorValues, err = buildSelectors(stream.Context(), tenant, queryHint.VMSSName, docData.VMID, docData.SubscriptionID, tenant.allowedSubscriptions)
+	selectorValues, err = buildSelectors(stream.Context(), tenant, untrustedMetadata.VMSSName, docData.VMID, docData.SubscriptionID, tenant.allowedSubscriptions)
 	if err != nil {
 		return err
 	}
@@ -340,7 +341,7 @@ func (p *IMDSAttestorPlugin) Validate(_ context.Context, req *configv1.ValidateR
 	}, nil
 }
 
-func (p *IMDSAttestorPlugin) getConfig() (*msiAttestorConfig, error) {
+func (p *IMDSAttestorPlugin) getConfig() (*imdsAttestorConfig, error) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	if p.config == nil {
@@ -414,7 +415,7 @@ func selectorValue(parts ...string) string {
 }
 
 // ValidateAttestedDocument validates the Azure IMDS attested document signature
-func validateAttestedDocument(ctx context.Context, doc *azure.AttestedDocument) (*azure.AttestedDocumentPayload, error) {
+func validateAttestedDocument(ctx context.Context, doc *azure.AttestedDocument) (*azure.AttestedDocumentContent, error) {
 	if doc.Signature == "" {
 		return nil, fmt.Errorf("missing signature in attested document")
 	}
@@ -454,11 +455,11 @@ func validateAttestedDocument(ctx context.Context, doc *azure.AttestedDocument) 
 	// 	return nil, fmt.Errorf("signature verification failed: %w", err)
 	// }
 
-	var payload *azure.AttestedDocumentPayload
-	if err := json.Unmarshal(pkcs7Sig.Content, payload); err != nil {
+	var content *azure.AttestedDocumentContent
+	if err := json.Unmarshal(pkcs7Sig.Content, content); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal attested document payload: %w", err)
 	}
-	return payload, nil
+	return content, nil
 }
 
 // getIntermediateCertificate fetches the intermediate certificate from the CA Issuers URL

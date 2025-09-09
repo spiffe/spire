@@ -17,14 +17,17 @@ const (
 
 var DefaultIMDSAgentPathTemplate = agentpathtemplate.MustParse("/{{ .PluginName }}/{{ .TenantID }}/{{ .SubscriptionID }}/{{ .VMID }}")
 
-type QueryHint struct {
+// AgentUntrustedMetadata is the untrusted metadata for the IMDS attestation payload.
+// Used to help point the server to the correct tenant and VMSS
+type AgentUntrustedMetadata struct {
 	AgentDomain string  `json:"agentDomain"`
 	VMSSName    *string `json:"vmssName"`
 }
 
-type IMDSAttestedData struct {
-	Document  AttestedDocument `json:"document"`
-	QueryHint QueryHint        `json:"queryHint"`
+type IMDSAttestationPayload struct {
+	Document AttestedDocument `json:"document"`
+	// Nothing in the metadata should ever be trusted, it is used to help point the server to the correct tenant and VMSS
+	Metadata AgentUntrustedMetadata `json:"metadata"`
 }
 
 type AttestedDocument struct {
@@ -32,11 +35,12 @@ type AttestedDocument struct {
 	Signature string `json:"signature"`
 }
 
-type AttestedDocumentPayload struct {
+type AttestedDocumentContent struct {
 	SubscriptionID string `json:"subscriptionId"`
 	VMID           string `json:"vmId"`
 	Nonce          string `json:"nonce"`
-	TenantID       string `json:"tid"`
+	// TenantID does not actually come from the document, it is added by the server for convenience
+	TenantID string `json:"tid"`
 }
 
 func FetchAttestedDocument(cl HTTPClient) (*AttestedDocument, error) {
@@ -72,13 +76,13 @@ func FetchAttestedDocument(cl HTTPClient) (*AttestedDocument, error) {
 }
 
 type imdsAgentPathTemplateData struct {
-	*AttestedDocumentPayload
+	*AttestedDocumentContent
 	PluginName string
 }
 
-func MakeIMDSAgentID(td spiffeid.TrustDomain, agentPathTemplate *agentpathtemplate.Template, data *AttestedDocumentPayload) (spiffeid.ID, error) {
+func MakeIMDSAgentID(td spiffeid.TrustDomain, agentPathTemplate *agentpathtemplate.Template, data *AttestedDocumentContent) (spiffeid.ID, error) {
 	agentPath, err := agentPathTemplate.Execute(imdsAgentPathTemplateData{
-		AttestedDocumentPayload: data,
+		AttestedDocumentContent: data,
 		PluginName:              ImdsPluginName,
 	})
 	if err != nil {
