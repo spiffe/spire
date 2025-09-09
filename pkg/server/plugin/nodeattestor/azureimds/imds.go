@@ -2,24 +2,13 @@ package azureimds
 
 import (
 	"context"
-	"crypto/x509"
-	"encoding/base64"
 	"encoding/json"
-	"encoding/pem"
-	"fmt"
-	"io"
-	"net/http"
 	"os"
-	"regexp"
 	"sort"
-	"strings"
 	"sync"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
-	"github.com/digitorus/pkcs7"
-	"github.com/go-jose/go-jose/v4"
-	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -36,22 +25,6 @@ import (
 
 const (
 	pluginName = "azure_imds"
-)
-
-var (
-	reTenantId = regexp.MustCompile(`^https://sts.windows.net/([^/]+)/$`)
-	// Used to make sure token is valid for credential assertion
-	allowedJWTSignatureAlgorithms = []jose.SignatureAlgorithm{
-		jose.RS256,
-		jose.RS384,
-		jose.RS512,
-		jose.ES256,
-		jose.ES384,
-		jose.ES512,
-		jose.PS256,
-		jose.PS384,
-		jose.PS512,
-	}
 )
 
 func BuiltIn() catalog.BuiltIn {
@@ -389,11 +362,7 @@ func buildSelectors(ctx context.Context, tenant *tenantConfig, vmssName *string,
 	}
 
 	// add network interface selectors
-	networkInterfaces, err := client.GetNetworkInterfaces(ctx, vm.ID, &subscriptionID)
-	if err != nil {
-		return nil, err
-	}
-	for _, networkInterface := range networkInterfaces {
+	for _, networkInterface := range vm.Interfaces {
 		selectorMap[selectorValue("network-security-group", networkInterface.SecurityGroup.ResourceGroup, networkInterface.SecurityGroup.Name)] = true
 		for _, subnet := range networkInterface.Subnets {
 			selectorMap[selectorValue("virtual-network", subnet.VNet)] = true
@@ -408,157 +377,4 @@ func buildSelectors(ctx context.Context, tenant *tenantConfig, vmssName *string,
 	}
 	sort.Strings(selectorValues)
 	return selectorValues, nil
-}
-
-func selectorValue(parts ...string) string {
-	return strings.Join(parts, ":")
-}
-
-// ValidateAttestedDocument validates the Azure IMDS attested document signature
-func validateAttestedDocument(ctx context.Context, doc *azure.AttestedDocument) (*azure.AttestedDocumentContent, error) {
-	if doc.Signature == "" {
-		return nil, fmt.Errorf("missing signature in attested document")
-	}
-
-	// Step 1: Base64 decode the signature
-	decodedSignature, err := base64.StdEncoding.DecodeString(doc.Signature)
-	if err != nil {
-		return nil, fmt.Errorf("failed to decode signature: %w", err)
-	}
-
-	// Step 2: Parse the PKCS7 signature
-	pkcs7Sig, err := pkcs7.Parse(decodedSignature)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse PKCS7 signature: %w", err)
-	}
-
-	// Step 3: Extract the signing certificate
-	if len(pkcs7Sig.Certificates) == 0 {
-		return nil, fmt.Errorf("no certificates found in PKCS7 signature")
-	}
-
-	signingCert := pkcs7Sig.Certificates[0]
-
-	// Step 4: Get the intermediate certificate from CA Issuers extension
-	intermediateCert, err := getIntermediateCertificate(ctx, signingCert)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get intermediate certificate: %w", err)
-	}
-
-	// Step 5: Add certificates to PKCS7 for verification
-	if intermediateCert != nil {
-		pkcs7Sig.Certificates = append(pkcs7Sig.Certificates, intermediateCert)
-	}
-	// Step 6: Verify the signature
-	//TODO: Uncomment this when we have a way to verify the signature
-	// if err := pkcs7Sig.Verify(); err != nil {
-	// 	return nil, fmt.Errorf("signature verification failed: %w", err)
-	// }
-
-	var content *azure.AttestedDocumentContent
-	if err := json.Unmarshal(pkcs7Sig.Content, content); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal attested document payload: %w", err)
-	}
-	return content, nil
-}
-
-// getIntermediateCertificate fetches the intermediate certificate from the CA Issuers URL
-func getIntermediateCertificate(ctx context.Context, signingCert *x509.Certificate) (*x509.Certificate, error) {
-	// Extract CA Issuers URL from the signing certificate
-	var caIssuersURL string
-	for _, url := range signingCert.IssuingCertificateURL {
-		if url != "" {
-			caIssuersURL = url
-			break
-		}
-	}
-
-	if caIssuersURL == "" {
-		return nil, fmt.Errorf("no CA Issuers URL found in signing certificate")
-	}
-
-	// Fetch the intermediate certificate
-	req, err := http.NewRequestWithContext(ctx, "GET", caIssuersURL, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request for intermediate certificate: %w", err)
-	}
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch intermediate certificate: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("failed to fetch intermediate certificate, status: %d", resp.StatusCode)
-	}
-
-	certData, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read intermediate certificate: %w", err)
-	}
-
-	// Try parsing as DER first, then PEM
-	cert, err := x509.ParseCertificate(certData)
-	if err != nil {
-		// Try parsing as PEM
-		block, _ := pem.Decode(certData)
-		if block == nil {
-			return nil, fmt.Errorf("failed to decode intermediate certificate as PEM")
-		}
-		cert, err = x509.ParseCertificate(block.Bytes)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse intermediate certificate: %w", err)
-		}
-	}
-
-	return cert, nil
-}
-func getAzureAssertionFunc(tokenPath string, reader func(name string) ([]byte, error)) func(ctx context.Context) (string, error) {
-	return func(ctx context.Context) (string, error) {
-		token, err := reader(tokenPath)
-		if err != nil {
-			return "", fmt.Errorf("unable to read token file %q: %w", tokenPath, err)
-		}
-		if _, err := jwt.ParseSigned(string(token), allowedJWTSignatureAlgorithms); err != nil {
-			return "", fmt.Errorf("unable to parse token file %q: %w", tokenPath, err)
-		}
-
-		return string(token), nil
-	}
-}
-
-func lookupTenantID(domain string) (string, error) {
-	// make an http request to https://login.microsoftonline.com/<domain>/.well-known/openid-configuration
-	req, err := http.NewRequest("GET", fmt.Sprintf("https://login.microsoftonline.com/%s/.well-known/openid-configuration", domain), nil)
-	if err != nil {
-		return "", fmt.Errorf("failed to create request for tenant ID: %w", err)
-	}
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("failed to fetch tenant ID: %w", err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("failed to fetch tenant ID, status: %d", resp.StatusCode)
-	}
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", fmt.Errorf("failed to read tenant ID: %w", err)
-	}
-	var data struct {
-		Issuer string `json:"issuer"`
-	}
-	if err := json.Unmarshal(body, &data); err != nil {
-		return "", fmt.Errorf("failed to unmarshal tenant ID: %w", err)
-	}
-	return extractTenantID(data.Issuer)
-}
-
-func extractTenantID(issuer string) (string, error) {
-	m := reTenantId.FindStringSubmatch(issuer)
-	if m == nil {
-		return "", fmt.Errorf("malformed tenant ID: %s", issuer)
-	}
-	return m[1], nil
 }
