@@ -17,8 +17,41 @@ import (
 // needs to do its job.
 type apiClient interface {
 	GetVirtualMachine(ctx context.Context, vmId string, subscriptionId *string) (*VirtualMachine, error)
-	GetNetworkInterfaces(ctx context.Context, vmId string, subscriptionId *string) ([]*NetworkInterface, error)
 	GetVMSSInstance(ctx context.Context, vmId, subscriptionID, ssName string) (*VirtualMachine, error)
+}
+
+// VirtualMachine is a subset of the fields returned by the Resource Graph API
+type VirtualMachine struct {
+	ID            string              `json:"id"`
+	Name          string              `json:"name"`
+	Location      string              `json:"location"`
+	Tags          map[string]any      `json:"tags"`
+	VMID          string              `json:"vmId"`
+	ResourceGroup string              `json:"resourceGroup"`
+	Interfaces    []*NetworkInterface `json:"interfaces"`
+}
+type NetworkInterface struct {
+	ID            string        `json:"id"`
+	Name          string        `json:"name"`
+	SecurityGroup SecurityGroup `json:"securityGroup"`
+	Subnets       []Subnet      `json:"subnets"`
+}
+type Subnet struct {
+	VNet       string `json:"vnet"`
+	SubnetName string `json:"name"`
+}
+
+type SecurityGroup struct {
+	ResourceGroup string `json:"resourceGroup"`
+	Name          string `json:"name"`
+}
+
+type VMSSInfo struct {
+	ID             string `json:"id"`
+	Name           string `json:"name"`
+	Location       string `json:"location"`
+	ResourceGroup  string `json:"resourceGroup"`
+	SubscriptionID string `json:"subscriptionId"`
 }
 
 // azureClient implements apiClient using Azure SDK client implementations
@@ -41,17 +74,6 @@ func newAzureClient(cred azcore.TokenCredential) (apiClient, error) {
 // A direct scale set VM api client is needed to support VMSS with an orchestration mode of "Uniform".
 func (c *azureClient) newScaleSetVMClient(subscriptionID string) (*armcompute.VirtualMachineScaleSetVMsClient, error) {
 	return armcompute.NewVirtualMachineScaleSetVMsClient(subscriptionID, c.cred, nil)
-}
-
-// VirtualMachine is a subset of the fields returned by the Resource Graph API
-type VirtualMachine struct {
-	ID            string              `json:"id"`
-	Name          string              `json:"name"`
-	Location      string              `json:"location"`
-	Tags          map[string]any      `json:"tags"`
-	VMID          string              `json:"vmId"`
-	ResourceGroup string              `json:"resourceGroup"`
-	Interfaces    []*NetworkInterface `json:"interfaces"`
 }
 
 func (c *azureClient) GetVirtualMachine(ctx context.Context, vmId string, subscriptionId *string) (*VirtualMachine, error) {
@@ -80,30 +102,66 @@ func (c *azureClient) GetVirtualMachine(ctx context.Context, vmId string, subscr
 	if err != nil {
 		return nil, err
 	}
-	vm.Interfaces, err = c.GetNetworkInterfaces(ctx, vm.ID, subscriptionId)
+	vm.Interfaces, err = c.getNetworkInterfaces(ctx, vm.ID, subscriptionId)
 	if err != nil {
 		return nil, err
 	}
 	return vm, nil
-
 }
 
-type Subnet struct {
-	VNet       string `json:"vnet"`
-	SubnetName string `json:"name"`
-}
-type SecurityGroup struct {
-	ResourceGroup string `json:"resourceGroup"`
-	Name          string `json:"name"`
-}
-type NetworkInterface struct {
-	ID            string        `json:"id"`
-	Name          string        `json:"name"`
-	SecurityGroup SecurityGroup `json:"securityGroup"`
-	Subnets       []Subnet      `json:"subnets"`
+func (c *azureClient) GetVMSSInstance(ctx context.Context, vmId, subscriptionID, ssName string) (*VirtualMachine, error) {
+	info, err := c.getVMSSInfo(ctx, []*string{&subscriptionID}, ssName)
+	if err != nil {
+		return nil, err
+	}
+	client, err := c.newScaleSetVMClient(subscriptionID)
+
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "unable to create scale set VM client: %v", err)
+	}
+	pager := client.NewListPager(info.ResourceGroup, ssName, nil)
+	for pager.More() {
+		page, err := pager.NextPage(ctx)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "unable to list VMSS instances: %v", err)
+		}
+
+		for _, instance := range page.Value {
+			if *instance.Properties.VMID == vmId {
+				vm, err := buildVirtualMachineFromVMSSInstance(instance, info.ResourceGroup)
+				if err != nil {
+					return nil, err
+				}
+				return vm, nil
+			}
+		}
+
+	}
+	return nil, status.Errorf(codes.Internal, "VMSS instance %q not found", vmId)
 }
 
-func (c *azureClient) GetNetworkInterfaces(ctx context.Context, vmId string, subscriptionId *string) ([]*NetworkInterface, error) {
+func (c *azureClient) getVMSSInfo(ctx context.Context, subscriptionIDs []*string, name string) (*VMSSInfo, error) {
+	query := fmt.Sprintf(`
+	resources 
+	| where type =~ 'microsoft.compute/virtualmachinescalesets'
+	| where name == '%s'
+	| project id, name, location, resourceGroup, subscriptionId`, name)
+	options := &armresourcegraph.QueryRequestOptions{
+		ResultFormat: to.Ptr(armresourcegraph.ResultFormatObjectArray),
+	}
+	req := armresourcegraph.QueryRequest{
+		Query:         &query,
+		Subscriptions: subscriptionIDs,
+		Options:       options,
+	}
+	resp, err := c.g.Resources(ctx, req, nil)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "unable to get VMSS info: %v", err)
+	}
+	return extractArmResourceGraphItem[VMSSInfo](resp)
+}
+
+func (c *azureClient) getNetworkInterfaces(ctx context.Context, vmId string, subscriptionId *string) ([]*NetworkInterface, error) {
 	query := fmt.Sprintf(`
 	Resources
 	| where type == "microsoft.network/networkinterfaces"
@@ -136,66 +194,6 @@ func (c *azureClient) GetNetworkInterfaces(ctx context.Context, vmId string, sub
 		return nil, status.Errorf(codes.Internal, "unable to get network interfaces: %v", err)
 	}
 	return extractArmResourceGraphItems[NetworkInterface](resp)
-}
-
-type VMSSInfo struct {
-	ID             string `json:"id"`
-	Name           string `json:"name"`
-	Location       string `json:"location"`
-	ResourceGroup  string `json:"resourceGroup"`
-	SubscriptionID string `json:"subscriptionId"`
-}
-
-func (c *azureClient) getVMSSInfo(ctx context.Context, subscriptionIDs []*string, name string) (*VMSSInfo, error) {
-	query := fmt.Sprintf(`
-	resources 
-	| where type =~ 'microsoft.compute/virtualmachinescalesets'
-	| where name == '%s'
-	| project id, name, location, resourceGroup, subscriptionId`, name)
-	options := &armresourcegraph.QueryRequestOptions{
-		ResultFormat: to.Ptr(armresourcegraph.ResultFormatObjectArray),
-	}
-	req := armresourcegraph.QueryRequest{
-		Query:         &query,
-		Subscriptions: subscriptionIDs,
-		Options:       options,
-	}
-	resp, err := c.g.Resources(ctx, req, nil)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "unable to get VMSS info: %v", err)
-	}
-	return extractArmResourceGraphItem[VMSSInfo](resp)
-}
-
-func (c *azureClient) GetVMSSInstance(ctx context.Context, vmId, subscriptionID, ssName string) (*VirtualMachine, error) {
-	info, err := c.getVMSSInfo(ctx, []*string{&subscriptionID}, ssName)
-	if err != nil {
-		return nil, err
-	}
-	client, err := c.newScaleSetVMClient(subscriptionID)
-
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "unable to create scale set VM client: %v", err)
-	}
-	pager := client.NewListPager(info.ResourceGroup, ssName, nil)
-	for pager.More() {
-		page, err := pager.NextPage(ctx)
-		if err != nil {
-			return nil, status.Errorf(codes.Internal, "unable to list VMSS instances: %v", err)
-		}
-
-		for _, instance := range page.Value {
-			if *instance.Properties.VMID == vmId {
-				vm, err := buildVirtualMachineFromVMSSInstance(instance, info.ResourceGroup)
-				if err != nil {
-					return nil, err
-				}
-				return vm, nil
-			}
-		}
-
-	}
-	return nil, status.Errorf(codes.Internal, "VMSS instance %q not found", vmId)
 }
 
 // buildVirtualMachineFromVMSSInstance creates a VirtualMachine struct from a VMSS instance
