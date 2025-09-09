@@ -61,6 +61,17 @@ A sample configuration for SPIRE server running outside of a Kubernetes cluster:
     }
 ```
 
+The kube config file needs to grant at least the following access to `spire-server`:
+
+```yaml
+- apiGroups: [""]
+  resources: ["pods", "nodes"]
+  verbs: ["get"]
+- apiGroups: ["authentication.k8s.io"]
+  resources: ["tokenreviews"]
+  verbs: ["create"]
+```
+
 This plugin generates the following selectors:
 
 | Selector                    | Example                                                        | Description                                                                     |
