@@ -287,7 +287,6 @@ func (o *eksValidator) fetchNodesInNodeGroup(ctx context.Context, eksClient EKSC
 				return nil, fmt.Errorf("issue while getting list of instances in AutoScalingGroup in pagination: %w", err)
 			}
 		}
-
 	}
 
 	return instances, nil
