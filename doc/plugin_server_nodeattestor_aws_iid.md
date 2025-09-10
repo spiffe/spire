@@ -179,6 +179,7 @@ The following is an example for a IAM policy needed to get instance's info from 
 ```
 
 **Note:** Additional permissions are required when using optional validation features:
+
 - For organization validation (`verify_organization`): `organizations:ListAccounts`
 - For EKS cluster validation (`validate_eks_cluster_membership`): `eks:ListNodegroups`, `eks:DescribeNodegroup`, `autoscaling:DescribeAutoScalingGroups`
 
