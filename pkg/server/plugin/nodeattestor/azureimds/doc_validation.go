@@ -213,7 +213,6 @@ func validateCertificateChain(signingCert, intermediateCert *x509.Certificate) e
 		fmt.Println("✅ Signing certificate chain validation passed")
 	}
 
-	// Additional chain validation could be added here with the root CA
 	opts := x509.VerifyOptions{
 		Intermediates: intermediates,
 	}
