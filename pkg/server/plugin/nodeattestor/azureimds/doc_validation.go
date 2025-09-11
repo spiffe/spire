@@ -10,7 +10,7 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/digitorus/pkcs7"
+	"github.com/smallstep/pkcs7"
 	"github.com/spiffe/spire/pkg/common/plugin/azure"
 )
 
@@ -50,10 +50,9 @@ func validateAttestedDocument(ctx context.Context, doc *azure.AttestedDocument) 
 		pkcs7Sig.Certificates = append(pkcs7Sig.Certificates, intermediateCert)
 	}
 	// Step 6: Verify the signature
-	//TODO: Uncomment this when we have a way to verify the signature
-	// if err := pkcs7Sig.Verify(); err != nil {
-	// 	return nil, fmt.Errorf("signature verification failed: %w", err)
-	// }
+	if err := pkcs7Sig.Verify(); err != nil {
+		return nil, fmt.Errorf("signature verification failed: %w", err)
+	}
 
 	var content azure.AttestedDocumentContent
 	if err := json.Unmarshal(pkcs7Sig.Content, &content); err != nil {
