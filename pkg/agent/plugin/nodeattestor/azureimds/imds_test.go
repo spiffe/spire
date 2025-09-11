@@ -1,4 +1,4 @@
-package azuremsi
+package azureimds
 
 import (
 	"context"
