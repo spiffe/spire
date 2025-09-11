@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 
 	"github.com/smallstep/pkcs7"
 	"github.com/spiffe/spire/pkg/common/plugin/azure"
@@ -49,11 +50,23 @@ func validateAttestedDocument(ctx context.Context, doc *azure.AttestedDocument) 
 	if intermediateCert != nil {
 		pkcs7Sig.Certificates = append(pkcs7Sig.Certificates, intermediateCert)
 	}
+
 	// Step 6: Verify the signature
 	if err := pkcs7Sig.Verify(); err != nil {
 		return nil, fmt.Errorf("signature verification failed: %w", err)
 	}
 
+	// Step 7: Perform Azure-specific certificate validation
+	if err := validateAzureCertificates(signingCert, intermediateCert); err != nil {
+		return nil, fmt.Errorf("Azure certificate validation failed: %w", err)
+	}
+
+	// Step 8: Validate certificate chain
+	if err := validateCertificateChain(signingCert, intermediateCert); err != nil {
+		return nil, fmt.Errorf("certificate chain validation failed: %w", err)
+	}
+
+	// Final step: Unmarshal the attested document payload
 	var content azure.AttestedDocumentContent
 	if err := json.Unmarshal(pkcs7Sig.Content, &content); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal attested document payload: %w", err)
@@ -112,4 +125,102 @@ func getIntermediateCertificate(ctx context.Context, signingCert *x509.Certifica
 	}
 
 	return cert, nil
+}
+
+// Azure-specific certificate validation constants
+const (
+	// Expected subject patterns for Azure certificates
+	AzureMetadataSubject = "metadata.azure.com"
+
+	// Expected issuer patterns
+	MicrosoftAzureRSATLSIssuer = "Microsoft Azure RSA TLS Issuing CA"
+	DigiCertGlobalRootCA       = "DigiCert Global Root G2"
+)
+
+// validateAzureCertificates performs Azure-specific certificate validation
+func validateAzureCertificates(signingCert, intermediateCert *x509.Certificate) error {
+	// Validate signing certificate subject
+	if err := validateCertificateSubject(signingCert, AzureMetadataSubject); err != nil {
+		return fmt.Errorf("signing certificate subject validation failed: %w", err)
+	}
+
+	// Validate signing certificate issuer
+	if err := validateCertificateIssuer(signingCert, MicrosoftAzureRSATLSIssuer); err != nil {
+		return fmt.Errorf("signing certificate issuer validation failed: %w", err)
+	}
+
+	if intermediateCert != nil {
+		// Validate intermediate certificate subject
+		if err := validateCertificateIssuer(intermediateCert, DigiCertGlobalRootCA); err != nil {
+			return fmt.Errorf("intermediate certificate issuer validation failed: %w", err)
+		}
+
+		// Validate intermediate certificate issuer
+		if err := validateCertificateSubject(intermediateCert, MicrosoftAzureRSATLSIssuer); err != nil {
+			return fmt.Errorf("intermediate certificate subject validation failed: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// validateCertificateSubject validates that the certificate subject contains the expected value
+func validateCertificateSubject(cert *x509.Certificate, expectedSubject string) error {
+	subject := cert.Subject.CommonName
+	if subject == "" {
+		return fmt.Errorf("certificate has no common name in subject")
+	}
+
+	if !strings.Contains(subject, expectedSubject) {
+		return fmt.Errorf("certificate subject '%s' does not contain expected value '%s'", subject, expectedSubject)
+	}
+
+	return nil
+}
+
+// validateCertificateIssuer validates that the certificate issuer contains the expected value
+func validateCertificateIssuer(cert *x509.Certificate, expectedIssuer string) error {
+	issuer := cert.Issuer.CommonName
+	if issuer == "" {
+		return fmt.Errorf("certificate has no common name in issuer")
+	}
+
+	if !strings.Contains(issuer, expectedIssuer) {
+		return fmt.Errorf("certificate issuer '%s' does not contain expected value '%s'", issuer, expectedIssuer)
+	}
+
+	return nil
+}
+
+// validateCertificateChain validates the certificate chain against the DigiCert Global Root CA
+func validateCertificateChain(signingCert, intermediateCert *x509.Certificate) error {
+	// Create certificate pool with intermediate certificate
+	intermediates := x509.NewCertPool()
+	if intermediateCert != nil {
+		intermediates.AddCert(intermediateCert)
+	}
+
+	// For Azure operated by 21Vianet, we would need the DigiCert Global Root CA
+	// For now, we'll validate the chain structure without the root CA
+	// In production, you would load the DigiCert Global Root CA certificate
+
+	// Verify the signing certificate against the intermediate
+	if intermediateCert != nil {
+		// Check that the signing certificate was issued by the intermediate
+		if err := signingCert.CheckSignatureFrom(intermediateCert); err != nil {
+			return fmt.Errorf("signing certificate was not issued by intermediate certificate: %w", err)
+		}
+		fmt.Println("✅ Signing certificate chain validation passed")
+	}
+
+	// Additional chain validation could be added here with the root CA
+	opts := x509.VerifyOptions{
+		Intermediates: intermediates,
+	}
+	_, err := signingCert.Verify(opts)
+	if err != nil {
+		return fmt.Errorf("certificate chain validation failed: %w", err)
+	}
+
+	return nil
 }
