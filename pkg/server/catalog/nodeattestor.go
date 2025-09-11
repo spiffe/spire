@@ -4,6 +4,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor/awsiid"
+	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor/azureimds"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor/azuremsi"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor/gcpiit"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor/httpchallenge"
@@ -36,6 +37,7 @@ func (repo *nodeAttestorRepository) BuiltIns() []catalog.BuiltIn {
 	return []catalog.BuiltIn{
 		awsiid.BuiltIn(),
 		azuremsi.BuiltIn(),
+		azureimds.BuiltIn(),
 		gcpiit.BuiltIn(),
 		httpchallenge.BuiltIn(),
 		jointoken.BuiltIn(),

@@ -55,11 +55,11 @@ func validateAttestedDocument(ctx context.Context, doc *azure.AttestedDocument) 
 	// 	return nil, fmt.Errorf("signature verification failed: %w", err)
 	// }
 
-	var content *azure.AttestedDocumentContent
-	if err := json.Unmarshal(pkcs7Sig.Content, content); err != nil {
+	var content azure.AttestedDocumentContent
+	if err := json.Unmarshal(pkcs7Sig.Content, &content); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal attested document payload: %w", err)
 	}
-	return content, nil
+	return &content, nil
 }
 
 // getIntermediateCertificate fetches the intermediate certificate from the CA Issuers URL

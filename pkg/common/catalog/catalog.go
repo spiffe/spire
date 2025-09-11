@@ -174,6 +174,7 @@ func Load(ctx context.Context, config Config, repo Repository) (_ *Catalog, err 
 		}
 
 		plugin, err := loadPlugin(ctx, pluginRepo.BuiltIns(), pluginConfig, pluginLog, config.HostServices)
+		pluginLog.Info("loading plugin", "plugin", pluginConfig.Name, "type", pluginConfig.Type)
 		if err != nil {
 			pluginLog.WithError(err).Error("Failed to load plugin")
 			return nil, fmt.Errorf("failed to load plugin %q: %w", pluginConfig.Name, err)

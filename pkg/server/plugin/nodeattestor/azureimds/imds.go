@@ -92,6 +92,7 @@ func (p *IMDSAttestorPlugin) buildConfig(coreConfig catalog.CoreConfig, hclText 
 		if err != nil {
 			status.ReportErrorf("unable to lookup tenant ID: %v", err)
 		}
+		p.log.Info("Adding tenant ID to map", "tenantDomain", tenantDomain, "tenantID", tenantID)
 		p.hooks.tenantIdMap[tenantDomain] = tenantID
 
 		// Use tenant-specific credentials for resolving selectors
@@ -152,14 +153,14 @@ func (p *IMDSAttestorPlugin) buildConfig(coreConfig catalog.CoreConfig, hclText 
 			allowedTags[tag] = struct{}{}
 		}
 
-		tenants[tenantID] = &tenantConfig{
+		tenants[tenantDomain] = &tenantConfig{
 			allowedSubscriptions: tenant.AllowedSubscriptions,
 			allowedTags:          allowedTags,
 			client:               client,
 		}
 	}
 
-	tmpl := azure.DefaultAgentPathTemplate
+	tmpl := azure.DefaultIMDSAgentPathTemplate
 	if len(newConfig.AgentPathTemplate) > 0 {
 		var err error
 		tmpl, err = agentpathtemplate.Parse(newConfig.AgentPathTemplate)
@@ -356,7 +357,13 @@ func buildSelectors(ctx context.Context, tenant *tenantConfig, vmssName *string,
 	if vm.Tags != nil {
 		for tag := range tenant.allowedTags {
 			if value, ok := vm.Tags[tag]; ok && value != nil {
-				selectorMap[selectorValue("vm-tag", tag, value.(string))] = true
+				var v string
+				if iv, ok := value.(*string); ok {
+					v = *iv
+				} else {
+					v = value.(string)
+				}
+				selectorMap[selectorValue("vm-tag", tag, v)] = true
 			}
 		}
 	}
