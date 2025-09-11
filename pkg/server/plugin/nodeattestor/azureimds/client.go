@@ -31,7 +31,6 @@ type VirtualMachine struct {
 	Interfaces    []*NetworkInterface `json:"interfaces"`
 }
 type NetworkInterface struct {
-	ID            string        `json:"id"`
 	Name          string        `json:"name"`
 	SecurityGroup SecurityGroup `json:"securityGroup"`
 	Subnets       []Subnet      `json:"subnets"`
@@ -67,7 +66,8 @@ func newAzureClient(cred azcore.TokenCredential) (apiClient, error) {
 	}
 
 	return &azureClient{
-		g: g,
+		g:    g,
+		cred: cred,
 	}, nil
 }
 
@@ -222,7 +222,7 @@ func buildVirtualMachineFromVMSSInstance(instance *armcompute.VirtualMachineScal
 	for _, interfaceConfig := range instance.Properties.NetworkProfileConfiguration.NetworkInterfaceConfigurations {
 		ni, err := parseNetworkInterfaceConfig(interfaceConfig)
 		if err != nil {
-			return nil, err
+			continue
 		}
 		v.Interfaces = append(v.Interfaces, ni)
 	}
@@ -233,13 +233,15 @@ func buildVirtualMachineFromVMSSInstance(instance *armcompute.VirtualMachineScal
 // parseNetworkInterfaceConfig parses a network interface configuration from a VMSS instance
 // and returns a NetworkInterface with parsed security group and subnet information
 func parseNetworkInterfaceConfig(interfaceConfig *armcompute.VirtualMachineScaleSetNetworkConfiguration) (*NetworkInterface, error) {
+	if interfaceConfig == nil {
+		return nil, status.Errorf(codes.Internal, "network interface configuration is nil")
+	}
 	nsgResourceGroup, nsgName, err := parseNetworkSecurityGroupID(*interfaceConfig.Properties.NetworkSecurityGroup.ID)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "unable to parse network security group ID: %v", err)
 	}
 
 	ni := &NetworkInterface{
-		ID:   *interfaceConfig.ID,
 		Name: *interfaceConfig.Name,
 		SecurityGroup: SecurityGroup{
 			ResourceGroup: nsgResourceGroup,
@@ -247,8 +249,12 @@ func parseNetworkInterfaceConfig(interfaceConfig *armcompute.VirtualMachineScale
 		},
 	}
 
-	for _, subnet := range interfaceConfig.Properties.IPConfigurations {
-		_, networkName, subnetName, err := parseVirtualNetworkSubnetID(*subnet.ID)
+	for _, ipconfig := range interfaceConfig.Properties.IPConfigurations {
+		if ipconfig == nil {
+			continue
+		}
+
+		_, networkName, subnetName, err := parseVirtualNetworkSubnetID(*ipconfig.Properties.Subnet.ID)
 		if err != nil {
 			return nil, status.Errorf(codes.Internal, "unable to parse virtual network subnet ID: %v", err)
 		}

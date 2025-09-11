@@ -24,7 +24,7 @@ func BuiltIn() catalog.BuiltIn {
 	return builtin(New())
 }
 
-func builtin(p *MSIAttestorPlugin) catalog.BuiltIn {
+func builtin(p *IMDSAttestorPlugin) catalog.BuiltIn {
 	return catalog.MakeBuiltIn(pluginName,
 		nodeattestorv1.NodeAttestorPluginServer(p),
 		configv1.ConfigServiceServer(p),
@@ -50,7 +50,7 @@ func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginco
 	return newConfig
 }
 
-type MSIAttestorPlugin struct {
+type IMDSAttestorPlugin struct {
 	nodeattestorv1.UnsafeNodeAttestorServer
 	configv1.UnsafeConfigServer
 
@@ -63,14 +63,14 @@ type MSIAttestorPlugin struct {
 	}
 }
 
-func New() *MSIAttestorPlugin {
-	p := &MSIAttestorPlugin{}
+func New() *IMDSAttestorPlugin {
+	p := &IMDSAttestorPlugin{}
 	p.hooks.fetchAttestedDocument = azure.FetchAttestedDocument
 	p.hooks.fetchComputeMetadata = azure.FetchInstanceMetadata
 	return p
 }
 
-func (p *MSIAttestorPlugin) AidAttestation(stream nodeattestorv1.NodeAttestor_AidAttestationServer) error {
+func (p *IMDSAttestorPlugin) AidAttestation(stream nodeattestorv1.NodeAttestor_AidAttestationServer) error {
 	config, err := p.getConfig()
 	if err != nil {
 		return err
@@ -87,12 +87,14 @@ func (p *MSIAttestorPlugin) AidAttestation(stream nodeattestorv1.NodeAttestor_Ai
 	if err != nil {
 		return status.Errorf(codes.Internal, "unable to fetch compute metadata: %v", err)
 	}
+
 	qh := azure.AgentUntrustedMetadata{
 		AgentDomain: config.TenantDomain,
 	}
-	if computeMetadata.Compute.VmScaleSetName != "" {
-		qh.VMSSName = &computeMetadata.Compute.VmScaleSetName
+	if computeMetadata.Compute.VMScaleSetName != "" {
+		qh.VMSSName = &computeMetadata.Compute.VMScaleSetName
 	}
+
 	payload, err := json.Marshal(azure.IMDSAttestationPayload{
 		Document: *attestedDocument,
 		Metadata: qh,
@@ -108,7 +110,7 @@ func (p *MSIAttestorPlugin) AidAttestation(stream nodeattestorv1.NodeAttestor_Ai
 	})
 }
 
-func (p *MSIAttestorPlugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
+func (p *IMDSAttestorPlugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
 	newConfig, _, err := pluginconf.Build(req, buildConfig)
 	if err != nil {
 		return nil, err
@@ -121,7 +123,7 @@ func (p *MSIAttestorPlugin) Configure(_ context.Context, req *configv1.Configure
 	return &configv1.ConfigureResponse{}, nil
 }
 
-func (p *MSIAttestorPlugin) Validate(_ context.Context, req *configv1.ValidateRequest) (*configv1.ValidateResponse, error) {
+func (p *IMDSAttestorPlugin) Validate(_ context.Context, req *configv1.ValidateRequest) (*configv1.ValidateResponse, error) {
 	_, notes, err := pluginconf.Build(req, buildConfig)
 
 	return &configv1.ValidateResponse{
@@ -130,7 +132,7 @@ func (p *MSIAttestorPlugin) Validate(_ context.Context, req *configv1.ValidateRe
 	}, nil
 }
 
-func (p *MSIAttestorPlugin) getConfig() (*IMDSAttestorConfig, error) {
+func (p *IMDSAttestorPlugin) getConfig() (*IMDSAttestorConfig, error) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	if p.config == nil {
