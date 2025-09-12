@@ -27,6 +27,11 @@ func TestSubjectKeyIDToString(t *testing.T) {
 		require.Equal(t, "01", str)
 	})
 
+	originalSKISetting := x509utilsha256skid
+	defer func() {
+		x509utilsha256skid = originalSKISetting
+	}()
+
 	x509utilsha256skid = false // fips140.Enabled == false
 	realSKI, err := GetSubjectKeyID(privateKey.Public())
 	require.NoError(t, err)
