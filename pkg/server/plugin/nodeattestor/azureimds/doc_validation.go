@@ -113,7 +113,6 @@ func getIntermediateCertificate(ctx context.Context, signingCert *x509.Certifica
 	// Try parsing as DER first, then PEM
 	cert, err := x509.ParseCertificate(certData)
 	if err != nil {
-		// Try parsing as PEM
 		block, _ := pem.Decode(certData)
 		if block == nil {
 			return nil, fmt.Errorf("failed to decode intermediate certificate as PEM")
@@ -134,7 +133,8 @@ const (
 
 	// Expected issuer patterns
 	MicrosoftAzureRSATLSIssuer = "Microsoft Azure RSA TLS Issuing CA"
-	DigiCertGlobalRootCA       = "DigiCert Global Root G2"
+	// The azure Docs state that it should be DigiCert Global Root CA, but it is actually DigiCert Global Root G2 which is the newer version
+	DigiCertGlobalRootCA = "DigiCert Global Root G2"
 )
 
 // validateAzureCertificates performs Azure-specific certificate validation
@@ -194,23 +194,16 @@ func validateCertificateIssuer(cert *x509.Certificate, expectedIssuer string) er
 
 // validateCertificateChain validates the certificate chain against the DigiCert Global Root CA
 func validateCertificateChain(signingCert, intermediateCert *x509.Certificate) error {
-	// Create certificate pool with intermediate certificate
 	intermediates := x509.NewCertPool()
 	if intermediateCert != nil {
 		intermediates.AddCert(intermediateCert)
 	}
 
-	// For Azure operated by 21Vianet, we would need the DigiCert Global Root CA
-	// For now, we'll validate the chain structure without the root CA
-	// In production, you would load the DigiCert Global Root CA certificate
-
-	// Verify the signing certificate against the intermediate
 	if intermediateCert != nil {
 		// Check that the signing certificate was issued by the intermediate
 		if err := signingCert.CheckSignatureFrom(intermediateCert); err != nil {
 			return fmt.Errorf("signing certificate was not issued by intermediate certificate: %w", err)
 		}
-		fmt.Println("✅ Signing certificate chain validation passed")
 	}
 
 	opts := x509.VerifyOptions{
