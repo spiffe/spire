@@ -966,12 +966,14 @@ func (s *PluginSuite) TestListAttestedNodes() {
 	nodeG := makeAttestedNode("G", "T1", unexpired, banned, false, "S2", "S3")
 	nodeH := makeAttestedNode("H", "T2", unexpired, banned, false, "S2", "S3")
 	nodeI := makeAttestedNode("I", "T1", unexpired, unbanned, true, "S1")
+	nodeJ := makeAttestedNode("J", "T1", now, unbanned, false, "S1", "S2")
 
 	for _, tt := range []struct {
 		test                string
 		nodes               []*common.AttestedNode
 		pageSize            int32
 		byExpiresBefore     time.Time
+		byValidAt           time.Time
 		byAttestationType   string
 		bySelectors         *datastore.BySelectors
 		byBanned            *bool
@@ -1018,6 +1020,14 @@ func (s *PluginSuite) TestListAttestedNodes() {
 			expectNodesOut:      []*common.AttestedNode{nodeA, nodeB, nodeC},
 			expectPagedTokensIn: []string{"", "1", "3", "6"},
 			expectPagedNodesOut: [][]*common.AttestedNode{{nodeA}, {nodeB}, {nodeC}, {}},
+		},
+		{
+			test:                "by valid at",
+			nodes:               []*common.AttestedNode{nodeA, nodeE, nodeJ},
+			byValidAt:           now.Add(-time.Minute),
+			expectNodesOut:      []*common.AttestedNode{nodeE, nodeJ},
+			expectPagedTokensIn: []string{"", "2", "3"},
+			expectPagedNodesOut: [][]*common.AttestedNode{{nodeE}, {nodeJ}, {}},
 		},
 		// By attestation type
 		{
@@ -1213,6 +1223,7 @@ func (s *PluginSuite) TestListAttestedNodes() {
 					req := &datastore.ListAttestedNodesRequest{
 						Pagination:        pagination,
 						ByExpiresBefore:   tt.byExpiresBefore,
+						ValidAt:           tt.byValidAt,
 						ByAttestationType: tt.byAttestationType,
 						BySelectorMatch:   tt.bySelectors,
 						ByBanned:          tt.byBanned,

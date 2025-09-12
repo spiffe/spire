@@ -1,11 +1,13 @@
 package gcpcloudstorage
 
 import (
+	"bytes"
 	"context"
 	"crypto/x509"
 	"errors"
 	"io"
 	"testing"
+	"time"
 
 	"cloud.google.com/go/storage"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -13,6 +15,7 @@ import (
 	bundlepublisherv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/bundlepublisher/v1"
 	"github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/types"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
+	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
@@ -42,6 +45,16 @@ func TestConfigure(t *testing.T) {
 			},
 		},
 		{
+			name: "success with refresh hint",
+			config: &Config{
+				ServiceAccountFile: "service-account-file",
+				BucketName:         "bucket-name",
+				ObjectName:         "object-name",
+				Format:             "spiffe",
+				RefreshHint:        "1h",
+			},
+		},
+		{
 			name: "no bucket",
 			config: &Config{
 				ObjectName: "object-name",
@@ -67,6 +80,17 @@ func TestConfigure(t *testing.T) {
 			},
 			expectCode: codes.InvalidArgument,
 			expectMsg:  "configuration is missing the bundle format",
+		},
+		{
+			name: "invalid refresh hint",
+			config: &Config{
+				ObjectName:  "object-name",
+				BucketName:  "bucket-name",
+				Format:      "spiffe",
+				RefreshHint: "invalid-refresh-hint",
+			},
+			expectCode: codes.InvalidArgument,
+			expectMsg:  "could not parse refresh_hint: could not parse refresh hint \"invalid-refresh-hint\": time: invalid duration \"invalid-refresh-hint\"",
 		},
 		{
 			name: "client error",
@@ -126,6 +150,14 @@ func TestConfigure(t *testing.T) {
 			// Check that the plugin has the expected configuration.
 			tt.config.bundleFormat, err = bundleformat.FromString(tt.config.Format)
 			require.NoError(t, err)
+
+			if tt.config.RefreshHint != "" {
+				refreshDuration, err := time.ParseDuration(tt.config.RefreshHint)
+				if err == nil {
+					tt.config.parsedRefreshHint = int64(refreshDuration.Seconds())
+				}
+			}
+
 			require.Equal(t, tt.config, p.config)
 
 			client, ok := p.gcsClient.(*fakeClient)
@@ -347,6 +379,102 @@ func TestPublishMultiple(t *testing.T) {
 	require.Equal(t, 3, testWriteObjectCount)
 }
 
+func TestSetRefreshHint(t *testing.T) {
+	config := &Config{
+		BucketName:  "bucket-name",
+		ObjectName:  "object-name",
+		Format:      "spiffe",
+		RefreshHint: "1h",
+	}
+
+	var err error
+	options := []plugintest.Option{
+		plugintest.CaptureConfigureError(&err),
+		plugintest.CoreConfig(catalog.CoreConfig{
+			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
+		}),
+		plugintest.ConfigureJSON(config),
+	}
+
+	newClient := func(ctx context.Context, opts ...option.ClientOption) (gcsService, error) {
+		return &fakeClient{
+			clientOptions: opts,
+		}, nil
+	}
+
+	storageWriter := &fakeStorageWriter{}
+	p := newPlugin(newClient, func(ctx context.Context, o *storage.ObjectHandle) io.WriteCloser {
+		return storageWriter
+	})
+
+	plugintest.Load(t, builtin(p), nil, options...)
+	require.NoError(t, err)
+
+	bundle := getTestBundle(t)
+	resp, err := p.PublishBundle(context.Background(), &bundlepublisherv1.PublishBundleRequest{
+		Bundle: bundle,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+
+	publishedBundle, err := bundleutil.Decode(spiffeid.RequireTrustDomainFromString("example.org"), bytes.NewReader(storageWriter.writtenBytes))
+	require.NoError(t, err)
+	refreshHint, ok := publishedBundle.RefreshHint()
+	require.True(t, ok)
+	require.Equal(t, time.Hour, refreshHint)
+}
+
+// If the refresh hint is set, the bundle we publish is different from the one we received.
+// Makes sure we don't republish an unchanged bundle if we have set the refresh hint.
+func TestBundleWithRefreshHintPublishedOnce(t *testing.T) {
+	config := &Config{
+		BucketName:  "bucket-name",
+		ObjectName:  "object-name",
+		Format:      "spiffe",
+		RefreshHint: "1h",
+	}
+
+	var err error
+	options := []plugintest.Option{
+		plugintest.CaptureConfigureError(&err),
+		plugintest.CoreConfig(catalog.CoreConfig{
+			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
+		}),
+		plugintest.ConfigureJSON(config),
+	}
+
+	newClient := func(ctx context.Context, opts ...option.ClientOption) (gcsService, error) {
+		return &fakeClient{
+			clientOptions: opts,
+		}, nil
+	}
+
+	storageWriter := &fakeStorageWriter{}
+	p := newPlugin(newClient, func(ctx context.Context, o *storage.ObjectHandle) io.WriteCloser {
+		return storageWriter
+	})
+
+	var testWriteObjectCount int
+	p.hooks.wroteObjectFunc = func() { testWriteObjectCount++ }
+	plugintest.Load(t, builtin(p), nil, options...)
+	require.NoError(t, err)
+
+	bundle := getTestBundle(t)
+	resp, err := p.PublishBundle(context.Background(), &bundlepublisherv1.PublishBundleRequest{
+		Bundle: bundle,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+
+	resp, err = p.PublishBundle(context.Background(), &bundlepublisherv1.PublishBundleRequest{
+		Bundle: bundle,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+
+	require.Equal(t, 1, testWriteObjectCount)
+}
+
 type fakeClient struct {
 	clientOptions []option.ClientOption
 }
@@ -360,12 +488,15 @@ func (c *fakeClient) Close() error {
 }
 
 type fakeStorageWriter struct {
-	writeErr error
-	closeErr error
+	writeErr     error
+	closeErr     error
+	writtenBytes []byte
 }
 
 func (s *fakeStorageWriter) Write(p []byte) (n int, err error) {
 	if s.writeErr == nil {
+		s.writtenBytes = make([]byte, len(p))
+		copy(s.writtenBytes, p)
 		return len(p), nil
 	}
 	return 0, s.writeErr
