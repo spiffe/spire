@@ -13,7 +13,6 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/cryptoutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
-	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/pkg/server/catalog"
 	"github.com/spiffe/spire/proto/private/server/journal"
@@ -46,8 +45,7 @@ type Slot interface {
 }
 
 type SlotLoader struct {
-	TrustDomain   spiffeid.TrustDomain
-	HashAlgorithm x509util.HashAlgorithm
+	TrustDomain spiffeid.TrustDomain
 
 	Log            logrus.FieldLogger
 	Dir            string
@@ -59,9 +57,8 @@ func (s *SlotLoader) load(ctx context.Context) (*Journal, map[SlotPosition]Slot,
 	log := s.Log
 
 	jc := &journalConfig{
-		cat:           s.Catalog,
-		log:           log,
-		hashAlgorithm: s.HashAlgorithm,
+		cat: s.Catalog,
+		log: log,
 	}
 
 	// Load the journal and see if we can figure out the next and current

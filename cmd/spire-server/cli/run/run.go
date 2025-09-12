@@ -38,7 +38,6 @@ import (
 	"github.com/spiffe/spire/pkg/common/log"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/tlspolicy"
-	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/pkg/server"
 	"github.com/spiffe/spire/pkg/server/authpolicy"
 	bundleClient "github.com/spiffe/spire/pkg/server/bundle/client"
@@ -80,7 +79,6 @@ type serverConfig struct {
 	DefaultJWTSVIDTTL            string             `hcl:"default_jwt_svid_ttl"`
 	Experimental                 experimentalConfig `hcl:"experimental"`
 	Federation                   *federationConfig  `hcl:"federation"`
-	HashAlgorithm                string             `hcl:"hash_algorithm"`
 	JWTIssuer                    string             `hcl:"jwt_issuer"`
 	JWTKeyType                   string             `hcl:"jwt_key_type"`
 	LogFile                      string             `hcl:"log_file"`
@@ -686,16 +684,6 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 		}
 	}
 
-	if c.Server.HashAlgorithm != "" {
-		hashAlgorithm, err := hashAlgoFromString(c.Server.HashAlgorithm)
-		if err != nil {
-			return nil, fmt.Errorf("error parsing hash_algorithm: %w", err)
-		}
-		sc.HashAlgorithm = hashAlgorithm
-	} else {
-		sc.HashAlgorithm = x509util.SHA1
-	}
-
 	if !allowUnknownConfig {
 		if err := checkForUnknownConfig(c, sc.Log); err != nil {
 			return nil, err
@@ -1074,17 +1062,6 @@ func keyTypeFromString(s string) (keymanager.KeyType, error) {
 		return keymanager.ECP384, nil
 	default:
 		return keymanager.KeyTypeUnset, fmt.Errorf("key type %q is unknown; must be one of [rsa-2048, rsa-4096, ec-p256, ec-p384]", s)
-	}
-}
-
-func hashAlgoFromString(s string) (x509util.HashAlgorithm, error) {
-	switch strings.ToLower(s) {
-	case "sha1":
-		return x509util.SHA1, nil
-	case "sha256":
-		return x509util.SHA256, nil
-	default:
-		return x509util.SHA1, fmt.Errorf("hash algorithm %q is unknown; must be one of [sha1, sha256]", s)
 	}
 }
 

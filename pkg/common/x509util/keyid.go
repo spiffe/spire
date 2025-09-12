@@ -1,6 +1,7 @@
 package x509util
 
 import (
+	"crypto/fips140"
 	"crypto/sha1" //nolint: gosec // usage of SHA1 is according to RFC 5280
 	"crypto/sha256"
 	"crypto/x509"
@@ -9,16 +10,11 @@ import (
 	"fmt"
 )
 
-type HashAlgorithm int
-
-const (
-	SHA1 HashAlgorithm = iota
-	SHA256
-)
+var x509utilsha256skid = fips140.Enabled()
 
 // GetSubjectKeyID calculates a subject key identifier by doing a hash
 // over the ASN.1 encoding of the public key.
-func GetSubjectKeyID(pubKey any, hashAlgo HashAlgorithm) ([]byte, error) {
+func GetSubjectKeyID(pubKey any) ([]byte, error) {
 	// Borrowed with love from cfssl under the BSD 2-Clause license.
 	encodedPubKey, err := x509.MarshalPKIXPublicKey(pubKey)
 	if err != nil {
@@ -33,7 +29,7 @@ func GetSubjectKeyID(pubKey any, hashAlgo HashAlgorithm) ([]byte, error) {
 	}
 
 	// Borrowed with love from Go std lib crypto/x509 under the BSD 3-Clause license.
-	if hashAlgo == SHA256 {
+	if x509utilsha256skid {
 		// SubjectKeyId generated using method 1 in RFC 7093, Section 2:
 		//    1) The keyIdentifier is composed of the leftmost 160-bits of the
 		//    SHA-256 hash of the value of the BIT STRING subjectPublicKey

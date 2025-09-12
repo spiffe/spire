@@ -24,9 +24,8 @@ const (
 )
 
 type journalConfig struct {
-	cat           catalog.Catalog
-	log           logrus.FieldLogger
-	hashAlgorithm x509util.HashAlgorithm
+	cat catalog.Catalog
+	log logrus.FieldLogger
 }
 
 // Journal stores X509 CAs and JWT keys on disk as they are rotated by the
@@ -232,7 +231,6 @@ func (j *Journal) saveInDatastore(ctx context.Context, entriesBytes []byte) (caJ
 // KeyManager and trying to get a match with a record which last active
 // X509 authority ID correspond to one of the keys.
 func (j *Journal) findCAJournal(ctx context.Context) (*datastore.CAJournal, error) {
-	hashAlgo := j.config.hashAlgorithm
 	km := j.config.cat.GetKeyManager()
 	ds := j.config.cat.GetDataStore()
 
@@ -243,7 +241,7 @@ func (j *Journal) findCAJournal(ctx context.Context) (*datastore.CAJournal, erro
 	}
 
 	for _, k := range kmKeys {
-		subjectKeyID, err := x509util.GetSubjectKeyID(k.Public(), hashAlgo)
+		subjectKeyID, err := x509util.GetSubjectKeyID(k.Public())
 		if err != nil {
 			return nil, fmt.Errorf("failed to calculate the subject key identifier for public key with ID %q", k.ID())
 		}

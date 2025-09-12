@@ -40,7 +40,6 @@ type Config struct {
 	KeyUsage                    x509.KeyUsage
 	MutateMintX509CAResponse    func(*upstreamauthorityv1.MintX509CAResponse)
 	MutatePublishJWTKeyResponse func(*upstreamauthorityv1.PublishJWTKeyResponse)
-	HashAlgorithm               x509util.HashAlgorithm
 }
 
 type UpstreamAuthority struct {
@@ -199,9 +198,7 @@ func (ua *UpstreamAuthority) RotateX509CA() {
 	ua.x509CA = x509svid.NewUpstreamCA(
 		x509util.NewMemoryKeypair(caCert, caKey),
 		ua.config.TrustDomain,
-		x509svid.UpstreamCAOptions{
-			HashAlgo: ua.config.HashAlgorithm,
-		})
+		x509svid.UpstreamCAOptions{})
 
 	ua.TriggerX509RootsChanged()
 }

@@ -18,7 +18,6 @@ const (
 type UpstreamCAOptions struct {
 	Backdate time.Duration
 	Clock    clock.Clock
-	HashAlgo x509util.HashAlgorithm
 }
 
 type UpstreamCA struct {
@@ -48,7 +47,7 @@ func (ca *UpstreamCA) SignCSR(ctx context.Context, csrDER []byte, preferredTTL t
 		return nil, err
 	}
 
-	keyID, err := x509util.GetSubjectKeyID(csr.PublicKey, ca.options.HashAlgo)
+	keyID, err := x509util.GetSubjectKeyID(csr.PublicKey)
 	if err != nil {
 		return nil, err
 	}

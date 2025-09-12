@@ -80,7 +80,6 @@ type Config struct {
 	CA            ManagedCA
 	Catalog       catalog.Catalog
 	TrustDomain   spiffeid.TrustDomain
-	HashAlgorithm x509util.HashAlgorithm
 	X509CAKeyType keymanager.KeyType
 	JWTKeyType    keymanager.KeyType
 	Dir           string
@@ -143,7 +142,6 @@ func NewManager(ctx context.Context, c Config) (*Manager, error) {
 
 	loader := &SlotLoader{
 		TrustDomain:    c.TrustDomain,
-		HashAlgorithm:  c.HashAlgorithm,
 		Log:            c.Log,
 		Dir:            c.Dir,
 		Catalog:        c.Catalog,

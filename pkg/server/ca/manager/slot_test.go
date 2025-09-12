@@ -145,14 +145,11 @@ func TestJournalLoad(t *testing.T) {
 	clk := clock.New()
 	now := clk.Now()
 
-	hashAlgo := x509util.SHA256
-
 	credBuilder, err := credtemplate.NewBuilder(credtemplate.Config{
 		TrustDomain:   testTrustDomain,
 		X509CASubject: pkix.Name{CommonName: "SPIRE"},
 		Clock:         clk,
 		X509CATTL:     testCATTL,
-		HashAlgorithm: hashAlgo,
 	})
 	require.NoError(t, err)
 
@@ -183,7 +180,7 @@ func TestJournalLoad(t *testing.T) {
 	jwtKeyBPKIX, err := x509.MarshalPKIXPublicKey(jwtKeyB.Public())
 	require.NoError(t, err)
 
-	activeX509AuthorityID := getOneX509AuthorityID(ctx, t, km, hashAlgo)
+	activeX509AuthorityID := getOneX509AuthorityID(ctx, t, km)
 
 	// Dates
 	firstIssuedAtUnix := now.Add(-3 * time.Minute).Unix()
@@ -766,9 +763,8 @@ func TestJournalLoad(t *testing.T) {
 			loghook.Reset()
 			journal := new(Journal)
 			journal.config = &journalConfig{
-				hashAlgorithm: hashAlgo,
-				cat:           cat,
-				log:           log,
+				cat: cat,
+				log: log,
 			}
 			journal.setEntries(tt.entries)
 			journal.activeX509AuthorityID = activeX509AuthorityID
@@ -776,10 +772,9 @@ func TestJournalLoad(t *testing.T) {
 			require.NoError(t, err)
 
 			loader := &SlotLoader{
-				TrustDomain:   td,
-				HashAlgorithm: hashAlgo,
-				Log:           log,
-				Catalog:       cat,
+				TrustDomain: td,
+				Log:         log,
+				Catalog:     cat,
 			}
 
 			loadedJournal, slots, err := loader.load(ctx)

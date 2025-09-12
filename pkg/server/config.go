@@ -11,7 +11,6 @@ import (
 	"github.com/spiffe/spire/pkg/common/health"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/tlspolicy"
-	"github.com/spiffe/spire/pkg/common/x509util"
 	loggerv1 "github.com/spiffe/spire/pkg/server/api/logger/v1"
 	"github.com/spiffe/spire/pkg/server/authpolicy"
 	bundle_client "github.com/spiffe/spire/pkg/server/bundle/client"
@@ -131,9 +130,6 @@ type Config struct {
 	// PruneNonReattestableNodes, if true, includes non-reattestable nodes in the list
 	// considered for pruning.
 	PruneNonReattestableNodes bool
-
-	// HashAlgorithm specifies the algorithm used to generate the SubjectKeyID (default: SHA-1).
-	HashAlgorithm x509util.HashAlgorithm
 }
 
 type ExperimentalConfig struct{}
