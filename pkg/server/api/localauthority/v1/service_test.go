@@ -1617,9 +1617,9 @@ func TestTaintX509UpstreamAuthority(t *testing.T) {
 	activeUpstreamAuthority := testca.New(t, serverTrustDomain)
 	activeUpstreamAuthorityCert, activeUpstreamAuthorityID := getUpstreamCertAndSubjectID(activeUpstreamAuthority)
 
+	// Create newUpstreamAuthority children
 	currentIntermediateCA := activeUpstreamAuthority.ChildCA(testca.WithID(serverTrustDomain.ID()))
 	nextIntermediateCA := activeUpstreamAuthority.ChildCA(testca.WithID(serverTrustDomain.ID()))
-	// Create newUpstreamAuthority children
 
 	// Create old upstream authority
 	deactivatedUpstreamAuthority := testca.New(t, serverTrustDomain)
