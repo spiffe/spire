@@ -55,6 +55,7 @@ func TestMain_UnexpectedArguments(t *testing.T) {
 			}
 
 			// Run the test in a subprocess
+			// #nosec G204 - os.Args[0] is safe in test context
 			cmd := exec.Command(os.Args[0], "-test.run=TestMain_UnexpectedArguments/"+tt.name)
 			cmd.Env = append(os.Environ(), "BE_CRASHER=1")
 
@@ -95,6 +96,7 @@ func TestMain_VersionFlag(t *testing.T) {
 		return
 	}
 
+	// #nosec G204 - os.Args[0] is safe in test context
 	cmd := exec.Command(os.Args[0], "-test.run=TestMain_VersionFlag")
 	cmd.Env = append(os.Environ(), "BE_CRASHER=1")
 
@@ -125,6 +127,7 @@ func TestMain_UsageOutput(t *testing.T) {
 		return
 	}
 
+	// #nosec G204 - os.Args[0] is safe in test context
 	cmd := exec.Command(os.Args[0], "-test.run=TestMain_UsageOutput")
 	cmd.Env = append(os.Environ(), "BE_CRASHER=1")
 
@@ -243,6 +246,7 @@ func TestMain_Integration(t *testing.T) {
 				return
 			}
 
+			// #nosec G204 - os.Args[0] is safe in test context
 			cmd := exec.Command(os.Args[0], "-test.run=TestMain_Integration/"+tt.name)
 			cmd.Env = append(os.Environ(), "BE_CRASHER=1")
 
