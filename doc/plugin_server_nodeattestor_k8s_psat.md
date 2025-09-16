@@ -61,7 +61,7 @@ A sample configuration for SPIRE server running outside of a Kubernetes cluster:
     }
 ```
 
-The kube config file needs to grant at least the following access to `spire-server`:
+The Kubernetes user defined in the kube config file needs to have ClusterRoleBindings assigned to ClusterRoles containing at least the following permissions:
 
 ```yaml
 - apiGroups: [""]
