@@ -35,7 +35,6 @@ func (m *authorizationMiddleware) opaAuth(ctx context.Context, req any, fullMeth
 	}
 
 	if input.Caller == "" {
-		// ignore result if error occurs
 		if watcher, ok := peertracker.WatcherFromContext(ctx); ok {
 			if p, err := process.NewProcess(watcher.PID()); err == nil {
 				input.CallerPath, _ = getAddr(p)
