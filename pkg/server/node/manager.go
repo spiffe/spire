@@ -69,7 +69,7 @@ func (m *Manager) Prune(ctx context.Context, expiredFor time.Duration, includeNo
 }
 
 func (m *Manager) pruneEvery(ctx context.Context) error {
-	m.log.Info("Node manager periodic prune job started")
+	m.log.WithField("expired_for", m.c.ExpiredFor).WithField("include_tofu", m.c.IncludeNonReattestable).Info("Periodic prune of expired nodes started")
 
 	ticker := m.c.Clock.Ticker(m.c.Interval)
 	defer ticker.Stop()
