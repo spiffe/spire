@@ -40,9 +40,10 @@ type LocalOpaProviderConfig struct {
 type Input struct {
 	// Caller is the authenticated identity of the actor making a request.
 	Caller string `json:"caller"`
+
 	// CallerPath is the file path of a local actor making a request.
 	CallerPath string `json:"caller_path"`
-	
+
 	// FullMethod is the fully-qualified name of the proto rpc service method.
 	FullMethod string `json:"full_method"`
 
