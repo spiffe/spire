@@ -16,11 +16,12 @@
 
 ### Fixed
 
-- `spire-server entry delete` now properly displays results when no failures are involved (#6176)
+- `spire-server entry delete` CLI command now properly displays results when no failures are involved (#6176)
 
 ### Security
 
-- Fixed agent name length validation in the `http_challenge` NodeAttestor plugin (#6324)
+- Fixed agent name length validation in the `http_challenge` NodeAttestor plugin, to prevent issues with web servers that cannot handle very large URLs 
+ (#6324)
 
 ## [1.13.0] - 2025-08-15
 
