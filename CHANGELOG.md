@@ -20,8 +20,7 @@
 
 ### Security
 
-- Fixed agent name length validation in the `http_challenge` NodeAttestor plugin, to prevent issues with web servers that cannot handle very large URLs 
- (#6324)
+- Fixed agent name length validation in the `http_challenge` NodeAttestor plugin, to prevent issues with web servers that cannot handle very large URLs (#6324)
 
 ## [1.13.0] - 2025-08-15
 
