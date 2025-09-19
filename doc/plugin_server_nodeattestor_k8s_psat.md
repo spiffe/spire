@@ -61,6 +61,17 @@ A sample configuration for SPIRE server running outside of a Kubernetes cluster:
     }
 ```
 
+The Kubernetes user defined in the kube config file needs to have ClusterRoleBindings assigned to ClusterRoles containing at least the following permissions:
+
+```yaml
+- apiGroups: [""]
+  resources: ["pods", "nodes"]
+  verbs: ["get"]
+- apiGroups: ["authentication.k8s.io"]
+  resources: ["tokenreviews"]
+  verbs: ["create"]
+```
+
 This plugin generates the following selectors:
 
 | Selector                    | Example                                                        | Description                                                                     |
