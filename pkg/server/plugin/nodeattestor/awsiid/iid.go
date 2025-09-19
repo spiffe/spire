@@ -103,6 +103,7 @@ type IIDAttestorPlugin struct {
 	clients *clientsCache
 
 	orgValidation *orgValidator
+	eksValidation *eksValidator
 
 	// test hooks
 	hooks struct {
@@ -123,6 +124,7 @@ type IIDAttestorConfig struct {
 	AssumeRole                      string               `hcl:"assume_role"`
 	Partition                       string               `hcl:"partition"`
 	ValidateOrgAccountID            *orgValidationConfig `hcl:"verify_organization"`
+	ValidateEKSClusterMembership    *eksValidationConfig `hcl:"validate_eks_cluster_membership"`
 	pathTemplate                    *agentpathtemplate.Template
 	trustDomain                     spiffeid.TrustDomain
 	getAWSCACertificate             func(string, PublicKeyType) (*x509.Certificate, error)
@@ -179,6 +181,7 @@ func (p *IIDAttestorPlugin) buildConfig(coreConfig catalog.CoreConfig, hclText s
 func New() *IIDAttestorPlugin {
 	p := &IIDAttestorPlugin{}
 	p.orgValidation = newOrganizationValidationBase(&orgValidationConfig{})
+	p.eksValidation = newEKSValidationBase(&eksValidationConfig{})
 	p.clients = newClientsCache(defaultNewClientCallback)
 	p.hooks.getAWSCACertificate = getAWSCACertificate
 	p.hooks.getenv = os.Getenv
@@ -228,6 +231,26 @@ func (p *IIDAttestorPlugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServ
 	}
 
 	inTrustAcctList := slices.Contains(c.LocalValidAcctIDs, attestationData.AccountID)
+
+	// Feature node belongs to EKS cluster
+	if c.ValidateEKSClusterMembership != nil {
+		ctxValidateEKS, cancel := context.WithTimeout(stream.Context(), awsTimeout)
+		defer cancel()
+
+		awsClient, err := p.clients.getClient(ctxValidateEKS, attestationData.Region, attestationData.AccountID)
+		if err != nil {
+			return status.Errorf(codes.Internal, "failed to get client: %v", err)
+		}
+
+		valid, err := p.eksValidation.IsNodeInCluster(ctxValidateEKS, awsClient, awsClient, attestationData.InstanceID)
+		if err != nil {
+			return status.Errorf(codes.Internal, "failed aws eks attestation, issue while verifying if nodes id: %v belong to cluster: %v", attestationData.InstanceID, err)
+		}
+
+		if !valid {
+			return status.Errorf(codes.Internal, "failed aws eks attestation, nodes id: %v is not part of configured EKS cluster", attestationData.InstanceID)
+		}
+	}
 
 	ctx, cancel := context.WithTimeout(stream.Context(), awsTimeout)
 	defer cancel()
@@ -319,6 +342,12 @@ func (p *IIDAttestorPlugin) Configure(_ context.Context, req *configv1.Configure
 		}
 	}
 
+	if newConfig.ValidateEKSClusterMembership != nil {
+		if err := p.eksValidation.configure(newConfig.ValidateEKSClusterMembership); err != nil {
+			return nil, err
+		}
+	}
+
 	return &configv1.ConfigureResponse{}, nil
 }
 
@@ -335,6 +364,7 @@ func (p *IIDAttestorPlugin) Validate(_ context.Context, req *configv1.ValidateRe
 func (p *IIDAttestorPlugin) SetLogger(log hclog.Logger) {
 	p.log = log
 	p.orgValidation.setLogger(log)
+	p.eksValidation.setLogger(log)
 }
 
 func (p *IIDAttestorPlugin) checkBlockDevice(instance ec2types.Instance) error {

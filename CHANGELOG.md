@@ -1,5 +1,27 @@
 # Changelog
 
+## [1.13.1] - 2025-09-18
+
+### Added
+
+- `aws_iid` NodeAttestor can now verify that nodes belong to specified EKS clusters (#5969)
+- The server now supports configuring how long to cache attested node information, reducing node fetch dependency for RPCs (#6176)
+- `aws_s3`, `gcp_cloudstorage`, and `k8s_configmap` BundlePublisher plugins now support setting a refresh hint for the published bundle (#6276)
+
+### Changed
+
+- The "Subscribing to cache changes" log message from the DelegatedIdentity agent API is now logged at Debug level (#6255)
+- Integration tests now exercise currently supported Postgres versions (#6275)
+- Minor documentation improvements (#6280, #6293, #6296)
+
+### Fixed
+
+- `spire-server entry delete` CLI command now properly displays results when no failures are involved (#6176)
+
+### Security
+
+- Fixed agent name length validation in the `http_challenge` NodeAttestor plugin, to prevent issues with web servers that cannot handle very large URLs (#6324)
+
 ## [1.13.0] - 2025-08-15
 
 ### Added

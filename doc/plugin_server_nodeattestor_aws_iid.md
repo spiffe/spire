@@ -20,6 +20,7 @@ this plugin resolves the agent's AWS IID-based SPIFFE ID into a set of selectors
 | `assume_role`                        | The role to assume                                                                                                                                            | Empty string, Optional parameter.                     |
 | `partition`                          | The AWS partition SPIRE server is running in &lt;aws&vert;aws-cn&vert;aws-us-gov&gt;                                                                          | aws                                                   |
 | `verify_organization`                | Verify that nodes belong to a specified AWS Organization [see below](#enabling-aws-node-attestation-organization-validation)                                  |                                                       |
+| `validate_eks_cluster_membership`    | Verify that nodes belong to specified EKS clusters [see below](#enabling-aws-node-attestation-eks-cluster-validation)                                         |                                                       |
 
 Sample configuration:
 
@@ -98,6 +99,56 @@ Trust Relationship
 }
 ```
 
+## Enabling AWS Node Attestation EKS Cluster Validation
+
+For configuring AWS Node attestation method with EKS cluster validation following configuration can be used:
+
+| Field Name          | Description                                                                                   | Constraints                                |
+|---------------------|-----------------------------------------------------------------------------------------------|--------------------------------------------|
+| eks_cluster_names   | List of EKS cluster names that nodes are allowed to belong to                                | required                                   |
+
+Using the block `validate_eks_cluster_membership` the EKS cluster validation node attestation method will be enabled. With above configuration SPIRE server will verify that the attesting node is part of one of the specified EKS clusters. When not used, block ex. `validate_eks_cluster_membership = {}` should not be empty, it should be completely removed as its optional or should have all required parameters namely `eks_cluster_names`.
+
+Sample configuration:
+
+```hcl
+NodeAttestor "aws_iid" {
+    plugin_data {
+        validate_eks_cluster_membership = {
+            eks_cluster_names = ["production-cluster", "staging-cluster"]
+        }
+    }
+}
+```
+
+The SPIRE server will validate that the attesting EC2 instance is part of an Auto Scaling Group that belongs to one of the specified EKS clusters. The validation process:
+
+1. Retrieves the list of node groups for each specified EKS cluster
+2. For each node group, gets the associated Auto Scaling Groups
+3. Checks if the attesting instance ID is present in any of these Auto Scaling Groups
+
+### AWS IAM Permissions for EKS Validation
+
+The user or role identified by the configured credentials must have additional permissions for EKS cluster validation:
+
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "EKSClusterValidation",
+            "Effect": "Allow",
+            "Action": [
+                "eks:ListNodegroups",
+                "eks:DescribeNodegroup",
+                "autoscaling:DescribeAutoScalingGroups"
+            ],
+            "Resource": "*"
+        }
+    ]
+}
+```
+
 ## Disabling Instance Profile Selectors
 
 In cases where spire-server is running in a location with no public internet access available, setting `disable_instance_profile_selectors = true` will prevent the server from making requests to `iam.amazonaws.com`. This is needed as spire-server will fail to attest nodes as it cannot retrieve the metadata information.
@@ -126,6 +177,11 @@ The following is an example for a IAM policy needed to get instance's info from 
     ]
 }
 ```
+
+**Note:** Additional permissions are required when using optional validation features:
+
+- For organization validation (`verify_organization`): `organizations:ListAccounts`
+- For EKS cluster validation (`validate_eks_cluster_membership`): `eks:ListNodegroups`, `eks:DescribeNodegroup`, `autoscaling:DescribeAutoScalingGroups`
 
 For more information on security credentials, see <https://docs.aws.amazon.com/general/latest/gr/aws-security-credentials.html>.
 
