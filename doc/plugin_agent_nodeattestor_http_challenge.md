@@ -1,11 +1,11 @@
 # Agent plugin: NodeAttestor "http_challenge"
 
-*Must be used in conjunction with the server-side http_challenge plugin*
+*Must be used in conjunction with the [server-side http_challenge plugin](plugin_server_nodeattestor_http_challenge.md)*
 
 The `http_challenge` plugin handshakes via http to ensure the agent is running on a valid
 dns name.
 
-The SPIFFE ID produced by the server-side `http_challenge` plugin is based on the dns name of the agent.
+The SPIFFE ID produced by the [server-side `http_challenge` plugin](plugin_server_nodeattestor_http_challenge.md) is based on the dns name of the agent.
 The SPIFFE ID has the form:
 
 ```xml

@@ -1,6 +1,6 @@
 # Server plugin: NodeAttestor "k8s_psat"
 
-*Must be used in conjunction with the agent-side k8s_psat plugin*
+*Must be used in conjunction with the [agent-side k8s_psat plugin](plugin_agent_nodeattestor_k8s_psat.md)*
 
 The `k8s_psat` plugin attests nodes running inside of Kubernetes. The server
 validates the signed projected service account token provided by the agent.
