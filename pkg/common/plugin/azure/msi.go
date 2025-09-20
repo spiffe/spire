@@ -28,6 +28,7 @@ type ComputeMetadata struct {
 	Name              string `json:"name"`
 	SubscriptionID    string `json:"subscriptionId"`
 	ResourceGroupName string `json:"resourceGroupName"`
+	VMScaleSetName    string `json:"vmScaleSetName"`
 }
 
 type InstanceMetadata struct {
@@ -90,7 +91,7 @@ func FetchMSIToken(cl HTTPClient, resource string) (string, error) {
 }
 
 func FetchInstanceMetadata(cl HTTPClient) (*InstanceMetadata, error) {
-	req, err := http.NewRequest("GET", "http://169.254.169.254/metadata/instance?api-version=2017-08-01&format=json", nil)
+	req, err := http.NewRequest("GET", "http://169.254.169.254/metadata/instance?api-version=2025-04-07&format=json", nil)
 	if err != nil {
 		return nil, err
 	}
