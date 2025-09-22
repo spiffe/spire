@@ -1,6 +1,6 @@
 # Server plugin: NodeAttestor "k8s_psat"
 
-*Must be used in conjunction with the agent-side k8s_psat plugin*
+*Must be used in conjunction with the [agent-side k8s_psat plugin](plugin_agent_nodeattestor_k8s_psat.md)*
 
 The `k8s_psat` plugin attests nodes running inside of Kubernetes. The server
 validates the signed projected service account token provided by the agent.
@@ -59,6 +59,17 @@ A sample configuration for SPIRE server running outside of a Kubernetes cluster:
                 }
         }
     }
+```
+
+The Kubernetes user defined in the kube config file needs to have ClusterRoleBindings assigned to ClusterRoles containing at least the following permissions:
+
+```yaml
+- apiGroups: [""]
+  resources: ["pods", "nodes"]
+  verbs: ["get"]
+- apiGroups: ["authentication.k8s.io"]
+  resources: ["tokenreviews"]
+  verbs: ["create"]
 ```
 
 This plugin generates the following selectors:

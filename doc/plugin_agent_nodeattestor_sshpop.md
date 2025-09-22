@@ -1,13 +1,13 @@
 # Agent plugin: NodeAttestor "sshpop"
 
-*Must be used in conjunction with the server-side sshpop plugin*
+*Must be used in conjunction with the [server-side sshpop plugin](plugin_server_nodeattestor_sshpop.md)*
 
 The `sshpop` plugin provides attestation data for a node that has been
 provisioned with an ssh identity through an out-of-band mechanism and responds
 to a signature based proof-of-possession challenge issued by the server
 plugin.
 
-The SPIFFE ID produced by the server-side `sshpop` plugin is based on the certificate fingerprint,
+The SPIFFE ID produced by the [server-side `sshpop` plugin](plugin_server_nodeattestor_sshpop.md) is based on the certificate fingerprint,
 which is an unpadded url-safe base64 encoded sha256 hash of the certificate in openssh format.
 
 ```xml

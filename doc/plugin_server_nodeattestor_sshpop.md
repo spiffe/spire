@@ -1,6 +1,6 @@
 # Server plugin: NodeAttestor "sshpop"
 
-*Must be used in conjunction with the agent-side sshpop plugin*
+*Must be used in conjunction with the [agent-side sshpop plugin](plugin_agent_nodeattestor_sshpop.md)*
 
 The `sshpop` plugin attests nodes that have been provisioned with an ssh
 identity through an out-of-band mechanism. It verifies that the certificate is
