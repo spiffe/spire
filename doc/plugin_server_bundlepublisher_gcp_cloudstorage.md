@@ -5,12 +5,13 @@ Google Cloud Storage bucket, keeping it updated.
 
 The plugin accepts the following configuration options:
 
-| Configuration        | Description                                                                                                                                                    | Required | Default                                                         |
-|----------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------|----------|-----------------------------------------------------------------|
-| service_account_file | Path to the service account file used to authenticate with the Cloud Storage API.                                                                              | No.      | Value of `GOOGLE_APPLICATION_CREDENTIALS` environment variable. |
-| bucket_name          | The Google Cloud Storage bucket name to which the trust bundle is uploaded.                                                                                    | Yes.     |                                                                 |
-| object_name          | The object name inside the bucket.                                                                                                                             | Yes.     |                                                                 |
-| format               | Format in which the trust bundle is stored, &lt;spiffe &vert; jwks &vert; pem&gt;. See [Supported bundle formats](#supported-bundle-formats) for more details. | Yes.     |                                                                 |
+| Configuration        | Description                                                                                                                                                                          | Required | Default                                                         |
+|----------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------|-----------------------------------------------------------------|
+| service_account_file | Path to the service account file used to authenticate with the Cloud Storage API.                                                                                                    | No.      | Value of `GOOGLE_APPLICATION_CREDENTIALS` environment variable. |
+| bucket_name          | The Google Cloud Storage bucket name to which the trust bundle is uploaded.                                                                                                          | Yes.     |                                                                 |
+| object_name          | The object name inside the bucket.                                                                                                                                                   | Yes.     |                                                                 |
+| format               | Format in which the trust bundle is stored, &lt;spiffe &vert; jwks &vert; pem&gt;. See [Supported bundle formats](#supported-bundle-formats) for more details.                       | Yes.     |                                                                 |
+| refresh_hint         | Sets the refresh hint for the bundle when using the spiffe format. Specified as string e.g. '10m', '1h'. See [time.ParseDuration](https://pkg.go.dev/time#ParseDuration) for details | No.      |                                                                 |
 
 ## Supported bundle formats
 

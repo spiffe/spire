@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 )
 
@@ -152,6 +153,42 @@ func TestV1(t *testing.T) {
 			spiretest.AssertProtoListEqual(t, tt.expectResult.Selectors, result.Selectors)
 		})
 	}
+}
+
+type ForwardedHostV1Plugin struct {
+	nodeattestorv1.UnimplementedNodeAttestorServer
+	ExpectedHost string
+}
+
+func (plugin *ForwardedHostV1Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
+	xForwardedHost := metadata.ValueFromIncomingContext(stream.Context(), nodeattestor.XForwardedHostKey)
+	if len(xForwardedHost) == 0 || xForwardedHost[0] != plugin.ExpectedHost {
+		return errors.New("expected forwarded host in context metadata")
+	}
+	return stream.Send(&nodeattestorv1.AttestResponse{
+		Response: &nodeattestorv1.AttestResponse_AgentAttributes{
+			AgentAttributes: &nodeattestorv1.AgentAttributes{
+				SpiffeId: "spiffe://example.org/spire/agent/test/foo",
+			},
+		},
+	})
+}
+
+func TestHostForwarding(t *testing.T) {
+	server := nodeattestorv1.NodeAttestorPluginServer(&ForwardedHostV1Plugin{ExpectedHost: "spire-server-xyz.spiffe.io"})
+	nodeattestor := new(nodeattestor.V1)
+	plugintest.Load(t, catalog.MakeBuiltIn("test", server), nodeattestor)
+
+	ctx := metadata.NewIncomingContext(
+		context.Background(),
+		metadata.New(map[string]string{":authority": "spire-server-xyz.spiffe.io:8081"}),
+	)
+	result, err := nodeattestor.Attest(ctx, []byte("unused"), func(ctx context.Context, challenge []byte) ([]byte, error) {
+		return challenge, nil
+	})
+
+	require.NotNil(t, result)
+	require.Nil(t, err)
 }
 
 func loadV1Plugin(t *testing.T, plugin *fakeV1Plugin) nodeattestor.NodeAttestor {

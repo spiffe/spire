@@ -1969,6 +1969,11 @@ func buildListAttestedNodesQueryCTE(req *datastore.ListAttestedNodesRequest, dbT
 		args = append(args, req.ByExpiresBefore)
 	}
 
+	if !req.ValidAt.IsZero() {
+		builder.WriteString("\t\tAND expires_at >= ?\n")
+		args = append(args, req.ValidAt)
+	}
+
 	// Filter by Attestation type
 	if req.ByAttestationType != "" {
 		builder.WriteString("\t\tAND data_type = ?\n")
@@ -2195,6 +2200,12 @@ FROM attested_node_entries N
 		if !req.ByExpiresBefore.IsZero() {
 			builder.WriteString(" AND N.expires_at < ?")
 			args = append(args, req.ByExpiresBefore)
+		}
+
+		if !req.ValidAt.IsZero() {
+			// Filter by valid_at
+			builder.WriteString("\t\tAND expires_at >= ?\n")
+			args = append(args, req.ValidAt)
 		}
 
 		// Filter by Attestation type

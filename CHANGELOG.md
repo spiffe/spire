@@ -1,5 +1,61 @@
 # Changelog
 
+## [1.13.1] - 2025-09-18
+
+### Added
+
+- `aws_iid` NodeAttestor can now verify that nodes belong to specified EKS clusters (#5969)
+- The server now supports configuring how long to cache attested node information, reducing node fetch dependency for RPCs (#6176)
+- `aws_s3`, `gcp_cloudstorage`, and `k8s_configmap` BundlePublisher plugins now support setting a refresh hint for the published bundle (#6276)
+
+### Changed
+
+- The "Subscribing to cache changes" log message from the DelegatedIdentity agent API is now logged at Debug level (#6255)
+- Integration tests now exercise currently supported Postgres versions (#6275)
+- Minor documentation improvements (#6280, #6293, #6296)
+
+### Fixed
+
+- `spire-server entry delete` CLI command now properly displays results when no failures are involved (#6176)
+
+### Security
+
+- Fixed agent name length validation in the `http_challenge` NodeAttestor plugin, to prevent issues with web servers that cannot handle very large URLs (#6324)
+
+## [1.13.0] - 2025-08-15
+
+### Added
+
+- Server configurable for periodically purging expired agents (#6152)
+- The experimental events-based cache now implements a full cache reload (#6151)
+- Support for automatic agent rebootstrap when the server CA goes invalid (#5892)
+
+### Changed
+
+- Default values for `rebootstrapMode` and `rebootstrapDelay` in SPIRE Agent (#6227)
+- "No identities issued" error log now includes the attested selectors (#6179)
+- Server configuration validation to verify `agent_ttl` compatibility with current `ca_ttl` (#6178)
+- Small documentation improvements (#6169)
+
+### Deprecated
+
+- `retry_bootstrap` experimental agent setting (#5906)
+
+### Fixed
+
+- Health checks and metrics initialization when `retry_bootstrap` is enabled (#6164)
+
+### Removed
+
+- The deprecated `use_legacy_downstream_x509_ca_ttl` server configurable (#5703)
+- The deprecated `use_rego_v1` server configurable (#6219)
+
+## [1.12.5] - 2025-08-18
+
+### Security
+
+- Upgrade Go to 1.24.6 for [GO-2025-3849](https://pkg.go.dev/vuln/GO-2025-3849) (#6250)
+
 ## [1.12.4] - 2025-07-01
 
 ### Added

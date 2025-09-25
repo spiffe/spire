@@ -966,12 +966,14 @@ func (s *PluginSuite) TestListAttestedNodes() {
 	nodeG := makeAttestedNode("G", "T1", unexpired, banned, false, "S2", "S3")
 	nodeH := makeAttestedNode("H", "T2", unexpired, banned, false, "S2", "S3")
 	nodeI := makeAttestedNode("I", "T1", unexpired, unbanned, true, "S1")
+	nodeJ := makeAttestedNode("J", "T1", now, unbanned, false, "S1", "S2")
 
 	for _, tt := range []struct {
 		test                string
 		nodes               []*common.AttestedNode
 		pageSize            int32
 		byExpiresBefore     time.Time
+		byValidAt           time.Time
 		byAttestationType   string
 		bySelectors         *datastore.BySelectors
 		byBanned            *bool
@@ -1018,6 +1020,14 @@ func (s *PluginSuite) TestListAttestedNodes() {
 			expectNodesOut:      []*common.AttestedNode{nodeA, nodeB, nodeC},
 			expectPagedTokensIn: []string{"", "1", "3", "6"},
 			expectPagedNodesOut: [][]*common.AttestedNode{{nodeA}, {nodeB}, {nodeC}, {}},
+		},
+		{
+			test:                "by valid at",
+			nodes:               []*common.AttestedNode{nodeA, nodeE, nodeJ},
+			byValidAt:           now.Add(-time.Minute),
+			expectNodesOut:      []*common.AttestedNode{nodeE, nodeJ},
+			expectPagedTokensIn: []string{"", "2", "3"},
+			expectPagedNodesOut: [][]*common.AttestedNode{{nodeE}, {nodeJ}, {}},
 		},
 		// By attestation type
 		{
@@ -1213,6 +1223,7 @@ func (s *PluginSuite) TestListAttestedNodes() {
 					req := &datastore.ListAttestedNodesRequest{
 						Pagination:        pagination,
 						ByExpiresBefore:   tt.byExpiresBefore,
+						ValidAt:           tt.byValidAt,
 						ByAttestationType: tt.byAttestationType,
 						BySelectorMatch:   tt.bySelectors,
 						ByBanned:          tt.byBanned,
@@ -1754,12 +1765,14 @@ func (s *PluginSuite) TestPruneAttestedNodeEvents() {
 		},
 	} {
 		s.T().Run(tt.name, func(t *testing.T) {
-			s.Require().Eventuallyf(func() bool {
+			s.Require().EventuallyWithTf(func(collect *assert.CollectT) {
 				err = s.ds.PruneAttestedNodeEvents(ctx, tt.olderThan)
-				s.Require().NoError(err)
+				require.NoError(t, err)
+
 				resp, err := s.ds.ListAttestedNodeEvents(ctx, &datastore.ListAttestedNodeEventsRequest{})
-				s.Require().NoError(err)
-				return reflect.DeepEqual(tt.expectedEvents, resp.Events)
+				require.NoError(t, err)
+
+				assert.True(collect, reflect.DeepEqual(tt.expectedEvents, resp.Events))
 			}, 10*time.Second, 50*time.Millisecond, "Failed to prune entries correctly")
 		})
 	}
@@ -1777,11 +1790,12 @@ func (s *PluginSuite) TestNodeSelectors() {
 	}
 
 	// assert there are no selectors for foo
-	selectors := s.getNodeSelectors("foo", datastore.RequireCurrent)
+	selectors := s.getNodeSelectors("foo")
 	s.Require().Empty(selectors)
-	s.Eventually(func() bool {
-		selectors = s.getNodeSelectors("foo", datastore.TolerateStale)
-		return len(selectors) == 0
+	s.EventuallyWithT(func(collect *assert.CollectT) {
+		selectors, err := s.ds.GetNodeSelectors(ctx, "foo", datastore.TolerateStale)
+		require.NoError(collect, err)
+		assert.Len(collect, selectors, 0)
 	}, time.Second, 10*time.Millisecond)
 
 	// set selectors on foo and bar
@@ -1789,37 +1803,41 @@ func (s *PluginSuite) TestNodeSelectors() {
 	s.setNodeSelectors("bar", bar)
 
 	// get foo selectors
-	selectors = s.getNodeSelectors("foo", datastore.RequireCurrent)
+	selectors = s.getNodeSelectors("foo")
 	s.RequireProtoListEqual(foo1, selectors)
-	s.Eventually(func() bool {
-		selectors := s.getNodeSelectors("foo", datastore.TolerateStale)
-		return spiretest.CheckProtoListEqual(s.T(), foo1, selectors)
+	s.EventuallyWithT(func(collect *assert.CollectT) {
+		selectors, err := s.ds.GetNodeSelectors(ctx, "foo", datastore.TolerateStale)
+		require.NoError(collect, err)
+		assert.True(collect, spiretest.CheckProtoListEqual(s.T(), foo1, selectors))
 	}, time.Second, 10*time.Millisecond)
 
 	// replace foo selectors
 	s.setNodeSelectors("foo", foo2)
-	selectors = s.getNodeSelectors("foo", datastore.RequireCurrent)
+	selectors = s.getNodeSelectors("foo")
 	s.RequireProtoListEqual(foo2, selectors)
-	s.Eventually(func() bool {
-		selectors := s.getNodeSelectors("foo", datastore.TolerateStale)
-		return spiretest.CheckProtoListEqual(s.T(), foo2, selectors)
+	s.EventuallyWithT(func(collect *assert.CollectT) {
+		selectors, err := s.ds.GetNodeSelectors(ctx, "foo", datastore.TolerateStale)
+		require.NoError(collect, err)
+		assert.True(collect, spiretest.CheckProtoListEqual(s.T(), foo2, selectors))
 	}, time.Second, 10*time.Millisecond)
 
 	// delete foo selectors
 	s.setNodeSelectors("foo", []*common.Selector{})
-	selectors = s.getNodeSelectors("foo", datastore.RequireCurrent)
+	selectors = s.getNodeSelectors("foo")
 	s.Require().Empty(selectors)
-	s.Eventually(func() bool {
-		selectors := s.getNodeSelectors("foo", datastore.TolerateStale)
-		return len(selectors) == 0
+	s.EventuallyWithT(func(collect *assert.CollectT) {
+		selectors, err := s.ds.GetNodeSelectors(ctx, "foo", datastore.TolerateStale)
+		require.NoError(collect, err)
+		assert.Len(collect, selectors, 0)
 	}, time.Second, 10*time.Millisecond)
 
 	// get bar selectors (make sure they weren't impacted by deleting foo)
-	selectors = s.getNodeSelectors("bar", datastore.RequireCurrent)
+	selectors = s.getNodeSelectors("bar")
 	s.RequireProtoListEqual(bar, selectors)
-	s.Eventually(func() bool {
-		selectors := s.getNodeSelectors("bar", datastore.TolerateStale)
-		return spiretest.CheckProtoListEqual(s.T(), bar, selectors)
+	s.EventuallyWithT(func(collect *assert.CollectT) {
+		selectors, err := s.ds.GetNodeSelectors(ctx, "bar", datastore.TolerateStale)
+		require.NoError(collect, err)
+		assert.True(collect, spiretest.CheckProtoListEqual(s.T(), bar, selectors))
 	}, time.Second, 10*time.Millisecond)
 }
 
@@ -4395,12 +4413,14 @@ func (s *PluginSuite) TestPruneRegistrationEntryEvents() {
 		},
 	} {
 		s.T().Run(tt.name, func(t *testing.T) {
-			s.Require().Eventuallyf(func() bool {
-				err = s.ds.PruneRegistrationEntryEvents(ctx, tt.olderThan)
-				s.Require().NoError(err)
+			s.Require().EventuallyWithTf(func(collect *assert.CollectT) {
+				err := s.ds.PruneRegistrationEntryEvents(ctx, tt.olderThan)
+				require.NoError(collect, err)
+
 				resp, err := s.ds.ListRegistrationEntryEvents(ctx, &datastore.ListRegistrationEntryEventsRequest{})
-				s.Require().NoError(err)
-				return reflect.DeepEqual(tt.expectedEvents, resp.Events)
+				require.NoError(collect, err)
+
+				assert.True(collect, reflect.DeepEqual(tt.expectedEvents, resp.Events))
 			}, 10*time.Second, 50*time.Millisecond, "Failed to prune entries correctly")
 		})
 	}
@@ -5456,8 +5476,8 @@ func makeFederatedRegistrationEntry() *common.RegistrationEntry {
 	}
 }
 
-func (s *PluginSuite) getNodeSelectors(spiffeID string, dataConsistency datastore.DataConsistency) []*common.Selector {
-	selectors, err := s.ds.GetNodeSelectors(ctx, spiffeID, dataConsistency)
+func (s *PluginSuite) getNodeSelectors(spiffeID string) []*common.Selector {
+	selectors, err := s.ds.GetNodeSelectors(ctx, spiffeID, datastore.RequireCurrent)
 	s.Require().NoError(err)
 	return selectors
 }
