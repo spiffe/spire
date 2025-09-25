@@ -253,7 +253,7 @@ func TestHealthFailsAndRecover(t *testing.T) {
 			if tt.advance > 0 {
 				clockMock.Add(tt.advance)
 			}
-			<-waitFor
+			waitForUpdate(t, waitFor)
 			spiretest.AssertLogs(t, hook.AllEntries(), tt.expectLogs)
 			require.Equal(t, tt.expectState(), c.getStatuses())
 		})
@@ -270,4 +270,12 @@ func (f *fakeCheckable) CheckHealth() State {
 
 type healthDetails struct {
 	Err string `json:"err,omitempty"`
+}
+
+func waitForUpdate(t *testing.T, ch <-chan struct{}) {
+	select {
+	case <-ch:
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for health update")
+	}
 }
