@@ -61,7 +61,7 @@ require (
 	github.com/hashicorp/vault/sdk v0.18.0
 	github.com/imdario/mergo v0.3.16
 	github.com/imkira/go-observer v1.0.3
-	github.com/jackc/pgx/v5 v5.7.5
+	github.com/jackc/pgx/v5 v5.7.6
 	github.com/jinzhu/gorm v1.9.16
 	github.com/lib/pq v1.10.9
 	github.com/mattn/go-sqlite3 v1.14.32
@@ -94,7 +94,7 @@ require (
 	k8s.io/client-go v0.34.0
 	k8s.io/kube-aggregator v0.34.0
 	k8s.io/mount-utils v0.34.0
-	sigs.k8s.io/controller-runtime v0.22.0
+	sigs.k8s.io/controller-runtime v0.22.1
 )
 
 require (
