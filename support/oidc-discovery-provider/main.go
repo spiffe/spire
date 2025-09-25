@@ -38,6 +38,13 @@ func main() {
 		os.Exit(0)
 	}
 
+	if args := flag.Args(); len(args) > 0 {
+		fmt.Fprintf(os.Stderr, "Error: unexpected arguments: %v\n", args)
+		fmt.Fprintf(os.Stderr, "Usage of %s:\n", os.Args[0])
+		flag.PrintDefaults()
+		os.Exit(1)
+	}
+
 	if err := run(*configFlag, *expandEnv); err != nil {
 		fmt.Fprintf(os.Stderr, "%+v\n", err)
 		os.Exit(1)
