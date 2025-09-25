@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
@@ -73,298 +74,190 @@ func TestHealthFailsAndRecover(t *testing.T) {
 		},
 	}
 
-	err := c.addCheck("foo", fooChecker)
-	require.NoError(t, err)
+	require.NoError(t, c.addCheck("foo", fooChecker))
+	require.NoError(t, c.addCheck("bar", barChecker))
+	require.NoError(t, c.start(context.Background()))
 
-	err = c.addCheck("bar", barChecker)
-	require.NoError(t, err)
+	var firstFailureTime time.Time
 
-	ctx := context.Background()
-
-	err = c.start(ctx)
-	require.NoError(t, err)
-
-	t.Run("fail to start initially", func(t *testing.T) {
-		// Wait for initial calls
-		<-waitFor
-
-		expectLogs := []spiretest.LogEntry{
-			{
-				Level:   logrus.DebugLevel,
-				Message: "Initializing health checkers",
-			},
-			{
-				Level:   logrus.ErrorLevel,
-				Message: "Health check has failed",
-				Data: logrus.Fields{
-					telemetry.Check: "bar",
-					telemetry.Error: "subsystem is not live or ready",
+	tests := []struct {
+		name        string
+		setup       func()
+		advance     time.Duration
+		expectLogs  []spiretest.LogEntry
+		expectState func() map[string]checkState
+	}{
+		{
+			name:    "fail to start initially",
+			setup:   func() {},
+			advance: 0,
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Health check has failed",
+					Data: logrus.Fields{
+						telemetry.Check: "bar",
+						telemetry.Error: "subsystem is not live or ready",
+					},
+				},
+				{
+					Level:   logrus.WarnLevel,
+					Message: "Health check failed",
+					Data: logrus.Fields{
+						telemetry.Check:   "bar",
+						telemetry.Details: "{<nil> false false {} {}}",
+						telemetry.Error:   "subsystem is not live or ready",
+					},
 				},
 			},
-			{
-				Level:   logrus.WarnLevel,
-				Message: "Health check failed",
-				Data: logrus.Fields{
-					telemetry.Check:   "bar",
-					telemetry.Details: "{<nil> false false {} {}}",
-					telemetry.Error:   "subsystem is not live or ready",
+			expectState: func() map[string]checkState {
+				return map[string]checkState{
+					"foo": {details: fooChecker.state, checkTime: clockMock.Now()},
+					"bar": {
+						details:            barChecker.state,
+						checkTime:          clockMock.Now(),
+						err:                errors.New("subsystem is not live or ready"),
+						contiguousFailures: 1,
+						timeOfFirstFailure: clockMock.Now(),
+					},
+				}
+			},
+		},
+		{
+			name: "start successfully after initial failure",
+			setup: func() {
+				barChecker.state = State{Live: true, Ready: true}
+			},
+			advance: readyCheckInitialInterval,
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "Health check recovered",
+					Data: logrus.Fields{
+						telemetry.Check:    "bar",
+						telemetry.Details:  "{<nil> true true <nil> <nil>}",
+						telemetry.Duration: "1",
+						telemetry.Error:    "subsystem is not live or ready",
+						telemetry.Failures: "1",
+					},
 				},
 			},
-		}
-
-		expectStatus := map[string]checkState{
-			"foo": {
-				details: State{
-					Live:         true,
-					Ready:        true,
-					LiveDetails:  healthDetails{},
-					ReadyDetails: healthDetails{},
-				},
-				checkTime: clockMock.Now(),
+			expectState: func() map[string]checkState {
+				return map[string]checkState{
+					"foo": {details: fooChecker.state, checkTime: clockMock.Now()},
+					"bar": {details: barChecker.state, checkTime: clockMock.Now()},
+				}
 			},
-			"bar": {
-				details: State{
-					Live:         false,
-					Ready:        false,
-					LiveDetails:  healthDetails{},
-					ReadyDetails: healthDetails{},
-				},
-				checkTime:          clockMock.Now(),
-				err:                errors.New("subsystem is not live or ready"),
-				contiguousFailures: 1,
-				timeOfFirstFailure: clockMock.Now(),
-			},
-		}
-
-		spiretest.AssertLogs(t, hook.AllEntries(), expectLogs)
-		require.Equal(t, expectStatus, c.getStatuses())
-	})
-
-	// Clean logs
-	hook.Reset()
-
-	barChecker.state = State{
-		Live:         true,
-		Ready:        true,
-		LiveDetails:  healthDetails{},
-		ReadyDetails: healthDetails{},
-	}
-
-	t.Run("start successfully after initial failure", func(t *testing.T) {
-		// Move to next initial interval
-		clockMock.Add(readyCheckInitialInterval)
-
-		// Wait for initial calls
-		<-waitFor
-
-		expectLogs := []spiretest.LogEntry{
-			{
-				Level:   logrus.InfoLevel,
-				Message: "Health check recovered",
-				Data: logrus.Fields{
-					telemetry.Check:    "bar",
-					telemetry.Details:  "{<nil> true true {} {}}",
-					telemetry.Duration: "1",
-					telemetry.Error:    "subsystem is not live or ready",
-					telemetry.Failures: "1",
-				},
-			},
-		}
-
-		expectStatus := map[string]checkState{
-			"foo": {
-				details: State{
-					Live:         true,
-					Ready:        true,
-					LiveDetails:  healthDetails{},
-					ReadyDetails: healthDetails{},
-				},
-				checkTime: clockMock.Now(),
-			},
-			"bar": {
-				details: State{
-					Live:         true,
-					Ready:        true,
-					LiveDetails:  healthDetails{},
-					ReadyDetails: healthDetails{},
-				},
-				checkTime: clockMock.Now(),
-			},
-		}
-
-		spiretest.AssertLogs(t, hook.AllEntries(), expectLogs)
-		require.Equal(t, expectStatus, c.getStatuses())
-	})
-
-	// Clean logs
-	hook.Reset()
-
-	// Health start to fail
-	fooChecker.state = State{
-		Live:         false,
-		Ready:        false,
-		LiveDetails:  healthDetails{Err: "live is failing"},
-		ReadyDetails: healthDetails{Err: "ready is failing"},
-	}
-
-	t.Run("health start to fail", func(t *testing.T) {
-		// Move to next interval
-		clockMock.Add(readyCheckInterval)
-
-		<-waitFor
-
-		expectStatus := map[string]checkState{
-			"foo": {
-				details: State{
+		},
+		{
+			name: "health start to fail",
+			setup: func() {
+				fooChecker.state = State{
 					Live:         false,
 					Ready:        false,
 					LiveDetails:  healthDetails{Err: "live is failing"},
 					ReadyDetails: healthDetails{Err: "ready is failing"},
-				},
-				checkTime:          clockMock.Now(),
-				err:                errors.New("subsystem is not live or ready"),
-				contiguousFailures: 1,
-				timeOfFirstFailure: clockMock.Now(),
+				}
 			},
-			"bar": {
-				details: State{
-					Live:         true,
-					Ready:        true,
-					LiveDetails:  healthDetails{},
-					ReadyDetails: healthDetails{},
+			advance: readyCheckInterval,
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Health check has failed",
+					Data: logrus.Fields{
+						telemetry.Check: "foo",
+						telemetry.Error: "subsystem is not live or ready"},
 				},
-				checkTime: clockMock.Now(),
+				{
+					Level:   logrus.WarnLevel,
+					Message: "Health check failed",
+					Data: logrus.Fields{
+						telemetry.Check:   "foo",
+						telemetry.Details: "{<nil> false false {live is failing} {ready is failing}}",
+						telemetry.Error:   "subsystem is not live or ready"}},
 			},
-		}
-
-		expectLogs := []spiretest.LogEntry{
-			{
-				Level:   logrus.ErrorLevel,
-				Message: "Health check has failed",
-				Data: logrus.Fields{
-					telemetry.Check: "foo",
-					telemetry.Error: "subsystem is not live or ready",
-				},
+			expectState: func() map[string]checkState {
+				firstFailureTime = clockMock.Now()
+				return map[string]checkState{
+					"foo": {
+						details:            fooChecker.state,
+						checkTime:          firstFailureTime,
+						err:                errors.New("subsystem is not live or ready"),
+						contiguousFailures: 1,
+						timeOfFirstFailure: firstFailureTime,
+					},
+					"bar": {details: barChecker.state, checkTime: firstFailureTime},
+				}
 			},
-			{
-				Level:   logrus.WarnLevel,
-				Message: "Health check failed",
-				Data: logrus.Fields{
-					telemetry.Check:   "foo",
-					telemetry.Details: "{<nil> false false {live is failing} {ready is failing}}",
-					telemetry.Error:   "subsystem is not live or ready",
-				},
-			},
-		}
-
-		spiretest.AssertLogs(t, hook.AllEntries(), expectLogs)
-		require.Equal(t, expectStatus, c.getStatuses())
-	})
-
-	t.Run("health still failing", func(t *testing.T) {
-		hook.Reset()
-		previousFailureDate := clockMock.Now()
-
-		// Move to next interval
-		clockMock.Add(readyCheckInterval)
-
-		// Wait for new call
-		<-waitFor
-
-		expectStatus := map[string]checkState{
-			"foo": {
-				details: State{
-					Live:         false,
-					Ready:        false,
-					LiveDetails:  healthDetails{Err: "live is failing"},
-					ReadyDetails: healthDetails{Err: "ready is failing"},
-				},
-				checkTime:          clockMock.Now(),
-				err:                errors.New("subsystem is not live or ready"),
-				contiguousFailures: 2,
-				timeOfFirstFailure: previousFailureDate,
-			},
-			"bar": {
-				details: State{
-					Live:         true,
-					Ready:        true,
-					LiveDetails:  healthDetails{},
-					ReadyDetails: healthDetails{},
-				},
-				checkTime: clockMock.Now(),
-			},
-		}
-
-		expectLogs := []spiretest.LogEntry{
-			{
-				Level:   logrus.ErrorLevel,
-				Message: "Health check has failed",
-				Data: logrus.Fields{
-					telemetry.Check: "foo",
-					telemetry.Error: "subsystem is not live or ready",
+		},
+		{
+			name:    "health still failing",
+			setup:   func() {},
+			advance: readyCheckInterval,
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Health check has failed",
+					Data: logrus.Fields{
+						telemetry.Check: "foo",
+						telemetry.Error: "subsystem is not live or ready"},
 				},
 			},
-		}
-
-		spiretest.AssertLogs(t, hook.AllEntries(), expectLogs)
-		require.Equal(t, expectStatus, c.getStatuses())
-	})
-
-	// Health start to recover
-	fooChecker.state = State{
-		Live:         true,
-		Ready:        true,
-		LiveDetails:  healthDetails{},
-		ReadyDetails: healthDetails{},
+			expectState: func() map[string]checkState {
+				return map[string]checkState{
+					"foo": {
+						details:            fooChecker.state,
+						checkTime:          clockMock.Now(),
+						err:                errors.New("subsystem is not live or ready"),
+						contiguousFailures: 2,
+						timeOfFirstFailure: firstFailureTime,
+					},
+					"bar": {details: barChecker.state, checkTime: clockMock.Now()},
+				}
+			},
+		},
+		{
+			name: "health recovered",
+			setup: func() {
+				fooChecker.state = State{Live: true, Ready: true}
+			},
+			advance: readyCheckInterval,
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "Health check recovered",
+					Data: logrus.Fields{
+						telemetry.Check:    "foo",
+						telemetry.Details:  "{<nil> true true <nil> <nil>}",
+						telemetry.Duration: "120",
+						telemetry.Error:    "subsystem is not live or ready",
+						telemetry.Failures: "2",
+					},
+				},
+			},
+			expectState: func() map[string]checkState {
+				return map[string]checkState{
+					"foo": {details: fooChecker.state, checkTime: clockMock.Now()},
+					"bar": {details: barChecker.state, checkTime: clockMock.Now()},
+				}
+			},
+		},
 	}
 
-	t.Run("health recovered", func(t *testing.T) {
-		hook.Reset()
-
-		// Move to next interval
-		clockMock.Add(readyCheckInterval)
-
-		// Wait for new call
-		<-waitFor
-
-		expectStatus := map[string]checkState{
-			"foo": {
-				details: State{
-					Live:         true,
-					Ready:        true,
-					LiveDetails:  healthDetails{},
-					ReadyDetails: healthDetails{},
-				},
-				checkTime: clockMock.Now(),
-			},
-			"bar": {
-				details: State{
-					Live:         true,
-					Ready:        true,
-					LiveDetails:  healthDetails{},
-					ReadyDetails: healthDetails{},
-				},
-				checkTime: clockMock.Now(),
-			},
-		}
-
-		expectLogs := []spiretest.LogEntry{
-			{
-				Level:   logrus.InfoLevel,
-				Message: "Health check recovered",
-				Data: logrus.Fields{
-					telemetry.Check:    "foo",
-					telemetry.Details:  "{<nil> true true {} {}}",
-					telemetry.Duration: "120",
-					telemetry.Error:    "subsystem is not live or ready",
-					telemetry.Failures: "2",
-				},
-			},
-		}
-
-		spiretest.AssertLogs(t, hook.AllEntries(), expectLogs)
-		require.Equal(t, expectStatus, c.getStatuses())
-	})
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			hook.Reset()
+			if tt.setup != nil {
+				tt.setup()
+			}
+			if tt.advance > 0 {
+				clockMock.Add(tt.advance)
+			}
+			<-waitFor
+			spiretest.AssertLogs(t, hook.AllEntries(), tt.expectLogs)
+			require.Equal(t, tt.expectState(), c.getStatuses())
+		})
+	}
 }
 
 type fakeCheckable struct {
