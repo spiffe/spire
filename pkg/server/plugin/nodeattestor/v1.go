@@ -39,7 +39,10 @@ func (v1 *V1) Attest(ctx context.Context, payload []byte, challengeFn func(ctx c
 	defer cancel()
 
 	// forward original request host to downstream plugins
-	originalHost := getOriginalHost(ctx)
+	originalHost, err := getOriginalHost(ctx)
+	if err != nil {
+		v1.Log.WithError(err).Warn("Failed to extract ':authority' header from gRPC metadata")
+	}
 	ctx = metadata.AppendToOutgoingContext(ctx, XForwardedHostKey, originalHost)
 
 	stream, err := v1.NodeAttestorPluginClient.Attest(ctx)
@@ -116,16 +119,16 @@ func (v1 *V1) streamError(err error) error {
 	return v1.WrapErr(err)
 }
 
-func getOriginalHost(ctx context.Context) string {
+func getOriginalHost(ctx context.Context) (string, error) {
 	authority := metadata.ValueFromIncomingContext(ctx, ":authority")
 	if len(authority) == 0 {
-		return ""
+		return "", errors.New("empty :authority header")
 	}
 	// should be just one in a slice
 	// example value: spire-server-xyz.spiffe.io:8081
 	host, _, err := net.SplitHostPort(authority[0])
 	if err != nil {
-		return ""
+		return "", err
 	}
-	return host
+	return host, nil
 }
