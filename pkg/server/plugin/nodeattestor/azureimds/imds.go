@@ -215,8 +215,9 @@ func (p *IMDSAttestorPlugin) SetLogger(log hclog.Logger) {
 }
 
 func (p *IMDSAttestorPlugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
-	req, err := stream.Recv()
-	if err != nil {
+	// receive initial empty payload
+	if _, err := stream.Recv(); err != nil {
+		p.log.Info("received initial empty payload", "error", err)
 		return err
 	}
 
@@ -225,7 +226,28 @@ func (p *IMDSAttestorPlugin) Attest(stream nodeattestorv1.NodeAttestor_AttestSer
 		return err
 	}
 
-	payload := req.GetPayload()
+	// create a 16byte nonce
+	nonce, err := generateRandomAlphanumeric(16)
+	if err != nil {
+		return err
+	}
+
+	// send nonce back to agent
+	if err := stream.Send(&nodeattestorv1.AttestResponse{
+		Response: &nodeattestorv1.AttestResponse_Challenge{
+			Challenge: []byte(nonce),
+		},
+	}); err != nil {
+		return err
+	}
+
+	// receive the attestation payload
+	req, err := stream.Recv()
+	if err != nil {
+		return err
+	}
+	// Get the challenge response which contains the attested document and metadata
+	payload := req.GetChallengeResponse()
 	if payload == nil {
 		return status.Error(codes.InvalidArgument, "missing attestation payload")
 	}
@@ -241,15 +263,13 @@ func (p *IMDSAttestorPlugin) Attest(stream nodeattestorv1.NodeAttestor_AttestSer
 		return status.Errorf(codes.InvalidArgument, "failed to validate attested document: %v", err)
 	}
 
-	//TODO: Verify that the signature is from Microsoft Azure, and check the certificate chain for errors
-	//! https://learn.microsoft.com/en-us/azure/virtual-machines/instance-metadata-service?tabs=linux#sample-1-validate-that-the-vm-is-running-in-azure
-	//This is very important and  MUST be done before releasing to upstream
-
 	switch {
 	case docData.VMID == "":
 		return status.Errorf(codes.InvalidArgument, "missing VM ID in attested document")
 	case docData.SubscriptionID == "":
 		return status.Errorf(codes.InvalidArgument, "missing subscription ID in attested document")
+	case docData.Nonce != nonce:
+		return status.Errorf(codes.InvalidArgument, "nonce mismatch")
 	}
 
 	untrustedMetadata := attestationData.Metadata
