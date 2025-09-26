@@ -194,6 +194,38 @@ func TestMergeInput(t *testing.T) {
 			},
 		},
 		{
+			msg: "join_token_file should be configurable by file",
+			fileInput: func(c *Config) {
+				c.Agent.JoinTokenFile = "foo"
+			},
+			cliInput: func(c *agentConfig) {},
+			test: func(t *testing.T, c *Config) {
+				require.Equal(t, "foo", c.Agent.JoinTokenFile)
+			},
+		},
+		{
+			msg:       "join_token_file should be configurable by CLI flag",
+			fileInput: func(c *Config) {},
+			cliInput: func(c *agentConfig) {
+				c.JoinTokenFile = "foo"
+			},
+			test: func(t *testing.T, c *Config) {
+				require.Equal(t, "foo", c.Agent.JoinTokenFile)
+			},
+		},
+		{
+			msg: "join_token_file specified by CLI flag should take precedence over file",
+			fileInput: func(c *Config) {
+				c.Agent.JoinTokenFile = "foo"
+			},
+			cliInput: func(c *agentConfig) {
+				c.JoinTokenFile = "bar"
+			},
+			test: func(t *testing.T, c *Config) {
+				require.Equal(t, "bar", c.Agent.JoinTokenFile)
+			},
+		},
+		{
 			msg: "log_file should be configurable by file",
 			fileInput: func(c *Config) {
 				c.Agent.LogFile = "foo"
@@ -608,6 +640,29 @@ func TestNewAgentConfig(t *testing.T) {
 			},
 			test: func(t *testing.T, c *agent.Config) {
 				require.Equal(t, "foo", c.JoinToken)
+			},
+		},
+		{
+			msg:                "join_token and join_token_file cannot both be set",
+			expectError:        true,
+			requireErrorPrefix: "only one of join_token or join_token_file can be specified, not both",
+			input: func(c *Config) {
+				c.Agent.JoinToken = "token-value"
+				c.Agent.JoinTokenFile = "/path/to/token"
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
+			msg:                "join_token_file with non-existent file should error",
+			expectError:        true,
+			requireErrorPrefix: "unable to read join token file",
+			input: func(c *Config) {
+				c.Agent.JoinTokenFile = "/non/existent/file"
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
 			},
 		},
 		{
@@ -1156,6 +1211,98 @@ func TestWarnOnUnknownConfig(t *testing.T) {
 			spiretest.AssertLogsContainEntries(t, hook.AllEntries(), logEntries)
 		})
 	}
+}
+
+func TestJoinTokenFile(t *testing.T) {
+	// Test successful join token file reading
+	t.Run("join_token_file should be correctly configured", func(t *testing.T) {
+		tmpFile, err := os.CreateTemp("", "join_token_test")
+		require.NoError(t, err)
+		defer os.Remove(tmpFile.Name())
+
+		_, err = tmpFile.WriteString("test-token-from-file")
+		require.NoError(t, err)
+		tmpFile.Close()
+
+		input := defaultValidConfig()
+		input.Agent.JoinTokenFile = tmpFile.Name()
+
+		ac, err := NewAgentConfig(input, nil, false)
+		require.NoError(t, err)
+		require.Equal(t, "test-token-from-file", ac.JoinToken)
+	})
+
+	// Test whitespace trimming
+	t.Run("join_token_file should trim whitespace", func(t *testing.T) {
+		tmpFile, err := os.CreateTemp("", "join_token_test")
+		require.NoError(t, err)
+		defer os.Remove(tmpFile.Name())
+
+		_, err = tmpFile.WriteString("  \n\t test-token-with-whitespace \t\n  ")
+		require.NoError(t, err)
+		tmpFile.Close()
+
+		input := defaultValidConfig()
+		input.Agent.JoinTokenFile = tmpFile.Name()
+
+		ac, err := NewAgentConfig(input, nil, false)
+		require.NoError(t, err)
+		require.Equal(t, "test-token-with-whitespace", ac.JoinToken)
+	})
+
+	// Test empty file error
+	t.Run("join_token_file with empty file should error", func(t *testing.T) {
+		tmpFile, err := os.CreateTemp("", "join_token_test")
+		require.NoError(t, err)
+		defer os.Remove(tmpFile.Name())
+		tmpFile.Close()
+
+		input := defaultValidConfig()
+		input.Agent.JoinTokenFile = tmpFile.Name()
+
+		_, err = NewAgentConfig(input, nil, false)
+		require.Error(t, err)
+		spiretest.RequireErrorPrefix(t, err, "join token file is empty")
+	})
+
+	// Test whitespace-only file error
+	t.Run("join_token_file with only whitespace should error", func(t *testing.T) {
+		tmpFile, err := os.CreateTemp("", "join_token_test")
+		require.NoError(t, err)
+		defer os.Remove(tmpFile.Name())
+
+		_, err = tmpFile.WriteString("  \n\t  \n  ")
+		require.NoError(t, err)
+		tmpFile.Close()
+
+		input := defaultValidConfig()
+		input.Agent.JoinTokenFile = tmpFile.Name()
+
+		_, err = NewAgentConfig(input, nil, false)
+		require.Error(t, err)
+		spiretest.RequireErrorPrefix(t, err, "join token file is empty")
+	})
+
+	// Test non-existent file error
+	t.Run("join_token_file with non-existent file should error", func(t *testing.T) {
+		input := defaultValidConfig()
+		input.Agent.JoinTokenFile = "/non/existent/file"
+
+		_, err := NewAgentConfig(input, nil, false)
+		require.Error(t, err)
+		spiretest.RequireErrorPrefix(t, err, "unable to read join token file")
+	})
+
+	// Test mutual exclusivity with join_token
+	t.Run("join_token and join_token_file cannot both be set", func(t *testing.T) {
+		input := defaultValidConfig()
+		input.Agent.JoinToken = "token-value"
+		input.Agent.JoinTokenFile = "/path/to/token"
+
+		_, err := NewAgentConfig(input, nil, false)
+		require.Error(t, err)
+		spiretest.RequireErrorPrefix(t, err, "only one of join_token or join_token_file can be specified, not both")
+	})
 }
 
 // TestLogOptions verifies the log options given to NewAgentConfig are applied, and are overridden
