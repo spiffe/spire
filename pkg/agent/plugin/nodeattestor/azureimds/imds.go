@@ -58,7 +58,7 @@ type IMDSAttestorPlugin struct {
 	config *IMDSAttestorConfig
 
 	hooks struct {
-		fetchAttestedDocument func(azure.HTTPClient) (*azure.AttestedDocument, error)
+		fetchAttestedDocument func(azure.HTTPClient, string) (*azure.AttestedDocument, error)
 		fetchComputeMetadata  func(azure.HTTPClient) (*azure.InstanceMetadata, error)
 	}
 }
@@ -76,8 +76,23 @@ func (p *IMDSAttestorPlugin) AidAttestation(stream nodeattestorv1.NodeAttestor_A
 		return err
 	}
 
+	// send initial payload, this is just so we can receive a challenge containing the nonce
+	stream.Send(&nodeattestorv1.PayloadOrChallengeResponse{
+		Data: &nodeattestorv1.PayloadOrChallengeResponse_Payload{
+			Payload: []byte("non_empty_payload"),
+		},
+	})
+
+	// receive challenge containing the nonce which we will use to fetch the attested document
+	challenge, err := stream.Recv()
+	if err != nil {
+		return err
+	}
+
+	nonce := string(challenge.Challenge)
+
 	//Get the attested document
-	attestedDocument, err := p.hooks.fetchAttestedDocument(http.DefaultClient)
+	attestedDocument, err := p.hooks.fetchAttestedDocument(http.DefaultClient, nonce)
 	if err != nil {
 		return status.Errorf(codes.Internal, "unable to fetch attested document: %v", err)
 	}
@@ -88,24 +103,24 @@ func (p *IMDSAttestorPlugin) AidAttestation(stream nodeattestorv1.NodeAttestor_A
 		return status.Errorf(codes.Internal, "unable to fetch compute metadata: %v", err)
 	}
 
-	qh := azure.AgentUntrustedMetadata{
+	md := azure.AgentUntrustedMetadata{
 		AgentDomain: config.TenantDomain,
 	}
 	if computeMetadata.Compute.VMScaleSetName != "" {
-		qh.VMSSName = &computeMetadata.Compute.VMScaleSetName
+		md.VMSSName = &computeMetadata.Compute.VMScaleSetName
 	}
 
 	payload, err := json.Marshal(azure.IMDSAttestationPayload{
 		Document: *attestedDocument,
-		Metadata: qh,
+		Metadata: md,
 	})
 	if err != nil {
 		return status.Errorf(codes.Internal, "failed to marshal payload: %v", err)
 	}
 
 	return stream.Send(&nodeattestorv1.PayloadOrChallengeResponse{
-		Data: &nodeattestorv1.PayloadOrChallengeResponse_Payload{
-			Payload: payload,
+		Data: &nodeattestorv1.PayloadOrChallengeResponse_ChallengeResponse{
+			ChallengeResponse: payload,
 		},
 	})
 }

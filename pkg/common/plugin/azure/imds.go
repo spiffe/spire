@@ -43,12 +43,17 @@ type AttestedDocumentContent struct {
 	TenantID string `json:"tid"`
 }
 
-func FetchAttestedDocument(cl HTTPClient) (*AttestedDocument, error) {
-	req, err := http.NewRequest("GET", "http://169.254.169.254/metadata/attested/document?api-version=2025-04-07", nil)
+func FetchAttestedDocument(cl HTTPClient, nonce string) (*AttestedDocument, error) {
+	req, err := http.NewRequest("GET", "http://169.254.169.254/metadata/attested/document", nil)
 	if err != nil {
 		return nil, err
 	}
 	req.Header.Add("Metadata", "true")
+
+	params := req.URL.Query()
+	params.Set("nonce", nonce)
+	params.Set("api-version", "2025-04-07")
+	req.URL.RawQuery = params.Encode()
 
 	resp, err := cl.Do(req)
 	if err != nil {
