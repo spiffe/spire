@@ -1,7 +1,9 @@
 package azureimds
 
 import (
+	"bytes"
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -108,4 +110,20 @@ func parseIssuer(issuer string) (string, error) {
 		return "", fmt.Errorf("malformed tenant ID: %s", issuer)
 	}
 	return m[1], nil
+}
+
+func generateRandomAlphanumeric(length int) (string, error) {
+	const alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+
+	choices := make([]byte, length)
+	_, err := rand.Read(choices)
+	if err != nil {
+		return "", err
+	}
+
+	buf := new(bytes.Buffer)
+	for _, choice := range choices {
+		buf.WriteByte(alphabet[int(choice)%len(alphabet)])
+	}
+	return buf.String(), nil
 }
