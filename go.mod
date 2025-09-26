@@ -57,7 +57,7 @@ require (
 	github.com/hashicorp/go-metrics v0.5.4
 	github.com/hashicorp/go-plugin v1.7.0
 	github.com/hashicorp/hcl v1.0.1-vault-7
-	github.com/hashicorp/vault/api v1.20.0
+	github.com/hashicorp/vault/api v1.21.0
 	github.com/hashicorp/vault/sdk v0.18.0
 	github.com/imdario/mergo v0.3.16
 	github.com/imkira/go-observer v1.0.3
