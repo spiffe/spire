@@ -40,7 +40,7 @@ func (s *ManagerSuite) SetupTest() {
 }
 
 func (s *ManagerSuite) TestPruning() {
-	expiredFor := 5 * time.Minute
+	expiredFor := defaultJobInterval
 
 	ctx := s.T().Context()
 
@@ -95,7 +95,7 @@ func (s *ManagerSuite) TestPruning() {
 	s.NoError(err)
 
 	// no pruning yet
-	s.clock.Add(expiredFor)
+	s.clock.Add(defaultJobInterval)
 	s.Require().Eventuallyf(func() bool {
 		listResp, err := s.ds.ListAttestedNodes(ctx, &datastore.ListAttestedNodesRequest{})
 		s.NoError(err)
@@ -108,7 +108,7 @@ func (s *ManagerSuite) TestPruning() {
 	}, 1*time.Second, 100*time.Millisecond, "Failed to prune nodes correctly")
 
 	// prune the first entry
-	s.clock.Add(expiredFor)
+	s.clock.Add(defaultJobInterval)
 	s.Require().Eventuallyf(func() bool {
 		listResp, err := s.ds.ListAttestedNodes(ctx, &datastore.ListAttestedNodesRequest{})
 		s.NoError(err)
@@ -120,7 +120,7 @@ func (s *ManagerSuite) TestPruning() {
 	}, 1*time.Second, 100*time.Millisecond, "Failed to prune nodes correctly")
 
 	// prune the second entry
-	s.clock.Add(expiredFor)
+	s.clock.Add(defaultJobInterval)
 	s.Require().Eventuallyf(func() bool {
 		listResp, err := s.ds.ListAttestedNodes(ctx, &datastore.ListAttestedNodesRequest{})
 		s.NoError(err)
@@ -153,6 +153,9 @@ func (s *ManagerSuite) setupAndRunManager(ctx context.Context, expiredFor time.D
 			IncludeNonReattestable: false,
 		},
 	})
+
+	// override without jitter
+	s.m.c.Interval = defaultJobInterval
 
 	ctx, cancel := context.WithCancel(ctx)
 	errCh := make(chan error, 1)
