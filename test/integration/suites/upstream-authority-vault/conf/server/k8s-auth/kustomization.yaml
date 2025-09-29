@@ -5,4 +5,4 @@ kind: Kustomization
 resources:
 - ../base
 patches:
-- path: spire-server.yaml
+- path: spire-server-configmap.yaml
