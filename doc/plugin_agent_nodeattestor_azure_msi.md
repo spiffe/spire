@@ -1,6 +1,6 @@
 # Agent plugin: NodeAttestor "azure_msi"
 
-*Must be used in conjunction with the server-side azure_msi plugin*
+*Must be used in conjunction with the [server-side azure_msi plugin](plugin_server_nodeattestor_azure_msi.md)*
 
 The `azure_msi` plugin attests nodes running in Microsoft Azure that have
 Managed Service Identity (MSI) enabled. Agent nodes acquire a signed MSI token

@@ -1,6 +1,6 @@
 # Server plugin: NodeAttestor "x509pop"
 
-*Must be used in conjunction with the agent-side x509pop plugin*
+*Must be used in conjunction with the [agent-side x509pop plugin](plugin_agent_nodeattestor_x509pop.md)*
 
 The `x509pop` plugin attests nodes that have been provisioned with an x509
 identity through an out-of-band mechanism. It verifies that the certificate is
