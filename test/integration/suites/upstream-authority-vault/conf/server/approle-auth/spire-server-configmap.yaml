@@ -43,7 +43,7 @@ data:
           keys_path = "/run/spire/data/keys.json"
         }
       }
-    
+
       UpstreamAuthority "vault" {
         plugin_data {
           vault_addr="https://vault.vault.svc:8200/"
