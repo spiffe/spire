@@ -172,7 +172,7 @@ func validateCertificateSubject(cert *x509.Certificate, expectedSubject string) 
 	}
 
 	if !strings.Contains(subject, expectedSubject) {
-		return fmt.Errorf("certificate subject '%s' does not contain expected value '%s'", subject, expectedSubject)
+		return fmt.Errorf("certificate subject %q does not contain expected value %q", subject, expectedSubject)
 	}
 
 	return nil
