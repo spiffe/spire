@@ -116,7 +116,7 @@ func (s *MSIAttestorSuite) loadAttestor(options ...plugintest.Option) nodeattest
 			return "", errors.New("unexpected http client")
 		}
 		if resource != s.expectedResource {
-			return "", fmt.Errorf("expected resource %s; got %s", s.expectedResource, resource)
+			return "", fmt.Errorf("expected resource %q; got %q", s.expectedResource, resource)
 		}
 		s.T().Logf("RETURNING %v %v", s.token, s.tokenErr)
 		return s.token, s.tokenErr
