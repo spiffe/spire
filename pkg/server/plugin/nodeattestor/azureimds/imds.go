@@ -99,7 +99,7 @@ func (p *IMDSAttestorPlugin) buildConfig(coreConfig catalog.CoreConfig, hclText 
 		switch {
 		case tenant.TokenAuth != nil:
 			if tenant.TokenAuth.TokenPath == "" {
-				status.ReportErrorf("misconfigured tenant %q: missing token path", tenantID)
+				status.ReportErrorf("misconfigured tenant %q: missing token file path", tenantID)
 			}
 			if tenant.TokenAuth.AppID == "" {
 				status.ReportErrorf("misconfigured tenant %q: missing app id", tenantID)
