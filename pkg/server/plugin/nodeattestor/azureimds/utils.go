@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/go-jose/go-jose/v4"
 	"github.com/go-jose/go-jose/v4/jwt"
@@ -57,7 +58,10 @@ func getAzureAssertionFunc(tokenPath string, reader func(name string) ([]byte, e
 
 func lookupTenantID(domain string) (string, error) {
 	// make an http request to https://login.microsoftonline.com/<domain>/.well-known/openid-configuration
-	req, err := http.NewRequest("GET", fmt.Sprintf("https://login.microsoftonline.com/%s/.well-known/openid-configuration", domain), nil)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, "GET", fmt.Sprintf("https://login.microsoftonline.com/%s/.well-known/openid-configuration", domain), nil)
 	if err != nil {
 		return "", fmt.Errorf("failed to create request for tenant ID: %w", err)
 	}
@@ -81,6 +85,7 @@ func lookupTenantID(domain string) (string, error) {
 	}
 	return parseIssuer(data.Issuer)
 }
+
 func parseNetworkSecurityGroupID(id string) (resourceGroup, name string, err error) {
 	m := reNetworkSecurityGroupID.FindStringSubmatch(id)
 	if m == nil {
@@ -104,6 +109,7 @@ func parseVirtualNetworkSubnetID(id string) (resourceGroup, networkName, subnetN
 	}
 	return m[1], m[2], m[3], nil
 }
+
 func parseIssuer(issuer string) (string, error) {
 	m := reTenantId.FindStringSubmatch(issuer)
 	if m == nil {

@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strings"
+	"time"
 
 	"github.com/smallstep/pkcs7"
 	"github.com/spiffe/spire/pkg/common/plugin/azure"
@@ -89,8 +89,11 @@ func getIntermediateCertificate(ctx context.Context, signingCert *x509.Certifica
 		return nil, fmt.Errorf("no CA Issuers URL found in signing certificate")
 	}
 
+	ctxT, cancel := context.WithTimeout(ctx, time.Second*10)
+	defer cancel()
+
 	// Fetch the intermediate certificate
-	req, err := http.NewRequestWithContext(ctx, "GET", caIssuersURL, nil)
+	req, err := http.NewRequestWithContext(ctxT, "GET", caIssuersURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request for intermediate certificate: %w", err)
 	}
@@ -134,6 +137,7 @@ const (
 	// Expected issuer patterns
 	MicrosoftAzureRSATLSIssuer = "Microsoft Azure RSA TLS Issuing CA"
 	// The azure Docs state that it should be DigiCert Global Root CA, but it is actually DigiCert Global Root G2 which is the newer version
+	//https://cacerts.digicert.com/DigiCertGlobalRootG2.crt.pem maybe download from here
 	DigiCertGlobalRootCA = "DigiCert Global Root G2"
 )
 
@@ -150,12 +154,12 @@ func validateAzureCertificates(signingCert, intermediateCert *x509.Certificate) 
 	}
 
 	if intermediateCert != nil {
-		// Validate intermediate certificate subject
+		// Validate intermediate certificate issuer
 		if err := validateCertificateIssuer(intermediateCert, DigiCertGlobalRootCA); err != nil {
 			return fmt.Errorf("intermediate certificate issuer validation failed: %w", err)
 		}
 
-		// Validate intermediate certificate issuer
+		// Validate intermediate certificate subject
 		if err := validateCertificateSubject(intermediateCert, MicrosoftAzureRSATLSIssuer); err != nil {
 			return fmt.Errorf("intermediate certificate subject validation failed: %w", err)
 		}
@@ -171,8 +175,8 @@ func validateCertificateSubject(cert *x509.Certificate, expectedSubject string) 
 		return fmt.Errorf("certificate has no common name in subject")
 	}
 
-	if !strings.Contains(subject, expectedSubject) {
-		return fmt.Errorf("certificate subject %q does not contain expected value %q", subject, expectedSubject)
+	if subject != expectedSubject {
+		return fmt.Errorf("certificate subject %q does not match expected value %q", subject, expectedSubject)
 	}
 
 	return nil
@@ -185,7 +189,7 @@ func validateCertificateIssuer(cert *x509.Certificate, expectedIssuer string) er
 		return fmt.Errorf("certificate has no common name in issuer")
 	}
 
-	if !strings.Contains(issuer, expectedIssuer) {
+	if issuer != expectedIssuer {
 		return fmt.Errorf("certificate issuer '%s' does not contain expected value '%s'", issuer, expectedIssuer)
 	}
 
@@ -205,9 +209,13 @@ func validateCertificateChain(signingCert, intermediateCert *x509.Certificate) e
 			return fmt.Errorf("signing certificate was not issued by intermediate certificate: %w", err)
 		}
 	}
-
+	rootCerts := x509.NewCertPool()
+	for _, c := range roots {
+		rootCerts.AppendCertsFromPEM([]byte(c))
+	}
 	opts := x509.VerifyOptions{
 		Intermediates: intermediates,
+		Roots:         rootCerts,
 	}
 	_, err := signingCert.Verify(opts)
 	if err != nil {
