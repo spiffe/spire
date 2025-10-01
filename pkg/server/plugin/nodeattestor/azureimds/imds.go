@@ -92,11 +92,13 @@ func (p *IMDSAttestorPlugin) buildConfig(coreConfig catalog.CoreConfig, hclText 
 		if err != nil {
 			status.ReportErrorf("unable to lookup tenant ID: %v", err)
 		}
-		p.log.Info("Adding tenant ID to map", "tenantDomain", tenantDomain, "tenantID", tenantID)
+
 		p.hooks.tenantIdMap[tenantDomain] = tenantID
 
 		// Use tenant-specific credentials for resolving selectors
 		switch {
+		case tenant.SecretAuth != nil && tenant.TokenAuth != nil:
+			status.ReportErrorf("misconfigured tenant %q: only one of secret_auth or token_auth may be specified in the config", tenantID)
 		case tenant.TokenAuth != nil:
 			if tenant.TokenAuth.TokenPath == "" {
 				status.ReportErrorf("misconfigured tenant %q: missing token file path", tenantID)
@@ -110,6 +112,7 @@ func (p *IMDSAttestorPlugin) buildConfig(coreConfig catalog.CoreConfig, hclText 
 			if err != nil {
 				status.ReportErrorf("unable to get tenant client credential: %v", err)
 			}
+
 			client, err = p.hooks.newClient(cred)
 			if err != nil {
 				status.ReportErrorf("unable to create client for tenant %q: %v", tenantID, err)
@@ -226,8 +229,8 @@ func (p *IMDSAttestorPlugin) Attest(stream nodeattestorv1.NodeAttestor_AttestSer
 		return err
 	}
 
-	// create a 16byte nonce
-	nonce, err := generateRandomAlphanumeric(16)
+	// create a 32byte nonce
+	nonce, err := generateRandomAlphanumeric(32)
 	if err != nil {
 		return err
 	}
