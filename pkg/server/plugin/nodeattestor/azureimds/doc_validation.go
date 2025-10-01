@@ -9,10 +9,25 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/smallstep/pkcs7"
 	"github.com/spiffe/spire/pkg/common/plugin/azure"
+)
+
+// Azure-specific certificate validation constants
+const (
+	// Expected subject patterns for Azure certificates
+	AzureMetadataSubject = "metadata.azure.com"
+
+	// Expected issuer patterns
+	MicrosoftAzureRSATLSIssuer = "Microsoft Azure RSA TLS Issuing CA"
+	// The azure Docs state that it should be DigiCert Global Root CA, but it is actually DigiCert Global Root G2 which is the newer version
+	DigiCertGlobalRootCA = "DigiCert Global Root G2"
+
+	// expected microsoft issuer host
+	MicrosoftIntermediateIssuerHost = "www.microsoft.com"
 )
 
 // ValidateAttestedDocument validates the Azure IMDS attested document signature
@@ -77,23 +92,20 @@ func validateAttestedDocument(ctx context.Context, doc *azure.AttestedDocument) 
 // getIntermediateCertificate fetches the intermediate certificate from the CA Issuers URL
 func getIntermediateCertificate(ctx context.Context, signingCert *x509.Certificate) (*x509.Certificate, error) {
 	// Extract CA Issuers URL from the signing certificate
-	var caIssuersURL string
-	for _, url := range signingCert.IssuingCertificateURL {
-		if url != "" {
-			caIssuersURL = url
-			break
-		}
+	caIssuersURL, err := extractIssuerURL(signingCert)
+	if err != nil {
+		return nil, fmt.Errorf("failed to extract CA Issuers URL: %w", err)
 	}
 
-	if caIssuersURL == "" {
-		return nil, fmt.Errorf("no CA Issuers URL found in signing certificate")
+	if caIssuersURL.Host != MicrosoftIntermediateIssuerHost {
+		return nil, fmt.Errorf("CA Issuers URL host %q does not match expected value %q", caIssuersURL.Host, MicrosoftIntermediateIssuerHost)
 	}
 
-	ctxT, cancel := context.WithTimeout(ctx, time.Second*10)
+	ctx, cancel := context.WithTimeout(ctx, time.Second*10)
 	defer cancel()
 
 	// Fetch the intermediate certificate
-	req, err := http.NewRequestWithContext(ctxT, "GET", caIssuersURL, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", caIssuersURL.String(), nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request for intermediate certificate: %w", err)
 	}
@@ -128,18 +140,6 @@ func getIntermediateCertificate(ctx context.Context, signingCert *x509.Certifica
 
 	return cert, nil
 }
-
-// Azure-specific certificate validation constants
-const (
-	// Expected subject patterns for Azure certificates
-	AzureMetadataSubject = "metadata.azure.com"
-
-	// Expected issuer patterns
-	MicrosoftAzureRSATLSIssuer = "Microsoft Azure RSA TLS Issuing CA"
-	// The azure Docs state that it should be DigiCert Global Root CA, but it is actually DigiCert Global Root G2 which is the newer version
-	//https://cacerts.digicert.com/DigiCertGlobalRootG2.crt.pem maybe download from here
-	DigiCertGlobalRootCA = "DigiCert Global Root G2"
-)
 
 // validateAzureCertificates performs Azure-specific certificate validation
 func validateAzureCertificates(signingCert, intermediateCert *x509.Certificate) error {
@@ -190,7 +190,7 @@ func validateCertificateIssuer(cert *x509.Certificate, expectedIssuer string) er
 	}
 
 	if issuer != expectedIssuer {
-		return fmt.Errorf("certificate issuer '%s' does not contain expected value '%s'", issuer, expectedIssuer)
+		return fmt.Errorf("certificate issuer %q does not contain expected value %q", issuer, expectedIssuer)
 	}
 
 	return nil
@@ -223,4 +223,20 @@ func validateCertificateChain(signingCert, intermediateCert *x509.Certificate) e
 	}
 
 	return nil
+}
+
+func extractIssuerURL(cert *x509.Certificate) (*url.URL, error) {
+	for _, issuerUrl := range cert.IssuingCertificateURL {
+		if issuerUrl != "" {
+			u, err := url.Parse(issuerUrl)
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse CA Issuers URL: %w", err)
+			}
+
+			return u, nil
+		}
+	}
+
+	return nil, fmt.Errorf("no CA Issuers URL found in certificate")
+
 }
