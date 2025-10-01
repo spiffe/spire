@@ -200,7 +200,7 @@ func (c *azureClient) getNetworkInterfaces(ctx context.Context, vmId string, sub
 // with all network interfaces parsed and populated
 func buildVirtualMachineFromVMSSInstance(instance *armcompute.VirtualMachineScaleSetVM, resourceGroup string) (*VirtualMachine, error) {
 	if instance == nil {
-		return nil, status.Errorf(codes.Internal, "vmss instance is nil")
+		return nil, status.Error(codes.Internal, "vmss instance is nil")
 	}
 
 	v := &VirtualMachine{
@@ -234,7 +234,7 @@ func buildVirtualMachineFromVMSSInstance(instance *armcompute.VirtualMachineScal
 // and returns a NetworkInterface with parsed security group and subnet information
 func parseNetworkInterfaceConfig(interfaceConfig *armcompute.VirtualMachineScaleSetNetworkConfiguration) (*NetworkInterface, error) {
 	if interfaceConfig == nil {
-		return nil, status.Errorf(codes.Internal, "network interface configuration is nil")
+		return nil, status.Error(codes.Internal, "network interface configuration is nil")
 	}
 	nsgResourceGroup, nsgName, err := parseNetworkSecurityGroupID(*interfaceConfig.Properties.NetworkSecurityGroup.ID)
 	if err != nil {
@@ -266,7 +266,7 @@ func parseNetworkInterfaceConfig(interfaceConfig *armcompute.VirtualMachineScale
 
 func extractArmResourceGraphItems[T any](resp armresourcegraph.ClientResourcesResponse) ([]*T, error) {
 	if resp.TotalRecords == nil || *resp.TotalRecords == 0 {
-		return nil, status.Errorf(codes.NotFound, "resource not found")
+		return nil, status.Error(codes.NotFound, "resource not found")
 	}
 
 	items, ok := resp.Data.([]interface{})
@@ -300,7 +300,7 @@ func extractArmResourceGraphItem[T any](resp armresourcegraph.ClientResourcesRes
 		return nil, err
 	}
 	if len(items) > 1 {
-		return nil, status.Errorf(codes.Internal, "expected one result for resource at most")
+		return nil, status.Error(codes.Internal, "expected one result for resource at most")
 	}
 	return items[0], nil
 }
