@@ -3,6 +3,7 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 resources:
-  - ../base
-patchesStrategicMerge:
-  - spire-server.yaml
+- ../base
+patches:
+- path: spire-server-configmap.yaml
+- path: spire-server-deployment.yaml

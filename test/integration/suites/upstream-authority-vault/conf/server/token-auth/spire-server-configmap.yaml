@@ -48,11 +48,8 @@ data:
         plugin_data {
           vault_addr="https://vault.vault.svc:8200/"
           ca_cert_path="/run/spire/vault/vault_ca.pem"
-          pki_mount_point="pki_int"
-          cert_auth {
-            client_cert_path="/run/spire/vault-auth/client.pem"
-            client_key_path="/run/spire/vault-auth/client_key.pem"
-          }
+          pki_mount_point="pki_int"    
+          token_auth {}
         }
       }
 
@@ -71,29 +68,3 @@ data:
       live_path = "/live"
       ready_path = "/ready"
     }
-
----
-
-# This is the Deployment for the SPIRE server. It waits for SPIRE database to
-# initialize and uses the SPIRE healthcheck command for liveness/readiness
-# probes.
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: spire-server
-  namespace: spire
-  labels:
-    app: spire-server
-spec:
-  template:
-    spec:
-      volumes:
-        - name: vault-credential
-          secret:
-            secretName: vault-credential
-      containers:
-        - name: spire-server
-          volumeMounts:
-            - name: vault-credential
-              mountPath: "/run/spire/vault-auth"
-              readOnly: true
