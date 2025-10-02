@@ -266,7 +266,7 @@ download-kind() {
 }
 
 download-helm() {
-    HELMVERSION=${HELMVERSION:-v3.17.1}
+    HELMVERSION=${HELMVERSION:-v3.19.0}
     HELMPATH=$(command -v helm || echo)
     UNAME=$(uname | awk '{print tolower($0)}')
     ARCH=$(uname -m)
