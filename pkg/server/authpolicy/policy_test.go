@@ -132,11 +132,11 @@ func TestPolicy(t *testing.T) {
 		},
 		{
 			name:     "test policy with input caller path",
-			rego:     condCheckRego("input.caller_path == \"/some_caller\""),
+			rego:     condCheckRego("input.caller_file_path == \"/some_caller\""),
 			jsonData: "{}",
 			input: authpolicy.Input{
-				CallerPath: "/some_caller",
-				FullMethod: "some_method",
+				CallerFilePath: "/some_caller",
+				FullMethod:     "some_method",
 				Req: map[string]any{
 					"some_field": "abc",
 				},
