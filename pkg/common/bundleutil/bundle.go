@@ -232,7 +232,7 @@ pruneRootCA:
 		return nil, false, errors.New("would prune all certificates")
 	}
 
-	if len(newBundle.JwtSigningKeys) == 0 {
+	if len(bundle.JwtSigningKeys) > 0 && len(newBundle.JwtSigningKeys) == 0 {
 		log.Warn("Pruning halted; all known JWT signing keys have expired")
 		return nil, false, errors.New("would prune all JWT signing keys")
 	}

@@ -28,6 +28,7 @@ type Options struct {
 	AgentSVIDTTL time.Duration
 	X509SVIDTTL  time.Duration
 	JWTSVIDTTL   time.Duration
+	DisableJWT   bool
 }
 
 type CA struct {
@@ -83,6 +84,7 @@ func New(t *testing.T, trustDomain spiffeid.TrustDomain, options *Options) *CA {
 		CredValidator: credValidator,
 		TrustDomain:   trustDomain,
 		HealthChecker: healthChecker,
+		DisableJWT:    options.DisableJWT,
 	})
 
 	template, err := credBuilder.BuildSelfSignedX509CATemplate(context.Background(), credtemplate.SelfSignedX509CAParams{
@@ -193,4 +195,12 @@ func (c *CA) X509SVIDTTL() time.Duration {
 
 func (c *CA) JWTSVIDTTL() time.Duration {
 	return c.options.JWTSVIDTTL
+}
+
+func (c *CA) IsJWTDisabled() bool {
+	return c.ca.IsJWTDisabled()
+}
+
+func (c *CA) SetDisableJWT(disableJWT bool) {
+	c.ca.SetDisableJWT(disableJWT)
 }
