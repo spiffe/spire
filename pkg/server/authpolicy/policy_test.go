@@ -131,6 +131,25 @@ func TestPolicy(t *testing.T) {
 			},
 		},
 		{
+			name:     "test policy with input caller path",
+			rego:     condCheckRego("input.caller_file_path == \"/some_caller\""),
+			jsonData: "{}",
+			input: authpolicy.Input{
+				CallerFilePath: "/some_caller",
+				FullMethod:     "some_method",
+				Req: map[string]any{
+					"some_field": "abc",
+				},
+			},
+			expectResult: authpolicy.Result{
+				Allow:             true,
+				AllowIfAdmin:      false,
+				AllowIfLocal:      false,
+				AllowIfDownstream: false,
+				AllowIfAgent:      false,
+			},
+		},
+		{
 			name:     "test policy with input full method",
 			rego:     condCheckRego("input.full_method == \"some_method\""),
 			jsonData: "{}",
