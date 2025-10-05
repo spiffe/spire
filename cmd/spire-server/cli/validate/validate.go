@@ -69,7 +69,7 @@ func (c *validateCommand) Run(args []string) int {
 		_ = c.env.ErrPrintf("\t%s:\n", plugin)
 
 		for _, note := range notes {
-			_ = c.env.ErrPrintf("\t\t%s:\n", note)
+			_ = c.env.ErrPrintf("\t\t%s\n", note)
 		}
 	}
 	return 1
