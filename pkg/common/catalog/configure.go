@@ -192,7 +192,7 @@ func (c configurerUnsupported) Configure(context.Context, CoreConfig, string) er
 }
 
 func (c configurerUnsupported) Validate(context.Context, CoreConfig, string) (*configv1.ValidateResponse, error) {
-	return nil, status.Error(codes.FailedPrecondition, "plugin does not support a validation interface")
+	return nil, status.Error(codes.Unimplemented, "plugin does not support a validation interface")
 }
 
 func hashData(data string) string {

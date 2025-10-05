@@ -9,6 +9,8 @@ import (
 	commoncli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/log"
 	"github.com/spiffe/spire/pkg/server"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 const commandName = "validate"
@@ -48,7 +50,7 @@ func (c *validateCommand) Run(args []string) int {
 	s := server.New(*config)
 
 	resp, err := s.ValidateConfig(context.Background())
-	if err != nil {
+	if err != nil && status.Code(err) != codes.Unimplemented {
 		_ = c.env.ErrPrintf("Could not validate configuration file: %v", err)
 		return 1
 	}
