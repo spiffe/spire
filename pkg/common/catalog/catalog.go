@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
@@ -273,13 +274,15 @@ func ValidatePluginConfigs(ctx context.Context, config Config, repo Repository) 
 			return nil, fmt.Errorf("failed to get plugin configuration: %w", err)
 		}
 
+		pluginNotesId := strings.Join([]string{pluginConfig.Type, pluginConfig.Name}, ".")
+
 		resp, err := configurer.Validate(ctx, config.CoreConfig, configString)
 		if err != nil && status.Code(err) != codes.Unimplemented {
-			pluginNotes[pluginConfig.Name] = append(pluginNotes[pluginConfig.Name], err.Error())
+			pluginNotes[pluginNotesId] = append(pluginNotes[pluginNotesId], err.Error())
 		}
 
-		if resp != nil {
-			pluginNotes[pluginConfig.Name] = append(pluginNotes[pluginConfig.Name], resp.Notes...)
+		if resp != nil && len(resp.Notes) != 0 {
+			pluginNotes[pluginNotesId] = append(pluginNotes[pluginNotesId], resp.Notes...)
 		}
 
 		pluginCounts[pluginConfig.Type]++
