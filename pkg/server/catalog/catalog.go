@@ -222,7 +222,7 @@ func ValidateConfig(ctx context.Context, config Config) (pluginNotes map[string]
 	resp, err := ds.Validate(ctx, coreConfig, dsConfigString)
 
 	pluginNotes = make(map[string][]string)
-	if resp != nil {
+	if resp != nil && len(resp.Notes) != 0 {
 		pluginNotes["datastore"] = append(pluginNotes["datastore"], resp.Notes...)
 	}
 
@@ -247,11 +247,7 @@ func ValidateConfig(ctx context.Context, config Config) (pluginNotes map[string]
 		maps.Copy(pluginNotes, validatResp)
 	}
 
-	if err != nil {
-		pluginNotes["datastore"] = append(pluginNotes["datastore"], err.Error())
-	}
-
-	return pluginNotes, nil
+	return pluginNotes, err
 }
 
 func loadSQLDataStore(ctx context.Context, config Config, coreConfig catalog.CoreConfig, datastoreConfigs catalog.PluginConfigs) (*ds_sql.Plugin, error) {
