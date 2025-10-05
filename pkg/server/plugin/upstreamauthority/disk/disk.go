@@ -57,7 +57,9 @@ func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginco
 	}
 
 	newConfig.trustDomain = coreConfig.TrustDomain
-	// TODO: add field validation
+	if newConfig.CertFilePath == "" || newConfig.KeyFilePath == "" {
+		status.ReportError("'cert_file_path' and 'key_file_path' must be set and not empty")
+	}
 
 	return newConfig
 }
