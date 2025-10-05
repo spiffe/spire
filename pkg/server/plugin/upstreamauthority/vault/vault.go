@@ -186,7 +186,7 @@ func (p *Plugin) Validate(_ context.Context, req *configv1.ValidateRequest) (*co
 	return &configv1.ValidateResponse{
 		Valid: err == nil,
 		Notes: notes,
-	}, err
+	}, nil
 }
 
 func (p *Plugin) MintX509CAAndSubscribe(req *upstreamauthorityv1.MintX509CARequest, stream upstreamauthorityv1.UpstreamAuthority_MintX509CAAndSubscribeServer) error {
