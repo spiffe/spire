@@ -49,18 +49,28 @@ func (c *validateCommand) Run(args []string) int {
 
 	s := server.New(*config)
 
-	resp, err := s.ValidateConfig(context.Background())
+	pluginNotes, err := s.ValidateConfig(context.Background())
 	if err != nil && status.Code(err) != codes.Unimplemented {
 		_ = c.env.ErrPrintf("Could not validate configuration file: %v", err)
 		return 1
 	}
-	if resp != nil {
-		if !resp.Valid {
-			_ = c.env.ErrPrintf("SPIRE server configuration file is invalid.\nValidation notes: %v", resp.Notes)
-			return 1
-		}
+
+	if len(pluginNotes) == 0 {
+		_ = c.env.Println("SPIRE server configuration file is valid.")
+		return 0
 	}
 
-	_ = c.env.Println("SPIRE server configuration file is valid.")
-	return 0
+	_ = c.env.ErrPrintf("SPIRE server configuration file is invalid.\nValidation errors:\n")
+	for plugin, notes := range pluginNotes {
+		if len(notes) == 0 {
+			continue
+		}
+
+		_ = c.env.ErrPrintf("\t%s:\n", plugin)
+
+		for _, note := range notes {
+			_ = c.env.ErrPrintf("\t\t%s:\n", note)
+		}
+	}
+	return 1
 }
