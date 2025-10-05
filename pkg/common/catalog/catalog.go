@@ -9,9 +9,10 @@ import (
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire-plugin-sdk/pluginsdk"
 	"github.com/spiffe/spire-plugin-sdk/private"
-	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // Repository is a set of plugin and service repositories.
@@ -217,7 +218,7 @@ func Load(ctx context.Context, config Config, repo Repository) (_ *Catalog, err 
 	}, nil
 }
 
-func ValidatePluginConfigs(ctx context.Context, config Config, repo Repository) (resp *configv1.ValidateResponse, err error) {
+func ValidatePluginConfigs(ctx context.Context, config Config, repo Repository) (pluginNotes map[string][]string, err error) {
 	closers := make(closerGroup, 0)
 	defer func() {
 		// If loading fails, clear out the catalog and close down all plugins
@@ -244,6 +245,7 @@ func ValidatePluginConfigs(ctx context.Context, config Config, repo Repository) 
 
 	pluginCounts := make(map[string]int)
 
+	pluginNotes = make(map[string][]string)
 	for _, pluginConfig := range config.PluginConfigs {
 		pluginLog, _ := test.NewNullLogger()
 		pluginRepo, ok := pluginRepos[pluginConfig.Type]
@@ -270,8 +272,14 @@ func ValidatePluginConfigs(ctx context.Context, config Config, repo Repository) 
 		if err != nil {
 			return nil, fmt.Errorf("failed to get plugin configuration: %w", err)
 		}
-		if resp, err := configurer.Validate(ctx, config.CoreConfig, configString); err != nil {
-			return resp, err
+
+		resp, err := configurer.Validate(ctx, config.CoreConfig, configString)
+		if err != nil && status.Code(err) != codes.Unimplemented {
+			pluginNotes[pluginConfig.Name] = append(pluginNotes[pluginConfig.Name], err.Error())
+		}
+
+		if resp != nil {
+			pluginNotes[pluginConfig.Name] = append(pluginNotes[pluginConfig.Name], resp.Notes...)
 		}
 
 		pluginCounts[pluginConfig.Type]++
@@ -284,7 +292,7 @@ func ValidatePluginConfigs(ctx context.Context, config Config, repo Repository) 
 		}
 	}
 
-	return nil, nil
+	return pluginNotes, nil
 }
 
 func GetPluginConfigString(c PluginConfig) (string, error) {
