@@ -175,7 +175,7 @@ func (p *Plugin) Validate(_ context.Context, req *configv1.ValidateRequest) (*co
 	return &configv1.ValidateResponse{
 		Valid: err == nil,
 		Notes: notes,
-	}, err
+	}, nil
 }
 
 // startInformers creates informers to set CA Bundle in objects created after server has started
