@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 
 	"github.com/andres-erbsen/clock"
 	"github.com/sirupsen/logrus"
@@ -194,7 +195,7 @@ func Load(ctx context.Context, config Config) (_ *Repository, err error) {
 	return repo, nil
 }
 
-func ValidateConfig(ctx context.Context, config Config) (resp *configv1.ValidateResponse, err error) {
+func ValidateConfig(ctx context.Context, config Config) (pluginNotes map[string][]string, err error) {
 	if c, ok := config.PluginConfigs.Find(nodeAttestorType, jointoken.PluginName); ok && c.IsEnabled() && c.IsExternal() {
 		return nil, fmt.Errorf("the built-in join_token node attestor cannot be overridden by an external plugin")
 	}
@@ -218,13 +219,20 @@ func ValidateConfig(ctx context.Context, config Config) (resp *configv1.Validate
 	}
 
 	ds := ds_sql.New(log)
-	if resp, err := ds.Validate(ctx, coreConfig, dsConfigString); err != nil {
-		return resp, fmt.Errorf("failed to validate DataStore configuration: %w", err)
+	resp, err := ds.Validate(ctx, coreConfig, dsConfigString)
+
+	pluginNotes = make(map[string][]string)
+	if resp != nil {
+		pluginNotes["datastore"] = append(pluginNotes["datastore"], resp.Notes...)
+	}
+
+	if err != nil {
+		pluginNotes["datastore"] = append(pluginNotes["datastore"], err.Error())
 	}
 
 	repo.dsCloser = ds
 
-	if resp, err := catalog.ValidatePluginConfigs(ctx, catalog.Config{
+	validatResp, err := catalog.ValidatePluginConfigs(ctx, catalog.Config{
 		Log:           log,
 		CoreConfig:    coreConfig,
 		PluginConfigs: pluginConfigs,
@@ -233,11 +241,17 @@ func ValidateConfig(ctx context.Context, config Config) (resp *configv1.Validate
 			agentstorev1.AgentStoreServiceServer(config.AgentStore.V1()),
 			metricsv1.MetricsServiceServer(metricsservice.V1(config.Metrics)),
 		},
-	}, repo); err != nil {
-		return resp, err
+	}, repo)
+
+	if resp != nil {
+		maps.Copy(pluginNotes, validatResp)
 	}
 
-	return resp, nil
+	if err != nil {
+		pluginNotes["datastore"] = append(pluginNotes["datastore"], err.Error())
+	}
+
+	return pluginNotes, nil
 }
 
 func loadSQLDataStore(ctx context.Context, config Config, coreConfig catalog.CoreConfig, datastoreConfigs catalog.PluginConfigs) (*ds_sql.Plugin, error) {

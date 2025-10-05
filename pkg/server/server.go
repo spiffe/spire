@@ -14,7 +14,6 @@ import (
 	"github.com/andres-erbsen/clock"
 	"github.com/sirupsen/logrus"
 	bundlev1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/bundle/v1"
-	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	server_util "github.com/spiffe/spire/cmd/spire-server/util"
 	"github.com/spiffe/spire/pkg/common/diskutil"
 	"github.com/spiffe/spire/pkg/common/health"
@@ -72,7 +71,7 @@ func (s *Server) Run(ctx context.Context) error {
 	return nil
 }
 
-func (s *Server) ValidateConfig(ctx context.Context) (*configv1.ValidateResponse, error) {
+func (s *Server) ValidateConfig(ctx context.Context) (map[string][]string, error) {
 	return catalog.ValidateConfig(ctx, catalog.Config{
 		Log:              s.config.Log.WithField(telemetry.SubsystemName, telemetry.Catalog),
 		Metrics:          fakemetrics.New(),
