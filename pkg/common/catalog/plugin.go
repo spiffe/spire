@@ -111,6 +111,9 @@ func (p *pluginImpl) bindRepos(pluginRepo bindablePluginRepo, serviceRepos []bin
 	if err != nil {
 		return nil, err
 	}
+	if configurer == nil {
+		configurer = configurerUnsupported{}
+	}
 
 	switch {
 	case impl == nil:
