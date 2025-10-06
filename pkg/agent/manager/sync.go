@@ -345,7 +345,9 @@ func (m *manager) fetchEntries(ctx context.Context) (_ *cache.UpdateEntries, _ *
 		case entry.StoreSvid:
 			storeEntries[entryID] = entry
 		default:
-			cacheEntries[entryID] = entry
+			if !entry.X509SvidCacheHint.GetJwtOnly() {
+				cacheEntries[entryID] = entry
+			}
 		}
 	}
 

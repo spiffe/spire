@@ -17,7 +17,10 @@
         "spiffe_id": "spiffe://id1",
         "parent_id": "spiffe://parent",
         "ttl": 200,
-        "dns_names": ["a", "b"]
+        "dns_names": [
+            "a",
+            "b"
+        ]
     },
     {
         "selectors": [
@@ -89,6 +92,28 @@
         ],
         "spiffe_id": "spiffe://id5",
         "parent_id": "spiffe://parent2",
+        "ttl": 200
+    },
+    {
+        "selectors": [
+            {
+                "type": "b",
+                "value": "2"
+            },
+            {
+                "type": "c",
+                "value": "3"
+            },
+            {
+                "type": "d",
+                "value": "4"
+            }
+        ],
+        "spiffe_id": "spiffe://id6",
+        "parent_id": "spiffe://parent2",
+        "x509_svid_cache_hint": {
+            "jwt_only": true
+        },
         "ttl": 200
     }
 ]

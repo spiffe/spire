@@ -2119,6 +2119,9 @@ func (s *PluginSuite) TestCreateOrReturnRegistrationEntry() {
 					"abcd.efg",
 					"somehost",
 				},
+				X509SvidCacheHint: &common.RegistrationEntry_X509SvidCacheHint{
+					JwtOnly: false,
+				},
 			}
 			entry = tt.modifyEntry(entry)
 
@@ -2175,6 +2178,9 @@ func (s *PluginSuite) TestFetchRegistrationEntry() {
 					"abcd.efg",
 					"somehost",
 				},
+				X509SvidCacheHint: &common.RegistrationEntry_X509SvidCacheHint{
+					JwtOnly: false,
+				},
 			},
 		},
 		{
@@ -2186,7 +2192,10 @@ func (s *PluginSuite) TestFetchRegistrationEntry() {
 				SpiffeId:    "SpiffeId",
 				ParentId:    "ParentId",
 				X509SvidTtl: 1,
-				StoreSvid:   true,
+				X509SvidCacheHint: &common.RegistrationEntry_X509SvidCacheHint{
+					JwtOnly: false,
+				},
+				StoreSvid: true,
 			},
 		},
 		{
@@ -2198,7 +2207,10 @@ func (s *PluginSuite) TestFetchRegistrationEntry() {
 				SpiffeId:    "SpiffeId",
 				ParentId:    "ParentId",
 				X509SvidTtl: 1,
-				Hint:        "external",
+				X509SvidCacheHint: &common.RegistrationEntry_X509SvidCacheHint{
+					JwtOnly: false,
+				},
+				Hint: "external",
 			},
 		},
 	} {
@@ -2323,6 +2335,9 @@ func (s *PluginSuite) TestPruneRegistrationEntries() {
 		SpiffeId:    "SpiffeId",
 		ParentId:    "ParentId",
 		X509SvidTtl: 1,
+		X509SvidCacheHint: &common.RegistrationEntry_X509SvidCacheHint{
+			JwtOnly: false,
+		},
 		EntryExpiry: now.Unix(),
 	}
 
@@ -3187,7 +3202,10 @@ func (s *PluginSuite) TestUpdateRegistrationEntry() {
 		SpiffeId:    "spiffe://example.org/foo",
 		ParentId:    "spiffe://example.org/bar",
 		X509SvidTtl: 1,
-		JwtSvidTtl:  20,
+		X509SvidCacheHint: &common.RegistrationEntry_X509SvidCacheHint{
+			JwtOnly: false,
+		},
+		JwtSvidTtl: 20,
 	})
 
 	entry.X509SvidTtl = 11
@@ -3195,6 +3213,9 @@ func (s *PluginSuite) TestUpdateRegistrationEntry() {
 	entry.Admin = true
 	entry.Downstream = true
 	entry.Hint = "internal"
+	entry.X509SvidCacheHint = &common.RegistrationEntry_X509SvidCacheHint{
+		JwtOnly: false,
+	}
 
 	updatedRegistrationEntry, err := s.ds.UpdateRegistrationEntry(ctx, entry, nil)
 	s.Require().NoError(err)
@@ -3260,31 +3281,33 @@ func (s *PluginSuite) TestUpdateRegistrationEntryWithMask() {
 	// Note that most of the input validation is done in the API layer and has more extensive tests there.
 	now := time.Now().Unix()
 	oldEntry := &common.RegistrationEntry{
-		ParentId:      "spiffe://example.org/oldParentId",
-		SpiffeId:      "spiffe://example.org/oldSpiffeId",
-		X509SvidTtl:   1000,
-		JwtSvidTtl:    3000,
-		Selectors:     []*common.Selector{{Type: "Type1", Value: "Value1"}},
-		FederatesWith: []string{"spiffe://dom1.org"},
-		Admin:         false,
-		EntryExpiry:   1000,
-		DnsNames:      []string{"dns1"},
-		Downstream:    false,
-		StoreSvid:     false,
+		ParentId:          "spiffe://example.org/oldParentId",
+		SpiffeId:          "spiffe://example.org/oldSpiffeId",
+		X509SvidTtl:       1000,
+		JwtSvidTtl:        3000,
+		Selectors:         []*common.Selector{{Type: "Type1", Value: "Value1"}},
+		FederatesWith:     []string{"spiffe://dom1.org"},
+		Admin:             false,
+		EntryExpiry:       1000,
+		DnsNames:          []string{"dns1"},
+		Downstream:        false,
+		StoreSvid:         false,
+		X509SvidCacheHint: &common.RegistrationEntry_X509SvidCacheHint{},
 	}
 	newEntry := &common.RegistrationEntry{
-		ParentId:      "spiffe://example.org/oldParentId",
-		SpiffeId:      "spiffe://example.org/newSpiffeId",
-		X509SvidTtl:   4000,
-		JwtSvidTtl:    6000,
-		Selectors:     []*common.Selector{{Type: "Type2", Value: "Value2"}},
-		FederatesWith: []string{"spiffe://dom2.org"},
-		Admin:         false,
-		EntryExpiry:   1000,
-		DnsNames:      []string{"dns2"},
-		Downstream:    false,
-		StoreSvid:     true,
-		Hint:          "internal",
+		ParentId:          "spiffe://example.org/oldParentId",
+		SpiffeId:          "spiffe://example.org/newSpiffeId",
+		X509SvidTtl:       4000,
+		JwtSvidTtl:        6000,
+		Selectors:         []*common.Selector{{Type: "Type2", Value: "Value2"}},
+		FederatesWith:     []string{"spiffe://dom2.org"},
+		Admin:             false,
+		EntryExpiry:       1000,
+		DnsNames:          []string{"dns2"},
+		Downstream:        false,
+		StoreSvid:         true,
+		Hint:              "internal",
+		X509SvidCacheHint: &common.RegistrationEntry_X509SvidCacheHint{},
 	}
 	badEntry := &common.RegistrationEntry{
 		ParentId:      "not a good parent id",
