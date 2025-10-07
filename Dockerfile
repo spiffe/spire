@@ -14,7 +14,7 @@ COPY . .
 # when bumping to a new version analyze the new version for security issues
 # then use crane to lookup the digest of that version so we are immutable
 # crane digest tonistiigi/xx:1.3.0
-FROM --platform=$BUILDPLATFORM tonistiigi/xx:1.5.0@sha256:0c6a569797744e45955f39d4f7538ac344bfb7ebf0a54006a0a4297b153ccf0f AS xx
+FROM --platform=$BUILDPLATFORM tonistiigi/xx:1.7.0@sha256:010d4b66aed389848b0694f91c7aaee9df59a6f20be7f5d12e53663a37bd14e2 AS xx
 
 FROM --platform=${BUILDPLATFORM} base as builder
 ARG TAG
