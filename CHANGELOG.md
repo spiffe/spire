@@ -1,6 +1,12 @@
 # Changelog
 
-## [1.12.6] - 2025-08-18
+## [1.12.6] - 2025-10-08
+
+### Security
+
+- Upgrade Go to 1.24.8 to address various CVEs (#6362)
+
+## [1.12.5] - 2025-08-18
 
 ### Security
 
