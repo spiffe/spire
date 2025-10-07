@@ -43,7 +43,7 @@ data:
           keys_path = "/run/spire/data/keys.json"
         }
       }
-    
+
       UpstreamAuthority "vault" {
         plugin_data {
           vault_addr="https://vault.vault.svc:8200/"
@@ -68,32 +68,3 @@ data:
       live_path = "/live"
       ready_path = "/ready"
     }
-
----
-
-# This is the Deployment for the SPIRE server. It waits for SPIRE database to
-# initialize and uses the SPIRE healthcheck command for liveness/readiness
-# probes.
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: spire-server
-  namespace: spire
-  labels:
-    app: spire-server
-spec:
-  template:
-    spec:
-      containers:
-        - name: spire-server
-          env:
-            - name: VAULT_APPROLE_ID
-              valueFrom:
-                secretKeyRef:
-                  name: vault-credential
-                  key: approle_id
-            - name: VAULT_APPROLE_SECRET_ID
-              valueFrom:
-                secretKeyRef:
-                  name: vault-credential
-                  key: secret_id
