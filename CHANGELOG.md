@@ -4,7 +4,7 @@
 
 ### Security
 
-- Upgrade Go to 1.25.2 to address various CVEs (#6363)
+- Upgrade Go to 1.25.2 to address CVE-2025-58187, CVE-2025-61723, CVE-2025-47912, CVE-2025-58185, and CVE-2025-58188 (#6363)
 
 ## [1.13.1] - 2025-09-18
 
