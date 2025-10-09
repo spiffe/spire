@@ -112,6 +112,10 @@ type RegisteredEntry struct {
 
 	// TTL of JWT identities derived from this entry
 	JWTSvidTTL int32 `gorm:"column:jwt_svid_ttl"`
+
+	// X509SvidCacheHint contains a set of options and flags that inform the
+	// agent behaviour with respect to pre-fetching and refreshing X509 SVIDs
+	X509SvidCacheHint []byte `gorm:"size:255,column:x509_svid_cache_hint"` // corresponds to TINYBLOB in MySQL
 }
 
 // RegisteredEntryEvent holds the entry id of a registered entry that had an event
