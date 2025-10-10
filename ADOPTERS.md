@@ -32,6 +32,7 @@ SPIFFE and SPIRE are being used by numerous other companies, both large and smal
 * Google
 * IBM
 * SAP
+* Sophotech
 * Tigera
 * TestifySec
 * Transferwise
