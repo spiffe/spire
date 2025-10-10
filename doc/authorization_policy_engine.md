@@ -88,6 +88,7 @@ The inputs that are passed into the policy are:
 | input field | Description                                                                                                                      | Example                                    |
 |-------------|----------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------|
 | caller      | The SPIFFE ID (if available) of the caller                                                                                       | spiffe://example.org/workload1             |
+| caller_file_path | The binary path (if available) of the caller                                                                                     | /spire-controller-manager                  |
 | full_method | The full method name of the API call based on the [SPIRE API](https://github.com/spiffe/spire-api-sdk/tree/main/proto/spire/api) | /spire.api.server.svid.v1.SVID/MintJWTSVID |
 | req         | The API call request body (not available on client or bidirectional streaming RPC calls)                                         | { "filter": {} }                           |
 

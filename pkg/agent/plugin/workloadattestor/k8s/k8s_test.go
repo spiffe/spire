@@ -897,7 +897,9 @@ func (s *Suite) createKubeletCert(dnsName string) *x509.Certificate {
 		Subject: pkix.Name{
 			CommonName: "whoknows",
 		},
-		DNSNames: []string{dnsName},
+	}
+	if dnsName != "" {
+		tmpl.DNSNames = []string{dnsName}
 	}
 	return s.createCert(tmpl, kubeletKey)
 }

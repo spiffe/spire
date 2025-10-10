@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.13.2] - 2025-10-08
+
+### Security
+
+- Upgrade Go to 1.25.2 to address CVE-2025-58187, CVE-2025-61723, CVE-2025-47912, CVE-2025-58185, and CVE-2025-58188 (#6363)
+
 ## [1.13.1] - 2025-09-18
 
 ### Added
@@ -49,6 +55,12 @@
 
 - The deprecated `use_legacy_downstream_x509_ca_ttl` server configurable (#5703)
 - The deprecated `use_rego_v1` server configurable (#6219)
+
+## [1.12.6] - 2025-10-08
+
+### Security
+
+- Upgrade Go to 1.24.8 to address CVE-2025-58187, CVE-2025-61723, CVE-2025-47912, CVE-2025-58185, and CVE-2025-58188 (#6362)
 
 ## [1.12.5] - 2025-08-18
 

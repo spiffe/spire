@@ -635,7 +635,6 @@ func TestGetEndEntityName(t *testing.T) {
 			name:                 "defaultEndEntityName unset use uri",
 			defaultEndEntityName: "",
 			subject:              "",
-			dnsNames:             []string{""},
 			uris:                 []string{"https://blueelephant.example.com"},
 			ips:                  []string{"192.168.1.1"},
 
@@ -645,8 +644,6 @@ func TestGetEndEntityName(t *testing.T) {
 			name:                 "defaultEndEntityName unset use ip",
 			defaultEndEntityName: "",
 			subject:              "",
-			dnsNames:             []string{""},
-			uris:                 []string{""},
 			ips:                  []string{"192.168.1.1"},
 
 			expectedEndEntityName: "192.168.1.1",

@@ -4,7 +4,15 @@ kind: Kustomization
 
 # list of Resource Config to be Applied
 resources:
-  - spire-server.yaml
+- spire-server-serviceaccount.yaml
+- spire-server-clusterrole.yaml
+- spire-server-clusterrolebinding.yaml
+- spire-server-role.yaml
+- spire-server-rolebinding.yaml
+- spire-server-bundle-configmap.yaml
+- spire-server-configmap.yaml
+- spire-server-deployment.yaml
+- spire-server-service.yaml
 
 # namespace to deploy all Resources to
 namespace: spire
