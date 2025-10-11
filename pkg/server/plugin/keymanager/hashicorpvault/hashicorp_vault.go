@@ -17,15 +17,22 @@ import (
 	"github.com/hashicorp/hcl"
 	keymanagerv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/keymanager/v1"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
+	"github.com/spiffe/spire/pkg/common/backoff"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/diskutil"
 	"github.com/spiffe/spire/pkg/common/pluginconf"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
 const (
 	pluginName = "hashicorp_vault"
+)
+
+const (
+	scheduleMinBackOff = 1 * time.Second
+	scheduleMaxBackoff = 60 * time.Second
 )
 
 func BuiltIn() catalog.BuiltIn {
@@ -130,11 +137,10 @@ type Plugin struct {
 	keymanagerv1.UnsafeKeyManagerServer
 	configv1.UnsafeConfigServer
 
-	logger     hclog.Logger
-	serverID   string
-	mu         sync.RWMutex
-	entries    map[string]keyEntry
-	entriesMtx sync.RWMutex
+	logger   hclog.Logger
+	serverID string
+	mu       sync.RWMutex
+	entries  map[string]keyEntry
 
 	authMethod AuthMethod
 	cc         *ClientConfig
@@ -175,14 +181,11 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 	}
 
 	serverID := config.KeyIdentifierValue
-	p.logger.Debug("Loaded server id", "server_id", serverID)
+	p.logger.Debug("Loaded server id", telemetry.ServerID, serverID)
 
 	if config.InsecureSkipVerify {
 		p.logger.Warn("TLS verification of Vault certificates is skipped. This is only recommended for test environments.")
 	}
-
-	p.mu.Lock()
-	defer p.mu.Unlock()
 
 	am, err := parseAuthMethod(config)
 	if err != nil {
@@ -198,15 +201,19 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 		return nil, err
 	}
 
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
 	p.authMethod = am
 	p.cc = vcConfig
 	p.serverID = serverID
 
 	if p.vc == nil {
-		err := p.genVaultClient()
+		vc, err := p.cc.NewAuthenticatedClient(ctx, p.authMethod)
 		if err != nil {
-			return nil, err
+			return nil, status.Errorf(codes.Internal, "failed to prepare authenticated client: %v", err)
 		}
+		p.vc = vc
 	}
 
 	p.logger.Debug("Fetching keys from Vault")
@@ -215,7 +222,7 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 		return nil, err
 	}
 
-	p.setCache(keyEntries)
+	p.entries = keysToMap(keyEntries, p.logger)
 
 	// Cancel previous tasks in case of re-configure.
 	if p.cancelTasks != nil {
@@ -223,7 +230,7 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 	}
 
 	// start tasks
-	ctx, p.cancelTasks = context.WithCancel(context.Background())
+	ctx, p.cancelTasks = context.WithCancel(ctx)
 	go p.scheduleDeleteTask(ctx)
 
 	return &configv1.ConfigureResponse{}, nil
@@ -266,44 +273,32 @@ func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginco
 }
 
 func parseAuthMethod(config *Config) (AuthMethod, error) {
-	var authMethod AuthMethod
+	var configuredMethods []AuthMethod
+
 	if config.TokenAuth != nil {
-		authMethod = TOKEN
+		configuredMethods = append(configuredMethods, TOKEN)
 	}
 
 	if config.AppRoleAuth != nil {
-		if err := checkForAuthMethodConfigured(authMethod); err != nil {
-			return 0, err
-		}
-		authMethod = APPROLE
+		configuredMethods = append(configuredMethods, APPROLE)
 	}
 
 	if config.CertAuth != nil {
-		if err := checkForAuthMethodConfigured(authMethod); err != nil {
-			return 0, err
-		}
-		authMethod = CERT
+		configuredMethods = append(configuredMethods, CERT)
 	}
 
 	if config.K8sAuth != nil {
-		if err := checkForAuthMethodConfigured(authMethod); err != nil {
-			return 0, err
-		}
-		authMethod = K8S
+		configuredMethods = append(configuredMethods, K8S)
 	}
 
-	if authMethod != 0 {
-		return authMethod, nil
+	switch len(configuredMethods) {
+	case 0:
+		return 0, status.Error(codes.InvalidArgument, "one of the available authentication methods must be configured: 'Token, AppRole, Cert, K8S'")
+	case 1:
+		return configuredMethods[0], nil
+	default:
+		return 0, status.Error(codes.InvalidArgument, "only one authentication method can be configured")
 	}
-
-	return 0, status.Error(codes.InvalidArgument, "one of the available authentication methods must be configured: 'Token, AppRole'")
-}
-
-func checkForAuthMethodConfigured(authMethod AuthMethod) error {
-	if authMethod != 0 {
-		return status.Error(codes.InvalidArgument, "only one authentication method can be configured")
-	}
-	return nil
 }
 
 func (p *Plugin) genClientParams(method AuthMethod, config *Config) (*ClientParams, error) {
@@ -351,48 +346,35 @@ func (p *Plugin) getEnvOrDefault(envKey, fallback string) string {
 
 // scheduleDeleteTask is a long-running task that deletes keys that are stale
 func (p *Plugin) scheduleDeleteTask(ctx context.Context) {
-	backoffMin := 1 * time.Second
-	backoffMax := 60 * time.Second
-	backoff := backoffMin
-
+	scheduleBackoff := backoff.NewBackoff(p.hooks.clk, scheduleMinBackOff, backoff.WithMaxInterval(scheduleMaxBackoff))
 	for {
+
 		select {
 		case <-ctx.Done():
 			return
 		case keyID := <-p.scheduleDelete:
-			log := p.logger.With("key_id", keyID)
+			log := p.logger.With(telemetry.Kid, keyID)
 
-			if p.vc == nil {
-				err := p.genVaultClient()
-				if err != nil {
-					log.Error("Failed to generate vault client", "reason", err)
-					p.notifyDelete(err)
-					// TODO: Should we re-enqueue here?
+			if err := p.vc.DeleteKey(ctx, keyID); err != nil {
+				// For any other error, log it and re-enqueue the key for deletion as it might be a recoverable error
+				log.Error("It was not possible to schedule key for deletion. Trying to re-enqueue it for deletion", "reason", err)
+
+				select {
+				case p.scheduleDelete <- keyID:
+					log.Debug("Key re-enqueued for deletion")
+				default:
+					log.Error("Failed to re-enqueue key for deletion")
 				}
-			}
 
-			err := p.vc.DeleteKey(ctx, keyID)
-
-			if err == nil {
-				log.Debug("Key deleted")
-				backoff = backoffMin
 				p.notifyDelete(nil)
+				p.hooks.clk.Sleep(scheduleBackoff.NextBackOff())
 				continue
 			}
 
-			// For any other error, log it and re-enqueue the key for deletion as it might be a recoverable error
-			log.Error("It was not possible to schedule key for deletion. Trying to re-enqueue it for deletion", "reason", err)
-
-			select {
-			case p.scheduleDelete <- keyID:
-				log.Debug("Key re-enqueued for deletion")
-			default:
-				log.Error("Failed to re-enqueue key for deletion")
-			}
-
+			// Success
+			log.Debug("Key deleted")
+			scheduleBackoff.Reset()
 			p.notifyDelete(nil)
-			backoff = min(backoff*2, backoffMax)
-			p.hooks.clk.Sleep(backoff)
 		}
 	}
 }
@@ -411,9 +393,6 @@ func (p *Plugin) GenerateKey(ctx context.Context, req *keymanagerv1.GenerateKeyR
 	if req.KeyType == keymanagerv1.KeyType_UNSPECIFIED_KEY_TYPE {
 		return nil, status.Error(codes.InvalidArgument, "key type is required")
 	}
-
-	p.mu.Lock()
-	defer p.mu.Unlock()
 
 	spireKeyID := req.KeyId
 	newKeyEntry, err := p.createKey(ctx, spireKeyID, req.KeyType)
@@ -456,13 +435,6 @@ func (p *Plugin) SignData(ctx context.Context, req *keymanagerv1.SignDataRequest
 	hashAlgo, signingAlgo, err := algosForKMS(keyEntry.PublicKey.Type, req.SignerOpts)
 	if err != nil {
 		return nil, status.Error(codes.InvalidArgument, err.Error())
-	}
-
-	if p.vc == nil {
-		err := p.genVaultClient()
-		if err != nil {
-			return nil, err
-		}
 	}
 
 	signature, err := p.vc.SignData(ctx, keyEntry.KeyName, req.Data, hashAlgo, signingAlgo)
@@ -553,13 +525,6 @@ func algosForKMS(keyType keymanagerv1.KeyType, signerOpts any) (TransitHashAlgor
 }
 
 func (p *Plugin) createKey(ctx context.Context, spireKeyID string, keyType keymanagerv1.KeyType) (*keyEntry, error) {
-	if p.vc == nil {
-		err := p.genVaultClient()
-		if err != nil {
-			return nil, err
-		}
-	}
-
 	kt, err := convertToTransitKeyType(keyType)
 	if err != nil {
 		return nil, err
@@ -593,57 +558,23 @@ func convertToTransitKeyType(keyType keymanagerv1.KeyType) (*TransitKeyType, err
 	}
 }
 
-func (p *Plugin) genVaultClient() error {
-	renewCh := make(chan struct{})
-	vc, err := p.cc.NewAuthenticatedClient(p.authMethod, renewCh)
-	if err != nil {
-		return status.Errorf(codes.Internal, "failed to prepare authenticated client: %v", err)
-	}
-	p.vc = vc
-
-	// if renewCh has been closed, the token can not be renewed and may expire,
-	// it needs to re-authenticate to the Vault.
-	go func() {
-		<-renewCh
-		p.mu.Lock()
-		defer p.mu.Unlock()
-		p.vc = nil
-		p.logger.Debug("Going to re-authenticate to the Vault during the next key manager operation")
-	}()
-
-	return nil
-}
-
 func makeFingerprint(pkixData []byte) string {
 	s := sha256.Sum256(pkixData)
 	return hex.EncodeToString(s[:])
 }
 
-func (p *Plugin) setCache(keyEntries []*keyEntry) {
-	// clean previous cache
-	p.entriesMtx.Lock()
-	defer p.entriesMtx.Unlock()
-	p.entries = make(map[string]keyEntry)
-
-	// add results to cache
-	for _, e := range keyEntries {
-		p.entries[e.PublicKey.Id] = *e
-		p.logger.Debug("Key loaded", "key_id", e.PublicKey.Id, "key_type", e.PublicKey.Type)
-	}
-}
-
 // setKeyEntry adds the entry to the cache that matches the provided SPIRE Key ID
 func (p *Plugin) setKeyEntry(keyID string, ke keyEntry) {
-	p.entriesMtx.Lock()
-	defer p.entriesMtx.Unlock()
+	p.mu.Lock()
+	defer p.mu.Unlock()
 
 	p.entries[keyID] = ke
 }
 
 // getKeyEntry gets the entry from the cache that matches the provided SPIRE Key ID
 func (p *Plugin) getKeyEntry(keyID string) (ke keyEntry, ok bool) {
-	p.entriesMtx.RLock()
-	defer p.entriesMtx.RUnlock()
+	p.mu.RLock()
+	defer p.mu.RUnlock()
 
 	ke, ok = p.entries[keyID]
 	return ke, ok
@@ -702,4 +633,14 @@ func createServerID(idPath string) (string, error) {
 	}
 
 	return id, nil
+}
+
+func keysToMap(keyEntries []*keyEntry, log hclog.Logger) map[string]keyEntry {
+	m := make(map[string]keyEntry, len(keyEntries))
+	for _, e := range keyEntries {
+		m[e.PublicKey.Id] = *e
+		log.Debug("Key loaded", "key_id", e.PublicKey.Id, "key_type", e.PublicKey.Type)
+	}
+
+	return m
 }

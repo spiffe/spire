@@ -125,7 +125,7 @@ func NewClientConfig(cp *ClientParams, logger hclog.Logger) (*ClientConfig, erro
 }
 
 // NewAuthenticatedClient returns a new authenticated vault client with given authentication method
-func (c *ClientConfig) NewAuthenticatedClient(method AuthMethod, renewCh chan struct{}) (client *Client, err error) {
+func (c *ClientConfig) NewAuthenticatedClient(ctx context.Context, method AuthMethod) (client *Client, err error) {
 	config := vapi.DefaultConfig()
 	config.Address = c.clientParams.VaultAddr
 	if c.clientParams.MaxRetries != nil {
@@ -149,19 +149,34 @@ func (c *ClientConfig) NewAuthenticatedClient(method AuthMethod, renewCh chan st
 		clientParams: c.clientParams,
 	}
 
-	var sec *vapi.Secret
+	sec, err := c.lookupSecret(ctx, client, method)
+	if err != nil {
+		return nil, err
+	}
+
+	err = handleRenewToken(ctx, vc, sec, c.Logger)
+	if err != nil {
+		return nil, err
+	}
+
+	return client, nil
+}
+
+func (c *ClientConfig) lookupSecret(ctx context.Context, client *Client, method AuthMethod) (*vapi.Secret, error) {
 	switch method {
 	case TOKEN:
-		sec, err = client.LookupSelf(c.clientParams.Token)
+		sec, err := client.LookupSelf(c.clientParams.Token)
 		if err != nil {
 			return nil, err
 		}
 		if sec == nil {
 			return nil, status.Error(codes.Internal, "lookup self response is nil")
 		}
+		return sec, nil
+
 	case CERT:
 		path := fmt.Sprintf("auth/%v/login", c.clientParams.CertAuthMountPoint)
-		sec, err = client.Auth(path, map[string]any{
+		sec, err := client.Auth(path, map[string]any{
 			"name": c.clientParams.CertAuthRoleName,
 		})
 		if err != nil {
@@ -170,19 +185,23 @@ func (c *ClientConfig) NewAuthenticatedClient(method AuthMethod, renewCh chan st
 		if sec == nil {
 			return nil, status.Error(codes.Internal, "tls cert authentication response is nil")
 		}
+		return sec, nil
+
 	case APPROLE:
 		path := fmt.Sprintf("auth/%v/login", c.clientParams.AppRoleAuthMountPoint)
 		body := map[string]any{
 			"role_id":   c.clientParams.AppRoleID,
 			"secret_id": c.clientParams.AppRoleSecretID,
 		}
-		sec, err = client.Auth(path, body)
+		sec, err := client.Auth(path, body)
 		if err != nil {
 			return nil, err
 		}
 		if sec == nil {
 			return nil, status.Error(codes.Internal, "approle authentication response is nil")
 		}
+		return sec, nil
+
 	case K8S:
 		b, err := os.ReadFile(c.clientParams.K8sAuthTokenPath)
 		if err != nil {
@@ -193,26 +212,23 @@ func (c *ClientConfig) NewAuthenticatedClient(method AuthMethod, renewCh chan st
 			"role": c.clientParams.K8sAuthRoleName,
 			"jwt":  string(b),
 		}
-		sec, err = client.Auth(path, body)
+		sec, err := client.Auth(path, body)
 		if err != nil {
 			return nil, err
 		}
 		if sec == nil {
 			return nil, status.Error(codes.Internal, "k8s authentication response is nil")
 		}
-	}
+		return sec, nil
 
-	err = handleRenewToken(vc, sec, renewCh, c.Logger)
-	if err != nil {
-		return nil, err
+	default:
+		return nil, status.Error(codes.InvalidArgument, "unsupported auth method")
 	}
-
-	return client, nil
 }
 
 // handleRenewToken handles renewing the vault token.
 // if the token is non-renewable or renew failed, renewCh will be closed.
-func handleRenewToken(vc *vapi.Client, sec *vapi.Secret, renewCh chan struct{}, logger hclog.Logger) error {
+func handleRenewToken(ctx context.Context, vc *vapi.Client, sec *vapi.Secret, logger hclog.Logger) error {
 	if sec == nil || sec.Auth == nil {
 		return status.Error(codes.InvalidArgument, "secret is nil")
 	}
@@ -223,9 +239,10 @@ func handleRenewToken(vc *vapi.Client, sec *vapi.Secret, renewCh chan struct{}, 
 	}
 	if !sec.Auth.Renewable {
 		logger.Debug("Token is not renewable")
-		close(renewCh)
 		return nil
 	}
+
+	// TODO: HOW TO HANDLE RENEWAL FAILURES?
 	renew, err := NewRenew(vc, sec, logger)
 	if err != nil {
 		logger.Error("unable to create renew", err)
@@ -233,8 +250,8 @@ func handleRenewToken(vc *vapi.Client, sec *vapi.Secret, renewCh chan struct{}, 
 	}
 
 	go func() {
-		defer close(renewCh)
-		renew.Run()
+
+		renew.Run(ctx)
 	}()
 
 	logger.Debug("Token will be renewed")

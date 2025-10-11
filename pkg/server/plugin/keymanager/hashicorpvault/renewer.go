@@ -1,6 +1,8 @@
 package hashicorpvault
 
 import (
+	"context"
+
 	"github.com/hashicorp/go-hclog"
 	vapi "github.com/hashicorp/vault/api"
 	"google.golang.org/grpc/codes"
@@ -30,19 +32,24 @@ func NewRenew(client *vapi.Client, secret *vapi.Secret, logger hclog.Logger) (*R
 	}, nil
 }
 
-func (r *Renew) Run() {
+func (r *Renew) Run(ctx context.Context) error {
 	go r.watcher.Start()
 	defer r.watcher.Stop()
 
 	for {
 		select {
+		case <-ctx.Done():
+			r.logger.Debug("Stopping auth token renewer")
+			return nil
 		case err := <-r.watcher.DoneCh():
+			// In case channel is closed, we need to recreate client and start a new watcher
 			if err != nil {
 				r.logger.Error("Failed to renew auth token", "err", err)
-				return
+				return err
 			}
 			r.logger.Error("Failed to renew auth token. Retries may have exceeded the lease time threshold")
-			return
+			return status.Error(codes.Internal, "failed to renew auth token")
+
 		case renewal := <-r.watcher.RenewCh():
 			r.logger.Debug("Successfully renew auth token", "request_id", renewal.Secret.RequestID, "lease_duration", renewal.Secret.Auth.LeaseDuration)
 		}
