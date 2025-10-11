@@ -258,6 +258,8 @@ func ValidatePluginConfigs(ctx context.Context, config Config, repo Repository) 
 			continue
 		}
 
+		pluginNotesId := strings.Join([]string{pluginConfig.Type, pluginConfig.Name}, ".")
+
 		plugin, err := loadPlugin(ctx, pluginRepo.BuiltIns(), pluginConfig, pluginLog, config.HostServices)
 		if err != nil {
 			return nil, fmt.Errorf("failed to load plugin %q: %w", pluginConfig.Name, err)
@@ -271,18 +273,20 @@ func ValidatePluginConfigs(ctx context.Context, config Config, repo Repository) 
 
 		configString, err := GetPluginConfigString(pluginConfig)
 		if err != nil {
-			return nil, fmt.Errorf("failed to get plugin configuration: %w", err)
+			pluginNotes[pluginNotesId] = append(pluginNotes[pluginNotesId], fmt.Sprintf("failed to read plugin configuration: %s", err))
+			continue
 		}
 
-		pluginNotesId := strings.Join([]string{pluginConfig.Type, pluginConfig.Name}, ".")
+		// The configurer can be nil in the case where the Configuration service is not requested by the plugin.
+		if configurer != nil {
+			resp, err := configurer.Validate(ctx, config.CoreConfig, configString)
+			if err != nil && status.Code(err) != codes.Unimplemented {
+				pluginNotes[pluginNotesId] = append(pluginNotes[pluginNotesId], err.Error())
+			}
 
-		resp, err := configurer.Validate(ctx, config.CoreConfig, configString)
-		if err != nil && status.Code(err) != codes.Unimplemented {
-			pluginNotes[pluginNotesId] = append(pluginNotes[pluginNotesId], err.Error())
-		}
-
-		if resp != nil && len(resp.Notes) != 0 {
-			pluginNotes[pluginNotesId] = append(pluginNotes[pluginNotesId], resp.Notes...)
+			if resp != nil && len(resp.Notes) != 0 {
+				pluginNotes[pluginNotesId] = append(pluginNotes[pluginNotesId], resp.Notes...)
+			}
 		}
 
 		pluginCounts[pluginConfig.Type]++
@@ -291,7 +295,8 @@ func ValidatePluginConfigs(ctx context.Context, config Config, repo Repository) 
 	// Make sure all plugin constraints are satisfied
 	for pluginType, pluginRepo := range pluginRepos {
 		if err := pluginRepo.Constraints().Check(pluginCounts[pluginType]); err != nil {
-			return nil, fmt.Errorf("plugin type %q constraint not satisfied: %w", pluginType, err)
+			pluginNotes[pluginType] = append(pluginNotes[pluginType], fmt.Sprintf("constraint not satisfied: %s", err))
+			continue
 		}
 	}
 
