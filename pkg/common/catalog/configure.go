@@ -13,8 +13,6 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/telemetry"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 type CoreConfig struct {
@@ -183,16 +181,6 @@ func (v1 *configurerV1) Validate(ctx context.Context, coreConfig CoreConfig, hcl
 		CoreConfiguration: coreConfig.v1(),
 		HclConfiguration:  hclConfiguration,
 	})
-}
-
-type configurerUnsupported struct{}
-
-func (c configurerUnsupported) Configure(context.Context, CoreConfig, string) error {
-	return status.Errorf(codes.Unavailable, "configure is not supported")
-}
-
-func (c configurerUnsupported) Validate(context.Context, CoreConfig, string) (*configv1.ValidateResponse, error) {
-	return nil, status.Errorf(codes.Unavailable, "configure is not supported")
 }
 
 func hashData(data string) string {
