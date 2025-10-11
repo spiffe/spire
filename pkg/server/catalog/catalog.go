@@ -212,27 +212,29 @@ func ValidateConfig(ctx context.Context, config Config) (pluginNotes map[string]
 		TrustDomain: config.TrustDomain,
 	}
 
-	dataStoreConfigs, pluginConfigs := config.PluginConfigs.FilterByType(dataStoreType)
-	dsConfigString, err := catalog.GetPluginConfigString(dataStoreConfigs[0])
-	if err != nil {
-		return nil, fmt.Errorf("failed to get DataStore configuration: %w", err)
-	}
-
-	ds := ds_sql.New(log)
-	resp, err := ds.Validate(ctx, coreConfig, dsConfigString)
-
 	pluginNotes = make(map[string][]string)
-	if resp != nil && len(resp.Notes) != 0 {
-		pluginNotes["datastore"] = append(pluginNotes["datastore"], resp.Notes...)
+	dataStoreConfigs, pluginConfigs := config.PluginConfigs.FilterByType(dataStoreType)
+	if len(dataStoreConfigs) == 0 {
+		pluginNotes["datastore"] = append(pluginNotes["datastore"], "'datastore' must be configured")
+	} else {
+		dsConfigString, err := catalog.GetPluginConfigString(dataStoreConfigs[0])
+		if err != nil {
+			return nil, fmt.Errorf("failed to get DataStore configuration: %w", err)
+		}
+
+		ds := ds_sql.New(log)
+		resp, err := ds.Validate(ctx, coreConfig, dsConfigString)
+		if resp != nil && len(resp.Notes) != 0 {
+			pluginNotes["datastore"] = append(pluginNotes["datastore"], resp.Notes...)
+		}
+
+		if err != nil {
+			pluginNotes["datastore"] = append(pluginNotes["datastore"], err.Error())
+		}
+		repo.dsCloser = ds
 	}
 
-	if err != nil {
-		pluginNotes["datastore"] = append(pluginNotes["datastore"], err.Error())
-	}
-
-	repo.dsCloser = ds
-
-	validatResp, err := catalog.ValidatePluginConfigs(ctx, catalog.Config{
+	validateResp, err := catalog.ValidatePluginConfigs(ctx, catalog.Config{
 		Log:           log,
 		CoreConfig:    coreConfig,
 		PluginConfigs: pluginConfigs,
@@ -243,8 +245,8 @@ func ValidateConfig(ctx context.Context, config Config) (pluginNotes map[string]
 		},
 	}, repo)
 
-	if resp != nil {
-		maps.Copy(pluginNotes, validatResp)
+	if validateResp != nil {
+		maps.Copy(pluginNotes, validateResp)
 	}
 
 	return pluginNotes, err
