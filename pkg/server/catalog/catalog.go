@@ -197,7 +197,7 @@ func Load(ctx context.Context, config Config) (_ *Repository, err error) {
 
 func ValidateConfig(ctx context.Context, config Config) (pluginNotes map[string][]string, err error) {
 	if c, ok := config.PluginConfigs.Find(nodeAttestorType, jointoken.PluginName); ok && c.IsEnabled() && c.IsExternal() {
-		return nil, fmt.Errorf("the built-in join_token node attestor cannot be overridden by an external plugin")
+		return nil, errors.New("the built-in join_token node attestor cannot be overridden by an external plugin")
 	}
 
 	log, _ := test.NewNullLogger()
