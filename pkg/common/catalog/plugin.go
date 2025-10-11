@@ -81,9 +81,6 @@ func (p *pluginImpl) Bind(facades ...Facade) (Configurer, error) {
 	if err != nil {
 		return nil, err
 	}
-	if configurer == nil {
-		configurer = configurerUnsupported{}
-	}
 	return configurer, nil
 }
 
@@ -110,9 +107,6 @@ func (p *pluginImpl) bindRepos(pluginRepo bindablePluginRepo, serviceRepos []bin
 	configurer, err := p.makeConfigurer(grpcServiceNames)
 	if err != nil {
 		return nil, err
-	}
-	if configurer == nil {
-		configurer = configurerUnsupported{}
 	}
 
 	switch {
