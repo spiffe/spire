@@ -2504,23 +2504,23 @@ func createRegistrationEntry(tx *gorm.DB, entry *common.RegistrationEntry) (*com
 		return nil, err
 	}
 
-	X509SvidCacheHint, err := proto.Marshal(entry.X509SvidCacheHint)
+	CacheHintFlags, err := proto.Marshal(entry.CacheHintFlags)
 	if err != nil {
 		return nil, err
 	}
 
 	newRegisteredEntry := RegisteredEntry{
-		EntryID:           entryID,
-		SpiffeID:          entry.SpiffeId,
-		ParentID:          entry.ParentId,
-		TTL:               entry.X509SvidTtl,
-		Admin:             entry.Admin,
-		Downstream:        entry.Downstream,
-		Expiry:            entry.EntryExpiry,
-		StoreSvid:         entry.StoreSvid,
-		JWTSvidTTL:        entry.JwtSvidTtl,
-		Hint:              entry.Hint,
-		X509SvidCacheHint: X509SvidCacheHint,
+		EntryID:        entryID,
+		SpiffeID:       entry.SpiffeId,
+		ParentID:       entry.ParentId,
+		TTL:            entry.X509SvidTtl,
+		Admin:          entry.Admin,
+		Downstream:     entry.Downstream,
+		Expiry:         entry.EntryExpiry,
+		StoreSvid:      entry.StoreSvid,
+		JWTSvidTTL:     entry.JwtSvidTtl,
+		Hint:           entry.Hint,
+		CacheHintFlags: CacheHintFlags,
 	}
 
 	if err := tx.Create(&newRegisteredEntry).Error; err != nil {
@@ -2636,7 +2636,7 @@ SELECT
 	NULL AS dns_name,
 	revision_number,
 	jwt_svid_ttl AS reg_jwt_svid_ttl,
-	x509_svid_cache_hint
+	cache_hint_flags
 FROM
 	registered_entries
 WHERE id IN (SELECT id FROM listing)
@@ -2701,7 +2701,7 @@ SELECT
 	NULL AS dns_name,
 	revision_number,
 	jwt_svid_ttl AS reg_jwt_svid_ttl,
-	x509_svid_cache_hint
+	cache_hint_flags
 FROM
 	registered_entries
 WHERE id IN (SELECT id FROM listing)
@@ -2762,7 +2762,7 @@ SELECT
 	D.value AS dns_name,
 	E.revision_number,
 	E.jwt_svid_ttl AS reg_jwt_svid_ttl,
-	E.x509_svid_cache_hint AS x509_svid_cache_hint
+	E.cache_hint_flags AS cache_hint_flags
 FROM
 	registered_entries E
 LEFT JOIN
@@ -2805,7 +2805,7 @@ SELECT
 	NULL AS dns_name,
 	revision_number,
 	jwt_svid_ttl AS reg_jwt_svid_ttl,
-	x509_svid_cache_hint
+	cache_hint_flags
 FROM
 	registered_entries
 WHERE id IN (SELECT id FROM listing)
@@ -3017,7 +3017,7 @@ SELECT
 	NULL AS dns_name,
 	revision_number,
 	jwt_svid_ttl AS reg_jwt_svid_ttl,
-	x509_svid_cache_hint
+	cache_hint_flags
 FROM
 	registered_entries
 `)
@@ -3113,7 +3113,7 @@ SELECT
 	NULL AS dns_name,
 	revision_number,
 	jwt_svid_ttl AS reg_jwt_svid_ttl,
-	x509_svid_cache_hint
+	cache_hint_flags
 FROM
 	registered_entries
 `)
@@ -3207,7 +3207,7 @@ SELECT
 	D.value AS dns_name,
 	E.revision_number,
 	E.jwt_svid_ttl AS reg_jwt_svid_ttl,
-	E.x509_svid_cache_hint AS x509_svid_cache_hint
+	E.cache_hint_flags AS cache_hint_flags
 FROM
 	registered_entries E
 LEFT JOIN
@@ -3282,7 +3282,7 @@ SELECT
 	NULL AS dns_name,
 	revision_number,
 	jwt_svid_ttl AS reg_jwt_svid_ttl,
-	x509_svid_cache_hint
+	cache_hint_flags
 FROM
 	registered_entries
 `)
@@ -3818,26 +3818,26 @@ func fillNodeSelectorFromRow(nodeSelector *common.Selector, r *nodeSelectorRow) 
 }
 
 type entryRow struct {
-	EId               uint64
-	EntryID           sql.NullString
-	SpiffeID          sql.NullString
-	ParentID          sql.NullString
-	RegTTL            sql.NullInt64
-	Admin             sql.NullBool
-	Downstream        sql.NullBool
-	Expiry            sql.NullInt64
-	SelectorID        sql.NullInt64
-	SelectorType      sql.NullString
-	SelectorValue     sql.NullString
-	StoreSvid         sql.NullBool
-	Hint              sql.NullString
-	CreatedAt         sql.NullTime
-	TrustDomain       sql.NullString
-	DNSNameID         sql.NullInt64
-	DNSName           sql.NullString
-	RevisionNumber    sql.NullInt64
-	RegJwtSvidTTL     sql.NullInt64
-	X509SvidCacheHint sql.Null[[]byte]
+	EId            uint64
+	EntryID        sql.NullString
+	SpiffeID       sql.NullString
+	ParentID       sql.NullString
+	RegTTL         sql.NullInt64
+	Admin          sql.NullBool
+	Downstream     sql.NullBool
+	Expiry         sql.NullInt64
+	SelectorID     sql.NullInt64
+	SelectorType   sql.NullString
+	SelectorValue  sql.NullString
+	StoreSvid      sql.NullBool
+	Hint           sql.NullString
+	CreatedAt      sql.NullTime
+	TrustDomain    sql.NullString
+	DNSNameID      sql.NullInt64
+	DNSName        sql.NullString
+	RevisionNumber sql.NullInt64
+	RegJwtSvidTTL  sql.NullInt64
+	CacheHintFlags sql.Null[[]byte]
 }
 
 func scanEntryRow(rs *sql.Rows, r *entryRow) error {
@@ -3861,7 +3861,7 @@ func scanEntryRow(rs *sql.Rows, r *entryRow) error {
 		&r.DNSName,
 		&r.RevisionNumber,
 		&r.RegJwtSvidTTL,
-		&r.X509SvidCacheHint,
+		&r.CacheHintFlags,
 	))
 }
 
@@ -3924,8 +3924,8 @@ func fillEntryFromRow(entry *common.RegistrationEntry, r *entryRow) error {
 		entry.CreatedAt = roundedInSecondsUnix(r.CreatedAt.Time)
 	}
 
-	entry.X509SvidCacheHint = &common.RegistrationEntry_X509SvidCacheHint{}
-	if err := proto.Unmarshal(r.X509SvidCacheHint.V, entry.X509SvidCacheHint); err != nil {
+	entry.CacheHintFlags = &common.RegistrationEntry_CacheHintFlags{}
+	if err := proto.Unmarshal(r.CacheHintFlags.V, entry.CacheHintFlags); err != nil {
 		return newSQLError("invalid value for X.509 cache hint: %s", err)
 	}
 
@@ -4026,12 +4026,12 @@ func updateRegistrationEntry(tx *gorm.DB, e *common.RegistrationEntry, mask *com
 	if mask == nil || mask.Hint {
 		entry.Hint = e.Hint
 	}
-	if mask == nil || mask.X509SvidCacheHint {
-		X509SvidCacheHint, err := proto.Marshal(e.X509SvidCacheHint)
+	if mask == nil || mask.CacheHintFlags {
+		CacheHintFlags, err := proto.Marshal(e.CacheHintFlags)
 		if err != nil {
 			return nil, err
 		}
-		entry.X509SvidCacheHint = X509SvidCacheHint
+		entry.CacheHintFlags = CacheHintFlags
 	}
 
 	// Revision number is increased by 1 on every update call
@@ -4486,7 +4486,7 @@ func validateRegistrationEntry(entry *common.RegistrationEntry) error {
 	// it is done to avoid users to mix selectors from different platforms in
 	// entries with storable SVIDs
 	if entry.StoreSvid {
-		if entry.X509SvidCacheHint.GetJwtOnly() {
+		if entry.CacheHintFlags.GetDisableX509SvidPrefetch() {
 			return newValidationError("specifying cache behaviour is incompatible with storable SVIDs")
 		}
 		// Selectors must never be empty
@@ -4618,28 +4618,28 @@ func modelToEntry(tx *gorm.DB, model RegisteredEntry) (*common.RegistrationEntry
 		federatesWith = append(federatesWith, bundle.TrustDomain)
 	}
 
-	X509SvidCacheHint := &common.RegistrationEntry_X509SvidCacheHint{}
-	if err := proto.Unmarshal(model.X509SvidCacheHint, X509SvidCacheHint); err != nil {
+	CacheHintFlags := &common.RegistrationEntry_CacheHintFlags{}
+	if err := proto.Unmarshal(model.CacheHintFlags, CacheHintFlags); err != nil {
 		return nil, err
 	}
 
 	return &common.RegistrationEntry{
-		EntryId:           model.EntryID,
-		Selectors:         selectors,
-		SpiffeId:          model.SpiffeID,
-		ParentId:          model.ParentID,
-		X509SvidTtl:       model.TTL,
-		FederatesWith:     federatesWith,
-		Admin:             model.Admin,
-		Downstream:        model.Downstream,
-		EntryExpiry:       model.Expiry,
-		DnsNames:          dnsList,
-		RevisionNumber:    model.RevisionNumber,
-		StoreSvid:         model.StoreSvid,
-		JwtSvidTtl:        model.JWTSvidTTL,
-		Hint:              model.Hint,
-		X509SvidCacheHint: X509SvidCacheHint,
-		CreatedAt:         roundedInSecondsUnix(model.CreatedAt),
+		EntryId:        model.EntryID,
+		Selectors:      selectors,
+		SpiffeId:       model.SpiffeID,
+		ParentId:       model.ParentID,
+		X509SvidTtl:    model.TTL,
+		FederatesWith:  federatesWith,
+		Admin:          model.Admin,
+		Downstream:     model.Downstream,
+		EntryExpiry:    model.Expiry,
+		DnsNames:       dnsList,
+		RevisionNumber: model.RevisionNumber,
+		StoreSvid:      model.StoreSvid,
+		JwtSvidTtl:     model.JWTSvidTTL,
+		Hint:           model.Hint,
+		CacheHintFlags: CacheHintFlags,
+		CreatedAt:      roundedInSecondsUnix(model.CreatedAt),
 	}, nil
 }
 

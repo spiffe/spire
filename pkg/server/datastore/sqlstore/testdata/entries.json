@@ -111,8 +111,8 @@
         ],
         "spiffe_id": "spiffe://id6",
         "parent_id": "spiffe://parent2",
-        "x509_svid_cache_hint": {
-            "jwt_only": true
+        "cache_hint_flags": {
+            "disable_x509_svid_prefetch": true
         },
         "ttl": 200
     }
