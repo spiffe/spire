@@ -96,6 +96,12 @@ func (s *CATestSuite) SetupTest() {
 	s.setJWTKey()
 }
 
+func (s *CATestSuite) TestDisableJWT() {
+	s.False(s.ca.IsJWTDisabled(), "DisableJWT should be false by default")
+	s.ca.SetDisableJWT(true)
+	s.True(s.ca.IsJWTDisabled(), "DisableJWT not changed to true")
+}
+
 func (s *CATestSuite) TestSignServerX509SVIDNoCASet() {
 	s.ca.SetX509CA(nil)
 	_, err := s.ca.SignServerX509SVID(ctx, s.createServerX509SVIDParams())

@@ -134,6 +134,9 @@ type Config struct {
 	// MaxAttestedNodeInfoStaleness determines how long to trust cached attested
 	// node information, before requiring refreshing it from the datastore.
 	MaxAttestedNodeInfoStaleness time.Duration
+
+	// DisableJWT, if true, JWT-SVID profile is disabled
+	DisableJWT bool
 }
 
 type ExperimentalConfig struct{}
