@@ -365,7 +365,7 @@ type RegistrationEntry struct {
 	Hint string `protobuf:"bytes,14,opt,name=hint,proto3" json:"hint,omitempty"`
 	// * Time of creation, in seconds from epoch
 	CreatedAt      int64                             `protobuf:"varint,15,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
-	CacheHintFlags *RegistrationEntry_CacheHintFlags `protobuf:"bytes,16,opt,name=cache_hint_flags,json=cacheHintFlags,proto3" json:"cache_hint_flags,omitempty"`
+	CacheHintFlags *RegistrationEntry_CacheHintFlags `protobuf:"bytes,16,opt,name=cache_hint_flags,json=cacheHintFlags,proto3,oneof" json:"cache_hint_flags,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -1147,7 +1147,7 @@ const file_spire_common_common_proto_rawDesc = "" +
 	"\x16new_cert_serial_number\x18\x05 \x01(\tR\x13newCertSerialNumber\x12+\n" +
 	"\x12new_cert_not_after\x18\x06 \x01(\x03R\x0fnewCertNotAfter\x124\n" +
 	"\tselectors\x18\a \x03(\v2\x16.spire.common.SelectorR\tselectors\x12!\n" +
-	"\fcan_reattest\x18\b \x01(\bR\vcanReattest\"\xa4\x05\n" +
+	"\fcan_reattest\x18\b \x01(\bR\vcanReattest\"\xbe\x05\n" +
 	"\x11RegistrationEntry\x124\n" +
 	"\tselectors\x18\x01 \x03(\v2\x16.spire.common.SelectorR\tselectors\x12\x1b\n" +
 	"\tparent_id\x18\x02 \x01(\tR\bparentId\x12\x1b\n" +
@@ -1169,10 +1169,11 @@ const file_spire_common_common_proto_rawDesc = "" +
 	"jwtSvidTtl\x12\x12\n" +
 	"\x04hint\x18\x0e \x01(\tR\x04hint\x12\x1d\n" +
 	"\n" +
-	"created_at\x18\x0f \x01(\x03R\tcreatedAt\x12X\n" +
-	"\x10cache_hint_flags\x18\x10 \x01(\v2..spire.common.RegistrationEntry.CacheHintFlagsR\x0ecacheHintFlags\x1aM\n" +
+	"created_at\x18\x0f \x01(\x03R\tcreatedAt\x12]\n" +
+	"\x10cache_hint_flags\x18\x10 \x01(\v2..spire.common.RegistrationEntry.CacheHintFlagsH\x00R\x0ecacheHintFlags\x88\x01\x01\x1aM\n" +
 	"\x0eCacheHintFlags\x12;\n" +
-	"\x1adisable_x509_svid_prefetch\x18\x01 \x01(\bR\x17disableX509SvidPrefetch\"\xc9\x03\n" +
+	"\x1adisable_x509_svid_prefetch\x18\x01 \x01(\bR\x17disableX509SvidPrefetchB\x13\n" +
+	"\x11_cache_hint_flags\"\xc9\x03\n" +
 	"\x15RegistrationEntryMask\x12\x1c\n" +
 	"\tselectors\x18\x01 \x01(\bR\tselectors\x12\x1b\n" +
 	"\tparent_id\x18\x02 \x01(\bR\bparentId\x12\x1b\n" +
@@ -1276,6 +1277,7 @@ func file_spire_common_common_proto_init() {
 	if File_spire_common_common_proto != nil {
 		return
 	}
+	file_spire_common_common_proto_msgTypes[5].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{

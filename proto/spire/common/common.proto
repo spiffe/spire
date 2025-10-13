@@ -104,7 +104,7 @@ message RegistrationEntry {
         This can be set to `true` if the workload is unlikely to request an X509 SVID. */
         bool disable_x509_svid_prefetch = 1;
     }
-    CacheHintFlags cache_hint_flags = 16;
+    optional CacheHintFlags cache_hint_flags = 16;
 }
 
 /** The RegistrationEntryMask is used to update only selected fields of the RegistrationEntry */

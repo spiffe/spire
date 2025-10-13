@@ -3924,9 +3924,11 @@ func fillEntryFromRow(entry *common.RegistrationEntry, r *entryRow) error {
 		entry.CreatedAt = roundedInSecondsUnix(r.CreatedAt.Time)
 	}
 
-	entry.CacheHintFlags = &common.RegistrationEntry_CacheHintFlags{}
-	if err := proto.Unmarshal(r.CacheHintFlags.V, entry.CacheHintFlags); err != nil {
-		return newSQLError("invalid value for X.509 cache hint: %s", err)
+	if r.CacheHintFlags.Valid {
+		entry.CacheHintFlags = &common.RegistrationEntry_CacheHintFlags{}
+		if err := proto.Unmarshal(r.CacheHintFlags.V, entry.CacheHintFlags); err != nil {
+			return newSQLError("invalid value for X.509 cache hint: %s", err)
+		}
 	}
 
 	return nil
@@ -4619,8 +4621,12 @@ func modelToEntry(tx *gorm.DB, model RegisteredEntry) (*common.RegistrationEntry
 	}
 
 	CacheHintFlags := &common.RegistrationEntry_CacheHintFlags{}
-	if err := proto.Unmarshal(model.CacheHintFlags, CacheHintFlags); err != nil {
-		return nil, err
+	if model.CacheHintFlags != nil {
+		if err := proto.Unmarshal(model.CacheHintFlags, CacheHintFlags); err != nil {
+			return nil, err
+		}
+	} else {
+		CacheHintFlags = nil
 	}
 
 	return &common.RegistrationEntry{

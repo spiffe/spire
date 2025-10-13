@@ -93,27 +93,5 @@
         "spiffe_id": "spiffe://id5",
         "parent_id": "spiffe://parent2",
         "ttl": 200
-    },
-    {
-        "selectors": [
-            {
-                "type": "b",
-                "value": "2"
-            },
-            {
-                "type": "c",
-                "value": "3"
-            },
-            {
-                "type": "d",
-                "value": "4"
-            }
-        ],
-        "spiffe_id": "spiffe://id6",
-        "parent_id": "spiffe://parent2",
-        "cache_hint_flags": {
-            "disable_x509_svid_prefetch": true
-        },
-        "ttl": 200
     }
 ]
