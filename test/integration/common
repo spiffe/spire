@@ -244,7 +244,7 @@ download-bin() {
 }
 
 download-kind() {
-    KINDVERSION=${KINDVERSION:-v0.27.0}
+    KINDVERSION=${KINDVERSION:-v0.30.0}
     KINDPATH=$(command -v kind || echo)
     UNAME=$(uname | awk '{print tolower($0)}')
     ARCH=$(uname -m)
@@ -266,7 +266,7 @@ download-kind() {
 }
 
 download-helm() {
-    HELMVERSION=${HELMVERSION:-v3.17.1}
+    HELMVERSION=${HELMVERSION:-v3.19.0}
     HELMPATH=$(command -v helm || echo)
     UNAME=$(uname | awk '{print tolower($0)}')
     ARCH=$(uname -m)
@@ -293,7 +293,7 @@ download-helm() {
 }
 
 download-kubectl() {
-    WANTVERSION=${KUBECTLVERSION:-v1.30.10}
+    WANTVERSION=${KUBECTLVERSION:-v1.31.13}
     KUBECTLPATH=$(command -v kubectl || echo)
     UNAME=$(uname | awk '{print tolower($0)}')
     ARCH=$(uname -m)
@@ -323,7 +323,7 @@ download-kubectl() {
 }
 
 start-kind-cluster() {
-    K8SIMAGE=${K8SIMAGE:-kindest/node:v1.30.10}
+    K8SIMAGE=${K8SIMAGE:-kindest/node:v1.31.12}
 
     local kind_path=$1
     local kind_name=$2
