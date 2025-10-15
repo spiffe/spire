@@ -82,10 +82,19 @@ func newM3TestSink(scope tally.Scope) *m3Sink {
 }
 
 func (m *m3Sink) SetGauge(key []string, val float32) {
+	m.setGauge(key, float64(val), m.scope)
+}
+
+func (m *m3Sink) SetPrecisionGauge(key []string, val float64) {
 	m.setGauge(key, val, m.scope)
 }
 
 func (m *m3Sink) SetGaugeWithLabels(key []string, val float32, labels []Label) {
+	subscope := m.subscopeWithLabels(labels)
+	m.setGauge(key, float64(val), subscope)
+}
+
+func (m *m3Sink) SetPrecisionGaugeWithLabels(key []string, val float64, labels []Label) {
 	subscope := m.subscopeWithLabels(labels)
 	m.setGauge(key, val, subscope)
 }
@@ -137,10 +146,9 @@ func labelsToTags(labels []Label) map[string]string {
 	return tags
 }
 
-func (m *m3Sink) setGauge(key []string, val float32, scope tally.Scope) {
+func (m *m3Sink) setGauge(key []string, val float64, scope tally.Scope) {
 	gauge := m.getGauge(key, scope)
-	val64 := float64(val)
-	gauge.Update(val64)
+	gauge.Update(val)
 }
 
 func (m *m3Sink) getGauge(key []string, scope tally.Scope) tally.Gauge {

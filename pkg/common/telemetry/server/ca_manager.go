@@ -1,6 +1,8 @@
 package server
 
 import (
+	"time"
+
 	"github.com/spiffe/spire/pkg/common/telemetry"
 )
 
@@ -30,11 +32,17 @@ func StartServerCAManagerPrepareX509CACall(m telemetry.Metrics) *telemetry.CallC
 // Gauge (remember previous value set)
 
 // SetX509CARotateGauge set gauge for X509 CA rotation,
-// TTL of CA for a specific TrustDomain
-func SetX509CARotateGauge(m telemetry.Metrics, trustDomain string, val float32) {
+// expiration time and TTL of CA for a specific TrustDomain
+func SetX509CARotateGauge(m telemetry.Metrics, trustDomain string, expiration, now time.Time) {
+	m.SetPrecisionGaugeWithLabels(
+		[]string{telemetry.Manager, telemetry.X509CA, telemetry.Rotate, telemetry.Expiration},
+		float64(expiration.Unix()),
+		[]telemetry.Label{
+			{Name: telemetry.TrustDomainID, Value: trustDomain},
+		})
 	m.SetGaugeWithLabels(
 		[]string{telemetry.Manager, telemetry.X509CA, telemetry.Rotate, telemetry.TTL},
-		val,
+		float32(expiration.Sub(now).Seconds()),
 		[]telemetry.Label{
 			{Name: telemetry.TrustDomainID, Value: trustDomain},
 		})
