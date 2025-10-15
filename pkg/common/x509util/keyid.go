@@ -1,16 +1,17 @@
 package x509util
 
 import (
-	"crypto/fips140"
 	"crypto/sha1" //nolint: gosec // usage of SHA1 is according to RFC 5280
 	"crypto/sha256"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/asn1"
 	"fmt"
+
+	"github.com/spiffe/spire/pkg/common/util"
 )
 
-var x509utilsha256skid = fips140.Enabled()
+var x509utilsha256skid = util.FIPS140Only()
 
 // GetSubjectKeyID calculates a subject key identifier by doing a hash
 // over the ASN.1 encoding of the public key.
