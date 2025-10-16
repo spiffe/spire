@@ -214,8 +214,9 @@ func ValidateConfig(ctx context.Context, config Config) (pluginNotes map[string]
 
 	pluginNotes = make(map[string][]string)
 	dataStoreConfigs, pluginConfigs := config.PluginConfigs.FilterByType(dataStoreType)
+	datastorePluginId := fmt.Sprintf("%s \"%s\"", dataStoreType, "sql")
 	if len(dataStoreConfigs) == 0 {
-		pluginNotes["datastore"] = append(pluginNotes["datastore"], "'datastore' must be configured")
+		pluginNotes[datastorePluginId] = append(pluginNotes[datastorePluginId], "'datastore' must be configured")
 	} else {
 		dsConfigString, err := catalog.GetPluginConfigString(dataStoreConfigs[0])
 		if err != nil {
@@ -225,11 +226,11 @@ func ValidateConfig(ctx context.Context, config Config) (pluginNotes map[string]
 		ds := ds_sql.New(log)
 		resp, err := ds.Validate(ctx, coreConfig, dsConfigString)
 		if resp != nil && len(resp.Notes) != 0 {
-			pluginNotes["datastore"] = append(pluginNotes["datastore"], resp.Notes...)
+			pluginNotes[datastorePluginId] = append(pluginNotes[datastorePluginId], resp.Notes...)
 		}
 
 		if err != nil {
-			pluginNotes["datastore"] = append(pluginNotes["datastore"], err.Error())
+			pluginNotes[datastorePluginId] = append(pluginNotes[datastorePluginId], err.Error())
 		}
 		repo.dsCloser = ds
 	}

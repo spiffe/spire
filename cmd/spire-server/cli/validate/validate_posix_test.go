@@ -112,7 +112,7 @@ UpstreamAuthority "disk" {
 `),
 			expectedReturn: 1,
 			expectedErrors: []string{
-				"UpstreamAuthority.disk:\n\t\t'cert_file_path' and 'key_file_path' must be set and not empty\n",
+				"UpstreamAuthority \"disk\":\n\t\t'cert_file_path' and 'key_file_path' must be set and not empty\n",
 			},
 		},
 		{
@@ -141,8 +141,8 @@ UpstreamAuthority "disk" {
 `),
 			expectedReturn: 1,
 			expectedErrors: []string{
-				"NodeAttestor.x509pop:\n\t\tone of ca_bundle_path or ca_bundle_paths must be configured\n",
-				"UpstreamAuthority.disk:\n\t\t'cert_file_path' and 'key_file_path' must be set and not empty\n",
+				"NodeAttestor \"x509pop\":\n\t\tone of ca_bundle_path or ca_bundle_paths must be configured\n",
+				"UpstreamAuthority \"disk\":\n\t\t'cert_file_path' and 'key_file_path' must be set and not empty\n",
 			},
 		},
 		{
@@ -164,7 +164,7 @@ UpstreamAuthority "disk" {
 `),
 			expectedReturn: 1,
 			expectedErrors: []string{
-				"UpstreamAuthority.disk:\n\t\tfailed to read plugin configuration: open this/does/not/exist: no such file or directory",
+				"UpstreamAuthority \"disk\":\n\t\tfailed to read plugin configuration: open this/does/not/exist: no such file or directory",
 			},
 		},
 		{
@@ -190,7 +190,7 @@ UpstreamAuthority "disk" {
 cert_file_path = "some/file/some/where"
 `,
 			expectedErrors: []string{
-				"UpstreamAuthority.disk:\n\t\t'cert_file_path' and 'key_file_path' must be set and not empty\n",
+				"UpstreamAuthority \"disk\":\n\t\t'cert_file_path' and 'key_file_path' must be set and not empty\n",
 			},
 		},
 		{
@@ -210,7 +210,7 @@ UpstreamAuthority "disk" {}
 `),
 			expectedReturn: 1,
 			expectedErrors: []string{
-				"UpstreamAuthority.disk:\n\t\t'cert_file_path' and 'key_file_path' must be set and not empty\n",
+				"UpstreamAuthority \"disk\":\n\t\t'cert_file_path' and 'key_file_path' must be set and not empty\n",
 			},
 		},
 	}
