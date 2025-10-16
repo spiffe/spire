@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"strings"
 
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
@@ -258,7 +257,7 @@ func ValidatePluginConfigs(ctx context.Context, config Config, repo Repository) 
 			continue
 		}
 
-		pluginNotesId := strings.Join([]string{pluginConfig.Type, pluginConfig.Name}, ".")
+		pluginNotesId := fmt.Sprintf("%s \"%s\"", pluginConfig.Type, pluginConfig.Name)
 
 		plugin, err := loadPlugin(ctx, pluginRepo.BuiltIns(), pluginConfig, pluginLog, config.HostServices)
 		if err != nil {
