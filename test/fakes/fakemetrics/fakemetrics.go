@@ -29,7 +29,7 @@ type FakeMetrics struct {
 type MetricItem struct {
 	Type   MetricType
 	Key    []string
-	Val    float32
+	Val    float64
 	Labels []telemetry.Label
 	Start  time.Time
 }
@@ -54,10 +54,27 @@ func (m *FakeMetrics) AllMetrics() []MetricItem {
 func (m *FakeMetrics) SetGauge(key []string, val float32) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	m.metrics = append(m.metrics, MetricItem{Type: SetGaugeType, Key: key, Val: float64(val)})
+}
+
+func (m *FakeMetrics) SetPrecisionGauge(key []string, val float64) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.metrics = append(m.metrics, MetricItem{Type: SetGaugeType, Key: key, Val: val})
 }
 
 func (m *FakeMetrics) SetGaugeWithLabels(key []string, val float32, labels []telemetry.Label) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.metrics = append(m.metrics, MetricItem{
+		Type:   SetGaugeWithLabelsType,
+		Key:    key,
+		Val:    float64(val),
+		Labels: telemetry.SanitizeLabels(labels),
+	})
+}
+
+func (m *FakeMetrics) SetPrecisionGaugeWithLabels(key []string, val float64, labels []telemetry.Label) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.metrics = append(m.metrics, MetricItem{
@@ -71,13 +88,13 @@ func (m *FakeMetrics) SetGaugeWithLabels(key []string, val float32, labels []tel
 func (m *FakeMetrics) EmitKey(key []string, val float32) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.metrics = append(m.metrics, MetricItem{Type: EmitKeyType, Key: key, Val: val})
+	m.metrics = append(m.metrics, MetricItem{Type: EmitKeyType, Key: key, Val: float64(val)})
 }
 
 func (m *FakeMetrics) IncrCounter(key []string, val float32) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.metrics = append(m.metrics, MetricItem{Type: IncrCounterType, Key: key, Val: val})
+	m.metrics = append(m.metrics, MetricItem{Type: IncrCounterType, Key: key, Val: float64(val)})
 }
 
 func (m *FakeMetrics) IncrCounterWithLabels(key []string, val float32, labels []telemetry.Label) {
@@ -86,7 +103,7 @@ func (m *FakeMetrics) IncrCounterWithLabels(key []string, val float32, labels []
 	m.metrics = append(m.metrics, MetricItem{
 		Type:   IncrCounterWithLabelsType,
 		Key:    key,
-		Val:    val,
+		Val:    float64(val),
 		Labels: telemetry.SanitizeLabels(labels),
 	})
 }
@@ -94,7 +111,7 @@ func (m *FakeMetrics) IncrCounterWithLabels(key []string, val float32, labels []
 func (m *FakeMetrics) AddSample(key []string, val float32) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.metrics = append(m.metrics, MetricItem{Type: AddSampleType, Key: key, Val: val})
+	m.metrics = append(m.metrics, MetricItem{Type: AddSampleType, Key: key, Val: float64(val)})
 }
 
 func (m *FakeMetrics) AddSampleWithLabels(key []string, val float32, labels []telemetry.Label) {
@@ -103,7 +120,7 @@ func (m *FakeMetrics) AddSampleWithLabels(key []string, val float32, labels []te
 	m.metrics = append(m.metrics, MetricItem{
 		Type:   AddSampleWithLabelsType,
 		Key:    key,
-		Val:    val,
+		Val:    float64(val),
 		Labels: telemetry.SanitizeLabels(labels),
 	})
 }

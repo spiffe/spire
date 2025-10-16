@@ -578,11 +578,12 @@ func (m *Manager) activateX509CA(ctx context.Context) {
 		log.WithError(err).Error("Failed to update to activated status on X509CA journal entry")
 	}
 
-	ttl := m.currentX509CA.x509CA.Certificate.NotAfter.Sub(m.c.Clock.Now())
-	telemetry_server.SetX509CARotateGauge(m.c.Metrics, m.c.TrustDomain.Name(), float32(ttl.Seconds()))
+	expiration := m.currentX509CA.x509CA.Certificate.NotAfter
+	now := m.c.Clock.Now()
+	telemetry_server.SetX509CARotateGauge(m.c.Metrics, m.c.TrustDomain.Name(), expiration, now)
 	m.c.Log.WithFields(logrus.Fields{
 		telemetry.TrustDomainID: m.c.TrustDomain.IDString(),
-		telemetry.TTL:           ttl.Seconds(),
+		telemetry.TTL:           expiration.Sub(now).Seconds(),
 	}).Debug("Successfully rotated X.509 CA")
 
 	m.c.CA.SetX509CA(m.currentX509CA.x509CA)
