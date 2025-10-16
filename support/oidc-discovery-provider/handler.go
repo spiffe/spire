@@ -161,6 +161,11 @@ func (h *Handler) serveKeys(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if len(jwks.Keys) == 0 {
+		http.Error(w, "jwt not supported/enabled in this service", http.StatusNotImplemented)
+		return
+	}
+
 	jwks.Keys = h.enrichJwksKeys(jwks.Keys)
 
 	jwksBytes, err := json.MarshalIndent(jwks, "", "  ")
