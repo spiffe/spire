@@ -54,19 +54,6 @@ func (AttestedNodeEvent) TableName() string {
 	return "attested_node_entries_events"
 }
 
-type V3AttestedNode struct {
-	Model
-
-	SpiffeID     string `gorm:"unique_index"`
-	DataType     string
-	SerialNumber string
-	ExpiresAt    time.Time
-}
-
-func (V3AttestedNode) TableName() string {
-	return "attested_node_entries"
-}
-
 // NodeSelector holds a node selector by spiffe ID
 type NodeSelector struct {
 	Model
