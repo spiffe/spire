@@ -80,40 +80,41 @@ func TestNewAuthenticatedClientTokenAuth(t *testing.T) {
 		name            string
 		token           string
 		response        []byte
-		expectRenew     bool
+		expectRenewable bool
 		namespace       string
 		expectCode      codes.Code
 		expectMsgPrefix string
 	}{
 		{
-			name:        "Token Authentication success / Token never expire",
-			token:       "test-token",
-			response:    []byte(testLookupSelfResponseNeverExpire),
-			expectRenew: true,
+			name:            "Token Authentication success / Token never expire",
+			token:           "test-token",
+			response:        []byte(testLookupSelfResponseNeverExpire),
+			expectRenewable: false,
 		},
 		{
-			name:        "Token Authentication success / Token is renewable",
-			token:       "test-token",
-			response:    []byte(testLookupSelfResponse),
-			expectRenew: true,
+			name:            "Token Authentication success / Token is renewable",
+			token:           "test-token",
+			response:        []byte(testLookupSelfResponse),
+			expectRenewable: true,
 		},
 		{
-			name:     "Token Authentication success / Token is not renewable",
-			token:    "test-token",
-			response: []byte(testLookupSelfResponseNotRenewable),
+			name:            "Token Authentication success / Token is not renewable",
+			token:           "test-token",
+			response:        []byte(testLookupSelfResponseNotRenewable),
+			expectRenewable: false,
 		},
 		{
-			name:        "Token Authentication success / Token is renewable / Namespace is given",
-			token:       "test-token",
-			response:    []byte(testCertAuthResponse),
-			expectRenew: true,
-			namespace:   "test-ns",
+			name:            "Token Authentication success / Token is renewable / Namespace is given",
+			token:           "test-token",
+			response:        []byte(testCertAuthResponse),
+			expectRenewable: true,
+			namespace:       "test-ns",
 		},
 		{
 			name:            "Token Authentication error / Token is empty",
 			token:           "",
 			response:        []byte(testCertAuthResponse),
-			expectRenew:     true,
+			expectRenewable: true,
 			namespace:       "test-ns",
 			expectCode:      codes.InvalidArgument,
 			expectMsgPrefix: "token is empty",
@@ -145,12 +146,7 @@ func TestNewAuthenticatedClientTokenAuth(t *testing.T) {
 
 			require.NoError(t, err)
 
-			select {
-			// case <-renewCh:
-			// require.Equal(t, false, tt.renew)
-			default:
-				require.Equal(t, true, tt.expectRenew)
-			}
+			require.Equal(t, tt.expectRenewable, client.renewable)
 
 			if cp.Namespace != "" {
 				headers := client.vaultClient.Headers()
@@ -207,13 +203,7 @@ func TestNewAuthenticatedClientAppRoleAuth(t *testing.T) {
 			client, err := cc.NewAuthenticatedClient(t.Context(), APPROLE)
 			require.NoError(t, err)
 
-			select {
-			// TODO: REVIEW
-			// case <-renewCh:
-			// require.Equal(t, false, tt.renew)
-			default:
-				require.Equal(t, true, tt.renew)
-			}
+			require.Equal(t, tt.renew, client.renewable)
 
 			if cp.Namespace != "" {
 				headers := client.vaultClient.Headers()
@@ -295,13 +285,7 @@ func TestNewAuthenticatedClientCertAuth(t *testing.T) {
 			client, err := cc.NewAuthenticatedClient(t.Context(), CERT)
 			require.NoError(t, err)
 
-			select {
-			// TODO: REVIEW
-			// case <-renewCh:
-			// require.Equal(t, false, tt.renew)
-			default:
-				require.Equal(t, true, tt.renew)
-			}
+			require.Equal(t, tt.renew, client.renewable)
 
 			if cp.Namespace != "" {
 				headers := client.vaultClient.Headers()
@@ -384,13 +368,7 @@ func TestNewAuthenticatedClientK8sAuth(t *testing.T) {
 			client, err := cc.NewAuthenticatedClient(t.Context(), K8S)
 			require.NoError(t, err)
 
-			select {
-			// TODO: REVIEW
-			// case <-renewCh:
-			// require.Equal(t, false, tt.renew)
-			default:
-				require.Equal(t, true, tt.renew)
-			}
+			require.Equal(t, tt.renew, client.renewable)
 
 			if cp.Namespace != "" {
 				headers := client.vaultClient.Headers()
@@ -463,12 +441,15 @@ func TestRenewTokenFailed(t *testing.T) {
 	cc, err := NewClientConfig(cp, hclog.Default())
 	require.NoError(t, err)
 
-	_, err = cc.NewAuthenticatedClient(t.Context(), TOKEN)
+	client, err := cc.NewAuthenticatedClient(t.Context(), TOKEN)
 	require.NoError(t, err)
+
+	client.hooks.renewCh = make(chan error, 1)
 
 	select {
 	// TODO: review
-	// case <-renewCh:
+	case err := <-client.hooks.renewCh:
+		spiretest.RequireGRPCStatus(t, err, codes.Internal, "failed to renew auth token")
 	case <-time.After(1 * time.Second):
 		t.Error("renewChan did not close in the expected time")
 	}

@@ -64,6 +64,7 @@ type ClientConfig struct {
 	// vault client parameters
 	clientParams *ClientParams
 	clk          clock.Clock
+	shouldRenew  bool
 }
 
 type ClientParams struct {
@@ -114,6 +115,11 @@ type Client struct {
 	vaultClient  *vapi.Client
 	clientParams *ClientParams
 	secret       *vapi.Secret
+	renewable    bool
+	// For testing only
+	hooks struct {
+		renewCh chan error
+	}
 }
 
 // NewClientConfig returns a new *ClientConfig with default parameters.
@@ -155,8 +161,9 @@ func (c *ClientConfig) NewAuthenticatedClient(ctx context.Context, method AuthMe
 		return client, nil
 	}
 
+	client.renewable = true
 	go func() {
-		err := c.HandleRenewToken(ctx, client, method)
+		err := c.handleRenewToken(ctx, client, method)
 		if err != nil && !errors.Is(err, context.Canceled) {
 			c.Logger.Error("error handling token renewal", err)
 			client.vaultClient = nil // to indicate that client is no longer valid,
@@ -166,7 +173,7 @@ func (c *ClientConfig) NewAuthenticatedClient(ctx context.Context, method AuthMe
 	return client, nil
 }
 
-func (c *ClientConfig) HandleRenewToken(ctx context.Context, client *Client, method AuthMethod) error {
+func (c *ClientConfig) handleRenewToken(ctx context.Context, client *Client, method AuthMethod) error {
 	initBackoff := backoff.NewBackoff(c.clk, bootstrapBackoffInterval, backoff.WithMaxElapsedTime(bootstrapBackoffMaxElapsedTime))
 
 	for {
@@ -181,9 +188,11 @@ func (c *ClientConfig) HandleRenewToken(ctx context.Context, client *Client, met
 			if err == nil || errors.Is(err, context.Canceled) {
 				return nil
 			}
+			c.Logger.Error("token renewal failed, re-authenticating", err)
+			if client.hooks.renewCh != nil {
+				client.hooks.renewCh <- err
+			}
 		}
-
-		c.Logger.Error("token renewal failed, re-authenticating", err)
 
 		// Create a new client and re-authenticate
 		if err := c.completeClient(ctx, client, method); err != nil {
