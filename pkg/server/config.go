@@ -122,7 +122,7 @@ type Config struct {
 	TLSPolicy tlspolicy.Policy
 
 	// PruneAttestedNodesExpiredFor enables periodic removal of attested nodes
-	// with X509-SVID expiration date further than a given time intervaln in the
+	// with X509-SVID expiration date further than a given time interval in the
 	// past. Non-reattestable nodes are not pruned by default. Banned nodes are
 	// not pruned.
 	PruneAttestedNodesExpiredFor time.Duration
