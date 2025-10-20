@@ -397,10 +397,6 @@ func (ca *CA) IsJWTSVIDsDisabled() bool {
 	return ca.c.DisableJWTSVIDs
 }
 
-func (ca *CA) SetDisableJWTSVIDs(disableJWTSVIDs bool) {
-	ca.c.DisableJWTSVIDs = disableJWTSVIDs
-}
-
 func makeCertChain(x509CA *X509CA, leaf *x509.Certificate) []*x509.Certificate {
 	return append([]*x509.Certificate{leaf}, x509CA.UpstreamChain...)
 }

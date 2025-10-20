@@ -32,12 +32,13 @@ type Options struct {
 }
 
 type CA struct {
-	ca            *ca.CA
-	credBuilder   *credtemplate.Builder
-	credValidator *credvalidator.Validator
-	options       *Options
-	bundle        []*x509.Certificate
-	err           error
+	ca              *ca.CA
+	credBuilder     *credtemplate.Builder
+	credValidator   *credvalidator.Validator
+	options         *Options
+	bundle          []*x509.Certificate
+	err             error
+	disableJWTSVIDs bool
 }
 
 func New(t *testing.T, trustDomain spiffeid.TrustDomain, options *Options) *CA {
@@ -106,11 +107,12 @@ func New(t *testing.T, trustDomain spiffeid.TrustDomain, options *Options) *CA {
 	})
 
 	return &CA{
-		ca:            serverCA,
-		credBuilder:   credBuilder,
-		credValidator: credValidator,
-		options:       options,
-		bundle:        []*x509.Certificate{caCert},
+		ca:              serverCA,
+		credBuilder:     credBuilder,
+		credValidator:   credValidator,
+		options:         options,
+		bundle:          []*x509.Certificate{caCert},
+		disableJWTSVIDs: options.DisableJWTSVIDs,
 	}
 }
 
@@ -198,9 +200,9 @@ func (c *CA) JWTSVIDTTL() time.Duration {
 }
 
 func (c *CA) IsJWTSVIDsDisabled() bool {
-	return c.ca.IsJWTSVIDsDisabled()
+	return c.disableJWTSVIDs
 }
 
 func (c *CA) SetDisableJWTSVIDs(disableJWTSVIDs bool) {
-	c.ca.SetDisableJWTSVIDs(disableJWTSVIDs)
+	c.disableJWTSVIDs = disableJWTSVIDs
 }

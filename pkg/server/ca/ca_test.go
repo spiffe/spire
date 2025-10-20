@@ -98,8 +98,13 @@ func (s *CATestSuite) SetupTest() {
 
 func (s *CATestSuite) TestDisableJWTSVIDs() {
 	s.False(s.ca.IsJWTSVIDsDisabled(), "DisableJWTSVIDs should be false by default")
-	s.ca.SetDisableJWTSVIDs(true)
-	s.True(s.ca.IsJWTSVIDsDisabled(), "DisableJWTSVIDs not changed to true")
+
+	ca := NewCA(Config{
+		TrustDomain:     trustDomainExample,
+		HealthChecker:   s.healthChecker,
+		DisableJWTSVIDs: true,
+	})
+	s.True(ca.IsJWTSVIDsDisabled(), "DisableJWTSVIDs not changed to true")
 }
 
 func (s *CATestSuite) TestSignServerX509SVIDNoCASet() {
