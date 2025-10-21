@@ -56,11 +56,12 @@ configurations, refer to the [documentation](https://github.com/sigstore/cosign/
 Since selectors are created dynamically based on the container's docker labels, there isn't a list of known selectors.
 Instead, each of the container's labels are used in creating the list of selectors.
 
-| Selector          | Example                                            | Description                                                            |
-|-------------------|----------------------------------------------------|------------------------------------------------------------------------|
-| `docker:label`    | `docker:label:com.example.name:foo`                | The key:value pair of each of the container's labels.                  |
-| `docker:env`      | `docker:env:VAR=val`                               | The raw string value of each of the container's environment variables. |
-| `docker:image_id` | `docker:image_id:envoyproxy/envoy:contrib-v1.29.1` | The image name and version of the container.                           |
+| Selector                     | Example                                             | Description                                                            |
+|------------------------------|-----------------------------------------------------|------------------------------------------------------------------------|
+| `docker:label`               | `docker:label:com.example.name:foo`                 | The key:value pair of each of the container's labels.                  |
+| `docker:env`                 | `docker:env:VAR=val`                                | The raw string value of each of the container's environment variables. |
+| `docker:image_id`            | `docker:image_id:envoyproxy/envoy:contrib-v1.29.1`  | The image name and version of the container.                           |
+| `docker:image_config_digest` | `docker:image_config_digest:sha256:9f86d1..5f00a08` | The image config digest (content-addressed, registry-agnostic).        |
 
 Sigstore enabled selectors (available when configured to use `sigstore`)
 
@@ -129,6 +130,18 @@ $ spire-server entry create \
     -parentID spiffe://example.org/host \
     -spiffeID spiffe://example.org/host/foo \
     -selector docker:image_id:envoyproxy/envoy:contrib-v1.29.1
+```
+
+### Image config digest
+
+When available, the plugin emits a selector for the image config digest. This value is content-addressed and does
+not depend on the registry hostname, which makes it a stable target for workload registration across mirrored registries.
+
+```shell
+$ spire-server entry create \
+    -parentID spiffe://example.org/host \
+    -spiffeID spiffe://example.org/host/foo \
+    -selector docker:image_config_digest:sha256:9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08
 ```
 
 ### Labels
