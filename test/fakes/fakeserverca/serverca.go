@@ -24,19 +24,21 @@ var (
 )
 
 type Options struct {
-	Clock        clock.Clock
-	AgentSVIDTTL time.Duration
-	X509SVIDTTL  time.Duration
-	JWTSVIDTTL   time.Duration
+	Clock           clock.Clock
+	AgentSVIDTTL    time.Duration
+	X509SVIDTTL     time.Duration
+	JWTSVIDTTL      time.Duration
+	DisableJWTSVIDs bool
 }
 
 type CA struct {
-	ca            *ca.CA
-	credBuilder   *credtemplate.Builder
-	credValidator *credvalidator.Validator
-	options       *Options
-	bundle        []*x509.Certificate
-	err           error
+	ca              *ca.CA
+	credBuilder     *credtemplate.Builder
+	credValidator   *credvalidator.Validator
+	options         *Options
+	bundle          []*x509.Certificate
+	err             error
+	disableJWTSVIDs bool
 }
 
 func New(t *testing.T, trustDomain spiffeid.TrustDomain, options *Options) *CA {
@@ -77,12 +79,13 @@ func New(t *testing.T, trustDomain spiffeid.TrustDomain, options *Options) *CA {
 	require.NoError(t, err)
 
 	serverCA := ca.NewCA(ca.Config{
-		Log:           log,
-		Metrics:       telemetry.Blackhole{},
-		CredBuilder:   credBuilder,
-		CredValidator: credValidator,
-		TrustDomain:   trustDomain,
-		HealthChecker: healthChecker,
+		Log:             log,
+		Metrics:         telemetry.Blackhole{},
+		CredBuilder:     credBuilder,
+		CredValidator:   credValidator,
+		TrustDomain:     trustDomain,
+		HealthChecker:   healthChecker,
+		DisableJWTSVIDs: options.DisableJWTSVIDs,
 	})
 
 	template, err := credBuilder.BuildSelfSignedX509CATemplate(context.Background(), credtemplate.SelfSignedX509CAParams{
@@ -104,11 +107,12 @@ func New(t *testing.T, trustDomain spiffeid.TrustDomain, options *Options) *CA {
 	})
 
 	return &CA{
-		ca:            serverCA,
-		credBuilder:   credBuilder,
-		credValidator: credValidator,
-		options:       options,
-		bundle:        []*x509.Certificate{caCert},
+		ca:              serverCA,
+		credBuilder:     credBuilder,
+		credValidator:   credValidator,
+		options:         options,
+		bundle:          []*x509.Certificate{caCert},
+		disableJWTSVIDs: options.DisableJWTSVIDs,
 	}
 }
 
@@ -193,4 +197,12 @@ func (c *CA) X509SVIDTTL() time.Duration {
 
 func (c *CA) JWTSVIDTTL() time.Duration {
 	return c.options.JWTSVIDTTL
+}
+
+func (c *CA) IsJWTSVIDsDisabled() bool {
+	return c.disableJWTSVIDs
+}
+
+func (c *CA) SetDisableJWTSVIDs(disableJWTSVIDs bool) {
+	c.disableJWTSVIDs = disableJWTSVIDs
 }
