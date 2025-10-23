@@ -1076,7 +1076,7 @@ func TestFullCacheReloadRecoversFromSkippedAttestedNodeEvents(t *testing.T) {
 }
 
 // AgentsByIDCacheCount
-func agentsByIDMetric(val float32) fakemetrics.MetricItem {
+func agentsByIDMetric(val float64) fakemetrics.MetricItem {
 	return fakemetrics.MetricItem{
 		Type:   fakemetrics.SetGaugeType,
 		Key:    []string{telemetry.Node, telemetry.AgentsByIDCache, telemetry.Count},
@@ -1084,7 +1084,7 @@ func agentsByIDMetric(val float32) fakemetrics.MetricItem {
 		Labels: nil}
 }
 
-func agentsByIDExpiresAtMetric(val float32) fakemetrics.MetricItem {
+func agentsByIDExpiresAtMetric(val float64) fakemetrics.MetricItem {
 	return fakemetrics.MetricItem{
 		Type:   fakemetrics.SetGaugeType,
 		Key:    []string{telemetry.Node, telemetry.AgentsByExpiresAtCache, telemetry.Count},
@@ -1093,7 +1093,7 @@ func agentsByIDExpiresAtMetric(val float32) fakemetrics.MetricItem {
 	}
 }
 
-func nodeAliasesByEntryIDMetric(val float32) fakemetrics.MetricItem {
+func nodeAliasesByEntryIDMetric(val float64) fakemetrics.MetricItem {
 	return fakemetrics.MetricItem{
 		Type:   fakemetrics.SetGaugeType,
 		Key:    []string{telemetry.Entry, telemetry.NodeAliasesByEntryIDCache, telemetry.Count},
@@ -1102,7 +1102,7 @@ func nodeAliasesByEntryIDMetric(val float32) fakemetrics.MetricItem {
 	}
 }
 
-func nodeSkippedEventMetric(val float32) fakemetrics.MetricItem {
+func nodeSkippedEventMetric(val float64) fakemetrics.MetricItem {
 	return fakemetrics.MetricItem{
 		Type:   fakemetrics.SetGaugeType,
 		Key:    []string{telemetry.Node, telemetry.SkippedNodeEventIDs, telemetry.Count},
@@ -1111,7 +1111,7 @@ func nodeSkippedEventMetric(val float32) fakemetrics.MetricItem {
 	}
 }
 
-func nodeAliasesBySelectorMetric(val float32) fakemetrics.MetricItem {
+func nodeAliasesBySelectorMetric(val float64) fakemetrics.MetricItem {
 	return fakemetrics.MetricItem{
 		Type:   fakemetrics.SetGaugeType,
 		Key:    []string{telemetry.Entry, telemetry.NodeAliasesBySelectorCache, telemetry.Count},
@@ -1120,7 +1120,7 @@ func nodeAliasesBySelectorMetric(val float32) fakemetrics.MetricItem {
 	}
 }
 
-func entriesByEntryIDMetric(val float32) fakemetrics.MetricItem {
+func entriesByEntryIDMetric(val float64) fakemetrics.MetricItem {
 	return fakemetrics.MetricItem{
 		Type:   fakemetrics.SetGaugeType,
 		Key:    []string{telemetry.Entry, telemetry.EntriesByEntryIDCache, telemetry.Count},
@@ -1129,7 +1129,7 @@ func entriesByEntryIDMetric(val float32) fakemetrics.MetricItem {
 	}
 }
 
-func entriesByParentIDMetric(val float32) fakemetrics.MetricItem {
+func entriesByParentIDMetric(val float64) fakemetrics.MetricItem {
 	return fakemetrics.MetricItem{
 		Type:   fakemetrics.SetGaugeType,
 		Key:    []string{telemetry.Entry, telemetry.EntriesByParentIDCache, telemetry.Count},
@@ -1138,7 +1138,7 @@ func entriesByParentIDMetric(val float32) fakemetrics.MetricItem {
 	}
 }
 
-func entriesSkippedEventMetric(val float32) fakemetrics.MetricItem {
+func entriesSkippedEventMetric(val float64) fakemetrics.MetricItem {
 	return fakemetrics.MetricItem{
 		Type:   fakemetrics.SetGaugeType,
 		Key:    []string{telemetry.Entry, telemetry.SkippedEntryEventIDs, telemetry.Count},

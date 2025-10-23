@@ -16,7 +16,7 @@ jobs:
         days-before-issue-stale: 365 # 1 year
         days-before-issue-close: 30
         stale-issue-label: "stale"
-        exempt-issue-labels: "blocked" # Ignore blocked issues
+        exempt-issue-labels: "blocked,next-gen" # Ignore blocked and next-gen issues
         stale-issue-message: "This issue is stale because it has been open for 365 days with no activity."
         close-issue-message: "This issue was closed because it has been inactive for 30 days since being marked as stale."
         days-before-pr-stale: -1 # Don't handle PRs
