@@ -22,6 +22,7 @@ func TestAllTrueMasks(t *testing.T) {
 	spiretest.AssertProtoEqual(t, &types.BundleMask{
 		X509Authorities: true,
 		JwtAuthorities:  true,
+		WitAuthorities:  true,
 		RefreshHint:     true,
 		SequenceNumber:  true,
 	}, protoutil.AllTrueBundleMask)

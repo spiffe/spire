@@ -1,7 +1,7 @@
 package limits
 
 const (
-	AttestLimitPerIP     = 1
-	SignLimitPerIP       = 500
-	PushJWTKeyLimitPerIP = 500
+	AttestLimitPerIP  = 1
+	SignLimitPerIP    = 500
+	PushKeyLimitPerIP = 500
 )

@@ -635,6 +635,7 @@ func testBundleAPI(ctx context.Context, t *testing.T, conns testConns) {
 			"GetBundle":                  true,
 			"AppendBundle":               true,
 			"PublishJWTAuthority":        false,
+			"PublishWITAuthority":        false,
 			"CountBundles":               true,
 			"ListFederatedBundles":       true,
 			"GetFederatedBundle":         true,
@@ -650,6 +651,7 @@ func testBundleAPI(ctx context.Context, t *testing.T, conns testConns) {
 			"GetBundle":                  true,
 			"AppendBundle":               false,
 			"PublishJWTAuthority":        false,
+			"PublishWITAuthority":        false,
 			"CountBundles":               false,
 			"ListFederatedBundles":       false,
 			"GetFederatedBundle":         false,
@@ -665,6 +667,7 @@ func testBundleAPI(ctx context.Context, t *testing.T, conns testConns) {
 			"GetBundle":                  true,
 			"AppendBundle":               false,
 			"PublishJWTAuthority":        false,
+			"PublishWITAuthority":        false,
 			"CountBundles":               false,
 			"ListFederatedBundles":       false,
 			"GetFederatedBundle":         true,
@@ -680,6 +683,7 @@ func testBundleAPI(ctx context.Context, t *testing.T, conns testConns) {
 			"GetBundle":                  true,
 			"AppendBundle":               true,
 			"PublishJWTAuthority":        false,
+			"PublishWITAuthority":        false,
 			"CountBundles":               true,
 			"ListFederatedBundles":       true,
 			"GetFederatedBundle":         true,
@@ -695,6 +699,7 @@ func testBundleAPI(ctx context.Context, t *testing.T, conns testConns) {
 			"GetBundle":                  true,
 			"AppendBundle":               true,
 			"PublishJWTAuthority":        false,
+			"PublishWITAuthority":        false,
 			"CountBundles":               true,
 			"ListFederatedBundles":       true,
 			"GetFederatedBundle":         true,
@@ -710,6 +715,7 @@ func testBundleAPI(ctx context.Context, t *testing.T, conns testConns) {
 			"GetBundle":                  true,
 			"AppendBundle":               false,
 			"PublishJWTAuthority":        true,
+			"PublishWITAuthority":        true,
 			"CountBundles":               false,
 			"ListFederatedBundles":       false,
 			"GetFederatedBundle":         false,
@@ -806,8 +812,10 @@ func testSVIDAPI(ctx context.Context, t *testing.T, conns testConns) {
 		testAuthorization(ctx, t, svidv1.NewSVIDClient(conns.local), map[string]bool{
 			"MintX509SVID":        true,
 			"MintJWTSVID":         true,
+			"MintWITSVID":         true,
 			"BatchNewX509SVID":    false,
 			"NewJWTSVID":          false,
+			"BatchNewWITSVID":     false,
 			"NewDownstreamX509CA": false,
 		})
 	})
@@ -816,8 +824,10 @@ func testSVIDAPI(ctx context.Context, t *testing.T, conns testConns) {
 		testAuthorization(ctx, t, svidv1.NewSVIDClient(conns.noAuth), map[string]bool{
 			"MintX509SVID":        false,
 			"MintJWTSVID":         false,
+			"MintWITSVID":         false,
 			"BatchNewX509SVID":    false,
 			"NewJWTSVID":          false,
+			"BatchNewWITSVID":     false,
 			"NewDownstreamX509CA": false,
 		})
 	})
@@ -826,8 +836,10 @@ func testSVIDAPI(ctx context.Context, t *testing.T, conns testConns) {
 		testAuthorization(ctx, t, svidv1.NewSVIDClient(conns.agent), map[string]bool{
 			"MintX509SVID":        false,
 			"MintJWTSVID":         false,
+			"MintWITSVID":         false,
 			"BatchNewX509SVID":    true,
 			"NewJWTSVID":          true,
+			"BatchNewWITSVID":     true,
 			"NewDownstreamX509CA": false,
 		})
 	})
@@ -836,8 +848,10 @@ func testSVIDAPI(ctx context.Context, t *testing.T, conns testConns) {
 		testAuthorization(ctx, t, svidv1.NewSVIDClient(conns.admin), map[string]bool{
 			"MintX509SVID":        true,
 			"MintJWTSVID":         true,
+			"MintWITSVID":         true,
 			"BatchNewX509SVID":    false,
 			"NewJWTSVID":          false,
+			"BatchNewWITSVID":     false,
 			"NewDownstreamX509CA": false,
 		})
 	})
@@ -846,8 +860,10 @@ func testSVIDAPI(ctx context.Context, t *testing.T, conns testConns) {
 		testAuthorization(ctx, t, svidv1.NewSVIDClient(conns.federatedAdmin), map[string]bool{
 			"MintX509SVID":        true,
 			"MintJWTSVID":         true,
+			"MintWITSVID":         true,
 			"BatchNewX509SVID":    false,
 			"NewJWTSVID":          false,
+			"BatchNewWITSVID":     false,
 			"NewDownstreamX509CA": false,
 		})
 	})
@@ -856,8 +872,10 @@ func testSVIDAPI(ctx context.Context, t *testing.T, conns testConns) {
 		testAuthorization(ctx, t, svidv1.NewSVIDClient(conns.downstream), map[string]bool{
 			"MintX509SVID":        false,
 			"MintJWTSVID":         false,
+			"MintWITSVID":         false,
 			"BatchNewX509SVID":    false,
 			"NewJWTSVID":          false,
+			"BatchNewWITSVID":     false,
 			"NewDownstreamX509CA": true,
 		})
 	})
@@ -1260,6 +1278,10 @@ func (bundleServer) PublishJWTAuthority(_ context.Context, _ *bundlev1.PublishJW
 	return &bundlev1.PublishJWTAuthorityResponse{}, nil
 }
 
+func (bundleServer) PublishWITAuthority(_ context.Context, _ *bundlev1.PublishWITAuthorityRequest) (*bundlev1.PublishWITAuthorityResponse, error) {
+	return &bundlev1.PublishWITAuthorityResponse{}, nil
+}
+
 func (bundleServer) ListFederatedBundles(_ context.Context, _ *bundlev1.ListFederatedBundlesRequest) (*bundlev1.ListFederatedBundlesResponse, error) {
 	return &bundlev1.ListFederatedBundlesResponse{}, nil
 }
@@ -1372,12 +1394,20 @@ func (svidServer) MintJWTSVID(_ context.Context, _ *svidv1.MintJWTSVIDRequest) (
 	return &svidv1.MintJWTSVIDResponse{}, nil
 }
 
+func (svidServer) MintWITSVID(_ context.Context, _ *svidv1.MintWITSVIDRequest) (*svidv1.MintWITSVIDResponse, error) {
+	return &svidv1.MintWITSVIDResponse{}, nil
+}
+
 func (svidServer) BatchNewX509SVID(_ context.Context, _ *svidv1.BatchNewX509SVIDRequest) (*svidv1.BatchNewX509SVIDResponse, error) {
 	return &svidv1.BatchNewX509SVIDResponse{}, nil
 }
 
 func (svidServer) NewJWTSVID(_ context.Context, _ *svidv1.NewJWTSVIDRequest) (*svidv1.NewJWTSVIDResponse, error) {
 	return &svidv1.NewJWTSVIDResponse{}, nil
+}
+
+func (svidServer) BatchNewWITSVID(_ context.Context, _ *svidv1.BatchNewWITSVIDRequest) (*svidv1.BatchNewWITSVIDResponse, error) {
+	return &svidv1.BatchNewWITSVIDResponse{}, nil
 }
 
 func (svidServer) NewDownstreamX509CA(_ context.Context, _ *svidv1.NewDownstreamX509CARequest) (*svidv1.NewDownstreamX509CAResponse, error) {
