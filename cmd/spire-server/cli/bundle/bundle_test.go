@@ -42,6 +42,7 @@ func TestShow(t *testing.T) {
     }
   ],
   "jwt_authorities": [],
+  "wit_authorities": [],
   "refresh_hint": "60",
   "sequence_number": "42"
 }`
@@ -128,6 +129,7 @@ func TestSet(t *testing.T) {
         "trust_domain": "spiffe://otherdomain.test",
         "x509_authorities": [],
         "jwt_authorities": [],
+        "wit_authorities": [],
         "refresh_hint": "0",
         "sequence_number": "0"
       }
@@ -545,6 +547,7 @@ func TestList(t *testing.T) {
           "expires_at": "0"
         }
       ],
+      "wit_authorities": [],
       "refresh_hint": "0",
       "sequence_number": "0"
     },
@@ -557,6 +560,7 @@ func TestList(t *testing.T) {
         }
       ],
       "jwt_authorities": [],
+      "wit_authorities": [],
       "refresh_hint": "0",
       "sequence_number": "0"
     }
@@ -572,6 +576,7 @@ func TestList(t *testing.T) {
     }
   ],
   "jwt_authorities": [],
+  "wit_authorities": [],
   "refresh_hint": "0",
   "sequence_number": "0"
 }`
