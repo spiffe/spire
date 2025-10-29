@@ -26,13 +26,13 @@ require (
 	github.com/aws/aws-sdk-go-v2/feature/rds/auth v1.6.0
 	github.com/aws/aws-sdk-go-v2/service/acmpca v1.45.0
 	github.com/aws/aws-sdk-go-v2/service/autoscaling v1.60.1
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.258.1
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.259.0
 	github.com/aws/aws-sdk-go-v2/service/eks v1.74.1
 	github.com/aws/aws-sdk-go-v2/service/iam v1.49.0
 	github.com/aws/aws-sdk-go-v2/service/kms v1.46.0
-	github.com/aws/aws-sdk-go-v2/service/organizations v1.45.1
+	github.com/aws/aws-sdk-go-v2/service/organizations v1.46.0
 	github.com/aws/aws-sdk-go-v2/service/rolesanywhere v1.21.0
-	github.com/aws/aws-sdk-go-v2/service/s3 v1.88.1
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.89.0
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.39.0
 	github.com/aws/aws-sdk-go-v2/service/sts v1.38.0
 	github.com/aws/smithy-go v1.23.1
@@ -122,15 +122,15 @@ require (
 	github.com/agnivade/levenshtein v1.2.1 // indirect
 	github.com/armon/go-radix v1.0.0 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 // indirect
-	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.1 // indirect
+	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.2 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.11 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.11 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.8.3 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/v4a v1.4.7 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/v4a v1.4.11 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.2 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.8.7 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.9.2 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.11 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.19.7 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.19.11 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.28.2 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.34.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
