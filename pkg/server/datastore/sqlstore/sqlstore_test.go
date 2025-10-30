@@ -3271,6 +3271,9 @@ func (s *PluginSuite) TestUpdateRegistrationEntryWithMask() {
 		DnsNames:      []string{"dns1"},
 		Downstream:    false,
 		StoreSvid:     false,
+		CacheHintFlags: &common.RegistrationEntry_CacheHintFlags{
+			DisableX509SvidPrefetch: false,
+		},
 	}
 	newEntry := &common.RegistrationEntry{
 		ParentId:      "spiffe://example.org/oldParentId",
@@ -3285,6 +3288,9 @@ func (s *PluginSuite) TestUpdateRegistrationEntryWithMask() {
 		Downstream:    false,
 		StoreSvid:     true,
 		Hint:          "internal",
+		CacheHintFlags: &common.RegistrationEntry_CacheHintFlags{
+			DisableX509SvidPrefetch: false,
+		},
 	}
 	badEntry := &common.RegistrationEntry{
 		ParentId:      "not a good parent id",
