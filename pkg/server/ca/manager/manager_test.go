@@ -1081,6 +1081,34 @@ func TestActivationThresholdCap(t *testing.T) {
 	require.Equal(t, sevenDays, notAfter.Sub(threshold))
 }
 
+func TestDisableJWTSVIDs(t *testing.T) {
+	test := setupTest(t)
+
+	manager, err := NewManager(ctx, test.selfSignedConfig())
+	require.NoError(t, err)
+	require.NotNil(t, manager)
+	assert.False(t, manager.IsJWTSVIDsDisabled())
+
+	config := test.selfSignedConfig()
+	config.DisableJWTSVIDs = true
+
+	manager, err = NewManager(ctx, config)
+	require.NoError(t, err)
+	require.NotNil(t, manager)
+	assert.True(t, manager.IsJWTSVIDsDisabled())
+
+	ctx := context.Background()
+	require.NoError(t, manager.PrepareJWTKey(ctx))
+
+	manager.ActivateJWTKey(ctx)
+	slot := manager.GetCurrentJWTKeySlot()
+	require.True(t, slot.IsEmpty())
+
+	manager.RotateJWTKey(ctx)
+	slot = manager.GetCurrentJWTKeySlot()
+	require.True(t, slot.IsEmpty())
+}
+
 func TestAlternateKeyTypes(t *testing.T) {
 	expectRSA := func(t *testing.T, signer crypto.Signer, keySize int) {
 		publicKey, ok := signer.Public().(*rsa.PublicKey)
