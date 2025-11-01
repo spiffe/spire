@@ -28,7 +28,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/autoscaling v1.60.1
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.258.1
 	github.com/aws/aws-sdk-go-v2/service/eks v1.74.1
-	github.com/aws/aws-sdk-go-v2/service/iam v1.48.1
+	github.com/aws/aws-sdk-go-v2/service/iam v1.49.0
 	github.com/aws/aws-sdk-go-v2/service/kms v1.46.0
 	github.com/aws/aws-sdk-go-v2/service/organizations v1.45.1
 	github.com/aws/aws-sdk-go-v2/service/rolesanywhere v1.21.0
