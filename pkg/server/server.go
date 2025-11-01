@@ -40,6 +40,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/plugin/bundlepublisher"
 	"github.com/spiffe/spire/pkg/server/registration"
 	"github.com/spiffe/spire/pkg/server/svid"
+	"github.com/spiffe/spire/test/fakes/fakemetrics"
 	"google.golang.org/grpc"
 )
 
@@ -68,6 +69,18 @@ func (s *Server) Run(ctx context.Context) error {
 		return err
 	}
 	return nil
+}
+
+func (s *Server) ValidateConfig(ctx context.Context) (map[string][]string, error) {
+	return catalog.ValidateConfig(ctx, catalog.Config{
+		Log:              s.config.Log.WithField(telemetry.SubsystemName, telemetry.Catalog),
+		Metrics:          fakemetrics.New(),
+		TrustDomain:      s.config.TrustDomain,
+		PluginConfigs:    s.config.PluginConfigs,
+		IdentityProvider: identityprovider.New(identityprovider.Config{TrustDomain: s.config.TrustDomain}),
+		AgentStore:       agentstore.New(),
+		HealthChecker:    health.NewChecker(s.config.HealthChecks, s.config.Log),
+	})
 }
 
 func (s *Server) run(ctx context.Context) (err error) {

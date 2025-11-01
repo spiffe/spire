@@ -6,10 +6,13 @@ import (
 	"io"
 
 	"github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire-plugin-sdk/pluginsdk"
 	"github.com/spiffe/spire-plugin-sdk/private"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // Repository is a set of plugin and service repositories.
@@ -213,6 +216,101 @@ func Load(ctx context.Context, config Config, repo Repository) (_ *Catalog, err 
 		closers:       closers,
 		reconfigurers: reconfigurers,
 	}, nil
+}
+
+func ValidatePluginConfigs(ctx context.Context, config Config, repo Repository) (pluginNotes map[string][]string, err error) {
+	closers := make(closerGroup, 0)
+	defer func() {
+		// If loading fails, clear out the catalog and close down all plugins
+		// that have been loaded thus far.
+		if err != nil {
+			for _, pluginRepo := range repo.Plugins() {
+				pluginRepo.Clear()
+			}
+			for _, serviceRepo := range repo.Services() {
+				serviceRepo.Clear()
+			}
+			closers.Close()
+		}
+	}()
+
+	pluginRepos, err := makeBindablePluginRepos(repo.Plugins())
+	if err != nil {
+		return nil, err
+	}
+	serviceRepos, err := makeBindableServiceRepos(repo.Services())
+	if err != nil {
+		return nil, err
+	}
+
+	pluginCounts := make(map[string]int)
+
+	pluginNotes = make(map[string][]string)
+	for _, pluginConfig := range config.PluginConfigs {
+		pluginLog, _ := test.NewNullLogger()
+		pluginRepo, ok := pluginRepos[pluginConfig.Type]
+		if !ok {
+			return nil, fmt.Errorf("unsupported plugin type %q", pluginConfig.Type)
+		}
+
+		if pluginConfig.Disabled {
+			continue
+		}
+
+		pluginNotesId := fmt.Sprintf("%s \"%s\"", pluginConfig.Type, pluginConfig.Name)
+
+		plugin, err := loadPlugin(ctx, pluginRepo.BuiltIns(), pluginConfig, pluginLog, config.HostServices)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load plugin %q: %w", pluginConfig.Name, err)
+		}
+
+		closers = append(closers, pluginCloser{plugin: plugin, log: pluginLog})
+		configurer, err := plugin.bindRepos(pluginRepo, serviceRepos)
+		if err != nil {
+			return nil, fmt.Errorf("failed to bind plugin %q: %w", pluginConfig.Name, err)
+		}
+
+		configString, err := GetPluginConfigString(pluginConfig)
+		if err != nil {
+			pluginNotes[pluginNotesId] = append(pluginNotes[pluginNotesId], fmt.Sprintf("failed to read plugin configuration: %s", err))
+			continue
+		}
+
+		// The configurer can be nil in the case where the Configuration service is not requested by the plugin.
+		if configurer != nil {
+			resp, err := configurer.Validate(ctx, config.CoreConfig, configString)
+			if err != nil && status.Code(err) != codes.Unimplemented {
+				pluginNotes[pluginNotesId] = append(pluginNotes[pluginNotesId], err.Error())
+			}
+
+			if resp != nil && len(resp.Notes) != 0 {
+				pluginNotes[pluginNotesId] = append(pluginNotes[pluginNotesId], resp.Notes...)
+			}
+		}
+
+		pluginCounts[pluginConfig.Type]++
+	}
+
+	// Make sure all plugin constraints are satisfied
+	for pluginType, pluginRepo := range pluginRepos {
+		if err := pluginRepo.Constraints().Check(pluginCounts[pluginType]); err != nil {
+			pluginNotes[pluginType] = append(pluginNotes[pluginType], fmt.Sprintf("constraint not satisfied: %s", err))
+			continue
+		}
+	}
+
+	return pluginNotes, nil
+}
+
+func GetPluginConfigString(c PluginConfig) (string, error) {
+	var dataSource DataSource
+	if c.DataSource == nil {
+		dataSource = FixedData("")
+	} else {
+		dataSource = c.DataSource
+	}
+
+	return dataSource.Load()
 }
 
 func makePluginLog(log logrus.FieldLogger, pluginConfig PluginConfig) logrus.FieldLogger {
