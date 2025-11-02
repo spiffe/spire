@@ -2,6 +2,7 @@ package log
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -42,6 +43,13 @@ func WithOutputFile(file string) Option {
 		}
 
 		logger.Closer = fd
+		return nil
+	}
+}
+
+func WithOutputWriter(w io.Writer) Option {
+	return func(logger *Logger) error {
+		logger.SetOutput(w)
 		return nil
 	}
 }

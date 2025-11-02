@@ -9,7 +9,6 @@ import (
 
 	"github.com/andres-erbsen/clock"
 	"github.com/sirupsen/logrus"
-	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire-plugin-sdk/pluginsdk"
 	metricsv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/hostservice/common/metrics/v1"
@@ -200,9 +199,8 @@ func ValidateConfig(ctx context.Context, config Config) (pluginNotes map[string]
 		return nil, errors.New("the built-in join_token node attestor cannot be overridden by an external plugin")
 	}
 
-	log, _ := test.NewNullLogger()
 	repo := &Repository{
-		log: log,
+		log: config.Log,
 	}
 	defer func() {
 		repo.Close()
@@ -223,7 +221,7 @@ func ValidateConfig(ctx context.Context, config Config) (pluginNotes map[string]
 			return nil, fmt.Errorf("failed to get DataStore configuration: %w", err)
 		}
 
-		ds := ds_sql.New(log)
+		ds := ds_sql.New(config.Log)
 		resp, err := ds.Validate(ctx, coreConfig, dsConfigString)
 		if resp != nil && len(resp.Notes) != 0 {
 			pluginNotes[datastorePluginId] = append(pluginNotes[datastorePluginId], resp.Notes...)
@@ -236,7 +234,7 @@ func ValidateConfig(ctx context.Context, config Config) (pluginNotes map[string]
 	}
 
 	validateResp, err := catalog.ValidatePluginConfigs(ctx, catalog.Config{
-		Log:           log,
+		Log:           config.Log,
 		CoreConfig:    coreConfig,
 		PluginConfigs: pluginConfigs,
 		HostServices: []pluginsdk.ServiceServer{

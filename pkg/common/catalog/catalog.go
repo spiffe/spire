@@ -6,7 +6,6 @@ import (
 	"io"
 
 	"github.com/sirupsen/logrus"
-	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire-plugin-sdk/pluginsdk"
 	"github.com/spiffe/spire-plugin-sdk/private"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -247,7 +246,6 @@ func ValidatePluginConfigs(ctx context.Context, config Config, repo Repository) 
 
 	pluginNotes = make(map[string][]string)
 	for _, pluginConfig := range config.PluginConfigs {
-		pluginLog, _ := test.NewNullLogger()
 		pluginRepo, ok := pluginRepos[pluginConfig.Type]
 		if !ok {
 			return nil, fmt.Errorf("unsupported plugin type %q", pluginConfig.Type)
@@ -259,12 +257,12 @@ func ValidatePluginConfigs(ctx context.Context, config Config, repo Repository) 
 
 		pluginNotesId := fmt.Sprintf("%s \"%s\"", pluginConfig.Type, pluginConfig.Name)
 
-		plugin, err := loadPlugin(ctx, pluginRepo.BuiltIns(), pluginConfig, pluginLog, config.HostServices)
+		plugin, err := loadPlugin(ctx, pluginRepo.BuiltIns(), pluginConfig, config.Log, config.HostServices)
 		if err != nil {
 			return nil, fmt.Errorf("failed to load plugin %q: %w", pluginConfig.Name, err)
 		}
 
-		closers = append(closers, pluginCloser{plugin: plugin, log: pluginLog})
+		closers = append(closers, pluginCloser{plugin: plugin, log: config.Log})
 		configurer, err := plugin.bindRepos(pluginRepo, serviceRepos)
 		if err != nil {
 			return nil, fmt.Errorf("failed to bind plugin %q: %w", pluginConfig.Name, err)

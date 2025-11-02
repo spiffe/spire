@@ -2,7 +2,7 @@ package validate
 
 import (
 	"context"
-	"os"
+	"io"
 
 	"github.com/mitchellh/cli"
 	"github.com/spiffe/spire/cmd/spire-server/cli/run"
@@ -39,7 +39,7 @@ func (c *validateCommand) Synopsis() string {
 }
 
 func (c *validateCommand) Run(args []string) int {
-	config, err := run.LoadConfig(commandName, args, []log.Option{log.WithOutputFile(os.DevNull)}, c.env.Stderr, false)
+	config, err := run.LoadConfig(commandName, args, []log.Option{log.WithOutputWriter(io.Discard)}, c.env.Stderr, false)
 	if err != nil {
 		// Ignore error since a failure to write to stderr cannot very well be reported
 		_ = c.env.ErrPrintf("SPIRE server configuration file is invalid: %v\n", err)
