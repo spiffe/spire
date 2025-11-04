@@ -149,23 +149,23 @@ check-synced-entry() {
   fail-now "timed out waiting for agent to sync down entry"
 }
 
-check-x509-svid-count() {
+check-svid-count() {
   MAXCHECKS=50
   CHECKINTERVAL=1
 
   for ((i=1;i<=MAXCHECKS;i++)); do
-    log-info "check X.509-SVID count on agent debug endpoint ($((i)) of $MAXCHECKS max)..."
+    log-info "check SVID count on agent debug endpoint ($((i)) of $MAXCHECKS max)..."
     COUNT=$(docker compose exec -T "$1" /opt/spire/conf/agent/debugclient -testCase "printDebugPage" | jq '.svidsCount')
-    log-info "X.509-SVID Count: ${COUNT}"
+    log-info "SVID Count: ${COUNT}"
     if [ "$COUNT" -eq "$2" ]; then
-      log-info "X.509-SVID count of $COUNT from cache matches the expected count of $2"
+      log-info "SVID count of $COUNT from cache matches the expected count of $2"
       break
     fi
     sleep "${CHECKINTERVAL}"
   done
 
   if (( i>MAXCHECKS )); then
-      fail-now "X.509-SVID count validation failed"
+      fail-now "SVID count validation failed"
   fi
 }
 
