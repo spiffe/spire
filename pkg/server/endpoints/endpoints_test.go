@@ -264,13 +264,13 @@ func TestListenAndServe(t *testing.T) {
 		return conn
 	}
 
-	// Await /tmp/spire-test-*/sockets to become available (within 1s)
+	// Await /tmp/spire-test-*/sockets to become available (within 10s)
 	// Avoids flaky tests in CI, where we occasionally see failures
 	// due to the socket not being ready when first used by the test
 	require.Eventually(t, func() bool {
 		_, err := os.Stat(endpoints.LocalAddr.String())
 		return err == nil
-	}, time.Second, 10*time.Millisecond, "socket %q not available", endpoints.LocalAddr.String())
+	}, 10*time.Second, 10*time.Millisecond, "socket %q not available", endpoints.LocalAddr.String())
 
 	target, err := util.GetTargetName(endpoints.LocalAddr)
 	require.NoError(t, err)
