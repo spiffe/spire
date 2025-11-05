@@ -324,7 +324,7 @@ func (m *manager) runSynchronizer(ctx context.Context) error {
 		}
 
 		err := m.synchronize(ctx)
-		if err == nil {
+		if err == nil && m.c.TrustBundleSources != nil {
 			err = m.c.TrustBundleSources.SetSuccessIfRunning()
 			if err != nil {
 				return err
