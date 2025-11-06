@@ -1,10 +1,12 @@
 package azure
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/agentpathtemplate"
@@ -44,7 +46,9 @@ type AttestedDocumentContent struct {
 }
 
 func FetchAttestedDocument(cl HTTPClient, nonce string) (*AttestedDocument, error) {
-	req, err := http.NewRequest("GET", "http://169.254.169.254/metadata/attested/document", nil)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, "GET", "http://169.254.169.254/metadata/attested/document", nil)
 	if err != nil {
 		return nil, err
 	}

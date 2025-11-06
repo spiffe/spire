@@ -141,6 +141,10 @@ func (c *azureClient) GetVMSSInstance(ctx context.Context, vmId, subscriptionID,
 }
 
 func (c *azureClient) getVMSSInfo(ctx context.Context, subscriptionIDs []*string, name string) (*VMSSInfo, error) {
+	if err := validateVMSSName(name); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid VMSS name: %v", err)
+	}
+
 	query := fmt.Sprintf(`
 	resources 
 	| where type =~ 'microsoft.compute/virtualmachinescalesets'
