@@ -2,13 +2,11 @@ package azureimds
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
 	"testing"
 
-	jose "github.com/go-jose/go-jose/v4"
-	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
 	nodeattestortest "github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/test"
@@ -23,60 +21,127 @@ var (
 	streamBuilder = nodeattestortest.ServerStream(pluginName)
 )
 
-func TestMSIAttestorPlugin(t *testing.T) {
-	spiretest.Run(t, new(MSIAttestorSuite))
+func TestIMDSAttestorPlugin(t *testing.T) {
+	spiretest.Run(t, new(IMDSAttestorSuite))
 }
 
-type MSIAttestorSuite struct {
+type IMDSAttestorSuite struct {
 	spiretest.Suite
 
-	expectedResource string
-	token            string
-	tokenErr         error
+	attestedDocument   *azure.AttestedDocument
+	attestedDocErr     error
+	computeMetadata    *azure.InstanceMetadata
+	computeMetadataErr error
 }
 
-func (s *MSIAttestorSuite) SetupTest() {
-	s.expectedResource = azure.DefaultMSIResourceID
-	s.token = ""
-	s.tokenErr = nil
+func (s *IMDSAttestorSuite) SetupTest() {
+	s.attestedDocument = &azure.AttestedDocument{
+		Encoding:  "base64",
+		Signature: "signature",
+	}
+	s.attestedDocErr = nil
+	s.computeMetadata = &azure.InstanceMetadata{
+		Compute: azure.ComputeMetadata{
+			Name:              "vm-name",
+			SubscriptionID:    "subscription-id",
+			ResourceGroupName: "resource-group",
+		},
+	}
+	s.computeMetadataErr = nil
 }
 
-func (s *MSIAttestorSuite) TestAidAttestationNotConfigured() {
+func (s *IMDSAttestorSuite) TestAidAttestationNotConfigured() {
 	attestor := s.loadAttestor()
 
 	err := attestor.Attest(context.Background(), streamBuilder.Build())
-	s.RequireGRPCStatus(err, codes.FailedPrecondition, "nodeattestor(azure_msi): not configured")
+	s.RequireGRPCStatus(err, codes.FailedPrecondition, "nodeattestor(azure_imds): not configured")
 }
 
-func (s *MSIAttestorSuite) TestAidAttestationFailedToObtainToken() {
-	s.tokenErr = errors.New("FAILED")
+func (s *IMDSAttestorSuite) TestAidAttestationSuccess() {
+	nonce := []byte("test-nonce")
+	expectedPayload := []byte("non_empty_payload")
 
 	attestor := s.loadAttestor(
 		plugintest.CoreConfig(catalog.CoreConfig{
 			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
 		}),
-		plugintest.Configure(""),
+		plugintest.Configure(`tenant_domain = "example.com"`),
 	)
-	err := attestor.Attest(context.Background(), streamBuilder.Build())
-	s.RequireGRPCStatus(err, codes.Internal, "nodeattestor(azure_msi): unable to fetch token: FAILED")
-}
 
-func (s *MSIAttestorSuite) TestAidAttestationSuccess() {
-	s.token = s.makeAccessToken("PRINCIPALID", "TENANTID")
+	// The plugin sends initial payload, then receives challenge, then sends challenge response
+	stream := streamBuilder.
+		ExpectThenChallenge(expectedPayload, nonce).
+		ExpectAndBuild(s.makeExpectedChallengeResponse())
 
-	expectPayload := fmt.Appendf(nil, `{"token":%q}`, s.token)
-
-	attestor := s.loadAttestor(
-		plugintest.CoreConfig(catalog.CoreConfig{
-			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
-		}),
-		plugintest.Configure(""),
-	)
-	err := attestor.Attest(context.Background(), streamBuilder.ExpectAndBuild(expectPayload))
+	err := attestor.Attest(context.Background(), stream)
 	s.Require().NoError(err)
 }
 
-func (s *MSIAttestorSuite) TestConfigure() {
+func (s *IMDSAttestorSuite) TestAidAttestationWithVMSS() {
+	vmssName := "vmss-name"
+	s.computeMetadata.Compute.VMScaleSetName = vmssName
+
+	nonce := []byte("test-nonce")
+	expectedPayload := []byte("non_empty_payload")
+
+	attestor := s.loadAttestor(
+		plugintest.CoreConfig(catalog.CoreConfig{
+			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
+		}),
+		plugintest.Configure(`tenant_domain = "example.com"`),
+	)
+
+	stream := streamBuilder.
+		ExpectThenChallenge(expectedPayload, nonce).
+		ExpectAndBuild(s.makeExpectedChallengeResponse())
+
+	err := attestor.Attest(context.Background(), stream)
+	s.Require().NoError(err)
+}
+
+func (s *IMDSAttestorSuite) TestAidAttestationFailedToFetchAttestedDocument() {
+	s.attestedDocErr = errors.New("fetch failed")
+
+	nonce := []byte("test-nonce")
+	expectedPayload := []byte("non_empty_payload")
+
+	attestor := s.loadAttestor(
+		plugintest.CoreConfig(catalog.CoreConfig{
+			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
+		}),
+		plugintest.Configure(`tenant_domain = "example.com"`),
+	)
+
+	stream := streamBuilder.
+		ExpectThenChallenge(expectedPayload, nonce).
+		Build()
+
+	err := attestor.Attest(context.Background(), stream)
+	s.RequireGRPCStatus(err, codes.Internal, "nodeattestor(azure_imds): unable to fetch attested document: fetch failed")
+}
+
+func (s *IMDSAttestorSuite) TestAidAttestationFailedToFetchComputeMetadata() {
+	s.computeMetadataErr = errors.New("metadata fetch failed")
+
+	nonce := []byte("test-nonce")
+	expectedPayload := []byte("non_empty_payload")
+
+	attestor := s.loadAttestor(
+		plugintest.CoreConfig(catalog.CoreConfig{
+			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
+		}),
+		plugintest.Configure(`tenant_domain = "example.com"`),
+	)
+
+	stream := streamBuilder.
+		ExpectThenChallenge(expectedPayload, nonce).
+		Build()
+
+	err := attestor.Attest(context.Background(), stream)
+	s.RequireGRPCStatus(err, codes.Internal, "nodeattestor(azure_imds): unable to fetch compute metadata: metadata fetch failed")
+}
+
+func (s *IMDSAttestorSuite) TestConfigure() {
 	// malformed configuration
 	var err error
 	s.loadAttestor(
@@ -88,7 +153,7 @@ func (s *MSIAttestorSuite) TestConfigure() {
 	)
 	s.RequireGRPCStatusContains(err, codes.InvalidArgument, "unable to decode configuration")
 
-	// success
+	// missing tenant_domain
 	s.loadAttestor(
 		plugintest.CaptureConfigureError(&err),
 		plugintest.CoreConfig(catalog.CoreConfig{
@@ -96,30 +161,32 @@ func (s *MSIAttestorSuite) TestConfigure() {
 		}),
 		plugintest.Configure(""),
 	)
-	s.Require().NoError(err)
+	s.RequireGRPCStatusContains(err, codes.InvalidArgument, "tenant_domain is required")
 
-	// success with resource_id
+	// success
 	s.loadAttestor(
 		plugintest.CaptureConfigureError(&err),
 		plugintest.CoreConfig(catalog.CoreConfig{
 			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
 		}),
-		plugintest.Configure(`resource_id = "foo"`),
+		plugintest.Configure(`tenant_domain = "example.com"`),
 	)
 	s.Require().NoError(err)
 }
 
-func (s *MSIAttestorSuite) loadAttestor(options ...plugintest.Option) nodeattestor.NodeAttestor {
+func (s *IMDSAttestorSuite) loadAttestor(options ...plugintest.Option) nodeattestor.NodeAttestor {
 	p := New()
-	p.hooks.fetchMSIToken = func(httpClient azure.HTTPClient, resource string) (string, error) {
+	p.hooks.fetchAttestedDocument = func(httpClient azure.HTTPClient, nonce string) (*azure.AttestedDocument, error) {
 		if httpClient != http.DefaultClient {
-			return "", errors.New("unexpected http client")
+			return nil, errors.New("unexpected http client")
 		}
-		if resource != s.expectedResource {
-			return "", fmt.Errorf("expected resource %q; got %q", s.expectedResource, resource)
+		return s.attestedDocument, s.attestedDocErr
+	}
+	p.hooks.fetchComputeMetadata = func(httpClient azure.HTTPClient) (*azure.InstanceMetadata, error) {
+		if httpClient != http.DefaultClient {
+			return nil, errors.New("unexpected http client")
 		}
-		s.T().Logf("RETURNING %v %v", s.token, s.tokenErr)
-		return s.token, s.tokenErr
+		return s.computeMetadata, s.computeMetadataErr
 	}
 
 	attestor := new(nodeattestor.V1)
@@ -127,20 +194,20 @@ func (s *MSIAttestorSuite) loadAttestor(options ...plugintest.Option) nodeattest
 	return attestor
 }
 
-func (s *MSIAttestorSuite) makeAccessToken(principalID, tenantID string) string {
-	claims := azure.MSITokenClaims{
-		Claims: jwt.Claims{
-			Subject: principalID,
-		},
-		TenantID: tenantID,
+func (s *IMDSAttestorSuite) makeExpectedChallengeResponse() []byte {
+	md := azure.AgentUntrustedMetadata{
+		AgentDomain: "example.com",
+	}
+	if s.computeMetadata.Compute.VMScaleSetName != "" {
+		md.VMSSName = &s.computeMetadata.Compute.VMScaleSetName
 	}
 
-	key := make([]byte, 256)
-	signingKey := jose.SigningKey{Algorithm: jose.HS256, Key: key}
-	signer, err := jose.NewSigner(signingKey, nil)
-	s.Require().NoError(err)
+	payload := azure.IMDSAttestationPayload{
+		Document: *s.attestedDocument,
+		Metadata: md,
+	}
 
-	token, err := jwt.Signed(signer).Claims(claims).Serialize()
+	expectedResponse, err := json.Marshal(payload)
 	s.Require().NoError(err)
-	return token
+	return expectedResponse
 }
