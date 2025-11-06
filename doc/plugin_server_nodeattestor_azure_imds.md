@@ -1,6 +1,6 @@
 # Server plugin: NodeAttestor "azure_imds"
 
-_Must be used in conjunction with the agent-side azure_imds plugin_
+_Must be used in conjunction with the [agent-side azure_imds plugin](plugin_agent_nodeattestor_azure_imds.md)_
 
 The `azure_imds` plugin is a newer version of the Azure node attestor, designed to attest nodes running in Microsoft Azure using the Azure Instance Metadata Service (IMDS) attested document. This document, signed by Azure, contains information such as the subscription ID and VM ID. Unlike the older `azure_msi` plugin, `azure_imds` does not require the VM to have a managed identity, making it suitable for a wider range of Azure virtual machines.
 
@@ -15,10 +15,10 @@ attestation or to resolve selectors.
 
 ## Configuration
 
-| Configuration         | Required | Description                                                                                                                 | Default                                                   |
-| --------------------- | -------- | --------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
-| `tenants`             | Required | A map of tenants, keyed by tenant domain, that are authorized for attestation. Tokens for unspecified tenants are rejected. |                                                           |
-| `agent_path_template` | Optional | A URL path portion format of Agent's SPIFFE ID. Describe in text/template format.                                           | `"/{{ .PluginName }}/{{ .TenantID }}/{{ .PrincipalID }}"` |
+| Configuration         | Required | Description                                                                                                                 | Default                                                                  |
+| --------------------- | -------- | --------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `tenants`             | Required | A map of tenants, keyed by tenant domain, that are authorized for attestation. Tokens for unspecified tenants are rejected. |                                                                          |
+| `agent_path_template` | Optional | A URL path portion format of Agent's SPIFFE ID. Describe in text/template format.                                           | `"/{{ .PluginName }}/{{ .TenantID }}/{{ .SubscriptionID }}/{{ .VMID }}"` |
 
 Each tenant in the main configuration supports the following
 
@@ -29,14 +29,14 @@ Each tenant in the main configuration supports the following
 | `allowed_subscriptions` | [Optional](#authenticating-to-azure)           | A list of allowed subscriptions for the tenant                    |         |
 | `allowed_vm_tags`       | [Optional](#authenticating-to-azure)           | A list of allowed VM tags for the tenant to be used for selectors |         |
 
-#### Secret Authentication (`secret_auth`)
+### Secret Authentication (`secret_auth`)
 
 | Field        | Required | Description                 |
 | ------------ | -------- | --------------------------- |
 | `app_id`     | Required | The application (client) ID |
 | `app_secret` | Required | The application secret      |
 
-#### Token Authentication (`token_auth`)
+### Token Authentication (`token_auth`)
 
 | Field        | Required | Description                   |
 | ------------ | -------- | ----------------------------- |
@@ -171,7 +171,7 @@ NodeAttestor "azure_imds" {
                 allowed_subscriptions = ["d5b40d61-272e-48da-beb9-05f295c42bd6"]
             }
         }
-        agent_path_template = "/{{ .PluginName }}/{{ .TenantID }}/{{ .PrincipalID }}/custom"
+        agent_path_template = "/{{ .PluginName }}/{{ .TenantID }}/{{ .SubscriptionID }}/{{ .VMID }}/custom"
     }
 }
 ```
@@ -180,17 +180,17 @@ NodeAttestor "azure_imds" {
 
 The plugin produces the following selectors.
 
-| Selector                       | Example                                                | Description                                                                                                 |
-| ------------------------------ | ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
-| Subscription ID                | `subscription-id:d5b40d61-272e-48da-beb9-05f295c42bd6` | The subscription the node belongs to                                                                        |
-| Virtual Machine Name           | `vm-name:blog`                                         | The name of the virtual machine (e.g. `blog`)                                                               |
-| Virtual Machine Scale Set Name | `vmss-name:myvmss`                                     | The name of the virtual machine scale set (e.g. `myvmss`)                                                   |
-| Network Security Group         | `network-security-group:webservers`                    | The name of the network security group (e.g. `webservers`)                                                  |
-| Resource Group                 | `resource-group:frontend`                              | The name of the resource group (e.g. `frontend`)                                                            |
-| Virtual Machine Location       | `vm-location:eastus`                                   | The location of the virtual machine (e.g. `eastus`)                                                         |
-| Virtual Network                | `virtual-network:vnet`                                 | The name of the virtual network (e.g. `vnet`)                                                               |
-| Virtual Network Subnet         | `virtual-network-subnet:vnet:default`                  | The name of the virtual network subnet (e.g. `default`) qualified by the virtual network and resource group |
-| Virtual Machine Tag            | `vm-tag:environment:production`                        | Tag key and value on the VM, formatted as `vm-tag:<key>:<value>`                                            |
+| Selector                       | Example                                                | Description                                                                                                  |
+| ------------------------------ | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
+| Subscription ID                | `subscription-id:d5b40d61-272e-48da-beb9-05f295c42bd6` | The subscription the node belongs to                                                                         |
+| Virtual Machine Name           | `vm-name:blog`                                         | The name of the virtual machine (e.g. `blog`)                                                                |
+| Virtual Machine Scale Set Name | `vmss-name:myvmss`                                     | The name of the virtual machine scale set (e.g. `myvmss`)                                                    |
+| Network Security Group         | `network-security-group:frontend:webservers`           | The name of the network security group (e.g. `webservers`) qualified by the resource group (e.g. `frontend`) |
+| Resource Group                 | `resource-group:frontend`                              | The name of the resource group (e.g. `frontend`)                                                             |
+| Virtual Machine Location       | `vm-location:eastus`                                   | The location of the virtual machine (e.g. `eastus`)                                                          |
+| Virtual Network                | `virtual-network:vnet`                                 | The name of the virtual network (e.g. `vnet`)                                                                |
+| Virtual Network Subnet         | `virtual-network-subnet:vnet:default`                  | The name of the virtual network subnet (e.g. `default`) qualified by the virtual network and resource group  |
+| Virtual Machine Tag            | `vm-tag:environment:production`                        | Tag key and value on the VM, formatted as `vm-tag:<key>:<value>`                                             |
 
 All the selectors have the type `azure_imds`.
 
@@ -198,15 +198,16 @@ All the selectors have the type `azure_imds`.
 
 The agent path template is a way of customizing the format of generated SPIFFE IDs for agents.
 The template formatter is using Golang text/template conventions, it can reference values provided by the plugin or in a [IMDS attested document](https://learn.microsoft.com/en-us/azure/virtual-machines/instance-metadata-service#attested-data).
-Details about the template engine are available [here](template_engine.md).
+Details about the template engine are available in the [template engine documentation](template_engine.md).
 
 Some useful values are:
 
-| Value       | Description                                                    |
-| ----------- | -------------------------------------------------------------- |
-| .PluginName | The name of the plugin                                         |
-| .TenantID   | Azure tenant identifier                                        |
-| .VmID       | A identifier that is unique to a particular virtual machine ID |
+| Value           | Description                                                    |
+| --------------- | -------------------------------------------------------------- |
+| .PluginName     | The name of the plugin                                         |
+| .TenantID       | Azure tenant identifier                                        |
+| .SubscriptionID | Azure subscription identifier                                  |
+| .VMID           | A identifier that is unique to a particular virtual machine ID |
 
 ## Security Considerations
 
