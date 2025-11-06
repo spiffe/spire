@@ -75,6 +75,19 @@ func TestPruneBundle(t *testing.T) {
 			expectedErr: "would prune all JWT signing keys",
 		},
 		{
+			name: "ok if no JWT keys in bundle",
+			bundle: createBundle(
+				[]*x509.Certificate{test.certNotExpired, test.certExpired},
+				nil,
+			),
+			newBundle: createBundle(
+				[]*x509.Certificate{test.certNotExpired},
+				nil,
+			),
+			expiration: test.currentTime,
+			changed:    true,
+		},
+		{
 			name: "succeeds",
 			bundle: createBundle(
 				[]*x509.Certificate{test.certNotExpired, test.certExpired},

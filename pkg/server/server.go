@@ -334,27 +334,29 @@ func (s *Server) newCredValidator() (*credvalidator.Validator, error) {
 
 func (s *Server) newCA(metrics telemetry.Metrics, credBuilder *credtemplate.Builder, credValidator *credvalidator.Validator, healthChecker health.Checker) *ca.CA {
 	return ca.NewCA(ca.Config{
-		Log:           s.config.Log.WithField(telemetry.SubsystemName, telemetry.CA),
-		Metrics:       metrics,
-		TrustDomain:   s.config.TrustDomain,
-		CredBuilder:   credBuilder,
-		CredValidator: credValidator,
-		HealthChecker: healthChecker,
+		Log:             s.config.Log.WithField(telemetry.SubsystemName, telemetry.CA),
+		Metrics:         metrics,
+		TrustDomain:     s.config.TrustDomain,
+		CredBuilder:     credBuilder,
+		CredValidator:   credValidator,
+		HealthChecker:   healthChecker,
+		DisableJWTSVIDs: s.config.DisableJWTSVIDs,
 	})
 }
 
 func (s *Server) newCAManager(ctx context.Context, cat catalog.Catalog, metrics telemetry.Metrics, serverCA *ca.CA, credBuilder *credtemplate.Builder, credValidator *credvalidator.Validator) (*manager.Manager, error) {
 	caManager, err := manager.NewManager(ctx, manager.Config{
-		CA:            serverCA,
-		Catalog:       cat,
-		TrustDomain:   s.config.TrustDomain,
-		Log:           s.config.Log.WithField(telemetry.SubsystemName, telemetry.CAManager),
-		Metrics:       metrics,
-		CredBuilder:   credBuilder,
-		CredValidator: credValidator,
-		Dir:           s.config.DataDir,
-		X509CAKeyType: s.config.CAKeyType,
-		JWTKeyType:    s.config.JWTKeyType,
+		CA:              serverCA,
+		Catalog:         cat,
+		TrustDomain:     s.config.TrustDomain,
+		Log:             s.config.Log.WithField(telemetry.SubsystemName, telemetry.CAManager),
+		Metrics:         metrics,
+		CredBuilder:     credBuilder,
+		CredValidator:   credValidator,
+		Dir:             s.config.DataDir,
+		X509CAKeyType:   s.config.CAKeyType,
+		DisableJWTSVIDs: s.config.DisableJWTSVIDs,
+		JWTKeyType:      s.config.JWTKeyType,
 	})
 	if err != nil {
 		return nil, err

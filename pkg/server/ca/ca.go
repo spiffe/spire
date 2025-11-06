@@ -37,6 +37,7 @@ type ServerCA interface {
 	SignWorkloadX509SVID(ctx context.Context, params WorkloadX509SVIDParams) ([]*x509.Certificate, error)
 	SignWorkloadJWTSVID(ctx context.Context, params WorkloadJWTSVIDParams) (string, error)
 	TaintedAuthorities() <-chan []*x509.Certificate
+	IsJWTSVIDsDisabled() bool
 }
 
 // DownstreamX509CAParams are parameters relevant to downstream X.509 CA creation
@@ -122,13 +123,14 @@ type JWTKey struct {
 }
 
 type Config struct {
-	Log           logrus.FieldLogger
-	Clock         clock.Clock
-	Metrics       telemetry.Metrics
-	TrustDomain   spiffeid.TrustDomain
-	CredBuilder   *credtemplate.Builder
-	CredValidator *credvalidator.Validator
-	HealthChecker health.Checker
+	Log             logrus.FieldLogger
+	Clock           clock.Clock
+	Metrics         telemetry.Metrics
+	TrustDomain     spiffeid.TrustDomain
+	CredBuilder     *credtemplate.Builder
+	CredValidator   *credvalidator.Validator
+	HealthChecker   health.Checker
+	DisableJWTSVIDs bool
 }
 
 type CA struct {
@@ -389,6 +391,10 @@ func (ca *CA) signJWTSVID(jwtKey *JWTKey, claims map[string]any) (string, error)
 	}
 
 	return signedToken, nil
+}
+
+func (ca *CA) IsJWTSVIDsDisabled() bool {
+	return ca.c.DisableJWTSVIDs
 }
 
 func makeCertChain(x509CA *X509CA, leaf *x509.Certificate) []*x509.Certificate {
