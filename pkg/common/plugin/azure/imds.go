@@ -68,20 +68,19 @@ func FetchAttestedDocument(cl HTTPClient, nonce string) (*AttestedDocument, erro
 		return nil, fmt.Errorf("unexpected status code %d: %s", resp.StatusCode, tryRead(resp.Body))
 	}
 
-	metadata := new(AttestedDocument)
-	if err := json.NewDecoder(resp.Body).Decode(metadata); err != nil {
+	doc := new(AttestedDocument)
+	if err := json.NewDecoder(resp.Body).Decode(doc); err != nil {
 		return nil, fmt.Errorf("unable to decode response: %w", err)
 	}
 
-	switch {
-	case metadata.Encoding == "":
+	if doc.Encoding == "" {
 		return nil, errors.New("response missing encoding")
-	case metadata.Signature == "":
+	}
+	if doc.Signature == "" {
 		return nil, errors.New("response missing signature")
-
 	}
 
-	return metadata, nil
+	return doc, nil
 }
 
 type imdsAgentPathTemplateData struct {
