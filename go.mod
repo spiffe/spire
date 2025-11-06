@@ -80,7 +80,6 @@ require (
 	github.com/uber-go/tally/v4 v4.1.17
 	github.com/valyala/fastjson v1.6.4
 	golang.org/x/crypto v0.43.0
-	go.step.sm/crypto v0.70.0
 	golang.org/x/exp v0.0.0-20250620022241-b7579e27df2b
 	golang.org/x/net v0.46.0
 	golang.org/x/sync v0.18.0
@@ -289,16 +288,10 @@ require (
 	github.com/sigstore/sigstore-go v1.1.3 // indirect
 	github.com/sigstore/timestamp-authority v1.2.9 // indirect
 	github.com/skratchdot/open-golang v0.0.0-20200116055534-eef842397966 // indirect
-<<<<<<< HEAD
+	github.com/smallstep/pkcs7 v0.2.1
 	github.com/sourcegraph/conc v0.3.1-0.20240121214520-5f936abd7ae8 // indirect
 	github.com/spf13/afero v1.15.0 // indirect
 	github.com/spf13/cast v1.10.0 // indirect
-=======
-	github.com/smallstep/pkcs7 v0.2.1
-	github.com/sourcegraph/conc v0.3.0 // indirect
-	github.com/spf13/afero v1.12.0 // indirect
-	github.com/spf13/cast v1.7.1 // indirect
->>>>>>> f6e7bf596 (use smallstep for pkcs7, its the only one that has been updated to support azure documents)
 	github.com/spf13/cobra v1.10.1 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/spf13/viper v1.21.0 // indirect
