@@ -14,6 +14,7 @@ import (
 
 	"github.com/go-jose/go-jose/v4"
 	"github.com/go-jose/go-jose/v4/jwt"
+	"github.com/gofrs/uuid/v5"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -24,6 +25,8 @@ var (
 	reNetworkInterfaceID     = regexp.MustCompile(`^/subscriptions/[^/]+/resourceGroups/([^/]+)/providers/Microsoft.Network/networkInterfaces/([^/]+)$`)
 	reVirtualNetworkSubnetID = regexp.MustCompile(`^/subscriptions/[^/]+/resourceGroups/([^/]+)/providers/Microsoft.Network/virtualNetworks/([^/]+)/subnets/([^/]+)$`)
 	reTenantId               = regexp.MustCompile(`^https://sts.windows.net/([^/]+)/$`)
+	// VMSS name validation: alphanumeric, underscores, periods, and hyphens
+	reVMSSNameAllowedChars = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
 	// Used to make sure token is valid for credential assertion
 	allowedJWTSignatureAlgorithms = []jose.SignatureAlgorithm{
 		jose.RS256,
@@ -113,7 +116,7 @@ func parseVirtualNetworkSubnetID(id string) (resourceGroup, networkName, subnetN
 func parseIssuer(issuer string) (string, error) {
 	m := reTenantId.FindStringSubmatch(issuer)
 	if m == nil {
-		return "", fmt.Errorf("malformed tenant ID: %s", issuer)
+		return "", fmt.Errorf("malformed tenant ID: %q", issuer)
 	}
 	return m[1], nil
 }
@@ -132,4 +135,53 @@ func generateRandomAlphanumeric(length int) (string, error) {
 		buf.WriteByte(alphabet[int(choice)%len(alphabet)])
 	}
 	return buf.String(), nil
+}
+
+// validateVMSSName validates an Azure VM Scale Set name according to Azure naming rules:
+// - Length: Must be between 1 and 64 characters long
+// - Allowed Characters: Can contain only alphanumeric characters, underscores, periods, and hyphens
+// - Start: Must start with an alphanumeric character
+// - End: Must end with an alphanumeric character or an underscore
+//
+// Note: Uniqueness within the resource group is not validated by this function and must be
+// checked separately. Case sensitivity is noted for information but not enforced here.
+func validateVMSSName(name string) error {
+	const minLength = 1
+	const maxLength = 64
+
+	// Check length
+	if len(name) < minLength {
+		return fmt.Errorf("VMSS name must be at least %d character(s) long, got %d", minLength, len(name))
+	}
+	if len(name) > maxLength {
+		return fmt.Errorf("VMSS name must be at most %d characters long, got %d", maxLength, len(name))
+	}
+
+	// Check allowed characters (alphanumeric, underscores, periods, hyphens)
+	if !reVMSSNameAllowedChars.MatchString(name) {
+		return fmt.Errorf("VMSS name can only contain alphanumeric characters, underscores, periods, and hyphens")
+	}
+
+	// Check start: must start with alphanumeric
+	firstChar := name[0]
+	if !((firstChar >= 'a' && firstChar <= 'z') || (firstChar >= 'A' && firstChar <= 'Z') || (firstChar >= '0' && firstChar <= '9')) {
+		return fmt.Errorf("VMSS name must start with an alphanumeric character")
+	}
+
+	// Check end: must end with alphanumeric or underscore
+	lastChar := name[len(name)-1]
+	if !((lastChar >= 'a' && lastChar <= 'z') || (lastChar >= 'A' && lastChar <= 'Z') || (lastChar >= '0' && lastChar <= '9') || lastChar == '_') {
+		return fmt.Errorf("VMSS name must end with an alphanumeric character or an underscore")
+	}
+
+	return nil
+}
+
+// validateUUID validates that a string is a valid UUID using the uuid library.
+func validateUUID(s string) error {
+	_, err := uuid.FromString(s)
+	if err != nil {
+		return fmt.Errorf("invalid UUID format: %q: %w", s, err)
+	}
+	return nil
 }
