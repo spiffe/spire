@@ -1,0 +1,17 @@
+#!/bin/bash
+
+ENTRYCOUNT=10
+CACHESIZE=8
+
+JWTSVIDCOUNT=$(docker compose exec -u 1001 -T spire-agent \
+  /opt/spire/bin/spire-agent api fetch jwt -audience test \
+  -socketPath /opt/spire/sockets/workload_api.sock | grep -i "spiffe://domain.test/workload-" | wc -l || fail-now "JWT-SVID check failed")
+
+if [ "$JWTSVIDCOUNT" -ne "$ENTRYCOUNT" ]; then
+  fail-now "JWT-SVID check failed. Expected $ENTRYCOUNT JWT-SVIDs but received $JWTSVIDCOUNT for uid 1001";
+else
+  log-info "Expected $ENTRYCOUNT JWT-SVIDs and received $JWTSVIDCOUNT for uid 1001";
+fi
+
+# Call agent debug endpoints and check if extra JWT-SVIDs from cache are cleaned up
+check-svid-count "spire-agent" $CACHESIZE

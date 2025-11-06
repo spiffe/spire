@@ -397,6 +397,7 @@ type fakeCAManager struct {
 	nextX509CASlot    *fakeSlot
 	prepareX509CAErr  error
 
+	disableJWTSVIDs   bool
 	currentJWTKeySlot *fakeSlot
 	nextJWTKeySlot    *fakeSlot
 	prepareJWTKeyErr  error
@@ -576,6 +577,10 @@ func (f *fakeCAManager) waitPruneCAJournalsCalled(ctx context.Context, t *testin
 		assert.Fail(t, "context finished")
 	case <-f.pruneCAJournalsCh:
 	}
+}
+
+func (f *fakeCAManager) IsJWTSVIDsDisabled() bool {
+	return f.disableJWTSVIDs
 }
 
 type fakeSlot struct {

@@ -14,4 +14,4 @@ else
 fi
 
 # Call agent debug endpoints and check if extra X.509-SVIDs from cache are cleaned up
-check-x509-svid-count "spire-agent" $CACHESIZE
+check-svid-count "spire-agent" $CACHESIZE
