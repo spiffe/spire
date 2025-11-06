@@ -88,7 +88,7 @@ func (p *IMDSAttestorPlugin) buildConfig(coreConfig catalog.CoreConfig, hclText 
 	tenants := make(map[string]*tenantConfig)
 	for tenantDomain, tenant := range newConfig.Tenants {
 		var client apiClient
-		tenantID, err := lookupTenantID(tenantDomain)
+		tenantID, err := p.hooks.lookupTenantID(tenantDomain)
 		if err != nil {
 			status.ReportErrorf("unable to lookup tenant ID: %v", err)
 		}
@@ -190,9 +190,11 @@ type IMDSAttestorPlugin struct {
 	config *imdsAttestorConfig
 
 	hooks struct {
-		tenantIdMap     map[string]string
-		newClient       func(azcore.TokenCredential) (apiClient, error)
-		fetchCredential func(string) (azcore.TokenCredential, error)
+		tenantIdMap         map[string]string
+		newClient           func(azcore.TokenCredential) (apiClient, error)
+		fetchCredential     func(string) (azcore.TokenCredential, error)
+		validateAttestedDoc func(context.Context, *azure.AttestedDocument) (*azure.AttestedDocumentContent, error)
+		lookupTenantID      func(string) (string, error)
 	}
 }
 
@@ -209,6 +211,8 @@ func New() *IMDSAttestorPlugin {
 			},
 		)
 	}
+	p.hooks.validateAttestedDoc = validateAttestedDocument
+	p.hooks.lookupTenantID = lookupTenantID
 
 	return p
 }
@@ -261,7 +265,7 @@ func (p *IMDSAttestorPlugin) Attest(stream nodeattestorv1.NodeAttestor_AttestSer
 	}
 
 	// parse the document
-	docData, err := validateAttestedDocument(stream.Context(), &attestationData.Document)
+	docData, err := p.hooks.validateAttestedDoc(stream.Context(), &attestationData.Document)
 	if err != nil {
 		return status.Errorf(codes.InvalidArgument, "failed to validate attested document: %v", err)
 	}
