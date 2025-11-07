@@ -2,7 +2,9 @@ package gcpcas
 
 import (
 	"context"
+	"crypto/sha256"
 	"crypto/x509"
+	"encoding/base64"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -284,9 +286,16 @@ func (p *Plugin) mintX509CA(ctx context.Context, csr []byte, preferredTTL int32)
 	// after the path.Split call above.  We need to trim off the /certificateAuthorities/ part for the request below
 	chosenPool = strings.TrimSuffix(chosenPool, "/certificateAuthorities/")
 
+	// certificate_id is required when using CertificateAuthority Enterprise tier. We generate a unique ID
+	// from the CSR public key. Same CSR will always produce the same ID.
+	csrSum := sha256.Sum256(csrParsed.RawSubjectPublicKeyInfo)
+	// Convert the hash into a string that matches the `[a-zA-Z0-9_-]{1,63}` requirement for GCP API.
+	certID := base64.RawURLEncoding.EncodeToString(csrSum[:])
+
 	// https://pkg.go.dev/cloud.google.com/go/security/privateca/apiv1#CertificateAuthorityClient.CreateCertificate
 	createRequest := privatecapb.CreateCertificateRequest{
 		Parent:                        chosenPool,
+		CertificateId:                 certID,
 		IssuingCertificateAuthorityId: issuingCaID,
 		// https://pkg.go.dev/google.golang.org/genproto/googleapis/cloud/security/privateca/v1#Certificate
 		Certificate: &privatecapb.Certificate{
