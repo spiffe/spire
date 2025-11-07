@@ -277,6 +277,31 @@
 			"full_method": "/spire.api.server.localauthority.v1.LocalAuthority/RevokeX509UpstreamAuthority",
 			"allow_local": true,
 			"allow_admin": true
+		},
+		{
+			"full_method": "/spire.api.server.localauthority.v1.LocalAuthority/GetWITAuthorityState",
+			"allow_local": true,
+			"allow_admin": true
+		},
+		{
+			"full_method": "/spire.api.server.localauthority.v1.LocalAuthority/PrepareWITAuthority",
+			"allow_local": true,
+			"allow_admin": true
+		},
+		{
+			"full_method": "/spire.api.server.localauthority.v1.LocalAuthority/ActivateWITAuthority",
+			"allow_local": true,
+			"allow_admin": true
+		},
+		{
+			"full_method": "/spire.api.server.localauthority.v1.LocalAuthority/TaintWITAuthority",
+			"allow_local": true,
+			"allow_admin": true
+		},
+		{
+			"full_method": "/spire.api.server.localauthority.v1.LocalAuthority/RevokeWITAuthority",
+			"allow_local": true,
+			"allow_admin": true
 		}
 	]
 }

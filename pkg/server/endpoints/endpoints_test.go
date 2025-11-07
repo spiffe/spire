@@ -964,6 +964,11 @@ func testLocalAuthorityAPI(ctx context.Context, t *testing.T, conns testConns) {
 			"TaintX509UpstreamAuthority":  true,
 			"RevokeX509Authority":         true,
 			"RevokeX509UpstreamAuthority": true,
+			"GetWITAuthorityState":        true,
+			"PrepareWITAuthority":         true,
+			"ActivateWITAuthority":        true,
+			"TaintWITAuthority":           true,
+			"RevokeWITAuthority":          true,
 		})
 	})
 
@@ -981,6 +986,11 @@ func testLocalAuthorityAPI(ctx context.Context, t *testing.T, conns testConns) {
 			"TaintX509UpstreamAuthority":  false,
 			"RevokeX509Authority":         false,
 			"RevokeX509UpstreamAuthority": false,
+			"GetWITAuthorityState":        false,
+			"PrepareWITAuthority":         false,
+			"ActivateWITAuthority":        false,
+			"TaintWITAuthority":           false,
+			"RevokeWITAuthority":          false,
 		})
 	})
 
@@ -998,6 +1008,11 @@ func testLocalAuthorityAPI(ctx context.Context, t *testing.T, conns testConns) {
 			"TaintX509UpstreamAuthority":  false,
 			"RevokeX509Authority":         false,
 			"RevokeX509UpstreamAuthority": false,
+			"GetWITAuthorityState":        false,
+			"PrepareWITAuthority":         false,
+			"ActivateWITAuthority":        false,
+			"TaintWITAuthority":           false,
+			"RevokeWITAuthority":          false,
 		})
 	})
 
@@ -1015,6 +1030,11 @@ func testLocalAuthorityAPI(ctx context.Context, t *testing.T, conns testConns) {
 			"TaintX509UpstreamAuthority":  true,
 			"RevokeX509Authority":         true,
 			"RevokeX509UpstreamAuthority": true,
+			"GetWITAuthorityState":        true,
+			"PrepareWITAuthority":         true,
+			"ActivateWITAuthority":        true,
+			"TaintWITAuthority":           true,
+			"RevokeWITAuthority":          true,
 		})
 	})
 
@@ -1032,6 +1052,11 @@ func testLocalAuthorityAPI(ctx context.Context, t *testing.T, conns testConns) {
 			"TaintX509UpstreamAuthority":  true,
 			"RevokeX509Authority":         true,
 			"RevokeX509UpstreamAuthority": true,
+			"GetWITAuthorityState":        true,
+			"PrepareWITAuthority":         true,
+			"ActivateWITAuthority":        true,
+			"TaintWITAuthority":           true,
+			"RevokeWITAuthority":          true,
 		})
 	})
 
@@ -1049,6 +1074,11 @@ func testLocalAuthorityAPI(ctx context.Context, t *testing.T, conns testConns) {
 			"TaintX509UpstreamAuthority":  false,
 			"RevokeX509Authority":         false,
 			"RevokeX509UpstreamAuthority": false,
+			"GetWITAuthorityState":        false,
+			"PrepareWITAuthority":         false,
+			"ActivateWITAuthority":        false,
+			"TaintWITAuthority":           false,
+			"RevokeWITAuthority":          false,
 		})
 	})
 }
@@ -1492,4 +1522,24 @@ func (localAuthorityServer) RevokeX509Authority(context.Context, *localauthority
 
 func (localAuthorityServer) RevokeX509UpstreamAuthority(context.Context, *localauthorityv1.RevokeX509UpstreamAuthorityRequest) (*localauthorityv1.RevokeX509UpstreamAuthorityResponse, error) {
 	return &localauthorityv1.RevokeX509UpstreamAuthorityResponse{}, nil
+}
+
+func (localAuthorityServer) GetWITAuthorityState(context.Context, *localauthorityv1.GetWITAuthorityStateRequest) (*localauthorityv1.GetWITAuthorityStateResponse, error) {
+	return &localauthorityv1.GetWITAuthorityStateResponse{}, nil
+}
+
+func (localAuthorityServer) PrepareWITAuthority(context.Context, *localauthorityv1.PrepareWITAuthorityRequest) (*localauthorityv1.PrepareWITAuthorityResponse, error) {
+	return &localauthorityv1.PrepareWITAuthorityResponse{}, nil
+}
+
+func (localAuthorityServer) ActivateWITAuthority(context.Context, *localauthorityv1.ActivateWITAuthorityRequest) (*localauthorityv1.ActivateWITAuthorityResponse, error) {
+	return &localauthorityv1.ActivateWITAuthorityResponse{}, nil
+}
+
+func (localAuthorityServer) TaintWITAuthority(context.Context, *localauthorityv1.TaintWITAuthorityRequest) (*localauthorityv1.TaintWITAuthorityResponse, error) {
+	return &localauthorityv1.TaintWITAuthorityResponse{}, nil
+}
+
+func (localAuthorityServer) RevokeWITAuthority(context.Context, *localauthorityv1.RevokeWITAuthorityRequest) (*localauthorityv1.RevokeWITAuthorityResponse, error) {
+	return &localauthorityv1.RevokeWITAuthorityResponse{}, nil
 }
