@@ -1512,7 +1512,6 @@ func TestSurvivesCARotation(t *testing.T) {
 	}
 
 	m := newManager(c)
-	defer initializeAndRunManager(t, m)()
 
 	sub, err := m.SubscribeToCacheChanges(context.Background(), cache.Selectors{{Type: "unix", Value: "uid:1111"}})
 	require.NoError(t, err)
@@ -1520,6 +1519,8 @@ func TestSurvivesCARotation(t *testing.T) {
 	updates := sub.Updates()
 	initialUpdate := <-updates
 	initialRoot := initialUpdate.Bundle.X509Authorities()[0]
+
+	defer initializeAndRunManager(t, m)()
 
 	// Second FetchX509 request will create a new CA
 	clk.Add(syncInterval)
