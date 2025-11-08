@@ -2,8 +2,6 @@ module github.com/spiffe/spire
 
 go 1.25.4
 
-replace github.com/spiffe/spire-api-sdk => github.com/sorindumitru/spire-api-sdk v1.2.5-0.20251107081027-e909332771a0
-
 require (
 	cloud.google.com/go/iam v1.5.2
 	cloud.google.com/go/kms v1.23.0
@@ -76,7 +74,7 @@ require (
 	github.com/sigstore/sigstore v1.9.6-0.20250729224751-181c5d3339b3
 	github.com/sirupsen/logrus v1.9.4-0.20230606125235-dd1b4c2e81af
 	github.com/spiffe/go-spiffe/v2 v2.6.0
-	github.com/spiffe/spire-api-sdk v1.2.5-0.20250109200630-101d5e7de758
+	github.com/spiffe/spire-api-sdk v1.2.5-0.20251107171659-13527c331abf
 	github.com/spiffe/spire-plugin-sdk v1.4.4-0.20250606112051-68609d83ce7c
 	github.com/stretchr/testify v1.11.1
 	github.com/uber-go/tally/v4 v4.1.17
