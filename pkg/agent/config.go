@@ -86,7 +86,7 @@ type Config struct {
 	TrustDomain spiffeid.TrustDomain
 
 	// Sources for getting Trust Bundles
-	TrustBundleSources *trustbundlesources.Bundle
+	TrustBundleSources trustbundlesources.Bundle
 
 	// Join token to use for attestation, if needed
 	JoinToken string
