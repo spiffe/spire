@@ -625,7 +625,10 @@ func TestValidate(t *testing.T) {
 				CoreConfiguration: &configv1.CoreConfiguration{},
 			},
 			expectCode: codes.InvalidArgument,
-			expectMsg:  "server core configuration must contain trust_domain",
+			expectNotes: []string{
+				"server core configuration must contain trust_domain",
+				"No clusters configured, bundle will not be published",
+			},
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
