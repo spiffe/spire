@@ -369,7 +369,7 @@ func buildSelectors(ctx context.Context, tenant *tenantConfig, vmssName *string,
 		if err != nil {
 			return nil, err
 		}
-		selectorMap[selectorValue("vmss-name", vm.Name)] = true
+		selectorMap[selectorValue("vmss-name", *vmssName)] = true
 	default:
 		vm, err = client.GetVirtualMachine(ctx, vmID, &subscriptionID)
 		if err != nil {
