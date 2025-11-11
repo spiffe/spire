@@ -223,13 +223,13 @@ func ValidateConfig(ctx context.Context, config Config) (pluginNotes map[string]
 
 		ds := ds_sql.New(config.Log)
 		resp, err := ds.Validate(ctx, coreConfig, dsConfigString)
+		if err != nil {
+			pluginNotes[datastorePluginId] = append(pluginNotes[datastorePluginId], err.Error())
+		}
 		if resp != nil && len(resp.Notes) != 0 {
 			pluginNotes[datastorePluginId] = append(pluginNotes[datastorePluginId], resp.Notes...)
 		}
 
-		if err != nil {
-			pluginNotes[datastorePluginId] = append(pluginNotes[datastorePluginId], err.Error())
-		}
 		repo.dsCloser = ds
 	}
 

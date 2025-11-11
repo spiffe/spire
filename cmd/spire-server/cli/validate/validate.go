@@ -3,17 +3,19 @@ package validate
 import (
 	"context"
 	"io"
+	"time"
 
 	"github.com/mitchellh/cli"
 	"github.com/spiffe/spire/cmd/spire-server/cli/run"
 	commoncli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/log"
 	"github.com/spiffe/spire/pkg/server"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
-const commandName = "validate"
+const (
+	commandName       = "validate"
+	validationTimeout = 30 * time.Second
+)
 
 func NewValidateCommand() cli.Command {
 	return newValidateCommand(commoncli.DefaultEnv)
@@ -48,28 +50,31 @@ func (c *validateCommand) Run(args []string) int {
 
 	s := server.New(*config)
 
-	pluginNotes, err := s.ValidateConfig(context.Background())
-	if err != nil && status.Code(err) != codes.Unimplemented {
+	ctx, cancel := context.WithTimeout(context.Background(), validationTimeout)
+	defer cancel()
+
+	pluginNotes, err := s.ValidateConfig(ctx)
+	if err != nil {
 		_ = c.env.ErrPrintf("Could not validate configuration file: %v", err)
 		return 1
 	}
 
-	if len(pluginNotes) == 0 {
+	if len(pluginNotes) != 0 {
+		_ = c.env.ErrPrintf("SPIRE server configuration file is invalid.\nValidation errors:\n")
+		for plugin, notes := range pluginNotes {
+			if len(notes) == 0 {
+				continue
+			}
+
+			_ = c.env.ErrPrintf("\t%s:\n", plugin)
+
+			for _, note := range notes {
+				_ = c.env.ErrPrintf("\t\t%s\n", note)
+			}
+		}
+		return 1
+	} else {
 		_ = c.env.Println("SPIRE server configuration file is valid.")
 		return 0
 	}
-
-	_ = c.env.ErrPrintf("SPIRE server configuration file is invalid.\nValidation errors:\n")
-	for plugin, notes := range pluginNotes {
-		if len(notes) == 0 {
-			continue
-		}
-
-		_ = c.env.ErrPrintf("\t%s:\n", plugin)
-
-		for _, note := range notes {
-			_ = c.env.ErrPrintf("\t\t%s\n", note)
-		}
-	}
-	return 1
 }

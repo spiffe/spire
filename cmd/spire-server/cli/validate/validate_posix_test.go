@@ -28,21 +28,18 @@ plugins {
 }
 
 func TestValidateConfig(t *testing.T) {
-	configDir := t.TempDir()
 
 	testCases := []struct {
 		name                   string
 		config                 string
-		expectedReturn         int
 		expectedErrors         []string
 		expectedStderr         string
-		pluginDataFilePath     string
+		pluginDataFileName     string
 		pluginDataFileContents string
 	}{
 		{
-			name:           "empty config",
-			config:         serverConfigWithPlugins(""),
-			expectedReturn: 1,
+			name:   "empty config",
+			config: serverConfigWithPlugins(""),
 			expectedErrors: []string{
 				"'datastore' must be configured",
 				"KeyManager:\n\t\tconstraint not satisfied: expected exactly 1 but got 0\n",
@@ -68,7 +65,6 @@ UpstreamAuthority "disk" {
 	}
 }
 `),
-			expectedReturn: 0,
 			expectedStderr: "",
 		},
 		{
@@ -88,8 +84,26 @@ UpstreamAuthority "thisdoesnotexist" {
 	plugin_data = {}
 }
 `),
-			expectedReturn: 1,
 			expectedStderr: "Could not validate configuration file: failed to load plugin \"thisdoesnotexist\": no built-in plugin \"thisdoesnotexist\" for type \"UpstreamAuthority\"",
+		},
+		{
+			name: "unknown plugin type",
+			config: serverConfigWithPlugins(`
+DataStore "sql" {
+    plugin_data {
+        database_type = "sqlite3"
+        connection_string = "/some/path/to/the/datastore.sqlite3"
+    }
+}
+KeyManager "memory" {
+    plugin_data = {}
+}
+
+DownstreamAuthority "disk" {
+	plugin_data = {}
+}
+`),
+			expectedStderr: "Could not validate configuration file: unsupported plugin type \"DownstreamAuthority\"",
 		},
 		{
 			name: "plugin with bad configuration",
@@ -110,7 +124,6 @@ UpstreamAuthority "disk" {
 	}
 }
 `),
-			expectedReturn: 1,
 			expectedErrors: []string{
 				"UpstreamAuthority \"disk\":\n\t\t'cert_file_path' and 'key_file_path' must be set and not empty\n",
 			},
@@ -139,7 +152,6 @@ UpstreamAuthority "disk" {
 	}
 }
 `),
-			expectedReturn: 1,
 			expectedErrors: []string{
 				"NodeAttestor \"x509pop\":\n\t\tone of ca_bundle_path or ca_bundle_paths must be configured\n",
 				"UpstreamAuthority \"disk\":\n\t\t'cert_file_path' and 'key_file_path' must be set and not empty\n",
@@ -162,7 +174,6 @@ UpstreamAuthority "disk" {
 	plugin_data_file = "this/does/not/exist"
 }
 `),
-			expectedReturn: 1,
 			expectedErrors: []string{
 				"UpstreamAuthority \"disk\":\n\t\tfailed to read plugin configuration: open this/does/not/exist: no such file or directory",
 			},
@@ -184,8 +195,7 @@ UpstreamAuthority "disk" {
 	plugin_data_file = "PLUGIN_DATA_FILE_LOCATION"
 }
 `),
-			expectedReturn:     1,
-			pluginDataFilePath: filepath.Join(configDir, "plugin_data_file_bad"),
+			pluginDataFileName: "plugin_data_file_bad",
 			pluginDataFileContents: `
 cert_file_path = "some/file/some/where"
 `,
@@ -208,7 +218,6 @@ KeyManager "memory" {
 
 UpstreamAuthority "disk" {}
 `),
-			expectedReturn: 1,
 			expectedErrors: []string{
 				"UpstreamAuthority \"disk\":\n\t\t'cert_file_path' and 'key_file_path' must be set and not empty\n",
 			},
@@ -222,6 +231,8 @@ UpstreamAuthority "disk" {}
 			stdout := new(bytes.Buffer)
 			stderr := new(bytes.Buffer)
 
+			configDir := t.TempDir()
+
 			cmd := newValidateCommand(&common_cli.Env{
 				Stdin:  stdin,
 				Stdout: stdout,
@@ -229,16 +240,17 @@ UpstreamAuthority "disk" {}
 			})
 
 			config := testCase.config
-			if testCase.pluginDataFilePath != "" {
-				config = strings.ReplaceAll(testCase.config, "PLUGIN_DATA_FILE_LOCATION", testCase.pluginDataFilePath)
+			pluginDataFilePath := filepath.Join(configDir, testCase.pluginDataFileName)
+			if testCase.pluginDataFileName != "" {
+				config = strings.ReplaceAll(testCase.config, "PLUGIN_DATA_FILE_LOCATION", pluginDataFilePath)
 			}
 
 			serverConfPath := filepath.Join(configDir, "server.conf")
 			err := os.WriteFile(serverConfPath, []byte(config), 0600)
 			require.NoError(t, err)
 
-			if testCase.pluginDataFilePath != "" {
-				err = os.WriteFile(testCase.pluginDataFilePath, []byte(testCase.pluginDataFileContents), 0600)
+			if testCase.pluginDataFileName != "" {
+				err = os.WriteFile(pluginDataFilePath, []byte(testCase.pluginDataFileContents), 0600)
 				require.NoError(t, err)
 			}
 
@@ -247,7 +259,11 @@ UpstreamAuthority "disk" {}
 				serverConfPath,
 			})
 
-			require.Equal(t, testCase.expectedReturn, rcode)
+			expectedReturn := 0
+			if len(testCase.expectedErrors) != 0 || len(testCase.expectedStderr) != 0 {
+				expectedReturn = 1
+			}
+			require.Equal(t, expectedReturn, rcode)
 			for _, error := range testCase.expectedErrors {
 				require.Contains(t, stderr.String(), error)
 			}
