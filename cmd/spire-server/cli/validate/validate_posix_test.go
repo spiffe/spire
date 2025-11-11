@@ -28,7 +28,6 @@ plugins {
 }
 
 func TestValidateConfig(t *testing.T) {
-
 	testCases := []struct {
 		name                   string
 		config                 string
