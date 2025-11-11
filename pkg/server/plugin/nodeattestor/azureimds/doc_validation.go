@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"regexp"
 	"time"
 
 	"github.com/smallstep/pkcs7"
@@ -17,15 +18,17 @@ import (
 )
 
 // Azure-specific certificate validation constants
-const (
+var (
 	// Expected subject patterns for Azure certificates
-	AzureMetadataSubject = "metadata.azure.com"
+	AzureMetadataSubject = regexp.MustCompile(`^metadata\.azure\.com$`)
 
 	// Expected issuer patterns
-	MicrosoftAzureRSATLSIssuer = "Microsoft Azure RSA TLS Issuing CA"
+	MicrosoftAzureRSATLSIssuer = regexp.MustCompile(`^Microsoft Azure RSA TLS Issuing CA \d{2}$`)
 	// The azure Docs state that it should be DigiCert Global Root CA, but it is actually DigiCert Global Root G2 which is the newer version
-	DigiCertGlobalRootCA = "DigiCert Global Root G2"
+	DigiCertGlobalRootCA = regexp.MustCompile(`^DigiCert Global Root G2$`)
+)
 
+const (
 	// expected microsoft issuer host
 	MicrosoftIntermediateIssuerHost = "www.microsoft.com"
 )
@@ -168,29 +171,29 @@ func validateAzureCertificates(signingCert, intermediateCert *x509.Certificate) 
 	return nil
 }
 
-// validateCertificateSubject validates that the certificate subject contains the expected value
-func validateCertificateSubject(cert *x509.Certificate, expectedSubject string) error {
+// validateCertificateSubject validates that the certificate subject matches the expected regex pattern
+func validateCertificateSubject(cert *x509.Certificate, expectedSubject *regexp.Regexp) error {
 	subject := cert.Subject.CommonName
 	if subject == "" {
 		return fmt.Errorf("certificate has no common name in subject")
 	}
 
-	if subject != expectedSubject {
-		return fmt.Errorf("certificate subject %q does not match expected value %q", subject, expectedSubject)
+	if !expectedSubject.MatchString(subject) {
+		return fmt.Errorf("certificate subject %q does not match expected pattern %q", subject, expectedSubject.String())
 	}
 
 	return nil
 }
 
-// validateCertificateIssuer validates that the certificate issuer contains the expected value
-func validateCertificateIssuer(cert *x509.Certificate, expectedIssuer string) error {
+// validateCertificateIssuer validates that the certificate issuer matches the expected regex pattern
+func validateCertificateIssuer(cert *x509.Certificate, expectedIssuer *regexp.Regexp) error {
 	issuer := cert.Issuer.CommonName
 	if issuer == "" {
 		return fmt.Errorf("certificate has no common name in issuer")
 	}
 
-	if issuer != expectedIssuer {
-		return fmt.Errorf("certificate issuer %q does not contain expected value %q", issuer, expectedIssuer)
+	if !expectedIssuer.MatchString(issuer) {
+		return fmt.Errorf("certificate issuer %q does not match expected pattern %q", issuer, expectedIssuer.String())
 	}
 
 	return nil

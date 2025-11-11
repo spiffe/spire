@@ -6,6 +6,7 @@ import (
 	"crypto/x509/pkix"
 	"encoding/base64"
 	"math/big"
+	"regexp"
 	"testing"
 	"time"
 
@@ -87,7 +88,7 @@ func TestValidateCertificateSubject(t *testing.T) {
 	tests := []struct {
 		name          string
 		cert          *x509.Certificate
-		expected      string
+		expected      *regexp.Regexp
 		expectErr     bool
 		errorContains string
 	}{
@@ -96,7 +97,7 @@ func TestValidateCertificateSubject(t *testing.T) {
 			cert: createTestCert(t, &x509.Certificate{
 				Subject: pkix.Name{CommonName: "metadata.azure.com"},
 			}),
-			expected:  "metadata.azure.com",
+			expected:  AzureMetadataSubject,
 			expectErr: false,
 		},
 		{
@@ -104,7 +105,7 @@ func TestValidateCertificateSubject(t *testing.T) {
 			cert: createTestCert(t, &x509.Certificate{
 				Subject: pkix.Name{CommonName: ""},
 			}),
-			expected:      "metadata.azure.com",
+			expected:      AzureMetadataSubject,
 			expectErr:     true,
 			errorContains: "certificate has no common name in subject",
 		},
@@ -113,7 +114,7 @@ func TestValidateCertificateSubject(t *testing.T) {
 			cert: createTestCert(t, &x509.Certificate{
 				Subject: pkix.Name{CommonName: "wrong.subject.com"},
 			}),
-			expected:      "metadata.azure.com",
+			expected:      AzureMetadataSubject,
 			expectErr:     true,
 			errorContains: "certificate subject",
 		},
@@ -137,14 +138,32 @@ func TestValidateCertificateIssuer(t *testing.T) {
 	tests := []struct {
 		name          string
 		cert          *x509.Certificate
-		expected      string
+		expected      *regexp.Regexp
 		expectErr     bool
 		errorContains string
 	}{
 		{
-			name:      "valid issuer matching expected value",
-			cert:      createTestCertWithIssuer(t, &x509.Certificate{}, "Microsoft Azure RSA TLS Issuing CA"),
-			expected:  "Microsoft Azure RSA TLS Issuing CA",
+			name:      "valid issuer with numbered CA 03",
+			cert:      createTestCertWithIssuer(t, &x509.Certificate{}, "Microsoft Azure RSA TLS Issuing CA 03"),
+			expected:  MicrosoftAzureRSATLSIssuer,
+			expectErr: false,
+		},
+		{
+			name:      "valid issuer with numbered CA 07",
+			cert:      createTestCertWithIssuer(t, &x509.Certificate{}, "Microsoft Azure RSA TLS Issuing CA 07"),
+			expected:  MicrosoftAzureRSATLSIssuer,
+			expectErr: false,
+		},
+		{
+			name:      "valid issuer with numbered CA 08",
+			cert:      createTestCertWithIssuer(t, &x509.Certificate{}, "Microsoft Azure RSA TLS Issuing CA 08"),
+			expected:  MicrosoftAzureRSATLSIssuer,
+			expectErr: false,
+		},
+		{
+			name:      "valid issuer with numbered CA 04",
+			cert:      createTestCertWithIssuer(t, &x509.Certificate{}, "Microsoft Azure RSA TLS Issuing CA 04"),
+			expected:  MicrosoftAzureRSATLSIssuer,
 			expectErr: false,
 		},
 		{
@@ -152,14 +171,42 @@ func TestValidateCertificateIssuer(t *testing.T) {
 			cert: createTestCert(t, &x509.Certificate{
 				Issuer: pkix.Name{CommonName: ""},
 			}),
-			expected:      "Microsoft Azure RSA TLS Issuing CA",
+			expected:      MicrosoftAzureRSATLSIssuer,
 			expectErr:     true,
 			errorContains: "certificate has no common name in issuer",
 		},
 		{
 			name:          "issuer mismatch",
 			cert:          createTestCertWithIssuer(t, &x509.Certificate{}, "Wrong Issuer"),
-			expected:      "Microsoft Azure RSA TLS Issuing CA",
+			expected:      MicrosoftAzureRSATLSIssuer,
+			expectErr:     true,
+			errorContains: "certificate issuer",
+		},
+		{
+			name:          "base string without number should fail",
+			cert:          createTestCertWithIssuer(t, &x509.Certificate{}, "Microsoft Azure RSA TLS Issuing CA"),
+			expected:      MicrosoftAzureRSATLSIssuer,
+			expectErr:     true,
+			errorContains: "certificate issuer",
+		},
+		{
+			name:          "invalid numbered format - single digit",
+			cert:          createTestCertWithIssuer(t, &x509.Certificate{}, "Microsoft Azure RSA TLS Issuing CA 1"),
+			expected:      MicrosoftAzureRSATLSIssuer,
+			expectErr:     true,
+			errorContains: "certificate issuer",
+		},
+		{
+			name:          "invalid numbered format - three digits",
+			cert:          createTestCertWithIssuer(t, &x509.Certificate{}, "Microsoft Azure RSA TLS Issuing CA 123"),
+			expected:      MicrosoftAzureRSATLSIssuer,
+			expectErr:     true,
+			errorContains: "certificate issuer",
+		},
+		{
+			name:          "invalid numbered format - non-numeric suffix",
+			cert:          createTestCertWithIssuer(t, &x509.Certificate{}, "Microsoft Azure RSA TLS Issuing CA abc"),
+			expected:      MicrosoftAzureRSATLSIssuer,
 			expectErr:     true,
 			errorContains: "certificate issuer",
 		},
@@ -232,26 +279,44 @@ func TestValidateAzureCertificates(t *testing.T) {
 		{
 			name: "valid signing and intermediate certificates",
 			signingCert: createTestCertWithIssuer(t, &x509.Certificate{
-				Subject: pkix.Name{CommonName: AzureMetadataSubject},
-			}, MicrosoftAzureRSATLSIssuer),
+				Subject: pkix.Name{CommonName: "metadata.azure.com"},
+			}, "Microsoft Azure RSA TLS Issuing CA 03"),
 			intermediateCert: createTestCertWithIssuer(t, &x509.Certificate{
-				Subject: pkix.Name{CommonName: MicrosoftAzureRSATLSIssuer},
-			}, DigiCertGlobalRootCA),
+				Subject: pkix.Name{CommonName: "Microsoft Azure RSA TLS Issuing CA 03"},
+			}, "DigiCert Global Root G2"),
 			expectErr: false,
 		},
 		{
 			name: "nil intermediate certificate - should still validate signing cert",
 			signingCert: createTestCertWithIssuer(t, &x509.Certificate{
-				Subject: pkix.Name{CommonName: AzureMetadataSubject},
-			}, MicrosoftAzureRSATLSIssuer),
+				Subject: pkix.Name{CommonName: "metadata.azure.com"},
+			}, "Microsoft Azure RSA TLS Issuing CA 03"),
 			intermediateCert: nil,
 			expectErr:        false,
+		},
+		{
+			name: "valid signing certificate with numbered CA 03",
+			signingCert: createTestCertWithIssuer(t, &x509.Certificate{
+				Subject: pkix.Name{CommonName: "metadata.azure.com"},
+			}, "Microsoft Azure RSA TLS Issuing CA 03"),
+			intermediateCert: nil,
+			expectErr:        false,
+		},
+		{
+			name: "valid intermediate certificate with numbered CA 07",
+			signingCert: createTestCertWithIssuer(t, &x509.Certificate{
+				Subject: pkix.Name{CommonName: "metadata.azure.com"},
+			}, "Microsoft Azure RSA TLS Issuing CA 07"),
+			intermediateCert: createTestCertWithIssuer(t, &x509.Certificate{
+				Subject: pkix.Name{CommonName: "Microsoft Azure RSA TLS Issuing CA 07"},
+			}, "DigiCert Global Root G2"),
+			expectErr: false,
 		},
 		{
 			name: "invalid signing certificate subject",
 			signingCert: createTestCertWithIssuer(t, &x509.Certificate{
 				Subject: pkix.Name{CommonName: "wrong.subject.com"},
-			}, MicrosoftAzureRSATLSIssuer),
+			}, "Microsoft Azure RSA TLS Issuing CA 03"),
 			intermediateCert: nil,
 			expectErr:        true,
 			errorContains:    "signing certificate subject validation failed",
@@ -259,7 +324,7 @@ func TestValidateAzureCertificates(t *testing.T) {
 		{
 			name: "invalid signing certificate issuer",
 			signingCert: createTestCertWithIssuer(t, &x509.Certificate{
-				Subject: pkix.Name{CommonName: AzureMetadataSubject},
+				Subject: pkix.Name{CommonName: "metadata.azure.com"},
 			}, "Wrong Issuer"),
 			intermediateCert: nil,
 			expectErr:        true,
@@ -268,10 +333,10 @@ func TestValidateAzureCertificates(t *testing.T) {
 		{
 			name: "invalid intermediate certificate issuer",
 			signingCert: createTestCertWithIssuer(t, &x509.Certificate{
-				Subject: pkix.Name{CommonName: AzureMetadataSubject},
-			}, MicrosoftAzureRSATLSIssuer),
+				Subject: pkix.Name{CommonName: "metadata.azure.com"},
+			}, "Microsoft Azure RSA TLS Issuing CA 03"),
 			intermediateCert: createTestCertWithIssuer(t, &x509.Certificate{
-				Subject: pkix.Name{CommonName: MicrosoftAzureRSATLSIssuer},
+				Subject: pkix.Name{CommonName: "Microsoft Azure RSA TLS Issuing CA 03"},
 			}, "Wrong Root CA"),
 			expectErr:     true,
 			errorContains: "intermediate certificate issuer validation failed",
@@ -279,11 +344,11 @@ func TestValidateAzureCertificates(t *testing.T) {
 		{
 			name: "invalid intermediate certificate subject",
 			signingCert: createTestCertWithIssuer(t, &x509.Certificate{
-				Subject: pkix.Name{CommonName: AzureMetadataSubject},
-			}, MicrosoftAzureRSATLSIssuer),
+				Subject: pkix.Name{CommonName: "metadata.azure.com"},
+			}, "Microsoft Azure RSA TLS Issuing CA 03"),
 			intermediateCert: createTestCertWithIssuer(t, &x509.Certificate{
 				Subject: pkix.Name{CommonName: "Wrong Intermediate"},
-			}, DigiCertGlobalRootCA),
+			}, "DigiCert Global Root G2"),
 			expectErr:     true,
 			errorContains: "intermediate certificate subject validation failed",
 		},
@@ -315,10 +380,10 @@ func TestValidateCertificateChain(t *testing.T) {
 			setupCerts: func() (*x509.Certificate, *x509.Certificate) {
 				// Create two unrelated certificates
 				signingCert := createTestCert(t, &x509.Certificate{
-					Subject: pkix.Name{CommonName: AzureMetadataSubject},
+					Subject: pkix.Name{CommonName: "metadata.azure.com"},
 				})
 				intermediateCert := createTestCert(t, &x509.Certificate{
-					Subject: pkix.Name{CommonName: MicrosoftAzureRSATLSIssuer},
+					Subject: pkix.Name{CommonName: "Microsoft Azure RSA TLS Issuing CA"},
 				})
 				return signingCert, intermediateCert
 			},
@@ -330,7 +395,7 @@ func TestValidateCertificateChain(t *testing.T) {
 			setupCerts: func() (*x509.Certificate, *x509.Certificate) {
 				// Create a signing cert that can't verify against roots
 				signingCert := createTestCert(t, &x509.Certificate{
-					Subject: pkix.Name{CommonName: AzureMetadataSubject},
+					Subject: pkix.Name{CommonName: "metadata.azure.com"},
 				})
 				return signingCert, nil
 			},
@@ -360,7 +425,7 @@ func TestValidateAttestedDocument(t *testing.T) {
 		rootKey := testkey.NewEC256(t)
 		rootCert := spiretest.SelfSignCertificateWithKey(t, &x509.Certificate{
 			SerialNumber: big.NewInt(1),
-			Subject:      pkix.Name{CommonName: DigiCertGlobalRootCA},
+			Subject:      pkix.Name{CommonName: "DigiCert Global Root G2"},
 			NotBefore:    time.Now().Add(-time.Hour),
 			NotAfter:     time.Now().Add(time.Hour * 24 * 365),
 			IsCA:         true,
@@ -369,8 +434,8 @@ func TestValidateAttestedDocument(t *testing.T) {
 		intermediateKey := testkey.NewEC256(t)
 		intermediateCert := spiretest.CreateCertificate(t, &x509.Certificate{
 			SerialNumber: big.NewInt(2),
-			Subject:      pkix.Name{CommonName: MicrosoftAzureRSATLSIssuer},
-			Issuer:       pkix.Name{CommonName: DigiCertGlobalRootCA},
+			Subject:      pkix.Name{CommonName: "Microsoft Azure RSA TLS Issuing CA 03"},
+			Issuer:       pkix.Name{CommonName: "DigiCert Global Root G2"},
 			NotBefore:    time.Now().Add(-time.Hour),
 			NotAfter:     time.Now().Add(time.Hour * 24 * 365),
 			IsCA:         true,
@@ -384,8 +449,8 @@ func TestValidateAttestedDocument(t *testing.T) {
 		signingKey := testkey.NewEC256(t)
 		signingCert := spiretest.CreateCertificate(t, &x509.Certificate{
 			SerialNumber:          big.NewInt(3),
-			Subject:               pkix.Name{CommonName: AzureMetadataSubject},
-			Issuer:                pkix.Name{CommonName: MicrosoftAzureRSATLSIssuer},
+			Subject:               pkix.Name{CommonName: "metadata.azure.com"},
+			Issuer:                pkix.Name{CommonName: "Microsoft Azure RSA TLS Issuing CA 03"},
 			NotBefore:             time.Now().Add(-time.Hour),
 			NotAfter:              time.Now().Add(time.Hour * 24 * 365),
 			IssuingCertificateURL: []string{issuerURL},
