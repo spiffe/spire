@@ -5,6 +5,7 @@ import (
 	"crypto/x509"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/spiffe/spire/pkg/agent/plugin/keymanager"
@@ -43,6 +44,10 @@ func TestConfigure(t *testing.T) {
 		require.DirExists(t, dir)
 	})
 	t.Run("insufficient permissions", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			// Skip this test on Windows, as it relies on chmod
+			t.Skip()
+		}
 		dir := spiretest.TempDir(t)
 		chmod(t, dir, 0444)
 		defer chmod(t, dir, 0755)
