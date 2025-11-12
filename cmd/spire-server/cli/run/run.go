@@ -710,6 +710,11 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 	}
 	sc.DisableJWTSVIDs = c.Server.DisableJWTSVIDs
 
+	sc.DisableWITSVIDs = true
+	if fflag.IsSet(fflag.FlagWITSVID) {
+		sc.DisableWITSVIDs = false
+	}
+
 	if !allowUnknownConfig {
 		if err := checkForUnknownConfig(c, sc.Log); err != nil {
 			return nil, err
