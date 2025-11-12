@@ -84,6 +84,7 @@ type Config struct {
 	X509CAKeyType   keymanager.KeyType
 	DisableJWTSVIDs bool
 	JWTKeyType      keymanager.KeyType
+	WITKeyType      keymanager.KeyType
 	Dir             string
 	Log             logrus.FieldLogger
 	Metrics         telemetry.Metrics
