@@ -40,6 +40,7 @@ func TestConfigure(t *testing.T) {
 
 		_, err = loadPlugin(t, "directory = %q", dir)
 		require.NoError(t, err)
+		require.DirExists(t, dir)
 	})
 	t.Run("insufficient permissions", func(t *testing.T) {
 		dir := spiretest.TempDir(t)

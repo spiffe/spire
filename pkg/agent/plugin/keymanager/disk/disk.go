@@ -73,7 +73,7 @@ func (m *KeyManager) Configure(_ context.Context, req *configv1.ConfigureRequest
 	}
 
 	if err := m.verifyDirectory(config.Directory); err != nil {
-		return nil, status.Errorf(codes.FailedPrecondition, "directory validation failed")
+		return nil, status.Errorf(codes.FailedPrecondition, "directory validation failed: %v", err)
 	}
 
 	m.mu.Lock()
