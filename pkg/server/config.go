@@ -140,6 +140,9 @@ type Config struct {
 
 	// DisableJWTSVIDs, if true, JWT-SVID profile is disabled
 	DisableJWTSVIDs bool
+
+	// DisableWITSVIDs, if true, WIT-SVID profile is disabled
+	DisableWITSVIDs bool
 }
 
 type ExperimentalConfig struct{}

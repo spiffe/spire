@@ -131,6 +131,7 @@ type Config struct {
 	CredValidator   *credvalidator.Validator
 	HealthChecker   health.Checker
 	DisableJWTSVIDs bool
+	DisableWITSVIDs bool
 }
 
 type CA struct {
@@ -395,6 +396,10 @@ func (ca *CA) signJWTSVID(jwtKey *JWTKey, claims map[string]any) (string, error)
 
 func (ca *CA) IsJWTSVIDsDisabled() bool {
 	return ca.c.DisableJWTSVIDs
+}
+
+func (ca *CA) IsWITSVIDsDisabled() bool {
+	return ca.c.DisableWITSVIDs
 }
 
 func makeCertChain(x509CA *X509CA, leaf *x509.Certificate) []*x509.Certificate {
