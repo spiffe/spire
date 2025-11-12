@@ -285,17 +285,117 @@ func (x *JWTKeyEntry) GetAuthorityId() string {
 	return ""
 }
 
+type WITKeyEntry struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Which WIT Key slot this entry occupied.
+	SlotId string `protobuf:"bytes,1,opt,name=slot_id,json=slotId,proto3" json:"slot_id,omitempty"`
+	// When the key was issued (unix epoch in seconds)
+	IssuedAt int64 `protobuf:"varint,2,opt,name=issued_at,json=issuedAt,proto3" json:"issued_at,omitempty"`
+	// When the key expires unix epoch in seconds)
+	NotAfter int64 `protobuf:"varint,3,opt,name=not_after,json=notAfter,proto3" json:"not_after,omitempty"`
+	// WIT key id (i.e. "kid" claim)
+	Kid string `protobuf:"bytes,4,opt,name=kid,proto3" json:"kid,omitempty"`
+	// PKIX encoded public key
+	PublicKey []byte `protobuf:"bytes,5,opt,name=public_key,json=publicKey,proto3" json:"public_key,omitempty"`
+	// The entry status
+	Status Status `protobuf:"varint,6,opt,name=status,proto3,enum=Status" json:"status,omitempty"`
+	// The WIT key ID
+	AuthorityId   string `protobuf:"bytes,7,opt,name=authority_id,json=authorityId,proto3" json:"authority_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *WITKeyEntry) Reset() {
+	*x = WITKeyEntry{}
+	mi := &file_private_server_journal_journal_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *WITKeyEntry) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*WITKeyEntry) ProtoMessage() {}
+
+func (x *WITKeyEntry) ProtoReflect() protoreflect.Message {
+	mi := &file_private_server_journal_journal_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use WITKeyEntry.ProtoReflect.Descriptor instead.
+func (*WITKeyEntry) Descriptor() ([]byte, []int) {
+	return file_private_server_journal_journal_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *WITKeyEntry) GetSlotId() string {
+	if x != nil {
+		return x.SlotId
+	}
+	return ""
+}
+
+func (x *WITKeyEntry) GetIssuedAt() int64 {
+	if x != nil {
+		return x.IssuedAt
+	}
+	return 0
+}
+
+func (x *WITKeyEntry) GetNotAfter() int64 {
+	if x != nil {
+		return x.NotAfter
+	}
+	return 0
+}
+
+func (x *WITKeyEntry) GetKid() string {
+	if x != nil {
+		return x.Kid
+	}
+	return ""
+}
+
+func (x *WITKeyEntry) GetPublicKey() []byte {
+	if x != nil {
+		return x.PublicKey
+	}
+	return nil
+}
+
+func (x *WITKeyEntry) GetStatus() Status {
+	if x != nil {
+		return x.Status
+	}
+	return Status_UNKNOWN
+}
+
+func (x *WITKeyEntry) GetAuthorityId() string {
+	if x != nil {
+		return x.AuthorityId
+	}
+	return ""
+}
+
 type Entries struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	X509CAs       []*X509CAEntry         `protobuf:"bytes,1,rep,name=x509CAs,proto3" json:"x509CAs,omitempty"`
 	JwtKeys       []*JWTKeyEntry         `protobuf:"bytes,2,rep,name=jwtKeys,proto3" json:"jwtKeys,omitempty"`
+	WitKeys       []*WITKeyEntry         `protobuf:"bytes,3,rep,name=witKeys,proto3" json:"witKeys,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Entries) Reset() {
 	*x = Entries{}
-	mi := &file_private_server_journal_journal_proto_msgTypes[2]
+	mi := &file_private_server_journal_journal_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -307,7 +407,7 @@ func (x *Entries) String() string {
 func (*Entries) ProtoMessage() {}
 
 func (x *Entries) ProtoReflect() protoreflect.Message {
-	mi := &file_private_server_journal_journal_proto_msgTypes[2]
+	mi := &file_private_server_journal_journal_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -320,7 +420,7 @@ func (x *Entries) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Entries.ProtoReflect.Descriptor instead.
 func (*Entries) Descriptor() ([]byte, []int) {
-	return file_private_server_journal_journal_proto_rawDescGZIP(), []int{2}
+	return file_private_server_journal_journal_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *Entries) GetX509CAs() []*X509CAEntry {
@@ -333,6 +433,13 @@ func (x *Entries) GetX509CAs() []*X509CAEntry {
 func (x *Entries) GetJwtKeys() []*JWTKeyEntry {
 	if x != nil {
 		return x.JwtKeys
+	}
+	return nil
+}
+
+func (x *Entries) GetWitKeys() []*WITKeyEntry {
+	if x != nil {
+		return x.WitKeys
 	}
 	return nil
 }
@@ -359,10 +466,20 @@ const file_private_server_journal_journal_proto_rawDesc = "" +
 	"\n" +
 	"public_key\x18\x05 \x01(\fR\tpublicKey\x12\x1f\n" +
 	"\x06status\x18\x06 \x01(\x0e2\a.StatusR\x06status\x12!\n" +
-	"\fauthority_id\x18\a \x01(\tR\vauthorityId\"Y\n" +
+	"\fauthority_id\x18\a \x01(\tR\vauthorityId\"\xd5\x01\n" +
+	"\vWITKeyEntry\x12\x17\n" +
+	"\aslot_id\x18\x01 \x01(\tR\x06slotId\x12\x1b\n" +
+	"\tissued_at\x18\x02 \x01(\x03R\bissuedAt\x12\x1b\n" +
+	"\tnot_after\x18\x03 \x01(\x03R\bnotAfter\x12\x10\n" +
+	"\x03kid\x18\x04 \x01(\tR\x03kid\x12\x1d\n" +
+	"\n" +
+	"public_key\x18\x05 \x01(\fR\tpublicKey\x12\x1f\n" +
+	"\x06status\x18\x06 \x01(\x0e2\a.StatusR\x06status\x12!\n" +
+	"\fauthority_id\x18\a \x01(\tR\vauthorityId\"\x81\x01\n" +
 	"\aEntries\x12&\n" +
 	"\ax509CAs\x18\x01 \x03(\v2\f.X509CAEntryR\ax509CAs\x12&\n" +
-	"\ajwtKeys\x18\x02 \x03(\v2\f.JWTKeyEntryR\ajwtKeys*8\n" +
+	"\ajwtKeys\x18\x02 \x03(\v2\f.JWTKeyEntryR\ajwtKeys\x12&\n" +
+	"\awitKeys\x18\x03 \x03(\v2\f.WITKeyEntryR\awitKeys*8\n" +
 	"\x06Status\x12\v\n" +
 	"\aUNKNOWN\x10\x00\x12\f\n" +
 	"\bPREPARED\x10\x02\x12\n" +
@@ -383,23 +500,26 @@ func file_private_server_journal_journal_proto_rawDescGZIP() []byte {
 }
 
 var file_private_server_journal_journal_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_private_server_journal_journal_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
+var file_private_server_journal_journal_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
 var file_private_server_journal_journal_proto_goTypes = []any{
 	(Status)(0),         // 0: Status
 	(*X509CAEntry)(nil), // 1: X509CAEntry
 	(*JWTKeyEntry)(nil), // 2: JWTKeyEntry
-	(*Entries)(nil),     // 3: Entries
+	(*WITKeyEntry)(nil), // 3: WITKeyEntry
+	(*Entries)(nil),     // 4: Entries
 }
 var file_private_server_journal_journal_proto_depIdxs = []int32{
 	0, // 0: X509CAEntry.status:type_name -> Status
 	0, // 1: JWTKeyEntry.status:type_name -> Status
-	1, // 2: Entries.x509CAs:type_name -> X509CAEntry
-	2, // 3: Entries.jwtKeys:type_name -> JWTKeyEntry
-	4, // [4:4] is the sub-list for method output_type
-	4, // [4:4] is the sub-list for method input_type
-	4, // [4:4] is the sub-list for extension type_name
-	4, // [4:4] is the sub-list for extension extendee
-	0, // [0:4] is the sub-list for field type_name
+	0, // 2: WITKeyEntry.status:type_name -> Status
+	1, // 3: Entries.x509CAs:type_name -> X509CAEntry
+	2, // 4: Entries.jwtKeys:type_name -> JWTKeyEntry
+	3, // 5: Entries.witKeys:type_name -> WITKeyEntry
+	6, // [6:6] is the sub-list for method output_type
+	6, // [6:6] is the sub-list for method input_type
+	6, // [6:6] is the sub-list for extension type_name
+	6, // [6:6] is the sub-list for extension extendee
+	0, // [0:6] is the sub-list for field type_name
 }
 
 func init() { file_private_server_journal_journal_proto_init() }
@@ -413,7 +533,7 @@ func file_private_server_journal_journal_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_private_server_journal_journal_proto_rawDesc), len(file_private_server_journal_journal_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   3,
+			NumMessages:   4,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

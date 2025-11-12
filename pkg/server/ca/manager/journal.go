@@ -184,6 +184,72 @@ func (j *Journal) UpdateJWTKeyStatus(ctx context.Context, authorityID string, st
 	return nil
 }
 
+func (j *Journal) AppendWITKey(ctx context.Context, slotID string, issuedAt time.Time, witKey *ca.WITKey) error {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+
+	pkixBytes, err := x509.MarshalPKIXPublicKey(witKey.Signer.Public())
+	if err != nil {
+		return err
+	}
+
+	backup := j.entries.WitKeys
+	j.entries.WitKeys = append(j.entries.WitKeys, &journal.WITKeyEntry{
+		SlotId:      slotID,
+		IssuedAt:    issuedAt.Unix(),
+		Kid:         witKey.Kid,
+		PublicKey:   pkixBytes,
+		NotAfter:    witKey.NotAfter.Unix(),
+		Status:      journal.Status_PREPARED,
+		AuthorityId: witKey.Kid,
+	})
+
+	exceeded := len(j.entries.WitKeys) - journalCap
+	if exceeded > 0 {
+		// make a new slice so we keep growing the backing array to drop the first
+		witKeys := make([]*journal.WITKeyEntry, journalCap)
+		copy(witKeys, j.entries.WitKeys[exceeded:])
+		j.entries.WitKeys = witKeys
+	}
+
+	if err := j.save(ctx); err != nil {
+		j.entries.WitKeys = backup
+		return err
+	}
+
+	return nil
+}
+
+// UpdateWITKeyStatus updates a stored WITKey entry to have the given status,
+// updating the CA journal.
+func (j *Journal) UpdateWITKeyStatus(ctx context.Context, authorityID string, status journal.Status) error {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+
+	backup := j.entries.WitKeys
+
+	var found bool
+	for i := len(j.entries.WitKeys) - 1; i >= 0; i-- {
+		entry := j.entries.WitKeys[i]
+		if authorityID == entry.AuthorityId {
+			found = true
+			entry.Status = status
+			break
+		}
+	}
+
+	if !found {
+		return fmt.Errorf("no journal entry found with authority ID %q", authorityID)
+	}
+
+	if err := j.save(ctx); err != nil {
+		j.entries.WitKeys = backup
+		return err
+	}
+
+	return nil
+}
+
 func (j *Journal) setEntries(entries *journal.Entries) {
 	j.mu.Lock()
 	defer j.mu.Unlock()
