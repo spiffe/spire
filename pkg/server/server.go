@@ -369,6 +369,7 @@ func (s *Server) newCAManager(ctx context.Context, cat catalog.Catalog, metrics 
 		X509CAKeyType:   s.config.CAKeyType,
 		DisableJWTSVIDs: s.config.DisableJWTSVIDs,
 		JWTKeyType:      s.config.JWTKeyType,
+		WITKeyType:      s.config.WITKeyType,
 	})
 	if err != nil {
 		return nil, err
