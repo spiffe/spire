@@ -70,6 +70,7 @@ type AuthorityManager interface {
 	RotateX509CA(ctx context.Context)
 	IsUpstreamAuthority() bool
 	IsJWTSVIDsDisabled() bool
+	IsWITSVIDsDisabled() bool
 	PublishJWTKey(ctx context.Context, jwtKey *common.PublicKey) ([]*common.PublicKey, error)
 	NotifyTaintedX509Authority(ctx context.Context, authorityID string) error
 	SubscribeToLocalBundle(ctx context.Context) error
@@ -83,6 +84,7 @@ type Config struct {
 	TrustDomain     spiffeid.TrustDomain
 	X509CAKeyType   keymanager.KeyType
 	DisableJWTSVIDs bool
+	DisableWITSVIDs bool
 	JWTKeyType      keymanager.KeyType
 	WITKeyType      keymanager.KeyType
 	Dir             string
@@ -210,6 +212,10 @@ func (m *Manager) NotifyTaintedX509Authority(ctx context.Context, authorityID st
 
 func (m *Manager) IsJWTSVIDsDisabled() bool {
 	return m.c.DisableJWTSVIDs
+}
+
+func (m *Manager) IsWITSVIDsDisabled() bool {
+	return m.c.DisableWITSVIDs
 }
 
 func (m *Manager) GetCurrentX509CASlot() Slot {
