@@ -89,6 +89,9 @@ type Config struct {
 	// JWTKeyType is the key type used for JWT signing keys
 	JWTKeyType keymanager.KeyType
 
+	// WITKeyType is the key type used for WIT signing keys
+	WITKeyType keymanager.KeyType
+
 	// Federation holds the configuration needed to federate with other
 	// trust domains.
 	Federation FederationConfig
