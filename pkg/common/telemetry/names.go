@@ -623,6 +623,10 @@ const (
 	// VersionInfo tags some version information
 	VersionInfo = "version_info"
 
+	// WITKeys tags some count or list of WIT Keys. Should NEVER provide the actual keys, use
+	// Key IDs instead.
+	WITKeys = "wit_keys"
+
 	// WorkloadAttestation tags call of overall workload attestation
 	WorkloadAttestation = "workload_attestation"
 
@@ -794,6 +798,13 @@ const (
 
 	// Telemetry tags a telemetry module
 	Telemetry = "telemetry"
+
+	// WIT declares WIT-SVID type, clarifying metrics
+	WIT = "wit"
+
+	// WITKey functionality related to a WIT key; should be used with other tags
+	// to add clarity. Should NEVER actually provide the key itself, use Key ID instead.
+	WITKey = "wit_key"
 
 	// X509CA functionality related to an x509 CA; should be used with other tags
 	// to add clarity
