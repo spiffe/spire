@@ -501,6 +501,8 @@ func migrateVersion(tx *gorm.DB, currVersion int, log logrus.FieldLogger) (versi
 	// }
 	//
 	switch currVersion { //nolint: gocritic,revive // No upgrade required yet, keeping switch for future additions
+	case 24:
+		err = migrateToV24(tx)
 	default:
 		err = newSQLError("no migration support for unknown schema version %d", currVersion)
 	}
@@ -509,6 +511,13 @@ func migrateVersion(tx *gorm.DB, currVersion int, log logrus.FieldLogger) (versi
 	}
 
 	return nextVersion, nil
+}
+
+func migrateToV24(tx *gorm.DB) error {
+	if err := tx.AutoMigrate(&RegisteredEntry{}).Error; err != nil {
+		return newWrappedSQLError(err)
+	}
+	return nil
 }
 
 func addFederatedRegistrationEntriesRegisteredEntryIDIndex(tx *gorm.DB) error {
