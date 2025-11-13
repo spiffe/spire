@@ -32,8 +32,8 @@ type Bundle struct {
 	lastBundle         []*x509.Certificate
 }
 
-func New(config *Config, log logrus.FieldLogger) *Bundle {
-	return &Bundle{
+func New(config *Config, log logrus.FieldLogger) Bundle {
+	return Bundle{
 		config: config,
 		log:    log,
 	}

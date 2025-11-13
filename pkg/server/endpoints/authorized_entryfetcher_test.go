@@ -358,6 +358,7 @@ func TestRunUpdateCacheTaskPrunesExpiredAgents(t *testing.T) {
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
 		entries, err = ef.FetchAuthorizedEntries(ctx, agentID)
 		assert.NoError(c, err)
+		assert.NotEmpty(c, entries)
 	}, time.Second, 50*time.Millisecond)
 	compareEntries(t, entries, entry)
 
