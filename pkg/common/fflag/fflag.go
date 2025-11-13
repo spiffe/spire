@@ -40,7 +40,7 @@ var (
 	}{
 		flags: map[Flag]bool{
 			FlagTestFlag: false,
-			FlagWITSVID:  true,
+			FlagWITSVID:  false,
 		},
 		loaded: false,
 		mtx:    new(sync.RWMutex),
