@@ -24,17 +24,17 @@ require (
 	github.com/aws/aws-sdk-go-v2/credentials v1.18.7
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.18.4
 	github.com/aws/aws-sdk-go-v2/feature/rds/auth v1.6.0
-	github.com/aws/aws-sdk-go-v2/service/acmpca v1.45.0
+	github.com/aws/aws-sdk-go-v2/service/acmpca v1.46.2
 	github.com/aws/aws-sdk-go-v2/service/autoscaling v1.60.1
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.264.0
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.269.0
 	github.com/aws/aws-sdk-go-v2/service/eks v1.74.1
-	github.com/aws/aws-sdk-go-v2/service/iam v1.49.0
+	github.com/aws/aws-sdk-go-v2/service/iam v1.50.2
 	github.com/aws/aws-sdk-go-v2/service/kms v1.48.0
 	github.com/aws/aws-sdk-go-v2/service/organizations v1.46.1
 	github.com/aws/aws-sdk-go-v2/service/rolesanywhere v1.21.0
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.90.0
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.39.0
-	github.com/aws/aws-sdk-go-v2/service/sts v1.39.0
+	github.com/aws/aws-sdk-go-v2/service/sts v1.40.2
 	github.com/aws/smithy-go v1.23.2
 	github.com/blang/semver/v4 v4.0.0
 	github.com/cenkalti/backoff/v4 v4.3.0
