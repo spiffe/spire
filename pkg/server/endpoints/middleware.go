@@ -143,17 +143,20 @@ func RateLimits(config RateLimitConfig) map[string]api.RateLimiter {
 		jsrLimit = middleware.PerIPLimit(limits.SignLimitPerIP)
 	}
 
-	pushJWTKeyLimit := middleware.PerIPLimit(limits.PushJWTKeyLimitPerIP)
+	pushKeyLimit := middleware.PerIPLimit(limits.PushKeyLimitPerIP)
 
 	return map[string]api.RateLimiter{
 		"/spire.api.server.svid.v1.SVID/MintX509SVID":                                    noLimit,
 		"/spire.api.server.svid.v1.SVID/MintJWTSVID":                                     noLimit,
+		"/spire.api.server.svid.v1.SVID/MintWITSVID":                                     noLimit,
 		"/spire.api.server.svid.v1.SVID/BatchNewX509SVID":                                csrLimit,
 		"/spire.api.server.svid.v1.SVID/NewJWTSVID":                                      jsrLimit,
+		"/spire.api.server.svid.v1.SVID/BatchNewWITSVID":                                 jsrLimit,
 		"/spire.api.server.svid.v1.SVID/NewDownstreamX509CA":                             csrLimit,
 		"/spire.api.server.bundle.v1.Bundle/GetBundle":                                   noLimit,
 		"/spire.api.server.bundle.v1.Bundle/AppendBundle":                                noLimit,
-		"/spire.api.server.bundle.v1.Bundle/PublishJWTAuthority":                         pushJWTKeyLimit,
+		"/spire.api.server.bundle.v1.Bundle/PublishJWTAuthority":                         pushKeyLimit,
+		"/spire.api.server.bundle.v1.Bundle/PublishWITAuthority":                         pushKeyLimit,
 		"/spire.api.server.bundle.v1.Bundle/CountBundles":                                noLimit,
 		"/spire.api.server.bundle.v1.Bundle/ListFederatedBundles":                        noLimit,
 		"/spire.api.server.bundle.v1.Bundle/GetFederatedBundle":                          noLimit,
@@ -199,6 +202,11 @@ func RateLimits(config RateLimitConfig) map[string]api.RateLimiter {
 		"/spire.api.server.localauthority.v1.LocalAuthority/TaintX509UpstreamAuthority":  noLimit,
 		"/spire.api.server.localauthority.v1.LocalAuthority/RevokeX509Authority":         noLimit,
 		"/spire.api.server.localauthority.v1.LocalAuthority/RevokeX509UpstreamAuthority": noLimit,
+		"/spire.api.server.localauthority.v1.LocalAuthority/GetWITAuthorityState":        noLimit,
+		"/spire.api.server.localauthority.v1.LocalAuthority/PrepareWITAuthority":         noLimit,
+		"/spire.api.server.localauthority.v1.LocalAuthority/ActivateWITAuthority":        noLimit,
+		"/spire.api.server.localauthority.v1.LocalAuthority/TaintWITAuthority":           noLimit,
+		"/spire.api.server.localauthority.v1.LocalAuthority/RevokeWITAuthority":          noLimit,
 		"/grpc.health.v1.Health/Check":                                                   noLimit,
 		"/grpc.health.v1.Health/List":                                                    noLimit,
 		"/grpc.health.v1.Health/Watch":                                                   noLimit,

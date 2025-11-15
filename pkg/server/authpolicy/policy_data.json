@@ -11,11 +11,20 @@
 			"allow_local": true
 		},
 		{
+			"full_method": "/spire.api.server.svid.v1.SVID/MintWITSVID",
+			"allow_admin": true,
+			"allow_local": true
+		},
+		{
 			"full_method": "/spire.api.server.svid.v1.SVID/BatchNewX509SVID",
 			"allow_agent": true
 		},
 		{
 			"full_method": "/spire.api.server.svid.v1.SVID/NewJWTSVID",
+			"allow_agent": true
+		},
+		{
+			"full_method": "/spire.api.server.svid.v1.SVID/BatchNewWITSVID",
 			"allow_agent": true
 		},
 		{
@@ -33,6 +42,10 @@
 		},
 		{
 			"full_method": "/spire.api.server.bundle.v1.Bundle/PublishJWTAuthority",
+			"allow_downstream": true
+		},
+		{
+			"full_method": "/spire.api.server.bundle.v1.Bundle/PublishWITAuthority",
 			"allow_downstream": true
 		},
 		{
@@ -262,6 +275,31 @@
 		},
 		{
 			"full_method": "/spire.api.server.localauthority.v1.LocalAuthority/RevokeX509UpstreamAuthority",
+			"allow_local": true,
+			"allow_admin": true
+		},
+		{
+			"full_method": "/spire.api.server.localauthority.v1.LocalAuthority/GetWITAuthorityState",
+			"allow_local": true,
+			"allow_admin": true
+		},
+		{
+			"full_method": "/spire.api.server.localauthority.v1.LocalAuthority/PrepareWITAuthority",
+			"allow_local": true,
+			"allow_admin": true
+		},
+		{
+			"full_method": "/spire.api.server.localauthority.v1.LocalAuthority/ActivateWITAuthority",
+			"allow_local": true,
+			"allow_admin": true
+		},
+		{
+			"full_method": "/spire.api.server.localauthority.v1.LocalAuthority/TaintWITAuthority",
+			"allow_local": true,
+			"allow_admin": true
+		},
+		{
+			"full_method": "/spire.api.server.localauthority.v1.LocalAuthority/RevokeWITAuthority",
 			"allow_local": true,
 			"allow_admin": true
 		}
