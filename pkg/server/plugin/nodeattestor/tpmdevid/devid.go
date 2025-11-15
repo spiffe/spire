@@ -154,12 +154,19 @@ func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 		return status.Errorf(codes.Internal, "unable to generate challenge: %v", err)
 	}
 
-	// Verify DevID residency
+	// Verify DevID residency (optional - only if EK info is provided)
 	var nonce []byte
 	var credActivationChallenge *common_devid.CredActivation
-	credActivationChallenge, nonce, err = verifyDevIDResidency(attData, conf.ekRoots)
-	if err != nil {
-		return err
+	if hasEKInfo(attData) {
+		credActivationChallenge, nonce, err = verifyDevIDResidency(attData, conf.ekRoots)
+		if err != nil {
+			return err
+		}
+	} else {
+		// No EK info provided - skip proof-of-residency, only do proof-of-possession
+		// This is common with Intel fTPM which doesn't provision EK certs to NV indexes
+		credActivationChallenge = nil
+		nonce = nil
 	}
 
 	// Marshal challenges
@@ -199,10 +206,12 @@ func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 		return status.Errorf(codes.InvalidArgument, "devID challenge verification failed: %v", err)
 	}
 
-	// Verify credential activation challenge
-	err = VerifyCredActivationChallenge(nonce, challengeResponse.CredActivation)
-	if err != nil {
-		return status.Errorf(codes.InvalidArgument, "credential activation failed: %v", err)
+	// Verify credential activation challenge (only if it was sent)
+	if credActivationChallenge != nil {
+		err = VerifyCredActivationChallenge(nonce, challengeResponse.CredActivation)
+		if err != nil {
+			return status.Errorf(codes.InvalidArgument, "credential activation failed: %v", err)
+		}
 	}
 
 	// Create SPIFFE ID and selectors
@@ -324,6 +333,13 @@ func verifyDevIDResidency(attData *common_devid.AttestationRequest, ekRoots *x50
 	}
 
 	return challenge, nonce, nil
+}
+
+// hasEKInfo checks if the attestation request contains EK information.
+// Returns true if the agent provided EK data for proof-of-residency.
+func hasEKInfo(attReq *common_devid.AttestationRequest) bool {
+	// Check only EK-specific fields (not DevIDPub which is always present)
+	return len(attReq.EKCert) > 0 || len(attReq.EKPub) > 0 || len(attReq.AKPub) > 0
 }
 
 func isDevIDResidencyInfoComplete(attReq *common_devid.AttestationRequest) error {

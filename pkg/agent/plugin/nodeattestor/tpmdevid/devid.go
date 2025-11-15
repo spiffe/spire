@@ -124,22 +124,39 @@ func (p *Plugin) AidAttestation(stream nodeattestorv1.NodeAttestor_AidAttestatio
 	}
 	defer tpm.Close()
 
-	// Get endorsement certificate from TPM NV index
-	ekCert, err := tpm.GetEKCert()
-	if err != nil {
-		return status.Errorf(codes.Internal, "unable to get endorsement certificate: %v", err)
-	}
+	// Try to get endorsement certificate from TPM NV index (optional for Intel fTPM)
+	// If EK cert is not available, skip proof-of-residency and only do proof-of-possession
+	var ekCert []byte
+	var ekPub []byte
+	var akPub []byte
+	var id []byte
+	var sig []byte
 
-	// Get regenerated endorsement public key
-	ekPub, err := tpm.GetEKPublic()
+	ekCert, err = tpm.GetEKCert()
 	if err != nil {
-		return status.Errorf(codes.Internal, "unable to get endorsement public key: %v", err)
-	}
+		// EK cert not available - this is expected for Intel fTPM
+		// Skip proof-of-residency, only do proof-of-possession
+		p.log.Warn("EK certificate not available, skipping proof-of-residency", "error", err)
+		ekCert = nil
+		ekPub = nil
+		akPub = nil
+		id = nil
+		sig = nil
+	} else {
+		// EK cert available - do full proof-of-residency
+		// Get regenerated endorsement public key
+		ekPub, err = tpm.GetEKPublic()
+		if err != nil {
+			return status.Errorf(codes.Internal, "unable to get endorsement public key: %v", err)
+		}
 
-	// Certify DevID is in the same TPM than AK
-	id, sig, err := tpm.CertifyDevIDKey()
-	if err != nil {
-		return status.Errorf(codes.Internal, "unable to certify DevID key: %v", err)
+		// Certify DevID is in the same TPM than AK
+		id, sig, err = tpm.CertifyDevIDKey()
+		if err != nil {
+			return status.Errorf(codes.Internal, "unable to certify DevID key: %v", err)
+		}
+
+		akPub = tpm.GetAKPublic()
 	}
 
 	// Marshal attestation data
@@ -150,7 +167,7 @@ func (p *Plugin) AidAttestation(stream nodeattestorv1.NodeAttestor_AidAttestatio
 		EKCert: ekCert,
 		EKPub:  ekPub,
 
-		AKPub: tpm.GetAKPublic(),
+		AKPub: akPub,
 
 		CertifiedDevID:         id,
 		CertificationSignature: sig,
@@ -188,18 +205,18 @@ func (p *Plugin) AidAttestation(stream nodeattestorv1.NodeAttestor_AidAttestatio
 		return status.Errorf(codes.Internal, "unable to solve proof of possession challenge: %v", err)
 	}
 
-	// Solve Credential Activation challenge
+	// Solve Credential Activation challenge (optional - only if server sent it)
 	var credActChallengeResp []byte
-	if challenges.CredActivation == nil {
-		return status.Error(codes.Internal, "received empty credential activation challenge from server")
+	if challenges.CredActivation != nil {
+		// Server sent credential activation challenge - solve it
+		credActChallengeResp, err = tpm.SolveCredActivationChallenge(
+			challenges.CredActivation.Credential,
+			challenges.CredActivation.Secret)
+		if err != nil {
+			return status.Errorf(codes.Internal, "unable to solve proof of residency challenge: %v", err)
+		}
 	}
-
-	credActChallengeResp, err = tpm.SolveCredActivationChallenge(
-		challenges.CredActivation.Credential,
-		challenges.CredActivation.Secret)
-	if err != nil {
-		return status.Errorf(codes.Internal, "unable to solve proof of residency challenge: %v", err)
-	}
+	// If no credential activation challenge, credActChallengeResp will be nil/empty
 
 	// Marshal challenges responses
 	marshalledChallengeResp, err := json.Marshal(common_devid.ChallengeResponse{
