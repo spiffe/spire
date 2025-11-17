@@ -1024,6 +1024,9 @@ func validateTags(tags map[string]string) error {
 		if strings.HasPrefix(strings.ToLower(key), "aws:") {
 			return fmt.Errorf("tag key %q uses reserved prefix 'aws:'", key)
 		}
+		if strings.HasPrefix(strings.ToLower(key), "spire-") {
+			return fmt.Errorf("tag key %q uses reserved prefix 'spire-'", key)
+		}
 		if !validTagKeyPattern.MatchString(key) {
 			return fmt.Errorf("tag key %q contains invalid characters (allowed: letters, numbers, spaces, + - = . _ : / @)", key)
 		}

@@ -45,11 +45,13 @@ The plugin also attempts to detect and prune stale keys. All keys managed by the
 The plugin supports tagging of KMS keys with user-defined tags using the `key_tags` configuration option. These tags are specified as key-value pairs and are applied to all KMS keys created by the plugin.
 
 **Tag constraints**
+
 - Tag keys must be 1-128 characters long
 - Tag values can be 0-256 characters long
 - Maximum of 50 tags (AWS KMS limit)
 - Tag keys and values must use valid characters: letters, numbers, spaces, and the following special characters: `+ - = . _ : / @`
 - Tag keys cannot start with `aws:` (reserved by AWS)
+- Tag keys cannot start with `spire-` (reserved for future use)
 
 **Tag validation**
 The plugin validates all user-defined tags during configuration. If any tag violates AWS KMS tagging constraints, the plugin will fail to configure and report a detailed error message indicating the specific validation failure.

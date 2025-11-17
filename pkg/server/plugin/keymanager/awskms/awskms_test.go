@@ -2007,6 +2007,20 @@ func TestConfigureWithTags(t *testing.T) {
 			code: codes.InvalidArgument,
 		},
 		{
+			name: "tag key with spire prefix",
+			configureRequest: configureRequestWithString(`{
+				"access_key_id":"access_key_id",
+				"secret_access_key":"secret_access_key",
+				"region":"us-west-2",
+				"key_identifier_value":"test-server",
+				"key_tags":{
+					"spire-internal":"value"
+				}
+			}`),
+			err:  "invalid configuration for key tags: tag key \"spire-internal\" uses reserved prefix 'spire-'",
+			code: codes.InvalidArgument,
+		},
+		{
 			name: "tag key too long",
 			configureRequest: configureRequestWithString(fmt.Sprintf(`{
 				"access_key_id":"access_key_id",
@@ -2132,6 +2146,34 @@ func TestValidateTags(t *testing.T) {
 				"aWs:tag": "value",
 			},
 			err: "tag key \"aWs:tag\" uses reserved prefix 'aws:'",
+		},
+		{
+			name: "spire prefix lowercase",
+			tags: map[string]string{
+				"spire-tag": "value",
+			},
+			err: "tag key \"spire-tag\" uses reserved prefix 'spire-'",
+		},
+		{
+			name: "spire prefix uppercase",
+			tags: map[string]string{
+				"SPIRE-Tag": "value",
+			},
+			err: "tag key \"SPIRE-Tag\" uses reserved prefix 'spire-'",
+		},
+		{
+			name: "mixed case spire prefix (Spire)",
+			tags: map[string]string{
+				"Spire-tag": "value",
+			},
+			err: "tag key \"Spire-tag\" uses reserved prefix 'spire-'",
+		},
+		{
+			name: "mixed case spire prefix (sPiRe)",
+			tags: map[string]string{
+				"sPiRe-Tag": "value",
+			},
+			err: "tag key \"sPiRe-Tag\" uses reserved prefix 'spire-'",
 		},
 		{
 			name: "invalid characters in key",
