@@ -27,7 +27,7 @@ const (
 	// FlagTestFlag is defined purely for testing purposes.
 	FlagTestFlag Flag = "i_am_a_test_flag"
 
-	// FlatWITSVID controls if WIT-SVID and the APIs for it are enabled. When set
+	// FlagWITSVID controls if WIT-SVID and the APIs for it are enabled. When set
 	// to false all WIT-SVID APIs will return Unimplemented.
 	FlagWITSVID Flag = "wit-svid"
 )
