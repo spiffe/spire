@@ -179,7 +179,7 @@ func (a *Agent) Run(ctx context.Context) error {
 
 			if x509util.IsUnknownAuthorityError(err) {
 				if a.c.TrustBundleSources.IsBootstrap() {
-					a.c.Log.Info("Trust Bandle and Server dont agree.... bootstrapping again")
+					a.c.Log.Info("Trust Bundle and Server dont agree.... bootstrapping again")
 				} else if a.c.RebootstrapMode != RebootstrapNever {
 					startTime, err := a.c.TrustBundleSources.GetStartTime()
 					if err != nil {
@@ -189,9 +189,9 @@ func (a *Agent) Run(ctx context.Context) error {
 					if seconds < a.c.RebootstrapDelay {
 						a.c.Log.WithFields(logrus.Fields{
 							"time left": a.c.RebootstrapDelay - seconds,
-						}).Info("Trust Bandle and Server dont agree.... Ignoring for now.")
+						}).Info("Trust Bundle and Server dont agree.... Ignoring for now.")
 					} else {
-						a.c.Log.Warn("Trust Bandle and Server dont agree.... rebootstrapping")
+						a.c.Log.Warn("Trust Bundle and Server dont agree.... rebootstrapping")
 						err = sto.StoreBundle(nil)
 						if err != nil {
 							return err
@@ -397,9 +397,9 @@ func (a *Agent) newManager(ctx context.Context, sto storage.Storage, cat catalog
 			if seconds < a.c.RebootstrapDelay {
 				a.c.Log.WithFields(logrus.Fields{
 					"time left": a.c.RebootstrapDelay - seconds,
-				}).Info("Trust Bandle and Server dont agree.... Ignoring for now.")
+				}).Info("Trust Bundle and Server dont agree.... Ignoring for now.")
 			} else {
-				a.c.Log.Info("Trust Bandle and Server dont agree.... rebootstrapping")
+				a.c.Log.Info("Trust Bundle and Server dont agree.... rebootstrapping")
 				err = a.c.TrustBundleSources.SetForceRebootstrap()
 				if err != nil {
 					return nil, err
