@@ -81,7 +81,7 @@ require (
 	github.com/valyala/fastjson v1.6.4
 	golang.org/x/crypto v0.44.0
 	golang.org/x/exp v0.0.0-20250620022241-b7579e27df2b
-	golang.org/x/net v0.46.0
+	golang.org/x/net v0.47.0
 	golang.org/x/sync v0.18.0
 	golang.org/x/sys v0.38.0
 	golang.org/x/time v0.14.0
