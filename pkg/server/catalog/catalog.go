@@ -273,8 +273,8 @@ func loadSQLDataStore(ctx context.Context, config Config, coreConfig catalog.Cor
 
 	dsLog := config.Log.WithField(telemetry.SubsystemName, sqlConfig.Name)
 	ds := ds_sql.New(dsLog)
-	dsConfigurer := &dsConfigurer{ds: ds}
-	if _, err := catalog.ConfigurePlugin(ctx, coreConfig, dsConfigurer, sqlConfig.DataSource, ""); err != nil {
+	dsConf := &dsConfigurer{ds: ds}
+	if _, err := catalog.ConfigurePlugin(ctx, coreConfig, dsConf, sqlConfig.DataSource, ""); err != nil {
 		return nil, err
 	}
 

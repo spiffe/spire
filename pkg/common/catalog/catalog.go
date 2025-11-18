@@ -255,7 +255,7 @@ func ValidatePluginConfigs(ctx context.Context, config Config, repo Repository) 
 			continue
 		}
 
-		pluginNotesId := fmt.Sprintf("%s \"%s\"", pluginConfig.Type, pluginConfig.Name)
+		pluginNotesID := fmt.Sprintf("%s \"%s\"", pluginConfig.Type, pluginConfig.Name)
 
 		plugin, err := loadPlugin(ctx, pluginRepo.BuiltIns(), pluginConfig, config.Log, config.HostServices)
 		if err != nil {
@@ -270,7 +270,7 @@ func ValidatePluginConfigs(ctx context.Context, config Config, repo Repository) 
 
 		configString, err := GetPluginConfigString(pluginConfig)
 		if err != nil {
-			pluginNotes[pluginNotesId] = append(pluginNotes[pluginNotesId], fmt.Sprintf("failed to read plugin configuration: %s", err))
+			pluginNotes[pluginNotesID] = append(pluginNotes[pluginNotesID], fmt.Sprintf("failed to read plugin configuration: %s", err))
 			continue
 		}
 
@@ -278,11 +278,11 @@ func ValidatePluginConfigs(ctx context.Context, config Config, repo Repository) 
 		if configurer != nil {
 			resp, err := configurer.Validate(ctx, config.CoreConfig, configString)
 			if err != nil && status.Code(err) != codes.Unimplemented {
-				pluginNotes[pluginNotesId] = append(pluginNotes[pluginNotesId], err.Error())
+				pluginNotes[pluginNotesID] = append(pluginNotes[pluginNotesID], err.Error())
 			}
 
 			if resp != nil && len(resp.Notes) != 0 {
-				pluginNotes[pluginNotesId] = append(pluginNotes[pluginNotesId], resp.Notes...)
+				pluginNotes[pluginNotesID] = append(pluginNotes[pluginNotesID], resp.Notes...)
 			}
 		}
 
