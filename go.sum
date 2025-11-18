@@ -1611,8 +1611,8 @@ github.com/spf13/pflag v1.0.10/go.mod h1:McXfInJRrz4CZXVZOBLb0bTZqETkiAhM9Iw0y3A
 github.com/spiffe/go-spiffe/v2 v2.1.6/go.mod h1:eVDqm9xFvyqao6C+eQensb9ZPkyNEeaUbqbBpOhBnNk=
 github.com/spiffe/go-spiffe/v2 v2.6.0 h1:l+DolpxNWYgruGQVV0xsfeya3CsC7m8iBzDnMpsbLuo=
 github.com/spiffe/go-spiffe/v2 v2.6.0/go.mod h1:gm2SeUoMZEtpnzPNs2Csc0D/gX33k1xIx7lEzqblHEs=
-github.com/spiffe/spire-api-sdk v1.2.5-0.20250109200630-101d5e7de758 h1:7zZbXRN0z8IFjx8CQbkK25nypdaFq+ntCiRQGTNfdvY=
-github.com/spiffe/spire-api-sdk v1.2.5-0.20250109200630-101d5e7de758/go.mod h1:4uuhFlN6KBWjACRP3xXwrOTNnvaLp1zJs8Lribtr4fI=
+github.com/spiffe/spire-api-sdk v1.2.5-0.20251107171659-13527c331abf h1:gswN03dlf5H8BgsLRNQHbD8IfzCWQ1j2mgfHOVrOpng=
+github.com/spiffe/spire-api-sdk v1.2.5-0.20251107171659-13527c331abf/go.mod h1:9hXJcMzatM1KwAtBDO3s6HccDCic++/5c2yOc5Iln8Y=
 github.com/spiffe/spire-plugin-sdk v1.4.4-0.20250606112051-68609d83ce7c h1:Y2C0USw8YgFfzZpt/Tm+dYuf0swSbcDy5sOF7FHtCyE=
 github.com/spiffe/spire-plugin-sdk v1.4.4-0.20250606112051-68609d83ce7c/go.mod h1:GA6o2PVLwyJdevT6KKt5ZXCY/ziAPna13y/seGk49Ik=
 github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=

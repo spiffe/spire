@@ -503,6 +503,31 @@ func (s *Service) RevokeX509UpstreamAuthority(ctx context.Context, req *localaut
 	}, nil
 }
 
+func (s *Service) GetWITAuthorityState(ctx context.Context, _ *localauthorityv1.GetWITAuthorityStateRequest) (*localauthorityv1.GetWITAuthorityStateResponse, error) {
+	log := rpccontext.Logger(ctx)
+	return nil, api.MakeErr(log, codes.Unimplemented, "WIT-SVID functionality is not yet implemented", nil)
+}
+
+func (s *Service) PrepareWITAuthority(ctx context.Context, _ *localauthorityv1.PrepareWITAuthorityRequest) (*localauthorityv1.PrepareWITAuthorityResponse, error) {
+	log := rpccontext.Logger(ctx)
+	return nil, api.MakeErr(log, codes.Unimplemented, "WIT-SVID functionality is not yet implemented", nil)
+}
+
+func (s *Service) ActivateWITAuthority(ctx context.Context, req *localauthorityv1.ActivateWITAuthorityRequest) (*localauthorityv1.ActivateWITAuthorityResponse, error) {
+	log := rpccontext.Logger(ctx)
+	return nil, api.MakeErr(log, codes.Unimplemented, "WIT-SVID functionality is not yet implemented", nil)
+}
+
+func (s *Service) TaintWITAuthority(ctx context.Context, req *localauthorityv1.TaintWITAuthorityRequest) (*localauthorityv1.TaintWITAuthorityResponse, error) {
+	log := rpccontext.Logger(ctx)
+	return nil, api.MakeErr(log, codes.Unimplemented, "WIT-SVID functionality is not yet implemented", nil)
+}
+
+func (s *Service) RevokeWITAuthority(ctx context.Context, req *localauthorityv1.RevokeWITAuthorityRequest) (*localauthorityv1.RevokeWITAuthorityResponse, error) {
+	log := rpccontext.Logger(ctx)
+	return nil, api.MakeErr(log, codes.Unimplemented, "WIT-SVID functionality is not yet implemented", nil)
+}
+
 func (s *Service) isJWTSVIDsDisabled() bool {
 	return s.ca.IsJWTSVIDsDisabled()
 }

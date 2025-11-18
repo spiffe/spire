@@ -158,7 +158,7 @@ func (e *entryTest) args(extra ...string) []string {
 }
 
 type fakeEntryServer struct {
-	*entryv1.UnimplementedEntryServer
+	entryv1.UnimplementedEntryServer
 
 	t   *testing.T
 	err error
