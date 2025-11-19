@@ -5,15 +5,18 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
 	nodeattestortest "github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/test"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/azure"
 	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
+	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 )
 
@@ -172,6 +175,56 @@ func (s *IMDSAttestorSuite) TestConfigure() {
 		plugintest.Configure(`tenant_domain = "example.com"`),
 	)
 	s.Require().NoError(err)
+}
+
+func (s *IMDSAttestorSuite) TestValidate() {
+	s.T().Run("valid configuration", func(t *testing.T) {
+		attestor := New()
+
+		resp, err := attestor.Validate(context.Background(), &configv1.ValidateRequest{
+			CoreConfiguration: &configv1.CoreConfiguration{
+				TrustDomain: "example.org",
+			},
+			HclConfiguration: `tenant_domain = "example.com"`,
+		})
+		require.NoError(t, err)
+		require.NotNil(t, resp)
+		require.True(t, resp.Valid)
+	})
+
+	s.T().Run("invalid configuration - malformed HCL", func(t *testing.T) {
+		attestor := New()
+
+		resp, err := attestor.Validate(context.Background(), &configv1.ValidateRequest{
+			CoreConfiguration: &configv1.CoreConfiguration{
+				TrustDomain: "example.org",
+			},
+			HclConfiguration: "blah",
+		})
+		require.NoError(t, err)
+		require.NotNil(t, resp)
+		require.False(t, resp.Valid)
+		require.NotEmpty(t, resp.Notes)
+		notesStr := strings.Join(resp.Notes, " ")
+		require.Contains(t, notesStr, "unable to decode configuration")
+	})
+
+	s.T().Run("invalid configuration - missing tenant_domain", func(t *testing.T) {
+		attestor := New()
+
+		resp, err := attestor.Validate(context.Background(), &configv1.ValidateRequest{
+			CoreConfiguration: &configv1.CoreConfiguration{
+				TrustDomain: "example.org",
+			},
+			HclConfiguration: "",
+		})
+		require.NoError(t, err)
+		require.NotNil(t, resp)
+		require.False(t, resp.Valid)
+		require.NotEmpty(t, resp.Notes)
+		notesStr := strings.Join(resp.Notes, " ")
+		require.Contains(t, notesStr, "tenant_domain is required")
+	})
 }
 
 func (s *IMDSAttestorSuite) loadAttestor(options ...plugintest.Option) nodeattestor.NodeAttestor {

@@ -49,14 +49,16 @@ func TestIMDSAttestorPlugin(t *testing.T) {
 type IMDSAttestorSuite struct {
 	spiretest.Suite
 
-	attestor   nodeattestor.NodeAttestor
-	agentStore *fakeagentstore.AgentStore
-	api        *fakeAPIClient
+	attestor    nodeattestor.NodeAttestor
+	agentStore  *fakeagentstore.AgentStore
+	api         *fakeAPIClient
+	sharedNonce string // Used to share nonce between challenge handler and document validation
 }
 
 func (s *IMDSAttestorSuite) SetupTest() {
 	s.agentStore = fakeagentstore.New()
 	s.api = newFakeAPIClient(s.T())
+	s.sharedNonce = "" // Reset shared nonce for each test
 	s.attestor = s.loadPlugin()
 }
 
@@ -70,8 +72,16 @@ func (s *IMDSAttestorSuite) TestAttestFailsWhenNotConfigured() {
 }
 
 func (s *IMDSAttestorSuite) TestAttestFailsWithMalformedPayload() {
-	payload := []byte("{invalid json")
-	s.requireAttestError(s.T(), payload, codes.InvalidArgument, "nodeattestor(azure_imds): failed to unmarshal data payload")
+	// The malformed payload needs to be in the challenge response, not the initial payload
+	malformedChallengeHandler := func(ctx context.Context, challenge []byte) ([]byte, error) {
+		s.sharedNonce = string(challenge) // Capture nonce even though we'll fail before using it
+		return []byte("{invalid json"), nil
+	}
+	attestor := s.loadPluginWithChallengeHandler(malformedChallengeHandler, nil)
+	payload := []byte("initial")
+	result, err := attestor.Attest(context.Background(), payload, malformedChallengeHandler)
+	spiretest.RequireGRPCStatusContains(s.T(), err, codes.InvalidArgument, "nodeattestor(azure_imds): failed to unmarshal data payload")
+	require.Nil(s.T(), result)
 }
 
 func (s *IMDSAttestorSuite) TestAttestFailsWithDocumentValidationError() {
@@ -124,22 +134,31 @@ func (s *IMDSAttestorSuite) TestAttestFailsWithMissingSubscriptionID() {
 
 func (s *IMDSAttestorSuite) TestAttestFailsWithNonceMismatch() {
 	// Create an attestor that returns a document with wrong nonce
-	attestor := s.loadPluginWithDocValidation(func(ctx context.Context, doc *azure.AttestedDocument) (*azure.AttestedDocumentContent, error) {
+	// Don't capture the nonce in s.sharedNonce so it won't be overridden
+	challengeHandler := func(ctx context.Context, challenge []byte) ([]byte, error) {
+		// Don't set s.sharedNonce so the document validation's wrong nonce won't be overridden
+		return expectChallengeResponse(ctx, challenge)
+	}
+	docValidation := func(ctx context.Context, doc *azure.AttestedDocument) (*azure.AttestedDocumentContent, error) {
 		// Return document with wrong nonce
 		return &azure.AttestedDocumentContent{
 			VMID:           testVMID,
 			SubscriptionID: testSubscriptionID,
 			Nonce:          "wrong-nonce",
 		}, nil
-	})
+	}
+	attestor := s.loadPluginWithChallengeHandler(challengeHandler, docValidation)
 
 	payload := []byte("initial") // Initial payload doesn't matter, challenge will be sent
-	s.requireAttestErrorWithAttestor(s.T(), attestor, payload, codes.InvalidArgument, "nodeattestor(azure_imds): nonce mismatch")
+	result, err := attestor.Attest(context.Background(), payload, challengeHandler)
+	spiretest.RequireGRPCStatusContains(s.T(), err, codes.InvalidArgument, "nodeattestor(azure_imds): nonce mismatch")
+	require.Nil(s.T(), result)
 }
 
 func (s *IMDSAttestorSuite) TestAttestFailsWithUnauthorizedTenant() {
 	// Use a challenge handler that sets unauthorized tenant in metadata
 	unauthorizedChallengeHandler := func(ctx context.Context, challenge []byte) ([]byte, error) {
+		s.sharedNonce = string(challenge)
 		nonce := string(challenge)
 		return makeAttestPayloadWithNonce("signature", testVMID, testSubscriptionID, nonce, "unauthorized.com", nil), nil
 	}
@@ -148,10 +167,14 @@ func (s *IMDSAttestorSuite) TestAttestFailsWithUnauthorizedTenant() {
 	attestorUnauthorized := s.loadPluginWithChallengeHandler(
 		unauthorizedChallengeHandler,
 		func(ctx context.Context, doc *azure.AttestedDocument) (*azure.AttestedDocumentContent, error) {
+			nonce := s.sharedNonce
+			if nonce == "" {
+				nonce = "nonce"
+			}
 			return &azure.AttestedDocumentContent{
 				VMID:           testVMID,
 				SubscriptionID: testSubscriptionID,
-				Nonce:          "nonce",
+				Nonce:          nonce,
 			}, nil
 		},
 		plugintest.Configure(`
@@ -162,7 +185,9 @@ func (s *IMDSAttestorSuite) TestAttestFailsWithUnauthorizedTenant() {
 	)
 
 	payload := []byte("initial")
-	s.requireAttestErrorWithAttestor(s.T(), attestorUnauthorized, payload, codes.PermissionDenied, "nodeattestor(azure_imds): tenant \"unauthorized.com\" is not authorized")
+	result, err := attestorUnauthorized.Attest(context.Background(), payload, unauthorizedChallengeHandler)
+	spiretest.RequireGRPCStatusContains(s.T(), err, codes.PermissionDenied, "nodeattestor(azure_imds): tenant \"unauthorized.com\" is not authorized")
+	require.Nil(s.T(), result)
 }
 
 func (s *IMDSAttestorSuite) TestAttestFailsWhenAttestedBefore() {
@@ -209,7 +234,7 @@ func (s *IMDSAttestorSuite) TestAttestSuccessWithVMSS() {
 	agentID := fmt.Sprintf("spiffe://example.org/spire/agent/azure_imds/%s/%s/%s", testTenantID, testSubscriptionID, testVMID)
 
 	selectorValues := slices.Clone(testVMSelectors)
-	selectorValues = append(selectorValues, "vmss-name:VIRTUALMACHINE")
+	selectorValues = append(selectorValues, fmt.Sprintf("vmss-name:%s", testVMSSName))
 	sort.Strings(selectorValues)
 
 	var expected []*common.Selector
@@ -222,6 +247,7 @@ func (s *IMDSAttestorSuite) TestAttestSuccessWithVMSS() {
 
 	// Create challenge handler that includes VMSS name in metadata
 	vmssChallengeHandler := func(ctx context.Context, challenge []byte) ([]byte, error) {
+		s.sharedNonce = string(challenge)
 		nonce := string(challenge)
 		vmssName := testVMSSName
 		return makeAttestPayloadWithNonce("signature", testVMID, testSubscriptionID, nonce, testTenantDomain, &vmssName), nil
@@ -263,7 +289,8 @@ func (s *IMDSAttestorSuite) TestAttestSuccessWithCustomAgentPathTemplate() {
 	}
 
 	payload := []byte("initial")
-	resp, err := attestorWithCustomTemplate.Attest(context.Background(), payload, expectChallengeResponse)
+	challengeHandler := makeChallengeHandlerWithNonceCapture(&s.sharedNonce, expectChallengeResponse)
+	resp, err := attestorWithCustomTemplate.Attest(context.Background(), payload, challengeHandler)
 	s.Require().NoError(err)
 	s.Require().NotNil(resp)
 	s.Require().Equal(fmt.Sprintf("spiffe://example.org/spire/agent/azure_imds/%s", testTenantID), resp.AgentID)
@@ -276,10 +303,7 @@ func (s *IMDSAttestorSuite) TestConfigure() {
 	}
 
 	s.T().Run("malformed configuration", func(t *testing.T) {
-		attestor := New()
-		attestor.hooks.lookupTenantID = func(string) (string, error) { return testTenantID, nil }
-		attestor.hooks.newClient = func(azcore.TokenCredential) (apiClient, error) { return s.api, nil }
-		attestor.hooks.fetchCredential = func(string) (azcore.TokenCredential, error) { return &fakeAzureCredential{}, nil }
+		attestor := s.newTestAttestor()
 
 		v1 := new(nodeattestor.V1)
 		var err error
@@ -293,10 +317,7 @@ func (s *IMDSAttestorSuite) TestConfigure() {
 	})
 
 	s.T().Run("missing tenants", func(t *testing.T) {
-		attestor := New()
-		attestor.hooks.lookupTenantID = func(string) (string, error) { return testTenantID, nil }
-		attestor.hooks.newClient = func(azcore.TokenCredential) (apiClient, error) { return s.api, nil }
-		attestor.hooks.fetchCredential = func(string) (azcore.TokenCredential, error) { return &fakeAzureCredential{}, nil }
+		attestor := s.newTestAttestor()
 
 		v1 := new(nodeattestor.V1)
 		var err error
@@ -310,10 +331,7 @@ func (s *IMDSAttestorSuite) TestConfigure() {
 	})
 
 	s.T().Run("both secret_auth and token_auth specified", func(t *testing.T) {
-		attestor := New()
-		attestor.hooks.lookupTenantID = func(string) (string, error) { return testTenantID, nil }
-		attestor.hooks.newClient = func(azcore.TokenCredential) (apiClient, error) { return s.api, nil }
-		attestor.hooks.fetchCredential = func(string) (azcore.TokenCredential, error) { return &fakeAzureCredential{}, nil }
+		attestor := s.newTestAttestor()
 
 		v1 := new(nodeattestor.V1)
 		var err error
@@ -340,10 +358,7 @@ func (s *IMDSAttestorSuite) TestConfigure() {
 	})
 
 	s.T().Run("token auth missing token_path", func(t *testing.T) {
-		attestor := New()
-		attestor.hooks.lookupTenantID = func(string) (string, error) { return testTenantID, nil }
-		attestor.hooks.newClient = func(azcore.TokenCredential) (apiClient, error) { return s.api, nil }
-		attestor.hooks.fetchCredential = func(string) (azcore.TokenCredential, error) { return &fakeAzureCredential{}, nil }
+		attestor := s.newTestAttestor()
 
 		v1 := new(nodeattestor.V1)
 		var err error
@@ -365,10 +380,7 @@ func (s *IMDSAttestorSuite) TestConfigure() {
 	})
 
 	s.T().Run("token auth missing app_id", func(t *testing.T) {
-		attestor := New()
-		attestor.hooks.lookupTenantID = func(string) (string, error) { return testTenantID, nil }
-		attestor.hooks.newClient = func(azcore.TokenCredential) (apiClient, error) { return s.api, nil }
-		attestor.hooks.fetchCredential = func(string) (azcore.TokenCredential, error) { return &fakeAzureCredential{}, nil }
+		attestor := s.newTestAttestor()
 
 		v1 := new(nodeattestor.V1)
 		var err error
@@ -390,10 +402,7 @@ func (s *IMDSAttestorSuite) TestConfigure() {
 	})
 
 	s.T().Run("secret auth missing app_id", func(t *testing.T) {
-		attestor := New()
-		attestor.hooks.lookupTenantID = func(string) (string, error) { return testTenantID, nil }
-		attestor.hooks.newClient = func(azcore.TokenCredential) (apiClient, error) { return s.api, nil }
-		attestor.hooks.fetchCredential = func(string) (azcore.TokenCredential, error) { return &fakeAzureCredential{}, nil }
+		attestor := s.newTestAttestor()
 
 		v1 := new(nodeattestor.V1)
 		var err error
@@ -415,10 +424,7 @@ func (s *IMDSAttestorSuite) TestConfigure() {
 	})
 
 	s.T().Run("secret auth missing app_secret", func(t *testing.T) {
-		attestor := New()
-		attestor.hooks.lookupTenantID = func(string) (string, error) { return testTenantID, nil }
-		attestor.hooks.newClient = func(azcore.TokenCredential) (apiClient, error) { return s.api, nil }
-		attestor.hooks.fetchCredential = func(string) (azcore.TokenCredential, error) { return &fakeAzureCredential{}, nil }
+		attestor := s.newTestAttestor()
 
 		v1 := new(nodeattestor.V1)
 		var err error
@@ -440,10 +446,7 @@ func (s *IMDSAttestorSuite) TestConfigure() {
 	})
 
 	s.T().Run("success with default credential", func(t *testing.T) {
-		attestor := New()
-		attestor.hooks.lookupTenantID = func(string) (string, error) { return testTenantID, nil }
-		attestor.hooks.newClient = func(azcore.TokenCredential) (apiClient, error) { return s.api, nil }
-		attestor.hooks.fetchCredential = func(string) (azcore.TokenCredential, error) { return &fakeAzureCredential{}, nil }
+		attestor := s.newTestAttestor()
 
 		v1 := new(nodeattestor.V1)
 		var err error
@@ -461,10 +464,7 @@ func (s *IMDSAttestorSuite) TestConfigure() {
 	})
 
 	s.T().Run("success with secret auth", func(t *testing.T) {
-		attestor := New()
-		attestor.hooks.lookupTenantID = func(string) (string, error) { return testTenantID, nil }
-		attestor.hooks.newClient = func(azcore.TokenCredential) (apiClient, error) { return s.api, nil }
-		attestor.hooks.fetchCredential = func(string) (azcore.TokenCredential, error) { return &fakeAzureCredential{}, nil }
+		attestor := s.newTestAttestor()
 
 		v1 := new(nodeattestor.V1)
 		var err error
@@ -487,10 +487,7 @@ func (s *IMDSAttestorSuite) TestConfigure() {
 	})
 
 	s.T().Run("success with token auth", func(t *testing.T) {
-		attestor := New()
-		attestor.hooks.lookupTenantID = func(string) (string, error) { return testTenantID, nil }
-		attestor.hooks.newClient = func(azcore.TokenCredential) (apiClient, error) { return s.api, nil }
-		attestor.hooks.fetchCredential = func(string) (azcore.TokenCredential, error) { return &fakeAzureCredential{}, nil }
+		attestor := s.newTestAttestor()
 
 		v1 := new(nodeattestor.V1)
 		var err error
@@ -513,15 +510,13 @@ func (s *IMDSAttestorSuite) TestConfigure() {
 	})
 
 	s.T().Run("success with multiple tenants", func(t *testing.T) {
-		attestor := New()
+		attestor := s.newTestAttestor()
 		attestor.hooks.lookupTenantID = func(domain string) (string, error) {
 			if domain == "example.com" {
 				return testTenantID, nil
 			}
 			return "TENANTID2", nil
 		}
-		attestor.hooks.newClient = func(azcore.TokenCredential) (apiClient, error) { return s.api, nil }
-		attestor.hooks.fetchCredential = func(string) (azcore.TokenCredential, error) { return &fakeAzureCredential{}, nil }
 
 		v1 := new(nodeattestor.V1)
 		var err error
@@ -546,26 +541,21 @@ func (s *IMDSAttestorSuite) TestValidate() {
 	}
 
 	s.T().Run("invalid configuration", func(t *testing.T) {
-		attestor := New()
-		attestor.hooks.lookupTenantID = func(string) (string, error) { return testTenantID, nil }
-		attestor.hooks.newClient = func(azcore.TokenCredential) (apiClient, error) { return s.api, nil }
-		attestor.hooks.fetchCredential = func(string) (azcore.TokenCredential, error) { return &fakeAzureCredential{}, nil }
+		attestor := s.newTestAttestor()
 
+		// Load with valid config first
 		plugintest.Load(t, builtin(attestor), nil,
 			plugintest.HostServices(agentstorev1.AgentStoreServiceServer(s.agentStore)),
 			plugintest.CoreConfig(coreConfig),
 			plugintest.Configure(`
 				tenants = {
-					"example.com" = {
-						secret_auth = {
-							app_id = "APPID"
-						}
-					}
+					"example.com" = {}
 				}
 			`),
 			plugintest.CaptureLoadError(nil),
 		)
 
+		// Then test Validate with invalid config
 		resp, err := attestor.Validate(context.Background(), &configv1.ValidateRequest{
 			HclConfiguration: "blah",
 		})
@@ -576,10 +566,7 @@ func (s *IMDSAttestorSuite) TestValidate() {
 	})
 
 	s.T().Run("valid configuration", func(t *testing.T) {
-		attestor := New()
-		attestor.hooks.lookupTenantID = func(string) (string, error) { return testTenantID, nil }
-		attestor.hooks.newClient = func(azcore.TokenCredential) (apiClient, error) { return s.api, nil }
-		attestor.hooks.fetchCredential = func(string) (azcore.TokenCredential, error) { return &fakeAzureCredential{}, nil }
+		attestor := s.newTestAttestor()
 
 		plugintest.Load(t, builtin(attestor), nil,
 			plugintest.HostServices(agentstorev1.AgentStoreServiceServer(s.agentStore)),
@@ -593,6 +580,9 @@ func (s *IMDSAttestorSuite) TestValidate() {
 		)
 
 		resp, err := attestor.Validate(context.Background(), &configv1.ValidateRequest{
+			CoreConfiguration: &configv1.CoreConfiguration{
+				TrustDomain: "example.org",
+			},
 			HclConfiguration: `
 				tenants = {
 					"example.com" = {}
@@ -606,7 +596,8 @@ func (s *IMDSAttestorSuite) TestValidate() {
 }
 
 func (s *IMDSAttestorSuite) requireAttestSuccess(payload []byte, expectID string, expectSelectors []*common.Selector) {
-	resp, err := s.attestor.Attest(context.Background(), payload, expectChallengeResponse)
+	challengeHandler := makeChallengeHandlerWithNonceCapture(&s.sharedNonce, expectChallengeResponse)
+	resp, err := s.attestor.Attest(context.Background(), payload, challengeHandler)
 	s.Require().NoError(err)
 	s.Require().NotNil(resp)
 	s.Require().Equal(expectID, resp.AgentID)
@@ -618,7 +609,8 @@ func (s *IMDSAttestorSuite) requireAttestError(t *testing.T, payload []byte, exp
 }
 
 func (s *IMDSAttestorSuite) requireAttestErrorWithAttestor(t *testing.T, attestor nodeattestor.NodeAttestor, payload []byte, expectCode codes.Code, expectMsg string) {
-	result, err := attestor.Attest(context.Background(), payload, expectChallengeResponse)
+	challengeHandler := makeChallengeHandlerWithNonceCapture(&s.sharedNonce, expectChallengeResponse)
+	result, err := attestor.Attest(context.Background(), payload, challengeHandler)
 	spiretest.RequireGRPCStatusContains(t, err, expectCode, expectMsg)
 	require.Nil(t, result)
 }
@@ -632,14 +624,12 @@ func (s *IMDSAttestorSuite) loadPlugin(options ...plugintest.Option) nodeattesto
 }
 
 func (s *IMDSAttestorSuite) loadPluginWithConfig(config string, options ...plugintest.Option) nodeattestor.NodeAttestor {
-	// Use a shared variable to pass nonce from challenge to document validation
-	var sharedNonce string
 	challengeHandler := func(ctx context.Context, challenge []byte) ([]byte, error) {
-		sharedNonce = string(challenge)
+		s.sharedNonce = string(challenge)
 		return expectChallengeResponse(ctx, challenge)
 	}
 	docValidation := func(ctx context.Context, doc *azure.AttestedDocument) (*azure.AttestedDocumentContent, error) {
-		nonce := sharedNonce
+		nonce := s.sharedNonce
 		if nonce == "" {
 			nonce = "nonce" // fallback for tests that don't use challenge
 		}
@@ -659,31 +649,41 @@ func (s *IMDSAttestorSuite) loadPluginWithChallengeHandler(
 	docValidationFn func(context.Context, *azure.AttestedDocument) (*azure.AttestedDocumentContent, error),
 	options ...plugintest.Option,
 ) nodeattestor.NodeAttestor {
-	attestor := New()
+	attestor := s.newTestAttestor()
 	attestor.hooks.lookupTenantID = func(domain string) (string, error) {
 		if domain == "example.com" {
 			return testTenantID, nil
 		}
 		return domain, nil
 	}
-	attestor.hooks.newClient = func(azcore.TokenCredential) (apiClient, error) {
-		return s.api, nil
-	}
-	attestor.hooks.fetchCredential = func(_ string) (azcore.TokenCredential, error) {
-		return &fakeAzureCredential{}, nil
-	}
 	if docValidationFn != nil {
-		attestor.hooks.validateAttestedDoc = docValidationFn
-	} else {
-		// Default: use a simple document validation
+		// Wrap the provided validation function to ensure it uses the correct nonce
 		attestor.hooks.validateAttestedDoc = func(ctx context.Context, doc *azure.AttestedDocument) (*azure.AttestedDocumentContent, error) {
+			content, err := docValidationFn(ctx, doc)
+			if err != nil {
+				return nil, err
+			}
+			// Override the nonce with the one from the challenge
+			if content != nil && s.sharedNonce != "" {
+				content.Nonce = s.sharedNonce
+			}
+			return content, nil
+		}
+	} else {
+		// Default: use a simple document validation with the nonce from challenge
+		attestor.hooks.validateAttestedDoc = func(ctx context.Context, doc *azure.AttestedDocument) (*azure.AttestedDocumentContent, error) {
+			nonce := "nonce" // fallback
+			if s.sharedNonce != "" {
+				nonce = s.sharedNonce
+			}
 			return &azure.AttestedDocumentContent{
 				VMID:           testVMID,
 				SubscriptionID: testSubscriptionID,
-				Nonce:          "nonce", // This should be overridden by the challenge handler
+				Nonce:          nonce,
 			}, nil
 		}
 	}
+	_ = challengeFn // challengeFn is used by individual tests, not stored here
 
 	v1 := new(nodeattestor.V1)
 	plugintest.Load(s.T(), builtin(attestor), v1, append([]plugintest.Option{
@@ -701,7 +701,27 @@ func (s *IMDSAttestorSuite) loadPluginWithChallengeHandler(
 }
 
 func (s *IMDSAttestorSuite) loadPluginWithDocValidation(validateFunc func(context.Context, *azure.AttestedDocument) (*azure.AttestedDocumentContent, error)) nodeattestor.NodeAttestor {
-	return s.loadPluginWithChallengeHandler(expectChallengeResponse, validateFunc)
+	challengeHandler := func(ctx context.Context, challenge []byte) ([]byte, error) {
+		s.sharedNonce = string(challenge)
+		return expectChallengeResponse(ctx, challenge)
+	}
+	docValidation := func(ctx context.Context, doc *azure.AttestedDocument) (*azure.AttestedDocumentContent, error) {
+		nonce := s.sharedNonce
+		if nonce == "" {
+			nonce = "nonce" // fallback for tests that don't use challenge
+		}
+		// Call the provided validation function, but ensure it uses the correct nonce
+		content, err := validateFunc(ctx, doc)
+		if err != nil {
+			return nil, err
+		}
+		// Override the nonce with the one from the challenge
+		if content != nil {
+			content.Nonce = nonce
+		}
+		return content, nil
+	}
+	return s.loadPluginWithChallengeHandler(challengeHandler, docValidation)
 }
 
 func (s *IMDSAttestorSuite) setVirtualMachine(vm *VirtualMachine) {
@@ -710,6 +730,14 @@ func (s *IMDSAttestorSuite) setVirtualMachine(vm *VirtualMachine) {
 
 func (s *IMDSAttestorSuite) setVMSSInstance(vm *VirtualMachine) {
 	s.api.SetVMSSInstance(testVMID, testSubscriptionID, testVMSSName, vm)
+}
+
+func (s *IMDSAttestorSuite) newTestAttestor() *IMDSAttestorPlugin {
+	attestor := New()
+	attestor.hooks.lookupTenantID = func(string) (string, error) { return testTenantID, nil }
+	attestor.hooks.newClient = func(azcore.TokenCredential) (apiClient, error) { return s.api, nil }
+	attestor.hooks.fetchCredential = func(string) (azcore.TokenCredential, error) { return &fakeAzureCredential{}, nil }
+	return attestor
 }
 
 type fakeAPIClient struct {
@@ -790,4 +818,21 @@ func expectChallengeResponse(ctx context.Context, challenge []byte) ([]byte, err
 	// Create attestation payload with the nonce embedded
 	// The document validation mock will extract this nonce
 	return makeAttestPayloadWithNonce("signature", testVMID, testSubscriptionID, nonce, testTenantDomain, nil), nil
+}
+
+// makeChallengeHandlerWithNonceCapture creates a challenge handler that captures the nonce
+// and stores it in the provided storage pointer, then calls the underlying handler
+func makeChallengeHandlerWithNonceCapture(
+	storage *string,
+	underlying func(context.Context, []byte) ([]byte, error),
+) func(context.Context, []byte) ([]byte, error) {
+	return func(ctx context.Context, challenge []byte) ([]byte, error) {
+		if storage != nil {
+			*storage = string(challenge)
+		}
+		if underlying != nil {
+			return underlying(ctx, challenge)
+		}
+		return expectChallengeResponse(ctx, challenge)
+	}
 }
