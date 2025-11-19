@@ -22,12 +22,15 @@ attestation or to resolve selectors.
 
 Each tenant in the main configuration supports the following
 
-| Configuration           | Required                                       | Description                                                       | Default |
-| ----------------------- | ---------------------------------------------- | ----------------------------------------------------------------- | ------- |
-| `secret_auth`           | [Optional](#secret-authentication-secret_auth) | Authenticate using an AppReg AppID and AppSecret                  |         |
-| `token_auth`            | [Optional](#token-authentication-token_auth)   | Authenticate using a AppReg AppID and JWT token stored on disk    |         |
-| `allowed_subscriptions` | [Optional](#authenticating-to-azure)           | A list of allowed subscriptions for the tenant                    |         |
-| `allowed_vm_tags`       | [Optional](#authenticating-to-azure)           | A list of allowed VM tags for the tenant to be used for selectors |         |
+| Configuration               | Required                                       | Description                                                                                           | Default |
+| --------------------------- | ---------------------------------------------- | ----------------------------------------------------------------------------------------------------- | ------- |
+| `secret_auth`               | [Optional](#secret-authentication-secret_auth) | Authenticate using an AppReg AppID and AppSecret                                                      |         |
+| `token_auth`                | [Optional](#token-authentication-token_auth)   | Authenticate using a AppReg AppID and JWT token stored on disk                                        |         |
+| `restrict_to_subscriptions` | [Optional](#authenticating-to-azure)           | Restricts attestation to the listed subscription IDs. Leave unset or empty to allow any subscription. |         |
+| `allowed_vm_tags`           | [Optional](#authenticating-to-azure)           | A list of allowed VM tags for the tenant to be used for selectors                                     |         |
+
+If `restrict_to_subscriptions` is provided, any attestation attempt from a subscription ID
+not present in the list is rejected before selector resolution occurs.
 
 ### Secret Authentication (`secret_auth`)
 
@@ -75,7 +78,7 @@ NodeAttestor "azure_imds" {
     plugin_data {
         tenants = {
             "onmicrosoft.com" = {
-                allowed_subscriptions = ["d5b40d61-272e-48da-beb9-05f295c42bd6"]
+                restrict_to_subscriptions = ["d5b40d61-272e-48da-beb9-05f295c42bd6"]
             }
         }
     }
@@ -95,7 +98,7 @@ NodeAttestor "azure_imds" {
                     app_id = "12345678-1234-1234-1234-123456789012"
                     app_secret = "your-application-secret"
                 }
-                allowed_subscriptions = ["d5b40d61-272e-48da-beb9-05f295c42bd6"]
+                restrict_to_subscriptions = ["d5b40d61-272e-48da-beb9-05f295c42bd6"]
             }
         }
     }
@@ -115,7 +118,7 @@ NodeAttestor "azure_imds" {
                     app_id = "12345678-1234-1234-1234-123456789012"
                     token_path = "/var/lib/spire/azure-token"
                 }
-                allowed_subscriptions = ["d5b40d61-272e-48da-beb9-05f295c42bd6"]
+                restrict_to_subscriptions = ["d5b40d61-272e-48da-beb9-05f295c42bd6"]
             }
         }
     }
@@ -135,7 +138,7 @@ NodeAttestor "azure_imds" {
                     app_id = "12345678-1234-1234-1234-123456789012"
                     app_secret = "production-secret"
                 }
-                allowed_subscriptions = [
+                restrict_to_subscriptions = [
                     "d5b40d61-272e-48da-beb9-05f295c42bd6",
                     "a1b2c3d4-5678-9012-3456-789012345678"
                 ]
@@ -149,7 +152,7 @@ NodeAttestor "azure_imds" {
                     app_id = "87654321-4321-4321-4321-210987654321"
                     token_path = "/var/lib/spire/staging-token"
                 }
-                allowed_subscriptions = ["e2f3g4h5-6789-0123-4567-890123456789"]
+                restrict_to_subscriptions = ["e2f3g4h5-6789-0123-4567-890123456789"]
                 allowed_vm_tags = [
                     "environment"
                 ]
@@ -168,7 +171,7 @@ NodeAttestor "azure_imds" {
     plugin_data {
         tenants = {
             "example.onmicrosoft.com" = {
-                allowed_subscriptions = ["d5b40d61-272e-48da-beb9-05f295c42bd6"]
+                restrict_to_subscriptions = ["d5b40d61-272e-48da-beb9-05f295c42bd6"]
             }
         }
         agent_path_template = "/{{ .PluginName }}/{{ .TenantID }}/{{ .SubscriptionID }}/{{ .VMID }}/custom"
