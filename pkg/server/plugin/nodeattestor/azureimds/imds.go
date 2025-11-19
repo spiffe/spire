@@ -270,15 +270,16 @@ func (p *IMDSAttestorPlugin) Attest(stream nodeattestorv1.NodeAttestor_AttestSer
 		return status.Errorf(codes.InvalidArgument, "failed to validate attested document: %v", err)
 	}
 
+	validationError := validateUUID(docData.VMID)
 	switch {
 	case docData.VMID == "":
 		return status.Errorf(codes.InvalidArgument, "missing VM ID in attested document")
-	case validateUUID(docData.VMID) != nil:
-		return status.Errorf(codes.InvalidArgument, "invalid VM ID: %v", err)
 	case docData.SubscriptionID == "":
 		return status.Errorf(codes.InvalidArgument, "missing subscription ID in attested document")
 	case docData.Nonce != nonce:
 		return status.Errorf(codes.InvalidArgument, "nonce mismatch")
+	case validationError != nil:
+		return status.Errorf(codes.InvalidArgument, "invalid VM ID: %v", validationError)
 	}
 
 	untrustedMetadata := attestationData.Metadata
