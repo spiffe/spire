@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"sort"
+	"strings"
 	"sync"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -49,11 +50,11 @@ type TokenAuthConfig struct {
 }
 
 type TenantConfig struct {
-	AuthType             string            `hcl:"auth_type" json:"auth_type"`
-	SecretAuth           *SecretAuthConfig `hcl:"secret_auth" json:"secret_auth"`
-	TokenAuth            *TokenAuthConfig  `hcl:"token_auth" json:"token_auth"`
-	AllowedTags          []string          `hcl:"allowed_vm_tags" json:"allowed_vm_tags"`
-	AllowedSubscriptions []*string         `hcl:"allowed_subscriptions" json:"allowed_subscriptions"`
+	AuthType                string            `hcl:"auth_type" json:"auth_type"`
+	SecretAuth              *SecretAuthConfig `hcl:"secret_auth" json:"secret_auth"`
+	TokenAuth               *TokenAuthConfig  `hcl:"token_auth" json:"token_auth"`
+	AllowedTags             []string          `hcl:"allowed_vm_tags" json:"allowed_vm_tags"`
+	RestrictToSubscriptions []*string         `hcl:"restrict_to_subscriptions" json:"restrict_to_subscriptions"`
 }
 
 type IMDSAttestorConfig struct {
@@ -62,15 +63,23 @@ type IMDSAttestorConfig struct {
 }
 
 type tenantConfig struct {
-	client               apiClient
-	allowedTags          map[string]struct{}
-	allowedSubscriptions []*string
+	client                  apiClient
+	allowedTags             map[string]struct{}
+	restrictToSubscriptions map[string]struct{}
 }
 
 type imdsAttestorConfig struct {
 	td             spiffeid.TrustDomain
 	tenants        map[string]*tenantConfig
 	idPathTemplate *agentpathtemplate.Template
+}
+
+func (t *tenantConfig) subscriptionAllowed(subscriptionID string) bool {
+	if len(t.restrictToSubscriptions) == 0 {
+		return true
+	}
+	_, ok := t.restrictToSubscriptions[subscriptionID]
+	return ok
 }
 
 func (p *IMDSAttestorPlugin) buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *imdsAttestorConfig {
@@ -156,10 +165,24 @@ func (p *IMDSAttestorPlugin) buildConfig(coreConfig catalog.CoreConfig, hclText 
 			allowedTags[tag] = struct{}{}
 		}
 
+		restrictToSubscriptions := make(map[string]struct{})
+		for _, subscription := range tenant.RestrictToSubscriptions {
+			if subscription == nil {
+				status.ReportErrorf("misconfigured tenant %q: restrict_to_subscriptions entries must be non-empty", tenantID)
+				continue
+			}
+			value := strings.TrimSpace(*subscription)
+			if value == "" {
+				status.ReportErrorf("misconfigured tenant %q: restrict_to_subscriptions entries must be non-empty", tenantID)
+				continue
+			}
+			restrictToSubscriptions[value] = struct{}{}
+		}
+
 		tenants[tenantDomain] = &tenantConfig{
-			allowedSubscriptions: tenant.AllowedSubscriptions,
-			allowedTags:          allowedTags,
-			client:               client,
+			restrictToSubscriptions: restrictToSubscriptions,
+			allowedTags:             allowedTags,
+			client:                  client,
 		}
 	}
 
@@ -291,6 +314,14 @@ func (p *IMDSAttestorPlugin) Attest(stream nodeattestorv1.NodeAttestor_AttestSer
 	}
 	docData.TenantID = tenantID
 
+	tenant, ok := config.tenants[untrustedMetadata.AgentDomain]
+	if !ok {
+		return status.Errorf(codes.PermissionDenied, "tenant %q is not authorized", untrustedMetadata.AgentDomain)
+	}
+	if !tenant.subscriptionAllowed(docData.SubscriptionID) {
+		return status.Errorf(codes.PermissionDenied, "subscription %q is not authorized", docData.SubscriptionID)
+	}
+
 	// Before doing the work to validate the token, ensure that the vmID has not already been used.
 	agentID, err := azure.MakeIMDSAgentID(config.td, config.idPathTemplate, docData)
 	if err != nil {
@@ -301,13 +332,8 @@ func (p *IMDSAttestorPlugin) Attest(stream nodeattestorv1.NodeAttestor_AttestSer
 		return err
 	}
 
-	tenant, ok := config.tenants[untrustedMetadata.AgentDomain]
-	if !ok {
-		return status.Errorf(codes.PermissionDenied, "tenant %q is not authorized", untrustedMetadata.AgentDomain)
-	}
-
 	var selectorValues []string
-	selectorValues, err = buildSelectors(stream.Context(), tenant, untrustedMetadata.VMSSName, docData.VMID, docData.SubscriptionID, tenant.allowedSubscriptions)
+	selectorValues, err = buildSelectors(stream.Context(), tenant, untrustedMetadata.VMSSName, docData.VMID, docData.SubscriptionID)
 	if err != nil {
 		return err
 	}
@@ -353,7 +379,7 @@ func (p *IMDSAttestorPlugin) getConfig() (*imdsAttestorConfig, error) {
 	}
 	return p.config, nil
 }
-func buildSelectors(ctx context.Context, tenant *tenantConfig, vmssName *string, vmID string, subscriptionID string, allowedSubscriptions []*string) ([]string, error) {
+func buildSelectors(ctx context.Context, tenant *tenantConfig, vmssName *string, vmID string, subscriptionID string) ([]string, error) {
 	client := tenant.client
 	// build up a unique map of selectors. this is easier than deduping
 	// individual selectors (e.g. the virtual network for each interface)
