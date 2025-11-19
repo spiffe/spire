@@ -318,6 +318,7 @@ func (p *IMDSAttestorPlugin) Attest(stream nodeattestorv1.NodeAttestor_AttestSer
 	if !ok {
 		return status.Errorf(codes.PermissionDenied, "tenant %q is not authorized", untrustedMetadata.AgentDomain)
 	}
+
 	if !tenant.subscriptionAllowed(docData.SubscriptionID) {
 		return status.Errorf(codes.PermissionDenied, "subscription %q is not authorized", docData.SubscriptionID)
 	}

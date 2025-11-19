@@ -195,6 +195,19 @@ func (s *IMDSAttestorSuite) TestAttestFailsWhenVMNotFound() {
 	s.requireAttestError(s.T(), payload, codes.Unknown, "not found")
 }
 
+func (s *IMDSAttestorSuite) TestAttestFailsWithDisallowedSubscription() {
+	s.attestor = s.loadPluginWithConfig(`
+		tenants = {
+			"example.com" = {
+				restrict_to_subscriptions = ["another-subscription"]
+			}
+		}
+	`)
+
+	payload := []byte("initial")
+	s.requireAttestError(s.T(), payload, codes.PermissionDenied, `nodeattestor(azure_imds): subscription "SUBSCRIPTIONID" is not authorized`)
+}
+
 func (s *IMDSAttestorSuite) TestAttestSuccessWithRegularVM() {
 	s.setVirtualMachine(&VirtualMachine{
 		Name:          "VIRTUALMACHINE",
@@ -255,6 +268,38 @@ func (s *IMDSAttestorSuite) TestAttestSuccessWithVMSS() {
 	s.Require().NotNil(resp)
 	s.Require().Equal(agentID, resp.AgentID)
 	s.RequireProtoListEqual(expected, resp.Selectors)
+}
+
+func (s *IMDSAttestorSuite) TestAttestSuccessWithRestrictedSubscription() {
+	s.setVirtualMachine(&VirtualMachine{
+		Name:          "VIRTUALMACHINE",
+		Location:      "westus",
+		ResourceGroup: "RESOURCEGROUP",
+	})
+
+	s.attestor = s.loadPluginWithConfig(`
+		tenants = {
+			"example.com" = {
+				restrict_to_subscriptions = ["` + testSubscriptionID + `"]
+			}
+		}
+	`)
+
+	agentID := fmt.Sprintf("spiffe://example.org/spire/agent/azure_imds/%s/%s/%s", testTenantID, testSubscriptionID, testVMID)
+
+	selectorValues := slices.Clone(testVMSelectors)
+	sort.Strings(selectorValues)
+
+	var expected []*common.Selector
+	for _, selectorValue := range selectorValues {
+		expected = append(expected, &common.Selector{
+			Type:  "azure_imds",
+			Value: selectorValue,
+		})
+	}
+
+	payload := []byte("initial")
+	s.requireAttestSuccess(payload, agentID, expected)
 }
 
 func (s *IMDSAttestorSuite) TestAttestFailsWhenVMSSInstanceNotFound() {
