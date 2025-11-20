@@ -145,7 +145,7 @@ func (p *Plugin) Validate(_ context.Context, req *configv1.ValidateRequest) (res
 	return &configv1.ValidateResponse{
 		Valid: err == nil,
 		Notes: notes,
-	}, err
+	}, nil
 }
 
 func (p *Plugin) getConfig() (*configuration, error) {

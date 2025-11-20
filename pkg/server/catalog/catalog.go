@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 
 	"github.com/andres-erbsen/clock"
 	"github.com/sirupsen/logrus"
@@ -13,6 +14,7 @@ import (
 	metricsv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/hostservice/common/metrics/v1"
 	agentstorev1 "github.com/spiffe/spire-plugin-sdk/proto/spire/hostservice/server/agentstore/v1"
 	identityproviderv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/hostservice/server/identityprovider/v1"
+	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/health"
 	"github.com/spiffe/spire/pkg/common/hostservice/metricsservice"
@@ -82,6 +84,18 @@ type Repository struct {
 	log      logrus.FieldLogger
 	dsCloser io.Closer
 	catalog  *catalog.Catalog
+}
+
+type dsConfigurer struct {
+	ds *ds_sql.Plugin
+}
+
+func (c *dsConfigurer) Configure(ctx context.Context, _ catalog.CoreConfig, configuration string) error {
+	return c.ds.Configure(ctx, configuration)
+}
+
+func (c *dsConfigurer) Validate(ctx context.Context, coreConfig catalog.CoreConfig, configuration string) (*configv1.ValidateResponse, error) {
+	return c.ds.Validate(ctx, coreConfig, configuration)
 }
 
 func (repo *Repository) Plugins() map[string]catalog.PluginRepo {
@@ -180,6 +194,63 @@ func Load(ctx context.Context, config Config) (_ *Repository, err error) {
 	return repo, nil
 }
 
+func ValidateConfig(ctx context.Context, config Config) (pluginNotes map[string][]string, err error) {
+	if c, ok := config.PluginConfigs.Find(nodeAttestorType, jointoken.PluginName); ok && c.IsEnabled() && c.IsExternal() {
+		return nil, errors.New("the built-in join_token node attestor cannot be overridden by an external plugin")
+	}
+
+	repo := &Repository{
+		log: config.Log,
+	}
+	defer func() {
+		repo.Close()
+	}()
+
+	coreConfig := catalog.CoreConfig{
+		TrustDomain: config.TrustDomain,
+	}
+
+	pluginNotes = make(map[string][]string)
+	dataStoreConfigs, pluginConfigs := config.PluginConfigs.FilterByType(dataStoreType)
+	datastorePluginId := fmt.Sprintf("%s \"%s\"", dataStoreType, "sql")
+	if len(dataStoreConfigs) == 0 {
+		pluginNotes[datastorePluginId] = append(pluginNotes[datastorePluginId], "'datastore' must be configured")
+	} else {
+		dsConfigString, err := catalog.GetPluginConfigString(dataStoreConfigs[0])
+		if err != nil {
+			return nil, fmt.Errorf("failed to get DataStore configuration: %w", err)
+		}
+
+		ds := ds_sql.New(config.Log)
+		resp, err := ds.Validate(ctx, coreConfig, dsConfigString)
+		if err != nil {
+			pluginNotes[datastorePluginId] = append(pluginNotes[datastorePluginId], err.Error())
+		}
+		if resp != nil && len(resp.Notes) != 0 {
+			pluginNotes[datastorePluginId] = append(pluginNotes[datastorePluginId], resp.Notes...)
+		}
+
+		repo.dsCloser = ds
+	}
+
+	validateResp, err := catalog.ValidatePluginConfigs(ctx, catalog.Config{
+		Log:           config.Log,
+		CoreConfig:    coreConfig,
+		PluginConfigs: pluginConfigs,
+		HostServices: []pluginsdk.ServiceServer{
+			identityproviderv1.IdentityProviderServiceServer(config.IdentityProvider.V1()),
+			agentstorev1.AgentStoreServiceServer(config.AgentStore.V1()),
+			metricsv1.MetricsServiceServer(metricsservice.V1(config.Metrics)),
+		},
+	}, repo)
+
+	if validateResp != nil {
+		maps.Copy(pluginNotes, validateResp)
+	}
+
+	return pluginNotes, err
+}
+
 func loadSQLDataStore(ctx context.Context, config Config, coreConfig catalog.CoreConfig, datastoreConfigs catalog.PluginConfigs) (*ds_sql.Plugin, error) {
 	switch {
 	case len(datastoreConfigs) == 0:
@@ -202,11 +273,8 @@ func loadSQLDataStore(ctx context.Context, config Config, coreConfig catalog.Cor
 
 	dsLog := config.Log.WithField(telemetry.SubsystemName, sqlConfig.Name)
 	ds := ds_sql.New(dsLog)
-	configurer := catalog.ConfigurerFunc(func(ctx context.Context, _ catalog.CoreConfig, configuration string) error {
-		return ds.Configure(ctx, configuration)
-	})
-
-	if _, err := catalog.ConfigurePlugin(ctx, coreConfig, configurer, sqlConfig.DataSource, ""); err != nil {
+	dsConf := &dsConfigurer{ds: ds}
+	if _, err := catalog.ConfigurePlugin(ctx, coreConfig, dsConf, sqlConfig.DataSource, ""); err != nil {
 		return nil, err
 	}
 
