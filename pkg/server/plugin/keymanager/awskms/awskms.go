@@ -244,7 +244,7 @@ func (p *Plugin) Validate(ctx context.Context, req *configv1.ValidateRequest) (*
 	return &configv1.ValidateResponse{
 		Valid: err == nil,
 		Notes: notes,
-	}, err
+	}, nil
 }
 
 // GenerateKey creates a key in KMS. If a key already exists in the local storage, it is updated.

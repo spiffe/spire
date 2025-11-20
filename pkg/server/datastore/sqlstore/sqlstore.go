@@ -24,7 +24,9 @@ import (
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
+	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
+	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/protoutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/x509util"
@@ -864,6 +866,40 @@ func (ds *Plugin) Configure(_ context.Context, hclConfiguration string) error {
 	}
 
 	return ds.openConnections(config)
+}
+
+func (ds *Plugin) Validate(ctx context.Context, coreConfig catalog.CoreConfig, configuration string) (*configv1.ValidateResponse, error) {
+	config, err := buildConfig(configuration)
+	if err != nil {
+		return &configv1.ValidateResponse{
+			Notes: []string{err.Error()},
+		}, err
+	}
+	err = config.Validate()
+	if err != nil {
+		return &configv1.ValidateResponse{
+			Notes: []string{err.Error()},
+		}, err
+	}
+
+	return &configv1.ValidateResponse{
+		Valid: true,
+	}, nil
+}
+
+func buildConfig(hclConfiguration string) (*configuration, error) {
+	config := &configuration{}
+	if err := hcl.Decode(config, hclConfiguration); err != nil {
+		return nil, err
+	}
+
+	dbTypeConfig, err := parseDatabaseTypeASTNode(config.DatabaseTypeNode)
+	if err != nil {
+		return nil, err
+	}
+
+	config.databaseTypeConfig = dbTypeConfig
+	return config, nil
 }
 
 func (ds *Plugin) openConnections(config *configuration) error {

@@ -288,7 +288,7 @@ func (p *AttestorPlugin) Validate(ctx context.Context, req *configv1.ValidateReq
 	return &configv1.ValidateResponse{
 		Valid: err == nil,
 		Notes: notes,
-	}, err
+	}, nil
 }
 
 func (p *AttestorPlugin) getConfig() (*attestorConfig, error) {
