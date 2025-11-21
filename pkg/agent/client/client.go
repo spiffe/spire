@@ -43,7 +43,12 @@ var (
 	}
 )
 
-const rpcTimeout = 30 * time.Second
+const (
+	rpcTimeout = 30 * time.Second
+	// We can be more aggressive with timeouts in cases where a valid SVID
+	// exists in the cache but is old enough to try for a new SVID quickly
+	rpcTimeoutWithCacheHit = 1 * time.Second
+)
 
 type X509SVID struct {
 	CertChain []byte
@@ -77,7 +82,7 @@ type Client interface {
 	SyncUpdates(ctx context.Context, cachedEntries map[string]*common.RegistrationEntry, cachedBundles map[string]*common.Bundle) (SyncStats, error)
 	RenewSVID(ctx context.Context, csr []byte) (*X509SVID, error)
 	NewX509SVIDs(ctx context.Context, csrs map[string][]byte) (map[string]*X509SVID, error)
-	NewJWTSVID(ctx context.Context, entryID string, audience []string) (*JWTSVID, error)
+	NewJWTSVID(ctx context.Context, entryID string, audience []string, hasCacheHit bool) (*JWTSVID, error)
 
 	// Release releases any resources that were held by this Client, if any.
 	Release()
@@ -302,11 +307,16 @@ func (c *client) NewX509SVIDs(ctx context.Context, csrs map[string][]byte) (map[
 	return svids, nil
 }
 
-func (c *client) NewJWTSVID(ctx context.Context, entryID string, audience []string) (*JWTSVID, error) {
+func (c *client) NewJWTSVID(ctx context.Context, entryID string, audience []string, hasCacheHit bool) (*JWTSVID, error) {
 	c.c.RotMtx.RLock()
 	defer c.c.RotMtx.RUnlock()
 
-	ctx, cancel := context.WithTimeout(ctx, rpcTimeout)
+	timeout := rpcTimeout
+	if hasCacheHit {
+		timeout = rpcTimeoutWithCacheHit
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
 	svidClient, connection, err := c.newSVIDClient()

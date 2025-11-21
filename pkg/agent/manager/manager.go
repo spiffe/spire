@@ -298,7 +298,7 @@ func (m *manager) FetchJWTSVID(ctx context.Context, entry *common.RegistrationEn
 		return cachedSVID, nil
 	}
 
-	newSVID, err := m.client.NewJWTSVID(ctx, entry.EntryId, audience)
+	newSVID, err := m.client.NewJWTSVID(ctx, entry.EntryId, audience, ok)
 	switch {
 	case err == nil:
 	case cachedSVID == nil:
