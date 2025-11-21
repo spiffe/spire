@@ -298,13 +298,7 @@ func (m *manager) FetchJWTSVID(ctx context.Context, entry *common.RegistrationEn
 		return cachedSVID, nil
 	}
 
-	// In the event of a cache hit with an incoming expiration, NewJWTSVID should
-	// be queried with a truncated timeout to fallback to the valid JWT in cache
-	cacheHit := false
-	if ok {
-		cacheHit = m.c.RotationStrategy.JWTSVIDExpiresSoon(cachedSVID, now)
-	}
-	newSVID, err := m.client.NewJWTSVID(ctx, entry.EntryId, audience, cacheHit)
+	newSVID, err := m.client.NewJWTSVID(ctx, entry.EntryId, audience, ok)
 	switch {
 	case err == nil:
 	case cachedSVID == nil:
