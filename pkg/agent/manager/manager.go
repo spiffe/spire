@@ -294,11 +294,12 @@ func (m *manager) FetchJWTSVID(ctx context.Context, entry *common.RegistrationEn
 
 	now := m.clk.Now()
 	cachedSVID, ok := m.cache.GetJWTSVID(spiffeID, audience)
-	if ok && !m.c.RotationStrategy.JWTSVIDExpiresSoon(cachedSVID, now) {
+	cachedSVIDExpiresSoon := m.c.RotationStrategy.JWTSVIDExpiresSoon(cachedSVID, now)
+	if ok && !cachedSVIDExpiresSoon {
 		return cachedSVID, nil
 	}
 
-	newSVID, err := m.client.NewJWTSVID(ctx, entry.EntryId, audience)
+	newSVID, err := m.client.NewJWTSVID(ctx, entry.EntryId, audience, cachedSVIDExpiresSoon)
 	switch {
 	case err == nil:
 	case cachedSVID == nil:
