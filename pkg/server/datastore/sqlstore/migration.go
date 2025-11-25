@@ -500,7 +500,7 @@ func migrateVersion(tx *gorm.DB, currVersion int, log logrus.FieldLogger) (versi
 	//   return nil
 	// }
 	//
-	switch currVersion { //nolint: revive // No upgrade required yet, keeping switch for future additions
+	switch currVersion {
 	case 24:
 		err = migrateToV24(tx)
 	default:
