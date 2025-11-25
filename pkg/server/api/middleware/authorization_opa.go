@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 
+	"github.com/shirou/gopsutil/v4/process"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
+	"github.com/spiffe/spire/pkg/common/peertracker"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
 	"github.com/spiffe/spire/pkg/server/authpolicy"
@@ -30,6 +32,14 @@ func (m *authorizationMiddleware) opaAuth(ctx context.Context, req any, fullMeth
 		Caller:     spiffeID,
 		FullMethod: fullMethod,
 		Req:        req,
+	}
+
+	if input.Caller == "" {
+		if watcher, ok := peertracker.WatcherFromContext(ctx); ok {
+			if p, err := process.NewProcess(watcher.PID()); err == nil {
+				input.CallerFilePath, _ = getAddr(p)
+			}
+		}
 	}
 
 	result, err := m.authPolicyEngine.Eval(ctx, input)

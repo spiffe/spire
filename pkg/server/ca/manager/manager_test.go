@@ -761,9 +761,8 @@ func TestX509CARotationMetric(t *testing.T) {
 
 	// create expected metrics with ttl from certificate
 	expected := fakemetrics.New()
-	ttl := test.currentX509CA().Certificate.NotAfter.Sub(test.clock.Now())
 	telemetry_server.IncrActivateX509CAManagerCounter(expected)
-	telemetry_server.SetX509CARotateGauge(expected, test.m.c.TrustDomain.Name(), float32(ttl.Seconds()))
+	telemetry_server.SetX509CARotateGauge(expected, test.m.c.TrustDomain.Name(), test.currentX509CA().Certificate.NotAfter, test.clock.Now())
 
 	require.Equal(t, expected.AllMetrics(), test.metrics.AllMetrics())
 }
@@ -1080,6 +1079,34 @@ func TestActivationThresholdCap(t *testing.T) {
 	// exceeds the seven day cap.
 	threshold := keyActivationThreshold(issuedAt, notAfter)
 	require.Equal(t, sevenDays, notAfter.Sub(threshold))
+}
+
+func TestDisableJWTSVIDs(t *testing.T) {
+	test := setupTest(t)
+
+	manager, err := NewManager(ctx, test.selfSignedConfig())
+	require.NoError(t, err)
+	require.NotNil(t, manager)
+	assert.False(t, manager.IsJWTSVIDsDisabled())
+
+	config := test.selfSignedConfig()
+	config.DisableJWTSVIDs = true
+
+	manager, err = NewManager(ctx, config)
+	require.NoError(t, err)
+	require.NotNil(t, manager)
+	assert.True(t, manager.IsJWTSVIDsDisabled())
+
+	ctx := context.Background()
+	require.NoError(t, manager.PrepareJWTKey(ctx))
+
+	manager.ActivateJWTKey(ctx)
+	slot := manager.GetCurrentJWTKeySlot()
+	require.True(t, slot.IsEmpty())
+
+	manager.RotateJWTKey(ctx)
+	slot = manager.GetCurrentJWTKeySlot()
+	require.True(t, slot.IsEmpty())
 }
 
 func TestAlternateKeyTypes(t *testing.T) {

@@ -26,6 +26,10 @@ type RawConfig []string
 const (
 	// FlagTestFlag is defined purely for testing purposes.
 	FlagTestFlag Flag = "i_am_a_test_flag"
+
+	// FlagWITSVID controls if WIT-SVID and the APIs for it are enabled. When set
+	// to false all WIT-SVID APIs will return Unimplemented.
+	FlagWITSVID Flag = "wit-svid"
 )
 
 var (
@@ -36,6 +40,7 @@ var (
 	}{
 		flags: map[Flag]bool{
 			FlagTestFlag: false,
+			FlagWITSVID:  false,
 		},
 		loaded: false,
 		mtx:    new(sync.RWMutex),

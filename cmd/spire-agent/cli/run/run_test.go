@@ -614,26 +614,6 @@ func TestNewAgentConfig(t *testing.T) {
 			},
 		},
 		{
-			msg: "retry_bootstrap should be correctly set to false",
-			input: func(c *Config) {
-				rb := false
-				c.Agent.RetryBootstrap = &rb
-			},
-			test: func(t *testing.T, c *agent.Config) {
-				require.False(t, c.RetryBootstrap)
-			},
-		},
-		{
-			msg: "retry_bootstrap should be correctly set to true",
-			input: func(c *Config) {
-				rb := true
-				c.Agent.RetryBootstrap = &rb
-			},
-			test: func(t *testing.T, c *agent.Config) {
-				require.True(t, c.RetryBootstrap)
-			},
-		},
-		{
 			msg: "join_token should be correctly configured",
 			input: func(c *Config) {
 				c.Agent.JoinToken = "foo"

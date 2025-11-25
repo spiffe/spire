@@ -143,6 +143,11 @@ func (s *Service) MintX509SVID(ctx context.Context, req *svidv1.MintX509SVIDRequ
 }
 
 func (s *Service) MintJWTSVID(ctx context.Context, req *svidv1.MintJWTSVIDRequest) (*svidv1.MintJWTSVIDResponse, error) {
+	log := rpccontext.Logger(ctx)
+	if s.isJWTSVIDsDisabled() {
+		return nil, api.MakeErr(log, codes.Unimplemented, "JWT functionality is disabled", nil)
+	}
+
 	rpccontext.AddRPCAuditFields(ctx, s.fieldsFromJWTSvidParams(ctx, req.Id, req.Audience, req.Ttl))
 	jwtsvid, err := s.mintJWTSVID(ctx, req.Id, req.Audience, req.Ttl)
 	if err != nil {
@@ -153,6 +158,11 @@ func (s *Service) MintJWTSVID(ctx context.Context, req *svidv1.MintJWTSVIDReques
 	return &svidv1.MintJWTSVIDResponse{
 		Svid: jwtsvid,
 	}, nil
+}
+
+func (s *Service) MintWITSVID(ctx context.Context, req *svidv1.MintWITSVIDRequest) (*svidv1.MintWITSVIDResponse, error) {
+	log := rpccontext.Logger(ctx)
+	return nil, api.MakeErr(log, codes.Unimplemented, "WIT-SVID functionality is not yet implemented", nil)
 }
 
 func (s *Service) BatchNewX509SVID(ctx context.Context, req *svidv1.BatchNewX509SVIDRequest) (*svidv1.BatchNewX509SVIDResponse, error) {
@@ -349,6 +359,10 @@ func (s *Service) NewJWTSVID(ctx context.Context, req *svidv1.NewJWTSVIDRequest)
 		return nil, api.MakeErr(log, status.Code(err), "rejecting request due to JWT signing request rate limiting", err)
 	}
 
+	if s.isJWTSVIDsDisabled() {
+		return nil, api.MakeErr(log, codes.Unimplemented, "JWT functionality is disabled", nil)
+	}
+
 	entries := map[string]struct{}{
 		req.EntryId: {},
 	}
@@ -375,6 +389,11 @@ func (s *Service) NewJWTSVID(ctx context.Context, req *svidv1.NewJWTSVIDRequest)
 	return &svidv1.NewJWTSVIDResponse{
 		Svid: jwtsvid,
 	}, nil
+}
+
+func (s *Service) BatchNewWITSVID(ctx context.Context, req *svidv1.BatchNewWITSVIDRequest) (*svidv1.BatchNewWITSVIDResponse, error) {
+	log := rpccontext.Logger(ctx)
+	return nil, api.MakeErr(log, codes.Unimplemented, "WIT-SVID functionality is not yet implemented", nil)
 }
 
 func (s *Service) NewDownstreamX509CA(ctx context.Context, req *svidv1.NewDownstreamX509CARequest) (*svidv1.NewDownstreamX509CAResponse, error) {
@@ -445,6 +464,10 @@ func (s *Service) NewDownstreamX509CA(ctx context.Context, req *svidv1.NewDownst
 		CaCertChain:     x509util.RawCertsFromCertificates(x509CASvid),
 		X509Authorities: rawRootCerts,
 	}, nil
+}
+
+func (s *Service) isJWTSVIDsDisabled() bool {
+	return s.ca.IsJWTSVIDsDisabled()
 }
 
 func (s Service) fieldsFromJWTSvidParams(ctx context.Context, protoID *types.SPIFFEID, audience []string, ttl int32) logrus.Fields {

@@ -69,23 +69,25 @@ type AuthorityManager interface {
 	PrepareX509CA(ctx context.Context) error
 	RotateX509CA(ctx context.Context)
 	IsUpstreamAuthority() bool
+	IsJWTSVIDsDisabled() bool
 	PublishJWTKey(ctx context.Context, jwtKey *common.PublicKey) ([]*common.PublicKey, error)
 	NotifyTaintedX509Authority(ctx context.Context, authorityID string) error
 	SubscribeToLocalBundle(ctx context.Context) error
 }
 
 type Config struct {
-	CredBuilder   *credtemplate.Builder
-	CredValidator *credvalidator.Validator
-	CA            ManagedCA
-	Catalog       catalog.Catalog
-	TrustDomain   spiffeid.TrustDomain
-	X509CAKeyType keymanager.KeyType
-	JWTKeyType    keymanager.KeyType
-	Dir           string
-	Log           logrus.FieldLogger
-	Metrics       telemetry.Metrics
-	Clock         clock.Clock
+	CredBuilder     *credtemplate.Builder
+	CredValidator   *credvalidator.Validator
+	CA              ManagedCA
+	Catalog         catalog.Catalog
+	TrustDomain     spiffeid.TrustDomain
+	X509CAKeyType   keymanager.KeyType
+	DisableJWTSVIDs bool
+	JWTKeyType      keymanager.KeyType
+	Dir             string
+	Log             logrus.FieldLogger
+	Metrics         telemetry.Metrics
+	Clock           clock.Clock
 }
 
 type Manager struct {
@@ -203,6 +205,10 @@ func (m *Manager) NotifyTaintedX509Authority(ctx context.Context, authorityID st
 
 	m.c.CA.NotifyTaintedX509Authorities([]*x509.Certificate{taintedAuthority})
 	return nil
+}
+
+func (m *Manager) IsJWTSVIDsDisabled() bool {
+	return m.c.DisableJWTSVIDs
 }
 
 func (m *Manager) GetCurrentX509CASlot() Slot {
@@ -323,6 +329,10 @@ func (m *Manager) GetNextJWTKeySlot() Slot {
 }
 
 func (m *Manager) PrepareJWTKey(ctx context.Context) (err error) {
+	if m.IsJWTSVIDsDisabled() {
+		return nil
+	}
+
 	counter := telemetry_server.StartServerCAManagerPrepareJWTKeyCall(m.c.Metrics)
 	defer counter.Done(&err)
 
@@ -383,6 +393,9 @@ func (m *Manager) PrepareJWTKey(ctx context.Context) (err error) {
 }
 
 func (m *Manager) ActivateJWTKey(ctx context.Context) {
+	if m.IsJWTSVIDsDisabled() {
+		return
+	}
 	m.jwtKeyMutex.RLock()
 	defer m.jwtKeyMutex.RUnlock()
 
@@ -390,6 +403,10 @@ func (m *Manager) ActivateJWTKey(ctx context.Context) {
 }
 
 func (m *Manager) RotateJWTKey(ctx context.Context) {
+	if m.IsJWTSVIDsDisabled() {
+		return
+	}
+
 	m.jwtKeyMutex.Lock()
 	defer m.jwtKeyMutex.Unlock()
 
@@ -578,11 +595,12 @@ func (m *Manager) activateX509CA(ctx context.Context) {
 		log.WithError(err).Error("Failed to update to activated status on X509CA journal entry")
 	}
 
-	ttl := m.currentX509CA.x509CA.Certificate.NotAfter.Sub(m.c.Clock.Now())
-	telemetry_server.SetX509CARotateGauge(m.c.Metrics, m.c.TrustDomain.Name(), float32(ttl.Seconds()))
+	expiration := m.currentX509CA.x509CA.Certificate.NotAfter
+	now := m.c.Clock.Now()
+	telemetry_server.SetX509CARotateGauge(m.c.Metrics, m.c.TrustDomain.Name(), expiration, now)
 	m.c.Log.WithFields(logrus.Fields{
 		telemetry.TrustDomainID: m.c.TrustDomain.IDString(),
-		telemetry.TTL:           ttl.Seconds(),
+		telemetry.TTL:           expiration.Sub(now).Seconds(),
 	}).Debug("Successfully rotated X.509 CA")
 
 	m.c.CA.SetX509CA(m.currentX509CA.x509CA)
