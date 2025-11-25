@@ -4657,7 +4657,7 @@ func modelToEntry(tx *gorm.DB, model RegisteredEntry) (*common.RegistrationEntry
 	}
 
 	CacheHintFlags := &common.RegistrationEntry_CacheHintFlags{}
-	if model.CacheHintFlags != nil {
+	if len(model.CacheHintFlags) != 0 {
 		if err := proto.Unmarshal(model.CacheHintFlags, CacheHintFlags); err != nil {
 			return nil, err
 		}
