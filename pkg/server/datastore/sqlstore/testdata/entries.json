@@ -17,10 +17,7 @@
         "spiffe_id": "spiffe://id1",
         "parent_id": "spiffe://parent",
         "ttl": 200,
-        "dns_names": [
-            "a",
-            "b"
-        ]
+        "dns_names": ["a", "b"]
     },
     {
         "selectors": [
