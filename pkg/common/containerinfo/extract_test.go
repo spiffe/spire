@@ -132,4 +132,12 @@ func TestExtractContainerID(t *testing.T) {
 	t.Run("falls back to cgroup file", func(t *testing.T) {
 		assertFound(t, "testdata/other/fallback", testContainerID)
 	})
+
+	t.Run("has multiple cgroup mounts on slash v1", func(t *testing.T) {
+		assertFound(t, "testdata/docker/cgroup-mount-at-slash/v1", testContainerID)
+	})
+
+	t.Run("has multiple cgroup mounts on slash v2", func(t *testing.T) {
+		assertFound(t, "testdata/docker/cgroup-mount-at-slash/v2", testContainerID)
+	})
 }
