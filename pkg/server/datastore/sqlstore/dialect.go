@@ -1,8 +1,12 @@
 package sqlstore
 
-import "github.com/jinzhu/gorm"
+import (
+	"context"
+
+	"github.com/jinzhu/gorm"
+)
 
 type dialect interface {
-	connect(cfg *configuration, isReadOnly bool) (db *gorm.DB, version string, supportsCTE bool, err error)
+	connect(ctx context.Context, cfg *configuration, isReadOnly bool) (db *gorm.DB, version string, supportsCTE bool, err error)
 	isConstraintViolation(err error) bool
 }

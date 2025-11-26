@@ -1,6 +1,7 @@
 package sqlstore
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
@@ -28,7 +29,7 @@ const (
 	tlsConfigName = "spireCustomTLS"
 )
 
-func (my mysqlDB) connect(cfg *configuration, isReadOnly bool) (db *gorm.DB, version string, supportsCTE bool, err error) {
+func (my mysqlDB) connect(ctx context.Context, cfg *configuration, isReadOnly bool) (db *gorm.DB, version string, supportsCTE bool, err error) {
 	mysqlConfig, err := configureConnection(cfg, isReadOnly)
 	if err != nil {
 		return nil, "", false, err
@@ -60,7 +61,7 @@ func (my mysqlDB) connect(cfg *configuration, isReadOnly bool) (db *gorm.DB, ver
 		return nil, "", false, errOpen
 	}
 
-	version, err = queryVersion(db, "SELECT VERSION()")
+	version, err = queryVersion(ctx, db, "SELECT VERSION()")
 	if err != nil {
 		return nil, "", false, err
 	}
