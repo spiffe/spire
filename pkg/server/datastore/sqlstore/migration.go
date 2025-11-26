@@ -270,7 +270,7 @@ import (
 
 const (
 	// the latest schema version of the database in the code
-	latestSchemaVersion = 23
+	latestSchemaVersion = 24
 
 	// lastMinorReleaseSchemaVersion is the schema version supported by the
 	// last minor release. When the migrations are opportunistically pruned
