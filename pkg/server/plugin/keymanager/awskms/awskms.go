@@ -46,6 +46,11 @@ const (
 	keyThreshold         = time.Hour * 48
 )
 
+var (
+	validTagKeyPattern   = regexp.MustCompile(`^[\p{L}\p{N}\s+\-=._:/@]+$`)
+	validTagValuePattern = regexp.MustCompile(`^[\p{L}\p{N}\s+\-=._:/@]*$`)
+)
+
 func BuiltIn() catalog.BuiltIn {
 	return builtin(New())
 }
@@ -90,16 +95,18 @@ type Plugin struct {
 	cancelTasks    context.CancelFunc
 	hooks          pluginHooks
 	keyPolicy      *string
+	keyTags        []types.Tag
 }
 
 // Config provides configuration context for the plugin
 type Config struct {
-	AccessKeyID        string `hcl:"access_key_id" json:"access_key_id"`
-	SecretAccessKey    string `hcl:"secret_access_key" json:"secret_access_key"`
-	Region             string `hcl:"region" json:"region"`
-	KeyIdentifierFile  string `hcl:"key_identifier_file" json:"key_identifier_file"`
-	KeyIdentifierValue string `hcl:"key_identifier_value" json:"key_identifier_value"`
-	KeyPolicyFile      string `hcl:"key_policy_file" json:"key_policy_file"`
+	AccessKeyID        string            `hcl:"access_key_id" json:"access_key_id"`
+	SecretAccessKey    string            `hcl:"secret_access_key" json:"secret_access_key"`
+	Region             string            `hcl:"region" json:"region"`
+	KeyIdentifierFile  string            `hcl:"key_identifier_file" json:"key_identifier_file"`
+	KeyIdentifierValue string            `hcl:"key_identifier_value" json:"key_identifier_value"`
+	KeyPolicyFile      string            `hcl:"key_policy_file" json:"key_policy_file"`
+	KeyTags            map[string]string `hcl:"key_tags" json:"key_tags"`
 }
 
 func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *Config {
@@ -132,6 +139,12 @@ func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginco
 
 	if newConfig.KeyIdentifierFile != "" && newConfig.KeyIdentifierValue != "" {
 		status.ReportError("configuration can't have a key identifier file and a key identifier value at the same time")
+	}
+
+	if len(newConfig.KeyTags) > 0 {
+		if err := validateTags(newConfig.KeyTags); err != nil {
+			status.ReportErrorf("invalid configuration for key tags: %v", err)
+		}
 	}
 
 	return newConfig
@@ -222,6 +235,12 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 	p.stsClient = sc
 	p.trustDomain = req.CoreConfiguration.TrustDomain
 	p.serverID = serverID
+
+	if len(newConfig.KeyTags) > 0 {
+		p.keyTags = buildKeyTags(newConfig.KeyTags)
+	} else {
+		p.keyTags = nil
+	}
 
 	// cancels previous tasks in case of re-configure
 	if p.cancelTasks != nil {
@@ -366,6 +385,10 @@ func (p *Plugin) createKey(ctx context.Context, spireKeyID string, keyType keyma
 		KeyUsage:    types.KeyUsageTypeSignVerify,
 		KeySpec:     keySpec,
 		Policy:      p.keyPolicy,
+	}
+
+	if len(p.keyTags) > 0 {
+		createKeyInput.Tags = p.keyTags
 	}
 
 	key, err := p.kmsClient.CreateKey(ctx, createKeyInput)
@@ -983,6 +1006,53 @@ func createServerID(idPath string) (string, error) {
 func makeFingerprint(pkixData []byte) string {
 	s := sha256.Sum256(pkixData)
 	return hex.EncodeToString(s[:])
+}
+
+func validateTags(tags map[string]string) error {
+	const maxTags = 50
+	if len(tags) > maxTags {
+		return fmt.Errorf("too many tags: %d tags exceed AWS limit of 50", len(tags))
+	}
+
+	for key, value := range tags {
+		if key == "" {
+			return errors.New("tag key cannot be empty")
+		}
+		if len(key) > 128 {
+			return fmt.Errorf("tag key %q exceeds maximum length of 128 characters", key)
+		}
+		if strings.HasPrefix(strings.ToLower(key), "aws:") {
+			return fmt.Errorf("tag key %q uses reserved prefix 'aws:'", key)
+		}
+		if strings.HasPrefix(strings.ToLower(key), "spire-") {
+			return fmt.Errorf("tag key %q uses reserved prefix 'spire-'", key)
+		}
+		if !validTagKeyPattern.MatchString(key) {
+			return fmt.Errorf("tag key %q contains invalid characters (allowed: letters, numbers, spaces, + - = . _ : / @)", key)
+		}
+
+		if len(value) > 256 {
+			return fmt.Errorf("tag value for key %q exceeds maximum length of 256 characters", key)
+		}
+		if !validTagValuePattern.MatchString(value) {
+			return fmt.Errorf("tag value for key %q contains invalid characters (allowed: letters, numbers, spaces, + - = . _ : / @)", key)
+		}
+	}
+
+	return nil
+}
+
+func buildKeyTags(tags map[string]string) []types.Tag {
+	keyTags := make([]types.Tag, 0, len(tags))
+
+	for key, value := range tags {
+		keyTags = append(keyTags, types.Tag{
+			TagKey:   aws.String(key),
+			TagValue: aws.String(value),
+		})
+	}
+
+	return keyTags
 }
 
 // encodeKeyID maps "." and "+" characters to the asciihex value using "_" as

@@ -5,12 +5,14 @@ import (
 	"crypto/sha256"
 	"crypto/sha512"
 	"crypto/x509"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"path"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -1959,6 +1961,371 @@ func TestDisposeKeys(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestConfigureWithTags(t *testing.T) {
+	for _, tt := range []struct {
+		name             string
+		err              string
+		code             codes.Code
+		configureRequest *configv1.ConfigureRequest
+	}{
+		{
+			name: "valid tags",
+			configureRequest: configureRequestWithString(`{
+				"access_key_id":"access_key_id",
+				"secret_access_key":"secret_access_key",
+				"region":"us-west-2",
+				"key_identifier_value":"test-server",
+				"key_tags":{
+					"Environment":"production",
+					"Team":"security"
+				}
+			}`),
+		},
+		{
+			name: "no tags (backward compatibility)",
+			configureRequest: configureRequestWithString(`{
+				"access_key_id":"access_key_id",
+				"secret_access_key":"secret_access_key",
+				"region":"us-west-2",
+				"key_identifier_value":"test-server"
+			}`),
+		},
+		{
+			name: "tag key with aws prefix",
+			configureRequest: configureRequestWithString(`{
+				"access_key_id":"access_key_id",
+				"secret_access_key":"secret_access_key",
+				"region":"us-west-2",
+				"key_identifier_value":"test-server",
+				"key_tags":{
+					"aws:Environment":"production"
+				}
+			}`),
+			err:  "invalid configuration for key tags: tag key \"aws:Environment\" uses reserved prefix 'aws:'",
+			code: codes.InvalidArgument,
+		},
+		{
+			name: "tag key with spire prefix",
+			configureRequest: configureRequestWithString(`{
+				"access_key_id":"access_key_id",
+				"secret_access_key":"secret_access_key",
+				"region":"us-west-2",
+				"key_identifier_value":"test-server",
+				"key_tags":{
+					"spire-internal":"value"
+				}
+			}`),
+			err:  "invalid configuration for key tags: tag key \"spire-internal\" uses reserved prefix 'spire-'",
+			code: codes.InvalidArgument,
+		},
+		{
+			name: "tag key too long",
+			configureRequest: configureRequestWithString(fmt.Sprintf(`{
+				"access_key_id":"access_key_id",
+				"secret_access_key":"secret_access_key",
+				"region":"us-west-2",
+				"key_identifier_value":"test-server",
+				"key_tags":{
+					"%s":"value"
+				}
+			}`, strings.Repeat("a", 129))),
+			err:  "exceeds maximum length of 128 characters",
+			code: codes.InvalidArgument,
+		},
+		{
+			name: "tag value too long",
+			configureRequest: configureRequestWithString(fmt.Sprintf(`{
+				"access_key_id":"access_key_id",
+				"secret_access_key":"secret_access_key",
+				"region":"us-west-2",
+				"key_identifier_value":"test-server",
+				"key_tags":{
+					"Environment":"%s"
+				}
+			}`, strings.Repeat("a", 257))),
+			err:  "invalid configuration for key tags: tag value for key \"Environment\" exceeds maximum length of 256 characters",
+			code: codes.InvalidArgument,
+		},
+		{
+			name: "too many tags",
+			configureRequest: func() *configv1.ConfigureRequest {
+				tags := make(map[string]string)
+				for i := range 51 {
+					tags[fmt.Sprintf("Tag%d", i)] = fmt.Sprintf("Value%d", i)
+				}
+				tagsJSON, _ := json.Marshal(tags)
+				config := fmt.Sprintf(`{
+					"access_key_id":"access_key_id",
+					"secret_access_key":"secret_access_key",
+					"region":"us-west-2",
+					"key_identifier_value":"test-server",
+					"key_tags":%s
+				}`, string(tagsJSON))
+				return configureRequestWithString(config)
+			}(),
+			err:  "invalid configuration for key tags: too many tags",
+			code: codes.InvalidArgument,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			ts := setupTest(t)
+			_, err := ts.plugin.Configure(ctx, tt.configureRequest)
+
+			if tt.err != "" {
+				spiretest.RequireGRPCStatusContains(t, err, tt.code, tt.err)
+				return
+			}
+
+			require.NoError(t, err)
+		})
+	}
+}
+
+func TestValidateTags(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		tags map[string]string
+		err  string
+	}{
+		{
+			name: "valid tags",
+			tags: map[string]string{
+				"Environment": "production",
+				"Team":        "security",
+			},
+		},
+		{
+			name: "empty tags",
+			tags: map[string]string{},
+		},
+		{
+			name: "tags with special characters",
+			tags: map[string]string{
+				"Tag+With-Special.Characters": "Value with spaces_and:symbols@example.com",
+			},
+		},
+		{
+			name: "empty tag key",
+			tags: map[string]string{
+				"": "value",
+			},
+			err: "tag key cannot be empty",
+		},
+		{
+			name: "empty tag value (valid per AWS standards)",
+			tags: map[string]string{
+				"Key": "",
+			},
+		},
+		{
+			name: "aws prefix",
+			tags: map[string]string{
+				"aws:tag": "value",
+			},
+			err: "tag key \"aws:tag\" uses reserved prefix 'aws:'",
+		},
+		{
+			name: "AWS prefix uppercase",
+			tags: map[string]string{
+				"AWS:Tag": "value",
+			},
+			err: "tag key \"AWS:Tag\" uses reserved prefix 'aws:'",
+		},
+		{
+			name: "mixed case aws prefix (AwS)",
+			tags: map[string]string{
+				"AwS:tag": "value",
+			},
+			err: "tag key \"AwS:tag\" uses reserved prefix 'aws:'",
+		},
+		{
+			name: "mixed case aws prefix (aWs)",
+			tags: map[string]string{
+				"aWs:tag": "value",
+			},
+			err: "tag key \"aWs:tag\" uses reserved prefix 'aws:'",
+		},
+		{
+			name: "spire prefix lowercase",
+			tags: map[string]string{
+				"spire-tag": "value",
+			},
+			err: "tag key \"spire-tag\" uses reserved prefix 'spire-'",
+		},
+		{
+			name: "spire prefix uppercase",
+			tags: map[string]string{
+				"SPIRE-Tag": "value",
+			},
+			err: "tag key \"SPIRE-Tag\" uses reserved prefix 'spire-'",
+		},
+		{
+			name: "mixed case spire prefix (Spire)",
+			tags: map[string]string{
+				"Spire-tag": "value",
+			},
+			err: "tag key \"Spire-tag\" uses reserved prefix 'spire-'",
+		},
+		{
+			name: "mixed case spire prefix (sPiRe)",
+			tags: map[string]string{
+				"sPiRe-Tag": "value",
+			},
+			err: "tag key \"sPiRe-Tag\" uses reserved prefix 'spire-'",
+		},
+		{
+			name: "invalid characters in key",
+			tags: map[string]string{
+				"Invalid<>Key": "value",
+			},
+			err: "contains invalid characters",
+		},
+		{
+			name: "invalid characters in value",
+			tags: map[string]string{
+				"Key": "Invalid<>Value",
+			},
+			err: "contains invalid characters",
+		},
+		{
+			name: "unicode in key (French)",
+			tags: map[string]string{
+				"Équipe": "security",
+			},
+		},
+		{
+			name: "unicode in value (French)",
+			tags: map[string]string{
+				"Description": "Clé KMS créée et gérée par SPIRE",
+			},
+		},
+		{
+			name: "unicode in value (emoji)",
+			tags: map[string]string{
+				"Active": "✅",
+			},
+			err: "contains invalid characters",
+		},
+		{
+			name: "leading whitespace in key",
+			tags: map[string]string{
+				" Environment": "production",
+			},
+		},
+		{
+			name: "trailing whitespace in key",
+			tags: map[string]string{
+				"Environment ": "production",
+			},
+		},
+		{
+			name: "leading whitespace in value",
+			tags: map[string]string{
+				"Environment": " production",
+			},
+		},
+		{
+			name: "trailing whitespace in value",
+			tags: map[string]string{
+				"Environment": "production ",
+			},
+		},
+		{
+			name: "too many tags",
+			tags: func() map[string]string {
+				tags := make(map[string]string)
+				for i := range 51 {
+					tags[fmt.Sprintf("Tag%d", i)] = fmt.Sprintf("Value%d", i)
+				}
+				return tags
+			}(),
+			err: "too many tags",
+		},
+		{
+			name: "exactly 50 tags (boundary)",
+			tags: func() map[string]string {
+				tags := make(map[string]string)
+				for i := range 50 {
+					tags[fmt.Sprintf("Tag%d", i)] = "value"
+				}
+				return tags
+			}(),
+		},
+		{
+			name: "tag key too long",
+			tags: map[string]string{
+				strings.Repeat("a", 129): "value",
+			},
+			err: "exceeds maximum length of 128 characters",
+		},
+		{
+			name: "exactly 128 character key (boundary)",
+			tags: map[string]string{
+				strings.Repeat("a", 128): "value",
+			},
+		},
+		{
+			name: "tag value too long",
+			tags: map[string]string{
+				"Key": strings.Repeat("a", 257),
+			},
+			err: "exceeds maximum length of 256 characters",
+		},
+		{
+			name: "exactly 256 character value (boundary)",
+			tags: map[string]string{
+				"Key": strings.Repeat("a", 256),
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateTags(tt.tags)
+			if tt.err != "" {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), tt.err)
+				return
+			}
+			require.NoError(t, err)
+		})
+	}
+}
+
+func TestBuildKeyTags(t *testing.T) {
+	tags := map[string]string{
+		"Environment": "production",
+		"Team":        "security",
+	}
+
+	keyTags := buildKeyTags(tags)
+
+	require.Len(t, keyTags, 2)
+
+	hasEnvironment := false
+	hasTeam := false
+
+	for _, tag := range keyTags {
+		require.NotNil(t, tag.TagKey)
+		require.NotNil(t, tag.TagValue)
+
+		switch *tag.TagKey {
+		case "Environment":
+			require.Equal(t, "production", *tag.TagValue)
+			hasEnvironment = true
+		case "Team":
+			require.Equal(t, "security", *tag.TagValue)
+			hasTeam = true
+		}
+	}
+
+	require.True(t, hasEnvironment, "Environment tag missing")
+	require.True(t, hasTeam, "Team tag missing")
+}
+
+func TestBuildKeyTagsEmpty(t *testing.T) {
+	tags := buildKeyTags(map[string]string{})
+	require.Len(t, tags, 0)
 }
 
 func configureRequestWithString(config string) *configv1.ConfigureRequest {
