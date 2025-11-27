@@ -2454,11 +2454,12 @@ func (s *PluginSuite) testListRegistrationEntries(dataConsistency datastore.Data
 
 	makeEntry := func(parentIDSuffix, spiffeIDSuffix, hint string, selectors ...string) *common.RegistrationEntry {
 		return &common.RegistrationEntry{
-			EntryId:   fmt.Sprintf("%s%s%s", parentIDSuffix, spiffeIDSuffix, strings.Join(selectors, "")),
-			ParentId:  makeID(parentIDSuffix),
-			SpiffeId:  makeID(spiffeIDSuffix),
-			Selectors: makeSelectors(selectors...),
-			Hint:      hint,
+			EntryId:        fmt.Sprintf("%s%s%s", parentIDSuffix, spiffeIDSuffix, strings.Join(selectors, "")),
+			ParentId:       makeID(parentIDSuffix),
+			SpiffeId:       makeID(spiffeIDSuffix),
+			Selectors:      makeSelectors(selectors...),
+			Hint:           hint,
+			CacheHintFlags: &common.RegistrationEntry_CacheHintFlags{},
 		}
 	}
 
@@ -5213,6 +5214,10 @@ func (s *PluginSuite) TestMigration() {
 			// of SPIRE server and no longer have migration code.
 			case 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22:
 				prepareDB(false)
+			case 23:
+				prepareDB(true)
+			case 24:
+				prepareDB(true)
 			default:
 				t.Fatalf("no migration test added for schema version %d", schemaVersion)
 			}
