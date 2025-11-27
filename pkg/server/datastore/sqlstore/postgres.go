@@ -1,6 +1,7 @@
 package sqlstore
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
@@ -15,7 +16,7 @@ import (
 
 type postgresDB struct{}
 
-func (p postgresDB) connect(cfg *configuration, isReadOnly bool) (db *gorm.DB, version string, supportsCTE bool, err error) {
+func (p postgresDB) connect(ctx context.Context, cfg *configuration, isReadOnly bool) (db *gorm.DB, version string, supportsCTE bool, err error) {
 	if cfg.databaseTypeConfig == nil {
 		return nil, "", false, errors.New("missing datastore configuration")
 	}
@@ -54,7 +55,7 @@ func (p postgresDB) connect(cfg *configuration, isReadOnly bool) (db *gorm.DB, v
 		return nil, "", false, errOpen
 	}
 
-	version, err = queryVersion(db, "SHOW server_version")
+	version, err = queryVersion(ctx, db, "SHOW server_version")
 	if err != nil {
 		return nil, "", false, err
 	}
