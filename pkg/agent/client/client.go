@@ -47,7 +47,7 @@ const (
 	rpcTimeout = 30 * time.Second
 	// We can be more aggressive with timeouts in cases where a valid SVID
 	// exists in the cache but is old enough to try for a new SVID quickly
-	rpcTimeoutWithCacheHit = 1 * time.Second
+	rpcTimeoutWithCacheHit = 5 * time.Second
 )
 
 type X509SVID struct {
