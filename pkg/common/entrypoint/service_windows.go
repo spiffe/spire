@@ -4,6 +4,7 @@ package entrypoint
 
 import (
 	"context"
+	"os"
 	"sync"
 
 	"golang.org/x/sys/windows"
@@ -21,8 +22,12 @@ func (s *service) Execute(args []string, changeRequest <-chan svc.ChangeRequest,
 	// Validate that we are executing the "run" command.
 	// First argument (args[0]) is always the process name. Command name is
 	// expected in the second argument (args[1]).
-	if len(args) < 2 || args[1] != supportedCommand {
-		return false, uint32(windows.ERROR_BAD_ARGUMENTS)
+	osArgs := os.Args
+	if len(osArgs) < 2 || osArgs[1] != supportedCommand {
+		if len(args) < 2 || args[1] != supportedCommand {
+			return false, uint32(windows.ERROR_BAD_ARGUMENTS)
+		}
+		osArgs = args
 	}
 
 	// Update the status to indicate that SPIRE is running.
@@ -42,7 +47,7 @@ func (s *service) Execute(args []string, changeRequest <-chan svc.ChangeRequest,
 		defer wg.Done()
 		s.mtx.RLock()
 		defer s.mtx.RUnlock()
-		if retCode = s.executeServiceFn(ctx, stop, args); retCode != 0 {
+		if retCode = s.executeServiceFn(ctx, stop, osArgs); retCode != 0 {
 			retCode = int(windows.ERROR_FATAL_APP_EXIT)
 		}
 	}()
