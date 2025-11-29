@@ -10,6 +10,8 @@ import (
 	"github.com/lib/pq"
 	"github.com/spiffe/spire/pkg/server/datastore/sqldriver/awsrds"
 
+	// gorm postgres `cloudsql` dialect, for GCP Cloud SQL Proxy
+	_ "github.com/GoogleCloudPlatform/cloudsql-proxy/proxy/dialers/postgres"
 	// gorm postgres dialect init registration
 	_ "github.com/jinzhu/gorm/dialects/postgres"
 )
