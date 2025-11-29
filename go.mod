@@ -13,6 +13,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/keyvault/azkeys v0.10.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute v1.0.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork v1.1.0
+	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resourcegraph/armresourcegraph v0.9.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources v1.2.0
 	github.com/GoogleCloudPlatform/cloudsql-proxy v1.37.10
 	github.com/Keyfactor/ejbca-go-client-sdk v1.0.2
@@ -73,6 +74,7 @@ require (
 	github.com/sigstore/rekor v1.4.3
 	github.com/sigstore/sigstore v1.9.6-0.20250729224751-181c5d3339b3
 	github.com/sirupsen/logrus v1.9.4-0.20230606125235-dd1b4c2e81af
+	github.com/smallstep/pkcs7 v0.2.1
 	github.com/spiffe/go-spiffe/v2 v2.6.0
 	github.com/spiffe/spire-api-sdk v1.2.5-0.20251107171659-13527c331abf
 	github.com/spiffe/spire-plugin-sdk v1.4.4-0.20251120194148-791bbd274dc7
