@@ -110,6 +110,14 @@ func (e *Extractor) extractPodUIDAndContainerIDFromMountInfo(pid int32, log hclo
 	for _, mountInfo := range mountInfos {
 		switch mountInfo.FsType {
 		case "cgroup", "cgroup2":
+			// In addition to cgroup mountInfo with roots at cgroup paths
+			// containing identifiers, some containers mount the entire
+			// "/sys/fs/cgroup" with mountInfo.Root = "/" which will not yield
+			// any pod UID or container ID. Skip to avoid FailedPrecondition
+			// errors with empty string for container ID and pod UID.
+			if mountInfo.Root == "/" {
+				continue
+			}
 		default:
 			continue
 		}
