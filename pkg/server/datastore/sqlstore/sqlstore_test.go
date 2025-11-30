@@ -2454,12 +2454,11 @@ func (s *PluginSuite) testListRegistrationEntries(dataConsistency datastore.Data
 
 	makeEntry := func(parentIDSuffix, spiffeIDSuffix, hint string, selectors ...string) *common.RegistrationEntry {
 		return &common.RegistrationEntry{
-			EntryId:        fmt.Sprintf("%s%s%s", parentIDSuffix, spiffeIDSuffix, strings.Join(selectors, "")),
-			ParentId:       makeID(parentIDSuffix),
-			SpiffeId:       makeID(spiffeIDSuffix),
-			Selectors:      makeSelectors(selectors...),
-			Hint:           hint,
-			CacheHintFlags: &common.RegistrationEntry_CacheHintFlags{},
+			EntryId:   fmt.Sprintf("%s%s%s", parentIDSuffix, spiffeIDSuffix, strings.Join(selectors, "")),
+			ParentId:  makeID(parentIDSuffix),
+			SpiffeId:  makeID(spiffeIDSuffix),
+			Selectors: makeSelectors(selectors...),
+			Hint:      hint,
 		}
 	}
 

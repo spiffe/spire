@@ -3961,9 +3961,11 @@ func fillEntryFromRow(entry *common.RegistrationEntry, r *entryRow) error {
 	}
 
 	if r.CacheHintFlags.Valid {
-		entry.CacheHintFlags = &common.RegistrationEntry_CacheHintFlags{}
-		if err := proto.Unmarshal(r.CacheHintFlags.V, entry.CacheHintFlags); err != nil {
-			return newSQLError("invalid value for X.509 cache hint: %s", err)
+		if len(r.CacheHintFlags.V) > 0 {
+			entry.CacheHintFlags = &common.RegistrationEntry_CacheHintFlags{}
+			if err := proto.Unmarshal(r.CacheHintFlags.V, entry.CacheHintFlags); err != nil {
+				return newSQLError("invalid value for X.509 cache hint: %s", err)
+			}
 		}
 	}
 
