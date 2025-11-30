@@ -122,6 +122,17 @@ type JWTKey struct {
 	NotAfter time.Time
 }
 
+type WITKey struct {
+	// The signer used to sign keys
+	Signer crypto.Signer
+
+	// Kid is the WIT key ID (i.e. "kid" claim)
+	Kid string
+
+	// NotAfter is the expiration time of the WIT key.
+	NotAfter time.Time
+}
+
 type Config struct {
 	Log             logrus.FieldLogger
 	Clock           clock.Clock
@@ -141,6 +152,7 @@ type CA struct {
 	x509CA               *X509CA
 	x509CAChain          []*x509.Certificate
 	jwtKey               *JWTKey
+	witKey               *WITKey
 	taintedAuthoritiesCh chan []*x509.Certificate
 }
 
@@ -194,6 +206,18 @@ func (ca *CA) SetJWTKey(jwtKey *JWTKey) {
 	ca.mu.Lock()
 	defer ca.mu.Unlock()
 	ca.jwtKey = jwtKey
+}
+
+func (ca *CA) WITKey() *WITKey {
+	ca.mu.RLock()
+	defer ca.mu.RUnlock()
+	return ca.witKey
+}
+
+func (ca *CA) SetWITKey(witKey *WITKey) {
+	ca.mu.Lock()
+	defer ca.mu.Unlock()
+	ca.witKey = witKey
 }
 
 func (ca *CA) NotifyTaintedX509Authorities(taintedAuthorities []*x509.Certificate) {

@@ -94,6 +94,7 @@ func (s *CATestSuite) SetupTest() {
 	})
 	s.setX509CA(true)
 	s.setJWTKey()
+	s.setWITKey()
 }
 
 func (s *CATestSuite) TestDisableJWTSVIDs() {
@@ -593,6 +594,14 @@ func (s *CATestSuite) setX509CA(selfSigned bool) {
 
 func (s *CATestSuite) setJWTKey() {
 	s.ca.SetJWTKey(&JWTKey{
+		Signer:   testSigner,
+		Kid:      "KID",
+		NotAfter: s.clock.Now().Add(10 * time.Minute),
+	})
+}
+
+func (s *CATestSuite) setWITKey() {
+	s.ca.SetWITKey(&WITKey{
 		Signer:   testSigner,
 		Kid:      "KID",
 		NotAfter: s.clock.Now().Add(10 * time.Minute),
