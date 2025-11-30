@@ -754,8 +754,8 @@ github.com/aws/aws-sdk-go-v2/service/acmpca v1.46.2 h1:mBl0TQb13preknTDjHWbanhl1
 github.com/aws/aws-sdk-go-v2/service/acmpca v1.46.2/go.mod h1:rpBWGq3UUlrgtAwNMy+I9ZoGgbiCoy30QetJZtI6+1A=
 github.com/aws/aws-sdk-go-v2/service/autoscaling v1.62.0 h1:cYsffsQcIls7mqvMQ3+SkaUXgz/CvxBQgJFrKCLj64k=
 github.com/aws/aws-sdk-go-v2/service/autoscaling v1.62.0/go.mod h1:6q/I1pH386VpPfB6FE62X/MOs6NW/oCsY9FXU33YXOU=
-github.com/aws/aws-sdk-go-v2/service/ec2 v1.274.0 h1:Q2+WD4KSVRkd27QxD9I30nM3O7B4WYwE+ua5dm2NJY0=
-github.com/aws/aws-sdk-go-v2/service/ec2 v1.274.0/go.mod h1:QrV+/GjhSrJh6MRRuTO6ZEg4M2I0nwPakf0lZHSrE1o=
+github.com/aws/aws-sdk-go-v2/service/ec2 v1.275.0 h1:ymusjrsOjrcVBQNQXYFIQEHJIJ17/m+VoDSmWIMjGe0=
+github.com/aws/aws-sdk-go-v2/service/ec2 v1.275.0/go.mod h1:QrV+/GjhSrJh6MRRuTO6ZEg4M2I0nwPakf0lZHSrE1o=
 github.com/aws/aws-sdk-go-v2/service/eks v1.75.0 h1:89rFFYB+HtoW6no7MrEK9dYydrY7ojpyjMROyHPrlSk=
 github.com/aws/aws-sdk-go-v2/service/eks v1.75.0/go.mod h1:lrJRZkSj6nIXH/SN3gbGQp4i4AtNyha0wT7VgYZ3KDw=
 github.com/aws/aws-sdk-go-v2/service/iam v1.52.1 h1:OYigTuTHayk1j11osOuJqIEuXSGAVndZYKH4aZYn8qk=
@@ -770,8 +770,8 @@ github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.19.14 h1:FzQE21lNtUor0
 github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.19.14/go.mod h1:s1ydyWG9pm3ZwmmYN21HKyG9WzAZhYVW85wMHs5FV6w=
 github.com/aws/aws-sdk-go-v2/service/kms v1.49.0 h1:QbztCKLI2qnjFZ/QYq3hZ8SW7SnTwB5h0NjREtKXIGo=
 github.com/aws/aws-sdk-go-v2/service/kms v1.49.0/go.mod h1:NZo9WJqQ0sxQ1Yqu1IwCHQFQunTms2MlVgejg16S1rY=
-github.com/aws/aws-sdk-go-v2/service/organizations v1.48.0 h1:IXkdn0LxDdbh1gJ4qTfwPJAT2TnYViTShDGbTu0B9jE=
-github.com/aws/aws-sdk-go-v2/service/organizations v1.48.0/go.mod h1:m9/mMkoPC0gZenV4x7iStoVecSyLax8mfnRaglZMXGE=
+github.com/aws/aws-sdk-go-v2/service/organizations v1.49.0 h1:eRsYLKYeqTlzoMROTk/22Cwg1gNUicwfol/nxcDZgdc=
+github.com/aws/aws-sdk-go-v2/service/organizations v1.49.0/go.mod h1:m9/mMkoPC0gZenV4x7iStoVecSyLax8mfnRaglZMXGE=
 github.com/aws/aws-sdk-go-v2/service/rolesanywhere v1.21.0 h1:lsV/IEkgM/O/3mL9wu1pKyzwEmYq6Q6D4OBdM9t7Loo=
 github.com/aws/aws-sdk-go-v2/service/rolesanywhere v1.21.0/go.mod h1:L61KDM+8S/XSlaWuAwtXUpb0IuB6ufocucP1w1WjPTA=
 github.com/aws/aws-sdk-go-v2/service/s3 v1.92.0 h1:8FshVvnV2sr9kOSAbOnc/vwVmmAwMjOedKH6JW2ddPM=
