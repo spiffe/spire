@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -36,7 +37,7 @@ const (
 // ValidateAttestedDocument validates the Azure IMDS attested document signature
 func validateAttestedDocument(ctx context.Context, doc *azure.AttestedDocument) (*azure.AttestedDocumentContent, error) {
 	if doc.Signature == "" {
-		return nil, fmt.Errorf("missing signature in attested document")
+		return nil, errors.New("missing signature in attested document")
 	}
 
 	// Step 1: Base64 decode the signature
@@ -53,7 +54,7 @@ func validateAttestedDocument(ctx context.Context, doc *azure.AttestedDocument) 
 
 	// Step 3: Extract the signing certificate
 	if len(pkcs7Sig.Certificates) == 0 {
-		return nil, fmt.Errorf("no certificates found in PKCS7 signature")
+		return nil, errors.New("no certificates found in PKCS7 signature")
 	}
 
 	signingCert := pkcs7Sig.Certificates[0]
@@ -76,7 +77,7 @@ func validateAttestedDocument(ctx context.Context, doc *azure.AttestedDocument) 
 
 	// Step 7: Perform Azure-specific certificate validation
 	if err := validateAzureCertificates(signingCert, intermediateCert); err != nil {
-		return nil, fmt.Errorf("Azure certificate validation failed: %w", err)
+		return nil, fmt.Errorf("azure certificate validation failed: %w", err)
 	}
 
 	// Step 8: Validate certificate chain
@@ -133,7 +134,7 @@ func getIntermediateCertificate(ctx context.Context, signingCert *x509.Certifica
 	if err != nil {
 		block, _ := pem.Decode(certData)
 		if block == nil {
-			return nil, fmt.Errorf("failed to decode intermediate certificate as PEM")
+			return nil, errors.New("failed to decode intermediate certificate as PEM")
 		}
 		cert, err = x509.ParseCertificate(block.Bytes)
 		if err != nil {
@@ -175,7 +176,7 @@ func validateAzureCertificates(signingCert, intermediateCert *x509.Certificate) 
 func validateCertificateSubject(cert *x509.Certificate, expectedSubject *regexp.Regexp) error {
 	subject := cert.Subject.CommonName
 	if subject == "" {
-		return fmt.Errorf("certificate has no common name in subject")
+		return errors.New("certificate has no common name in subject")
 	}
 
 	if !expectedSubject.MatchString(subject) {
@@ -189,7 +190,7 @@ func validateCertificateSubject(cert *x509.Certificate, expectedSubject *regexp.
 func validateCertificateIssuer(cert *x509.Certificate, expectedIssuer *regexp.Regexp) error {
 	issuer := cert.Issuer.CommonName
 	if issuer == "" {
-		return fmt.Errorf("certificate has no common name in issuer")
+		return errors.New("certificate has no common name in issuer")
 	}
 
 	if !expectedIssuer.MatchString(issuer) {
@@ -240,6 +241,5 @@ func extractIssuerURL(cert *x509.Certificate) (*url.URL, error) {
 		}
 	}
 
-	return nil, fmt.Errorf("no CA Issuers URL found in certificate")
-
+	return nil, errors.New("no CA Issuers URL found in certificate")
 }

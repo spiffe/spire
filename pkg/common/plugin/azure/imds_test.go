@@ -41,6 +41,11 @@ func TestFetchAttestedDocument(t *testing.T) {
 	require.EqualError(t, err, "response missing signature")
 	require.Nil(t, doc)
 
+	// mismatched nonce
+	doc, err = FetchAttestedDocument(fakeAttestedDocumentHTTPClient(http.StatusOK, `{"encoding": "base64", "signature": "SIGNATURE"}`, "MISMATCHED_NONCE"), nonce)
+	require.EqualError(t, err, "unexpected nonce \"TEST_NONCE\", expected \"MISMATCHED_NONCE\"")
+	require.Nil(t, doc)
+
 	// success
 	expected := &AttestedDocument{
 		Encoding:  "base64",

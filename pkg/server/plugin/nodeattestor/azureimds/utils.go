@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -159,19 +160,19 @@ func validateVMSSName(name string) error {
 
 	// Check allowed characters (alphanumeric, underscores, periods, hyphens)
 	if !reVMSSNameAllowedChars.MatchString(name) {
-		return fmt.Errorf("VMSS name can only contain alphanumeric characters, underscores, periods, and hyphens")
+		return errors.New("VMSS name can only contain alphanumeric characters, underscores, periods, and hyphens")
 	}
 
 	// Check start: must start with alphanumeric
 	firstChar := name[0]
 	if !((firstChar >= 'a' && firstChar <= 'z') || (firstChar >= 'A' && firstChar <= 'Z') || (firstChar >= '0' && firstChar <= '9')) {
-		return fmt.Errorf("VMSS name must start with an alphanumeric character")
+		return errors.New("VMSS name must start with an alphanumeric character")
 	}
 
 	// Check end: must end with alphanumeric or underscore
 	lastChar := name[len(name)-1]
 	if !((lastChar >= 'a' && lastChar <= 'z') || (lastChar >= 'A' && lastChar <= 'Z') || (lastChar >= '0' && lastChar <= '9') || lastChar == '_') {
-		return fmt.Errorf("VMSS name must end with an alphanumeric character or an underscore")
+		return errors.New("VMSS name must end with an alphanumeric character or an underscore")
 	}
 
 	return nil

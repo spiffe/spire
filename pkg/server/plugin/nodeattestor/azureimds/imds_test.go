@@ -882,7 +882,7 @@ type testAttestedDocument struct {
 	Nonce          string `json:"nonce"`
 }
 
-func makeAttestPayloadWithNonce(vmID, subscriptionID, nonce, agentDomain string, vmssName *string) []byte {
+func makeAttestPayloadWithNonce(vmID, subscriptionID, nonce, agentDomain string, vmssName *string) []byte { //nolint: unparam
 	docBytes, _ := json.Marshal(testAttestedDocument{
 		VMID:           vmID,
 		SubscriptionID: subscriptionID,

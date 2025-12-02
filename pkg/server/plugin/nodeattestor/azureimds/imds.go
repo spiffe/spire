@@ -385,7 +385,7 @@ func buildSelectors(ctx context.Context, tenant *tenantConfig, vmssName *string,
 	// build up a unique map of selectors. this is easier than deduping
 	// individual selectors (e.g. the virtual network for each interface)
 	selectorMap := map[string]bool{}
-	//Get the VMSS Instance or Virtual Machine
+	// Get the VMSS Instance or Virtual Machine
 	var (
 		vm  *VirtualMachine
 		err error

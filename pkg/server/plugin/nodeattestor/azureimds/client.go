@@ -3,6 +3,7 @@ package azureimds
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -135,7 +136,6 @@ func (c *azureClient) GetVMSSInstance(ctx context.Context, vmId, subscriptionID,
 				return vm, nil
 			}
 		}
-
 	}
 	return nil, status.Errorf(codes.Internal, "VMSS instance %q not found", vmId)
 }
@@ -273,25 +273,25 @@ func extractArmResourceGraphItems[T any](resp armresourcegraph.ClientResourcesRe
 		return nil, status.Error(codes.NotFound, "resource not found")
 	}
 
-	items, ok := resp.Data.([]interface{})
+	items, ok := resp.Data.([]any)
 	if !ok {
-		return nil, fmt.Errorf("unable to cast data to []interface{}")
+		return nil, errors.New("unable to cast data to []any")
 	}
 
 	resultSlice := make([]*T, 0, len(items))
 	for _, item := range items {
-		nextItem, ok := item.(map[string]interface{})
+		nextItem, ok := item.(map[string]any)
 		if !ok {
-			return nil, fmt.Errorf("unable to cast item to map[string]interface{}")
+			return nil, errors.New("unable to cast item to map[string]any")
 		}
 		jsonBytes, err := json.Marshal(nextItem)
 		if err != nil {
-			return nil, fmt.Errorf("unable to marshal item: %v", err)
+			return nil, fmt.Errorf("unable to marshal item: %w", err)
 		}
 		resultItem := new(T)
 		err = json.Unmarshal(jsonBytes, resultItem)
 		if err != nil {
-			return nil, fmt.Errorf("unable to unmarshal item: %v", err)
+			return nil, fmt.Errorf("unable to unmarshal item: %w", err)
 		}
 		resultSlice = append(resultSlice, resultItem)
 	}
