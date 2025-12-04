@@ -44,6 +44,8 @@ The plugin also attempts to detect and prune stale keys. All keys managed by the
 
 The plugin supports tagging of KMS keys with user-defined tags using the `key_tags` configuration option. These tags are specified as key-value pairs and are applied to all KMS keys created by the plugin.
 
+When using key tagging, you must add the `kms:TagResource` permission to the IAM policy. Key creation will fail without this permission.
+
 **Tag constraints**
 
 - Tag keys must be 1-128 characters long
@@ -55,6 +57,9 @@ The plugin supports tagging of KMS keys with user-defined tags using the `key_ta
 
 **Tag validation**
 The plugin validates all user-defined tags during configuration. If any tag violates AWS KMS tagging constraints, the plugin will fail to configure and report a detailed error message indicating the specific validation failure.
+
+**Tag lifecycle**
+When the `key_tags` configuration block is updated, only newly created keys will be tagged with the new configuration. Existing keys will not have their tags updated.
 
 ### AWS KMS Access
 
