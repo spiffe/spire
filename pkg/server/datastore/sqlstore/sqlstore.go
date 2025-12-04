@@ -24,7 +24,9 @@ import (
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
+	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
+	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/protoutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/x509util"
@@ -846,7 +848,7 @@ checkAuthorities:
 
 // Configure parses HCL config payload into config struct, opens new DB based on the result, and
 // prunes all orphaned records
-func (ds *Plugin) Configure(_ context.Context, hclConfiguration string) error {
+func (ds *Plugin) Configure(ctx context.Context, hclConfiguration string) error {
 	config := &configuration{}
 	if err := hcl.Decode(config, hclConfiguration); err != nil {
 		return err
@@ -863,14 +865,48 @@ func (ds *Plugin) Configure(_ context.Context, hclConfiguration string) error {
 		return err
 	}
 
-	return ds.openConnections(config)
+	return ds.openConnections(ctx, config)
 }
 
-func (ds *Plugin) openConnections(config *configuration) error {
+func (ds *Plugin) Validate(ctx context.Context, coreConfig catalog.CoreConfig, configuration string) (*configv1.ValidateResponse, error) {
+	config, err := buildConfig(configuration)
+	if err != nil {
+		return &configv1.ValidateResponse{
+			Notes: []string{err.Error()},
+		}, err
+	}
+	err = config.Validate()
+	if err != nil {
+		return &configv1.ValidateResponse{
+			Notes: []string{err.Error()},
+		}, err
+	}
+
+	return &configv1.ValidateResponse{
+		Valid: true,
+	}, nil
+}
+
+func buildConfig(hclConfiguration string) (*configuration, error) {
+	config := &configuration{}
+	if err := hcl.Decode(config, hclConfiguration); err != nil {
+		return nil, err
+	}
+
+	dbTypeConfig, err := parseDatabaseTypeASTNode(config.DatabaseTypeNode)
+	if err != nil {
+		return nil, err
+	}
+
+	config.databaseTypeConfig = dbTypeConfig
+	return config, nil
+}
+
+func (ds *Plugin) openConnections(ctx context.Context, config *configuration) error {
 	ds.mu.Lock()
 	defer ds.mu.Unlock()
 
-	if err := ds.openConnection(config, false); err != nil {
+	if err := ds.openConnection(ctx, config, false); err != nil {
 		return err
 	}
 
@@ -878,10 +914,10 @@ func (ds *Plugin) openConnections(config *configuration) error {
 		return nil
 	}
 
-	return ds.openConnection(config, true)
+	return ds.openConnection(ctx, config, true)
 }
 
-func (ds *Plugin) openConnection(config *configuration, isReadOnly bool) error {
+func (ds *Plugin) openConnection(ctx context.Context, config *configuration, isReadOnly bool) error {
 	connectionString := getConnectionString(config, isReadOnly)
 	sqlDb := ds.db
 	if isReadOnly {
@@ -889,7 +925,7 @@ func (ds *Plugin) openConnection(config *configuration, isReadOnly bool) error {
 	}
 
 	if sqlDb == nil || connectionString != sqlDb.connectionString || config.databaseTypeConfig.databaseType != ds.db.databaseType {
-		db, version, supportsCTE, dialect, err := ds.openDB(config, isReadOnly)
+		db, version, supportsCTE, dialect, err := ds.openDB(ctx, config, isReadOnly)
 		if err != nil {
 			return err
 		}
@@ -1049,7 +1085,7 @@ func (ds *Plugin) gormToGRPCStatus(err error) error {
 	return status.Error(code, err.Error())
 }
 
-func (ds *Plugin) openDB(cfg *configuration, isReadOnly bool) (*gorm.DB, string, bool, dialect, error) {
+func (ds *Plugin) openDB(ctx context.Context, cfg *configuration, isReadOnly bool) (*gorm.DB, string, bool, dialect, error) {
 	var dialect dialect
 
 	ds.log.WithField(telemetry.DatabaseType, cfg.databaseTypeConfig.databaseType).Info("Opening SQL database")
@@ -1066,7 +1102,7 @@ func (ds *Plugin) openDB(cfg *configuration, isReadOnly bool) (*gorm.DB, string,
 		return nil, "", false, nil, newSQLError("unsupported database_type: %v", cfg.databaseTypeConfig.databaseType)
 	}
 
-	db, version, supportsCTE, err := dialect.connect(cfg, isReadOnly)
+	db, version, supportsCTE, err := dialect.connect(ctx, cfg, isReadOnly)
 	if err != nil {
 		return nil, "", false, nil, newWrappedSQLError(err)
 	}
@@ -4737,14 +4773,14 @@ func getConnectionString(cfg *configuration, isReadOnly bool) string {
 	return connectionString
 }
 
-func queryVersion(gormDB *gorm.DB, query string) (string, error) {
+func queryVersion(ctx context.Context, gormDB *gorm.DB, query string) (string, error) {
 	db := gormDB.DB()
 	if db == nil {
 		return "", newSQLError("unable to get raw database object")
 	}
 
 	var version string
-	if err := db.QueryRow(query).Scan(&version); err != nil {
+	if err := db.QueryRowContext(ctx, query).Scan(&version); err != nil {
 		return "", newWrappedSQLError(err)
 	}
 	return version, nil

@@ -139,6 +139,7 @@ Endpoint SPIFFE ID        : spiffe://baz.test/id
         "trust_domain": "bar.test",
         "x509_authorities": [],
         "jwt_authorities": [],
+        "wit_authorities": [],
         "refresh_hint": "0",
         "sequence_number": "0"
       }

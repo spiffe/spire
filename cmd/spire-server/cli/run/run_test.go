@@ -244,6 +244,16 @@ func TestMergeInput(t *testing.T) {
 			},
 		},
 		{
+			msg: "disable_jwt_svids should be configurable by file",
+			fileInput: func(c *Config) {
+				c.Server.DisableJWTSVIDs = true
+			},
+			cliFlags: []string{},
+			test: func(t *testing.T, c *Config) {
+				require.Equal(t, true, c.Server.DisableJWTSVIDs)
+			},
+		},
+		{
 			msg: "jwt_issuer should be configurable by file",
 			fileInput: func(c *Config) {
 				c.Server.JWTIssuer = "ISSUER"
@@ -592,6 +602,15 @@ func TestNewServerConfig(t *testing.T) {
 			},
 			test: func(t *testing.T, c *server.Config) {
 				require.Nil(t, c)
+			},
+		},
+		{
+			msg: "disable_jwt_svids is correctly configured",
+			input: func(c *Config) {
+				c.Server.DisableJWTSVIDs = true
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Equal(t, true, c.DisableJWTSVIDs)
 			},
 		},
 		{

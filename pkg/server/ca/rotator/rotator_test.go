@@ -189,6 +189,7 @@ func TestRunJWTKeyRotation(t *testing.T) {
 		err := test.rotator.Run(ctx)
 		assert.NoError(t, err)
 	}()
+	test.clock.WaitForTickerMulti(time.Minute, 3, "waiting for the Run() ticker")
 
 	require.Equal(t, "jwt-a", test.fakeCAManager.currentJWTKeySlot.keyID)
 	require.True(t, test.fakeCAManager.currentJWTKeySlot.isActive)
@@ -241,6 +242,7 @@ func TestRunX509CARotation(t *testing.T) {
 		err := test.rotator.Run(ctx)
 		assert.NoError(t, err)
 	}()
+	test.clock.WaitForTickerMulti(time.Minute, 3, "waiting for the Run() ticker")
 
 	require.Equal(t, "x509-a", test.fakeCAManager.currentX509CASlot.keyID)
 	require.True(t, test.fakeCAManager.currentX509CASlot.isActive)
@@ -293,6 +295,7 @@ func TestPruneBundle(t *testing.T) {
 		err := test.rotator.Run(ctx)
 		assert.NoError(t, err)
 	}()
+	test.clock.WaitForTickerMulti(time.Minute, 3, "waiting for the Run() ticker")
 
 	test.clock.Add(time.Minute + time.Second)
 	require.False(t, test.fakeCAManager.pruneBundleWasCalled)
@@ -329,7 +332,7 @@ func TestPruneCAJournals(t *testing.T) {
 		err := test.rotator.Run(ctx)
 		assert.NoError(t, err)
 	}()
-	test.clock.WaitForTicker(time.Minute, "waiting for the Run() ticker")
+	test.clock.WaitForTickerMulti(time.Minute, 3, "waiting for the Run() ticker")
 
 	test.clock.Add(time.Minute + time.Second)
 	require.False(t, test.fakeCAManager.pruneCAJournalsWasCalled)
@@ -394,6 +397,7 @@ type fakeCAManager struct {
 	nextX509CASlot    *fakeSlot
 	prepareX509CAErr  error
 
+	disableJWTSVIDs   bool
 	currentJWTKeySlot *fakeSlot
 	nextJWTKeySlot    *fakeSlot
 	prepareJWTKeyErr  error
@@ -573,6 +577,10 @@ func (f *fakeCAManager) waitPruneCAJournalsCalled(ctx context.Context, t *testin
 		assert.Fail(t, "context finished")
 	case <-f.pruneCAJournalsCh:
 	}
+}
+
+func (f *fakeCAManager) IsJWTSVIDsDisabled() bool {
+	return f.disableJWTSVIDs
 }
 
 type fakeSlot struct {

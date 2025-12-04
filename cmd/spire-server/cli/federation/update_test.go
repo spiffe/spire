@@ -272,6 +272,7 @@ Endpoint SPIFFE ID        : spiffe://td-3.org/bundle
             }
           ],
           "jwt_authorities": [],
+          "wit_authorities": [],
           "refresh_hint": "0",
           "sequence_number": "0"
         }
@@ -433,6 +434,7 @@ Endpoint SPIFFE ID        : spiffe://td-3.org/bundle
             }
           ],
           "jwt_authorities": [],
+          "wit_authorities": [],
           "refresh_hint": "0",
           "sequence_number": "0"
         }
