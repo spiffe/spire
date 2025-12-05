@@ -15,6 +15,7 @@ This document is a configuration reference for SPIRE Agent. It includes informat
 
 | Type             | Name                                                                    | Description                                                                                                                                      |
 |------------------|-------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------|
+| KeyManager       | [azure_key_vault](/doc/plugin_agent_keymanager_azure_key_vault.md)      | A key manager which stores keys in Azure Key Vault                                                                                               |
 | KeyManager       | [disk](/doc/plugin_agent_keymanager_disk.md)                            | A key manager which writes the private key to disk                                                                                               |
 | KeyManager       | [memory](/doc/plugin_agent_keymanager_memory.md)                        | An in-memory key manager which does not persist private keys (must re-attest after restarts)                                                     |
 | NodeAttestor     | [aws_iid](/doc/plugin_agent_nodeattestor_aws_iid.md)                    | A node attestor which attests agent identity using an AWS Instance Identity Document                                                             |
