@@ -47,6 +47,7 @@ func TestAllTrueMasks(t *testing.T) {
 	spiretest.AssertProtoEqual(t, &common.BundleMask{
 		RootCas:         true,
 		JwtSigningKeys:  true,
+		WitSigningKeys:  true,
 		RefreshHint:     true,
 		SequenceNumber:  true,
 		X509TaintedKeys: true,
