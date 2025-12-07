@@ -13,6 +13,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"text/template"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -47,6 +48,7 @@ const (
 	keyNamePrefix            = "spire-key"
 	tagNameServerID          = "spire-server-id"
 	tagNameServerTrustDomain = "spire-server-td"
+	tagNameKeyID             = "spire-key-id"
 )
 
 func BuiltIn() catalog.BuiltIn {
@@ -86,6 +88,14 @@ type Config struct {
 	SubscriptionID     string `hcl:"subscription_id" json:"subscription_id"`
 	AppID              string `hcl:"app_id" json:"app_id"`
 	AppSecret          string `hcl:"app_secret" json:"app_secret"`
+
+	// Shared keys configuration for multi-server deployments
+	SharedKeys *SharedKeysConfig `hcl:"shared_keys" json:"shared_keys"`
+}
+
+type SharedKeysConfig struct {
+	KeyNameTemplate string `hcl:"key_name_template" json:"key_name_template"`
+	LockTagTemplate string `hcl:"lock_tag_template" json:"lock_tag_template"`
 }
 
 func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *Config {
@@ -100,21 +110,47 @@ func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginco
 		status.ReportError("configuration is missing the Key Vault URI")
 	}
 
-	if newConfig.KeyIdentifierValue != "" {
-		if len(newConfig.KeyIdentifierValue) > 256 {
-			status.ReportError("Key identifier must not be longer than 256 characters")
+	if newConfig.SharedKeys != nil {
+		if newConfig.SharedKeys.KeyNameTemplate == "" {
+			status.ReportError("configuration missing key_name_template in shared_keys")
+		} else {
+			if _, err := template.New("key_name_template").Parse(newConfig.SharedKeys.KeyNameTemplate); err != nil {
+				status.ReportErrorf("failed to parse key_name_template: %v", err)
+			}
+		}
+
+		if newConfig.SharedKeys.LockTagTemplate == "" {
+			status.ReportError("configuration missing lock_tag_template in shared_keys")
+		} else {
+			if _, err := template.New("lock_tag_template").Parse(newConfig.SharedKeys.LockTagTemplate); err != nil {
+				status.ReportErrorf("failed to parse lock_tag_template: %v", err)
+			}
+		}
+	} else {
+		if newConfig.KeyIdentifierFile == "" && newConfig.KeyIdentifierValue == "" {
+			status.ReportError("configuration requires a key identifier file or a key identifier value")
+		}
+
+		if newConfig.KeyIdentifierFile != "" && newConfig.KeyIdentifierValue != "" {
+			status.ReportError("configuration can't have a key identifier file and a key identifier value at the same time")
+		}
+
+		if newConfig.KeyIdentifierValue != "" {
+			if len(newConfig.KeyIdentifierValue) > 256 {
+				status.ReportError("Key identifier must not be longer than 256 characters")
+			}
 		}
 	}
 
-	if newConfig.KeyIdentifierFile == "" && newConfig.KeyIdentifierValue == "" {
-		status.ReportError("configuration requires a key identifier file or a key identifier value")
-	}
-
-	if newConfig.KeyIdentifierFile != "" && newConfig.KeyIdentifierValue != "" {
-		status.ReportError("configuration can't have a key identifier file and a key identifier value at the same time")
-	}
-
 	return newConfig
+}
+
+type pluginData struct {
+	serverID          string
+	trustDomain       string
+	sharedKeysEnabled bool
+	keyNameTemplate   *template.Template
+	lockTagTemplate   *template.Template
 }
 
 // Plugin is the main representation of this keymanager plugin
@@ -126,12 +162,13 @@ type Plugin struct {
 	entries        map[string]keyEntry
 	entriesMtx     sync.RWMutex
 	keyVaultClient cloudKeyManagementService
-	trustDomain    string
-	serverID       string
 	scheduleDelete chan string
 	cancelTasks    context.CancelFunc
 	hooks          pluginHooks
 	keyTags        map[string]*string
+
+	pd    *pluginData
+	pdMtx sync.RWMutex
 }
 
 // New returns an instantiated plugin.
@@ -168,13 +205,48 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 	}
 
 	serverID := newConfig.KeyIdentifierValue
-	if serverID == "" {
+	if serverID == "" && newConfig.SharedKeys == nil {
 		serverID, err = getOrCreateServerID(newConfig.KeyIdentifierFile)
 		if err != nil {
 			return nil, err
 		}
 	}
-	p.log.Debug("Loaded server id", "server_id", serverID)
+	if serverID != "" {
+		p.log.Debug("Loaded server id", "server_id", serverID)
+	}
+
+	pd := &pluginData{
+		serverID:    serverID,
+		trustDomain: strings.ReplaceAll(req.CoreConfiguration.TrustDomain, ".", "-"),
+	}
+
+	var keyIDExtractor func(*azkeys.KeyItem) (string, bool)
+	if newConfig.SharedKeys != nil {
+		pd.sharedKeysEnabled = true
+		pd.keyNameTemplate = template.Must(template.New("key_name_template").Parse(newConfig.SharedKeys.KeyNameTemplate))
+		if newConfig.SharedKeys.LockTagTemplate != "" {
+			pd.lockTagTemplate = template.Must(template.New("lock_tag_template").Parse(newConfig.SharedKeys.LockTagTemplate))
+		}
+
+		// In shared keys mode, extract KID from the tag
+		keyIDExtractor = func(key *azkeys.KeyItem) (string, bool) {
+			if key.Tags == nil {
+				return "", false
+			}
+			kidTag, ok := key.Tags[tagNameKeyID]
+			if !ok || kidTag == nil {
+				return "", false
+			}
+			return *kidTag, true
+		}
+	} else {
+		pd.sharedKeysEnabled = false
+		keyIDExtractor = func(key *azkeys.KeyItem) (string, bool) {
+			return spireKeyIDFromKeyName(key.KID.Name())
+		}
+	}
+
+	p.setPluginData(pd)
 
 	var client cloudKeyManagementService
 
@@ -218,6 +290,7 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 		log:            p.log,
 		serverID:       serverID,
 		trustDomain:    req.CoreConfiguration.TrustDomain,
+		keyIDExtractor: keyIDExtractor,
 	}
 
 	p.log.Debug("Fetching keys from Azure Key Vault", "key_vault_uri", newConfig.KeyVaultURI)
@@ -231,8 +304,6 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 
 	p.setCache(keyEntries)
 	p.keyVaultClient = client
-	p.trustDomain = req.CoreConfiguration.TrustDomain
-	p.serverID = serverID
 	p.keyTags = make(map[string]*string)
 	p.keyTags[tagNameServerTrustDomain] = to.Ptr(req.CoreConfiguration.TrustDomain)
 	p.keyTags[tagNameServerID] = to.Ptr(serverID)
@@ -351,6 +422,12 @@ func (p *Plugin) disposeKeys(ctx context.Context) error {
 	pager := p.keyVaultClient.NewListKeysPager(nil)
 	now := p.hooks.clk.Now()
 	maxStaleTime := now.Add(-maxStaleDuration)
+
+	pd, err := p.getPluginData()
+	if err != nil {
+		return err
+	}
+
 	for pager.More() {
 		resp, err := pager.NextPage(ctx)
 		if err != nil {
@@ -361,14 +438,14 @@ func (p *Plugin) disposeKeys(ctx context.Context) error {
 		for _, key := range resp.Value {
 			// Skip keys that do not belong to this trust domain
 			trustDomain, hasTD := key.Tags[tagNameServerTrustDomain]
-			if !hasTD || *trustDomain != p.trustDomain {
+			if !hasTD || *trustDomain != pd.trustDomain {
 				continue
 			}
 
 			// Keys are enqueued for deletion when they are rotated, so we skip
 			// here the keys that belong to this server. Stale keys from other
 			// servers in the trust domain are enqueued for deletion.
-			if p.serverID == *key.Tags[tagNameServerID] {
+			if pd.serverID == *key.Tags[tagNameServerID] {
 				continue
 			}
 
@@ -415,7 +492,21 @@ func (p *Plugin) GenerateKey(ctx context.Context, req *keymanagerv1.GenerateKeyR
 }
 
 func (p *Plugin) createKey(ctx context.Context, spireKeyID string, keyType keymanagerv1.KeyType) (*keyEntry, error) {
-	createKeyParameters, err := getCreateKeyParameters(keyType, p.keyTags)
+	pd, err := p.getPluginData()
+	if err != nil {
+		return nil, err
+	}
+
+	// Build tags including the KID tag for shared keys mode
+	tags := make(map[string]*string)
+	for k, v := range p.keyTags {
+		tags[k] = v
+	}
+	if pd.sharedKeysEnabled {
+		tags[tagNameKeyID] = to.Ptr(spireKeyID)
+	}
+
+	createKeyParameters, err := getCreateKeyParameters(keyType, tags)
 	if err != nil {
 		return nil, err
 	}
@@ -423,6 +514,146 @@ func (p *Plugin) createKey(ctx context.Context, spireKeyID string, keyType keyma
 	keyName, err := p.generateKeyName(spireKeyID)
 	if err != nil {
 		return nil, fmt.Errorf("could not generate key name: %w", err)
+	}
+
+	// OPTIMIZATION: Check for the existing fresh key (Optimistic coordination) for Shared Keys
+	if pd.sharedKeysEnabled {
+		existingKey, err := p.keyVaultClient.GetKey(ctx, keyName, "", nil)
+		if err == nil && existingKey.Key != nil {
+			sharedKeyFreshnessThreshold := 15 * time.Minute
+			if existingKey.KeyBundle.Attributes != nil && existingKey.KeyBundle.Attributes.Created != nil {
+				if p.hooks.clk.Now().Sub(*existingKey.KeyBundle.Attributes.Created) < sharedKeyFreshnessThreshold {
+					// Check if algorithm matches
+					if keyTypeMatch(existingKey.KeyBundle, keyType) {
+						p.log.Info("Shared key is already fresh. Reusing existing key (optimistic).", "key_name", keyName)
+
+						rawKey, err := keyVaultKeyToRawKey(existingKey.Key)
+						if err != nil {
+							return nil, err
+						}
+						publicKey, err := x509.MarshalPKIXPublicKey(rawKey)
+						if err != nil {
+							return nil, status.Errorf(codes.Internal, "failed to marshal public key: %v", err)
+						}
+
+						return &keyEntry{
+							KeyID:      string(*existingKey.Key.KID),
+							KeyName:    existingKey.Key.KID.Name(),
+							keyVersion: existingKey.Key.KID.Version(),
+							PublicKey: &keymanagerv1.PublicKey{
+								Id:          spireKeyID,
+								Type:        keyType,
+								PkixData:    publicKey,
+								Fingerprint: makeFingerprint(publicKey),
+							},
+						}, nil
+					}
+				}
+			}
+		}
+	}
+
+	// Acquire Lock (if configured) for shared keys mode
+	var lockTag string
+	if pd.sharedKeysEnabled && pd.lockTagTemplate != nil {
+		data := struct {
+			TrustDomain string
+			KeyID       string
+		}{
+			TrustDomain: pd.trustDomain,
+			KeyID:       spireKeyID,
+		}
+
+		var buf strings.Builder
+		if err := pd.lockTagTemplate.Execute(&buf, data); err != nil {
+			return nil, status.Errorf(codes.Internal, "failed to execute lock_tag_template: %v", err)
+		}
+		lockTag = buf.String()
+
+		// We need to check if the key exists to lock it. If it doesn't exist, we can't lock it,
+		// but we also don't need to lock it because we are creating it.
+		// However, if we are rotating, the key name is the same (derived from template), so we check existence.
+		latestKey, err := p.keyVaultClient.GetKey(ctx, keyName, "", nil)
+		if err == nil {
+			// Key exists, try to acquire lock
+			if latestKey.Tags == nil {
+				latestKey.Tags = make(map[string]*string)
+			}
+
+			if _, ok := latestKey.Tags[lockTag]; ok {
+				p.log.Warn("Rotation lock held by another instance. Aborting rotation.", "lock_tag", lockTag)
+				return nil, status.Errorf(codes.Aborted, "rotation lock held")
+			}
+
+			latestKey.Tags[lockTag] = to.Ptr("true")
+			// Update tags to acquire lock
+			_, err = p.keyVaultClient.UpdateKey(ctx, keyName, latestKey.Key.KID.Version(), azkeys.UpdateKeyParameters{
+				Tags: latestKey.Tags,
+			}, nil)
+
+			if err != nil {
+				p.log.Warn("Failed to acquire rotation lock (concurrent update). Aborting.", "error", err)
+				return nil, status.Errorf(codes.Aborted, "failed to acquire lock: %v", err)
+			}
+
+			p.log.Debug("Acquired rotation lock", "lock_tag", lockTag)
+
+			defer func() {
+				// Release lock
+				k, err := p.keyVaultClient.GetKey(ctx, keyName, "", nil)
+				if err != nil {
+					p.log.Error("Failed to get key to release lock", "error", err)
+					return
+				}
+				if k.Tags != nil {
+					delete(k.Tags, lockTag)
+				}
+				_, err = p.keyVaultClient.UpdateKey(ctx, keyName, k.Key.KID.Version(), azkeys.UpdateKeyParameters{
+					Tags: k.Tags,
+				}, nil)
+				if err != nil {
+					p.log.Error("Failed to release rotation lock", "lock_tag", lockTag, "error", err)
+				} else {
+					p.log.Debug("Released rotation lock", "lock_tag", lockTag)
+				}
+			}()
+		}
+	}
+
+	// Check if the Key already has a fresh version (concurrency check)
+	if pd.sharedKeysEnabled {
+		existingKey, err := p.keyVaultClient.GetKey(ctx, keyName, "", nil)
+		if err == nil && existingKey.Key != nil {
+			sharedKeyFreshnessThreshold := 15 * time.Minute
+			if existingKey.KeyBundle.Attributes != nil && existingKey.KeyBundle.Attributes.Created != nil {
+				if p.hooks.clk.Now().Sub(*existingKey.KeyBundle.Attributes.Created) < sharedKeyFreshnessThreshold {
+					if keyTypeMatch(existingKey.KeyBundle, keyType) {
+						p.log.Info("Shared key was recently rotated by another instance. Reusing existing key.", "key_name", keyName)
+
+						rawKey, err := keyVaultKeyToRawKey(existingKey.Key)
+						if err != nil {
+							return nil, err
+						}
+						publicKey, err := x509.MarshalPKIXPublicKey(rawKey)
+						if err != nil {
+							return nil, status.Errorf(codes.Internal, "failed to marshal public key: %v", err)
+						}
+
+						return &keyEntry{
+							KeyID:      string(*existingKey.Key.KID),
+							KeyName:    existingKey.Key.KID.Name(),
+							keyVersion: existingKey.Key.KID.Version(),
+							PublicKey: &keymanagerv1.PublicKey{
+								Id:          spireKeyID,
+								Type:        keyType,
+								PkixData:    publicKey,
+								Fingerprint: makeFingerprint(publicKey),
+							},
+						}, nil
+					}
+				}
+			}
+		}
 	}
 
 	createResp, err := p.keyVaultClient.CreateKey(ctx, keyName, *createKeyParameters, nil)
@@ -442,11 +673,22 @@ func (p *Plugin) createKey(ctx context.Context, spireKeyID string, keyType keyma
 	}
 
 	if keyEntry, ok := p.getKeyEntry(spireKeyID); ok {
-		select {
-		case p.scheduleDelete <- keyEntry.KeyName:
-			p.log.Debug("Key enqueued for deletion", keyNameTag, keyEntry.KeyName)
-		default:
-			p.log.Error("Failed to enqueue key for deletion", keyNameTag, keyEntry.KeyName)
+		// In shared keys mode, we might not want to delete the old key immediately if it's shared?
+		// But here we are creating a NEW version (or new key if name changed).
+		// If name is same (shared keys), CreateKey creates a new version.
+		// The old version is still valid but we are switching to new one.
+		// In standard mode, we delete the old key (which has a different name).
+		// In shared keys mode, we are just adding a version. We probably shouldn't delete the KEY itself.
+		// But wait, standard mode generates a NEW NAME for every rotation.
+		// Shared keys mode reuses the NAME.
+		// So in shared keys mode, we should NOT delete the key.
+		if !pd.sharedKeysEnabled {
+			select {
+			case p.scheduleDelete <- keyEntry.KeyName:
+				p.log.Debug("Key enqueued for deletion", keyNameTag, keyEntry.KeyName)
+			default:
+				p.log.Error("Failed to enqueue key for deletion", keyNameTag, keyEntry.KeyName)
+			}
 		}
 	}
 
@@ -461,6 +703,11 @@ func (p *Plugin) createKey(ctx context.Context, spireKeyID string, keyType keyma
 			Fingerprint: makeFingerprint(publicKey),
 		},
 	}, nil
+}
+
+func keyTypeMatch(keyBundle azkeys.KeyBundle, keyType keymanagerv1.KeyType) bool {
+	kt, ok := keyTypeFromKeySpec(keyBundle)
+	return ok && kt == keyType
 }
 
 // SignData creates a digital signature for the data to be signed
@@ -607,6 +854,25 @@ func (p *Plugin) setKeyEntry(keyID string, ke keyEntry) {
 	p.entries[keyID] = ke
 }
 
+// getPluginData gets the pluginData structure maintained by the plugin.
+func (p *Plugin) getPluginData() (*pluginData, error) {
+	p.pdMtx.RLock()
+	defer p.pdMtx.RUnlock()
+
+	if p.pd == nil {
+		return nil, status.Error(codes.FailedPrecondition, "plugin data not yet initialized")
+	}
+	return p.pd, nil
+}
+
+// setPluginData sets the pluginData structure maintained by the plugin.
+func (p *Plugin) setPluginData(pd *pluginData) {
+	p.pdMtx.Lock()
+	defer p.pdMtx.Unlock()
+
+	p.pd = pd
+}
+
 // scheduleDeleteTask is a long-running task that deletes keys that are stale
 func (p *Plugin) scheduleDeleteTask(ctx context.Context) {
 	backoffMin := 1 * time.Second
@@ -687,7 +953,29 @@ func getCreateKeyParameters(keyType keymanagerv1.KeyType, keyTags map[string]*st
 // The returned name has the form: spire-key-<UUID>-<SPIRE-KEY-ID>,
 // where UUID is a new randomly generated UUID and SPIRE-KEY-ID is provided
 // through the spireKeyID parameter.
+// If shared keys are enabled, it uses the key_name_template instead.
 func (p *Plugin) generateKeyName(spireKeyID string) (keyName string, err error) {
+	pd, err := p.getPluginData()
+	if err != nil {
+		return "", err
+	}
+
+	if pd.sharedKeysEnabled {
+		data := struct {
+			TrustDomain string
+			KeyID       string
+		}{
+			TrustDomain: pd.trustDomain,
+			KeyID:       spireKeyID,
+		}
+
+		var buf strings.Builder
+		if err := pd.keyNameTemplate.Execute(&buf, data); err != nil {
+			return "", status.Errorf(codes.Internal, "failed to execute key_name_template: %v", err)
+		}
+		return buf.String(), nil
+	}
+
 	uniqueID, err := generateUniqueID()
 	if err != nil {
 		return "", err

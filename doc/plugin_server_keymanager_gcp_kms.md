@@ -6,6 +6,11 @@ Google Cloud principal can view or export the raw cryptographic key material
 represented by a key. Instead, Cloud KMS accesses the key material on behalf of
 SPIRE.
 
+The plugin supports two modes of operation:
+
+- **Standard Mode**: Each SPIRE server manages its own set of keys identified by a unique server ID
+- **Shared Keys Mode**: Multiple SPIRE servers (including multi-region deployments) can discover and use the same signing keys based on configurable templates and regular expressions
+
 ## Configuration
 
 The plugin accepts the following configuration options:
@@ -13,10 +18,15 @@ The plugin accepts the following configuration options:
 | Key                  | Type   | Required                                    | Description                                                                                                                                                                                    | Default                                                         |
 |----------------------|--------|---------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------|
 | key_policy_file      | string | no                                          | A file path location to a custom [IAM Policy (v3)](https://cloud.google.com/pubsub/docs/reference/rpc/google.iam.v1#google.iam.v1.Policy) in JSON format to be attached to created CryptoKeys. | ""                                                              |
-| key_identifier_file  | string | Required if key_identifier_value is not set | A file path location where key metadata used by the plugin will be persisted. See "[Management of keys](#management-of-keys)" for more information.                                            | ""                                                              |
-| key_identifier_value | string | Required if key_identifier_file is not set  | A static identifier for the SPIRE server instance (used instead of `key_identifier_file`)                                                                                                      | ""                                                              |
+| key_identifier_file  | string | See [Key Identifier](#key-identifier)       | A file path location where key metadata used by the plugin will be persisted. See "[Management of keys](#management-of-keys)" for more information.                                            | ""                                                              |
+| key_identifier_value | string | See [Key Identifier](#key-identifier)       | A static identifier for the SPIRE server instance (used instead of `key_identifier_file`)                                                                                                      | ""                                                              |
 | key_ring             | string | yes                                         | Resource ID of the key ring where the keys managed by this plugin reside, in the format projects/\*/locations/\*/keyRings/\*                                                                   | ""                                                              |
 | service_account_file | string | no                                          | Path to the service account file used to authenticate with the Cloud KMS API.                                                                                                                  | Value of `GOOGLE_APPLICATION_CREDENTIALS` environment variable. |
+| shared_keys          | object | no                                          | Configuration for shared keys mode (see [Shared Keys Configuration](#shared-keys-configuration))                                                                                               | ""                                                              |
+
+### Key Identifier
+
+In standard mode, either `key_identifier_file` or `key_identifier_value` is required. In shared keys mode, these are optional as keys are identified using templates and regex patterns instead.
 
 ### Authenticating with the Cloud KMS API
 
@@ -39,6 +49,39 @@ versions.
 For each SPIRE Key ID that the server manages, this plugin maintains a
 CryptoKey. When a key is rotated, a new CryptoKeyVersion is added to the
 CryptoKey and the rotated CryptoKeyVersion is scheduled for destruction.
+
+### Shared Keys Configuration
+
+The plugin supports a shared keys mode that allows multiple SPIRE servers to discover and use the same signing keys. This is useful for multi-server and multi-region deployments where servers need to coordinate key usage.
+
+When the `shared_keys` configuration block is present, the plugin operates in shared keys mode. This block accepts the following options:
+
+| Key                      | Type   | Required | Description                                                                                                                  |
+
+| crypto_key_template      | string | yes      | A Go template to generate the CryptoKey name                                                                                 |
+|--------------------------|--------|----------|------------------------------------------------------------------------------------------------------------------------------|
+| key_id_extraction_regex  | string | yes      | A regex with one capturing group to extract the SPIRE Key ID from CryptoKey names                                            |
+
+> **Note**: Any existing keys cannot be used after turning on the shared keys feature.
+
+#### Template Context
+
+The CryptoKey name template supports standard Go template functions and has access to the following variables:
+
+- `.TrustDomain`: The configured trust domain (as SHA-1 hash for label compatibility)
+- `.KeyID`: The SPIRE Key ID being requested (e.g., `jwt-signer`, `x509-CA-A`)
+
+#### Regex-based Discovery
+
+The `key_id_extraction_regex` must include **one capturing group** that extracts the SPIRE Key ID from the CryptoKey name.
+
+Example: `^spire-key-[^-]+-(.+)$` matches `spire-key-abc123-jwt-signer` and extracts `jwt-signer`.
+
+#### Freshness Check and Coordination
+
+When multiple servers share keys, they coordinate to prevent unnecessary key creation:
+
+1. **Freshness Check**: Before creating a new CryptoKeyVersion, the plugin checks if the CryptoKey was recently created (within the last 15 minutes) by another server. If so, it reuses the existing fresh key instead of generating a duplicate
 
 ### Management of keys
 
@@ -154,11 +197,51 @@ Custom IAM policies must be defined using
 
 ## Sample Plugin Configuration
 
+### Standard Mode (Single Server)
+
+Basic configuration for a single SPIRE server:
+
 ```hcl
 KeyManager "gcp_kms" {
-    plugin_data {        
-        key_ring = "projects/project-id/locations/location/keyRings/keyring"
-        key_metadata_file = "./gcpkms-key-metadata"
+    plugin_data {
+        key_ring = "projects/project-id/locations/us-east1/keyRings/spire"
+        key_identifier_file = "./server_id"
+    }
+}
+```
+
+### Shared Keys Mode (Multi-Server)
+
+Configuration for multiple SPIRE servers sharing keys:
+
+```hcl
+KeyManager "gcp_kms" {
+    plugin_data {
+        key_ring = "projects/project-id/locations/us-east1/keyRings/spire"
+        
+        shared_keys {
+            # Template matches spire-key-abc123-jwt-signer
+            crypto_key_template = "spire-key-{{ .TrustDomain }}-{{ .KeyID }}"
+            
+            # Regex extracts 'jwt-signer' from the CryptoKey name
+            key_id_extraction_regex = "^spire-key-[^-]+-(.+)$"
+        }
+    }
+}
+```
+
+### Shared Keys Mode with Custom Service Account
+
+```hcl
+KeyManager "gcp_kms" {
+    plugin_data {
+        key_ring = "projects/project-id/locations/us-west2/keyRings/spire"
+        service_account_file = "/path/to/service-account.json"
+        
+        shared_keys {
+            crypto_key_template = "spire-key-{{ .TrustDomain }}-{{ .KeyID }}"
+            key_id_extraction_regex = "^spire-key-[^-]+-(.+)$"
+        }
     }
 }
 ```

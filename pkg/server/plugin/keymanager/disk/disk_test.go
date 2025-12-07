@@ -3,9 +3,11 @@ package disk_test
 import (
 	"context"
 	"crypto/x509"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/catalog"
@@ -41,7 +43,7 @@ func TestGenerateKeyBeforeConfigure(t *testing.T) {
 	plugintest.Load(t, disk.BuiltIn(), km)
 
 	_, err := km.GenerateKey(context.Background(), "id", keymanager.ECP256)
-	spiretest.RequireGRPCStatus(t, err, codes.FailedPrecondition, "keymanager(disk): failed to generate key: not configured")
+	spiretest.RequireGRPCStatus(t, err, codes.FailedPrecondition, "keymanager(disk): not configured")
 }
 
 func TestGenerateKeyPersistence(t *testing.T) {
@@ -52,7 +54,7 @@ func TestGenerateKeyPersistence(t *testing.T) {
 
 	// assert failure to generate key when directory is gone
 	_, err = km.GenerateKey(context.Background(), "id", keymanager.ECP256)
-	spiretest.RequireGRPCStatusContains(t, err, codes.Internal, "unable to write entries")
+	spiretest.RequireGRPCStatusContains(t, err, codes.Internal, "failed to acquire lock")
 
 	// create the directory and generate the key
 	mkdir(t, dir)
@@ -72,7 +74,7 @@ func TestGenerateKeyPersistence(t *testing.T) {
 	// remove the directory and try to overwrite. original key should remain.
 	rmdir(t, dir)
 	_, err = km.GenerateKey(context.Background(), "id", keymanager.ECP256)
-	spiretest.RequireGRPCStatusContains(t, err, codes.Internal, "unable to write entries")
+	spiretest.RequireGRPCStatusContains(t, err, codes.Internal, "failed to acquire lock")
 
 	keyOut, err = km.GetKey(context.Background(), "id")
 	require.NoError(t, err)
@@ -80,6 +82,67 @@ func TestGenerateKeyPersistence(t *testing.T) {
 		publicKeyBytes(t, keyIn),
 		publicKeyBytes(t, keyOut),
 	)
+}
+
+func TestSharedKeyReuse(t *testing.T) {
+	dir := spiretest.TempDir(t)
+	keysPath := filepath.Join(dir, "keys.json")
+
+	// Config for shared keys
+	configFmt := `
+		keys_path = %q
+		shared_keys {
+			crypto_key_template = "{{ .TrustDomain }}-key"
+		}
+	`
+
+	// Instance 1
+	km1, err := loadPlugin(t, configFmt, keysPath)
+	require.NoError(t, err)
+
+	// Generate a key on instance 1
+	k1, err := km1.GenerateKey(context.Background(), "id-1", keymanager.RSA2048)
+	require.NoError(t, err)
+
+	// Instance 2 (Simulating another server sharing the same disk)
+	km2, err := loadPlugin(t, configFmt, keysPath)
+	require.NoError(t, err)
+
+	// Check if key exists in KM2 (it should load it)
+	k2d, err := km2.GetKey(context.Background(), "id-1")
+	require.NoError(t, err)
+	require.Equal(t, publicKeyBytes(t, k1), publicKeyBytes(t, k2d))
+
+	// Generate key on Instance 2 with SAME ID. Should reuse.
+	k2, err := km2.GenerateKey(context.Background(), "id-1", keymanager.RSA2048)
+	require.NoError(t, err)
+
+	// Should be the same key because it was fresh
+	require.Equal(t, publicKeyBytes(t, k1), publicKeyBytes(t, k2))
+
+	// Verify metadata presence by reading file
+	fileBytes, err := os.ReadFile(keysPath)
+	require.NoError(t, err)
+	var fileData struct {
+		Keys map[string]struct {
+			Id        string    `json:"id"`
+			CreatedAt time.Time `json:"created_at"`
+		} `json:"keys"`
+	}
+	require.NoError(t, json.Unmarshal(fileBytes, &fileData))
+
+	// The key in map should be "example.org-key" because of template
+	// Wait, we calculate storage ID for lookup but `writeEntries` uses it as map key.
+	// `GenerateKey` logic: `checkReuse` uses `loadEntries`.
+	// `loadEntries` loads map.
+	// `writeEntries` writes map using `calculateStorageID`.
+	// Template is "{{ .TrustDomain }}-key". TrustDomain "example.org".
+	// So map key = "example.org-key".
+
+	entry, ok := fileData.Keys["example.org-key"]
+	require.True(t, ok, "key should be stored under template ID")
+	require.Equal(t, "id-1", entry.Id)
+	require.False(t, entry.CreatedAt.IsZero())
 }
 
 func loadPlugin(t *testing.T, configFmt string, configArgs ...any) (keymanager.KeyManager, error) {
