@@ -4,7 +4,7 @@
 
 ### Added
 
-- New azure_imds node attestor plugin for attesting nodes running Microsoft Azure (#6312)
+- New `azure_imds` node attestor plugin for attesting nodes running in Microsoft Azure using the Azure Instance Metadata Service (IMDS) (#6312)
 - The JWT-SVID profile on spire server can now be disabled using the `disable_jwt_svids` config (#6272)
 - `spire-server validate` now supports validating plugin configuration (#6355)
 - ec-p384 curve is now supported for the `workload_x509_svid_key_type` config in `spire-agent` (#6389)
