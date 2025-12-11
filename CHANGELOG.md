@@ -26,7 +26,6 @@
 
 ### Fixed
 
-- Fixed various flaky tests(#6423, #6403, #6418, #6404, #6417)
 - Added k8s_configmap BundlePublisher to docs (#6437)
 - Added tpm_devid to supported Agent plugins documentation (#6449)
 
