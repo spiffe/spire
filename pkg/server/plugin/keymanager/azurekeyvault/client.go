@@ -5,7 +5,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
-	"github.com/Azure/azure-sdk-for-go/sdk/keyvault/azkeys"
+	"github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azkeys"
 )
 
 type cloudKeyManagementService interface {
@@ -13,7 +13,7 @@ type cloudKeyManagementService interface {
 	DeleteKey(ctx context.Context, name string, options *azkeys.DeleteKeyOptions) (azkeys.DeleteKeyResponse, error)
 	UpdateKey(ctx context.Context, name string, version string, parameters azkeys.UpdateKeyParameters, options *azkeys.UpdateKeyOptions) (azkeys.UpdateKeyResponse, error)
 	GetKey(ctx context.Context, name string, version string, options *azkeys.GetKeyOptions) (azkeys.GetKeyResponse, error)
-	NewListKeysPager(options *azkeys.ListKeysOptions) *runtime.Pager[azkeys.ListKeysResponse]
+	NewListKeyPropertiesPager(options *azkeys.ListKeyPropertiesOptions) *runtime.Pager[azkeys.ListKeyPropertiesResponse]
 	Sign(ctx context.Context, name string, version string, parameters azkeys.SignParameters, options *azkeys.SignOptions) (azkeys.SignResponse, error)
 }
 
@@ -37,8 +37,8 @@ func (c *keyVaultClient) GetKey(ctx context.Context, name string, version string
 	return c.client.GetKey(ctx, name, version, options)
 }
 
-func (c *keyVaultClient) NewListKeysPager(options *azkeys.ListKeysOptions) *runtime.Pager[azkeys.ListKeysResponse] {
-	return c.client.NewListKeysPager(options)
+func (c *keyVaultClient) NewListKeyPropertiesPager(options *azkeys.ListKeyPropertiesOptions) *runtime.Pager[azkeys.ListKeyPropertiesResponse] {
+	return c.client.NewListKeyPropertiesPager(options)
 }
 
 func (c *keyVaultClient) Sign(ctx context.Context, name string, version string, parameters azkeys.SignParameters, options *azkeys.SignOptions) (azkeys.SignResponse, error) {

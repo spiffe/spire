@@ -5,7 +5,7 @@ import (
 	"crypto/x509"
 	"sync"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/keyvault/azkeys"
+	"github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azkeys"
 	"github.com/aws/smithy-go/ptr"
 	"github.com/hashicorp/go-hclog"
 	keymanagerv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/keymanager/v1"
@@ -29,7 +29,7 @@ func (kf *keyFetcher) fetchKeyEntries(ctx context.Context) ([]*keyEntry, error) 
 	g, ctx := errgroup.WithContext(ctx)
 
 	// List all the key from the configured key vault URL
-	pager := kf.keyVaultClient.NewListKeysPager(nil)
+	pager := kf.keyVaultClient.NewListKeyPropertiesPager(nil)
 
 	for pager.More() {
 		resp, err := pager.NextPage(ctx)
@@ -74,18 +74,18 @@ func (kf *keyFetcher) fetchKeyEntries(ctx context.Context) ([]*keyEntry, error) 
 	return keyEntries, nil
 }
 
-func (kf *keyFetcher) keyBelongsToServer(key *azkeys.KeyItem) bool {
+func (kf *keyFetcher) keyBelongsToServer(key *azkeys.KeyProperties) bool {
 	trustDomain, hasTD := key.Tags[tagNameServerTrustDomain]
 	serverID, hasServerID := key.Tags[tagNameServerID]
 	return hasTD && hasServerID && *trustDomain == kf.trustDomain && *serverID == kf.serverID
 }
 
-func (kf *keyFetcher) fetchKeyEntryDetails(ctx context.Context, keyItem *azkeys.KeyItem, spireKeyID string) (*keyEntry, error) {
-	if keyItem == nil {
-		return nil, status.Error(codes.Internal, "keyItem is nil")
+func (kf *keyFetcher) fetchKeyEntryDetails(ctx context.Context, keyProperties *azkeys.KeyProperties, spireKeyID string) (*keyEntry, error) {
+	if keyProperties == nil {
+		return nil, status.Error(codes.Internal, "keyProperties is nil")
 	}
 
-	getKeyResponse, err := kf.keyVaultClient.GetKey(ctx, keyItem.KID.Name(), keyItem.KID.Version(), nil)
+	getKeyResponse, err := kf.keyVaultClient.GetKey(ctx, keyProperties.KID.Name(), keyProperties.KID.Version(), nil)
 
 	switch {
 	case err != nil:
@@ -128,13 +128,13 @@ func (kf *keyFetcher) fetchKeyEntryDetails(ctx context.Context, keyItem *azkeys.
 
 func keyTypeFromKeySpec(keyBundle azkeys.KeyBundle) (keymanagerv1.KeyType, bool) {
 	switch {
-	case *keyBundle.Key.Kty == azkeys.JSONWebKeyTypeRSA && len(keyBundle.Key.N) == 256:
+	case *keyBundle.Key.Kty == azkeys.KeyTypeRSA && len(keyBundle.Key.N) == 256:
 		return keymanagerv1.KeyType_RSA_2048, true
-	case *keyBundle.Key.Kty == azkeys.JSONWebKeyTypeRSA && len(keyBundle.Key.N) == 512:
+	case *keyBundle.Key.Kty == azkeys.KeyTypeRSA && len(keyBundle.Key.N) == 512:
 		return keymanagerv1.KeyType_RSA_4096, true
-	case *keyBundle.Key.Kty == azkeys.JSONWebKeyTypeEC && *keyBundle.Key.Crv == azkeys.JSONWebKeyCurveNameP256:
+	case *keyBundle.Key.Kty == azkeys.KeyTypeEC && *keyBundle.Key.Crv == azkeys.CurveNameP256:
 		return keymanagerv1.KeyType_EC_P256, true
-	case *keyBundle.Key.Kty == azkeys.JSONWebKeyTypeEC && *keyBundle.Key.Crv == azkeys.JSONWebKeyCurveNameP384:
+	case *keyBundle.Key.Kty == azkeys.KeyTypeEC && *keyBundle.Key.Crv == azkeys.CurveNameP384:
 		return keymanagerv1.KeyType_EC_P384, true
 
 	default:

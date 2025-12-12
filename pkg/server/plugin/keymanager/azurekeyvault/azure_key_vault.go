@@ -18,7 +18,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
-	"github.com/Azure/azure-sdk-for-go/sdk/keyvault/azkeys"
+	"github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azkeys"
 	"github.com/andres-erbsen/clock"
 	"github.com/go-jose/go-jose/v4"
 	"github.com/gofrs/uuid/v5"
@@ -303,7 +303,7 @@ func (p *Plugin) refreshKeys(ctx context.Context) error {
 
 		// Update the key with the same key to only change the Updated timestamp
 		_, err = p.keyVaultClient.UpdateKey(ctx, keyName, keyVersion, azkeys.UpdateKeyParameters{
-			KeyOps: []*azkeys.JSONWebKeyOperation{to.Ptr(azkeys.JSONWebKeyOperationSign), to.Ptr(azkeys.JSONWebKeyOperationVerify)},
+			KeyOps: []*azkeys.KeyOperation{to.Ptr(azkeys.KeyOperationSign), to.Ptr(azkeys.KeyOperationVerify)},
 		}, nil)
 		if err != nil {
 			p.log.Error("Failed to refresh key", keyIDTag, entry.KeyID, reasonTag, err)
@@ -348,7 +348,7 @@ func (p *Plugin) notifyDisposeKeys(err error) {
 
 func (p *Plugin) disposeKeys(ctx context.Context) error {
 	p.log.Debug("Looking for keys in trust domain to dispose")
-	pager := p.keyVaultClient.NewListKeysPager(nil)
+	pager := p.keyVaultClient.NewListKeyPropertiesPager(nil)
 	now := p.hooks.clk.Now()
 	maxStaleTime := now.Add(-maxStaleDuration)
 	for pager.More() {
@@ -662,22 +662,22 @@ func getCreateKeyParameters(keyType keymanagerv1.KeyType, keyTags map[string]*st
 	result := &azkeys.CreateKeyParameters{}
 	switch keyType {
 	case keymanagerv1.KeyType_RSA_2048:
-		result.Kty = to.Ptr(azkeys.JSONWebKeyTypeRSA)
+		result.Kty = to.Ptr(azkeys.KeyTypeRSA)
 		result.KeySize = to.Ptr(int32(2048))
 	case keymanagerv1.KeyType_RSA_4096:
-		result.Kty = to.Ptr(azkeys.JSONWebKeyTypeRSA)
+		result.Kty = to.Ptr(azkeys.KeyTypeRSA)
 		result.KeySize = to.Ptr(int32(4096))
 	case keymanagerv1.KeyType_EC_P256:
-		result.Kty = to.Ptr(azkeys.JSONWebKeyTypeEC)
-		result.Curve = to.Ptr(azkeys.JSONWebKeyCurveNameP256)
+		result.Kty = to.Ptr(azkeys.KeyTypeEC)
+		result.Curve = to.Ptr(azkeys.CurveNameP256)
 	case keymanagerv1.KeyType_EC_P384:
-		result.Kty = to.Ptr(azkeys.JSONWebKeyTypeEC)
-		result.Curve = to.Ptr(azkeys.JSONWebKeyCurveNameP384)
+		result.Kty = to.Ptr(azkeys.KeyTypeEC)
+		result.Curve = to.Ptr(azkeys.CurveNameP384)
 	default:
 		return nil, status.Errorf(codes.Internal, "unsupported key type: %v", keyType)
 	}
 	// Specify the key operations as Sign and Verify
-	result.KeyOps = append(result.KeyOps, to.Ptr(azkeys.JSONWebKeyOperationSign), to.Ptr(azkeys.JSONWebKeyOperationVerify))
+	result.KeyOps = append(result.KeyOps, to.Ptr(azkeys.KeyOperationSign), to.Ptr(azkeys.KeyOperationVerify))
 	// Set the key tags
 	result.Tags = keyTags
 	return result, nil
@@ -755,7 +755,7 @@ func makeFingerprint(pkixData []byte) string {
 	return hex.EncodeToString(s[:])
 }
 
-func signingAlgorithmForKeyVault(keyType keymanagerv1.KeyType, signerOpts any) (azkeys.JSONWebKeySignatureAlgorithm, error) {
+func signingAlgorithmForKeyVault(keyType keymanagerv1.KeyType, signerOpts any) (azkeys.SignatureAlgorithm, error) {
 	var (
 		hashAlgo keymanagerv1.HashAlgorithm
 		isPSS    bool
@@ -782,21 +782,21 @@ func signingAlgorithmForKeyVault(keyType keymanagerv1.KeyType, signerOpts any) (
 	case hashAlgo == keymanagerv1.HashAlgorithm_UNSPECIFIED_HASH_ALGORITHM:
 		return "", errors.New("hash algorithm is required")
 	case keyType == keymanagerv1.KeyType_EC_P256 && hashAlgo == keymanagerv1.HashAlgorithm_SHA256:
-		return azkeys.JSONWebKeySignatureAlgorithmES256, nil
+		return azkeys.SignatureAlgorithmES256, nil
 	case keyType == keymanagerv1.KeyType_EC_P384 && hashAlgo == keymanagerv1.HashAlgorithm_SHA384:
-		return azkeys.JSONWebKeySignatureAlgorithmES384, nil
+		return azkeys.SignatureAlgorithmES384, nil
 	case isRSA && !isPSS && hashAlgo == keymanagerv1.HashAlgorithm_SHA256:
-		return azkeys.JSONWebKeySignatureAlgorithmRS256, nil
+		return azkeys.SignatureAlgorithmRS256, nil
 	case isRSA && !isPSS && hashAlgo == keymanagerv1.HashAlgorithm_SHA384:
-		return azkeys.JSONWebKeySignatureAlgorithmRS384, nil
+		return azkeys.SignatureAlgorithmRS384, nil
 	case isRSA && !isPSS && hashAlgo == keymanagerv1.HashAlgorithm_SHA512:
-		return azkeys.JSONWebKeySignatureAlgorithmRS512, nil
+		return azkeys.SignatureAlgorithmRS512, nil
 	case isRSA && isPSS && hashAlgo == keymanagerv1.HashAlgorithm_SHA256:
-		return azkeys.JSONWebKeySignatureAlgorithmPS256, nil
+		return azkeys.SignatureAlgorithmPS256, nil
 	case isRSA && isPSS && hashAlgo == keymanagerv1.HashAlgorithm_SHA384:
-		return azkeys.JSONWebKeySignatureAlgorithmPS384, nil
+		return azkeys.SignatureAlgorithmPS384, nil
 	case isRSA && isPSS && hashAlgo == keymanagerv1.HashAlgorithm_SHA512:
-		return azkeys.JSONWebKeySignatureAlgorithmPS512, nil
+		return azkeys.SignatureAlgorithmPS512, nil
 	default:
 		return "", fmt.Errorf("unsupported combination of key type: %v and hashing algorithm: %v", keyType, hashAlgo)
 	}

@@ -16,7 +16,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
-	"github.com/Azure/azure-sdk-for-go/sdk/keyvault/azkeys"
+	"github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azkeys"
 	"github.com/andres-erbsen/clock"
 	"github.com/spiffe/spire/test/testkey"
 	"google.golang.org/grpc/codes"
@@ -170,16 +170,16 @@ func (k *kmsClientFake) CreateKey(_ context.Context, keyName string, parameters 
 	keyOperations := getKeyOperations()
 	kmsKeyID := path.Join(k.vaultURI, keyName)
 	switch {
-	case *parameters.Kty == azkeys.JSONWebKeyTypeEC && *parameters.Curve == azkeys.JSONWebKeyCurveNameP256:
+	case *parameters.Kty == azkeys.KeyTypeEC && *parameters.Curve == azkeys.CurveNameP256:
 		privateKey = k.store.ec256Key
 		publicKey = toECKey(privateKey.Public(), kmsKeyID, *parameters.Curve, keyOperations)
-	case *parameters.Kty == azkeys.JSONWebKeyTypeEC && *parameters.Curve == azkeys.JSONWebKeyCurveNameP384:
+	case *parameters.Kty == azkeys.KeyTypeEC && *parameters.Curve == azkeys.CurveNameP384:
 		privateKey = k.store.ec384Key
 		publicKey = toECKey(privateKey.Public(), kmsKeyID, *parameters.Curve, keyOperations)
-	case *parameters.Kty == azkeys.JSONWebKeyTypeRSA && *parameters.KeySize == 2048:
+	case *parameters.Kty == azkeys.KeyTypeRSA && *parameters.KeySize == 2048:
 		privateKey = k.store.rsa2048Key
 		publicKey = toRSAKey(privateKey.Public(), kmsKeyID, keyOperations)
-	case *parameters.Kty == azkeys.JSONWebKeyTypeRSA && *parameters.KeySize == 4096:
+	case *parameters.Kty == azkeys.KeyTypeRSA && *parameters.KeySize == 4096:
 		privateKey = k.store.rsa4096Key
 		publicKey = toRSAKey(privateKey.Public(), kmsKeyID, keyOperations)
 	default:
@@ -224,12 +224,12 @@ func (k *kmsClientFake) DeleteKey(_ context.Context, name string, _ *azkeys.Dele
 
 	k.store.DeleteKeyEntry(keyEntry.KeyBundle.Key.KID.Name())
 
-	deletedKeyBundle := azkeys.DeletedKeyBundle{
+	deletedKey := azkeys.DeletedKey{
 		Attributes: keyEntry.KeyBundle.Attributes,
 		Key:        keyEntry.KeyBundle.Key,
 	}
 
-	return azkeys.DeleteKeyResponse{DeletedKeyBundle: deletedKeyBundle}, nil
+	return azkeys.DeleteKeyResponse{DeletedKey: deletedKey}, nil
 }
 
 func (k *kmsClientFake) UpdateKey(_ context.Context, name, _ string, _ azkeys.UpdateKeyParameters, _ *azkeys.UpdateKeyOptions) (azkeys.UpdateKeyResponse, error) {
@@ -273,30 +273,30 @@ func (k *kmsClientFake) GetKey(_ context.Context, keyName, _ string, _ *azkeys.G
 	return azkeys.GetKeyResponse{KeyBundle: *keyBundle}, err
 }
 
-func (k *kmsClientFake) NewListKeysPager(_ *azkeys.ListKeysOptions) *runtime.Pager[azkeys.ListKeysResponse] {
+func (k *kmsClientFake) NewListKeyPropertiesPager(_ *azkeys.ListKeyPropertiesOptions) *runtime.Pager[azkeys.ListKeyPropertiesResponse] {
 	k.mu.RLock()
 	defer k.mu.RUnlock()
 
-	var listResp []*azkeys.KeyItem
+	var listResp []*azkeys.KeyProperties
 	for _, keyEntry := range k.store.fetchKeyEntries() {
-		listResp = append(listResp, &azkeys.KeyItem{
+		listResp = append(listResp, &azkeys.KeyProperties{
 			Attributes: keyEntry.KeyBundle.Attributes,
 			KID:        keyEntry.KeyBundle.Key.KID,
 			Tags:       keyEntry.KeyBundle.Tags,
 		})
 	}
 
-	return runtime.NewPager(runtime.PagingHandler[azkeys.ListKeysResponse]{
-		More: func(page azkeys.ListKeysResponse) bool {
+	return runtime.NewPager(runtime.PagingHandler[azkeys.ListKeyPropertiesResponse]{
+		More: func(page azkeys.ListKeyPropertiesResponse) bool {
 			return page.NextLink != nil && len(*page.NextLink) > 0
 		},
-		Fetcher: func(ctx context.Context, page *azkeys.ListKeysResponse) (azkeys.ListKeysResponse, error) {
+		Fetcher: func(ctx context.Context, page *azkeys.ListKeyPropertiesResponse) (azkeys.ListKeyPropertiesResponse, error) {
 			if k.listKeysErr != nil {
-				return azkeys.ListKeysResponse{}, k.listKeysErr
+				return azkeys.ListKeyPropertiesResponse{}, k.listKeysErr
 			}
 
-			return azkeys.ListKeysResponse{
-				KeyListResult: azkeys.KeyListResult{
+			return azkeys.ListKeyPropertiesResponse{
+				KeyPropertiesListResult: azkeys.KeyPropertiesListResult{
 					NextLink: nil,
 					Value:    listResp,
 				},
@@ -354,23 +354,23 @@ func (k *kmsClientFake) Sign(_ context.Context, keyName, _ string, parameters az
 
 	var signature []byte
 	switch *parameters.Algorithm {
-	case azkeys.JSONWebKeySignatureAlgorithmPS256:
+	case azkeys.SignatureAlgorithmPS256:
 		signature, err = signRSA(&rsa.PSSOptions{Hash: crypto.SHA256, SaltLength: rsa.PSSSaltLengthEqualsHash})
-	case azkeys.JSONWebKeySignatureAlgorithmPS384:
+	case azkeys.SignatureAlgorithmPS384:
 		signature, err = signRSA(&rsa.PSSOptions{Hash: crypto.SHA384, SaltLength: rsa.PSSSaltLengthEqualsHash})
-	case azkeys.JSONWebKeySignatureAlgorithmPS512:
+	case azkeys.SignatureAlgorithmPS512:
 		signature, err = signRSA(&rsa.PSSOptions{Hash: crypto.SHA512, SaltLength: rsa.PSSSaltLengthEqualsHash})
-	case azkeys.JSONWebKeySignatureAlgorithmRS256:
+	case azkeys.SignatureAlgorithmRS256:
 		signature, err = signRSA(crypto.SHA256)
-	case azkeys.JSONWebKeySignatureAlgorithmRS384:
+	case azkeys.SignatureAlgorithmRS384:
 		signature, err = signRSA(crypto.SHA384)
-	case azkeys.JSONWebKeySignatureAlgorithmRS512:
+	case azkeys.SignatureAlgorithmRS512:
 		signature, err = signRSA(crypto.SHA512)
-	case azkeys.JSONWebKeySignatureAlgorithmES256:
+	case azkeys.SignatureAlgorithmES256:
 		signature, err = signECDSA()
-	case azkeys.JSONWebKeySignatureAlgorithmES384:
+	case azkeys.SignatureAlgorithmES384:
 		signature, err = signECDSA()
-	case azkeys.JSONWebKeySignatureAlgorithmES512:
+	case azkeys.SignatureAlgorithmES512:
 		signature, err = signECDSA()
 	default:
 		return azkeys.SignResponse{}, status.Errorf(codes.InvalidArgument, "unsupported signing algorithm: %s", *parameters.Algorithm)
@@ -383,7 +383,7 @@ func (k *kmsClientFake) Sign(_ context.Context, keyName, _ string, parameters az
 	}}, nil
 }
 
-func toRSAKey(publicKey crypto.PublicKey, kmsKeyID string, keyOperations []*string) *azkeys.JSONWebKey {
+func toRSAKey(publicKey crypto.PublicKey, kmsKeyID string, keyOperations []*azkeys.KeyOperation) *azkeys.JSONWebKey {
 	rsaKey := publicKey.(*rsa.PublicKey)
 	var s = big.NewInt(int64(rsaKey.E))
 	var e = s.Bytes()
@@ -392,19 +392,19 @@ func toRSAKey(publicKey crypto.PublicKey, kmsKeyID string, keyOperations []*stri
 		E:      e,
 		KID:    to.Ptr(azkeys.ID(kmsKeyID)),
 		KeyOps: keyOperations,
-		Kty:    to.Ptr(azkeys.JSONWebKeyTypeRSA),
+		Kty:    to.Ptr(azkeys.KeyTypeRSA),
 	}
 	return key
 }
 
-func toECKey(publicKey crypto.PublicKey, keyName string, curveName azkeys.JSONWebKeyCurveName, keyOperations []*string) *azkeys.JSONWebKey {
+func toECKey(publicKey crypto.PublicKey, keyName string, curveName azkeys.CurveName, keyOperations []*azkeys.KeyOperation) *azkeys.JSONWebKey {
 	ecdsaKey := publicKey.(*ecdsa.PublicKey)
 	key := &azkeys.JSONWebKey{
 		Crv: to.Ptr(curveName),
 		//D:      ecdsaKey.D.Bytes(),
 		KID:    to.Ptr(azkeys.ID(keyName)),
 		KeyOps: keyOperations,
-		Kty:    to.Ptr(azkeys.JSONWebKeyTypeEC),
+		Kty:    to.Ptr(azkeys.KeyTypeEC),
 		X:      ecdsaKey.X.Bytes(),
 		Y:      ecdsaKey.Y.Bytes(),
 	}
@@ -436,6 +436,6 @@ func (fs *fakeStore) fetchKeyEntries() []fakeKeyEntry {
 	return keyEntries
 }
 
-func getKeyOperations() []*string {
-	return []*string{to.Ptr("Sign"), to.Ptr("Verify")}
+func getKeyOperations() []*azkeys.KeyOperation {
+	return []*azkeys.KeyOperation{to.Ptr(azkeys.KeyOperationSign), to.Ptr(azkeys.KeyOperationVerify)}
 }
