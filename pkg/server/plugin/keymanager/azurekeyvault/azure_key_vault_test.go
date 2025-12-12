@@ -16,7 +16,7 @@ import (
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-	"github.com/Azure/azure-sdk-for-go/sdk/keyvault/azkeys"
+	"github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azkeys"
 	"github.com/andres-erbsen/clock"
 	"github.com/gofrs/uuid/v5"
 	"github.com/sirupsen/logrus"
@@ -111,10 +111,10 @@ func TestConfigure(t *testing.T) {
 			name:             "pass with keys",
 			configureRequest: configureRequestWithDefaults(t),
 			fakeEntries: []fakeKeyEntry{
-				makeFakeKeyEntry(t, "key-1", trustDomain, validServerID, azkeys.JSONWebKeyTypeRSA, nil, new(2048)),
-				makeFakeKeyEntry(t, "key-2", trustDomain, validServerID, azkeys.JSONWebKeyTypeRSA, nil, new(4096)),
-				makeFakeKeyEntry(t, "key-3", trustDomain, validServerID, azkeys.JSONWebKeyTypeEC, new(azkeys.JSONWebKeyCurveNameP256), nil),
-				makeFakeKeyEntry(t, "key-4", trustDomain, validServerID, azkeys.JSONWebKeyTypeEC, new(azkeys.JSONWebKeyCurveNameP384), nil),
+				makeFakeKeyEntry(t, "key-1", trustDomain, validServerID, azkeys.KeyTypeRSA, nil, new(2048)),
+				makeFakeKeyEntry(t, "key-2", trustDomain, validServerID, azkeys.KeyTypeRSA, nil, new(4096)),
+				makeFakeKeyEntry(t, "key-3", trustDomain, validServerID, azkeys.KeyTypeEC, new(azkeys.CurveNameP256), nil),
+				makeFakeKeyEntry(t, "key-4", trustDomain, validServerID, azkeys.KeyTypeEC, new(azkeys.CurveNameP384), nil),
 			},
 		},
 		{
@@ -207,7 +207,7 @@ func TestConfigure(t *testing.T) {
 			code:             codes.Internal,
 			configureRequest: configureRequestWithDefaults(t),
 			fakeEntries: []fakeKeyEntry{
-				makeFakeKeyEntry(t, "key-1", trustDomain, validServerID, azkeys.JSONWebKeyTypeRSA, nil, new(2048)),
+				makeFakeKeyEntry(t, "key-1", trustDomain, validServerID, azkeys.KeyTypeRSA, nil, new(2048)),
 			},
 			getKeyErr: "get key error",
 		},
@@ -762,10 +762,10 @@ func TestGetPublicKeys(t *testing.T) {
 }
 
 func TestRefreshKeys(t *testing.T) {
-	entry1 := makeFakeKeyEntry(t, keyNamePrefix+"-"+getUUID(t)+"-spireKey1", trustDomain, validServerID, azkeys.JSONWebKeyTypeRSA, nil, new(4096))
-	entry2 := makeFakeKeyEntry(t, keyNamePrefix+"-"+getUUID(t)+"-spireKey2", trustDomain, "another-server-id", azkeys.JSONWebKeyTypeRSA, nil, new(4096))
-	entry3 := makeFakeKeyEntry(t, keyNamePrefix+"-"+getUUID(t)+"-spireKey3", "another-td", validServerID, azkeys.JSONWebKeyTypeRSA, nil, new(4096))
-	entry4 := makeFakeKeyEntry(t, keyNamePrefix+"-"+getUUID(t)+"-spireKey4", "another-td", "another-server-id", azkeys.JSONWebKeyTypeRSA, nil, new(4096))
+	entry1 := makeFakeKeyEntry(t, keyNamePrefix+"-"+getUUID(t)+"-spireKey1", trustDomain, validServerID, azkeys.KeyTypeRSA, nil, new(4096))
+	entry2 := makeFakeKeyEntry(t, keyNamePrefix+"-"+getUUID(t)+"-spireKey2", trustDomain, "another-server-id", azkeys.KeyTypeRSA, nil, new(4096))
+	entry3 := makeFakeKeyEntry(t, keyNamePrefix+"-"+getUUID(t)+"-spireKey3", "another-td", validServerID, azkeys.KeyTypeRSA, nil, new(4096))
+	entry4 := makeFakeKeyEntry(t, keyNamePrefix+"-"+getUUID(t)+"-spireKey4", "another-td", "another-server-id", azkeys.KeyTypeRSA, nil, new(4096))
 
 	for _, tt := range []struct {
 		name             string
@@ -780,7 +780,7 @@ func TestRefreshKeys(t *testing.T) {
 			err:              "update failure",
 			updateKeyErr:     "update failure",
 			fakeEntries: []fakeKeyEntry{
-				makeFakeKeyEntry(t, keyName, trustDomain, validServerID, azkeys.JSONWebKeyTypeRSA, nil, new(4096)),
+				makeFakeKeyEntry(t, keyName, trustDomain, validServerID, azkeys.KeyTypeRSA, nil, new(4096)),
 			},
 		},
 		{
@@ -840,15 +840,15 @@ func TestRefreshKeys(t *testing.T) {
 }
 
 func TestDisposeKeys(t *testing.T) {
-	entry1 := makeFakeKeyEntry(t, keyName+"-1", trustDomain, "", azkeys.JSONWebKeyTypeRSA, nil, new(4096))
-	entry2 := makeFakeKeyEntry(t, keyName+"-2", trustDomain, validServerID, azkeys.JSONWebKeyTypeRSA, nil, new(2048))
-	entry3 := makeFakeKeyEntry(t, keyName+"-3", trustDomain, "another_server_id", azkeys.JSONWebKeyTypeEC, new(azkeys.JSONWebKeyCurveNameP384), nil)
-	entry4 := makeFakeKeyEntry(t, keyName+"-4", "another-trust-domain", validServerID, azkeys.JSONWebKeyTypeRSA, nil, new(4096))
-	entry5 := makeFakeKeyEntry(t, keyName+"-5", "another-trust-domain", "another_server_id", azkeys.JSONWebKeyTypeEC, new(azkeys.JSONWebKeyCurveNameP256), nil)
-	entry6 := makeFakeKeyEntry(t, keyName+"-6", trustDomain, "another_server_id", azkeys.JSONWebKeyTypeEC, new(azkeys.JSONWebKeyCurveNameP384), nil)
-	entry7 := makeFakeKeyEntry(t, keyName+"-7", trustDomain, "another_server_id", azkeys.JSONWebKeyTypeEC, new(azkeys.JSONWebKeyCurveNameP256), nil)
-	entry8 := makeFakeKeyEntry(t, keyName+"-8", trustDomain, "another_server_id", azkeys.JSONWebKeyTypeEC, new(azkeys.JSONWebKeyCurveNameP384), nil)
-	entry9 := makeFakeKeyEntry(t, keyName+"-9", "some-other-trust-domain", "another_server_id", azkeys.JSONWebKeyTypeEC, new(azkeys.JSONWebKeyCurveNameP384), nil)
+	entry1 := makeFakeKeyEntry(t, keyName+"-1", trustDomain, "", azkeys.KeyTypeRSA, nil, new(4096))
+	entry2 := makeFakeKeyEntry(t, keyName+"-2", trustDomain, validServerID, azkeys.KeyTypeRSA, nil, new(2048))
+	entry3 := makeFakeKeyEntry(t, keyName+"-3", trustDomain, "another_server_id", azkeys.KeyTypeEC, new(azkeys.CurveNameP384), nil)
+	entry4 := makeFakeKeyEntry(t, keyName+"-4", "another-trust-domain", validServerID, azkeys.KeyTypeRSA, nil, new(4096))
+	entry5 := makeFakeKeyEntry(t, keyName+"-5", "another-trust-domain", "another_server_id", azkeys.KeyTypeEC, new(azkeys.CurveNameP256), nil)
+	entry6 := makeFakeKeyEntry(t, keyName+"-6", trustDomain, "another_server_id", azkeys.KeyTypeEC, new(azkeys.CurveNameP384), nil)
+	entry7 := makeFakeKeyEntry(t, keyName+"-7", trustDomain, "another_server_id", azkeys.KeyTypeEC, new(azkeys.CurveNameP256), nil)
+	entry8 := makeFakeKeyEntry(t, keyName+"-8", trustDomain, "another_server_id", azkeys.KeyTypeEC, new(azkeys.CurveNameP384), nil)
+	entry9 := makeFakeKeyEntry(t, keyName+"-9", "some-other-trust-domain", "another_server_id", azkeys.KeyTypeEC, new(azkeys.CurveNameP384), nil)
 	for _, tt := range []struct {
 		name             string
 		configureRequest *configv1.ConfigureRequest
@@ -959,7 +959,7 @@ func TestKeyVaultKeyToRawKey(t *testing.T) {
 	}{
 		{
 			name: "EC P-256",
-			jwk:  toECKey(ec256Key.Public(), fakeKID, azkeys.JSONWebKeyCurveNameP256, keyOps),
+			jwk:  toECKey(ec256Key.Public(), fakeKID, azkeys.CurveNameP256, keyOps),
 			assertKey: func(t *testing.T, got any) {
 				pub, ok := got.(*ecdsa.PublicKey)
 				require.True(t, ok, "expected *ecdsa.PublicKey")
@@ -968,7 +968,7 @@ func TestKeyVaultKeyToRawKey(t *testing.T) {
 		},
 		{
 			name: "EC P-384",
-			jwk:  toECKey(ec384Key.Public(), fakeKID, azkeys.JSONWebKeyCurveNameP384, keyOps),
+			jwk:  toECKey(ec384Key.Public(), fakeKID, azkeys.CurveNameP384, keyOps),
 			assertKey: func(t *testing.T, got any) {
 				pub, ok := got.(*ecdsa.PublicKey)
 				require.True(t, ok, "expected *ecdsa.PublicKey")
@@ -996,8 +996,8 @@ func TestKeyVaultKeyToRawKey(t *testing.T) {
 		{
 			name: "EC-HSM P-256 normalized to EC",
 			jwk: func() *azkeys.JSONWebKey {
-				k := toECKey(ec256Key.Public(), fakeKID, azkeys.JSONWebKeyCurveNameP256, keyOps)
-				k.Kty = new(azkeys.JSONWebKeyTypeECHSM)
+				k := toECKey(ec256Key.Public(), fakeKID, azkeys.CurveNameP256, keyOps)
+				k.Kty = new(azkeys.KeyTypeECHSM)
 				return k
 			}(),
 			assertKey: func(t *testing.T, got any) {
@@ -1010,7 +1010,7 @@ func TestKeyVaultKeyToRawKey(t *testing.T) {
 			name: "RSA-HSM normalized to RSA",
 			jwk: func() *azkeys.JSONWebKey {
 				k := toRSAKey(rsa2048Key.Public(), fakeKID, keyOps)
-				k.Kty = toPtr(azkeys.JSONWebKeyTypeRSAHSM)
+				k.Kty = toPtr(azkeys.KeyTypeRSAHSM)
 				return k
 			}(),
 			assertKey: func(t *testing.T, got any) {
@@ -1047,7 +1047,7 @@ func TestKeyTypeFromKeySpec(t *testing.T) {
 	keyOps := getKeyOperations()
 	const fakeKID = "https://fake.vault.azure.net/keys/fake-key/version1"
 
-	makeRSABundle := func(kty azkeys.JSONWebKeyType, keySize int) azkeys.KeyBundle {
+	makeRSABundle := func(kty azkeys.KeyType, keySize int) azkeys.KeyBundle {
 		return azkeys.KeyBundle{Key: &azkeys.JSONWebKey{
 			Kty:    toPtr(kty),
 			N:      make([]byte, keySize/8),
@@ -1057,7 +1057,7 @@ func TestKeyTypeFromKeySpec(t *testing.T) {
 		}}
 	}
 
-	makeECBundle := func(kty azkeys.JSONWebKeyType, crv azkeys.JSONWebKeyCurveName) azkeys.KeyBundle {
+	makeECBundle := func(kty azkeys.KeyType, crv azkeys.CurveName) azkeys.KeyBundle {
 		return azkeys.KeyBundle{Key: &azkeys.JSONWebKey{
 			Kty:    toPtr(kty),
 			Crv:    toPtr(crv),
@@ -1074,61 +1074,61 @@ func TestKeyTypeFromKeySpec(t *testing.T) {
 	}{
 		{
 			name:        "RSA 2048",
-			bundle:      makeRSABundle(azkeys.JSONWebKeyTypeRSA, 2048),
+			bundle:      makeRSABundle(azkeys.KeyTypeRSA, 2048),
 			expectType:  keymanagerv1.KeyType_RSA_2048,
 			expectFound: true,
 		},
 		{
 			name:        "RSA 4096",
-			bundle:      makeRSABundle(azkeys.JSONWebKeyTypeRSA, 4096),
+			bundle:      makeRSABundle(azkeys.KeyTypeRSA, 4096),
 			expectType:  keymanagerv1.KeyType_RSA_4096,
 			expectFound: true,
 		},
 		{
 			name:        "RSA-HSM 2048",
-			bundle:      makeRSABundle(azkeys.JSONWebKeyTypeRSAHSM, 2048),
+			bundle:      makeRSABundle(azkeys.KeyTypeRSAHSM, 2048),
 			expectType:  keymanagerv1.KeyType_RSA_2048,
 			expectFound: true,
 		},
 		{
 			name:        "RSA-HSM 4096",
-			bundle:      makeRSABundle(azkeys.JSONWebKeyTypeRSAHSM, 4096),
+			bundle:      makeRSABundle(azkeys.KeyTypeRSAHSM, 4096),
 			expectType:  keymanagerv1.KeyType_RSA_4096,
 			expectFound: true,
 		},
 		{
 			name:        "EC P-256",
-			bundle:      makeECBundle(azkeys.JSONWebKeyTypeEC, azkeys.JSONWebKeyCurveNameP256),
+			bundle:      makeECBundle(azkeys.KeyTypeEC, azkeys.CurveNameP256),
 			expectType:  keymanagerv1.KeyType_EC_P256,
 			expectFound: true,
 		},
 		{
 			name:        "EC P-384",
-			bundle:      makeECBundle(azkeys.JSONWebKeyTypeEC, azkeys.JSONWebKeyCurveNameP384),
+			bundle:      makeECBundle(azkeys.KeyTypeEC, azkeys.CurveNameP384),
 			expectType:  keymanagerv1.KeyType_EC_P384,
 			expectFound: true,
 		},
 		{
 			name:        "EC-HSM P-256",
-			bundle:      makeECBundle(azkeys.JSONWebKeyTypeECHSM, azkeys.JSONWebKeyCurveNameP256),
+			bundle:      makeECBundle(azkeys.KeyTypeECHSM, azkeys.CurveNameP256),
 			expectType:  keymanagerv1.KeyType_EC_P256,
 			expectFound: true,
 		},
 		{
 			name:        "EC-HSM P-384",
-			bundle:      makeECBundle(azkeys.JSONWebKeyTypeECHSM, azkeys.JSONWebKeyCurveNameP384),
+			bundle:      makeECBundle(azkeys.KeyTypeECHSM, azkeys.CurveNameP384),
 			expectType:  keymanagerv1.KeyType_EC_P384,
 			expectFound: true,
 		},
 		{
 			name:        "unsupported RSA key size",
-			bundle:      makeRSABundle(azkeys.JSONWebKeyTypeRSA, 1024),
+			bundle:      makeRSABundle(azkeys.KeyTypeRSA, 1024),
 			expectType:  keymanagerv1.KeyType_UNSPECIFIED_KEY_TYPE,
 			expectFound: false,
 		},
 		{
 			name:        "unsupported EC curve",
-			bundle:      makeECBundle(azkeys.JSONWebKeyTypeEC, azkeys.JSONWebKeyCurveNameP521),
+			bundle:      makeECBundle(azkeys.KeyTypeEC, azkeys.CurveNameP521),
 			expectType:  keymanagerv1.KeyType_UNSPECIFIED_KEY_TYPE,
 			expectFound: false,
 		},
@@ -1226,22 +1226,22 @@ func createKeyIdentifierFile(t *testing.T) string {
 	return tempFilePath
 }
 
-func makeFakeKeyEntry(t *testing.T, keyName, trustDomain, serverID string, keyType azkeys.JSONWebKeyType, curveName *azkeys.JSONWebKeyCurveName, rsaKeySize *int) fakeKeyEntry {
+func makeFakeKeyEntry(t *testing.T, keyName, trustDomain, serverID string, keyType azkeys.KeyType, curveName *azkeys.CurveName, rsaKeySize *int) fakeKeyEntry {
 	var publicKey *azkeys.JSONWebKey
 	var privateKey crypto.Signer
 	keyOperations := getKeyOperations()
 	kmsKeyID := validKeyVaultURI + path.Join("keys", fmt.Sprintf("%s-%s-%s", keyNamePrefix, fmt.Sprintf("%s-%s", getUUID(t), keyName), spireKeyID))
 	switch {
-	case keyType == azkeys.JSONWebKeyTypeEC && *curveName == azkeys.JSONWebKeyCurveNameP256:
+	case keyType == azkeys.KeyTypeEC && *curveName == azkeys.CurveNameP256:
 		privateKey = testkey.NewEC256(t)
 		publicKey = toECKey(privateKey.Public(), kmsKeyID, *curveName, keyOperations)
-	case keyType == azkeys.JSONWebKeyTypeEC && *curveName == azkeys.JSONWebKeyCurveNameP384:
+	case keyType == azkeys.KeyTypeEC && *curveName == azkeys.CurveNameP384:
 		privateKey = testkey.NewEC384(t)
 		publicKey = toECKey(privateKey.Public(), kmsKeyID, *curveName, keyOperations)
-	case keyType == azkeys.JSONWebKeyTypeRSA && *rsaKeySize == 2048:
+	case keyType == azkeys.KeyTypeRSA && *rsaKeySize == 2048:
 		privateKey = testkey.NewRSA2048(t)
 		publicKey = toRSAKey(privateKey.Public(), kmsKeyID, keyOperations)
-	case keyType == azkeys.JSONWebKeyTypeRSA && *rsaKeySize == 4096:
+	case keyType == azkeys.KeyTypeRSA && *rsaKeySize == 4096:
 		privateKey = testkey.NewRSA4096(t)
 		publicKey = toRSAKey(privateKey.Public(), kmsKeyID, keyOperations)
 	default:
