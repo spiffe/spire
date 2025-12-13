@@ -76,6 +76,15 @@ func setupJournalTest(t *testing.T) *journalTest {
 
 		kmKeys["JWT-Signer-C"], err = km.GenerateKey(ctx, "JWT-Signer-C", keymanager.ECP256)
 		require.NoError(t, err)
+
+		kmKeys["WIT-Signer-A"], err = km.GenerateKey(ctx, "WIT-Signer-A", keymanager.ECP256)
+		require.NoError(t, err)
+
+		kmKeys["WIT-Signer-B"], err = km.GenerateKey(ctx, "WIT-Signer-B", keymanager.ECP256)
+		require.NoError(t, err)
+
+		kmKeys["WIT-Signer-C"], err = km.GenerateKey(ctx, "WIT-Signer-C", keymanager.ECP256)
+		require.NoError(t, err)
 	}
 
 	return &journalTest{
@@ -115,6 +124,13 @@ func TestJournalPersistence(t *testing.T) {
 
 	err = j.AppendJWTKey(ctx, "B", now, &ca.JWTKey{
 		Signer:   kmKeys["JWT-Signer-B"],
+		Kid:      "kid1",
+		NotAfter: now.Add(time.Hour),
+	})
+	require.NoError(t, err)
+
+	err = j.AppendWITKey(ctx, "C", now, &ca.WITKey{
+		Signer:   kmKeys["WIT-Signer-C"],
 		Kid:      "kid1",
 		NotAfter: now.Add(time.Hour),
 	})
@@ -326,6 +342,78 @@ func TestJWTKeyOverflow(t *testing.T) {
 	entries := journal.getEntries()
 	require.Len(t, entries.JwtKeys, journalCap, "JWT key entries exceeds cap")
 	lastEntry := entries.JwtKeys[len(entries.JwtKeys)-1]
+	require.Equal(t, now, time.Unix(lastEntry.IssuedAt, 0).UTC())
+}
+
+func TestUpdateWITKeyStatus(t *testing.T) {
+	test := setupJournalTest(t)
+
+	firstIssuedAt := test.now()
+	secondIssuedAt := firstIssuedAt.Add(time.Minute)
+	thirdIssuedAt := secondIssuedAt.Add(time.Minute)
+
+	testJournal := test.loadJournal(t)
+
+	err := testJournal.AppendWITKey(ctx, "A", firstIssuedAt, &ca.WITKey{
+		Signer: kmKeys["WIT-Signer-A"],
+		Kid:    "kid1",
+	})
+	require.NoError(t, err)
+
+	err = testJournal.AppendWITKey(ctx, "B", secondIssuedAt, &ca.WITKey{
+		Signer: kmKeys["WIT-Signer-B"],
+		Kid:    "kid2",
+	})
+	require.NoError(t, err)
+
+	err = testJournal.AppendWITKey(ctx, "C", thirdIssuedAt, &ca.WITKey{
+		Signer: kmKeys["WIT-Signer-C"],
+		Kid:    "kid3",
+	})
+	require.NoError(t, err)
+
+	keys := testJournal.getEntries().WitKeys
+	require.Len(t, keys, 3)
+	for _, key := range keys {
+		require.Equal(t, journal.Status_PREPARED, key.Status)
+	}
+
+	err = testJournal.UpdateWITKeyStatus(ctx, "kid2", journal.Status_ACTIVE)
+	require.NoError(t, err)
+
+	for _, key := range testJournal.getEntries().WitKeys {
+		expectedStatus := journal.Status_PREPARED
+		if key.SlotId == "B" {
+			expectedStatus = journal.Status_ACTIVE
+		}
+
+		require.Equal(t, expectedStatus, key.Status)
+	}
+
+	err = testJournal.UpdateWITKeyStatus(ctx, nonExistingAuthorityID, journal.Status_OLD)
+	require.ErrorContains(t, err, fmt.Sprintf("no journal entry found with authority ID %q", nonExistingAuthorityID))
+}
+
+func TestWITKeyOverflow(t *testing.T) {
+	test := setupJournalTest(t)
+
+	now := test.now()
+
+	journal := test.loadJournal(t)
+
+	for range journalCap + 1 {
+		now = now.Add(time.Minute)
+		err := journal.AppendWITKey(ctx, "B", now, &ca.WITKey{
+			Signer:   kmKeys["WIT-Signer-B"],
+			Kid:      "KID",
+			NotAfter: now.Add(time.Hour),
+		})
+		require.NoError(t, err)
+	}
+
+	entries := journal.getEntries()
+	require.Len(t, entries.WitKeys, journalCap, "WIT key entries exceeds cap")
+	lastEntry := entries.WitKeys[len(entries.WitKeys)-1]
 	require.Equal(t, now, time.Unix(lastEntry.IssuedAt, 0).UTC())
 }
 

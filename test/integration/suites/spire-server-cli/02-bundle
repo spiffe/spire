@@ -65,3 +65,6 @@ docker compose exec -T spire-server \
 
 # Verify 'bundle count' correctly indicates two bundles (server bundle and one federated bundle)
 docker compose exec -T spire-server /opt/spire/bin/spire-server bundle count | grep 2 || fail-now "failed to count 2 bundles"
+
+# Verify that there are no WIT-SVIDs by default
+docker compose exec -T spire-server /opt/spire/bin/spire-server bundle show -output json | jq -e '.wit_authorities | length == 0' || fail-now "wit_authorities should have been empty"

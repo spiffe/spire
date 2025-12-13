@@ -94,6 +94,7 @@ func (s *CATestSuite) SetupTest() {
 	})
 	s.setX509CA(true)
 	s.setJWTKey()
+	s.setWITKey()
 }
 
 func (s *CATestSuite) TestDisableJWTSVIDs() {
@@ -105,6 +106,17 @@ func (s *CATestSuite) TestDisableJWTSVIDs() {
 		DisableJWTSVIDs: true,
 	})
 	s.True(ca.IsJWTSVIDsDisabled(), "DisableJWTSVIDs not changed to true")
+}
+
+func (s *CATestSuite) TestDisableWITSVIDs() {
+	s.False(s.ca.IsWITSVIDsDisabled(), "DisableWITSVIDs should be false by default")
+
+	ca := NewCA(Config{
+		TrustDomain:     trustDomainExample,
+		HealthChecker:   s.healthChecker,
+		DisableWITSVIDs: true,
+	})
+	s.True(ca.IsWITSVIDsDisabled(), "DisableWITSVIDs not changed to true")
 }
 
 func (s *CATestSuite) TestSignServerX509SVIDNoCASet() {
@@ -582,6 +594,14 @@ func (s *CATestSuite) setX509CA(selfSigned bool) {
 
 func (s *CATestSuite) setJWTKey() {
 	s.ca.SetJWTKey(&JWTKey{
+		Signer:   testSigner,
+		Kid:      "KID",
+		NotAfter: s.clock.Now().Add(10 * time.Minute),
+	})
+}
+
+func (s *CATestSuite) setWITKey() {
+	s.ca.SetWITKey(&WITKey{
 		Signer:   testSigner,
 		Kid:      "KID",
 		NotAfter: s.clock.Now().Add(10 * time.Minute),

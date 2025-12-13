@@ -1,0 +1,4 @@
+#!/bin/bash
+
+# Verify that there are no WIT-SVIDs by default
+docker compose exec -T spire-server /opt/spire/bin/spire-server bundle show -output json | jq -e '.wit_authorities | length != 0' || fail-now "wit_authorities should have been non-empty"
