@@ -105,6 +105,12 @@ func TestCheckerListeners(t *testing.T) {
 		require.JSONEq(t, "{\"bar\":{},\"foo\":{}}\n", string(actual))
 	})
 
+	// Drain any pending signals from the initial health check loop
+	select {
+	case <-waitFor:
+	default:
+	}
+
 	fooChecker.state.Live = false
 	fooChecker.state.LiveDetails = healthDetails{Err: "live fails"}
 
@@ -112,7 +118,12 @@ func TestCheckerListeners(t *testing.T) {
 	barChecker.state.ReadyDetails = healthDetails{Err: "ready fails"}
 
 	clk.Add(readyCheckInterval)
-	<-waitFor
+
+	select {
+	case <-waitFor:
+	case <-time.After(5 * time.Second):
+		require.FailNow(t, "timeout waiting for status update")
+	}
 
 	t.Run("live fails", func(t *testing.T) {
 		resp, err := http.Get("http://localhost:12345/live")
