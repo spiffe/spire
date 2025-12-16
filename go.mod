@@ -84,8 +84,8 @@ require (
 	golang.org/x/crypto v0.45.0
 	golang.org/x/exp v0.0.0-20250620022241-b7579e27df2b
 	golang.org/x/net v0.47.0
-	golang.org/x/sync v0.18.0
-	golang.org/x/sys v0.38.0
+	golang.org/x/sync v0.19.0
+	golang.org/x/sys v0.39.0
 	golang.org/x/time v0.14.0
 	google.golang.org/api v0.257.0
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20251124214823-79d6a2a48846
