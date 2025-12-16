@@ -1,5 +1,36 @@
 # Changelog
 
+## [1.14.0] - 2025-12-11
+
+### Added
+
+- New `azure_imds` node attestor plugin for attesting nodes running in Microsoft Azure using the Azure Instance Metadata Service (IMDS) (#6312)
+- The AWS KMS key manager plugin now supports key tagging (#6410)
+- The JWT-SVID profile on spire server can now be disabled using the `disable_jwt_svids` config (#6272)
+- `spire-server validate` now supports validating plugin configuration (#6355)
+- Support for ec-p384 curve in the `workload_x509_svid_key_type` configuration option in spire-agent (#6389)
+- The docker workload attestor now supports the `docker:image_config_digest` selector (#6391)
+- GCP CAs now specify a `certificate_id` in `CreateCertificateRequest` for Enterprise tier compatibility (#6392)
+- Dummy implementations for the WIT-SVID profile (#6399)
+- GCP cloudsql-proxy can now be used with postgres (#6463)
+- The KeyManager directory is now validated to exist and be writeable on agent startup (#6397)
+
+### Changed
+
+- QueryContext is now used for querying the version database version and CTE support (#6461)
+- The `k8s` and `docker` workload attestors now ignore cgroup mountinfo with root == / (#6462)
+- spire-server now stops fetching all events if a context cancelled error is returned while processing a list of events (#6472)
+
+### Removed
+
+- Removed the deprecated 'retry_rebootstrap' agent config (#6431)
+- Removed unused database model, V3AttestedNode (#6381)
+
+### Fixed
+
+- Added k8s_configmap BundlePublisher to documentation (#6437)
+- Added tpm_devid to supported Agent plugins documentation (#6449)
+
 ## [1.13.3] - 2025-10-23
 
 ### Added

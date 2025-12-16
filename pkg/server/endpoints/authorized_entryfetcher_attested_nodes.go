@@ -2,6 +2,7 @@ package endpoints
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -80,9 +81,14 @@ func (a *attestedNodes) searchBeforeFirstEvent(ctx context.Context) error {
 func (a *attestedNodes) selectPolledEvents(ctx context.Context) {
 	// check if the polled events have appeared out-of-order
 	selectedEvents := a.eventTracker.SelectEvents()
+	defer a.eventTracker.FreeEvents(selectedEvents)
+
 	for _, eventID := range selectedEvents {
 		log := a.log.WithField(telemetry.EventID, eventID)
 		event, err := a.ds.FetchAttestedNodeEvent(ctx, eventID)
+		if errors.Is(err, context.Canceled) {
+			return
+		}
 
 		switch status.Code(err) {
 		case codes.OK:
@@ -96,7 +102,6 @@ func (a *attestedNodes) selectPolledEvents(ctx context.Context) {
 		a.fetchNodes[event.SpiffeID] = struct{}{}
 		a.eventTracker.StopTracking(eventID)
 	}
-	a.eventTracker.FreeEvents(selectedEvents)
 }
 
 func (a *attestedNodes) scanForNewEvents(ctx context.Context) error {
