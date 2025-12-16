@@ -298,7 +298,7 @@ func (m *manager) FetchJWTSVID(ctx context.Context, entry *common.RegistrationEn
 		return cachedSVID, nil
 	}
 
-	newSVID, err := m.client.NewJWTSVID(ctx, entry.EntryId, audience)
+	newSVID, spiffeIdString, err := m.client.NewJWTSVID(ctx, entry.EntryId, audience)
 	switch {
 	case err == nil:
 	case cachedSVID == nil:
@@ -308,6 +308,11 @@ func (m *manager) FetchJWTSVID(ctx context.Context, entry *common.RegistrationEn
 	default:
 		m.c.Log.WithError(err).WithField(telemetry.SPIFFEID, spiffeID).Warn("Unable to renew JWT; returning cached copy")
 		return cachedSVID, nil
+	}
+
+	spiffeID, err = spiffeid.FromString(spiffeIdString)
+	if err != nil {
+		return nil, errors.New("Invalid SPIFFE ID: " + err.Error())
 	}
 
 	m.cache.SetJWTSVID(spiffeID, audience, newSVID)
