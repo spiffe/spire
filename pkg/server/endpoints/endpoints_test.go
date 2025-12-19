@@ -7,7 +7,6 @@ import (
 	"net"
 	"os"
 	"reflect"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -380,21 +379,15 @@ func TestListenAndServe(t *testing.T) {
 				grpc.WithTransportCredentials(credentials.NewTLS(config)),
 			)
 			require.NoError(t, err)
+			defer conn.Close()
 
 			_, err = entryv1.NewEntryClient(conn).ListEntries(ctx, nil)
 			require.Error(t, err)
 
-			switch {
-			// This message can be returned on macOS
-			case strings.Contains(err.Error(), "write: broken pipe"):
-			// This message can be returned on Windows
-			case strings.Contains(err.Error(), "connection was forcibly closed by the remote host"):
-			case strings.Contains(err.Error(), "connection reset by peer"):
-			case strings.Contains(err.Error(), "tls: bad certificate"):
-				return
-			default:
-				t.Errorf("expected invalid connection for misconfigured foreign admin caller: %s", err.Error())
-			}
+			// When TLS handshake fails due to invalid certificates, the server
+			// terminates the connection, which gRPC reports as Unavailable.
+			// We check the gRPC error code rather than OS-specific error messages.
+			require.Equal(t, codes.Unavailable, status.Convert(err).Code(), "expected Unavailable status for misconfigured foreign admin caller")
 		}
 	})
 
