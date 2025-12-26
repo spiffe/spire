@@ -132,6 +132,19 @@ func (e *ReadOnlyEntry) Clone(mask *types.EntryMask) *types.Entry {
 		clone.CreatedAt = e.entry.CreatedAt
 	}
 
+	if mask.JwtSvidDefaultAudiencePolicy {
+		clone.JwtSvidDefaultAudiencePolicy = e.entry.JwtSvidDefaultAudiencePolicy
+	}
+
+	if mask.JwtSvidAudiencePolicies {
+		if len(e.entry.JwtSvidAudiencePolicies) > 0 {
+			clone.JwtSvidAudiencePolicies = make(map[string]types.JWTSVIDAudiencePolicy, len(e.entry.JwtSvidAudiencePolicies))
+			for audience, policy := range e.entry.JwtSvidAudiencePolicies {
+				clone.JwtSvidAudiencePolicies[audience] = policy
+			}
+		}
+	}
+
 	return clone
 }
 
@@ -179,22 +192,33 @@ func RegistrationEntryToProto(e *common.RegistrationEntry) (*types.Entry, error)
 		}
 	}
 
+	// Convert audience policies from common to types
+	var audiencePolicies map[string]types.JWTSVIDAudiencePolicy
+	if len(e.JwtSvidAudiencePolicies) > 0 {
+		audiencePolicies = make(map[string]types.JWTSVIDAudiencePolicy, len(e.JwtSvidAudiencePolicies))
+		for audience, policy := range e.JwtSvidAudiencePolicies {
+			audiencePolicies[audience] = types.JWTSVIDAudiencePolicy(policy)
+		}
+	}
+
 	return &types.Entry{
-		Id:             e.EntryId,
-		SpiffeId:       ProtoFromID(spiffeID),
-		ParentId:       ProtoFromID(parentID),
-		Selectors:      ProtoFromSelectors(e.Selectors),
-		X509SvidTtl:    e.X509SvidTtl,
-		FederatesWith:  federatesWith,
-		Admin:          e.Admin,
-		Downstream:     e.Downstream,
-		ExpiresAt:      e.EntryExpiry,
-		DnsNames:       slices.Clone(e.DnsNames),
-		RevisionNumber: e.RevisionNumber,
-		StoreSvid:      e.StoreSvid,
-		JwtSvidTtl:     e.JwtSvidTtl,
-		Hint:           e.Hint,
-		CreatedAt:      e.CreatedAt,
+		Id:                           e.EntryId,
+		SpiffeId:                     ProtoFromID(spiffeID),
+		ParentId:                     ProtoFromID(parentID),
+		Selectors:                    ProtoFromSelectors(e.Selectors),
+		X509SvidTtl:                  e.X509SvidTtl,
+		FederatesWith:                federatesWith,
+		Admin:                        e.Admin,
+		Downstream:                   e.Downstream,
+		ExpiresAt:                    e.EntryExpiry,
+		DnsNames:                     slices.Clone(e.DnsNames),
+		RevisionNumber:               e.RevisionNumber,
+		StoreSvid:                    e.StoreSvid,
+		JwtSvidTtl:                   e.JwtSvidTtl,
+		Hint:                         e.Hint,
+		CreatedAt:                    e.CreatedAt,
+		JwtSvidDefaultAudiencePolicy: types.JWTSVIDAudiencePolicy(e.JwtSvidDefaultAudiencePolicy),
+		JwtSvidAudiencePolicies:      audiencePolicies,
 	}, nil
 }
 
@@ -309,20 +333,38 @@ func ProtoToRegistrationEntryWithMask(ctx context.Context, td spiffeid.TrustDoma
 		}
 		hint = e.Hint
 	}
+
+	var jwtSvidDefaultAudiencePolicy common.JWTSVIDAudiencePolicy
+	if mask.JwtSvidDefaultAudiencePolicy {
+		jwtSvidDefaultAudiencePolicy = common.JWTSVIDAudiencePolicy(e.JwtSvidDefaultAudiencePolicy)
+	}
+
+	var jwtSvidAudiencePolicies map[string]common.JWTSVIDAudiencePolicy
+	if mask.JwtSvidAudiencePolicies {
+		if len(e.JwtSvidAudiencePolicies) > 0 {
+			jwtSvidAudiencePolicies = make(map[string]common.JWTSVIDAudiencePolicy, len(e.JwtSvidAudiencePolicies))
+			for audience, policy := range e.JwtSvidAudiencePolicies {
+				jwtSvidAudiencePolicies[audience] = common.JWTSVIDAudiencePolicy(policy)
+			}
+		}
+	}
+
 	return &common.RegistrationEntry{
-		EntryId:        e.Id,
-		ParentId:       parentID.String(),
-		SpiffeId:       spiffeID.String(),
-		Admin:          admin,
-		DnsNames:       dnsNames,
-		Downstream:     downstream,
-		EntryExpiry:    expiresAt,
-		FederatesWith:  federatesWith,
-		Selectors:      selectors,
-		RevisionNumber: revisionNumber,
-		StoreSvid:      storeSVID,
-		X509SvidTtl:    x509SvidTTL,
-		JwtSvidTtl:     jwtSvidTTL,
-		Hint:           hint,
+		EntryId:                      e.Id,
+		ParentId:                     parentID.String(),
+		SpiffeId:                     spiffeID.String(),
+		Admin:                        admin,
+		DnsNames:                     dnsNames,
+		Downstream:                   downstream,
+		EntryExpiry:                  expiresAt,
+		FederatesWith:                federatesWith,
+		Selectors:                    selectors,
+		RevisionNumber:               revisionNumber,
+		StoreSvid:                    storeSVID,
+		X509SvidTtl:                  x509SvidTTL,
+		JwtSvidTtl:                   jwtSvidTTL,
+		Hint:                         hint,
+		JwtSvidDefaultAudiencePolicy: jwtSvidDefaultAudiencePolicy,
+		JwtSvidAudiencePolicies:      jwtSvidAudiencePolicies,
 	}, nil
 }

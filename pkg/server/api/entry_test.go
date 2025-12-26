@@ -744,10 +744,14 @@ func TestReadOnlyEntryClone(t *testing.T) {
 		ExpiresAt:      expiresAt,
 		DnsNames:       []string{"dns1", "dns2"},
 		Downstream:     true,
-		RevisionNumber: 99,
-		Hint:           "external",
-		CreatedAt:      1678731397,
-		StoreSvid:      true,
+		RevisionNumber:               99,
+		Hint:                         "external",
+		CreatedAt:                    1678731397,
+		StoreSvid:                    true,
+		JwtSvidDefaultAudiencePolicy: types.JWTSVIDAudiencePolicy_JWT_SVID_AUDIENCE_POLICY_AUDITABLE,
+		JwtSvidAudiencePolicies: map[string]types.JWTSVIDAudiencePolicy{
+			"aud1": types.JWTSVIDAudiencePolicy_JWT_SVID_AUDIENCE_POLICY_UNIQUE,
+		},
 	}
 
 	// Verify that we our test entry has all fields set to make sure

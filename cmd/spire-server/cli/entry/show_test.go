@@ -534,7 +534,9 @@ func getJSONPrintedEntry(idx int) string {
       "dns_names": [],
       "revision_number": "0",
       "store_svid": false,
-      "jwt_svid_ttl": 0
+      "jwt_svid_ttl": 0,
+      "jwt_svid_default_audience_policy": "JWT_SVID_AUDIENCE_POLICY_DEFAULT",
+      "jwt_svid_audience_policies": {}
     }`
 	case 1:
 		return `{
@@ -567,7 +569,9 @@ func getJSONPrintedEntry(idx int) string {
       "dns_names": [],
       "revision_number": "0",
       "store_svid": false,
-      "jwt_svid_ttl": 0
+      "jwt_svid_ttl": 0,
+      "jwt_svid_default_audience_policy": "JWT_SVID_AUDIENCE_POLICY_DEFAULT",
+      "jwt_svid_audience_policies": {}
     }`
 	case 2:
 		return `{
@@ -602,7 +606,9 @@ func getJSONPrintedEntry(idx int) string {
       "dns_names": [],
       "revision_number": "0",
       "store_svid": false,
-      "jwt_svid_ttl": 0
+      "jwt_svid_ttl": 0,
+      "jwt_svid_default_audience_policy": "JWT_SVID_AUDIENCE_POLICY_DEFAULT",
+      "jwt_svid_audience_policies": {}
     }`
 	case 3:
 		return `{
@@ -631,7 +637,9 @@ func getJSONPrintedEntry(idx int) string {
       "dns_names": [],
       "revision_number": "0",
       "store_svid": false,
-      "jwt_svid_ttl": 0
+      "jwt_svid_ttl": 0,
+      "jwt_svid_default_audience_policy": "JWT_SVID_AUDIENCE_POLICY_DEFAULT",
+      "jwt_svid_audience_policies": {}
     }`
 	default:
 		return "index should be lower than 4"

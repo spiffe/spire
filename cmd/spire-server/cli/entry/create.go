@@ -74,6 +74,12 @@ type createCommand struct {
 	// storeSVID determines if the issued SVID must be stored through an SVIDStore plugin
 	storeSVID bool
 
+	// JWT-SVID default audience policy
+	jwtSVIDDefaultAudiencePolicy string
+
+	// JWT-SVID per-audience policies
+	jwtSVIDAudiencePolicies AudiencePolicyFlag
+
 	printer cliprinter.Printer
 
 	env *commoncli.Env
@@ -103,6 +109,8 @@ func (c *createCommand) AppendFlags(f *flag.FlagSet) {
 	f.Int64Var(&c.entryExpiry, "entryExpiry", 0, "An expiry, from epoch in seconds, for the resulting registration entry to be pruned")
 	f.Var(&c.dnsNames, "dns", "A DNS name that will be included in SVIDs issued based on this entry, where appropriate. Can be used more than once")
 	f.StringVar(&c.hint, "hint", "", "The entry hint, used to disambiguate entries with the same SPIFFE ID")
+	f.StringVar(&c.jwtSVIDDefaultAudiencePolicy, "jwtSVIDDefaultAudiencePolicy", "", "Default JWT-SVID audience policy for audiences not explicitly configured. One of: default, auditable, unique")
+	f.Var(&c.jwtSVIDAudiencePolicies, "jwtSVIDAudiencePolicy", "Per-audience JWT-SVID policy in the format 'audience:policy' where policy is one of: default, auditable, unique. Can be used more than once")
 	cliprinter.AppendFlagWithCustomPretty(&c.printer, f, c.env, prettyPrintCreate)
 }
 
@@ -187,17 +195,24 @@ func (c *createCommand) parseConfig() ([]*types.Entry, error) {
 		return nil, fmt.Errorf("invalid value for JWT SVID TTL: %w", err)
 	}
 
+	jwtSvidDefaultAudiencePolicy, err := parseJWTSVIDAudiencePolicy(c.jwtSVIDDefaultAudiencePolicy)
+	if err != nil {
+		return nil, err
+	}
+
 	e := &types.Entry{
-		Id:          c.entryID,
-		ParentId:    parentID,
-		SpiffeId:    spiffeID,
-		Downstream:  c.downstream,
-		ExpiresAt:   c.entryExpiry,
-		DnsNames:    c.dnsNames,
-		StoreSvid:   c.storeSVID,
-		X509SvidTtl: x509SvidTTL,
-		JwtSvidTtl:  jwtSvidTTL,
-		Hint:        c.hint,
+		Id:                           c.entryID,
+		ParentId:                     parentID,
+		SpiffeId:                     spiffeID,
+		Downstream:                   c.downstream,
+		ExpiresAt:                    c.entryExpiry,
+		DnsNames:                     c.dnsNames,
+		StoreSvid:                    c.storeSVID,
+		X509SvidTtl:                  x509SvidTTL,
+		JwtSvidTtl:                   jwtSvidTTL,
+		Hint:                         c.hint,
+		JwtSvidDefaultAudiencePolicy: jwtSvidDefaultAudiencePolicy,
+		JwtSvidAudiencePolicies:      c.jwtSVIDAudiencePolicies,
 	}
 
 	selectors := []*types.Selector{}

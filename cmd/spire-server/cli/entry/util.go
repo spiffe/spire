@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -61,6 +63,23 @@ func printEntry(e *types.Entry, printf func(string, ...any) error) {
 
 	if e.Hint != "" {
 		_ = printf("Hint             : %s\n", e.Hint)
+	}
+
+	// Only show JWT-SVID audience policies if configured
+	if e.JwtSvidDefaultAudiencePolicy != types.JWTSVIDAudiencePolicy_JWT_SVID_AUDIENCE_POLICY_DEFAULT {
+		_ = printf("JWT Default Policy: %s\n", jwtSVIDAudiencePolicyName(e.JwtSvidDefaultAudiencePolicy))
+	}
+	if len(e.JwtSvidAudiencePolicies) > 0 {
+		// Sort audiences for consistent output
+		audiences := make([]string, 0, len(e.JwtSvidAudiencePolicies))
+		for aud := range e.JwtSvidAudiencePolicies {
+			audiences = append(audiences, aud)
+		}
+		sort.Strings(audiences)
+		for _, aud := range audiences {
+			policy := e.JwtSvidAudiencePolicies[aud]
+			_ = printf("JWT Aud Policy   : %s:%s\n", aud, jwtSVIDAudiencePolicyName(policy))
+		}
 	}
 
 	_ = printf("\n")
@@ -136,4 +155,64 @@ func (s *StringsFlag) String() string {
 func (s *StringsFlag) Set(val string) error {
 	*s = append(*s, val)
 	return nil
+}
+
+// AudiencePolicyFlag defines a custom type for audience:policy pairs.
+// Format: "audience:policy" where policy is one of: default, auditable, unique
+type AudiencePolicyFlag map[string]types.JWTSVIDAudiencePolicy
+
+// String returns the string representation of the flag.
+func (a *AudiencePolicyFlag) String() string {
+	return fmt.Sprint(*a)
+}
+
+// Set parses and appends an audience:policy pair.
+func (a *AudiencePolicyFlag) Set(val string) error {
+	parts := strings.SplitN(val, ":", 2)
+	if len(parts) != 2 {
+		return fmt.Errorf("invalid audience policy format %q, expected audience:policy", val)
+	}
+
+	audience := parts[0]
+	if audience == "" {
+		return fmt.Errorf("audience cannot be empty in %q", val)
+	}
+
+	policy, err := parseJWTSVIDAudiencePolicy(parts[1])
+	if err != nil {
+		return err
+	}
+
+	if *a == nil {
+		*a = make(map[string]types.JWTSVIDAudiencePolicy)
+	}
+	(*a)[audience] = policy
+	return nil
+}
+
+// parseJWTSVIDAudiencePolicy parses a policy string into the enum value.
+func parseJWTSVIDAudiencePolicy(s string) (types.JWTSVIDAudiencePolicy, error) {
+	switch strings.ToLower(s) {
+	case "default", "":
+		return types.JWTSVIDAudiencePolicy_JWT_SVID_AUDIENCE_POLICY_DEFAULT, nil
+	case "auditable":
+		return types.JWTSVIDAudiencePolicy_JWT_SVID_AUDIENCE_POLICY_AUDITABLE, nil
+	case "unique":
+		return types.JWTSVIDAudiencePolicy_JWT_SVID_AUDIENCE_POLICY_UNIQUE, nil
+	default:
+		return types.JWTSVIDAudiencePolicy_JWT_SVID_AUDIENCE_POLICY_DEFAULT,
+			fmt.Errorf("invalid JWT-SVID audience policy %q, must be one of: default, auditable, unique", s)
+	}
+}
+
+// jwtSVIDAudiencePolicyName returns the human-readable name of the policy.
+func jwtSVIDAudiencePolicyName(p types.JWTSVIDAudiencePolicy) string {
+	switch p {
+	case types.JWTSVIDAudiencePolicy_JWT_SVID_AUDIENCE_POLICY_AUDITABLE:
+		return "auditable"
+	case types.JWTSVIDAudiencePolicy_JWT_SVID_AUDIENCE_POLICY_UNIQUE:
+		return "unique"
+	default:
+		return "default"
+	}
 }

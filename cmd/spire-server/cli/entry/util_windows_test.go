@@ -20,6 +20,10 @@ const (
     	SPIFFE ID of a trust domain to federate with. Can be used more than once
   -hint string
     	The entry hint, used to disambiguate entries with the same SPIFFE ID
+  -jwtSVIDAudiencePolicy value
+    	Per-audience JWT-SVID policy in the format 'audience:policy' where policy is one of: default, auditable, unique. Can be used more than once
+  -jwtSVIDDefaultAudiencePolicy string
+    	Default JWT-SVID audience policy for audiences not explicitly configured. One of: default, auditable, unique
   -jwtSVIDTTL int
     	The lifetime, in seconds, for JWT-SVIDs issued based on this registration entry.
   -namedPipeName string
@@ -80,6 +84,10 @@ const (
     	SPIFFE ID of a trust domain to federate with. Can be used more than once
   -hint string
     	The entry hint, used to disambiguate entries with the same SPIFFE ID
+  -jwtSVIDAudiencePolicy value
+    	Per-audience JWT-SVID policy in the format 'audience:policy' where policy is one of: default, auditable, unique. Can be used more than once
+  -jwtSVIDDefaultAudiencePolicy string
+    	Default JWT-SVID audience policy for audiences not explicitly configured. One of: default, auditable, unique
   -jwtSVIDTTL int
     	The lifetime, in seconds, for JWT-SVIDs issued based on this registration entry.
   -namedPipeName string
