@@ -223,8 +223,9 @@ func TestUpdate(t *testing.T) {
         "revision_number": "0",
         "jwt_svid_ttl": 300,
         "store_svid": false,
-		"additional_attributes": {
-		  "disable_x509_svid_prefetch": true
+        "additional_attributes": {
+          "disable_x509_svid_prefetch": true,
+          "jwt_svid_include_jti": false
         }
       }
     }`
