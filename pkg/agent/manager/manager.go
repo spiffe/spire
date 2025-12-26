@@ -299,10 +299,19 @@ func (m *manager) FetchJWTSVID(ctx context.Context, entry *common.RegistrationEn
 		return nil, fmt.Errorf("invalid SPIFFE ID: %w", err)
 	}
 
+	// Calculate effective policy for the requested audiences.
+	// UNIQUE policy means every request gets a fresh token (no caching).
+	effectivePolicy := effectiveJWTSVIDPolicy(audience, entry.JwtSvidDefaultAudiencePolicy, entry.JwtSvidAudiencePolicies)
+	bypassCache := effectivePolicy == common.JWTSVIDAudiencePolicy_JWT_SVID_AUDIENCE_POLICY_UNIQUE
+
 	now := m.clk.Now()
-	cachedSVID, ok := m.cache.GetJWTSVID(spiffeID, audience)
-	if ok && !m.c.RotationStrategy.JWTSVIDExpiresSoon(cachedSVID, now) {
-		return cachedSVID, nil
+	var cachedSVID *client.JWTSVID
+	var ok bool
+	if !bypassCache {
+		cachedSVID, ok = m.cache.GetJWTSVID(spiffeID, audience)
+		if ok && !m.c.RotationStrategy.JWTSVIDExpiresSoon(cachedSVID, now) {
+			return cachedSVID, nil
+		}
 	}
 
 	// Determine if an unexpired JWT-SVID exists in the cache to pass
@@ -322,8 +331,31 @@ func (m *manager) FetchJWTSVID(ctx context.Context, entry *common.RegistrationEn
 		return cachedSVID, nil
 	}
 
-	m.cache.SetJWTSVID(svidSPIFFEID, audience, newSVID)
+	// Only cache if not using UNIQUE policy
+	if !bypassCache {
+		m.cache.SetJWTSVID(svidSPIFFEID, audience, newSVID)
+	}
 	return newSVID, nil
+}
+
+// effectiveJWTSVIDPolicy determines the effective policy for a JWT-SVID request
+// based on the requested audiences. It uses the "most restrictive wins" approach:
+// if any audience has a stricter policy, that policy applies to the whole token.
+// Policy strictness order: DEFAULT(0) < AUDITABLE(1) < UNIQUE(2)
+func effectiveJWTSVIDPolicy(audiences []string, defaultPolicy common.JWTSVIDAudiencePolicy, audiencePolicies map[string]common.JWTSVIDAudiencePolicy) common.JWTSVIDAudiencePolicy {
+	maxPolicy := defaultPolicy
+	for _, audience := range audiences {
+		var policy common.JWTSVIDAudiencePolicy
+		if p, ok := audiencePolicies[audience]; ok {
+			policy = p
+		} else {
+			policy = defaultPolicy
+		}
+		if policy > maxPolicy {
+			maxPolicy = policy
+		}
+	}
+	return maxPolicy
 }
 
 func (m *manager) runSynchronizer(ctx context.Context) error {
