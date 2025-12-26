@@ -22,7 +22,8 @@ const (
     	SPIFFE ID of a trust domain to federate with. Can be used more than once
   -hint string
     	The entry hint, used to disambiguate entries with the same SPIFFE ID
-  -jwtSVIDTTL int
+  -jwtSVIDIncludeJTI
+` + "    \tA boolean value that, when set, includes a unique 'jti' claim in JWT-SVIDs issued for this entry and bypasses the agent JWT-SVID cache\n" + `  -jwtSVIDTTL int
     	The lifetime, in seconds, for JWT-SVIDs issued based on this registration entry.
   -namedPipeName string
     	Pipe name of the SPIRE Server API named pipe (default "\\spire-server\\private\\api")
@@ -84,7 +85,8 @@ const (
     	SPIFFE ID of a trust domain to federate with. Can be used more than once
   -hint string
     	The entry hint, used to disambiguate entries with the same SPIFFE ID
-  -jwtSVIDTTL int
+  -jwtSVIDIncludeJTI
+` + "    \tA boolean value that, when set, includes a unique 'jti' claim in JWT-SVIDs issued for this entry and bypasses the agent JWT-SVID cache\n" + `  -jwtSVIDTTL int
     	The lifetime, in seconds, for JWT-SVIDs issued based on this registration entry.
   -namedPipeName string
     	Pipe name of the SPIRE Server API named pipe (default "\\spire-server\\private\\api")
