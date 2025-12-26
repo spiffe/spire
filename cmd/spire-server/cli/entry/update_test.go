@@ -61,7 +61,9 @@ func TestUpdate(t *testing.T) {
         ],
         "revision_number": "0",
         "store_svid": true,
-        "jwt_svid_ttl": 30
+        "jwt_svid_ttl": 30,
+      "jwt_svid_default_audience_policy": "JWT_SVID_AUDIENCE_POLICY_DEFAULT",
+      "jwt_svid_audience_policies": {}
       }`
 	entry0AdminJSON := `{
         "id": "entry-id",
@@ -99,7 +101,9 @@ func TestUpdate(t *testing.T) {
         ],
         "revision_number": "0",
         "store_svid": false,
-        "jwt_svid_ttl": 30
+        "jwt_svid_ttl": 30,
+      "jwt_svid_default_audience_policy": "JWT_SVID_AUDIENCE_POLICY_DEFAULT",
+      "jwt_svid_audience_policies": {}
       }`
 	entry1JSON := `{
         "id": "entry-id-1",
@@ -127,7 +131,9 @@ func TestUpdate(t *testing.T) {
         "dns_names": [],
         "revision_number": "0",
         "store_svid": false,
-        "jwt_svid_ttl": 300
+        "jwt_svid_ttl": 300,
+        "jwt_svid_default_audience_policy": "JWT_SVID_AUDIENCE_POLICY_DEFAULT",
+        "jwt_svid_audience_policies": {}
       }
     }`
 	entry2JSON := `{
@@ -156,7 +162,9 @@ func TestUpdate(t *testing.T) {
         "dns_names": [],
         "revision_number": "0",
         "store_svid": false,
-        "jwt_svid_ttl": 300
+        "jwt_svid_ttl": 300,
+        "jwt_svid_default_audience_policy": "JWT_SVID_AUDIENCE_POLICY_DEFAULT",
+        "jwt_svid_audience_policies": {}
       }
     }`
 	entry3JSON := `{
@@ -189,7 +197,9 @@ func TestUpdate(t *testing.T) {
         "dns_names": [],
         "revision_number": "0",
         "store_svid": true,
-        "jwt_svid_ttl": 300
+        "jwt_svid_ttl": 300,
+      "jwt_svid_default_audience_policy": "JWT_SVID_AUDIENCE_POLICY_DEFAULT",
+      "jwt_svid_audience_policies": {}
       }
     }`
 	entry4JSON := `{
@@ -225,9 +235,10 @@ func TestUpdate(t *testing.T) {
         "store_svid": false,
 		"additional_attributes": {
 		  "disable_x509_svid_prefetch": true
-        }
-      }
-    }`
+        },
+      "jwt_svid_default_audience_policy": "JWT_SVID_AUDIENCE_POLICY_DEFAULT",
+      "jwt_svid_audience_policies": {}
+      }`
 	nonExistentEntryJSON := `{
         "id": "non-existent-id",
         "spiffe_id": {
@@ -254,7 +265,9 @@ func TestUpdate(t *testing.T) {
         "dns_names": [],
         "revision_number": "0",
         "store_svid": false,
-        "x509_svid_ttl": 0
+        "x509_svid_ttl": 0,
+        "jwt_svid_default_audience_policy": "JWT_SVID_AUDIENCE_POLICY_DEFAULT",
+        "jwt_svid_audience_policies": {}
       }`
 
 	entry1 := &types.Entry{
