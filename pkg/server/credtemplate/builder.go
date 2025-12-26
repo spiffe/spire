@@ -14,6 +14,7 @@ import (
 	"github.com/andres-erbsen/clock"
 	"github.com/go-jose/go-jose/v4"
 	"github.com/go-jose/go-jose/v4/jwt"
+	"github.com/gofrs/uuid/v5"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/tlspolicy"
@@ -102,6 +103,9 @@ type WorkloadJWTSVIDParams struct {
 	Audience      []string
 	TTL           time.Duration
 	ExpirationCap time.Time
+	// IncludeJTI, when true, causes the issued JWT-SVID to include a unique "jti"
+	// (JWT ID) claim, making each token individually auditable.
+	IncludeJTI bool
 }
 
 type WorkloadWITSVIDParams struct {
@@ -346,6 +350,10 @@ func (b *Builder) BuildWorkloadJWTSVIDClaims(ctx context.Context, params Workloa
 			"aud": params.Audience,
 			"iat": jwt.NewNumericDate(now),
 		},
+	}
+
+	if params.IncludeJTI {
+		attributes.Claims["jti"] = uuid.Must(uuid.NewV4()).String()
 	}
 	if b.config.JWTIssuer != "" {
 		attributes.Claims["iss"] = b.config.JWTIssuer

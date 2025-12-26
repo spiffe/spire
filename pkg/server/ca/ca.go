@@ -98,6 +98,10 @@ type WorkloadJWTSVIDParams struct {
 
 	// Audience is used for audience claims
 	Audience []string
+
+	// IncludeJTI, when true, instructs the CA to include a unique "jti" (JWT ID)
+	// claim in the issued token.
+	IncludeJTI bool
 }
 
 // WorkloadWITSVIDParams are parameters relevant to workload WIT-SVID creation
@@ -369,6 +373,7 @@ func (ca *CA) SignWorkloadJWTSVID(ctx context.Context, params WorkloadJWTSVIDPar
 		Audience:      params.Audience,
 		TTL:           params.TTL,
 		ExpirationCap: jwtKey.NotAfter,
+		IncludeJTI:    params.IncludeJTI,
 	})
 	if err != nil {
 		return "", err
