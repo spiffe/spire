@@ -160,7 +160,7 @@ func (s *Service) MintJWTSVID(ctx context.Context, req *svidv1.MintJWTSVIDReques
 	}
 
 	rpccontext.AddRPCAuditFields(ctx, s.fieldsFromJWTSvidParams(ctx, req.Id, req.Audience, req.Ttl))
-	jwtsvid, err := s.mintJWTSVID(ctx, req.Id, req.Audience, req.Ttl)
+	jwtsvid, err := s.mintJWTSVID(ctx, req.Id, req.Audience, req.Ttl, false)
 	if err != nil {
 		return nil, err
 	}
@@ -328,7 +328,7 @@ func (s *Service) newX509SVID(ctx context.Context, param *svidv1.NewX509SVIDPara
 	}
 }
 
-func (s *Service) mintJWTSVID(ctx context.Context, protoID *types.SPIFFEID, audience []string, ttl int32) (*types.JWTSVID, error) {
+func (s *Service) mintJWTSVID(ctx context.Context, protoID *types.SPIFFEID, audience []string, ttl int32, includeJTI bool) (*types.JWTSVID, error) {
 	log := rpccontext.Logger(ctx)
 
 	id, err := api.TrustDomainWorkloadIDFromProto(ctx, s.td, protoID)
@@ -346,9 +346,10 @@ func (s *Service) mintJWTSVID(ctx context.Context, protoID *types.SPIFFEID, audi
 	}
 
 	token, err := s.ca.SignWorkloadJWTSVID(ctx, ca.WorkloadJWTSVIDParams{
-		SPIFFEID: id,
-		TTL:      time.Duration(ttl) * time.Second,
-		Audience: audience,
+		SPIFFEID:   id,
+		TTL:        time.Duration(ttl) * time.Second,
+		Audience:   audience,
+		IncludeJTI: includeJTI,
 	})
 	if err != nil {
 		return nil, api.MakeErr(log, codes.Internal, "failed to sign JWT-SVID", err)
@@ -402,7 +403,7 @@ func (s *Service) NewJWTSVID(ctx context.Context, req *svidv1.NewJWTSVIDRequest)
 		return nil, api.MakeErr(log, codes.NotFound, "entry not found or not authorized", nil)
 	}
 
-	jwtsvid, err := s.mintJWTSVID(ctx, entry.GetSpiffeId(), req.Audience, entry.GetJwtSvidTtl())
+	jwtsvid, err := s.mintJWTSVID(ctx, entry.GetSpiffeId(), req.Audience, entry.GetJwtSvidTtl(), entry.GetAdditionalAttributes().GetJwtSvidIncludeJti())
 	if err != nil {
 		return nil, err
 	}
