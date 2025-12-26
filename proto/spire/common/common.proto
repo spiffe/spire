@@ -96,6 +96,13 @@ message RegistrationEntry {
     string hint = 14;
     /** Time of creation, in seconds from epoch */
     int64 created_at = 15;
+    /** Default JWT-SVID audience policy for audiences not explicitly configured.
+     * If unset (DEFAULT), maintains backwards compatible behavior (no JTI, caching enabled). */
+    JWTSVIDAudiencePolicy jwt_svid_default_audience_policy = 16;
+    /** Per-audience JWT-SVID policy overrides.
+     * Key is the audience string, value is the policy for that audience.
+     * Audiences not in this map use jwt_svid_default_audience_policy. */
+    map<string, JWTSVIDAudiencePolicy> jwt_svid_audience_policies = 17;
 }
 
 /** The RegistrationEntryMask is used to update only selected fields of the RegistrationEntry */
@@ -113,6 +120,8 @@ message RegistrationEntryMask {
     bool store_svid = 11;
     bool jwt_svid_ttl = 12;
     bool hint = 13;
+    bool jwt_svid_default_audience_policy = 14;
+    bool jwt_svid_audience_policies = 15;
 }
 
 
@@ -177,4 +186,17 @@ message AttestedNodeMask{
     bool new_cert_serial_number = 4;
     bool new_cert_not_after = 5;
     bool can_reattest = 6;
+}
+
+/** Policy for JWT-SVID behavior per audience.
+ * Controls whether JTI claims are included and whether agent-side caching is used. */
+enum JWTSVIDAudiencePolicy {
+    /** Default behavior: no JTI claim, caching enabled. Backwards compatible. */
+    JWT_SVID_AUDIENCE_POLICY_DEFAULT = 0;
+    /** Auditable: JTI claim included for audit trails, caching still enabled.
+     * Verifiers can optionally enforce replay protection. */
+    JWT_SVID_AUDIENCE_POLICY_AUDITABLE = 1;
+    /** Unique: JTI claim included, caching disabled. Each request gets a fresh token.
+     * Use for strict replay protection requirements. */
+    JWT_SVID_AUDIENCE_POLICY_UNIQUE = 2;
 }

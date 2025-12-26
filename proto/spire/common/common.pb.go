@@ -21,6 +21,62 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// * Policy for JWT-SVID behavior per audience.
+// Controls whether JTI claims are included and whether agent-side caching is used.
+type JWTSVIDAudiencePolicy int32
+
+const (
+	// * Default behavior: no JTI claim, caching enabled. Backwards compatible.
+	JWTSVIDAudiencePolicy_JWT_SVID_AUDIENCE_POLICY_DEFAULT JWTSVIDAudiencePolicy = 0
+	// * Auditable: JTI claim included for audit trails, caching still enabled.
+	// Verifiers can optionally enforce replay protection.
+	JWTSVIDAudiencePolicy_JWT_SVID_AUDIENCE_POLICY_AUDITABLE JWTSVIDAudiencePolicy = 1
+	// * Unique: JTI claim included, caching disabled. Each request gets a fresh token.
+	// Use for strict replay protection requirements.
+	JWTSVIDAudiencePolicy_JWT_SVID_AUDIENCE_POLICY_UNIQUE JWTSVIDAudiencePolicy = 2
+)
+
+// Enum value maps for JWTSVIDAudiencePolicy.
+var (
+	JWTSVIDAudiencePolicy_name = map[int32]string{
+		0: "JWT_SVID_AUDIENCE_POLICY_DEFAULT",
+		1: "JWT_SVID_AUDIENCE_POLICY_AUDITABLE",
+		2: "JWT_SVID_AUDIENCE_POLICY_UNIQUE",
+	}
+	JWTSVIDAudiencePolicy_value = map[string]int32{
+		"JWT_SVID_AUDIENCE_POLICY_DEFAULT":   0,
+		"JWT_SVID_AUDIENCE_POLICY_AUDITABLE": 1,
+		"JWT_SVID_AUDIENCE_POLICY_UNIQUE":    2,
+	}
+)
+
+func (x JWTSVIDAudiencePolicy) Enum() *JWTSVIDAudiencePolicy {
+	p := new(JWTSVIDAudiencePolicy)
+	*p = x
+	return p
+}
+
+func (x JWTSVIDAudiencePolicy) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (JWTSVIDAudiencePolicy) Descriptor() protoreflect.EnumDescriptor {
+	return file_spire_common_common_proto_enumTypes[0].Descriptor()
+}
+
+func (JWTSVIDAudiencePolicy) Type() protoreflect.EnumType {
+	return &file_spire_common_common_proto_enumTypes[0]
+}
+
+func (x JWTSVIDAudiencePolicy) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use JWTSVIDAudiencePolicy.Descriptor instead.
+func (JWTSVIDAudiencePolicy) EnumDescriptor() ([]byte, []int) {
+	return file_spire_common_common_proto_rawDescGZIP(), []int{0}
+}
+
 // * Represents an empty message
 type Empty struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -364,9 +420,16 @@ type RegistrationEntry struct {
 	// identity should be used by a workload when more than one SVID is returned.
 	Hint string `protobuf:"bytes,14,opt,name=hint,proto3" json:"hint,omitempty"`
 	// * Time of creation, in seconds from epoch
-	CreatedAt     int64 `protobuf:"varint,15,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	CreatedAt int64 `protobuf:"varint,15,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	// * Default JWT-SVID audience policy for audiences not explicitly configured.
+	// If unset (DEFAULT), maintains backwards compatible behavior (no JTI, caching enabled).
+	JwtSvidDefaultAudiencePolicy JWTSVIDAudiencePolicy `protobuf:"varint,16,opt,name=jwt_svid_default_audience_policy,json=jwtSvidDefaultAudiencePolicy,proto3,enum=spire.common.JWTSVIDAudiencePolicy" json:"jwt_svid_default_audience_policy,omitempty"`
+	// * Per-audience JWT-SVID policy overrides.
+	// Key is the audience string, value is the policy for that audience.
+	// Audiences not in this map use jwt_svid_default_audience_policy.
+	JwtSvidAudiencePolicies map[string]JWTSVIDAudiencePolicy `protobuf:"bytes,17,rep,name=jwt_svid_audience_policies,json=jwtSvidAudiencePolicies,proto3" json:"jwt_svid_audience_policies,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"varint,2,opt,name=value,enum=spire.common.JWTSVIDAudiencePolicy"`
+	unknownFields           protoimpl.UnknownFields
+	sizeCache               protoimpl.SizeCache
 }
 
 func (x *RegistrationEntry) Reset() {
@@ -504,24 +567,40 @@ func (x *RegistrationEntry) GetCreatedAt() int64 {
 	return 0
 }
 
+func (x *RegistrationEntry) GetJwtSvidDefaultAudiencePolicy() JWTSVIDAudiencePolicy {
+	if x != nil {
+		return x.JwtSvidDefaultAudiencePolicy
+	}
+	return JWTSVIDAudiencePolicy_JWT_SVID_AUDIENCE_POLICY_DEFAULT
+}
+
+func (x *RegistrationEntry) GetJwtSvidAudiencePolicies() map[string]JWTSVIDAudiencePolicy {
+	if x != nil {
+		return x.JwtSvidAudiencePolicies
+	}
+	return nil
+}
+
 // * The RegistrationEntryMask is used to update only selected fields of the RegistrationEntry
 type RegistrationEntryMask struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Selectors     bool                   `protobuf:"varint,1,opt,name=selectors,proto3" json:"selectors,omitempty"`
-	ParentId      bool                   `protobuf:"varint,2,opt,name=parent_id,json=parentId,proto3" json:"parent_id,omitempty"`
-	SpiffeId      bool                   `protobuf:"varint,3,opt,name=spiffe_id,json=spiffeId,proto3" json:"spiffe_id,omitempty"`
-	X509SvidTtl   bool                   `protobuf:"varint,4,opt,name=x509_svid_ttl,json=x509SvidTtl,proto3" json:"x509_svid_ttl,omitempty"`
-	FederatesWith bool                   `protobuf:"varint,5,opt,name=federates_with,json=federatesWith,proto3" json:"federates_with,omitempty"`
-	EntryId       bool                   `protobuf:"varint,6,opt,name=entry_id,json=entryId,proto3" json:"entry_id,omitempty"`
-	Admin         bool                   `protobuf:"varint,7,opt,name=admin,proto3" json:"admin,omitempty"`
-	Downstream    bool                   `protobuf:"varint,8,opt,name=downstream,proto3" json:"downstream,omitempty"`
-	EntryExpiry   bool                   `protobuf:"varint,9,opt,name=entryExpiry,proto3" json:"entryExpiry,omitempty"`
-	DnsNames      bool                   `protobuf:"varint,10,opt,name=dns_names,json=dnsNames,proto3" json:"dns_names,omitempty"`
-	StoreSvid     bool                   `protobuf:"varint,11,opt,name=store_svid,json=storeSvid,proto3" json:"store_svid,omitempty"`
-	JwtSvidTtl    bool                   `protobuf:"varint,12,opt,name=jwt_svid_ttl,json=jwtSvidTtl,proto3" json:"jwt_svid_ttl,omitempty"`
-	Hint          bool                   `protobuf:"varint,13,opt,name=hint,proto3" json:"hint,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state                        protoimpl.MessageState `protogen:"open.v1"`
+	Selectors                    bool                   `protobuf:"varint,1,opt,name=selectors,proto3" json:"selectors,omitempty"`
+	ParentId                     bool                   `protobuf:"varint,2,opt,name=parent_id,json=parentId,proto3" json:"parent_id,omitempty"`
+	SpiffeId                     bool                   `protobuf:"varint,3,opt,name=spiffe_id,json=spiffeId,proto3" json:"spiffe_id,omitempty"`
+	X509SvidTtl                  bool                   `protobuf:"varint,4,opt,name=x509_svid_ttl,json=x509SvidTtl,proto3" json:"x509_svid_ttl,omitempty"`
+	FederatesWith                bool                   `protobuf:"varint,5,opt,name=federates_with,json=federatesWith,proto3" json:"federates_with,omitempty"`
+	EntryId                      bool                   `protobuf:"varint,6,opt,name=entry_id,json=entryId,proto3" json:"entry_id,omitempty"`
+	Admin                        bool                   `protobuf:"varint,7,opt,name=admin,proto3" json:"admin,omitempty"`
+	Downstream                   bool                   `protobuf:"varint,8,opt,name=downstream,proto3" json:"downstream,omitempty"`
+	EntryExpiry                  bool                   `protobuf:"varint,9,opt,name=entryExpiry,proto3" json:"entryExpiry,omitempty"`
+	DnsNames                     bool                   `protobuf:"varint,10,opt,name=dns_names,json=dnsNames,proto3" json:"dns_names,omitempty"`
+	StoreSvid                    bool                   `protobuf:"varint,11,opt,name=store_svid,json=storeSvid,proto3" json:"store_svid,omitempty"`
+	JwtSvidTtl                   bool                   `protobuf:"varint,12,opt,name=jwt_svid_ttl,json=jwtSvidTtl,proto3" json:"jwt_svid_ttl,omitempty"`
+	Hint                         bool                   `protobuf:"varint,13,opt,name=hint,proto3" json:"hint,omitempty"`
+	JwtSvidDefaultAudiencePolicy bool                   `protobuf:"varint,14,opt,name=jwt_svid_default_audience_policy,json=jwtSvidDefaultAudiencePolicy,proto3" json:"jwt_svid_default_audience_policy,omitempty"`
+	JwtSvidAudiencePolicies      bool                   `protobuf:"varint,15,opt,name=jwt_svid_audience_policies,json=jwtSvidAudiencePolicies,proto3" json:"jwt_svid_audience_policies,omitempty"`
+	unknownFields                protoimpl.UnknownFields
+	sizeCache                    protoimpl.SizeCache
 }
 
 func (x *RegistrationEntryMask) Reset() {
@@ -641,6 +720,20 @@ func (x *RegistrationEntryMask) GetJwtSvidTtl() bool {
 func (x *RegistrationEntryMask) GetHint() bool {
 	if x != nil {
 		return x.Hint
+	}
+	return false
+}
+
+func (x *RegistrationEntryMask) GetJwtSvidDefaultAudiencePolicy() bool {
+	if x != nil {
+		return x.JwtSvidDefaultAudiencePolicy
+	}
+	return false
+}
+
+func (x *RegistrationEntryMask) GetJwtSvidAudiencePolicies() bool {
+	if x != nil {
+		return x.JwtSvidAudiencePolicies
 	}
 	return false
 }
@@ -1082,7 +1175,7 @@ const file_spire_common_common_proto_rawDesc = "" +
 	"\x16new_cert_serial_number\x18\x05 \x01(\tR\x13newCertSerialNumber\x12+\n" +
 	"\x12new_cert_not_after\x18\x06 \x01(\x03R\x0fnewCertNotAfter\x124\n" +
 	"\tselectors\x18\a \x03(\v2\x16.spire.common.SelectorR\tselectors\x12!\n" +
-	"\fcan_reattest\x18\b \x01(\bR\vcanReattest\"\xfb\x03\n" +
+	"\fcan_reattest\x18\b \x01(\bR\vcanReattest\"\xd4\x06\n" +
 	"\x11RegistrationEntry\x124\n" +
 	"\tselectors\x18\x01 \x03(\v2\x16.spire.common.SelectorR\tselectors\x12\x1b\n" +
 	"\tparent_id\x18\x02 \x01(\tR\bparentId\x12\x1b\n" +
@@ -1104,7 +1197,12 @@ const file_spire_common_common_proto_rawDesc = "" +
 	"jwtSvidTtl\x12\x12\n" +
 	"\x04hint\x18\x0e \x01(\tR\x04hint\x12\x1d\n" +
 	"\n" +
-	"created_at\x18\x0f \x01(\x03R\tcreatedAt\"\x9f\x03\n" +
+	"created_at\x18\x0f \x01(\x03R\tcreatedAt\x12k\n" +
+	" jwt_svid_default_audience_policy\x18\x10 \x01(\x0e2#.spire.common.JWTSVIDAudiencePolicyR\x1cjwtSvidDefaultAudiencePolicy\x12y\n" +
+	"\x1ajwt_svid_audience_policies\x18\x11 \x03(\v2<.spire.common.RegistrationEntry.JwtSvidAudiencePoliciesEntryR\x17jwtSvidAudiencePolicies\x1ao\n" +
+	"\x1cJwtSvidAudiencePoliciesEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x129\n" +
+	"\x05value\x18\x02 \x01(\x0e2#.spire.common.JWTSVIDAudiencePolicyR\x05value:\x028\x01\"\xa4\x04\n" +
 	"\x15RegistrationEntryMask\x12\x1c\n" +
 	"\tselectors\x18\x01 \x01(\bR\tselectors\x12\x1b\n" +
 	"\tparent_id\x18\x02 \x01(\bR\bparentId\x12\x1b\n" +
@@ -1123,7 +1221,9 @@ const file_spire_common_common_proto_rawDesc = "" +
 	"store_svid\x18\v \x01(\bR\tstoreSvid\x12 \n" +
 	"\fjwt_svid_ttl\x18\f \x01(\bR\n" +
 	"jwtSvidTtl\x12\x12\n" +
-	"\x04hint\x18\r \x01(\bR\x04hint\"P\n" +
+	"\x04hint\x18\r \x01(\bR\x04hint\x12F\n" +
+	" jwt_svid_default_audience_policy\x18\x0e \x01(\bR\x1cjwtSvidDefaultAudiencePolicy\x12;\n" +
+	"\x1ajwt_svid_audience_policies\x18\x0f \x01(\bR\x17jwtSvidAudiencePolicies\"P\n" +
 	"\x13RegistrationEntries\x129\n" +
 	"\aentries\x18\x01 \x03(\v2\x1f.spire.common.RegistrationEntryR\aentries\"K\n" +
 	"\vCertificate\x12\x1b\n" +
@@ -1156,7 +1256,11 @@ const file_spire_common_common_proto_rawDesc = "" +
 	"\x0ecert_not_after\x18\x03 \x01(\bR\fcertNotAfter\x123\n" +
 	"\x16new_cert_serial_number\x18\x04 \x01(\bR\x13newCertSerialNumber\x12+\n" +
 	"\x12new_cert_not_after\x18\x05 \x01(\bR\x0fnewCertNotAfter\x12!\n" +
-	"\fcan_reattest\x18\x06 \x01(\bR\vcanReattestB,Z*github.com/spiffe/spire/proto/spire/commonb\x06proto3"
+	"\fcan_reattest\x18\x06 \x01(\bR\vcanReattest*\x8a\x01\n" +
+	"\x15JWTSVIDAudiencePolicy\x12$\n" +
+	" JWT_SVID_AUDIENCE_POLICY_DEFAULT\x10\x00\x12&\n" +
+	"\"JWT_SVID_AUDIENCE_POLICY_AUDITABLE\x10\x01\x12#\n" +
+	"\x1fJWT_SVID_AUDIENCE_POLICY_UNIQUE\x10\x02B,Z*github.com/spiffe/spire/proto/spire/commonb\x06proto3"
 
 var (
 	file_spire_common_common_proto_rawDescOnce sync.Once
@@ -1170,34 +1274,40 @@ func file_spire_common_common_proto_rawDescGZIP() []byte {
 	return file_spire_common_common_proto_rawDescData
 }
 
-var file_spire_common_common_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
+var file_spire_common_common_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_spire_common_common_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
 var file_spire_common_common_proto_goTypes = []any{
-	(*Empty)(nil),                 // 0: spire.common.Empty
-	(*AttestationData)(nil),       // 1: spire.common.AttestationData
-	(*Selector)(nil),              // 2: spire.common.Selector
-	(*Selectors)(nil),             // 3: spire.common.Selectors
-	(*AttestedNode)(nil),          // 4: spire.common.AttestedNode
-	(*RegistrationEntry)(nil),     // 5: spire.common.RegistrationEntry
-	(*RegistrationEntryMask)(nil), // 6: spire.common.RegistrationEntryMask
-	(*RegistrationEntries)(nil),   // 7: spire.common.RegistrationEntries
-	(*Certificate)(nil),           // 8: spire.common.Certificate
-	(*PublicKey)(nil),             // 9: spire.common.PublicKey
-	(*Bundle)(nil),                // 10: spire.common.Bundle
-	(*BundleMask)(nil),            // 11: spire.common.BundleMask
-	(*AttestedNodeMask)(nil),      // 12: spire.common.AttestedNodeMask
+	(JWTSVIDAudiencePolicy)(0),    // 0: spire.common.JWTSVIDAudiencePolicy
+	(*Empty)(nil),                 // 1: spire.common.Empty
+	(*AttestationData)(nil),       // 2: spire.common.AttestationData
+	(*Selector)(nil),              // 3: spire.common.Selector
+	(*Selectors)(nil),             // 4: spire.common.Selectors
+	(*AttestedNode)(nil),          // 5: spire.common.AttestedNode
+	(*RegistrationEntry)(nil),     // 6: spire.common.RegistrationEntry
+	(*RegistrationEntryMask)(nil), // 7: spire.common.RegistrationEntryMask
+	(*RegistrationEntries)(nil),   // 8: spire.common.RegistrationEntries
+	(*Certificate)(nil),           // 9: spire.common.Certificate
+	(*PublicKey)(nil),             // 10: spire.common.PublicKey
+	(*Bundle)(nil),                // 11: spire.common.Bundle
+	(*BundleMask)(nil),            // 12: spire.common.BundleMask
+	(*AttestedNodeMask)(nil),      // 13: spire.common.AttestedNodeMask
+	nil,                           // 14: spire.common.RegistrationEntry.JwtSvidAudiencePoliciesEntry
 }
 var file_spire_common_common_proto_depIdxs = []int32{
-	2, // 0: spire.common.Selectors.entries:type_name -> spire.common.Selector
-	2, // 1: spire.common.AttestedNode.selectors:type_name -> spire.common.Selector
-	2, // 2: spire.common.RegistrationEntry.selectors:type_name -> spire.common.Selector
-	5, // 3: spire.common.RegistrationEntries.entries:type_name -> spire.common.RegistrationEntry
-	8, // 4: spire.common.Bundle.root_cas:type_name -> spire.common.Certificate
-	9, // 5: spire.common.Bundle.jwt_signing_keys:type_name -> spire.common.PublicKey
-	6, // [6:6] is the sub-list for method output_type
-	6, // [6:6] is the sub-list for method input_type
-	6, // [6:6] is the sub-list for extension type_name
-	6, // [6:6] is the sub-list for extension extendee
-	0, // [0:6] is the sub-list for field type_name
+	3,  // 0: spire.common.Selectors.entries:type_name -> spire.common.Selector
+	3,  // 1: spire.common.AttestedNode.selectors:type_name -> spire.common.Selector
+	3,  // 2: spire.common.RegistrationEntry.selectors:type_name -> spire.common.Selector
+	0,  // 3: spire.common.RegistrationEntry.jwt_svid_default_audience_policy:type_name -> spire.common.JWTSVIDAudiencePolicy
+	14, // 4: spire.common.RegistrationEntry.jwt_svid_audience_policies:type_name -> spire.common.RegistrationEntry.JwtSvidAudiencePoliciesEntry
+	6,  // 5: spire.common.RegistrationEntries.entries:type_name -> spire.common.RegistrationEntry
+	9,  // 6: spire.common.Bundle.root_cas:type_name -> spire.common.Certificate
+	10, // 7: spire.common.Bundle.jwt_signing_keys:type_name -> spire.common.PublicKey
+	0,  // 8: spire.common.RegistrationEntry.JwtSvidAudiencePoliciesEntry.value:type_name -> spire.common.JWTSVIDAudiencePolicy
+	9,  // [9:9] is the sub-list for method output_type
+	9,  // [9:9] is the sub-list for method input_type
+	9,  // [9:9] is the sub-list for extension type_name
+	9,  // [9:9] is the sub-list for extension extendee
+	0,  // [0:9] is the sub-list for field type_name
 }
 
 func init() { file_spire_common_common_proto_init() }
@@ -1210,13 +1320,14 @@ func file_spire_common_common_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_spire_common_common_proto_rawDesc), len(file_spire_common_common_proto_rawDesc)),
-			NumEnums:      0,
-			NumMessages:   13,
+			NumEnums:      1,
+			NumMessages:   14,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
 		GoTypes:           file_spire_common_common_proto_goTypes,
 		DependencyIndexes: file_spire_common_common_proto_depIdxs,
+		EnumInfos:         file_spire_common_common_proto_enumTypes,
 		MessageInfos:      file_spire_common_common_proto_msgTypes,
 	}.Build()
 	File_spire_common_common_proto = out.File
