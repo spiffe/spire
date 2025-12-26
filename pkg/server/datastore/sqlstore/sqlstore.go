@@ -2559,17 +2559,18 @@ func createRegistrationEntry(tx *gorm.DB, entry *common.RegistrationEntry) (*com
 	}
 
 	newRegisteredEntry := RegisteredEntry{
-		EntryID:              entryID,
-		SpiffeID:             entry.SpiffeId,
-		ParentID:             entry.ParentId,
-		TTL:                  entry.X509SvidTtl,
-		Admin:                entry.Admin,
-		Downstream:           entry.Downstream,
-		Expiry:               entry.EntryExpiry,
-		StoreSvid:            entry.StoreSvid,
-		JWTSvidTTL:           entry.JwtSvidTtl,
-		Hint:                 entry.Hint,
-		AdditionalAttributes: AdditionalAttributes,
+		EntryID:                      entryID,
+		SpiffeID:                     entry.SpiffeId,
+		ParentID:                     entry.ParentId,
+		TTL:                          entry.X509SvidTtl,
+		Admin:                        entry.Admin,
+		Downstream:                   entry.Downstream,
+		Expiry:                       entry.EntryExpiry,
+		StoreSvid:                    entry.StoreSvid,
+		JWTSvidTTL:                   entry.JwtSvidTtl,
+		Hint:                         entry.Hint,
+		AdditionalAttributes:         AdditionalAttributes,
+		JWTSvidDefaultAudiencePolicy: int32(entry.JwtSvidDefaultAudiencePolicy),
 	}
 
 	if err := tx.Create(&newRegisteredEntry).Error; err != nil {
@@ -2604,6 +2605,18 @@ func createRegistrationEntry(tx *gorm.DB, entry *common.RegistrationEntry) (*com
 		}
 
 		if err := tx.Create(&newDNS).Error; err != nil {
+			return nil, newWrappedSQLError(err)
+		}
+	}
+
+	for audience, policy := range entry.JwtSvidAudiencePolicies {
+		newPolicy := EntryAudiencePolicy{
+			RegisteredEntryID: newRegisteredEntry.ID,
+			Audience:          audience,
+			Policy:            int32(policy),
+		}
+
+		if err := tx.Create(&newPolicy).Error; err != nil {
 			return nil, newWrappedSQLError(err)
 		}
 	}
@@ -4092,6 +4105,24 @@ func updateRegistrationEntry(tx *gorm.DB, e *common.RegistrationEntry, mask *com
 		}
 		entry.AdditionalAttributes = AdditionalAttributes
 	}
+	if mask == nil || mask.JwtSvidDefaultAudiencePolicy {
+		entry.JWTSvidDefaultAudiencePolicy = int32(e.JwtSvidDefaultAudiencePolicy)
+	}
+	if mask == nil || mask.JwtSvidAudiencePolicies {
+		// Delete existing audience policies - we will write new ones
+		if err := tx.Exec("DELETE FROM entry_audience_policies WHERE registered_entry_id = ?", entry.ID).Error; err != nil {
+			return nil, newWrappedSQLError(err)
+		}
+
+		audiencePolicies := []EntryAudiencePolicy{}
+		for audience, policy := range e.JwtSvidAudiencePolicies {
+			audiencePolicies = append(audiencePolicies, EntryAudiencePolicy{
+				Audience: audience,
+				Policy:   int32(policy),
+			})
+		}
+		entry.AudiencePolicies = audiencePolicies
+	}
 
 	// Revision number is increased by 1 on every update call
 	entry.RevisionNumber++
@@ -4155,6 +4186,11 @@ func deleteRegistrationEntrySupport(tx *gorm.DB, entry RegisteredEntry) error {
 
 	// Delete existing dns_names
 	if err := tx.Exec("DELETE FROM dns_names WHERE registered_entry_id = ?", entry.ID).Error; err != nil {
+		return newWrappedSQLError(err)
+	}
+
+	// Delete existing audience policies
+	if err := tx.Exec("DELETE FROM entry_audience_policies WHERE registered_entry_id = ?", entry.ID).Error; err != nil {
 		return newWrappedSQLError(err)
 	}
 
@@ -4702,23 +4738,38 @@ func modelToEntry(tx *gorm.DB, model RegisteredEntry) (*common.RegistrationEntry
 		AdditionalAttributes = nil
 	}
 
+	var fetchedAudiencePolicies []*EntryAudiencePolicy
+	if err := tx.Model(&model).Related(&fetchedAudiencePolicies).Error; err != nil {
+		return nil, newWrappedSQLError(err)
+	}
+
+	var audiencePolicies map[string]common.JWTSVIDAudiencePolicy
+	if len(fetchedAudiencePolicies) > 0 {
+		audiencePolicies = make(map[string]common.JWTSVIDAudiencePolicy, len(fetchedAudiencePolicies))
+		for _, policy := range fetchedAudiencePolicies {
+			audiencePolicies[policy.Audience] = common.JWTSVIDAudiencePolicy(policy.Policy)
+		}
+	}
+
 	return &common.RegistrationEntry{
-		EntryId:              model.EntryID,
-		Selectors:            selectors,
-		SpiffeId:             model.SpiffeID,
-		ParentId:             model.ParentID,
-		X509SvidTtl:          model.TTL,
-		FederatesWith:        federatesWith,
-		Admin:                model.Admin,
-		Downstream:           model.Downstream,
-		EntryExpiry:          model.Expiry,
-		DnsNames:             dnsList,
-		RevisionNumber:       model.RevisionNumber,
-		StoreSvid:            model.StoreSvid,
-		JwtSvidTtl:           model.JWTSvidTTL,
-		Hint:                 model.Hint,
-		AdditionalAttributes: AdditionalAttributes,
-		CreatedAt:            roundedInSecondsUnix(model.CreatedAt),
+		EntryId:                      model.EntryID,
+		Selectors:                    selectors,
+		SpiffeId:                     model.SpiffeID,
+		ParentId:                     model.ParentID,
+		X509SvidTtl:                  model.TTL,
+		FederatesWith:                federatesWith,
+		Admin:                        model.Admin,
+		Downstream:                   model.Downstream,
+		EntryExpiry:                  model.Expiry,
+		DnsNames:                     dnsList,
+		RevisionNumber:               model.RevisionNumber,
+		StoreSvid:                    model.StoreSvid,
+		JwtSvidTtl:                   model.JWTSvidTTL,
+		Hint:                         model.Hint,
+		AdditionalAttributes:         AdditionalAttributes,
+		CreatedAt:                    roundedInSecondsUnix(model.CreatedAt),
+		JwtSvidDefaultAudiencePolicy: common.JWTSVIDAudiencePolicy(model.JWTSvidDefaultAudiencePolicy),
+		JwtSvidAudiencePolicies:      audiencePolicies,
 	}, nil
 }
 
