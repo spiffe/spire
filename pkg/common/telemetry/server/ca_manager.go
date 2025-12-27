@@ -21,6 +21,12 @@ func StartServerCAManagerPrepareJWTKeyCall(m telemetry.Metrics) *telemetry.CallC
 	return telemetry.StartCall(m, telemetry.CA, telemetry.Manager, telemetry.JWTKey, telemetry.Prepare)
 }
 
+// StartServerCAManagerPrepareWITKeyCall return metric for
+// Server CA Manager preparing a WIT Key
+func StartServerCAManagerPrepareWITKeyCall(m telemetry.Metrics) *telemetry.CallCounter {
+	return telemetry.StartCall(m, telemetry.CA, telemetry.Manager, telemetry.WITKey, telemetry.Prepare)
+}
+
 // StartServerCAManagerPrepareX509CACall return metric for
 // Server CA Manager preparing an X509 CA
 func StartServerCAManagerPrepareX509CACall(m telemetry.Metrics) *telemetry.CallCounter {
@@ -62,6 +68,12 @@ func IncrActivateJWTKeyManagerCounter(m telemetry.Metrics) {
 // of X509 CA manager
 func IncrActivateX509CAManagerCounter(m telemetry.Metrics) {
 	m.IncrCounter([]string{telemetry.CA, telemetry.Manager, telemetry.X509CA, telemetry.Activate}, 1)
+}
+
+// IncrActivateWITKeyManagerCounter indicate activation
+// of WIT Key manager
+func IncrActivateWITKeyManagerCounter(m telemetry.Metrics) {
+	m.IncrCounter([]string{telemetry.Manager, telemetry.WITKey, telemetry.Activate}, 1)
 }
 
 // IncrManagerPrunedBundleCounter indicate manager

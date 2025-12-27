@@ -28,6 +28,8 @@ const (
 	NextX509CASlot
 	CurrentJWTKeySlot
 	NextJWTKeySlot
+	CurrentWITKeySlot
+	NextWITKeySlot
 )
 
 type Slot interface {
@@ -73,10 +75,11 @@ func (s *SlotLoader) load(ctx context.Context) (*Journal, map[SlotPosition]Slot,
 	log.WithFields(logrus.Fields{
 		telemetry.X509CAs: len(entries.X509CAs),
 		telemetry.JWTKeys: len(entries.JwtKeys),
+		telemetry.WITKeys: len(entries.WitKeys),
 	}).Info("Journal loaded")
 
 	// filter out local JwtKeys and X509CAs that do not exist in the database bundle
-	entries.JwtKeys, entries.X509CAs, err = s.filterInvalidEntries(ctx, entries)
+	entries.JwtKeys, entries.X509CAs, entries.WitKeys, err = s.filterInvalidEntries(ctx, entries)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -87,6 +90,11 @@ func (s *SlotLoader) load(ctx context.Context) (*Journal, map[SlotPosition]Slot,
 	}
 
 	currentJWTKey, nextJWTKey, err := s.getJWTKeysSlots(ctx, entries.JwtKeys)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	currentWITKey, nextWITKey, err := s.getWITKeysSlots(ctx, entries.WitKeys)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -106,6 +114,14 @@ func (s *SlotLoader) load(ctx context.Context) (*Journal, map[SlotPosition]Slot,
 
 	if nextJWTKey != nil {
 		slots[NextJWTKeySlot] = nextJWTKey
+	}
+
+	if currentWITKey != nil {
+		slots[CurrentWITKeySlot] = currentWITKey
+	}
+
+	if nextWITKey != nil {
+		slots[NextWITKeySlot] = nextWITKey
 	}
 
 	return loadedJournal, slots, nil
@@ -235,6 +251,68 @@ func (s *SlotLoader) getJWTKeysSlots(ctx context.Context, entries []*journal.JWT
 	return current, next, nil
 }
 
+// getWITKeysSlots returns WITKey slots based on the status of the slots.
+// - If all status are unknown, choose the two newest on the list
+// - Active entry is returned on current if set
+// - Newest Prepared or Old entry is returned on next
+func (s *SlotLoader) getWITKeysSlots(ctx context.Context, entries []*journal.WITKeyEntry) (*witKeySlot, *witKeySlot, error) {
+	var current *witKeySlot
+	var next *witKeySlot
+
+	// Search from oldest
+	for i := len(entries) - 1; i >= 0; i-- {
+		slot, err := s.tryLoadWITKeySlotFromEntry(ctx, entries[i])
+		if err != nil {
+			return nil, nil, err
+		}
+
+		// Unable to load slot
+		// TODO: the previous implementation analyzed only the last two entries,
+		// and if those slots were empty, we created new slots.
+		// Now we iterate through all the file, to try to get a useful slot.
+		// Maybe there is room for improvement here, by just verifying if the
+		// bundle is not expired?
+		if slot == nil {
+			continue
+		}
+
+		switch slot.Status() {
+		// ACTIVE entry must go into current slot
+		case journal.Status_ACTIVE:
+			current = slot
+
+		// Set OLD or PREPARED as next slot
+		// Get the newest, since Prepared entry must always be located before an Old entry
+		default:
+			if next == nil {
+				next = slot
+			}
+		}
+
+		// If both are set finish iteration
+		if next != nil && current != nil {
+			break
+		}
+	}
+
+	switch {
+	case current != nil:
+		// current is set, complete next if required
+		if next == nil {
+			next = newWITKeySlot(otherSlotID(current.id))
+		}
+	case next != nil:
+		// next is set but not current. swap them and initialize next with an empty slot.
+		current, next = next, newWITKeySlot(otherSlotID(next.id))
+	default:
+		// neither are set. initialize them with empty slots.
+		current = newWITKeySlot("A")
+		next = newWITKeySlot("B")
+	}
+
+	return current, next, nil
+}
+
 // filterInvalidEntries takes in a set of journal entries, and removes entries that represent signing keys
 // that do not appear in the bundle from the datastore. This prevents SPIRE from entering strange
 // and inconsistent states as a result of key mismatch following things like database restore,
@@ -243,21 +321,28 @@ func (s *SlotLoader) getJWTKeysSlots(ctx context.Context, entries []*journal.JWT
 // If we find such a discrepancy, removing the entry from the journal prior to beginning signing
 // operations prevents us from using a signing key that consumers may not be able to validate.
 // Instead, we'll rotate into a new one.
-func (s *SlotLoader) filterInvalidEntries(ctx context.Context, entries *journal.Entries) ([]*journal.JWTKeyEntry, []*journal.X509CAEntry, error) {
+func (s *SlotLoader) filterInvalidEntries(ctx context.Context, entries *journal.Entries) ([]*journal.JWTKeyEntry, []*journal.X509CAEntry, []*journal.WITKeyEntry, error) {
 	bundle, err := s.fetchOptionalBundle(ctx)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	if bundle == nil {
-		return entries.JwtKeys, entries.X509CAs, nil
+		return entries.JwtKeys, entries.X509CAs, entries.WitKeys, nil
 	}
 
 	filteredEntriesJwtKeys := []*journal.JWTKeyEntry{}
-
 	for _, entry := range entries.GetJwtKeys() {
-		if containsJwtSigningKeyID(bundle.JwtSigningKeys, entry.Kid) {
+		if containsJwkSigningKeyID(bundle.JwtSigningKeys, entry.Kid) {
 			filteredEntriesJwtKeys = append(filteredEntriesJwtKeys, entry)
+			continue
+		}
+	}
+
+	filteredEntriesWitKeys := []*journal.WITKeyEntry{}
+	for _, entry := range entries.GetWitKeys() {
+		if containsJwkSigningKeyID(bundle.WitSigningKeys, entry.Kid) {
+			filteredEntriesWitKeys = append(filteredEntriesWitKeys, entry)
 			continue
 		}
 	}
@@ -265,7 +350,7 @@ func (s *SlotLoader) filterInvalidEntries(ctx context.Context, entries *journal.
 	// If we have an upstream authority then we're not recovering a root CA, so we do
 	// not expect to find our CA certificate in the bundle. Simply proceed.
 	if s.UpstreamClient != nil {
-		return filteredEntriesJwtKeys, entries.X509CAs, nil
+		return filteredEntriesJwtKeys, entries.X509CAs, filteredEntriesWitKeys, nil
 	}
 
 	filteredEntriesX509CAs := []*journal.X509CAEntry{}
@@ -277,7 +362,7 @@ func (s *SlotLoader) filterInvalidEntries(ctx context.Context, entries *journal.
 		}
 	}
 
-	return filteredEntriesJwtKeys, filteredEntriesX509CAs, nil
+	return filteredEntriesJwtKeys, filteredEntriesX509CAs, filteredEntriesWitKeys, nil
 }
 
 func (s *SlotLoader) fetchOptionalBundle(ctx context.Context) (*common.Bundle, error) {
@@ -428,6 +513,69 @@ func (s *SlotLoader) loadJWTKeySlotFromEntry(ctx context.Context, entry *journal
 	}, "", nil
 }
 
+func (s *SlotLoader) tryLoadWITKeySlotFromEntry(ctx context.Context, entry *journal.WITKeyEntry) (*witKeySlot, error) {
+	slot, badReason, err := s.loadWITKeySlotFromEntry(ctx, entry)
+	if err != nil {
+		s.Log.WithError(err).WithFields(logrus.Fields{
+			telemetry.Slot:             entry.SlotId,
+			telemetry.IssuedAt:         time.Unix(entry.IssuedAt, 0),
+			telemetry.Status:           entry.Status,
+			telemetry.LocalAuthorityID: entry.AuthorityId,
+		}).Error("WIT key slot failed to load")
+		return nil, err
+	}
+	if badReason != "" {
+		s.Log.WithError(errors.New(badReason)).WithFields(logrus.Fields{
+			telemetry.Slot:             entry.SlotId,
+			telemetry.IssuedAt:         time.Unix(entry.IssuedAt, 0),
+			telemetry.Status:           entry.Status,
+			telemetry.LocalAuthorityID: entry.AuthorityId,
+		}).Warn("WIT key slot unusable")
+		return nil, nil
+	}
+	return slot, nil
+}
+
+func (s *SlotLoader) loadWITKeySlotFromEntry(ctx context.Context, entry *journal.WITKeyEntry) (*witKeySlot, string, error) {
+	if entry.SlotId == "" {
+		return nil, "no slot id", nil
+	}
+
+	if entry.GetNotAfter() < time.Now().Unix() {
+		return nil, "slot expired", nil
+	}
+
+	publicKey, err := x509.ParsePKIXPublicKey(entry.PublicKey)
+	if err != nil {
+		return nil, "", err
+	}
+
+	signer, err := s.makeSigner(ctx, witKeyKmKeyID(entry.SlotId))
+	if err != nil {
+		return nil, "", err
+	}
+
+	switch {
+	case signer == nil:
+		return nil, "no key manager key", nil
+	case !publicKeyEqual(publicKey, signer.Public()):
+		return nil, "public key does not match key manager key", nil
+	}
+
+	return &witKeySlot{
+		id:       entry.SlotId,
+		issuedAt: time.Unix(entry.IssuedAt, 0),
+		witKey: &ca.WITKey{
+			Signer:   signer,
+			NotAfter: time.Unix(entry.NotAfter, 0),
+			Kid:      entry.Kid,
+		},
+		status:      entry.Status,
+		authorityID: entry.AuthorityId,
+		notAfter:    time.Unix(entry.NotAfter, 0),
+	}, "", nil
+}
+
 func (s *SlotLoader) makeSigner(ctx context.Context, keyID string) (crypto.Signer, error) {
 	km := s.Catalog.GetKeyManager()
 
@@ -450,7 +598,11 @@ func jwtKeyKmKeyID(id string) string {
 	return fmt.Sprintf("JWT-Signer-%s", id)
 }
 
-func containsJwtSigningKeyID(keys []*common.PublicKey, kid string) bool {
+func witKeyKmKeyID(id string) string {
+	return fmt.Sprintf("WIT-Signer-%s", id)
+}
+
+func containsJwkSigningKeyID(keys []*common.PublicKey, kid string) bool {
 	for _, key := range keys {
 		if key.Kid == kid {
 			return true
@@ -610,5 +762,64 @@ func (s *jwtKeySlot) ShouldActivateNext(now time.Time) bool {
 }
 
 func (s *jwtKeySlot) NotAfter() time.Time {
+	return s.notAfter
+}
+
+type witKeySlot struct {
+	id          string
+	issuedAt    time.Time
+	witKey      *ca.WITKey
+	status      journal.Status
+	authorityID string
+	notAfter    time.Time
+}
+
+func newWITKeySlot(id string) *witKeySlot {
+	return &witKeySlot{
+		id: id,
+	}
+}
+
+func (s *witKeySlot) KmKeyID() string {
+	return witKeyKmKeyID(s.id)
+}
+
+func (s *witKeySlot) Status() journal.Status {
+	return s.status
+}
+
+func (s *witKeySlot) AuthorityID() string {
+	return s.authorityID
+}
+
+func (s *witKeySlot) UpstreamAuthorityID() string {
+	return ""
+}
+
+func (s *witKeySlot) PublicKey() crypto.PublicKey {
+	if s.witKey == nil {
+		return nil
+	}
+	return s.witKey.Signer.Public()
+}
+
+func (s *witKeySlot) IsEmpty() bool {
+	return s.witKey == nil || s.status == journal.Status_OLD
+}
+
+func (s *witKeySlot) Reset() {
+	s.witKey = nil
+	s.status = journal.Status_OLD
+}
+
+func (s *witKeySlot) ShouldPrepareNext(now time.Time) bool {
+	return s.witKey == nil || now.After(preparationThreshold(s.issuedAt, s.witKey.NotAfter))
+}
+
+func (s *witKeySlot) ShouldActivateNext(now time.Time) bool {
+	return s.witKey == nil || now.After(keyActivationThreshold(s.issuedAt, s.witKey.NotAfter))
+}
+
+func (s *witKeySlot) NotAfter() time.Time {
 	return s.notAfter
 }

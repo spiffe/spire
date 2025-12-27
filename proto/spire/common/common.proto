@@ -160,6 +160,9 @@ message Bundle {
     /** sequence number is a monotonically increasing number that is
      * incremented every time the bundle is updated */
     uint64 sequence_number = 5;
+
+    /** list of WIT signing keys */
+    repeated PublicKey wit_signing_keys = 6;
 }
 
 message BundleMask {
@@ -168,6 +171,7 @@ message BundleMask {
     bool refresh_hint = 3;
     bool sequence_number = 4;
     bool x509_tainted_keys = 5;
+    bool wit_signing_keys = 6;
 }
 
 message AttestedNodeMask{

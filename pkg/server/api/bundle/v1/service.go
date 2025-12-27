@@ -182,7 +182,7 @@ func (s *Service) PublishJWTAuthority(ctx context.Context, req *bundlev1.Publish
 	rpccontext.AuditRPC(ctx)
 
 	return &bundlev1.PublishJWTAuthorityResponse{
-		JwtAuthorities: api.PublicKeysToProto(resp),
+		JwtAuthorities: api.PublicKeysToJWTKeys(resp),
 	}, nil
 }
 
@@ -574,5 +574,9 @@ func applyBundleMask(b *types.Bundle, mask *types.BundleMask) {
 
 	if !mask.JwtAuthorities {
 		b.JwtAuthorities = nil
+	}
+
+	if !mask.WitAuthorities {
+		b.WitAuthorities = nil
 	}
 }
