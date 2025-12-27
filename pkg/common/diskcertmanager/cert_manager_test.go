@@ -105,6 +105,9 @@ func TestTLSConfig(t *testing.T) {
 		certManager.WatchFileChanges(ctx)
 	}()
 
+	// Wait for the file watcher's ticker to be created before proceeding
+	clk.WaitForTicker(time.Second, "waiting for file watcher ticker to be created")
+
 	tlsConfig := certManager.GetTLSConfig()
 
 	t.Run("error when configuration does not contain serving cert file settings", func(t *testing.T) {
