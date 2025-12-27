@@ -13,6 +13,7 @@ import (
 
 	"github.com/andres-erbsen/clock"
 	"github.com/go-jose/go-jose/v4/jwt"
+	"github.com/gofrs/uuid/v5"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/tlspolicy"
@@ -97,6 +98,10 @@ type WorkloadJWTSVIDParams struct {
 	Audience      []string
 	TTL           time.Duration
 	ExpirationCap time.Time
+	// JWTSVIDDefaultAudiencePolicy is the default policy for audiences not in the map
+	JWTSVIDDefaultAudiencePolicy int32
+	// JWTSVIDAudiencePolicies maps specific audiences to their policies
+	JWTSVIDAudiencePolicies map[string]int32
 }
 
 type Config struct {
@@ -330,6 +335,15 @@ func (b *Builder) BuildWorkloadJWTSVIDClaims(ctx context.Context, params Workloa
 			"iat": jwt.NewNumericDate(now),
 		},
 	}
+
+	// Determine the effective policy for this JWT-SVID based on the requested audiences.
+	// Uses "most restrictive wins" approach when multiple audiences are requested.
+	effectivePolicy := effectiveJWTSVIDPolicy(params.Audience, params.JWTSVIDDefaultAudiencePolicy, params.JWTSVIDAudiencePolicies)
+
+	// Add JTI claim if policy is AUDITABLE (1) or UNIQUE (2)
+	if effectivePolicy > 0 {
+		attributes.Claims["jti"] = uuid.Must(uuid.NewV4()).String()
+	}
 	if b.config.JWTIssuer != "" {
 		attributes.Claims["iss"] = b.config.JWTIssuer
 	}
@@ -505,4 +519,25 @@ func dropEmptyValues(ss []string) []string {
 	}
 	ss = ss[:next]
 	return ss
+}
+
+// effectiveJWTSVIDPolicy determines the effective policy for a JWT-SVID request.
+// When multiple audiences are requested, it uses "most restrictive wins":
+// UNIQUE (2) > AUDITABLE (1) > DEFAULT (0)
+func effectiveJWTSVIDPolicy(audiences []string, defaultPolicy int32, audiencePolicies map[string]int32) int32 {
+	var maxPolicy int32 = defaultPolicy
+
+	for _, audience := range audiences {
+		var policy int32
+		if p, ok := audiencePolicies[audience]; ok {
+			policy = p
+		} else {
+			policy = defaultPolicy
+		}
+		if policy > maxPolicy {
+			maxPolicy = policy
+		}
+	}
+
+	return maxPolicy
 }

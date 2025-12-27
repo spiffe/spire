@@ -96,6 +96,12 @@ type WorkloadJWTSVIDParams struct {
 
 	// Audience is used for audience claims
 	Audience []string
+
+	// JWTSVIDDefaultAudiencePolicy is the default policy for audiences not in the map
+	JWTSVIDDefaultAudiencePolicy int32
+
+	// JWTSVIDAudiencePolicies maps specific audiences to their policies
+	JWTSVIDAudiencePolicies map[string]int32
 }
 
 type X509CA struct {
@@ -325,10 +331,12 @@ func (ca *CA) SignWorkloadJWTSVID(ctx context.Context, params WorkloadJWTSVIDPar
 	}
 
 	claims, err := ca.c.CredBuilder.BuildWorkloadJWTSVIDClaims(ctx, credtemplate.WorkloadJWTSVIDParams{
-		SPIFFEID:      params.SPIFFEID,
-		Audience:      params.Audience,
-		TTL:           params.TTL,
-		ExpirationCap: jwtKey.NotAfter,
+		SPIFFEID:                     params.SPIFFEID,
+		Audience:                     params.Audience,
+		TTL:                          params.TTL,
+		ExpirationCap:                jwtKey.NotAfter,
+		JWTSVIDDefaultAudiencePolicy: params.JWTSVIDDefaultAudiencePolicy,
+		JWTSVIDAudiencePolicies:      params.JWTSVIDAudiencePolicies,
 	})
 	if err != nil {
 		return "", err

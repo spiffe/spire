@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/go-jose/go-jose/v4/jwt"
+	"github.com/gofrs/uuid/v5"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	credentialcomposerv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/credentialcomposer/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
@@ -1192,6 +1193,17 @@ func TestBuildWorkloadJWTSVIDClaims(t *testing.T) {
 				}
 				require.NoError(t, err)
 
+				// jti claim is only present for AUDITABLE or UNIQUE policies (not DEFAULT)
+				// For default tests, jti should not be present
+				if jti, ok := template["jti"]; ok {
+					jtiStr, isString := jti.(string)
+					require.True(t, isString, "jti claim should be a string")
+					_, err = uuid.FromString(jtiStr)
+					require.NoError(t, err, "jti should be a valid UUID")
+					// Remove jti from template for comparison since it's unique per call
+					delete(template, "jti")
+				}
+
 				expected := map[string]any{
 					"aud": []string{"AUDIENCE"},
 					"iat": jwt.NewNumericDate(now),
@@ -1202,6 +1214,132 @@ func TestBuildWorkloadJWTSVIDClaims(t *testing.T) {
 					tc.overrideExpected(expected)
 				}
 				require.Equal(t, expected, template)
+			})
+		})
+	}
+}
+
+func TestBuildWorkloadJWTSVIDClaimsJTIUniqueness(t *testing.T) {
+	testBuilder(t, nil, func(t *testing.T, credBuilder *credtemplate.Builder) {
+		// Use AUDITABLE policy (1) to trigger JTI inclusion
+		params := credtemplate.WorkloadJWTSVIDParams{
+			SPIFFEID:                     workloadID,
+			Audience:                     []string{"AUDIENCE"},
+			JWTSVIDDefaultAudiencePolicy: 1, // AUDITABLE - includes JTI
+		}
+
+		// Generate multiple JWT-SVIDs and verify jti uniqueness
+		jtis := make(map[string]bool)
+		for i := 0; i < 10; i++ {
+			template, err := credBuilder.BuildWorkloadJWTSVIDClaims(ctx, params)
+			require.NoError(t, err)
+
+			jti, ok := template["jti"].(string)
+			require.True(t, ok, "jti claim should be a string")
+			require.NotEmpty(t, jti, "jti should not be empty")
+
+			// Verify jti is a valid UUID
+			_, err = uuid.FromString(jti)
+			require.NoError(t, err, "jti should be a valid UUID")
+
+			// Verify uniqueness
+			require.False(t, jtis[jti], "jti should be unique across calls")
+			jtis[jti] = true
+		}
+	})
+}
+
+func TestBuildWorkloadJWTSVIDClaimsAudiencePolicy(t *testing.T) {
+	for _, tc := range []struct {
+		desc                    string
+		defaultPolicy           int32
+		audiencePolicies        map[string]int32
+		audiences               []string
+		expectJTI               bool
+	}{
+		{
+			desc:          "default policy (0) - no JTI",
+			defaultPolicy: 0, // DEFAULT
+			audiences:     []string{"aud1"},
+			expectJTI:     false,
+		},
+		{
+			desc:          "auditable policy (1) - includes JTI",
+			defaultPolicy: 1, // AUDITABLE
+			audiences:     []string{"aud1"},
+			expectJTI:     true,
+		},
+		{
+			desc:          "unique policy (2) - includes JTI",
+			defaultPolicy: 2, // UNIQUE
+			audiences:     []string{"aud1"},
+			expectJTI:     true,
+		},
+		{
+			desc:             "per-audience override to auditable",
+			defaultPolicy:    0, // DEFAULT
+			audiencePolicies: map[string]int32{"aud1": 1}, // AUDITABLE for aud1
+			audiences:        []string{"aud1"},
+			expectJTI:        true,
+		},
+		{
+			desc:             "per-audience override to unique",
+			defaultPolicy:    0, // DEFAULT
+			audiencePolicies: map[string]int32{"aud1": 2}, // UNIQUE for aud1
+			audiences:        []string{"aud1"},
+			expectJTI:        true,
+		},
+		{
+			desc:             "multi-audience most restrictive wins - one unique",
+			defaultPolicy:    0, // DEFAULT
+			audiencePolicies: map[string]int32{"aud2": 2}, // UNIQUE for aud2
+			audiences:        []string{"aud1", "aud2"},
+			expectJTI:        true,
+		},
+		{
+			desc:             "multi-audience most restrictive wins - one auditable",
+			defaultPolicy:    0, // DEFAULT
+			audiencePolicies: map[string]int32{"aud2": 1}, // AUDITABLE for aud2
+			audiences:        []string{"aud1", "aud2"},
+			expectJTI:        true,
+		},
+		{
+			desc:             "multi-audience all default",
+			defaultPolicy:    0, // DEFAULT
+			audiencePolicies: map[string]int32{},
+			audiences:        []string{"aud1", "aud2"},
+			expectJTI:        false,
+		},
+		{
+			desc:             "audience not in policy map uses default",
+			defaultPolicy:    1, // AUDITABLE
+			audiencePolicies: map[string]int32{"other": 0}, // DEFAULT for other
+			audiences:        []string{"aud1"}, // aud1 not in map, uses default AUDITABLE
+			expectJTI:        true,
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			testBuilder(t, nil, func(t *testing.T, credBuilder *credtemplate.Builder) {
+				params := credtemplate.WorkloadJWTSVIDParams{
+					SPIFFEID:                     workloadID,
+					Audience:                     tc.audiences,
+					JWTSVIDDefaultAudiencePolicy: tc.defaultPolicy,
+					JWTSVIDAudiencePolicies:      tc.audiencePolicies,
+				}
+
+				template, err := credBuilder.BuildWorkloadJWTSVIDClaims(ctx, params)
+				require.NoError(t, err)
+
+				jti, hasJTI := template["jti"]
+				if tc.expectJTI {
+					require.True(t, hasJTI, "expected jti claim to be present")
+					jtiStr, ok := jti.(string)
+					require.True(t, ok, "jti should be a string")
+					_, err = uuid.FromString(jtiStr)
+					require.NoError(t, err, "jti should be a valid UUID")
+				} else {
+					require.False(t, hasJTI, "expected jti claim to not be present")
+				}
 			})
 		})
 	}

@@ -267,12 +267,12 @@ import (
 // | v1.13.2 |        |                                                                           |
 // | v1.13.3 |        |                                                                           |
 // |*********|********|***************************************************************************|
-// | v1.14.0 |        |                                                                           |
+// | v1.14.0 | 24     | Added JWT-SVID audience policies (default policy and per-audience map)   |
 // ================================================================================================
 
 const (
 	// the latest schema version of the database in the code
-	latestSchemaVersion = 23
+	latestSchemaVersion = 24
 
 	// lastMinorReleaseSchemaVersion is the schema version supported by the
 	// last minor release. When the migrations are opportunistically pruned
@@ -432,6 +432,7 @@ func initDB(db *gorm.DB, dbType string, log logrus.FieldLogger) (err error) {
 		&DNSName{},
 		&FederatedTrustDomain{},
 		CAJournal{},
+		&EntryAudiencePolicy{},
 	}
 
 	if err := tableOptionsForDialect(tx, dbType).AutoMigrate(tables...).Error; err != nil {
@@ -502,7 +503,9 @@ func migrateVersion(tx *gorm.DB, currVersion int, log logrus.FieldLogger) (versi
 	//   return nil
 	// }
 	//
-	switch currVersion { //nolint: gocritic,revive // No upgrade required yet, keeping switch for future additions
+	switch currVersion {
+	case 23:
+		err = migrateToV24(tx)
 	default:
 		err = newSQLError("no migration support for unknown schema version %d", currVersion)
 	}
@@ -511,6 +514,18 @@ func migrateVersion(tx *gorm.DB, currVersion int, log logrus.FieldLogger) (versi
 	}
 
 	return nextVersion, nil
+}
+
+func migrateToV24(tx *gorm.DB) error {
+	// Add jwt_svid_default_audience_policy column to registered_entries
+	if err := tx.AutoMigrate(&RegisteredEntry{}).Error; err != nil {
+		return newWrappedSQLError(err)
+	}
+	// Create entry_audience_policies table for per-audience JWT-SVID policy configuration
+	if err := tx.AutoMigrate(&EntryAudiencePolicy{}).Error; err != nil {
+		return newWrappedSQLError(err)
+	}
+	return nil
 }
 
 func addFederatedRegistrationEntriesRegisteredEntryIDIndex(tx *gorm.DB) error {

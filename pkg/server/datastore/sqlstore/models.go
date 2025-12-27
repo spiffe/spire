@@ -99,6 +99,12 @@ type RegisteredEntry struct {
 
 	// TTL of JWT identities derived from this entry
 	JWTSvidTTL int32 `gorm:"column:jwt_svid_ttl"`
+
+	// Default JWT-SVID audience policy for audiences not explicitly configured
+	JWTSvidDefaultAudiencePolicy int32 `gorm:"column:jwt_svid_default_audience_policy"`
+
+	// Per-audience JWT-SVID policy overrides
+	AudiencePolicies []EntryAudiencePolicy
 }
 
 // RegisteredEntryEvent holds the entry id of a registered entry that had an event
@@ -127,6 +133,20 @@ type Selector struct {
 	RegisteredEntryID uint   `gorm:"unique_index:idx_selector_entry"`
 	Type              string `gorm:"unique_index:idx_selector_entry;index:idx_selectors_type_value"`
 	Value             string `gorm:"unique_index:idx_selector_entry;index:idx_selectors_type_value"`
+}
+
+// EntryAudiencePolicy holds JWT-SVID audience policy configuration for a registration entry
+type EntryAudiencePolicy struct {
+	Model
+
+	RegisteredEntryID uint   `gorm:"unique_index:idx_audience_policy_entry"`
+	Audience          string `gorm:"unique_index:idx_audience_policy_entry"`
+	Policy            int32
+}
+
+// TableName gets table name for EntryAudiencePolicy
+func (EntryAudiencePolicy) TableName() string {
+	return "entry_audience_policies"
 }
 
 // DNSName holds a DNS for a registration entry
