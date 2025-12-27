@@ -1,8 +1,7 @@
-# Fetch JWT-SVID Suite
+# Fetch WIT-SVID Suite
 
 ## Description
 
 This suite validates:
 
-- JWT-SVID cache operations
-- Disablement of JWT-SVIDs via config flag
+- Bundle contains WIT authorities only if WIT profile is enabled.
