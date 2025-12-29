@@ -55,33 +55,9 @@ for img in "${OCI_IMAGES[@]}"; do
     # regclient works with directories rather than tars, so import the OCI tar to a directory
     regctl image import "$oci_dir" "${img}-image.tar"
     dig="$(regctl image digest --platform "$PLATFORM" "$oci_dir")"
-    # export the single platform image using the digest
-    regctl image export "$oci_dir@${dig}" "${platform_tar}"
+    # export the single platform image using the digest, embedding the desired image name
+    regctl image export --name "${img}:latest-local" "$oci_dir@${dig}" "${platform_tar}"
 
-    # Load the image and capture the output
-    load_output=$(docker load < "${platform_tar}")
-    echo "$load_output"
-
-    # Extract the image reference from the output. Docker load can output either:
-    # - "Loaded image ID: sha256:..." (use the sha256)
-    # - "Loaded image: <name>" or "Loaded image: <name>@sha256:..." (use the full name)
-    # We try to extract the reference from either format
-    image_ref=""
-
-    # Try "Loaded image ID: sha256:..." format first
-    image_ref=$(echo "$load_output" | grep "Loaded image ID:" | awk '{print $4}')
-
-    if [ -z "$image_ref" ]; then
-        # Try "Loaded image: <name>" format - extract everything after "Loaded image: "
-        image_ref=$(echo "$load_output" | grep "Loaded image:" | sed 's/Loaded image: //')
-    fi
-
-    if [ -n "$image_ref" ]; then
-        docker image tag "$image_ref" "${img}:latest-local"
-    else
-        echo "Error: Failed to extract image reference for $img"
-        echo "Docker load output was:"
-        echo "$load_output"
-        exit 1
-    fi
+    # Load the image with the embedded name
+    docker load < "${platform_tar}"
 done
