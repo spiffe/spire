@@ -1,0 +1,18 @@
+#!/bin/bash
+
+for format in pretty json; do
+  for keyType in ec-p256 ec-p384 rsa-2048 rsa-4096; do
+    docker compose exec -T spire-server /opt//spire/bin/spire-server \
+      wit mint -spiffeID "spiffe://domain.test/workload" \
+      -keyType "${keyType}" \
+      -output ${format} || fail-now "could not mint WIT-SVID using key type: ${keyType}"
+  done
+done
+
+# Check that we can specify a custom TTL
+docker compose exec -T spire-server /opt//spire/bin/spire-server \
+  wit mint -spiffeID "spiffe://domain.test/workload" -ttl 60s || fail-now "could not mint WIT-SVID with custom TTL"
+
+# Check that WIT-SVID can be written to a directory
+docker compose exec -T spire-server /opt//spire/bin/spire-server \
+  wit mint -spiffeID "spiffe://domain.test/workload" -write /tmp || fail-now "could not write WIT-SVID to /tmp"
