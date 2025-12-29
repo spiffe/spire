@@ -120,6 +120,70 @@ func TestGetNextJWTKeySlot(t *testing.T) {
 	})
 }
 
+func TestGetCurrentWITKeySlot(t *testing.T) {
+	ctx := context.Background()
+
+	test := setupTest(t)
+	test.initSelfSignedManager()
+	require.False(t, test.m.IsUpstreamAuthority())
+
+	t.Run("no authority created", func(t *testing.T) {
+		currentSlot := test.m.GetCurrentWITKeySlot()
+
+		slot := currentSlot.(*witKeySlot)
+
+		require.True(t, slot.IsEmpty())
+		require.Empty(t, slot.issuedAt)
+		require.Empty(t, slot.authorityID)
+		require.Empty(t, slot.notAfter)
+	})
+
+	t.Run("slot returned", func(t *testing.T) {
+		expectIssuedAt := test.clock.Now()
+		expectNotAfter := expectIssuedAt.Add(test.m.caTTL)
+
+		require.NoError(t, test.m.PrepareWITKey(ctx))
+
+		currentSlot := test.m.GetCurrentWITKeySlot()
+		slot := currentSlot.(*witKeySlot)
+		require.NotNil(t, slot.witKey)
+		require.NotEmpty(t, slot.authorityID)
+		require.Equal(t, expectIssuedAt, slot.issuedAt)
+		require.Equal(t, expectNotAfter, slot.notAfter)
+	})
+}
+
+func TestGetNextWITKeySlot(t *testing.T) {
+	ctx := context.Background()
+
+	test := setupTest(t)
+	test.initAndActivateSelfSignedManager(ctx)
+
+	t.Run("no next created", func(t *testing.T) {
+		nextSlot := test.m.GetNextWITKeySlot()
+		slot := nextSlot.(*witKeySlot)
+
+		require.Nil(t, slot.witKey)
+		require.Empty(t, slot.issuedAt)
+		require.Empty(t, slot.authorityID)
+		require.Empty(t, slot.notAfter)
+	})
+
+	t.Run("next returned", func(t *testing.T) {
+		expectIssuedAt := test.clock.Now()
+		expectNotAfter := expectIssuedAt.Add(test.m.caTTL)
+
+		require.NoError(t, test.m.PrepareWITKey(ctx))
+
+		nextSlot := test.m.GetNextWITKeySlot()
+		slot := nextSlot.(*witKeySlot)
+		require.NotNil(t, slot.witKey)
+		require.NotEmpty(t, slot.authorityID)
+		require.Equal(t, expectIssuedAt, slot.issuedAt)
+		require.Equal(t, expectNotAfter, slot.notAfter)
+	})
+}
+
 func TestGetCurrentX509CASlot(t *testing.T) {
 	ctx := context.Background()
 
@@ -218,34 +282,43 @@ func TestPersistence(t *testing.T) {
 	test.initSelfSignedManager()
 	require.Nil(t, test.currentJWTKey())
 	require.Nil(t, test.currentX509CA())
+	require.Nil(t, test.currentWITKey())
 
 	// Prepare authority and activate authority
 	require.NoError(t, test.m.PrepareJWTKey(ctx))
 	test.m.ActivateJWTKey(ctx)
 	require.NoError(t, test.m.PrepareX509CA(ctx))
 	test.m.ActivateX509CA(ctx)
+	require.NoError(t, test.m.PrepareWITKey(ctx))
+	test.m.ActivateWITKey(ctx)
 
-	firstX509CA, firstJWTKey := test.currentX509CA(), test.currentJWTKey()
+	firstX509CA, firstJWTKey, firstWITKey := test.currentX509CA(), test.currentJWTKey(), test.currentWITKey()
 
 	// reinitialize against the same storage
 	test.initSelfSignedManager()
+
 	test.requireX509CAEqual(t, firstX509CA, test.currentX509CA())
 	test.requireJWTKeyEqual(t, firstJWTKey, test.currentJWTKey())
+	test.requireWITKeyEqual(t, firstWITKey, test.currentWITKey())
 
 	require.Nil(t, test.nextX509CA())
 	require.Nil(t, test.nextJWTKey())
+	require.Nil(t, test.nextWITKey())
 
 	// prepare the next and reinitialize, move time
 	test.clock.Add(prepareAfter + time.Minute)
 	require.NoError(t, test.m.PrepareJWTKey(ctx))
 	require.NoError(t, test.m.PrepareX509CA(ctx))
+	require.NoError(t, test.m.PrepareWITKey(ctx))
 
-	secondX509CA, secondJWTKey := test.nextX509CA(), test.nextJWTKey()
+	secondX509CA, secondJWTKey, secondWITKey := test.nextX509CA(), test.nextJWTKey(), test.nextWITKey()
 	test.initSelfSignedManager()
 	test.requireX509CAEqual(t, firstX509CA, test.currentX509CA())
 	test.requireJWTKeyEqual(t, firstJWTKey, test.currentJWTKey())
+	test.requireWITKeyEqual(t, firstWITKey, test.currentWITKey())
 	test.requireX509CAEqual(t, secondX509CA, test.nextX509CA())
 	test.requireJWTKeyEqual(t, secondJWTKey, test.nextJWTKey())
+	test.requireWITKeyEqual(t, secondWITKey, test.nextWITKey())
 }
 
 func TestSlotLoadedWhenJournalIsLost(t *testing.T) {
@@ -253,12 +326,13 @@ func TestSlotLoadedWhenJournalIsLost(t *testing.T) {
 
 	test := setupTest(t)
 	test.initAndActivateSelfSignedManager(ctx)
-	x509CA, jwtKey := test.currentX509CA(), test.currentJWTKey()
+	x509CA, jwtKey, witKey := test.currentX509CA(), test.currentJWTKey(), test.currentWITKey()
 
 	// After reinitialize keep current still there
 	test.initSelfSignedManager()
 	test.requireX509CAEqual(t, x509CA, test.currentX509CA())
 	test.requireJWTKeyEqual(t, jwtKey, test.currentJWTKey())
+	test.requireWITKeyEqual(t, witKey, test.currentWITKey())
 
 	// wipe the journal, reinitialize, and make sure the keys differ. this
 	// simulates the key manager having dangling keys.
@@ -267,6 +341,7 @@ func TestSlotLoadedWhenJournalIsLost(t *testing.T) {
 	// After journal is lost no slot is found
 	require.True(t, test.m.GetCurrentJWTKeySlot().IsEmpty())
 	require.True(t, test.m.GetCurrentX509CASlot().IsEmpty())
+	require.True(t, test.m.GetCurrentWITKeySlot().IsEmpty())
 }
 
 func TestNotifyTaintedX509Authority(t *testing.T) {
@@ -834,6 +909,73 @@ func TestJWTKeyRotation(t *testing.T) {
 	require.Equal(t, journal.Status_OLD, test.nextJWTKeyStatus())
 }
 
+func TestWITKeyRotation(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+
+	test := setupTest(t)
+
+	notifier, notifyCh := fakenotifier.NotifyBundleUpdatedWaiter(t)
+	test.setNotifier(notifier)
+	test.initAndActivateSelfSignedManager(ctx)
+
+	// kick off a goroutine to service bundle update notifications. This is
+	// typically handled by Run() but using it would complicate the test.
+	test.m.dropBundleUpdated() // drop bundle update message produce by initialization
+	go test.m.ProcessBundleUpdates(ctx)
+
+	// after initialization, we should have a current WITKey but no next.
+	first := test.currentWITKey()
+	require.Equal(t, journal.Status_ACTIVE, test.currentWITKeyStatus())
+	assert.Nil(t, test.nextWITKey(), "second WITKey should not be prepared yet")
+	require.Equal(t, journal.Status_UNKNOWN, test.nextWITKeyStatus())
+	test.requireBundleWITKeys(ctx, t, first)
+
+	// prepare next. the current WITKey should stay
+	// the same but the next WITKey should have been prepared and added to
+	// the trust bundle.
+	require.NoError(t, test.m.PrepareWITKey(ctx))
+	test.requireWITKeyEqual(t, first, test.currentWITKey())
+	require.Equal(t, journal.Status_ACTIVE, test.currentWITKeyStatus())
+	second := test.nextWITKey()
+	require.Equal(t, journal.Status_PREPARED, test.nextWITKeyStatus())
+	assert.NotNil(t, second, "second WITKey should have been prepared")
+	test.requireBundleWITKeys(ctx, t, first, second)
+
+	// we should now have a bundle update notification due to the preparation
+	test.waitForBundleUpdatedNotification(ctx, notifyCh)
+
+	// rotate, "next" should become "current" and
+	// "next" should be reset.
+	test.m.RotateWITKey(ctx)
+	test.requireWITKeyEqual(t, second, test.currentWITKey())
+	require.Equal(t, journal.Status_ACTIVE, test.currentWITKeyStatus())
+	assert.Nil(t, test.nextWITKey())
+	require.Equal(t, journal.Status_OLD, test.nextWITKeyStatus())
+
+	// Prepare next, the current WITKey should stay
+	// the same but the next WITKey should have been prepared and added to
+	// the trust bundle.
+	require.NoError(t, test.m.PrepareWITKey(ctx))
+	test.requireWITKeyEqual(t, second, test.currentWITKey())
+	require.Equal(t, journal.Status_ACTIVE, test.currentWITKeyStatus())
+	third := test.nextWITKey()
+	assert.NotNil(t, second, "third WITKey should have been prepared")
+	require.Equal(t, journal.Status_PREPARED, test.nextWITKeyStatus())
+	test.requireBundleWITKeys(ctx, t, first, second, third)
+
+	// we should now have a bundle update notification due to the preparation
+	test.waitForBundleUpdatedNotification(ctx, notifyCh)
+
+	// rotate again. "next" should become "current" and
+	// "next" should be reset.
+	test.m.RotateWITKey(ctx)
+	test.requireWITKeyEqual(t, third, test.currentWITKey())
+	require.Equal(t, journal.Status_ACTIVE, test.currentWITKeyStatus())
+	assert.Nil(t, test.nextWITKey())
+	require.Equal(t, journal.Status_OLD, test.nextWITKeyStatus())
+}
+
 func TestPruneBundle(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
@@ -855,13 +997,17 @@ func TestPruneBundle(t *testing.T) {
 	// prepare to have two bundles
 	require.NoError(t, test.m.PrepareJWTKey(ctx))
 	require.NoError(t, test.m.PrepareX509CA(ctx))
+	require.NoError(t, test.m.PrepareWITKey(ctx))
 
 	firstX509CA := test.currentX509CA()
 	firstJWTKey := test.currentJWTKey()
+	firstWITKey := test.currentWITKey()
 	secondX509CA := test.nextX509CA()
 	secondJWTKey := test.nextJWTKey()
+	secondWITKey := test.nextWITKey()
 	test.requireIntermediateRootCA(ctx, t, firstX509CA.Certificate, secondX509CA.Certificate)
 	test.requireBundleJWTKeys(ctx, t, firstJWTKey, secondJWTKey)
+	test.requireBundleWITKeys(ctx, t, firstWITKey, secondWITKey)
 
 	// kick off a goroutine to service bundle update notifications. This is
 	// typically handled by Run() but using it would complicate the test.
@@ -873,12 +1019,14 @@ func TestPruneBundle(t *testing.T) {
 	test.setTimeAndPrune(firstExpiresTime.Add(time.Minute))
 	test.requireIntermediateRootCA(ctx, t, firstX509CA.Certificate, secondX509CA.Certificate)
 	test.requireBundleJWTKeys(ctx, t, firstJWTKey, secondJWTKey)
+	test.requireBundleWITKeys(ctx, t, firstWITKey, secondWITKey)
 
 	// advance beyond the safety threshold of the first, prune, and assert that
 	// the first has been pruned
 	test.addTimeAndPrune(safetyThresholdBundle)
 	test.requireIntermediateRootCA(ctx, t, secondX509CA.Certificate)
 	test.requireBundleJWTKeys(ctx, t, secondJWTKey)
+	test.requireBundleWITKeys(ctx, t, secondWITKey)
 
 	// we should now have a bundle update notification due to the pruning
 	test.waitForBundleUpdatedNotification(ctx, notifyCh)
@@ -889,6 +1037,7 @@ func TestPruneBundle(t *testing.T) {
 	require.EqualError(t, test.m.PruneBundle(context.Background()), "unable to prune bundle: rpc error: code = Unknown desc = prune failed: would prune all certificates")
 	test.requireIntermediateRootCA(ctx, t, secondX509CA.Certificate)
 	test.requireBundleJWTKeys(ctx, t, secondJWTKey)
+	test.requireBundleWITKeys(ctx, t, secondWITKey)
 }
 
 func TestPruneCAJournals(t *testing.T) {
@@ -923,6 +1072,7 @@ func TestPruneCAJournals(t *testing.T) {
 						entries: &journal.Entries{
 							X509CAs: []*journal.X509CAEntry{{NotAfter: now}, {NotAfter: tomorrow}},
 							JwtKeys: []*journal.JWTKeyEntry{{NotAfter: now}, {NotAfter: tomorrow}},
+							WitKeys: []*journal.WITKeyEntry{{NotAfter: now}, {NotAfter: tomorrow}},
 						},
 					},
 				},
@@ -932,6 +1082,7 @@ func TestPruneCAJournals(t *testing.T) {
 						entries: &journal.Entries{
 							X509CAs: []*journal.X509CAEntry{{NotAfter: now}, {NotAfter: tomorrow}},
 							JwtKeys: []*journal.JWTKeyEntry{{NotAfter: now}, {NotAfter: tomorrow}},
+							WitKeys: []*journal.WITKeyEntry{{NotAfter: now}, {NotAfter: tomorrow}},
 						},
 					},
 				},
@@ -946,6 +1097,7 @@ func TestPruneCAJournals(t *testing.T) {
 						entries: &journal.Entries{
 							X509CAs: []*journal.X509CAEntry{{NotAfter: tomorrow}, {NotAfter: beforeThreshold}},
 							JwtKeys: []*journal.JWTKeyEntry{{NotAfter: beforeThreshold}, {NotAfter: tomorrow}},
+							WitKeys: []*journal.WITKeyEntry{{NotAfter: beforeThreshold}, {NotAfter: tomorrow}},
 						},
 					},
 				},
@@ -955,6 +1107,7 @@ func TestPruneCAJournals(t *testing.T) {
 						entries: &journal.Entries{
 							X509CAs: []*journal.X509CAEntry{{NotAfter: tomorrow}, {NotAfter: beforeThreshold}},
 							JwtKeys: []*journal.JWTKeyEntry{{NotAfter: beforeThreshold}, {NotAfter: tomorrow}},
+							WitKeys: []*journal.WITKeyEntry{{NotAfter: beforeThreshold}, {NotAfter: tomorrow}},
 						},
 					},
 				},
@@ -970,6 +1123,7 @@ func TestPruneCAJournals(t *testing.T) {
 						entries: &journal.Entries{
 							X509CAs: []*journal.X509CAEntry{{NotAfter: beforeThreshold}, {NotAfter: beforeThreshold}},
 							JwtKeys: []*journal.JWTKeyEntry{{NotAfter: beforeThreshold}, {NotAfter: beforeThreshold}},
+							WitKeys: []*journal.WITKeyEntry{{NotAfter: beforeThreshold}, {NotAfter: tomorrow}},
 						},
 					},
 				},
@@ -979,6 +1133,7 @@ func TestPruneCAJournals(t *testing.T) {
 						entries: &journal.Entries{
 							X509CAs: []*journal.X509CAEntry{{NotAfter: tomorrow}, {NotAfter: beforeThreshold}},
 							JwtKeys: []*journal.JWTKeyEntry{{NotAfter: beforeThreshold}, {NotAfter: tomorrow}},
+							WitKeys: []*journal.WITKeyEntry{{NotAfter: beforeThreshold}, {NotAfter: tomorrow}},
 						},
 					},
 				},
@@ -1109,6 +1264,34 @@ func TestDisableJWTSVIDs(t *testing.T) {
 	require.True(t, slot.IsEmpty())
 }
 
+func TestDisableWITSVIDs(t *testing.T) {
+	test := setupTest(t)
+
+	manager, err := NewManager(ctx, test.selfSignedConfig())
+	require.NoError(t, err)
+	require.NotNil(t, manager)
+	assert.False(t, manager.IsWITSVIDsDisabled())
+
+	config := test.selfSignedConfig()
+	config.DisableWITSVIDs = true
+
+	manager, err = NewManager(ctx, config)
+	require.NoError(t, err)
+	require.NotNil(t, manager)
+	assert.True(t, manager.IsWITSVIDsDisabled())
+
+	ctx := context.Background()
+	require.NoError(t, manager.PrepareWITKey(ctx))
+
+	manager.ActivateWITKey(ctx)
+	slot := manager.GetCurrentWITKeySlot()
+	require.True(t, slot.IsEmpty())
+
+	manager.RotateWITKey(ctx)
+	slot = manager.GetCurrentWITKeySlot()
+	require.True(t, slot.IsEmpty())
+}
+
 func TestAlternateKeyTypes(t *testing.T) {
 	expectRSA := func(t *testing.T, signer crypto.Signer, keySize int) {
 		publicKey, ok := signer.Public().(*rsa.PublicKey)
@@ -1147,75 +1330,95 @@ func TestAlternateKeyTypes(t *testing.T) {
 		upstreamAuthority bool
 		x509CAKeyType     keymanager.KeyType
 		jwtKeyType        keymanager.KeyType
+		witKeyType        keymanager.KeyType
 		checkX509CA       func(*testing.T, crypto.Signer)
 		checkJWTKey       func(*testing.T, crypto.Signer)
+		checkWITKey       func(*testing.T, crypto.Signer)
 	}{
 		{
 			name:          "self-signed with RSA 2048",
 			x509CAKeyType: keymanager.RSA2048,
 			jwtKeyType:    keymanager.RSA2048,
+			witKeyType:    keymanager.RSA2048,
 			checkX509CA:   expectRSA2048,
 			checkJWTKey:   expectRSA2048,
+			checkWITKey:   expectRSA2048,
 		},
 		{
 			name:          "self-signed with RSA 4096",
 			x509CAKeyType: keymanager.RSA4096,
 			jwtKeyType:    keymanager.RSA4096,
+			witKeyType:    keymanager.RSA4096,
 			checkX509CA:   expectRSA4096,
 			checkJWTKey:   expectRSA4096,
+			checkWITKey:   expectRSA4096,
 		},
 		{
 			name:          "self-signed with EC P256",
 			x509CAKeyType: keymanager.ECP256,
 			jwtKeyType:    keymanager.ECP256,
+			witKeyType:    keymanager.ECP256,
 			checkX509CA:   expectEC256,
 			checkJWTKey:   expectEC256,
+			checkWITKey:   expectEC256,
 		},
 		{
 			name:          "self-signed with EC P384",
 			x509CAKeyType: keymanager.ECP384,
 			jwtKeyType:    keymanager.ECP384,
+			witKeyType:    keymanager.ECP384,
 			checkX509CA:   expectEC384,
 			checkJWTKey:   expectEC384,
+			checkWITKey:   expectEC384,
 		},
 		{
-			name:          "self-signed JWT with RSA 2048 and X509 with EC P384",
+			name:          "self-signed JWT with RSA 2048, X509 with EC P384, and WIT with RSA 4096",
 			x509CAKeyType: keymanager.ECP384,
 			jwtKeyType:    keymanager.RSA2048,
+			witKeyType:    keymanager.RSA4096,
 			checkX509CA:   expectEC384,
 			checkJWTKey:   expectRSA2048,
+			checkWITKey:   expectRSA4096,
 		},
 		{
 			name:              "upstream-signed with RSA 2048",
 			upstreamAuthority: true,
 			x509CAKeyType:     keymanager.RSA2048,
 			jwtKeyType:        keymanager.RSA2048,
+			witKeyType:        keymanager.RSA2048,
 			checkX509CA:       expectRSA2048,
 			checkJWTKey:       expectRSA2048,
+			checkWITKey:       expectRSA2048,
 		},
 		{
 			name:              "upstream-signed with RSA 4096",
 			upstreamAuthority: true,
 			x509CAKeyType:     keymanager.RSA4096,
 			jwtKeyType:        keymanager.RSA4096,
+			witKeyType:        keymanager.RSA4096,
 			checkX509CA:       expectRSA4096,
 			checkJWTKey:       expectRSA4096,
+			checkWITKey:       expectRSA4096,
 		},
 		{
 			name:              "upstream-signed with EC P256",
 			upstreamAuthority: true,
 			x509CAKeyType:     keymanager.ECP256,
 			jwtKeyType:        keymanager.ECP256,
+			witKeyType:        keymanager.ECP256,
 			checkX509CA:       expectEC256,
 			checkJWTKey:       expectEC256,
+			checkWITKey:       expectEC256,
 		},
 		{
 			name:              "upstream-signed with EC P384",
 			upstreamAuthority: true,
 			x509CAKeyType:     keymanager.ECP384,
 			jwtKeyType:        keymanager.ECP384,
+			witKeyType:        keymanager.ECP384,
 			checkX509CA:       expectEC384,
 			checkJWTKey:       expectEC384,
+			checkWITKey:       expectEC384,
 		},
 	}
 
@@ -1228,6 +1431,7 @@ func TestAlternateKeyTypes(t *testing.T) {
 			c := test.selfSignedConfig()
 			c.X509CAKeyType = testCase.x509CAKeyType
 			c.JWTKeyType = testCase.jwtKeyType
+			c.WITKeyType = testCase.witKeyType
 
 			// Reset the key manager for each test case to ensure a fresh
 			// rotation.
@@ -1250,9 +1454,12 @@ func TestAlternateKeyTypes(t *testing.T) {
 			test.m.ActivateJWTKey(ctx)
 			require.NoError(t, test.m.PrepareX509CA(ctx))
 			test.m.activateX509CA(ctx)
+			require.NoError(t, test.m.PrepareWITKey(ctx))
+			test.m.activateWITKey(ctx)
 
 			testCase.checkX509CA(t, test.currentX509CA().Signer)
 			testCase.checkJWTKey(t, test.currentJWTKey().Signer)
+			testCase.checkWITKey(t, test.currentWITKey().Signer)
 		})
 	}
 }
@@ -1264,6 +1471,12 @@ type x509CAInfo struct {
 }
 
 type jwtKeyInfo struct {
+	Signer   signerInfo
+	Kid      string
+	NotAfter time.Time
+}
+
+type witKeyInfo struct {
 	Signer   signerInfo
 	Kid      string
 	NotAfter time.Time
@@ -1342,6 +1555,8 @@ func (m *managerTest) initAndActivateSelfSignedManager(ctx context.Context) {
 	manager.ActivateJWTKey(ctx)
 	require.NoError(m.t, manager.PrepareX509CA(ctx))
 	manager.ActivateX509CA(ctx)
+	require.NoError(m.t, manager.PrepareWITKey(ctx))
+	manager.ActivateWITKey(ctx)
 
 	m.m = manager
 }
@@ -1367,13 +1582,15 @@ func (m *managerTest) initAndActivateUpstreamSignedManager(ctx context.Context, 
 	m.m.ActivateJWTKey(ctx)
 	require.NoError(m.t, m.m.PrepareX509CA(ctx))
 	m.m.ActivateX509CA(ctx)
+	require.NoError(m.t, m.m.PrepareWITKey(ctx))
+	m.m.ActivateWITKey(ctx)
 }
 
 func (m *managerTest) selfSignedConfig() Config {
-	return m.selfSignedConfigWithKeyTypes(keymanager.ECP256, keymanager.ECP256)
+	return m.selfSignedConfigWithKeyTypes(keymanager.ECP256, keymanager.ECP256, keymanager.ECP256)
 }
 
-func (m *managerTest) selfSignedConfigWithKeyTypes(x509CAKeyType, jwtKeyType keymanager.KeyType) Config {
+func (m *managerTest) selfSignedConfigWithKeyTypes(x509CAKeyType, jwtKeyType keymanager.KeyType, witKeyType keymanager.KeyType) Config {
 	credBuilder, err := credtemplate.NewBuilder(credtemplate.Config{
 		TrustDomain:         testTrustDomain,
 		X509CASubject:       pkix.Name{CommonName: "SPIRE"},
@@ -1395,6 +1612,7 @@ func (m *managerTest) selfSignedConfigWithKeyTypes(x509CAKeyType, jwtKeyType key
 		TrustDomain:   testTrustDomain,
 		X509CAKeyType: x509CAKeyType,
 		JWTKeyType:    jwtKeyType,
+		WITKeyType:    witKeyType,
 		Metrics:       m.metrics,
 		Log:           m.log,
 		Clock:         m.clock,
@@ -1409,6 +1627,10 @@ func (m *managerTest) requireX509CAEqual(t *testing.T, expected, actual *ca.X509
 
 func (m *managerTest) requireJWTKeyEqual(t *testing.T, expected, actual *ca.JWTKey, msgAndArgs ...any) {
 	require.Equal(t, m.getJWTKeyInfo(expected), m.getJWTKeyInfo(actual), msgAndArgs...)
+}
+
+func (m *managerTest) requireWITKeyEqual(t *testing.T, expected, actual *ca.WITKey, msgAndArgs ...any) {
+	require.Equal(t, m.getWITKeyInfo(expected), m.getWITKeyInfo(actual), msgAndArgs...)
 }
 
 func (m *managerTest) getX509CAInfo(x509CA *ca.X509CA) x509CAInfo {
@@ -1430,6 +1652,17 @@ func (m *managerTest) getJWTKeyInfo(jwtKey *ca.JWTKey) jwtKeyInfo {
 		Signer:   m.getSignerInfo(jwtKey.Signer),
 		Kid:      jwtKey.Kid,
 		NotAfter: jwtKey.NotAfter,
+	}
+}
+
+func (m *managerTest) getWITKeyInfo(witKey *ca.WITKey) witKeyInfo {
+	if witKey == nil {
+		return witKeyInfo{}
+	}
+	return witKeyInfo{
+		Signer:   m.getSignerInfo(witKey.Signer),
+		Kid:      witKey.Kid,
+		NotAfter: witKey.NotAfter,
 	}
 }
 
@@ -1488,6 +1721,20 @@ func (m *managerTest) requireBundleJWTKeys(ctx context.Context, t *testing.T, jw
 	})
 }
 
+func (m *managerTest) requireBundleWITKeys(ctx context.Context, t *testing.T, witKeys ...*ca.WITKey) {
+	expected := &common.Bundle{}
+	for _, witKey := range witKeys {
+		publicKey, err := publicKeyFromWITKey(witKey)
+		require.NoError(m.t, err)
+		expected.WitSigningKeys = append(expected.WitSigningKeys, publicKey)
+	}
+
+	bundle := m.fetchBundle(ctx)
+	spiretest.RequireProtoEqual(t, expected, &common.Bundle{
+		WitSigningKeys: bundle.WitSigningKeys,
+	})
+}
+
 func (m *managerTest) createBundle(ctx context.Context) *common.Bundle {
 	bundle, err := m.ds.CreateBundle(ctx, &common.Bundle{
 		TrustDomainId: testTrustDomain.IDString(),
@@ -1526,6 +1773,15 @@ func (m *managerTest) currentJWTKeyStatus() journal.Status {
 	return m.m.currentJWTKey.status
 }
 
+func (m *managerTest) currentWITKey() *ca.WITKey {
+	m.requireWITKeyEqual(m.t, m.m.currentWITKey.witKey, m.ca.WITKey(), "current WITKey is not active")
+	return m.m.currentWITKey.witKey
+}
+
+func (m *managerTest) currentWITKeyStatus() journal.Status {
+	return m.m.currentWITKey.status
+}
+
 func (m *managerTest) nextX509CA() *ca.X509CA {
 	return m.m.nextX509CA.x509CA
 }
@@ -1540,6 +1796,14 @@ func (m *managerTest) nextJWTKey() *ca.JWTKey {
 
 func (m *managerTest) nextJWTKeyStatus() journal.Status {
 	return m.m.nextJWTKey.status
+}
+
+func (m *managerTest) nextWITKey() *ca.WITKey {
+	return m.m.nextWITKey.witKey
+}
+
+func (m *managerTest) nextWITKeyStatus() journal.Status {
+	return m.m.nextWITKey.status
 }
 
 func (m *managerTest) setTimeAndPrune(t time.Time) {
@@ -1597,6 +1861,7 @@ type fakeCA struct {
 	mu     sync.Mutex
 	x509CA *ca.X509CA
 	jwtKey *ca.JWTKey
+	witKey *ca.WITKey
 
 	taintedAuthoritiesCh chan []*x509.Certificate
 }
@@ -1623,6 +1888,18 @@ func (s *fakeCA) SetJWTKey(jwtKey *ca.JWTKey) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.jwtKey = jwtKey
+}
+
+func (s *fakeCA) WITKey() *ca.WITKey {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.witKey
+}
+
+func (s *fakeCA) SetWITKey(witKey *ca.WITKey) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.witKey = witKey
 }
 
 func (s *fakeCA) NotifyTaintedX509Authorities(taintedAuthorities []*x509.Certificate) {

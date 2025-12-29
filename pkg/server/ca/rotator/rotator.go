@@ -37,6 +37,13 @@ type CAManager interface {
 	ActivateJWTKey(ctx context.Context)
 	RotateJWTKey(ctx context.Context)
 
+	GetCurrentWITKeySlot() manager.Slot
+	GetNextWITKeySlot() manager.Slot
+
+	PrepareWITKey(ctx context.Context) error
+	ActivateWITKey(ctx context.Context)
+	RotateWITKey(ctx context.Context)
+
 	SubscribeToLocalBundle(ctx context.Context) error
 
 	PruneBundle(ctx context.Context) error
@@ -143,7 +150,13 @@ func (r *Rotator) rotate(ctx context.Context) error {
 		r.c.Log.WithError(jwtKeyErr).Error("Unable to rotate JWT key")
 	}
 
-	return errors.Join(x509CAErr, jwtKeyErr)
+	witKeyErr := r.rotateWITKey(ctx)
+	if witKeyErr != nil {
+		atomic.AddUint64(&r.failedRotationNum, 1)
+		r.c.Log.WithError(witKeyErr).Error("Unable to rotate WIT key")
+	}
+
+	return errors.Join(x509CAErr, jwtKeyErr, witKeyErr)
 }
 
 func (r *Rotator) rotateJWTKey(ctx context.Context) error {
@@ -168,6 +181,33 @@ func (r *Rotator) rotateJWTKey(ctx context.Context) error {
 
 	if currentJWTKey.ShouldActivateNext(now) {
 		r.c.Manager.RotateJWTKey(ctx)
+	}
+
+	return nil
+}
+
+func (r *Rotator) rotateWITKey(ctx context.Context) error {
+	now := r.c.Clock.Now()
+
+	currentWITKey := r.c.Manager.GetCurrentWITKeySlot()
+	// if there is no current keypair set, generate one
+	if currentWITKey.IsEmpty() {
+		if err := r.c.Manager.PrepareWITKey(ctx); err != nil {
+			return err
+		}
+		r.c.Manager.ActivateWITKey(ctx)
+	}
+
+	// if there is no next keypair set and the current is within the
+	// preparation threshold, generate one.
+	if r.c.Manager.GetNextWITKeySlot().IsEmpty() && currentWITKey.ShouldPrepareNext(now) {
+		if err := r.c.Manager.PrepareWITKey(ctx); err != nil {
+			return err
+		}
+	}
+
+	if currentWITKey.ShouldActivateNext(now) {
+		r.c.Manager.RotateWITKey(ctx)
 	}
 
 	return nil

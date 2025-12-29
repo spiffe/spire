@@ -114,6 +114,7 @@ type experimentalConfig struct {
 	EventTimeout            string                      `hcl:"event_timeout"`
 	SQLTransactionTimeout   string                      `hcl:"sql_transaction_timeout"`
 	RequirePQKEM            bool                        `hcl:"require_pq_kem"`
+	WITKeyType              string                      `hcl:"wit_key_type"`
 
 	Flags fflag.RawConfig `hcl:"feature_flags"`
 
@@ -648,15 +649,24 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 		}
 		sc.CAKeyType = keyType
 		sc.JWTKeyType = keyType
+		sc.WITKeyType = keyType
 	} else {
 		sc.CAKeyType = keymanager.ECP256
 		sc.JWTKeyType = keymanager.ECP256
+		sc.WITKeyType = keymanager.ECP256
 	}
 
 	if c.Server.JWTKeyType != "" {
 		sc.JWTKeyType, err = keyTypeFromString(c.Server.JWTKeyType)
 		if err != nil {
 			return nil, fmt.Errorf("error parsing jwt_key_type: %w", err)
+		}
+	}
+
+	if c.Server.Experimental.WITKeyType != "" {
+		sc.WITKeyType, err = keyTypeFromString(c.Server.Experimental.WITKeyType)
+		if err != nil {
+			return nil, fmt.Errorf("error parsing wit_key_type: %w", err)
 		}
 	}
 
@@ -699,6 +709,11 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 		sc.Log.Info("JWT-SVID profile is disabled")
 	}
 	sc.DisableJWTSVIDs = c.Server.DisableJWTSVIDs
+
+	sc.DisableWITSVIDs = true
+	if fflag.IsSet(fflag.FlagWITSVID) {
+		sc.DisableWITSVIDs = false
+	}
 
 	if !allowUnknownConfig {
 		if err := checkForUnknownConfig(c, sc.Log); err != nil {

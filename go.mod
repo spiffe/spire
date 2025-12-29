@@ -44,7 +44,7 @@ require (
 	github.com/fullsailor/pkcs7 v0.0.0-20190404230743-d7302db945fa
 	github.com/go-jose/go-jose/v4 v4.1.3
 	github.com/go-sql-driver/mysql v1.9.3
-	github.com/godbus/dbus/v5 v5.2.0
+	github.com/godbus/dbus/v5 v5.2.1
 	github.com/gofrs/uuid/v5 v5.4.0
 	github.com/gogo/status v1.1.1
 	github.com/google/btree v1.1.3
@@ -67,7 +67,7 @@ require (
 	github.com/lib/pq v1.10.9
 	github.com/mattn/go-sqlite3 v1.14.32
 	github.com/mitchellh/cli v1.1.5
-	github.com/open-policy-agent/opa v1.11.0
+	github.com/open-policy-agent/opa v1.12.1
 	github.com/prometheus/client_golang v1.23.2
 	github.com/shirou/gopsutil/v4 v4.25.11
 	github.com/sigstore/cosign/v2 v2.6.1
