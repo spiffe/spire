@@ -1156,7 +1156,7 @@ Thanks to Edoardo Geraci for reporting this issue.
 - The K8s Workload Registrar now supports Kubernetes 1.22 (#2515,#2540)
 - Self-signed CA certificates serial numbers are now conformant to RFC 5280 (#2494)
 - The AWS KMS Key Manager plugin now creates keys with a very strict policy by default (#2424)
-- The deprecated agent key file (`svid.key`) is proactively removed by the agent. It was only maintained to accomodate rollback from v1.0 to v0.12 (#2493)
+- The deprecated agent key file (`svid.key`) is proactively removed by the agent. It was only maintained to accommodate rollback from v1.0 to v0.12 (#2493)
 
 ### Removed
 
