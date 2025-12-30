@@ -27,13 +27,13 @@ require (
 	github.com/aws/aws-sdk-go-v2/feature/rds/auth v1.6.0
 	github.com/aws/aws-sdk-go-v2/service/acmpca v1.46.2
 	github.com/aws/aws-sdk-go-v2/service/autoscaling v1.62.0
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.278.0
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.279.0
 	github.com/aws/aws-sdk-go-v2/service/eks v1.76.0
 	github.com/aws/aws-sdk-go-v2/service/iam v1.53.1
 	github.com/aws/aws-sdk-go-v2/service/kms v1.49.0
 	github.com/aws/aws-sdk-go-v2/service/organizations v1.50.0
 	github.com/aws/aws-sdk-go-v2/service/rolesanywhere v1.22.2
-	github.com/aws/aws-sdk-go-v2/service/s3 v1.94.0
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.95.0
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.41.0
 	github.com/aws/aws-sdk-go-v2/service/sts v1.41.1
 	github.com/aws/smithy-go v1.24.0
