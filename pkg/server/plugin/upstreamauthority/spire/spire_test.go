@@ -184,7 +184,7 @@ func TestMintX509CA(t *testing.T) {
 			},
 			customServerAddr: "localhost",
 			expectCode:       codes.Internal,
-			expectMsgPrefix:  `upstreamauthority(spire): unable to request a new Downstream X509CA: failed to exit idle mode: delegating_resolver: invalid target address ":": missing port after port-separator colon`,
+			expectMsgPrefix:  `upstreamauthority(spire): unable to request a new Downstream X509CA: rpc error: code = Unavailable desc = delegating_resolver: invalid target address ":": missing port after port-separator colon`,
 		},
 		{
 			name: "invalid scheme",
