@@ -1814,6 +1814,7 @@ func TestDisposeKeys(t *testing.T) {
 				},
 			},
 
+			// key_id_01 and key_id_16 should be deleted
 			expectedEntries: []fakeKeyEntry{
 				{
 					KeyID: aws.String("key_id_02"),
@@ -1856,9 +1857,6 @@ func TestDisposeKeys(t *testing.T) {
 				},
 				{
 					KeyID: aws.String("key_id_15"),
-				},
-				{
-					KeyID: aws.String("key_id_16"),
 				},
 			},
 		},
@@ -1949,14 +1947,23 @@ func TestDisposeKeys(t *testing.T) {
 				require.Equal(t, tt.err, err.Error())
 				return
 			}
-			// wait for schedule delete to be run
+			// Wait for schedule delete to be run.
+			// Both key_id_01 and key_id_16 should be deleted,
+			// so we need to wait for 2 delete signals.
+			_ = waitForSignal(t, deleteSignal)
 			_ = waitForSignal(t, deleteSignal)
 
 			// assert
-			storedKeys := ts.fakeKMSClient.store.keyEntries
+			storedKeys := ts.fakeKMSClient.store.ListKeyEntries()
 			require.Len(t, storedKeys, len(tt.expectedEntries))
+
+			storedKeysMap := make(map[string]bool, len(storedKeys))
+			for _, key := range storedKeys {
+				storedKeysMap[*key.KeyID] = true
+			}
+
 			for _, expected := range tt.expectedEntries {
-				_, ok := storedKeys[*expected.KeyID]
+				_, ok := storedKeysMap[*expected.KeyID]
 				require.True(t, ok, "Expected key was not present on end result: %q", *expected.KeyID)
 			}
 		})
