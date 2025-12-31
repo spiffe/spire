@@ -232,7 +232,7 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 
 	var opts []option.ClientOption
 	if newConfig.ServiceAccountFile != "" {
-		opts = append(opts, option.WithCredentialsFile(newConfig.ServiceAccountFile))
+		opts = append(opts, option.WithAuthCredentialsFile(option.ServiceAccount, newConfig.ServiceAccountFile))
 	}
 
 	kc, err := p.hooks.newKMSClient(ctx, opts...)
