@@ -11,7 +11,6 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -27,16 +26,9 @@ import (
 var (
 	oidcServerKey    = testkey.MustEC256()
 	oidcServerKeyNew = testkey.MustEC256()
-
-	fileDontExistMessage = "no such file or directory"
 )
 
 func TestTLSConfig(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		// Skip this test on Windows for now
-		// https://github.com/spiffe/spire/issues/4324
-		t.Skip()
-	}
 	logger, logHook := test.NewNullLogger()
 
 	clk := clock.NewMock(t)
@@ -121,7 +113,7 @@ func TestTLSConfig(t *testing.T) {
 			KeyFilePath:  keyFilePath,
 		}, clk, logger)
 
-		require.EqualError(t, err, fmt.Sprintf("failed to load certificate: open %s: %s", filepath.Join(tmpDir, "nonexistent_cert.pem"), fileDontExistMessage))
+		require.ErrorContains(t, err, fmt.Sprintf("failed to load certificate: open %s", filepath.Join(tmpDir, "nonexistent_cert.pem")))
 	})
 
 	t.Run("error when provided key path do not exist", func(t *testing.T) {
@@ -130,7 +122,7 @@ func TestTLSConfig(t *testing.T) {
 			KeyFilePath:  filepath.Join(tmpDir, "nonexistent_key.pem"),
 		}, clk, logger)
 
-		require.EqualError(t, err, fmt.Sprintf("failed to load certificate: open %s: %s", filepath.Join(tmpDir, "nonexistent_key.pem"), fileDontExistMessage))
+		require.ErrorContains(t, err, fmt.Sprintf("failed to load certificate: open %s", filepath.Join(tmpDir, "nonexistent_key.pem")))
 	})
 
 	t.Run("error when provided cert is invalid", func(t *testing.T) {
