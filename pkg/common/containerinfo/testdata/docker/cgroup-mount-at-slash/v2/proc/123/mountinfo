@@ -1,0 +1,4 @@
+2356 2355 0:26 /some.slice/another.slice/again-a_slice.slice/docker-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef.scope /sys/fs/cgroup ro - cgroup2 cgroup rw
+2354 2353 0:26 / /mnt/sys/fs/cgroup rw master:9 - cgroup2 cgroup2 rw
+1356 1355 0:26 /some.slice/another.slice/again-a_slice.slice/docker-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef.scope /mnt/docker/data/overlay2/987654321fedcba987654321fedcba987654321fedcba987654321fedcba0000/merged/sys/fs/cgroup ro - cgroup2 cgroup rw
+1354 1353 0:26 / /sys/fs/cgroup rw - cgroup2 cgroup2 rw

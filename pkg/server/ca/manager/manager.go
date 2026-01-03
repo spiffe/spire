@@ -52,6 +52,7 @@ const (
 type ManagedCA interface {
 	SetX509CA(*ca.X509CA)
 	SetJWTKey(*ca.JWTKey)
+	SetWITKey(*ca.WITKey)
 	NotifyTaintedX509Authorities([]*x509.Certificate)
 }
 
@@ -68,8 +69,13 @@ type AuthorityManager interface {
 	GetNextX509CASlot() Slot
 	PrepareX509CA(ctx context.Context) error
 	RotateX509CA(ctx context.Context)
+	GetCurrentWITKeySlot() Slot
+	GetNextWITKeySlot() Slot
+	PrepareWITKey(ctx context.Context) error
+	RotateWITKey(ctx context.Context)
 	IsUpstreamAuthority() bool
 	IsJWTSVIDsDisabled() bool
+	IsWITSVIDsDisabled() bool
 	PublishJWTKey(ctx context.Context, jwtKey *common.PublicKey) ([]*common.PublicKey, error)
 	NotifyTaintedX509Authority(ctx context.Context, authorityID string) error
 	SubscribeToLocalBundle(ctx context.Context) error
@@ -83,7 +89,9 @@ type Config struct {
 	TrustDomain     spiffeid.TrustDomain
 	X509CAKeyType   keymanager.KeyType
 	DisableJWTSVIDs bool
+	DisableWITSVIDs bool
 	JWTKeyType      keymanager.KeyType
+	WITKeyType      keymanager.KeyType
 	Dir             string
 	Log             logrus.FieldLogger
 	Metrics         telemetry.Metrics
@@ -105,6 +113,10 @@ type Manager struct {
 	currentJWTKey *jwtKeySlot
 	nextJWTKey    *jwtKeySlot
 	jwtKeyMutex   sync.RWMutex
+
+	currentWITKey *witKeySlot
+	nextWITKey    *witKeySlot
+	witKeyMutex   sync.RWMutex
 
 	journal *Journal
 
@@ -188,6 +200,20 @@ func NewManager(ctx context.Context, c Config) (*Manager, error) {
 		m.nextJWTKey = nextJWTKey.(*jwtKeySlot)
 	}
 
+	if currentWITKey, ok := slots[CurrentWITKeySlot]; ok {
+		m.currentWITKey = currentWITKey.(*witKeySlot)
+
+		if !currentWITKey.IsEmpty() && !currentWITKey.ShouldActivateNext(now) {
+			// activate the WIT key immediately if it is set and not within
+			// activation time of the next WIT key.
+			m.activateWITKey(ctx)
+		}
+	}
+
+	if nextWITKey, ok := slots[NextWITKeySlot]; ok {
+		m.nextWITKey = nextWITKey.(*witKeySlot)
+	}
+
 	return m, nil
 }
 
@@ -209,6 +235,10 @@ func (m *Manager) NotifyTaintedX509Authority(ctx context.Context, authorityID st
 
 func (m *Manager) IsJWTSVIDsDisabled() bool {
 	return m.c.DisableJWTSVIDs
+}
+
+func (m *Manager) IsWITSVIDsDisabled() bool {
+	return m.c.DisableWITSVIDs
 }
 
 func (m *Manager) GetCurrentX509CASlot() Slot {
@@ -457,12 +487,119 @@ func (m *Manager) PublishJWTKey(ctx context.Context, jwtKey *common.PublicKey) (
 		}
 	}
 
-	bundle, err := m.appendBundle(ctx, nil, []*common.PublicKey{jwtKey})
+	bundle, err := m.appendBundle(ctx, nil, []*common.PublicKey{jwtKey}, nil)
 	if err != nil {
 		return nil, err
 	}
 
 	return bundle.JwtSigningKeys, nil
+}
+
+func (m *Manager) GetCurrentWITKeySlot() Slot {
+	m.witKeyMutex.RLock()
+	defer m.witKeyMutex.RUnlock()
+
+	return m.currentWITKey
+}
+
+func (m *Manager) GetNextWITKeySlot() Slot {
+	m.witKeyMutex.RLock()
+	defer m.witKeyMutex.RUnlock()
+
+	return m.nextWITKey
+}
+
+func (m *Manager) PrepareWITKey(ctx context.Context) (err error) {
+	if m.IsWITSVIDsDisabled() {
+		return nil
+	}
+
+	counter := telemetry_server.StartServerCAManagerPrepareWITKeyCall(m.c.Metrics)
+	defer counter.Done(&err)
+
+	m.witKeyMutex.Lock()
+	defer m.witKeyMutex.Unlock()
+
+	// If current slot is not empty, use next to prepare
+	slot := m.currentWITKey
+	if !slot.IsEmpty() {
+		slot = m.nextWITKey
+	}
+
+	log := m.c.Log.WithField(telemetry.Slot, slot.id)
+	log.Debug("Preparing WIT key")
+
+	slot.Reset()
+
+	now := m.c.Clock.Now()
+	notAfter := now.Add(m.caTTL)
+
+	km := m.c.Catalog.GetKeyManager()
+	signer, err := km.GenerateKey(ctx, slot.KmKeyID(), m.c.WITKeyType)
+	if err != nil {
+		return err
+	}
+
+	witKey, err := newWITKey(signer, notAfter)
+	if err != nil {
+		return err
+	}
+
+	publicKey, err := publicKeyFromWITKey(witKey)
+	if err != nil {
+		return err
+	}
+
+	_, err = m.appendBundle(ctx, nil, nil, []*common.PublicKey{publicKey})
+	if err != nil {
+		return err
+	}
+
+	slot.issuedAt = now
+	slot.witKey = witKey
+	slot.status = journal.Status_PREPARED
+	slot.authorityID = witKey.Kid
+	slot.notAfter = witKey.NotAfter
+
+	if err := m.journal.AppendWITKey(ctx, slot.id, slot.issuedAt, slot.witKey); err != nil {
+		log.WithError(err).Error("Unable to append WIT key to journal")
+	}
+
+	m.c.Log.WithFields(logrus.Fields{
+		telemetry.Slot:             slot.id,
+		telemetry.IssuedAt:         slot.issuedAt,
+		telemetry.Expiration:       slot.witKey.NotAfter,
+		telemetry.LocalAuthorityID: slot.authorityID,
+	}).Info("WIT key prepared")
+	return nil
+}
+
+func (m *Manager) ActivateWITKey(ctx context.Context) {
+	if m.IsWITSVIDsDisabled() {
+		return
+	}
+	m.witKeyMutex.RLock()
+	defer m.witKeyMutex.RUnlock()
+
+	m.activateWITKey(ctx)
+}
+
+func (m *Manager) RotateWITKey(ctx context.Context) {
+	if m.IsWITSVIDsDisabled() {
+		return
+	}
+
+	m.witKeyMutex.Lock()
+	defer m.witKeyMutex.Unlock()
+
+	m.currentWITKey, m.nextWITKey = m.nextWITKey, m.currentWITKey
+	m.nextWITKey.Reset()
+
+	if err := m.journal.UpdateWITKeyStatus(ctx, m.nextWITKey.AuthorityID(), journal.Status_OLD); err != nil {
+		m.c.Log.WithError(err).Error("Failed to update status on WITKey journal entry")
+	}
+
+	m.activateWITKey(ctx)
 }
 
 func (m *Manager) SubscribeToLocalBundle(ctx context.Context) error {
@@ -604,6 +741,24 @@ func (m *Manager) activateX509CA(ctx context.Context) {
 	}).Debug("Successfully rotated X.509 CA")
 
 	m.c.CA.SetX509CA(m.currentX509CA.x509CA)
+}
+
+func (m *Manager) activateWITKey(ctx context.Context) {
+	log := m.c.Log.WithFields(logrus.Fields{
+		telemetry.Slot:             m.currentWITKey.id,
+		telemetry.IssuedAt:         m.currentWITKey.issuedAt,
+		telemetry.Expiration:       m.currentWITKey.witKey.NotAfter,
+		telemetry.LocalAuthorityID: m.currentWITKey.authorityID,
+	})
+	log.Info("WIT key activated")
+	telemetry_server.IncrActivateWITKeyManagerCounter(m.c.Metrics)
+
+	m.currentWITKey.status = journal.Status_ACTIVE
+	if err := m.journal.UpdateWITKeyStatus(ctx, m.currentWITKey.AuthorityID(), journal.Status_ACTIVE); err != nil {
+		log.WithError(err).Error("Failed to update to activated status on WITKey journal entry")
+	}
+
+	m.c.CA.SetWITKey(m.currentWITKey.witKey)
 }
 
 func (m *Manager) bundleUpdated() {
@@ -858,7 +1013,7 @@ func (m *Manager) selfSignX509CA(ctx context.Context, signer crypto.Signer) (*ca
 		return nil, fmt.Errorf("invalid downstream X509 CA: %w", err)
 	}
 
-	if _, err := m.appendBundle(ctx, []*x509.Certificate{cert}, nil); err != nil {
+	if _, err := m.appendBundle(ctx, []*x509.Certificate{cert}, nil, nil); err != nil {
 		return nil, err
 	}
 
@@ -868,7 +1023,7 @@ func (m *Manager) selfSignX509CA(ctx context.Context, signer crypto.Signer) (*ca
 	}, nil
 }
 
-func (m *Manager) appendBundle(ctx context.Context, caChain []*x509.Certificate, jwtSigningKeys []*common.PublicKey) (*common.Bundle, error) {
+func (m *Manager) appendBundle(ctx context.Context, caChain []*x509.Certificate, jwtSigningKeys []*common.PublicKey, witSigningKeys []*common.PublicKey) (*common.Bundle, error) {
 	var rootCAs []*common.Certificate
 	for _, caCert := range caChain {
 		rootCAs = append(rootCAs, &common.Certificate{
@@ -881,6 +1036,7 @@ func (m *Manager) appendBundle(ctx context.Context, caChain []*x509.Certificate,
 		TrustDomainId:  m.c.TrustDomain.IDString(),
 		RootCas:        rootCAs,
 		JwtSigningKeys: jwtSigningKeys,
+		WitSigningKeys: witSigningKeys,
 	})
 	if err != nil {
 		return nil, err
@@ -1064,6 +1220,19 @@ func newJWTKey(signer crypto.Signer, expiresAt time.Time) (*ca.JWTKey, error) {
 	}, nil
 }
 
+func newWITKey(signer crypto.Signer, expiresAt time.Time) (*ca.WITKey, error) {
+	kid, err := newKeyID()
+	if err != nil {
+		return nil, err
+	}
+
+	return &ca.WITKey{
+		Signer:   signer,
+		Kid:      kid,
+		NotAfter: expiresAt,
+	}, nil
+}
+
 func newKeyID() (string, error) {
 	choices := make([]byte, 32)
 	_, err := rand.Read(choices)
@@ -1092,6 +1261,19 @@ func publicKeyFromJWTKey(jwtKey *ca.JWTKey) (*common.PublicKey, error) {
 		PkixBytes: pkixBytes,
 		Kid:       jwtKey.Kid,
 		NotAfter:  jwtKey.NotAfter.Unix(),
+	}, nil
+}
+
+func publicKeyFromWITKey(witKey *ca.WITKey) (*common.PublicKey, error) {
+	pkixBytes, err := x509.MarshalPKIXPublicKey(witKey.Signer.Public())
+	if err != nil {
+		return nil, err
+	}
+
+	return &common.PublicKey{
+		PkixBytes: pkixBytes,
+		Kid:       witKey.Kid,
+		NotAfter:  witKey.NotAfter.Unix(),
 	}, nil
 }
 

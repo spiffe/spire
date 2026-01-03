@@ -29,6 +29,8 @@ type bundleTest struct {
 	certExpired      *x509.Certificate
 	jwtKeyExpired    *common.PublicKey
 	jwtKeyNotExpired *common.PublicKey
+	witKeyExpired    *common.PublicKey
+	witKeyNotExpired *common.PublicKey
 }
 
 func TestPruneBundle(t *testing.T) {
@@ -52,6 +54,7 @@ func TestPruneBundle(t *testing.T) {
 			bundle: createBundle(
 				[]*x509.Certificate{test.certNotExpired, test.certExpired},
 				[]*common.PublicKey{test.jwtKeyNotExpired, test.jwtKeyExpired},
+				[]*common.PublicKey{test.witKeyNotExpired, test.witKeyExpired},
 			),
 			expiration:  time.Time{},
 			expectedErr: "expiration time is zero value",
@@ -61,6 +64,7 @@ func TestPruneBundle(t *testing.T) {
 			bundle: createBundle(
 				[]*x509.Certificate{test.certExpired},
 				[]*common.PublicKey{test.jwtKeyNotExpired, test.jwtKeyExpired},
+				[]*common.PublicKey{test.witKeyNotExpired, test.witKeyExpired},
 			),
 			expiration:  test.currentTime,
 			expectedErr: "would prune all certificates",
@@ -70,6 +74,7 @@ func TestPruneBundle(t *testing.T) {
 			bundle: createBundle(
 				[]*x509.Certificate{test.certNotExpired, test.certExpired},
 				[]*common.PublicKey{test.jwtKeyExpired},
+				[]*common.PublicKey{test.witKeyNotExpired, test.witKeyExpired},
 			),
 			expiration:  test.currentTime,
 			expectedErr: "would prune all JWT signing keys",
@@ -79,9 +84,36 @@ func TestPruneBundle(t *testing.T) {
 			bundle: createBundle(
 				[]*x509.Certificate{test.certNotExpired, test.certExpired},
 				nil,
+				[]*common.PublicKey{test.witKeyNotExpired, test.witKeyExpired},
 			),
 			newBundle: createBundle(
 				[]*x509.Certificate{test.certNotExpired},
+				nil,
+				[]*common.PublicKey{test.witKeyNotExpired},
+			),
+			expiration: test.currentTime,
+			changed:    true,
+		},
+		{
+			name: "fail if all WIT expired",
+			bundle: createBundle(
+				[]*x509.Certificate{test.certNotExpired, test.certExpired},
+				[]*common.PublicKey{test.jwtKeyNotExpired},
+				[]*common.PublicKey{test.witKeyExpired},
+			),
+			expiration:  test.currentTime,
+			expectedErr: "would prune all WIT signing keys",
+		},
+		{
+			name: "ok if no WIT keys in bundle",
+			bundle: createBundle(
+				[]*x509.Certificate{test.certNotExpired, test.certExpired},
+				[]*common.PublicKey{test.jwtKeyNotExpired, test.jwtKeyExpired},
+				nil,
+			),
+			newBundle: createBundle(
+				[]*x509.Certificate{test.certNotExpired},
+				[]*common.PublicKey{test.jwtKeyNotExpired},
 				nil,
 			),
 			expiration: test.currentTime,
@@ -92,10 +124,12 @@ func TestPruneBundle(t *testing.T) {
 			bundle: createBundle(
 				[]*x509.Certificate{test.certNotExpired, test.certExpired},
 				[]*common.PublicKey{test.jwtKeyNotExpired, test.jwtKeyExpired},
+				[]*common.PublicKey{test.witKeyNotExpired, test.witKeyExpired},
 			),
 			newBundle: createBundle(
 				[]*x509.Certificate{test.certNotExpired},
 				[]*common.PublicKey{test.jwtKeyNotExpired},
+				[]*common.PublicKey{test.witKeyNotExpired},
 			),
 			expiration: test.currentTime,
 			changed:    true,
@@ -442,9 +476,10 @@ func TestFindX509Authorities(t *testing.T) {
 	runTest([]string{skID1, "foo"}, `no X.509 authority found with SubjectKeyID "foo"`)
 }
 
-func createBundle(certs []*x509.Certificate, jwtKeys []*common.PublicKey) *common.Bundle {
+func createBundle(certs []*x509.Certificate, jwtKeys []*common.PublicKey, witKeys []*common.PublicKey) *common.Bundle {
 	bundle := BundleProtoFromRootCAs("spiffe://foo", certs)
 	bundle.JwtSigningKeys = jwtKeys
+	bundle.WitSigningKeys = witKeys
 	return bundle
 }
 
@@ -471,5 +506,7 @@ func setupTest(t *testing.T) *bundleTest {
 		certExpired:      certExpired,
 		jwtKeyExpired:    &common.PublicKey{NotAfter: expiredKeyTime.Unix()},
 		jwtKeyNotExpired: &common.PublicKey{NotAfter: nonExpiredKeyTime.Unix()},
+		witKeyExpired:    &common.PublicKey{NotAfter: expiredKeyTime.Unix()},
+		witKeyNotExpired: &common.PublicKey{NotAfter: nonExpiredKeyTime.Unix()},
 	}
 }

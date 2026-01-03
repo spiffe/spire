@@ -99,9 +99,9 @@ fingerprint() {
 }
 
 check-server-started() {
-  # Check at most 20 times (with one second in between) that the server has
+  # Check at most 30 times (with one second in between) that the server has
   # successfully started.
-  MAXCHECKS=20
+  MAXCHECKS=30
   CHECKINTERVAL=1
   for ((i=1;i<=MAXCHECKS;i++)); do
       log-info "checking for starting server APIs ($i of $MAXCHECKS max)..."
