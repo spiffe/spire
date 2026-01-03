@@ -35,7 +35,7 @@ type testMetrics struct {
 	setGaugeCallback func()
 }
 
-func (f *testMetrics) SetGauge(key []string, val float32) {
-	f.FakeMetrics.SetGauge(key, val)
+func (f *testMetrics) SetPrecisionGauge(key []string, val float64) {
+	f.FakeMetrics.SetPrecisionGauge(key, val)
 	f.setGaugeCallback()
 }
