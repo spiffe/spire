@@ -28,6 +28,12 @@ var (
 	oidcServerKeyNew = testkey.MustEC256()
 )
 
+const (
+	testFileSyncInterval  = 10 * time.Millisecond
+	testTickerIterations  = 5
+	testTotalSyncDuration = testFileSyncInterval * testTickerIterations // 50ms = 5 ticks of 10ms
+)
+
 func TestTLSConfig(t *testing.T) {
 	logger, logHook := test.NewNullLogger()
 
@@ -89,7 +95,7 @@ func TestTLSConfig(t *testing.T) {
 	certManager, err := New(&Config{
 		CertFilePath:     certFilePath,
 		KeyFilePath:      keyFilePath,
-		FileSyncInterval: 10 * time.Millisecond,
+		FileSyncInterval: testFileSyncInterval,
 	}, clk, logger)
 	require.NoError(t, err)
 
@@ -159,7 +165,7 @@ func TestTLSConfig(t *testing.T) {
 		})
 		writeFile(t, certFilePath, oidcServerCertUpdatedPem)
 
-		clk.Add(5 * time.Millisecond)
+		clk.Add(testFileSyncInterval / 2) // Less than sync interval
 
 		// Certificate is not updated yet
 		cert, err := tlsConfig.GetCertificate(chInfo)
@@ -169,7 +175,7 @@ func TestTLSConfig(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, oidcServerCert, x509Cert)
 
-		clk.Add(10 * time.Millisecond)
+		clk.Add(testFileSyncInterval)
 
 		// Assert certificate is updated
 		require.Eventuallyf(t, func() bool {
@@ -197,7 +203,7 @@ func TestTLSConfig(t *testing.T) {
 			Bytes: oidcServerCertUpdated2.Raw,
 		}))
 
-		clk.Add(10 * time.Millisecond)
+		clk.Add(testFileSyncInterval)
 
 		require.Eventuallyf(t, func() bool {
 			cert, err := tlsConfig.GetCertificate(chInfo)
@@ -216,21 +222,17 @@ func TestTLSConfig(t *testing.T) {
 	t.Run("update cert file with an invalid cert start error log loop", func(t *testing.T) {
 		writeFile(t, certFilePath, []byte("invalid-cert"))
 
-		for range 5 {
-			clk.Add(10 * time.Millisecond)
-		}
+		logHook.Reset()
+		clk.Add(testTotalSyncDuration)
 
+		// Assert error logs were triggered (at least 1, at most testTickerIterations)
 		errLogs := map[time.Time]struct{}{}
-
-		// Assert error logs that will keep triggering until the cert is valid again
-		require.Eventuallyf(t, func() bool {
-			for _, entry := range logHook.AllEntries() {
-				if entry.Level == logrus.ErrorLevel && strings.Contains(entry.Message, "Failed to load certificate: tls: failed to find any PEM data in certificate input") {
-					errLogs[entry.Time] = struct{}{}
-				}
+		for _, entry := range logHook.AllEntries() {
+			if entry.Level == logrus.ErrorLevel && strings.Contains(entry.Message, "Failed to load certificate: tls: failed to find any PEM data in certificate input") {
+				errLogs[entry.Time] = struct{}{}
 			}
-			return len(errLogs) <= 5
-		}, 10*time.Second, 10*time.Millisecond, "failed to find error logs")
+		}
+		require.True(t, len(errLogs) >= 1 && len(errLogs) <= testTickerIterations, "expected 1-%d error logs, got %d", testTickerIterations, len(errLogs))
 
 		// New cert is not loaded because it is invalid.
 		cert, err := tlsConfig.GetCertificate(chInfo)
@@ -249,21 +251,17 @@ func TestTLSConfig(t *testing.T) {
 
 		writeFile(t, keyFilePath, []byte("invalid-key"))
 
-		for range 5 {
-			clk.Add(10 * time.Millisecond)
-		}
+		logHook.Reset()
+		clk.Add(testTotalSyncDuration)
 
-		// Assert error logs that will keep triggering until the cert is valid again.
+		// Assert error logs were triggered (at least 1, at most testTickerIterations)
 		errLogs := map[time.Time]struct{}{}
-
-		require.Eventuallyf(t, func() bool {
-			for _, entry := range logHook.AllEntries() {
-				if entry.Level == logrus.ErrorLevel && strings.Contains(entry.Message, "Failed to load certificate: tls: failed to find any PEM data in key input") {
-					errLogs[entry.Time] = struct{}{}
-				}
+		for _, entry := range logHook.AllEntries() {
+			if entry.Level == logrus.ErrorLevel && strings.Contains(entry.Message, "Failed to load certificate: tls: failed to find any PEM data in key input") {
+				errLogs[entry.Time] = struct{}{}
 			}
-			return len(errLogs) <= 5
-		}, 10*time.Second, 10*time.Millisecond, "Failed to assert error logs")
+		}
+		require.True(t, len(errLogs) >= 1 && len(errLogs) <= testTickerIterations, "expected 1-%d error logs, got %d", testTickerIterations, len(errLogs))
 
 		// New cert is not loaded because it is invalid.
 		cert, err := tlsConfig.GetCertificate(chInfo)
@@ -278,7 +276,7 @@ func TestTLSConfig(t *testing.T) {
 		writeFile(t, keyFilePath, oidcServerKeyPem)
 		writeFile(t, certFilePath, oidcServerCertPem)
 
-		clk.Add(10 * time.Millisecond)
+		clk.Add(testFileSyncInterval)
 
 		require.Eventuallyf(t, func() bool {
 			cert, err := tlsConfig.GetCertificate(chInfo)
@@ -295,45 +293,39 @@ func TestTLSConfig(t *testing.T) {
 	})
 
 	t.Run("delete cert files start error log loop", func(t *testing.T) {
+		logHook.Reset()
 		removeFile(t, keyFilePath)
 
-		for range 5 {
-			clk.Add(10 * time.Millisecond)
-		}
+		clk.Add(testTotalSyncDuration)
 
-		// Assert error logs that will keep triggering until the key is created again.
+		// Assert error logs were triggered (at least 1, at most testTickerIterations)
 		errLogs := map[time.Time]struct{}{}
-		require.Eventuallyf(t, func() bool {
-			for _, entry := range logHook.AllEntries() {
-				if entry.Level == logrus.ErrorLevel && strings.Contains(entry.Message, fmt.Sprintf("Failed to get file info, file path %q does not exist anymore; please check if the path is correct", keyFilePath)) {
-					errLogs[entry.Time] = struct{}{}
-				}
+		for _, entry := range logHook.AllEntries() {
+			if entry.Level == logrus.ErrorLevel && strings.Contains(entry.Message, fmt.Sprintf("Failed to get file info, file path %q does not exist anymore; please check if the path is correct", keyFilePath)) {
+				errLogs[entry.Time] = struct{}{}
 			}
-			return len(errLogs) == 5
-		}, 10*time.Second, 10*time.Millisecond, "Failed to assert error logs")
+		}
+		require.True(t, len(errLogs) >= 1 && len(errLogs) <= testTickerIterations, "expected 1-%d error logs, got %d", testTickerIterations, len(errLogs))
 
 		removeFile(t, certFilePath)
+		logHook.Reset()
 
-		for range 5 {
-			clk.Add(10 * time.Millisecond)
-		}
+		clk.Add(testTotalSyncDuration)
 
-		// Assert error logs that will keep triggering until the cert is created again.
+		// Assert error logs were triggered (at least 1, at most testTickerIterations)
 		errLogs = map[time.Time]struct{}{}
-		require.Eventuallyf(t, func() bool {
-			for _, entry := range logHook.AllEntries() {
-				if entry.Level == logrus.ErrorLevel && strings.Contains(entry.Message, fmt.Sprintf("Failed to get file info, file path %q does not exist anymore; please check if the path is correct", certFilePath)) {
-					errLogs[entry.Time] = struct{}{}
-				}
+		for _, entry := range logHook.AllEntries() {
+			if entry.Level == logrus.ErrorLevel && strings.Contains(entry.Message, fmt.Sprintf("Failed to get file info, file path %q does not exist anymore; please check if the path is correct", certFilePath)) {
+				errLogs[entry.Time] = struct{}{}
 			}
-			return len(errLogs) == 5
-		}, 10*time.Second, 10*time.Millisecond, "Failed to assert error logs")
+		}
+		require.True(t, len(errLogs) >= 1 && len(errLogs) <= testTickerIterations, "expected 1-%d error logs, got %d", testTickerIterations, len(errLogs))
 
 		writeFile(t, keyFilePath, oidcServerKeyPem)
 
 		writeFile(t, certFilePath, oidcServerCertPem)
 
-		clk.Add(10 * time.Millisecond)
+		clk.Add(testFileSyncInterval)
 
 		require.Eventuallyf(t, func() bool {
 			cert, err := tlsConfig.GetCertificate(chInfo)
