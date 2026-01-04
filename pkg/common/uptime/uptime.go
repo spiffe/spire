@@ -24,7 +24,7 @@ func reportMetrics(ctx context.Context, interval time.Duration, m telemetry.Metr
 	t := clk.Ticker(interval)
 	defer t.Stop()
 	for {
-		telemetry.EmitUptime(m, float32(Uptime()/time.Millisecond))
+		telemetry.EmitUptime(m, float64(Uptime()/time.Millisecond))
 		select {
 		case <-t.C:
 		case <-ctx.Done():
