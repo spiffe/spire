@@ -849,7 +849,7 @@ func TestFetchJWTSVID(t *testing.T) {
 		setupTest      func(err error)
 		err            string
 		expectSVID     *JWTSVID
-		expectSPIFFEID string
+		expectSPIFFEID spiffeid.ID
 		fetchErr       error
 	}{
 		{
@@ -871,7 +871,7 @@ func TestFetchJWTSVID(t *testing.T) {
 				ExpiresAt: time.Unix(expiresAt, 0).UTC(),
 				IssuedAt:  time.Unix(issuedAt, 0).UTC(),
 			},
-			expectSPIFFEID: "spiffe://example.org/workload",
+			expectSPIFFEID: spiffeid.RequireFromString("spiffe://example.org/workload"),
 		},
 		{
 			name: "client fails",
