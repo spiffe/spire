@@ -845,17 +845,22 @@ func TestFetchJWTSVID(t *testing.T) {
 	issuedAt := time.Now().Unix()
 	expiresAt := time.Now().Add(time.Minute).Unix()
 	for _, tt := range []struct {
-		name       string
-		setupTest  func(err error)
-		err        string
-		expectSVID *JWTSVID
-		fetchErr   error
+		name           string
+		setupTest      func(err error)
+		err            string
+		expectSVID     *JWTSVID
+		expectSPIFFEID spiffeid.ID
+		fetchErr       error
 	}{
 		{
 			name: "success",
 			setupTest: func(err error) {
 				tc.svidServer.jwtSVID = &types.JWTSVID{
-					Token:     "token",
+					Token: "token",
+					Id: &types.SPIFFEID{
+						TrustDomain: "example.org",
+						Path:        "/workload",
+					},
 					ExpiresAt: expiresAt,
 					IssuedAt:  issuedAt,
 				}
@@ -866,6 +871,7 @@ func TestFetchJWTSVID(t *testing.T) {
 				ExpiresAt: time.Unix(expiresAt, 0).UTC(),
 				IssuedAt:  time.Unix(issuedAt, 0).UTC(),
 			},
+			expectSPIFFEID: spiffeid.RequireFromString("spiffe://example.org/workload"),
 		},
 		{
 			name: "client fails",
@@ -933,7 +939,7 @@ func TestFetchJWTSVID(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.setupTest(tt.fetchErr)
-			resp, err := client.NewJWTSVID(ctx, "entry-id", []string{"myAud"})
+			resp, spiffeId, err := client.NewJWTSVID(ctx, "entry-id", []string{"myAud"})
 			if tt.err != "" {
 				require.Nil(t, resp)
 				require.EqualError(t, err, tt.err)
@@ -943,6 +949,7 @@ func TestFetchJWTSVID(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, resp)
 			require.Equal(t, tt.expectSVID, resp)
+			require.Equal(t, tt.expectSPIFFEID, spiffeId)
 		})
 	}
 }

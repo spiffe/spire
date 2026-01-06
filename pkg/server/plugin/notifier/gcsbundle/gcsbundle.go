@@ -205,7 +205,7 @@ type gcsBucketClient struct {
 func newGCSBucketClient(ctx context.Context, serviceAccountFile string) (bucketClient, error) {
 	var opts []option.ClientOption
 	if serviceAccountFile != "" {
-		opts = append(opts, option.WithCredentialsFile(serviceAccountFile))
+		opts = append(opts, option.WithAuthCredentialsFile(option.ServiceAccount, serviceAccountFile))
 	}
 	client, err := storage.NewClient(ctx, opts...)
 	if err != nil {
