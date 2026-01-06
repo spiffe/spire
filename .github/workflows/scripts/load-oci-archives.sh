@@ -51,14 +51,13 @@ echo "Importing ${OCI_IMAGES[*]} into docker".
 for img in "${OCI_IMAGES[@]}"; do
     oci_dir="ocidir://${ROOTDIR}oci/${img}"
     platform_tar="${img}-${PLATFORM}-image.tar"
-    
+
     # regclient works with directories rather than tars, so import the OCI tar to a directory
     regctl image import "$oci_dir" "${img}-image.tar"
     dig="$(regctl image digest --platform "$PLATFORM" "$oci_dir")"
-    # export the single platform image using the digest
-    regctl image export "$oci_dir@${dig}" "${platform_tar}"
-    
+    # export the single platform image using the digest, embedding the desired image name
+    regctl image export --name "${img}:latest-local" "$oci_dir@${dig}" "${platform_tar}"
+
+    # Load the image with the embedded name
     docker load < "${platform_tar}"
-    docker image tag "localhost/oci/${img}:latest" "${img}:latest-local"
-    docker image rm "localhost/oci/${img}:latest"
 done

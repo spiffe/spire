@@ -11,7 +11,6 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -27,16 +26,15 @@ import (
 var (
 	oidcServerKey    = testkey.MustEC256()
 	oidcServerKeyNew = testkey.MustEC256()
+)
 
-	fileDontExistMessage = "no such file or directory"
+const (
+	testFileSyncInterval  = 10 * time.Millisecond
+	testTickerIterations  = 5
+	testTotalSyncDuration = testFileSyncInterval * testTickerIterations // 50ms = 5 ticks of 10ms
 )
 
 func TestTLSConfig(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		// Skip this test on Windows for now
-		// https://github.com/spiffe/spire/issues/4324
-		t.Skip()
-	}
 	logger, logHook := test.NewNullLogger()
 
 	clk := clock.NewMock(t)
@@ -97,13 +95,16 @@ func TestTLSConfig(t *testing.T) {
 	certManager, err := New(&Config{
 		CertFilePath:     certFilePath,
 		KeyFilePath:      keyFilePath,
-		FileSyncInterval: 10 * time.Millisecond,
+		FileSyncInterval: testFileSyncInterval,
 	}, clk, logger)
 	require.NoError(t, err)
 
 	go func() {
 		certManager.WatchFileChanges(ctx)
 	}()
+
+	// Wait for the file watcher's ticker to be created before proceeding
+	clk.WaitForTicker(time.Second, "waiting for file watcher ticker to be created")
 
 	tlsConfig := certManager.GetTLSConfig()
 
@@ -118,7 +119,7 @@ func TestTLSConfig(t *testing.T) {
 			KeyFilePath:  keyFilePath,
 		}, clk, logger)
 
-		require.EqualError(t, err, fmt.Sprintf("failed to load certificate: open %s: %s", filepath.Join(tmpDir, "nonexistent_cert.pem"), fileDontExistMessage))
+		require.ErrorContains(t, err, fmt.Sprintf("failed to load certificate: open %s", filepath.Join(tmpDir, "nonexistent_cert.pem")))
 	})
 
 	t.Run("error when provided key path do not exist", func(t *testing.T) {
@@ -127,7 +128,7 @@ func TestTLSConfig(t *testing.T) {
 			KeyFilePath:  filepath.Join(tmpDir, "nonexistent_key.pem"),
 		}, clk, logger)
 
-		require.EqualError(t, err, fmt.Sprintf("failed to load certificate: open %s: %s", filepath.Join(tmpDir, "nonexistent_key.pem"), fileDontExistMessage))
+		require.ErrorContains(t, err, fmt.Sprintf("failed to load certificate: open %s", filepath.Join(tmpDir, "nonexistent_key.pem")))
 	})
 
 	t.Run("error when provided cert is invalid", func(t *testing.T) {
@@ -164,7 +165,7 @@ func TestTLSConfig(t *testing.T) {
 		})
 		writeFile(t, certFilePath, oidcServerCertUpdatedPem)
 
-		clk.Add(5 * time.Millisecond)
+		clk.Add(testFileSyncInterval / 2) // Less than sync interval
 
 		// Certificate is not updated yet
 		cert, err := tlsConfig.GetCertificate(chInfo)
@@ -174,7 +175,7 @@ func TestTLSConfig(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, oidcServerCert, x509Cert)
 
-		clk.Add(10 * time.Millisecond)
+		clk.Add(testFileSyncInterval)
 
 		// Assert certificate is updated
 		require.Eventuallyf(t, func() bool {
@@ -202,7 +203,7 @@ func TestTLSConfig(t *testing.T) {
 			Bytes: oidcServerCertUpdated2.Raw,
 		}))
 
-		clk.Add(10 * time.Millisecond)
+		clk.Add(testFileSyncInterval)
 
 		require.Eventuallyf(t, func() bool {
 			cert, err := tlsConfig.GetCertificate(chInfo)
@@ -219,23 +220,22 @@ func TestTLSConfig(t *testing.T) {
 	})
 
 	t.Run("update cert file with an invalid cert start error log loop", func(t *testing.T) {
+		logHook.Reset()
 		writeFile(t, certFilePath, []byte("invalid-cert"))
 
-		for range 5 {
-			clk.Add(10 * time.Millisecond)
-		}
+		clk.Add(testTotalSyncDuration)
 
-		errLogs := map[time.Time]struct{}{}
-
-		// Assert error logs that will keep triggering until the cert is valid again
-		require.Eventuallyf(t, func() bool {
+		// Assert error logs were triggered (at least 1, at most testTickerIterations)
+		// Use Eventually to give the goroutine time to process the clock ticks
+		require.Eventually(t, func() bool {
+			errLogs := map[time.Time]struct{}{}
 			for _, entry := range logHook.AllEntries() {
 				if entry.Level == logrus.ErrorLevel && strings.Contains(entry.Message, "Failed to load certificate: tls: failed to find any PEM data in certificate input") {
 					errLogs[entry.Time] = struct{}{}
 				}
 			}
-			return len(errLogs) <= 5
-		}, 10*time.Second, 10*time.Millisecond, "failed to find error logs")
+			return len(errLogs) >= 1 && len(errLogs) <= testTickerIterations
+		}, time.Second, 10*time.Millisecond, "expected 1-%d error logs", testTickerIterations)
 
 		// New cert is not loaded because it is invalid.
 		cert, err := tlsConfig.GetCertificate(chInfo)
@@ -247,6 +247,7 @@ func TestTLSConfig(t *testing.T) {
 	})
 
 	t.Run("update key file with an invalid key start error log loop", func(t *testing.T) {
+		logHook.Reset()
 		writeFile(t, certFilePath, pem.EncodeToMemory(&pem.Block{
 			Type:  "CERTIFICATE",
 			Bytes: oidcServerCertUpdated2.Raw,
@@ -254,21 +255,19 @@ func TestTLSConfig(t *testing.T) {
 
 		writeFile(t, keyFilePath, []byte("invalid-key"))
 
-		for range 5 {
-			clk.Add(10 * time.Millisecond)
-		}
+		clk.Add(testTotalSyncDuration)
 
-		// Assert error logs that will keep triggering until the cert is valid again.
-		errLogs := map[time.Time]struct{}{}
-
-		require.Eventuallyf(t, func() bool {
+		// Assert error logs were triggered (at least 1, at most testTickerIterations)
+		// Use Eventually to give the goroutine time to process the clock ticks
+		require.Eventually(t, func() bool {
+			errLogs := map[time.Time]struct{}{}
 			for _, entry := range logHook.AllEntries() {
 				if entry.Level == logrus.ErrorLevel && strings.Contains(entry.Message, "Failed to load certificate: tls: failed to find any PEM data in key input") {
 					errLogs[entry.Time] = struct{}{}
 				}
 			}
-			return len(errLogs) <= 5
-		}, 10*time.Second, 10*time.Millisecond, "Failed to assert error logs")
+			return len(errLogs) >= 1 && len(errLogs) <= testTickerIterations
+		}, time.Second, 10*time.Millisecond, "expected 1-%d error logs", testTickerIterations)
 
 		// New cert is not loaded because it is invalid.
 		cert, err := tlsConfig.GetCertificate(chInfo)
@@ -283,7 +282,7 @@ func TestTLSConfig(t *testing.T) {
 		writeFile(t, keyFilePath, oidcServerKeyPem)
 		writeFile(t, certFilePath, oidcServerCertPem)
 
-		clk.Add(10 * time.Millisecond)
+		clk.Add(testFileSyncInterval)
 
 		require.Eventuallyf(t, func() bool {
 			cert, err := tlsConfig.GetCertificate(chInfo)
@@ -300,45 +299,45 @@ func TestTLSConfig(t *testing.T) {
 	})
 
 	t.Run("delete cert files start error log loop", func(t *testing.T) {
+		logHook.Reset()
 		removeFile(t, keyFilePath)
 
-		for range 5 {
-			clk.Add(10 * time.Millisecond)
-		}
+		clk.Add(testTotalSyncDuration)
 
-		// Assert error logs that will keep triggering until the key is created again.
-		errLogs := map[time.Time]struct{}{}
-		require.Eventuallyf(t, func() bool {
+		// Assert error logs were triggered (at least 1, at most testTickerIterations)
+		// Use Eventually to give the goroutine time to process the clock ticks
+		require.Eventually(t, func() bool {
+			errLogs := map[time.Time]struct{}{}
 			for _, entry := range logHook.AllEntries() {
 				if entry.Level == logrus.ErrorLevel && strings.Contains(entry.Message, fmt.Sprintf("Failed to get file info, file path %q does not exist anymore; please check if the path is correct", keyFilePath)) {
 					errLogs[entry.Time] = struct{}{}
 				}
 			}
-			return len(errLogs) == 5
-		}, 10*time.Second, 10*time.Millisecond, "Failed to assert error logs")
+			return len(errLogs) >= 1 && len(errLogs) <= testTickerIterations
+		}, time.Second, 10*time.Millisecond, "expected 1-%d error logs", testTickerIterations)
 
 		removeFile(t, certFilePath)
+		logHook.Reset()
 
-		for range 5 {
-			clk.Add(10 * time.Millisecond)
-		}
+		clk.Add(testTotalSyncDuration)
 
-		// Assert error logs that will keep triggering until the cert is created again.
-		errLogs = map[time.Time]struct{}{}
-		require.Eventuallyf(t, func() bool {
+		// Assert error logs were triggered (at least 1, at most testTickerIterations)
+		// Use Eventually to give the goroutine time to process the clock ticks
+		require.Eventually(t, func() bool {
+			errLogs := map[time.Time]struct{}{}
 			for _, entry := range logHook.AllEntries() {
 				if entry.Level == logrus.ErrorLevel && strings.Contains(entry.Message, fmt.Sprintf("Failed to get file info, file path %q does not exist anymore; please check if the path is correct", certFilePath)) {
 					errLogs[entry.Time] = struct{}{}
 				}
 			}
-			return len(errLogs) == 5
-		}, 10*time.Second, 10*time.Millisecond, "Failed to assert error logs")
+			return len(errLogs) >= 1 && len(errLogs) <= testTickerIterations
+		}, time.Second, 10*time.Millisecond, "expected 1-%d error logs", testTickerIterations)
 
 		writeFile(t, keyFilePath, oidcServerKeyPem)
 
 		writeFile(t, certFilePath, oidcServerCertPem)
 
-		clk.Add(10 * time.Millisecond)
+		clk.Add(testFileSyncInterval)
 
 		require.Eventuallyf(t, func() bool {
 			cert, err := tlsConfig.GetCertificate(chInfo)

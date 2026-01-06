@@ -60,3 +60,22 @@ func randUint64() uint64 {
 	}
 	return value
 }
+
+func ServeGRPCServerOnListener(t *testing.T, server *grpc.Server, listener net.Listener) {
+	// The Windows-specific implementation handles the race condition during cleanup
+	// with named pipes. Named pipes on Windows require special handling during
+	// shutdown to avoid deadlocks.
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- server.Serve(listener)
+	}()
+	t.Cleanup(func() {
+		// Close the listener first to unblock server.Serve()
+		// This is necessary on Windows to prevent deadlock during named pipe cleanup
+		listener.Close()
+		server.GracefulStop()
+		// Wait for Serve to return. We expect an error since we closed the listener,
+		// so we don't need to check it.
+		<-errCh
+	})
+}
