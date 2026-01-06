@@ -289,7 +289,7 @@ func (m *manager) FetchWorkloadUpdate(selectors []*common.Selector) *cache.Workl
 func (m *manager) FetchJWTSVID(ctx context.Context, entry *common.RegistrationEntry, audience []string) (*client.JWTSVID, error) {
 	spiffeID, err := spiffeid.FromString(entry.SpiffeId)
 	if err != nil {
-		return nil, errors.New("Invalid SPIFFE ID: " + err.Error())
+		return nil, fmt.Errorf("invalid SPIFFE ID: %w", err)
 	}
 
 	now := m.clk.Now()
@@ -298,7 +298,7 @@ func (m *manager) FetchJWTSVID(ctx context.Context, entry *common.RegistrationEn
 		return cachedSVID, nil
 	}
 
-	newSVID, err := m.client.NewJWTSVID(ctx, entry.EntryId, audience)
+	newSVID, svidSPIFFEID, err := m.client.NewJWTSVID(ctx, entry.EntryId, audience)
 	switch {
 	case err == nil:
 	case cachedSVID == nil:
@@ -310,7 +310,7 @@ func (m *manager) FetchJWTSVID(ctx context.Context, entry *common.RegistrationEn
 		return cachedSVID, nil
 	}
 
-	m.cache.SetJWTSVID(spiffeID, audience, newSVID)
+	m.cache.SetJWTSVID(svidSPIFFEID, audience, newSVID)
 	return newSVID, nil
 }
 
