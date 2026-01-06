@@ -11,7 +11,6 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -27,8 +26,6 @@ import (
 var (
 	oidcServerKey    = testkey.MustEC256()
 	oidcServerKeyNew = testkey.MustEC256()
-
-	fileDontExistMessage = "no such file or directory"
 )
 
 const (
@@ -38,11 +35,6 @@ const (
 )
 
 func TestTLSConfig(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		// Skip this test on Windows for now
-		// https://github.com/spiffe/spire/issues/4324
-		t.Skip()
-	}
 	logger, logHook := test.NewNullLogger()
 
 	clk := clock.NewMock(t)
@@ -127,7 +119,7 @@ func TestTLSConfig(t *testing.T) {
 			KeyFilePath:  keyFilePath,
 		}, clk, logger)
 
-		require.EqualError(t, err, fmt.Sprintf("failed to load certificate: open %s: %s", filepath.Join(tmpDir, "nonexistent_cert.pem"), fileDontExistMessage))
+		require.ErrorContains(t, err, fmt.Sprintf("failed to load certificate: open %s", filepath.Join(tmpDir, "nonexistent_cert.pem")))
 	})
 
 	t.Run("error when provided key path do not exist", func(t *testing.T) {
@@ -136,7 +128,7 @@ func TestTLSConfig(t *testing.T) {
 			KeyFilePath:  filepath.Join(tmpDir, "nonexistent_key.pem"),
 		}, clk, logger)
 
-		require.EqualError(t, err, fmt.Sprintf("failed to load certificate: open %s: %s", filepath.Join(tmpDir, "nonexistent_key.pem"), fileDontExistMessage))
+		require.ErrorContains(t, err, fmt.Sprintf("failed to load certificate: open %s", filepath.Join(tmpDir, "nonexistent_key.pem")))
 	})
 
 	t.Run("error when provided cert is invalid", func(t *testing.T) {
@@ -228,19 +220,22 @@ func TestTLSConfig(t *testing.T) {
 	})
 
 	t.Run("update cert file with an invalid cert start error log loop", func(t *testing.T) {
+		logHook.Reset()
 		writeFile(t, certFilePath, []byte("invalid-cert"))
 
-		logHook.Reset()
 		clk.Add(testTotalSyncDuration)
 
 		// Assert error logs were triggered (at least 1, at most testTickerIterations)
-		errLogs := map[time.Time]struct{}{}
-		for _, entry := range logHook.AllEntries() {
-			if entry.Level == logrus.ErrorLevel && strings.Contains(entry.Message, "Failed to load certificate: tls: failed to find any PEM data in certificate input") {
-				errLogs[entry.Time] = struct{}{}
+		// Use Eventually to give the goroutine time to process the clock ticks
+		require.Eventually(t, func() bool {
+			errLogs := map[time.Time]struct{}{}
+			for _, entry := range logHook.AllEntries() {
+				if entry.Level == logrus.ErrorLevel && strings.Contains(entry.Message, "Failed to load certificate: tls: failed to find any PEM data in certificate input") {
+					errLogs[entry.Time] = struct{}{}
+				}
 			}
-		}
-		require.True(t, len(errLogs) >= 1 && len(errLogs) <= testTickerIterations, "expected 1-%d error logs, got %d", testTickerIterations, len(errLogs))
+			return len(errLogs) >= 1 && len(errLogs) <= testTickerIterations
+		}, time.Second, 10*time.Millisecond, "expected 1-%d error logs", testTickerIterations)
 
 		// New cert is not loaded because it is invalid.
 		cert, err := tlsConfig.GetCertificate(chInfo)
@@ -252,6 +247,7 @@ func TestTLSConfig(t *testing.T) {
 	})
 
 	t.Run("update key file with an invalid key start error log loop", func(t *testing.T) {
+		logHook.Reset()
 		writeFile(t, certFilePath, pem.EncodeToMemory(&pem.Block{
 			Type:  "CERTIFICATE",
 			Bytes: oidcServerCertUpdated2.Raw,
@@ -259,17 +255,19 @@ func TestTLSConfig(t *testing.T) {
 
 		writeFile(t, keyFilePath, []byte("invalid-key"))
 
-		logHook.Reset()
 		clk.Add(testTotalSyncDuration)
 
 		// Assert error logs were triggered (at least 1, at most testTickerIterations)
-		errLogs := map[time.Time]struct{}{}
-		for _, entry := range logHook.AllEntries() {
-			if entry.Level == logrus.ErrorLevel && strings.Contains(entry.Message, "Failed to load certificate: tls: failed to find any PEM data in key input") {
-				errLogs[entry.Time] = struct{}{}
+		// Use Eventually to give the goroutine time to process the clock ticks
+		require.Eventually(t, func() bool {
+			errLogs := map[time.Time]struct{}{}
+			for _, entry := range logHook.AllEntries() {
+				if entry.Level == logrus.ErrorLevel && strings.Contains(entry.Message, "Failed to load certificate: tls: failed to find any PEM data in key input") {
+					errLogs[entry.Time] = struct{}{}
+				}
 			}
-		}
-		require.True(t, len(errLogs) >= 1 && len(errLogs) <= testTickerIterations, "expected 1-%d error logs, got %d", testTickerIterations, len(errLogs))
+			return len(errLogs) >= 1 && len(errLogs) <= testTickerIterations
+		}, time.Second, 10*time.Millisecond, "expected 1-%d error logs", testTickerIterations)
 
 		// New cert is not loaded because it is invalid.
 		cert, err := tlsConfig.GetCertificate(chInfo)
@@ -307,13 +305,16 @@ func TestTLSConfig(t *testing.T) {
 		clk.Add(testTotalSyncDuration)
 
 		// Assert error logs were triggered (at least 1, at most testTickerIterations)
-		errLogs := map[time.Time]struct{}{}
-		for _, entry := range logHook.AllEntries() {
-			if entry.Level == logrus.ErrorLevel && strings.Contains(entry.Message, fmt.Sprintf("Failed to get file info, file path %q does not exist anymore; please check if the path is correct", keyFilePath)) {
-				errLogs[entry.Time] = struct{}{}
+		// Use Eventually to give the goroutine time to process the clock ticks
+		require.Eventually(t, func() bool {
+			errLogs := map[time.Time]struct{}{}
+			for _, entry := range logHook.AllEntries() {
+				if entry.Level == logrus.ErrorLevel && strings.Contains(entry.Message, fmt.Sprintf("Failed to get file info, file path %q does not exist anymore; please check if the path is correct", keyFilePath)) {
+					errLogs[entry.Time] = struct{}{}
+				}
 			}
-		}
-		require.True(t, len(errLogs) >= 1 && len(errLogs) <= testTickerIterations, "expected 1-%d error logs, got %d", testTickerIterations, len(errLogs))
+			return len(errLogs) >= 1 && len(errLogs) <= testTickerIterations
+		}, time.Second, 10*time.Millisecond, "expected 1-%d error logs", testTickerIterations)
 
 		removeFile(t, certFilePath)
 		logHook.Reset()
@@ -321,13 +322,16 @@ func TestTLSConfig(t *testing.T) {
 		clk.Add(testTotalSyncDuration)
 
 		// Assert error logs were triggered (at least 1, at most testTickerIterations)
-		errLogs = map[time.Time]struct{}{}
-		for _, entry := range logHook.AllEntries() {
-			if entry.Level == logrus.ErrorLevel && strings.Contains(entry.Message, fmt.Sprintf("Failed to get file info, file path %q does not exist anymore; please check if the path is correct", certFilePath)) {
-				errLogs[entry.Time] = struct{}{}
+		// Use Eventually to give the goroutine time to process the clock ticks
+		require.Eventually(t, func() bool {
+			errLogs := map[time.Time]struct{}{}
+			for _, entry := range logHook.AllEntries() {
+				if entry.Level == logrus.ErrorLevel && strings.Contains(entry.Message, fmt.Sprintf("Failed to get file info, file path %q does not exist anymore; please check if the path is correct", certFilePath)) {
+					errLogs[entry.Time] = struct{}{}
+				}
 			}
-		}
-		require.True(t, len(errLogs) >= 1 && len(errLogs) <= testTickerIterations, "expected 1-%d error logs, got %d", testTickerIterations, len(errLogs))
+			return len(errLogs) >= 1 && len(errLogs) <= testTickerIterations
+		}, time.Second, 10*time.Millisecond, "expected 1-%d error logs", testTickerIterations)
 
 		writeFile(t, keyFilePath, oidcServerKeyPem)
 

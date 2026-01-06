@@ -19,6 +19,7 @@ import (
 	svidv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/svid/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
+	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/tlspolicy"
 	"github.com/spiffe/spire/proto/spire/common"
@@ -77,7 +78,7 @@ type Client interface {
 	SyncUpdates(ctx context.Context, cachedEntries map[string]*common.RegistrationEntry, cachedBundles map[string]*common.Bundle) (SyncStats, error)
 	RenewSVID(ctx context.Context, csr []byte) (*X509SVID, error)
 	NewX509SVIDs(ctx context.Context, csrs map[string][]byte) (map[string]*X509SVID, error)
-	NewJWTSVID(ctx context.Context, entryID string, audience []string) (*JWTSVID, error)
+	NewJWTSVID(ctx context.Context, entryID string, audience []string) (*JWTSVID, spiffeid.ID, error)
 
 	// Release releases any resources that were held by this Client, if any.
 	Release()
@@ -302,7 +303,7 @@ func (c *client) NewX509SVIDs(ctx context.Context, csrs map[string][]byte) (map[
 	return svids, nil
 }
 
-func (c *client) NewJWTSVID(ctx context.Context, entryID string, audience []string) (*JWTSVID, error) {
+func (c *client) NewJWTSVID(ctx context.Context, entryID string, audience []string) (*JWTSVID, spiffeid.ID, error) {
 	c.c.RotMtx.RLock()
 	defer c.c.RotMtx.RUnlock()
 
@@ -311,7 +312,7 @@ func (c *client) NewJWTSVID(ctx context.Context, entryID string, audience []stri
 
 	svidClient, connection, err := c.newSVIDClient()
 	if err != nil {
-		return nil, err
+		return nil, spiffeid.ID{}, err
 	}
 	defer connection.Release()
 
@@ -322,26 +323,31 @@ func (c *client) NewJWTSVID(ctx context.Context, entryID string, audience []stri
 	if err != nil {
 		c.release(connection)
 		c.withErrorFields(err).Error("Failed to fetch JWT SVID")
-		return nil, fmt.Errorf("failed to fetch JWT SVID: %w", err)
+		return nil, spiffeid.ID{}, fmt.Errorf("failed to fetch JWT SVID: %w", err)
 	}
 
 	svid := resp.Svid
 	switch {
 	case svid == nil:
-		return nil, errors.New("JWTSVID response missing SVID")
+		return nil, spiffeid.ID{}, errors.New("JWTSVID response missing SVID")
 	case svid.IssuedAt == 0:
-		return nil, errors.New("JWTSVID missing issued at")
+		return nil, spiffeid.ID{}, errors.New("JWTSVID missing issued at")
 	case svid.ExpiresAt == 0:
-		return nil, errors.New("JWTSVID missing expires at")
+		return nil, spiffeid.ID{}, errors.New("JWTSVID missing expires at")
 	case svid.IssuedAt > svid.ExpiresAt:
-		return nil, errors.New("JWTSVID issued after it has expired")
+		return nil, spiffeid.ID{}, errors.New("JWTSVID issued after it has expired")
+	}
+
+	spiffeId, err := idutil.IDFromProto(svid.Id)
+	if err != nil {
+		return nil, spiffeid.ID{}, fmt.Errorf("could not parse JWT-SVID SPIFFE ID: %w", err)
 	}
 
 	return &JWTSVID{
 		Token:     svid.Token,
 		IssuedAt:  time.Unix(svid.IssuedAt, 0).UTC(),
 		ExpiresAt: time.Unix(svid.ExpiresAt, 0).UTC(),
-	}, nil
+	}, spiffeId, nil
 }
 
 // Release the underlying connection.
