@@ -546,7 +546,7 @@ func (s *Service) newWITSVID(ctx context.Context, param *svidv1.NewWITSVIDParams
 		PublicKey: jose.JSONWebKey{
 			Key: publicKey,
 		},
-		// TODO: add its own TTL
+		// TODO: add WIT specific TTL (https://github.com/spiffe/spire/issues/6535)
 		TTL: time.Duration(entry.GetX509SvidTtl()) * time.Second,
 	})
 	if err != nil {
