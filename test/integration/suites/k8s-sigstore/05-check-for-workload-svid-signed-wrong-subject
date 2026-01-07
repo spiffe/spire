@@ -1,0 +1,14 @@
+#!/bin/sh
+
+source init-kubectl
+source check_for_workload_svid
+
+check_for_workload_svid "spiffe://example.org/ns/default/sa/default/workload-signed-wrong-subject" example-workload-signed-wrong-subject
+
+if [ "${DONE}" -eq 1 ]; then
+    log-info "SPIFFE ID found for image signed with wrong subject in skip list."
+elif [ "${DONE}" -eq 0 ]; then
+    fail-now "timed out waiting for workload to obtain credentials."
+else
+    fail-now "failed to check for svid"
+fi

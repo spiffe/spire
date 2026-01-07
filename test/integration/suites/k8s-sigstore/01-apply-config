@@ -1,0 +1,32 @@
+#!/bin/bash
+
+source init-kubectl
+
+log-info "creating spire namespace..."
+${KUBEBIN} create namespace spire || fail-now "unable to create spire namespace"
+
+log-info "applying server k8s configuration..."
+${KUBEBIN} apply -k conf/server || fail-now "unable to apply server configuration"
+
+log-info "applying agent k8s configuration..."
+${KUBEBIN} apply -k conf/agent || fail-now "unable to apply agent configuration"
+
+log-info "waiting for spire-server pod to be running..."
+${KUBEBIN} wait --for=condition=ready --timeout=60s pod -n spire -l app=spire-server || fail-now "spire-server pod did not become ready"
+
+log-info "waiting for spire-agent daemonset to be ready..."
+${KUBEBIN} wait --for=condition=ready --timeout=60s pod -n spire -l app=spire-agent || fail-now "spire-agent pod did not become ready"
+
+log-info "applying workload configurations..."
+${KUBEBIN} apply -f conf/workload-signed.yaml || fail-now "unable to apply signed workload"
+${KUBEBIN} apply -f conf/workload-unsigned.yaml || fail-now "unable to apply unsigned workload"
+${KUBEBIN} apply -f conf/workload-signed-wrong-subject.yaml || fail-now "unable to apply signed-wrong-subject workload"
+${KUBEBIN} apply -f conf/workload-signed-extra.yaml || fail-now "unable to apply signed-extra workload"
+${KUBEBIN} apply -f conf/multiple-containers.yaml || fail-now "unable to apply multiple-containers workload"
+
+log-info "waiting for workload pods to be running..."
+${KUBEBIN} wait --for=condition=ready --timeout=60s pod -n spire -l app=example-workload-signed || fail-now "signed workload pod did not become ready"
+${KUBEBIN} wait --for=condition=ready --timeout=60s pod -n spire -l app=example-workload-unsigned || fail-now "unsigned workload pod did not become ready"
+${KUBEBIN} wait --for=condition=ready --timeout=60s pod -n spire -l app=example-workload-signed-wrong-subject || fail-now "signed-wrong-subject workload pod did not become ready"
+${KUBEBIN} wait --for=condition=ready --timeout=60s pod -n spire -l app=example-workload-signed-extra || fail-now "signed-extra workload pod did not become ready"
+${KUBEBIN} wait --for=condition=ready --timeout=60s pod -n spire -l app=example-multiple-containers || fail-now "multiple-containers workload pod did not become ready"
