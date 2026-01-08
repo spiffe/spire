@@ -345,9 +345,7 @@ func (m *manager) fetchEntries(ctx context.Context) (_ *cache.UpdateEntries, _ *
 		case entry.StoreSvid:
 			storeEntries[entryID] = entry
 		default:
-			if !entry.CacheHintFlags.GetDisableX509SvidPrefetch() {
-				cacheEntries[entryID] = entry
-			}
+			cacheEntries[entryID] = entry
 		}
 	}
 
