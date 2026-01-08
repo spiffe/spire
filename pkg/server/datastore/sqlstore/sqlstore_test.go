@@ -1388,6 +1388,25 @@ func (s *PluginSuite) TestUpdateAttestedNode() {
 				NewCertSerialNumber: updatedNewSerial,
 			},
 		},
+		{
+			name: "update attested node agent version only",
+			updateNode: &common.AttestedNode{
+				SpiffeId:     nodeID,
+				AgentVersion: "1.5.0",
+			},
+			updateNodeMask: &common.AttestedNodeMask{
+				AgentVersion: true,
+			},
+			expUpdatedNode: &common.AttestedNode{
+				SpiffeId:            nodeID,
+				AttestationDataType: attestationType,
+				CertSerialNumber:    serial,
+				CertNotAfter:        expires,
+				NewCertNotAfter:     newExpires,
+				NewCertSerialNumber: newSerial,
+				AgentVersion:        "1.5.0",
+			},
+		},
 	} {
 		s.T().Run(tt.name, func(t *testing.T) {
 			s.ds = s.newPlugin()

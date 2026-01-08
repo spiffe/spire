@@ -1832,6 +1832,9 @@ type mockAPI struct {
 	getAuthorizedEntriesCount int32
 	batchNewX509SVIDCount     int32
 
+	// Last agent version received via PostStatus
+	lastAgentVersion string
+
 	taintedX509Authority *x509.Certificate
 
 	clk clock.Clock
@@ -1903,6 +1906,11 @@ func (h *mockAPI) RenewAgent(ctx context.Context, req *agentv1.RenewAgentRequest
 			ExpiresAt: svid[0].NotAfter.Unix(),
 		},
 	}, nil
+}
+
+func (h *mockAPI) PostStatus(_ context.Context, req *agentv1.PostStatusRequest) (*agentv1.PostStatusResponse, error) {
+	h.lastAgentVersion = req.AgentVersion
+	return &agentv1.PostStatusResponse{}, nil
 }
 
 func (h *mockAPI) GetAuthorizedEntries(_ context.Context, req *entryv1.GetAuthorizedEntriesRequest) (*entryv1.GetAuthorizedEntriesResponse, error) {
