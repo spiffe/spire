@@ -2378,6 +2378,9 @@ func updateAttestedNode(tx *gorm.DB, n *common.AttestedNode, mask *common.Attest
 	if mask.CanReattest {
 		updates["can_reattest"] = n.CanReattest
 	}
+	if mask.AgentVersion {
+		updates["agent_version"] = n.AgentVersion
+	}
 	if err := tx.Model(&model).Updates(updates).Error; err != nil {
 		return nil, newWrappedSQLError(err)
 	}
@@ -4671,6 +4674,7 @@ func modelToAttestedNode(model AttestedNode) *common.AttestedNode {
 		NewCertSerialNumber: model.NewSerialNumber,
 		NewCertNotAfter:     nullableDBTimeToUnixTime(model.NewExpiresAt),
 		CanReattest:         model.CanReattest,
+		AgentVersion:        model.AgentVersion,
 	}
 }
 
