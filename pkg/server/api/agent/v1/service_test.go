@@ -2053,13 +2053,13 @@ func TestRenewAgent(t *testing.T) {
 
 func TestPostStatus(t *testing.T) {
 	for _, tt := range []struct {
-		name           string
-		request        *agentv1.PostStatusRequest
-		createAgent    bool
-		withCallerID   bool
-		expectCode     codes.Code
-		expectMsg      string
-		expectVersion  string
+		name          string
+		request       *agentv1.PostStatusRequest
+		createAgent   bool
+		withCallerID  bool
+		expectCode    codes.Code
+		expectMsg     string
+		expectVersion string
 	}{
 		{
 			name:         "missing caller ID",
