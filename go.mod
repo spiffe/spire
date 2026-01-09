@@ -337,4 +337,4 @@ require (
 	sigs.k8s.io/yaml v1.6.0 // indirect
 )
 
-replace github.com/spiffe/spire-api-sdk => github.com/nweisenauer-sap/spire-api-sdk-fork v0.0.0-20260108145659-cfd5cac1d76e
+replace github.com/spiffe/spire-api-sdk => github.com/nweisenauer-sap/spire-api-sdk-fork v0.0.0-20260109113457-1782150c1b82

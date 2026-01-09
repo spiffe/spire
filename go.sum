@@ -1442,8 +1442,8 @@ github.com/mwitkow/go-conntrack v0.0.0-20161129095857-cc309e4a2223/go.mod h1:qRW
 github.com/mwitkow/go-conntrack v0.0.0-20190716064945-2f068394615f/go.mod h1:qRWi+5nqEBWmkhHvq77mSJWrCKwh8bxhgT7d/eI7P4U=
 github.com/nozzle/throttler v0.0.0-20180817012639-2ea982251481 h1:Up6+btDp321ZG5/zdSLo48H9Iaq0UQGthrhWC6pCxzE=
 github.com/nozzle/throttler v0.0.0-20180817012639-2ea982251481/go.mod h1:yKZQO8QE2bHlgozqWDiRVqTFlLQSj30K/6SAK8EeYFw=
-github.com/nweisenauer-sap/spire-api-sdk-fork v0.0.0-20260108145659-cfd5cac1d76e h1:WUT6cE+DUM2SI0TSEC/FIhgTfKetXEHOD5tfGxU2ozo=
-github.com/nweisenauer-sap/spire-api-sdk-fork v0.0.0-20260108145659-cfd5cac1d76e/go.mod h1:9hXJcMzatM1KwAtBDO3s6HccDCic++/5c2yOc5Iln8Y=
+github.com/nweisenauer-sap/spire-api-sdk-fork v0.0.0-20260109113457-1782150c1b82 h1:E4otQ76NYdqKThrBQKMjaa3LRrLoioHUsM0jqCsX+PQ=
+github.com/nweisenauer-sap/spire-api-sdk-fork v0.0.0-20260109113457-1782150c1b82/go.mod h1:9hXJcMzatM1KwAtBDO3s6HccDCic++/5c2yOc5Iln8Y=
 github.com/nxadm/tail v1.4.4/go.mod h1:kenIhsEOeOJmVchQTgglprH7qJGnHDVpk1VPCcaMI8A=
 github.com/nxadm/tail v1.4.8/go.mod h1:+ncqLTQzXmGhMZNUePPaPqPvBxHAIsmXswZKocGu+AU=
 github.com/nxadm/tail v1.4.11 h1:8feyoE3OzPrcshW5/MJ4sGESc5cqmGkGCWlco4l0bqY=
