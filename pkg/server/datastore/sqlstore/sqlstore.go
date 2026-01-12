@@ -1620,6 +1620,7 @@ func createAttestedNode(tx *gorm.DB, node *common.AttestedNode) (*common.Atteste
 		NewSerialNumber: node.NewCertSerialNumber,
 		NewExpiresAt:    nullableUnixTimeToDBTime(node.NewCertNotAfter),
 		CanReattest:     node.CanReattest,
+		AgentVersion:    node.AgentVersion,
 	}
 
 	if err := tx.Create(&model).Error; err != nil {
@@ -2070,7 +2071,8 @@ SELECT
 	expires_at,
 	new_serial_number,
 	new_expires_at,
-	can_reattest,`)
+	can_reattest,
+	agent_version,`)
 
 	// Add "optional" fields for selectors
 	if fetchSelectors {
@@ -2203,7 +2205,8 @@ SELECT
 	N.expires_at,
 	N.new_serial_number,
 	N.new_expires_at,
-	N.can_reattest,`)
+	N.can_reattest,
+	N.agent_version,`)
 	// Add "optional" fields for selectors
 	if fetchSelectors {
 		builder.WriteString(`
@@ -3761,6 +3764,7 @@ type nodeRow struct {
 	NewSerialNumber sql.NullString
 	NewExpiresAt    sql.NullTime
 	CanReattest     sql.NullBool
+	AgentVersion    sql.NullString
 	SelectorType    sql.NullString
 	SelectorValue   sql.NullString
 }
@@ -3775,6 +3779,7 @@ func scanNodeRow(rs *sql.Rows, r *nodeRow) error {
 		&r.NewSerialNumber,
 		&r.NewExpiresAt,
 		&r.CanReattest,
+		&r.AgentVersion,
 		&r.SelectorType,
 		&r.SelectorValue,
 	))
@@ -3817,6 +3822,10 @@ func fillNodeFromRow(node *common.AttestedNode, r *nodeRow) error {
 
 	if r.CanReattest.Valid {
 		node.CanReattest = r.CanReattest.Bool
+	}
+
+	if r.AgentVersion.Valid {
+		node.AgentVersion = r.AgentVersion.String
 	}
 
 	return nil
