@@ -362,8 +362,21 @@ func TestTLSConfig(t *testing.T) {
 }
 
 func writeFile(t *testing.T, name string, data []byte) {
-	err := os.WriteFile(name, data, 0600)
-	require.NoError(t, err)
+	// Ensure ModTime will be different from previous write by setting it explicitly.
+	// This handles filesystems with coarse ModTime resolution (e.g., 1-second granularity).
+	newModTime := time.Now()
+	info, err := os.Stat(name)
+	switch {
+	case err == nil:
+		newModTime = info.ModTime().Add(time.Second)
+	case os.IsNotExist(err):
+		// File doesn't exist - use time.Now()
+	default:
+		require.NoError(t, err, "failed to stat file before writing")
+	}
+
+	require.NoError(t, os.WriteFile(name, data, 0600))
+	require.NoError(t, os.Chtimes(name, newModTime, newModTime))
 }
 
 func removeFile(t *testing.T, name string) {
