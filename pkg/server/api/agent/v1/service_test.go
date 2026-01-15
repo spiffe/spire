@@ -2093,6 +2093,36 @@ func TestPostStatus(t *testing.T) {
 			expectCode:    codes.OK,
 			expectVersion: "",
 		},
+		{
+			name: "agent version too long",
+			request: &agentv1.PostStatusRequest{
+				AgentVersion: string(make([]byte, 256)),
+			},
+			createAgent:  true,
+			withCallerID: true,
+			expectCode:   codes.InvalidArgument,
+			expectMsg:    "agent version is too long",
+		},
+		{
+			name: "agent version at max length",
+			request: &agentv1.PostStatusRequest{
+				AgentVersion: string(make([]byte, 255)),
+			},
+			createAgent:   true,
+			withCallerID:  true,
+			expectCode:    codes.OK,
+			expectVersion: string(make([]byte, 255)),
+		},
+		{
+			name: "agent version with invalid UTF-8",
+			request: &agentv1.PostStatusRequest{
+				AgentVersion: "1.0.0\xff\xfe",
+			},
+			createAgent:  true,
+			withCallerID: true,
+			expectCode:   codes.Internal,
+			expectMsg:    "grpc: error while marshaling: string field contains invalid UTF-8",
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			test := setupServiceTest(t, 0)

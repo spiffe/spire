@@ -199,9 +199,7 @@ func (m *manager) Initialize(ctx context.Context) error {
 	// Post agent status with version information to the server
 	if err := m.client.PostStatus(ctx, version.Version()); err != nil {
 		// Log the error but don't fail initialization - the server may not support this yet
-		m.c.Log.WithField(telemetry.AgentVersion, version.Version()).WithError(err).Debug("Failed to post agent status")
-	} else {
-		m.c.Log.WithField(telemetry.AgentVersion, version.Version()).Info("Agent status posted")
+		m.c.Log.WithField(telemetry.AgentVersion, version.Version()).WithError(err).Error("Failed to post agent status")
 	}
 
 	err := m.synchronize(ctx)

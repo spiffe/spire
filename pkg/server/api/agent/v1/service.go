@@ -485,16 +485,22 @@ func (s *Service) PostStatus(ctx context.Context, req *agentv1.PostStatusRequest
 		return nil, api.MakeErr(log, codes.Internal, "caller ID missing from request context", nil)
 	}
 
+	agentVersion := req.GetAgentVersion()
+
 	log = log.WithField(telemetry.SPIFFEID, callerID.String())
 	rpccontext.AddRPCAuditFields(ctx, logrus.Fields{
 		telemetry.SPIFFEID:     callerID.String(),
-		telemetry.AgentVersion: req.GetAgentVersion(),
+		telemetry.AgentVersion: agentVersion,
 	})
 
-	if req.GetAgentVersion() != "" {
+	if agentVersion != "" {
+		if len(agentVersion) > 255 {
+			return nil, api.MakeErr(log, codes.InvalidArgument, "agent version is too long (max 255 characters)", nil)
+		}
+
 		update := &common.AttestedNode{
 			SpiffeId:     callerID.String(),
-			AgentVersion: req.GetAgentVersion(),
+			AgentVersion: agentVersion,
 		}
 		mask := &common.AttestedNodeMask{
 			AgentVersion: true,
@@ -502,7 +508,7 @@ func (s *Service) PostStatus(ctx context.Context, req *agentv1.PostStatusRequest
 		if err := s.updateAttestedNode(ctx, update, mask, log); err != nil {
 			return nil, err
 		}
-		log.WithField(telemetry.AgentVersion, req.GetAgentVersion()).Info("Agent status updated")
+		log.WithField(telemetry.AgentVersion, agentVersion).Info("Agent status updated")
 	}
 
 	rpccontext.AuditRPC(ctx)

@@ -35,6 +35,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/rotationutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	"github.com/spiffe/spire/pkg/common/version"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/proto/spire/common"
@@ -551,6 +552,9 @@ func TestSynchronization(t *testing.T) {
 		t.Fatal(err)
 	}
 	require.Equal(t, clk.Now(), m.GetLastSync())
+
+	// Verify that the agent version was sent to the server during initialization
+	require.Equal(t, version.Version(), api.lastAgentVersion)
 
 	// Before synchronization
 	identitiesBefore := identitiesByEntryID(m.cache.Identities())
