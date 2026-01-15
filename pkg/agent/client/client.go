@@ -27,6 +27,10 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+const (
+	rpcTimeout = 30 * time.Second
+)
+
 var (
 	ErrUnableToGetStream = errors.New("unable to get a stream")
 
@@ -41,14 +45,16 @@ var (
 		Hint:           true,
 		CreatedAt:      true,
 	}
+
+	// RPCTimeoutWithCacheHit can be more aggressive with timeouts in cases where a valid SVID
+	// exists in the cache but is old enough to try for a new SVID quickly. This is configurable
+	// in the Experimental Config of the Agent, and can be set as low as 5 seconds
+	RPCTimeoutWithCacheHit = rpcTimeout
 )
 
-const (
-	rpcTimeout = 30 * time.Second
-	// We can be more aggressive with timeouts in cases where a valid SVID
-	// exists in the cache but is old enough to try for a new SVID quickly
-	rpcTimeoutWithCacheHit = 5 * time.Second
-)
+func SetJWTSVIDCacheHitTimeout(d time.Duration) {
+	RPCTimeoutWithCacheHit = d
+}
 
 type X509SVID struct {
 	CertChain []byte
@@ -313,7 +319,7 @@ func (c *client) NewJWTSVID(ctx context.Context, entryID string, audience []stri
 
 	timeout := rpcTimeout
 	if hasCacheHit {
-		timeout = rpcTimeoutWithCacheHit
+		timeout = RPCTimeoutWithCacheHit
 	}
 
 	ctx, cancel := context.WithTimeout(ctx, timeout)
