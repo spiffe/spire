@@ -44,7 +44,12 @@ var (
 	}
 )
 
-const rpcTimeout = 30 * time.Second
+const (
+	rpcTimeout = 30 * time.Second
+
+	// maxBundleWorkers is the maximum number of worker goroutines to use when fetching bundles.
+	maxBundleWorkers = 10
+)
 
 type X509SVID struct {
 	CertChain []byte
@@ -107,6 +112,12 @@ type client struct {
 
 	// dialOpts optionally sets gRPC dial options
 	dialOpts []grpc.DialOption
+}
+
+// fetchBundleResult contains the result of fetching a federated bundle.
+type fetchBundleResult struct {
+	bundle *types.Bundle
+	err    error
 }
 
 // New creates a new client struct with the configuration provided
@@ -611,7 +622,7 @@ func (c *client) fetchBundles(ctx context.Context, federatedBundles []string) ([
 	}
 	defer connection.Release()
 
-	var bundles []*types.Bundle
+	bundles := make([]*types.Bundle, 0, len(federatedBundles)+1)
 
 	// Get bundle
 	bundle, err := bundleClient.GetBundle(ctx, &bundlev1.GetBundleRequest{})
@@ -622,27 +633,67 @@ func (c *client) fetchBundles(ctx context.Context, federatedBundles []string) ([
 	}
 	bundles = append(bundles, bundle)
 
-	for _, b := range federatedBundles {
-		federatedTD, err := spiffeid.TrustDomainFromString(b)
-		if err != nil {
-			return nil, err
+	return c.fetchBundlesConcurrently(ctx, bundleClient, federatedBundles, bundles)
+}
+
+// fetchBundlesConcurrently fetches federated bundles concurrently.
+// This is done to improve sync times when there are many federations. This should ensure that the
+// sync does not exceed rpcTimeout.
+func (c *client) fetchBundlesConcurrently(ctx context.Context, bundleClient bundlev1.BundleClient, trustDomains []string, bundles []*types.Bundle) ([]*types.Bundle, error) {
+	jobCh := make(chan string)
+	resultCh := make(chan fetchBundleResult, len(trustDomains))
+	// Start a set of worker goroutines.
+	wg := sync.WaitGroup{}
+	for range min(maxBundleWorkers, len(trustDomains)) {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for trustDomain := range jobCh {
+				bundle, err := c.fetchBundle(ctx, bundleClient, trustDomain)
+				resultCh <- fetchBundleResult{bundle: bundle, err: err}
+			}
+		}()
+	}
+	// Feed the workers.
+	for _, b := range trustDomains {
+		jobCh <- b
+	}
+	close(jobCh)
+	// Wait for completion of all jobs.
+	wg.Wait()
+	close(resultCh)
+	// Process the results.
+	for r := range resultCh {
+		if r.err != nil {
+			return nil, r.err
 		}
-		bundle, err := bundleClient.GetFederatedBundle(ctx, &bundlev1.GetFederatedBundleRequest{
-			TrustDomain: federatedTD.Name(),
-		})
-		log := c.withErrorFields(err)
-		switch status.Code(err) {
-		case codes.OK:
-			bundles = append(bundles, bundle)
-		case codes.NotFound:
-			log.WithField(telemetry.FederatedBundle, b).Warn("Federated bundle not found")
-		default:
-			log.WithField(telemetry.FederatedBundle, b).Error("Failed to fetch federated bundle")
-			return nil, fmt.Errorf("failed to fetch federated bundle: %w", err)
+		if r.bundle != nil {
+			bundles = append(bundles, r.bundle)
 		}
 	}
-
 	return bundles, nil
+}
+
+// fetchBundle fetches a single federated bundle from SPIRE server.
+func (c *client) fetchBundle(ctx context.Context, bundleClient bundlev1.BundleClient, trustDomain string) (*types.Bundle, error) {
+	federatedTD, err := spiffeid.TrustDomainFromString(trustDomain)
+	if err != nil {
+		return nil, err
+	}
+	bundle, err := bundleClient.GetFederatedBundle(ctx, &bundlev1.GetFederatedBundleRequest{
+		TrustDomain: federatedTD.Name(),
+	})
+	log := c.withErrorFields(err)
+	switch status.Code(err) {
+	case codes.OK:
+		return bundle, nil
+	case codes.NotFound:
+		log.WithField(telemetry.FederatedBundle, trustDomain).Warn("Federated bundle not found")
+		return nil, nil
+	default:
+		log.WithField(telemetry.FederatedBundle, trustDomain).Error("Failed to fetch federated bundle")
+		return nil, fmt.Errorf("failed to fetch federated bundle: %w", err)
+	}
 }
 
 func (c *client) fetchSVIDs(ctx context.Context, params []*svidv1.NewX509SVIDParams) ([]*types.X509SVID, error) {
