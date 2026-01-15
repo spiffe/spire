@@ -2544,17 +2544,23 @@ func createRegistrationEntry(tx *gorm.DB, entry *common.RegistrationEntry) (*com
 		return nil, err
 	}
 
+	CacheHintFlags, err := proto.Marshal(entry.CacheHintFlags)
+	if err != nil {
+		return nil, err
+	}
+
 	newRegisteredEntry := RegisteredEntry{
-		EntryID:    entryID,
-		SpiffeID:   entry.SpiffeId,
-		ParentID:   entry.ParentId,
-		TTL:        entry.X509SvidTtl,
-		Admin:      entry.Admin,
-		Downstream: entry.Downstream,
-		Expiry:     entry.EntryExpiry,
-		StoreSvid:  entry.StoreSvid,
-		JWTSvidTTL: entry.JwtSvidTtl,
-		Hint:       entry.Hint,
+		EntryID:        entryID,
+		SpiffeID:       entry.SpiffeId,
+		ParentID:       entry.ParentId,
+		TTL:            entry.X509SvidTtl,
+		Admin:          entry.Admin,
+		Downstream:     entry.Downstream,
+		Expiry:         entry.EntryExpiry,
+		StoreSvid:      entry.StoreSvid,
+		JWTSvidTTL:     entry.JwtSvidTtl,
+		Hint:           entry.Hint,
+		CacheHintFlags: CacheHintFlags,
 	}
 
 	if err := tx.Create(&newRegisteredEntry).Error; err != nil {
@@ -2669,7 +2675,8 @@ SELECT
 	NULL AS dns_name_id,
 	NULL AS dns_name,
 	revision_number,
-	jwt_svid_ttl AS reg_jwt_svid_ttl
+	jwt_svid_ttl AS reg_jwt_svid_ttl,
+	cache_hint_flags
 FROM
 	registered_entries
 WHERE id IN (SELECT id FROM listing)
@@ -2677,7 +2684,7 @@ WHERE id IN (SELECT id FROM listing)
 UNION
 
 SELECT
-	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL, NULL, NULL
+	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL, NULL, NULL, NULL
 FROM
 	bundles B
 INNER JOIN
@@ -2690,7 +2697,7 @@ WHERE
 UNION
 
 SELECT
-	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL, NULL
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL, NULL, NULL
 FROM
 	dns_names
 WHERE registered_entry_id IN (SELECT id FROM listing)
@@ -2698,7 +2705,7 @@ WHERE registered_entry_id IN (SELECT id FROM listing)
 UNION
 
 SELECT
-	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL, NULL
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL, NULL, NULL
 FROM
 	selectors
 WHERE registered_entry_id IN (SELECT id FROM listing)
@@ -2733,7 +2740,8 @@ SELECT
 	NULL ::integer AS dns_name_id,
 	NULL AS dns_name,
 	revision_number,
-	jwt_svid_ttl AS reg_jwt_svid_ttl
+	jwt_svid_ttl AS reg_jwt_svid_ttl,
+	cache_hint_flags
 FROM
 	registered_entries
 WHERE id IN (SELECT id FROM listing)
@@ -2741,7 +2749,7 @@ WHERE id IN (SELECT id FROM listing)
 UNION
 
 SELECT
-	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL, NULL, NULL
+	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL, NULL, NULL, NULL
 FROM
 	bundles B
 INNER JOIN
@@ -2754,7 +2762,7 @@ WHERE
 UNION
 
 SELECT
-	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL, NULL
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL, NULL, NULL
 FROM
 	dns_names
 WHERE registered_entry_id IN (SELECT id FROM listing)
@@ -2762,7 +2770,7 @@ WHERE registered_entry_id IN (SELECT id FROM listing)
 UNION
 
 SELECT
-	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL, NULL
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL, NULL, NULL
 FROM
 	selectors
 WHERE registered_entry_id IN (SELECT id FROM listing)
@@ -2793,7 +2801,8 @@ SELECT
 	D.id AS dns_name_id,
 	D.value AS dns_name,
 	E.revision_number,
-	E.jwt_svid_ttl AS reg_jwt_svid_ttl
+	E.jwt_svid_ttl AS reg_jwt_svid_ttl,
+	E.cache_hint_flags AS cache_hint_flags
 FROM
 	registered_entries E
 LEFT JOIN
@@ -2835,7 +2844,8 @@ SELECT
 	NULL AS dns_name_id,
 	NULL AS dns_name,
 	revision_number,
-	jwt_svid_ttl AS reg_jwt_svid_ttl
+	jwt_svid_ttl AS reg_jwt_svid_ttl,
+	cache_hint_flags
 FROM
 	registered_entries
 WHERE id IN (SELECT id FROM listing)
@@ -2843,7 +2853,7 @@ WHERE id IN (SELECT id FROM listing)
 UNION
 
 SELECT
-	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL, NULL, NULL
+	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL, NULL, NULL, NULL
 FROM
 	bundles B
 INNER JOIN
@@ -2856,7 +2866,7 @@ WHERE
 UNION
 
 SELECT
-	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL, NULL
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL, NULL, NULL
 FROM
 	dns_names
 WHERE registered_entry_id IN (SELECT id FROM listing)
@@ -2864,7 +2874,7 @@ WHERE registered_entry_id IN (SELECT id FROM listing)
 UNION
 
 SELECT
-	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL, NULL
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL, NULL, NULL
 FROM
 	selectors
 WHERE registered_entry_id IN (SELECT id FROM listing)
@@ -3046,7 +3056,8 @@ SELECT
 	NULL AS dns_name_id,
 	NULL AS dns_name,
 	revision_number,
-	jwt_svid_ttl AS reg_jwt_svid_ttl
+	jwt_svid_ttl AS reg_jwt_svid_ttl,
+	cache_hint_flags
 FROM
 	registered_entries
 `)
@@ -3065,7 +3076,7 @@ FROM
 UNION
 
 SELECT
-	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL, NULL, NULL
+	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL, NULL, NULL, NULL
 FROM
 	bundles B
 INNER JOIN
@@ -3080,7 +3091,7 @@ ON
 UNION
 
 SELECT
-	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL, NULL
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL, NULL, NULL
 FROM
 	dns_names
 `)
@@ -3091,7 +3102,7 @@ FROM
 UNION
 
 SELECT
-	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL, NULL
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL, NULL, NULL
 FROM
 	selectors
 `)
@@ -3141,7 +3152,8 @@ SELECT
 	NULL ::integer AS dns_name_id,
 	NULL AS dns_name,
 	revision_number,
-	jwt_svid_ttl AS reg_jwt_svid_ttl
+	jwt_svid_ttl AS reg_jwt_svid_ttl,
+	cache_hint_flags
 FROM
 	registered_entries
 `)
@@ -3159,7 +3171,7 @@ FROM
 UNION ALL
 
 SELECT
-	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL, NULL, NULL
+	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL, NULL, NULL, NULL
 FROM
 	bundles B
 INNER JOIN
@@ -3174,7 +3186,7 @@ ON
 UNION ALL
 
 SELECT
-	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL, NULL
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL, NULL, NULL
 FROM
 	dns_names
 `)
@@ -3185,7 +3197,7 @@ FROM
 UNION ALL
 
 SELECT
-	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL, NULL
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL, NULL, NULL
 FROM
 	selectors
 `)
@@ -3234,7 +3246,8 @@ SELECT
 	D.id AS dns_name_id,
 	D.value AS dns_name,
 	E.revision_number,
-	E.jwt_svid_ttl AS reg_jwt_svid_ttl
+	E.jwt_svid_ttl AS reg_jwt_svid_ttl,
+	E.cache_hint_flags AS cache_hint_flags
 FROM
 	registered_entries E
 LEFT JOIN
@@ -3308,7 +3321,8 @@ SELECT
 	NULL AS dns_name_id,
 	NULL AS dns_name,
 	revision_number,
-	jwt_svid_ttl AS reg_jwt_svid_ttl
+	jwt_svid_ttl AS reg_jwt_svid_ttl,
+	cache_hint_flags
 FROM
 	registered_entries
 `)
@@ -3326,7 +3340,7 @@ FROM
 UNION
 
 SELECT
-	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL, NULL, NULL
+	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL, NULL, NULL, NULL
 FROM
 	bundles B
 INNER JOIN
@@ -3341,7 +3355,7 @@ ON
 UNION
 
 SELECT
-	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL, NULL
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL, NULL, NULL
 FROM
 	dns_names
 `)
@@ -3352,7 +3366,7 @@ FROM
 UNION
 
 SELECT
-	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL, NULL
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL, NULL, NULL
 FROM
 	selectors
 `)
@@ -3863,6 +3877,7 @@ type entryRow struct {
 	DNSName        sql.NullString
 	RevisionNumber sql.NullInt64
 	RegJwtSvidTTL  sql.NullInt64
+	CacheHintFlags sql.Null[[]byte]
 }
 
 func scanEntryRow(rs *sql.Rows, r *entryRow) error {
@@ -3886,6 +3901,7 @@ func scanEntryRow(rs *sql.Rows, r *entryRow) error {
 		&r.DNSName,
 		&r.RevisionNumber,
 		&r.RegJwtSvidTTL,
+		&r.CacheHintFlags,
 	))
 }
 
@@ -3946,6 +3962,15 @@ func fillEntryFromRow(entry *common.RegistrationEntry, r *entryRow) error {
 	}
 	if r.CreatedAt.Valid {
 		entry.CreatedAt = roundedInSecondsUnix(r.CreatedAt.Time)
+	}
+
+	if r.CacheHintFlags.Valid {
+		if len(r.CacheHintFlags.V) > 0 {
+			entry.CacheHintFlags = &common.RegistrationEntry_CacheHintFlags{}
+			if err := proto.Unmarshal(r.CacheHintFlags.V, entry.CacheHintFlags); err != nil {
+				return newSQLError("could not parse cache hint flags: %s", err)
+			}
+		}
 	}
 
 	return nil
@@ -4044,6 +4069,13 @@ func updateRegistrationEntry(tx *gorm.DB, e *common.RegistrationEntry, mask *com
 	}
 	if mask == nil || mask.Hint {
 		entry.Hint = e.Hint
+	}
+	if mask == nil || mask.CacheHintFlags {
+		CacheHintFlags, err := proto.Marshal(e.CacheHintFlags)
+		if err != nil {
+			return nil, err
+		}
+		entry.CacheHintFlags = CacheHintFlags
 	}
 
 	// Revision number is increased by 1 on every update call
@@ -4498,6 +4530,9 @@ func validateRegistrationEntry(entry *common.RegistrationEntry) error {
 	// it is done to avoid users to mix selectors from different platforms in
 	// entries with storable SVIDs
 	if entry.StoreSvid {
+		if entry.CacheHintFlags.GetDisableX509SvidPrefetch() {
+			return newValidationError("specifying cache behaviour is incompatible with storable SVIDs")
+		}
 		// Selectors must never be empty
 		tpe := entry.Selectors[0].Type
 		for _, t := range entry.Selectors {
@@ -4627,6 +4662,15 @@ func modelToEntry(tx *gorm.DB, model RegisteredEntry) (*common.RegistrationEntry
 		federatesWith = append(federatesWith, bundle.TrustDomain)
 	}
 
+	CacheHintFlags := &common.RegistrationEntry_CacheHintFlags{}
+	if len(model.CacheHintFlags) != 0 {
+		if err := proto.Unmarshal(model.CacheHintFlags, CacheHintFlags); err != nil {
+			return nil, err
+		}
+	} else {
+		CacheHintFlags = nil
+	}
+
 	return &common.RegistrationEntry{
 		EntryId:        model.EntryID,
 		Selectors:      selectors,
@@ -4642,6 +4686,7 @@ func modelToEntry(tx *gorm.DB, model RegisteredEntry) (*common.RegistrationEntry
 		StoreSvid:      model.StoreSvid,
 		JwtSvidTtl:     model.JWTSvidTTL,
 		Hint:           model.Hint,
+		CacheHintFlags: CacheHintFlags,
 		CreatedAt:      roundedInSecondsUnix(model.CreatedAt),
 	}, nil
 }
