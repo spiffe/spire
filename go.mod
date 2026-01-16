@@ -85,7 +85,7 @@ require (
 	golang.org/x/exp v0.0.0-20250620022241-b7579e27df2b
 	golang.org/x/net v0.48.0
 	golang.org/x/sync v0.19.0
-	golang.org/x/sys v0.39.0
+	golang.org/x/sys v0.40.0
 	golang.org/x/time v0.14.0
 	google.golang.org/api v0.260.0
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20251222181119-0a764e51fe1b
