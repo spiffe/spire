@@ -76,7 +76,7 @@ require (
 	github.com/sirupsen/logrus v1.9.4-0.20230606125235-dd1b4c2e81af
 	github.com/smallstep/pkcs7 v0.2.1
 	github.com/spiffe/go-spiffe/v2 v2.6.0
-	github.com/spiffe/spire-api-sdk v1.2.5-0.20251107171659-13527c331abf
+	github.com/spiffe/spire-api-sdk v1.2.5-0.20260115194754-bcd1999bdd05
 	github.com/spiffe/spire-plugin-sdk v1.4.4-0.20251120194148-791bbd274dc7
 	github.com/stretchr/testify v1.11.1
 	github.com/uber-go/tally/v4 v4.1.17
@@ -336,5 +336,3 @@ require (
 	sigs.k8s.io/structured-merge-diff/v6 v6.3.0 // indirect
 	sigs.k8s.io/yaml v1.6.0 // indirect
 )
-
-replace github.com/spiffe/spire-api-sdk => github.com/nweisenauer-sap/spire-api-sdk-fork v0.0.0-20260109113457-1782150c1b82
