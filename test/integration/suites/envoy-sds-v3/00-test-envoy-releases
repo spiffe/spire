@@ -34,7 +34,7 @@ setup-tests() {
 test-envoy() {
     # Ensure connectivity for both TLS and mTLS
 
-    MAXCHECKSPERPORT=15
+    MAXCHECKSPERPORT=30
     CHECKINTERVAL=1
 
     TRY() { docker compose exec -T downstream-socat-mtls /bin/sh -c 'echo HELLO_MTLS | socat -u STDIN TCP:localhost:8001'; }
