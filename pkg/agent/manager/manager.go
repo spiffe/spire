@@ -22,6 +22,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/rotationutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/util"
+	"github.com/spiffe/spire/pkg/common/version"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/pkg/server/api/limits"
 	"github.com/spiffe/spire/proto/spire/common"
@@ -194,6 +195,12 @@ func (m *manager) Initialize(ctx context.Context) error {
 	m.csrSizeLimitedBackoff = backoff.NewSizeLimitedBackOff(limits.SignLimitPerIP)
 	m.syncedEntries = make(map[string]*common.RegistrationEntry)
 	m.syncedBundles = make(map[string]*common.Bundle)
+
+	// Post agent status with version information to the server
+	if err := m.client.PostStatus(ctx, version.Version()); err != nil {
+		// Log the error but don't fail initialization - the server may not support this yet
+		m.c.Log.WithField(telemetry.AgentVersion, version.Version()).WithError(err).Error("Failed to post agent status")
+	}
 
 	err := m.synchronize(ctx)
 	if nodeutil.ShouldAgentReattest(err) {

@@ -486,8 +486,7 @@ func testAgentAPI(ctx context.Context, t *testing.T, conns testConns) {
 			"AttestAgent":     true,
 			"RenewAgent":      true,
 			"CreateJoinToken": false,
-			// TODO: Must be true for agent (#3908)
-			"PostStatus": false,
+			"PostStatus":      true,
 		})
 	})
 

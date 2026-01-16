@@ -26,5 +26,6 @@ func ProtoFromAttestedNode(n *common.AttestedNode) (*types.Agent, error) {
 		Banned:               n.CertSerialNumber == "",
 		CanReattest:          n.CanReattest,
 		Selectors:            ProtoFromSelectors(n.Selectors),
+		AgentVersion:         n.AgentVersion,
 	}, nil
 }

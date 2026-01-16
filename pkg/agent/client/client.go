@@ -79,6 +79,7 @@ type Client interface {
 	RenewSVID(ctx context.Context, csr []byte) (*X509SVID, error)
 	NewX509SVIDs(ctx context.Context, csrs map[string][]byte) (map[string]*X509SVID, error)
 	NewJWTSVID(ctx context.Context, entryID string, audience []string) (*JWTSVID, spiffeid.ID, error)
+	PostStatus(ctx context.Context, agentVersion string) error
 
 	// Release releases any resources that were held by this Client, if any.
 	Release()
@@ -260,6 +261,31 @@ func (c *client) RenewSVID(ctx context.Context, csr []byte) (*X509SVID, error) {
 		CertChain: certChain,
 		ExpiresAt: resp.Svid.ExpiresAt,
 	}, nil
+}
+
+func (c *client) PostStatus(ctx context.Context, agentVersion string) error {
+	c.c.RotMtx.RLock()
+	defer c.c.RotMtx.RUnlock()
+
+	ctx, cancel := context.WithTimeout(ctx, rpcTimeout)
+	defer cancel()
+
+	agentClient, connection, err := c.newAgentClient()
+	if err != nil {
+		return err
+	}
+	defer connection.Release()
+
+	_, err = agentClient.PostStatus(ctx, &agentv1.PostStatusRequest{
+		AgentVersion: agentVersion,
+	})
+	if err != nil {
+		c.release(connection)
+		c.c.Log.WithError(err).Warn("Failed to post agent status")
+		return fmt.Errorf("failed to post agent status: %w", err)
+	}
+
+	return nil
 }
 
 func (c *client) NewX509SVIDs(ctx context.Context, csrs map[string][]byte) (map[string]*X509SVID, error) {

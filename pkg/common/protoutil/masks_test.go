@@ -17,6 +17,7 @@ func TestAllTrueMasks(t *testing.T) {
 		Selectors:            true,
 		Banned:               true,
 		CanReattest:          true,
+		AgentVersion:         true,
 	}, protoutil.AllTrueAgentMask)
 
 	spiretest.AssertProtoEqual(t, &types.BundleMask{
@@ -60,6 +61,7 @@ func TestAllTrueMasks(t *testing.T) {
 		NewCertSerialNumber: true,
 		NewCertNotAfter:     true,
 		CanReattest:         true,
+		AgentVersion:        true,
 	}, protoutil.AllTrueCommonAgentMask)
 
 	spiretest.AssertProtoEqual(t, &types.FederationRelationshipMask{
