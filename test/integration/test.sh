@@ -25,7 +25,7 @@ for suite in $SUITES; do
         ./test-one.sh "${suite}"
         status=$?
         if [ ${status} -ne 0 ]; then
-            echo "STATUS=${status}"
+            echo "test-one.sh returned status=${status}"
             failed+=( "$(basename "${suite}")" )
         fi
     fi
