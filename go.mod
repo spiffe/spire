@@ -73,7 +73,7 @@ require (
 	github.com/sigstore/cosign/v2 v2.6.2
 	github.com/sigstore/rekor v1.4.3
 	github.com/sigstore/sigstore v1.10.3
-	github.com/sirupsen/logrus v1.9.4-0.20230606125235-dd1b4c2e81af
+	github.com/sirupsen/logrus v1.9.4
 	github.com/smallstep/pkcs7 v0.2.1
 	github.com/spiffe/go-spiffe/v2 v2.6.0
 	github.com/spiffe/spire-api-sdk v1.2.5-0.20251107171659-13527c331abf
