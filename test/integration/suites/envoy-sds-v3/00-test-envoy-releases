@@ -66,10 +66,14 @@ test-envoy() {
     done
 
     if [ -z "${MTLS_OK}" ]; then
+        log-warn "MTLS proxy check failed after ${MAXCHECKSPERPORT} attempts"
+        dump-multiple-container-logs upstream-proxy downstream-proxy upstream-socat downstream-socat-mtls downstream-socat-tls
         fail-now "MTLS Proxying failed"
     fi
 
     if [ -z "${TLS_OK}" ]; then
+        log-warn "TLS proxy check failed after ${MAXCHECKSPERPORT} attempts"
+        dump-multiple-container-logs upstream-proxy downstream-proxy upstream-socat downstream-socat-mtls downstream-socat-tls
         fail-now "TLS Proxying failed"
     fi
 }

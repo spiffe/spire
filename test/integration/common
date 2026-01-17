@@ -351,3 +351,11 @@ set-kubectl-context() {
     log-info "setting kubectl cluster context..."
     "${kubectl_path}" cluster-info --context "${context}"
 }
+
+dump-multiple-container-logs() {
+    log-warn "Dumping container logs for diagnostics..."
+    for container in "$@"; do
+        log-warn "=== Logs for ${container} ==="
+        docker compose logs "${container}" || log-warn "Failed to get logs for ${container}"
+    done
+}
