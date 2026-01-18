@@ -2,6 +2,7 @@ package svid_test
 
 import (
 	"context"
+	"crypto"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -857,14 +858,15 @@ func TestServiceMintWITSVID(t *testing.T) {
 	for _, tt := range []struct {
 		name string
 
-		code            codes.Code
-		err             string
-		expiresAt       time.Time
-		id              spiffeid.ID
-		ttl             time.Duration
-		disableWITSVIDs bool
-		failMinting     bool
-		expectLogs      []spiretest.LogEntry
+		code             codes.Code
+		err              string
+		expiresAt        time.Time
+		id               spiffeid.ID
+		signingAlgorithm string
+		ttl              time.Duration
+		disableWITSVIDs  bool
+		failMinting      bool
+		expectLogs       []spiretest.LogEntry
 	}{
 		{
 			name:      "success",
@@ -922,6 +924,35 @@ func TestServiceMintWITSVID(t *testing.T) {
 						telemetry.Type:          "audit",
 						telemetry.StatusCode:    "InvalidArgument",
 						telemetry.StatusMessage: "invalid SPIFFE ID: trust domain is missing",
+						telemetry.TTL:           "0",
+					},
+				},
+			},
+		},
+		{
+			name:             "invalid signing algorithm",
+			code:             codes.InvalidArgument,
+			id:               workloadID,
+			signingAlgorithm: "ES123",
+			err:              "unsupported signing algorithm for ec-p256 key: ES123",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Invalid argument: invalid signing algorithm or key type",
+					Data: logrus.Fields{
+						logrus.ErrorKey:    "unsupported signing algorithm for ec-p256 key: ES123",
+						telemetry.SPIFFEID: "spiffe://example.org/workload1",
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:        "error",
+						telemetry.Type:          "audit",
+						telemetry.SPIFFEID:      "spiffe://example.org/workload1",
+						telemetry.StatusCode:    "InvalidArgument",
+						telemetry.StatusMessage: "invalid signing algorithm or key type: unsupported signing algorithm for ec-p256 key: ES123",
 						telemetry.TTL:           "0",
 					},
 				},
@@ -1042,6 +1073,10 @@ func TestServiceMintWITSVID(t *testing.T) {
 				test.ca.SetError(errors.New("oh no"))
 			}
 
+			if tt.signingAlgorithm == "" {
+				tt.signingAlgorithm = "ES256"
+			}
+
 			key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 			require.NoError(t, err)
 
@@ -1049,9 +1084,10 @@ func TestServiceMintWITSVID(t *testing.T) {
 			require.NoError(t, err)
 
 			resp, err := test.client.MintWITSVID(context.Background(), &svidv1.MintWITSVIDRequest{
-				Id:        api.ProtoFromID(tt.id),
-				Ttl:       int32(tt.ttl / time.Second),
-				PublicKey: keyDer,
+				Id:               api.ProtoFromID(tt.id),
+				Ttl:              int32(tt.ttl / time.Second),
+				PublicKey:        keyDer,
+				SigningAlgorithm: tt.signingAlgorithm,
 			})
 
 			spiretest.AssertLogs(t, test.logHook.AllEntries(), tt.expectLogs)
@@ -2135,17 +2171,18 @@ func BatchNewWITSVID(t *testing.T) {
 	}
 
 	for _, tt := range []struct {
-		name           string
-		code           codes.Code
-		reqs           []string
-		err            string
-		expectLogs     []spiretest.LogEntry
-		expectResults  []*expectResult
-		failSigning    bool
-		failCallerID   bool
-		fetcherErr     string
-		setPublicKey   func() []byte
-		rateLimiterErr error
+		name             string
+		code             codes.Code
+		reqs             []string
+		err              string
+		expectLogs       []spiretest.LogEntry
+		expectResults    []*expectResult
+		failSigning      bool
+		failCallerID     bool
+		fetcherErr       string
+		setPublicKey     func() []byte
+		signingAlgorithm string
+		rateLimiterErr   error
 	}{
 		{
 			name: "success",
@@ -2226,6 +2263,28 @@ func BatchNewWITSVID(t *testing.T) {
 						telemetry.RegistrationID: "workload2",
 						telemetry.ExpiresAt:      expiresAtFromCAStr,
 						telemetry.SPIFFEID:       "spiffe://example.org/workload2",
+					},
+				},
+			},
+		}, {
+			name:             "invalid signing algorithm",
+			reqs:             []string{workloadEntry1.Id},
+			signingAlgorithm: "ES123",
+			expectResults: []*expectResult{
+				{
+					entry: workloadEntry1,
+				},
+			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:         "success",
+						telemetry.Type:           "audit",
+						telemetry.RegistrationID: "workload",
+						telemetry.ExpiresAt:      expiresAtFromCAStr,
+						telemetry.SPIFFEID:       "spiffe://example.org/workload1",
 					},
 				},
 			},
@@ -2536,6 +2595,10 @@ func BatchNewWITSVID(t *testing.T) {
 			test.withCallerID = !tt.failCallerID
 			test.ef.err = tt.fetcherErr
 
+			if tt.signingAlgorithm == "" {
+				tt.signingAlgorithm = "ES256"
+			}
+
 			var params []*svidv1.NewWITSVIDParams
 			for _, entryID := range tt.reqs {
 				key := testkey.MustEC256()
@@ -2543,8 +2606,9 @@ func BatchNewWITSVID(t *testing.T) {
 				require.NoError(t, err)
 
 				params = append(params, &svidv1.NewWITSVIDParams{
-					EntryId:   entryID,
-					PublicKey: keyDer,
+					EntryId:          entryID,
+					PublicKey:        keyDer,
+					SigningAlgorithm: tt.signingAlgorithm,
 				})
 				if tt.setPublicKey != nil {
 					params[len(params)-1].PublicKey = tt.setPublicKey()
@@ -2846,6 +2910,57 @@ func TestNewDownstreamX509CA(t *testing.T) {
 			require.Equal(t, certChain[0].URIs[0].String(), td.IDString())
 
 			require.Equal(t, string(resp.X509Authorities[0]), "RootCa1")
+		})
+	}
+}
+
+func TestValidatePublicKeyAndSigningAlgorithm(t *testing.T) {
+	testCases := []struct {
+		name              string
+		key               crypto.PublicKey
+		signingAlgorithms []string
+		expectedErrors    []error
+	}{
+		{
+			name:              "rsa-2048",
+			key:               &testkey.MustRSA2048().PublicKey,
+			signingAlgorithms: []string{"RS256", "RS384", "RS512", "PS256", "PS384", "PS512", "BLABLA"},
+			expectedErrors:    []error{nil, nil, nil, nil, nil, nil, errors.New("unsupported signing algorithm for RSA key: BLABLA")},
+		},
+		{
+			name:              "rsa-4096",
+			key:               &testkey.MustRSA4096().PublicKey,
+			signingAlgorithms: []string{"RS256", "RS384", "RS512", "PS256", "PS384", "PS512", "BLABLA"},
+			expectedErrors:    []error{nil, nil, nil, nil, nil, nil, errors.New("unsupported signing algorithm for RSA key: BLABLA")},
+		},
+		{
+			name:              "ec-p256",
+			key:               &testkey.MustEC256().PublicKey,
+			signingAlgorithms: []string{"ES256", "ES384", "BLABLA"},
+			expectedErrors:    []error{nil, errors.New("unsupported signing algorithm for ec-p256 key: ES384"), errors.New("unsupported signing algorithm for ec-p256 key: BLABLA")},
+		},
+		{
+			name:              "ec-p384",
+			key:               &testkey.MustEC384().PublicKey,
+			signingAlgorithms: []string{"ES384", "ES256", "BLABLA"},
+			expectedErrors:    []error{nil, errors.New("unsupported signing algorithm for ec-p384 key: ES256"), errors.New("unsupported signing algorithm for ec-p384 key: BLABLA")},
+		},
+		{
+			name:              "invalid key type",
+			key:               "this is not a key",
+			signingAlgorithms: []string{"ES256"},
+			expectedErrors:    []error{errors.New("unsupported key type 'string'")},
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, len(tt.signingAlgorithms), len(tt.expectedErrors))
+
+			for ind, signingAlgorithm := range tt.signingAlgorithms {
+				err := svid.ValidatePublicKeyAndSigningAlgorithm(tt.key, signingAlgorithm)
+				require.Equal(t, err, tt.expectedErrors[ind])
+			}
 		})
 	}
 }

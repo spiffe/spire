@@ -31,7 +31,7 @@ import (
 )
 
 var (
-	supportedRSAWITSigningAlgorithms = []string{"RS256", "RS384", "RS512", "PS256", "RS384", "PS256"}
+	supportedRSAWITSigningAlgorithms = []string{"RS256", "RS384", "RS512", "PS256", "PS384", "PS512"}
 )
 
 // RegisterService registers the service on the gRPC server.
@@ -482,7 +482,7 @@ func (s *Service) mintWITSVID(ctx context.Context, protoID *types.SPIFFEID, publ
 		return nil, api.MakeErr(log, codes.InvalidArgument, "invalid public key", err)
 	}
 
-	if err := validatePublicKeyAndSigningAlgorithm(publicKey, signingAlgorithm); err != nil {
+	if err := ValidatePublicKeyAndSigningAlgorithm(publicKey, signingAlgorithm); err != nil {
 		return nil, api.MakeErr(log, codes.InvalidArgument, "invalid signing algorithm or key type", err)
 	}
 
@@ -546,7 +546,7 @@ func (s *Service) newWITSVID(ctx context.Context, param *svidv1.NewWITSVIDParams
 		}
 	}
 
-	if err := validatePublicKeyAndSigningAlgorithm(publicKey, param.SigningAlgorithm); err != nil {
+	if err := ValidatePublicKeyAndSigningAlgorithm(publicKey, param.SigningAlgorithm); err != nil {
 		return &svidv1.BatchNewWITSVIDResponse_Result{
 			Status: api.MakeStatus(log, codes.InvalidArgument, "invalid signing algorithm or key type", err),
 		}
@@ -721,7 +721,7 @@ func parseAndCheckCSR(ctx context.Context, csrBytes []byte) (*x509.CertificateRe
 	return csr, nil
 }
 
-func validatePublicKeyAndSigningAlgorithm(publicKey crypto.PublicKey, signingAlgorithm string) error {
+func ValidatePublicKeyAndSigningAlgorithm(publicKey crypto.PublicKey, signingAlgorithm string) error {
 	switch publicKey := publicKey.(type) {
 	case *rsa.PublicKey:
 		if !slices.Contains(supportedRSAWITSigningAlgorithms, signingAlgorithm) {
@@ -739,7 +739,7 @@ func validatePublicKeyAndSigningAlgorithm(publicKey crypto.PublicKey, signingAlg
 			}
 		}
 	default:
-		return fmt.Errorf("unsupported key type %T", publicKey)
+		return fmt.Errorf("unsupported key type '%T'", publicKey)
 	}
 
 	return nil

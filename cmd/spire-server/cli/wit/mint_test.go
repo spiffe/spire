@@ -19,6 +19,7 @@ import (
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/pemutil"
+	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
 	"github.com/spiffe/spire/test/clitest"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/assert"
@@ -42,7 +43,9 @@ dlmdCTY3trEN+pXoR+kecSyZFcvjYBaND9mOPsSHCAc5AAtFPQF/j0H/
 	availableFormats = []string{"pretty", "json"}
 	expectedUsage    = `Usage of wit mint:
   -keyType string
-    	Key type of the WIT-SVID (default "ec-p256")` + clitest.AddrOutputUsage +
+    	Key type of the WIT-SVID (default "ec-p256")` + clitest.AddrOnlyOutputUsage +
+		`  -signingAlgorithm string
+    	Signing algorithm for the workload signing key (default "ES256")` + clitest.AddrSocketPathUsage +
 		`  -spiffeID string
     	SPIFFE ID of the WIT-SVID
   -ttl duration
@@ -409,5 +412,76 @@ func requireOutputBasedOnFormat(t *testing.T, format, stdoutString string, expec
 		} else {
 			require.Empty(t, stdoutString)
 		}
+	}
+}
+
+func TestValidateKeyTypeAndAlgorithm(t *testing.T) {
+	type testCase struct {
+		name             string
+		keyType          string
+		signingAlgorithm string
+		err              error
+		expectedKeyType  keymanager.KeyType
+	}
+	testCases := []testCase{
+		{
+			name:             "key type 'ec-p256' with signing algorithm 'ES256'",
+			keyType:          "ec-p256",
+			signingAlgorithm: "ES256",
+			expectedKeyType:  keymanager.ECP256,
+		},
+		{
+			name:             "key type 'ec-p384' with signing algorithm 'ES384'",
+			keyType:          "ec-p384",
+			signingAlgorithm: "ES384",
+			expectedKeyType:  keymanager.ECP384,
+		},
+		{
+			name:             "valid key type with invalid signing algorithm",
+			keyType:          "ec-p256",
+			signingAlgorithm: "ES1",
+			err:              errors.New("unsupported signing algorithm: ES1"),
+		},
+		{
+			name:             "unknown key type with valid signing algorithm",
+			keyType:          "ec-p1",
+			signingAlgorithm: "ES384",
+			err:              errors.New("unsupported key type 'ec-p1' for 'ES384' signing algorithm"),
+		},
+		{
+			name:             "unknown rsa key type with valid signing algorithm",
+			keyType:          "rsa-3333",
+			signingAlgorithm: "RS512",
+			err:              errors.New("unsupported key type: rsa-3333"),
+		},
+		{
+			name:             "unknown key type with invalid signing algorithm",
+			keyType:          "ec-p1",
+			signingAlgorithm: "ES1",
+			err:              errors.New("unsupported signing algorithm: ES1"),
+		},
+	}
+
+	for _, rsaKeyType := range []string{"rsa-2048", "rsa-4096"} {
+		expectedKeyType, err := keymanager.KeyTypeFromString(rsaKeyType)
+		require.NoError(t, err)
+
+		for _, rsaSigningAlgorithm := range []string{"RS256", "RS384", "RS512", "PS256", "PS384", "PS512"} {
+			testCases = append(testCases, testCase{
+				name:             fmt.Sprintf("key type '%s' with '%s' signing algorithm", rsaKeyType, rsaSigningAlgorithm),
+				keyType:          rsaKeyType,
+				signingAlgorithm: rsaSigningAlgorithm,
+				expectedKeyType:  expectedKeyType,
+			})
+		}
+	}
+
+	for _, testCase := range testCases {
+		tt := testCase
+		t.Run(tt.name, func(t *testing.T) {
+			keyType, err := validateKeyTypeAndSigningAlgorithm(tt.keyType, tt.signingAlgorithm)
+			require.Equal(t, err, tt.err)
+			require.Equal(t, keyType, tt.expectedKeyType)
+		})
 	}
 }

@@ -11,5 +11,13 @@ var (
   -socketPath string
     	Path to the SPIRE Server API socket (default "/tmp/spire-server/private/api.sock")
 `
+	AddrOnlyOutputUsage = `
+  -output value
+    	Desired output format (pretty, json); default: pretty.
+`
+	AddrSocketPathUsage = `
+  -socketPath string
+    	Path to the SPIRE Server API socket (default "/tmp/spire-server/private/api.sock")
+`
 	AddrValue = "/does-not-exist.sock"
 )
