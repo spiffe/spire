@@ -40,6 +40,7 @@ func newMintCommandWithKeyGenerator(env *commoncli.Env, workloadKeyGenerator fun
 type mintCommand struct {
 	spiffeID             string
 	keyType              string
+	signingAlgorithm     string
 	ttl                  time.Duration
 	write                string
 	env                  *commoncli.Env
@@ -58,6 +59,7 @@ func (c *mintCommand) Synopsis() string {
 func (c *mintCommand) AppendFlags(fs *flag.FlagSet) {
 	fs.StringVar(&c.spiffeID, "spiffeID", "", "SPIFFE ID of the WIT-SVID")
 	fs.StringVar(&c.keyType, "keyType", "ec-p256", "Key type of the WIT-SVID")
+	fs.StringVar(&c.signingAlgorithm, "signingAlgorithm", "ES256", "Signing algorithm for the workload signing key")
 	fs.DurationVar(&c.ttl, "ttl", 0, "TTL of the WIT-SVID")
 	fs.StringVar(&c.write, "write", "", "Directory to write output to instead of stdout")
 	cliprinter.AppendFlagWithCustomPretty(&c.printer, fs, c.env, prettyPrintMint)
@@ -81,9 +83,9 @@ func (c *mintCommand) Run(ctx context.Context, env *commoncli.Env, serverClient 
 		return fmt.Errorf("invalid value for TTL: %w", err)
 	}
 
-	keyType, err := keymanager.KeyTypeFromString(c.keyType)
+	keyType, err := validateKeyTypeAndSigningAlgorithm(c.keyType, c.signingAlgorithm)
 	if err != nil {
-		return fmt.Errorf("invalid key-type: %w", err)
+		return err
 	}
 
 	if c.workloadKeyGenerator == nil {
@@ -106,8 +108,9 @@ func (c *mintCommand) Run(ctx context.Context, env *commoncli.Env, serverClient 
 			TrustDomain: spiffeID.TrustDomain().Name(),
 			Path:        spiffeID.Path(),
 		},
-		PublicKey: publicKeyDer,
-		Ttl:       ttl,
+		PublicKey:        publicKeyDer,
+		SigningAlgorithm: c.signingAlgorithm,
+		Ttl:              ttl,
 	})
 	if err != nil {
 		return fmt.Errorf("unable to mint SVID: %w", err)
@@ -202,4 +205,40 @@ func prettyPrintMint(env *commoncli.Env, results ...any) error {
 		return errors.Join(errToken, errKey)
 	}
 	return cliprinter.ErrInternalCustomPrettyFunc
+}
+
+func validateKeyTypeAndSigningAlgorithm(keyType string, signingAlgorithm string) (keymanager.KeyType, error) {
+	switch signingAlgorithm {
+	case "RS256":
+		fallthrough
+	case "RS384":
+		fallthrough
+	case "RS512":
+		fallthrough
+	case "PS256":
+		fallthrough
+	case "PS384":
+		fallthrough
+	case "PS512":
+		switch keyType {
+		case "rsa-2048":
+			return keymanager.RSA2048, nil
+		case "rsa-4096":
+			return keymanager.RSA4096, nil
+		default:
+			return keymanager.KeyTypeUnset, fmt.Errorf("unsupported key type: %s", keyType)
+		}
+	case "ES256":
+		if keyType != "ec-p256" {
+			return keymanager.KeyTypeUnset, fmt.Errorf("unsupported key type '%s' for '%s' signing algorithm", keyType, signingAlgorithm)
+		}
+		return keymanager.ECP256, nil
+	case "ES384":
+		if keyType != "ec-p384" {
+			return keymanager.KeyTypeUnset, fmt.Errorf("unsupported key type '%s' for '%s' signing algorithm", keyType, signingAlgorithm)
+		}
+		return keymanager.ECP384, nil
+	default:
+		return keymanager.KeyTypeUnset, fmt.Errorf("unsupported signing algorithm: %s", signingAlgorithm)
+	}
 }

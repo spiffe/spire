@@ -2,7 +2,13 @@ package svid
 
 import (
 	"context"
+	"crypto"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rsa"
 	"crypto/x509"
+	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -22,6 +28,10 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+)
+
+var (
+	supportedRSAWITSigningAlgorithms = []string{"RS256", "RS384", "RS512", "PS256", "RS384", "PS256"}
 )
 
 // RegisterService registers the service on the gRPC server.
@@ -168,7 +178,7 @@ func (s *Service) MintWITSVID(ctx context.Context, req *svidv1.MintWITSVIDReques
 	}
 
 	rpccontext.AddRPCAuditFields(ctx, s.fieldsFromWITSvidParams(ctx, req.Id, req.Ttl))
-	witsvid, err := s.mintWITSVID(ctx, req.Id, req.PublicKey, req.Ttl)
+	witsvid, err := s.mintWITSVID(ctx, req.Id, req.PublicKey, req.SigningAlgorithm, req.Ttl)
 	if err != nil {
 		return nil, err
 	}
@@ -457,7 +467,7 @@ func (s *Service) BatchNewWITSVID(ctx context.Context, req *svidv1.BatchNewWITSV
 	return &svidv1.BatchNewWITSVIDResponse{Results: results}, nil
 }
 
-func (s *Service) mintWITSVID(ctx context.Context, protoID *types.SPIFFEID, publicKeyDer []byte, ttl int32) (*types.WITSVID, error) {
+func (s *Service) mintWITSVID(ctx context.Context, protoID *types.SPIFFEID, publicKeyDer []byte, signingAlgorithm string, ttl int32) (*types.WITSVID, error) {
 	log := rpccontext.Logger(ctx)
 
 	id, err := api.TrustDomainWorkloadIDFromProto(ctx, s.td, protoID)
@@ -472,11 +482,16 @@ func (s *Service) mintWITSVID(ctx context.Context, protoID *types.SPIFFEID, publ
 		return nil, api.MakeErr(log, codes.InvalidArgument, "invalid public key", err)
 	}
 
+	if err := validatePublicKeyAndSigningAlgorithm(publicKey, signingAlgorithm); err != nil {
+		return nil, api.MakeErr(log, codes.InvalidArgument, "invalid signing algorithm or key type", err)
+	}
+
 	token, err := s.ca.SignWorkloadWITSVID(ctx, ca.WorkloadWITSVIDParams{
 		SPIFFEID: id,
 		TTL:      time.Duration(ttl) * time.Second,
 		PublicKey: jose.JSONWebKey{
-			Key: publicKey,
+			Algorithm: signingAlgorithm,
+			Key:       publicKey,
 		},
 	})
 	if err != nil {
@@ -531,6 +546,12 @@ func (s *Service) newWITSVID(ctx context.Context, param *svidv1.NewWITSVIDParams
 		}
 	}
 
+	if err := validatePublicKeyAndSigningAlgorithm(publicKey, param.SigningAlgorithm); err != nil {
+		return &svidv1.BatchNewWITSVIDResponse_Result{
+			Status: api.MakeStatus(log, codes.InvalidArgument, "invalid signing algorithm or key type", err),
+		}
+	}
+
 	spiffeID, err := api.TrustDomainMemberIDFromProto(ctx, s.td, entry.GetSpiffeId())
 	if err != nil {
 		// This shouldn't be the case unless there is invalid data in the datastore
@@ -544,7 +565,8 @@ func (s *Service) newWITSVID(ctx context.Context, param *svidv1.NewWITSVIDParams
 	witSvid, err := s.ca.SignWorkloadWITSVID(ctx, ca.WorkloadWITSVIDParams{
 		SPIFFEID: spiffeID,
 		PublicKey: jose.JSONWebKey{
-			Key: publicKey,
+			Algorithm: param.SigningAlgorithm,
+			Key:       publicKey,
 		},
 		// TODO: add WIT specific TTL (https://github.com/spiffe/spire/issues/6535)
 		TTL: time.Duration(entry.GetX509SvidTtl()) * time.Second,
@@ -697,4 +719,28 @@ func parseAndCheckCSR(ctx context.Context, csrBytes []byte) (*x509.CertificateRe
 	}
 
 	return csr, nil
+}
+
+func validatePublicKeyAndSigningAlgorithm(publicKey crypto.PublicKey, signingAlgorithm string) error {
+	switch publicKey := publicKey.(type) {
+	case *rsa.PublicKey:
+		if !slices.Contains(supportedRSAWITSigningAlgorithms, signingAlgorithm) {
+			return fmt.Errorf("unsupported signing algorithm for RSA key: %s", signingAlgorithm)
+		}
+	case *ecdsa.PublicKey:
+		switch publicKey.Curve {
+		case elliptic.P256():
+			if signingAlgorithm != "ES256" {
+				return fmt.Errorf("unsupported signing algorithm for ec-p256 key: %s", signingAlgorithm)
+			}
+		case elliptic.P384():
+			if signingAlgorithm != "ES384" {
+				return fmt.Errorf("unsupported signing algorithm for ec-p384 key: %s", signingAlgorithm)
+			}
+		}
+	default:
+		return fmt.Errorf("unsupported key type %T", publicKey)
+	}
+
+	return nil
 }
