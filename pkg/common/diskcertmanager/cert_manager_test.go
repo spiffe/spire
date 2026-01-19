@@ -231,13 +231,14 @@ func TestTLSConfig(t *testing.T) {
 		// Assert error logs were triggered (at least 1, at most testTickerIterations)
 		// Use Eventually to give the goroutine time to process the clock ticks
 		require.Eventually(t, func() bool {
-			errLogs := map[time.Time]struct{}{}
-			for _, entry := range logHook.AllEntries() {
+			entries := logHook.AllEntries()
+			errLogCount := 0
+			for _, entry := range entries {
 				if entry.Level == logrus.ErrorLevel && strings.Contains(entry.Message, "Failed to load certificate: tls: failed to find any PEM data in certificate input") {
-					errLogs[entry.Time] = struct{}{}
+					errLogCount++
 				}
 			}
-			return len(errLogs) >= 1 && len(errLogs) <= testTickerIterations
+			return errLogCount >= 1 && errLogCount <= testTickerIterations
 		}, time.Second, 10*time.Millisecond, "expected 1-%d error logs", testTickerIterations)
 
 		// New cert is not loaded because it is invalid.
@@ -263,13 +264,14 @@ func TestTLSConfig(t *testing.T) {
 		// Assert error logs were triggered (at least 1, at most testTickerIterations)
 		// Use Eventually to give the goroutine time to process the clock ticks
 		require.Eventually(t, func() bool {
-			errLogs := map[time.Time]struct{}{}
-			for _, entry := range logHook.AllEntries() {
+			entries := logHook.AllEntries()
+			errLogCount := 0
+			for _, entry := range entries {
 				if entry.Level == logrus.ErrorLevel && strings.Contains(entry.Message, "Failed to load certificate: tls: failed to find any PEM data in key input") {
-					errLogs[entry.Time] = struct{}{}
+					errLogCount++
 				}
 			}
-			return len(errLogs) >= 1 && len(errLogs) <= testTickerIterations
+			return errLogCount >= 1 && errLogCount <= testTickerIterations
 		}, time.Second, 10*time.Millisecond, "expected 1-%d error logs", testTickerIterations)
 
 		// New cert is not loaded because it is invalid.
@@ -310,13 +312,14 @@ func TestTLSConfig(t *testing.T) {
 		// Assert error logs were triggered (at least 1, at most testTickerIterations)
 		// Use Eventually to give the goroutine time to process the clock ticks
 		require.Eventually(t, func() bool {
-			errLogs := map[time.Time]struct{}{}
-			for _, entry := range logHook.AllEntries() {
+			entries := logHook.AllEntries()
+			errLogCount := 0
+			for _, entry := range entries {
 				if entry.Level == logrus.ErrorLevel && strings.Contains(entry.Message, fmt.Sprintf("Failed to get file info, file path %q does not exist anymore; please check if the path is correct", keyFilePath)) {
-					errLogs[entry.Time] = struct{}{}
+					errLogCount++
 				}
 			}
-			return len(errLogs) >= 1 && len(errLogs) <= testTickerIterations
+			return errLogCount >= 1 && errLogCount <= testTickerIterations
 		}, time.Second, 10*time.Millisecond, "expected 1-%d error logs", testTickerIterations)
 
 		removeFile(t, certFilePath)
@@ -327,13 +330,14 @@ func TestTLSConfig(t *testing.T) {
 		// Assert error logs were triggered (at least 1, at most testTickerIterations)
 		// Use Eventually to give the goroutine time to process the clock ticks
 		require.Eventually(t, func() bool {
-			errLogs := map[time.Time]struct{}{}
-			for _, entry := range logHook.AllEntries() {
+			entries := logHook.AllEntries()
+			errLogCount := 0
+			for _, entry := range entries {
 				if entry.Level == logrus.ErrorLevel && strings.Contains(entry.Message, fmt.Sprintf("Failed to get file info, file path %q does not exist anymore; please check if the path is correct", certFilePath)) {
-					errLogs[entry.Time] = struct{}{}
+					errLogCount++
 				}
 			}
-			return len(errLogs) >= 1 && len(errLogs) <= testTickerIterations
+			return errLogCount >= 1 && errLogCount <= testTickerIterations
 		}, time.Second, 10*time.Millisecond, "expected 1-%d error logs", testTickerIterations)
 
 		writeFile(t, keyFilePath, oidcServerKeyPem)
