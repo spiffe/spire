@@ -11,3 +11,6 @@ log-debug "building mysql test harness..."
 
 log-debug "copying over test data..."
 cp -r "${PKGDIR}"/testdata .
+
+log-debug "pulling mysql docker images..."
+docker compose pull

@@ -604,9 +604,15 @@ jobs:
   success:
     runs-on: ubuntu-22.04
     needs: [lint, unit-test, unit-test-race-detector, artifacts, integration, integration-k8s, lint-windows, unit-test-windows, artifacts-windows, integration-windows]
+    if: always()
     timeout-minutes: 30
     permissions:
       contents: read
     steps:
+      - name: Check for failures
+        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') || contains(needs.*.result, 'skipped')
+        run: |
+          echo "One or more required jobs failed, were cancelled, or were skipped"
+          exit 1
       - name: Declare victory!
-        run: echo "# Successful" >> $GITHUB_STEP_SUMMARY
+        run: echo "# Successful - all required jobs passed" >> $GITHUB_STEP_SUMMARY
