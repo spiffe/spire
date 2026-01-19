@@ -59,7 +59,7 @@ require (
 	github.com/hashicorp/go-plugin v1.7.0
 	github.com/hashicorp/hcl v1.0.1-vault-7
 	github.com/hashicorp/vault/api v1.22.0
-	github.com/hashicorp/vault/sdk v0.20.0
+	github.com/hashicorp/vault/sdk v0.21.0
 	github.com/imdario/mergo v0.3.16
 	github.com/imkira/go-observer v1.0.3
 	github.com/jackc/pgx/v5 v5.8.0
@@ -96,7 +96,7 @@ require (
 	k8s.io/client-go v0.35.0
 	k8s.io/kube-aggregator v0.35.0
 	k8s.io/mount-utils v0.35.0
-	sigs.k8s.io/controller-runtime v0.22.4
+	sigs.k8s.io/controller-runtime v0.23.0
 )
 
 require (

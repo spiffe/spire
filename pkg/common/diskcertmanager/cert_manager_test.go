@@ -26,6 +26,9 @@ import (
 var (
 	oidcServerKey    = testkey.MustEC256()
 	oidcServerKeyNew = testkey.MustEC256()
+
+	// testModTimeCounter ensures strictly monotonic ModTimes across all writeFile calls
+	testModTimeCounter time.Time
 )
 
 const (
@@ -228,13 +231,14 @@ func TestTLSConfig(t *testing.T) {
 		// Assert error logs were triggered (at least 1, at most testTickerIterations)
 		// Use Eventually to give the goroutine time to process the clock ticks
 		require.Eventually(t, func() bool {
-			errLogs := map[time.Time]struct{}{}
-			for _, entry := range logHook.AllEntries() {
+			entries := logHook.AllEntries()
+			errLogCount := 0
+			for _, entry := range entries {
 				if entry.Level == logrus.ErrorLevel && strings.Contains(entry.Message, "Failed to load certificate: tls: failed to find any PEM data in certificate input") {
-					errLogs[entry.Time] = struct{}{}
+					errLogCount++
 				}
 			}
-			return len(errLogs) >= 1 && len(errLogs) <= testTickerIterations
+			return errLogCount >= 1 && errLogCount <= testTickerIterations
 		}, time.Second, 10*time.Millisecond, "expected 1-%d error logs", testTickerIterations)
 
 		// New cert is not loaded because it is invalid.
@@ -260,13 +264,14 @@ func TestTLSConfig(t *testing.T) {
 		// Assert error logs were triggered (at least 1, at most testTickerIterations)
 		// Use Eventually to give the goroutine time to process the clock ticks
 		require.Eventually(t, func() bool {
-			errLogs := map[time.Time]struct{}{}
-			for _, entry := range logHook.AllEntries() {
+			entries := logHook.AllEntries()
+			errLogCount := 0
+			for _, entry := range entries {
 				if entry.Level == logrus.ErrorLevel && strings.Contains(entry.Message, "Failed to load certificate: tls: failed to find any PEM data in key input") {
-					errLogs[entry.Time] = struct{}{}
+					errLogCount++
 				}
 			}
-			return len(errLogs) >= 1 && len(errLogs) <= testTickerIterations
+			return errLogCount >= 1 && errLogCount <= testTickerIterations
 		}, time.Second, 10*time.Millisecond, "expected 1-%d error logs", testTickerIterations)
 
 		// New cert is not loaded because it is invalid.
@@ -307,13 +312,14 @@ func TestTLSConfig(t *testing.T) {
 		// Assert error logs were triggered (at least 1, at most testTickerIterations)
 		// Use Eventually to give the goroutine time to process the clock ticks
 		require.Eventually(t, func() bool {
-			errLogs := map[time.Time]struct{}{}
-			for _, entry := range logHook.AllEntries() {
+			entries := logHook.AllEntries()
+			errLogCount := 0
+			for _, entry := range entries {
 				if entry.Level == logrus.ErrorLevel && strings.Contains(entry.Message, fmt.Sprintf("Failed to get file info, file path %q does not exist anymore; please check if the path is correct", keyFilePath)) {
-					errLogs[entry.Time] = struct{}{}
+					errLogCount++
 				}
 			}
-			return len(errLogs) >= 1 && len(errLogs) <= testTickerIterations
+			return errLogCount >= 1 && errLogCount <= testTickerIterations
 		}, time.Second, 10*time.Millisecond, "expected 1-%d error logs", testTickerIterations)
 
 		removeFile(t, certFilePath)
@@ -324,13 +330,14 @@ func TestTLSConfig(t *testing.T) {
 		// Assert error logs were triggered (at least 1, at most testTickerIterations)
 		// Use Eventually to give the goroutine time to process the clock ticks
 		require.Eventually(t, func() bool {
-			errLogs := map[time.Time]struct{}{}
-			for _, entry := range logHook.AllEntries() {
+			entries := logHook.AllEntries()
+			errLogCount := 0
+			for _, entry := range entries {
 				if entry.Level == logrus.ErrorLevel && strings.Contains(entry.Message, fmt.Sprintf("Failed to get file info, file path %q does not exist anymore; please check if the path is correct", certFilePath)) {
-					errLogs[entry.Time] = struct{}{}
+					errLogCount++
 				}
 			}
-			return len(errLogs) >= 1 && len(errLogs) <= testTickerIterations
+			return errLogCount >= 1 && errLogCount <= testTickerIterations
 		}, time.Second, 10*time.Millisecond, "expected 1-%d error logs", testTickerIterations)
 
 		writeFile(t, keyFilePath, oidcServerKeyPem)
@@ -362,21 +369,16 @@ func TestTLSConfig(t *testing.T) {
 }
 
 func writeFile(t *testing.T, name string, data []byte) {
-	// Ensure ModTime will be different from previous write by setting it explicitly.
-	// This handles filesystems with coarse ModTime resolution (e.g., 1-second granularity).
-	newModTime := time.Now()
-	info, err := os.Stat(name)
-	switch {
-	case err == nil:
-		newModTime = info.ModTime().Add(time.Second)
-	case os.IsNotExist(err):
-		// File doesn't exist - use time.Now()
-	default:
-		require.NoError(t, err, "failed to stat file before writing")
+	// Ensure ModTime is strictly monotonic across all writes in the test.
+	// This handles filesystems with coarse ModTime resolution (e.g., 1-second granularity)
+	// and ensures the cert manager always detects changes.
+	if testModTimeCounter.IsZero() {
+		testModTimeCounter = time.Now()
 	}
+	testModTimeCounter = testModTimeCounter.Add(time.Second)
 
 	require.NoError(t, os.WriteFile(name, data, 0600))
-	require.NoError(t, os.Chtimes(name, newModTime, newModTime))
+	require.NoError(t, os.Chtimes(name, testModTimeCounter, testModTimeCounter))
 }
 
 func removeFile(t *testing.T, name string) {

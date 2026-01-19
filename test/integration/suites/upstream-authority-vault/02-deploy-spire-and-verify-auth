@@ -14,7 +14,7 @@ SECRET_ID=$(./bin/kubectl exec -n vault vault-0 -- vault write --format json -f 
               --from-literal=approle_id=$APPROLE_ID \
               --from-literal=secret_id=$SECRET_ID 
 ./bin/kubectl apply -k ./conf/server/approle-auth
-./bin/kubectl wait pods -n spire -l app=spire-server --for condition=Ready --timeout=60s
+./bin/kubectl wait pods -n spire -l app=spire-server --for=condition=Ready --timeout=60s
 ./bin/kubectl delete -k ./conf/server/approle-auth
 ./bin/kubectl delete secret -n spire vault-credential
 ./bin/kubectl wait pods -n spire -l app=spire-server --for=delete --timeout=60s
@@ -22,7 +22,7 @@ SECRET_ID=$(./bin/kubectl exec -n vault vault-0 -- vault write --format json -f 
 # Verify K8s Auth
 log-info "verifying k8s auth..."
 ./bin/kubectl apply -k ./conf/server/k8s-auth
-./bin/kubectl wait pods -n spire -l app=spire-server --for condition=Ready --timeout=60s
+./bin/kubectl wait pods -n spire -l app=spire-server --for=condition=Ready --timeout=60s
 ./bin/kubectl delete -k ./conf/server/k8s-auth
 ./bin/kubectl wait pods -n spire -l app=spire-server --for=delete --timeout=60s
 
@@ -32,7 +32,7 @@ log-info "verifying cert auth..."
               --from-file=client.pem=client.pem \
               --from-file=client_key.pem=client_key.pem
 ./bin/kubectl apply -k ./conf/server/cert-auth
-./bin/kubectl wait pods -n spire -l app=spire-server --for condition=Ready --timeout=60s
+./bin/kubectl wait pods -n spire -l app=spire-server --for=condition=Ready --timeout=60s
 ./bin/kubectl delete -k ./conf/server/cert-auth
 ./bin/kubectl delete secret -n spire vault-credential
 ./bin/kubectl wait pods -n spire -l app=spire-server --for=delete --timeout=60s
@@ -43,4 +43,4 @@ TOKEN=$(./bin/kubectl exec -n vault vault-0 -- vault token create -policy=spire 
 ./bin/kubectl create secret -n spire generic vault-credential \
               --from-literal=token=$TOKEN
 ./bin/kubectl apply -k ./conf/server/token-auth
-./bin/kubectl wait pods -n spire -l app=spire-server --for condition=Ready --timeout=60s
+./bin/kubectl wait pods -n spire -l app=spire-server --for=condition=Ready --timeout=60s
