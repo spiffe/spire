@@ -2052,11 +2052,110 @@ func TestRenewAgent(t *testing.T) {
 }
 
 func TestPostStatus(t *testing.T) {
-	test := setupServiceTest(t, 0)
+	for _, tt := range []struct {
+		name          string
+		request       *agentv1.PostStatusRequest
+		createAgent   bool
+		withCallerID  bool
+		expectCode    codes.Code
+		expectMsg     string
+		expectVersion string
+	}{
+		{
+			name:         "missing caller ID",
+			request:      &agentv1.PostStatusRequest{AgentVersion: "1.0.0"},
+			createAgent:  true,
+			withCallerID: false,
+			expectCode:   codes.Internal,
+			expectMsg:    "caller ID missing from request context",
+		},
+		{
+			name:         "agent not found",
+			request:      &agentv1.PostStatusRequest{AgentVersion: "1.0.0"},
+			createAgent:  false,
+			withCallerID: true,
+			expectCode:   codes.NotFound,
+			expectMsg:    "agent not found",
+		},
+		{
+			name:          "success",
+			request:       &agentv1.PostStatusRequest{AgentVersion: "1.0.0", CurrentBundleSerial: 123},
+			createAgent:   true,
+			withCallerID:  true,
+			expectCode:    codes.OK,
+			expectVersion: "1.0.0",
+		},
+		{
+			name:          "success with empty version",
+			request:       &agentv1.PostStatusRequest{CurrentBundleSerial: 456},
+			createAgent:   true,
+			withCallerID:  true,
+			expectCode:    codes.OK,
+			expectVersion: "",
+		},
+		{
+			name: "agent version too long",
+			request: &agentv1.PostStatusRequest{
+				AgentVersion: string(make([]byte, 256)),
+			},
+			createAgent:  true,
+			withCallerID: true,
+			expectCode:   codes.InvalidArgument,
+			expectMsg:    "agent version is too long",
+		},
+		{
+			name: "agent version at max length",
+			request: &agentv1.PostStatusRequest{
+				AgentVersion: string(make([]byte, 255)),
+			},
+			createAgent:   true,
+			withCallerID:  true,
+			expectCode:    codes.OK,
+			expectVersion: string(make([]byte, 255)),
+		},
+		{
+			name: "agent version with invalid UTF-8",
+			request: &agentv1.PostStatusRequest{
+				AgentVersion: "1.0.0\xff\xfe",
+			},
+			createAgent:  true,
+			withCallerID: true,
+			expectCode:   codes.Internal,
+			expectMsg:    "grpc: error while marshaling: string field contains invalid UTF-8",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			test := setupServiceTest(t, 0)
 
-	resp, err := test.client.PostStatus(context.Background(), &agentv1.PostStatusRequest{})
-	require.Nil(t, resp)
-	spiretest.RequireGRPCStatus(t, err, codes.Unimplemented, "unimplemented")
+			if tt.createAgent {
+				_, err := test.ds.CreateAttestedNode(context.Background(), &common.AttestedNode{
+					SpiffeId:            agentID.String(),
+					AttestationDataType: "test_type",
+					CertSerialNumber:    "12345",
+					CertNotAfter:        time.Now().Add(time.Hour).Unix(),
+				})
+				require.NoError(t, err)
+			}
+
+			test.withCallerID = tt.withCallerID
+
+			resp, err := test.client.PostStatus(context.Background(), tt.request)
+
+			if tt.expectCode != codes.OK {
+				require.Nil(t, resp)
+				spiretest.RequireGRPCStatusHasPrefix(t, err, tt.expectCode, tt.expectMsg)
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, resp)
+
+				// Verify the agent version was updated in the datastore
+				node, err := test.ds.FetchAttestedNode(context.Background(), agentID.String())
+				require.NoError(t, err)
+				require.NotNil(t, node)
+				require.Equal(t, tt.expectVersion, node.AgentVersion)
+			}
+		})
+	}
 }
 
 func TestCreateJoinToken(t *testing.T) {

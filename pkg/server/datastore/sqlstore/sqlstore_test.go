@@ -938,13 +938,14 @@ func (s *PluginSuite) TestListAttestedNodes() {
 	expired := now.Add(-time.Hour)
 	unexpired := now.Add(time.Hour)
 
-	makeAttestedNode := func(spiffeIDSuffix, attestationType string, notAfter time.Time, sn string, canReattest bool, selectors ...string) *common.AttestedNode {
+	makeAttestedNode := func(spiffeIDSuffix, attestationType string, notAfter time.Time, sn string, canReattest bool, agentVersion string, selectors ...string) *common.AttestedNode {
 		return &common.AttestedNode{
 			SpiffeId:            makeID(spiffeIDSuffix),
 			AttestationDataType: attestationType,
 			CertSerialNumber:    sn,
 			CertNotAfter:        notAfter.Unix(),
 			CanReattest:         canReattest,
+			AgentVersion:        agentVersion,
 			Selectors:           makeSelectors(selectors...),
 		}
 	}
@@ -957,16 +958,16 @@ func (s *PluginSuite) TestListAttestedNodes() {
 	canReattestFalse := false
 	canReattestTrue := true
 
-	nodeA := makeAttestedNode("A", "T1", expired, unbanned, false, "S1")
-	nodeB := makeAttestedNode("B", "T2", expired, unbanned, false, "S1")
-	nodeC := makeAttestedNode("C", "T1", expired, unbanned, false, "S2")
-	nodeD := makeAttestedNode("D", "T2", expired, unbanned, false, "S2")
-	nodeE := makeAttestedNode("E", "T1", unexpired, banned, false, "S1", "S2")
-	nodeF := makeAttestedNode("F", "T2", unexpired, banned, false, "S1", "S3")
-	nodeG := makeAttestedNode("G", "T1", unexpired, banned, false, "S2", "S3")
-	nodeH := makeAttestedNode("H", "T2", unexpired, banned, false, "S2", "S3")
-	nodeI := makeAttestedNode("I", "T1", unexpired, unbanned, true, "S1")
-	nodeJ := makeAttestedNode("J", "T1", now, unbanned, false, "S1", "S2")
+	nodeA := makeAttestedNode("A", "T1", expired, unbanned, false, "1.5.3", "S1")
+	nodeB := makeAttestedNode("B", "T2", expired, unbanned, false, "1.6.0", "S1")
+	nodeC := makeAttestedNode("C", "T1", expired, unbanned, false, "", "S2")
+	nodeD := makeAttestedNode("D", "T2", expired, unbanned, false, "1.5.3", "S2")
+	nodeE := makeAttestedNode("E", "T1", unexpired, banned, false, "1.6.1", "S1", "S2")
+	nodeF := makeAttestedNode("F", "T2", unexpired, banned, false, "", "S1", "S3")
+	nodeG := makeAttestedNode("G", "T1", unexpired, banned, false, "1.7.0-dev", "S2", "S3")
+	nodeH := makeAttestedNode("H", "T2", unexpired, banned, false, "", "S2", "S3")
+	nodeI := makeAttestedNode("I", "T1", unexpired, unbanned, true, "1.6.2", "S1")
+	nodeJ := makeAttestedNode("J", "T1", now, unbanned, false, "1.8.0", "S1", "S2")
 
 	for _, tt := range []struct {
 		test                string
@@ -1220,6 +1221,7 @@ func (s *PluginSuite) TestListAttestedNodes() {
 					var tokensIn []string
 					var actualIDsOut [][]string
 					actualSelectorsOut := make(map[string][]*common.Selector)
+					actualAgentVersionsOut := make(map[string]string)
 					req := &datastore.ListAttestedNodesRequest{
 						Pagination:        pagination,
 						ByExpiresBefore:   tt.byExpiresBefore,
@@ -1253,6 +1255,7 @@ func (s *PluginSuite) TestListAttestedNodes() {
 						for _, node := range resp.Nodes {
 							idSet = append(idSet, node.SpiffeId)
 							actualSelectorsOut[node.SpiffeId] = node.Selectors
+							actualAgentVersionsOut[node.SpiffeId] = node.AgentVersion
 						}
 						actualIDsOut = append(actualIDsOut, idSet)
 
@@ -1269,6 +1272,7 @@ func (s *PluginSuite) TestListAttestedNodes() {
 
 					var expectIDsOut [][]string
 					expectSelectorsOut := make(map[string][]*common.Selector)
+					expectAgentVersionsOut := make(map[string]string)
 					for _, nodeSet := range expectNodesOut {
 						var idSet []string
 						for _, node := range nodeSet {
@@ -1276,6 +1280,7 @@ func (s *PluginSuite) TestListAttestedNodes() {
 							if withSelectors {
 								expectSelectorsOut[node.SpiffeId] = node.Selectors
 							}
+							expectAgentVersionsOut[node.SpiffeId] = node.AgentVersion
 						}
 						expectIDsOut = append(expectIDsOut, idSet)
 					}
@@ -1287,6 +1292,7 @@ func (s *PluginSuite) TestListAttestedNodes() {
 					}
 					assert.Equal(t, expectIDsOut, actualIDsOut, "unexpected response nodes")
 					assertSelectorsEqual(t, expectSelectorsOut, actualSelectorsOut, "unexpected response selectors")
+					assert.Equal(t, expectAgentVersionsOut, actualAgentVersionsOut, "unexpected agent versions")
 				})
 			}
 		}
@@ -1386,6 +1392,25 @@ func (s *PluginSuite) TestUpdateAttestedNode() {
 				CertNotAfter:        updatedExpires,
 				NewCertNotAfter:     updatedNewExpires,
 				NewCertSerialNumber: updatedNewSerial,
+			},
+		},
+		{
+			name: "update attested node agent version only",
+			updateNode: &common.AttestedNode{
+				SpiffeId:     nodeID,
+				AgentVersion: "1.5.0",
+			},
+			updateNodeMask: &common.AttestedNodeMask{
+				AgentVersion: true,
+			},
+			expUpdatedNode: &common.AttestedNode{
+				SpiffeId:            nodeID,
+				AttestationDataType: attestationType,
+				CertSerialNumber:    serial,
+				CertNotAfter:        expires,
+				NewCertNotAfter:     newExpires,
+				NewCertSerialNumber: newSerial,
+				AgentVersion:        "1.5.0",
 			},
 		},
 	} {
@@ -5213,6 +5238,9 @@ func (s *PluginSuite) TestMigration() {
 			// of SPIRE server and no longer have migration code.
 			case 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22:
 				prepareDB(false)
+			case 23:
+				// Migration from v23 to v24 adds agent_version column
+				prepareDB(true)
 			default:
 				t.Fatalf("no migration test added for schema version %d", schemaVersion)
 			}

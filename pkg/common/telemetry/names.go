@@ -145,6 +145,9 @@ const (
 	// Agent SPIFFE ID
 	AgentID = "agent_id"
 
+	// AgentVersion is the version of the SPIRE agent
+	AgentVersion = "agent_version"
+
 	// Attempt tags some count of attempts
 	Attempt = "attempt"
 

@@ -273,7 +273,7 @@ import (
 
 const (
 	// the latest schema version of the database in the code
-	latestSchemaVersion = 23
+	latestSchemaVersion = 24
 
 	// lastMinorReleaseSchemaVersion is the schema version supported by the
 	// last minor release. When the migrations are opportunistically pruned
@@ -503,7 +503,9 @@ func migrateVersion(tx *gorm.DB, currVersion int, log logrus.FieldLogger) (versi
 	//   return nil
 	// }
 	//
-	switch currVersion { //nolint: gocritic,revive // No upgrade required yet, keeping switch for future additions
+	switch currVersion {
+	case 23:
+		err = migrateToV24(tx)
 	default:
 		err = newSQLError("no migration support for unknown schema version %d", currVersion)
 	}
@@ -512,6 +514,14 @@ func migrateVersion(tx *gorm.DB, currVersion int, log logrus.FieldLogger) (versi
 	}
 
 	return nextVersion, nil
+}
+
+func migrateToV24(tx *gorm.DB) error {
+	// Add agent_version column to attested_node_entries table
+	if err := tx.AutoMigrate(&AttestedNode{}).Error; err != nil {
+		return newWrappedSQLError(err)
+	}
+	return nil
 }
 
 func addFederatedRegistrationEntriesRegisteredEntryIDIndex(tx *gorm.DB) error {
