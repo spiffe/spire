@@ -11,11 +11,18 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Skip DCO check in merge queue
+        if: github.event_name == 'merge_group'
+        run: |
+          echo "Skipping DCO check for merge queue - DCO is validated on PR commits before entering the queue"
+          exit 0
       - name: Set up Python 3.x
+        if: github.event_name != 'merge_group'
         uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
         with:
           python-version: '3.x'
       - name: Check DCO
+        if: github.event_name != 'merge_group'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
