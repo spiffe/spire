@@ -226,7 +226,7 @@ func validateKeyTypeAndSigningAlgorithm(keyType string, signingAlgorithm string)
 		case "rsa-4096":
 			return keymanager.RSA4096, nil
 		default:
-			return keymanager.KeyTypeUnset, fmt.Errorf("unsupported key type: %s", keyType)
+			return keymanager.KeyTypeUnset, fmt.Errorf("unsupported key type '%s' for signing algorithm '%s'", keyType, signingAlgorithm)
 		}
 	case "ES256":
 		if keyType != "ec-p256" {

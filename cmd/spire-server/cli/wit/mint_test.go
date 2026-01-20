@@ -452,7 +452,7 @@ func TestValidateKeyTypeAndAlgorithm(t *testing.T) {
 			name:             "unknown rsa key type with valid signing algorithm",
 			keyType:          "rsa-3333",
 			signingAlgorithm: "RS512",
-			err:              errors.New("unsupported key type: rsa-3333"),
+			err:              errors.New("unsupported key type 'rsa-3333' for signing algorithm 'RS512'"),
 		},
 		{
 			name:             "unknown key type with invalid signing algorithm",
