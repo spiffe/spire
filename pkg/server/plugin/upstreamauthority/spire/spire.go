@@ -293,7 +293,16 @@ func (p *Plugin) PublishJWTKeyAndSubscribe(req *upstreamauthorityv1.PublishJWTKe
 func (p *Plugin) pollBundleUpdates(ctx context.Context) {
 	ticker := p.clk.Ticker(upstreamPollFreq)
 	defer ticker.Stop()
+	defer p.serverClient.release()
+
 	for {
+		select {
+		case <-ctx.Done():
+			p.log.Debug("Poll bundle updates context done", "reason", ctx.Err())
+			return
+		default:
+		}
+
 		preFetchCallVersion := p.getBundleVersion()
 		resp, err := p.serverClient.getBundle(ctx)
 		if err != nil {
@@ -308,7 +317,6 @@ func (p *Plugin) pollBundleUpdates(ctx context.Context) {
 		select {
 		case <-ticker.C:
 		case <-ctx.Done():
-			p.serverClient.release()
 			p.log.Debug("Poll bundle updates context done", "reason", ctx.Err())
 			return
 		}
