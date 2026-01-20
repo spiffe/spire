@@ -11,11 +11,11 @@ var (
   -socketPath string
     	Path to the SPIRE Server API socket (default "/tmp/spire-server/private/api.sock")
 `
-	AddrOnlyOutputUsage = `
+	AddrOutputForCasesWhereOptionsStartWithS = `
   -output value
     	Desired output format (pretty, json); default: pretty.
 `
-	AddrSocketPathUsage = `
+	AddrSocketPathUsageForCasesWhereOptionsStartWithS = `
   -socketPath string
     	Path to the SPIRE Server API socket (default "/tmp/spire-server/private/api.sock")
 `

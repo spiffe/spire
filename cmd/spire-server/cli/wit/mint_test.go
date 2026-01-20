@@ -43,9 +43,9 @@ dlmdCTY3trEN+pXoR+kecSyZFcvjYBaND9mOPsSHCAc5AAtFPQF/j0H/
 	availableFormats = []string{"pretty", "json"}
 	expectedUsage    = `Usage of wit mint:
   -keyType string
-    	Key type of the WIT-SVID (default "ec-p256")` + clitest.AddrOnlyOutputUsage +
+    	Key type of the WIT-SVID (default "ec-p256")` + clitest.AddrOutputForCasesWhereOptionsStartWithS +
 		`  -signingAlgorithm string
-    	Signing algorithm for the workload signing key (default "ES256")` + clitest.AddrSocketPathUsage +
+    	Signing algorithm for the workload signing key (default "ES256")` + clitest.AddrSocketPathUsageForCasesWhereOptionsStartWithS +
 		`  -spiffeID string
     	SPIFFE ID of the WIT-SVID
   -ttl duration
