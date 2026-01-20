@@ -601,16 +601,56 @@ jobs:
           name: binaries-windows
           path: ./artifacts/
 
+  milestone-check:
+    name: milestone-check
+    runs-on: ubuntu-22.04
+    if: github.event_name == 'merge_group'
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Get PR number from merge group
+        id: get-pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Extract PR number from merge group head ref (format: refs/heads/gh-readonly-queue/main/pr-<number>-<sha>)
+          PR_NUMBER=$(echo "${{ github.event.merge_group.head_ref }}" | grep -oP 'pr-\K[0-9]+')
+          if [ -z "$PR_NUMBER" ]; then
+            echo "Error: Could not extract PR number from head_ref: ${{ github.event.merge_group.head_ref }}"
+            exit 1
+          fi
+          echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
+          echo "Found PR number: $PR_NUMBER"
+      - name: Check milestone
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PR_NUMBER="${{ steps.get-pr.outputs.pr_number }}"
+          MILESTONE=$(gh pr view "$PR_NUMBER" --repo ${{ github.repository }} --json milestone --jq '.milestone.title // empty')
+
+          if [ -z "$MILESTONE" ]; then
+            echo "Error: PR #$PR_NUMBER does not have a milestone assigned."
+            echo "Please assign a milestone before merging."
+            exit 1
+          fi
+
+          echo "PR #$PR_NUMBER has milestone: $MILESTONE"
+
   success:
     runs-on: ubuntu-22.04
-    needs: [lint, unit-test, unit-test-race-detector, artifacts, integration, integration-k8s, lint-windows, unit-test-windows, artifacts-windows, integration-windows]
+    needs: [lint, unit-test, unit-test-race-detector, artifacts, integration, integration-k8s, lint-windows, unit-test-windows, artifacts-windows, integration-windows, milestone-check]
     if: always()
     timeout-minutes: 30
     permissions:
       contents: read
     steps:
       - name: Check for failures
-        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') || contains(needs.*.result, 'skipped')
+        if: |
+          contains(needs.*.result, 'failure') ||
+          contains(needs.*.result, 'cancelled') ||
+          (contains(needs.*.result, 'skipped') && needs.milestone-check.result != 'skipped')
         run: |
           echo "One or more required jobs failed, were cancelled, or were skipped"
           exit 1
