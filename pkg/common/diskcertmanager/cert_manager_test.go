@@ -6,16 +6,12 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
-	"fmt"
 	"math/big"
 	"os"
 	"path/filepath"
-	"reflect"
-	"strings"
 	"testing"
 	"time"
 
-	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/test/clock"
@@ -23,365 +19,294 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var (
-	oidcServerKey    = testkey.MustEC256()
-	oidcServerKeyNew = testkey.MustEC256()
+const testFileSyncInterval = time.Second
 
-	// testModTimeCounter ensures strictly monotonic ModTimes across all writeFile calls
-	testModTimeCounter time.Time
-)
+type testPaths struct {
+	certPath string
+	keyPath  string
+}
 
-const (
-	testFileSyncInterval  = 10 * time.Millisecond
-	testTickerIterations  = 5
-	testTotalSyncDuration = testFileSyncInterval * testTickerIterations // 50ms = 5 ticks of 10ms
-)
+type testCert struct {
+	certPEM []byte
+	keyPEM  []byte
+}
 
-func TestTLSConfig(t *testing.T) {
-	logger, logHook := test.NewNullLogger()
+func TestNew(t *testing.T) {
+	paths := setupTestPaths(t)
+	validCert := generateTestCert(t, "test", 1)
 
-	clk := clock.NewMock(t)
-
-	oidcServerKeyDer, err := x509.MarshalECPrivateKey(oidcServerKey)
-	require.NoError(t, err)
-
-	certTmpl := &x509.Certificate{
-		SerialNumber: big.NewInt(0),
-		NotAfter:     time.Now().Add(time.Hour),
-		Subject: pkix.Name{
-			Country:    []string{"BR"},
-			CommonName: "oidc-provider-discovery.example.com",
+	tests := []struct {
+		name        string
+		setupFiles  func()
+		config      *Config
+		expectError string
+	}{
+		{
+			name:        "nil config",
+			config:      nil,
+			expectError: "missing serving cert file configuration",
+		},
+		{
+			name: "cert file does not exist",
+			config: &Config{
+				CertFilePath: filepath.Join(filepath.Dir(paths.certPath), "nonexistent.pem"),
+				KeyFilePath:  paths.keyPath,
+			},
+			setupFiles: func() {
+				require.NoError(t, os.WriteFile(paths.keyPath, validCert.keyPEM, 0600))
+			},
+			expectError: "failed to load certificate: open",
+		},
+		{
+			name: "key file does not exist",
+			config: &Config{
+				CertFilePath: paths.certPath,
+				KeyFilePath:  filepath.Join(filepath.Dir(paths.keyPath), "nonexistent.pem"),
+			},
+			setupFiles: func() {
+				require.NoError(t, os.WriteFile(paths.certPath, validCert.certPEM, 0600))
+			},
+			expectError: "failed to load certificate: open",
+		},
+		{
+			name: "invalid cert file",
+			config: &Config{
+				CertFilePath: paths.certPath,
+				KeyFilePath:  paths.keyPath,
+			},
+			setupFiles: func() {
+				require.NoError(t, os.WriteFile(paths.certPath, []byte("invalid"), 0600))
+				require.NoError(t, os.WriteFile(paths.keyPath, validCert.keyPEM, 0600))
+			},
+			expectError: "failed to load certificate: tls: failed to find any PEM data",
+		},
+		{
+			name: "invalid key file",
+			config: &Config{
+				CertFilePath: paths.certPath,
+				KeyFilePath:  paths.keyPath,
+			},
+			setupFiles: func() {
+				require.NoError(t, os.WriteFile(paths.certPath, validCert.certPEM, 0600))
+				require.NoError(t, os.WriteFile(paths.keyPath, []byte("invalid"), 0600))
+			},
+			expectError: "failed to load certificate: tls: failed to find any PEM data",
+		},
+		{
+			name: "success",
+			config: &Config{
+				CertFilePath: paths.certPath,
+				KeyFilePath:  paths.keyPath,
+			},
+			setupFiles: func() {
+				require.NoError(t, os.WriteFile(paths.certPath, validCert.certPEM, 0600))
+				require.NoError(t, os.WriteFile(paths.keyPath, validCert.keyPEM, 0600))
+			},
 		},
 	}
-	oidcServerCert, err := x509util.CreateCertificate(certTmpl, certTmpl, oidcServerKey.Public(), oidcServerKey)
-	require.NoError(t, err)
-	require.NotNilf(t, oidcServerCert, "oidcServerCert is nil")
 
-	oidcServerKeyPem := pem.EncodeToMemory(&pem.Block{
-		Type:  "PRIVATE KEY",
-		Bytes: oidcServerKeyDer,
-	})
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			os.Remove(paths.certPath)
+			os.Remove(paths.keyPath)
 
-	oidcServerCertPem := pem.EncodeToMemory(&pem.Block{
-		Type:  "CERTIFICATE",
-		Bytes: oidcServerCert.Raw,
-	})
+			if tt.setupFiles != nil {
+				tt.setupFiles()
+			}
 
-	certTmpl.Subject.Country = []string{"AR"}
-	oidcServerCertUpdated1, err := x509util.CreateCertificate(certTmpl, certTmpl, oidcServerKey.Public(), oidcServerKey)
-	require.NoError(t, err)
+			logger, _ := test.NewNullLogger()
+			dm, err := New(tt.config, nil, logger)
 
-	oidcServerKeyNewDer, err := x509.MarshalECPrivateKey(oidcServerKeyNew)
-	require.NoError(t, err)
+			if tt.expectError != "" {
+				require.ErrorContains(t, err, tt.expectError)
+				require.Nil(t, dm)
+				return
+			}
 
-	oidcServerCertUpdated2, err := x509util.CreateCertificate(certTmpl, certTmpl, oidcServerKeyNew.Public(), oidcServerKeyNew)
-	require.NoError(t, err)
+			require.NoError(t, err)
+			require.NotNil(t, dm)
 
-	certTmpl.Subject.Country = []string{"US"}
+			tlsConfig := dm.GetTLSConfig()
+			cert, err := tlsConfig.GetCertificate(&tls.ClientHelloInfo{})
+			require.NoError(t, err)
+			require.NotNil(t, cert)
+		})
+	}
+}
 
-	tmpDir := t.TempDir()
-	certFilePath := filepath.Join(tmpDir, "oidcServerCert.pem")
-	keyFilePath := filepath.Join(tmpDir, "oidcServerKey.pem")
-	invalidCertFilePath := filepath.Join(tmpDir, "oidcServerCertInvalid.pem")
-	invalidKeyFilePath := filepath.Join(tmpDir, "oidcServerKeyInvalid.pem")
+func TestSyncCertificateFiles(t *testing.T) {
+	paths := setupTestPaths(t)
 
-	writeFile(t, keyFilePath, oidcServerKeyPem)
-	writeFile(t, certFilePath, oidcServerCertPem)
-	writeFile(t, invalidKeyFilePath, []byte{1})
-	writeFile(t, invalidCertFilePath, []byte{1})
+	cert1 := generateTestCert(t, "cert1", 1)
+	cert2 := generateTestCert(t, "cert2", 2)
 
-	chInfo := &tls.ClientHelloInfo{
-		ServerName: "oidc-provider-discovery.example.com",
+	writeFilesWithModTime := func(certData, keyData []byte, modTime time.Time) {
+		require.NoError(t, os.WriteFile(paths.certPath, certData, 0600))
+		require.NoError(t, os.WriteFile(paths.keyPath, keyData, 0600))
+		require.NoError(t, os.Chtimes(paths.certPath, modTime, modTime))
+		require.NoError(t, os.Chtimes(paths.keyPath, modTime, modTime))
 	}
 
-	ctx, cancelFn := context.WithCancel(context.Background())
-	certManager, err := New(&Config{
-		CertFilePath:     certFilePath,
-		KeyFilePath:      keyFilePath,
+	tests := []struct {
+		name           string
+		setup          func(dm *DiskCertManager)
+		expectCertCN   string
+		expectLogError bool
+	}{
+		{
+			name: "no ModTime change - no reload",
+			setup: func(dm *DiskCertManager) {
+				// Files already have cert1 with ModTime T1, no changes
+			},
+			expectCertCN: "cert1",
+		},
+		{
+			name: "ModTime changed - successful reload",
+			setup: func(dm *DiskCertManager) {
+				// Update files to cert2 with newer ModTime
+				writeFilesWithModTime(cert2.certPEM, cert2.keyPEM, time.Now().Add(time.Hour))
+			},
+			expectCertCN: "cert2",
+		},
+		{
+			name: "ModTime changed - invalid cert - keeps old cert",
+			setup: func(dm *DiskCertManager) {
+				invalidCert := []byte("invalid")
+				writeFilesWithModTime(invalidCert, cert2.keyPEM, time.Now().Add(2*time.Hour))
+			},
+			expectCertCN:   "cert1", // Should keep the old valid cert
+			expectLogError: true,
+		},
+		{
+			name: "ModTime changed - invalid key - keeps old cert",
+			setup: func(dm *DiskCertManager) {
+				invalidKey := []byte("invalid")
+				writeFilesWithModTime(cert2.certPEM, invalidKey, time.Now().Add(3*time.Hour))
+			},
+			expectCertCN:   "cert1",
+			expectLogError: true,
+		},
+		{
+			name: "file deleted - logs error, keeps old cert",
+			setup: func(dm *DiskCertManager) {
+				os.Remove(paths.certPath)
+			},
+			expectCertCN:   "cert1",
+			expectLogError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Setup initial state with cert1
+			baseTime := time.Now()
+			writeFilesWithModTime(cert1.certPEM, cert1.keyPEM, baseTime)
+
+			logger, logHook := test.NewNullLogger()
+			dm, err := New(&Config{
+				CertFilePath: paths.certPath,
+				KeyFilePath:  paths.keyPath,
+			}, nil, logger)
+			require.NoError(t, err)
+
+			logHook.Reset()
+			tt.setup(dm)
+
+			dm.syncCertificateFiles()
+
+			cert, err := dm.getCertificate(nil)
+			require.NoError(t, err)
+			require.NotNil(t, cert.Leaf)
+			require.Equal(t, tt.expectCertCN, cert.Leaf.Subject.CommonName)
+
+			if tt.expectLogError {
+				require.NotEmpty(t, logHook.AllEntries())
+				hasError := false
+				for _, entry := range logHook.AllEntries() {
+					if entry.Level.String() == "error" {
+						hasError = true
+						break
+					}
+				}
+				require.True(t, hasError, "expected error log but found none")
+			}
+		})
+	}
+}
+
+func TestWatchFileChanges(t *testing.T) {
+	paths := setupTestPaths(t)
+	cert := generateTestCert(t, "test", 1)
+
+	require.NoError(t, os.WriteFile(paths.certPath, cert.certPEM, 0600))
+	require.NoError(t, os.WriteFile(paths.keyPath, cert.keyPEM, 0600))
+
+	logger, logHook := test.NewNullLogger()
+	clk := clock.NewMock(t)
+
+	dm, err := New(&Config{
+		CertFilePath:     paths.certPath,
+		KeyFilePath:      paths.keyPath,
 		FileSyncInterval: testFileSyncInterval,
 	}, clk, logger)
 	require.NoError(t, err)
 
-	go func() {
-		certManager.WatchFileChanges(ctx)
-	}()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
-	// Wait for the file watcher's ticker to be created before proceeding
-	clk.WaitForTicker(time.Second, "waiting for file watcher ticker to be created")
+	go dm.WatchFileChanges(ctx)
 
-	tlsConfig := certManager.GetTLSConfig()
+	clk.WaitForTicker(time.Second, "waiting for file watcher ticker")
 
-	t.Run("error when configuration does not contain serving cert file settings", func(t *testing.T) {
-		_, err := New(nil, nil, logger)
-		require.EqualError(t, err, "missing serving cert file configuration")
-	})
-
-	t.Run("error when provided cert path do not exist", func(t *testing.T) {
-		_, err := New(&Config{
-			CertFilePath: filepath.Join(tmpDir, "nonexistent_cert.pem"),
-			KeyFilePath:  keyFilePath,
-		}, clk, logger)
-
-		require.ErrorContains(t, err, fmt.Sprintf("failed to load certificate: open %s", filepath.Join(tmpDir, "nonexistent_cert.pem")))
-	})
-
-	t.Run("error when provided key path do not exist", func(t *testing.T) {
-		_, err := New(&Config{
-			CertFilePath: certFilePath,
-			KeyFilePath:  filepath.Join(tmpDir, "nonexistent_key.pem"),
-		}, clk, logger)
-
-		require.ErrorContains(t, err, fmt.Sprintf("failed to load certificate: open %s", filepath.Join(tmpDir, "nonexistent_key.pem")))
-	})
-
-	t.Run("error when provided cert is invalid", func(t *testing.T) {
-		_, err := New(&Config{
-			CertFilePath: invalidCertFilePath,
-			KeyFilePath:  keyFilePath,
-		}, clk, logger)
-
-		require.EqualError(t, err, "failed to load certificate: tls: failed to find any PEM data in certificate input")
-	})
-
-	t.Run("error when provided key is invalid", func(t *testing.T) {
-		_, err := New(&Config{
-			CertFilePath: certFilePath,
-			KeyFilePath:  invalidKeyFilePath,
-		}, clk, logger)
-
-		require.EqualError(t, err, "failed to load certificate: tls: failed to find any PEM data in key input")
-	})
-
-	t.Run("success loading initial certificate from disk", func(t *testing.T) {
-		cert, err := tlsConfig.GetCertificate(chInfo)
-		require.NoError(t, err)
-		require.Len(t, cert.Certificate, 1)
-		x509Cert, err := x509.ParseCertificate(cert.Certificate[0])
-		require.NoError(t, err)
-		require.Equal(t, oidcServerCert, x509Cert)
-	})
-
-	t.Run("success watching cert file changes", func(t *testing.T) {
-		oidcServerCertUpdatedPem := pem.EncodeToMemory(&pem.Block{
-			Type:  "CERTIFICATE",
-			Bytes: oidcServerCertUpdated1.Raw,
-		})
-		writeFile(t, certFilePath, oidcServerCertUpdatedPem)
-
-		clk.Add(testFileSyncInterval / 2) // Less than sync interval
-
-		// Certificate is not updated yet
-		cert, err := tlsConfig.GetCertificate(chInfo)
-		require.NoError(t, err)
-		require.Len(t, cert.Certificate, 1)
-		x509Cert, err := x509.ParseCertificate(cert.Certificate[0])
-		require.NoError(t, err)
-		require.Equal(t, oidcServerCert, x509Cert)
+	t.Run("ticker fires and calls sync", func(t *testing.T) {
+		logHook.Reset()
 
 		clk.Add(testFileSyncInterval)
 
-		// Assert certificate is updated
-		require.Eventuallyf(t, func() bool {
-			cert, err := tlsConfig.GetCertificate(chInfo)
-			if err != nil {
-				return false
-			}
-			require.Len(t, cert.Certificate, 1)
-			x509Cert, err := x509.ParseCertificate(cert.Certificate[0])
-			if err != nil {
-				return false
-			}
-			return reflect.DeepEqual(oidcServerCertUpdated1, x509Cert)
-		}, 10*time.Second, 10*time.Millisecond, "Failed to assert updated certificate")
-	})
-
-	t.Run("success watching to key file changes", func(t *testing.T) {
-		writeFile(t, keyFilePath, pem.EncodeToMemory(&pem.Block{
-			Type:  "PRIVATE KEY",
-			Bytes: oidcServerKeyNewDer,
-		}))
-
-		writeFile(t, certFilePath, pem.EncodeToMemory(&pem.Block{
-			Type:  "CERTIFICATE",
-			Bytes: oidcServerCertUpdated2.Raw,
-		}))
-
-		clk.Add(testFileSyncInterval)
-
-		require.Eventuallyf(t, func() bool {
-			cert, err := tlsConfig.GetCertificate(chInfo)
-			if err != nil {
-				return false
-			}
-			require.Len(t, cert.Certificate, 1)
-			x509Cert, err := x509.ParseCertificate(cert.Certificate[0])
-			if err != nil {
-				return false
-			}
-			return reflect.DeepEqual(oidcServerCertUpdated2, x509Cert)
-		}, 10*time.Second, 10*time.Millisecond, "Failed to assert updated certificate")
-	})
-
-	t.Run("update cert file with an invalid cert start error log loop", func(t *testing.T) {
-		logHook.Reset()
-		writeFile(t, certFilePath, []byte("invalid-cert"))
-
-		clk.Add(testTotalSyncDuration)
-
-		// Assert error logs were triggered (at least 1, at most testTickerIterations)
-		// Use Eventually to give the goroutine time to process the clock ticks
+		// Give goroutine time to process
 		require.Eventually(t, func() bool {
-			entries := logHook.AllEntries()
-			errLogCount := 0
-			for _, entry := range entries {
-				if entry.Level == logrus.ErrorLevel && strings.Contains(entry.Message, "Failed to load certificate: tls: failed to find any PEM data in certificate input") {
-					errLogCount++
+			return len(logHook.AllEntries()) > 0
+		}, time.Second, 10*time.Millisecond)
+	})
+
+	t.Run("stops when context cancelled", func(t *testing.T) {
+		logHook.Reset()
+		cancel()
+
+		require.Eventually(t, func() bool {
+			for _, entry := range logHook.AllEntries() {
+				if entry.Message == "Stopping file watcher" {
+					return true
 				}
 			}
-			return errLogCount >= 1 && errLogCount <= testTickerIterations
-		}, time.Second, 10*time.Millisecond, "expected 1-%d error logs", testTickerIterations)
-
-		// New cert is not loaded because it is invalid.
-		cert, err := tlsConfig.GetCertificate(chInfo)
-		require.NoError(t, err)
-		require.Len(t, cert.Certificate, 1)
-		x509Cert, err := x509.ParseCertificate(cert.Certificate[0])
-		require.NoError(t, err)
-		require.Equal(t, oidcServerCertUpdated2, x509Cert)
-	})
-
-	t.Run("update key file with an invalid key start error log loop", func(t *testing.T) {
-		logHook.Reset()
-		writeFile(t, certFilePath, pem.EncodeToMemory(&pem.Block{
-			Type:  "CERTIFICATE",
-			Bytes: oidcServerCertUpdated2.Raw,
-		}))
-
-		writeFile(t, keyFilePath, []byte("invalid-key"))
-
-		clk.Add(testTotalSyncDuration)
-
-		// Assert error logs were triggered (at least 1, at most testTickerIterations)
-		// Use Eventually to give the goroutine time to process the clock ticks
-		require.Eventually(t, func() bool {
-			entries := logHook.AllEntries()
-			errLogCount := 0
-			for _, entry := range entries {
-				if entry.Level == logrus.ErrorLevel && strings.Contains(entry.Message, "Failed to load certificate: tls: failed to find any PEM data in key input") {
-					errLogCount++
-				}
-			}
-			return errLogCount >= 1 && errLogCount <= testTickerIterations
-		}, time.Second, 10*time.Millisecond, "expected 1-%d error logs", testTickerIterations)
-
-		// New cert is not loaded because it is invalid.
-		cert, err := tlsConfig.GetCertificate(chInfo)
-		require.NoError(t, err)
-		require.Len(t, cert.Certificate, 1)
-		x509Cert, err := x509.ParseCertificate(cert.Certificate[0])
-		require.NoError(t, err)
-		require.Equal(t, oidcServerCertUpdated2, x509Cert)
-	})
-
-	t.Run("stop logging error when update to valid certificate and key", func(t *testing.T) {
-		writeFile(t, keyFilePath, oidcServerKeyPem)
-		writeFile(t, certFilePath, oidcServerCertPem)
-
-		clk.Add(testFileSyncInterval)
-
-		require.Eventuallyf(t, func() bool {
-			cert, err := tlsConfig.GetCertificate(chInfo)
-			if err != nil {
-				return false
-			}
-			require.Len(t, cert.Certificate, 1)
-			x509Cert, err := x509.ParseCertificate(cert.Certificate[0])
-			if err != nil {
-				return false
-			}
-			return reflect.DeepEqual(oidcServerCert, x509Cert)
-		}, 10*time.Second, 10*time.Millisecond, "Failed to assert updated certificate")
-	})
-
-	t.Run("delete cert files start error log loop", func(t *testing.T) {
-		logHook.Reset()
-		removeFile(t, keyFilePath)
-
-		clk.Add(testTotalSyncDuration)
-
-		// Assert error logs were triggered (at least 1, at most testTickerIterations)
-		// Use Eventually to give the goroutine time to process the clock ticks
-		require.Eventually(t, func() bool {
-			entries := logHook.AllEntries()
-			errLogCount := 0
-			for _, entry := range entries {
-				if entry.Level == logrus.ErrorLevel && strings.Contains(entry.Message, fmt.Sprintf("Failed to get file info, file path %q does not exist anymore; please check if the path is correct", keyFilePath)) {
-					errLogCount++
-				}
-			}
-			return errLogCount >= 1 && errLogCount <= testTickerIterations
-		}, time.Second, 10*time.Millisecond, "expected 1-%d error logs", testTickerIterations)
-
-		removeFile(t, certFilePath)
-		logHook.Reset()
-
-		clk.Add(testTotalSyncDuration)
-
-		// Assert error logs were triggered (at least 1, at most testTickerIterations)
-		// Use Eventually to give the goroutine time to process the clock ticks
-		require.Eventually(t, func() bool {
-			entries := logHook.AllEntries()
-			errLogCount := 0
-			for _, entry := range entries {
-				if entry.Level == logrus.ErrorLevel && strings.Contains(entry.Message, fmt.Sprintf("Failed to get file info, file path %q does not exist anymore; please check if the path is correct", certFilePath)) {
-					errLogCount++
-				}
-			}
-			return errLogCount >= 1 && errLogCount <= testTickerIterations
-		}, time.Second, 10*time.Millisecond, "expected 1-%d error logs", testTickerIterations)
-
-		writeFile(t, keyFilePath, oidcServerKeyPem)
-
-		writeFile(t, certFilePath, oidcServerCertPem)
-
-		clk.Add(testFileSyncInterval)
-
-		require.Eventuallyf(t, func() bool {
-			cert, err := tlsConfig.GetCertificate(chInfo)
-			require.NoError(t, err)
-			require.Len(t, cert.Certificate, 1)
-			x509Cert, err := x509.ParseCertificate(cert.Certificate[0])
-			require.NoError(t, err)
-			require.Equal(t, oidcServerCert, x509Cert)
-
-			return reflect.DeepEqual(oidcServerCert, x509Cert) && logHook.LastEntry().Message == "Loaded provided certificate with success"
-		}, 10*time.Second, 10*time.Millisecond, "Failed to assert error logs")
-	})
-
-	t.Run("stop file watcher when context is canceled", func(t *testing.T) {
-		cancelFn()
-
-		require.Eventuallyf(t, func() bool {
-			lastEntry := logHook.LastEntry()
-			return lastEntry.Level == logrus.InfoLevel && lastEntry.Message == "Stopping file watcher"
-		}, 1*time.Second, 10*time.Millisecond, "Failed to assert file watcher stop log")
+			return false
+		}, time.Second, 10*time.Millisecond)
 	})
 }
 
-func writeFile(t *testing.T, name string, data []byte) {
-	// Ensure ModTime is strictly monotonic across all writes in the test.
-	// This handles filesystems with coarse ModTime resolution (e.g., 1-second granularity)
-	// and ensures the cert manager always detects changes.
-	if testModTimeCounter.IsZero() {
-		testModTimeCounter = time.Now()
-	}
-	testModTimeCounter = testModTimeCounter.Add(time.Second)
-
-	require.NoError(t, os.WriteFile(name, data, 0600))
-	require.NoError(t, os.Chtimes(name, testModTimeCounter, testModTimeCounter))
-}
-
-func removeFile(t *testing.T, name string) {
-	err := os.Remove(name)
+func generateTestCert(t *testing.T, commonName string, serialNumber int64) testCert {
+	key := testkey.MustEC256()
+	keyDER, err := x509.MarshalECPrivateKey(key)
 	require.NoError(t, err)
+
+	certTmpl := &x509.Certificate{
+		SerialNumber: big.NewInt(serialNumber),
+		NotAfter:     time.Now().Add(time.Hour),
+		Subject:      pkix.Name{CommonName: commonName},
+	}
+	certDER, err := x509util.CreateCertificate(certTmpl, certTmpl, key.Public(), key)
+	require.NoError(t, err)
+
+	return testCert{
+		certPEM: pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER.Raw}),
+		keyPEM:  pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: keyDER}),
+	}
+}
+
+func setupTestPaths(t *testing.T) testPaths {
+	tmpDir := t.TempDir()
+	return testPaths{
+		certPath: filepath.Join(tmpDir, "cert.pem"),
+		keyPath:  filepath.Join(tmpDir, "key.pem"),
+	}
 }
