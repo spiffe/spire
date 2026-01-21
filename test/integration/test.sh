@@ -21,9 +21,13 @@ failed=()
 for suite in $SUITES; do
     if [[ " ${ignore_suites[*]} " =~ " ${suite} " ]]; then
         log-warn "Ignoring ${suite} suite..."
-    elif ! ./test-one.sh "${suite}"; then
-        echo "STATUS=$?"
-        failed+=( "$(basename "${suite}")" )
+    else
+        ./test-one.sh "${suite}"
+        status=$?
+        if [ ${status} -ne 0 ]; then
+            echo "test-one.sh returned status=${status}"
+            failed+=( "$(basename "${suite}")" )
+        fi
     fi
 done
 

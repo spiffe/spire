@@ -43,7 +43,7 @@ import (
 )
 
 var (
-	awsTimeout      = 5 * time.Second
+	awsTimeout      = 20 * time.Second
 	instanceFilters = []ec2types.Filter{
 		{
 			Name: aws.String("instance-state-name"),

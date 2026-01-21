@@ -144,6 +144,7 @@ func RateLimits(config RateLimitConfig) map[string]api.RateLimiter {
 	}
 
 	pushKeyLimit := middleware.PerIPLimit(limits.PushKeyLimitPerIP)
+	postStatusLimit := middleware.PerIPLimit(limits.PostStatusLimitPerIP)
 
 	return map[string]api.RateLimiter{
 		"/spire.api.server.svid.v1.SVID/MintX509SVID":                                    noLimit,
@@ -183,6 +184,7 @@ func RateLimits(config RateLimitConfig) map[string]api.RateLimiter {
 		"/spire.api.server.agent.v1.Agent/BanAgent":                                      noLimit,
 		"/spire.api.server.agent.v1.Agent/AttestAgent":                                   attestLimit,
 		"/spire.api.server.agent.v1.Agent/RenewAgent":                                    csrLimit,
+		"/spire.api.server.agent.v1.Agent/PostStatus":                                    postStatusLimit,
 		"/spire.api.server.agent.v1.Agent/CreateJoinToken":                               noLimit,
 		"/spire.api.server.trustdomain.v1.TrustDomain/ListFederationRelationships":       noLimit,
 		"/spire.api.server.trustdomain.v1.TrustDomain/GetFederationRelationship":         noLimit,
