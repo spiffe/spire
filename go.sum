@@ -141,8 +141,8 @@ github.com/aws/aws-sdk-go-v2/internal/v4a v1.4.16 h1:CjMzUs78RDDv4ROu3JnJn/Ig1r6
 github.com/aws/aws-sdk-go-v2/internal/v4a v1.4.16/go.mod h1:uVW4OLBqbJXSHJYA9svT9BluSvvwbzLQ2Crf6UPzR3c=
 github.com/aws/aws-sdk-go-v2/service/acmpca v1.46.2 h1:mBl0TQb13preknTDjHWbanhl1BveYfF1QES/YverKlQ=
 github.com/aws/aws-sdk-go-v2/service/acmpca v1.46.2/go.mod h1:rpBWGq3UUlrgtAwNMy+I9ZoGgbiCoy30QetJZtI6+1A=
-github.com/aws/aws-sdk-go-v2/service/autoscaling v1.62.0 h1:cYsffsQcIls7mqvMQ3+SkaUXgz/CvxBQgJFrKCLj64k=
-github.com/aws/aws-sdk-go-v2/service/autoscaling v1.62.0/go.mod h1:6q/I1pH386VpPfB6FE62X/MOs6NW/oCsY9FXU33YXOU=
+github.com/aws/aws-sdk-go-v2/service/autoscaling v1.63.0 h1:ffFts1+wfxmRrJ6tQJnhh6+p1TeQDplJ1iLrZopUM9w=
+github.com/aws/aws-sdk-go-v2/service/autoscaling v1.63.0/go.mod h1:8O5Pj92iNpfw/Fa7WdHbn6YiEjDoVdutz+9PGRNoP3Y=
 github.com/aws/aws-sdk-go-v2/service/ec2 v1.279.0 h1:o7eJKe6VYAnqERPlLAvDW5VKXV6eTKv1oxTpMoDP378=
 github.com/aws/aws-sdk-go-v2/service/ec2 v1.279.0/go.mod h1:Wg68QRgy2gEGGdmTPU/UbVpdv8sM14bUZmF64KFwAsY=
 github.com/aws/aws-sdk-go-v2/service/eks v1.77.0 h1:Z5mTpmbJKU7jEM7xoXI5tO4Nm0JUZSgVSFkpYuu6Ic0=
