@@ -5236,15 +5236,10 @@ func (s *PluginSuite) TestMigration() {
 			switch schemaVersion {
 			// All of these schema versions were migrated by previous versions
 			// of SPIRE server and no longer have migration code.
-			case 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22:
+			case 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 34:
 				prepareDB(false)
-			case 23:
-<<<<<<< HEAD
-				prepareDB(true)
 			case 24:
-=======
-				// Migration from v23 to v24 adds agent_version column
->>>>>>> main
+				// Migration from v24 to v25 adds agent_version column
 				prepareDB(true)
 			default:
 				t.Fatalf("no migration test added for schema version %d", schemaVersion)
