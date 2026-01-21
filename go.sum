@@ -72,8 +72,8 @@ github.com/AzureAD/microsoft-authentication-library-for-go v1.6.0 h1:XRzhVemXdgv
 github.com/AzureAD/microsoft-authentication-library-for-go v1.6.0/go.mod h1:HKpQxkWaGLJ+D/5H8QRpyQXA1eKjxkFlOMwck5+33Jk=
 github.com/DataDog/datadog-go v3.2.0+incompatible h1:qSG2N4FghB1He/r2mFrWKCaL7dXCilEuNEeAn20fdD4=
 github.com/DataDog/datadog-go v3.2.0+incompatible/go.mod h1:LButxg5PwREeZtORoXG3tL4fMGNddJ+vMq1mwgfaqoQ=
-github.com/GoogleCloudPlatform/cloudsql-proxy v1.37.11 h1:BZxOiyJM4K3mOxJDhjOuCD9iays9djKycIcg5fZAyT4=
-github.com/GoogleCloudPlatform/cloudsql-proxy v1.37.11/go.mod h1:i0emJFu85hIDzmEieRuYoCpKixtPDCGws1J52i+3l/s=
+github.com/GoogleCloudPlatform/cloudsql-proxy v1.37.12 h1:6g7YXHTuguVz0AA/y+59ix0L/rzanMXbpDrI0nPdgy4=
+github.com/GoogleCloudPlatform/cloudsql-proxy v1.37.12/go.mod h1:1DD0j3t2L7K3LKAD6IVdZXnzHtBX3bMVOL5rpJOOU34=
 github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.30.0 h1:sBEjpZlNHzK1voKq9695PJSX2o5NEXl7/OL3coiIY0c=
 github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.30.0/go.mod h1:P4WPRUkOhJC13W//jWpyfJNDAIpvRbAUIYLX/4jtlE0=
 github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric v0.54.0 h1:lhhYARPUu3LmHysQ/igznQphfzynnqI3D75oUyw1HXk=
