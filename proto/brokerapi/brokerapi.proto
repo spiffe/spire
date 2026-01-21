@@ -13,12 +13,12 @@ service SpiffeBrokerAPI {
     // Fetch X.509-SVIDs for all SPIFFE identities the referenced workload is 
     // entitled to, as well as related information like trust bundles. As this
     // information changes, subsequent messages will be streamed from the server.
-    rpc FetchX509SVID(X509SVIDRequest) returns (stream X509SVIDResponse);
+    rpc SubscribeToX509SVID(SubscribeToX509SVIDRequest) returns (stream SubscribeToX509SVIDResponse);
 
     // Fetch trust bundles of the referenced workload. Useful in situations that
     // only need to validate SVIDs without obtaining an SVID for themself. As this
     // information changes, subsequent messages will be streamed from the server.
-    rpc FetchX509Bundles(X509BundlesRequest) returns (stream X509BundlesResponse);
+    rpc SubscribeToX509Bundles(SubscribeToX509BundlesRequest) returns (stream SubscribeToX509BundlesResponse);
 
     /////////////////////////////////////////////////////////////////////////
     // JWT-SVID Profile
@@ -27,12 +27,12 @@ service SpiffeBrokerAPI {
     // Fetch JWT-SVIDs for all SPIFFE identities the referenced workload is 
     // entitled to, for the requested audience. If an optional SPIFFE ID is 
     // requested, only the JWT-SVID for that SPIFFE ID is returned.
-    rpc FetchJWTSVID(JWTSVIDRequest) returns (JWTSVIDResponse);
+    rpc FetchJWTSVID(FetchJWTSVIDRequest) returns (FetchJWTSVIDResponse);
 
     // Fetches the JWT bundles, formatted as JWKS documents, keyed by the
     // SPIFFE ID of the trust domain. As this information changes, subsequent
     // messages will be streamed from the server.
-    rpc FetchJWTBundles(JWTBundlesRequest) returns (stream JWTBundlesResponse);
+    rpc SubscribeToJWTBundles(SubscribeToJWTBundlesRequest) returns (stream SubscribeToJWTBundlesResponse);
 }
 
 // The WorkloadReference message represents a single reference to a workload.
@@ -50,17 +50,17 @@ message WorkloadPIDReference {
     int32 pid = 1;
 }
 
-// The X509SVIDRequest message conveys parameters for requesting an X.509-SVID.
-message X509SVIDRequest {
+// The SubscribeToX509SVIDRequest message conveys parameters for requesting an X.509-SVID.
+message SubscribeToX509SVIDRequest {
     // Required. One or more references identifying the workload. All references
     // MUST resolve to the same workload. At least one reference is required.
     repeated WorkloadReference references = 1;
 }
 
-// The X509SVIDResponse message carries X.509-SVIDs and related information,
+// The SubscribeToX509SVIDResponse message carries X.509-SVIDs and related information,
 // including a list of bundles the workload may use for federating with foreign
 // trust domains.
-message X509SVIDResponse {
+message SubscribeToX509SVIDResponse {
     // Required. A list of X509SVID messages, each of which includes a single
     // X.509-SVID, its private key, and the bundle for the trust domain.
     repeated X509SVID svids = 1;
@@ -97,17 +97,17 @@ message X509SVID {
     string hint = 5;
 }
 
-// The X509BundlesRequest message conveys parameters for requesting X.509
+// The SubscribeToX509BundlesRequest message conveys parameters for requesting X.509
 // bundles.
-message X509BundlesRequest {
+message SubscribeToX509BundlesRequest {
     // Required. One or more references identifying the workload. All references
     // MUST resolve to the same workload. At least one reference is required.
     repeated WorkloadReference references = 1;
 }
 
-// The X509BundlesResponse message carries a map of trust bundles the workload 
+// The SubscribeToX509BundlesResponse message carries a map of trust bundles the workload 
 // should trust.
-message X509BundlesResponse {
+message SubscribeToX509BundlesResponse {
     // Optional. ASN.1 DER encoded certificate revocation lists.
     repeated bytes crl = 1;
 
@@ -117,8 +117,8 @@ message X509BundlesResponse {
     map<string, bytes> bundles = 2;
 }
 
-// The JWTSVIDRequest message conveys parameters for requesting JWT-SVIDs.
-message JWTSVIDRequest {
+// The FetchJWTSVIDRequest message conveys parameters for requesting JWT-SVIDs.
+message FetchJWTSVIDRequest {
     // Required. One or more references identifying the workload. All references
     // MUST resolve to the same workload. At least one reference is required.
     repeated WorkloadReference references = 1;
@@ -131,8 +131,8 @@ message JWTSVIDRequest {
     string spiffe_id = 3;
 }
 
-// The JWTSVIDResponse message conveys JWT-SVIDs.
-message JWTSVIDResponse {
+// The FetchJWTSVIDResponse message conveys JWT-SVIDs.
+message FetchJWTSVIDResponse {
     // Required. The list of returned JWT-SVIDs.
     repeated JWTSVID svids = 1;
 }
@@ -152,15 +152,15 @@ message JWTSVID {
     string hint = 3;
 }
 
-// The JWTBundlesRequest message conveys parameters for requesting JWT bundles.
-message JWTBundlesRequest {
+// The SubscribeToJWTBundlesRequest message conveys parameters for requesting JWT bundles.
+message SubscribeToJWTBundlesRequest {
     // Required. One or more references identifying the workload. All references
     // MUST resolve to the same workload. At least one reference is required.
     repeated WorkloadReference references = 1;
 }
 
-// The JWTBundlesReponse conveys JWT bundles.
-message JWTBundlesResponse {
+// The SubscribeToJWTBundlesResponse message conveys JWT bundles.
+message SubscribeToJWTBundlesResponse {
     // Required. JWK encoded JWT bundles, keyed by the SPIFFE ID of the trust
     // domain.
     map<string, bytes> bundles = 1;

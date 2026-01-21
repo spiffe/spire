@@ -19,10 +19,10 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	SpiffeBrokerAPI_FetchX509SVID_FullMethodName    = "/brokerapi.SpiffeBrokerAPI/FetchX509SVID"
-	SpiffeBrokerAPI_FetchX509Bundles_FullMethodName = "/brokerapi.SpiffeBrokerAPI/FetchX509Bundles"
-	SpiffeBrokerAPI_FetchJWTSVID_FullMethodName     = "/brokerapi.SpiffeBrokerAPI/FetchJWTSVID"
-	SpiffeBrokerAPI_FetchJWTBundles_FullMethodName  = "/brokerapi.SpiffeBrokerAPI/FetchJWTBundles"
+	SpiffeBrokerAPI_SubscribeToX509SVID_FullMethodName    = "/brokerapi.SpiffeBrokerAPI/SubscribeToX509SVID"
+	SpiffeBrokerAPI_SubscribeToX509Bundles_FullMethodName = "/brokerapi.SpiffeBrokerAPI/SubscribeToX509Bundles"
+	SpiffeBrokerAPI_FetchJWTSVID_FullMethodName           = "/brokerapi.SpiffeBrokerAPI/FetchJWTSVID"
+	SpiffeBrokerAPI_SubscribeToJWTBundles_FullMethodName  = "/brokerapi.SpiffeBrokerAPI/SubscribeToJWTBundles"
 )
 
 // SpiffeBrokerAPIClient is the client API for SpiffeBrokerAPI service.
@@ -32,19 +32,19 @@ type SpiffeBrokerAPIClient interface {
 	// Fetch X.509-SVIDs for all SPIFFE identities the referenced workload is
 	// entitled to, as well as related information like trust bundles. As this
 	// information changes, subsequent messages will be streamed from the server.
-	FetchX509SVID(ctx context.Context, in *X509SVIDRequest, opts ...grpc.CallOption) (SpiffeBrokerAPI_FetchX509SVIDClient, error)
+	SubscribeToX509SVID(ctx context.Context, in *SubscribeToX509SVIDRequest, opts ...grpc.CallOption) (SpiffeBrokerAPI_SubscribeToX509SVIDClient, error)
 	// Fetch trust bundles of the referenced workload. Useful in situations that
 	// only need to validate SVIDs without obtaining an SVID for themself. As this
 	// information changes, subsequent messages will be streamed from the server.
-	FetchX509Bundles(ctx context.Context, in *X509BundlesRequest, opts ...grpc.CallOption) (SpiffeBrokerAPI_FetchX509BundlesClient, error)
+	SubscribeToX509Bundles(ctx context.Context, in *SubscribeToX509BundlesRequest, opts ...grpc.CallOption) (SpiffeBrokerAPI_SubscribeToX509BundlesClient, error)
 	// Fetch JWT-SVIDs for all SPIFFE identities the referenced workload is
 	// entitled to, for the requested audience. If an optional SPIFFE ID is
 	// requested, only the JWT-SVID for that SPIFFE ID is returned.
-	FetchJWTSVID(ctx context.Context, in *JWTSVIDRequest, opts ...grpc.CallOption) (*JWTSVIDResponse, error)
+	FetchJWTSVID(ctx context.Context, in *FetchJWTSVIDRequest, opts ...grpc.CallOption) (*FetchJWTSVIDResponse, error)
 	// Fetches the JWT bundles, formatted as JWKS documents, keyed by the
 	// SPIFFE ID of the trust domain. As this information changes, subsequent
 	// messages will be streamed from the server.
-	FetchJWTBundles(ctx context.Context, in *JWTBundlesRequest, opts ...grpc.CallOption) (SpiffeBrokerAPI_FetchJWTBundlesClient, error)
+	SubscribeToJWTBundles(ctx context.Context, in *SubscribeToJWTBundlesRequest, opts ...grpc.CallOption) (SpiffeBrokerAPI_SubscribeToJWTBundlesClient, error)
 }
 
 type spiffeBrokerAPIClient struct {
@@ -55,12 +55,12 @@ func NewSpiffeBrokerAPIClient(cc grpc.ClientConnInterface) SpiffeBrokerAPIClient
 	return &spiffeBrokerAPIClient{cc}
 }
 
-func (c *spiffeBrokerAPIClient) FetchX509SVID(ctx context.Context, in *X509SVIDRequest, opts ...grpc.CallOption) (SpiffeBrokerAPI_FetchX509SVIDClient, error) {
-	stream, err := c.cc.NewStream(ctx, &SpiffeBrokerAPI_ServiceDesc.Streams[0], SpiffeBrokerAPI_FetchX509SVID_FullMethodName, opts...)
+func (c *spiffeBrokerAPIClient) SubscribeToX509SVID(ctx context.Context, in *SubscribeToX509SVIDRequest, opts ...grpc.CallOption) (SpiffeBrokerAPI_SubscribeToX509SVIDClient, error) {
+	stream, err := c.cc.NewStream(ctx, &SpiffeBrokerAPI_ServiceDesc.Streams[0], SpiffeBrokerAPI_SubscribeToX509SVID_FullMethodName, opts...)
 	if err != nil {
 		return nil, err
 	}
-	x := &spiffeBrokerAPIFetchX509SVIDClient{stream}
+	x := &spiffeBrokerAPISubscribeToX509SVIDClient{stream}
 	if err := x.ClientStream.SendMsg(in); err != nil {
 		return nil, err
 	}
@@ -70,29 +70,29 @@ func (c *spiffeBrokerAPIClient) FetchX509SVID(ctx context.Context, in *X509SVIDR
 	return x, nil
 }
 
-type SpiffeBrokerAPI_FetchX509SVIDClient interface {
-	Recv() (*X509SVIDResponse, error)
+type SpiffeBrokerAPI_SubscribeToX509SVIDClient interface {
+	Recv() (*SubscribeToX509SVIDResponse, error)
 	grpc.ClientStream
 }
 
-type spiffeBrokerAPIFetchX509SVIDClient struct {
+type spiffeBrokerAPISubscribeToX509SVIDClient struct {
 	grpc.ClientStream
 }
 
-func (x *spiffeBrokerAPIFetchX509SVIDClient) Recv() (*X509SVIDResponse, error) {
-	m := new(X509SVIDResponse)
+func (x *spiffeBrokerAPISubscribeToX509SVIDClient) Recv() (*SubscribeToX509SVIDResponse, error) {
+	m := new(SubscribeToX509SVIDResponse)
 	if err := x.ClientStream.RecvMsg(m); err != nil {
 		return nil, err
 	}
 	return m, nil
 }
 
-func (c *spiffeBrokerAPIClient) FetchX509Bundles(ctx context.Context, in *X509BundlesRequest, opts ...grpc.CallOption) (SpiffeBrokerAPI_FetchX509BundlesClient, error) {
-	stream, err := c.cc.NewStream(ctx, &SpiffeBrokerAPI_ServiceDesc.Streams[1], SpiffeBrokerAPI_FetchX509Bundles_FullMethodName, opts...)
+func (c *spiffeBrokerAPIClient) SubscribeToX509Bundles(ctx context.Context, in *SubscribeToX509BundlesRequest, opts ...grpc.CallOption) (SpiffeBrokerAPI_SubscribeToX509BundlesClient, error) {
+	stream, err := c.cc.NewStream(ctx, &SpiffeBrokerAPI_ServiceDesc.Streams[1], SpiffeBrokerAPI_SubscribeToX509Bundles_FullMethodName, opts...)
 	if err != nil {
 		return nil, err
 	}
-	x := &spiffeBrokerAPIFetchX509BundlesClient{stream}
+	x := &spiffeBrokerAPISubscribeToX509BundlesClient{stream}
 	if err := x.ClientStream.SendMsg(in); err != nil {
 		return nil, err
 	}
@@ -102,25 +102,25 @@ func (c *spiffeBrokerAPIClient) FetchX509Bundles(ctx context.Context, in *X509Bu
 	return x, nil
 }
 
-type SpiffeBrokerAPI_FetchX509BundlesClient interface {
-	Recv() (*X509BundlesResponse, error)
+type SpiffeBrokerAPI_SubscribeToX509BundlesClient interface {
+	Recv() (*SubscribeToX509BundlesResponse, error)
 	grpc.ClientStream
 }
 
-type spiffeBrokerAPIFetchX509BundlesClient struct {
+type spiffeBrokerAPISubscribeToX509BundlesClient struct {
 	grpc.ClientStream
 }
 
-func (x *spiffeBrokerAPIFetchX509BundlesClient) Recv() (*X509BundlesResponse, error) {
-	m := new(X509BundlesResponse)
+func (x *spiffeBrokerAPISubscribeToX509BundlesClient) Recv() (*SubscribeToX509BundlesResponse, error) {
+	m := new(SubscribeToX509BundlesResponse)
 	if err := x.ClientStream.RecvMsg(m); err != nil {
 		return nil, err
 	}
 	return m, nil
 }
 
-func (c *spiffeBrokerAPIClient) FetchJWTSVID(ctx context.Context, in *JWTSVIDRequest, opts ...grpc.CallOption) (*JWTSVIDResponse, error) {
-	out := new(JWTSVIDResponse)
+func (c *spiffeBrokerAPIClient) FetchJWTSVID(ctx context.Context, in *FetchJWTSVIDRequest, opts ...grpc.CallOption) (*FetchJWTSVIDResponse, error) {
+	out := new(FetchJWTSVIDResponse)
 	err := c.cc.Invoke(ctx, SpiffeBrokerAPI_FetchJWTSVID_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -128,12 +128,12 @@ func (c *spiffeBrokerAPIClient) FetchJWTSVID(ctx context.Context, in *JWTSVIDReq
 	return out, nil
 }
 
-func (c *spiffeBrokerAPIClient) FetchJWTBundles(ctx context.Context, in *JWTBundlesRequest, opts ...grpc.CallOption) (SpiffeBrokerAPI_FetchJWTBundlesClient, error) {
-	stream, err := c.cc.NewStream(ctx, &SpiffeBrokerAPI_ServiceDesc.Streams[2], SpiffeBrokerAPI_FetchJWTBundles_FullMethodName, opts...)
+func (c *spiffeBrokerAPIClient) SubscribeToJWTBundles(ctx context.Context, in *SubscribeToJWTBundlesRequest, opts ...grpc.CallOption) (SpiffeBrokerAPI_SubscribeToJWTBundlesClient, error) {
+	stream, err := c.cc.NewStream(ctx, &SpiffeBrokerAPI_ServiceDesc.Streams[2], SpiffeBrokerAPI_SubscribeToJWTBundles_FullMethodName, opts...)
 	if err != nil {
 		return nil, err
 	}
-	x := &spiffeBrokerAPIFetchJWTBundlesClient{stream}
+	x := &spiffeBrokerAPISubscribeToJWTBundlesClient{stream}
 	if err := x.ClientStream.SendMsg(in); err != nil {
 		return nil, err
 	}
@@ -143,17 +143,17 @@ func (c *spiffeBrokerAPIClient) FetchJWTBundles(ctx context.Context, in *JWTBund
 	return x, nil
 }
 
-type SpiffeBrokerAPI_FetchJWTBundlesClient interface {
-	Recv() (*JWTBundlesResponse, error)
+type SpiffeBrokerAPI_SubscribeToJWTBundlesClient interface {
+	Recv() (*SubscribeToJWTBundlesResponse, error)
 	grpc.ClientStream
 }
 
-type spiffeBrokerAPIFetchJWTBundlesClient struct {
+type spiffeBrokerAPISubscribeToJWTBundlesClient struct {
 	grpc.ClientStream
 }
 
-func (x *spiffeBrokerAPIFetchJWTBundlesClient) Recv() (*JWTBundlesResponse, error) {
-	m := new(JWTBundlesResponse)
+func (x *spiffeBrokerAPISubscribeToJWTBundlesClient) Recv() (*SubscribeToJWTBundlesResponse, error) {
+	m := new(SubscribeToJWTBundlesResponse)
 	if err := x.ClientStream.RecvMsg(m); err != nil {
 		return nil, err
 	}
@@ -167,19 +167,19 @@ type SpiffeBrokerAPIServer interface {
 	// Fetch X.509-SVIDs for all SPIFFE identities the referenced workload is
 	// entitled to, as well as related information like trust bundles. As this
 	// information changes, subsequent messages will be streamed from the server.
-	FetchX509SVID(*X509SVIDRequest, SpiffeBrokerAPI_FetchX509SVIDServer) error
+	SubscribeToX509SVID(*SubscribeToX509SVIDRequest, SpiffeBrokerAPI_SubscribeToX509SVIDServer) error
 	// Fetch trust bundles of the referenced workload. Useful in situations that
 	// only need to validate SVIDs without obtaining an SVID for themself. As this
 	// information changes, subsequent messages will be streamed from the server.
-	FetchX509Bundles(*X509BundlesRequest, SpiffeBrokerAPI_FetchX509BundlesServer) error
+	SubscribeToX509Bundles(*SubscribeToX509BundlesRequest, SpiffeBrokerAPI_SubscribeToX509BundlesServer) error
 	// Fetch JWT-SVIDs for all SPIFFE identities the referenced workload is
 	// entitled to, for the requested audience. If an optional SPIFFE ID is
 	// requested, only the JWT-SVID for that SPIFFE ID is returned.
-	FetchJWTSVID(context.Context, *JWTSVIDRequest) (*JWTSVIDResponse, error)
+	FetchJWTSVID(context.Context, *FetchJWTSVIDRequest) (*FetchJWTSVIDResponse, error)
 	// Fetches the JWT bundles, formatted as JWKS documents, keyed by the
 	// SPIFFE ID of the trust domain. As this information changes, subsequent
 	// messages will be streamed from the server.
-	FetchJWTBundles(*JWTBundlesRequest, SpiffeBrokerAPI_FetchJWTBundlesServer) error
+	SubscribeToJWTBundles(*SubscribeToJWTBundlesRequest, SpiffeBrokerAPI_SubscribeToJWTBundlesServer) error
 	mustEmbedUnimplementedSpiffeBrokerAPIServer()
 }
 
@@ -187,17 +187,17 @@ type SpiffeBrokerAPIServer interface {
 type UnimplementedSpiffeBrokerAPIServer struct {
 }
 
-func (UnimplementedSpiffeBrokerAPIServer) FetchX509SVID(*X509SVIDRequest, SpiffeBrokerAPI_FetchX509SVIDServer) error {
-	return status.Errorf(codes.Unimplemented, "method FetchX509SVID not implemented")
+func (UnimplementedSpiffeBrokerAPIServer) SubscribeToX509SVID(*SubscribeToX509SVIDRequest, SpiffeBrokerAPI_SubscribeToX509SVIDServer) error {
+	return status.Errorf(codes.Unimplemented, "method SubscribeToX509SVID not implemented")
 }
-func (UnimplementedSpiffeBrokerAPIServer) FetchX509Bundles(*X509BundlesRequest, SpiffeBrokerAPI_FetchX509BundlesServer) error {
-	return status.Errorf(codes.Unimplemented, "method FetchX509Bundles not implemented")
+func (UnimplementedSpiffeBrokerAPIServer) SubscribeToX509Bundles(*SubscribeToX509BundlesRequest, SpiffeBrokerAPI_SubscribeToX509BundlesServer) error {
+	return status.Errorf(codes.Unimplemented, "method SubscribeToX509Bundles not implemented")
 }
-func (UnimplementedSpiffeBrokerAPIServer) FetchJWTSVID(context.Context, *JWTSVIDRequest) (*JWTSVIDResponse, error) {
+func (UnimplementedSpiffeBrokerAPIServer) FetchJWTSVID(context.Context, *FetchJWTSVIDRequest) (*FetchJWTSVIDResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method FetchJWTSVID not implemented")
 }
-func (UnimplementedSpiffeBrokerAPIServer) FetchJWTBundles(*JWTBundlesRequest, SpiffeBrokerAPI_FetchJWTBundlesServer) error {
-	return status.Errorf(codes.Unimplemented, "method FetchJWTBundles not implemented")
+func (UnimplementedSpiffeBrokerAPIServer) SubscribeToJWTBundles(*SubscribeToJWTBundlesRequest, SpiffeBrokerAPI_SubscribeToJWTBundlesServer) error {
+	return status.Errorf(codes.Unimplemented, "method SubscribeToJWTBundles not implemented")
 }
 func (UnimplementedSpiffeBrokerAPIServer) mustEmbedUnimplementedSpiffeBrokerAPIServer() {}
 
@@ -212,50 +212,50 @@ func RegisterSpiffeBrokerAPIServer(s grpc.ServiceRegistrar, srv SpiffeBrokerAPIS
 	s.RegisterService(&SpiffeBrokerAPI_ServiceDesc, srv)
 }
 
-func _SpiffeBrokerAPI_FetchX509SVID_Handler(srv interface{}, stream grpc.ServerStream) error {
-	m := new(X509SVIDRequest)
+func _SpiffeBrokerAPI_SubscribeToX509SVID_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(SubscribeToX509SVIDRequest)
 	if err := stream.RecvMsg(m); err != nil {
 		return err
 	}
-	return srv.(SpiffeBrokerAPIServer).FetchX509SVID(m, &spiffeBrokerAPIFetchX509SVIDServer{stream})
+	return srv.(SpiffeBrokerAPIServer).SubscribeToX509SVID(m, &spiffeBrokerAPISubscribeToX509SVIDServer{stream})
 }
 
-type SpiffeBrokerAPI_FetchX509SVIDServer interface {
-	Send(*X509SVIDResponse) error
+type SpiffeBrokerAPI_SubscribeToX509SVIDServer interface {
+	Send(*SubscribeToX509SVIDResponse) error
 	grpc.ServerStream
 }
 
-type spiffeBrokerAPIFetchX509SVIDServer struct {
+type spiffeBrokerAPISubscribeToX509SVIDServer struct {
 	grpc.ServerStream
 }
 
-func (x *spiffeBrokerAPIFetchX509SVIDServer) Send(m *X509SVIDResponse) error {
+func (x *spiffeBrokerAPISubscribeToX509SVIDServer) Send(m *SubscribeToX509SVIDResponse) error {
 	return x.ServerStream.SendMsg(m)
 }
 
-func _SpiffeBrokerAPI_FetchX509Bundles_Handler(srv interface{}, stream grpc.ServerStream) error {
-	m := new(X509BundlesRequest)
+func _SpiffeBrokerAPI_SubscribeToX509Bundles_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(SubscribeToX509BundlesRequest)
 	if err := stream.RecvMsg(m); err != nil {
 		return err
 	}
-	return srv.(SpiffeBrokerAPIServer).FetchX509Bundles(m, &spiffeBrokerAPIFetchX509BundlesServer{stream})
+	return srv.(SpiffeBrokerAPIServer).SubscribeToX509Bundles(m, &spiffeBrokerAPISubscribeToX509BundlesServer{stream})
 }
 
-type SpiffeBrokerAPI_FetchX509BundlesServer interface {
-	Send(*X509BundlesResponse) error
+type SpiffeBrokerAPI_SubscribeToX509BundlesServer interface {
+	Send(*SubscribeToX509BundlesResponse) error
 	grpc.ServerStream
 }
 
-type spiffeBrokerAPIFetchX509BundlesServer struct {
+type spiffeBrokerAPISubscribeToX509BundlesServer struct {
 	grpc.ServerStream
 }
 
-func (x *spiffeBrokerAPIFetchX509BundlesServer) Send(m *X509BundlesResponse) error {
+func (x *spiffeBrokerAPISubscribeToX509BundlesServer) Send(m *SubscribeToX509BundlesResponse) error {
 	return x.ServerStream.SendMsg(m)
 }
 
 func _SpiffeBrokerAPI_FetchJWTSVID_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(JWTSVIDRequest)
+	in := new(FetchJWTSVIDRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -267,29 +267,29 @@ func _SpiffeBrokerAPI_FetchJWTSVID_Handler(srv interface{}, ctx context.Context,
 		FullMethod: SpiffeBrokerAPI_FetchJWTSVID_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(SpiffeBrokerAPIServer).FetchJWTSVID(ctx, req.(*JWTSVIDRequest))
+		return srv.(SpiffeBrokerAPIServer).FetchJWTSVID(ctx, req.(*FetchJWTSVIDRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _SpiffeBrokerAPI_FetchJWTBundles_Handler(srv interface{}, stream grpc.ServerStream) error {
-	m := new(JWTBundlesRequest)
+func _SpiffeBrokerAPI_SubscribeToJWTBundles_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(SubscribeToJWTBundlesRequest)
 	if err := stream.RecvMsg(m); err != nil {
 		return err
 	}
-	return srv.(SpiffeBrokerAPIServer).FetchJWTBundles(m, &spiffeBrokerAPIFetchJWTBundlesServer{stream})
+	return srv.(SpiffeBrokerAPIServer).SubscribeToJWTBundles(m, &spiffeBrokerAPISubscribeToJWTBundlesServer{stream})
 }
 
-type SpiffeBrokerAPI_FetchJWTBundlesServer interface {
-	Send(*JWTBundlesResponse) error
+type SpiffeBrokerAPI_SubscribeToJWTBundlesServer interface {
+	Send(*SubscribeToJWTBundlesResponse) error
 	grpc.ServerStream
 }
 
-type spiffeBrokerAPIFetchJWTBundlesServer struct {
+type spiffeBrokerAPISubscribeToJWTBundlesServer struct {
 	grpc.ServerStream
 }
 
-func (x *spiffeBrokerAPIFetchJWTBundlesServer) Send(m *JWTBundlesResponse) error {
+func (x *spiffeBrokerAPISubscribeToJWTBundlesServer) Send(m *SubscribeToJWTBundlesResponse) error {
 	return x.ServerStream.SendMsg(m)
 }
 
@@ -307,18 +307,18 @@ var SpiffeBrokerAPI_ServiceDesc = grpc.ServiceDesc{
 	},
 	Streams: []grpc.StreamDesc{
 		{
-			StreamName:    "FetchX509SVID",
-			Handler:       _SpiffeBrokerAPI_FetchX509SVID_Handler,
+			StreamName:    "SubscribeToX509SVID",
+			Handler:       _SpiffeBrokerAPI_SubscribeToX509SVID_Handler,
 			ServerStreams: true,
 		},
 		{
-			StreamName:    "FetchX509Bundles",
-			Handler:       _SpiffeBrokerAPI_FetchX509Bundles_Handler,
+			StreamName:    "SubscribeToX509Bundles",
+			Handler:       _SpiffeBrokerAPI_SubscribeToX509Bundles_Handler,
 			ServerStreams: true,
 		},
 		{
-			StreamName:    "FetchJWTBundles",
-			Handler:       _SpiffeBrokerAPI_FetchJWTBundles_Handler,
+			StreamName:    "SubscribeToJWTBundles",
+			Handler:       _SpiffeBrokerAPI_SubscribeToJWTBundles_Handler,
 			ServerStreams: true,
 		},
 	},

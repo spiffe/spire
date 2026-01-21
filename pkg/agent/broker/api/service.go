@@ -64,7 +64,7 @@ func (s *Service) getCallerContext(ctx context.Context) (spiffeid.ID, error) {
 	return peer, nil
 }
 
-func (s *Service) FetchX509SVID(req *brokerapi.X509SVIDRequest, stream brokerapi.SpiffeBrokerAPI_FetchX509SVIDServer) error {
+func (s *Service) SubscribeToX509SVID(req *brokerapi.SubscribeToX509SVIDRequest, stream brokerapi.SpiffeBrokerAPI_SubscribeToX509SVIDServer) error {
 	latency := adminapi.StartFirstX509SVIDUpdateLatency(s.metrics)
 	ctx := stream.Context()
 	log := rpccontext.Logger(ctx)
@@ -110,7 +110,7 @@ func (s *Service) FetchX509SVID(req *brokerapi.X509SVIDRequest, stream brokerapi
 	}
 }
 
-func (s *Service) FetchX509Bundles(_ *brokerapi.X509BundlesRequest, stream brokerapi.SpiffeBrokerAPI_FetchX509BundlesServer) error {
+func (s *Service) SubscribeToX509Bundles(_ *brokerapi.SubscribeToX509BundlesRequest, stream brokerapi.SpiffeBrokerAPI_SubscribeToX509BundlesServer) error {
 	ctx := stream.Context()
 
 	peer, err := s.getCallerContext(ctx)
@@ -127,7 +127,7 @@ func (s *Service) FetchX509Bundles(_ *brokerapi.X509BundlesRequest, stream broke
 		caCerts[td.IDString()] = marshalBundle(bundle.X509Authorities())
 	}
 
-	resp := &brokerapi.X509BundlesResponse{
+	resp := &brokerapi.SubscribeToX509BundlesResponse{
 		Bundles: caCerts,
 	}
 
@@ -142,7 +142,7 @@ func (s *Service) FetchX509Bundles(_ *brokerapi.X509BundlesRequest, stream broke
 				caCerts[td.IDString()] = marshalBundle(bundle.X509Authorities())
 			}
 
-			resp := &brokerapi.X509BundlesResponse{
+			resp := &brokerapi.SubscribeToX509BundlesResponse{
 				Bundles: caCerts,
 			}
 
@@ -156,7 +156,7 @@ func (s *Service) FetchX509Bundles(_ *brokerapi.X509BundlesRequest, stream broke
 	}
 }
 
-func (s *Service) FetchJWTSVID(ctx context.Context, req *brokerapi.JWTSVIDRequest) (*brokerapi.JWTSVIDResponse, error) {
+func (s *Service) FetchJWTSVID(ctx context.Context, req *brokerapi.FetchJWTSVIDRequest) (*brokerapi.FetchJWTSVIDResponse, error) {
 	log := rpccontext.Logger(ctx)
 	if len(req.Audience) == 0 {
 		log.Error("Missing required audience parameter")
@@ -174,7 +174,7 @@ func (s *Service) FetchJWTSVID(ctx context.Context, req *brokerapi.JWTSVIDReques
 		return nil, err
 	}
 
-	resp := new(brokerapi.JWTSVIDResponse)
+	resp := new(brokerapi.FetchJWTSVIDResponse)
 	entries := s.manager.MatchingRegistrationEntries(selectors)
 	for _, entry := range entries {
 		spiffeID, err := spiffeid.FromString(entry.SpiffeId)
@@ -209,7 +209,7 @@ func (s *Service) FetchJWTSVID(ctx context.Context, req *brokerapi.JWTSVIDReques
 	return resp, nil
 }
 
-func (s *Service) FetchJWTBundles(_ *brokerapi.JWTBundlesRequest, stream brokerapi.SpiffeBrokerAPI_FetchJWTBundlesServer) error {
+func (s *Service) SubscribeToJWTBundles(_ *brokerapi.SubscribeToJWTBundlesRequest, stream brokerapi.SpiffeBrokerAPI_SubscribeToJWTBundlesServer) error {
 	ctx := stream.Context()
 
 	peer, err := s.getCallerContext(ctx)
@@ -230,7 +230,7 @@ func (s *Service) FetchJWTBundles(_ *brokerapi.JWTBundlesRequest, stream brokera
 		jwtbundles[td.IDString()] = jwksBytes
 	}
 
-	resp := &brokerapi.JWTBundlesResponse{
+	resp := &brokerapi.SubscribeToJWTBundlesResponse{
 		Bundles: jwtbundles,
 	}
 
@@ -248,7 +248,7 @@ func (s *Service) FetchJWTBundles(_ *brokerapi.JWTBundlesRequest, stream brokera
 				jwtbundles[td.IDString()] = jwksBytes
 			}
 
-			resp := &brokerapi.JWTBundlesResponse{
+			resp := &brokerapi.SubscribeToJWTBundlesResponse{
 				Bundles: jwtbundles,
 			}
 			if err := stream.Send(resp); err != nil {
@@ -291,7 +291,7 @@ func (s *Service) constructValidSelectorsFromReferences(ctx context.Context, log
 	}
 }
 
-func sendX509SVIDResponse(update *cache.WorkloadUpdate, stream brokerapi.SpiffeBrokerAPI_FetchX509SVIDServer, log logrus.FieldLogger) (err error) {
+func sendX509SVIDResponse(update *cache.WorkloadUpdate, stream brokerapi.SpiffeBrokerAPI_SubscribeToX509SVIDServer, log logrus.FieldLogger) (err error) {
 	resp, err := composeX509SVIDBySelectors(update)
 	if err != nil {
 		log.WithError(err).Error("Could not serialize X.509 SVID response")
@@ -321,10 +321,12 @@ func sendX509SVIDResponse(update *cache.WorkloadUpdate, stream brokerapi.SpiffeB
 	return nil
 }
 
-func composeX509SVIDBySelectors(update *cache.WorkloadUpdate) (*brokerapi.X509SVIDResponse, error) {
-	resp := new(brokerapi.X509SVIDResponse)
+func composeX509SVIDBySelectors(update *cache.WorkloadUpdate) (*brokerapi.SubscribeToX509SVIDResponse, error) {
+	resp := new(brokerapi.SubscribeToX509SVIDResponse)
 	resp.Svids = make([]*brokerapi.X509SVID, 0, len(update.Identities))
+	resp.FederatedBundles = make(map[string][]byte, len(update.FederatedBundles))
 
+	x509Bundle := marshalBundle(update.Bundle.X509Authorities())
 	for _, identity := range update.Identities {
 		// Do not send admin nor downstream SVIDs to the caller
 		if identity.Entry.Admin || identity.Entry.Downstream {
@@ -347,14 +349,19 @@ func composeX509SVIDBySelectors(update *cache.WorkloadUpdate) (*brokerapi.X509SV
 		}
 
 		svid := &brokerapi.X509SVID{
-			SpiffeId: id.String(),
-			X509Svid: x509util.DERFromCertificates(identity.SVID),
-			// TODO(arndt): what about bundle?
+			SpiffeId:    id.String(),
+			X509Svid:    x509util.DERFromCertificates(identity.SVID),
+			Bundle:      x509Bundle,
 			Hint:        identity.Entry.Hint,
 			X509SvidKey: keyData,
 		}
 		resp.Svids = append(resp.Svids, svid)
 	}
+
+	for td, bundle := range update.FederatedBundles {
+		resp.FederatedBundles[td.IDString()] = marshalBundle(bundle.X509Authorities())
+	}
+
 	return resp, nil
 }
 

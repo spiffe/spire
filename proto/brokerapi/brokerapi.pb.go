@@ -117,8 +117,8 @@ func (x *WorkloadPIDReference) GetPid() int32 {
 	return 0
 }
 
-// The X509SVIDRequest message conveys parameters for requesting an X.509-SVID.
-type X509SVIDRequest struct {
+// The SubscribeToX509SVIDRequest message conveys parameters for requesting an X.509-SVID.
+type SubscribeToX509SVIDRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Required. One or more references identifying the workload. All references
 	// MUST resolve to the same workload. At least one reference is required.
@@ -127,20 +127,20 @@ type X509SVIDRequest struct {
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *X509SVIDRequest) Reset() {
-	*x = X509SVIDRequest{}
+func (x *SubscribeToX509SVIDRequest) Reset() {
+	*x = SubscribeToX509SVIDRequest{}
 	mi := &file_brokerapi_brokerapi_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *X509SVIDRequest) String() string {
+func (x *SubscribeToX509SVIDRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*X509SVIDRequest) ProtoMessage() {}
+func (*SubscribeToX509SVIDRequest) ProtoMessage() {}
 
-func (x *X509SVIDRequest) ProtoReflect() protoreflect.Message {
+func (x *SubscribeToX509SVIDRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_brokerapi_brokerapi_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -152,22 +152,22 @@ func (x *X509SVIDRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use X509SVIDRequest.ProtoReflect.Descriptor instead.
-func (*X509SVIDRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use SubscribeToX509SVIDRequest.ProtoReflect.Descriptor instead.
+func (*SubscribeToX509SVIDRequest) Descriptor() ([]byte, []int) {
 	return file_brokerapi_brokerapi_proto_rawDescGZIP(), []int{2}
 }
 
-func (x *X509SVIDRequest) GetReferences() []*WorkloadReference {
+func (x *SubscribeToX509SVIDRequest) GetReferences() []*WorkloadReference {
 	if x != nil {
 		return x.References
 	}
 	return nil
 }
 
-// The X509SVIDResponse message carries X.509-SVIDs and related information,
+// The SubscribeToX509SVIDResponse message carries X.509-SVIDs and related information,
 // including a list of bundles the workload may use for federating with foreign
 // trust domains.
-type X509SVIDResponse struct {
+type SubscribeToX509SVIDResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Required. A list of X509SVID messages, each of which includes a single
 	// X.509-SVID, its private key, and the bundle for the trust domain.
@@ -182,20 +182,20 @@ type X509SVIDResponse struct {
 	sizeCache        protoimpl.SizeCache
 }
 
-func (x *X509SVIDResponse) Reset() {
-	*x = X509SVIDResponse{}
+func (x *SubscribeToX509SVIDResponse) Reset() {
+	*x = SubscribeToX509SVIDResponse{}
 	mi := &file_brokerapi_brokerapi_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *X509SVIDResponse) String() string {
+func (x *SubscribeToX509SVIDResponse) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*X509SVIDResponse) ProtoMessage() {}
+func (*SubscribeToX509SVIDResponse) ProtoMessage() {}
 
-func (x *X509SVIDResponse) ProtoReflect() protoreflect.Message {
+func (x *SubscribeToX509SVIDResponse) ProtoReflect() protoreflect.Message {
 	mi := &file_brokerapi_brokerapi_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -207,26 +207,26 @@ func (x *X509SVIDResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use X509SVIDResponse.ProtoReflect.Descriptor instead.
-func (*X509SVIDResponse) Descriptor() ([]byte, []int) {
+// Deprecated: Use SubscribeToX509SVIDResponse.ProtoReflect.Descriptor instead.
+func (*SubscribeToX509SVIDResponse) Descriptor() ([]byte, []int) {
 	return file_brokerapi_brokerapi_proto_rawDescGZIP(), []int{3}
 }
 
-func (x *X509SVIDResponse) GetSvids() []*X509SVID {
+func (x *SubscribeToX509SVIDResponse) GetSvids() []*X509SVID {
 	if x != nil {
 		return x.Svids
 	}
 	return nil
 }
 
-func (x *X509SVIDResponse) GetCrl() [][]byte {
+func (x *SubscribeToX509SVIDResponse) GetCrl() [][]byte {
 	if x != nil {
 		return x.Crl
 	}
 	return nil
 }
 
-func (x *X509SVIDResponse) GetFederatedBundles() map[string][]byte {
+func (x *SubscribeToX509SVIDResponse) GetFederatedBundles() map[string][]byte {
 	if x != nil {
 		return x.FederatedBundles
 	}
@@ -320,9 +320,9 @@ func (x *X509SVID) GetHint() string {
 	return ""
 }
 
-// The X509BundlesRequest message conveys parameters for requesting X.509
+// The SubscribeToX509BundlesRequest message conveys parameters for requesting X.509
 // bundles.
-type X509BundlesRequest struct {
+type SubscribeToX509BundlesRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Required. One or more references identifying the workload. All references
 	// MUST resolve to the same workload. At least one reference is required.
@@ -331,20 +331,20 @@ type X509BundlesRequest struct {
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *X509BundlesRequest) Reset() {
-	*x = X509BundlesRequest{}
+func (x *SubscribeToX509BundlesRequest) Reset() {
+	*x = SubscribeToX509BundlesRequest{}
 	mi := &file_brokerapi_brokerapi_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *X509BundlesRequest) String() string {
+func (x *SubscribeToX509BundlesRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*X509BundlesRequest) ProtoMessage() {}
+func (*SubscribeToX509BundlesRequest) ProtoMessage() {}
 
-func (x *X509BundlesRequest) ProtoReflect() protoreflect.Message {
+func (x *SubscribeToX509BundlesRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_brokerapi_brokerapi_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -356,21 +356,21 @@ func (x *X509BundlesRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use X509BundlesRequest.ProtoReflect.Descriptor instead.
-func (*X509BundlesRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use SubscribeToX509BundlesRequest.ProtoReflect.Descriptor instead.
+func (*SubscribeToX509BundlesRequest) Descriptor() ([]byte, []int) {
 	return file_brokerapi_brokerapi_proto_rawDescGZIP(), []int{5}
 }
 
-func (x *X509BundlesRequest) GetReferences() []*WorkloadReference {
+func (x *SubscribeToX509BundlesRequest) GetReferences() []*WorkloadReference {
 	if x != nil {
 		return x.References
 	}
 	return nil
 }
 
-// The X509BundlesResponse message carries a map of trust bundles the workload
+// The SubscribeToX509BundlesResponse message carries a map of trust bundles the workload
 // should trust.
-type X509BundlesResponse struct {
+type SubscribeToX509BundlesResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Optional. ASN.1 DER encoded certificate revocation lists.
 	Crl [][]byte `protobuf:"bytes,1,rep,name=crl,proto3" json:"crl,omitempty"`
@@ -382,20 +382,20 @@ type X509BundlesResponse struct {
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *X509BundlesResponse) Reset() {
-	*x = X509BundlesResponse{}
+func (x *SubscribeToX509BundlesResponse) Reset() {
+	*x = SubscribeToX509BundlesResponse{}
 	mi := &file_brokerapi_brokerapi_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *X509BundlesResponse) String() string {
+func (x *SubscribeToX509BundlesResponse) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*X509BundlesResponse) ProtoMessage() {}
+func (*SubscribeToX509BundlesResponse) ProtoMessage() {}
 
-func (x *X509BundlesResponse) ProtoReflect() protoreflect.Message {
+func (x *SubscribeToX509BundlesResponse) ProtoReflect() protoreflect.Message {
 	mi := &file_brokerapi_brokerapi_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -407,27 +407,27 @@ func (x *X509BundlesResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use X509BundlesResponse.ProtoReflect.Descriptor instead.
-func (*X509BundlesResponse) Descriptor() ([]byte, []int) {
+// Deprecated: Use SubscribeToX509BundlesResponse.ProtoReflect.Descriptor instead.
+func (*SubscribeToX509BundlesResponse) Descriptor() ([]byte, []int) {
 	return file_brokerapi_brokerapi_proto_rawDescGZIP(), []int{6}
 }
 
-func (x *X509BundlesResponse) GetCrl() [][]byte {
+func (x *SubscribeToX509BundlesResponse) GetCrl() [][]byte {
 	if x != nil {
 		return x.Crl
 	}
 	return nil
 }
 
-func (x *X509BundlesResponse) GetBundles() map[string][]byte {
+func (x *SubscribeToX509BundlesResponse) GetBundles() map[string][]byte {
 	if x != nil {
 		return x.Bundles
 	}
 	return nil
 }
 
-// The JWTSVIDRequest message conveys parameters for requesting JWT-SVIDs.
-type JWTSVIDRequest struct {
+// The FetchJWTSVIDRequest message conveys parameters for requesting JWT-SVIDs.
+type FetchJWTSVIDRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Required. One or more references identifying the workload. All references
 	// MUST resolve to the same workload. At least one reference is required.
@@ -441,20 +441,20 @@ type JWTSVIDRequest struct {
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *JWTSVIDRequest) Reset() {
-	*x = JWTSVIDRequest{}
+func (x *FetchJWTSVIDRequest) Reset() {
+	*x = FetchJWTSVIDRequest{}
 	mi := &file_brokerapi_brokerapi_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *JWTSVIDRequest) String() string {
+func (x *FetchJWTSVIDRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*JWTSVIDRequest) ProtoMessage() {}
+func (*FetchJWTSVIDRequest) ProtoMessage() {}
 
-func (x *JWTSVIDRequest) ProtoReflect() protoreflect.Message {
+func (x *FetchJWTSVIDRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_brokerapi_brokerapi_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -466,34 +466,34 @@ func (x *JWTSVIDRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use JWTSVIDRequest.ProtoReflect.Descriptor instead.
-func (*JWTSVIDRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use FetchJWTSVIDRequest.ProtoReflect.Descriptor instead.
+func (*FetchJWTSVIDRequest) Descriptor() ([]byte, []int) {
 	return file_brokerapi_brokerapi_proto_rawDescGZIP(), []int{7}
 }
 
-func (x *JWTSVIDRequest) GetReferences() []*WorkloadReference {
+func (x *FetchJWTSVIDRequest) GetReferences() []*WorkloadReference {
 	if x != nil {
 		return x.References
 	}
 	return nil
 }
 
-func (x *JWTSVIDRequest) GetAudience() []string {
+func (x *FetchJWTSVIDRequest) GetAudience() []string {
 	if x != nil {
 		return x.Audience
 	}
 	return nil
 }
 
-func (x *JWTSVIDRequest) GetSpiffeId() string {
+func (x *FetchJWTSVIDRequest) GetSpiffeId() string {
 	if x != nil {
 		return x.SpiffeId
 	}
 	return ""
 }
 
-// The JWTSVIDResponse message conveys JWT-SVIDs.
-type JWTSVIDResponse struct {
+// The FetchJWTSVIDResponse message conveys JWT-SVIDs.
+type FetchJWTSVIDResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Required. The list of returned JWT-SVIDs.
 	Svids         []*JWTSVID `protobuf:"bytes,1,rep,name=svids,proto3" json:"svids,omitempty"`
@@ -501,20 +501,20 @@ type JWTSVIDResponse struct {
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *JWTSVIDResponse) Reset() {
-	*x = JWTSVIDResponse{}
+func (x *FetchJWTSVIDResponse) Reset() {
+	*x = FetchJWTSVIDResponse{}
 	mi := &file_brokerapi_brokerapi_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *JWTSVIDResponse) String() string {
+func (x *FetchJWTSVIDResponse) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*JWTSVIDResponse) ProtoMessage() {}
+func (*FetchJWTSVIDResponse) ProtoMessage() {}
 
-func (x *JWTSVIDResponse) ProtoReflect() protoreflect.Message {
+func (x *FetchJWTSVIDResponse) ProtoReflect() protoreflect.Message {
 	mi := &file_brokerapi_brokerapi_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -526,12 +526,12 @@ func (x *JWTSVIDResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use JWTSVIDResponse.ProtoReflect.Descriptor instead.
-func (*JWTSVIDResponse) Descriptor() ([]byte, []int) {
+// Deprecated: Use FetchJWTSVIDResponse.ProtoReflect.Descriptor instead.
+func (*FetchJWTSVIDResponse) Descriptor() ([]byte, []int) {
 	return file_brokerapi_brokerapi_proto_rawDescGZIP(), []int{8}
 }
 
-func (x *JWTSVIDResponse) GetSvids() []*JWTSVID {
+func (x *FetchJWTSVIDResponse) GetSvids() []*JWTSVID {
 	if x != nil {
 		return x.Svids
 	}
@@ -605,8 +605,8 @@ func (x *JWTSVID) GetHint() string {
 	return ""
 }
 
-// The JWTBundlesRequest message conveys parameters for requesting JWT bundles.
-type JWTBundlesRequest struct {
+// The SubscribeToJWTBundlesRequest message conveys parameters for requesting JWT bundles.
+type SubscribeToJWTBundlesRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Required. One or more references identifying the workload. All references
 	// MUST resolve to the same workload. At least one reference is required.
@@ -615,20 +615,20 @@ type JWTBundlesRequest struct {
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *JWTBundlesRequest) Reset() {
-	*x = JWTBundlesRequest{}
+func (x *SubscribeToJWTBundlesRequest) Reset() {
+	*x = SubscribeToJWTBundlesRequest{}
 	mi := &file_brokerapi_brokerapi_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *JWTBundlesRequest) String() string {
+func (x *SubscribeToJWTBundlesRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*JWTBundlesRequest) ProtoMessage() {}
+func (*SubscribeToJWTBundlesRequest) ProtoMessage() {}
 
-func (x *JWTBundlesRequest) ProtoReflect() protoreflect.Message {
+func (x *SubscribeToJWTBundlesRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_brokerapi_brokerapi_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -640,20 +640,20 @@ func (x *JWTBundlesRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use JWTBundlesRequest.ProtoReflect.Descriptor instead.
-func (*JWTBundlesRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use SubscribeToJWTBundlesRequest.ProtoReflect.Descriptor instead.
+func (*SubscribeToJWTBundlesRequest) Descriptor() ([]byte, []int) {
 	return file_brokerapi_brokerapi_proto_rawDescGZIP(), []int{10}
 }
 
-func (x *JWTBundlesRequest) GetReferences() []*WorkloadReference {
+func (x *SubscribeToJWTBundlesRequest) GetReferences() []*WorkloadReference {
 	if x != nil {
 		return x.References
 	}
 	return nil
 }
 
-// The JWTBundlesReponse conveys JWT bundles.
-type JWTBundlesResponse struct {
+// The SubscribeToJWTBundlesResponse message conveys JWT bundles.
+type SubscribeToJWTBundlesResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Required. JWK encoded JWT bundles, keyed by the SPIFFE ID of the trust
 	// domain.
@@ -662,20 +662,20 @@ type JWTBundlesResponse struct {
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *JWTBundlesResponse) Reset() {
-	*x = JWTBundlesResponse{}
+func (x *SubscribeToJWTBundlesResponse) Reset() {
+	*x = SubscribeToJWTBundlesResponse{}
 	mi := &file_brokerapi_brokerapi_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *JWTBundlesResponse) String() string {
+func (x *SubscribeToJWTBundlesResponse) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*JWTBundlesResponse) ProtoMessage() {}
+func (*SubscribeToJWTBundlesResponse) ProtoMessage() {}
 
-func (x *JWTBundlesResponse) ProtoReflect() protoreflect.Message {
+func (x *SubscribeToJWTBundlesResponse) ProtoReflect() protoreflect.Message {
 	mi := &file_brokerapi_brokerapi_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -687,12 +687,12 @@ func (x *JWTBundlesResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use JWTBundlesResponse.ProtoReflect.Descriptor instead.
-func (*JWTBundlesResponse) Descriptor() ([]byte, []int) {
+// Deprecated: Use SubscribeToJWTBundlesResponse.ProtoReflect.Descriptor instead.
+func (*SubscribeToJWTBundlesResponse) Descriptor() ([]byte, []int) {
 	return file_brokerapi_brokerapi_proto_rawDescGZIP(), []int{11}
 }
 
-func (x *JWTBundlesResponse) GetBundles() map[string][]byte {
+func (x *SubscribeToJWTBundlesResponse) GetBundles() map[string][]byte {
 	if x != nil {
 		return x.Bundles
 	}
@@ -707,15 +707,15 @@ const file_brokerapi_brokerapi_proto_rawDesc = "" +
 	"\x11WorkloadReference\x122\n" +
 	"\treference\x18\x01 \x01(\v2\x14.google.protobuf.AnyR\treference\"(\n" +
 	"\x14WorkloadPIDReference\x12\x10\n" +
-	"\x03pid\x18\x01 \x01(\x05R\x03pid\"O\n" +
-	"\x0fX509SVIDRequest\x12<\n" +
+	"\x03pid\x18\x01 \x01(\x05R\x03pid\"Z\n" +
+	"\x1aSubscribeToX509SVIDRequest\x12<\n" +
 	"\n" +
 	"references\x18\x01 \x03(\v2\x1c.brokerapi.WorkloadReferenceR\n" +
-	"references\"\xf4\x01\n" +
-	"\x10X509SVIDResponse\x12)\n" +
+	"references\"\x8a\x02\n" +
+	"\x1bSubscribeToX509SVIDResponse\x12)\n" +
 	"\x05svids\x18\x01 \x03(\v2\x13.brokerapi.X509SVIDR\x05svids\x12\x10\n" +
-	"\x03crl\x18\x02 \x03(\fR\x03crl\x12^\n" +
-	"\x11federated_bundles\x18\x03 \x03(\v21.brokerapi.X509SVIDResponse.FederatedBundlesEntryR\x10federatedBundles\x1aC\n" +
+	"\x03crl\x18\x02 \x03(\fR\x03crl\x12i\n" +
+	"\x11federated_bundles\x18\x03 \x03(\v2<.brokerapi.SubscribeToX509SVIDResponse.FederatedBundlesEntryR\x10federatedBundles\x1aC\n" +
 	"\x15FederatedBundlesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\fR\x05value:\x028\x01\"\x94\x01\n" +
@@ -724,43 +724,43 @@ const file_brokerapi_brokerapi_proto_rawDesc = "" +
 	"\tx509_svid\x18\x02 \x01(\fR\bx509Svid\x12\"\n" +
 	"\rx509_svid_key\x18\x03 \x01(\fR\vx509SvidKey\x12\x16\n" +
 	"\x06bundle\x18\x04 \x01(\fR\x06bundle\x12\x12\n" +
-	"\x04hint\x18\x05 \x01(\tR\x04hint\"R\n" +
-	"\x12X509BundlesRequest\x12<\n" +
+	"\x04hint\x18\x05 \x01(\tR\x04hint\"]\n" +
+	"\x1dSubscribeToX509BundlesRequest\x12<\n" +
 	"\n" +
 	"references\x18\x01 \x03(\v2\x1c.brokerapi.WorkloadReferenceR\n" +
-	"references\"\xaa\x01\n" +
-	"\x13X509BundlesResponse\x12\x10\n" +
-	"\x03crl\x18\x01 \x03(\fR\x03crl\x12E\n" +
-	"\abundles\x18\x02 \x03(\v2+.brokerapi.X509BundlesResponse.BundlesEntryR\abundles\x1a:\n" +
+	"references\"\xc0\x01\n" +
+	"\x1eSubscribeToX509BundlesResponse\x12\x10\n" +
+	"\x03crl\x18\x01 \x03(\fR\x03crl\x12P\n" +
+	"\abundles\x18\x02 \x03(\v26.brokerapi.SubscribeToX509BundlesResponse.BundlesEntryR\abundles\x1a:\n" +
 	"\fBundlesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\fR\x05value:\x028\x01\"\x87\x01\n" +
-	"\x0eJWTSVIDRequest\x12<\n" +
+	"\x05value\x18\x02 \x01(\fR\x05value:\x028\x01\"\x8c\x01\n" +
+	"\x13FetchJWTSVIDRequest\x12<\n" +
 	"\n" +
 	"references\x18\x01 \x03(\v2\x1c.brokerapi.WorkloadReferenceR\n" +
 	"references\x12\x1a\n" +
 	"\baudience\x18\x02 \x03(\tR\baudience\x12\x1b\n" +
-	"\tspiffe_id\x18\x03 \x01(\tR\bspiffeId\";\n" +
-	"\x0fJWTSVIDResponse\x12(\n" +
+	"\tspiffe_id\x18\x03 \x01(\tR\bspiffeId\"@\n" +
+	"\x14FetchJWTSVIDResponse\x12(\n" +
 	"\x05svids\x18\x01 \x03(\v2\x12.brokerapi.JWTSVIDR\x05svids\"N\n" +
 	"\aJWTSVID\x12\x1b\n" +
 	"\tspiffe_id\x18\x01 \x01(\tR\bspiffeId\x12\x12\n" +
 	"\x04svid\x18\x02 \x01(\tR\x04svid\x12\x12\n" +
-	"\x04hint\x18\x03 \x01(\tR\x04hint\"Q\n" +
-	"\x11JWTBundlesRequest\x12<\n" +
+	"\x04hint\x18\x03 \x01(\tR\x04hint\"\\\n" +
+	"\x1cSubscribeToJWTBundlesRequest\x12<\n" +
 	"\n" +
 	"references\x18\x01 \x03(\v2\x1c.brokerapi.WorkloadReferenceR\n" +
-	"references\"\x96\x01\n" +
-	"\x12JWTBundlesResponse\x12D\n" +
-	"\abundles\x18\x01 \x03(\v2*.brokerapi.JWTBundlesResponse.BundlesEntryR\abundles\x1a:\n" +
+	"references\"\xac\x01\n" +
+	"\x1dSubscribeToJWTBundlesResponse\x12O\n" +
+	"\abundles\x18\x01 \x03(\v25.brokerapi.SubscribeToJWTBundlesResponse.BundlesEntryR\abundles\x1a:\n" +
 	"\fBundlesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\fR\x05value:\x028\x012\xcb\x02\n" +
-	"\x0fSpiffeBrokerAPI\x12J\n" +
-	"\rFetchX509SVID\x12\x1a.brokerapi.X509SVIDRequest\x1a\x1b.brokerapi.X509SVIDResponse0\x01\x12S\n" +
-	"\x10FetchX509Bundles\x12\x1d.brokerapi.X509BundlesRequest\x1a\x1e.brokerapi.X509BundlesResponse0\x01\x12E\n" +
-	"\fFetchJWTSVID\x12\x19.brokerapi.JWTSVIDRequest\x1a\x1a.brokerapi.JWTSVIDResponse\x12P\n" +
-	"\x0fFetchJWTBundles\x12\x1c.brokerapi.JWTBundlesRequest\x1a\x1d.brokerapi.JWTBundlesResponse0\x01B)Z'github.com/spiffe/spire/proto/brokerapib\x06proto3"
+	"\x05value\x18\x02 \x01(\fR\x05value:\x028\x012\xa9\x03\n" +
+	"\x0fSpiffeBrokerAPI\x12f\n" +
+	"\x13SubscribeToX509SVID\x12%.brokerapi.SubscribeToX509SVIDRequest\x1a&.brokerapi.SubscribeToX509SVIDResponse0\x01\x12o\n" +
+	"\x16SubscribeToX509Bundles\x12(.brokerapi.SubscribeToX509BundlesRequest\x1a).brokerapi.SubscribeToX509BundlesResponse0\x01\x12O\n" +
+	"\fFetchJWTSVID\x12\x1e.brokerapi.FetchJWTSVIDRequest\x1a\x1f.brokerapi.FetchJWTSVIDResponse\x12l\n" +
+	"\x15SubscribeToJWTBundles\x12'.brokerapi.SubscribeToJWTBundlesRequest\x1a(.brokerapi.SubscribeToJWTBundlesResponse0\x01B)Z'github.com/spiffe/spire/proto/brokerapib\x06proto3"
 
 var (
 	file_brokerapi_brokerapi_proto_rawDescOnce sync.Once
@@ -776,42 +776,42 @@ func file_brokerapi_brokerapi_proto_rawDescGZIP() []byte {
 
 var file_brokerapi_brokerapi_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
 var file_brokerapi_brokerapi_proto_goTypes = []any{
-	(*WorkloadReference)(nil),    // 0: brokerapi.WorkloadReference
-	(*WorkloadPIDReference)(nil), // 1: brokerapi.WorkloadPIDReference
-	(*X509SVIDRequest)(nil),      // 2: brokerapi.X509SVIDRequest
-	(*X509SVIDResponse)(nil),     // 3: brokerapi.X509SVIDResponse
-	(*X509SVID)(nil),             // 4: brokerapi.X509SVID
-	(*X509BundlesRequest)(nil),   // 5: brokerapi.X509BundlesRequest
-	(*X509BundlesResponse)(nil),  // 6: brokerapi.X509BundlesResponse
-	(*JWTSVIDRequest)(nil),       // 7: brokerapi.JWTSVIDRequest
-	(*JWTSVIDResponse)(nil),      // 8: brokerapi.JWTSVIDResponse
-	(*JWTSVID)(nil),              // 9: brokerapi.JWTSVID
-	(*JWTBundlesRequest)(nil),    // 10: brokerapi.JWTBundlesRequest
-	(*JWTBundlesResponse)(nil),   // 11: brokerapi.JWTBundlesResponse
-	nil,                          // 12: brokerapi.X509SVIDResponse.FederatedBundlesEntry
-	nil,                          // 13: brokerapi.X509BundlesResponse.BundlesEntry
-	nil,                          // 14: brokerapi.JWTBundlesResponse.BundlesEntry
-	(*anypb.Any)(nil),            // 15: google.protobuf.Any
+	(*WorkloadReference)(nil),              // 0: brokerapi.WorkloadReference
+	(*WorkloadPIDReference)(nil),           // 1: brokerapi.WorkloadPIDReference
+	(*SubscribeToX509SVIDRequest)(nil),     // 2: brokerapi.SubscribeToX509SVIDRequest
+	(*SubscribeToX509SVIDResponse)(nil),    // 3: brokerapi.SubscribeToX509SVIDResponse
+	(*X509SVID)(nil),                       // 4: brokerapi.X509SVID
+	(*SubscribeToX509BundlesRequest)(nil),  // 5: brokerapi.SubscribeToX509BundlesRequest
+	(*SubscribeToX509BundlesResponse)(nil), // 6: brokerapi.SubscribeToX509BundlesResponse
+	(*FetchJWTSVIDRequest)(nil),            // 7: brokerapi.FetchJWTSVIDRequest
+	(*FetchJWTSVIDResponse)(nil),           // 8: brokerapi.FetchJWTSVIDResponse
+	(*JWTSVID)(nil),                        // 9: brokerapi.JWTSVID
+	(*SubscribeToJWTBundlesRequest)(nil),   // 10: brokerapi.SubscribeToJWTBundlesRequest
+	(*SubscribeToJWTBundlesResponse)(nil),  // 11: brokerapi.SubscribeToJWTBundlesResponse
+	nil,                                    // 12: brokerapi.SubscribeToX509SVIDResponse.FederatedBundlesEntry
+	nil,                                    // 13: brokerapi.SubscribeToX509BundlesResponse.BundlesEntry
+	nil,                                    // 14: brokerapi.SubscribeToJWTBundlesResponse.BundlesEntry
+	(*anypb.Any)(nil),                      // 15: google.protobuf.Any
 }
 var file_brokerapi_brokerapi_proto_depIdxs = []int32{
 	15, // 0: brokerapi.WorkloadReference.reference:type_name -> google.protobuf.Any
-	0,  // 1: brokerapi.X509SVIDRequest.references:type_name -> brokerapi.WorkloadReference
-	4,  // 2: brokerapi.X509SVIDResponse.svids:type_name -> brokerapi.X509SVID
-	12, // 3: brokerapi.X509SVIDResponse.federated_bundles:type_name -> brokerapi.X509SVIDResponse.FederatedBundlesEntry
-	0,  // 4: brokerapi.X509BundlesRequest.references:type_name -> brokerapi.WorkloadReference
-	13, // 5: brokerapi.X509BundlesResponse.bundles:type_name -> brokerapi.X509BundlesResponse.BundlesEntry
-	0,  // 6: brokerapi.JWTSVIDRequest.references:type_name -> brokerapi.WorkloadReference
-	9,  // 7: brokerapi.JWTSVIDResponse.svids:type_name -> brokerapi.JWTSVID
-	0,  // 8: brokerapi.JWTBundlesRequest.references:type_name -> brokerapi.WorkloadReference
-	14, // 9: brokerapi.JWTBundlesResponse.bundles:type_name -> brokerapi.JWTBundlesResponse.BundlesEntry
-	2,  // 10: brokerapi.SpiffeBrokerAPI.FetchX509SVID:input_type -> brokerapi.X509SVIDRequest
-	5,  // 11: brokerapi.SpiffeBrokerAPI.FetchX509Bundles:input_type -> brokerapi.X509BundlesRequest
-	7,  // 12: brokerapi.SpiffeBrokerAPI.FetchJWTSVID:input_type -> brokerapi.JWTSVIDRequest
-	10, // 13: brokerapi.SpiffeBrokerAPI.FetchJWTBundles:input_type -> brokerapi.JWTBundlesRequest
-	3,  // 14: brokerapi.SpiffeBrokerAPI.FetchX509SVID:output_type -> brokerapi.X509SVIDResponse
-	6,  // 15: brokerapi.SpiffeBrokerAPI.FetchX509Bundles:output_type -> brokerapi.X509BundlesResponse
-	8,  // 16: brokerapi.SpiffeBrokerAPI.FetchJWTSVID:output_type -> brokerapi.JWTSVIDResponse
-	11, // 17: brokerapi.SpiffeBrokerAPI.FetchJWTBundles:output_type -> brokerapi.JWTBundlesResponse
+	0,  // 1: brokerapi.SubscribeToX509SVIDRequest.references:type_name -> brokerapi.WorkloadReference
+	4,  // 2: brokerapi.SubscribeToX509SVIDResponse.svids:type_name -> brokerapi.X509SVID
+	12, // 3: brokerapi.SubscribeToX509SVIDResponse.federated_bundles:type_name -> brokerapi.SubscribeToX509SVIDResponse.FederatedBundlesEntry
+	0,  // 4: brokerapi.SubscribeToX509BundlesRequest.references:type_name -> brokerapi.WorkloadReference
+	13, // 5: brokerapi.SubscribeToX509BundlesResponse.bundles:type_name -> brokerapi.SubscribeToX509BundlesResponse.BundlesEntry
+	0,  // 6: brokerapi.FetchJWTSVIDRequest.references:type_name -> brokerapi.WorkloadReference
+	9,  // 7: brokerapi.FetchJWTSVIDResponse.svids:type_name -> brokerapi.JWTSVID
+	0,  // 8: brokerapi.SubscribeToJWTBundlesRequest.references:type_name -> brokerapi.WorkloadReference
+	14, // 9: brokerapi.SubscribeToJWTBundlesResponse.bundles:type_name -> brokerapi.SubscribeToJWTBundlesResponse.BundlesEntry
+	2,  // 10: brokerapi.SpiffeBrokerAPI.SubscribeToX509SVID:input_type -> brokerapi.SubscribeToX509SVIDRequest
+	5,  // 11: brokerapi.SpiffeBrokerAPI.SubscribeToX509Bundles:input_type -> brokerapi.SubscribeToX509BundlesRequest
+	7,  // 12: brokerapi.SpiffeBrokerAPI.FetchJWTSVID:input_type -> brokerapi.FetchJWTSVIDRequest
+	10, // 13: brokerapi.SpiffeBrokerAPI.SubscribeToJWTBundles:input_type -> brokerapi.SubscribeToJWTBundlesRequest
+	3,  // 14: brokerapi.SpiffeBrokerAPI.SubscribeToX509SVID:output_type -> brokerapi.SubscribeToX509SVIDResponse
+	6,  // 15: brokerapi.SpiffeBrokerAPI.SubscribeToX509Bundles:output_type -> brokerapi.SubscribeToX509BundlesResponse
+	8,  // 16: brokerapi.SpiffeBrokerAPI.FetchJWTSVID:output_type -> brokerapi.FetchJWTSVIDResponse
+	11, // 17: brokerapi.SpiffeBrokerAPI.SubscribeToJWTBundles:output_type -> brokerapi.SubscribeToJWTBundlesResponse
 	14, // [14:18] is the sub-list for method output_type
 	10, // [10:14] is the sub-list for method input_type
 	10, // [10:10] is the sub-list for extension type_name
