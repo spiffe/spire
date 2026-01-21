@@ -268,6 +268,7 @@ import (
 // | v1.13.3 |        |                                                                           |
 // |*********|********|***************************************************************************|
 // | v1.14.0 |        |                                                                           |
+// | v1.14.1 |        |                                                                           |
 // ================================================================================================
 
 const (
@@ -516,7 +517,12 @@ func migrateVersion(tx *gorm.DB, currVersion int, log logrus.FieldLogger) (versi
 }
 
 func migrateToV24(tx *gorm.DB) error {
+<<<<<<< HEAD
 	if err := tx.AutoMigrate(&RegisteredEntry{}).Error; err != nil {
+=======
+	// Add agent_version column to attested_node_entries table
+	if err := tx.AutoMigrate(&AttestedNode{}).Error; err != nil {
+>>>>>>> main
 		return newWrappedSQLError(err)
 	}
 	return nil

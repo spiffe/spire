@@ -476,9 +476,46 @@ func (s *Service) RenewAgent(ctx context.Context, req *agentv1.RenewAgentRequest
 	}, nil
 }
 
-// PostStatus post agent status
-func (s *Service) PostStatus(context.Context, *agentv1.PostStatusRequest) (*agentv1.PostStatusResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "unimplemented")
+// PostStatus posts agent status including the agent version
+func (s *Service) PostStatus(ctx context.Context, req *agentv1.PostStatusRequest) (*agentv1.PostStatusResponse, error) {
+	log := rpccontext.Logger(ctx)
+
+	callerID, ok := rpccontext.CallerID(ctx)
+	if !ok {
+		return nil, api.MakeErr(log, codes.Internal, "caller ID missing from request context", nil)
+	}
+
+	agentVersion := req.GetAgentVersion()
+
+	log = log.WithField(telemetry.SPIFFEID, callerID.String())
+	rpccontext.AddRPCAuditFields(ctx, logrus.Fields{
+		telemetry.SPIFFEID: callerID.String(),
+	})
+
+	if agentVersion != "" {
+		if len(agentVersion) > 255 {
+			return nil, api.MakeErr(log, codes.InvalidArgument, "agent version is too long (max 255 characters)", nil)
+		}
+
+		rpccontext.AddRPCAuditFields(ctx, logrus.Fields{
+			telemetry.AgentVersion: agentVersion,
+		})
+
+		update := &common.AttestedNode{
+			SpiffeId:     callerID.String(),
+			AgentVersion: agentVersion,
+		}
+		mask := &common.AttestedNodeMask{
+			AgentVersion: true,
+		}
+		if err := s.updateAttestedNode(ctx, update, mask, log); err != nil {
+			return nil, err
+		}
+		log.WithField(telemetry.AgentVersion, agentVersion).Debug("Agent status updated")
+	}
+
+	rpccontext.AuditRPC(ctx)
+	return &agentv1.PostStatusResponse{}, nil
 }
 
 // CreateJoinToken returns a new JoinToken for an agent.
@@ -683,6 +720,10 @@ func applyMask(a *types.Agent, mask *types.AgentMask) {
 
 	if !mask.CanReattest {
 		a.CanReattest = false
+	}
+
+	if !mask.AgentVersion {
+		a.AgentVersion = ""
 	}
 }
 

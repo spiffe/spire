@@ -33,6 +33,7 @@ type AttestedNode struct {
 	NewSerialNumber string
 	NewExpiresAt    *time.Time
 	CanReattest     bool
+	AgentVersion    string
 
 	Selectors []*NodeSelector
 }
