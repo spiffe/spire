@@ -66,6 +66,7 @@ type Config struct {
 type agentConfig struct {
 	DataDir                       string    `hcl:"data_dir"`
 	AdminSocketPath               string    `hcl:"admin_socket_path"`
+	BrokerSocketPath              string    `hcl:"broker_socket_path"`
 	InsecureBootstrap             bool      `hcl:"insecure_bootstrap"`
 	RebootstrapMode               string    `hcl:"rebootstrap_mode"`
 	RebootstrapDelay              string    `hcl:"rebootstrap_delay"`
@@ -491,6 +492,15 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 		}
 		ac.AdminBindAddress = adminAddr
 	}
+
+	if c.Agent.hasBrokerAddr() {
+		brokerAddr, err := c.Agent.getBrokerAddr()
+		if err != nil {
+			return nil, err
+		}
+		ac.BrokerBindAddress = brokerAddr
+	}
+
 	// Handle join token - read from file if specified
 	if c.Agent.JoinTokenFile != "" {
 		tokenBytes, err := os.ReadFile(c.Agent.JoinTokenFile)

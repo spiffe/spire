@@ -185,8 +185,10 @@ git_dirty := $(shell git status -s)
 protos := \
 	proto/private/server/journal/journal.proto \
 	proto/spire/common/common.proto \
+	proto/brokerapi/brokerapi.proto
 
 api-protos := \
+	proto/brokerapi/brokerapi.proto
 
 plugin-protos := \
 	proto/spire/common/plugin/plugin.proto

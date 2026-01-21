@@ -31,6 +31,9 @@ type Config struct {
 	// Directory to bind the admin api to
 	AdminBindAddress net.Addr
 
+	// Address to bind the broker endpoint to
+	BrokerBindAddress net.Addr
+
 	// The Validation Context resource name to use when fetching X.509 bundle together with federated bundles with Envoy SDS
 	DefaultAllBundlesName string
 
