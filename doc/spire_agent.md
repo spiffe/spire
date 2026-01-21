@@ -77,12 +77,13 @@ This may be useful for templating configuration files, for example across differ
 | `x509_svid_cache_max_size`        | Soft limit of max number of X509-SVIDs that would be stored in LRU cache                                                                                                                                                                          | 1000                             |
 | `jwt_svid_cache_max_size`         | Hard limit of max number of JWT-SVIDs that would be stored in LRU cache                                                                                                                                                                           | 1000                             |
 
-| experimental                  | Description                                                                          | Default                 |
-|:------------------------------|--------------------------------------------------------------------------------------|-------------------------|
-| `named_pipe_name`             | Pipe name to bind the SPIRE Agent API named pipe (Windows only)                      | \spire-agent\public\api |
-| `sync_interval`               | Sync interval with SPIRE server with exponential backoff                             | 5 sec                   |
-| `use_sync_authorized_entries` | Use SyncAuthorizedEntries API for periodically synchronization of authorized entries | true                    |
-| `require_pq_kem`              | Require use of a post-quantum-safe key exchange method for TLS handshakes            | false                   |
+| experimental                  | Description                                                                                         | Default                 |
+|:------------------------------|-----------------------------------------------------------------------------------------------------|-------------------------|
+| `named_pipe_name`             | Pipe name to bind the SPIRE Agent API named pipe (Windows only)                                     | \spire-agent\public\api |
+| `sync_interval`               | Sync interval with SPIRE server with exponential backoff                                            | 5 sec                   |
+| `use_sync_authorized_entries` | Use SyncAuthorizedEntries API for periodically synchronization of authorized entries                | true                    |
+| `require_pq_kem`              | Require use of a post-quantum-safe key exchange method for TLS handshakes                           | false                   |
+| `jwt_svid_cache_hit_timeout`  | Custom gRPC timeout (between 5 and 30s) when retrieving a NewJWTSVID when a valid JWT-SVID in cache | 30s                     |
 
 ### Server Attestation
 
