@@ -393,7 +393,9 @@ func (b *Builder) BuildWorkloadWITSVIDClaims(ctx context.Context, params Workloa
 		"sub": params.SPIFFEID.String(),
 		"exp": jwt.NewNumericDate(expiresAt),
 		"iat": jwt.NewNumericDate(now),
-		"cnf": params.PublicKey,
+		"cnf": map[string]any{
+			"jwk": params.PublicKey,
+		},
 	}, nil
 }
 

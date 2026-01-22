@@ -7,7 +7,6 @@ import (
 	"crypto/x509/pkix"
 	"errors"
 	"fmt"
-	"slices"
 	"sync"
 	"time"
 
@@ -28,14 +27,6 @@ import (
 
 const (
 	backdate = 10 * time.Second
-)
-
-var (
-	witWorkloadKeyAllowedAlgorithms = []jose.SignatureAlgorithm{
-		jose.RS256, // RSA with 2048 bits key or higher
-		jose.ES256,
-		jose.ES384,
-	}
 )
 
 // ServerCA is an interface for Server CAs
@@ -402,13 +393,9 @@ func (ca *CA) SignWorkloadWITSVID(ctx context.Context, params WorkloadWITSVIDPar
 		return "", errors.New("WIT key is not available for signing")
 	}
 
-	workloadKeyAlg, err := cryptoutil.JoseAlgFromPublicKey(params.PublicKey.Key)
-	if err != nil {
-		return "", fmt.Errorf("could not determined workload key algorithm: %w", err)
-	}
-
-	if slices.Index(witWorkloadKeyAllowedAlgorithms, workloadKeyAlg) == -1 {
-		return "", fmt.Errorf("workload key type '%q' not supported", workloadKeyAlg)
+	// We already validate in other places that a valid algorithm is given
+	if params.PublicKey.Algorithm == "" {
+		return "", errors.New("public key must have algorithm set")
 	}
 
 	claims, err := ca.c.CredBuilder.BuildWorkloadWITSVIDClaims(ctx, credtemplate.WorkloadWITSVIDParams{
@@ -424,6 +411,10 @@ func (ca *CA) SignWorkloadWITSVID(ctx context.Context, params WorkloadWITSVIDPar
 	token, err := ca.signWITSVID(witKey, claims)
 	if err != nil {
 		return "", fmt.Errorf("unable to sign JWT SVID: %w", err)
+	}
+
+	if err := ca.c.CredValidator.ValidateWorkloadWITSVID(token, params.SPIFFEID); err != nil {
+		return "", err
 	}
 
 	return token, nil

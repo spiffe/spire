@@ -1295,8 +1295,10 @@ func TestBuildWorkloadWITSVIDClaims(t *testing.T) {
 					"exp": jwt.NewNumericDate(witSVIDNotAfter),
 					"iat": jwt.NewNumericDate(now),
 					"sub": workloadID.String(),
-					"cnf": jose.JSONWebKey{
-						Key: signer.PublicKey,
+					"cnf": map[string]any{
+						"jwk": jose.JSONWebKey{
+							Key: signer.PublicKey,
+						},
 					},
 				}
 				if tc.overrideExpected != nil {

@@ -560,16 +560,8 @@ func (s *CATestSuite) TestSignWorkloadWITSVIDValidation() {
 	_, err := s.ca.SignWorkloadWITSVID(ctx, s.createWITSVIDParams(trustDomainFoo, 0))
 	s.Require().EqualError(err, `invalid WIT-SVID ID: "spiffe://foo.com/workload" is not a member of trust domain "example.org"`)
 
-	// validates public key
-	params := s.createWITSVIDParams(trustDomainExample, 0)
-	params.PublicKey = jose.JSONWebKey{
-		Key: "invalid",
-	}
-	_, err = s.ca.SignWorkloadWITSVID(ctx, params)
-	s.Require().EqualError(err, "could not determined workload key algorithm: unable to determine signature algorithm for public key type string")
-
 	// Validate key algorithm
-	params = s.createWITSVIDParams(trustDomainExample, 0)
+	params := s.createWITSVIDParams(trustDomainExample, 0)
 	rsaKey, err := rsa.GenerateKey(rand.Reader, 1024) //nolint:gosec
 	s.Require().NoError(err)
 
@@ -577,7 +569,7 @@ func (s *CATestSuite) TestSignWorkloadWITSVIDValidation() {
 		Key: &rsaKey.PublicKey,
 	}
 	_, err = s.ca.SignWorkloadWITSVID(ctx, params)
-	s.Require().EqualError(err, "could not determined workload key algorithm: unsupported RSA key size: 128")
+	s.Require().EqualError(err, "public key must have algorithm set")
 }
 
 func (s *CATestSuite) TestSignDownstreamX509CA() {
@@ -715,7 +707,8 @@ func (s *CATestSuite) createWITSVIDParams(trustDomain spiffeid.TrustDomain, ttl 
 		SPIFFEID: spiffeid.RequireFromPath(trustDomain, "/workload"),
 		TTL:      ttl,
 		PublicKey: jose.JSONWebKey{
-			Key: testSigner.Public(),
+			Key:       testSigner.Public(),
+			Algorithm: "ES256",
 		},
 	}
 }
