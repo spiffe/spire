@@ -737,6 +737,10 @@ func ValidatePublicKeyAndSigningAlgorithm(publicKey crypto.PublicKey, signingAlg
 			if signingAlgorithm != "ES384" {
 				return fmt.Errorf("unsupported signing algorithm for ec-p384 key: %s", signingAlgorithm)
 			}
+		case elliptic.P521():
+			if signingAlgorithm != "ES512" {
+				return fmt.Errorf("unsupported signing algorithm for ec-p521 key: %s", signingAlgorithm)
+			}
 		}
 	default:
 		return fmt.Errorf("unsupported key type '%T'", publicKey)
