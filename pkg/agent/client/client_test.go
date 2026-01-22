@@ -939,7 +939,7 @@ func TestFetchJWTSVID(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.setupTest(tt.fetchErr)
-			resp, spiffeId, err := client.NewJWTSVID(ctx, "entry-id", []string{"myAud"})
+			resp, spiffeId, err := client.NewJWTSVID(ctx, "entry-id", []string{"myAud"}, false)
 			if tt.err != "" {
 				require.Nil(t, resp)
 				require.EqualError(t, err, tt.err)

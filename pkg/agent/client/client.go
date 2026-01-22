@@ -28,6 +28,10 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+const (
+	rpcTimeout = 30 * time.Second
+)
+
 var (
 	ErrUnableToGetStream = errors.New("unable to get a stream")
 
@@ -42,9 +46,16 @@ var (
 		Hint:           true,
 		CreatedAt:      true,
 	}
+
+	// RPCTimeoutWithCacheHit can be more aggressive with timeouts in cases where a valid SVID
+	// exists in the cache but is old enough to try for a new SVID quickly. This is configurable
+	// in the Experimental Config of the Agent, and can be set as low as 5 seconds
+	RPCTimeoutWithCacheHit = rpcTimeout
 )
 
-const rpcTimeout = 30 * time.Second
+func SetJWTSVIDCacheHitTimeout(d time.Duration) {
+	RPCTimeoutWithCacheHit = d
+}
 
 type X509SVID struct {
 	CertChain []byte
@@ -78,7 +89,7 @@ type Client interface {
 	SyncUpdates(ctx context.Context, cachedEntries map[string]*common.RegistrationEntry, cachedBundles map[string]*common.Bundle) (SyncStats, error)
 	RenewSVID(ctx context.Context, csr []byte) (*X509SVID, error)
 	NewX509SVIDs(ctx context.Context, csrs map[string][]byte) (map[string]*X509SVID, error)
-	NewJWTSVID(ctx context.Context, entryID string, audience []string) (*JWTSVID, spiffeid.ID, error)
+	NewJWTSVID(ctx context.Context, entryID string, audience []string, hasCacheHit bool) (*JWTSVID, spiffeid.ID, error)
 	PostStatus(ctx context.Context, agentVersion string) error
 
 	// Release releases any resources that were held by this Client, if any.
@@ -329,11 +340,16 @@ func (c *client) NewX509SVIDs(ctx context.Context, csrs map[string][]byte) (map[
 	return svids, nil
 }
 
-func (c *client) NewJWTSVID(ctx context.Context, entryID string, audience []string) (*JWTSVID, spiffeid.ID, error) {
+func (c *client) NewJWTSVID(ctx context.Context, entryID string, audience []string, hasCacheHit bool) (*JWTSVID, spiffeid.ID, error) {
 	c.c.RotMtx.RLock()
 	defer c.c.RotMtx.RUnlock()
 
-	ctx, cancel := context.WithTimeout(ctx, rpcTimeout)
+	timeout := rpcTimeout
+	if hasCacheHit {
+		timeout = RPCTimeoutWithCacheHit
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
 	svidClient, connection, err := c.newSVIDClient()

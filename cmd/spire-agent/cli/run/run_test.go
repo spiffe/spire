@@ -13,6 +13,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/pkg/agent"
+	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/agent/workloadkey"
 	"github.com/spiffe/spire/pkg/common/log"
 	"github.com/spiffe/spire/test/spiretest"
@@ -1002,6 +1003,55 @@ func TestNewAgentConfig(t *testing.T) {
 			},
 			test: func(t *testing.T, c *agent.Config) {
 				require.Equal(t, true, c.TLSPolicy.RequirePQKEM)
+			},
+		},
+		{
+			msg: "jwt_svid_cache_hit_timeout sets the client timeout and logs warning",
+			input: func(c *Config) {
+				c.Agent.Experimental.JWTSVIDCacheHitTimeout = "10s"
+			},
+			logOptions: func(t *testing.T) []log.Option {
+				return []log.Option{
+					func(logger *log.Logger) error {
+						logger.SetOutput(io.Discard)
+						hook := test.NewLocal(logger.Logger)
+						t.Cleanup(func() {
+							spiretest.AssertLogsContainEntries(t, hook.AllEntries(), []spiretest.LogEntry{
+								{
+									Level:   logrus.WarnLevel,
+									Message: "The use of 'jwt_svid_cache_hit_timeout' is experimental",
+								},
+							})
+						})
+						return nil
+					},
+				}
+			},
+			test: func(t *testing.T, ac *agent.Config) {
+				require.NotNil(t, ac)
+				assert.Equal(t, client.RPCTimeoutWithCacheHit, 10*time.Second)
+			},
+		},
+		{
+			msg:                "jwt_svid_cache_hit_timeout returns an error if < 5s",
+			expectError:        true,
+			requireErrorPrefix: "jwt_svid_cache_hit_timeout (4s) must be greater than 5s",
+			input: func(c *Config) {
+				c.Agent.Experimental.JWTSVIDCacheHitTimeout = "4s"
+			},
+			test: func(t *testing.T, ac *agent.Config) {
+				require.Nil(t, ac)
+			},
+		},
+		{
+			msg:                "jwt_svid_cache_hit_timeout returns an error if >= 30s",
+			expectError:        true,
+			requireErrorPrefix: "jwt_svid_cache_hit_timeout (30s) must be less than 30s",
+			input: func(c *Config) {
+				c.Agent.Experimental.JWTSVIDCacheHitTimeout = "30s"
+			},
+			test: func(t *testing.T, ac *agent.Config) {
+				require.Nil(t, ac)
 			},
 		},
 	}

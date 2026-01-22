@@ -305,7 +305,12 @@ func (m *manager) FetchJWTSVID(ctx context.Context, entry *common.RegistrationEn
 		return cachedSVID, nil
 	}
 
-	newSVID, svidSPIFFEID, err := m.client.NewJWTSVID(ctx, entry.EntryId, audience)
+	// Determine if an unexpired JWT-SVID exists in the cache to pass
+	// to NewJWTSVID method. If this is true, we'll fall back to the
+	// cache hit more quickly rather than wait longer for the Server
+	isCacheHit := ok && !rotationutil.JWTSVIDExpired(cachedSVID, now)
+
+	newSVID, svidSPIFFEID, err := m.client.NewJWTSVID(ctx, entry.EntryId, audience, isCacheHit)
 	switch {
 	case err == nil:
 	case cachedSVID == nil:
