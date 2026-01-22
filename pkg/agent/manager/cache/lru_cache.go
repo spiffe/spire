@@ -783,11 +783,12 @@ func (c *LRUCache) syncSVIDsWithSubscribers() (map[string]struct{}, []recordAcce
 		if len(c.staleEntries) >= remainderSize {
 			break
 		}
-		if !record.entry.CacheHintFlags.DisableX509SvidPrefetch {
-			if _, svidCached := c.svids[id]; !svidCached {
-				if _, ok := c.staleEntries[id]; !ok {
-					c.staleEntries[id] = true
-				}
+		if record.entry.GetCacheHintFlags() != nil && record.entry.CacheHintFlags.DisableX509SvidPrefetch {
+			continue
+		}
+		if _, svidCached := c.svids[id]; !svidCached {
+			if _, ok := c.staleEntries[id]; !ok {
+				c.staleEntries[id] = true
 			}
 		}
 	}
