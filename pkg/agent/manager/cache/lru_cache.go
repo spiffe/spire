@@ -779,13 +779,15 @@ func (c *LRUCache) syncSVIDsWithSubscribers() (map[string]struct{}, []recordAcce
 
 	remainderSize := c.x509SvidCacheMaxSize - len(c.svids)
 	// add records which are not cached for remainder of cache size
-	for id := range c.records {
+	for id, record := range c.records {
 		if len(c.staleEntries) >= remainderSize {
 			break
 		}
-		if _, svidCached := c.svids[id]; !svidCached {
-			if _, ok := c.staleEntries[id]; !ok {
-				c.staleEntries[id] = true
+		if !record.entry.CacheHintFlags.DisableX509SvidPrefetch {
+			if _, svidCached := c.svids[id]; !svidCached {
+				if _, ok := c.staleEntries[id]; !ok {
+					c.staleEntries[id] = true
+				}
 			}
 		}
 	}
