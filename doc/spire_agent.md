@@ -119,7 +119,7 @@ There are two options that relate to rebootstrapping
 2. When set to `always`, the agent will attempt to rebootstrap, attesting the server again using the `trust_bundel_path`, `trust_bundle_url`, and/or `trust_bundle_unix_socket` settings when needed. The ability to rebootstrap needs to be supported by the agent NodeAttestor plugin along with the configuration of the server. The `always` mode will fail the agent if the plugin, server, and configurations are incompatible.
 3. `auto` mode functions like `always` except when unsupported, it will automatically disable rebootstrapping of the agent.
 
-The other option is `rebootstrap_delay`. It defaults to `10m`. This is the duration to wait between when a server is first seen that isn't trusted by the agents trust bundle and when to start the rebootstrapping process. No rebootstrappign is allowed during this delay period. If a secure server connection is established successfully during this delay period, the delay clock will be reset.
+The other option is `rebootstrap_delay`. It defaults to `10m`. This is the duration to wait between when a server is first seen that isn't trusted by the agents trust bundle and when to start the rebootstrapping process. No rebootstrapping is allowed during this delay period. If a secure server connection is established successfully during this delay period, the delay clock will be reset.
 
 Considerations for `rebootstra_delay` configuration:
 
@@ -430,7 +430,7 @@ There are two ways the trusted delegate workload can request SVIDs for other wor
    In this approach, the SPIRE Agent will do attestation for the provided PID, build the attested selectors, and return SVIDs for any workload registration entries that match the selectors the SPIRE Agent attested from that PID.
    This differs from the previous approach in that the SPIRE Agent itself (not the trusted delegate) handles the attestation of the other workload.
    On most platforms PIDs are not stable identifiers, so the trusted delegate workload **must** ensure that the PID it provides to the SPIRE Agent
-   via the Delegated Identity API for attestation is not recycled between the time a trusted delegate makes an Delegate Identity API request, and obtains a Delegate Identity API response.
+   via the Delegated Identity API for attestation is not recycled between the time a trusted delegate makes a Delegate Identity API request, and obtains a Delegate Identity API response.
    How this is accomplished is platform-dependent and the responsibility of the trusted delegate (e.g. by using pidfds on Linux).
    Attestation results obtained via the Delegated Identity API for a PID are valid until the process referred to by the PID terminates, or is re-attested - whichever comes first.
 
