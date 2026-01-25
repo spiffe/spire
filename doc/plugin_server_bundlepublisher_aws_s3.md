@@ -40,7 +40,9 @@ The user or role identified by the configured credentials must have the `s3:PutO
 
 The `aws_s3` BundlePublisher uses the default AWS SDK credential chain. This means it supports IAM Roles for Service Accounts (IRSA) on EKS out of the box.
 
-When running on EKS with an associated IAM role, the environment variables `AWS_WEB_IDENTITY_TOKEN_FILE` and `AWS_ROLE_ARN` are automatically injected. The plugin uses these to obtain temporary credentials.
+When using IRSA, the `access_key_id` and `secret_access_key` configuration options are not required.
+
+When running on EKS with an associated IAM role, the environment variables `AWS_WEB_IDENTITY_TOKEN_FILE` and `AWS_ROLE_ARN` are automatically set by EKS when IRSA is configured. The plugin uses these to obtain temporary credentials.
 
 To use IRSA:
 1. Configure your Service Account with the proper IAM role annotation.
