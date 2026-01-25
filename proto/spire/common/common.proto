@@ -99,12 +99,17 @@ message RegistrationEntry {
     string hint = 14;
     /** Time of creation, in seconds from epoch */
     int64 created_at = 15;
-    /** Represents a set of flags informing the agent behaviour with respect to
-    pre-fecthing and caching SVIDs. This is meant to prevent unnecessary effort
-    spent on generating SVIDs of types, which are unlikely to be needed. */
+    /** This nested message is reserved to contain a number of optional fields
+    controlling the various aspects of the agent's behaviour with respect to a
+    given registration entry. It serves to enable introducing and testing out new
+    tunables, without having to modify the datastore schema. Over time, some of
+    the fields contained therein may be considered eligible for their dedicated
+    attributes in the datastore. */
     message AdditionalAttributes {
         /** Flag indicating whether the agent should prefetch and cache X509 SVID.
-        This can be set to `true` if the workload is unlikely to request an X509 SVID. */
+        Can be set to `true` if the workload is unlikely to request an X509 SVID.
+        This is meant to prevent unnecessary effort spent on generating SVIDs of types,
+        which are unlikely to be needed.*/
         bool disable_x509_svid_prefetch = 1;
     }
     optional AdditionalAttributes additional_attributes = 16;

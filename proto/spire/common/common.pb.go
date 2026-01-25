@@ -1110,13 +1110,18 @@ func (x *AttestedNodeMask) GetAgentVersion() bool {
 	return false
 }
 
-// * Represents a set of flags informing the agent behaviour with respect to
-// pre-fecthing and caching SVIDs. This is meant to prevent unnecessary effort
-// spent on generating SVIDs of types, which are unlikely to be needed.
+// * This nested message is reserved to contain a number of optional fields
+// controlling the various aspects of the agent's behaviour with respect to a
+// given registration entry. It serves to enable introducing and testing out new
+// tunables, without having to modify the datastore schema. Over time, some of
+// the fields contained therein may be considered eligible for their dedicated
+// attributes in the datastore.
 type RegistrationEntry_AdditionalAttributes struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// * Flag indicating whether the agent should prefetch and cache X509 SVID.
-	// This can be set to `true` if the workload is unlikely to request an X509 SVID.
+	// Can be set to `true` if the workload is unlikely to request an X509 SVID.
+	// This is meant to prevent unnecessary effort spent on generating SVIDs of types,
+	// which are unlikely to be needed.
 	DisableX509SvidPrefetch bool `protobuf:"varint,1,opt,name=disable_x509_svid_prefetch,json=disableX509SvidPrefetch,proto3" json:"disable_x509_svid_prefetch,omitempty"`
 	unknownFields           protoimpl.UnknownFields
 	sizeCache               protoimpl.SizeCache
