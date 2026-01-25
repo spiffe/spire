@@ -4,7 +4,7 @@ go 1.25.5
 
 require (
 	cloud.google.com/go/iam v1.5.3
-	cloud.google.com/go/kms v1.24.0
+	cloud.google.com/go/kms v1.25.0
 	cloud.google.com/go/secretmanager v1.16.0
 	cloud.google.com/go/security v1.19.2
 	cloud.google.com/go/storage v1.59.1
@@ -27,7 +27,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/feature/rds/auth v1.6.0
 	github.com/aws/aws-sdk-go-v2/service/acmpca v1.46.2
 	github.com/aws/aws-sdk-go-v2/service/autoscaling v1.63.0
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.279.0
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.280.0
 	github.com/aws/aws-sdk-go-v2/service/eks v1.77.0
 	github.com/aws/aws-sdk-go-v2/service/iam v1.53.1
 	github.com/aws/aws-sdk-go-v2/service/kms v1.49.1
@@ -71,7 +71,7 @@ require (
 	github.com/prometheus/client_golang v1.23.2
 	github.com/shirou/gopsutil/v4 v4.25.12
 	github.com/sigstore/cosign/v2 v2.6.2
-	github.com/sigstore/rekor v1.4.3
+	github.com/sigstore/rekor v1.5.0
 	github.com/sigstore/sigstore v1.10.3
 	github.com/sirupsen/logrus v1.9.4
 	github.com/smallstep/pkcs7 v0.2.1
@@ -87,8 +87,8 @@ require (
 	golang.org/x/sync v0.19.0
 	golang.org/x/sys v0.40.0
 	golang.org/x/time v0.14.0
-	google.golang.org/api v0.260.0
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20251222181119-0a764e51fe1b
+	google.golang.org/api v0.261.0
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260120174246-409b4a993575
 	google.golang.org/grpc v1.78.0
 	google.golang.org/protobuf v1.36.11
 	k8s.io/api v0.35.0
@@ -129,7 +129,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/internal/v4a v1.4.16 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.4 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.9.7 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.16 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.17 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.19.16 // indirect
 	github.com/aws/aws-sdk-go-v2/service/signin v1.0.4 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.30.7 // indirect
@@ -163,19 +163,19 @@ require (
 	github.com/fatih/color v1.18.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/fxamacker/cbor/v2 v2.9.0 // indirect
-	github.com/go-chi/chi/v5 v5.2.3 // indirect
+	github.com/go-chi/chi/v5 v5.2.4 // indirect
 	github.com/go-ini/ini v1.67.0 // indirect
 	github.com/go-jose/go-jose/v3 v3.0.4 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect
 	github.com/go-openapi/analysis v0.24.1 // indirect
-	github.com/go-openapi/errors v0.22.4 // indirect
-	github.com/go-openapi/jsonpointer v0.22.1 // indirect
-	github.com/go-openapi/jsonreference v0.21.3 // indirect
+	github.com/go-openapi/errors v0.22.6 // indirect
+	github.com/go-openapi/jsonpointer v0.22.4 // indirect
+	github.com/go-openapi/jsonreference v0.21.4 // indirect
 	github.com/go-openapi/loads v0.23.2 // indirect
 	github.com/go-openapi/runtime v0.29.2 // indirect
-	github.com/go-openapi/spec v0.22.1 // indirect
+	github.com/go-openapi/spec v0.22.3 // indirect
 	github.com/go-openapi/strfmt v0.25.0 // indirect
 	github.com/go-openapi/swag v0.25.4 // indirect
 	github.com/go-openapi/swag/cmdutils v0.25.4 // indirect
@@ -207,7 +207,7 @@ require (
 	github.com/google/logger v1.1.1 // indirect
 	github.com/google/s2a-go v0.1.9 // indirect
 	github.com/google/uuid v1.6.0 // indirect
-	github.com/googleapis/enterprise-certificate-proxy v0.3.9 // indirect
+	github.com/googleapis/enterprise-certificate-proxy v0.3.11 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.27.3 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect

@@ -25,6 +25,7 @@ import (
 	"github.com/mitchellh/cli"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/agent"
+	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/agent/trustbundlesources"
 	"github.com/spiffe/spire/pkg/agent/workloadkey"
 	"github.com/spiffe/spire/pkg/common/catalog"
@@ -115,6 +116,7 @@ type sdsConfig struct {
 
 type experimentalConfig struct {
 	SyncInterval             string `hcl:"sync_interval"`
+	JWTSVIDCacheHitTimeout   string `hcl:"jwt_svid_cache_hit_timeout"`
 	NamedPipeName            string `hcl:"named_pipe_name"`
 	AdminNamedPipeName       string `hcl:"admin_named_pipe_name"`
 	UseSyncAuthorizedEntries *bool  `hcl:"use_sync_authorized_entries"`
@@ -454,6 +456,22 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 	ac.Log = logger
 	if reopenableFile != nil {
 		ac.LogReopener = log.ReopenOnSignal(logger, reopenableFile)
+	}
+
+	if c.Agent.Experimental.JWTSVIDCacheHitTimeout != "" {
+		var err error
+		timeout, err := time.ParseDuration(c.Agent.Experimental.JWTSVIDCacheHitTimeout)
+		if err != nil {
+			return nil, fmt.Errorf("could not parse jwt_svid_cache_hit_timeout: %w", err)
+		}
+		if timeout < 5*time.Second {
+			return nil, fmt.Errorf("jwt_svid_cache_hit_timeout (%s) must be greater than %s", timeout, 5*time.Second)
+		}
+		if timeout >= 30*time.Second {
+			return nil, fmt.Errorf("jwt_svid_cache_hit_timeout (%s) must be less than %s", timeout, 30*time.Second)
+		}
+		client.SetJWTSVIDCacheHitTimeout(timeout)
+		logger.Warn("The use of 'jwt_svid_cache_hit_timeout' is experimental")
 	}
 
 	ac.UseSyncAuthorizedEntries = true
