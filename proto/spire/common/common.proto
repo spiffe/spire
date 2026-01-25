@@ -102,12 +102,12 @@ message RegistrationEntry {
     /** Represents a set of flags informing the agent behaviour with respect to
     pre-fecthing and caching SVIDs. This is meant to prevent unnecessary effort
     spent on generating SVIDs of types, which are unlikely to be needed. */
-    message CacheHintFlags {
+    message AdditionalAttributes {
         /** Flag indicating whether the agent should prefetch and cache X509 SVID.
         This can be set to `true` if the workload is unlikely to request an X509 SVID. */
         bool disable_x509_svid_prefetch = 1;
     }
-    optional CacheHintFlags cache_hint_flags = 16;
+    optional AdditionalAttributes additional_attributes = 16;
 }
 
 /** The RegistrationEntryMask is used to update only selected fields of the RegistrationEntry */
@@ -125,7 +125,7 @@ message RegistrationEntryMask {
     bool store_svid = 11;
     bool jwt_svid_ttl = 12;
     bool hint = 13;
-    bool cache_hint_flags = 14;
+    bool additional_attributes = 14;
 }
 
 

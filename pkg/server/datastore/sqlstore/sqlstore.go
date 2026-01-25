@@ -2550,23 +2550,23 @@ func createRegistrationEntry(tx *gorm.DB, entry *common.RegistrationEntry) (*com
 		return nil, err
 	}
 
-	CacheHintFlags, err := proto.Marshal(entry.CacheHintFlags)
+	AdditionalAttributes, err := proto.Marshal(entry.AdditionalAttributes)
 	if err != nil {
 		return nil, err
 	}
 
 	newRegisteredEntry := RegisteredEntry{
-		EntryID:        entryID,
-		SpiffeID:       entry.SpiffeId,
-		ParentID:       entry.ParentId,
-		TTL:            entry.X509SvidTtl,
-		Admin:          entry.Admin,
-		Downstream:     entry.Downstream,
-		Expiry:         entry.EntryExpiry,
-		StoreSvid:      entry.StoreSvid,
-		JWTSvidTTL:     entry.JwtSvidTtl,
-		Hint:           entry.Hint,
-		CacheHintFlags: CacheHintFlags,
+		EntryID:              entryID,
+		SpiffeID:             entry.SpiffeId,
+		ParentID:             entry.ParentId,
+		TTL:                  entry.X509SvidTtl,
+		Admin:                entry.Admin,
+		Downstream:           entry.Downstream,
+		Expiry:               entry.EntryExpiry,
+		StoreSvid:            entry.StoreSvid,
+		JWTSvidTTL:           entry.JwtSvidTtl,
+		Hint:                 entry.Hint,
+		AdditionalAttributes: AdditionalAttributes,
 	}
 
 	if err := tx.Create(&newRegisteredEntry).Error; err != nil {
@@ -2682,7 +2682,7 @@ SELECT
 	NULL AS dns_name,
 	revision_number,
 	jwt_svid_ttl AS reg_jwt_svid_ttl,
-	cache_hint_flags
+	additional_attributes
 FROM
 	registered_entries
 WHERE id IN (SELECT id FROM listing)
@@ -2747,7 +2747,7 @@ SELECT
 	NULL AS dns_name,
 	revision_number,
 	jwt_svid_ttl AS reg_jwt_svid_ttl,
-	cache_hint_flags
+	additional_attributes
 FROM
 	registered_entries
 WHERE id IN (SELECT id FROM listing)
@@ -2808,7 +2808,7 @@ SELECT
 	D.value AS dns_name,
 	E.revision_number,
 	E.jwt_svid_ttl AS reg_jwt_svid_ttl,
-	E.cache_hint_flags AS cache_hint_flags
+	E.additional_attributes AS additional_attributes
 FROM
 	registered_entries E
 LEFT JOIN
@@ -2851,7 +2851,7 @@ SELECT
 	NULL AS dns_name,
 	revision_number,
 	jwt_svid_ttl AS reg_jwt_svid_ttl,
-	cache_hint_flags
+	additional_attributes
 FROM
 	registered_entries
 WHERE id IN (SELECT id FROM listing)
@@ -3063,7 +3063,7 @@ SELECT
 	NULL AS dns_name,
 	revision_number,
 	jwt_svid_ttl AS reg_jwt_svid_ttl,
-	cache_hint_flags
+	additional_attributes
 FROM
 	registered_entries
 `)
@@ -3159,7 +3159,7 @@ SELECT
 	NULL AS dns_name,
 	revision_number,
 	jwt_svid_ttl AS reg_jwt_svid_ttl,
-	cache_hint_flags
+	additional_attributes
 FROM
 	registered_entries
 `)
@@ -3253,7 +3253,7 @@ SELECT
 	D.value AS dns_name,
 	E.revision_number,
 	E.jwt_svid_ttl AS reg_jwt_svid_ttl,
-	E.cache_hint_flags AS cache_hint_flags
+	E.additional_attributes AS additional_attributes
 FROM
 	registered_entries E
 LEFT JOIN
@@ -3328,7 +3328,7 @@ SELECT
 	NULL AS dns_name,
 	revision_number,
 	jwt_svid_ttl AS reg_jwt_svid_ttl,
-	cache_hint_flags
+	additional_attributes
 FROM
 	registered_entries
 `)
@@ -3870,26 +3870,26 @@ func fillNodeSelectorFromRow(nodeSelector *common.Selector, r *nodeSelectorRow) 
 }
 
 type entryRow struct {
-	EId            uint64
-	EntryID        sql.NullString
-	SpiffeID       sql.NullString
-	ParentID       sql.NullString
-	RegTTL         sql.NullInt64
-	Admin          sql.NullBool
-	Downstream     sql.NullBool
-	Expiry         sql.NullInt64
-	SelectorID     sql.NullInt64
-	SelectorType   sql.NullString
-	SelectorValue  sql.NullString
-	StoreSvid      sql.NullBool
-	Hint           sql.NullString
-	CreatedAt      sql.NullTime
-	TrustDomain    sql.NullString
-	DNSNameID      sql.NullInt64
-	DNSName        sql.NullString
-	RevisionNumber sql.NullInt64
-	RegJwtSvidTTL  sql.NullInt64
-	CacheHintFlags sql.Null[[]byte]
+	EId                  uint64
+	EntryID              sql.NullString
+	SpiffeID             sql.NullString
+	ParentID             sql.NullString
+	RegTTL               sql.NullInt64
+	Admin                sql.NullBool
+	Downstream           sql.NullBool
+	Expiry               sql.NullInt64
+	SelectorID           sql.NullInt64
+	SelectorType         sql.NullString
+	SelectorValue        sql.NullString
+	StoreSvid            sql.NullBool
+	Hint                 sql.NullString
+	CreatedAt            sql.NullTime
+	TrustDomain          sql.NullString
+	DNSNameID            sql.NullInt64
+	DNSName              sql.NullString
+	RevisionNumber       sql.NullInt64
+	RegJwtSvidTTL        sql.NullInt64
+	AdditionalAttributes sql.Null[[]byte]
 }
 
 func scanEntryRow(rs *sql.Rows, r *entryRow) error {
@@ -3913,7 +3913,7 @@ func scanEntryRow(rs *sql.Rows, r *entryRow) error {
 		&r.DNSName,
 		&r.RevisionNumber,
 		&r.RegJwtSvidTTL,
-		&r.CacheHintFlags,
+		&r.AdditionalAttributes,
 	))
 }
 
@@ -3976,10 +3976,10 @@ func fillEntryFromRow(entry *common.RegistrationEntry, r *entryRow) error {
 		entry.CreatedAt = roundedInSecondsUnix(r.CreatedAt.Time)
 	}
 
-	if r.CacheHintFlags.Valid {
-		if len(r.CacheHintFlags.V) > 0 {
-			entry.CacheHintFlags = &common.RegistrationEntry_CacheHintFlags{}
-			if err := proto.Unmarshal(r.CacheHintFlags.V, entry.CacheHintFlags); err != nil {
+	if r.AdditionalAttributes.Valid {
+		if len(r.AdditionalAttributes.V) > 0 {
+			entry.AdditionalAttributes = &common.RegistrationEntry_AdditionalAttributes{}
+			if err := proto.Unmarshal(r.AdditionalAttributes.V, entry.AdditionalAttributes); err != nil {
 				return newSQLError("could not parse cache hint flags: %s", err)
 			}
 		}
@@ -4082,12 +4082,12 @@ func updateRegistrationEntry(tx *gorm.DB, e *common.RegistrationEntry, mask *com
 	if mask == nil || mask.Hint {
 		entry.Hint = e.Hint
 	}
-	if mask == nil || mask.CacheHintFlags {
-		CacheHintFlags, err := proto.Marshal(e.CacheHintFlags)
+	if mask == nil || mask.AdditionalAttributes {
+		AdditionalAttributes, err := proto.Marshal(e.AdditionalAttributes)
 		if err != nil {
 			return nil, err
 		}
-		entry.CacheHintFlags = CacheHintFlags
+		entry.AdditionalAttributes = AdditionalAttributes
 	}
 
 	// Revision number is increased by 1 on every update call
@@ -4542,7 +4542,7 @@ func validateRegistrationEntry(entry *common.RegistrationEntry) error {
 	// it is done to avoid users to mix selectors from different platforms in
 	// entries with storable SVIDs
 	if entry.StoreSvid {
-		if entry.CacheHintFlags.GetDisableX509SvidPrefetch() {
+		if entry.AdditionalAttributes.GetDisableX509SvidPrefetch() {
 			return newValidationError("specifying cache behaviour is incompatible with storable SVIDs")
 		}
 		// Selectors must never be empty
@@ -4674,32 +4674,32 @@ func modelToEntry(tx *gorm.DB, model RegisteredEntry) (*common.RegistrationEntry
 		federatesWith = append(federatesWith, bundle.TrustDomain)
 	}
 
-	CacheHintFlags := &common.RegistrationEntry_CacheHintFlags{}
-	if len(model.CacheHintFlags) != 0 {
-		if err := proto.Unmarshal(model.CacheHintFlags, CacheHintFlags); err != nil {
+	AdditionalAttributes := &common.RegistrationEntry_AdditionalAttributes{}
+	if len(model.AdditionalAttributes) != 0 {
+		if err := proto.Unmarshal(model.AdditionalAttributes, AdditionalAttributes); err != nil {
 			return nil, err
 		}
 	} else {
-		CacheHintFlags = nil
+		AdditionalAttributes = nil
 	}
 
 	return &common.RegistrationEntry{
-		EntryId:        model.EntryID,
-		Selectors:      selectors,
-		SpiffeId:       model.SpiffeID,
-		ParentId:       model.ParentID,
-		X509SvidTtl:    model.TTL,
-		FederatesWith:  federatesWith,
-		Admin:          model.Admin,
-		Downstream:     model.Downstream,
-		EntryExpiry:    model.Expiry,
-		DnsNames:       dnsList,
-		RevisionNumber: model.RevisionNumber,
-		StoreSvid:      model.StoreSvid,
-		JwtSvidTtl:     model.JWTSvidTTL,
-		Hint:           model.Hint,
-		CacheHintFlags: CacheHintFlags,
-		CreatedAt:      roundedInSecondsUnix(model.CreatedAt),
+		EntryId:              model.EntryID,
+		Selectors:            selectors,
+		SpiffeId:             model.SpiffeID,
+		ParentId:             model.ParentID,
+		X509SvidTtl:          model.TTL,
+		FederatesWith:        federatesWith,
+		Admin:                model.Admin,
+		Downstream:           model.Downstream,
+		EntryExpiry:          model.Expiry,
+		DnsNames:             dnsList,
+		RevisionNumber:       model.RevisionNumber,
+		StoreSvid:            model.StoreSvid,
+		JwtSvidTtl:           model.JWTSvidTTL,
+		Hint:                 model.Hint,
+		AdditionalAttributes: AdditionalAttributes,
+		CreatedAt:            roundedInSecondsUnix(model.CreatedAt),
 	}, nil
 }
 

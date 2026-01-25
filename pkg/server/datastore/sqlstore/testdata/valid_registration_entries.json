@@ -62,7 +62,7 @@
       }
     ],
     "spiffe_id": "SpiffeId1",
-    "cache_hint_flags": {
+    "additional_attributes": {
       "disable_x509_svid_prefetch": true
     }
   }

@@ -558,16 +558,16 @@ func TestLRUCacheGetStaleEntriesDisablePrefetch(t *testing.T) {
 	cache := newTestLRUCache(t)
 
 	foo := makeRegistrationEntryWithTTL("FOO", 130, 140, "F")
-	fooCacheHintFlags := &common.RegistrationEntry_CacheHintFlags{
+	fooAdditionalAttributes := &common.RegistrationEntry_AdditionalAttributes{
 		DisableX509SvidPrefetch: true,
 	}
-	foo.CacheHintFlags = fooCacheHintFlags
+	foo.AdditionalAttributes = fooAdditionalAttributes
 
 	bar := makeRegistrationEntryWithTTL("BAR", 130, 140, "B")
-	barCacheHintFlags := &common.RegistrationEntry_CacheHintFlags{
+	barAdditionalAttributes := &common.RegistrationEntry_AdditionalAttributes{
 		DisableX509SvidPrefetch: false,
 	}
-	bar.CacheHintFlags = barCacheHintFlags
+	bar.AdditionalAttributes = barAdditionalAttributes
 
 	qux := makeRegistrationEntryWithTTL("QUX", 130, 140, "Q")
 	// Create entry but don't mark it stale from checkSVID method;
