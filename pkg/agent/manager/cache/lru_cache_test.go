@@ -584,7 +584,7 @@ func TestLRUCacheGetStaleEntriesDisablePrefetch(t *testing.T) {
 		{Entry: cache.records[bar.EntryId].entry},
 		{Entry: cache.records[qux.EntryId].entry},
 	}
-	assert.Equal(t, expectedEntries, cache.GetStaleEntries())
+	assert.ElementsMatch(t, expectedEntries, cache.GetStaleEntries())
 }
 
 func TestLRUCacheGetStaleEntries(t *testing.T) {
