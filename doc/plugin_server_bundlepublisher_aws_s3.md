@@ -45,6 +45,7 @@ When using IRSA, the `access_key_id` and `secret_access_key` configuration optio
 When running on EKS with an associated IAM role, the environment variables `AWS_WEB_IDENTITY_TOKEN_FILE` and `AWS_ROLE_ARN` are automatically set by EKS when IRSA is configured. The plugin uses these to obtain temporary credentials.
 
 To use IRSA:
+
 1. Configure your Service Account with the proper IAM role annotation.
 2. Omit `access_key_id` and `secret_access_key` from the `plugin_data` configuration.
 
