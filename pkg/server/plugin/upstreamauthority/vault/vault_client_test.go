@@ -19,15 +19,17 @@ import (
 )
 
 const (
-	testRootCert          = "testdata/root-cert.pem"
-	testInvalidRootCert   = "testdata/invalid-root-cert.pem"
-	testServerCert        = "testdata/server-cert.pem"
-	testServerKey         = "testdata/server-key.pem"
-	testClientCert        = "testdata/client-cert.pem"
-	testClientKey         = "testdata/client-key.pem"
-	testInvalidClientCert = "testdata/invalid-client-cert.pem"
-	testInvalidClientKey  = "testdata/invalid-client-key.pem"
-	testReqCSR            = "testdata/intermediate-csr.pem"
+	testRootCert            = "testdata/root-cert.pem"
+	testInvalidRootCert     = "testdata/invalid-root-cert.pem"
+	testServerCert          = "testdata/server-cert.pem"
+	testServerKey           = "testdata/server-key.pem"
+	testClientCert          = "testdata/client-cert.pem"
+	testClientKey           = "testdata/client-key.pem"
+	testInvalidClientCert   = "testdata/invalid-client-cert.pem"
+	testInvalidClientKey    = "testdata/invalid-client-key.pem"
+	testReqCSR              = "testdata/intermediate-csr.pem"
+	testSupplementalCert    = "testdata/supplemental-cert.pem"
+	testInvalidSupplemental = "testdata/invalid-root-cert.pem"
 )
 
 func TestNewClientConfigWithDefaultValues(t *testing.T) {

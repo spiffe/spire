@@ -9,6 +9,7 @@ import (
 	"log"
 	"math/big"
 	"net"
+	"net/url"
 	"os"
 	"time"
 
@@ -47,12 +48,14 @@ func main() {
 	}, rootCert, clientKey, rootKey)
 
 	// Supplemental CA certificate for testing supplemental_bundle_path feature
+	supplementalURI, _ := url.Parse("spiffe://supplemental")
 	supplementalCert := createCertificate(&x509.Certificate{
 		SerialNumber:          big.NewInt(4),
 		IsCA:                  true,
 		BasicConstraintsValid: true,
 		KeyUsage:              x509.KeyUsageCertSign,
 		NotAfter:              notAfter,
+		URIs:                  []*url.URL{supplementalURI},
 	}, nil, supplementalKey, nil)
 
 	writeFile("root-cert.pem", certPEM(rootCert))
