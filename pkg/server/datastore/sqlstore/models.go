@@ -101,8 +101,9 @@ type RegisteredEntry struct {
 	// TTL of JWT identities derived from this entry
 	JWTSvidTTL int32 `gorm:"column:jwt_svid_ttl"`
 
-	// AdditionalAttributes contains a set of options and flags that inform the
-	// agent behaviour with respect to pre-fetching and refreshing X509 SVIDs
+	// AdditionalAttributes may contain a number of optional fields controlling
+	// the various aspects of the agent's behaviour with respect to a given
+	// registration entry
 	AdditionalAttributes []byte `gorm:"size:65535,column:additional_attributes"`
 }
 
