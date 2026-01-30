@@ -517,8 +517,7 @@ func migrateVersion(tx *gorm.DB, currVersion int, log logrus.FieldLogger) (versi
 }
 
 func migrateToV24(tx *gorm.DB) error {
-	// Add agent_version column to attested_node_entries table
-	if err := tx.AutoMigrate(&AttestedNode{}).Error; err != nil {
+	if err := tx.AutoMigrate(&AttestedNode{}, &RegisteredEntry{}).Error; err != nil {
 		return newWrappedSQLError(err)
 	}
 	return nil
