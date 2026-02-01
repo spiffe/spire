@@ -64,7 +64,7 @@ require (
 	github.com/imkira/go-observer v1.0.3
 	github.com/jackc/pgx/v5 v5.8.0
 	github.com/jinzhu/gorm v1.9.16
-	github.com/lib/pq v1.10.9
+	github.com/lib/pq v1.11.1
 	github.com/mattn/go-sqlite3 v1.14.33
 	github.com/mitchellh/cli v1.1.5
 	github.com/open-policy-agent/opa v1.13.1
