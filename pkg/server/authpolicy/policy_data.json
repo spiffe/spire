@@ -172,6 +172,10 @@
 			"allow_agent": true
 		},
 		{
+			"full_method": "/spire.api.server.agent.v1.Agent/PostStatus",
+			"allow_agent": true
+		},
+		{
 			"full_method": "/spire.api.server.agent.v1.Agent/CreateJoinToken",
 			"allow_admin": true,
 			"allow_local": true

@@ -11,3 +11,6 @@ log-debug "building postgres test harness..."
 
 log-debug "copying over test data..."
 cp -r "${PKGDIR}"/testdata .
+
+log-debug "pulling postgres docker images..."
+docker compose pull
