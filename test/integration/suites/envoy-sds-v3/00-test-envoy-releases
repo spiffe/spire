@@ -32,21 +32,6 @@ setup-tests() {
 }
 
 test-envoy() {
-    # Log initial diagnostic information
-    log-info "=== Pre-check diagnostics ==="
-
-    log-info "Checking SPIRE agent sockets..."
-    docker compose exec -T upstream-proxy ls -la /opt/shared/agent.sock || log-warn "upstream agent socket not found"
-    docker compose exec -T downstream-proxy ls -la /opt/shared/agent.sock || log-warn "downstream agent socket not found"
-
-    log-info "Checking supervisor process status..."
-    docker compose exec -T upstream-proxy supervisorctl status
-    docker compose exec -T downstream-proxy supervisorctl status
-
-    log-info "Checking Envoy admin endpoints..."
-    docker compose exec -T upstream-proxy curl -sf http://localhost:9901/ready || log-warn "upstream Envoy not ready"
-    docker compose exec -T downstream-proxy curl -sf http://localhost:9901/ready || log-warn "downstream Envoy not ready"
-
     # Ensure connectivity for both TLS and mTLS
 
     MAXCHECKSPERPORT=30
