@@ -100,6 +100,11 @@ type RegisteredEntry struct {
 
 	// TTL of JWT identities derived from this entry
 	JWTSvidTTL int32 `gorm:"column:jwt_svid_ttl"`
+
+	// AdditionalAttributes may contain a number of optional fields controlling
+	// the various aspects of the agent's behaviour with respect to a given
+	// registration entry
+	AdditionalAttributes []byte `gorm:"size:65535,column:additional_attributes"`
 }
 
 // RegisteredEntryEvent holds the entry id of a registered entry that had an event
