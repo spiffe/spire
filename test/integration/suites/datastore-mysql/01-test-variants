@@ -52,3 +52,4 @@ test-mysql() {
 }
 
 test-mysql mysql-8-0 || exit 1
+test-mysql mysql-8-4 || exit 1
