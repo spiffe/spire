@@ -457,6 +457,24 @@ func TestNewEngineFromRego(t *testing.T) {
 	}
 }
 
+func BenchmarkOpaPolicy(b *testing.B) {
+	auth, err := authpolicy.NewEngineFromConfigOrDefault(b.Context(), nil, nil)
+	require.NoError(b, err)
+
+	input := authpolicy.Input{
+		Caller:         "spiffe://example.org/spire/agent/make/it/a/bit/longer",
+		CallerFilePath: "/opt/spire/bin/spire-server",
+		FullMethod:     "/spire.api.server.svid.v1.SVID/BatchNewX509SVID",
+		Req: map[string]string{
+			"foo": "bar",
+		},
+	}
+	for b.Loop() {
+		_, err := auth.Eval(b.Context(), input)
+		require.NoError(b, err)
+	}
+}
+
 func condCheckRego(cond string) string {
 	regoTemplate := `
     package spire
