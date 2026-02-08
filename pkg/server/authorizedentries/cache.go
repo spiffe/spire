@@ -208,6 +208,11 @@ func (c *Cache) addDescendants(foundEntries map[string]api.ReadOnlyEntry, parent
 		if _, ok := requestedEntries[record.EntryID]; ok {
 			foundEntries[record.EntryID] = api.NewReadOnlyEntry(record.EntryCloneOnly)
 		}
+
+		if len(requestedEntries) == len(foundEntries) {
+			return false
+		}
+
 		c.addDescendants(foundEntries, record.SPIFFEID, requestedEntries, parentSeen)
 		return true
 	})
