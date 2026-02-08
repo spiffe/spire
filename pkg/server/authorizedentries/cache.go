@@ -104,17 +104,16 @@ func (c *Cache) GetAuthorizedEntries(agentID spiffeid.ID) []api.ReadOnlyEntry {
 	parentSeen := allocStringSet()
 	defer freeStringSet(parentSeen)
 
-	records := allocRecordSlice()
-	defer freeRecordSlice(records)
+	foundEntries := make([]api.ReadOnlyEntry, 0)
 
-	records = c.appendDescendents(records, agentID.String(), parentSeen)
+	foundEntries = c.appendDescendents(foundEntries, agentID.String(), parentSeen)
 
 	agentAliases := c.getAgentAliases(agent.Selectors)
 	for _, alias := range agentAliases {
-		records = c.appendDescendents(records, alias.AliasID, parentSeen)
+		foundEntries = c.appendDescendents(foundEntries, alias.AliasID, parentSeen)
 	}
 
-	return cloneEntriesFromRecords(records)
+	return foundEntries
 }
 
 func (c *Cache) UpdateEntry(entry *types.Entry) {
@@ -178,19 +177,22 @@ func (c *Cache) PruneExpiredAgents() int {
 	}
 }
 
-func (c *Cache) appendDescendents(records []entryRecord, parentID string, parentSeen stringSet) []entryRecord {
+func (c *Cache) appendDescendents(foundEntries []api.ReadOnlyEntry, parentID string, parentSeen stringSet) []api.ReadOnlyEntry {
 	if _, ok := parentSeen[parentID]; ok {
-		return records
+		return foundEntries
 	}
 	parentSeen[parentID] = struct{}{}
 
-	lenBefore := len(records)
-	records = c.appendEntryRecordsForParentID(records, parentID)
-	// Crawl the children that were appended to get their descendents
-	for _, entry := range records[lenBefore:] {
-		records = c.appendDescendents(records, entry.SPIFFEID, parentSeen)
-	}
-	return records
+	pivot := entryRecord{ParentID: parentID}
+	c.entriesByParentID.AscendGreaterOrEqual(pivot, func(record entryRecord) bool {
+		if record.ParentID != parentID {
+			return false
+		}
+		foundEntries = append(foundEntries, api.NewReadOnlyEntry(record.EntryCloneOnly))
+		foundEntries = c.appendDescendents(foundEntries, record.SPIFFEID, parentSeen)
+		return true
+	})
+	return foundEntries
 }
 
 func (c *Cache) addDescendants(foundEntries map[string]api.ReadOnlyEntry, parentID string, requestedEntries map[string]struct{}, parentSeen stringSet) {
@@ -216,18 +218,6 @@ func (c *Cache) addDescendants(foundEntries map[string]api.ReadOnlyEntry, parent
 		c.addDescendants(foundEntries, record.SPIFFEID, requestedEntries, parentSeen)
 		return true
 	})
-}
-
-func (c *Cache) appendEntryRecordsForParentID(records []entryRecord, parentID string) []entryRecord {
-	pivot := entryRecord{ParentID: parentID}
-	c.entriesByParentID.AscendGreaterOrEqual(pivot, func(record entryRecord) bool {
-		if record.ParentID != parentID {
-			return false
-		}
-		records = append(records, record)
-		return true
-	})
-	return records
 }
 
 func (c *Cache) getAgentAliases(agentSelectors selectorSet) []aliasRecord {
