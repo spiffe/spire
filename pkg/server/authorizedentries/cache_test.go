@@ -2,6 +2,8 @@ package authorizedentries
 
 import (
 	"fmt"
+	"maps"
+	"math/rand"
 	"slices"
 	"strconv"
 	"sync/atomic"
@@ -271,13 +273,6 @@ type agentInfo struct {
 	Selectors []*types.Selector
 }
 
-func (a *cacheTest) pickAgent() spiffeid.ID {
-	for agent := range a.agents {
-		return agent
-	}
-	return spiffeid.ID{}
-}
-
 func (a *cacheTest) withEntries(entries ...*types.Entry) *cacheTest {
 	for _, entry := range entries {
 		a.entries[entry.Id] = entry
@@ -417,8 +412,11 @@ func BenchmarkGetAuthorizedEntriesInMemory(b *testing.B) {
 
 	_, cache := test.hydrate(b)
 
+	agents := slices.Collect(maps.Keys(test.agents))
+
 	for b.Loop() {
-		cache.GetAuthorizedEntries(test.pickAgent())
+		entries := cache.GetAuthorizedEntries(agents[rand.Intn(len(agents))]) //nolint:gosec
+		require.NotEmpty(b, entries)
 	}
 }
 
