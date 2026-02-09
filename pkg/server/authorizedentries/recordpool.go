@@ -17,6 +17,6 @@ func allocRecordSlice() []entryRecord {
 }
 
 func freeRecordSlice(records []entryRecord) {
-	records = records[:0]
+	clear(records)
 	recordPool.Put(&records)
 }

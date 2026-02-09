@@ -332,7 +332,7 @@ func TestRunUpdateCacheTaskPrunesExpiredAgents(t *testing.T) {
 	clk.WaitForTickerMulti(time.Second, 2, "waiting to create tickers")
 	entries, err := ef.FetchAuthorizedEntries(ctx, agentID)
 	assert.NoError(t, err)
-	require.Zero(t, entries)
+	require.Empty(t, entries)
 
 	// Create Attested Node and Registration Entry
 	_, err = ds.CreateAttestedNode(ctx, &common.AttestedNode{
@@ -409,7 +409,7 @@ func TestUpdateRegistrationEntriesCacheSkippedEvents(t *testing.T) {
 	// Ensure no entries are in there to start
 	entries, err := ef.FetchAuthorizedEntries(ctx, agentID)
 	require.NoError(t, err)
-	require.Zero(t, entries)
+	require.Empty(t, entries)
 
 	// Create Initial Registration Entry
 	entry1, err := ds.CreateRegistrationEntry(ctx, &common.RegistrationEntry{
@@ -633,7 +633,7 @@ func TestUpdateAttestedNodesCacheSkippedEvents(t *testing.T) {
 	// Ensure no entries are in there to start
 	entries, err := ef.FetchAuthorizedEntries(ctx, agent2)
 	require.NoError(t, err)
-	require.Zero(t, entries)
+	require.Empty(t, entries)
 
 	// Create node alias for agent 2
 	alias, err := ds.CreateRegistrationEntry(ctx, &common.RegistrationEntry{
@@ -822,7 +822,7 @@ func TestUpdateAttestedNodesCacheSkippedStartupEvents(t *testing.T) {
 	// Ensure there are no entries to start
 	entries, err := ef.FetchAuthorizedEntries(ctx, agent1)
 	require.NoError(t, err)
-	require.Zero(t, len(entries))
+	require.Empty(t, entries)
 
 	// Recreate attested node and selectors for agent 1
 	_, err = ds.CreateAttestedNode(ctx, &common.AttestedNode{
@@ -854,7 +854,7 @@ func TestUpdateAttestedNodesCacheSkippedStartupEvents(t *testing.T) {
 
 	entries, err = ef.FetchAuthorizedEntries(ctx, agent1)
 	require.NoError(t, err)
-	require.Zero(t, len(entries))
+	require.Empty(t, entries)
 
 	// Add back in deleted event
 	err = ds.CreateAttestedNodeEventForTesting(ctx, &datastore.AttestedNodeEvent{
@@ -901,7 +901,7 @@ func TestFullCacheReloadRecoversFromSkippedRegistrationEntryEvents(t *testing.T)
 	// Ensure no entries are in there to start
 	entries, err := ef.FetchAuthorizedEntries(ctx, agentID)
 	require.NoError(t, err)
-	require.Zero(t, entries)
+	require.Empty(t, entries)
 
 	// Create Initial Registration Entry
 	entry1, err := ds.CreateRegistrationEntry(ctx, &common.RegistrationEntry{
@@ -989,7 +989,7 @@ func TestFullCacheReloadRecoversFromSkippedAttestedNodeEvents(t *testing.T) {
 	// Ensure no entries are in there to start
 	entries, err := ef.FetchAuthorizedEntries(ctx, agent2)
 	require.NoError(t, err)
-	require.Zero(t, entries)
+	require.Empty(t, entries)
 
 	// Create node alias for agent 2
 	alias, err := ds.CreateRegistrationEntry(ctx, &common.RegistrationEntry{

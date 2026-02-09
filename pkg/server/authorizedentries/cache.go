@@ -1,7 +1,6 @@
 package authorizedentries
 
 import (
-	"fmt"
 	"sync"
 	"time"
 
@@ -22,7 +21,6 @@ const (
 	// ok jumping off point.
 	agentRecordDegree = 32
 	aliasRecordDegree = 32
-	entryDegree       = 32
 )
 
 type Selector struct {
@@ -34,29 +32,43 @@ func (s Selector) String() string {
 	return s.Type + ":" + s.Value
 }
 
+type EntryList struct {
+	mtx     sync.RWMutex
+	entries map[string]entryRecord
+}
+
+func (e *EntryList) DeleteEntry(entryID string) {
+	e.mtx.Lock()
+	defer e.mtx.Unlock()
+
+	delete(e.entries, entryID)
+}
+
 type Cache struct {
 	mu  sync.RWMutex
 	clk clock.Clock
 
-	agentsByID        *btree.BTreeG[agentRecord]
+	agentsByID        map[string]agentRecord
 	agentsByExpiresAt *btree.BTreeG[agentRecord]
 
 	aliasesByEntryID  *btree.BTreeG[aliasRecord]
 	aliasesBySelector *btree.BTreeG[aliasRecord]
 
-	entriesByEntryID  *btree.BTreeG[entryRecord]
-	entriesByParentID *btree.BTreeG[entryRecord]
+	entriesByEntryID  map[string]*types.Entry
+	entriesByParentID map[string]map[string]*types.Entry
 }
 
 func NewCache(clk clock.Clock) *Cache {
+	agentFreeList := btree.NewFreeListG[agentRecord](128)
+	aliasFreeList := btree.NewFreeListG[aliasRecord](128)
 	return &Cache{
 		clk:               clk,
-		agentsByID:        btree.NewG(agentRecordDegree, agentRecordByID),
-		agentsByExpiresAt: btree.NewG(agentRecordDegree, agentRecordByExpiresAt),
-		aliasesByEntryID:  btree.NewG(aliasRecordDegree, aliasRecordByEntryID),
-		aliasesBySelector: btree.NewG(aliasRecordDegree, aliasRecordBySelector),
-		entriesByEntryID:  btree.NewG(entryDegree, entryRecordByEntryID),
-		entriesByParentID: btree.NewG(entryDegree, entryRecordByParentID),
+		agentsByID:        make(map[string]agentRecord),
+		agentsByExpiresAt: btree.NewWithFreeListG(agentRecordDegree, agentRecordByExpiresAt, agentFreeList),
+		aliasesByEntryID:  btree.NewWithFreeListG(aliasRecordDegree, aliasRecordByEntryID, aliasFreeList),
+		aliasesBySelector: btree.NewWithFreeListG(aliasRecordDegree, aliasRecordBySelector, aliasFreeList),
+		entriesByEntryID:  make(map[string]*types.Entry),
+		entriesByParentID: make(map[string]map[string]*types.Entry),
 	}
 }
 
@@ -71,14 +83,14 @@ func (c *Cache) LookupAuthorizedEntries(agentID spiffeid.ID, requestedEntries ma
 	// that are directly parented against the agent. Any entries that would be
 	// obtained via node aliasing will not be returned until the cache is
 	// updated with the node selectors for the agent.
-	agent, _ := c.agentsByID.Get(agentRecord{ID: agentID.String()})
+	agent, _ := c.agentsByID[agentID.String()]
 
 	foundEntries := make(map[string]api.ReadOnlyEntry)
 
 	parentSeen := allocStringSet()
 	defer freeStringSet(parentSeen)
 
-	c.addDescendants(foundEntries, agentID.String(), requestedEntries, parentSeen)
+	c.addDescendants(foundEntries, agentID.Path(), requestedEntries, parentSeen)
 
 	agentAliases := c.getAgentAliases(agent.Selectors)
 	for _, alias := range agentAliases {
@@ -99,21 +111,20 @@ func (c *Cache) GetAuthorizedEntries(agentID spiffeid.ID) []api.ReadOnlyEntry {
 	// that are directly parented against the agent. Any entries that would be
 	// obtained via node aliasing will not be returned until the cache is
 	// updated with the node selectors for the agent.
-	agent, _ := c.agentsByID.Get(agentRecord{ID: agentID.String()})
+	agent, _ := c.agentsByID[agentID.String()]
 
 	parentSeen := allocStringSet()
 	defer freeStringSet(parentSeen)
 
-	foundEntries := make([]api.ReadOnlyEntry, 0)
-
-	foundEntries = c.appendDescendents(foundEntries, agentID.String(), parentSeen)
+	records := make([]api.ReadOnlyEntry, 0)
+	records = c.appendDescendents(records, agentID.Path(), parentSeen)
 
 	agentAliases := c.getAgentAliases(agent.Selectors)
 	for _, alias := range agentAliases {
-		foundEntries = c.appendDescendents(foundEntries, alias.AliasID, parentSeen)
+		records = c.appendDescendents(records, alias.AliasID, parentSeen)
 	}
 
-	return foundEntries
+	return records
 }
 
 func (c *Cache) UpdateEntry(entry *types.Entry) {
@@ -132,32 +143,34 @@ func (c *Cache) RemoveEntry(entryID string) {
 }
 
 func (c *Cache) UpdateAgent(agentID string, expiresAt time.Time, selectors []*types.Selector) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
 	agent := agentRecord{
 		ID:        agentID,
 		ExpiresAt: expiresAt.Unix(),
 		Selectors: selectorSetFromProto(selectors),
 	}
 
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	// Need to delete existing record from the ExpiresAt index first. Use
 	// the ID index to locate the existing record.
-	if existing, exists := c.agentsByID.Get(agent); exists {
-		c.agentsByExpiresAt.Delete(existing)
+	currentAgent, ok := c.agentsByID[agent.ID]
+	if ok {
+		c.agentsByExpiresAt.Delete(currentAgent)
 	}
-
-	c.agentsByID.ReplaceOrInsert(agent)
 	c.agentsByExpiresAt.ReplaceOrInsert(agent)
+	c.agentsByID[agent.ID] = agent
 }
 
 func (c *Cache) RemoveAgent(agentID string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if agent, exists := c.agentsByID.Get(agentRecord{ID: agentID}); exists {
-		c.agentsByID.Delete(agent)
+
+	agent, ok := c.agentsByID[agentID]
+	if ok {
 		c.agentsByExpiresAt.Delete(agent)
 	}
+	delete(c.agentsByID, agentID)
 }
 
 func (c *Cache) PruneExpiredAgents() int {
@@ -171,28 +184,24 @@ func (c *Cache) PruneExpiredAgents() int {
 		if !ok || record.ExpiresAt > now {
 			return pruned
 		}
-		c.agentsByID.Delete(record)
+		delete(c.agentsByID, record.ID)
 		c.agentsByExpiresAt.Delete(record)
 		pruned++
 	}
 }
 
-func (c *Cache) appendDescendents(foundEntries []api.ReadOnlyEntry, parentID string, parentSeen stringSet) []api.ReadOnlyEntry {
+func (c *Cache) appendDescendents(records []api.ReadOnlyEntry, parentID string, parentSeen stringSet) []api.ReadOnlyEntry {
 	if _, ok := parentSeen[parentID]; ok {
-		return foundEntries
+		return records
 	}
 	parentSeen[parentID] = struct{}{}
 
-	pivot := entryRecord{ParentID: parentID}
-	c.entriesByParentID.AscendGreaterOrEqual(pivot, func(record entryRecord) bool {
-		if record.ParentID != parentID {
-			return false
-		}
-		foundEntries = append(foundEntries, api.NewReadOnlyEntry(record.EntryCloneOnly))
-		foundEntries = c.appendDescendents(foundEntries, record.SPIFFEID, parentSeen)
-		return true
-	})
-	return foundEntries
+	parentEntries := c.entriesByParentID[parentID]
+	for _, entry := range parentEntries {
+		records = append(records, api.NewReadOnlyEntry(entry))
+		records = c.appendDescendents(records, entry.SpiffeId.Path, parentSeen)
+	}
+	return records
 }
 
 func (c *Cache) addDescendants(foundEntries map[string]api.ReadOnlyEntry, parentID string, requestedEntries map[string]struct{}, parentSeen stringSet) {
@@ -201,23 +210,18 @@ func (c *Cache) addDescendants(foundEntries map[string]api.ReadOnlyEntry, parent
 	}
 	parentSeen[parentID] = struct{}{}
 
-	pivot := entryRecord{ParentID: parentID}
-	c.entriesByParentID.AscendGreaterOrEqual(pivot, func(record entryRecord) bool {
-		if record.ParentID != parentID {
-			return false
+	parentEntries := c.entriesByParentID[parentID]
+	for _, entry := range parentEntries {
+		if _, ok := requestedEntries[entry.Id]; ok {
+			foundEntries[entry.Id] = api.NewReadOnlyEntry(entry)
 		}
 
-		if _, ok := requestedEntries[record.EntryID]; ok {
-			foundEntries[record.EntryID] = api.NewReadOnlyEntry(record.EntryCloneOnly)
+		if len(foundEntries) == len(requestedEntries) {
+			return
 		}
 
-		if len(requestedEntries) == len(foundEntries) {
-			return false
-		}
-
-		c.addDescendants(foundEntries, record.SPIFFEID, requestedEntries, parentSeen)
-		return true
-	})
+		c.addDescendants(foundEntries, entry.SpiffeId.Path, requestedEntries, parentSeen)
+	}
 }
 
 func (c *Cache) getAgentAliases(agentSelectors selectorSet) []aliasRecord {
@@ -250,7 +254,7 @@ func (c *Cache) updateEntry(entry *types.Entry) {
 	if isNodeAlias(entry) {
 		ar := aliasRecord{
 			EntryID:      entry.Id,
-			AliasID:      spiffeIDFromProto(entry.SpiffeId),
+			AliasID:      entry.SpiffeId.Path,
 			AllSelectors: selectorSetFromProto(entry.Selectors),
 		}
 		for selector := range ar.AllSelectors {
@@ -261,38 +265,28 @@ func (c *Cache) updateEntry(entry *types.Entry) {
 		return
 	}
 
-	er := entryRecord{
-		EntryID:  entry.Id,
-		SPIFFEID: spiffeIDFromProto(entry.SpiffeId),
-		ParentID: spiffeIDFromProto(entry.ParentId),
-		// For quick cloning at the end of the crawl so we don't have to have
-		// a separate data structure for looking up entries by id.
-		EntryCloneOnly: entry,
+	c.entriesByEntryID[entry.Id] = entry
+	parentEntries, ok := c.entriesByParentID[entry.ParentId.Path]
+	if !ok {
+		c.entriesByParentID[entry.ParentId.Path] = make(map[string]*types.Entry)
+		parentEntries = c.entriesByParentID[entry.ParentId.Path]
 	}
-	c.entriesByParentID.ReplaceOrInsert(er)
-	c.entriesByEntryID.ReplaceOrInsert(er)
+
+	c.entriesByEntryID[entry.Id] = entry
+	parentEntries[entry.Id] = entry
 }
 
 func (c *Cache) removeEntry(entryID string) {
-	entryPivot := entryRecord{EntryID: entryID}
-
-	var entryRecordsToDelete []entryRecord
-	c.entriesByEntryID.AscendGreaterOrEqual(entryPivot, func(record entryRecord) bool {
-		if record.EntryID != entryID {
-			return false
+	entry, ok := c.entriesByEntryID[entryID]
+	if ok {
+		delete(c.entriesByEntryID, entryID)
+		parentEntries, ok := c.entriesByParentID[entry.ParentId.Path]
+		if ok {
+			delete(parentEntries, entryID)
+			if len(parentEntries) == 0 {
+				delete(c.entriesByParentID, entry.ParentId.Path)
+			}
 		}
-		entryRecordsToDelete = append(entryRecordsToDelete, record)
-		return true
-	})
-
-	for _, record := range entryRecordsToDelete {
-		c.entriesByEntryID.Delete(record)
-		c.entriesByParentID.Delete(record)
-	}
-
-	if len(entryRecordsToDelete) > 0 {
-		// entry was a normal workload registration. No need to search the aliases.
-		return
 	}
 
 	var aliasRecordsToDelete []aliasRecord
@@ -312,18 +306,21 @@ func (c *Cache) removeEntry(entryID string) {
 }
 
 func (c *Cache) Stats() CacheStats {
+	entryByParentIDCount := 0
+	c.mu.RLock()
+	for _, entries := range c.entriesByParentID {
+		entryByParentIDCount += len(entries)
+	}
+	c.mu.RUnlock()
+
 	return CacheStats{
-		AgentsByID:        c.agentsByID.Len(),
+		AgentsByID:        len(c.agentsByID),
 		AgentsByExpiresAt: c.agentsByExpiresAt.Len(),
 		AliasesByEntryID:  c.aliasesByEntryID.Len(),
 		AliasesBySelector: c.aliasesBySelector.Len(),
-		EntriesByEntryID:  c.entriesByEntryID.Len(),
-		EntriesByParentID: c.entriesByParentID.Len(),
+		EntriesByEntryID:  len(c.entriesByEntryID),
+		EntriesByParentID: entryByParentIDCount,
 	}
-}
-
-func spiffeIDFromProto(id *types.SPIFFEID) string {
-	return fmt.Sprintf("spiffe://%s%s", id.TrustDomain, id.Path)
 }
 
 func isNodeAlias(e *types.Entry) bool {
