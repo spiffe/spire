@@ -129,6 +129,27 @@ token_auth {
    token  = "test-token"
 }
 `
+
+	/* #nosec G101 */
+	testTokenAuthWithSupplementalBundleTpl = `
+vault_addr  = "{{ .Addr }}"
+pki_mount_point = "test-pki"
+ca_cert_path = "testdata/root-cert.pem"
+supplemental_bundle_path = "testdata/supplemental-cert.pem"
+token_auth {
+   token  = "test-token"
+}`
+
+	/* #nosec G101 */
+	testTokenAuthWithInvalidSupplementalBundleTpl = `
+vault_addr  = "{{ .Addr }}"
+pki_mount_point = "test-pki"
+ca_cert_path = "testdata/root-cert.pem"
+supplemental_bundle_path = "testdata/nonexistent-file.pem"
+token_auth {
+   token  = "test-token"
+}`
+
 	testCertAuthResponse = `{
   "auth": {
     "client_token": "cf95f87d-f95b-47ff-b1f5-ba7bff850425",
