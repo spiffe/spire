@@ -32,18 +32,6 @@ func (s Selector) String() string {
 	return s.Type + ":" + s.Value
 }
 
-type EntryList struct {
-	mtx     sync.RWMutex
-	entries map[string]entryRecord
-}
-
-func (e *EntryList) DeleteEntry(entryID string) {
-	e.mtx.Lock()
-	defer e.mtx.Unlock()
-
-	delete(e.entries, entryID)
-}
-
 type Cache struct {
 	mu  sync.RWMutex
 	clk clock.Clock
@@ -59,14 +47,12 @@ type Cache struct {
 }
 
 func NewCache(clk clock.Clock) *Cache {
-	agentFreeList := btree.NewFreeListG[agentRecord](128)
-	aliasFreeList := btree.NewFreeListG[aliasRecord](128)
 	return &Cache{
 		clk:               clk,
 		agentsByID:        make(map[string]agentRecord),
-		agentsByExpiresAt: btree.NewWithFreeListG(agentRecordDegree, agentRecordByExpiresAt, agentFreeList),
-		aliasesByEntryID:  btree.NewWithFreeListG(aliasRecordDegree, aliasRecordByEntryID, aliasFreeList),
-		aliasesBySelector: btree.NewWithFreeListG(aliasRecordDegree, aliasRecordBySelector, aliasFreeList),
+		agentsByExpiresAt: btree.NewG(agentRecordDegree, agentRecordByExpiresAt),
+		aliasesByEntryID:  btree.NewG(aliasRecordDegree, aliasRecordByEntryID),
+		aliasesBySelector: btree.NewG(aliasRecordDegree, aliasRecordBySelector),
 		entriesByEntryID:  make(map[string]*types.Entry),
 		entriesByParentID: make(map[string]map[string]*types.Entry),
 	}
@@ -83,7 +69,7 @@ func (c *Cache) LookupAuthorizedEntries(agentID spiffeid.ID, requestedEntries ma
 	// that are directly parented against the agent. Any entries that would be
 	// obtained via node aliasing will not be returned until the cache is
 	// updated with the node selectors for the agent.
-	agent, _ := c.agentsByID[agentID.String()]
+	agent := c.agentsByID[agentID.String()]
 
 	foundEntries := make(map[string]api.ReadOnlyEntry)
 
@@ -111,7 +97,7 @@ func (c *Cache) GetAuthorizedEntries(agentID spiffeid.ID) []api.ReadOnlyEntry {
 	// that are directly parented against the agent. Any entries that would be
 	// obtained via node aliasing will not be returned until the cache is
 	// updated with the node selectors for the agent.
-	agent, _ := c.agentsByID[agentID.String()]
+	agent := c.agentsByID[agentID.String()]
 
 	parentSeen := allocStringSet()
 	defer freeStringSet(parentSeen)

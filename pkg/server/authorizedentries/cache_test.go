@@ -349,9 +349,7 @@ func makeEntryIDPrefix() int32 {
 	return atomic.AddInt32(&nextEntryIDPrefix, 1)
 }
 
-// BenchmarkGetAuthorizedEntriesInMemory was ported from the old full entry
-// cache and some of the bugs fixed.
-func BenchmarkGetAuthorizedEntriesInMemory(b *testing.B) {
+func buildCacheForBenchmark() *cacheTest {
 	test := testCache()
 
 	staticSelector1 := &types.Selector{Type: "static", Value: "static-1"}
@@ -410,6 +408,20 @@ func BenchmarkGetAuthorizedEntriesInMemory(b *testing.B) {
 		})
 	}
 
+	return test
+}
+
+func BenchmarkBuildInMemory(b *testing.B) {
+	test := buildCacheForBenchmark()
+	for b.Loop() {
+		test.hydrate(b)
+	}
+}
+
+// BenchmarkGetAuthorizedEntriesInMemory was ported from the old full entry
+// cache and some of the bugs fixed.
+func BenchmarkGetAuthorizedEntriesInMemory(b *testing.B) {
+	test := buildCacheForBenchmark()
 	_, cache := test.hydrate(b)
 
 	agents := slices.Collect(maps.Keys(test.agents))
