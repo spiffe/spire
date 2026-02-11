@@ -19,6 +19,7 @@ type keyFetcher struct {
 	log            hclog.Logger
 	serverID       string
 	trustDomain    string
+	keyIDExtractor func(*azkeys.KeyItem) (string, bool)
 }
 
 // fetchKeyEntries requests Key Vault to get the list of keys that are
@@ -43,7 +44,7 @@ func (kf *keyFetcher) fetchKeyEntries(ctx context.Context) ([]*keyEntry, error) 
 				continue
 			}
 
-			spireKeyID, ok := spireKeyIDFromKeyName(key.KID.Name())
+			spireKeyID, ok := kf.keyIDExtractor(key)
 			if !ok {
 				kf.log.Warn("Could not get SPIRE Key ID from key", keyNameTag, key.KID.Name())
 				continue

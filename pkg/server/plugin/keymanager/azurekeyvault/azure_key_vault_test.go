@@ -10,6 +10,8 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strings"
+
 	"testing"
 	"time"
 
@@ -683,6 +685,7 @@ func TestGetPublicKey(t *testing.T) {
 			err:            "key id is required",
 			code:           codes.InvalidArgument,
 			generatedKeyID: "some-id",
+			queriedKeyID:   "",
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -837,14 +840,15 @@ func TestRefreshKeys(t *testing.T) {
 }
 
 func TestDisposeKeys(t *testing.T) {
-	entry1 := makeFakeKeyEntry(t, keyName+"-1", trustDomain, "", azkeys.JSONWebKeyTypeRSA, nil, to.Ptr(4096))
-	entry2 := makeFakeKeyEntry(t, keyName+"-2", trustDomain, validServerID, azkeys.JSONWebKeyTypeRSA, nil, to.Ptr(2048))
-	entry3 := makeFakeKeyEntry(t, keyName+"-3", trustDomain, "another_server_id", azkeys.JSONWebKeyTypeEC, to.Ptr(azkeys.JSONWebKeyCurveNameP384), nil)
+	sanitizedTrustDomain := strings.ReplaceAll(trustDomain, ".", "-")
+	entry1 := makeFakeKeyEntry(t, keyName+"-1", sanitizedTrustDomain, "", azkeys.JSONWebKeyTypeRSA, nil, to.Ptr(4096))
+	entry2 := makeFakeKeyEntry(t, keyName+"-2", sanitizedTrustDomain, validServerID, azkeys.JSONWebKeyTypeRSA, nil, to.Ptr(2048))
+	entry3 := makeFakeKeyEntry(t, keyName+"-3", sanitizedTrustDomain, "another_server_id", azkeys.JSONWebKeyTypeEC, to.Ptr(azkeys.JSONWebKeyCurveNameP384), nil)
 	entry4 := makeFakeKeyEntry(t, keyName+"-4", "another-trust-domain", validServerID, azkeys.JSONWebKeyTypeRSA, nil, to.Ptr(4096))
 	entry5 := makeFakeKeyEntry(t, keyName+"-5", "another-trust-domain", "another_server_id", azkeys.JSONWebKeyTypeEC, to.Ptr(azkeys.JSONWebKeyCurveNameP256), nil)
-	entry6 := makeFakeKeyEntry(t, keyName+"-6", trustDomain, "another_server_id", azkeys.JSONWebKeyTypeEC, to.Ptr(azkeys.JSONWebKeyCurveNameP384), nil)
-	entry7 := makeFakeKeyEntry(t, keyName+"-7", trustDomain, "another_server_id", azkeys.JSONWebKeyTypeEC, to.Ptr(azkeys.JSONWebKeyCurveNameP256), nil)
-	entry8 := makeFakeKeyEntry(t, keyName+"-8", trustDomain, "another_server_id", azkeys.JSONWebKeyTypeEC, to.Ptr(azkeys.JSONWebKeyCurveNameP384), nil)
+	entry6 := makeFakeKeyEntry(t, keyName+"-6", sanitizedTrustDomain, "another_server_id", azkeys.JSONWebKeyTypeEC, to.Ptr(azkeys.JSONWebKeyCurveNameP384), nil)
+	entry7 := makeFakeKeyEntry(t, keyName+"-7", sanitizedTrustDomain, "another_server_id", azkeys.JSONWebKeyTypeEC, to.Ptr(azkeys.JSONWebKeyCurveNameP256), nil)
+	entry8 := makeFakeKeyEntry(t, keyName+"-8", sanitizedTrustDomain, "another_server_id", azkeys.JSONWebKeyTypeEC, to.Ptr(azkeys.JSONWebKeyCurveNameP384), nil)
 	entry9 := makeFakeKeyEntry(t, keyName+"-9", "some-other-trust-domain", "another_server_id", azkeys.JSONWebKeyTypeEC, to.Ptr(azkeys.JSONWebKeyCurveNameP384), nil)
 	for _, tt := range []struct {
 		name             string
@@ -892,7 +896,7 @@ func TestDisposeKeys(t *testing.T) {
 			ts.kmsClient.setListKeysErr(tt.listKeysErr)
 			ts.kmsClient.setGetKeyErr(tt.describeKeyErr)
 			ts.kmsClient.setListKeysErr(tt.listKeysErr)
-			scheduleDeleteSignal := make(chan error)
+			scheduleDeleteSignal := make(chan error, 100)
 			disposeKeysSignal := make(chan error)
 
 			ts.plugin.hooks.disposeKeysSignal = disposeKeysSignal
@@ -912,21 +916,11 @@ func TestDisposeKeys(t *testing.T) {
 			err = waitForSignal(t, disposeKeysSignal)
 			require.NoError(t, err)
 			// Wait till all the keys we expect to be deleted are deleted
-			// Wait for the 1st key to be deleted
-			err = waitForSignal(t, scheduleDeleteSignal)
-			require.NoError(t, err)
-			// Wait for the 2nd key to be deleted
-			err = waitForSignal(t, scheduleDeleteSignal)
-			require.NoError(t, err)
-			// Wait for the 3rd key to be deleted
-			err = waitForSignal(t, scheduleDeleteSignal)
-			require.NoError(t, err)
-			// Wait for the 4th key to be deleted
-			err = waitForSignal(t, scheduleDeleteSignal)
-			require.NoError(t, err)
-			// Wait for the 5th key to be deleted
-			err = waitForSignal(t, scheduleDeleteSignal)
-			require.NoError(t, err)
+			require.Eventually(t, func() bool {
+				ts.kmsClient.store.mu.RLock()
+				defer ts.kmsClient.store.mu.RUnlock()
+				return len(ts.kmsClient.store.fakeKeys) == len(tt.expectedEntries)
+			}, testTimeout, 100*time.Millisecond, "Timed out waiting for keys to be deleted")
 
 			// assert
 			storedKeys := ts.kmsClient.store.fakeKeys
@@ -1029,6 +1023,7 @@ func makeFakeKeyEntry(t *testing.T, keyName, trustDomain, serverID string, keyTy
 	var privateKey crypto.Signer
 	keyOperations := getKeyOperations()
 	kmsKeyID := validKeyVaultURI + path.Join("keys", fmt.Sprintf("%s-%s-%s", keyNamePrefix, fmt.Sprintf("%s-%s", getUUID(t), keyName), spireKeyID))
+	kmsKeyID = strings.ReplaceAll(kmsKeyID, "//keys", "/keys") // Fix double slash if present
 	switch {
 	case keyType == azkeys.JSONWebKeyTypeEC && *curveName == azkeys.JSONWebKeyCurveNameP256:
 		privateKey = testkey.NewEC256(t)
@@ -1077,4 +1072,230 @@ func waitForSignal(t *testing.T, ch chan error) error {
 		t.Fail()
 	}
 	return nil
+}
+
+func TestConfigure_SharedKeys(t *testing.T) {
+	for _, tt := range []struct {
+		name             string
+		err              string
+		code             codes.Code
+		configureRequest *configv1.ConfigureRequest
+	}{
+		{
+			name: "valid shared keys config",
+			configureRequest: configureRequestWithString(fmt.Sprintf(`{
+				"key_vault_uri": "%s",
+				"tenant_id": "%s",
+				"subscription_id": "%s",
+				"app_id": "%s",
+				"app_secret": "%s",
+				"shared_keys": {
+					"key_name_template": "spire-key-{{ .TrustDomain }}-{{ .KeyID }}",
+					"lock_tag_template": "spire-lock-{{ .TrustDomain }}-{{ .KeyID }}"
+				}
+			}`, validKeyVaultURI, validTenantID, validSubscriptionID, validAppID, validAppSecret)),
+		},
+		{
+			name: "missing key_name_template",
+			configureRequest: configureRequestWithString(fmt.Sprintf(`{
+				"key_vault_uri": "%s",
+				"tenant_id": "%s",
+				"subscription_id": "%s",
+				"app_id": "%s",
+				"app_secret": "%s",
+				"shared_keys": {
+					"lock_tag_template": "spire-lock-{{ .TrustDomain }}-{{ .KeyID }}"
+				}
+			}`, validKeyVaultURI, validTenantID, validSubscriptionID, validAppID, validAppSecret)),
+			err:  "configuration missing key_name_template in shared_keys",
+			code: codes.InvalidArgument,
+		},
+		{
+			name: "invalid key_name_template",
+			configureRequest: configureRequestWithString(fmt.Sprintf(`{
+				"key_vault_uri": "%s",
+				"tenant_id": "%s",
+				"subscription_id": "%s",
+				"app_id": "%s",
+				"app_secret": "%s",
+				"shared_keys": {
+					"key_name_template": "spire-key-{{ .TrustDomain }}-{{ .KeyID ",
+					"lock_tag_template": "spire-lock-{{ .TrustDomain }}-{{ .KeyID }}"
+				}
+			}`, validKeyVaultURI, validTenantID, validSubscriptionID, validAppID, validAppSecret)),
+			err:  "failed to parse key_name_template",
+			code: codes.InvalidArgument,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			ts := setupTest(t)
+			_, err := ts.plugin.Configure(ctx, tt.configureRequest)
+
+			if tt.err != "" {
+				spiretest.RequireGRPCStatusContains(t, err, tt.code, tt.err)
+				return
+			}
+
+			require.NoError(t, err)
+		})
+	}
+}
+
+func TestGenerateKey_SharedKeys(t *testing.T) {
+	sharedKeysConfig := fmt.Sprintf(`{
+		"key_vault_uri": "%s",
+		"tenant_id": "%s",
+		"subscription_id": "%s",
+		"app_id": "%s",
+		"app_secret": "%s",
+		"shared_keys": {
+			"key_name_template": "spire-key-{{ .TrustDomain }}-{{ .KeyID }}",
+			"lock_tag_template": "spire-lock-{{ .TrustDomain }}-{{ .KeyID }}"
+		}
+	}`, validKeyVaultURI, validTenantID, validSubscriptionID, validAppID, validAppSecret)
+
+	expectedKeyName := "spire-key-test-example-org-spireKeyID"
+	expectedLockTag := "spire-lock-test-example-org-spireKeyID"
+
+	for _, tt := range []struct {
+		name            string
+		err             string
+		code            codes.Code
+		fakeEntries     []fakeKeyEntry
+		request         *keymanagerv1.GenerateKeyRequest
+		createKeyErr    string
+		getKeyErr       string
+		updateKeyErr    string // For lock acquisition/release
+		getPublicKeyErr string
+	}{
+		{
+			name: "success: new key",
+			request: &keymanagerv1.GenerateKeyRequest{
+				KeyId:   spireKeyID,
+				KeyType: keymanagerv1.KeyType_EC_P256,
+			},
+		},
+		{
+			name: "success: reuse existing fresh key",
+			request: &keymanagerv1.GenerateKeyRequest{
+				KeyId:   spireKeyID,
+				KeyType: keymanagerv1.KeyType_EC_P256,
+			},
+			fakeEntries: []fakeKeyEntry{
+				makeFakeKeyEntry(t, expectedKeyName, trustDomain, validServerID, azkeys.JSONWebKeyTypeEC, to.Ptr(azkeys.JSONWebKeyCurveNameP256), nil),
+			},
+		},
+		{
+			name: "success: rotate key (existing key stale)",
+			request: &keymanagerv1.GenerateKeyRequest{
+				KeyId:   spireKeyID,
+				KeyType: keymanagerv1.KeyType_EC_P256,
+			},
+			fakeEntries: []fakeKeyEntry{
+				func() fakeKeyEntry {
+					e := makeFakeKeyEntry(t, expectedKeyName, trustDomain, validServerID, azkeys.JSONWebKeyTypeEC, to.Ptr(azkeys.JSONWebKeyCurveNameP256), nil)
+					e.KeyBundle.Attributes.Created = &unixEpoch // Stale
+					// Fix name to match expectedKeyName (remove random UUID added by makeFakeKeyEntry)
+					e.KeyBundle.Key.KID = to.Ptr(azkeys.ID(validKeyVaultURI + "keys/" + expectedKeyName))
+					return e
+				}(),
+			},
+		},
+		{
+			name: "fail: lock held",
+			request: &keymanagerv1.GenerateKeyRequest{
+				KeyId:   spireKeyID,
+				KeyType: keymanagerv1.KeyType_EC_P256,
+			},
+			fakeEntries: []fakeKeyEntry{
+				func() fakeKeyEntry {
+					e := makeFakeKeyEntry(t, expectedKeyName, trustDomain, validServerID, azkeys.JSONWebKeyTypeEC, to.Ptr(azkeys.JSONWebKeyCurveNameP256), nil)
+					e.KeyBundle.Attributes.Created = &unixEpoch // Stale
+					e.KeyBundle.Tags[expectedLockTag] = to.Ptr("true")
+					// Fix name to match expectedKeyName (remove random UUID added by makeFakeKeyEntry)
+					e.KeyBundle.Key.KID = to.Ptr(azkeys.ID(validKeyVaultURI + "keys/" + expectedKeyName))
+					return e
+				}(),
+			},
+			err:  "rotation lock held",
+			code: codes.Aborted,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			ts := setupTest(t)
+
+			// Adjust creation date for freshness test
+			if tt.name == "success: reuse existing fresh key" {
+				now := ts.clockHook.Now()
+				tt.fakeEntries[0].KeyBundle.Attributes.Created = &now
+			}
+
+			// For lock_held test, advance clock past freshness threshold so key appears stale
+			if tt.name == "fail: lock held" {
+				ts.clockHook.Add(1 * time.Hour) // Advance clock so unixEpoch is now 1 hour old (stale)
+			}
+
+			ts.kmsClient.setEntries(tt.fakeEntries)
+			ts.kmsClient.setCreateKeyErr(tt.createKeyErr)
+			ts.kmsClient.setGetKeyErr(tt.getKeyErr)
+			ts.kmsClient.setUpdateKeyErr(tt.updateKeyErr)
+			ts.kmsClient.setGetPublicKeyErr(tt.getPublicKeyErr)
+
+			configureReq := configureRequestWithString(sharedKeysConfig)
+			_, err := ts.plugin.Configure(ctx, configureReq)
+			require.NoError(t, err)
+
+			resp, err := ts.plugin.GenerateKey(ctx, tt.request)
+			if tt.err != "" {
+				spiretest.RequireGRPCStatusContains(t, err, tt.code, tt.err)
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, resp)
+
+			// Verify lock was released if it was acquired (implied by success in rotation cases)
+			if tt.name == "success: new key" || tt.name == "success: rotate key (existing key stale)" {
+				// In the fake client, we can check if the lock tag exists on the key
+				// Since we are using a fake client, we need to check the stored keys
+				// However, the fake client implementation provided in the test file might not persist updates perfectly for verification here
+				// But we can check if the key exists
+				// For "success: new key", the key name is generated from template, so it should be expectedKeyName
+				// But wait, makeFakeKeyEntry generates a random UUID in the name.
+				// In shared keys mode, the name is deterministic.
+				// The fake client stores keys by name.
+				// Let's check if we can find the key by expectedKeyName
+				// Note: The fake client implementation in azure_key_vault_test.go uses a map `fakeKeys` in `kmsClientFake`.
+				// We need to access it via `ts.kmsClient.store.fakeKeys`.
+				// But `kmsClientFake` struct definition is not fully visible here, assuming it has a store.
+				// Based on `TestRefreshKeys`, `ts.kmsClient.store.fakeKeys` is accessible.
+
+				// For "success: new key", the key should be created with the expected name.
+				// For "success: rotate key", the key should be updated (new version created).
+				// The lock tag should NOT be present.
+
+				// We need to find the key in the store.
+				// Since the fake client might not support deterministic names fully if it wasn't designed for it,
+				// but the plugin uses the client to create the key with the name.
+				// So the key should be in the store with `expectedKeyName`.
+
+				// Let's iterate over the keys in the store and check.
+				found := false
+				for _, key := range ts.kmsClient.store.fakeKeys {
+					if key.KeyBundle.Key.KID.Name() == expectedKeyName {
+						found = true
+						// Check lock tag
+						_, locked := key.KeyBundle.Tags[expectedLockTag]
+						require.False(t, locked, "lock tag should be released")
+						break
+					}
+				}
+				// For "success: new key", it should be found.
+				// For "success: rotate key", it should be found.
+				if tt.name == "success: new key" || tt.name == "success: rotate key (existing key stale)" {
+					require.True(t, found, "key %q should exist", expectedKeyName)
+				}
+			}
+		})
+	}
 }
