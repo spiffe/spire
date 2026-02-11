@@ -207,7 +207,6 @@ func RegistrationEntryToProto(e *common.RegistrationEntry) (*types.Entry, error)
 	}
 
 	return entry, nil
-
 }
 
 func ProtoFromAdditionalAttributes(in *common.RegistrationEntry_AdditionalAttributes) *types.Entry_AdditionalAttributes {
