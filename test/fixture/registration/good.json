@@ -11,7 +11,8 @@
             "parent_id": "spiffe://example.org/spire/agent/join_token/TokenBlog",
             "x509_svid_ttl": 200,
             "jwt_svid_ttl": 30,
-            "admin": true
+            "admin": true,
+            "additional_attributes": {}
         },
         {
             "selectors": [
@@ -24,7 +25,8 @@
             "parent_id": "spiffe://example.org/spire/agent/join_token/TokenDatabase",
             "x509_svid_ttl": 200,
             "jwt_svid_ttl": 30,
-            "hint": "internal"
+            "hint": "internal",
+            "additional_attributes": {}
         },
         {
             "selectors": [
@@ -41,7 +43,24 @@
             "parent_id": "spiffe://example.org/spire/agent/join_token/TokenDatabase",
             "x509_svid_ttl": 200,
             "jwt_svid_ttl": 30,
-	    "store_svid": true
+	        "store_svid": true,
+            "additional_attributes": {}
+        },
+        {
+            "selectors": [
+                {
+                    "type": "unix",
+                    "value": "uid:1111"
+                }
+            ],
+            "spiffe_id": "spiffe://example.org/additionalattr",
+            "parent_id": "spiffe://example.org/spire/agent/join_token/TokenBlog",
+            "x509_svid_ttl": 200,
+            "jwt_svid_ttl": 30,
+            "admin": true,
+            "additional_attributes": {
+                "disable_x509_svid_prefetch": true
+            }
         }
     ]
 }

@@ -59,6 +59,10 @@ func (e *ReadOnlyEntry) GetCreatedAt() int64 {
 	return e.entry.CreatedAt
 }
 
+func (e *ReadOnlyEntry) GetAdditionalAttributes() *types.Entry_AdditionalAttributes {
+	return e.entry.AdditionalAttributes
+}
+
 // Manually clone the entry instead of using the protobuf helpers
 // since those are two times slower.
 func (e *ReadOnlyEntry) Clone(mask *types.EntryMask) *types.Entry {
@@ -132,6 +136,10 @@ func (e *ReadOnlyEntry) Clone(mask *types.EntryMask) *types.Entry {
 		clone.CreatedAt = e.entry.CreatedAt
 	}
 
+	if mask.AdditionalAttributes {
+		clone.AdditionalAttributes = e.entry.AdditionalAttributes
+	}
+
 	return clone
 }
 
@@ -179,23 +187,36 @@ func RegistrationEntryToProto(e *common.RegistrationEntry) (*types.Entry, error)
 		}
 	}
 
-	return &types.Entry{
-		Id:             e.EntryId,
-		SpiffeId:       ProtoFromID(spiffeID),
-		ParentId:       ProtoFromID(parentID),
-		Selectors:      ProtoFromSelectors(e.Selectors),
-		X509SvidTtl:    e.X509SvidTtl,
-		FederatesWith:  federatesWith,
-		Admin:          e.Admin,
-		Downstream:     e.Downstream,
-		ExpiresAt:      e.EntryExpiry,
-		DnsNames:       slices.Clone(e.DnsNames),
-		RevisionNumber: e.RevisionNumber,
-		StoreSvid:      e.StoreSvid,
-		JwtSvidTtl:     e.JwtSvidTtl,
-		Hint:           e.Hint,
-		CreatedAt:      e.CreatedAt,
-	}, nil
+	entry := &types.Entry{
+		Id:                   e.EntryId,
+		SpiffeId:             ProtoFromID(spiffeID),
+		ParentId:             ProtoFromID(parentID),
+		Selectors:            ProtoFromSelectors(e.Selectors),
+		X509SvidTtl:          e.X509SvidTtl,
+		FederatesWith:        federatesWith,
+		Admin:                e.Admin,
+		Downstream:           e.Downstream,
+		ExpiresAt:            e.EntryExpiry,
+		DnsNames:             slices.Clone(e.DnsNames),
+		RevisionNumber:       e.RevisionNumber,
+		StoreSvid:            e.StoreSvid,
+		JwtSvidTtl:           e.JwtSvidTtl,
+		Hint:                 e.Hint,
+		CreatedAt:            e.CreatedAt,
+		AdditionalAttributes: ProtoFromAdditionalAttributes(e.AdditionalAttributes),
+	}
+
+	return entry, nil
+
+}
+
+func ProtoFromAdditionalAttributes(in *common.RegistrationEntry_AdditionalAttributes) *types.Entry_AdditionalAttributes {
+	if in != nil {
+		return &types.Entry_AdditionalAttributes{
+			DisableX509SvidPrefetch: in.DisableX509SvidPrefetch,
+		}
+	}
+	return nil
 }
 
 // ProtoToRegistrationEntry converts and validate entry into common registration entry

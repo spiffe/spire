@@ -70,11 +70,12 @@ func TestParseEntryJSON(t *testing.T) {
 						Value: "uid:1111",
 					},
 				},
-				SpiffeId:    &types.SPIFFEID{TrustDomain: "example.org", Path: "/Blog"},
-				ParentId:    &types.SPIFFEID{TrustDomain: "example.org", Path: "/spire/agent/join_token/TokenBlog"},
-				X509SvidTtl: 200,
-				JwtSvidTtl:  30,
-				Admin:       true,
+				SpiffeId:             &types.SPIFFEID{TrustDomain: "example.org", Path: "/Blog"},
+				ParentId:             &types.SPIFFEID{TrustDomain: "example.org", Path: "/spire/agent/join_token/TokenBlog"},
+				X509SvidTtl:          200,
+				JwtSvidTtl:           30,
+				Admin:                true,
+				AdditionalAttributes: &types.Entry_AdditionalAttributes{},
 			}
 			entry2 := &types.Entry{
 				Selectors: []*types.Selector{
@@ -83,11 +84,12 @@ func TestParseEntryJSON(t *testing.T) {
 						Value: "uid:1111",
 					},
 				},
-				SpiffeId:    &types.SPIFFEID{TrustDomain: "example.org", Path: "/Database"},
-				ParentId:    &types.SPIFFEID{TrustDomain: "example.org", Path: "/spire/agent/join_token/TokenDatabase"},
-				X509SvidTtl: 200,
-				JwtSvidTtl:  30,
-				Hint:        "internal",
+				SpiffeId:             &types.SPIFFEID{TrustDomain: "example.org", Path: "/Database"},
+				ParentId:             &types.SPIFFEID{TrustDomain: "example.org", Path: "/spire/agent/join_token/TokenDatabase"},
+				X509SvidTtl:          200,
+				JwtSvidTtl:           30,
+				Hint:                 "internal",
+				AdditionalAttributes: &types.Entry_AdditionalAttributes{},
 			}
 			entry3 := &types.Entry{
 				Selectors: []*types.Selector{
@@ -100,17 +102,35 @@ func TestParseEntryJSON(t *testing.T) {
 						Value: "key2:value",
 					},
 				},
-				SpiffeId:    &types.SPIFFEID{TrustDomain: "example.org", Path: "/storesvid"},
-				ParentId:    &types.SPIFFEID{TrustDomain: "example.org", Path: "/spire/agent/join_token/TokenDatabase"},
-				StoreSvid:   true,
+				SpiffeId:             &types.SPIFFEID{TrustDomain: "example.org", Path: "/storesvid"},
+				ParentId:             &types.SPIFFEID{TrustDomain: "example.org", Path: "/spire/agent/join_token/TokenDatabase"},
+				StoreSvid:            true,
+				X509SvidTtl:          200,
+				JwtSvidTtl:           30,
+				AdditionalAttributes: &types.Entry_AdditionalAttributes{},
+			}
+			entry4 := &types.Entry{
+				Selectors: []*types.Selector{
+					{
+						Type:  "unix",
+						Value: "uid:1111",
+					},
+				},
+				SpiffeId:    &types.SPIFFEID{TrustDomain: "example.org", Path: "/additionalattr"},
+				ParentId:    &types.SPIFFEID{TrustDomain: "example.org", Path: "/spire/agent/join_token/TokenBlog"},
 				X509SvidTtl: 200,
 				JwtSvidTtl:  30,
+				Admin:       true,
+				AdditionalAttributes: &types.Entry_AdditionalAttributes{
+					DisableX509SvidPrefetch: true,
+				},
 			}
 
 			expectedEntries := []*types.Entry{
 				entry1,
 				entry2,
 				entry3,
+				entry4,
 			}
 			spiretest.RequireProtoListEqual(t, expectedEntries, entries)
 		})

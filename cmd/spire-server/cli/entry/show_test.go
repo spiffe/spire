@@ -455,49 +455,49 @@ func getEntries(count int) []*types.Entry {
 func getPrettyPrintedEntry(idx int) string {
 	switch idx {
 	case 0:
-		return `Entry ID         : 00000000-0000-0000-0000-000000000000
-SPIFFE ID        : spiffe://example.org/son
-Parent ID        : spiffe://example.org/father
-Revision         : 0
-X509-SVID TTL    : default
-JWT-SVID TTL     : default
-Selector         : foo:bar
-Hint             : internal
+		return `Entry ID                : 00000000-0000-0000-0000-000000000000
+SPIFFE ID               : spiffe://example.org/son
+Parent ID               : spiffe://example.org/father
+Revision                : 0
+X509-SVID TTL           : default
+JWT-SVID TTL            : default
+Selector                : foo:bar
+Hint                    : internal
 
 `
 	case 1:
-		return `Entry ID         : 00000000-0000-0000-0000-000000000001
-SPIFFE ID        : spiffe://example.org/daughter
-Parent ID        : spiffe://example.org/father
-Revision         : 0
-X509-SVID TTL    : default
-JWT-SVID TTL     : default
-Selector         : bar:baz
-Selector         : foo:bar
-Hint             : external
+		return `Entry ID                : 00000000-0000-0000-0000-000000000001
+SPIFFE ID               : spiffe://example.org/daughter
+Parent ID               : spiffe://example.org/father
+Revision                : 0
+X509-SVID TTL           : default
+JWT-SVID TTL            : default
+Selector                : bar:baz
+Selector                : foo:bar
+Hint                    : external
 
 `
 	case 2:
-		return `Entry ID         : 00000000-0000-0000-0000-000000000002
-SPIFFE ID        : spiffe://example.org/daughter
-Parent ID        : spiffe://example.org/mother
-Revision         : 0
-X509-SVID TTL    : default
-JWT-SVID TTL     : default
-Selector         : bar:baz
-Selector         : baz:bat
-FederatesWith    : spiffe://domain.test
+		return `Entry ID                : 00000000-0000-0000-0000-000000000002
+SPIFFE ID               : spiffe://example.org/daughter
+Parent ID               : spiffe://example.org/mother
+Revision                : 0
+X509-SVID TTL           : default
+JWT-SVID TTL            : default
+Selector                : bar:baz
+Selector                : baz:bat
+FederatesWith           : spiffe://domain.test
 
 `
 	case 3:
-		return fmt.Sprintf(`Entry ID         : 00000000-0000-0000-0000-000000000003
-SPIFFE ID        : spiffe://example.org/son
-Parent ID        : spiffe://example.org/mother
-Revision         : 0
-X509-SVID TTL    : default
-JWT-SVID TTL     : default
-Expiration time  : %s
-Selector         : baz:bat
+		return fmt.Sprintf(`Entry ID                : 00000000-0000-0000-0000-000000000003
+SPIFFE ID               : spiffe://example.org/son
+Parent ID               : spiffe://example.org/mother
+Revision                : 0
+X509-SVID TTL           : default
+JWT-SVID TTL            : default
+Expiration time         : %s
+Selector                : baz:bat
 
 `, time.Unix(1552410266, 0).UTC())
 	default:
