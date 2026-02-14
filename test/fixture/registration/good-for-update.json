@@ -13,7 +13,8 @@
             "x509_svid_ttl": 200,
             "jwt_svid_ttl": 300,
             "admin": true,
-            "hint": "external"
+            "hint": "external",
+            "additional_attributes": {}
         },
         {
             "entry_id": "entry-id-2",
@@ -26,7 +27,8 @@
             "spiffe_id": "spiffe://example.org/Database",
             "parent_id": "spiffe://example.org/spire/agent/join_token/TokenDatabase",
             "x509_svid_ttl": 200,
-            "jwt_svid_ttl": 300
+            "jwt_svid_ttl": 300,
+            "additional_attributes": {}
         },
         {
             "entry_id": "entry-id-3",
@@ -44,7 +46,8 @@
             "parent_id": "spiffe://example.org/spire/agent/join_token/TokenDatabase",
 	    "store_svid": true,
             "x509_svid_ttl": 200,
-            "jwt_svid_ttl": 300
+            "jwt_svid_ttl": 300,
+            "additional_attributes": {}
         }
     ]
 }

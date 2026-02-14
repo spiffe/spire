@@ -329,3 +329,5 @@ require (
 	sigs.k8s.io/structured-merge-diff/v6 v6.3.2-0.20260122202528-d9cc6641c482 // indirect
 	sigs.k8s.io/yaml v1.6.0 // indirect
 )
+
+replace github.com/spiffe/spire-api-sdk v1.2.5-0.20260115194754-bcd1999bdd05 => github.com/ValFadeev/spire-api-sdk v0.0.0-20260125231222-53d09c493d99
