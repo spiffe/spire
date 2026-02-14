@@ -33,8 +33,9 @@ func (s Selector) String() string {
 }
 
 type Cache struct {
-	mu  sync.RWMutex
-	clk clock.Clock
+	mu          sync.RWMutex
+	clk         clock.Clock
+	trustDomain string
 
 	agentsByID        map[string]agentRecord
 	agentsByExpiresAt *btree.BTreeG[agentRecord]
@@ -46,9 +47,10 @@ type Cache struct {
 	entriesByParentID map[string]map[string]*types.Entry
 }
 
-func NewCache(clk clock.Clock) *Cache {
+func NewCache(clk clock.Clock, trustDomain string) *Cache {
 	return &Cache{
 		clk:               clk,
+		trustDomain:       trustDomain,
 		agentsByID:        make(map[string]agentRecord),
 		agentsByExpiresAt: btree.NewG(agentRecordDegree, agentRecordByExpiresAt),
 		aliasesByEntryID:  btree.NewG(aliasRecordDegree, aliasRecordByEntryID),
@@ -114,6 +116,13 @@ func (c *Cache) GetAuthorizedEntries(agentID spiffeid.ID) []api.ReadOnlyEntry {
 }
 
 func (c *Cache) UpdateEntry(entry *types.Entry) {
+	if entry.ParentId.TrustDomain != c.trustDomain {
+		return
+	}
+	if entry.SpiffeId.TrustDomain != c.trustDomain {
+		return
+	}
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
