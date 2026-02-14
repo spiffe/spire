@@ -169,7 +169,7 @@ func New(ctx context.Context, c Config) (*Endpoints, error) {
 	var ef api.AuthorizedEntryFetcher
 	var cacheRebuildTask, nodeCacheRebuildTask, pruneEventsTask func(context.Context) error
 	if c.EventsBasedCache {
-		efEventsBasedCache, err := NewAuthorizedEntryFetcherEvents(ctx, AuthorizedEntryFetcherEventsConfig{
+		efEventsBasedCache, err := NewAuthorizedEntryFetcherEvents(ctx, c.TrustDomain.String(), AuthorizedEntryFetcherEventsConfig{
 			log:                     c.Log,
 			metrics:                 c.Metrics,
 			clk:                     c.Clock,

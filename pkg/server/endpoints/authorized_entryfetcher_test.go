@@ -33,7 +33,7 @@ func TestNewAuthorizedEntryFetcherEvents(t *testing.T) {
 	nodeCache, err := nodecache.New(ctx, log, ds, clk, false, true)
 	require.Nil(t, err)
 
-	ef, err := NewAuthorizedEntryFetcherEvents(ctx, AuthorizedEntryFetcherEventsConfig{
+	ef, err := NewAuthorizedEntryFetcherEvents(ctx, "example.org", AuthorizedEntryFetcherEventsConfig{
 		log:                     log,
 		metrics:                 metrics,
 		clk:                     clk,
@@ -155,7 +155,7 @@ func TestNewAuthorizedEntryFetcherEventsErrorBuildingCache(t *testing.T) {
 	nodeCache, err := nodecache.New(ctx, log, ds, clk, false, true)
 	require.Nil(t, err)
 
-	ef, err := NewAuthorizedEntryFetcherEvents(ctx, AuthorizedEntryFetcherEventsConfig{
+	ef, err := NewAuthorizedEntryFetcherEvents(ctx, "example.org", AuthorizedEntryFetcherEventsConfig{
 		log:                     log,
 		metrics:                 metrics,
 		clk:                     clk,
@@ -210,7 +210,7 @@ func TestBuildCacheSavesSkippedEvents(t *testing.T) {
 	nodeCache, err := nodecache.New(ctx, log, ds, clk, false, true)
 	require.Nil(t, err)
 
-	cache := authorizedentries.NewCache(clk)
+	cache := authorizedentries.NewCache(clk, "example.org")
 
 	registrationEntries, err := buildRegistrationEntriesCache(ctx, log, metrics, ds, clk, cache, pageSize, defaultCacheReloadInterval, defaultEventTimeout)
 	require.NoError(t, err)
@@ -250,7 +250,7 @@ func TestRunUpdateCacheTaskDoesFullUpdate(t *testing.T) {
 	ds := fakedatastore.New(t)
 	metrics := fakemetrics.New()
 
-	ef, err := NewAuthorizedEntryFetcherEvents(ctx, AuthorizedEntryFetcherEventsConfig{
+	ef, err := NewAuthorizedEntryFetcherEvents(ctx, "example.org", AuthorizedEntryFetcherEventsConfig{
 		log:                     log,
 		metrics:                 metrics,
 		clk:                     clk,
@@ -308,7 +308,7 @@ func TestRunUpdateCacheTaskPrunesExpiredAgents(t *testing.T) {
 	nodeCache, err := nodecache.New(ctx, log, ds, clk, false, true)
 	require.Nil(t, err)
 
-	ef, err := NewAuthorizedEntryFetcherEvents(ctx, AuthorizedEntryFetcherEventsConfig{
+	ef, err := NewAuthorizedEntryFetcherEvents(ctx, "example.org", AuthorizedEntryFetcherEventsConfig{
 		log:                     log,
 		metrics:                 metrics,
 		clk:                     clk,
@@ -390,7 +390,7 @@ func TestUpdateRegistrationEntriesCacheSkippedEvents(t *testing.T) {
 	nodeCache, err := nodecache.New(ctx, log, ds, clk, false, true)
 	require.Nil(t, err)
 
-	ef, err := NewAuthorizedEntryFetcherEvents(ctx, AuthorizedEntryFetcherEventsConfig{
+	ef, err := NewAuthorizedEntryFetcherEvents(ctx, "example.org", AuthorizedEntryFetcherEventsConfig{
 		log:                     log,
 		metrics:                 metrics,
 		clk:                     clk,
@@ -527,7 +527,7 @@ func TestUpdateRegistrationEntriesCacheSkippedStartupEvents(t *testing.T) {
 	nodeCache, err := nodecache.New(ctx, log, ds, clk, false, true)
 	require.Nil(t, err)
 
-	ef, err := NewAuthorizedEntryFetcherEvents(ctx, AuthorizedEntryFetcherEventsConfig{
+	ef, err := NewAuthorizedEntryFetcherEvents(ctx, "example.org", AuthorizedEntryFetcherEventsConfig{
 		log:                     log,
 		metrics:                 metrics,
 		clk:                     clk,
@@ -613,7 +613,7 @@ func TestUpdateAttestedNodesCacheSkippedEvents(t *testing.T) {
 	nodeCache, err := nodecache.New(ctx, log, ds, clk, false, true)
 	require.Nil(t, err)
 
-	ef, err := NewAuthorizedEntryFetcherEvents(ctx, AuthorizedEntryFetcherEventsConfig{
+	ef, err := NewAuthorizedEntryFetcherEvents(ctx, "example.org", AuthorizedEntryFetcherEventsConfig{
 		log:                     log,
 		metrics:                 metrics,
 		clk:                     clk,
@@ -803,7 +803,7 @@ func TestUpdateAttestedNodesCacheSkippedStartupEvents(t *testing.T) {
 	nodeCache, err := nodecache.New(ctx, log, ds, clk, false, true)
 	require.Nil(t, err)
 
-	ef, err := NewAuthorizedEntryFetcherEvents(ctx, AuthorizedEntryFetcherEventsConfig{
+	ef, err := NewAuthorizedEntryFetcherEvents(ctx, "example.org", AuthorizedEntryFetcherEventsConfig{
 		log:                  log,
 		metrics:              metrics,
 		clk:                  clk,
@@ -882,7 +882,7 @@ func TestFullCacheReloadRecoversFromSkippedRegistrationEntryEvents(t *testing.T)
 	nodeCache, err := nodecache.New(ctx, log, ds, clk, false, true)
 	require.Nil(t, err)
 
-	ef, err := NewAuthorizedEntryFetcherEvents(ctx, AuthorizedEntryFetcherEventsConfig{
+	ef, err := NewAuthorizedEntryFetcherEvents(ctx, "example.org", AuthorizedEntryFetcherEventsConfig{
 		log:                     log,
 		metrics:                 metrics,
 		clk:                     clk,
@@ -969,7 +969,7 @@ func TestFullCacheReloadRecoversFromSkippedAttestedNodeEvents(t *testing.T) {
 	nodeCache, err := nodecache.New(ctx, log, ds, clk, false, true)
 	require.Nil(t, err)
 
-	ef, err := NewAuthorizedEntryFetcherEvents(ctx, AuthorizedEntryFetcherEventsConfig{
+	ef, err := NewAuthorizedEntryFetcherEvents(ctx, "example.org", AuthorizedEntryFetcherEventsConfig{
 		log:                     log,
 		metrics:                 metrics,
 		clk:                     clk,

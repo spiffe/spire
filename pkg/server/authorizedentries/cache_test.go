@@ -178,7 +178,7 @@ func TestCacheInternalStats(t *testing.T) {
 	// the indexees.
 	clk := clock.NewMock(t)
 	t.Run("pristine", func(t *testing.T) {
-		cache := NewCache(clk)
+		cache := NewCache(clk, "domain.test")
 		require.Zero(t, cache.Stats())
 	})
 
@@ -190,7 +190,7 @@ func TestCacheInternalStats(t *testing.T) {
 		entry2b := makeAlias(alias1, sel1, sel2)
 		entry2b.Id = entry2a.Id
 
-		cache := NewCache(clk)
+		cache := NewCache(clk, "domain.test")
 		cache.UpdateEntry(entry1)
 		require.Equal(t, CacheStats{
 			EntriesByEntryID:  1,
@@ -226,7 +226,7 @@ func TestCacheInternalStats(t *testing.T) {
 	})
 
 	t.Run("agents", func(t *testing.T) {
-		cache := NewCache(clk)
+		cache := NewCache(clk, "domain.test")
 		cache.UpdateAgent(agent1.String(), now.Add(time.Hour), []*types.Selector{sel1})
 		require.Equal(t, CacheStats{
 			AgentsByID:        1,
@@ -300,7 +300,7 @@ func (a *cacheTest) withExpiredAgent(node spiffeid.ID, expiredBy time.Duration, 
 
 func (a *cacheTest) hydrate(tb testing.TB) (*cacheTest, *Cache) {
 	clk := clock.NewMock(tb)
-	cache := NewCache(clk)
+	cache := NewCache(clk, "domain.test")
 	for _, entry := range a.entries {
 		cache.UpdateEntry(entry)
 	}
