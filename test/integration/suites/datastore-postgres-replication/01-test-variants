@@ -40,3 +40,4 @@ test-postgres postgres-14 || exit 1
 test-postgres postgres-15 || exit 1
 test-postgres postgres-16 || exit 1
 test-postgres postgres-17 || exit 1
+test-postgres postgres-18 || exit 1
