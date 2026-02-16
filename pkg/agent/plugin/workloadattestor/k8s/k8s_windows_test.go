@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/hashicorp/go-hclog"
-	"github.com/spiffe/spire/proto/brokerapi"
+	"github.com/spiffe/spire-api-sdk/proto/spiffe/reference"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -117,7 +117,7 @@ func (f *fakeProcessHelper) GetContainerIDByProcess(int32, hclog.Logger) (string
 }
 
 func buildReferenceWithPID(pid int32) (*anypb.Any, error) {
-	pidReference := brokerapi.WorkloadPIDReference{
+	pidReference := reference.WorkloadPIDReference{
 		Pid: pid,
 	}
 	return anypb.New(&pidReference)

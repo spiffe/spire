@@ -54,7 +54,7 @@ func (v1 *V1) AttestReference(ctx context.Context, reference *anypb.Any) ([]*com
 }
 
 func extractPIDReference(ref *anypb.Any) (int32, error) {
-	if ref.GetTypeUrl() == "type.googleapis.com/spiffe.broker.WorkloadPIDReference" {
+	if ref.GetTypeUrl() == "type.googleapis.com/spiffe.reference.WorkloadPIDReference" {
 		var pidRef reference.WorkloadPIDReference
 		if err := anypb.UnmarshalTo(ref, &pidRef, proto.UnmarshalOptions{}); err != nil {
 			return 0, fmt.Errorf("unmarshaling PID reference: %w", err)

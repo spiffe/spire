@@ -853,13 +853,13 @@ func newCertPool(certs []*x509.Certificate) *x509.CertPool {
 
 func extractRelevantReference(ref *anypb.Any) (types.UID, int32, error) {
 	switch ref.TypeUrl {
-	case "type.googleapis.com/spiffe.broker.WorkloadPIDReference":
+	case "type.googleapis.com/spiffe.reference.WorkloadPIDReference":
 		var pidRef reference.WorkloadPIDReference
 		if err := ref.UnmarshalTo(&pidRef); err != nil {
 			return "", -1, fmt.Errorf("unable to unmarshal PID reference: %w", err)
 		}
 		return "", pidRef.Pid, nil
-	case "type.googleapis.com/spiffe.broker.KubernetesPodUIDReference":
+	case "type.googleapis.com/spiffe.reference.KubernetesPodUIDReference":
 		var podUIDRef reference.KubernetesPodUIDReference
 		if err := ref.UnmarshalTo(&podUIDRef); err != nil {
 			return "", -1, fmt.Errorf("unable to unmarshal Pod UID reference: %w", err)
