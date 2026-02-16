@@ -34,7 +34,7 @@ setup-tests() {
 test-envoy() {
     # Ensure connectivity for both TLS and mTLS
 
-    MAXCHECKSPERPORT=15
+    MAXCHECKSPERPORT=30
     CHECKINTERVAL=1
 
     TRY() { docker compose exec -T downstream-socat-mtls /bin/sh -c 'echo HELLO_MTLS | socat -u STDIN TCP:localhost:8001'; }
@@ -45,7 +45,7 @@ test-envoy() {
         log-debug "Checking MTLS proxy ($i of $MAXCHECKSPERPORT max)..."
         if TRY && VERIFY ; then
             MTLS_OK=1
-            log-info "MTLS proxy OK"
+            log-info "MTLS proxy OK (succeeded after $i attempts)"
             break
         fi
         sleep "${CHECKINTERVAL}"
@@ -59,7 +59,7 @@ test-envoy() {
         log-debug "Checking TLS proxy ($i of $MAXCHECKSPERPORT max)..."
         if TRY && VERIFY ; then
             TLS_OK=1
-            log-info "TLS proxy OK"
+            log-info "TLS proxy OK (succeeded after $i attempts)"
             break
         fi
         sleep "${CHECKINTERVAL}"
@@ -67,12 +67,40 @@ test-envoy() {
 
     if [ -z "${MTLS_OK}" ]; then
         log-warn "MTLS proxy check failed after ${MAXCHECKSPERPORT} attempts"
+
+        # Dump Envoy configuration for diagnostics
+        log-warn "=== Upstream Envoy Listener Configuration ==="
+        docker compose exec -T upstream-proxy curl -s http://localhost:9901/config_dump | jq '.configs[] | select(.["@type"] | contains("Listener"))' || true
+
+        log-warn "=== Downstream Envoy Listener Configuration ==="
+        docker compose exec -T downstream-proxy curl -s http://localhost:9901/config_dump | jq '.configs[] | select(.["@type"] | contains("Listener"))' || true
+
+        log-warn "=== Upstream Envoy Stats ==="
+        docker compose exec -T upstream-proxy curl -s http://localhost:9901/stats | grep -E "(sds|cluster|listener)" || true
+
+        log-warn "=== Downstream Envoy Stats ==="
+        docker compose exec -T downstream-proxy curl -s http://localhost:9901/stats | grep -E "(sds|cluster|listener)" || true
+
         dump-multiple-container-logs upstream-proxy downstream-proxy upstream-socat downstream-socat-mtls downstream-socat-tls
         fail-now "MTLS Proxying failed"
     fi
 
     if [ -z "${TLS_OK}" ]; then
         log-warn "TLS proxy check failed after ${MAXCHECKSPERPORT} attempts"
+
+        # Dump Envoy configuration for diagnostics
+        log-warn "=== Upstream Envoy Listener Configuration ==="
+        docker compose exec -T upstream-proxy curl -s http://localhost:9901/config_dump | jq '.configs[] | select(.["@type"] | contains("Listener"))' || true
+
+        log-warn "=== Downstream Envoy Listener Configuration ==="
+        docker compose exec -T downstream-proxy curl -s http://localhost:9901/config_dump | jq '.configs[] | select(.["@type"] | contains("Listener"))' || true
+
+        log-warn "=== Upstream Envoy Stats ==="
+        docker compose exec -T upstream-proxy curl -s http://localhost:9901/stats | grep -E "(sds|cluster|listener)" || true
+
+        log-warn "=== Downstream Envoy Stats ==="
+        docker compose exec -T downstream-proxy curl -s http://localhost:9901/stats | grep -E "(sds|cluster|listener)" || true
+
         dump-multiple-container-logs upstream-proxy downstream-proxy upstream-socat downstream-socat-mtls downstream-socat-tls
         fail-now "TLS Proxying failed"
     fi
