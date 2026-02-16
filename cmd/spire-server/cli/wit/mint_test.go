@@ -188,7 +188,7 @@ func TestMintRun(t *testing.T) {
 				},
 			},
 			expStdoutPretty: token + "\n",
-			expStdoutJSON: fmt.Sprintf(`[{
+			expStdoutJSON: fmt.Sprintf(`{
   "svid": {
     "token": "%s",
     "id": {
@@ -199,7 +199,7 @@ func TestMintRun(t *testing.T) {
     "issued_at": 1628500000
   },
   "private_key": "{\"kty\":\"EC\",\"crv\":\"P-256\",\"x\":\"0cYDPbnY4FIsWUx8INUzmKXRZFWQKHZZnQk2N7axDfo\",\"y\":\"lehH6R5xLJkVy-NgFo0P2Y4-xIcIBzkAC0U9AX-PQf8\",\"d\":\"WItUvS9niefekUhGVVYGK3UtPzVn5-LS2bmAahx7-iw\"}"
-}]`, token),
+}`, token),
 		},
 		{
 			name:     "write on invalid path",
@@ -233,12 +233,12 @@ func TestMintRun(t *testing.T) {
 				},
 			},
 			expStdoutPretty: "malformed token\n",
-			expStdoutJSON: `[{
+			expStdoutJSON: `{
   "svid": {
     "token": "malformed token"
   },
   "private_key": "{\"kty\":\"EC\",\"crv\":\"P-256\",\"x\":\"0cYDPbnY4FIsWUx8INUzmKXRZFWQKHZZnQk2N7axDfo\",\"y\":\"lehH6R5xLJkVy-NgFo0P2Y4-xIcIBzkAC0U9AX-PQf8\",\"d\":\"WItUvS9niefekUhGVVYGK3UtPzVn5-LS2bmAahx7-iw\"}"
-}]`,
+}`,
 			expStderr: "Unable to determine WIT-SVID lifetime: go-jose/go-jose: compact JWS format must have three parts\n",
 		},
 		{
@@ -261,7 +261,7 @@ func TestMintRun(t *testing.T) {
 				},
 			},
 			expStdoutPretty: expiredToken + "\n",
-			expStdoutJSON: fmt.Sprintf(`[{
+			expStdoutJSON: fmt.Sprintf(`{
   "svid": {
     "token": "%s",
     "id": {
@@ -272,7 +272,7 @@ func TestMintRun(t *testing.T) {
     "issued_at": 1628600000
   },
   "private_key": "{\"kty\":\"EC\",\"crv\":\"P-256\",\"x\":\"0cYDPbnY4FIsWUx8INUzmKXRZFWQKHZZnQk2N7axDfo\",\"y\":\"lehH6R5xLJkVy-NgFo0P2Y4-xIcIBzkAC0U9AX-PQf8\",\"d\":\"WItUvS9niefekUhGVVYGK3UtPzVn5-LS2bmAahx7-iw\"}"
-}]`, expiredToken),
+}`, expiredToken),
 			expStderr: fmt.Sprintf("WIT-SVID lifetime was capped shorter than specified ttl; expires %q\n", expiredAt.UTC().Format(time.RFC3339)),
 		},
 		{
