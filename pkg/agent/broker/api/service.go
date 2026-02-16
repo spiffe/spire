@@ -10,6 +10,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffegrpc/grpccredentials"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire-api-sdk/proto/spiffe/broker"
 	"github.com/spiffe/spire/pkg/agent/api/rpccontext"
 	workloadattestor "github.com/spiffe/spire/pkg/agent/attestor/workload"
 	"github.com/spiffe/spire/pkg/agent/client"
@@ -20,7 +21,6 @@ import (
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/telemetry/agent/adminapi"
 	"github.com/spiffe/spire/pkg/common/x509util"
-	"github.com/spiffe/spire/proto/brokerapi"
 	"github.com/spiffe/spire/proto/spire/common"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -29,7 +29,7 @@ import (
 
 // RegisterService registers the delegated identity service on the provided server
 func RegisterService(s *grpc.Server, service *Service) {
-	brokerapi.RegisterSpiffeBrokerAPIServer(s, service)
+	broker.RegisterAPIServer(s, service)
 }
 
 type Config struct {
@@ -49,7 +49,7 @@ func New(config Config) *Service {
 
 // Service implements the delegated identity server
 type Service struct {
-	brokerapi.UnimplementedSpiffeBrokerAPIServer
+	broker.UnimplementedAPIServer
 
 	manager      manager.Manager
 	peerAttestor workloadattestor.Attestor
@@ -64,19 +64,19 @@ func (s *Service) getCallerContext(ctx context.Context) (spiffeid.ID, error) {
 	return peer, nil
 }
 
-func (s *Service) SubscribeToX509SVID(req *brokerapi.SubscribeToX509SVIDRequest, stream brokerapi.SpiffeBrokerAPI_SubscribeToX509SVIDServer) error {
+func (s *Service) SubscribeToX509SVID(req *broker.SubscribeToX509SVIDRequest, stream broker.API_SubscribeToX509SVIDServer) error {
 	latency := adminapi.StartFirstX509SVIDUpdateLatency(s.metrics)
 	ctx := stream.Context()
 	log := rpccontext.Logger(ctx)
 	var receivedFirstUpdate bool
 
-	peer, err := s.getCallerContext(ctx)
-	if err != nil {
-		return err
-	}
-	log = log.WithField("broker_peer", peer.String())
+	// peer, err := s.getCallerContext(ctx)
+	// if err != nil {
+	// 	return err
+	// }
+	// log = log.WithField("broker_peer", peer.String())
 
-	selectors, err := s.constructValidSelectorsFromReferences(ctx, log, req.References)
+	selectors, err := s.constructValidSelectorsFromReference(ctx, log, req.Reference)
 	if err != nil {
 		return err
 	}
@@ -110,7 +110,7 @@ func (s *Service) SubscribeToX509SVID(req *brokerapi.SubscribeToX509SVIDRequest,
 	}
 }
 
-func (s *Service) SubscribeToX509Bundles(_ *brokerapi.SubscribeToX509BundlesRequest, stream brokerapi.SpiffeBrokerAPI_SubscribeToX509BundlesServer) error {
+func (s *Service) SubscribeToX509Bundles(_ *broker.SubscribeToX509BundlesRequest, stream broker.API_SubscribeToX509BundlesServer) error {
 	ctx := stream.Context()
 
 	peer, err := s.getCallerContext(ctx)
@@ -127,7 +127,7 @@ func (s *Service) SubscribeToX509Bundles(_ *brokerapi.SubscribeToX509BundlesRequ
 		caCerts[td.IDString()] = marshalBundle(bundle.X509Authorities())
 	}
 
-	resp := &brokerapi.SubscribeToX509BundlesResponse{
+	resp := &broker.SubscribeToX509BundlesResponse{
 		Bundles: caCerts,
 	}
 
@@ -142,7 +142,7 @@ func (s *Service) SubscribeToX509Bundles(_ *brokerapi.SubscribeToX509BundlesRequ
 				caCerts[td.IDString()] = marshalBundle(bundle.X509Authorities())
 			}
 
-			resp := &brokerapi.SubscribeToX509BundlesResponse{
+			resp := &broker.SubscribeToX509BundlesResponse{
 				Bundles: caCerts,
 			}
 
@@ -156,7 +156,7 @@ func (s *Service) SubscribeToX509Bundles(_ *brokerapi.SubscribeToX509BundlesRequ
 	}
 }
 
-func (s *Service) FetchJWTSVID(ctx context.Context, req *brokerapi.FetchJWTSVIDRequest) (*brokerapi.FetchJWTSVIDResponse, error) {
+func (s *Service) FetchJWTSVID(ctx context.Context, req *broker.FetchJWTSVIDRequest) (*broker.FetchJWTSVIDResponse, error) {
 	log := rpccontext.Logger(ctx)
 	if len(req.Audience) == 0 {
 		log.Error("Missing required audience parameter")
@@ -169,12 +169,12 @@ func (s *Service) FetchJWTSVID(ctx context.Context, req *brokerapi.FetchJWTSVIDR
 	}
 	log = log.WithField("broker_peer", peer.String())
 
-	selectors, err := s.constructValidSelectorsFromReferences(ctx, log, req.References)
+	selectors, err := s.constructValidSelectorsFromReference(ctx, log, req.Reference)
 	if err != nil {
 		return nil, err
 	}
 
-	resp := new(brokerapi.FetchJWTSVIDResponse)
+	resp := new(broker.FetchJWTSVIDResponse)
 	entries := s.manager.MatchingRegistrationEntries(selectors)
 	for _, entry := range entries {
 		spiffeID, err := spiffeid.FromString(entry.SpiffeId)
@@ -191,7 +191,7 @@ func (s *Service) FetchJWTSVID(ctx context.Context, req *brokerapi.FetchJWTSVIDR
 			loopLog.WithError(err).Error("Could not fetch JWT-SVID")
 			return nil, status.Errorf(codes.Unavailable, "could not fetch JWT-SVID: %v", err)
 		}
-		resp.Svids = append(resp.Svids, &brokerapi.JWTSVID{
+		resp.Svids = append(resp.Svids, &broker.JWTSVID{
 			SpiffeId: spiffeID.String(),
 			Hint:     entry.Hint,
 			Svid:     svid.Token,
@@ -209,7 +209,7 @@ func (s *Service) FetchJWTSVID(ctx context.Context, req *brokerapi.FetchJWTSVIDR
 	return resp, nil
 }
 
-func (s *Service) SubscribeToJWTBundles(_ *brokerapi.SubscribeToJWTBundlesRequest, stream brokerapi.SpiffeBrokerAPI_SubscribeToJWTBundlesServer) error {
+func (s *Service) SubscribeToJWTBundles(_ *broker.SubscribeToJWTBundlesRequest, stream broker.API_SubscribeToJWTBundlesServer) error {
 	ctx := stream.Context()
 
 	peer, err := s.getCallerContext(ctx)
@@ -230,7 +230,7 @@ func (s *Service) SubscribeToJWTBundles(_ *brokerapi.SubscribeToJWTBundlesReques
 		jwtbundles[td.IDString()] = jwksBytes
 	}
 
-	resp := &brokerapi.SubscribeToJWTBundlesResponse{
+	resp := &broker.SubscribeToJWTBundlesResponse{
 		Bundles: jwtbundles,
 	}
 
@@ -248,7 +248,7 @@ func (s *Service) SubscribeToJWTBundles(_ *brokerapi.SubscribeToJWTBundlesReques
 				jwtbundles[td.IDString()] = jwksBytes
 			}
 
-			resp := &brokerapi.SubscribeToJWTBundlesResponse{
+			resp := &broker.SubscribeToJWTBundlesResponse{
 				Bundles: jwtbundles,
 			}
 			if err := stream.Send(resp); err != nil {
@@ -260,38 +260,22 @@ func (s *Service) SubscribeToJWTBundles(_ *brokerapi.SubscribeToJWTBundlesReques
 	}
 }
 
-func (s *Service) constructValidSelectorsFromReferences(ctx context.Context, log logrus.FieldLogger, refs []*brokerapi.WorkloadReference) ([]*common.Selector, error) {
-	if len(refs) == 0 {
-		log.Error("No workload references provided")
-		return nil, status.Error(codes.InvalidArgument, "no workload references provided")
+func (s *Service) constructValidSelectorsFromReference(ctx context.Context, log logrus.FieldLogger, ref *broker.WorkloadReference) ([]*common.Selector, error) {
+	if ref == nil {
+		log.Error("No workload reference provided")
+		return nil, status.Error(codes.InvalidArgument, "workload reference must be provided")
 	}
 
-	if len(refs) > 1 {
-		log.Error("Multiple workload references provided; only one is supported")
-		return nil, status.Error(codes.InvalidArgument, "multiple workload references provided; SPIRE only supports one at the moment")
+	selectors, err := s.peerAttestor.AttestReference(ctx, ref.Reference)
+	if err != nil {
+		log.WithError(err).Error("Workload attestation failed")
+		return nil, status.Errorf(codes.Unauthenticated, "workload attestation failed: %v", err)
 	}
 
-	switch refs[0].Reference.TypeUrl {
-	case "type.googleapis.com/brokerapi.WorkloadPIDReference":
-		var pidRef brokerapi.WorkloadPIDReference
-		if err := refs[0].Reference.UnmarshalTo(&pidRef); err != nil {
-			log.WithError(err).Error("Failed to unmarshal PID workload reference")
-			return nil, status.Error(codes.InvalidArgument, "failed to unmarshal PID workload reference")
-		}
-
-		selectors, err := s.peerAttestor.Attest(ctx, int(pidRef.Pid))
-		if err != nil {
-			log.WithError(err).Error("Workload attestation with PID failed")
-			return nil, status.Error(codes.Internal, "workload attestation with PID failed")
-		}
-		return selectors, nil
-	default:
-		log.WithField("type_url", refs[0].Reference.TypeUrl).Error("Unsupported workload reference type")
-		return nil, status.Error(codes.InvalidArgument, "unsupported workload reference type")
-	}
+	return selectors, nil
 }
 
-func sendX509SVIDResponse(update *cache.WorkloadUpdate, stream brokerapi.SpiffeBrokerAPI_SubscribeToX509SVIDServer, log logrus.FieldLogger) (err error) {
+func sendX509SVIDResponse(update *cache.WorkloadUpdate, stream broker.API_SubscribeToX509SVIDServer, log logrus.FieldLogger) (err error) {
 	resp, err := composeX509SVIDBySelectors(update)
 	if err != nil {
 		log.WithError(err).Error("Could not serialize X.509 SVID response")
@@ -321,9 +305,9 @@ func sendX509SVIDResponse(update *cache.WorkloadUpdate, stream brokerapi.SpiffeB
 	return nil
 }
 
-func composeX509SVIDBySelectors(update *cache.WorkloadUpdate) (*brokerapi.SubscribeToX509SVIDResponse, error) {
-	resp := new(brokerapi.SubscribeToX509SVIDResponse)
-	resp.Svids = make([]*brokerapi.X509SVID, 0, len(update.Identities))
+func composeX509SVIDBySelectors(update *cache.WorkloadUpdate) (*broker.SubscribeToX509SVIDResponse, error) {
+	resp := new(broker.SubscribeToX509SVIDResponse)
+	resp.Svids = make([]*broker.X509SVID, 0, len(update.Identities))
 	resp.FederatedBundles = make(map[string][]byte, len(update.FederatedBundles))
 
 	x509Bundle := marshalBundle(update.Bundle.X509Authorities())
@@ -348,7 +332,7 @@ func composeX509SVIDBySelectors(update *cache.WorkloadUpdate) (*brokerapi.Subscr
 			return nil, fmt.Errorf("marshal key for %v: %w", id, err)
 		}
 
-		svid := &brokerapi.X509SVID{
+		svid := &broker.X509SVID{
 			SpiffeId:    id.String(),
 			X509Svid:    x509util.DERFromCertificates(identity.SVID),
 			Bundle:      x509Bundle,
