@@ -13,7 +13,7 @@ import (
 func TestPrintError(t *testing.T) {
 	p, stdout, stderr := newTestPrinter()
 
-	err := p.printError(errors.New("red alert"))
+	err := p.PrintError(errors.New("red alert"))
 	if err != nil {
 		t.Errorf("failed to print error: %v", err)
 	}
@@ -27,7 +27,7 @@ func TestPrintError(t *testing.T) {
 	}
 
 	p = newTestPrinterWithWriter(badWriter{}, badWriter{})
-	err = p.printError(errors.New("red alert"))
+	err = p.PrintError(errors.New("red alert"))
 	if err == nil {
 		t.Errorf("did not return error after bad write")
 	}
@@ -36,7 +36,7 @@ func TestPrintError(t *testing.T) {
 func TestPrintProto(t *testing.T) {
 	p, stdout, stderr := newTestPrinter()
 
-	err := p.printProto(new(agentapi.CountAgentsResponse))
+	err := p.PrintProto(new(agentapi.CountAgentsResponse))
 	if err != nil {
 		t.Errorf("failed to print proto: %v", err)
 	}
@@ -48,7 +48,7 @@ func TestPrintProto(t *testing.T) {
 	}
 
 	p = newTestPrinterWithWriter(badWriter{}, badWriter{})
-	err = p.printProto(new(agentapi.CountAgentsResponse))
+	err = p.PrintProto(new(agentapi.CountAgentsResponse))
 	if err == nil {
 		t.Errorf("did not return error after bad write")
 	}
@@ -63,7 +63,7 @@ func TestPrintStruct(t *testing.T) {
 		Name: "boaty",
 	}
 
-	err := p.printStruct(msg)
+	err := p.PrintStruct(msg)
 	if err != nil {
 		t.Errorf("failed to print struct: %v", err)
 	}
@@ -76,8 +76,14 @@ func TestPrintStruct(t *testing.T) {
 		t.Error("did not print struct")
 	}
 
+	expectedOutput := "Name: boaty\n\n"
+	actualOutput := stdout.String()
+	if actualOutput != expectedOutput {
+		t.Errorf("output expected to be %q but got %q", expectedOutput, actualOutput)
+	}
+
 	p = newTestPrinterWithWriter(badWriter{}, badWriter{})
-	err = p.printStruct(msg)
+	err = p.PrintStruct(msg)
 	if err == nil {
 		t.Errorf("did not return error after bad write")
 	}
