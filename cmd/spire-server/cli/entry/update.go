@@ -210,9 +210,11 @@ func (c *updateCommand) parseConfig() ([]*types.Entry, error) {
 
 	e.Selectors = selectors
 
-	additionalAttributes := &types.Entry_AdditionalAttributes{}
-	additionalAttributes.DisableX509SvidPrefetch = c.disableX509SVIDPrefetch
-	e.AdditionalAttributes = additionalAttributes
+	if c.disableX509SVIDPrefetch {
+		e.AdditionalAttributes = &types.Entry_AdditionalAttributes{
+			DisableX509SvidPrefetch: c.disableX509SVIDPrefetch,
+		}
+	}
 
 	e.FederatesWith = c.federatesWith
 	e.Admin = c.admin

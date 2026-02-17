@@ -703,15 +703,14 @@ func TestReadOnlyEntry(t *testing.T) {
 			"domain1.com",
 			"domain2.com",
 		},
-		Admin:                true,
-		ExpiresAt:            expiresAt,
-		DnsNames:             []string{"dns1", "dns2"},
-		Downstream:           true,
-		RevisionNumber:       99,
-		Hint:                 "external",
-		CreatedAt:            1678731397,
-		StoreSvid:            true,
-		AdditionalAttributes: &types.Entry_AdditionalAttributes{},
+		Admin:          true,
+		ExpiresAt:      expiresAt,
+		DnsNames:       []string{"dns1", "dns2"},
+		Downstream:     true,
+		RevisionNumber: 99,
+		Hint:           "external",
+		CreatedAt:      1678731397,
+		StoreSvid:      true,
 	}
 
 	// Verify that all getters return the expected value

@@ -206,12 +206,26 @@ func RegistrationEntryToProto(e *common.RegistrationEntry) (*types.Entry, error)
 		AdditionalAttributes: ProtoFromAdditionalAttributes(e.AdditionalAttributes),
 	}
 
+	additionalAttributes := ProtoFromAdditionalAttributes(e.AdditionalAttributes)
+	if additionalAttributes != nil {
+		entry.AdditionalAttributes = additionalAttributes
+	}
+
 	return entry, nil
 }
 
 func ProtoFromAdditionalAttributes(in *common.RegistrationEntry_AdditionalAttributes) *types.Entry_AdditionalAttributes {
 	if in != nil {
 		return &types.Entry_AdditionalAttributes{
+			DisableX509SvidPrefetch: in.DisableX509SvidPrefetch,
+		}
+	}
+	return nil
+}
+
+func AdditionalAttributesFromProto(in *types.Entry_AdditionalAttributes) *common.RegistrationEntry_AdditionalAttributes {
+	if in != nil {
+		return &common.RegistrationEntry_AdditionalAttributes{
 			DisableX509SvidPrefetch: in.DisableX509SvidPrefetch,
 		}
 	}
@@ -329,20 +343,27 @@ func ProtoToRegistrationEntryWithMask(ctx context.Context, td spiffeid.TrustDoma
 		}
 		hint = e.Hint
 	}
+
+	var additionalAttributes *common.RegistrationEntry_AdditionalAttributes
+	if mask.AdditionalAttributes {
+		additionalAttributes = AdditionalAttributesFromProto(e.AdditionalAttributes)
+	}
+
 	return &common.RegistrationEntry{
-		EntryId:        e.Id,
-		ParentId:       parentID.String(),
-		SpiffeId:       spiffeID.String(),
-		Admin:          admin,
-		DnsNames:       dnsNames,
-		Downstream:     downstream,
-		EntryExpiry:    expiresAt,
-		FederatesWith:  federatesWith,
-		Selectors:      selectors,
-		RevisionNumber: revisionNumber,
-		StoreSvid:      storeSVID,
-		X509SvidTtl:    x509SvidTTL,
-		JwtSvidTtl:     jwtSvidTTL,
-		Hint:           hint,
+		EntryId:              e.Id,
+		ParentId:             parentID.String(),
+		SpiffeId:             spiffeID.String(),
+		Admin:                admin,
+		DnsNames:             dnsNames,
+		Downstream:           downstream,
+		EntryExpiry:          expiresAt,
+		FederatesWith:        federatesWith,
+		Selectors:            selectors,
+		RevisionNumber:       revisionNumber,
+		StoreSvid:            storeSVID,
+		X509SvidTtl:          x509SvidTTL,
+		JwtSvidTtl:           jwtSvidTTL,
+		Hint:                 hint,
+		AdditionalAttributes: additionalAttributes,
 	}, nil
 }

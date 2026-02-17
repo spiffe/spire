@@ -13,8 +13,7 @@
             "x509_svid_ttl": 200,
             "jwt_svid_ttl": 300,
             "admin": true,
-            "hint": "external",
-            "additional_attributes": {}
+            "hint": "external"
         },
         {
             "entry_id": "entry-id-2",
@@ -27,8 +26,7 @@
             "spiffe_id": "spiffe://example.org/Database",
             "parent_id": "spiffe://example.org/spire/agent/join_token/TokenDatabase",
             "x509_svid_ttl": 200,
-            "jwt_svid_ttl": 300,
-            "additional_attributes": {}
+            "jwt_svid_ttl": 300
         },
         {
             "entry_id": "entry-id-3",
@@ -46,8 +44,27 @@
             "parent_id": "spiffe://example.org/spire/agent/join_token/TokenDatabase",
 	    "store_svid": true,
             "x509_svid_ttl": 200,
+            "jwt_svid_ttl": 300
+        },
+        {
+            "entry_id": "entry-id-4",
+            "selectors": [
+                {
+                    "type": "type",
+                    "value": "key1:value"
+                },
+                {
+                    "type": "type",
+                    "value": "key2:value"
+                }
+            ],
+            "spiffe_id": "spiffe://example.org/DisableX509SvidPrefetch",
+            "parent_id": "spiffe://example.org/spire/agent/join_token/TokenDatabase",
+            "x509_svid_ttl": 200,
             "jwt_svid_ttl": 300,
-            "additional_attributes": {}
+            "additional_attributes": {
+                "disable_x509_svid_prefetch": true
+            }
         }
     ]
 }

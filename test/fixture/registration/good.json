@@ -11,8 +11,7 @@
             "parent_id": "spiffe://example.org/spire/agent/join_token/TokenBlog",
             "x509_svid_ttl": 200,
             "jwt_svid_ttl": 30,
-            "admin": true,
-            "additional_attributes": {}
+            "admin": true
         },
         {
             "selectors": [
@@ -25,8 +24,7 @@
             "parent_id": "spiffe://example.org/spire/agent/join_token/TokenDatabase",
             "x509_svid_ttl": 200,
             "jwt_svid_ttl": 30,
-            "hint": "internal",
-            "additional_attributes": {}
+            "hint": "internal"
         },
         {
             "selectors": [
@@ -43,8 +41,7 @@
             "parent_id": "spiffe://example.org/spire/agent/join_token/TokenDatabase",
             "x509_svid_ttl": 200,
             "jwt_svid_ttl": 30,
-	        "store_svid": true,
-            "additional_attributes": {}
+	        "store_svid": true
         },
         {
             "selectors": [

@@ -392,14 +392,13 @@ DisableX509SvidPrefetch : true
 							{Type: "zebra", Value: "zebra:2000"},
 							{Type: "alpha", Value: "alpha:2000"},
 						},
-						X509SvidTtl:          60,
-						FederatesWith:        []string{"spiffe://domaina.test", "spiffe://domainb.test"},
-						Admin:                true,
-						ExpiresAt:            1552410266,
-						DnsNames:             []string{"unu1000", "ung1000"},
-						Downstream:           true,
-						StoreSvid:            true,
-						AdditionalAttributes: &types.Entry_AdditionalAttributes{},
+						X509SvidTtl:   60,
+						FederatesWith: []string{"spiffe://domaina.test", "spiffe://domainb.test"},
+						Admin:         true,
+						ExpiresAt:     1552410266,
+						DnsNames:      []string{"unu1000", "ung1000"},
+						Downstream:    true,
+						StoreSvid:     true,
 					},
 				},
 			},
@@ -479,22 +478,20 @@ StoreSvid               : true
 			expReq: &entryv1.BatchCreateEntryRequest{
 				Entries: []*types.Entry{
 					{
-						SpiffeId:             &types.SPIFFEID{TrustDomain: "example.org", Path: "/Blog"},
-						ParentId:             &types.SPIFFEID{TrustDomain: "example.org", Path: "/spire/agent/join_token/TokenBlog"},
-						Selectors:            []*types.Selector{{Type: "unix", Value: "uid:1111"}},
-						X509SvidTtl:          200,
-						JwtSvidTtl:           30,
-						Admin:                true,
-						AdditionalAttributes: &types.Entry_AdditionalAttributes{},
+						SpiffeId:    &types.SPIFFEID{TrustDomain: "example.org", Path: "/Blog"},
+						ParentId:    &types.SPIFFEID{TrustDomain: "example.org", Path: "/spire/agent/join_token/TokenBlog"},
+						Selectors:   []*types.Selector{{Type: "unix", Value: "uid:1111"}},
+						X509SvidTtl: 200,
+						JwtSvidTtl:  30,
+						Admin:       true,
 					},
 					{
-						SpiffeId:             &types.SPIFFEID{TrustDomain: "example.org", Path: "/Database"},
-						ParentId:             &types.SPIFFEID{TrustDomain: "example.org", Path: "/spire/agent/join_token/TokenDatabase"},
-						Selectors:            []*types.Selector{{Type: "unix", Value: "uid:1111"}},
-						X509SvidTtl:          200,
-						JwtSvidTtl:           30,
-						Hint:                 "internal",
-						AdditionalAttributes: &types.Entry_AdditionalAttributes{},
+						SpiffeId:    &types.SPIFFEID{TrustDomain: "example.org", Path: "/Database"},
+						ParentId:    &types.SPIFFEID{TrustDomain: "example.org", Path: "/spire/agent/join_token/TokenDatabase"},
+						Selectors:   []*types.Selector{{Type: "unix", Value: "uid:1111"}},
+						X509SvidTtl: 200,
+						JwtSvidTtl:  30,
+						Hint:        "internal",
 					},
 					{
 						SpiffeId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/storesvid"},
@@ -503,10 +500,9 @@ StoreSvid               : true
 							{Type: "type", Value: "key1:value"},
 							{Type: "type", Value: "key2:value"},
 						},
-						X509SvidTtl:          200,
-						JwtSvidTtl:           30,
-						StoreSvid:            true,
-						AdditionalAttributes: &types.Entry_AdditionalAttributes{},
+						X509SvidTtl: 200,
+						JwtSvidTtl:  30,
+						StoreSvid:   true,
 					},
 					{
 						SpiffeId:    &types.SPIFFEID{TrustDomain: "example.org", Path: "/additionalattr"},
@@ -723,10 +719,9 @@ DisableX509SvidPrefetch : true
 			args: []string{"-spiffeID", "spiffe://example.org/already-exist", "-node", "-selector", "unix:uid:1"},
 			expReq: &entryv1.BatchCreateEntryRequest{Entries: []*types.Entry{
 				{
-					SpiffeId:             &types.SPIFFEID{TrustDomain: "example.org", Path: "/already-exist"},
-					ParentId:             &types.SPIFFEID{TrustDomain: "example.org", Path: "/spire/server"},
-					Selectors:            []*types.Selector{{Type: "unix", Value: "uid:1"}},
-					AdditionalAttributes: &types.Entry_AdditionalAttributes{},
+					SpiffeId:  &types.SPIFFEID{TrustDomain: "example.org", Path: "/already-exist"},
+					ParentId:  &types.SPIFFEID{TrustDomain: "example.org", Path: "/spire/server"},
+					Selectors: []*types.Selector{{Type: "unix", Value: "uid:1"}},
 				},
 			}},
 			fakeResp: fakeRespErr,
@@ -774,10 +769,7 @@ Error: failed to create one or more entries
         "dns_names": [],
         "revision_number": "0",
         "store_svid": false,
-        "jwt_svid_ttl": 0,
-		"additional_attributes": {
-		  "disable_x509_svid_prefetch": false
-		}
+        "jwt_svid_ttl": 0
       }
     }
   ]
