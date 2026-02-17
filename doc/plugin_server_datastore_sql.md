@@ -130,7 +130,7 @@ Consult the [MySQL driver repository](https://github.com/go-sql-driver/mysql#usa
 
 #### Supported MySQL versions
 
-We support all currently maintainted versions of MySQL and run [integration tests](../test/integration/suites/datastore-mysql/) agains LTS releases. Older versions of
+We support all currently maintainted versions of MySQL and run [integration tests](../test/integration/suites/datastore-mysql/) against LTS releases. Older versions of
 may still work, but are not tested.
 
 #### Configuration Options
