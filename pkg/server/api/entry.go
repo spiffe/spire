@@ -101,7 +101,7 @@ func (e *ReadOnlyEntry) Clone(mask *types.EntryMask) *types.Entry {
 	}
 
 	if mask.Downstream {
-		clone.Downstream = e.entry.Admin
+		clone.Downstream = e.entry.Downstream
 	}
 
 	if mask.ExpiresAt {
