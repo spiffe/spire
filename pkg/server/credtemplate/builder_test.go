@@ -3,6 +3,9 @@ package credtemplate_test
 import (
 	"context"
 	"crypto"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"errors"
@@ -13,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-jose/go-jose/v4"
 	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	credentialcomposerv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/credentialcomposer/v1"
@@ -44,6 +48,7 @@ var (
 	x509CANotAfter   = now.Add(credtemplate.DefaultX509CATTL)
 	x509SVIDNotAfter = now.Add(credtemplate.DefaultX509SVIDTTL)
 	jwtSVIDNotAfter  = now.Add(credtemplate.DefaultJWTSVIDTTL)
+	witSVIDNotAfter  = now.Add(credtemplate.DefaultWITSVIDTTL)
 	caKeyUsage       = x509.KeyUsageCertSign | x509.KeyUsageCRLSign
 	svidKeyUsage     = x509.KeyUsageKeyEncipherment | x509.KeyUsageKeyAgreement | x509.KeyUsageDigitalSignature
 	svidExtKeyUsage  = []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth}
@@ -81,6 +86,7 @@ func TestNewBuilderSetsDefaults(t *testing.T) {
 		X509SVIDSubject: credtemplate.DefaultX509SVIDSubject(),
 		X509SVIDTTL:     credtemplate.DefaultX509SVIDTTL,
 		JWTSVIDTTL:      credtemplate.DefaultJWTSVIDTTL,
+		WITSVIDTTL:      credtemplate.DefaultWITSVIDTTL,
 		JWTIssuer:       "",
 		AgentSVIDTTL:    credtemplate.DefaultX509SVIDTTL,
 	}, config)
@@ -94,6 +100,7 @@ func TestNewBuilderAllowsConfigOverrides(t *testing.T) {
 		X509CATTL:       1 * time.Minute,
 		X509SVIDTTL:     2 * time.Minute,
 		JWTSVIDTTL:      3 * time.Minute,
+		WITSVIDTTL:      4 * time.Minute,
 		JWTIssuer:       "ISSUER",
 		AgentSVIDTTL:    4 * time.Minute,
 	}
@@ -1197,6 +1204,102 @@ func TestBuildWorkloadJWTSVIDClaims(t *testing.T) {
 					"iat": jwt.NewNumericDate(now),
 					"exp": jwt.NewNumericDate(jwtSVIDNotAfter),
 					"sub": workloadID.String(),
+				}
+				if tc.overrideExpected != nil {
+					tc.overrideExpected(expected)
+				}
+				require.Equal(t, expected, template)
+			})
+		})
+	}
+}
+
+func TestBuildWorkloadWITSVIDClaims(t *testing.T) {
+	for _, tc := range []struct {
+		desc             string
+		overrideConfig   func(config *credtemplate.Config)
+		overrideParams   func(params *credtemplate.WorkloadWITSVIDParams)
+		overrideExpected func(expected map[string]any)
+		expectErr        string
+	}{
+		{
+			desc: "defaults",
+		},
+		{
+			desc: "empty SPIFFE ID",
+			overrideParams: func(params *credtemplate.WorkloadWITSVIDParams) {
+				params.SPIFFEID = spiffeid.ID{}
+			},
+			expectErr: "invalid WIT-SVID ID: cannot be empty",
+		},
+		{
+			desc: "SPIFFE ID from another trust domain",
+			overrideParams: func(params *credtemplate.WorkloadWITSVIDParams) {
+				params.SPIFFEID = spiffeid.RequireFromString("spiffe://otherdomain.test/spire/agent/foo/foo-1")
+			},
+			expectErr: `invalid WIT-SVID ID: "spiffe://otherdomain.test/spire/agent/foo/foo-1" is not a member of trust domain "domain.test"`,
+		},
+		{
+			desc: "override WITSVIDTTL",
+			overrideConfig: func(config *credtemplate.Config) {
+				config.WITSVIDTTL = credtemplate.DefaultWITSVIDTTL * 2
+			},
+			overrideExpected: func(expected map[string]any) {
+				expected["exp"] = jwt.NewNumericDate(now.Add(credtemplate.DefaultWITSVIDTTL * 2))
+			},
+		},
+		{
+			desc: "ttl capped by expiration cap",
+			overrideConfig: func(config *credtemplate.Config) {
+				config.WITSVIDTTL = parentTTL + time.Hour
+			},
+			overrideParams: func(params *credtemplate.WorkloadWITSVIDParams) {
+				params.ExpirationCap = now.Add(parentTTL)
+			},
+			overrideExpected: func(expected map[string]any) {
+				expected["exp"] = jwt.NewNumericDate(now.Add(parentTTL))
+			},
+		},
+		{
+			desc: "with ttl",
+			overrideParams: func(params *credtemplate.WorkloadWITSVIDParams) {
+				params.TTL = credtemplate.DefaultWITSVIDTTL / 2
+			},
+			overrideExpected: func(expected map[string]any) {
+				expected["exp"] = jwt.NewNumericDate(now.Add(credtemplate.DefaultWITSVIDTTL / 2))
+			},
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			testBuilder(t, tc.overrideConfig, func(t *testing.T, credBuilder *credtemplate.Builder) {
+				signer, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+				require.NoError(t, err)
+
+				params := credtemplate.WorkloadWITSVIDParams{
+					SPIFFEID: workloadID,
+					PublicKey: jose.JSONWebKey{
+						Key: signer.PublicKey,
+					},
+				}
+				if tc.overrideParams != nil {
+					tc.overrideParams(&params)
+				}
+				template, err := credBuilder.BuildWorkloadWITSVIDClaims(ctx, params)
+				if tc.expectErr != "" {
+					require.EqualError(t, err, tc.expectErr)
+					return
+				}
+				require.NoError(t, err)
+
+				expected := map[string]any{
+					"exp": jwt.NewNumericDate(witSVIDNotAfter),
+					"iat": jwt.NewNumericDate(now),
+					"sub": workloadID.String(),
+					"cnf": map[string]any{
+						"jwk": jose.JSONWebKey{
+							Key: signer.PublicKey,
+						},
+					},
 				}
 				if tc.overrideExpected != nil {
 					tc.overrideExpected(expected)
