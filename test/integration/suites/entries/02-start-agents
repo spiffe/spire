@@ -54,10 +54,23 @@ docker compose exec -T spire-server \
   -selector "unix:uid:1003" \
   -dns "example.org"
 
+docker compose exec -T spire-server \
+  /opt/spire/bin/spire-server entry create \
+  -entryID prefetch-disabled \
+  -parentID "spiffe://domain.test/cluster/test" \
+  -spiffeID "spiffe://domain.test/workload-with-prefetch-disabled" \
+  -selector "unix:uid:1004" \
+  -disableX509SVIDPrefetch
+
 check-synced-entry "spire-agent-1" "spiffe://domain.test/workload-agent-1"
 check-synced-entry "spire-agent-2" "spiffe://domain.test/workload-agent-2"
 
 for agent in spire-agent-1 spire-agent-2 spire-agent-3; do
   check-synced-entry ${agent} "spiffe://domain.test/workload-shared"
   check-synced-entry ${agent} "spiffe://domain.test/workload-with-dns"
+  check-synced-entry ${agent} "spiffe://domain.test/workload-with-prefetch-disabled"
+done
+
+for agent in spire-agent-1 spire-agent-2 spire-agent-3; do
+  check-debug-info ${agent} "cachedX509SvidsCount" 2
 done

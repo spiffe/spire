@@ -169,6 +169,26 @@ check-svid-count() {
   fi
 }
 
+check-debug-info() {
+  MAXCHECKS=50
+  CHECKINTERVAL=1
+
+  for ((i=1;i<=MAXCHECKS;i++)); do
+    log-info "check $2 on agent debug endpoint ($((i)) of $MAXCHECKS max)..."
+    COUNT=$(docker compose exec -T "$1" /opt/spire/conf/agent/debugclient -testCase "printDebugPage" | jq $(printf "'.%s'" "$2"))
+    log-info "$2: ${COUNT}"
+    if [ "$COUNT" -eq "$3" ]; then
+      log-info "SVID count of $COUNT matches the expected count of $3"
+      break
+    fi
+    sleep "${CHECKINTERVAL}"
+  done
+
+  if (( i>MAXCHECKS )); then
+      fail-now "$2 validation failed"
+  fi
+}
+
 build-mashup-image() {
     ENVOY_VERSION=$1
     ENVOY_IMAGE_TAG="${ENVOY_VERSION}-latest"
@@ -253,7 +273,7 @@ download-kind() {
     elif [ "${ARCH}" = "aarch64" ]; then
         ARCH=arm64
     fi
-    echo "Ensuring kind version $KINDVERSION is available..." 
+    echo "Ensuring kind version $KINDVERSION is available..."
     KINDURL="https://github.com/kubernetes-sigs/kind/releases/download/$KINDVERSION/kind-$UNAME-$ARCH"
 
     local kind_link_or_path=$1
@@ -276,7 +296,7 @@ download-helm() {
         ARCH=arm64
     fi
 
-    echo "Ensuring helm version $HELMVERSION is available..." 
+    echo "Ensuring helm version $HELMVERSION is available..."
     HELMURL="https://get.helm.sh/helm-${HELMVERSION}-${UNAME}-${ARCH}.tar.gz"
 
     local helm_link_or_path=$1
