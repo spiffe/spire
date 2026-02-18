@@ -122,8 +122,11 @@ func TestCachePeriodicRebuild(t *testing.T) {
 	cache, err := New(t.Context(), log, ds, clk, true, true)
 	require.NoError(t, err)
 
+	done := make(chan struct{})
+	rebuildCtx, cncl := context.WithCancel(t.Context())
 	go func() {
-		err := cache.PeriodicRebuild(t.Context())
+		defer close(done)
+		err := cache.PeriodicRebuild(rebuildCtx)
 		require.ErrorIs(t, err, context.Canceled)
 	}()
 
@@ -157,6 +160,9 @@ func TestCachePeriodicRebuild(t *testing.T) {
 
 	cachedThirdAgent, _ = cache.LookupAttestedNode(thirdAgent.SpiffeId)
 	require.NotNil(t, cachedThirdAgent)
+
+	cncl()
+	<-done
 }
 
 func TestCacheWithoutPeriodicRebuild(t *testing.T) {
