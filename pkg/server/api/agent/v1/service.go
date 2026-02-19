@@ -480,6 +480,10 @@ func (s *Service) RenewAgent(ctx context.Context, req *agentv1.RenewAgentRequest
 func (s *Service) PostStatus(ctx context.Context, req *agentv1.PostStatusRequest) (*agentv1.PostStatusResponse, error) {
 	log := rpccontext.Logger(ctx)
 
+	if err := rpccontext.RateLimit(ctx, 1); err != nil {
+		return nil, api.MakeErr(log, status.Code(err), "rejecting request due to post status rate limiting", err)
+	}
+
 	callerID, ok := rpccontext.CallerID(ctx)
 	if !ok {
 		return nil, api.MakeErr(log, codes.Internal, "caller ID missing from request context", nil)
