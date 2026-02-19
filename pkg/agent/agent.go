@@ -26,6 +26,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/svid/store"
 	"github.com/spiffe/spire/pkg/common/backoff"
 	"github.com/spiffe/spire/pkg/common/diskutil"
+	"github.com/spiffe/spire/pkg/common/errorutil"
 	"github.com/spiffe/spire/pkg/common/health"
 	"github.com/spiffe/spire/pkg/common/nodeutil"
 	"github.com/spiffe/spire/pkg/common/profiling"
@@ -261,7 +262,7 @@ func (a *Agent) Run(ctx context.Context) error {
 
 	taskRunner.StartTasks(tasks...)
 	err = taskRunner.Wait()
-	if errors.Is(err, context.Canceled) {
+	if errors.Is(err, context.Canceled) || errorutil.IsSIGINTOrSIGTERMError(err) {
 		err = nil
 	}
 	return err

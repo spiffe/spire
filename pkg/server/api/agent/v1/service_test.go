@@ -2053,13 +2053,14 @@ func TestRenewAgent(t *testing.T) {
 
 func TestPostStatus(t *testing.T) {
 	for _, tt := range []struct {
-		name          string
-		request       *agentv1.PostStatusRequest
-		createAgent   bool
-		withCallerID  bool
-		expectCode    codes.Code
-		expectMsg     string
-		expectVersion string
+		name           string
+		request        *agentv1.PostStatusRequest
+		createAgent    bool
+		withCallerID   bool
+		expectCode     codes.Code
+		expectMsg      string
+		expectVersion  string
+		rateLimiterErr error
 	}{
 		{
 			name:         "missing caller ID",
@@ -2123,9 +2124,21 @@ func TestPostStatus(t *testing.T) {
 			expectCode:   codes.Internal,
 			expectMsg:    "grpc: error while marshaling: string field contains invalid UTF-8",
 		},
+		{
+			name:           "rate limit fails",
+			request:        &agentv1.PostStatusRequest{AgentVersion: "1.0.0", CurrentBundleSerial: 123},
+			createAgent:    true,
+			withCallerID:   true,
+			rateLimiterErr: status.Error(codes.Unknown, "rate limit fails"),
+			expectCode:     codes.Unknown,
+			expectMsg:      "rejecting request due to post status rate limiting: rate limit fails",
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			test := setupServiceTest(t, 0)
+
+			test.rateLimiter.count = 1
+			test.rateLimiter.err = tt.rateLimiterErr
 
 			if tt.createAgent {
 				_, err := test.ds.CreateAttestedNode(context.Background(), &common.AttestedNode{

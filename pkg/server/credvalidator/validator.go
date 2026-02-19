@@ -135,6 +135,33 @@ func (v *Validator) ValidateWorkloadJWTSVID(rawToken string, id spiffeid.ID) err
 	return nil
 }
 
+func (v *Validator) ValidateWorkloadWITSVID(rawToken string, id spiffeid.ID) error {
+	token, err := jwt.ParseSigned(rawToken, jwtsvid.AllowedSignatureAlgorithms)
+	if err != nil {
+		return fmt.Errorf("failed to parse WIT-SVID for validation: %w", err)
+	}
+
+	var claims jwt.Claims
+	if err := token.UnsafeClaimsWithoutVerification(&claims); err != nil {
+		return fmt.Errorf("failed to extract WIT-SVID claims for validation: %w", err)
+	}
+
+	now := v.clock.Now()
+	switch {
+	case claims.Subject != id.String():
+		return fmt.Errorf(`invalid WIT-SVID "sub" claim: expected %q but got %q`, id, claims.Subject)
+	case claims.Expiry == nil:
+		return errors.New(`invalid WIT-SVID "exp" claim: required but missing`)
+	case !claims.Expiry.Time().After(now):
+		return fmt.Errorf(`invalid WIT-SVID "exp" claim: already expired as of %s`, claims.Expiry.Time().Format(time.RFC3339))
+	case claims.NotBefore != nil && claims.NotBefore.Time().After(now):
+		return fmt.Errorf(`invalid WIT-SVID "nbf" claim: not yet valid until %s`, claims.NotBefore.Time().Format(time.RFC3339))
+	case slices.Contains(claims.Audience, ""):
+		return errors.New(`invalid WIT-SVID "aud" claim: contains empty value`)
+	}
+	return nil
+}
+
 func checkURISAN(cert *x509.Certificate, isCA bool, id spiffeid.ID) error {
 	if len(cert.URIs) == 0 {
 		if isCA {

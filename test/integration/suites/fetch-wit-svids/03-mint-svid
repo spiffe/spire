@@ -1,0 +1,36 @@
+#!/bin/bash
+
+for format in pretty json; do
+  for keySigningAlgCombo in ec-p256:ES256 ec-p384:ES384 rsa-2048:RS256 rsa-4096:RS512; do
+    keyType=$(echo $keySigningAlgCombo | cut -f 1 -d ':')
+    signingAlgorithm=$(echo $keySigningAlgCombo | cut -f 2 -d ':')
+
+    docker compose exec -T -e SPIRE_SERVER_FFLAGS="wit-svid" spire-server /opt/spire/bin/spire-server \
+      wit mint -spiffeID "spiffe://domain.test/workload" \
+      -keyType "${keyType}" \
+      -signingAlgorithm "${signingAlgorithm}" \
+      -output ${format} || fail-now "could not mint WIT-SVID using key type '${keyType}' and signing algorithm '${signingAlgorithm}'"
+  done
+done
+
+# Check and invalid signing algorithm
+docker compose exec -T -e SPIRE_SERVER_FFLAGS="wit-svid" spire-server /opt/spire/bin/spire-server \
+  wit mint -spiffeID "spiffe://domain.test/workload" \
+  -keyType "ec-p256" \
+  -signingAlgorithm "ES123" \
+  -output ${format} && fail-now "could mint WIT-SVID with invalid signing algorithm"
+
+# Check and invalid signing algorithm for the specified key type
+docker compose exec -T -e SPIRE_SERVER_FFLAGS="wit-svid" spire-server /opt/spire/bin/spire-server \
+  wit mint -spiffeID "spiffe://domain.test/workload" \
+  -keyType "ec-p256" \
+  -signingAlgorithm "RS256" \
+  -output ${format} && fail-now "could mint WIT-SVID with invalid signing algorithm for key type"
+
+# Check that we can specify a custom TTL
+docker compose exec -T -e SPIRE_SERVER_FFLAGS="wit-svid" spire-server /opt/spire/bin/spire-server \
+  wit mint -spiffeID "spiffe://domain.test/workload" -ttl 60s || fail-now "could not mint WIT-SVID with custom TTL"
+
+# Check that WIT-SVID can be written to a directory
+docker compose exec -T -e SPIRE_SERVER_FFLAGS="wit-svid" spire-server /opt/spire/bin/spire-server \
+  wit mint -spiffeID "spiffe://domain.test/workload" -write /tmp || fail-now "could not write WIT-SVID to /tmp"
