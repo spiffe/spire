@@ -28,6 +28,15 @@ func spiffeIDFromProto(protoID *types.SPIFFEID) (string, error) {
 	return id.String(), nil
 }
 
+func additionalAttributesFromProto(in *types.Entry_AdditionalAttributes) *common.RegistrationEntry_AdditionalAttributes {
+	if in != nil {
+		return &common.RegistrationEntry_AdditionalAttributes{
+			DisableX509SvidPrefetch: in.DisableX509SvidPrefetch,
+		}
+	}
+	return nil
+}
+
 func slicedEntryFromProto(e *types.Entry) (*common.RegistrationEntry, error) {
 	if e == nil {
 		return nil, errors.New("missing entry")
@@ -72,15 +81,16 @@ func slicedEntryFromProto(e *types.Entry) (*common.RegistrationEntry, error) {
 	}
 
 	return &common.RegistrationEntry{
-		EntryId:        e.Id,
-		SpiffeId:       spiffeID,
-		FederatesWith:  federatesWith,
-		RevisionNumber: e.RevisionNumber,
-		Selectors:      selectors,
-		StoreSvid:      e.StoreSvid,
-		Admin:          e.Admin,
-		Downstream:     e.Downstream,
-		Hint:           e.Hint,
-		CreatedAt:      e.CreatedAt,
+		EntryId:              e.Id,
+		SpiffeId:             spiffeID,
+		FederatesWith:        federatesWith,
+		RevisionNumber:       e.RevisionNumber,
+		Selectors:            selectors,
+		StoreSvid:            e.StoreSvid,
+		Admin:                e.Admin,
+		Downstream:           e.Downstream,
+		Hint:                 e.Hint,
+		CreatedAt:            e.CreatedAt,
+		AdditionalAttributes: additionalAttributesFromProto(e.AdditionalAttributes),
 	}, nil
 }
