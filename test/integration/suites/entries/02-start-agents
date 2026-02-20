@@ -59,8 +59,7 @@ docker compose exec -T spire-server \
   -entryID prefetch-disabled \
   -parentID "spiffe://domain.test/cluster/test" \
   -spiffeID "spiffe://domain.test/workload-with-prefetch-disabled" \
-  -selector "unix:uid:1004" \
-  -disableX509SVIDPrefetch
+  -selector "unix:uid:1004"
 
 check-synced-entry "spire-agent-1" "spiffe://domain.test/workload-agent-1"
 check-synced-entry "spire-agent-2" "spiffe://domain.test/workload-agent-2"
