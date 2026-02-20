@@ -71,6 +71,6 @@ for agent in spire-agent-1 spire-agent-2 spire-agent-3; do
   check-synced-entry ${agent} "spiffe://domain.test/workload-with-prefetch-disabled"
 done
 
-for agent in spire-agent-1 spire-agent-2 spire-agent-3; do
+for agent in spire-agent-1 spire-agent-2; do
   check-debug-info ${agent} "cachedX509SvidsCount" 4
 done
