@@ -50,7 +50,7 @@ func TestValidateChallenge(t *testing.T) {
 			agentName: "ok",
 			nonce:     "1234",
 			testNonce: "1235",
-			expectErr: "expected nonce \"1235\" but got \"1234\"",
+			expectErr: "expected nonce was not found in HTTP response",
 		},
 		{
 			desc:      "success",

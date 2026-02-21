@@ -95,7 +95,7 @@ func VerifyChallenge(ctx context.Context, client *http.Client, attestationData *
 	}
 	nonce := strings.TrimSpace(string(body))
 	if nonce != challenge.Nonce {
-		return fmt.Errorf("expected nonce %q but got %q", challenge.Nonce, body)
+		return errors.New("expected nonce was not found in HTTP response")
 	}
 	return nil
 }
