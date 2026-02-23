@@ -80,7 +80,7 @@ require (
 	github.com/spiffe/spire-plugin-sdk v1.4.4-0.20251120194148-791bbd274dc7
 	github.com/stretchr/testify v1.11.1
 	github.com/uber-go/tally/v4 v4.1.17
-	github.com/valyala/fastjson v1.6.7
+	github.com/valyala/fastjson v1.6.10
 	golang.org/x/crypto v0.48.0
 	golang.org/x/exp v0.0.0-20250620022241-b7579e27df2b
 	golang.org/x/net v0.50.0
