@@ -192,7 +192,7 @@ jobs:
           path: images.tar.gz
 
   images-windows:
-    name: images (windows)
+    name: images (windows-test)
     runs-on: windows-2022
     needs: artifacts-windows
     timeout-minutes: 45
