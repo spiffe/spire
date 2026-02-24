@@ -211,19 +211,26 @@ jobs:
       - name: Wait for Docker to be ready
         run: |
           Write-Host "Waiting for Docker to be ready..."
-          for ($i = 1; $i -le 30; $i++) {
+          $serviceStarted = $false
+          for ($i = 1; $i -le 60; $i++) {
             $output = docker info 2>&1
             if ($LASTEXITCODE -eq 0) {
               Write-Host "Docker is ready!"
               exit 0
             }
-            Write-Host "Attempt $i/30: Docker not ready yet..."
-            if ($i -eq 1 -or $i -eq 30) {
-              Write-Host "Error details: $output"
+            
+            # Try to start Docker service on first failure
+            if (-not $serviceStarted) {
+              Write-Host "Attempting to start Docker service..."
+              Start-Service -Name com.docker.service -ErrorAction SilentlyContinue
+              $serviceStarted = $true
             }
+            
+            Write-Host "Attempt $i/60: Docker not ready yet..."
+            Write-Host "Error details: $output"
             Start-Sleep -Seconds 2
           }
-          Write-Error "Docker failed to start after 30 attempts. Last error: $output"
+          Write-Error "Docker failed to start after 60 attempts. Last error: $output"
           exit 1
         shell: pwsh
       - name: Build images
