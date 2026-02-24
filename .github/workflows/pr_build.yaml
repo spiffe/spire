@@ -211,42 +211,40 @@ jobs:
       - name: Wait for Docker to be ready
         run: |
           Write-Host "Waiting for Docker to be ready..."
-          # List all services containing 'docker' for debugging
-          Write-Host "Available Docker-related services:"
-          Get-Service | Where-Object { $_.Name -like '*docker*' -or $_.DisplayName -like '*docker*' } | Format-Table -AutoSize
-          
-          $serviceStarted = $false
-          for ($i = 1; $i -le 60; $i++) {
 
+          for ($i = 1; $i -le 60; $i++) {
+            # Check if Docker is ready
             $output = docker info 2>&1
             if ($LASTEXITCODE -eq 0) {
               Write-Host "Docker is ready!"
               exit 0
             }
 
-            # Try to start Docker service on first failure
-            if (-not $serviceStarted) {
-              Write-Host "Attempting to start Docker service..."
-              
-              # Try common Docker service names on Windows
-              $services = @('docker', 'com.docker.service', 'Docker Desktop Service')
-              foreach ($svc in $services) {
-                $service = Get-Service -Name $svc -ErrorAction SilentlyContinue
-                if ($service) {
-                  Write-Host "Found service: $svc (Status: $($service.Status))"
-                  if ($service.Status -ne 'Running') {
-                    Start-Service -Name $svc -ErrorAction SilentlyContinue
-                  }
+            # Show progress (detailed every 10 attempts)
+            Write-Host "Attempt $i/60 - Still waiting... Error: $output"
+
+            # On first attempt, list and start Docker services
+            if ($i -eq 1) {
+              Write-Host "Checking for Docker services..."
+              $dockerServices = Get-Service | Where-Object { $_.Name -like '*docker*' -or $_.DisplayName -like '*docker*' }
+              if ($dockerServices) {
+                Write-Host "Available Docker services:"
+                $dockerServices | Format-Table Name, Status, DisplayName -AutoSize
+
+                # Start any stopped Docker services
+                $dockerServices | Where-Object { $_.Status -ne 'Running' } | ForEach-Object {
+                  Write-Host "Starting service: $($_.Name)"
+                  Start-Service $_.Name -ErrorAction SilentlyContinue
                 }
+              } else {
+                Write-Error "No Docker services found. Please ensure Docker is installed and configured correctly."
+                exit 1
               }
-              $serviceStarted = $true
             }
-            
-            Write-Host "Attempt $i/60: Docker not ready yet..."
-            Write-Host "Error details: $output"
             Start-Sleep -Seconds 2
           }
-          Write-Error "Docker failed to start after 60 attempts. Last error: $output"
+
+          Write-Error "Docker failed to start after 60 attempts"
           exit 1
         shell: pwsh
       - name: Build images
