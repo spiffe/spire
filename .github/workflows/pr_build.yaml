@@ -211,10 +211,12 @@ jobs:
       - name: Wait for Docker to be ready
         run: |
           Write-Host "Waiting for Docker to be ready..."
+          # List all services containing 'docker' for debugging
+          Write-Host "Available Docker-related services:"
+          Get-Service | Where-Object { $_.Name -like '*docker*' -or $_.DisplayName -like '*docker*' } | Format-Table -AutoSize
+          
           $serviceStarted = $false
           for ($i = 1; $i -le 60; $i++) {
-            Write-Host "Docker not ready yet. Checking Buildx status..."
-            docker buildx ls
 
             $output = docker info 2>&1
             if ($LASTEXITCODE -eq 0) {
@@ -225,7 +227,18 @@ jobs:
             # Try to start Docker service on first failure
             if (-not $serviceStarted) {
               Write-Host "Attempting to start Docker service..."
-              Start-Service -Name com.docker.service
+              
+              # Try common Docker service names on Windows
+              $services = @('docker', 'com.docker.service', 'Docker Desktop Service')
+              foreach ($svc in $services) {
+                $service = Get-Service -Name $svc -ErrorAction SilentlyContinue
+                if ($service) {
+                  Write-Host "Found service: $svc (Status: $($service.Status))"
+                  if ($service.Status -ne 'Running') {
+                    Start-Service -Name $svc -ErrorAction SilentlyContinue
+                  }
+                }
+              }
               $serviceStarted = $true
             }
             
