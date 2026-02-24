@@ -208,6 +208,29 @@ jobs:
         with:
           path: ./bin/
           key: ${{ runner.os }}-executables-${{ github.sha }}
+      - name: Wait for Docker to be ready
+        run: |
+          $maxRetries = 30
+          $retryCount = 0
+          $dockerReady = $false
+
+          while (-not $dockerReady -and $retryCount -lt $maxRetries) {
+            try {
+              docker info | Out-Null
+              $dockerReady = $true
+              Write-Host "Docker is ready!"
+            } catch {
+              $retryCount++
+              Write-Host "Docker not ready yet, attempt $retryCount/$maxRetries..."
+              Start-Sleep -Seconds 2
+            }
+          }
+
+          if (-not $dockerReady) {
+            Write-Error "Docker failed to start after $maxRetries attempts"
+            exit 1
+          }
+        shell: pwsh
       - name: Build images
         run: make images-windows
       - name: Export images
