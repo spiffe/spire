@@ -208,6 +208,8 @@ jobs:
         with:
           path: ./bin/
           key: ${{ runner.os }}-executables-${{ github.sha }}
+      - name: Check docker version
+        run: docker version
       - name: Build images
         run: make images-windows
       - name: Export images
