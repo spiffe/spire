@@ -629,6 +629,10 @@ func (s *Suite) TestConfigure() {
 }
 
 func (s *Suite) TestConfigureWithSigstore() {
+	// Make sure sigstore caches things in memory instead of trying
+	// to cache them to some directory.
+	s.T().Setenv("SIGSTORE_NO_CACHE", "true")
+
 	cases := []struct {
 		name          string
 		trustDomain   string
