@@ -26,12 +26,13 @@ type Server interface {
 }
 
 type Endpoints struct {
-	addr              net.Addr
-	log               logrus.FieldLogger
-	metrics           telemetry.Metrics
-	workloadAPIServer workload_pb.SpiffeWorkloadAPIServer
-	sdsv3Server       secret_v3.SecretDiscoveryServiceServer
-	healthServer      grpc_health_v1.HealthServer
+	addr                 net.Addr
+	log                  logrus.FieldLogger
+	metrics              telemetry.Metrics
+	workloadAPIServer    workload_pb.SpiffeWorkloadAPIServer
+	sdsv3Server          secret_v3.SecretDiscoveryServiceServer
+	healthServer         grpc_health_v1.HealthServer
+	workloadAPIRateLimit WorkloadAPIRateLimitConfig
 
 	hooks struct {
 		listening chan struct{} // Hook to signal when the server starts listening
@@ -84,12 +85,13 @@ func New(c Config) *Endpoints {
 	})
 
 	return &Endpoints{
-		addr:              c.BindAddr,
-		log:               c.Log,
-		metrics:           c.Metrics,
-		workloadAPIServer: workloadAPIServer,
-		sdsv3Server:       sdsv3Server,
-		healthServer:      healthServer,
+		addr:                 c.BindAddr,
+		log:                  c.Log,
+		metrics:              c.Metrics,
+		workloadAPIServer:    workloadAPIServer,
+		sdsv3Server:          sdsv3Server,
+		healthServer:         healthServer,
+		workloadAPIRateLimit: c.WorkloadAPIRateLimit,
 		hooks: struct {
 			listening chan struct{}
 		}{
@@ -100,7 +102,7 @@ func New(c Config) *Endpoints {
 
 func (e *Endpoints) ListenAndServe(ctx context.Context) error {
 	unaryInterceptor, streamInterceptor := middleware.Interceptors(
-		Middleware(e.log, e.metrics),
+		Middleware(e.log, e.metrics, e.workloadAPIRateLimit),
 	)
 
 	server := grpc.NewServer(

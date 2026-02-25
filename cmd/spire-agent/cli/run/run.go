@@ -94,6 +94,8 @@ type agentConfig struct {
 
 	AuthorizedDelegates []string `hcl:"authorized_delegates"`
 
+	RateLimit workloadAPIRateLimitConfig `hcl:"ratelimit"`
+
 	ConfigPath string
 	ExpandEnv  bool
 
@@ -112,6 +114,16 @@ type sdsConfig struct {
 	DefaultBundleName           string `hcl:"default_bundle_name"`
 	DefaultAllBundlesName       string `hcl:"default_all_bundles_name"`
 	DisableSPIFFECertValidation bool   `hcl:"disable_spiffe_cert_validation"`
+}
+
+type workloadAPIRateLimitConfig struct {
+	FetchX509SVID    *int `hcl:"fetch_x509_svid"`
+	FetchX509Bundles *int `hcl:"fetch_x509_bundles"`
+	FetchJWTSVID     *int `hcl:"fetch_jwt_svid"`
+	FetchJWTBundles  *int `hcl:"fetch_jwt_bundles"`
+	ValidateJWTSVID  *int `hcl:"validate_jwt_svid"`
+
+	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions"`
 }
 
 type experimentalConfig struct {
@@ -601,6 +613,36 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 
 	tlspolicy.LogPolicy(ac.TLSPolicy, log.NewHCLogAdapter(logger, "tlspolicy"))
 
+	rl := c.Agent.RateLimit
+	intVal := func(p *int) int {
+		if p == nil {
+			return 0
+		}
+		return *p
+	}
+	if v := intVal(rl.FetchX509SVID); v < 0 {
+		return nil, errors.New("ratelimit.fetch_x509_svid must not be negative")
+	}
+	if v := intVal(rl.FetchX509Bundles); v < 0 {
+		return nil, errors.New("ratelimit.fetch_x509_bundles must not be negative")
+	}
+	if v := intVal(rl.FetchJWTSVID); v < 0 {
+		return nil, errors.New("ratelimit.fetch_jwt_svid must not be negative")
+	}
+	if v := intVal(rl.FetchJWTBundles); v < 0 {
+		return nil, errors.New("ratelimit.fetch_jwt_bundles must not be negative")
+	}
+	if v := intVal(rl.ValidateJWTSVID); v < 0 {
+		return nil, errors.New("ratelimit.validate_jwt_svid must not be negative")
+	}
+	ac.WorkloadAPIRateLimit = agent.WorkloadAPIRateLimitConfig{
+		FetchX509SVID:    intVal(rl.FetchX509SVID),
+		FetchX509Bundles: intVal(rl.FetchX509Bundles),
+		FetchJWTSVID:     intVal(rl.FetchJWTSVID),
+		FetchJWTBundles:  intVal(rl.FetchJWTBundles),
+		ValidateJWTSVID:  intVal(rl.ValidateJWTSVID),
+	}
+
 	if cmp.Diff(experimentalConfig{}, c.Agent.Experimental) != "" {
 		logger.Warn("Experimental features have been enabled. Please see doc/upgrading.md for upgrade and compatibility considerations for experimental features.")
 	}
@@ -678,6 +720,10 @@ func checkForUnknownConfig(c *Config, l logrus.FieldLogger) (err error) {
 
 	if len(c.HealthChecks.UnusedKeyPositions) != 0 {
 		detectedUnknown("health check", c.HealthChecks.UnusedKeyPositions)
+	}
+
+	if a := c.Agent; a != nil && len(a.RateLimit.UnusedKeyPositions) != 0 {
+		detectedUnknown("ratelimit", a.RateLimit.UnusedKeyPositions)
 	}
 
 	return err
