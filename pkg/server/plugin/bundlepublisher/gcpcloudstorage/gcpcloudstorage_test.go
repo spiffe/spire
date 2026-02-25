@@ -166,7 +166,7 @@ func TestConfigure(t *testing.T) {
 			// It's important to check that the configuration has been wired
 			// up to the gcs config, that needs to have the specified service
 			// account file.
-			require.Equal(t, []option.ClientOption{option.WithCredentialsFile(tt.config.ServiceAccountFile)}, client.clientOptions)
+			require.Equal(t, []option.ClientOption{option.WithAuthCredentialsFile(option.ServiceAccount, tt.config.ServiceAccountFile)}, client.clientOptions)
 		})
 	}
 }

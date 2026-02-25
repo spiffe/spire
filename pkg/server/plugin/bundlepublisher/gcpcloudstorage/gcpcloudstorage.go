@@ -135,7 +135,7 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 
 	var opts []option.ClientOption
 	if newConfig.ServiceAccountFile != "" {
-		opts = append(opts, option.WithCredentialsFile(newConfig.ServiceAccountFile))
+		opts = append(opts, option.WithAuthCredentialsFile(option.ServiceAccount, newConfig.ServiceAccountFile))
 	}
 	gcsClient, err := p.hooks.newGCSClientFunc(ctx, opts...)
 	if err != nil {
@@ -156,7 +156,7 @@ func (p *Plugin) Validate(ctx context.Context, req *configv1.ValidateRequest) (*
 	return &configv1.ValidateResponse{
 		Valid: err == nil,
 		Notes: notes,
-	}, err
+	}, nil
 }
 
 // PublishBundle puts the bundle in the configured GCS bucket and object name.

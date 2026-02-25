@@ -40,6 +40,27 @@ The plugin attempts to detect and prune stale aliases. To facilitate stale alias
 
 The plugin also attempts to detect and prune stale keys. All keys managed by the plugin are assigned a `Description` of the form `SPIRE_SERVER/{TRUST_DOMAIN}`. The plugin periodically scans the keys. Any key with a `Description` matching the proper form, that is both unassociated with any alias and has a `CreationDate` older than 48 hours, is removed.
 
+### Key tagging
+
+The plugin supports tagging of KMS keys with user-defined tags using the `key_tags` configuration option. These tags are specified as key-value pairs and are applied to all KMS keys created by the plugin.
+
+When using key tagging, you must add the `kms:TagResource` permission to the IAM policy. Key creation will fail without this permission.
+
+**Tag constraints**
+
+- Tag keys must be 1-128 characters long
+- Tag values can be 0-256 characters long
+- Maximum of 50 tags (AWS KMS limit)
+- Tag keys and values must use valid characters: letters, numbers, spaces, and the following special characters: `+ - = . _ : / @`
+- Tag keys cannot start with `aws:` (reserved by AWS)
+- Tag keys cannot start with `spire-` (reserved for future use)
+
+**Tag validation**
+The plugin validates all user-defined tags during configuration. If any tag violates AWS KMS tagging constraints, the plugin will fail to configure and report a detailed error message indicating the specific validation failure.
+
+**Tag lifecycle**
+When the `key_tags` configuration block is updated, only newly created keys will be tagged with the new configuration. Existing keys will not have their tags updated.
+
 ### AWS KMS Access
 
 Access to AWS KMS can be given by either setting the `access_key_id` and `secret_access_key`, or by ensuring that the plugin runs on an EC2 instance with a given IAM role that has a specific set of permissions.
@@ -54,6 +75,7 @@ The IAM role must have an attached policy with the following permissions:
 - `kms:ListAliases`
 - `kms:ScheduleKeyDeletion`
 - `kms:Sign`
+- `kms:TagResource` (required when using key tagging)
 - `kms:UpdateAlias`
 - `kms:DeleteAlias`
 
@@ -106,11 +128,29 @@ is set, the plugin uses the policy defined in the file instead of the default po
 
 ## Sample Plugin Configuration
 
+### Basic configuration
+
 ```hcl
 KeyManager "aws_kms" {
-    plugin_data {        
+    plugin_data {
         region = "us-east-2"
         key_metadata_file = "./key_metadata"
+    }
+}
+```
+
+### Configuration with tags
+
+```hcl
+KeyManager "aws_kms" {
+    plugin_data {
+        region = "us-east-2"
+        key_metadata_file = "./key_metadata"
+        key_tags = {
+            Environment = "production"
+            Team        = "security"
+            Component   = "spire"
+        }
     }
 }
 ```

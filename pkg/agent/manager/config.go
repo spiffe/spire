@@ -35,7 +35,7 @@ type Config struct {
 	Metrics                  telemetry.Metrics
 	ServerAddr               string
 	Storage                  storage.Storage
-	TrustBundleSources       *trustbundlesources.Bundle
+	TrustBundleSources       trustbundlesources.Bundle
 	RebootstrapMode          string
 	RebootstrapDelay         time.Duration
 	WorkloadKeyType          workloadkey.KeyType

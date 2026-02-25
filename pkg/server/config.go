@@ -89,6 +89,9 @@ type Config struct {
 	// JWTKeyType is the key type used for JWT signing keys
 	JWTKeyType keymanager.KeyType
 
+	// WITKeyType is the key type used for WIT signing keys
+	WITKeyType keymanager.KeyType
+
 	// Federation holds the configuration needed to federate with other
 	// trust domains.
 	Federation FederationConfig
@@ -122,7 +125,7 @@ type Config struct {
 	TLSPolicy tlspolicy.Policy
 
 	// PruneAttestedNodesExpiredFor enables periodic removal of attested nodes
-	// with X509-SVID expiration date further than a given time intervaln in the
+	// with X509-SVID expiration date further than a given time interval in the
 	// past. Non-reattestable nodes are not pruned by default. Banned nodes are
 	// not pruned.
 	PruneAttestedNodesExpiredFor time.Duration
@@ -134,6 +137,12 @@ type Config struct {
 	// MaxAttestedNodeInfoStaleness determines how long to trust cached attested
 	// node information, before requiring refreshing it from the datastore.
 	MaxAttestedNodeInfoStaleness time.Duration
+
+	// DisableJWTSVIDs, if true, JWT-SVID profile is disabled
+	DisableJWTSVIDs bool
+
+	// DisableWITSVIDs, if true, WIT-SVID profile is disabled
+	DisableWITSVIDs bool
 }
 
 type ExperimentalConfig struct{}

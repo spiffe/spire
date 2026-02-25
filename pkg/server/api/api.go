@@ -52,5 +52,6 @@ func AttestedNodeToProto(node *common.AttestedNode, selectors []*types.Selector)
 		Selectors:            selectors,
 		Banned:               nodeutil.IsAgentBanned(node),
 		CanReattest:          node.CanReattest,
+		AgentVersion:         node.AgentVersion,
 	}, nil
 }

@@ -187,8 +187,8 @@ func TestHostForwarding(t *testing.T) {
 		return challenge, nil
 	})
 
+	require.NoError(t, err)
 	require.NotNil(t, result)
-	require.Nil(t, err)
 }
 
 func loadV1Plugin(t *testing.T, plugin *fakeV1Plugin) nodeattestor.NodeAttestor {

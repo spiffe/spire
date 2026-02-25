@@ -30,7 +30,8 @@ func BundleToProto(b *common.Bundle) (*types.Bundle, error) {
 		RefreshHint:     b.RefreshHint,
 		SequenceNumber:  b.SequenceNumber,
 		X509Authorities: CertificatesToProto(b.RootCas),
-		JwtAuthorities:  PublicKeysToProto(b.JwtSigningKeys),
+		JwtAuthorities:  PublicKeysToJWTKeys(b.JwtSigningKeys),
+		WitAuthorities:  PublicKeysToWITKeys(b.WitSigningKeys),
 	}, nil
 }
 
@@ -45,7 +46,7 @@ func CertificatesToProto(rootCas []*common.Certificate) []*types.X509Certificate
 
 	return x509Authorities
 }
-func PublicKeysToProto(keys []*common.PublicKey) []*types.JWTKey {
+func PublicKeysToJWTKeys(keys []*common.PublicKey) []*types.JWTKey {
 	var jwtAuthorities []*types.JWTKey
 	for _, key := range keys {
 		jwtAuthorities = append(jwtAuthorities, &types.JWTKey{
@@ -56,6 +57,19 @@ func PublicKeysToProto(keys []*common.PublicKey) []*types.JWTKey {
 		})
 	}
 	return jwtAuthorities
+}
+
+func PublicKeysToWITKeys(keys []*common.PublicKey) []*types.WITKey {
+	var witAuthorities []*types.WITKey
+	for _, key := range keys {
+		witAuthorities = append(witAuthorities, &types.WITKey{
+			PublicKey: key.PkixBytes,
+			KeyId:     key.Kid,
+			ExpiresAt: key.NotAfter,
+			Tainted:   key.TaintedKey,
+		})
+	}
+	return witAuthorities
 }
 
 func ProtoToBundle(b *types.Bundle) (*common.Bundle, error) {

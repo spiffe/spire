@@ -14,3 +14,6 @@ go test -c -o "${DIR}"/mysql-replicated.test -ldflags "-X github.com/spiffe/spir
 
 log-debug "copying over test data..."
 cp -r "${PKGDIR}"/testdata .
+
+log-debug "pulling mysql docker images..."
+docker compose pull

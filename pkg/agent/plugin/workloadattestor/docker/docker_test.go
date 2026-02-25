@@ -70,6 +70,7 @@ func TestDockerSelectors(t *testing.T) {
 			desc:        "image id",
 			mockImageID: "my-docker-image",
 			expectSelectorValues: []string{
+				"image_config_digest:my-docker-image",
 				"image_id:my-docker-image",
 			},
 		},
@@ -329,9 +330,108 @@ func TestSigstoreVerifier(t *testing.T) {
 		"env:VAR=val",
 		"label:label:value",
 		fmt.Sprintf("image_id:%s", testImageID),
+		fmt.Sprintf("image_config_digest:%s", testImageID),
 		"sigstore:selector",
 	}
 	require.ElementsMatch(t, expectedSelectors, selectors)
+}
+
+func TestNoImageName_NoSigstore_NoDigest(t *testing.T) {
+	// Container has empty Image and Sigstore disabled - we should not inspect.
+	d := fakeContainer{
+		Labels: map[string]string{"k": "v"},
+		Image:  "",
+		Env:    []string{"E=V"},
+	}
+	p := newTestPlugin(t, withDocker(d), withDefaultDataOpt(t))
+
+	selectors, err := doAttest(t, p)
+	require.NoError(t, err)
+	// Should NOT include image_config_digest
+	require.NotContains(t, selectors, "image_config_digest:")
+}
+
+type dockerImageInspectError struct {
+	cfg container.Config
+}
+
+func (d dockerImageInspectError) ContainerInspect(_ context.Context, _ string) (container.InspectResponse, error) {
+	c := d.cfg
+	return container.InspectResponse{Config: &c}, nil
+}
+
+func (dockerImageInspectError) ImageInspectWithRaw(context.Context, string) (image.InspectResponse, []byte, error) {
+	return image.InspectResponse{}, nil, errors.New("boom")
+}
+
+func TestImageInspectError_NoSigstore_SkipsDigest(t *testing.T) {
+	d := dockerImageInspectError{
+		cfg: container.Config{
+			Image:  testImageID,
+			Labels: map[string]string{"k": "v"},
+			Env:    []string{"E=V"},
+		},
+	}
+	p := newTestPlugin(t, withDocker(d), withDefaultDataOpt(t))
+
+	selectors, err := doAttest(t, p)
+	require.NoError(t, err)
+	// We still get image_id, but not image_config_digest
+	require.Contains(t, selectors, fmt.Sprintf("image_id:%s", testImageID))
+	for _, s := range selectors {
+		require.NotContains(t, s, "image_config_digest:")
+	}
+}
+
+func TestImageInspectError_WithSigstore_Fatal(t *testing.T) {
+	d := dockerImageInspectError{
+		cfg: container.Config{
+			Image: testImageID,
+		},
+	}
+	fakeVerifier := &fakeSigstoreVerifier{
+		expectedImageID: testImageID,
+		selectors:       nil,
+		err:             nil,
+	}
+	p := newTestPlugin(t, withDocker(d), withDefaultDataOpt(t), withSigstoreVerifier(fakeVerifier))
+
+	selectors, err := doAttest(t, p)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "failed to inspect image")
+	require.Nil(t, selectors)
+}
+
+type dockerNoRepoDigests struct {
+	cfg container.Config
+}
+
+func (d dockerNoRepoDigests) ContainerInspect(_ context.Context, _ string) (container.InspectResponse, error) {
+	c := d.cfg
+	return container.InspectResponse{Config: &c}, nil
+}
+
+func (dockerNoRepoDigests) ImageInspectWithRaw(_ context.Context, _ string) (image.InspectResponse, []byte, error) {
+	// ID is present so image_config_digest would be emitted if we reached that point;
+	// empty RepoDigests should cause sigstore path to fail.
+	return image.InspectResponse{ID: "sha256:abc"}, nil, nil
+}
+
+func TestSigstore_NoRepoDigests_Fatal(t *testing.T) {
+	d := dockerNoRepoDigests{
+		cfg: container.Config{Image: testImageID},
+	}
+	fakeVerifier := &fakeSigstoreVerifier{
+		expectedImageID: testImageID,
+		selectors:       nil,
+		err:             nil,
+	}
+	p := newTestPlugin(t, withDocker(d), withDefaultDataOpt(t), withSigstoreVerifier(fakeVerifier))
+
+	selectors, err := doAttest(t, p)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "no repo digest")
+	require.Nil(t, selectors)
 }
 
 func doAttest(t *testing.T, p *Plugin) ([]string, error) {

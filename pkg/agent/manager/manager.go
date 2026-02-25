@@ -22,6 +22,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/rotationutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/util"
+	"github.com/spiffe/spire/pkg/common/version"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/pkg/server/api/limits"
 	"github.com/spiffe/spire/proto/spire/common"
@@ -195,6 +196,12 @@ func (m *manager) Initialize(ctx context.Context) error {
 	m.syncedEntries = make(map[string]*common.RegistrationEntry)
 	m.syncedBundles = make(map[string]*common.Bundle)
 
+	// Post agent status with version information to the server
+	if err := m.client.PostStatus(ctx, version.Version()); err != nil {
+		// Log the error but don't fail initialization - the server may not support this yet
+		m.c.Log.WithField(telemetry.AgentVersion, version.Version()).WithError(err).Error("Failed to post agent status")
+	}
+
 	err := m.synchronize(ctx)
 	if nodeutil.ShouldAgentReattest(err) {
 		m.c.Log.WithError(err).Error("Agent needs to re-attest: removing SVID and shutting down")
@@ -289,7 +296,7 @@ func (m *manager) FetchWorkloadUpdate(selectors []*common.Selector) *cache.Workl
 func (m *manager) FetchJWTSVID(ctx context.Context, entry *common.RegistrationEntry, audience []string) (*client.JWTSVID, error) {
 	spiffeID, err := spiffeid.FromString(entry.SpiffeId)
 	if err != nil {
-		return nil, errors.New("Invalid SPIFFE ID: " + err.Error())
+		return nil, fmt.Errorf("invalid SPIFFE ID: %w", err)
 	}
 
 	now := m.clk.Now()
@@ -298,7 +305,12 @@ func (m *manager) FetchJWTSVID(ctx context.Context, entry *common.RegistrationEn
 		return cachedSVID, nil
 	}
 
-	newSVID, err := m.client.NewJWTSVID(ctx, entry.EntryId, audience)
+	// Determine if an unexpired JWT-SVID exists in the cache to pass
+	// to NewJWTSVID method. If this is true, we'll fall back to the
+	// cache hit more quickly rather than wait longer for the Server
+	isCacheHit := ok && !rotationutil.JWTSVIDExpired(cachedSVID, now)
+
+	newSVID, svidSPIFFEID, err := m.client.NewJWTSVID(ctx, entry.EntryId, audience, isCacheHit)
 	switch {
 	case err == nil:
 	case cachedSVID == nil:
@@ -310,7 +322,7 @@ func (m *manager) FetchJWTSVID(ctx context.Context, entry *common.RegistrationEn
 		return cachedSVID, nil
 	}
 
-	m.cache.SetJWTSVID(spiffeID, audience, newSVID)
+	m.cache.SetJWTSVID(svidSPIFFEID, audience, newSVID)
 	return newSVID, nil
 }
 

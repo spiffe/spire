@@ -44,3 +44,12 @@ services:
       - /var/lib/postgresql
     ports:
       - "9999:5432"
+  postgres-18:
+    image: postgres:18
+    command: -c fsync=off
+    environment:
+      - POSTGRES_PASSWORD=password
+    tmpfs:
+      - /var/lib/postgresql
+    ports:
+      - "9999:5432"

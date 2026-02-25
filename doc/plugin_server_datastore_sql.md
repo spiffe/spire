@@ -61,6 +61,12 @@ connection_string="dbname=postgres user=postgres password=password host=localhos
 
 Consult the [lib/pq driver documentation](https://pkg.go.dev/github.com/lib/pq#hdr-Connection_String_Parameters) for more `connection_string` options.
 
+#### Supported PostgreSQL versions
+
+We use [lib/pq](https://github.com/lib/pq) driver so we currently support the versions of PostgreSQL that the library supports. This
+usually means the current set of supported maintained versions. We run [integration tests](../test/integration/suites/datastore-postgres) against
+a number of versions. Older versions may still work, but they are not tested.
+
 #### Configuration Options
 
 * dbname - The name of the database to connect to
@@ -100,6 +106,12 @@ Consult the [lib/pq driver documentation](https://pkg.go.dev/github.com/lib/pq#h
     }
 ```
 
+#### Google Cloud SQL Proxy Support
+
+The PostgreSQL datastore supports connecting to [Google Cloud SQL](https://cloud.google.com/sql/docs/postgres) instances via the Cloud SQL Proxy. This support is enabled automatically when using a Cloud SQL connection string. The plugin includes the Cloud SQL Proxy PostgreSQL dialer, which handles secure connections to Cloud SQL PostgreSQL instances transparently.
+
+When connecting to a Cloud SQL PostgreSQL instance, use a connection string with the Cloud SQL instance connection name format. The Cloud SQL Proxy will automatically manage authentication and encryption.
+
 ### `database_type = "mysql"`
 
 The `connection_string` for the MySQL database connection consists of the number of configuration options (optional parts marked by square brackets):
@@ -115,6 +127,11 @@ connection_string="username:password@tcp(localhost:3306)/dbname?parseTime=true"
 ```
 
 Consult the [MySQL driver repository](https://github.com/go-sql-driver/mysql#usage) for more `connection_string` options.
+
+#### Supported MySQL versions
+
+We support all currently maintainted versions of MySQL and run [integration tests](../test/integration/suites/datastore-mysql/) against LTS releases. Older versions of
+may still work, but are not tested.
 
 #### Configuration Options
 
@@ -136,6 +153,12 @@ If you need to use custom Root CA, just specify `root_ca_path` in the plugin con
         }
     }
 ```
+
+#### Google Cloud SQL Proxy Support
+
+The MySQL datastore supports connecting to [Google Cloud SQL](https://cloud.google.com/sql/docs/mysql) instances via the Cloud SQL Proxy. This support is enabled automatically when using a Cloud SQL connection string. The plugin includes the Cloud SQL Proxy MySQL dialer, which handles secure connections to Cloud SQL MySQL instances transparently.
+
+When connecting to a Cloud SQL MySQL instance, use a connection string with the Cloud SQL instance connection name format. The Cloud SQL Proxy will automatically manage authentication and encryption.
 
 ### IAM Authentication
 

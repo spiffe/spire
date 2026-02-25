@@ -25,6 +25,7 @@ import (
 	"github.com/mitchellh/cli"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/agent"
+	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/agent/trustbundlesources"
 	"github.com/spiffe/spire/pkg/agent/workloadkey"
 	"github.com/spiffe/spire/pkg/common/catalog"
@@ -67,7 +68,6 @@ type agentConfig struct {
 	DataDir                       string    `hcl:"data_dir"`
 	AdminSocketPath               string    `hcl:"admin_socket_path"`
 	InsecureBootstrap             bool      `hcl:"insecure_bootstrap"`
-	RetryBootstrap                *bool     `hcl:"retry_bootstrap"`
 	RebootstrapMode               string    `hcl:"rebootstrap_mode"`
 	RebootstrapDelay              string    `hcl:"rebootstrap_delay"`
 	JoinToken                     string    `hcl:"join_token"`
@@ -116,6 +116,7 @@ type sdsConfig struct {
 
 type experimentalConfig struct {
 	SyncInterval             string `hcl:"sync_interval"`
+	JWTSVIDCacheHitTimeout   string `hcl:"jwt_svid_cache_hit_timeout"`
 	NamedPipeName            string `hcl:"named_pipe_name"`
 	AdminNamedPipeName       string `hcl:"admin_named_pipe_name"`
 	UseSyncAuthorizedEntries *bool  `hcl:"use_sync_authorized_entries"`
@@ -337,7 +338,6 @@ func parseFlags(name string, args []string, output io.Writer) (*agentConfig, err
 	flags := flag.NewFlagSet(name, flag.ContinueOnError)
 	flags.SetOutput(output)
 	c := &agentConfig{}
-	retryBootstrap := false
 
 	flags.StringVar(&c.ConfigPath, "config", defaultConfigPath, "Path to a SPIRE config file")
 	flags.StringVar(&c.DataDir, "dataDir", "", "A directory the agent can use for its runtime data")
@@ -355,7 +355,6 @@ func parseFlags(name string, args []string, output io.Writer) (*agentConfig, err
 	flags.StringVar(&c.TrustBundleFormat, "trustBundleFormat", "", fmt.Sprintf("Format of the bootstrap trust bundle, %q or %q", trustbundlesources.BundleFormatPEM, trustbundlesources.BundleFormatSPIFFE))
 	flags.BoolVar(&c.AllowUnauthenticatedVerifiers, "allowUnauthenticatedVerifiers", false, "If true, the agent permits the retrieval of X509 certificate bundles by unregistered clients")
 	flags.BoolVar(&c.InsecureBootstrap, "insecureBootstrap", false, "If true, the agent bootstraps without verifying the server's identity")
-	flags.BoolVar(&retryBootstrap, "retryBootstrap", true, "If true, the agent retries bootstrap with backoff")
 	flags.StringVar(&c.RebootstrapMode, "rebootstrapMode", "", "Can be one of 'never', 'auto', or 'always'")
 	flags.StringVar(&c.RebootstrapDelay, "rebootstrapDelay", "", "The time to delay after seeing a x509 cert mismatch from the server before rebootstrapping")
 	flags.BoolVar(&c.ExpandEnv, "expandEnv", false, "Expand environment variables in SPIRE config file")
@@ -366,12 +365,6 @@ func parseFlags(name string, args []string, output io.Writer) (*agentConfig, err
 	if err != nil {
 		return nil, err
 	}
-
-	flags.Visit(func(f *flag.Flag) {
-		if f.Name == "retryBootstrap" {
-			c.RetryBootstrap = &retryBootstrap
-		}
-	})
 
 	return c, nil
 }
@@ -417,9 +410,6 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 	}
 	if ac.RebootstrapMode != agent.RebootstrapNever && c.Agent.InsecureBootstrap {
 		return nil, errors.New("insecure_bootstrap option can not be used with rebootstrapping")
-	}
-	if ac.RebootstrapMode != agent.RebootstrapNever && c.Agent.RetryBootstrap != nil {
-		return nil, errors.New("you can not set retry_bootstrap when using reboostrap_mode")
 	}
 
 	if c.Agent.RebootstrapDelay == "" {
@@ -468,10 +458,20 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 		ac.LogReopener = log.ReopenOnSignal(logger, reopenableFile)
 	}
 
-	ac.RetryBootstrap = true
-	if c.Agent.RetryBootstrap != nil {
-		ac.Log.Warn("The 'retry_bootstrap' configuration is deprecated. It will be removed in SPIRE 1.14. Please test without the flag before upgrading.")
-		ac.RetryBootstrap = *c.Agent.RetryBootstrap
+	if c.Agent.Experimental.JWTSVIDCacheHitTimeout != "" {
+		var err error
+		timeout, err := time.ParseDuration(c.Agent.Experimental.JWTSVIDCacheHitTimeout)
+		if err != nil {
+			return nil, fmt.Errorf("could not parse jwt_svid_cache_hit_timeout: %w", err)
+		}
+		if timeout < 5*time.Second {
+			return nil, fmt.Errorf("jwt_svid_cache_hit_timeout (%s) must be greater than %s", timeout, 5*time.Second)
+		}
+		if timeout >= 30*time.Second {
+			return nil, fmt.Errorf("jwt_svid_cache_hit_timeout (%s) must be less than %s", timeout, 30*time.Second)
+		}
+		client.SetJWTSVIDCacheHitTimeout(timeout)
+		logger.Warn("The use of 'jwt_svid_cache_hit_timeout' is experimental")
 	}
 
 	ac.UseSyncAuthorizedEntries = true

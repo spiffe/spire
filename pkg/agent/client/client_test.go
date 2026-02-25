@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -289,16 +290,16 @@ func TestSyncUpdatesEntries(t *testing.T) {
 	firstDate := time.Date(2024, time.December, 31, 0, 0, 0, 0, time.UTC)
 	secondDate := time.Date(2025, time.January, 1, 0, 0, 0, 0, time.UTC)
 
-	entryA1 := makeEntry("A", 1, firstDate)
-	entryB1 := makeEntry("B", 1, firstDate)
-	entryC1 := makeEntry("C", 1, firstDate)
-	entryD1 := makeEntry("D", 1, firstDate)
+	entryA1 := makeEntry("A", 1, firstDate, nil)
+	entryB1 := makeEntry("B", 1, firstDate, nil)
+	entryC1 := makeEntry("C", 1, firstDate, nil)
+	entryD1 := makeEntry("D", 1, firstDate, nil)
 
-	entryA2 := makeEntry("A", 2, firstDate)
-	entryB2 := makeEntry("B", 2, firstDate)
-	entryC2 := makeEntry("C", 2, firstDate)
+	entryA2 := makeEntry("A", 2, firstDate, nil)
+	entryB2 := makeEntry("B", 2, firstDate, nil)
+	entryC2 := makeEntry("C", 2, firstDate, nil)
 
-	entryB1prime := makeEntry("B", 1, secondDate)
+	entryB1prime := makeEntry("B", 1, secondDate, nil)
 
 	// No entries yet
 	syncAndAssertEntries(t, 0, 0, 0, 0)
@@ -839,23 +840,67 @@ func TestFetchUpdatesAddStructuredLoggingIfCallToFetchBundlesFails(t *testing.T)
 	spiretest.AssertLogs(t, logHook.AllEntries(), entries)
 }
 
+func TestFetchUpdatesWithManyFederations(t *testing.T) {
+	client, tc := createClient(t)
+
+	// Create more federations than the number of workers in fetchFederatedBundlesConcurrently, to
+	// test that they can each consume multiple jobs.
+	const federationCount = 3 * maxBundleWorkers
+	federatesWith := make([]string, federationCount)
+	for i := range federationCount {
+		federatesWith[i] = fmt.Sprintf("domain%d.test", i)
+	}
+	createdAt := time.Date(2024, time.December, 31, 0, 0, 0, 0, time.UTC)
+	tc.entryServer.entries = []*types.Entry{
+		makeEntry("ENTRYID1", 1234, createdAt, federatesWith),
+	}
+
+	tc.bundleServer.serverBundle = makeAPIBundle("example.org")
+	tc.bundleServer.federatedBundles = make(map[string]*types.Bundle)
+	for _, domain := range federatesWith {
+		tc.bundleServer.federatedBundles[domain] = makeAPIBundle(domain)
+	}
+
+	update, err := client.FetchUpdates(ctx)
+
+	// Assert results
+	require.Nil(t, err)
+	wantBundles := map[string]*common.Bundle{
+		"spiffe://example.org": makeCommonBundle("example.org"),
+	}
+	for _, domain := range federatesWith {
+		wantBundles["spiffe://"+domain] = makeCommonBundle(domain)
+	}
+	assert.Equal(t, wantBundles, update.Bundles)
+	wantEntries := map[string]*common.RegistrationEntry{
+		"ENTRYID1": makeCommonEntry("ENTRYID1", 1234, createdAt, federatesWith),
+	}
+	assert.Equal(t, wantEntries, update.Entries)
+	assertConnectionIsNotNil(t, client)
+}
+
 func TestFetchJWTSVID(t *testing.T) {
 	client, tc := createClient(t)
 
 	issuedAt := time.Now().Unix()
 	expiresAt := time.Now().Add(time.Minute).Unix()
 	for _, tt := range []struct {
-		name       string
-		setupTest  func(err error)
-		err        string
-		expectSVID *JWTSVID
-		fetchErr   error
+		name           string
+		setupTest      func(err error)
+		err            string
+		expectSVID     *JWTSVID
+		expectSPIFFEID spiffeid.ID
+		fetchErr       error
 	}{
 		{
 			name: "success",
 			setupTest: func(err error) {
 				tc.svidServer.jwtSVID = &types.JWTSVID{
-					Token:     "token",
+					Token: "token",
+					Id: &types.SPIFFEID{
+						TrustDomain: "example.org",
+						Path:        "/workload",
+					},
 					ExpiresAt: expiresAt,
 					IssuedAt:  issuedAt,
 				}
@@ -866,6 +911,7 @@ func TestFetchJWTSVID(t *testing.T) {
 				ExpiresAt: time.Unix(expiresAt, 0).UTC(),
 				IssuedAt:  time.Unix(issuedAt, 0).UTC(),
 			},
+			expectSPIFFEID: spiffeid.RequireFromString("spiffe://example.org/workload"),
 		},
 		{
 			name: "client fails",
@@ -933,7 +979,7 @@ func TestFetchJWTSVID(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.setupTest(tt.fetchErr)
-			resp, err := client.NewJWTSVID(ctx, "entry-id", []string{"myAud"})
+			resp, spiffeId, err := client.NewJWTSVID(ctx, "entry-id", []string{"myAud"}, false)
 			if tt.err != "" {
 				require.Nil(t, resp)
 				require.EqualError(t, err, tt.err)
@@ -943,6 +989,7 @@ func TestFetchJWTSVID(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, resp)
 			require.Equal(t, tt.expectSVID, resp)
+			require.Equal(t, tt.expectSPIFFEID, spiffeId)
 		})
 	}
 }
@@ -1181,7 +1228,7 @@ func makeCommonBundle(trustDomainName string) *common.Bundle {
 	}
 }
 
-func makeEntry(id string, revisionNumber int64, createdAt time.Time) *types.Entry {
+func makeEntry(id string, revisionNumber int64, createdAt time.Time, federatesWith []string) *types.Entry {
 	return &types.Entry{
 		Id:             id,
 		SpiffeId:       &types.SPIFFEID{TrustDomain: "example.org", Path: "/workload"},
@@ -1189,5 +1236,21 @@ func makeEntry(id string, revisionNumber int64, createdAt time.Time) *types.Entr
 		Selectors:      []*types.Selector{{Type: "not", Value: "relevant"}},
 		RevisionNumber: revisionNumber,
 		CreatedAt:      createdAt.Unix(),
+		FederatesWith:  slices.Clone(federatesWith),
+	}
+}
+
+func makeCommonEntry(id string, revisionNumber int64, createdAt time.Time, federatesWith []string) *common.RegistrationEntry {
+	var federatesWithIds []string
+	for _, domain := range federatesWith {
+		federatesWithIds = append(federatesWithIds, "spiffe://"+domain)
+	}
+	return &common.RegistrationEntry{
+		EntryId:        id,
+		SpiffeId:       "spiffe://example.org/workload",
+		Selectors:      []*common.Selector{{Type: "not", Value: "relevant"}},
+		RevisionNumber: revisionNumber,
+		CreatedAt:      createdAt.Unix(),
+		FederatesWith:  federatesWithIds,
 	}
 }

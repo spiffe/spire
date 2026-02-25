@@ -1,5 +1,67 @@
 # Changelog
 
+## [1.14.1] - 2026-01-15
+
+### Changed
+
+- The `uptime_in_ms` gauge metric now uses float64 instead of integer (#6532)
+- SPIRE Server on Windows can now accept persistent arguments in the service binPath for automatic startup (#6465)
+
+### Fixed
+
+- Incorrect logic for disposing keys in the `aws_kms` KeyManager plugin (#6525)
+- JWT-SVID caching now uses the SPIFFE ID returned by the server to prevent stale cache entries when entry IDs change (#6501)
+- Documentation fixes (#6488, #6521)
+
+## [1.14.0] - 2025-12-11
+
+### Added
+
+- New `azure_imds` node attestor plugin for attesting nodes running in Microsoft Azure using the Azure Instance Metadata Service (IMDS) (#6312)
+- The AWS KMS key manager plugin now supports key tagging (#6410)
+- The JWT-SVID profile on spire server can now be disabled using the `disable_jwt_svids` config (#6272)
+- `spire-server validate` now supports validating plugin configuration (#6355)
+- Support for ec-p384 curve in the `workload_x509_svid_key_type` configuration option in spire-agent (#6389)
+- The docker workload attestor now supports the `docker:image_config_digest` selector (#6391)
+- GCP CAs now specify a `certificate_id` in `CreateCertificateRequest` for Enterprise tier compatibility (#6392)
+- Dummy implementations for the WIT-SVID profile (#6399)
+- GCP cloudsql-proxy can now be used with postgres (#6463)
+- The KeyManager directory is now validated to exist and be writeable on agent startup (#6397)
+
+### Changed
+
+- QueryContext is now used for querying the version database version and CTE support (#6461)
+- The `k8s` and `docker` workload attestors now ignore cgroup mountinfo with root == / (#6462)
+- spire-server now stops fetching all events if a context cancelled error is returned while processing a list of events (#6472)
+
+### Removed
+
+- Removed the deprecated 'retry_rebootstrap' agent config (#6431)
+- Removed unused database model, V3AttestedNode (#6381)
+
+### Fixed
+
+- Added k8s_configmap BundlePublisher to documentation (#6437)
+- Added tpm_devid to supported Agent plugins documentation (#6449)
+
+## [1.13.3] - 2025-10-23
+
+### Added
+
+- X.509 CA metric with absolute expiration time in addition to TTL-based metric (#6303)
+- `spire-agent` configuration to source join tokens from files to support integration with third-party credential providers (#6330)
+- Capability to filter on caller path in `spire-server` Rego authorization policies (#6320)
+
+### Changed
+
+- `spire-server` will use the SHA-256 algorithm for X.509-SVID Subject Key Identifiers when the `GODEBUG` environment variable contains `fips140=only` (#6294)
+- Attested node entries are now purged at a fixed interval with jitter (#6315)
+- `oidc-discovery-provider` now fails to initialize when started with unrecognized arguments (#6297)
+
+### Fixed
+
+- Documentation fixes (#6309, #6323, #6377)
+
 ## [1.13.2] - 2025-10-08
 
 ### Security
@@ -1107,7 +1169,7 @@ Thanks to Edoardo Geraci for reporting this issue.
 - The K8s Workload Registrar now supports Kubernetes 1.22 (#2515,#2540)
 - Self-signed CA certificates serial numbers are now conformant to RFC 5280 (#2494)
 - The AWS KMS Key Manager plugin now creates keys with a very strict policy by default (#2424)
-- The deprecated agent key file (`svid.key`) is proactively removed by the agent. It was only maintained to accomodate rollback from v1.0 to v0.12 (#2493)
+- The deprecated agent key file (`svid.key`) is proactively removed by the agent. It was only maintained to accommodate rollback from v1.0 to v0.12 (#2493)
 
 ### Removed
 

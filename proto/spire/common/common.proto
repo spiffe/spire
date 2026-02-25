@@ -55,6 +55,9 @@ message AttestedNode {
 
     // CanReattest field (can the attestation safely be deleted and recreated automatically)
     bool can_reattest = 8;
+
+    // AgentVersion is the version of the SPIRE agent
+    string agent_version = 9;
 }
 
 /** This is a curated record that the Server uses to set up and
@@ -160,6 +163,9 @@ message Bundle {
     /** sequence number is a monotonically increasing number that is
      * incremented every time the bundle is updated */
     uint64 sequence_number = 5;
+
+    /** list of WIT signing keys */
+    repeated PublicKey wit_signing_keys = 6;
 }
 
 message BundleMask {
@@ -168,6 +174,7 @@ message BundleMask {
     bool refresh_hint = 3;
     bool sequence_number = 4;
     bool x509_tainted_keys = 5;
+    bool wit_signing_keys = 6;
 }
 
 message AttestedNodeMask{
@@ -177,4 +184,5 @@ message AttestedNodeMask{
     bool new_cert_serial_number = 4;
     bool new_cert_not_after = 5;
     bool can_reattest = 6;
+    bool agent_version = 7;
 }

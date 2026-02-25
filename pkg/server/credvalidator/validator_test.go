@@ -380,6 +380,94 @@ func TestValidateWorkloadJWTSVID(t *testing.T) {
 	}
 }
 
+func TestValidateWorkloadWITSVID(t *testing.T) {
+	for _, tc := range []struct {
+		desc          string
+		setup         func(claims *jwt.Claims)
+		makeWIT       func(t *testing.T, claims any) string
+		tokenOverride string
+		expectErr     string
+	}{
+		{
+			desc:  "bare minimum",
+			setup: func(claims *jwt.Claims) {},
+		},
+		{
+			desc:  "malformed WIT",
+			setup: func(claims *jwt.Claims) {},
+			makeWIT: func(t *testing.T, claims any) string {
+				return "not-a-jwt"
+			},
+			expectErr: "failed to parse WIT-SVID for validation: go-jose/go-jose: compact JWS format must have three parts",
+		},
+		{
+			desc:  "malformed claims",
+			setup: func(claims *jwt.Claims) {},
+			makeWIT: func(t *testing.T, claims any) string {
+				return makeJWT(t, map[string]any{
+					"aud": 1,
+				})
+			},
+			expectErr: "failed to extract WIT-SVID claims for validation: go-jose/go-jose/jwt: expected string or array value to unmarshal to Audience",
+		},
+		{
+			desc: "unexpected subject",
+			setup: func(claims *jwt.Claims) {
+				claims.Subject = "foo"
+			},
+			expectErr: `invalid WIT-SVID "sub" claim: expected "spiffe://domain.test/workload" but got "foo"`,
+		},
+		{
+			desc: "missing expiry",
+			setup: func(claims *jwt.Claims) {
+				claims.Expiry = nil
+			},
+			expectErr: `invalid WIT-SVID "exp" claim: required but missing`,
+		},
+		{
+			desc: "already expired",
+			setup: func(claims *jwt.Claims) {
+				claims.Expiry = jwt.NewNumericDate(now.Add(-time.Second))
+			},
+			expectErr: fmt.Sprintf(`invalid WIT-SVID "exp" claim: already expired as of %s`, now.Add(-time.Second).Format(time.RFC3339)),
+		},
+		{
+			desc: "not yet valid",
+			setup: func(claims *jwt.Claims) {
+				claims.NotBefore = jwt.NewNumericDate(now.Add(time.Second))
+			},
+			expectErr: fmt.Sprintf(`invalid WIT-SVID "nbf" claim: not yet valid until %s`, now.Add(time.Second).Format(time.RFC3339)),
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			validator := newValidator(t)
+			claims := &jwt.Claims{
+				Subject:  workloadID.String(),
+				Expiry:   jwt.NewNumericDate(now.Add(time.Hour)),
+				Audience: []string{"AUDIENCE1"},
+			}
+			require.NotNil(t, tc.setup, "test must provide the setup callback")
+			if tc.setup != nil {
+				tc.setup(claims)
+			}
+
+			makeWITFunc := makeJWT
+			if tc.makeWIT != nil {
+				makeWITFunc = tc.makeWIT
+			}
+
+			token := makeWITFunc(t, claims)
+
+			err := validator.ValidateWorkloadWITSVID(token, workloadID)
+			if tc.expectErr != "" {
+				require.EqualError(t, err, tc.expectErr)
+				return
+			}
+			require.NoError(t, err)
+		})
+	}
+}
+
 func newValidator(t *testing.T) *credvalidator.Validator {
 	validator, err := credvalidator.New(credvalidator.Config{
 		TrustDomain: td,
