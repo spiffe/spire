@@ -208,6 +208,8 @@ jobs:
         with:
           path: ./bin/
           key: ${{ runner.os }}-executables-${{ github.sha }}
+      - name: Wait for Docker to be ready
+        run: pwsh ./.github/workflows/scripts/wait-for-docker-windows.ps1
       - name: Build images
         run: make images-windows
       - name: Export images
@@ -420,6 +422,8 @@ jobs:
         with:
           name: images-windows
           path: .
+      - name: Wait for Docker to be ready
+        run: pwsh ./.github/workflows/scripts/wait-for-docker-windows.ps1
       - name: Load archived images
         run: docker load -i images-windows.tar.gz
       - name: Run integration tests
