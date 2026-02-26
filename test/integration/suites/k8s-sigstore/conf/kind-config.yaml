@@ -1,0 +1,22 @@
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+containerdConfigPatches:
+- |-
+  [plugins."io.containerd.grpc.v1.cri".registry.configs."docker-registry-local:5001".tls]
+    ca_file = "/mnt/reg-certificate/docker-registry/certs/domain.crt"
+kubeadmConfigPatches:
+- |
+  apiVersion: kubeadm.k8s.io/v1beta2
+  kind: ClusterConfiguration
+  metadata:
+    name: config
+  apiServer:
+    extraArgs:
+        "service-account-signing-key-file": "/etc/kubernetes/pki/sa.key"
+        "service-account-issuer": "api"
+        "service-account-api-audiences": "api,spire-server"
+nodes:
+- role: control-plane
+  extraMounts:
+  - containerPath: /mnt/reg-certificate
+    hostPath: CONFDIR
