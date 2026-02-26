@@ -2,6 +2,8 @@ package authorizedentries
 
 import (
 	"fmt"
+	"maps"
+	"math/rand"
 	"slices"
 	"strconv"
 	"sync/atomic"
@@ -176,7 +178,7 @@ func TestCacheInternalStats(t *testing.T) {
 	// the indexees.
 	clk := clock.NewMock(t)
 	t.Run("pristine", func(t *testing.T) {
-		cache := NewCache(clk)
+		cache := NewCache(clk, "domain.test")
 		require.Zero(t, cache.Stats())
 	})
 
@@ -188,7 +190,7 @@ func TestCacheInternalStats(t *testing.T) {
 		entry2b := makeAlias(alias1, sel1, sel2)
 		entry2b.Id = entry2a.Id
 
-		cache := NewCache(clk)
+		cache := NewCache(clk, "domain.test")
 		cache.UpdateEntry(entry1)
 		require.Equal(t, CacheStats{
 			EntriesByEntryID:  1,
@@ -224,7 +226,7 @@ func TestCacheInternalStats(t *testing.T) {
 	})
 
 	t.Run("agents", func(t *testing.T) {
-		cache := NewCache(clk)
+		cache := NewCache(clk, "domain.test")
 		cache.UpdateAgent(agent1.String(), now.Add(time.Hour), []*types.Selector{sel1})
 		require.Equal(t, CacheStats{
 			AgentsByID:        1,
@@ -271,13 +273,6 @@ type agentInfo struct {
 	Selectors []*types.Selector
 }
 
-func (a *cacheTest) pickAgent() spiffeid.ID {
-	for agent := range a.agents {
-		return agent
-	}
-	return spiffeid.ID{}
-}
-
 func (a *cacheTest) withEntries(entries ...*types.Entry) *cacheTest {
 	for _, entry := range entries {
 		a.entries[entry.Id] = entry
@@ -305,7 +300,7 @@ func (a *cacheTest) withExpiredAgent(node spiffeid.ID, expiredBy time.Duration, 
 
 func (a *cacheTest) hydrate(tb testing.TB) (*cacheTest, *Cache) {
 	clk := clock.NewMock(tb)
-	cache := NewCache(clk)
+	cache := NewCache(clk, "domain.test")
 	for _, entry := range a.entries {
 		cache.UpdateEntry(entry)
 	}
@@ -354,9 +349,7 @@ func makeEntryIDPrefix() int32 {
 	return atomic.AddInt32(&nextEntryIDPrefix, 1)
 }
 
-// BenchmarkGetAuthorizedEntriesInMemory was ported from the old full entry
-// cache and some of the bugs fixed.
-func BenchmarkGetAuthorizedEntriesInMemory(b *testing.B) {
+func buildCacheForBenchmark() *cacheTest {
 	test := testCache()
 
 	staticSelector1 := &types.Selector{Type: "static", Value: "static-1"}
@@ -415,10 +408,27 @@ func BenchmarkGetAuthorizedEntriesInMemory(b *testing.B) {
 		})
 	}
 
+	return test
+}
+
+func BenchmarkBuildInMemory(b *testing.B) {
+	test := buildCacheForBenchmark()
+	for b.Loop() {
+		test.hydrate(b)
+	}
+}
+
+// BenchmarkGetAuthorizedEntriesInMemory was ported from the old full entry
+// cache and some of the bugs fixed.
+func BenchmarkGetAuthorizedEntriesInMemory(b *testing.B) {
+	test := buildCacheForBenchmark()
 	_, cache := test.hydrate(b)
 
+	agents := slices.Collect(maps.Keys(test.agents))
+
 	for b.Loop() {
-		cache.GetAuthorizedEntries(test.pickAgent())
+		entries := cache.GetAuthorizedEntries(agents[rand.Intn(len(agents))]) //nolint:gosec
+		require.NotEmpty(b, entries)
 	}
 }
 

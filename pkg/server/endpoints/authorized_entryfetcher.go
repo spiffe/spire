@@ -38,15 +38,17 @@ type AuthorizedEntryFetcherEvents struct {
 	registrationEntries eventsBasedCache
 	attestedNodes       eventsBasedCache
 	mu                  sync.RWMutex
+	trustDomain         string
 }
 
 type eventsBasedCache interface {
 	updateCache(ctx context.Context) error
 }
 
-func NewAuthorizedEntryFetcherEvents(ctx context.Context, c AuthorizedEntryFetcherEventsConfig) (*AuthorizedEntryFetcherEvents, error) {
+func NewAuthorizedEntryFetcherEvents(ctx context.Context, trustDomain string, c AuthorizedEntryFetcherEventsConfig) (*AuthorizedEntryFetcherEvents, error) {
 	authorizedEntryFetcher := &AuthorizedEntryFetcherEvents{
-		c: c,
+		c:           c,
+		trustDomain: trustDomain,
 	}
 
 	c.log.Info("Building event-based in-memory entry cache")
@@ -139,7 +141,7 @@ func (a *AuthorizedEntryFetcherEvents) updateCache(ctx context.Context) error {
 }
 
 func (a *AuthorizedEntryFetcherEvents) buildCache(ctx context.Context) error {
-	cache := authorizedentries.NewCache(a.c.clk)
+	cache := authorizedentries.NewCache(a.c.clk, a.trustDomain)
 
 	registrationEntries, err := buildRegistrationEntriesCache(ctx, a.c.log, a.c.metrics, a.c.ds, a.c.clk, cache, pageSize, a.c.cacheReloadInterval, a.c.eventTimeout)
 	if err != nil {

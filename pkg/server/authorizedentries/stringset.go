@@ -17,12 +17,6 @@ func allocStringSet() stringSet {
 }
 
 func freeStringSet(set stringSet) {
-	clearStringSet(set)
+	clear(set)
 	stringSetPool.Put(set)
-}
-
-func clearStringSet(set stringSet) {
-	for k := range set {
-		delete(set, k)
-	}
 }
