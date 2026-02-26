@@ -133,14 +133,15 @@ func (c *Cache) RemoveAttestedNode(spiffeId string) {
 }
 
 func (c *Cache) PeriodicRebuild(ctx context.Context) error {
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-c.clk.Tick(rebuildInterval):
-		if err := c.Rebuild(ctx); err != nil {
-			c.log.WithError(err).Error("Fail to rebuild the attested node cache")
+	ticker := c.clk.Tick(rebuildInterval)
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker:
+			if err := c.Rebuild(ctx); err != nil {
+				c.log.WithError(err).Error("Fail to rebuild the attested node cache")
+			}
 		}
 	}
-
-	return nil
 }

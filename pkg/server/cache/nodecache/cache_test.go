@@ -1,6 +1,7 @@
 package nodecache
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -23,6 +24,12 @@ var (
 		SpiffeId:            "spiffe://example.org/agent-2",
 		AttestationDataType: "example",
 		CertSerialNumber:    "234567",
+		CertNotAfter:        time.Now().Add(24 * time.Hour).Unix(),
+	}
+	thirdAgent = &common.AttestedNode{
+		SpiffeId:            "spiffe://example.org/agent-3",
+		AttestationDataType: "example",
+		CertSerialNumber:    "345678",
 		CertNotAfter:        time.Now().Add(24 * time.Hour).Unix(),
 	}
 	expiredAgent = &common.AttestedNode{
@@ -115,32 +122,47 @@ func TestCachePeriodicRebuild(t *testing.T) {
 	cache, err := New(t.Context(), log, ds, clk, true, true)
 	require.NoError(t, err)
 
+	done := make(chan struct{})
+	rebuildCtx, cncl := context.WithCancel(t.Context())
 	go func() {
-		err := cache.PeriodicRebuild(t.Context())
-		require.NoError(t, err)
+		defer close(done)
+		err := cache.PeriodicRebuild(rebuildCtx)
+		require.ErrorIs(t, err, context.Canceled)
 	}()
 
 	cachedFirstAgent, _ := cache.LookupAttestedNode(firstAgent.SpiffeId)
-	require.NoError(t, err)
 	require.NotNil(t, cachedFirstAgent)
 
 	cachedSecondAgent, _ := cache.LookupAttestedNode(secondAgent.SpiffeId)
-	require.NoError(t, err)
 	require.Nil(t, cachedSecondAgent)
 
 	_, err = ds.CreateAttestedNode(t.Context(), secondAgent)
 	require.NoError(t, err)
 
 	cachedSecondAgent, _ = cache.LookupAttestedNode(secondAgent.SpiffeId)
-	require.NoError(t, err)
 	require.Nil(t, cachedSecondAgent)
 
 	clk.Add(rebuildInterval)
-	clk.Add(rebuildInterval)
 
 	cachedSecondAgent, _ = cache.LookupAttestedNode(secondAgent.SpiffeId)
-	require.NoError(t, err)
 	require.NotNil(t, cachedSecondAgent)
+
+	cachedThirdAgent, _ := cache.LookupAttestedNode(thirdAgent.SpiffeId)
+	require.Nil(t, cachedThirdAgent)
+
+	_, err = ds.CreateAttestedNode(t.Context(), thirdAgent)
+	require.NoError(t, err)
+
+	cachedThirdAgent, _ = cache.LookupAttestedNode(thirdAgent.SpiffeId)
+	require.Nil(t, cachedThirdAgent)
+
+	clk.Add(rebuildInterval)
+
+	cachedThirdAgent, _ = cache.LookupAttestedNode(thirdAgent.SpiffeId)
+	require.NotNil(t, cachedThirdAgent)
+
+	cncl()
+	<-done
 }
 
 func TestCacheWithoutPeriodicRebuild(t *testing.T) {
@@ -155,29 +177,24 @@ func TestCacheWithoutPeriodicRebuild(t *testing.T) {
 	require.NoError(t, err)
 
 	cachedFirstAgent, _ := cache.LookupAttestedNode(firstAgent.SpiffeId)
-	require.NoError(t, err)
 	require.Nil(t, cachedFirstAgent)
 
 	cache.UpdateAttestedNode(firstNode)
 
 	cachedFirstAgent, _ = cache.LookupAttestedNode(firstAgent.SpiffeId)
-	require.NoError(t, err)
 	require.NotNil(t, cachedFirstAgent)
 
 	cachedSecondAgent, _ := cache.LookupAttestedNode(secondAgent.SpiffeId)
-	require.NoError(t, err)
 	require.Nil(t, cachedSecondAgent)
 
 	secondNode, err := ds.CreateAttestedNode(t.Context(), secondAgent)
 	require.NoError(t, err)
 
 	cachedSecondAgent, _ = cache.LookupAttestedNode(secondAgent.SpiffeId)
-	require.NoError(t, err)
 	require.Nil(t, cachedSecondAgent)
 
 	cache.UpdateAttestedNode(secondNode)
 
 	cachedSecondAgent, _ = cache.LookupAttestedNode(secondAgent.SpiffeId)
-	require.NoError(t, err)
 	require.NotNil(t, cachedSecondAgent)
 }
