@@ -373,9 +373,10 @@ type RegistrationEntry struct {
 	// identity should be used by a workload when more than one SVID is returned.
 	Hint string `protobuf:"bytes,14,opt,name=hint,proto3" json:"hint,omitempty"`
 	// * Time of creation, in seconds from epoch
-	CreatedAt     int64 `protobuf:"varint,15,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	CreatedAt            int64                                   `protobuf:"varint,15,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	AdditionalAttributes *RegistrationEntry_AdditionalAttributes `protobuf:"bytes,16,opt,name=additional_attributes,json=additionalAttributes,proto3,oneof" json:"additional_attributes,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
 }
 
 func (x *RegistrationEntry) Reset() {
@@ -513,24 +514,32 @@ func (x *RegistrationEntry) GetCreatedAt() int64 {
 	return 0
 }
 
+func (x *RegistrationEntry) GetAdditionalAttributes() *RegistrationEntry_AdditionalAttributes {
+	if x != nil {
+		return x.AdditionalAttributes
+	}
+	return nil
+}
+
 // * The RegistrationEntryMask is used to update only selected fields of the RegistrationEntry
 type RegistrationEntryMask struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Selectors     bool                   `protobuf:"varint,1,opt,name=selectors,proto3" json:"selectors,omitempty"`
-	ParentId      bool                   `protobuf:"varint,2,opt,name=parent_id,json=parentId,proto3" json:"parent_id,omitempty"`
-	SpiffeId      bool                   `protobuf:"varint,3,opt,name=spiffe_id,json=spiffeId,proto3" json:"spiffe_id,omitempty"`
-	X509SvidTtl   bool                   `protobuf:"varint,4,opt,name=x509_svid_ttl,json=x509SvidTtl,proto3" json:"x509_svid_ttl,omitempty"`
-	FederatesWith bool                   `protobuf:"varint,5,opt,name=federates_with,json=federatesWith,proto3" json:"federates_with,omitempty"`
-	EntryId       bool                   `protobuf:"varint,6,opt,name=entry_id,json=entryId,proto3" json:"entry_id,omitempty"`
-	Admin         bool                   `protobuf:"varint,7,opt,name=admin,proto3" json:"admin,omitempty"`
-	Downstream    bool                   `protobuf:"varint,8,opt,name=downstream,proto3" json:"downstream,omitempty"`
-	EntryExpiry   bool                   `protobuf:"varint,9,opt,name=entryExpiry,proto3" json:"entryExpiry,omitempty"`
-	DnsNames      bool                   `protobuf:"varint,10,opt,name=dns_names,json=dnsNames,proto3" json:"dns_names,omitempty"`
-	StoreSvid     bool                   `protobuf:"varint,11,opt,name=store_svid,json=storeSvid,proto3" json:"store_svid,omitempty"`
-	JwtSvidTtl    bool                   `protobuf:"varint,12,opt,name=jwt_svid_ttl,json=jwtSvidTtl,proto3" json:"jwt_svid_ttl,omitempty"`
-	Hint          bool                   `protobuf:"varint,13,opt,name=hint,proto3" json:"hint,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state                protoimpl.MessageState `protogen:"open.v1"`
+	Selectors            bool                   `protobuf:"varint,1,opt,name=selectors,proto3" json:"selectors,omitempty"`
+	ParentId             bool                   `protobuf:"varint,2,opt,name=parent_id,json=parentId,proto3" json:"parent_id,omitempty"`
+	SpiffeId             bool                   `protobuf:"varint,3,opt,name=spiffe_id,json=spiffeId,proto3" json:"spiffe_id,omitempty"`
+	X509SvidTtl          bool                   `protobuf:"varint,4,opt,name=x509_svid_ttl,json=x509SvidTtl,proto3" json:"x509_svid_ttl,omitempty"`
+	FederatesWith        bool                   `protobuf:"varint,5,opt,name=federates_with,json=federatesWith,proto3" json:"federates_with,omitempty"`
+	EntryId              bool                   `protobuf:"varint,6,opt,name=entry_id,json=entryId,proto3" json:"entry_id,omitempty"`
+	Admin                bool                   `protobuf:"varint,7,opt,name=admin,proto3" json:"admin,omitempty"`
+	Downstream           bool                   `protobuf:"varint,8,opt,name=downstream,proto3" json:"downstream,omitempty"`
+	EntryExpiry          bool                   `protobuf:"varint,9,opt,name=entryExpiry,proto3" json:"entryExpiry,omitempty"`
+	DnsNames             bool                   `protobuf:"varint,10,opt,name=dns_names,json=dnsNames,proto3" json:"dns_names,omitempty"`
+	StoreSvid            bool                   `protobuf:"varint,11,opt,name=store_svid,json=storeSvid,proto3" json:"store_svid,omitempty"`
+	JwtSvidTtl           bool                   `protobuf:"varint,12,opt,name=jwt_svid_ttl,json=jwtSvidTtl,proto3" json:"jwt_svid_ttl,omitempty"`
+	Hint                 bool                   `protobuf:"varint,13,opt,name=hint,proto3" json:"hint,omitempty"`
+	AdditionalAttributes bool                   `protobuf:"varint,14,opt,name=additional_attributes,json=additionalAttributes,proto3" json:"additional_attributes,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
 }
 
 func (x *RegistrationEntryMask) Reset() {
@@ -650,6 +659,13 @@ func (x *RegistrationEntryMask) GetJwtSvidTtl() bool {
 func (x *RegistrationEntryMask) GetHint() bool {
 	if x != nil {
 		return x.Hint
+	}
+	return false
+}
+
+func (x *RegistrationEntryMask) GetAdditionalAttributes() bool {
+	if x != nil {
+		return x.AdditionalAttributes
 	}
 	return false
 }
@@ -1094,6 +1110,60 @@ func (x *AttestedNodeMask) GetAgentVersion() bool {
 	return false
 }
 
+// * This nested message is reserved to contain a number of optional fields
+// controlling the various aspects of the agent's behaviour with respect to a
+// given registration entry. It serves to enable introducing and testing out new
+// tunables, without having to modify the datastore schema. Over time, some of
+// the fields contained therein may be considered eligible for their dedicated
+// attributes in the datastore.
+type RegistrationEntry_AdditionalAttributes struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// * Flag indicating whether the agent should prefetch and cache X509 SVID.
+	// Can be set to `true` if the workload is unlikely to request an X509 SVID.
+	// This is meant to prevent unnecessary effort spent on generating SVIDs of types,
+	// which are unlikely to be needed.
+	DisableX509SvidPrefetch bool `protobuf:"varint,1,opt,name=disable_x509_svid_prefetch,json=disableX509SvidPrefetch,proto3" json:"disable_x509_svid_prefetch,omitempty"`
+	unknownFields           protoimpl.UnknownFields
+	sizeCache               protoimpl.SizeCache
+}
+
+func (x *RegistrationEntry_AdditionalAttributes) Reset() {
+	*x = RegistrationEntry_AdditionalAttributes{}
+	mi := &file_spire_common_common_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RegistrationEntry_AdditionalAttributes) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RegistrationEntry_AdditionalAttributes) ProtoMessage() {}
+
+func (x *RegistrationEntry_AdditionalAttributes) ProtoReflect() protoreflect.Message {
+	mi := &file_spire_common_common_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RegistrationEntry_AdditionalAttributes.ProtoReflect.Descriptor instead.
+func (*RegistrationEntry_AdditionalAttributes) Descriptor() ([]byte, []int) {
+	return file_spire_common_common_proto_rawDescGZIP(), []int{5, 0}
+}
+
+func (x *RegistrationEntry_AdditionalAttributes) GetDisableX509SvidPrefetch() bool {
+	if x != nil {
+		return x.DisableX509SvidPrefetch
+	}
+	return false
+}
+
 var File_spire_common_common_proto protoreflect.FileDescriptor
 
 const file_spire_common_common_proto_rawDesc = "" +
@@ -1117,7 +1187,7 @@ const file_spire_common_common_proto_rawDesc = "" +
 	"\x12new_cert_not_after\x18\x06 \x01(\x03R\x0fnewCertNotAfter\x124\n" +
 	"\tselectors\x18\a \x03(\v2\x16.spire.common.SelectorR\tselectors\x12!\n" +
 	"\fcan_reattest\x18\b \x01(\bR\vcanReattest\x12#\n" +
-	"\ragent_version\x18\t \x01(\tR\fagentVersion\"\xfb\x03\n" +
+	"\ragent_version\x18\t \x01(\tR\fagentVersion\"\xda\x05\n" +
 	"\x11RegistrationEntry\x124\n" +
 	"\tselectors\x18\x01 \x03(\v2\x16.spire.common.SelectorR\tselectors\x12\x1b\n" +
 	"\tparent_id\x18\x02 \x01(\tR\bparentId\x12\x1b\n" +
@@ -1139,7 +1209,11 @@ const file_spire_common_common_proto_rawDesc = "" +
 	"jwtSvidTtl\x12\x12\n" +
 	"\x04hint\x18\x0e \x01(\tR\x04hint\x12\x1d\n" +
 	"\n" +
-	"created_at\x18\x0f \x01(\x03R\tcreatedAt\"\x9f\x03\n" +
+	"created_at\x18\x0f \x01(\x03R\tcreatedAt\x12n\n" +
+	"\x15additional_attributes\x18\x10 \x01(\v24.spire.common.RegistrationEntry.AdditionalAttributesH\x00R\x14additionalAttributes\x88\x01\x01\x1aS\n" +
+	"\x14AdditionalAttributes\x12;\n" +
+	"\x1adisable_x509_svid_prefetch\x18\x01 \x01(\bR\x17disableX509SvidPrefetchB\x18\n" +
+	"\x16_additional_attributes\"\xd4\x03\n" +
 	"\x15RegistrationEntryMask\x12\x1c\n" +
 	"\tselectors\x18\x01 \x01(\bR\tselectors\x12\x1b\n" +
 	"\tparent_id\x18\x02 \x01(\bR\bparentId\x12\x1b\n" +
@@ -1158,7 +1232,8 @@ const file_spire_common_common_proto_rawDesc = "" +
 	"store_svid\x18\v \x01(\bR\tstoreSvid\x12 \n" +
 	"\fjwt_svid_ttl\x18\f \x01(\bR\n" +
 	"jwtSvidTtl\x12\x12\n" +
-	"\x04hint\x18\r \x01(\bR\x04hint\"P\n" +
+	"\x04hint\x18\r \x01(\bR\x04hint\x123\n" +
+	"\x15additional_attributes\x18\x0e \x01(\bR\x14additionalAttributes\"P\n" +
 	"\x13RegistrationEntries\x129\n" +
 	"\aentries\x18\x01 \x03(\v2\x1f.spire.common.RegistrationEntryR\aentries\"K\n" +
 	"\vCertificate\x12\x1b\n" +
@@ -1208,35 +1283,37 @@ func file_spire_common_common_proto_rawDescGZIP() []byte {
 	return file_spire_common_common_proto_rawDescData
 }
 
-var file_spire_common_common_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
+var file_spire_common_common_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
 var file_spire_common_common_proto_goTypes = []any{
-	(*Empty)(nil),                 // 0: spire.common.Empty
-	(*AttestationData)(nil),       // 1: spire.common.AttestationData
-	(*Selector)(nil),              // 2: spire.common.Selector
-	(*Selectors)(nil),             // 3: spire.common.Selectors
-	(*AttestedNode)(nil),          // 4: spire.common.AttestedNode
-	(*RegistrationEntry)(nil),     // 5: spire.common.RegistrationEntry
-	(*RegistrationEntryMask)(nil), // 6: spire.common.RegistrationEntryMask
-	(*RegistrationEntries)(nil),   // 7: spire.common.RegistrationEntries
-	(*Certificate)(nil),           // 8: spire.common.Certificate
-	(*PublicKey)(nil),             // 9: spire.common.PublicKey
-	(*Bundle)(nil),                // 10: spire.common.Bundle
-	(*BundleMask)(nil),            // 11: spire.common.BundleMask
-	(*AttestedNodeMask)(nil),      // 12: spire.common.AttestedNodeMask
+	(*Empty)(nil),                                  // 0: spire.common.Empty
+	(*AttestationData)(nil),                        // 1: spire.common.AttestationData
+	(*Selector)(nil),                               // 2: spire.common.Selector
+	(*Selectors)(nil),                              // 3: spire.common.Selectors
+	(*AttestedNode)(nil),                           // 4: spire.common.AttestedNode
+	(*RegistrationEntry)(nil),                      // 5: spire.common.RegistrationEntry
+	(*RegistrationEntryMask)(nil),                  // 6: spire.common.RegistrationEntryMask
+	(*RegistrationEntries)(nil),                    // 7: spire.common.RegistrationEntries
+	(*Certificate)(nil),                            // 8: spire.common.Certificate
+	(*PublicKey)(nil),                              // 9: spire.common.PublicKey
+	(*Bundle)(nil),                                 // 10: spire.common.Bundle
+	(*BundleMask)(nil),                             // 11: spire.common.BundleMask
+	(*AttestedNodeMask)(nil),                       // 12: spire.common.AttestedNodeMask
+	(*RegistrationEntry_AdditionalAttributes)(nil), // 13: spire.common.RegistrationEntry.AdditionalAttributes
 }
 var file_spire_common_common_proto_depIdxs = []int32{
-	2, // 0: spire.common.Selectors.entries:type_name -> spire.common.Selector
-	2, // 1: spire.common.AttestedNode.selectors:type_name -> spire.common.Selector
-	2, // 2: spire.common.RegistrationEntry.selectors:type_name -> spire.common.Selector
-	5, // 3: spire.common.RegistrationEntries.entries:type_name -> spire.common.RegistrationEntry
-	8, // 4: spire.common.Bundle.root_cas:type_name -> spire.common.Certificate
-	9, // 5: spire.common.Bundle.jwt_signing_keys:type_name -> spire.common.PublicKey
-	9, // 6: spire.common.Bundle.wit_signing_keys:type_name -> spire.common.PublicKey
-	7, // [7:7] is the sub-list for method output_type
-	7, // [7:7] is the sub-list for method input_type
-	7, // [7:7] is the sub-list for extension type_name
-	7, // [7:7] is the sub-list for extension extendee
-	0, // [0:7] is the sub-list for field type_name
+	2,  // 0: spire.common.Selectors.entries:type_name -> spire.common.Selector
+	2,  // 1: spire.common.AttestedNode.selectors:type_name -> spire.common.Selector
+	2,  // 2: spire.common.RegistrationEntry.selectors:type_name -> spire.common.Selector
+	13, // 3: spire.common.RegistrationEntry.additional_attributes:type_name -> spire.common.RegistrationEntry.AdditionalAttributes
+	5,  // 4: spire.common.RegistrationEntries.entries:type_name -> spire.common.RegistrationEntry
+	8,  // 5: spire.common.Bundle.root_cas:type_name -> spire.common.Certificate
+	9,  // 6: spire.common.Bundle.jwt_signing_keys:type_name -> spire.common.PublicKey
+	9,  // 7: spire.common.Bundle.wit_signing_keys:type_name -> spire.common.PublicKey
+	8,  // [8:8] is the sub-list for method output_type
+	8,  // [8:8] is the sub-list for method input_type
+	8,  // [8:8] is the sub-list for extension type_name
+	8,  // [8:8] is the sub-list for extension extendee
+	0,  // [0:8] is the sub-list for field type_name
 }
 
 func init() { file_spire_common_common_proto_init() }
@@ -1244,13 +1321,14 @@ func file_spire_common_common_proto_init() {
 	if File_spire_common_common_proto != nil {
 		return
 	}
+	file_spire_common_common_proto_msgTypes[5].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_spire_common_common_proto_rawDesc), len(file_spire_common_common_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   13,
+			NumMessages:   14,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

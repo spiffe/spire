@@ -29,20 +29,21 @@ func TestAllTrueMasks(t *testing.T) {
 	}, protoutil.AllTrueBundleMask)
 
 	spiretest.AssertProtoEqual(t, &types.EntryMask{
-		SpiffeId:       true,
-		ParentId:       true,
-		Selectors:      true,
-		X509SvidTtl:    true,
-		JwtSvidTtl:     true,
-		FederatesWith:  true,
-		Admin:          true,
-		CreatedAt:      true,
-		Downstream:     true,
-		ExpiresAt:      true,
-		DnsNames:       true,
-		RevisionNumber: true,
-		StoreSvid:      true,
-		Hint:           true,
+		SpiffeId:             true,
+		ParentId:             true,
+		Selectors:            true,
+		X509SvidTtl:          true,
+		JwtSvidTtl:           true,
+		FederatesWith:        true,
+		Admin:                true,
+		CreatedAt:            true,
+		Downstream:           true,
+		ExpiresAt:            true,
+		DnsNames:             true,
+		RevisionNumber:       true,
+		StoreSvid:            true,
+		Hint:                 true,
+		AdditionalAttributes: true,
 	}, protoutil.AllTrueEntryMask)
 
 	spiretest.AssertProtoEqual(t, &common.BundleMask{

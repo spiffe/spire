@@ -39,15 +39,16 @@ var (
 	ErrUnableToGetStream = errors.New("unable to get a stream")
 
 	entryOutputMask = &types.EntryMask{
-		SpiffeId:       true,
-		Selectors:      true,
-		FederatesWith:  true,
-		Admin:          true,
-		Downstream:     true,
-		RevisionNumber: true,
-		StoreSvid:      true,
-		Hint:           true,
-		CreatedAt:      true,
+		SpiffeId:             true,
+		Selectors:            true,
+		FederatesWith:        true,
+		Admin:                true,
+		Downstream:           true,
+		RevisionNumber:       true,
+		StoreSvid:            true,
+		Hint:                 true,
+		AdditionalAttributes: true,
+		CreatedAt:            true,
 	}
 
 	// RPCTimeoutWithCacheHit can be more aggressive with timeouts in cases where a valid SVID

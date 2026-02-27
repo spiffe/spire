@@ -1244,6 +1244,9 @@ func TestGetEntry(t *testing.T) {
 		DnsNames:    []string{"dns1", "dns2"},
 		Downstream:  true,
 		Hint:        "internal",
+		AdditionalAttributes: &common.RegistrationEntry_AdditionalAttributes{
+			DisableX509SvidPrefetch: true,
+		},
 	})
 	require.NoError(t, err)
 
@@ -1309,6 +1312,9 @@ func TestGetEntry(t *testing.T) {
 				Downstream:    true,
 				ExpiresAt:     expiresAt,
 				Hint:          "internal",
+				AdditionalAttributes: &types.Entry_AdditionalAttributes{
+					DisableX509SvidPrefetch: true,
+				},
 			},
 			expectLogs: []spiretest.LogEntry{
 				{
@@ -1508,6 +1514,9 @@ func TestBatchCreateEntry(t *testing.T) {
 		X509SvidTtl:   45,
 		JwtSvidTtl:    30,
 		Hint:          "external",
+		AdditionalAttributes: &types.Entry_AdditionalAttributes{
+			DisableX509SvidPrefetch: true,
+		},
 	}
 	// Registration entry for test entry
 	testDSEntry := &common.RegistrationEntry{
@@ -1526,7 +1535,10 @@ func TestBatchCreateEntry(t *testing.T) {
 		X509SvidTtl:   45,
 		JwtSvidTtl:    30,
 		Hint:          "external",
-		CreatedAt:     1678731397,
+		AdditionalAttributes: &common.RegistrationEntry_AdditionalAttributes{
+			DisableX509SvidPrefetch: true,
+		},
+		CreatedAt: 1678731397,
 	}
 
 	for _, tt := range []struct {
@@ -1846,7 +1858,10 @@ func TestBatchCreateEntry(t *testing.T) {
 						JwtSvidTtl:    30,
 						StoreSvid:     false,
 						Hint:          "external",
-						CreatedAt:     1678731397,
+						AdditionalAttributes: &types.Entry_AdditionalAttributes{
+							DisableX509SvidPrefetch: true,
+						},
+						CreatedAt: 1678731397,
 					},
 				},
 			},

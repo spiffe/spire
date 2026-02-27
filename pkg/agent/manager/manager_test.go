@@ -297,6 +297,51 @@ func TestHappyPathWithoutSyncNorRotation(t *testing.T) {
 	})
 }
 
+func TestX509PrefetchDisabled(t *testing.T) {
+	dir := spiretest.TempDir(t)
+	km := fakeagentkeymanager.New(t, dir)
+
+	clk := clock.NewMock(t)
+	api := newMockAPI(t, &mockAPIConfig{
+		km: km,
+		getAuthorizedEntries: func(*mockAPI, int32, *entryv1.GetAuthorizedEntriesRequest) (*entryv1.GetAuthorizedEntriesResponse, error) {
+			return makeGetAuthorizedEntriesResponse(t, "resp6"), nil
+		},
+		batchNewX509SVIDEntries: func(*mockAPI, int32) []*common.RegistrationEntry {
+			return makeBatchNewX509SVIDEntries("resp6")
+		},
+		svidTTL: 200,
+		clk:     clk,
+	})
+
+	baseSVID, baseSVIDKey := api.newSVID(joinTokenID, 1*time.Hour)
+
+	cat := fakeagentcatalog.New()
+	cat.SetKeyManager(km)
+
+	c := &Config{
+		ServerAddr:       api.addr,
+		SVID:             baseSVID,
+		SVIDKey:          baseSVIDKey,
+		Log:              testLogger,
+		TrustDomain:      trustDomain,
+		Storage:          openStorage(t, dir),
+		WorkloadKeyType:  workloadkey.ECP256,
+		Bundle:           api.bundle,
+		Metrics:          &telemetry.Blackhole{},
+		Clk:              clk,
+		Catalog:          cat,
+		SVIDStoreCache:   storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
+		RotationStrategy: rotationutil.NewRotationStrategy(0),
+	}
+
+	m, closer := initializeAndRunNewManager(t, c)
+	defer closer()
+
+	// Expect SVID not to be cached
+	require.Equal(t, 0, m.CountX509SVIDs())
+}
+
 func TestRotationWithRSAKey(t *testing.T) {
 	dir := spiretest.TempDir(t)
 	km := fakeagentkeymanager.New(t, dir)
@@ -1750,12 +1795,13 @@ func makeGetAuthorizedEntriesResponse(t *testing.T, respKeys ...string) *entryv1
 			spiffeID, err := spiffeid.FromString(regEntry.SpiffeId)
 			require.NoError(t, err)
 			entries = append(entries, &types.Entry{
-				Id:             regEntry.EntryId,
-				SpiffeId:       api.ProtoFromID(spiffeID),
-				FederatesWith:  regEntry.FederatesWith,
-				RevisionNumber: regEntry.RevisionNumber,
-				Selectors:      api.ProtoFromSelectors(regEntry.Selectors),
-				StoreSvid:      regEntry.StoreSvid,
+				Id:                   regEntry.EntryId,
+				SpiffeId:             api.ProtoFromID(spiffeID),
+				FederatesWith:        regEntry.FederatesWith,
+				RevisionNumber:       regEntry.RevisionNumber,
+				Selectors:            api.ProtoFromSelectors(regEntry.Selectors),
+				StoreSvid:            regEntry.StoreSvid,
+				AdditionalAttributes: api.ProtoFromAdditionalAttributes(regEntry.AdditionalAttributes),
 			})
 		}
 	}
