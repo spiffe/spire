@@ -2,9 +2,9 @@ package tailscale
 
 import (
 	"context"
-	"crypto/x509"
-	"encoding/json"
 	"fmt"
+	"net"
+	"net/netip"
 	"strings"
 	"sync"
 
@@ -16,17 +16,33 @@ import (
 	"github.com/spiffe/spire/pkg/common/agentpathtemplate"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	common "github.com/spiffe/spire/pkg/common/plugin/tailscale"
-	"github.com/spiffe/spire/pkg/common/plugin/x509pop"
 	"github.com/spiffe/spire/pkg/common/pluginconf"
-	"github.com/spiffe/spire/pkg/common/util"
 	nodeattestorbase "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/base"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
+	"tailscale.com/client/local"
+	"tailscale.com/client/tailscale/apitype"
 )
 
 const (
 	pluginName = "tailscale"
+
+	// peerAddrMetadataKey is the gRPC metadata key used by the V1 wrapper
+	// to forward the peer address from the OS TCP stack.
+	peerAddrMetadataKey = "X-Forwarded-Peer-Addr"
 )
+
+// Tailscale CGNAT range: 100.64.0.0/10
+var tailscaleCGNAT = netip.MustParsePrefix("100.64.0.0/10")
+
+// Tailscale IPv6 range: fd7a:115c:a1e0::/48
+var tailscaleIPv6 = netip.MustParsePrefix("fd7a:115c:a1e0::/48")
+
+// whoisClient abstracts the Tailscale local API for testability.
+type whoisClient interface {
+	WhoIs(ctx context.Context, remoteAddr string) (*apitype.WhoIsResponse, error)
+}
 
 func BuiltIn() catalog.BuiltIn {
 	return builtin(New())
@@ -41,19 +57,13 @@ func builtin(p *Plugin) catalog.BuiltIn {
 
 // Config is the HCL configuration for the plugin.
 type Config struct {
-	CABundlePath      string `hcl:"ca_bundle_path"`
-	Tailnet           string `hcl:"tailnet"`
-	APIKey            string `hcl:"api_key"`
-	APIURL            string `hcl:"api_url"`
+	SocketPath        string `hcl:"socket_path"`
 	AgentPathTemplate string `hcl:"agent_path_template"`
 }
 
 type configuration struct {
 	trustDomain  spiffeid.TrustDomain
-	trustBundle  *x509.CertPool
-	tailnet      string
-	apiKey       string
-	apiURL       string
+	socketPath   string
 	pathTemplate *agentpathtemplate.Template
 }
 
@@ -62,27 +72,6 @@ func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginco
 	if err := hcl.Decode(hclConfig, hclText); err != nil {
 		status.ReportErrorf("unable to decode configuration: %v", err)
 		return nil
-	}
-
-	if hclConfig.CABundlePath == "" {
-		status.ReportError("ca_bundle_path is required")
-	}
-
-	if hclConfig.Tailnet == "" {
-		status.ReportError("tailnet is required")
-	}
-
-	if hclConfig.APIKey == "" {
-		status.ReportError("api_key is required")
-	}
-
-	var trustBundles []*x509.Certificate
-	if hclConfig.CABundlePath != "" {
-		certs, err := util.LoadCertificates(hclConfig.CABundlePath)
-		if err != nil {
-			status.ReportErrorf("unable to load trust bundle %q: %v", hclConfig.CABundlePath, err)
-		}
-		trustBundles = append(trustBundles, certs...)
 	}
 
 	pathTemplate := common.DefaultAgentPathTemplate
@@ -96,15 +85,12 @@ func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginco
 
 	return &configuration{
 		trustDomain:  coreConfig.TrustDomain,
-		trustBundle:  util.NewCertPool(trustBundles...),
-		tailnet:      hclConfig.Tailnet,
-		apiKey:       hclConfig.APIKey,
-		apiURL:       hclConfig.APIURL,
+		socketPath:   hclConfig.SocketPath,
 		pathTemplate: pathTemplate,
 	}
 }
 
-// Plugin implements the server-side Tailscale node attestor.
+// Plugin implements the server-side Tailscale node attestor using the local whois API.
 type Plugin struct {
 	nodeattestorbase.Base
 	nodeattestorv1.UnsafeNodeAttestorServer
@@ -114,14 +100,18 @@ type Plugin struct {
 	mtx    sync.Mutex
 	log    hclog.Logger
 	hooks  struct {
-		newClient func(apiKey, apiURL string) tailscaleClient
+		newClient func(socketPath string) whoisClient
 	}
 }
 
 func New() *Plugin {
 	p := &Plugin{}
-	p.hooks.newClient = func(apiKey, apiURL string) tailscaleClient {
-		return newHTTPClient(apiKey, apiURL)
+	p.hooks.newClient = func(socketPath string) whoisClient {
+		c := &local.Client{}
+		if socketPath != "" {
+			c.Socket = socketPath
+		}
+		return c
 	}
 	return p
 }
@@ -131,121 +121,67 @@ func (p *Plugin) SetLogger(log hclog.Logger) {
 	p.log = log
 }
 
-// Attest implements the server-side node attestation flow.
+// Attest implements the server-side node attestation flow using the Tailscale
+// local API (whois). The agent's identity is determined by looking up its
+// Tailscale IP via the tailscaled daemon running on the server.
 func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 	config, err := p.getConfig()
 	if err != nil {
 		return err
 	}
 
-	// Step 1: Receive payload
+	// Step 1: Receive payload (just a marker, contents ignored)
 	req, err := stream.Recv()
 	if err != nil {
 		return err
 	}
-
-	payload := req.GetPayload()
-	if payload == nil {
+	if req.GetPayload() == nil {
 		return status.Error(codes.InvalidArgument, "missing attestation payload")
 	}
 
-	// Step 2: Unmarshal attestation data
-	attestationData := new(common.AttestationData)
-	if err := json.Unmarshal(payload, attestationData); err != nil {
-		return status.Errorf(codes.InvalidArgument, "failed to unmarshal data: %v", err)
-	}
-
-	// Step 3: Parse leaf cert + intermediates
-	if len(attestationData.Certificates) == 0 {
-		return status.Error(codes.InvalidArgument, "no certificate to attest")
-	}
-	leaf, err := x509.ParseCertificate(attestationData.Certificates[0])
-	if err != nil {
-		return status.Errorf(codes.InvalidArgument, "unable to parse leaf certificate: %v", err)
-	}
-	intermediates := x509.NewCertPool()
-	for i, intermediateBytes := range attestationData.Certificates[1:] {
-		intermediate, err := x509.ParseCertificate(intermediateBytes)
-		if err != nil {
-			return status.Errorf(codes.InvalidArgument, "unable to parse intermediate certificate %d: %v", i, err)
-		}
-		intermediates.AddCert(intermediate)
-	}
-
-	// Step 4: Verify cert chain against configured CA bundle
-	if _, err := leaf.Verify(x509.VerifyOptions{
-		Intermediates: intermediates,
-		Roots:         config.trustBundle,
-		KeyUsages:     []x509.ExtKeyUsage{x509.ExtKeyUsageAny},
-	}); err != nil {
-		return status.Errorf(codes.PermissionDenied, "certificate verification failed: %v", err)
-	}
-
-	// Step 5: Extract hostname from cert SAN, validate it belongs to configured tailnet
-	hostname, err := extractAndValidateHostname(leaf, config.tailnet)
-	if err != nil {
-		return status.Errorf(codes.PermissionDenied, "hostname validation failed: %v", err)
-	}
-
-	// Step 6: Challenge-response to prove key possession
-	challenge, err := x509pop.GenerateChallenge(leaf)
-	if err != nil {
-		return status.Errorf(codes.Internal, "unable to generate challenge: %v", err)
-	}
-
-	challengeBytes, err := json.Marshal(challenge)
-	if err != nil {
-		return status.Errorf(codes.Internal, "unable to marshal challenge: %v", err)
-	}
-
-	if err := stream.Send(&nodeattestorv1.AttestResponse{
-		Response: &nodeattestorv1.AttestResponse_Challenge{
-			Challenge: challengeBytes,
-		},
-	}); err != nil {
-		return err
-	}
-
-	// Receive and validate challenge response
-	responseReq, err := stream.Recv()
+	// Step 2: Extract peer address from gRPC metadata
+	peerAddr, err := peerAddrFromMetadata(stream.Context())
 	if err != nil {
 		return err
 	}
 
-	response := new(x509pop.Response)
-	if err := json.Unmarshal(responseReq.GetChallengeResponse(), response); err != nil {
-		return status.Errorf(codes.InvalidArgument, "unable to unmarshal challenge response: %v", err)
+	// Step 3: Validate it's a Tailscale IP
+	if !isTailscaleIP(peerAddr) {
+		return status.Errorf(codes.PermissionDenied, "peer address %s is not a Tailscale IP", peerAddr)
 	}
 
-	if err := x509pop.VerifyChallengeResponse(leaf.PublicKey, challenge, response); err != nil {
-		return status.Errorf(codes.PermissionDenied, "challenge response verification failed: %v", err)
-	}
-
-	// Step 7: Query Tailscale API for device info
-	client := p.hooks.newClient(config.apiKey, config.apiURL)
-	deviceInfo, err := client.getDeviceByHostname(stream.Context(), config.tailnet, hostname)
+	// Step 4: Call tailscaled whois API
+	client := p.hooks.newClient(config.socketPath)
+	whoisResp, err := client.WhoIs(stream.Context(), peerAddr)
 	if err != nil {
-		return status.Errorf(codes.Internal, "failed to query Tailscale API: %v", err)
+		return status.Errorf(codes.Internal, "failed to query tailscaled whois: %v", err)
 	}
 
-	// Step 8: Verify device is authorized
-	if !deviceInfo.Authorized {
-		return status.Errorf(codes.PermissionDenied, "device %q is not authorized in tailnet", hostname)
+	if whoisResp.Node == nil {
+		return status.Error(codes.Internal, "whois response missing node information")
 	}
 
-	// Step 9: Construct SPIFFE ID from API-verified facts
-	agentID, err := common.MakeAgentID(config.trustDomain, config.pathTemplate, *deviceInfo)
+	// Step 5: Check device is authorized
+	if !whoisResp.Node.MachineAuthorized {
+		return status.Error(codes.PermissionDenied, "device is not authorized in tailnet")
+	}
+
+	// Step 6: Map whois response to DeviceInfo
+	info := mapWhoIsToDeviceInfo(whoisResp)
+
+	// Step 7: Construct SPIFFE ID
+	agentID, err := common.MakeAgentID(config.trustDomain, config.pathTemplate, info)
 	if err != nil {
 		return status.Errorf(codes.Internal, "failed to create agent ID: %v", err)
 	}
 
-	// Step 10: TOFU check
+	// Step 8: TOFU check
 	if err := p.AssessTOFU(stream.Context(), agentID.String(), p.log); err != nil {
 		return err
 	}
 
-	// Step 11: Build selectors from API-verified device info
-	selectorValues := buildSelectorValues(deviceInfo)
+	// Step 9: Build selectors and return
+	selectorValues := buildSelectorValues(&info)
 
 	return stream.Send(&nodeattestorv1.AttestResponse{
 		Response: &nodeattestorv1.AttestResponse_AgentAttributes{
@@ -291,19 +227,64 @@ func (p *Plugin) getConfig() (*configuration, error) {
 	return p.config, nil
 }
 
-// extractAndValidateHostname extracts the hostname from the cert SAN (DNSNames)
-// and validates that it belongs to the configured tailnet.
-func extractAndValidateHostname(leaf *x509.Certificate, tailnet string) (string, error) {
-	suffix := "." + tailnet
-	for _, name := range leaf.DNSNames {
-		if strings.HasSuffix(strings.ToLower(name), strings.ToLower(suffix)) {
-			return name, nil
-		}
+// peerAddrFromMetadata extracts the peer address from gRPC metadata set by the V1 wrapper.
+func peerAddrFromMetadata(ctx context.Context) (string, error) {
+	md, ok := metadata.FromIncomingContext(ctx)
+	if !ok {
+		return "", status.Error(codes.Internal, "no gRPC metadata in context")
 	}
-	return "", fmt.Errorf("no SAN DNS name matching tailnet %q found in certificate", tailnet)
+	vals := md.Get(peerAddrMetadataKey)
+	if len(vals) == 0 {
+		return "", status.Error(codes.Internal, "peer address not found in gRPC metadata")
+	}
+	return vals[0], nil
 }
 
-// buildSelectorValues builds selector values from API-verified device info.
+// isTailscaleIP checks whether the given address (ip or ip:port) belongs to a
+// Tailscale IP range.
+func isTailscaleIP(addr string) bool {
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		// Might be just an IP without port
+		host = addr
+	}
+	ip, err := netip.ParseAddr(host)
+	if err != nil {
+		return false
+	}
+	return tailscaleCGNAT.Contains(ip) || tailscaleIPv6.Contains(ip)
+}
+
+// mapWhoIsToDeviceInfo converts a WhoIsResponse into a DeviceInfo.
+func mapWhoIsToDeviceInfo(resp *apitype.WhoIsResponse) common.DeviceInfo {
+	node := resp.Node
+
+	info := common.DeviceInfo{
+		NodeID:     string(node.StableID),
+		Hostname:   node.Hostinfo.Hostname(),
+		OS:         node.Hostinfo.OS(),
+		Authorized: node.MachineAuthorized,
+	}
+
+	// Tags
+	for _, tag := range node.Tags {
+		info.Tags = append(info.Tags, strings.TrimPrefix(tag, "tag:"))
+	}
+
+	// Addresses
+	for _, addr := range node.Addresses {
+		info.Addresses = append(info.Addresses, addr.Addr().String())
+	}
+
+	// User
+	if resp.UserProfile != nil {
+		info.User = resp.UserProfile.LoginName
+	}
+
+	return info
+}
+
+// buildSelectorValues builds selector values from device info.
 func buildSelectorValues(info *common.DeviceInfo) []string {
 	var selectors []string
 
@@ -326,6 +307,7 @@ func buildSelectorValues(info *common.DeviceInfo) []string {
 	}
 
 	selectors = append(selectors, fmt.Sprintf("authorized:%t", info.Authorized))
+	selectors = append(selectors, "node_id:"+info.NodeID)
 
 	return selectors
 }
