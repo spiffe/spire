@@ -2,7 +2,6 @@ package awskms
 
 import (
 	"context"
-	"path"
 	"strings"
 	"sync"
 
@@ -17,10 +16,10 @@ import (
 )
 
 type keyFetcher struct {
-	log         hclog.Logger
-	kmsClient   kmsClient
-	serverID    string
-	trustDomain string
+	log               hclog.Logger
+	kmsClient         kmsClient
+	keyIDExtractor    func(string) (string, bool)
+	sharedKeysEnabled bool
 }
 
 func (kf *keyFetcher) fetchKeyEntries(ctx context.Context) ([]*keyEntry, error) {
@@ -47,9 +46,15 @@ func (kf *keyFetcher) fetchKeyEntries(ctx context.Context) ([]*keyEntry, error) 
 				continue
 			}
 
-			spireKeyID, ok := kf.spireKeyIDFromAlias(*alias.AliasName)
+			spireKeyID, ok := kf.keyIDExtractor(*alias.AliasName)
 			// ignore aliases/keys not belonging to this server
 			if !ok {
+				continue
+			}
+
+			// In shared keys mode, we only process KID aliases to avoid duplicates
+			// (each key has both a JWT alias and a KID alias)
+			if kf.sharedKeysEnabled && !strings.HasPrefix(*alias.AliasName, kidAliasPrefix) {
 				continue
 			}
 
@@ -131,14 +136,4 @@ func (kf *keyFetcher) fetchKeyEntryDetails(ctx context.Context, alias types.Alia
 			Fingerprint: makeFingerprint(publicKeyResp.PublicKey),
 		},
 	}, nil
-}
-
-func (kf *keyFetcher) spireKeyIDFromAlias(aliasName string) (string, bool) {
-	trustDomain := sanitizeTrustDomain(kf.trustDomain)
-	prefix := path.Join(aliasPrefix, trustDomain, kf.serverID) + "/"
-	trimmed := strings.TrimPrefix(aliasName, prefix)
-	if trimmed == aliasName {
-		return "", false
-	}
-	return decodeKeyID(trimmed), true
 }

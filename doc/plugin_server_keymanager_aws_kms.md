@@ -2,6 +2,11 @@
 
 The `aws_kms` key manager plugin leverages the AWS Key Management Service (KMS) to create, maintain and rotate key pairs (as [Customer Master Keys](https://docs.aws.amazon.com/kms/latest/developerguide/concepts.html#master_keys), or CMKs), and sign SVIDs as needed, with the private key never leaving KMS.
 
+The plugin supports two modes of operation:
+
+- **Standard Mode**: Each SPIRE server manages its own set of keys identified by a unique server ID
+- **Shared Keys Mode**: Multiple SPIRE servers (including multi-region deployments) can discover and use the same signing keys based on configurable templates and regular expressions
+
 ## Configuration
 
 The plugin accepts the following configuration options:
@@ -11,9 +16,15 @@ The plugin accepts the following configuration options:
 | access_key_id        | string | see [AWS KMS Access](#aws-kms-access)       | The Access Key Id used to authenticate to KMS                                                                               | Value of the AWS_ACCESS_KEY_ID environment variable     |
 | secret_access_key    | string | see [AWS KMS Access](#aws-kms-access)       | The Secret Access Key used to authenticate to KMS                                                                           | Value of the AWS_SECRET_ACCESS_KEY environment variable |
 | region               | string | yes                                         | The region where the keys will be stored                                                                                    |                                                         |
-| key_identifier_file  | string | Required if key_identifier_value is not set | A file path location where information about generated keys will be persisted                                               |                                                         |
-| key_identifier_value | string | Required if key_identifier_file is not set  | A static identifier for the SPIRE server instance (used instead of `key_identifier_file`)                                   |                                                         |
+| key_identifier_file  | string | See [Key Identifier](#key-identifier)       | A file path location where information about generated keys will be persisted                                               |                                                         |
+| key_identifier_value | string | See [Key Identifier](#key-identifier)       | A static identifier for the SPIRE server instance (used instead of `key_identifier_file`)                                   |                                                         |
 | key_policy_file      | string | no                                          | A file path location to a custom key policy in JSON format                                                                  | ""                                                      |
+| key_tags             | map    | no                                          | A map of tags to apply to created keys                                                                                      |                                                         |
+| shared_keys          | object | no                                          | Configuration for shared keys mode (see [Shared Keys Configuration](#shared-keys-configuration))                            |                                                         |
+
+### Key Identifier
+
+In standard mode, either `key_identifier_file` or `key_identifier_value` is required. In shared keys mode, these are optional as keys are identified using templates and regex patterns instead.
 
 ### Alias and Key Management
 
@@ -40,7 +51,44 @@ The plugin attempts to detect and prune stale aliases. To facilitate stale alias
 
 The plugin also attempts to detect and prune stale keys. All keys managed by the plugin are assigned a `Description` of the form `SPIRE_SERVER/{TRUST_DOMAIN}`. The plugin periodically scans the keys. Any key with a `Description` matching the proper form, that is both unassociated with any alias and has a `CreationDate` older than 48 hours, is removed.
 
-### Key tagging
+### Shared Keys Configuration
+
+The plugin supports a shared keys mode that allows multiple SPIRE servers to discover and use the same signing keys. This is useful for multi-server and multi-region deployments where servers need to coordinate key usage.
+
+When the `shared_keys` configuration block is present, the plugin operates in shared keys mode. This block accepts the following options:
+
+| Key                       | Type   | Required | Description                                                                                                                  |
+|---------------------------|--------|----------|------------------------------------------------------------------------------------------------------------------------------|
+| jwt_key_alias_template    | string | yes      | A Go template to generate the KMS alias for JWT keys                                                                         |
+| lock_alias_template       | string | yes      | A Go template to generate the KMS alias used for distributed locking during rotation                                         |
+| key_id_extraction_regex   | string | yes      | A regex with one capturing group to extract the SPIRE Key ID from KMS alias names                                            |
+
+> **Note**: Any existing keys cannot be used after turning on the shared keys feature.
+
+#### Template Context
+
+The alias templates support [Sprig v3](http://masterminds.github.io/sprig/) functions and have access to the following variables:
+
+- `.Region`: The configured AWS region
+- `.TrustDomain`: The configured trust domain
+- `.ServerID`: The server ID (if configured)
+- `.Env`: The value of the `SPIRE_ENV` environment variable
+- `.KeyID`: The SPIRE Key ID being requested (e.g., `jwt-signer`, `x509-CA-A`)
+
+#### Regex-based Discovery
+
+The `key_id_extraction_regex` must include **one capturing group** that extracts the SPIRE Key ID from the KMS alias name.
+
+Example: `^alias/spire/[^/]+/([^/]+)$` matches `alias/spire/us-east-1/jwt-signer` and extracts `jwt-signer`.
+
+#### Distributed Locking and Coordination
+
+When multiple servers share keys, they must coordinate to prevent race conditions during key rotation:
+
+1. **Distributed Locking**: Before creating or rotating a key, the plugin acquires a distributed lock by creating a KMS alias determined by `lock_alias_template`
+2. **Freshness Check**: If the lock is acquired, the plugin checks if the key was recently rotated (within the last 15 minutes) by another server. If so, it reuses the existing fresh key instead of generating a duplicate
+
+### Key Tagging
 
 The plugin supports tagging of KMS keys with user-defined tags using the `key_tags` configuration option. These tags are specified as key-value pairs and are applied to all KMS keys created by the plugin.
 
@@ -128,28 +176,75 @@ is set, the plugin uses the policy defined in the file instead of the default po
 
 ## Sample Plugin Configuration
 
-### Basic configuration
+### Standard Mode (Single Server)
+
+Basic configuration for a single SPIRE server:
 
 ```hcl
 KeyManager "aws_kms" {
     plugin_data {
         region = "us-east-2"
-        key_metadata_file = "./key_metadata"
+        key_identifier_file = "./server_id"
     }
 }
 ```
 
-### Configuration with tags
+### Standard Mode with Tags
 
 ```hcl
 KeyManager "aws_kms" {
     plugin_data {
         region = "us-east-2"
-        key_metadata_file = "./key_metadata"
+        key_identifier_file = "./server_id"
         key_tags = {
             Environment = "production"
             Team        = "security"
             Component   = "spire"
+        }
+    }
+}
+```
+
+### Shared Keys Mode (Multi-Server)
+
+Configuration for multiple SPIRE servers sharing keys:
+
+```hcl
+KeyManager "aws_kms" {
+    plugin_data {
+        region = "us-east-1"
+        
+        shared_keys {
+            # Template matches alias/spire/us-east-1/jwt-signer
+            jwt_key_alias_template = "alias/spire/{{ .Region }}/{{ .KeyID }}"
+            
+            # Regex extracts 'jwt-signer' from the alias
+            key_id_extraction_regex = "^alias/spire/[^/]+/([^/]+)$"
+            
+            # Lock alias for safe rotation coordination
+            lock_alias_template = "alias/spire/lock/{{ .Region }}/{{ .KeyID }}"
+        }
+    }
+}
+```
+
+### Shared Keys Mode with Environment-based Keys
+
+```hcl
+KeyManager "aws_kms" {
+    plugin_data {
+        region = "us-west-2"
+        
+        shared_keys {
+            # Use environment variable for multi-environment deployments
+            jwt_key_alias_template = "alias/spire/{{ .Env }}/{{ .Region }}/{{ .KeyID }}"
+            key_id_extraction_regex = "^alias/spire/[^/]+/[^/]+/([^/]+)$"
+            lock_alias_template = "alias/spire/lock/{{ .Env }}/{{ .Region }}/{{ .KeyID }}"
+        }
+        
+        key_tags = {
+            Environment = "production"
+            Region      = "us-west-2"
         }
     }
 }
