@@ -2,6 +2,14 @@ package telemetry
 
 import (
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/x509"
+	"encoding/pem"
+	"math/big"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -102,4 +110,103 @@ func newTestPrometheusRunner(c *MetricsConfig) (sinkRunner, error) {
 	}
 
 	return runner, err
+}
+
+func TestNewPrometheusRunnerWithTLS(t *testing.T) {
+	certFile, keyFile := generateTestCertFiles(t)
+
+	config := testPrometheusConfig()
+	config.FileConfig.Prometheus.TLS = &PrometheusTLSConfig{
+		CertFile: certFile,
+		KeyFile:  keyFile,
+	}
+
+	pr, err := newTestPrometheusRunner(config)
+	require.NoError(t, err)
+	require.NotNil(t, pr)
+
+	runner := pr.(*prometheusRunner)
+	require.NotNil(t, runner.server.TLSConfig)
+	assert.Equal(t, 1, len(runner.server.TLSConfig.Certificates))
+}
+
+func TestNewPrometheusRunnerWithMTLS(t *testing.T) {
+	certFile, keyFile := generateTestCertFiles(t)
+
+	config := testPrometheusConfig()
+	config.FileConfig.Prometheus.TLS = &PrometheusTLSConfig{
+		CertFile: certFile,
+		KeyFile:  keyFile,
+		CAFile:   certFile, // reuse the cert as the CA
+	}
+
+	pr, err := newTestPrometheusRunner(config)
+	require.NoError(t, err)
+	require.NotNil(t, pr)
+
+	runner := pr.(*prometheusRunner)
+	require.NotNil(t, runner.server.TLSConfig)
+	require.NotNil(t, runner.server.TLSConfig.ClientCAs)
+}
+
+func TestNewPrometheusRunnerWithTLSInvalidCert(t *testing.T) {
+	tmpDir := t.TempDir()
+	certFile := filepath.Join(tmpDir, "cert.pem")
+	keyFile := filepath.Join(tmpDir, "key.pem")
+	require.NoError(t, os.WriteFile(certFile, []byte("invalid"), 0600))
+	require.NoError(t, os.WriteFile(keyFile, []byte("invalid"), 0600))
+
+	config := testPrometheusConfig()
+	config.FileConfig.Prometheus.TLS = &PrometheusTLSConfig{
+		CertFile: certFile,
+		KeyFile:  keyFile,
+	}
+
+	_, err := newTestPrometheusRunner(config)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to build prometheus TLS config")
+}
+
+func TestNewPrometheusRunnerWithTLSMissingCAFile(t *testing.T) {
+	certFile, keyFile := generateTestCertFiles(t)
+
+	config := testPrometheusConfig()
+	config.FileConfig.Prometheus.TLS = &PrometheusTLSConfig{
+		CertFile: certFile,
+		KeyFile:  keyFile,
+		CAFile:   "/nonexistent/ca.pem",
+	}
+
+	_, err := newTestPrometheusRunner(config)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to build prometheus TLS config")
+}
+
+func generateTestCertFiles(t *testing.T) (certFile, keyFile string) {
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+
+	template := &x509.Certificate{
+		SerialNumber: big.NewInt(1),
+		NotBefore:    time.Now().Add(-time.Hour),
+		NotAfter:     time.Now().Add(time.Hour),
+		IsCA:         true,
+	}
+	certDER, err := x509.CreateCertificate(rand.Reader, template, template, &key.PublicKey, key)
+	require.NoError(t, err)
+
+	keyDER, err := x509.MarshalECPrivateKey(key)
+	require.NoError(t, err)
+
+	tmpDir := t.TempDir()
+	certFile = filepath.Join(tmpDir, "cert.pem")
+	keyFile = filepath.Join(tmpDir, "key.pem")
+
+	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
+	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER})
+
+	require.NoError(t, os.WriteFile(certFile, certPEM, 0600))
+	require.NoError(t, os.WriteFile(keyFile, keyPEM, 0600))
+
+	return certFile, keyFile
 }

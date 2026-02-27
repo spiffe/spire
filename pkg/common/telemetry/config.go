@@ -36,9 +36,17 @@ type DogStatsdConfig struct {
 	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions"`
 }
 
+type PrometheusTLSConfig struct {
+	CertFile           string                 `hcl:"cert_file"`
+	KeyFile            string                 `hcl:"key_file"`
+	CAFile             string                 `hcl:"ca_file"`
+	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions"`
+}
+
 type PrometheusConfig struct {
 	Host               string                 `hcl:"host"`
 	Port               int                    `hcl:"port"`
+	TLS                *PrometheusTLSConfig   `hcl:"tls"`
 	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions"`
 }
 

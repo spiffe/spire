@@ -2,9 +2,12 @@ package telemetry
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
 	"sync"
 	"time"
 
@@ -60,6 +63,14 @@ func newPrometheusRunner(c *MetricsConfig) (sinkRunner, error) {
 		ReadHeaderTimeout: time.Second * 10,
 	}
 
+	if runner.c.TLS != nil {
+		tlsConfig, err := newPrometheusTLSConfig(runner.c.TLS)
+		if err != nil {
+			return runner, fmt.Errorf("failed to build prometheus TLS config: %w", err)
+		}
+		runner.server.TLSConfig = tlsConfig
+	}
+
 	return runner, nil
 }
 
@@ -84,7 +95,12 @@ func (p *prometheusRunner) run(ctx context.Context) error {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		err := p.server.ListenAndServe()
+		var err error
+		if p.c.TLS != nil {
+			err = p.server.ListenAndServeTLS("", "")
+		} else {
+			err = p.server.ListenAndServe()
+		}
 		if !errors.Is(err, http.ErrServerClosed) {
 			p.log.Warnf("Prometheus listener stopped unexpectedly: %v", err)
 		}
@@ -103,4 +119,31 @@ func (p *prometheusRunner) run(ctx context.Context) error {
 
 func (p *prometheusRunner) requiresTypePrefix() bool {
 	return false
+}
+
+func newPrometheusTLSConfig(cfg *PrometheusTLSConfig) (*tls.Config, error) {
+	cert, err := tls.LoadX509KeyPair(cfg.CertFile, cfg.KeyFile)
+	if err != nil {
+		return nil, err
+	}
+
+	tlsCfg := &tls.Config{
+		Certificates: []tls.Certificate{cert},
+		MinVersion:   tls.VersionTLS12,
+	}
+
+	if cfg.CAFile != "" {
+		caPEM, err := os.ReadFile(cfg.CAFile)
+		if err != nil {
+			return nil, err
+		}
+		caPool := x509.NewCertPool()
+		if !caPool.AppendCertsFromPEM(caPEM) {
+			return nil, fmt.Errorf("failed to parse CA certificate from %q", cfg.CAFile)
+		}
+		tlsCfg.ClientCAs = caPool
+		tlsCfg.ClientAuth = tls.RequireAndVerifyClientCert
+	}
+
+	return tlsCfg, nil
 }
