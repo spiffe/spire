@@ -810,8 +810,6 @@ github.com/spiffe/go-spiffe/v2 v2.6.0 h1:l+DolpxNWYgruGQVV0xsfeya3CsC7m8iBzDnMps
 github.com/spiffe/go-spiffe/v2 v2.6.0/go.mod h1:gm2SeUoMZEtpnzPNs2Csc0D/gX33k1xIx7lEzqblHEs=
 github.com/spiffe/spire-api-sdk v1.2.5-0.20260115194754-bcd1999bdd05 h1:wJPyPSXHtKEc9SuK83sr40OoRSaYUTf1+wncvWvogHE=
 github.com/spiffe/spire-api-sdk v1.2.5-0.20260115194754-bcd1999bdd05/go.mod h1:9hXJcMzatM1KwAtBDO3s6HccDCic++/5c2yOc5Iln8Y=
-github.com/spiffe/spire-plugin-sdk v1.4.4-0.20251120194148-791bbd274dc7 h1:OAvr7TNirmBpXnAp82cTosuB+JAus5cyFCRqXHE0WHs=
-github.com/spiffe/spire-plugin-sdk v1.4.4-0.20251120194148-791bbd274dc7/go.mod h1:QvrRDiBlXiJ7kNd176ZHsF5eklxxeTRgJSu2CXe0MKw=
 github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
 github.com/stretchr/objx v0.1.1/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
 github.com/stretchr/objx v0.4.0/go.mod h1:YvHI0jy2hoMjB+UWwv71VJQ9isScKT/TqJzVSSt89Yw=

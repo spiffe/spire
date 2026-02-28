@@ -5,10 +5,12 @@ ARG goversion
 FROM --platform=${BUILDPLATFORM} golang:${goversion}-alpine3.22 as base
 WORKDIR /spire
 RUN apk --no-cache --update add file bash clang lld pkgconfig git make
-COPY go.* ./
+COPY spire/go.* ./
+COPY spire-plugin-sdk/ /spire-plugin-sdk/
+COPY spire-api-sdk/ /spire-api-sdk/
 # https://go.dev/ref/mod#module-cache
 RUN --mount=type=cache,target=/go/pkg/mod go mod download
-COPY . .
+COPY spire/ .
 
 # xx is a helper for cross-compilation
 # when bumping to a new version analyze the new version for security issues
@@ -31,7 +33,7 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
     make build-static git_tag=$TAG git_dirty="" && \
     for f in $(find bin -executable -type f); do xx-verify --static $f; done
 
-FROM --platform=${BUILDPLATFORM} scratch AS spire-base
+FROM --platform=${BUILDPLATFORM} golang:${goversion}-alpine3.22 AS spire-base
 COPY --link --from=builder --chown=root:root --chmod=755 /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 WORKDIR /opt/spire
 

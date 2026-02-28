@@ -32,6 +32,14 @@ func (c *agentConfig) hasAdminAddr() bool {
 	return c.Experimental.AdminNamedPipeName != ""
 }
 
+func (c *agentConfig) getBrokerAddr() (net.Addr, error) {
+	return nil, errors.New("broker_socket_path is not supported in this platform")
+}
+
+func (c *agentConfig) hasBrokerAddr() bool {
+	return false
+}
+
 // validateOS performs windows specific validations of the agent config
 func (c *agentConfig) validateOS() error {
 	if c.SocketPath != "" {

@@ -11,6 +11,7 @@ import (
 	"github.com/andres-erbsen/clock"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
+	"github.com/spiffe/go-spiffe/v2/bundle/x509bundle"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/backoff"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -583,6 +584,10 @@ func (c *LRUCache) SyncSVIDsWithSubscribers() {
 	defer c.mu.Unlock()
 
 	c.syncSVIDsWithSubscribers()
+}
+
+func (c *LRUCache) X509Bundle() x509bundle.Source {
+	return c.BundleCache
 }
 
 // scheduleRotation processes SVID entries in batches, removing those tainted by X.509 authorities.

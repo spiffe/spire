@@ -3,6 +3,7 @@
 package k8s
 
 import (
+	"fmt"
 	"io"
 	"log"
 	"os"
@@ -16,6 +17,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/containerinfo"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/anypb"
 	"k8s.io/apimachinery/pkg/types"
 )
 
@@ -34,6 +36,7 @@ func createHelper(c *Plugin) ContainerHelper {
 	}
 	return &containerHelper{
 		rootDir: rootDir,
+		log:     c.log,
 	}
 }
 
@@ -41,6 +44,7 @@ type containerHelper struct {
 	rootDir                     string
 	useNewContainerLocator      bool
 	verboseContainerLocatorLogs bool
+	log                         hclog.Logger
 }
 
 func (h *containerHelper) Configure(config *HCLConfig, log hclog.Logger) error {
@@ -55,12 +59,34 @@ func (h *containerHelper) Configure(config *HCLConfig, log hclog.Logger) error {
 	return nil
 }
 
-func (h *containerHelper) GetPodUIDAndContainerID(pID int32, log hclog.Logger) (types.UID, string, error) {
+func (h *containerHelper) GetPodUIDAndContainerID(ref *anypb.Any, log hclog.Logger) (types.UID, string, bool, error) {
+	podUID, pid, err := extractRelevantReference(ref)
+
+	h.log.Info("Extracted reference from AttestReference request", "podUID", podUID, "pid", pid)
+
+	switch {
+	case err != nil:
+		return "", "", false, fmt.Errorf("unable to extract relevant reference: %w", err)
+	case pid != -1:
+		// instruct that in the later state we require a container ID match in the pod spec.
+		requiredContainerIDMatch := true
+		podUID, containerID, err := h.getPodUIDAndContainerIDFromPID(pid, log)
+		h.log.Info("Obtained pod UID and container ID from PID reference", "podUID", podUID, "containerID", containerID, "pid", pid)
+		return podUID, containerID, requiredContainerIDMatch, err
+	case podUID != "":
+		return podUID, "", false, nil
+	default:
+		return "", "", false, status.Errorf(codes.InvalidArgument, "reference did not contain a valid Pod UID or PID")
+	}
+}
+
+func (h *containerHelper) getPodUIDAndContainerIDFromPID(pID int32, log hclog.Logger) (types.UID, string, error) {
 	if !h.useNewContainerLocator {
 		cgroups, err := cgroups.GetCgroups(pID, dirFS(h.rootDir))
 		if err != nil {
 			return "", "", status.Errorf(codes.Internal, "unable to obtain cgroups: %v", err)
 		}
+		h.log.Info("Obtained cgroups for PID", "pid", pID, "cgroups", cgroups)
 		return getPodUIDAndContainerIDFromCGroups(cgroups)
 	}
 
