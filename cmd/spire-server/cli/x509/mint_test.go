@@ -243,17 +243,15 @@ Private key:
 Root CAs:
 %s
 `, certDerPem.String(), testKeyPEM, rootCaPem.String()),
-			expStdoutJSON: fmt.Sprintf(`[
-  {
-    "x509_svid": [
-      "%s"
-    ],
-    "private_key": "%s",
-    "root_cas": [
-      "%s"
-    ]
-  }
-]`, base64.StdEncoding.EncodeToString(certDER), privateKeyBase64, base64.StdEncoding.EncodeToString(x509Authority.Raw)),
+			expStdoutJSON: fmt.Sprintf(`{
+  "x509_svid": [
+    "%s"
+  ],
+  "private_key": "%s",
+  "root_cas": [
+    "%s"
+  ]
+}`, base64.StdEncoding.EncodeToString(certDER), privateKeyBase64, base64.StdEncoding.EncodeToString(x509Authority.Raw)),
 		},
 		{
 			name:     "success with ttl and dnsnames, written to directory",
