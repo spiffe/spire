@@ -188,22 +188,21 @@ func RegistrationEntryToProto(e *common.RegistrationEntry) (*types.Entry, error)
 	}
 
 	entry := &types.Entry{
-		Id:                   e.EntryId,
-		SpiffeId:             ProtoFromID(spiffeID),
-		ParentId:             ProtoFromID(parentID),
-		Selectors:            ProtoFromSelectors(e.Selectors),
-		X509SvidTtl:          e.X509SvidTtl,
-		FederatesWith:        federatesWith,
-		Admin:                e.Admin,
-		Downstream:           e.Downstream,
-		ExpiresAt:            e.EntryExpiry,
-		DnsNames:             slices.Clone(e.DnsNames),
-		RevisionNumber:       e.RevisionNumber,
-		StoreSvid:            e.StoreSvid,
-		JwtSvidTtl:           e.JwtSvidTtl,
-		Hint:                 e.Hint,
-		CreatedAt:            e.CreatedAt,
-		AdditionalAttributes: ProtoFromAdditionalAttributes(e.AdditionalAttributes),
+		Id:             e.EntryId,
+		SpiffeId:       ProtoFromID(spiffeID),
+		ParentId:       ProtoFromID(parentID),
+		Selectors:      ProtoFromSelectors(e.Selectors),
+		X509SvidTtl:    e.X509SvidTtl,
+		FederatesWith:  federatesWith,
+		Admin:          e.Admin,
+		Downstream:     e.Downstream,
+		ExpiresAt:      e.EntryExpiry,
+		DnsNames:       slices.Clone(e.DnsNames),
+		RevisionNumber: e.RevisionNumber,
+		StoreSvid:      e.StoreSvid,
+		JwtSvidTtl:     e.JwtSvidTtl,
+		Hint:           e.Hint,
+		CreatedAt:      e.CreatedAt,
 	}
 
 	additionalAttributes := ProtoFromAdditionalAttributes(e.AdditionalAttributes)
