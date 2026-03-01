@@ -75,7 +75,7 @@ func RawCertsFromCertificates(certs []*x509.Certificate) [][]byte {
 	return rawCerts
 }
 
-// IsUnknownAuthorityError returns tru if the Server returned an unknown authority error when verifying
+// IsUnknownAuthorityError returns true if the Server returned an unknown authority error when verifying
 // presented SVID
 func IsUnknownAuthorityError(err error) bool {
 	if err == nil {
