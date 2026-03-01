@@ -82,7 +82,7 @@ func TestValidateAndNormalize(t *testing.T) {
 			wantErr: x509util.ErrNameMustBeASCII,
 		},
 		{
-			name: "hypen is ok",
+			name: "hyphen is ok",
 			dns:  "a-hello.com",
 		},
 		{
