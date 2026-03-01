@@ -2,6 +2,7 @@ package catalog
 
 import (
 	"github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/server/plugin/keymanager/hashicorpvault"
 
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager/awskms"
@@ -33,6 +34,7 @@ func (repo *keyManagerRepository) BuiltIns() []catalog.BuiltIn {
 		disk.BuiltIn(),
 		gcpkms.BuiltIn(),
 		azurekeyvault.BuiltIn(),
+		hashicorpvault.BuiltIn(),
 		memory.BuiltIn(),
 	}
 }
