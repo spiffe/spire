@@ -129,6 +129,7 @@ func TestCachePeriodicRebuild(t *testing.T) {
 		err := cache.PeriodicRebuild(rebuildCtx)
 		require.ErrorIs(t, err, context.Canceled)
 	}()
+	clk.WaitForTicker(time.Minute, "timed out waiting for rebuild task to start")
 
 	cachedFirstAgent, _ := cache.LookupAttestedNode(firstAgent.SpiffeId)
 	require.NotNil(t, cachedFirstAgent)
