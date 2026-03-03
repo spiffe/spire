@@ -11,6 +11,7 @@ import (
 	"github.com/andres-erbsen/clock"
 	observer "github.com/imkira/go-observer"
 	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
+	"github.com/spiffe/go-spiffe/v2/bundle/x509bundle"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
@@ -93,6 +94,9 @@ type Manager interface {
 
 	// GetBundle get latest cached bundle
 	GetBundle() *cache.Bundle
+
+	// GetX509Bundle returns an X509 bundle source
+	GetX509Bundle() x509bundle.Source
 }
 
 // Cache stores each registration entry, signed X509-SVIDs for those entries,
@@ -135,6 +139,8 @@ type Cache interface {
 
 	// Identities get all identities in cache
 	Identities() []cache.Identity
+
+	X509Bundle() x509bundle.Source
 }
 
 type manager struct {
@@ -427,6 +433,10 @@ func (m *manager) GetBundle() *cache.Bundle {
 	defer m.mtx.RUnlock()
 
 	return m.cache.Bundle()
+}
+
+func (m *manager) GetX509Bundle() x509bundle.Source {
+	return m.cache.X509Bundle()
 }
 
 func (m *manager) runSVIDObserver(ctx context.Context) error {

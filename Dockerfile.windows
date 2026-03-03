@@ -10,14 +10,14 @@ CMD []
 # SPIRE Server
 FROM spire-base-windows AS spire-server-windows
 ENTRYPOINT ["c:/spire/bin/spire-server.exe", "run"]
-COPY bin/spire-server.exe C:/spire/bin/spire-server.exe
+COPY spire/bin/spire-server.exe C:/spire/bin/spire-server.exe
 
 # SPIRE Agent
 FROM spire-base-windows AS spire-agent-windows
 ENTRYPOINT ["c:/spire/bin/spire-agent.exe", "run"]
-COPY ./bin/spire-agent.exe C:/spire/bin/spire-agent.exe
+COPY spire/bin/spire-agent.exe C:/spire/bin/spire-agent.exe
 
 # OIDC Discovery Provider
 FROM spire-base-windows AS oidc-discovery-provider-windows
 ENTRYPOINT ["c:/spire/bin/oidc-discovery-provider.exe"]
-COPY ./bin/oidc-discovery-provider.exe c:/spire/bin/oidc-discovery-provider.exe
+COPY spire/bin/oidc-discovery-provider.exe c:/spire/bin/oidc-discovery-provider.exe

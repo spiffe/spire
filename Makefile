@@ -184,7 +184,7 @@ git_dirty := $(shell git status -s)
 
 protos := \
 	proto/private/server/journal/journal.proto \
-	proto/spire/common/common.proto \
+	proto/spire/common/common.proto
 
 api-protos := \
 
@@ -342,7 +342,7 @@ $1: $3 container-builder
 		--target $2 \
 		-o type=oci,dest=$2-image.tar \
 		-f $3 \
-		.
+		..
 
 endef
 
@@ -373,7 +373,7 @@ $1: $3
 		--target $2 \
 		-t $2 -t $2:latest-local \
 		-f $3 \
-		.
+		..
 
 endef
 
@@ -477,7 +477,7 @@ endif
 .PHONY: dev-shell dev-image
 
 dev-image:
-	$(E)docker build -t spire-dev -f Dockerfile.dev .
+	$(E)docker build -t spire-dev -f Dockerfile.dev ..
 
 dev-shell: | go-check
 	$(E)docker run --rm -v "$(call goenv,GOCACHE)":/root/.cache/go-build -v "$(DIR):/spire" -v "$(call goenv,GOPATH)/pkg/mod":/root/go/pkg/mod -it -h spire-dev spire-dev
