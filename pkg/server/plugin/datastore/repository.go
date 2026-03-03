@@ -11,3 +11,11 @@ func (repo *Repository) GetDataStore() DataStore {
 func (repo *Repository) SetDataStore(dataStore DataStore) {
 	repo.DataStore = dataStore
 }
+
+func (repo *Repository) Clear() {
+	repo.DataStore = nil
+}
+
+func (repo *Repository) ClearDataStore() {
+	repo.DataStore = nil
+}

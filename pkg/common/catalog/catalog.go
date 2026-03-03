@@ -82,7 +82,7 @@ type Facade interface {
 	InitInfo(info PluginInfo)
 
 	// InitLog initializes the facade with the logger for the loaded plugin
-	// that provides the service server.
+	// that provides the service server. // TODO(tjons): this is not correct
 	InitLog(log logrus.FieldLogger)
 }
 
@@ -319,21 +319,23 @@ func makePluginLog(log logrus.FieldLogger, pluginConfig PluginConfig) logrus.Fie
 func loadPlugin(ctx context.Context, builtIns []BuiltIn, pluginConfig PluginConfig, pluginLog logrus.FieldLogger, hostServices []pluginsdk.ServiceServer) (*pluginImpl, error) {
 	if pluginConfig.IsExternal() {
 		return loadExternal(ctx, externalConfig{
-			Name:         pluginConfig.Name,
-			Type:         pluginConfig.Type,
-			Path:         pluginConfig.Path,
-			Args:         pluginConfig.Args,
-			Checksum:     pluginConfig.Checksum,
-			Log:          pluginLog,
-			HostServices: hostServices,
+			Name:               pluginConfig.Name,
+			Type:               pluginConfig.Type,
+			Path:               pluginConfig.Path,
+			Args:               pluginConfig.Args,
+			Checksum:           pluginConfig.Checksum,
+			Log:                pluginLog,
+			HostServices:       hostServices,
+			MaxGrpcMessageSize: pluginConfig.MaxGrpcMessageSize,
 		})
 	}
 
 	for _, builtIn := range builtIns {
 		if pluginConfig.Name == builtIn.Name {
 			return loadBuiltIn(ctx, builtIn, BuiltInConfig{
-				Log:          pluginLog,
-				HostServices: hostServices,
+				Log:                pluginLog,
+				HostServices:       hostServices,
+				MaxGrpcMessageSize: pluginConfig.MaxGrpcMessageSize,
 			})
 		}
 	}

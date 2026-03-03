@@ -30,13 +30,16 @@ log-info "running \"${TESTNAME}\" test suite..."
 # Docker for MacOS (but /tmp is). We need a directory we can mount into the
 # running containers for various tests (e.g. to provide webhook configuration
 # to the kind node).
-RUNDIR=$(_CS_DARWIN_USER_TEMP_DIR='' TMPDIR='' mktemp -d /tmp/spire-integration-XXXXXX)
+# RUNDIR=$(_CS_DARWIN_USER_TEMP_DIR='' TMPDIR='' mktemp -d /tmp/spire-integration-XXXXXX)
+RUNDIR="${ROOTDIR}/run-${TESTNAME}-XXXXXX"
+mkdir -p "${RUNDIR}"    
 
 # The following variables are intended to be usable to step scripts
 export ROOTDIR
 export REPODIR
 export RUNDIR
 export TESTNAME
+export TESTFILTER=$2
 
 export SUCCESS=
 
@@ -58,11 +61,19 @@ cleanup() {
     fi
 
     rm -rf "${RUNDIR}"
+
+    docker exec cassandra-1 cqlsh localhost 9044 -e "DROP KEYSPACE IF EXISTS spire;"
+    if [ $? -ne 0 ]; then
+        log-info "failed to drop cassandra keyspace"
+    fi
+    log-success "finished cleaning up cassandra keyspace"
+    
     if [ -n "$SUCCESS" ]; then
         log-success "\"${TESTNAME}\" test suite succeeded."
     else
         fail-now "\"${TESTNAME}\" test suite failed."
     fi
+    log-debug "cleaning up cassandra keyspace..."
 }
 trap cleanup EXIT
 

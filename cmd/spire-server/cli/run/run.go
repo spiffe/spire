@@ -116,6 +116,7 @@ type experimentalConfig struct {
 	SQLTransactionTimeout   string                      `hcl:"sql_transaction_timeout"`
 	RequirePQKEM            bool                        `hcl:"require_pq_kem"`
 	WITKeyType              string                      `hcl:"wit_key_type"`
+	AllowPluggableDatastore bool                        `hcl:"allow_pluggable_datastore"`
 
 	Flags fflag.RawConfig `hcl:"feature_flags"`
 
@@ -774,6 +775,8 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 
 	sc.EventsBasedCache = c.Server.Experimental.EventsBasedCache
 	sc.AuthOpaPolicyEngineConfig = c.Server.Experimental.AuthOpaPolicyEngine
+
+	sc.ExperimentalAllowPluggableDatastore = c.Server.Experimental.AllowPluggableDatastore
 
 	for _, f := range c.Server.Experimental.Flags {
 		sc.Log.Warnf("Developer feature flag %q has been enabled", f)
