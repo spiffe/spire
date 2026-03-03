@@ -301,20 +301,15 @@ func (c *Cache) removeEntry(entryID string) {
 }
 
 func (c *Cache) Stats() CacheStats {
-	entryByParentIDCount := 0
-	c.mu.RLock()
-	for _, entries := range c.entriesByParentID {
-		entryByParentIDCount += len(entries)
-	}
-	c.mu.RUnlock()
-
 	return CacheStats{
 		AgentsByID:        len(c.agentsByID),
 		AgentsByExpiresAt: c.agentsByExpiresAt.Len(),
 		AliasesByEntryID:  c.aliasesByEntryID.Len(),
 		AliasesBySelector: c.aliasesBySelector.Len(),
 		EntriesByEntryID:  len(c.entriesByEntryID),
-		EntriesByParentID: entryByParentIDCount,
+		// Approximate value of EntriesByParentID
+		// TODO: Remove in SPIRE 1.15.0
+		EntriesByParentID: len(c.entriesByEntryID),
 	}
 }
 
