@@ -10,3 +10,14 @@ services:
       - /var/lib/mysql
     ports:
       - "9999:3306"
+  mysql-8-4:
+    image: mysql:8.4
+    environment:
+      - MYSQL_PASSWORD=test
+      - MYSQL_DATABASE=spire
+      - MYSQL_USER=spire
+      - MYSQL_RANDOM_ROOT_PASSWORD=yes
+    tmpfs:
+      - /var/lib/mysql
+    ports:
+      - "9999:3306"

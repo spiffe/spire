@@ -61,6 +61,12 @@ connection_string="dbname=postgres user=postgres password=password host=localhos
 
 Consult the [lib/pq driver documentation](https://pkg.go.dev/github.com/lib/pq#hdr-Connection_String_Parameters) for more `connection_string` options.
 
+#### Supported PostgreSQL versions
+
+We use [lib/pq](https://github.com/lib/pq) driver so we currently support the versions of PostgreSQL that the library supports. This
+usually means the current set of supported maintained versions. We run [integration tests](../test/integration/suites/datastore-postgres) against
+a number of versions. Older versions may still work, but they are not tested.
+
 #### Configuration Options
 
 * dbname - The name of the database to connect to
@@ -121,6 +127,11 @@ connection_string="username:password@tcp(localhost:3306)/dbname?parseTime=true"
 ```
 
 Consult the [MySQL driver repository](https://github.com/go-sql-driver/mysql#usage) for more `connection_string` options.
+
+#### Supported MySQL versions
+
+We support all currently maintainted versions of MySQL and run [integration tests](../test/integration/suites/datastore-mysql/) against LTS releases. Older versions of
+may still work, but are not tested.
 
 #### Configuration Options
 

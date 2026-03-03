@@ -81,17 +81,17 @@ setup-tests() {
 test-envoy() {
     mTLSSocat=$1
     tlsSocat=$2
-    
+
     local max_checks_per_port=15
     local check_interval=1
-	
+
     # Remove howdy, it i necessary for VERIFY to get again messages
     docker compose exec -T upstream-socat rm -f /tmp/howdy
-    
+
     log-debug "Checking mTLS: ${mTLSSocat}"
     TRY() { docker compose exec -T ${mTLSSocat} /bin/sh -c 'echo HELLO_MTLS | socat -u STDIN TCP:localhost:8001'; }
     VERIFY() { docker compose exec -T upstream-socat cat /tmp/howdy | grep -q HELLO_MTLS; }
-    
+
     local mtls_federated_ok=
     for ((i=1;i<=max_checks_per_port;i++)); do
         log-debug "Checking MTLS proxy ($i of $max_checks_per_port max)..."
@@ -102,11 +102,11 @@ test-envoy() {
         fi
         sleep "${check_interval}"
     done
-    
+
     log-debug "Checking TLS: ${tlsSocat}"
     TRY() { docker compose exec -T ${tlsSocat} /bin/sh -c 'echo HELLO_TLS | socat -u STDIN TCP:localhost:8002'; }
     VERIFY() { docker compose exec -T upstream-socat cat /tmp/howdy | grep -q HELLO_TLS; }
-    
+
     tls_federated_ok=
     for ((i=1;i<=max_checks_per_port;i++)); do
         log-debug "Checking TLS proxy ($i of $max_checks_per_port max)..."
@@ -117,12 +117,16 @@ test-envoy() {
         fi
         sleep "${check_interval}"
     done
-    
+
     if [ -z "${mtls_federated_ok}" ]; then
+        log-warn "MTLS proxy check failed for ${mTLSSocat} after ${max_checks_per_port} attempts"
+        dump-multiple-container-logs upstream-proxy downstream-proxy downstream-federated-proxy upstream-socat downstream-socat-mtls downstream-socat-tls downstream-federated-socat-mtls downstream-federated-socat-tls
         fail-now "MTLS Proxying failed"
     fi
-    
+
     if [ -z "${tls_federated_ok}" ]; then
+        log-warn "TLS proxy check failed for ${tlsSocat} after ${max_checks_per_port} attempts"
+        dump-multiple-container-logs upstream-proxy downstream-proxy downstream-federated-proxy upstream-socat downstream-socat-mtls downstream-socat-tls downstream-federated-socat-mtls downstream-federated-socat-tls
         fail-now "TLS Proxying failed"
     fi
 }

@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.14.1] - 2026-01-15
+
+### Changed
+
+- The `uptime_in_ms` gauge metric now uses float64 instead of integer (#6532)
+- SPIRE Server on Windows can now accept persistent arguments in the service binPath for automatic startup (#6465)
+
+### Fixed
+
+- Incorrect logic for disposing keys in the `aws_kms` KeyManager plugin (#6525)
+- JWT-SVID caching now uses the SPIFFE ID returned by the server to prevent stale cache entries when entry IDs change (#6501)
+- Documentation fixes (#6488, #6521)
+
 ## [1.14.0] - 2025-12-11
 
 ### Added

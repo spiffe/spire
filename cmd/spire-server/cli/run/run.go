@@ -643,7 +643,7 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 	}
 
 	if c.Server.CAKeyType != "" {
-		keyType, err := keyTypeFromString(c.Server.CAKeyType)
+		keyType, err := keymanager.KeyTypeFromString(c.Server.CAKeyType)
 		if err != nil {
 			return nil, fmt.Errorf("error parsing ca_key_type: %w", err)
 		}
@@ -657,14 +657,14 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 	}
 
 	if c.Server.JWTKeyType != "" {
-		sc.JWTKeyType, err = keyTypeFromString(c.Server.JWTKeyType)
+		sc.JWTKeyType, err = keymanager.KeyTypeFromString(c.Server.JWTKeyType)
 		if err != nil {
 			return nil, fmt.Errorf("error parsing jwt_key_type: %w", err)
 		}
 	}
 
 	if c.Server.Experimental.WITKeyType != "" {
-		sc.WITKeyType, err = keyTypeFromString(c.Server.Experimental.WITKeyType)
+		sc.WITKeyType, err = keymanager.KeyTypeFromString(c.Server.Experimental.WITKeyType)
 		if err != nil {
 			return nil, fmt.Errorf("error parsing wit_key_type: %w", err)
 		}
@@ -1078,21 +1078,6 @@ func defaultConfig() *Config {
 			LogFormat:    log.DefaultFormat,
 			Experimental: experimentalConfig{},
 		},
-	}
-}
-
-func keyTypeFromString(s string) (keymanager.KeyType, error) {
-	switch strings.ToLower(s) {
-	case "rsa-2048":
-		return keymanager.RSA2048, nil
-	case "rsa-4096":
-		return keymanager.RSA4096, nil
-	case "ec-p256":
-		return keymanager.ECP256, nil
-	case "ec-p384":
-		return keymanager.ECP384, nil
-	default:
-		return keymanager.KeyTypeUnset, fmt.Errorf("key type %q is unknown; must be one of [rsa-2048, rsa-4096, ec-p256, ec-p384]", s)
 	}
 }
 

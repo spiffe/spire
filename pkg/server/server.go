@@ -16,6 +16,7 @@ import (
 	bundlev1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/bundle/v1"
 	server_util "github.com/spiffe/spire/cmd/spire-server/util"
 	"github.com/spiffe/spire/pkg/common/diskutil"
+	"github.com/spiffe/spire/pkg/common/errorutil"
 	"github.com/spiffe/spire/pkg/common/health"
 	"github.com/spiffe/spire/pkg/common/profiling"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -63,7 +64,7 @@ type Server struct {
 // This method initializes the server, including its plugins,
 // and then blocks until it's shut down or an error is encountered.
 func (s *Server) Run(ctx context.Context) error {
-	if err := s.run(ctx); err != nil {
+	if err := s.run(ctx); err != nil && !errorutil.IsSIGINTOrSIGTERMError(err) {
 		s.config.Log.WithError(err).Error("Fatal run error")
 		return err
 	}

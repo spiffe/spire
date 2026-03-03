@@ -234,7 +234,9 @@ type AttestedNode struct {
 	// Node selectors
 	Selectors []*Selector `protobuf:"bytes,7,rep,name=selectors,proto3" json:"selectors,omitempty"`
 	// CanReattest field (can the attestation safely be deleted and recreated automatically)
-	CanReattest   bool `protobuf:"varint,8,opt,name=can_reattest,json=canReattest,proto3" json:"can_reattest,omitempty"`
+	CanReattest bool `protobuf:"varint,8,opt,name=can_reattest,json=canReattest,proto3" json:"can_reattest,omitempty"`
+	// AgentVersion is the version of the SPIRE agent
+	AgentVersion  string `protobuf:"bytes,9,opt,name=agent_version,json=agentVersion,proto3" json:"agent_version,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -323,6 +325,13 @@ func (x *AttestedNode) GetCanReattest() bool {
 		return x.CanReattest
 	}
 	return false
+}
+
+func (x *AttestedNode) GetAgentVersion() string {
+	if x != nil {
+		return x.AgentVersion
+	}
+	return ""
 }
 
 // * This is a curated record that the Server uses to set up and
@@ -1001,6 +1010,7 @@ type AttestedNodeMask struct {
 	NewCertSerialNumber bool                   `protobuf:"varint,4,opt,name=new_cert_serial_number,json=newCertSerialNumber,proto3" json:"new_cert_serial_number,omitempty"`
 	NewCertNotAfter     bool                   `protobuf:"varint,5,opt,name=new_cert_not_after,json=newCertNotAfter,proto3" json:"new_cert_not_after,omitempty"`
 	CanReattest         bool                   `protobuf:"varint,6,opt,name=can_reattest,json=canReattest,proto3" json:"can_reattest,omitempty"`
+	AgentVersion        bool                   `protobuf:"varint,7,opt,name=agent_version,json=agentVersion,proto3" json:"agent_version,omitempty"`
 	unknownFields       protoimpl.UnknownFields
 	sizeCache           protoimpl.SizeCache
 }
@@ -1077,6 +1087,13 @@ func (x *AttestedNodeMask) GetCanReattest() bool {
 	return false
 }
 
+func (x *AttestedNodeMask) GetAgentVersion() bool {
+	if x != nil {
+		return x.AgentVersion
+	}
+	return false
+}
+
 var File_spire_common_common_proto protoreflect.FileDescriptor
 
 const file_spire_common_common_proto_rawDesc = "" +
@@ -1090,7 +1107,7 @@ const file_spire_common_common_proto_rawDesc = "" +
 	"\x04type\x18\x01 \x01(\tR\x04type\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value\"=\n" +
 	"\tSelectors\x120\n" +
-	"\aentries\x18\x01 \x03(\v2\x16.spire.common.SelectorR\aentries\"\xee\x02\n" +
+	"\aentries\x18\x01 \x03(\v2\x16.spire.common.SelectorR\aentries\"\x93\x03\n" +
 	"\fAttestedNode\x12\x1b\n" +
 	"\tspiffe_id\x18\x01 \x01(\tR\bspiffeId\x122\n" +
 	"\x15attestation_data_type\x18\x02 \x01(\tR\x13attestationDataType\x12,\n" +
@@ -1099,7 +1116,8 @@ const file_spire_common_common_proto_rawDesc = "" +
 	"\x16new_cert_serial_number\x18\x05 \x01(\tR\x13newCertSerialNumber\x12+\n" +
 	"\x12new_cert_not_after\x18\x06 \x01(\x03R\x0fnewCertNotAfter\x124\n" +
 	"\tselectors\x18\a \x03(\v2\x16.spire.common.SelectorR\tselectors\x12!\n" +
-	"\fcan_reattest\x18\b \x01(\bR\vcanReattest\"\xfb\x03\n" +
+	"\fcan_reattest\x18\b \x01(\bR\vcanReattest\x12#\n" +
+	"\ragent_version\x18\t \x01(\tR\fagentVersion\"\xfb\x03\n" +
 	"\x11RegistrationEntry\x124\n" +
 	"\tselectors\x18\x01 \x03(\v2\x16.spire.common.SelectorR\tselectors\x12\x1b\n" +
 	"\tparent_id\x18\x02 \x01(\tR\bparentId\x12\x1b\n" +
@@ -1168,14 +1186,15 @@ const file_spire_common_common_proto_rawDesc = "" +
 	"\frefresh_hint\x18\x03 \x01(\bR\vrefreshHint\x12'\n" +
 	"\x0fsequence_number\x18\x04 \x01(\bR\x0esequenceNumber\x12*\n" +
 	"\x11x509_tainted_keys\x18\x05 \x01(\bR\x0fx509TaintedKeys\x12(\n" +
-	"\x10wit_signing_keys\x18\x06 \x01(\bR\x0ewitSigningKeys\"\x9f\x02\n" +
+	"\x10wit_signing_keys\x18\x06 \x01(\bR\x0ewitSigningKeys\"\xc4\x02\n" +
 	"\x10AttestedNodeMask\x122\n" +
 	"\x15attestation_data_type\x18\x01 \x01(\bR\x13attestationDataType\x12,\n" +
 	"\x12cert_serial_number\x18\x02 \x01(\bR\x10certSerialNumber\x12$\n" +
 	"\x0ecert_not_after\x18\x03 \x01(\bR\fcertNotAfter\x123\n" +
 	"\x16new_cert_serial_number\x18\x04 \x01(\bR\x13newCertSerialNumber\x12+\n" +
 	"\x12new_cert_not_after\x18\x05 \x01(\bR\x0fnewCertNotAfter\x12!\n" +
-	"\fcan_reattest\x18\x06 \x01(\bR\vcanReattestB,Z*github.com/spiffe/spire/proto/spire/commonb\x06proto3"
+	"\fcan_reattest\x18\x06 \x01(\bR\vcanReattest\x12#\n" +
+	"\ragent_version\x18\a \x01(\bR\fagentVersionB,Z*github.com/spiffe/spire/proto/spire/commonb\x06proto3"
 
 var (
 	file_spire_common_common_proto_rawDescOnce sync.Once

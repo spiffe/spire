@@ -35,6 +35,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/rotationutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	"github.com/spiffe/spire/pkg/common/version"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/proto/spire/common"
@@ -551,6 +552,9 @@ func TestSynchronization(t *testing.T) {
 		t.Fatal(err)
 	}
 	require.Equal(t, clk.Now(), m.GetLastSync())
+
+	// Verify that the agent version was sent to the server during initialization
+	require.Equal(t, version.Version(), api.lastAgentVersion)
 
 	// Before synchronization
 	identitiesBefore := identitiesByEntryID(m.cache.Identities())
@@ -1832,6 +1836,9 @@ type mockAPI struct {
 	getAuthorizedEntriesCount int32
 	batchNewX509SVIDCount     int32
 
+	// Last agent version received via PostStatus
+	lastAgentVersion string
+
 	taintedX509Authority *x509.Certificate
 
 	clk clock.Clock
@@ -1903,6 +1910,11 @@ func (h *mockAPI) RenewAgent(ctx context.Context, req *agentv1.RenewAgentRequest
 			ExpiresAt: svid[0].NotAfter.Unix(),
 		},
 	}, nil
+}
+
+func (h *mockAPI) PostStatus(_ context.Context, req *agentv1.PostStatusRequest) (*agentv1.PostStatusResponse, error) {
+	h.lastAgentVersion = req.AgentVersion
+	return &agentv1.PostStatusResponse{}, nil
 }
 
 func (h *mockAPI) GetAuthorizedEntries(_ context.Context, req *entryv1.GetAuthorizedEntriesRequest) (*entryv1.GetAuthorizedEntriesResponse, error) {

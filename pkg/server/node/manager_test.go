@@ -98,7 +98,9 @@ func (s *ManagerSuite) TestPruning() {
 	s.clock.Add(defaultJobInterval)
 	s.Require().Eventuallyf(func() bool {
 		listResp, err := s.ds.ListAttestedNodes(ctx, &datastore.ListAttestedNodesRequest{})
-		s.NoError(err)
+		if err != nil {
+			return false
+		}
 		return reflect.DeepEqual([]*common.AttestedNode{
 			attestedNodeBanned,
 			attestedNodeNonReattestable,
@@ -111,7 +113,9 @@ func (s *ManagerSuite) TestPruning() {
 	s.clock.Add(defaultJobInterval)
 	s.Require().Eventuallyf(func() bool {
 		listResp, err := s.ds.ListAttestedNodes(ctx, &datastore.ListAttestedNodesRequest{})
-		s.NoError(err)
+		if err != nil {
+			return false
+		}
 		return reflect.DeepEqual([]*common.AttestedNode{
 			attestedNodeBanned,
 			attestedNodeNonReattestable,
@@ -123,7 +127,9 @@ func (s *ManagerSuite) TestPruning() {
 	s.clock.Add(defaultJobInterval)
 	s.Require().Eventuallyf(func() bool {
 		listResp, err := s.ds.ListAttestedNodes(ctx, &datastore.ListAttestedNodesRequest{})
-		s.NoError(err)
+		if err != nil {
+			return false
+		}
 		return reflect.DeepEqual([]*common.AttestedNode{
 			attestedNodeBanned,
 			attestedNodeNonReattestable,
@@ -135,7 +141,9 @@ func (s *ManagerSuite) TestPruning() {
 	s.Require().Eventuallyf(func() bool {
 		s.m.Prune(ctx, 2*expiredFor, true)
 		listResp, err := s.ds.ListAttestedNodes(ctx, &datastore.ListAttestedNodesRequest{})
-		s.Require().NoError(err)
+		if err != nil {
+			return false
+		}
 		return reflect.DeepEqual([]*common.AttestedNode{
 			attestedNodeBanned,
 		}, listResp.Nodes)

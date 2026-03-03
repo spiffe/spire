@@ -28,6 +28,13 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+const (
+	rpcTimeout = 30 * time.Second
+
+	// maxBundleWorkers is the maximum number of worker goroutines to use when fetching bundles.
+	maxBundleWorkers = 10
+)
+
 var (
 	ErrUnableToGetStream = errors.New("unable to get a stream")
 
@@ -42,9 +49,16 @@ var (
 		Hint:           true,
 		CreatedAt:      true,
 	}
+
+	// RPCTimeoutWithCacheHit can be more aggressive with timeouts in cases where a valid SVID
+	// exists in the cache but is old enough to try for a new SVID quickly. This is configurable
+	// in the Experimental Config of the Agent, and can be set as low as 5 seconds
+	RPCTimeoutWithCacheHit = rpcTimeout
 )
 
-const rpcTimeout = 30 * time.Second
+func SetJWTSVIDCacheHitTimeout(d time.Duration) {
+	RPCTimeoutWithCacheHit = d
+}
 
 type X509SVID struct {
 	CertChain []byte
@@ -78,7 +92,8 @@ type Client interface {
 	SyncUpdates(ctx context.Context, cachedEntries map[string]*common.RegistrationEntry, cachedBundles map[string]*common.Bundle) (SyncStats, error)
 	RenewSVID(ctx context.Context, csr []byte) (*X509SVID, error)
 	NewX509SVIDs(ctx context.Context, csrs map[string][]byte) (map[string]*X509SVID, error)
-	NewJWTSVID(ctx context.Context, entryID string, audience []string) (*JWTSVID, spiffeid.ID, error)
+	NewJWTSVID(ctx context.Context, entryID string, audience []string, hasCacheHit bool) (*JWTSVID, spiffeid.ID, error)
+	PostStatus(ctx context.Context, agentVersion string) error
 
 	// Release releases any resources that were held by this Client, if any.
 	Release()
@@ -107,6 +122,12 @@ type client struct {
 
 	// dialOpts optionally sets gRPC dial options
 	dialOpts []grpc.DialOption
+}
+
+// fetchBundleResult contains the result of fetching a federated bundle.
+type fetchBundleResult struct {
+	bundle *types.Bundle
+	err    error
 }
 
 // New creates a new client struct with the configuration provided
@@ -262,6 +283,31 @@ func (c *client) RenewSVID(ctx context.Context, csr []byte) (*X509SVID, error) {
 	}, nil
 }
 
+func (c *client) PostStatus(ctx context.Context, agentVersion string) error {
+	c.c.RotMtx.RLock()
+	defer c.c.RotMtx.RUnlock()
+
+	ctx, cancel := context.WithTimeout(ctx, rpcTimeout)
+	defer cancel()
+
+	agentClient, connection, err := c.newAgentClient()
+	if err != nil {
+		return err
+	}
+	defer connection.Release()
+
+	_, err = agentClient.PostStatus(ctx, &agentv1.PostStatusRequest{
+		AgentVersion: agentVersion,
+	})
+	if err != nil {
+		c.release(connection)
+		c.c.Log.WithError(err).Warn("Failed to post agent status")
+		return fmt.Errorf("failed to post agent status: %w", err)
+	}
+
+	return nil
+}
+
 func (c *client) NewX509SVIDs(ctx context.Context, csrs map[string][]byte) (map[string]*X509SVID, error) {
 	c.c.RotMtx.RLock()
 	defer c.c.RotMtx.RUnlock()
@@ -303,11 +349,16 @@ func (c *client) NewX509SVIDs(ctx context.Context, csrs map[string][]byte) (map[
 	return svids, nil
 }
 
-func (c *client) NewJWTSVID(ctx context.Context, entryID string, audience []string) (*JWTSVID, spiffeid.ID, error) {
+func (c *client) NewJWTSVID(ctx context.Context, entryID string, audience []string, hasCacheHit bool) (*JWTSVID, spiffeid.ID, error) {
 	c.c.RotMtx.RLock()
 	defer c.c.RotMtx.RUnlock()
 
-	ctx, cancel := context.WithTimeout(ctx, rpcTimeout)
+	timeout := rpcTimeout
+	if hasCacheHit {
+		timeout = RPCTimeoutWithCacheHit
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
 	svidClient, connection, err := c.newSVIDClient()
@@ -611,7 +662,7 @@ func (c *client) fetchBundles(ctx context.Context, federatedBundles []string) ([
 	}
 	defer connection.Release()
 
-	var bundles []*types.Bundle
+	bundles := make([]*types.Bundle, 0, len(federatedBundles)+1)
 
 	// Get bundle
 	bundle, err := bundleClient.GetBundle(ctx, &bundlev1.GetBundleRequest{})
@@ -622,27 +673,65 @@ func (c *client) fetchBundles(ctx context.Context, federatedBundles []string) ([
 	}
 	bundles = append(bundles, bundle)
 
-	for _, b := range federatedBundles {
-		federatedTD, err := spiffeid.TrustDomainFromString(b)
-		if err != nil {
-			return nil, err
-		}
-		bundle, err := bundleClient.GetFederatedBundle(ctx, &bundlev1.GetFederatedBundleRequest{
-			TrustDomain: federatedTD.Name(),
+	return c.fetchFederatedBundlesConcurrently(ctx, bundleClient, federatedBundles, bundles)
+}
+
+// fetchFederatedBundlesConcurrently fetches federated bundles concurrently.
+// This is done to improve sync times when there are many federations. This should ensure that the
+// sync does not exceed rpcTimeout.
+func (c *client) fetchFederatedBundlesConcurrently(ctx context.Context, bundleClient bundlev1.BundleClient, trustDomains []string, bundles []*types.Bundle) ([]*types.Bundle, error) {
+	jobCh := make(chan string)
+	resultCh := make(chan fetchBundleResult, len(trustDomains))
+	// Start a set of worker goroutines.
+	wg := sync.WaitGroup{}
+	for range min(maxBundleWorkers, len(trustDomains)) {
+		wg.Go(func() {
+			for trustDomain := range jobCh {
+				bundle, err := c.fetchFederatedBundle(ctx, bundleClient, trustDomain)
+				resultCh <- fetchBundleResult{bundle: bundle, err: err}
+			}
 		})
-		log := c.withErrorFields(err)
-		switch status.Code(err) {
-		case codes.OK:
-			bundles = append(bundles, bundle)
-		case codes.NotFound:
-			log.WithField(telemetry.FederatedBundle, b).Warn("Federated bundle not found")
-		default:
-			log.WithField(telemetry.FederatedBundle, b).Error("Failed to fetch federated bundle")
-			return nil, fmt.Errorf("failed to fetch federated bundle: %w", err)
+	}
+	// Feed the workers.
+	for _, b := range trustDomains {
+		jobCh <- b
+	}
+	close(jobCh)
+	// Wait for completion of all jobs.
+	wg.Wait()
+	close(resultCh)
+	// Process the results.
+	for r := range resultCh {
+		if r.err != nil {
+			return nil, r.err
+		}
+		if r.bundle != nil {
+			bundles = append(bundles, r.bundle)
 		}
 	}
-
 	return bundles, nil
+}
+
+// fetchFederatedBundle fetches a single federated bundle from SPIRE server.
+func (c *client) fetchFederatedBundle(ctx context.Context, bundleClient bundlev1.BundleClient, trustDomain string) (*types.Bundle, error) {
+	federatedTD, err := spiffeid.TrustDomainFromString(trustDomain)
+	if err != nil {
+		return nil, err
+	}
+	bundle, err := bundleClient.GetFederatedBundle(ctx, &bundlev1.GetFederatedBundleRequest{
+		TrustDomain: federatedTD.Name(),
+	})
+	log := c.withErrorFields(err)
+	switch status.Code(err) {
+	case codes.OK:
+		return bundle, nil
+	case codes.NotFound:
+		log.WithField(telemetry.FederatedBundle, trustDomain).Warn("Federated bundle not found")
+		return nil, nil
+	default:
+		log.WithField(telemetry.FederatedBundle, trustDomain).Error("Failed to fetch federated bundle")
+		return nil, fmt.Errorf("failed to fetch federated bundle: %w", err)
+	}
 }
 
 func (c *client) fetchSVIDs(ctx context.Context, params []*svidv1.NewX509SVIDParams) ([]*types.X509SVID, error) {

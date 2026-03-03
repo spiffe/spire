@@ -157,6 +157,10 @@ func TestDockerErrorContextCancel(t *testing.T) {
 }
 
 func TestDockerConfig(t *testing.T) {
+	// Make sure sigstore caches things in memory instead of trying
+	// to cache them to some directory.
+	t.Setenv("SIGSTORE_NO_CACHE", "true")
+
 	for _, tt := range []struct {
 		name               string
 		trustDomain        string

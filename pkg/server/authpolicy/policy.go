@@ -24,7 +24,7 @@ const (
 
 // Engine drives policy management.
 type Engine struct {
-	rego rego.PartialResult
+	query rego.PreparedEvalQuery
 }
 
 type OpaEngineConfig struct {
@@ -109,20 +109,20 @@ func newEngine(ctx context.Context, cfg *OpaEngineConfig) (*Engine, error) {
 
 // NewEngineFromRego is a helper to create the Engine object
 func NewEngineFromRego(ctx context.Context, regoPolicy string, dataStore storage.Store) (*Engine, error) {
-	rego := rego.New(
+	rg := rego.New(
 		rego.Query("data.spire.result"),
 		rego.Package("spire"),
 		rego.Module("spire.rego", regoPolicy),
 		rego.Store(dataStore),
 		rego.SetRegoVersion(ast.RegoV1),
 	)
-	pr, err := rego.PartialResult(ctx)
+	query, err := rg.PrepareForEval(ctx, rego.WithPartialEval())
 	if err != nil {
 		return nil, err
 	}
 
 	e := &Engine{
-		rego: pr,
+		query: query,
 	}
 
 	// Test policy with some simple calls to ensure that the
@@ -136,7 +136,7 @@ func NewEngineFromRego(ctx context.Context, regoPolicy string, dataStore storage
 
 // Eval determines whether access should be allowed on a resource.
 func (e *Engine) Eval(ctx context.Context, input Input) (result Result, err error) {
-	rs, err := e.rego.Rego(rego.Input(input)).Eval(ctx)
+	rs, err := e.query.Eval(ctx, rego.EvalInput(input))
 	if err != nil {
 		return Result{}, err
 	}
