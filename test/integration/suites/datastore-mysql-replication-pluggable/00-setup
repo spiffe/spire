@@ -1,0 +1,16 @@
+#!/bin/bash
+
+set -e
+
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+
+PKGDIR="${REPODIR}/pkg/server/datastore"
+
+log-debug "building mysql replication test harness..."
+(
+cd "${PKGDIR}"
+go test -c -o "${DIR}"/mysql-replicated.test -ldflags "-X github.com/spiffe/spire/pkg/server/datastore_test.TestDialect=mysql -X github.com/spiffe/spire/pkg/server/datastore_test.TestConnString=spire:test@tcp(localhost:9999)/spire?parseTime=true -X github.com/spiffe/spire/pkg/server/datastore_test.TestROConnString=spire:test@tcp(localhost:10000)/spire?parseTime=true"
+)
+
+log-debug "copying over test data..."
+cp -r "${PKGDIR}"/testdata .

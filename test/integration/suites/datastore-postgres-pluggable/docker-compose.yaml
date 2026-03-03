@@ -1,0 +1,46 @@
+services:
+  postgres-13:
+    image: postgres:13
+    command: -c fsync=off
+    environment:
+      - POSTGRES_PASSWORD=password
+    tmpfs:
+      - /var/lib/postgresql
+    ports:
+      - "9999:5432"
+  postgres-14:
+    image: postgres:14
+    command: -c fsync=off
+    environment:
+      - POSTGRES_PASSWORD=password
+    tmpfs:
+      - /var/lib/postgresql
+    ports:
+      - "9999:5432"
+  postgres-15:
+    image: postgres:15
+    command: -c fsync=off
+    environment:
+      - POSTGRES_PASSWORD=password
+    tmpfs:
+      - /var/lib/postgresql
+    ports:
+      - "9999:5432"
+  postgres-16:
+    image: postgres:16
+    command: -c fsync=off
+    environment:
+      - POSTGRES_PASSWORD=password
+    tmpfs:
+      - /var/lib/postgresql
+    ports:
+      - "9999:5432"
+  postgres-17:
+    image: postgres:17
+    command: -c fsync=off
+    environment:
+      - POSTGRES_PASSWORD=password
+    tmpfs:
+      - /var/lib/postgresql
+    ports:
+      - "9999:5432"

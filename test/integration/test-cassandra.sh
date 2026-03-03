@@ -1,0 +1,28 @@
+#!/bin/bash
+
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+cd "${DIR}" || fail-now "Unable to change to script directory"
+
+. ./common
+
+SUITES="${DIR}/cassandra-suites/*"
+
+ignore_suites=(${IGNORE_SUITES})
+echo "Testing $SUITES"
+
+failed=()
+for suite in $SUITES; do
+    if [[ " ${ignore_suites[*]} " =~ " ${suite} " ]]; then
+        log-warn "Ignoring ${suite} suite..."
+    else
+        ./test-one.sh "${suite}"
+        status=$?
+        if [ ${status} -ne 0 ]; then
+            echo "test-one.sh returned status=${status}"
+            failed+=( "$(basename "${suite}")" )
+        fi
+    fi
+done
+
+[ ${#failed[@]} -eq 0 ] || fail-now "The following tests failed: ${failed[*]}"
