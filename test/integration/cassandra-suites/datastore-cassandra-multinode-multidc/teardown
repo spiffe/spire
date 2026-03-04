@@ -1,0 +1,14 @@
+#!/bin/bash
+
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+
+docker-down() {
+    if [ $# -eq 0 ]; then
+        log-debug "bringing down services..."
+    else
+        log-debug "bringing down $*..."
+    fi
+    docker compose -f "${DIR}/docker-compose.3-node-3-dc.yaml" down -v || fail-now "failed to bring down services."
+}
+
+docker-down

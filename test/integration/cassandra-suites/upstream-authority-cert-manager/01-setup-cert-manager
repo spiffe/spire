@@ -1,0 +1,30 @@
+#!/bin/bash
+
+source init-kubectl
+
+
+CERTMANAGERVERSION=v1.3.1
+CERTMANAGERURL="https://github.com/jetstack/cert-manager/releases/download/$CERTMANAGERVERSION/cert-manager.yaml"
+
+
+log-info "installing cert-manager..."
+./bin/kubectl apply -f $CERTMANAGERURL
+./bin/kubectl rollout status deploy -n cert-manager cert-manager
+./bin/kubectl rollout status deploy -n cert-manager cert-manager-cainjector
+./bin/kubectl rollout status deploy -n cert-manager cert-manager-webhook
+
+apply_cert-manager_manifests() {
+    MAXROLLOUTCHECKS=12
+    ROLLOUTCHECKINTERVAL=15s
+    for ((i=0; i<${MAXROLLOUTCHECKS}; i++)); do
+        if ./bin/kubectl apply -f ./conf/cert-manager-issuer.yaml; then
+          return
+        fi
+        log-warn "cert-manager not ready" && sleep 5
+    done
+
+    fail-now "Failed to deploy cert-manager and bootstrap manifests in time"
+}
+
+log-info "creating cert-manager Issuer resources..."
+apply_cert-manager_manifests

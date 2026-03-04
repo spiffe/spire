@@ -61,19 +61,12 @@ cleanup() {
     fi
 
     rm -rf "${RUNDIR}"
-
-    docker exec cassandra-1 cqlsh localhost 9044 -e "DROP KEYSPACE IF EXISTS spire;"
-    if [ $? -ne 0 ]; then
-        log-info "failed to drop cassandra keyspace"
-    fi
-    log-success "finished cleaning up cassandra keyspace"
     
     if [ -n "$SUCCESS" ]; then
         log-success "\"${TESTNAME}\" test suite succeeded."
     else
         fail-now "\"${TESTNAME}\" test suite failed."
     fi
-    log-debug "cleaning up cassandra keyspace..."
 }
 trap cleanup EXIT
 
@@ -88,6 +81,7 @@ mkdir -p -m 777 "${RUNDIR}/conf/agent"
 mkdir -p -m 777 "${RUNDIR}/conf/server"
 
 cp -R "${TESTDIR}"/* "${RUNDIR}/"
+cp -R "${TESTDIR}/../.env" "${RUNDIR}/" 2>/dev/null || true
 
 #################################################
 # Execute the test suite

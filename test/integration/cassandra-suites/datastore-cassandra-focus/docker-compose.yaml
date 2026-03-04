@@ -1,0 +1,30 @@
+services:
+  cassandra-5:
+    container_name: cassandra-5
+    image: cassandra:5
+    ports:
+      - "9053:9042"
+    env_file:
+      - ./.env
+    environment:
+      - CASSANDRA_RPC_ADDRESS=0.0.0.0
+      - CASSANDRA_CLUSTER_NAME=spire
+      - CASSANDRA_SNITCH=GossipingPropertyFileSnitch
+      - HEAP_NEWSIZE=512M
+      - MAX_HEAP_SIZE=4096M
+      - CASSANDRA_ENDPOINT_SNITCH=GossipingPropertyFileSnitch
+      - CASSANDRA_DC=localdev
+    volumes:
+      - cassandra-integtest-node-1:/var/lib/cassandra:rw
+    restart:
+      on-failure
+    healthcheck:
+      test: ["CMD-SHELL", "nodetool status"]
+      interval: 2m
+      start_period: 2m
+      timeout: 10s
+      retries: 3
+
+
+volumes:
+  cassandra-integtest-node-1:

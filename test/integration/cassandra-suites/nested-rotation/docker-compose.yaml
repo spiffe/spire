@@ -1,0 +1,151 @@
+services:
+  # Root
+  root-server:
+    image: spire-server:latest-local
+    hostname: root-server
+    env_file:
+      - ../.env
+    volumes:
+      - ./root/server:/opt/spire/conf/server
+    command: ["-config", "/opt/spire/conf/server/server.conf"]
+  root-agent:
+    # Share the host pid namespace so this agent can attest the intermediate servers
+    pid: "host"
+    use_api_socket: true
+    privileged: true
+    image: spire-agent:latest-local
+    env_file:
+      - ../.env
+    depends_on: ["root-server"]
+    hostname: root-agent
+    volumes:
+      # Share root agent socket to be acceded by leafA and leafB servers
+      - rootSocket:/opt/spire/sockets:rw
+      - ./root/agent:/opt/spire/conf/agent
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: ["-config", "/opt/spire/conf/agent/agent.conf"]
+  # IntermediateA
+  intermediateA-server:
+    # Share the host pid namespace so this server can be attested by the root agent
+    pid: "host"
+    image: spire-server:latest-local
+    hostname: intermediateA-server
+    env_file:
+      - ../.env
+    labels:
+      # label to attest server against root-agent
+      - org.integration.name=intermediateA
+    depends_on: ["root-server","root-agent"]
+    volumes:
+      # Add root agent socket
+      - rootSocket:/opt/spire/sockets:rw
+      - ./shared/intermediateA/data:/opt/spire/data/server
+      - ./intermediateA/server:/opt/spire/conf/server
+    command: ["-config", "/opt/spire/conf/server/server.conf"]
+  intermediateA-agent:
+    # Share the host pid namespace so this agent can attest the leafA server
+    pid: "host"
+    use_api_socket: true
+    privileged: true
+    env_file:
+      - ../.env
+    image: nested-agent-alpine
+    hostname: intermediateA-agent
+    depends_on: ["intermediateA-server"]
+    volumes:
+      - ./intermediateA/agent:/opt/spire/conf/agent
+      # Share intermediateA agent socket to be acceded by leafA server
+      - intermediateASocket:/opt/spire/sockets:rw
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: ["-config", "/opt/spire/conf/agent/agent.conf"]
+  # LeafA
+  leafA-server:
+    # Share the host pid namespace so this server can be attested by the intermediateA agent
+    pid: "host"
+    image: spire-server:latest-local
+    hostname: leafA-server
+    env_file:
+      - ../.env
+    labels:
+      # Label to attest server against intermediateA-agent
+      - org.integration.name=leafA
+    depends_on: ["intermediateA-server","intermediateA-agent"]
+    volumes:
+      # Add intermediatA agent socket
+      - intermediateASocket:/opt/spire/sockets:rw
+      - ./leafA/server:/opt/spire/conf/server
+    command: ["-config", "/opt/spire/conf/server/server.conf"]
+  leafA-agent:
+    image: nested-agent-alpine
+    hostname: leafA-agent
+    env_file:
+      - ../.env
+    depends_on: ["intermediateA-server"]
+    volumes:
+      - ./leafA/agent:/opt/spire/conf/agent
+    command: ["-config", "/opt/spire/conf/agent/agent.conf"]
+  # IntermediateB
+  intermediateB-server:
+    # Share the host pid namespace so this server can be attested by the root agent
+    pid: "host"
+    image: spire-server:latest-local
+    hostname: intermediateB-server
+    env_file:
+      - ../.env
+    depends_on: ["root-server","root-agent"]
+    labels:
+      # Label to attest server against root-agent
+      - org.integration.name=intermediateB
+    volumes:
+      # Add root agent socket
+      - rootSocket:/opt/spire/sockets:rw
+      - ./shared/intermediateB/data:/opt/spire/data/server
+      - ./intermediateB/server:/opt/spire/conf/server
+    command: ["-config", "/opt/spire/conf/server/server.conf"]
+  intermediateB-agent:
+    # Share the host pid namespace so this agent can attest the leafB server
+    pid: "host"
+    use_api_socket: true
+    env_file:
+      - ../.env
+    privileged: true
+    image: nested-agent-alpine
+    hostname: intermediateB-agent
+    depends_on: ["intermediateB-server"]
+    volumes:
+      - ./intermediateB/agent:/opt/spire/conf/agent
+      # Share intermediateB agent socket to be acceded by leafB server
+      - intermediateBSocket:/opt/spire/sockets:rw
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: ["-config", "/opt/spire/conf/agent/agent.conf"]
+  # leafB
+  leafB-server:
+    # Share the host pid namespace so this server can be attested by the intermediateB agent
+    pid: "host"
+    image: spire-server:latest-local
+    env_file:
+      - ../.env
+    hostname: leafB-server
+    depends_on: ["intermediateB-server","intermediateB-agent"]
+    labels:
+      # Label to attest server against intermediateB-agent
+      - org.integration.name=leafB
+    volumes:
+      # Add intermediateB agent socket
+      - intermediateBSocket:/opt/spire/sockets:rw
+      - ./leafB/server:/opt/spire/conf/server
+    command: ["-config", "/opt/spire/conf/server/server.conf"]
+  leafB-agent:
+    image: nested-agent-alpine
+    env_file:
+      - ../.env
+    hostname: leafB-agent
+    depends_on: ["leafB-server"]
+    volumes:
+      - ./leafB/agent:/opt/spire/conf/agent
+    command: ["-config", "/opt/spire/conf/agent/agent.conf"]
+
+volumes:
+  intermediateASocket:
+  intermediateBSocket:
+  rootSocket:

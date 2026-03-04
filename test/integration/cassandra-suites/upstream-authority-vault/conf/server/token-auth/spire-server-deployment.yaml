@@ -1,0 +1,21 @@
+# This is the Deployment for the SPIRE server. It waits for SPIRE database to
+# initialize and uses the SPIRE healthcheck command for liveness/readiness
+# probes.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: spire-server
+  namespace: spire
+  labels:
+    app: spire-server
+spec:
+  template:
+    spec:
+      containers:
+        - name: spire-server
+          env:
+            - name: VAULT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: vault-credential
+                  key: token

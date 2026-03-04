@@ -1,0 +1,7 @@
+#!/bin/bash
+
+"${ROOTDIR}/setup/x509pop/setup.sh" conf/domain-a/server conf/domain-a/agent
+"${ROOTDIR}/setup/x509pop/setup.sh" conf/domain-b/server conf/domain-b/agent
+
+"${ROOTDIR}/setup/adminclient/build.sh" "${RUNDIR}/conf/domain-a/agent/adminclient"
+"${ROOTDIR}/setup/adminclient/build.sh" "${RUNDIR}/conf/domain-b/agent/adminclient"
