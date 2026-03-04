@@ -1,0 +1,11 @@
+#!/bin/bash
+
+log-info "validating config"
+
+if validateResult="$(docker compose exec -T spire-server \
+    /opt/spire/bin/spire-server validate -config /opt/spire/conf/server/server_bad.conf 2>&1)"; then
+  fail-now "'validate' did not return with non-zero exit code"
+fi
+echo "$validateResult"
+echo "$validateResult" | grep -q "failed to read plugin configuration: open conf/server/x509pop.conf: no such file or directory" || fail-now "No error due to missing plugin_data_file"
+echo "$validateResult" | grep -q "'cert_file_path' and 'key_file_path' must be set and not empty" || fail-now "No error due to missing required fields"

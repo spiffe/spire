@@ -1,0 +1,13 @@
+native_transport_port: 9044
+cluster_name: spire_test
+endpoint_snitch: GossipingPropertyFileSnitch
+listen_address: 172.21.0.3
+rpc_address: 0.0.0.0
+broadcast_rpc_address: 127.0.0.1
+commitlog_sync: periodic
+commitlog_sync_period: 10s
+partitioner: org.apache.cassandra.dht.Murmur3Partitioner
+seed_provider:
+  - class_name: org.apache.cassandra.locator.SimpleSeedProvider
+    parameters:
+      - seeds: "172.21.0.3:7000"

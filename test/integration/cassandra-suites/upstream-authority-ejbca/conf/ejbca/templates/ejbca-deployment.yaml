@@ -1,0 +1,151 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "ejbca.fullname" . }}
+  labels:
+    {{- include "ejbca.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.ejbca.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "ejbca.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.ejbca.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "ejbca.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.ejbca.image.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "ejbca.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.ejbca.image.repository }}:{{ .Values.ejbca.image.tag }}"
+          imagePullPolicy: {{ .Values.ejbca.image.pullPolicy }}
+          ports:
+            {{- range .Values.ejbca.containerPorts }}
+            - name: {{ .name }}
+              containerPort: {{ .containerPort }}
+              protocol: {{ .protocol }}
+            {{- end }}
+          startupProbe:
+            httpGet:
+              port: 8081
+              path: /ejbca/publicweb/healthcheck/ejbcahealth
+            failureThreshold: 1000 # 50 * 2 seconds + 45-second delay gives 145 seconds for EJBCA to start
+            periodSeconds: 2
+            initialDelaySeconds: 45
+          livenessProbe:
+            httpGet:
+              port: 8081
+              path: /ejbca/publicweb/healthcheck/ejbcahealth
+          env:
+            - name: DATABASE_JDBC_URL
+              value: "jdbc:mariadb://{{ .Values.database.service.name }}:{{ .Values.database.service.port }}/ejbca?characterEncoding=utf8"
+            - name: DATABASE_USER
+              value: {{ .Values.database.username }}
+            - name: DATABASE_PASSWORD
+              value: {{ .Values.database.password }}
+            - name: PROXY_HTTP_BIND
+              value: "{{ .Values.ejbca.proxyHttpBind }}"
+            - name: LOG_AUDIT_TO_DB
+              value: "{{ .Values.ejbca.logAuditToDatabase }}"
+            {{ if .Values.ejbca.ingress.enabled }}
+            - name: HTTPSERVER_HOSTNAME
+              value: "{{ index .Values.ejbca.ingress.hosts 0 "host" }}"
+            {{ end }}
+            - name: TLS_SETUP_ENABLED
+              value: "simple"
+            {{ if .Values.ejbca.extraEnvironmentVars }}
+            {{- range .Values.ejbca.extraEnvironmentVars }}
+            - name: {{ .name }}
+              value: {{ .value }}
+            {{- end }}
+            {{- end }}
+          volumeMounts:
+          {{- range .Values.ejbca.volumes }}
+            - name: {{ .name }}
+              mountPath: {{ .mountPath }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+        {{- if .Values.ejbca.reverseProxy.enabled }}
+        - name: httpd
+          image: "{{ .Values.ejbca.reverseProxy.image.repository }}:{{ .Values.ejbca.reverseProxy.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.ejbca.reverseProxy.image.pullPolicy }}
+          {{- if .Values.ejbca.reverseProxy.service.ports }}
+          ports:
+          {{- range .Values.ejbca.reverseProxy.service.ports }}
+            - name: {{ .name }}
+              containerPort: {{ .port }}
+              protocol: {{ .protocol }}
+          {{- end }}
+          {{- end }}
+          readinessProbe:
+            tcpSocket:
+              port: 8080
+          volumeMounts:
+            - name: httpd-configmap
+              mountPath: /usr/local/apache2/conf/
+            {{- if .Values.ejbca.reverseProxy.service.ports }}
+            {{- range .Values.ejbca.reverseProxy.service.ports }}
+            {{- if .authCASecretName }}
+            - name: {{ .authCASecretName }}
+              mountPath: {{ .baseCaCertDir }}
+            {{- end }}
+            {{- if .tlsSecretName }}
+            - name: {{ .tlsSecretName }}
+              mountPath: {{ .baseCertDir }}
+            {{- end }}
+            {{- end }}
+            {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+        {{- end }}
+      volumes:
+      {{- range .Values.ejbca.volumes }}
+        - name: {{ .name }}
+          configMap: 
+            name: {{ .configMapName }}
+      {{- end }}
+      {{- if .Values.ejbca.reverseProxy.enabled }}
+        - name: httpd-configmap
+          configMap: 
+            name: httpd-configmap
+        {{- if .Values.ejbca.reverseProxy.service.ports }}
+        {{- range .Values.ejbca.reverseProxy.service.ports }}
+        {{- if .authCASecretName }}
+        - name: {{ .authCASecretName }}
+          secret:
+            secretName: {{ .authCASecretName }}
+        {{- end }}
+        {{- if .tlsSecretName }}
+        - name: {{ .tlsSecretName }}
+          secret:
+            secretName: {{ .tlsSecretName }}
+        {{- end }}
+        {{- end }}
+        {{- end }}
+      {{- end}}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+

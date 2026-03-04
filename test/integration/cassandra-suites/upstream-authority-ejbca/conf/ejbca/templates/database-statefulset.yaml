@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mariadb-statefulset
+  labels:
+    {{- include "ejbca.databaseLabels" . | nindent 4 }}
+spec:
+  serviceName: {{ .Values.database.service.name}}
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "ejbca.databaseSelectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "ejbca.databaseSelectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.database.image.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: mariadb
+          image: {{ .Values.database.image.repository }}:{{ .Values.database.image.tag }}
+          ports:
+          - containerPort: {{ .Values.database.service.port }}
+            name: mariadb
+          env:
+          - name: MARIADB_ROOT_PASSWORD
+            value: {{ .Values.database.rootPassword }}
+          - name: MARIADB_DATABASE
+            value: {{ .Values.database.name }}
+          - name: MARIADB_USER
+            value: {{ .Values.database.username }}
+          - name: MARIADB_PASSWORD
+            value: {{ .Values.database.password }}
+          volumeMounts:
+            - name: datadir
+              mountPath: /var/lib/mysql
+  volumeClaimTemplates:
+  - metadata:
+      name: datadir
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      resources:
+        requests:
+          storage: 10G

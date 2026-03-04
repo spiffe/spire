@@ -1,0 +1,8 @@
+#!/bin/bash
+
+if [ -z "$SUCCESS" ]; then
+    docker compose logs
+fi
+docker-down
+
+docker exec cassandra-1 cqlsh localhost 9044 -e "DROP KEYSPACE IF EXISTS spire1;"

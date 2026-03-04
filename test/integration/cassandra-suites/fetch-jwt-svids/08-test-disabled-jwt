@@ -1,0 +1,45 @@
+#!/bin/bash
+
+log-info "testing disabled JWT functionality..."
+
+# Replace with disable_jwt_svids = true configuration
+sed -i.bak "s#disable_jwt_svids = false#disable_jwt_svids = true#g" conf/server/server.conf
+docker compose restart spire-server
+check-server-started spire-server
+
+test-jwt-disabled-command() {
+    local test_name="$1"
+    shift 1
+    local command=("$@")
+    
+    if ! ERROR_OUTPUT=$("${command[@]}" 2>&1); then
+        if echo "$ERROR_OUTPUT" | grep -q "JWT functionality is disabled"; then
+            log-info "✓ $test_name correctly failed with JWT disabled error"
+        else
+            fail-now "$test_name expected JWT disabled error, but got: $ERROR_OUTPUT"
+        fi
+    else
+        fail-now "$test_name should have failed when JWT is disabled"
+    fi
+}
+
+test-jwt-disabled-command "JWT authority prepare" \
+    docker compose exec -T spire-server /opt/spire/bin/spire-server localauthority jwt prepare
+
+test-jwt-disabled-command "JWT authority show" \
+    docker compose exec -T spire-server /opt/spire/bin/spire-server localauthority jwt show
+
+test-jwt-disabled-command "JWT authority activate" \
+    docker compose exec -t spire-server /opt/spire/bin/spire-server localauthority jwt activate -authorityID test
+
+test-jwt-disabled-command "JWT authority revoke" \
+    docker compose exec -t spire-server /opt/spire/bin/spire-server localauthority jwt revoke -authorityID test
+
+test-jwt-disabled-command "JWT authority taint" \
+    docker compose exec -t spire-server /opt/spire/bin/spire-server localauthority jwt taint -authorityID test
+
+test-jwt-disabled-command "JWT mint" \
+    docker compose exec -t spire-server /opt/spire/bin/spire-server jwt mint -spiffeID spiffe://domain.test/workload/10 -audience test
+
+test-jwt-disabled-command "JWT fetch" \
+    docker compose exec -u 1001 -T spire-agent /opt/spire/bin/spire-agent api fetch jwt -audience test -socketPath /opt/spire/sockets/workload_api.sock

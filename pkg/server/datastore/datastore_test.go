@@ -160,7 +160,7 @@ func (s *PluginSuite) loadCassandraAsBuiltin(t *testing.T, log *logrus.Logger) d
 	datastoreConfig := fmt.Sprintf(`
 		hosts = ["%s"]
 		keyspace = "%s"
-		num_conns = 10
+		num_conns = 2
 		connect_timeout_ms = "10000"
 		read_timeout_ms = "10000"
 		write_timeout_ms = "11000"

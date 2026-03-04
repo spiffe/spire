@@ -1,0 +1,23 @@
+# This is the Deployment for the SPIRE server. It waits for SPIRE database to
+# initialize and uses the SPIRE healthcheck command for liveness/readiness
+# probes.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: spire-server
+  namespace: spire
+  labels:
+    app: spire-server
+spec:
+  template:
+    spec:
+      volumes:
+        - name: vault-credential
+          secret:
+            secretName: vault-credential
+      containers:
+        - name: spire-server
+          volumeMounts:
+            - name: vault-credential
+              mountPath: "/run/spire/vault-auth"
+              readOnly: true

@@ -1,0 +1,72 @@
+#!/bin/bash
+
+git="git --git-dir ${REPODIR}/.git"
+
+check-version-against-latest-release() {
+    _commit_version="$1"
+    _default_branch="origin/$($git remote show origin | grep 'HEAD branch' | cut -d":" -f2 | xargs)"
+    _tracking_branch=$($git for-each-ref --format='%(upstream:short)' "$($git symbolic-ref -q HEAD)")
+
+    # Determine which branch to detect the "latest" version from:
+    # - for PRs, this will be the branch the PR targets (as supplied via
+    #   CICD_TARGET_BRANCH by the CI/CD pipeline).
+    # - for non-PRs from a local branch with a tracking branch, we'll use
+    #   the tracking branch (e.g. local development branch tracking main)
+    # - for non-PRs from a local branch without a tracking branch, we'll fail
+    #   the test, since it isn't clear which version we should be tracking.
+    _version_from_branch=
+    if [ -n "${CICD_TARGET_BRANCH}" ]; then
+        _version_from_branch="origin/${CICD_TARGET_BRANCH}"
+        log-info "target branch (explicit): ${_version_from_branch}"
+    elif [ -n "${_tracking_branch}" ]; then
+        _version_from_branch="${_tracking_branch}"
+        log-info "target branch (tracking): ${_version_from_branch}"
+    else
+        fail-now "unable to determine latest version; either the CICD_TARGET_BRANCH envvar or an upstream tracking branch needs to be set"
+    fi
+
+    if [ "${_version_from_branch}" = "${_default_branch}" ]; then
+        # The default branch should use the latest release tag from the repo
+        _latest_version=$($git tag --list 'v*' --sort -version:refname | head -n1 | cut -c 2-)
+        log-info "latest release: ${_latest_version}"
+    else
+        # Non-default branches should have aligned version with the latest
+        # release from that branch. So we'll scan for the latest tag.
+        _latest_version=$($git describe --match "v*" --abbrev=0 "${_version_from_branch}"| cut -c 2-)
+        log-info "latest release from ${_version_from_branch}: ${_latest_version}"
+    fi
+
+    log-info "commit version: ${_commit_version}"
+
+    if [ "${_commit_version}" == "${_latest_version}" ]; then
+        fail-now "commit version (${_commit_version}) must be greater than the latest release in this branch (${_latest_version}); has the version been bumped?"
+    elif [ "$(printf '%s\n%s' "${_latest_version}" "${_commit_version}" | sort -V -r | head -n1)" != "${_commit_version}" ]; then
+        fail-now "commit version (${_commit_version}) must be greater than the latest release in this branch (${_latest_version}); has the version been bumped?"
+    fi
+}
+
+# Get current version from latest local image
+docker-up spire-server-latest-local
+_commit_version=$(docker compose exec -T spire-server-latest-local \
+            /opt/spire/bin/spire-server --version 2>&1 | cut -d'-' -f 1)
+docker-down
+
+# Get tag of the current commit
+_current_tag=$($git describe --exact-match HEAD --match "v*"  2> /dev/null | cut -c 2- || true)
+
+case "${_current_tag}" in
+
+  "${_commit_version}")
+    log-info "current commit is a tagged commit and has the correct version (${_commit_version})"
+    ;;
+
+  "")
+    log-info "current commit is not tagged; checking against the latest release in the target branch"
+    check-version-against-latest-release "${_commit_version}"
+    ;;
+
+  *)
+    fail-now "current commit version (${_commit_version}) does not match the commit tag (${_current_tag})"
+    ;;
+
+esac

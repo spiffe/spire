@@ -1,0 +1,14 @@
+#!/bin/bash
+
+set -e -o pipefail
+source init-kubectl
+
+log-info "installing ejbca..."
+
+EJBCA_NAMESPACE="ejbca"
+EJBCA_MTLS_SECRET_NAME="superadmin-tls"
+EJBCA_SUBCA_SECRET_NAME="subca"
+
+cd conf
+./deploy.sh --ejbca-namespace "$EJBCA_NAMESPACE" --superadmin-secret-name "$EJBCA_MTLS_SECRET_NAME" --subca-secret-name "$EJBCA_SUBCA_SECRET_NAME" 
+cd ..
