@@ -7,17 +7,18 @@ The plugin does not support the `PublishJWTKey` RPC and is therefore not appropr
 
 The plugin accepts the following configuration options:
 
-| key                  | type   | required | description                                                                                                | default              |
-|:---------------------|:-------|:---------|:-----------------------------------------------------------------------------------------------------------|:---------------------|
-| vault_addr           | string |          | The URL of the Vault server. (e.g., <https://vault.example.com:8443/>)                                     | `${VAULT_ADDR}`      |
-| namespace            | string |          | Name of the Vault namespace. This is only available in the Vault Enterprise.                               | `${VAULT_NAMESPACE}` |
-| pki_mount_point      | string |          | Name of the mount point where PKI secret engine is mounted                                                 | pki                  |
-| ca_cert_path         | string |          | Path to a CA certificate file used to verify the Vault server certificate. Only PEM format is supported.   | `${VAULT_CACERT}`    |
-| insecure_skip_verify | bool   |          | If true, vault client accepts any server certificates                                                      | false                |
-| cert_auth            | struct |          | Configuration for the Client Certificate authentication method                                             |                      |
-| token_auth           | struct |          | Configuration for the Token authentication method                                                          |                      |
-| approle_auth         | struct |          | Configuration for the AppRole authentication method                                                        |                      |
-| k8s_auth             | struct |          | Configuration for the Kubernetes authentication method                                                     |                      |
+| key                      | type   | required | description                                                                                                | default              |
+|:-------------------------|:-------|:---------|:-----------------------------------------------------------------------------------------------------------|:---------------------|
+| vault_addr               | string |          | The URL of the Vault server. (e.g., <https://vault.example.com:8443/>)                                     | `${VAULT_ADDR}`      |
+| namespace                | string |          | Name of the Vault namespace. This is only available in the Vault Enterprise.                               | `${VAULT_NAMESPACE}` |
+| pki_mount_point          | string |          | Name of the mount point where PKI secret engine is mounted                                                 | pki                  |
+| ca_cert_path             | string |          | Path to a CA certificate file used to verify the Vault server certificate. Only PEM format is supported.   | `${VAULT_CACERT}`    |
+| insecure_skip_verify     | bool   |          | If true, vault client accepts any server certificates                                                      | false                |
+| supplemental_bundle_path | string |          | Path to a file containing PEM-encoded CA certificates that should be included in the trust bundle          |                      |
+| cert_auth                | struct |          | Configuration for the Client Certificate authentication method                                             |                      |
+| token_auth               | struct |          | Configuration for the Token authentication method                                                          |                      |
+| approle_auth             | struct |          | Configuration for the AppRole authentication method                                                        |                      |
+| k8s_auth                 | struct |          | Configuration for the Kubernetes authentication method                                                     |                      |
 
 The plugin supports **Client Certificate**, **Token** and **AppRole** authentication methods.
 
@@ -151,11 +152,38 @@ path "pki/root/sign-intermediate" {
                k8s_auth_role_name = "my-role"
                token_path = "/path/to/sa-token"
             }
-            
+
             // If specify role name and use the default mount point and token_path
             // k8s_auth {
             //   k8s_auth_role_name = "my-role"
-            // }            
+            // }
         }
     }
 ```
+
+## Supplemental Bundle for Root CA Rotation
+
+The `supplemental_bundle_path` option allows operators to include additional root CA certificates in the trust bundle. This is useful during root CA rotation to ensure workloads can validate certificates signed by both old and new root CAs during the transition period.
+
+```hcl
+    UpstreamAuthority "vault" {
+        plugin_data {
+            vault_addr = "https://vault.example.org/"
+            pki_mount_point = "test-pki"
+            ca_cert_path = "/path/to/ca-cert.pem"
+            supplemental_bundle_path = "/path/to/old-roots.pem"
+            k8s_auth {
+               k8s_auth_role_name = "my-role"
+               token_path = "/path/to/sa-token"
+            }
+        }
+    }
+```
+
+### Root CA Rotation Workflow
+
+1. Before rotation, add the current root CA certificate to the supplemental bundle file
+2. Rotate the Vault PKI (new root CA is now active)
+3. The trust bundle now contains both old and new root CAs
+4. Wait for all workloads to refresh their certificates
+5. Remove the old root CA from the supplemental bundle file
