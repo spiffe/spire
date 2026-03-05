@@ -3,14 +3,19 @@ package x509pop
 import (
 	"context"
 	"crypto"
+	"crypto/rand"
+	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"math/big"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	identityproviderv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/hostservice/server/identityprovider/v1"
@@ -132,6 +137,13 @@ func (s *Suite) TestAttestSuccess() {
 			expectAgentID: "spiffe://example.org/spire/agent/foo/us-east-1/production/path/to/value",
 			giveConfig:    s.createConfiguration("ca_bundle_paths", `agent_path_template = "/foo/{{ .URISanSelectors.datacenter }}/{{ .URISanSelectors.environment }}/{{ .URISanSelectors.key }}"`),
 			certs:         s.leafBundle,
+			serialnumber:  "serialnumber:0a1b2c3d4e5f",
+		},
+		{
+			desc:          "success with max intermediates at limit",
+			expectAgentID: "spiffe://example.org/spire/agent/x509pop/" + x509pop.Fingerprint(s.leafCert),
+			giveConfig:    s.createConfiguration("ca_bundle_path", "max_intermediates = 1"),
+			certs:         s.leafBundle, // has 1 leaf and 1 intermediate
 			serialnumber:  "serialnumber:0a1b2c3d4e5f",
 		},
 	}
@@ -290,6 +302,50 @@ func (s *Suite) TestAttestFailure() {
 
 		challengeResponseFails(t, attestor, s.svidExchange, "", true, codes.Internal, "nodeattestor(x509pop): failed to get trust bundle")
 	})
+
+	s.T().Run("too many intermediates", func(t *testing.T) {
+		attestor := s.loadPlugin(t, successConfiguration)
+
+		// Create a certificate chain with defaultMaxIntermediates + 2 certificates
+		// (1 leaf + defaultMaxIntermediates + 1 extra)
+		certs := make([][]byte, defaultMaxIntermediates+2)
+		certs[0] = s.leafBundle[0] // leaf
+		for i := 1; i < len(certs); i++ {
+			certs[i] = s.leafBundle[1] // reuse intermediate (doesn't matter for this test)
+		}
+
+		payload := makePayload(t, &x509pop.AttestationData{Certificates: certs})
+		attestFails(t, attestor, payload, codes.InvalidArgument,
+			"nodeattestor(x509pop): too many intermediate certificates")
+	})
+
+	s.T().Run("leaf RSA key too large", func(t *testing.T) {
+		// Use a smaller limit (2048) and generate a slightly larger key (3072) for faster tests
+		customConfig := s.createConfiguration("ca_bundle_path", "max_rsa_key_size = 2048")
+		attestor := s.loadPlugin(t, customConfig)
+
+		// Generate a certificate with a 3072-bit RSA key (exceeds 2048 limit)
+		testKeySize := 3072
+		leafCert := generateCertWithRSAKeySize(t, testKeySize)
+
+		payload := makePayload(t, &x509pop.AttestationData{Certificates: [][]byte{leafCert, s.leafBundle[1]}})
+		attestFails(t, attestor, payload, codes.InvalidArgument,
+			"nodeattestor(x509pop): leaf certificate key size too large")
+	})
+
+	s.T().Run("intermediate RSA key too large", func(t *testing.T) {
+		// Use a smaller limit (2048) and generate a slightly larger key (3072) for faster tests
+		customConfig := s.createConfiguration("ca_bundle_path", "max_rsa_key_size = 2048")
+		attestor := s.loadPlugin(t, customConfig)
+
+		// Generate an intermediate certificate with a 3072-bit RSA key (exceeds 2048 limit)
+		testKeySize := 3072
+		intermediateCert := generateCertWithRSAKeySize(t, testKeySize)
+
+		payload := makePayload(t, &x509pop.AttestationData{Certificates: [][]byte{s.leafBundle[0], intermediateCert}})
+		attestFails(t, attestor, payload, codes.InvalidArgument,
+			"nodeattestor(x509pop): intermediate certificate 0 key size too large")
+	})
 }
 
 func (s *Suite) TestConfigure() {
@@ -364,6 +420,60 @@ func (s *Suite) TestConfigure() {
 		`)
 
 		spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, "you can not use ca_bundle_path or ca_bundle_paths in spiffe mode")
+	})
+
+	s.T().Run("invalid max_intermediates (zero)", func(t *testing.T) {
+		err := doConfig(t, coreConfig, fmt.Sprintf(`
+		ca_bundle_path = %q
+		max_intermediates = 0
+		`, s.rootCertPath))
+
+		spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, "max_intermediates must be greater than 0")
+	})
+
+	s.T().Run("invalid max_intermediates (negative)", func(t *testing.T) {
+		err := doConfig(t, coreConfig, fmt.Sprintf(`
+		ca_bundle_path = %q
+		max_intermediates = -1
+		`, s.rootCertPath))
+
+		spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, "max_intermediates must be greater than 0")
+	})
+
+	s.T().Run("invalid max_rsa_key_size (zero)", func(t *testing.T) {
+		err := doConfig(t, coreConfig, fmt.Sprintf(`
+		ca_bundle_path = %q
+		max_rsa_key_size = 0
+		`, s.rootCertPath))
+
+		spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, "max_rsa_key_size must be greater than 0")
+	})
+
+	s.T().Run("invalid max_rsa_key_size (negative)", func(t *testing.T) {
+		err := doConfig(t, coreConfig, fmt.Sprintf(`
+		ca_bundle_path = %q
+		max_rsa_key_size = -1
+		`, s.rootCertPath))
+
+		spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, "max_rsa_key_size must be greater than 0")
+	})
+
+	s.T().Run("custom max_intermediates", func(t *testing.T) {
+		err := doConfig(t, coreConfig, fmt.Sprintf(`
+		ca_bundle_path = %q
+		max_intermediates = 20
+		`, s.rootCertPath))
+
+		require.NoError(t, err)
+	})
+
+	s.T().Run("custom max_rsa_key_size", func(t *testing.T) {
+		err := doConfig(t, coreConfig, fmt.Sprintf(`
+		ca_bundle_path = %q
+		max_rsa_key_size = 8192
+		`, s.rootCertPath))
+
+		require.NoError(t, err)
 	})
 }
 
@@ -441,4 +551,29 @@ func unmarshal(t *testing.T, data []byte, obj any) {
 
 func expectNoChallenge(context.Context, []byte) ([]byte, error) {
 	return nil, errors.New("challenge is not expected")
+}
+
+func generateCertWithRSAKeySize(t *testing.T, keySize int) []byte {
+	// Generate RSA key with specified size
+	key, err := rsa.GenerateKey(rand.Reader, keySize)
+	require.NoError(t, err)
+
+	// Create a self-signed certificate template
+	template := &x509.Certificate{
+		SerialNumber: big.NewInt(1),
+		Subject: pkix.Name{
+			CommonName: "Test Certificate",
+		},
+		NotBefore:             time.Now(),
+		NotAfter:              time.Now().Add(24 * time.Hour),
+		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
+		BasicConstraintsValid: true,
+		IsCA:                  true,
+	}
+
+	// Create the certificate
+	certDER, err := x509.CreateCertificate(rand.Reader, template, template, &key.PublicKey, key)
+	require.NoError(t, err)
+
+	return certDER
 }
