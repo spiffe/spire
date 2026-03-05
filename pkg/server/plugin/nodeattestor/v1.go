@@ -11,6 +11,7 @@ import (
 	"github.com/spiffe/spire/proto/spire/common"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
 )
 
@@ -20,6 +21,10 @@ const (
 	// It must not be used for security decisions (such as authentication, authorization, or trust domain selection) in attestor plugins without threat assessment.
 	// Valid uses include diagnostics, logging, or configuration side-loading
 	XForwardedHostKey = "X-Untrusted-Forwarded-Host"
+
+	// XForwardedPeerAddrKey contains the peer address from the OS TCP stack.
+	// Unlike XForwardedHostKey, this value is set by the server and is trusted.
+	XForwardedPeerAddrKey = "X-Forwarded-Peer-Addr"
 )
 
 type V1 struct {
@@ -44,6 +49,11 @@ func (v1 *V1) Attest(ctx context.Context, payload []byte, challengeFn func(ctx c
 		v1.Log.WithError(err).Warn("Failed to extract ':authority' header from gRPC metadata")
 	}
 	ctx = metadata.AppendToOutgoingContext(ctx, XForwardedHostKey, originalHost)
+
+	// Forward the peer address from the OS TCP stack to downstream plugins.
+	if p, ok := peer.FromContext(ctx); ok && p.Addr != nil {
+		ctx = metadata.AppendToOutgoingContext(ctx, XForwardedPeerAddrKey, p.Addr.String())
+	}
 
 	stream, err := v1.NodeAttestorPluginClient.Attest(ctx)
 	if err != nil {
