@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.14.2] - 2026-03-03
+
+### Security
+
+- Fixed an issue in the `http_challenge` server node attestor plugin which allowed an attacker to make an SSRF attack. The attacker could potentially redirect the server to a domain that they wouldn't normally have access. spire-server would make an unauthenticated GET request to that domain and return the first 64 bytes of the response to the attacker. Thank you, Oleh Konko (@1seal) for reporting this isuse.
+- Fixed an issue in the `x509pop` server node attestor plugin which allowed an attacker to make spire-server consume large and disproportionate mounts of CPU time for the node attestation process. Thank you [Jakub Ciolek](https://github.com/jake-ciolek) for reporting this issue.
+
 ## [1.14.1] - 2026-01-15
 
 ### Changed
@@ -43,6 +50,13 @@
 
 - Added k8s_configmap BundlePublisher to documentation (#6437)
 - Added tpm_devid to supported Agent plugins documentation (#6449)
+
+## [1.13.4] - 2026-03-03
+
+### Security
+
+- Fixed an issue in the `http_challenge` server node attestor plugin which allowed an attacker to make an SSRF attack. The attacker could potentially redirect the server to a domain that they wouldn't normally have access. spire-server would make an unauthenticated GET request to that domain and return the first 64 bytes of the response to the attacker. Thank you, Oleh Konko (@1seal) for reporting this isuse.
+- Fixed an issue in the `x509pop` server node attestor plugin which allowed an attacker to make spire-server consume large and disproportionate mounts of CPU time for the node attestation process. Thank you [Jakub Ciolek](https://github.com/jake-ciolek) for reporting this issue.
 
 ## [1.13.3] - 2025-10-23
 
