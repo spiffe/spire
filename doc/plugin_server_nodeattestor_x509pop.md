@@ -23,6 +23,8 @@ spiffe://<trust_domain>/spire/agent/x509pop/<fingerprint>
 | `ca_bundle_path`      | The path to the trusted CA bundle on disk. The file must contain one or more PEM blocks forming the set of trusted root CA's for chain-of-trust verification. If the CA certificates are in more than one file, use `ca_bundle_paths` instead. |                                                                 |
 | `ca_bundle_paths`     | A list of paths to trusted CA bundles on disk. The files must contain one or more PEM blocks forming the set of trusted root CA's for chain-of-trust verification.                                                                             |                                                                 |
 | `agent_path_template` | A URL path portion format of Agent's SPIFFE ID. Describe in text/template format.                                                                                                                                                              | See [Agent Path Template](#agent-path-template) for details   |
+| `max_intermediates`   | Maximum number of intermediate certificates allowed in the certificate chain. This limit helps prevent resource exhaustion attacks.                                                                                                            | 4                                                               |
+| `max_rsa_key_size`    | Maximum RSA key size in bits allowed in certificates. This limit helps prevent resource exhaustion attacks from excessively large keys.                                                                                                        | 8192                                                            |
 
 A sample configuration:
 
@@ -33,6 +35,12 @@ A sample configuration:
 
             # Change the agent's SPIFFE ID format
             # agent_path_template = "/cn/{{ .Subject.CommonName }}"
+
+            # Optional: Maximum number of intermediate certificates (default: 4)
+            # max_intermediates = 4
+
+            # Optional: Maximum RSA key size in bits (default: 8192)
+            # max_rsa_key_size = 8192
         }
     }
 ```

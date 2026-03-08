@@ -301,6 +301,10 @@ func (e *Endpoints) ListenAndServe(ctx context.Context) error {
 func (e *Endpoints) createTCPServer(ctx context.Context, unaryInterceptor grpc.UnaryServerInterceptor, streamInterceptor grpc.StreamServerInterceptor) *grpc.Server {
 	tlsConfig := &tls.Config{ //nolint: gosec // False positive, getTLSConfig is setting MinVersion
 		GetConfigForClient: e.getTLSConfig(ctx),
+		// Disable session ticket resumption so that VerifyPeerCertificate is
+		// called on every connection, ensuring the peer certificate chain is
+		// always validated against the current trust bundle.
+		SessionTicketsDisabled: true,
 	}
 
 	return grpc.NewServer(

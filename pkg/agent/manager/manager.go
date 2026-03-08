@@ -18,6 +18,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/storage"
 	"github.com/spiffe/spire/pkg/agent/svid"
 	"github.com/spiffe/spire/pkg/common/backoff"
+	"github.com/spiffe/spire/pkg/common/errorutil"
 	"github.com/spiffe/spire/pkg/common/nodeutil"
 	"github.com/spiffe/spire/pkg/common/rotationutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -226,7 +227,7 @@ func (m *manager) Run(ctx context.Context) error {
 			m.svid.Run)
 
 		switch {
-		case err == nil || errors.Is(err, context.Canceled):
+		case err == nil || errors.Is(err, context.Canceled) || errorutil.IsSIGINTOrSIGTERMError(err):
 			m.c.Log.Info("Cache manager stopped")
 			return nil
 		case nodeutil.ShouldAgentReattest(err):
