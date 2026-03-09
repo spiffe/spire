@@ -331,7 +331,7 @@ func createTestCA(t *testing.T) string {
 	return createTempFile(t, certPEM)
 }
 
-// createTempFile creates a temporary file with the given content and returns its path
+// createTempFile creates a temporary file with the given content and returns it's path
 func createTempFile(t *testing.T, content []byte) string {
 	tmpDir := t.TempDir()
 	tmpFile, err := os.CreateTemp(tmpDir, "test-*")
