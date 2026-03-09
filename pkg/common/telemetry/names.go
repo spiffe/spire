@@ -849,6 +849,9 @@ const (
 	// DelegatedIdentityAPI functionality related to delegated identity endpoints
 	DelegatedIdentityAPI = "delegated_identity_api"
 
+	// BrokerAPI functionality related to delegated identity endpoints
+	BrokerAPI = "broker_api"
+
 	// DeleteFederatedBundle functionality related to deleting a federated bundle
 	DeleteFederatedBundle = "delete_federated_bundle"
 

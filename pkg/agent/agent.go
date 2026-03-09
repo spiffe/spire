@@ -17,6 +17,7 @@ import (
 	admin_api "github.com/spiffe/spire/pkg/agent/api"
 	node_attestor "github.com/spiffe/spire/pkg/agent/attestor/node"
 	workload_attestor "github.com/spiffe/spire/pkg/agent/attestor/workload"
+	"github.com/spiffe/spire/pkg/agent/broker"
 	"github.com/spiffe/spire/pkg/agent/catalog"
 	"github.com/spiffe/spire/pkg/agent/endpoints"
 	"github.com/spiffe/spire/pkg/agent/manager"
@@ -254,6 +255,24 @@ func (a *Agent) Run(ctx context.Context) error {
 	if a.c.AdminBindAddress != nil {
 		adminEndpoints := a.newAdminEndpoints(metrics, manager, workloadAttestor, a.c.AuthorizedDelegates)
 		tasks = append(tasks, adminEndpoints.ListenAndServe)
+	}
+
+	if a.c.BrokerBindAddress != nil {
+		brokerEndpoints, err := broker.New(&broker.Config{
+			BindAddr:            a.c.BrokerBindAddress,
+			Manager:             manager,
+			Log:                 a.c.Log,
+			Metrics:             metrics,
+			Attestor:            workloadAttestor,
+			TrustDomain:         a.c.TrustDomain,
+			AuthorizedDelegates: a.c.AuthorizedDelegates,
+			SVIDSource:          as,
+			BundleSource:        manager.GetX509Bundle(),
+		})
+		if err != nil {
+			return fmt.Errorf("failed to create broker endpoints: %w", err)
+		}
+		tasks = append(tasks, brokerEndpoints.ListenAndServe)
 	}
 
 	if a.c.LogReopener != nil {
