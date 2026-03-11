@@ -139,7 +139,7 @@ func (s *WorkloadAttestorTestSuite) TestAttestWorkloadMetrics() {
 	s.Require().Equal(expected.AllMetrics(), metrics.AllMetrics())
 }
 
-func (s *WorkloadAttestorTestSuite) TestAttestLogsPartialSelectorsOnContextCancellation() {
+func (s *WorkloadAttestorTestSuite) TestAttestLogsOnContextCancellation() {
 	pid := 4
 	selectorC := make(chan []*common.Selector, 1)
 	s.attestor.c.selectorHook = func(selectors []*common.Selector) {
@@ -168,7 +168,7 @@ func (s *WorkloadAttestorTestSuite) TestAttestLogsPartialSelectorsOnContextCance
 	}(ctx, pid)
 
 	// Wait for one of the plugins to return selectors
-	partialSelectors := <-selectorC
+	<-selectorC
 
 	// Cancel context to simulate caller hanging up in the middle of workload attestation
 	cancel()
@@ -183,8 +183,7 @@ func (s *WorkloadAttestorTestSuite) TestAttestLogsPartialSelectorsOnContextCance
 			Level:   logrus.ErrorLevel,
 			Message: "Timed out collecting selectors for PID",
 			Data: logrus.Fields{
-				telemetry.PartialSelectors: fmt.Sprint(partialSelectors),
-				telemetry.PID:              fmt.Sprint(pid),
+				telemetry.PID: fmt.Sprint(pid),
 			},
 		},
 	})
