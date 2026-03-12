@@ -628,6 +628,10 @@ func applyMask(e *types.Entry, mask *types.EntryMask) {
 		e.Hint = ""
 	}
 
+	if !mask.AdditionalAttributes {
+		e.AdditionalAttributes = nil
+	}
+
 	if !mask.CreatedAt {
 		e.CreatedAt = 0
 	}

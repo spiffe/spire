@@ -61,7 +61,9 @@ func TestUpdate(t *testing.T) {
         ],
         "revision_number": "0",
         "store_svid": true,
-        "jwt_svid_ttl": 30
+        "jwt_svid_ttl": 30,
+      "jwt_svid_default_audience_policy": "JWT_SVID_AUDIENCE_POLICY_DEFAULT",
+      "jwt_svid_audience_policies": {}
       }`
 	entry0AdminJSON := `{
         "id": "entry-id",
@@ -99,7 +101,9 @@ func TestUpdate(t *testing.T) {
         ],
         "revision_number": "0",
         "store_svid": false,
-        "jwt_svid_ttl": 30
+        "jwt_svid_ttl": 30,
+      "jwt_svid_default_audience_policy": "JWT_SVID_AUDIENCE_POLICY_DEFAULT",
+      "jwt_svid_audience_policies": {}
       }`
 	entry1JSON := `{
         "id": "entry-id-1",
@@ -127,7 +131,9 @@ func TestUpdate(t *testing.T) {
         "dns_names": [],
         "revision_number": "0",
         "store_svid": false,
-        "jwt_svid_ttl": 300
+        "jwt_svid_ttl": 300,
+        "jwt_svid_default_audience_policy": "JWT_SVID_AUDIENCE_POLICY_DEFAULT",
+        "jwt_svid_audience_policies": {}
       }
     }`
 	entry2JSON := `{
@@ -156,7 +162,9 @@ func TestUpdate(t *testing.T) {
         "dns_names": [],
         "revision_number": "0",
         "store_svid": false,
-        "jwt_svid_ttl": 300
+        "jwt_svid_ttl": 300,
+        "jwt_svid_default_audience_policy": "JWT_SVID_AUDIENCE_POLICY_DEFAULT",
+        "jwt_svid_audience_policies": {}
       }
     }`
 	entry3JSON := `{
@@ -189,7 +197,47 @@ func TestUpdate(t *testing.T) {
         "dns_names": [],
         "revision_number": "0",
         "store_svid": true,
-        "jwt_svid_ttl": 300
+        "jwt_svid_ttl": 300,
+      "jwt_svid_default_audience_policy": "JWT_SVID_AUDIENCE_POLICY_DEFAULT",
+      "jwt_svid_audience_policies": {}
+      }
+    }`
+	entry4JSON := `{
+        "id": "entry-id-4",
+        "spiffe_id": {
+          "trust_domain": "example.org",
+          "path": "/DisableX509SvidPrefetch"
+        },
+        "parent_id": {
+          "trust_domain": "example.org",
+          "path": "/spire/agent/join_token/TokenDatabase"
+        },
+        "selectors": [
+          {
+            "type": "type",
+            "value": "key1:value"
+          },
+          {
+            "type": "type",
+            "value": "key2:value"
+          }
+        ],
+        "x509_svid_ttl": 200,
+        "federates_with": [],
+        "hint": "",
+        "admin": false,
+        "created_at": "1547583197",
+        "downstream": false,
+        "expires_at": "0",
+        "dns_names": [],
+        "revision_number": "0",
+        "jwt_svid_ttl": 300,
+        "store_svid": false,
+		"additional_attributes": {
+		  "disable_x509_svid_prefetch": true
+        },
+      "jwt_svid_default_audience_policy": "JWT_SVID_AUDIENCE_POLICY_DEFAULT",
+      "jwt_svid_audience_policies": {}
       }`
 	nonExistentEntryJSON := `{
         "id": "non-existent-id",
@@ -217,7 +265,9 @@ func TestUpdate(t *testing.T) {
         "dns_names": [],
         "revision_number": "0",
         "store_svid": false,
-        "x509_svid_ttl": 0
+        "x509_svid_ttl": 0,
+        "jwt_svid_default_audience_policy": "JWT_SVID_AUDIENCE_POLICY_DEFAULT",
+        "jwt_svid_audience_policies": {}
       }`
 
 	entry1 := &types.Entry{
@@ -321,12 +371,29 @@ func TestUpdate(t *testing.T) {
 		JwtSvidTtl:  300,
 	}
 
+	entry5 := &types.Entry{
+		Id:       "entry-id-4",
+		SpiffeId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/DisableX509SvidPrefetch"},
+		ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/spire/agent/join_token/TokenDatabase"},
+		Selectors: []*types.Selector{
+			{Type: "type", Value: "key1:value"},
+			{Type: "type", Value: "key2:value"},
+		},
+		X509SvidTtl: 200,
+		JwtSvidTtl:  300,
+		AdditionalAttributes: &types.Entry_AdditionalAttributes{
+			DisableX509SvidPrefetch: true,
+		},
+	}
+
 	entry2Resp := proto.Clone(entry2).(*types.Entry)
 	entry2Resp.CreatedAt = 1547583197
 	entry3Resp := proto.Clone(entry3).(*types.Entry)
 	entry3Resp.CreatedAt = 1547583197
 	entry4Resp := proto.Clone(entry4).(*types.Entry)
 	entry4Resp.CreatedAt = 1547583197
+	entry5Resp := proto.Clone(entry5).(*types.Entry)
+	entry5Resp.CreatedAt = 1547583197
 
 	fakeRespOKFromFile := &entryv1.BatchUpdateEntryResponse{
 		Results: []*entryv1.BatchUpdateEntryResponse_Result{
@@ -340,6 +407,10 @@ func TestUpdate(t *testing.T) {
 			},
 			{
 				Entry:  entry4Resp,
+				Status: &types.Status{Code: int32(codes.OK), Message: "OK"},
+			},
+			{
+				Entry:  entry5Resp,
 				Status: &types.Status{Code: int32(codes.OK), Message: "OK"},
 			},
 		},
@@ -403,10 +474,11 @@ func TestUpdate(t *testing.T) {
 			args: []string{"-entryID", "entry-id", "-spiffeID", "spiffe://example.org/workload", "-parentID", "spiffe://example.org/parent", "-selector", "unix:uid:1"},
 			expReq: &entryv1.BatchUpdateEntryRequest{Entries: []*types.Entry{
 				{
-					Id:        "entry-id",
-					SpiffeId:  &types.SPIFFEID{TrustDomain: "example.org", Path: "/workload"},
-					ParentId:  &types.SPIFFEID{TrustDomain: "example.org", Path: "/parent"},
-					Selectors: []*types.Selector{{Type: "unix", Value: "uid:1"}},
+					Id:                   "entry-id",
+					SpiffeId:             &types.SPIFFEID{TrustDomain: "example.org", Path: "/workload"},
+					ParentId:             &types.SPIFFEID{TrustDomain: "example.org", Path: "/parent"},
+					Selectors:            []*types.Selector{{Type: "unix", Value: "uid:1"}},
+					AdditionalAttributes: &types.Entry_AdditionalAttributes{},
 				},
 			}},
 			serverErr:    errors.New("server-error"),
@@ -436,22 +508,22 @@ func TestUpdate(t *testing.T) {
 				Entries: []*types.Entry{entry1},
 			},
 			fakeResp: fakeRespOKFromCmd,
-			expOutPretty: fmt.Sprintf(`Entry ID         : entry-id
-SPIFFE ID        : spiffe://example.org/workload
-Parent ID        : spiffe://example.org/parent
-Revision         : 0
-Downstream       : true
-X509-SVID TTL    : 60
-JWT-SVID TTL     : 30
-Expiration time  : %s
-Selector         : zebra:zebra:2000
-Selector         : alpha:alpha:2000
-FederatesWith    : spiffe://domaina.test
-FederatesWith    : spiffe://domainb.test
-DNS name         : unu1000
-DNS name         : ung1000
-Admin            : true
-Hint             : external
+			expOutPretty: fmt.Sprintf(`Entry ID                : entry-id
+SPIFFE ID               : spiffe://example.org/workload
+Parent ID               : spiffe://example.org/parent
+Revision                : 0
+Downstream              : true
+X509-SVID TTL           : 60
+JWT-SVID TTL            : 30
+Expiration time         : %s
+Selector                : zebra:zebra:2000
+Selector                : alpha:alpha:2000
+FederatesWith           : spiffe://domaina.test
+FederatesWith           : spiffe://domainb.test
+DNS name                : unu1000
+DNS name                : ung1000
+Admin                   : true
+Hint                    : external
 
 `, time.Unix(1552410266, 0).UTC()),
 			expOutJSON: fmt.Sprintf(`{
@@ -497,20 +569,20 @@ Hint             : external
 					},
 				},
 			},
-			expOutPretty: fmt.Sprintf(`Entry ID         : entry-id
-SPIFFE ID        : spiffe://example.org/workload
-Parent ID        : spiffe://example.org/parent
-Revision         : 0
-X509-SVID TTL    : 60
-JWT-SVID TTL     : 30
-Expiration time  : %s
-Selector         : type:key1:value
-Selector         : type:key2:value
-FederatesWith    : spiffe://domaina.test
-FederatesWith    : spiffe://domainb.test
-DNS name         : unu1000
-DNS name         : ung1000
-StoreSvid        : true
+			expOutPretty: fmt.Sprintf(`Entry ID                : entry-id
+SPIFFE ID               : spiffe://example.org/workload
+Parent ID               : spiffe://example.org/parent
+Revision                : 0
+X509-SVID TTL           : 60
+JWT-SVID TTL            : 30
+Expiration time         : %s
+Selector                : type:key1:value
+Selector                : type:key2:value
+FederatesWith           : spiffe://domaina.test
+FederatesWith           : spiffe://domainb.test
+DNS name                : unu1000
+DNS name                : ung1000
+StoreSvid               : true
 
 `, time.Unix(1552410266, 0).UTC()),
 			expOutJSON: fmt.Sprintf(`{
@@ -531,36 +603,46 @@ StoreSvid        : true
 				"-data", "../../../../test/fixture/registration/good-for-update.json",
 			},
 			expReq: &entryv1.BatchUpdateEntryRequest{
-				Entries: []*types.Entry{entry2, entry3, entry4},
+				Entries: []*types.Entry{entry2, entry3, entry4, entry5},
 			},
 			fakeResp: fakeRespOKFromFile,
-			expOutPretty: `Entry ID         : entry-id-1
-SPIFFE ID        : spiffe://example.org/Blog
-Parent ID        : spiffe://example.org/spire/agent/join_token/TokenBlog
-Revision         : 0
-X509-SVID TTL    : 200
-JWT-SVID TTL     : 300
-Selector         : unix:uid:1111
-Admin            : true
-Hint             : external
+			expOutPretty: `Entry ID                : entry-id-1
+SPIFFE ID               : spiffe://example.org/Blog
+Parent ID               : spiffe://example.org/spire/agent/join_token/TokenBlog
+Revision                : 0
+X509-SVID TTL           : 200
+JWT-SVID TTL            : 300
+Selector                : unix:uid:1111
+Admin                   : true
+Hint                    : external
 
-Entry ID         : entry-id-2
-SPIFFE ID        : spiffe://example.org/Database
-Parent ID        : spiffe://example.org/spire/agent/join_token/TokenDatabase
-Revision         : 0
-X509-SVID TTL    : 200
-JWT-SVID TTL     : 300
-Selector         : unix:uid:1111
+Entry ID                : entry-id-2
+SPIFFE ID               : spiffe://example.org/Database
+Parent ID               : spiffe://example.org/spire/agent/join_token/TokenDatabase
+Revision                : 0
+X509-SVID TTL           : 200
+JWT-SVID TTL            : 300
+Selector                : unix:uid:1111
 
-Entry ID         : entry-id-3
-SPIFFE ID        : spiffe://example.org/Storesvid
-Parent ID        : spiffe://example.org/spire/agent/join_token/TokenDatabase
-Revision         : 0
-X509-SVID TTL    : 200
-JWT-SVID TTL     : 300
-Selector         : type:key1:value
-Selector         : type:key2:value
-StoreSvid        : true
+Entry ID                : entry-id-3
+SPIFFE ID               : spiffe://example.org/Storesvid
+Parent ID               : spiffe://example.org/spire/agent/join_token/TokenDatabase
+Revision                : 0
+X509-SVID TTL           : 200
+JWT-SVID TTL            : 300
+Selector                : type:key1:value
+Selector                : type:key2:value
+StoreSvid               : true
+
+Entry ID                : entry-id-4
+SPIFFE ID               : spiffe://example.org/DisableX509SvidPrefetch
+Parent ID               : spiffe://example.org/spire/agent/join_token/TokenDatabase
+Revision                : 0
+X509-SVID TTL           : 200
+JWT-SVID TTL            : 300
+Selector                : type:key1:value
+Selector                : type:key2:value
+DisableX509SvidPrefetch : true
 
 `,
 			expOutJSON: fmt.Sprintf(`
@@ -583,10 +665,15 @@ StoreSvid        : true
         "code": 0,
         "message": "OK"
       },
+      "entry": %s,
+    {
+      "status": {
+        "code": 0,
+        "message": "OK"
+      },
       "entry": %s
-    }
   ]
-}`, entry1JSON, entry2JSON, entry3JSON),
+}`, entry1JSON, entry2JSON, entry3JSON, entry4JSON),
 		},
 		{
 			name: "Entry not found",
@@ -601,13 +688,13 @@ StoreSvid        : true
 			}},
 			fakeResp: fakeRespErr,
 			expErrPretty: `Failed to update the following entry (code: NotFound, msg: "failed to update entry: datastore-sql: record not found"):
-Entry ID         : non-existent-id
-SPIFFE ID        : spiffe://example.org/workload
-Parent ID        : spiffe://example.org/parent
-Revision         : 0
-X509-SVID TTL    : default
-JWT-SVID TTL     : default
-Selector         : unix:uid:1
+Entry ID                : non-existent-id
+SPIFFE ID               : spiffe://example.org/workload
+Parent ID               : spiffe://example.org/parent
+Revision                : 0
+X509-SVID TTL           : default
+JWT-SVID TTL            : default
+Selector                : unix:uid:1
 
 Error: failed to update one or more entries
 `,
