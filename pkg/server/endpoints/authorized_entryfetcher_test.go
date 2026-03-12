@@ -55,7 +55,6 @@ func TestNewAuthorizedEntryFetcherEvents(t *testing.T) {
 		nodeSkippedEventMetric(0),
 
 		entriesByEntryIDMetric(0),
-		entriesByParentIDMetric(0),
 		entriesSkippedEventMetric(0),
 	}
 
@@ -136,7 +135,6 @@ func TestNewAuthorizedEntryFetcherEvents(t *testing.T) {
 		nodeAliasesByEntryIDMetric(1),
 		nodeAliasesBySelectorMetric(1),
 		entriesByEntryIDMetric(2),
-		entriesByParentIDMetric(2),
 	}
 
 	assert.ElementsMatch(t, expectedMetrics, metrics.AllMetrics(), "should emit metrics for node aliases, entries, and agents")
@@ -236,7 +234,6 @@ func TestBuildCacheSavesSkippedEvents(t *testing.T) {
 		nodeSkippedEventMetric(2),
 
 		entriesByEntryIDMetric(0),
-		entriesByParentIDMetric(0),
 		entriesSkippedEventMetric(1),
 	}
 	assert.ElementsMatch(t, expectedMetrics, metrics.AllMetrics(), "should emit no metrics")
@@ -1125,15 +1122,6 @@ func entriesByEntryIDMetric(val float64) fakemetrics.MetricItem {
 	return fakemetrics.MetricItem{
 		Type:   fakemetrics.SetGaugeType,
 		Key:    []string{telemetry.Entry, telemetry.EntriesByEntryIDCache, telemetry.Count},
-		Val:    val,
-		Labels: nil,
-	}
-}
-
-func entriesByParentIDMetric(val float64) fakemetrics.MetricItem {
-	return fakemetrics.MetricItem{
-		Type:   fakemetrics.SetGaugeType,
-		Key:    []string{telemetry.Entry, telemetry.EntriesByParentIDCache, telemetry.Count},
 		Val:    val,
 		Labels: nil,
 	}

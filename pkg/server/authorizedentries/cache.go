@@ -116,6 +116,8 @@ func (c *Cache) GetAuthorizedEntries(agentID spiffeid.ID) []api.ReadOnlyEntry {
 }
 
 func (c *Cache) UpdateEntry(entry *types.Entry) {
+	// Ensure that the trust domain of the entry matches the expected trust domain.
+	// This allows us to use only the path component as a key in maps.
 	if entry.ParentId.TrustDomain != c.trustDomain {
 		return
 	}
@@ -200,6 +202,9 @@ func (c *Cache) appendDescendents(records []api.ReadOnlyEntry, parentID string, 
 }
 
 func (c *Cache) addDescendants(foundEntries map[string]api.ReadOnlyEntry, parentID string, requestedEntries map[string]struct{}, parentSeen stringSet) {
+	if len(foundEntries) == len(requestedEntries) {
+		return
+	}
 	if _, ok := parentSeen[parentID]; ok {
 		return
 	}
@@ -266,8 +271,6 @@ func (c *Cache) updateEntry(entry *types.Entry) {
 		c.entriesByParentID[entry.ParentId.Path] = make(map[string]*types.Entry)
 		parentEntries = c.entriesByParentID[entry.ParentId.Path]
 	}
-
-	c.entriesByEntryID[entry.Id] = entry
 	parentEntries[entry.Id] = entry
 }
 
@@ -282,6 +285,8 @@ func (c *Cache) removeEntry(entryID string) {
 				delete(c.entriesByParentID, entry.ParentId.Path)
 			}
 		}
+		// entry was a normal workload registration. No need to search the aliases.
+		return
 	}
 
 	var aliasRecordsToDelete []aliasRecord
@@ -307,9 +312,6 @@ func (c *Cache) Stats() CacheStats {
 		AliasesByEntryID:  c.aliasesByEntryID.Len(),
 		AliasesBySelector: c.aliasesBySelector.Len(),
 		EntriesByEntryID:  len(c.entriesByEntryID),
-		// Approximate value of EntriesByParentID
-		// TODO: Remove in SPIRE 1.15.0
-		EntriesByParentID: len(c.entriesByEntryID),
 	}
 }
 
@@ -323,5 +325,4 @@ type CacheStats struct {
 	AliasesByEntryID  int
 	AliasesBySelector int
 	EntriesByEntryID  int
-	EntriesByParentID int
 }

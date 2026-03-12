@@ -25,7 +25,6 @@ var (
 	nodeAliasesByEntryID  = []string{telemetry.Entry, telemetry.NodeAliasesByEntryIDCache, telemetry.Count}
 	nodeAliasesBySelector = []string{telemetry.Entry, telemetry.NodeAliasesBySelectorCache, telemetry.Count}
 	entriesByEntryID      = []string{telemetry.Entry, telemetry.EntriesByEntryIDCache, telemetry.Count}
-	entriesByParentID     = []string{telemetry.Entry, telemetry.EntriesByParentIDCache, telemetry.Count}
 	skippedEntryEventID   = []string{telemetry.Entry, telemetry.SkippedEntryEventIDs, telemetry.Count}
 
 	defaultRegistrationEntries = []*common.RegistrationEntry{
@@ -131,7 +130,6 @@ func TestLoadEntryCache(t *testing.T) {
 				{Key: nodeAliasesByEntryID, Value: 0},
 				{Key: nodeAliasesBySelector, Value: 0},
 				{Key: entriesByEntryID, Value: 1},
-				{Key: entriesByParentID, Value: 1},
 			},
 		},
 		{
@@ -242,7 +240,6 @@ func TestLoadEntryCache(t *testing.T) {
 				{Key: nodeAliasesByEntryID, Value: 0},
 				{Key: nodeAliasesBySelector, Value: 0},
 				{Key: entriesByEntryID, Value: 5},
-				{Key: entriesByParentID, Value: 5},
 			},
 		},
 		{
@@ -304,7 +301,6 @@ func TestLoadEntryCache(t *testing.T) {
 				{Key: nodeAliasesByEntryID, Value: 0},
 				{Key: nodeAliasesBySelector, Value: 0},
 				{Key: entriesByEntryID, Value: 5},
-				{Key: entriesByParentID, Value: 5},
 			},
 		},
 		{
@@ -366,7 +362,6 @@ func TestLoadEntryCache(t *testing.T) {
 				{Key: nodeAliasesByEntryID, Value: 0},
 				{Key: nodeAliasesBySelector, Value: 0},
 				{Key: entriesByEntryID, Value: 5},
-				{Key: entriesByParentID, Value: 5},
 			},
 		},
 	} {

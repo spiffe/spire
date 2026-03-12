@@ -44,12 +44,6 @@ func SetEntriesByEntryIDCacheCountGauge(m telemetry.Metrics, size int) {
 	m.SetGauge([]string{telemetry.Entry, telemetry.EntriesByEntryIDCache, telemetry.Count}, float32(size))
 }
 
-// SetEntriesByParentIDCacheCountGauge emits a gauge with the number of entries by parentID that are
-// currently in the entry cache.
-func SetEntriesByParentIDCacheCountGauge(m telemetry.Metrics, size int) {
-	m.SetGauge([]string{telemetry.Entry, telemetry.EntriesByParentIDCache, telemetry.Count}, float32(size))
-}
-
 // SetSkippedEntryEventIDsCacheCountGauge emits a gauge with the number of entries that are
 // currently in the skipped-entry events cache.
 func SetSkippedEntryEventIDsCacheCountGauge(m telemetry.Metrics, size int) {

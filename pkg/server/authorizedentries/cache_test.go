@@ -193,20 +193,17 @@ func TestCacheInternalStats(t *testing.T) {
 		cache := NewCache(clk, "domain.test")
 		cache.UpdateEntry(entry1)
 		require.Equal(t, CacheStats{
-			EntriesByEntryID:  1,
-			EntriesByParentID: 1,
+			EntriesByEntryID: 1,
 		}, cache.Stats())
 
 		cache.UpdateEntry(entry2a)
 		require.Equal(t, CacheStats{
-			EntriesByEntryID:  2,
-			EntriesByParentID: 2,
+			EntriesByEntryID: 2,
 		}, cache.Stats())
 
 		cache.UpdateEntry(entry2b)
 		require.Equal(t, CacheStats{
 			EntriesByEntryID:  1,
-			EntriesByParentID: 1,
 			AliasesByEntryID:  2, // one for each selector
 			AliasesBySelector: 2, // one for each selector
 		}, cache.Stats())
