@@ -37,13 +37,27 @@ start-kind-cluster "${KIND_PATH}" k8stest ./conf/kind-config.yaml
 # Start local registry service connected to kind network
 docker-up registry
 
-# Copy signed images from public to local registry
-# Using official SPIRE images which are already signed with Cosign by the SPIRE project
-# Signed image: Use SPIRE agent 1.14.0 (signed by GitHub Actions with Sigstore)
+# Copy the signed image using crane, which pushes platform manifests before the
+# index (dependency order). This avoids the race condition in "cosign copy" where
+# the image index is pushed concurrently with its platform manifests, causing
+# MANIFEST_BLOB_UNKNOWN errors when the index references a platform manifest
+# that has not yet been committed.
 docker run --network="kind" \
     -v "${PWD}/conf/docker-registry/certs/domain.crt:/etc/ssl/certs/domain.crt" \
-    gcr.io/projectsigstore/cosign:latest \
+    gcr.io/go-containerregistry/crane:latest \
     copy ghcr.io/spiffe/spire-agent:1.14.0 "${REGISTRY_HTTP_ADDR}/workload:signed"
+
+# Copy the cosign signature tag separately, after the image is fully committed.
+# Cosign stores signatures as OCI tags with the format sha256-<hex-digest>.sig.
+signed_digest=$(docker run --rm --network="kind" \
+    -v "${PWD}/conf/docker-registry/certs/domain.crt:/etc/ssl/certs/domain.crt" \
+    gcr.io/go-containerregistry/crane:latest \
+    digest "${REGISTRY_HTTP_ADDR}/workload:signed")
+sig_tag="sha256-${signed_digest#sha256:}.sig"
+docker run --network="kind" \
+    -v "${PWD}/conf/docker-registry/certs/domain.crt:/etc/ssl/certs/domain.crt" \
+    gcr.io/go-containerregistry/crane:latest \
+    copy "ghcr.io/spiffe/spire-agent:${sig_tag}" "${REGISTRY_HTTP_ADDR}/workload:${sig_tag}"
 
 # For unsigned/skiplist workload testing, use a different SPIRE agent version (1.13.0)
 # This ensures unsigned variants have a different digest than the signed image (1.14.0)
