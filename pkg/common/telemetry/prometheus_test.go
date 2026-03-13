@@ -231,7 +231,7 @@ func TestPrometheusTLSConfig(t *testing.T) {
 			if tt.expectError {
 				require.Error(t, err)
 				if tt.errorMsgContains != "" {
-					assert.Contains(t, err.Error(), tt.errorMsgContains, "actual error message: %q", err.Error())
+					assert.Contains(t, err.Error(), tt.errorMsgContains, "actual error msg: %q", err.Error())
 				}
 				// When there's an error, runner should still be returned but TLS should not be configured
 				if runner != nil {
