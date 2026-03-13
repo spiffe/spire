@@ -9,6 +9,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
+	"log"
 	"math/big"
 	"os"
 	"testing"
@@ -115,11 +116,11 @@ func newTestPrometheusRunner(c *MetricsConfig) (sinkRunner, error) {
 
 func TestPrometheusTLSConfig(t *testing.T) {
 	tests := []struct {
-		name        string
-		setupTLS    func(t *testing.T) *TLSConfig
-		expectError bool
-		errorMsg    string
-		validateTLS func(t *testing.T, runner *prometheusRunner)
+		name             string
+		setupTLS         func(t *testing.T) *TLSConfig
+		expectError      bool
+		errorMsgContains string
+		validateTLS      func(t *testing.T, runner *prometheusRunner)
 	}{
 		{
 			name: "testing TLS without CA cert",
@@ -173,8 +174,8 @@ func TestPrometheusTLSConfig(t *testing.T) {
 					CAFile:   "",
 				}
 			},
-			expectError: true,
-			errorMsg:    "failed to create TLS config for Prometheus",
+			expectError:      true,
+			errorMsgContains: "failed to create TLS config for Prometheus",
 		},
 		{
 			name: "testing TLS with invalid cert/key files",
@@ -188,8 +189,8 @@ func TestPrometheusTLSConfig(t *testing.T) {
 					CAFile:   "",
 				}
 			},
-			expectError: true,
-			errorMsg:    "failed to create TLS config for Prometheus",
+			expectError:      true,
+			errorMsgContains: "failed to create TLS config for Prometheus",
 		},
 		{
 			name: "testing TLS with missing key file",
@@ -201,8 +202,8 @@ func TestPrometheusTLSConfig(t *testing.T) {
 					CAFile:   "",
 				}
 			},
-			expectError: true,
-			errorMsg:    "failed to create TLS config for Prometheus",
+			expectError:      true,
+			errorMsgContains: "failed to create TLS config for Prometheus",
 		},
 		{
 			name: "testing TLS with invalid CA file",
@@ -215,8 +216,8 @@ func TestPrometheusTLSConfig(t *testing.T) {
 					CAFile:   invalidCAFile,
 				}
 			},
-			expectError: true,
-			errorMsg:    "failed to create TLS config for Prometheus",
+			expectError:      true,
+			errorMsgContains: "failed to create TLS config for Prometheus",
 		},
 	}
 
@@ -230,13 +231,14 @@ func TestPrometheusTLSConfig(t *testing.T) {
 
 			if tt.expectError {
 				require.Error(t, err)
-				if tt.errorMsg != "" {
-					assert.Contains(t, err.Error(), tt.errorMsg)
+				if tt.errorMsgContains != "" {
+					assert.Contains(t, err.Error(), tt.errorMsgContains, "actual error message: %q", err.Error())
+					log.Println("error message: ", err.Error())
 				}
 				// When there's an error, runner should still be returned but TLS should not be configured
 				if runner != nil {
 					pr := runner.(*prometheusRunner)
-					assert.Nil(t, pr.server.TLSConfig)
+					assert.Nil(t, pr.server.TLSConfig, "actual TLS config: %v", pr.server.TLSConfig)
 				}
 			} else {
 				require.NoError(t, err)
