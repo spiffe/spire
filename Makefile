@@ -65,6 +65,9 @@ help:
 	@echo "  $(cyan)generate$(reset)                              - generate protocol buffers and plugin interface code"
 	@echo "  $(cyan)generate-check$(reset)                        - ensure generated code is up to date"
 	@echo
+	@echo "$(bold)Vulnerabilty checking:$(reset)"
+	@echo "  $(cyan)govulncheck$(reset)                           - run govulncheck over the whole project"
+	@echo
 	@echo "For verbose output set V=1"
 	@echo "  for example: $(cyan)make V=1 build$(reset)"
 
@@ -412,6 +415,13 @@ lint-code: | go-check
 
 lint-md:
 	$(E)docker run --rm -v "$(DIR):/workdir" $(markdown_lint_image) "**/*.md"
+
+#############################################################################
+# Vulnerabilty checking
+#############################################################################
+
+govulncheck:
+	$(E)$(go_path) go run golang.org/x/vuln/cmd/govulncheck@latest ./...
 
 #############################################################################
 # Code Generation
