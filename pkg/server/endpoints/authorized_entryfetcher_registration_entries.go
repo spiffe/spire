@@ -191,7 +191,6 @@ func buildRegistrationEntriesCache(ctx context.Context, log logrus.FieldLogger, 
 			AliasesByEntryID:  -1,
 			AliasesBySelector: -1,
 			EntriesByEntryID:  -1,
-			EntriesByParentID: -1,
 		},
 	}
 
@@ -280,9 +279,5 @@ func (a *registrationEntries) emitMetrics() {
 	if a.lastCacheStats.EntriesByEntryID != cacheStats.EntriesByEntryID {
 		a.lastCacheStats.EntriesByEntryID = cacheStats.EntriesByEntryID
 		server_telemetry.SetEntriesByEntryIDCacheCountGauge(a.metrics, a.lastCacheStats.EntriesByEntryID)
-	}
-	if a.lastCacheStats.EntriesByParentID != cacheStats.EntriesByParentID {
-		a.lastCacheStats.EntriesByParentID = cacheStats.EntriesByParentID
-		server_telemetry.SetEntriesByParentIDCacheCountGauge(a.metrics, a.lastCacheStats.EntriesByParentID)
 	}
 }

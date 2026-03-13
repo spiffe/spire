@@ -688,9 +688,6 @@ const (
 	// EntriesByEntryIDCache functionality related to the entries btree cache indexed by EntryID
 	EntriesByEntryIDCache = "entries_by_entryid_cache"
 
-	// EntriesByParentIDCache functionality related to the entries btree cache indexed by ParentID
-	EntriesByParentIDCache = "entries_by_parentid_cache"
-
 	// Cache type tag
 	CacheType = "cache_type"
 
