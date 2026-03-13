@@ -315,14 +315,13 @@ func TestMintX509CA(t *testing.T) {
 			// Verify X509CA has expected IDs
 			require.Equal(t, []string{"spiffe://example.org"}, certChainURIs(x509CA))
 
-			// Update bundle to trigger another response. Move time forward at
-			// the upstream poll frequency twice to ensure the plugin picks up
-			// the change to the bundle.
+			// Update bundle to trigger another response. Advance the clock
+			// past the upstream poll frequency to trigger a fetch; the plugin
+			// notifies SubscribeToLocalBundle immediately via bundleUpdated.
 			server.sAPIServer.appendRootCA(&types.X509Certificate{Asn1: serverCertUpdate[0].Raw})
 			server.sAPIServer.appendRootCA(&types.X509Certificate{Asn1: serverCertUpdateTainted[0].Raw, Tainted: true})
 			mockClock.Add(upstreamPollFreq)
 			mockClock.Add(upstreamPollFreq)
-			mockClock.Add(internalPollFreq)
 
 			// Get bundle update
 			bundleUpdateResp, _, err := stream.RecvLocalBundleUpdate()
@@ -386,13 +385,12 @@ func TestPublishJWTKey(t *testing.T) {
 	assert.Equal(t, upstreamJwtKeys[1].Kid, "gHTCunJbefYtnZnTctd84xeRWyMrEsWD")
 	assert.Equal(t, upstreamJwtKeys[2].Kid, "kid-2")
 
-	// Update bundle to trigger another response. Move time forward at the
-	// upstream poll frequency twice to ensure the plugin picks up the change
-	// to the bundle.
+	// Update bundle to trigger another response. Advance the clock past the
+	// upstream poll frequency to trigger a fetch; the plugin notifies
+	// SubscribeToLocalBundle immediately via bundleUpdated.
 	server.sAPIServer.appendKey(&types.JWTKey{KeyId: "kid-3", PublicKey: pkixBytes2})
 	mockClock.Add(upstreamPollFreq)
 	mockClock.Add(upstreamPollFreq)
-	mockClock.Add(internalPollFreq)
 
 	// Get bundle update
 	_, resp, err := stream.RecvLocalBundleUpdate()
@@ -453,12 +451,11 @@ func TestGetTrustBundle(t *testing.T) {
 	pkixBytes, err := x509.MarshalPKIXPublicKey(key.Public())
 	require.NoError(t, err)
 
-	// Update bundle to trigger another response. Move time forward at the
-	// upstream poll frequency twice to ensure the plugin picks up the change
-	// to the bundle.
+	// Update bundle to trigger another response. Advance the clock past the
+	// upstream poll frequency to trigger a fetch; the plugin notifies
+	// SubscribeToLocalBundle immediately via bundleUpdated.
 	server.sAPIServer.appendKey(&types.JWTKey{KeyId: "kid", PublicKey: pkixBytes})
 	mockClock.Add(upstreamPollFreq)
-	mockClock.Add(internalPollFreq)
 	mockClock.Add(upstreamPollFreq)
 
 	// Get bundle update
