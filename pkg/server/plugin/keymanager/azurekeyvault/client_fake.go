@@ -232,7 +232,7 @@ func (k *kmsClientFake) DeleteKey(_ context.Context, name string, _ *azkeys.Dele
 	return azkeys.DeleteKeyResponse{DeletedKeyBundle: deletedKeyBundle}, nil
 }
 
-func (k *kmsClientFake) UpdateKey(_ context.Context, name, _ string, _ azkeys.UpdateKeyParameters, _ *azkeys.UpdateKeyOptions) (azkeys.UpdateKeyResponse, error) {
+func (k *kmsClientFake) UpdateKey(_ context.Context, name, _ string, params azkeys.UpdateKeyParameters, _ *azkeys.UpdateKeyOptions) (azkeys.UpdateKeyResponse, error) {
 	k.mu.RLock()
 	defer k.mu.RUnlock()
 	if k.updateKeyErr != nil {
@@ -241,6 +241,11 @@ func (k *kmsClientFake) UpdateKey(_ context.Context, name, _ string, _ azkeys.Up
 	keyEntry, err := k.store.fetchKeyEntry(name)
 	if err != nil {
 		return azkeys.UpdateKeyResponse{}, err
+	}
+
+	// Apply tags from parameters if provided (for lock acquisition/release)
+	if params.Tags != nil {
+		keyEntry.KeyBundle.Tags = params.Tags
 	}
 
 	keyEntry.KeyBundle.Attributes.Updated = to.Ptr(k.store.clk.Now())
