@@ -9,7 +9,6 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
-	"log"
 	"math/big"
 	"os"
 	"testing"
@@ -175,7 +174,7 @@ func TestPrometheusTLSConfig(t *testing.T) {
 				}
 			},
 			expectError:      true,
-			errorMsgContains: "failed to create TLS config for Prometheus",
+			errorMsgContains: "failed to create TLS config for Prometheus: open /nonexistent/cert.pem: no such file or directory",
 		},
 		{
 			name: "testing TLS with invalid cert/key files",
@@ -190,7 +189,7 @@ func TestPrometheusTLSConfig(t *testing.T) {
 				}
 			},
 			expectError:      true,
-			errorMsgContains: "failed to create TLS config for Prometheus",
+			errorMsgContains: "failed to create TLS config for Prometheus: tls: failed to find any PEM data in certificate input",
 		},
 		{
 			name: "testing TLS with missing key file",
@@ -203,7 +202,7 @@ func TestPrometheusTLSConfig(t *testing.T) {
 				}
 			},
 			expectError:      true,
-			errorMsgContains: "failed to create TLS config for Prometheus",
+			errorMsgContains: "failed to create TLS config for Prometheus: open /nonexistent/key.pem: no such file or directory",
 		},
 		{
 			name: "testing TLS with invalid CA file",
@@ -217,7 +216,7 @@ func TestPrometheusTLSConfig(t *testing.T) {
 				}
 			},
 			expectError:      true,
-			errorMsgContains: "failed to create TLS config for Prometheus",
+			errorMsgContains: "failed to create TLS config for Prometheus: no certificates found in file",
 		},
 	}
 
@@ -233,7 +232,6 @@ func TestPrometheusTLSConfig(t *testing.T) {
 				require.Error(t, err)
 				if tt.errorMsgContains != "" {
 					assert.Contains(t, err.Error(), tt.errorMsgContains, "actual error message: %q", err.Error())
-					log.Println("error message: ", err.Error())
 				}
 				// When there's an error, runner should still be returned but TLS should not be configured
 				if runner != nil {
