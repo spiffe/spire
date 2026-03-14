@@ -490,7 +490,7 @@ func (p *Plugin) SignData(ctx context.Context, req *keymanagerv1.SignDataRequest
 	}
 
 	signResponse, err := p.keyVaultClient.Sign(ctx, keyName, keyVersion, azkeys.SignParameters{
-		Algorithm: new(signingAlgo),
+		Algorithm: &signingAlgo,
 		Value:     req.Data,
 	}, nil)
 	if err != nil {
