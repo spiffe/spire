@@ -11,6 +11,7 @@ import (
 	"log"
 	"net/url"
 	"reflect"
+	"strings"
 	"time"
 
 	"github.com/go-jose/go-jose/v4/jwt"
@@ -125,12 +126,12 @@ func run() string {
 	testRPC("ListFederationRelationships", listFederationRelationships)
 	testRPC("BatchDeleteFederationRelationship", batchDeleteFederationRelationship)
 
-	msg := ""
+	var msg strings.Builder
 	for _, failure := range failures {
-		msg += fmt.Sprintf("RPC %q: %v\n", failure.name, failure.err)
+		msg.WriteString(fmt.Sprintf("RPC %q: %v\n", failure.name, failure.err))
 	}
 
-	return msg
+	return msg.String()
 }
 
 func mintX509SVID(ctx context.Context, c *itclient.Client) error {
