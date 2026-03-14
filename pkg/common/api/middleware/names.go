@@ -85,9 +85,9 @@ func makeNames(fullMethod string) (names api.Names) {
 
 	// Parse the slash separated service and method name. The separating slash
 	// should always be present in practice.
-	if slashIndex := strings.Index(fullMethod, "/"); slashIndex != -1 {
-		names.RawService = fullMethod[0:slashIndex]
-		names.Method = fullMethod[slashIndex+1:]
+	if before, after, ok := strings.Cut(fullMethod, "/"); ok {
+		names.RawService = before
+		names.Method = after
 	}
 
 	names.Service = serviceReplacer.Replace(names.RawService)

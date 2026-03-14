@@ -108,8 +108,8 @@ func TestConfigure(t *testing.T) {
 			name:             "pass with keys",
 			configureRequest: configureRequestWithDefaults(t),
 			fakeEntries: []fakeKeyEntry{
-				makeFakeKeyEntry(t, "key-1", trustDomain, validServerID, azkeys.JSONWebKeyTypeRSA, nil, to.Ptr(2048)),
-				makeFakeKeyEntry(t, "key-2", trustDomain, validServerID, azkeys.JSONWebKeyTypeRSA, nil, to.Ptr(4096)),
+				makeFakeKeyEntry(t, "key-1", trustDomain, validServerID, azkeys.JSONWebKeyTypeRSA, nil, new(2048)),
+				makeFakeKeyEntry(t, "key-2", trustDomain, validServerID, azkeys.JSONWebKeyTypeRSA, nil, new(4096)),
 				makeFakeKeyEntry(t, "key-3", trustDomain, validServerID, azkeys.JSONWebKeyTypeEC, to.Ptr(azkeys.JSONWebKeyCurveNameP256), nil),
 				makeFakeKeyEntry(t, "key-4", trustDomain, validServerID, azkeys.JSONWebKeyTypeEC, to.Ptr(azkeys.JSONWebKeyCurveNameP384), nil),
 			},
@@ -204,7 +204,7 @@ func TestConfigure(t *testing.T) {
 			code:             codes.Internal,
 			configureRequest: configureRequestWithDefaults(t),
 			fakeEntries: []fakeKeyEntry{
-				makeFakeKeyEntry(t, "key-1", trustDomain, validServerID, azkeys.JSONWebKeyTypeRSA, nil, to.Ptr(2048)),
+				makeFakeKeyEntry(t, "key-1", trustDomain, validServerID, azkeys.JSONWebKeyTypeRSA, nil, new(2048)),
 			},
 			getKeyErr: "get key error",
 		},
@@ -759,10 +759,10 @@ func TestGetPublicKeys(t *testing.T) {
 }
 
 func TestRefreshKeys(t *testing.T) {
-	entry1 := makeFakeKeyEntry(t, keyNamePrefix+"-"+getUUID(t)+"-spireKey1", trustDomain, validServerID, azkeys.JSONWebKeyTypeRSA, nil, to.Ptr(4096))
-	entry2 := makeFakeKeyEntry(t, keyNamePrefix+"-"+getUUID(t)+"-spireKey2", trustDomain, "another-server-id", azkeys.JSONWebKeyTypeRSA, nil, to.Ptr(4096))
-	entry3 := makeFakeKeyEntry(t, keyNamePrefix+"-"+getUUID(t)+"-spireKey3", "another-td", validServerID, azkeys.JSONWebKeyTypeRSA, nil, to.Ptr(4096))
-	entry4 := makeFakeKeyEntry(t, keyNamePrefix+"-"+getUUID(t)+"-spireKey4", "another-td", "another-server-id", azkeys.JSONWebKeyTypeRSA, nil, to.Ptr(4096))
+	entry1 := makeFakeKeyEntry(t, keyNamePrefix+"-"+getUUID(t)+"-spireKey1", trustDomain, validServerID, azkeys.JSONWebKeyTypeRSA, nil, new(4096))
+	entry2 := makeFakeKeyEntry(t, keyNamePrefix+"-"+getUUID(t)+"-spireKey2", trustDomain, "another-server-id", azkeys.JSONWebKeyTypeRSA, nil, new(4096))
+	entry3 := makeFakeKeyEntry(t, keyNamePrefix+"-"+getUUID(t)+"-spireKey3", "another-td", validServerID, azkeys.JSONWebKeyTypeRSA, nil, new(4096))
+	entry4 := makeFakeKeyEntry(t, keyNamePrefix+"-"+getUUID(t)+"-spireKey4", "another-td", "another-server-id", azkeys.JSONWebKeyTypeRSA, nil, new(4096))
 
 	for _, tt := range []struct {
 		name             string
@@ -777,7 +777,7 @@ func TestRefreshKeys(t *testing.T) {
 			err:              "update failure",
 			updateKeyErr:     "update failure",
 			fakeEntries: []fakeKeyEntry{
-				makeFakeKeyEntry(t, keyName, trustDomain, validServerID, azkeys.JSONWebKeyTypeRSA, nil, to.Ptr(4096)),
+				makeFakeKeyEntry(t, keyName, trustDomain, validServerID, azkeys.JSONWebKeyTypeRSA, nil, new(4096)),
 			},
 		},
 		{
@@ -837,10 +837,10 @@ func TestRefreshKeys(t *testing.T) {
 }
 
 func TestDisposeKeys(t *testing.T) {
-	entry1 := makeFakeKeyEntry(t, keyName+"-1", trustDomain, "", azkeys.JSONWebKeyTypeRSA, nil, to.Ptr(4096))
-	entry2 := makeFakeKeyEntry(t, keyName+"-2", trustDomain, validServerID, azkeys.JSONWebKeyTypeRSA, nil, to.Ptr(2048))
+	entry1 := makeFakeKeyEntry(t, keyName+"-1", trustDomain, "", azkeys.JSONWebKeyTypeRSA, nil, new(4096))
+	entry2 := makeFakeKeyEntry(t, keyName+"-2", trustDomain, validServerID, azkeys.JSONWebKeyTypeRSA, nil, new(2048))
 	entry3 := makeFakeKeyEntry(t, keyName+"-3", trustDomain, "another_server_id", azkeys.JSONWebKeyTypeEC, to.Ptr(azkeys.JSONWebKeyCurveNameP384), nil)
-	entry4 := makeFakeKeyEntry(t, keyName+"-4", "another-trust-domain", validServerID, azkeys.JSONWebKeyTypeRSA, nil, to.Ptr(4096))
+	entry4 := makeFakeKeyEntry(t, keyName+"-4", "another-trust-domain", validServerID, azkeys.JSONWebKeyTypeRSA, nil, new(4096))
 	entry5 := makeFakeKeyEntry(t, keyName+"-5", "another-trust-domain", "another_server_id", azkeys.JSONWebKeyTypeEC, to.Ptr(azkeys.JSONWebKeyCurveNameP256), nil)
 	entry6 := makeFakeKeyEntry(t, keyName+"-6", trustDomain, "another_server_id", azkeys.JSONWebKeyTypeEC, to.Ptr(azkeys.JSONWebKeyCurveNameP384), nil)
 	entry7 := makeFakeKeyEntry(t, keyName+"-7", trustDomain, "another_server_id", azkeys.JSONWebKeyTypeEC, to.Ptr(azkeys.JSONWebKeyCurveNameP256), nil)
@@ -1047,14 +1047,14 @@ func makeFakeKeyEntry(t *testing.T, keyName, trustDomain, serverID string, keyTy
 	}
 
 	keyAttr := &azkeys.KeyAttributes{
-		Enabled: to.Ptr(true),
+		Enabled: new(true),
 		Created: &unixEpoch,
 		Updated: &unixEpoch,
 	}
 
 	tags := make(map[string]*string)
-	tags[tagNameServerTrustDomain] = to.Ptr(trustDomain)
-	tags[tagNameServerID] = to.Ptr(serverID)
+	tags[tagNameServerTrustDomain] = new(trustDomain)
+	tags[tagNameServerID] = new(serverID)
 	keyBundle := &azkeys.KeyBundle{
 		Attributes: keyAttr,
 		Key:        publicKey,

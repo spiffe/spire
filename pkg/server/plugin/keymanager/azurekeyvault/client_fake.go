@@ -187,14 +187,14 @@ func (k *kmsClientFake) CreateKey(_ context.Context, keyName string, parameters 
 	}
 
 	keyAttr := &azkeys.KeyAttributes{
-		Enabled: to.Ptr(true),
-		Created: to.Ptr(time.Now()),
-		Updated: to.Ptr(time.Now()),
+		Enabled: new(true),
+		Created: new(time.Now()),
+		Updated: new(time.Now()),
 	}
 
 	tags := make(map[string]*string)
-	tags[tagNameServerTrustDomain] = to.Ptr(k.trustDomain)
-	tags[tagNameServerID] = to.Ptr(k.serverID)
+	tags[tagNameServerTrustDomain] = new(k.trustDomain)
+	tags[tagNameServerID] = new(k.serverID)
 
 	keyBundle := &azkeys.KeyBundle{
 		Attributes: keyAttr,
@@ -243,7 +243,7 @@ func (k *kmsClientFake) UpdateKey(_ context.Context, name, _ string, _ azkeys.Up
 		return azkeys.UpdateKeyResponse{}, err
 	}
 
-	keyEntry.KeyBundle.Attributes.Updated = to.Ptr(k.store.clk.Now())
+	keyEntry.KeyBundle.Attributes.Updated = new(k.store.clk.Now())
 	k.store.SaveKeyEntry(keyEntry)
 
 	keyBundle := &azkeys.KeyBundle{
@@ -390,7 +390,7 @@ func toRSAKey(publicKey crypto.PublicKey, kmsKeyID string, keyOperations []*stri
 	key := &azkeys.JSONWebKey{
 		N:      rsaKey.N.Bytes(),
 		E:      e,
-		KID:    to.Ptr(azkeys.ID(kmsKeyID)),
+		KID:    new(azkeys.ID(kmsKeyID)),
 		KeyOps: keyOperations,
 		Kty:    to.Ptr(azkeys.JSONWebKeyTypeRSA),
 	}
@@ -400,9 +400,9 @@ func toRSAKey(publicKey crypto.PublicKey, kmsKeyID string, keyOperations []*stri
 func toECKey(publicKey crypto.PublicKey, keyName string, curveName azkeys.JSONWebKeyCurveName, keyOperations []*string) *azkeys.JSONWebKey {
 	ecdsaKey := publicKey.(*ecdsa.PublicKey)
 	key := &azkeys.JSONWebKey{
-		Crv: to.Ptr(curveName),
+		Crv: new(curveName),
 		//D:      ecdsaKey.D.Bytes(),
-		KID:    to.Ptr(azkeys.ID(keyName)),
+		KID:    new(azkeys.ID(keyName)),
 		KeyOps: keyOperations,
 		Kty:    to.Ptr(azkeys.JSONWebKeyTypeEC),
 		X:      ecdsaKey.X.Bytes(),
@@ -437,5 +437,5 @@ func (fs *fakeStore) fetchKeyEntries() []fakeKeyEntry {
 }
 
 func getKeyOperations() []*string {
-	return []*string{to.Ptr("Sign"), to.Ptr("Verify")}
+	return []*string{new("Sign"), new("Verify")}
 }

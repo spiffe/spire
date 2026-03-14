@@ -2125,13 +2125,11 @@ func initializeAndRunManager(t *testing.T, m *manager) (closer func()) {
 func runManager(t *testing.T, m *manager) (closer func()) {
 	var wg sync.WaitGroup
 	ctx, cancel := context.WithCancel(context.Background())
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		if err := m.Run(ctx); err != nil {
 			t.Error(err)
 		}
-	}()
+	})
 	return func() {
 		cancel()
 		wg.Wait()
