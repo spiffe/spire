@@ -9,6 +9,7 @@ import (
 
 	gocql "github.com/apache/cassandra-gocql-driver/v2"
 	"github.com/spiffe/spire/pkg/server/datastore/cassandra/migrations"
+	migrator "github.com/tjons/cassandra-toolbox/migrate"
 )
 
 func (p *Plugin) ensureKeyspaceExists(ctx context.Context, config *runtimeConfiguration) error {
@@ -140,5 +141,5 @@ func addNetworkTopologyStrategyReplicationOptions(queryBuilder *strings.Builder,
 }
 
 func (p *Plugin) applyMigrations(session *gocql.Session) error {
-	return migrations.RunMigrations(context.Background(), p.cfg.Keyspace, session, migrations.Migrations)
+	return migrator.RunMigrations(context.Background(), p.cfg.Keyspace, session, migrations.Migrations)
 }

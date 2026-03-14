@@ -15,7 +15,7 @@ import (
 	"github.com/sirupsen/logrus"
 	datastorev1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/datastore/v1alpha1"
 	"github.com/spiffe/spire/pkg/common/telemetry"
-	"github.com/spiffe/spire/pkg/server/datastore/cassandra/qb"
+	"github.com/tjons/cassandra-toolbox/qb"
 	"google.golang.org/grpc/codes"
 )
 

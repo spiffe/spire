@@ -9,7 +9,7 @@ import (
 
 	gocql "github.com/apache/cassandra-gocql-driver/v2"
 	"github.com/sirupsen/logrus"
-	"github.com/spiffe/spire/pkg/server/datastore/cassandra/qb"
+	"github.com/tjons/cassandra-toolbox/qb"
 )
 
 type cassandraDB struct {

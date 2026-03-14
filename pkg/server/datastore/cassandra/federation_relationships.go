@@ -8,7 +8,7 @@ import (
 
 	gocql "github.com/apache/cassandra-gocql-driver/v2"
 	datastorev1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/datastore/v1alpha1"
-	"github.com/spiffe/spire/pkg/server/datastore/cassandra/qb/pages"
+	"github.com/tjons/cassandra-toolbox/qb/pages"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
