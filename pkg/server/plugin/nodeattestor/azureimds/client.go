@@ -7,7 +7,6 @@ import (
 	"fmt"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resourcegraph/armresourcegraph"
 	"google.golang.org/grpc/codes"
@@ -86,7 +85,7 @@ func (c *azureClient) GetVirtualMachine(ctx context.Context, vmId string, subscr
 	| where properties.vmId == '%s'
 	| project id, name, location, tags, vmId = properties.vmId, networkProfile = properties.networkProfile, resourceGroup`, vmId)
 	options := &armresourcegraph.QueryRequestOptions{
-		ResultFormat: to.Ptr(armresourcegraph.ResultFormatObjectArray),
+		ResultFormat: new(armresourcegraph.ResultFormatObjectArray),
 	}
 	req := armresourcegraph.QueryRequest{
 		Query:   &query,
@@ -151,7 +150,7 @@ func (c *azureClient) getVMSSInfo(ctx context.Context, subscriptionIDs []*string
 	| where name == '%s'
 	| project id, name, location, resourceGroup, subscriptionId`, name)
 	options := &armresourcegraph.QueryRequestOptions{
-		ResultFormat: to.Ptr(armresourcegraph.ResultFormatObjectArray),
+		ResultFormat: new(armresourcegraph.ResultFormatObjectArray),
 	}
 	req := armresourcegraph.QueryRequest{
 		Query:         &query,
@@ -184,7 +183,7 @@ func (c *azureClient) getNetworkInterfaces(ctx context.Context, vmId string, sub
 		by id, name, resourceGroup, tostring(securityGroup)
 	| project name, resourceGroup, subnets, securityGroup`, vmId)
 	options := &armresourcegraph.QueryRequestOptions{
-		ResultFormat: to.Ptr(armresourcegraph.ResultFormatObjectArray),
+		ResultFormat: new(armresourcegraph.ResultFormatObjectArray),
 	}
 	req := armresourcegraph.QueryRequest{
 		Query:   &query,

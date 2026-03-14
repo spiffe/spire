@@ -544,13 +544,3 @@ func (f *fakeSigstoreVerifier) Verify(_ context.Context, imageID string) ([]stri
 	}
 	return f.selectors, f.err
 }
-
-//go:fix inline
-func strPtr(s string) *string {
-	return new(s)
-}
-
-//go:fix inline
-func boolPtr(b bool) *bool {
-	return new(b)
-}

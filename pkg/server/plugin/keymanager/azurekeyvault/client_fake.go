@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/keyvault/azkeys"
 	"github.com/andres-erbsen/clock"
 	"github.com/spiffe/spire/test/testkey"
@@ -392,7 +391,7 @@ func toRSAKey(publicKey crypto.PublicKey, kmsKeyID string, keyOperations []*stri
 		E:      e,
 		KID:    new(azkeys.ID(kmsKeyID)),
 		KeyOps: keyOperations,
-		Kty:    to.Ptr(azkeys.JSONWebKeyTypeRSA),
+		Kty:    new(azkeys.JSONWebKeyTypeRSA),
 	}
 	return key
 }
@@ -404,7 +403,7 @@ func toECKey(publicKey crypto.PublicKey, keyName string, curveName azkeys.JSONWe
 		//D:      ecdsaKey.D.Bytes(),
 		KID:    new(azkeys.ID(keyName)),
 		KeyOps: keyOperations,
-		Kty:    to.Ptr(azkeys.JSONWebKeyTypeEC),
+		Kty:    new(azkeys.JSONWebKeyTypeEC),
 		X:      ecdsaKey.X.Bytes(),
 		Y:      ecdsaKey.Y.Bytes(),
 	}
