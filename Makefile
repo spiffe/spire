@@ -384,7 +384,7 @@ $(eval $(call windows_image_rule,oidc-discovery-provider-windows-image,oidc-disc
 # Code cleanliness
 #############################################################################
 
-.PHONY: tidy tidy-check lint lint-code
+.PHONY: tidy tidy-check lint lint-code lint-md
 tidy: | go-check
 	$(E)$(go_path) go mod tidy
 	$(E)cd proto/spire; $(go_path) go mod tidy
@@ -412,6 +412,8 @@ lint-md:
 #############################################################################
 # Vulnerabilty checking
 #############################################################################
+
+.PHONY: govulncheck
 
 govulncheck:
 	$(E)$(go_path) go run golang.org/x/vuln/cmd/govulncheck@latest ./...
@@ -488,6 +490,8 @@ dev-shell: | go-check
 #############################################################################
 # Toolchain
 #############################################################################
+
+.PHONY: go-check go-bin-path install-toolchain install-protoc install-protoc-gen-go install-protoc-gen-go-grpc install-protoc-gen-go-spire
 
 # go-check checks to see if there is a version of Go available matching the
 # required version. The build cache is preferred. If not available, it is
