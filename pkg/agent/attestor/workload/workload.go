@@ -74,7 +74,7 @@ func (wla *attestor) Attest(ctx context.Context, pid int) ([]*common.Selector, e
 		case err := <-errChan:
 			log.WithError(err).Error("Failed to collect all selectors for PID")
 		case <-ctx.Done():
-			log.Error("Timed out collecting selectors for PID")
+			log.WithError(ctx.Err()).Error("Timed out collecting selectors for PID")
 			return nil, ctx.Err()
 		}
 	}
