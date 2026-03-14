@@ -80,6 +80,7 @@ require (
 	github.com/spiffe/spire-api-sdk v1.2.5-0.20260320104153-99d433165a01
 	github.com/spiffe/spire-plugin-sdk v1.4.4-0.20251120194148-791bbd274dc7
 	github.com/stretchr/testify v1.11.1
+	github.com/tjons/cassandra-toolbox v0.0.0-20260314211553-cdb30cc01b34
 	github.com/uber-go/tally/v4 v4.1.17
 	github.com/valyala/fastjson v1.6.10
 	golang.org/x/crypto v0.50.0

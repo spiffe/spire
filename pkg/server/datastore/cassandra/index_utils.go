@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	datastorev1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/datastore/v1alpha1"
-	"github.com/spiffe/spire/pkg/server/datastore/cassandra/qb"
+	"github.com/tjons/cassandra-toolbox/qb"
 )
 
 func powerSlice[T any](els []T) [][]T {
