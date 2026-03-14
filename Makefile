@@ -196,18 +196,11 @@ plugin-protos := \
 
 service-protos := \
 
-# The following vars are used in rule construction
-comma := ,
-null  :=
-space := $(null) #
-
 #############################################################################
 # Utility functions and targets
 #############################################################################
 
 .PHONY: git-clean-check
-
-tolower = $(shell echo $1 | tr '[:upper:]' '[:lower:]')
 
 goenv = $(shell PATH="$(go_bin_dir):$(PATH)" go env $1)
 
