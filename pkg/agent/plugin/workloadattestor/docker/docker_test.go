@@ -258,10 +258,10 @@ func TestNewConfigFromHCL(t *testing.T) {
 					"test-issuer-2": {"domain/ci.yaml@refs/tags/*"},
 				},
 				SkippedImages:      []string{"registry/image@sha256:examplehash"},
-				RekorURL:           strPtr("https://test.dev"),
-				IgnoreSCT:          boolPtr(true),
-				IgnoreTlog:         boolPtr(true),
-				IgnoreAttestations: boolPtr(true),
+				RekorURL:           new("https://test.dev"),
+				IgnoreSCT:          new(true),
+				IgnoreTlog:         new(true),
+				IgnoreAttestations: new(true),
 				RegistryCredentials: map[string]*sigstore.RegistryCredential{
 					"registry": {
 						Username: "user",
@@ -545,10 +545,12 @@ func (f *fakeSigstoreVerifier) Verify(_ context.Context, imageID string) ([]stri
 	return f.selectors, f.err
 }
 
+//go:fix inline
 func strPtr(s string) *string {
-	return &s
+	return new(s)
 }
 
+//go:fix inline
 func boolPtr(b bool) *bool {
-	return &b
+	return new(b)
 }

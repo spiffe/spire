@@ -234,8 +234,8 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 	p.trustDomain = req.CoreConfiguration.TrustDomain
 	p.serverID = serverID
 	p.keyTags = make(map[string]*string)
-	p.keyTags[tagNameServerTrustDomain] = to.Ptr(req.CoreConfiguration.TrustDomain)
-	p.keyTags[tagNameServerID] = to.Ptr(serverID)
+	p.keyTags[tagNameServerTrustDomain] = new(req.CoreConfiguration.TrustDomain)
+	p.keyTags[tagNameServerID] = new(serverID)
 
 	// Cancel previous tasks in case of re-configure.
 	if p.cancelTasks != nil {
@@ -491,7 +491,7 @@ func (p *Plugin) SignData(ctx context.Context, req *keymanagerv1.SignDataRequest
 	}
 
 	signResponse, err := p.keyVaultClient.Sign(ctx, keyName, keyVersion, azkeys.SignParameters{
-		Algorithm: to.Ptr(signingAlgo),
+		Algorithm: new(signingAlgo),
 		Value:     req.Data,
 	}, nil)
 	if err != nil {
@@ -663,10 +663,10 @@ func getCreateKeyParameters(keyType keymanagerv1.KeyType, keyTags map[string]*st
 	switch keyType {
 	case keymanagerv1.KeyType_RSA_2048:
 		result.Kty = to.Ptr(azkeys.JSONWebKeyTypeRSA)
-		result.KeySize = to.Ptr(int32(2048))
+		result.KeySize = new(int32(2048))
 	case keymanagerv1.KeyType_RSA_4096:
 		result.Kty = to.Ptr(azkeys.JSONWebKeyTypeRSA)
-		result.KeySize = to.Ptr(int32(4096))
+		result.KeySize = new(int32(4096))
 	case keymanagerv1.KeyType_EC_P256:
 		result.Kty = to.Ptr(azkeys.JSONWebKeyTypeEC)
 		result.Curve = to.Ptr(azkeys.JSONWebKeyCurveNameP256)
