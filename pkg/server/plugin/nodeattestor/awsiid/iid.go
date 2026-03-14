@@ -70,6 +70,7 @@ const (
 	accessKeyIDVarName = "AWS_ACCESS_KEY_ID"
 	// secretAccessKeyVarName env car name for AWS secret access key
 	secretAccessKeyVarName   = "AWS_SECRET_ACCESS_KEY" //nolint: gosec // false positive
+	accountIDSelectorPrefix  = "account_id"
 	azSelectorPrefix         = "az"
 	imageIDSelectorPrefix    = "image:id"
 	instanceIDSelectorPrefix = "instance:id"
@@ -580,6 +581,7 @@ func (p *IIDAttestorPlugin) resolveSelectors(parent context.Context, instancesDe
 }
 
 func resolveIIDocSelectors(selectorSet map[string]bool, iiDoc imds.InstanceIdentityDocument) {
+	selectorSet[fmt.Sprintf("%s:%s", accountIDSelectorPrefix, iiDoc.AccountID)] = true
 	selectorSet[fmt.Sprintf("%s:%s", imageIDSelectorPrefix, iiDoc.ImageID)] = true
 	selectorSet[fmt.Sprintf("%s:%s", instanceIDSelectorPrefix, iiDoc.InstanceID)] = true
 	selectorSet[fmt.Sprintf("%s:%s", regionSelectorPrefix, iiDoc.Region)] = true

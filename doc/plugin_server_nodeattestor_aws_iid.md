@@ -191,6 +191,7 @@ This plugin generates the following selectors related to the instance where the 
 
 | Selector            | Example                                               | Description                                                      |
 |---------------------|-------------------------------------------------------|------------------------------------------------------------------|
+| Account ID          | `aws_iid:account_id:123456789012`                     | The ID of the AWS account the instance belongs to.               |
 | Availability Zone   | `aws_iid:az:us-west-2b`                               | The Availability Zone in which the instance is running.          |
 | IAM role            | `aws_iid:iamrole:arn:aws:iam::123456789012:role/Blog` | An IAM role within the instance profile for the instance         |
 | Image ID            | `aws_iid:image:id:ami-5fb8c835`                       | The ID of the AMI used to launch the instance.                   |
