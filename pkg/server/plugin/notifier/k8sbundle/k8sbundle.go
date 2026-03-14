@@ -259,7 +259,7 @@ func (p *Plugin) updateBundles(ctx context.Context) (err error) {
 		}
 	}
 
-	if len(updateErrs.String()) > 0 {
+	if updateErrs.Len() > 0 {
 		return status.Errorf(codes.Internal, "unable to update: %s", strings.TrimSuffix(updateErrs.String(), ", "))
 	}
 	return nil
