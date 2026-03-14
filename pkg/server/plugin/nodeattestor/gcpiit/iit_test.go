@@ -443,11 +443,6 @@ func (c *fakeComputeEngineClient) fetchInstanceMetadata(_ context.Context, proje
 	}
 }
 
-//go:fix inline
-func stringPtr(s string) *string {
-	return new(s)
-}
-
 func expectNoChallenge(context.Context, []byte) ([]byte, error) {
 	return nil, errors.New("challenge is not expected")
 }

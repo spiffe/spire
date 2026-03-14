@@ -16,7 +16,6 @@ import (
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/keyvault/azkeys"
 	"github.com/andres-erbsen/clock"
@@ -303,7 +302,7 @@ func (p *Plugin) refreshKeys(ctx context.Context) error {
 
 		// Update the key with the same key to only change the Updated timestamp
 		_, err = p.keyVaultClient.UpdateKey(ctx, keyName, keyVersion, azkeys.UpdateKeyParameters{
-			KeyOps: []*azkeys.JSONWebKeyOperation{to.Ptr(azkeys.JSONWebKeyOperationSign), to.Ptr(azkeys.JSONWebKeyOperationVerify)},
+			KeyOps: []*azkeys.JSONWebKeyOperation{new(azkeys.JSONWebKeyOperationSign), new(azkeys.JSONWebKeyOperationVerify)},
 		}, nil)
 		if err != nil {
 			p.log.Error("Failed to refresh key", keyIDTag, entry.KeyID, reasonTag, err)
@@ -662,22 +661,22 @@ func getCreateKeyParameters(keyType keymanagerv1.KeyType, keyTags map[string]*st
 	result := &azkeys.CreateKeyParameters{}
 	switch keyType {
 	case keymanagerv1.KeyType_RSA_2048:
-		result.Kty = to.Ptr(azkeys.JSONWebKeyTypeRSA)
+		result.Kty = new(azkeys.JSONWebKeyTypeRSA)
 		result.KeySize = new(int32(2048))
 	case keymanagerv1.KeyType_RSA_4096:
-		result.Kty = to.Ptr(azkeys.JSONWebKeyTypeRSA)
+		result.Kty = new(azkeys.JSONWebKeyTypeRSA)
 		result.KeySize = new(int32(4096))
 	case keymanagerv1.KeyType_EC_P256:
-		result.Kty = to.Ptr(azkeys.JSONWebKeyTypeEC)
-		result.Curve = to.Ptr(azkeys.JSONWebKeyCurveNameP256)
+		result.Kty = new(azkeys.JSONWebKeyTypeEC)
+		result.Curve = new(azkeys.JSONWebKeyCurveNameP256)
 	case keymanagerv1.KeyType_EC_P384:
-		result.Kty = to.Ptr(azkeys.JSONWebKeyTypeEC)
-		result.Curve = to.Ptr(azkeys.JSONWebKeyCurveNameP384)
+		result.Kty = new(azkeys.JSONWebKeyTypeEC)
+		result.Curve = new(azkeys.JSONWebKeyCurveNameP384)
 	default:
 		return nil, status.Errorf(codes.Internal, "unsupported key type: %v", keyType)
 	}
 	// Specify the key operations as Sign and Verify
-	result.KeyOps = append(result.KeyOps, to.Ptr(azkeys.JSONWebKeyOperationSign), to.Ptr(azkeys.JSONWebKeyOperationVerify))
+	result.KeyOps = append(result.KeyOps, new(azkeys.JSONWebKeyOperationSign), new(azkeys.JSONWebKeyOperationVerify))
 	// Set the key tags
 	result.Tags = keyTags
 	return result, nil
