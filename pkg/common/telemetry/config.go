@@ -46,7 +46,7 @@ type PrometheusConfig struct {
 type TLSConfig struct {
 	CertFile string `hcl:"cert_file"`
 	KeyFile  string `hcl:"key_file"`
-	CAFile   string `hcl:"ca_file"` //optional
+	CAFile   string `hcl:"ca_file"` // optional
 }
 
 type StatsdConfig struct {

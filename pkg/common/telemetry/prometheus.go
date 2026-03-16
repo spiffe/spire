@@ -128,7 +128,7 @@ func (p *prometheusRunner) newTLSConfig() (*tls.Config, error) {
 		return nil, err
 	}
 
-	//easier to return the tls config rather than assigning it to the server directly from maintenance perspective
+	// easier to return the tls config rather than assigning it to the server directly from maintenance perspective
 	tlsCfg := &tls.Config{
 		Certificates: []tls.Certificate{certificate},
 		MinVersion:   tls.VersionTLS12,
