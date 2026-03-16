@@ -173,8 +173,10 @@ func TestPrometheusTLSConfig(t *testing.T) {
 					CAFile:   "",
 				}
 			},
-			expectError:      true,
-			errorMsgContains: "failed to create TLS config for Prometheus: open /nonexistent/cert.pem: no such file or directory",
+			expectError: true,
+			// error message in windows: The system cannot find the path specified.
+			// error message in linux: no such file or directory
+			errorMsgContains: "failed to create TLS config for Prometheus: open /nonexistent/cert.pem:",
 		},
 		{
 			name: "testing TLS with invalid cert/key files",
@@ -201,8 +203,10 @@ func TestPrometheusTLSConfig(t *testing.T) {
 					CAFile:   "",
 				}
 			},
-			expectError:      true,
-			errorMsgContains: "failed to create TLS config for Prometheus: open /nonexistent/key.pem: no such file or directory",
+			expectError: true,
+			// error message in windows: The system cannot find the path specified.
+			// error message in linux: no such file or directory
+			errorMsgContains: "failed to create TLS config for Prometheus: open /nonexistent/key.pem:",
 		},
 		{
 			name: "testing TLS with invalid CA file",
