@@ -5,19 +5,16 @@
 ### Added
 
 - `spire-agent` version is now reported to `spire-server` via the PostStatus API and visible in `GetAgent`/`ListAgents` CLI output (#6542)
-- Support for minting WIT-SVIDs via the `MintWITSVID` API (#6517)
 
 ### Changed
 
 - The `RequirePQKEM` TLS policy now uses the standardized `X25519MLKEM768` instead of the draft `x25519Kyber768Draft00` (#6703)
-- OPA policy evaluation performance improved by ~2x through use of partial evaluation (#6633)
+- OPA policy evaluation performance improved by ~2x, based on benchmarking, through use of partial evaluation (#6633)
 
 ### Fixed
 
-- `ReadOnlyEntry.Clone()` was incorrectly copying the `Admin` boolean into the `Downstream` field when applying an output mask, causing clients of `GetAuthorizedEntries` and `SyncAuthorizedEntries` to receive corrupted authorization metadata (#6636)
+- `ReadOnlyEntry.Clone()` was incorrectly copying the `Admin` boolean into the `Downstream` field when applying an output mask, causing clients of `GetAuthorizedEntries` and `SyncAuthorizedEntries` to receive corrupted authorization metadata. The `Admin` and `Downstream` booleana were not used in `spire-agent` so there was no impact from this (#6636)
 - The periodic node cache rebuild was only executing once instead of running continuously at the configured interval (#6661)
-- Missing rate limiter check in the PostStatus API was causing spurious "Rate limiter went unused" error log entries (#6635)
-- SIGINT/SIGTERM errors were being logged during normal graceful shutdown (#6717)
 - Race condition in the `spire` upstream authority plugin during shutdown that could cause a nil pointer dereference on the bundle client (#6590)
 - `aws_iid` attestor AWS request timeout increased from 5s to 20s to prevent intermittent attestation failures in large AWS Organizations (#6558)
 - Federated trust bundles are now fetched concurrently, reducing the chance of exceeding the agent sync timeout when there are many federation relationships (#6491)
