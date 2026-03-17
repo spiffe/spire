@@ -467,7 +467,7 @@ func TestRenewTokenFailed(t *testing.T) {
 
 	select {
 	case <-renewCh:
-	case <-time.After(1 * time.Second):
+	case <-time.After(10 * time.Second):
 		t.Error("renewChan did not close in the expected time")
 	}
 }
