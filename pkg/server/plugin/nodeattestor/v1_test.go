@@ -165,6 +165,12 @@ func (plugin *ForwardedHostV1Plugin) Attest(stream nodeattestorv1.NodeAttestor_A
 	if len(xForwardedHost) == 0 || xForwardedHost[0] != plugin.ExpectedHost {
 		return errors.New("expected forwarded host in context metadata")
 	}
+	// Consume the payload sent by the client before responding to avoid a
+	// race where the server closes the stream before the client finishes
+	// sending, causing the client's Send to return io.EOF.
+	if _, err := stream.Recv(); err != nil {
+		return err
+	}
 	return stream.Send(&nodeattestorv1.AttestResponse{
 		Response: &nodeattestorv1.AttestResponse_AgentAttributes{
 			AgentAttributes: &nodeattestorv1.AgentAttributes{

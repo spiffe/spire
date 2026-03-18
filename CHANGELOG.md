@@ -1,5 +1,31 @@
 # Changelog
 
+## [1.14.3] - 2026-03-18
+
+### Added
+
+- `spire-agent` version is now reported to `spire-server` via the PostStatus API and visible in `GetAgent`/`ListAgents` CLI output (#6542)
+
+### Changed
+
+- The `RequirePQKEM` TLS policy now uses the standardized `X25519MLKEM768` instead of the draft `x25519Kyber768Draft00` (#6703)
+- OPA policy evaluation performance improved by ~2x, based on benchmarking, through use of partial evaluation (#6633)
+
+### Fixed
+
+- `ReadOnlyEntry.Clone()` was incorrectly copying the `Admin` boolean into the `Downstream` field when applying an output mask, causing clients of `GetAuthorizedEntries` and `SyncAuthorizedEntries` to receive corrupted authorization metadata. The `Admin` and `Downstream` booleana were not used in `spire-agent` so there was no impact from this (#6636)
+- The periodic node cache rebuild was only executing once instead of running continuously at the configured interval (#6661)
+- Race condition in the `spire` upstream authority plugin during shutdown that could cause a nil pointer dereference on the bundle client (#6590)
+- `aws_iid` attestor AWS request timeout increased from 5s to 20s to prevent intermittent attestation failures in large AWS Organizations (#6558)
+- Federated trust bundles are now fetched concurrently, reducing the chance of exceeding the agent sync timeout when there are many federation relationships (#6491)
+- JWT-SVID refresh now uses a 1s timeout when a cached SVID already exists, preventing an unresponsive server from blocking delivery of a valid cached SVID (#6454)
+- Documentation improvements (#6607, #6608, #6632)
+
+### Security
+
+- Selectors are no longer logged at the agent level to avoid potential leakage of sensitive information (#6732)
+- Fixed an issue where TLS session ticket resumption on the server TCP endpoint could bypass SPIFFE certificate chain validation against the current trust bundle. TLS session tickets are now disabled on the server side, ensuring `VerifyPeerCertificate` runs on every connection (#6715)
+
 ## [1.14.2] - 2026-03-03
 
 ### Security
