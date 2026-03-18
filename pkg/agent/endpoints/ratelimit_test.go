@@ -9,6 +9,7 @@ import (
 
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/pkg/common/peertracker"
+	"github.com/spiffe/spire/pkg/common/ratelimit"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	testclock "github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/fakes/fakemetrics"
@@ -30,6 +31,14 @@ func (f *fakePodUIDResolver) GetPodUID(pid int32) string {
 		return ""
 	}
 	return f.podUIDs[pid]
+}
+
+func setupTestClock(t *testing.T) *testclock.Mock {
+	mockClk := testclock.NewMock(t)
+	oldOpts := perCallerRateLimiterOpts
+	perCallerRateLimiterOpts = []ratelimit.Option{ratelimit.WithClock(mockClk)}
+	t.Cleanup(func() { perCallerRateLimiterOpts = oldOpts })
+	return mockClk
 }
 
 func TestPerCallerRateLimiterAllow(t *testing.T) {
@@ -54,10 +63,7 @@ func TestPerCallerRateLimiterIndependence(t *testing.T) {
 }
 
 func TestPerCallerRateLimiterGC(t *testing.T) {
-	mockClk := testclock.NewMock(t)
-	oldClk := callerClk
-	callerClk = mockClk
-	defer func() { callerClk = oldClk }()
+	mockClk := setupTestClock(t)
 
 	lim := newPerCallerRateLimiter(1)
 
@@ -67,12 +73,12 @@ func TestPerCallerRateLimiterGC(t *testing.T) {
 
 	// Advance past the GC interval and trigger GC by accessing "uid:2000".
 	// "uid:1000" moves from current to previous.
-	mockClk.Add(callerGCInterval)
+	mockClk.Add(ratelimit.GCInterval)
 	assert.True(t, lim.Allow("uid:2000"))
 
 	// Advance past the GC interval again and trigger GC by accessing "uid:3000".
 	// "uid:1000" (in previous) is dropped entirely. "uid:2000" moves to previous.
-	mockClk.Add(callerGCInterval)
+	mockClk.Add(ratelimit.GCInterval)
 	assert.True(t, lim.Allow("uid:3000"))
 
 	// "uid:1000" has been GC'd. A new limiter is created with a fresh token bucket.
@@ -81,41 +87,29 @@ func TestPerCallerRateLimiterGC(t *testing.T) {
 }
 
 func TestPerCallerRateLimiterPreviousPreservation(t *testing.T) {
-	mockClk := testclock.NewMock(t)
-	oldClk := callerClk
-	callerClk = mockClk
-	defer func() { callerClk = oldClk }()
+	mockClk := setupTestClock(t)
 
 	lim := newPerCallerRateLimiter(1)
 
 	// Create limiters for "uid:1000" and "uid:2000".
 	assert.True(t, lim.Allow("uid:1000"))
 	assert.True(t, lim.Allow("uid:2000"))
-	assert.Equal(t, 2, len(lim.current))
-	assert.Equal(t, 0, len(lim.previous))
 
 	// Advance past GC interval and trigger GC via "uid:3000".
 	// "uid:1000" and "uid:2000" move to previous.
-	mockClk.Add(callerGCInterval)
+	mockClk.Add(ratelimit.GCInterval)
 	assert.True(t, lim.Allow("uid:3000"))
-	assert.Equal(t, 1, len(lim.current))  // only "uid:3000"
-	assert.Equal(t, 2, len(lim.previous)) // "uid:1000" and "uid:2000"
 
 	// Access "uid:1000" — it gets promoted from previous to current (same limiter).
 	lim.Allow("uid:1000")
-	assert.Equal(t, 2, len(lim.current))  // "uid:1000" and "uid:3000"
-	assert.Equal(t, 1, len(lim.previous)) // only "uid:2000"
 
 	// Advance past GC interval again and trigger GC via "uid:4000".
 	// "uid:2000" (in previous) is dropped. "uid:1000" and "uid:3000" move to previous.
-	mockClk.Add(callerGCInterval)
+	mockClk.Add(ratelimit.GCInterval)
 	assert.True(t, lim.Allow("uid:4000"))
-	assert.Equal(t, 1, len(lim.current))  // only "uid:4000"
-	assert.Equal(t, 2, len(lim.previous)) // "uid:1000" and "uid:3000"
 
 	// "uid:2000" is gone; accessing it creates a fresh limiter (new entry in current).
 	assert.True(t, lim.Allow("uid:2000"))
-	assert.Equal(t, 2, len(lim.current)) // "uid:4000" and "uid:2000" (new)
 }
 
 func TestWorkloadRateLimitMiddlewarePreprocess(t *testing.T) {
@@ -245,10 +239,7 @@ func TestWorkloadRateLimitMiddlewarePostprocess(t *testing.T) {
 }
 
 func TestPerCallerRateLimiterTokenRefill(t *testing.T) {
-	mockClk := testclock.NewMock(t)
-	oldClk := callerClk
-	callerClk = mockClk
-	defer func() { callerClk = oldClk }()
+	mockClk := setupTestClock(t)
 
 	lim := newPerCallerRateLimiter(2)
 

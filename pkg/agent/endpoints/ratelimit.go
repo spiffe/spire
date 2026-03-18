@@ -4,13 +4,11 @@ import (
 	"context"
 	"strconv"
 	"strings"
-	"sync"
-	"time"
 
-	"github.com/andres-erbsen/clock"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/api/middleware"
 	"github.com/spiffe/spire/pkg/common/peertracker"
+	"github.com/spiffe/spire/pkg/common/ratelimit"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/telemetry/agent/workloadapi"
 	"golang.org/x/time/rate"
@@ -19,16 +17,13 @@ import (
 )
 
 const (
-	callerGCInterval = time.Minute
-
 	podKeyPrefix = "pod:"
 	uidKeyPrefix = "uid:"
 )
 
-var (
-	// callerClk can be overridden in tests to control time.
-	callerClk clock.Clock = clock.New()
-)
+// perCallerRateLimiterOpts holds options for creating per-caller rate limiters.
+// Exposed for testing (e.g., clock injection).
+var perCallerRateLimiterOpts []ratelimit.Option
 
 // podUIDResolver extracts a Kubernetes pod UID for the given process, returning
 // an empty string if unavailable (e.g., not running in Kubernetes).
@@ -36,76 +31,24 @@ type podUIDResolver interface {
 	GetPodUID(pid int32) string
 }
 
-// perCallerRateLimiter maintains per-caller rate limiters using a two-generation GC pattern.
-// The key is a string that may represent a pod UID or OS UID (with a prefix to avoid collisions).
+// perCallerRateLimiter wraps a ratelimit.PerKeyLimiter to provide a simple
+// Allow(key) API for rate limiting by caller identity.
 type perCallerRateLimiter struct {
-	limit int
-
-	mtx sync.RWMutex
-
-	// previous holds all the limiters that were current at the GC.
-	previous map[string]*rate.Limiter
-
-	// current holds all the limiters that have been created or moved
-	// from the previous limiters since the last GC.
-	current map[string]*rate.Limiter
-
-	// lastGC is the time of the last GC.
-	lastGC time.Time
+	inner *ratelimit.PerKeyLimiter
 }
 
 func newPerCallerRateLimiter(limit int) *perCallerRateLimiter {
 	return &perCallerRateLimiter{
-		limit:   limit,
-		current: make(map[string]*rate.Limiter),
-		lastGC:  callerClk.Now(),
+		inner: ratelimit.NewPerKeyLimiter(func() ratelimit.Limiter {
+			return rate.NewLimiter(rate.Limit(limit), limit)
+		}, perCallerRateLimiterOpts...),
 	}
 }
 
 // Allow reports whether 1 event may happen at the current time for the given key.
 func (l *perCallerRateLimiter) Allow(key string) bool {
-	limiter := l.getLimiter(key)
-	return limiter.AllowN(callerClk.Now(), 1)
-}
-
-func (l *perCallerRateLimiter) getLimiter(key string) *rate.Limiter {
-	l.mtx.RLock()
-	limiter, ok := l.current[key]
-	if ok {
-		l.mtx.RUnlock()
-		return limiter
-	}
-	l.mtx.RUnlock()
-
-	// A limiter does not exist for that key.
-	l.mtx.Lock()
-	defer l.mtx.Unlock()
-
-	// Check the "current" entries in case another goroutine raced on this key.
-	if limiter, ok = l.current[key]; ok {
-		return limiter
-	}
-
-	// Then check the "previous" entries to see if a limiter exists for this
-	// key as of the last GC. If so, move it to current and return it.
-	if limiter, ok = l.previous[key]; ok {
-		l.current[key] = limiter
-		delete(l.previous, key)
-		return limiter
-	}
-
-	// There is no limiter for this key. Before we create one, we should see
-	// if we need to do GC.
-	now := callerClk.Now()
-	if now.Sub(l.lastGC) >= callerGCInterval {
-		l.previous = l.current
-		l.current = make(map[string]*rate.Limiter)
-		l.lastGC = now
-	}
-
-	limiter = rate.NewLimiter(rate.Limit(l.limit), l.limit)
-	l.current[key] = limiter
-	return limiter
+	limiter := l.inner.GetLimiter(key)
+	return limiter.AllowN(l.inner.Now(), 1)
 }
 
 // workloadRateLimitMiddleware implements middleware.Middleware and enforces per-caller
