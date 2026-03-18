@@ -387,14 +387,7 @@ func (s *Service) AttestAgent(stream agentv1.Agent_AttestAgentServer) error {
 			CertSerialNumber: svid[0].SerialNumber.String(),
 			CanReattest:      attestResult.CanReattest,
 		}
-		mask := &common.AttestedNodeMask{
-			CertNotAfter:        true,
-			CertSerialNumber:    true,
-			NewCertNotAfter:     true,
-			NewCertSerialNumber: true,
-			CanReattest:         true,
-		}
-		if _, err := s.ds.UpdateAttestedNode(ctx, node, mask); err != nil {
+		if _, err := s.ds.UpdateAttestedNode(ctx, node, api.UpdateAttestedNodeCertificateMask); err != nil {
 			return api.MakeErr(log, codes.Internal, "failed to update attested agent", err)
 		}
 	}

@@ -3500,10 +3500,7 @@ func (s *serviceTest) assertAgentWasStored(t *testing.T, expectedID string, expe
 	agentSelectors, err := s.ds.GetNodeSelectors(ctx, expectedID, datastore.RequireCurrent)
 	require.NoError(t, err)
 	require.EqualValues(t, expectedSelectors, agentSelectors)
-
-	if expectedVersion != "" {
-		require.Equal(t, attestedAgent.AgentVersion, expectedVersion)
-	}
+	require.Equal(t, attestedAgent.AgentVersion, expectedVersion)
 }
 
 type fakeRateLimiter struct {
