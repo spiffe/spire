@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.14.3] - 2026-03-19
+
+### Fixed
+
+- The version that the agent was reporting at startup would get replaced by an empty string every time the agent re-attests or re-news it's SVID (#6763)
+
 ## [1.14.3] - 2026-03-18
 
 ### Added
