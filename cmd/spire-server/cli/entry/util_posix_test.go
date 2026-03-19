@@ -8,6 +8,8 @@ const (
     	If set, the SPIFFE ID in this entry will be granted access to the SPIRE Server's management APIs
   -data string
     	Path to a file containing registration JSON (optional). If set to '-', read the JSON from stdin.
+  -disableX509SVIDPrefetch
+    	A boolean value that, when set, disables prefetching X509 SVID for this entry
   -dns value
     	A DNS name that will be included in SVIDs issued based on this entry, where appropriate. Can be used more than once
   -downstream
@@ -20,6 +22,10 @@ const (
     	SPIFFE ID of a trust domain to federate with. Can be used more than once
   -hint string
     	The entry hint, used to disambiguate entries with the same SPIFFE ID
+  -jwtSVIDAudiencePolicy value
+    	Per-audience JWT-SVID policy in the format 'audience:policy' where policy is one of: default, auditable, unique. Can be used more than once
+  -jwtSVIDDefaultAudiencePolicy string
+    	Default JWT-SVID audience policy for audiences not explicitly configured. One of: default, auditable, unique
   -jwtSVIDTTL int
     	The lifetime, in seconds, for JWT-SVIDs issued based on this registration entry.
   -node
@@ -68,6 +74,8 @@ const (
     	If set, the SPIFFE ID in this entry will be granted access to the SPIRE Server's management APIs
   -data string
     	Path to a file containing registration JSON (optional). If set to '-', read the JSON from stdin.
+  -disableX509SVIDPrefetch
+    	A boolean value that, when set, disables prefetching X509 SVID for this entry
   -dns value
     	A DNS name that will be included in SVIDs issued based on this entry, where appropriate. Can be used more than once
   -downstream
@@ -80,6 +88,10 @@ const (
     	SPIFFE ID of a trust domain to federate with. Can be used more than once
   -hint string
     	The entry hint, used to disambiguate entries with the same SPIFFE ID
+  -jwtSVIDAudiencePolicy value
+    	Per-audience JWT-SVID policy in the format 'audience:policy' where policy is one of: default, auditable, unique. Can be used more than once
+  -jwtSVIDDefaultAudiencePolicy string
+    	Default JWT-SVID audience policy for audiences not explicitly configured. One of: default, auditable, unique
   -jwtSVIDTTL int
     	The lifetime, in seconds, for JWT-SVIDs issued based on this registration entry.
   -output value
