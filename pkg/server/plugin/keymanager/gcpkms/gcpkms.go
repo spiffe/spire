@@ -9,10 +9,13 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+
 	"hash/crc32"
 	"os"
+	"path"
 	"strings"
 	"sync"
+	"text/template"
 	"time"
 	"unicode"
 
@@ -54,6 +57,7 @@ const (
 	labelNameLastUpdate = "spire-last-update"
 	labelNameServerTD   = "spire-server-td"
 	labelNameActive     = "spire-active"
+	labelNameKeyID      = "spire-key-id"
 
 	getPublicKeyMaxAttempts = 10
 )
@@ -89,9 +93,13 @@ type pluginHooks struct {
 }
 
 type pluginData struct {
-	customPolicy *iam.Policy3
-	serverID     string
-	tdHash       string
+	customPolicy      *iam.Policy3
+	serverID          string
+	tdHash            string
+	trustDomain       string
+	sharedKeysEnabled bool
+	cryptoKeyTemplate *template.Template
+	lockLabelTemplate *template.Template
 }
 
 // Plugin is the main representation of this keymanager plugin.
@@ -136,6 +144,14 @@ type Config struct {
 	// API. If not specified, the value of the GOOGLE_APPLICATION_CREDENTIALS
 	// environment variable is used.
 	ServiceAccountFile string `hcl:"service_account_file" json:"service_account_file"`
+
+	// Shared keys configuration for multi-server deployments
+	SharedKeys *SharedKeysConfig `hcl:"shared_keys" json:"shared_keys"`
+}
+
+type SharedKeysConfig struct {
+	CryptoKeyTemplate string `hcl:"crypto_key_template" json:"crypto_key_template"`
+	LockLabelTemplate string `hcl:"lock_label_template" json:"lock_label_template"`
 }
 
 func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *Config {
@@ -148,20 +164,36 @@ func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginco
 		status.ReportError("configuration is missing the key ring")
 	}
 
-	if newConfig.KeyIdentifierFile == "" && newConfig.KeyIdentifierValue == "" {
-		status.ReportError("configuration requires a key identifier file or a key identifier value")
-	}
-
-	if newConfig.KeyIdentifierFile != "" && newConfig.KeyIdentifierValue != "" {
-		status.ReportError("configuration can't have a key identifier file and a key identifier value at the same time")
-	}
-
-	if newConfig.KeyIdentifierValue != "" {
-		if !validateCharacters(newConfig.KeyIdentifierValue) {
-			status.ReportError("Key identifier must contain only letters, numbers, underscores (_), and dashes (-)")
+	if newConfig.SharedKeys != nil {
+		if newConfig.SharedKeys.CryptoKeyTemplate == "" {
+			status.ReportError("configuration missing crypto_key_template in shared_keys")
+		} else {
+			if _, err := template.New("crypto_key_template").Parse(newConfig.SharedKeys.CryptoKeyTemplate); err != nil {
+				status.ReportErrorf("failed to parse crypto_key_template: %v", err)
+			}
 		}
-		if len(newConfig.KeyIdentifierValue) > 63 {
-			status.ReportError("Key identifier must not be longer than 63 characters")
+
+		if newConfig.SharedKeys.LockLabelTemplate != "" {
+			if _, err := template.New("lock_label_template").Parse(newConfig.SharedKeys.LockLabelTemplate); err != nil {
+				status.ReportErrorf("failed to parse lock_label_template: %v", err)
+			}
+		}
+	} else {
+		if newConfig.KeyIdentifierFile == "" && newConfig.KeyIdentifierValue == "" {
+			status.ReportError("configuration requires a key identifier file or a key identifier value")
+		}
+
+		if newConfig.KeyIdentifierFile != "" && newConfig.KeyIdentifierValue != "" {
+			status.ReportError("configuration can't have a key identifier file and a key identifier value at the same time")
+		}
+
+		if newConfig.KeyIdentifierValue != "" {
+			if !validateCharacters(newConfig.KeyIdentifierValue) {
+				status.ReportError("Key identifier must contain only letters, numbers, underscores (_), and dashes (-)")
+			}
+			if len(newConfig.KeyIdentifierValue) > 63 {
+				status.ReportError("Key identifier must not be longer than 63 characters")
+			}
 		}
 	}
 
@@ -203,13 +235,15 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 	}
 
 	serverID := newConfig.KeyIdentifierValue
-	if serverID == "" {
+	if serverID == "" && newConfig.SharedKeys == nil {
 		serverID, err = getOrCreateServerID(newConfig.KeyIdentifierFile)
 		if err != nil {
 			return nil, err
 		}
 	}
-	p.log.Debug("Loaded server id", "server_id", serverID)
+	if serverID != "" {
+		p.log.Debug("Loaded server id", "server_id", serverID)
+	}
 
 	var customPolicy *iam.Policy3
 	if newConfig.KeyPolicyFile != "" {
@@ -224,11 +258,40 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 	tdHashBytes := sha1.Sum([]byte(req.CoreConfiguration.TrustDomain)) //nolint: gosec // We use sha1 to hash trust domain names in 128 bytes to avoid label restrictions
 	tdHashString := hex.EncodeToString(tdHashBytes[:])
 
-	p.setPluginData(&pluginData{
+	pd := &pluginData{
 		customPolicy: customPolicy,
 		serverID:     serverID,
 		tdHash:       tdHashString,
-	})
+		trustDomain:  sanitizeTrustDomainForGCP(req.CoreConfiguration.TrustDomain),
+	}
+
+	var keyIDExtractor func(*kmspb.CryptoKey) (string, bool)
+	if newConfig.SharedKeys != nil {
+		pd.sharedKeysEnabled = true
+		pd.cryptoKeyTemplate = template.Must(template.New("crypto_key_template").Parse(newConfig.SharedKeys.CryptoKeyTemplate))
+		if newConfig.SharedKeys.LockLabelTemplate != "" {
+			pd.lockLabelTemplate = template.Must(template.New("lock_label_template").Parse(newConfig.SharedKeys.LockLabelTemplate))
+		}
+
+		// In shared keys mode, extract KID from the label
+		keyIDExtractor = func(cryptoKey *kmspb.CryptoKey) (string, bool) {
+			if cryptoKey.Labels == nil {
+				return "", false
+			}
+			kid, ok := cryptoKey.Labels[labelNameKeyID]
+			if !ok || kid == "" {
+				return "", false
+			}
+			return kid, true
+		}
+	} else {
+		pd.sharedKeysEnabled = false
+		keyIDExtractor = func(cryptoKey *kmspb.CryptoKey) (string, bool) {
+			return getSPIREKeyIDFromCryptoKeyName(cryptoKey.Name)
+		}
+	}
+
+	p.setPluginData(pd)
 
 	var opts []option.ClientOption
 	if newConfig.ServiceAccountFile != "" {
@@ -241,11 +304,12 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 	}
 
 	fetcher := &keyFetcher{
-		keyRing:   newConfig.KeyRing,
-		kmsClient: kc,
-		log:       p.log,
-		serverID:  serverID,
-		tdHash:    tdHashString,
+		keyRing:        newConfig.KeyRing,
+		kmsClient:      kc,
+		log:            p.log,
+		serverID:       serverID,
+		tdHash:         tdHashString,
+		keyIDExtractor: keyIDExtractor,
 	}
 	p.log.Debug("Fetching keys from Cloud KMS", "key_ring", newConfig.KeyRing)
 	keyEntries, err := fetcher.fetchKeyEntries(ctx)
@@ -295,6 +359,9 @@ func (p *Plugin) GenerateKey(ctx context.Context, req *keymanagerv1.GenerateKeyR
 
 	pubKey, err := p.createKey(ctx, req.KeyId, req.KeyType)
 	if err != nil {
+		if status.Code(err) == codes.Aborted {
+			return nil, err
+		}
 		return nil, status.Errorf(codes.Internal, "failed to generate key: %v", err)
 	}
 
@@ -409,6 +476,7 @@ func (p *Plugin) SignData(ctx context.Context, req *keymanagerv1.SignDataRequest
 // a default policy is constructed and attached. This function requests Cloud KMS
 // to get the public key of the created CryptoKeyVersion. A keyEntry is returned
 // with the CryptoKey, CryptoKeyVersion and public key.
+// In shared keys mode, implements optimistic coordination with lock acquisition to prevent race conditions.
 func (p *Plugin) createKey(ctx context.Context, spireKeyID string, keyType keymanagerv1.KeyType) (*keymanagerv1.PublicKey, error) {
 	// If we already have this SPIRE Key ID cached, a new CryptoKeyVersion is
 	// added to the existing CryptoKey and the cache is updated. The old
@@ -427,9 +495,9 @@ func (p *Plugin) createKey(ctx context.Context, spireKeyID string, keyType keyma
 		return nil, fmt.Errorf("could not generate CryptoKeyID: %w", err)
 	}
 
-	cryptoKeyLabels, err := p.getCryptoKeyLabels()
+	pd, err := p.getPluginData()
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "could not get CryptoKey labels: %v", err)
+		return nil, err
 	}
 
 	config, err := p.getConfig()
@@ -437,6 +505,64 @@ func (p *Plugin) createKey(ctx context.Context, spireKeyID string, keyType keyma
 		return nil, err
 	}
 
+	// Use path.Join to ensure correct path construction regardless of trailing slashes in KeyRing
+	cryptoKeyName := path.Join(config.KeyRing, "cryptoKeys", cryptoKeyID)
+
+	// OPTIMIZATION: Check for the existing fresh key (Optimistic coordination) for Shared Keys
+	if pd.sharedKeysEnabled {
+		existingCryptoKey, err := p.kmsClient.GetCryptoKey(ctx, &kmspb.GetCryptoKeyRequest{
+			Name: cryptoKeyName,
+		})
+
+		if err == nil && existingCryptoKey != nil {
+			itVersions := p.kmsClient.ListCryptoKeyVersions(ctx, &kmspb.ListCryptoKeyVersionsRequest{
+				Parent: cryptoKeyName,
+				Filter: "state = " + kmspb.CryptoKeyVersion_ENABLED.String(),
+			})
+
+			cryptoKeyVersion, err := itVersions.Next()
+			if err == nil && cryptoKeyVersion != nil && cryptoKeyVersion.CreateTime != nil {
+				sharedKeyFreshnessThreshold := 15 * time.Minute
+
+				if p.hooks.clk.Now().Sub(cryptoKeyVersion.CreateTime.AsTime()) < sharedKeyFreshnessThreshold {
+					if cryptoKeyVersion.Algorithm == algorithm {
+						p.log.Info("Shared key is already fresh. Reusing existing key (optimistic).", "crypto_key_name", cryptoKeyName, "crypto_key_version", cryptoKeyVersion.Name)
+
+						pubKey, err := getPublicKeyFromCryptoKeyVersion(ctx, p.log, p.kmsClient, cryptoKeyVersion.Name)
+						if err != nil {
+							return nil, status.Errorf(codes.Internal, "failed to get public key: %v", err)
+						}
+
+						newKeyEntry := keyEntry{
+							cryptoKey:            existingCryptoKey,
+							cryptoKeyVersionName: cryptoKeyVersion.Name,
+							publicKey: &keymanagerv1.PublicKey{
+								Id:          spireKeyID,
+								Type:        keyType,
+								PkixData:    pubKey,
+								Fingerprint: makeFingerprint(pubKey),
+							},
+						}
+
+						p.setKeyEntry(spireKeyID, newKeyEntry)
+						return newKeyEntry.publicKey, nil
+					}
+				}
+			}
+		}
+	}
+
+	cryptoKeyLabels, err := p.getCryptoKeyLabels()
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "could not get CryptoKey labels: %v", err)
+	}
+
+	// In shared keys mode, add the KID label
+	if pd.sharedKeysEnabled {
+		cryptoKeyLabels[labelNameKeyID] = sanitizeLabelValue(spireKeyID)
+	}
+
+	// Create the new CryptoKey
 	cryptoKey, err := p.kmsClient.CreateCryptoKey(ctx, &kmspb.CreateCryptoKeyRequest{
 		CryptoKey: &kmspb.CryptoKey{
 			Labels:  cryptoKeyLabels,
@@ -449,12 +575,149 @@ func (p *Plugin) createKey(ctx context.Context, spireKeyID string, keyType keyma
 		Parent:      config.KeyRing,
 	})
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to create CryptoKey: %v", err)
+		if status.Code(err) == codes.AlreadyExists {
+			p.log.Debug("CryptoKey already exists, using existing key", cryptoKeyNameTag, cryptoKeyName)
+			cryptoKey, err = p.kmsClient.GetCryptoKey(ctx, &kmspb.GetCryptoKeyRequest{
+				Name: cryptoKeyName,
+			})
+			if err != nil {
+				return nil, status.Errorf(codes.Internal, "failed to get existing CryptoKey after creation collision: %v", err)
+			}
+		} else {
+			return nil, status.Errorf(codes.Internal, "failed to create CryptoKey: %v", err)
+		}
 	}
 
 	log := p.log.With(cryptoKeyNameTag, cryptoKey.Name)
 	log.Debug("CryptoKey created", algorithmTag, algorithm)
 
+	// 3. Acquire Lock (if configured) for shared keys mode
+	var lockLabel string
+	if pd.sharedKeysEnabled && pd.lockLabelTemplate != nil {
+		data := struct {
+			TrustDomain string
+			KeyID       string
+		}{
+			TrustDomain: sanitizeTrustDomainForGCP(pd.tdHash),
+			KeyID:       spireKeyID,
+		}
+
+		var buf strings.Builder
+		if err := pd.lockLabelTemplate.Execute(&buf, data); err != nil {
+			return nil, status.Errorf(codes.Internal, "failed to execute lock_label_template: %v", err)
+		}
+		lockLabel = buf.String()
+
+		// Fetch the latest state of the CryptoKey to ensure we have the latest Etag and Labels
+		latestCryptoKey, err := p.kmsClient.GetCryptoKey(ctx, &kmspb.GetCryptoKeyRequest{
+			Name: cryptoKey.Name,
+		})
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "failed to get crypto key for locking: %v", err)
+		}
+		if latestCryptoKey.Labels == nil {
+			latestCryptoKey.Labels = make(map[string]string)
+		}
+
+		if _, ok := latestCryptoKey.Labels[lockLabel]; ok {
+			p.log.Warn("Rotation lock held by another instance. Aborting rotation.", "lock_label", lockLabel)
+			// We don't need to cleanup the key itself as it is shared
+			return nil, status.Errorf(codes.Aborted, "rotation lock held")
+		}
+
+		latestCryptoKey.Labels[lockLabel] = "true"
+		_, err = p.kmsClient.UpdateCryptoKey(ctx, &kmspb.UpdateCryptoKeyRequest{
+			CryptoKey: latestCryptoKey,
+			UpdateMask: &fieldmaskpb.FieldMask{
+				Paths: []string{"labels"},
+			},
+		})
+		if err != nil {
+			// If update fails (e.g. Etag mismatch), we assume lock contention
+			p.log.Warn("Failed to acquire rotation lock (concurrent update). Aborting.", "error", err)
+			return nil, status.Errorf(codes.Aborted, "failed to acquire lock: %v", err)
+		}
+
+		p.log.Debug("Acquired rotation lock", "lock_label", lockLabel)
+
+		defer func() {
+			// Release lock
+			// We need to get the key again to get the latest Etag for the release,
+			// or we can try to update without Etag if we just want to remove the label.
+			// But safer to get it.
+			k, err := p.kmsClient.GetCryptoKey(ctx, &kmspb.GetCryptoKeyRequest{
+				Name: cryptoKey.Name,
+			})
+			if err != nil {
+				p.log.Error("Failed to get crypto key to release lock", "error", err)
+				return
+			}
+			if k.Labels != nil {
+				delete(k.Labels, lockLabel)
+			}
+			_, err = p.kmsClient.UpdateCryptoKey(ctx, &kmspb.UpdateCryptoKeyRequest{
+				CryptoKey: k,
+				UpdateMask: &fieldmaskpb.FieldMask{
+					Paths: []string{"labels"},
+				},
+			})
+			if err != nil {
+				p.log.Error("Failed to release rotation lock", "lock_label", lockLabel, "error", err)
+			} else {
+				p.log.Debug("Released rotation lock", "lock_label", lockLabel)
+			}
+		}()
+	}
+
+	// 4. Check if the CryptoKey already has a fresh version (concurrency check)
+	if pd.sharedKeysEnabled {
+		existingCryptoKey, err := p.kmsClient.GetCryptoKey(ctx, &kmspb.GetCryptoKeyRequest{
+			Name: cryptoKeyName,
+		})
+
+		if err == nil && existingCryptoKey != nil {
+			itVersions := p.kmsClient.ListCryptoKeyVersions(ctx, &kmspb.ListCryptoKeyVersionsRequest{
+				Parent: cryptoKeyName,
+				Filter: "state = " + kmspb.CryptoKeyVersion_ENABLED.String(),
+			})
+
+			cryptoKeyVersion, err := itVersions.Next()
+			if err == nil && cryptoKeyVersion != nil && cryptoKeyVersion.CreateTime != nil {
+				sharedKeyFreshnessThreshold := 15 * time.Minute
+
+				if p.hooks.clk.Now().Sub(cryptoKeyVersion.CreateTime.AsTime()) < sharedKeyFreshnessThreshold {
+					if cryptoKeyVersion.Algorithm == algorithm {
+						p.log.Info("Shared key was recently rotated by another instance. Reusing existing key.", "crypto_key_name", cryptoKeyName, "crypto_key_version", cryptoKeyVersion.Name)
+
+						if err := p.enqueueDestruction(cryptoKey.Name + "/cryptoKeyVersions/1"); err != nil {
+							p.log.Error("Failed to enqueue unused candidate CryptoKeyVersion for destruction", reasonTag, err)
+						}
+
+						pubKey, err := getPublicKeyFromCryptoKeyVersion(ctx, p.log, p.kmsClient, cryptoKeyVersion.Name)
+						if err != nil {
+							return nil, status.Errorf(codes.Internal, "failed to get public key: %v", err)
+						}
+
+						reusedEntry := keyEntry{
+							cryptoKey:            existingCryptoKey,
+							cryptoKeyVersionName: cryptoKeyVersion.Name,
+							publicKey: &keymanagerv1.PublicKey{
+								Id:          spireKeyID,
+								Type:        keyType,
+								PkixData:    pubKey,
+								Fingerprint: makeFingerprint(pubKey),
+							},
+						}
+
+						p.setKeyEntry(spireKeyID, reusedEntry)
+						return reusedEntry.publicKey, nil
+					}
+				}
+			}
+		}
+	}
+
+	// 5. Set IAM policy and use the new CryptoKey
 	if err := p.setIamPolicy(ctx, cryptoKey.Name); err != nil {
 		log.Debug("Failed to set IAM policy")
 		return nil, status.Errorf(codes.Internal, "failed to set IAM policy: %v", err)
@@ -1030,12 +1293,46 @@ func cryptoKeyVersionAlgorithmFromKeyType(keyType keymanagerv1.KeyType) (kmspb.C
 // The returned identifier has the form: spire-key-<UUID>-<SPIRE-KEY-ID>,
 // where UUID is a new randomly generated UUID and SPIRE-KEY-ID is provided
 // through the spireKeyID parameter.
+// If shared keys are enabled, it uses the crypto_key_template instead.
 func (p *Plugin) generateCryptoKeyID(spireKeyID string) (cryptoKeyID string, err error) {
 	pd, err := p.getPluginData()
 	if err != nil {
 		return "", err
 	}
+
+	if pd.sharedKeysEnabled {
+		data := struct {
+			TrustDomain string
+			KeyID       string
+		}{
+			TrustDomain: pd.trustDomain,
+			KeyID:       spireKeyID,
+		}
+
+		var buf strings.Builder
+		if err := pd.cryptoKeyTemplate.Execute(&buf, data); err != nil {
+			return "", status.Errorf(codes.Internal, "failed to execute crypto_key_template: %v", err)
+		}
+
+		return buf.String(), nil
+	}
+
 	return fmt.Sprintf("%s-%s-%s", cryptoKeyNamePrefix, pd.serverID, spireKeyID), nil
+}
+
+func sanitizeTrustDomainForGCP(trustDomain string) string {
+	// GCP CryptoKey names have restrictions, sanitize the trust domain
+	return strings.ReplaceAll(trustDomain, ".", "-")
+}
+
+// sanitizeLabelValue sanitizes a string to be used as a GCP label value
+// Label values must be lowercase, contain only letters, numbers, hyphens, and underscores
+func sanitizeLabelValue(value string) string {
+	// Convert to lowercase and replace dots and plus signs
+	value = strings.ToLower(value)
+	value = strings.ReplaceAll(value, ".", "-")
+	value = strings.ReplaceAll(value, "+", "_")
+	return value
 }
 
 // crc32Checksum returns the CRC-32 checksum of data using the polynomial
@@ -1116,8 +1413,8 @@ func getPublicKeyFromCryptoKeyVersion(ctx context.Context, log hclog.Logger, kms
 		kmsPublicKey, errGetPublicKey = kmsClient.GetPublicKey(ctx, &kmspb.GetPublicKeyRequest{Name: cryptoKeyVersionName})
 	}
 
-	// Perform integrity verification.
-	if int64(crc32Checksum([]byte(kmsPublicKey.Pem))) != kmsPublicKey.PemCrc32C.Value {
+	normalizedPem := strings.ReplaceAll(kmsPublicKey.Pem, "\r\n", "\n")
+	if int64(crc32Checksum([]byte(normalizedPem))) != kmsPublicKey.PemCrc32C.Value {
 		return nil, errors.New("response corrupted in-transit")
 	}
 
