@@ -1662,6 +1662,7 @@ func TestRenewAgent(t *testing.T) {
 		AttestationDataType: "t",
 		CertNotAfter:        12345,
 		CertSerialNumber:    "6789",
+		AgentVersion:        "1.2.3",
 	}
 
 	reattestableNode := cloneAttestedNode(defaultNode)
@@ -2361,6 +2362,7 @@ func TestAttestAgent(t *testing.T) {
 		request           *agentv1.AttestAgentRequest
 		expectedID        spiffeid.ID
 		expectedSelectors []*common.Selector
+		expectedVersion   string
 		expectCode        codes.Code
 		expectMsg         string
 		expectLogs        []spiretest.LogEntry
@@ -2828,6 +2830,7 @@ func TestAttestAgent(t *testing.T) {
 			expectedSelectors: []*common.Selector{
 				{Type: "test_type", Value: "attested_before"},
 			},
+			expectedVersion: "1.2.3",
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.InfoLevel,
@@ -3300,7 +3303,7 @@ func TestAttestAgent(t *testing.T) {
 			default:
 				require.NotNil(t, result)
 				test.assertAttestAgentResult(t, tt.expectedID, result)
-				test.assertAgentWasStored(t, tt.expectedID.String(), tt.expectedSelectors)
+				test.assertAgentWasStored(t, tt.expectedID.String(), tt.expectedSelectors, tt.expectedVersion)
 			}
 		})
 	}
@@ -3413,6 +3416,7 @@ func (s *serviceTest) setupNodes(ctx context.Context, t *testing.T) {
 		AttestationDataType: "test_type",
 		SpiffeId:            spiffeid.RequireFromPath(td, "/spire/agent/test_type/id_attested_before").String(),
 		CertSerialNumber:    "test_serial_number",
+		AgentVersion:        "1.2.3",
 	}
 	_, err := s.ds.CreateAttestedNode(ctx, node)
 	require.NoError(t, err)
@@ -3487,7 +3491,7 @@ func (s *serviceTest) assertAttestAgentResult(t *testing.T, expectedID spiffeid.
 	require.Equal(t, []*url.URL{expectedID.URL()}, x509Svid.URIs)
 }
 
-func (s *serviceTest) assertAgentWasStored(t *testing.T, expectedID string, expectedSelectors []*common.Selector) {
+func (s *serviceTest) assertAgentWasStored(t *testing.T, expectedID string, expectedSelectors []*common.Selector, expectedVersion string) {
 	attestedAgent, err := s.ds.FetchAttestedNode(ctx, expectedID)
 	require.NoError(t, err)
 	require.NotNil(t, attestedAgent)
@@ -3496,6 +3500,7 @@ func (s *serviceTest) assertAgentWasStored(t *testing.T, expectedID string, expe
 	agentSelectors, err := s.ds.GetNodeSelectors(ctx, expectedID, datastore.RequireCurrent)
 	require.NoError(t, err)
 	require.EqualValues(t, expectedSelectors, agentSelectors)
+	require.Equal(t, attestedAgent.AgentVersion, expectedVersion)
 }
 
 type fakeRateLimiter struct {
