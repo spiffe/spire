@@ -145,8 +145,10 @@ func TestCachePeriodicRebuild(t *testing.T) {
 
 	clk.Add(rebuildInterval)
 
-	cachedSecondAgent, _ = cache.LookupAttestedNode(secondAgent.SpiffeId)
-	require.NotNil(t, cachedSecondAgent)
+	require.Eventually(t, func() bool {
+		cachedSecondAgent, _ = cache.LookupAttestedNode(secondAgent.SpiffeId)
+		return cachedSecondAgent != nil
+	}, time.Second, time.Millisecond)
 
 	cachedThirdAgent, _ := cache.LookupAttestedNode(thirdAgent.SpiffeId)
 	require.Nil(t, cachedThirdAgent)
@@ -159,8 +161,10 @@ func TestCachePeriodicRebuild(t *testing.T) {
 
 	clk.Add(rebuildInterval)
 
-	cachedThirdAgent, _ = cache.LookupAttestedNode(thirdAgent.SpiffeId)
-	require.NotNil(t, cachedThirdAgent)
+	require.Eventually(t, func() bool {
+		cachedThirdAgent, _ = cache.LookupAttestedNode(thirdAgent.SpiffeId)
+		return cachedThirdAgent != nil
+	}, time.Second, time.Millisecond)
 
 	cncl()
 	<-done
