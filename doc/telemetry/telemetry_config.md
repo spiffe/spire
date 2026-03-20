@@ -68,7 +68,7 @@ telemetry {
             tls {
                 cert_file = "/path/to/cert.pem"
                 key_file = "/path/to/key.pem"
-                ca_file = "/path/to/ca.pem" # optional CA file for mTLS
+                client_ca_file = "/path/to/ca.pem" # optional CA file for mTLS
             }
         }
 

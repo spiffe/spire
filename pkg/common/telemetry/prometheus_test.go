@@ -126,9 +126,9 @@ func TestPrometheusTLSConfig(t *testing.T) {
 			setupTLS: func(t *testing.T) *TLSConfig {
 				certFile, keyFile := createTestCertAndKey(t)
 				return &TLSConfig{
-					CertFile: certFile,
-					KeyFile:  keyFile,
-					CAFile:   "", // No CA file
+					CertFile:     certFile,
+					KeyFile:      keyFile,
+					ClientCAFile: "", // No CA file
 				}
 			},
 			expectError: false,
@@ -148,9 +148,9 @@ func TestPrometheusTLSConfig(t *testing.T) {
 				certFile, keyFile := createTestCertAndKey(t)
 				caFile := createTestCA(t)
 				return &TLSConfig{
-					CertFile: certFile,
-					KeyFile:  keyFile,
-					CAFile:   caFile,
+					CertFile:     certFile,
+					KeyFile:      keyFile,
+					ClientCAFile: caFile,
 				}
 			},
 			expectError: false,
@@ -168,9 +168,9 @@ func TestPrometheusTLSConfig(t *testing.T) {
 			name: "testing TLS with missing cert file",
 			setupTLS: func(t *testing.T) *TLSConfig {
 				return &TLSConfig{
-					CertFile: "/nonexistent/cert.pem",
-					KeyFile:  "/nonexistent/key.pem",
-					CAFile:   "",
+					CertFile:     "/nonexistent/cert.pem",
+					KeyFile:      "/nonexistent/key.pem",
+					ClientCAFile: "",
 				}
 			},
 			expectError: true,
@@ -185,9 +185,9 @@ func TestPrometheusTLSConfig(t *testing.T) {
 				certFile := createTempFile(t, []byte("invalid cert data"))
 				keyFile := createTempFile(t, []byte("invalid key data"))
 				return &TLSConfig{
-					CertFile: certFile,
-					KeyFile:  keyFile,
-					CAFile:   "",
+					CertFile:     certFile,
+					KeyFile:      keyFile,
+					ClientCAFile: "",
 				}
 			},
 			expectError:      true,
@@ -198,9 +198,9 @@ func TestPrometheusTLSConfig(t *testing.T) {
 			setupTLS: func(t *testing.T) *TLSConfig {
 				certFile, _ := createTestCertAndKey(t)
 				return &TLSConfig{
-					CertFile: certFile,
-					KeyFile:  "/nonexistent/key.pem",
-					CAFile:   "",
+					CertFile:     certFile,
+					KeyFile:      "/nonexistent/key.pem",
+					ClientCAFile: "",
 				}
 			},
 			expectError: true,
@@ -214,9 +214,9 @@ func TestPrometheusTLSConfig(t *testing.T) {
 				certFile, keyFile := createTestCertAndKey(t)
 				invalidCAFile := createTempFile(t, []byte("invalid CA data"))
 				return &TLSConfig{
-					CertFile: certFile,
-					KeyFile:  keyFile,
-					CAFile:   invalidCAFile,
+					CertFile:     certFile,
+					KeyFile:      keyFile,
+					ClientCAFile: invalidCAFile,
 				}
 			},
 			expectError:      true,

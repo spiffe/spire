@@ -135,8 +135,8 @@ func (p *prometheusRunner) newTLSConfig() (*tls.Config, error) {
 	}
 
 	var caCertPool *x509.CertPool
-	if p.c.TLS.CAFile != "" {
-		caCertPool, err = util.LoadCertPool(p.c.TLS.CAFile)
+	if p.c.TLS.ClientCAFile != "" {
+		caCertPool, err = util.LoadCertPool(p.c.TLS.ClientCAFile)
 		if err != nil {
 			return nil, err
 		}
