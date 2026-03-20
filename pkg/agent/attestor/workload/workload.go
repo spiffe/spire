@@ -74,9 +74,7 @@ func (wla *attestor) Attest(ctx context.Context, pid int) ([]*common.Selector, e
 		case err := <-errChan:
 			log.WithError(err).Error("Failed to collect all selectors for PID")
 		case <-ctx.Done():
-			// If the client times out before all workload attestation plugins have reported selectors or an error,
-			// it can be helpful to see the partial set of selectors discovered for debugging purposes.
-			log.WithField(telemetry.PartialSelectors, selectors).Error("Timed out collecting selectors for PID")
+			log.Error("Timed out collecting selectors for PID")
 			return nil, ctx.Err()
 		}
 	}
