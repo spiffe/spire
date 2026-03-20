@@ -82,6 +82,7 @@ type Plugin struct {
 
 	pollMtx                sync.Mutex
 	stopPolling            context.CancelFunc
+	pollDone               <-chan struct{}
 	currentPollSubscribers uint64
 
 	bundleMtx     sync.RWMutex
@@ -428,6 +429,13 @@ func (p *Plugin) unsubscribeToPolling() {
 }
 
 func (p *Plugin) startPolling(streamCtx context.Context) error {
+	// Wait for the previous polling goroutine to finish before starting a
+	// new one. This ensures its deferred release() call — which nils out
+	// bundleClient — cannot race with the new goroutine calling getBundle().
+	if p.pollDone != nil {
+		<-p.pollDone
+	}
+
 	var pollCtx context.Context
 	pollCtx, p.stopPolling = context.WithCancel(context.Background())
 
@@ -435,7 +443,12 @@ func (p *Plugin) startPolling(streamCtx context.Context) error {
 		return err
 	}
 
-	go p.pollBundleUpdates(pollCtx)
+	done := make(chan struct{})
+	p.pollDone = done
+	go func() {
+		defer close(done)
+		p.pollBundleUpdates(pollCtx)
+	}()
 	return nil
 }
 
