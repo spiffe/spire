@@ -375,6 +375,9 @@ const (
 	// Kid tags some key ID
 	Kid = "kid"
 
+	// KeyType tags the type of rate limit key ("pod" or "uid")
+	KeyType = "key_type"
+
 	// LaunchLogLevel log level when service started
 	LaunchLogLevel = "launch_log_level"
 
@@ -437,6 +440,9 @@ const (
 
 	// Pruned flagging something has been pruned
 	Pruned = "pruned"
+
+	// RateLimitExceeded tags a rate limit exceeded event
+	RateLimitExceeded = "rate_limit_exceeded"
 
 	// ReadOnly tags something read-only
 	ReadOnly = "read_only"

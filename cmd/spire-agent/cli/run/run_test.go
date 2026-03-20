@@ -1054,6 +1054,101 @@ func TestNewAgentConfig(t *testing.T) {
 				require.Nil(t, ac)
 			},
 		},
+		{
+			msg: "ratelimit defaults to zero (disabled)",
+			input: func(c *Config) {
+				// no ratelimit config set
+			},
+			test: func(t *testing.T, ac *agent.Config) {
+				require.Equal(t, agent.WorkloadAPIRateLimitConfig{}, ac.WorkloadAPIRateLimit)
+			},
+		},
+		{
+			msg: "ratelimit fetch_x509_svid is configurable",
+			input: func(c *Config) {
+				v := 100
+				c.Agent.RateLimit.FetchX509SVID = &v
+			},
+			test: func(t *testing.T, ac *agent.Config) {
+				require.Equal(t, 100, ac.WorkloadAPIRateLimit.FetchX509SVID)
+				require.Equal(t, 0, ac.WorkloadAPIRateLimit.FetchX509Bundles)
+			},
+		},
+		{
+			msg: "ratelimit all methods are configurable",
+			input: func(c *Config) {
+				a, b, d, e, f := 1, 2, 3, 4, 5
+				c.Agent.RateLimit.FetchX509SVID = &a
+				c.Agent.RateLimit.FetchX509Bundles = &b
+				c.Agent.RateLimit.FetchJWTSVID = &d
+				c.Agent.RateLimit.FetchJWTBundles = &e
+				c.Agent.RateLimit.ValidateJWTSVID = &f
+			},
+			test: func(t *testing.T, ac *agent.Config) {
+				require.Equal(t, agent.WorkloadAPIRateLimitConfig{
+					FetchX509SVID:    1,
+					FetchX509Bundles: 2,
+					FetchJWTSVID:     3,
+					FetchJWTBundles:  4,
+					ValidateJWTSVID:  5,
+				}, ac.WorkloadAPIRateLimit)
+			},
+		},
+		{
+			msg:         "ratelimit fetch_x509_svid negative value returns an error",
+			expectError: true,
+			input: func(c *Config) {
+				v := -1
+				c.Agent.RateLimit.FetchX509SVID = &v
+			},
+			test: func(t *testing.T, ac *agent.Config) {
+				require.Nil(t, ac)
+			},
+		},
+		{
+			msg:         "ratelimit fetch_x509_bundles negative value returns an error",
+			expectError: true,
+			input: func(c *Config) {
+				v := -1
+				c.Agent.RateLimit.FetchX509Bundles = &v
+			},
+			test: func(t *testing.T, ac *agent.Config) {
+				require.Nil(t, ac)
+			},
+		},
+		{
+			msg:         "ratelimit fetch_jwt_svid negative value returns an error",
+			expectError: true,
+			input: func(c *Config) {
+				v := -1
+				c.Agent.RateLimit.FetchJWTSVID = &v
+			},
+			test: func(t *testing.T, ac *agent.Config) {
+				require.Nil(t, ac)
+			},
+		},
+		{
+			msg:         "ratelimit fetch_jwt_bundles negative value returns an error",
+			expectError: true,
+			input: func(c *Config) {
+				v := -1
+				c.Agent.RateLimit.FetchJWTBundles = &v
+			},
+			test: func(t *testing.T, ac *agent.Config) {
+				require.Nil(t, ac)
+			},
+		},
+		{
+			msg:         "ratelimit validate_jwt_svid negative value returns an error",
+			expectError: true,
+			input: func(c *Config) {
+				v := -1
+				c.Agent.RateLimit.ValidateJWTSVID = &v
+			},
+			test: func(t *testing.T, ac *agent.Config) {
+				require.Nil(t, ac)
+			},
+		},
 	}
 	cases = append(cases, newAgentConfigCasesOS(t)...)
 	for _, testCase := range cases {
@@ -1212,6 +1307,16 @@ func TestWarnOnUnknownConfig(t *testing.T) {
 			expectedLogEntries: []logEntry{
 				{
 					section: "health check",
+					keys:    "unknown_option1,unknown_option2",
+				},
+			},
+		},
+		{
+			msg:      "in nested ratelimit block",
+			confFile: "agent_bad_nested_ratelimit_block.conf",
+			expectedLogEntries: []logEntry{
+				{
+					section: "ratelimit",
 					keys:    "unknown_option1,unknown_option2",
 				},
 			},
