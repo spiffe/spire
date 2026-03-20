@@ -917,9 +917,7 @@ type fakeAPIServiceClient struct {
 }
 
 func newFakeAPIServiceClient(config *Configuration) *fakeAPIServiceClient {
-	// NewSimpleClientset is deprecated, but the aggregator package doesn't provide
-	// NewClientset yet (only available when apply configurations are generated).
-	client := fakeaggregator.NewSimpleClientset() //nolint:staticcheck // https://github.com/spiffe/spire/issues/6530: NewSimpleClientset is deprecated, but no alternative exists for aggregator.
+	client := fakeaggregator.NewSimpleClientset()
 	a := &fakeAPIServiceClient{
 		apiServiceClient: apiServiceClient{
 			Interface:       client,
