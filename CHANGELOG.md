@@ -1,5 +1,51 @@
 # Changelog
 
+## [1.14.3] - 2026-03-18
+
+### Added
+
+- `spire-agent` version is now reported to `spire-server` via the PostStatus API and visible in `GetAgent`/`ListAgents` CLI output (#6542)
+
+### Changed
+
+- The `RequirePQKEM` TLS policy now uses the standardized `X25519MLKEM768` instead of the draft `x25519Kyber768Draft00` (#6703)
+- OPA policy evaluation performance improved by ~2x, based on benchmarking, through use of partial evaluation (#6633)
+
+### Fixed
+
+- `ReadOnlyEntry.Clone()` was incorrectly copying the `Admin` boolean into the `Downstream` field when applying an output mask, causing clients of `GetAuthorizedEntries` and `SyncAuthorizedEntries` to receive corrupted authorization metadata. The `Admin` and `Downstream` booleana were not used in `spire-agent` so there was no impact from this (#6636)
+- The periodic node cache rebuild was only executing once instead of running continuously at the configured interval (#6661)
+- Race condition in the `spire` upstream authority plugin during shutdown that could cause a nil pointer dereference on the bundle client (#6590)
+- `aws_iid` attestor AWS request timeout increased from 5s to 20s to prevent intermittent attestation failures in large AWS Organizations (#6558)
+- Federated trust bundles are now fetched concurrently, reducing the chance of exceeding the agent sync timeout when there are many federation relationships (#6491)
+- JWT-SVID refresh now uses a 1s timeout when a cached SVID already exists, preventing an unresponsive server from blocking delivery of a valid cached SVID (#6454)
+- Documentation improvements (#6607, #6608, #6632)
+
+### Security
+
+- Selectors are no longer logged at the agent level to avoid potential leakage of sensitive information (#6732)
+- Fixed an issue where TLS session ticket resumption on the server TCP endpoint could bypass SPIFFE certificate chain validation against the current trust bundle. TLS session tickets are now disabled on the server side, ensuring `VerifyPeerCertificate` runs on every connection (#6715)
+
+## [1.14.2] - 2026-03-03
+
+### Security
+
+- Fixed an issue in the `http_challenge` server node attestor plugin which allowed an attacker to make an SSRF attack. The attacker could potentially redirect the server to a domain that they wouldn't normally have access. spire-server would make an unauthenticated GET request to that domain and return the first 64 bytes of the response to the attacker. Thank you, Oleh Konko (@1seal) for reporting this isuse.
+- Fixed an issue in the `x509pop` server node attestor plugin which allowed an attacker to make spire-server consume large and disproportionate mounts of CPU time for the node attestation process. Thank you [Jakub Ciolek](https://github.com/jake-ciolek) for reporting this issue.
+
+## [1.14.1] - 2026-01-15
+
+### Changed
+
+- The `uptime_in_ms` gauge metric now uses float64 instead of integer (#6532)
+- SPIRE Server on Windows can now accept persistent arguments in the service binPath for automatic startup (#6465)
+
+### Fixed
+
+- Incorrect logic for disposing keys in the `aws_kms` KeyManager plugin (#6525)
+- JWT-SVID caching now uses the SPIFFE ID returned by the server to prevent stale cache entries when entry IDs change (#6501)
+- Documentation fixes (#6488, #6521)
+
 ## [1.14.0] - 2025-12-11
 
 ### Added
@@ -30,6 +76,13 @@
 
 - Added k8s_configmap BundlePublisher to documentation (#6437)
 - Added tpm_devid to supported Agent plugins documentation (#6449)
+
+## [1.13.4] - 2026-03-03
+
+### Security
+
+- Fixed an issue in the `http_challenge` server node attestor plugin which allowed an attacker to make an SSRF attack. The attacker could potentially redirect the server to a domain that they wouldn't normally have access. spire-server would make an unauthenticated GET request to that domain and return the first 64 bytes of the response to the attacker. Thank you, Oleh Konko (@1seal) for reporting this isuse.
+- Fixed an issue in the `x509pop` server node attestor plugin which allowed an attacker to make spire-server consume large and disproportionate mounts of CPU time for the node attestation process. Thank you [Jakub Ciolek](https://github.com/jake-ciolek) for reporting this issue.
 
 ## [1.13.3] - 2025-10-23
 
@@ -1156,7 +1209,7 @@ Thanks to Edoardo Geraci for reporting this issue.
 - The K8s Workload Registrar now supports Kubernetes 1.22 (#2515,#2540)
 - Self-signed CA certificates serial numbers are now conformant to RFC 5280 (#2494)
 - The AWS KMS Key Manager plugin now creates keys with a very strict policy by default (#2424)
-- The deprecated agent key file (`svid.key`) is proactively removed by the agent. It was only maintained to accomodate rollback from v1.0 to v0.12 (#2493)
+- The deprecated agent key file (`svid.key`) is proactively removed by the agent. It was only maintained to accommodate rollback from v1.0 to v0.12 (#2493)
 
 ### Removed
 

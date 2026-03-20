@@ -21,4 +21,4 @@ for secret in "${secrets[@]}"; do
 done
 
 ./bin/kubectl -n spire apply -k conf/server
-./bin/kubectl wait pods -n spire -l app=spire-server --for condition=Ready --timeout=60s
+./bin/kubectl wait pods -n spire -l app=spire-server --for=condition=Ready --timeout=60s

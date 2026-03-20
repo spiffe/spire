@@ -731,7 +731,7 @@ func (p *Plugin) disposeKeys(ctx context.Context) error {
 			}
 
 			// if key does not belong to trust domain, skip it
-			if *describeResp.KeyMetadata.Description != p.descriptionPrefixForTrustDomain() {
+			if !strings.HasPrefix(*describeResp.KeyMetadata.Description, p.descriptionPrefixForTrustDomain()) {
 				continue
 			}
 

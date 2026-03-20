@@ -99,9 +99,9 @@ fingerprint() {
 }
 
 check-server-started() {
-  # Check at most 20 times (with one second in between) that the server has
+  # Check at most 30 times (with one second in between) that the server has
   # successfully started.
-  MAXCHECKS=20
+  MAXCHECKS=30
   CHECKINTERVAL=1
   for ((i=1;i<=MAXCHECKS;i++)); do
       log-info "checking for starting server APIs ($i of $MAXCHECKS max)..."
@@ -350,4 +350,12 @@ set-kubectl-context() {
 
     log-info "setting kubectl cluster context..."
     "${kubectl_path}" cluster-info --context "${context}"
+}
+
+dump-multiple-container-logs() {
+    log-warn "Dumping container logs for diagnostics..."
+    for container in "$@"; do
+        log-warn "=== Logs for ${container} ==="
+        docker compose logs "${container}" || log-warn "Failed to get logs for ${container}"
+    done
 }

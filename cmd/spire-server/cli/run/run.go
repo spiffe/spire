@@ -114,6 +114,7 @@ type experimentalConfig struct {
 	EventTimeout            string                      `hcl:"event_timeout"`
 	SQLTransactionTimeout   string                      `hcl:"sql_transaction_timeout"`
 	RequirePQKEM            bool                        `hcl:"require_pq_kem"`
+	WITKeyType              string                      `hcl:"wit_key_type"`
 
 	Flags fflag.RawConfig `hcl:"feature_flags"`
 
@@ -642,21 +643,30 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 	}
 
 	if c.Server.CAKeyType != "" {
-		keyType, err := keyTypeFromString(c.Server.CAKeyType)
+		keyType, err := keymanager.KeyTypeFromString(c.Server.CAKeyType)
 		if err != nil {
 			return nil, fmt.Errorf("error parsing ca_key_type: %w", err)
 		}
 		sc.CAKeyType = keyType
 		sc.JWTKeyType = keyType
+		sc.WITKeyType = keyType
 	} else {
 		sc.CAKeyType = keymanager.ECP256
 		sc.JWTKeyType = keymanager.ECP256
+		sc.WITKeyType = keymanager.ECP256
 	}
 
 	if c.Server.JWTKeyType != "" {
-		sc.JWTKeyType, err = keyTypeFromString(c.Server.JWTKeyType)
+		sc.JWTKeyType, err = keymanager.KeyTypeFromString(c.Server.JWTKeyType)
 		if err != nil {
 			return nil, fmt.Errorf("error parsing jwt_key_type: %w", err)
+		}
+	}
+
+	if c.Server.Experimental.WITKeyType != "" {
+		sc.WITKeyType, err = keymanager.KeyTypeFromString(c.Server.Experimental.WITKeyType)
+		if err != nil {
+			return nil, fmt.Errorf("error parsing wit_key_type: %w", err)
 		}
 	}
 
@@ -699,6 +709,11 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 		sc.Log.Info("JWT-SVID profile is disabled")
 	}
 	sc.DisableJWTSVIDs = c.Server.DisableJWTSVIDs
+
+	sc.DisableWITSVIDs = true
+	if fflag.IsSet(fflag.FlagWITSVID) {
+		sc.DisableWITSVIDs = false
+	}
 
 	if !allowUnknownConfig {
 		if err := checkForUnknownConfig(c, sc.Log); err != nil {
@@ -1063,21 +1078,6 @@ func defaultConfig() *Config {
 			LogFormat:    log.DefaultFormat,
 			Experimental: experimentalConfig{},
 		},
-	}
-}
-
-func keyTypeFromString(s string) (keymanager.KeyType, error) {
-	switch strings.ToLower(s) {
-	case "rsa-2048":
-		return keymanager.RSA2048, nil
-	case "rsa-4096":
-		return keymanager.RSA4096, nil
-	case "ec-p256":
-		return keymanager.ECP256, nil
-	case "ec-p384":
-		return keymanager.ECP384, nil
-	default:
-		return keymanager.KeyTypeUnset, fmt.Errorf("key type %q is unknown; must be one of [rsa-2048, rsa-4096, ec-p256, ec-p384]", s)
 	}
 }
 

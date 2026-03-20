@@ -1,7 +1,6 @@
 package spiretest
 
 import (
-	"errors"
 	"net"
 	"os"
 	"path/filepath"
@@ -39,20 +38,4 @@ func ServeGRPCServerOnUDSSocket(t *testing.T, server *grpc.Server, socketPath st
 	require.NoError(t, err)
 	ServeGRPCServerOnListener(t, server, listener)
 	return listener.Addr()
-}
-
-func ServeGRPCServerOnListener(t *testing.T, server *grpc.Server, listener net.Listener) {
-	errCh := make(chan error, 1)
-	go func() {
-		errCh <- server.Serve(listener)
-	}()
-	t.Cleanup(func() {
-		server.Stop()
-		err := <-errCh
-		switch {
-		case err == nil, errors.Is(err, grpc.ErrServerStopped):
-		default:
-			t.Fatal(err)
-		}
-	})
 }

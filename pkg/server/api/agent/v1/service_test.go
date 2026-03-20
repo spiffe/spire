@@ -1662,6 +1662,7 @@ func TestRenewAgent(t *testing.T) {
 		AttestationDataType: "t",
 		CertNotAfter:        12345,
 		CertSerialNumber:    "6789",
+		AgentVersion:        "1.2.3",
 	}
 
 	reattestableNode := cloneAttestedNode(defaultNode)
@@ -2052,11 +2053,123 @@ func TestRenewAgent(t *testing.T) {
 }
 
 func TestPostStatus(t *testing.T) {
-	test := setupServiceTest(t, 0)
+	for _, tt := range []struct {
+		name           string
+		request        *agentv1.PostStatusRequest
+		createAgent    bool
+		withCallerID   bool
+		expectCode     codes.Code
+		expectMsg      string
+		expectVersion  string
+		rateLimiterErr error
+	}{
+		{
+			name:         "missing caller ID",
+			request:      &agentv1.PostStatusRequest{AgentVersion: "1.0.0"},
+			createAgent:  true,
+			withCallerID: false,
+			expectCode:   codes.Internal,
+			expectMsg:    "caller ID missing from request context",
+		},
+		{
+			name:         "agent not found",
+			request:      &agentv1.PostStatusRequest{AgentVersion: "1.0.0"},
+			createAgent:  false,
+			withCallerID: true,
+			expectCode:   codes.NotFound,
+			expectMsg:    "agent not found",
+		},
+		{
+			name:          "success",
+			request:       &agentv1.PostStatusRequest{AgentVersion: "1.0.0", CurrentBundleSerial: 123},
+			createAgent:   true,
+			withCallerID:  true,
+			expectCode:    codes.OK,
+			expectVersion: "1.0.0",
+		},
+		{
+			name:          "success with empty version",
+			request:       &agentv1.PostStatusRequest{CurrentBundleSerial: 456},
+			createAgent:   true,
+			withCallerID:  true,
+			expectCode:    codes.OK,
+			expectVersion: "",
+		},
+		{
+			name: "agent version too long",
+			request: &agentv1.PostStatusRequest{
+				AgentVersion: string(make([]byte, 256)),
+			},
+			createAgent:  true,
+			withCallerID: true,
+			expectCode:   codes.InvalidArgument,
+			expectMsg:    "agent version is too long",
+		},
+		{
+			name: "agent version at max length",
+			request: &agentv1.PostStatusRequest{
+				AgentVersion: string(make([]byte, 255)),
+			},
+			createAgent:   true,
+			withCallerID:  true,
+			expectCode:    codes.OK,
+			expectVersion: string(make([]byte, 255)),
+		},
+		{
+			name: "agent version with invalid UTF-8",
+			request: &agentv1.PostStatusRequest{
+				AgentVersion: "1.0.0\xff\xfe",
+			},
+			createAgent:  true,
+			withCallerID: true,
+			expectCode:   codes.Internal,
+			expectMsg:    "grpc: error while marshaling: string field contains invalid UTF-8",
+		},
+		{
+			name:           "rate limit fails",
+			request:        &agentv1.PostStatusRequest{AgentVersion: "1.0.0", CurrentBundleSerial: 123},
+			createAgent:    true,
+			withCallerID:   true,
+			rateLimiterErr: status.Error(codes.Unknown, "rate limit fails"),
+			expectCode:     codes.Unknown,
+			expectMsg:      "rejecting request due to post status rate limiting: rate limit fails",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			test := setupServiceTest(t, 0)
 
-	resp, err := test.client.PostStatus(context.Background(), &agentv1.PostStatusRequest{})
-	require.Nil(t, resp)
-	spiretest.RequireGRPCStatus(t, err, codes.Unimplemented, "unimplemented")
+			test.rateLimiter.count = 1
+			test.rateLimiter.err = tt.rateLimiterErr
+
+			if tt.createAgent {
+				_, err := test.ds.CreateAttestedNode(context.Background(), &common.AttestedNode{
+					SpiffeId:            agentID.String(),
+					AttestationDataType: "test_type",
+					CertSerialNumber:    "12345",
+					CertNotAfter:        time.Now().Add(time.Hour).Unix(),
+				})
+				require.NoError(t, err)
+			}
+
+			test.withCallerID = tt.withCallerID
+
+			resp, err := test.client.PostStatus(context.Background(), tt.request)
+
+			if tt.expectCode != codes.OK {
+				require.Nil(t, resp)
+				spiretest.RequireGRPCStatusHasPrefix(t, err, tt.expectCode, tt.expectMsg)
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, resp)
+
+				// Verify the agent version was updated in the datastore
+				node, err := test.ds.FetchAttestedNode(context.Background(), agentID.String())
+				require.NoError(t, err)
+				require.NotNil(t, node)
+				require.Equal(t, tt.expectVersion, node.AgentVersion)
+			}
+		})
+	}
 }
 
 func TestCreateJoinToken(t *testing.T) {
@@ -2249,6 +2362,7 @@ func TestAttestAgent(t *testing.T) {
 		request           *agentv1.AttestAgentRequest
 		expectedID        spiffeid.ID
 		expectedSelectors []*common.Selector
+		expectedVersion   string
 		expectCode        codes.Code
 		expectMsg         string
 		expectLogs        []spiretest.LogEntry
@@ -2716,6 +2830,7 @@ func TestAttestAgent(t *testing.T) {
 			expectedSelectors: []*common.Selector{
 				{Type: "test_type", Value: "attested_before"},
 			},
+			expectedVersion: "1.2.3",
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.InfoLevel,
@@ -3188,7 +3303,7 @@ func TestAttestAgent(t *testing.T) {
 			default:
 				require.NotNil(t, result)
 				test.assertAttestAgentResult(t, tt.expectedID, result)
-				test.assertAgentWasStored(t, tt.expectedID.String(), tt.expectedSelectors)
+				test.assertAgentWasStored(t, tt.expectedID.String(), tt.expectedSelectors, tt.expectedVersion)
 			}
 		})
 	}
@@ -3301,6 +3416,7 @@ func (s *serviceTest) setupNodes(ctx context.Context, t *testing.T) {
 		AttestationDataType: "test_type",
 		SpiffeId:            spiffeid.RequireFromPath(td, "/spire/agent/test_type/id_attested_before").String(),
 		CertSerialNumber:    "test_serial_number",
+		AgentVersion:        "1.2.3",
 	}
 	_, err := s.ds.CreateAttestedNode(ctx, node)
 	require.NoError(t, err)
@@ -3375,7 +3491,7 @@ func (s *serviceTest) assertAttestAgentResult(t *testing.T, expectedID spiffeid.
 	require.Equal(t, []*url.URL{expectedID.URL()}, x509Svid.URIs)
 }
 
-func (s *serviceTest) assertAgentWasStored(t *testing.T, expectedID string, expectedSelectors []*common.Selector) {
+func (s *serviceTest) assertAgentWasStored(t *testing.T, expectedID string, expectedSelectors []*common.Selector, expectedVersion string) {
 	attestedAgent, err := s.ds.FetchAttestedNode(ctx, expectedID)
 	require.NoError(t, err)
 	require.NotNil(t, attestedAgent)
@@ -3384,6 +3500,7 @@ func (s *serviceTest) assertAgentWasStored(t *testing.T, expectedID string, expe
 	agentSelectors, err := s.ds.GetNodeSelectors(ctx, expectedID, datastore.RequireCurrent)
 	require.NoError(t, err)
 	require.EqualValues(t, expectedSelectors, agentSelectors)
+	require.Equal(t, attestedAgent.AgentVersion, expectedVersion)
 }
 
 type fakeRateLimiter struct {

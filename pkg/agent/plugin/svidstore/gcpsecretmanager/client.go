@@ -23,7 +23,7 @@ type secretManagerClient interface {
 func newSecretManagerClient(ctx context.Context, serviceAccountFile string) (secretManagerClient, error) {
 	var opts []option.ClientOption
 	if serviceAccountFile != "" {
-		opts = append(opts, option.WithCredentialsFile(serviceAccountFile))
+		opts = append(opts, option.WithAuthCredentialsFile(option.ServiceAccount, serviceAccountFile))
 	}
 
 	return secretmanager.NewClient(ctx, opts...)

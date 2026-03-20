@@ -232,7 +232,7 @@ func TestConfigure(t *testing.T) {
 				KeyRing:            validKeyRing,
 				ServiceAccountFile: "service-account-file",
 			},
-			expectOpts: []option.ClientOption{option.WithCredentialsFile("service-account-file")},
+			expectOpts: []option.ClientOption{option.WithAuthCredentialsFile(option.ServiceAccount, "service-account-file")},
 		},
 		{
 			name: "missing key ring",

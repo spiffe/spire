@@ -16,6 +16,7 @@ import (
 	bundlev1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/bundle/v1"
 	server_util "github.com/spiffe/spire/cmd/spire-server/util"
 	"github.com/spiffe/spire/pkg/common/diskutil"
+	"github.com/spiffe/spire/pkg/common/errorutil"
 	"github.com/spiffe/spire/pkg/common/health"
 	"github.com/spiffe/spire/pkg/common/profiling"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -63,7 +64,7 @@ type Server struct {
 // This method initializes the server, including its plugins,
 // and then blocks until it's shut down or an error is encountered.
 func (s *Server) Run(ctx context.Context) error {
-	if err := s.run(ctx); err != nil {
+	if err := s.run(ctx); err != nil && !errorutil.IsSIGINTOrSIGTERMError(err) {
 		s.config.Log.WithError(err).Error("Fatal run error")
 		return err
 	}
@@ -353,6 +354,7 @@ func (s *Server) newCA(metrics telemetry.Metrics, credBuilder *credtemplate.Buil
 		CredValidator:   credValidator,
 		HealthChecker:   healthChecker,
 		DisableJWTSVIDs: s.config.DisableJWTSVIDs,
+		DisableWITSVIDs: s.config.DisableWITSVIDs,
 	})
 }
 
@@ -368,7 +370,9 @@ func (s *Server) newCAManager(ctx context.Context, cat catalog.Catalog, metrics 
 		Dir:             s.config.DataDir,
 		X509CAKeyType:   s.config.CAKeyType,
 		DisableJWTSVIDs: s.config.DisableJWTSVIDs,
+		DisableWITSVIDs: s.config.DisableWITSVIDs,
 		JWTKeyType:      s.config.JWTKeyType,
+		WITKeyType:      s.config.WITKeyType,
 	})
 	if err != nil {
 		return nil, err
