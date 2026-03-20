@@ -103,7 +103,7 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *workload.JWTSVIDRequest
 	}
 
 	if len(resp.Svids) == 0 {
-		log.WithField(telemetry.Registered, false).Error("No identity issued")
+		logNoIdentityIssued(ctx, log)
 		return nil, status.Error(codes.PermissionDenied, "no identity issued")
 	}
 
@@ -302,7 +302,7 @@ func (h *Handler) fetchJWTSVID(ctx context.Context, log logrus.FieldLogger, entr
 func sendX509BundlesResponse(update *cache.WorkloadUpdate, stream workload.SpiffeWorkloadAPI_FetchX509BundlesServer, log logrus.FieldLogger, allowUnauthenticatedVerifiers bool, previousResponse *workload.X509BundlesResponse, quietLogging bool) (*workload.X509BundlesResponse, error) {
 	if !allowUnauthenticatedVerifiers && !update.HasIdentity() {
 		if !quietLogging {
-			log.WithField(telemetry.Registered, false).Error("No identity issued")
+			logNoIdentityIssued(stream.Context(), log)
 		}
 		return nil, status.Error(codes.PermissionDenied, "no identity issued")
 	}
@@ -348,7 +348,7 @@ func composeX509BundlesResponse(update *cache.WorkloadUpdate) (*workload.X509Bun
 func sendX509SVIDResponse(update *cache.WorkloadUpdate, stream workload.SpiffeWorkloadAPI_FetchX509SVIDServer, log logrus.FieldLogger, quietLogging bool) (err error) {
 	if len(update.Identities) == 0 {
 		if !quietLogging {
-			log.WithField(telemetry.Registered, false).Error("No identity issued")
+			logNoIdentityIssued(stream.Context(), log)
 		}
 		return status.Error(codes.PermissionDenied, "no identity issued")
 	}
@@ -419,7 +419,7 @@ func composeX509SVIDResponse(update *cache.WorkloadUpdate) (*workload.X509SVIDRe
 
 func sendJWTBundlesResponse(update *cache.WorkloadUpdate, stream workload.SpiffeWorkloadAPI_FetchJWTBundlesServer, log logrus.FieldLogger, allowUnauthenticatedVerifiers bool, previousResponse *workload.JWTBundlesResponse) (*workload.JWTBundlesResponse, error) {
 	if !allowUnauthenticatedVerifiers && !update.HasIdentity() {
-		log.WithField(telemetry.Registered, false).Error("No identity issued")
+		logNoIdentityIssued(stream.Context(), log)
 		return nil, status.Error(codes.PermissionDenied, "no identity issued")
 	}
 
@@ -474,6 +474,14 @@ func composeJWTBundlesResponse(update *cache.WorkloadUpdate) (*workload.JWTBundl
 // agent's process ID.
 func isAgent(ctx context.Context) bool {
 	return rpccontext.CallerPID(ctx) == os.Getpid()
+}
+
+func logNoIdentityIssued(ctx context.Context, log logrus.FieldLogger) {
+	entry := log.WithField(telemetry.Registered, false)
+	if err := ctx.Err(); err != nil {
+		entry = entry.WithError(err)
+	}
+	entry.Error("No identity issued")
 }
 
 func (h *Handler) getWorkloadBundles(selectors []*common.Selector) (bundles []*spiffebundle.Bundle) {
