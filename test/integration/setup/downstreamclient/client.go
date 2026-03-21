@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	bundlev1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/bundle/v1"
@@ -56,12 +57,12 @@ func run() string {
 		failures["PublishJWTAuthority"] = err
 	}
 
-	msg := ""
+	var msg strings.Builder
 	for rpcName, err := range failures {
-		msg += fmt.Sprintf("RPC %q: %v\n", rpcName, err)
+		msg.WriteString(fmt.Sprintf("RPC %q: %v\n", rpcName, err))
 	}
 
-	return msg
+	return msg.String()
 }
 
 func validateNewDownstreamX509CA(ctx context.Context, c *itclient.Client) error {
