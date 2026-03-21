@@ -423,19 +423,16 @@ func (p *Plugin) unsubscribeToPolling() {
 	defer p.pollMtx.Unlock()
 	p.currentPollSubscribers--
 	if p.currentPollSubscribers == 0 {
-		// TODO: may we release server here?
 		p.stopPolling()
+		// Wait for the polling goroutine to fully exit so its deferred
+		// release() call — which nils out bundleClient — cannot race with
+		// a future startPolling call.
+		<-p.pollDone
+		p.pollDone = nil
 	}
 }
 
 func (p *Plugin) startPolling(streamCtx context.Context) error {
-	// Wait for the previous polling goroutine to finish before starting a
-	// new one. This ensures its deferred release() call — which nils out
-	// bundleClient — cannot race with the new goroutine calling getBundle().
-	if p.pollDone != nil {
-		<-p.pollDone
-	}
-
 	var pollCtx context.Context
 	pollCtx, p.stopPolling = context.WithCancel(context.Background())
 
