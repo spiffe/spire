@@ -70,7 +70,7 @@ require (
 	github.com/open-policy-agent/opa v1.14.1
 	github.com/prometheus/client_golang v1.23.2
 	github.com/shirou/gopsutil/v4 v4.26.2
-	github.com/sigstore/cosign/v2 v2.6.2
+	github.com/sigstore/cosign/v3 v3.0.5
 	github.com/sigstore/rekor v1.5.1
 	github.com/sigstore/sigstore v1.10.4
 	github.com/sirupsen/logrus v1.9.4
@@ -82,7 +82,7 @@ require (
 	github.com/uber-go/tally/v4 v4.1.17
 	github.com/valyala/fastjson v1.6.10
 	golang.org/x/crypto v0.49.0
-	golang.org/x/exp v0.0.0-20250620022241-b7579e27df2b
+	golang.org/x/exp v0.0.0-20251023183803-a4bb9ffd2546
 	golang.org/x/net v0.52.0
 	golang.org/x/sync v0.20.0
 	golang.org/x/sys v0.42.0
@@ -152,7 +152,7 @@ require (
 	github.com/distribution/reference v0.6.0 // indirect
 	github.com/docker/cli v29.3.0+incompatible // indirect
 	github.com/docker/distribution v2.8.3+incompatible // indirect
-	github.com/docker/docker-credential-helpers v0.9.3 // indirect
+	github.com/docker/docker-credential-helpers v0.9.4 // indirect
 	github.com/docker/go-connections v0.6.0 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
@@ -265,8 +265,8 @@ require (
 	github.com/posener/complete v1.2.3 // indirect
 	github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55 // indirect
 	github.com/prometheus/client_model v0.6.2 // indirect
-	github.com/prometheus/common v0.67.4 // indirect
-	github.com/prometheus/procfs v0.17.0 // indirect
+	github.com/prometheus/common v0.67.5 // indirect
+	github.com/prometheus/procfs v0.19.2 // indirect
 	github.com/rcrowley/go-metrics v0.0.0-20250401214520-65e299d6c5c9 // indirect
 	github.com/ryanuber/go-glob v1.0.0 // indirect
 	github.com/sassoftware/relic v7.2.1+incompatible // indirect
@@ -275,9 +275,9 @@ require (
 	github.com/shibumi/go-pathspec v1.3.0 // indirect
 	github.com/shopspring/decimal v1.4.0 // indirect
 	github.com/sigstore/protobuf-specs v0.5.0 // indirect
-	github.com/sigstore/rekor-tiles/v2 v2.0.1 // indirect
+	github.com/sigstore/rekor-tiles/v2 v2.2.0 // indirect
 	github.com/sigstore/sigstore-go v1.1.4 // indirect
-	github.com/sigstore/timestamp-authority/v2 v2.0.3 // indirect
+	github.com/sigstore/timestamp-authority/v2 v2.0.4 // indirect
 	github.com/spf13/cast v1.10.0 // indirect
 	github.com/spf13/cobra v1.10.2 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
