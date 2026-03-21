@@ -165,6 +165,19 @@ func TestConfigure(t *testing.T) {
 			expectCode:      codes.InvalidArgument,
 			expectMsgPrefix: "token_path is required",
 		},
+		{
+			name:        "Configure plugin with supplemental bundle path",
+			configTmpl:  testTokenAuthWithSupplementalBundleTpl,
+			wantAuth:    TOKEN,
+			expectToken: "test-token",
+		},
+		{
+			name:            "Invalid supplemental bundle path",
+			configTmpl:      testTokenAuthWithInvalidSupplementalBundleTpl,
+			wantAuth:        TOKEN,
+			expectCode:      codes.InvalidArgument,
+			expectMsgPrefix: "failed to load supplemental bundle",
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			var err error
@@ -664,6 +677,30 @@ func TestMintX509CA(t *testing.T) {
 			fakeServer:      setupSuccessFakeVaultServer,
 			expectCode:      codes.InvalidArgument,
 			expectMsgPrefix: "upstreamauthority(vault): failed to parse CSR data:",
+		},
+		{
+			name: "Mint X509CA with supplemental bundle",
+			csr:  csr.Raw,
+			config: &Configuration{
+				PKIMountPoint:          "test-pki",
+				CACertPath:             "testdata/root-cert.pem",
+				SupplementalBundlePath: "testdata/supplemental-cert.pem",
+				TokenAuth: &TokenAuthConfig{
+					Token: "test-token",
+				},
+			},
+			authMethod:              TOKEN,
+			expectX509CA:            []string{"spiffe://intermediate-spire", "spiffe://intermediate-vault"},
+			expectedX509Authorities: []string{"spiffe://root", "spiffe://supplemental"},
+			fakeServer: func() *FakeVaultServerConfig {
+				fakeServer := setupSuccessFakeVaultServer()
+				fakeServer.LookupSelfResponse = []byte(testLookupSelfResponse)
+				fakeServer.CertAuthResponse = []byte{}
+				fakeServer.AppRoleAuthResponse = []byte{}
+				fakeServer.SignIntermediateResponse = []byte(testSignIntermediateResponse)
+
+				return fakeServer
+			},
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {

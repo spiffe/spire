@@ -18,6 +18,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/coretypes/x509certificate"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/pluginconf"
+	"github.com/spiffe/spire/pkg/common/x509util"
 )
 
 const (
@@ -59,6 +60,9 @@ type Configuration struct {
 	InsecureSkipVerify bool `hcl:"insecure_skip_verify" json:"insecure_skip_verify"`
 	// Name of the Vault namespace
 	Namespace string `hcl:"namespace" json:"namespace"`
+	// Path to a file containing PEM-encoded CA certificates that should be
+	// additionally included in the bundle. Used for root CA rotation.
+	SupplementalBundlePath string `hcl:"supplemental_bundle_path" json:"supplemental_bundle_path"`
 }
 
 func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *Configuration {
@@ -122,6 +126,11 @@ type K8sAuthConfig struct {
 	TokenPath string `hcl:"token_path" json:"token_path"`
 }
 
+// configuration holds the parsed plugin configuration
+type configuration struct {
+	supplementalBundle []*x509.Certificate
+}
+
 type Plugin struct {
 	upstreamauthorityv1.UnsafeUpstreamAuthorityServer
 	configv1.UnsafeConfigServer
@@ -132,6 +141,7 @@ type Plugin struct {
 	authMethod AuthMethod
 	cc         *ClientConfig
 	vc         *Client
+	config     *configuration
 
 	hooks struct {
 		lookupEnv func(string) (string, bool)
@@ -158,6 +168,16 @@ func (p *Plugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*
 		return nil, err
 	}
 
+	// Load supplemental bundle if configured
+	var supplementalBundle []*x509.Certificate
+	if newConfig.SupplementalBundlePath != "" {
+		p.logger.Info("Loading supplemental certificates for inclusion in the bundle", "supplemental_bundle_path", newConfig.SupplementalBundlePath)
+		supplementalBundle, err = pemutil.LoadCertificates(newConfig.SupplementalBundlePath)
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "failed to load supplemental bundle: %v", err)
+		}
+	}
+
 	p.mtx.Lock()
 	defer p.mtx.Unlock()
 
@@ -176,6 +196,9 @@ func (p *Plugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*
 
 	p.authMethod = am
 	p.cc = vcConfig
+	p.config = &configuration{
+		supplementalBundle: supplementalBundle,
+	}
 
 	return &configv1.ConfigureResponse{}, nil
 }
@@ -248,7 +271,14 @@ func (p *Plugin) MintX509CAAndSubscribe(req *upstreamauthorityv1.MintX509CAReque
 		return status.Errorf(codes.Internal, "failed to parse Root CA certificate: %v", err)
 	}
 
-	upstreamX509Roots, err := x509certificate.ToPluginFromCertificates([]*x509.Certificate{upstreamRoot})
+	// Combine upstream root with supplemental bundle (if configured) for CA rotation support
+	var supplementalBundle []*x509.Certificate
+	if p.config != nil {
+		supplementalBundle = p.config.supplementalBundle
+	}
+	bundle := x509util.DedupeCertificates([]*x509.Certificate{upstreamRoot}, supplementalBundle)
+
+	upstreamX509Roots, err := x509certificate.ToPluginFromCertificates(bundle)
 	if err != nil {
 		return status.Errorf(codes.Internal, "unable to form response upstream X.509 roots: %v", err)
 	}
