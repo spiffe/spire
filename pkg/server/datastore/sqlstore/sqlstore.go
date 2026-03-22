@@ -67,6 +67,9 @@ const (
 
 	// Maximum size for preallocation in a paginated request
 	maxResultPreallocation = 1000
+
+	// Maximum size for additional attributes message in a registration entry
+	maxAdditionalAttributesSize = 65535
 )
 
 // Configuration for the sql datastore implementation.
@@ -4529,6 +4532,22 @@ func modelToBundle(model *Bundle) (*common.Bundle, error) {
 	return bundle, nil
 }
 
+func validateAditionalAttributes(additionalAttributes *common.RegistrationEntry_AdditionalAttributes) error {
+	if additionalAttributes == nil {
+		return nil
+	}
+
+	marshaledAdditionalAttributes, err := proto.Marshal(additionalAttributes)
+	if err != nil {
+		return newValidationError("invalid additional attributes: %s", err)
+	}
+	if len(marshaledAdditionalAttributes) > maxAdditionalAttributesSize {
+		return newValidationError("invalid registration entry: additional attributes size exceeds the maximum allowed size of %d bytes", maxAdditionalAttributesSize)
+	}
+
+	return nil
+}
+
 func validateRegistrationEntry(entry *common.RegistrationEntry) error {
 	if entry == nil {
 		return newValidationError("invalid request: missing registered entry")
@@ -4536,6 +4555,11 @@ func validateRegistrationEntry(entry *common.RegistrationEntry) error {
 
 	if len(entry.Selectors) == 0 {
 		return newValidationError("invalid registration entry: missing selector list")
+	}
+
+	err := validateAditionalAttributes(entry.AdditionalAttributes)
+	if err != nil {
+		return err
 	}
 
 	// In case of StoreSvid is set, all entries 'must' be the same type,
@@ -4615,6 +4639,12 @@ func validateRegistrationEntryForUpdate(entry *common.RegistrationEntry, mask *c
 	if (mask == nil || mask.JwtSvidTtl) &&
 		(entry.JwtSvidTtl < 0) {
 		return newValidationError("invalid registration entry: JwtSvidTtl is not set")
+	}
+
+	if mask != nil && mask.AdditionalAttributes {
+		if err := validateAditionalAttributes(entry.AdditionalAttributes); err != nil {
+			return err
+		}
 	}
 
 	return nil
