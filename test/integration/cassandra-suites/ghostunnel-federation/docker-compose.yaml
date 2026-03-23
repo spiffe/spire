@@ -6,6 +6,8 @@ services:
     command: ["-config", "/opt/spire/conf/server/server.conf"]
     env_file:
       - ../.env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
   downstream-spire-server:
     image: spire-server:latest-local
     volumes:
@@ -13,6 +15,8 @@ services:
     command: ["-config", "/opt/spire/conf/server/server.conf"]
     env_file:
       - ../.env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
   upstream-workload:
     image: socat-ghostunnel-agent-mashup
     env_file:

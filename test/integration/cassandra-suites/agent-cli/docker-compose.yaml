@@ -7,6 +7,8 @@ services:
     volumes:
       - ./conf/server:/opt/spire/conf/server
     command: ["-config", "/opt/spire/conf/server/server.conf"]
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
   spire-agent:
     image: spire-agent:latest-local
     hostname: spire-agent
@@ -16,3 +18,4 @@ services:
     volumes:
       - ./conf/agent:/opt/spire/conf/agent
     command: ["-config", "/opt/spire/conf/agent/agent.conf"]
+  

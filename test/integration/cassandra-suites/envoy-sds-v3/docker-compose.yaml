@@ -7,6 +7,8 @@ services:
     volumes:
       - ./conf/server:/opt/spire/conf/server
     command: ["-config", "/opt/spire/conf/server/server.conf"]
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
   upstream-proxy:
     image: envoy-agent-mashup
     hostname: upstream-proxy

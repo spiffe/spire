@@ -71,7 +71,7 @@ data:
         max_grpc_message_size = 1000000000 # 1GB
 
         plugin_data {
-          hosts = ["host.docker.internal:9044", "host.docker.internal:9045", "host.docker.internal:9046"]
+          hosts = ["172.17.0.1:9044", "172.17.0.1:9045", "172.17.0.1:9046"]
           keyspace = "spire"
           read_consistency = "LOCAL_QUORUM"
           write_consistency = "QUORUM"

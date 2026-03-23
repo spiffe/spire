@@ -7,3 +7,5 @@ services:
     command: ["-config", "/opt/spire/conf/server/server.conf"]
     env_file:
       - ../.env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
