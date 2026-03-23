@@ -111,22 +111,11 @@ func (p *Plugin) createAttestedNode(ctx context.Context, model *datastorev1.Atte
 			can_reattest,
 			agent_version,
 			selector_type_value,
-			selector_type_value_full,
 			banned,
-			index_terms
-		) VALUES (toTimestamp(now()), toTimestamp(now()), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		) VALUES (toTimestamp(now()), toTimestamp(now()), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 
-	var selectorTypeValue []string
-	for _, sel := range model.Selectors {
-		selectorTypeValue = append(selectorTypeValue, selectorToString(sel))
-	}
-
-	selectorIndexes := buildSelectorIndexes(model.Selectors)
-
-	b := p.db.session.Batch(gocql.LoggedBatch)
-	b.Consistency(p.db.cfg.WriteConsistency)
-	b.Query(
+	if err := p.db.session.Query(
 		createAttestedNodeQuery,
 		model.GetSpiffeId(),
 		model.GetAttestationDataType(),
@@ -137,29 +126,8 @@ func (p *Plugin) createAttestedNode(ctx context.Context, model *datastorev1.Atte
 		model.GetCanReattest(),
 		model.GetAgentVersion(),
 		"",
-		selectorTypeValue,
 		model.GetCertSerialNumber() == "",
-		selectorIndexes,
-	)
-
-	for _, stv := range selectorTypeValue {
-		b.Query(createAttestedNodeQuery,
-			model.GetSpiffeId(),
-			model.GetAttestationDataType(),
-			model.GetCertSerialNumber(),
-			model.GetCertNotAfter(),
-			model.GetNewCertSerialNumber(),
-			model.GetNewCertNotAfter(),
-			model.GetCanReattest(),
-			model.GetAgentVersion(),
-			stv,
-			selectorTypeValue,
-			model.GetCertSerialNumber() == "",
-			selectorIndexes,
-		)
-	}
-
-	if err := b.ExecContext(ctx); err != nil {
+	).ExecContext(ctx); err != nil {
 		return nil, newWrappedCassandraError(err)
 	}
 
@@ -223,7 +191,7 @@ func (p *Plugin) FetchAttestedNode(ctx context.Context, req *datastorev1.FetchAt
 		Column("selector_type_value_full").
 		From("attested_node_entries").
 		Where("spiffe_id", qb.Equals(req.SpiffeId)).
-		Limit(1)
+		Limit(1) // TODO(tjons): this can probably make data go missing
 	query, _ := q.Build()
 
 	var (
@@ -487,10 +455,9 @@ func (p *Plugin) UpdateAttestedNode(ctx context.Context, req *datastorev1.Update
 		}
 	}
 
-	err = p.createAttestedNodeEvent(ctx, &datastorev1.AttestedNodeEvent{
+	if err = p.createAttestedNodeEvent(ctx, &datastorev1.AttestedNodeEvent{
 		SpiffeId: req.Node.SpiffeId,
-	})
-	if err != nil {
+	}); err != nil {
 		return nil, err
 	}
 
@@ -700,11 +667,13 @@ func (p *Plugin) setNodeSelectors(ctx context.Context, spiffeID string, newSelec
 				"spiffe_id",
 				"selector_type_value",
 				"selector_type_value_full",
+				"index_terms",
 			).
 			Values(
 				spiffeID,
 				newStvFull[i],
 				newStvFull,
+				buildSelectorIndexes(newSelectors),
 			)
 		q, _ := setStvQuery.Build()
 
@@ -716,6 +685,7 @@ func (p *Plugin) setNodeSelectors(ctx context.Context, spiffeID string, newSelec
 		// selector_type_value_full to an empty list
 		deletePartitionList := qb.NewDelete().
 			Column("selector_type_value_full").
+			Column("index_terms").
 			From("attested_node_entries").
 			Where("spiffe_id", qb.Equals(spiffeID))
 		q, _ := deletePartitionList.Build()
