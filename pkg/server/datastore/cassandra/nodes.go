@@ -111,7 +111,7 @@ func (p *Plugin) createAttestedNode(ctx context.Context, model *datastorev1.Atte
 			can_reattest,
 			agent_version,
 			selector_type_value,
-			banned,
+			banned
 		) VALUES (toTimestamp(now()), toTimestamp(now()), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 
