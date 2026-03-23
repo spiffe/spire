@@ -7,6 +7,8 @@ services:
     volumes:
       - ./conf/upstream/server:/opt/spire/conf/server
     command: ["-config", "/opt/spire/conf/server/server.conf"]
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
   downstream-federated-spire-server:
     image: spire-server:latest-local
     env_file:
@@ -15,6 +17,8 @@ services:
     volumes:
       - ./conf/downstream-federated/server:/opt/spire/conf/server
     command: ["config", "/opt/spire/conf/server/server.conf"]
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
   upstream-proxy:
     image: envoy-agent-mashup
     env_file:

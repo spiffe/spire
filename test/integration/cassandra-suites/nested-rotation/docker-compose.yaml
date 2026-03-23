@@ -8,6 +8,8 @@ services:
     volumes:
       - ./root/server:/opt/spire/conf/server
     command: ["-config", "/opt/spire/conf/server/server.conf"]
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
   root-agent:
     # Share the host pid namespace so this agent can attest the intermediate servers
     pid: "host"
@@ -42,6 +44,8 @@ services:
       - ./shared/intermediateA/data:/opt/spire/data/server
       - ./intermediateA/server:/opt/spire/conf/server
     command: ["-config", "/opt/spire/conf/server/server.conf"]
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
   intermediateA-agent:
     # Share the host pid namespace so this agent can attest the leafA server
     pid: "host"
@@ -75,6 +79,8 @@ services:
       - intermediateASocket:/opt/spire/sockets:rw
       - ./leafA/server:/opt/spire/conf/server
     command: ["-config", "/opt/spire/conf/server/server.conf"]
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
   leafA-agent:
     image: nested-agent-alpine
     hostname: leafA-agent
@@ -102,6 +108,8 @@ services:
       - ./shared/intermediateB/data:/opt/spire/data/server
       - ./intermediateB/server:/opt/spire/conf/server
     command: ["-config", "/opt/spire/conf/server/server.conf"]
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
   intermediateB-agent:
     # Share the host pid namespace so this agent can attest the leafB server
     pid: "host"
@@ -135,6 +143,8 @@ services:
       - intermediateBSocket:/opt/spire/sockets:rw
       - ./leafB/server:/opt/spire/conf/server
     command: ["-config", "/opt/spire/conf/server/server.conf"]
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
   leafB-agent:
     image: nested-agent-alpine
     env_file:
