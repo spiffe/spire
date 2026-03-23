@@ -18,7 +18,7 @@ download-kubectl "${KUBECTL_PATH}"
 download-helm "${HELM_PATH}"
 
 # Start the kind cluster.
-start-g-kind-cluster "${KIND_PATH}" ejbca-test ./conf/kind-config.yaml
+start-kind-cluster "${KIND_PATH}" ejbca-test ./conf/kind-config.yaml
 
 # Load the given images in the cluster.
 container_images=("spire-server:latest-local")

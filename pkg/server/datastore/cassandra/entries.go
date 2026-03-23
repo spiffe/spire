@@ -155,7 +155,7 @@ func (p *Plugin) createRegistrationEntry(ctx context.Context, entry *datastorev1
 
 	entry.EntryId = entryID
 	entry.CreatedAt = time.Now().Unix()
-	entry.UpdatedAt = entry.UpdatedAt
+	entry.UpdatedAt = entry.CreatedAt
 
 	b := p.db.session.Batch(gocql.LoggedBatch).Consistency(p.db.cfg.WriteConsistency)
 

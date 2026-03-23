@@ -14,6 +14,8 @@ SUITES="${ORIGDIR}/cassandra-suites/*"
 ignore_suites=(${IGNORE_SUITES})
 echo "Testing $SUITES"
 
+export FULL_SUITE=true
+
 # These "suites" either setup their own Cassandra cluster or are not tests.
 always_skip=("datastore-cassandra" "datastore-cassandra-focus" "datastore-cassandra-multinode" "datastore-cassandra-multinode-multidc" "test-suite.md")
 
