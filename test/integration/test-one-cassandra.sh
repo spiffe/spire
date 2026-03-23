@@ -2,15 +2,18 @@
 
 ROOTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 COMMON="${ROOTDIR}/common"
+ORIGDIR=${ROOTDIR}
 
 # shellcheck source=./common
 source "${COMMON}"
 
-[ -n "$1" ] || fail-now "must pass the test suite directory as the first argument"
-[ -d "$1" ] || fail-now "$1 does not exist or is not a directory"
+echo "Full suite mode: ${FULL_SUITE}"
 
-TESTDIR="$( cd "$1" && pwd )"
-TESTNAME="$(basename "${TESTDIR}")"
+if [[ ! "$FULL_SUITE" == "true" ]]; then
+    cd "${ROOTDIR}"/setup/cassandra-multinode && source ./setup || fail-now "Cassandra multinode setup failed"
+    cd "${ORIGDIR}" || fail-now "Unable to change back to script directory"
+fi
+
 
 # Capture the top level directory of the repository
 REPODIR=$(git rev-parse --show-toplevel)
@@ -19,6 +22,20 @@ REPODIR=$(git rev-parse --show-toplevel)
 # Makefile, if necessary.
 PATH=$(cd "${REPODIR}" || exit; make go-bin-path)
 export PATH
+
+if [[ ! "$FULL_SUITE" == "true" ]]; then
+    echo "not in full suite mode"
+    [ -n "$REPODIR/$1" ] || fail-now "must pass the test suite directory as the first argument"
+    [ -d "$REPODIR/$1" ] || fail-now "$REPODIR/$1 does not exist or is not a directory"
+    TESTDIR="$( cd "$REPODIR/$1" && pwd )"
+else
+    echo "in full suite mode"
+    [ -n "$1" ] || fail-now "must pass the test suite directory as the first argument"
+    [ -d "$1" ] || fail-now "$REPODIR/$1 does not exist or is not a directory"
+    TESTDIR="$( cd "$1" && pwd )"
+fi
+
+TESTNAME="$(basename "${TESTDIR}")"
 
 log-info "running \"${TESTNAME}\" test suite..."
 

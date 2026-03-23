@@ -62,6 +62,8 @@
                 "-test.parallel",
                 "1",
                 "-test.v",
+                "-testify.m",
+                "^(TestCreateOrReturnRegistrationEntry)$"
             ],
             "preLaunchTask":"start cassandra",
             "postDebugTask": "stop cassandra",
