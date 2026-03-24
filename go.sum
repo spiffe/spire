@@ -527,8 +527,8 @@ github.com/hashicorp/hcl v1.0.1-vault-7 h1:ag5OxFVy3QYTFTJODRzTKVZ6xvdfLLCA1cy/Y
 github.com/hashicorp/hcl v1.0.1-vault-7/go.mod h1:XYhtn6ijBSAj6n4YqAaf7RBPS4I06AItNorpy+MoQNM=
 github.com/hashicorp/vault/api v1.23.0 h1:gXgluBsSECfRWTSW9niY2jwg2e9mMJc4WoHNv4g3h6A=
 github.com/hashicorp/vault/api v1.23.0/go.mod h1:zransKiB9ftp+kgY8ydjnvCU7Wk8i9L0DYWpXeMj9ko=
-github.com/hashicorp/vault/sdk v0.24.0 h1:4/8w/puVy751oHZlD2nVgDQPfqHy6gC61dU9QnMZZ0g=
-github.com/hashicorp/vault/sdk v0.24.0/go.mod h1:UUFZi1+tFZIIGnuXTghetJ5FpjAsyHeQDobzRW/rztE=
+github.com/hashicorp/vault/sdk v0.25.0 h1:BbosMCoMLceSnd/omrC6SQQ75cxmie51Exwtxhb5a8U=
+github.com/hashicorp/vault/sdk v0.25.0/go.mod h1:UUFZi1+tFZIIGnuXTghetJ5FpjAsyHeQDobzRW/rztE=
 github.com/hashicorp/yamux v0.1.2 h1:XtB8kyFOyHXYVFnwT5C3+Bdo8gArse7j2AQ0DA0Uey8=
 github.com/hashicorp/yamux v0.1.2/go.mod h1:C+zze2n6e/7wshOZep2A70/aQU6QBRWJO/G6FT1wIns=
 github.com/howeyc/gopass v0.0.0-20210920133722-c8aef6fb66ef h1:A9HsByNhogrvm9cWb28sjiS3i7tcKCkflWFEkHfuAgM=
