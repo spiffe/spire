@@ -821,6 +821,12 @@ server {
 telemetry {
     Prometheus {
         port = 1234
+        #optional TLS for prometheus
+        tls {
+            cert_file = "/path/to/cert.pem"
+            key_file = "/path/to/key.pem"
+            client_ca_file = "/path/to/ca.pem" # optional CA file for mTLS
+        }
     }
 }
 
