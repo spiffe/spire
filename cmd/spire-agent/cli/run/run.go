@@ -102,6 +102,7 @@ type agentConfig struct {
 	ProfilingPort    int                `hcl:"profiling_port"`
 	ProfilingFreq    int                `hcl:"profiling_freq"`
 	ProfilingNames   []string           `hcl:"profiling_names"`
+	WorkloadAPIRateLimit int            `hcl:"workload_api_rate_limit"`
 	Experimental     experimentalConfig `hcl:"experimental"`
 
 	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions"`
@@ -559,6 +560,7 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 	ac.ProfilingNames = c.Agent.ProfilingNames
 
 	ac.AllowedForeignJWTClaims = c.Agent.AllowedForeignJWTClaims
+	ac.WorkloadAPIRateLimit = c.Agent.WorkloadAPIRateLimit
 
 	ac.PluginConfigs, err = catalog.PluginConfigsFromHCLNode(c.Plugins)
 	if err != nil {

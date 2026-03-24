@@ -26,7 +26,7 @@ type Endpoints struct {
 
 func (e *Endpoints) ListenAndServe(ctx context.Context) error {
 	unaryInterceptor, streamInterceptor := middleware.Interceptors(
-		endpoints.Middleware(e.c.Log, e.c.Metrics),
+		endpoints.Middleware(e.c.Log, e.c.Metrics, e.c.WorkloadAPIRateLimit),
 	)
 
 	server := grpc.NewServer(

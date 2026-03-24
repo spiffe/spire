@@ -18,13 +18,19 @@ const (
 	workloadAPIMethodPrefix = "/SpiffeWorkloadAPI/"
 )
 
-func Middleware(log logrus.FieldLogger, metrics telemetry.Metrics) middleware.Middleware {
+func Middleware(log logrus.FieldLogger, metrics telemetry.Metrics, rateLimit int) middleware.Middleware {
 	return middleware.Chain(
 		middleware.WithLogger(log),
 		middleware.WithMetrics(metrics),
 		withPerServiceConnectionMetrics(metrics),
 		middleware.Preprocess(addWatcherPID),
 		middleware.Preprocess(verifySecurityHeader),
+		withRateLimit(metrics, map[string]int{
+			workloadAPIMethodPrefix + "FetchX509SVID":   rateLimit,
+			workloadAPIMethodPrefix + "FetchJWTSVID":    rateLimit,
+			workloadAPIMethodPrefix + "FetchJWTBundles":  rateLimit,
+			workloadAPIMethodPrefix + "ValidateJWTSVID": rateLimit,
+		}),
 	)
 }
 

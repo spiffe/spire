@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net"
 	"testing"
+	"time"
 
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
@@ -367,6 +368,10 @@ func (l *fakeLimiter) WaitN(ctx context.Context, count int) error {
 		return errors.New("exceeding burst should have already been handled")
 	}
 	return l.waitN(ctx, l.id, count)
+}
+
+func (l *fakeLimiter) AllowN(time.Time, int) bool {
+	return true
 }
 
 func (l *fakeLimiter) Limit() rate.Limit {

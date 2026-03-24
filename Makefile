@@ -122,6 +122,7 @@ endif
 ############################################################################
 
 PLATFORMS ?= linux/amd64,linux/arm64
+BUILDX_BUILDER ?= container-builder
 
 binaries := spire-server spire-agent oidc-discovery-provider
 
@@ -332,13 +333,17 @@ spire-buildx-tls:
 
 .PHONY: container-builder
 container-builder: $(dockertls)
-	$(E)docker buildx create $(dockertls) --platform $(PLATFORMS) --name container-builder --node container-builder0 --use
+	$(E)if [ "$(BUILDX_BUILDER)" = "container-builder" ]; then \
+		docker buildx inspect container-builder > /dev/null 2>&1 || \
+		docker buildx create $(dockertls) --platform $(PLATFORMS) --name container-builder --node container-builder0 --use; \
+	fi
 
 define image_rule
 .PHONY: $1
 $1: $3 container-builder
 	@echo Building docker image $2 $(PLATFORM)…
 	$(E)docker buildx build \
+		--builder $(BUILDX_BUILDER) \
 		--platform $(PLATFORMS) \
 		--build-arg goversion=$(go_version) \
 		--build-arg TAG=$(TAG) \

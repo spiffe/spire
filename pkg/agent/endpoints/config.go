@@ -42,8 +42,8 @@ type Config struct {
 	AllowUnauthenticatedVerifiers bool
 
 	AllowedForeignJWTClaims []string
-
-	TrustDomain spiffeid.TrustDomain
+	TrustDomain             spiffeid.TrustDomain
+	WorkloadAPIRateLimit    int
 
 	// Hooks used by the unit tests to assert that the configuration provided
 	// to each handler is correct and return fake handlers.

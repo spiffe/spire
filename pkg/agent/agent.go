@@ -468,6 +468,7 @@ func (a *Agent) newEndpoints(metrics telemetry.Metrics, mgr manager.Manager, att
 		AllowUnauthenticatedVerifiers: a.c.AllowUnauthenticatedVerifiers,
 		AllowedForeignJWTClaims:       a.c.AllowedForeignJWTClaims,
 		TrustDomain:                   a.c.TrustDomain,
+		WorkloadAPIRateLimit:          a.c.WorkloadAPIRateLimit,
 	})
 }
 
@@ -481,6 +482,7 @@ func (a *Agent) newAdminEndpoints(metrics telemetry.Metrics, mgr manager.Manager
 		Uptime:              uptime.Uptime,
 		Attestor:            attestor,
 		AuthorizedDelegates: authorizedDelegates,
+		WorkloadAPIRateLimit: a.c.WorkloadAPIRateLimit,
 	}
 
 	return admin_api.New(config)

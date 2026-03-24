@@ -115,6 +115,9 @@ type Config struct {
 
 	// TLSPolicy determines the post-quantum-safe TLS policy to apply to all TLS connections.
 	TLSPolicy tlspolicy.Policy
+
+	// WorkloadAPIRateLimit is the rate limit for Workload API calls
+	WorkloadAPIRateLimit int
 }
 
 func New(c *Config) *Agent {
