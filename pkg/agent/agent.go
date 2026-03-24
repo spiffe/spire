@@ -184,7 +184,7 @@ func (a *Agent) Run(ctx context.Context) error {
 				} else if a.c.RebootstrapMode != RebootstrapNever {
 					startTime, err := a.c.TrustBundleSources.GetStartTime()
 					if err != nil {
-						return nil
+						return err
 					}
 					seconds := time.Since(startTime)
 					if seconds < a.c.RebootstrapDelay {
