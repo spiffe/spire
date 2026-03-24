@@ -23,52 +23,32 @@ A production-ready setup consists of a high-availability SPIRE Server cluster an
 
 ### 1. Provisioning
 
-Provision each node's TPM out-of-band. You'll need to generate a key pair in the TPM, get a certificate signed by your internal CA, and save the key blobs (`.priv` and `.pub`) to disk.
+Before configuring SPIRE, each node's TPM must be provisioned with a Local Device Identifier (LDevID) out-of-band. This process typically involves:
+
+1. **Key Generation**: Using a tool like `tpm2-tools`, generate an asymmetric key pair securely within the TPM. The private portion of the key never leaves the hardware.
+2. **Certificate Signing Request (CSR)**: Generate a CSR from the TPM key.
+3. **Certificate Issuance**: Submit the CSR to your internal Certificate Authority (CA) to obtain the signed LDevID certificate for the node. 
+4. **Storing Artifacts**: Securely store the returned certificate (`.pem` or `.crt`) alongside the generated key blobs (`.priv` and `.pub`) on the node's disk.
+
+These artifacts establish the initial hardware-bound identity that the SPIRE Agent will use to attest to the Server.
 
 ### 2. SPIRE Server Configuration
 
-Configure the `tpm_devid` attestor in `server.conf`. Point to the CA that signed your node certificates.
+Configure the `tpm_devid` attestor in the SPIRE Server configuration file (`server.conf`). The server must be configured with a path to the CA certificates (`devid_ca_path`) that signed the agents' LDevID certificates. 
 
-```hcl
-server {
-    trust_domain = "example.org"
-}
-
-plugins {
-    NodeAttestor "tpm_devid" {
-        plugin_data {
-            devid_ca_path = "/etc/spire/certs/devid-ca.pem"
-            endorsement_ca_path = "/etc/spire/certs/tpm-manufacturer-ca.pem"
-        }
-    }
-}
-```
+For full configuration options, including how to configure endorsement verification, please refer to the [Server `tpm_devid` plugin documentation](plugin_server_nodeattestor_tpm_devid.md).
 
 ### 3. SPIRE Agent Configuration
 
-Configure the `tpm_devid` attestor in `agent.conf`.
+Configure the `tpm_devid` attestor in the SPIRE Agent configuration file (`agent.conf`) to point to the LDevID certificate and key blobs provisioned in Step 1.
 
-```hcl
-agent {
-    trust_domain = "example.org"
-    server_address = "spire-control-plane.example.org"
-    server_port = 8081
-}
-
-plugins {
-    NodeAttestor "tpm_devid" {
-        plugin_data {
-            devid_cert_path = "/etc/spire/agent/devid.crt"
-            devid_priv_path = "/etc/spire/agent/devid.priv"
-            devid_pub_path = "/etc/spire/agent/devid.pub"
-        }
-    }
-}
-```
+For full configuration details and a sample configuration block, please see the [Agent `tpm_devid` plugin documentation](plugin_agent_nodeattestor_tpm_devid.md).
 
 ### 4. Node Registration
 
-Create a registration entry for each node.
+Create a registration entry to map the node's TPM identity (e.g., the Common Name in its LDevID certificate) to a specific SPIFFE ID. 
+
+This step is strictly optional. If omitted, the server will default to issuing a SPIFFE ID based on the node's LDevID certificate fingerprint. However, explicitly registering the node is recommended to assign a recognized, human-readable SPIFFE ID (such as `spiffe://example.org/node/primary`) for associating subsequent workload entries.
 
 ```shell
 (in dev shell) # ./bin/spire-server entry create \
