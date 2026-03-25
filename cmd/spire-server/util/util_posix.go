@@ -6,20 +6,33 @@ import (
 	"context"
 	"flag"
 	"net"
+	"os"
 	"strings"
 )
 
 type adapterOS struct {
 	socketPath string
+	instance   string
 }
 
 func (a *Adapter) addOSFlags(flags *flag.FlagSet) {
 	flags.StringVar(&a.socketPath, "socketPath", DefaultSocketPath, "Path to the SPIRE Server API socket")
+	flags.StringVar(&a.instance, "i", "", "Instance name to substitute into socket templates (env SPIRE_SERVER_PRIVATE_SOCKET_TEMPLATE). If omitted and the env var is set, defaults to 'main'.")
 }
 
 func (a *Adapter) getGRPCAddr() string {
 	if a.socketPath == "" {
 		a.socketPath = DefaultSocketPath
+	}
+
+	tpl := os.Getenv("SPIRE_SERVER_PRIVATE_SOCKET_TEMPLATE")
+	if tpl != "" && strings.Contains(tpl, "%i") {
+		if a.instance == "" {
+			a.instance = "main"
+		}
+		if a.socketPath == DefaultSocketPath {
+			a.socketPath = strings.ReplaceAll(tpl, "%i", a.instance)
+		}
 	}
 
 	// When grpc-go deprecated grpc.DialContext() in favor of grpc.NewClient(),
