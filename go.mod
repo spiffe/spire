@@ -3,7 +3,7 @@ module github.com/spiffe/spire
 go 1.26.1
 
 require (
-	cloud.google.com/go/iam v1.5.3
+	cloud.google.com/go/iam v1.6.0
 	cloud.google.com/go/kms v1.26.0
 	cloud.google.com/go/secretmanager v1.16.0
 	cloud.google.com/go/security v1.19.2
