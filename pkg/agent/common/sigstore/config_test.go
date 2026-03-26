@@ -21,10 +21,10 @@ func TestNewConfigFromHCL(t *testing.T) {
 					"test-issuer-2": {"domain/ci.yaml@refs/tags/*"},
 				},
 				SkippedImages:      []string{"registry/image@sha256:examplehash"},
-				RekorURL:           strPtr("https://test.dev"),
-				IgnoreSCT:          boolPtr(true),
-				IgnoreTlog:         boolPtr(true),
-				IgnoreAttestations: boolPtr(true),
+				RekorURL:           new("https://test.dev"),
+				IgnoreSCT:          new(true),
+				IgnoreTlog:         new(true),
+				IgnoreAttestations: new(true),
 				RegistryCredentials: map[string]*RegistryCredential{
 					"registry": {
 						Username: "user",
@@ -74,12 +74,4 @@ func TestNewConfigFromHCL(t *testing.T) {
 			assert.Equal(t, tt.want, got)
 		})
 	}
-}
-
-func strPtr(s string) *string {
-	return &s
-}
-
-func boolPtr(b bool) *bool {
-	return &b
 }

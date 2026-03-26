@@ -159,24 +159,20 @@ func (p *hcClientPlugin) GRPCClient(ctx context.Context, b *goplugin.GRPCBroker,
 	server := newHostServer(p.config.Log, p.config.Name, p.config.HostServices)
 
 	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		if err := server.Serve(listener); err != nil && !errors.Is(err, grpc.ErrServerStopped) {
 			p.config.Log.WithError(err).Error("Host services server failed")
 			c.Close()
 		}
-	}()
+	})
 
 	ctx, cancel := context.WithCancel(ctx)
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		<-ctx.Done()
 		if !gracefulStopWithTimeout(server) {
 			p.config.Log.Warn("Forced timed-out host service server to stop")
 		}
-	}()
+	})
 
 	return &hcPlugin{
 		conn:    c,

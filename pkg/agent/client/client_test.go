@@ -171,11 +171,9 @@ func TestFetchUpdates(t *testing.T) {
 	var wg sync.WaitGroup
 	var update *Update
 	err := errors.New("a not nil error")
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		update, err = client.FetchUpdates(ctx)
-	}()
+	})
 
 	// The request should wait until the SVID rotation finishes
 	require.Contains(t, "a not nil error", err.Error())
@@ -543,11 +541,9 @@ func TestNewX509SVIDs(t *testing.T) {
 			var wg sync.WaitGroup
 			var svids map[string]*X509SVID
 			err := errors.New("a not nil error")
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
+			wg.Go(func() {
 				svids, err = sClient.NewX509SVIDs(ctx, newTestCSRs())
-			}()
+			})
 
 			// The request should wait until the SVID rotation finishes
 			require.Contains(t, "a not nil error", err.Error())

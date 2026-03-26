@@ -170,14 +170,14 @@ func (s *IITAttestorSuite) TestAttestSuccessWithInstanceMetadata() {
 			Items: []*compute.MetadataItems{
 				{
 					Key:   "allowed",
-					Value: stringPtr("ALLOWED"),
+					Value: new("ALLOWED"),
 				},
 				{
 					Key: "allowed-no-value",
 				},
 				{
 					Key:   "disallowed",
-					Value: stringPtr("DISALLOWED"),
+					Value: new("DISALLOWED"),
 				},
 			},
 		},
@@ -213,7 +213,7 @@ func (s *IITAttestorSuite) TestAttestFailsIfInstanceMetadataValueExceedsLimit() 
 			Items: []*compute.MetadataItems{
 				{
 					Key:   "allowed",
-					Value: stringPtr("ALLOWED BUT TOO LONG"),
+					Value: new("ALLOWED BUT TOO LONG"),
 				},
 			},
 		},
@@ -441,10 +441,6 @@ func (c *fakeComputeEngineClient) fetchInstanceMetadata(_ context.Context, proje
 	default:
 		return c.instance, nil
 	}
-}
-
-func stringPtr(s string) *string {
-	return &s
 }
 
 func expectNoChallenge(context.Context, []byte) ([]byte, error) {

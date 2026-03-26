@@ -234,33 +234,33 @@ func (p *Plugin) updateBundles(ctx context.Context) (err error) {
 		return err
 	}
 
-	var updateErrs string
+	var updateErrs strings.Builder
 	for _, client := range clients {
 		list, err := client.GetList(ctx)
 		if err != nil {
-			updateErrs += fmt.Sprintf("unable to get list: %v, ", err)
+			updateErrs.WriteString(fmt.Sprintf("unable to get list: %v, ", err))
 			continue
 		}
 		listItems, err := meta.ExtractList(list)
 		if err != nil {
-			updateErrs += fmt.Sprintf("unable to extract list items: %v, ", err)
+			updateErrs.WriteString(fmt.Sprintf("unable to extract list items: %v, ", err))
 			continue
 		}
 		for _, item := range listItems {
 			itemMeta, err := meta.Accessor(item)
 			if err != nil {
-				updateErrs += fmt.Sprintf("unable to extract metadata for item: %v, ", err)
+				updateErrs.WriteString(fmt.Sprintf("unable to extract metadata for item: %v, ", err))
 				continue
 			}
 			err = p.updateBundle(ctx, client, itemMeta.GetNamespace(), itemMeta.GetName())
 			if err != nil && status.Code(err) != codes.AlreadyExists {
-				updateErrs += fmt.Sprintf("%s: %v, ", namespacedName(itemMeta), err)
+				updateErrs.WriteString(fmt.Sprintf("%s: %v, ", namespacedName(itemMeta), err))
 			}
 		}
 	}
 
-	if len(updateErrs) > 0 {
-		return status.Errorf(codes.Internal, "unable to update: %s", strings.TrimSuffix(updateErrs, ", "))
+	if updateErrs.Len() > 0 {
+		return status.Errorf(codes.Internal, "unable to update: %s", strings.TrimSuffix(updateErrs.String(), ", "))
 	}
 	return nil
 }
