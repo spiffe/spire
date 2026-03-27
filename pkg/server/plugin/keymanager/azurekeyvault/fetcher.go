@@ -127,16 +127,18 @@ func (kf *keyFetcher) fetchKeyEntryDetails(ctx context.Context, keyItem *azkeys.
 }
 
 func keyTypeFromKeySpec(keyBundle azkeys.KeyBundle) (keymanagerv1.KeyType, bool) {
+	kty := *keyBundle.Key.Kty
+	isRSA := kty == azkeys.JSONWebKeyTypeRSA || kty == azkeys.JSONWebKeyTypeRSAHSM
+	isEC := kty == azkeys.JSONWebKeyTypeEC || kty == azkeys.JSONWebKeyTypeECHSM
 	switch {
-	case *keyBundle.Key.Kty == azkeys.JSONWebKeyTypeRSA && len(keyBundle.Key.N) == 256:
+	case isRSA && len(keyBundle.Key.N) == 256:
 		return keymanagerv1.KeyType_RSA_2048, true
-	case *keyBundle.Key.Kty == azkeys.JSONWebKeyTypeRSA && len(keyBundle.Key.N) == 512:
+	case isRSA && len(keyBundle.Key.N) == 512:
 		return keymanagerv1.KeyType_RSA_4096, true
-	case *keyBundle.Key.Kty == azkeys.JSONWebKeyTypeEC && *keyBundle.Key.Crv == azkeys.JSONWebKeyCurveNameP256:
+	case isEC && *keyBundle.Key.Crv == azkeys.JSONWebKeyCurveNameP256:
 		return keymanagerv1.KeyType_EC_P256, true
-	case *keyBundle.Key.Kty == azkeys.JSONWebKeyTypeEC && *keyBundle.Key.Crv == azkeys.JSONWebKeyCurveNameP384:
+	case isEC && *keyBundle.Key.Crv == azkeys.JSONWebKeyCurveNameP384:
 		return keymanagerv1.KeyType_EC_P384, true
-
 	default:
 		return keymanagerv1.KeyType_UNSPECIFIED_KEY_TYPE, false
 	}
