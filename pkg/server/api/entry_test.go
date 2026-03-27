@@ -722,6 +722,7 @@ func TestReadOnlyEntry(t *testing.T) {
 	require.Equal(t, readOnlyEntry.GetDnsNames(), entry.DnsNames)
 	require.Equal(t, readOnlyEntry.GetRevisionNumber(), entry.RevisionNumber)
 	require.Equal(t, readOnlyEntry.GetCreatedAt(), entry.CreatedAt)
+	require.Equal(t, readOnlyEntry.GetAdditionalAttributes(), entry.AdditionalAttributes)
 }
 
 func TestReadOnlyEntryClone(t *testing.T) {
@@ -748,6 +749,9 @@ func TestReadOnlyEntryClone(t *testing.T) {
 		Hint:           "external",
 		CreatedAt:      1678731397,
 		StoreSvid:      true,
+		AdditionalAttributes: &types.Entry_AdditionalAttributes{
+			DisableX509SvidPrefetch: false,
+		},
 	}
 
 	// Verify that we our test entry has all fields set to make sure

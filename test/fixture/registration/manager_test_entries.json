@@ -95,7 +95,7 @@
                 "revision_number": 2
             }
         ]
-    }, 
+    },
     "resp5" : {
         "entries": [
             {
@@ -122,6 +122,24 @@
                 "federates_with": ["spiffe://otherdomain.test"],
                 "store_svid": true,
                 "revision_number": 3
+            }
+        ]
+    },
+    "resp6" : {
+        "entries": [
+            {
+                "selectors": [
+                    {
+                        "type": "unix",
+                        "value": "uid:1111"
+                    }
+                ],
+                "entry_id": "0001",
+                "spiffe_id": "spiffe://example.org/spire/agent-1",
+                "revision_number": 1,
+                "additional_attributes": {
+                    "disable_x509_svid_prefetch": true
+                }
             }
         ]
     }
