@@ -59,6 +59,10 @@ func (e *ReadOnlyEntry) GetCreatedAt() int64 {
 	return e.entry.CreatedAt
 }
 
+func (e *ReadOnlyEntry) GetAdditionalAttributes() *types.Entry_AdditionalAttributes {
+	return e.entry.AdditionalAttributes
+}
+
 // Manually clone the entry instead of using the protobuf helpers
 // since those are two times slower.
 func (e *ReadOnlyEntry) Clone(mask *types.EntryMask) *types.Entry {
@@ -132,6 +136,23 @@ func (e *ReadOnlyEntry) Clone(mask *types.EntryMask) *types.Entry {
 		clone.CreatedAt = e.entry.CreatedAt
 	}
 
+	if mask.AdditionalAttributes {
+		clone.AdditionalAttributes = e.entry.AdditionalAttributes
+	}
+
+	if mask.JwtSvidDefaultAudiencePolicy {
+		clone.JwtSvidDefaultAudiencePolicy = e.entry.JwtSvidDefaultAudiencePolicy
+	}
+
+	if mask.JwtSvidAudiencePolicies {
+		if len(e.entry.JwtSvidAudiencePolicies) > 0 {
+			clone.JwtSvidAudiencePolicies = make(map[string]types.JWTSVIDAudiencePolicy, len(e.entry.JwtSvidAudiencePolicies))
+			for audience, policy := range e.entry.JwtSvidAudiencePolicies {
+				clone.JwtSvidAudiencePolicies[audience] = policy
+			}
+		}
+	}
+
 	return clone
 }
 
@@ -179,23 +200,59 @@ func RegistrationEntryToProto(e *common.RegistrationEntry) (*types.Entry, error)
 		}
 	}
 
-	return &types.Entry{
-		Id:             e.EntryId,
-		SpiffeId:       ProtoFromID(spiffeID),
-		ParentId:       ProtoFromID(parentID),
-		Selectors:      ProtoFromSelectors(e.Selectors),
-		X509SvidTtl:    e.X509SvidTtl,
-		FederatesWith:  federatesWith,
-		Admin:          e.Admin,
-		Downstream:     e.Downstream,
-		ExpiresAt:      e.EntryExpiry,
-		DnsNames:       slices.Clone(e.DnsNames),
-		RevisionNumber: e.RevisionNumber,
-		StoreSvid:      e.StoreSvid,
-		JwtSvidTtl:     e.JwtSvidTtl,
-		Hint:           e.Hint,
-		CreatedAt:      e.CreatedAt,
-	}, nil
+	// Convert audience policies from common to types
+	var audiencePolicies map[string]types.JWTSVIDAudiencePolicy
+	if len(e.JwtSvidAudiencePolicies) > 0 {
+		audiencePolicies = make(map[string]types.JWTSVIDAudiencePolicy, len(e.JwtSvidAudiencePolicies))
+		for audience, policy := range e.JwtSvidAudiencePolicies {
+			audiencePolicies[audience] = types.JWTSVIDAudiencePolicy(policy)
+		}
+	}
+
+	entry := &types.Entry{
+		Id:                           e.EntryId,
+		SpiffeId:                     ProtoFromID(spiffeID),
+		ParentId:                     ProtoFromID(parentID),
+		Selectors:                    ProtoFromSelectors(e.Selectors),
+		X509SvidTtl:                  e.X509SvidTtl,
+		FederatesWith:                federatesWith,
+		Admin:                        e.Admin,
+		Downstream:                   e.Downstream,
+		ExpiresAt:                    e.EntryExpiry,
+		DnsNames:                     slices.Clone(e.DnsNames),
+		RevisionNumber:               e.RevisionNumber,
+		StoreSvid:                    e.StoreSvid,
+		JwtSvidTtl:                   e.JwtSvidTtl,
+		Hint:                         e.Hint,
+		CreatedAt:                    e.CreatedAt,
+		JwtSvidDefaultAudiencePolicy: types.JWTSVIDAudiencePolicy(e.JwtSvidDefaultAudiencePolicy),
+		JwtSvidAudiencePolicies:      audiencePolicies,
+	}
+
+	additionalAttributes := ProtoFromAdditionalAttributes(e.AdditionalAttributes)
+	if additionalAttributes != nil {
+		entry.AdditionalAttributes = additionalAttributes
+	}
+
+	return entry, nil
+}
+
+func ProtoFromAdditionalAttributes(in *common.RegistrationEntry_AdditionalAttributes) *types.Entry_AdditionalAttributes {
+	if in != nil {
+		return &types.Entry_AdditionalAttributes{
+			DisableX509SvidPrefetch: in.DisableX509SvidPrefetch,
+		}
+	}
+	return nil
+}
+
+func AdditionalAttributesFromProto(in *types.Entry_AdditionalAttributes) *common.RegistrationEntry_AdditionalAttributes {
+	if in != nil {
+		return &common.RegistrationEntry_AdditionalAttributes{
+			DisableX509SvidPrefetch: in.DisableX509SvidPrefetch,
+		}
+	}
+	return nil
 }
 
 // ProtoToRegistrationEntry converts and validate entry into common registration entry
@@ -309,20 +366,44 @@ func ProtoToRegistrationEntryWithMask(ctx context.Context, td spiffeid.TrustDoma
 		}
 		hint = e.Hint
 	}
+
+	var additionalAttributes *common.RegistrationEntry_AdditionalAttributes
+	if mask.AdditionalAttributes {
+		additionalAttributes = AdditionalAttributesFromProto(e.AdditionalAttributes)
+	}
+
+	var jwtSvidDefaultAudiencePolicy common.JWTSVIDAudiencePolicy
+	if mask.JwtSvidDefaultAudiencePolicy {
+		jwtSvidDefaultAudiencePolicy = common.JWTSVIDAudiencePolicy(e.JwtSvidDefaultAudiencePolicy)
+	}
+
+	var jwtSvidAudiencePolicies map[string]common.JWTSVIDAudiencePolicy
+	if mask.JwtSvidAudiencePolicies {
+		if len(e.JwtSvidAudiencePolicies) > 0 {
+			jwtSvidAudiencePolicies = make(map[string]common.JWTSVIDAudiencePolicy, len(e.JwtSvidAudiencePolicies))
+			for audience, policy := range e.JwtSvidAudiencePolicies {
+				jwtSvidAudiencePolicies[audience] = common.JWTSVIDAudiencePolicy(policy)
+			}
+		}
+	}
+
 	return &common.RegistrationEntry{
-		EntryId:        e.Id,
-		ParentId:       parentID.String(),
-		SpiffeId:       spiffeID.String(),
-		Admin:          admin,
-		DnsNames:       dnsNames,
-		Downstream:     downstream,
-		EntryExpiry:    expiresAt,
-		FederatesWith:  federatesWith,
-		Selectors:      selectors,
-		RevisionNumber: revisionNumber,
-		StoreSvid:      storeSVID,
-		X509SvidTtl:    x509SvidTTL,
-		JwtSvidTtl:     jwtSvidTTL,
-		Hint:           hint,
+		EntryId:                      e.Id,
+		ParentId:                     parentID.String(),
+		SpiffeId:                     spiffeID.String(),
+		Admin:                        admin,
+		DnsNames:                     dnsNames,
+		Downstream:                   downstream,
+		EntryExpiry:                  expiresAt,
+		FederatesWith:                federatesWith,
+		Selectors:                    selectors,
+		RevisionNumber:               revisionNumber,
+		StoreSvid:                    storeSVID,
+		X509SvidTtl:                  x509SvidTTL,
+		JwtSvidTtl:                   jwtSvidTTL,
+		Hint:                         hint,
+		AdditionalAttributes:         additionalAttributes,
+		JwtSvidDefaultAudiencePolicy: jwtSvidDefaultAudiencePolicy,
+		JwtSvidAudiencePolicies:      jwtSvidAudiencePolicies,
 	}, nil
 }

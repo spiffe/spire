@@ -276,7 +276,7 @@ import (
 
 const (
 	// the latest schema version of the database in the code
-	latestSchemaVersion = 24
+	latestSchemaVersion = 26
 
 	// lastMinorReleaseSchemaVersion is the schema version supported by the
 	// last minor release. When the migrations are opportunistically pruned
@@ -436,6 +436,7 @@ func initDB(db *gorm.DB, dbType string, log logrus.FieldLogger) (err error) {
 		&DNSName{},
 		&FederatedTrustDomain{},
 		CAJournal{},
+		&EntryAudiencePolicy{},
 	}
 
 	if err := tableOptionsForDialect(tx, dbType).AutoMigrate(tables...).Error; err != nil {
@@ -509,6 +510,18 @@ func migrateVersion(tx *gorm.DB, currVersion int, log logrus.FieldLogger) (versi
 	switch currVersion {
 	case 23:
 		err = migrateToV24(tx)
+		if err != nil {
+			break
+		}
+		fallthrough
+	case 24:
+		err = migrateToV25(tx)
+		if err != nil {
+			break
+		}
+		fallthrough
+	case 25:
+		err = migrateToV26(tx)
 	default:
 		err = newSQLError("no migration support for unknown schema version %d", currVersion)
 	}
@@ -522,6 +535,26 @@ func migrateVersion(tx *gorm.DB, currVersion int, log logrus.FieldLogger) (versi
 func migrateToV24(tx *gorm.DB) error {
 	// Add agent_version column to attested_node_entries table
 	if err := tx.AutoMigrate(&AttestedNode{}).Error; err != nil {
+		return newWrappedSQLError(err)
+	}
+	return nil
+}
+
+func migrateToV25(tx *gorm.DB) error {
+	// Add additional_attributes column to registered_entries table
+	if err := tx.AutoMigrate(&RegisteredEntry{}).Error; err != nil {
+		return newWrappedSQLError(err)
+	}
+	return nil
+}
+
+func migrateToV26(tx *gorm.DB) error {
+	// Add jwt_svid_default_audience_policy column to registered_entries
+	if err := tx.AutoMigrate(&RegisteredEntry{}).Error; err != nil {
+		return newWrappedSQLError(err)
+	}
+	// Create entry_audience_policies table for per-audience JWT-SVID policy configuration
+	if err := tx.AutoMigrate(&EntryAudiencePolicy{}).Error; err != nil {
 		return newWrappedSQLError(err)
 	}
 	return nil

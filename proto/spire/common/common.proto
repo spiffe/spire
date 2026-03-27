@@ -99,6 +99,27 @@ message RegistrationEntry {
     string hint = 14;
     /** Time of creation, in seconds from epoch */
     int64 created_at = 15;
+    /** This nested message is reserved to contain a number of optional fields
+    controlling the various aspects of the agent's behaviour with respect to a
+    given registration entry. It serves to enable introducing and testing out new
+    tunables, without having to modify the datastore schema. Over time, some of
+    the fields contained therein may be considered eligible for their dedicated
+    attributes in the datastore. */
+    message AdditionalAttributes {
+        /** Flag indicating whether the agent should prefetch and cache X509 SVID.
+        Can be set to `true` if the workload is unlikely to request an X509 SVID.
+        This is meant to prevent unnecessary effort spent on generating SVIDs of types,
+        which are unlikely to be needed.*/
+        bool disable_x509_svid_prefetch = 1;
+    }
+    optional AdditionalAttributes additional_attributes = 16;
+    /** Default JWT-SVID audience policy for audiences not explicitly configured.
+     * If unset (DEFAULT), maintains backwards compatible behavior (no JTI, caching enabled). */
+    JWTSVIDAudiencePolicy jwt_svid_default_audience_policy = 17;
+    /** Per-audience JWT-SVID policy overrides.
+     * Key is the audience string, value is the policy for that audience.
+     * Audiences not in this map use jwt_svid_default_audience_policy. */
+    map<string, JWTSVIDAudiencePolicy> jwt_svid_audience_policies = 18;
 }
 
 /** The RegistrationEntryMask is used to update only selected fields of the RegistrationEntry */
@@ -116,6 +137,9 @@ message RegistrationEntryMask {
     bool store_svid = 11;
     bool jwt_svid_ttl = 12;
     bool hint = 13;
+    bool additional_attributes = 14;
+    bool jwt_svid_default_audience_policy = 15;
+    bool jwt_svid_audience_policies = 16;
 }
 
 
@@ -185,4 +209,17 @@ message AttestedNodeMask{
     bool new_cert_not_after = 5;
     bool can_reattest = 6;
     bool agent_version = 7;
+}
+
+/** Policy for JWT-SVID behavior per audience.
+ * Controls whether JTI claims are included and whether agent-side caching is used. */
+enum JWTSVIDAudiencePolicy {
+    /** Default behavior: no JTI claim, caching enabled. Backwards compatible. */
+    JWT_SVID_AUDIENCE_POLICY_DEFAULT = 0;
+    /** Auditable: JTI claim included for audit trails, caching still enabled.
+     * Verifiers can optionally enforce replay protection. */
+    JWT_SVID_AUDIENCE_POLICY_AUDITABLE = 1;
+    /** Unique: JTI claim included, caching disabled. Each request gets a fresh token.
+     * Use for strict replay protection requirements. */
+    JWT_SVID_AUDIENCE_POLICY_UNIQUE = 2;
 }
