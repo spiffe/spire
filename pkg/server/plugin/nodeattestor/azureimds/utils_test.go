@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute"
 	"github.com/stretchr/testify/require"
 )
 
@@ -527,6 +528,33 @@ func TestValidateVMSSName(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestParseNetworkInterfaceConfigNoNSG(t *testing.T) {
+	nicName := "test-nic"
+	subnetID := "/subscriptions/sub-123/resourceGroups/rg-1/providers/Microsoft.Network/virtualNetworks/vnet-1/subnets/subnet-1"
+	config := &armcompute.VirtualMachineScaleSetNetworkConfiguration{
+		Name: &nicName,
+		Properties: &armcompute.VirtualMachineScaleSetNetworkConfigurationProperties{
+			IPConfigurations: []*armcompute.VirtualMachineScaleSetIPConfiguration{
+				{
+					Properties: &armcompute.VirtualMachineScaleSetIPConfigurationProperties{
+						Subnet: &armcompute.APIEntityReference{
+							ID: &subnetID,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	ni, err := parseNetworkInterfaceConfig(config)
+	require.NoError(t, err)
+	require.Equal(t, nicName, ni.Name)
+	require.Equal(t, SecurityGroup{}, ni.SecurityGroup)
+	require.Len(t, ni.Subnets, 1)
+	require.Equal(t, "vnet-1", ni.Subnets[0].VNet)
+	require.Equal(t, "subnet-1", ni.Subnets[0].SubnetName)
 }
 
 func TestValidateUUID(t *testing.T) {

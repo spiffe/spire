@@ -239,21 +239,28 @@ func parseNetworkInterfaceConfig(interfaceConfig *armcompute.VirtualMachineScale
 	if interfaceConfig == nil {
 		return nil, status.Error(codes.Internal, "network interface configuration is nil")
 	}
-	nsgResourceGroup, nsgName, err := parseNetworkSecurityGroupID(*interfaceConfig.Properties.NetworkSecurityGroup.ID)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "unable to parse network security group ID: %v", err)
-	}
 
 	ni := &NetworkInterface{
 		Name: *interfaceConfig.Name,
-		SecurityGroup: SecurityGroup{
+	}
+
+	if interfaceConfig.Properties == nil {
+		return ni, nil
+	}
+
+	if interfaceConfig.Properties.NetworkSecurityGroup != nil && interfaceConfig.Properties.NetworkSecurityGroup.ID != nil {
+		nsgResourceGroup, nsgName, err := parseNetworkSecurityGroupID(*interfaceConfig.Properties.NetworkSecurityGroup.ID)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "unable to parse network security group ID: %v", err)
+		}
+		ni.SecurityGroup = SecurityGroup{
 			ResourceGroup: nsgResourceGroup,
 			Name:          nsgName,
-		},
+		}
 	}
 
 	for _, ipconfig := range interfaceConfig.Properties.IPConfigurations {
-		if ipconfig == nil {
+		if ipconfig == nil || ipconfig.Properties == nil || ipconfig.Properties.Subnet == nil || ipconfig.Properties.Subnet.ID == nil {
 			continue
 		}
 
