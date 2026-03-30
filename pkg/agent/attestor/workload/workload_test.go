@@ -183,7 +183,8 @@ func (s *WorkloadAttestorTestSuite) TestAttestLogsOnContextCancellation() {
 			Level:   logrus.ErrorLevel,
 			Message: "Timed out collecting selectors for PID",
 			Data: logrus.Fields{
-				telemetry.PID: fmt.Sprint(pid),
+				telemetry.PID:   fmt.Sprint(pid),
+				logrus.ErrorKey: context.Canceled.Error(),
 			},
 		},
 	})

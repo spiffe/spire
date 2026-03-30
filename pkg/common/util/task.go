@@ -26,19 +26,17 @@ func (t *TaskRunner) StartTasks(tasks ...func(context.Context) error) {
 			if r := recover(); r != nil {
 				err = fmt.Errorf("panic: %v\n%s", r, string(debug.Stack()))
 			}
-			t.wg.Done()
 		}()
 		return task(t.ctx)
 	}
 
-	t.wg.Add(len(tasks))
 	for _, task := range tasks {
-		go func() {
+		t.wg.Go(func() {
 			err := runTask(task)
 			if err != nil {
 				t.cancel(err)
 			}
-		}()
+		})
 	}
 }
 

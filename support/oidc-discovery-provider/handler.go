@@ -31,7 +31,7 @@ type Handler struct {
 	http.Handler
 }
 
-func NewHandler(log logrus.FieldLogger, domainPolicy DomainPolicy, source JWKSSource, allowInsecureScheme bool, setKeyUse bool, jwtIssuer *url.URL, jwksURI *url.URL, serverPathPrefix string) *Handler {
+func NewHandler(log logrus.FieldLogger, domainPolicy DomainPolicy, source JWKSSource, allowInsecureScheme, setKeyUse bool, jwtIssuer, jwksURI *url.URL, serverPathPrefix string) (*Handler, error) {
 	if serverPathPrefix == "" {
 		serverPathPrefix = "/"
 	}
@@ -49,18 +49,18 @@ func NewHandler(log logrus.FieldLogger, domainPolicy DomainPolicy, source JWKSSo
 	mux := http.NewServeMux()
 	wkPath, err := url.JoinPath(serverPathPrefix, "/.well-known/openid-configuration")
 	if err != nil {
-		return nil
+		return nil, err
 	}
 	jwksPath, err := url.JoinPath(serverPathPrefix, "/keys")
 	if err != nil {
-		return nil
+		return nil, err
 	}
 
 	mux.Handle(wkPath, handlers.ProxyHeaders(http.HandlerFunc(h.serveWellKnown)))
 	mux.Handle(jwksPath, http.HandlerFunc(h.serveKeys))
 
 	h.Handler = mux
-	return h
+	return h, nil
 }
 
 func (h *Handler) serveWellKnown(w http.ResponseWriter, r *http.Request) {

@@ -193,46 +193,46 @@ func (p *AttestorPlugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer)
 
 	tokenStatus, err := cluster.client.ValidateToken(stream.Context(), attestationData.Token, cluster.audience)
 	if err != nil {
-		return status.Errorf(codes.Internal, "unable to validate token with TokenReview API: %v", err)
+		return status.Errorf(codes.Internal, "unable to validate token with TokenReview API for cluster %q: %v", attestationData.Cluster, err)
 	}
 
 	if !tokenStatus.Authenticated {
-		return status.Error(codes.PermissionDenied, "token not authenticated according to TokenReview API")
+		return status.Errorf(codes.PermissionDenied, "token not authenticated according to TokenReview API for cluster %q", attestationData.Cluster)
 	}
 
 	namespace, serviceAccountName, err := k8s.GetNamesFromTokenStatus(tokenStatus)
 	if err != nil {
-		return status.Errorf(codes.Internal, "fail to parse username from token review status: %v", err)
+		return status.Errorf(codes.Internal, "fail to parse username from token review status for cluster %q: %v", attestationData.Cluster, err)
 	}
 	fullServiceAccountName := fmt.Sprintf("%v:%v", namespace, serviceAccountName)
 
 	if !cluster.serviceAccounts[fullServiceAccountName] {
-		return status.Errorf(codes.PermissionDenied, "%q is not an allowed service account", fullServiceAccountName)
+		return status.Errorf(codes.PermissionDenied, "%q is not an allowed service account for cluster %q", fullServiceAccountName, attestationData.Cluster)
 	}
 
 	podName, err := k8s.GetPodNameFromTokenStatus(tokenStatus)
 	if err != nil {
-		return status.Errorf(codes.Internal, "fail to get pod name from token review status: %v", err)
+		return status.Errorf(codes.Internal, "fail to get pod name from token review status for cluster %q: %v", attestationData.Cluster, err)
 	}
 
 	podUID, err := k8s.GetPodUIDFromTokenStatus(tokenStatus)
 	if err != nil {
-		return status.Errorf(codes.Internal, "fail to get pod UID from token review status: %v", err)
+		return status.Errorf(codes.Internal, "fail to get pod UID from token review status for cluster %q: %v", attestationData.Cluster, err)
 	}
 
 	pod, err := cluster.client.GetPod(stream.Context(), namespace, podName)
 	if err != nil {
-		return status.Errorf(codes.Internal, "fail to get pod from k8s API server: %v", err)
+		return status.Errorf(codes.Internal, "fail to get pod from k8s API server for cluster %q: %v", attestationData.Cluster, err)
 	}
 
 	node, err := cluster.client.GetNode(stream.Context(), pod.Spec.NodeName)
 	if err != nil {
-		return status.Errorf(codes.Internal, "fail to get node from k8s API server: %v", err)
+		return status.Errorf(codes.Internal, "fail to get node from k8s API server for cluster %q: %v", attestationData.Cluster, err)
 	}
 
 	nodeUID := string(node.UID)
 	if nodeUID == "" {
-		return status.Errorf(codes.Internal, "node UID is empty")
+		return status.Errorf(codes.Internal, "node UID is empty for cluster %q", attestationData.Cluster)
 	}
 
 	selectorValues := []string{
