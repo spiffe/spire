@@ -2553,7 +2553,7 @@ func createRegistrationEntry(tx *gorm.DB, entry *common.RegistrationEntry) (*com
 		return nil, err
 	}
 
-	AdditionalAttributes, err := proto.Marshal(entry.AdditionalAttributes)
+	AdditionalAttributes, err := marshalAndValidateAdditionalAttributes(entry.AdditionalAttributes)
 	if err != nil {
 		return nil, err
 	}
@@ -4086,7 +4086,7 @@ func updateRegistrationEntry(tx *gorm.DB, e *common.RegistrationEntry, mask *com
 		entry.Hint = e.Hint
 	}
 	if mask == nil || mask.AdditionalAttributes {
-		AdditionalAttributes, err := proto.Marshal(e.AdditionalAttributes)
+		AdditionalAttributes, err := marshalAndValidateAdditionalAttributes(e.AdditionalAttributes)
 		if err != nil {
 			return nil, err
 		}
@@ -4532,20 +4532,20 @@ func modelToBundle(model *Bundle) (*common.Bundle, error) {
 	return bundle, nil
 }
 
-func validateAditionalAttributes(additionalAttributes *common.RegistrationEntry_AdditionalAttributes) error {
+func marshalAndValidateAdditionalAttributes(additionalAttributes *common.RegistrationEntry_AdditionalAttributes) ([]byte, error) {
 	if additionalAttributes == nil {
-		return nil
+		return nil, nil
 	}
 
 	marshaledAdditionalAttributes, err := proto.Marshal(additionalAttributes)
 	if err != nil {
-		return newValidationError("invalid additional attributes: %s", err)
+		return nil, newValidationError("invalid additional attributes: %s", err)
 	}
 	if len(marshaledAdditionalAttributes) > maxAdditionalAttributesSize {
-		return newValidationError("invalid registration entry: additional attributes size exceeds the maximum allowed size of %d bytes", maxAdditionalAttributesSize)
+		return nil, newValidationError("invalid registration entry: additional attributes size exceeds the maximum allowed size of %d bytes", maxAdditionalAttributesSize)
 	}
 
-	return nil
+	return marshaledAdditionalAttributes, nil
 }
 
 func validateRegistrationEntry(entry *common.RegistrationEntry) error {
@@ -4555,11 +4555,6 @@ func validateRegistrationEntry(entry *common.RegistrationEntry) error {
 
 	if len(entry.Selectors) == 0 {
 		return newValidationError("invalid registration entry: missing selector list")
-	}
-
-	err := validateAditionalAttributes(entry.AdditionalAttributes)
-	if err != nil {
-		return err
 	}
 
 	// In case of StoreSvid is set, all entries 'must' be the same type,
@@ -4639,12 +4634,6 @@ func validateRegistrationEntryForUpdate(entry *common.RegistrationEntry, mask *c
 	if (mask == nil || mask.JwtSvidTtl) &&
 		(entry.JwtSvidTtl < 0) {
 		return newValidationError("invalid registration entry: JwtSvidTtl is not set")
-	}
-
-	if mask != nil && mask.AdditionalAttributes {
-		if err := validateAditionalAttributes(entry.AdditionalAttributes); err != nil {
-			return err
-		}
 	}
 
 	return nil
