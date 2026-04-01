@@ -38,6 +38,17 @@ You may use all, some, or none of the collectors. The following collectors suppo
 |---------------|----------|------------------------------------|
 | `host`        | `string` | Prometheus exporter listen address |
 | `port`        | `int`    | Prometheus exporter listen port    |
+| `tls`         | `object` | TLS configuration for the Prometheus exporter |
+
+#### `Prometheus.tls`
+
+| Configuration | Type | Description |
+|---------------|------|-------------|
+| `cert_file` | `string` | Path to the PEM-encoded certificate for the Prometheus exporter. Must be set with `key_file` unless `use_spire_svid` is enabled |
+| `key_file` | `string` | Path to the PEM-encoded private key for the Prometheus exporter. Must be set with `cert_file` unless `use_spire_svid` is enabled |
+| `client_ca_file` | `string` | Optional path to the PEM-encoded CA bundle used to verify client certificates for mTLS. Cannot be combined with `authorized_spiffe_ids` |
+| `use_spire_svid` | `bool` | When `true`, serve the Prometheus endpoint with the current SPIRE SVID instead of `cert_file` and `key_file` |
+| `authorized_spiffe_ids` | `list(string)` | Optional list of SPIFFE IDs allowed to connect to the Prometheus endpoint. Requires SPIRE trust bundles and cannot be combined with `client_ca_file` |
 
 ### `DogStatsd`
 
@@ -64,11 +75,17 @@ Here is a sample configuration:
 telemetry {
         Prometheus {
             port = 9988
-            #optional TLS for prometheus
+            # optional TLS for prometheus
             tls {
-                cert_file = "/path/to/cert.pem"
-                key_file = "/path/to/key.pem"
-                client_ca_file = "/path/to/ca.pem" # optional CA file for mTLS
+                use_spire_svid = true
+                authorized_spiffe_ids = [
+                    "spiffe://example.org/monitoring/prometheus",
+                ]
+
+                # Alternatively, configure a web certificate directly:
+                # cert_file = "/path/to/cert.pem"
+                # key_file = "/path/to/key.pem"
+                # client_ca_file = "/path/to/ca.pem" # optional CA file for mTLS
             }
         }
 

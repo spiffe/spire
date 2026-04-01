@@ -13,6 +13,8 @@ import (
 
 	"github.com/andres-erbsen/clock"
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/go-spiffe/v2/svid/x509svid"
 	"github.com/spiffe/go-spiffe/v2/workloadapi"
 	admin_api "github.com/spiffe/spire/pkg/agent/api"
 	node_attestor "github.com/spiffe/spire/pkg/agent/attestor/node"
@@ -79,11 +81,45 @@ func (a *Agent) Run(ctx context.Context) error {
 		defer stopProfiling()
 	}
 
+	var mgr manager.Manager
 	metrics, err := telemetry.NewMetrics(&telemetry.MetricsConfig{
 		FileConfig:  a.c.Telemetry,
 		Logger:      a.c.Log.WithField(telemetry.SubsystemName, telemetry.Telemetry),
 		ServiceName: telemetry.SpireAgent,
 		TrustDomain: a.c.TrustDomain.Name(),
+		GetX509SVID: func() (*x509svid.SVID, error) {
+			if mgr == nil {
+				return nil, errors.New("agent manager is not initialized")
+			}
+
+			credentials := mgr.GetCurrentCredentials()
+			if len(credentials.SVID) == 0 {
+				return nil, errors.New("no certificates found")
+			}
+
+			id, err := x509svid.IDFromCert(credentials.SVID[0])
+			if err != nil {
+				return nil, err
+			}
+
+			return &x509svid.SVID{
+				ID:           id,
+				Certificates: credentials.SVID,
+				PrivateKey:   credentials.Key,
+			}, nil
+		},
+		GetX509BundleAuthorities: func(td spiffeid.TrustDomain) ([]*x509.Certificate, error) {
+			if mgr == nil {
+				return nil, errors.New("agent manager is not initialized")
+			}
+
+			bundle := mgr.GetBundles()[td]
+			if bundle == nil {
+				return nil, fmt.Errorf("no bundle found for trust domain %q", td)
+			}
+
+			return bundle.X509Authorities(), nil
+		},
 	})
 	if err != nil {
 		return err
@@ -108,8 +144,6 @@ func (a *Agent) Run(ctx context.Context) error {
 	}
 
 	taskRunner := util.NewTaskRunner(ctx, cancel)
-	taskRunner.StartTasks(metrics.ListenAndServe)
-
 	nodeAttestor := nodeattestor.JoinToken(a.c.Log, a.c.JoinToken)
 	if a.c.JoinToken == "" {
 		nodeAttestor = cat.GetNodeAttestor()
@@ -226,7 +260,7 @@ func (a *Agent) Run(ctx context.Context) error {
 
 	svidStoreCache := a.newSVIDStoreCache(metrics)
 
-	manager, err := a.newManager(ctx, sto, cat, metrics, as, svidStoreCache, nodeAttestor)
+	mgr, err = a.newManager(ctx, sto, cat, metrics, as, svidStoreCache, nodeAttestor)
 	if err != nil {
 		return err
 	}
@@ -238,21 +272,22 @@ func (a *Agent) Run(ctx context.Context) error {
 		Metrics: metrics,
 	})
 
-	agentEndpoints := a.newEndpoints(metrics, manager, workloadAttestor)
+	agentEndpoints := a.newEndpoints(metrics, mgr, workloadAttestor)
 	go func() {
 		agentEndpoints.WaitForListening(readyForHealthChecks)
 		a.started = true
 	}()
 
 	tasks := []func(context.Context) error{
-		manager.Run,
+		metrics.ListenAndServe,
+		mgr.Run,
 		storeService.Run,
 		agentEndpoints.ListenAndServe,
 		catalog.ReconfigureTask(a.c.Log.WithField(telemetry.SubsystemName, "reconfigurer"), cat),
 	}
 
 	if a.c.AdminBindAddress != nil {
-		adminEndpoints := a.newAdminEndpoints(metrics, manager, workloadAttestor, a.c.AuthorizedDelegates)
+		adminEndpoints := a.newAdminEndpoints(metrics, mgr, workloadAttestor, a.c.AuthorizedDelegates)
 		tasks = append(tasks, adminEndpoints.ListenAndServe)
 	}
 
