@@ -94,6 +94,9 @@ type Manager interface {
 
 	// GetBundle get latest cached bundle
 	GetBundle() *cache.Bundle
+
+	// GetBundles gets the latest cached bundles for all trust domains.
+	GetBundles() map[spiffeid.TrustDomain]*cache.Bundle
 }
 
 // Cache stores each registration entry, signed X509-SVIDs for those entries,
@@ -103,6 +106,9 @@ type Cache interface {
 
 	// Bundle gets latest cached bundle
 	Bundle() *spiffebundle.Bundle
+
+	// Bundles gets the latest cached bundles for all trust domains.
+	Bundles() map[spiffeid.TrustDomain]*spiffebundle.Bundle
 
 	// SyncSVIDsWithSubscribers syncs SVID cache
 	SyncSVIDsWithSubscribers()
@@ -428,6 +434,13 @@ func (m *manager) GetBundle() *cache.Bundle {
 	defer m.mtx.RUnlock()
 
 	return m.cache.Bundle()
+}
+
+func (m *manager) GetBundles() map[spiffeid.TrustDomain]*cache.Bundle {
+	m.mtx.RLock()
+	defer m.mtx.RUnlock()
+
+	return m.cache.Bundles()
 }
 
 func (m *manager) runSVIDObserver(ctx context.Context) error {
