@@ -31,6 +31,13 @@ type Config struct {
 	// If true enables audit logs
 	AuditLogEnabled bool
 
+	// ListenProxyProtocol enables PROXY protocol support on the TCP listener.
+	// When enabled, the server expects incoming connections to include a PROXY
+	// protocol header, which allows it to extract the real client IP when
+	// running behind a load balancer. This must only be enabled when the load
+	// balancer is configured to send PROXY protocol headers.
+	ListenProxyProtocol bool
+
 	// Address of SPIRE server
 	BindAddress *net.TCPAddr
 
