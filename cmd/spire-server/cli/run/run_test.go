@@ -64,6 +64,7 @@ func TestParseConfigGood(t *testing.T) {
 	_, ok := trustDomainConfig.EndpointProfile.(bundleClient.HTTPSWebProfile)
 	assert.True(t, ok)
 	assert.True(t, c.Server.AuditLogEnabled)
+	assert.True(t, c.Server.ListenProxyProtocol)
 	assert.True(t, c.Server.Experimental.RequirePQKEM)
 	testParseConfigGoodOS(t, c)
 
@@ -464,6 +465,16 @@ func TestMergeInput(t *testing.T) {
 			cliFlags: []string{},
 			test: func(t *testing.T, c *Config) {
 				require.True(t, c.Server.AuditLogEnabled)
+			},
+		},
+		{
+			msg: "listen_proxy_protocol should be configurable by file",
+			fileInput: func(c *Config) {
+				c.Server.ListenProxyProtocol = true
+			},
+			cliFlags: []string{},
+			test: func(t *testing.T, c *Config) {
+				require.True(t, c.Server.ListenProxyProtocol)
 			},
 		},
 		{
@@ -1216,6 +1227,24 @@ func TestNewServerConfig(t *testing.T) {
 			},
 			test: func(t *testing.T, c *server.Config) {
 				require.False(t, c.AuditLogEnabled)
+			},
+		},
+		{
+			msg: "listen_proxy_protocol is enabled",
+			input: func(c *Config) {
+				c.Server.ListenProxyProtocol = true
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.True(t, c.ListenProxyProtocol)
+			},
+		},
+		{
+			msg: "listen_proxy_protocol is disabled",
+			input: func(c *Config) {
+				c.Server.ListenProxyProtocol = false
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.False(t, c.ListenProxyProtocol)
 			},
 		},
 		{
