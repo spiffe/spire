@@ -168,7 +168,7 @@ func (c *azureClient) getNetworkInterfaces(ctx context.Context, vmId string, sub
 	query := fmt.Sprintf(`
 	Resources
 	| where type == "microsoft.network/networkinterfaces"
-	| where properties.virtualMachine.id == "%s"
+	| where tolower(properties.virtualMachine.id) == tolower("%s")
 	| mv-expand ipConfig = properties.ipConfigurations
 	| extend subnetId = tostring(ipConfig.properties.subnet.id)
 	| extend vnetName = extract(@"virtualNetworks/([^/]+)", 1, subnetId)
@@ -178,10 +178,10 @@ func (c *azureClient) getNetworkInterfaces(ctx context.Context, vmId string, sub
 	| extend nsgRg = extract(@"resourceGroups/([^/]+)",1,nsgId)
 	| extend nsgName = extract(@"networkSecurityGroups/([^/]+)",1,nsgId)
 	| extend securityGroup = bag_pack("resourceGroup", nsgRg, "name",nsgName)
-	| summarize 
+	| summarize
 		subnets = make_list(subnetObj)
-		by id, name, resourceGroup, tostring(securityGroup)
-	| project name, resourceGroup, subnets, securityGroup`, vmId)
+		by id, name, resourceGroup, securityGroup_str = tostring(securityGroup)
+	| project name, resourceGroup, subnets, securityGroup = todynamic(securityGroup_str)`, vmId)
 	options := &armresourcegraph.QueryRequestOptions{
 		ResultFormat: new(armresourcegraph.ResultFormatObjectArray),
 	}
