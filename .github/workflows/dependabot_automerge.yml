@@ -1,0 +1,93 @@
+name: Dependabot Auto Merge
+
+on:
+  pull_request:
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  auto-merge:
+    name: auto-merge
+    runs-on: ubuntu-22.04
+    if: github.actor == 'dependabot[bot]'
+    steps:
+      - name: Fetch Dependabot metadata
+        id: metadata
+        uses: dependabot/fetch-metadata@21025c705c08248db411dc16f3619e6b5f9ea21a # v2.5.0
+        with:
+          github-token: "${{ secrets.GITHUB_TOKEN }}"
+
+      # Auto-merge patch updates for all ecosystems and minor updates for
+      # GitHub Actions (CI tooling changes are lower risk than runtime deps).
+      - name: Assign milestone and enable auto-merge
+        if: |
+          steps.metadata.outputs.update-type == 'version-update:semver-patch' ||
+          (steps.metadata.outputs.package-ecosystem == 'github_actions' &&
+           steps.metadata.outputs.update-type == 'version-update:semver-minor')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          # Read the base version from source to find the correct milestone.
+          BASE_VERSION=$(gh api "repos/${REPO}/contents/pkg/common/version/version.go" \
+            --jq '.content' | base64 -d | grep -oP 'Base = "\K[^"]+')
+          echo "Base version: ${BASE_VERSION}"
+
+          # Determine whether to use >= or > BASE_VERSION when searching for
+          # the target milestone. The release process creates the branch
+          # release/v{BASE_VERSION} one week before the actual release, at the
+          # moment the release candidate commit is picked. Once that branch
+          # exists, commits on main are destined for the next release, so we
+          # skip the BASE_VERSION milestone and target the one after it.
+          RELEASE_BRANCH="release/v${BASE_VERSION}"
+          if gh api "repos/${REPO}/branches/${RELEASE_BRANCH}" > /dev/null 2>&1; then
+            echo "Release branch ${RELEASE_BRANCH} exists: targeting milestone > ${BASE_VERSION}"
+            REQUIRE_GT=true
+          else
+            echo "Release branch ${RELEASE_BRANCH} does not exist: targeting milestone >= ${BASE_VERSION}"
+            REQUIRE_GT=false
+          fi
+
+          # Fetch all open milestones. Milestone titles may have an optional
+          # "v" prefix (e.g. "v1.15.0"); strip it before comparing so version
+          # sort works correctly.
+          MILESTONES=$(gh api "repos/${REPO}/milestones?state=open&per_page=100" \
+            --jq '[.[] | {number: .number, title: .title, version: (.title | ltrimstr("v"))}]')
+
+          MILESTONE_NUMBER=""
+          MILESTONE_TITLE=""
+
+          # Sort candidates by version ascending and pick the first eligible one.
+          while IFS= read -r entry; do
+            number=$(echo "$entry"  | jq -r '.number')
+            title=$(echo "$entry"   | jq -r '.title')
+            version=$(echo "$entry" | jq -r '.version')
+            min=$(printf '%s\n' "${BASE_VERSION}" "${version}" | sort -V | head -1)
+            if [ "${min}" = "${BASE_VERSION}" ]; then
+              if [ "${REQUIRE_GT}" = "true" ] && [ "${version}" = "${BASE_VERSION}" ]; then
+                continue  # Skip exact match when a release branch exists.
+              fi
+              MILESTONE_NUMBER="$number"
+              MILESTONE_TITLE="$title"
+              break
+            fi
+          done < <(echo "$MILESTONES" | jq -c 'sort_by(.version | split(".") | map(tonumber)) | .[]')
+
+          if [ -z "$MILESTONE_NUMBER" ]; then
+            echo "Error: no eligible open milestone found"
+            exit 1
+          fi
+
+          echo "Assigning milestone '${MILESTONE_TITLE}' to PR #${PR_NUMBER}"
+          gh api --method PATCH "repos/${REPO}/issues/${PR_NUMBER}" \
+            --field "milestone=${MILESTONE_NUMBER}"
+
+          gh pr review --approve "$PR_URL"
+          gh pr merge --auto --squash "$PR_URL"
