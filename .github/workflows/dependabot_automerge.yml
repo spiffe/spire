@@ -90,4 +90,4 @@ jobs:
             --field "milestone=${MILESTONE_NUMBER}"
 
           gh pr review --approve "$PR_URL"
-          gh pr merge --auto "$PR_URL"
+          gh pr merge --merge "$PR_URL"
