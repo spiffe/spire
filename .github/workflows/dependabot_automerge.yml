@@ -1,7 +1,7 @@
 name: Dependabot Auto Merge
 
 on:
-  pull_request:
+  pull_request_target:
 
 permissions:
   contents: write
@@ -20,13 +20,13 @@ jobs:
         with:
           github-token: "${{ secrets.GITHUB_TOKEN }}"
 
-      # Auto-merge patch updates for all ecosystems and minor updates for
-      # GitHub Actions (CI tooling changes are lower risk than runtime deps).
+      # Auto-merge all non-major updates. CI catches regressions regardless
+      # of semver level, and major updates are excluded as they signal
+      # intentional breaking changes requiring manual review.
       - name: Assign milestone and enable auto-merge
         if: |
           steps.metadata.outputs.update-type == 'version-update:semver-patch' ||
-          (steps.metadata.outputs.package-ecosystem == 'github_actions' &&
-           steps.metadata.outputs.update-type == 'version-update:semver-minor')
+          steps.metadata.outputs.update-type == 'version-update:semver-minor'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_URL: ${{ github.event.pull_request.html_url }}
@@ -90,4 +90,4 @@ jobs:
             --field "milestone=${MILESTONE_NUMBER}"
 
           gh pr review --approve "$PR_URL"
-          gh pr merge --auto --squash "$PR_URL"
+          gh pr merge --auto "$PR_URL"
