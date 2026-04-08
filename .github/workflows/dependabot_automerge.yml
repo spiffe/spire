@@ -1,7 +1,9 @@
 name: Dependabot Auto Merge
 
 on:
-  pull_request_target:
+  workflow_run:
+    workflows: ["PR Build"]
+    types: [completed]
 
 permissions:
   contents: write
@@ -12,28 +14,111 @@ jobs:
   auto-merge:
     name: auto-merge
     runs-on: ubuntu-22.04
-    if: github.actor == 'dependabot[bot]'
+    # Only act when CI passed and the PR was opened by Dependabot. The
+    # workflow_run trigger always runs in the base branch context, so
+    # GITHUB_TOKEN has full repository permissions regardless of who opened
+    # the PR, and the PR branch code never executes here.
+    if: |
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.actor.login == 'dependabot[bot]'
     steps:
-      - name: Fetch Dependabot metadata
-        id: metadata
-        uses: dependabot/fetch-metadata@21025c705c08248db411dc16f3619e6b5f9ea21a # v2.5.0
-        with:
-          github-token: "${{ secrets.GITHUB_TOKEN }}"
+      - name: Get pull request info
+        id: pr
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          skip() {
+            echo "$1"
+            echo ":warning: **Dependabot auto-merge skipped:** $1" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          }
+
+          PR_NUMBER=$(gh api "repos/${REPO}/actions/runs/${RUN_ID}" \
+            --jq '.pull_requests[0].number // empty')
+          if [ -z "$PR_NUMBER" ]; then
+            skip "No pull request associated with this workflow run."
+          fi
+
+          PR=$(gh api "repos/${REPO}/pulls/${PR_NUMBER}")
+
+          # Skip if the PR is no longer open (e.g. already in the merge queue).
+          PR_STATE=$(echo "$PR" | jq -r '.state')
+          if [ "$PR_STATE" != "open" ]; then
+            skip "PR #${PR_NUMBER} is not open (state: ${PR_STATE})."
+          fi
+
+          # Verify PR was opened by Dependabot (immutable field, set at PR creation).
+          PR_AUTHOR=$(echo "$PR" | jq -r '.user.login')
+          if [ "$PR_AUTHOR" != "dependabot[bot]" ]; then
+            skip "PR #${PR_NUMBER} was not opened by Dependabot (author: ${PR_AUTHOR})."
+          fi
+
+          # Fetch all commits and verify that the PR contains exactly one.
+          # Dependabot PRs always have a single commit; more than one means
+          # someone pushed additional commits to the branch.
+          COMMITS=$(gh api "repos/${REPO}/pulls/${PR_NUMBER}/commits")
+          COMMIT_COUNT=$(echo "$COMMITS" | jq 'length')
+          if [ "$COMMIT_COUNT" != "1" ]; then
+            skip "PR #${PR_NUMBER} has ${COMMIT_COUNT} commits (expected 1)."
+          fi
+
+          # Verify the single commit is cryptographically signed by Dependabot.
+          # This mirrors the verification done by dependabot/fetch-metadata and
+          # prevents spoofed commit messages from influencing the update-type
+          # decision.
+          COMMIT=$(echo "$COMMITS" | jq '.[0]')
+          COMMIT_VERIFIED=$(echo "$COMMIT" | jq -r '.commit.verification.verified')
+          COMMIT_AUTHOR=$(echo "$COMMIT" | jq -r '.author.login')
+          if [ "$COMMIT_VERIFIED" != "true" ]; then
+            skip "Commit on PR #${PR_NUMBER} is not verified."
+          fi
+          if [ "$COMMIT_AUTHOR" != "dependabot[bot]" ]; then
+            skip "Commit author on PR #${PR_NUMBER} is not Dependabot (author: ${COMMIT_AUTHOR})."
+          fi
+
+          COMMIT_MESSAGE=$(echo "$COMMIT" | jq -r '.commit.message')
+          UPDATE_TYPE=$(echo "$COMMIT_MESSAGE" | grep -oP 'update-type:\s*\K\S+' || true)
+
+          # Allowlist the update-type value before writing to GITHUB_OUTPUT to
+          # prevent unexpected content from the commit message influencing
+          # downstream step conditions.
+          case "$UPDATE_TYPE" in
+            version-update:semver-major|version-update:semver-minor|version-update:semver-patch)
+              ;;
+            *)
+              UPDATE_TYPE=""
+              ;;
+          esac
+
+          HEAD_SHA=$(echo "$COMMIT" | jq -r '.sha')
+
+          echo "number=${PR_NUMBER}" >> "$GITHUB_OUTPUT"
+          echo "update-type=${UPDATE_TYPE}" >> "$GITHUB_OUTPUT"
+          echo "head-sha=${HEAD_SHA}" >> "$GITHUB_OUTPUT"
 
       # Auto-merge all non-major updates. CI catches regressions regardless
       # of semver level, and major updates are excluded as they signal
       # intentional breaking changes requiring manual review.
       - name: Assign milestone and enable auto-merge
         if: |
-          steps.metadata.outputs.update-type == 'version-update:semver-patch' ||
-          steps.metadata.outputs.update-type == 'version-update:semver-minor'
+          steps.pr.outputs.number != '' && (
+            steps.pr.outputs.update-type == 'version-update:semver-patch' ||
+            steps.pr.outputs.update-type == 'version-update:semver-minor'
+          )
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_URL: ${{ github.event.pull_request.html_url }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_NUMBER: ${{ steps.pr.outputs.number }}
+          HEAD_SHA: ${{ steps.pr.outputs.head-sha }}
           REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
+
+          PR_URL="https://github.com/${REPO}/pull/${PR_NUMBER}"
 
           # Read the base version from source to find the correct milestone.
           BASE_VERSION=$(gh api "repos/${REPO}/contents/pkg/common/version/version.go" \
@@ -90,4 +175,10 @@ jobs:
             --field "milestone=${MILESTONE_NUMBER}"
 
           gh pr review --approve "$PR_URL"
-          gh pr merge --merge "$PR_URL"
+
+          # Use the merge API with the verified HEAD SHA so the merge is
+          # rejected if the branch was force-pushed between verification
+          # and this point.
+          gh api --method PUT "repos/${REPO}/pulls/${PR_NUMBER}/merge" \
+            --field merge_method=merge \
+            --field sha="${HEAD_SHA}"
