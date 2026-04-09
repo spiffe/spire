@@ -1269,6 +1269,15 @@ func TestBuildWorkloadWITSVIDClaims(t *testing.T) {
 				expected["exp"] = jwt.NewNumericDate(now.Add(credtemplate.DefaultWITSVIDTTL / 2))
 			},
 		},
+		{
+			desc: "with issuer",
+			overrideConfig: func(config *credtemplate.Config) {
+				config.WITIssuer = "ISSUER"
+			},
+			overrideExpected: func(expected map[string]any) {
+				expected["iss"] = "ISSUER"
+			},
+		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
 			testBuilder(t, tc.overrideConfig, func(t *testing.T, credBuilder *credtemplate.Builder) {
