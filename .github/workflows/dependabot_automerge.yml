@@ -176,9 +176,14 @@ jobs:
 
           gh pr review --approve "$PR_URL"
 
-          # Use the merge API with the verified HEAD SHA so the merge is
-          # rejected if the branch was force-pushed between verification
-          # and this point.
-          gh api --method PUT "repos/${REPO}/pulls/${PR_NUMBER}/merge" \
-            --field merge_method=merge \
-            --field sha="${HEAD_SHA}"
+          # Verify the HEAD SHA has not changed since it was verified in
+          # the previous step. This closes the TOCTOU window where an
+          # attacker could force-push to the branch between verification
+          # and merge.
+          CURRENT_HEAD=$(gh api "repos/${REPO}/pulls/${PR_NUMBER}" --jq '.head.sha')
+          if [ "$CURRENT_HEAD" != "$HEAD_SHA" ]; then
+            echo "::error::PR HEAD changed between verification and merge (expected: ${HEAD_SHA}, got: ${CURRENT_HEAD}). Aborting."
+            exit 1
+          fi
+
+          gh pr merge --squash "$PR_URL"
