@@ -93,7 +93,11 @@ func run(configPath string, expandEnv bool) error {
 		}
 	}
 
-	var handler http.Handler = NewHandler(log, domainPolicy, source, config.AllowInsecureScheme, config.SetKeyUse, jwtIssuer, jwksURI, config.ServerPathPrefix)
+	var handler http.Handler
+	handler, err = NewHandler(log, domainPolicy, source, config.AllowInsecureScheme, config.SetKeyUse, jwtIssuer, jwksURI, config.ServerPathPrefix)
+	if err != nil {
+		return err
+	}
 	if config.LogRequests {
 		log.Info("Logging all requests")
 		handler = logHandler(log, handler)

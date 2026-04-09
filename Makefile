@@ -22,54 +22,54 @@ default: build
 all: build lint test
 
 help:
-	@echo "$(bold)Usage:$(reset) make $(cyan)<target>$(reset)"
-	@echo
-	@echo "$(bold)Build:$(reset)"
-	@echo "  $(cyan)build$(reset)                                 - build all SPIRE binaries (default)"
-	@echo
-	@echo "$(bold)Test:$(reset)"
-	@echo "  $(cyan)test$(reset)                                  - run unit tests"
-	@echo "  $(cyan)race-test$(reset)                             - run unit tests with race detection"
-	@echo "  $(cyan)integration$(reset)                           - run integration tests (requires Docker images)"
-	@echo "                                          support 'SUITES' variable for executing specific tests"
-	@echo "                                          and 'IGNORE_SUITES' variable for ignoring tests"
-	@echo "                                          e.g. SUITES='suites/join-token suites/k8s' make integration"
-	@echo "  $(cyan)integration-windows$(reset)                   - run integration tests for windows (requires Docker images)"
-	@echo "                                          support 'SUITES' variable for executing specific tests"
-	@echo "                                          e.g. SUITES='windows-suites/windows-workload-attestor' make integration-windows"
-	@echo
-	@echo "$(bold)Lint:$(reset)"
-	@echo "  $(cyan)lint$(reset)                                  - lint the code and markdown files"
-	@echo "  $(cyan)lint-code$(reset)                             - lint the code"
-	@echo "  $(cyan)lint-md$(reset)                               - lint markdown files"
-	@echo
-	@echo "$(bold)Build, lint and test:$(reset)"
-	@echo "  $(cyan)all$(reset)                                   - build all SPIRE binaries, run linters and unit tests"
-	@echo
-	@echo "$(bold)Docker image:$(reset)"
-	@echo "  $(cyan)images$(reset)                                - build all SPIRE Docker images"
-	@echo "  $(cyan)images-no-load$(reset)                        - build all SPIRE Docker images but don't load them into the local docker registry"
-	@echo "  $(cyan)spire-server-image$(reset)                    - build SPIRE server Docker image"
-	@echo "  $(cyan)spire-agent-image$(reset)                     - build SPIRE agent Docker image"
-	@echo "  $(cyan)oidc-discovery-provider-image$(reset)         - build OIDC Discovery Provider Docker image"
-	@echo "$(bold)Windows docker image:$(reset)"
-	@echo "  $(cyan)images-windows$(reset)                        - build all SPIRE Docker images for windows"
-	@echo "  $(cyan)spire-server-image-windows$(reset)            - build SPIRE server Docker image for windows"
-	@echo "  $(cyan)spire-agent-image-windows$(reset)             - build SPIRE agent Docker image for windows"
-	@echo "  $(cyan)oidc-discovery-provider-image-windows$(reset) - build OIDC Discovery Provider Docker image for windows"
-	@echo "$(bold)Developer support:$(reset)"
-	@echo "  $(cyan)dev-image$(reset)                             - build the development Docker image"
-	@echo "  $(cyan)dev-shell$(reset)                             - run a shell in a development Docker container"
-	@echo
-	@echo "$(bold)Code generation:$(reset)"
-	@echo "  $(cyan)generate$(reset)                              - generate protocol buffers and plugin interface code"
-	@echo "  $(cyan)generate-check$(reset)                        - ensure generated code is up to date"
-	@echo
-	@echo "$(bold)Vulnerabilty checking:$(reset)"
-	@echo "  $(cyan)govulncheck$(reset)                           - run govulncheck over the whole project"
-	@echo
-	@echo "For verbose output set V=1"
-	@echo "  for example: $(cyan)make V=1 build$(reset)"
+	@echo "$(bold)Usage:$(reset) make $(cyan)<target>$(reset)"; \
+	 echo; \
+	 echo "$(bold)Build:$(reset)"; \
+	 echo "  $(cyan)build$(reset)                                 - build all SPIRE binaries (default)"; \
+	 echo; \
+	 echo "$(bold)Test:$(reset)"; \
+	 echo "  $(cyan)test$(reset)                                  - run unit tests"; \
+	 echo "  $(cyan)race-test$(reset)                             - run unit tests with race detection"; \
+	 echo "  $(cyan)integration$(reset)                           - run integration tests (requires Docker images)"; \
+	 echo "                                          support 'SUITES' variable for executing specific tests"; \
+	 echo "                                          and 'IGNORE_SUITES' variable for ignoring tests"; \
+	 echo "                                          e.g. SUITES='suites/join-token suites/k8s' make integration"; \
+	 echo "  $(cyan)integration-windows$(reset)                   - run integration tests for windows (requires Docker images)"; \
+	 echo "                                          support 'SUITES' variable for executing specific tests"; \
+	 echo "                                          e.g. SUITES='windows-suites/windows-workload-attestor' make integration-windows"; \
+	 echo; \
+	 echo "$(bold)Lint:$(reset)"; \
+	 echo "  $(cyan)lint$(reset)                                  - lint the code and markdown files"; \
+	 echo "  $(cyan)lint-code$(reset)                             - lint the code"; \
+	 echo "  $(cyan)lint-md$(reset)                               - lint markdown files"; \
+	 echo; \
+	 echo "$(bold)Build, lint and test:$(reset)"; \
+	 echo "  $(cyan)all$(reset)                                   - build all SPIRE binaries, run linters and unit tests"; \
+	 echo; \
+	 echo "$(bold)Docker image:$(reset)"; \
+	 echo "  $(cyan)images$(reset)                                - build all SPIRE Docker images"; \
+	 echo "  $(cyan)images-no-load$(reset)                        - build all SPIRE Docker images but don't load them into the local docker registry"; \
+	 echo "  $(cyan)spire-server-image$(reset)                    - build SPIRE server Docker image"; \
+	 echo "  $(cyan)spire-agent-image$(reset)                     - build SPIRE agent Docker image"; \
+	 echo "  $(cyan)oidc-discovery-provider-image$(reset)         - build OIDC Discovery Provider Docker image"; \
+	 echo "$(bold)Windows docker image:$(reset)"; \
+	 echo "  $(cyan)images-windows$(reset)                        - build all SPIRE Docker images for windows"; \
+	 echo "  $(cyan)spire-server-image-windows$(reset)            - build SPIRE server Docker image for windows"; \
+	 echo "  $(cyan)spire-agent-image-windows$(reset)             - build SPIRE agent Docker image for windows"; \
+	 echo "  $(cyan)oidc-discovery-provider-image-windows$(reset) - build OIDC Discovery Provider Docker image for windows"; \
+	 echo "$(bold)Developer support:$(reset)"; \
+	 echo "  $(cyan)dev-image$(reset)                             - build the development Docker image"; \
+	 echo "  $(cyan)dev-shell$(reset)                             - run a shell in a development Docker container"; \
+	 echo; \
+	 echo "$(bold)Code generation:$(reset)"; \
+	 echo "  $(cyan)generate$(reset)                              - generate protocol buffers and plugin interface code"; \
+	 echo "  $(cyan)generate-check$(reset)                        - ensure generated code is up to date"; \
+	 echo; \
+	 echo "$(bold)Vulnerabilty checking:$(reset)"; \
+	 echo "  $(cyan)govulncheck$(reset)                           - run govulncheck over the whole project"; \
+	 echo; \
+	 echo "For verbose output set V=1"; \
+	 echo "  for example: $(cyan)make V=1 build$(reset)"
 
 # Used to force some rules to run every time
 FORCE: ;
@@ -196,18 +196,11 @@ plugin-protos := \
 
 service-protos := \
 
-# The following vars are used in rule construction
-comma := ,
-null  :=
-space := $(null) #
-
 #############################################################################
 # Utility functions and targets
 #############################################################################
 
 .PHONY: git-clean-check
-
-tolower = $(shell echo $1 | tr '[:upper:]' '[:lower:]')
 
 goenv = $(shell PATH="$(go_bin_dir):$(PATH)" go env $1)
 
@@ -391,7 +384,7 @@ $(eval $(call windows_image_rule,oidc-discovery-provider-windows-image,oidc-disc
 # Code cleanliness
 #############################################################################
 
-.PHONY: tidy tidy-check lint lint-code
+.PHONY: tidy tidy-check lint lint-code lint-md
 tidy: | go-check
 	$(E)$(go_path) go mod tidy
 	$(E)cd proto/spire; $(go_path) go mod tidy
@@ -419,6 +412,8 @@ lint-md:
 #############################################################################
 # Vulnerabilty checking
 #############################################################################
+
+.PHONY: govulncheck
 
 govulncheck:
 	$(E)$(go_path) go run golang.org/x/vuln/cmd/govulncheck@latest ./...
@@ -495,6 +490,8 @@ dev-shell: | go-check
 #############################################################################
 # Toolchain
 #############################################################################
+
+.PHONY: go-check go-bin-path install-toolchain install-protoc install-protoc-gen-go install-protoc-gen-go-grpc install-protoc-gen-go-spire
 
 # go-check checks to see if there is a version of Go available matching the
 # required version. The build cache is preferred. If not available, it is
