@@ -14,53 +14,59 @@ import (
 )
 
 func printEntry(e *types.Entry, printf func(string, ...any) error) {
-	_ = printf("Entry ID         : %s\n", printableEntryID(e.Id))
-	_ = printf("SPIFFE ID        : %s\n", protoToIDString(e.SpiffeId))
-	_ = printf("Parent ID        : %s\n", protoToIDString(e.ParentId))
-	_ = printf("Revision         : %d\n", e.RevisionNumber)
+	_ = printf("Entry ID                : %s\n", printableEntryID(e.Id))
+	_ = printf("SPIFFE ID               : %s\n", protoToIDString(e.SpiffeId))
+	_ = printf("Parent ID               : %s\n", protoToIDString(e.ParentId))
+	_ = printf("Revision                : %d\n", e.RevisionNumber)
 
 	if e.Downstream {
-		_ = printf("Downstream       : %t\n", e.Downstream)
+		_ = printf("Downstream              : %t\n", e.Downstream)
 	}
 
 	if e.X509SvidTtl == 0 {
-		_ = printf("X509-SVID TTL    : default\n")
+		_ = printf("X509-SVID TTL           : default\n")
 	} else {
-		_ = printf("X509-SVID TTL    : %d\n", e.X509SvidTtl)
+		_ = printf("X509-SVID TTL           : %d\n", e.X509SvidTtl)
 	}
 
 	if e.JwtSvidTtl == 0 {
-		_ = printf("JWT-SVID TTL     : default\n")
+		_ = printf("JWT-SVID TTL            : default\n")
 	} else {
-		_ = printf("JWT-SVID TTL     : %d\n", e.JwtSvidTtl)
+		_ = printf("JWT-SVID TTL            : %d\n", e.JwtSvidTtl)
 	}
 
 	if e.ExpiresAt != 0 {
-		_ = printf("Expiration time  : %s\n", time.Unix(e.ExpiresAt, 0).UTC())
+		_ = printf("Expiration time         : %s\n", time.Unix(e.ExpiresAt, 0).UTC())
 	}
 
 	for _, s := range e.Selectors {
-		_ = printf("Selector         : %s:%s\n", s.Type, s.Value)
+		_ = printf("Selector                : %s:%s\n", s.Type, s.Value)
 	}
 	for _, id := range e.FederatesWith {
-		_ = printf("FederatesWith    : %s\n", id)
+		_ = printf("FederatesWith           : %s\n", id)
 	}
 	for _, dnsName := range e.DnsNames {
-		_ = printf("DNS name         : %s\n", dnsName)
+		_ = printf("DNS name                : %s\n", dnsName)
 	}
 
 	// admin is rare, so only show admin if true to keep
 	// from muddying the output.
 	if e.Admin {
-		_ = printf("Admin            : %t\n", e.Admin)
+		_ = printf("Admin                   : %t\n", e.Admin)
 	}
 
 	if e.StoreSvid {
-		_ = printf("StoreSvid        : %t\n", e.StoreSvid)
+		_ = printf("StoreSvid               : %t\n", e.StoreSvid)
 	}
 
 	if e.Hint != "" {
-		_ = printf("Hint             : %s\n", e.Hint)
+		_ = printf("Hint                    : %s\n", e.Hint)
+	}
+
+	if e.AdditionalAttributes != nil {
+		if e.AdditionalAttributes.DisableX509SvidPrefetch {
+			_ = printf("DisableX509SvidPrefetch : %t\n", e.AdditionalAttributes.DisableX509SvidPrefetch)
+		}
 	}
 
 	_ = printf("\n")
