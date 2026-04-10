@@ -4,7 +4,7 @@ Systemd (and other init systems) can run multiple instances of the same service 
 
 Environment variables
 
-- `SPIFFE_PUBLIC_SOCKET_TEMPLATE` — template for agent public/workload socket, use `%i` for the instance name.
+- `SPIRE_AGENT_PUBLIC_SOCKET_TEMPLATE` — template for agent public/workload socket, use `%i` for the instance name.
 - `SPIRE_AGENT_PRIVATE_SOCKET_TEMPLATE` — template for agent private/admin socket, use `%i` for the instance name.
 - `SPIRE_SERVER_PRIVATE_SOCKET_TEMPLATE` — template for server private API socket, use `%i` for the instance name.
 
@@ -15,7 +15,7 @@ When one of the above env vars is set and the `-i` flag is omitted, the CLI will
 Examples
 
 ```bash
-export SPIFFE_PUBLIC_SOCKET_TEMPLATE=/var/run/spire/agent/sockets/%i/public/spiffe.sock
+export SPIRE_AGENT_PUBLIC_SOCKET_TEMPLATE=/var/run/spire/agent/sockets/%i/public/spiffe.sock
 spire-agent -i a api watch           # uses instance "a"
 spire-agent api watch                # uses instance "main" (because env var is set)
 

@@ -18,7 +18,7 @@ import (
 )
 func (c *agentConfig) addOSFlags(flags *flag.FlagSet) {
 	flags.StringVar(&c.SocketPath, "socketPath", "", "Path to bind the SPIRE Agent API socket to")
-	flags.StringVar(&c.Instance, "i", "", "Instance name to substitute into socket templates (env SPIFFE_PUBLIC_SOCKET_TEMPLATE and SPIRE_AGENT_PRIVATE_SOCKET_TEMPLATE). If omitted and the env var(s) are set, defaults to 'main'.")
+	flags.StringVar(&c.Instance, "i", "", "Instance name to substitute into socket templates (env SPIRE_AGENT_PUBLIC_SOCKET_TEMPLATE and SPIRE_AGENT_PRIVATE_SOCKET_TEMPLATE). If omitted and the env var(s) are set, defaults to 'main'.")
 }
 
 func (c *agentConfig) setPlatformDefaults() {
@@ -26,7 +26,7 @@ func (c *agentConfig) setPlatformDefaults() {
 }
 
 func (c *agentConfig) getAddr() (net.Addr, error) {
-	resolved := common.ResolveSocketPath(c.SocketPath, common.DefaultSocketPath, "SPIFFE_PUBLIC_SOCKET_TEMPLATE", c.Instance)
+	resolved := common.ResolveSocketPath(c.SocketPath, common.DefaultSocketPath, "SPIRE_AGENT_PUBLIC_SOCKET_TEMPLATE", c.Instance)
 	return util.GetUnixAddrWithAbsPath(resolved)
 }
 
