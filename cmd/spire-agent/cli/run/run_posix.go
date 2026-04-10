@@ -16,6 +16,7 @@ import (
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/util"
 )
+
 func (c *agentConfig) addOSFlags(flags *flag.FlagSet) {
 	flags.StringVar(&c.SocketPath, "socketPath", "", "Path to bind the SPIRE Agent API socket to")
 	flags.StringVar(&c.Instance, "i", "", "Instance name to substitute into socket templates (env SPIRE_AGENT_PUBLIC_SOCKET_TEMPLATE and SPIRE_AGENT_PRIVATE_SOCKET_TEMPLATE). If omitted and the env var(s) are set, defaults to 'main'.")
