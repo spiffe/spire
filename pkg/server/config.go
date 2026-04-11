@@ -31,6 +31,12 @@ type Config struct {
 	// If true enables audit logs
 	AuditLogEnabled bool
 
+	// ProxyProtocolTrustedCIDRs is a list of trusted CIDRs for PROXY protocol.
+	// When non-empty, the server enables PROXY protocol on the TCP listener and
+	// restricts PROXY header acceptance to connections originating from these
+	// CIDRs. Connections from other sources that send PROXY headers are rejected.
+	ProxyProtocolTrustedCIDRs []string
+
 	// Address of SPIRE server
 	BindAddress *net.TCPAddr
 
