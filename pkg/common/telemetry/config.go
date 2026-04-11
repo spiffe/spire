@@ -1,16 +1,22 @@
 package telemetry
 
 import (
+	"crypto/x509"
+
 	"github.com/hashicorp/hcl/hcl/token"
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/go-spiffe/v2/svid/x509svid"
 )
 
 type MetricsConfig struct {
-	FileConfig  FileConfig
-	Logger      logrus.FieldLogger
-	ServiceName string
-	Sinks       []Sink
-	TrustDomain string
+	FileConfig               FileConfig
+	Logger                   logrus.FieldLogger
+	ServiceName              string
+	Sinks                    []Sink
+	TrustDomain              string
+	GetX509SVID              func() (*x509svid.SVID, error)
+	GetX509BundleAuthorities func(spiffeid.TrustDomain) ([]*x509.Certificate, error)
 }
 
 type FileConfig struct {
@@ -44,9 +50,11 @@ type PrometheusConfig struct {
 }
 
 type TLSConfig struct {
-	CertFile     string `hcl:"cert_file"`
-	KeyFile      string `hcl:"key_file"`
-	ClientCAFile string `hcl:"client_ca_file"` // optional
+	CertFile            string   `hcl:"cert_file"`
+	KeyFile             string   `hcl:"key_file"`
+	ClientCAFile        string   `hcl:"client_ca_file"` // optional
+	UseSPIRESVID        bool     `hcl:"use_spire_svid"`
+	AuthorizedSPIFFEIDs []string `hcl:"authorized_spiffe_ids"`
 }
 
 type StatsdConfig struct {
