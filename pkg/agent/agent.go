@@ -286,21 +286,17 @@ func (a *Agent) setupProfiling(ctx context.Context) (stop func()) {
 
 		// kick off a goroutine to serve the pprof endpoints and one to
 		// gracefully shut down the server when profiling is being torn down
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			if err := server.ListenAndServe(); err != nil {
 				a.c.Log.WithError(err).Warn("Unable to serve profiling server")
 			}
-		}()
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		})
+		wg.Go(func() {
 			<-ctx.Done()
 			if err := server.Shutdown(ctx); err != nil {
 				a.c.Log.WithError(err).Warn("Unable to shut down cleanly")
 			}
-		}()
+		})
 	}
 	if a.c.ProfilingFreq > 0 {
 		c := &profiling.Config{
@@ -310,13 +306,11 @@ func (a *Agent) setupProfiling(ctx context.Context) (stop func()) {
 			RunGCBeforeHeapProfile: true,
 			Profiles:               a.c.ProfilingNames,
 		}
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			if err := profiling.Run(ctx, c); err != nil {
 				a.c.Log.WithError(err).Warn("Failed to run profiling")
 			}
-		}()
+		})
 	}
 
 	return func() {

@@ -267,16 +267,19 @@ import (
 // | v1.13.2 |        |                                                                           |
 // | v1.13.3 |        |                                                                           |
 // | v1.13.4 |        |                                                                           |
+// | v1.13.5 |        |                                                                           |
 // |*********|********|***************************************************************************|
 // | v1.14.0 |        |                                                                           |
 // | v1.14.1 |        |                                                                           |
 // | v1.14.2 |        |                                                                           |
 // | v1.14.3 |        |                                                                           |
+// | v1.14.4 |        |                                                                           |
+// | v1.14.5 |        |                                                                           |
 // ================================================================================================
 
 const (
 	// the latest schema version of the database in the code
-	latestSchemaVersion = 24
+	latestSchemaVersion = 25
 
 	// lastMinorReleaseSchemaVersion is the schema version supported by the
 	// last minor release. When the migrations are opportunistically pruned
@@ -509,6 +512,8 @@ func migrateVersion(tx *gorm.DB, currVersion int, log logrus.FieldLogger) (versi
 	switch currVersion {
 	case 23:
 		err = migrateToV24(tx)
+	case 24:
+		err = migrateToV25(tx)
 	default:
 		err = newSQLError("no migration support for unknown schema version %d", currVersion)
 	}
@@ -522,6 +527,14 @@ func migrateVersion(tx *gorm.DB, currVersion int, log logrus.FieldLogger) (versi
 func migrateToV24(tx *gorm.DB) error {
 	// Add agent_version column to attested_node_entries table
 	if err := tx.AutoMigrate(&AttestedNode{}).Error; err != nil {
+		return newWrappedSQLError(err)
+	}
+	return nil
+}
+
+func migrateToV25(tx *gorm.DB) error {
+	// Add additional_attributes column to registered_entries table
+	if err := tx.AutoMigrate(&RegisteredEntry{}).Error; err != nil {
 		return newWrappedSQLError(err)
 	}
 	return nil
