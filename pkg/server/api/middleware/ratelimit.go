@@ -4,11 +4,9 @@ import (
 	"context"
 	"errors"
 	"net"
-	"sync"
-	"time"
 
-	"github.com/andres-erbsen/clock"
 	"github.com/spiffe/spire/pkg/common/api/middleware"
+	"github.com/spiffe/spire/pkg/common/ratelimit"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
@@ -17,34 +15,20 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-const (
-	// gcInterval is the interval at which per-ip limiters are garbage
-	// collected.
-	gcInterval = time.Minute
-)
-
-var (
-	// Used to manipulate time in unit tests
-	clk = clock.New()
-)
-
 var (
 	// newRawRateLimiter is used to create a new ratelimiter. It returns a limiter
 	// from the standard rate package by default production.
-	newRawRateLimiter = func(limit rate.Limit, burst int) rawRateLimiter {
+	newRawRateLimiter = func(limit rate.Limit, burst int) ratelimit.Limiter {
 		return rate.NewLimiter(limit, burst)
 	}
 )
 
+// perKeyLimiterOpts holds options for creating per-key limiters.
+// Exposed for testing (e.g., clock injection).
+var perKeyLimiterOpts []ratelimit.Option
+
 type noopRateLimiter interface {
 	noop()
-}
-
-// rawRateLimiter represents the raw limiter functionality.
-type rawRateLimiter interface {
-	WaitN(ctx context.Context, count int) error
-	Limit() rate.Limit
-	Burst() int
 }
 
 // NoLimit returns a rate limiter that does not rate limit. It is used to
@@ -112,7 +96,7 @@ func (disabledLimit) RateLimit(context.Context, int) error {
 func (disabledLimit) noop() {}
 
 type perCallLimiter struct {
-	limiter rawRateLimiter
+	limiter ratelimit.Limiter
 }
 
 func newPerCallLimiter(limit int) *perCallLimiter {
@@ -124,25 +108,14 @@ func (lim *perCallLimiter) RateLimit(ctx context.Context, count int) error {
 }
 
 type perIPLimiter struct {
-	limit int
-
-	mtx sync.RWMutex
-
-	// previous holds all the limiters that were current at the GC
-	previous map[string]rawRateLimiter
-
-	// current holds all the limiters that have been created or moved
-	// from the previous limiters since the last GC.
-	current map[string]rawRateLimiter
-
-	// lastGC is the last GC
-	lastGC time.Time
+	inner *ratelimit.PerKeyLimiter
 }
 
 func newPerIPLimiter(limit int) *perIPLimiter {
-	return &perIPLimiter{limit: limit,
-		current: make(map[string]rawRateLimiter),
-		lastGC:  clk.Now(),
+	return &perIPLimiter{
+		inner: ratelimit.NewPerKeyLimiter(func() ratelimit.Limiter {
+			return newRawRateLimiter(rate.Limit(limit), limit)
+		}, perKeyLimiterOpts...),
 	}
 }
 
@@ -152,48 +125,8 @@ func (lim *perIPLimiter) RateLimit(ctx context.Context, count int) error {
 		// Calls not via TCP/IP aren't limited
 		return nil
 	}
-	limiter := lim.getLimiter(tcpAddr.IP.String())
+	limiter := lim.inner.GetLimiter(tcpAddr.IP.String())
 	return waitN(ctx, limiter, count)
-}
-
-func (lim *perIPLimiter) getLimiter(ip string) rawRateLimiter {
-	lim.mtx.RLock()
-	limiter, ok := lim.current[ip]
-	if ok {
-		lim.mtx.RUnlock()
-		return limiter
-	}
-	lim.mtx.RUnlock()
-
-	// A limiter does not exist for that address.
-	lim.mtx.Lock()
-	defer lim.mtx.Unlock()
-
-	// Check the "current" entries in case another goroutine raced on this IP.
-	if limiter, ok = lim.current[ip]; ok {
-		return limiter
-	}
-
-	// Then check the "previous" entries to see if a limiter exists for this
-	// IP as of the last GC. If so, move it to current and return it.
-	if limiter, ok = lim.previous[ip]; ok {
-		lim.current[ip] = limiter
-		delete(lim.previous, ip)
-		return limiter
-	}
-
-	// There is no limiter for this IP. Before we create one, we should see
-	// if we need to do GC.
-	now := clk.Now()
-	if now.Sub(lim.lastGC) >= gcInterval {
-		lim.previous = lim.current
-		lim.current = make(map[string]rawRateLimiter)
-		lim.lastGC = now
-	}
-
-	limiter = newRawRateLimiter(rate.Limit(lim.limit), lim.limit)
-	lim.current[ip] = limiter
-	return limiter
 }
 
 type rateLimitsMiddleware struct {
@@ -291,7 +224,7 @@ func getNames(ctx context.Context) []string {
 	return []string{}
 }
 
-func waitN(ctx context.Context, limiter rawRateLimiter, count int) (err error) {
+func waitN(ctx context.Context, limiter ratelimit.Limiter, count int) (err error) {
 	// limiter.WaitN already provides this check but the error returned is not
 	// strongly typed and is a little messy. Lifting this check so we can
 	// provide a clean error message.
