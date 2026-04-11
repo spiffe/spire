@@ -3,6 +3,7 @@
 package peertracker
 
 import (
+	"io"
 	"net"
 	"os"
 	"os/exec"
@@ -21,6 +22,8 @@ const (
 type fakePeer struct {
 	grandchildPID int
 	conn          net.Conn
+	childStdin    io.Closer
+	childCmd      *exec.Cmd
 	t             *testing.T
 }
 
