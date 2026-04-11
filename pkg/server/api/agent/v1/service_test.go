@@ -2604,6 +2604,7 @@ func TestAttestAgent(t *testing.T) {
 			request:    getAttestAgentRequest("test_type", []byte("payload_with_result"), testCsr),
 			expectedID: spiffeid.RequireFromPath(td, "/spire/agent/test_type/id_with_result"),
 			expectedSelectors: []*common.Selector{
+				{Type: "spiffe", Value: "svid:spire/agent/test_type/id_with_result"},
 				{Type: "test_type", Value: "result"},
 			},
 			expectLogs: []spiretest.LogEntry{
@@ -2635,6 +2636,7 @@ func TestAttestAgent(t *testing.T) {
 			request:    getAttestAgentRequest("test_type", []byte("payload_with_result"), testCsr),
 			expectedID: spiffeid.RequireFromPath(td, "/spire/agent/test_type/id_with_result"),
 			expectedSelectors: []*common.Selector{
+				{Type: "spiffe", Value: "svid:spire/agent/test_type/id_with_result"},
 				{Type: "test_type", Value: "result"},
 			},
 			expectLogs: []spiretest.LogEntry{
@@ -2684,6 +2686,7 @@ func TestAttestAgent(t *testing.T) {
 			request:    getAttestAgentRequest("test_type", []byte("payload_with_challenge"), testCsr),
 			expectedID: spiffeid.RequireFromPath(td, "/spire/agent/test_type/id_with_challenge"),
 			expectedSelectors: []*common.Selector{
+				{Type: "spiffe", Value: "svid:spire/agent/test_type/id_with_challenge"},
 				{Type: "test_type", Value: "challenge"},
 			},
 			expectLogs: []spiretest.LogEntry{
@@ -2714,6 +2717,7 @@ func TestAttestAgent(t *testing.T) {
 			request:    getAttestAgentRequest("test_type", []byte("payload_attested_before"), testCsr),
 			expectedID: spiffeid.RequireFromPath(td, "/spire/agent/test_type/id_attested_before"),
 			expectedSelectors: []*common.Selector{
+				{Type: "spiffe", Value: "svid:spire/agent/test_type/id_attested_before"},
 				{Type: "test_type", Value: "attested_before"},
 			},
 			expectLogs: []spiretest.LogEntry{
@@ -3063,6 +3067,9 @@ func TestAttestAgent(t *testing.T) {
 			name:       "nodeattestor returns ID outside of its namespace",
 			request:    getAttestAgentRequest("test_type", []byte("payload_return_id_outside_namespace"), testCsr),
 			expectedID: spiffeid.RequireFromPath(td, "/id_outside_namespace"),
+			expectedSelectors: []*common.Selector{
+				{Type: "spiffe", Value: "svid:id_outside_namespace"},
+			},
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.WarnLevel,
@@ -3099,6 +3106,7 @@ func TestAttestAgent(t *testing.T) {
 			request:    getAttestAgentRequest("test_type", []byte("payload_selector_dups"), testCsr),
 			expectedID: spiffeid.RequireFromPath(td, "/spire/agent/test_type/id_selector_dups"),
 			expectedSelectors: []*common.Selector{
+				{Type: "spiffe", Value: "svid:spire/agent/test_type/id_selector_dups"},
 				{Type: "test_type", Value: "A"},
 				{Type: "test_type", Value: "B"},
 				{Type: "test_type", Value: "C"},
