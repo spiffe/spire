@@ -99,8 +99,10 @@ type Config struct {
 
 	AuditLogEnabled bool
 
-	// ListenProxyProtocol enables PROXY protocol support on the TCP listener.
-	ListenProxyProtocol bool
+	// ProxyProtocolTrustedCIDRs is a list of trusted CIDRs for PROXY protocol.
+	// When non-empty, PROXY protocol is enabled and only connections from
+	// these CIDRs are allowed to send PROXY headers.
+	ProxyProtocolTrustedCIDRs []string
 
 	// AdminIDs are a list of fixed IDs that when presented by a caller in an
 	// X509-SVID, are granted admin rights.
