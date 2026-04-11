@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
+	"fmt"
 	"net"
 	"os"
 	"time"
@@ -20,6 +21,7 @@ import (
 	"google.golang.org/grpc/keepalive"
 
 	"github.com/andres-erbsen/clock"
+	proxyproto "github.com/pires/go-proxyproto"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	agentv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/agent/v1"
@@ -30,7 +32,6 @@ import (
 	loggerv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/logger/v1"
 	svidv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/svid/v1"
 	trustdomainv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/trustdomain/v1"
-	proxyproto "github.com/pires/go-proxyproto"
 	"github.com/spiffe/spire/pkg/common/auth"
 	"github.com/spiffe/spire/pkg/common/peertracker"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -97,7 +98,7 @@ type Endpoints struct {
 	EntryFetcherPruneEventsTask  func(context.Context) error
 	CertificateReloadTask        func(context.Context) error
 	AuditLogEnabled              bool
-	ListenProxyProtocol          bool
+	ProxyProtocolTrustedCIDRs    []string
 	AuthPolicyEngine             *authpolicy.Engine
 	AdminIDs                     []spiffeid.ID
 	TLSPolicy                    tlspolicy.Policy
@@ -226,7 +227,7 @@ func New(ctx context.Context, c Config) (*Endpoints, error) {
 		EntryFetcherPruneEventsTask:  pruneEventsTask,
 		CertificateReloadTask:        certificateReloadTask,
 		AuditLogEnabled:              c.AuditLogEnabled,
-		ListenProxyProtocol:          c.ListenProxyProtocol,
+		ProxyProtocolTrustedCIDRs:    c.ProxyProtocolTrustedCIDRs,
 		AuthPolicyEngine:             c.AuthPolicyEngine,
 		AdminIDs:                     c.AdminIDs,
 		TLSPolicy:                    c.TLSPolicy,
@@ -343,8 +344,15 @@ func (e *Endpoints) runTCPServer(ctx context.Context, server *grpc.Server) error
 	}
 	defer l.Close()
 
-	if e.ListenProxyProtocol {
-		l = &proxyproto.Listener{Listener: l}
+	if len(e.ProxyProtocolTrustedCIDRs) > 0 {
+		policy, err := proxyproto.ConnStrictWhiteListPolicy(e.ProxyProtocolTrustedCIDRs)
+		if err != nil {
+			return fmt.Errorf("invalid proxy_protocol_trusted_cidrs: %w", err)
+		}
+		l = &proxyproto.Listener{
+			Listener:   l,
+			ConnPolicy: policy,
+		}
 	}
 	log := e.Log.WithFields(logrus.Fields{
 		telemetry.Network: l.Addr().Network(),

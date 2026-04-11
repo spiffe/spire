@@ -1538,13 +1538,20 @@ func (localAuthorityServer) RevokeWITAuthority(context.Context, *localauthorityv
 	return &localauthorityv1.RevokeWITAuthorityResponse{}, nil
 }
 
-func TestProxyProtocolListenerExtractsRealClientIP(t *testing.T) {
-	// Start a TCP listener wrapped with proxy protocol support
+func TestProxyProtocolTrustedCIDRsExtractsRealClientIP(t *testing.T) {
+	// Start a TCP listener wrapped with proxy protocol support and a
+	// strict whitelist policy that trusts 127.0.0.0/8 (localhost).
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 	defer ln.Close()
 
-	ppLn := &proxyproto.Listener{Listener: ln}
+	policy, err := proxyproto.ConnStrictWhiteListPolicy([]string{"127.0.0.0/8"})
+	require.NoError(t, err)
+
+	ppLn := &proxyproto.Listener{
+		Listener:   ln,
+		ConnPolicy: policy,
+	}
 	defer ppLn.Close()
 
 	// Accept a connection in the background and check RemoteAddr
@@ -1563,8 +1570,8 @@ func TestProxyProtocolListenerExtractsRealClientIP(t *testing.T) {
 		ch <- result{addr: conn.RemoteAddr().String()}
 	}()
 
-	// Connect and send a PROXY protocol v1 header indicating the real
-	// client IP is 10.1.2.3:12345
+	// Connect from localhost (trusted) and send a PROXY protocol v1
+	// header indicating the real client IP is 10.1.2.3:12345
 	conn, err := net.Dial("tcp", ln.Addr().String())
 	require.NoError(t, err)
 	defer conn.Close()
@@ -1580,4 +1587,51 @@ func TestProxyProtocolListenerExtractsRealClientIP(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "10.1.2.3", host)
 	assert.Equal(t, "12345", port)
+}
+
+func TestProxyProtocolRejectsUntrustedSource(t *testing.T) {
+	// Create a listener that only trusts 192.168.0.0/16. Since we connect
+	// from 127.0.0.1 (not in that range), the PROXY header should be rejected.
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	defer ln.Close()
+
+	policy, err := proxyproto.ConnStrictWhiteListPolicy([]string{"192.168.0.0/16"})
+	require.NoError(t, err)
+
+	ppLn := &proxyproto.Listener{
+		Listener:   ln,
+		ConnPolicy: policy,
+	}
+	defer ppLn.Close()
+
+	type result struct {
+		addr string
+		err  error
+	}
+	ch := make(chan result, 1)
+	go func() {
+		conn, err := ppLn.Accept()
+		if err != nil {
+			ch <- result{err: err}
+			return
+		}
+		defer conn.Close()
+		// Try to read -- this should fail because the policy rejects
+		buf := make([]byte, 1)
+		_, err = conn.Read(buf)
+		ch <- result{addr: conn.RemoteAddr().String(), err: err}
+	}()
+
+	conn, err := net.Dial("tcp", ln.Addr().String())
+	require.NoError(t, err)
+	defer conn.Close()
+
+	header := "PROXY TCP4 10.1.2.3 127.0.0.1 12345 " + fmt.Sprintf("%d", ln.Addr().(*net.TCPAddr).Port) + "\r\n"
+	_, err = conn.Write([]byte(header))
+	require.NoError(t, err)
+
+	res := <-ch
+	// The first read on a rejected connection returns an error
+	require.Error(t, res.err)
 }

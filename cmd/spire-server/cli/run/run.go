@@ -88,7 +88,7 @@ type serverConfig struct {
 	LogSourceLocation            bool               `hcl:"log_source_location"`
 	PruneAttestedNodesExpiredFor string             `hcl:"prune_attested_nodes_expired_for"`
 	PruneNonReattestableNodes    bool               `hcl:"prune_tofu_nodes"`
-	ListenProxyProtocol          bool               `hcl:"listen_proxy_protocol"`
+	ProxyProtocolTrustedCIDRs    []string           `hcl:"proxy_protocol_trusted_cidrs"`
 	RateLimit                    rateLimitConfig    `hcl:"ratelimit"`
 	SocketPath                   string             `hcl:"socket_path"`
 	TrustDomain                  string             `hcl:"trust_domain"`
@@ -430,7 +430,7 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 
 	sc.DataDir = c.Server.DataDir
 	sc.AuditLogEnabled = c.Server.AuditLogEnabled
-	sc.ListenProxyProtocol = c.Server.ListenProxyProtocol
+	sc.ProxyProtocolTrustedCIDRs = c.Server.ProxyProtocolTrustedCIDRs
 
 	td, err := spiffeid.TrustDomainFromString(c.Server.TrustDomain)
 	if err != nil {
