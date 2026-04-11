@@ -19,6 +19,7 @@ import (
 
 func (c *agentConfig) addOSFlags(flags *flag.FlagSet) {
 	flags.StringVar(&c.SocketPath, "socketPath", "", "Path to bind the SPIRE Agent API socket to")
+	flags.StringVar(&c.Instance, "i", "", "Instance name to substitute into socket templates (env SPIRE_AGENT_PUBLIC_SOCKET_TEMPLATE and SPIRE_AGENT_PRIVATE_SOCKET_TEMPLATE). If omitted and the env var(s) are set, defaults to 'main'.")
 }
 
 func (c *agentConfig) setPlatformDefaults() {
@@ -26,11 +27,22 @@ func (c *agentConfig) setPlatformDefaults() {
 }
 
 func (c *agentConfig) getAddr() (net.Addr, error) {
-	return util.GetUnixAddrWithAbsPath(c.SocketPath)
+	resolved := common.ResolveSocketPath(c.SocketPath, common.DefaultSocketPath, "SPIRE_AGENT_PUBLIC_SOCKET_TEMPLATE", c.Instance)
+	return util.GetUnixAddrWithAbsPath(resolved)
 }
 
 func (c *agentConfig) getAdminAddr() (net.Addr, error) {
 	socketPathAbs, err := filepath.Abs(c.SocketPath)
+	tpl := os.Getenv("SPIRE_AGENT_PRIVATE_SOCKET_TEMPLATE")
+	if tpl != "" && strings.Contains(tpl, "%i") {
+		if c.Instance == "" {
+			c.Instance = "main"
+		}
+		if c.AdminSocketPath == "" {
+			c.AdminSocketPath = strings.ReplaceAll(tpl, "%i", c.Instance)
+		}
+	}
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to get absolute path for socket_path: %w", err)
 	}
