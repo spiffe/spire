@@ -7,7 +7,7 @@ import (
 )
 
 var (
-	expectedUsage    = `Usage of wit mint:
+	expectedUsage = `Usage of wit mint:
   -keyType string
     	Key type of the WIT-SVID (default "ec-p256")` + clitest.AddrOutputForCasesWhereOptionsStartWithS +
 		`  -signingAlgorithm string
