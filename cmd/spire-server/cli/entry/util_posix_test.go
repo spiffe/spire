@@ -20,6 +20,8 @@ const (
     	SPIFFE ID of a trust domain to federate with. Can be used more than once
   -hint string
     	The entry hint, used to disambiguate entries with the same SPIFFE ID
+  -i string
+    	Instance name to substitute into socket templates (env SPIRE_SERVER_PRIVATE_SOCKET_TEMPLATE). If omitted and the env var is set, defaults to 'main'.
   -jwtSVIDTTL int
     	The lifetime, in seconds, for JWT-SVIDs issued based on this registration entry.
   -node
@@ -48,6 +50,8 @@ const (
     	SPIFFE ID of a trust domain an entry is federate with. Can be used more than once
   -hint string
     	The Hint of the records to show (optional)
+  -i string
+    	Instance name to substitute into socket templates (env SPIRE_SERVER_PRIVATE_SOCKET_TEMPLATE). If omitted and the env var is set, defaults to 'main'.
   -matchFederatesWithOn string
     	The match mode used when filtering by federates with. Options: exact, any, superset and subset (default "superset")
   -matchSelectorsOn string
@@ -80,6 +84,8 @@ const (
     	SPIFFE ID of a trust domain to federate with. Can be used more than once
   -hint string
     	The entry hint, used to disambiguate entries with the same SPIFFE ID
+  -i string
+    	Instance name to substitute into socket templates (env SPIRE_SERVER_PRIVATE_SOCKET_TEMPLATE). If omitted and the env var is set, defaults to 'main'.
   -jwtSVIDTTL int
     	The lifetime, in seconds, for JWT-SVIDs issued based on this registration entry.
   -output value
@@ -102,6 +108,8 @@ const (
     	The Registration Entry ID of the record to delete.
   -file string
     	Path to a file containing a JSON structure for batch deletion (optional). If set to '-', read from stdin.
+  -i string
+    	Instance name to substitute into socket templates (env SPIRE_SERVER_PRIVATE_SOCKET_TEMPLATE). If omitted and the env var is set, defaults to 'main'.
   -output value
     	Desired output format (pretty, json); default: pretty.
   -socketPath string
@@ -114,6 +122,8 @@ const (
     	SPIFFE ID of a trust domain an entry is federate with. Can be used more than once
   -hint string
     	The Hint of the records to count (optional)
+  -i string
+    	Instance name to substitute into socket templates (env SPIRE_SERVER_PRIVATE_SOCKET_TEMPLATE). If omitted and the env var is set, defaults to 'main'.
   -matchFederatesWithOn string
     	The match mode used when filtering by federates with. Options: exact, any, superset and subset (default "superset")
   -matchSelectorsOn string

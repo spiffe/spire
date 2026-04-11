@@ -11,6 +11,8 @@ import (
 
 var (
 	usage = `Usage of health:
+  -i string
+    	Instance name to substitute into socket templates (env SPIRE_AGENT_PUBLIC_SOCKET_TEMPLATE). If omitted and the env var is set, defaults to 'main'.
   -shallow
     	Perform a less stringent health check
   -socketPath string

@@ -12,6 +12,8 @@ const (
     	Path to a file containing federation relationships in JSON format (optional). If set to '-', read the JSON from stdin.
   -endpointSpiffeID string
     	SPIFFE ID of the SPIFFE bundle endpoint server. Only used for 'spiffe' profile.
+  -i string
+    	Instance name to substitute into socket templates (env SPIRE_SERVER_PRIVATE_SOCKET_TEMPLATE). If omitted and the env var is set, defaults to 'main'.
   -output value
     	Desired output format (pretty, json); default: pretty.
   -socketPath string
@@ -24,6 +26,8 @@ const (
     	Path to the trust domain bundle data (optional).
 `
 	deleteUsage = `Usage of federation delete:
+  -i string
+    	Instance name to substitute into socket templates (env SPIRE_SERVER_PRIVATE_SOCKET_TEMPLATE). If omitted and the env var is set, defaults to 'main'.
   -id string
     	SPIFFE ID of the trust domain
   -output value
@@ -32,12 +36,16 @@ const (
     	Path to the SPIRE Server API socket (default "/tmp/spire-server/private/api.sock")
 `
 	listUsage = `Usage of federation list:
+  -i string
+    	Instance name to substitute into socket templates (env SPIRE_SERVER_PRIVATE_SOCKET_TEMPLATE). If omitted and the env var is set, defaults to 'main'.
   -output value
     	Desired output format (pretty, json); default: pretty.
   -socketPath string
     	Path to the SPIRE Server API socket (default "/tmp/spire-server/private/api.sock")
 `
 	refreshUsage = `Usage of federation refresh:
+  -i string
+    	Instance name to substitute into socket templates (env SPIRE_SERVER_PRIVATE_SOCKET_TEMPLATE). If omitted and the env var is set, defaults to 'main'.
   -id string
     	SPIFFE ID of the trust domain
   -output value
@@ -46,6 +54,8 @@ const (
     	Path to the SPIRE Server API socket (default "/tmp/spire-server/private/api.sock")
 `
 	showUsage = `Usage of federation show:
+  -i string
+    	Instance name to substitute into socket templates (env SPIRE_SERVER_PRIVATE_SOCKET_TEMPLATE). If omitted and the env var is set, defaults to 'main'.
   -output value
     	Desired output format (pretty, json); default: pretty.
   -socketPath string
@@ -62,6 +72,8 @@ const (
     	Path to a file containing federation relationships in JSON format (optional). If set to '-', read the JSON from stdin.
   -endpointSpiffeID string
     	SPIFFE ID of the SPIFFE bundle endpoint server. Only used for 'spiffe' profile.
+  -i string
+    	Instance name to substitute into socket templates (env SPIRE_SERVER_PRIVATE_SOCKET_TEMPLATE). If omitted and the env var is set, defaults to 'main'.
   -output value
     	Desired output format (pretty, json); default: pretty.
   -socketPath string

@@ -6,6 +6,8 @@ var (
 	x509TaintUsage = `Usage of localauthority x509 taint:
   -authorityID string
     	The authority ID of the X.509 authority to taint
+  -i string
+    	Instance name to substitute into socket templates (env SPIRE_SERVER_PRIVATE_SOCKET_TEMPLATE). If omitted and the env var is set, defaults to 'main'.
   -output value
     	Desired output format (pretty, json); default: pretty.
   -socketPath string

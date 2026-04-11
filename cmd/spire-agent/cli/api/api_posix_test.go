@@ -8,6 +8,8 @@ const (
     	comma separated list of audience values
   -format value
     	deprecated; use -output
+  -i string
+    	Instance name to substitute into socket templates (env SPIRE_AGENT_PUBLIC_SOCKET_TEMPLATE). If omitted and the env var is set, defaults to 'main'.
   -output value
     	Desired output format (pretty, json); default: pretty.
   -socketPath string
@@ -18,6 +20,8 @@ const (
     	Time to wait for a response (default 5s)
 `
 	fetchX509Usage = `Usage of fetch x509:
+  -i string
+    	Instance name to substitute into socket templates (env SPIRE_AGENT_PUBLIC_SOCKET_TEMPLATE). If omitted and the env var is set, defaults to 'main'.
   -output value
     	Desired output format (pretty, json); default: pretty.
   -silent
@@ -32,6 +36,8 @@ const (
 	validateJWTUsage = `Usage of validate jwt:
   -audience string
     	expected audience value
+  -i string
+    	Instance name to substitute into socket templates (env SPIRE_AGENT_PUBLIC_SOCKET_TEMPLATE). If omitted and the env var is set, defaults to 'main'.
   -output value
     	Desired output format (pretty, json); default: pretty.
   -socketPath string
