@@ -17,35 +17,39 @@ func TestAllTrueMasks(t *testing.T) {
 		Selectors:            true,
 		Banned:               true,
 		CanReattest:          true,
+		AgentVersion:         true,
 	}, protoutil.AllTrueAgentMask)
 
 	spiretest.AssertProtoEqual(t, &types.BundleMask{
 		X509Authorities: true,
 		JwtAuthorities:  true,
+		WitAuthorities:  true,
 		RefreshHint:     true,
 		SequenceNumber:  true,
 	}, protoutil.AllTrueBundleMask)
 
 	spiretest.AssertProtoEqual(t, &types.EntryMask{
-		SpiffeId:       true,
-		ParentId:       true,
-		Selectors:      true,
-		X509SvidTtl:    true,
-		JwtSvidTtl:     true,
-		FederatesWith:  true,
-		Admin:          true,
-		CreatedAt:      true,
-		Downstream:     true,
-		ExpiresAt:      true,
-		DnsNames:       true,
-		RevisionNumber: true,
-		StoreSvid:      true,
-		Hint:           true,
+		SpiffeId:             true,
+		ParentId:             true,
+		Selectors:            true,
+		X509SvidTtl:          true,
+		JwtSvidTtl:           true,
+		FederatesWith:        true,
+		Admin:                true,
+		CreatedAt:            true,
+		Downstream:           true,
+		ExpiresAt:            true,
+		DnsNames:             true,
+		RevisionNumber:       true,
+		StoreSvid:            true,
+		Hint:                 true,
+		AdditionalAttributes: true,
 	}, protoutil.AllTrueEntryMask)
 
 	spiretest.AssertProtoEqual(t, &common.BundleMask{
 		RootCas:         true,
 		JwtSigningKeys:  true,
+		WitSigningKeys:  true,
 		RefreshHint:     true,
 		SequenceNumber:  true,
 		X509TaintedKeys: true,
@@ -58,6 +62,7 @@ func TestAllTrueMasks(t *testing.T) {
 		NewCertSerialNumber: true,
 		NewCertNotAfter:     true,
 		CanReattest:         true,
+		AgentVersion:        true,
 	}, protoutil.AllTrueCommonAgentMask)
 
 	spiretest.AssertProtoEqual(t, &types.FederationRelationshipMask{

@@ -5,8 +5,8 @@ import (
 	"crypto/tls"
 	"errors"
 	"net"
+	"os"
 	"reflect"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -29,6 +29,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/authpolicy"
 	"github.com/spiffe/spire/pkg/server/ca/manager"
 	"github.com/spiffe/spire/pkg/server/cache/entrycache"
+	"github.com/spiffe/spire/pkg/server/cache/nodecache"
 	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/pkg/server/endpoints/bundle"
 	"github.com/spiffe/spire/pkg/server/svid"
@@ -198,10 +199,20 @@ func TestListenAndServe(t *testing.T) {
 		return entrycache.BuildFromDataStore(ctx, testTD.String(), ds)
 	}
 
+	// Prime the datastore with the:
+	// - bundle used to verify client certificates.
+	// - agent attested node information
+	// - admin registration entry
+	// - downstream registration entry
+	prepareDataStore(t, ds, []*testca.CA{ca, federatedCA}, agentSVID)
+
 	ef, err := NewAuthorizedEntryFetcherWithFullCache(context.Background(), buildCacheFn, log, clk, ds, defaultCacheReloadInterval, defaultPruneEventsOlderThan)
 	require.NoError(t, err)
 
 	pe, err := authpolicy.DefaultAuthPolicy(ctx)
+	require.NoError(t, err)
+
+	nodeCache, err := nodecache.New(ctx, log, ds, clk, true, true)
 	require.NoError(t, err)
 
 	endpoints := Endpoints{
@@ -226,18 +237,13 @@ func TestListenAndServe(t *testing.T) {
 		Log:                          log,
 		Metrics:                      metrics,
 		RateLimit:                    rateLimit,
+		NodeCacheRebuildTask:         nodeCache.PeriodicRebuild,
 		EntryFetcherCacheRebuildTask: ef.RunRebuildCacheTask,
 		EntryFetcherPruneEventsTask:  ef.PruneEventsTask,
 		AuthPolicyEngine:             pe,
 		AdminIDs:                     []spiffeid.ID{foreignAdminSVID.ID},
+		nodeCache:                    nodeCache,
 	}
-
-	// Prime the datastore with the:
-	// - bundle used to verify client certificates.
-	// - agent attested node information
-	// - admin registration entry
-	// - downstream registration entry
-	prepareDataStore(t, ds, []*testca.CA{ca, federatedCA}, agentSVID)
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
@@ -256,6 +262,14 @@ func TestListenAndServe(t *testing.T) {
 		require.NoError(t, err)
 		return conn
 	}
+
+	// Await /tmp/spire-test-*/sockets to become available (within 10s)
+	// Avoids flaky tests in CI, where we occasionally see failures
+	// due to the socket not being ready when first used by the test
+	require.Eventually(t, func() bool {
+		_, err := os.Stat(endpoints.LocalAddr.String())
+		return err == nil
+	}, 10*time.Second, 10*time.Millisecond, "socket %q not available", endpoints.LocalAddr.String())
 
 	target, err := util.GetTargetName(endpoints.LocalAddr)
 	require.NoError(t, err)
@@ -365,21 +379,15 @@ func TestListenAndServe(t *testing.T) {
 				grpc.WithTransportCredentials(credentials.NewTLS(config)),
 			)
 			require.NoError(t, err)
+			defer conn.Close()
 
 			_, err = entryv1.NewEntryClient(conn).ListEntries(ctx, nil)
 			require.Error(t, err)
 
-			switch {
-			// This message can be returned on macOS
-			case strings.Contains(err.Error(), "write: broken pipe"):
-			// This message can be returned on Windows
-			case strings.Contains(err.Error(), "connection was forcibly closed by the remote host"):
-			case strings.Contains(err.Error(), "connection reset by peer"):
-			case strings.Contains(err.Error(), "tls: bad certificate"):
-				return
-			default:
-				t.Errorf("expected invalid connection for misconfigured foreign admin caller: %s", err.Error())
-			}
+			// When TLS handshake fails due to invalid certificates, the server
+			// terminates the connection, which gRPC reports as Unavailable.
+			// We check the gRPC error code rather than OS-specific error messages.
+			require.Equal(t, codes.Unavailable, status.Convert(err).Code(), "expected Unavailable status for misconfigured foreign admin caller")
 		}
 	})
 
@@ -478,8 +486,7 @@ func testAgentAPI(ctx context.Context, t *testing.T, conns testConns) {
 			"AttestAgent":     true,
 			"RenewAgent":      true,
 			"CreateJoinToken": false,
-			// TODO: Must be true for agent (#3908)
-			"PostStatus": false,
+			"PostStatus":      true,
 		})
 	})
 
@@ -620,6 +627,7 @@ func testBundleAPI(ctx context.Context, t *testing.T, conns testConns) {
 			"GetBundle":                  true,
 			"AppendBundle":               true,
 			"PublishJWTAuthority":        false,
+			"PublishWITAuthority":        false,
 			"CountBundles":               true,
 			"ListFederatedBundles":       true,
 			"GetFederatedBundle":         true,
@@ -635,6 +643,7 @@ func testBundleAPI(ctx context.Context, t *testing.T, conns testConns) {
 			"GetBundle":                  true,
 			"AppendBundle":               false,
 			"PublishJWTAuthority":        false,
+			"PublishWITAuthority":        false,
 			"CountBundles":               false,
 			"ListFederatedBundles":       false,
 			"GetFederatedBundle":         false,
@@ -650,6 +659,7 @@ func testBundleAPI(ctx context.Context, t *testing.T, conns testConns) {
 			"GetBundle":                  true,
 			"AppendBundle":               false,
 			"PublishJWTAuthority":        false,
+			"PublishWITAuthority":        false,
 			"CountBundles":               false,
 			"ListFederatedBundles":       false,
 			"GetFederatedBundle":         true,
@@ -665,6 +675,7 @@ func testBundleAPI(ctx context.Context, t *testing.T, conns testConns) {
 			"GetBundle":                  true,
 			"AppendBundle":               true,
 			"PublishJWTAuthority":        false,
+			"PublishWITAuthority":        false,
 			"CountBundles":               true,
 			"ListFederatedBundles":       true,
 			"GetFederatedBundle":         true,
@@ -680,6 +691,7 @@ func testBundleAPI(ctx context.Context, t *testing.T, conns testConns) {
 			"GetBundle":                  true,
 			"AppendBundle":               true,
 			"PublishJWTAuthority":        false,
+			"PublishWITAuthority":        false,
 			"CountBundles":               true,
 			"ListFederatedBundles":       true,
 			"GetFederatedBundle":         true,
@@ -695,6 +707,7 @@ func testBundleAPI(ctx context.Context, t *testing.T, conns testConns) {
 			"GetBundle":                  true,
 			"AppendBundle":               false,
 			"PublishJWTAuthority":        true,
+			"PublishWITAuthority":        true,
 			"CountBundles":               false,
 			"ListFederatedBundles":       false,
 			"GetFederatedBundle":         false,
@@ -791,8 +804,10 @@ func testSVIDAPI(ctx context.Context, t *testing.T, conns testConns) {
 		testAuthorization(ctx, t, svidv1.NewSVIDClient(conns.local), map[string]bool{
 			"MintX509SVID":        true,
 			"MintJWTSVID":         true,
+			"MintWITSVID":         true,
 			"BatchNewX509SVID":    false,
 			"NewJWTSVID":          false,
+			"BatchNewWITSVID":     false,
 			"NewDownstreamX509CA": false,
 		})
 	})
@@ -801,8 +816,10 @@ func testSVIDAPI(ctx context.Context, t *testing.T, conns testConns) {
 		testAuthorization(ctx, t, svidv1.NewSVIDClient(conns.noAuth), map[string]bool{
 			"MintX509SVID":        false,
 			"MintJWTSVID":         false,
+			"MintWITSVID":         false,
 			"BatchNewX509SVID":    false,
 			"NewJWTSVID":          false,
+			"BatchNewWITSVID":     false,
 			"NewDownstreamX509CA": false,
 		})
 	})
@@ -811,8 +828,10 @@ func testSVIDAPI(ctx context.Context, t *testing.T, conns testConns) {
 		testAuthorization(ctx, t, svidv1.NewSVIDClient(conns.agent), map[string]bool{
 			"MintX509SVID":        false,
 			"MintJWTSVID":         false,
+			"MintWITSVID":         false,
 			"BatchNewX509SVID":    true,
 			"NewJWTSVID":          true,
+			"BatchNewWITSVID":     true,
 			"NewDownstreamX509CA": false,
 		})
 	})
@@ -821,8 +840,10 @@ func testSVIDAPI(ctx context.Context, t *testing.T, conns testConns) {
 		testAuthorization(ctx, t, svidv1.NewSVIDClient(conns.admin), map[string]bool{
 			"MintX509SVID":        true,
 			"MintJWTSVID":         true,
+			"MintWITSVID":         true,
 			"BatchNewX509SVID":    false,
 			"NewJWTSVID":          false,
+			"BatchNewWITSVID":     false,
 			"NewDownstreamX509CA": false,
 		})
 	})
@@ -831,8 +852,10 @@ func testSVIDAPI(ctx context.Context, t *testing.T, conns testConns) {
 		testAuthorization(ctx, t, svidv1.NewSVIDClient(conns.federatedAdmin), map[string]bool{
 			"MintX509SVID":        true,
 			"MintJWTSVID":         true,
+			"MintWITSVID":         true,
 			"BatchNewX509SVID":    false,
 			"NewJWTSVID":          false,
+			"BatchNewWITSVID":     false,
 			"NewDownstreamX509CA": false,
 		})
 	})
@@ -841,8 +864,10 @@ func testSVIDAPI(ctx context.Context, t *testing.T, conns testConns) {
 		testAuthorization(ctx, t, svidv1.NewSVIDClient(conns.downstream), map[string]bool{
 			"MintX509SVID":        false,
 			"MintJWTSVID":         false,
+			"MintWITSVID":         false,
 			"BatchNewX509SVID":    false,
 			"NewJWTSVID":          false,
+			"BatchNewWITSVID":     false,
 			"NewDownstreamX509CA": true,
 		})
 	})
@@ -931,6 +956,11 @@ func testLocalAuthorityAPI(ctx context.Context, t *testing.T, conns testConns) {
 			"TaintX509UpstreamAuthority":  true,
 			"RevokeX509Authority":         true,
 			"RevokeX509UpstreamAuthority": true,
+			"GetWITAuthorityState":        true,
+			"PrepareWITAuthority":         true,
+			"ActivateWITAuthority":        true,
+			"TaintWITAuthority":           true,
+			"RevokeWITAuthority":          true,
 		})
 	})
 
@@ -948,6 +978,11 @@ func testLocalAuthorityAPI(ctx context.Context, t *testing.T, conns testConns) {
 			"TaintX509UpstreamAuthority":  false,
 			"RevokeX509Authority":         false,
 			"RevokeX509UpstreamAuthority": false,
+			"GetWITAuthorityState":        false,
+			"PrepareWITAuthority":         false,
+			"ActivateWITAuthority":        false,
+			"TaintWITAuthority":           false,
+			"RevokeWITAuthority":          false,
 		})
 	})
 
@@ -965,6 +1000,11 @@ func testLocalAuthorityAPI(ctx context.Context, t *testing.T, conns testConns) {
 			"TaintX509UpstreamAuthority":  false,
 			"RevokeX509Authority":         false,
 			"RevokeX509UpstreamAuthority": false,
+			"GetWITAuthorityState":        false,
+			"PrepareWITAuthority":         false,
+			"ActivateWITAuthority":        false,
+			"TaintWITAuthority":           false,
+			"RevokeWITAuthority":          false,
 		})
 	})
 
@@ -982,6 +1022,11 @@ func testLocalAuthorityAPI(ctx context.Context, t *testing.T, conns testConns) {
 			"TaintX509UpstreamAuthority":  true,
 			"RevokeX509Authority":         true,
 			"RevokeX509UpstreamAuthority": true,
+			"GetWITAuthorityState":        true,
+			"PrepareWITAuthority":         true,
+			"ActivateWITAuthority":        true,
+			"TaintWITAuthority":           true,
+			"RevokeWITAuthority":          true,
 		})
 	})
 
@@ -999,6 +1044,11 @@ func testLocalAuthorityAPI(ctx context.Context, t *testing.T, conns testConns) {
 			"TaintX509UpstreamAuthority":  true,
 			"RevokeX509Authority":         true,
 			"RevokeX509UpstreamAuthority": true,
+			"GetWITAuthorityState":        true,
+			"PrepareWITAuthority":         true,
+			"ActivateWITAuthority":        true,
+			"TaintWITAuthority":           true,
+			"RevokeWITAuthority":          true,
 		})
 	})
 
@@ -1016,6 +1066,11 @@ func testLocalAuthorityAPI(ctx context.Context, t *testing.T, conns testConns) {
 			"TaintX509UpstreamAuthority":  false,
 			"RevokeX509Authority":         false,
 			"RevokeX509UpstreamAuthority": false,
+			"GetWITAuthorityState":        false,
+			"PrepareWITAuthority":         false,
+			"ActivateWITAuthority":        false,
+			"TaintWITAuthority":           false,
+			"RevokeWITAuthority":          false,
 		})
 	})
 }
@@ -1140,6 +1195,11 @@ func (s *bundleEndpointServer) ListenAndServe(context.Context) error {
 	return nil
 }
 
+func (s *bundleEndpointServer) WaitForListening() {
+	// This method is a no-op for the bundle server since it does not have a
+	// separate listening hook.
+}
+
 func (s *bundleEndpointServer) Used() bool {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
@@ -1238,6 +1298,10 @@ func (bundleServer) AppendBundle(_ context.Context, _ *bundlev1.AppendBundleRequ
 
 func (bundleServer) PublishJWTAuthority(_ context.Context, _ *bundlev1.PublishJWTAuthorityRequest) (*bundlev1.PublishJWTAuthorityResponse, error) {
 	return &bundlev1.PublishJWTAuthorityResponse{}, nil
+}
+
+func (bundleServer) PublishWITAuthority(_ context.Context, _ *bundlev1.PublishWITAuthorityRequest) (*bundlev1.PublishWITAuthorityResponse, error) {
+	return &bundlev1.PublishWITAuthorityResponse{}, nil
 }
 
 func (bundleServer) ListFederatedBundles(_ context.Context, _ *bundlev1.ListFederatedBundlesRequest) (*bundlev1.ListFederatedBundlesResponse, error) {
@@ -1352,12 +1416,20 @@ func (svidServer) MintJWTSVID(_ context.Context, _ *svidv1.MintJWTSVIDRequest) (
 	return &svidv1.MintJWTSVIDResponse{}, nil
 }
 
+func (svidServer) MintWITSVID(_ context.Context, _ *svidv1.MintWITSVIDRequest) (*svidv1.MintWITSVIDResponse, error) {
+	return &svidv1.MintWITSVIDResponse{}, nil
+}
+
 func (svidServer) BatchNewX509SVID(_ context.Context, _ *svidv1.BatchNewX509SVIDRequest) (*svidv1.BatchNewX509SVIDResponse, error) {
 	return &svidv1.BatchNewX509SVIDResponse{}, nil
 }
 
 func (svidServer) NewJWTSVID(_ context.Context, _ *svidv1.NewJWTSVIDRequest) (*svidv1.NewJWTSVIDResponse, error) {
 	return &svidv1.NewJWTSVIDResponse{}, nil
+}
+
+func (svidServer) BatchNewWITSVID(_ context.Context, _ *svidv1.BatchNewWITSVIDRequest) (*svidv1.BatchNewWITSVIDResponse, error) {
+	return &svidv1.BatchNewWITSVIDResponse{}, nil
 }
 
 func (svidServer) NewDownstreamX509CA(_ context.Context, _ *svidv1.NewDownstreamX509CARequest) (*svidv1.NewDownstreamX509CAResponse, error) {
@@ -1442,4 +1514,24 @@ func (localAuthorityServer) RevokeX509Authority(context.Context, *localauthority
 
 func (localAuthorityServer) RevokeX509UpstreamAuthority(context.Context, *localauthorityv1.RevokeX509UpstreamAuthorityRequest) (*localauthorityv1.RevokeX509UpstreamAuthorityResponse, error) {
 	return &localauthorityv1.RevokeX509UpstreamAuthorityResponse{}, nil
+}
+
+func (localAuthorityServer) GetWITAuthorityState(context.Context, *localauthorityv1.GetWITAuthorityStateRequest) (*localauthorityv1.GetWITAuthorityStateResponse, error) {
+	return &localauthorityv1.GetWITAuthorityStateResponse{}, nil
+}
+
+func (localAuthorityServer) PrepareWITAuthority(context.Context, *localauthorityv1.PrepareWITAuthorityRequest) (*localauthorityv1.PrepareWITAuthorityResponse, error) {
+	return &localauthorityv1.PrepareWITAuthorityResponse{}, nil
+}
+
+func (localAuthorityServer) ActivateWITAuthority(context.Context, *localauthorityv1.ActivateWITAuthorityRequest) (*localauthorityv1.ActivateWITAuthorityResponse, error) {
+	return &localauthorityv1.ActivateWITAuthorityResponse{}, nil
+}
+
+func (localAuthorityServer) TaintWITAuthority(context.Context, *localauthorityv1.TaintWITAuthorityRequest) (*localauthorityv1.TaintWITAuthorityResponse, error) {
+	return &localauthorityv1.TaintWITAuthorityResponse{}, nil
+}
+
+func (localAuthorityServer) RevokeWITAuthority(context.Context, *localauthorityv1.RevokeWITAuthorityRequest) (*localauthorityv1.RevokeWITAuthorityResponse, error) {
+	return &localauthorityv1.RevokeWITAuthorityResponse{}, nil
 }

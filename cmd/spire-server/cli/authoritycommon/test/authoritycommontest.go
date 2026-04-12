@@ -12,6 +12,8 @@ import (
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 var AvailableFormats = []string{"pretty", "json"}
@@ -158,6 +160,26 @@ func (s *fakeLocalAuthorityServer) RevokeX509UpstreamAuthority(context.Context, 
 	return &localauthorityv1.RevokeX509UpstreamAuthorityResponse{
 		UpstreamAuthoritySubjectKeyId: s.RevokedUpstreamAuthoritySubjectKeyId,
 	}, s.Err
+}
+
+func (s *fakeLocalAuthorityServer) GetWITAuthorityState(ctx context.Context, _ *localauthorityv1.GetWITAuthorityStateRequest) (*localauthorityv1.GetWITAuthorityStateResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "RPC is not implemented")
+}
+
+func (s *fakeLocalAuthorityServer) PrepareWITAuthority(ctx context.Context, _ *localauthorityv1.PrepareWITAuthorityRequest) (*localauthorityv1.PrepareWITAuthorityResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "RPC is not implemented")
+}
+
+func (s *fakeLocalAuthorityServer) ActivateWITAuthority(ctx context.Context, req *localauthorityv1.ActivateWITAuthorityRequest) (*localauthorityv1.ActivateWITAuthorityResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "RPC is not implemented")
+}
+
+func (s *fakeLocalAuthorityServer) TaintWITAuthority(ctx context.Context, req *localauthorityv1.TaintWITAuthorityRequest) (*localauthorityv1.TaintWITAuthorityResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "RPC is not implemented")
+}
+
+func (s *fakeLocalAuthorityServer) RevokeWITAuthority(ctx context.Context, req *localauthorityv1.RevokeWITAuthorityRequest) (*localauthorityv1.RevokeWITAuthorityResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "RPC is not implemented")
 }
 
 func RequireOutputBasedOnFormat(t *testing.T, format, stdoutString string, expectedStdoutPretty, expectedStdoutJSON string) {

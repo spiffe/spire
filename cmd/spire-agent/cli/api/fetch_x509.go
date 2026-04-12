@@ -9,6 +9,7 @@ import (
 	"flag"
 	"fmt"
 	"path"
+	"sort"
 	"time"
 
 	"github.com/mitchellh/cli"
@@ -103,6 +104,7 @@ func (c *fetchX509Command) writeResponse(svids []*X509SVID) error {
 		for trustDomain := range svid.FederatedBundles {
 			federatedDomains = append(federatedDomains, trustDomain)
 		}
+		sort.Strings(federatedDomains)
 
 		for j, trustDomain := range federatedDomains {
 			bundlePath := path.Join(c.writePath, fmt.Sprintf("federated_bundle.%d.%d.pem", i, j))

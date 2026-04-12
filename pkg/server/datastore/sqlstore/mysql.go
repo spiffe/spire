@@ -1,6 +1,7 @@
 package sqlstore
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
@@ -28,7 +29,7 @@ const (
 	tlsConfigName = "spireCustomTLS"
 )
 
-func (my mysqlDB) connect(cfg *configuration, isReadOnly bool) (db *gorm.DB, version string, supportsCTE bool, err error) {
+func (my mysqlDB) connect(ctx context.Context, cfg *configuration, isReadOnly bool) (db *gorm.DB, version string, supportsCTE bool, err error) {
 	mysqlConfig, err := configureConnection(cfg, isReadOnly)
 	if err != nil {
 		return nil, "", false, err
@@ -60,7 +61,7 @@ func (my mysqlDB) connect(cfg *configuration, isReadOnly bool) (db *gorm.DB, ver
 		return nil, "", false, errOpen
 	}
 
-	version, err = queryVersion(db, "SELECT VERSION()")
+	version, err = queryVersion(ctx, db, "SELECT VERSION()")
 	if err != nil {
 		return nil, "", false, err
 	}
@@ -69,7 +70,7 @@ func (my mysqlDB) connect(cfg *configuration, isReadOnly bool) (db *gorm.DB, ver
 		my.logger.Warn("MySQL 5.7 is no longer officially supported, and SPIRE does not guarantee compatibility with MySQL 5.7. Consider upgrading to a newer version of MySQL.")
 	}
 
-	supportsCTE, err = my.supportsCTE(db)
+	supportsCTE, err = my.supportsCTE(ctx, db)
 	if err != nil {
 		return nil, "", false, err
 	}
@@ -77,13 +78,13 @@ func (my mysqlDB) connect(cfg *configuration, isReadOnly bool) (db *gorm.DB, ver
 	return db, version, supportsCTE, nil
 }
 
-func (my mysqlDB) supportsCTE(gormDB *gorm.DB) (bool, error) {
+func (my mysqlDB) supportsCTE(ctx context.Context, gormDB *gorm.DB) (bool, error) {
 	db := gormDB.DB()
 	if db == nil {
 		return false, errors.New("unable to get raw database object")
 	}
 	var value int64
-	err := db.QueryRow("WITH a AS (SELECT 1 AS v) SELECT * FROM a;").Scan(&value)
+	err := db.QueryRowContext(ctx, "WITH a AS (SELECT 1 AS v) SELECT * FROM a;").Scan(&value)
 	switch {
 	case err == nil:
 		return true, nil

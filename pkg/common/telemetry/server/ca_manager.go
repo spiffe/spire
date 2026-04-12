@@ -1,6 +1,8 @@
 package server
 
 import (
+	"time"
+
 	"github.com/spiffe/spire/pkg/common/telemetry"
 )
 
@@ -19,6 +21,12 @@ func StartServerCAManagerPrepareJWTKeyCall(m telemetry.Metrics) *telemetry.CallC
 	return telemetry.StartCall(m, telemetry.CA, telemetry.Manager, telemetry.JWTKey, telemetry.Prepare)
 }
 
+// StartServerCAManagerPrepareWITKeyCall return metric for
+// Server CA Manager preparing a WIT Key
+func StartServerCAManagerPrepareWITKeyCall(m telemetry.Metrics) *telemetry.CallCounter {
+	return telemetry.StartCall(m, telemetry.CA, telemetry.Manager, telemetry.WITKey, telemetry.Prepare)
+}
+
 // StartServerCAManagerPrepareX509CACall return metric for
 // Server CA Manager preparing an X509 CA
 func StartServerCAManagerPrepareX509CACall(m telemetry.Metrics) *telemetry.CallCounter {
@@ -30,11 +38,17 @@ func StartServerCAManagerPrepareX509CACall(m telemetry.Metrics) *telemetry.CallC
 // Gauge (remember previous value set)
 
 // SetX509CARotateGauge set gauge for X509 CA rotation,
-// TTL of CA for a specific TrustDomain
-func SetX509CARotateGauge(m telemetry.Metrics, trustDomain string, val float32) {
+// expiration time and TTL of CA for a specific TrustDomain
+func SetX509CARotateGauge(m telemetry.Metrics, trustDomain string, expiration, now time.Time) {
+	m.SetPrecisionGaugeWithLabels(
+		[]string{telemetry.Manager, telemetry.X509CA, telemetry.Rotate, telemetry.Expiration},
+		float64(expiration.Unix()),
+		[]telemetry.Label{
+			{Name: telemetry.TrustDomainID, Value: trustDomain},
+		})
 	m.SetGaugeWithLabels(
 		[]string{telemetry.Manager, telemetry.X509CA, telemetry.Rotate, telemetry.TTL},
-		val,
+		float32(expiration.Sub(now).Seconds()),
 		[]telemetry.Label{
 			{Name: telemetry.TrustDomainID, Value: trustDomain},
 		})
@@ -54,6 +68,12 @@ func IncrActivateJWTKeyManagerCounter(m telemetry.Metrics) {
 // of X509 CA manager
 func IncrActivateX509CAManagerCounter(m telemetry.Metrics) {
 	m.IncrCounter([]string{telemetry.CA, telemetry.Manager, telemetry.X509CA, telemetry.Activate}, 1)
+}
+
+// IncrActivateWITKeyManagerCounter indicate activation
+// of WIT Key manager
+func IncrActivateWITKeyManagerCounter(m telemetry.Metrics) {
+	m.IncrCounter([]string{telemetry.Manager, telemetry.WITKey, telemetry.Activate}, 1)
 }
 
 // IncrManagerPrunedBundleCounter indicate manager

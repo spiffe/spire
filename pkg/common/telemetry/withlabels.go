@@ -23,8 +23,16 @@ func (w *withLabels) SetGauge(key []string, val float32) {
 	w.metrics.SetGaugeWithLabels(key, val, w.labels)
 }
 
+func (w *withLabels) SetPrecisionGauge(key []string, val float64) {
+	w.metrics.SetPrecisionGaugeWithLabels(key, val, w.labels)
+}
+
 func (w *withLabels) SetGaugeWithLabels(key []string, val float32, labels []Label) {
 	w.metrics.SetGaugeWithLabels(key, val, w.combineLabels(labels))
+}
+
+func (w *withLabels) SetPrecisionGaugeWithLabels(key []string, val float64, labels []Label) {
+	w.metrics.SetPrecisionGaugeWithLabels(key, val, w.combineLabels(labels))
 }
 
 func (w *withLabels) EmitKey(key []string, val float32) {

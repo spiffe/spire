@@ -89,6 +89,9 @@ type Config struct {
 	// JWTKeyType is the key type used for JWT signing keys
 	JWTKeyType keymanager.KeyType
 
+	// WITKeyType is the key type used for WIT signing keys
+	WITKeyType keymanager.KeyType
+
 	// Federation holds the configuration needed to federate with other
 	// trust domains.
 	Federation FederationConfig
@@ -118,18 +121,11 @@ type Config struct {
 	// X509-SVID, are granted admin rights.
 	AdminIDs []spiffeid.ID
 
-	// UseLegacyDownstreamX509CATTL, if true, the downstream X509CAs will use
-	// the legacy TTL calculation (e.g. prefer downstream workload entry TTL,
-	// then fall back to the default workload X509-SVID TTL) v.s. the new TTL
-	// calculation (prefer the TTL passed by the downstream caller, then fall
-	// back to the default X509 CA TTL).
-	UseLegacyDownstreamX509CATTL bool
-
 	// TLSPolicy determines the policy settings to apply to all TLS connections.
 	TLSPolicy tlspolicy.Policy
 
 	// PruneAttestedNodesExpiredFor enables periodic removal of attested nodes
-	// with X509-SVID expiration date further than a given time intervaln in the
+	// with X509-SVID expiration date further than a given time interval in the
 	// past. Non-reattestable nodes are not pruned by default. Banned nodes are
 	// not pruned.
 	PruneAttestedNodesExpiredFor time.Duration
@@ -137,10 +133,19 @@ type Config struct {
 	// PruneNonReattestableNodes, if true, includes non-reattestable nodes in the list
 	// considered for pruning.
 	PruneNonReattestableNodes bool
+
+	// MaxAttestedNodeInfoStaleness determines how long to trust cached attested
+	// node information, before requiring refreshing it from the datastore.
+	MaxAttestedNodeInfoStaleness time.Duration
+
+	// DisableJWTSVIDs, if true, JWT-SVID profile is disabled
+	DisableJWTSVIDs bool
+
+	// DisableWITSVIDs, if true, WIT-SVID profile is disabled
+	DisableWITSVIDs bool
 }
 
-type ExperimentalConfig struct {
-}
+type ExperimentalConfig struct{}
 
 type FederationConfig struct {
 	// BundleEndpoint contains the federation bundle endpoint configuration.

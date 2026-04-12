@@ -38,7 +38,7 @@ The configuration file is **required** by the provider. It contains
 |-------------------------|---------|--------------------|------------------------------------------------------------------------|----------|
 | `acme`                  | section | required[1]        | Provides the ACME configuration.                                       |          |
 | `serving_cert_file`     | section | required\[1\]\[4\] | Provides the serving certificate configuration.                        |          |
-| `allow_insecure_scheme` | string  | optional\[3\]      | Serves OIDC configuration response with HTTP url.                      | `false`  |
+| `allow_insecure_scheme` | bool    | optional\[3\]      | Serves OIDC configuration response with HTTP url.                      | `false`  |
 | `domains`               | strings | required           | One or more domains the provider is being served from.                 |          |
 | `experimental`          | section | optional           | The experimental options that are subject to change or removal.        |          |
 | `insecure_addr`         | string  | optional\[3\]      | Exposes the service on http.                                           |          |

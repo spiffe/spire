@@ -3,6 +3,7 @@ package endpoints
 import (
 	"context"
 	"crypto/x509"
+	"time"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -23,11 +24,11 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-func Middleware(log logrus.FieldLogger, metrics telemetry.Metrics, ds datastore.DataStore, clk clock.Clock, rlConf RateLimitConfig, policyEngine *authpolicy.Engine, auditLogEnabled bool, adminIDs []spiffeid.ID) middleware.Middleware {
+func Middleware(log logrus.FieldLogger, metrics telemetry.Metrics, ds datastore.DataStore, nodeCache api.AttestedNodeCache, maxAttestedNodeInfoStaleness time.Duration, clk clock.Clock, rlConf RateLimitConfig, policyEngine *authpolicy.Engine, auditLogEnabled bool, adminIDs []spiffeid.ID) middleware.Middleware {
 	chain := []middleware.Middleware{
 		middleware.WithLogger(log),
 		middleware.WithMetrics(metrics),
-		middleware.WithAuthorization(policyEngine, EntryFetcher(ds), AgentAuthorizer(ds, clk), adminIDs),
+		middleware.WithAuthorization(policyEngine, EntryFetcher(ds), AgentAuthorizer(ds, nodeCache, maxAttestedNodeInfoStaleness, clk), adminIDs),
 		middleware.WithRateLimits(RateLimits(rlConf), metrics),
 	}
 
@@ -57,7 +58,7 @@ func UpstreamPublisher(jwtKeyPublisher manager.JwtKeyPublisher) bundle.UpstreamP
 	return bundle.UpstreamPublisherFunc(jwtKeyPublisher.PublishJWTKey)
 }
 
-func AgentAuthorizer(ds datastore.DataStore, clk clock.Clock) middleware.AgentAuthorizer {
+func AgentAuthorizer(ds datastore.DataStore, nodeCache api.AttestedNodeCache, maxAttestedNodeInfoStaleness time.Duration, clk clock.Clock) middleware.AgentAuthorizer {
 	return middleware.AgentAuthorizerFunc(func(ctx context.Context, agentID spiffeid.ID, agentSVID *x509.Certificate) error {
 		id := agentID.String()
 		log := rpccontext.Logger(ctx)
@@ -67,7 +68,23 @@ func AgentAuthorizer(ds datastore.DataStore, clk clock.Clock) middleware.AgentAu
 			return errorutil.PermissionDenied(types.PermissionDeniedDetails_AGENT_EXPIRED, "agent %q SVID is expired", id)
 		}
 
-		attestedNode, err := ds.FetchAttestedNode(ctx, id)
+		cachedAgent, agentCacheTime := nodeCache.LookupAttestedNode(id)
+		switch {
+		case cachedAgent == nil:
+			// AttestedNode not found in local cache, will fetch from the datastore
+		case clk.Now().Sub(agentCacheTime) >= maxAttestedNodeInfoStaleness:
+			// Cached AttestedNode is stale, will attempt to refresh from the database
+		case cachedAgent.CertSerialNumber == "":
+			// Attested node was not found in the cache, will fetch from the datastore
+		case cachedAgent.CertSerialNumber == agentSVID.SerialNumber.String():
+			// AgentSVID matches the current serial number, access granted.
+			return nil
+		default:
+			// Could not validate the agent using the cache attested node information
+			// so we'll try fetching the up to date data from the datastore.
+		}
+
+		attestedNode, err := nodeCache.FetchAttestedNode(ctx, id)
 		switch {
 		case err != nil:
 			log.WithError(err).Error("Unable to look up agent information")
@@ -89,7 +106,7 @@ func AgentAuthorizer(ds datastore.DataStore, clk clock.Clock) middleware.AgentAu
 				CertNotAfter:     attestedNode.NewCertNotAfter,
 				CertSerialNumber: attestedNode.NewCertSerialNumber,
 				CanReattest:      attestedNode.CanReattest,
-			}, nil)
+			}, api.UpdateAttestedNodeCertificateMask)
 			if err != nil {
 				log.WithFields(logrus.Fields{
 					telemetry.SVIDSerialNumber: agentSVID.SerialNumber.String(),
@@ -126,17 +143,27 @@ func RateLimits(config RateLimitConfig) map[string]api.RateLimiter {
 		jsrLimit = middleware.PerIPLimit(limits.SignLimitPerIP)
 	}
 
-	pushJWTKeyLimit := middleware.PerIPLimit(limits.PushJWTKeyLimitPerIP)
+	pushKeyLimit := middleware.PerIPLimit(limits.PushKeyLimitPerIP)
+
+	wsrLimit := middleware.DisabledLimit()
+	if config.Signing {
+		wsrLimit = middleware.PerIPLimit(limits.SignLimitPerIP)
+	}
+
+	postStatusLimit := middleware.PerIPLimit(limits.PostStatusLimitPerIP)
 
 	return map[string]api.RateLimiter{
 		"/spire.api.server.svid.v1.SVID/MintX509SVID":                                    noLimit,
 		"/spire.api.server.svid.v1.SVID/MintJWTSVID":                                     noLimit,
+		"/spire.api.server.svid.v1.SVID/MintWITSVID":                                     noLimit,
 		"/spire.api.server.svid.v1.SVID/BatchNewX509SVID":                                csrLimit,
 		"/spire.api.server.svid.v1.SVID/NewJWTSVID":                                      jsrLimit,
+		"/spire.api.server.svid.v1.SVID/BatchNewWITSVID":                                 wsrLimit,
 		"/spire.api.server.svid.v1.SVID/NewDownstreamX509CA":                             csrLimit,
 		"/spire.api.server.bundle.v1.Bundle/GetBundle":                                   noLimit,
 		"/spire.api.server.bundle.v1.Bundle/AppendBundle":                                noLimit,
-		"/spire.api.server.bundle.v1.Bundle/PublishJWTAuthority":                         pushJWTKeyLimit,
+		"/spire.api.server.bundle.v1.Bundle/PublishJWTAuthority":                         pushKeyLimit,
+		"/spire.api.server.bundle.v1.Bundle/PublishWITAuthority":                         pushKeyLimit,
 		"/spire.api.server.bundle.v1.Bundle/CountBundles":                                noLimit,
 		"/spire.api.server.bundle.v1.Bundle/ListFederatedBundles":                        noLimit,
 		"/spire.api.server.bundle.v1.Bundle/GetFederatedBundle":                          noLimit,
@@ -163,6 +190,7 @@ func RateLimits(config RateLimitConfig) map[string]api.RateLimiter {
 		"/spire.api.server.agent.v1.Agent/BanAgent":                                      noLimit,
 		"/spire.api.server.agent.v1.Agent/AttestAgent":                                   attestLimit,
 		"/spire.api.server.agent.v1.Agent/RenewAgent":                                    csrLimit,
+		"/spire.api.server.agent.v1.Agent/PostStatus":                                    postStatusLimit,
 		"/spire.api.server.agent.v1.Agent/CreateJoinToken":                               noLimit,
 		"/spire.api.server.trustdomain.v1.TrustDomain/ListFederationRelationships":       noLimit,
 		"/spire.api.server.trustdomain.v1.TrustDomain/GetFederationRelationship":         noLimit,
@@ -182,6 +210,11 @@ func RateLimits(config RateLimitConfig) map[string]api.RateLimiter {
 		"/spire.api.server.localauthority.v1.LocalAuthority/TaintX509UpstreamAuthority":  noLimit,
 		"/spire.api.server.localauthority.v1.LocalAuthority/RevokeX509Authority":         noLimit,
 		"/spire.api.server.localauthority.v1.LocalAuthority/RevokeX509UpstreamAuthority": noLimit,
+		"/spire.api.server.localauthority.v1.LocalAuthority/GetWITAuthorityState":        noLimit,
+		"/spire.api.server.localauthority.v1.LocalAuthority/PrepareWITAuthority":         noLimit,
+		"/spire.api.server.localauthority.v1.LocalAuthority/ActivateWITAuthority":        noLimit,
+		"/spire.api.server.localauthority.v1.LocalAuthority/TaintWITAuthority":           noLimit,
+		"/spire.api.server.localauthority.v1.LocalAuthority/RevokeWITAuthority":          noLimit,
 		"/grpc.health.v1.Health/Check":                                                   noLimit,
 		"/grpc.health.v1.Health/List":                                                    noLimit,
 		"/grpc.health.v1.Health/Watch":                                                   noLimit,

@@ -182,8 +182,14 @@ func (s *Service) PublishJWTAuthority(ctx context.Context, req *bundlev1.Publish
 	rpccontext.AuditRPC(ctx)
 
 	return &bundlev1.PublishJWTAuthorityResponse{
-		JwtAuthorities: api.PublicKeysToProto(resp),
+		JwtAuthorities: api.PublicKeysToJWTKeys(resp),
 	}, nil
+}
+
+// PublishWITAuthority published the WIT key on the server.
+func (s *Service) PublishWITAuthority(ctx context.Context, req *bundlev1.PublishWITAuthorityRequest) (*bundlev1.PublishWITAuthorityResponse, error) {
+	log := rpccontext.Logger(ctx)
+	return nil, api.MakeErr(log, codes.Unimplemented, "WIT-SVID functionality is not yet implemented", nil)
 }
 
 // ListFederatedBundles returns an optionally paginated list of federated bundles.
@@ -568,5 +574,9 @@ func applyBundleMask(b *types.Bundle, mask *types.BundleMask) {
 
 	if !mask.JwtAuthorities {
 		b.JwtAuthorities = nil
+	}
+
+	if !mask.WitAuthorities {
+		b.WitAuthorities = nil
 	}
 }

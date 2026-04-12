@@ -35,6 +35,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/rotationutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	"github.com/spiffe/spire/pkg/common/version"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/proto/spire/common"
@@ -296,6 +297,51 @@ func TestHappyPathWithoutSyncNorRotation(t *testing.T) {
 	})
 }
 
+func TestX509PrefetchDisabled(t *testing.T) {
+	dir := spiretest.TempDir(t)
+	km := fakeagentkeymanager.New(t, dir)
+
+	clk := clock.NewMock(t)
+	api := newMockAPI(t, &mockAPIConfig{
+		km: km,
+		getAuthorizedEntries: func(*mockAPI, int32, *entryv1.GetAuthorizedEntriesRequest) (*entryv1.GetAuthorizedEntriesResponse, error) {
+			return makeGetAuthorizedEntriesResponse(t, "resp6"), nil
+		},
+		batchNewX509SVIDEntries: func(*mockAPI, int32) []*common.RegistrationEntry {
+			return makeBatchNewX509SVIDEntries("resp6")
+		},
+		svidTTL: 200,
+		clk:     clk,
+	})
+
+	baseSVID, baseSVIDKey := api.newSVID(joinTokenID, 1*time.Hour)
+
+	cat := fakeagentcatalog.New()
+	cat.SetKeyManager(km)
+
+	c := &Config{
+		ServerAddr:       api.addr,
+		SVID:             baseSVID,
+		SVIDKey:          baseSVIDKey,
+		Log:              testLogger,
+		TrustDomain:      trustDomain,
+		Storage:          openStorage(t, dir),
+		WorkloadKeyType:  workloadkey.ECP256,
+		Bundle:           api.bundle,
+		Metrics:          &telemetry.Blackhole{},
+		Clk:              clk,
+		Catalog:          cat,
+		SVIDStoreCache:   storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
+		RotationStrategy: rotationutil.NewRotationStrategy(0),
+	}
+
+	m, closer := initializeAndRunNewManager(t, c)
+	defer closer()
+
+	// Expect SVID not to be cached
+	require.Equal(t, 0, m.CountX509SVIDs())
+}
+
 func TestRotationWithRSAKey(t *testing.T) {
 	dir := spiretest.TempDir(t)
 	km := fakeagentkeymanager.New(t, dir)
@@ -551,6 +597,9 @@ func TestSynchronization(t *testing.T) {
 		t.Fatal(err)
 	}
 	require.Equal(t, clk.Now(), m.GetLastSync())
+
+	// Verify that the agent version was sent to the server during initialization
+	require.Equal(t, version.Version(), api.lastAgentVersion)
 
 	// Before synchronization
 	identitiesBefore := identitiesByEntryID(m.cache.Identities())
@@ -1583,6 +1632,10 @@ func TestFetchJWTSVID(t *testing.T) {
 	require.Error(t, err)
 	require.Empty(t, svid)
 
+	testEntry := regEntriesMap["resp2"][0]
+	testEntrySPIFFEId, err := idutil.IDProtoFromString(testEntry.SpiffeId)
+	require.NoError(t, err)
+
 	now := clk.Now()
 	// fetch succeeds
 	tokenA := "A"
@@ -1590,10 +1643,11 @@ func TestFetchJWTSVID(t *testing.T) {
 	expiresAtA := now.Add(time.Minute).Unix()
 	fetchResp.Svid = &types.JWTSVID{
 		Token:     tokenA,
+		Id:        testEntrySPIFFEId,
 		IssuedAt:  issuedAtA,
 		ExpiresAt: expiresAtA,
 	}
-	svid, err = m.FetchJWTSVID(context.Background(), regEntriesMap["resp2"][0], audience)
+	svid, err = m.FetchJWTSVID(context.Background(), testEntry, audience)
 	require.NoError(t, err)
 	require.Equal(t, tokenA, svid.Token)
 	require.Equal(t, issuedAtA, svid.IssuedAt.Unix())
@@ -1602,10 +1656,11 @@ func TestFetchJWTSVID(t *testing.T) {
 	// assert cached JWT is returned w/o trying to fetch (since cached version does not expire soon)
 	fetchResp.Svid = &types.JWTSVID{
 		Token:     "B",
+		Id:        testEntrySPIFFEId,
 		IssuedAt:  now.Unix(),
 		ExpiresAt: now.Add(time.Minute).Unix(),
 	}
-	svid, err = m.FetchJWTSVID(context.Background(), regEntriesMap["resp2"][0], audience)
+	svid, err = m.FetchJWTSVID(context.Background(), testEntry, audience)
 	require.NoError(t, err)
 	require.Equal(t, tokenA, svid.Token)
 	require.Equal(t, issuedAtA, svid.IssuedAt.Unix())
@@ -1619,10 +1674,11 @@ func TestFetchJWTSVID(t *testing.T) {
 	expiresAtC := now.Add(time.Minute).Unix()
 	fetchResp.Svid = &types.JWTSVID{
 		Token:     tokenC,
+		Id:        testEntrySPIFFEId,
 		IssuedAt:  issuedAtC,
 		ExpiresAt: expiresAtC,
 	}
-	svid, err = m.FetchJWTSVID(context.Background(), regEntriesMap["resp2"][0], audience)
+	svid, err = m.FetchJWTSVID(context.Background(), testEntry, audience)
 	require.NoError(t, err)
 	require.Equal(t, tokenC, svid.Token)
 	require.Equal(t, issuedAtC, svid.IssuedAt.Unix())
@@ -1631,7 +1687,7 @@ func TestFetchJWTSVID(t *testing.T) {
 	// expire the JWT soon, fail the fetch, and make sure cached JWT is returned
 	clk.Add(time.Second * 30)
 	fetchResp.Svid = nil
-	svid, err = m.FetchJWTSVID(context.Background(), regEntriesMap["resp2"][0], audience)
+	svid, err = m.FetchJWTSVID(context.Background(), testEntry, audience)
 	require.NoError(t, err)
 	require.Equal(t, tokenC, svid.Token)
 	require.Equal(t, issuedAtC, svid.IssuedAt.Unix())
@@ -1640,7 +1696,7 @@ func TestFetchJWTSVID(t *testing.T) {
 	// now completely expire the JWT and make sure an error is returned, since
 	// the fetch fails and the cached version is expired.
 	clk.Add(time.Second * 30)
-	svid, err = m.FetchJWTSVID(context.Background(), regEntriesMap["resp2"][0], audience)
+	svid, err = m.FetchJWTSVID(context.Background(), testEntry, audience)
 	require.Error(t, err)
 	require.Nil(t, svid)
 }
@@ -1739,12 +1795,13 @@ func makeGetAuthorizedEntriesResponse(t *testing.T, respKeys ...string) *entryv1
 			spiffeID, err := spiffeid.FromString(regEntry.SpiffeId)
 			require.NoError(t, err)
 			entries = append(entries, &types.Entry{
-				Id:             regEntry.EntryId,
-				SpiffeId:       api.ProtoFromID(spiffeID),
-				FederatesWith:  regEntry.FederatesWith,
-				RevisionNumber: regEntry.RevisionNumber,
-				Selectors:      api.ProtoFromSelectors(regEntry.Selectors),
-				StoreSvid:      regEntry.StoreSvid,
+				Id:                   regEntry.EntryId,
+				SpiffeId:             api.ProtoFromID(spiffeID),
+				FederatesWith:        regEntry.FederatesWith,
+				RevisionNumber:       regEntry.RevisionNumber,
+				Selectors:            api.ProtoFromSelectors(regEntry.Selectors),
+				StoreSvid:            regEntry.StoreSvid,
+				AdditionalAttributes: api.ProtoFromAdditionalAttributes(regEntry.AdditionalAttributes),
 			})
 		}
 	}
@@ -1825,6 +1882,9 @@ type mockAPI struct {
 	getAuthorizedEntriesCount int32
 	batchNewX509SVIDCount     int32
 
+	// Last agent version received via PostStatus
+	lastAgentVersion string
+
 	taintedX509Authority *x509.Certificate
 
 	clk clock.Clock
@@ -1896,6 +1956,11 @@ func (h *mockAPI) RenewAgent(ctx context.Context, req *agentv1.RenewAgentRequest
 			ExpiresAt: svid[0].NotAfter.Unix(),
 		},
 	}, nil
+}
+
+func (h *mockAPI) PostStatus(_ context.Context, req *agentv1.PostStatusRequest) (*agentv1.PostStatusResponse, error) {
+	h.lastAgentVersion = req.AgentVersion
+	return &agentv1.PostStatusResponse{}, nil
 }
 
 func (h *mockAPI) GetAuthorizedEntries(_ context.Context, req *entryv1.GetAuthorizedEntriesRequest) (*entryv1.GetAuthorizedEntriesResponse, error) {
@@ -2106,13 +2171,11 @@ func initializeAndRunManager(t *testing.T, m *manager) (closer func()) {
 func runManager(t *testing.T, m *manager) (closer func()) {
 	var wg sync.WaitGroup
 	ctx, cancel := context.WithCancel(context.Background())
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		if err := m.Run(ctx); err != nil {
 			t.Error(err)
 		}
-	}()
+	})
 	return func() {
 		cancel()
 		wg.Wait()

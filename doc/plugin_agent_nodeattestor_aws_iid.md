@@ -1,6 +1,6 @@
 # Agent plugin: NodeAttestor "aws_iid"
 
-*Must be used in conjunction with the server-side aws_iid plugin*
+*Must be used in conjunction with the [server-side aws_iid plugin](plugin_server_nodeattestor_aws_iid.md)*
 
 The `aws_iid` plugin automatically attests instances using the AWS Instance
 Metadata API and the AWS Instance Identity document. It also allows an operator

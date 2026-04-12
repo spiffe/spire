@@ -208,7 +208,7 @@ func fakeMetadataHTTPClient(statusCode int, body string) HTTPClient {
 		if req.URL.Path != "/metadata/instance" {
 			return nil, fmt.Errorf("unexpected path %q", req.URL.Path)
 		}
-		if v := req.URL.Query().Get("api-version"); v != "2017-08-01" {
+		if v := req.URL.Query().Get("api-version"); v != "2025-04-07" {
 			return nil, fmt.Errorf("unexpected api version %q", v)
 		}
 		if v := req.Header.Get("metadata"); v != "true" {

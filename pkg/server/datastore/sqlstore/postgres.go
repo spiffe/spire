@@ -1,6 +1,7 @@
 package sqlstore
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
@@ -9,13 +10,15 @@ import (
 	"github.com/lib/pq"
 	"github.com/spiffe/spire/pkg/server/datastore/sqldriver/awsrds"
 
+	// gorm postgres `cloudsql` dialect, for GCP Cloud SQL Proxy
+	_ "github.com/GoogleCloudPlatform/cloudsql-proxy/proxy/dialers/postgres"
 	// gorm postgres dialect init registration
 	_ "github.com/jinzhu/gorm/dialects/postgres"
 )
 
 type postgresDB struct{}
 
-func (p postgresDB) connect(cfg *configuration, isReadOnly bool) (db *gorm.DB, version string, supportsCTE bool, err error) {
+func (p postgresDB) connect(ctx context.Context, cfg *configuration, isReadOnly bool) (db *gorm.DB, version string, supportsCTE bool, err error) {
 	if cfg.databaseTypeConfig == nil {
 		return nil, "", false, errors.New("missing datastore configuration")
 	}
@@ -54,7 +57,7 @@ func (p postgresDB) connect(cfg *configuration, isReadOnly bool) (db *gorm.DB, v
 		return nil, "", false, errOpen
 	}
 
-	version, err = queryVersion(db, "SHOW server_version")
+	version, err = queryVersion(ctx, db, "SHOW server_version")
 	if err != nil {
 		return nil, "", false, err
 	}

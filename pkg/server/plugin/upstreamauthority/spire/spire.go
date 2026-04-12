@@ -82,17 +82,23 @@ type Plugin struct {
 
 	pollMtx                sync.Mutex
 	stopPolling            context.CancelFunc
+	pollDone               <-chan struct{}
 	currentPollSubscribers uint64
 
 	bundleMtx     sync.RWMutex
 	bundleVersion uint64
 	currentBundle *plugintypes.Bundle
+	// bundleUpdated is closed and replaced each time the bundle changes,
+	// allowing subscribers to be notified immediately rather than waiting for
+	// the internalPollFreq ticker.
+	bundleUpdated chan struct{}
 }
 
 func New() *Plugin {
 	return &Plugin{
 		clk:           clock.New(),
 		currentBundle: &plugintypes.Bundle{},
+		bundleUpdated: make(chan struct{}),
 	}
 }
 
@@ -138,7 +144,7 @@ func (p *Plugin) Validate(_ context.Context, req *configv1.ValidateRequest) (*co
 	return &configv1.ValidateResponse{
 		Valid: err == nil,
 		Notes: notes,
-	}, err
+	}, nil
 }
 
 func (p *Plugin) SetLogger(log hclog.Logger) {
@@ -230,6 +236,13 @@ func (p *Plugin) SubscribeToLocalBundle(req *upstreamauthorityv1.SubscribeToLoca
 	ticker := p.clk.Ticker(internalPollFreq)
 	defer ticker.Stop()
 	for {
+		// Capture the notification channel before reading the bundle.
+		// If the bundle is updated after getBundleUpdateCh() returns but
+		// before the select below, the old channel will already be closed
+		// and the select will fire immediately rather than sleeping until
+		// the next internalPollFreq tick.
+		updateCh := p.getBundleUpdateCh()
+
 		newRootCAs := p.getBundle().X509Authorities
 		newJWTKeys := p.getBundle().JwtAuthorities
 		if !areRootsEqual(rootCAs, newRootCAs) || !arePublicKeysEqual(jwtKeys, newJWTKeys) {
@@ -244,6 +257,7 @@ func (p *Plugin) SubscribeToLocalBundle(req *upstreamauthorityv1.SubscribeToLoca
 		}
 		select {
 		case <-ticker.C:
+		case <-updateCh:
 		case <-stream.Context().Done():
 			return nil
 		}
@@ -293,7 +307,20 @@ func (p *Plugin) PublishJWTKeyAndSubscribe(req *upstreamauthorityv1.PublishJWTKe
 func (p *Plugin) pollBundleUpdates(ctx context.Context) {
 	ticker := p.clk.Ticker(upstreamPollFreq)
 	defer ticker.Stop()
+	defer func() {
+		p.serverClient.release()
+		if ctx.Err() != nil {
+			p.log.Debug("Poll bundle updates context done", "reason", ctx.Err())
+		}
+	}()
+
 	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+
 		preFetchCallVersion := p.getBundleVersion()
 		resp, err := p.serverClient.getBundle(ctx)
 		if err != nil {
@@ -308,13 +335,17 @@ func (p *Plugin) pollBundleUpdates(ctx context.Context) {
 		select {
 		case <-ticker.C:
 		case <-ctx.Done():
-			p.serverClient.release()
-			p.log.Debug("Poll bundle updates context done", "reason", ctx.Err())
 			return
 		}
 	}
 }
 
+// setBundleIfVersionMatches updates currentBundle only when bundleVersion
+// still equals expectedVersion. This prevents a fetch that started before a
+// local mutation (setBundleJWTAuthorities / setBundleX509Authorities) from
+// overwriting the newer local state. bundleVersion is intentionally not
+// incremented here; it is only incremented by the local-mutation helpers so
+// that it remains a reliable guard against concurrent upstream fetches.
 func (p *Plugin) setBundleIfVersionMatches(b *types.Bundle, expectedVersion uint64) error {
 	p.bundleMtx.Lock()
 	defer p.bundleMtx.Unlock()
@@ -325,6 +356,7 @@ func (p *Plugin) setBundleIfVersionMatches(b *types.Bundle, expectedVersion uint
 			return err
 		}
 		p.currentBundle = currentBundle
+		p.signalBundleUpdate()
 	}
 
 	return nil
@@ -336,11 +368,28 @@ func (p *Plugin) getBundle() *plugintypes.Bundle {
 	return p.currentBundle
 }
 
+// getBundleUpdateCh returns the current bundle update notification channel.
+// When the bundle is updated, this channel is closed and a new one is created.
+func (p *Plugin) getBundleUpdateCh() <-chan struct{} {
+	p.bundleMtx.RLock()
+	defer p.bundleMtx.RUnlock()
+	return p.bundleUpdated
+}
+
+// signalBundleUpdate closes the current bundleUpdated channel and replaces it
+// with a new one, waking any goroutines waiting on the previous channel.
+// Must be called with bundleMtx write lock held.
+func (p *Plugin) signalBundleUpdate() {
+	close(p.bundleUpdated)
+	p.bundleUpdated = make(chan struct{})
+}
+
 func (p *Plugin) setBundleJWTAuthorities(keys []*plugintypes.JWTKey) {
 	p.bundleMtx.Lock()
 	defer p.bundleMtx.Unlock()
 	p.currentBundle.JwtAuthorities = keys
 	p.bundleVersion++
+	p.signalBundleUpdate()
 }
 
 func (p *Plugin) setBundleX509Authorities(rootCAs []*plugintypes.X509Certificate) {
@@ -348,6 +397,7 @@ func (p *Plugin) setBundleX509Authorities(rootCAs []*plugintypes.X509Certificate
 	defer p.bundleMtx.Unlock()
 	p.currentBundle.X509Authorities = rootCAs
 	p.bundleVersion++
+	p.signalBundleUpdate()
 }
 
 func (p *Plugin) getBundleVersion() uint64 {
@@ -373,8 +423,12 @@ func (p *Plugin) unsubscribeToPolling() {
 	defer p.pollMtx.Unlock()
 	p.currentPollSubscribers--
 	if p.currentPollSubscribers == 0 {
-		// TODO: may we release server here?
 		p.stopPolling()
+		// Wait for the polling goroutine to fully exit so its deferred
+		// release() call — which nils out bundleClient — cannot race with
+		// a future startPolling call.
+		<-p.pollDone
+		p.pollDone = nil
 	}
 }
 
@@ -386,7 +440,12 @@ func (p *Plugin) startPolling(streamCtx context.Context) error {
 		return err
 	}
 
-	go p.pollBundleUpdates(pollCtx)
+	done := make(chan struct{})
+	p.pollDone = done
+	go func() {
+		defer close(done)
+		p.pollBundleUpdates(pollCtx)
+	}()
 	return nil
 }
 

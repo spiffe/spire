@@ -16,6 +16,7 @@ import (
 	bundlev1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/bundle/v1"
 	server_util "github.com/spiffe/spire/cmd/spire-server/util"
 	"github.com/spiffe/spire/pkg/common/diskutil"
+	"github.com/spiffe/spire/pkg/common/errorutil"
 	"github.com/spiffe/spire/pkg/common/health"
 	"github.com/spiffe/spire/pkg/common/profiling"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -63,11 +64,23 @@ type Server struct {
 // This method initializes the server, including its plugins,
 // and then blocks until it's shut down or an error is encountered.
 func (s *Server) Run(ctx context.Context) error {
-	if err := s.run(ctx); err != nil {
+	if err := s.run(ctx); err != nil && !errorutil.IsSIGINTOrSIGTERMError(err) {
 		s.config.Log.WithError(err).Error("Fatal run error")
 		return err
 	}
 	return nil
+}
+
+func (s *Server) ValidateConfig(ctx context.Context) (map[string][]string, error) {
+	return catalog.ValidateConfig(ctx, catalog.Config{
+		Log:              s.config.Log.WithField(telemetry.SubsystemName, telemetry.Catalog),
+		Metrics:          telemetry.Blackhole{},
+		TrustDomain:      s.config.TrustDomain,
+		PluginConfigs:    s.config.PluginConfigs,
+		IdentityProvider: identityprovider.New(identityprovider.Config{TrustDomain: s.config.TrustDomain}),
+		AgentStore:       agentstore.New(),
+		HealthChecker:    health.NewChecker(s.config.HealthChecks, s.config.Log),
+	})
 }
 
 func (s *Server) run(ctx context.Context) (err error) {
@@ -213,7 +226,6 @@ func (s *Server) run(ctx context.Context) (err error) {
 		registrationManager.Run,
 		bundlePublishingManager.Run,
 		catalog.ReconfigureTask(s.config.Log.WithField(telemetry.SubsystemName, "reconfigurer"), cat),
-		healthChecker.ListenAndServe,
 	}
 
 	if s.config.LogReopener != nil {
@@ -225,7 +237,17 @@ func (s *Server) run(ctx context.Context) (err error) {
 		tasks = append(tasks, nodeManager.Run)
 	}
 
-	err = util.RunTasks(ctx, tasks...)
+	ctx, cancel := context.WithCancelCause(ctx)
+	defer cancel(nil)
+	taskRunner := util.NewTaskRunner(ctx, cancel)
+	taskRunner.StartTasks(tasks...)
+
+	// Wait for the server to start listening before proceeding with health
+	// checks.
+	endpointsServer.WaitForListening()
+
+	taskRunner.StartTasks(healthChecker.ListenAndServe)
+	err = taskRunner.Wait()
 	if errors.Is(err, context.Canceled) {
 		err = nil
 	}
@@ -250,21 +272,17 @@ func (s *Server) setupProfiling(ctx context.Context) (stop func()) {
 
 		// kick off a goroutine to serve the pprof endpoints and one to
 		// gracefully shut down the server when profiling is being torn down
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			if err := server.ListenAndServe(); err != nil {
 				s.config.Log.WithError(err).Warn("Unable to serve profiling server")
 			}
-		}()
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		})
+		wg.Go(func() {
 			<-ctx.Done()
 			if err := server.Shutdown(ctx); err != nil {
 				s.config.Log.WithError(err).Warn("Unable to shutdown the server cleanly")
 			}
-		}()
+		})
 	}
 	if s.config.ProfilingFreq > 0 {
 		c := &profiling.Config{
@@ -274,13 +292,11 @@ func (s *Server) setupProfiling(ctx context.Context) (stop func()) {
 			RunGCBeforeHeapProfile: true,
 			Profiles:               s.config.ProfilingNames,
 		}
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			if err := profiling.Run(ctx, c); err != nil {
 				s.config.Log.WithError(err).Warn("Failed to run profiling")
 			}
-		}()
+		})
 	}
 
 	return func() {
@@ -305,16 +321,15 @@ func (s *Server) loadCatalog(ctx context.Context, metrics telemetry.Metrics, ide
 
 func (s *Server) newCredBuilder(cat catalog.Catalog) (*credtemplate.Builder, error) {
 	return credtemplate.NewBuilder(credtemplate.Config{
-		TrustDomain:                  s.config.TrustDomain,
-		X509CASubject:                s.config.CASubject,
-		X509CATTL:                    s.config.CATTL,
-		AgentSVIDTTL:                 s.config.AgentTTL,
-		X509SVIDTTL:                  s.config.X509SVIDTTL,
-		JWTSVIDTTL:                   s.config.JWTSVIDTTL,
-		JWTIssuer:                    s.config.JWTIssuer,
-		CredentialComposers:          cat.GetCredentialComposers(),
-		UseLegacyDownstreamX509CATTL: s.config.UseLegacyDownstreamX509CATTL,
-		TLSPolicy:                    s.config.TLSPolicy,
+		TrustDomain:         s.config.TrustDomain,
+		X509CASubject:       s.config.CASubject,
+		X509CATTL:           s.config.CATTL,
+		AgentSVIDTTL:        s.config.AgentTTL,
+		X509SVIDTTL:         s.config.X509SVIDTTL,
+		JWTSVIDTTL:          s.config.JWTSVIDTTL,
+		JWTIssuer:           s.config.JWTIssuer,
+		CredentialComposers: cat.GetCredentialComposers(),
+		TLSPolicy:           s.config.TLSPolicy,
 	})
 }
 
@@ -326,27 +341,32 @@ func (s *Server) newCredValidator() (*credvalidator.Validator, error) {
 
 func (s *Server) newCA(metrics telemetry.Metrics, credBuilder *credtemplate.Builder, credValidator *credvalidator.Validator, healthChecker health.Checker) *ca.CA {
 	return ca.NewCA(ca.Config{
-		Log:           s.config.Log.WithField(telemetry.SubsystemName, telemetry.CA),
-		Metrics:       metrics,
-		TrustDomain:   s.config.TrustDomain,
-		CredBuilder:   credBuilder,
-		CredValidator: credValidator,
-		HealthChecker: healthChecker,
+		Log:             s.config.Log.WithField(telemetry.SubsystemName, telemetry.CA),
+		Metrics:         metrics,
+		TrustDomain:     s.config.TrustDomain,
+		CredBuilder:     credBuilder,
+		CredValidator:   credValidator,
+		HealthChecker:   healthChecker,
+		DisableJWTSVIDs: s.config.DisableJWTSVIDs,
+		DisableWITSVIDs: s.config.DisableWITSVIDs,
 	})
 }
 
 func (s *Server) newCAManager(ctx context.Context, cat catalog.Catalog, metrics telemetry.Metrics, serverCA *ca.CA, credBuilder *credtemplate.Builder, credValidator *credvalidator.Validator) (*manager.Manager, error) {
 	caManager, err := manager.NewManager(ctx, manager.Config{
-		CA:            serverCA,
-		Catalog:       cat,
-		TrustDomain:   s.config.TrustDomain,
-		Log:           s.config.Log.WithField(telemetry.SubsystemName, telemetry.CAManager),
-		Metrics:       metrics,
-		CredBuilder:   credBuilder,
-		CredValidator: credValidator,
-		Dir:           s.config.DataDir,
-		X509CAKeyType: s.config.CAKeyType,
-		JWTKeyType:    s.config.JWTKeyType,
+		CA:              serverCA,
+		Catalog:         cat,
+		TrustDomain:     s.config.TrustDomain,
+		Log:             s.config.Log.WithField(telemetry.SubsystemName, telemetry.CAManager),
+		Metrics:         metrics,
+		CredBuilder:     credBuilder,
+		CredValidator:   credValidator,
+		Dir:             s.config.DataDir,
+		X509CAKeyType:   s.config.CAKeyType,
+		DisableJWTSVIDs: s.config.DisableJWTSVIDs,
+		DisableWITSVIDs: s.config.DisableWITSVIDs,
+		JWTKeyType:      s.config.JWTKeyType,
+		WITKeyType:      s.config.WITKeyType,
 	})
 	if err != nil {
 		return nil, err
@@ -427,7 +447,7 @@ func (s *Server) newEndpointsServer(ctx context.Context, catalog catalog.Catalog
 		AuthPolicyEngine:             authPolicyEngine,
 		BundleManager:                bundleManager,
 		AdminIDs:                     s.config.AdminIDs,
-		UseLegacyDownstreamX509CATTL: s.config.UseLegacyDownstreamX509CATTL,
+		MaxAttestedNodeInfoStaleness: s.config.MaxAttestedNodeInfoStaleness,
 	}
 	if s.config.Federation.BundleEndpoint != nil {
 		config.BundleEndpoint.Address = s.config.Federation.BundleEndpoint.Address

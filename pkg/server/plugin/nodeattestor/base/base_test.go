@@ -18,6 +18,7 @@ import (
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 )
 
@@ -33,6 +34,10 @@ func TestBaseAssessTOFU(t *testing.T) {
 	const errorID = "spiffe://domain.test/spire/agent/error"
 
 	log, hook := test.NewNullLogger()
+	ctx := metadata.NewIncomingContext(
+		context.Background(),
+		metadata.New(map[string]string{":authority": "spire-server:8081"}),
+	)
 
 	agentStore := fakeagentstore.New()
 	agentStore.SetAgentInfo(&agentstorev1.AgentInfo{AgentId: attestedID})
@@ -49,7 +54,7 @@ func TestBaseAssessTOFU(t *testing.T) {
 
 	t.Run("with unattested agent", func(t *testing.T) {
 		hook.Reset()
-		result, err := na.Attest(context.Background(), []byte(unattestedID), failOnChallenge)
+		result, err := na.Attest(ctx, []byte(unattestedID), failOnChallenge)
 		require.NoError(t, err)
 		require.Equal(t, &nodeattestor.AttestResult{
 			AgentID: unattestedID,
@@ -59,7 +64,7 @@ func TestBaseAssessTOFU(t *testing.T) {
 
 	t.Run("with already attested agent", func(t *testing.T) {
 		hook.Reset()
-		result, err := na.Attest(context.Background(), []byte(attestedID), failOnChallenge)
+		result, err := na.Attest(ctx, []byte(attestedID), failOnChallenge)
 		spiretest.RequireGRPCStatus(t, err, codes.PermissionDenied, "nodeattestor(fake): attestation data has already been used to attest an agent")
 		require.Nil(t, result)
 		spiretest.AssertLogs(t, hook.AllEntries(), []spiretest.LogEntry{
@@ -75,7 +80,7 @@ func TestBaseAssessTOFU(t *testing.T) {
 
 	t.Run("fails to query agent store", func(t *testing.T) {
 		hook.Reset()
-		result, err := na.Attest(context.Background(), []byte(errorID), failOnChallenge)
+		result, err := na.Attest(ctx, []byte(errorID), failOnChallenge)
 		spiretest.RequireGRPCStatus(t, err, codes.Internal, "nodeattestor(fake): unable to get agent info: ohno")
 		require.Nil(t, result)
 	})

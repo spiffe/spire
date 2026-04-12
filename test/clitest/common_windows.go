@@ -11,5 +11,12 @@ var (
   -output value
     	Desired output format (pretty, json); default: pretty.
 `
-	AddrValue = "\\does-not-exist"
+	AddrOutputForCasesWhereOptionsStartWithS = `
+  -namedPipeName string
+    	Pipe name of the SPIRE Server API named pipe (default "\\spire-server\\private\\api")
+  -output value
+    	Desired output format (pretty, json); default: pretty.
+`
+	AddrSocketPathUsageForCasesWhereOptionsStartWithS = "\n"
+	AddrValue                                         = "\\does-not-exist"
 )

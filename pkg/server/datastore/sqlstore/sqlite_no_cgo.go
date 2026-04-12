@@ -3,6 +3,7 @@
 package sqlstore
 
 import (
+	"context"
 	"errors"
 
 	"github.com/jinzhu/gorm"
@@ -13,7 +14,7 @@ type sqliteDB struct {
 	log logrus.FieldLogger
 }
 
-func (s sqliteDB) connect(cfg *configuration, isReadOnly bool) (db *gorm.DB, version string, supportsCTE bool, err error) {
+func (s sqliteDB) connect(ctx context.Context, cfg *configuration, isReadOnly bool) (db *gorm.DB, version string, supportsCTE bool, err error) {
 	return nil, "", false, errors.New("sqlite3 is not a supported dialect when CGO is not enabled")
 }
 

@@ -115,7 +115,7 @@ func TestContainerExtraction(t *testing.T) {
 
 			require.NoError(t, err)
 			if tt.hasMatch {
-				require.Len(t, selectorValues, 1)
+				require.Len(t, selectorValues, 2)
 			} else {
 				require.Len(t, selectorValues, 0)
 			}

@@ -2,6 +2,7 @@ package node
 
 import (
 	"context"
+	"math/rand"
 	"time"
 
 	"github.com/andres-erbsen/clock"
@@ -9,6 +10,11 @@ import (
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	telemetry_server "github.com/spiffe/spire/pkg/common/telemetry/server"
 	"github.com/spiffe/spire/pkg/server/datastore"
+)
+
+const (
+	defaultJobInterval = time.Hour
+	maxJitter          = 15 * time.Minute
 )
 
 type PruneArgs struct {
@@ -22,7 +28,8 @@ type ManagerConfig struct {
 	Log     logrus.FieldLogger
 	Metrics telemetry.Metrics
 
-	Clock clock.Clock
+	Clock    clock.Clock
+	Interval time.Duration
 
 	PruneArgs
 }
@@ -40,9 +47,13 @@ func NewManager(c ManagerConfig) *Manager {
 		c.Clock = clock.New()
 	}
 
+	// Add random jitter: ±15 minutes (45-75 minutes range)
+	jitter := time.Duration(rand.Int63n(int64(maxJitter)*2)) - maxJitter //nolint // gosec: no need for cryptographic randomness here
+	c.Interval = (defaultJobInterval + jitter).Truncate(time.Second)
+
 	return &Manager{
 		c:       c,
-		log:     c.Log.WithField(telemetry.RetryInterval, c.ExpiredFor),
+		log:     c.Log.WithField(telemetry.RetryInterval, c.Interval),
 		metrics: c.Metrics,
 
 		pruneRequestedCh: make(chan PruneArgs, 1),
@@ -58,7 +69,9 @@ func (m *Manager) Prune(ctx context.Context, expiredFor time.Duration, includeNo
 }
 
 func (m *Manager) pruneEvery(ctx context.Context) error {
-	ticker := m.c.Clock.Ticker(m.c.ExpiredFor)
+	m.log.WithField("expired_for", m.c.ExpiredFor).WithField("include_tofu", m.c.IncludeNonReattestable).Info("Periodic prune of expired nodes started")
+
+	ticker := m.c.Clock.Ticker(m.c.Interval)
 	defer ticker.Stop()
 
 	for {

@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/open-policy-agent/opa/v1/ast"
 	"github.com/open-policy-agent/opa/v1/storage/inmem"
 	"github.com/open-policy-agent/opa/v1/util"
 	"github.com/sirupsen/logrus/hooks/test"
@@ -132,6 +131,25 @@ func TestPolicy(t *testing.T) {
 			},
 		},
 		{
+			name:     "test policy with input caller path",
+			rego:     condCheckRego("input.caller_file_path == \"/some_caller\""),
+			jsonData: "{}",
+			input: authpolicy.Input{
+				CallerFilePath: "/some_caller",
+				FullMethod:     "some_method",
+				Req: map[string]any{
+					"some_field": "abc",
+				},
+			},
+			expectResult: authpolicy.Result{
+				Allow:             true,
+				AllowIfAdmin:      false,
+				AllowIfLocal:      false,
+				AllowIfDownstream: false,
+				AllowIfAgent:      false,
+			},
+		},
+		{
 			name:     "test policy with input full method",
 			rego:     condCheckRego("input.full_method == \"some_method\""),
 			jsonData: "{}",
@@ -221,7 +239,7 @@ func TestPolicy(t *testing.T) {
 			ctx := context.Background()
 
 			// Check with NewEngineFromRego
-			pe, err := authpolicy.NewEngineFromRego(ctx, tt.rego, store, ast.RegoV1)
+			pe, err := authpolicy.NewEngineFromRego(ctx, tt.rego, store)
 			require.Nil(t, err, "failed to create policy engine")
 
 			res, err := pe.Eval(ctxIn, tt.input)
@@ -242,7 +260,6 @@ func TestPolicy(t *testing.T) {
 				LocalOpaProvider: &authpolicy.LocalOpaProviderConfig{
 					RegoPath:       regoFile,
 					PolicyDataPath: permsFile,
-					UseRegoV1:      true,
 				},
 			}
 			log, _ := test.NewNullLogger()
@@ -434,9 +451,27 @@ func TestNewEngineFromRego(t *testing.T) {
 			// a bad store
 			store := inmem.New()
 
-			_, err := authpolicy.NewEngineFromRego(ctx, tt.rego, store, ast.RegoV1)
+			_, err := authpolicy.NewEngineFromRego(ctx, tt.rego, store)
 			require.Equal(t, err == nil, tt.success)
 		})
+	}
+}
+
+func BenchmarkOpaPolicy(b *testing.B) {
+	auth, err := authpolicy.NewEngineFromConfigOrDefault(b.Context(), nil, nil)
+	require.NoError(b, err)
+
+	input := authpolicy.Input{
+		Caller:         "spiffe://example.org/spire/agent/make/it/a/bit/longer",
+		CallerFilePath: "/opt/spire/bin/spire-server",
+		FullMethod:     "/spire.api.server.svid.v1.SVID/BatchNewX509SVID",
+		Req: map[string]string{
+			"foo": "bar",
+		},
+	}
+	for b.Loop() {
+		_, err := auth.Eval(b.Context(), input)
+		require.NoError(b, err)
 	}
 }
 

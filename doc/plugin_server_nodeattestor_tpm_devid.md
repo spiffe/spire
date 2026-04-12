@@ -1,6 +1,6 @@
 # Server plugin: NodeAttestor "tpm_devid"
 
-*Must be used in conjunction with the agent-side tpm_devid plugin*
+*Must be used in conjunction with the [agent-side tpm_devid plugin](plugin_agent_nodeattestor_tpm_devid.md)*
 
 The `tpm_devid` plugin attests nodes that own a TPM
 and that have been provisioned with a DevID certificate through an out-of-band

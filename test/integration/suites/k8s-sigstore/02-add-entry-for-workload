@@ -1,0 +1,146 @@
+#!/bin/bash
+
+source init-kubectl
+
+# SPIRE agent version 1.14.0 signature metadata
+# These values are extracted from the official SPIRE release signed by GitHub Actions
+readonly SPIRE_IMAGE_VERSION="1.14.0"
+readonly SIGNATURE_SUBJECT="https://github.com/spiffe/spire/.github/workflows/release_build.yaml@refs/tags/v${SPIRE_IMAGE_VERSION}"
+readonly SIGNATURE_VALUE="MEUCIQDLVDQxo7wpBTRkQy8B0Qe4wZIt3MrcF63nfRgq3sN24AIgElcsTjxDMrpUW3wjbghejNvUmZbRUg7aP7R9NAi1lGw="
+readonly SIGNATURE_LOG_ID="c0d23d6ad406973f9559f3ba2d1ca01f84147d8ffc5b8445c224f98b9591801d"
+readonly SIGNATURE_INTEGRATED_TIME="1765492059"
+
+#1 - namespace
+#2 - app_name
+#3 workload spiffeID
+add_entry_for_workload() {
+    ns=$1
+    app_name=$2
+    workload_spiffe_id=$3
+    SERVER_POD=$(${KUBEBIN} -n${ns} get pod -l app=spire-server -o jsonpath="{.items[0].metadata.name}")
+    NODE_UID=$(${KUBEBIN} get node -o jsonpath="{.items[0].metadata.uid}")
+    CLUSTERNODESPIFFEID="spiffe://example.org/spire/agent/k8s_psat/example-cluster/${NODE_UID}"
+    WORKLOAD_POD=$(${KUBEBIN} -n${ns} get pod -l app=${app_name} -o jsonpath="{.items[0].metadata.name}")
+
+    # Note: Updated selector format - no container ID prefix in selector name
+    if ${KUBEBIN} -n${ns} exec ${SERVER_POD} -- /opt/spire/bin/spire-server entry create \
+    -spiffeID ${workload_spiffe_id} \
+    -parentID ${CLUSTERNODESPIFFEID} \
+    -selector k8s:image-signature-subject:${SIGNATURE_SUBJECT} \
+    -selector k8s:ns:${ns} \
+    -selector k8s:pod-name:${WORKLOAD_POD} ;then
+        return
+    fi
+    fail-now "Failed creating entry for workload"
+}
+
+add_entry_for_workload spire example-workload-signed spiffe://example.org/ns/default/sa/default/workload-signed
+
+# For unsigned and wrong-subject workloads, we don't use signature selectors
+# since these images are in the skip list and won't emit signature selectors
+add_entry_without_signature_selector() {
+    ns=$1
+    app_name=$2
+    workload_spiffe_id=$3
+    SERVER_POD=$(${KUBEBIN} -n${ns} get pod -l app=spire-server -o jsonpath="{.items[0].metadata.name}")
+    NODE_UID=$(${KUBEBIN} get node -o jsonpath="{.items[0].metadata.uid}")
+    CLUSTERNODESPIFFEID="spiffe://example.org/spire/agent/k8s_psat/example-cluster/${NODE_UID}"
+    WORKLOAD_POD=$(${KUBEBIN} -n${ns} get pod -l app=${app_name} -o jsonpath="{.items[0].metadata.name}")
+
+    if ${KUBEBIN} -n${ns} exec ${SERVER_POD} -- /opt/spire/bin/spire-server entry create \
+    -spiffeID ${workload_spiffe_id} \
+    -parentID ${CLUSTERNODESPIFFEID} \
+    -selector k8s:ns:${ns} \
+    -selector k8s:pod-name:${WORKLOAD_POD} ;then
+        return
+    fi
+    fail-now "Failed creating entry for workload without signature selector"
+}
+
+add_entry_without_signature_selector spire example-workload-unsigned spiffe://example.org/ns/default/sa/default/workload-unsigned
+add_entry_without_signature_selector spire example-workload-signed-wrong-subject spiffe://example.org/ns/default/sa/default/workload-signed-wrong-subject
+
+add_entry_for_workload_with_extra_selectors() {
+    ns=$1
+    app_name=$2
+    workload_spiffe_id=$3
+    SERVER_POD=$(${KUBEBIN} -n${ns} get pod -l app=spire-server -o jsonpath="{.items[0].metadata.name}")
+    NODE_UID=$(${KUBEBIN} get node -o jsonpath="{.items[0].metadata.uid}")
+    CLUSTERNODESPIFFEID="spiffe://example.org/spire/agent/k8s_psat/example-cluster/${NODE_UID}"
+    WORKLOAD_POD=$(${KUBEBIN} -n${ns} get pod -l app=${app_name} -o jsonpath="{.items[0].metadata.name}")
+
+    # Note: Updated selector format for additional sigstore selectors
+    if ${KUBEBIN} -n${ns} exec ${SERVER_POD} -- /opt/spire/bin/spire-server entry create \
+    -spiffeID ${workload_spiffe_id} \
+    -parentID ${CLUSTERNODESPIFFEID} \
+    -selector k8s:image-signature-subject:${SIGNATURE_SUBJECT} \
+    -selector k8s:image-signature-value:${SIGNATURE_VALUE} \
+    -selector k8s:image-signature-log-id:${SIGNATURE_LOG_ID} \
+    -selector k8s:image-signature-integrated-time:${SIGNATURE_INTEGRATED_TIME} \
+    -selector k8s:ns:${ns} \
+    -selector k8s:pod-name:${WORKLOAD_POD} ;then
+        return
+    fi
+    fail-now "Failed creating extra entry for workload"
+}
+
+add_entry_for_workload_with_extra_selectors spire example-workload-signed-extra spiffe://example.org/ns/default/sa/default/workload-signed-extra
+
+add_entry_for_workload_with_multi_container_pods() {
+    ns=$1
+    app_name=$2
+    workload_spiffe_id=$3
+    SERVER_POD=$(${KUBEBIN} -n${ns} get pod -l app=spire-server -o jsonpath="{.items[0].metadata.name}")
+    NODE_UID=$(${KUBEBIN} get node -o jsonpath="{.items[0].metadata.uid}")
+    CLUSTERNODESPIFFEID="spiffe://example.org/spire/agent/k8s_psat/example-cluster/${NODE_UID}"
+    WORKLOAD_POD=$(${KUBEBIN} -n${ns} get pod -l app=${app_name} -o jsonpath="{.items[0].metadata.name}")
+
+    # Get all container names
+    CONTAINER_NAMES=$(${KUBEBIN} -n${ns} get pod -l app=${app_name} -o jsonpath='{range .items[0].spec.containers[*]}{.name}{"\n"}{end}')
+
+    for container_name in $CONTAINER_NAMES; do
+        if ${KUBEBIN} -n${ns} exec ${SERVER_POD} -- /opt/spire/bin/spire-server entry create \
+        -spiffeID ${workload_spiffe_id} \
+        -parentID ${CLUSTERNODESPIFFEID} \
+        -selector k8s:image-signature-subject:${SIGNATURE_SUBJECT} \
+        -selector k8s:ns:${ns} \
+        -selector k8s:container-name:${container_name} \
+        -selector k8s:pod-name:${WORKLOAD_POD}; then
+            log-info "entry created for container ${container_name}."
+        else
+            fail-now "Failed creating entry for workload container ${container_name}"
+        fi
+    done
+}
+
+add_entry_for_workload_with_multi_container_pods_skiplist() {
+    ns=$1
+    app_name=$2
+    workload_spiffe_id=$3
+    image_name=$4
+    SERVER_POD=$(${KUBEBIN} -n${ns} get pod -l app=spire-server -o jsonpath="{.items[0].metadata.name}")
+    NODE_UID=$(${KUBEBIN} get node -o jsonpath="{.items[0].metadata.uid}")
+    CLUSTERNODESPIFFEID="spiffe://example.org/spire/agent/k8s_psat/example-cluster/${NODE_UID}"
+    WORKLOAD_POD=$(${KUBEBIN} -n${ns} get pod -l app=${app_name} -o jsonpath="{.items[0].metadata.name}")
+
+    # Get container names for the specific image
+    CONTAINER_NAMES=$(${KUBEBIN} -n${ns} get pod ${WORKLOAD_POD} -o json | \
+        jq -r ".spec.containers[] | select(.image == \"${image_name}\") | .name")
+
+    for container_name in $CONTAINER_NAMES; do
+        if ${KUBEBIN} -n${ns} exec ${SERVER_POD} -- /opt/spire/bin/spire-server entry create \
+        -spiffeID ${workload_spiffe_id} \
+        -parentID ${CLUSTERNODESPIFFEID} \
+        -selector k8s:ns:${ns} \
+        -selector k8s:container-name:${container_name} \
+        -selector k8s:pod-name:${WORKLOAD_POD}; then
+            log-info "entry created for skiplist container ${container_name}."
+        else
+            fail-now "Failed creating entry for workload container ${container_name}"
+        fi
+    done
+}
+
+add_entry_for_workload_with_multi_container_pods spire example-multiple-containers spiffe://example.org/ns/default/sa/default/workload-multiple-containers
+add_entry_for_workload_with_multi_container_pods_skiplist spire example-multiple-containers spiffe://example.org/ns/default/sa/default/workload-multiple-containers docker-registry-local:5001/workload:unsigned-skiplist1
+add_entry_for_workload_with_multi_container_pods_skiplist spire example-multiple-containers spiffe://example.org/ns/default/sa/default/workload-multiple-containers docker-registry-local:5001/workload:unsigned-skiplist2

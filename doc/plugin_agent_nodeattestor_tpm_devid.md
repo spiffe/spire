@@ -1,6 +1,6 @@
 # Agent plugin: NodeAttestor "tpm_devid"
 
-*Must be used in conjunction with the server-side tpm_devid plugin*
+*Must be used in conjunction with the [server-side tpm_devid plugin](plugin_server_nodeattestor_tpm_devid.md)*
 
 The `tpm_devid` plugin provides attestation data for a node that owns a TPM
 and that has been provisioned with a LDevID certificate through an out-of-band
@@ -20,7 +20,7 @@ The proof-of-residency verification involves the creation of a temporary
 attestation key. Currently, this attestation key is always an RSA key independent
 of whether the DevID is using an ECC or RSA key type.
 
-The SPIFFE ID produced by the server-side `tpm_devid` plugin is based on the
+The SPIFFE ID produced by the [server-side `tpm_devid` plugin](plugin_server_nodeattestor_tpm_devid.md) is based on the
 LDevID certificate fingerprint, where the fingerprint is defined as the SHA1 hash
 of the ASN.1 DER encoding of the identity certificate.
 

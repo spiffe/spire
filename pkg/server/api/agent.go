@@ -8,6 +8,16 @@ import (
 	"github.com/spiffe/spire/proto/spire/common"
 )
 
+var (
+	UpdateAttestedNodeCertificateMask = &common.AttestedNodeMask{
+		CertNotAfter:        true,
+		CertSerialNumber:    true,
+		NewCertNotAfter:     true,
+		NewCertSerialNumber: true,
+		CanReattest:         true,
+	}
+)
+
 func ProtoFromAttestedNode(n *common.AttestedNode) (*types.Agent, error) {
 	if n == nil {
 		return nil, errors.New("missing attested node")
@@ -26,5 +36,6 @@ func ProtoFromAttestedNode(n *common.AttestedNode) (*types.Agent, error) {
 		Banned:               n.CertSerialNumber == "",
 		CanReattest:          n.CanReattest,
 		Selectors:            ProtoFromSelectors(n.Selectors),
+		AgentVersion:         n.AgentVersion,
 	}, nil
 }

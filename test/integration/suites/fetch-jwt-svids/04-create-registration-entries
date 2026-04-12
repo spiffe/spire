@@ -1,0 +1,20 @@
+#!/bin/bash
+
+# LRU Cache size is 8; we expect uid:1001 to receive all 10 identities,
+# and later on disconnect for the cache to be pruned back to 8
+SIZE=10
+
+# Create entries for uid 1001
+for ((m=1;m<=$SIZE;m++)); do
+  log-debug "creating registration entry: $m"
+  docker compose exec -T spire-server \
+    /opt/spire/bin/spire-server entry create \
+    -parentID "spiffe://domain.test/spire/agent/x509pop/$(fingerprint conf/agent/agent.crt.pem)" \
+    -spiffeID "spiffe://domain.test/workload-$m" \
+    -selector "unix:uid:1001" \
+    -jwtSVIDTTL 0 &
+done
+
+for ((m=1;m<=$SIZE;m++)); do
+  check-synced-entry "spire-agent" "spiffe://domain.test/workload-$m"
+done

@@ -6,6 +6,7 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	plugintypes "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/types"
 	"github.com/spiffe/spire/pkg/common/coretypes/jwtkey"
+	"github.com/spiffe/spire/pkg/common/coretypes/witkey"
 	"github.com/spiffe/spire/pkg/common/coretypes/x509certificate"
 	"github.com/spiffe/spire/proto/spire/common"
 )
@@ -24,6 +25,11 @@ func ToCommonFromPluginProto(pb *plugintypes.Bundle) (*common.Bundle, error) {
 		return nil, fmt.Errorf("invalid X.509 authority: %w", err)
 	}
 
+	witSigningKeys, err := witkey.ToCommonFromPluginProtos(pb.WitAuthorities)
+	if err != nil {
+		return nil, fmt.Errorf("invalid JWT authority: %w", err)
+	}
+
 	td, err := spiffeid.TrustDomainFromString(pb.TrustDomain)
 	if err != nil {
 		return nil, fmt.Errorf("malformed trust domain: %w", err)
@@ -34,6 +40,7 @@ func ToCommonFromPluginProto(pb *plugintypes.Bundle) (*common.Bundle, error) {
 		RefreshHint:    pb.RefreshHint,
 		SequenceNumber: pb.SequenceNumber,
 		JwtSigningKeys: jwtSigningKeys,
+		WitSigningKeys: witSigningKeys,
 		RootCas:        rootCAs,
 	}, nil
 }

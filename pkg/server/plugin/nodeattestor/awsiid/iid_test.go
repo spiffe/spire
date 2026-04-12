@@ -18,8 +18,12 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/feature/ec2/imds"
+	"github.com/aws/aws-sdk-go-v2/service/autoscaling"
+	autoscalingtypes "github.com/aws/aws-sdk-go-v2/service/autoscaling/types"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
+	"github.com/aws/aws-sdk-go-v2/service/eks"
+	ekstypes "github.com/aws/aws-sdk-go-v2/service/eks/types"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	iamtypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
 	"github.com/aws/aws-sdk-go-v2/service/organizations"
@@ -72,24 +76,30 @@ func TestAttest(t *testing.T) {
 	attentionDataWithRSA1024Signature := buildAttestationDataRSA1024Signature(t)
 
 	for _, tt := range []struct {
-		name                           string
-		env                            map[string]string
-		skipConfigure                  bool
-		config                         string
-		alreadyAttested                bool
-		mutateDescribeInstancesOutput  func(output *ec2.DescribeInstancesOutput)
-		describeInstancesError         error
-		mutateGetInstanceProfileOutput func(output *iam.GetInstanceProfileOutput)
-		getInstanceProfileError        error
-		mutateListAccountOutput        func(output *organizations.ListAccountsOutput)
-		listOrgAccountError            error
-		overrideAttestationData        func(caws.IIDAttestationData) caws.IIDAttestationData
-		overridePayload                func() []byte
-		expectCode                     codes.Code
-		expectMsgPrefix                string
-		expectID                       string
-		expectSelectors                []*common.Selector
-		overrideCACert                 *x509.Certificate
+		name                                  string
+		env                                   map[string]string
+		skipConfigure                         bool
+		config                                string
+		alreadyAttested                       bool
+		mutateDescribeInstancesOutput         func(output *ec2.DescribeInstancesOutput)
+		describeInstancesError                error
+		mutateGetInstanceProfileOutput        func(output *iam.GetInstanceProfileOutput)
+		getInstanceProfileError               error
+		mutateListAccountOutput               func(output *organizations.ListAccountsOutput)
+		listOrgAccountError                   error
+		mutateDescribeAutoScalingGroupsOutput func(output *autoscaling.DescribeAutoScalingGroupsOutput)
+		describeAutoScalingGroupsError        error
+		mutateListNodegroupsOutput            func(output *eks.ListNodegroupsOutput)
+		listNodegroupsError                   error
+		mutateDescribeNodegroupOutput         func(output *eks.DescribeNodegroupOutput)
+		describeNodegroupError                error
+		overrideAttestationData               func(caws.IIDAttestationData) caws.IIDAttestationData
+		overridePayload                       func() []byte
+		expectCode                            codes.Code
+		expectMsgPrefix                       string
+		expectID                              string
+		expectSelectors                       []*common.Selector
+		overrideCACert                        *x509.Certificate
 	}{
 		{
 			name:            "plugin not configured",
@@ -166,6 +176,7 @@ func TestAttest(t *testing.T) {
 			name:     "success with zero device index",
 			expectID: "spiffe://example.org/spire/agent/aws_iid/test-account/test-region/test-instance",
 			expectSelectors: []*common.Selector{
+				{Type: caws.PluginName, Value: "account_id:test-account"},
 				{Type: caws.PluginName, Value: "az:test-az"},
 				{Type: caws.PluginName, Value: "image:id:test-image-id"},
 				{Type: caws.PluginName, Value: "instance:id:test-instance"},
@@ -181,6 +192,7 @@ func TestAttest(t *testing.T) {
 			},
 			expectID: "spiffe://example.org/spire/agent/aws_iid/test-account/test-region/test-instance",
 			expectSelectors: []*common.Selector{
+				{Type: caws.PluginName, Value: "account_id:test-account"},
 				{Type: caws.PluginName, Value: "az:test-az"},
 				{Type: caws.PluginName, Value: "image:id:test-image-id"},
 				{Type: caws.PluginName, Value: "instance:id:test-instance"},
@@ -195,6 +207,7 @@ func TestAttest(t *testing.T) {
 			},
 			expectID: "spiffe://example.org/spire/agent/aws_iid/test-account/test-region/test-instance",
 			expectSelectors: []*common.Selector{
+				{Type: caws.PluginName, Value: "account_id:test-account"},
 				{Type: caws.PluginName, Value: "az:test-az"},
 				{Type: caws.PluginName, Value: "image:id:test-image-id"},
 				{Type: caws.PluginName, Value: "instance:id:test-instance"},
@@ -209,6 +222,7 @@ func TestAttest(t *testing.T) {
 			},
 			expectID: "spiffe://example.org/spire/agent/aws_iid/test-account/test-region/test-instance",
 			expectSelectors: []*common.Selector{
+				{Type: caws.PluginName, Value: "account_id:test-account"},
 				{Type: caws.PluginName, Value: "az:test-az"},
 				{Type: caws.PluginName, Value: "image:id:test-image-id"},
 				{Type: caws.PluginName, Value: "instance:id:test-instance"},
@@ -238,6 +252,7 @@ func TestAttest(t *testing.T) {
 			},
 			expectID: "spiffe://example.org/spire/agent/aws_iid/test-account/test-region/test-instance",
 			expectSelectors: []*common.Selector{
+				{Type: caws.PluginName, Value: "account_id:test-account"},
 				{Type: caws.PluginName, Value: "az:test-az"},
 				{Type: caws.PluginName, Value: "image:id:test-image-id"},
 				{Type: caws.PluginName, Value: "instance:id:test-instance"},
@@ -294,6 +309,7 @@ func TestAttest(t *testing.T) {
 			},
 			expectID: "spiffe://example.org/spire/agent/aws_iid/test-account/test-region/test-instance",
 			expectSelectors: []*common.Selector{
+				{Type: caws.PluginName, Value: "account_id:test-account"},
 				{Type: caws.PluginName, Value: "az:test-az"},
 				{Type: caws.PluginName, Value: "image:id:test-image-id"},
 				{Type: caws.PluginName, Value: "instance:id:test-instance"},
@@ -305,6 +321,7 @@ func TestAttest(t *testing.T) {
 			config:   `agent_path_template = "/{{ .PluginName }}/custom/{{ .AccountID }}/{{ .Region }}/{{ .InstanceID }}"`,
 			expectID: "spiffe://example.org/spire/agent/aws_iid/custom/test-account/test-region/test-instance",
 			expectSelectors: []*common.Selector{
+				{Type: caws.PluginName, Value: "account_id:test-account"},
 				{Type: caws.PluginName, Value: "az:test-az"},
 				{Type: caws.PluginName, Value: "image:id:test-image-id"},
 				{Type: caws.PluginName, Value: "instance:id:test-instance"},
@@ -324,6 +341,7 @@ func TestAttest(t *testing.T) {
 			config:   `agent_path_template = "/{{ .PluginName }}/zone1/{{ .Tags.Hostname }}"`,
 			expectID: "spiffe://example.org/spire/agent/aws_iid/zone1/host1",
 			expectSelectors: []*common.Selector{
+				{Type: caws.PluginName, Value: "account_id:test-account"},
 				{Type: caws.PluginName, Value: "az:test-az"},
 				{Type: caws.PluginName, Value: "image:id:test-image-id"},
 				{Type: caws.PluginName, Value: "instance:id:test-instance"},
@@ -366,6 +384,7 @@ func TestAttest(t *testing.T) {
 			},
 			expectID: "spiffe://example.org/spire/agent/aws_iid/test-account/test-region/test-instance",
 			expectSelectors: []*common.Selector{
+				{Type: caws.PluginName, Value: "account_id:test-account"},
 				{Type: caws.PluginName, Value: "az:test-az"},
 				{Type: caws.PluginName, Value: "iamrole:role1"},
 				{Type: caws.PluginName, Value: "iamrole:role2"},
@@ -407,6 +426,7 @@ func TestAttest(t *testing.T) {
 			},
 			expectID: "spiffe://example.org/spire/agent/aws_iid/test-account/test-region/test-instance",
 			expectSelectors: []*common.Selector{
+				{Type: caws.PluginName, Value: "account_id:test-account"},
 				{Type: caws.PluginName, Value: "az:test-az"},
 				{Type: caws.PluginName, Value: "image:id:test-image-id"},
 				{Type: caws.PluginName, Value: "instance:id:test-instance"},
@@ -470,10 +490,33 @@ func TestAttest(t *testing.T) {
 			},
 			expectID: "spiffe://example.org/spire/agent/aws_iid/123456789/test-region/test-instance",
 			expectSelectors: []*common.Selector{
+				{Type: caws.PluginName, Value: "account_id:123456789"},
 				{Type: caws.PluginName, Value: "az:test-az"},
 				{Type: caws.PluginName, Value: "image:id:test-image-id"},
 				{Type: caws.PluginName, Value: "instance:id:test-instance"},
 				{Type: caws.PluginName, Value: "region:test-region"},
+			},
+		},
+		{
+			name:     "success when EKS cluster validation feature is turned on",
+			config:   `validate_eks_cluster_membership = { eks_cluster_names = ["test-cluster"] }`,
+			expectID: "spiffe://example.org/spire/agent/aws_iid/test-account/test-region/test-instance",
+			expectSelectors: []*common.Selector{
+				{Type: caws.PluginName, Value: "account_id:test-account"},
+				{Type: caws.PluginName, Value: "az:test-az"},
+				{Type: caws.PluginName, Value: "image:id:test-image-id"},
+				{Type: caws.PluginName, Value: "instance:id:test-instance"},
+				{Type: caws.PluginName, Value: "region:test-region"},
+			},
+		},
+		{
+			name:            "fail when EKS cluster validation feature is turned on but node is not in cluster",
+			config:          `validate_eks_cluster_membership = { eks_cluster_names = ["test-cluster"] }`,
+			expectCode:      codes.Internal,
+			expectMsgPrefix: "nodeattestor(aws_iid): failed aws eks attestation, nodes id: test-instance is not part of configured EKS cluster",
+			mutateDescribeAutoScalingGroupsOutput: func(output *autoscaling.DescribeAutoScalingGroupsOutput) {
+				// Return empty instances so the node is not found in the cluster
+				output.AutoScalingGroups[0].Instances = []autoscalingtypes.Instance{}
 			},
 		},
 	} {
@@ -490,6 +533,18 @@ func TestAttest(t *testing.T) {
 			client.ListAccountError = tt.listOrgAccountError
 			if tt.mutateListAccountOutput != nil {
 				tt.mutateListAccountOutput(client.ListAccountOutput)
+			}
+			client.DescribeAutoScalingGroupsError = tt.describeAutoScalingGroupsError
+			if tt.mutateDescribeAutoScalingGroupsOutput != nil {
+				tt.mutateDescribeAutoScalingGroupsOutput(client.DescribeAutoScalingGroupsOutput)
+			}
+			client.ListNodegroupsError = tt.listNodegroupsError
+			if tt.mutateListNodegroupsOutput != nil {
+				tt.mutateListNodegroupsOutput(client.ListNodegroupsOutput)
+			}
+			client.DescribeNodegroupError = tt.describeNodegroupError
+			if tt.mutateDescribeNodegroupOutput != nil {
+				tt.mutateDescribeNodegroupOutput(client.DescribeNodegroupOutput)
 			}
 
 			agentStore := fakeagentstore.New()
@@ -669,6 +724,21 @@ func TestConfigure(t *testing.T) {
 		err := doConfig(t, coreConfig, `verify_organization = { management_account_id = "dummy_account" assume_org_role = "dummy_role" org_account_map_ttl = "1m30s" }`)
 		require.NoError(t, err)
 	})
+
+	t.Run("success, validate_eks_cluster_membership block without eks_cluster_names property set", func(t *testing.T) {
+		err := doConfig(t, coreConfig, `validate_eks_cluster_membership = {}`)
+		require.NoError(t, err)
+	})
+
+	t.Run("success, validate_eks_cluster_membership block with eks_cluster_names property set to empty list", func(t *testing.T) {
+		err := doConfig(t, coreConfig, `validate_eks_cluster_membership = { eks_cluster_names = [] }`)
+		require.NoError(t, err)
+	})
+
+	t.Run("success, validate_eks_cluster_membership block with eks_cluster_names property set to non-empty list", func(t *testing.T) {
+		err := doConfig(t, coreConfig, `validate_eks_cluster_membership = { eks_cluster_names = ["test-cluster-1", "test-cluster-2"] }`)
+		require.NoError(t, err)
+	})
 }
 
 func TestInstanceProfileArnParsing(t *testing.T) {
@@ -692,12 +762,18 @@ func TestInstanceProfileArnParsing(t *testing.T) {
 }
 
 type fakeClient struct {
-	DescribeInstancesOutput  *ec2.DescribeInstancesOutput
-	DescribeInstancesError   error
-	GetInstanceProfileOutput *iam.GetInstanceProfileOutput
-	GetInstanceProfileError  error
-	ListAccountOutput        *organizations.ListAccountsOutput
-	ListAccountError         error
+	DescribeInstancesOutput         *ec2.DescribeInstancesOutput
+	DescribeInstancesError          error
+	GetInstanceProfileOutput        *iam.GetInstanceProfileOutput
+	GetInstanceProfileError         error
+	ListAccountOutput               *organizations.ListAccountsOutput
+	ListAccountError                error
+	DescribeAutoScalingGroupsOutput *autoscaling.DescribeAutoScalingGroupsOutput
+	DescribeAutoScalingGroupsError  error
+	ListNodegroupsOutput            *eks.ListNodegroupsOutput
+	ListNodegroupsError             error
+	DescribeNodegroupOutput         *eks.DescribeNodegroupOutput
+	DescribeNodegroupError          error
 }
 
 func newFakeClient() *fakeClient {
@@ -722,6 +798,34 @@ func newFakeClient() *fakeClient {
 		},
 		GetInstanceProfileOutput: &iam.GetInstanceProfileOutput{},
 		ListAccountOutput:        &organizations.ListAccountsOutput{},
+		DescribeAutoScalingGroupsOutput: &autoscaling.DescribeAutoScalingGroupsOutput{
+			AutoScalingGroups: []autoscalingtypes.AutoScalingGroup{
+				{
+					AutoScalingGroupName: aws.String("test-asg"),
+					Instances: []autoscalingtypes.Instance{
+						{
+							InstanceId: aws.String(testInstance),
+						},
+					},
+				},
+			},
+		},
+		ListNodegroupsOutput: &eks.ListNodegroupsOutput{
+			Nodegroups: []string{"test-nodegroup"},
+		},
+		DescribeNodegroupOutput: &eks.DescribeNodegroupOutput{
+			Nodegroup: &ekstypes.Nodegroup{
+				NodegroupName: aws.String("test-nodegroup"),
+				ClusterName:   aws.String("test-cluster"),
+				Resources: &ekstypes.NodegroupResources{
+					AutoScalingGroups: []ekstypes.AutoScalingGroup{
+						{
+							Name: aws.String("test-asg"),
+						},
+					},
+				},
+			},
+		},
 	}
 }
 
@@ -760,6 +864,27 @@ func (c *fakeClient) ListAccounts(_ context.Context, input *organizations.ListAc
 		return nil, errors.New("failing request for pagination")
 	}
 	return c.ListAccountOutput, c.ListAccountError
+}
+
+func (c *fakeClient) DescribeAutoScalingGroups(_ context.Context, input *autoscaling.DescribeAutoScalingGroupsInput, _ ...func(*autoscaling.Options)) (*autoscaling.DescribeAutoScalingGroupsOutput, error) {
+	if c.DescribeAutoScalingGroupsError != nil {
+		return nil, c.DescribeAutoScalingGroupsError
+	}
+	return c.DescribeAutoScalingGroupsOutput, nil
+}
+
+func (c *fakeClient) ListNodegroups(_ context.Context, input *eks.ListNodegroupsInput, _ ...func(*eks.Options)) (*eks.ListNodegroupsOutput, error) {
+	if c.ListNodegroupsError != nil {
+		return nil, c.ListNodegroupsError
+	}
+	return c.ListNodegroupsOutput, nil
+}
+
+func (c *fakeClient) DescribeNodegroup(_ context.Context, input *eks.DescribeNodegroupInput, _ ...func(*eks.Options)) (*eks.DescribeNodegroupOutput, error) {
+	if c.DescribeNodegroupError != nil {
+		return nil, c.DescribeNodegroupError
+	}
+	return c.DescribeNodegroupOutput, nil
 }
 
 func buildAttestationDataRSA2048Signature(t *testing.T) caws.IIDAttestationData {

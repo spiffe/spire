@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"flag"
+	"fmt"
 	"io"
 	"os"
 
@@ -142,10 +143,17 @@ func (c *deleteCommand) prettyPrintDelete(env *commoncli.Env, results ...any) er
 
 	if len(failed) > 0 {
 		env.Printf("\n\n")
+		summaryMsg := fmt.Sprintf("Deleted %d entries successfully, but failed to delete %d entries", len(succeeded), len(failed))
+
+		if len(succeeded) == 0 {
+			summaryMsg = fmt.Sprintf("Failed to delete %d entries", len(failed))
+		}
+
+		env.Printf("%s", summaryMsg)
 		return errors.New("failed to delete one or more entries")
 	}
 
-	env.Printf("Deleted %d entries successfully, but failed to delete %d entries", len(succeeded), len(failed))
+	env.Printf("Deleted %d entries successfully", len(succeeded))
 
 	return nil
 }

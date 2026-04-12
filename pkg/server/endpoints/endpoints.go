@@ -11,6 +11,7 @@ import (
 
 	"github.com/spiffe/go-spiffe/v2/spiffetls/tlsconfig"
 	"github.com/spiffe/spire/pkg/server/cache/entrycache"
+	"github.com/spiffe/spire/pkg/server/cache/nodecache"
 	"github.com/spiffe/spire/pkg/server/endpoints/bundle"
 	"golang.org/x/net/http2"
 	"google.golang.org/grpc"
@@ -73,6 +74,9 @@ type Server interface {
 	// canceled, the function returns nil. Otherwise, the error from the failed
 	// server is returned.
 	ListenAndServe(ctx context.Context) error
+
+	// WaitForListening blocks until the server starts listening.
+	WaitForListening()
 }
 
 type Endpoints struct {
@@ -87,6 +91,7 @@ type Endpoints struct {
 	Log                          logrus.FieldLogger
 	Metrics                      telemetry.Metrics
 	RateLimit                    RateLimitConfig
+	NodeCacheRebuildTask         func(context.Context) error
 	EntryFetcherCacheRebuildTask func(context.Context) error
 	EntryFetcherPruneEventsTask  func(context.Context) error
 	CertificateReloadTask        func(context.Context) error
@@ -94,6 +99,13 @@ type Endpoints struct {
 	AuthPolicyEngine             *authpolicy.Engine
 	AdminIDs                     []spiffeid.ID
 	TLSPolicy                    tlspolicy.Policy
+	MaxAttestedNodeInfoStaleness time.Duration
+	nodeCache                    api.AttestedNodeCache
+
+	hooks struct {
+		// test hook used to indicate that is listening
+		listening chan struct{}
+	}
 }
 
 type APIServers struct {
@@ -149,14 +161,20 @@ func New(ctx context.Context, c Config) (*Endpoints, error) {
 
 	ds := c.Catalog.GetDataStore()
 
+	nodeCache, err := nodecache.New(ctx, c.Log, ds, c.Clock, true, c.MaxAttestedNodeInfoStaleness != 0)
+	if err != nil {
+		return nil, err
+	}
+
 	var ef api.AuthorizedEntryFetcher
-	var cacheRebuildTask, pruneEventsTask func(context.Context) error
+	var cacheRebuildTask, nodeCacheRebuildTask, pruneEventsTask func(context.Context) error
 	if c.EventsBasedCache {
-		efEventsBasedCache, err := NewAuthorizedEntryFetcherEvents(ctx, AuthorizedEntryFetcherEventsConfig{
+		efEventsBasedCache, err := NewAuthorizedEntryFetcherEvents(ctx, c.TrustDomain.String(), AuthorizedEntryFetcherEventsConfig{
 			log:                     c.Log,
 			metrics:                 c.Metrics,
 			clk:                     c.Clock,
 			ds:                      ds,
+			nodeCache:               nodeCache,
 			cacheReloadInterval:     c.CacheReloadInterval,
 			fullCacheReloadInterval: c.FullCacheReloadInterval,
 			pruneEventsOlderThan:    c.PruneEventsOlderThan,
@@ -167,6 +185,7 @@ func New(ctx context.Context, c Config) (*Endpoints, error) {
 		}
 		cacheRebuildTask = efEventsBasedCache.RunUpdateCacheTask
 		pruneEventsTask = efEventsBasedCache.PruneEventsTask
+		nodeCacheRebuildTask = nodeCache.PeriodicRebuild
 		ef = efEventsBasedCache
 	} else {
 		buildCacheFn := func(ctx context.Context) (_ entrycache.Cache, err error) {
@@ -181,6 +200,8 @@ func New(ctx context.Context, c Config) (*Endpoints, error) {
 		}
 		cacheRebuildTask = efFullCache.RunRebuildCacheTask
 		pruneEventsTask = efFullCache.PruneEventsTask
+		// cacheRebuildTask will take care of rebuilding the node cache
+		nodeCacheRebuildTask = func(ctx context.Context) error { return nil }
 		ef = efFullCache
 	}
 
@@ -198,6 +219,7 @@ func New(ctx context.Context, c Config) (*Endpoints, error) {
 		Log:                          c.Log,
 		Metrics:                      c.Metrics,
 		RateLimit:                    c.RateLimit,
+		NodeCacheRebuildTask:         nodeCacheRebuildTask,
 		EntryFetcherCacheRebuildTask: cacheRebuildTask,
 		EntryFetcherPruneEventsTask:  pruneEventsTask,
 		CertificateReloadTask:        certificateReloadTask,
@@ -205,6 +227,14 @@ func New(ctx context.Context, c Config) (*Endpoints, error) {
 		AuthPolicyEngine:             c.AuthPolicyEngine,
 		AdminIDs:                     c.AdminIDs,
 		TLSPolicy:                    c.TLSPolicy,
+		MaxAttestedNodeInfoStaleness: c.MaxAttestedNodeInfoStaleness,
+		nodeCache:                    nodeCache,
+
+		hooks: struct {
+			listening chan struct{}
+		}{
+			listening: make(chan struct{}),
+		},
 	}, nil
 }
 
@@ -246,6 +276,7 @@ func (e *Endpoints) ListenAndServe(ctx context.Context) error {
 			return e.runLocalAccess(ctx, udsServer)
 		},
 		e.EntryFetcherCacheRebuildTask,
+		e.NodeCacheRebuildTask,
 	}
 
 	if e.BundleEndpointServer != nil {
@@ -270,6 +301,10 @@ func (e *Endpoints) ListenAndServe(ctx context.Context) error {
 func (e *Endpoints) createTCPServer(ctx context.Context, unaryInterceptor grpc.UnaryServerInterceptor, streamInterceptor grpc.StreamServerInterceptor) *grpc.Server {
 	tlsConfig := &tls.Config{ //nolint: gosec // False positive, getTLSConfig is setting MinVersion
 		GetConfigForClient: e.getTLSConfig(ctx),
+		// Disable session ticket resumption so that VerifyPeerCertificate is
+		// called on every connection, ensuring the peer certificate chain is
+		// always validated against the current trust bundle.
+		SessionTicketsDisabled: true,
 	}
 
 	return grpc.NewServer(
@@ -352,6 +387,7 @@ func (e *Endpoints) runLocalAccess(ctx context.Context, server *grpc.Server) err
 
 	// Skip use of tomb here so we don't pollute a clean shutdown with errors
 	log.Info("Starting Server APIs")
+	e.triggerListeningHook()
 	errChan := make(chan error)
 	go func() { errChan <- server.Serve(l) }()
 
@@ -419,5 +455,20 @@ func (e *Endpoints) getTLSConfig(ctx context.Context) func(*tls.ClientHelloInfo)
 func (e *Endpoints) makeInterceptors() (grpc.UnaryServerInterceptor, grpc.StreamServerInterceptor) {
 	log := e.Log.WithField(telemetry.SubsystemName, "api")
 
-	return middleware.Interceptors(Middleware(log, e.Metrics, e.DataStore, clock.New(), e.RateLimit, e.AuthPolicyEngine, e.AuditLogEnabled, e.AdminIDs))
+	return middleware.Interceptors(Middleware(log, e.Metrics, e.DataStore, e.nodeCache, e.MaxAttestedNodeInfoStaleness, clock.New(), e.RateLimit, e.AuthPolicyEngine, e.AuditLogEnabled, e.AdminIDs))
+}
+
+func (e *Endpoints) triggerListeningHook() {
+	if e.hooks.listening != nil {
+		e.hooks.listening <- struct{}{}
+	}
+}
+
+func (e *Endpoints) WaitForListening() {
+	if e.hooks.listening == nil {
+		e.Log.Warn("Listening hook not initialized, cannot wait for listening")
+		return
+	}
+
+	<-e.hooks.listening
 }

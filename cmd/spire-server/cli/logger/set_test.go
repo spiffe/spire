@@ -12,7 +12,7 @@ import (
 )
 
 func TestSetHelp(t *testing.T) {
-	test := setupCliTest(t, nil, logger.NewSetCommandWithEnv)
+	test := setupCliTest(t, &mockLoggerService{}, logger.NewSetCommandWithEnv)
 	test.client.Help()
 	require.Equal(t, "", test.stdout.String())
 	require.Equal(t, setUsage, test.stderr.String())

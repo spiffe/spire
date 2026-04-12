@@ -3,6 +3,7 @@
 package sqlstore
 
 import (
+	"context"
 	"errors"
 	"net/url"
 	"path/filepath"
@@ -20,7 +21,7 @@ type sqliteDB struct {
 	log logrus.FieldLogger
 }
 
-func (s sqliteDB) connect(cfg *configuration, isReadOnly bool) (db *gorm.DB, version string, supportsCTE bool, err error) {
+func (s sqliteDB) connect(ctx context.Context, cfg *configuration, isReadOnly bool) (db *gorm.DB, version string, supportsCTE bool, err error) {
 	if isReadOnly {
 		s.log.Warn("Read-only connection is not applicable for sqlite3. Falling back to primary connection")
 	}
@@ -30,7 +31,7 @@ func (s sqliteDB) connect(cfg *configuration, isReadOnly bool) (db *gorm.DB, ver
 		return nil, "", false, err
 	}
 
-	version, err = queryVersion(db, "SELECT sqlite_version()")
+	version, err = queryVersion(ctx, db, "SELECT sqlite_version()")
 	if err != nil {
 		return nil, "", false, err
 	}

@@ -14,6 +14,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	identityproviderv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/hostservice/server/identityprovider/v1"
@@ -255,10 +257,11 @@ kube_config_file_path = "/some/file/path"
 	waitForInformerWatcher(t, test.webhookClient.watcherStarted)
 	webhook := newMutatingWebhook(t, test.webhookClient.Interface, "spire-webhook", "")
 
-	require.Eventually(t, func() bool {
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		actualWebhook, err := test.webhookClient.Get(context.Background(), webhook.Namespace, webhook.Name)
-		require.NoError(t, err)
-		return assert.Equal(t, &admissionv1.MutatingWebhookConfiguration{
+		require.NoError(collect, err)
+
+		expected := &admissionv1.MutatingWebhookConfiguration{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:            webhook.Name,
 				ResourceVersion: "1",
@@ -270,7 +273,12 @@ kube_config_file_path = "/some/file/path"
 					},
 				},
 			},
-		}, actualWebhook)
+		}
+
+		// Ignore TypeMeta and ManagedFields which are populated by NewClientset's field management
+		assert.Empty(collect, cmp.Diff(expected, actualWebhook,
+			cmpopts.IgnoreFields(metav1.ObjectMeta{}, "ManagedFields"),
+			cmpopts.IgnoreFields(metav1.TypeMeta{}, "Kind", "APIVersion")))
 	}, testTimeout, testPollInterval)
 }
 
@@ -287,10 +295,11 @@ kube_config_file_path = "/some/file/path"
 	waitForInformerWatcher(t, test.apiServiceClient.watcherStarted)
 	apiService := newAPIService(t, test.apiServiceClient.Interface, "spire-apiservice", "")
 
-	require.Eventually(t, func() bool {
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		actualAPIService, err := test.apiServiceClient.Get(context.Background(), apiService.Namespace, apiService.Name)
-		require.NoError(t, err)
-		return assert.Equal(t, &apiregistrationv1.APIService{
+		require.NoError(collect, err)
+
+		expected := &apiregistrationv1.APIService{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:            apiService.Name,
 				ResourceVersion: "1",
@@ -298,7 +307,12 @@ kube_config_file_path = "/some/file/path"
 			Spec: apiregistrationv1.APIServiceSpec{
 				CABundle: []byte(testBundleData),
 			},
-		}, actualAPIService)
+		}
+
+		// Ignore TypeMeta and ManagedFields which are populated by NewClientset's field management
+		assert.Empty(collect, cmp.Diff(expected, actualAPIService,
+			cmpopts.IgnoreFields(metav1.ObjectMeta{}, "ManagedFields"),
+			cmpopts.IgnoreFields(metav1.TypeMeta{}, "Kind", "APIVersion")))
 	}, testTimeout, testPollInterval)
 }
 
@@ -739,6 +753,7 @@ func (c *fakeKubeClient) Get(_ context.Context, namespace, configMap string) (ru
 	}
 	return entry, nil
 }
+
 func (c *fakeKubeClient) GetList(context.Context) (runtime.Object, error) {
 	list := c.getConfigMapList()
 	if list.Items == nil {
@@ -846,7 +861,7 @@ type fakeWebhookClient struct {
 }
 
 func newFakeWebhookClient(config *Configuration) *fakeWebhookClient {
-	client := fake.NewSimpleClientset()
+	client := fake.NewClientset()
 	w := &fakeWebhookClient{
 		mutatingWebhookClient: mutatingWebhookClient{
 			Interface:    client,

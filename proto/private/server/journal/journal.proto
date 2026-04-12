@@ -50,6 +50,29 @@ message JWTKeyEntry {
     string authority_id = 7;
 }
 
+message WITKeyEntry {
+    // Which WIT Key slot this entry occupied.
+    string slot_id = 1;
+
+    // When the key was issued (unix epoch in seconds)
+    int64 issued_at = 2;
+
+    // When the key expires unix epoch in seconds)
+    int64 not_after = 3;
+
+    // WIT key id (i.e. "kid" claim)
+    string kid = 4;
+
+    // PKIX encoded public key
+    bytes public_key = 5;
+
+    // The entry status
+    Status status = 6;
+
+    // The WIT key ID
+    string authority_id = 7;
+}
+
 enum Status {
     // Status is unknown.
     UNKNOWN = 0;
@@ -68,4 +91,5 @@ enum Status {
 message Entries {
     repeated X509CAEntry x509CAs = 1;
     repeated JWTKeyEntry jwtKeys = 2;
+    repeated WITKeyEntry witKeys = 3;
 }

@@ -1,10 +1,13 @@
 package awss3
 
 import (
+	"bytes"
 	"context"
 	"crypto/x509"
 	"errors"
+	"io"
 	"testing"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
@@ -13,6 +16,7 @@ import (
 	bundlepublisherv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/bundlepublisher/v1"
 	"github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/types"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
+	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
@@ -41,6 +45,18 @@ func TestConfigure(t *testing.T) {
 				Bucket:          "bucket",
 				ObjectKey:       "object-key",
 				Format:          "spiffe",
+			},
+		},
+		{
+			name: "success with refresh hint",
+			config: &Config{
+				AccessKeyID:     "access-key-id",
+				SecretAccessKey: "secret-access-key",
+				Region:          "region",
+				Bucket:          "bucket",
+				ObjectKey:       "object-key",
+				Format:          "spiffe",
+				RefreshHint:     "1h",
 			},
 		},
 		{
@@ -124,6 +140,20 @@ func TestConfigure(t *testing.T) {
 			expectCode: codes.InvalidArgument,
 			expectMsg:  "could not parse endpoint url",
 		},
+		{
+			name: "invalid refresh hint",
+			config: &Config{
+				AccessKeyID:     "access-key-id",
+				SecretAccessKey: "secret-access-key",
+				Region:          "region",
+				Bucket:          "bucket",
+				ObjectKey:       "object-key",
+				Format:          "spiffe",
+				RefreshHint:     "invalid-refresh-hint",
+			},
+			expectCode: codes.InvalidArgument,
+			expectMsg:  "could not parse refresh_hint: could not parse refresh hint \"invalid-refresh-hint\": time: invalid duration \"invalid-refresh-hint\"",
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			var err error
@@ -156,6 +186,14 @@ func TestConfigure(t *testing.T) {
 			// Check that the plugin has the expected configuration.
 			tt.config.bundleFormat, err = bundleformat.FromString(tt.config.Format)
 			require.NoError(t, err)
+
+			if tt.config.RefreshHint != "" {
+				refreshDuration, err := time.ParseDuration(tt.config.RefreshHint)
+				if err == nil {
+					tt.config.parsedRefreshHint = int64(refreshDuration.Seconds())
+				}
+			}
+
 			require.Equal(t, tt.config, p.config)
 
 			client, ok := p.s3Client.(*fakeClient)
@@ -399,6 +437,94 @@ func TestPublishMultiple(t *testing.T) {
 	require.Equal(t, 3, client.putObjectCount)
 }
 
+func TestSetRefreshHint(t *testing.T) {
+	config := &Config{
+		AccessKeyID:     "access-key-id",
+		SecretAccessKey: "secret-access-key",
+		Region:          "region",
+		Bucket:          "bucket",
+		ObjectKey:       "object-key",
+		Format:          "spiffe",
+		RefreshHint:     "1h",
+	}
+
+	var err error
+	options := []plugintest.Option{
+		plugintest.CaptureConfigureError(&err),
+		plugintest.CoreConfig(catalog.CoreConfig{
+			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
+		}),
+		plugintest.ConfigureJSON(config),
+	}
+
+	client := &fakeClient{t: t, expectBucket: aws.String(config.Bucket), expectKey: aws.String(config.ObjectKey)}
+	newClient := func(awsConfig aws.Config) (simpleStorageService, error) {
+		return client, nil
+	}
+	p := newPlugin(newClient)
+	plugintest.Load(t, builtin(p), nil, options...)
+	require.NoError(t, err)
+
+	bundle := getTestBundle(t)
+	resp, err := p.PublishBundle(context.Background(), &bundlepublisherv1.PublishBundleRequest{
+		Bundle: bundle,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+
+	publishedBundle, err := bundleutil.Decode(spiffeid.RequireTrustDomainFromString("example.org"), bytes.NewReader(client.writtenBytes))
+	require.NoError(t, err)
+	refreshHint, ok := publishedBundle.RefreshHint()
+	require.True(t, ok)
+	require.Equal(t, time.Hour, refreshHint)
+}
+
+// If the refresh hint is set, the bundle we publish is different from the one we received.
+// Makes sure we don't republish an unchanged bundle if we have set the refresh hint.
+func TestBundleWithRefreshHintPublishedOnce(t *testing.T) {
+	config := &Config{
+		AccessKeyID:     "access-key-id",
+		SecretAccessKey: "secret-access-key",
+		Region:          "region",
+		Bucket:          "bucket",
+		ObjectKey:       "object-key",
+		Format:          "spiffe",
+		RefreshHint:     "1h",
+	}
+
+	var err error
+	options := []plugintest.Option{
+		plugintest.CaptureConfigureError(&err),
+		plugintest.CoreConfig(catalog.CoreConfig{
+			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
+		}),
+		plugintest.ConfigureJSON(config),
+	}
+
+	client := &fakeClient{t: t, expectBucket: aws.String(config.Bucket), expectKey: aws.String(config.ObjectKey)}
+	newClient := func(awsConfig aws.Config) (simpleStorageService, error) {
+		return client, nil
+	}
+	p := newPlugin(newClient)
+	plugintest.Load(t, builtin(p), nil, options...)
+	require.NoError(t, err)
+
+	bundle := getTestBundle(t)
+	resp, err := p.PublishBundle(context.Background(), &bundlepublisherv1.PublishBundleRequest{
+		Bundle: bundle,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+
+	resp, err = p.PublishBundle(context.Background(), &bundlepublisherv1.PublishBundleRequest{
+		Bundle: bundle,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+
+	require.Equal(t, 1, client.putObjectCount)
+}
+
 type fakeClient struct {
 	t *testing.T
 
@@ -407,6 +533,7 @@ type fakeClient struct {
 	expectBucket   *string
 	expectKey      *string
 	putObjectCount int
+	writtenBytes   []byte
 }
 
 func (c *fakeClient) PutObject(_ context.Context, params *s3.PutObjectInput, _ ...func(*s3.Options)) (*s3.PutObjectOutput, error) {
@@ -416,6 +543,12 @@ func (c *fakeClient) PutObject(_ context.Context, params *s3.PutObjectInput, _ .
 
 	require.Equal(c.t, c.expectBucket, params.Bucket, "bucket mismatch")
 	require.Equal(c.t, c.expectKey, params.Key, "key mismatch")
+
+	body, err := io.ReadAll(params.Body)
+	require.NoError(c.t, err)
+	c.writtenBytes = make([]byte, len(body))
+	copy(c.writtenBytes, body)
+
 	c.putObjectCount++
 	return &s3.PutObjectOutput{}, nil
 }

@@ -5,6 +5,7 @@ import (
 	"crypto/x509"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/spiffe/spire/pkg/agent/plugin/keymanager"
@@ -32,6 +33,28 @@ func TestConfigure(t *testing.T) {
 		_, err := loadPlugin(t, "")
 		spiretest.RequireGRPCStatus(t, err, codes.InvalidArgument, "directory must be configured")
 	})
+	t.Run("directory created if missing", func(t *testing.T) {
+		dir := filepath.Join(spiretest.TempDir(t), "no-such-dir")
+
+		_, err := os.Stat(dir)
+		require.True(t, os.IsNotExist(err))
+
+		_, err = loadPlugin(t, "directory = %q", dir)
+		require.NoError(t, err)
+		require.DirExists(t, dir)
+	})
+	t.Run("insufficient permissions", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			// Skip this test on Windows, as it relies on chmod
+			t.Skip()
+		}
+		dir := spiretest.TempDir(t)
+		chmod(t, dir, 0444)
+		defer chmod(t, dir, 0755)
+
+		_, err := loadPlugin(t, "directory = %q", dir)
+		spiretest.RequireGRPCStatusContains(t, err, codes.FailedPrecondition, "directory validation failed")
+	})
 }
 
 func TestGenerateKeyBeforeConfigure(t *testing.T) {
@@ -45,10 +68,13 @@ func TestGenerateKeyBeforeConfigure(t *testing.T) {
 func TestGenerateKeyPersistence(t *testing.T) {
 	dir := filepath.Join(spiretest.TempDir(t), "no-such-dir")
 
+	// non-existing directory is created on startup
 	km, err := loadPlugin(t, "directory = %q", dir)
 	require.NoError(t, err)
+	require.DirExists(t, dir)
 
 	// assert failure to generate key when directory is gone
+	rmdir(t, dir)
 	_, err = km.GenerateKey(context.Background(), "id", keymanager.ECP256)
 	spiretest.RequireGRPCStatusContains(t, err, codes.Internal, "failed to generate key: unable to write entries")
 
@@ -97,6 +123,10 @@ func mkdir(t *testing.T, dir string) {
 
 func rmdir(t *testing.T, dir string) {
 	require.NoError(t, os.RemoveAll(dir))
+}
+
+func chmod(t *testing.T, dir string, mode os.FileMode) {
+	require.NoError(t, os.Chmod(dir, mode))
 }
 
 func publicKeyBytes(t *testing.T, key keymanager.Key) []byte {
