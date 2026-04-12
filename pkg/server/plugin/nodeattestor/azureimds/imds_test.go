@@ -270,6 +270,55 @@ func (s *IMDSAttestorSuite) TestAttestSuccessWithVMSS() {
 	s.RequireProtoListEqual(expected, resp.Selectors)
 }
 
+func (s *IMDSAttestorSuite) TestAttestSuccessWithVMSSNoNSG() {
+	s.setVMSSInstance(&VirtualMachine{
+		Name:          "VIRTUALMACHINE",
+		Location:      "westus",
+		ResourceGroup: "RESOURCEGROUP",
+		Interfaces: []*NetworkInterface{
+			{
+				Name: "nic-1",
+				Subnets: []Subnet{
+					{VNet: "vnet-1", SubnetName: "subnet-1"},
+				},
+			},
+		},
+	})
+
+	agentID := fmt.Sprintf("spiffe://example.org/spire/agent/azure_imds/%s/%s/%s", testTenantID, testSubscriptionID, testVMID)
+
+	selectorValues := slices.Clone(testVMSelectors)
+	selectorValues = append(selectorValues,
+		fmt.Sprintf("vmss-name:%s", testVMSSName),
+		"virtual-network:vnet-1",
+		"virtual-network-subnet:vnet-1:subnet-1",
+	)
+	sort.Strings(selectorValues)
+
+	var expected []*common.Selector
+	for _, selectorValue := range selectorValues {
+		expected = append(expected, &common.Selector{
+			Type:  "azure_imds",
+			Value: selectorValue,
+		})
+	}
+
+	vmssChallengeHandler := makeChallengeHandlerWithNonceCapture(&s.sharedNonce, func(ctx context.Context, challenge []byte) ([]byte, error) {
+		nonce := string(challenge)
+		vmssName := testVMSSName
+		return makeAttestPayloadWithNonce(testVMID, testSubscriptionID, nonce, testTenantDomain, &vmssName), nil
+	})
+
+	attestor := s.loadPluginWithChallengeHandler(vmssChallengeHandler, nil)
+
+	payload := []byte("initial")
+	resp, err := attestor.Attest(context.Background(), payload, vmssChallengeHandler)
+	s.Require().NoError(err)
+	s.Require().NotNil(resp)
+	s.Require().Equal(agentID, resp.AgentID)
+	s.RequireProtoListEqual(expected, resp.Selectors)
+}
+
 func (s *IMDSAttestorSuite) TestAttestSuccessWithRestrictedSubscription() {
 	s.setVirtualMachine(&VirtualMachine{
 		Name:          "VIRTUALMACHINE",

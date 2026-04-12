@@ -63,6 +63,7 @@ func New(c Config) *Handler {
 // FetchJWTSVID processes request for a JWT-SVID. In case of multiple fetched SVIDs with same hint, the SVID that has the oldest
 // associated entry will be returned.
 func (h *Handler) FetchJWTSVID(ctx context.Context, req *workload.JWTSVIDRequest) (resp *workload.JWTSVIDResponse, err error) {
+	start := time.Now()
 	log := rpccontext.Logger(ctx)
 	if len(req.Audience) == 0 {
 		log.Error("Missing required audience parameter")
@@ -78,7 +79,7 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *workload.JWTSVIDRequest
 
 	selectors, err := h.c.Attestor.Attest(ctx)
 	if err != nil {
-		log.WithError(err).Error("Workload attestation failed")
+		loggerWithContextInfo(ctx, log, start, err).Error("Workload attestation failed")
 		return nil, err
 	}
 
@@ -94,7 +95,7 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *workload.JWTSVIDRequest
 			continue
 		}
 		loopLog := log.WithField(telemetry.SPIFFEID, entry.SpiffeId)
-		svid, err := h.fetchJWTSVID(ctx, loopLog, entry, req.Audience)
+		svid, err := h.fetchJWTSVID(ctx, loopLog, entry, req.Audience, start)
 		if err != nil {
 			return nil, err
 		}
@@ -103,7 +104,7 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *workload.JWTSVIDRequest
 	}
 
 	if len(resp.Svids) == 0 {
-		logNoIdentityIssued(ctx, log)
+		logNoIdentityIssued(ctx, log, start)
 		return nil, status.Error(codes.PermissionDenied, "no identity issued")
 	}
 
@@ -113,17 +114,18 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *workload.JWTSVIDRequest
 // FetchJWTBundles processes request for JWT bundles
 func (h *Handler) FetchJWTBundles(_ *workload.JWTBundlesRequest, stream workload.SpiffeWorkloadAPI_FetchJWTBundlesServer) error {
 	ctx := stream.Context()
+	start := time.Now()
 	log := rpccontext.Logger(ctx)
 
 	selectors, err := h.c.Attestor.Attest(ctx)
 	if err != nil {
-		log.WithError(err).Error("Workload attestation failed")
+		loggerWithContextInfo(ctx, log, start, err).Error("Workload attestation failed")
 		return err
 	}
 
 	subscriber, err := h.c.Manager.SubscribeToCacheChanges(ctx, selectors)
 	if err != nil {
-		log.WithError(err).Error("Subscribe to cache changes failed")
+		loggerWithContextInfo(ctx, log, start, err).Error("Subscribe to cache changes failed")
 		return err
 	}
 	defer subscriber.Finish()
@@ -132,7 +134,7 @@ func (h *Handler) FetchJWTBundles(_ *workload.JWTBundlesRequest, stream workload
 	for {
 		select {
 		case update := <-subscriber.Updates():
-			if previousResp, err = sendJWTBundlesResponse(update, stream, log, h.c.AllowUnauthenticatedVerifiers, previousResp); err != nil {
+			if previousResp, err = sendJWTBundlesResponse(update, stream, log, h.c.AllowUnauthenticatedVerifiers, previousResp, start); err != nil {
 				return err
 			}
 		case <-ctx.Done():
@@ -143,6 +145,7 @@ func (h *Handler) FetchJWTBundles(_ *workload.JWTBundlesRequest, stream workload
 
 // ValidateJWTSVID processes request for JWT-SVID validation
 func (h *Handler) ValidateJWTSVID(ctx context.Context, req *workload.ValidateJWTSVIDRequest) (*workload.ValidateJWTSVIDResponse, error) {
+	start := time.Now()
 	log := rpccontext.Logger(ctx)
 	if req.Audience == "" {
 		log.Error("Missing required audience parameter")
@@ -157,7 +160,7 @@ func (h *Handler) ValidateJWTSVID(ctx context.Context, req *workload.ValidateJWT
 
 	selectors, err := h.c.Attestor.Attest(ctx)
 	if err != nil {
-		log.WithError(err).Error("Workload attestation failed")
+		loggerWithContextInfo(ctx, log, start, err).Error("Workload attestation failed")
 		return nil, err
 	}
 
@@ -210,17 +213,18 @@ func (h *Handler) ValidateJWTSVID(ctx context.Context, req *workload.ValidateJWT
 // associated entry will be returned.
 func (h *Handler) FetchX509SVID(_ *workload.X509SVIDRequest, stream workload.SpiffeWorkloadAPI_FetchX509SVIDServer) error {
 	ctx := stream.Context()
+	start := time.Now()
 	log := rpccontext.Logger(ctx)
 
 	selectors, err := h.c.Attestor.Attest(ctx)
 	if err != nil {
-		log.WithError(err).Error("Workload attestation failed")
+		loggerWithContextInfo(ctx, log, start, err).Error("Workload attestation failed")
 		return err
 	}
 
 	subscriber, err := h.c.Manager.SubscribeToCacheChanges(ctx, selectors)
 	if err != nil {
-		log.WithError(err).Error("Subscribe to cache changes failed")
+		loggerWithContextInfo(ctx, log, start, err).Error("Subscribe to cache changes failed")
 		return err
 	}
 	defer subscriber.Finish()
@@ -232,7 +236,7 @@ func (h *Handler) FetchX509SVID(_ *workload.X509SVIDRequest, stream workload.Spi
 		select {
 		case update := <-subscriber.Updates():
 			update.Identities = filterIdentities(update.Identities, log)
-			if err := sendX509SVIDResponse(update, stream, log, quietLogging); err != nil {
+			if err := sendX509SVIDResponse(update, stream, log, quietLogging, start); err != nil {
 				return err
 			}
 		case <-ctx.Done():
@@ -244,17 +248,18 @@ func (h *Handler) FetchX509SVID(_ *workload.X509SVIDRequest, stream workload.Spi
 // FetchX509Bundles processes request for x509 bundles
 func (h *Handler) FetchX509Bundles(_ *workload.X509BundlesRequest, stream workload.SpiffeWorkloadAPI_FetchX509BundlesServer) error {
 	ctx := stream.Context()
+	start := time.Now()
 	log := rpccontext.Logger(ctx)
 
 	selectors, err := h.c.Attestor.Attest(ctx)
 	if err != nil {
-		log.WithError(err).Error("Workload attestation failed")
+		loggerWithContextInfo(ctx, log, start, err).Error("Workload attestation failed")
 		return err
 	}
 
 	subscriber, err := h.c.Manager.SubscribeToCacheChanges(ctx, selectors)
 	if err != nil {
-		log.WithError(err).Error("Subscribe to cache changes failed")
+		loggerWithContextInfo(ctx, log, start, err).Error("Subscribe to cache changes failed")
 		return err
 	}
 	defer subscriber.Finish()
@@ -266,7 +271,7 @@ func (h *Handler) FetchX509Bundles(_ *workload.X509BundlesRequest, stream worklo
 	for {
 		select {
 		case update := <-subscriber.Updates():
-			previousResp, err = sendX509BundlesResponse(update, stream, log, h.c.AllowUnauthenticatedVerifiers, previousResp, quietLogging)
+			previousResp, err = sendX509BundlesResponse(update, stream, log, h.c.AllowUnauthenticatedVerifiers, previousResp, quietLogging, start)
 			if err != nil {
 				return err
 			}
@@ -276,7 +281,7 @@ func (h *Handler) FetchX509Bundles(_ *workload.X509BundlesRequest, stream worklo
 	}
 }
 
-func (h *Handler) fetchJWTSVID(ctx context.Context, log logrus.FieldLogger, entry *common.RegistrationEntry, audience []string) (*workload.JWTSVID, error) {
+func (h *Handler) fetchJWTSVID(ctx context.Context, log logrus.FieldLogger, entry *common.RegistrationEntry, audience []string, start time.Time) (*workload.JWTSVID, error) {
 	spiffeID, err := spiffeid.FromString(entry.SpiffeId)
 	if err != nil {
 		log.WithError(err).Error("Invalid requested SPIFFE ID")
@@ -285,7 +290,7 @@ func (h *Handler) fetchJWTSVID(ctx context.Context, log logrus.FieldLogger, entr
 
 	svid, err := h.c.Manager.FetchJWTSVID(ctx, entry, audience)
 	if err != nil {
-		log.WithError(err).Error("Could not fetch JWT-SVID")
+		loggerWithContextInfo(ctx, log, start, err).Error("Could not fetch JWT-SVID")
 		return nil, status.Errorf(codes.Unavailable, "could not fetch JWT-SVID: %v", err)
 	}
 
@@ -299,10 +304,10 @@ func (h *Handler) fetchJWTSVID(ctx context.Context, log logrus.FieldLogger, entr
 	}, nil
 }
 
-func sendX509BundlesResponse(update *cache.WorkloadUpdate, stream workload.SpiffeWorkloadAPI_FetchX509BundlesServer, log logrus.FieldLogger, allowUnauthenticatedVerifiers bool, previousResponse *workload.X509BundlesResponse, quietLogging bool) (*workload.X509BundlesResponse, error) {
+func sendX509BundlesResponse(update *cache.WorkloadUpdate, stream workload.SpiffeWorkloadAPI_FetchX509BundlesServer, log logrus.FieldLogger, allowUnauthenticatedVerifiers bool, previousResponse *workload.X509BundlesResponse, quietLogging bool, start time.Time) (*workload.X509BundlesResponse, error) {
 	if !allowUnauthenticatedVerifiers && !update.HasIdentity() {
 		if !quietLogging {
-			logNoIdentityIssued(stream.Context(), log)
+			logNoIdentityIssued(stream.Context(), log, start)
 		}
 		return nil, status.Error(codes.PermissionDenied, "no identity issued")
 	}
@@ -318,7 +323,7 @@ func sendX509BundlesResponse(update *cache.WorkloadUpdate, stream workload.Spiff
 	}
 
 	if err := stream.Send(resp); err != nil {
-		log.WithError(err).Error("Failed to send X509 bundle response")
+		loggerWithContextInfo(stream.Context(), log, start, err).Error("Failed to send X509 bundle response")
 		return nil, err
 	}
 
@@ -345,10 +350,10 @@ func composeX509BundlesResponse(update *cache.WorkloadUpdate) (*workload.X509Bun
 	}, nil
 }
 
-func sendX509SVIDResponse(update *cache.WorkloadUpdate, stream workload.SpiffeWorkloadAPI_FetchX509SVIDServer, log logrus.FieldLogger, quietLogging bool) (err error) {
+func sendX509SVIDResponse(update *cache.WorkloadUpdate, stream workload.SpiffeWorkloadAPI_FetchX509SVIDServer, log logrus.FieldLogger, quietLogging bool, start time.Time) (err error) {
 	if len(update.Identities) == 0 {
 		if !quietLogging {
-			logNoIdentityIssued(stream.Context(), log)
+			logNoIdentityIssued(stream.Context(), log, start)
 		}
 		return status.Error(codes.PermissionDenied, "no identity issued")
 	}
@@ -362,7 +367,7 @@ func sendX509SVIDResponse(update *cache.WorkloadUpdate, stream workload.SpiffeWo
 	}
 
 	if err := stream.Send(resp); err != nil {
-		log.WithError(err).Error("Failed to send X.509 SVID response")
+		loggerWithContextInfo(stream.Context(), log, start, err).Error("Failed to send X.509 SVID response")
 		return err
 	}
 
@@ -417,9 +422,9 @@ func composeX509SVIDResponse(update *cache.WorkloadUpdate) (*workload.X509SVIDRe
 	return resp, nil
 }
 
-func sendJWTBundlesResponse(update *cache.WorkloadUpdate, stream workload.SpiffeWorkloadAPI_FetchJWTBundlesServer, log logrus.FieldLogger, allowUnauthenticatedVerifiers bool, previousResponse *workload.JWTBundlesResponse) (*workload.JWTBundlesResponse, error) {
+func sendJWTBundlesResponse(update *cache.WorkloadUpdate, stream workload.SpiffeWorkloadAPI_FetchJWTBundlesServer, log logrus.FieldLogger, allowUnauthenticatedVerifiers bool, previousResponse *workload.JWTBundlesResponse, start time.Time) (*workload.JWTBundlesResponse, error) {
 	if !allowUnauthenticatedVerifiers && !update.HasIdentity() {
-		logNoIdentityIssued(stream.Context(), log)
+		logNoIdentityIssued(stream.Context(), log, start)
 		return nil, status.Error(codes.PermissionDenied, "no identity issued")
 	}
 
@@ -434,7 +439,7 @@ func sendJWTBundlesResponse(update *cache.WorkloadUpdate, stream workload.Spiffe
 	}
 
 	if err := stream.Send(resp); err != nil {
-		log.WithError(err).Error("Failed to send JWT bundle response")
+		loggerWithContextInfo(stream.Context(), log, start, err).Error("Failed to send JWT bundle response")
 		return nil, err
 	}
 
@@ -476,12 +481,29 @@ func isAgent(ctx context.Context) bool {
 	return rpccontext.CallerPID(ctx) == os.Getpid()
 }
 
-func logNoIdentityIssued(ctx context.Context, log logrus.FieldLogger) {
-	entry := log.WithField(telemetry.Registered, false)
-	if err := ctx.Err(); err != nil {
-		entry = entry.WithError(err)
+func loggerWithContextInfo(ctx context.Context, log logrus.FieldLogger, start time.Time, err error) logrus.FieldLogger {
+	if ctx.Err() != nil {
+		// If the context is done, include a cancellation cause if present
+		// and the request duration (since it likely means the client has gone
+		// away so it's useful to know how long it waited before giving up).
+		if cause := context.Cause(ctx); cause != ctx.Err() { //nolint:errorlint
+			log = log.WithField("cause", cause)
+		}
+		log = log.WithField("duration_ms", time.Since(start).Milliseconds())
+		if err == nil {
+			// If no specific error was given, use the context error;
+			// it will be context.Canceled or context.DeadlineExceeded.
+			err = ctx.Err()
+		}
 	}
-	entry.Error("No identity issued")
+	if err != nil {
+		log = log.WithError(err)
+	}
+	return log
+}
+
+func logNoIdentityIssued(ctx context.Context, log logrus.FieldLogger, start time.Time) {
+	loggerWithContextInfo(ctx, log.WithField(telemetry.Registered, false), start, nil).Error("No identity issued")
 }
 
 func (h *Handler) getWorkloadBundles(selectors []*common.Selector) (bundles []*spiffebundle.Bundle) {

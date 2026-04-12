@@ -67,6 +67,13 @@ type updateCommand struct {
 	// storeSVID determines if the issued SVID must be stored through an SVIDStore plugin
 	storeSVID bool
 
+	// additionalAttributesSet indicates whether any of the additional attributes if the requestration entry were set
+	additionalAttributesSet bool
+
+	// disableX509SVIDPrefetch tells the agent not to prefetch and cache X509 SVID for
+	// the given entry
+	disableX509SVIDPrefetch bool
+
 	// Entry hint, used to disambiguate entries with the same SPIFFE ID
 	hint string
 
@@ -98,6 +105,12 @@ func (c *updateCommand) AppendFlags(f *flag.FlagSet) {
 	f.Int64Var(&c.entryExpiry, "entryExpiry", 0, "An expiry, from epoch in seconds, for the resulting registration entry to be pruned")
 	f.Var(&c.dnsNames, "dns", "A DNS name that will be included in SVIDs issued based on this entry, where appropriate. Can be used more than once")
 	f.StringVar(&c.hint, "hint", "", "The entry hint, used to disambiguate entries with the same SPIFFE ID")
+	f.BoolFunc("disableX509SVIDPrefetch", "A boolean value that, when set, disables prefetching X509 SVID for this entry",
+		func(_ string) error {
+			c.additionalAttributesSet = true
+			c.disableX509SVIDPrefetch = true
+			return nil
+		})
 	cliprinter.AppendFlagWithCustomPretty(&c.printer, f, c.env, prettyPrintUpdate)
 }
 
@@ -204,6 +217,15 @@ func (c *updateCommand) parseConfig() ([]*types.Entry, error) {
 	}
 
 	e.Selectors = selectors
+
+	if c.additionalAttributesSet {
+		e.AdditionalAttributes = &types.Entry_AdditionalAttributes{}
+	}
+
+	if c.disableX509SVIDPrefetch {
+		e.AdditionalAttributes.DisableX509SvidPrefetch = true
+	}
+
 	e.FederatesWith = c.federatesWith
 	e.Admin = c.admin
 	e.StoreSvid = c.storeSVID
