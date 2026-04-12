@@ -130,7 +130,7 @@ func (h *containerHelper) getContainerIDAndSocket(pID int32, log hclog.Logger) (
 		if err != nil || containerID == "" {
 			return "", "", err
 		}
-		return containerID, h.detectPodmanSocket(cgroupList), nil
+		return containerID, h.detectPodmanSocket(cgroupList, log), nil
 	}
 
 	extractor := containerinfo.Extractor{RootDir: h.rootDir, VerboseLogging: h.verboseContainerLocatorLogs}
@@ -144,10 +144,10 @@ func (h *containerHelper) getContainerIDAndSocket(pID int32, log hclog.Logger) (
 		log.Warn("Failed to read cgroups for Podman detection, falling back to Docker client", "pid", pID, "err", err)
 		return containerID, "", nil
 	}
-	return containerID, h.detectPodmanSocket(cgroupList), nil
+	return containerID, h.detectPodmanSocket(cgroupList, log), nil
 }
 
-func (h *containerHelper) detectPodmanSocket(cgroupList []cgroups.Cgroup) string {
+func (h *containerHelper) detectPodmanSocket(cgroupList []cgroups.Cgroup, log hclog.Logger) string {
 	for _, cg := range cgroupList {
 		if !rePodmanCgroup.MatchString(cg.GroupPath) {
 			continue
@@ -156,6 +156,7 @@ func (h *containerHelper) detectPodmanSocket(cgroupList []cgroups.Cgroup) string
 			if uid, err := strconv.ParseUint(m[1], 10, 32); err == nil {
 				return fmt.Sprintf(h.podmanSocketPathTemplate, uid)
 			}
+			log.Warn("Failed to parse rootless Podman UID from cgroup path, falling back to rootful Podman socket", "uid", m[1], "cgroup_path", cg.GroupPath)
 		}
 		return h.podmanSocketPath
 	}

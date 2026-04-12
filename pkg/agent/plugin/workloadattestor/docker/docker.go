@@ -48,7 +48,8 @@ type Docker interface {
 	ImageInspectWithRaw(ctx context.Context, imageID string) (image.InspectResponse, []byte, error)
 }
 
-type closeableDocker interface {
+type podmanDocker interface {
+	Docker
 	Close() error
 }
 
@@ -63,7 +64,7 @@ type Plugin struct {
 	docker              Docker
 	c                   *containerHelper
 	sigstoreVerifier    sigstore.Verifier
-	podmanClientFactory func(socketPath string) (Docker, error)
+	podmanClientFactory func(socketPath string) (podmanDocker, error)
 }
 
 func New() *Plugin {
@@ -73,7 +74,7 @@ func New() *Plugin {
 	}
 }
 
-func defaultPodmanClientFactory(socketPath string) (Docker, error) {
+func defaultPodmanClientFactory(socketPath string) (podmanDocker, error) {
 	return dockerclient.NewClientWithOpts(
 		dockerclient.WithHost(socketPath),
 		dockerclient.WithAPIVersionNegotiation(),
@@ -156,17 +157,16 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestReque
 
 	client := p.docker
 	if podmanSocket != "" {
-		client, err = p.podmanClientFactory(podmanSocket)
+		podmanClient, err := p.podmanClientFactory(podmanSocket)
 		if err != nil {
 			return nil, fmt.Errorf("unable to create Podman client for socket %q: %w", podmanSocket, err)
 		}
-		if closeableClient, ok := client.(closeableDocker); ok {
-			defer func() {
-				if closeErr := closeableClient.Close(); closeErr != nil {
-					p.log.Warn("Failed to close Podman client", telemetry.Error, closeErr)
-				}
-			}()
-		}
+		defer func() {
+			if closeErr := podmanClient.Close(); closeErr != nil {
+				p.log.Warn("Failed to close Podman client", telemetry.Error, closeErr)
+			}
+		}()
+		client = podmanClient
 	}
 
 	var container container.InspectResponse

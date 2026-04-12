@@ -20,6 +20,7 @@ const (
 	testRootlessPodmanCgroupEntries         = "0::/user.slice/user-1000.slice/user@1000.service/user.slice/libpod-6469646e742065787065637420616e796f6e6520746f20726561642074686973.scope"
 	testRootfulPodmanCgroupEntries          = "0::/machine.slice/libpod-6469646e742065787065637420616e796f6e6520746f20726561642074686973.scope"
 	testCgroupfsRootlessPodmanCgroupEntries = "0::/user.slice/user-2000.slice/user@2000.service/user.slice/libpod/6469646e742065787065637420616e796f6e6520746f20726561642074686973"
+	testInvalidUIDPodmanCgroupEntries       = "0::/user.slice/user-4294967296.slice/user@4294967296.service/user.slice/libpod-6469646e742065787065637420616e796f6e6520746f20726561642074686973.scope"
 )
 
 func TestContainerExtraction(t *testing.T) {
@@ -205,7 +206,7 @@ func withConfig(t *testing.T, trustDomain string, cfg string) testPluginOpt {
 	}
 }
 
-func withPodmanClientFactory(factory func(string) (Docker, error)) testPluginOpt {
+func withPodmanClientFactory(factory func(string) (podmanDocker, error)) testPluginOpt {
 	return func(p *Plugin) {
 		p.podmanClientFactory = factory
 	}
@@ -232,6 +233,11 @@ func TestPodmanContainerExtraction(t *testing.T) {
 			cgroups:            testCgroupfsRootlessPodmanCgroupEntries,
 			expectedSocketPath: "unix:///run/user/2000/podman/podman.sock",
 		},
+		{
+			desc:               "rootless podman with invalid uid falls back to rootful socket",
+			cgroups:            testInvalidUIDPodmanCgroupEntries,
+			expectedSocketPath: defaultPodmanSocketPath,
+		},
 	}
 
 	for _, tt := range tests {
@@ -242,9 +248,9 @@ func TestPodmanContainerExtraction(t *testing.T) {
 			p := newTestPlugin(t,
 				rootDirOpt,
 				withDocker(dockerError{}),
-				withPodmanClientFactory(func(socketPath string) (Docker, error) {
+				withPodmanClientFactory(func(socketPath string) (podmanDocker, error) {
 					gotSocketPath = socketPath
-					return fakeContainer{Image: "my-podman-image"}, nil
+					return noOpCloseableDocker{Docker: fakeContainer{Image: "my-podman-image"}}, nil
 				}),
 			)
 
@@ -282,9 +288,9 @@ podman_socket_path_template = "unix:///var/run/user/%d/podman.sock"
 podman_socket_path_template = "unix:///custom/user/%d/podman.sock"
 `),
 			rootDirOpt,
-			withPodmanClientFactory(func(socketPath string) (Docker, error) {
+			withPodmanClientFactory(func(socketPath string) (podmanDocker, error) {
 				gotSocketPath = socketPath
-				return fakeContainer{Image: "img"}, nil
+				return noOpCloseableDocker{Docker: fakeContainer{Image: "img"}}, nil
 			}),
 		)
 
@@ -294,13 +300,29 @@ podman_socket_path_template = "unix:///custom/user/%d/podman.sock"
 	})
 
 	t.Run("invalid template is rejected", func(t *testing.T) {
-		p := New()
-		err := doConfigure(t, p, "example.org", `
-podman_socket_path_template = "unix:///run/user/%s/podman/podman.sock"
+		for _, invalidTemplate := range []string{
+			"unix:///run/user/%s/podman/podman.sock",
+			"unix:///run/user/%d/podman%",
+			"unix:///run/user/podman%",
+		} {
+			t.Run(invalidTemplate, func(t *testing.T) {
+				p := New()
+				err := doConfigure(t, p, "example.org", `
+podman_socket_path_template = "`+invalidTemplate+`"
 `)
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "invalid podman_socket_path_template")
+				require.Error(t, err)
+				require.Contains(t, err.Error(), "invalid podman_socket_path_template")
+			})
+		}
 	})
+}
+
+type noOpCloseableDocker struct {
+	Docker
+}
+
+func (f noOpCloseableDocker) Close() error {
+	return nil
 }
 
 type closeableFakeContainer struct {
@@ -319,7 +341,7 @@ func TestPodmanClientFactoryError(t *testing.T) {
 	p := newTestPlugin(t,
 		rootDirOpt,
 		withDocker(dockerError{}),
-		withPodmanClientFactory(func(string) (Docker, error) {
+		withPodmanClientFactory(func(string) (podmanDocker, error) {
 			return nil, errors.New("connection refused")
 		}),
 	)
@@ -336,7 +358,7 @@ func TestPodmanClientIsClosed(t *testing.T) {
 	p := newTestPlugin(t,
 		rootDirOpt,
 		withDocker(dockerError{}),
-		withPodmanClientFactory(func(string) (Docker, error) {
+		withPodmanClientFactory(func(string) (podmanDocker, error) {
 			client = &closeableFakeContainer{
 				fakeContainer: fakeContainer{Image: "img"},
 			}
