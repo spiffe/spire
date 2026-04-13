@@ -86,6 +86,7 @@ Some useful values are:
 | .ProjectNumber             | The unique number for the project where you created the instance |
 | .Zone                      | The zone where the instance is located                           |
 | .InstanceCreationTimestamp | A Unix timestamp indicating when you created the instance.       |
+| .ServiceAccount            | The service account email ("@" is replaced with "_")             |
 
 ## Security Considerations
 
