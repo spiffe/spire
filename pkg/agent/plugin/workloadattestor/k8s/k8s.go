@@ -20,8 +20,7 @@ import (
 	"github.com/andres-erbsen/clock"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
-	"github.com/spiffe/spire-api-sdk/proto/spiffe/reference"
-	workloadattestorv2 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/agent/workloadattestor/v2"
+	workloadattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/agent/workloadattestor/v1"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/agent/common/sigstore"
 	"github.com/spiffe/spire/pkg/common/catalog"
@@ -32,7 +31,6 @@ import (
 	"golang.org/x/sync/singleflight"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/types/known/anypb"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 )
@@ -54,7 +52,7 @@ func BuiltIn() catalog.BuiltIn {
 
 func builtin(p *Plugin) catalog.BuiltIn {
 	return catalog.MakeBuiltIn(pluginName,
-		workloadattestorv2.WorkloadAttestorPluginServer(p),
+		workloadattestorv1.WorkloadAttestorPluginServer(p),
 		configv1.ConfigServiceServer(p),
 	)
 }
@@ -259,11 +257,11 @@ func (p *Plugin) buildConfig(coreConfig catalog.CoreConfig, hclText string, stat
 
 type ContainerHelper interface {
 	Configure(config *HCLConfig, log hclog.Logger) error
-	GetPodUIDAndContainerID(reference *anypb.Any, log hclog.Logger) (types.UID, string, bool, error)
+	GetPodUIDAndContainerID(pID int32, log hclog.Logger) (types.UID, string, error)
 }
 
 type Plugin struct {
-	workloadattestorv2.UnsafeWorkloadAttestorServer
+	workloadattestorv1.UnsafeWorkloadAttestorServer
 	configv1.UnsafeConfigServer
 
 	log     hclog.Logger
@@ -292,15 +290,13 @@ func (p *Plugin) SetLogger(log hclog.Logger) {
 	p.log = log
 }
 
-func (p *Plugin) AttestReference(ctx context.Context, req *workloadattestorv2.AttestReferenceRequest) (*workloadattestorv2.AttestReferenceResponse, error) {
-	p.log.Info("skip kubelet verification", p.config.SkipKubeletVerification)
-
+func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestRequest) (*workloadattestorv1.AttestResponse, error) {
 	config, containerHelper, sigstoreVerifier, err := p.getConfig()
 	if err != nil {
 		return nil, err
 	}
 
-	podUID, containerID, _, err := containerHelper.GetPodUIDAndContainerID(req.Reference, p.log)
+	podUID, containerID, err := containerHelper.GetPodUIDAndContainerID(req.Pid, p.log)
 	if err != nil {
 		return nil, err
 	}
@@ -308,7 +304,7 @@ func (p *Plugin) AttestReference(ctx context.Context, req *workloadattestorv2.At
 
 	// Not a Kubernetes pod
 	if containerID == "" {
-		return &workloadattestorv2.AttestReferenceResponse{}, nil
+		return &workloadattestorv1.AttestResponse{}, nil
 	}
 
 	log := p.log.With(
@@ -327,7 +323,7 @@ func (p *Plugin) AttestReference(ctx context.Context, req *workloadattestorv2.At
 			return nil, err
 		}
 
-		var attestResponse *workloadattestorv2.AttestReferenceResponse
+		var attestResponse *workloadattestorv1.AttestResponse
 		for podKey, podValue := range podList {
 			if podKnown {
 				if podKey != string(podUID) {
@@ -379,7 +375,7 @@ func (p *Plugin) AttestReference(ctx context.Context, req *workloadattestorv2.At
 					log.Warn("Two pods found with same container Id")
 					return nil, status.Error(codes.Internal, "two pods found with same container Id")
 				}
-				attestResponse = &workloadattestorv2.AttestReferenceResponse{SelectorValues: selectorValues}
+				attestResponse = &workloadattestorv1.AttestResponse{SelectorValues: selectorValues}
 			}
 		}
 
@@ -849,24 +845,4 @@ func newCertPool(certs []*x509.Certificate) *x509.CertPool {
 		certPool.AddCert(cert)
 	}
 	return certPool
-}
-
-func extractRelevantReference(ref *anypb.Any) (types.UID, int32, error) {
-	switch ref.TypeUrl {
-	case "type.googleapis.com/spiffe.reference.WorkloadPIDReference":
-		var pidRef reference.WorkloadPIDReference
-		if err := ref.UnmarshalTo(&pidRef); err != nil {
-			return "", -1, fmt.Errorf("unable to unmarshal PID reference: %w", err)
-		}
-		return "", pidRef.Pid, nil
-	case "type.googleapis.com/spiffe.reference.KubernetesPodUIDReference":
-		var podUIDRef reference.KubernetesPodUIDReference
-		if err := ref.UnmarshalTo(&podUIDRef); err != nil {
-			return "", -1, fmt.Errorf("unable to unmarshal Pod UID reference: %w", err)
-		}
-		uid := types.UID(podUIDRef.Uid)
-		return uid, -1, nil
-	default:
-		return "", -1, fmt.Errorf("unsupported reference type: %s", ref.TypeUrl)
-	}
 }

@@ -8,12 +8,10 @@ import (
 	"testing"
 
 	"github.com/hashicorp/go-hclog"
-	"github.com/spiffe/spire-api-sdk/proto/spiffe/reference"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/protobuf/types/known/anypb"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 )
@@ -50,22 +48,17 @@ func (h *fakeContainerHelper) GetOSSelectors(context.Context, hclog.Logger, *cor
 	return h.osSelectors, nil
 }
 
-func (h *fakeContainerHelper) GetPodUIDAndContainerID(ref *anypb.Any, _ hclog.Logger) (types.UID, string, bool, error) {
+func (h *fakeContainerHelper) GetPodUIDAndContainerID(pID int32, _ hclog.Logger) (types.UID, string, error) {
 	if h.err != nil {
-		return types.UID(""), "", false, h.err
+		return types.UID(""), "", h.err
 	}
 
-	_, pid, err := extractRelevantReference(ref)
-	if err != nil {
-		return "", "", false, err
-	}
-
-	cID, ok := h.cIDs[pid]
+	cID, ok := h.cIDs[pID]
 	if !ok {
-		return types.UID(""), "", false, nil
+		return types.UID(""), "", nil
 	}
 
-	return types.UID(""), cID, true, nil
+	return types.UID(""), cID, nil
 }
 
 func (s *Suite) addGetContainerResponsePidInPod() {
@@ -82,9 +75,7 @@ func TestContainerHelper(t *testing.T) {
 
 	t.Run("containerID found", func(t *testing.T) {
 		fakeHelper.containerID = "123"
-		ref, err := buildReferenceWithPID(123)
-		require.NoError(t, err)
-		podID, containerID, _, err := cHelper.GetPodUIDAndContainerID(ref, nil)
+		podID, containerID, err := cHelper.GetPodUIDAndContainerID(123, nil)
 		require.NoError(t, err)
 
 		assert.Empty(t, podID)
@@ -93,9 +84,7 @@ func TestContainerHelper(t *testing.T) {
 
 	t.Run("get fails", func(t *testing.T) {
 		fakeHelper.err = errors.New("oh no")
-		ref, err := buildReferenceWithPID(123)
-		require.NoError(t, err)
-		podID, containerID, _, err := cHelper.GetPodUIDAndContainerID(ref, nil)
+		podID, containerID, err := cHelper.GetPodUIDAndContainerID(123, nil)
 		spiretest.RequireGRPCStatus(t, err, codes.Internal, "failed to get container ID: oh no")
 
 		assert.Empty(t, podID)
@@ -114,11 +103,4 @@ func (f *fakeProcessHelper) GetContainerIDByProcess(int32, hclog.Logger) (string
 	}
 
 	return f.containerID, nil
-}
-
-func buildReferenceWithPID(pid int32) (*anypb.Any, error) {
-	pidReference := reference.WorkloadPIDReference{
-		Pid: pid,
-	}
-	return anypb.New(&pidReference)
 }
