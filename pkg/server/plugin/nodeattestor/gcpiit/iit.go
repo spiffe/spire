@@ -281,8 +281,8 @@ func validateAttestationAndExtractIdentityMetadata(stream nodeattestorv1.NodeAtt
 		return gcp.IdentityToken{}, status.Errorf(codes.InvalidArgument, "unable to parse the identity token: %v", err)
 	}
 
-	identityToken := &gcp.IdentityToken{}
-	if err := token.Claims(jwks, identityToken); err != nil {
+	identityToken := gcp.IdentityToken{}
+	if err := token.Claims(jwks, &identityToken); err != nil {
 		return gcp.IdentityToken{}, status.Errorf(codes.InvalidArgument, "failed to validate the identity token signature: %v", err)
 	}
 
@@ -293,7 +293,7 @@ func validateAttestationAndExtractIdentityMetadata(stream nodeattestorv1.NodeAtt
 		return gcp.IdentityToken{}, status.Errorf(codes.PermissionDenied, "failed to validate the identity token claims: %v", err)
 	}
 
-	return *identityToken, nil
+	return identityToken, nil
 }
 
 func getInstanceTags(instance *compute.Instance) []string {
