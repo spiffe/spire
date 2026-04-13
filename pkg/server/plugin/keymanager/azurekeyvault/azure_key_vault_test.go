@@ -54,6 +54,8 @@ var (
 	refreshedDate = unixEpoch.Add(6 * time.Hour)
 )
 
+func toPtr[T any](v T) *T { return &v }
+
 type pluginTest struct {
 	plugin    *Plugin
 	kmsClient *kmsClientFake
@@ -995,7 +997,7 @@ func TestKeyVaultKeyToRawKey(t *testing.T) {
 			name: "EC-HSM P-256 normalized to EC",
 			jwk: func() *azkeys.JSONWebKey {
 				k := toECKey(ec256Key.Public(), fakeKID, azkeys.JSONWebKeyCurveNameP256, keyOps)
-				k.Kty = to.Ptr(azkeys.JSONWebKeyTypeECHSM)
+				k.Kty = new(azkeys.JSONWebKeyTypeECHSM)
 				return k
 			}(),
 			assertKey: func(t *testing.T, got any) {
@@ -1008,7 +1010,7 @@ func TestKeyVaultKeyToRawKey(t *testing.T) {
 			name: "RSA-HSM normalized to RSA",
 			jwk: func() *azkeys.JSONWebKey {
 				k := toRSAKey(rsa2048Key.Public(), fakeKID, keyOps)
-				k.Kty = to.Ptr(azkeys.JSONWebKeyTypeRSAHSM)
+				k.Kty = toPtr(azkeys.JSONWebKeyTypeRSAHSM)
 				return k
 			}(),
 			assertKey: func(t *testing.T, got any) {
@@ -1047,19 +1049,19 @@ func TestKeyTypeFromKeySpec(t *testing.T) {
 
 	makeRSABundle := func(kty azkeys.JSONWebKeyType, keySize int) azkeys.KeyBundle {
 		return azkeys.KeyBundle{Key: &azkeys.JSONWebKey{
-			Kty:    to.Ptr(kty),
+				Kty:    toPtr(kty),
 			N:      make([]byte, keySize/8),
 			E:      []byte{1, 0, 1},
-			KID:    to.Ptr(azkeys.ID(fakeKID)),
+			KID:    toPtr(azkeys.ID(fakeKID)),
 			KeyOps: keyOps,
 		}}
 	}
 
 	makeECBundle := func(kty azkeys.JSONWebKeyType, crv azkeys.JSONWebKeyCurveName) azkeys.KeyBundle {
 		return azkeys.KeyBundle{Key: &azkeys.JSONWebKey{
-			Kty:    to.Ptr(kty),
-			Crv:    to.Ptr(crv),
-			KID:    to.Ptr(azkeys.ID(fakeKID)),
+			Kty:    toPtr(kty),
+			Crv:    toPtr(crv),
+			KID:    toPtr(azkeys.ID(fakeKID)),
 			KeyOps: keyOps,
 		}}
 	}
