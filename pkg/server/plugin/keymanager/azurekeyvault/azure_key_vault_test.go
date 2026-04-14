@@ -1049,7 +1049,7 @@ func TestKeyTypeFromKeySpec(t *testing.T) {
 
 	makeRSABundle := func(kty azkeys.JSONWebKeyType, keySize int) azkeys.KeyBundle {
 		return azkeys.KeyBundle{Key: &azkeys.JSONWebKey{
-				Kty:    toPtr(kty),
+			Kty:    toPtr(kty),
 			N:      make([]byte, keySize/8),
 			E:      []byte{1, 0, 1},
 			KID:    toPtr(azkeys.ID(fakeKID)),
