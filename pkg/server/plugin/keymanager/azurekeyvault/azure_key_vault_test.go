@@ -3,6 +3,8 @@ package azurekeyvault
 import (
 	"context"
 	"crypto"
+	"crypto/ecdsa"
+	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/sha512"
 	"crypto/x509"
@@ -51,6 +53,8 @@ var (
 	unixEpoch     = time.Unix(0, 0)
 	refreshedDate = unixEpoch.Add(6 * time.Hour)
 )
+
+func toPtr[T any](v T) *T { return &v }
 
 type pluginTest struct {
 	plugin    *Plugin
@@ -934,6 +938,205 @@ func TestDisposeKeys(t *testing.T) {
 				_, ok := storedKeys[expected.KeyBundle.Key.KID.Name()]
 				require.True(t, ok, "Expected key was not present on end result: %q", expected.KeyBundle.Key.KID.Name())
 			}
+		})
+	}
+}
+
+func TestKeyVaultKeyToRawKey(t *testing.T) {
+	ec256Key := testkey.NewEC256(t)
+	ec384Key := testkey.NewEC384(t)
+	rsa2048Key := testkey.NewRSA2048(t)
+	rsa4096Key := testkey.NewRSA4096(t)
+
+	keyOps := getKeyOperations()
+	const fakeKID = "https://fake.vault.azure.net/keys/fake-key/version1"
+
+	for _, tt := range []struct {
+		name      string
+		jwk       *azkeys.JSONWebKey
+		assertKey func(t *testing.T, got any)
+		expectErr string
+	}{
+		{
+			name: "EC P-256",
+			jwk:  toECKey(ec256Key.Public(), fakeKID, azkeys.JSONWebKeyCurveNameP256, keyOps),
+			assertKey: func(t *testing.T, got any) {
+				pub, ok := got.(*ecdsa.PublicKey)
+				require.True(t, ok, "expected *ecdsa.PublicKey")
+				require.Equal(t, ec256Key.Public(), pub)
+			},
+		},
+		{
+			name: "EC P-384",
+			jwk:  toECKey(ec384Key.Public(), fakeKID, azkeys.JSONWebKeyCurveNameP384, keyOps),
+			assertKey: func(t *testing.T, got any) {
+				pub, ok := got.(*ecdsa.PublicKey)
+				require.True(t, ok, "expected *ecdsa.PublicKey")
+				require.Equal(t, ec384Key.Public(), pub)
+			},
+		},
+		{
+			name: "RSA 2048",
+			jwk:  toRSAKey(rsa2048Key.Public(), fakeKID, keyOps),
+			assertKey: func(t *testing.T, got any) {
+				pub, ok := got.(*rsa.PublicKey)
+				require.True(t, ok, "expected *rsa.PublicKey")
+				require.Equal(t, rsa2048Key.Public(), pub)
+			},
+		},
+		{
+			name: "RSA 4096",
+			jwk:  toRSAKey(rsa4096Key.Public(), fakeKID, keyOps),
+			assertKey: func(t *testing.T, got any) {
+				pub, ok := got.(*rsa.PublicKey)
+				require.True(t, ok, "expected *rsa.PublicKey")
+				require.Equal(t, rsa4096Key.Public(), pub)
+			},
+		},
+		{
+			name: "EC-HSM P-256 normalized to EC",
+			jwk: func() *azkeys.JSONWebKey {
+				k := toECKey(ec256Key.Public(), fakeKID, azkeys.JSONWebKeyCurveNameP256, keyOps)
+				k.Kty = new(azkeys.JSONWebKeyTypeECHSM)
+				return k
+			}(),
+			assertKey: func(t *testing.T, got any) {
+				pub, ok := got.(*ecdsa.PublicKey)
+				require.True(t, ok, "expected *ecdsa.PublicKey")
+				require.Equal(t, ec256Key.Public(), pub)
+			},
+		},
+		{
+			name: "RSA-HSM normalized to RSA",
+			jwk: func() *azkeys.JSONWebKey {
+				k := toRSAKey(rsa2048Key.Public(), fakeKID, keyOps)
+				k.Kty = toPtr(azkeys.JSONWebKeyTypeRSAHSM)
+				return k
+			}(),
+			assertKey: func(t *testing.T, got any) {
+				pub, ok := got.(*rsa.PublicKey)
+				require.True(t, ok, "expected *rsa.PublicKey")
+				require.Equal(t, rsa2048Key.Public(), pub)
+			},
+		},
+		{
+			name:      "nil Kty returns error",
+			jwk:       &azkeys.JSONWebKey{Kty: nil},
+			expectErr: "key type is missing",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			originalKty := tt.jwk.Kty
+
+			got, err := keyVaultKeyToRawKey(tt.jwk)
+
+			if tt.expectErr != "" {
+				require.ErrorContains(t, err, tt.expectErr)
+				return
+			}
+			require.NoError(t, err)
+			tt.assertKey(t, got)
+
+			// Ensure the original struct was not mutated
+			require.Equal(t, originalKty, tt.jwk.Kty, "original JSONWebKey.Kty must not be modified")
+		})
+	}
+}
+
+func TestKeyTypeFromKeySpec(t *testing.T) {
+	keyOps := getKeyOperations()
+	const fakeKID = "https://fake.vault.azure.net/keys/fake-key/version1"
+
+	makeRSABundle := func(kty azkeys.JSONWebKeyType, keySize int) azkeys.KeyBundle {
+		return azkeys.KeyBundle{Key: &azkeys.JSONWebKey{
+			Kty:    toPtr(kty),
+			N:      make([]byte, keySize/8),
+			E:      []byte{1, 0, 1},
+			KID:    toPtr(azkeys.ID(fakeKID)),
+			KeyOps: keyOps,
+		}}
+	}
+
+	makeECBundle := func(kty azkeys.JSONWebKeyType, crv azkeys.JSONWebKeyCurveName) azkeys.KeyBundle {
+		return azkeys.KeyBundle{Key: &azkeys.JSONWebKey{
+			Kty:    toPtr(kty),
+			Crv:    toPtr(crv),
+			KID:    toPtr(azkeys.ID(fakeKID)),
+			KeyOps: keyOps,
+		}}
+	}
+
+	for _, tt := range []struct {
+		name        string
+		bundle      azkeys.KeyBundle
+		expectType  keymanagerv1.KeyType
+		expectFound bool
+	}{
+		{
+			name:        "RSA 2048",
+			bundle:      makeRSABundle(azkeys.JSONWebKeyTypeRSA, 2048),
+			expectType:  keymanagerv1.KeyType_RSA_2048,
+			expectFound: true,
+		},
+		{
+			name:        "RSA 4096",
+			bundle:      makeRSABundle(azkeys.JSONWebKeyTypeRSA, 4096),
+			expectType:  keymanagerv1.KeyType_RSA_4096,
+			expectFound: true,
+		},
+		{
+			name:        "RSA-HSM 2048",
+			bundle:      makeRSABundle(azkeys.JSONWebKeyTypeRSAHSM, 2048),
+			expectType:  keymanagerv1.KeyType_RSA_2048,
+			expectFound: true,
+		},
+		{
+			name:        "RSA-HSM 4096",
+			bundle:      makeRSABundle(azkeys.JSONWebKeyTypeRSAHSM, 4096),
+			expectType:  keymanagerv1.KeyType_RSA_4096,
+			expectFound: true,
+		},
+		{
+			name:        "EC P-256",
+			bundle:      makeECBundle(azkeys.JSONWebKeyTypeEC, azkeys.JSONWebKeyCurveNameP256),
+			expectType:  keymanagerv1.KeyType_EC_P256,
+			expectFound: true,
+		},
+		{
+			name:        "EC P-384",
+			bundle:      makeECBundle(azkeys.JSONWebKeyTypeEC, azkeys.JSONWebKeyCurveNameP384),
+			expectType:  keymanagerv1.KeyType_EC_P384,
+			expectFound: true,
+		},
+		{
+			name:        "EC-HSM P-256",
+			bundle:      makeECBundle(azkeys.JSONWebKeyTypeECHSM, azkeys.JSONWebKeyCurveNameP256),
+			expectType:  keymanagerv1.KeyType_EC_P256,
+			expectFound: true,
+		},
+		{
+			name:        "EC-HSM P-384",
+			bundle:      makeECBundle(azkeys.JSONWebKeyTypeECHSM, azkeys.JSONWebKeyCurveNameP384),
+			expectType:  keymanagerv1.KeyType_EC_P384,
+			expectFound: true,
+		},
+		{
+			name:        "unsupported RSA key size",
+			bundle:      makeRSABundle(azkeys.JSONWebKeyTypeRSA, 1024),
+			expectType:  keymanagerv1.KeyType_UNSPECIFIED_KEY_TYPE,
+			expectFound: false,
+		},
+		{
+			name:        "unsupported EC curve",
+			bundle:      makeECBundle(azkeys.JSONWebKeyTypeEC, azkeys.JSONWebKeyCurveNameP521),
+			expectType:  keymanagerv1.KeyType_UNSPECIFIED_KEY_TYPE,
+			expectFound: false,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			got, ok := keyTypeFromKeySpec(tt.bundle)
+			require.Equal(t, tt.expectFound, ok)
+			require.Equal(t, tt.expectType, got)
 		})
 	}
 }

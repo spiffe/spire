@@ -540,6 +540,25 @@ func keyVaultSignatureToASN1Encoded(keyVaultSigResult []byte, keyType keymanager
 // For example *ecdsa.PublicKey or *rsa.PublicKey etc
 func keyVaultKeyToRawKey(keyVaultKey *azkeys.JSONWebKey) (any, error) {
 	// Marshal the key to JSON
+	// Azure Managed HSM returns "RSA-HSM" or "EC-HSM" as the key type.
+	// Normalize by stripping the "-HSM" suffix so go-jose can parse the JWK.
+	if keyVaultKey.Kty == nil {
+		return nil, status.Error(codes.Internal, "key type is missing")
+	}
+
+	var normalizedKty azkeys.JSONWebKeyType
+	switch *keyVaultKey.Kty {
+	case azkeys.JSONWebKeyTypeRSAHSM:
+		normalizedKty = azkeys.JSONWebKeyTypeRSA
+	case azkeys.JSONWebKeyTypeECHSM:
+		normalizedKty = azkeys.JSONWebKeyTypeEC
+	}
+	if normalizedKty != "" {
+		// Create a copy of the key to avoid mutating the original keyVaultKey ref.
+		keyCopy := *keyVaultKey
+		keyCopy.Kty = &normalizedKty
+		keyVaultKey = &keyCopy
+	}
 	jwkJSON, err := keyVaultKey.MarshalJSON()
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to marshal key: %v", err)
