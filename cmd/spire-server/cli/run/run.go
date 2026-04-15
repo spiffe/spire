@@ -959,6 +959,12 @@ func validateConfig(c *Config) error {
 		return errors.New("both experimental sql_transaction_timeout and event_timeout set, only set event_timeout")
 	}
 
+	for _, cidr := range c.Server.ProxyProtocolTrustedCIDRs {
+		if _, _, err := net.ParseCIDR(cidr); err != nil {
+			return fmt.Errorf("invalid proxy_protocol_trusted_cidrs value %q: %w", cidr, err)
+		}
+	}
+
 	return c.validateOS()
 }
 

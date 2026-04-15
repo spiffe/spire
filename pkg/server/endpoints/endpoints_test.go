@@ -1545,13 +1545,8 @@ func TestProxyProtocolTrustedCIDRsExtractsRealClientIP(t *testing.T) {
 	require.NoError(t, err)
 	defer ln.Close()
 
-	policy, err := proxyproto.ConnStrictWhiteListPolicy([]string{"127.0.0.0/8"})
+	ppLn, err := wrapListenerWithProxyProtocol(ln, []string{"127.0.0.0/8"})
 	require.NoError(t, err)
-
-	ppLn := &proxyproto.Listener{
-		Listener:   ln,
-		ConnPolicy: policy,
-	}
 	defer ppLn.Close()
 
 	// Accept a connection in the background and check RemoteAddr
@@ -1596,13 +1591,8 @@ func TestProxyProtocolRejectsUntrustedSource(t *testing.T) {
 	require.NoError(t, err)
 	defer ln.Close()
 
-	policy, err := proxyproto.ConnStrictWhiteListPolicy([]string{"192.168.0.0/16"})
+	ppLn, err := wrapListenerWithProxyProtocol(ln, []string{"192.168.0.0/16"})
 	require.NoError(t, err)
-
-	ppLn := &proxyproto.Listener{
-		Listener:   ln,
-		ConnPolicy: policy,
-	}
 	defer ppLn.Close()
 
 	type result struct {
@@ -1632,6 +1622,7 @@ func TestProxyProtocolRejectsUntrustedSource(t *testing.T) {
 	require.NoError(t, err)
 
 	res := <-ch
-	// The first read on a rejected connection returns an error
-	require.Error(t, res.err)
+	// The first read on a rejected connection returns ErrSuperfluousProxyHeader
+	// because the source IP is not in the trusted CIDRs.
+	require.ErrorIs(t, res.err, proxyproto.ErrSuperfluousProxyHeader)
 }

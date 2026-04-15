@@ -345,14 +345,12 @@ func (e *Endpoints) runTCPServer(ctx context.Context, server *grpc.Server) error
 	defer l.Close()
 
 	if len(e.ProxyProtocolTrustedCIDRs) > 0 {
-		policy, err := proxyproto.ConnStrictWhiteListPolicy(e.ProxyProtocolTrustedCIDRs)
+		var err error
+		l, err = wrapListenerWithProxyProtocol(l, e.ProxyProtocolTrustedCIDRs)
 		if err != nil {
 			return fmt.Errorf("invalid proxy_protocol_trusted_cidrs: %w", err)
 		}
-		l = &proxyproto.Listener{
-			Listener:   l,
-			ConnPolicy: policy,
-		}
+		e.Log.WithField("trusted_cidrs", e.ProxyProtocolTrustedCIDRs).Info("PROXY protocol enabled on TCP listener")
 	}
 	log := e.Log.WithFields(logrus.Fields{
 		telemetry.Network: l.Addr().Network(),
@@ -372,6 +370,19 @@ func (e *Endpoints) runTCPServer(ctx context.Context, server *grpc.Server) error
 		e.handleShutdown(server, errChan, log)
 		return nil
 	}
+}
+
+// wrapListenerWithProxyProtocol wraps a net.Listener with PROXY protocol
+// support, restricting header acceptance to the given trusted CIDRs.
+func wrapListenerWithProxyProtocol(l net.Listener, trustedCIDRs []string) (net.Listener, error) {
+	policy, err := proxyproto.ConnStrictWhiteListPolicy(trustedCIDRs)
+	if err != nil {
+		return nil, err
+	}
+	return &proxyproto.Listener{
+		Listener:   l,
+		ConnPolicy: policy,
+	}, nil
 }
 
 // runLocalAccess will start a grpc server to be accessed locally
