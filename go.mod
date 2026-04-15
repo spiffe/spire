@@ -68,6 +68,7 @@ require (
 	github.com/mattn/go-sqlite3 v1.14.42
 	github.com/mitchellh/cli v1.1.5
 	github.com/open-policy-agent/opa v1.15.2
+	github.com/pires/go-proxyproto v0.11.0
 	github.com/prometheus/client_golang v1.23.2
 	github.com/shirou/gopsutil/v4 v4.26.3
 	github.com/sigstore/cosign/v3 v3.0.6

@@ -88,6 +88,7 @@ type serverConfig struct {
 	LogSourceLocation            bool               `hcl:"log_source_location"`
 	PruneAttestedNodesExpiredFor string             `hcl:"prune_attested_nodes_expired_for"`
 	PruneNonReattestableNodes    bool               `hcl:"prune_tofu_nodes"`
+	ProxyProtocolTrustedCIDRs    []string           `hcl:"proxy_protocol_trusted_cidrs"`
 	RateLimit                    rateLimitConfig    `hcl:"ratelimit"`
 	SocketPath                   string             `hcl:"socket_path"`
 	TrustDomain                  string             `hcl:"trust_domain"`
@@ -429,6 +430,7 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 
 	sc.DataDir = c.Server.DataDir
 	sc.AuditLogEnabled = c.Server.AuditLogEnabled
+	sc.ProxyProtocolTrustedCIDRs = c.Server.ProxyProtocolTrustedCIDRs
 
 	td, err := spiffeid.TrustDomainFromString(c.Server.TrustDomain)
 	if err != nil {
@@ -955,6 +957,12 @@ func validateConfig(c *Config) error {
 
 	if c.Server.Experimental.EventTimeout != "" && c.Server.Experimental.SQLTransactionTimeout != "" {
 		return errors.New("both experimental sql_transaction_timeout and event_timeout set, only set event_timeout")
+	}
+
+	for _, cidr := range c.Server.ProxyProtocolTrustedCIDRs {
+		if _, _, err := net.ParseCIDR(cidr); err != nil {
+			return fmt.Errorf("invalid proxy_protocol_trusted_cidrs value %q: %w", cidr, err)
+		}
 	}
 
 	return c.validateOS()

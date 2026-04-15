@@ -64,6 +64,7 @@ func TestParseConfigGood(t *testing.T) {
 	_, ok := trustDomainConfig.EndpointProfile.(bundleClient.HTTPSWebProfile)
 	assert.True(t, ok)
 	assert.True(t, c.Server.AuditLogEnabled)
+	assert.Equal(t, []string{"10.0.0.0/8", "172.16.0.0/12"}, c.Server.ProxyProtocolTrustedCIDRs)
 	assert.True(t, c.Server.Experimental.RequirePQKEM)
 	testParseConfigGoodOS(t, c)
 
@@ -464,6 +465,16 @@ func TestMergeInput(t *testing.T) {
 			cliFlags: []string{},
 			test: func(t *testing.T, c *Config) {
 				require.True(t, c.Server.AuditLogEnabled)
+			},
+		},
+		{
+			msg: "proxy_protocol_trusted_cidrs should be configurable by file",
+			fileInput: func(c *Config) {
+				c.Server.ProxyProtocolTrustedCIDRs = []string{"10.0.0.0/8"}
+			},
+			cliFlags: []string{},
+			test: func(t *testing.T, c *Config) {
+				require.Equal(t, []string{"10.0.0.0/8"}, c.Server.ProxyProtocolTrustedCIDRs)
 			},
 		},
 		{
@@ -1216,6 +1227,24 @@ func TestNewServerConfig(t *testing.T) {
 			},
 			test: func(t *testing.T, c *server.Config) {
 				require.False(t, c.AuditLogEnabled)
+			},
+		},
+		{
+			msg: "proxy_protocol_trusted_cidrs is set",
+			input: func(c *Config) {
+				c.Server.ProxyProtocolTrustedCIDRs = []string{"10.0.0.0/8", "172.16.0.0/12"}
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Equal(t, []string{"10.0.0.0/8", "172.16.0.0/12"}, c.ProxyProtocolTrustedCIDRs)
+			},
+		},
+		{
+			msg: "proxy_protocol_trusted_cidrs is empty",
+			input: func(c *Config) {
+				c.Server.ProxyProtocolTrustedCIDRs = nil
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Empty(t, c.ProxyProtocolTrustedCIDRs)
 			},
 		},
 		{

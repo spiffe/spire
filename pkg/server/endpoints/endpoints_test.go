@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
+	"fmt"
 	"net"
 	"os"
 	"reflect"
@@ -11,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	proxyproto "github.com/pires/go-proxyproto"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/go-spiffe/v2/spiffetls/tlsconfig"
@@ -1534,4 +1536,93 @@ func (localAuthorityServer) TaintWITAuthority(context.Context, *localauthorityv1
 
 func (localAuthorityServer) RevokeWITAuthority(context.Context, *localauthorityv1.RevokeWITAuthorityRequest) (*localauthorityv1.RevokeWITAuthorityResponse, error) {
 	return &localauthorityv1.RevokeWITAuthorityResponse{}, nil
+}
+
+func TestProxyProtocolTrustedCIDRsExtractsRealClientIP(t *testing.T) {
+	// Start a TCP listener wrapped with proxy protocol support and a
+	// strict whitelist policy that trusts 127.0.0.0/8 (localhost).
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	defer ln.Close()
+
+	ppLn, err := wrapListenerWithProxyProtocol(ln, []string{"127.0.0.0/8"})
+	require.NoError(t, err)
+	defer ppLn.Close()
+
+	// Accept a connection in the background and check RemoteAddr
+	type result struct {
+		addr string
+		err  error
+	}
+	ch := make(chan result, 1)
+	go func() {
+		conn, err := ppLn.Accept()
+		if err != nil {
+			ch <- result{err: err}
+			return
+		}
+		defer conn.Close()
+		ch <- result{addr: conn.RemoteAddr().String()}
+	}()
+
+	// Connect from localhost (trusted) and send a PROXY protocol v1
+	// header indicating the real client IP is 10.1.2.3:12345
+	conn, err := net.Dial("tcp", ln.Addr().String())
+	require.NoError(t, err)
+	defer conn.Close()
+
+	header := "PROXY TCP4 10.1.2.3 127.0.0.1 12345 " + fmt.Sprintf("%d", ln.Addr().(*net.TCPAddr).Port) + "\r\n"
+	_, err = conn.Write([]byte(header))
+	require.NoError(t, err)
+
+	// Verify the accepted connection sees the proxied IP
+	res := <-ch
+	require.NoError(t, res.err)
+	host, port, err := net.SplitHostPort(res.addr)
+	require.NoError(t, err)
+	assert.Equal(t, "10.1.2.3", host)
+	assert.Equal(t, "12345", port)
+}
+
+func TestProxyProtocolRejectsUntrustedSource(t *testing.T) {
+	// Create a listener that only trusts 192.168.0.0/16. Since we connect
+	// from 127.0.0.1 (not in that range), the PROXY header should be rejected.
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	defer ln.Close()
+
+	ppLn, err := wrapListenerWithProxyProtocol(ln, []string{"192.168.0.0/16"})
+	require.NoError(t, err)
+	defer ppLn.Close()
+
+	type result struct {
+		addr string
+		err  error
+	}
+	ch := make(chan result, 1)
+	go func() {
+		conn, err := ppLn.Accept()
+		if err != nil {
+			ch <- result{err: err}
+			return
+		}
+		defer conn.Close()
+		// Try to read -- this should fail because the policy rejects
+		buf := make([]byte, 1)
+		_, err = conn.Read(buf)
+		ch <- result{addr: conn.RemoteAddr().String(), err: err}
+	}()
+
+	conn, err := net.Dial("tcp", ln.Addr().String())
+	require.NoError(t, err)
+	defer conn.Close()
+
+	header := "PROXY TCP4 10.1.2.3 127.0.0.1 12345 " + fmt.Sprintf("%d", ln.Addr().(*net.TCPAddr).Port) + "\r\n"
+	_, err = conn.Write([]byte(header))
+	require.NoError(t, err)
+
+	res := <-ch
+	// The first read on a rejected connection returns ErrSuperfluousProxyHeader
+	// because the source IP is not in the trusted CIDRs.
+	require.ErrorIs(t, res.err, proxyproto.ErrSuperfluousProxyHeader)
 }

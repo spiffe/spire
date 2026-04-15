@@ -444,6 +444,7 @@ func (s *Server) newEndpointsServer(ctx context.Context, catalog catalog.Catalog
 		PruneEventsOlderThan:         s.config.PruneEventsOlderThan,
 		EventTimeout:                 s.config.EventTimeout,
 		AuditLogEnabled:              s.config.AuditLogEnabled,
+		ProxyProtocolTrustedCIDRs:    s.config.ProxyProtocolTrustedCIDRs,
 		AuthPolicyEngine:             authPolicyEngine,
 		BundleManager:                bundleManager,
 		AdminIDs:                     s.config.AdminIDs,
