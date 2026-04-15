@@ -125,7 +125,7 @@ jobs:
         with:
           go-version-file: 'go.mod'
       - name: Install regctl
-        uses: regclient/actions/regctl-installer@f07124ffba4b0cbf96b2a666d481ed9d44b5e7e4 # main
+        uses: regclient/actions/regctl-installer@f3c6d87835906c175eb6ccfc18b348b69bb447e7 # main
       - name: Download archived images
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
@@ -267,7 +267,7 @@ jobs:
         with:
           go-version-file: 'go.mod'
       - name: Install regctl
-        uses: regclient/actions/regctl-installer@f07124ffba4b0cbf96b2a666d481ed9d44b5e7e4 # main
+        uses: regclient/actions/regctl-installer@f3c6d87835906c175eb6ccfc18b348b69bb447e7 # main
       - name: Load cached deps
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
@@ -336,7 +336,7 @@ jobs:
         with:
           go-version-file: 'go.mod'
       - name: Install regctl
-        uses: regclient/actions/regctl-installer@f07124ffba4b0cbf96b2a666d481ed9d44b5e7e4 # main
+        uses: regclient/actions/regctl-installer@f3c6d87835906c175eb6ccfc18b348b69bb447e7 # main
       - name: Load cached deps
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
@@ -609,7 +609,7 @@ jobs:
         with:
           cosign-release: v2.6.2
       - name: Install regctl
-        uses: regclient/actions/regctl-installer@f07124ffba4b0cbf96b2a666d481ed9d44b5e7e4 # main
+        uses: regclient/actions/regctl-installer@f3c6d87835906c175eb6ccfc18b348b69bb447e7 # main
       - name: Download archived images
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:

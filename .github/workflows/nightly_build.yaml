@@ -25,7 +25,7 @@ jobs:
         with:
           cosign-release: v2.6.2
       - name: Install regctl
-        uses: regclient/actions/regctl-installer@f07124ffba4b0cbf96b2a666d481ed9d44b5e7e4 # main
+        uses: regclient/actions/regctl-installer@f3c6d87835906c175eb6ccfc18b348b69bb447e7 # main
       - name: Build images
         run: make images
       - name: Log in to GHCR
