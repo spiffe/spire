@@ -3,10 +3,10 @@ module github.com/spiffe/spire
 go 1.26.2
 
 require (
-	cloud.google.com/go/iam v1.8.0
-	cloud.google.com/go/kms v1.28.0
-	cloud.google.com/go/secretmanager v1.18.0
-	cloud.google.com/go/security v1.21.0
+	cloud.google.com/go/iam v1.9.0
+	cloud.google.com/go/kms v1.29.0
+	cloud.google.com/go/secretmanager v1.19.0
+	cloud.google.com/go/security v1.22.0
 	cloud.google.com/go/storage v1.62.0
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.21.0
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.13.1
