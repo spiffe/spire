@@ -48,6 +48,11 @@ type Docker interface {
 	ImageInspectWithRaw(ctx context.Context, imageID string) (image.InspectResponse, []byte, error)
 }
 
+type podmanDocker interface {
+	Docker
+	Close() error
+}
+
 type Plugin struct {
 	workloadattestorv1.UnsafeWorkloadAttestorServer
 	configv1.UnsafeConfigServer
@@ -55,16 +60,25 @@ type Plugin struct {
 	log     hclog.Logger
 	retryer *retryer
 
-	mtx              sync.RWMutex
-	docker           Docker
-	c                *containerHelper
-	sigstoreVerifier sigstore.Verifier
+	mtx                 sync.RWMutex
+	docker              Docker
+	c                   *containerHelper
+	sigstoreVerifier    sigstore.Verifier
+	podmanClientFactory func(socketPath string) (podmanDocker, error)
 }
 
 func New() *Plugin {
 	return &Plugin{
-		retryer: newRetryer(),
+		retryer:             newRetryer(),
+		podmanClientFactory: defaultPodmanClientFactory,
 	}
+}
+
+func defaultPodmanClientFactory(socketPath string) (podmanDocker, error) {
+	return dockerclient.NewClientWithOpts(
+		dockerclient.WithHost(socketPath),
+		dockerclient.WithAPIVersionNegotiation(),
+	)
 }
 
 type dockerPluginConfig struct {
@@ -132,7 +146,7 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestReque
 	p.mtx.RLock()
 	defer p.mtx.RUnlock()
 
-	containerID, err := p.c.getContainerID(req.Pid, p.log)
+	containerID, podmanSocket, err := p.c.getContainerIDAndSocket(req.Pid, p.log)
 	switch {
 	case err != nil:
 		return nil, err
@@ -141,9 +155,23 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestReque
 		return &workloadattestorv1.AttestResponse{}, nil
 	}
 
+	client := p.docker
+	if podmanSocket != "" {
+		podmanClient, err := p.podmanClientFactory(podmanSocket)
+		if err != nil {
+			return nil, fmt.Errorf("unable to create Podman client for socket %q: %w", podmanSocket, err)
+		}
+		defer func() {
+			if closeErr := podmanClient.Close(); closeErr != nil {
+				p.log.Warn("Failed to close Podman client", telemetry.Error, closeErr)
+			}
+		}()
+		client = podmanClient
+	}
+
 	var container container.InspectResponse
 	err = p.retryer.Retry(ctx, func() error {
-		container, err = p.docker.ContainerInspect(ctx, containerID)
+		container, err = client.ContainerInspect(ctx, containerID)
 		return err
 	})
 	if err != nil {
@@ -156,7 +184,7 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestReque
 	var inspectErr error
 	imageName := container.Config.Image
 	if imageName != "" || p.sigstoreVerifier != nil {
-		imageJSON, _, inspectErr = p.docker.ImageInspectWithRaw(ctx, imageName)
+		imageJSON, _, inspectErr = client.ImageInspectWithRaw(ctx, imageName)
 	}
 
 	// Add image_config_digest selector
