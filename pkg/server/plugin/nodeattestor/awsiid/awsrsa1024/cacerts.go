@@ -2,8 +2,10 @@ package awsrsa1024
 
 const (
 	// AWSCACert is the AWS RSA public CA certificate for all AWS Regions,
-	// except Hong Kong, Bahrain, UAE, Cape Town, Milan, Spain, Zurich, Jakarta,
-	// Melbourne, Hyderabad, China, and GovCloud. (Each of these regions has their own CA Cert.)
+	// except Hong Kong, Taipei, Bahrain, UAE, Cape Town, Milan, Spain, Zurich,
+	// Jakarta, Melbourne, Malaysia, New Zealand, Thailand, Hyderabad, Calgary,
+	// Tel Aviv, Mexico, China, European Sovereign Cloud, and GovCloud.
+	// (Each of these regions has their own CA Cert.)
 	// Expires: Jun 05, 2024
 	AWSCACert = `-----BEGIN CERTIFICATE-----
 MIIDIjCCAougAwIBAgIJAKnL4UEDMN/FMA0GCSqGSIb3DQEBBQUAMGoxCzAJBgNV
@@ -241,21 +243,166 @@ M2BPuH769wcOsqfFZcMKEysSFK91tVtUb1soFwH4/Lb/T0PqNrvtEwD1Nva5k0h2
 xZhNNRmDuhOhW1K9wCcnHGRBwY5t4lYL6hNV6hcrqYwGMjTjcAjBG2yMgznSNFle
 Rwi/S3BFXISixNx9cILu
 -----END CERTIFICATE-----`
+
+	// Asia Pacific (Taipei) Region (ap-east-2)
+	// Expires in Oct 29, 2203
+	apEast2Cert = `-----BEGIN CERTIFICATE-----
+MIICNjCCAZ+gAwIBAgIJAJp99iy2CTXhMA0GCSqGSIb3DQEBCwUAMFwxCzAJBgNV
+BAYTAlVTMRkwFwYDVQQIExBXYXNoaW5ndG9uIFN0YXRlMRAwDgYDVQQHEwdTZWF0
+dGxlMSAwHgYDVQQKExdBbWF6b24gV2ViIFNlcnZpY2VzIExMQzAgFw0yNDA1MjQx
+NDU2MDZaGA8yMjAzMTAyOTE0NTYwNlowXDELMAkGA1UEBhMCVVMxGTAXBgNVBAgT
+EFdhc2hpbmd0b24gU3RhdGUxEDAOBgNVBAcTB1NlYXR0bGUxIDAeBgNVBAoTF0Ft
+YXpvbiBXZWIgU2VydmljZXMgTExDMIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKB
+gQDVdclgpcIIsyGG51ag8srK1UMfZ+Ioh9E4PLP+cIWQcdh31fv2kV/whKaqfmif
+NefBIuHrTPl6L+mJQbsfeA+TiEx1Jamg4lwQfhgQKQCmjZVMaHtK+AY57TVN6FBf
+HXxT2MXzktsKxAQRGeSTFQYrHRzSYvu+GkA+37lqyWRfcwIDAQABMA0GCSqGSIb3
+DQEBCwUAA4GBABM+WL9MSb7z3bNOTMkM7ufPucvj+LQ+zEAJiuG0rcB8GI2DhGB5
+8ohDPUGlq1cP7vYmDkWG/FrLqx7qgIzkbE3zfb62JpdOuX73oHgCmikMfq8ifoS1
+CUxMQ36PDZBFNPzGZxv5kEORqhmGBkYCoIUCQ43jh3aALR/A/rfzfij8
+-----END CERTIFICATE-----`
+
+	// Asia Pacific (Malaysia) Region (ap-southeast-5)
+	// Expires in Jun 9, 2203
+	apSoutheast5Cert = `-----BEGIN CERTIFICATE-----
+MIICNjCCAZ+gAwIBAgIJAMuBl6rhZCJKMA0GCSqGSIb3DQEBCwUAMFwxCzAJBgNV
+BAYTAlVTMRkwFwYDVQQIExBXYXNoaW5ndG9uIFN0YXRlMRAwDgYDVQQHEwdTZWF0
+dGxlMSAwHgYDVQQKExdBbWF6b24gV2ViIFNlcnZpY2VzIExMQzAgFw0yNDAxMDMx
+MjU3NTRaGA8yMjAzMDYwOTEyNTc1NFowXDELMAkGA1UEBhMCVVMxGTAXBgNVBAgT
+EFdhc2hpbmd0b24gU3RhdGUxEDAOBgNVBAcTB1NlYXR0bGUxIDAeBgNVBAoTF0Ft
+YXpvbiBXZWIgU2VydmljZXMgTExDMIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKB
+gQDFuKydxZsordNH7bLwIluEGOkX7/CdLdpeqkDKEhQkFwzpRxaX4EAlkGh2/o7D
+8qneC9cGQhqSG5WVVBrmZG7sfkFOM4m1AtY++kfv+MYto1VFgLk1xJbkpq1r4YeQ
+Ul+ZsJYsZpyX/t+g8s7rW0OVcBsYx4L75bf34z38mwK8PQIDAQABMA0GCSqGSIb3
+DQEBCwUAA4GBADD9C4pWL8RUvF1CJW8kExj35xmozlFlmrKs8Zpi8+Eg6q+W9dgd
+xMdH95tgZtmVMDqlvVR+DK0iO1BNpqPjrqWkk2tTLivpS+sGzCE/jCl18Q28Rk71
+/A3gLD7Rtbq5TKNvuFCHwYMjrTDHI6aBjIaAlDm4e2/j/OxVtHyZGTre
+-----END CERTIFICATE-----`
+
+	// Asia Pacific (New Zealand) Region (ap-southeast-6)
+	// Expires in May 9, 2204
+	apSoutheast6Cert = `-----BEGIN CERTIFICATE-----
+MIICNjCCAZ+gAwIBAgIJAMwLuv2/tk9eMA0GCSqGSIb3DQEBCwUAMFwxCzAJBgNV
+BAYTAlVTMRkwFwYDVQQIExBXYXNoaW5ndG9uIFN0YXRlMRAwDgYDVQQHEwdTZWF0
+dGxlMSAwHgYDVQQKExdBbWF6b24gV2ViIFNlcnZpY2VzIExMQzAgFw0yNDEyMDMx
+MjEzMDZaGA8yMjA0MDUwOTEyMTMwNlowXDELMAkGA1UEBhMCVVMxGTAXBgNVBAgT
+EFdhc2hpbmd0b24gU3RhdGUxEDAOBgNVBAcTB1NlYXR0bGUxIDAeBgNVBAoTF0Ft
+YXpvbiBXZWIgU2VydmljZXMgTExDMIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKB
+gQC9AsBNOUfT8QpguHqMa9KIXP/YgZOmfRAgEmnLawXTC+40bXUq/fwkx+cebv3x
+CvUx6d07/iDlD0dm2Hf2HhPFi3OaCI7vc8c3lqVBvcn6yzmwv35aSEvtVm2NHC3j
+4/q6vN2tR2d4a1Mf1QhmOVOJ7XiTEbCy2Yv+pmDbk29V6QIDAQABMA0GCSqGSIb3
+DQEBCwUAA4GBAHatyQIy612kio8neI4r5VBg8pgKwW+mFGpAzOQ2NOyLCNoOeD1D
+lPRaSipBN7WW6jpIozbz7JG7Kqc3N+piPGGzfjH9gZjqUqfOGrNHB5nsxvMHI2iL
+e+DwsOcV7qnEVRgYbmLYOVKJv25wCsM/Tcn/6f6scEX2x+H0hAh7rwiP
+-----END CERTIFICATE-----`
+
+	// Asia Pacific (Thailand) Region (ap-southeast-7)
+	// Expires in Sep 17, 2203
+	apSoutheast7Cert = `-----BEGIN CERTIFICATE-----
+MIICNjCCAZ+gAwIBAgIJAIuIHAhL0xWcMA0GCSqGSIb3DQEBCwUAMFwxCzAJBgNV
+BAYTAlVTMRkwFwYDVQQIExBXYXNoaW5ndG9uIFN0YXRlMRAwDgYDVQQHEwdTZWF0
+dGxlMSAwHgYDVQQKExdBbWF6b24gV2ViIFNlcnZpY2VzIExMQzAgFw0yNDA0MTIx
+NTI4NTZaGA8yMjAzMDkxNzE1Mjg1NlowXDELMAkGA1UEBhMCVVMxGTAXBgNVBAgT
+EFdhc2hpbmd0b24gU3RhdGUxEDAOBgNVBAcTB1NlYXR0bGUxIDAeBgNVBAoTF0Ft
+YXpvbiBXZWIgU2VydmljZXMgTExDMIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKB
+gQCajgAeOauwvqGDLrHvxujnZ1BnkMzwjrycMUTkj8jqNtWoDQWUJVNPZJILosEU
+VwK2I3oNkEsx/ryl9XfXcNNceoYfVEPzkTzozrZyuOG66FWtUU1LKeJ7h9/rX0Zd
+9lZEokrdr6dLPt9FsHWaK5ExlUnWBjNltcQLkkKqoeYaFwIDAQABMA0GCSqGSIb3
+DQEBCwUAA4GBAE4G5G+FvKTsX3T7BEcId7f5LSCc2J9gZRDiWn2oTr40CrBMOzJT
+KsWr9W89YXW3gaGWltzc0WCwYQbJZgAkuEAZItJjbhdnns87ZbsFO+NZhc6gDtjA
+WC3dPlSB9b6rfVoVW9O6Xwa7iNXZo8ddYVJ/ZOIv/totUz9qJt4DmmKk
+-----END CERTIFICATE-----`
+
+	// Canada West (Calgary) Region (ca-west-1)
+	// Expires in Oct 18, 2201
+	caWest1Cert = `-----BEGIN CERTIFICATE-----
+MIICMzCCAZygAwIBAgIGAYPou9weMA0GCSqGSIb3DQEBBQUAMFwxCzAJBgNVBAYT
+AlVTMRkwFwYDVQQIDBBXYXNoaW5ndG9uIFN0YXRlMRAwDgYDVQQHDAdTZWF0dGxl
+MSAwHgYDVQQKDBdBbWF6b24gV2ViIFNlcnZpY2VzIExMQzAgFw0yMjEwMTgwMTM2
+MDlaGA8yMjAxMTAxODAxMzYwOVowXDELMAkGA1UEBhMCVVMxGTAXBgNVBAgMEFdh
+c2hpbmd0b24gU3RhdGUxEDAOBgNVBAcMB1NlYXR0bGUxIDAeBgNVBAoMF0FtYXpv
+biBXZWIgU2VydmljZXMgTExDMIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDK
+1kIcG5Q6adBXQM75GldfTSiXl7tn54p10TnspI0ErDdb2B6q2Ji/v4XBVH13ZCMg
+qlRHMqV8AWI5iO6gFn2A9sN3AZXTMqwtZeiDdebq3k6Wt7ieYvpXTg0qvgsjQIov
+RZWaBDBJy9x8C2hW+w9lMQjFHkJ7Jy/PHCJ69EzebQIDAQABMA0GCSqGSIb3DQEB
+BQUAA4GBAGe9Snkz1A6rHBH6/5kDtYvtPYwhx2sXNxztbhkXErFk40Nw5l459NZx
+EeudxJBLoCkkSgYjhRcOZ/gvDVtWG7qyb6fAqgoisyAbk8K9LzxSim2S1nmT9vD8
+4B/t/VvwQBylc+ej8kRxMH7fquZLp7IXfmtBzyUqu6Dpbne+chG2
+-----END CERTIFICATE-----`
+
+	// Israel (Tel Aviv) Region (il-central-1)
+	// Expires in Nov 11, 2200
+	ilCentral1Cert = `-----BEGIN CERTIFICATE-----
+MIICMzCCAZygAwIBAgIGAX0QQGVLMA0GCSqGSIb3DQEBBQUAMFwxCzAJBgNVBAYT
+AlVTMRkwFwYDVQQIDBBXYXNoaW5ndG9uIFN0YXRlMRAwDgYDVQQHDAdTZWF0dGxl
+MSAwHgYDVQQKDBdBbWF6b24gV2ViIFNlcnZpY2VzIExMQzAgFw0yMTExMTExODI2
+MzVaGA8yMjAwMTExMTE4MjYzNVowXDELMAkGA1UEBhMCVVMxGTAXBgNVBAgMEFdh
+c2hpbmd0b24gU3RhdGUxEDAOBgNVBAcMB1NlYXR0bGUxIDAeBgNVBAoMF0FtYXpv
+biBXZWIgU2VydmljZXMgTExDMIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDr
+c24u3AgFxnoPgzxR6yFXOamcPuxYXhYKWmapb+S8vOy5hpLoRe4RkOrY0cM3bN07
+GdEMlin5mU0y1t8y3ct4YewvmkgT42kTyMM+t1K4S0xsqjXxxS716uGYh7eWtkxr
+Cihj8AbXN/6pa095h+7TZyl2n83keiNUzM2KoqQVMwIDAQABMA0GCSqGSIb3DQEB
+BQUAA4GBADwA6VVEIIZD2YL00F12po40xDLzIc9XvqFPS9iFaWi2ho8wLio7wA49
+VYEFZSI9CR3SGB9tL8DUib97mlxmd1AcGShMmMlhSB29vhuhrUNB/FmU7H8s62/j
+D6cOR1A1cClIyZUe1yT1ZbPySCs43J+Thr8i8FSRxzDBSZZi5foW
+-----END CERTIFICATE-----`
+
+	// Mexico (Central) Region (mx-central-1)
+	// Expires in Apr 1, 2029
+	mxCentral1Cert = `-----BEGIN CERTIFICATE-----
+MIICPzCCAaigAwIBAgIUCmzpTTMBQYItpMC2VDYsZfIAS7IwDQYJKoZIhvcNAQEL
+BQAwXDELMAkGA1UEBhMCVVMxGTAXBgNVBAgMEFdhc2hpbmd0b24gU3RhdGUxEDAO
+BgNVBAcMB1NlYXR0bGUxIDAeBgNVBAoMF0FtYXpvbiBXZWIgU2VydmljZXMgTExD
+MB4XDTI0MDQwMjEyNTAzNloXDTI5MDQwMTEyNTAzNlowXDELMAkGA1UEBhMCVVMx
+GTAXBgNVBAgMEFdhc2hpbmd0b24gU3RhdGUxEDAOBgNVBAcMB1NlYXR0bGUxIDAe
+BgNVBAoMF0FtYXpvbiBXZWIgU2VydmljZXMgTExDMIGfMA0GCSqGSIb3DQEBAQUA
+A4GNADCBiQKBgQDfvOnCzm1iN58Nm7k6ehoy6v0lnnFI617D6CY3bfuq01RCdEQL
+96+pYawJieTH8JAQKj02CAa3AeaqdXTE/pDhI/YKLreeMb4K68WMn24Wjjs6oxjB
+bAmsKXtt9ihKHGBFNUhgFrNFYyA2i7ieJviwpHjQ/XgXiG2u1/t/4VydUwIDAQAB
+MA0GCSqGSIb3DQEBCwUAA4GBAL5+vvj4lhaE+J5tuCqV3XJzDd97lsD4le2O2uGw
+P0sGdUcRAdxzU3Bwq/hhtzNWnfwo0aCEQKmLM7xyd3nUa0VvKXLq+DDuayipWINr
+OATnNxFRe99d38qHTR1dgkjZdKbbtnl6O4fgM57tVEuQJd/N4ILl9jaRcJ5Ip+9t
+3y5t
+-----END CERTIFICATE-----`
+
+	// AWS European Sovereign Cloud (eusc-de-east-1)
+	// Expires in Mar 24, 2204
+	euscDeEast1Cert = `-----BEGIN CERTIFICATE-----
+MIICNjCCAZ+gAwIBAgIJAPybReXZqUSNMA0GCSqGSIb3DQEBCwUAMFwxCzAJBgNV
+BAYTAlVTMRkwFwYDVQQIExBXYXNoaW5ndG9uIFN0YXRlMRAwDgYDVQQHEwdTZWF0
+dGxlMSAwHgYDVQQKExdBbWF6b24gV2ViIFNlcnZpY2VzIExMQzAgFw0yNDEwMTgw
+OTM5MzdaGA8yMjA0MDMyNDA5MzkzN1owXDELMAkGA1UEBhMCVVMxGTAXBgNVBAgT
+EFdhc2hpbmd0b24gU3RhdGUxEDAOBgNVBAcTB1NlYXR0bGUxIDAeBgNVBAoTF0Ft
+YXpvbiBXZWIgU2VydmljZXMgTExDMIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKB
+gQDShbskmohorgcjN7gfApw89CEsg7praCDggaUVXF6gy9JdJ5INcv7+DkwKaAxd
+NQWDsWZnxIOqPuPfyAYVP3D2/exP3Rfxj31UomLduu7S83zgiJ8VVL/GzlDELv5/
+K2rTcd+580NjLSa6FYDcXDip2ir6TXxRYBYHP65dwniE+wIDAQABMA0GCSqGSIb3
+DQEBCwUAA4GBAKu9t3CAtZt7c+k4bCZlmxrwgps1668p24x7QRmLxgXnwj5A2MOM
+qEtxA9Q3q3WxUc0nWKaCTvRrTfWW917xsLcvVL8rI6xCjg2bb5FJ73xzcfSxHr9I
+Q1mThJgLaWVIblllGJK7+EogR7gfqlPhc0Ql5bYuaozdt+r69xNuJlyR
+-----END CERTIFICATE-----`
 )
 
 var CACerts = map[string]string{
-	"af-south-1":     afSouth1Cert,
-	"ap-east-1":      apEast1Cert,
-	"ap-south-2":     apSouth2Cert,
-	"ap-southeast-3": apSoutheast3Cert,
-	"ap-southeast-4": apSoutheast4Cert,
-	"cn-north-1":     chinaCert,
-	"cn-northwest-1": chinaCert,
-	"eu-central-2":   euCentral2Cert,
-	"eu-south-1":     euSouth1Cert,
-	"eu-south-2":     euSouth2Cert,
-	"me-south-1":     meSouth1Cert,
-	"me-central-1":   meCentral1Cert,
-	"us-gov-east-1":  govCloudUSCert,
-	"us-gov-west-1":  govCloudUSCert,
+	"af-south-1":      afSouth1Cert,
+	"ap-east-1":       apEast1Cert,
+	"ap-east-2":       apEast2Cert,
+	"ap-south-2":      apSouth2Cert,
+	"ap-southeast-3":  apSoutheast3Cert,
+	"ap-southeast-4":  apSoutheast4Cert,
+	"ap-southeast-5":  apSoutheast5Cert,
+	"ap-southeast-6":  apSoutheast6Cert,
+	"ap-southeast-7":  apSoutheast7Cert,
+	"ca-west-1":       caWest1Cert,
+	"cn-north-1":      chinaCert,
+	"cn-northwest-1":  chinaCert,
+	"eusc-de-east-1":  euscDeEast1Cert,
+	"eu-central-2":    euCentral2Cert,
+	"eu-south-1":      euSouth1Cert,
+	"eu-south-2":      euSouth2Cert,
+	"il-central-1":    ilCentral1Cert,
+	"me-south-1":      meSouth1Cert,
+	"me-central-1":    meCentral1Cert,
+	"mx-central-1":    mxCentral1Cert,
+	"us-gov-east-1":   govCloudUSCert,
+	"us-gov-west-1":   govCloudUSCert,
 }
