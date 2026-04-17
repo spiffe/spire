@@ -18,20 +18,14 @@ const (
 	workloadAPIMethodPrefix = "/SpiffeWorkloadAPI/"
 )
 
-func Middleware(log logrus.FieldLogger, metrics telemetry.Metrics, rlConfig WorkloadAPIRateLimitConfig) middleware.Middleware {
-	chain := []middleware.Middleware{
+func Middleware(log logrus.FieldLogger, metrics telemetry.Metrics) middleware.Middleware {
+	return middleware.Chain(
 		middleware.WithLogger(log),
 		middleware.WithMetrics(metrics),
 		withPerServiceConnectionMetrics(metrics),
 		middleware.Preprocess(addWatcherPID),
 		middleware.Preprocess(verifySecurityHeader),
-	}
-
-	if rlMiddleware := buildWorkloadRateLimitMiddleware(rlConfig, log, metrics); rlMiddleware != nil {
-		chain = append(chain, rlMiddleware)
-	}
-
-	return middleware.Chain(chain...)
+	)
 }
 
 func addWatcherPID(ctx context.Context, _ string, _ any) (context.Context, error) {

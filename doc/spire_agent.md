@@ -76,7 +76,7 @@ This may be useful for templating configuration files, for example across differ
 | `availability_target`             | The minimum amount of time desired to gracefully handle SPIRE Server or Agent downtime. This configurable influences how aggressively X509 SVIDs should be rotated. If set, must be at least 24h. See [Availability Target](#availability-target) |                                  |
 | `x509_svid_cache_max_size`        | Soft limit of max number of X509-SVIDs that would be stored in LRU cache                                                                                                                                                                          | 1000                             |
 | `jwt_svid_cache_max_size`         | Hard limit of max number of JWT-SVIDs that would be stored in LRU cache                                                                                                                                                                           | 1000                             |
-| `ratelimit`                       | Optional per-caller rate limiting for Workload API methods. On Linux with Kubernetes, rate limits are per pod (via cgroup-based pod UID detection); on other platforms or non-Kubernetes environments the limit falls back to OS UID. See [Workload API Rate Limiting](#workload-api-rate-limiting) for details. |                                  |
+| `ratelimit`                       | Optional per-SPIFFE-ID rate limiting for Workload API methods, enforced after workload attestation. See [Workload API Rate Limiting](#workload-api-rate-limiting) for details.                                                                    |                                  |
 
 | experimental                  | Description                                                                                         | Default                 |
 |:------------------------------|-----------------------------------------------------------------------------------------------------|-------------------------|
@@ -88,21 +88,16 @@ This may be useful for templating configuration files, for example across differ
 
 ### Workload API Rate Limiting
 
-The `ratelimit` configuration block enables per-caller rate limiting on Workload API methods to protect the agent from noisy-neighbor workloads and reconnection storms.
+The `ratelimit` configuration block enables per-SPIFFE-ID rate limiting on `FetchX509SVID` and `FetchJWTSVID` to protect the agent from noisy-neighbor workloads and reconnection storms.
 
-**Key resolution:** On Linux with Kubernetes, the rate limit key is the pod UID extracted from the calling process's cgroup path. This ensures all containers in the same pod share one bucket while different pods running as the same OS UID remain independent. On non-Kubernetes or non-Linux systems the key falls back to the OS UID.
+**Key resolution:** Rate limits are enforced after workload attestation. For each call, the limiter is applied to every SPIFFE ID in the registration entries matched by the caller — each SPIFFE ID has an independent token bucket, so unrelated workloads never share a limiter. If any matched SPIFFE ID is over its limit, the call is rejected.
 
-**Platform support:** Rate limiting is supported on all platforms. Pod UID resolution requires Linux with Kubernetes (cgroup-based detection). On other platforms or non-Kubernetes environments the OS UID fallback is used automatically.
+| ratelimit         | Description                                                                               | Default       |
+|:------------------|-------------------------------------------------------------------------------------------|---------------|
+| `fetch_x509_svid` | Max stream opens per second per SPIFFE ID for `FetchX509SVID`. 0 disables rate limiting. | 0 (disabled)  |
+| `fetch_jwt_svid`  | Max calls per second per SPIFFE ID for `FetchJWTSVID`. 0 disables rate limiting.         | 0 (disabled)  |
 
-| ratelimit              | Description                                                                                    | Default       |
-|:-----------------------|------------------------------------------------------------------------------------------------|---------------|
-| `fetch_x509_svid`      | Max stream opens per second per caller for `FetchX509SVID`. 0 disables rate limiting.          | 0 (disabled)  |
-| `fetch_x509_bundles`   | Max stream opens per second per caller for `FetchX509Bundles`. 0 disables rate limiting.       | 0 (disabled)  |
-| `fetch_jwt_svid`       | Max calls per second per caller for `FetchJWTSVID`. 0 disables rate limiting.                  | 0 (disabled)  |
-| `fetch_jwt_bundles`    | Max stream opens per second per caller for `FetchJWTBundles`. 0 disables rate limiting.        | 0 (disabled)  |
-| `validate_jwt_svid`    | Max calls per second per caller for `ValidateJWTSVID`. 0 disables rate limiting.               | 0 (disabled)  |
-
-For streaming RPCs (`FetchX509SVID`, `FetchX509Bundles`, `FetchJWTBundles`), the rate limit is enforced at stream establishment (i.e., per reconnect), not per message.
+For `FetchX509SVID` (a streaming RPC), the rate limit is enforced at stream establishment (i.e., per reconnect), not per message.
 
 Example configuration:
 

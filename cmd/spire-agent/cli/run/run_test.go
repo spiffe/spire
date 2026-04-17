@@ -1071,26 +1071,20 @@ func TestNewAgentConfig(t *testing.T) {
 			},
 			test: func(t *testing.T, ac *agent.Config) {
 				require.Equal(t, 100, ac.WorkloadAPIRateLimit.FetchX509SVID)
-				require.Equal(t, 0, ac.WorkloadAPIRateLimit.FetchX509Bundles)
+				require.Equal(t, 0, ac.WorkloadAPIRateLimit.FetchJWTSVID)
 			},
 		},
 		{
-			msg: "ratelimit all methods are configurable",
+			msg: "ratelimit both methods are configurable",
 			input: func(c *Config) {
-				a, b, d, e, f := 1, 2, 3, 4, 5
+				a, d := 1, 3
 				c.Agent.RateLimit.FetchX509SVID = &a
-				c.Agent.RateLimit.FetchX509Bundles = &b
 				c.Agent.RateLimit.FetchJWTSVID = &d
-				c.Agent.RateLimit.FetchJWTBundles = &e
-				c.Agent.RateLimit.ValidateJWTSVID = &f
 			},
 			test: func(t *testing.T, ac *agent.Config) {
 				require.Equal(t, agent.WorkloadAPIRateLimitConfig{
-					FetchX509SVID:    1,
-					FetchX509Bundles: 2,
-					FetchJWTSVID:     3,
-					FetchJWTBundles:  4,
-					ValidateJWTSVID:  5,
+					FetchX509SVID: 1,
+					FetchJWTSVID:  3,
 				}, ac.WorkloadAPIRateLimit)
 			},
 		},
@@ -1106,44 +1100,11 @@ func TestNewAgentConfig(t *testing.T) {
 			},
 		},
 		{
-			msg:         "ratelimit fetch_x509_bundles negative value returns an error",
-			expectError: true,
-			input: func(c *Config) {
-				v := -1
-				c.Agent.RateLimit.FetchX509Bundles = &v
-			},
-			test: func(t *testing.T, ac *agent.Config) {
-				require.Nil(t, ac)
-			},
-		},
-		{
 			msg:         "ratelimit fetch_jwt_svid negative value returns an error",
 			expectError: true,
 			input: func(c *Config) {
 				v := -1
 				c.Agent.RateLimit.FetchJWTSVID = &v
-			},
-			test: func(t *testing.T, ac *agent.Config) {
-				require.Nil(t, ac)
-			},
-		},
-		{
-			msg:         "ratelimit fetch_jwt_bundles negative value returns an error",
-			expectError: true,
-			input: func(c *Config) {
-				v := -1
-				c.Agent.RateLimit.FetchJWTBundles = &v
-			},
-			test: func(t *testing.T, ac *agent.Config) {
-				require.Nil(t, ac)
-			},
-		},
-		{
-			msg:         "ratelimit validate_jwt_svid negative value returns an error",
-			expectError: true,
-			input: func(c *Config) {
-				v := -1
-				c.Agent.RateLimit.ValidateJWTSVID = &v
 			},
 			test: func(t *testing.T, ac *agent.Config) {
 				require.Nil(t, ac)

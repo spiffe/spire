@@ -258,12 +258,16 @@ type FakeManager struct {
 }
 
 type FakeWorkloadAPIServer struct {
-	Attestor PeerTrackerAttestor
+	Attestor    PeerTrackerAttestor
+	RateLimiter *WorkloadRateLimiter
 	workload_pb.UnimplementedSpiffeWorkloadAPIServer
 }
 
 func (s FakeWorkloadAPIServer) FetchJWTSVID(ctx context.Context, _ *workload_pb.JWTSVIDRequest) (*workload_pb.JWTSVIDResponse, error) {
 	if err := attest(ctx, s.Attestor); err != nil {
+		return nil, err
+	}
+	if err := s.RateLimiter.RateLimit(workload.MethodFetchJWTSVID, []string{"spiffe://localhost/workload"}); err != nil {
 		return nil, err
 	}
 	return &workload_pb.JWTSVIDResponse{}, nil
@@ -348,7 +352,11 @@ func TestEndpointsWorkloadRateLimitIntegration(t *testing.T) {
 			FetchJWTSVID: 1,
 		},
 		newWorkloadAPIServer: func(c workload.Config) workload_pb.SpiffeWorkloadAPIServer {
-			return FakeWorkloadAPIServer{Attestor: c.Attestor.(PeerTrackerAttestor)}
+			var rl *WorkloadRateLimiter
+			if c.RateLimiter != nil {
+				rl = c.RateLimiter.(*WorkloadRateLimiter)
+			}
+			return FakeWorkloadAPIServer{Attestor: c.Attestor.(PeerTrackerAttestor), RateLimiter: rl}
 		},
 		newSDSv3Server: func(c sdsv3.Config) secret_v3.SecretDiscoveryServiceServer {
 			return FakeSDSv3Server{Attestor: c.Attestor.(PeerTrackerAttestor)}

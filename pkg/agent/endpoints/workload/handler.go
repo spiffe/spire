@@ -40,9 +40,20 @@ type Attestor interface {
 	Attest(ctx context.Context) ([]*common.Selector, error)
 }
 
+// RateLimiter enforces per-SPIFFE-ID rate limiting on Workload API methods.
+type RateLimiter interface {
+	RateLimit(fullMethod string, spiffeIDs []string) error
+}
+
+const (
+	MethodFetchX509SVID = "/SpiffeWorkloadAPI/FetchX509SVID"
+	MethodFetchJWTSVID  = "/SpiffeWorkloadAPI/FetchJWTSVID"
+)
+
 type Config struct {
 	Manager                       Manager
 	Attestor                      Attestor
+	RateLimiter                   RateLimiter
 	AllowUnauthenticatedVerifiers bool
 	AllowedForeignJWTClaims       map[string]struct{}
 	TrustDomain                   spiffeid.TrustDomain
@@ -58,6 +69,17 @@ func New(c Config) *Handler {
 	return &Handler{
 		c: c,
 	}
+}
+
+func (h *Handler) rateLimitByEntries(fullMethod string, entries []*common.RegistrationEntry) error {
+	if h.c.RateLimiter == nil {
+		return nil
+	}
+	spiffeIDs := make([]string, 0, len(entries))
+	for _, e := range entries {
+		spiffeIDs = append(spiffeIDs, e.SpiffeId)
+	}
+	return h.c.RateLimiter.RateLimit(fullMethod, spiffeIDs)
 }
 
 // FetchJWTSVID processes request for a JWT-SVID. In case of multiple fetched SVIDs with same hint, the SVID that has the oldest
@@ -86,6 +108,10 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *workload.JWTSVIDRequest
 
 	entries := h.c.Manager.MatchingRegistrationEntries(selectors)
 	entries = filterRegistrations(entries, log)
+
+	if err := h.rateLimitByEntries(MethodFetchJWTSVID, entries); err != nil {
+		return nil, err
+	}
 
 	resp = new(workload.JWTSVIDResponse)
 
@@ -218,6 +244,10 @@ func (h *Handler) FetchX509SVID(_ *workload.X509SVIDRequest, stream workload.Spi
 	selectors, err := h.c.Attestor.Attest(ctx)
 	if err != nil {
 		log.WithError(err).Error("Workload attestation failed")
+		return err
+	}
+
+	if err := h.rateLimitByEntries(MethodFetchX509SVID, h.c.Manager.MatchingRegistrationEntries(selectors)); err != nil {
 		return err
 	}
 

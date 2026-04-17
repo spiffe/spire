@@ -1,13 +1,8 @@
 package endpoints
 
 import (
-	"context"
-	"strconv"
-	"strings"
-
 	"github.com/sirupsen/logrus"
-	"github.com/spiffe/spire/pkg/common/api/middleware"
-	"github.com/spiffe/spire/pkg/common/peertracker"
+	"github.com/spiffe/spire/pkg/agent/endpoints/workload"
 	"github.com/spiffe/spire/pkg/common/ratelimit"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/telemetry/agent/workloadapi"
@@ -16,20 +11,9 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-const (
-	podKeyPrefix = "pod:"
-	uidKeyPrefix = "uid:"
-)
-
 // perCallerRateLimiterOpts holds options for creating per-caller rate limiters.
 // Exposed for testing (e.g., clock injection).
 var perCallerRateLimiterOpts []ratelimit.Option
-
-// podUIDResolver extracts a Kubernetes pod UID for the given process, returning
-// an empty string if unavailable (e.g., not running in Kubernetes).
-type podUIDResolver interface {
-	GetPodUID(pid int32) string
-}
 
 // perCallerRateLimiter wraps a ratelimit.PerKeyLimiter to provide a simple
 // Allow(key) API for rate limiting by caller identity.
@@ -51,79 +35,55 @@ func (l *perCallerRateLimiter) Allow(key string) bool {
 	return limiter.AllowN(l.inner.Now(), 1)
 }
 
-// workloadRateLimitMiddleware implements middleware.Middleware and enforces per-caller
-// rate limiting on configured Workload API methods.
-type workloadRateLimitMiddleware struct {
+// WorkloadRateLimiter enforces per-SPIFFE-ID rate limiting on Workload API
+// methods. It is called from the handler after workload attestation, once the
+// caller's SPIFFE IDs are known.
+type WorkloadRateLimiter struct {
 	limiters map[string]*perCallerRateLimiter
-	resolver podUIDResolver
 	metrics  telemetry.Metrics
 }
 
-// resolveRateLimitKey returns the rate limit key for the given caller. When a
-// pod UID resolver is available and returns a pod UID, the key is prefixed with
-// "pod:" to avoid collisions with OS UID keys. Otherwise it falls back to the
-// OS UID prefixed with "uid:".
-func (m workloadRateLimitMiddleware) resolveRateLimitKey(caller peertracker.CallerInfo) string {
-	if m.resolver != nil {
-		if podUID := m.resolver.GetPodUID(caller.PID); podUID != "" {
-			return podKeyPrefix + podUID
+// RateLimit checks whether the request for fullMethod should be allowed given
+// the caller's SPIFFE IDs. If any SPIFFE ID exceeds its rate limit, it returns
+// a ResourceExhausted error.
+func (r *WorkloadRateLimiter) RateLimit(fullMethod string, spiffeIDs []string) error {
+	if r == nil {
+		return nil
+	}
+	limiter, ok := r.limiters[fullMethod]
+	if !ok {
+		return nil
+	}
+	for _, id := range spiffeIDs {
+		if !limiter.Allow(id) {
+			workloadapi.IncrRateLimitExceededCounter(r.metrics, fullMethod)
+			return status.Errorf(codes.ResourceExhausted, "rate limit exceeded for %s", fullMethod)
 		}
 	}
-	return uidKeyPrefix + strconv.FormatUint(uint64(caller.UID), 10)
+	return nil
 }
 
-func (m workloadRateLimitMiddleware) Preprocess(ctx context.Context, fullMethod string, _ any) (context.Context, error) {
-	limiter, ok := m.limiters[fullMethod]
-	if !ok {
-		// Method not configured for rate limiting; pass through.
-		return ctx, nil
-	}
-
-	ai, ok := peertracker.AuthInfoFromContext(ctx)
-	if !ok {
-		// No peer auth info available; pass through.
-		return ctx, nil
-	}
-
-	key := m.resolveRateLimitKey(ai.Caller)
-	if !limiter.Allow(key) {
-		workloadapi.IncrRateLimitExceededCounter(m.metrics, fullMethod, keyType(key))
-
-		return nil, status.Errorf(codes.ResourceExhausted, "rate limit exceeded for %s", fullMethod)
-	}
-	return ctx, nil
-}
-
-func (m workloadRateLimitMiddleware) Postprocess(_ context.Context, _ string, _ bool, _ error) {}
-
-// keyType returns "pod" if the key is a pod UID key, or "uid" otherwise.
-func keyType(key string) string {
-	if strings.HasPrefix(key, podKeyPrefix) {
-		return "pod"
-	}
-	return "uid"
-}
-
-// buildWorkloadRateLimitMiddleware creates a rate limiting middleware from the given config.
+// NewWorkloadRateLimiter creates a rate limiter from the given config.
 // Returns nil if no limits are configured (all rates are 0).
-func buildWorkloadRateLimitMiddleware(cfg WorkloadAPIRateLimitConfig, log logrus.FieldLogger, metrics telemetry.Metrics) middleware.Middleware {
+func NewWorkloadRateLimiter(cfg WorkloadAPIRateLimitConfig, log logrus.FieldLogger, metrics telemetry.Metrics) *WorkloadRateLimiter {
 	type methodLimit struct {
 		method string
 		limit  int
 	}
 
 	methods := []methodLimit{
-		{"/SpiffeWorkloadAPI/FetchX509SVID", cfg.FetchX509SVID},
-		{"/SpiffeWorkloadAPI/FetchX509Bundles", cfg.FetchX509Bundles},
-		{"/SpiffeWorkloadAPI/FetchJWTSVID", cfg.FetchJWTSVID},
-		{"/SpiffeWorkloadAPI/FetchJWTBundles", cfg.FetchJWTBundles},
-		{"/SpiffeWorkloadAPI/ValidateJWTSVID", cfg.ValidateJWTSVID},
+		{workload.MethodFetchX509SVID, cfg.FetchX509SVID},
+		{workload.MethodFetchJWTSVID, cfg.FetchJWTSVID},
 	}
 
 	limiters := make(map[string]*perCallerRateLimiter)
 	for _, ml := range methods {
 		if ml.limit > 0 {
 			limiters[ml.method] = newPerCallerRateLimiter(ml.limit)
+			log.WithFields(logrus.Fields{
+				telemetry.Method: ml.method,
+				telemetry.Limit:  ml.limit,
+			}).Info("Workload API rate limiting enabled")
 		}
 	}
 
@@ -131,9 +91,8 @@ func buildWorkloadRateLimitMiddleware(cfg WorkloadAPIRateLimitConfig, log logrus
 		return nil
 	}
 
-	return workloadRateLimitMiddleware{
+	return &WorkloadRateLimiter{
 		limiters: limiters,
-		resolver: newPodUIDResolver(log),
 		metrics:  metrics,
 	}
 }
