@@ -27,20 +27,14 @@ The plugin supports **Client Certificate**, **Token** and **AppRole** authentica
 - **Token** method authenticates to Vault using the token in a HTTP Request header.
 - **AppRole** method authenticates to Vault using a RoleID and SecretID that are issued from Vault.
 
-The [`ca_ttl` SPIRE Server configurable](https://github.com/spiffe/spire/blob/main/doc/spire_server.md#server-configuration-file)
-should be less than or equal to the Vault's PKI secret engine TTL.
-To configure the TTL value, tune the engine.
-
-e.g.
-
-```shell
-$ vault secrets tune -max-lease-ttl=8760h pki
-```
-
 The configured token needs to be attached to a policy that has at least the following capabilities:
 
 ```hcl
-path "pki/root/sign-intermediate" {
+path "transit/keys/*" {
+  capabilities = ["create", "read", "update", "delete", "list"]
+}
+
+path "transit/sign/*" {
   capabilities = ["update"]
 }
 ```
@@ -58,7 +52,6 @@ path "pki/root/sign-intermediate" {
     KeyManager "hashicorp_vault" {
         plugin_data {
             vault_addr = "https://vault.example.org/"
-            pki_mount_point = "test-pki"
             ca_cert_path = "/path/to/ca-cert.pem"
             cert_auth {
                 cert_auth_mount_point = "test-tls-cert-auth"
@@ -94,7 +87,6 @@ path "pki/root/sign-intermediate" {
     KeyManager "hashicorp_vault" {
         plugin_data {
             vault_addr = "https://vault.example.org/"
-            pki_mount_point = "test-pki"
             ca_cert_path = "/path/to/ca-cert.pem"
             token_auth {
                token = "<token>"
@@ -117,7 +109,6 @@ path "pki/root/sign-intermediate" {
     KeyManager "hashicorp_vault" {
         plugin_data {
             vault_addr = "https://vault.example.org/"
-            pki_mount_point = "test-pki"
             ca_cert_path = "/path/to/ca-cert.pem"
             approle_auth {
                approle_auth_mount_point = "my-approle-auth"
@@ -147,7 +138,6 @@ path "pki/root/sign-intermediate" {
     KeyManager "hashicorp_vault" {
         plugin_data {
             vault_addr = "https://vault.example.org/"
-            pki_mount_point = "test-pki"
             ca_cert_path = "/path/to/ca-cert.pem"
             k8s_auth {
                k8s_auth_mount_point = "my-k8s-auth"

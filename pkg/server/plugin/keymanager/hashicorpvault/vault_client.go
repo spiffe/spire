@@ -2,6 +2,7 @@ package hashicorpvault
 
 import (
 	"encoding/pem"
+	"strings"
 
 	keymanagerv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/keymanager/v1"
 	"github.com/spiffe/spire/pkg/server/common/vault"
@@ -9,27 +10,32 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+// uuidStringLength is the length of a UUID string (xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx).
+const uuidStringLength = 36
+
 // getKeyEntry converts a Vault transit KeyEntry into a keymanager keyEntry,
-// parsing the public key and determining the SPIRE key type from the top-level Vault key type.
-func getKeyEntry(ve *vault.KeyEntry) (*keyEntry, error) {
-	spireKeyID, ok := spireKeyIDFromKeyName(ve.KeyName)
+// parsing the public key and determining the SPIRE key type from the top-level
+// Vault key type. Returns (nil, false, nil) if the key belongs to a different
+// server instance (i.e. the key name does not match the expected serverID prefix).
+func getKeyEntry(ve *vault.KeyEntry, serverID string) (*keyEntry, bool, error) {
+	spireKeyID, ok := spireKeyIDFromKeyName(ve.KeyName, serverID)
 	if !ok {
-		return nil, status.Errorf(codes.Internal, "unable to get SPIRE key ID from key %s", ve.KeyName)
+		return nil, false, nil
 	}
 
 	pk, ok := ve.KeyData["public_key"]
 	if !ok {
-		return nil, status.Errorf(codes.Internal, "expected public key to be present")
+		return nil, false, status.Errorf(codes.Internal, "expected public key to be present")
 	}
 
 	pkStr, ok := pk.(string)
 	if !ok {
-		return nil, status.Errorf(codes.Internal, "expected public key data type %T but got %T", pkStr, pk)
+		return nil, false, status.Errorf(codes.Internal, "expected public key data type %T but got %T", pkStr, pk)
 	}
 
 	pemBlock, _ := pem.Decode([]byte(pkStr))
 	if pemBlock == nil || pemBlock.Type != "PUBLIC KEY" {
-		return nil, status.Error(codes.Internal, "unable to decode PEM key")
+		return nil, false, status.Error(codes.Internal, "unable to decode PEM key")
 	}
 
 	var keyType keymanagerv1.KeyType
@@ -43,7 +49,7 @@ func getKeyEntry(ve *vault.KeyEntry) (*keyEntry, error) {
 	case "rsa-4096":
 		keyType = keymanagerv1.KeyType_RSA_4096
 	default:
-		return nil, status.Errorf(codes.Internal, "unsupported key type: %v", ve.KeyType)
+		return nil, false, status.Errorf(codes.Internal, "unsupported key type: %v", ve.KeyType)
 	}
 
 	return &keyEntry{
@@ -54,18 +60,21 @@ func getKeyEntry(ve *vault.KeyEntry) (*keyEntry, error) {
 			PkixData:    pemBlock.Bytes,
 			Fingerprint: makeFingerprint(pemBlock.Bytes),
 		},
-	}, nil
+	}, true, nil
 }
 
-// uuidStringLength is the length of a UUID string (xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx).
-const uuidStringLength = 36
-
-// spireKeyIDFromKeyName parses a Vault transit key name to get the
-// SPIRE Key ID. This Key ID is used in the Server KeyManager interface.
-// Key names have the format <UUID>-<SPIRE-KEY-ID>.
-func spireKeyIDFromKeyName(keyName string) (string, bool) {
-	if len(keyName) <= uuidStringLength+1 || keyName[uuidStringLength] != '-' {
+// spireKeyIDFromKeyName parses a Vault transit key name to extract the SPIRE Key ID.
+// Key names have the format <SERVER-ID>-<UUID>-<SPIRE-KEY-ID>.
+// Returns ("", false) if the key name does not match the expected serverID prefix or format.
+func spireKeyIDFromKeyName(keyName, serverID string) (string, bool) {
+	prefix := serverID + "-"
+	if !strings.HasPrefix(keyName, prefix) {
 		return "", false
 	}
-	return keyName[uuidStringLength+1:], true
+	rest := keyName[len(prefix):]
+	// rest must be at least "<UUID>-<one-char-spireKeyID>"
+	if len(rest) <= uuidStringLength+1 || rest[uuidStringLength] != '-' {
+		return "", false
+	}
+	return rest[uuidStringLength+1:], true
 }

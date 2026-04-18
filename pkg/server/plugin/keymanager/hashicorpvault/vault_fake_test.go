@@ -258,6 +258,8 @@ k8s_auth {
 }
 `
 
+	// testValidKeyName uses the validServerID prefix so that setCache accepts it.
+	testValidKeyName          = validServerID + "-ab748227-3a10-40cc-87fd-2a5321aa638d-x509-CA-A"
 	testGetKeysResponseOneKey = `{
   "request_id": "3d02d2cf-baa4-a4ca-90d8-448b6c3ce6b0",
   "lease_id": "",
@@ -265,7 +267,7 @@ k8s_auth {
   "lease_duration": 0,
   "data": {
     "keys": [
-      "ab748227-3a10-40cc-87fd-2a5321aa638d-x509-CA-A"
+      "` + testValidKeyName + `"
     ]
   },
   "wrap_info": null,

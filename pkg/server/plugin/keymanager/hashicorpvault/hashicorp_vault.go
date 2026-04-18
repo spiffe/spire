@@ -395,20 +395,22 @@ func algosForKMS(keyType keymanagerv1.KeyType, signerOpts any) (vault.TransitHas
 	case hashAlgo == keymanagerv1.HashAlgorithm_UNSPECIFIED_HASH_ALGORITHM:
 		return "", "", errors.New("hash algorithm is required")
 	case keyType == keymanagerv1.KeyType_EC_P256 || keyType == keymanagerv1.KeyType_EC_P384:
-		// signature_algorithm is only used for RSA; Vault ignores it for ECDSA keys.
+		// For ECDSA with prehashed=true, Vault uses "none" to mean "use the default hash
+		// for the key type" (SHA-256 for P-256, SHA-384 for P-384). signature_algorithm
+		// is not applicable to ECDSA keys.
 		return vault.TransitHashAlgorithmNone, vault.TransitSignatureAlgorithmNone, nil
 	case isRSA && !isPSS && hashAlgo == keymanagerv1.HashAlgorithm_SHA256:
-		return vault.TransitHashAlgorithmSHA256, vault.TransitSignatureSignatureAlgorithmPKCS1v15, nil
+		return vault.TransitHashAlgorithmSHA256, vault.TransitSignatureAlgorithmPKCS1v15, nil
 	case isRSA && !isPSS && hashAlgo == keymanagerv1.HashAlgorithm_SHA384:
-		return vault.TransitHashAlgorithmSHA384, vault.TransitSignatureSignatureAlgorithmPKCS1v15, nil
+		return vault.TransitHashAlgorithmSHA384, vault.TransitSignatureAlgorithmPKCS1v15, nil
 	case isRSA && !isPSS && hashAlgo == keymanagerv1.HashAlgorithm_SHA512:
-		return vault.TransitHashAlgorithmSHA512, vault.TransitSignatureSignatureAlgorithmPKCS1v15, nil
+		return vault.TransitHashAlgorithmSHA512, vault.TransitSignatureAlgorithmPKCS1v15, nil
 	case isRSA && isPSS && hashAlgo == keymanagerv1.HashAlgorithm_SHA256:
-		return vault.TransitHashAlgorithmSHA256, vault.TransitSignatureSignatureAlgorithmPSS, nil
+		return vault.TransitHashAlgorithmSHA256, vault.TransitSignatureAlgorithmPSS, nil
 	case isRSA && isPSS && hashAlgo == keymanagerv1.HashAlgorithm_SHA384:
-		return vault.TransitHashAlgorithmSHA384, vault.TransitSignatureSignatureAlgorithmPSS, nil
+		return vault.TransitHashAlgorithmSHA384, vault.TransitSignatureAlgorithmPSS, nil
 	case isRSA && isPSS && hashAlgo == keymanagerv1.HashAlgorithm_SHA512:
-		return vault.TransitHashAlgorithmSHA512, vault.TransitSignatureSignatureAlgorithmPSS, nil
+		return vault.TransitHashAlgorithmSHA512, vault.TransitSignatureAlgorithmPSS, nil
 	default:
 		return "", "", fmt.Errorf("unsupported combination of keytype: %v and hashing algorithm: %v", keyType, hashAlgo)
 	}
@@ -442,7 +444,14 @@ func (p *Plugin) createKey(ctx context.Context, spireKeyID string, keyType keyma
 		return nil, err
 	}
 
-	return getKeyEntry(ve)
+	ke, ok, err := getKeyEntry(ve, p.serverID)
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		return nil, status.Errorf(codes.Internal, "created key %q does not match server ID", keyName)
+	}
+	return ke, nil
 }
 
 func convertToTransitKeyType(keyType keymanagerv1.KeyType) (vault.TransitKeyType, error) {
@@ -468,15 +477,18 @@ func (p *Plugin) genVaultClient() error {
 	}
 	p.vc = vc
 
-	// if renewCh has been closed, the token can not be renewed and may expire,
-	// it needs to re-authenticate to the Vault.
-	go func() {
+	// If renewCh is closed, the token has expired and cannot be renewed.
+	// Capture vc so that a re-configured plugin with a new client does not get
+	// nil'd out by a stale goroutine from a previous Configure call.
+	go func(myVC *vault.Client) {
 		<-renewCh
 		p.mu.Lock()
 		defer p.mu.Unlock()
-		p.vc = nil
-		p.logger.Debug("Going to re-authenticate to the Vault during the next key manager operation")
-	}()
+		if p.vc == myVC {
+			p.vc = nil
+			p.logger.Debug("Going to re-authenticate to the Vault during the next key manager operation")
+		}
+	}(vc)
 
 	return nil
 }
@@ -502,9 +514,13 @@ func makeFingerprint(pkixData []byte) string {
 func (p *Plugin) setCache(vaultEntries []*vault.KeyEntry) error {
 	p.entries = make(map[string]keyEntry)
 	for _, ve := range vaultEntries {
-		ke, err := getKeyEntry(ve)
+		ke, ok, err := getKeyEntry(ve, p.serverID)
 		if err != nil {
 			return err
+		}
+		if !ok {
+			// Key belongs to a different server instance; skip it.
+			continue
 		}
 		p.entries[ke.PublicKey.Id] = *ke
 		p.logger.Debug("Key loaded", "key_id", ke.PublicKey.Id, "key_type", ke.PublicKey.Type)
@@ -526,16 +542,17 @@ func (p *Plugin) getKeyEntry(keyID string) (ke keyEntry, ok bool) {
 }
 
 // generateKeyName returns a new identifier to be used as a key name.
-// The returned name has the form: <UUID>-<SPIRE-KEY-ID>
-// where UUID is a new randomly generated UUID and SPIRE-KEY-ID is provided
-// through the spireKeyID parameter.
+// The returned name has the form: <SERVER-ID>-<UUID>-<SPIRE-KEY-ID>
+// where SERVER-ID is this server's instance identifier, UUID is a randomly
+// generated UUID for uniqueness across key rotations, and SPIRE-KEY-ID is the
+// logical key identifier passed by the SPIRE key manager interface.
 func (p *Plugin) generateKeyName(spireKeyID string) (keyName string, err error) {
 	uniqueID, err := generateUniqueID()
 	if err != nil {
 		return "", err
 	}
 
-	return fmt.Sprintf("%s-%s", uniqueID, spireKeyID), nil
+	return fmt.Sprintf("%s-%s-%s", p.serverID, uniqueID, spireKeyID), nil
 }
 
 // generateUniqueID returns a randomly generated UUID.

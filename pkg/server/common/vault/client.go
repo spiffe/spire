@@ -70,9 +70,9 @@ const (
 type TransitSignatureAlgorithm string
 
 const (
-	TransitSignatureAlgorithmNone              TransitSignatureAlgorithm = ""
-	TransitSignatureSignatureAlgorithmPSS      TransitSignatureAlgorithm = "pss"
-	TransitSignatureSignatureAlgorithmPKCS1v15 TransitSignatureAlgorithm = "pkcs1v15"
+	TransitSignatureAlgorithmNone     TransitSignatureAlgorithm = ""
+	TransitSignatureAlgorithmPSS      TransitSignatureAlgorithm = "pss"
+	TransitSignatureAlgorithmPKCS1v15 TransitSignatureAlgorithm = "pkcs1v15"
 )
 
 type KeyEntry struct {
@@ -256,6 +256,11 @@ func (c *ClientConfig) NewAuthenticatedClient(method AuthMethod, renewCh chan st
 // handleRenewToken handles renewing the vault token.
 // if the token is non-renewable or renew failed, renewCh will be closed.
 func handleRenewToken(vc *vapi.Client, sec *vapi.Secret, renewCh chan struct{}, logger hclog.Logger) error {
+	if sec == nil || sec.Auth == nil {
+		logger.Debug("Secret has no auth information, token will not be renewed")
+		close(renewCh)
+		return nil
+	}
 	if sec.Auth.LeaseDuration == 0 {
 		logger.Debug("Token will never expire")
 		return nil
@@ -467,7 +472,7 @@ func (c *Client) SignIntermediate(ttl string, csr *x509.CertificateRequest) (*Si
 func (c *Client) CreateKey(ctx context.Context, keyName string, keyType TransitKeyType) error {
 	arguments := map[string]any{
 		"type":       keyType,
-		"exportable": "false", // SPIRE keys are never exportable
+		"exportable": false, // SPIRE keys are never exportable
 	}
 
 	_, err := c.vaultClient.Logical().WriteWithContext(ctx, fmt.Sprintf("/%s/keys/%s", c.ClientParams.TransitEnginePath, keyName), arguments)
@@ -482,7 +487,7 @@ func (c *Client) CreateKey(ctx context.Context, keyName string, keyType TransitK
 // See: https://developer.hashicorp.com/vault/api-docs/secret/transit#update-key-configuration and https://developer.hashicorp.com/vault/api-docs/secret/transit#delete-key
 func (c *Client) DeleteKey(ctx context.Context, keyName string) error {
 	arguments := map[string]any{
-		"deletion_allowed": "true",
+		"deletion_allowed": true,
 	}
 
 	// First, we need to enable deletion of the key. This is disabled by default.
@@ -508,7 +513,7 @@ func (c *Client) SignData(ctx context.Context, keyName string, data []byte, hash
 		"input":                 encodedData,
 		"signature_algorithm":   signatureAlgo,
 		"marshalling_algorithm": "asn1",
-		"prehashed":             "true",
+		"prehashed":             true,
 	}
 
 	sigResp, err := c.vaultClient.Logical().WriteWithContext(ctx, fmt.Sprintf("/%s/sign/%s/%s", c.ClientParams.TransitEnginePath, keyName, hashAlgo), body)

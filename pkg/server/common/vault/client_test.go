@@ -996,7 +996,7 @@ func TestSignDataErrorFromEndpoint(t *testing.T) {
 	client, err := cc.NewAuthenticatedClient(CERT, renewCh)
 	require.NoError(t, err)
 
-	resp, err := client.SignData(context.Background(), "x509-CA-A", []byte("foo"), TransitHashAlgorithmSHA256, TransitSignatureSignatureAlgorithmPKCS1v15)
+	resp, err := client.SignData(context.Background(), "x509-CA-A", []byte("foo"), TransitHashAlgorithmSHA256, TransitSignatureAlgorithmPKCS1v15)
 	spiretest.RequireGRPCStatusHasPrefix(t, err, codes.Internal, "transit engine sign call failed: Error making API request.")
 	require.Empty(t, resp)
 }
