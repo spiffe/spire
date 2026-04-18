@@ -1,5 +1,5 @@
 # Pluggable Datastore Design
-This is a proof-of-concept implementation of Apache Cassandra as a backing datastore for SPIRE server. It leverages Cassandra 5.0 and is not compatible with earlier versions of Cassandra due to heavily leveraging Storage-Attached Indexes to improve query performance. 
+This is a proof-of-concept implementation of supporting datastore plugins in the SPIRE server. It makes core changes to `spire` and `spire-plugin-sdk` to support "pluggability" of the datastore. Included is a prototype reference implementation using Apache Cassandra as a backing datastore for SPIRE server. It leverages Cassandra 5.0 and is not compatible with earlier versions of Cassandra due to heavily leveraging Storage-Attached Indexes to improve query performance. 
 
 ## Background
 There have been frequent requests from the community to support customizations to the SPIRE Server storage layer, including support for additional databases and other customizations that introduce maintance burden and increase core project complexity. In other issues, changes to the datastore architecture are discussed as potential solutions to various scalability, reliability or availability problems. Some examples include:
@@ -37,7 +37,6 @@ SPIRE server deployments have long been limited in horizontal scalability by the
 Cassandra solves these problems by allowing SPIRE servers to horizontally scale a single trust domain across regions to an unparalleled level. Cassandra is not an easy database to learn, nor an easy database to operate, but it offers outstanding performance and scalability when properly understood and deployed. My hope in sharing this implementation with the SPIRE community is to demonstrate that evolution in the data storage layer in SPIRE is needed, and that it's possible. To see more about the Cassandra plugin implemented to prove the viability of a pluggable datastore, see [the plugin design document](../../datastore/cassandra/design/README.md).
 
 ## Design notes
-
 The SPIRE server defines [a `Datastore` interface](https://github.com/spiffe/spire/blob/main/pkg/server/datastore/datastore.go) for data storage interactions. This package also contains a number of types for use by the SPIRE server client code when interacting with the interface, including various filters, request and response types, etc. The `datastore` package also contains a simple `Repository` type with accessor and setter methods for the datastore. The `datastore.Repository` is not used in the project and seems to be a historical artifact of previous implementation requirements that were refactored away over time. 
 
 SPIRE Server currently has three implementations of the `datastore.Datastore` interface:
@@ -46,6 +45,7 @@ SPIRE Server currently has three implementations of the `datastore.Datastore` in
 - The `test/fakes/fakedatastore` `fakeDatastore` [implementation for unit tests](https://github.com/spiffe/spire/blob/main/test/fakes/fakedatastore/fakedatastore.go). 
 
 ### The `sqlstore` implementation
+The existing `Datastore` implementation is provided by the `sqlstore` package. This package uses `gorm` to wrap the underlying database, providing support for sqlite, MySQL, and Postgresql. The interface methods are implemented by the `sqlstore` package but generally delegate to private, unexported helper methods that contain the majority of the business logic. The `sqlstore` package heavily leverages transations to achieve consistency. 
 
 ### Supporting pluggability in the Datastore
 A goal of this project was to explore the viability of reintroducing plugin support for the datastore used by the SPIRE server at runtime. This is not easy, as the `datastore.Datastore` interface used throughout the codebase has 56 methods and uses a mixture of its own types and other imported types in its interface. To avoid a massive distruptive refactor, I decided to leave the existing `datastore.Datastore` interface almost fully intact, with [minimal changes](#changes-made-to-the-datastore-code) made to support treating the `datastore.Datastore` interface as a plugin. 
@@ -61,9 +61,6 @@ rpc AppendBundle(AppendBundleRequest) returns (AppendBundleResponse);
 #### Type conversions and facade implementation
 To be utilized by the SPIRE server, these types must be converted from the wire types to the types used by the `datastore.Datastore` interface. This is performed by a facade implementation, which uses a set of conversion helpers to transform each input called on the `datastore.Datastore` interface that it implements to the corresponding `datastorev1alpha1` `Request` message. Responses are then translated to the `datastore.Datastore` interface types with similar helpers. This is not the most resource-effecient way to implement this, because it introduces a per-call overhead of at least two struct initializations and corresponding wire marshalling/unmarshalling. This will require analysis and improvement over time. For now, simply expect the SPIRE server to use more memory and perform many more allocs than it does currently.
 
-#### Interface duplication to remove methods
-describe why the plugin/datastore/datastore.go file almost entirely duplicates the datastore.Datastore interface, but doesn't exactly.
-
 #### Server catalog `dataStoreRepository`
 A simple repository for the datastore was added, following the pattern for other plugin repositories. The datastore repository utilizes a `MaybeOne` constraint, and currently only provides the Cassandra plugin as a builtin. To mature this implementation, it would be useful to implement an additional builtin plugin, perhaps for etcd as discussed in https://github.com/spiffe/spire/issues/1945.
 
@@ -74,7 +71,6 @@ An `ExperimentalConfig` type was added to the `pkg/server/catalog` package to al
 An optional configuration field called `max_grpc_message_size` was added to the `catalog.hclPluginConfig` type. This field can be used to provide an `int` representing the maximum gRPC message size to send/receive with a plugin. This field applies to both builtin and external plugins. If not set, this field defaults to the standard 4MB gRPC maximum message size limit. This field was added due to historical context surrounding the original datastore plugin interface that mentioned issues with max message size limits breaking RPC calls to the plugin due to resource exhaustion (see https://github.com/spiffe/spire/pull/1938).
 
 ### Changes made to the Datastore code
-
 A number of changes were made to the datastore code, some for clarity and conciseness, some for testability, and others because changes were required to make this POC possible.
 
 - The `testdata` originally stored in `pkg/server/datastore/sqlstore/testdata` has been moved into an importable package leveraging Go's embedded files functionality so that the testdata can be used by multiple plugins to test the behavior of the interface contract. _This change is for conciseness and testability._
@@ -88,48 +84,8 @@ A number of changes were made to the datastore code, some for clarity and concis
 
 Additional changes could be made to reduce the duplication and potential maintenance burden if this experimental feature is considered for inclusion:
 - The `sqlstore` tests could be deduplicated to only cover test cases that are specific to the behavior of the `sqlstore` implementation, and rely on the common interface tests where possible. This change would likely be of **medium complexity**.
-- The `datastore` tests should be simplified and cleaned up. There is a heavy reliance on mutations of shared objects passed by reference from the suite to the store (as an example, see `TestBundleCRUD`, where returned objects are ignored and the same object is inspected repeatedly after mutation by the datastore).
+- The `datastore` tests should be simplified and cleaned up. There is a heavy reliance on mutations of shared objects passed by reference from the suite to the store (as an example, see `TestBundleCRUD`, where returned objects are ignored and the same object is inspected repeatedly after mutation by the datastore). This change would likely be of **high complexity**.
 - Well-known errors could be defined in the plugin SDK, improving testability and providing a tighter contract between the datastore core and plugins. Currently errors are checked via string matching, grpc status checks and other approaches, which doesn't provide a tight contract for plugins and makes tests challenging to write.
-- Support easily focusing any one test or test case in the test suite after refactor
-- Change the way pagination is tested to standardize on the `paginationTest` type.
 
 ### Open questions and areas for improvement
 - Closing a datastore with the plugintest closer seems to error
-
-## Implemented
-- Alternative datastore configuration loading via experimental settings.
-- Interface type for the cassandra implementation and restructuring of the existing plugin where necessary
-- Basic scaffolding of methods without implementation
-- Decoupling of test harness from sqlstore package to allow multiple DataStore implementations to pass a common battery of tests
-- `*-pluggable` versions of existing datastore tests for MySQL and Postgres against the DataStore interface integration tests
-- Validation of replication for postgres in pluggable mode
-- Validation of MySQL without replication in pluggable mode
-- Validation of MySQL with replication in pluggable mode
-- Cassandra tests with pluggable mode
-- Isolatable debuggable tests
-- Bundles
-- teardown for cassandra test suite
-- use gocql, not scylladb 
-- Bundle federation relationship and deletion interactions
-- Configurable read and write consistency
-- configurable topology strategy
-- schema migrations
-- handling the new Validate() process without introducing package dependency issues
-- Plugin loading
-
-## To Be Implemented
-- Pagination
-  - mostly about rethinking and revisiting how we test this, making "peeking" configurable, 
-  - pagination in the sqlstore impl uses the pagination token as the ID of the last read row, then filters for IDs greater than that
-    - to match, cassandra implementation does not need to "peek", it needs to discard the first read row always?
-- Documentation + usage guide
-- Doument indexing implementation
-- Scale and load testing
-- Ensure server crashes on datastore plugin crash
-- Does the catalog close the datastore in the appropriate order when using the pluggable mode?
-- add checkvals to pagination utility
-- discuss why we just use the common bundle parsing logic and thus move the bundle multiple times
-- ensure all cassandra queries use ctx
-- ensure all cassandra queries use qb
-- ensure all cassandra tables are documented
-- remove any unnecessary type conversions for things like unix timestamp, etc
