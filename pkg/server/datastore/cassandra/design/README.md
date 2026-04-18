@@ -31,63 +31,17 @@ Cassandra uses a non-relational model where data is denormalized and stored acco
 Cassandra 5.0 introduced support for Storage-Attached Indexing, which allows performant filtering on non-partition key columns across partitions in `SELECT` statements. SPIRE Server exposes a very expressive API for `List*` RPC calls allowing users to provide arbitrary filters for many entities, including `RegistrationEntries`, `AttestedNodes` and other entities. These filters support multi-field filtering on arbitrary user-provided values. The provided filter fields are `AND`ed together. Cassandra has historically struggled with these kinds of queries, but Storage-Attached Indexing allows for much more performant and effecient cross-partition queries on an indexed column. The Cassandra datastore plugin leverages these indexes to implement the user filtering. For more information on these indexes, see the [001-spire-schema.cql](../migrations/001-spire-schema.cql) file.
 
 ### Denormalization and indexing
-There are some scenarios where the limitations of querying 
+WIP
 
 ## General Limitations
 - Cassandra will not return records in an order according to their creation time across partitions. Expect that the Cassandra plugin will have unpredicatable return ordering in comparison with the SQL database plugin.
 - Cassandra pagination does not significantly reduce load on the database, so use pagination only where it makes sense because of truly unrealistic result sets. Do not treat pagination as an optimization - it is not when using the Cassandra datastore.
 - This plugin is WIP and has not yet been reported running at scale.
 
-## Some challenges
-There are three distinct issues that are common across multiple resource types so far that do not have easy answers:
-1. Pagination
-2. Filtering
-3. Ordering in multi-row queries
+## Pagination
 
-This is a little self dialog about them.
+## Filtering
 
-Pagination is hard because cassandra's internal paging mechanisms don't follow
-the ordering semantics that sql DB's do, and denormalization makes paging hard if
-we denormalize to multi-row partitions, via clustering keys. It could be more correct,
-although certainly harder to implement, if we used a page size of 1, read records one at
-a time, and then we were able to implement user "page size" on top of this silly 
-single item pages querying thing. Pagination tokens are also hard because the SQL tests
-expect a known value for the "next page", and all have hard coded strings of ints. the
-solution here is going to be refactoring those tests to check insead for a paging token
-that is not an empty string instead.
-
-Filtering: this one is a total bear. For almost all the resources, storage-attached indexes 
-do everything we need, but they prevent us from denormalizing because the index only gets
-attached to a single row. There are some funky workarounds, where we could have multiple
-rows per partition, one for each search term + match combo we need to support. it would
-be weird and ugly. For somethign like trust domain filters on registration entries, 
-it would look like this: each trust domain that the entry federates with would be a new
-row, with a column called "search_by_ftd" that would be the _value_ of the federated trust
-domain. each "indexed" row would still have the full set of other values in their standard
-form. we'd also have to index this for each matcher type. would probably require us to use
-"pseudoversioning" of the data as well, to avoid races in "read before write". might be
-able to do some fancy tricks where we prebuild every single search term based on the matchers
-that can be supported, and then just use all of that. this would result in row explosion, but
-it would solve some of these issues. for example, an entry that federates with:
-- spiffe://td1
-- spiffe://td2
-would have these `filter_val` rows:
-- `ftd_match_exact_spiffe://td1_spiffe://td2`
-- `ftd_match_any_spiffe://td1`
-- `ftd_match_any_spiffe://td2`
-- `ftd_match_any_spiffe://td1_spiffe://td2`
-- `ftd_match_superset_spiffe://td1_spiffe://td2`
-- `ftd_match_subset_spiffe://td1_spiffe://td2`
-
-Where this gets hard... when multiple selectors are ANDED together like this, it increases
-the number of rows exponentially. so, something like an entry that has selectors:
-- type:a value:b
-- type:b value:c
-would have these `filter_val` rows:
-- `stv_match_exact_type_a_value_b__type_b_value_c`
-- `stv_match_any_type_a_value_b`
-- `stv_match_any_type_b_value_c`
-- `stv_match_superset_type_a_value_b`
-- `stv_match_subset_type_a_value_b__type_b_value_c`
+## Ordering
 
 ## Test suite progress
