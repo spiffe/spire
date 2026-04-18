@@ -30,12 +30,13 @@ import (
 )
 
 const (
-	testProject      = "test-project"
-	testZone         = "test-zone"
-	testInstanceID   = "test-instance-id"
-	testInstanceName = "test-instance-name"
-	testAgentID      = "spiffe://example.org/spire/agent/gcp_iit/test-project/test-instance-id"
-	testSAFile       = "test_sa.json"
+	testProject        = "test-project"
+	testZone           = "test-zone"
+	testInstanceID     = "test-instance-id"
+	testInstanceName   = "test-instance-name"
+	testServiceAccount = "123456789-compute@developer.gserviceaccount.com"
+	testAgentID        = "spiffe://example.org/spire/agent/gcp_iit/test-project/test-instance-id"
+	testSAFile         = "test_sa.json"
 )
 
 var (
@@ -146,9 +147,10 @@ func (s *IITAttestorSuite) TestAttestSuccess() {
 
 	s.Require().Equal(testAgentID, result.AgentID)
 	s.RequireProtoListEqual([]*common.Selector{
-		{Type: "gcp_iit", Value: "project-id:test-project"},
-		{Type: "gcp_iit", Value: "zone:test-zone"},
-		{Type: "gcp_iit", Value: "instance-name:test-instance-name"},
+		{Type: "gcp_iit", Value: "project-id:" + testProject},
+		{Type: "gcp_iit", Value: "zone:" + testZone},
+		{Type: "gcp_iit", Value: "instance-name:" + testInstanceName},
+		{Type: "gcp_iit", Value: "sa:" + testServiceAccount},
 	}, result.Selectors)
 }
 
@@ -156,10 +158,6 @@ func (s *IITAttestorSuite) TestAttestSuccessWithInstanceMetadata() {
 	s.attestor = s.loadPluginForInstanceMetadata(&compute.Instance{
 		Tags: &compute.Tags{
 			Items: []string{"tag-1", "tag-2"},
-		},
-		ServiceAccounts: []*compute.ServiceAccount{
-			{Email: "service-account-1"},
-			{Email: "service-account-2"},
 		},
 		Labels: map[string]string{
 			"allowed":          "ALLOWED",
@@ -187,10 +185,9 @@ func (s *IITAttestorSuite) TestAttestSuccessWithInstanceMetadata() {
 		{Type: "gcp_iit", Value: "project-id:" + testProject},
 		{Type: "gcp_iit", Value: "zone:" + testZone},
 		{Type: "gcp_iit", Value: "instance-name:" + testInstanceName},
+		{Type: "gcp_iit", Value: "sa:" + testServiceAccount},
 		{Type: "gcp_iit", Value: "tag:tag-1"},
 		{Type: "gcp_iit", Value: "tag:tag-2"},
-		{Type: "gcp_iit", Value: "sa:service-account-1"},
-		{Type: "gcp_iit", Value: "sa:service-account-2"},
 		{Type: "gcp_iit", Value: "metadata:allowed:ALLOWED"},
 		{Type: "gcp_iit", Value: "metadata:allowed-no-value:"},
 		{Type: "gcp_iit", Value: "label:allowed:ALLOWED"},
@@ -233,6 +230,7 @@ func (s *IITAttestorSuite) TestAttestSuccessWithEmptyInstanceMetadata() {
 		{Type: "gcp_iit", Value: "project-id:" + testProject},
 		{Type: "gcp_iit", Value: "zone:" + testZone},
 		{Type: "gcp_iit", Value: "instance-name:" + testInstanceName},
+		{Type: "gcp_iit", Value: "sa:" + testServiceAccount},
 	}, result.Selectors)
 }
 
@@ -245,10 +243,10 @@ func (s *IITAttestorSuite) TestAttestFailureDueToMissingInstanceMetadata() {
 func (s *IITAttestorSuite) TestAttestSuccessWithCustomSPIFFEIDTemplate() {
 	attestor := s.loadPluginWithConfig(`
 projectid_allow_list = ["test-project"]
-agent_path_template = "/{{ .InstanceID }}"
+agent_path_template = "/{{ .InstanceID }}/{{ .ServiceAccount }}"
 `)
 
-	expectSVID := "spiffe://example.org/spire/agent/test-instance-id"
+	expectSVID := "spiffe://example.org/spire/agent/test-instance-id/123456789-compute_developer.gserviceaccount.com"
 
 	payload := s.signDefaultToken()
 	result, err := attestor.Attest(context.Background(), payload, expectNoChallenge)
@@ -391,6 +389,7 @@ func (testKeyRetriever) retrieveJWKS(context.Context) (*jose.JSONWebKeySet, erro
 
 func buildClaims(projectID string, audience string) gcp.IdentityToken {
 	return gcp.IdentityToken{
+		Email: testServiceAccount,
 		Google: gcp.Google{
 			ComputeEngine: gcp.ComputeEngine{
 				ProjectID:    projectID,
@@ -424,16 +423,16 @@ func (c *fakeComputeEngineClient) setInstance(instance *compute.Instance) {
 	c.instance = instance
 }
 
-func (c *fakeComputeEngineClient) fetchInstanceMetadata(_ context.Context, projectID, zone, instanceName string, serviceAccountFile string) (*compute.Instance, error) {
+func (c *fakeComputeEngineClient) fetchInstanceMetadata(_ context.Context, instanceMetadata gcp.ComputeEngine, serviceAccountFile string) (*compute.Instance, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	switch {
-	case projectID != testProject:
-		return nil, fmt.Errorf("expected project %q; got %q", testProject, projectID)
-	case zone != testZone:
-		return nil, fmt.Errorf("expected zone %q; got %q", testZone, zone)
-	case instanceName != testInstanceName:
-		return nil, fmt.Errorf("expected instance name %q; got %q", testInstanceName, instanceName)
+	case instanceMetadata.ProjectID != testProject:
+		return nil, fmt.Errorf("expected project %q; got %q", testProject, instanceMetadata.ProjectID)
+	case instanceMetadata.Zone != testZone:
+		return nil, fmt.Errorf("expected zone %q; got %q", testZone, instanceMetadata.Zone)
+	case instanceMetadata.InstanceName != testInstanceName:
+		return nil, fmt.Errorf("expected instance name %q; got %q", testInstanceName, instanceMetadata.InstanceName)
 	case c.instance == nil:
 		return nil, errors.New("no instance found")
 	case serviceAccountFile != testSAFile:
