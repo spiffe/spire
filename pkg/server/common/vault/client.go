@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
+	"encoding/json"
 	"encoding/pem"
 	"fmt"
 	"net/http"
@@ -69,12 +70,15 @@ const (
 type TransitSignatureAlgorithm string
 
 const (
+	TransitSignatureAlgorithmNone              TransitSignatureAlgorithm = ""
 	TransitSignatureSignatureAlgorithmPSS      TransitSignatureAlgorithm = "pss"
 	TransitSignatureSignatureAlgorithmPKCS1v15 TransitSignatureAlgorithm = "pkcs1v15"
 )
 
 type KeyEntry struct {
 	KeyName string
+	// KeyType is the top-level type from Vault (e.g., "ecdsa-p256", "rsa-2048").
+	KeyType string
 	KeyData map[string]any
 }
 
@@ -118,7 +122,7 @@ type ClientParams struct {
 	K8sAuthTokenPath string
 	// If true, client accepts any certificates.
 	// It should be used only test environment so on.
-	TLSSKipVerify bool
+	TLSSkipVerify bool
 	// MaxRetries controls the number of times to retry to connect
 	// Set to 0 to disable retrying.
 	// If the value is nil, to use the default in hashicorp/vault/api.
@@ -252,10 +256,6 @@ func (c *ClientConfig) NewAuthenticatedClient(method AuthMethod, renewCh chan st
 // handleRenewToken handles renewing the vault token.
 // if the token is non-renewable or renew failed, renewCh will be closed.
 func handleRenewToken(vc *vapi.Client, sec *vapi.Secret, renewCh chan struct{}, logger hclog.Logger) error {
-	if sec == nil || sec.Auth == nil {
-		return status.Error(codes.InvalidArgument, "secret is nil")
-	}
-
 	if sec.Auth.LeaseDuration == 0 {
 		logger.Debug("Token will never expire")
 		return nil
@@ -289,7 +289,6 @@ func (c *ClientConfig) configureTLS(vc *vapi.Config) error {
 	transport, ok := vc.HttpClient.Transport.(*http.Transport)
 	if !ok {
 		return status.Errorf(codes.Internal, "http client transport is of incorrect type. Expected is %T but was %T", transport, vc.HttpClient.Transport)
-
 	}
 	clientTLSConfig := transport.TLSClientConfig
 
@@ -320,7 +319,7 @@ func (c *ClientConfig) configureTLS(vc *vapi.Config) error {
 		clientTLSConfig.RootCAs = pool
 	}
 
-	if c.ClientParams.TLSSKipVerify {
+	if c.ClientParams.TLSSkipVerify {
 		clientTLSConfig.InsecureSkipVerify = true
 	}
 
@@ -530,7 +529,7 @@ func (c *Client) SignData(ctx context.Context, keyName string, data []byte, hash
 	// Vault adds an application specific prefix that we need to remove
 	cutSig, ok := strings.CutPrefix(sigStr, "vault:v1:")
 	if !ok {
-		return nil, status.Errorf(codes.Internal, "signature is missing vault prefix: %v", err)
+		return nil, status.Error(codes.Internal, "signature is missing vault prefix")
 	}
 
 	sigData, err := base64.StdEncoding.DecodeString(cutSig)
@@ -585,39 +584,48 @@ func (c *Client) GetKeys(ctx context.Context) ([]*KeyEntry, error) {
 // GetKey returns a specific key from the transit engine.
 // See: https://developer.hashicorp.com/vault/api-docs/secret/transit#read-key
 func (c *Client) GetKey(ctx context.Context, keyName string) (*KeyEntry, error) {
-	keyData, err := c.getKey(ctx, keyName)
-	if err != nil {
-		return nil, err
-	}
-	return &KeyEntry{KeyName: keyName, KeyData: keyData}, nil
-}
-
-// getKey returns the raw key data map for a specific key from the transit engine.
-func (c *Client) getKey(ctx context.Context, keyName string) (map[string]any, error) {
 	res, err := c.vaultClient.Logical().ReadWithContext(ctx, fmt.Sprintf("/%s/keys/%s", c.ClientParams.TransitEnginePath, keyName))
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to get transit engine key: %v", err)
 	}
 
+	keyType, ok := res.Data["type"]
+	if !ok {
+		return nil, status.Errorf(codes.Internal, "transit engine get key call was successful but type is missing")
+	}
+	keyTypeStr, ok := keyType.(string)
+	if !ok {
+		return nil, status.Errorf(codes.Internal, "expected key type data type %T but got %T", keyTypeStr, keyType)
+	}
+
+	latestVersionRaw, ok := res.Data["latest_version"]
+	if !ok {
+		return nil, status.Errorf(codes.Internal, "transit engine get key call was successful but latest_version is missing")
+	}
+	// The Vault SDK deserializes JSON numbers as json.Number in map[string]any.
+	latestVersionNum, ok := latestVersionRaw.(json.Number)
+	if !ok {
+		return nil, status.Errorf(codes.Internal, "expected latest_version data type json.Number but got %T", latestVersionRaw)
+	}
+	latestVersion := latestVersionNum.String()
+
 	keys, ok := res.Data["keys"]
 	if !ok {
 		return nil, status.Errorf(codes.Internal, "transit engine get key call was successful but keys are missing")
 	}
-
 	keyMap, ok := keys.(map[string]any)
 	if !ok {
 		return nil, status.Errorf(codes.Internal, "expected key map data type %T but got %T", keyMap, keys)
 	}
 
-	currentKey, ok := keyMap["1"]
+	currentKey, ok := keyMap[latestVersion]
 	if !ok {
-		return nil, status.Errorf(codes.Internal, "unable to find key with version 1 in %v", keyMap)
+		return nil, status.Errorf(codes.Internal, "unable to find key with version %s in key map", latestVersion)
 	}
-
 	currentKeyMap, ok := currentKey.(map[string]any)
 	if !ok {
 		return nil, status.Errorf(codes.Internal, "expected key data type %T but got %T", currentKeyMap, currentKey)
 	}
 
-	return currentKeyMap, nil
+	return &KeyEntry{KeyName: keyName, KeyType: keyTypeStr, KeyData: currentKeyMap}, nil
 }

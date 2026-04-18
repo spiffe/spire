@@ -921,14 +921,16 @@ func TestGetKey(t *testing.T) {
 	client, err := cc.NewAuthenticatedClient(CERT, renewCh)
 	require.NoError(t, err)
 
-	resp, err := client.getKey(context.Background(), "x509-CA-A")
+	resp, err := client.GetKey(context.Background(), "x509-CA-A")
 	require.NoError(t, err)
 
+	require.Equal(t, "x509-CA-A", resp.KeyName)
+	require.Equal(t, "ecdsa-p256", resp.KeyType)
 	require.Equal(t, map[string]any{
-		"name":          "P-256",
 		"creation_time": "2024-09-16T18:18:54.284635756Z",
+		"name":          "P-256",
 		"public_key":    "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEV57LFbIQZzyZ2YcKZfB9mGWkUhJv\niRzIZOqV4wRHoUOZjMuhBMR2WviEsy65TYpcBjreAc6pbneiyhlTwPvgmw==\n-----END PUBLIC KEY-----\n",
-	}, resp)
+	}, resp.KeyData)
 }
 
 func TestGetKeyErrorFromEndpoint(t *testing.T) {
@@ -960,9 +962,9 @@ func TestGetKeyErrorFromEndpoint(t *testing.T) {
 	client, err := cc.NewAuthenticatedClient(CERT, renewCh)
 	require.NoError(t, err)
 
-	resp, err := client.getKey(context.Background(), "x509-CA-A")
+	resp, err := client.GetKey(context.Background(), "x509-CA-A")
 	spiretest.RequireGRPCStatusHasPrefix(t, err, codes.Internal, "failed to get transit engine key: Error making API request.")
-	require.Empty(t, resp)
+	require.Nil(t, resp)
 }
 
 func TestSignDataErrorFromEndpoint(t *testing.T) {

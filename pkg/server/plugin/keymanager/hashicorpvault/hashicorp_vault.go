@@ -10,7 +10,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/andres-erbsen/clock"
 	"github.com/gofrs/uuid/v5"
 	"github.com/hashicorp/go-hclog"
@@ -67,11 +66,10 @@ type Plugin struct {
 	keymanagerv1.UnsafeKeyManagerServer
 	configv1.UnsafeConfigServer
 
-	logger     hclog.Logger
-	serverID   string
-	mu         sync.RWMutex
-	entries    map[string]keyEntry
-	entriesMtx sync.RWMutex
+	logger   hclog.Logger
+	serverID string
+	mu       sync.RWMutex
+	entries  map[string]keyEntry
 
 	authMethod vault.AuthMethod
 	cc         *vault.ClientConfig
@@ -136,15 +134,19 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 		return nil, err
 	}
 
+	// Cancel previous tasks before replacing config, so the old goroutine
+	// cannot pick up a stale delete after the new client is set.
+	if p.cancelTasks != nil {
+		p.cancelTasks()
+	}
+
 	p.authMethod = am
 	p.cc = vcConfig
 	p.serverID = serverID
+	p.vc = nil // force re-authentication with the new config
 
-	if p.vc == nil {
-		err := p.genVaultClient()
-		if err != nil {
-			return nil, err
-		}
+	if err := p.genVaultClient(); err != nil {
+		return nil, err
 	}
 
 	p.logger.Debug("Fetching keys from Vault")
@@ -155,11 +157,6 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 
 	if err := p.setCache(keyEntries); err != nil {
 		return nil, err
-	}
-
-	// Cancel previous tasks in case of re-configure.
-	if p.cancelTasks != nil {
-		p.cancelTasks()
 	}
 
 	// start tasks
@@ -225,16 +222,14 @@ func (p *Plugin) scheduleDeleteTask(ctx context.Context) {
 		case keyID := <-p.scheduleDelete:
 			log := p.logger.With("key_id", keyID)
 
-			if p.vc == nil {
-				err := p.genVaultClient()
-				if err != nil {
-					log.Error("Failed to generate vault client", "reason", err)
-					p.notifyDelete(err)
-					// TODO: Should we re-enqueue here?
-				}
+			vc, err := p.getOrInitVaultClient()
+			if err != nil {
+				log.Error("Failed to generate vault client", "reason", err)
+				p.notifyDelete(err)
+				continue
 			}
 
-			err := p.vc.DeleteKey(ctx, keyID)
+			err = vc.DeleteKey(ctx, keyID)
 
 			if err == nil {
 				log.Debug("Key deleted")
@@ -253,7 +248,7 @@ func (p *Plugin) scheduleDeleteTask(ctx context.Context) {
 				log.Error("Failed to re-enqueue key for deletion")
 			}
 
-			p.notifyDelete(nil)
+			p.notifyDelete(err)
 			backoff = min(backoff*2, backoffMax)
 			p.hooks.clk.Sleep(backoff)
 		}
@@ -309,9 +304,9 @@ func (p *Plugin) SignData(ctx context.Context, req *keymanagerv1.SignDataRequest
 	}
 
 	p.mu.RLock()
-	defer p.mu.RUnlock()
-
 	keyEntry, hasKey := p.entries[req.KeyId]
+	p.mu.RUnlock()
+
 	if !hasKey {
 		return nil, status.Errorf(codes.NotFound, "key %q not found", req.KeyId)
 	}
@@ -321,14 +316,12 @@ func (p *Plugin) SignData(ctx context.Context, req *keymanagerv1.SignDataRequest
 		return nil, status.Error(codes.InvalidArgument, err.Error())
 	}
 
-	if p.vc == nil {
-		err := p.genVaultClient()
-		if err != nil {
-			return nil, err
-		}
+	vc, err := p.getOrInitVaultClient()
+	if err != nil {
+		return nil, err
 	}
 
-	signature, err := p.vc.SignData(ctx, keyEntry.KeyName, req.Data, hashAlgo, signingAlgo)
+	signature, err := vc.SignData(ctx, keyEntry.KeyName, req.Data, hashAlgo, signingAlgo)
 	if err != nil {
 		return nil, err
 	}
@@ -358,11 +351,10 @@ func (p *Plugin) GetPublicKey(_ context.Context, req *keymanagerv1.GetPublicKeyR
 }
 
 func (p *Plugin) GetPublicKeys(context.Context, *keymanagerv1.GetPublicKeysRequest) (*keymanagerv1.GetPublicKeysResponse, error) {
-	var keys = make([]*keymanagerv1.PublicKey, 0, len(p.entries))
-
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
+	keys := make([]*keymanagerv1.PublicKey, 0, len(p.entries))
 	for _, key := range p.entries {
 		keys = append(keys, key.PublicKey)
 	}
@@ -397,7 +389,8 @@ func algosForKMS(keyType keymanagerv1.KeyType, signerOpts any) (vault.TransitHas
 	case hashAlgo == keymanagerv1.HashAlgorithm_UNSPECIFIED_HASH_ALGORITHM:
 		return "", "", errors.New("hash algorithm is required")
 	case keyType == keymanagerv1.KeyType_EC_P256 || keyType == keymanagerv1.KeyType_EC_P384:
-		return vault.TransitHashAlgorithmNone, vault.TransitSignatureSignatureAlgorithmPKCS1v15, nil
+		// signature_algorithm is only used for RSA; Vault ignores it for ECDSA keys.
+		return vault.TransitHashAlgorithmNone, vault.TransitSignatureAlgorithmNone, nil
 	case isRSA && !isPSS && hashAlgo == keymanagerv1.HashAlgorithm_SHA256:
 		return vault.TransitHashAlgorithmSHA256, vault.TransitSignatureSignatureAlgorithmPKCS1v15, nil
 	case isRSA && !isPSS && hashAlgo == keymanagerv1.HashAlgorithm_SHA384:
@@ -433,7 +426,7 @@ func (p *Plugin) createKey(ctx context.Context, spireKeyID string, keyType keyma
 		return nil, err
 	}
 
-	err = p.vc.CreateKey(ctx, keyName, *kt)
+	err = p.vc.CreateKey(ctx, keyName, kt)
 	if err != nil {
 		return nil, err
 	}
@@ -443,21 +436,21 @@ func (p *Plugin) createKey(ctx context.Context, spireKeyID string, keyType keyma
 		return nil, err
 	}
 
-	return getKeyEntry(ve.KeyName, ve.KeyData)
+	return getKeyEntry(ve)
 }
 
-func convertToTransitKeyType(keyType keymanagerv1.KeyType) (*vault.TransitKeyType, error) {
+func convertToTransitKeyType(keyType keymanagerv1.KeyType) (vault.TransitKeyType, error) {
 	switch keyType {
 	case keymanagerv1.KeyType_EC_P256:
-		return to.Ptr(vault.TransitKeyTypeECDSAP256), nil
+		return vault.TransitKeyTypeECDSAP256, nil
 	case keymanagerv1.KeyType_EC_P384:
-		return to.Ptr(vault.TransitKeyTypeECDSAP384), nil
+		return vault.TransitKeyTypeECDSAP384, nil
 	case keymanagerv1.KeyType_RSA_2048:
-		return to.Ptr(vault.TransitKeyTypeRSA2048), nil
+		return vault.TransitKeyTypeRSA2048, nil
 	case keymanagerv1.KeyType_RSA_4096:
-		return to.Ptr(vault.TransitKeyTypeRSA4096), nil
+		return vault.TransitKeyTypeRSA4096, nil
 	default:
-		return nil, status.Errorf(codes.Internal, "unsupported key type: %v", keyType)
+		return "", status.Errorf(codes.Internal, "unsupported key type: %v", keyType)
 	}
 }
 
@@ -482,20 +475,28 @@ func (p *Plugin) genVaultClient() error {
 	return nil
 }
 
+// getOrInitVaultClient returns the current vault client, initializing it if nil.
+// Safe to call without holding p.mu.
+func (p *Plugin) getOrInitVaultClient() (*vault.Client, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.vc == nil {
+		if err := p.genVaultClient(); err != nil {
+			return nil, err
+		}
+	}
+	return p.vc, nil
+}
+
 func makeFingerprint(pkixData []byte) string {
 	s := sha256.Sum256(pkixData)
 	return hex.EncodeToString(s[:])
 }
 
 func (p *Plugin) setCache(vaultEntries []*vault.KeyEntry) error {
-	// clean previous cache
-	p.entriesMtx.Lock()
-	defer p.entriesMtx.Unlock()
 	p.entries = make(map[string]keyEntry)
-
-	// add results to cache
 	for _, ve := range vaultEntries {
-		ke, err := getKeyEntry(ve.KeyName, ve.KeyData)
+		ke, err := getKeyEntry(ve)
 		if err != nil {
 			return err
 		}
@@ -505,19 +506,15 @@ func (p *Plugin) setCache(vaultEntries []*vault.KeyEntry) error {
 	return nil
 }
 
-// setKeyEntry adds the entry to the cache that matches the provided SPIRE Key ID
+// setKeyEntry adds the entry to the cache that matches the provided SPIRE Key ID.
+// Callers must hold p.mu.
 func (p *Plugin) setKeyEntry(keyID string, ke keyEntry) {
-	p.entriesMtx.Lock()
-	defer p.entriesMtx.Unlock()
-
 	p.entries[keyID] = ke
 }
 
-// getKeyEntry gets the entry from the cache that matches the provided SPIRE Key ID
+// getKeyEntry gets the entry from the cache that matches the provided SPIRE Key ID.
+// Callers must hold p.mu.
 func (p *Plugin) getKeyEntry(keyID string) (ke keyEntry, ok bool) {
-	p.entriesMtx.RLock()
-	defer p.entriesMtx.RUnlock()
-
 	ke, ok = p.entries[keyID]
 	return ke, ok
 }

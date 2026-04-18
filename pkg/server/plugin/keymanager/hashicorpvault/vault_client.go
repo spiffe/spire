@@ -4,19 +4,20 @@ import (
 	"encoding/pem"
 
 	keymanagerv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/keymanager/v1"
+	"github.com/spiffe/spire/pkg/server/common/vault"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
-// getKeyEntry converts a Vault transit key's raw data map into a keymanager keyEntry,
-// parsing the public key and determining the SPIRE key type.
-func getKeyEntry(keyName string, keyData map[string]any) (*keyEntry, error) {
-	spireKeyID, ok := spireKeyIDFromKeyName(keyName)
+// getKeyEntry converts a Vault transit KeyEntry into a keymanager keyEntry,
+// parsing the public key and determining the SPIRE key type from the top-level Vault key type.
+func getKeyEntry(ve *vault.KeyEntry) (*keyEntry, error) {
+	spireKeyID, ok := spireKeyIDFromKeyName(ve.KeyName)
 	if !ok {
-		return nil, status.Errorf(codes.Internal, "unable to get SPIRE key ID from key %s", keyName)
+		return nil, status.Errorf(codes.Internal, "unable to get SPIRE key ID from key %s", ve.KeyName)
 	}
 
-	pk, ok := keyData["public_key"]
+	pk, ok := ve.KeyData["public_key"]
 	if !ok {
 		return nil, status.Errorf(codes.Internal, "expected public key to be present")
 	}
@@ -31,33 +32,22 @@ func getKeyEntry(keyName string, keyData map[string]any) (*keyEntry, error) {
 		return nil, status.Error(codes.Internal, "unable to decode PEM key")
 	}
 
-	pubKeyType, ok := keyData["name"]
-	if !ok {
-		return nil, status.Errorf(codes.Internal, "expected name to be present")
-	}
-
-	pubKeyTypeStr, ok := pubKeyType.(string)
-	if !ok {
-		return nil, status.Errorf(codes.Internal, "expected public key type to be of type %T but got %T", pubKeyTypeStr, pubKeyType)
-	}
-
 	var keyType keymanagerv1.KeyType
-
-	switch pubKeyTypeStr {
-	case "P-256":
+	switch ve.KeyType {
+	case "ecdsa-p256":
 		keyType = keymanagerv1.KeyType_EC_P256
-	case "P-384":
+	case "ecdsa-p384":
 		keyType = keymanagerv1.KeyType_EC_P384
 	case "rsa-2048":
 		keyType = keymanagerv1.KeyType_RSA_2048
 	case "rsa-4096":
 		keyType = keymanagerv1.KeyType_RSA_4096
 	default:
-		return nil, status.Errorf(codes.Internal, "unsupported key type: %v", pubKeyTypeStr)
+		return nil, status.Errorf(codes.Internal, "unsupported key type: %v", ve.KeyType)
 	}
 
 	return &keyEntry{
-		KeyName: keyName,
+		KeyName: ve.KeyName,
 		PublicKey: &keymanagerv1.PublicKey{
 			Id:          spireKeyID,
 			Type:        keyType,
@@ -67,16 +57,15 @@ func getKeyEntry(keyName string, keyData map[string]any) (*keyEntry, error) {
 	}, nil
 }
 
+// uuidStringLength is the length of a UUID string (xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx).
+const uuidStringLength = 36
+
 // spireKeyIDFromKeyName parses a Vault transit key name to get the
 // SPIRE Key ID. This Key ID is used in the Server KeyManager interface.
+// Key names have the format <UUID>-<SPIRE-KEY-ID>.
 func spireKeyIDFromKeyName(keyName string) (string, bool) {
-	// A key name would have the format <UUID>-<SPIRE-KEY-ID>.
-	// first we find the position where the SPIRE Key ID starts.
-	spireKeyIDIndex := 37 // 36 is the UUID length plus one '-' separator
-	if spireKeyIDIndex >= len(keyName) {
-		// The index is out of range.
+	if len(keyName) <= uuidStringLength+1 || keyName[uuidStringLength] != '-' {
 		return "", false
 	}
-	spireKeyID := keyName[spireKeyIDIndex:]
-	return spireKeyID, true
+	return keyName[uuidStringLength+1:], true
 }

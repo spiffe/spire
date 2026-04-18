@@ -358,10 +358,10 @@ type FakeVaultServerConfig struct {
 	K8sAuthReqHandler            func(code int, resp []byte) func(w http.ResponseWriter, r *http.Request)
 	K8sAuthResponseCode          int
 	K8sAuthResponse              []byte
-	SignIntermediateReqEndpoint   string
-	SignIntermediateReqHandler    func(code int, resp []byte) func(http.ResponseWriter, *http.Request)
-	SignIntermediateResponseCode  int
-	SignIntermediateResponse      []byte
+	SignIntermediateReqEndpoint  string
+	SignIntermediateReqHandler   func(code int, resp []byte) func(http.ResponseWriter, *http.Request)
+	SignIntermediateResponseCode int
+	SignIntermediateResponse     []byte
 	RenewReqEndpoint             string
 	RenewReqHandler              func(code int, resp []byte) func(http.ResponseWriter, *http.Request)
 	RenewResponseCode            int
@@ -382,8 +382,8 @@ func NewFakeVaultServerConfig() *FakeVaultServerConfig {
 		AppRoleAuthReqHandler:       defaultReqHandler,
 		K8sAuthReqEndpoint:          defaultK8sAuthEndpoint,
 		K8sAuthReqHandler:           defaultReqHandler,
-		SignIntermediateReqEndpoint:  defaultSignIntermediateEndpoint,
-		SignIntermediateReqHandler:   defaultReqHandler,
+		SignIntermediateReqEndpoint: defaultSignIntermediateEndpoint,
+		SignIntermediateReqHandler:  defaultReqHandler,
 		RenewReqEndpoint:            defaultRenewEndpoint,
 		RenewReqHandler:             defaultReqHandler,
 		LookupSelfReqEndpoint:       defaultLookupSelfEndpoint,

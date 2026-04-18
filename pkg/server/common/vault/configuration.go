@@ -80,11 +80,9 @@ func GenClientParams(method AuthMethod, baseConfig *BaseConfiguration, lookupEnv
 	}
 
 	cp := &ClientParams{
-		VaultAddr:  envOrDefault(EnvVaultAddr, baseConfig.VaultAddr),
-		CACertPath: envOrDefault(EnvVaultCACert, baseConfig.CACertPath),
-		// TODO: move above!!!!!!!
-		// PKIMountPoint: config.PKIMountPoint,
-		TLSSKipVerify: baseConfig.InsecureSkipVerify,
+		VaultAddr:     envOrDefault(EnvVaultAddr, baseConfig.VaultAddr),
+		CACertPath:    envOrDefault(EnvVaultCACert, baseConfig.CACertPath),
+		TLSSkipVerify: baseConfig.InsecureSkipVerify,
 		Namespace:     envOrDefault(EnvVaultNamespace, baseConfig.Namespace),
 	}
 

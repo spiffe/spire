@@ -8,7 +8,6 @@ import (
 )
 
 const (
-	testRootCert   = "testdata/root-cert.pem"
 	testClientCert = "testdata/client-cert.pem"
 	testClientKey  = "testdata/client-key.pem"
 	testServerCert = "testdata/server-cert.pem"
@@ -188,25 +187,6 @@ k8s_auth {
   "lease_id": ""
 }`
 
-	testAppRoleAuthResponseNotRenewable = `{
-  "auth": {
-    "renewable": false,
-    "lease_duration": 3600,
-    "metadata": null,
-    "token_policies": [
-      "default"
-    ],
-    "accessor": "fd6c9a00-d2dc-3b11-0be5-af7ae0e1d374",
-    "client_token": "5b1a0318-679c-9c45-e5c6-d1b9a9035d49"
-  },
-  "warnings": null,
-  "wrap_info": null,
-  "data": null,
-  "lease_duration": 0,
-  "renewable": false,
-  "lease_id": ""
-}`
-
 	testRenewResponse = `{
   "auth": {
     "client_token": "test-client-token",
@@ -217,33 +197,6 @@ k8s_auth {
     "lease_duration": 3600,
     "renewable": true
   }
-}`
-
-	testLookupSelfResponseNeverExpire = `{
-  "request_id": "90e4b86a-5c61-1aeb-0fc7-50a05056c3b3",
-  "lease_id": "",
-  "lease_duration": 0,
-  "renewable": false,
-  "data": {
-    "accessor": "rQuZeGOEdH4IazavJWqwTCRk",
-    "creation_time": 1605502335,
-    "creation_ttl": 0,
-    "display_name": "root",
-    "entity_id": "",
-    "expire_time": null,
-    "explicit_max_ttl": 0,
-    "id": "test-token",
-    "meta": null,
-    "num_uses": 0,
-    "orphan": true,
-    "path": "auth/token/root",
-    "policies": [
-      "root"
-    ],
-    "ttl": 0,
-    "type": "service"
-  },
-  "warnings": null
 }`
 
 	testLookupSelfResponse = `{
@@ -277,80 +230,6 @@ k8s_auth {
   "warnings": null
 }`
 
-	testLookupSelfResponseShortTTL = `{
-  "request_id": "8dc10d02-797d-1c23-f9f3-c7f07be89150",
-  "lease_id": "",
-  "lease_duration": 0,
-  "renewable": false,
-  "data": {
-    "accessor": "sB3mNrjoIr2JscfNsAUM1k0A",
-    "creation_time": 1605502988,
-    "creation_ttl": 2764800,
-    "display_name": "approle",
-    "entity_id": "0bee5a2d-efe5-6fd3-9c5a-972266ecccf4",
-    "expire_time": "2020-12-18T05:03:08.5694729Z",
-    "explicit_max_ttl": 0,
-    "id": "test-token",
-    "issue_time": "2020-11-16T05:03:08.5694807Z",
-    "meta": {
-      "role_name": "test"
-    },
-    "num_uses": 0,
-    "orphan": true,
-    "path": "auth/approle/login",
-    "policies": [
-      "default"
-    ],
-    "renewable": true,
-    "ttl": 1,
-    "type": "service"
-  },
-  "warnings": null
-}`
-
-	testLookupSelfResponseNotRenewable = `{
-  "request_id": "ac39fad7-02d7-48df-2f8a-7a1872c41a4b",
-  "lease_id": "",
-  "lease_duration": 0,
-  "renewable": false,
-  "data": {
-    "accessor": "",
-    "creation_time": 1605506361,
-    "creation_ttl": 3600,
-    "display_name": "approle",
-    "entity_id": "0bee5a2d-efe5-6fd3-9c5a-972266ecccf4",
-    "expire_time": "2020-11-16T06:59:21Z",
-    "explicit_max_ttl": 0,
-    "id": "test-token",
-    "issue_time": "2020-11-16T05:59:21Z",
-    "meta": {
-      "role_name": "test"
-    },
-    "num_uses": 0,
-    "orphan": true,
-    "path": "auth/approle/login",
-    "policies": [
-      "default"
-    ],
-    "renewable": false,
-    "ttl": 3517,
-    "type": "batch"
-  },
-  "warnings": null
-}`
-
-	testCertAuthResponseNotRenewable = `{
-  "auth": {
-    "client_token": "cf95f87d-f95b-47ff-b1f5-ba7bff850425",
-    "policies": [
-      "web",
-      "stage"
-    ],
-    "lease_duration": 3600,
-    "renewable": false
-  }
-}`
-
 	testK8sAuthResponse = `{
   "lease_id": "",
   "renewable": false,
@@ -378,33 +257,6 @@ k8s_auth {
   }
 }
 `
-
-	testK8sAuthResponseNotRenewable = `{
-  "lease_id": "",
-  "renewable": false,
-  "lease_duration": 0,
-  "data": null,
-  "wrap_info": null,
-  "warnings": null,
-  "auth": {
-    "client_token": "b.AAAAAQIUprvfquccAKnvL....",
-    "accessor": "",
-    "policies": ["default"],
-    "token_policies": ["default"],
-    "metadata": {
-      "role": "my-role",
-      "service_account_name": "spire-server",
-      "service_account_namespace": "spire",
-      "service_account_secret_name": "",
-      "service_account_uid": "6808b4c7-0b53-45f4-83f7-e8937756eeae"
-    },
-    "lease_duration": 3600,
-    "renewable": false,
-    "entity_id": "c69a6e0e-3f2c-98a0-39f9-e4d3d7cc294f",
-    "token_type": "batch",
-    "orphan": true
-  }
-}`
 
 	testGetKeysResponseOneKey = `{
   "request_id": "3d02d2cf-baa4-a4ca-90d8-448b6c3ce6b0",
@@ -450,19 +302,6 @@ k8s_auth {
     "supports_encryption": false,
     "supports_signing": true,
     "type": "ecdsa-p256"
-  },
-  "wrap_info": null,
-  "warnings": null,
-  "auth": null
-}`
-
-	testGetKeysResponseNoKeys = `{
-  "request_id": "3d02d2cf-baa4-a4ca-90d8-448b6c3ce6b0",
-  "lease_id": "",
-  "renewable": false,
-  "lease_duration": 0,
-  "data": {
-    "keys": []
   },
   "wrap_info": null,
   "warnings": null,
@@ -608,21 +447,6 @@ k8s_auth {
   "warnings": null,
   "auth": null
 }`
-
-	testSignDataResponse = `{
-  "request_id": "51bb98fa-8da3-8678-64e7-7220bc8b94a6",
-  "lease_id": "",
-  "renewable": false,
-  "lease_duration": 0,
-  "data": {
-    "key_version": 1,
-    "signature": "vault:v1:MEQCIHw3maFgxsmzAUsUXnw2ahUgPcomjF8+XxflwH4CsouhAiAYL3RhWx8dP2ymm7hjSUvc9EQ8GPXmLrvgacqkEKQPGw=="
-  },
-  "wrap_info": null,
-  "warnings": null,
-  "auth": null
-}
-`
 )
 
 type FakeVaultServerConfig struct {
