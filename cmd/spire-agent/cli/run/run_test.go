@@ -1054,6 +1054,62 @@ func TestNewAgentConfig(t *testing.T) {
 				require.Nil(t, ac)
 			},
 		},
+		{
+			msg: "ratelimit defaults to zero (disabled)",
+			input: func(c *Config) {
+				// no ratelimit config set
+			},
+			test: func(t *testing.T, ac *agent.Config) {
+				require.Equal(t, agent.WorkloadAPIRateLimitConfig{}, ac.WorkloadAPIRateLimit)
+			},
+		},
+		{
+			msg: "ratelimit fetch_x509_svid is configurable",
+			input: func(c *Config) {
+				v := 100
+				c.Agent.RateLimit.FetchX509SVID = &v
+			},
+			test: func(t *testing.T, ac *agent.Config) {
+				require.Equal(t, 100, ac.WorkloadAPIRateLimit.FetchX509SVID)
+				require.Equal(t, 0, ac.WorkloadAPIRateLimit.FetchJWTSVID)
+			},
+		},
+		{
+			msg: "ratelimit both methods are configurable",
+			input: func(c *Config) {
+				a, d := 1, 3
+				c.Agent.RateLimit.FetchX509SVID = &a
+				c.Agent.RateLimit.FetchJWTSVID = &d
+			},
+			test: func(t *testing.T, ac *agent.Config) {
+				require.Equal(t, agent.WorkloadAPIRateLimitConfig{
+					FetchX509SVID: 1,
+					FetchJWTSVID:  3,
+				}, ac.WorkloadAPIRateLimit)
+			},
+		},
+		{
+			msg:         "ratelimit fetch_x509_svid negative value returns an error",
+			expectError: true,
+			input: func(c *Config) {
+				v := -1
+				c.Agent.RateLimit.FetchX509SVID = &v
+			},
+			test: func(t *testing.T, ac *agent.Config) {
+				require.Nil(t, ac)
+			},
+		},
+		{
+			msg:         "ratelimit fetch_jwt_svid negative value returns an error",
+			expectError: true,
+			input: func(c *Config) {
+				v := -1
+				c.Agent.RateLimit.FetchJWTSVID = &v
+			},
+			test: func(t *testing.T, ac *agent.Config) {
+				require.Nil(t, ac)
+			},
+		},
 	}
 	cases = append(cases, newAgentConfigCasesOS(t)...)
 	for _, testCase := range cases {
@@ -1212,6 +1268,16 @@ func TestWarnOnUnknownConfig(t *testing.T) {
 			expectedLogEntries: []logEntry{
 				{
 					section: "health check",
+					keys:    "unknown_option1,unknown_option2",
+				},
+			},
+		},
+		{
+			msg:      "in nested ratelimit block",
+			confFile: "agent_bad_nested_ratelimit_block.conf",
+			expectedLogEntries: []logEntry{
+				{
+					section: "ratelimit",
 					keys:    "unknown_option1,unknown_option2",
 				},
 			},

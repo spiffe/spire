@@ -65,6 +65,7 @@ func New(c Config) *Endpoints {
 	workloadAPIServer := c.newWorkloadAPIServer(workload.Config{
 		Manager:                       c.Manager,
 		Attestor:                      attestor,
+		RateLimiter:                   NewWorkloadRateLimiter(c.WorkloadAPIRateLimit, c.Log, c.Metrics),
 		AllowUnauthenticatedVerifiers: c.AllowUnauthenticatedVerifiers,
 		AllowedForeignJWTClaims:       allowedClaims,
 		TrustDomain:                   c.TrustDomain,
