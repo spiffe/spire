@@ -74,11 +74,12 @@ Details about the template engine are available [here](template_engine.md).
 
 Some useful values are:
 
-| Value                 | Description                                                                                  |
-|-----------------------|----------------------------------------------------------------------------------------------|
-| .PluginName           | The name of the plugin                                                                       |
-| .Fingerprint          | The SHA1 fingerprint of the agent's x509 certificate                                         |
-| .TrustDomain          | The configured trust domain                                                                  |
-| .Subject.CommonName   | The common name field of the agent's x509 certificate                                        |
-| .SerialNumberHex      | The serial number field of the agent's x509 certificate represented as lowercase hexadecimal |
-| .SVIDPathTrimmed      | The SVID Path after trimming off the SVID prefix                                             |
+| Value                  | Description                                                                                  |
+|------------------------|----------------------------------------------------------------------------------------------|
+| .PluginName            | The name of the plugin                                                                       |
+| .Fingerprint           | The SHA1 fingerprint of the agent's x509 certificate                                         |
+| .TrustDomain           | The configured trust domain                                                                  |
+| .Subject.CommonName    | The common name field of the agent's x509 certificate                                        |
+| .SerialNumberHex       | The serial number field of the agent's x509 certificate represented as lowercase hexadecimal |
+| .SVIDPathTrimmed       | The SVID Path after trimming off the SVID prefix                                             |
+| .URISanSelectors.<key> | The value of the URI San selector with key <key>                                             |
