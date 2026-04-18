@@ -1,0 +1,14 @@
+onexit() {
+    if [ $? != 0 ]; then
+        exit 0
+    else
+        fail-now "Script should have failed."
+    fi
+}
+
+trap onexit EXIT
+
+log-info "Testing that command failure fails step script..."
+false
+log-warn "Should not get here!"
+exit 0

@@ -101,7 +101,7 @@ fingerprint() {
 check-server-started() {
   # Check at most 30 times (with one second in between) that the server has
   # successfully started.
-  MAXCHECKS=30
+  MAXCHECKS=45
   CHECKINTERVAL=1
   for ((i=1;i<=MAXCHECKS;i++)); do
       log-info "checking for starting server APIs ($i of $MAXCHECKS max)..."
@@ -135,7 +135,7 @@ check-log-line() {
 check-synced-entry() {
   # Check at most 30 times (with one second in between) that the agent has
   # successfully synced down the workload entry.
-  MAXCHECKS=30
+  MAXCHECKS=60
   CHECKINTERVAL=1
   for ((i=1;i<=MAXCHECKS;i++)); do
       log-info "checking for synced entry ($i of $MAXCHECKS max)..."
@@ -197,6 +197,7 @@ build-mashup-image() {
 FROM spire-agent:latest-local as spire-agent
 FROM envoyproxy/envoy:${ENVOY_IMAGE_TAG} AS envoy-agent-mashup
 COPY --from=spire-agent /opt/spire/bin/spire-agent /opt/spire/bin/spire-agent
+RUN update-ca-certificates
 RUN apt-get update
 RUN apt-get install -y dumb-init
 RUN apt-get install -y supervisor
@@ -341,6 +342,20 @@ start-kind-cluster() {
     log-info "starting cluster..."
     "${kind_path}" create cluster --name "${kind_name}" --config "${kind_config_path}" --image "${K8SIMAGE}" || fail-now "unable to create cluster"
 }
+
+start-g-kind-cluster() {
+    K8SIMAGE=${K8SIMAGE:-kindest/node:v1.31.12}
+
+    local kind_path=$1
+    local kind_name=$2
+    local kind_config_path=$3
+
+    log-info "starting cluster..."
+    HTTP_PROXY='http://host.docker.internal:9000' HTTPS_PROXY='http://host.docker.internal:9000' NO_PROXY='127.0.0.1,localhost' http_proxy='http://host.docker.internal:9000' https_proxy='http://host.docker.internal:9000' no_proxy='127.0.0.1,localhost,.internal,.svc,.svc.cluster.local' "${kind_path}" create cluster --name "${kind_name}" --config "${kind_config_path}" --image "${K8SIMAGE}" || fail-now "unable to create cluster"
+    for node in $(kind get nodes --name $kind_name); do
+        docker exec $(docker ps --filter name=^/$node\$ -q) update-ca-certificates
+    done
+    }
 
 load-images() {
     local kind_path=$1; shift

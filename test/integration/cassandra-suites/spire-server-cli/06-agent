@@ -1,0 +1,13 @@
+#!/bin/bash
+
+# Verify agent count correctly indicates three agents
+MAXCHECKS=30
+CHECKINTERVAL=1
+for ((i=1;i<=MAXCHECKS;i++)); do
+    log-info "checking that the server counts 3 agents ($i of $MAXCHECKS max)..."
+    if docker compose exec -T spire-server /opt/spire/bin/spire-server agent count | grep 3; then
+	exit 0
+    fi
+    sleep "${CHECKINTERVAL}"
+done
+fail-now "failed to count 3 agents"

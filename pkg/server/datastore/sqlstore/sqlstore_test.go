@@ -1,5 +1,6 @@
 package sqlstore
 
+// TODO(tjons): fix missing Require() calls that allow silent failures
 import (
 	"context"
 	"crypto/x509"
@@ -8,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
-	"os"
 	"path/filepath"
 	"reflect"
 	"runtime"
@@ -23,12 +23,14 @@ import (
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
+	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/protoutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/pkg/server/datastore"
+	"github.com/spiffe/spire/pkg/server/datastore/testdata"
 	"github.com/spiffe/spire/proto/private/server/journal"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/clock"
@@ -129,11 +131,12 @@ func (s *PluginSuite) newPlugin() *Plugin {
 	case "":
 		s.nextID++
 		dbPath := filepath.ToSlash(filepath.Join(s.dir, fmt.Sprintf("db%d.sqlite3", s.nextID)))
-		err := ds.Configure(ctx, fmt.Sprintf(`
+		_, err := ds.Configure(ctx, &configv1.ConfigureRequest{
+			HclConfiguration: fmt.Sprintf(`
 			database_type = "sqlite3"
 			log_sql = true
 			connection_string = "%s"
-		`, dbPath))
+		`, dbPath)})
 		s.Require().NoError(err)
 
 		// assert that WAL journal mode is enabled
@@ -153,23 +156,25 @@ func (s *PluginSuite) newPlugin() *Plugin {
 		s.T().Logf("CONN STRING: %q", TestConnString)
 		s.Require().NotEmpty(TestConnString, "connection string must be set")
 		wipeMySQL(s.T(), TestConnString)
-		err := ds.Configure(ctx, fmt.Sprintf(`
+		_, err := ds.Configure(ctx, &configv1.ConfigureRequest{
+			HclConfiguration: fmt.Sprintf(`
 			database_type = "mysql"
 			log_sql = true
 			connection_string = "%s"
 			ro_connection_string = "%s"
-		`, TestConnString, TestROConnString))
+		`, TestConnString, TestROConnString)})
 		s.Require().NoError(err)
 	case "postgres":
 		s.T().Logf("CONN STRING: %q", TestConnString)
 		s.Require().NotEmpty(TestConnString, "connection string must be set")
 		wipePostgres(s.T(), TestConnString)
-		err := ds.Configure(ctx, fmt.Sprintf(`
+		_, err := ds.Configure(ctx, &configv1.ConfigureRequest{
+			HclConfiguration: fmt.Sprintf(`
 			database_type = "postgres"
 			log_sql = true
 			connection_string = "%s"
 			ro_connection_string = "%s"
-		`, TestConnString, TestROConnString))
+		`, TestConnString, TestROConnString)})
 		s.Require().NoError(err)
 	default:
 		s.Require().FailNowf("Unsupported external test dialect %q", TestDialect)
@@ -179,10 +184,11 @@ func (s *PluginSuite) newPlugin() *Plugin {
 }
 
 func (s *PluginSuite) TestInvalidPluginConfiguration() {
-	err := s.ds.Configure(ctx, `
+	_, err := s.ds.Configure(ctx, &configv1.ConfigureRequest{
+		HclConfiguration: `
 		database_type = "wrong"
 		connection_string = "bad"
-	`)
+	`})
 	s.RequireErrorContains(err, "datastore-sql: unsupported database_type: wrong")
 }
 
@@ -209,28 +215,35 @@ func (s *PluginSuite) TestInvalidAWSConfiguration() {
 	}
 	for _, testCase := range testCases {
 		s.T().Run(testCase.name, func(t *testing.T) {
-			err := s.ds.Configure(ctx, testCase.config)
+			_, err := s.ds.Configure(ctx, &configv1.ConfigureRequest{
+				HclConfiguration: testCase.config,
+			})
 			s.RequireErrorContains(err, testCase.expectedErr)
 		})
 	}
 }
 
 func (s *PluginSuite) TestInvalidMySQLConfiguration() {
-	err := s.ds.Configure(ctx, `
+	_, err := s.ds.Configure(ctx, &configv1.ConfigureRequest{
+		HclConfiguration: `
 		database_type = "mysql"
 		connection_string = "username:@tcp(127.0.0.1)/spire_test"
-	`)
+	`,
+	})
 	s.RequireErrorContains(err, "datastore-sql: invalid mysql config: missing parseTime=true param in connection_string")
 
-	err = s.ds.Configure(ctx, `
+	_, err = s.ds.Configure(ctx, &configv1.ConfigureRequest{
+		HclConfiguration: fmt.Sprintf(`
 		database_type = "mysql"
 		ro_connection_string = "username:@tcp(127.0.0.1)/spire_test"
-	`)
+	`, TestConnString, TestROConnString)})
 	s.RequireErrorContains(err, "datastore-sql: connection_string must be set")
 
-	err = s.ds.Configure(ctx, `
+	_, err = s.ds.Configure(ctx, &configv1.ConfigureRequest{
+		HclConfiguration: `
 		database_type = "mysql"
-	`)
+	`,
+	})
 	s.RequireErrorContains(err, "datastore-sql: connection_string must be set")
 }
 
@@ -1996,7 +2009,7 @@ func (s *PluginSuite) TestSetNodeSelectorsUnderLoad() {
 func (s *PluginSuite) TestCreateRegistrationEntry() {
 	now := time.Now().Unix()
 	var validRegistrationEntries []*common.RegistrationEntry
-	s.getTestDataFromJSONFile(filepath.Join("testdata", "valid_registration_entries.json"), &validRegistrationEntries)
+	s.getStaticTestData(testdata.ValidRegistrationEntries, &validRegistrationEntries)
 
 	for _, validRegistrationEntry := range validRegistrationEntries {
 		registrationEntry, err := s.ds.CreateRegistrationEntry(ctx, validRegistrationEntry)
@@ -2169,7 +2182,7 @@ func (s *PluginSuite) TestCreateOrReturnRegistrationEntry() {
 
 func (s *PluginSuite) TestCreateInvalidRegistrationEntry() {
 	var invalidRegistrationEntries []*common.RegistrationEntry
-	s.getTestDataFromJSONFile(filepath.Join("testdata", "invalid_registration_entries.json"), &invalidRegistrationEntries)
+	s.getStaticTestData(testdata.InvalidRegistrationEntries, &invalidRegistrationEntries)
 
 	for _, invalidRegistrationEntry := range invalidRegistrationEntries {
 		registrationEntry, err := s.ds.CreateRegistrationEntry(ctx, invalidRegistrationEntry)
@@ -3649,7 +3662,7 @@ func (s *PluginSuite) TestDeleteRegistrationEntry() {
 func (s *PluginSuite) TestListParentIDEntries() {
 	now := time.Now().Unix()
 	allEntries := make([]*common.RegistrationEntry, 0)
-	s.getTestDataFromJSONFile(filepath.Join("testdata", "entries.json"), &allEntries)
+	s.getStaticTestData(testdata.Entries, &allEntries)
 	tests := []struct {
 		name                string
 		registrationEntries []*common.RegistrationEntry
@@ -3692,7 +3705,7 @@ func (s *PluginSuite) TestListParentIDEntries() {
 func (s *PluginSuite) TestListSelectorEntries() {
 	now := time.Now().Unix()
 	allEntries := make([]*common.RegistrationEntry, 0)
-	s.getTestDataFromJSONFile(filepath.Join("testdata", "entries.json"), &allEntries)
+	s.getStaticTestData(testdata.Entries, &allEntries)
 	tests := []struct {
 		name                string
 		registrationEntries []*common.RegistrationEntry
@@ -3744,7 +3757,7 @@ func (s *PluginSuite) TestListSelectorEntries() {
 func (s *PluginSuite) TestListEntriesBySelectorSubset() {
 	now := time.Now().Unix()
 	allEntries := make([]*common.RegistrationEntry, 0)
-	s.getTestDataFromJSONFile(filepath.Join("testdata", "entries.json"), &allEntries)
+	s.getStaticTestData(testdata.Entries, &allEntries)
 	tests := []struct {
 		name                string
 		registrationEntries []*common.RegistrationEntry
@@ -3802,7 +3815,7 @@ func (s *PluginSuite) TestListEntriesBySelectorSubset() {
 func (s *PluginSuite) TestListSelectorEntriesSuperset() {
 	now := time.Now().Unix()
 	allEntries := make([]*common.RegistrationEntry, 0)
-	s.getTestDataFromJSONFile(filepath.Join("testdata", "entries.json"), &allEntries)
+	s.getStaticTestData(testdata.Entries, &allEntries)
 	tests := []struct {
 		name                string
 		registrationEntries []*common.RegistrationEntry
@@ -3856,7 +3869,7 @@ func (s *PluginSuite) TestListSelectorEntriesSuperset() {
 func (s *PluginSuite) TestListEntriesBySelectorMatchAny() {
 	now := time.Now().Unix()
 	allEntries := make([]*common.RegistrationEntry, 0)
-	s.getTestDataFromJSONFile(filepath.Join("testdata", "entries.json"), &allEntries)
+	s.getStaticTestData(testdata.Entries, &allEntries)
 	tests := []struct {
 		name                string
 		registrationEntries []*common.RegistrationEntry
@@ -3925,7 +3938,7 @@ func (s *PluginSuite) TestListEntriesBySelectorMatchAny() {
 func (s *PluginSuite) TestListEntriesByFederatesWithExact() {
 	now := time.Now().Unix()
 	allEntries := make([]*common.RegistrationEntry, 0)
-	s.getTestDataFromJSONFile(filepath.Join("testdata", "entries_federates_with.json"), &allEntries)
+	s.getStaticTestData(testdata.EntriesFederatesWith, &allEntries)
 	tests := []struct {
 		name                string
 		registrationEntries []*common.RegistrationEntry
@@ -4001,7 +4014,7 @@ func (s *PluginSuite) TestListEntriesByFederatesWithExact() {
 func (s *PluginSuite) TestListEntriesByFederatesWithSubset() {
 	now := time.Now().Unix()
 	allEntries := make([]*common.RegistrationEntry, 0)
-	s.getTestDataFromJSONFile(filepath.Join("testdata", "entries_federates_with.json"), &allEntries)
+	s.getStaticTestData(testdata.EntriesFederatesWith, &allEntries)
 	tests := []struct {
 		name                string
 		registrationEntries []*common.RegistrationEntry
@@ -4066,7 +4079,7 @@ func (s *PluginSuite) TestListEntriesByFederatesWithSubset() {
 func (s *PluginSuite) TestListEntriesByFederatesWithMatchAny() {
 	now := time.Now().Unix()
 	allEntries := make([]*common.RegistrationEntry, 0)
-	s.getTestDataFromJSONFile(filepath.Join("testdata", "entries_federates_with.json"), &allEntries)
+	s.getStaticTestData(testdata.EntriesFederatesWith, &allEntries)
 	tests := []struct {
 		name                string
 		registrationEntries []*common.RegistrationEntry
@@ -4138,7 +4151,7 @@ func (s *PluginSuite) TestListEntriesByFederatesWithMatchAny() {
 func (s *PluginSuite) TestListEntriesByFederatesWithSuperset() {
 	now := time.Now().Unix()
 	allEntries := make([]*common.RegistrationEntry, 0)
-	s.getTestDataFromJSONFile(filepath.Join("testdata", "entries_federates_with.json"), &allEntries)
+	s.getStaticTestData(testdata.EntriesFederatesWith, &allEntries)
 	tests := []struct {
 		name                string
 		registrationEntries []*common.RegistrationEntry
@@ -5223,10 +5236,12 @@ func (s *PluginSuite) TestMigration() {
 					dump = minimalDB()
 				}
 				dumpDB(t, dbPath, dump)
-				err := s.ds.Configure(ctx, fmt.Sprintf(`
-					database_type = "sqlite3"
-					connection_string = %q
-				`, dbURI))
+				_, err := s.ds.Configure(ctx, &configv1.ConfigureRequest{
+					HclConfiguration: fmt.Sprintf(`
+						database_type = "sqlite3"
+						connection_string = %q
+					`, dbURI),
+				})
 				if migrationSupported {
 					require.NoError(err)
 				} else {
@@ -5458,11 +5473,8 @@ func (s *PluginSuite) TestBuildQuestionsAndPlaceholders() {
 	}
 }
 
-func (s *PluginSuite) getTestDataFromJSONFile(filePath string, jsonValue any) {
-	entriesJSON, err := os.ReadFile(filePath)
-	s.Require().NoError(err)
-
-	err = json.Unmarshal(entriesJSON, &jsonValue)
+func (s *PluginSuite) getStaticTestData(data []byte, jsonValue any) {
+	err := json.Unmarshal(data, &jsonValue)
 	s.Require().NoError(err)
 }
 
@@ -5565,12 +5577,14 @@ func (s *PluginSuite) TestConfigure() {
 
 			log, _ := test.NewNullLogger()
 			p := New(log)
-			err := p.Configure(ctx, fmt.Sprintf(`
-				database_type = "sqlite3"
-				log_sql = true
-				connection_string = "%s"
-				%s
-			`, dbPath, tt.giveDBConfig))
+			_, err := p.Configure(ctx, &configv1.ConfigureRequest{
+				HclConfiguration: fmt.Sprintf(`
+					database_type = "sqlite3"
+					log_sql = true
+					connection_string = "%s"
+					%s
+				`, dbPath, tt.giveDBConfig),
+			})
 			require.NoError(t, err)
 			defer p.Close()
 

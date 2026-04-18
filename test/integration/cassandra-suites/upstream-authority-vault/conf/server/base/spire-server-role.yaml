@@ -1,0 +1,26 @@
+# Role for the SPIRE server
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  namespace: spire
+  name: spire-server-role
+rules:
+  # allow "get" access to pods (to resolve selectors for PSAT attestation)
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get"]
+    # allow access to "get" and "patch" the spire-bundle ConfigMap (for SPIRE
+    # agent bootstrapping, see the spire-bundle ConfigMap below)
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    resourceNames: ["spire-bundle"]
+    verbs: ["get", "patch"]
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["create"]
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    verbs: ["create", "update", "get"]
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["create"]

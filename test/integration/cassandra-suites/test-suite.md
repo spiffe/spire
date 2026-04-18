@@ -1,0 +1,47 @@
+# Integration Test Suite Stability
+- [x]: admin-endpoints
+- [x]: agent-cli
+- [x]: datastore-cassandra
+- [x]: debug-endpoints
+- [x]: delegatedidentity
+- [x]: downstream-endpoints
+- [ ]: entries
+- [x]: envoy-sds-v3
+  - some build tweaks needed
+- [x]: envoy-sds-v3-spiffe-auth
+  - just build tweaks needed
+  - Dockerfile in that dir is unused I think... can remove it?
+- [ ]: events-based-entries -> entries
+- [x]: evict-agent
+- [x]: fetch-jwt-svids
+- [x]: fetch-wit-svids
+- [x]: fetch-x509-svids
+- [x]: force-rotation-jwt-authority
+- [x]: force-rotation-self-signed
+  - needs enhancements to docker image to pass locally
+- [ ]: force-rotation-upstream-authority
+  - fails when using SQL and when using Cassandra, I suspect this is due to openssl version issues due to running tests on OS X
+- [x]: ghostunnel-federation
+  - required build customizations, nothing else
+- [x]: join-token
+- [x]: k8s
+  - kubernetes probe delays required
+- [x]: nested-rotation
+- [x]: node-attestation
+- [x]: node-re-attestation
+- [ ]: oidc-discovery-provider
+- [x]: rotation
+- [x]: self-test
+- [ ]: spire-server-cli
+    - needs enhancements to docker image to pass locally
+    - fails due to incorrect count, this is very serious and indicates potential data loss.
+- [x]: svidstore
+- [x]: sync-authorized-entries
+- [ ]: upgrade
+- [x]: upstream-authority-cert-manager
+  - required minor modifications to path checking in cert, likely due to openssl version disparity.
+  - standard kubernetes probe delays required.
+- [x]: upstream-authority-ejbca
+  - standard kubernetes probe delays required.
+- [x]: upstream-authority-vault
+  - standard kubernetes probe delays required.

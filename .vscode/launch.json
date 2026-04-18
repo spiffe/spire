@@ -1,0 +1,72 @@
+{
+    "configurations": [
+        {
+            "name": "Run migrations",
+            "type": "go",
+            "request": "launch",
+            "mode": "auto",
+            "program": "${workspaceFolder}/pkg/server/datastore/cassandra/migrationhelper/main.go",
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "name": "Run SPIRE server - cassandra",
+            "type": "go",
+            "request": "launch",
+            "mode": "debug",
+            "program": "${workspaceFolder}/cmd/spire-server/main.go",
+            "args": [
+                "run",
+                "-config",
+                "./dev/server/server_cass.conf"
+            ],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "name": "Run SPIRE server - cassandra external",
+            "type": "go",
+            "request": "launch",
+            "mode": "debug",
+            "program": "${workspaceFolder}/cmd/spire-server/main.go",
+            "args": [
+                "run",
+                "-config",
+                "./dev/server/server_cass_external.conf"
+            ],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "name": "Run SPIRE server - postgres",
+            "type": "go",
+            "request": "launch",
+            "mode": "debug",
+            "program": "${workspaceFolder}/cmd/spire-server/main.go",
+            "args": [
+                "run",
+                "-config",
+                "./dev/server/server_pg.conf"
+            ],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "name": "Debug Cassandra integration tests",
+            "type": "go",
+            "request": "launch",
+            "mode": "test",
+            "program": "${workspaceFolder}/pkg/server/datastore",
+            "buildFlags": [
+                "-ldflags",
+                "-X github.com/spiffe/spire/pkg/server/datastore_test.TestDialect=cassandra -X github.com/spiffe/spire/pkg/server/datastore_test.TestConnString=[\"localhost:9053\"];spire_test"
+            ],
+            "cwd": "${workspaceFolder}/pkg/server/datastore",
+            "args": [
+                "-test.parallel",
+                "1",
+                "-test.v",
+                "-testify.m",
+                "^(TestCreateOrReturnRegistrationEntry)$"
+            ],
+            "preLaunchTask":"start cassandra",
+            "postDebugTask": "stop cassandra",
+        },
+    ]   
+}

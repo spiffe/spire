@@ -35,6 +35,10 @@ type BuiltInConfig struct {
 
 	// HostServices are the host service servers provided to the plugin.
 	HostServices []pluginsdk.ServiceServer
+
+	// MaxGrpcMessageSize is the maximum gRPC message size that the plugin should be configured to send.
+	// Defaults to 4 MB if not set.
+	MaxGrpcMessageSize int
 }
 
 func LoadBuiltIn(ctx context.Context, builtIn BuiltIn, config BuiltInConfig) (_ Plugin, err error) {
@@ -51,6 +55,7 @@ func loadBuiltIn(ctx context.Context, builtIn BuiltIn, config BuiltInConfig) (_ 
 		pluginName:   builtIn.Name,
 		log:          config.Log,
 		hostServices: config.HostServices,
+		maxGrpcMessageSize: config.MaxGrpcMessageSize,
 	}
 
 	var closers closerGroup
@@ -61,14 +66,14 @@ func loadBuiltIn(ctx context.Context, builtIn BuiltIn, config BuiltInConfig) (_ 
 	}()
 	closers = append(closers, dialer)
 
-	builtinServer, serverCloser := newBuiltInServer(config.Log)
+	builtinServer, serverCloser := newBuiltInServer(config.Log, config.MaxGrpcMessageSize)
 	closers = append(closers, serverCloser)
 
 	pluginServers := append([]pluginsdk.ServiceServer{builtIn.Plugin}, builtIn.Services...)
 
 	private.Register(builtinServer, pluginServers, logger, dialer)
 
-	builtinConn, err := startPipeServer(builtinServer, config.Log)
+	builtinConn, err := startPipeServer(builtinServer, config.Log, config.MaxGrpcMessageSize)
 	if err != nil {
 		return nil, err
 	}
@@ -82,19 +87,22 @@ func loadBuiltIn(ctx context.Context, builtIn BuiltIn, config BuiltInConfig) (_ 
 	return newPlugin(ctx, builtinConn, info, config.Log, closers, config.HostServices)
 }
 
-func newBuiltInServer(log logrus.FieldLogger) (*grpc.Server, io.Closer) {
+func newBuiltInServer(log logrus.FieldLogger, maxGrpcMessageSize int) (*grpc.Server, io.Closer) {
 	drain := &drainHandlers{}
 	return grpc.NewServer(
 		grpc.ChainStreamInterceptor(drain.StreamServerInterceptor, streamPanicInterceptor(log)),
 		grpc.ChainUnaryInterceptor(drain.UnaryServerInterceptor, unaryPanicInterceptor(log)),
+		grpc.MaxSendMsgSize(maxGrpcMessageSize),
+		grpc.MaxRecvMsgSize(maxGrpcMessageSize),
 	), closerFunc(drain.Wait)
 }
 
 type builtinDialer struct {
-	pluginName   string
-	log          logrus.FieldLogger
-	hostServices []pluginsdk.ServiceServer
-	conn         *pipeConn
+	pluginName         string
+	log                logrus.FieldLogger
+	hostServices       []pluginsdk.ServiceServer
+	conn               *pipeConn
+	maxGrpcMessageSize int
 }
 
 func (d *builtinDialer) DialHost(context.Context) (grpc.ClientConnInterface, error) {
@@ -102,7 +110,7 @@ func (d *builtinDialer) DialHost(context.Context) (grpc.ClientConnInterface, err
 		return d.conn, nil
 	}
 	server := newHostServer(d.log, d.pluginName, d.hostServices)
-	conn, err := startPipeServer(server, d.log)
+	conn, err := startPipeServer(server, d.log, d.maxGrpcMessageSize)
 	if err != nil {
 		return nil, err
 	}
@@ -122,7 +130,7 @@ type pipeConn struct {
 	io.Closer
 }
 
-func startPipeServer(server *grpc.Server, log logrus.FieldLogger) (_ *pipeConn, err error) {
+func startPipeServer(server *grpc.Server, log logrus.FieldLogger, maxGrpcMessageSize int) (_ *pipeConn, err error) {
 	var closers closerGroup
 
 	pipeNet := newPipeNet()
@@ -146,6 +154,10 @@ func startPipeServer(server *grpc.Server, log logrus.FieldLogger) (_ *pipeConn, 
 		"passthrough:IGNORED",
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithContextDialer(pipeNet.DialContext),
+		grpc.WithDefaultCallOptions(
+			grpc.MaxCallSendMsgSize(maxGrpcMessageSize),
+			grpc.MaxCallRecvMsgSize(maxGrpcMessageSize),
+		),
 	)
 	if err != nil {
 		return nil, err

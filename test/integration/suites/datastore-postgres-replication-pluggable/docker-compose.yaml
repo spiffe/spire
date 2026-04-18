@@ -1,0 +1,141 @@
+services:
+  postgres-13-readwrite:
+    image: postgres:13
+    command: -c fsync=off
+    environment:
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_USER=postgres
+      - POSTGRES_DB=spire
+      - PG_REP_USER=rep
+      - PG_REP_PASSWORD=pass
+    volumes:
+      - ./principal/init.sh:/docker-entrypoint-initdb.d/init.sh
+    ports:
+      - "9999:5432"
+  postgres-13-readonly:
+    image: postgres:13
+    command: -c fsync=off
+    user: postgres
+    environment:
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_USER=postgres
+      - PG_REP_USER=rep
+      - PG_REP_PASSWORD=pass
+      - PRINCIPAL_NAME=postgres-13-readwrite
+    entrypoint: ["/docker-entrypoint.sh", "postgres"]
+    volumes:
+      - ./replica/docker-entrypoint.sh:/docker-entrypoint.sh
+    ports:
+      - "10000:5432"
+  postgres-14-readwrite:
+    image: postgres:14
+    command: -c fsync=off
+    environment:
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_USER=postgres
+      - POSTGRES_DB=spire
+      - PG_REP_USER=rep
+      - PG_REP_PASSWORD=pass
+    volumes:
+      - ./principal/init.sh:/docker-entrypoint-initdb.d/init.sh
+    ports:
+      - "9999:5432"
+  postgres-14-readonly:
+    image: postgres:14
+    command: -c fsync=off
+    user: postgres
+    environment:
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_USER=postgres
+      - PG_REP_USER=rep
+      - PG_REP_PASSWORD=pass
+      - PRINCIPAL_NAME=postgres-14-readwrite
+    entrypoint: ["/docker-entrypoint.sh", "postgres"]
+    volumes:
+      - ./replica/docker-entrypoint.sh:/docker-entrypoint.sh
+    ports:
+      - "10000:5432"
+  postgres-15-readwrite:
+    image: postgres:15
+    command: -c fsync=off
+    environment:
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_USER=postgres
+      - POSTGRES_DB=spire
+      - PG_REP_USER=rep
+      - PG_REP_PASSWORD=pass
+    volumes:
+      - ./principal/init.sh:/docker-entrypoint-initdb.d/init.sh
+    ports:
+      - "9999:5432"
+  postgres-15-readonly:
+    image: postgres:15
+    command: -c fsync=off
+    user: postgres
+    environment:
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_USER=postgres
+      - PG_REP_USER=rep
+      - PG_REP_PASSWORD=pass
+      - PRINCIPAL_NAME=postgres-15-readwrite
+    entrypoint: ["/docker-entrypoint.sh", "postgres"]
+    volumes:
+      - ./replica/docker-entrypoint.sh:/docker-entrypoint.sh
+    ports:
+      - "10000:5432"
+  postgres-16-readwrite:
+    image: postgres:16
+    command: -c fsync=off
+    environment:
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_USER=postgres
+      - POSTGRES_DB=spire
+      - PG_REP_USER=rep
+      - PG_REP_PASSWORD=pass
+    volumes:
+      - ./principal/init.sh:/docker-entrypoint-initdb.d/init.sh
+    ports:
+      - "9999:5432"
+  postgres-16-readonly:
+    image: postgres:16
+    command: -c fsync=off
+    user: postgres
+    environment:
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_USER=postgres
+      - PG_REP_USER=rep
+      - PG_REP_PASSWORD=pass
+      - PRINCIPAL_NAME=postgres-16-readwrite
+    entrypoint: ["/docker-entrypoint.sh", "postgres"]
+    volumes:
+      - ./replica/docker-entrypoint.sh:/docker-entrypoint.sh
+    ports:
+      - "10000:5432"
+  postgres-17-readwrite:
+    image: postgres:17
+    command: -c fsync=off
+    environment:
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_USER=postgres
+      - POSTGRES_DB=spire
+      - PG_REP_USER=rep
+      - PG_REP_PASSWORD=pass
+    volumes:
+      - ./principal/init.sh:/docker-entrypoint-initdb.d/init.sh
+    ports:
+      - "9999:5432"
+  postgres-17-readonly:
+    image: postgres:17
+    command: -c fsync=off
+    user: postgres
+    environment:
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_USER=postgres
+      - PG_REP_USER=rep
+      - PG_REP_PASSWORD=pass
+      - PRINCIPAL_NAME=postgres-17-readwrite
+    entrypoint: ["/docker-entrypoint.sh", "postgres"]
+    volumes:
+      - ./replica/docker-entrypoint.sh:/docker-entrypoint.sh
+    ports:
+      - "10000:5432"

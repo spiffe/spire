@@ -1,0 +1,40 @@
+#!/bin/bash
+
+set -e -o pipefail
+
+source init-kubectl
+
+expURI[0]="URI:spiffe://example.org/ns/foo/sa/bar"
+expURI[1]="URI:spiffe://example.org"
+expURI[2]="URI:spiffe://intermediate-ca-vault"
+
+expRootURI="URI:spiffe://root-ca"
+
+log-debug "verifying CA..."
+
+mintx509svid_out=mintx509svid-out.txt
+./bin/kubectl exec -n spire $(./bin/kubectl get pod -n spire -o name) -- /opt/spire/bin/spire-server x509 mint -spiffeID spiffe://example.org/ns/foo/sa/bar > $mintx509svid_out
+
+svid=svid.pem
+sed -n '/-----BEGIN CERTIFICATE-----/,/^$/{/^$/q; p;}' $mintx509svid_out > $svid
+
+bundle=bundle.pem
+sed -n '/Root CAs:/,/^$/p' $mintx509svid_out | sed -n '/-----BEGIN CERTIFICATE-----/,/^$/{/^$/q; p;}' > $bundle
+
+idx=0
+uris=($(openssl crl2pkcs7 -nocrl -certfile $svid | openssl pkcs7 -print_certs -text -noout | grep "URI:spiffe:"))
+for uri in ${uris[@]}; do
+  if [[ "$uri" == "${expURI[${idx}]}" ]]; then
+    log-info "${expURI[${idx}]} is verified"
+  else
+    fail-now "exp=${expURI[${idx}]}, got=$uri"
+  fi
+  idx=`expr $idx + 1`
+done
+
+rootURI=($(openssl x509 -in $bundle -noout -text | grep "URI:spiffe:"))
+if [[ "$rootURI" == "$expRootURI" ]]; then
+  log-info "$expRootURI is verified"
+else
+  fail-now "exp=$expRootURI, got=$rootURI"
+fi

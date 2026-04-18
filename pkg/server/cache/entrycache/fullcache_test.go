@@ -16,6 +16,7 @@ import (
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
+	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/protoutil"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/datastore"
@@ -819,7 +820,9 @@ func newSQLPlugin(ctx context.Context, tb testing.TB) datastore.DataStore {
 		require.FailNowf(tb, "Unsupported external test dialect %q", TestDialect)
 	}
 
-	err := p.Configure(ctx, cfg)
+	_, err := p.Configure(ctx, &configv1.ConfigureRequest{
+		HclConfiguration: cfg,
+	})
 	require.NoError(tb, err)
 
 	return p

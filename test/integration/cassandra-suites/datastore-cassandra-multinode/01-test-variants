@@ -1,0 +1,53 @@
+#!/bin/bash
+
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+
+docker-compose-up() {
+    if [ $# -eq 0 ]; then
+        log-debug "bringing up services..."
+    else
+        log-debug "bringing up $*..."
+    fi
+    docker compose -f "${DIR}/docker-compose.3-node-1-dc.yaml" up -d "$@" || fail-now "failed to bring up services."
+}
+
+cassandra-up() {
+    SERVICE=$1
+
+    docker-compose-up "${SERVICE}"
+
+    # Wait up to two minutes for each Cassandra node to be available. It should come up
+    # pretty quick on developer machines but CI/CD is slow.
+    MAXCHECKS=40
+    CHECKINTERVAL=3
+    READY=
+    for ((i=1;i<=MAXCHECKS;i++)); do
+        log-info "waiting for ${SERVICE} ($i of $MAXCHECKS max)..."
+        if docker compose -f "${DIR}/docker-compose.3-node-1-dc.yaml" exec -T "${SERVICE}" nodetool status >/dev/null; then
+            READY=1
+            break
+        fi
+        sleep "${CHECKINTERVAL}"
+    done
+
+    if [ -z ${READY} ]; then
+        fail-now "timed out waiting for ${SERVICE} to be ready"
+    fi
+}
+
+test-cassandra() {
+    log-info "starting Cassandra cluster with one datacenter and 3 nodes..."
+    cassandra-up cassandra-1
+    log-info "Cassandra node 1 is up, bringing up node 2..."
+    cassandra-up cassandra-2
+    log-info "Cassandra node 2 is up, bringing up node 3..."
+    cassandra-up cassandra-3
+    log-info "Cassandra node 3 is up, cluster is ready for testing"
+
+    log-info "running tests for Cassandra datastore plugin with one datacenter and 3 nodes..."
+    ./cassandra.test -test.parallel 1 -test.v || fail-now "tests failed"
+    # A single test can be focused here if desired, like this:
+    # ./cassandra.test -test.v -testify.m "^(TestListRegistrationEntries)$" || fail-now "tests failed"
+}
+
+test-cassandra cassandra-5 || exit 1

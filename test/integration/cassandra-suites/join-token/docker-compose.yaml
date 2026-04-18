@@ -1,0 +1,24 @@
+services:
+  spire-server:
+    image: spire-server:latest-local
+    env_file:
+      - ../.env
+    volumes:
+      - ./conf/server:/opt/spire/conf/server
+    command: ["-config", "/opt/spire/conf/server/server.conf"]
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+  spire-agent:
+    image: spire-agent:latest-local
+    env_file:
+      - ../.env
+    volumes:
+      - ./conf/agent:/opt/spire/conf/agent
+    command: ["-config", "/opt/spire/conf/agent/agent.conf"]
+  bad-spire-agent:
+    image: spire-agent:latest-local
+    env_file:
+      - ../.env
+    volumes:
+      - ./conf/bad-agent:/opt/spire/conf/agent
+    command: ["-config", "/opt/spire/conf/agent/agent.conf"]
