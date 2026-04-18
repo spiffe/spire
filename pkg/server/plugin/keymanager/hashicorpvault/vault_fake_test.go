@@ -8,6 +8,14 @@ import (
 )
 
 const (
+	testRootCert   = "testdata/root-cert.pem"
+	testClientCert = "testdata/client-cert.pem"
+	testClientKey  = "testdata/client-key.pem"
+	testServerCert = "testdata/server-cert.pem"
+	testServerKey  = "testdata/server-key.pem"
+)
+
+const (
 	defaultTLSAuthEndpoint         = "PUT /v1/auth/cert/login"
 	defaultAppRoleAuthEndpoint     = "PUT /v1/auth/approle/login"
 	defaultK8sAuthEndpoint         = "PUT /v1/auth/kubernetes/login"
@@ -413,19 +421,6 @@ k8s_auth {
   "auth": null
 }`
 
-	testGetKeysResponseNoKeys = `{
-  "request_id": "3d02d2cf-baa4-a4ca-90d8-448b6c3ce6b0",
-  "lease_id": "",
-  "renewable": false,
-  "lease_duration": 0,
-  "data": {
-    "keys": []
-  },
-  "wrap_info": null,
-  "warnings": null,
-  "auth": null
-}`
-
 	testGetKeyResponseP256 = `{
   "request_id": "646eddbd-83fd-0cc1-387b-f1a17fa88c3d",
   "lease_id": "",
@@ -455,6 +450,19 @@ k8s_auth {
     "supports_encryption": false,
     "supports_signing": true,
     "type": "ecdsa-p256"
+  },
+  "wrap_info": null,
+  "warnings": null,
+  "auth": null
+}`
+
+	testGetKeysResponseNoKeys = `{
+  "request_id": "3d02d2cf-baa4-a4ca-90d8-448b6c3ce6b0",
+  "lease_id": "",
+  "renewable": false,
+  "lease_duration": 0,
+  "data": {
+    "keys": []
   },
   "wrap_info": null,
   "warnings": null,

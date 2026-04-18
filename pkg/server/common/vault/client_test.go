@@ -1,6 +1,7 @@
 package vault
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
@@ -38,14 +39,16 @@ func TestNewClientConfigWithDefaultValues(t *testing.T) {
 		CertAuthMountPoint:    "", // Expect the default value to be used.
 		AppRoleAuthMountPoint: "", // Expect the default value to be used.
 		K8sAuthMountPoint:     "", // Expect the default value to be used.
+		TransitEnginePath:     "", // Expect the default value to be used.
 	}
 
 	cc, err := NewClientConfig(p, hclog.Default())
 	require.NoError(t, err)
-	require.Equal(t, defaultPKIMountPoint, cc.clientParams.PKIMountPoint)
-	require.Equal(t, defaultCertMountPoint, cc.clientParams.CertAuthMountPoint)
-	require.Equal(t, defaultAppRoleMountPoint, cc.clientParams.AppRoleAuthMountPoint)
-	require.Equal(t, defaultK8sMountPoint, cc.clientParams.K8sAuthMountPoint)
+	require.Equal(t, defaultPKIMountPoint, cc.ClientParams.PKIMountPoint)
+	require.Equal(t, defaultCertMountPoint, cc.ClientParams.CertAuthMountPoint)
+	require.Equal(t, defaultAppRoleMountPoint, cc.ClientParams.AppRoleAuthMountPoint)
+	require.Equal(t, defaultK8sMountPoint, cc.ClientParams.K8sAuthMountPoint)
+	require.Equal(t, defaultTransitEnginePath, cc.ClientParams.TransitEnginePath)
 }
 
 func TestNewClientConfigWithGivenValuesInsteadOfDefaults(t *testing.T) {
@@ -56,14 +59,16 @@ func TestNewClientConfigWithGivenValuesInsteadOfDefaults(t *testing.T) {
 		CertAuthMountPoint:    "test-tls-cert",
 		AppRoleAuthMountPoint: "test-approle",
 		K8sAuthMountPoint:     "test-k8s",
+		TransitEnginePath:     "test-transit",
 	}
 
 	cc, err := NewClientConfig(p, hclog.Default())
 	require.NoError(t, err)
-	require.Equal(t, "test-pki", cc.clientParams.PKIMountPoint)
-	require.Equal(t, "test-tls-cert", cc.clientParams.CertAuthMountPoint)
-	require.Equal(t, "test-approle", cc.clientParams.AppRoleAuthMountPoint)
-	require.Equal(t, "test-k8s", cc.clientParams.K8sAuthMountPoint)
+	require.Equal(t, "test-pki", cc.ClientParams.PKIMountPoint)
+	require.Equal(t, "test-tls-cert", cc.ClientParams.CertAuthMountPoint)
+	require.Equal(t, "test-approle", cc.ClientParams.AppRoleAuthMountPoint)
+	require.Equal(t, "test-k8s", cc.ClientParams.K8sAuthMountPoint)
+	require.Equal(t, "test-transit", cc.ClientParams.TransitEnginePath)
 }
 
 func TestNewAuthenticatedClientCertAuth(t *testing.T) {
@@ -688,6 +693,310 @@ func TestSignIntermediateErrorFromEndpoint(t *testing.T) {
 
 	_, err = client.SignIntermediate(testTTL, csr)
 	spiretest.RequireGRPCStatusHasPrefix(t, err, codes.Internal, "failed to sign intermediate: Error making API request.")
+}
+
+func TestCreateKey(t *testing.T) {
+	fakeVaultServer := newFakeVaultServer()
+	fakeVaultServer.CertAuthResponseCode = 200
+	fakeVaultServer.CertAuthResponse = []byte(testCertAuthResponse)
+	fakeVaultServer.CreateKeyResponseCode = 204
+
+	s, addr, err := fakeVaultServer.NewTLSServer()
+	require.NoError(t, err)
+
+	s.Start()
+	defer s.Close()
+
+	cp := &ClientParams{
+		VaultAddr:      fmt.Sprintf("https://%v/", addr),
+		CACertPath:     testRootCert,
+		ClientCertPath: testClientCert,
+		ClientKeyPath:  testClientKey,
+	}
+
+	cc, err := NewClientConfig(cp, hclog.Default())
+	require.NoError(t, err)
+
+	renewCh := make(chan struct{})
+	client, err := cc.NewAuthenticatedClient(CERT, renewCh)
+	require.NoError(t, err)
+
+	err = client.CreateKey(context.Background(), "x509-CA-A", TransitKeyTypeRSA2048)
+	require.NoError(t, err)
+}
+
+func TestCreateKeyErrorFromEndpoint(t *testing.T) {
+	fakeVaultServer := newFakeVaultServer()
+	fakeVaultServer.CertAuthResponseCode = 200
+	fakeVaultServer.CertAuthResponse = []byte(testCertAuthResponse)
+	fakeVaultServer.CreateKeyResponseCode = 500
+	fakeVaultServer.CreateKeyResponse = []byte("test error")
+
+	s, addr, err := fakeVaultServer.NewTLSServer()
+	require.NoError(t, err)
+
+	s.Start()
+	defer s.Close()
+
+	retry := 0 // Disable retry
+	cp := &ClientParams{
+		MaxRetries:     &retry,
+		VaultAddr:      fmt.Sprintf("https://%v/", addr),
+		CACertPath:     testRootCert,
+		ClientCertPath: testClientCert,
+		ClientKeyPath:  testClientKey,
+	}
+
+	cc, err := NewClientConfig(cp, hclog.Default())
+	require.NoError(t, err)
+
+	renewCh := make(chan struct{})
+	client, err := cc.NewAuthenticatedClient(CERT, renewCh)
+	require.NoError(t, err)
+
+	err = client.CreateKey(context.Background(), "x509-CA-A", TransitKeyTypeRSA2048)
+	spiretest.RequireGRPCStatusHasPrefix(t, err, codes.Internal, "failed to create transit engine key: Error making API request.")
+}
+
+func TestGetKeysSingleKey(t *testing.T) {
+	fakeVaultServer := newFakeVaultServer()
+	fakeVaultServer.CertAuthResponseCode = 200
+	fakeVaultServer.CertAuthResponse = []byte(testCertAuthResponse)
+	fakeVaultServer.GetKeysResponseCode = 200
+	fakeVaultServer.GetKeysResponse = []byte(testGetKeysResponseOneKey)
+	fakeVaultServer.GetKeyResponseCode = 200
+	fakeVaultServer.GetKeyResponse = []byte(testGetKeyResponseP256)
+
+	s, addr, err := fakeVaultServer.NewTLSServer()
+	require.NoError(t, err)
+
+	s.Start()
+	defer s.Close()
+
+	cp := &ClientParams{
+		VaultAddr:      fmt.Sprintf("https://%v/", addr),
+		CACertPath:     testRootCert,
+		ClientCertPath: testClientCert,
+		ClientKeyPath:  testClientKey,
+	}
+
+	cc, err := NewClientConfig(cp, hclog.Default())
+	require.NoError(t, err)
+
+	renewCh := make(chan struct{})
+	client, err := cc.NewAuthenticatedClient(CERT, renewCh)
+	require.NoError(t, err)
+
+	resp, err := client.GetKeys(context.Background())
+	require.NoError(t, err)
+
+	require.Len(t, resp, 1)
+	require.Equal(t, "ab748227-3a10-40cc-87fd-2a5321aa638d-x509-CA-A", resp[0].KeyName)
+	require.NotEmpty(t, resp[0].KeyData)
+}
+
+func TestGetKeysNoKey(t *testing.T) {
+	fakeVaultServer := newFakeVaultServer()
+	fakeVaultServer.CertAuthResponseCode = 200
+	fakeVaultServer.CertAuthResponse = []byte(testCertAuthResponse)
+	fakeVaultServer.GetKeysResponseCode = 200
+	fakeVaultServer.GetKeysResponse = []byte(testGetKeysResponseNoKeys)
+
+	s, addr, err := fakeVaultServer.NewTLSServer()
+	require.NoError(t, err)
+
+	s.Start()
+	defer s.Close()
+
+	cp := &ClientParams{
+		VaultAddr:      fmt.Sprintf("https://%v/", addr),
+		CACertPath:     testRootCert,
+		ClientCertPath: testClientCert,
+		ClientKeyPath:  testClientKey,
+	}
+
+	cc, err := NewClientConfig(cp, hclog.Default())
+	require.NoError(t, err)
+
+	renewCh := make(chan struct{})
+	client, err := cc.NewAuthenticatedClient(CERT, renewCh)
+	require.NoError(t, err)
+
+	resp, err := client.GetKeys(context.Background())
+	require.NoError(t, err)
+
+	require.Empty(t, resp)
+}
+
+func TestGetKeysErrorFromListEndpoint(t *testing.T) {
+	fakeVaultServer := newFakeVaultServer()
+	fakeVaultServer.CertAuthResponseCode = 200
+	fakeVaultServer.CertAuthResponse = []byte(testCertAuthResponse)
+	fakeVaultServer.GetKeysResponseCode = 500
+	fakeVaultServer.GetKeysResponse = []byte("some error")
+
+	s, addr, err := fakeVaultServer.NewTLSServer()
+	require.NoError(t, err)
+
+	s.Start()
+	defer s.Close()
+
+	cp := &ClientParams{
+		VaultAddr:      fmt.Sprintf("https://%v/", addr),
+		CACertPath:     testRootCert,
+		ClientCertPath: testClientCert,
+		ClientKeyPath:  testClientKey,
+	}
+
+	cc, err := NewClientConfig(cp, hclog.Default())
+	require.NoError(t, err)
+
+	renewCh := make(chan struct{})
+	client, err := cc.NewAuthenticatedClient(CERT, renewCh)
+	require.NoError(t, err)
+
+	resp, err := client.GetKeys(context.Background())
+	spiretest.RequireGRPCStatusHasPrefix(t, err, codes.Internal, "transit engine list keys call failed: Error making API request.")
+	require.Empty(t, resp)
+}
+
+func TestGetKeysErrorFromKeyEndpoint(t *testing.T) {
+	fakeVaultServer := newFakeVaultServer()
+	fakeVaultServer.CertAuthResponseCode = 200
+	fakeVaultServer.CertAuthResponse = []byte(testCertAuthResponse)
+	fakeVaultServer.GetKeysResponseCode = 200
+	fakeVaultServer.GetKeysResponse = []byte(testGetKeysResponseOneKey)
+	fakeVaultServer.GetKeyResponseCode = 500
+	fakeVaultServer.GetKeyResponse = []byte("some error")
+
+	s, addr, err := fakeVaultServer.NewTLSServer()
+	require.NoError(t, err)
+
+	s.Start()
+	defer s.Close()
+
+	cp := &ClientParams{
+		VaultAddr:      fmt.Sprintf("https://%v/", addr),
+		CACertPath:     testRootCert,
+		ClientCertPath: testClientCert,
+		ClientKeyPath:  testClientKey,
+	}
+
+	cc, err := NewClientConfig(cp, hclog.Default())
+	require.NoError(t, err)
+
+	renewCh := make(chan struct{})
+	client, err := cc.NewAuthenticatedClient(CERT, renewCh)
+	require.NoError(t, err)
+
+	resp, err := client.GetKeys(context.Background())
+	spiretest.RequireGRPCStatusHasPrefix(t, err, codes.Internal, "failed to get transit engine key: Error making API request.")
+	require.Empty(t, resp)
+}
+
+func TestGetKey(t *testing.T) {
+	fakeVaultServer := newFakeVaultServer()
+	fakeVaultServer.CertAuthResponseCode = 200
+	fakeVaultServer.CertAuthResponse = []byte(testCertAuthResponse)
+	fakeVaultServer.GetKeyResponseCode = 200
+	fakeVaultServer.GetKeyResponse = []byte(testGetKeyResponseP256)
+
+	s, addr, err := fakeVaultServer.NewTLSServer()
+	require.NoError(t, err)
+
+	s.Start()
+	defer s.Close()
+
+	cp := &ClientParams{
+		VaultAddr:      fmt.Sprintf("https://%v/", addr),
+		CACertPath:     testRootCert,
+		ClientCertPath: testClientCert,
+		ClientKeyPath:  testClientKey,
+	}
+
+	cc, err := NewClientConfig(cp, hclog.Default())
+	require.NoError(t, err)
+
+	renewCh := make(chan struct{})
+	client, err := cc.NewAuthenticatedClient(CERT, renewCh)
+	require.NoError(t, err)
+
+	resp, err := client.getKey(context.Background(), "x509-CA-A")
+	require.NoError(t, err)
+
+	require.Equal(t, map[string]any{
+		"name":          "P-256",
+		"creation_time": "2024-09-16T18:18:54.284635756Z",
+		"public_key":    "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEV57LFbIQZzyZ2YcKZfB9mGWkUhJv\niRzIZOqV4wRHoUOZjMuhBMR2WviEsy65TYpcBjreAc6pbneiyhlTwPvgmw==\n-----END PUBLIC KEY-----\n",
+	}, resp)
+}
+
+func TestGetKeyErrorFromEndpoint(t *testing.T) {
+	fakeVaultServer := newFakeVaultServer()
+	fakeVaultServer.CertAuthResponseCode = 200
+	fakeVaultServer.CertAuthResponse = []byte(testCertAuthResponse)
+	fakeVaultServer.GetKeyResponseCode = 500
+	fakeVaultServer.GetKeyResponse = []byte("test error")
+
+	s, addr, err := fakeVaultServer.NewTLSServer()
+	require.NoError(t, err)
+
+	s.Start()
+	defer s.Close()
+
+	retry := 0 // Disable retry
+	cp := &ClientParams{
+		MaxRetries:     &retry,
+		VaultAddr:      fmt.Sprintf("https://%v/", addr),
+		CACertPath:     testRootCert,
+		ClientCertPath: testClientCert,
+		ClientKeyPath:  testClientKey,
+	}
+
+	cc, err := NewClientConfig(cp, hclog.Default())
+	require.NoError(t, err)
+
+	renewCh := make(chan struct{})
+	client, err := cc.NewAuthenticatedClient(CERT, renewCh)
+	require.NoError(t, err)
+
+	resp, err := client.getKey(context.Background(), "x509-CA-A")
+	spiretest.RequireGRPCStatusHasPrefix(t, err, codes.Internal, "failed to get transit engine key: Error making API request.")
+	require.Empty(t, resp)
+}
+
+func TestSignDataErrorFromEndpoint(t *testing.T) {
+	fakeVaultServer := newFakeVaultServer()
+	fakeVaultServer.CertAuthResponseCode = 200
+	fakeVaultServer.CertAuthResponse = []byte(testCertAuthResponse)
+	fakeVaultServer.SignDataResponseCode = 500
+	fakeVaultServer.SignDataResponse = []byte("test error")
+
+	s, addr, err := fakeVaultServer.NewTLSServer()
+	require.NoError(t, err)
+
+	s.Start()
+	defer s.Close()
+
+	retry := 0 // Disable retry
+	cp := &ClientParams{
+		MaxRetries:     &retry,
+		VaultAddr:      fmt.Sprintf("https://%v/", addr),
+		CACertPath:     testRootCert,
+		ClientCertPath: testClientCert,
+		ClientKeyPath:  testClientKey,
+	}
+
+	cc, err := NewClientConfig(cp, hclog.Default())
+	require.NoError(t, err)
+
+	renewCh := make(chan struct{})
+	client, err := cc.NewAuthenticatedClient(CERT, renewCh)
+	require.NoError(t, err)
+
+	resp, err := client.SignData(context.Background(), "x509-CA-A", []byte("foo"), TransitHashAlgorithmSHA256, TransitSignatureSignatureAlgorithmPKCS1v15)
+	spiretest.RequireGRPCStatusHasPrefix(t, err, codes.Internal, "transit engine sign call failed: Error making API request.")
+	require.Empty(t, resp)
 }
 
 func newFakeVaultServer() *FakeVaultServerConfig {

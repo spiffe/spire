@@ -11,6 +11,7 @@ import (
 
 	"github.com/hashicorp/vault/sdk/helper/consts"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
+	"github.com/spiffe/spire/pkg/server/common/vault"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
@@ -33,7 +34,7 @@ func TestPluginConfigure(t *testing.T) {
 		plainConfig              string
 		expectMsgPrefix          string
 		expectCode               codes.Code
-		wantAuth                 AuthMethod
+		wantAuth                 vault.AuthMethod
 		expectNamespace          string
 		envKeyVal                map[string]string
 		expectToken              string
@@ -51,7 +52,7 @@ func TestPluginConfigure(t *testing.T) {
 		{
 			name:                    "Configure plugin with Client Certificate authentication params given in config file",
 			configTmpl:              testTokenAuthConfigTpl,
-			wantAuth:                TOKEN,
+			wantAuth:                vault.TOKEN,
 			expectToken:             "test-token",
 			expectTransitEnginePath: "transit",
 		},
@@ -59,16 +60,16 @@ func TestPluginConfigure(t *testing.T) {
 			name:       "Configure plugin with Token authentication params given as environment variables",
 			configTmpl: testTokenAuthConfigWithEnvTpl,
 			envKeyVal: map[string]string{
-				envVaultToken: "test-token",
+				vault.EnvVaultToken: "test-token",
 			},
-			wantAuth:                TOKEN,
+			wantAuth:                vault.TOKEN,
 			expectToken:             "test-token",
 			expectTransitEnginePath: "transit",
 		},
 		{
 			name:                     "Configure plugin with Client Certificate authentication params given in config file",
 			configTmpl:               testCertAuthConfigTpl,
-			wantAuth:                 CERT,
+			wantAuth:                 vault.CERT,
 			expectCertAuthMountPoint: "test-cert-auth",
 			expectClientCertPath:     "testdata/client-cert.pem",
 			expectClientKeyPath:      "testdata/client-key.pem",
@@ -78,10 +79,10 @@ func TestPluginConfigure(t *testing.T) {
 			name:       "Configure plugin with Client Certificate authentication params given as environment variables",
 			configTmpl: testCertAuthConfigWithEnvTpl,
 			envKeyVal: map[string]string{
-				envVaultClientCert: "testdata/client-cert.pem",
-				envVaultClientKey:  testClientKey,
+				vault.EnvVaultClientCert: "testdata/client-cert.pem",
+				vault.EnvVaultClientKey:  testClientKey,
 			},
-			wantAuth:                 CERT,
+			wantAuth:                 vault.CERT,
 			expectCertAuthMountPoint: "test-cert-auth",
 			expectClientCertPath:     testClientCert,
 			expectClientKeyPath:      testClientKey,
@@ -90,7 +91,7 @@ func TestPluginConfigure(t *testing.T) {
 		{
 			name:                    "Configure plugin with AppRole authenticate params given in config file",
 			configTmpl:              testAppRoleAuthConfigTpl,
-			wantAuth:                APPROLE,
+			wantAuth:                vault.APPROLE,
 			appRoleAuthMountPoint:   "test-approle-auth",
 			appRoleID:               "test-approle-id",
 			appRoleSecretID:         "test-approle-secret-id",
@@ -100,10 +101,10 @@ func TestPluginConfigure(t *testing.T) {
 			name:       "Configure plugin with AppRole authentication params given as environment variables",
 			configTmpl: testAppRoleAuthConfigWithEnvTpl,
 			envKeyVal: map[string]string{
-				envVaultAppRoleID:       "test-approle-id",
-				envVaultAppRoleSecretID: "test-approle-secret-id",
+				vault.EnvVaultAppRoleID:       "test-approle-id",
+				vault.EnvVaultAppRoleSecretID: "test-approle-secret-id",
 			},
-			wantAuth:                APPROLE,
+			wantAuth:                vault.APPROLE,
 			appRoleAuthMountPoint:   "test-approle-auth",
 			appRoleID:               "test-approle-id",
 			appRoleSecretID:         "test-approle-secret-id",
@@ -112,7 +113,7 @@ func TestPluginConfigure(t *testing.T) {
 		{
 			name:                    "Configure plugin with Kubernetes authentication params given in config file",
 			configTmpl:              testK8sAuthConfigTpl,
-			wantAuth:                K8S,
+			wantAuth:                vault.K8S,
 			expectK8sAuthMountPoint: "test-k8s-auth",
 			expectK8sAuthTokenPath:  "testdata/k8s/token",
 			expectK8sAuthRoleName:   "my-role",
@@ -128,7 +129,7 @@ func TestPluginConfigure(t *testing.T) {
 		{
 			name:                    "Configure plugin with transit engine path given in config file",
 			configTmpl:              testConfigWithTransitEnginePathTpl,
-			wantAuth:                TOKEN,
+			wantAuth:                vault.TOKEN,
 			expectToken:             "test-token",
 			expectTransitEnginePath: "test-path",
 		},
@@ -136,16 +137,16 @@ func TestPluginConfigure(t *testing.T) {
 			name:       "Configure plugin with transit engine path given as environment variables",
 			configTmpl: testConfigWithTransitEnginePathEnvTpl,
 			envKeyVal: map[string]string{
-				envVaultTransitEnginePath: "test-path",
+				vault.EnvVaultTransitEnginePath: "test-path",
 			},
-			wantAuth:                TOKEN,
+			wantAuth:                vault.TOKEN,
 			expectToken:             "test-token",
 			expectTransitEnginePath: "test-path",
 		},
 		{
 			name:                    "Configure plugin with namespace given in config file",
 			configTmpl:              testNamespaceConfigTpl,
-			wantAuth:                TOKEN,
+			wantAuth:                vault.TOKEN,
 			expectNamespace:         "test-ns",
 			expectTransitEnginePath: "transit",
 			expectToken:             "test-token",
@@ -153,9 +154,9 @@ func TestPluginConfigure(t *testing.T) {
 		{
 			name:       "Configure plugin with given namespace given as environment variable",
 			configTmpl: testNamespaceEnvTpl,
-			wantAuth:   TOKEN,
+			wantAuth:   vault.TOKEN,
 			envKeyVal: map[string]string{
-				envVaultNamespace: "test-ns",
+				vault.EnvVaultNamespace: "test-ns",
 			},
 			expectNamespace:         "test-ns",
 			expectTransitEnginePath: "transit",
@@ -171,7 +172,7 @@ func TestPluginConfigure(t *testing.T) {
 		{
 			name:                    "Required parameters are not given / k8s_auth_role_name",
 			configTmpl:              testK8sAuthNoRoleNameTpl,
-			wantAuth:                K8S,
+			wantAuth:                vault.K8S,
 			expectCode:              codes.InvalidArgument,
 			expectMsgPrefix:         "k8s_auth_role_name is required",
 			expectTransitEnginePath: "transit",
@@ -179,7 +180,7 @@ func TestPluginConfigure(t *testing.T) {
 		{
 			name:                    "Required parameters are not given / token_path",
 			configTmpl:              testK8sAuthNoTokenPathTpl,
-			wantAuth:                K8S,
+			wantAuth:                vault.K8S,
 			expectCode:              codes.InvalidArgument,
 			expectMsgPrefix:         "token_path is required",
 			expectTransitEnginePath: "transit",
@@ -221,27 +222,27 @@ func TestPluginConfigure(t *testing.T) {
 			}
 
 			require.NotNil(t, p.cc)
-			require.NotNil(t, p.cc.clientParams)
+			require.NotNil(t, p.cc.ClientParams)
 
 			switch tt.wantAuth {
-			case TOKEN:
-				require.Equal(t, tt.expectToken, p.cc.clientParams.Token)
-			case CERT:
-				require.Equal(t, tt.expectCertAuthMountPoint, p.cc.clientParams.CertAuthMountPoint)
-				require.Equal(t, tt.expectClientCertPath, p.cc.clientParams.ClientCertPath)
-				require.Equal(t, tt.expectClientKeyPath, p.cc.clientParams.ClientKeyPath)
-			case APPROLE:
-				require.NotNil(t, p.cc.clientParams.AppRoleAuthMountPoint)
-				require.NotNil(t, p.cc.clientParams.AppRoleID)
-				require.NotNil(t, p.cc.clientParams.AppRoleSecretID)
-			case K8S:
-				require.Equal(t, tt.expectK8sAuthMountPoint, p.cc.clientParams.K8sAuthMountPoint)
-				require.Equal(t, tt.expectK8sAuthRoleName, p.cc.clientParams.K8sAuthRoleName)
-				require.Equal(t, tt.expectK8sAuthTokenPath, p.cc.clientParams.K8sAuthTokenPath)
+			case vault.TOKEN:
+				require.Equal(t, tt.expectToken, p.cc.ClientParams.Token)
+			case vault.CERT:
+				require.Equal(t, tt.expectCertAuthMountPoint, p.cc.ClientParams.CertAuthMountPoint)
+				require.Equal(t, tt.expectClientCertPath, p.cc.ClientParams.ClientCertPath)
+				require.Equal(t, tt.expectClientKeyPath, p.cc.ClientParams.ClientKeyPath)
+			case vault.APPROLE:
+				require.NotNil(t, p.cc.ClientParams.AppRoleAuthMountPoint)
+				require.NotNil(t, p.cc.ClientParams.AppRoleID)
+				require.NotNil(t, p.cc.ClientParams.AppRoleSecretID)
+			case vault.K8S:
+				require.Equal(t, tt.expectK8sAuthMountPoint, p.cc.ClientParams.K8sAuthMountPoint)
+				require.Equal(t, tt.expectK8sAuthRoleName, p.cc.ClientParams.K8sAuthRoleName)
+				require.Equal(t, tt.expectK8sAuthTokenPath, p.cc.ClientParams.K8sAuthTokenPath)
 			}
 
-			require.Equal(t, tt.expectTransitEnginePath, p.cc.clientParams.TransitEnginePath)
-			require.Equal(t, tt.expectNamespace, p.cc.clientParams.Namespace)
+			require.Equal(t, tt.expectTransitEnginePath, p.cc.ClientParams.TransitEnginePath)
+			require.Equal(t, tt.expectNamespace, p.cc.ClientParams.Namespace)
 		})
 	}
 }
@@ -322,16 +323,18 @@ func TestValidate(t *testing.T) {
 func TestPluginGenerateKey(t *testing.T) {
 	successfulConfig := &Config{
 		TransitEnginePath: "test-transit",
-		CACertPath:        "testdata/root-cert.pem",
-		TokenAuth: &TokenAuthConfig{
-			Token: "test-token",
+		BaseConfiguration: vault.BaseConfiguration{
+			CACertPath: "testdata/root-cert.pem",
+			TokenAuth: &vault.TokenAuthConfig{
+				Token: "test-token",
+			},
 		},
 	}
 
 	for _, tt := range []struct {
 		name            string
 		config          *Config
-		authMethod      AuthMethod
+		authMethod      vault.AuthMethod
 		expectCode      codes.Code
 		expectMsgPrefix string
 		id              string
@@ -344,7 +347,7 @@ func TestPluginGenerateKey(t *testing.T) {
 			id:         "x509-CA-A",
 			keyType:    keymanager.ECP256,
 			config:     successfulConfig,
-			authMethod: TOKEN,
+			authMethod: vault.TOKEN,
 			fakeServer: func() *FakeVaultServerConfig {
 				fakeServer := setupSuccessFakeVaultServer("test-transit")
 				fakeServer.LookupSelfResponse = []byte(testLookupSelfResponse)
@@ -359,7 +362,7 @@ func TestPluginGenerateKey(t *testing.T) {
 			id:         "x509-CA-A",
 			keyType:    keymanager.ECP384,
 			config:     successfulConfig,
-			authMethod: TOKEN,
+			authMethod: vault.TOKEN,
 			fakeServer: func() *FakeVaultServerConfig {
 				fakeServer := setupSuccessFakeVaultServer("test-transit")
 				fakeServer.LookupSelfResponse = []byte(testLookupSelfResponse)
@@ -375,7 +378,7 @@ func TestPluginGenerateKey(t *testing.T) {
 			id:         "x509-CA-A",
 			keyType:    keymanager.RSA2048,
 			config:     successfulConfig,
-			authMethod: TOKEN,
+			authMethod: vault.TOKEN,
 			fakeServer: func() *FakeVaultServerConfig {
 				fakeServer := setupSuccessFakeVaultServer("test-transit")
 				fakeServer.LookupSelfResponse = []byte(testLookupSelfResponse)
@@ -391,7 +394,7 @@ func TestPluginGenerateKey(t *testing.T) {
 			id:         "x509-CA-A",
 			keyType:    keymanager.RSA4096,
 			config:     successfulConfig,
-			authMethod: TOKEN,
+			authMethod: vault.TOKEN,
 			fakeServer: func() *FakeVaultServerConfig {
 				fakeServer := setupSuccessFakeVaultServer("test-transit")
 				fakeServer.LookupSelfResponse = []byte(testLookupSelfResponse)
@@ -406,7 +409,7 @@ func TestPluginGenerateKey(t *testing.T) {
 			name:       "Generate key with missing id",
 			keyType:    keymanager.RSA2048,
 			config:     successfulConfig,
-			authMethod: TOKEN,
+			authMethod: vault.TOKEN,
 			fakeServer: func() *FakeVaultServerConfig {
 				fakeServer := setupSuccessFakeVaultServer("test-transit")
 				fakeServer.LookupSelfResponse = []byte(testLookupSelfResponse)
@@ -423,7 +426,7 @@ func TestPluginGenerateKey(t *testing.T) {
 			name:       "Generate key with missing key type",
 			id:         "x509-CA-A",
 			config:     successfulConfig,
-			authMethod: TOKEN,
+			authMethod: vault.TOKEN,
 			fakeServer: func() *FakeVaultServerConfig {
 				fakeServer := setupSuccessFakeVaultServer("test-transit")
 				fakeServer.LookupSelfResponse = []byte(testLookupSelfResponse)
@@ -441,7 +444,7 @@ func TestPluginGenerateKey(t *testing.T) {
 			id:         "x509-CA-A",
 			keyType:    100,
 			config:     successfulConfig,
-			authMethod: TOKEN,
+			authMethod: vault.TOKEN,
 			fakeServer: func() *FakeVaultServerConfig {
 				fakeServer := setupSuccessFakeVaultServer("test-transit")
 				fakeServer.LookupSelfResponse = []byte(testLookupSelfResponse)
@@ -459,7 +462,7 @@ func TestPluginGenerateKey(t *testing.T) {
 			id:         "x509-CA-A",
 			keyType:    keymanager.RSA2048,
 			config:     successfulConfig,
-			authMethod: TOKEN,
+			authMethod: vault.TOKEN,
 			fakeServer: func() *FakeVaultServerConfig {
 				fakeServer := setupSuccessFakeVaultServer("test-transit")
 				fakeServer.LookupSelfResponse = []byte(testLookupSelfResponse)
@@ -477,7 +480,7 @@ func TestPluginGenerateKey(t *testing.T) {
 			id:         "x509-CA-A",
 			keyType:    keymanager.RSA2048,
 			config:     successfulConfig,
-			authMethod: TOKEN,
+			authMethod: vault.TOKEN,
 			fakeServer: func() *FakeVaultServerConfig {
 				fakeServer := setupSuccessFakeVaultServer("test-transit")
 				fakeServer.LookupSelfResponse = []byte(testLookupSelfResponse)
@@ -495,7 +498,7 @@ func TestPluginGenerateKey(t *testing.T) {
 			id:         "x509-CA-A",
 			keyType:    keymanager.RSA2048,
 			config:     successfulConfig,
-			authMethod: TOKEN,
+			authMethod: vault.TOKEN,
 			fakeServer: func() *FakeVaultServerConfig {
 				fakeServer := setupSuccessFakeVaultServer("test-transit")
 				fakeServer.LookupSelfResponse = []byte(testLookupSelfResponse)
@@ -513,7 +516,7 @@ func TestPluginGenerateKey(t *testing.T) {
 			id:         "x509-CA-A",
 			keyType:    keymanager.RSA2048,
 			config:     successfulConfig,
-			authMethod: TOKEN,
+			authMethod: vault.TOKEN,
 			fakeServer: func() *FakeVaultServerConfig {
 				fakeServer := setupSuccessFakeVaultServer("test-transit")
 				fakeServer.LookupSelfResponse = []byte(testLookupSelfResponse)
@@ -531,7 +534,7 @@ func TestPluginGenerateKey(t *testing.T) {
 			id:         "x509-CA-A",
 			keyType:    keymanager.RSA2048,
 			config:     successfulConfig,
-			authMethod: TOKEN,
+			authMethod: vault.TOKEN,
 			fakeServer: func() *FakeVaultServerConfig {
 				fakeServer := setupSuccessFakeVaultServer("test-transit")
 				fakeServer.LookupSelfResponse = []byte(testLookupSelfResponse)
@@ -549,7 +552,7 @@ func TestPluginGenerateKey(t *testing.T) {
 			id:         "x509-CA-A",
 			keyType:    keymanager.ECP256,
 			config:     successfulConfig,
-			authMethod: TOKEN,
+			authMethod: vault.TOKEN,
 			fakeServer: func() *FakeVaultServerConfig {
 				fakeServer := setupSuccessFakeVaultServer("test-transit")
 				fakeServer.LookupSelfResponse = []byte(testLookupSelfResponse)
@@ -580,9 +583,10 @@ func TestPluginGenerateKey(t *testing.T) {
 			if tt.config != nil {
 				tt.config.KeyIdentifierFile = createKeyIdentifierFile(t)
 				tt.config.VaultAddr = fmt.Sprintf("https://%s", addr)
-				cp, err := p.genClientParams(tt.authMethod, tt.config)
+				cp, err := vault.GenClientParams(tt.authMethod, &tt.config.BaseConfiguration, os.LookupEnv)
 				require.NoError(t, err)
-				cc, err := NewClientConfig(cp, p.logger)
+				cp.TransitEnginePath = tt.config.TransitEnginePath
+				cc, err := vault.NewClientConfig(cp, p.logger)
 				require.NoError(t, err)
 				p.cc = cc
 				options = append(options, plugintest.ConfigureJSON(tt.config))
@@ -605,9 +609,9 @@ func TestPluginGenerateKey(t *testing.T) {
 			require.NotNil(t, key)
 			require.Equal(t, tt.id, key.ID())
 
-			if p.cc.clientParams.Namespace != "" {
-				headers := p.vc.vaultClient.Headers()
-				require.Equal(t, p.cc.clientParams.Namespace, headers.Get(consts.NamespaceHeaderName))
+			if p.cc.ClientParams.Namespace != "" {
+				headers := p.vc.VaultClient().Headers()
+				require.Equal(t, p.cc.ClientParams.Namespace, headers.Get(consts.NamespaceHeaderName))
 			}
 		})
 	}
@@ -618,7 +622,7 @@ func TestPluginGetKey(t *testing.T) {
 		name            string
 		config          *Config
 		configTmpl      string
-		authMethod      AuthMethod
+		authMethod      vault.AuthMethod
 		expectCode      codes.Code
 		expectMsgPrefix string
 		id              string
@@ -629,7 +633,7 @@ func TestPluginGetKey(t *testing.T) {
 			name:       "Get EC P-256 key with token auth",
 			configTmpl: testTokenAuthConfigTpl,
 			id:         "x509-CA-A",
-			authMethod: TOKEN,
+			authMethod: vault.TOKEN,
 			fakeServer: func() *FakeVaultServerConfig {
 				fakeServer := setupSuccessFakeVaultServer("transit")
 				fakeServer.LookupSelfResponse = []byte(testLookupSelfResponse)
@@ -643,7 +647,7 @@ func TestPluginGetKey(t *testing.T) {
 			name:       "Get P-384 key with token auth",
 			configTmpl: testTokenAuthConfigTpl,
 			id:         "x509-CA-A",
-			authMethod: TOKEN,
+			authMethod: vault.TOKEN,
 			fakeServer: func() *FakeVaultServerConfig {
 				fakeServer := setupSuccessFakeVaultServer("transit")
 				fakeServer.LookupSelfResponse = []byte(testLookupSelfResponse)
@@ -658,7 +662,7 @@ func TestPluginGetKey(t *testing.T) {
 			name:       "Get RSA 2048 key with token auth",
 			configTmpl: testTokenAuthConfigTpl,
 			id:         "x509-CA-A",
-			authMethod: TOKEN,
+			authMethod: vault.TOKEN,
 			fakeServer: func() *FakeVaultServerConfig {
 				fakeServer := setupSuccessFakeVaultServer("transit")
 				fakeServer.LookupSelfResponse = []byte(testLookupSelfResponse)
@@ -673,7 +677,7 @@ func TestPluginGetKey(t *testing.T) {
 			name:       "Get RSA 4096 key with token auth",
 			configTmpl: testTokenAuthConfigTpl,
 			id:         "x509-CA-A",
-			authMethod: TOKEN,
+			authMethod: vault.TOKEN,
 			fakeServer: func() *FakeVaultServerConfig {
 				fakeServer := setupSuccessFakeVaultServer("transit")
 				fakeServer.LookupSelfResponse = []byte(testLookupSelfResponse)
@@ -687,7 +691,7 @@ func TestPluginGetKey(t *testing.T) {
 		{
 			name:       "Get key with missing id",
 			configTmpl: testTokenAuthConfigTpl,
-			authMethod: TOKEN,
+			authMethod: vault.TOKEN,
 			fakeServer: func() *FakeVaultServerConfig {
 				fakeServer := setupSuccessFakeVaultServer("transit")
 				fakeServer.LookupSelfResponse = []byte(testLookupSelfResponse)
@@ -704,7 +708,7 @@ func TestPluginGetKey(t *testing.T) {
 			name:       "Malformed get key response",
 			configTmpl: testTokenAuthConfigTpl,
 			id:         "x509-CA-A",
-			authMethod: TOKEN,
+			authMethod: vault.TOKEN,
 			fakeServer: func() *FakeVaultServerConfig {
 				fakeServer := setupSuccessFakeVaultServer("transit")
 				fakeServer.LookupSelfResponse = []byte(testLookupSelfResponse)
@@ -721,7 +725,7 @@ func TestPluginGetKey(t *testing.T) {
 			name:       "Bad get key response code",
 			configTmpl: testTokenAuthConfigTpl,
 			id:         "x509-CA-A",
-			authMethod: TOKEN,
+			authMethod: vault.TOKEN,
 			fakeServer: func() *FakeVaultServerConfig {
 				fakeServer := setupSuccessFakeVaultServer("transit")
 				fakeServer.LookupSelfResponse = []byte(testLookupSelfResponse)
@@ -738,7 +742,7 @@ func TestPluginGetKey(t *testing.T) {
 			name:       "Malformed key",
 			configTmpl: testTokenAuthConfigTpl,
 			id:         "x509-CA-A",
-			authMethod: TOKEN,
+			authMethod: vault.TOKEN,
 			fakeServer: func() *FakeVaultServerConfig {
 				fakeServer := setupSuccessFakeVaultServer("transit")
 				fakeServer.LookupSelfResponse = []byte(testLookupSelfResponse)
@@ -791,9 +795,9 @@ func TestPluginGetKey(t *testing.T) {
 			require.NotNil(t, key)
 			require.Equal(t, tt.id, key.ID())
 
-			if p.cc.clientParams.Namespace != "" {
-				headers := p.vc.vaultClient.Headers()
-				require.Equal(t, p.cc.clientParams.Namespace, headers.Get(consts.NamespaceHeaderName))
+			if p.cc.ClientParams.Namespace != "" {
+				headers := p.vc.VaultClient().Headers()
+				require.Equal(t, p.cc.ClientParams.Namespace, headers.Get(consts.NamespaceHeaderName))
 			}
 		})
 	}

@@ -20,6 +20,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/diskutil"
 	"github.com/spiffe/spire/pkg/common/pluginconf"
+	"github.com/spiffe/spire/pkg/server/common/vault"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -53,76 +54,12 @@ type pluginHooks struct {
 
 // Config provides configuration context for the plugin.
 type Config struct {
-	// A URL of Vault server. (e.g., https://vault.example.com:8443/)
-	VaultAddr string `hcl:"vault_addr" json:"vault_addr"`
-	// Name of the Vault namespace
-	Namespace string `hcl:"namespace" json:"namespace"`
-	// TransitEnginePath specifies the path to the transit engine to perform key operations.
-	TransitEnginePath string `hcl:"transit_engine_path" json:"transit_engine_path"`
+	vault.BaseConfiguration `hcl:",squash"`
 
 	KeyIdentifierFile  string `hcl:"key_identifier_file" json:"key_identifier_file"`
 	KeyIdentifierValue string `hcl:"key_identifier_value" json:"key_identifier_value"`
-
-	// If true, vault client accepts any server certificates.
-	// It should be used only test environment so on.
-	InsecureSkipVerify bool `hcl:"insecure_skip_verify" json:"insecure_skip_verify"`
-	// Path to a CA certificate file that the client verifies the server certificate.
-	// Only PEM format is supported.
-	CACertPath string `hcl:"ca_cert_path" json:"ca_cert_path"`
-
-	// Configuration for the Token authentication method
-	TokenAuth *TokenAuthConfig `hcl:"token_auth" json:"token_auth,omitempty"`
-	// Configuration for the AppRole authentication method
-	AppRoleAuth *AppRoleAuthConfig `hcl:"approle_auth" json:"approle_auth,omitempty"`
-	// Configuration for the Client Certificate authentication method
-	CertAuth *CertAuthConfig `hcl:"cert_auth" json:"cert_auth,omitempty"`
-	// Configuration for the Kubernetes authentication method
-	K8sAuth *K8sAuthConfig `hcl:"k8s_auth" json:"k8s_auth,omitempty"`
-}
-
-// TokenAuthConfig represents parameters for token auth method
-type TokenAuthConfig struct {
-	// Token string to set into "X-Vault-Token" header
-	Token string `hcl:"token" json:"token"`
-}
-
-// AppRoleAuthConfig represents parameters for AppRole auth method.
-type AppRoleAuthConfig struct {
-	// Name of the mount point where AppRole auth method is mounted. (e.g., /auth/<mount_point>/login)
-	// If the value is empty, use default mount point (/auth/approle)
-	AppRoleMountPoint string `hcl:"approle_auth_mount_point" json:"approle_auth_mount_point"`
-	// An identifier that selects the AppRole
-	RoleID string `hcl:"approle_id" json:"approle_id"`
-	// A credential that is required for login.
-	SecretID string `hcl:"approle_secret_id" json:"approle_secret_id"`
-}
-
-// CertAuthConfig represents parameters for cert auth method
-type CertAuthConfig struct {
-	// Name of the mount point where Client Certificate Auth method is mounted. (e.g., /auth/<mount_point>/login)
-	// If the value is empty, use default mount point (/auth/cert)
-	CertAuthMountPoint string `hcl:"cert_auth_mount_point" json:"cert_auth_mount_point"`
-	// Name of the Vault role.
-	// If given, the plugin authenticates against only the named role.
-	CertAuthRoleName string `hcl:"cert_auth_role_name" json:"cert_auth_role_name"`
-	// Path to a client certificate file.
-	// Only PEM format is supported.
-	ClientCertPath string `hcl:"client_cert_path" json:"client_cert_path"`
-	// Path to a client private key file.
-	// Only PEM format is supported.
-	ClientKeyPath string `hcl:"client_key_path" json:"client_key_path"`
-}
-
-// K8sAuthConfig represents parameters for Kubernetes auth method.
-type K8sAuthConfig struct {
-	// Name of the mount point where Kubernetes auth method is mounted. (e.g., /auth/<mount_point>/login)
-	// If the value is empty, use default mount point (/auth/kubernetes)
-	K8sAuthMountPoint string `hcl:"k8s_auth_mount_point" json:"k8s_auth_mount_point"`
-	// Name of the Vault role.
-	// The plugin authenticates against the named role.
-	K8sAuthRoleName string `hcl:"k8s_auth_role_name" json:"k8s_auth_role_name"`
-	// Path to the Kubernetes Service Account Token to use authentication with the Vault.
-	TokenPath string `hcl:"token_path" json:"token_path"`
+	// TransitEnginePath specifies the path to the transit engine to perform key operations.
+	TransitEnginePath string `hcl:"transit_engine_path" json:"transit_engine_path"`
 }
 
 // Plugin is the main representation of this keymanager plugin
@@ -136,9 +73,9 @@ type Plugin struct {
 	entries    map[string]keyEntry
 	entriesMtx sync.RWMutex
 
-	authMethod AuthMethod
-	cc         *ClientConfig
-	vc         *Client
+	authMethod vault.AuthMethod
+	cc         *vault.ClientConfig
+	vc         *vault.Client
 
 	scheduleDelete chan string
 	cancelTasks    context.CancelFunc
@@ -184,16 +121,17 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	am, err := parseAuthMethod(config)
+	am, err := vault.ParseAuthMethod(&config.BaseConfiguration)
 	if err != nil {
 		return nil, err
 	}
-	cp, err := p.genClientParams(am, config)
+	cp, err := vault.GenClientParams(am, &config.BaseConfiguration, p.hooks.lookupEnv)
 	if err != nil {
 		return nil, err
 	}
+	cp.TransitEnginePath = p.getEnvOrDefault(vault.EnvVaultTransitEnginePath, config.TransitEnginePath)
 
-	vcConfig, err := NewClientConfig(cp, p.logger)
+	vcConfig, err := vault.NewClientConfig(cp, p.logger)
 	if err != nil {
 		return nil, err
 	}
@@ -215,7 +153,9 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 		return nil, err
 	}
 
-	p.setCache(keyEntries)
+	if err := p.setCache(keyEntries); err != nil {
+		return nil, err
+	}
 
 	// Cancel previous tasks in case of re-configure.
 	if p.cancelTasks != nil {
@@ -263,83 +203,6 @@ func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginco
 	}
 
 	return newConfig
-}
-
-func parseAuthMethod(config *Config) (AuthMethod, error) {
-	var authMethod AuthMethod
-	if config.TokenAuth != nil {
-		authMethod = TOKEN
-	}
-
-	if config.AppRoleAuth != nil {
-		if err := checkForAuthMethodConfigured(authMethod); err != nil {
-			return 0, err
-		}
-		authMethod = APPROLE
-	}
-
-	if config.CertAuth != nil {
-		if err := checkForAuthMethodConfigured(authMethod); err != nil {
-			return 0, err
-		}
-		authMethod = CERT
-	}
-
-	if config.K8sAuth != nil {
-		if err := checkForAuthMethodConfigured(authMethod); err != nil {
-			return 0, err
-		}
-		authMethod = K8S
-	}
-
-	if authMethod != 0 {
-		return authMethod, nil
-	}
-
-	return 0, status.Error(codes.InvalidArgument, "one of the available authentication methods must be configured: 'Token, AppRole'")
-}
-
-func checkForAuthMethodConfigured(authMethod AuthMethod) error {
-	if authMethod != 0 {
-		return status.Error(codes.InvalidArgument, "only one authentication method can be configured")
-	}
-	return nil
-}
-
-func (p *Plugin) genClientParams(method AuthMethod, config *Config) (*ClientParams, error) {
-	cp := &ClientParams{
-		VaultAddr:         p.getEnvOrDefault(envVaultAddr, config.VaultAddr),
-		Namespace:         p.getEnvOrDefault(envVaultNamespace, config.Namespace),
-		TransitEnginePath: p.getEnvOrDefault(envVaultTransitEnginePath, config.TransitEnginePath),
-		CACertPath:        p.getEnvOrDefault(envVaultCACert, config.CACertPath),
-		TLSSKipVerify:     config.InsecureSkipVerify,
-	}
-
-	switch method {
-	case TOKEN:
-		cp.Token = p.getEnvOrDefault(envVaultToken, config.TokenAuth.Token)
-	case APPROLE:
-		cp.AppRoleAuthMountPoint = config.AppRoleAuth.AppRoleMountPoint
-		cp.AppRoleID = p.getEnvOrDefault(envVaultAppRoleID, config.AppRoleAuth.RoleID)
-		cp.AppRoleSecretID = p.getEnvOrDefault(envVaultAppRoleSecretID, config.AppRoleAuth.SecretID)
-	case CERT:
-		cp.CertAuthMountPoint = config.CertAuth.CertAuthMountPoint
-		cp.CertAuthRoleName = config.CertAuth.CertAuthRoleName
-		cp.ClientCertPath = p.getEnvOrDefault(envVaultClientCert, config.CertAuth.ClientCertPath)
-		cp.ClientKeyPath = p.getEnvOrDefault(envVaultClientKey, config.CertAuth.ClientKeyPath)
-	case K8S:
-		if config.K8sAuth.K8sAuthRoleName == "" {
-			return nil, status.Error(codes.InvalidArgument, "k8s_auth_role_name is required")
-		}
-		if config.K8sAuth.TokenPath == "" {
-			return nil, status.Error(codes.InvalidArgument, "token_path is required")
-		}
-		cp.K8sAuthMountPoint = config.K8sAuth.K8sAuthMountPoint
-		cp.K8sAuthRoleName = config.K8sAuth.K8sAuthRoleName
-		cp.K8sAuthTokenPath = config.K8sAuth.TokenPath
-	}
-
-	return cp, nil
 }
 
 func (p *Plugin) getEnvOrDefault(envKey, fallback string) string {
@@ -507,7 +370,7 @@ func (p *Plugin) GetPublicKeys(context.Context, *keymanagerv1.GetPublicKeysReque
 	return &keymanagerv1.GetPublicKeysResponse{PublicKeys: keys}, nil
 }
 
-func algosForKMS(keyType keymanagerv1.KeyType, signerOpts any) (TransitHashAlgorithm, TransitSignatureAlgorithm, error) {
+func algosForKMS(keyType keymanagerv1.KeyType, signerOpts any) (vault.TransitHashAlgorithm, vault.TransitSignatureAlgorithm, error) {
 	var (
 		hashAlgo keymanagerv1.HashAlgorithm
 		isPSS    bool
@@ -534,19 +397,19 @@ func algosForKMS(keyType keymanagerv1.KeyType, signerOpts any) (TransitHashAlgor
 	case hashAlgo == keymanagerv1.HashAlgorithm_UNSPECIFIED_HASH_ALGORITHM:
 		return "", "", errors.New("hash algorithm is required")
 	case keyType == keymanagerv1.KeyType_EC_P256 || keyType == keymanagerv1.KeyType_EC_P384:
-		return TransitHashAlgorithmNone, TransitSignatureSignatureAlgorithmPKCS1v15, nil
+		return vault.TransitHashAlgorithmNone, vault.TransitSignatureSignatureAlgorithmPKCS1v15, nil
 	case isRSA && !isPSS && hashAlgo == keymanagerv1.HashAlgorithm_SHA256:
-		return TransitHashAlgorithmSHA256, TransitSignatureSignatureAlgorithmPKCS1v15, nil
+		return vault.TransitHashAlgorithmSHA256, vault.TransitSignatureSignatureAlgorithmPKCS1v15, nil
 	case isRSA && !isPSS && hashAlgo == keymanagerv1.HashAlgorithm_SHA384:
-		return TransitHashAlgorithmSHA384, TransitSignatureSignatureAlgorithmPKCS1v15, nil
+		return vault.TransitHashAlgorithmSHA384, vault.TransitSignatureSignatureAlgorithmPKCS1v15, nil
 	case isRSA && !isPSS && hashAlgo == keymanagerv1.HashAlgorithm_SHA512:
-		return TransitHashAlgorithmSHA512, TransitSignatureSignatureAlgorithmPKCS1v15, nil
+		return vault.TransitHashAlgorithmSHA512, vault.TransitSignatureSignatureAlgorithmPKCS1v15, nil
 	case isRSA && isPSS && hashAlgo == keymanagerv1.HashAlgorithm_SHA256:
-		return TransitHashAlgorithmSHA256, TransitSignatureSignatureAlgorithmPSS, nil
+		return vault.TransitHashAlgorithmSHA256, vault.TransitSignatureSignatureAlgorithmPSS, nil
 	case isRSA && isPSS && hashAlgo == keymanagerv1.HashAlgorithm_SHA384:
-		return TransitHashAlgorithmSHA384, TransitSignatureSignatureAlgorithmPSS, nil
+		return vault.TransitHashAlgorithmSHA384, vault.TransitSignatureSignatureAlgorithmPSS, nil
 	case isRSA && isPSS && hashAlgo == keymanagerv1.HashAlgorithm_SHA512:
-		return TransitHashAlgorithmSHA512, TransitSignatureSignatureAlgorithmPSS, nil
+		return vault.TransitHashAlgorithmSHA512, vault.TransitSignatureSignatureAlgorithmPSS, nil
 	default:
 		return "", "", fmt.Errorf("unsupported combination of keytype: %v and hashing algorithm: %v", keyType, hashAlgo)
 	}
@@ -575,19 +438,24 @@ func (p *Plugin) createKey(ctx context.Context, spireKeyID string, keyType keyma
 		return nil, err
 	}
 
-	return p.vc.getKeyEntry(ctx, keyName)
+	ve, err := p.vc.GetKey(ctx, keyName)
+	if err != nil {
+		return nil, err
+	}
+
+	return getKeyEntry(ve.KeyName, ve.KeyData)
 }
 
-func convertToTransitKeyType(keyType keymanagerv1.KeyType) (*TransitKeyType, error) {
+func convertToTransitKeyType(keyType keymanagerv1.KeyType) (*vault.TransitKeyType, error) {
 	switch keyType {
 	case keymanagerv1.KeyType_EC_P256:
-		return to.Ptr(TransitKeyTypeECDSAP256), nil
+		return to.Ptr(vault.TransitKeyTypeECDSAP256), nil
 	case keymanagerv1.KeyType_EC_P384:
-		return to.Ptr(TransitKeyTypeECDSAP384), nil
+		return to.Ptr(vault.TransitKeyTypeECDSAP384), nil
 	case keymanagerv1.KeyType_RSA_2048:
-		return to.Ptr(TransitKeyTypeRSA2048), nil
+		return to.Ptr(vault.TransitKeyTypeRSA2048), nil
 	case keymanagerv1.KeyType_RSA_4096:
-		return to.Ptr(TransitKeyTypeRSA4096), nil
+		return to.Ptr(vault.TransitKeyTypeRSA4096), nil
 	default:
 		return nil, status.Errorf(codes.Internal, "unsupported key type: %v", keyType)
 	}
@@ -619,17 +487,22 @@ func makeFingerprint(pkixData []byte) string {
 	return hex.EncodeToString(s[:])
 }
 
-func (p *Plugin) setCache(keyEntries []*keyEntry) {
+func (p *Plugin) setCache(vaultEntries []*vault.KeyEntry) error {
 	// clean previous cache
 	p.entriesMtx.Lock()
 	defer p.entriesMtx.Unlock()
 	p.entries = make(map[string]keyEntry)
 
 	// add results to cache
-	for _, e := range keyEntries {
-		p.entries[e.PublicKey.Id] = *e
-		p.logger.Debug("Key loaded", "key_id", e.PublicKey.Id, "key_type", e.PublicKey.Type)
+	for _, ve := range vaultEntries {
+		ke, err := getKeyEntry(ve.KeyName, ve.KeyData)
+		if err != nil {
+			return err
+		}
+		p.entries[ke.PublicKey.Id] = *ke
+		p.logger.Debug("Key loaded", "key_id", ke.PublicKey.Id, "key_type", ke.PublicKey.Type)
 	}
+	return nil
 }
 
 // setKeyEntry adds the entry to the cache that matches the provided SPIRE Key ID
