@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 	"text/template"
+	"time"
 
 	"github.com/hashicorp/vault/sdk/helper/consts"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
@@ -332,13 +333,14 @@ func TestPluginGenerateKey(t *testing.T) {
 	}
 
 	for _, tt := range []struct {
-		name            string
-		config          *Config
-		authMethod      vault.AuthMethod
-		expectCode      codes.Code
-		expectMsgPrefix string
-		id              string
-		keyType         keymanager.KeyType
+		name             string
+		config           *Config
+		authMethod       vault.AuthMethod
+		expectCode       codes.Code
+		expectMsgPrefix  string
+		id               string
+		keyType          keymanager.KeyType
+		wantDeleteSignal bool
 
 		fakeServer func() *FakeVaultServerConfig
 	}{
@@ -548,11 +550,12 @@ func TestPluginGenerateKey(t *testing.T) {
 			expectMsgPrefix: "keymanager(hashicorp_vault): unable to decode PEM key",
 		},
 		{
-			name:       "Generate key with existing SPIRE key id",
-			id:         "x509-CA-A",
-			keyType:    keymanager.ECP256,
-			config:     successfulConfig,
-			authMethod: vault.TOKEN,
+			name:             "Generate key with existing SPIRE key id",
+			id:               "x509-CA-A",
+			keyType:          keymanager.ECP256,
+			config:           successfulConfig,
+			authMethod:       vault.TOKEN,
+			wantDeleteSignal: true,
 			fakeServer: func() *FakeVaultServerConfig {
 				fakeServer := setupSuccessFakeVaultServer("test-transit")
 				fakeServer.LookupSelfResponse = []byte(testLookupSelfResponse)
@@ -571,9 +574,15 @@ func TestPluginGenerateKey(t *testing.T) {
 			require.NoError(t, err)
 
 			s.Start()
-			defer s.Close()
+			// Register server close first so it runs last (t.Cleanup is LIFO).
+			// The cancel-tasks cleanup registered below will run before this.
+			t.Cleanup(s.Close)
 
 			p := New()
+
+			if tt.wantDeleteSignal {
+				p.hooks.scheduleDeleteSignal = make(chan error, 1)
+			}
 
 			options := []plugintest.Option{
 				plugintest.CaptureConfigureError(&err),
@@ -598,6 +607,13 @@ func TestPluginGenerateKey(t *testing.T) {
 				options...,
 			)
 
+			// Cancel background tasks before the fake server closes (LIFO order).
+			t.Cleanup(func() {
+				if p.cancelTasks != nil {
+					p.cancelTasks()
+				}
+			})
+
 			key, err := v1.GenerateKey(context.Background(), tt.id, tt.keyType)
 
 			spiretest.RequireGRPCStatusHasPrefix(t, err, tt.expectCode, tt.expectMsgPrefix)
@@ -612,6 +628,15 @@ func TestPluginGenerateKey(t *testing.T) {
 			if p.cc.ClientParams.Namespace != "" {
 				headers := p.vc.VaultClient().Headers()
 				require.Equal(t, p.cc.ClientParams.Namespace, headers.Get(consts.NamespaceHeaderName))
+			}
+
+			if tt.wantDeleteSignal {
+				select {
+				case err := <-p.hooks.scheduleDeleteSignal:
+					require.NoError(t, err, "background key deletion failed")
+				case <-time.After(10 * time.Second):
+					t.Fatal("timed out waiting for background key deletion")
+				}
 			}
 		})
 	}

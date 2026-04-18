@@ -238,6 +238,12 @@ func (p *Plugin) scheduleDeleteTask(ctx context.Context) {
 				continue
 			}
 
+			// If the context was cancelled, exit without logging to avoid
+			// writing to a test logger after the test has completed.
+			if ctx.Err() != nil {
+				return
+			}
+
 			// For any other error, log it and re-enqueue the key for deletion as it might be a recoverable error
 			log.Error("It was not possible to schedule key for deletion. Trying to re-enqueue it for deletion", "reason", err)
 
