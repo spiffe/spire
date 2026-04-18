@@ -5,6 +5,8 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/andres-erbsen/clock"
@@ -694,6 +696,19 @@ func (s *Service) attestChallengeResponse(ctx context.Context, agentStream agent
 	if err != nil {
 		st := status.Convert(err)
 		return nil, api.MakeErr(log, st.Code(), st.Message(), nil)
+	}
+	if result.AgentID != "" {
+		parsedId, err := url.Parse(result.AgentID)
+		if err == nil {
+			path := parsedId.Path
+			trimmedPath := strings.TrimPrefix(path, "/")
+			if trimmedPath != "" {
+				result.Selectors = append(result.Selectors, &common.Selector{
+					Type:  "spiffe",
+					Value: fmt.Sprintf("svid:%s", trimmedPath),
+				})
+			}
+		}
 	}
 	return result, nil
 }
