@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
@@ -999,6 +1000,99 @@ func TestSignDataErrorFromEndpoint(t *testing.T) {
 	resp, err := client.SignData(context.Background(), "x509-CA-A", []byte("foo"), TransitHashAlgorithmSHA256, TransitSignatureAlgorithmPKCS1v15)
 	spiretest.RequireGRPCStatusHasPrefix(t, err, codes.Internal, "transit engine sign call failed: Error making API request.")
 	require.Empty(t, resp)
+}
+
+func TestSignData(t *testing.T) {
+	const signResponse = `{"data":{"signature":"vault:v1:AAAA"}}`
+
+	for _, tt := range []struct {
+		name              string
+		hashAlgo          TransitHashAlgorithm
+		sigAlgo           TransitSignatureAlgorithm
+		wantURLSuffix     string
+		wantSigAlgoInBody bool
+	}{
+		{
+			name:              "EC P-256: sha2-256 hash, no signature_algorithm in body",
+			hashAlgo:          TransitHashAlgorithmSHA256,
+			sigAlgo:           TransitSignatureAlgorithmNone,
+			wantURLSuffix:     "/sha2-256",
+			wantSigAlgoInBody: false,
+		},
+		{
+			name:              "EC P-384: sha2-384 hash, no signature_algorithm in body",
+			hashAlgo:          TransitHashAlgorithmSHA384,
+			sigAlgo:           TransitSignatureAlgorithmNone,
+			wantURLSuffix:     "/sha2-384",
+			wantSigAlgoInBody: false,
+		},
+		{
+			name:              "RSA PKCS1v15: sha2-256 hash, signature_algorithm present in body",
+			hashAlgo:          TransitHashAlgorithmSHA256,
+			sigAlgo:           TransitSignatureAlgorithmPKCS1v15,
+			wantURLSuffix:     "/sha2-256",
+			wantSigAlgoInBody: true,
+		},
+		{
+			name:              "RSA PSS: sha2-384 hash, signature_algorithm present in body",
+			hashAlgo:          TransitHashAlgorithmSHA384,
+			sigAlgo:           TransitSignatureAlgorithmPSS,
+			wantURLSuffix:     "/sha2-384",
+			wantSigAlgoInBody: true,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			var capturedBody map[string]any
+
+			fakeVaultServer := newFakeVaultServer()
+			fakeVaultServer.CertAuthResponseCode = 200
+			fakeVaultServer.CertAuthResponse = []byte(testCertAuthResponse)
+			fakeVaultServer.SignDataResponseCode = 200
+			fakeVaultServer.SignDataResponse = []byte(signResponse)
+			fakeVaultServer.SignDataReqHandler = func(code int, resp []byte) func(http.ResponseWriter, *http.Request) {
+				return func(w http.ResponseWriter, r *http.Request) {
+					if err := json.NewDecoder(r.Body).Decode(&capturedBody); err != nil {
+						http.Error(w, err.Error(), http.StatusBadRequest)
+						return
+					}
+					w.WriteHeader(code)
+					_, _ = w.Write(resp)
+				}
+			}
+
+			s, addr, err := fakeVaultServer.NewTLSServer()
+			require.NoError(t, err)
+			s.Start()
+			defer s.Close()
+
+			retry := 0
+			cp := &ClientParams{
+				MaxRetries:     &retry,
+				VaultAddr:      fmt.Sprintf("https://%v/", addr),
+				CACertPath:     testRootCert,
+				ClientCertPath: testClientCert,
+				ClientKeyPath:  testClientKey,
+			}
+			cc, err := NewClientConfig(cp, hclog.Default())
+			require.NoError(t, err)
+
+			renewCh := make(chan struct{})
+			client, err := cc.NewAuthenticatedClient(CERT, renewCh)
+			require.NoError(t, err)
+
+			sig, err := client.SignData(context.Background(), "my-key", []byte("digest"), tt.hashAlgo, tt.sigAlgo)
+			require.NoError(t, err)
+			require.NotEmpty(t, sig)
+
+			require.NotNil(t, capturedBody, "sign request body not captured")
+			require.Equal(t, true, capturedBody["prehashed"], "prehashed must be boolean true")
+			require.Equal(t, "asn1", capturedBody["marshalling_algorithm"])
+
+			_, hasSigAlgo := capturedBody["signature_algorithm"]
+			require.Equal(t, tt.wantSigAlgoInBody, hasSigAlgo,
+				"signature_algorithm presence mismatch: wantInBody=%v", tt.wantSigAlgoInBody)
+		})
+	}
 }
 
 func newFakeVaultServer() *FakeVaultServerConfig {

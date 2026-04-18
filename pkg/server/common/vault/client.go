@@ -511,9 +511,11 @@ func (c *Client) SignData(ctx context.Context, keyName string, data []byte, hash
 
 	body := map[string]any{
 		"input":                 encodedData,
-		"signature_algorithm":   signatureAlgo,
 		"marshalling_algorithm": "asn1",
 		"prehashed":             true,
+	}
+	if signatureAlgo != TransitSignatureAlgorithmNone {
+		body["signature_algorithm"] = signatureAlgo
 	}
 
 	sigResp, err := c.vaultClient.Logical().WriteWithContext(ctx, fmt.Sprintf("/%s/sign/%s/%s", c.ClientParams.TransitEnginePath, keyName, hashAlgo), body)

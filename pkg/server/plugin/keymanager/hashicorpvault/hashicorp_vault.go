@@ -394,11 +394,12 @@ func algosForKMS(keyType keymanagerv1.KeyType, signerOpts any) (vault.TransitHas
 	switch {
 	case hashAlgo == keymanagerv1.HashAlgorithm_UNSPECIFIED_HASH_ALGORITHM:
 		return "", "", errors.New("hash algorithm is required")
-	case keyType == keymanagerv1.KeyType_EC_P256 || keyType == keymanagerv1.KeyType_EC_P384:
-		// For ECDSA with prehashed=true, Vault uses "none" to mean "use the default hash
-		// for the key type" (SHA-256 for P-256, SHA-384 for P-384). signature_algorithm
-		// is not applicable to ECDSA keys.
-		return vault.TransitHashAlgorithmNone, vault.TransitSignatureAlgorithmNone, nil
+	case keyType == keymanagerv1.KeyType_EC_P256:
+		// Vault does not support hash_algorithm=none for ECDSA keys; use the hash
+		// that matches the curve. signature_algorithm is RSA-only and must be omitted.
+		return vault.TransitHashAlgorithmSHA256, vault.TransitSignatureAlgorithmNone, nil
+	case keyType == keymanagerv1.KeyType_EC_P384:
+		return vault.TransitHashAlgorithmSHA384, vault.TransitSignatureAlgorithmNone, nil
 	case isRSA && !isPSS && hashAlgo == keymanagerv1.HashAlgorithm_SHA256:
 		return vault.TransitHashAlgorithmSHA256, vault.TransitSignatureAlgorithmPKCS1v15, nil
 	case isRSA && !isPSS && hashAlgo == keymanagerv1.HashAlgorithm_SHA384:

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/vault/sdk/helper/consts"
+	keymanagerv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/keymanager/v1"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/server/common/vault"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
@@ -895,6 +896,110 @@ func setupFakeVaultServer() *FakeVaultServerConfig {
 	fakeVaultServer.RenewResponseCode = 200
 	fakeVaultServer.RenewResponse = []byte(testRenewResponse)
 	return fakeVaultServer
+}
+
+func TestAlgosForKMS(t *testing.T) {
+	hashAlgo := func(h keymanagerv1.HashAlgorithm) *keymanagerv1.SignDataRequest_HashAlgorithm {
+		return &keymanagerv1.SignDataRequest_HashAlgorithm{HashAlgorithm: h}
+	}
+	pssOpts := func(h keymanagerv1.HashAlgorithm) *keymanagerv1.SignDataRequest_PssOptions {
+		return &keymanagerv1.SignDataRequest_PssOptions{PssOptions: &keymanagerv1.SignDataRequest_PSSOptions{HashAlgorithm: h}}
+	}
+
+	for _, tt := range []struct {
+		name         string
+		keyType      keymanagerv1.KeyType
+		signerOpts   any
+		wantHashAlgo vault.TransitHashAlgorithm
+		wantSigAlgo  vault.TransitSignatureAlgorithm
+		expectErrMsg string
+	}{
+		{
+			name:         "EC P-256 uses sha2-256 and no signature algorithm",
+			keyType:      keymanagerv1.KeyType_EC_P256,
+			signerOpts:   hashAlgo(keymanagerv1.HashAlgorithm_SHA256),
+			wantHashAlgo: vault.TransitHashAlgorithmSHA256,
+			wantSigAlgo:  vault.TransitSignatureAlgorithmNone,
+		},
+		{
+			name:         "EC P-384 uses sha2-384 and no signature algorithm",
+			keyType:      keymanagerv1.KeyType_EC_P384,
+			signerOpts:   hashAlgo(keymanagerv1.HashAlgorithm_SHA384),
+			wantHashAlgo: vault.TransitHashAlgorithmSHA384,
+			wantSigAlgo:  vault.TransitSignatureAlgorithmNone,
+		},
+		{
+			name:         "RSA-2048 SHA-256 PKCS1v15",
+			keyType:      keymanagerv1.KeyType_RSA_2048,
+			signerOpts:   hashAlgo(keymanagerv1.HashAlgorithm_SHA256),
+			wantHashAlgo: vault.TransitHashAlgorithmSHA256,
+			wantSigAlgo:  vault.TransitSignatureAlgorithmPKCS1v15,
+		},
+		{
+			name:         "RSA-2048 SHA-384 PKCS1v15",
+			keyType:      keymanagerv1.KeyType_RSA_2048,
+			signerOpts:   hashAlgo(keymanagerv1.HashAlgorithm_SHA384),
+			wantHashAlgo: vault.TransitHashAlgorithmSHA384,
+			wantSigAlgo:  vault.TransitSignatureAlgorithmPKCS1v15,
+		},
+		{
+			name:         "RSA-2048 SHA-512 PKCS1v15",
+			keyType:      keymanagerv1.KeyType_RSA_2048,
+			signerOpts:   hashAlgo(keymanagerv1.HashAlgorithm_SHA512),
+			wantHashAlgo: vault.TransitHashAlgorithmSHA512,
+			wantSigAlgo:  vault.TransitSignatureAlgorithmPKCS1v15,
+		},
+		{
+			name:         "RSA-4096 SHA-256 PSS",
+			keyType:      keymanagerv1.KeyType_RSA_4096,
+			signerOpts:   pssOpts(keymanagerv1.HashAlgorithm_SHA256),
+			wantHashAlgo: vault.TransitHashAlgorithmSHA256,
+			wantSigAlgo:  vault.TransitSignatureAlgorithmPSS,
+		},
+		{
+			name:         "RSA-4096 SHA-384 PSS",
+			keyType:      keymanagerv1.KeyType_RSA_4096,
+			signerOpts:   pssOpts(keymanagerv1.HashAlgorithm_SHA384),
+			wantHashAlgo: vault.TransitHashAlgorithmSHA384,
+			wantSigAlgo:  vault.TransitSignatureAlgorithmPSS,
+		},
+		{
+			name:         "RSA-4096 SHA-512 PSS",
+			keyType:      keymanagerv1.KeyType_RSA_4096,
+			signerOpts:   pssOpts(keymanagerv1.HashAlgorithm_SHA512),
+			wantHashAlgo: vault.TransitHashAlgorithmSHA512,
+			wantSigAlgo:  vault.TransitSignatureAlgorithmPSS,
+		},
+		{
+			name:         "unspecified hash algorithm returns error",
+			keyType:      keymanagerv1.KeyType_EC_P256,
+			signerOpts:   hashAlgo(keymanagerv1.HashAlgorithm_UNSPECIFIED_HASH_ALGORITHM),
+			expectErrMsg: "hash algorithm is required",
+		},
+		{
+			name:         "nil PSS options returns error",
+			keyType:      keymanagerv1.KeyType_RSA_2048,
+			signerOpts:   &keymanagerv1.SignDataRequest_PssOptions{PssOptions: nil},
+			expectErrMsg: "PSS options are required",
+		},
+		{
+			name:         "unsupported key type returns error",
+			keyType:      keymanagerv1.KeyType_UNSPECIFIED_KEY_TYPE,
+			signerOpts:   hashAlgo(keymanagerv1.HashAlgorithm_SHA256),
+			expectErrMsg: "unsupported combination",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			hashAlgo, sigAlgo, err := algosForKMS(tt.keyType, tt.signerOpts)
+			if tt.expectErrMsg != "" {
+				require.ErrorContains(t, err, tt.expectErrMsg)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.wantHashAlgo, hashAlgo)
+			require.Equal(t, tt.wantSigAlgo, sigAlgo)
+		})
+	}
 }
 
 func createKeyIdentifierFile(t *testing.T) string {

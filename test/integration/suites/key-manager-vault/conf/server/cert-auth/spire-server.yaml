@@ -42,7 +42,7 @@ data:
         plugin_data {
           vault_addr="https://vault.vault.svc:8200/"
           ca_cert_path="/run/spire/vault/vault_ca.pem"
-          pki_mount_point="pki_int"
+          key_identifier_file="/run/spire/data/vault-key-identifier"
           cert_auth {
             client_cert_path="/run/spire/vault-auth/client.pem"
             client_key_path="/run/spire/vault-auth/client_key.pem"
