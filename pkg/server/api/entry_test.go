@@ -752,6 +752,10 @@ func TestReadOnlyEntryClone(t *testing.T) {
 		AdditionalAttributes: &types.Entry_AdditionalAttributes{
 			DisableX509SvidPrefetch: false,
 		},
+		JwtSvidDefaultAudiencePolicy: types.JWTSVIDAudiencePolicy_JWT_SVID_AUDIENCE_POLICY_AUDITABLE,
+		JwtSvidAudiencePolicies: map[string]types.JWTSVIDAudiencePolicy{
+			"aud1": types.JWTSVIDAudiencePolicy_JWT_SVID_AUDIENCE_POLICY_UNIQUE,
+		},
 	}
 
 	// Verify that we our test entry has all fields set to make sure

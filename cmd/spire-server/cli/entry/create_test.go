@@ -357,7 +357,9 @@ DisableX509SvidPrefetch : true
         "jwt_svid_ttl": 30,
 		"additional_attributes": {
 		  "disable_x509_svid_prefetch": true
-		}
+		},
+        "jwt_svid_default_audience_policy": "JWT_SVID_AUDIENCE_POLICY_DEFAULT",
+        "jwt_svid_audience_policies": {}
       }
     }
   ]
@@ -464,7 +466,9 @@ StoreSvid               : true
         ],
         "revision_number": "0",
         "store_svid": true,
-        "jwt_svid_ttl": 0
+        "jwt_svid_ttl": 0,
+        "jwt_svid_default_audience_policy": "JWT_SVID_AUDIENCE_POLICY_DEFAULT",
+        "jwt_svid_audience_policies": {}
       }
     }
   ]
@@ -593,7 +597,9 @@ DisableX509SvidPrefetch : true
         "jwt_svid_ttl": 30,
 		"additional_attributes": {
 		  "disable_x509_svid_prefetch": false
-		}
+		},
+        "jwt_svid_default_audience_policy": "JWT_SVID_AUDIENCE_POLICY_DEFAULT",
+        "jwt_svid_audience_policies": {}
       }
     },
     {
@@ -630,7 +636,9 @@ DisableX509SvidPrefetch : true
         "jwt_svid_ttl": 30,
 		"additional_attributes": {
 		  "disable_x509_svid_prefetch": false
-		}
+		},
+        "jwt_svid_default_audience_policy": "JWT_SVID_AUDIENCE_POLICY_DEFAULT",
+        "jwt_svid_audience_policies": {}
       }
     },
     {
@@ -671,7 +679,9 @@ DisableX509SvidPrefetch : true
         "jwt_svid_ttl": 30,
 		"additional_attributes": {
 		  "disable_x509_svid_prefetch": false
-		}
+		},
+        "jwt_svid_default_audience_policy": "JWT_SVID_AUDIENCE_POLICY_DEFAULT",
+        "jwt_svid_audience_policies": {}
       }
     },
     {
@@ -708,7 +718,9 @@ DisableX509SvidPrefetch : true
         "jwt_svid_ttl": 30,
 		"additional_attributes": {
 		  "disable_x509_svid_prefetch": true
-		}
+		},
+        "jwt_svid_default_audience_policy": "JWT_SVID_AUDIENCE_POLICY_DEFAULT",
+        "jwt_svid_audience_policies": {}
       }
     }
   ]
@@ -769,7 +781,9 @@ Error: failed to create one or more entries
         "dns_names": [],
         "revision_number": "0",
         "store_svid": false,
-        "jwt_svid_ttl": 0
+        "jwt_svid_ttl": 0,
+        "jwt_svid_default_audience_policy": "JWT_SVID_AUDIENCE_POLICY_DEFAULT",
+        "jwt_svid_audience_policies": {}
       }
     }
   ]
