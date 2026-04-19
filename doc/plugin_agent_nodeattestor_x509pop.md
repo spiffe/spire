@@ -20,6 +20,7 @@ spiffe://<trust_domain>/spire/agent/x509pop/<fingerprint>
 | `certificate_path`       | The path to the certificate bundle on disk. The file must contain one or more PEM blocks, starting with the identity certificate followed by any intermediate certificates necessary for chain-of-trust validation. The identity certificate must contain the `digitalSignature` in the [X509v3 KeyUsage](https://tools.ietf.org/html/rfc5280#section-4.2.1.3) |         |
 | `intermediates_path`     | Optional. The path to a chain of intermediate certificates on disk. The file must contain one or more PEM blocks, corresponding to intermediate certificates necessary for chain-of-trust validation. If the file pointed by `certificate_path` contains more than one certificate, this chain of certificates will be appended to it.                         |         |
 | `spiffe_endpoint_socket` | Set to use a spiffe workload api endpoint to fetch the node identity. Use along with the mode=spiffe setting on the server node attestor.                                                                                                                                                                                                                      |         |
+
 A sample configuration:
 
 ```hcl
