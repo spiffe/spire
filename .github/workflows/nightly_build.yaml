@@ -5,6 +5,8 @@ on:
     - cron: '37 21 * * *'
   workflow_dispatch: {}
 
+permissions: {}
+
 env:
   NIGHTLY: true
 

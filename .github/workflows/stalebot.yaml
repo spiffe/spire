@@ -4,6 +4,9 @@ on:
   # Random minute number to avoid GH scheduler stampede
   - cron: '39 22 * * *'
 
+permissions:
+  contents: read
+
 jobs:
   process-stale-issues:
     runs-on: ubuntu-latest
