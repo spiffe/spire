@@ -72,8 +72,8 @@ github.com/AzureAD/microsoft-authentication-library-for-go v1.6.0 h1:XRzhVemXdgv
 github.com/AzureAD/microsoft-authentication-library-for-go v1.6.0/go.mod h1:HKpQxkWaGLJ+D/5H8QRpyQXA1eKjxkFlOMwck5+33Jk=
 github.com/DataDog/datadog-go v3.2.0+incompatible h1:qSG2N4FghB1He/r2mFrWKCaL7dXCilEuNEeAn20fdD4=
 github.com/DataDog/datadog-go v3.2.0+incompatible/go.mod h1:LButxg5PwREeZtORoXG3tL4fMGNddJ+vMq1mwgfaqoQ=
-github.com/GoogleCloudPlatform/cloudsql-proxy v1.37.14 h1:CXvAEAQx1qbyBVhzxbiixIs8lIsT9gobGRenHqyykjo=
-github.com/GoogleCloudPlatform/cloudsql-proxy v1.37.14/go.mod h1:DARPSSOFt6IJNsTzvQD9sCSDXHpu7ilhiA55sWBWytw=
+github.com/GoogleCloudPlatform/cloudsql-proxy v1.37.15 h1:fE7ddc4h5jPWabD+28yjIn/rXvgwop3iFszp7EqHnEU=
+github.com/GoogleCloudPlatform/cloudsql-proxy v1.37.15/go.mod h1:z3Gsjcd40rngyEyjqIDQxJgS42UOPOxvwHo87G0hqGQ=
 github.com/GoogleCloudPlatform/confidential-space/server v0.0.0-20260307011055-895ec9019dd7 h1:Iz7wjnn93xcmPlUS/9ue7CeyH7yvcxHAXKu+2lE2/is=
 github.com/GoogleCloudPlatform/confidential-space/server v0.0.0-20260307011055-895ec9019dd7/go.mod h1:sNFt/HcARjGxR3/2s7hwlqvHlUzXdaCiS62u7A4rnHg=
 github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.31.0 h1:DHa2U07rk8syqvCge0QIGMCE1WxGj9njT44GH7zNJLQ=
