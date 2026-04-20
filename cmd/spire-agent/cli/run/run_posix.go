@@ -18,7 +18,7 @@ import (
 )
 
 func (c *agentConfig) addOSFlags(flags *flag.FlagSet) {
-	flags.StringVar(&c.SocketPath, "socketPath", "", "Path to bind the SPIRE Agent API socket to")
+	common_cli.StringVar(flags, &c.SocketPath, "socketPath", "s", "", "Path to bind the SPIRE Agent API socket to")
 }
 
 func (c *agentConfig) setPlatformDefaults() {

@@ -34,8 +34,8 @@ func (c *healthCheckCommand) Synopsis() string {
 }
 
 func (c *healthCheckCommand) AppendFlags(fs *flag.FlagSet) {
-	fs.BoolVar(&c.shallow, "shallow", false, "Perform a less stringent health check")
-	fs.BoolVar(&c.verbose, "verbose", false, "Print verbose information")
+	common_cli.BoolVar(fs, &c.shallow, "shallow", "s", false, "Perform a less stringent health check")
+	common_cli.BoolVar(fs, &c.verbose, "verbose", "v", false, "Print verbose information")
 }
 
 func (c *healthCheckCommand) Run(ctx context.Context, env *common_cli.Env, client util.ServerClient) error {

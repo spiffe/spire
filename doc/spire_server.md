@@ -334,14 +334,14 @@ Most of the configuration file above options have identical command-line counter
 | Command        | Action                                                                               | Default                 |
 |:---------------|:-------------------------------------------------------------------------------------|:------------------------|
 | `-bindAddress` | IP address or DNS name of the SPIRE server                                           |                         |
-| `-config`      | Path to a SPIRE config file                                                          | conf/server/server.conf |
-| `-dataDir`     | Directory to store runtime data to                                                   |                         |
+| `-config (-c)`      | Path to a SPIRE config file                                                          | conf/server/server.conf |
+| `-dataDir (-d)`     | Directory to store runtime data to                                                   |                         |
 | `-expandEnv`   | Expand environment $VARIABLES in the config file                                     |                         |
 | `-logFile`     | File to write logs to                                                                |                         |
 | `-logFormat`   | Format of logs, &lt;text&vert;json&gt;                                               |                         |
-| `-logLevel`    | DEBUG, INFO, WARN or ERROR                                                           |                         |
+| `-logLevel (-v)`    | DEBUG, INFO, WARN or ERROR                                                           |                         |
 | `-serverPort`  | Port number of the SPIRE server                                                      |                         |
-| `-socketPath`  | Path to bind the SPIRE Server API socket to                                          |                         |
+| `-socketPath (-s)`  | Path to bind the SPIRE Server API socket to                                          |                         |
 | `-trustDomain` | The trust domain that this server belongs to (should be no more than 255 characters) |                         |
 
 #### Running SPIRE Server as a Windows service
@@ -381,18 +381,18 @@ Creates registration entries.
 
 | Command          | Action                                                                                                                                                                                            | Default                                         |
 |:-----------------|:--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|:------------------------------------------------|
-| `-admin`         | If set, the SPIFFE ID in this entry will be granted access to the Server APIs                                                                                                                     |                                                 |
-| `-data`          | Path to a file containing registration data in JSON format (optional, if specified, other flags related with entry information must be omitted). If set to '-', read the JSON from stdin.         |                                                 |
+| `-admin (-a)`         | If set, the SPIFFE ID in this entry will be granted access to the Server APIs                                                                                                                     |                                                 |
+| `-data (-d)`          | Path to a file containing registration data in JSON format (optional, if specified, other flags related with entry information must be omitted). If set to '-', read the JSON from stdin.         |                                                 |
 | `-dns`           | A DNS name that will be included in SVIDs issued based on this entry, where appropriate. Can be used more than once                                                                               |                                                 |
 | `-downstream`    | A boolean value that, when set, indicates that the entry describes a downstream SPIRE server                                                                                                      |                                                 |
 | `-entryExpiry`   | An expiry, from epoch in seconds, for the resulting registration entry to be pruned from the datastore. Please note that this is a data management feature and not a security feature (optional). |                                                 |
-| `-entryID`       | A user-specified ID for the newly created registration entry (optional). If no entry ID is provided, one will be generated during creation                                                        |                                                 |
-| `-federatesWith` | A list of trust domain SPIFFE IDs representing the trust domains this registration entry federates with. A bundle for that trust domain must already exist                                        |                                                 |
-| `-node`          | If set, this entry will be applied to matching nodes rather than workloads                                                                                                                        |                                                 |
-| `-parentID`      | The SPIFFE ID of this record's parent.                                                                                                                                                            |                                                 |
-| `-selector`      | A colon-delimited type:value selector used for attestation. This parameter can be used more than once, to specify multiple selectors that must be satisfied.                                      |                                                 |
+| `-entryID (-e)`       | A user-specified ID for the newly created registration entry (optional). If no entry ID is provided, one will be generated during creation                                                        |                                                 |
+| `-federatesWith (-f)` | A list of trust domain SPIFFE IDs representing the trust domains this registration entry federates with. A bundle for that trust domain must already exist                                        |                                                 |
+| `-node (-n)`          | If set, this entry will be applied to matching nodes rather than workloads                                                                                                                        |                                                 |
+| `-parentID (-p)`      | The SPIFFE ID of this record's parent.                                                                                                                                                            |                                                 |
+| `-selector (-l)`      | A colon-delimited type:value selector used for attestation. This parameter can be used more than once, to specify multiple selectors that must be satisfied.                                      |                                                 |
 | `-socketPath`    | Path to the SPIRE Server API socket                                                                                                                                                               | /tmp/spire-server/private/api.sock              |
-| `-spiffeID`      | The SPIFFE ID that this record represents and will be set to the SVID issued.                                                                                                                     |                                                 |
+| `-spiffeID (-s)`      | The SPIFFE ID that this record represents and will be set to the SVID issued.                                                                                                                     |                                                 |
 | `-x509SVIDTTL`   | A TTL, in seconds, for any X509-SVID issued as a result of this record.                                                                                                                           | The TTL configured with `default_x509_svid_ttl` |
 | `-jwtSVIDTTL`    | A TTL, in seconds, for any JWT-SVID issued as a result of this record.                                                                                                                            | The TTL configured with `default_jwt_svid_ttl`  |
 | `-storeSVID`     | A boolean value that, when set, indicates that the resulting issued SVID from this entry must be stored through an SVIDStore plugin                                                               |                                                 |
@@ -403,17 +403,17 @@ Updates registration entries.
 
 | Command          | Action                                                                                                                                                                                    | Default                                         |
 |:-----------------|:------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|:------------------------------------------------|
-| `-admin`         | If true, the SPIFFE ID in this entry will be granted access to the Server APIs                                                                                                            |                                                 |
-| `-data`          | Path to a file containing registration data in JSON format (optional, if specified, other flags related with entry information must be omitted). If set to '-', read the JSON from stdin. |                                                 |
+| `-admin (-a)`         | If true, the SPIFFE ID in this entry will be granted access to the Server APIs                                                                                                            |                                                 |
+| `-data (-d)`          | Path to a file containing registration data in JSON format (optional, if specified, other flags related with entry information must be omitted). If set to '-', read the JSON from stdin. |                                                 |
 | `-dns`           | A DNS name that will be included in SVIDs issued based on this entry, where appropriate. Can be used more than once                                                                       |                                                 |
 | `-downstream`    | A boolean value that, when set, indicates that the entry describes a downstream SPIRE server                                                                                              |                                                 |
 | `-entryExpiry`   | An expiry, from epoch in seconds, for the resulting registration entry to be pruned                                                                                                       |                                                 |
-| `-entryID`       | The Registration Entry ID of the record to update                                                                                                                                         |                                                 |
-| `-federatesWith` | A list of trust domain SPIFFE IDs representing the trust domains this registration entry federates with. A bundle for that trust domain must already exist                                |                                                 |
-| `-parentID`      | The SPIFFE ID of this record's parent.                                                                                                                                                    |                                                 |
-| `-selector`      | A colon-delimited type:value selector used for attestation. This parameter can be used more than once, to specify multiple selectors that must be satisfied.                              |                                                 |
+| `-entryID (-e)`       | The Registration Entry ID of the record to update                                                                                                                                         |                                                 |
+| `-federatesWith (-f)` | A list of trust domain SPIFFE IDs representing the trust domains this registration entry federates with. A bundle for that trust domain must already exist                                |                                                 |
+| `-parentID (-p)`      | The SPIFFE ID of this record's parent.                                                                                                                                                    |                                                 |
+| `-selector (-l)`      | A colon-delimited type:value selector used for attestation. This parameter can be used more than once, to specify multiple selectors that must be satisfied.                              |                                                 |
 | `-socketPath`    | Path to the SPIRE Server API socket                                                                                                                                                       | /tmp/spire-server/private/api.sock              |
-| `-spiffeID`      | The SPIFFE ID that this record represents and will be set to the SVID issued.                                                                                                             |                                                 |
+| `-spiffeID (-s)`      | The SPIFFE ID that this record represents and will be set to the SVID issued.                                                                                                             |                                                 |
 | `-x509SVIDTTL`   | A TTL, in seconds, for any X509-SVID issued as a result of this record.                                                                                                                   | The TTL configured with `default_x509_svid_ttl` |
 | `-jwtSVIDTTL`    | A TTL, in seconds, for any JWT-SVID issued as a result of this record.                                                                                                                    | The TTL configured with `default_jwt_svid_ttl`  |
 | `storeSVID`      | A boolean value that, when set, indicates that the resulting issued SVID from this entry must be stored through an SVIDStore plugin                                                       |                                                 |
@@ -425,11 +425,11 @@ Displays the total number of registration entries.
 | Command          | Action                                                                                           | Default                            |
 |:-----------------|:-------------------------------------------------------------------------------------------------|:-----------------------------------|
 | `-downstream`    | A boolean value that, when set, indicates that the entry describes a downstream SPIRE server     |                                    |
-| `-federatesWith` | SPIFFE ID of a trust domain an entry is federate with. Can be used more than once                |                                    |
-| `-parentID`      | The Parent ID of the records to count.                                                            |                                    |
-| `-selector`      | A colon-delimited type:value selector. Can be used more than once to specify multiple selectors. |                                    |
+| `-federatesWith (-f)` | SPIFFE ID of a trust domain an entry is federate with. Can be used more than once                |                                    |
+| `-parentID (-p)`      | The Parent ID of the records to count.                                                            |                                    |
+| `-selector (-l)`      | A colon-delimited type:value selector. Can be used more than once to specify multiple selectors. |                                    |
 | `-socketPath`    | Path to the SPIRE Server API socket                                                              | /tmp/spire-server/private/api.sock |
-| `-spiffeID`      | The SPIFFE ID of the records to count.                                                            |                                    |
+| `-spiffeID (-s)`      | The SPIFFE ID of the records to count.                                                            |                                    |
 
 ### `spire-server entry delete`
 
@@ -437,7 +437,7 @@ Deletes a specified registration entry.
 
 | Command       | Action                                            | Default                            |
 |:--------------|:--------------------------------------------------|:-----------------------------------|
-| `-entryID`    | The Registration Entry ID of the record to delete |                                    |
+| `-entryID (-e)`    | The Registration Entry ID of the record to delete |                                    |
 | `-socketPath` | Path to the SPIRE Server API socket               | /tmp/spire-server/private/api.sock |
 
 ### `spire-server entry show`
@@ -447,12 +447,12 @@ Displays configured registration entries.
 | Command          | Action                                                                                           | Default                            |
 |:-----------------|:-------------------------------------------------------------------------------------------------|:-----------------------------------|
 | `-downstream`    | A boolean value that, when set, indicates that the entry describes a downstream SPIRE server     |                                    |
-| `-entryID`       | The Entry ID of the record to show.                                                              |                                    |
-| `-federatesWith` | SPIFFE ID of a trust domain an entry is federate with. Can be used more than once                |                                    |
-| `-parentID`      | The Parent ID of the records to show.                                                            |                                    |
-| `-selector`      | A colon-delimited type:value selector. Can be used more than once to specify multiple selectors. |                                    |
+| `-entryID (-e)`       | The Entry ID of the record to show.                                                              |                                    |
+| `-federatesWith (-f)` | SPIFFE ID of a trust domain an entry is federate with. Can be used more than once                |                                    |
+| `-parentID (-p)`      | The Parent ID of the records to show.                                                            |                                    |
+| `-selector (-l)`      | A colon-delimited type:value selector. Can be used more than once to specify multiple selectors. |                                    |
 | `-socketPath`    | Path to the SPIRE Server API socket                                                              | /tmp/spire-server/private/api.sock |
-| `-spiffeID`      | The SPIFFE ID of the records to show.                                                            |                                    |
+| `-spiffeID (-s)`      | The SPIFFE ID of the records to show.                                                            |                                    |
 
 ### `spire-server bundle count`
 
@@ -468,7 +468,7 @@ Displays the bundle for the trust domain of the server.
 
 | Command       | Action                                                  | Default                            |
 |:--------------|:--------------------------------------------------------|:-----------------------------------|
-| `-format`     | The format to show the bundle. Either `pem` or `spiffe` | pem                                |
+| `-format (-f)`     | The format to show the bundle. Either `pem` or `spiffe` | pem                                |
 | `-socketPath` | Path to the SPIRE Server API socket                     | /tmp/spire-server/private/api.sock |
 
 ### `spire-server bundle list`
@@ -477,8 +477,8 @@ Displays federated bundles.
 
 | Command       | Action                                                                                  | Default                            |
 |:--------------|:----------------------------------------------------------------------------------------|:-----------------------------------|
-| `-id`         | The trust domain SPIFFE ID of the bundle to show. If unset, all trust bundles are shown |                                    |
-| `-format`     | The format to show the federated bundles. Either `pem` or `spiffe`                      | pem                                |
+| `-id (-i)`         | The trust domain SPIFFE ID of the bundle to show. If unset, all trust bundles are shown |                                    |
+| `-format (-f)`     | The format to show the federated bundles. Either `pem` or `spiffe`                      | pem                                |
 | `-socketPath` | Path to the SPIRE Server API socket                                                     | /tmp/spire-server/private/api.sock |
 
 ### `spire-server bundle set`
@@ -487,10 +487,10 @@ Creates or updates bundle data for a trust domain. This command cannot be used t
 
 | Command       | Action                                                                                  | Default                            |
 |:--------------|:----------------------------------------------------------------------------------------|:-----------------------------------|
-| `-id`         | The trust domain SPIFFE ID of the bundle to set.                                        |                                    |
-| `-path`       | Path on disk to the file containing the bundle data. If unset, data is read from stdin. |                                    |
+| `-id (-i)`         | The trust domain SPIFFE ID of the bundle to set.                                        |                                    |
+| `-path (-p)`       | Path on disk to the file containing the bundle data. If unset, data is read from stdin. |                                    |
 | `-socketPath` | Path to the SPIRE Server API socket                                                     | /tmp/spire-server/private/api.sock |
-| `-format`     | The format of the bundle to set. Either `pem` or `spiffe`                               | pem                                |
+| `-format (-f)`     | The format of the bundle to set. Either `pem` or `spiffe`                               | pem                                |
 
 ### `spire-server bundle delete`
 
@@ -498,9 +498,9 @@ Deletes bundle data for a trust domain. This command cannot be used to delete th
 
 | Command       | Action                                                                                                                                                                                                                                                                                                                                       | Default                            |
 |:--------------|:---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|:-----------------------------------|
-| `-id`         | The trust domain SPIFFE ID of the bundle to delete.                                                                                                                                                                                                                                                                                          |                                    |
+| `-id (-i)`         | The trust domain SPIFFE ID of the bundle to delete.                                                                                                                                                                                                                                                                                          |                                    |
 | `-mode`       | One of: `restrict`, `dissociate`, `delete`. `restrict` prevents the bundle from being deleted if it is associated to registration entries (i.e. federated with). `dissociate` allows the bundle to be deleted and removes the association from registration entries. `delete` deletes the bundle as well as associated registration entries. | `restrict`                         |
-| `-socketPath` | Path to the SPIRE Server API socket                                                                                                                                                                                                                                                                                                          | /tmp/spire-server/private/api.sock |
+| `-socketPath (-s)` | Path to the SPIRE Server API socket                                                                                                                                                                                                                                                                                                          | /tmp/spire-server/private/api.sock |
 
 ### `spire-server federation create`
 
@@ -627,9 +627,9 @@ Checks SPIRE server's health.
 
 | Command       | Action                                | Default                            |
 |:--------------|:--------------------------------------|:-----------------------------------|
-| `-shallow`    | Perform a less stringent health check |                                    |
+| `-shallow (-s)`    | Perform a less stringent health check |                                    |
 | `-socketPath` | Path to the SPIRE Server API socket   | /tmp/spire-server/private/api.sock |
-| `-verbose`    | Print verbose information             |                                    |
+| `-verbose (-v)`    | Print verbose information             |                                    |
 
 ### `spire-server validate`
 

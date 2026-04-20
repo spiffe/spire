@@ -44,8 +44,8 @@ func (*deleteCommand) Synopsis() string {
 }
 
 func (c *deleteCommand) AppendFlags(f *flag.FlagSet) {
-	f.StringVar(&c.entryID, "entryID", "", "The Registration Entry ID of the record to delete.")
-	f.StringVar(&c.file, "file", "", "Path to a file containing a JSON structure for batch deletion (optional). If set to '-', read from stdin.")
+	commoncli.StringVar(f, &c.entryID, "entryID", "e", "", "The Registration Entry ID of the record to delete.")
+	commoncli.StringVar(f, &c.file, "file", "f", "", "Path to a file containing a JSON structure for batch deletion (optional). If set to '-', read from stdin.")
 	cliprinter.AppendFlagWithCustomPretty(&c.printer, f, c.env, c.prettyPrintDelete)
 }
 

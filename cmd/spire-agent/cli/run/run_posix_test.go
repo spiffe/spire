@@ -374,3 +374,16 @@ func newAgentConfigCasesOS(t *testing.T) []newAgentConfigCase {
 		},
 	}
 }
+func TestParseFlagsShorthand(t *testing.T) {
+	c, err := parseFlags("run", []string{
+		"-c", "conf/agent/agent.conf",
+		"-d", "/data/dir",
+		"-v", "DEBUG",
+		"-s", "/tmp/spire-agent/public/api.sock",
+	}, os.Stderr)
+	require.NoError(t, err)
+	assert.Equal(t, "conf/agent/agent.conf", c.ConfigPath)
+	assert.Equal(t, "/data/dir", c.DataDir)
+	assert.Equal(t, "DEBUG", c.LogLevel)
+	assert.Equal(t, "/tmp/spire-agent/public/api.sock", c.SocketPath)
+}

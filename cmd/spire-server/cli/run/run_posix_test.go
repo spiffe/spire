@@ -301,3 +301,16 @@ func getAvailablePort() (string, error) {
 
 	return strconv.Itoa(int(addrPort.Port())), nil
 }
+func TestParseFlagsShorthand(t *testing.T) {
+	c, err := parseFlags("run", []string{
+		"-c", "conf/server/server.conf",
+		"-d", "/data/dir",
+		"-v", "DEBUG",
+		"-s", "/tmp/spire-server/private/api.sock",
+	}, os.Stderr)
+	require.NoError(t, err)
+	assert.Equal(t, "conf/server/server.conf", c.ConfigPath)
+	assert.Equal(t, "/data/dir", c.DataDir)
+	assert.Equal(t, "DEBUG", c.LogLevel)
+	assert.Equal(t, "/tmp/spire-server/private/api.sock", c.SocketPath)
+}

@@ -9,11 +9,12 @@ import (
 
 	"github.com/spiffe/spire/cmd/spire-agent/cli/common"
 	"github.com/spiffe/spire/pkg/agent"
+	common_cli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/namedpipe"
 )
 
 func (c *agentConfig) addOSFlags(flags *flag.FlagSet) {
-	flags.StringVar(&c.Experimental.NamedPipeName, "namedPipeName", "", "Pipe name to bind the SPIRE Agent API named pipe")
+	common_cli.StringVar(flags, &c.Experimental.NamedPipeName, "namedPipeName", "p", "", "Pipe name to bind the SPIRE Agent API named pipe")
 }
 
 func (c *agentConfig) setPlatformDefaults() {

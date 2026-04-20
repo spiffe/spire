@@ -37,7 +37,7 @@ func (c *showCommand) Synopsis() string {
 }
 
 func (c *showCommand) AppendFlags(fs *flag.FlagSet) {
-	fs.StringVar(&c.bundleFormat, "format", util.FormatPEM, fmt.Sprintf("The format to show the bundle (only pretty output format supports this flag). Either %q or %q.", util.FormatPEM, util.FormatSPIFFE))
+	common_cli.StringVar(fs, &c.bundleFormat, "format", "f", util.FormatPEM, fmt.Sprintf("The format to show the bundle (only pretty output format supports this flag). Either %q or %q.", util.FormatPEM, util.FormatSPIFFE))
 	cliprinter.AppendFlagWithCustomPretty(&c.printer, fs, c.env, c.prettyPrintBundle)
 }
 

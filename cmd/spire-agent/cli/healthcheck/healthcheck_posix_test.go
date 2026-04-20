@@ -11,10 +11,12 @@ import (
 
 var (
 	usage = `Usage of health:
+  -s	Perform a less stringent health check
   -shallow
     	Perform a less stringent health check
   -socketPath string
     	Path to the SPIRE Agent API socket (default "/tmp/spire-agent/public/api.sock")
+  -v	Print verbose information
   -verbose
     	Print verbose information
 `

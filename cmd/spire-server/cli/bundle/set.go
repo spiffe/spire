@@ -43,9 +43,9 @@ func (c *setCommand) Synopsis() string {
 }
 
 func (c *setCommand) AppendFlags(fs *flag.FlagSet) {
-	fs.StringVar(&c.id, "id", "", "SPIFFE ID of the trust domain")
-	fs.StringVar(&c.path, "path", "", "Path to the bundle data")
-	fs.StringVar(&c.bundleFormat, "format", util.FormatPEM, fmt.Sprintf("The format of the bundle data. Either %q or %q.", util.FormatPEM, util.FormatSPIFFE))
+	common_cli.StringVar(fs, &c.id, "id", "i", "", "SPIFFE ID of the trust domain")
+	common_cli.StringVar(fs, &c.path, "path", "p", "", "Path to the bundle data")
+	common_cli.StringVar(fs, &c.bundleFormat, "format", "f", util.FormatPEM, fmt.Sprintf("The format of the bundle data. Either %q or %q.", util.FormatPEM, util.FormatSPIFFE))
 	cliprinter.AppendFlagWithCustomPretty(&c.printer, fs, c.env, prettyPrintSet)
 }
 

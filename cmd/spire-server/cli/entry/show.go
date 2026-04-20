@@ -70,12 +70,12 @@ func (*showCommand) Synopsis() string {
 }
 
 func (c *showCommand) AppendFlags(f *flag.FlagSet) {
-	f.StringVar(&c.entryID, "entryID", "", "The Entry ID of the records to show")
-	f.StringVar(&c.parentID, "parentID", "", "The Parent ID of the records to show")
-	f.StringVar(&c.spiffeID, "spiffeID", "", "The SPIFFE ID of the records to show")
+	commoncli.StringVar(f, &c.entryID, "entryID", "e", "", "The Entry ID of the records to show")
+	commoncli.StringVar(f, &c.parentID, "parentID", "p", "", "The Parent ID of the records to show")
+	commoncli.StringVar(f, &c.spiffeID, "spiffeID", "s", "", "The SPIFFE ID of the records to show")
 	f.BoolVar(&c.downstream, "downstream", false, "A boolean value that, when set, indicates that the entry describes a downstream SPIRE server")
-	f.Var(&c.selectors, "selector", "A colon-delimited type:value selector. Can be used more than once")
-	f.Var(&c.federatesWith, "federatesWith", "SPIFFE ID of a trust domain an entry is federate with. Can be used more than once")
+	commoncli.Var(f, &c.selectors, "selector", "l", "A colon-delimited type:value selector. Can be used more than once")
+	commoncli.Var(f, &c.federatesWith, "federatesWith", "f", "SPIFFE ID of a trust domain an entry is federate with. Can be used more than once")
 	f.StringVar(&c.matchFederatesWithOn, "matchFederatesWithOn", "superset", "The match mode used when filtering by federates with. Options: exact, any, superset and subset")
 	f.StringVar(&c.matchSelectorsOn, "matchSelectorsOn", "superset", "The match mode used when filtering by selectors. Options: exact, any, superset and subset")
 	f.StringVar(&c.hint, "hint", "", "The Hint of the records to show (optional)")

@@ -48,7 +48,7 @@ func (c *deleteCommand) Synopsis() string {
 }
 
 func (c *deleteCommand) AppendFlags(fs *flag.FlagSet) {
-	fs.StringVar(&c.id, "id", "", "SPIFFE ID of the trust domain")
+	commoncli.StringVar(fs, &c.id, "id", "i", "", "SPIFFE ID of the trust domain")
 	fs.StringVar(&c.mode, "mode", deleteBundleRestrict, fmt.Sprintf("Deletion mode: one of %s, %s, or %s", deleteBundleRestrict, deleteBundleDelete, deleteBundleDissociate))
 	cliprinter.AppendFlagWithCustomPretty(&c.printer, fs, c.env, prettyPrintDelete)
 }

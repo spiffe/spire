@@ -38,8 +38,8 @@ func (c *listCommand) Synopsis() string {
 }
 
 func (c *listCommand) AppendFlags(fs *flag.FlagSet) {
-	fs.StringVar(&c.id, "id", "", "SPIFFE ID of the trust domain")
-	fs.StringVar(&c.bundleFormat, "format", util.FormatPEM, fmt.Sprintf("The format to list federated bundles (only pretty output format supports this flag). Either %q or %q.", util.FormatPEM, util.FormatSPIFFE))
+	commoncli.StringVar(fs, &c.id, "id", "i", "", "SPIFFE ID of the trust domain")
+	commoncli.StringVar(fs, &c.bundleFormat, "format", "f", util.FormatPEM, fmt.Sprintf("The format to list federated bundles (only pretty output format supports this flag). Either %q or %q.", util.FormatPEM, util.FormatSPIFFE))
 	cliprinter.AppendFlagWithCustomPretty(&c.printer, fs, c.env, c.prettyPrintList)
 }
 

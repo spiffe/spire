@@ -7,6 +7,7 @@ import (
 	"flag"
 	"net"
 
+	common_cli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/util"
 )
 
@@ -15,7 +16,7 @@ const (
 )
 
 func (c *serverConfig) addOSFlags(flags *flag.FlagSet) {
-	flags.StringVar(&c.SocketPath, "socketPath", "", "Path to bind the SPIRE Server API socket to")
+	common_cli.StringVar(flags, &c.SocketPath, "socketPath", "s", "", "Path to bind the SPIRE Server API socket to")
 }
 
 func (c *serverConfig) getAddr() (net.Addr, error) {

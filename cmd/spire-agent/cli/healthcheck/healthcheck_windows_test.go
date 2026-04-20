@@ -14,8 +14,10 @@ var (
 	usage = `Usage of health:
   -namedPipeName string
     	Pipe name of the SPIRE Agent API named pipe (default "\\spire-agent\\public\\api")
+  -s	Perform a less stringent health check
   -shallow
     	Perform a less stringent health check
+  -v	Print verbose information
   -verbose
     	Print verbose information
 `

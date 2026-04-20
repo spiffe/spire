@@ -198,3 +198,16 @@ func newServerConfigCasesOS(*testing.T) []newServerConfigCase {
 func testParseConfigGoodOS(t *testing.T, c *Config) {
 	assert.Equal(t, c.Server.Experimental.NamedPipeName, "\\spire-server\\private\\api-test")
 }
+func TestParseFlagsShorthand(t *testing.T) {
+	c, err := parseFlags("run", []string{
+		"-c", "conf/server/server.conf",
+		"-d", "/data/dir",
+		"-v", "DEBUG",
+		"-p", "spire-server-pipe",
+	}, os.Stderr)
+	require.NoError(t, err)
+	assert.Equal(t, "conf/server/server.conf", c.ConfigPath)
+	assert.Equal(t, "/data/dir", c.DataDir)
+	assert.Equal(t, "DEBUG", c.LogLevel)
+	assert.Equal(t, "spire-server-pipe", c.Experimental.NamedPipeName)
+}

@@ -60,8 +60,8 @@ func (c *healthCheckCommand) Run(args []string) int {
 func (c *healthCheckCommand) parseFlags(args []string) error {
 	fs := flag.NewFlagSet("health", flag.ContinueOnError)
 	fs.SetOutput(c.env.Stderr)
-	fs.BoolVar(&c.shallow, "shallow", false, "Perform a less stringent health check")
-	fs.BoolVar(&c.verbose, "verbose", false, "Print verbose information")
+	common_cli.BoolVar(fs, &c.shallow, "shallow", "s", false, "Perform a less stringent health check")
+	common_cli.BoolVar(fs, &c.verbose, "verbose", "v", false, "Print verbose information")
 	c.addOSFlags(fs)
 	return fs.Parse(args)
 }

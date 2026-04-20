@@ -134,11 +134,11 @@ func (c *countCommand) Run(ctx context.Context, _ *commoncli.Env, serverClient u
 }
 
 func (c *countCommand) AppendFlags(fs *flag.FlagSet) {
-	fs.StringVar(&c.parentID, "parentID", "", "The Parent ID of the records to count")
-	fs.StringVar(&c.spiffeID, "spiffeID", "", "The SPIFFE ID of the records to count")
+	commoncli.StringVar(fs, &c.parentID, "parentID", "p", "", "The Parent ID of the records to count")
+	commoncli.StringVar(fs, &c.spiffeID, "spiffeID", "s", "", "The SPIFFE ID of the records to count")
 	fs.BoolVar(&c.downstream, "downstream", false, "A boolean value that, when set, indicates that the entry describes a downstream SPIRE server")
-	fs.Var(&c.selectors, "selector", "A colon-delimited type:value selector. Can be used more than once")
-	fs.Var(&c.federatesWith, "federatesWith", "SPIFFE ID of a trust domain an entry is federate with. Can be used more than once")
+	commoncli.Var(fs, &c.selectors, "selector", "l", "A colon-delimited type:value selector. Can be used more than once")
+	commoncli.Var(fs, &c.federatesWith, "federatesWith", "f", "SPIFFE ID of a trust domain an entry is federate with. Can be used more than once")
 	fs.StringVar(&c.matchFederatesWithOn, "matchFederatesWithOn", "superset", "The match mode used when filtering by federates with. Options: exact, any, superset and subset")
 	fs.StringVar(&c.matchSelectorsOn, "matchSelectorsOn", "superset", "The match mode used when filtering by selectors. Options: exact, any, superset and subset")
 	fs.StringVar(&c.hint, "hint", "", "The Hint of the records to count (optional)")

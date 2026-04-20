@@ -8,11 +8,12 @@ import (
 	"net"
 
 	util_cmd "github.com/spiffe/spire/cmd/spire-server/util"
+	common_cli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/namedpipe"
 )
 
 func (c *serverConfig) addOSFlags(flags *flag.FlagSet) {
-	flags.StringVar(&c.Experimental.NamedPipeName, "namedPipeName", "", "Pipe name of the SPIRE Server API named pipe")
+	common_cli.StringVar(flags, &c.Experimental.NamedPipeName, "namedPipeName", "p", "", "Pipe name of the SPIRE Server API named pipe")
 }
 
 func (c *serverConfig) getAddr() (net.Addr, error) {
