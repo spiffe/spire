@@ -62,7 +62,7 @@ require (
 	github.com/hashicorp/vault/sdk v0.25.1
 	github.com/imdario/mergo v0.3.16
 	github.com/imkira/go-observer v1.0.3
-	github.com/jackc/pgx/v5 v5.9.1
+	github.com/jackc/pgx/v5 v5.9.2
 	github.com/jinzhu/gorm v1.9.16
 	github.com/lib/pq v1.12.3
 	github.com/mattn/go-sqlite3 v1.14.42
