@@ -316,6 +316,9 @@ func (s *Server) loadCatalog(ctx context.Context, metrics telemetry.Metrics, ide
 		IdentityProvider: identityProvider,
 		AgentStore:       agentStore,
 		HealthChecker:    healthChecker,
+		Experimental: catalog.ExperimentalConfig{
+			AllowPluggableDatastore: s.config.ExperimentalAllowPluggableDatastore,
+		},
 	})
 }
 

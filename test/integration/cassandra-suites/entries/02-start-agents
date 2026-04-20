@@ -1,0 +1,63 @@
+#!/bin/bash
+
+log-debug "Creating bootstrap bundle..."
+for agentID in $(seq 1 3); do
+  docker compose exec -T spire-server \
+    /opt/spire/bin/spire-server bundle show > conf/agent${agentID}/bootstrap.crt
+done
+
+log-info "generating join token..."
+TOKEN=$(docker compose exec -T spire-server \
+    /opt/spire/bin/spire-server token generate -spiffeID spiffe://domain.test/cluster/test | awk '{print $2}' | tr -d '\r')
+
+# Inserts the join token into the agent configuration
+log-debug "using join token ${TOKEN}..."
+sed -i.bak "s#TOKEN#${TOKEN}#g" conf/agent3/agent.conf
+
+docker-up spire-agent-1 spire-agent-2 spire-agent-3
+
+log-debug "Creating node-alias for x509pop:san:cluster:test"
+docker compose exec -T spire-server \
+  /opt/spire/bin/spire-server entry create \
+  -parentID "spiffe://domain.test/spire/server" \
+  -spiffeID "spiffe://domain.test/cluster/test" \
+  -selector "x509pop:san:cluster:test" \
+  -node
+
+log-debug "Creating registration entries"
+docker compose exec -T spire-server \
+  /opt/spire/bin/spire-server entry create \
+  -entryID agent-1 \
+  -parentID "spiffe://domain.test/spire/agent/x509pop/$(fingerprint conf/agent1/agent.crt.pem)" \
+  -spiffeID "spiffe://domain.test/workload-agent-1" \
+  -selector "unix:uid:1001"
+
+docker compose exec -T spire-server \
+  /opt/spire/bin/spire-server entry create \
+  -entryID agent-2 \
+  -parentID "spiffe://domain.test/spire/agent/x509pop/$(fingerprint conf/agent2/agent.crt.pem)" \
+  -spiffeID "spiffe://domain.test/workload-agent-2" \
+  -selector "unix:uid:1001"
+
+docker compose exec -T spire-server \
+  /opt/spire/bin/spire-server entry create \
+  -entryID shared \
+  -parentID "spiffe://domain.test/cluster/test" \
+  -spiffeID "spiffe://domain.test/workload-shared" \
+  -selector "unix:uid:1002"
+
+docker compose exec -T spire-server \
+  /opt/spire/bin/spire-server entry create \
+  -entryID with-dns \
+  -parentID "spiffe://domain.test/cluster/test" \
+  -spiffeID "spiffe://domain.test/workload-with-dns" \
+  -selector "unix:uid:1003" \
+  -dns "example.org"
+
+check-synced-entry "spire-agent-1" "spiffe://domain.test/workload-agent-1"
+check-synced-entry "spire-agent-2" "spiffe://domain.test/workload-agent-2"
+
+for agent in spire-agent-1 spire-agent-2 spire-agent-3; do
+  check-synced-entry ${agent} "spiffe://domain.test/workload-shared"
+  check-synced-entry ${agent} "spiffe://domain.test/workload-with-dns"
+done

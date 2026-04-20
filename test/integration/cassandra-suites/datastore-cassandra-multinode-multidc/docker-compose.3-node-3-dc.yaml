@@ -1,0 +1,99 @@
+networks:
+  spire-cassandra-network:
+    ipam:
+      config:
+        - subnet: 172.21.0.0/24
+
+services:    
+  cassandra-1:
+    container_name: cassandra-1
+    image: cassandra:5
+    command:
+      - "-Dcassandra.config=/cassandra.yaml"
+    ports:
+      - "9044:9044"
+    env_file:
+      - ../.env
+    environment:
+      - HEAP_NEWSIZE=1024M
+      - MAX_HEAP_SIZE=4096M
+    volumes:
+      - cassandra-node-1:/var/lib/cassandra:rw
+      - ./3-node-3-dc/node-1.yml:/cassandra.yaml:rw
+      - ./3-node-3-dc/rackdc.node1.properties:/etc/cassandra/cassandra-rackdc.properties:rw
+    restart:
+      on-failure
+    healthcheck:
+      test: ["CMD-SHELL", "nodetool status"]
+      interval: 2m
+      start_period: 2m
+      timeout: 10s
+      retries: 3
+    networks:
+      spire-cassandra-network:
+        ipv4_address: 172.21.0.3
+  cassandra-2:
+    container_name: cassandra-2
+    image: cassandra:5
+    command:
+      - "-Dcassandra.config=/cassandra.yaml"
+    ports:
+      - "9045:9045"
+    env_file:
+      - ../.env
+    environment:
+      - HEAP_NEWSIZE=1024M
+      - MAX_HEAP_SIZE=4096M
+    volumes:
+      - cassandra-node-2:/var/lib/cassandra:rw
+      - ./3-node-3-dc/node-2.yml:/cassandra.yaml:rw
+      - ./3-node-3-dc/rackdc.node2.properties:/etc/cassandra/cassandra-rackdc.properties:rw
+    restart:
+      on-failure
+    healthcheck:
+      test: ["CMD-SHELL", "nodetool status"]
+      interval: 2m
+      start_period: 2m
+      timeout: 10s
+      retries: 3
+    depends_on:
+      cassandra-1:
+        condition: service_healthy
+    networks:
+      spire-cassandra-network:
+        ipv4_address: 172.21.0.4
+  cassandra-3:
+    container_name: cassandra-3
+    image: cassandra:5
+    command:
+      - "-Dcassandra.config=/cassandra.yaml"
+    ports:
+      - "9046:9046"
+    env_file:
+      - ../.env
+    environment:
+      - HEAP_NEWSIZE=1024M
+      - MAX_HEAP_SIZE=4096M
+    volumes:
+      - cassandra-node-3:/var/lib/cassandra:rw
+      - ./3-node-3-dc/node-3.yml:/cassandra.yaml:rw
+      - ./3-node-3-dc/rackdc.node3.properties:/etc/cassandra/cassandra-rackdc.properties:rw
+    restart:
+      on-failure
+    healthcheck:
+      test: ["CMD-SHELL", "nodetool status"]
+      interval: 2m
+      start_period: 2m
+      timeout: 10s
+      retries: 3
+    depends_on:
+      cassandra-2:
+        condition: service_healthy
+    networks:
+      spire-cassandra-network:
+        ipv4_address: 172.21.0.5
+
+volumes:
+  cassandra-node-1:
+  cassandra-node-2:
+  cassandra-node-3:

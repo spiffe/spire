@@ -1,0 +1,24 @@
+#!/bin/bash
+
+log-debug "Check SVIDs issues from created registration entries"
+docker compose exec -u 1001 -T spire-agent-1 \
+  /opt/spire/bin/spire-agent api fetch x509 -output json \
+  -socketPath /opt/spire/sockets/workload_api.sock | jq --exit-status -r '.svids[0].spiffe_id == "spiffe://domain.test/workload-agent-1"'
+
+docker compose exec -u 1001 -T spire-agent-2 \
+  /opt/spire/bin/spire-agent api fetch x509 -output json \
+  -socketPath /opt/spire/sockets/workload_api.sock | jq --exit-status -r '.svids[0].spiffe_id == "spiffe://domain.test/workload-agent-2"'
+
+for agent in spire-agent-1 spire-agent-2 spire-agent-3; do
+  docker compose exec -u 1002 -T ${agent} \
+    /opt/spire/bin/spire-agent api fetch x509 -output json \
+    -socketPath /opt/spire/sockets/workload_api.sock | jq --exit-status -r '.svids[0].spiffe_id == "spiffe://domain.test/workload-shared"'
+
+  log-debug "Check that issued SVID has DNS name set for agent '${agent}'"
+  docker compose exec -u 1003 -T ${agent} \
+    /opt/spire/bin/spire-agent api fetch x509 -output json -socketPath /opt/spire/sockets/workload_api.sock | \
+    jq -r '.svids[0].x509_svid' | \
+    base64 -d | \
+    openssl x509 -inform der -text -noout | \
+    grep -q "DNS:example.org"
+done

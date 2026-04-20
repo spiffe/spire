@@ -1,0 +1,38 @@
+#!/bin/bash
+
+log-debug "Updating an entry and verifying the change propagates to agents"
+docker compose exec -T spire-server \
+  /opt/spire/bin/spire-server entry update \
+  -entryID with-dns \
+  -parentID "spiffe://domain.test/cluster/test" \
+  -spiffeID "spiffe://domain.test/workload-with-dns" \
+  -selector "unix:uid:1003" \
+  -dns "example.com"
+
+MAXCHECKS=30
+INTERVAL=1
+SVID_STALE=0
+for ((i=1;i<=MAXCHECKS;i++)); do
+  SVID_STALE=0
+  for agent in spire-agent-1 spire-agent-2 spire-agent-3; do
+    if ! docker compose exec -u 1003 -T ${agent} \
+      /opt/spire/bin/spire-agent api fetch x509 -output json -socketPath /opt/spire/sockets/workload_api.sock | \
+      jq -r '.svids[0].x509_svid' | \
+      base64 -d | \
+      openssl x509 -inform der -text -noout | \
+      grep -q "DNS:example.com"; then
+      log-debug "Entry update did not propagate to agent '${agent}'"
+      SVID_STALE=1
+    fi
+  done
+
+  if [[ ${SVID_STALE} == 0 ]]; then
+    break
+  fi
+
+  sleep ${INTERVAL}
+done
+
+if [[ ${SVID_STALE} == 1 ]]; then
+  fail-now "Entry update did not propagate to all agents"
+fi

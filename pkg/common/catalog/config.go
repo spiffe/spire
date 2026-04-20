@@ -12,6 +12,8 @@ import (
 	"github.com/hashicorp/hcl/hcl/token"
 )
 
+const DefaultMaxGrpcMessageSize int = 4_194_304 // 4 MB
+
 type PluginConfigs []PluginConfig
 
 func (cs PluginConfigs) FilterByType(pluginType string) (matching PluginConfigs, remaining PluginConfigs) {
@@ -35,13 +37,14 @@ func (cs PluginConfigs) Find(pluginType, pluginName string) (PluginConfig, bool)
 }
 
 type PluginConfig struct {
-	Type       string
-	Name       string
-	Path       string
-	Args       []string
-	Checksum   string
-	DataSource DataSource
-	Disabled   bool
+	Type               string
+	Name               string
+	Path               string
+	Args               []string
+	Checksum           string
+	DataSource         DataSource
+	Disabled           bool
+	MaxGrpcMessageSize int
 }
 
 func (c PluginConfig) IsEnabled() bool {
@@ -82,12 +85,13 @@ func (d FileData) IsDynamic() bool {
 }
 
 type hclPluginConfig struct {
-	PluginCmd      string   `hcl:"plugin_cmd"`
-	PluginArgs     []string `hcl:"plugin_args"`
-	PluginChecksum string   `hcl:"plugin_checksum"`
-	PluginData     ast.Node `hcl:"plugin_data"`
-	PluginDataFile *string  `hcl:"plugin_data_file"`
-	Enabled        *bool    `hcl:"enabled"`
+	PluginCmd          string   `hcl:"plugin_cmd"`
+	PluginArgs         []string `hcl:"plugin_args"`
+	PluginChecksum     string   `hcl:"plugin_checksum"`
+	PluginData         ast.Node `hcl:"plugin_data"`
+	PluginDataFile     *string  `hcl:"plugin_data_file"`
+	Enabled            *bool    `hcl:"enabled"`
+	MaxGrpcMessageSize *int     `hcl:"max_grpc_message_size"`
 }
 
 func (c hclPluginConfig) IsEnabled() bool {
@@ -270,14 +274,20 @@ func pluginConfigFromHCL(pluginType, pluginName string, hclPluginConfig hclPlugi
 		dataSource = FileData(*hclPluginConfig.PluginDataFile)
 	}
 
+	maxGrpcMessageSize := DefaultMaxGrpcMessageSize
+	if hclPluginConfig.MaxGrpcMessageSize != nil {
+		maxGrpcMessageSize = *hclPluginConfig.MaxGrpcMessageSize
+	}
+
 	return PluginConfig{
-		Name:       pluginName,
-		Type:       pluginType,
-		Path:       hclPluginConfig.PluginCmd,
-		Args:       hclPluginConfig.PluginArgs,
-		Checksum:   hclPluginConfig.PluginChecksum,
-		DataSource: dataSource,
-		Disabled:   !hclPluginConfig.IsEnabled(),
+		Name:               pluginName,
+		Type:               pluginType,
+		Path:               hclPluginConfig.PluginCmd,
+		Args:               hclPluginConfig.PluginArgs,
+		Checksum:           hclPluginConfig.PluginChecksum,
+		DataSource:         dataSource,
+		Disabled:           !hclPluginConfig.IsEnabled(),
+		MaxGrpcMessageSize: maxGrpcMessageSize,
 	}, nil
 }
 

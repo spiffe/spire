@@ -14,6 +14,7 @@ import (
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
+	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/server/datastore"
 	sql "github.com/spiffe/spire/pkg/server/datastore/sqlstore"
@@ -41,10 +42,12 @@ func New(tb testing.TB) *DataStore {
 	dbPath := filepath.Join(tmpDir, "spire.db")
 	dbPath = url.PathEscape(dbPath)
 
-	err := ds.Configure(ctx, fmt.Sprintf(`
+	_, err := ds.Configure(ctx, &configv1.ConfigureRequest{
+		HclConfiguration: fmt.Sprintf(`
 		database_type = "sqlite3"
 		connection_string = "file:%s"
-	`, dbPath))
+	`, dbPath),
+	})
 	require.NoError(tb, err)
 
 	tb.Cleanup(func() {
@@ -54,6 +57,26 @@ func New(tb testing.TB) *DataStore {
 	return &DataStore{
 		ds: ds,
 	}
+}
+
+func (s *DataStore) Name() string {
+	return s.ds.Name()
+}
+
+func (s *DataStore) Type() string {
+	return s.ds.Type()
+}
+
+func (s *DataStore) Configure(ctx context.Context, _ *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
+	return nil, nil // This is intentionally a no-op for the fake datastore
+}
+
+func (s *DataStore) Validate(ctx context.Context, _ *configv1.ValidateRequest) (*configv1.ValidateResponse, error) {
+	return nil, nil // This is intentionally a no-op for the fake datastore
+}
+
+func (s *DataStore) Close() error {
+	return s.ds.Close()
 }
 
 func (s *DataStore) CreateBundle(ctx context.Context, bundle *common.Bundle) (*common.Bundle, error) {

@@ -1,0 +1,6 @@
+#!/bin/bash
+
+# Update upstream authority
+cp conf/server/new_upstream_ca.crt conf/server/dummy_upstream_ca.crt
+cp conf/server/new_upstream_ca.key conf/server/dummy_upstream_ca.key
+

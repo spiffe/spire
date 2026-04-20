@@ -10,6 +10,7 @@ import (
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
+	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/proto/spire/common"
@@ -330,6 +331,26 @@ func TestWithMetrics(t *testing.T) {
 
 type fakeDataStore struct {
 	err error
+}
+
+func (ds *fakeDataStore) Name() string {
+	return "fake"
+}
+
+func (ds *fakeDataStore) Type() string {
+	return "fake"
+}
+
+func (ds *fakeDataStore) Close() error {
+	return nil
+}
+
+func (ds *fakeDataStore) Configure(ctx context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
+	return &configv1.ConfigureResponse{}, nil // This is intentionally a no-op for the fake datastore
+}
+
+func (ds *fakeDataStore) Validate(ctx context.Context, req *configv1.ValidateRequest) (*configv1.ValidateResponse, error) {
+	return &configv1.ValidateResponse{}, nil // This is intentionally a no-op for the fake datastore
 }
 
 func (ds *fakeDataStore) SetError(err error) {

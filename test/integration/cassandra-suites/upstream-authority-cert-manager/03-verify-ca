@@ -1,0 +1,57 @@
+#!/bin/bash
+
+source init-kubectl
+
+expLeafIssuerOpenSSL="issuer=C=US, O=SPIFFE, SerialNumber=[[:digit:]]+"
+expCASubjectOpenSSL="subject=O=cert-manager.io, CN=example.org"
+
+# On macOS, /usr/bin/openssl is LibreSSL, which outputs certificate details with a different format than OpenSSL
+expLeafIssuerLibreSSL="issuer= /C=US/O=SPIFFE"
+expCASubjectLibreSSL="subject= /O=cert-manager.io/CN=example.org"
+
+expLeafURI="URI:spiffe://example.org/ns/foo/sa/bar"
+
+log-debug "verifying CA..."
+
+mintx509svid_out=mintx509svid-out.txt
+./bin/kubectl exec -n spire $(./bin/kubectl get pod -n spire -o name) -- /opt/spire/bin/spire-server x509 mint -spiffeID spiffe://example.org/ns/foo/sa/bar > $mintx509svid_out
+
+svid=svid.pem
+sed -n '/-----BEGIN CERTIFICATE-----/,/^$/{/^$/q; p;}' $mintx509svid_out > $svid
+
+bundle=bundle.pem
+sed -n '/Root CAs:/,/^$/p' $mintx509svid_out | sed -n '/-----BEGIN CERTIFICATE-----/,/^$/{/^$/q; p;}' > $bundle
+
+leafURIResult=$(openssl x509 -noout -text -in $svid | grep URI | sed 's/^ *//g')
+leafIssuerResult=$(openssl x509 -noout -issuer -in $svid)
+caSubjectResult=$(openssl x509 -noout -subject -in $bundle)
+
+if [ $(openssl version | awk '{print $1}') == 'LibreSSL' ]; then
+    expLeafIssuer=$expLeafIssuerLibreSSL
+    expCASubject=$expCASubjectLibreSSL
+else
+    expLeafIssuer=$expLeafIssuerOpenSSL
+    expCASubject=$expCASubjectOpenSSL
+fi
+
+if [ "$leafURIResult" != "$expLeafURI" ]; then
+  fail-now "unexpected SPIFFE ID in resulting certificate, exp=$expLeafURI got=$leafURIResult"
+fi
+log-info "got expected SPIFFE ID result"
+
+if [ ! "$leafIssuerResult" != "$expLeafIssuer" ]; then
+  fail-now "unexpected Issuer in resulting certificate, exp=$expLeafIssuer got=$leafIssuerResult"
+fi
+log-info "got expected Issuer result"
+
+if [ "$caSubjectResult" != "$expCASubject" ]; then
+  fail-now "unexpected Subject in resulting CA bundle, exp=$expCASubject got=$caSubjectResult"
+fi
+log-info "got expected CA bundle result"
+
+log-debug "ensuring CertificateRequest has been cleaned-up"
+exitingRequests=$(./bin/kubectl get cr -n spire --selector="cert-manager.spiffe.io/trust-domain==example.org" -oname | wc -l)
+if [ "$exitingRequests" -ne 0 ]; then
+  ./bin/kubectl get cr -n spire --selector="cert-manager.spiffe.io/trust-domain==example.org" -oname
+  fail-now "expected CertificateRequest to be cleaned-up, got=$exitingRequests"
+fi

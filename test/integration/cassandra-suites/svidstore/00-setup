@@ -1,0 +1,7 @@
+#!/bin/bash
+
+"${ROOTDIR}/setup/x509pop/setup.sh" conf/server conf/agent
+
+"${ROOTDIR}/setup/svidstore/build.sh" "check" "${RUNDIR}/conf/server/checkstoredsvids"
+
+"${ROOTDIR}/setup/svidstore/build.sh" "plugin" "${RUNDIR}/conf/agent/disk-plugin"

@@ -38,6 +38,11 @@ type externalConfig struct {
 
 	// HostServices are the host service servers provided to the plugin.
 	HostServices []pluginsdk.ServiceServer
+
+	// MaxGrpcMessageSize is the maximum gRPC message size in bytes that the plugin will accept.
+	// This is an experimental configuration option that may be removed in the future. It is not intended to be
+	// used by most plugins and will default to the standard gRPC message size limit of 4MB if not set.
+	MaxGrpcMessageSize int
 }
 
 func loadExternal(ctx context.Context, config externalConfig) (*pluginImpl, error) {
@@ -87,6 +92,11 @@ func loadExternal(ctx context.Context, config externalConfig) (*pluginImpl, erro
 		},
 		Logger:       logger,
 		SecureConfig: secureConfig,
+		GRPCDialOptions: []grpc.DialOption{
+			grpc.WithDefaultCallOptions(
+				grpc.MaxCallSendMsgSize(config.MaxGrpcMessageSize),
+			),
+		},
 	})
 
 	// Ensure the loaded plugin is killed if there is a failure.

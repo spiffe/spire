@@ -1,0 +1,24 @@
+#!/bin/bash
+
+wait-for-svid-failure() {
+  local MAXCHECKS=30
+  local INTERVAL=1
+  for ((i=1;i<=MAXCHECKS;i++)); do
+    if ! docker compose exec -u 1003 -T ${1} \
+      /opt/spire/bin/spire-agent api fetch x509 -output json -socketPath /opt/spire/sockets/workload_api.sock; then
+      log-debug "Could not fetch X509-SVID for deleted entry, as expected."
+      return 0
+    fi
+    sleep ${INTERVAL}
+  done
+
+  fail-now "Entry was not deleted from agent."
+}
+
+docker compose exec -T spire-server \
+  /opt/spire/bin/spire-server entry delete \
+  -entryID with-dns
+
+for agent in spire-agent-1 spire-agent-2 spire-agent-3; do
+  wait-for-svid-failure ${agent}
+done
