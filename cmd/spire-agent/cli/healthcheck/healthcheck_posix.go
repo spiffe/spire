@@ -19,7 +19,7 @@ type healthCheckCommandOS struct {
 
 func (c *healthCheckCommandOS) addOSFlags(flags *flag.FlagSet) {
 	flags.StringVar(&c.socketPath, "socketPath", common.DefaultSocketPath, "Path to the SPIRE Agent API socket")
-	flags.StringVar(&c.instance, "i", "", "Instance name to substitute into socket templates (env SPIRE_AGENT_PUBLIC_SOCKET_TEMPLATE). If omitted and the env var is set, defaults to 'main'.")
+	flags.StringVar(&c.instance, "instance", "", "Instance name to substitute into socket templates (env SPIRE_AGENT_PUBLIC_SOCKET_TEMPLATE). If omitted and the env var is set, defaults to 'main'.")
 }
 
 func (c *healthCheckCommandOS) getAddr() (net.Addr, error) {
