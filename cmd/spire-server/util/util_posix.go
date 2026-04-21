@@ -5,6 +5,7 @@ package util
 import (
 	"context"
 	"flag"
+	"fmt"
 	"net"
 	"os"
 	"strings"
@@ -20,9 +21,16 @@ func (a *Adapter) addOSFlags(flags *flag.FlagSet) {
 	flags.StringVar(&a.instance, "instance", "", "Instance name to substitute into socket templates (env SPIRE_SERVER_PRIVATE_SOCKET_TEMPLATE). If omitted and the env var is set, defaults to 'main'.")
 }
 
-func (a *Adapter) getGRPCAddr() string {
+func (a *Adapter) getGRPCAddr() (string, error) {
 	tpl := os.Getenv("SPIRE_SERVER_PRIVATE_SOCKET_TEMPLATE")
 	sock := os.Getenv("SPIRE_SERVER_PRIVATE_SOCKET")
+	if a.instance != "" {
+		if tpl == "" {
+			return "", fmt.Errorf("You must define %s to use the instance flag", "SPIRE_SERVER_PRIVATE_SOCKET_TEMPLATE")
+		} else if !strings.Contains(tpl, "%i")  {
+			return "", fmt.Errorf("Failed to find %%i in %s", "SPIRE_SERVER_PRIVATE_SOCKET_TEMPLATE")
+		}
+	}
 	socketPath := DefaultSocketPath
 	if a.socketPath != DefaultSocketPath {
 		socketPath = a.socketPath
@@ -37,7 +45,7 @@ func (a *Adapter) getGRPCAddr() string {
 	// This is problematic for clients that do not use DNS for address resolution and don't set a resolver in the address.
 	// As a workaround, use the passthrough resolver to prevent using the DNS resolver.
 	// More context can be found in this issue: https://github.com/grpc/grpc-go/issues/1786#issuecomment-2114124036
-	return "unix:" + socketPath
+	return "unix:" + socketPath, nil
 }
 
 func dialer(ctx context.Context, addr string) (net.Conn, error) {

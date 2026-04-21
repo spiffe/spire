@@ -20,12 +20,18 @@ func (c *ConfigOS) AddOSFlags(flags *flag.FlagSet) {
 }
 
 func (c *ConfigOS) GetAddr() (net.Addr, error) {
-	resolved := ResolveSocketPath(c.socketPath, DefaultSocketPath, "SPIRE_AGENT_PUBLIC_SOCKET_TEMPLATE", c.instance)
+	resolved, err := ResolveSocketPath(c.socketPath, DefaultSocketPath, "SPIRE_AGENT_PUBLIC_SOCKET_TEMPLATE", c.instance)
+	if err != nil {
+		return nil, err
+	}
 	return util.GetUnixAddrWithAbsPath(resolved)
 }
 
 func (c *ConfigOS) GetTargetName() (string, error) {
-	resolved := ResolveSocketPath(c.socketPath, DefaultSocketPath, "SPIRE_AGENT_PUBLIC_SOCKET_TEMPLATE", c.instance)
+	resolved, err := ResolveSocketPath(c.socketPath, DefaultSocketPath, "SPIRE_AGENT_PUBLIC_SOCKET_TEMPLATE", c.instance)
+	if err != nil {
+		return "", err
+	}
 	addr, err := util.GetUnixAddrWithAbsPath(resolved)
 	if err != nil {
 		return "", err

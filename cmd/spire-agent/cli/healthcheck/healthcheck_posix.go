@@ -23,6 +23,9 @@ func (c *healthCheckCommandOS) addOSFlags(flags *flag.FlagSet) {
 }
 
 func (c *healthCheckCommandOS) getAddr() (net.Addr, error) {
-	resolved := common.ResolveSocketPath(c.socketPath, common.DefaultSocketPath, "SPIRE_AGENT_PUBLIC_SOCKET_TEMPLATE", c.instance)
+	resolved, err := common.ResolveSocketPath(c.socketPath, common.DefaultSocketPath, "SPIRE_AGENT_PUBLIC_SOCKET_TEMPLATE", c.instance)
+	if err != nil {
+		return nil, err
+	}
 	return util.GetUnixAddrWithAbsPath(resolved)
 }
