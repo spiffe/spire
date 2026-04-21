@@ -1270,6 +1270,9 @@ func TestBuildWorkloadWITSVIDClaims(t *testing.T) {
 			},
 		},
 		{
+			desc: "without issuer",
+		},
+		{
 			desc: "with issuer",
 			overrideConfig: func(config *credtemplate.Config) {
 				config.WITIssuer = "ISSUER"
