@@ -80,7 +80,6 @@ type agentConfig struct {
 	ServerAddress                 string    `hcl:"server_address"`
 	ServerPort                    int       `hcl:"server_port"`
 	SocketPath                    string    `hcl:"socket_path"`
-	Instance                      string    `hcl:"instance"`
 	WorkloadX509SVIDKeyType       string    `hcl:"workload_x509_svid_key_type"`
 	TrustBundleFormat             string    `hcl:"trust_bundle_format"`
 	TrustBundlePath               string    `hcl:"trust_bundle_path"`

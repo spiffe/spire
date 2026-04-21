@@ -6,17 +6,16 @@ import (
 )
 
 func ResolveSocketPath(socketPath, defaultPath, templateEnv, instance string) string {
+	baseEnv := strings.TrimSuffix(templateEnv, "_TEMPLATE")
 	tpl := os.Getenv(templateEnv)
-	if tpl != "" && strings.Contains(tpl, "%i") {
-		if instance == "" {
-			instance = "main"
-		}
-		if socketPath == "" || socketPath == defaultPath {
-			return strings.ReplaceAll(tpl, "%i", instance)
-		}
+	sock := os.Getenv(baseEnv)
+	retval := defaultPath
+	if socketPath != defaultPath {
+		retval = socketPath
+	} else if instance != "" && strings.Contains(tpl, "%i") {
+		retval = strings.ReplaceAll(tpl, "%i", instance)
+	} else if sock != "" {
+		retval = sock
 	}
-	if socketPath == "" {
-		return defaultPath
-	}
-	return socketPath
+	return retval
 }

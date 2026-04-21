@@ -21,18 +21,15 @@ func (a *Adapter) addOSFlags(flags *flag.FlagSet) {
 }
 
 func (a *Adapter) getGRPCAddr() string {
-	if a.socketPath == "" {
-		a.socketPath = DefaultSocketPath
-	}
-
 	tpl := os.Getenv("SPIRE_SERVER_PRIVATE_SOCKET_TEMPLATE")
-	if tpl != "" && strings.Contains(tpl, "%i") {
-		if a.instance == "" {
-			a.instance = "main"
-		}
-		if a.socketPath == DefaultSocketPath {
-			a.socketPath = strings.ReplaceAll(tpl, "%i", a.instance)
-		}
+	sock := os.Getenv("SPIRE_SERVER_PRIVATE_SOCKET")
+	socketPath := DefaultSocketPath
+	if a.socketPath != DefaultSocketPath {
+		socketPath = a.socketPath
+	} else if a.instance != "" && strings.Contains(tpl, "%i") {
+		socketPath = strings.ReplaceAll(tpl, "%i", a.instance)
+	} else if sock != "" {
+		socketPath = sock
 	}
 
 	// When grpc-go deprecated grpc.DialContext() in favor of grpc.NewClient(),
@@ -40,7 +37,7 @@ func (a *Adapter) getGRPCAddr() string {
 	// This is problematic for clients that do not use DNS for address resolution and don't set a resolver in the address.
 	// As a workaround, use the passthrough resolver to prevent using the DNS resolver.
 	// More context can be found in this issue: https://github.com/grpc/grpc-go/issues/1786#issuecomment-2114124036
-	return "unix:" + a.socketPath
+	return "unix:" + socketPath
 }
 
 func dialer(ctx context.Context, addr string) (net.Conn, error) {
