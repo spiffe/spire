@@ -9,7 +9,7 @@ This plugin requires an allow list of ProjectID from which nodes can be attested
 ## Configuration
 
 | Configuration             | Description                                                                                                                             | Default                                                   |
-| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
+|---------------------------|-----------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------|
 | `projectid_allow_list`    | List of ProjectIDs from which nodes can be attested.                                                                                    |                                                           |
 | `use_instance_metadata`   | If true, instance metadata is fetched from the Google Compute Engine API and used to augment the node selectors produced by the plugin. | false                                                     |
 | `service_account_file`    | Path to the service account file used to authenticate with the Google Compute Engine API                                                |                                                           |
@@ -33,7 +33,7 @@ A sample configuration:
 This plugin generates the following selectors based on information contained in the Instance Identity Token:
 
 | Selector                | Example                                                      | Description                               |
-| ----------------------- | ------------------------------------------------------------ | ----------------------------------------- |
+|-------------------------|--------------------------------------------------------------|------------------------------------------ |
 | `gcp_iit:project-id`    | `gcp_iit:project-id:big-kahuna-123456`                       | ID of the project containing the instance |
 | `gcp_iit:zone`          | `gcp_iit:zone:us-west1-b`                                    | Zone containing the instance              |
 | `gcp_iit:instance-name` | `gcp_iit:instance-name:blog-server`                          | Name of the instance                      |
@@ -42,7 +42,7 @@ This plugin generates the following selectors based on information contained in 
 If `use_instance_metadata` is true, then the Google Compute Engine API is queried for instance metadata which is used to populate these additional selectors:
 
 | Selector           | Example                      | Description                          |
-| ------------------ | ---------------------------- | ------------------------------------ |
+|--------------------|------------------------------|--------------------------------------|
 | `gcp_iit:tag`      | `gcp_iit:tag:blog-server`    | Instance tag (one selector per)      |
 | `gcp_iit:label`    | `gcp_iit:label:key:value`    | Instance label                       |
 | `gcp_iit:metadata` | `gcp_iit:metadata:key:value` | Instance metadata (see caveat below) |
@@ -79,7 +79,7 @@ Details about the template engine are available [here](template_engine.md).
 Some useful values are:
 
 | Value                      | Description                                                      |
-| -------------------------- | ---------------------------------------------------------------- |
+|----------------------------|------------------------------------------------------------------|
 | .PluginName                | The name of the plugin                                           |
 | .ProjectID                 | The ID for the project where the instance was created            |
 | .InstanceID                | The unique ID for the instance to which this token belongs.      |
