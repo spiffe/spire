@@ -12,6 +12,7 @@ import (
 	debugv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/agent/debug/v1"
 	delegatedidentityv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/agent/delegatedidentity/v1"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health/grpc_health_v1"
 
@@ -46,12 +47,25 @@ func TestDebugServiceConnectionMetrics(t *testing.T) {
 		}
 	}
 
-	for _, m := range metrics.AllMetrics() {
-		for _, key := range m.Key {
-			assert.NotContains(t, key, "spire",
-				"Metric keys should use the short name 'debug', not the raw service path")
+	// Verify connection metrics are emitted with the correct metric key
+	allMetrics := metrics.AllMetrics()
+	require.NotEmpty(t, allMetrics)
+
+	var foundConnectionCounter, foundGaugeUp, foundGaugeDown bool
+	for _, m := range allMetrics {
+		if m.Type == fakemetrics.IncrCounterType && assert.ObjectsAreEqual([]string{"debug_api", "connection"}, m.Key) {
+			foundConnectionCounter = true
+		}
+		if m.Type == fakemetrics.SetGaugeType && assert.ObjectsAreEqual([]string{"debug_api", "connections"}, m.Key) && m.Val == 1 {
+			foundGaugeUp = true
+		}
+		if m.Type == fakemetrics.SetGaugeType && assert.ObjectsAreEqual([]string{"debug_api", "connections"}, m.Key) && m.Val == 0 {
+			foundGaugeDown = true
 		}
 	}
+	assert.True(t, foundConnectionCounter, "Expected debug_api connection counter metric")
+	assert.True(t, foundGaugeUp, "Expected debug_api connections gauge to increment")
+	assert.True(t, foundGaugeDown, "Expected debug_api connections gauge to decrement")
 }
 
 // TestAllAgentServicesHandledByConnectionMetrics registers every gRPC service
@@ -117,8 +131,6 @@ func TestAllAgentServicesHandledByConnectionMetrics(t *testing.T) {
 		_, _ = client.FetchJWTSVIDs(ctx, &delegatedidentityv1.FetchJWTSVIDsRequest{})
 		assertNoMisconfigurationLog(t, hook)
 	})
-
-	_ = metrics
 }
 
 func assertNoMisconfigurationLog(t *testing.T, hook *test.Hook) {
