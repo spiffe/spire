@@ -74,7 +74,7 @@ The service account must have IAM permissions and Authorization Scopes granting 
 
 The agent path template is a way of customizing the format of generated SPIFFE IDs for agents.
 The template formatter is using Golang text/template conventions, it can reference values provided by the plugin or in a [Compute Engine identity token](https://cloud.google.com/compute/docs/instances/verifying-instance-identity#payload).
-Details about the template engine are available [here](template_engine.md).
+Details about the template engine are available [here](template_engine.md). Note that agent SPIFFE IDs must be unique within a trust domain, so if two agents use the same service account, the path template must contain additional fully distinguishing identifiers.
 
 Some useful values are:
 
