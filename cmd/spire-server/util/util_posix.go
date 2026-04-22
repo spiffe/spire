@@ -26,10 +26,10 @@ func (a *Adapter) getGRPCAddr() (string, error) {
 	sock := os.Getenv("SPIRE_SERVER_PRIVATE_SOCKET")
 	if a.instance != "" {
 		if tpl == "" {
-			return "", fmt.Errorf("You must define %s to use the instance flag", "SPIRE_SERVER_PRIVATE_SOCKET_TEMPLATE")
+			return "", fmt.Errorf("you must define %s to use the instance flag", "SPIRE_SERVER_PRIVATE_SOCKET_TEMPLATE")
 		}
-		if !strings.Contains(tpl, "%i")  {
-			return "", fmt.Errorf("Failed to find %%i in %s", "SPIRE_SERVER_PRIVATE_SOCKET_TEMPLATE")
+		if !strings.Contains(tpl, "%i") {
+			return "", fmt.Errorf("failed to find %%i in %s", "SPIRE_SERVER_PRIVATE_SOCKET_TEMPLATE")
 		}
 	}
 	socketPath := DefaultSocketPath
