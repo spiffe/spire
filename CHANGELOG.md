@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.14.5] - 2026-04-08
+
+### Security
+
+- Upgrade Go to 1.26.2 to address CVE-2026-32282, CVE-2026-32289, CVE-2026-33810, CVE-2026-27144, CVE-2026-27143, CVE-2026-32288, CVE-2026-32283, CVE-2026-27140, CVE-2026-32281
+
+## [1.14.4] - 2026-03-19
+
+### Fixed
+
+- The version that the agent was reporting at startup would get replaced by an empty string every time the agent re-attests or re-news it's SVID (#6763)
+
 ## [1.14.3] - 2026-03-18
 
 ### Added

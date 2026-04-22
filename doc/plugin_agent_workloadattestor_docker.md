@@ -1,12 +1,14 @@
 # Agent plugin: WorkloadAttestor "docker"
 
-The `docker` plugin generates selectors based on docker labels for workloads calling the agent.
+The `docker` plugin generates selectors based on container labels for workloads calling the agent.
 It does so by retrieving the workload's container ID from its cgroup membership on Unix systems or Job Object names on Windows,
-then querying the docker daemon for the container's labels.
+then querying the container runtime API (Docker by default, or Podman when detected) for the container's labels.
 
 | Configuration                  | Description                                                                                    | Default                          |
 |--------------------------------|------------------------------------------------------------------------------------------------|----------------------------------|
 | docker_socket_path             | The location of the docker daemon socket (Unix)                                                | "unix:///var/run/docker.sock"    |
+| podman_socket_path             | The location of the rootful Podman socket (Unix)                                               | "unix:///run/podman/podman.sock" |
+| podman_socket_path_template    | The socket template for rootless Podman (Unix). Must contain one `%d` UID placeholder         | "unix:///run/user/%d/podman/podman.sock" |
 | docker_version                 | The API version of the docker daemon. If not specified                                         |                                  |
 | container_id_cgroup_matchers   | A list of patterns used to discover container IDs from cgroup entries (Unix)                   |                                  |
 | docker_host                    | The location of the Docker Engine API endpoint (Windows only)                                  | "npipe:////./pipe/docker_engine" |
@@ -20,6 +22,28 @@ A sample configuration:
         plugin_data {
         }
     }
+```
+
+## Podman support (Unix)
+
+The plugin supports Podman workloads, including rootless Podman in multi-user hosts.
+
+At attestation time, the plugin inspects the workload cgroup path:
+
+- If a Podman cgroup path is detected and includes a user slice (`/user-<uid>.slice/`), SPIRE treats the workload as rootless Podman and calls the Podman API using `podman_socket_path_template` with `<uid>` substituted into `%d`.
+- If a Podman cgroup path is detected but no user slice UID is present, SPIRE uses `podman_socket_path` (rootful Podman).
+- If no Podman cgroup path is detected, SPIRE uses `docker_socket_path` (Docker).
+
+This per-workload socket selection avoids routing rootless Podman workloads through a single global daemon socket.
+
+Example rootless customization:
+
+```hcl
+WorkloadAttestor "docker" {
+    plugin_data {
+        podman_socket_path_template = "unix:///custom/user/%d/podman.sock"
+    }
+}
 ```
 
 ## Sigstore experimental feature
@@ -36,7 +60,7 @@ This feature extends the `docker` workload attestor with the ability to validate
 
 | Option                 | Description                                                                                                                                                                                                                                                       |
 |------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `allowed_identities`   | Maps OIDC Provider URIs to lists of allowed subjects. Supports regular expressions patterbs. Defaults to empty. If unspecified, signatures from any issuer are accepted. (eg. `"https://accounts.google.com" = ["subject1@example.com","subject2@example.com"]`). |
+| `allowed_identities`   | Maps OIDC Provider URIs to lists of allowed subjects. Supports regular expressions patterns. Defaults to empty. If unspecified, signatures from any issuer are accepted. (eg. `"https://accounts.google.com" = ["subject1@example.com","subject2@example.com"]`). |
 | `skipped_images`       | Lists image IDs to exclude from Sigstore signature verification. For these images, no Sigstore selectors will be generated. Defaults to an empty list.                                                                                                            |
 | `rekor_url`            | Specifies the Rekor URL for transparency log verification. Default is the public Rekor instance [https://rekor.sigstore.dev](https://rekor.sigstore.dev).                                                                                                         |
 | `ignore_tlog`          | If set to true, bypasses the transparency log verification and the selectors based on the Rekor bundle are not generated.                                                                                                                                         |
