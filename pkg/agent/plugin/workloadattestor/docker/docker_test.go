@@ -178,21 +178,19 @@ func TestDockerConfig(t *testing.T) {
 			name:        "sigstore configuration",
 			trustDomain: "example.org",
 			config: `
-					experimental {
-    					sigstore {
-        					allowed_identities = {
-            					"test-issuer-1" = ["*@example.com", "subject@otherdomain.com"]
-            					"test-issuer-2" = ["domain/ci.yaml@refs/tags/*"]
-        					}
-        					skipped_images = ["registry/image@sha256:examplehash"]
-        					rekor_url = "https://test.dev"
-        					ignore_sct = true
-        					ignore_tlog = true
-                            ignore_attestations = true
-        					registry_username = "user"
-        					registry_password = "pass"
-    					}
-			}`,
+					sigstore {
+						allowed_identities = {
+							"test-issuer-1" = ["*@example.com", "subject@otherdomain.com"]
+							"test-issuer-2" = ["domain/ci.yaml@refs/tags/*"]
+						}
+						skipped_images = ["registry/image@sha256:examplehash"]
+						rekor_url = "https://test.dev"
+						ignore_sct = true
+						ignore_tlog = true
+						ignore_attestations = true
+						registry_username = "user"
+						registry_password = "pass"
+					}`,
 			sigstoreConfigured: true,
 		},
 		{

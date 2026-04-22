@@ -59,19 +59,13 @@ since [hostprocess](https://kubernetes.io/docs/tasks/configure-pod-container/cre
 | `use_anonymous_authentication`   | If true, use anonymous authentication for kubelet communication                                                                                                                                                                         |
 | `node_name_env`                  | The environment variable used to obtain the node name. Defaults to `MY_NODE_NAME`.                                                                                                                                                      |
 | `node_name`                      | The name of the node. Overrides the value obtained by the environment variable specified by `node_name_env`.                                                                                                                            |
-| `experimental`                   | The experimental options that are subject to change or removal.                                                                                                                                                                         |
+| `sigstore`                       | Sigstore options. Options described below. See [Sigstore options](#sigstore-options). When set, enables verification of container image signatures and attestations.                                                                    |
 | `use_new_container_locator`      | If true, enables the new container locator algorithm that has support for cgroups v2. Defaults to true.                                                                                                                                 |
 | `verbose_container_locator_logs` | If true, enables verbose logging of mountinfo and cgroup information used to locate containers. Defaults to false.                                                                                                                      |
 
-## Sigstore experimental feature
+## Sigstore feature
 
-This feature extends the `k8s` workload attestor with the ability to validate container image signatures and attestations using the [Sigstore](https://www.sigstore.dev/) ecosystem.
-
-### Experimental options
-
-| Option     | Description                                                                               |
-|------------|-------------------------------------------------------------------------------------------|
-| `sigstore` | Sigstore options. Options described below. See [Sigstore options](#sigstore-options)      |
+This feature extends the `k8s` workload attestor with the ability to validate container image signatures and attestations using the [Sigstore](https://www.sigstore.dev/) ecosystem. It is optional and only enabled when the `sigstore` block is configured.
 
 ### Sigstore options
 

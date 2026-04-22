@@ -46,15 +46,9 @@ WorkloadAttestor "docker" {
 }
 ```
 
-## Sigstore experimental feature
+## Sigstore feature
 
-This feature extends the `docker` workload attestor with the ability to validate container image signatures and attestations using the [Sigstore](https://www.sigstore.dev/) ecosystem.
-
-### Experimental options
-
-| Option     | Description                                                                             |
-|------------|-----------------------------------------------------------------------------------------|
-| `sigstore` | Sigstore options. Options described below. See [Sigstore options](#sigstore-options)    |
+This feature extends the `docker` workload attestor with the ability to validate container image signatures and attestations using the [Sigstore](https://www.sigstore.dev/) ecosystem. It is optional and only enabled when the `sigstore` block is configured.
 
 ### Sigstore options
 
