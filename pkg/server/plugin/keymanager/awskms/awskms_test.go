@@ -12,6 +12,7 @@ import (
 	"path"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -19,6 +20,8 @@ import (
 	"github.com/andres-erbsen/clock"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/kms/types"
+	rgtatypes "github.com/aws/aws-sdk-go-v2/service/resourcegroupstaggingapi/types"
+	"github.com/aws/smithy-go"
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -90,8 +93,10 @@ func TestKeyManagerContract(t *testing.T) {
 		c := clock.NewMock()
 		fakeKMSClient := newKMSClientFake(t, c)
 		fakeSTSClient := newSTSClientFake()
+		fakeTaggingClient := newTaggingClientFake()
 		p := newPlugin(
 			func(aws.Config) (kmsClient, error) { return fakeKMSClient, nil },
+			func(aws.Config) (taggingClient, error) { return fakeTaggingClient, nil },
 			func(aws.Config) (stsClient, error) { return fakeSTSClient, nil },
 		)
 		km := new(keymanager.V1)
@@ -121,11 +126,12 @@ func TestKeyManagerContract(t *testing.T) {
 }
 
 type pluginTest struct {
-	plugin        *Plugin
-	fakeKMSClient *kmsClientFake
-	fakeSTSClient *stsClientFake
-	logHook       *test.Hook
-	clockHook     *clock.Mock
+	plugin            *Plugin
+	fakeKMSClient     *kmsClientFake
+	fakeSTSClient     *stsClientFake
+	fakeTaggingClient *taggingClientFake
+	logHook           *test.Hook
+	clockHook         *clock.Mock
 }
 
 func setupTest(t *testing.T) *pluginTest {
@@ -135,8 +141,10 @@ func setupTest(t *testing.T) *pluginTest {
 	c := clock.NewMock()
 	fakeKMSClient := newKMSClientFake(t, c)
 	fakeSTSClient := newSTSClientFake()
+	fakeTaggingClient := newTaggingClientFake()
 	p := newPlugin(
 		func(aws.Config) (kmsClient, error) { return fakeKMSClient, nil },
+		func(aws.Config) (taggingClient, error) { return fakeTaggingClient, nil },
 		func(aws.Config) (stsClient, error) { return fakeSTSClient, nil },
 	)
 	km := new(keymanager.V1)
@@ -145,11 +153,12 @@ func setupTest(t *testing.T) *pluginTest {
 	p.hooks.clk = c
 
 	return &pluginTest{
-		plugin:        p,
-		fakeKMSClient: fakeKMSClient,
-		fakeSTSClient: fakeSTSClient,
-		logHook:       logHook,
-		clockHook:     c,
+		plugin:            p,
+		fakeKMSClient:     fakeKMSClient,
+		fakeSTSClient:     fakeSTSClient,
+		fakeTaggingClient: fakeTaggingClient,
+		logHook:           logHook,
+		clockHook:         c,
 	}
 }
 
@@ -2562,4 +2571,607 @@ func waitForSignal(t *testing.T, ch chan error) error {
 		t.Fail()
 	}
 	return nil
+}
+
+// configureTagBasedRequest returns a ConfigureRequest with tag-based key
+// discovery enabled, using the validServerID file for the server identifier.
+func configureTagBasedRequest(t *testing.T) *configv1.ConfigureRequest {
+	return &configv1.ConfigureRequest{
+		CoreConfiguration: &configv1.CoreConfiguration{TrustDomain: "test.example.org"},
+		HclConfiguration: fmt.Sprintf(`{
+			"access_key_id": %q,
+			"secret_access_key": %q,
+			"region": %q,
+			"key_identifier_file": %q,
+			"enable_tag_based_key_discovery": true
+		}`, validAccessKeyID, validSecretAccessKey, validRegion, getKeyIdentifierFile(t)),
+	}
+}
+
+// makeTaggedResource builds a ResourceTagMapping representing a KMS key that
+// is actively managed by the given server, with spire-key-id set.
+func makeTaggedResource(keyArn, spireKeyID, serverID, trustDomain string) rgtatypes.ResourceTagMapping {
+	return rgtatypes.ResourceTagMapping{
+		ResourceARN: aws.String(keyArn),
+		Tags: []rgtatypes.Tag{
+			{Key: aws.String(tagKeyServerTD), Value: aws.String(trustDomain)},
+			{Key: aws.String(tagKeyServerID), Value: aws.String(serverID)},
+			{Key: aws.String(tagKeyActive), Value: aws.String("true")},
+			{Key: aws.String(tagKeySPIREKeyID), Value: aws.String(spireKeyID)},
+		},
+	}
+}
+
+func TestConfigureWithTagBasedDiscovery(t *testing.T) {
+	const (
+		tagKeyID    = "tag-key-01"
+		tagKeyArn   = fakeKeyArnPrefix + tagKeyID
+		tagSpireKey = "x509-CA-A"
+	)
+
+	for _, tt := range []struct {
+		name                   string
+		err                    string
+		code                   codes.Code
+		fakeEntries            []fakeKeyEntry
+		taggedResources        []rgtatypes.ResourceTagMapping
+		getResourcesErr        error
+		tagResourceErr         string
+		expectEntryCount       int
+		expectTagResourceCalls int
+	}{
+		{
+			name: "load keys via tag-based discovery",
+			fakeEntries: []fakeKeyEntry{
+				{
+					KeyID:     aws.String(tagKeyID),
+					KeySpec:   types.KeySpecEccNistP256,
+					Enabled:   true,
+					PublicKey: []byte("fake-public-key"),
+				},
+			},
+			taggedResources: []rgtatypes.ResourceTagMapping{
+				makeTaggedResource(tagKeyArn, tagSpireKey, validServerID, "test.example.org"),
+			},
+			expectEntryCount:       1,
+			expectTagResourceCalls: 0,
+		},
+		{
+			name: "migrate legacy keys to tag-based discovery",
+			fakeEntries: []fakeKeyEntry{
+				{
+					AliasName: aws.String(aliasName),
+					KeyID:     aws.String(keyID),
+					KeySpec:   types.KeySpecEccNistP256,
+					Enabled:   true,
+					PublicKey: []byte("fake-public-key"),
+				},
+			},
+			// tagging fake returns empty — key has no SPIRE tags yet
+			expectEntryCount:       1,
+			expectTagResourceCalls: 1,
+		},
+		{
+			name: "deduplicate key found via both tag and alias",
+			fakeEntries: []fakeKeyEntry{
+				{
+					AliasName: aws.String(aliasName),
+					KeyID:     aws.String(keyID),
+					KeySpec:   types.KeySpecEccNistP256,
+					Enabled:   true,
+					PublicKey: []byte("fake-public-key"),
+				},
+			},
+			// tagging fake already has the key — no migration needed
+			taggedResources: []rgtatypes.ResourceTagMapping{
+				makeTaggedResource(KeyArn, spireKeyID, validServerID, "test.example.org"),
+			},
+			expectEntryCount:       1,
+			expectTagResourceCalls: 0,
+		},
+		{
+			name: "migration: tag resource error is non-fatal",
+			fakeEntries: []fakeKeyEntry{
+				{
+					AliasName: aws.String(aliasName),
+					KeyID:     aws.String(keyID),
+					KeySpec:   types.KeySpecEccNistP256,
+					Enabled:   true,
+					PublicKey: []byte("fake-public-key"),
+				},
+			},
+			tagResourceErr:   "tag resource failed",
+			expectEntryCount: 1,
+		},
+		{
+			// A key found via tags but disabled or pending deletion (e.g.
+			// scheduled for deletion by the legacy alias path, which does not
+			// clear SPIRE tags) is skipped rather than failing startup.
+			name: "skips disabled key found via tags",
+			fakeEntries: []fakeKeyEntry{
+				{
+					KeyID:     aws.String(tagKeyID),
+					KeySpec:   types.KeySpecEccNistP256,
+					Enabled:   false,
+					PublicKey: []byte("fake-public-key"),
+				},
+			},
+			taggedResources: []rgtatypes.ResourceTagMapping{
+				makeTaggedResource(tagKeyArn, tagSpireKey, validServerID, "test.example.org"),
+			},
+			expectEntryCount:       0,
+			expectTagResourceCalls: 0,
+		},
+		{
+			name:            "GetResources error fails configure",
+			getResourcesErr: errors.New("tagging API unavailable"),
+			err:             "failed to fetch keys by tags: tagging API unavailable",
+			code:            codes.Internal,
+		},
+		{
+			name: "GetResources access denied returns actionable error",
+			getResourcesErr: &smithy.GenericAPIError{
+				Code:    "AccessDeniedException",
+				Message: "User is not authorized to perform: tag:GetResources",
+			},
+			err:  `tag-based key discovery requires the "tag:GetResources" permission`,
+			code: codes.FailedPrecondition,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			ts := setupTest(t)
+			ts.fakeKMSClient.setEntries(tt.fakeEntries)
+			ts.fakeTaggingClient.setResources(tt.taggedResources)
+			ts.fakeTaggingClient.setErr(tt.getResourcesErr)
+			ts.fakeKMSClient.setTagResourceErr(tt.tagResourceErr)
+
+			_, err := ts.plugin.Configure(ctx, configureTagBasedRequest(t))
+
+			if tt.err != "" {
+				spiretest.RequireGRPCStatusContains(t, err, tt.code, tt.err)
+				return
+			}
+			require.NoError(t, err)
+
+			ts.plugin.mu.RLock()
+			entryCount := len(ts.plugin.entries)
+			ts.plugin.mu.RUnlock()
+			require.Equal(t, tt.expectEntryCount, entryCount)
+
+			ts.fakeKMSClient.mu.RLock()
+			tagCalls := len(ts.fakeKMSClient.tagResourceCalls)
+			ts.fakeKMSClient.mu.RUnlock()
+			require.Equal(t, tt.expectTagResourceCalls, tagCalls)
+		})
+	}
+}
+
+// TestGenerateKeyTagBased verifies that keys created while tag-based discovery
+// is enabled are stamped at creation with the SPIRE discovery tags, including
+// spire-last-update, so they are immediately eligible for staleness evaluation
+// and never left undisposable if the server dies before keepActiveKeys runs.
+func TestGenerateKeyTagBased(t *testing.T) {
+	ts := setupTest(t)
+
+	_, err := ts.plugin.Configure(ctx, configureTagBasedRequest(t))
+	require.NoError(t, err)
+
+	_, err = ts.plugin.GenerateKey(ctx, &keymanagerv1.GenerateKeyRequest{
+		KeyId:   spireKeyID,
+		KeyType: keymanagerv1.KeyType_EC_P256,
+	})
+	require.NoError(t, err)
+
+	ts.fakeKMSClient.mu.RLock()
+	createCalls := ts.fakeKMSClient.createKeyCalls
+	ts.fakeKMSClient.mu.RUnlock()
+	require.Len(t, createCalls, 1)
+
+	tags := make(map[string]string, len(createCalls[0].Tags))
+	for _, tag := range createCalls[0].Tags {
+		require.NotNil(t, tag.TagKey)
+		require.NotNil(t, tag.TagValue)
+		tags[*tag.TagKey] = *tag.TagValue
+	}
+
+	require.Equal(t, "test.example.org", tags[tagKeyServerTD])
+	require.Equal(t, validServerID, tags[tagKeyServerID])
+	require.Equal(t, "true", tags[tagKeyActive])
+	require.Equal(t, spireKeyID, tags[tagKeySPIREKeyID])
+	require.Equal(t, strconv.FormatInt(ts.clockHook.Now().Unix(), 10), tags[tagKeyLastUpdate])
+}
+
+// TestFetchKeyEntryDetailsFromArn covers the defensive error branches of
+// tag-based key detail retrieval that are not exercised by the higher-level
+// Configure tests.
+func TestFetchKeyEntryDetailsFromArn(t *testing.T) {
+	const (
+		fdKeyID  = "fd-key-01"
+		fdKeyArn = fakeKeyArnPrefix + fdKeyID
+	)
+
+	for _, tt := range []struct {
+		name              string
+		fakeEntries       []fakeKeyEntry
+		describeKeyErr    string
+		describeMalformed bool
+		getPublicKeyErr   string
+		expectErr         string
+		expectNilEntry    bool
+	}{
+		{
+			name:           "describe key error",
+			describeKeyErr: "describe boom",
+			expectErr:      "failed to describe key: describe boom",
+		},
+		{
+			name:              "malformed describe response",
+			describeMalformed: true,
+			expectErr:         "malformed describe key response",
+		},
+		{
+			name: "disabled key is skipped",
+			fakeEntries: []fakeKeyEntry{
+				{KeyID: aws.String(fdKeyID), KeySpec: types.KeySpecEccNistP256, Enabled: false, PublicKey: []byte("fake-public-key")},
+			},
+			expectNilEntry: true,
+		},
+		{
+			name: "unsupported key spec",
+			fakeEntries: []fakeKeyEntry{
+				{KeyID: aws.String(fdKeyID), KeySpec: types.KeySpec("BOGUS_SPEC"), Enabled: true, PublicKey: []byte("fake-public-key")},
+			},
+			expectErr: "unsupported key spec",
+		},
+		{
+			name: "get public key error",
+			fakeEntries: []fakeKeyEntry{
+				{KeyID: aws.String(fdKeyID), KeySpec: types.KeySpecEccNistP256, Enabled: true, PublicKey: []byte("fake-public-key")},
+			},
+			getPublicKeyErr: "getpub boom",
+			expectErr:       "failed to get public key: getpub boom",
+		},
+		{
+			name: "malformed get public key response",
+			fakeEntries: []fakeKeyEntry{
+				{KeyID: aws.String(fdKeyID), KeySpec: types.KeySpecEccNistP256, Enabled: true, PublicKey: nil},
+			},
+			expectErr: "malformed get public key response",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			ts := setupTest(t)
+			ts.fakeKMSClient.setEntries(tt.fakeEntries)
+			ts.fakeKMSClient.setDescribeKeyErr(tt.describeKeyErr)
+			ts.fakeKMSClient.setDescribeKeyMalformed(tt.describeMalformed)
+			ts.fakeKMSClient.setgetPublicKeyErr(tt.getPublicKeyErr)
+
+			kf := &keyFetcher{
+				log:         ts.plugin.log,
+				kmsClient:   ts.fakeKMSClient,
+				serverID:    validServerID,
+				trustDomain: "test.example.org",
+			}
+
+			entry, err := kf.fetchKeyEntryDetailsFromArn(ctx, fdKeyArn, spireKeyID)
+			if tt.expectErr != "" {
+				require.ErrorContains(t, err, tt.expectErr)
+				require.Nil(t, entry)
+				return
+			}
+			require.NoError(t, err)
+			if tt.expectNilEntry {
+				require.Nil(t, entry)
+				return
+			}
+			require.NotNil(t, entry)
+		})
+	}
+}
+
+func TestKeepActiveKeys(t *testing.T) {
+	for _, tt := range []struct {
+		name           string
+		err            string
+		fakeEntries    []fakeKeyEntry
+		tagResourceErr string
+	}{
+		{
+			name: "updates spire-last-update tag on all managed entries",
+			fakeEntries: []fakeKeyEntry{
+				{
+					AliasName: aws.String(aliasName),
+					KeyID:     aws.String(keyID),
+					KeySpec:   types.KeySpecEccNistP256,
+					Enabled:   true,
+					PublicKey: []byte("fake-public-key"),
+				},
+				{
+					AliasName: aws.String(aliasName + "01"),
+					KeyID:     aws.String(keyID + "01"),
+					KeySpec:   types.KeySpecEccNistP384,
+					Enabled:   true,
+					PublicKey: []byte("fake-public-key"),
+				},
+			},
+		},
+		{
+			name: "tag update errors are returned",
+			fakeEntries: []fakeKeyEntry{
+				{
+					AliasName: aws.String(aliasName),
+					KeyID:     aws.String(keyID),
+					KeySpec:   types.KeySpecEccNistP256,
+					Enabled:   true,
+					PublicKey: []byte("fake-public-key"),
+				},
+			},
+			tagResourceErr: "tag update failed",
+			err:            "tag update failed",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			ts := setupTest(t)
+			ts.fakeKMSClient.setEntries(tt.fakeEntries)
+
+			keepActiveKeysSignal := make(chan error)
+			ts.plugin.hooks.keepActiveKeysSignal = keepActiveKeysSignal
+
+			_, err := ts.plugin.Configure(ctx, configureTagBasedRequest(t))
+			require.NoError(t, err)
+
+			// Wait for initial signal (no-op before the first tick)
+			_ = waitForSignal(t, keepActiveKeysSignal)
+
+			// Reset calls accumulated during Configure's migration path.
+			ts.fakeKMSClient.mu.Lock()
+			ts.fakeKMSClient.tagResourceCalls = nil
+			ts.fakeKMSClient.mu.Unlock()
+
+			ts.fakeKMSClient.setTagResourceErr(tt.tagResourceErr)
+
+			ts.clockHook.Add(keepActiveKeysFrequency)
+			err = waitForSignal(t, keepActiveKeysSignal)
+
+			if tt.err != "" {
+				require.EqualError(t, err, tt.err)
+				return
+			}
+			require.NoError(t, err)
+
+			// One TagResource call per entry with spire-last-update
+			ts.fakeKMSClient.mu.RLock()
+			calls := ts.fakeKMSClient.tagResourceCalls
+			ts.fakeKMSClient.mu.RUnlock()
+			require.Len(t, calls, len(tt.fakeEntries))
+
+			expectedTime := strconv.FormatInt(ts.clockHook.Now().Unix(), 10)
+			for _, call := range calls {
+				require.Len(t, call.Tags, 1)
+				require.Equal(t, tagKeyLastUpdate, *call.Tags[0].TagKey)
+				require.Equal(t, expectedTime, *call.Tags[0].TagValue)
+			}
+		})
+	}
+}
+
+func TestDisposeKeysViaTags(t *testing.T) {
+	const (
+		otherServerID  = "other-server-id"
+		otherKeyArn    = fakeKeyArnPrefix + "other-server-key"
+		staleTimestamp = int64(0) // Unix epoch — always older than the 2-week threshold
+	)
+
+	for _, tt := range []struct {
+		name                   string
+		err                    string
+		taggedResources        []rgtatypes.ResourceTagMapping
+		getResourcesErr        error
+		useRecentTimestamp     bool
+		expectDeleteCount      int
+		expectInactiveTagCount int
+	}{
+		{
+			name: "disposes stale key from another server",
+			taggedResources: []rgtatypes.ResourceTagMapping{
+				{
+					ResourceARN: aws.String(otherKeyArn),
+					Tags: []rgtatypes.Tag{
+						{Key: aws.String(tagKeyServerTD), Value: aws.String("test.example.org")},
+						{Key: aws.String(tagKeyServerID), Value: aws.String(otherServerID)},
+						{Key: aws.String(tagKeyActive), Value: aws.String("true")},
+						{Key: aws.String(tagKeyLastUpdate), Value: aws.String(strconv.FormatInt(staleTimestamp, 10))},
+					},
+				},
+			},
+			expectDeleteCount:      1,
+			expectInactiveTagCount: 1,
+		},
+		{
+			name: "skips key belonging to this server",
+			taggedResources: []rgtatypes.ResourceTagMapping{
+				{
+					ResourceARN: aws.String(otherKeyArn),
+					Tags: []rgtatypes.Tag{
+						{Key: aws.String(tagKeyServerTD), Value: aws.String("test.example.org")},
+						{Key: aws.String(tagKeyServerID), Value: aws.String(validServerID)},
+						{Key: aws.String(tagKeyActive), Value: aws.String("true")},
+						{Key: aws.String(tagKeyLastUpdate), Value: aws.String(strconv.FormatInt(staleTimestamp, 10))},
+					},
+				},
+			},
+			expectDeleteCount:      0,
+			expectInactiveTagCount: 0,
+		},
+		{
+			// Every key managed by the plugin is stamped with spire-last-update
+			// at creation and migration, so an active key from another server
+			// that lacks the tag is treated as abandoned and disposed.
+			name: "disposes key with no spire-last-update tag",
+			taggedResources: []rgtatypes.ResourceTagMapping{
+				{
+					ResourceARN: aws.String(otherKeyArn),
+					Tags: []rgtatypes.Tag{
+						{Key: aws.String(tagKeyServerTD), Value: aws.String("test.example.org")},
+						{Key: aws.String(tagKeyServerID), Value: aws.String(otherServerID)},
+						{Key: aws.String(tagKeyActive), Value: aws.String("true")},
+						// no spire-last-update tag
+					},
+				},
+			},
+			expectDeleteCount:      1,
+			expectInactiveTagCount: 1,
+		},
+		{
+			name: "skips key with malformed spire-last-update tag",
+			taggedResources: []rgtatypes.ResourceTagMapping{
+				{
+					ResourceARN: aws.String(otherKeyArn),
+					Tags: []rgtatypes.Tag{
+						{Key: aws.String(tagKeyServerTD), Value: aws.String("test.example.org")},
+						{Key: aws.String(tagKeyServerID), Value: aws.String(otherServerID)},
+						{Key: aws.String(tagKeyActive), Value: aws.String("true")},
+						{Key: aws.String(tagKeyLastUpdate), Value: aws.String("not-a-number")},
+					},
+				},
+			},
+			expectDeleteCount:      0,
+			expectInactiveTagCount: 0,
+		},
+		{
+			name:                   "skips recently updated key",
+			useRecentTimestamp:     true,
+			expectDeleteCount:      0,
+			expectInactiveTagCount: 0,
+		},
+		{
+			name:            "GetResources error is returned",
+			getResourcesErr: errors.New("tagging API error"),
+			err:             "tagging API error",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			ts := setupTest(t)
+
+			taggedResources := tt.taggedResources
+			if tt.useRecentTimestamp {
+				// After advancing by keyThresholdForTagDiscovery, staleThreshold = epoch.
+				// Use epoch+1 so the key is strictly newer than the threshold.
+				recentTimestamp := ts.clockHook.Now().Unix() + 1
+				taggedResources = []rgtatypes.ResourceTagMapping{
+					{
+						ResourceARN: aws.String(otherKeyArn),
+						Tags: []rgtatypes.Tag{
+							{Key: aws.String(tagKeyServerTD), Value: aws.String("test.example.org")},
+							{Key: aws.String(tagKeyServerID), Value: aws.String(otherServerID)},
+							{Key: aws.String(tagKeyActive), Value: aws.String("true")},
+							{Key: aws.String(tagKeyLastUpdate), Value: aws.String(strconv.FormatInt(recentTimestamp, 10))},
+						},
+					},
+				}
+			}
+
+			ts.fakeTaggingClient.setResources(taggedResources)
+
+			// Block dispose-aliases task so it does not interfere
+			ts.plugin.hooks.disposeAliasesSignal = make(chan error)
+			disposeKeysSignal := make(chan error)
+			ts.plugin.hooks.disposeKeysSignal = disposeKeysSignal
+			deleteSignal := make(chan error)
+			ts.plugin.hooks.scheduleDeleteSignal = deleteSignal
+
+			_, err := ts.plugin.Configure(ctx, configureTagBasedRequest(t))
+			require.NoError(t, err)
+
+			// Consume initial (no-op) signal before Configure returns.
+			_ = waitForSignal(t, disposeKeysSignal)
+
+			// Set the error after Configure so Configure itself succeeds.
+			ts.fakeTaggingClient.setErr(tt.getResourcesErr)
+
+			// Advance far enough that the stale threshold (now - 2 weeks) reaches
+			// epoch, making keys with lastUpdate=0 eligible for disposal.
+			ts.clockHook.Add(keyThresholdForTagDiscovery)
+			// Consume the first tick (early clock time, no keys stale yet).
+			_ = waitForSignal(t, disposeKeysSignal)
+			// Second tick runs with clk.Now() at the full advance.
+			err = waitForSignal(t, disposeKeysSignal)
+
+			if tt.err != "" {
+				require.EqualError(t, err, tt.err)
+				return
+			}
+			require.NoError(t, err)
+
+			// Wait for expected deletions to be processed
+			for range tt.expectDeleteCount {
+				_ = waitForSignal(t, deleteSignal)
+			}
+
+			// Verify spire-active=false was set for each disposed key
+			ts.fakeKMSClient.mu.RLock()
+			calls := ts.fakeKMSClient.tagResourceCalls
+			ts.fakeKMSClient.mu.RUnlock()
+
+			var inactiveTagCount int
+			for _, call := range calls {
+				for _, tag := range call.Tags {
+					if tag.TagKey != nil && *tag.TagKey == tagKeyActive &&
+						tag.TagValue != nil && *tag.TagValue == "false" {
+						inactiveTagCount++
+					}
+				}
+			}
+			require.Equal(t, tt.expectInactiveTagCount, inactiveTagCount)
+		})
+	}
+}
+
+// TestDisposeKeysViaTagsFullDeleteQueue verifies that when the scheduleDelete
+// queue is full, a stale key is left spire-active=true (not marked inactive)
+// so it is retried on the next cycle. Marking it inactive would drop it from
+// the GetResources(active=true) filter without ever enqueueing it for
+// deletion, and tag mode has no creation-date sweeper to reclaim it.
+func TestDisposeKeysViaTagsFullDeleteQueue(t *testing.T) {
+	ts := setupTest(t)
+	ts.plugin.kmsClient = ts.fakeKMSClient
+	ts.plugin.taggingClient = ts.fakeTaggingClient
+	ts.plugin.serverID = validServerID
+	ts.plugin.trustDomain = "test.example.org"
+
+	// Fill the delete queue to capacity so the enqueue hits the default branch.
+	ts.plugin.scheduleDelete = make(chan string, 1)
+	ts.plugin.scheduleDelete <- fakeKeyArnPrefix + "prefill"
+
+	staleKeyArn := fakeKeyArnPrefix + "stale-key"
+	ts.fakeTaggingClient.setResources([]rgtatypes.ResourceTagMapping{
+		{
+			ResourceARN: aws.String(staleKeyArn),
+			Tags: []rgtatypes.Tag{
+				{Key: aws.String(tagKeyServerTD), Value: aws.String("test.example.org")},
+				{Key: aws.String(tagKeyServerID), Value: aws.String("other-server-id")},
+				{Key: aws.String(tagKeyActive), Value: aws.String("true")},
+				{Key: aws.String(tagKeyLastUpdate), Value: aws.String("0")},
+			},
+		},
+	})
+
+	// Advance so staleThreshold (now - 2 weeks) reaches the Unix epoch, making
+	// the lastUpdate=0 key eligible for disposal.
+	ts.clockHook.Add(keyThresholdForTagDiscovery)
+
+	err := ts.plugin.disposeKeysViaTags(ctx)
+	require.NoError(t, err)
+
+	// The key must not be marked inactive, since it was never enqueued.
+	ts.fakeKMSClient.mu.RLock()
+	calls := ts.fakeKMSClient.tagResourceCalls
+	ts.fakeKMSClient.mu.RUnlock()
+	for _, call := range calls {
+		for _, tag := range call.Tags {
+			if tag.TagKey != nil && *tag.TagKey == tagKeyActive {
+				require.Fail(t, "stale key should not be marked inactive when the delete queue is full")
+			}
+		}
+	}
 }

@@ -9,6 +9,7 @@ import (
 	"os"
 	"path"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -17,6 +18,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/kms"
 	"github.com/aws/aws-sdk-go-v2/service/kms/types"
+	"github.com/aws/aws-sdk-go-v2/service/resourcegroupstaggingapi"
+	rgtatypes "github.com/aws/aws-sdk-go-v2/service/resourcegroupstaggingapi/types"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gofrs/uuid/v5"
 	"github.com/hashicorp/go-hclog"
@@ -34,16 +37,29 @@ const (
 	pluginName  = "aws_kms"
 	aliasPrefix = "alias/SPIRE_SERVER/"
 
+	// Logging tags
 	keyArnTag    = "key_arn"
 	aliasNameTag = "alias_name"
 	reasonTag    = "reason"
 
+	// KMS resource tags for key discovery
+	tagKeyServerTD   = "spire-server-td"   // Trust domain (no hashing needed - AWS allows dots and long values)
+	tagKeyServerID   = "spire-server-id"   // Server identifier
+	tagKeyLastUpdate = "spire-last-update" // Unix timestamp of last update
+	tagKeyActive     = "spire-active"      // "true" if key is actively managed
+	tagKeySPIREKeyID = "spire-key-id"      // SPIRE key identifier
+
+	// Alias-based discovery task frequencies (legacy; will be deprecated in a future version and removed in a later one)
 	refreshAliasesFrequency = time.Hour * 6
 	disposeAliasesFrequency = time.Hour * 24
 	aliasThreshold          = time.Hour * 24 * 14 // two weeks
+	disposeKeysFrequency    = time.Hour * 48
+	keyThreshold            = time.Hour * 48 // 48 hours for orphaned keys without aliases
 
-	disposeKeysFrequency = time.Hour * 48
-	keyThreshold         = time.Hour * 48
+	// Tag-based discovery task frequencies
+	keepActiveKeysFrequency     = time.Hour * 6
+	disposeKeysViaTagsFrequency = time.Hour * 48
+	keyThresholdForTagDiscovery = time.Hour * 24 * 14 // two weeks for tagged keys
 )
 
 var (
@@ -69,14 +85,16 @@ type keyEntry struct {
 }
 
 type pluginHooks struct {
-	newKMSClient func(aws.Config) (kmsClient, error)
-	newSTSClient func(aws.Config) (stsClient, error)
-	clk          clock.Clock
+	newKMSClient     func(aws.Config) (kmsClient, error)
+	newTaggingClient func(aws.Config) (taggingClient, error)
+	newSTSClient     func(aws.Config) (stsClient, error)
+	clk              clock.Clock
 	// just for testing
 	scheduleDeleteSignal chan error
 	refreshAliasesSignal chan error
 	disposeAliasesSignal chan error
 	disposeKeysSignal    chan error
+	keepActiveKeysSignal chan error
 }
 
 // Plugin is the main representation of this keymanager plugin
@@ -88,6 +106,7 @@ type Plugin struct {
 	mu             sync.RWMutex
 	entries        map[string]keyEntry
 	kmsClient      kmsClient
+	taggingClient  taggingClient
 	stsClient      stsClient
 	trustDomain    string
 	serverID       string
@@ -96,6 +115,9 @@ type Plugin struct {
 	hooks          pluginHooks
 	keyPolicy      *string
 	keyTags        []types.Tag
+
+	// useTagBasedDiscovery indicates whether to use tag-based or alias-based key discovery
+	useTagBasedDiscovery bool
 }
 
 // Config provides configuration context for the plugin
@@ -107,6 +129,20 @@ type Config struct {
 	KeyIdentifierValue string            `hcl:"key_identifier_value" json:"key_identifier_value"`
 	KeyPolicyFile      string            `hcl:"key_policy_file" json:"key_policy_file"`
 	KeyTags            map[string]string `hcl:"key_tags" json:"key_tags"`
+
+	// EnableTagBasedKeyDiscovery enables the use of AWS Resource Groups Tagging API
+	// for efficient key discovery instead of the legacy alias-based approach.
+	// When enabled, keys are discovered using SPIRE-specific tags (spire-server-td,
+	// spire-server-id, spire-active).
+	// This eliminates the need for broad ListKeys + DescribeKey permissions and reduces API costs.
+	//
+	// Default: false (uses legacy alias-based discovery)
+	// In a future SPIRE version, this will default to true. The alias-based
+	// approach will be deprecated in a future version and removed in a later one.
+	//
+	// Note: When enabled, the plugin requires permission to use the
+	// resourcegroupstaggingapi:GetResources API action.
+	EnableTagBasedKeyDiscovery bool `hcl:"enable_tag_based_key_discovery" json:"enable_tag_based_key_discovery"`
 }
 
 func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *Config {
@@ -152,19 +188,21 @@ func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginco
 
 // New returns an instantiated plugin
 func New() *Plugin {
-	return newPlugin(newKMSClient, newSTSClient)
+	return newPlugin(newKMSClient, newTaggingClient, newSTSClient)
 }
 
 func newPlugin(
 	newKMSClient func(aws.Config) (kmsClient, error),
+	newTaggingClient func(aws.Config) (taggingClient, error),
 	newSTSClient func(aws.Config) (stsClient, error),
 ) *Plugin {
 	return &Plugin{
 		entries: make(map[string]keyEntry),
 		hooks: pluginHooks{
-			newKMSClient: newKMSClient,
-			newSTSClient: newSTSClient,
-			clk:          clock.New(),
+			newKMSClient:     newKMSClient,
+			newTaggingClient: newTaggingClient,
+			newSTSClient:     newSTSClient,
+			clk:              clock.New(),
 		},
 		scheduleDelete: make(chan string, 120),
 	}
@@ -215,16 +253,57 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 		return nil, status.Errorf(codes.Internal, "failed to create KMS client: %v", err)
 	}
 
-	fetcher := &keyFetcher{
-		log:         p.log,
-		kmsClient:   kc,
-		serverID:    serverID,
-		trustDomain: req.CoreConfiguration.TrustDomain,
+	// Determine which discovery mode to use
+	useTagBasedDiscovery := newConfig.EnableTagBasedKeyDiscovery
+
+	if useTagBasedDiscovery {
+		p.log.Info("Tag-based key discovery enabled")
+	} else {
+		p.log.Warn("Alias-based key discovery will be deprecated in a future version and removed in a later one. " +
+			"Enable 'enable_tag_based_key_discovery' to switch to tag-based discovery, which efficiently " +
+			"finds only the keys managed by this plugin instance.")
 	}
-	p.log.Debug("Fetching key aliases from KMS")
-	keyEntries, err := fetcher.fetchKeyEntries(ctx)
-	if err != nil {
-		return nil, err
+
+	// Initialize the appropriate fetcher based on configuration
+	var keyEntries []*keyEntry
+	var spireTags []types.Tag
+	if useTagBasedDiscovery {
+		// Build SPIRE-specific tags so they can be used during migration
+		// and applied to newly created keys.
+		spireTags = p.buildSPIRETags(serverID, req.CoreConfiguration.TrustDomain)
+		// Create tagging client for tag-based discovery
+		tc, err := p.hooks.newTaggingClient(awsCfg)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "failed to create tagging client: %v", err)
+		}
+
+		fetcher := &keyFetcher{
+			log:           p.log,
+			kmsClient:     kc,
+			taggingClient: tc,
+			serverID:      serverID,
+			trustDomain:   req.CoreConfiguration.TrustDomain,
+		}
+		p.log.Debug("Fetching keys using tag-based discovery from AWS Resource Groups Tagging API")
+		lastUpdate := strconv.FormatInt(p.hooks.clk.Now().Unix(), 10)
+		keyEntries, err = fetcher.fetchKeyEntriesWithMigration(ctx, spireTags, lastUpdate)
+		if err != nil {
+			return nil, err
+		}
+		p.taggingClient = tc
+	} else {
+		// Use legacy alias-based discovery
+		fetcher := &keyFetcher{
+			log:         p.log,
+			kmsClient:   kc,
+			serverID:    serverID,
+			trustDomain: req.CoreConfiguration.TrustDomain,
+		}
+		p.log.Debug("Fetching keys using legacy alias-based discovery from KMS")
+		keyEntries, err = fetcher.fetchKeyEntriesViaAlias(ctx)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	p.mu.Lock()
@@ -235,10 +314,23 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 	p.stsClient = sc
 	p.trustDomain = req.CoreConfiguration.TrustDomain
 	p.serverID = serverID
+	p.useTagBasedDiscovery = useTagBasedDiscovery
 
-	if len(newConfig.KeyTags) > 0 {
+	// Build the tag list applied to every new key. SPIRE-specific tags are
+	// only included when tag-based discovery is enabled, so that the legacy
+	// alias-based path does not require the kms:TagResource permission.
+	switch {
+	case useTagBasedDiscovery && len(newConfig.KeyTags) > 0:
+		userTags := buildKeyTags(newConfig.KeyTags)
+		// Build a fresh slice to avoid mutating the spireTags backing array.
+		p.keyTags = make([]types.Tag, 0, len(spireTags)+len(userTags))
+		p.keyTags = append(p.keyTags, spireTags...)
+		p.keyTags = append(p.keyTags, userTags...)
+	case useTagBasedDiscovery:
+		p.keyTags = spireTags
+	case len(newConfig.KeyTags) > 0:
 		p.keyTags = buildKeyTags(newConfig.KeyTags)
-	} else {
+	default:
 		p.keyTags = nil
 	}
 
@@ -247,12 +339,21 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 		p.cancelTasks()
 	}
 
-	// start tasks
+	// Start background tasks based on discovery mode
 	ctx, p.cancelTasks = context.WithCancel(context.Background())
 	go p.scheduleDeleteTask(ctx)
+
+	// Always refresh aliases so a downgrade to a version without
+	// tag-based discovery still finds keys with fresh aliases.
 	go p.refreshAliasesTask(ctx)
-	go p.disposeAliasesTask(ctx)
-	go p.disposeKeysTask(ctx)
+
+	if useTagBasedDiscovery {
+		go p.keepActiveKeysTask(ctx)
+		go p.disposeKeysViaTagsTask(ctx)
+	} else {
+		go p.disposeAliasesTask(ctx)
+		go p.disposeKeysTask(ctx)
+	}
 
 	return &configv1.ConfigureResponse{}, nil
 }
@@ -387,7 +488,30 @@ func (p *Plugin) createKey(ctx context.Context, spireKeyID string, keyType keyma
 		Policy:      p.keyPolicy,
 	}
 
-	if len(p.keyTags) > 0 {
+	if p.useTagBasedDiscovery {
+		// When tag-based discovery is enabled, append the per-key SPIRE key
+		// ID tag so the key can be looked up by ID via the tagging API, and
+		// stamp spire-last-update so the key is immediately eligible for
+		// staleness evaluation. Stamping at creation (rather than waiting for
+		// the first keepActiveKeys tick) ensures a key is never left with
+		// spire-active=true but no spire-last-update, which would make it
+		// undisposable by other servers if this server dies before that tick.
+		// Build a fresh slice to avoid mutating the shared p.keyTags slice.
+		tags := make([]types.Tag, len(p.keyTags), len(p.keyTags)+2)
+		copy(tags, p.keyTags)
+		tags = append(tags,
+			types.Tag{
+				TagKey:   aws.String(tagKeySPIREKeyID),
+				TagValue: aws.String(spireKeyID),
+			},
+			types.Tag{
+				TagKey:   aws.String(tagKeyLastUpdate),
+				TagValue: aws.String(strconv.FormatInt(p.hooks.clk.Now().Unix(), 10)),
+			},
+		)
+		createKeyInput.Tags = tags
+	} else if len(p.keyTags) > 0 {
+		// Legacy alias-based mode: only apply user-defined tags (if any).
 		createKeyInput.Tags = p.keyTags
 	}
 
@@ -1078,6 +1202,29 @@ func buildKeyTags(tags map[string]string) []types.Tag {
 	return keyTags
 }
 
+// buildSPIRETags creates the SPIRE-specific tags that are added to all KMS keys
+// at creation time. These tags enable efficient key discovery via the AWS
+// Resource Groups Tagging API.
+//
+// Note: spire-last-update is intentionally omitted here. It is set exclusively
+// by keepActiveKeys, which runs on a regular schedule.
+func (p *Plugin) buildSPIRETags(serverID, trustDomain string) []types.Tag {
+	return []types.Tag{
+		{
+			TagKey:   aws.String(tagKeyServerTD),
+			TagValue: aws.String(trustDomain),
+		},
+		{
+			TagKey:   aws.String(tagKeyServerID),
+			TagValue: aws.String(serverID),
+		},
+		{
+			TagKey:   aws.String(tagKeyActive),
+			TagValue: aws.String("true"),
+		},
+	}
+}
+
 // encodeKeyID maps "." and "+" characters to the asciihex value using "_" as
 // escape character. Currently, KMS does not support those characters to be used
 // as alias name.
@@ -1093,4 +1240,219 @@ func decodeKeyID(keyID string) string {
 	keyID = strings.ReplaceAll(keyID, "_2e", ".")
 	keyID = strings.ReplaceAll(keyID, "_2b", "+")
 	return keyID
+}
+
+// keepActiveKeysTask updates the spire-last-update tag on all managed keys every 6 hours.
+// This allows detection of keys that are no longer in use by any server.
+// This task only runs when tag-based discovery is enabled.
+func (p *Plugin) keepActiveKeysTask(ctx context.Context) {
+	ticker := p.hooks.clk.Ticker(keepActiveKeysFrequency)
+	defer ticker.Stop()
+
+	p.notifyKeepActiveKeys(nil)
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			err := p.keepActiveKeys(ctx)
+			p.notifyKeepActiveKeys(err)
+		}
+	}
+}
+
+// keepActiveKeys updates the last-update tag on all keys managed by this server.
+func (p *Plugin) keepActiveKeys(ctx context.Context) error {
+	p.log.Debug("Updating last-update tag on managed keys")
+
+	// Snapshot entries under the lock so we don't hold it across network calls.
+	p.mu.RLock()
+	entries := make([]keyEntry, 0, len(p.entries))
+	for _, e := range p.entries {
+		entries = append(entries, e)
+	}
+	p.mu.RUnlock()
+
+	now := strconv.FormatInt(p.hooks.clk.Now().Unix(), 10)
+	var errs []string
+
+	for _, entry := range entries {
+		_, err := p.kmsClient.TagResource(ctx, &kms.TagResourceInput{
+			KeyId: &entry.Arn,
+			Tags: []types.Tag{
+				{
+					TagKey:   aws.String(tagKeyLastUpdate),
+					TagValue: aws.String(now),
+				},
+			},
+		})
+		if err != nil {
+			p.log.Error("Failed to update last-update tag", keyArnTag, entry.Arn, reasonTag, err)
+			errs = append(errs, err.Error())
+		}
+	}
+
+	if errs != nil {
+		return errors.New(strings.Join(errs, ": "))
+	}
+	return nil
+}
+
+// disposeKeysViaTagsTask finds and disposes of stale keys using tag-based filtering.
+// This runs every 48 hours and looks for keys with spire-active=true but with
+// a spire-last-update timestamp older than 2 weeks that don't belong to this server.
+// This is the tag-based equivalent of disposeAliasesTask.
+func (p *Plugin) disposeKeysViaTagsTask(ctx context.Context) {
+	ticker := p.hooks.clk.Ticker(disposeKeysViaTagsFrequency)
+	defer ticker.Stop()
+
+	p.notifyDisposeKeys(nil)
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			err := p.disposeKeysViaTags(ctx)
+			p.notifyDisposeKeys(err)
+		}
+	}
+}
+
+// disposeKeysViaTags uses the AWS Resource Groups Tagging API to find stale keys.
+func (p *Plugin) disposeKeysViaTags(ctx context.Context) error {
+	p.log.Debug("Looking for stale keys to dispose using tag-based discovery")
+
+	now := p.hooks.clk.Now()
+	staleThreshold := now.Add(-keyThresholdForTagDiscovery).Unix()
+
+	// Find all keys in this trust domain that are active
+	tagFilters := []rgtatypes.TagFilter{
+		{
+			Key:    aws.String(tagKeyServerTD),
+			Values: []string{p.trustDomain},
+		},
+		{
+			Key:    aws.String(tagKeyActive),
+			Values: []string{"true"},
+		},
+	}
+
+	paginator := resourcegroupstaggingapi.NewGetResourcesPaginator(p.taggingClient, &resourcegroupstaggingapi.GetResourcesInput{
+		ResourceTypeFilters: []string{"kms:key"},
+		TagFilters:          tagFilters,
+	})
+
+	var errs []string
+	for {
+		resourcesResp, err := paginator.NextPage(ctx)
+		switch {
+		case err != nil:
+			if permErr := tagGetResourcesPermissionError(err); permErr != nil {
+				p.log.Error("Failed to fetch keys for disposal", reasonTag, permErr)
+				return permErr
+			}
+			p.log.Error("Failed to fetch keys for disposal", reasonTag, err)
+			return err
+		case resourcesResp == nil:
+			p.log.Error("Failed to fetch keys for disposal: nil response")
+			return errors.New("nil response from tagging API")
+		}
+
+		for _, resource := range resourcesResp.ResourceTagMappingList {
+			if resource.ResourceARN == nil {
+				continue
+			}
+
+			keyArn := *resource.ResourceARN
+
+			// Check if this key belongs to the current server
+			var belongsToThisServer bool
+			var lastUpdateTimestamp int64
+			var hasLastUpdate bool
+			var malformedTimestamp bool
+			for _, tag := range resource.Tags {
+				if tag.Key != nil && *tag.Key == tagKeyServerID && tag.Value != nil && *tag.Value == p.serverID {
+					belongsToThisServer = true
+				}
+				if tag.Key != nil && *tag.Key == tagKeyLastUpdate && tag.Value != nil {
+					ts, err := strconv.ParseInt(*tag.Value, 10, 64)
+					if err != nil {
+						malformedTimestamp = true
+						continue
+					}
+					lastUpdateTimestamp = ts
+					hasLastUpdate = true
+				}
+			}
+
+			if malformedTimestamp && !hasLastUpdate {
+				p.log.Warn("Malformed spire-last-update tag value, skipping key",
+					keyArnTag, keyArn)
+				continue
+			}
+
+			// Skip keys belonging to this server
+			if belongsToThisServer {
+				continue
+			}
+
+			// Skip keys that have been updated recently. A key with no
+			// spire-last-update tag has lastUpdateTimestamp == 0 (the Unix
+			// epoch), the oldest possible value, so it is treated as stale:
+			// every key managed by the plugin is stamped at creation and
+			// migration, and a missing value indicates an abandoned key.
+			if lastUpdateTimestamp > staleThreshold {
+				continue
+			}
+
+			log := p.log.With(keyArnTag, keyArn)
+			log.Debug("Found stale key beyond threshold")
+
+			// Schedule the key for deletion. Only mark it inactive once it has
+			// been enqueued: marking spire-active=false drops the key from the
+			// GetResources(active=true) filter, so if the queue is full and we
+			// skipped enqueueing, leaving it active=true lets the next cycle
+			// retry it. Tag mode has no creation-date orphan sweeper to fall
+			// back on, unlike the legacy alias path.
+			select {
+			case p.scheduleDelete <- keyArn:
+				log.Debug("Key enqueued for deletion")
+			default:
+				log.Error("Failed to enqueue key for deletion; leaving key active for retry on the next cycle")
+				continue
+			}
+
+			// Mark the key as inactive by updating the spire-active tag.
+			_, err := p.kmsClient.TagResource(ctx, &kms.TagResourceInput{
+				KeyId: &keyArn,
+				Tags: []types.Tag{
+					{
+						TagKey:   aws.String(tagKeyActive),
+						TagValue: aws.String("false"),
+					},
+				},
+			})
+			if err != nil {
+				log.Error("Failed to mark key as inactive", reasonTag, err)
+				errs = append(errs, err.Error())
+			}
+		}
+
+		if !paginator.HasMorePages() {
+			break
+		}
+	}
+
+	if errs != nil {
+		return errors.New(strings.Join(errs, ": "))
+	}
+	return nil
+}
+
+func (p *Plugin) notifyKeepActiveKeys(err error) {
+	if p.hooks.keepActiveKeysSignal != nil {
+		p.hooks.keepActiveKeysSignal <- err
+	}
 }

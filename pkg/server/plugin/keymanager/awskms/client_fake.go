@@ -20,6 +20,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/kms"
 	"github.com/aws/aws-sdk-go-v2/service/kms/types"
+	"github.com/aws/aws-sdk-go-v2/service/resourcegroupstaggingapi"
+	rgtatypes "github.com/aws/aws-sdk-go-v2/service/resourcegroupstaggingapi/types"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/spiffe/spire/test/testkey"
 	"github.com/stretchr/testify/require"
@@ -44,6 +46,9 @@ type kmsClientFake struct {
 	signErr                error
 	listKeysErr            error
 	deleteAliasErr         error
+	tagResourceErr         error
+	tagResourceCalls       []kms.TagResourceInput
+	createKeyCalls         []kms.CreateKeyInput
 
 	expectedKeyPolicy *string
 }
@@ -52,6 +57,12 @@ type stsClientFake struct {
 	account string
 	arn     string
 	err     string
+}
+
+type taggingClientFake struct {
+	mu        sync.RWMutex
+	resources []rgtatypes.ResourceTagMapping
+	err       error
 }
 
 func newKMSClientFake(t *testing.T, c *clock.Mock) *kmsClientFake {
@@ -67,6 +78,33 @@ func newKMSClientFake(t *testing.T, c *clock.Mock) *kmsClientFake {
 
 func newSTSClientFake() *stsClientFake {
 	return &stsClientFake{}
+}
+
+func newTaggingClientFake() *taggingClientFake {
+	return &taggingClientFake{}
+}
+
+func (tc *taggingClientFake) GetResources(_ context.Context, _ *resourcegroupstaggingapi.GetResourcesInput, _ ...func(*resourcegroupstaggingapi.Options)) (*resourcegroupstaggingapi.GetResourcesOutput, error) {
+	tc.mu.RLock()
+	defer tc.mu.RUnlock()
+	if tc.err != nil {
+		return nil, tc.err
+	}
+	return &resourcegroupstaggingapi.GetResourcesOutput{
+		ResourceTagMappingList: tc.resources,
+	}, nil
+}
+
+func (tc *taggingClientFake) setResources(resources []rgtatypes.ResourceTagMapping) {
+	tc.mu.Lock()
+	defer tc.mu.Unlock()
+	tc.resources = resources
+}
+
+func (tc *taggingClientFake) setErr(err error) {
+	tc.mu.Lock()
+	defer tc.mu.Unlock()
+	tc.err = err
 }
 
 func (s *stsClientFake) GetCallerIdentity(context.Context, *sts.GetCallerIdentityInput, ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error) {
@@ -97,11 +135,13 @@ func (k *kmsClientFake) setExpectedKeyPolicy(keyPolicy *string) {
 }
 
 func (k *kmsClientFake) CreateKey(_ context.Context, input *kms.CreateKeyInput, _ ...func(*kms.Options)) (*kms.CreateKeyOutput, error) {
-	k.mu.RLock()
-	defer k.mu.RUnlock()
+	k.mu.Lock()
+	defer k.mu.Unlock()
 	if k.createKeyErr != nil {
 		return nil, k.createKeyErr
 	}
+
+	k.createKeyCalls = append(k.createKeyCalls, *input)
 
 	switch k.expectedKeyPolicy {
 	case nil:
@@ -470,6 +510,25 @@ func (k *kmsClientFake) setDeleteAliasErr(fakeError string) {
 	defer k.mu.Unlock()
 	if fakeError != "" {
 		k.deleteAliasErr = errors.New(fakeError)
+	}
+}
+
+func (k *kmsClientFake) TagResource(_ context.Context, input *kms.TagResourceInput, _ ...func(*kms.Options)) (*kms.TagResourceOutput, error) {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	if k.tagResourceErr != nil {
+		return nil, k.tagResourceErr
+	}
+	call := *input
+	k.tagResourceCalls = append(k.tagResourceCalls, call)
+	return &kms.TagResourceOutput{}, nil
+}
+
+func (k *kmsClientFake) setTagResourceErr(fakeError string) {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	if fakeError != "" {
+		k.tagResourceErr = errors.New(fakeError)
 	}
 }
 
