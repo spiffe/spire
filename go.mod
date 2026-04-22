@@ -8,26 +8,26 @@ require (
 	cloud.google.com/go/secretmanager v1.19.0
 	cloud.google.com/go/security v1.22.0
 	cloud.google.com/go/storage v1.62.0
-	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.21.0
+	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.21.1
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.13.1
 	github.com/Azure/azure-sdk-for-go/sdk/keyvault/azkeys v0.10.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute v1.0.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork v1.1.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resourcegraph/armresourcegraph v0.9.0
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources v1.2.0
-	github.com/GoogleCloudPlatform/cloudsql-proxy v1.37.14
+	github.com/GoogleCloudPlatform/cloudsql-proxy v1.37.15
 	github.com/Keyfactor/ejbca-go-client-sdk v1.1.0
 	github.com/Masterminds/sprig/v3 v3.3.0
 	github.com/Microsoft/go-winio v0.6.2
 	github.com/andres-erbsen/clock v0.0.0-20160526145045-9e14626cd129
-	github.com/aws/aws-sdk-go-v2 v1.41.5
+	github.com/aws/aws-sdk-go-v2 v1.41.6
 	github.com/aws/aws-sdk-go-v2/config v1.32.12
 	github.com/aws/aws-sdk-go-v2/credentials v1.19.12
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.18.20
 	github.com/aws/aws-sdk-go-v2/feature/rds/auth v1.6.0
 	github.com/aws/aws-sdk-go-v2/service/acmpca v1.46.2
-	github.com/aws/aws-sdk-go-v2/service/autoscaling v1.65.0
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.297.0
+	github.com/aws/aws-sdk-go-v2/service/autoscaling v1.66.0
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.298.0
 	github.com/aws/aws-sdk-go-v2/service/eks v1.82.0
 	github.com/aws/aws-sdk-go-v2/service/iam v1.53.1
 	github.com/aws/aws-sdk-go-v2/service/kms v1.50.3
@@ -35,8 +35,8 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/rolesanywhere v1.22.2
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.99.0
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.41.0
-	github.com/aws/aws-sdk-go-v2/service/sts v1.41.9
-	github.com/aws/smithy-go v1.24.3
+	github.com/aws/aws-sdk-go-v2/service/sts v1.42.0
+	github.com/aws/smithy-go v1.25.0
 	github.com/blang/semver/v4 v4.0.0
 	github.com/cenkalti/backoff/v4 v4.3.0
 	github.com/docker/docker v28.5.2+incompatible
@@ -52,7 +52,7 @@ require (
 	github.com/google/go-containerregistry v0.21.5
 	github.com/google/go-tpm v0.9.8
 	github.com/google/go-tpm-tools v0.4.8
-	github.com/googleapis/gax-go/v2 v2.21.0
+	github.com/googleapis/gax-go/v2 v2.22.0
 	github.com/gorilla/handlers v1.5.2
 	github.com/hashicorp/go-hclog v1.6.3
 	github.com/hashicorp/go-metrics v0.5.4
@@ -62,13 +62,13 @@ require (
 	github.com/hashicorp/vault/sdk v0.25.1
 	github.com/imdario/mergo v0.3.16
 	github.com/imkira/go-observer v1.0.3
-	github.com/jackc/pgx/v5 v5.9.1
+	github.com/jackc/pgx/v5 v5.9.2
 	github.com/jinzhu/gorm v1.9.16
 	github.com/lib/pq v1.12.3
 	github.com/mattn/go-sqlite3 v1.14.42
 	github.com/mitchellh/cli v1.1.5
 	github.com/open-policy-agent/opa v1.15.2
-	github.com/pires/go-proxyproto v0.11.0
+	github.com/pires/go-proxyproto v0.12.0
 	github.com/prometheus/client_golang v1.23.2
 	github.com/shirou/gopsutil/v4 v4.26.3
 	github.com/sigstore/cosign/v3 v3.0.6
@@ -88,15 +88,15 @@ require (
 	golang.org/x/sync v0.20.0
 	golang.org/x/sys v0.43.0
 	golang.org/x/time v0.15.0
-	google.golang.org/api v0.275.0
+	google.golang.org/api v0.276.0
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260401024825-9d38bb4040a9
 	google.golang.org/grpc v1.80.0
 	google.golang.org/protobuf v1.36.11
-	k8s.io/api v0.35.3
-	k8s.io/apimachinery v0.35.3
-	k8s.io/client-go v0.35.3
-	k8s.io/kube-aggregator v0.35.3
-	k8s.io/mount-utils v0.35.3
+	k8s.io/api v0.35.4
+	k8s.io/apimachinery v0.35.4
+	k8s.io/client-go v0.35.4
+	k8s.io/kube-aggregator v0.35.4
+	k8s.io/mount-utils v0.35.4
 	sigs.k8s.io/controller-runtime v0.23.3
 )
 
@@ -110,7 +110,7 @@ require (
 	cloud.google.com/go/monitoring v1.24.3 // indirect
 	dario.cat/mergo v1.0.2 // indirect
 	filippo.io/edwards25519 v1.2.0 // indirect
-	github.com/Azure/azure-sdk-for-go/sdk/internal v1.11.2 // indirect
+	github.com/Azure/azure-sdk-for-go/sdk/internal v1.12.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/keyvault/internal v0.7.1 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20250102033503-faa5f7b0171c // indirect
 	github.com/AzureAD/microsoft-authentication-library-for-go v1.6.0 // indirect
@@ -124,13 +124,13 @@ require (
 	github.com/armon/go-radix v1.0.0 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 // indirect
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.8 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.21 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.21 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/configsources v1.4.22 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.7.22 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.8.6 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/v4a v1.4.22 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.7 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/v4a v1.4.23 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.8 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.9.13 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.21 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.22 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.19.21 // indirect
 	github.com/aws/aws-sdk-go-v2/service/signin v1.0.8 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.30.13 // indirect
