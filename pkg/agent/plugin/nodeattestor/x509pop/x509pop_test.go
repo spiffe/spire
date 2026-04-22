@@ -77,7 +77,7 @@ func (s *Suite) TestAttestSuccessWithIntermediates() {
 
 func getTestAddress(path string) string {
 	if runtime.GOOS == "windows" {
-		return "npipe://" + strings.TrimPrefix(path, `\\.\pipe\`)
+		return "npipe:" + strings.TrimPrefix(path, `\\.\pipe\`)
 	}
 	return "unix://" + path
 }
@@ -111,7 +111,6 @@ func (s *Suite) TestAttestSuccessWithWorkloadAPI() {
 	}
 
 	wlAPI := fakeworkloadapi.New(s.T(), fakeRequest)
-	s.Require().NoError(fmt.Errorf("DEBUG_CHECK: wlAPI.Addr().String() is: %q", wlAPI.Addr().String()))
 	p := s.loadPlugin(
 		plugintest.CoreConfig(catalog.CoreConfig{
 			TrustDomain: spiffeid.RequireTrustDomainFromString(trustDomain),
