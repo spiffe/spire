@@ -13,17 +13,21 @@ func ResolveSocketPath(socketPath, defaultPath, templateEnv, instance string) (s
 	if instance != "" {
 		if tpl == "" {
 			return "", fmt.Errorf("You must define %s to use the instance flag", templateEnv)
-		} else if !strings.Contains(tpl, "%i")  {
+		}
+		if !strings.Contains(tpl, "%i")  {
 			return "", fmt.Errorf("Failed to find %%i in %s", templateEnv)
 		}
 	}
-	retval := defaultPath
-	if socketPath != defaultPath {
+	var retval string
+	switch {
+	case socketPath != defaultPath:
 		retval = socketPath
-	} else if instance != "" {
+	case instance != "":
 		retval = strings.ReplaceAll(tpl, "%i", instance)
-	} else if sock != "" {
+	case sock != "":
 		retval = sock
+	default:
+		retval = defaultPath
 	}
 	return retval, nil
 }
