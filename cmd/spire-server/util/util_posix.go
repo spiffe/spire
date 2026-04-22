@@ -27,16 +27,18 @@ func (a *Adapter) getGRPCAddr() (string, error) {
 	if a.instance != "" {
 		if tpl == "" {
 			return "", fmt.Errorf("You must define %s to use the instance flag", "SPIRE_SERVER_PRIVATE_SOCKET_TEMPLATE")
-		} else if !strings.Contains(tpl, "%i")  {
+		}
+		if !strings.Contains(tpl, "%i")  {
 			return "", fmt.Errorf("Failed to find %%i in %s", "SPIRE_SERVER_PRIVATE_SOCKET_TEMPLATE")
 		}
 	}
 	socketPath := DefaultSocketPath
-	if a.socketPath != DefaultSocketPath {
+	switch {
+	case a.socketPath != DefaultSocketPath:
 		socketPath = a.socketPath
-	} else if a.instance != "" && strings.Contains(tpl, "%i") {
+	case a.instance != "":
 		socketPath = strings.ReplaceAll(tpl, "%i", a.instance)
-	} else if sock != "" {
+	case sock != "":
 		socketPath = sock
 	}
 
