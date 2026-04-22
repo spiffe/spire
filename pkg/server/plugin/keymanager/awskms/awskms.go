@@ -563,6 +563,7 @@ func (p *Plugin) refreshAliases(ctx context.Context) error {
 		}
 		if describeResp == nil || describeResp.KeyMetadata == nil || describeResp.KeyMetadata.Arn == nil {
 			p.log.Error("Malformed describe key response during alias refresh", aliasNameTag, entry.AliasName)
+			errs = append(errs, fmt.Sprintf("malformed describe key response for alias %q", entry.AliasName))
 			continue
 		}
 

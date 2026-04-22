@@ -1490,6 +1490,42 @@ func TestRefreshAliasesDescribeKeyError(t *testing.T) {
 	require.Equal(t, "describe key failure", err.Error())
 }
 
+func TestRefreshAliasesMalformedDescribeKeyResponse(t *testing.T) {
+	ts := setupTest(t)
+
+	fakeEntries := []fakeKeyEntry{
+		{
+			AliasName:            aws.String("alias/SPIRE_SERVER/test_example_org/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/id_01"),
+			KeyID:                aws.String("key_id_01"),
+			KeySpec:              types.KeySpecEccNistP256,
+			Enabled:              true,
+			PublicKey:            []byte("foo"),
+			CreationDate:         &unixEpoch,
+			AliasLastUpdatedDate: &unixEpoch,
+		},
+	}
+	ts.fakeKMSClient.setEntries(fakeEntries)
+
+	refreshAliasesSignal := make(chan error)
+	ts.plugin.hooks.refreshAliasesSignal = refreshAliasesSignal
+
+	_, err := ts.plugin.Configure(ctx, configureRequestWithDefaults(t))
+	require.NoError(t, err)
+
+	// Wait for refresh alias task to be initialized
+	_ = waitForSignal(t, refreshAliasesSignal)
+
+	// Force DescribeKey to return a successful response with nil KeyMetadata
+	ts.fakeKMSClient.setDescribeKeyMalformed(true)
+
+	// Trigger refreshAliasesTask
+	ts.clockHook.Add(6 * time.Hour)
+	err = waitForSignal(t, refreshAliasesSignal)
+
+	require.NotNil(t, err)
+	require.Equal(t, `malformed describe key response for alias "alias/SPIRE_SERVER/test_example_org/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/id_01"`, err.Error())
+}
+
 func TestDisposeAliases(t *testing.T) {
 	for _, tt := range []struct {
 		name             string
