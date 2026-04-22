@@ -1,6 +1,6 @@
 # Running Multiple SPIRE Instances
 
-Systemd (and other init systems) can run multiple instances of the same service using a template unit. To make it easier to target a particular instance of `spire-agent` or `spire-server`, the CLI supports environment-variable socket templates and a short `-i` flag.
+Systemd (and other init systems) can run multiple instances of the same service using a template unit. To make it easier to target a particular instance of `spire-agent` or `spire-server`, the CLI supports environment-variable socket templates and an -instance` flag.
 
 Environment variables
 
