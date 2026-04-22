@@ -76,10 +76,10 @@ func (s *Suite) TestAttestSuccessWithIntermediates() {
 }
 
 func getTestAddress(path string) string {
-    if runtime.GOOS == "windows" {
-        return "pipe://" + strings.TrimPrefix(path, `\\.\pipe\`)
-    }
-    return "unix://" + path
+	if runtime.GOOS == "windows" {
+		return "pipe://" + strings.TrimPrefix(path, `\\.\pipe\`)
+	}
+	return "unix://" + path
 }
 
 func (s *Suite) TestAttestSuccessWithWorkloadAPI() {
