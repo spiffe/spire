@@ -6,6 +6,8 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"fmt"
+	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/spiffe/go-spiffe/v2/proto/spiffe/workload"
@@ -73,6 +75,13 @@ func (s *Suite) TestAttestSuccessWithIntermediates() {
 	s.testAttestSuccess(p, s.bundleWithIntermediate)
 }
 
+func getTestAddress(path string) string {
+    if runtime.GOOS == "windows" {
+        return "pipe://" + strings.TrimPrefix(path, `\\.\pipe\`)
+    }
+    return "unix://" + path
+}
+
 func (s *Suite) TestAttestSuccessWithWorkloadAPI() {
 	certs, err := util.LoadCertificates(svidRegPath)
 	s.Require().NoError(err)
@@ -107,7 +116,7 @@ func (s *Suite) TestAttestSuccessWithWorkloadAPI() {
 		plugintest.CoreConfig(catalog.CoreConfig{
 			TrustDomain: spiffeid.RequireTrustDomainFromString(trustDomain),
 		}),
-		plugintest.Configure(fmt.Sprintf(`spiffe_endpoint_socket = "unix://%s"`, wlAPI.Addr())),
+		plugintest.Configure(fmt.Sprintf(`spiffe_endpoint_socket = "%s"`, getTestAddress(wlAPI.Addr().String()))),
 	)
 
 	expectPayload := s.marshal(x509pop.AttestationData{
