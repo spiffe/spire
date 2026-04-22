@@ -89,16 +89,12 @@ type dockerPluginConfig struct {
 
 	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions"`
 
-	Experimental experimentalConfig `hcl:"experimental,omitempty" json:"experimental"`
+	// Sigstore contains sigstore specific configs.
+	Sigstore *sigstore.HCLConfig `hcl:"sigstore,omitempty" json:"sigstore"`
 
 	containerHelper *containerHelper
 	dockerOpts      []dockerclient.Opt
 	sigstoreConfig  *sigstore.Config
-}
-
-type experimentalConfig struct {
-	// Sigstore contains sigstore specific configs.
-	Sigstore *sigstore.HCLConfig `hcl:"sigstore,omitempty"`
 }
 
 func (p *Plugin) buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *dockerPluginConfig {
@@ -131,8 +127,8 @@ func (p *Plugin) buildConfig(coreConfig catalog.CoreConfig, hclText string, stat
 		newConfig.dockerOpts = append(newConfig.dockerOpts, dockerclient.WithVersion(newConfig.DockerVersion))
 	}
 
-	if newConfig.Experimental.Sigstore != nil {
-		newConfig.sigstoreConfig = sigstore.NewConfigFromHCL(newConfig.Experimental.Sigstore, p.log)
+	if newConfig.Sigstore != nil {
+		newConfig.sigstoreConfig = sigstore.NewConfigFromHCL(newConfig.Sigstore, p.log)
 	}
 
 	return newConfig
