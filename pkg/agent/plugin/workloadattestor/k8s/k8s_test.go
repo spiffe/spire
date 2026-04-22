@@ -645,23 +645,21 @@ func (s *Suite) TestConfigureWithSigstore() {
 			trustDomain: "example.org",
 			hcl: `
 				    skip_kubelet_verification = true
-					experimental {
-    					sigstore {
-        					allowed_identities = {
-            					"test-issuer-1" = ["*@example.com", "subject@otherdomain.com"]
-            					"test-issuer-2" = ["domain/ci.yaml@refs/tags/*"]
-        					}
-        					skipped_images = ["registry/image@sha256:examplehash"]
-        					rekor_url = "https://test.dev"
-        					ignore_sct = true
-        					ignore_tlog = true
-                            ignore_attestations = true
-                            registry_credentials = {
-                                "registry-1" = { username = "user1", password = "pass1" }
-                                "registry-2" = { username = "user2", password = "pass2" }
-                            }
-    					}
-			}`,
+					sigstore {
+						allowed_identities = {
+							"test-issuer-1" = ["*@example.com", "subject@otherdomain.com"]
+							"test-issuer-2" = ["domain/ci.yaml@refs/tags/*"]
+						}
+						skipped_images = ["registry/image@sha256:examplehash"]
+						rekor_url = "https://test.dev"
+						ignore_sct = true
+						ignore_tlog = true
+						ignore_attestations = true
+						registry_credentials = {
+							"registry-1" = { username = "user1", password = "pass1" }
+							"registry-2" = { username = "user2", password = "pass2" }
+						}
+					}`,
 			expectedError: "",
 		},
 		{
@@ -669,7 +667,7 @@ func (s *Suite) TestConfigureWithSigstore() {
 			trustDomain: "example.org",
 			hcl: `
 				    skip_kubelet_verification = true
-					experimental { sigstore {} }
+					sigstore {}
 			`,
 			expectedError: "",
 		},
@@ -678,7 +676,7 @@ func (s *Suite) TestConfigureWithSigstore() {
 			trustDomain: "example.org",
 			hcl: `
 				    skip_kubelet_verification = true
-					experimental { sigstore = "invalid" }
+					sigstore = "invalid"
 			`,
 			expectedError: "unable to decode configuration",
 		},
@@ -793,9 +791,7 @@ func (s *Suite) loadInsecurePluginWithSigstore() workloadattestor.WorkloadAttest
 		kubelet_read_only_port = %d
 		max_poll_attempts = 5
 		poll_retry_interval = "1s"
-		experimental {
-			sigstore {
-			}
+		sigstore {
 		}
 	`, s.kubeletPort()))
 }

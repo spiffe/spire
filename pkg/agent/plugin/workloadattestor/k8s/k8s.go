@@ -133,11 +133,6 @@ type HCLConfig struct {
 	// about mountinfo and cgroup information used to locate the container.
 	VerboseContainerLocatorLogs bool `hcl:"verbose_container_locator_logs"`
 
-	// Experimental enables experimental features.
-	Experimental experimentalK8SConfig `hcl:"experimental,omitempty"`
-}
-
-type experimentalK8SConfig struct {
 	// Sigstore contains sigstore specific configs.
 	Sigstore *sigstore.HCLConfig `hcl:"sigstore,omitempty"`
 }
@@ -231,8 +226,8 @@ func (p *Plugin) buildConfig(coreConfig catalog.CoreConfig, hclText string, stat
 	nodeName := p.getNodeName(newConfig.NodeName, newConfig.NodeNameEnv)
 
 	var sigstoreConfig *sigstore.Config
-	if newConfig.Experimental.Sigstore != nil {
-		sigstoreConfig = sigstore.NewConfigFromHCL(newConfig.Experimental.Sigstore, p.log)
+	if newConfig.Sigstore != nil {
+		sigstoreConfig = sigstore.NewConfigFromHCL(newConfig.Sigstore, p.log)
 	}
 
 	// return the kubelet client
