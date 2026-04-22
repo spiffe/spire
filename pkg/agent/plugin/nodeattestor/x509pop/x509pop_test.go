@@ -77,7 +77,7 @@ func (s *Suite) TestAttestSuccessWithIntermediates() {
 
 func getTestAddress(path string) string {
 	if runtime.GOOS == "windows" {
-		return "pipe://" + strings.TrimPrefix(path, `\\.\pipe\`)
+		return "npipe://" + strings.TrimPrefix(path, `\\.\pipe\`)
 	}
 	return "unix://" + path
 }
