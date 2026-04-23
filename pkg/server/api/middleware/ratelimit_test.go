@@ -5,14 +5,16 @@ import (
 	"errors"
 	"net"
 	"testing"
+	"time"
 
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/pkg/common/api/middleware"
+	"github.com/spiffe/spire/pkg/common/ratelimit"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
-	"github.com/spiffe/spire/test/clock"
+	testclock "github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/fakes/fakemetrics"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/assert"
@@ -113,7 +115,7 @@ func TestPerIPLimitGC(t *testing.T) {
 	// Advance past the GC time and create for limiter for 3.3.3.3. This should
 	// move both 1.1.1.1 and 2.2.2.2 into the "previous" set. There should be
 	// three total limiters now.
-	mockClk.Add(gcInterval)
+	mockClk.Add(ratelimit.GCInterval)
 	require.NoError(t, m.RateLimit(tcpCallerContext("3.3.3.3"), 1))
 	require.Equal(t, 3, limiters.Count)
 
@@ -125,7 +127,7 @@ func TestPerIPLimitGC(t *testing.T) {
 	// Advance to the next GC time. Create a limiter for 4.4.4.4. This should
 	// cause 2.2.2.2 to be removed. 1.1.1.1 and 3.3.3.3 will go into the
 	// "previous set".
-	mockClk.Add(gcInterval)
+	mockClk.Add(ratelimit.GCInterval)
 	require.NoError(t, m.RateLimit(tcpCallerContext("4.4.4.4"), 1))
 	require.Equal(t, 4, limiters.Count)
 
@@ -330,7 +332,7 @@ func NewFakeLimiters() *FakeLimiters {
 	return ls
 }
 
-func (ls *FakeLimiters) newRawRateLimiter(limit rate.Limit, burst int) rawRateLimiter {
+func (ls *FakeLimiters) newRawRateLimiter(limit rate.Limit, burst int) ratelimit.Limiter {
 	ls.Count++
 	return &fakeLimiter{
 		id:    ls.Count,
@@ -353,6 +355,10 @@ type fakeLimiter struct {
 	waitN func(ctx context.Context, id, count int) error
 	limit rate.Limit
 	burst int
+}
+
+func (l *fakeLimiter) AllowN(_ time.Time, _ int) bool {
+	return true
 }
 
 func (l *fakeLimiter) WaitN(ctx context.Context, count int) error {
@@ -390,11 +396,11 @@ func tcpCallerContext(ip string) context.Context {
 	})
 }
 
-func setupClock(t *testing.T) (*clock.Mock, func()) {
-	mockClk := clock.NewMock(t)
-	oldClk := clk
-	clk = mockClk
+func setupClock(t *testing.T) (*testclock.Mock, func()) {
+	mockClk := testclock.NewMock(t)
+	oldOpts := perKeyLimiterOpts
+	perKeyLimiterOpts = []ratelimit.Option{ratelimit.WithClock(mockClk)}
 	return mockClk, func() {
-		clk = oldClk
+		perKeyLimiterOpts = oldOpts
 	}
 }
