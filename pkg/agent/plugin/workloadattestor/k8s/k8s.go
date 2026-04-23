@@ -20,7 +20,8 @@ import (
 	"github.com/andres-erbsen/clock"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
-	workloadattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/agent/workloadattestor/v1"
+	"github.com/spiffe/spire-api-sdk/proto/spiffe/reference"
+	workloadattestorv2 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/agent/workloadattestor/v2"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/agent/common/sigstore"
 	"github.com/spiffe/spire/pkg/common/catalog"
@@ -32,7 +33,10 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 )
 
 const (
@@ -52,7 +56,7 @@ func BuiltIn() catalog.BuiltIn {
 
 func builtin(p *Plugin) catalog.BuiltIn {
 	return catalog.MakeBuiltIn(pluginName,
-		workloadattestorv1.WorkloadAttestorPluginServer(p),
+		workloadattestorv2.WorkloadAttestorPluginServer(p),
 		configv1.ConfigServiceServer(p),
 	)
 }
@@ -261,7 +265,7 @@ type ContainerHelper interface {
 }
 
 type Plugin struct {
-	workloadattestorv1.UnsafeWorkloadAttestorServer
+	workloadattestorv2.UnsafeWorkloadAttestorServer
 	configv1.UnsafeConfigServer
 
 	log     hclog.Logger
@@ -273,6 +277,7 @@ type Plugin struct {
 	config           *k8sConfig
 	containerHelper  ContainerHelper
 	sigstoreVerifier sigstore.Verifier
+	kubeClient       kubernetes.Interface
 
 	cachedPodList           map[string]*fastjson.Value
 	cachedPodListValidUntil time.Time
@@ -290,13 +295,32 @@ func (p *Plugin) SetLogger(log hclog.Logger) {
 	p.log = log
 }
 
-func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestRequest) (*workloadattestorv1.AttestResponse, error) {
+func (p *Plugin) AttestReference(ctx context.Context, req *workloadattestorv2.AttestReferenceRequest) (*workloadattestorv2.AttestReferenceResponse, error) {
+	switch req.Reference.TypeUrl {
+	case "type.googleapis.com/spiffe.reference.WorkloadPIDReference":
+		var pidRef reference.WorkloadPIDReference
+		if err := req.Reference.UnmarshalTo(&pidRef); err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "unable to unmarshal PID reference: %v", err)
+		}
+		return p.attestByPID(ctx, pidRef.Pid)
+	case "type.googleapis.com/spiffe.reference.KubernetesPodUIDReference":
+		var podUIDRef reference.KubernetesPodUIDReference
+		if err := req.Reference.UnmarshalTo(&podUIDRef); err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "unable to unmarshal pod UID reference: %v", err)
+		}
+		return p.attestByPodUID(ctx, types.UID(podUIDRef.Uid))
+	default:
+		return nil, status.Errorf(codes.InvalidArgument, "unsupported reference type: %s", req.Reference.TypeUrl)
+	}
+}
+
+func (p *Plugin) attestByPID(ctx context.Context, pid int32) (*workloadattestorv2.AttestReferenceResponse, error) {
 	config, containerHelper, sigstoreVerifier, err := p.getConfig()
 	if err != nil {
 		return nil, err
 	}
 
-	podUID, containerID, err := containerHelper.GetPodUIDAndContainerID(req.Pid, p.log)
+	podUID, containerID, err := containerHelper.GetPodUIDAndContainerID(pid, p.log)
 	if err != nil {
 		return nil, err
 	}
@@ -304,7 +328,7 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestReque
 
 	// Not a Kubernetes pod
 	if containerID == "" {
-		return &workloadattestorv1.AttestResponse{}, nil
+		return &workloadattestorv2.AttestReferenceResponse{}, nil
 	}
 
 	log := p.log.With(
@@ -323,7 +347,7 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestReque
 			return nil, err
 		}
 
-		var attestResponse *workloadattestorv1.AttestResponse
+		var attestResponse *workloadattestorv2.AttestReferenceResponse
 		for podKey, podValue := range podList {
 			if podKnown {
 				if podKey != string(podUID) {
@@ -375,7 +399,7 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestReque
 					log.Warn("Two pods found with same container Id")
 					return nil, status.Error(codes.Internal, "two pods found with same container Id")
 				}
-				attestResponse = &workloadattestorv1.AttestResponse{SelectorValues: selectorValues}
+				attestResponse = &workloadattestorv2.AttestReferenceResponse{SelectorValues: selectorValues}
 			}
 		}
 
@@ -398,6 +422,72 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestReque
 			return nil, status.Errorf(codes.Canceled, "no selectors found: %v", ctx.Err())
 		}
 	}
+}
+
+func (p *Plugin) attestByPodUID(ctx context.Context, podUID types.UID) (*workloadattestorv2.AttestReferenceResponse, error) {
+	config, _, _, err := p.getConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	// Try kubelet pod list first (already indexed by UID).
+	podList, err := p.getPodList(ctx, config.Client, config.PollRetryInterval/2)
+	if err != nil {
+		return nil, err
+	}
+
+	if podValue, ok := podList[string(podUID)]; ok {
+		var scratch []byte
+		scratch = podValue.MarshalTo(scratch)
+		pod := new(corev1.Pod)
+		if err := json.Unmarshal(scratch, pod); err != nil {
+			return nil, status.Errorf(codes.Internal, "unable to decode pod info from kubelet response: %v", err)
+		}
+		return &workloadattestorv2.AttestReferenceResponse{SelectorValues: getSelectorValuesFromPodInfo(pod)}, nil
+	}
+
+	// Fallback: query Kubernetes API server across all nodes. If the pod were
+	// local, kubelet would have returned it already. k8s doesn't support
+	// metadata.uid as a field selector, so we list and filter client-side.
+	kubeClient, err := p.getOrCreateKubeClient()
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "unable to create Kubernetes client: %v", err)
+	}
+
+	pods, err := kubeClient.CoreV1().Pods("").List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "unable to list pods from Kubernetes API: %v", err)
+	}
+
+	for i := range pods.Items {
+		if pods.Items[i].UID == podUID {
+			return &workloadattestorv2.AttestReferenceResponse{SelectorValues: getSelectorValuesFromPodInfo(&pods.Items[i])}, nil
+		}
+	}
+
+	return nil, status.Errorf(codes.NotFound, "pod with UID %s not found", podUID)
+}
+
+func (p *Plugin) getOrCreateKubeClient() (kubernetes.Interface, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	if p.kubeClient != nil {
+		return p.kubeClient, nil
+	}
+
+	restConfig, err := rest.InClusterConfig()
+	if err != nil {
+		return nil, fmt.Errorf("unable to load in-cluster config: %w", err)
+	}
+
+	client, err := kubernetes.NewForConfig(restConfig)
+	if err != nil {
+		return nil, fmt.Errorf("unable to create Kubernetes client: %w", err)
+	}
+
+	p.kubeClient = client
+	return p.kubeClient, nil
 }
 
 func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) (resp *configv1.ConfigureResponse, err error) {
