@@ -265,6 +265,16 @@ func TestMergeInput(t *testing.T) {
 			},
 		},
 		{
+			msg: "wit_issuer should be configurable by file",
+			fileInput: func(c *Config) {
+				c.Server.Experimental.WITIssuer = "WIT_ISSUER"
+			},
+			cliFlags: []string{},
+			test: func(t *testing.T, c *Config) {
+				require.Equal(t, "WIT_ISSUER", c.Server.Experimental.WITIssuer)
+			},
+		},
+		{
 			msg: "log_file should be configurable by file",
 			fileInput: func(c *Config) {
 				c.Server.LogFile = "foo"
@@ -631,6 +641,15 @@ func TestNewServerConfig(t *testing.T) {
 			},
 			test: func(t *testing.T, c *server.Config) {
 				require.Equal(t, "ISSUER", c.JWTIssuer)
+			},
+		},
+		{
+			msg: "wit_issuer is correctly configured",
+			input: func(c *Config) {
+				c.Server.Experimental.WITIssuer = "WIT_ISSUER"
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Equal(t, "WIT_ISSUER", c.WITIssuer)
 			},
 		},
 		{
