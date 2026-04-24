@@ -680,6 +680,28 @@ func (s *Suite) TestConfigureWithSigstore() {
 			`,
 			expectedError: "unable to decode configuration",
 		},
+		{
+			name:        "stale experimental block is rejected",
+			trustDomain: "example.org",
+			hcl: `
+				    skip_kubelet_verification = true
+					experimental {
+						sigstore {
+							rekor_url = "https://rekor.sigstore.dev"
+						}
+					}
+			`,
+			expectedError: "unknown configurations detected: experimental",
+		},
+		{
+			name:        "unknown top-level key is rejected",
+			trustDomain: "example.org",
+			hcl: `
+				    skip_kubelet_verification = true
+					bogus_key = "value"
+			`,
+			expectedError: "unknown configurations detected: bogus_key",
+		},
 	}
 
 	for _, tc := range cases {

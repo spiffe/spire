@@ -211,6 +211,18 @@ invalid2 = "/no/"`,
 			expectCode: codes.InvalidArgument,
 			expectMsg:  "unknown configurations detected: invalid1,invalid2",
 		},
+		{
+			name:        "stale experimental block is rejected",
+			trustDomain: "example.org",
+			config: `
+					experimental {
+						sigstore {
+							rekor_url = "https://rekor.sigstore.dev"
+						}
+					}`,
+			expectCode: codes.InvalidArgument,
+			expectMsg:  "unknown configurations detected: experimental",
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			p := New()
