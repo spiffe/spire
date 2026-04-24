@@ -16,6 +16,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/agent/workloadkey"
 	"github.com/spiffe/spire/pkg/common/log"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/assert"
@@ -871,6 +872,37 @@ func TestNewAgentConfig(t *testing.T) {
 			},
 			test: func(t *testing.T, c *agent.Config) {
 				require.Nil(t, c)
+			},
+		},
+		{
+			msg: "use_sync_authorized_entries logs deprecation alert",
+			input: func(c *Config) {
+				useSyncAuthorizedEntries := false
+				c.Agent.Experimental.UseSyncAuthorizedEntries = &useSyncAuthorizedEntries
+			},
+			logOptions: func(t *testing.T) []log.Option {
+				return []log.Option{
+					func(logger *log.Logger) error {
+						logger.SetOutput(io.Discard)
+						hook := test.NewLocal(logger.Logger)
+						t.Cleanup(func() {
+							spiretest.AssertLogsContainEntries(t, hook.AllEntries(), []spiretest.LogEntry{
+								{
+									Level:   logrus.WarnLevel,
+									Message: "The 'use_sync_authorized_entries' configuration is deprecated. The option to disable it will be removed in SPIRE 1.13.",
+									Data: logrus.Fields{
+										telemetry.Alert:     "true",
+										telemetry.AlertType: telemetry.DeprecatedConfigAlertType,
+									},
+								},
+							})
+						})
+						return nil
+					},
+				}
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.False(t, c.UseSyncAuthorizedEntries)
 			},
 		},
 		{

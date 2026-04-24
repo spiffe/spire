@@ -47,6 +47,10 @@ SPIRE cannot make any guarantees around configuration or behavior compatibility 
 
 When a breaking change is introduced to a plugin interface, existing plugins compiled against the old interface will still continue to function for one minor version release cycle to give operators time to adopt requisite changes. SPIRE will log warnings to make operators aware of the change.
 
+#### Deprecation Log Markers
+
+Deprecation warnings include structured fields to make them easier to find and alert on. All deprecation alerts include `alert=true`. Configuration deprecation warnings include `alert_type=deprecated_config`, and deprecated plugin service warnings include `alert_type=deprecated_service`.
+
 ## Supported Upgrade Paths
 
 The supported version skew between SPIRE Servers and agents has implications on the order in which they must be upgraded. SPIRE Servers must be upgraded before SPIRE Agents, and is limited to a jump of at most one minor version (regardless of patch version). Upgrades that jump two or more minor versions (e.g. 1.1.1 to 1.3.0) are not supported.
