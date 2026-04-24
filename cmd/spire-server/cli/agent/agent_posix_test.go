@@ -8,6 +8,8 @@ var (
     	Indicates that the command will not perform any action, but will print the agents that would be purged.
   -expiredFor duration
     	Amount of time that has passed since the agent's SVID has expired. It is used to determine which agents to purge. (default 720h0m0s)
+  -instance string
+    	Instance name to substitute into socket templates (env SPIRE_SERVER_PRIVATE_SOCKET_TEMPLATE). If omitted and the env var is set, defaults to 'main'.
   -output value
     	Desired output format (pretty, json); default: pretty.
   -socketPath string
@@ -22,6 +24,8 @@ var (
     	Filter based on string received, 'true': agents that can reattest, 'false': agents that can't reattest, other value will return all.
   -expiresBefore string
     	Filter by expiration time (format: "2006-01-02 15:04:05 -0700 -07")
+  -instance string
+    	Instance name to substitute into socket templates (env SPIRE_SERVER_PRIVATE_SOCKET_TEMPLATE). If omitted and the env var is set, defaults to 'main'.
   -matchSelectorsOn string
     	The match mode used when filtering by selectors. Options: exact, any, superset and subset (default "superset")
   -output value
@@ -32,6 +36,8 @@ var (
     	Path to the SPIRE Server API socket (default "/tmp/spire-server/private/api.sock")
 `
 	banUsage = `Usage of agent ban:
+  -instance string
+    	Instance name to substitute into socket templates (env SPIRE_SERVER_PRIVATE_SOCKET_TEMPLATE). If omitted and the env var is set, defaults to 'main'.
   -output value
     	Desired output format (pretty, json); default: pretty.
   -socketPath string
@@ -40,6 +46,8 @@ var (
     	The SPIFFE ID of the agent to ban (agent identity)
 `
 	evictUsage = `Usage of agent evict:
+  -instance string
+    	Instance name to substitute into socket templates (env SPIRE_SERVER_PRIVATE_SOCKET_TEMPLATE). If omitted and the env var is set, defaults to 'main'.
   -output value
     	Desired output format (pretty, json); default: pretty.
   -socketPath string
@@ -56,6 +64,8 @@ var (
     	Filter based on string received, 'true': agents that can reattest, 'false': agents that can't reattest, other value will return all.
   -expiresBefore string
     	Filter by expiration time (format: "2006-01-02 15:04:05 -0700 -07")
+  -instance string
+    	Instance name to substitute into socket templates (env SPIRE_SERVER_PRIVATE_SOCKET_TEMPLATE). If omitted and the env var is set, defaults to 'main'.
   -matchSelectorsOn string
     	The match mode used when filtering by selectors. Options: exact, any, superset and subset (default "superset")
   -output value
@@ -66,6 +76,8 @@ var (
     	Path to the SPIRE Server API socket (default "/tmp/spire-server/private/api.sock")
 `
 	showUsage = `Usage of agent show:
+  -instance string
+    	Instance name to substitute into socket templates (env SPIRE_SERVER_PRIVATE_SOCKET_TEMPLATE). If omitted and the env var is set, defaults to 'main'.
   -output value
     	Desired output format (pretty, json); default: pretty.
   -socketPath string
