@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/hashicorp/hcl"
+	"github.com/spiffe/go-spiffe/v2/workloadapi"
 	nodeattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/agent/nodeattestor/v1"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
@@ -39,9 +40,10 @@ type configData struct {
 }
 
 type Config struct {
-	PrivateKeyPath    string `hcl:"private_key_path"`
-	CertificatePath   string `hcl:"certificate_path"`
-	IntermediatesPath string `hcl:"intermediates_path"`
+	PrivateKeyPath       string `hcl:"private_key_path"`
+	CertificatePath      string `hcl:"certificate_path"`
+	IntermediatesPath    string `hcl:"intermediates_path"`
+	SpiffeEndpointSocket string `hcl:"spiffe_endpoint_socket"`
 }
 
 func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *Config {
@@ -51,12 +53,14 @@ func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginco
 		return nil
 	}
 
-	if newConfig.PrivateKeyPath == "" {
-		status.ReportError("private_key_path is required")
-	}
+	if newConfig.SpiffeEndpointSocket == "" {
+		if newConfig.PrivateKeyPath == "" {
+			status.ReportError("private_key_path is required")
+		}
 
-	if newConfig.CertificatePath == "" {
-		status.ReportError("certificate_path is required")
+		if newConfig.CertificatePath == "" {
+			status.ReportError("certificate_path is required")
+		}
 	}
 
 	return newConfig
@@ -75,7 +79,7 @@ func New() *Plugin {
 }
 
 func (p *Plugin) AidAttestation(stream nodeattestorv1.NodeAttestor_AidAttestationServer) (err error) {
-	data, err := p.loadConfigData()
+	data, err := p.loadConfigData(stream.Context())
 	if err != nil {
 		return err
 	}
@@ -118,14 +122,14 @@ func (p *Plugin) AidAttestation(stream nodeattestorv1.NodeAttestor_AidAttestatio
 	})
 }
 
-func (p *Plugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
+func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
 	newConfig, _, err := pluginconf.Build(req, buildConfig)
 	if err != nil {
 		return nil, err
 	}
 
 	// make sure the configuration produces valid data
-	if _, err := loadConfigData(newConfig); err != nil {
+	if _, err := loadConfigData(ctx, newConfig, false); err != nil {
 		return nil, err
 	}
 
@@ -151,32 +155,49 @@ func (p *Plugin) getConfig() *Config {
 	return p.c
 }
 
-func (p *Plugin) loadConfigData() (*configData, error) {
+func (p *Plugin) loadConfigData(ctx context.Context) (*configData, error) {
 	config := p.getConfig()
 	if config == nil {
 		return nil, status.Error(codes.FailedPrecondition, "not configured")
 	}
-	return loadConfigData(config)
+	return loadConfigData(ctx, config, true)
 }
 
 // TODO: this needs more attention.  Parts of it might belong in buildConfig
-func loadConfigData(config *Config) (*configData, error) {
-	certificate, err := tls.LoadX509KeyPair(config.CertificatePath, config.PrivateKeyPath)
-	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "unable to load keypair: %v", err)
-	}
+func loadConfigData(ctx context.Context, config *Config, inAttest bool) (*configData, error) {
+	var certificates [][]byte
+	var privateKey crypto.PrivateKey
 
-	certificates := certificate.Certificate
-
-	// Append intermediate certificates if IntermediatesPath is set.
-	if strings.TrimSpace(config.IntermediatesPath) != "" {
-		intermediates, err := util.LoadCertificates(config.IntermediatesPath)
+	if config.SpiffeEndpointSocket != "" {
+		if inAttest {
+			svid, err := workloadapi.FetchX509SVID(ctx, workloadapi.WithAddr(config.SpiffeEndpointSocket))
+			if err != nil {
+				return nil, status.Errorf(codes.Unavailable, "unable to fetch SVID from workload API: %v", err)
+			}
+			privateKey = svid.PrivateKey
+			for _, cert := range svid.Certificates {
+				certificates = append(certificates, cert.Raw)
+			}
+		}
+	} else {
+		certificate, err := tls.LoadX509KeyPair(config.CertificatePath, config.PrivateKeyPath)
 		if err != nil {
-			return nil, status.Errorf(codes.InvalidArgument, "unable to load intermediate certificates: %v", err)
+			return nil, status.Errorf(codes.InvalidArgument, "unable to load keypair: %v", err)
 		}
 
-		for _, cert := range intermediates {
-			certificates = append(certificates, cert.Raw)
+		privateKey = certificate.PrivateKey
+		certificates = certificate.Certificate
+
+		// Append intermediate certificates if IntermediatesPath is set.
+		if strings.TrimSpace(config.IntermediatesPath) != "" {
+			intermediates, err := util.LoadCertificates(config.IntermediatesPath)
+			if err != nil {
+				return nil, status.Errorf(codes.InvalidArgument, "unable to load intermediate certificates: %v", err)
+			}
+
+			for _, cert := range intermediates {
+				certificates = append(certificates, cert.Raw)
+			}
 		}
 	}
 
@@ -188,7 +209,7 @@ func loadConfigData(config *Config) (*configData, error) {
 	}
 
 	return &configData{
-		privateKey:         certificate.PrivateKey,
+		privateKey:         privateKey,
 		attestationPayload: attestationPayload,
 	}, nil
 }
