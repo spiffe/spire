@@ -140,26 +140,26 @@ func (s *Suite) TestAttestSuccessWithWorkloadAPI() {
 }
 
 func (s *Suite) TestAttestFailureWithWorkloadAPI() {
-    fakeRequest := &fakeworkloadapi.FakeRequest{
-        Req:  &workload.X509SVIDRequest{},
-        Resp: &workload.X509SVIDResponse{},
-        Err:  status.Error(codes.Unavailable, "workload api is down"),
-    }
+	fakeRequest := &fakeworkloadapi.FakeRequest{
+		Req:  &workload.X509SVIDRequest{},
+		Resp: &workload.X509SVIDResponse{},
+		Err:  status.Error(codes.Unavailable, "workload api is down"),
+	}
 
-    wlAPI := fakeworkloadapi.New(s.T(), fakeRequest)
+	wlAPI := fakeworkloadapi.New(s.T(), fakeRequest)
 
-    p := s.loadPlugin(
-        plugintest.CoreConfig(catalog.CoreConfig{
-            TrustDomain: spiffeid.RequireTrustDomainFromString(trustDomain),
-        }),
-        plugintest.Configure(fmt.Sprintf(`spiffe_endpoint_socket = "%s"`, getTestAddress(wlAPI.Addr().String()))),
-    )
+	p := s.loadPlugin(
+		plugintest.CoreConfig(catalog.CoreConfig{
+			TrustDomain: spiffeid.RequireTrustDomainFromString(trustDomain),
+		}),
+		plugintest.Configure(fmt.Sprintf(`spiffe_endpoint_socket = "%s"`, getTestAddress(wlAPI.Addr().String()))),
+	)
 
-    err := p.Attest(context.Background(), streamBuilder.Build())
+	err := p.Attest(context.Background(), streamBuilder.Build())
 
-    s.Require().Error(err)
-    s.RequireGRPCStatusContains(err, codes.Unavailable, "unable to fetch SVID from workload API")
-    s.RequireGRPCStatusContains(err, codes.Unavailable, "workload api is down")
+	s.Require().Error(err)
+	s.RequireGRPCStatusContains(err, codes.Unavailable, "unable to fetch SVID from workload API")
+	s.RequireGRPCStatusContains(err, codes.Unavailable, "workload api is down")
 }
 
 func (s *Suite) TestAttestFailure() {
