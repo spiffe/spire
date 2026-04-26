@@ -20,6 +20,7 @@ import (
 	"github.com/andres-erbsen/clock"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
+	hcltoken "github.com/hashicorp/hcl/hcl/token"
 	workloadattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/agent/workloadattestor/v1"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/agent/common/sigstore"
@@ -135,6 +136,8 @@ type HCLConfig struct {
 
 	// Sigstore contains sigstore specific configs.
 	Sigstore *sigstore.HCLConfig `hcl:"sigstore,omitempty"`
+
+	UnusedKeyPositions map[string][]hcltoken.Pos `hcl:",unusedKeyPositions"`
 }
 
 // k8sConfig holds the configuration distilled from HCL
@@ -166,6 +169,8 @@ func (p *Plugin) buildConfig(coreConfig catalog.CoreConfig, hclText string, stat
 		status.ReportErrorf("unable to decode configuration: %v", err)
 		return nil
 	}
+
+	pluginconf.ReportUnusedKeys(status, newConfig.UnusedKeyPositions)
 
 	// Determine max poll attempts with default
 	maxPollAttempts := newConfig.MaxPollAttempts

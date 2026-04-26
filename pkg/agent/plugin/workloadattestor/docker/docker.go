@@ -3,7 +3,6 @@ package docker
 import (
 	"context"
 	"fmt"
-	"sort"
 	"strings"
 	"sync"
 
@@ -105,15 +104,7 @@ func (p *Plugin) buildConfig(coreConfig catalog.CoreConfig, hclText string, stat
 		return nil
 	}
 
-	if len(newConfig.UnusedKeyPositions) > 0 {
-		var keys []string
-		for k := range newConfig.UnusedKeyPositions {
-			keys = append(keys, k)
-		}
-
-		sort.Strings(keys)
-		status.ReportErrorf("unknown configurations detected: %s", strings.Join(keys, ","))
-	}
+	pluginconf.ReportUnusedKeys(status, newConfig.UnusedKeyPositions)
 
 	newConfig.containerHelper = p.createHelper(newConfig, status)
 
