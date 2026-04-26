@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"net/http"
@@ -13,6 +14,8 @@ import (
 
 	"github.com/andres-erbsen/clock"
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/go-spiffe/v2/svid/x509svid"
 	bundlev1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/bundle/v1"
 	server_util "github.com/spiffe/spire/cmd/spire-server/util"
 	"github.com/spiffe/spire/pkg/common/diskutil"
@@ -35,6 +38,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/credvalidator"
 	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/pkg/server/endpoints"
+	"github.com/spiffe/spire/pkg/server/endpoints/bundle"
 	"github.com/spiffe/spire/pkg/server/hostservice/agentstore"
 	"github.com/spiffe/spire/pkg/server/hostservice/identityprovider"
 	"github.com/spiffe/spire/pkg/server/node"
@@ -102,11 +106,49 @@ func (s *Server) run(ctx context.Context) (err error) {
 		defer stopProfiling()
 	}
 
+	var svidRotator *svid.Rotator
+	var bundleCache *bundle.Cache
 	metrics, err := telemetry.NewMetrics(&telemetry.MetricsConfig{
 		FileConfig:  s.config.Telemetry,
 		Logger:      s.config.Log.WithField(telemetry.SubsystemName, telemetry.Telemetry),
 		ServiceName: telemetry.SpireServer,
 		TrustDomain: s.config.TrustDomain.Name(),
+		GetX509SVID: func() (*x509svid.SVID, error) {
+			if svidRotator == nil {
+				return nil, errors.New("server SVID rotator is not initialized")
+			}
+
+			state := svidRotator.State()
+			if len(state.SVID) == 0 {
+				return nil, errors.New("no certificates found")
+			}
+
+			id, err := x509svid.IDFromCert(state.SVID[0])
+			if err != nil {
+				return nil, err
+			}
+
+			return &x509svid.SVID{
+				ID:           id,
+				Certificates: state.SVID,
+				PrivateKey:   state.Key,
+			}, nil
+		},
+		GetX509BundleAuthorities: func(td spiffeid.TrustDomain) ([]*x509.Certificate, error) {
+			if bundleCache == nil {
+				return nil, errors.New("server bundle cache is not initialized")
+			}
+
+			serverBundle, err := bundleCache.FetchBundleX509(ctx, td)
+			if err != nil {
+				return nil, fmt.Errorf("get bundle from datastore: %w", err)
+			}
+			if serverBundle == nil {
+				return nil, fmt.Errorf("no bundle found for trust domain %q", td)
+			}
+
+			return serverBundle.X509Authorities(), nil
+		},
 	})
 	if err != nil {
 		return err
@@ -135,6 +177,7 @@ func (s *Server) run(ctx context.Context) (err error) {
 		return err
 	}
 	defer cat.Close()
+	bundleCache = bundle.NewCache(cat.DataStore, clock.New())
 
 	bundlePublishingManager, err := s.newBundlePublishingManager(cat.BundlePublishers, cat.DataStore)
 	if err != nil {
@@ -172,7 +215,7 @@ func (s *Server) run(ctx context.Context) (err error) {
 		return err
 	}
 
-	svidRotator, err := s.newSVIDRotator(ctx, serverCA, metrics)
+	svidRotator, err = s.newSVIDRotator(ctx, serverCA, metrics)
 	if err != nil {
 		return err
 	}
