@@ -22,6 +22,7 @@ import (
 	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 var (
@@ -136,6 +137,29 @@ func (s *Suite) TestAttestSuccessWithWorkloadAPI() {
 			return nil, x509pop.VerifyChallengeResponse(svidLeaf.PublicKey, challenge, response)
 		}).Build())
 	s.Require().NoError(err)
+}
+
+func (s *Suite) TestAttestFailureWithWorkloadAPI() {
+    fakeRequest := &fakeworkloadapi.FakeRequest{
+        Req:  &workload.X509SVIDRequest{},
+        Resp: &workload.X509SVIDResponse{},
+        Err:  status.Error(codes.Unavailable, "workload api is down"),
+    }
+
+    wlAPI := fakeworkloadapi.New(s.T(), fakeRequest)
+
+    p := s.loadPlugin(
+        plugintest.CoreConfig(catalog.CoreConfig{
+            TrustDomain: spiffeid.RequireTrustDomainFromString(trustDomain),
+        }),
+        plugintest.Configure(fmt.Sprintf(`spiffe_endpoint_socket = "%s"`, getTestAddress(wlAPI.Addr().String()))),
+    )
+
+    err := p.Attest(context.Background(), streamBuilder.Build())
+
+    s.Require().Error(err)
+    s.RequireGRPCStatusContains(err, codes.Unavailable, "unable to fetch SVID from workload API")
+    s.RequireGRPCStatusContains(err, codes.Unavailable, "workload api is down")
 }
 
 func (s *Suite) TestAttestFailure() {

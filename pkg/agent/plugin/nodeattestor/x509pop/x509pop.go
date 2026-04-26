@@ -129,7 +129,7 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 	}
 
 	// make sure the configuration produces valid data
-	if _, err := loadConfigData(ctx, newConfig); err != nil {
+	if _, err := loadConfigData(ctx, newConfig, false); err != nil {
 		return nil, err
 	}
 
@@ -160,22 +160,24 @@ func (p *Plugin) loadConfigData(ctx context.Context) (*configData, error) {
 	if config == nil {
 		return nil, status.Error(codes.FailedPrecondition, "not configured")
 	}
-	return loadConfigData(ctx, config)
+	return loadConfigData(ctx, config, true)
 }
 
 // TODO: this needs more attention.  Parts of it might belong in buildConfig
-func loadConfigData(ctx context.Context, config *Config) (*configData, error) {
+func loadConfigData(ctx context.Context, config *Config, inAttest bool) (*configData, error) {
 	var certificates [][]byte
 	var privateKey crypto.PrivateKey
 
 	if config.SpiffeEndpointSocket != "" {
-		svid, err := workloadapi.FetchX509SVID(ctx, workloadapi.WithAddr(config.SpiffeEndpointSocket))
-		if err != nil {
-			return nil, status.Errorf(codes.Unavailable, "unable to fetch SVID from workload API: %v", err)
-		}
-		privateKey = svid.PrivateKey
-		for _, cert := range svid.Certificates {
-			certificates = append(certificates, cert.Raw)
+		if inAttest {
+			svid, err := workloadapi.FetchX509SVID(ctx, workloadapi.WithAddr(config.SpiffeEndpointSocket))
+			if err != nil {
+				return nil, status.Errorf(codes.Unavailable, "unable to fetch SVID from workload API: %v", err)
+			}
+			privateKey = svid.PrivateKey
+			for _, cert := range svid.Certificates {
+				certificates = append(certificates, cert.Raw)
+			}
 		}
 	} else {
 		certificate, err := tls.LoadX509KeyPair(config.CertificatePath, config.PrivateKeyPath)
