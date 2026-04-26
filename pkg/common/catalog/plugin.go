@@ -155,7 +155,11 @@ func (p *pluginImpl) bindRepo(repo bindableServiceRepo, grpcServiceNames map[str
 
 func warnIfDeprecated(log logrus.FieldLogger, thisVersion, latestVersion Version) {
 	if thisVersion.Deprecated() {
-		log = log.WithField(telemetry.DeprecatedServiceName, thisVersion.New().GRPCServiceName())
+		log = log.WithFields(logrus.Fields{
+			telemetry.Alert:                 true,
+			telemetry.AlertType:             telemetry.DeprecatedServiceAlertType,
+			telemetry.DeprecatedServiceName: thisVersion.New().GRPCServiceName(),
+		})
 		if !latestVersion.Deprecated() {
 			log = log.WithField(telemetry.PreferredServiceName, latestVersion.New().GRPCServiceName())
 		}

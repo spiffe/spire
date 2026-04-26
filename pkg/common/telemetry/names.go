@@ -14,6 +14,12 @@ const (
 	// should be used with other tags to add clarity
 	Activate = "activate"
 
+	// Alert tags log events that should be easy for operators to alert on.
+	Alert = "alert"
+
+	// AlertType tags the category of an alert log event.
+	AlertType = "alert_type"
+
 	// Append functionality related to appending some element (such as part of a bundle);
 	// should be used with other tags to add clarity
 	Append = "append"
@@ -21,6 +27,12 @@ const (
 	// Attest functionality related to attesting; should be used with other tags
 	// to add clarity
 	Attest = "attest"
+
+	// DeprecatedConfigAlertType tags alerts for deprecated configuration settings.
+	DeprecatedConfigAlertType = "deprecated_config"
+
+	// DeprecatedServiceAlertType tags alerts for deprecated plugin services.
+	DeprecatedServiceAlertType = "deprecated_service"
 
 	// Create functionality related to creating some entity; should be used with other tags
 	// to add clarity

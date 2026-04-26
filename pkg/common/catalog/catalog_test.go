@@ -22,6 +22,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/catalog/testplugin"
 	"github.com/spiffe/spire/pkg/common/plugin"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -196,6 +197,26 @@ func testPlugin(t *testing.T, pluginPath string) {
 		testLoad(t, pluginPath, loadTest{
 			expectPluginClient:  true,
 			expectServiceClient: true,
+		})
+	})
+	t.Run("deprecated service logs alert", func(t *testing.T) {
+		testLoad(t, pluginPath, loadTest{
+			mutateServiceRepo: func(serviceRepo *ServiceRepo) {
+				serviceRepo.versions = []catalog.Version{SomeServiceVersion{deprecated: true}}
+			},
+			expectPluginClient:  true,
+			expectServiceClient: true,
+			expectLogEntries: []spiretest.LogEntry{
+				{
+					Level:   logrus.WarnLevel,
+					Message: "Service is deprecated and will be removed in a future release",
+					Data: logrus.Fields{
+						telemetry.Alert:                 "true",
+						telemetry.AlertType:             telemetry.DeprecatedServiceAlertType,
+						telemetry.DeprecatedServiceName: SomeServiceVersion{}.New().GRPCServiceName(),
+					},
+				},
+			},
 		})
 	})
 	t.Run("unknown type", func(t *testing.T) {
