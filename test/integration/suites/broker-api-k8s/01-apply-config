@@ -1,0 +1,63 @@
+#!/bin/bash
+
+set -e
+
+source init-kubectl
+
+wait-for-rollout() {
+    ns=$1
+    obj=$2
+    MAXROLLOUTCHECKS=12
+    ROLLOUTCHECKINTERVAL=15s
+    for ((i=0; i<${MAXROLLOUTCHECKS}; i++)); do
+        log-info "checking rollout status for ${ns} ${obj}..."
+        if ./bin/kubectl "-n${ns}" rollout status "${obj}" --timeout="${ROLLOUTCHECKINTERVAL}"; then
+            return
+        fi
+        log-warn "describing ${ns} ${obj}..."
+        ./bin/kubectl "-n${ns}" describe "${obj}" || true
+        log-warn "logs for ${ns} ${obj}..."
+        ./bin/kubectl "-n${ns}" logs --all-containers "${obj}" || true
+    done
+    fail-now "Failed waiting for ${obj} to roll out."
+}
+
+wait-for-pod-ready() {
+    ns=$1
+    pod=$2
+    MAXCHECKS=24
+    INTERVAL=5
+    for ((i=0; i<${MAXCHECKS}; i++)); do
+        log-info "checking readiness of ${ns}/${pod}..."
+        if ./bin/kubectl "-n${ns}" wait --for=condition=Ready "pod/${pod}" --timeout=10s; then
+            return
+        fi
+        sleep "${INTERVAL}"
+    done
+    ./bin/kubectl "-n${ns}" describe "pod/${pod}" || true
+    fail-now "Pod ${ns}/${pod} did not become ready"
+}
+
+./bin/kubectl create namespace spire
+
+# CRD has to be Established before any Kustomization CR (used by workloads.yaml) is applied.
+./bin/kubectl apply -f ./conf/flux-kustomization-crd.yaml
+./bin/kubectl wait --for=condition=Established --timeout=60s \
+    crd/kustomizations.kustomize.toolkit.fluxcd.io
+
+./bin/kubectl apply -k ./conf/server
+wait-for-rollout spire deployment/spire-server
+
+./bin/kubectl apply -k ./conf/agent
+wait-for-rollout spire daemonset/spire-agent
+
+./bin/kubectl apply -f ./conf/workloads.yaml
+wait-for-pod-ready spire target-pod
+wait-for-pod-ready spire same-node-target-pod
+wait-for-pod-ready spire other-node-target-pod
+wait-for-pod-ready spire broker
+wait-for-pod-ready spire cluster-broker
+wait-for-pod-ready spire agent-node-broker
+wait-for-pod-ready spire restricted-broker
+wait-for-pod-ready spire rbac-denied-broker
+wait-for-pod-ready spire unauthorized-workload

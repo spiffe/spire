@@ -1,0 +1,31 @@
+#!/bin/bash
+
+set -e
+
+source init-kubectl
+
+log-info "Test: KubernetesObjectReference over UDS succeeds for local-only object broker"
+
+TARGET_POD_UID=$(./bin/kubectl -nspire get pod target-pod -o jsonpath='{.metadata.uid}')
+if [ -z "${TARGET_POD_UID}" ]; then
+    fail-now "could not resolve target-pod UID"
+fi
+
+./bin/kubectl -nspire exec -t local-only-object-broker -- /brokerclient \
+    -ref-type object \
+    -plural pods -group core \
+    -uid "${TARGET_POD_UID}" \
+    -expected-spiffe spiffe://example.org/target-pod \
+    || fail-now "local-only object broker failed to fetch pod SVID over UDS"
+
+log-info "Test: KubernetesObjectReference over TCP is denied without allow_over_tcp"
+
+./bin/kubectl -nspire exec -t local-only-object-broker -- /brokerclient \
+    -broker-addr dns:///spire-broker:8443 \
+    -ref-type object \
+    -plural pods -group core \
+    -uid "${TARGET_POD_UID}" \
+    -expect-err PermissionDenied \
+    || fail-now "KubernetesObjectReference-over-TCP was not denied"
+
+log-success "KubernetesObjectReference over TCP rejected with PermissionDenied"

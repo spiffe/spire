@@ -80,7 +80,7 @@ require (
 	github.com/smallstep/pkcs7 v0.2.1
 	github.com/spiffe/go-spiffe/v2 v2.8.0
 	github.com/spiffe/spire-api-sdk v1.2.5-0.20260428072036-00f73a61093a
-	github.com/spiffe/spire-plugin-sdk v1.4.4-0.20251120194148-791bbd274dc7
+	github.com/spiffe/spire-plugin-sdk v1.4.4-0.20260617144146-5dcde407c4d1
 	github.com/stretchr/testify v1.11.1
 	github.com/uber-go/tally/v4 v4.1.17
 	github.com/valyala/fastjson v1.6.10
@@ -162,6 +162,7 @@ require (
 	github.com/evanphx/json-patch/v5 v5.9.11 // indirect
 	github.com/fatih/color v1.19.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
+	github.com/fsnotify/fsnotify v1.10.1 // indirect
 	github.com/fxamacker/cbor/v2 v2.9.0 // indirect
 	github.com/go-chi/chi/v5 v5.3.0 // indirect
 	github.com/go-jose/go-jose/v3 v3.0.5 // indirect
@@ -315,11 +316,13 @@ require (
 	golang.org/x/oauth2 v0.36.0 // indirect
 	golang.org/x/term v0.44.0 // indirect
 	golang.org/x/text v0.38.0 // indirect
+	gomodules.xyz/jsonpatch/v2 v2.4.0 // indirect
 	google.golang.org/genproto v0.0.0-20260406210006-6f92a3bedf2d // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260526163538-3dc84a4a5aaa // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.13.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
+	k8s.io/apiextensions-apiserver v0.36.0 // indirect
 	k8s.io/klog/v2 v2.140.0 // indirect
 	k8s.io/kube-openapi v0.0.0-20260317180543-43fb72c5454a // indirect
 	k8s.io/utils v0.0.0-20260210185600-b8788abfbbc2 // indirect

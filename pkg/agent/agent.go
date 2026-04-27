@@ -19,6 +19,7 @@ import (
 	admin_api "github.com/spiffe/spire/pkg/agent/api"
 	node_attestor "github.com/spiffe/spire/pkg/agent/attestor/node"
 	workload_attestor "github.com/spiffe/spire/pkg/agent/attestor/workload"
+	"github.com/spiffe/spire/pkg/agent/broker"
 	"github.com/spiffe/spire/pkg/agent/catalog"
 	"github.com/spiffe/spire/pkg/agent/endpoints"
 	"github.com/spiffe/spire/pkg/agent/manager"
@@ -292,6 +293,24 @@ func (a *Agent) Run(ctx context.Context) error {
 		tasks = append(tasks, adminEndpoints.ListenAndServe)
 	}
 
+	if len(a.c.Broker.BindAddresses) != 0 {
+		brokerEndpoints, err := broker.New(&broker.Config{
+			BindAddrs:    a.c.Broker.BindAddresses,
+			Manager:      mgr,
+			Log:          a.c.Log,
+			Metrics:      metrics,
+			Attestor:     workloadAttestor,
+			Brokers:      a.c.Broker.Brokers,
+			SVIDSource:   liveAgentSVIDSource{m: mgr},
+			BundleSource: mgr.GetX509Bundle(),
+			TLSPolicy:    a.c.TLSPolicy,
+		})
+		if err != nil {
+			return fmt.Errorf("failed to create broker endpoints: %w", err)
+		}
+		tasks = append(tasks, brokerEndpoints.ListenAndServe)
+	}
+
 	if a.c.LogReopener != nil {
 		tasks = append(tasks, a.c.LogReopener)
 	}
@@ -557,6 +576,27 @@ func (a *Agent) checkWorkloadAPI() error {
 
 type agentHealthDetails struct {
 	WorkloadAPIErr string `json:"make_new_x509_err,omitempty"`
+}
+
+// liveAgentSVIDSource adapts the agent manager into an x509svid.Source that
+// always reflects the manager's currently rotated agent SVID. Without this,
+// passing the bootstrap AttestationResult directly would freeze the listener
+// on the bootstrap cert until it expires.
+type liveAgentSVIDSource struct {
+	m manager.Manager
+}
+
+func (s liveAgentSVIDSource) GetX509SVID() (*x509svid.SVID, error) {
+	state := s.m.GetCurrentCredentials()
+	id, err := x509svid.IDFromCert(state.SVID[0])
+	if err != nil {
+		return nil, err
+	}
+	return &x509svid.SVID{
+		ID:           id,
+		Certificates: state.SVID,
+		PrivateKey:   state.Key,
+	}, nil
 }
 
 func errString(suppress bool, err error) string {

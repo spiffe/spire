@@ -205,6 +205,13 @@ func (p *Plugin) Attest(_ context.Context, req *workloadattestorv1.AttestRequest
 	}, nil
 }
 
+// AttestReference returns Unimplemented. This plugin does not handle
+// reference-based workload attestation; the host falls back to PID-based
+// Attest when the reference is a WorkloadPIDReference.
+func (p *Plugin) AttestReference(_ context.Context, _ *workloadattestorv1.AttestReferenceRequest) (*workloadattestorv1.AttestReferenceResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "AttestReference not implemented")
+}
+
 func (p *Plugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
 	newConfig, _, err := pluginconf.Build(req, buildConfig)
 	if err != nil {

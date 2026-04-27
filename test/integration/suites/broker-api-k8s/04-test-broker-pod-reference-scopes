@@ -1,0 +1,79 @@
+#!/bin/bash
+
+set -e
+
+source init-kubectl
+
+SAME_NODE_TARGET_POD_UID=$(./bin/kubectl -nspire get pod same-node-target-pod -o jsonpath='{.metadata.uid}')
+OTHER_NODE_TARGET_POD_UID=$(./bin/kubectl -nspire get pod other-node-target-pod -o jsonpath='{.metadata.uid}')
+if [ -z "${SAME_NODE_TARGET_POD_UID}" ]; then
+    fail-now "could not resolve same-node-target-pod UID"
+fi
+if [ -z "${OTHER_NODE_TARGET_POD_UID}" ]; then
+    fail-now "could not resolve other-node-target-pod UID"
+fi
+
+log-info "Test: cluster-scoped broker fetches same-node pod SVID by name"
+
+./bin/kubectl -nspire exec -t cluster-broker -- /brokerclient \
+    -ref-type object \
+    -plural pods -group core \
+    -namespace spire -name same-node-target-pod \
+    -expected-spiffe spiffe://example.org/same-node-target-pod \
+    || fail-now "cluster-scoped broker failed to fetch same-node pod SVID by name"
+
+log-info "Test: agent-node-scoped broker fetches same-node pod SVID by name"
+
+./bin/kubectl -nspire exec -t agent-node-broker -- /brokerclient \
+    -ref-type object \
+    -plural pods -group core \
+    -namespace spire -name same-node-target-pod \
+    -expected-spiffe spiffe://example.org/same-node-target-pod \
+    || fail-now "agent-node-scoped broker failed to fetch same-node pod SVID by name"
+
+log-info "Test: agent-node-scoped broker fetches same-node pod SVID by UID"
+
+./bin/kubectl -nspire exec -t agent-node-broker -- /brokerclient \
+    -ref-type object \
+    -plural pods -group core \
+    -uid "${SAME_NODE_TARGET_POD_UID}" \
+    -expected-spiffe spiffe://example.org/same-node-target-pod \
+    || fail-now "agent-node-scoped broker failed to fetch same-node pod SVID by UID"
+
+log-info "Test: cluster-scoped broker fetches other-node pod SVID by name"
+
+./bin/kubectl -nspire exec -t cluster-broker -- /brokerclient \
+    -ref-type object \
+    -plural pods -group core \
+    -namespace spire -name other-node-target-pod \
+    -expected-spiffe spiffe://example.org/other-node-target-pod \
+    || fail-now "cluster-scoped broker failed to fetch other-node pod SVID by name"
+
+log-info "Test: cluster-scoped broker fetches other-node pod SVID by UID"
+
+./bin/kubectl -nspire exec -t cluster-broker -- /brokerclient \
+    -ref-type object \
+    -plural pods -group core \
+    -uid "${OTHER_NODE_TARGET_POD_UID}" \
+    -expected-spiffe spiffe://example.org/other-node-target-pod \
+    || fail-now "cluster-scoped broker failed to fetch other-node pod SVID by UID"
+
+log-info "Test: agent-node-scoped broker cannot fetch other-node pod SVID by name"
+
+./bin/kubectl -nspire exec -t agent-node-broker -- /brokerclient \
+    -ref-type object \
+    -plural pods -group core \
+    -namespace spire -name other-node-target-pod \
+    -expect-err NotFound \
+    || fail-now "agent-node-scoped broker did not get NotFound for other-node pod SVID by name"
+
+log-info "Test: agent-node-scoped broker cannot fetch other-node pod SVID by UID"
+
+./bin/kubectl -nspire exec -t agent-node-broker -- /brokerclient \
+    -ref-type object \
+    -plural pods -group core \
+    -uid "${OTHER_NODE_TARGET_POD_UID}" \
+    -expect-err NotFound \
+    || fail-now "agent-node-scoped broker did not get NotFound for other-node pod SVID by UID"
+
+log-success "pod reference scope scenarios behaved as expected by name and UID"
