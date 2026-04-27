@@ -29,6 +29,7 @@ func main() {
 		SerialNumber:          big.NewInt(0x1a2b3c),
 		BasicConstraintsValid: true,
 		IsCA:                  true,
+		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageCRLSign,
 		NotAfter:              neverExpires,
 	})
 
