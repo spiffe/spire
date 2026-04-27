@@ -21,6 +21,7 @@ import (
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
 	hcltoken "github.com/hashicorp/hcl/hcl/token"
+	"github.com/spiffe/spire-api-sdk/proto/spiffe/reference"
 	workloadattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/agent/workloadattestor/v1"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/agent/common/sigstore"
@@ -33,8 +34,25 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/rest"
+	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 )
+
+var k8sScheme = runtime.NewScheme()
+
+func init() {
+	if err := corev1.AddToScheme(k8sScheme); err != nil {
+		panic(fmt.Sprintf("failed to register corev1 scheme: %v", err))
+	}
+}
 
 const (
 	pluginName               = "k8s"
@@ -274,6 +292,14 @@ type Plugin struct {
 	containerHelper  ContainerHelper
 	sigstoreVerifier sigstore.Verifier
 
+	// kubeClient is write-once-read-many. It carries its own RESTMapper
+	// internally (accessible via kubeClient.RESTMapper()), so we don't keep
+	// a separate field for it. Guarded by a dedicated mutex so the apiserver
+	// discovery handshake on first use does not block readers of unrelated
+	// plugin state.
+	kubeMu     sync.RWMutex
+	kubeClient client.Client
+
 	cachedPodList           map[string]*fastjson.Value
 	cachedPodListValidUntil time.Time
 	singleflight            singleflight.Group
@@ -290,13 +316,51 @@ func (p *Plugin) SetLogger(log hclog.Logger) {
 	p.log = log
 }
 
+// Attest implements the legacy PID-only RPC for callers that haven't moved
+// to AttestReference. The shared attestByPID helper produces an
+// AttestReferenceResponse; we reuse its SelectorValues since the response
+// shapes are identical aside from the type name.
 func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestRequest) (*workloadattestorv1.AttestResponse, error) {
+	resp, err := p.attestByPID(ctx, req.Pid)
+	if err != nil {
+		return nil, err
+	}
+	return &workloadattestorv1.AttestResponse{SelectorValues: resp.SelectorValues}, nil
+}
+
+func (p *Plugin) AttestReference(ctx context.Context, req *workloadattestorv1.AttestReferenceRequest) (*workloadattestorv1.AttestReferenceResponse, error) {
+	switch req.Reference.TypeUrl {
+	case "type.googleapis.com/spiffe.reference.WorkloadPIDReference":
+		var pidRef reference.WorkloadPIDReference
+		if err := req.Reference.UnmarshalTo(&pidRef); err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "unable to unmarshal PID reference: %v", err)
+		}
+		return p.attestByPID(ctx, pidRef.Pid)
+	case "type.googleapis.com/spiffe.reference.KubernetesObjectReference":
+		var objRef reference.KubernetesObjectReference
+		if err := req.Reference.UnmarshalTo(&objRef); err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "unable to unmarshal object reference: %v", err)
+		}
+		r := objRef.GetResource()
+		if r == nil {
+			return nil, status.Error(codes.InvalidArgument, "object reference is missing resource")
+		}
+		if r.Plural == "pods" && r.Group == "core" {
+			return p.attestByPodReference(ctx, &objRef)
+		}
+		return p.attestByObjectReference(ctx, &objRef)
+	default:
+		return nil, status.Errorf(codes.InvalidArgument, "unsupported reference type: %s", req.Reference.TypeUrl)
+	}
+}
+
+func (p *Plugin) attestByPID(ctx context.Context, pid int32) (*workloadattestorv1.AttestReferenceResponse, error) {
 	config, containerHelper, sigstoreVerifier, err := p.getConfig()
 	if err != nil {
 		return nil, err
 	}
 
-	podUID, containerID, err := containerHelper.GetPodUIDAndContainerID(req.Pid, p.log)
+	podUID, containerID, err := containerHelper.GetPodUIDAndContainerID(pid, p.log)
 	if err != nil {
 		return nil, err
 	}
@@ -304,7 +368,7 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestReque
 
 	// Not a Kubernetes pod
 	if containerID == "" {
-		return &workloadattestorv1.AttestResponse{}, nil
+		return &workloadattestorv1.AttestReferenceResponse{}, nil
 	}
 
 	log := p.log.With(
@@ -323,7 +387,7 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestReque
 			return nil, err
 		}
 
-		var attestResponse *workloadattestorv1.AttestResponse
+		var attestResponse *workloadattestorv1.AttestReferenceResponse
 		for podKey, podValue := range podList {
 			if podKnown {
 				if podKey != string(podUID) {
@@ -375,7 +439,7 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestReque
 					log.Warn("Two pods found with same container Id")
 					return nil, status.Error(codes.Internal, "two pods found with same container Id")
 				}
-				attestResponse = &workloadattestorv1.AttestResponse{SelectorValues: selectorValues}
+				attestResponse = &workloadattestorv1.AttestReferenceResponse{SelectorValues: selectorValues}
 			}
 		}
 
@@ -398,6 +462,359 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestReque
 			return nil, status.Errorf(codes.Canceled, "no selectors found: %v", ctx.Err())
 		}
 	}
+}
+
+// attestByPodReference handles the `pods/core` path: a Kubernetes object
+// reference whose resource is the core Pod type. It mirrors the generic
+// object path's spec validation (name or uid required, namespace required
+// with name on a namespaced resource, namespace forbidden without name) and
+// the cross-check ("if both uid and name are supplied, the resolved pod's
+// UID MUST match the supplied uid"). Resolution is pod-specific: it tries
+// the kubelet pod list first (cheap, node-local, indexed by UID; same path
+// the legacy PID flow uses), then falls back to the API server. Selector
+// emission uses the pod-shaped vocabulary (sa, ns, pod-uid, pod-name,
+// pod-image, pod-label, pod-owner, ...) — distinct from the generic-object
+// vocabulary so registration entries can match pod-specific fields like
+// container images and service accounts that aren't present on a
+// PartialObjectMetadata.
+func (p *Plugin) attestByPodReference(ctx context.Context, objRef *reference.KubernetesObjectReference) (*workloadattestorv1.AttestReferenceResponse, error) {
+	namespace := objRef.GetNamespace()
+	name := objRef.GetName()
+	uid := types.UID(objRef.GetUid())
+
+	// Per spec: at least one of name or uid MUST be set; namespace MUST be
+	// set when name is set on a namespaced resource and MUST NOT be set when
+	// name is unset.
+	if name == "" && uid == "" {
+		return nil, status.Error(codes.InvalidArgument, "object reference must specify name or uid")
+	}
+	if name != "" && namespace == "" {
+		return nil, status.Error(codes.InvalidArgument, "namespace is required when name is set for a namespaced resource")
+	}
+	if name == "" && namespace != "" {
+		return nil, status.Error(codes.InvalidArgument, "namespace must not be set when name is unset")
+	}
+
+	config, _, _, err := p.getConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	var pod *corev1.Pod
+	if name != "" {
+		pod, err = p.findPodByName(ctx, config, namespace, name)
+	} else {
+		pod, err = p.findPodByUID(ctx, config, uid)
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	// Per spec: when name (and namespace) and uid are both supplied, the
+	// resolved object's UID MUST match the supplied uid.
+	if uid != "" && pod.UID != uid {
+		return nil, status.Errorf(codes.NotFound, "pod %s/%s has UID %s, expected %s", pod.Namespace, pod.Name, pod.UID, uid)
+	}
+
+	return &workloadattestorv1.AttestReferenceResponse{SelectorValues: getSelectorValuesFromPodInfo(pod)}, nil
+}
+
+// findPodByUID resolves a single pod by its Kubernetes UID. The kubelet pod
+// list is checked first because it's already keyed by UID and only contains
+// pods scheduled to this node — both common-case wins. If the pod isn't on
+// this node, it falls back to a cluster-wide List from the API server, which
+// is unavoidable because Kubernetes does not support `metadata.uid` as a
+// field selector (the apiserver would not be able to push the filter down,
+// so we list and filter client-side regardless).
+func (p *Plugin) findPodByUID(ctx context.Context, config *k8sConfig, uid types.UID) (*corev1.Pod, error) {
+	// Try kubelet pod list first (already indexed by UID).
+	podList, err := p.getPodList(ctx, config.Client, config.PollRetryInterval/2)
+	if err != nil {
+		return nil, err
+	}
+	if podValue, ok := podList[string(uid)]; ok {
+		return decodePodFromKubelet(podValue)
+	}
+
+	// Fallback: list all pods via API server. k8s doesn't support
+	// metadata.uid as a field selector, so we list and filter client-side.
+	kubeClient, err := p.getOrCreateKubeClient()
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "unable to create Kubernetes client: %v", err)
+	}
+	pods := &corev1.PodList{}
+	if err := kubeClient.List(ctx, pods); err != nil {
+		return nil, status.Errorf(codes.Internal, "unable to list pods from Kubernetes API: %v", err)
+	}
+	for i := range pods.Items {
+		if pods.Items[i].UID == uid {
+			return &pods.Items[i], nil
+		}
+	}
+	return nil, status.Errorf(codes.NotFound, "pod with UID %s not found", uid)
+}
+
+// findPodByName resolves a single pod by its namespaced name. The kubelet
+// pod list is iterated first; this is O(n) over the node's pods (the list
+// is indexed by UID, not name) but n is small in practice and saves an API
+// server round-trip when the pod is local. If the pod isn't on this node
+// the apiserver answers a precise Get directly — no list, no client-side
+// filter — and `apierrors.IsNotFound` is mapped to `codes.NotFound` so
+// callers can distinguish "no such pod" from a transport error.
+func (p *Plugin) findPodByName(ctx context.Context, config *k8sConfig, namespace, name string) (*corev1.Pod, error) {
+	// Try kubelet pod list first; iterate to find a match by namespace+name.
+	podList, err := p.getPodList(ctx, config.Client, config.PollRetryInterval/2)
+	if err != nil {
+		return nil, err
+	}
+	for _, podValue := range podList {
+		pod, err := decodePodFromKubelet(podValue)
+		if err != nil {
+			return nil, err
+		}
+		if pod.Namespace == namespace && pod.Name == name {
+			return pod, nil
+		}
+	}
+
+	// Fallback: direct Get from API server.
+	kubeClient, err := p.getOrCreateKubeClient()
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "unable to create Kubernetes client: %v", err)
+	}
+	pod := &corev1.Pod{}
+	if err := kubeClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, pod); err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil, status.Errorf(codes.NotFound, "pod %s/%s not found", namespace, name)
+		}
+		return nil, status.Errorf(codes.Internal, "unable to get pod from Kubernetes API: %v", err)
+	}
+	return pod, nil
+}
+
+// decodePodFromKubelet rehydrates a `corev1.Pod` from the partially-parsed
+// JSON the kubelet pod-list path keeps in fastjson form (the cache stores
+// pods as `*fastjson.Value` to avoid per-request unmarshalling when no pod
+// is needed). The two-stage marshal-then-unmarshal is unavoidable here:
+// fastjson is read-only, so the only way to project into a typed struct is
+// to serialise back to bytes and let `encoding/json` parse it.
+func decodePodFromKubelet(podValue *fastjson.Value) (*corev1.Pod, error) {
+	var scratch []byte
+	scratch = podValue.MarshalTo(scratch)
+	pod := new(corev1.Pod)
+	if err := json.Unmarshal(scratch, pod); err != nil {
+		return nil, status.Errorf(codes.Internal, "unable to decode pod info from kubelet response: %v", err)
+	}
+	return pod, nil
+}
+
+// attestByObjectReference handles the generic-Kubernetes-object path: any
+// resource other than `pods/core`. It resolves the resource's GVK and scope
+// via the discovery-backed REST mapper, fetches the object's metadata via
+// PartialObjectMetadata, and emits a uniform set of selectors derived from
+// `ObjectMeta` (resource, namespace, name, uid, labels, annotations, owner
+// references).
+func (p *Plugin) attestByObjectReference(ctx context.Context, objRef *reference.KubernetesObjectReference) (*workloadattestorv1.AttestReferenceResponse, error) {
+	r := objRef.GetResource()
+	namespace := objRef.GetNamespace()
+	name := objRef.GetName()
+	uid := types.UID(objRef.GetUid())
+
+	if name == "" && uid == "" {
+		return nil, status.Error(codes.InvalidArgument, "object reference must specify name or uid")
+	}
+	if name == "" && namespace != "" {
+		return nil, status.Error(codes.InvalidArgument, "namespace must not be set when name is unset")
+	}
+
+	kubeClient, err := p.getOrCreateKubeClient()
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "unable to set up Kubernetes client: %v", err)
+	}
+	mapper := kubeClient.RESTMapper()
+
+	// Per the SPIFFE Broker API spec, `core` is the canonical group string
+	// for the Kubernetes core API group, but Kubernetes itself uses the
+	// empty string on the wire — translate before mapping.
+	group := r.GetGroup()
+	if group == "core" {
+		group = ""
+	}
+	gvr := schema.GroupVersionResource{Group: group, Resource: r.GetPlural()}
+	gvk, err := mapper.KindFor(gvr)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "unknown Kubernetes resource %s.%s: %v", r.GetPlural(), r.GetGroup(), err)
+	}
+	mapping, err := mapper.RESTMapping(gvk.GroupKind(), gvk.Version)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "no REST mapping for %s.%s: %v", r.GetPlural(), r.GetGroup(), err)
+	}
+
+	namespaced := mapping.Scope.Name() == meta.RESTScopeNameNamespace
+	switch {
+	case namespaced && name != "" && namespace == "":
+		return nil, status.Error(codes.InvalidArgument, "namespace is required when name is set for a namespaced resource")
+	case !namespaced && namespace != "":
+		return nil, status.Error(codes.InvalidArgument, "namespace must be empty for cluster-scoped resource")
+	}
+
+	obj, err := p.findObject(ctx, kubeClient, gvk, namespace, name, uid)
+	if err != nil {
+		return nil, err
+	}
+
+	if uid != "" && obj.UID != uid {
+		return nil, status.Errorf(codes.NotFound, "%s.%s %s/%s has UID %s, expected %s",
+			r.GetPlural(), r.GetGroup(), obj.Namespace, obj.Name, obj.UID, uid)
+	}
+
+	return &workloadattestorv1.AttestReferenceResponse{
+		SelectorValues: getSelectorValuesFromObjectMeta(r, gvk, obj),
+	}, nil
+}
+
+// findObject resolves a single Kubernetes object's metadata. When `name` is
+// supplied, a direct Get is used (precise; returns NotFound cleanly). When
+// only `uid` is supplied, the API server is listed and filtered client-side
+// (the apiserver does not support metadata.uid as a field selector).
+func (p *Plugin) findObject(ctx context.Context, kubeClient client.Client, gvk schema.GroupVersionKind, namespace, name string, uid types.UID) (*metav1.PartialObjectMetadata, error) {
+	if name != "" {
+		obj := &metav1.PartialObjectMetadata{}
+		obj.SetGroupVersionKind(gvk)
+		if err := kubeClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, obj); err != nil {
+			if apierrors.IsNotFound(err) {
+				return nil, status.Errorf(codes.NotFound, "%s %s/%s not found", gvk.Kind, namespace, name)
+			}
+			return nil, status.Errorf(codes.Internal, "unable to get %s: %v", gvk.Kind, err)
+		}
+		return obj, nil
+	}
+
+	list := &metav1.PartialObjectMetadataList{}
+	list.SetGroupVersionKind(schema.GroupVersionKind{Group: gvk.Group, Version: gvk.Version, Kind: gvk.Kind + "List"})
+	if err := kubeClient.List(ctx, list); err != nil {
+		return nil, status.Errorf(codes.Internal, "unable to list %s: %v", gvk.Kind, err)
+	}
+	for i := range list.Items {
+		if list.Items[i].UID == uid {
+			return &list.Items[i], nil
+		}
+	}
+	return nil, status.Errorf(codes.NotFound, "%s with UID %s not found", gvk.Kind, uid)
+}
+
+// getSelectorValuesFromObjectMeta produces the broker-object selector set
+// from a resolved Kubernetes object's metadata. The vocabulary is uniform
+// across resource types so registration entries can be authored without
+// caring whether the workload is a Pod, a Deployment, or a CRD instance.
+//
+// Selector values (the leading `k8s:` selector type is added by the V1
+// wrapper, not here):
+//
+//	resource:<plural>.<group>                           always
+//	plural:<plural>                                     always
+//	group:<group>                                       always; "core" for core resources
+//	apiGroup:<group>                                    alias of group
+//	version:<version>                                   always; e.g. "v1", "v1beta1"
+//	apiVersion:<apiVersion>                             Kubernetes wire form: "v1" (core) or "<group>/<version>"
+//	kind:<Kind>                                         always; e.g. "Pod", "Deployment"
+//	namespace:<namespace>                               omitted for cluster-scoped objects
+//	name:<name>                                         always
+//	uid:<uid>                                           always
+//	label:<key>:<value>                                 one per ObjectMeta.Labels entry
+//	annotation:<key>:<value>                            one per ObjectMeta.Annotations entry
+//	owner:<apiVersion>:<kind>:<name>                    atomic identity of every owner reference
+//	owner-uid:<uid>                                     UID-pinned match for every owner reference
+//	owner-controller-api-version:<apiVersion>           emitted only when an owner has Controller=true
+//	owner-controller-kind:<kind>                        (per-field is unambiguous because at most one
+//	owner-controller-name:<name>                         owner reference can be the controller)
+//	owner-controller-uid:<uid>
+func getSelectorValuesFromObjectMeta(r *reference.KubernetesResource, gvk schema.GroupVersionKind, obj *metav1.PartialObjectMetadata) []string {
+	res := r.GetPlural() + "." + r.GetGroup()
+	values := []string{
+		"resource:" + res,
+		"plural:" + r.GetPlural(),
+		"group:" + r.GetGroup(),
+		"apiGroup:" + r.GetGroup(),
+		"version:" + gvk.Version,
+		"apiVersion:" + gvk.GroupVersion().String(),
+		"kind:" + gvk.Kind,
+		"name:" + obj.Name,
+		"uid:" + string(obj.UID),
+	}
+	if obj.Namespace != "" {
+		values = append(values, "namespace:"+obj.Namespace)
+	}
+	for k, v := range obj.Labels {
+		values = append(values, "label:"+k+":"+v)
+	}
+	for k, v := range obj.Annotations {
+		values = append(values, "annotation:"+k+":"+v)
+	}
+	for _, owner := range obj.OwnerReferences {
+		values = append(values,
+			"owner:"+owner.APIVersion+":"+owner.Kind+":"+owner.Name,
+			"owner-uid:"+string(owner.UID),
+		)
+		if owner.Controller != nil && *owner.Controller {
+			values = append(values,
+				"owner-controller-api-version:"+owner.APIVersion,
+				"owner-controller-kind:"+owner.Kind,
+				"owner-controller-name:"+owner.Name,
+				"owner-controller-uid:"+string(owner.UID),
+			)
+		}
+	}
+	return values
+}
+
+// getOrCreateKubeClient lazily builds the controller-runtime client. The
+// client is paired with a discovery-backed REST mapper (accessible via
+// `client.RESTMapper()`) used by the arbitrary-object path to resolve
+// plural+group → GVK and determine namespace scoping at runtime. Both
+// share an HTTP client to avoid duplicate connection pools and duplicate
+// discovery caches. Guarded by a dedicated mutex so the apiserver
+// discovery handshake on first use does not block readers of unrelated
+// plugin state.
+func (p *Plugin) getOrCreateKubeClient() (client.Client, error) {
+	p.kubeMu.RLock()
+	if p.kubeClient != nil {
+		c := p.kubeClient
+		p.kubeMu.RUnlock()
+		return c, nil
+	}
+	p.kubeMu.RUnlock()
+
+	p.kubeMu.Lock()
+	defer p.kubeMu.Unlock()
+	if p.kubeClient != nil {
+		return p.kubeClient, nil
+	}
+
+	restConfig, err := ctrl.GetConfig()
+	if err != nil {
+		return nil, fmt.Errorf("unable to load Kubernetes client config: %w", err)
+	}
+	httpClient, err := rest.HTTPClientFor(restConfig)
+	if err != nil {
+		return nil, fmt.Errorf("unable to build Kubernetes HTTP client: %w", err)
+	}
+	mapper, err := apiutil.NewDynamicRESTMapper(restConfig, httpClient)
+	if err != nil {
+		return nil, fmt.Errorf("unable to build Kubernetes REST mapper: %w", err)
+	}
+	c, err := client.New(restConfig, client.Options{
+		Scheme:     k8sScheme,
+		Mapper:     mapper,
+		HTTPClient: httpClient,
+		Cache:      &client.CacheOptions{},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("unable to create Kubernetes client: %w", err)
+	}
+
+	p.kubeClient = c
+	return c, nil
 }
 
 func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) (resp *configv1.ConfigureResponse, err error) {

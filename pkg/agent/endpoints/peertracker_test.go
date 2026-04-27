@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/peer"
+	"google.golang.org/protobuf/types/known/anypb"
 )
 
 func TestPeerTrackerAttestor(t *testing.T) {
@@ -42,6 +43,11 @@ func (a FakeAttestor) Attest(_ context.Context, pid int) ([]*common.Selector, er
 		return []*common.Selector{{Type: "Type", Value: "Value"}}, nil
 	}
 	return nil, nil
+}
+
+func (a FakeAttestor) AttestReference(_ context.Context, _ *anypb.Any) ([]*common.Selector, error) {
+	// TODO(arndt) do we want more logic here?
+	return []*common.Selector{{Type: "Type", Value: "Value"}}, nil
 }
 
 func WithFakeWatcher(alive bool) context.Context {
