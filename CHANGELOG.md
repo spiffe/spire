@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.13.6] - 2026-04-27
+
+### Security
+
+- Fixed an issue in the `aws_iid` server node attestor plugin where the RSA-2048 PKCS7 attestation path verified the PKCS7 signature against its embedded content but returned the identity document parsed from a separate, attacker-controlled field of the attestation data. An attacker who controlled any EC2 instance could impersonate any other EC2 instance during node attestation, with all downstream attestation decisions operating on the forged identity. Thank you Tianshuo Han for reporting this issue.
+- Fixed a TOCTOU issue in the join token data store path where concurrent attestations using the same token could each succeed because `tx.Delete()` did not report when no row was deleted. The fix uses a read-modify-write transaction with row locking and verifies that exactly one row was deleted. Thank you Tianshuo Han for reporting this issue.
+
 ## [1.13.5] - 2026-04-08
 
 ### Security
