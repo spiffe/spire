@@ -7,6 +7,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire/pkg/agent/broker"
 	"github.com/spiffe/spire/pkg/agent/trustbundlesources"
 	"github.com/spiffe/spire/pkg/agent/workloadkey"
 	"github.com/spiffe/spire/pkg/common/catalog"
@@ -110,11 +111,30 @@ type Config struct {
 
 	AuthorizedDelegates []string
 
+	// Broker holds the SPIFFE Broker API endpoint configuration. Distinct
+	// from AuthorizedDelegates, which gates the Delegated Identity API.
+	// Modeled as a struct (rather than a bare slice) so future top-level
+	// broker configuration can be added without breaking this field's API.
+	Broker BrokerConfig
+
 	// AvailabilityTarget controls how frequently rotate SVIDs
 	AvailabilityTarget time.Duration
 
 	// TLSPolicy determines the post-quantum-safe TLS policy to apply to all TLS connections.
 	TLSPolicy tlspolicy.Policy
+}
+
+// BrokerConfig mirrors the agent's `broker {}` HCL block.
+type BrokerConfig struct {
+	// BindAddresses are the addresses the broker endpoint listens on. Each
+	// element is a `*net.UnixAddr` (UDS, POSIX only) or a `*net.TCPAddr`.
+	// Multiple entries are served simultaneously by a single gRPC server.
+	// Empty disables the broker endpoint.
+	BindAddresses []net.Addr
+
+	// Brokers enumerates the brokers authorized to talk to this agent's
+	// broker endpoint.
+	Brokers []broker.Broker
 }
 
 func New(c *Config) *Agent {

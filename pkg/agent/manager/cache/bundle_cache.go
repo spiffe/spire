@@ -1,14 +1,18 @@
 package cache
 
 import (
+	"fmt"
 	"maps"
 
 	"github.com/imkira/go-observer"
 	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
+	"github.com/spiffe/go-spiffe/v2/bundle/x509bundle"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 )
 
 type Bundle = spiffebundle.Bundle
+
+var _ x509bundle.Source = (*BundleCache)(nil)
 
 type BundleCache struct {
 	trustDomain spiffeid.TrustDomain
@@ -41,6 +45,15 @@ func (c *BundleCache) Bundles() map[spiffeid.TrustDomain]*Bundle {
 
 func (c *BundleCache) SubscribeToBundleChanges() *BundleStream {
 	return NewBundleStream(c.bundles.Observe())
+}
+
+func (c *BundleCache) GetX509BundleForTrustDomain(trustDomain spiffeid.TrustDomain) (*x509bundle.Bundle, error) {
+	bundles := c.Bundles()
+	bundle, ok := bundles[trustDomain]
+	if !ok {
+		return nil, fmt.Errorf("bundle for trust domain %q not found", trustDomain)
+	}
+	return bundle.X509Bundle(), nil
 }
 
 // Wraps an observer stream to provide a type safe interface
