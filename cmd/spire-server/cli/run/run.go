@@ -752,7 +752,10 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 	}
 
 	if c.Server.Experimental.SQLTransactionTimeout != "" {
-		sc.Log.Warn("experimental.sql_transaction_timeout is deprecated, use experimental.event_timeout instead")
+		sc.Log.WithFields(logrus.Fields{
+			telemetry.Alert:     true,
+			telemetry.AlertType: telemetry.DeprecatedConfigAlertType,
+		}).Warn("experimental.sql_transaction_timeout is deprecated, use experimental.event_timeout instead")
 		interval, err := time.ParseDuration(c.Server.Experimental.SQLTransactionTimeout)
 		if err != nil {
 			return nil, fmt.Errorf("could not parse SQL transaction timeout interval: %w", err)
@@ -788,7 +791,10 @@ func setBundleEndpointConfigProfile(config *bundleEndpointConfig, dataDir string
 		return errors.New("either bundle endpoint 'acme' or 'profile' can be set, but not both")
 
 	case config.ACME != nil:
-		log.Warn("ACME configuration within the bundle_endpoint is deprecated. Please use ACME configuration as part of the https_web profile instead.")
+		log.WithFields(logrus.Fields{
+			telemetry.Alert:     true,
+			telemetry.AlertType: telemetry.DeprecatedConfigAlertType,
+		}).Warn("ACME configuration within the bundle_endpoint is deprecated. Please use ACME configuration as part of the https_web profile instead.")
 		federationConfig.BundleEndpoint.ACME = configToACMEConfig(config.ACME, dataDir)
 		return nil
 
