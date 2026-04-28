@@ -30,7 +30,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.299.0
 	github.com/aws/aws-sdk-go-v2/service/eks v1.82.0
 	github.com/aws/aws-sdk-go-v2/service/iam v1.53.1
-	github.com/aws/aws-sdk-go-v2/service/kms v1.50.3
+	github.com/aws/aws-sdk-go-v2/service/kms v1.51.0
 	github.com/aws/aws-sdk-go-v2/service/organizations v1.51.1
 	github.com/aws/aws-sdk-go-v2/service/rolesanywhere v1.22.2
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.100.0
