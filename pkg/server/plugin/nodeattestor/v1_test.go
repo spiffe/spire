@@ -3,6 +3,7 @@ package nodeattestor_test
 import (
 	"context"
 	"errors"
+	"net"
 	"testing"
 
 	nodeattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/nodeattestor/v1"
@@ -15,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
 )
 
@@ -178,6 +180,44 @@ func (plugin *ForwardedHostV1Plugin) Attest(stream nodeattestorv1.NodeAttestor_A
 			},
 		},
 	})
+}
+
+type ForwardedClientIPV1Plugin struct {
+	nodeattestorv1.UnimplementedNodeAttestorServer
+	ExpectedIP string
+}
+
+func (plugin *ForwardedClientIPV1Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
+	ips := metadata.ValueFromIncomingContext(stream.Context(), nodeattestor.XForwardedClientIPKey)
+	if len(ips) == 0 || ips[0] != plugin.ExpectedIP {
+		return errors.New("expected forwarded client IP in context metadata")
+	}
+	if _, err := stream.Recv(); err != nil {
+		return err
+	}
+	return stream.Send(&nodeattestorv1.AttestResponse{
+		Response: &nodeattestorv1.AttestResponse_AgentAttributes{
+			AgentAttributes: &nodeattestorv1.AgentAttributes{
+				SpiffeId: "spiffe://example.org/spire/agent/test/foo",
+			},
+		},
+	})
+}
+
+func TestClientIPForwarding(t *testing.T) {
+	server := nodeattestorv1.NodeAttestorPluginServer(&ForwardedClientIPV1Plugin{ExpectedIP: "192.0.2.1"})
+	na := new(nodeattestor.V1)
+	plugintest.Load(t, catalog.MakeBuiltIn("test", server), na)
+
+	ctx := peer.NewContext(context.Background(), &peer.Peer{
+		Addr: &net.TCPAddr{IP: net.ParseIP("192.0.2.1"), Port: 12345},
+	})
+	result, err := na.Attest(ctx, []byte("unused"), func(ctx context.Context, challenge []byte) ([]byte, error) {
+		return challenge, nil
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
 }
 
 func TestHostForwarding(t *testing.T) {
