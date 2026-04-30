@@ -259,27 +259,6 @@ func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 		return status.Errorf(codes.PermissionDenied, "certificate verification failed: %v", err)
 	}
 
-	if config.verifyClientIP {
-		ips := metadata.ValueFromIncomingContext(stream.Context(), nodeattestor.XForwardedClientIPKey)
-		if len(ips) == 0 || ips[0] == "" {
-			return status.Error(codes.Internal, "client IP not available for verification")
-		}
-		clientIP := net.ParseIP(ips[0])
-		if clientIP == nil {
-			return status.Errorf(codes.Internal, "invalid client IP %q", ips[0])
-		}
-		matched := false
-		for _, certIP := range leaf.IPAddresses {
-			if certIP.Equal(clientIP) {
-				matched = true
-				break
-			}
-		}
-		if !matched {
-			return status.Errorf(codes.PermissionDenied, "client IP %s does not match any certificate IP SAN", clientIP)
-		}
-	}
-
 	// now that the leaf certificate is trusted, issue a challenge to the node
 	// to prove possession of the private key.
 	challenge, err := x509pop.GenerateChallenge(leaf)
@@ -313,6 +292,27 @@ func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 
 	if err := x509pop.VerifyChallengeResponse(leaf.PublicKey, challenge, response); err != nil {
 		return status.Errorf(codes.PermissionDenied, "challenge response verification failed: %v", err)
+	}
+
+	if config.verifyClientIP {
+		ips := metadata.ValueFromIncomingContext(stream.Context(), nodeattestor.XForwardedClientIPKey)
+		if len(ips) == 0 || ips[0] == "" {
+			return status.Error(codes.Internal, "client IP not available for verification")
+		}
+		clientIP := net.ParseIP(ips[0])
+		if clientIP == nil {
+			return status.Errorf(codes.Internal, "invalid client IP %q", ips[0])
+		}
+		matched := false
+		for _, certIP := range leaf.IPAddresses {
+			if certIP.Equal(clientIP) {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			return status.Errorf(codes.PermissionDenied, "client IP %s does not match any certificate IP SAN", clientIP)
+		}
 	}
 
 	svidPath := ""
