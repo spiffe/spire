@@ -43,7 +43,7 @@ require (
 	github.com/envoyproxy/go-control-plane/envoy v1.37.0
 	github.com/fullsailor/pkcs7 v0.0.0-20190404230743-d7302db945fa
 	github.com/go-jose/go-jose/v4 v4.1.4
-	github.com/go-sql-driver/mysql v1.9.3
+	github.com/go-sql-driver/mysql v1.10.0
 	github.com/godbus/dbus/v5 v5.2.2
 	github.com/gofrs/uuid/v5 v5.4.0
 	github.com/gogo/status v1.1.1
@@ -56,7 +56,7 @@ require (
 	github.com/gorilla/handlers v1.5.2
 	github.com/hashicorp/go-hclog v1.6.3
 	github.com/hashicorp/go-metrics v0.5.4
-	github.com/hashicorp/go-plugin v1.7.0
+	github.com/hashicorp/go-plugin v1.8.0
 	github.com/hashicorp/hcl v1.0.1-vault-7
 	github.com/hashicorp/vault/api v1.23.0
 	github.com/hashicorp/vault/sdk v0.25.1
@@ -65,7 +65,7 @@ require (
 	github.com/jackc/pgx/v5 v5.9.2
 	github.com/jinzhu/gorm v1.9.16
 	github.com/lib/pq v1.12.3
-	github.com/mattn/go-sqlite3 v1.14.42
+	github.com/mattn/go-sqlite3 v1.14.44
 	github.com/mitchellh/cli v1.1.5
 	github.com/open-policy-agent/opa v1.15.2
 	github.com/pires/go-proxyproto v0.12.0
