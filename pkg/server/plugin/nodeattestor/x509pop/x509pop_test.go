@@ -567,7 +567,14 @@ func (s *Suite) TestVerifyClientIP() {
 		config := s.createConfiguration("ca_bundle_path", "verify_client_ip = true")
 		attestor := s.loadPlugin(t, config)
 		payload := makePayload(t, s.leafBundle)
-		result, err := attestor.Attest(context.Background(), payload, expectNoChallenge)
+		challengeFn := func(ctx context.Context, challenge []byte) ([]byte, error) {
+			popChallenge := new(x509pop.Challenge)
+			unmarshal(t, challenge, popChallenge)
+			response, err := x509pop.CalculateResponse(s.leafKey, popChallenge)
+			require.NoError(t, err)
+			return marshal(t, response), nil
+		}
+		result, err := attestor.Attest(context.Background(), payload, challengeFn)
 		spiretest.RequireGRPCStatusContains(t, err, codes.Internal, "client IP not available for verification")
 		require.Nil(t, result)
 	})
@@ -579,7 +586,14 @@ func (s *Suite) TestVerifyClientIP() {
 		ctx := peer.NewContext(context.Background(), &peer.Peer{
 			Addr: &net.TCPAddr{IP: clientIP, Port: 12345},
 		})
-		result, err := attestor.Attest(ctx, payload, expectNoChallenge)
+		challengeFn := func(ctx context.Context, challenge []byte) ([]byte, error) {
+			popChallenge := new(x509pop.Challenge)
+			unmarshal(t, challenge, popChallenge)
+			response, err := x509pop.CalculateResponse(s.leafKey, popChallenge)
+			require.NoError(t, err)
+			return marshal(t, response), nil
+		}
+		result, err := attestor.Attest(ctx, payload, challengeFn)
 		spiretest.RequireGRPCStatusContains(t, err, codes.PermissionDenied, "does not match any certificate IP SAN")
 		require.Nil(t, result)
 	})
