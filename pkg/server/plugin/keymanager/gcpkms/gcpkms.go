@@ -463,7 +463,7 @@ func (p *Plugin) createKey(ctx context.Context, spireKeyID string, keyType keyma
 	cryptoKeyVersionName := cryptoKey.Name + "/cryptoKeyVersions/1"
 	log.Debug("CryptoKeyVersion version added", cryptoKeyVersionNameTag, cryptoKeyVersionName)
 
-	pubKey, err := getPublicKeyFromCryptoKeyVersion(ctx, p.log, p.kmsClient, cryptoKeyVersionName)
+	pubKey, err := getPublicKeyFromCryptoKeyVersion(ctx, p.log, p.kmsClient, cryptoKeyVersionName, algorithm)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to get public key: %v", err)
 	}
@@ -517,7 +517,7 @@ func (p *Plugin) addCryptoKeyVersionToCachedEntry(ctx context.Context, entry key
 	}
 	log.Debug("CryptoKeyVersion added", cryptoKeyVersionNameTag, cryptoKeyVersion.Name)
 
-	pubKey, err := getPublicKeyFromCryptoKeyVersion(ctx, p.log, p.kmsClient, cryptoKeyVersion.Name)
+	pubKey, err := getPublicKeyFromCryptoKeyVersion(ctx, p.log, p.kmsClient, cryptoKeyVersion.Name, algorithm)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get public key: %w", err)
 	}
@@ -1078,10 +1078,9 @@ func getOrCreateServerID(idPath string) (string, error) {
 
 // getPublicKeyFromCryptoKeyVersion requests Cloud KMS to get the public key
 // of the specified CryptoKeyVersion.
-func getPublicKeyFromCryptoKeyVersion(ctx context.Context, log hclog.Logger, kmsClient cloudKeyManagementService, cryptoKeyVersionName string) ([]byte, error) {
+func getPublicKeyFromCryptoKeyVersion(ctx context.Context, log hclog.Logger, kmsClient cloudKeyManagementService, cryptoKeyVersionName string, algorithm kmspb.CryptoKeyVersion_CryptoKeyVersionAlgorithm) ([]byte, error) {
 	kmsPublicKey, errGetPublicKey := kmsClient.GetPublicKey(ctx, &kmspb.GetPublicKeyRequest{Name: cryptoKeyVersionName})
 	attempts := 1
-
 	log = log.With(cryptoKeyVersionNameTag, cryptoKeyVersionName)
 	for errGetPublicKey != nil {
 		if attempts > getPublicKeyMaxAttempts {
@@ -1114,6 +1113,9 @@ func getPublicKeyFromCryptoKeyVersion(ctx context.Context, log hclog.Logger, kms
 		log.Warn("Could not get the public key because the CryptoKeyVersion is still being generated. Trying again.")
 		attempts++
 		kmsPublicKey, errGetPublicKey = kmsClient.GetPublicKey(ctx, &kmspb.GetPublicKeyRequest{Name: cryptoKeyVersionName})
+		if errGetPublicKey != nil && algorithm == kmspb.CryptoKeyVersion_RSA_SIGN_PKCS1_4096_SHA256 {
+			time.Sleep(300 * time.Millisecond)
+		}
 	}
 
 	// Perform integrity verification.
