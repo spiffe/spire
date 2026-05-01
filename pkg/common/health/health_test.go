@@ -81,6 +81,15 @@ func TestCheckerListeners(t *testing.T) {
 		return err == nil
 	}, time.Minute, 50*time.Millisecond, "server didn't started in the required time")
 
+	// Wait for the initial health check to complete before making HTTP requests.
+	// Without this, the handler may see zero-value states (Ready=false) and
+	// return 500 before the first checkFunc() has populated the cache.
+	select {
+	case <-waitFor:
+	case <-time.After(5 * time.Second):
+		require.FailNow(t, "timeout waiting for initial status update")
+	}
+
 	t.Run("success ready", func(t *testing.T) {
 		resp, err := http.Get("http://localhost:12345/ready")
 		require.NoError(t, err)
@@ -105,6 +114,12 @@ func TestCheckerListeners(t *testing.T) {
 		require.JSONEq(t, "{\"bar\":{},\"foo\":{}}\n", string(actual))
 	})
 
+	// Drain any pending signals from the initial health check loop
+	select {
+	case <-waitFor:
+	default:
+	}
+
 	fooChecker.state.Live = false
 	fooChecker.state.LiveDetails = healthDetails{Err: "live fails"}
 
@@ -112,7 +127,12 @@ func TestCheckerListeners(t *testing.T) {
 	barChecker.state.ReadyDetails = healthDetails{Err: "ready fails"}
 
 	clk.Add(readyCheckInterval)
-	<-waitFor
+
+	select {
+	case <-waitFor:
+	case <-time.After(5 * time.Second):
+		require.FailNow(t, "timeout waiting for status update")
+	}
 
 	t.Run("live fails", func(t *testing.T) {
 		resp, err := http.Get("http://localhost:12345/live")

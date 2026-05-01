@@ -32,6 +32,19 @@ validateJWTSVID() {
         -socketPath /opt/spire/sockets/workload_api.sock
 }
 
+log-info "checking intermediateB-agent cannot issue JWT since its disabled"
+if ! ERROR_OUTPUT=$(docker compose exec -u 1001 -T intermediateB-agent \
+      /opt/spire/bin/spire-agent api fetch jwt -audience testIt -socketPath /opt/spire/sockets/workload_api.sock -output json 2>&1); then
+
+    if echo "$ERROR_OUTPUT" | grep -q "code = Unimplemented desc = JWT functionality is disabled"; then
+        log-info "✓ JWT correctly disabled on intermediateB"
+    else
+        fail-now "Expected JWT to be disabled on intermediateB. Got: $ERROR_OUTPUT"
+    fi
+else
+    fail-now "Expected JWT command to fail but it succeeded"
+fi
+
 for ((i=1;i<=NUMCHECKS;i++)); do
     log-info "checking intermediate X509-SVID ($i of $NUMCHECKS)..."
     validateX509SVID "intermediateA-agent" "intermediateB-agent"

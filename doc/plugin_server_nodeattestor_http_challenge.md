@@ -1,6 +1,6 @@
 # Server plugin: NodeAttestor "http_challenge"
 
-*Must be used in conjunction with the agent-side http_challenge plugin*
+*Must be used in conjunction with the [agent-side http_challenge plugin](plugin_agent_nodeattestor_http_challenge.md)*
 
 The `http_challenge` plugin handshakes via http to ensure the agent is running on a valid
 dns name.

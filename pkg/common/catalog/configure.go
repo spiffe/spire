@@ -13,8 +13,6 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/telemetry"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 type CoreConfig struct {
@@ -29,16 +27,17 @@ func (c CoreConfig) v1() *configv1.CoreConfiguration {
 
 type Configurer interface {
 	Configure(ctx context.Context, coreConfig CoreConfig, configuration string) error
-	Validate(ctx context.Context, coreConfig CoreConfig, configuration string) error
+	Validate(ctx context.Context, coreConfig CoreConfig, configuration string) (*configv1.ValidateResponse, error)
 }
 
 type ConfigurerFunc func(ctx context.Context, coreConfig CoreConfig, configuration string) error
+type ValidatorFunc func(ctx context.Context, coreConfig CoreConfig, configuration string) (*configv1.ValidateResponse, error)
 
 func (fn ConfigurerFunc) Configure(ctx context.Context, coreConfig CoreConfig, configuration string) error {
 	return fn(ctx, coreConfig, configuration)
 }
 
-func (fn ConfigurerFunc) Validate(ctx context.Context, coreConfig CoreConfig, configuration string) error {
+func (fn ValidatorFunc) Validate(ctx context.Context, coreConfig CoreConfig, configuration string) (*configv1.ValidateResponse, error) {
 	return fn(ctx, coreConfig, configuration)
 }
 
@@ -177,22 +176,11 @@ func (v1 *configurerV1) Configure(ctx context.Context, coreConfig CoreConfig, hc
 	return err
 }
 
-func (v1 *configurerV1) Validate(ctx context.Context, coreConfig CoreConfig, hclConfiguration string) error {
-	_, err := v1.ConfigServiceClient.Validate(ctx, &configv1.ValidateRequest{
+func (v1 *configurerV1) Validate(ctx context.Context, coreConfig CoreConfig, hclConfiguration string) (*configv1.ValidateResponse, error) {
+	return v1.ConfigServiceClient.Validate(ctx, &configv1.ValidateRequest{
 		CoreConfiguration: coreConfig.v1(),
 		HclConfiguration:  hclConfiguration,
 	})
-	return err
-}
-
-type configurerUnsupported struct{}
-
-func (c configurerUnsupported) Configure(context.Context, CoreConfig, string) error {
-	return status.Error(codes.FailedPrecondition, "plugin does not support a configuration interface")
-}
-
-func (c configurerUnsupported) Validate(context.Context, CoreConfig, string) error {
-	return status.Error(codes.FailedPrecondition, "plugin does not support a validation interface")
 }
 
 func hashData(data string) string {

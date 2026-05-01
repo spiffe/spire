@@ -69,10 +69,8 @@ func TestHandlerHTTPS(t *testing.T) {
 			method: "GET",
 			path:   "/keys",
 			jwks:   new(jose.JSONWebKeySet),
-			code:   http.StatusOK,
-			body: `{
-  "keys": null
-}`,
+			code:   http.StatusNotImplemented,
+			body:   "jwt not supported/enabled in this service\n",
 		},
 		{
 			name:   "GET keys with key in set",
@@ -175,7 +173,8 @@ func TestHandlerHTTPS(t *testing.T) {
 			require.NoError(t, err)
 			w := httptest.NewRecorder()
 
-			h := NewHandler(log, domainAllowlist(t, "localhost", "domain.test"), source, false, testCase.setKeyUse, nil, nil, "")
+			h, err := NewHandler(log, domainAllowlist(t, "localhost", "domain.test"), source, false, testCase.setKeyUse, nil, nil, "")
+			require.NoError(t, err)
 			h.ServeHTTP(w, r)
 
 			t.Logf("HEADERS: %q", w.Header())
@@ -239,10 +238,8 @@ func TestHandlerHTTPInsecure(t *testing.T) {
 			method: "GET",
 			path:   "/keys",
 			jwks:   new(jose.JSONWebKeySet),
-			code:   http.StatusOK,
-			body: `{
-  "keys": null
-}`,
+			code:   http.StatusNotImplemented,
+			body:   "jwt not supported/enabled in this service\n",
 		},
 		{
 			name:   "GET keys with key in set",
@@ -289,7 +286,8 @@ func TestHandlerHTTPInsecure(t *testing.T) {
 			require.NoError(t, err)
 			w := httptest.NewRecorder()
 
-			h := NewHandler(log, domainAllowlist(t, "localhost", "domain.test"), source, true, false, nil, nil, "")
+			h, err := NewHandler(log, domainAllowlist(t, "localhost", "domain.test"), source, true, false, nil, nil, "")
+			require.NoError(t, err)
 			h.ServeHTTP(w, r)
 
 			t.Logf("HEADERS: %q", w.Header())
@@ -409,10 +407,8 @@ func TestHandlerHTTP(t *testing.T) {
 			method: "GET",
 			path:   "/keys",
 			jwks:   new(jose.JSONWebKeySet),
-			code:   http.StatusOK,
-			body: `{
-  "keys": null
-}`,
+			code:   http.StatusNotImplemented,
+			body:   "jwt not supported/enabled in this service\n",
 		},
 		{
 			name:   "GET keys with key in set",
@@ -464,7 +460,8 @@ func TestHandlerHTTP(t *testing.T) {
 			require.NoError(t, err)
 			w := httptest.NewRecorder()
 
-			h := NewHandler(log, domainAllowlist(t, "domain.test", "xn--n38h.test"), source, false, false, nil, nil, "")
+			h, err := NewHandler(log, domainAllowlist(t, "domain.test", "xn--n38h.test"), source, false, false, nil, nil, "")
+			require.NoError(t, err)
 			h.ServeHTTP(w, r)
 
 			t.Logf("HEADERS: %q", w.Header())
@@ -528,10 +525,8 @@ func TestHandlerProxied(t *testing.T) {
 			method: "GET",
 			path:   "/keys",
 			jwks:   new(jose.JSONWebKeySet),
-			code:   http.StatusOK,
-			body: `{
-  "keys": null
-}`,
+			code:   http.StatusNotImplemented,
+			body:   "jwt not supported/enabled in this service\n",
 		},
 		{
 			name:   "GET keys with key in set",
@@ -577,7 +572,8 @@ func TestHandlerProxied(t *testing.T) {
 			r.Header.Add("X-Forwarded-Scheme", "https")
 			r.Header.Add("X-Forwarded-Host", "domain.test")
 			w := httptest.NewRecorder()
-			h := NewHandler(log, domainAllowlist(t, "domain.test"), source, false, false, nil, nil, "")
+			h, err := NewHandler(log, domainAllowlist(t, "domain.test"), source, false, false, nil, nil, "")
+			require.NoError(t, err)
 			h.ServeHTTP(w, r)
 			t.Logf("HEADERS: %q", w.Header())
 			assert.Equal(t, testCase.code, w.Code)
@@ -727,7 +723,8 @@ func TestHandlerJWTIssuer(t *testing.T) {
 			w := httptest.NewRecorder()
 
 			u, _ := url.Parse(testCase.jwtIssuer)
-			h := NewHandler(log, domainAllowlist(t, "domain.test"), source, false, false, u, nil, "")
+			h, err := NewHandler(log, domainAllowlist(t, "domain.test"), source, false, false, u, nil, "")
+			require.NoError(t, err)
 			h.ServeHTTP(w, r)
 
 			t.Logf("HEADERS: %q", w.Header())
@@ -789,7 +786,8 @@ func TestHandlerJWTIssuerAndJWKSURI(t *testing.T) {
 
 			u, _ := url.Parse(testCase.jwtIssuer)
 			j, _ := url.Parse(testCase.jwksURI)
-			h := NewHandler(log, domainAllowlist(t, "domain.test"), source, false, false, u, j, "")
+			h, err := NewHandler(log, domainAllowlist(t, "domain.test"), source, false, false, u, j, "")
+			require.NoError(t, err)
 			h.ServeHTTP(w, r)
 
 			t.Logf("HEADERS: %q", w.Header())
@@ -940,7 +938,8 @@ func TestHandlerAdvertisedURL(t *testing.T) {
 			w := httptest.NewRecorder()
 
 			u, _ := url.Parse(testCase.jwksURI)
-			h := NewHandler(log, domainAllowlist(t, "domain.test"), source, false, false, nil, u, "")
+			h, err := NewHandler(log, domainAllowlist(t, "domain.test"), source, false, false, nil, u, "")
+			require.NoError(t, err)
 			h.ServeHTTP(w, r)
 
 			t.Logf("HEADERS: %q", w.Header())
@@ -1067,7 +1066,8 @@ func TestHandlerPrefix(t *testing.T) {
 			r.Header.Add("X-Forwarded-Host", "domain.test")
 			w := httptest.NewRecorder()
 
-			h := NewHandler(log, domainAllowlist(t, "domain.test"), source, false, false, nil, nil, testCase.serverPathPrefix)
+			h, err := NewHandler(log, domainAllowlist(t, "domain.test"), source, false, false, nil, nil, testCase.serverPathPrefix)
+			require.NoError(t, err)
 			h.ServeHTTP(w, r)
 
 			t.Logf("HEADERS: %q", w.Header())

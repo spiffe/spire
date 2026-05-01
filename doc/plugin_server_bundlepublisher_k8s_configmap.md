@@ -21,6 +21,7 @@ Each cluster in the main configuration has the following configuration options:
 | namespace       | The namespace containing the ConfigMap.                                                                                                                                                                | Yes.     |         |
 | kubeconfig_path | The path on disk to the kubeconfig containing configuration to enable interaction with the Kubernetes API server. If unset, in-cluster credentials will be used.                                       | No.      |         |
 | format          | Format in which the trust bundle is stored, &lt;spiffe &vert; jwks &vert; pem&gt;. See [Supported bundle formats](#supported-bundle-formats) for more details.                                         | Yes.     |         |
+| refresh_hint    | Sets the refresh hint for the bundle when using the spiffe format. Specified as string e.g. '10m', '1h'. See [time.ParseDuration](https://pkg.go.dev/time#ParseDuration) for details                   | No.      |         |
 
 ## Supported bundle formats
 

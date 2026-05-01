@@ -1,0 +1,7 @@
+services:
+  spire-server:
+    image: spire-server:latest-local
+    hostname: spire-server
+    volumes:
+      - ./conf/server:/opt/spire/conf/server
+    command: ["-config", "/opt/spire/conf/server/server.conf"]

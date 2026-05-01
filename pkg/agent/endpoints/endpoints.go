@@ -22,6 +22,7 @@ import (
 
 type Server interface {
 	ListenAndServe(ctx context.Context) error
+	WaitForListening(listening chan struct{})
 }
 
 type Endpoints struct {
@@ -33,8 +34,7 @@ type Endpoints struct {
 	healthServer      grpc_health_v1.HealthServer
 
 	hooks struct {
-		// test hook used to indicate that is listening
-		listening chan struct{}
+		listening chan struct{} // Hook to signal when the server starts listening
 	}
 }
 
@@ -90,6 +90,11 @@ func New(c Config) *Endpoints {
 		workloadAPIServer: workloadAPIServer,
 		sdsv3Server:       sdsv3Server,
 		healthServer:      healthServer,
+		hooks: struct {
+			listening chan struct{}
+		}{
+			listening: make(chan struct{}),
+		},
 	}
 }
 
@@ -146,4 +151,14 @@ func (e *Endpoints) triggerListeningHook() {
 	if e.hooks.listening != nil {
 		e.hooks.listening <- struct{}{}
 	}
+}
+
+func (e *Endpoints) WaitForListening(listening chan struct{}) {
+	if e.hooks.listening == nil {
+		e.log.Warn("Listening hook not initialized, cannot wait for listening")
+		return
+	}
+
+	<-e.hooks.listening
+	listening <- struct{}{}
 }

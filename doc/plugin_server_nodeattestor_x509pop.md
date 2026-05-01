@@ -1,6 +1,6 @@
 # Server plugin: NodeAttestor "x509pop"
 
-*Must be used in conjunction with the agent-side x509pop plugin*
+*Must be used in conjunction with the [agent-side x509pop plugin](plugin_agent_nodeattestor_x509pop.md)*
 
 The `x509pop` plugin attests nodes that have been provisioned with an x509
 identity through an out-of-band mechanism. It verifies that the certificate is
@@ -23,6 +23,8 @@ spiffe://<trust_domain>/spire/agent/x509pop/<fingerprint>
 | `ca_bundle_path`      | The path to the trusted CA bundle on disk. The file must contain one or more PEM blocks forming the set of trusted root CA's for chain-of-trust verification. If the CA certificates are in more than one file, use `ca_bundle_paths` instead. |                                                                 |
 | `ca_bundle_paths`     | A list of paths to trusted CA bundles on disk. The files must contain one or more PEM blocks forming the set of trusted root CA's for chain-of-trust verification.                                                                             |                                                                 |
 | `agent_path_template` | A URL path portion format of Agent's SPIFFE ID. Describe in text/template format.                                                                                                                                                              | See [Agent Path Template](#agent-path-template) for details   |
+| `max_intermediates`   | Maximum number of intermediate certificates allowed in the certificate chain. This limit helps prevent resource exhaustion attacks.                                                                                                            | 4                                                               |
+| `max_rsa_key_size`    | Maximum RSA key size in bits allowed in certificates. This limit helps prevent resource exhaustion attacks from excessively large keys.                                                                                                        | 8192                                                            |
 
 A sample configuration:
 
@@ -33,6 +35,12 @@ A sample configuration:
 
             # Change the agent's SPIFFE ID format
             # agent_path_template = "/cn/{{ .Subject.CommonName }}"
+
+            # Optional: Maximum number of intermediate certificates (default: 4)
+            # max_intermediates = 4
+
+            # Optional: Maximum RSA key size in bits (default: 8192)
+            # max_rsa_key_size = 8192
         }
     }
 ```
@@ -44,7 +52,7 @@ A sample configuration:
 | Common Name      | `x509pop:subject:cn:example.org`                                  | The Subject's Common Name (see X.500 Distinguished Names)                                                                                                                                                  |
 | SHA1 Fingerprint | `x509pop:ca:fingerprint:0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33` | The SHA1 fingerprint as a hex string for each cert in the PoP chain, excluding the leaf.                                                                                                                   |
 | SerialNumber     | `x509pop:serialnumber:0a1b2c3d4e5f`                               | The leaf certificate serial number as a lowercase hexadecimal string                                                                                                                                       |
-| San              | `x509pop:san:<key>:<value>`                                       | The san selectors on the leaf certificate. The expected format of the uri san is `x509pop://<trust_domain>/<key>:<value>`. One selector is exposed per uri san corresponding to x509pop uri scheme. string |
+| San              | `x509pop:san:<key>:<value>`                                       | The san selectors on the leaf certificate. The expected format of the uri san is `x509pop://<trust_domain>/<key>/<value>`. One selector is exposed per uri san corresponding to x509pop uri scheme. string |
 
 ## SVID Path Prefix
 

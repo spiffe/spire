@@ -17,9 +17,6 @@ type Policy struct {
 	RequirePQKEM bool
 }
 
-// Not exported by crypto/tls, so we define it here from the I-D.
-const x25519Kyber768Draft00 tls.CurveID = 0x6399
-
 // LogPolicy logs an informational message reporting the configured policy,
 // aiding administrators to determine what policy options have been
 // successfully enabled.
@@ -36,7 +33,7 @@ func ApplyPolicy(config *tls.Config, policy Policy) error {
 	if policy.RequirePQKEM {
 		// List only known PQ-safe KEMs as valid curves.
 		config.CurvePreferences = []tls.CurveID{
-			x25519Kyber768Draft00,
+			tls.X25519MLKEM768,
 		}
 
 		// Require TLS 1.3, as all PQ-safe KEMs require it anyway.

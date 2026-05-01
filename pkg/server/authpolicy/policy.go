@@ -24,7 +24,7 @@ const (
 
 // Engine drives policy management.
 type Engine struct {
-	rego rego.PartialResult
+	query rego.PreparedEvalQuery
 }
 
 type OpaEngineConfig struct {
@@ -34,13 +34,15 @@ type OpaEngineConfig struct {
 type LocalOpaProviderConfig struct {
 	RegoPath       string `hcl:"rego_path"`
 	PolicyDataPath string `hcl:"policy_data_path"`
-	UseRegoV1      bool   `hcl:"use_rego_v1"`
 }
 
 // Input represents context associated with an access request.
 type Input struct {
 	// Caller is the authenticated identity of the actor making a request.
 	Caller string `json:"caller"`
+
+	// CallerFilePath is the file path of a local actor making a request.
+	CallerFilePath string `json:"caller_file_path"`
 
 	// FullMethod is the fully-qualified name of the proto rpc service method.
 	FullMethod string `json:"full_method"`
@@ -65,12 +67,12 @@ func NewEngineFromConfigOrDefault(ctx context.Context, logger logrus.FieldLogger
 	if cfg == nil {
 		return DefaultAuthPolicy(ctx)
 	}
-	return newEngine(ctx, logger, cfg)
+	return newEngine(ctx, cfg)
 }
 
 // newEngine returns a new policy engine. Or nil if no
 // config is provided.
-func newEngine(ctx context.Context, logger logrus.FieldLogger, cfg *OpaEngineConfig) (*Engine, error) {
+func newEngine(ctx context.Context, cfg *OpaEngineConfig) (*Engine, error) {
 	switch {
 	case cfg == nil:
 		return nil, errors.New("policy engine configuration is nil")
@@ -102,32 +104,25 @@ func newEngine(ctx context.Context, logger logrus.FieldLogger, cfg *OpaEngineCon
 		store = inmem.NewFromObject(map[string]any{})
 	}
 
-	version := ast.RegoV0
-	if cfg.LocalOpaProvider.UseRegoV1 {
-		version = ast.RegoV1
-	} else {
-		logger.Warn("Using rego.v0 policy format, which will be depracated in SPIRE 1.13; Update the policy to rego.v1 and specify 'use_rego_v1 = true' in the configuration.")
-	}
-
-	return NewEngineFromRego(ctx, string(module), store, version)
+	return NewEngineFromRego(ctx, string(module), store)
 }
 
 // NewEngineFromRego is a helper to create the Engine object
-func NewEngineFromRego(ctx context.Context, regoPolicy string, dataStore storage.Store, version ast.RegoVersion) (*Engine, error) {
-	rego := rego.New(
+func NewEngineFromRego(ctx context.Context, regoPolicy string, dataStore storage.Store) (*Engine, error) {
+	rg := rego.New(
 		rego.Query("data.spire.result"),
 		rego.Package("spire"),
 		rego.Module("spire.rego", regoPolicy),
 		rego.Store(dataStore),
-		rego.SetRegoVersion(version),
+		rego.SetRegoVersion(ast.RegoV1),
 	)
-	pr, err := rego.PartialResult(ctx)
+	query, err := rg.PrepareForEval(ctx, rego.WithPartialEval())
 	if err != nil {
 		return nil, err
 	}
 
 	e := &Engine{
-		rego: pr,
+		query: query,
 	}
 
 	// Test policy with some simple calls to ensure that the
@@ -141,7 +136,7 @@ func NewEngineFromRego(ctx context.Context, regoPolicy string, dataStore storage
 
 // Eval determines whether access should be allowed on a resource.
 func (e *Engine) Eval(ctx context.Context, input Input) (result Result, err error) {
-	rs, err := e.rego.Rego(rego.Input(input)).Eval(ctx)
+	rs, err := e.query.Eval(ctx, rego.EvalInput(input))
 	if err != nil {
 		return Result{}, err
 	}

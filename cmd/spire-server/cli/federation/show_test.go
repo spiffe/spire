@@ -92,6 +92,7 @@ Endpoint SPIFFE ID        : spiffe://endpoint.test/id
     "trust_domain": "endpoint.test",
     "x509_authorities": [],
     "jwt_authorities": [],
+    "wit_authorities": [],
     "refresh_hint": "0",
     "sequence_number": "0"
   }

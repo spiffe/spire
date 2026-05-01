@@ -38,6 +38,13 @@ func main() {
 		os.Exit(0)
 	}
 
+	if args := flag.Args(); len(args) > 0 {
+		fmt.Fprintf(os.Stderr, "Error: unexpected arguments: %v\n", args)
+		fmt.Fprintf(os.Stderr, "Usage of %s:\n", os.Args[0])
+		flag.PrintDefaults()
+		os.Exit(1)
+	}
+
 	if err := run(*configFlag, *expandEnv); err != nil {
 		fmt.Fprintf(os.Stderr, "%+v\n", err)
 		os.Exit(1)
@@ -86,7 +93,11 @@ func run(configPath string, expandEnv bool) error {
 		}
 	}
 
-	var handler http.Handler = NewHandler(log, domainPolicy, source, config.AllowInsecureScheme, config.SetKeyUse, jwtIssuer, jwksURI, config.ServerPathPrefix)
+	var handler http.Handler
+	handler, err = NewHandler(log, domainPolicy, source, config.AllowInsecureScheme, config.SetKeyUse, jwtIssuer, jwksURI, config.ServerPathPrefix)
+	if err != nil {
+		return err
+	}
 	if config.LogRequests {
 		log.Info("Logging all requests")
 		handler = logHandler(log, handler)

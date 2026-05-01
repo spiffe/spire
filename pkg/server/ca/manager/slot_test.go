@@ -138,6 +138,59 @@ func TestJWTKeySlotShouldActivateNext(t *testing.T) {
 	require.True(t, slot.ShouldActivateNext(now.Add(51*time.Second)))
 }
 
+func TestWITKeySlotShouldPrepareNext(t *testing.T) {
+	clock := clock.NewMock()
+	now := clock.Now()
+
+	slot := &witKeySlot{
+		id:       "A",
+		issuedAt: now,
+		witKey:   nil,
+	}
+
+	// No wit key, should prepare
+	require.True(t, slot.ShouldPrepareNext(now.Add(time.Hour)))
+
+	// Key is not ready to prepare
+	slot.witKey = &ca.WITKey{
+		NotAfter: now.Add(time.Minute),
+	}
+	// Just created no need to prepare
+	require.False(t, slot.ShouldPrepareNext(now))
+
+	// Advance to before preparation time
+	require.False(t, slot.ShouldPrepareNext(now.Add(30*time.Second)))
+
+	// Advance to preparation time
+	require.True(t, slot.ShouldPrepareNext(now.Add(31*time.Second)))
+}
+
+func TestWITKeySlotShouldActivateNext(t *testing.T) {
+	now := time.Now()
+
+	slot := &witKeySlot{
+		id:       "A",
+		issuedAt: now,
+		witKey:   nil,
+	}
+
+	// No wit key, should activate
+	require.True(t, slot.ShouldActivateNext(now.Add(time.Hour)))
+
+	// Key is not ready to prepare
+	slot.witKey = &ca.WITKey{
+		NotAfter: now.Add(time.Minute),
+	}
+	// Just created no need to prepare
+	require.False(t, slot.ShouldActivateNext(now))
+
+	// Advance to before activation time
+	require.False(t, slot.ShouldActivateNext(now.Add(50*time.Second)))
+
+	// Advance to preparation time
+	require.True(t, slot.ShouldActivateNext(now.Add(51*time.Second)))
+}
+
 func TestJournalLoad(t *testing.T) {
 	ctx := context.Background()
 	log, loghook := test.NewNullLogger()
@@ -180,6 +233,18 @@ func TestJournalLoad(t *testing.T) {
 	jwtKeyBPKIX, err := x509.MarshalPKIXPublicKey(jwtKeyB.Public())
 	require.NoError(t, err)
 
+	witKeyA, err := km.GenerateKey(ctx, "WIT-Signer-A", keymanager.ECP256)
+	require.NoError(t, err)
+
+	witKeyB, err := km.GenerateKey(ctx, "WIT-Signer-B", keymanager.ECP256)
+	require.NoError(t, err)
+
+	witKeyAPKIX, err := x509.MarshalPKIXPublicKey(witKeyA.Public())
+	require.NoError(t, err)
+
+	witKeyBPKIX, err := x509.MarshalPKIXPublicKey(witKeyB.Public())
+	require.NoError(t, err)
+
 	activeX509AuthorityID := getOneX509AuthorityID(ctx, t, km)
 
 	// Dates
@@ -210,6 +275,8 @@ func TestJournalLoad(t *testing.T) {
 				NextX509CASlot:    &x509CASlot{id: "B"},
 				CurrentJWTKeySlot: &jwtKeySlot{id: "A"},
 				NextJWTKeySlot:    &jwtKeySlot{id: "B"},
+				CurrentWITKeySlot: newWITKeySlot("A"),
+				NextWITKeySlot:    newWITKeySlot("B"),
 			},
 			expectLogs: []spiretest.LogEntry{
 				{
@@ -218,6 +285,7 @@ func TestJournalLoad(t *testing.T) {
 					Data: logrus.Fields{
 						telemetry.JWTKeys: "0",
 						telemetry.X509CAs: "0",
+						telemetry.WITKeys: "0",
 					},
 				},
 			},
@@ -241,6 +309,16 @@ func TestJournalLoad(t *testing.T) {
 						Kid:       "kid2",
 						NotAfter:  notAfterUnix,
 						PublicKey: jwtKeyBPKIX,
+						Status:    journal.Status_ACTIVE,
+					},
+				},
+				WitKeys: []*journal.WITKeyEntry{
+					{
+						SlotId:    "B",
+						IssuedAt:  secondIssuedAtUnix,
+						Kid:       "kid2",
+						NotAfter:  notAfterUnix,
+						PublicKey: witKeyBPKIX,
 						Status:    journal.Status_ACTIVE,
 					},
 				},
@@ -272,6 +350,19 @@ func TestJournalLoad(t *testing.T) {
 					notAfter:    notAfter,
 				},
 				NextJWTKeySlot: &jwtKeySlot{id: "A"},
+				CurrentWITKeySlot: &witKeySlot{
+					id:       "B",
+					issuedAt: secondIssuedAt,
+					status:   journal.Status_ACTIVE,
+					witKey: &ca.WITKey{
+						Signer:   witKeyB,
+						Kid:      "kid2",
+						NotAfter: notAfter,
+					},
+					authorityID: "",
+					notAfter:    notAfter,
+				},
+				NextWITKeySlot: newWITKeySlot("A"),
 			},
 			expectLogs: []spiretest.LogEntry{
 				{
@@ -280,6 +371,7 @@ func TestJournalLoad(t *testing.T) {
 					Data: logrus.Fields{
 						telemetry.JWTKeys: "1",
 						telemetry.X509CAs: "1",
+						telemetry.WITKeys: "1",
 					},
 				},
 			},
@@ -304,6 +396,17 @@ func TestJournalLoad(t *testing.T) {
 						Kid:         "kid3",
 						NotAfter:    notAfterUnix,
 						PublicKey:   jwtKeyAPKIX,
+						Status:      journal.Status_PREPARED,
+						AuthorityId: "a",
+					},
+				},
+				WitKeys: []*journal.WITKeyEntry{
+					{
+						SlotId:      "A",
+						IssuedAt:    thirdIssuedAtUnix,
+						Kid:         "kid3",
+						NotAfter:    notAfterUnix,
+						PublicKey:   witKeyAPKIX,
 						Status:      journal.Status_PREPARED,
 						AuthorityId: "a",
 					},
@@ -340,6 +443,19 @@ func TestJournalLoad(t *testing.T) {
 				NextJWTKeySlot: &jwtKeySlot{
 					id: "B",
 				},
+				CurrentWITKeySlot: &witKeySlot{
+					id:       "A",
+					issuedAt: thirdIssuedAt,
+					status:   journal.Status_PREPARED,
+					witKey: &ca.WITKey{
+						Signer:   witKeyA,
+						Kid:      "kid3",
+						NotAfter: notAfter,
+					},
+					authorityID: "a",
+					notAfter:    notAfter,
+				},
+				NextWITKeySlot: newWITKeySlot("B"),
 			},
 			expectLogs: []spiretest.LogEntry{
 				{
@@ -348,6 +464,7 @@ func TestJournalLoad(t *testing.T) {
 					Data: logrus.Fields{
 						telemetry.JWTKeys: "1",
 						telemetry.X509CAs: "1",
+						telemetry.WITKeys: "1",
 					},
 				},
 			},
@@ -410,6 +527,35 @@ func TestJournalLoad(t *testing.T) {
 						AuthorityId: "a",
 					},
 				},
+				WitKeys: []*journal.WITKeyEntry{
+					{
+						SlotId:      "A",
+						IssuedAt:    firstIssuedAtUnix,
+						Kid:         "kid1",
+						NotAfter:    notAfterUnix,
+						PublicKey:   witKeyAPKIX,
+						Status:      journal.Status_OLD,
+						AuthorityId: "c",
+					},
+					{
+						SlotId:      "B",
+						IssuedAt:    secondIssuedAtUnix,
+						Kid:         "kid2",
+						NotAfter:    notAfterUnix,
+						PublicKey:   witKeyBPKIX,
+						Status:      journal.Status_OLD,
+						AuthorityId: "b",
+					},
+					{
+						SlotId:      "A",
+						IssuedAt:    thirdIssuedAtUnix,
+						Kid:         "kid3",
+						NotAfter:    notAfterUnix,
+						PublicKey:   witKeyAPKIX,
+						Status:      journal.Status_ACTIVE,
+						AuthorityId: "a",
+					},
+				},
 			},
 			expectSlots: map[SlotPosition]Slot{
 				CurrentX509CASlot: &x509CASlot{
@@ -460,6 +606,30 @@ func TestJournalLoad(t *testing.T) {
 					authorityID: "b",
 					notAfter:    notAfter,
 				},
+				CurrentWITKeySlot: &witKeySlot{
+					id:       "A",
+					issuedAt: thirdIssuedAt,
+					status:   journal.Status_ACTIVE,
+					witKey: &ca.WITKey{
+						Signer:   witKeyA,
+						Kid:      "kid3",
+						NotAfter: notAfter,
+					},
+					authorityID: "a",
+					notAfter:    notAfter,
+				},
+				NextWITKeySlot: &witKeySlot{
+					id:       "B",
+					issuedAt: secondIssuedAt,
+					status:   journal.Status_OLD,
+					witKey: &ca.WITKey{
+						Signer:   witKeyB,
+						Kid:      "kid2",
+						NotAfter: notAfter,
+					},
+					authorityID: "b",
+					notAfter:    notAfter,
+				},
 			},
 			expectLogs: []spiretest.LogEntry{
 				{
@@ -468,6 +638,7 @@ func TestJournalLoad(t *testing.T) {
 					Data: logrus.Fields{
 						telemetry.JWTKeys: "3",
 						telemetry.X509CAs: "3",
+						telemetry.WITKeys: "3",
 					},
 				},
 			},
@@ -532,6 +703,36 @@ func TestJournalLoad(t *testing.T) {
 						AuthorityId: "a",
 					},
 				},
+				WitKeys: []*journal.WITKeyEntry{
+					// This can happen when force rotation is executed
+					{
+						SlotId:      "A",
+						IssuedAt:    firstIssuedAtUnix,
+						Kid:         "kid1",
+						NotAfter:    notAfterUnix,
+						PublicKey:   witKeyAPKIX,
+						Status:      journal.Status_ACTIVE,
+						AuthorityId: "c",
+					},
+					{
+						SlotId:      "B",
+						IssuedAt:    secondIssuedAtUnix,
+						Kid:         "kid2",
+						NotAfter:    notAfterUnix,
+						PublicKey:   witKeyBPKIX,
+						Status:      journal.Status_OLD,
+						AuthorityId: "b",
+					},
+					{
+						SlotId:      "B",
+						IssuedAt:    thirdIssuedAtUnix,
+						Kid:         "kid3",
+						NotAfter:    notAfterUnix,
+						PublicKey:   witKeyBPKIX,
+						Status:      journal.Status_PREPARED,
+						AuthorityId: "a",
+					},
+				},
 			},
 			expectSlots: map[SlotPosition]Slot{
 				CurrentX509CASlot: &x509CASlot{
@@ -582,6 +783,30 @@ func TestJournalLoad(t *testing.T) {
 					authorityID: "a",
 					notAfter:    notAfter,
 				},
+				CurrentWITKeySlot: &witKeySlot{
+					id:       "A",
+					issuedAt: firstIssuedAt,
+					status:   journal.Status_ACTIVE,
+					witKey: &ca.WITKey{
+						Signer:   witKeyA,
+						Kid:      "kid1",
+						NotAfter: notAfter,
+					},
+					authorityID: "c",
+					notAfter:    notAfter,
+				},
+				NextWITKeySlot: &witKeySlot{
+					id:       "B",
+					issuedAt: thirdIssuedAt,
+					status:   journal.Status_PREPARED,
+					witKey: &ca.WITKey{
+						Signer:   witKeyB,
+						Kid:      "kid3",
+						NotAfter: notAfter,
+					},
+					authorityID: "a",
+					notAfter:    notAfter,
+				},
 			},
 			expectLogs: []spiretest.LogEntry{
 				{
@@ -590,6 +815,7 @@ func TestJournalLoad(t *testing.T) {
 					Data: logrus.Fields{
 						telemetry.JWTKeys: "3",
 						telemetry.X509CAs: "3",
+						telemetry.WITKeys: "3",
 					},
 				},
 			},
@@ -617,6 +843,7 @@ func TestJournalLoad(t *testing.T) {
 					Data: logrus.Fields{
 						telemetry.X509CAs: "1",
 						telemetry.JWTKeys: "0",
+						telemetry.WITKeys: "0",
 					},
 				},
 				{
@@ -653,6 +880,8 @@ func TestJournalLoad(t *testing.T) {
 				NextX509CASlot:    newX509CASlot("B"),
 				CurrentJWTKeySlot: newJWTKeySlot("A"),
 				NextJWTKeySlot:    newJWTKeySlot("B"),
+				CurrentWITKeySlot: newWITKeySlot("A"),
+				NextWITKeySlot:    newWITKeySlot("B"),
 			},
 			expectLogs: []spiretest.LogEntry{
 				{
@@ -661,6 +890,7 @@ func TestJournalLoad(t *testing.T) {
 					Data: logrus.Fields{
 						telemetry.X509CAs: "1",
 						telemetry.JWTKeys: "0",
+						telemetry.WITKeys: "0",
 					},
 				},
 				{
@@ -700,6 +930,7 @@ func TestJournalLoad(t *testing.T) {
 					Data: logrus.Fields{
 						telemetry.X509CAs: "0",
 						telemetry.JWTKeys: "1",
+						telemetry.WITKeys: "0",
 					},
 				},
 				{
@@ -735,6 +966,8 @@ func TestJournalLoad(t *testing.T) {
 				NextX509CASlot:    newX509CASlot("B"),
 				CurrentJWTKeySlot: newJWTKeySlot("A"),
 				NextJWTKeySlot:    newJWTKeySlot("B"),
+				CurrentWITKeySlot: newWITKeySlot("A"),
+				NextWITKeySlot:    newWITKeySlot("B"),
 			},
 			expectLogs: []spiretest.LogEntry{
 				{
@@ -743,11 +976,97 @@ func TestJournalLoad(t *testing.T) {
 					Data: logrus.Fields{
 						telemetry.X509CAs: "0",
 						telemetry.JWTKeys: "1",
+						telemetry.WITKeys: "0",
 					},
 				},
 				{
 					Level:   logrus.WarnLevel,
 					Message: "JWT key slot unusable",
+					Data: logrus.Fields{
+						logrus.ErrorKey:            "slot expired",
+						telemetry.IssuedAt:         thirdIssuedAt.String(),
+						telemetry.Slot:             "B",
+						telemetry.Status:           "ACTIVE",
+						telemetry.LocalAuthorityID: "a",
+					},
+				},
+			},
+		},
+		{
+			name: "Invalid WITKey entry",
+			entries: &journal.Entries{
+				WitKeys: []*journal.WITKeyEntry{
+					{
+						SlotId:      "B",
+						IssuedAt:    thirdIssuedAtUnix,
+						Kid:         "kid3",
+						NotAfter:    notAfterUnix,
+						PublicKey:   []byte("foo"),
+						Status:      journal.Status_PREPARED,
+						AuthorityId: "a",
+					},
+				},
+			},
+			expectError: expectParseErr.Error(),
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "Journal loaded",
+					Data: logrus.Fields{
+						telemetry.X509CAs: "0",
+						telemetry.JWTKeys: "0",
+						telemetry.WITKeys: "1",
+					},
+				},
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "WIT key slot failed to load",
+					Data: logrus.Fields{
+						logrus.ErrorKey:            expectParseErr.Error(),
+						telemetry.Slot:             "B",
+						telemetry.IssuedAt:         thirdIssuedAt.String(),
+						telemetry.Status:           "PREPARED",
+						telemetry.LocalAuthorityID: "a",
+					},
+				},
+			},
+		},
+		{
+			name: "Expired WITKey entry",
+			entries: &journal.Entries{
+				WitKeys: []*journal.WITKeyEntry{
+					{
+						SlotId:      "B",
+						IssuedAt:    thirdIssuedAtUnix,
+						Kid:         "kid3",
+						NotAfter:    time.Now().Add(-time.Minute).Unix(),
+						PublicKey:   witKeyAPKIX,
+						Status:      journal.Status_ACTIVE,
+						AuthorityId: "a",
+					},
+				},
+			},
+			expectSlots: map[SlotPosition]Slot{
+				CurrentX509CASlot: newX509CASlot("A"),
+				NextX509CASlot:    newX509CASlot("B"),
+				CurrentJWTKeySlot: newJWTKeySlot("A"),
+				NextJWTKeySlot:    newJWTKeySlot("B"),
+				CurrentWITKeySlot: newWITKeySlot("A"),
+				NextWITKeySlot:    newWITKeySlot("B"),
+			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "Journal loaded",
+					Data: logrus.Fields{
+						telemetry.X509CAs: "0",
+						telemetry.JWTKeys: "0",
+						telemetry.WITKeys: "1",
+					},
+				},
+				{
+					Level:   logrus.WarnLevel,
+					Message: "WIT key slot unusable",
 					Data: logrus.Fields{
 						logrus.ErrorKey:            "slot expired",
 						telemetry.IssuedAt:         thirdIssuedAt.String(),

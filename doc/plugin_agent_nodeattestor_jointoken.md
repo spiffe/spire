@@ -1,6 +1,6 @@
 # Agent plugin: NodeAttestor "join_token"
 
-*Must be used in conjunction with the server-side join_token plugin*
+*Must be used in conjunction with the [server-side join_token plugin](plugin_server_nodeattestor_jointoken.md)*
 
 The `join_token` is responsible for attesting the agent's identity using a one-time-use pre-shared key.
 

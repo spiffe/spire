@@ -8,6 +8,7 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"fmt"
+	"strings"
 
 	"github.com/spiffe/spire/pkg/common/catalog"
 )
@@ -46,6 +47,21 @@ const (
 	RSA2048
 	RSA4096
 )
+
+func KeyTypeFromString(s string) (KeyType, error) {
+	switch strings.ToLower(s) {
+	case "rsa-2048":
+		return RSA2048, nil
+	case "rsa-4096":
+		return RSA4096, nil
+	case "ec-p256":
+		return ECP256, nil
+	case "ec-p384":
+		return ECP384, nil
+	default:
+		return KeyTypeUnset, fmt.Errorf("key type %q is unknown; must be one of [rsa-2048, rsa-4096, ec-p256, ec-p384]", s)
+	}
+}
 
 // GenerateSigner generates a new key for the given key type
 func (keyType KeyType) GenerateSigner() (crypto.Signer, error) {

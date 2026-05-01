@@ -554,11 +554,42 @@ func TestLRUCacheCheckSVIDCallback(t *testing.T) {
 	assert.Equal(t, map[string]bool{foo.EntryId: true}, cache.staleEntries)
 }
 
-func TestLRUCacheGetStaleEntries(t *testing.T) {
+func TestLRUCacheGetStaleEntriesDisablePrefetch(t *testing.T) {
 	cache := newTestLRUCache(t)
 
-	bar := makeRegistrationEntryWithTTL("BAR", 130, 140, "B")
+	foo := makeRegistrationEntryWithTTL("FOO", 130, 140, "F")
+	fooAdditionalAttributes := &common.RegistrationEntry_AdditionalAttributes{
+		DisableX509SvidPrefetch: true,
+	}
+	foo.AdditionalAttributes = fooAdditionalAttributes
 
+	bar := makeRegistrationEntryWithTTL("BAR", 130, 140, "B")
+	barAdditionalAttributes := &common.RegistrationEntry_AdditionalAttributes{
+		DisableX509SvidPrefetch: false,
+	}
+	bar.AdditionalAttributes = barAdditionalAttributes
+
+	qux := makeRegistrationEntryWithTTL("QUX", 130, 140, "Q")
+	// Create entry but don't mark it stale from checkSVID method;
+	// it will be marked stale because it does not have SVID cached
+	cache.UpdateEntries(&UpdateEntries{
+		Bundles:             makeBundles(bundleV2),
+		RegistrationEntries: makeRegistrationEntries(foo, bar, qux),
+	}, func(existingEntry, newEntry *common.RegistrationEntry, svid *X509SVID) bool {
+		return false
+	})
+
+	// Assert that the entry is returned as stale. The `ExpiresAt` field should be unset since there is no SVID.
+	expectedEntries := []*StaleEntry{
+		{Entry: cache.records[bar.EntryId].entry},
+		{Entry: cache.records[qux.EntryId].entry},
+	}
+	assert.ElementsMatch(t, expectedEntries, cache.GetStaleEntries())
+}
+
+func TestLRUCacheGetStaleEntries(t *testing.T) {
+	cache := newTestLRUCache(t)
+	bar := makeRegistrationEntryWithTTL("BAR", 130, 140, "B")
 	// Create entry but don't mark it stale from checkSVID method;
 	// it will be marked stale because it does not have SVID cached
 	cache.UpdateEntries(&UpdateEntries{

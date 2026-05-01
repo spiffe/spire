@@ -2,6 +2,7 @@ package endpoints
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"maps"
 	"slices"
@@ -80,9 +81,15 @@ func (a *registrationEntries) searchBeforeFirstEvent(ctx context.Context) error 
 func (a *registrationEntries) selectPolledEvents(ctx context.Context) {
 	// check if the polled events have appeared out-of-order
 	selectedEvents := a.eventTracker.SelectEvents()
+	defer a.eventTracker.FreeEvents(selectedEvents)
+
 	for _, eventID := range selectedEvents {
 		log := a.log.WithField(telemetry.EventID, eventID)
 		event, err := a.ds.FetchRegistrationEntryEvent(ctx, eventID)
+
+		if errors.Is(err, context.Canceled) {
+			return
+		}
 
 		switch status.Code(err) {
 		case codes.OK:
@@ -96,7 +103,6 @@ func (a *registrationEntries) selectPolledEvents(ctx context.Context) {
 		a.fetchEntries[event.EntryID] = struct{}{}
 		a.eventTracker.StopTracking(eventID)
 	}
-	a.eventTracker.FreeEvents(selectedEvents)
 }
 
 func (a *registrationEntries) scanForNewEvents(ctx context.Context) error {
@@ -185,7 +191,6 @@ func buildRegistrationEntriesCache(ctx context.Context, log logrus.FieldLogger, 
 			AliasesByEntryID:  -1,
 			AliasesBySelector: -1,
 			EntriesByEntryID:  -1,
-			EntriesByParentID: -1,
 		},
 	}
 
@@ -274,9 +279,5 @@ func (a *registrationEntries) emitMetrics() {
 	if a.lastCacheStats.EntriesByEntryID != cacheStats.EntriesByEntryID {
 		a.lastCacheStats.EntriesByEntryID = cacheStats.EntriesByEntryID
 		server_telemetry.SetEntriesByEntryIDCacheCountGauge(a.metrics, a.lastCacheStats.EntriesByEntryID)
-	}
-	if a.lastCacheStats.EntriesByParentID != cacheStats.EntriesByParentID {
-		a.lastCacheStats.EntriesByParentID = cacheStats.EntriesByParentID
-		server_telemetry.SetEntriesByParentIDCacheCountGauge(a.metrics, a.lastCacheStats.EntriesByParentID)
 	}
 }

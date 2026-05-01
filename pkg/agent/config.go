@@ -43,9 +43,6 @@ type Config struct {
 	// The TLS Certificate resource name to use for the default X509-SVID with Envoy SDS
 	DefaultSVIDName string
 
-	// If true, the agent retries bootstrap with backoff
-	RetryBootstrap bool
-
 	// How the agent will behave when seeing an unknown x509 cert from the server
 	RebootstrapMode string
 
@@ -86,7 +83,7 @@ type Config struct {
 	TrustDomain spiffeid.TrustDomain
 
 	// Sources for getting Trust Bundles
-	TrustBundleSources *trustbundlesources.Bundle
+	TrustBundleSources trustbundlesources.Bundle
 
 	// Join token to use for attestation, if needed
 	JoinToken string

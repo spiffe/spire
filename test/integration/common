@@ -99,9 +99,9 @@ fingerprint() {
 }
 
 check-server-started() {
-  # Check at most 20 times (with one second in between) that the server has
+  # Check at most 30 times (with one second in between) that the server has
   # successfully started.
-  MAXCHECKS=20
+  MAXCHECKS=30
   CHECKINTERVAL=1
   for ((i=1;i<=MAXCHECKS;i++)); do
       log-info "checking for starting server APIs ($i of $MAXCHECKS max)..."
@@ -149,23 +149,43 @@ check-synced-entry() {
   fail-now "timed out waiting for agent to sync down entry"
 }
 
-check-x509-svid-count() {
+check-svid-count() {
   MAXCHECKS=50
   CHECKINTERVAL=1
 
   for ((i=1;i<=MAXCHECKS;i++)); do
-    log-info "check X.509-SVID count on agent debug endpoint ($((i)) of $MAXCHECKS max)..."
+    log-info "check SVID count on agent debug endpoint ($((i)) of $MAXCHECKS max)..."
     COUNT=$(docker compose exec -T "$1" /opt/spire/conf/agent/debugclient -testCase "printDebugPage" | jq '.svidsCount')
-    log-info "X.509-SVID Count: ${COUNT}"
+    log-info "SVID Count: ${COUNT}"
     if [ "$COUNT" -eq "$2" ]; then
-      log-info "X.509-SVID count of $COUNT from cache matches the expected count of $2"
+      log-info "SVID count of $COUNT from cache matches the expected count of $2"
       break
     fi
     sleep "${CHECKINTERVAL}"
   done
 
   if (( i>MAXCHECKS )); then
-      fail-now "X.509-SVID count validation failed"
+      fail-now "SVID count validation failed"
+  fi
+}
+
+check-debug-info() {
+  MAXCHECKS=50
+  CHECKINTERVAL=1
+
+  for ((i=1;i<=MAXCHECKS;i++)); do
+    log-info "check $2 on $1 debug endpoint ($((i)) of $MAXCHECKS max)..."
+    COUNT=$(docker compose exec -T "$1" /opt/spire/conf/agent/debugclient -testCase "printDebugPage" | jq $(printf '.%s' "$2"))
+    log-info "$2: ${COUNT}"
+    if [ "$COUNT" -eq "$3" ]; then
+      log-info "SVID count of $COUNT matches the expected count of $3"
+      break
+    fi
+    sleep "${CHECKINTERVAL}"
+  done
+
+  if (( i>MAXCHECKS )); then
+      fail-now "$2 validation failed"
   fi
 }
 
@@ -193,34 +213,23 @@ curl-with-retry() {
 }
 
 envoy-releases() {
-    # Get the version list by downloading the JSON release listing, grabbing all of
-    # the tag names, cutting out the quoted version, and sorting by reverse version
-    # order. jq would make this much nicer, but we don't want to rely on it being
-    # in the environment or downloading it just for this use case. Also, "sort -V"
-    # is a thing, but unfortunately isn't available everyhere.
-    #
-    # The rest of the command strips off the point release to produce a sorted,
-    # unique list of minor versions. We take the most recent MAX_ENVOY_RELEASES_TO_TEST
-    # number of versions to test.
-    ALL_ENVOY_RELEASES="$(curl-with-retry -Ls https://api.github.com/repos/envoyproxy/envoy/releases?per_page=100 \
-        | grep tag_name \
-        | cut -d\" -f4-4 \
-        | cut -d. -f-2 \
+    # Get the version list directly from Docker Hub using regctl. We filter for
+    # minor-version tags of the form vX.Y-latest, strip the -latest suffix to
+    # get the minor version, then sort in reverse version order and take the most
+    # recent MAX_ENVOY_RELEASES_TO_TEST. Using regctl avoids relying on the
+    # GitHub API, which can be rate-limited in CI environments.
+    ALL_ENVOY_RELEASES="$(regctl tag ls docker.io/envoyproxy/envoy \
+        | grep -E '^v[0-9]+\.[0-9]+-latest$' \
+        | sed 's/-latest$//' \
         | sort -u -t. -k 1,1nr -k 2,2nr \
         | head -n"${MAX_ENVOY_RELEASES_TO_TEST}"
         )"
 
-    # Now scan the releases and ensure the ones we test are available on Docker
-    # Hub.  Normally they should all be available, but there has been latency from
-    # the Envoy team publishing the docker image, so this prevents us from trying
-    # to test an unpublished release image. This loop also stops if we try and test
-    # earlier than v1.13, which is the first release to adopt the v3 API (v2 is
-    # deprecated).
+    # Tags returned by regctl are confirmed to exist on Docker Hub, so no
+    # separate availability check is needed. This loop stops if we reach
+    # EARLIEST_ENVOY_RELEASE_TO_TEST, which is the first release to adopt the
+    # v3 API (v2 is deprecated).
     for release in ${ALL_ENVOY_RELEASES}; do
-        if ! curl-with-retry --silent -f -lSL "https://hub.docker.com/v2/repositories/envoyproxy/envoy/tags/${release}-latest" > /dev/null 2>/dev/null; then
-            continue
-        fi
-
         ENVOY_RELEASES_TO_TEST+=( "${release}" )
 
         if [ "${release}" = "${EARLIEST_ENVOY_RELEASE_TO_TEST}" ]; then
@@ -244,7 +253,7 @@ download-bin() {
 }
 
 download-kind() {
-    KINDVERSION=${KINDVERSION:-v0.27.0}
+    KINDVERSION=${KINDVERSION:-v0.30.0}
     KINDPATH=$(command -v kind || echo)
     UNAME=$(uname | awk '{print tolower($0)}')
     ARCH=$(uname -m)
@@ -253,7 +262,7 @@ download-kind() {
     elif [ "${ARCH}" = "aarch64" ]; then
         ARCH=arm64
     fi
-    echo "Ensuring kind version $KINDVERSION is available..." 
+    echo "Ensuring kind version $KINDVERSION is available..."
     KINDURL="https://github.com/kubernetes-sigs/kind/releases/download/$KINDVERSION/kind-$UNAME-$ARCH"
 
     local kind_link_or_path=$1
@@ -266,7 +275,7 @@ download-kind() {
 }
 
 download-helm() {
-    HELMVERSION=${HELMVERSION:-v3.17.1}
+    HELMVERSION=${HELMVERSION:-v3.19.0}
     HELMPATH=$(command -v helm || echo)
     UNAME=$(uname | awk '{print tolower($0)}')
     ARCH=$(uname -m)
@@ -276,7 +285,7 @@ download-helm() {
         ARCH=arm64
     fi
 
-    echo "Ensuring helm version $HELMVERSION is available..." 
+    echo "Ensuring helm version $HELMVERSION is available..."
     HELMURL="https://get.helm.sh/helm-${HELMVERSION}-${UNAME}-${ARCH}.tar.gz"
 
     local helm_link_or_path=$1
@@ -293,7 +302,7 @@ download-helm() {
 }
 
 download-kubectl() {
-    WANTVERSION=${KUBECTLVERSION:-v1.30.10}
+    WANTVERSION=${KUBECTLVERSION:-v1.31.13}
     KUBECTLPATH=$(command -v kubectl || echo)
     UNAME=$(uname | awk '{print tolower($0)}')
     ARCH=$(uname -m)
@@ -323,7 +332,7 @@ download-kubectl() {
 }
 
 start-kind-cluster() {
-    K8SIMAGE=${K8SIMAGE:-kindest/node:v1.30.10}
+    K8SIMAGE=${K8SIMAGE:-kindest/node:v1.31.12}
 
     local kind_path=$1
     local kind_name=$2
@@ -350,4 +359,12 @@ set-kubectl-context() {
 
     log-info "setting kubectl cluster context..."
     "${kubectl_path}" cluster-info --context "${context}"
+}
+
+dump-multiple-container-logs() {
+    log-warn "Dumping container logs for diagnostics..."
+    for container in "$@"; do
+        log-warn "=== Logs for ${container} ==="
+        docker compose logs "${container}" || log-warn "Failed to get logs for ${container}"
+    done
 }

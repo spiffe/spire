@@ -370,7 +370,7 @@ func (c googleComputeEngineClient) fetchInstanceMetadata(ctx context.Context, pr
 
 func (c googleComputeEngineClient) getService(ctx context.Context, serviceAccountFile string) (*compute.Service, error) {
 	if serviceAccountFile != "" {
-		return compute.NewService(ctx, option.WithCredentialsFile(serviceAccountFile))
+		return compute.NewService(ctx, option.WithAuthCredentialsFile(option.ServiceAccount, serviceAccountFile))
 	}
 	return compute.NewService(ctx)
 }

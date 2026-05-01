@@ -24,19 +24,24 @@ var (
 )
 
 type Options struct {
-	Clock        clock.Clock
-	AgentSVIDTTL time.Duration
-	X509SVIDTTL  time.Duration
-	JWTSVIDTTL   time.Duration
+	Clock           clock.Clock
+	AgentSVIDTTL    time.Duration
+	X509SVIDTTL     time.Duration
+	JWTSVIDTTL      time.Duration
+	WITSVIDTTL      time.Duration
+	DisableJWTSVIDs bool
+	DisableWITSVIDs bool
 }
 
 type CA struct {
-	ca            *ca.CA
-	credBuilder   *credtemplate.Builder
-	credValidator *credvalidator.Validator
-	options       *Options
-	bundle        []*x509.Certificate
-	err           error
+	ca              *ca.CA
+	credBuilder     *credtemplate.Builder
+	credValidator   *credvalidator.Validator
+	options         *Options
+	bundle          []*x509.Certificate
+	err             error
+	disableJWTSVIDs bool
+	disableWITSVIDs bool
 }
 
 func New(t *testing.T, trustDomain spiffeid.TrustDomain, options *Options) *CA {
@@ -55,6 +60,9 @@ func New(t *testing.T, trustDomain spiffeid.TrustDomain, options *Options) *CA {
 	if options.JWTSVIDTTL == 0 {
 		options.JWTSVIDTTL = time.Minute
 	}
+	if options.WITSVIDTTL == 0 {
+		options.WITSVIDTTL = time.Minute
+	}
 
 	log, _ := test.NewNullLogger()
 
@@ -67,6 +75,7 @@ func New(t *testing.T, trustDomain spiffeid.TrustDomain, options *Options) *CA {
 		AgentSVIDTTL: options.AgentSVIDTTL,
 		X509SVIDTTL:  options.X509SVIDTTL,
 		JWTSVIDTTL:   options.JWTSVIDTTL,
+		WITSVIDTTL:   options.WITSVIDTTL,
 	})
 	require.NoError(t, err)
 
@@ -77,12 +86,14 @@ func New(t *testing.T, trustDomain spiffeid.TrustDomain, options *Options) *CA {
 	require.NoError(t, err)
 
 	serverCA := ca.NewCA(ca.Config{
-		Log:           log,
-		Metrics:       telemetry.Blackhole{},
-		CredBuilder:   credBuilder,
-		CredValidator: credValidator,
-		TrustDomain:   trustDomain,
-		HealthChecker: healthChecker,
+		Log:             log,
+		Metrics:         telemetry.Blackhole{},
+		CredBuilder:     credBuilder,
+		CredValidator:   credValidator,
+		TrustDomain:     trustDomain,
+		HealthChecker:   healthChecker,
+		DisableJWTSVIDs: options.DisableJWTSVIDs,
+		DisableWITSVIDs: options.DisableWITSVIDs,
 	})
 
 	template, err := credBuilder.BuildSelfSignedX509CATemplate(context.Background(), credtemplate.SelfSignedX509CAParams{
@@ -102,13 +113,19 @@ func New(t *testing.T, trustDomain spiffeid.TrustDomain, options *Options) *CA {
 		Kid:      "KID",
 		NotAfter: options.Clock.Now().Add(time.Hour),
 	})
+	serverCA.SetWITKey(&ca.WITKey{
+		Signer:   signer,
+		Kid:      "KID",
+		NotAfter: options.Clock.Now().Add(time.Hour),
+	})
 
 	return &CA{
-		ca:            serverCA,
-		credBuilder:   credBuilder,
-		credValidator: credValidator,
-		options:       options,
-		bundle:        []*x509.Certificate{caCert},
+		ca:              serverCA,
+		credBuilder:     credBuilder,
+		credValidator:   credValidator,
+		options:         options,
+		bundle:          []*x509.Certificate{caCert},
+		disableJWTSVIDs: options.DisableJWTSVIDs,
 	}
 }
 
@@ -126,6 +143,10 @@ func (c *CA) SetX509CA(x509CA *ca.X509CA) {
 
 func (c *CA) SetJWTKey(jwtKey *ca.JWTKey) {
 	c.ca.SetJWTKey(jwtKey)
+}
+
+func (c *CA) SetWITKey(witKey *ca.WITKey) {
+	c.ca.SetWITKey(witKey)
 }
 
 func (c *CA) NotifyTaintedX509Authorities(taintedAuthorities []*x509.Certificate) {
@@ -167,6 +188,13 @@ func (c *CA) SignWorkloadJWTSVID(ctx context.Context, params ca.WorkloadJWTSVIDP
 	return c.ca.SignWorkloadJWTSVID(ctx, params)
 }
 
+func (c *CA) SignWorkloadWITSVID(ctx context.Context, params ca.WorkloadWITSVIDParams) (string, error) {
+	if c.err != nil {
+		return "", c.err
+	}
+	return c.ca.SignWorkloadWITSVID(ctx, params)
+}
+
 func (c *CA) TaintedAuthorities() <-chan []*x509.Certificate {
 	return c.ca.TaintedAuthorities()
 }
@@ -193,4 +221,24 @@ func (c *CA) X509SVIDTTL() time.Duration {
 
 func (c *CA) JWTSVIDTTL() time.Duration {
 	return c.options.JWTSVIDTTL
+}
+
+func (c *CA) WITSVIDTTL() time.Duration {
+	return c.options.WITSVIDTTL
+}
+
+func (c *CA) IsJWTSVIDsDisabled() bool {
+	return c.disableJWTSVIDs
+}
+
+func (c *CA) IsWITSVIDsDisabled() bool {
+	return c.disableWITSVIDs
+}
+
+func (c *CA) SetDisableJWTSVIDs(disableJWTSVIDs bool) {
+	c.disableJWTSVIDs = disableJWTSVIDs
+}
+
+func (c *CA) SetDisableWITSVIDs(disableWITSVIDs bool) {
+	c.disableWITSVIDs = disableWITSVIDs
 }

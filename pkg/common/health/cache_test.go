@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
@@ -48,6 +49,7 @@ func TestStartNoCheckerSet(t *testing.T) {
 }
 
 func TestHealthFailsAndRecover(t *testing.T) {
+	const testTimeout = 3 * time.Second
 	log, hook := test.NewNullLogger()
 	log.Level = logrus.DebugLevel
 	waitFor := make(chan struct{}, 1)
@@ -106,7 +108,7 @@ func TestHealthFailsAndRecover(t *testing.T) {
 				Message: "Health check failed",
 				Data: logrus.Fields{
 					telemetry.Check:   "bar",
-					telemetry.Details: "{false false {} {}}",
+					telemetry.Details: "{<nil> false false {} {}}",
 					telemetry.Error:   "subsystem is not live or ready",
 				},
 			},
@@ -151,6 +153,7 @@ func TestHealthFailsAndRecover(t *testing.T) {
 	}
 
 	t.Run("start successfully after initial failure", func(t *testing.T) {
+		clockMock.WaitForAfter(testTimeout, "timed out waiting for worker to call After")
 		// Move to next initial interval
 		clockMock.Add(readyCheckInitialInterval)
 
@@ -163,7 +166,7 @@ func TestHealthFailsAndRecover(t *testing.T) {
 				Message: "Health check recovered",
 				Data: logrus.Fields{
 					telemetry.Check:    "bar",
-					telemetry.Details:  "{true true {} {}}",
+					telemetry.Details:  "{<nil> true true {} {}}",
 					telemetry.Duration: "1",
 					telemetry.Error:    "subsystem is not live or ready",
 					telemetry.Failures: "1",
@@ -208,6 +211,7 @@ func TestHealthFailsAndRecover(t *testing.T) {
 	}
 
 	t.Run("health start to fail", func(t *testing.T) {
+		clockMock.WaitForAfter(testTimeout, "timed out waiting for worker to call After")
 		// Move to next interval
 		clockMock.Add(readyCheckInterval)
 
@@ -251,7 +255,7 @@ func TestHealthFailsAndRecover(t *testing.T) {
 				Message: "Health check failed",
 				Data: logrus.Fields{
 					telemetry.Check:   "foo",
-					telemetry.Details: "{false false {live is failing} {ready is failing}}",
+					telemetry.Details: "{<nil> false false {live is failing} {ready is failing}}",
 					telemetry.Error:   "subsystem is not live or ready",
 				},
 			},
@@ -264,7 +268,7 @@ func TestHealthFailsAndRecover(t *testing.T) {
 	t.Run("health still failing", func(t *testing.T) {
 		hook.Reset()
 		previousFailureDate := clockMock.Now()
-
+		clockMock.WaitForAfter(testTimeout, "timed out waiting for worker to call After")
 		// Move to next interval
 		clockMock.Add(readyCheckInterval)
 
@@ -320,7 +324,7 @@ func TestHealthFailsAndRecover(t *testing.T) {
 
 	t.Run("health recovered", func(t *testing.T) {
 		hook.Reset()
-
+		clockMock.WaitForAfter(testTimeout, "timed out waiting for worker to call After")
 		// Move to next interval
 		clockMock.Add(readyCheckInterval)
 
@@ -354,7 +358,7 @@ func TestHealthFailsAndRecover(t *testing.T) {
 				Message: "Health check recovered",
 				Data: logrus.Fields{
 					telemetry.Check:    "foo",
-					telemetry.Details:  "{true true {} {}}",
+					telemetry.Details:  "{<nil> true true {} {}}",
 					telemetry.Duration: "120",
 					telemetry.Error:    "subsystem is not live or ready",
 					telemetry.Failures: "2",

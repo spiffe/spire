@@ -13,6 +13,8 @@ import (
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
 	"github.com/spiffe/spire/test/fakes/fakemetrics"
 	"github.com/spiffe/spire/test/spiretest"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestManager(t *testing.T) {
@@ -39,10 +41,10 @@ func (s *ManagerSuite) SetupTest() {
 }
 
 func (s *ManagerSuite) TestPruning() {
-	done := s.setupAndRunManager()
-	defer done()
+	ctx := s.T().Context()
 
-	expiry := s.clock.Now().Add(_pruningCadence)
+	done := s.setupAndRunManager(ctx)
+	defer done()
 
 	// expires right on the pruning time
 	entry1 := &common.RegistrationEntry{
@@ -55,10 +57,10 @@ func (s *ManagerSuite) TestPruning() {
 				Value: "value",
 			},
 		},
-		EntryExpiry: expiry.Unix(),
+		EntryExpiry: s.clock.Now().Add(_pruningCadence).Unix(),
 	}
 
-	registrationEntry1, err := s.ds.CreateRegistrationEntry(context.Background(), entry1)
+	registrationEntry1, err := s.ds.CreateRegistrationEntry(ctx, entry1)
 
 	s.NoError(err)
 
@@ -73,10 +75,10 @@ func (s *ManagerSuite) TestPruning() {
 				Value: "value",
 			},
 		},
-		EntryExpiry: expiry.Add(time.Minute).Unix(),
+		EntryExpiry: s.clock.Now().Add(2*_pruningCadence + time.Minute).Unix(),
 	}
 
-	registrationEntry2, err := s.ds.CreateRegistrationEntry(context.Background(), entry2)
+	registrationEntry2, err := s.ds.CreateRegistrationEntry(ctx, entry2)
 
 	s.NoError(err)
 
@@ -91,42 +93,47 @@ func (s *ManagerSuite) TestPruning() {
 				Value: "value",
 			},
 		},
-		EntryExpiry: expiry.Add(2 * time.Minute).Unix(),
+		EntryExpiry: s.clock.Now().Add(3*_pruningCadence + 2*time.Minute).Unix(),
 	}
 
-	registrationEntry3, err := s.ds.CreateRegistrationEntry(context.Background(), entry3)
+	registrationEntry3, err := s.ds.CreateRegistrationEntry(ctx, entry3)
 
 	s.NoError(err)
 
 	// no pruning yet
-	s.NoError(s.m.prune(context.Background()))
-	listResp, err := s.ds.ListRegistrationEntries(context.Background(), &datastore.ListRegistrationEntriesRequest{})
-	s.NoError(err)
-	s.Equal([]*common.RegistrationEntry{registrationEntry1, registrationEntry2, registrationEntry3}, listResp.Entries)
+	s.clock.Add(_pruningCadence)
+	s.Require().EventuallyWithT(func(c *assert.CollectT) {
+		listResp, err := s.ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{})
+		require.NoError(c, err)
+		require.Equal(c, []*common.RegistrationEntry{registrationEntry1, registrationEntry2, registrationEntry3}, listResp.Entries)
+	}, 1*time.Second, 100*time.Millisecond, "Expected no entries to have been pruned")
 
 	// prune first entry
-	s.clock.Add(_pruningCadence + time.Second)
-	s.NoError(s.m.prune(context.Background()))
-	listResp, err = s.ds.ListRegistrationEntries(context.Background(), &datastore.ListRegistrationEntriesRequest{})
-	s.NoError(err)
-	s.Equal([]*common.RegistrationEntry{registrationEntry2, registrationEntry3}, listResp.Entries)
+	s.clock.Add(_pruningCadence)
+	s.Require().EventuallyWithT(func(c *assert.CollectT) {
+		listResp, err := s.ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{})
+		require.NoError(c, err)
+		require.Equal(c, []*common.RegistrationEntry{registrationEntry2, registrationEntry3}, listResp.Entries)
+	}, 1*time.Second, 100*time.Millisecond, "Expected one entry to have been pruned")
 
 	// prune second entry
-	s.clock.Add(time.Minute)
-	s.NoError(s.m.prune(context.Background()))
-	listResp, err = s.ds.ListRegistrationEntries(context.Background(), &datastore.ListRegistrationEntriesRequest{})
-	s.NoError(err)
-	s.Equal([]*common.RegistrationEntry{registrationEntry3}, listResp.Entries)
+	s.clock.Add(_pruningCadence)
+	s.Require().EventuallyWithT(func(c *assert.CollectT) {
+		listResp, err := s.ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{})
+		require.NoError(c, err)
+		require.Equal(c, []*common.RegistrationEntry{registrationEntry3}, listResp.Entries)
+	}, 1*time.Second, 100*time.Millisecond, "Expected two entries to have been pruned")
 
 	// prune third entry
-	s.clock.Add(time.Minute)
-	s.NoError(s.m.prune(context.Background()))
-	listResp, err = s.ds.ListRegistrationEntries(context.Background(), &datastore.ListRegistrationEntriesRequest{})
-	s.NoError(err)
-	s.Empty(listResp.Entries)
+	s.clock.Add(_pruningCadence)
+	s.Require().EventuallyWithT(func(c *assert.CollectT) {
+		listResp, err := s.ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{})
+		require.NoError(c, err)
+		require.Empty(c, listResp.Entries)
+	}, 1*time.Second, 100*time.Millisecond, "Expected all entries to have been pruned")
 }
 
-func (s *ManagerSuite) setupAndRunManager() func() {
+func (s *ManagerSuite) setupAndRunManager(ctx context.Context) func() {
 	s.m = NewManager(ManagerConfig{
 		Clock:     s.clock,
 		DataStore: s.ds,
@@ -134,7 +141,7 @@ func (s *ManagerSuite) setupAndRunManager() func() {
 		Metrics:   s.metrics,
 	})
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(ctx)
 	errCh := make(chan error, 1)
 	go func() {
 		errCh <- s.m.Run(ctx)

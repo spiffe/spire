@@ -1,5 +1,187 @@
 # Changelog
 
+## [1.14.5] - 2026-04-08
+
+### Security
+
+- Upgrade Go to 1.26.2 to address CVE-2026-32282, CVE-2026-32289, CVE-2026-33810, CVE-2026-27144, CVE-2026-27143, CVE-2026-32288, CVE-2026-32283, CVE-2026-27140, CVE-2026-32281
+
+## [1.14.4] - 2026-03-19
+
+### Fixed
+
+- The version that the agent was reporting at startup would get replaced by an empty string every time the agent re-attests or re-news it's SVID (#6763)
+
+## [1.14.3] - 2026-03-18
+
+### Added
+
+- `spire-agent` version is now reported to `spire-server` via the PostStatus API and visible in `GetAgent`/`ListAgents` CLI output (#6542)
+
+### Changed
+
+- The `RequirePQKEM` TLS policy now uses the standardized `X25519MLKEM768` instead of the draft `x25519Kyber768Draft00` (#6703)
+- OPA policy evaluation performance improved by ~2x, based on benchmarking, through use of partial evaluation (#6633)
+
+### Fixed
+
+- `ReadOnlyEntry.Clone()` was incorrectly copying the `Admin` boolean into the `Downstream` field when applying an output mask, causing clients of `GetAuthorizedEntries` and `SyncAuthorizedEntries` to receive corrupted authorization metadata. The `Admin` and `Downstream` booleana were not used in `spire-agent` so there was no impact from this (#6636)
+- The periodic node cache rebuild was only executing once instead of running continuously at the configured interval (#6661)
+- Race condition in the `spire` upstream authority plugin during shutdown that could cause a nil pointer dereference on the bundle client (#6590)
+- `aws_iid` attestor AWS request timeout increased from 5s to 20s to prevent intermittent attestation failures in large AWS Organizations (#6558)
+- Federated trust bundles are now fetched concurrently, reducing the chance of exceeding the agent sync timeout when there are many federation relationships (#6491)
+- JWT-SVID refresh now uses a 1s timeout when a cached SVID already exists, preventing an unresponsive server from blocking delivery of a valid cached SVID (#6454)
+- Documentation improvements (#6607, #6608, #6632)
+
+### Security
+
+- Selectors are no longer logged at the agent level to avoid potential leakage of sensitive information (#6732)
+- Fixed an issue where TLS session ticket resumption on the server TCP endpoint could bypass SPIFFE certificate chain validation against the current trust bundle. TLS session tickets are now disabled on the server side, ensuring `VerifyPeerCertificate` runs on every connection (#6715)
+
+## [1.14.2] - 2026-03-03
+
+### Security
+
+- Fixed an issue in the `http_challenge` server node attestor plugin which allowed an attacker to make an SSRF attack. The attacker could potentially redirect the server to a domain that they wouldn't normally have access. spire-server would make an unauthenticated GET request to that domain and return the first 64 bytes of the response to the attacker. Thank you, Oleh Konko (@1seal) for reporting this isuse.
+- Fixed an issue in the `x509pop` server node attestor plugin which allowed an attacker to make spire-server consume large and disproportionate mounts of CPU time for the node attestation process. Thank you [Jakub Ciolek](https://github.com/jake-ciolek) for reporting this issue.
+
+## [1.14.1] - 2026-01-15
+
+### Changed
+
+- The `uptime_in_ms` gauge metric now uses float64 instead of integer (#6532)
+- SPIRE Server on Windows can now accept persistent arguments in the service binPath for automatic startup (#6465)
+
+### Fixed
+
+- Incorrect logic for disposing keys in the `aws_kms` KeyManager plugin (#6525)
+- JWT-SVID caching now uses the SPIFFE ID returned by the server to prevent stale cache entries when entry IDs change (#6501)
+- Documentation fixes (#6488, #6521)
+
+## [1.14.0] - 2025-12-11
+
+### Added
+
+- New `azure_imds` node attestor plugin for attesting nodes running in Microsoft Azure using the Azure Instance Metadata Service (IMDS) (#6312)
+- The AWS KMS key manager plugin now supports key tagging (#6410)
+- The JWT-SVID profile on spire server can now be disabled using the `disable_jwt_svids` config (#6272)
+- `spire-server validate` now supports validating plugin configuration (#6355)
+- Support for ec-p384 curve in the `workload_x509_svid_key_type` configuration option in spire-agent (#6389)
+- The docker workload attestor now supports the `docker:image_config_digest` selector (#6391)
+- GCP CAs now specify a `certificate_id` in `CreateCertificateRequest` for Enterprise tier compatibility (#6392)
+- Dummy implementations for the WIT-SVID profile (#6399)
+- GCP cloudsql-proxy can now be used with postgres (#6463)
+- The KeyManager directory is now validated to exist and be writeable on agent startup (#6397)
+
+### Changed
+
+- QueryContext is now used for querying the version database version and CTE support (#6461)
+- The `k8s` and `docker` workload attestors now ignore cgroup mountinfo with root == / (#6462)
+- spire-server now stops fetching all events if a context cancelled error is returned while processing a list of events (#6472)
+
+### Removed
+
+- Removed the deprecated 'retry_rebootstrap' agent config (#6431)
+- Removed unused database model, V3AttestedNode (#6381)
+
+### Fixed
+
+- Added k8s_configmap BundlePublisher to documentation (#6437)
+- Added tpm_devid to supported Agent plugins documentation (#6449)
+
+## [1.13.4] - 2026-03-03
+
+### Security
+
+- Fixed an issue in the `http_challenge` server node attestor plugin which allowed an attacker to make an SSRF attack. The attacker could potentially redirect the server to a domain that they wouldn't normally have access. spire-server would make an unauthenticated GET request to that domain and return the first 64 bytes of the response to the attacker. Thank you, Oleh Konko (@1seal) for reporting this isuse.
+- Fixed an issue in the `x509pop` server node attestor plugin which allowed an attacker to make spire-server consume large and disproportionate mounts of CPU time for the node attestation process. Thank you [Jakub Ciolek](https://github.com/jake-ciolek) for reporting this issue.
+
+## [1.13.3] - 2025-10-23
+
+### Added
+
+- X.509 CA metric with absolute expiration time in addition to TTL-based metric (#6303)
+- `spire-agent` configuration to source join tokens from files to support integration with third-party credential providers (#6330)
+- Capability to filter on caller path in `spire-server` Rego authorization policies (#6320)
+
+### Changed
+
+- `spire-server` will use the SHA-256 algorithm for X.509-SVID Subject Key Identifiers when the `GODEBUG` environment variable contains `fips140=only` (#6294)
+- Attested node entries are now purged at a fixed interval with jitter (#6315)
+- `oidc-discovery-provider` now fails to initialize when started with unrecognized arguments (#6297)
+
+### Fixed
+
+- Documentation fixes (#6309, #6323, #6377)
+
+## [1.13.2] - 2025-10-08
+
+### Security
+
+- Upgrade Go to 1.25.2 to address CVE-2025-58187, CVE-2025-61723, CVE-2025-47912, CVE-2025-58185, and CVE-2025-58188 (#6363)
+
+## [1.13.1] - 2025-09-18
+
+### Added
+
+- `aws_iid` NodeAttestor can now verify that nodes belong to specified EKS clusters (#5969)
+- The server now supports configuring how long to cache attested node information, reducing node fetch dependency for RPCs (#6176)
+- `aws_s3`, `gcp_cloudstorage`, and `k8s_configmap` BundlePublisher plugins now support setting a refresh hint for the published bundle (#6276)
+
+### Changed
+
+- The "Subscribing to cache changes" log message from the DelegatedIdentity agent API is now logged at Debug level (#6255)
+- Integration tests now exercise currently supported Postgres versions (#6275)
+- Minor documentation improvements (#6280, #6293, #6296)
+
+### Fixed
+
+- `spire-server entry delete` CLI command now properly displays results when no failures are involved (#6176)
+
+### Security
+
+- Fixed agent name length validation in the `http_challenge` NodeAttestor plugin, to prevent issues with web servers that cannot handle very large URLs (#6324)
+
+## [1.13.0] - 2025-08-15
+
+### Added
+
+- Server configurable for periodically purging expired agents (#6152)
+- The experimental events-based cache now implements a full cache reload (#6151)
+- Support for automatic agent rebootstrap when the server CA goes invalid (#5892)
+
+### Changed
+
+- Default values for `rebootstrapMode` and `rebootstrapDelay` in SPIRE Agent (#6227)
+- "No identities issued" error log now includes the attested selectors (#6179)
+- Server configuration validation to verify `agent_ttl` compatibility with current `ca_ttl` (#6178)
+- Small documentation improvements (#6169)
+
+### Deprecated
+
+- `retry_bootstrap` experimental agent setting (#5906)
+
+### Fixed
+
+- Health checks and metrics initialization when `retry_bootstrap` is enabled (#6164)
+
+### Removed
+
+- The deprecated `use_legacy_downstream_x509_ca_ttl` server configurable (#5703)
+- The deprecated `use_rego_v1` server configurable (#6219)
+
+## [1.12.6] - 2025-10-08
+
+### Security
+
+- Upgrade Go to 1.24.8 to address CVE-2025-58187, CVE-2025-61723, CVE-2025-47912, CVE-2025-58185, and CVE-2025-58188 (#6362)
+
+## [1.12.5] - 2025-08-18
+
+### Security
+
+- Upgrade Go to 1.24.6 for [GO-2025-3849](https://pkg.go.dev/vuln/GO-2025-3849) (#6250)
+
 ## [1.12.4] - 2025-07-01
 
 ### Added
@@ -1039,7 +1221,7 @@ Thanks to Edoardo Geraci for reporting this issue.
 - The K8s Workload Registrar now supports Kubernetes 1.22 (#2515,#2540)
 - Self-signed CA certificates serial numbers are now conformant to RFC 5280 (#2494)
 - The AWS KMS Key Manager plugin now creates keys with a very strict policy by default (#2424)
-- The deprecated agent key file (`svid.key`) is proactively removed by the agent. It was only maintained to accomodate rollback from v1.0 to v0.12 (#2493)
+- The deprecated agent key file (`svid.key`) is proactively removed by the agent. It was only maintained to accommodate rollback from v1.0 to v0.12 (#2493)
 
 ### Removed
 

@@ -25,6 +25,7 @@ type CAManager interface {
 	GetNextJWTKeySlot() manager.Slot
 	PrepareJWTKey(ctx context.Context) error
 	RotateJWTKey(ctx context.Context)
+	IsJWTSVIDsDisabled() bool
 
 	// X509
 	GetCurrentX509CASlot() manager.Slot
@@ -68,6 +69,9 @@ type Service struct {
 
 func (s *Service) GetJWTAuthorityState(ctx context.Context, _ *localauthorityv1.GetJWTAuthorityStateRequest) (*localauthorityv1.GetJWTAuthorityStateResponse, error) {
 	log := rpccontext.Logger(ctx)
+	if s.isJWTSVIDsDisabled() {
+		return nil, api.MakeErr(log, codes.Unimplemented, "JWT functionality is disabled", nil)
+	}
 
 	current := s.ca.GetCurrentJWTKeySlot()
 	switch {
@@ -102,6 +106,9 @@ func (s *Service) GetJWTAuthorityState(ctx context.Context, _ *localauthorityv1.
 
 func (s *Service) PrepareJWTAuthority(ctx context.Context, _ *localauthorityv1.PrepareJWTAuthorityRequest) (*localauthorityv1.PrepareJWTAuthorityResponse, error) {
 	log := rpccontext.Logger(ctx)
+	if s.isJWTSVIDsDisabled() {
+		return nil, api.MakeErr(log, codes.Unimplemented, "JWT functionality is disabled", nil)
+	}
 
 	current := s.ca.GetCurrentJWTKeySlot()
 	if current.Status() != journal.Status_ACTIVE {
@@ -127,6 +134,11 @@ func (s *Service) PrepareJWTAuthority(ctx context.Context, _ *localauthorityv1.P
 func (s *Service) ActivateJWTAuthority(ctx context.Context, req *localauthorityv1.ActivateJWTAuthorityRequest) (*localauthorityv1.ActivateJWTAuthorityResponse, error) {
 	rpccontext.AddRPCAuditFields(ctx, buildAuditLogFields(req.AuthorityId))
 	log := rpccontext.Logger(ctx)
+
+	if s.isJWTSVIDsDisabled() {
+		return nil, api.MakeErr(log, codes.Unimplemented, "JWT functionality is disabled", nil)
+	}
+
 	if req.AuthorityId != "" {
 		log = log.WithField(telemetry.LocalAuthorityID, req.AuthorityId)
 	}
@@ -164,6 +176,11 @@ func (s *Service) ActivateJWTAuthority(ctx context.Context, req *localauthorityv
 func (s *Service) TaintJWTAuthority(ctx context.Context, req *localauthorityv1.TaintJWTAuthorityRequest) (*localauthorityv1.TaintJWTAuthorityResponse, error) {
 	rpccontext.AddRPCAuditFields(ctx, buildAuditLogFields(req.AuthorityId))
 	log := rpccontext.Logger(ctx)
+
+	if s.isJWTSVIDsDisabled() {
+		return nil, api.MakeErr(log, codes.Unimplemented, "JWT functionality is disabled", nil)
+	}
+
 	if req.AuthorityId != "" {
 		log = log.WithField(telemetry.LocalAuthorityID, req.AuthorityId)
 	}
@@ -207,6 +224,9 @@ func (s *Service) TaintJWTAuthority(ctx context.Context, req *localauthorityv1.T
 func (s *Service) RevokeJWTAuthority(ctx context.Context, req *localauthorityv1.RevokeJWTAuthorityRequest) (*localauthorityv1.RevokeJWTAuthorityResponse, error) {
 	rpccontext.AddRPCAuditFields(ctx, buildAuditLogFields(req.AuthorityId))
 	log := rpccontext.Logger(ctx)
+	if s.isJWTSVIDsDisabled() {
+		return nil, api.MakeErr(log, codes.Unimplemented, "JWT functionality is disabled", nil)
+	}
 
 	authorityID := req.AuthorityId
 
@@ -481,6 +501,35 @@ func (s *Service) RevokeX509UpstreamAuthority(ctx context.Context, req *localaut
 	return &localauthorityv1.RevokeX509UpstreamAuthorityResponse{
 		UpstreamAuthoritySubjectKeyId: subjectKeyIDRequest,
 	}, nil
+}
+
+func (s *Service) GetWITAuthorityState(ctx context.Context, _ *localauthorityv1.GetWITAuthorityStateRequest) (*localauthorityv1.GetWITAuthorityStateResponse, error) {
+	log := rpccontext.Logger(ctx)
+	return nil, api.MakeErr(log, codes.Unimplemented, "WIT-SVID functionality is not yet implemented", nil)
+}
+
+func (s *Service) PrepareWITAuthority(ctx context.Context, _ *localauthorityv1.PrepareWITAuthorityRequest) (*localauthorityv1.PrepareWITAuthorityResponse, error) {
+	log := rpccontext.Logger(ctx)
+	return nil, api.MakeErr(log, codes.Unimplemented, "WIT-SVID functionality is not yet implemented", nil)
+}
+
+func (s *Service) ActivateWITAuthority(ctx context.Context, req *localauthorityv1.ActivateWITAuthorityRequest) (*localauthorityv1.ActivateWITAuthorityResponse, error) {
+	log := rpccontext.Logger(ctx)
+	return nil, api.MakeErr(log, codes.Unimplemented, "WIT-SVID functionality is not yet implemented", nil)
+}
+
+func (s *Service) TaintWITAuthority(ctx context.Context, req *localauthorityv1.TaintWITAuthorityRequest) (*localauthorityv1.TaintWITAuthorityResponse, error) {
+	log := rpccontext.Logger(ctx)
+	return nil, api.MakeErr(log, codes.Unimplemented, "WIT-SVID functionality is not yet implemented", nil)
+}
+
+func (s *Service) RevokeWITAuthority(ctx context.Context, req *localauthorityv1.RevokeWITAuthorityRequest) (*localauthorityv1.RevokeWITAuthorityResponse, error) {
+	log := rpccontext.Logger(ctx)
+	return nil, api.MakeErr(log, codes.Unimplemented, "WIT-SVID functionality is not yet implemented", nil)
+}
+
+func (s *Service) isJWTSVIDsDisabled() bool {
+	return s.ca.IsJWTSVIDsDisabled()
 }
 
 // validateLocalAuthorityID validates provided authority ID, and return OLD associated public key

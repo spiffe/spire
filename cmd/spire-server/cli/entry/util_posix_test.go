@@ -8,6 +8,8 @@ const (
     	If set, the SPIFFE ID in this entry will be granted access to the SPIRE Server's management APIs
   -data string
     	Path to a file containing registration JSON (optional). If set to '-', read the JSON from stdin.
+  -disableX509SVIDPrefetch
+    	A boolean value that, when set, disables prefetching X509 SVID for this entry
   -dns value
     	A DNS name that will be included in SVIDs issued based on this entry, where appropriate. Can be used more than once
   -downstream
@@ -68,6 +70,8 @@ const (
     	If set, the SPIFFE ID in this entry will be granted access to the SPIRE Server's management APIs
   -data string
     	Path to a file containing registration JSON (optional). If set to '-', read the JSON from stdin.
+  -disableX509SVIDPrefetch
+    	A boolean value that, when set, disables prefetching X509 SVID for this entry
   -dns value
     	A DNS name that will be included in SVIDs issued based on this entry, where appropriate. Can be used more than once
   -downstream

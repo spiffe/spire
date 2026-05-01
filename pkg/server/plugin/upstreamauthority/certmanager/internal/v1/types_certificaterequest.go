@@ -49,7 +49,7 @@ const (
 // point in time request for a certificate and cannot be re-used.
 type CertificateRequest struct {
 	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty"`
+	metav1.ObjectMeta `json:"metadata"`
 
 	// Desired state of the CertificateRequest resource.
 	Spec CertificateRequestSpec `json:"spec"`
