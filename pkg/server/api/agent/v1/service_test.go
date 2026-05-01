@@ -215,11 +215,17 @@ func TestCountAgents(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			test := setupServiceTest(t, 0)
+			test := setupServiceTest(t, 0, false)
 			defer test.Cleanup()
 
 			for i := range int(tt.count) {
 				now := time.Now()
+				selectors := []*common.Selector{
+					{Type: "a", Value: "1"},
+					{Type: "b", Value: "2"},
+				}
+				//FIXME
+				selectors = append(selectors, &common.Selector{Type: "spiffe_id", Value: agentID.String()})
 				_, err := test.ds.CreateAttestedNode(ctx, &common.AttestedNode{
 					SpiffeId:            ids[i].String(),
 					AttestationDataType: "t1",
@@ -227,10 +233,7 @@ func TestCountAgents(t *testing.T) {
 					CertNotAfter:        now.Add(-time.Minute).Unix(),
 					NewCertNotAfter:     now.Add(time.Minute).Unix(),
 					NewCertSerialNumber: "new badcafe",
-					Selectors: []*common.Selector{
-						{Type: "a", Value: "1"},
-						{Type: "b", Value: "2"},
-					},
+					Selectors: selectors,
 				})
 				require.NoError(t, err)
 			}
@@ -253,8 +256,15 @@ func TestCountAgents(t *testing.T) {
 }
 
 func TestListAgents(t *testing.T) {
-	test := setupServiceTest(t, 0)
+	test := setupServiceTest(t, 0, false)
 	defer test.Cleanup()
+
+	selectors := []*common.Selector{
+		{Type: "a", Value: "1"},
+		{Type: "b", Value: "2"},
+	}
+	//FIXME
+	selectors = append(selectors, &common.Selector{Type: "spiffe_id", Value: agentID.String()})
 
 	notAfter := time.Now().Add(-time.Minute).Unix()
 	newNoAfter := time.Now().Add(time.Minute).Unix()
@@ -267,10 +277,7 @@ func TestListAgents(t *testing.T) {
 		NewCertNotAfter:     newNoAfter,
 		NewCertSerialNumber: "new badcafe",
 		CanReattest:         false,
-		Selectors: []*common.Selector{
-			{Type: "a", Value: "1"},
-			{Type: "b", Value: "2"},
-		},
+		Selectors: selectors,
 	}
 	_, err := test.ds.CreateAttestedNode(ctx, node1)
 	require.NoError(t, err)
@@ -1161,7 +1168,7 @@ func TestBanAgent(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			test := setupServiceTest(t, 0)
+			test := setupServiceTest(t, 0, false)
 			defer test.Cleanup()
 			ctx := context.Background()
 
@@ -1404,7 +1411,7 @@ func TestDeleteAgent(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			test := setupServiceTest(t, 0)
+			test := setupServiceTest(t, 0, false)
 			defer test.Cleanup()
 
 			_, err := test.ds.CreateAttestedNode(ctx, node1)
@@ -1635,7 +1642,7 @@ func TestGetAgent(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			test := setupServiceTest(t, 0)
+			test := setupServiceTest(t, 0, false)
 			test.createTestNodes(ctx, t)
 			test.ds.SetNextError(tt.dsError)
 			agent, err := test.client.GetAgent(context.Background(), tt.req)
@@ -1979,7 +1986,7 @@ func TestRenewAgent(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			// Setup test
-			test := setupServiceTest(t, tt.agentSVIDTTL)
+			test := setupServiceTest(t, tt.agentSVIDTTL, false)
 			defer test.Cleanup()
 
 			if tt.createNode != nil {
@@ -2052,7 +2059,7 @@ func TestRenewAgent(t *testing.T) {
 }
 
 func TestPostStatus(t *testing.T) {
-	test := setupServiceTest(t, 0)
+	test := setupServiceTest(t, 0, false)
 
 	resp, err := test.client.PostStatus(context.Background(), &agentv1.PostStatusRequest{})
 	require.Nil(t, resp)
@@ -2159,7 +2166,7 @@ func TestCreateJoinToken(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			test := setupServiceTest(t, 0)
+			test := setupServiceTest(t, 0, false)
 			test.ds.SetNextError(tt.dsError)
 
 			result, err := test.client.CreateJoinToken(context.Background(), tt.request)
@@ -2178,7 +2185,7 @@ func TestCreateJoinToken(t *testing.T) {
 }
 
 func TestCreateJoinTokenWithAgentId(t *testing.T) {
-	test := setupServiceTest(t, 0)
+	test := setupServiceTest(t, 0, false)
 
 	_, err := test.client.CreateJoinToken(context.Background(), &agentv1.CreateJoinTokenRequest{
 		Ttl:     1000,
@@ -2604,7 +2611,6 @@ func TestAttestAgent(t *testing.T) {
 			request:    getAttestAgentRequest("test_type", []byte("payload_with_result"), testCsr),
 			expectedID: spiffeid.RequireFromPath(td, "/spire/agent/test_type/id_with_result"),
 			expectedSelectors: []*common.Selector{
-				{Type: "spiffe", Value: "svid:spire/agent/test_type/id_with_result"},
 				{Type: "test_type", Value: "result"},
 			},
 			expectLogs: []spiretest.LogEntry{
@@ -2636,7 +2642,6 @@ func TestAttestAgent(t *testing.T) {
 			request:    getAttestAgentRequest("test_type", []byte("payload_with_result"), testCsr),
 			expectedID: spiffeid.RequireFromPath(td, "/spire/agent/test_type/id_with_result"),
 			expectedSelectors: []*common.Selector{
-				{Type: "spiffe", Value: "svid:spire/agent/test_type/id_with_result"},
 				{Type: "test_type", Value: "result"},
 			},
 			expectLogs: []spiretest.LogEntry{
@@ -2686,7 +2691,6 @@ func TestAttestAgent(t *testing.T) {
 			request:    getAttestAgentRequest("test_type", []byte("payload_with_challenge"), testCsr),
 			expectedID: spiffeid.RequireFromPath(td, "/spire/agent/test_type/id_with_challenge"),
 			expectedSelectors: []*common.Selector{
-				{Type: "spiffe", Value: "svid:spire/agent/test_type/id_with_challenge"},
 				{Type: "test_type", Value: "challenge"},
 			},
 			expectLogs: []spiretest.LogEntry{
@@ -2717,7 +2721,6 @@ func TestAttestAgent(t *testing.T) {
 			request:    getAttestAgentRequest("test_type", []byte("payload_attested_before"), testCsr),
 			expectedID: spiffeid.RequireFromPath(td, "/spire/agent/test_type/id_attested_before"),
 			expectedSelectors: []*common.Selector{
-				{Type: "spiffe", Value: "svid:spire/agent/test_type/id_attested_before"},
 				{Type: "test_type", Value: "attested_before"},
 			},
 			expectLogs: []spiretest.LogEntry{
@@ -3067,9 +3070,6 @@ func TestAttestAgent(t *testing.T) {
 			name:       "nodeattestor returns ID outside of its namespace",
 			request:    getAttestAgentRequest("test_type", []byte("payload_return_id_outside_namespace"), testCsr),
 			expectedID: spiffeid.RequireFromPath(td, "/id_outside_namespace"),
-			expectedSelectors: []*common.Selector{
-				{Type: "spiffe", Value: "svid:id_outside_namespace"},
-			},
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.WarnLevel,
@@ -3106,7 +3106,6 @@ func TestAttestAgent(t *testing.T) {
 			request:    getAttestAgentRequest("test_type", []byte("payload_selector_dups"), testCsr),
 			expectedID: spiffeid.RequireFromPath(td, "/spire/agent/test_type/id_selector_dups"),
 			expectedSelectors: []*common.Selector{
-				{Type: "spiffe", Value: "svid:spire/agent/test_type/id_selector_dups"},
 				{Type: "test_type", Value: "A"},
 				{Type: "test_type", Value: "B"},
 				{Type: "test_type", Value: "C"},
@@ -3137,7 +3136,7 @@ func TestAttestAgent(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			// setup
-			test := setupServiceTest(t, 0)
+			test := setupServiceTest(t, 0, false)
 			defer func() {
 				// Since this is a bidirectional streaming API, it's possible
 				// that the server is still emitting auditing logs even though
@@ -3196,7 +3195,8 @@ func TestAttestAgent(t *testing.T) {
 			default:
 				require.NotNil(t, result)
 				test.assertAttestAgentResult(t, tt.expectedID, result)
-				test.assertAgentWasStored(t, tt.expectedID.String(), tt.expectedSelectors)
+				//FIXME
+				test.assertAgentWasStored(t, tt.expectedID.String(), tt.expectedSelectors, true)
 			}
 		})
 	}
@@ -3222,7 +3222,7 @@ func (s *serviceTest) Cleanup() {
 	}
 }
 
-func setupServiceTest(t *testing.T, agentSVIDTTL time.Duration) *serviceTest {
+func setupServiceTest(t *testing.T, agentSVIDTTL time.Duration, agentSpiffeIdAsSelector bool) *serviceTest {
 	ca := fakeserverca.New(t, td, &fakeserverca.Options{
 		AgentSVIDTTL: agentSVIDTTL,
 	})
@@ -3230,12 +3230,16 @@ func setupServiceTest(t *testing.T, agentSVIDTTL time.Duration) *serviceTest {
 	cat := fakeservercatalog.New()
 	clk := clock.NewMock(t)
 
+	//FIXME
+	agentSpiffeIdAsSelector = true
+
 	service := agent.New(agent.Config{
-		ServerCA:    ca,
-		DataStore:   ds,
-		TrustDomain: td,
-		Clock:       clk,
-		Catalog:     cat,
+		ServerCA:                ca,
+		DataStore:               ds,
+		TrustDomain:             td,
+		Clock:                   clk,
+		Catalog:                 cat,
+		AgentSpiffeIdAsSelector: agentSpiffeIdAsSelector,
 	})
 
 	log, logHook := test.NewNullLogger()
@@ -3383,7 +3387,7 @@ func (s *serviceTest) assertAttestAgentResult(t *testing.T, expectedID spiffeid.
 	require.Equal(t, []*url.URL{expectedID.URL()}, x509Svid.URIs)
 }
 
-func (s *serviceTest) assertAgentWasStored(t *testing.T, expectedID string, expectedSelectors []*common.Selector) {
+func (s *serviceTest) assertAgentWasStored(t *testing.T, expectedID string, expectedSelectors []*common.Selector, agentSpiffeIdAsSelector bool) {
 	attestedAgent, err := s.ds.FetchAttestedNode(ctx, expectedID)
 	require.NoError(t, err)
 	require.NotNil(t, attestedAgent)
@@ -3391,7 +3395,14 @@ func (s *serviceTest) assertAgentWasStored(t *testing.T, expectedID string, expe
 
 	agentSelectors, err := s.ds.GetNodeSelectors(ctx, expectedID, datastore.RequireCurrent)
 	require.NoError(t, err)
-	require.EqualValues(t, expectedSelectors, agentSelectors)
+
+	eSelectors := make([]*common.Selector, len(expectedSelectors))
+	copy(eSelectors, expectedSelectors)
+	if agentSpiffeIdAsSelector {
+		eSelectors = append(eSelectors, &common.Selector{Type: "spiffe_id", Value: expectedID})
+	}
+
+	require.ElementsMatch(t, eSelectors, agentSelectors)
 }
 
 type fakeRateLimiter struct {

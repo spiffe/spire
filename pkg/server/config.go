@@ -140,6 +140,8 @@ type Config struct {
 }
 
 type ExperimentalConfig struct {
+	// AgentSpiffeIdAsSelector, if true, includes the agent spiffe id as a node selector.
+	AgentSpiffeIdAsSelector bool
 }
 
 type FederationConfig struct {
