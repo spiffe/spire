@@ -1396,6 +1396,136 @@ func TestRefreshAliases(t *testing.T) {
 	}
 }
 
+func TestRefreshAliasesSkipsRotatedAlias(t *testing.T) {
+	// This test verifies that refreshAliasesTask does not revert an alias
+	// that was rotated by another replica (e.g. the leader). After configure,
+	// we simulate a rotation by pointing the alias to a new key in the fake
+	// store. The refresh should detect the mismatch via DescribeKey and skip
+	// the UpdateAlias call, leaving the alias pointing to the new key.
+	ts := setupTest(t)
+
+	fakeEntries := []fakeKeyEntry{
+		{
+			AliasName:            aws.String("alias/SPIRE_SERVER/test_example_org/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/id_01"),
+			KeyID:                aws.String("key_id_01"),
+			KeySpec:              types.KeySpecEccNistP256,
+			Enabled:              true,
+			PublicKey:            []byte("foo"),
+			CreationDate:         &unixEpoch,
+			AliasLastUpdatedDate: &unixEpoch,
+		},
+	}
+	ts.fakeKMSClient.setEntries(fakeEntries)
+
+	refreshAliasesSignal := make(chan error)
+	ts.plugin.hooks.refreshAliasesSignal = refreshAliasesSignal
+
+	_, err := ts.plugin.Configure(ctx, configureRequestWithDefaults(t))
+	require.NoError(t, err)
+
+	// Wait for refresh alias task to be initialized
+	_ = waitForSignal(t, refreshAliasesSignal)
+
+	// Simulate a rotation by another replica: create a new key and point
+	// the alias to it. The plugin's in-memory cache still has key_id_01.
+	rotatedEntry := fakeKeyEntry{
+		KeyID:                aws.String("key_id_rotated"),
+		KeySpec:              types.KeySpecEccNistP256,
+		Enabled:              true,
+		PublicKey:            []byte("bar"),
+		CreationDate:         &unixEpoch,
+		AliasLastUpdatedDate: &unixEpoch,
+	}
+	ts.fakeKMSClient.store.SaveKeyEntry(&rotatedEntry)
+	err = ts.fakeKMSClient.store.SaveAlias(*rotatedEntry.KeyID, "alias/SPIRE_SERVER/test_example_org/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/id_01")
+	require.NoError(t, err)
+
+	// Record the alias state before refresh
+	aliasBefore := ts.fakeKMSClient.store.aliases["alias/SPIRE_SERVER/test_example_org/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/id_01"]
+	require.Equal(t, "key_id_rotated", *aliasBefore.KeyEntry.KeyID)
+
+	// Trigger refreshAliasesTask
+	ts.clockHook.Add(6 * time.Hour)
+	err = waitForSignal(t, refreshAliasesSignal)
+	require.NoError(t, err)
+
+	// Assert: the alias must still point to the rotated key, not reverted
+	aliasAfter := ts.fakeKMSClient.store.aliases["alias/SPIRE_SERVER/test_example_org/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/id_01"]
+	require.Equal(t, "key_id_rotated", *aliasAfter.KeyEntry.KeyID, "alias should not have been reverted to the stale cached key")
+}
+
+func TestRefreshAliasesDescribeKeyError(t *testing.T) {
+	ts := setupTest(t)
+
+	fakeEntries := []fakeKeyEntry{
+		{
+			AliasName:            aws.String("alias/SPIRE_SERVER/test_example_org/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/id_01"),
+			KeyID:                aws.String("key_id_01"),
+			KeySpec:              types.KeySpecEccNistP256,
+			Enabled:              true,
+			PublicKey:            []byte("foo"),
+			CreationDate:         &unixEpoch,
+			AliasLastUpdatedDate: &unixEpoch,
+		},
+	}
+	ts.fakeKMSClient.setEntries(fakeEntries)
+
+	refreshAliasesSignal := make(chan error)
+	ts.plugin.hooks.refreshAliasesSignal = refreshAliasesSignal
+
+	_, err := ts.plugin.Configure(ctx, configureRequestWithDefaults(t))
+	require.NoError(t, err)
+
+	// Wait for refresh alias task to be initialized
+	_ = waitForSignal(t, refreshAliasesSignal)
+
+	// Inject a DescribeKey error after configure
+	ts.fakeKMSClient.setDescribeKeyErr("describe key failure")
+
+	// Trigger refreshAliasesTask
+	ts.clockHook.Add(6 * time.Hour)
+	err = waitForSignal(t, refreshAliasesSignal)
+
+	require.NotNil(t, err)
+	require.Equal(t, "describe key failure", err.Error())
+}
+
+func TestRefreshAliasesMalformedDescribeKeyResponse(t *testing.T) {
+	ts := setupTest(t)
+
+	fakeEntries := []fakeKeyEntry{
+		{
+			AliasName:            aws.String("alias/SPIRE_SERVER/test_example_org/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/id_01"),
+			KeyID:                aws.String("key_id_01"),
+			KeySpec:              types.KeySpecEccNistP256,
+			Enabled:              true,
+			PublicKey:            []byte("foo"),
+			CreationDate:         &unixEpoch,
+			AliasLastUpdatedDate: &unixEpoch,
+		},
+	}
+	ts.fakeKMSClient.setEntries(fakeEntries)
+
+	refreshAliasesSignal := make(chan error)
+	ts.plugin.hooks.refreshAliasesSignal = refreshAliasesSignal
+
+	_, err := ts.plugin.Configure(ctx, configureRequestWithDefaults(t))
+	require.NoError(t, err)
+
+	// Wait for refresh alias task to be initialized
+	_ = waitForSignal(t, refreshAliasesSignal)
+
+	// Force DescribeKey to return a successful response with nil KeyMetadata
+	ts.fakeKMSClient.setDescribeKeyMalformed(true)
+
+	// Trigger refreshAliasesTask
+	ts.clockHook.Add(6 * time.Hour)
+	err = waitForSignal(t, refreshAliasesSignal)
+
+	require.NotNil(t, err)
+	require.Equal(t, `malformed describe key response for alias "alias/SPIRE_SERVER/test_example_org/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/id_01"`, err.Error())
+}
+
 func TestDisposeAliases(t *testing.T) {
 	for _, tt := range []struct {
 		name             string

@@ -80,6 +80,10 @@ type Config struct {
 	// If unset, the JWT-SVID will not have an issuer claim.
 	JWTIssuer string
 
+	// WITIssuer is used as the issuer claim in WIT-SVIDs minted by the server.
+	// If unset, the WIT-SVID will not have an issuer claim.
+	WITIssuer string
+
 	// CASubject is the subject used in the CA certificate
 	CASubject pkix.Name
 

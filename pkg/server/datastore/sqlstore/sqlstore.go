@@ -663,7 +663,7 @@ func (ds *Plugin) FetchJoinToken(ctx context.Context, token string) (resp *datas
 
 // DeleteJoinToken deletes the given join token
 func (ds *Plugin) DeleteJoinToken(ctx context.Context, token string) (err error) {
-	return ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
+	return ds.withReadModifyWriteTx(ctx, func(tx *gorm.DB) (err error) {
 		err = deleteJoinToken(tx, token)
 		return err
 	})
@@ -4311,8 +4311,13 @@ func deleteJoinToken(tx *gorm.DB, token string) error {
 		return newWrappedSQLError(err)
 	}
 
-	if err := tx.Delete(&model).Error; err != nil {
-		return newWrappedSQLError(err)
+	result := tx.Delete(&model)
+	if result.Error != nil {
+		return newWrappedSQLError(result.Error)
+	}
+
+	if result.RowsAffected != 1 {
+		return newSQLError("expected to delete one row, but %d rows were affected", result.RowsAffected)
 	}
 
 	return nil
