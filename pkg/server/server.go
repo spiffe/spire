@@ -447,7 +447,6 @@ func (s *Server) newEndpointsServer(ctx context.Context, catalog catalog.Catalog
 		AuthPolicyEngine:             authPolicyEngine,
 		BundleManager:                bundleManager,
 		AdminIDs:                     s.config.AdminIDs,
-		UseLegacyDownstreamX509CATTL: s.config.UseLegacyDownstreamX509CATTL,
 		MaxAttestedNodeInfoStaleness: s.config.MaxAttestedNodeInfoStaleness,
 		AgentSpiffeIdAsSelector:      s.config.Experimental.AgentSpiffeIdAsSelector,
 	}
