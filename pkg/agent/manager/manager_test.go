@@ -239,7 +239,7 @@ func TestHappyPathWithoutSyncNorRotation(t *testing.T) {
 		Clk:              clk,
 		Catalog:          cat,
 		SVIDStoreCache:   storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
-		RotationStrategy: rotationutil.NewRotationStrategy(0),
+		RotationStrategy: rotationutil.NewRotationStrategy(0, 0),
 	}
 
 	m, closer := initializeAndRunNewManager(t, c)
@@ -331,7 +331,7 @@ func TestX509PrefetchDisabled(t *testing.T) {
 		Clk:              clk,
 		Catalog:          cat,
 		SVIDStoreCache:   storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
-		RotationStrategy: rotationutil.NewRotationStrategy(0),
+		RotationStrategy: rotationutil.NewRotationStrategy(0, 0),
 	}
 
 	m, closer := initializeAndRunNewManager(t, c)
@@ -376,7 +376,7 @@ func TestRotationWithRSAKey(t *testing.T) {
 		Catalog:          cat,
 		WorkloadKeyType:  workloadkey.RSA2048,
 		SVIDStoreCache:   storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
-		RotationStrategy: rotationutil.NewRotationStrategy(0),
+		RotationStrategy: rotationutil.NewRotationStrategy(0, 0),
 	}
 
 	m, closer := initializeAndRunNewManager(t, c)
@@ -473,7 +473,7 @@ func TestSVIDRotation(t *testing.T) {
 		Clk:              clk,
 		WorkloadKeyType:  workloadkey.ECP256,
 		SVIDStoreCache:   storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
-		RotationStrategy: rotationutil.NewRotationStrategy(0),
+		RotationStrategy: rotationutil.NewRotationStrategy(0, 0),
 	}
 
 	m := initializeNewManager(t, c)
@@ -580,7 +580,7 @@ func TestSynchronization(t *testing.T) {
 		Catalog:          cat,
 		WorkloadKeyType:  workloadkey.ECP256,
 		SVIDStoreCache:   storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
-		RotationStrategy: rotationutil.NewRotationStrategy(0),
+		RotationStrategy: rotationutil.NewRotationStrategy(0, 0),
 	}
 
 	m := newManager(c)
@@ -736,7 +736,7 @@ func TestSynchronizationClearsStaleCacheEntries(t *testing.T) {
 		Catalog:          cat,
 		WorkloadKeyType:  workloadkey.ECP256,
 		SVIDStoreCache:   storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
-		RotationStrategy: rotationutil.NewRotationStrategy(0),
+		RotationStrategy: rotationutil.NewRotationStrategy(0, 0),
 	}
 
 	m := newManager(c)
@@ -810,7 +810,7 @@ func TestSynchronizationUpdatesRegistrationEntries(t *testing.T) {
 		Catalog:          cat,
 		WorkloadKeyType:  workloadkey.ECP256,
 		SVIDStoreCache:   storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
-		RotationStrategy: rotationutil.NewRotationStrategy(0),
+		RotationStrategy: rotationutil.NewRotationStrategy(0, 0),
 	}
 
 	m := newManager(c)
@@ -877,7 +877,7 @@ func TestForceRotation(t *testing.T) {
 		Catalog:          cat,
 		WorkloadKeyType:  workloadkey.ECP256,
 		SVIDStoreCache:   storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger, Metrics: &telemetry.Blackhole{}}),
-		RotationStrategy: rotationutil.NewRotationStrategy(0),
+		RotationStrategy: rotationutil.NewRotationStrategy(0, 0),
 	}
 
 	m := newManager(c)
@@ -1046,7 +1046,7 @@ func TestSubscribersGetUpToDateBundle(t *testing.T) {
 		Catalog:          cat,
 		WorkloadKeyType:  workloadkey.ECP256,
 		SVIDStoreCache:   storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
-		RotationStrategy: rotationutil.NewRotationStrategy(0),
+		RotationStrategy: rotationutil.NewRotationStrategy(0, 0),
 	}
 
 	m := newManager(c)
@@ -1106,7 +1106,7 @@ func TestSynchronizationWithLRUCache(t *testing.T) {
 		X509SVIDCacheMaxSize: 10,
 		JWTSVIDCacheMaxSize:  10,
 		SVIDStoreCache:       storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
-		RotationStrategy:     rotationutil.NewRotationStrategy(0),
+		RotationStrategy:     rotationutil.NewRotationStrategy(0, 0),
 	}
 
 	m := newManager(c)
@@ -1290,7 +1290,7 @@ func TestSyncRetriesWithDefaultIntervalOnZeroSVIDSReturned(t *testing.T) {
 		Catalog:          cat,
 		WorkloadKeyType:  workloadkey.ECP256,
 		SVIDStoreCache:   storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
-		RotationStrategy: rotationutil.NewRotationStrategy(0),
+		RotationStrategy: rotationutil.NewRotationStrategy(0, 0),
 	}
 
 	m := newManager(c)
@@ -1399,7 +1399,7 @@ func TestSyncFailsWithUnknownAuthority(t *testing.T) {
 		Catalog:          cat,
 		WorkloadKeyType:  workloadkey.ECP256,
 		SVIDStoreCache:   storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
-		RotationStrategy: rotationutil.NewRotationStrategy(0),
+		RotationStrategy: rotationutil.NewRotationStrategy(0, 0),
 	}
 
 	m := newManager(c)
@@ -1464,7 +1464,7 @@ func TestSyncSVIDsWithLRUCache(t *testing.T) {
 		X509SVIDCacheMaxSize: 1,
 		JWTSVIDCacheMaxSize:  1,
 		SVIDStoreCache:       storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
-		RotationStrategy:     rotationutil.NewRotationStrategy(0),
+		RotationStrategy:     rotationutil.NewRotationStrategy(0, 0),
 	}
 
 	m := newManager(c)
@@ -1558,7 +1558,7 @@ func TestSurvivesCARotation(t *testing.T) {
 		Catalog:          cat,
 		WorkloadKeyType:  workloadkey.ECP256,
 		SVIDStoreCache:   storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
-		RotationStrategy: rotationutil.NewRotationStrategy(0),
+		RotationStrategy: rotationutil.NewRotationStrategy(0, 0),
 	}
 
 	m := newManager(c)
@@ -1620,7 +1620,7 @@ func TestFetchJWTSVID(t *testing.T) {
 		Clk:              clk,
 		WorkloadKeyType:  workloadkey.ECP256,
 		SVIDStoreCache:   storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
-		RotationStrategy: rotationutil.NewRotationStrategy(0),
+		RotationStrategy: rotationutil.NewRotationStrategy(0, 0),
 	}
 
 	m := newManager(c)
@@ -1842,7 +1842,7 @@ func TestStorableSVIDsSync(t *testing.T) {
 		Catalog:          cat,
 		WorkloadKeyType:  workloadkey.ECP256,
 		SVIDStoreCache:   storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
-		RotationStrategy: rotationutil.NewRotationStrategy(0),
+		RotationStrategy: rotationutil.NewRotationStrategy(0, 0),
 	}
 
 	m, closer := initializeAndRunNewManager(t, c)

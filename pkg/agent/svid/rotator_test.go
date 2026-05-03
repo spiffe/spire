@@ -155,7 +155,7 @@ func TestRotator(t *testing.T) {
 				Reattestable:     tt.reattest,
 				NodeAttestor:     attestor,
 				ServerAddr:       listener.Addr().String(),
-				RotationStrategy: rotationutil.NewRotationStrategy(0),
+				RotationStrategy: rotationutil.NewRotationStrategy(0, 0),
 			})
 			rotator.client = mockClient
 			rotator.hooks.runRotatorSignal = make(chan struct{})
@@ -375,7 +375,7 @@ func TestRotationFails(t *testing.T) {
 				SVIDKey:          svidKey,
 				NodeAttestor:     attestor,
 				ServerAddr:       listener.Addr().String(),
-				RotationStrategy: rotationutil.NewRotationStrategy(0),
+				RotationStrategy: rotationutil.NewRotationStrategy(0, 0),
 			})
 			rotator.client = mockClient
 
@@ -424,7 +424,7 @@ func TestNotifyTaintedAuthority(t *testing.T) {
 		SVID:             svid,
 		SVIDKey:          svidKey,
 		NodeAttestor:     fakeagentnodeattestor.New(t, fakeagentnodeattestor.Config{}),
-		RotationStrategy: rotationutil.NewRotationStrategy(0),
+		RotationStrategy: rotationutil.NewRotationStrategy(0, 0),
 	})
 	rotator.client = mockClient
 
@@ -513,7 +513,7 @@ func TestTaintedSVIDIsRotated(t *testing.T) {
 		SVID:             svid,
 		SVIDKey:          svidKey,
 		NodeAttestor:     fakeagentnodeattestor.New(t, fakeagentnodeattestor.Config{}),
-		RotationStrategy: rotationutil.NewRotationStrategy(0),
+		RotationStrategy: rotationutil.NewRotationStrategy(0, 0),
 	})
 	rotator.client = mockClient
 	rotationFinishedCh := make(chan struct{}, 1)
