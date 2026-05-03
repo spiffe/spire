@@ -235,7 +235,7 @@ func TestCountAgents(t *testing.T) {
 						CertNotAfter:        now.Add(-time.Minute).Unix(),
 						NewCertNotAfter:     now.Add(time.Minute).Unix(),
 						NewCertSerialNumber: "new badcafe",
-						Selectors: selectors,
+						Selectors:           selectors,
 					})
 					require.NoError(t, err)
 				}
