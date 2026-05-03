@@ -110,11 +110,11 @@ func (m *manager) synchronize(ctx context.Context) (err error) {
 		return err
 	}
 
-	if err := m.updateCache(ctx, cacheUpdate, m.c.Log.WithField(telemetry.CacheType, telemetry_agent.CacheTypeWorkload), "", m.x509SVIDCache); err != nil {
+	if err := m.updateX509SVIDCache(ctx, cacheUpdate, m.c.Log.WithField(telemetry.CacheType, telemetry_agent.CacheTypeWorkload), "", m.x509SVIDCache); err != nil {
 		return err
 	}
 
-	if err := m.updateCache(ctx, storeUpdate, m.c.Log.WithField(telemetry.CacheType, telemetry_agent.CacheTypeSVIDStore), telemetry_agent.CacheTypeSVIDStore, m.svidStoreCache); err != nil {
+	if err := m.updateX509SVIDCache(ctx, storeUpdate, m.c.Log.WithField(telemetry.CacheType, telemetry_agent.CacheTypeSVIDStore), telemetry_agent.CacheTypeSVIDStore, m.svidStoreCache); err != nil {
 		return err
 	}
 
@@ -123,7 +123,7 @@ func (m *manager) synchronize(ctx context.Context) (err error) {
 	return nil
 }
 
-func (m *manager) updateCache(ctx context.Context, update *cache.UpdateEntries, log logrus.FieldLogger, cacheType string, c SVIDCache[*cache.X509SVID]) error {
+func (m *manager) updateX509SVIDCache(ctx context.Context, update *cache.UpdateEntries, log logrus.FieldLogger, cacheType string, c SVIDCache[*cache.X509SVID]) error {
 	// update the cache and build a list of CSRs that need to be processed
 	// in this interval.
 	//
