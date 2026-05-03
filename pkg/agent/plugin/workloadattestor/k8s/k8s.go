@@ -20,6 +20,7 @@ import (
 	"github.com/andres-erbsen/clock"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
+	hcltoken "github.com/hashicorp/hcl/hcl/token"
 	workloadattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/agent/workloadattestor/v1"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/agent/common/sigstore"
@@ -133,13 +134,10 @@ type HCLConfig struct {
 	// about mountinfo and cgroup information used to locate the container.
 	VerboseContainerLocatorLogs bool `hcl:"verbose_container_locator_logs"`
 
-	// Experimental enables experimental features.
-	Experimental experimentalK8SConfig `hcl:"experimental,omitempty"`
-}
-
-type experimentalK8SConfig struct {
 	// Sigstore contains sigstore specific configs.
 	Sigstore *sigstore.HCLConfig `hcl:"sigstore,omitempty"`
+
+	UnusedKeyPositions map[string][]hcltoken.Pos `hcl:",unusedKeyPositions"`
 }
 
 // k8sConfig holds the configuration distilled from HCL
@@ -171,6 +169,8 @@ func (p *Plugin) buildConfig(coreConfig catalog.CoreConfig, hclText string, stat
 		status.ReportErrorf("unable to decode configuration: %v", err)
 		return nil
 	}
+
+	pluginconf.ReportUnusedKeys(status, newConfig.UnusedKeyPositions)
 
 	// Determine max poll attempts with default
 	maxPollAttempts := newConfig.MaxPollAttempts
@@ -231,8 +231,8 @@ func (p *Plugin) buildConfig(coreConfig catalog.CoreConfig, hclText string, stat
 	nodeName := p.getNodeName(newConfig.NodeName, newConfig.NodeNameEnv)
 
 	var sigstoreConfig *sigstore.Config
-	if newConfig.Experimental.Sigstore != nil {
-		sigstoreConfig = sigstore.NewConfigFromHCL(newConfig.Experimental.Sigstore, p.log)
+	if newConfig.Sigstore != nil {
+		sigstoreConfig = sigstore.NewConfigFromHCL(newConfig.Sigstore, p.log)
 	}
 
 	// return the kubelet client

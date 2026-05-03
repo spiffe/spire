@@ -551,7 +551,30 @@ func (p *Plugin) refreshAliases(ctx context.Context) error {
 	defer p.mu.RUnlock()
 	var errs []string
 	for _, entry := range p.entries {
-		_, err := p.kmsClient.UpdateAlias(ctx, &kms.UpdateAliasInput{
+		// Resolve the alias's current target to avoid reverting a rotation
+		// performed by another replica sharing the same key_identifier_value.
+		describeResp, err := p.kmsClient.DescribeKey(ctx, &kms.DescribeKeyInput{
+			KeyId: aws.String(entry.AliasName),
+		})
+		if err != nil {
+			p.log.Error("Failed to describe key for alias refresh", aliasNameTag, entry.AliasName, reasonTag, err)
+			errs = append(errs, err.Error())
+			continue
+		}
+		if describeResp == nil || describeResp.KeyMetadata == nil || describeResp.KeyMetadata.Arn == nil {
+			p.log.Error("Malformed describe key response during alias refresh", aliasNameTag, entry.AliasName)
+			errs = append(errs, fmt.Sprintf("malformed describe key response for alias %q", entry.AliasName))
+			continue
+		}
+
+		currentArn := *describeResp.KeyMetadata.Arn
+		if currentArn != entry.Arn {
+			p.log.Warn("Alias target differs from cache, skipping refresh to avoid reverting a rotation",
+				aliasNameTag, entry.AliasName, "cached_arn", entry.Arn, "current_arn", currentArn)
+			continue
+		}
+
+		_, err = p.kmsClient.UpdateAlias(ctx, &kms.UpdateAliasInput{
 			AliasName:   &entry.AliasName,
 			TargetKeyId: &entry.Arn,
 		})

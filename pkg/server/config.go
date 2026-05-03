@@ -31,6 +31,12 @@ type Config struct {
 	// If true enables audit logs
 	AuditLogEnabled bool
 
+	// ProxyProtocolTrustedCIDRs is a list of trusted CIDRs for PROXY protocol.
+	// When non-empty, the server enables PROXY protocol on the TCP listener and
+	// restricts PROXY header acceptance to connections originating from these
+	// CIDRs. Connections from other sources that send PROXY headers are rejected.
+	ProxyProtocolTrustedCIDRs []string
+
 	// Address of SPIRE server
 	BindAddress *net.TCPAddr
 
@@ -73,6 +79,10 @@ type Config struct {
 	// JWTIssuer is used as the issuer claim in JWT-SVIDs minted by the server.
 	// If unset, the JWT-SVID will not have an issuer claim.
 	JWTIssuer string
+
+	// WITIssuer is used as the issuer claim in WIT-SVIDs minted by the server.
+	// If unset, the WIT-SVID will not have an issuer claim.
+	WITIssuer string
 
 	// CASubject is the subject used in the CA certificate
 	CASubject pkix.Name

@@ -35,6 +35,7 @@ type kmsClientFake struct {
 	validAliasName         *regexp.Regexp
 	createKeyErr           error
 	describeKeyErr         error
+	describeKeyMalformed   bool
 	getPublicKeyErr        error
 	listAliasesErr         error
 	createAliasErr         error
@@ -154,6 +155,9 @@ func (k *kmsClientFake) DescribeKey(_ context.Context, input *kms.DescribeKeyInp
 	defer k.mu.RUnlock()
 	if k.describeKeyErr != nil {
 		return nil, k.describeKeyErr
+	}
+	if k.describeKeyMalformed {
+		return &kms.DescribeKeyOutput{}, nil
 	}
 
 	keyEntry, err := k.store.FetchKeyEntry(*input.KeyId)
@@ -397,6 +401,12 @@ func (k *kmsClientFake) setDescribeKeyErr(fakeError string) {
 	if fakeError != "" {
 		k.describeKeyErr = errors.New(fakeError)
 	}
+}
+
+func (k *kmsClientFake) setDescribeKeyMalformed(malformed bool) {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	k.describeKeyMalformed = malformed
 }
 
 func (k *kmsClientFake) setgetPublicKeyErr(fakeError string) {
