@@ -789,6 +789,11 @@ func getPodImageIdentifiers(containerStatuses ...corev1.ContainerStatus) map[str
 	// while also maintaining backwards compatibility and allowing for dynamic workload registration (k8s operator)
 	// when the SHA is not yet known (e.g. before the image pull is initiated at workload creation time)
 	// More info here: https://github.com/spiffe/spire/issues/2026
+	//
+	// Note: The tag-based Image value can be non-deterministic when multiple
+	// tags share the same digest, as the CRI API does not standardize which
+	// tag to report. Prefer digest-based selectors for reliable matching.
+	// See https://github.com/spiffe/spire/issues/4287
 	for _, containerStatus := range containerStatuses {
 		podImages[containerStatus.ImageID] = struct{}{}
 		podImages[containerStatus.Image] = struct{}{}
