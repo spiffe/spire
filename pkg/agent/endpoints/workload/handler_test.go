@@ -1716,7 +1716,7 @@ func (m *FakeManager) FetchJWTSVID(_ context.Context, entry *common.Registration
 	}, nil
 }
 
-func (m *FakeManager) SubscribeToCacheChanges(context.Context, cache.Selectors) (cache.Subscriber, error) {
+func (m *FakeManager) SubscribeToX509SVIDCacheChanges(context.Context, cache.Selectors) (cache.Subscriber, error) {
 	if m.err != nil {
 		return nil, m.err
 	}

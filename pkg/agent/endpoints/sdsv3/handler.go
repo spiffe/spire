@@ -38,7 +38,7 @@ type Attestor interface {
 }
 
 type Manager interface {
-	SubscribeToCacheChanges(ctx context.Context, key cache.Selectors) (cache.Subscriber, error)
+	SubscribeToX509SVIDCacheChanges(ctx context.Context, key cache.Selectors) (cache.Subscriber, error)
 	FetchWorkloadUpdate(selectors []*common.Selector) *cache.WorkloadUpdate
 }
 
@@ -73,7 +73,7 @@ func (h *Handler) StreamSecrets(stream secret_v3.SecretDiscoveryService_StreamSe
 		return err
 	}
 
-	sub, err := h.c.Manager.SubscribeToCacheChanges(stream.Context(), selectors)
+	sub, err := h.c.Manager.SubscribeToX509SVIDCacheChanges(stream.Context(), selectors)
 	if err != nil {
 		log.WithError(err).Error("Subscribe to cache changes failed")
 		return err
