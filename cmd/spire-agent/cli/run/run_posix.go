@@ -53,6 +53,28 @@ func (c *agentConfig) hasAdminAddr() bool {
 	return c.AdminSocketPath != ""
 }
 
+// brokerSocketAddr resolves the UDS branch of broker bind-address selection.
+// Returns the platform-agnostic TCP branch is handled in brokerBindAddr.
+func (c *agentConfig) brokerSocketAddr() (net.Addr, error) {
+	socketPathAbs, err := filepath.Abs(c.SocketPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get absolute path for socket_path: %w", err)
+	}
+	brokerSocketPathAbs, err := filepath.Abs(c.Broker.SocketPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get absolute path for broker.socket_path: %w", err)
+	}
+
+	if strings.HasPrefix(brokerSocketPathAbs, filepath.Dir(socketPathAbs)+"/") {
+		return nil, errors.New("broker socket cannot be in the same directory or a subdirectory as that containing the Workload API socket")
+	}
+
+	return &net.UnixAddr{
+		Name: brokerSocketPathAbs,
+		Net:  "unix",
+	}, nil
+}
+
 // validateOS performs posix specific validations of the agent config
 func (c *agentConfig) validateOS() error {
 	if c.Experimental.NamedPipeName != "" {
@@ -83,6 +105,20 @@ func prepareEndpoints(c *agent.Config) error {
 		if _, statErr := os.Stat(adminDir); os.IsNotExist(statErr) {
 			c.Log.WithField("dir", adminDir).Infof("Creating admin UDS directory")
 			if err := os.MkdirAll(adminDir, 0755); err != nil {
+				return err
+			}
+		}
+	}
+
+	for _, addr := range c.Broker.BindAddresses {
+		if addr.Network() != "unix" {
+			continue
+		}
+		// Create uds dir and parents if not exists
+		brokerDir := filepath.Dir(addr.String())
+		if _, statErr := os.Stat(brokerDir); os.IsNotExist(statErr) {
+			c.Log.WithField("dir", brokerDir).Infof("Creating broker UDS directory")
+			if err := os.MkdirAll(brokerDir, 0755); err != nil {
 				return err
 			}
 		}

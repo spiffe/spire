@@ -64,11 +64,14 @@ func (e *Extractor) extractInfo(pid int32, log hclog.Logger, extractPodUID bool)
 		return "", "", err
 	}
 
+	log.Info("Extracted pod UID and container ID from mount info", "podUID", podUID, "containerID", containerID, "pid", pid)
+
 	if containerID == "" {
 		podUID, containerID, err = e.extractPodUIDAndContainerIDFromCGroups(pid, log, extractPodUID)
 		if err != nil {
 			return "", "", err
 		}
+		log.Info("Extracted pod UID and container ID from cgroups", "podUID", podUID, "containerID", containerID, "pid", pid)
 	}
 
 	return podUID, containerID, nil
