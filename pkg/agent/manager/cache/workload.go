@@ -16,6 +16,7 @@ type Selectors []*common.Selector
 type Identity struct {
 	Entry      *common.RegistrationEntry
 	X509SVID   []*x509.Certificate
+	WITSVID    string
 	PrivateKey crypto.Signer
 }
 
@@ -58,4 +59,21 @@ func (x *X509SVID) MakeIdentity(record *lruCacheRecord) Identity {
 
 func (x *X509SVID) Expiry() time.Time {
 	return x.Chain[0].NotAfter
+}
+
+type WITSVID struct {
+	Token      string
+	PrivateKey crypto.Signer
+}
+
+func (w *WITSVID) MakeIdentity(record *lruCacheRecord) Identity {
+	return Identity{
+		Entry:      record.entry,
+		WITSVID:    w.Token,
+		PrivateKey: w.PrivateKey,
+	}
+}
+
+func (w *WITSVID) Expiry() time.Time {
+	return time.Now().Add(time.Hour)
 }
