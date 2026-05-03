@@ -2,6 +2,7 @@ package endpoints
 
 import (
 	"context"
+	"os"
 	"strings"
 
 	"github.com/sirupsen/logrus"
@@ -25,6 +26,7 @@ func Middleware(log logrus.FieldLogger, metrics telemetry.Metrics) middleware.Mi
 		withPerServiceConnectionMetrics(metrics),
 		middleware.Preprocess(addWatcherPID),
 		middleware.Preprocess(verifySecurityHeader),
+		middleware.Postprocess(discardAgentCallMetrics),
 	)
 }
 
@@ -52,4 +54,17 @@ func isWorkloadAPIMethod(fullMethod string) bool {
 func hasSecurityHeader(ctx context.Context) bool {
 	md, ok := metadata.FromIncomingContext(ctx)
 	return ok && len(md["workload.spiffe.io"]) == 1 && md["workload.spiffe.io"][0] == "true"
+}
+
+// discardAgentCallMetrics prevents RPC metrics from being emitted for calls
+// made by the agent itself (e.g. health check loopback calls to the Workload
+// API). This runs in Postprocess before the metrics middleware finalizes the
+// call counter, so discarding here prevents the counter from emitting.
+func discardAgentCallMetrics(ctx context.Context, _ string, _ bool, _ error) {
+	watcher, ok := peertracker.WatcherFromContext(ctx)
+	if ok && int(watcher.PID()) == os.Getpid() {
+		if counter, ok := rpccontext.CallCounter(ctx).(*telemetry.CallCounter); ok {
+			counter.Discard()
+		}
+	}
 }
