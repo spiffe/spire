@@ -2,6 +2,7 @@ package endpoints
 
 import (
 	"context"
+	"os"
 	"testing"
 
 	discovery_v3 "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
@@ -11,10 +12,13 @@ import (
 	workload_pb "github.com/spiffe/go-spiffe/v2/proto/spiffe/workload"
 	debugv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/agent/debug/v1"
 	delegatedidentityv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/agent/delegatedidentity/v1"
+	"github.com/spiffe/spire/pkg/common/peertracker"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health/grpc_health_v1"
+	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/peer"
 
 	"github.com/spiffe/spire/test/fakes/fakemetrics"
 	"github.com/spiffe/spire/test/grpctest"
@@ -143,6 +147,99 @@ func assertNoMisconfigurationLog(t *testing.T, hook *test.Hook) {
 	}
 }
 
+// TestAgentCallMetricsDiscarded verifies that RPC metrics are NOT emitted
+// when the caller is the agent itself (health check loopback), but ARE
+// emitted for external callers.
+// Regression test for https://github.com/spiffe/spire/issues/5335
+func TestAgentCallMetricsDiscarded(t *testing.T) {
+	workloadAPICtx := metadata.NewOutgoingContext(context.Background(),
+		metadata.Pairs("workload.spiffe.io", "true"))
+
+	t.Run("agent PID suppresses RPC metrics", func(t *testing.T) {
+		log, _ := test.NewNullLogger()
+		metrics := fakemetrics.New()
+
+		server := grpctest.StartServer(t,
+			func(s grpc.ServiceRegistrar) {
+				workload_pb.RegisterSpiffeWorkloadAPIServer(s, &workload_pb.UnimplementedSpiffeWorkloadAPIServer{})
+			},
+			grpctest.Middleware(Middleware(log, metrics)),
+			grpctest.OverrideContext(func(ctx context.Context) context.Context {
+				return peer.NewContext(ctx, &peer.Peer{
+					AuthInfo: peertracker.AuthInfo{
+						Watcher: fakeWatcherWithPID(os.Getpid()),
+					},
+				})
+			}),
+		)
+
+		conn := server.NewGRPCClient(t)
+		client := workload_pb.NewSpiffeWorkloadAPIClient(conn)
+		_, _ = client.FetchJWTSVID(workloadAPICtx, &workload_pb.JWTSVIDRequest{})
+
+		for _, m := range metrics.AllMetrics() {
+			if m.Type == fakemetrics.IncrCounterWithLabelsType || m.Type == fakemetrics.MeasureSinceWithLabelsType {
+				assert.Fail(t, "RPC metrics should not be emitted for agent PID calls", "got metric: %v", m.Key)
+			}
+		}
+	})
+
+	t.Run("non-agent PID emits RPC metrics", func(t *testing.T) {
+		log, _ := test.NewNullLogger()
+		metrics := fakemetrics.New()
+
+		server := grpctest.StartServer(t,
+			func(s grpc.ServiceRegistrar) {
+				workload_pb.RegisterSpiffeWorkloadAPIServer(s, &workload_pb.UnimplementedSpiffeWorkloadAPIServer{})
+			},
+			grpctest.Middleware(Middleware(log, metrics)),
+			grpctest.OverrideContext(func(ctx context.Context) context.Context {
+				return peer.NewContext(ctx, &peer.Peer{
+					AuthInfo: peertracker.AuthInfo{
+						Watcher: fakeWatcherWithPID(os.Getpid() + 1),
+					},
+				})
+			}),
+		)
+
+		conn := server.NewGRPCClient(t)
+		client := workload_pb.NewSpiffeWorkloadAPIClient(conn)
+		_, _ = client.FetchJWTSVID(workloadAPICtx, &workload_pb.JWTSVIDRequest{})
+
+		var foundRPCCounter bool
+		for _, m := range metrics.AllMetrics() {
+			if m.Type == fakemetrics.IncrCounterWithLabelsType && len(m.Key) > 0 && m.Key[0] == "rpc" {
+				foundRPCCounter = true
+			}
+		}
+		assert.True(t, foundRPCCounter, "RPC metrics should be emitted for non-agent PID calls")
+	})
+
+	t.Run("no peertracker emits RPC metrics", func(t *testing.T) {
+		log, _ := test.NewNullLogger()
+		metrics := fakemetrics.New()
+
+		server := grpctest.StartServer(t,
+			func(s grpc.ServiceRegistrar) {
+				workload_pb.RegisterSpiffeWorkloadAPIServer(s, &workload_pb.UnimplementedSpiffeWorkloadAPIServer{})
+			},
+			grpctest.Middleware(Middleware(log, metrics)),
+		)
+
+		conn := server.NewGRPCClient(t)
+		client := workload_pb.NewSpiffeWorkloadAPIClient(conn)
+		_, _ = client.FetchJWTSVID(workloadAPICtx, &workload_pb.JWTSVIDRequest{})
+
+		var foundRPCCounter bool
+		for _, m := range metrics.AllMetrics() {
+			if m.Type == fakemetrics.IncrCounterWithLabelsType && len(m.Key) > 0 && m.Key[0] == "rpc" {
+				foundRPCCounter = true
+			}
+		}
+		assert.True(t, foundRPCCounter, "RPC metrics should be emitted when no peertracker is present")
+	})
+}
+
 type fakeDebugServer struct {
 	debugv1.UnimplementedDebugServer
 }
@@ -150,3 +247,9 @@ type fakeDebugServer struct {
 type fakeDelegatedIdentityServer struct {
 	delegatedidentityv1.UnimplementedDelegatedIdentityServer
 }
+
+type fakeWatcherWithPID int
+
+func (w fakeWatcherWithPID) Close()         {}
+func (w fakeWatcherWithPID) IsAlive() error { return nil }
+func (w fakeWatcherWithPID) PID() int32     { return int32(w) }
