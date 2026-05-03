@@ -44,6 +44,7 @@ type Config struct {
 	RotationInterval         time.Duration
 	SVIDStoreCache           *storecache.Cache
 	X509SVIDCacheMaxSize     int
+	WITSVIDCacheMaxSize      int
 	JWTSVIDCacheMaxSize      int
 	DisableLRUCache          bool
 	NodeAttestor             nodeattestor.NodeAttestor
@@ -75,6 +76,9 @@ func newManager(c *Config) *manager {
 	x509SVIDCache := managerCache.NewLRUCache[*managerCache.X509SVID](c.Log.WithField(telemetry.SubsystemName, telemetry.CacheManager), c.TrustDomain, c.Bundle,
 		c.Metrics, c.X509SVIDCacheMaxSize, c.JWTSVIDCacheMaxSize, c.Clk)
 
+	witSVIDCache := managerCache.NewLRUCache[*managerCache.WITSVID](c.Log.WithField(telemetry.SubsystemName, telemetry.CacheManager), c.TrustDomain, c.Bundle,
+		c.Metrics, c.WITSVIDCacheMaxSize, c.JWTSVIDCacheMaxSize, c.Clk)
+
 	rotCfg := &svid.RotatorConfig{
 		SVIDKeyManager:   keymanager.ForSVID(c.Catalog.GetKeyManager()),
 		Log:              c.Log,
@@ -95,6 +99,7 @@ func newManager(c *Config) *manager {
 
 	m := &manager{
 		x509SVIDCache:  x509SVIDCache,
+		witSVIDCache:   witSVIDCache,
 		c:              c,
 		mtx:            new(sync.RWMutex),
 		svid:           svidRotator,

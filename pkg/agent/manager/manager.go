@@ -51,6 +51,10 @@ type Manager interface {
 	// for a particular set of selectors.
 	SubscribeToX509SVIDCacheChanges(ctx context.Context, key cache.Selectors) (cache.Subscriber, error)
 
+	// SubscribeToWITSVIDCacheChanges returns a Subscriber on which cache entry updates are sent
+	// for a particular set of selectors.
+	SubscribeToWITSVIDCacheChanges(ctx context.Context, key cache.Selectors) (cache.Subscriber, error)
+
 	// SubscribeToSVIDChanges returns a new observer.Stream on which svid.State instances are received
 	// each time an SVID rotation finishes.
 	SubscribeToSVIDChanges() observer.Stream
@@ -147,6 +151,7 @@ type manager struct {
 	updateSVIDMu sync.RWMutex
 
 	x509SVIDCache Cache[*cache.X509SVID]
+	witSVIDCache  Cache[*cache.WITSVID]
 	svid          svid.Rotator
 
 	storage storage.Storage
@@ -251,6 +256,10 @@ func (m *manager) Run(ctx context.Context) error {
 
 func (m *manager) SubscribeToX509SVIDCacheChanges(ctx context.Context, selectors cache.Selectors) (cache.Subscriber, error) {
 	return m.x509SVIDCache.SubscribeToWorkloadUpdates(ctx, selectors)
+}
+
+func (m *manager) SubscribeToWITSVIDCacheChanges(ctx context.Context, selectors cache.Selectors) (cache.Subscriber, error) {
+	return m.witSVIDCache.SubscribeToWorkloadUpdates(ctx, selectors)
 }
 
 func (m *manager) SubscribeToSVIDChanges() observer.Stream {
