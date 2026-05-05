@@ -12,7 +12,7 @@ func ResolveSocketPath(socketPath, defaultPath, templateEnv, instance string) (s
 	sock := os.Getenv(baseEnv)
 	if instance != "" {
 		if tpl == "" {
-			return "", fmt.Errorf("you must define %s to use the instance flag", templateEnv)
+			return "", fmt.Errorf(" %s environment variable must be defined when using the instance flag", templateEnv)
 		}
 		if !strings.Contains(tpl, "%i") {
 			return "", fmt.Errorf("failed to find %%i in %s", templateEnv)
