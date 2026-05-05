@@ -328,6 +328,7 @@ func (s *Server) newCredBuilder(cat catalog.Catalog) (*credtemplate.Builder, err
 		X509SVIDTTL:         s.config.X509SVIDTTL,
 		JWTSVIDTTL:          s.config.JWTSVIDTTL,
 		JWTIssuer:           s.config.JWTIssuer,
+		WITIssuer:           s.config.WITIssuer,
 		CredentialComposers: cat.GetCredentialComposers(),
 		TLSPolicy:           s.config.TLSPolicy,
 	})
