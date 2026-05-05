@@ -2,6 +2,7 @@ package peertracker
 
 import (
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"os/exec"
@@ -110,12 +111,14 @@ func TestExitDetection(t *testing.T) {
 	conn.Close()
 	require.EqualError(t, conn.Info.Watcher.IsAlive(), "caller is no longer being watched")
 
-	// Start a forking child and allow it to exit while the grandchild holds the socket
+	// Start a forking child and allow it to exit while the grandchild holds the socket.
+	// The child stays alive until releaseChild is called, ensuring
+	// that Accept can open /proc/<pid> before the child exits.
 	peer.connectFromForkingChild(test.addr, test.childPath, doneCh)
 
 	rawConn, err = test.listener.Accept()
 
-	// Unblock child connect goroutine
+	// Wait for the child connect goroutine to finish
 	require.NoError(t, <-doneCh)
 
 	// Check for Accept() error only after unblocking
@@ -124,10 +127,14 @@ func TestExitDetection(t *testing.T) {
 	defer peer.killGrandchild()
 	require.NoError(t, err)
 
+	// Let the child exit now that Accept has processed the
+	// connection and created the watcher.
+	peer.releaseChild()
+
 	conn, ok = rawConn.(*Conn)
 	require.True(t, ok)
 
-	// We know the child has exited because we read from doneCh
+	// We know the child has exited because we called releaseChild
 	// Call to IsAlive should now return an error
 	switch runtime.GOOS {
 	case "darwin":
@@ -211,7 +218,9 @@ func (f *fakePeer) disconnect() {
 	f.conn = nil
 }
 
-// run child to connect and fork. allows us to test stale PID data
+// run child to connect and fork. allows us to test stale PID data.
+// The child process waits on stdin before exiting, so the caller
+// must call releaseChild after Accept returns to let it exit.
 func (f *fakePeer) connectFromForkingChild(addr net.Addr, childPath string, doneCh chan error) {
 	if f.grandchildPID != 0 {
 		f.t.Fatalf("grandchild already running with PID %v", f.grandchildPID)
@@ -219,9 +228,27 @@ func (f *fakePeer) connectFromForkingChild(addr net.Addr, childPath string, done
 
 	go func() {
 		// #nosec G204 test code
-		out, err := childExecCommand(childPath, addr).Output()
+		cmd := childExecCommand(childPath, addr)
+		stdinPipe, err := cmd.StdinPipe()
 		if err != nil {
-			doneCh <- fmt.Errorf("child process failed: %w", err)
+			doneCh <- fmt.Errorf("could not create stdin pipe: %w", err)
+			return
+		}
+
+		stdoutPipe, err := cmd.StdoutPipe()
+		if err != nil {
+			doneCh <- fmt.Errorf("could not create stdout pipe: %w", err)
+			return
+		}
+
+		if err := cmd.Start(); err != nil {
+			doneCh <- fmt.Errorf("child process failed to start: %w", err)
+			return
+		}
+
+		out, err := io.ReadAll(stdoutPipe)
+		if err != nil {
+			doneCh <- fmt.Errorf("could not read child stdout: %w", err)
 			return
 		}
 
@@ -233,6 +260,22 @@ func (f *fakePeer) connectFromForkingChild(addr net.Addr, childPath string, done
 		}
 
 		f.grandchildPID = int(grandchildPID)
+		f.childStdin = stdinPipe
+		f.childCmd = cmd
 		doneCh <- nil
 	}()
+}
+
+// releaseChild closes the child's stdin, allowing it to exit, then
+// waits for it to finish.
+func (f *fakePeer) releaseChild() {
+	if f.childStdin == nil || f.childCmd == nil {
+		f.t.Fatal("no active child to release")
+	}
+
+	f.childStdin.Close()
+	f.childStdin = nil
+
+	_ = f.childCmd.Wait()
+	f.childCmd = nil
 }

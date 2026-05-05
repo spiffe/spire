@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
+	"fmt"
 	"net"
 	"os"
 	"time"
@@ -20,6 +21,7 @@ import (
 	"google.golang.org/grpc/keepalive"
 
 	"github.com/andres-erbsen/clock"
+	proxyproto "github.com/pires/go-proxyproto"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	agentv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/agent/v1"
@@ -96,6 +98,7 @@ type Endpoints struct {
 	EntryFetcherPruneEventsTask  func(context.Context) error
 	CertificateReloadTask        func(context.Context) error
 	AuditLogEnabled              bool
+	ProxyProtocolTrustedCIDRs    []string
 	AuthPolicyEngine             *authpolicy.Engine
 	AdminIDs                     []spiffeid.ID
 	TLSPolicy                    tlspolicy.Policy
@@ -224,6 +227,7 @@ func New(ctx context.Context, c Config) (*Endpoints, error) {
 		EntryFetcherPruneEventsTask:  pruneEventsTask,
 		CertificateReloadTask:        certificateReloadTask,
 		AuditLogEnabled:              c.AuditLogEnabled,
+		ProxyProtocolTrustedCIDRs:    c.ProxyProtocolTrustedCIDRs,
 		AuthPolicyEngine:             c.AuthPolicyEngine,
 		AdminIDs:                     c.AdminIDs,
 		TLSPolicy:                    c.TLSPolicy,
@@ -339,6 +343,15 @@ func (e *Endpoints) runTCPServer(ctx context.Context, server *grpc.Server) error
 		return err
 	}
 	defer l.Close()
+
+	if len(e.ProxyProtocolTrustedCIDRs) > 0 {
+		var err error
+		l, err = wrapListenerWithProxyProtocol(l, e.ProxyProtocolTrustedCIDRs)
+		if err != nil {
+			return fmt.Errorf("invalid proxy_protocol_trusted_cidrs: %w", err)
+		}
+		e.Log.WithField("trusted_cidrs", e.ProxyProtocolTrustedCIDRs).Info("PROXY protocol enabled on TCP listener")
+	}
 	log := e.Log.WithFields(logrus.Fields{
 		telemetry.Network: l.Addr().Network(),
 		telemetry.Address: l.Addr().String(),
@@ -357,6 +370,19 @@ func (e *Endpoints) runTCPServer(ctx context.Context, server *grpc.Server) error
 		e.handleShutdown(server, errChan, log)
 		return nil
 	}
+}
+
+// wrapListenerWithProxyProtocol wraps a net.Listener with PROXY protocol
+// support, restricting header acceptance to the given trusted CIDRs.
+func wrapListenerWithProxyProtocol(l net.Listener, trustedCIDRs []string) (net.Listener, error) {
+	policy, err := proxyproto.ConnStrictWhiteListPolicy(trustedCIDRs)
+	if err != nil {
+		return nil, err
+	}
+	return &proxyproto.Listener{
+		Listener:   l,
+		ConnPolicy: policy,
+	}, nil
 }
 
 // runLocalAccess will start a grpc server to be accessed locally

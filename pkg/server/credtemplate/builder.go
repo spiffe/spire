@@ -121,6 +121,7 @@ type Config struct {
 	JWTSVIDTTL          time.Duration
 	JWTIssuer           string
 	WITSVIDTTL          time.Duration
+	WITIssuer           string
 	AgentSVIDTTL        time.Duration
 	CredentialComposers []credentialcomposer.CredentialComposer
 	NewSerialNumber     func() (*big.Int, error)
@@ -389,14 +390,19 @@ func (b *Builder) BuildWorkloadWITSVIDClaims(ctx context.Context, params Workloa
 	now := b.config.Clock.Now()
 	_, expiresAt := computeCappedLifetime(b.config.Clock, ttl, params.ExpirationCap)
 
-	return map[string]any{
+	claims := map[string]any{
 		"sub": params.SPIFFEID.String(),
 		"exp": jwt.NewNumericDate(expiresAt),
 		"iat": jwt.NewNumericDate(now),
 		"cnf": map[string]any{
 			"jwk": params.PublicKey,
 		},
-	}, nil
+	}
+	if b.config.WITIssuer != "" {
+		claims["iss"] = b.config.WITIssuer
+	}
+
+	return claims, nil
 }
 
 func (b *Builder) buildX509CATemplate(publicKey crypto.PublicKey, parentChain []*x509.Certificate, ttl time.Duration) (*x509.Certificate, error) {

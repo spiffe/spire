@@ -25,12 +25,12 @@ type containerHelper struct {
 	ph process.Helper
 }
 
-func (h *containerHelper) getContainerID(pID int32, log hclog.Logger) (string, error) {
+func (h *containerHelper) getContainerIDAndSocket(pID int32, log hclog.Logger) (string, string, error) {
 	containerID, err := h.ph.GetContainerIDByProcess(pID, log)
 	if err != nil {
-		return "", status.Errorf(codes.Internal, "failed to get container ID: %v", err)
+		return "", "", status.Errorf(codes.Internal, "failed to get container ID: %v", err)
 	}
-	return containerID, nil
+	return containerID, "", nil
 }
 
 func getDockerHost(c *dockerPluginConfig) string {

@@ -59,6 +59,10 @@ func (e *ReadOnlyEntry) GetCreatedAt() int64 {
 	return e.entry.CreatedAt
 }
 
+func (e *ReadOnlyEntry) GetAdditionalAttributes() *types.Entry_AdditionalAttributes {
+	return e.entry.AdditionalAttributes
+}
+
 // Manually clone the entry instead of using the protobuf helpers
 // since those are two times slower.
 func (e *ReadOnlyEntry) Clone(mask *types.EntryMask) *types.Entry {
@@ -132,6 +136,10 @@ func (e *ReadOnlyEntry) Clone(mask *types.EntryMask) *types.Entry {
 		clone.CreatedAt = e.entry.CreatedAt
 	}
 
+	if mask.AdditionalAttributes {
+		clone.AdditionalAttributes = e.entry.AdditionalAttributes
+	}
+
 	return clone
 }
 
@@ -179,7 +187,7 @@ func RegistrationEntryToProto(e *common.RegistrationEntry) (*types.Entry, error)
 		}
 	}
 
-	return &types.Entry{
+	entry := &types.Entry{
 		Id:             e.EntryId,
 		SpiffeId:       ProtoFromID(spiffeID),
 		ParentId:       ProtoFromID(parentID),
@@ -195,7 +203,32 @@ func RegistrationEntryToProto(e *common.RegistrationEntry) (*types.Entry, error)
 		JwtSvidTtl:     e.JwtSvidTtl,
 		Hint:           e.Hint,
 		CreatedAt:      e.CreatedAt,
-	}, nil
+	}
+
+	additionalAttributes := ProtoFromAdditionalAttributes(e.AdditionalAttributes)
+	if additionalAttributes != nil {
+		entry.AdditionalAttributes = additionalAttributes
+	}
+
+	return entry, nil
+}
+
+func ProtoFromAdditionalAttributes(in *common.RegistrationEntry_AdditionalAttributes) *types.Entry_AdditionalAttributes {
+	if in != nil {
+		return &types.Entry_AdditionalAttributes{
+			DisableX509SvidPrefetch: in.DisableX509SvidPrefetch,
+		}
+	}
+	return nil
+}
+
+func AdditionalAttributesFromProto(in *types.Entry_AdditionalAttributes) *common.RegistrationEntry_AdditionalAttributes {
+	if in != nil {
+		return &common.RegistrationEntry_AdditionalAttributes{
+			DisableX509SvidPrefetch: in.DisableX509SvidPrefetch,
+		}
+	}
+	return nil
 }
 
 // ProtoToRegistrationEntry converts and validate entry into common registration entry
@@ -309,20 +342,27 @@ func ProtoToRegistrationEntryWithMask(ctx context.Context, td spiffeid.TrustDoma
 		}
 		hint = e.Hint
 	}
+
+	var additionalAttributes *common.RegistrationEntry_AdditionalAttributes
+	if mask.AdditionalAttributes {
+		additionalAttributes = AdditionalAttributesFromProto(e.AdditionalAttributes)
+	}
+
 	return &common.RegistrationEntry{
-		EntryId:        e.Id,
-		ParentId:       parentID.String(),
-		SpiffeId:       spiffeID.String(),
-		Admin:          admin,
-		DnsNames:       dnsNames,
-		Downstream:     downstream,
-		EntryExpiry:    expiresAt,
-		FederatesWith:  federatesWith,
-		Selectors:      selectors,
-		RevisionNumber: revisionNumber,
-		StoreSvid:      storeSVID,
-		X509SvidTtl:    x509SvidTTL,
-		JwtSvidTtl:     jwtSvidTTL,
-		Hint:           hint,
+		EntryId:              e.Id,
+		ParentId:             parentID.String(),
+		SpiffeId:             spiffeID.String(),
+		Admin:                admin,
+		DnsNames:             dnsNames,
+		Downstream:           downstream,
+		EntryExpiry:          expiresAt,
+		FederatesWith:        federatesWith,
+		Selectors:            selectors,
+		RevisionNumber:       revisionNumber,
+		StoreSvid:            storeSVID,
+		X509SvidTtl:          x509SvidTTL,
+		JwtSvidTtl:           jwtSvidTTL,
+		Hint:                 hint,
+		AdditionalAttributes: additionalAttributes,
 	}, nil
 }

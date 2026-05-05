@@ -59,25 +59,19 @@ since [hostprocess](https://kubernetes.io/docs/tasks/configure-pod-container/cre
 | `use_anonymous_authentication`   | If true, use anonymous authentication for kubelet communication                                                                                                                                                                         |
 | `node_name_env`                  | The environment variable used to obtain the node name. Defaults to `MY_NODE_NAME`.                                                                                                                                                      |
 | `node_name`                      | The name of the node. Overrides the value obtained by the environment variable specified by `node_name_env`.                                                                                                                            |
-| `experimental`                   | The experimental options that are subject to change or removal.                                                                                                                                                                         |
+| `sigstore`                       | Sigstore options. Options described below. See [Sigstore options](#sigstore-options). When set, enables verification of container image signatures and attestations.                                                                    |
 | `use_new_container_locator`      | If true, enables the new container locator algorithm that has support for cgroups v2. Defaults to true.                                                                                                                                 |
 | `verbose_container_locator_logs` | If true, enables verbose logging of mountinfo and cgroup information used to locate containers. Defaults to false.                                                                                                                      |
 
-## Sigstore experimental feature
+## Sigstore feature
 
-This feature extends the `k8s` workload attestor with the ability to validate container image signatures and attestations using the [Sigstore](https://www.sigstore.dev/) ecosystem.
-
-### Experimental options
-
-| Option     | Description                                                                               |
-|------------|-------------------------------------------------------------------------------------------|
-| `sigstore` | Sigstore options. Options described below. See [Sigstore options](#sigstore-options)      |
+This feature extends the `k8s` workload attestor with the ability to validate container image signatures and attestations using the [Sigstore](https://www.sigstore.dev/) ecosystem. It is optional and only enabled when the `sigstore` block is configured.
 
 ### Sigstore options
 
 | Option                 | Description                                                                                                                                                                                                                                                       |
 |------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `allowed_identities`   | Maps OIDC Provider URIs to lists of allowed subjects. Supports regular expressions patterbs. Defaults to empty. If unspecified, signatures from any issuer are accepted. (eg. `"https://accounts.google.com" = ["subject1@example.com","subject2@example.com"]`). |
+| `allowed_identities`   | Maps OIDC Provider URIs to lists of allowed subjects. Supports regular expressions patterns. Defaults to empty. If unspecified, signatures from any issuer are accepted. (eg. `"https://accounts.google.com" = ["subject1@example.com","subject2@example.com"]`). |
 | `skipped_images`       | Lists image IDs to exclude from Sigstore signature verification. For these images, no Sigstore selectors will be generated. Defaults to an empty list.                                                                                                            |
 | `rekor_url`            | Specifies the Rekor URL for transparency log verification. Default is the public Rekor instance [https://rekor.sigstore.dev](https://rekor.sigstore.dev).                                                                                                         |
 | `ignore_tlog`          | If set to true, bypasses the transparency log verification and the selectors based on the Rekor bundle are not generated.                                                                                                                                         |

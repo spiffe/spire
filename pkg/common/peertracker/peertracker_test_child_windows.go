@@ -8,6 +8,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io"
 	"os"
 
 	"github.com/Microsoft/go-winio"
@@ -58,7 +59,15 @@ func main() {
 		os.Exit(7)
 	}
 
-	// Inform our caller of the grandchild pid
+	// Inform our caller of the grandchild pid and close stdout
+	// so the parent can read the PID immediately.
 	fmt.Fprintf(os.Stdout, "%v", proc.Pid)
+	os.Stdout.Close()
+
+	// Wait for the parent to signal that it has accepted the
+	// connection. Without this, the child can exit before the
+	// listener has opened the process handle, causing NewWatcher
+	// to fail and Accept to loop forever.
+	_, _ = io.ReadAll(os.Stdin)
 	os.Exit(0)
 }
