@@ -28,11 +28,7 @@ func (c *ConfigOS) GetAddr() (net.Addr, error) {
 }
 
 func (c *ConfigOS) GetTargetName() (string, error) {
-	resolved, err := ResolveSocketPath(c.socketPath, DefaultSocketPath, "SPIRE_AGENT_PUBLIC_SOCKET_TEMPLATE", c.instance)
-	if err != nil {
-		return "", err
-	}
-	addr, err := util.GetUnixAddrWithAbsPath(resolved)
+	addr, err := c.GetAddr()
 	if err != nil {
 		return "", err
 	}
