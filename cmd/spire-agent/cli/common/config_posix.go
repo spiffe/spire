@@ -16,7 +16,7 @@ type ConfigOS struct {
 
 func (c *ConfigOS) AddOSFlags(flags *flag.FlagSet) {
 	flags.StringVar(&c.socketPath, "socketPath", DefaultSocketPath, "Path to the SPIRE Agent API Unix domain socket")
-	flags.StringVar(&c.instance, "instance", "", "Instance name to substitute into socket templates (env SPIRE_AGENT_PUBLIC_SOCKET_TEMPLATE). If omitted and the env var is set, defaults to 'main'.")
+	flags.StringVar(&c.instance, "instance", "", "Instance name to substitute into socket templates (env SPIRE_AGENT_PUBLIC_SOCKET_TEMPLATE).")
 }
 
 func (c *ConfigOS) GetAddr() (net.Addr, error) {

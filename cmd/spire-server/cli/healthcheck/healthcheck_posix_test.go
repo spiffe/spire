@@ -5,7 +5,7 @@ package healthcheck
 var (
 	healthcheckUsage = `Usage of healthcheck:
   -instance string
-    	Instance name to substitute into socket templates (env SPIRE_SERVER_PRIVATE_SOCKET_TEMPLATE). If omitted and the env var is set, defaults to 'main'.
+    	Instance name to substitute into socket templates (env SPIRE_SERVER_PRIVATE_SOCKET_TEMPLATE).
   -shallow
     	Perform a less stringent health check
   -socketPath string

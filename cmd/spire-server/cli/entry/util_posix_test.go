@@ -23,7 +23,7 @@ const (
   -hint string
     	The entry hint, used to disambiguate entries with the same SPIFFE ID
   -instance string
-    	Instance name to substitute into socket templates (env SPIRE_SERVER_PRIVATE_SOCKET_TEMPLATE). If omitted and the env var is set, defaults to 'main'.
+    	Instance name to substitute into socket templates (env SPIRE_SERVER_PRIVATE_SOCKET_TEMPLATE).
   -jwtSVIDTTL int
     	The lifetime, in seconds, for JWT-SVIDs issued based on this registration entry.
   -node
@@ -53,7 +53,7 @@ const (
   -hint string
     	The Hint of the records to show (optional)
   -instance string
-    	Instance name to substitute into socket templates (env SPIRE_SERVER_PRIVATE_SOCKET_TEMPLATE). If omitted and the env var is set, defaults to 'main'.
+    	Instance name to substitute into socket templates (env SPIRE_SERVER_PRIVATE_SOCKET_TEMPLATE).
   -matchFederatesWithOn string
     	The match mode used when filtering by federates with. Options: exact, any, superset and subset (default "superset")
   -matchSelectorsOn string
@@ -89,7 +89,7 @@ const (
   -hint string
     	The entry hint, used to disambiguate entries with the same SPIFFE ID
   -instance string
-    	Instance name to substitute into socket templates (env SPIRE_SERVER_PRIVATE_SOCKET_TEMPLATE). If omitted and the env var is set, defaults to 'main'.
+    	Instance name to substitute into socket templates (env SPIRE_SERVER_PRIVATE_SOCKET_TEMPLATE).
   -jwtSVIDTTL int
     	The lifetime, in seconds, for JWT-SVIDs issued based on this registration entry.
   -output value
@@ -113,7 +113,7 @@ const (
   -file string
     	Path to a file containing a JSON structure for batch deletion (optional). If set to '-', read from stdin.
   -instance string
-    	Instance name to substitute into socket templates (env SPIRE_SERVER_PRIVATE_SOCKET_TEMPLATE). If omitted and the env var is set, defaults to 'main'.
+    	Instance name to substitute into socket templates (env SPIRE_SERVER_PRIVATE_SOCKET_TEMPLATE).
   -output value
     	Desired output format (pretty, json); default: pretty.
   -socketPath string
@@ -127,7 +127,7 @@ const (
   -hint string
     	The Hint of the records to count (optional)
   -instance string
-    	Instance name to substitute into socket templates (env SPIRE_SERVER_PRIVATE_SOCKET_TEMPLATE). If omitted and the env var is set, defaults to 'main'.
+    	Instance name to substitute into socket templates (env SPIRE_SERVER_PRIVATE_SOCKET_TEMPLATE).
   -matchFederatesWithOn string
     	The match mode used when filtering by federates with. Options: exact, any, superset and subset (default "superset")
   -matchSelectorsOn string

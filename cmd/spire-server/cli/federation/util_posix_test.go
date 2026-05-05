@@ -13,7 +13,7 @@ const (
   -endpointSpiffeID string
     	SPIFFE ID of the SPIFFE bundle endpoint server. Only used for 'spiffe' profile.
   -instance string
-    	Instance name to substitute into socket templates (env SPIRE_SERVER_PRIVATE_SOCKET_TEMPLATE). If omitted and the env var is set, defaults to 'main'.
+    	Instance name to substitute into socket templates (env SPIRE_SERVER_PRIVATE_SOCKET_TEMPLATE).
   -output value
     	Desired output format (pretty, json); default: pretty.
   -socketPath string
@@ -29,7 +29,7 @@ const (
   -id string
     	SPIFFE ID of the trust domain
   -instance string
-    	Instance name to substitute into socket templates (env SPIRE_SERVER_PRIVATE_SOCKET_TEMPLATE). If omitted and the env var is set, defaults to 'main'.
+    	Instance name to substitute into socket templates (env SPIRE_SERVER_PRIVATE_SOCKET_TEMPLATE).
   -output value
     	Desired output format (pretty, json); default: pretty.
   -socketPath string
@@ -37,7 +37,7 @@ const (
 `
 	listUsage = `Usage of federation list:
   -instance string
-    	Instance name to substitute into socket templates (env SPIRE_SERVER_PRIVATE_SOCKET_TEMPLATE). If omitted and the env var is set, defaults to 'main'.
+    	Instance name to substitute into socket templates (env SPIRE_SERVER_PRIVATE_SOCKET_TEMPLATE).
   -output value
     	Desired output format (pretty, json); default: pretty.
   -socketPath string
@@ -47,7 +47,7 @@ const (
   -id string
     	SPIFFE ID of the trust domain
   -instance string
-    	Instance name to substitute into socket templates (env SPIRE_SERVER_PRIVATE_SOCKET_TEMPLATE). If omitted and the env var is set, defaults to 'main'.
+    	Instance name to substitute into socket templates (env SPIRE_SERVER_PRIVATE_SOCKET_TEMPLATE).
   -output value
     	Desired output format (pretty, json); default: pretty.
   -socketPath string
@@ -55,7 +55,7 @@ const (
 `
 	showUsage = `Usage of federation show:
   -instance string
-    	Instance name to substitute into socket templates (env SPIRE_SERVER_PRIVATE_SOCKET_TEMPLATE). If omitted and the env var is set, defaults to 'main'.
+    	Instance name to substitute into socket templates (env SPIRE_SERVER_PRIVATE_SOCKET_TEMPLATE).
   -output value
     	Desired output format (pretty, json); default: pretty.
   -socketPath string
@@ -73,7 +73,7 @@ const (
   -endpointSpiffeID string
     	SPIFFE ID of the SPIFFE bundle endpoint server. Only used for 'spiffe' profile.
   -instance string
-    	Instance name to substitute into socket templates (env SPIRE_SERVER_PRIVATE_SOCKET_TEMPLATE). If omitted and the env var is set, defaults to 'main'.
+    	Instance name to substitute into socket templates (env SPIRE_SERVER_PRIVATE_SOCKET_TEMPLATE).
   -output value
     	Desired output format (pretty, json); default: pretty.
   -socketPath string
