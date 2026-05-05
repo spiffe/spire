@@ -5,7 +5,6 @@ Systemd (and other init systems) can run multiple instances of the same service 
 Environment variables
 
 - `SPIRE_AGENT_PUBLIC_SOCKET_TEMPLATE` — template for agent public/workload socket, use `%i` for the instance name.
-- `SPIRE_AGENT_PRIVATE_SOCKET_TEMPLATE` — template for agent private/admin socket, use `%i` for the instance name.
 - `SPIRE_SERVER_PRIVATE_SOCKET_TEMPLATE` — template for server private API socket, use `%i` for the instance name.
 
 Defaulting and precedence
