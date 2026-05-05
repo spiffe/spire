@@ -3,11 +3,10 @@ package logger_test
 import (
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
-	"github.com/spiffe/spire/pkg/server/api/logger/v1"
+	"github.com/spiffe/spire/pkg/common/api/logger"
+	"github.com/stretchr/testify/require"
 )
 
 func TestAPILevelValues(t *testing.T) {

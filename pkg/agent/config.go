@@ -5,8 +5,8 @@ import (
 	"net"
 	"time"
 
-	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	loggerv1 "github.com/spiffe/spire/pkg/agent/api/logger/v1"
 	"github.com/spiffe/spire/pkg/agent/endpoints"
 	"github.com/spiffe/spire/pkg/agent/trustbundlesources"
 	"github.com/spiffe/spire/pkg/agent/workloadkey"
@@ -59,7 +59,7 @@ type Config struct {
 	// Configurations for agent plugins
 	PluginConfigs catalog.PluginConfigs
 
-	Log logrus.FieldLogger
+	Log loggerv1.Logger
 
 	// Workload selector prefixes allowed to be included in diagnostic logs.
 	LogSelectors []string

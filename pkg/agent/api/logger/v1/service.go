@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/sirupsen/logrus"
-	loggerv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/logger/v1"
+	loggerv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/agent/logger/v1"
 	apitype "github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	commonlogger "github.com/spiffe/spire/pkg/common/api/logger"
 	"github.com/spiffe/spire/pkg/common/telemetry"

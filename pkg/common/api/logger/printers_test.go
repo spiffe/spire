@@ -2,14 +2,33 @@ package logger_test
 
 import (
 	"errors"
+	"io"
+	"strings"
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
-	"github.com/spiffe/spire/cmd/spire-server/cli/logger"
+	"github.com/spiffe/spire/pkg/common/api/logger"
 	commoncli "github.com/spiffe/spire/pkg/common/cli"
+	"github.com/stretchr/testify/require"
 )
+
+type errorWriter struct {
+	ReturnError error
+	buf         strings.Builder
+}
+
+var _ io.Writer = &errorWriter{}
+
+func (e *errorWriter) Write(p []byte) (n int, err error) {
+	if e.ReturnError != nil {
+		return 0, e.ReturnError
+	}
+	return e.buf.Write(p)
+}
+
+func (e *errorWriter) String() string {
+	return e.buf.String()
+}
 
 func TestPrettyPrintLogger(t *testing.T) {
 	for _, tt := range []struct {
@@ -23,18 +42,15 @@ func TestPrettyPrintLogger(t *testing.T) {
 		expectedError  error
 	}{
 		{
-			name: "test",
+			name: "pretty print debug/info",
 			logger: &types.Logger{
 				CurrentLevel: types.LogLevel_DEBUG,
 				LaunchLevel:  types.LogLevel_INFO,
 			},
-			expectedStdout: `Logger Level : debug
-Launch Level : info
-
-`,
+			expectedStdout: "Logger Level : debug\nLaunch Level : info\n\n",
 		},
 		{
-			name: "test env returning an error",
+			name: "writer error",
 			outWriter: errorWriter{
 				ReturnError: errors.New("cannot write"),
 			},
@@ -45,7 +61,7 @@ Launch Level : info
 			expectedError: errors.New("cannot write"),
 		},
 		{
-			name: "test nil logger",
+			name: "wrong proto type",
 			outWriter: errorWriter{
 				ReturnError: errors.New("cannot write"),
 			},

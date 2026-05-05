@@ -394,6 +394,31 @@ Checks SPIRE agent's health.
 | `-socketPath` | Path to the SPIRE Agent API socket    | /tmp/spire-agent/public/api.sock |
 | `-verbose`    | Print verbose information             |                                  |
 
+### `spire-agent logger get`
+
+Gets the current logging level of the SPIRE Agent.
+
+| Command       | Action                             | Default                          |
+|:--------------|:-----------------------------------|:---------------------------------|
+| `-socketPath` | Path to the SPIRE Agent API socket | /tmp/spire-agent/public/api.sock |
+
+### `spire-agent logger set`
+
+Sets the logging level of the SPIRE Agent.
+
+| Command       | Action                                                                    | Default                          |
+|:--------------|:--------------------------------------------------------------------------|:---------------------------------|
+| `-level`      | The new log level, one of (panic, fatal, error, warn, info, debug, trace) |                                  |
+| `-socketPath` | Path to the SPIRE Agent API socket                                        | /tmp/spire-agent/public/api.sock |
+
+### `spire-agent logger reset`
+
+Resets the logging level of the SPIRE Agent to the level it was set to at launch.
+
+| Command       | Action                             | Default                          |
+|:--------------|:-----------------------------------|:---------------------------------|
+| `-socketPath` | Path to the SPIRE Agent API socket | /tmp/spire-agent/public/api.sock |
+
 ### `spire-agent validate`
 
 Validates a SPIRE agent configuration file.
