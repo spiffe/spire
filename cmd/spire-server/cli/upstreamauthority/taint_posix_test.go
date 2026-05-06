@@ -4,6 +4,8 @@ package upstreamauthority_test
 
 var (
 	taintUsage = `Usage of upstreamauthority taint:
+  -instance string
+    	Instance name to substitute into socket templates (env SPIRE_SERVER_PRIVATE_SOCKET_TEMPLATE).
   -output value
     	Desired output format (pretty, json); default: pretty.
   -socketPath string
