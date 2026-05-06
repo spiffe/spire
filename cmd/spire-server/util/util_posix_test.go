@@ -7,8 +7,6 @@ import (
 )
 
 func TestGetGRPCAddr(t *testing.T) {
-	const testDefaultPath = "/tmp/spire-registration.sock"
-
 	tests := []struct {
 		name          string
 		instance      string
