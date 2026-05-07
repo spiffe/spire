@@ -3,6 +3,7 @@ package hashicorpvault
 import (
 	"encoding/pem"
 	"strings"
+	"time"
 
 	keymanagerv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/keymanager/v1"
 	"github.com/spiffe/spire/pkg/server/common/vault"
@@ -61,6 +62,23 @@ func getKeyEntry(ve *vault.KeyEntry, serverID string) (*keyEntry, bool, error) {
 			Fingerprint: makeFingerprint(pemBlock.Bytes),
 		},
 	}, true, nil
+}
+
+// parseKeyCreationTime extracts and parses the creation_time field from Vault key data.
+func parseKeyCreationTime(keyData map[string]any) (time.Time, error) {
+	ct, ok := keyData["creation_time"]
+	if !ok {
+		return time.Time{}, status.Error(codes.Internal, "key data is missing creation_time")
+	}
+	ctStr, ok := ct.(string)
+	if !ok {
+		return time.Time{}, status.Errorf(codes.Internal, "expected creation_time type string but got %T", ct)
+	}
+	t, err := time.Parse(time.RFC3339Nano, ctStr)
+	if err != nil {
+		return time.Time{}, status.Errorf(codes.Internal, "failed to parse creation_time %q: %v", ctStr, err)
+	}
+	return t, nil
 }
 
 // spireKeyIDFromKeyName parses a Vault transit key name to extract the SPIRE Key ID.

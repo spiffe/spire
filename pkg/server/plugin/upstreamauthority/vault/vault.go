@@ -153,7 +153,6 @@ func (p *Plugin) MintX509CAAndSubscribe(req *upstreamauthorityv1.MintX509CAReque
 	p.mtx.Lock()
 	defer p.mtx.Unlock()
 
-	// TODO: this is flaky, we should have a better way to manage the Vault client lifecycle
 	renewCh := make(chan struct{})
 	if p.vc == nil {
 		vc, err := p.cc.NewAuthenticatedClient(p.authMethod, renewCh)

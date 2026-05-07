@@ -21,6 +21,22 @@ The plugin accepts the following configuration options:
 | approle_auth         | struct |                                             | Configuration for the AppRole authentication method                                                                                                  |                      |
 | k8s_auth             | struct |                                             | Configuration for the Kubernetes authentication method                                                                                               |                      |
 
+## Environment Variables
+
+The plugin reads the following environment variables. Variables marked as standard are natively recognized by the Vault CLI and client libraries — see the [Vault documentation](https://developer.hashicorp.com/vault/docs/commands#configure-environment-variables) for the full reference.
+
+| Variable                    | Standard | Description                                                   |
+|:----------------------------|:---------|:--------------------------------------------------------------|
+| `VAULT_ADDR`                | Yes      | Address of the Vault server                                   |
+| `VAULT_CACERT`              | Yes      | Path to a CA certificate file                                 |
+| `VAULT_CLIENT_CERT`         | Yes      | Path to a client certificate file (cert auth)                 |
+| `VAULT_CLIENT_KEY`          | Yes      | Path to a client private key file (cert auth)                 |
+| `VAULT_NAMESPACE`           | Yes      | Vault namespace (Enterprise only)                             |
+| `VAULT_TOKEN`               | Yes      | Vault token (token auth)                                      |
+| `VAULT_APPROLE_ID`          | **No**   | AppRole role ID — SPIRE-specific, not a Vault SDK variable    |
+| `VAULT_APPROLE_SECRET_ID`   | **No**   | AppRole secret ID — SPIRE-specific, not a Vault SDK variable  |
+| `VAULT_TRANSIT_ENGINE_PATH` | **No**   | Transit engine path — SPIRE-specific, falls back to `transit` |
+
 The plugin supports **Client Certificate**, **Token** and **AppRole** authentication methods.
 
 - **Client Certificate** method authenticates to Vault using a TLS client certificate.

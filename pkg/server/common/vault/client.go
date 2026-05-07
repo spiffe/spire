@@ -22,14 +22,15 @@ import (
 )
 
 const (
-	EnvVaultAddr              = "VAULT_ADDR"
-	EnvVaultToken             = "VAULT_TOKEN"
-	EnvVaultClientCert        = "VAULT_CLIENT_CERT"
-	EnvVaultClientKey         = "VAULT_CLIENT_KEY"
-	EnvVaultCACert            = "VAULT_CACERT"
+	EnvVaultAddr       = "VAULT_ADDR"
+	EnvVaultToken      = "VAULT_TOKEN"
+	EnvVaultClientCert = "VAULT_CLIENT_CERT"
+	EnvVaultClientKey  = "VAULT_CLIENT_KEY"
+	EnvVaultCACert     = "VAULT_CACERT"
+	EnvVaultNamespace  = "VAULT_NAMESPACE"
+	// SPIRE-specific; not a standard Vault SDK environment variable.
 	EnvVaultAppRoleID         = "VAULT_APPROLE_ID"
 	EnvVaultAppRoleSecretID   = "VAULT_APPROLE_SECRET_ID" // #nosec G101
-	EnvVaultNamespace         = "VAULT_NAMESPACE"
 	EnvVaultTransitEnginePath = "VAULT_TRANSIT_ENGINE_PATH"
 
 	defaultCertMountPoint    = "cert"
@@ -471,8 +472,9 @@ func (c *Client) SignIntermediate(ttl string, csr *x509.CertificateRequest) (*Si
 // See: https://developer.hashicorp.com/vault/api-docs/secret/transit#create-key
 func (c *Client) CreateKey(ctx context.Context, keyName string, keyType TransitKeyType) error {
 	arguments := map[string]any{
-		"type":       keyType,
-		"exportable": false, // SPIRE keys are never exportable
+		"type":               keyType,
+		"exportable":         false, // SPIRE keys are never exportable
+		"auto_rotate_period": 0,     // SPIRE manages rotation; disable Vault-side auto-rotation
 	}
 
 	_, err := c.vaultClient.Logical().WriteWithContext(ctx, fmt.Sprintf("/%s/keys/%s", c.ClientParams.TransitEnginePath, keyName), arguments)

@@ -19,6 +19,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/diskutil"
 	"github.com/spiffe/spire/pkg/common/pluginconf"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/common/vault"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -286,12 +287,7 @@ func (p *Plugin) GenerateKey(ctx context.Context, req *keymanagerv1.GenerateKeyR
 	}
 
 	if keyEntry, ok := p.getKeyEntry(spireKeyID); ok {
-		select {
-		case p.scheduleDelete <- keyEntry.KeyName:
-			p.logger.Debug("Key enqueued for deletion", "key_name", keyEntry.KeyName)
-		default:
-			p.logger.Error("Failed to enqueue key for deletion", "key_name", keyEntry.KeyName)
-		}
+		p.enqueueDelete(keyEntry.KeyName)
 	}
 
 	p.setKeyEntry(spireKeyID, *newKeyEntry)
@@ -513,7 +509,14 @@ func makeFingerprint(pkixData []byte) string {
 }
 
 func (p *Plugin) setCache(vaultEntries []*vault.KeyEntry) error {
+	type candidate struct {
+		entry        keyEntry
+		creationTime time.Time
+	}
+
 	p.entries = make(map[string]keyEntry)
+	candidates := make(map[string]candidate, len(vaultEntries))
+
 	for _, ve := range vaultEntries {
 		ke, ok, err := getKeyEntry(ve, p.serverID)
 		if err != nil {
@@ -523,10 +526,45 @@ func (p *Plugin) setCache(vaultEntries []*vault.KeyEntry) error {
 			// Key belongs to a different server instance; skip it.
 			continue
 		}
-		p.entries[ke.PublicKey.Id] = *ke
-		p.logger.Debug("Key loaded", "key_id", ke.PublicKey.Id, "key_type", ke.PublicKey.Type)
+
+		creationTime, err := parseKeyCreationTime(ve.KeyData)
+		if err != nil {
+			return err
+		}
+
+		spireKeyID := ke.PublicKey.Id
+		if existing, found := candidates[spireKeyID]; found {
+			// Two Vault keys share the same SPIRE key ID: a restart occurred
+			// mid-rotation before the old key was deleted. Keep the newer one
+			// and schedule the older one for deletion now.
+			if creationTime.After(existing.creationTime) {
+				p.logger.Warn("Stale key found on startup, scheduling for deletion", telemetry.KeyName, existing.entry.KeyName)
+				p.enqueueDelete(existing.entry.KeyName)
+				candidates[spireKeyID] = candidate{entry: *ke, creationTime: creationTime}
+			} else {
+				p.logger.Warn("Stale key found on startup, scheduling for deletion", telemetry.KeyName, ve.KeyName)
+				p.enqueueDelete(ve.KeyName)
+			}
+			continue
+		}
+
+		candidates[spireKeyID] = candidate{entry: *ke, creationTime: creationTime}
+	}
+
+	for spireKeyID, c := range candidates {
+		p.entries[spireKeyID] = c.entry
+		p.logger.Debug("Key loaded", telemetry.KeyID, spireKeyID, telemetry.KeyType, c.entry.PublicKey.Type)
 	}
 	return nil
+}
+
+func (p *Plugin) enqueueDelete(keyName string) {
+	select {
+	case p.scheduleDelete <- keyName:
+		p.logger.Debug("Key enqueued for deletion", telemetry.KeyName, keyName)
+	default:
+		p.logger.Error("Failed to enqueue key for deletion", telemetry.KeyName, keyName)
+	}
 }
 
 // setKeyEntry adds the entry to the cache that matches the provided SPIRE Key ID.
