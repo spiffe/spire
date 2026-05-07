@@ -1,6 +1,7 @@
 package awsiid
 
 import (
+	"bytes"
 	"context"
 	"crypto"
 	"crypto/rsa"
@@ -486,6 +487,14 @@ func unmarshalAndValidateIdentityDocument(data []byte, getAWSCACertificate func(
 
 		if err := pkcs7Sig.Verify(); err != nil {
 			return imds.InstanceIdentityDocument{}, status.Errorf(codes.InvalidArgument, "failed verification of instance identity cryptographic signature: %v", err)
+		}
+
+		// Verify the PKCS7 content matches the Document field
+		// to prevent substitution attacks where an attacker
+		// provides a legitimate PKCS7 signature from their
+		// own instance alongside a forged identity document.
+		if !bytes.Equal(pkcs7Sig.Content, []byte(attestationData.Document)) {
+			return imds.InstanceIdentityDocument{}, status.Error(codes.InvalidArgument, "instance identity document does not match the verified PKCS7 content")
 		}
 	}
 
