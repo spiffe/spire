@@ -194,12 +194,7 @@ func ttlToSeconds(ttl time.Duration) (int32, error) {
 }
 
 func prettyPrintMint(env *commoncli.Env, results ...any) error {
-	resultInterface, ok := results[0].([]any)
-	if !ok {
-		return cliprinter.ErrInternalCustomPrettyFunc
-	}
-
-	if wit, ok := resultInterface[0].(*mintResult); ok {
+	if wit, ok := results[0].(*mintResult); ok {
 		errToken := env.Println(wit.Svid.Token)
 		errKey := env.Println(wit.PrivateKey)
 		return errors.Join(errToken, errKey)
