@@ -212,7 +212,7 @@ func (a *attestedNodes) updateCache(ctx context.Context) error {
 
 func (a *attestedNodes) updateCachedNodes(ctx context.Context) error {
 	for spiffeId := range a.fetchNodes {
-		node, err := a.ds.FetchAttestedNode(ctx, spiffeId)
+		node, err := a.ds.FetchAttestedNode(ctx, spiffeId, datastore.TolerateStale)
 		if err != nil {
 			continue
 		}

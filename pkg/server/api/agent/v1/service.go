@@ -207,7 +207,7 @@ func (s *Service) GetAgent(ctx context.Context, req *agentv1.GetAgentRequest) (*
 	rpccontext.AddRPCAuditFields(ctx, logrus.Fields{telemetry.SPIFFEID: agentID.String()})
 
 	log = log.WithField(telemetry.SPIFFEID, agentID.String())
-	attestedNode, err := s.ds.FetchAttestedNode(ctx, agentID.String())
+	attestedNode, err := s.ds.FetchAttestedNode(ctx, agentID.String(), datastore.RequireCurrent)
 	if err != nil {
 		return nil, api.MakeErr(log, codes.Internal, "failed to fetch agent", err)
 	}
@@ -357,7 +357,7 @@ func (s *Service) AttestAgent(stream agentv1.Agent_AttestAgentServer) error {
 	}
 
 	// fetch the agent/node to check if it was already attested or banned
-	attestedNode, err := s.ds.FetchAttestedNode(ctx, agentID.String())
+	attestedNode, err := s.ds.FetchAttestedNode(ctx, agentID.String(), datastore.RequireCurrent)
 	if err != nil {
 		return api.MakeErr(log, codes.Internal, "failed to fetch agent", err)
 	}
@@ -434,7 +434,7 @@ func (s *Service) RenewAgent(ctx context.Context, req *agentv1.RenewAgentRequest
 		return nil, api.MakeErr(log, codes.Internal, "caller ID missing from request context", nil)
 	}
 
-	attestedNode, err := s.ds.FetchAttestedNode(ctx, callerID.String())
+	attestedNode, err := s.ds.FetchAttestedNode(ctx, callerID.String(), datastore.RequireCurrent)
 	if err != nil {
 		return nil, api.MakeErr(log, codes.Internal, "failed to fetch agent", err)
 	}

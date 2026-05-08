@@ -125,10 +125,10 @@ func (w metricsWrapper) DeleteRegistrationEntryEventForTesting(ctx context.Conte
 	return w.ds.DeleteRegistrationEntryEventForTesting(ctx, eventID)
 }
 
-func (w metricsWrapper) FetchAttestedNode(ctx context.Context, spiffeID string) (_ *common.AttestedNode, err error) {
+func (w metricsWrapper) FetchAttestedNode(ctx context.Context, spiffeID string, dataConsistency datastore.DataConsistency) (_ *common.AttestedNode, err error) {
 	callCounter := StartFetchNodeCall(w.m)
 	defer callCounter.Done(&err)
-	return w.ds.FetchAttestedNode(ctx, spiffeID)
+	return w.ds.FetchAttestedNode(ctx, spiffeID, dataConsistency)
 }
 
 func (w metricsWrapper) FetchAttestedNodeEvent(ctx context.Context, eventID uint) (_ *datastore.AttestedNodeEvent, err error) {
@@ -155,10 +155,10 @@ func (w metricsWrapper) FetchRegistrationEntry(ctx context.Context, entryID stri
 	return w.ds.FetchRegistrationEntry(ctx, entryID)
 }
 
-func (w metricsWrapper) FetchRegistrationEntries(ctx context.Context, entryIDs []string) (_ map[string]*common.RegistrationEntry, err error) {
+func (w metricsWrapper) FetchRegistrationEntries(ctx context.Context, entryIDs []string, dataConsistency datastore.DataConsistency) (_ map[string]*common.RegistrationEntry, err error) {
 	callCounter := StartFetchRegistrationCall(w.m)
 	defer callCounter.Done(&err)
-	return w.ds.FetchRegistrationEntries(ctx, entryIDs)
+	return w.ds.FetchRegistrationEntries(ctx, entryIDs, dataConsistency)
 }
 
 func (w metricsWrapper) FetchRegistrationEntryEvent(ctx context.Context, eventID uint) (_ *datastore.RegistrationEntryEvent, err error) {

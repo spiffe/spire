@@ -919,13 +919,13 @@ func (s *PluginSuite) TestCreateAttestedNode() {
 	s.Require().NoError(err)
 	s.AssertProtoEqual(node, attestedNode)
 
-	attestedNode, err = s.ds.FetchAttestedNode(ctx, node.SpiffeId)
+	attestedNode, err = s.ds.FetchAttestedNode(ctx, node.SpiffeId, datastore.RequireCurrent)
 	s.Require().NoError(err)
 	s.AssertProtoEqual(node, attestedNode)
 }
 
 func (s *PluginSuite) TestFetchAttestedNodeMissing() {
-	attestedNode, err := s.ds.FetchAttestedNode(ctx, "missing")
+	attestedNode, err := s.ds.FetchAttestedNode(ctx, "missing", datastore.RequireCurrent)
 	s.Require().NoError(err)
 	s.Require().Nil(attestedNode)
 }
@@ -1440,7 +1440,7 @@ func (s *PluginSuite) TestUpdateAttestedNode() {
 			s.RequireProtoEqual(tt.expUpdatedNode, updatedNode)
 
 			// Check a fresh fetch shows the updated attested node
-			attestedNode, err := s.ds.FetchAttestedNode(ctx, tt.updateNode.SpiffeId)
+			attestedNode, err := s.ds.FetchAttestedNode(ctx, tt.updateNode.SpiffeId, datastore.RequireCurrent)
 			s.Require().NoError(err)
 			s.Require().NotNil(attestedNode)
 			s.RequireProtoEqual(tt.expUpdatedNode, attestedNode)
@@ -1500,7 +1500,7 @@ func (s *PluginSuite) TestPruneAttestedExpiredNodes() {
 
 		// check that none of the nodes gets deleted
 		for _, node := range nodes {
-			attestedNode, err := s.ds.FetchAttestedNode(ctx, node.SpiffeId)
+			attestedNode, err := s.ds.FetchAttestedNode(ctx, node.SpiffeId, datastore.RequireCurrent)
 			s.Require().NoError(err)
 			s.NotNil(attestedNode)
 		}
@@ -1511,12 +1511,12 @@ func (s *PluginSuite) TestPruneAttestedExpiredNodes() {
 		s.Require().NoError(err)
 
 		// check that the unexpired node is present
-		attestedValidNode, err := s.ds.FetchAttestedNode(ctx, nodes["valid"].SpiffeId)
+		attestedValidNode, err := s.ds.FetchAttestedNode(ctx, nodes["valid"].SpiffeId, datastore.RequireCurrent)
 		s.Require().NoError(err)
 		s.NotNil(attestedValidNode)
 
 		// check that the expired node and its selectors have been deleted
-		attestedExpiredNode, err := s.ds.FetchAttestedNode(ctx, nodes["expired"].SpiffeId)
+		attestedExpiredNode, err := s.ds.FetchAttestedNode(ctx, nodes["expired"].SpiffeId, datastore.RequireCurrent)
 		s.Require().NoError(err)
 		s.Nil(attestedExpiredNode)
 
@@ -1525,12 +1525,12 @@ func (s *PluginSuite) TestPruneAttestedExpiredNodes() {
 		s.Nil(deletedExpiredNodeSelectors)
 
 		// check that the expired node, which is also non-reattestable, has not been deleted
-		attestedNotReattestableNode, err := s.ds.FetchAttestedNode(ctx, nodes["expired-non-reattestable"].SpiffeId)
+		attestedNotReattestableNode, err := s.ds.FetchAttestedNode(ctx, nodes["expired-non-reattestable"].SpiffeId, datastore.RequireCurrent)
 		s.Require().NoError(err)
 		s.NotNil(attestedNotReattestableNode)
 
 		// check that the banned node has not been deleted, even if it is expired
-		attestedBannedNode, err := s.ds.FetchAttestedNode(ctx, nodes["expired-banned"].SpiffeId)
+		attestedBannedNode, err := s.ds.FetchAttestedNode(ctx, nodes["expired-banned"].SpiffeId, datastore.RequireCurrent)
 		s.Require().NoError(err)
 		s.NotNil(attestedBannedNode)
 	})
@@ -1540,12 +1540,12 @@ func (s *PluginSuite) TestPruneAttestedExpiredNodes() {
 		s.Require().NoError(err)
 
 		// check that the valid node is still present
-		attestedValidNode, err := s.ds.FetchAttestedNode(ctx, nodes["valid"].SpiffeId)
+		attestedValidNode, err := s.ds.FetchAttestedNode(ctx, nodes["valid"].SpiffeId, datastore.RequireCurrent)
 		s.Require().NoError(err)
 		s.NotNil(attestedValidNode)
 
 		// check that the expired non-reattestable node and its selectors have been deleled
-		attestedNotReattestableNode, err := s.ds.FetchAttestedNode(ctx, nodes["expired-non-reattestable"].SpiffeId)
+		attestedNotReattestableNode, err := s.ds.FetchAttestedNode(ctx, nodes["expired-non-reattestable"].SpiffeId, datastore.RequireCurrent)
 		s.Require().NoError(err)
 		s.Nil(attestedNotReattestableNode)
 
@@ -1554,7 +1554,7 @@ func (s *PluginSuite) TestPruneAttestedExpiredNodes() {
 		s.Nil(deletedExpiredNonReattestableNodeSelectors)
 
 		// check that the banned node has not been deleted
-		attestedBannedNode, err := s.ds.FetchAttestedNode(ctx, nodes["expired-banned"].SpiffeId)
+		attestedBannedNode, err := s.ds.FetchAttestedNode(ctx, nodes["expired-banned"].SpiffeId, datastore.RequireCurrent)
 		s.Require().NoError(err)
 		s.NotNil(attestedBannedNode)
 	})
@@ -1587,7 +1587,7 @@ func (s *PluginSuite) TestDeleteAttestedNode() {
 		s.Require().NoError(err)
 		s.AssertProtoEqual(entryFoo, deletedNode)
 
-		attestedNode, err := s.ds.FetchAttestedNode(ctx, entryFoo.SpiffeId)
+		attestedNode, err := s.ds.FetchAttestedNode(ctx, entryFoo.SpiffeId, datastore.RequireCurrent)
 		s.Require().NoError(err)
 		s.Nil(attestedNode)
 	})
@@ -1617,7 +1617,7 @@ func (s *PluginSuite) TestDeleteAttestedNode() {
 		s.Require().NoError(err)
 		s.AssertProtoEqual(entryFoo, deletedNode)
 
-		attestedNode, err := s.ds.FetchAttestedNode(ctx, deletedNode.SpiffeId)
+		attestedNode, err := s.ds.FetchAttestedNode(ctx, deletedNode.SpiffeId, datastore.RequireCurrent)
 		s.Require().NoError(err)
 		s.Nil(attestedNode)
 
@@ -2319,7 +2319,7 @@ func (s *PluginSuite) TestFetchRegistrationEntries() {
 			for _, entry := range tt.entries {
 				entryIds = append(entryIds, entry.EntryId)
 			}
-			fetchedRegistrationEntries, err := s.ds.FetchRegistrationEntries(ctx, append(entryIds, tt.deletedEntryId))
+			fetchedRegistrationEntries, err := s.ds.FetchRegistrationEntries(ctx, append(entryIds, tt.deletedEntryId), datastore.RequireCurrent)
 			s.Require().NoError(err)
 
 			// Make sure all entries we want to fetch are present
@@ -5272,7 +5272,7 @@ func (s *PluginSuite) TestRace() {
 
 		_, err := s.ds.CreateAttestedNode(ctx, node)
 		require.NoError(t, err)
-		_, err = s.ds.FetchAttestedNode(ctx, node.SpiffeId)
+		_, err = s.ds.FetchAttestedNode(ctx, node.SpiffeId, datastore.RequireCurrent)
 		require.NoError(t, err)
 	})
 }
