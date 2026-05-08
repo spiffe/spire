@@ -34,11 +34,12 @@ The plugin reads the following environment variables. Variables marked as standa
 | `VAULT_APPROLE_ID`        | **No**   | AppRole role ID — SPIRE-specific, not a Vault SDK variable   |
 | `VAULT_APPROLE_SECRET_ID` | **No**   | AppRole secret ID — SPIRE-specific, not a Vault SDK variable |
 
-The plugin supports **Client Certificate**, **Token** and **AppRole** authentication methods.
+The plugin supports **Client Certificate**, **Token**, **AppRole** and **Kubernetes** authentication methods.
 
 - **Client Certificate** method authenticates to Vault using a TLS client certificate.
 - **Token** method authenticates to Vault using the token in an HTTP Request header.
 - **AppRole** method authenticates to Vault using a RoleID and SecretID that are issued from Vault.
+- **Kubernetes** method authenticates to Vault using a Kubernetes Service Account Token.
 
 The [`ca_ttl` SPIRE Server configurable](https://github.com/spiffe/spire/blob/main/doc/spire_server.md#server-configuration-file) should be less than or equal to the Vault's PKI secret engine TTL.
 To configure the TTL value, tune the engine.

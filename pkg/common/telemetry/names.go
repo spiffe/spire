@@ -216,7 +216,7 @@ const (
 	// KeyFilePath tags a key file path used for TLS connections.
 	KeyFilePath = "key_file_path"
 
-	// KeyID tags the key nane
+	// KeyName tags the key name
 	KeyName = "key_name"
 
 	// KeyType tags the key type
