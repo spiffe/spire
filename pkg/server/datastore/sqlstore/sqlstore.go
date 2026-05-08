@@ -365,7 +365,7 @@ func (ds *Plugin) UpdateAttestedNode(ctx context.Context, n *common.AttestedNode
 // DeleteAttestedNode deletes the given attested node and the associated node selectors.
 func (ds *Plugin) DeleteAttestedNode(ctx context.Context, spiffeID string) (attestedNode *common.AttestedNode, err error) {
 	if err = ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
-		attestedNode, err = deleteAttestedNodeAndSelectors(tx, spiffeID)
+		attestedNode, err = deleteAttestedNodeAndSelectors(tx, spiffeID, ds.log)
 		if err != nil {
 			return err
 		}
@@ -1836,7 +1836,7 @@ func pruneAttestedExpiredNodes(tx *gorm.DB, expiredBefore time.Time, include boo
 	defer func() { logger.WithField("count", count).Info("Pruned expired agents") }()
 
 	for _, node := range expiredNodes {
-		_, err := deleteAttestedNodeAndSelectors(tx, node.SpiffeID)
+		_, err := deleteAttestedNodeAndSelectors(tx, node.SpiffeID, logger)
 		if err != nil {
 			return err
 		}
@@ -2394,11 +2394,35 @@ func updateAttestedNode(tx *gorm.DB, n *common.AttestedNode, mask *common.Attest
 	return modelToAttestedNode(model), nil
 }
 
-func deleteAttestedNodeAndSelectors(tx *gorm.DB, spiffeID string) (*common.AttestedNode, error) {
+func deleteAttestedNodeAndSelectors(tx *gorm.DB, spiffeID string, logger logrus.FieldLogger) (*common.AttestedNode, error) {
 	var (
 		nodeModel         AttestedNode
 		nodeSelectorModel NodeSelector
 	)
+
+	// Cascade: delete registration entries whose parent is this attested node's
+	// SVID. This includes the alias row that SPIRE auto-creates in
+	// createJoinTokenRegistrationEntry when CreateJoinToken is called with
+	// AgentId, which would otherwise outlive the node it was minted for.
+	var childEntries []RegisteredEntry
+	if err := tx.Where("parent_id = ?", spiffeID).Find(&childEntries).Error; err != nil {
+		return nil, newWrappedSQLError(err)
+	}
+	for _, entry := range childEntries {
+		if err := deleteRegistrationEntrySupport(tx, entry); err != nil {
+			return nil, err
+		}
+		if err := createRegistrationEntryEvent(tx, &datastore.RegistrationEntryEvent{
+			EntryID: entry.EntryID,
+		}); err != nil {
+			return nil, err
+		}
+		logger.WithFields(logrus.Fields{
+			telemetry.SPIFFEID:       entry.SpiffeID,
+			telemetry.ParentID:       entry.ParentID,
+			telemetry.RegistrationID: entry.EntryID,
+		}).Info("Cascade-deleted registration entry on attested node deletion")
+	}
 
 	// batch delete all associated node selectors
 	if err := tx.Where("spiffe_id = ?", spiffeID).Delete(&nodeSelectorModel).Error; err != nil {
