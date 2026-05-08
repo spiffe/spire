@@ -107,6 +107,7 @@ type serverConfig struct {
 }
 
 type experimentalConfig struct {
+	AgentSpiffeIdAsSelector bool                        `hcl:"agent_spiffe_id_as_selector"`
 	AuthOpaPolicyEngine     *authpolicy.OpaEngineConfig `hcl:"auth_opa_policy_engine"`
 	CacheReloadInterval     string                      `hcl:"cache_reload_interval"`
 	FullCacheReloadInterval string                      `hcl:"full_cache_reload_interval"`
@@ -581,6 +582,8 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 		}
 		sc.CATTL = ttl
 	}
+
+	sc.Experimental.AgentSpiffeIdAsSelector = c.Server.Experimental.AgentSpiffeIdAsSelector
 
 	// If the configured TTLs can lead to surprises, then do our best to log an
 	// accurate message and guide the user to resolution
