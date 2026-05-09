@@ -9,7 +9,6 @@ import (
 
 	"github.com/andres-erbsen/clock"
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/hcl"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	upstreamauthorityv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/upstreamauthority/v1"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
@@ -17,6 +16,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/coretypes/x509certificate"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/pluginconf"
+	"github.com/spiffe/spire/pkg/common/plugindecode"
 	"github.com/spiffe/spire/pkg/common/x509svid"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"google.golang.org/grpc/codes"
@@ -43,19 +43,19 @@ func builtin(p *Plugin) catalog.BuiltIn {
 }
 
 type Configuration struct {
-	Region          string `hcl:"region" json:"region"`
-	CertFileARN     string `hcl:"cert_file_arn" json:"cert_file_arn"`
-	KeyFileARN      string `hcl:"key_file_arn" json:"key_file_arn"`
-	BundleFileARN   string `hcl:"bundle_file_arn" json:"bundle_file_arn"`
-	AccessKeyID     string `hcl:"access_key_id" json:"access_key_id"`
-	SecretAccessKey string `hcl:"secret_access_key" json:"secret_access_key"`
-	SecurityToken   string `hcl:"secret_token" json:"secret_token"`
-	AssumeRoleARN   string `hcl:"assume_role_arn" json:"assume_role_arn"`
+	Region          string `hcl:"region" json:"region" yaml:"region"`
+	CertFileARN     string `hcl:"cert_file_arn" json:"cert_file_arn" yaml:"certFileArn"`
+	KeyFileARN      string `hcl:"key_file_arn" json:"key_file_arn" yaml:"keyFileArn"`
+	BundleFileARN   string `hcl:"bundle_file_arn" json:"bundle_file_arn" yaml:"bundleFileArn"`
+	AccessKeyID     string `hcl:"access_key_id" json:"access_key_id" yaml:"accessKeyId"`
+	SecretAccessKey string `hcl:"secret_access_key" json:"secret_access_key" yaml:"secretAccessKey"`
+	SecurityToken   string `hcl:"secret_token" json:"secret_token" yaml:"secretToken"`
+	AssumeRoleARN   string `hcl:"assume_role_arn" json:"assume_role_arn" yaml:"assumeRoleArn"`
 }
 
-func (p *Plugin) buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *Configuration {
+func (p *Plugin) buildConfig(coreConfig catalog.CoreConfig, text string, format catalog.ConfigFormat, status *pluginconf.Status) *Configuration {
 	newConfig := new(Configuration)
-	if err := hcl.Decode(newConfig, hclText); err != nil {
+	if err := plugindecode.DecodeConfig(text, format, newConfig); err != nil {
 		status.ReportError("plugin configuration is malformed")
 		return nil
 	}

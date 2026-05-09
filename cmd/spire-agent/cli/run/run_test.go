@@ -10,8 +10,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/hashicorp/hcl"
 	"github.com/hashicorp/hcl/hcl/ast"
+	"github.com/hashicorp/hcl/hcl/token"
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/pkg/agent"
@@ -19,7 +22,9 @@ import (
 	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/agent/manager"
 	"github.com/spiffe/spire/pkg/agent/workloadkey"
+	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/log"
+	"github.com/spiffe/spire/pkg/common/plugindecode"
 	"github.com/spiffe/spire/pkg/common/tlspolicy"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/util"
@@ -42,6 +47,62 @@ type newAgentConfigCase struct {
 	input              func(*Config)
 	logOptions         func(t *testing.T) []log.Option
 	test               func(*testing.T, *agent.Config)
+}
+
+func TestParseFile_YAML(t *testing.T) {
+	hclConf, err := ParseFile("../../../../test/fixture/config/agent_good_posix.conf", false)
+	require.NoError(t, err)
+	yamlConf, err := ParseFile("../../../../test/fixture/config/agent_good_posix.yaml", false)
+	require.NoError(t, err)
+	require.NotNil(t, yamlConf.Agent)
+	require.NotNil(t, yamlConf.PluginsRaw)
+	requireYAMLParity(t, hclConf, yamlConf)
+}
+
+func TestParseFile_YAMLUnknownKey(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	require.NoError(t, os.WriteFile(path, []byte("agent:\n  trust_domain: example.org\n"), 0o600))
+	_, err := ParseFile(path, false)
+	require.ErrorContains(t, err, "field trust_domain not found")
+}
+
+// requireYAMLParity requires that the YAML config decodes to the same values as its HCL twin.
+func requireYAMLParity(t *testing.T, hclConf, yamlConf *Config) {
+	opts := []cmp.Option{
+		cmpopts.IgnoreInterfaces(struct{ ast.Node }{}),
+		cmpopts.IgnoreTypes(map[string][]token.Pos{}, &catalog.RawYAML{}),
+		cmp.FilterPath(func(p cmp.Path) bool {
+			name := p.Last().String()
+			return name == ".ProfileConfig" || name == ".BundleEndpointProfileConfig"
+		}, cmp.Ignore()),
+	}
+	require.Empty(t, cmp.Diff(hclConf, yamlConf, opts...))
+
+	hclPlugins, err := catalog.PluginConfigsFromHCLNode(hclConf.Plugins)
+	require.NoError(t, err)
+	yamlPlugins, err := catalog.PluginConfigsFromYAML(yamlConf.PluginsRaw)
+	require.NoError(t, err)
+	require.Len(t, yamlPlugins, len(hclPlugins))
+	for i := range hclPlugins {
+		hclData, yamlData := hclPlugins[i].DataSource, yamlPlugins[i].DataSource
+		hclPlugins[i].DataSource, yamlPlugins[i].DataSource = nil, nil
+		require.Equal(t, hclPlugins[i], yamlPlugins[i])
+		require.Equal(t, decodePluginData(t, hclData), decodePluginData(t, yamlData))
+	}
+}
+
+func decodePluginData(t *testing.T, ds catalog.DataSource) any {
+	switch ds := ds.(type) {
+	case nil:
+		return nil
+	case catalog.FileData:
+		return ds.Path
+	}
+	text, format, err := ds.Load()
+	require.NoError(t, err)
+	var out map[string]any
+	require.NoError(t, plugindecode.DecodeConfig(text, format, &out))
+	return out
 }
 
 func TestMergeInput(t *testing.T) {

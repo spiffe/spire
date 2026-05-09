@@ -1,0 +1,50 @@
+server:
+  bindAddress: "127.0.0.1"
+  bindPort: 8081
+  socketPath: "/tmp/spire-server/private/api-test.sock"
+  trustDomain: "example.org"
+  logLevel: "INFO"
+  auditLogEnabled: true
+  auditLogExcludeAgentSync: true
+  proxyProtocolTrustedCidrs: ["10.0.0.0/8", "172.16.0.0/12"]
+  federation:
+    bundleEndpoint:
+      address: "0.0.0.0"
+      port: 8443
+      acme:
+        domainName: "example.org"
+    federatesWith:
+      # Mirrors the HCL fixture, whose bundle_endpoint blocks here are no
+      # longer supported options.
+      "domain1.test": {}
+      "domain2.test": {}
+      "domain3.test":
+        bundleEndpointUrl: "https://9.10.11.12:8443"
+        bundleEndpointProfile:
+          httpsSpiffe:
+            endpointSpiffeId: "spiffe://different-domain.test/my-spiffe-bundle-endpoint-server"
+      "domain4.test":
+        bundleEndpointUrl: "https://13.14.15.16:8444"
+        bundleEndpointProfile:
+          httpsWeb: {}
+  experimental:
+    requirePqKem: true
+
+plugins:
+  plugin_type_server:
+    plugin_name_server:
+      pluginCmd: "./pluginServerCmd"
+      pluginChecksum: "pluginServerChecksum"
+      pluginData:
+        join_token: "PLUGIN-SERVER-NOT-A-SECRET"
+    plugin_disabled:
+      pluginCmd: "./pluginServerCmd"
+      enabled: false
+      pluginChecksum: "pluginServerChecksum"
+      pluginData:
+        join_token: "PLUGIN-SERVER-NOT-A-SECRET"
+    plugin_enabled:
+      pluginCmd: "./pluginServerCmd"
+      enabled: true
+      pluginChecksum: "pluginServerChecksum"
+      pluginDataFile: "plugin.conf"

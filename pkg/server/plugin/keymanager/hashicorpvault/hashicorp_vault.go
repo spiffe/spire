@@ -13,12 +13,12 @@ import (
 	"github.com/andres-erbsen/clock"
 	"github.com/gofrs/uuid/v5"
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/hcl"
 	keymanagerv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/keymanager/v1"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/diskutil"
 	"github.com/spiffe/spire/pkg/common/pluginconf"
+	"github.com/spiffe/spire/pkg/common/plugindecode"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/common/vault"
 	"google.golang.org/grpc/codes"
@@ -54,12 +54,12 @@ type pluginHooks struct {
 
 // Config provides configuration context for the plugin.
 type Config struct {
-	vault.BaseConfiguration `hcl:",squash"`
+	vault.BaseConfiguration `hcl:",squash" yaml:",inline"`
 
-	KeyIdentifierFile  string `hcl:"key_identifier_file" json:"key_identifier_file"`
-	KeyIdentifierValue string `hcl:"key_identifier_value" json:"key_identifier_value"`
+	KeyIdentifierFile  string `hcl:"key_identifier_file" json:"key_identifier_file" yaml:"keyIdentifierFile"`
+	KeyIdentifierValue string `hcl:"key_identifier_value" json:"key_identifier_value" yaml:"keyIdentifierValue"`
 	// TransitEnginePath specifies the path to the transit engine to perform key operations.
-	TransitEnginePath string `hcl:"transit_engine_path" json:"transit_engine_path"`
+	TransitEnginePath string `hcl:"transit_engine_path" json:"transit_engine_path" yaml:"transitEnginePath"`
 }
 
 // Plugin is the main representation of this keymanager plugin
@@ -176,10 +176,10 @@ func (p *Plugin) Validate(ctx context.Context, req *configv1.ValidateRequest) (*
 	}, nil
 }
 
-func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *Config {
+func buildConfig(coreConfig catalog.CoreConfig, text string, format catalog.ConfigFormat, status *pluginconf.Status) *Config {
 	newConfig := new(Config)
 
-	if err := hcl.Decode(&newConfig, hclText); err != nil {
+	if err := plugindecode.DecodeConfig(text, format, &newConfig); err != nil {
 		status.ReportErrorf("unable to decode configuration: %v", err)
 		return nil
 	}

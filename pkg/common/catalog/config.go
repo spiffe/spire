@@ -10,7 +10,26 @@ import (
 	"github.com/hashicorp/hcl/hcl/ast"
 	"github.com/hashicorp/hcl/hcl/printer"
 	"github.com/hashicorp/hcl/hcl/token"
+	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
+	"go.yaml.in/yaml/v3"
 )
+
+// ConfigFormat identifies the serialization format of a plugin configuration string.
+type ConfigFormat int
+
+const (
+	ConfigFormatHCL ConfigFormat = iota
+	ConfigFormatYAML
+)
+
+func (f ConfigFormat) ToProto() configv1.ConfigFormat {
+	switch f {
+	case ConfigFormatYAML:
+		return configv1.ConfigFormat_CONFIG_FORMAT_YAML
+	default:
+		return configv1.ConfigFormat_CONFIG_FORMAT_HCL
+	}
+}
 
 type PluginConfigs []PluginConfig
 
@@ -53,41 +72,43 @@ func (c *PluginConfig) IsExternal() bool {
 }
 
 type DataSource interface {
-	Load() (string, error)
+	Load() (string, ConfigFormat, error)
 	IsDynamic() bool
 }
 
-type FixedData string
-
-func (d FixedData) Load() (string, error) {
-	return string(d), nil
+type FixedData struct {
+	Data   string
+	Format ConfigFormat
 }
 
-func (d FixedData) IsDynamic() bool {
-	return false
+func (d FixedData) Load() (string, ConfigFormat, error) {
+	return d.Data, d.Format, nil
 }
 
-type FileData string
+func (d FixedData) IsDynamic() bool { return false }
 
-func (d FileData) Load() (string, error) {
-	data, err := os.ReadFile(string(d))
+type FileData struct {
+	Path   string
+	Format ConfigFormat
+}
+
+func (d FileData) Load() (string, ConfigFormat, error) {
+	data, err := os.ReadFile(d.Path)
 	if err != nil {
-		return "", err
+		return "", d.Format, err
 	}
-	return string(data), nil
+	return string(data), d.Format, nil
 }
 
-func (d FileData) IsDynamic() bool {
-	return true
-}
+func (d FileData) IsDynamic() bool { return true }
 
 type hclPluginConfig struct {
-	PluginCmd      string   `hcl:"plugin_cmd"`
-	PluginArgs     []string `hcl:"plugin_args"`
-	PluginChecksum string   `hcl:"plugin_checksum"`
-	PluginData     ast.Node `hcl:"plugin_data"`
-	PluginDataFile *string  `hcl:"plugin_data_file"`
-	Enabled        *bool    `hcl:"enabled"`
+	PluginCmd      string   `hcl:"plugin_cmd" yaml:"pluginCmd"`
+	PluginArgs     []string `hcl:"plugin_args" yaml:"pluginArgs"`
+	PluginChecksum string   `hcl:"plugin_checksum" yaml:"pluginChecksum"`
+	PluginData     ast.Node `hcl:"plugin_data" yaml:"-"`
+	PluginDataFile *string  `hcl:"plugin_data_file" yaml:"pluginDataFile"`
+	Enabled        *bool    `hcl:"enabled" yaml:"enabled"`
 }
 
 func (c hclPluginConfig) IsEnabled() bool {
@@ -262,12 +283,12 @@ func pluginConfigFromHCL(pluginType, pluginName string, hclPluginConfig hclPlugi
 			return PluginConfig{}, err
 		}
 		if data := buf.String(); data != "" {
-			dataSource = FixedData(data)
+			dataSource = FixedData{Data: data, Format: ConfigFormatHCL}
 		}
 	}
 
 	if hclPluginConfig.PluginDataFile != nil {
-		dataSource = FileData(*hclPluginConfig.PluginDataFile)
+		dataSource = FileData{Path: *hclPluginConfig.PluginDataFile, Format: ConfigFormatHCL}
 	}
 
 	return PluginConfig{
@@ -279,6 +300,103 @@ func pluginConfigFromHCL(pluginType, pluginName string, hclPluginConfig hclPlugi
 		DataSource: dataSource,
 		Disabled:   !hclPluginConfig.IsEnabled(),
 	}, nil
+}
+
+// RawYAML captures a YAML value without decoding it. Unlike a yaml.Node
+// field, it is not subject to the decoder's unknown-field checks.
+type RawYAML struct {
+	Node *yaml.Node
+}
+
+func (r *RawYAML) UnmarshalYAML(node *yaml.Node) error {
+	r.Node = node
+	return nil
+}
+
+type yamlPluginConfig struct {
+	PluginCmd      string   `yaml:"pluginCmd"`
+	PluginArgs     []string `yaml:"pluginArgs"`
+	PluginChecksum string   `yaml:"pluginChecksum"`
+	PluginData     *RawYAML `yaml:"pluginData"`
+	PluginDataFile *string  `yaml:"pluginDataFile"`
+	Enabled        *bool    `yaml:"enabled"`
+}
+
+// PluginConfigsFromYAML parses the plugins section of a YAML config, laid out
+// as plugins.<pluginType>.<pluginName>. Plugins keep their order in the file.
+func PluginConfigsFromYAML(raw *RawYAML) (PluginConfigs, error) {
+	if raw == nil || raw.Node == nil {
+		return nil, nil
+	}
+	node := raw.Node
+	if node.Kind != yaml.MappingNode {
+		return nil, fmt.Errorf("plugins must be a mapping at line %d", node.Line)
+	}
+
+	var pluginConfigs PluginConfigs
+	for i := 0; i < len(node.Content); i += 2 {
+		pluginType, pluginsForType := node.Content[i].Value, node.Content[i+1]
+		if pluginsForType.Kind != yaml.MappingNode {
+			return nil, fmt.Errorf("plugins of type %q must be a mapping at line %d", pluginType, pluginsForType.Line)
+		}
+		for j := 0; j < len(pluginsForType.Content); j += 2 {
+			pluginName := pluginsForType.Content[j].Value
+			pc, err := pluginConfigFromYAML(pluginType, pluginName, pluginsForType.Content[j+1])
+			if err != nil {
+				return nil, fmt.Errorf("failed to create plugin config for %q/%q: %w", pluginType, pluginName, err)
+			}
+			pluginConfigs = append(pluginConfigs, pc)
+		}
+	}
+	return pluginConfigs, nil
+}
+
+func pluginConfigFromYAML(pluginType, pluginName string, node *yaml.Node) (PluginConfig, error) {
+	var ypc yamlPluginConfig
+	if err := decodeYAMLNodeStrict(node, &ypc); err != nil {
+		return PluginConfig{}, err
+	}
+	if ypc.PluginData != nil && ypc.PluginDataFile != nil {
+		return PluginConfig{}, errors.New("only one of [pluginData, pluginDataFile] can be used")
+	}
+
+	var dataSource DataSource
+	if ypc.PluginData != nil && !isEmptyYAMLNode(ypc.PluginData.Node) {
+		data, err := yaml.Marshal(ypc.PluginData.Node)
+		if err != nil {
+			return PluginConfig{}, fmt.Errorf("failed to re-marshal plugin data: %w", err)
+		}
+		dataSource = FixedData{Data: string(data), Format: ConfigFormatYAML}
+	}
+	if ypc.PluginDataFile != nil {
+		dataSource = FileData{Path: *ypc.PluginDataFile, Format: ConfigFormatYAML}
+	}
+
+	return PluginConfig{
+		Name:       pluginName,
+		Type:       pluginType,
+		Path:       ypc.PluginCmd,
+		Args:       ypc.PluginArgs,
+		Checksum:   ypc.PluginChecksum,
+		DataSource: dataSource,
+		Disabled:   ypc.Enabled != nil && !*ypc.Enabled,
+	}, nil
+}
+
+func isEmptyYAMLNode(node *yaml.Node) bool {
+	return (node.Kind == yaml.MappingNode || node.Kind == yaml.SequenceNode) && len(node.Content) == 0 ||
+		node.Kind == yaml.ScalarNode && node.Tag == "!!null"
+}
+
+// decodeYAMLNodeStrict decodes node into out, rejecting unknown keys.
+func decodeYAMLNodeStrict(node *yaml.Node, out any) error {
+	data, err := yaml.Marshal(node)
+	if err != nil {
+		return err
+	}
+	dec := yaml.NewDecoder(bytes.NewReader(data))
+	dec.KnownFields(true)
+	return dec.Decode(out)
 }
 
 func stringFromToken(keyToken token.Token) (string, error) {

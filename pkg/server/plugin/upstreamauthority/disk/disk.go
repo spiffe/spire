@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/hcl"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -20,6 +19,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/coretypes/x509certificate"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/pluginconf"
+	"github.com/spiffe/spire/pkg/common/plugindecode"
 	"github.com/spiffe/spire/pkg/common/x509svid"
 	"github.com/spiffe/spire/pkg/common/x509util"
 )
@@ -44,14 +44,14 @@ func builtin(p *Plugin) catalog.BuiltIn {
 type Configuration struct {
 	trustDomain spiffeid.TrustDomain
 
-	CertFilePath   string `hcl:"cert_file_path" json:"cert_file_path"`
-	KeyFilePath    string `hcl:"key_file_path" json:"key_file_path"`
-	BundleFilePath string `hcl:"bundle_file_path" json:"bundle_file_path"`
+	CertFilePath   string `hcl:"cert_file_path" json:"cert_file_path" yaml:"certFilePath"`
+	KeyFilePath    string `hcl:"key_file_path" json:"key_file_path" yaml:"keyFilePath"`
+	BundleFilePath string `hcl:"bundle_file_path" json:"bundle_file_path" yaml:"bundleFilePath"`
 }
 
-func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *Configuration {
+func buildConfig(coreConfig catalog.CoreConfig, text string, format catalog.ConfigFormat, status *pluginconf.Status) *Configuration {
 	newConfig := new(Configuration)
-	if err := hcl.Decode(newConfig, hclText); err != nil {
+	if err := plugindecode.DecodeConfig(text, format, newConfig); err != nil {
 		status.ReportError("plugin configuration is malformed")
 		return nil
 	}

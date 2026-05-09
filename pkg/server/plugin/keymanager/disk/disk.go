@@ -7,12 +7,12 @@ import (
 	"os"
 	"sync"
 
-	"github.com/hashicorp/hcl"
 	keymanagerv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/keymanager/v1"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/diskutil"
 	"github.com/spiffe/spire/pkg/common/pluginconf"
+	"github.com/spiffe/spire/pkg/common/plugindecode"
 	keymanagerbase "github.com/spiffe/spire/pkg/server/plugin/keymanager/base"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -35,12 +35,12 @@ func asBuiltIn(p *KeyManager) catalog.BuiltIn {
 }
 
 type configuration struct {
-	KeysPath string `hcl:"keys_path"`
+	KeysPath string `hcl:"keys_path" yaml:"keysPath"`
 }
 
-func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *configuration {
+func buildConfig(coreConfig catalog.CoreConfig, text string, format catalog.ConfigFormat, status *pluginconf.Status) *configuration {
 	newConfig := new(configuration)
-	if err := hcl.Decode(newConfig, hclText); err != nil {
+	if err := plugindecode.DecodeConfig(text, format, newConfig); err != nil {
 		status.ReportErrorf("unable to decode configuration: %v", err)
 		return nil
 	}

@@ -7,12 +7,12 @@ import (
 	"os"
 	"sync"
 
-	"github.com/hashicorp/hcl"
 	nodeattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/agent/nodeattestor/v1"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/k8s"
 	"github.com/spiffe/spire/pkg/common/pluginconf"
+	"github.com/spiffe/spire/pkg/common/plugindecode"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -50,14 +50,14 @@ type AttestorPlugin struct {
 // AttestorConfig holds configuration for AttestorPlugin
 type AttestorConfig struct {
 	// Cluster name where the agent lives
-	Cluster string `hcl:"cluster"`
+	Cluster string `hcl:"cluster" yaml:"cluster"`
 	// File path of PSAT
-	TokenPath string `hcl:"token_path"`
+	TokenPath string `hcl:"token_path" yaml:"tokenPath"`
 }
 
-func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *attestorConfig {
+func buildConfig(coreConfig catalog.CoreConfig, text string, format catalog.ConfigFormat, status *pluginconf.Status) *attestorConfig {
 	hclConfig := new(AttestorConfig)
-	if err := hcl.Decode(hclConfig, hclText); err != nil {
+	if err := plugindecode.DecodeConfig(text, format, hclConfig); err != nil {
 		status.ReportErrorf("unable to decode configuration: %v", err)
 		return nil
 	}

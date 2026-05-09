@@ -261,7 +261,7 @@ func testPlugin(t *testing.T, pluginPath string) {
 		testLoad(t, pluginPath, loadTest{
 			registerConfigService: true,
 			mutateConfig: func(config *catalog.Config) {
-				config.PluginConfigs[0].DataSource = catalog.FixedData("GOOD")
+				config.PluginConfigs[0].DataSource = catalog.FixedData{Data: "GOOD", Format: catalog.ConfigFormatHCL}
 			},
 			expectPluginClient:  true,
 			expectServiceClient: true,
@@ -274,7 +274,7 @@ func testPlugin(t *testing.T, pluginPath string) {
 		testLoad(t, pluginPath, loadTest{
 			registerConfigService: true,
 			mutateConfig: func(config *catalog.Config) {
-				config.PluginConfigs[0].DataSource = catalog.FileData(configPath)
+				config.PluginConfigs[0].DataSource = catalog.FileData{Path: configPath, Format: catalog.ConfigFormatHCL}
 			},
 			expectPluginClient:  true,
 			expectServiceClient: true,
@@ -304,7 +304,7 @@ func testPlugin(t *testing.T, pluginPath string) {
 		testLoad(t, pluginPath, loadTest{
 			registerConfigService: true,
 			mutateConfig: func(config *catalog.Config) {
-				config.PluginConfigs[0].DataSource = catalog.FixedData("BAD")
+				config.PluginConfigs[0].DataSource = catalog.FixedData{Data: "BAD", Format: catalog.ConfigFormatHCL}
 			},
 			expectErr: `failed to configure plugin "test": rpc error: code = InvalidArgument desc = bad config`,
 		})
@@ -312,7 +312,7 @@ func testPlugin(t *testing.T, pluginPath string) {
 	t.Run("configure interface not registered but data supplied", func(t *testing.T) {
 		testLoad(t, pluginPath, loadTest{
 			mutateConfig: func(config *catalog.Config) {
-				config.PluginConfigs[0].DataSource = catalog.FixedData("GOOD")
+				config.PluginConfigs[0].DataSource = catalog.FixedData{Data: "GOOD", Format: catalog.ConfigFormatHCL}
 			},
 			expectErr: `failed to configure plugin "test": no supported configuration interface found`,
 		})

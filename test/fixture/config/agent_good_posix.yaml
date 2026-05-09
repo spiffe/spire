@@ -1,0 +1,29 @@
+agent:
+  dataDir: "."
+  logLevel: "INFO"
+  serverAddress: "127.0.0.1"
+  serverPort: 8081
+  socketPath: "/tmp/spire-agent/public/api.sock"
+  trustBundlePath: "conf/agent/dummy_root_ca.crt"
+  trustDomain: "example.org"
+  allowUnauthenticatedVerifiers: true
+  allowedForeignJwtClaims: ["c1", "c2", "c3"]
+
+plugins:
+  plugin_type_agent:
+    plugin_name_agent:
+      pluginCmd: "./pluginAgentCmd"
+      pluginChecksum: "pluginAgentChecksum"
+      pluginData:
+        join_token: "PLUGIN-AGENT-NOT-A-SECRET"
+    plugin_disabled:
+      pluginCmd: "./pluginAgentCmd"
+      enabled: false
+      pluginChecksum: "pluginAgentChecksum"
+      pluginData:
+        join_token: "PLUGIN-AGENT-NOT-A-SECRET"
+    plugin_enabled:
+      pluginCmd: "./pluginAgentCmd"
+      enabled: true
+      pluginChecksum: "pluginAgentChecksum"
+      pluginDataFile: "plugin.conf"

@@ -90,12 +90,12 @@ type dsConfigurer struct {
 	ds *ds_sql.Plugin
 }
 
-func (c *dsConfigurer) Configure(ctx context.Context, _ catalog.CoreConfig, configuration string) error {
-	return c.ds.Configure(ctx, configuration)
+func (c *dsConfigurer) Configure(ctx context.Context, _ catalog.CoreConfig, configuration string, format catalog.ConfigFormat) error {
+	return c.ds.ConfigureFormat(ctx, configuration, format)
 }
 
-func (c *dsConfigurer) Validate(ctx context.Context, coreConfig catalog.CoreConfig, configuration string) (*configv1.ValidateResponse, error) {
-	return c.ds.Validate(ctx, coreConfig, configuration)
+func (c *dsConfigurer) Validate(ctx context.Context, coreConfig catalog.CoreConfig, configuration string, format catalog.ConfigFormat) (*configv1.ValidateResponse, error) {
+	return c.ds.Validate(ctx, coreConfig, configuration, format)
 }
 
 func (repo *Repository) Plugins() map[string]catalog.PluginRepo {
@@ -216,13 +216,13 @@ func ValidateConfig(ctx context.Context, config Config) (pluginNotes map[string]
 	if len(dataStoreConfigs) == 0 {
 		pluginNotes[datastorePluginId] = append(pluginNotes[datastorePluginId], "'datastore' must be configured")
 	} else {
-		dsConfigString, err := catalog.GetPluginConfigString(dataStoreConfigs[0])
+		dsConfigString, dsConfigFormat, err := catalog.GetPluginConfigString(dataStoreConfigs[0])
 		if err != nil {
 			return nil, fmt.Errorf("failed to get DataStore configuration: %w", err)
 		}
 
 		ds := ds_sql.New(config.Log)
-		resp, err := ds.Validate(ctx, coreConfig, dsConfigString)
+		resp, err := ds.Validate(ctx, coreConfig, dsConfigString, dsConfigFormat)
 		if err != nil {
 			pluginNotes[datastorePluginId] = append(pluginNotes[datastorePluginId], err.Error())
 		}
@@ -268,7 +268,7 @@ func loadSQLDataStore(ctx context.Context, config Config, coreConfig catalog.Cor
 		return nil, fmt.Errorf("pluggability for the DataStore is deprecated; only the built-in %q plugin is supported", ds_sql.PluginName)
 	}
 	if sqlConfig.DataSource == nil {
-		sqlConfig.DataSource = catalog.FixedData("")
+		sqlConfig.DataSource = catalog.FixedData{Data: "", Format: catalog.ConfigFormatHCL}
 	}
 
 	dsLog := config.Log.WithField(telemetry.SubsystemName, sqlConfig.Name)

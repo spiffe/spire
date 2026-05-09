@@ -13,13 +13,13 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/acmpca"
 	acmpcatypes "github.com/aws/aws-sdk-go-v2/service/acmpca/types"
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/hcl"
 	upstreamauthorityv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/upstreamauthority/v1"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/coretypes/x509certificate"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/pluginconf"
+	"github.com/spiffe/spire/pkg/common/plugindecode"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -53,18 +53,18 @@ func builtin(p *PCAPlugin) catalog.BuiltIn {
 
 // Configuration provides configuration context for the plugin
 type Configuration struct {
-	Region                  string `hcl:"region" json:"region"`
-	Endpoint                string `hcl:"endpoint" json:"endpoint"`
-	CertificateAuthorityARN string `hcl:"certificate_authority_arn" json:"certificate_authority_arn"`
-	SigningAlgorithm        string `hcl:"signing_algorithm" json:"signing_algorithm"`
-	CASigningTemplateARN    string `hcl:"ca_signing_template_arn" json:"ca_signing_template_arn"`
-	AssumeRoleARN           string `hcl:"assume_role_arn" json:"assume_role_arn"`
-	SupplementalBundlePath  string `hcl:"supplemental_bundle_path" json:"supplemental_bundle_path"`
+	Region                  string `hcl:"region" json:"region" yaml:"region"`
+	Endpoint                string `hcl:"endpoint" json:"endpoint" yaml:"endpoint"`
+	CertificateAuthorityARN string `hcl:"certificate_authority_arn" json:"certificate_authority_arn" yaml:"certificateAuthorityArn"`
+	SigningAlgorithm        string `hcl:"signing_algorithm" json:"signing_algorithm" yaml:"signingAlgorithm"`
+	CASigningTemplateARN    string `hcl:"ca_signing_template_arn" json:"ca_signing_template_arn" yaml:"caSigningTemplateArn"`
+	AssumeRoleARN           string `hcl:"assume_role_arn" json:"assume_role_arn" yaml:"assumeRoleArn"`
+	SupplementalBundlePath  string `hcl:"supplemental_bundle_path" json:"supplemental_bundle_path" yaml:"supplementalBundlePath"`
 }
 
-func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *Configuration {
+func buildConfig(coreConfig catalog.CoreConfig, text string, format catalog.ConfigFormat, status *pluginconf.Status) *Configuration {
 	newConfig := new(Configuration)
-	if err := hcl.Decode(newConfig, hclText); err != nil {
+	if err := plugindecode.DecodeConfig(text, format, newConfig); err != nil {
 		status.ReportError("plugin configuration is malformed")
 		return nil
 	}

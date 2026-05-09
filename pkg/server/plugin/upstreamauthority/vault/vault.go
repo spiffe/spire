@@ -8,7 +8,6 @@ import (
 	"sync"
 
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/hcl"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -18,6 +17,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/coretypes/x509certificate"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/pluginconf"
+	"github.com/spiffe/spire/pkg/common/plugindecode"
 	"github.com/spiffe/spire/pkg/server/common/vault"
 )
 
@@ -40,15 +40,15 @@ func builtin(p *Plugin) catalog.BuiltIn {
 }
 
 type Configuration struct {
-	vault.BaseConfiguration `hcl:",squash"`
+	vault.BaseConfiguration `hcl:",squash" yaml:",inline"`
 
 	// Name of the mount point where PKI secret engine is mounted. (e.g., /<mount_point>/ca/pem)
-	PKIMountPoint string `hcl:"pki_mount_point" json:"pki_mount_point"`
+	PKIMountPoint string `hcl:"pki_mount_point" json:"pki_mount_point" yaml:"pkiMountPoint"`
 }
 
-func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *Configuration {
+func buildConfig(coreConfig catalog.CoreConfig, text string, format catalog.ConfigFormat, status *pluginconf.Status) *Configuration {
 	newConfig := new(Configuration)
-	if err := hcl.Decode(newConfig, hclText); err != nil {
+	if err := plugindecode.DecodeConfig(text, format, newConfig); err != nil {
 		status.ReportError("plugin configuration is malformed")
 		return nil
 	}

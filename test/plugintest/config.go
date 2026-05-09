@@ -19,6 +19,7 @@ type config struct {
 	configureErr *error
 	coreConfig   catalog.CoreConfig
 	plainConfig  *string
+	configFormat catalog.ConfigFormat
 	jsonConfig   any
 }
 

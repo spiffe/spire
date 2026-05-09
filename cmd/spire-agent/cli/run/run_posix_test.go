@@ -199,7 +199,7 @@ func TestParseConfigGood(t *testing.T) {
 			Name:       "plugin_name_agent",
 			Path:       "./pluginAgentCmd",
 			Checksum:   "pluginAgentChecksum",
-			DataSource: catalog.FixedData(data),
+			DataSource: catalog.FixedData{Data: data, Format: catalog.ConfigFormatHCL},
 			Disabled:   false,
 		},
 		{
@@ -207,7 +207,7 @@ func TestParseConfigGood(t *testing.T) {
 			Name:       "plugin_disabled",
 			Path:       "./pluginAgentCmd",
 			Checksum:   "pluginAgentChecksum",
-			DataSource: catalog.FixedData(data),
+			DataSource: catalog.FixedData{Data: data, Format: catalog.ConfigFormatHCL},
 			Disabled:   true,
 		},
 		{
@@ -215,7 +215,7 @@ func TestParseConfigGood(t *testing.T) {
 			Name:       "plugin_enabled",
 			Path:       "./pluginAgentCmd",
 			Checksum:   "pluginAgentChecksum",
-			DataSource: catalog.FileData("plugin.conf"),
+			DataSource: catalog.FileData{Path: "plugin.conf", Format: catalog.ConfigFormatHCL},
 			Disabled:   false,
 		},
 	}

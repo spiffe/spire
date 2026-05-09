@@ -8,7 +8,6 @@ import (
 	"net/url"
 	"sync"
 
-	"github.com/hashicorp/hcl"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -17,6 +16,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/gcp"
 	"github.com/spiffe/spire/pkg/common/pluginconf"
+	"github.com/spiffe/spire/pkg/common/plugindecode"
 )
 
 const (
@@ -47,13 +47,13 @@ type IITAttestorPlugin struct {
 
 // IITAttestorConfig configures a IITAttestorPlugin.
 type IITAttestorConfig struct {
-	IdentityTokenHost string `hcl:"identity_token_host"`
-	ServiceAccount    string `hcl:"service_account"`
+	IdentityTokenHost string `hcl:"identity_token_host" yaml:"identityTokenHost"`
+	ServiceAccount    string `hcl:"service_account" yaml:"serviceAccount"`
 }
 
-func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *IITAttestorConfig {
+func buildConfig(coreConfig catalog.CoreConfig, text string, format catalog.ConfigFormat, status *pluginconf.Status) *IITAttestorConfig {
 	newConfig := &IITAttestorConfig{}
-	if err := hcl.Decode(newConfig, hclText); err != nil {
+	if err := plugindecode.DecodeConfig(text, format, newConfig); err != nil {
 		status.ReportErrorf("unable to decode configuration: %v", err)
 		return nil
 	}
