@@ -10,13 +10,13 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire-plugin-sdk/pluginsdk/support/bundleformat"
 	bundlepublisherv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/bundlepublisher/v1"
 	"github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/types"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/pluginconf"
+	"github.com/spiffe/spire/pkg/common/plugindecode"
 	"github.com/spiffe/spire/pkg/server/plugin/bundlepublisher/common"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -44,26 +44,26 @@ func New() *Plugin {
 
 // Config holds the configuration of the plugin.
 type Config struct {
-	StorageAccountName string `hcl:"storage_account_name" json:"storage_account_name"`
-	StorageAccountKey  string `hcl:"storage_account_key" json:"storage_account_key"`
-	ServiceEndpoint    string `hcl:"service_endpoint" json:"service_endpoint"`
-	ContainerName      string `hcl:"container_name" json:"container_name"`
-	BlobName           string `hcl:"blob_name" json:"blob_name"`
-	Format             string `hcl:"format" json:"format"`
-	TenantID           string `hcl:"tenant_id" json:"tenant_id"`
-	AppID              string `hcl:"app_id" json:"app_id"`
-	AppSecret          string `hcl:"app_secret" json:"app_secret"`
-	RefreshHint        string `hcl:"refresh_hint" json:"refresh_hint"`
+	StorageAccountName string `hcl:"storage_account_name" json:"storage_account_name" yaml:"storageAccountName"`
+	StorageAccountKey  string `hcl:"storage_account_key" json:"storage_account_key" yaml:"storageAccountKey"`
+	ServiceEndpoint    string `hcl:"service_endpoint" json:"service_endpoint" yaml:"serviceEndpoint"`
+	ContainerName      string `hcl:"container_name" json:"container_name" yaml:"containerName"`
+	BlobName           string `hcl:"blob_name" json:"blob_name" yaml:"blobName"`
+	Format             string `hcl:"format" json:"format" yaml:"format"`
+	TenantID           string `hcl:"tenant_id" json:"tenant_id" yaml:"tenantId"`
+	AppID              string `hcl:"app_id" json:"app_id" yaml:"appId"`
+	AppSecret          string `hcl:"app_secret" json:"app_secret" yaml:"appSecret"`
+	RefreshHint        string `hcl:"refresh_hint" json:"refresh_hint" yaml:"refreshHint"`
 
 	bundleFormat      bundleformat.Format
 	parsedRefreshHint int64
 	accountURL        string
 }
 
-func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *Config {
+func buildConfig(coreConfig catalog.CoreConfig, text string, format catalog.ConfigFormat, status *pluginconf.Status) *Config {
 	newConfig := new(Config)
 
-	if err := hcl.Decode(newConfig, hclText); err != nil {
+	if err := plugindecode.DecodeConfig(text, format, newConfig); err != nil {
 		status.ReportErrorf("unable to decode configuration: %v", err)
 		return nil
 	}

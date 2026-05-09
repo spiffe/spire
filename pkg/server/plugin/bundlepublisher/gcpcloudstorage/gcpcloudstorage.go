@@ -7,13 +7,13 @@ import (
 
 	"cloud.google.com/go/storage"
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire-plugin-sdk/pluginsdk/support/bundleformat"
 	bundlepublisherv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/bundlepublisher/v1"
 	"github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/types"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/pluginconf"
+	"github.com/spiffe/spire/pkg/common/plugindecode"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/plugin/bundlepublisher/common"
 	"google.golang.org/api/option"
@@ -42,11 +42,11 @@ func New() *Plugin {
 
 // Config holds the configuration of the plugin.
 type Config struct {
-	BucketName         string `hcl:"bucket_name" json:"bucket_name"`
-	ObjectName         string `hcl:"object_name" json:"object_name"`
-	Format             string `hcl:"format" json:"format"`
-	ServiceAccountFile string `hcl:"service_account_file" json:"service_account_file"`
-	RefreshHint        string `hcl:"refresh_hint" json:"refresh_hint"`
+	BucketName         string `hcl:"bucket_name" json:"bucket_name" yaml:"bucketName"`
+	ObjectName         string `hcl:"object_name" json:"object_name" yaml:"objectName"`
+	Format             string `hcl:"format" json:"format" yaml:"format"`
+	ServiceAccountFile string `hcl:"service_account_file" json:"service_account_file" yaml:"serviceAccountFile"`
+	RefreshHint        string `hcl:"refresh_hint" json:"refresh_hint" yaml:"refreshHint"`
 
 	// bundleFormat is used to store the content of Format, parsed
 	// as bundleformat.Format.
@@ -57,10 +57,10 @@ type Config struct {
 	parsedRefreshHint int64
 }
 
-func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *Config {
+func buildConfig(coreConfig catalog.CoreConfig, text string, format catalog.ConfigFormat, status *pluginconf.Status) *Config {
 	newConfig := new(Config)
 
-	if err := hcl.Decode(newConfig, hclText); err != nil {
+	if err := plugindecode.DecodeConfig(text, format, newConfig); err != nil {
 		status.ReportErrorf("unable to decode configuration: %v", err)
 		return nil
 	}

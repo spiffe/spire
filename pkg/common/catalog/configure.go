@@ -26,30 +26,30 @@ func (c CoreConfig) v1() *configv1.CoreConfiguration {
 }
 
 type Configurer interface {
-	Configure(ctx context.Context, coreConfig CoreConfig, configuration string) error
-	Validate(ctx context.Context, coreConfig CoreConfig, configuration string) (*configv1.ValidateResponse, error)
+	Configure(ctx context.Context, coreConfig CoreConfig, configuration string, format ConfigFormat) error
+	Validate(ctx context.Context, coreConfig CoreConfig, configuration string, format ConfigFormat) (*configv1.ValidateResponse, error)
 }
 
-type ConfigurerFunc func(ctx context.Context, coreConfig CoreConfig, configuration string) error
-type ValidatorFunc func(ctx context.Context, coreConfig CoreConfig, configuration string) (*configv1.ValidateResponse, error)
+type ConfigurerFunc func(ctx context.Context, coreConfig CoreConfig, configuration string, format ConfigFormat) error
+type ValidatorFunc func(ctx context.Context, coreConfig CoreConfig, configuration string, format ConfigFormat) (*configv1.ValidateResponse, error)
 
-func (fn ConfigurerFunc) Configure(ctx context.Context, coreConfig CoreConfig, configuration string) error {
-	return fn(ctx, coreConfig, configuration)
+func (fn ConfigurerFunc) Configure(ctx context.Context, coreConfig CoreConfig, configuration string, format ConfigFormat) error {
+	return fn(ctx, coreConfig, configuration, format)
 }
 
-func (fn ValidatorFunc) Validate(ctx context.Context, coreConfig CoreConfig, configuration string) (*configv1.ValidateResponse, error) {
-	return fn(ctx, coreConfig, configuration)
+func (fn ValidatorFunc) Validate(ctx context.Context, coreConfig CoreConfig, configuration string, format ConfigFormat) (*configv1.ValidateResponse, error) {
+	return fn(ctx, coreConfig, configuration, format)
 }
 
 func ConfigurePlugin(ctx context.Context, coreConfig CoreConfig, configurer Configurer, dataSource DataSource, lastHash string) (string, error) {
-	data, err := dataSource.Load()
+	data, format, err := dataSource.Load()
 	if err != nil {
 		return "", fmt.Errorf("failed to load plugin data: %w", err)
 	}
 
 	dataHash := hashData(data)
 	if lastHash == "" || dataHash != lastHash {
-		if err := configurer.Configure(ctx, coreConfig, data); err != nil {
+		if err := configurer.Configure(ctx, coreConfig, data, format); err != nil {
 			return "", err
 		}
 	}
@@ -103,7 +103,7 @@ func configurePlugin(ctx context.Context, pluginLog logrus.FieldLogger, coreConf
 		return nil, errors.New("no supported configuration interface found")
 	case configurer != nil && dataSource == nil:
 		// The plugin supports configuration but no data source was configured. Default to an empty, fixed configuration.
-		dataSource = FixedData("")
+		dataSource = FixedData{Data: "", Format: ConfigFormatHCL}
 	case configurer != nil && dataSource != nil:
 		// The plugin supports configuration and there was a data source.
 	}
@@ -168,19 +168,29 @@ func (v1 *configurerV1) InitInfo(PluginInfo) {
 func (v1 *configurerV1) InitLog(logrus.FieldLogger) {
 }
 
-func (v1 *configurerV1) Configure(ctx context.Context, coreConfig CoreConfig, hclConfiguration string) error {
-	_, err := v1.ConfigServiceClient.Configure(ctx, &configv1.ConfigureRequest{
+func (v1 *configurerV1) Configure(ctx context.Context, coreConfig CoreConfig, configuration string, format ConfigFormat) error {
+	req := &configv1.ConfigureRequest{
 		CoreConfiguration: coreConfig.v1(),
-		HclConfiguration:  hclConfiguration,
-	})
+		Configuration:     configuration,
+		ConfigFormat:      format.ToProto(),
+	}
+	if format == ConfigFormatHCL {
+		req.HclConfiguration = configuration //nolint:staticcheck // for plugins built against older SDKs
+	}
+	_, err := v1.ConfigServiceClient.Configure(ctx, req)
 	return err
 }
 
-func (v1 *configurerV1) Validate(ctx context.Context, coreConfig CoreConfig, hclConfiguration string) (*configv1.ValidateResponse, error) {
-	return v1.ConfigServiceClient.Validate(ctx, &configv1.ValidateRequest{
+func (v1 *configurerV1) Validate(ctx context.Context, coreConfig CoreConfig, configuration string, format ConfigFormat) (*configv1.ValidateResponse, error) {
+	req := &configv1.ValidateRequest{
 		CoreConfiguration: coreConfig.v1(),
-		HclConfiguration:  hclConfiguration,
-	})
+		Configuration:     configuration,
+		ConfigFormat:      format.ToProto(),
+	}
+	if format == ConfigFormatHCL {
+		req.HclConfiguration = configuration //nolint:staticcheck // for plugins built against older SDKs
+	}
+	return v1.ConfigServiceClient.Validate(ctx, req)
 }
 
 func hashData(data string) string {

@@ -10,12 +10,12 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/feature/ec2/imds"
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/hcl"
 	nodeattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/agent/nodeattestor/v1"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	caws "github.com/spiffe/spire/pkg/common/plugin/aws"
 	"github.com/spiffe/spire/pkg/common/pluginconf"
+	"github.com/spiffe/spire/pkg/common/plugindecode"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -38,12 +38,12 @@ func builtin(p *IIDAttestorPlugin) catalog.BuiltIn {
 
 // IIDAttestorConfig configures a IIDAttestorPlugin.
 type IIDAttestorConfig struct {
-	EC2MetadataEndpoint string `hcl:"ec2_metadata_endpoint"`
+	EC2MetadataEndpoint string `hcl:"ec2_metadata_endpoint" yaml:"ec2MetadataEndpoint"`
 }
 
-func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *IIDAttestorConfig {
+func buildConfig(coreConfig catalog.CoreConfig, text string, format catalog.ConfigFormat, status *pluginconf.Status) *IIDAttestorConfig {
 	newConfig := &IIDAttestorConfig{}
-	if err := hcl.Decode(newConfig, hclText); err != nil {
+	if err := plugindecode.DecodeConfig(text, format, newConfig); err != nil {
 		status.ReportErrorf("unable to decode configuration: %v", err)
 		return nil
 	}

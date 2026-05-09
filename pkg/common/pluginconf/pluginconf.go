@@ -2,7 +2,7 @@ package pluginconf
 
 import (
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/hashicorp/hcl/hcl/token"
@@ -13,8 +13,7 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-// ReportUnusedKeys reports an error on s listing any keys present in
-// unused. If unused is empty, no error is reported.
+// ReportUnusedKeys reports an error on s listing any keys present in unused.
 func ReportUnusedKeys(s *Status, unused map[string][]token.Pos) {
 	if len(unused) == 0 {
 		return
@@ -23,7 +22,7 @@ func ReportUnusedKeys(s *Status, unused map[string][]token.Pos) {
 	for k := range unused {
 		keys = append(keys, k)
 	}
-	sort.Strings(keys)
+	slices.Sort(keys)
 	s.ReportErrorf("unknown configurations detected: %s", strings.Join(keys, ","))
 }
 
@@ -54,9 +53,29 @@ func (s *Status) ReportErrorf(format string, args ...any) {
 type Request interface {
 	GetCoreConfiguration() *configv1.CoreConfiguration
 	GetHclConfiguration() string
+	GetConfiguration() string
+	GetConfigFormat() configv1.ConfigFormat
 }
 
-func Build[C any](req Request, build func(coreConfig catalog.CoreConfig, hclText string, s *Status) *C) (*C, []string, error) {
+// configText returns the configuration text from the request, preferring
+// the new Configuration field over the legacy HclConfiguration field.
+func configText(req Request) string {
+	if c := req.GetConfiguration(); c != "" {
+		return c
+	}
+	return req.GetHclConfiguration()
+}
+
+// configFormat returns the ConfigFormat from the request, defaulting to HCL
+// when the new field is unset (old SPIRE sending only hcl_configuration).
+func configFormat(req Request) catalog.ConfigFormat {
+	if req.GetConfigFormat() == configv1.ConfigFormat_CONFIG_FORMAT_YAML {
+		return catalog.ConfigFormatYAML
+	}
+	return catalog.ConfigFormatHCL
+}
+
+func Build[C any](req Request, build func(coreConfig catalog.CoreConfig, text string, format catalog.ConfigFormat, s *Status) *C) (*C, []string, error) {
 	var s Status
 	var coreConfig catalog.CoreConfig
 
@@ -75,6 +94,6 @@ func Build[C any](req Request, build func(coreConfig catalog.CoreConfig, hclText
 		}
 	}
 
-	config := build(coreConfig, req.GetHclConfiguration(), &s)
+	config := build(coreConfig, configText(req), configFormat(req), &s)
 	return config, s.notes, s.err
 }

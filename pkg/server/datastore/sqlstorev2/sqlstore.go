@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/datastore/sqlcommon"
 	"gorm.io/gorm"
@@ -135,7 +136,7 @@ func (ds *Plugin) SetUseServerTimestamps(useServerTimestamps bool) {
 
 // Configure parses the HCL config, validates it, and opens the connection(s).
 func (ds *Plugin) Configure(ctx context.Context, hclConfiguration string) error {
-	config, err := sqlcommon.BuildConfig(hclConfiguration)
+	config, err := sqlcommon.BuildConfig(hclConfiguration, catalog.ConfigFormatHCL)
 	if err != nil {
 		return err
 	}

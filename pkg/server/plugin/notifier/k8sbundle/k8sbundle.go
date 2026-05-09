@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire-plugin-sdk/pluginsdk"
 	identityproviderv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/hostservice/server/identityprovider/v1"
 	notifierv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/notifier/v1"
@@ -19,6 +18,7 @@ import (
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/pluginconf"
+	"github.com/spiffe/spire/pkg/common/plugindecode"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	admissionv1 "k8s.io/api/admissionregistration/v1"
@@ -56,22 +56,22 @@ func builtIn(p *Plugin) catalog.BuiltIn {
 }
 
 type cluster struct {
-	Namespace          string `hcl:"namespace"`
-	ConfigMap          string `hcl:"config_map"`
-	ConfigMapKey       string `hcl:"config_map_key"`
-	WebhookLabel       string `hcl:"webhook_label"`
-	APIServiceLabel    string `hcl:"api_service_label"`
-	KubeConfigFilePath string `hcl:"kube_config_file_path"`
+	Namespace          string `hcl:"namespace" yaml:"namespace"`
+	ConfigMap          string `hcl:"config_map" yaml:"configMap"`
+	ConfigMapKey       string `hcl:"config_map_key" yaml:"configMapKey"`
+	WebhookLabel       string `hcl:"webhook_label" yaml:"webhookLabel"`
+	APIServiceLabel    string `hcl:"api_service_label" yaml:"apiServiceLabel"`
+	KubeConfigFilePath string `hcl:"kube_config_file_path" yaml:"kubeConfigFilePath"`
 }
 
 type Configuration struct {
-	cluster  `hcl:",squash"` // for hcl v2 it should be `hcl:",remain"`
-	Clusters []cluster       `hcl:"clusters"`
+	cluster  `hcl:",squash" yaml:",inline"` // for hcl v2 it should be `hcl:",remain"`
+	Clusters []cluster                      `hcl:"clusters" yaml:"clusters"`
 }
 
-func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *Configuration {
+func buildConfig(coreConfig catalog.CoreConfig, text string, format catalog.ConfigFormat, status *pluginconf.Status) *Configuration {
 	newConfig := new(Configuration)
-	if err := hcl.Decode(newConfig, hclText); err != nil {
+	if err := plugindecode.DecodeConfig(text, format, newConfig); err != nil {
 		status.ReportError("plugin configuration is malformed")
 		return nil
 	}

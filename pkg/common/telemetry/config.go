@@ -22,54 +22,54 @@ type MetricsConfig struct {
 }
 
 type FileConfig struct {
-	Prometheus *PrometheusConfig `hcl:"Prometheus"`
-	DogStatsd  []DogStatsdConfig `hcl:"DogStatsd"`
-	Statsd     []StatsdConfig    `hcl:"Statsd"`
-	M3         []M3Config        `hcl:"M3"`
-	InMem      *InMem            `hcl:"InMem"`
+	Prometheus *PrometheusConfig `hcl:"Prometheus" yaml:"Prometheus"`
+	DogStatsd  []DogStatsdConfig `hcl:"DogStatsd" yaml:"DogStatsd"`
+	Statsd     []StatsdConfig    `hcl:"Statsd" yaml:"Statsd"`
+	M3         []M3Config        `hcl:"M3" yaml:"M3"`
+	InMem      *InMem            `hcl:"InMem" yaml:"InMem"`
 
-	MetricPrefix           string   `hcl:"MetricPrefix"`
-	EnableTrustDomainLabel *bool    `hcl:"EnableTrustDomainLabel"`
-	EnableHostnameLabel    *bool    `hcl:"EnableHostnameLabel"`
-	AllowedPrefixes        []string `hcl:"AllowedPrefixes"` // A list of metric prefixes to allow, with '.' as the separator
-	BlockedPrefixes        []string `hcl:"BlockedPrefixes"` // A list of metric prefixes to block, with '.' as the separator
-	AllowedLabels          []string `hcl:"AllowedLabels"`   // A list of metric labels to allow, with '.' as the separator
-	BlockedLabels          []string `hcl:"BlockedLabels"`   // A list of metric labels to block, with '.' as the separator
+	MetricPrefix           string   `hcl:"MetricPrefix" yaml:"MetricPrefix"`
+	EnableTrustDomainLabel *bool    `hcl:"EnableTrustDomainLabel" yaml:"EnableTrustDomainLabel"`
+	EnableHostnameLabel    *bool    `hcl:"EnableHostnameLabel" yaml:"EnableHostnameLabel"`
+	AllowedPrefixes        []string `hcl:"AllowedPrefixes" yaml:"AllowedPrefixes"` // A list of metric prefixes to allow, with '.' as the separator
+	BlockedPrefixes        []string `hcl:"BlockedPrefixes" yaml:"BlockedPrefixes"` // A list of metric prefixes to block, with '.' as the separator
+	AllowedLabels          []string `hcl:"AllowedLabels" yaml:"AllowedLabels"`     // A list of metric labels to allow, with '.' as the separator
+	BlockedLabels          []string `hcl:"BlockedLabels" yaml:"BlockedLabels"`     // A list of metric labels to block, with '.' as the separator
 
-	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions"`
+	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions" yaml:"-"`
 }
 
 type DogStatsdConfig struct {
-	Address            string                 `hcl:"address"`
-	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions"`
+	Address            string                 `hcl:"address" yaml:"address"`
+	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions" yaml:"-"`
 }
 
 type PrometheusConfig struct {
-	Host               string                 `hcl:"host"`
-	Port               int                    `hcl:"port"`
-	TLS                *TLSConfig             `hcl:"tls"`
-	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions"`
+	Host               string                 `hcl:"host" yaml:"host"`
+	Port               int                    `hcl:"port" yaml:"port"`
+	TLS                *TLSConfig             `hcl:"tls" yaml:"tls"`
+	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions" yaml:"-"`
 }
 
 type TLSConfig struct {
-	CertFile            string   `hcl:"cert_file"`
-	KeyFile             string   `hcl:"key_file"`
-	ClientCAFile        string   `hcl:"client_ca_file"` // optional
-	UseSPIRESVID        bool     `hcl:"use_spire_svid"`
-	AuthorizedSPIFFEIDs []string `hcl:"authorized_spiffe_ids"`
+	CertFile            string   `hcl:"cert_file" yaml:"certFile"`
+	KeyFile             string   `hcl:"key_file" yaml:"keyFile"`
+	ClientCAFile        string   `hcl:"client_ca_file" yaml:"clientCaFile"` // optional
+	UseSPIRESVID        bool     `hcl:"use_spire_svid" yaml:"useSpireSvid"`
+	AuthorizedSPIFFEIDs []string `hcl:"authorized_spiffe_ids" yaml:"authorizedSpiffeIds"`
 }
 
 type StatsdConfig struct {
-	Address            string                 `hcl:"address"`
-	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions"`
+	Address            string                 `hcl:"address" yaml:"address"`
+	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions" yaml:"-"`
 }
 
 type M3Config struct {
-	Address            string                 `hcl:"address"`
-	Env                string                 `hcl:"env"`
-	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions"`
+	Address            string                 `hcl:"address" yaml:"address"`
+	Env                string                 `hcl:"env" yaml:"env"`
+	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions" yaml:"-"`
 }
 
 type InMem struct {
-	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions"`
+	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions" yaml:"-"`
 }

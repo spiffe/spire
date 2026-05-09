@@ -18,7 +18,6 @@ import (
 	"github.com/go-jose/go-jose/v4"
 	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/hcl"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	nodeattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/nodeattestor/v1"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
@@ -27,6 +26,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/jwtutil"
 	"github.com/spiffe/spire/pkg/common/plugin/azure"
 	"github.com/spiffe/spire/pkg/common/pluginconf"
+	"github.com/spiffe/spire/pkg/common/plugindecode"
 	nodeattestorbase "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/base"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -78,15 +78,15 @@ func builtin(p *MSIAttestorPlugin) catalog.BuiltIn {
 }
 
 type TenantConfig struct {
-	ResourceID     string `hcl:"resource_id" json:"resource_id"`
-	SubscriptionID string `hcl:"subscription_id" json:"subscription_id"`
-	AppID          string `hcl:"app_id" json:"app_id"`
-	AppSecret      string `hcl:"app_secret" json:"app_secret"`
+	ResourceID     string `hcl:"resource_id" json:"resource_id" yaml:"resourceId"`
+	SubscriptionID string `hcl:"subscription_id" json:"subscription_id" yaml:"subscriptionId"`
+	AppID          string `hcl:"app_id" json:"app_id" yaml:"appId"`
+	AppSecret      string `hcl:"app_secret" json:"app_secret" yaml:"appSecret"`
 }
 
 type MSIAttestorConfig struct {
-	Tenants           map[string]*TenantConfig `hcl:"tenants" json:"tenants"`
-	AgentPathTemplate string                   `hcl:"agent_path_template" json:"agent_path_template"`
+	Tenants           map[string]*TenantConfig `hcl:"tenants" json:"tenants" yaml:"tenants"`
+	AgentPathTemplate string                   `hcl:"agent_path_template" json:"agent_path_template" yaml:"agentPathTemplate"`
 }
 
 type tenantConfig struct {
@@ -100,10 +100,10 @@ type msiAttestorConfig struct {
 	idPathTemplate *agentpathtemplate.Template
 }
 
-func (p *MSIAttestorPlugin) buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *msiAttestorConfig {
+func (p *MSIAttestorPlugin) buildConfig(coreConfig catalog.CoreConfig, text string, format catalog.ConfigFormat, status *pluginconf.Status) *msiAttestorConfig {
 	newConfig := new(MSIAttestorConfig)
 
-	if err := hcl.Decode(newConfig, hclText); err != nil {
+	if err := plugindecode.DecodeConfig(text, format, newConfig); err != nil {
 		status.ReportErrorf("unable to decode configuration: %v", err)
 		return nil
 	}

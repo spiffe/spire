@@ -8,13 +8,13 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/hashicorp/hcl"
 	"github.com/spiffe/go-spiffe/v2/workloadapi"
 	nodeattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/agent/nodeattestor/v1"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/x509pop"
 	"github.com/spiffe/spire/pkg/common/pluginconf"
+	"github.com/spiffe/spire/pkg/common/plugindecode"
 	"github.com/spiffe/spire/pkg/common/util"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -40,15 +40,15 @@ type configData struct {
 }
 
 type Config struct {
-	PrivateKeyPath       string `hcl:"private_key_path"`
-	CertificatePath      string `hcl:"certificate_path"`
-	IntermediatesPath    string `hcl:"intermediates_path"`
-	SpiffeEndpointSocket string `hcl:"spiffe_endpoint_socket"`
+	PrivateKeyPath       string `hcl:"private_key_path" yaml:"privateKeyPath"`
+	CertificatePath      string `hcl:"certificate_path" yaml:"certificatePath"`
+	IntermediatesPath    string `hcl:"intermediates_path" yaml:"intermediatesPath"`
+	SpiffeEndpointSocket string `hcl:"spiffe_endpoint_socket" yaml:"spiffeEndpointSocket"`
 }
 
-func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *Config {
+func buildConfig(coreConfig catalog.CoreConfig, text string, format catalog.ConfigFormat, status *pluginconf.Status) *Config {
 	newConfig := new(Config)
-	if err := hcl.Decode(newConfig, hclText); err != nil {
+	if err := plugindecode.DecodeConfig(text, format, newConfig); err != nil {
 		status.ReportErrorf("unable to decode configuration: %v", err)
 		return nil
 	}

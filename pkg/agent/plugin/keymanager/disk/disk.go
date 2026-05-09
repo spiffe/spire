@@ -1,6 +1,7 @@
 package disk
 
 import (
+	"cmp"
 	"context"
 	"crypto/x509"
 	"encoding/json"
@@ -9,12 +10,12 @@ import (
 	"sync"
 
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/hcl"
 	keymanagerv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/agent/keymanager/v1"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	keymanagerbase "github.com/spiffe/spire/pkg/agent/plugin/keymanager/base"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/diskutil"
+	"github.com/spiffe/spire/pkg/common/plugindecode"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -36,7 +37,7 @@ func asBuiltIn(p *KeyManager) catalog.BuiltIn {
 }
 
 type configuration struct {
-	Directory string `hcl:"directory"`
+	Directory string `hcl:"directory" yaml:"directory"`
 }
 
 type KeyManager struct {
@@ -64,7 +65,12 @@ func (m *KeyManager) SetLogger(log hclog.Logger) {
 
 func (m *KeyManager) Configure(_ context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
 	config := new(configuration)
-	if err := hcl.Decode(config, req.HclConfiguration); err != nil {
+	format := catalog.ConfigFormatHCL
+	if req.GetConfigFormat() == configv1.ConfigFormat_CONFIG_FORMAT_YAML {
+		format = catalog.ConfigFormatYAML
+	}
+	configText := cmp.Or(req.GetConfiguration(), req.GetHclConfiguration()) //nolint:staticcheck // sent by older SPIRE versions
+	if err := plugindecode.DecodeConfig(configText, format, config); err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "unable to decode configuration: %v", err)
 	}
 

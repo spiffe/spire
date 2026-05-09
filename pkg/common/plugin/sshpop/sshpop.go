@@ -7,14 +7,17 @@ import (
 	"os"
 	"strings"
 
-	"github.com/hashicorp/hcl"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/agentpathtemplate"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/pluginconf"
+	"github.com/spiffe/spire/pkg/common/plugindecode"
 	"golang.org/x/crypto/ssh"
 )
+
+var _ pluginconf.Request = (*ClientConfigRequest)(nil)
+var _ pluginconf.Request = (*ServerConfigRequest)(nil)
 
 const (
 	// PluginName is used for identifying this plugin type for protobuf blobs.
@@ -55,8 +58,8 @@ type Server struct {
 
 // ClientConfig configures the client.
 type ClientConfig struct {
-	HostKeyPath  string `hcl:"host_key_path"`
-	HostCertPath string `hcl:"host_cert_path"`
+	HostKeyPath  string `hcl:"host_key_path" yaml:"hostKeyPath"`
+	HostCertPath string `hcl:"host_cert_path" yaml:"hostCertPath"`
 
 	cert   *ssh.Certificate
 	signer ssh.Signer
@@ -75,6 +78,11 @@ func (ccr *ClientConfigRequest) GetHclConfiguration() string {
 	return ccr.hclText
 }
 
+func (ccr *ClientConfigRequest) GetConfiguration() string { return "" }
+func (ccr *ClientConfigRequest) GetConfigFormat() configv1.ConfigFormat {
+	return configv1.ConfigFormat_CONFIG_FORMAT_HCL
+}
+
 type ServerConfigRequest struct {
 	coreConfig *configv1.CoreConfiguration
 	hclText    string
@@ -88,27 +96,32 @@ func (scr *ServerConfigRequest) GetHclConfiguration() string {
 	return scr.hclText
 }
 
+func (scr *ServerConfigRequest) GetConfiguration() string { return "" }
+func (scr *ServerConfigRequest) GetConfigFormat() configv1.ConfigFormat {
+	return configv1.ConfigFormat_CONFIG_FORMAT_HCL
+}
+
 // ServerConfig configures the server.
 type ServerConfig struct {
-	CertAuthorities     []string `hcl:"cert_authorities"`
-	CertAuthoritiesPath string   `hcl:"cert_authorities_path"`
+	CertAuthorities     []string `hcl:"cert_authorities" yaml:"certAuthorities"`
+	CertAuthoritiesPath string   `hcl:"cert_authorities_path" yaml:"certAuthoritiesPath"`
 	// CanonicalDomain specifies the domain suffix for validating the hostname against
 	// the certificate's valid principals. See CanonicalDomains in ssh_config(5).
-	CanonicalDomain   string `hcl:"canonical_domain"`
-	AgentPathTemplate string `hcl:"agent_path_template"`
+	CanonicalDomain   string `hcl:"canonical_domain" yaml:"canonicalDomain"`
+	AgentPathTemplate string `hcl:"agent_path_template" yaml:"agentPathTemplate"`
 	// VerifyClientIP, when true, requires the host certificate to carry a
 	// source-address critical option and checks the connecting peer's IP
 	// against it. Certificates without source-address are rejected.
-	VerifyClientIP bool `hcl:"verify_client_ip"`
+	VerifyClientIP bool `hcl:"verify_client_ip" yaml:"verifyClientIp"`
 
 	certChecker       *ssh.CertChecker
 	agentPathTemplate *agentpathtemplate.Template
 	trustDomain       spiffeid.TrustDomain
 }
 
-func BuildServerConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *ServerConfig {
+func BuildServerConfig(coreConfig catalog.CoreConfig, text string, format catalog.ConfigFormat, status *pluginconf.Status) *ServerConfig {
 	newConfig := new(ServerConfig)
-	if err := hcl.Decode(newConfig, hclText); err != nil {
+	if err := plugindecode.DecodeConfig(text, format, newConfig); err != nil {
 		status.ReportErrorf("failed to decode configuration: %v", err)
 		return nil
 	}
@@ -159,9 +172,9 @@ func (sc *ServerConfig) NewServer() *Server {
 	}
 }
 
-func BuildClientConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *ClientConfig {
+func BuildClientConfig(coreConfig catalog.CoreConfig, text string, format catalog.ConfigFormat, status *pluginconf.Status) *ClientConfig {
 	newConfig := new(ClientConfig)
-	if err := hcl.Decode(newConfig, hclText); err != nil {
+	if err := plugindecode.DecodeConfig(text, format, newConfig); err != nil {
 		status.ReportErrorf("failed to decode configuration: %v", err)
 		return nil
 	}

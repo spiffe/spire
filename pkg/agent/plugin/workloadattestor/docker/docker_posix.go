@@ -29,29 +29,29 @@ var (
 
 type OSConfig struct {
 	// DockerSocketPath is the location of the docker daemon socket, this config can be used only on unix environments (default: "unix:///var/run/docker.sock").
-	DockerSocketPath string `hcl:"docker_socket_path" json:"docker_socket_path"`
+	DockerSocketPath string `hcl:"docker_socket_path" json:"docker_socket_path" yaml:"dockerSocketPath"`
 
 	// ContainerIDCGroupMatchers is a list of patterns used to discover container IDs from cgroup entries.
 	// See the documentation for cgroup.NewContainerIDFinder in the cgroup subpackage for more information. (Unix)
-	ContainerIDCGroupMatchers []string `hcl:"container_id_cgroup_matchers" json:"container_id_cgroup_matchers"`
+	ContainerIDCGroupMatchers []string `hcl:"container_id_cgroup_matchers" json:"container_id_cgroup_matchers" yaml:"containerIdCgroupMatchers"`
 
 	// UseNewContainerLocator, if true, uses the new container locator
 	// mechanism instead of cgroup matchers. Currently defaults to false if
 	// unset. This will default to true in a future release. (Unix)
-	UseNewContainerLocator *bool `hcl:"use_new_container_locator"`
+	UseNewContainerLocator *bool `hcl:"use_new_container_locator" yaml:"useNewContainerLocator"`
 
 	// VerboseContainerLocatorLogs, if true, dumps extra information to the log
 	// about the cgroup information used to locate the container.
-	VerboseContainerLocatorLogs bool `hcl:"verbose_container_locator_logs"`
+	VerboseContainerLocatorLogs bool `hcl:"verbose_container_locator_logs" yaml:"verboseContainerLocatorLogs"`
 
 	// PodmanSocketPath is the socket path for rootful Podman (no user namespace).
 	// Defaults to "unix:///run/podman/podman.sock".
-	PodmanSocketPath string `hcl:"podman_socket_path" json:"podman_socket_path"`
+	PodmanSocketPath string `hcl:"podman_socket_path" json:"podman_socket_path" yaml:"podmanSocketPath"`
 
 	// PodmanSocketPathTemplate is the socket path template for rootless Podman.
 	// The placeholder %d is replaced with the container owner's host UID extracted
 	// from the cgroup path. Defaults to "unix:///run/user/%d/podman/podman.sock".
-	PodmanSocketPathTemplate string `hcl:"podman_socket_path_template" json:"podman_socket_path_template"`
+	PodmanSocketPathTemplate string `hcl:"podman_socket_path_template" json:"podman_socket_path_template" yaml:"podmanSocketPathTemplate"`
 
 	// UseRootlessPodman enables attestation of rootless Podman workloads by
 	// deriving the per-user Podman socket from the workload's cgroup UID and
@@ -60,7 +60,7 @@ type OSConfig struct {
 	// can present arbitrary container labels; it should be paired with unix:uid
 	// or unix:user selectors so a workload cannot obtain selectors scoped to a
 	// different user. Defaults to false. (Unix)
-	UseRootlessPodman bool `hcl:"use_rootless_podman" json:"use_rootless_podman"`
+	UseRootlessPodman bool `hcl:"use_rootless_podman" json:"use_rootless_podman" yaml:"useRootlessPodman"`
 
 	// Used by tests to use a fake /proc directory instead of the real one
 	rootDir string

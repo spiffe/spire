@@ -40,6 +40,8 @@ The following table outlines the configuration options for SPIRE agent. These ma
 
 SPIRE configuration files may be represented in either HCL or JSON. Please see the [sample configuration file](#sample-configuration-file) section for a complete example.
 
+YAML configuration files are also supported as an experimental feature. Please see [YAML Configuration](yaml_configuration.md) for details, including the requirements for external plugins.
+
 If the -expandEnv flag is passed to SPIRE, `$VARIABLE` or `${VARIABLE}` style environment variables are expanded before parsing.
 This may be useful for templating configuration files, for example across different trust domains, or for inserting secrets like join tokens.
 

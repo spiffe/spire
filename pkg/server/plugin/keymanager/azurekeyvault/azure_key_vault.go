@@ -22,12 +22,12 @@ import (
 	"github.com/go-jose/go-jose/v4"
 	"github.com/gofrs/uuid/v5"
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/hcl"
 	keymanagerv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/keymanager/v1"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/diskutil"
 	"github.com/spiffe/spire/pkg/common/pluginconf"
+	"github.com/spiffe/spire/pkg/common/plugindecode"
 	"golang.org/x/crypto/cryptobyte"
 	"golang.org/x/crypto/cryptobyte/asn1"
 	"google.golang.org/grpc/codes"
@@ -78,19 +78,19 @@ type pluginHooks struct {
 
 // Config provides configuration context for the plugin.
 type Config struct {
-	KeyIdentifierFile  string `hcl:"key_identifier_file" json:"key_identifier_file"`
-	KeyIdentifierValue string `hcl:"key_identifier_value" json:"key_identifier_value"`
-	KeyVaultURI        string `hcl:"key_vault_uri" json:"key_vault_uri"`
-	TenantID           string `hcl:"tenant_id" json:"tenant_id"`
-	SubscriptionID     string `hcl:"subscription_id" json:"subscription_id"`
-	AppID              string `hcl:"app_id" json:"app_id"`
-	AppSecret          string `hcl:"app_secret" json:"app_secret"`
+	KeyIdentifierFile  string `hcl:"key_identifier_file" json:"key_identifier_file" yaml:"keyIdentifierFile"`
+	KeyIdentifierValue string `hcl:"key_identifier_value" json:"key_identifier_value" yaml:"keyIdentifierValue"`
+	KeyVaultURI        string `hcl:"key_vault_uri" json:"key_vault_uri" yaml:"keyVaultUri"`
+	TenantID           string `hcl:"tenant_id" json:"tenant_id" yaml:"tenantId"`
+	SubscriptionID     string `hcl:"subscription_id" json:"subscription_id" yaml:"subscriptionId"`
+	AppID              string `hcl:"app_id" json:"app_id" yaml:"appId"`
+	AppSecret          string `hcl:"app_secret" json:"app_secret" yaml:"appSecret"`
 }
 
-func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *Config {
+func buildConfig(coreConfig catalog.CoreConfig, text string, format catalog.ConfigFormat, status *pluginconf.Status) *Config {
 	newConfig := new(Config)
 
-	if err := hcl.Decode(newConfig, hclText); err != nil {
+	if err := plugindecode.DecodeConfig(text, format, newConfig); err != nil {
 		status.ReportErrorf("unable to decode configuration: %v", err)
 		return nil
 	}

@@ -9,13 +9,13 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire-plugin-sdk/pluginsdk/support/bundleformat"
 	bundlepublisherv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/bundlepublisher/v1"
 	"github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/types"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/pluginconf"
+	"github.com/spiffe/spire/pkg/common/plugindecode"
 	"github.com/spiffe/spire/pkg/server/plugin/bundlepublisher/common"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -40,14 +40,14 @@ func New() *Plugin {
 
 // Config holds the configuration of the plugin.
 type Config struct {
-	AccessKeyID     string `hcl:"access_key_id" json:"access_key_id"`
-	SecretAccessKey string `hcl:"secret_access_key" json:"secret_access_key"`
-	Region          string `hcl:"region" json:"region"`
-	Bucket          string `hcl:"bucket" json:"bucket"`
-	ObjectKey       string `hcl:"object_key" json:"object_key"`
-	Format          string `hcl:"format" json:"format"`
-	Endpoint        string `hcl:"endpoint" json:"endpoint"`
-	RefreshHint     string `hcl:"refresh_hint" json:"refresh_hint"`
+	AccessKeyID     string `hcl:"access_key_id" json:"access_key_id" yaml:"accessKeyId"`
+	SecretAccessKey string `hcl:"secret_access_key" json:"secret_access_key" yaml:"secretAccessKey"`
+	Region          string `hcl:"region" json:"region" yaml:"region"`
+	Bucket          string `hcl:"bucket" json:"bucket" yaml:"bucket"`
+	ObjectKey       string `hcl:"object_key" json:"object_key" yaml:"objectKey"`
+	Format          string `hcl:"format" json:"format" yaml:"format"`
+	Endpoint        string `hcl:"endpoint" json:"endpoint" yaml:"endpoint"`
+	RefreshHint     string `hcl:"refresh_hint" json:"refresh_hint" yaml:"refreshHint"`
 
 	// bundleFormat is used to store the content of Format, parsed
 	// as bundleformat.Format.
@@ -58,10 +58,10 @@ type Config struct {
 	parsedRefreshHint int64
 }
 
-func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *Config {
+func buildConfig(coreConfig catalog.CoreConfig, text string, format catalog.ConfigFormat, status *pluginconf.Status) *Config {
 	newConfig := new(Config)
 
-	if err := hcl.Decode(newConfig, hclText); err != nil {
+	if err := plugindecode.DecodeConfig(text, format, newConfig); err != nil {
 		status.ReportErrorf("unable to decode configuration: %v", err)
 		return nil
 	}

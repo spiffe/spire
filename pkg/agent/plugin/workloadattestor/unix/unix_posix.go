@@ -15,12 +15,12 @@ import (
 	"sync"
 
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/hcl"
 	"github.com/shirou/gopsutil/v4/process"
 	workloadattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/agent/workloadattestor/v1"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/pluginconf"
+	"github.com/spiffe/spire/pkg/common/plugindecode"
 	"github.com/spiffe/spire/pkg/common/util"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -88,13 +88,13 @@ func (ps PSProcessInfo) Groups() ([]string, error) {
 }
 
 type Configuration struct {
-	DiscoverWorkloadPath bool  `hcl:"discover_workload_path"`
-	WorkloadSizeLimit    int64 `hcl:"workload_size_limit"`
+	DiscoverWorkloadPath bool  `hcl:"discover_workload_path" yaml:"discoverWorkloadPath"`
+	WorkloadSizeLimit    int64 `hcl:"workload_size_limit" yaml:"workloadSizeLimit"`
 }
 
-func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *Configuration {
+func buildConfig(coreConfig catalog.CoreConfig, text string, format catalog.ConfigFormat, status *pluginconf.Status) *Configuration {
 	newConfig := new(Configuration)
-	if err := hcl.Decode(newConfig, hclText); err != nil {
+	if err := plugindecode.DecodeConfig(text, format, newConfig); err != nil {
 		status.ReportErrorf("failed to decode configuration: %v", err)
 		return nil
 	}

@@ -37,6 +37,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/fflag"
 	"github.com/spiffe/spire/pkg/common/health"
 	"github.com/spiffe/spire/pkg/common/log"
+	"github.com/spiffe/spire/pkg/common/plugindecode"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/tlspolicy"
 	"github.com/spiffe/spire/pkg/server"
@@ -59,157 +60,160 @@ var defaultRateLimit = true
 
 // Config contains all available configurables, arranged by section
 type Config struct {
-	Server             *serverConfig          `hcl:"server"`
-	Plugins            ast.Node               `hcl:"plugins"`
-	Telemetry          telemetry.FileConfig   `hcl:"telemetry"`
-	HealthChecks       health.Config          `hcl:"health_checks"`
-	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions"`
+	Server             *serverConfig          `hcl:"server"        yaml:"server"`
+	Plugins            ast.Node               `hcl:"plugins"       yaml:"-"      json:"-"`
+	PluginsRaw         *catalog.RawYAML       `hcl:"-" yaml:"plugins"`
+	Telemetry          telemetry.FileConfig   `hcl:"telemetry"     yaml:"telemetry"`
+	HealthChecks       health.Config          `hcl:"health_checks" yaml:"healthChecks"`
+	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions" yaml:"-"`
 }
 
 type serverConfig struct {
-	AdminIDs                     []string             `hcl:"admin_ids"`
-	AgentTTL                     string               `hcl:"agent_ttl"`
-	AuditLogEnabled              bool                 `hcl:"audit_log_enabled"`
-	AuditLogExcludeAgentSync     bool                 `hcl:"audit_log_exclude_agent_sync"`
-	BindAddress                  string               `hcl:"bind_address"`
-	BindPort                     int                  `hcl:"bind_port"`
-	CAKeyType                    string               `hcl:"ca_key_type"`
-	CASubject                    *caSubjectConfig     `hcl:"ca_subject"`
-	CATTL                        string               `hcl:"ca_ttl"`
-	DataDir                      string               `hcl:"data_dir"`
-	DefaultX509SVIDTTL           string               `hcl:"default_x509_svid_ttl"`
-	DefaultJWTSVIDTTL            string               `hcl:"default_jwt_svid_ttl"`
-	Experimental                 experimentalConfig   `hcl:"experimental"`
-	Federation                   *federationConfig    `hcl:"federation"`
-	DisableJWTSVIDs              bool                 `hcl:"disable_jwt_svids"`
-	JWTIssuer                    string               `hcl:"jwt_issuer"`
-	JWTKeyType                   string               `hcl:"jwt_key_type"`
-	LogFile                      string               `hcl:"log_file"`
-	LogFileRotation              *log.RotationConfig  `hcl:"log_file_rotation"`
-	LogLevel                     string               `hcl:"log_level"`
-	LogFormat                    string               `hcl:"log_format"`
-	LogSourceLocation            bool                 `hcl:"log_source_location"`
-	PruneAttestedNodesExpiredFor string               `hcl:"prune_attested_nodes_expired_for"`
-	PruneAttestedNodesBatchSize  int                  `hcl:"prune_attested_nodes_batch_size"`
-	PruneNonReattestableNodes    bool                 `hcl:"prune_tofu_nodes"`
-	ProxyProtocolTrustedCIDRs    []string             `hcl:"proxy_protocol_trusted_cidrs"`
-	RateLimit                    rateLimitConfig      `hcl:"ratelimit"`
-	SocketPath                   string               `hcl:"socket_path"`
-	TrustDomain                  string               `hcl:"trust_domain"`
-	MaxAttestedNodeInfoStaleness *string              `hcl:"max_attested_node_info_staleness"`
-	TLSConfig                    *tlspolicy.TLSConfig `hcl:"tls_config"`
-	ConfigPath                   string
-	ExpandEnv                    bool
+	AdminIDs                     []string             `hcl:"admin_ids" yaml:"adminIds"`
+	AgentTTL                     string               `hcl:"agent_ttl" yaml:"agentTtl"`
+	AuditLogEnabled              bool                 `hcl:"audit_log_enabled" yaml:"auditLogEnabled"`
+	AuditLogExcludeAgentSync     bool                 `hcl:"audit_log_exclude_agent_sync" yaml:"auditLogExcludeAgentSync"`
+	BindAddress                  string               `hcl:"bind_address" yaml:"bindAddress"`
+	BindPort                     int                  `hcl:"bind_port" yaml:"bindPort"`
+	CAKeyType                    string               `hcl:"ca_key_type" yaml:"caKeyType"`
+	CASubject                    *caSubjectConfig     `hcl:"ca_subject" yaml:"caSubject"`
+	CATTL                        string               `hcl:"ca_ttl" yaml:"caTtl"`
+	DataDir                      string               `hcl:"data_dir" yaml:"dataDir"`
+	DefaultX509SVIDTTL           string               `hcl:"default_x509_svid_ttl" yaml:"defaultX509SvidTtl"`
+	DefaultJWTSVIDTTL            string               `hcl:"default_jwt_svid_ttl" yaml:"defaultJwtSvidTtl"`
+	Experimental                 experimentalConfig   `hcl:"experimental" yaml:"experimental"`
+	Federation                   *federationConfig    `hcl:"federation" yaml:"federation"`
+	DisableJWTSVIDs              bool                 `hcl:"disable_jwt_svids" yaml:"disableJwtSvids"`
+	JWTIssuer                    string               `hcl:"jwt_issuer" yaml:"jwtIssuer"`
+	JWTKeyType                   string               `hcl:"jwt_key_type" yaml:"jwtKeyType"`
+	LogFile                      string               `hcl:"log_file" yaml:"logFile"`
+	LogFileRotation              *log.RotationConfig  `hcl:"log_file_rotation" yaml:"logFileRotation"`
+	LogLevel                     string               `hcl:"log_level" yaml:"logLevel"`
+	LogFormat                    string               `hcl:"log_format" yaml:"logFormat"`
+	LogSourceLocation            bool                 `hcl:"log_source_location" yaml:"logSourceLocation"`
+	PruneAttestedNodesExpiredFor string               `hcl:"prune_attested_nodes_expired_for" yaml:"pruneAttestedNodesExpiredFor"`
+	PruneAttestedNodesBatchSize  int                  `hcl:"prune_attested_nodes_batch_size" yaml:"pruneAttestedNodesBatchSize"`
+	PruneNonReattestableNodes    bool                 `hcl:"prune_tofu_nodes" yaml:"pruneTofuNodes"`
+	ProxyProtocolTrustedCIDRs    []string             `hcl:"proxy_protocol_trusted_cidrs" yaml:"proxyProtocolTrustedCidrs"`
+	RateLimit                    rateLimitConfig      `hcl:"ratelimit" yaml:"ratelimit"`
+	SocketPath                   string               `hcl:"socket_path" yaml:"socketPath"`
+	TrustDomain                  string               `hcl:"trust_domain" yaml:"trustDomain"`
+	MaxAttestedNodeInfoStaleness *string              `hcl:"max_attested_node_info_staleness" yaml:"maxAttestedNodeInfoStaleness"`
+	TLSConfig                    *tlspolicy.TLSConfig `hcl:"tls_config" yaml:"tlsConfig"`
+	ConfigPath                   string               `yaml:"-"`
+	ExpandEnv                    bool                 `yaml:"-"`
 
 	// Undocumented configurables
-	ProfilingEnabled bool     `hcl:"profiling_enabled"`
-	ProfilingPort    int      `hcl:"profiling_port"`
-	ProfilingFreq    int      `hcl:"profiling_freq"`
-	ProfilingNames   []string `hcl:"profiling_names"`
+	ProfilingEnabled bool     `hcl:"profiling_enabled" yaml:"profilingEnabled"`
+	ProfilingPort    int      `hcl:"profiling_port"    yaml:"profilingPort"`
+	ProfilingFreq    int      `hcl:"profiling_freq"    yaml:"profilingFreq"`
+	ProfilingNames   []string `hcl:"profiling_names"   yaml:"profilingNames"`
 
-	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions"`
+	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions" yaml:"-"`
 }
 
 type experimentalConfig struct {
-	AgentSpiffeIdAsSelector    bool                        `hcl:"agent_spiffe_id_as_selector"`
-	AllowNonconformingAgentIDs bool                        `hcl:"allow_nonconforming_agent_ids"`
-	AuthOpaPolicyEngine        *authpolicy.OpaEngineConfig `hcl:"auth_opa_policy_engine"`
-	CacheReloadInterval        string                      `hcl:"cache_reload_interval"`
-	FullCacheReloadInterval    string                      `hcl:"full_cache_reload_interval"`
-	EventsBasedCache           bool                        `hcl:"events_based_cache"`
-	PruneEventsOlderThan       string                      `hcl:"prune_events_older_than"`
-	EventTimeout               string                      `hcl:"event_timeout"`
-	SQLTransactionTimeout      string                      `hcl:"sql_transaction_timeout"`
-	RequirePQKEM               bool                        `hcl:"require_pq_kem"`
-	EnableWITSVIDs             bool                        `hcl:"enable_wit_svids"`
-	WITKeyType                 string                      `hcl:"wit_key_type"`
-	WITIssuer                  string                      `hcl:"wit_issuer"`
-	DefaultWITSVIDTTL          string                      `hcl:"default_wit_svid_ttl"`
+	AgentSpiffeIdAsSelector    bool                        `hcl:"agent_spiffe_id_as_selector" yaml:"agentSpiffeIdAsSelector"`
+	AllowNonconformingAgentIDs bool                        `hcl:"allow_nonconforming_agent_ids" yaml:"allowNonconformingAgentIds"`
+	AuthOpaPolicyEngine        *authpolicy.OpaEngineConfig `hcl:"auth_opa_policy_engine" yaml:"authOpaPolicyEngine"`
+	CacheReloadInterval        string                      `hcl:"cache_reload_interval" yaml:"cacheReloadInterval"`
+	FullCacheReloadInterval    string                      `hcl:"full_cache_reload_interval" yaml:"fullCacheReloadInterval"`
+	EventsBasedCache           bool                        `hcl:"events_based_cache" yaml:"eventsBasedCache"`
+	PruneEventsOlderThan       string                      `hcl:"prune_events_older_than" yaml:"pruneEventsOlderThan"`
+	EventTimeout               string                      `hcl:"event_timeout" yaml:"eventTimeout"`
+	SQLTransactionTimeout      string                      `hcl:"sql_transaction_timeout" yaml:"sqlTransactionTimeout"`
+	RequirePQKEM               bool                        `hcl:"require_pq_kem" yaml:"requirePqKem"`
+	EnableWITSVIDs             bool                        `hcl:"enable_wit_svids" yaml:"enableWitSvids"`
+	WITKeyType                 string                      `hcl:"wit_key_type" yaml:"witKeyType"`
+	WITIssuer                  string                      `hcl:"wit_issuer" yaml:"witIssuer"`
+	DefaultWITSVIDTTL          string                      `hcl:"default_wit_svid_ttl" yaml:"defaultWitSvidTtl"`
 
-	Flags fflag.RawConfig `hcl:"feature_flags"`
+	Flags fflag.RawConfig `hcl:"feature_flags" yaml:"featureFlags"`
 
-	NamedPipeName string `hcl:"named_pipe_name"`
+	NamedPipeName string `hcl:"named_pipe_name" yaml:"namedPipeName"`
 
-	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions"`
+	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions" yaml:"-"`
 }
 
 type caSubjectConfig struct {
-	Country            []string               `hcl:"country"`
-	Organization       []string               `hcl:"organization"`
-	CommonName         string                 `hcl:"common_name"`
-	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions"`
+	Country            []string               `hcl:"country"       yaml:"country"`
+	Organization       []string               `hcl:"organization"  yaml:"organization"`
+	CommonName         string                 `hcl:"common_name"   yaml:"commonName"`
+	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions" yaml:"-"`
 }
 
 type federationConfig struct {
-	BundleEndpoint     *bundleEndpointConfig          `hcl:"bundle_endpoint"`
-	FederatesWith      map[string]federatesWithConfig `hcl:"federates_with"`
-	UnusedKeyPositions map[string][]token.Pos         `hcl:",unusedKeyPositions"`
+	BundleEndpoint     *bundleEndpointConfig          `hcl:"bundle_endpoint" yaml:"bundleEndpoint"`
+	FederatesWith      map[string]federatesWithConfig `hcl:"federates_with"  yaml:"federatesWith"`
+	UnusedKeyPositions map[string][]token.Pos         `hcl:",unusedKeyPositions" yaml:"-"`
 }
 
 type bundleEndpointConfig struct {
-	Address     string `hcl:"address"`
-	Port        int    `hcl:"port"`
-	RefreshHint string `hcl:"refresh_hint"`
+	Address     string `hcl:"address"      yaml:"address"`
+	Port        int    `hcl:"port"         yaml:"port"`
+	RefreshHint string `hcl:"refresh_hint" yaml:"refreshHint"`
 
-	ACME    *bundleEndpointACMEConfig `hcl:"acme"`
-	Profile ast.Node                  `hcl:"profile"`
+	ACME          *bundleEndpointACMEConfig    `hcl:"acme"    yaml:"acme"`
+	Profile       ast.Node                     `hcl:"profile" yaml:"-"`
+	ProfileConfig *bundleEndpointConfigProfile `hcl:"-" yaml:"profile"`
 
-	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions"`
+	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions" yaml:"-"`
 }
 
 type bundleEndpointConfigProfile struct {
-	HTTPSSPIFFE        *bundleEndpointProfileHTTPSSPIFFEConfig `hcl:"https_spiffe"`
-	HTTPSWeb           *bundleEndpointProfileHTTPSWebConfig    `hcl:"https_web"`
-	UnusedKeyPositions map[string][]token.Pos                  `hcl:",unusedKeyPositions"`
+	HTTPSSPIFFE        *bundleEndpointProfileHTTPSSPIFFEConfig `hcl:"https_spiffe" yaml:"httpsSpiffe"`
+	HTTPSWeb           *bundleEndpointProfileHTTPSWebConfig    `hcl:"https_web"    yaml:"httpsWeb"`
+	UnusedKeyPositions map[string][]token.Pos                  `hcl:",unusedKeyPositions" yaml:"-"`
 }
 
 type bundleEndpointProfileHTTPSWebConfig struct {
-	ACME            *bundleEndpointACMEConfig      `hcl:"acme"`
-	ServingCertFile *bundleEndpointServingCertFile `hcl:"serving_cert_file"`
+	ACME            *bundleEndpointACMEConfig      `hcl:"acme"              yaml:"acme"`
+	ServingCertFile *bundleEndpointServingCertFile `hcl:"serving_cert_file" yaml:"servingCertFile"`
 }
 
 type bundleEndpointProfileHTTPSSPIFFEConfig struct{}
 
 type bundleEndpointServingCertFile struct {
-	CertFilePath        string        `hcl:"cert_file_path"`
-	KeyFilePath         string        `hcl:"key_file_path"`
-	FileSyncInterval    time.Duration `hcl:"-"`
-	RawFileSyncInterval string        `hcl:"file_sync_interval"`
+	CertFilePath        string        `hcl:"cert_file_path"     yaml:"certFilePath"`
+	KeyFilePath         string        `hcl:"key_file_path"      yaml:"keyFilePath"`
+	FileSyncInterval    time.Duration `hcl:"-"                  yaml:"-"`
+	RawFileSyncInterval string        `hcl:"file_sync_interval" yaml:"fileSyncInterval"`
 }
 
 type bundleEndpointACMEConfig struct {
-	DirectoryURL       string                 `hcl:"directory_url"`
-	DomainName         string                 `hcl:"domain_name"`
-	Email              string                 `hcl:"email"`
-	ToSAccepted        bool                   `hcl:"tos_accepted"`
-	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions"`
+	DirectoryURL       string                 `hcl:"directory_url" yaml:"directoryUrl"`
+	DomainName         string                 `hcl:"domain_name"   yaml:"domainName"`
+	Email              string                 `hcl:"email"         yaml:"email"`
+	ToSAccepted        bool                   `hcl:"tos_accepted"  yaml:"tosAccepted"`
+	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions" yaml:"-"`
 }
 
 type federatesWithConfig struct {
-	BundleEndpointURL     string                 `hcl:"bundle_endpoint_url"`
-	BundleEndpointProfile ast.Node               `hcl:"bundle_endpoint_profile"`
-	BootstrapBundlePath   string                 `hcl:"bootstrap_bundle_path"`
-	BootstrapBundleFormat string                 `hcl:"bootstrap_bundle_format"`
-	UnusedKeyPositions    map[string][]token.Pos `hcl:",unusedKeyPositions"`
+	BundleEndpointURL           string                       `hcl:"bundle_endpoint_url"     yaml:"bundleEndpointUrl"`
+	BundleEndpointProfile       ast.Node                     `hcl:"bundle_endpoint_profile" yaml:"-"`
+	BundleEndpointProfileConfig *bundleEndpointProfileConfig `hcl:"-" yaml:"bundleEndpointProfile"`
+	BootstrapBundlePath         string                       `hcl:"bootstrap_bundle_path" yaml:"bootstrapBundlePath"`
+	BootstrapBundleFormat       string                       `hcl:"bootstrap_bundle_format" yaml:"bootstrapBundleFormat"`
+	UnusedKeyPositions          map[string][]token.Pos       `hcl:",unusedKeyPositions" yaml:"-"`
 }
 
 type bundleEndpointProfileConfig struct {
-	HTTPSSPIFFE        *httpsSPIFFEProfileConfig `hcl:"https_spiffe"`
-	HTTPSWeb           *httpsWebProfileConfig    `hcl:"https_web"`
-	UnusedKeyPositions map[string][]token.Pos    `hcl:",unusedKeyPositions"`
+	HTTPSSPIFFE        *httpsSPIFFEProfileConfig `hcl:"https_spiffe" yaml:"httpsSpiffe"`
+	HTTPSWeb           *httpsWebProfileConfig    `hcl:"https_web"    yaml:"httpsWeb"`
+	UnusedKeyPositions map[string][]token.Pos    `hcl:",unusedKeyPositions" yaml:"-"`
 }
 
 type httpsSPIFFEProfileConfig struct {
-	EndpointSPIFFEID   string                 `hcl:"endpoint_spiffe_id"`
-	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions"`
+	EndpointSPIFFEID   string                 `hcl:"endpoint_spiffe_id" yaml:"endpointSpiffeId"`
+	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions" yaml:"-"`
 }
 
 type httpsWebProfileConfig struct{}
 
 type rateLimitConfig struct {
-	Attestation        *bool                  `hcl:"attestation"`
-	Signing            *bool                  `hcl:"signing"`
-	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions"`
+	Attestation        *bool                  `hcl:"attestation" yaml:"attestation"`
+	Signing            *bool                  `hcl:"signing"     yaml:"signing"`
+	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions" yaml:"-"`
 }
 
 func NewRunCommand(ctx context.Context, logOptions []log.Option, allowUnknownConfig bool) cli.Command {
@@ -319,6 +323,15 @@ func (*Command) Synopsis() string {
 	return "Runs the server"
 }
 
+func detectFormat(path string) catalog.ConfigFormat {
+	switch strings.ToLower(filepath.Ext(path)) {
+	case ".yaml", ".yml":
+		return catalog.ConfigFormatYAML
+	default:
+		return catalog.ConfigFormatHCL
+	}
+}
+
 func ParseFile(path string, expandEnv bool) (*Config, error) {
 	c := &Config{}
 
@@ -326,17 +339,13 @@ func ParseFile(path string, expandEnv bool) (*Config, error) {
 		path = defaultConfigPath
 	}
 
-	// Return a friendly error if the file is missing
 	byteData, err := os.ReadFile(path)
 	if os.IsNotExist(err) {
 		absPath, err := filepath.Abs(path)
 		if err != nil {
-			msg := "could not determine CWD; config file not found at %s: use -config"
-			return nil, fmt.Errorf(msg, path)
+			return nil, fmt.Errorf("could not determine CWD; config file not found at %s: use -config", path)
 		}
-
-		msg := "could not find config file %s: please use the -config flag"
-		return nil, fmt.Errorf(msg, absPath)
+		return nil, fmt.Errorf("could not find config file %s: please use the -config flag", absPath)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("unable to read configuration at %q: %w", path, err)
@@ -348,8 +357,15 @@ func ParseFile(path string, expandEnv bool) (*Config, error) {
 		data = config.ExpandEnv(data)
 	}
 
-	if err := hcl.Decode(&c, data); err != nil {
-		return nil, fmt.Errorf("unable to decode configuration at %q: %w", path, err)
+	switch detectFormat(path) {
+	case catalog.ConfigFormatYAML:
+		if err := plugindecode.DecodeYAML(data, c); err != nil {
+			return nil, fmt.Errorf("unable to decode YAML configuration at %q: %w", path, err)
+		}
+	default:
+		if err := hcl.Decode(c, data); err != nil {
+			return nil, fmt.Errorf("unable to decode configuration at %q: %w", path, err)
+		}
 	}
 
 	return c, nil
@@ -527,14 +543,16 @@ func newServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig, ski
 			switch {
 			case config.BundleEndpointProfile != nil:
 				trustDomainConfig, err = parseBundleEndpointProfile(config)
-				if err != nil {
-					return nil, fmt.Errorf("error parsing federation relationship for trust domain %q: %w", trustDomain, err)
-				}
-				if err := validateFederatesWithBootstrap(td, trustDomainConfig); err != nil {
-					return nil, fmt.Errorf("error parsing federation relationship for trust domain %q: %w", trustDomain, err)
-				}
+			case config.BundleEndpointProfileConfig != nil:
+				trustDomainConfig, err = parseBundleEndpointProfileFromConfig(config)
 			default:
 				return nil, fmt.Errorf("federation configuration for trust domain %q: missing bundle endpoint configuration", trustDomain)
+			}
+			if err != nil {
+				return nil, fmt.Errorf("error parsing federation relationship for trust domain %q: %w", trustDomain, err)
+			}
+			if err := validateFederatesWithBootstrap(td, trustDomainConfig); err != nil {
+				return nil, fmt.Errorf("error parsing federation relationship for trust domain %q: %w", trustDomain, err)
 			}
 			federatesWith[td] = *trustDomainConfig
 		}
@@ -746,10 +764,17 @@ func newServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig, ski
 		sc.CASubject = credtemplate.DefaultX509CASubject()
 	}
 
-	sc.PluginConfigs, err = catalog.PluginConfigsFromHCLNode(c.Plugins)
-	if err != nil {
-		return nil, err
+	var pluginConfigs catalog.PluginConfigs
+	if c.PluginsRaw != nil {
+		sc.Log.Warn("YAML configuration support is experimental and may change in future versions")
+		pluginConfigs, err = catalog.PluginConfigsFromYAML(c.PluginsRaw)
+	} else {
+		pluginConfigs, err = catalog.PluginConfigsFromHCLNode(c.Plugins)
 	}
+	if err != nil {
+		return nil, fmt.Errorf("error parsing plugin config: %w", err)
+	}
+	sc.PluginConfigs = pluginConfigs
 	sc.Telemetry = c.Telemetry
 	if err := c.HealthChecks.ParseCheckInterval(); err != nil {
 		return nil, err
@@ -845,8 +870,9 @@ func newServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig, ski
 }
 
 func setBundleEndpointConfigProfile(config *bundleEndpointConfig, dataDir string, log logrus.FieldLogger, federationConfig *server.FederationConfig) error {
+	hasProfile := config.Profile != nil || config.ProfileConfig != nil
 	switch {
-	case config.ACME != nil && config.Profile != nil:
+	case config.ACME != nil && hasProfile:
 		return errors.New("either bundle endpoint 'acme' or 'profile' can be set, but not both")
 
 	case config.ACME != nil:
@@ -857,7 +883,7 @@ func setBundleEndpointConfigProfile(config *bundleEndpointConfig, dataDir string
 		federationConfig.BundleEndpoint.ACME = configToACMEConfig(config.ACME, dataDir)
 		return nil
 
-	case config.Profile == nil:
+	case !hasProfile:
 		log.WithFields(logrus.Fields{
 			telemetry.Alert:     true,
 			telemetry.AlertType: telemetry.DeprecatedConfigAlertType,
@@ -865,17 +891,22 @@ func setBundleEndpointConfigProfile(config *bundleEndpointConfig, dataDir string
 		return nil
 	}
 
-	// Profile is set, parse it
-	configString, err := parseBundleEndpointProfileASTNode(config.Profile)
-	if err != nil {
-		return err
+	profileConfig := config.ProfileConfig
+	if profileConfig == nil {
+		configString, err := parseBundleEndpointProfileASTNode(config.Profile)
+		if err != nil {
+			return err
+		}
+
+		profileConfig = new(bundleEndpointConfigProfile)
+		if err := hcl.Decode(profileConfig, configString); err != nil {
+			return fmt.Errorf("failed to decode configuration: %w", err)
+		}
+	} else if profileConfig.HTTPSWeb != nil && profileConfig.HTTPSSPIFFE != nil {
+		return errors.New("exactly one bundle endpoint profile is expected")
 	}
 
-	profileConfig := new(bundleEndpointConfigProfile)
-	if err := hcl.Decode(profileConfig, configString); err != nil {
-		return fmt.Errorf("failed to decode configuration: %w", err)
-	}
-
+	var err error
 	switch {
 	case profileConfig.HTTPSWeb != nil:
 		switch {
@@ -930,6 +961,14 @@ func configToDiskCertManager(serviceCertFile *bundleEndpointServingCertFile, log
 	)
 }
 
+func parseBundleEndpointProfileFromConfig(config federatesWithConfig) (*bundleClient.TrustDomainConfig, error) {
+	profileConfig := config.BundleEndpointProfileConfig
+	if profileConfig.HTTPSWeb != nil && profileConfig.HTTPSSPIFFE != nil {
+		return nil, errors.New("exactly one bundle endpoint profile is expected")
+	}
+	return trustDomainConfigFromProfile(config, profileConfig)
+}
+
 func parseBundleEndpointProfile(config federatesWithConfig) (trustDomainConfig *bundleClient.TrustDomainConfig, err error) {
 	configString, err := parseBundleEndpointProfileASTNode(config.BundleEndpointProfile)
 	if err != nil {
@@ -940,7 +979,10 @@ func parseBundleEndpointProfile(config federatesWithConfig) (trustDomainConfig *
 	if err := hcl.Decode(profileConfig, configString); err != nil {
 		return nil, fmt.Errorf("failed to decode configuration: %w", err)
 	}
+	return trustDomainConfigFromProfile(config, profileConfig)
+}
 
+func trustDomainConfigFromProfile(config federatesWithConfig, profileConfig *bundleEndpointProfileConfig) (*bundleClient.TrustDomainConfig, error) {
 	var endpointProfile bundleClient.EndpointProfileInfo
 	switch {
 	case profileConfig.HTTPSWeb != nil:
@@ -1026,7 +1068,10 @@ func validateConfig(c *Config) error {
 		return errors.New("data_dir must be configured")
 	}
 
-	if c.Plugins == nil {
+	if c.Plugins != nil && c.PluginsRaw != nil {
+		return errors.New("plugins section must not be configured in both HCL and YAML formats simultaneously")
+	}
+	if c.Plugins == nil && c.PluginsRaw == nil {
 		return errors.New("plugins section must be configured")
 	}
 

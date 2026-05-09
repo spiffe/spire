@@ -23,12 +23,12 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gofrs/uuid/v5"
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/hcl"
 	keymanagerv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/keymanager/v1"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/diskutil"
 	"github.com/spiffe/spire/pkg/common/pluginconf"
+	"github.com/spiffe/spire/pkg/common/plugindecode"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -122,13 +122,13 @@ type Plugin struct {
 
 // Config provides configuration context for the plugin
 type Config struct {
-	AccessKeyID        string            `hcl:"access_key_id" json:"access_key_id"`
-	SecretAccessKey    string            `hcl:"secret_access_key" json:"secret_access_key"`
-	Region             string            `hcl:"region" json:"region"`
-	KeyIdentifierFile  string            `hcl:"key_identifier_file" json:"key_identifier_file"`
-	KeyIdentifierValue string            `hcl:"key_identifier_value" json:"key_identifier_value"`
-	KeyPolicyFile      string            `hcl:"key_policy_file" json:"key_policy_file"`
-	KeyTags            map[string]string `hcl:"key_tags" json:"key_tags"`
+	AccessKeyID        string            `hcl:"access_key_id" json:"access_key_id" yaml:"accessKeyId"`
+	SecretAccessKey    string            `hcl:"secret_access_key" json:"secret_access_key" yaml:"secretAccessKey"`
+	Region             string            `hcl:"region" json:"region" yaml:"region"`
+	KeyIdentifierFile  string            `hcl:"key_identifier_file" json:"key_identifier_file" yaml:"keyIdentifierFile"`
+	KeyIdentifierValue string            `hcl:"key_identifier_value" json:"key_identifier_value" yaml:"keyIdentifierValue"`
+	KeyPolicyFile      string            `hcl:"key_policy_file" json:"key_policy_file" yaml:"keyPolicyFile"`
+	KeyTags            map[string]string `hcl:"key_tags" json:"key_tags" yaml:"keyTags"`
 
 	// EnableTagBasedKeyDiscovery enables the use of AWS Resource Groups Tagging API
 	// for efficient key discovery instead of the legacy alias-based approach.
@@ -142,12 +142,12 @@ type Config struct {
 	//
 	// Note: When enabled, the plugin requires the tag:GetResources IAM
 	// permission (from the AWS Resource Groups Tagging API).
-	EnableTagBasedKeyDiscovery bool `hcl:"enable_tag_based_key_discovery" json:"enable_tag_based_key_discovery"`
+	EnableTagBasedKeyDiscovery bool `hcl:"enable_tag_based_key_discovery" json:"enable_tag_based_key_discovery" yaml:"enableTagBasedKeyDiscovery"`
 }
 
-func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *Config {
+func buildConfig(coreConfig catalog.CoreConfig, text string, format catalog.ConfigFormat, status *pluginconf.Status) *Config {
 	newConfig := new(Config)
-	if err := hcl.Decode(newConfig, hclText); err != nil {
+	if err := plugindecode.DecodeConfig(text, format, newConfig); err != nil {
 		status.ReportErrorf("unable to decode configuration: %v", err)
 		return nil
 	}

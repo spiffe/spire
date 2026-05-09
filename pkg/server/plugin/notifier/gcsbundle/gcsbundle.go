@@ -10,7 +10,6 @@ import (
 
 	"cloud.google.com/go/storage"
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire-plugin-sdk/pluginsdk"
 	identityproviderv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/hostservice/server/identityprovider/v1"
 	notifierv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/notifier/v1"
@@ -18,6 +17,7 @@ import (
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/pluginconf"
+	"github.com/spiffe/spire/pkg/common/plugindecode"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"google.golang.org/api/googleapi"
 	"google.golang.org/api/option"
@@ -43,14 +43,14 @@ type bucketClient interface {
 }
 
 type configuration struct {
-	Bucket             string `hcl:"bucket"`
-	ObjectPath         string `hcl:"object_path"`
-	ServiceAccountFile string `hcl:"service_account_file"`
+	Bucket             string `hcl:"bucket" yaml:"bucket"`
+	ObjectPath         string `hcl:"object_path" yaml:"objectPath"`
+	ServiceAccountFile string `hcl:"service_account_file" yaml:"serviceAccountFile"`
 }
 
-func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *configuration {
+func buildConfig(coreConfig catalog.CoreConfig, text string, format catalog.ConfigFormat, status *pluginconf.Status) *configuration {
 	newConfig := new(configuration)
-	if err := hcl.Decode(newConfig, hclText); err != nil {
+	if err := plugindecode.DecodeConfig(text, format, newConfig); err != nil {
 		status.ReportErrorf("plugin configuration is malformed: %s", err)
 		return nil
 	}

@@ -844,7 +844,12 @@ checkAuthorities:
 // Configure parses HCL config payload into config struct, opens new DB based on the result, and
 // prunes all orphaned records
 func (ds *Plugin) Configure(ctx context.Context, hclConfiguration string) error {
-	config, err := sqlcommon.BuildConfig(hclConfiguration)
+	return ds.ConfigureFormat(ctx, hclConfiguration, catalog.ConfigFormatHCL)
+}
+
+// ConfigureFormat is Configure for a configuration in the given format.
+func (ds *Plugin) ConfigureFormat(ctx context.Context, configuration string, format catalog.ConfigFormat) error {
+	config, err := sqlcommon.BuildConfig(configuration, format)
 	if err != nil {
 		return err
 	}
@@ -856,8 +861,8 @@ func (ds *Plugin) Configure(ctx context.Context, hclConfiguration string) error 
 	return ds.openConnections(ctx, config)
 }
 
-func (ds *Plugin) Validate(ctx context.Context, coreConfig catalog.CoreConfig, configuration string) (*configv1.ValidateResponse, error) {
-	config, err := sqlcommon.BuildConfig(configuration)
+func (ds *Plugin) Validate(ctx context.Context, coreConfig catalog.CoreConfig, configuration string, format catalog.ConfigFormat) (*configv1.ValidateResponse, error) {
+	config, err := sqlcommon.BuildConfig(configuration, format)
 	if err != nil {
 		return &configv1.ValidateResponse{
 			Notes: []string{err.Error()},

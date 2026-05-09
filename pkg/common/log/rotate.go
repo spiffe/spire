@@ -39,13 +39,13 @@ var _ ReopenableWriteCloser = (*RotatableFile)(nil)
 type RotationConfig struct {
 	// MaxSizeMB is the size the log file may reach before it is rotated.
 	// Explicitly 0 disables size based rotation, leaving it to Reopen.
-	MaxSizeMB *int `hcl:"max_size_mb"`
+	MaxSizeMB *int `hcl:"max_size_mb" yaml:"maxSizeMb"`
 
 	// MaxFiles is how many rotated files to retain, not counting the active
 	// one. Explicitly 0 retains all of them.
-	MaxFiles *int `hcl:"max_files"`
+	MaxFiles *int `hcl:"max_files" yaml:"maxFiles"`
 
-	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions"`
+	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions" yaml:"-"`
 }
 
 func (c RotationConfig) maxSizeMB() int {

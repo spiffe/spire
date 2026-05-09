@@ -27,7 +27,7 @@ var (
 )
 
 type eksValidationConfig struct {
-	EKSClusterNames []string `hcl:"eks_cluster_names"`
+	EKSClusterNames []string `hcl:"eks_cluster_names" yaml:"eksClusterNames"`
 }
 
 type eksValidator struct {
