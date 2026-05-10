@@ -54,7 +54,7 @@ type jwksRetriever interface {
 }
 
 type computeEngineClient interface {
-	fetchInstanceMetadata(ctx context.Context, projectID, zone, instanceName string, serviceAccountFile string) (*compute.Instance, error)
+	fetchInstanceMetadata(ctx context.Context, instanceMetadata gcp.ComputeEngine, serviceAccountFile string) (*compute.Instance, error)
 }
 
 // IITAttestorPlugin implements node attestation for agents running in GCP.
@@ -160,8 +160,10 @@ func (p *IITAttestorPlugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServ
 		return err
 	}
 
-	if !slices.Contains(c.ProjectIDAllowList, identityMetadata.ProjectID) {
-		return status.Errorf(codes.PermissionDenied, "identity token project ID %q is not in the allow list", identityMetadata.ProjectID)
+	computeEngineMetadata := identityMetadata.Google.ComputeEngine
+
+	if !slices.Contains(c.ProjectIDAllowList, computeEngineMetadata.ProjectID) {
+		return status.Errorf(codes.PermissionDenied, "identity token project ID %q is not in the allow list", computeEngineMetadata.ProjectID)
 	}
 
 	id, err := gcp.MakeAgentID(c.trustDomain, c.idPathTemplate, identityMetadata)
@@ -175,16 +177,17 @@ func (p *IITAttestorPlugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServ
 
 	var instance *compute.Instance
 	if c.UseInstanceMetadata {
-		instance, err = p.client.fetchInstanceMetadata(stream.Context(), identityMetadata.ProjectID, identityMetadata.Zone, identityMetadata.InstanceName, c.ServiceAccountFile)
+		instance, err = p.client.fetchInstanceMetadata(stream.Context(), computeEngineMetadata, c.ServiceAccountFile)
 		if err != nil {
 			return status.Errorf(codes.Internal, "failed to fetch instance metadata: %v", err)
 		}
 	}
 
 	selectorValues := []string{
-		makeSelectorValue("project-id", identityMetadata.ProjectID),
-		makeSelectorValue("zone", identityMetadata.Zone),
-		makeSelectorValue("instance-name", identityMetadata.InstanceName),
+		makeSelectorValue("project-id", computeEngineMetadata.ProjectID),
+		makeSelectorValue("zone", computeEngineMetadata.Zone),
+		makeSelectorValue("instance-name", computeEngineMetadata.InstanceName),
+		makeSelectorValue("sa", identityMetadata.Email),
 	}
 	if instance != nil {
 		instanceSelectors, err := getInstanceSelectorValues(c, instance)
@@ -248,9 +251,6 @@ func getInstanceSelectorValues(config *IITAttestorConfig, instance *compute.Inst
 	for _, tag := range getInstanceTags(instance) {
 		selectorValues = append(selectorValues, makeSelectorValue("tag", tag))
 	}
-	for _, serviceAccount := range getInstanceServiceAccounts(instance) {
-		selectorValues = append(selectorValues, makeSelectorValue("sa", serviceAccount))
-	}
 	for _, label := range getInstanceLabels(instance, config.allowedLabelKeys) {
 		selectorValues = append(selectorValues, makeSelectorValue("label", label.key, label.value))
 	}
@@ -265,35 +265,35 @@ type keyValue struct {
 	value string
 }
 
-func validateAttestationAndExtractIdentityMetadata(stream nodeattestorv1.NodeAttestor_AttestServer, jwks *jose.JSONWebKeySet) (gcp.ComputeEngine, error) {
+func validateAttestationAndExtractIdentityMetadata(stream nodeattestorv1.NodeAttestor_AttestServer, jwks *jose.JSONWebKeySet) (gcp.IdentityToken, error) {
 	req, err := stream.Recv()
 	if err != nil {
-		return gcp.ComputeEngine{}, err
+		return gcp.IdentityToken{}, err
 	}
 
 	payload := req.GetPayload()
 	if payload == nil {
-		return gcp.ComputeEngine{}, status.Errorf(codes.InvalidArgument, "missing attestation payload")
+		return gcp.IdentityToken{}, status.Errorf(codes.InvalidArgument, "missing attestation payload")
 	}
 
 	token, err := jwt.ParseSigned(string(payload), allowedJWTSignatureAlgorithms)
 	if err != nil {
-		return gcp.ComputeEngine{}, status.Errorf(codes.InvalidArgument, "unable to parse the identity token: %v", err)
+		return gcp.IdentityToken{}, status.Errorf(codes.InvalidArgument, "unable to parse the identity token: %v", err)
 	}
 
-	identityToken := &gcp.IdentityToken{}
-	if err := token.Claims(jwks, identityToken); err != nil {
-		return gcp.ComputeEngine{}, status.Errorf(codes.InvalidArgument, "failed to validate the identity token signature: %v", err)
+	identityToken := gcp.IdentityToken{}
+	if err := token.Claims(jwks, &identityToken); err != nil {
+		return gcp.IdentityToken{}, status.Errorf(codes.InvalidArgument, "failed to validate the identity token signature: %v", err)
 	}
 
 	if err := identityToken.Validate(jwt.Expected{
 		AnyAudience: []string{tokenAudience},
 		Time:        time.Now(),
 	}); err != nil {
-		return gcp.ComputeEngine{}, status.Errorf(codes.PermissionDenied, "failed to validate the identity token claims: %v", err)
+		return gcp.IdentityToken{}, status.Errorf(codes.PermissionDenied, "failed to validate the identity token claims: %v", err)
 	}
 
-	return identityToken.Google.ComputeEngine, nil
+	return identityToken, nil
 }
 
 func getInstanceTags(instance *compute.Instance) []string {
@@ -301,14 +301,6 @@ func getInstanceTags(instance *compute.Instance) []string {
 		return instance.Tags.Items
 	}
 	return nil
-}
-
-func getInstanceServiceAccounts(instance *compute.Instance) []string {
-	var sa []string
-	for _, serviceAccount := range instance.ServiceAccounts {
-		sa = append(sa, serviceAccount.Email)
-	}
-	return sa
 }
 
 func getInstanceLabels(instance *compute.Instance, allowedKeys map[string]bool) []keyValue {
@@ -356,12 +348,12 @@ func makeSelectorValue(key string, value ...string) string {
 
 type googleComputeEngineClient struct{}
 
-func (c googleComputeEngineClient) fetchInstanceMetadata(ctx context.Context, projectID, zone, instanceName string, serviceAccountFile string) (*compute.Instance, error) {
+func (c googleComputeEngineClient) fetchInstanceMetadata(ctx context.Context, instanceMetadata gcp.ComputeEngine, serviceAccountFile string) (*compute.Instance, error) {
 	service, err := c.getService(ctx, serviceAccountFile)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create compute service client: %w", err)
 	}
-	instance, err := service.Instances.Get(projectID, zone, instanceName).Do()
+	instance, err := service.Instances.Get(instanceMetadata.ProjectID, instanceMetadata.Zone, instanceMetadata.InstanceName).Do()
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch instance metadata: %w", err)
 	}

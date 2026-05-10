@@ -115,6 +115,8 @@ type Config struct {
 	TLSPolicy tlspolicy.Policy
 
 	MaxAttestedNodeInfoStaleness time.Duration
+
+	AgentSpiffeIdAsSelector bool
 }
 
 func (c *Config) maybeMakeBundleEndpointServer() (Server, func(context.Context) error) {
@@ -167,11 +169,12 @@ func (c *Config) makeAPIServers(entryFetcher api.AuthorizedEntryFetcher) APIServ
 
 	return APIServers{
 		AgentServer: agentv1.New(agentv1.Config{
-			DataStore:   ds,
-			ServerCA:    c.ServerCA,
-			TrustDomain: c.TrustDomain,
-			Catalog:     c.Catalog,
-			Clock:       c.Clock,
+			DataStore:               ds,
+			ServerCA:                c.ServerCA,
+			TrustDomain:             c.TrustDomain,
+			Catalog:                 c.Catalog,
+			Clock:                   c.Clock,
+			AgentSpiffeIdAsSelector: c.AgentSpiffeIdAsSelector,
 		}),
 		BundleServer: bundlev1.New(bundlev1.Config{
 			TrustDomain:       c.TrustDomain,
