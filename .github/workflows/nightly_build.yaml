@@ -76,7 +76,7 @@ jobs:
             pkg/server/plugin/nodeattestor/awsiid/awsrsa1024/cacerts.go \
             pkg/server/plugin/nodeattestor/awsiid/awsrsa2048/cacerts.go
           git commit -s -m "chore: update AWS EC2 CA certificates"
-          git push --force origin "$BRANCH"
+          git push --force-with-lease origin "$BRANCH"
           if ! gh pr view "$BRANCH" --json state -q '.state' 2>/dev/null | grep -q "OPEN"; then
             gh pr create \
               --title "chore: update AWS EC2 CA certificates" \
