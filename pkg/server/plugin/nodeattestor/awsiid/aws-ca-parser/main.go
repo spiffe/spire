@@ -23,7 +23,7 @@ type regionEntry struct {
 }
 
 var (
-	regionRE   = regexp.MustCompile(`^##\s+(.+?)\s+—\s+([a-z]{2}-(?:[a-z]+-)+\d+)`)
+	regionRE   = regexp.MustCompile(`^##\s+(.+?)\s+—\s+([a-z]+-(?:[a-z]+-)+\d+)`)
 	certTypeRE = regexp.MustCompile(`^####\s+\[\s*(.+?)\s*\]`)
 )
 
