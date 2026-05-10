@@ -13,6 +13,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"time"
 )
 
 const certsURL = "https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/regions-certs.md"
@@ -40,11 +41,15 @@ var (
 //	-----END CERTIFICATE-----
 //	```
 func fetchCerts() (map[string]regionEntry, error) {
-	resp, err := http.Get(certsURL)
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Get(certsURL)
 	if err != nil {
-		return nil, fmt.Errorf("fetching page: %w", err)
+		return nil, fmt.Errorf("fetching %s: %w", certsURL, err)
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("fetching %s: unexpected status %s", certsURL, resp.Status)
+	}
 
 	regions := make(map[string]regionEntry)
 	var current regionEntry
