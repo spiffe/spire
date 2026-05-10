@@ -73,6 +73,7 @@ func fetchCerts() (map[string]regionEntry, error) {
 			}
 			currentCode = m[2]
 			current = regionEntry{Name: m[1], Certs: make(map[string]string)}
+			fmt.Printf("Processing new region %s: %s\n", current.Name, currentCode)
 			currentType = ""
 			inFence = false
 			continue
