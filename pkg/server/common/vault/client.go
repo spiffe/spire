@@ -1,8 +1,11 @@
 package vault
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/base64"
+	"encoding/json"
 	"encoding/pem"
 	"fmt"
 	"net/http"
@@ -19,17 +22,20 @@ import (
 )
 
 const (
-	envVaultAddr            = "VAULT_ADDR"
-	envVaultToken           = "VAULT_TOKEN"
-	envVaultClientCert      = "VAULT_CLIENT_CERT"
-	envVaultClientKey       = "VAULT_CLIENT_KEY"
-	envVaultCACert          = "VAULT_CACERT"
-	envVaultAppRoleID       = "VAULT_APPROLE_ID"
-	envVaultAppRoleSecretID = "VAULT_APPROLE_SECRET_ID" // #nosec G101
-	envVaultNamespace       = "VAULT_NAMESPACE"
+	EnvVaultAddr       = "VAULT_ADDR"
+	EnvVaultToken      = "VAULT_TOKEN"
+	EnvVaultClientCert = "VAULT_CLIENT_CERT"
+	EnvVaultClientKey  = "VAULT_CLIENT_KEY"
+	EnvVaultCACert     = "VAULT_CACERT"
+	EnvVaultNamespace  = "VAULT_NAMESPACE"
+	// SPIRE-specific; not a standard Vault SDK environment variable.
+	EnvVaultAppRoleID         = "VAULT_APPROLE_ID"
+	EnvVaultAppRoleSecretID   = "VAULT_APPROLE_SECRET_ID" // #nosec G101
+	EnvVaultTransitEnginePath = "VAULT_TRANSIT_ENGINE_PATH"
 
 	defaultCertMountPoint    = "cert"
 	defaultPKIMountPoint     = "pki"
+	defaultTransitEnginePath = "transit"
 	defaultAppRoleMountPoint = "approle"
 	defaultK8sMountPoint     = "kubernetes"
 )
@@ -44,11 +50,44 @@ const (
 	K8S
 )
 
+type TransitKeyType string
+
+const (
+	TransitKeyTypeRSA2048   TransitKeyType = "rsa-2048"
+	TransitKeyTypeRSA4096   TransitKeyType = "rsa-4096"
+	TransitKeyTypeECDSAP256 TransitKeyType = "ecdsa-p256"
+	TransitKeyTypeECDSAP384 TransitKeyType = "ecdsa-p384"
+)
+
+type TransitHashAlgorithm string
+
+const (
+	TransitHashAlgorithmSHA256 TransitHashAlgorithm = "sha2-256"
+	TransitHashAlgorithmSHA384 TransitHashAlgorithm = "sha2-384"
+	TransitHashAlgorithmSHA512 TransitHashAlgorithm = "sha2-512"
+	TransitHashAlgorithmNone   TransitHashAlgorithm = "none"
+)
+
+type TransitSignatureAlgorithm string
+
+const (
+	TransitSignatureAlgorithmNone     TransitSignatureAlgorithm = ""
+	TransitSignatureAlgorithmPSS      TransitSignatureAlgorithm = "pss"
+	TransitSignatureAlgorithmPKCS1v15 TransitSignatureAlgorithm = "pkcs1v15"
+)
+
+type KeyEntry struct {
+	KeyName string
+	// KeyType is the top-level type from Vault (e.g., "ecdsa-p256", "rsa-2048").
+	KeyType string
+	KeyData map[string]any
+}
+
 // ClientConfig represents configuration parameters for vault client
 type ClientConfig struct {
 	Logger hclog.Logger
 	// vault client parameters
-	clientParams *ClientParams
+	ClientParams *ClientParams
 }
 
 type ClientParams struct {
@@ -84,18 +123,20 @@ type ClientParams struct {
 	K8sAuthTokenPath string
 	// If true, client accepts any certificates.
 	// It should be used only test environment so on.
-	TLSSKipVerify bool
+	TLSSkipVerify bool
 	// MaxRetries controls the number of times to retry to connect
 	// Set to 0 to disable retrying.
 	// If the value is nil, to use the default in hashicorp/vault/api.
 	MaxRetries *int
 	// Name of the Vault namespace
 	Namespace string
+	// TransitEnginePath specifies the path to the transit engine to perform key operations.
+	TransitEnginePath string
 }
 
 type Client struct {
 	vaultClient  *vapi.Client
-	clientParams *ClientParams
+	ClientParams *ClientParams
 }
 
 // SignCSRResponse includes certificates which are generates by Vault
@@ -118,20 +159,21 @@ func NewClientConfig(cp *ClientParams, logger hclog.Logger) (*ClientConfig, erro
 		AppRoleAuthMountPoint: defaultAppRoleMountPoint,
 		K8sAuthMountPoint:     defaultK8sMountPoint,
 		PKIMountPoint:         defaultPKIMountPoint,
+		TransitEnginePath:     defaultTransitEnginePath,
 	}
 	if err := mergo.Merge(cp, defaultParams); err != nil {
 		return nil, status.Errorf(codes.Internal, "unable to merge client params: %v", err)
 	}
-	cc.clientParams = cp
+	cc.ClientParams = cp
 	return cc, nil
 }
 
 // NewAuthenticatedClient returns a new authenticated vault client with given authentication method
 func (c *ClientConfig) NewAuthenticatedClient(method AuthMethod, renewCh chan struct{}) (client *Client, err error) {
 	config := vapi.DefaultConfig()
-	config.Address = c.clientParams.VaultAddr
-	if c.clientParams.MaxRetries != nil {
-		config.MaxRetries = *c.clientParams.MaxRetries
+	config.Address = c.ClientParams.VaultAddr
+	if c.ClientParams.MaxRetries != nil {
+		config.MaxRetries = *c.ClientParams.MaxRetries
 	}
 
 	if err := c.configureTLS(config); err != nil {
@@ -142,19 +184,19 @@ func (c *ClientConfig) NewAuthenticatedClient(method AuthMethod, renewCh chan st
 		return nil, status.Errorf(codes.Internal, "unable to create Vault client: %v", err)
 	}
 
-	if c.clientParams.Namespace != "" {
-		vc.SetNamespace(c.clientParams.Namespace)
+	if c.ClientParams.Namespace != "" {
+		vc.SetNamespace(c.ClientParams.Namespace)
 	}
 
 	client = &Client{
 		vaultClient:  vc,
-		clientParams: c.clientParams,
+		ClientParams: c.ClientParams,
 	}
 
 	var sec *vapi.Secret
 	switch method {
 	case TOKEN:
-		sec, err = client.LookupSelf(c.clientParams.Token)
+		sec, err = client.LookupSelf(c.ClientParams.Token)
 		if err != nil {
 			return nil, err
 		}
@@ -162,9 +204,9 @@ func (c *ClientConfig) NewAuthenticatedClient(method AuthMethod, renewCh chan st
 			return nil, status.Error(codes.Internal, "lookup self response is nil")
 		}
 	case CERT:
-		path := fmt.Sprintf("auth/%v/login", c.clientParams.CertAuthMountPoint)
+		path := fmt.Sprintf("auth/%v/login", c.ClientParams.CertAuthMountPoint)
 		sec, err = client.Auth(path, map[string]any{
-			"name": c.clientParams.CertAuthRoleName,
+			"name": c.ClientParams.CertAuthRoleName,
 		})
 		if err != nil {
 			return nil, err
@@ -173,10 +215,10 @@ func (c *ClientConfig) NewAuthenticatedClient(method AuthMethod, renewCh chan st
 			return nil, status.Error(codes.Internal, "tls cert authentication response is nil")
 		}
 	case APPROLE:
-		path := fmt.Sprintf("auth/%v/login", c.clientParams.AppRoleAuthMountPoint)
+		path := fmt.Sprintf("auth/%v/login", c.ClientParams.AppRoleAuthMountPoint)
 		body := map[string]any{
-			"role_id":   c.clientParams.AppRoleID,
-			"secret_id": c.clientParams.AppRoleSecretID,
+			"role_id":   c.ClientParams.AppRoleID,
+			"secret_id": c.ClientParams.AppRoleSecretID,
 		}
 		sec, err = client.Auth(path, body)
 		if err != nil {
@@ -186,13 +228,13 @@ func (c *ClientConfig) NewAuthenticatedClient(method AuthMethod, renewCh chan st
 			return nil, status.Error(codes.Internal, "approle authentication response is nil")
 		}
 	case K8S:
-		b, err := os.ReadFile(c.clientParams.K8sAuthTokenPath)
+		b, err := os.ReadFile(c.ClientParams.K8sAuthTokenPath)
 		if err != nil {
 			return nil, status.Errorf(codes.Internal, "failed to read k8s service account token: %v", err)
 		}
-		path := fmt.Sprintf("auth/%s/login", c.clientParams.K8sAuthMountPoint)
+		path := fmt.Sprintf("auth/%s/login", c.ClientParams.K8sAuthMountPoint)
 		body := map[string]any{
-			"role": c.clientParams.K8sAuthRoleName,
+			"role": c.ClientParams.K8sAuthRoleName,
 			"jwt":  string(b),
 		}
 		sec, err = client.Auth(path, body)
@@ -216,9 +258,10 @@ func (c *ClientConfig) NewAuthenticatedClient(method AuthMethod, renewCh chan st
 // if the token is non-renewable or renew failed, renewCh will be closed.
 func handleRenewToken(vc *vapi.Client, sec *vapi.Secret, renewCh chan struct{}, logger hclog.Logger) error {
 	if sec == nil || sec.Auth == nil {
-		return status.Error(codes.InvalidArgument, "secret is nil")
+		logger.Debug("Secret has no auth information, token will not be renewed")
+		close(renewCh)
+		return nil
 	}
-
 	if sec.Auth.LeaseDuration == 0 {
 		logger.Debug("Token will never expire")
 		return nil
@@ -248,25 +291,30 @@ func (c *ClientConfig) configureTLS(vc *vapi.Config) error {
 	if vc.HttpClient == nil {
 		vc.HttpClient = vapi.DefaultConfig().HttpClient
 	}
-	clientTLSConfig := vc.HttpClient.Transport.(*http.Transport).TLSClientConfig
+
+	transport, ok := vc.HttpClient.Transport.(*http.Transport)
+	if !ok {
+		return status.Errorf(codes.Internal, "http client transport is of incorrect type. Expected is %T but was %T", transport, vc.HttpClient.Transport)
+	}
+	clientTLSConfig := transport.TLSClientConfig
 
 	var clientCert tls.Certificate
 	foundClientCert := false
 
 	switch {
-	case c.clientParams.ClientCertPath != "" && c.clientParams.ClientKeyPath != "":
-		c, err := tls.LoadX509KeyPair(c.clientParams.ClientCertPath, c.clientParams.ClientKeyPath)
+	case c.ClientParams.ClientCertPath != "" && c.ClientParams.ClientKeyPath != "":
+		c, err := tls.LoadX509KeyPair(c.ClientParams.ClientCertPath, c.ClientParams.ClientKeyPath)
 		if err != nil {
 			return status.Errorf(codes.InvalidArgument, "failed to parse client cert and private-key: %v", err)
 		}
 		clientCert = c
 		foundClientCert = true
-	case c.clientParams.ClientCertPath != "" || c.clientParams.ClientKeyPath != "":
+	case c.ClientParams.ClientCertPath != "" || c.ClientParams.ClientKeyPath != "":
 		return status.Error(codes.InvalidArgument, "both client cert and client key are required")
 	}
 
-	if c.clientParams.CACertPath != "" {
-		certs, err := pemutil.LoadCertificates(c.clientParams.CACertPath)
+	if c.ClientParams.CACertPath != "" {
+		certs, err := pemutil.LoadCertificates(c.ClientParams.CACertPath)
 		if err != nil {
 			return status.Errorf(codes.InvalidArgument, "failed to load CA certificate: %v", err)
 		}
@@ -277,7 +325,7 @@ func (c *ClientConfig) configureTLS(vc *vapi.Config) error {
 		clientTLSConfig.RootCAs = pool
 	}
 
-	if c.clientParams.TLSSKipVerify {
+	if c.ClientParams.TLSSkipVerify {
 		clientTLSConfig.InsecureSkipVerify = true
 	}
 
@@ -288,6 +336,11 @@ func (c *ClientConfig) configureTLS(vc *vapi.Config) error {
 	}
 
 	return nil
+}
+
+// VaultClient returns the underlying vault API client.
+func (c *Client) VaultClient() *vapi.Client {
+	return c.vaultClient
 }
 
 // SetToken wraps vapi.Client.SetToken()
@@ -367,7 +420,7 @@ func (c *Client) SignIntermediate(ttl string, csr *x509.CertificateRequest) (*Si
 		"ttl":          ttl,
 	}
 
-	path := fmt.Sprintf("/%s/root/sign-intermediate", c.clientParams.PKIMountPoint)
+	path := fmt.Sprintf("/%s/root/sign-intermediate", c.ClientParams.PKIMountPoint)
 	s, err := c.vaultClient.Logical().Write(path, reqData)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to sign intermediate: %v", err)
@@ -413,4 +466,175 @@ func (c *Client) SignIntermediate(ttl string, csr *x509.CertificateRequest) (*Si
 	}
 
 	return resp, nil
+}
+
+// CreateKey creates a new key in the specified transit secret engine
+// See: https://developer.hashicorp.com/vault/api-docs/secret/transit#create-key
+func (c *Client) CreateKey(ctx context.Context, keyName string, keyType TransitKeyType) error {
+	arguments := map[string]any{
+		"type":               keyType,
+		"exportable":         false, // SPIRE keys are never exportable
+		"auto_rotate_period": 0,     // SPIRE manages rotation; disable Vault-side auto-rotation
+	}
+
+	_, err := c.vaultClient.Logical().WriteWithContext(ctx, fmt.Sprintf("/%s/keys/%s", c.ClientParams.TransitEnginePath, keyName), arguments)
+	if err != nil {
+		return status.Errorf(codes.Internal, "failed to create transit engine key: %v", err)
+	}
+
+	return nil
+}
+
+// DeleteKey deletes a key in the specified transit secret engine
+// See: https://developer.hashicorp.com/vault/api-docs/secret/transit#update-key-configuration and https://developer.hashicorp.com/vault/api-docs/secret/transit#delete-key
+func (c *Client) DeleteKey(ctx context.Context, keyName string) error {
+	arguments := map[string]any{
+		"deletion_allowed": true,
+	}
+
+	// First, we need to enable deletion of the key. This is disabled by default.
+	_, err := c.vaultClient.Logical().WriteWithContext(ctx, fmt.Sprintf("/%s/keys/%s/config", c.ClientParams.TransitEnginePath, keyName), arguments)
+	if err != nil {
+		return status.Errorf(codes.Internal, "failed to enable deletion of transit engine key: %v", err)
+	}
+
+	_, err = c.vaultClient.Logical().DeleteWithContext(ctx, fmt.Sprintf("/%s/keys/%s", c.ClientParams.TransitEnginePath, keyName))
+	if err != nil {
+		return status.Errorf(codes.Internal, "failed to delete transit engine key: %v", err)
+	}
+
+	return nil
+}
+
+// SignData signs the data using the transit engine key with the key name.
+// See: https://developer.hashicorp.com/vault/api-docs/secret/transit#sign-data
+func (c *Client) SignData(ctx context.Context, keyName string, data []byte, hashAlgo TransitHashAlgorithm, signatureAlgo TransitSignatureAlgorithm) ([]byte, error) {
+	encodedData := base64.StdEncoding.EncodeToString(data)
+
+	body := map[string]any{
+		"input":                 encodedData,
+		"marshalling_algorithm": "asn1",
+		"prehashed":             true,
+	}
+	if signatureAlgo != TransitSignatureAlgorithmNone {
+		body["signature_algorithm"] = signatureAlgo
+	}
+
+	sigResp, err := c.vaultClient.Logical().WriteWithContext(ctx, fmt.Sprintf("/%s/sign/%s/%s", c.ClientParams.TransitEnginePath, keyName, hashAlgo), body)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "transit engine sign call failed: %v", err)
+	}
+
+	sig, ok := sigResp.Data["signature"]
+	if !ok {
+		return nil, status.Errorf(codes.Internal, "transit engine sign call was successful but signature is missing")
+	}
+
+	sigStr, ok := sig.(string)
+	if !ok {
+		return nil, status.Errorf(codes.Internal, "expected signature data type %T but got %T", sigStr, sig)
+	}
+
+	// Vault adds an application specific prefix that we need to remove
+	cutSig, ok := strings.CutPrefix(sigStr, "vault:v1:")
+	if !ok {
+		return nil, status.Error(codes.Internal, "signature is missing vault prefix")
+	}
+
+	sigData, err := base64.StdEncoding.DecodeString(cutSig)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "unable to base64 decode signature: %v", err)
+	}
+
+	return sigData, nil
+}
+
+// GetKeys returns all the keys of the transit engine.
+// See: https://developer.hashicorp.com/vault/api-docs/secret/transit#list-keys
+func (c *Client) GetKeys(ctx context.Context) ([]*KeyEntry, error) {
+	var keyEntries []*KeyEntry
+
+	listResp, err := c.vaultClient.Logical().ListWithContext(ctx, fmt.Sprintf("/%s/keys", c.ClientParams.TransitEnginePath))
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "transit engine list keys call failed: %v", err)
+	}
+
+	if listResp == nil {
+		return []*KeyEntry{}, nil
+	}
+
+	keys, ok := listResp.Data["keys"]
+	if !ok {
+		return nil, status.Errorf(codes.Internal, "transit engine list keys call was successful but keys are missing")
+	}
+
+	keyNames, ok := keys.([]any)
+	if !ok {
+		return nil, status.Errorf(codes.Internal, "expected keys data type %T but got %T", keyNames, keys)
+	}
+
+	for _, keyName := range keyNames {
+		keyNameStr, ok := keyName.(string)
+		if !ok {
+			return nil, status.Errorf(codes.Internal, "expected key id data type %T but got %T", keyNameStr, keyName)
+		}
+
+		ke, err := c.GetKey(ctx, keyNameStr)
+		if err != nil {
+			return nil, err
+		}
+
+		keyEntries = append(keyEntries, ke)
+	}
+
+	return keyEntries, nil
+}
+
+// GetKey returns a specific key from the transit engine.
+// See: https://developer.hashicorp.com/vault/api-docs/secret/transit#read-key
+func (c *Client) GetKey(ctx context.Context, keyName string) (*KeyEntry, error) {
+	res, err := c.vaultClient.Logical().ReadWithContext(ctx, fmt.Sprintf("/%s/keys/%s", c.ClientParams.TransitEnginePath, keyName))
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to get transit engine key: %v", err)
+	}
+
+	keyType, ok := res.Data["type"]
+	if !ok {
+		return nil, status.Errorf(codes.Internal, "transit engine get key call was successful but type is missing")
+	}
+	keyTypeStr, ok := keyType.(string)
+	if !ok {
+		return nil, status.Errorf(codes.Internal, "expected key type data type %T but got %T", keyTypeStr, keyType)
+	}
+
+	latestVersionRaw, ok := res.Data["latest_version"]
+	if !ok {
+		return nil, status.Errorf(codes.Internal, "transit engine get key call was successful but latest_version is missing")
+	}
+	// The Vault SDK deserializes JSON numbers as json.Number in map[string]any.
+	latestVersionNum, ok := latestVersionRaw.(json.Number)
+	if !ok {
+		return nil, status.Errorf(codes.Internal, "expected latest_version data type json.Number but got %T", latestVersionRaw)
+	}
+	latestVersion := latestVersionNum.String()
+
+	keys, ok := res.Data["keys"]
+	if !ok {
+		return nil, status.Errorf(codes.Internal, "transit engine get key call was successful but keys are missing")
+	}
+	keyMap, ok := keys.(map[string]any)
+	if !ok {
+		return nil, status.Errorf(codes.Internal, "expected key map data type %T but got %T", keyMap, keys)
+	}
+
+	currentKey, ok := keyMap[latestVersion]
+	if !ok {
+		return nil, status.Errorf(codes.Internal, "unable to find key with version %s in key map", latestVersion)
+	}
+	currentKeyMap, ok := currentKey.(map[string]any)
+	if !ok {
+		return nil, status.Errorf(codes.Internal, "expected key data type %T but got %T", currentKeyMap, currentKey)
+	}
+
+	return &KeyEntry{KeyName: keyName, KeyType: keyTypeStr, KeyData: currentKeyMap}, nil
 }

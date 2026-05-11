@@ -210,8 +210,17 @@ const (
 	// CertFilePath tags a certificate file path used for TLS connections.
 	CertFilePath = "cert_file_path"
 
+	// KeyID tags a key ID
+	KeyID = "key_id"
+
 	// KeyFilePath tags a key file path used for TLS connections.
 	KeyFilePath = "key_file_path"
+
+	// KeyName tags the key name
+	KeyName = "key_name"
+
+	// KeyType tags the key type
+	KeyType = "key_type"
 
 	// CGroupPath tags a linux CGroup path, most likely for use in attestation
 	CGroupPath = "cgroup_path"

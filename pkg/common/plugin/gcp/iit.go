@@ -1,6 +1,8 @@
 package gcp
 
 import (
+	"strings"
+
 	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/agentpathtemplate"
@@ -18,6 +20,7 @@ type IdentityToken struct {
 	jwt.Claims
 
 	AuthorizedParty string `json:"azp"`
+	Email           string `json:"email"`
 	Google          Google `json:"google"`
 }
 
@@ -35,17 +38,19 @@ type ComputeEngine struct {
 }
 
 type agentPathTemplateData struct {
+	ServiceAccount string
 	ComputeEngine
 	PluginName string
 }
 
 // MakeAgentID makes an agent SPIFFE ID. The ID always has a host value equal to the given trust domain,
 // the path is created using the given agentPathTemplate which is given access to a fully populated
-// ComputeEngine object.
-func MakeAgentID(td spiffeid.TrustDomain, agentPathTemplate *agentpathtemplate.Template, computeEngine ComputeEngine) (spiffeid.ID, error) {
+// IdentityToken object.
+func MakeAgentID(td spiffeid.TrustDomain, agentPathTemplate *agentpathtemplate.Template, identityMetadata IdentityToken) (spiffeid.ID, error) {
 	agentPath, err := agentPathTemplate.Execute(agentPathTemplateData{
-		ComputeEngine: computeEngine,
-		PluginName:    PluginName,
+		ServiceAccount: strings.ReplaceAll(identityMetadata.Email, "@", "_"),
+		ComputeEngine:  identityMetadata.Google.ComputeEngine,
+		PluginName:     PluginName,
 	})
 	if err != nil {
 		return spiffeid.ID{}, err
