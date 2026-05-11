@@ -51,6 +51,13 @@ func (c *CallCounter) AddLabel(name, value string) {
 	c.mu.Unlock()
 }
 
+// Discard marks the call counter as done without emitting any metrics.
+// This is used to silently drop metrics for calls that should not be
+// tracked (e.g. the agent's own health check loopback calls).
+func (c *CallCounter) Discard() {
+	c.done = true
+}
+
 // Done finishes the "call" and emits metrics. No other calls to the CallCounter
 // should be done during or after the call to Done. In other words, it is not
 // thread-safe and is intended to be the final call to the CallCounter struct.
