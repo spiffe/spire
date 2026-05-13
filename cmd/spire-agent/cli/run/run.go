@@ -476,7 +476,10 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 
 	ac.UseSyncAuthorizedEntries = true
 	if c.Agent.Experimental.UseSyncAuthorizedEntries != nil {
-		ac.Log.Warn("The 'use_sync_authorized_entries' configuration is deprecated. The option to disable it will be removed in SPIRE 1.13.")
+		ac.Log.WithFields(logrus.Fields{
+			telemetry.Alert:     true,
+			telemetry.AlertType: telemetry.DeprecatedConfigAlertType,
+		}).Warn("The 'use_sync_authorized_entries' configuration is deprecated. The option to disable it will be removed in SPIRE 1.13.")
 		ac.UseSyncAuthorizedEntries = *c.Agent.Experimental.UseSyncAuthorizedEntries
 	}
 
