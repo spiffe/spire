@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
@@ -33,8 +34,9 @@ func New() *Plugin {
 }
 
 type Configuration struct {
-	DiscoverWorkloadPath bool  `hcl:"discover_workload_path"`
-	WorkloadSizeLimit    int64 `hcl:"workload_size_limit"`
+	DiscoverWorkloadPath      bool  `hcl:"discover_workload_path"`
+	WorkloadSizeLimit         int64 `hcl:"workload_size_limit"`
+	DisableGroupNameSelectors bool  `hcl:"disable_group_name_selectors"`
 }
 
 func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *Configuration {
@@ -77,7 +79,7 @@ func (p *Plugin) Attest(_ context.Context, req *workloadattestorv1.AttestRequest
 		return nil, err
 	}
 
-	process, err := p.newProcessInfo(req.Pid, config.DiscoverWorkloadPath)
+	process, err := p.newProcessInfo(req.Pid, config.DiscoverWorkloadPath, config.DisableGroupNameSelectors)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to get process information: %v", err)
 	}
@@ -112,7 +114,7 @@ func (p *Plugin) Attest(_ context.Context, req *workloadattestorv1.AttestRequest
 	}, nil
 }
 
-func (p *Plugin) newProcessInfo(pid int32, queryPath bool) (*processInfo, error) {
+func (p *Plugin) newProcessInfo(pid int32, queryPath bool, disableGroupNames bool) (*processInfo, error) {
 	p.log = p.log.With(telemetry.PID, pid)
 
 	h, err := p.q.OpenProcess(pid)
@@ -167,13 +169,18 @@ func (p *Plugin) newProcessInfo(pid int32, queryPath bool) (*processInfo, error)
 		// https://docs.microsoft.com/en-us/windows/win32/secauthz/sid-attributes-in-an-access-token
 		enabledSelector := getGroupEnabledSelector(group.Attributes)
 		processInfo.groupsSIDs = append(processInfo.groupsSIDs, enabledSelector+":"+group.Sid.String())
-		groupAccount, groupDomain, err := p.q.LookupAccount(group.Sid)
-		if err != nil {
-			p.log.Warn("failed to lookup account from group SID", "sid", group.Sid, "error", err)
-			continue
+		if !disableGroupNames {
+			start := time.Now()
+			groupAccount, groupDomain, err := p.q.LookupAccount(group.Sid)
+			elapsed := time.Since(start).Milliseconds()
+			if err != nil {
+				p.log.Warn("failed to lookup account from group SID", "sid", group.Sid, "error", err)
+				continue
+			}
+			p.log.Debug("lookupAccount (group) completed", "sid", group.Sid, "elapsed_ms", elapsed)
+			// If the LookupAccount call succeeded, we know that groupAccount is not empty
+			processInfo.groups = append(processInfo.groups, enabledSelector+":"+parseAccount(groupAccount, groupDomain))
 		}
-		// If the LookupAccount call succeeded, we know that groupAccount is not empty
-		processInfo.groups = append(processInfo.groups, enabledSelector+":"+parseAccount(groupAccount, groupDomain))
 	}
 
 	if queryPath {
