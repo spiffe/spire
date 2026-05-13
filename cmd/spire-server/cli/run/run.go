@@ -804,7 +804,10 @@ func setBundleEndpointConfigProfile(config *bundleEndpointConfig, dataDir string
 		return nil
 
 	case config.Profile == nil:
-		log.Warn("Bundle endpoint is configured but has no profile set, using https_spiffe as default; please configure a profile explicitly. This will be fatal in a future release.")
+		log.WithFields(logrus.Fields{
+			telemetry.Alert:     true,
+			telemetry.AlertType: telemetry.DeprecatedConfigAlertType,
+		}).Warn("Bundle endpoint is configured but has no profile set, using https_spiffe as default; please configure a profile explicitly. This will be fatal in a future release.")
 		return nil
 	}
 
