@@ -3,10 +3,11 @@
 The `windows` plugin generates Windows-based selectors for workloads calling the agent.
 It does so by opening an access token associated with the workload process. The system is then interrogated to retrieve user and group account information from that access token.
 
-| Configuration            | Description                                                                                                                                                | Default |
-|--------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------|---------|
-| `discover_workload_path` | If true, the workload path will be discovered by the plugin and used to provide additional selectors                                                       | false   |
-| `workload_size_limit`    | The limit of workload binary sizes when calculating certain selectors (e.g. sha256). If zero, no limit is enforced. If negative, never calculate the hash. | 0       |
+| Configuration                  | Description                                                                                                                                                                                                            | Default |
+|--------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------|
+| `discover_workload_path`       | If true, the workload path will be discovered by the plugin and used to provide additional selectors                                                                                                                   | false   |
+| `workload_size_limit`          | The limit of workload binary sizes when calculating certain selectors (e.g. sha256). If zero, no limit is enforced. If negative, never calculate the hash.                                                             | 0       |
+| `disable_group_name_selectors` | If true, skips resolving group SIDs to human-readable names, avoiding expensive Domain Controller lookups. Group SID selectors (`group_sid`) are always collected regardless. Only `group_name` selectors are affected. | false   |
 
 ## Workload Selectors
 
