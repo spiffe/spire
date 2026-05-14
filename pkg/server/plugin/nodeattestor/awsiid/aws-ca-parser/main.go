@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"go/format"
+	"io"
 	"net/http"
 	"os"
 	"regexp"
@@ -28,7 +29,20 @@ var (
 	certTypeRE = regexp.MustCompile(`^####\s+\[\s*(.+?)\s*\]`)
 )
 
-// fetchCerts fetches the AWS regions-certs markdown page and returns a map
+func fetchCerts() (map[string]regionEntry, error) {
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Get(certsURL)
+	if err != nil {
+		return nil, fmt.Errorf("fetching %s: %w", certsURL, err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("fetching %s: unexpected status %s", certsURL, resp.Status)
+	}
+	return parseCerts(resp.Body)
+}
+
+// parseCerts parses the AWS regions-certs markdown page and returns a map
 // from region code to its display name and certificates, keyed by type ("RSA", "RSA-2048").
 //
 // The markdown structure is:
@@ -40,17 +54,7 @@ var (
 //	...
 //	-----END CERTIFICATE-----
 //	```
-func fetchCerts() (map[string]regionEntry, error) {
-	client := &http.Client{Timeout: 30 * time.Second}
-	resp, err := client.Get(certsURL)
-	if err != nil {
-		return nil, fmt.Errorf("fetching %s: %w", certsURL, err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("fetching %s: unexpected status %s", certsURL, resp.Status)
-	}
-
+func parseCerts(r io.Reader) (map[string]regionEntry, error) {
 	regions := make(map[string]regionEntry)
 	var current regionEntry
 	var currentCode, currentType string
@@ -67,7 +71,7 @@ func fetchCerts() (map[string]regionEntry, error) {
 		inCert = false
 	}
 
-	scanner := bufio.NewScanner(resp.Body)
+	scanner := bufio.NewScanner(r)
 	for scanner.Scan() {
 		line := scanner.Text()
 
@@ -78,7 +82,6 @@ func fetchCerts() (map[string]regionEntry, error) {
 			}
 			currentCode = m[2]
 			current = regionEntry{Name: m[1], Certs: make(map[string]string)}
-			fmt.Printf("Processing new region %s: %s\n", current.Name, currentCode)
 			currentType = ""
 			inFence = false
 			continue
@@ -116,7 +119,7 @@ func fetchCerts() (map[string]regionEntry, error) {
 	}
 
 	if err := scanner.Err(); err != nil {
-		return nil, fmt.Errorf("reading response: %w", err)
+		return nil, fmt.Errorf("reading: %w", err)
 	}
 	if len(regions) == 0 {
 		return nil, errors.New("no certificates found; page structure may have changed")
