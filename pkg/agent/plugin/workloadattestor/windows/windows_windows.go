@@ -162,6 +162,7 @@ func (p *Plugin) newProcessInfo(pid int32, queryPath bool, disableGroupNames boo
 	}
 	groups := p.q.AllGroups(tokenGroups)
 
+	start := time.Now()
 	for _, group := range groups {
 		// Each group has a set of attributes that control how
 		// the system uses the SID in an access check.
@@ -170,17 +171,17 @@ func (p *Plugin) newProcessInfo(pid int32, queryPath bool, disableGroupNames boo
 		enabledSelector := getGroupEnabledSelector(group.Attributes)
 		processInfo.groupsSIDs = append(processInfo.groupsSIDs, enabledSelector+":"+group.Sid.String())
 		if !disableGroupNames {
-			start := time.Now()
 			groupAccount, groupDomain, err := p.q.LookupAccount(group.Sid)
-			elapsed := time.Since(start).Milliseconds()
 			if err != nil {
 				p.log.Warn("failed to lookup account from group SID", "sid", group.Sid, "error", err)
 				continue
 			}
-			p.log.Debug("lookupAccount (group) completed", "sid", group.Sid, "elapsed_ms", elapsed)
 			// If the LookupAccount call succeeded, we know that groupAccount is not empty
 			processInfo.groups = append(processInfo.groups, enabledSelector+":"+parseAccount(groupAccount, groupDomain))
 		}
+	}
+	if !disableGroupNames {
+		p.log.Debug("lookupAccount (groups) completed", "count", len(groups), "elapsed_ms", time.Since(start).Milliseconds())
 	}
 
 	if queryPath {
@@ -201,6 +202,10 @@ func (p *Plugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.config = newConfig
+
+	if newConfig.DisableGroupNameSelectors {
+		p.log.Info("group name selectors disabled; skipping LookupAccount for groups, only group_sid selectors will be produced")
+	}
 
 	return &configv1.ConfigureResponse{}, nil
 }
