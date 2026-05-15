@@ -116,6 +116,32 @@ func TestAttest(t *testing.T) {
 			expectCode: codes.OK,
 		},
 		{
+			name:        "successful with groups, group name selectors disabled",
+			trustDomain: "example.org",
+			config:      "disable_group_name_selectors = true",
+			pq: &fakeProcessQuery{
+				handle:           windows.InvalidHandle,
+				tokenUser:        &windows.Tokenuser{User: windows.SIDAndAttributes{Sid: sidUser}},
+				tokenGroups:      &windows.Tokengroups{Groups: [1]windows.SIDAndAttributes{sidAndAttrGroup1}},
+				account:          "user1",
+				domain:           "domain1",
+				sidAndAttributes: []windows.SIDAndAttributes{sidAndAttrGroup1, sidAndAttrGroup3},
+			},
+			expectSelectors: []string{
+				"windows:user_name:domain1\\user1",
+				"windows:user_sid:" + sidUser.String(),
+				"windows:group_sid:se_group_enabled:true:" + sidGroup1.String(),
+				"windows:group_sid:se_group_enabled:true:" + sidGroup3.String(),
+			},
+			expectCode: codes.OK,
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "group name selectors disabled; skipping LookupAccount for groups, only group_sid selectors will be produced",
+				},
+			},
+		},
+		{
 			name:        "successful getting path and hashing process binary",
 			trustDomain: "example.org",
 			pq: &fakeProcessQuery{
