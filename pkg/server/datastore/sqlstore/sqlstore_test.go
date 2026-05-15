@@ -1633,6 +1633,223 @@ func (s *PluginSuite) TestDeleteAttestedNode() {
 	})
 }
 
+func (s *PluginSuite) TestDeleteAttestedNodeCascadesEntries() {
+	nodeSpiffeID := "spiffe://example.org/spire/agent/join_token/cascade-delete-test"
+
+	_, err := s.ds.CreateAttestedNode(ctx, &common.AttestedNode{
+		SpiffeId:            nodeSpiffeID,
+		AttestationDataType: "join_token",
+		CertSerialNumber:    "badcafe",
+		CertNotAfter:        time.Now().Add(time.Hour).Unix(),
+	})
+	s.Require().NoError(err)
+
+	// Create a registration entry whose parent is the attested node's SPIFFE ID.
+	// This matches the alias row shape that createJoinTokenRegistrationEntry writes
+	// when CreateJoinToken is called with AgentId.
+	childEntry, err := s.ds.CreateRegistrationEntry(ctx, &common.RegistrationEntry{
+		ParentId: nodeSpiffeID,
+		SpiffeId: "spiffe://example.org/workload",
+		Selectors: []*common.Selector{
+			{Type: "spiffe_id", Value: nodeSpiffeID},
+		},
+	})
+	s.Require().NoError(err)
+
+	// Snapshot the last event ID so we can check for new events after delete.
+	resp, err := s.ds.ListRegistrationEntryEvents(ctx, &datastore.ListRegistrationEntryEventsRequest{})
+	s.Require().NoError(err)
+	var lastEventID uint
+	if len(resp.Events) > 0 {
+		lastEventID = resp.Events[len(resp.Events)-1].EventID
+	}
+
+	// Deleting the attested node cascades to the child entry.
+	_, err = s.ds.DeleteAttestedNode(ctx, nodeSpiffeID)
+	s.Require().NoError(err)
+
+	attestedNode, err := s.ds.FetchAttestedNode(ctx, nodeSpiffeID)
+	s.Require().NoError(err)
+	s.Nil(attestedNode)
+
+	fetched, err := s.ds.FetchRegistrationEntry(ctx, childEntry.EntryId)
+	s.Require().NoError(err)
+	s.Nil(fetched)
+
+	// A new registration entry event was emitted for the cascaded delete.
+	resp, err = s.ds.ListRegistrationEntryEvents(ctx, &datastore.ListRegistrationEntryEventsRequest{
+		GreaterThanEventID: lastEventID,
+	})
+	s.Require().NoError(err)
+	s.Require().Len(resp.Events, 1)
+	s.Equal(childEntry.EntryId, resp.Events[0].EntryID)
+}
+
+func (s *PluginSuite) TestDeleteAttestedNodeCascadesMultipleEntriesIncludingFederation() {
+	nodeSpiffeID := "spiffe://example.org/spire/agent/join_token/cascade-multi-test"
+
+	_, err := s.ds.CreateAttestedNode(ctx, &common.AttestedNode{
+		SpiffeId:            nodeSpiffeID,
+		AttestationDataType: "join_token",
+		CertSerialNumber:    "badcafe",
+		CertNotAfter:        time.Now().Add(time.Hour).Unix(),
+	})
+	s.Require().NoError(err)
+
+	// Federated bundle so a child entry can FederatesWith it. This exercises the
+	// Association("FederatesWith").Clear() path in deleteRegistrationEntrySupport
+	// during cascade.
+	s.createBundle("spiffe://otherdomain.org")
+
+	// Three child entries parented on the node. The middle one federates with the
+	// bundle; the others don't. All must be cascade-deleted on node delete.
+	child1, err := s.ds.CreateRegistrationEntry(ctx, &common.RegistrationEntry{
+		ParentId:  nodeSpiffeID,
+		SpiffeId:  "spiffe://example.org/workload-1",
+		Selectors: []*common.Selector{{Type: "spiffe_id", Value: nodeSpiffeID}},
+	})
+	s.Require().NoError(err)
+	child2, err := s.ds.CreateRegistrationEntry(ctx, &common.RegistrationEntry{
+		ParentId:      nodeSpiffeID,
+		SpiffeId:      "spiffe://example.org/workload-2",
+		Selectors:     []*common.Selector{{Type: "Type1", Value: "Value1"}},
+		FederatesWith: []string{"spiffe://otherdomain.org"},
+	})
+	s.Require().NoError(err)
+	child3, err := s.ds.CreateRegistrationEntry(ctx, &common.RegistrationEntry{
+		ParentId:  nodeSpiffeID,
+		SpiffeId:  "spiffe://example.org/workload-3",
+		Selectors: []*common.Selector{{Type: "spiffe_id", Value: nodeSpiffeID}},
+	})
+	s.Require().NoError(err)
+
+	// Also attach node selectors to the same node to verify the cascade and the
+	// existing node-selector delete both run in the same transaction without
+	// interfering.
+	err = s.ds.SetNodeSelectors(ctx, nodeSpiffeID, []*common.Selector{
+		{Type: "ATTEST", Value: "VALUE"},
+	})
+	s.Require().NoError(err)
+
+	resp, err := s.ds.ListRegistrationEntryEvents(ctx, &datastore.ListRegistrationEntryEventsRequest{})
+	s.Require().NoError(err)
+	var lastEventID uint
+	if len(resp.Events) > 0 {
+		lastEventID = resp.Events[len(resp.Events)-1].EventID
+	}
+
+	// Delete the attested node; all three children cascade.
+	_, err = s.ds.DeleteAttestedNode(ctx, nodeSpiffeID)
+	s.Require().NoError(err)
+
+	// All three child entries are gone.
+	for _, c := range []*common.RegistrationEntry{child1, child2, child3} {
+		fetched, err := s.ds.FetchRegistrationEntry(ctx, c.EntryId)
+		s.Require().NoError(err)
+		s.Nilf(fetched, "child entry %s should be deleted", c.EntryId)
+	}
+
+	// Node selectors are cleared (existing behavior, verified alongside the new cascade).
+	nodeSelectors, err := s.ds.GetNodeSelectors(ctx, nodeSpiffeID, datastore.RequireCurrent)
+	s.Require().NoError(err)
+	s.Nil(nodeSelectors)
+
+	// The federated bundle itself is preserved; only the association was cleared.
+	bundle, err := s.ds.FetchBundle(ctx, "spiffe://otherdomain.org")
+	s.Require().NoError(err)
+	s.NotNil(bundle)
+
+	// Exactly three new entry events were emitted, one per cascaded delete,
+	// matching the created entry IDs (order-independent).
+	resp, err = s.ds.ListRegistrationEntryEvents(ctx, &datastore.ListRegistrationEntryEventsRequest{
+		GreaterThanEventID: lastEventID,
+	})
+	s.Require().NoError(err)
+	s.Require().Len(resp.Events, 3)
+	eventIDs := make(map[string]bool, 3)
+	for _, e := range resp.Events {
+		eventIDs[e.EntryID] = true
+	}
+	s.Truef(eventIDs[child1.EntryId], "event for child1 %s missing", child1.EntryId)
+	s.Truef(eventIDs[child2.EntryId], "event for child2 %s missing", child2.EntryId)
+	s.Truef(eventIDs[child3.EntryId], "event for child3 %s missing", child3.EntryId)
+}
+
+func (s *PluginSuite) TestPruneAttestedExpiredNodesCascadesEntries() {
+	now := time.Now()
+
+	expiredNodeID := "spiffe://example.org/spire/agent/join_token/cascade-prune-expired"
+	validNodeID := "spiffe://example.org/spire/agent/join_token/cascade-prune-valid"
+
+	_, err := s.ds.CreateAttestedNode(ctx, &common.AttestedNode{
+		SpiffeId:            expiredNodeID,
+		AttestationDataType: "join_token",
+		CertSerialNumber:    "badcafe",
+		CanReattest:         true,
+		CertNotAfter:        now.Add(-time.Hour).Unix(),
+	})
+	s.Require().NoError(err)
+	_, err = s.ds.CreateAttestedNode(ctx, &common.AttestedNode{
+		SpiffeId:            validNodeID,
+		AttestationDataType: "join_token",
+		CertSerialNumber:    "badcafe",
+		CanReattest:         true,
+		CertNotAfter:        now.Add(time.Hour).Unix(),
+	})
+	s.Require().NoError(err)
+
+	expiredChild, err := s.ds.CreateRegistrationEntry(ctx, &common.RegistrationEntry{
+		ParentId: expiredNodeID,
+		SpiffeId: "spiffe://example.org/workload-a",
+		Selectors: []*common.Selector{
+			{Type: "spiffe_id", Value: expiredNodeID},
+		},
+	})
+	s.Require().NoError(err)
+	validChild, err := s.ds.CreateRegistrationEntry(ctx, &common.RegistrationEntry{
+		ParentId: validNodeID,
+		SpiffeId: "spiffe://example.org/workload-b",
+		Selectors: []*common.Selector{
+			{Type: "spiffe_id", Value: validNodeID},
+		},
+	})
+	s.Require().NoError(err)
+
+	resp, err := s.ds.ListRegistrationEntryEvents(ctx, &datastore.ListRegistrationEntryEventsRequest{})
+	s.Require().NoError(err)
+	var lastEventID uint
+	if len(resp.Events) > 0 {
+		lastEventID = resp.Events[len(resp.Events)-1].EventID
+	}
+
+	err = s.ds.PruneAttestedExpiredNodes(ctx, now.Add(-time.Minute), false)
+	s.Require().NoError(err)
+
+	// Expired node and its child entry are gone.
+	expiredNode, err := s.ds.FetchAttestedNode(ctx, expiredNodeID)
+	s.Require().NoError(err)
+	s.Nil(expiredNode)
+	fetchedExpiredChild, err := s.ds.FetchRegistrationEntry(ctx, expiredChild.EntryId)
+	s.Require().NoError(err)
+	s.Nil(fetchedExpiredChild)
+
+	// Valid node and its child entry are preserved.
+	valid, err := s.ds.FetchAttestedNode(ctx, validNodeID)
+	s.Require().NoError(err)
+	s.NotNil(valid)
+	fetchedValidChild, err := s.ds.FetchRegistrationEntry(ctx, validChild.EntryId)
+	s.Require().NoError(err)
+	s.NotNil(fetchedValidChild)
+
+	// Exactly one new registration entry event was emitted, for the cascaded delete.
+	resp, err = s.ds.ListRegistrationEntryEvents(ctx, &datastore.ListRegistrationEntryEventsRequest{
+		GreaterThanEventID: lastEventID,
+	})
+	s.Require().NoError(err)
+	s.Require().Len(resp.Events, 1)
+	s.Equal(expiredChild.EntryId, resp.Events[0].EntryID)
+}
+
 func (s *PluginSuite) TestListAttestedNodeEvents() {
 	var expectedEvents []datastore.AttestedNodeEvent
 
