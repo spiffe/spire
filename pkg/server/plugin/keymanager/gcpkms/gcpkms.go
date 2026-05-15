@@ -1114,6 +1114,9 @@ func getPublicKeyFromCryptoKeyVersion(ctx context.Context, log hclog.Logger, kms
 		log.Warn("Could not get the public key because the CryptoKeyVersion is still being generated. Trying again.")
 		attempts++
 		kmsPublicKey, errGetPublicKey = kmsClient.GetPublicKey(ctx, &kmspb.GetPublicKeyRequest{Name: cryptoKeyVersionName})
+		if errGetPublicKey != nil {
+			time.Sleep(300 * time.Millisecond)
+		}
 	}
 
 	// Perform integrity verification.
