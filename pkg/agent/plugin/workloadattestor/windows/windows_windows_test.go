@@ -134,6 +134,12 @@ func TestAttest(t *testing.T) {
 				"windows:group_sid:se_group_enabled:true:" + sidGroup3.String(),
 			},
 			expectCode: codes.OK,
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "group name selectors disabled; skipping LookupAccount for groups, only group_sid selectors will be produced",
+				},
+			},
 		},
 		{
 			name:        "successful getting path and hashing process binary",
