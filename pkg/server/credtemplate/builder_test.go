@@ -18,6 +18,7 @@ import (
 
 	"github.com/go-jose/go-jose/v4"
 	"github.com/go-jose/go-jose/v4/jwt"
+	"github.com/gofrs/uuid/v5"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	credentialcomposerv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/credentialcomposer/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
@@ -1198,6 +1199,7 @@ func TestBuildWorkloadJWTSVIDClaims(t *testing.T) {
 					return
 				}
 				require.NoError(t, err)
+				require.NotContains(t, template, "jti", "jti should not be set when IncludeJTI is false")
 
 				expected := map[string]any{
 					"aud": []string{"AUDIENCE"},
@@ -1320,6 +1322,32 @@ func TestBuildWorkloadWITSVIDClaims(t *testing.T) {
 			})
 		})
 	}
+}
+
+func TestBuildWorkloadJWTSVIDClaimsIncludeJTI(t *testing.T) {
+	testBuilder(t, nil, func(t *testing.T, credBuilder *credtemplate.Builder) {
+		params := credtemplate.WorkloadJWTSVIDParams{
+			SPIFFEID:   workloadID,
+			Audience:   []string{"AUDIENCE"},
+			IncludeJTI: true,
+		}
+
+		jtis := make(map[string]bool)
+		for i := 0; i < 10; i++ {
+			template, err := credBuilder.BuildWorkloadJWTSVIDClaims(ctx, params)
+			require.NoError(t, err)
+
+			jti, ok := template["jti"].(string)
+			require.True(t, ok, "jti claim should be a string")
+			require.NotEmpty(t, jti, "jti should not be empty")
+
+			_, err = uuid.FromString(jti)
+			require.NoError(t, err, "jti should be a valid UUID")
+
+			require.False(t, jtis[jti], "jti should be unique across calls")
+			jtis[jti] = true
+		}
+	})
 }
 
 func testBuilder(t *testing.T, overrideConfig func(config *credtemplate.Config), fn func(*testing.T, *credtemplate.Builder)) {

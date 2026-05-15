@@ -1123,8 +1123,14 @@ type RegistrationEntry_AdditionalAttributes struct {
 	// This is meant to prevent unnecessary effort spent on generating SVIDs of types,
 	// which are unlikely to be needed.
 	DisableX509SvidPrefetch bool `protobuf:"varint,1,opt,name=disable_x509_svid_prefetch,json=disableX509SvidPrefetch,proto3" json:"disable_x509_svid_prefetch,omitempty"`
-	unknownFields           protoimpl.UnknownFields
-	sizeCache               protoimpl.SizeCache
+	// * Flag indicating whether JWT-SVIDs issued for this entry should include
+	// a "jti" (JWT ID) claim. When true, the agent bypasses the JWT-SVID cache so
+	// each request yields a fresh token with a unique JTI — useful for audit trails
+	// and replay protection. When false (default), behavior is backwards compatible:
+	// no JTI claim, caching enabled.
+	JwtSvidIncludeJti bool `protobuf:"varint,2,opt,name=jwt_svid_include_jti,json=jwtSvidIncludeJti,proto3" json:"jwt_svid_include_jti,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *RegistrationEntry_AdditionalAttributes) Reset() {
@@ -1164,6 +1170,13 @@ func (x *RegistrationEntry_AdditionalAttributes) GetDisableX509SvidPrefetch() bo
 	return false
 }
 
+func (x *RegistrationEntry_AdditionalAttributes) GetJwtSvidIncludeJti() bool {
+	if x != nil {
+		return x.JwtSvidIncludeJti
+	}
+	return false
+}
+
 var File_spire_common_common_proto protoreflect.FileDescriptor
 
 const file_spire_common_common_proto_rawDesc = "" +
@@ -1187,7 +1200,7 @@ const file_spire_common_common_proto_rawDesc = "" +
 	"\x12new_cert_not_after\x18\x06 \x01(\x03R\x0fnewCertNotAfter\x124\n" +
 	"\tselectors\x18\a \x03(\v2\x16.spire.common.SelectorR\tselectors\x12!\n" +
 	"\fcan_reattest\x18\b \x01(\bR\vcanReattest\x12#\n" +
-	"\ragent_version\x18\t \x01(\tR\fagentVersion\"\xda\x05\n" +
+	"\ragent_version\x18\t \x01(\tR\fagentVersion\"\x8c\x06\n" +
 	"\x11RegistrationEntry\x124\n" +
 	"\tselectors\x18\x01 \x03(\v2\x16.spire.common.SelectorR\tselectors\x12\x1b\n" +
 	"\tparent_id\x18\x02 \x01(\tR\bparentId\x12\x1b\n" +
@@ -1210,9 +1223,10 @@ const file_spire_common_common_proto_rawDesc = "" +
 	"\x04hint\x18\x0e \x01(\tR\x04hint\x12\x1d\n" +
 	"\n" +
 	"created_at\x18\x0f \x01(\x03R\tcreatedAt\x12n\n" +
-	"\x15additional_attributes\x18\x10 \x01(\v24.spire.common.RegistrationEntry.AdditionalAttributesH\x00R\x14additionalAttributes\x88\x01\x01\x1aS\n" +
+	"\x15additional_attributes\x18\x10 \x01(\v24.spire.common.RegistrationEntry.AdditionalAttributesH\x00R\x14additionalAttributes\x88\x01\x01\x1a\x84\x01\n" +
 	"\x14AdditionalAttributes\x12;\n" +
-	"\x1adisable_x509_svid_prefetch\x18\x01 \x01(\bR\x17disableX509SvidPrefetchB\x18\n" +
+	"\x1adisable_x509_svid_prefetch\x18\x01 \x01(\bR\x17disableX509SvidPrefetch\x12/\n" +
+	"\x14jwt_svid_include_jti\x18\x02 \x01(\bR\x11jwtSvidIncludeJtiB\x18\n" +
 	"\x16_additional_attributes\"\xd4\x03\n" +
 	"\x15RegistrationEntryMask\x12\x1c\n" +
 	"\tselectors\x18\x01 \x01(\bR\tselectors\x12\x1b\n" +

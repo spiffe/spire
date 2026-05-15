@@ -78,6 +78,10 @@ type createCommand struct {
 	// the given entry
 	disableX509SVIDPrefetch bool
 
+	// jwtSVIDIncludeJTI, when true, causes JWT-SVIDs issued for this entry to
+	// include a unique "jti" claim and bypass the agent-side JWT-SVID cache.
+	jwtSVIDIncludeJTI bool
+
 	printer cliprinter.Printer
 
 	env *commoncli.Env
@@ -108,6 +112,7 @@ func (c *createCommand) AppendFlags(f *flag.FlagSet) {
 	f.Var(&c.dnsNames, "dns", "A DNS name that will be included in SVIDs issued based on this entry, where appropriate. Can be used more than once")
 	f.StringVar(&c.hint, "hint", "", "The entry hint, used to disambiguate entries with the same SPIFFE ID")
 	f.BoolVar(&c.disableX509SVIDPrefetch, "disableX509SVIDPrefetch", false, "A boolean value that, when set, disables prefetching X509 SVID for this entry")
+	f.BoolVar(&c.jwtSVIDIncludeJTI, "jwtSVIDIncludeJTI", false, "A boolean value that, when set, includes a unique 'jti' claim in JWT-SVIDs issued for this entry and bypasses the agent JWT-SVID cache")
 	cliprinter.AppendFlagWithCustomPretty(&c.printer, f, c.env, prettyPrintCreate)
 }
 
@@ -216,9 +221,10 @@ func (c *createCommand) parseConfig() ([]*types.Entry, error) {
 	}
 	e.Selectors = selectors
 
-	if c.disableX509SVIDPrefetch {
+	if c.disableX509SVIDPrefetch || c.jwtSVIDIncludeJTI {
 		e.AdditionalAttributes = &types.Entry_AdditionalAttributes{
 			DisableX509SvidPrefetch: c.disableX509SVIDPrefetch,
+			JwtSvidIncludeJti:       c.jwtSVIDIncludeJTI,
 		}
 	}
 

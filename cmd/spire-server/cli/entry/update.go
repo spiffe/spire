@@ -67,15 +67,18 @@ type updateCommand struct {
 	// storeSVID determines if the issued SVID must be stored through an SVIDStore plugin
 	storeSVID bool
 
-	// additionalAttributesSet indicates whether any of the additional attributes if the requestration entry were set
-	additionalAttributesSet bool
-
 	// disableX509SVIDPrefetch tells the agent not to prefetch and cache X509 SVID for
 	// the given entry
-	disableX509SVIDPrefetch bool
+	disableX509SVIDPrefetch    bool
+	disableX509SVIDPrefetchSet bool
 
 	// Entry hint, used to disambiguate entries with the same SPIFFE ID
 	hint string
+
+	// jwtSVIDIncludeJTI, when true, causes JWT-SVIDs issued for this entry to
+	// include a unique "jti" claim and bypass the agent-side JWT-SVID cache.
+	jwtSVIDIncludeJTI    bool
+	jwtSVIDIncludeJTISet bool
 
 	printer cliprinter.Printer
 
@@ -107,8 +110,14 @@ func (c *updateCommand) AppendFlags(f *flag.FlagSet) {
 	f.StringVar(&c.hint, "hint", "", "The entry hint, used to disambiguate entries with the same SPIFFE ID")
 	f.BoolFunc("disableX509SVIDPrefetch", "A boolean value that, when set, disables prefetching X509 SVID for this entry",
 		func(_ string) error {
-			c.additionalAttributesSet = true
+			c.disableX509SVIDPrefetchSet = true
 			c.disableX509SVIDPrefetch = true
+			return nil
+		})
+	f.BoolFunc("jwtSVIDIncludeJTI", "A boolean value that, when set, includes a unique 'jti' claim in JWT-SVIDs issued for this entry and bypasses the agent JWT-SVID cache",
+		func(_ string) error {
+			c.jwtSVIDIncludeJTISet = true
+			c.jwtSVIDIncludeJTI = true
 			return nil
 		})
 	cliprinter.AppendFlagWithCustomPretty(&c.printer, f, c.env, prettyPrintUpdate)
@@ -130,12 +139,42 @@ func (c *updateCommand) Run(ctx context.Context, _ *commoncli.Env, serverClient 
 		return err
 	}
 
-	resp, err := updateEntries(ctx, serverClient.NewEntryClient(), entries)
+	client := serverClient.NewEntryClient()
+
+	// When the user supplies exactly one of the additional-attribute flags via
+	// command-line (i.e. not -data), fetch the existing entry to preserve the
+	// sibling bit they did not set. The protobuf AdditionalAttributes message
+	// has no per-field mask, so without this merge step a partial CLI update
+	// would clobber the unspecified attribute with its zero value.
+	if c.path == "" && c.disableX509SVIDPrefetchSet != c.jwtSVIDIncludeJTISet {
+		existing, err := client.GetEntry(ctx, &entryv1.GetEntryRequest{Id: c.entryID})
+		if err != nil {
+			return fmt.Errorf("failed to fetch existing entry to merge additional attributes: %w", err)
+		}
+		mergeAdditionalAttributes(entries[0], existing, c.disableX509SVIDPrefetchSet, c.jwtSVIDIncludeJTISet)
+	}
+
+	resp, err := updateEntries(ctx, client, entries)
 	if err != nil {
 		return err
 	}
 
 	return c.printer.PrintProto(resp)
+}
+
+// mergeAdditionalAttributes preserves the sibling AdditionalAttributes bit on
+// e by reading it from existing whenever the corresponding flag was not set on
+// the command line. A nil existing.AdditionalAttributes is treated as zero.
+func mergeAdditionalAttributes(e, existing *types.Entry, disablePrefetchSet, includeJTISet bool) {
+	if e.AdditionalAttributes == nil {
+		e.AdditionalAttributes = &types.Entry_AdditionalAttributes{}
+	}
+	if !disablePrefetchSet && existing.AdditionalAttributes != nil {
+		e.AdditionalAttributes.DisableX509SvidPrefetch = existing.AdditionalAttributes.DisableX509SvidPrefetch
+	}
+	if !includeJTISet && existing.AdditionalAttributes != nil {
+		e.AdditionalAttributes.JwtSvidIncludeJti = existing.AdditionalAttributes.JwtSvidIncludeJti
+	}
 }
 
 // validate performs basic validation, even on fields that we
@@ -218,12 +257,11 @@ func (c *updateCommand) parseConfig() ([]*types.Entry, error) {
 
 	e.Selectors = selectors
 
-	if c.additionalAttributesSet {
-		e.AdditionalAttributes = &types.Entry_AdditionalAttributes{}
-	}
-
-	if c.disableX509SVIDPrefetch {
-		e.AdditionalAttributes.DisableX509SvidPrefetch = true
+	if c.disableX509SVIDPrefetchSet || c.jwtSVIDIncludeJTISet {
+		e.AdditionalAttributes = &types.Entry_AdditionalAttributes{
+			DisableX509SvidPrefetch: c.disableX509SVIDPrefetch,
+			JwtSvidIncludeJti:       c.jwtSVIDIncludeJTI,
+		}
 	}
 
 	e.FederatesWith = c.federatesWith

@@ -111,6 +111,12 @@ message RegistrationEntry {
         This is meant to prevent unnecessary effort spent on generating SVIDs of types,
         which are unlikely to be needed.*/
         bool disable_x509_svid_prefetch = 1;
+        /** Flag indicating whether JWT-SVIDs issued for this entry should include
+        a "jti" (JWT ID) claim. When true, the agent bypasses the JWT-SVID cache so
+        each request yields a fresh token with a unique JTI — useful for audit trails
+        and replay protection. When false (default), behavior is backwards compatible:
+        no JTI claim, caching enabled.*/
+        bool jwt_svid_include_jti = 2;
     }
     optional AdditionalAttributes additional_attributes = 16;
 }

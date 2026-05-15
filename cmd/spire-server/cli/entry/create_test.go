@@ -355,9 +355,10 @@ DisableX509SvidPrefetch : true
         "revision_number": "0",
         "store_svid": true,
         "jwt_svid_ttl": 30,
-		"additional_attributes": {
-		  "disable_x509_svid_prefetch": true
-		}
+        "additional_attributes": {
+          "disable_x509_svid_prefetch": true,
+          "jwt_svid_include_jti": false
+        }
       }
     }
   ]
@@ -591,9 +592,10 @@ DisableX509SvidPrefetch : true
         "revision_number": "0",
         "store_svid": false,
         "jwt_svid_ttl": 30,
-		"additional_attributes": {
-		  "disable_x509_svid_prefetch": false
-		}
+        "additional_attributes": {
+          "disable_x509_svid_prefetch": false,
+          "jwt_svid_include_jti": false
+        }
       }
     },
     {
@@ -628,9 +630,10 @@ DisableX509SvidPrefetch : true
         "revision_number": "0",
         "store_svid": false,
         "jwt_svid_ttl": 30,
-		"additional_attributes": {
-		  "disable_x509_svid_prefetch": false
-		}
+        "additional_attributes": {
+          "disable_x509_svid_prefetch": false,
+          "jwt_svid_include_jti": false
+        }
       }
     },
     {
@@ -669,9 +672,10 @@ DisableX509SvidPrefetch : true
         "revision_number": "0",
         "store_svid": true,
         "jwt_svid_ttl": 30,
-		"additional_attributes": {
-		  "disable_x509_svid_prefetch": false
-		}
+        "additional_attributes": {
+          "disable_x509_svid_prefetch": false,
+          "jwt_svid_include_jti": false
+        }
       }
     },
     {
@@ -706,9 +710,10 @@ DisableX509SvidPrefetch : true
         "revision_number": "0",
         "store_svid": false,
         "jwt_svid_ttl": 30,
-		"additional_attributes": {
-		  "disable_x509_svid_prefetch": true
-		}
+        "additional_attributes": {
+          "disable_x509_svid_prefetch": true,
+          "jwt_svid_include_jti": false
+        }
       }
     }
   ]

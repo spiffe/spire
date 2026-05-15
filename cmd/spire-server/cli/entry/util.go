@@ -67,6 +67,9 @@ func printEntry(e *types.Entry, printf func(string, ...any) error) {
 		if e.AdditionalAttributes.DisableX509SvidPrefetch {
 			_ = printf("DisableX509SvidPrefetch : %t\n", e.AdditionalAttributes.DisableX509SvidPrefetch)
 		}
+		if e.AdditionalAttributes.JwtSvidIncludeJti {
+			_ = printf("JwtSvidIncludeJti       : %t\n", e.AdditionalAttributes.JwtSvidIncludeJti)
+		}
 	}
 
 	_ = printf("\n")
