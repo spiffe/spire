@@ -59,7 +59,7 @@ func run() string {
 
 	var msg strings.Builder
 	for rpcName, err := range failures {
-		msg.WriteString(fmt.Sprintf("RPC %q: %v\n", rpcName, err))
+		fmt.Fprintf(&msg, "RPC %q: %v\n", rpcName, err)
 	}
 
 	return msg.String()

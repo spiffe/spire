@@ -35,7 +35,7 @@ import (
 
 const (
 	// Defaults used for testing
-	validAccessKeyID     = "AKIAIOSFODNN7EXAMPLE" //nolint:gosec // This is a fake access key ID only used as test input
+	validAccessKeyID     = "AKIAIOSFODNN7EXAMPLE"
 	validSecretAccessKey = "secret"
 	validRegion          = "us-west-2"
 	validServerIDFile    = "server_id_test"

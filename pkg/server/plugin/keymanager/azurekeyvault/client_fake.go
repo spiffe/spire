@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"math/big"
 	"path"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -109,6 +110,7 @@ func (k *kmsClientFake) setCreateKeyErr(fakeError string) {
 		k.createKeyErr = errors.New(fakeError)
 	}
 }
+
 func (k *kmsClientFake) setGetKeyErr(fakeError string) {
 	k.mu.Lock()
 	defer k.mu.Unlock()
@@ -384,8 +386,8 @@ func (k *kmsClientFake) Sign(_ context.Context, keyName, _ string, parameters az
 
 func toRSAKey(publicKey crypto.PublicKey, kmsKeyID string, keyOperations []*azkeys.KeyOperation) *azkeys.JSONWebKey {
 	rsaKey := publicKey.(*rsa.PublicKey)
-	var s = big.NewInt(int64(rsaKey.E))
-	var e = s.Bytes()
+	s := big.NewInt(int64(rsaKey.E))
+	e := s.Bytes()
 	key := &azkeys.JSONWebKey{
 		N:      rsaKey.N.Bytes(),
 		E:      e,
@@ -398,14 +400,30 @@ func toRSAKey(publicKey crypto.PublicKey, kmsKeyID string, keyOperations []*azke
 
 func toECKey(publicKey crypto.PublicKey, keyName string, curveName azkeys.CurveName, keyOperations []*azkeys.KeyOperation) *azkeys.JSONWebKey {
 	ecdsaKey := publicKey.(*ecdsa.PublicKey)
+	encodedPoint, err := ecdsaKey.Bytes()
+	if err != nil {
+		panic(fmt.Sprintf("invalid ECDSA public key: %v", err))
+	}
+	if encodedPoint[0] != 0x04 {
+		panic(fmt.Sprintf(
+			"invalid ECDSA public key: public key byte 0 = %#x != 0x04", encodedPoint[0]))
+	}
+	// ecdsa.PublicKey.Bytes returns an uncompressed point encoded per SEC 1
+	// v2.0 Section 2.3.3: 0x04 || X || Y.
+	// Here, X and Y are encoded as defined in Section 2.3.5 of SEC 1.
+	// JWK EC "x" and "y" are defined by RFC 7518 to use that same Section
+	// 2.3.5 encoding.
+	// Therefore, accessing encodedPoint sub-slices below is correct.
+	// Note that accessing ecdsaKey.X and ecdsaKey.Y would also work, but is
+	// deprecated.
+	coordinateLength := (len(encodedPoint) - 1) / 2
 	key := &azkeys.JSONWebKey{
-		Crv: new(curveName),
-		//D:      ecdsaKey.D.Bytes(),
+		Crv:    new(curveName),
 		KID:    new(azkeys.ID(keyName)),
 		KeyOps: keyOperations,
 		Kty:    new(azkeys.KeyTypeEC),
-		X:      ecdsaKey.X.Bytes(),
-		Y:      ecdsaKey.Y.Bytes(),
+		X:      slices.Clone(encodedPoint[1 : 1+coordinateLength]),
+		Y:      slices.Clone(encodedPoint[1+coordinateLength:]),
 	}
 	return key
 }
