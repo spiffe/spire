@@ -7,6 +7,7 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -136,8 +137,8 @@ func (s *SlotLoader) getX509CASlots(ctx context.Context, entries []*journal.X509
 	var next *x509CASlot
 
 	// Search from oldest
-	for i := len(entries) - 1; i >= 0; i-- {
-		slot, err := s.tryLoadX509CASlotFromEntry(ctx, entries[i])
+	for _, entry := range slices.Backward(entries) {
+		slot, err := s.tryLoadX509CASlotFromEntry(ctx, entry)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -198,8 +199,8 @@ func (s *SlotLoader) getJWTKeysSlots(ctx context.Context, entries []*journal.JWT
 	var next *jwtKeySlot
 
 	// Search from oldest
-	for i := len(entries) - 1; i >= 0; i-- {
-		slot, err := s.tryLoadJWTKeySlotFromEntry(ctx, entries[i])
+	for _, entry := range slices.Backward(entries) {
+		slot, err := s.tryLoadJWTKeySlotFromEntry(ctx, entry)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -260,8 +261,8 @@ func (s *SlotLoader) getWITKeysSlots(ctx context.Context, entries []*journal.WIT
 	var next *witKeySlot
 
 	// Search from oldest
-	for i := len(entries) - 1; i >= 0; i-- {
-		slot, err := s.tryLoadWITKeySlotFromEntry(ctx, entries[i])
+	for _, entry := range slices.Backward(entries) {
+		slot, err := s.tryLoadWITKeySlotFromEntry(ctx, entry)
 		if err != nil {
 			return nil, nil, err
 		}

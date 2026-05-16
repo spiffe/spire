@@ -85,8 +85,7 @@ func (j *Journal) UpdateX509CAStatus(ctx context.Context, authorityID string, st
 	defer j.mu.Unlock()
 
 	var found bool
-	for i := len(j.entries.X509CAs) - 1; i >= 0; i-- {
-		entry := j.entries.X509CAs[i]
+	for _, entry := range slices.Backward(j.entries.X509CAs) {
 		if authorityID == entry.AuthorityId {
 			found = true
 			entry.Status = status
@@ -138,8 +137,7 @@ func (j *Journal) UpdateJWTKeyStatus(ctx context.Context, authorityID string, st
 	defer j.mu.Unlock()
 
 	var found bool
-	for i := len(j.entries.JwtKeys) - 1; i >= 0; i-- {
-		entry := j.entries.JwtKeys[i]
+	for _, entry := range slices.Backward(j.entries.JwtKeys) {
 		if authorityID == entry.AuthorityId {
 			found = true
 			entry.Status = status
@@ -188,8 +186,7 @@ func (j *Journal) UpdateWITKeyStatus(ctx context.Context, authorityID string, st
 	defer j.mu.Unlock()
 
 	var found bool
-	for i := len(j.entries.WitKeys) - 1; i >= 0; i-- {
-		entry := j.entries.WitKeys[i]
+	for _, entry := range slices.Backward(j.entries.WitKeys) {
 		if authorityID == entry.AuthorityId {
 			found = true
 			entry.Status = status
