@@ -186,7 +186,7 @@ func (plugin *fakeV1Plugin) AidAttestation(stream nodeattestorv1.NodeAttestor_Ai
 func challengeResponses(ss ...[]byte) map[string]string {
 	set := make(map[string]string)
 	for i := 0; i < len(ss); i += 2 {
-		set[string(ss[i])] = string(ss[i+1])
+		set[string(ss[i])] = string(ss[i+1]) //nolint:gosec // incorrect "G602: slice index out of range" finding
 	}
 	return set
 }

@@ -516,6 +516,7 @@ func (p *Plugin) reloadKubeletClient(config *k8sConfig) (err error) {
 	// with the raw kubelet certs that we can verify directly.
 	case config.NodeName == "":
 		tlsConfig.InsecureSkipVerify = true
+		tlsConfig.SessionTicketsDisabled = true
 		tlsConfig.VerifyPeerCertificate = func(rawCerts [][]byte, _ [][]*x509.Certificate) error {
 			var certs []*x509.Certificate
 			for _, rawCert := range rawCerts {
