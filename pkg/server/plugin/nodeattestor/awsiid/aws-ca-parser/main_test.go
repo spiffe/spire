@@ -7,7 +7,7 @@ import (
 )
 
 func TestParseCerts(t *testing.T) {
-	f, err := os.Open("testdata/regions-certs.md")
+	f, err := os.Open("testdata/regions-certs.testmd")
 	if err != nil {
 		t.Fatal(err)
 	}
