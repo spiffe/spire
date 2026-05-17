@@ -58,7 +58,6 @@ func (j *Journal) AppendX509CA(ctx context.Context, slotID string, issuedAt time
 	j.mu.Lock()
 	defer j.mu.Unlock()
 
-	backup := j.entries.X509CAs
 	j.entries.X509CAs = append(j.entries.X509CAs, &journal.X509CAEntry{
 		SlotId:              slotID,
 		IssuedAt:            issuedAt.Unix(),
@@ -78,12 +77,7 @@ func (j *Journal) AppendX509CA(ctx context.Context, slotID string, issuedAt time
 		j.entries.X509CAs = x509CAs
 	}
 
-	if err := j.save(ctx); err != nil {
-		j.entries.X509CAs = backup
-		return err
-	}
-
-	return nil
+	return j.save(ctx)
 }
 
 // UpdateX509CAStatus updates a stored X509CA entry to have the given status,
@@ -92,7 +86,6 @@ func (j *Journal) UpdateX509CAStatus(ctx context.Context, authorityID string, st
 	j.mu.Lock()
 	defer j.mu.Unlock()
 
-	backup := j.entries.X509CAs
 	var found bool
 	for i := len(j.entries.X509CAs) - 1; i >= 0; i-- {
 		entry := j.entries.X509CAs[i]
@@ -110,12 +103,7 @@ func (j *Journal) UpdateX509CAStatus(ctx context.Context, authorityID string, st
 		return fmt.Errorf("no journal entry found with authority ID %q", authorityID)
 	}
 
-	if err := j.save(ctx); err != nil {
-		j.entries.X509CAs = backup
-		return err
-	}
-
-	return nil
+	return j.save(ctx)
 }
 
 func (j *Journal) AppendJWTKey(ctx context.Context, slotID string, issuedAt time.Time, jwtKey *ca.JWTKey) error {
@@ -127,7 +115,6 @@ func (j *Journal) AppendJWTKey(ctx context.Context, slotID string, issuedAt time
 		return err
 	}
 
-	backup := j.entries.JwtKeys
 	j.entries.JwtKeys = append(j.entries.JwtKeys, &journal.JWTKeyEntry{
 		SlotId:      slotID,
 		IssuedAt:    issuedAt.Unix(),
@@ -146,12 +133,7 @@ func (j *Journal) AppendJWTKey(ctx context.Context, slotID string, issuedAt time
 		j.entries.JwtKeys = jwtKeys
 	}
 
-	if err := j.save(ctx); err != nil {
-		j.entries.JwtKeys = backup
-		return err
-	}
-
-	return nil
+	return j.save(ctx)
 }
 
 // UpdateJWTKeyStatus updates a stored JWTKey entry to have the given status,
@@ -159,8 +141,6 @@ func (j *Journal) AppendJWTKey(ctx context.Context, slotID string, issuedAt time
 func (j *Journal) UpdateJWTKeyStatus(ctx context.Context, authorityID string, status journal.Status) error {
 	j.mu.Lock()
 	defer j.mu.Unlock()
-
-	backup := j.entries.JwtKeys
 
 	var found bool
 	for i := len(j.entries.JwtKeys) - 1; i >= 0; i-- {
@@ -176,12 +156,7 @@ func (j *Journal) UpdateJWTKeyStatus(ctx context.Context, authorityID string, st
 		return fmt.Errorf("no journal entry found with authority ID %q", authorityID)
 	}
 
-	if err := j.save(ctx); err != nil {
-		j.entries.JwtKeys = backup
-		return err
-	}
-
-	return nil
+	return j.save(ctx)
 }
 
 func (j *Journal) AppendWITKey(ctx context.Context, slotID string, issuedAt time.Time, witKey *ca.WITKey) error {
@@ -193,7 +168,6 @@ func (j *Journal) AppendWITKey(ctx context.Context, slotID string, issuedAt time
 		return err
 	}
 
-	backup := j.entries.WitKeys
 	j.entries.WitKeys = append(j.entries.WitKeys, &journal.WITKeyEntry{
 		SlotId:      slotID,
 		IssuedAt:    issuedAt.Unix(),
@@ -212,12 +186,7 @@ func (j *Journal) AppendWITKey(ctx context.Context, slotID string, issuedAt time
 		j.entries.WitKeys = witKeys
 	}
 
-	if err := j.save(ctx); err != nil {
-		j.entries.WitKeys = backup
-		return err
-	}
-
-	return nil
+	return j.save(ctx)
 }
 
 // UpdateWITKeyStatus updates a stored WITKey entry to have the given status,
@@ -225,8 +194,6 @@ func (j *Journal) AppendWITKey(ctx context.Context, slotID string, issuedAt time
 func (j *Journal) UpdateWITKeyStatus(ctx context.Context, authorityID string, status journal.Status) error {
 	j.mu.Lock()
 	defer j.mu.Unlock()
-
-	backup := j.entries.WitKeys
 
 	var found bool
 	for i := len(j.entries.WitKeys) - 1; i >= 0; i-- {
@@ -242,12 +209,7 @@ func (j *Journal) UpdateWITKeyStatus(ctx context.Context, authorityID string, st
 		return fmt.Errorf("no journal entry found with authority ID %q", authorityID)
 	}
 
-	if err := j.save(ctx); err != nil {
-		j.entries.WitKeys = backup
-		return err
-	}
-
-	return nil
+	return j.save(ctx)
 }
 
 func (j *Journal) setEntries(entries *journal.Entries) {
