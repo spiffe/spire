@@ -37,6 +37,18 @@ func SetConnectionTotalGauge(m telemetry.Metrics, connections int32) {
 	m.SetGauge([]string{telemetry.WorkloadAPI, telemetry.Connections}, float32(connections))
 }
 
+// IncrRateLimitExceededCounter records a Workload API rate limit rejection.
+// method is the full gRPC method name.
+func IncrRateLimitExceededCounter(m telemetry.Metrics, method string) {
+	m.IncrCounterWithLabels(
+		[]string{telemetry.WorkloadAPI, telemetry.RateLimitExceeded},
+		1,
+		[]telemetry.Label{
+			{Name: telemetry.Method, Value: method},
+		},
+	)
+}
+
 // End Counters
 
 // Add Samples (metric on count of some object, entries, event...)

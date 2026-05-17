@@ -16,6 +16,13 @@ import (
 	"google.golang.org/grpc/health/grpc_health_v1"
 )
 
+// WorkloadAPIRateLimitConfig configures per-SPIFFE-ID rate limits for Workload API methods.
+// A value of 0 means no limit is applied for that method.
+type WorkloadAPIRateLimitConfig struct {
+	FetchX509SVID int
+	FetchJWTSVID  int
+}
+
 type Config struct {
 	BindAddr net.Addr
 
@@ -44,6 +51,9 @@ type Config struct {
 	AllowedForeignJWTClaims []string
 
 	TrustDomain spiffeid.TrustDomain
+
+	// WorkloadAPIRateLimit configures per-SPIFFE-ID rate limiting for Workload API methods.
+	WorkloadAPIRateLimit WorkloadAPIRateLimitConfig
 
 	// Hooks used by the unit tests to assert that the configuration provided
 	// to each handler is correct and return fake handlers.

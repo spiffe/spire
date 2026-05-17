@@ -447,6 +447,9 @@ const (
 	// Pruned flagging something has been pruned
 	Pruned = "pruned"
 
+	// RateLimitExceeded tags a rate limit exceeded event
+	RateLimitExceeded = "rate_limit_exceeded"
+
 	// ReadOnly tags something read-only
 	ReadOnly = "read_only"
 
