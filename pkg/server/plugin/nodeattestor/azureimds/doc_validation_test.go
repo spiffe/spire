@@ -6,7 +6,6 @@ import (
 	"crypto/x509/pkix"
 	"encoding/base64"
 	"math/big"
-	"regexp"
 	"testing"
 	"time"
 
@@ -84,148 +83,6 @@ func TestExtractIssuerURL(t *testing.T) {
 	}
 }
 
-func TestValidateCertificateSubject(t *testing.T) {
-	tests := []struct {
-		name          string
-		cert          *x509.Certificate
-		expected      *regexp.Regexp
-		expectErr     bool
-		errorContains string
-	}{
-		{
-			name: "valid subject matching expected value",
-			cert: createTestCert(t, &x509.Certificate{
-				Subject: pkix.Name{CommonName: "metadata.azure.com"},
-			}),
-			expected:  AzureMetadataSubject,
-			expectErr: false,
-		},
-		{
-			name: "empty CommonName in subject",
-			cert: createTestCert(t, &x509.Certificate{
-				Subject: pkix.Name{CommonName: ""},
-			}),
-			expected:      AzureMetadataSubject,
-			expectErr:     true,
-			errorContains: "certificate has no common name in subject",
-		},
-		{
-			name: "subject mismatch",
-			cert: createTestCert(t, &x509.Certificate{
-				Subject: pkix.Name{CommonName: "wrong.subject.com"},
-			}),
-			expected:      AzureMetadataSubject,
-			expectErr:     true,
-			errorContains: "certificate subject",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := validateCertificateSubject(tt.cert, tt.expected)
-
-			if tt.expectErr {
-				require.Error(t, err)
-				require.Contains(t, err.Error(), tt.errorContains)
-			} else {
-				require.NoError(t, err)
-			}
-		})
-	}
-}
-
-func TestValidateCertificateIssuer(t *testing.T) {
-	tests := []struct {
-		name          string
-		cert          *x509.Certificate
-		expected      *regexp.Regexp
-		expectErr     bool
-		errorContains string
-	}{
-		{
-			name:      "valid issuer with numbered CA 03",
-			cert:      createTestCertWithIssuer(t, &x509.Certificate{}, "Microsoft Azure RSA TLS Issuing CA 03"),
-			expected:  MicrosoftAzureRSATLSIssuer,
-			expectErr: false,
-		},
-		{
-			name:      "valid issuer with numbered CA 07",
-			cert:      createTestCertWithIssuer(t, &x509.Certificate{}, "Microsoft Azure RSA TLS Issuing CA 07"),
-			expected:  MicrosoftAzureRSATLSIssuer,
-			expectErr: false,
-		},
-		{
-			name:      "valid issuer with numbered CA 08",
-			cert:      createTestCertWithIssuer(t, &x509.Certificate{}, "Microsoft Azure RSA TLS Issuing CA 08"),
-			expected:  MicrosoftAzureRSATLSIssuer,
-			expectErr: false,
-		},
-		{
-			name:      "valid issuer with numbered CA 04",
-			cert:      createTestCertWithIssuer(t, &x509.Certificate{}, "Microsoft Azure RSA TLS Issuing CA 04"),
-			expected:  MicrosoftAzureRSATLSIssuer,
-			expectErr: false,
-		},
-		{
-			name: "empty CommonName in issuer",
-			cert: createTestCert(t, &x509.Certificate{
-				Issuer: pkix.Name{CommonName: ""},
-			}),
-			expected:      MicrosoftAzureRSATLSIssuer,
-			expectErr:     true,
-			errorContains: "certificate has no common name in issuer",
-		},
-		{
-			name:          "issuer mismatch",
-			cert:          createTestCertWithIssuer(t, &x509.Certificate{}, "Wrong Issuer"),
-			expected:      MicrosoftAzureRSATLSIssuer,
-			expectErr:     true,
-			errorContains: "certificate issuer",
-		},
-		{
-			name:          "base string without number should fail",
-			cert:          createTestCertWithIssuer(t, &x509.Certificate{}, "Microsoft Azure RSA TLS Issuing CA"),
-			expected:      MicrosoftAzureRSATLSIssuer,
-			expectErr:     true,
-			errorContains: "certificate issuer",
-		},
-		{
-			name:          "invalid numbered format - single digit",
-			cert:          createTestCertWithIssuer(t, &x509.Certificate{}, "Microsoft Azure RSA TLS Issuing CA 1"),
-			expected:      MicrosoftAzureRSATLSIssuer,
-			expectErr:     true,
-			errorContains: "certificate issuer",
-		},
-		{
-			name:          "invalid numbered format - three digits",
-			cert:          createTestCertWithIssuer(t, &x509.Certificate{}, "Microsoft Azure RSA TLS Issuing CA 123"),
-			expected:      MicrosoftAzureRSATLSIssuer,
-			expectErr:     true,
-			errorContains: "certificate issuer",
-		},
-		{
-			name:          "invalid numbered format - non-numeric suffix",
-			cert:          createTestCertWithIssuer(t, &x509.Certificate{}, "Microsoft Azure RSA TLS Issuing CA abc"),
-			expected:      MicrosoftAzureRSATLSIssuer,
-			expectErr:     true,
-			errorContains: "certificate issuer",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := validateCertificateIssuer(tt.cert, tt.expected)
-
-			if tt.expectErr {
-				require.Error(t, err)
-				require.Contains(t, err.Error(), tt.errorContains)
-			} else {
-				require.NoError(t, err)
-			}
-		})
-	}
-}
-
 func TestGetIntermediateCertificate(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -269,94 +126,77 @@ func TestGetIntermediateCertificate(t *testing.T) {
 }
 
 func TestValidateAzureCertificates(t *testing.T) {
+	allowedMetadataDomains := []string{DefaultMetadataDomain}
+
 	tests := []struct {
-		name             string
-		signingCert      *x509.Certificate
-		intermediateCert *x509.Certificate
-		expectErr        bool
-		errorContains    string
+		name          string
+		signingCert   *x509.Certificate
+		expectErr     bool
+		errorContains string
 	}{
 		{
-			name: "valid signing and intermediate certificates",
+			name: "valid signing certificate with SAN",
 			signingCert: createTestCertWithIssuer(t, &x509.Certificate{
-				Subject: pkix.Name{CommonName: "metadata.azure.com"},
+				Subject:  pkix.Name{CommonName: "metadata.azure.com"},
+				DNSNames: []string{"metadata.azure.com"},
 			}, "Microsoft Azure RSA TLS Issuing CA 03"),
-			intermediateCert: createTestCertWithIssuer(t, &x509.Certificate{
-				Subject: pkix.Name{CommonName: "Microsoft Azure RSA TLS Issuing CA 03"},
-			}, "DigiCert Global Root G2"),
 			expectErr: false,
 		},
 		{
-			name: "nil intermediate certificate - should still validate signing cert",
+			name: "valid signing certificate with SAN but different CN",
 			signingCert: createTestCertWithIssuer(t, &x509.Certificate{
-				Subject: pkix.Name{CommonName: "metadata.azure.com"},
+				Subject:  pkix.Name{CommonName: "other.domain.com"},
+				DNSNames: []string{"metadata.azure.com"},
 			}, "Microsoft Azure RSA TLS Issuing CA 03"),
-			intermediateCert: nil,
-			expectErr:        false,
+			expectErr: false,
 		},
 		{
-			name: "valid signing certificate with numbered CA 03",
+			name: "works with any issuer name - G2 pattern",
 			signingCert: createTestCertWithIssuer(t, &x509.Certificate{
-				Subject: pkix.Name{CommonName: "metadata.azure.com"},
-			}, "Microsoft Azure RSA TLS Issuing CA 03"),
-			intermediateCert: nil,
-			expectErr:        false,
+				Subject:  pkix.Name{CommonName: "metadata.azure.com"},
+				DNSNames: []string{"metadata.azure.com"},
+			}, "Microsoft TLS G2 RSA CA OCSP 10"),
+			expectErr: false,
 		},
 		{
-			name: "valid intermediate certificate with numbered CA 07",
+			name: "works with any issuer name - old pattern",
 			signingCert: createTestCertWithIssuer(t, &x509.Certificate{
-				Subject: pkix.Name{CommonName: "metadata.azure.com"},
+				Subject:  pkix.Name{CommonName: "metadata.azure.com"},
+				DNSNames: []string{"metadata.azure.com"},
 			}, "Microsoft Azure RSA TLS Issuing CA 07"),
-			intermediateCert: createTestCertWithIssuer(t, &x509.Certificate{
-				Subject: pkix.Name{CommonName: "Microsoft Azure RSA TLS Issuing CA 07"},
-			}, "DigiCert Global Root G2"),
 			expectErr: false,
 		},
 		{
-			name: "invalid signing certificate subject",
+			name: "missing SAN should fail",
 			signingCert: createTestCertWithIssuer(t, &x509.Certificate{
-				Subject: pkix.Name{CommonName: "wrong.subject.com"},
+				Subject:  pkix.Name{CommonName: "metadata.azure.com"},
+				DNSNames: nil,
 			}, "Microsoft Azure RSA TLS Issuing CA 03"),
-			intermediateCert: nil,
-			expectErr:        true,
-			errorContains:    "signing certificate subject validation failed",
-		},
-		{
-			name: "invalid signing certificate issuer",
-			signingCert: createTestCertWithIssuer(t, &x509.Certificate{
-				Subject: pkix.Name{CommonName: "metadata.azure.com"},
-			}, "Wrong Issuer"),
-			intermediateCert: nil,
-			expectErr:        true,
-			errorContains:    "signing certificate issuer validation failed",
-		},
-		{
-			name: "invalid intermediate certificate issuer",
-			signingCert: createTestCertWithIssuer(t, &x509.Certificate{
-				Subject: pkix.Name{CommonName: "metadata.azure.com"},
-			}, "Microsoft Azure RSA TLS Issuing CA 03"),
-			intermediateCert: createTestCertWithIssuer(t, &x509.Certificate{
-				Subject: pkix.Name{CommonName: "Microsoft Azure RSA TLS Issuing CA 03"},
-			}, "Wrong Root CA"),
 			expectErr:     true,
-			errorContains: "intermediate certificate issuer validation failed",
+			errorContains: "certificate does not have any allowed domain in SAN",
 		},
 		{
-			name: "invalid intermediate certificate subject",
+			name: "wrong SAN domain should fail",
 			signingCert: createTestCertWithIssuer(t, &x509.Certificate{
-				Subject: pkix.Name{CommonName: "metadata.azure.com"},
+				Subject:  pkix.Name{CommonName: "metadata.azure.com"},
+				DNSNames: []string{"wrong.domain.com"},
 			}, "Microsoft Azure RSA TLS Issuing CA 03"),
-			intermediateCert: createTestCertWithIssuer(t, &x509.Certificate{
-				Subject: pkix.Name{CommonName: "Wrong Intermediate"},
-			}, "DigiCert Global Root G2"),
 			expectErr:     true,
-			errorContains: "intermediate certificate subject validation failed",
+			errorContains: "certificate does not have any allowed domain in SAN",
+		},
+		{
+			name: "multiple SANs with one matching",
+			signingCert: createTestCertWithIssuer(t, &x509.Certificate{
+				Subject:  pkix.Name{CommonName: "other.domain.com"},
+				DNSNames: []string{"other.domain.com", "metadata.azure.com", "another.domain.com"},
+			}, "Microsoft Azure RSA TLS Issuing CA 03"),
+			expectErr: false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validateAzureCertificates(tt.signingCert, tt.intermediateCert)
+			err := validateAzureCertificates(tt.signingCert, allowedMetadataDomains)
 
 			if tt.expectErr {
 				require.Error(t, err)
@@ -564,7 +404,8 @@ func TestValidateAttestedDocument(t *testing.T) {
 			doc := tt.setupDoc()
 
 			ctx := context.Background()
-			content, err := validateAttestedDocument(ctx, doc)
+			allowedMetadataDomains := []string{DefaultMetadataDomain}
+			content, err := validateAttestedDocument(ctx, doc, allowedMetadataDomains)
 
 			if tt.expectErr {
 				require.Error(t, err)
