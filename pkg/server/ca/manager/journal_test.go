@@ -144,8 +144,8 @@ func TestJournalPersistence(t *testing.T) {
 	require.NotNil(t, journalDS)
 	spiretest.RequireProtoEqual(t, j.getEntries(), journalDS.getEntries())
 
-	// Append a new X.509 CA, which will make the CA journal to be stored
-	// on disk and in the datastore.
+	// Append a new X.509 CA, which will make the CA journal be stored in the
+	// datastore.
 	now = now.Add(time.Minute)
 	err = j.AppendX509CA(ctx, "C", now, &ca.X509CA{
 		Signer:        kmKeys["X509-CA-C"],
@@ -200,6 +200,18 @@ func TestAppendSetPreparedStatus(t *testing.T) {
 	lastJWTKey := testJournal.entries.JwtKeys[0]
 	require.Equal(t, "B", lastJWTKey.SlotId)
 	require.Equal(t, journal.Status_PREPARED, lastJWTKey.Status)
+
+	err = testJournal.AppendWITKey(ctx, "C", now, &ca.WITKey{
+		Signer:   kmKeys["WIT-Signer-C"],
+		Kid:      "KID",
+		NotAfter: now.Add(time.Hour),
+	})
+	require.NoError(t, err)
+
+	require.Len(t, testJournal.entries.WitKeys, 1)
+	lastWITKey := testJournal.entries.WitKeys[0]
+	require.Equal(t, "C", lastWITKey.SlotId)
+	require.Equal(t, journal.Status_PREPARED, lastWITKey.Status)
 }
 
 func TestAppendKeepsEntriesOnSaveFailure(t *testing.T) {

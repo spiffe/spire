@@ -29,8 +29,8 @@ type journalConfig struct {
 	log logrus.FieldLogger
 }
 
-// Journal stores X509 CAs and JWT keys on disk as they are rotated by the
-// manager. The data format is a PEM encoded protocol buffer.
+// Journal stores X509 CAs, JWT keys, and WIT keys in the datastore as they are
+// rotated by the manager.
 type Journal struct {
 	config *journalConfig
 
@@ -212,9 +212,9 @@ func (j *Journal) setEntries(entries *journal.Entries) {
 }
 
 // saveInDatastore saves the provided marshaled entries in the datastore.
-// If caJournalID has not been defined yet (it's value is 0), it first finds
-// the CA journal records that corresponds to this server. In case that there is
-// no CA record for this server, it creates one.
+// If caJournalID has not been defined yet (its value is 0), it first finds
+// the CA journal record that corresponds to this server. In case there is no
+// CA record for this server, it creates one.
 // The ID of the CA journal record that was saved is returned, in addition to
 // the error (if any) of the operation.
 func (j *Journal) saveInDatastore(ctx context.Context, entriesBytes []byte) (caJournalID uint, err error) {
@@ -287,8 +287,7 @@ func (j *Journal) findCAJournal(ctx context.Context) (*datastore.CAJournal, erro
 	return nil, nil
 }
 
-// save saves the CA journal both on disk and in the datastore.
-// TODO: stop saving the CA journal on disk in v1.10.
+// save saves the CA journal in the datastore.
 func (j *Journal) save(ctx context.Context) error {
 	entriesBytes, err := proto.Marshal(j.entries)
 	if err != nil {
