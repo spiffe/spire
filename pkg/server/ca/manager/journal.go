@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/x509"
 	"fmt"
+	"slices"
 	"sync"
 	"time"
 
@@ -71,10 +72,7 @@ func (j *Journal) AppendX509CA(ctx context.Context, slotID string, issuedAt time
 
 	exceeded := len(j.entries.X509CAs) - journalCap
 	if exceeded > 0 {
-		// make a new slice so we keep growing the backing array to drop the first
-		x509CAs := make([]*journal.X509CAEntry, journalCap)
-		copy(x509CAs, j.entries.X509CAs[exceeded:])
-		j.entries.X509CAs = x509CAs
+		j.entries.X509CAs = slices.Clone(j.entries.X509CAs[exceeded:])
 	}
 
 	return j.save(ctx)
@@ -127,10 +125,7 @@ func (j *Journal) AppendJWTKey(ctx context.Context, slotID string, issuedAt time
 
 	exceeded := len(j.entries.JwtKeys) - journalCap
 	if exceeded > 0 {
-		// make a new slice so we keep growing the backing array to drop the first
-		jwtKeys := make([]*journal.JWTKeyEntry, journalCap)
-		copy(jwtKeys, j.entries.JwtKeys[exceeded:])
-		j.entries.JwtKeys = jwtKeys
+		j.entries.JwtKeys = slices.Clone(j.entries.JwtKeys[exceeded:])
 	}
 
 	return j.save(ctx)
@@ -180,10 +175,7 @@ func (j *Journal) AppendWITKey(ctx context.Context, slotID string, issuedAt time
 
 	exceeded := len(j.entries.WitKeys) - journalCap
 	if exceeded > 0 {
-		// make a new slice so we keep growing the backing array to drop the first
-		witKeys := make([]*journal.WITKeyEntry, journalCap)
-		copy(witKeys, j.entries.WitKeys[exceeded:])
-		j.entries.WitKeys = witKeys
+		j.entries.WitKeys = slices.Clone(j.entries.WitKeys[exceeded:])
 	}
 
 	return j.save(ctx)
