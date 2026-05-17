@@ -24,9 +24,10 @@ var (
 	AzureMetadataSubject = regexp.MustCompile(`^metadata\.azure\.com$`)
 
 	// Expected issuer patterns
-	MicrosoftAzureRSATLSIssuer = regexp.MustCompile(`^Microsoft Azure RSA TLS Issuing CA \d{2}$`)
+	MicrosoftAzureRSATLSIssuer = regexp.MustCompile(`^(Microsoft Azure RSA TLS Issuing CA \d{2}|Microsoft TLS G2 RSA CA OCSP \d+)$`)
 	// The azure Docs state that it should be DigiCert Global Root CA, but it is actually DigiCert Global Root G2 which is the newer version
-	DigiCertGlobalRootCA = regexp.MustCompile(`^DigiCert Global Root G2$`)
+	// Azure has also rotated some certs to use Microsoft TLS RSA Root G2
+	DigiCertGlobalRootCA = regexp.MustCompile(`^(DigiCert Global Root G2|Microsoft TLS RSA Root G2)$`)
 )
 
 const (
