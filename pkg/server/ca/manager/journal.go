@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/x509"
 	"fmt"
+	"slices"
 	"sync"
 	"time"
 
@@ -28,8 +29,8 @@ type journalConfig struct {
 	log logrus.FieldLogger
 }
 
-// Journal stores X509 CAs and JWT keys on disk as they are rotated by the
-// manager. The data format is a PEM encoded protocol buffer.
+// Journal stores X509 CAs, JWT keys, and WIT keys in the datastore as they are
+// rotated by the manager.
 type Journal struct {
 	config *journalConfig
 
@@ -58,7 +59,6 @@ func (j *Journal) AppendX509CA(ctx context.Context, slotID string, issuedAt time
 	j.mu.Lock()
 	defer j.mu.Unlock()
 
-	backup := j.entries.X509CAs
 	j.entries.X509CAs = append(j.entries.X509CAs, &journal.X509CAEntry{
 		SlotId:              slotID,
 		IssuedAt:            issuedAt.Unix(),
@@ -72,18 +72,10 @@ func (j *Journal) AppendX509CA(ctx context.Context, slotID string, issuedAt time
 
 	exceeded := len(j.entries.X509CAs) - journalCap
 	if exceeded > 0 {
-		// make a new slice so we keep growing the backing array to drop the first
-		x509CAs := make([]*journal.X509CAEntry, journalCap)
-		copy(x509CAs, j.entries.X509CAs[exceeded:])
-		j.entries.X509CAs = x509CAs
+		j.entries.X509CAs = slices.Clone(j.entries.X509CAs[exceeded:])
 	}
 
-	if err := j.save(ctx); err != nil {
-		j.entries.X509CAs = backup
-		return err
-	}
-
-	return nil
+	return j.save(ctx)
 }
 
 // UpdateX509CAStatus updates a stored X509CA entry to have the given status,
@@ -92,7 +84,6 @@ func (j *Journal) UpdateX509CAStatus(ctx context.Context, authorityID string, st
 	j.mu.Lock()
 	defer j.mu.Unlock()
 
-	backup := j.entries.X509CAs
 	var found bool
 	for i := len(j.entries.X509CAs) - 1; i >= 0; i-- {
 		entry := j.entries.X509CAs[i]
@@ -110,12 +101,7 @@ func (j *Journal) UpdateX509CAStatus(ctx context.Context, authorityID string, st
 		return fmt.Errorf("no journal entry found with authority ID %q", authorityID)
 	}
 
-	if err := j.save(ctx); err != nil {
-		j.entries.X509CAs = backup
-		return err
-	}
-
-	return nil
+	return j.save(ctx)
 }
 
 func (j *Journal) AppendJWTKey(ctx context.Context, slotID string, issuedAt time.Time, jwtKey *ca.JWTKey) error {
@@ -127,7 +113,6 @@ func (j *Journal) AppendJWTKey(ctx context.Context, slotID string, issuedAt time
 		return err
 	}
 
-	backup := j.entries.JwtKeys
 	j.entries.JwtKeys = append(j.entries.JwtKeys, &journal.JWTKeyEntry{
 		SlotId:      slotID,
 		IssuedAt:    issuedAt.Unix(),
@@ -140,18 +125,10 @@ func (j *Journal) AppendJWTKey(ctx context.Context, slotID string, issuedAt time
 
 	exceeded := len(j.entries.JwtKeys) - journalCap
 	if exceeded > 0 {
-		// make a new slice so we keep growing the backing array to drop the first
-		jwtKeys := make([]*journal.JWTKeyEntry, journalCap)
-		copy(jwtKeys, j.entries.JwtKeys[exceeded:])
-		j.entries.JwtKeys = jwtKeys
+		j.entries.JwtKeys = slices.Clone(j.entries.JwtKeys[exceeded:])
 	}
 
-	if err := j.save(ctx); err != nil {
-		j.entries.JwtKeys = backup
-		return err
-	}
-
-	return nil
+	return j.save(ctx)
 }
 
 // UpdateJWTKeyStatus updates a stored JWTKey entry to have the given status,
@@ -159,8 +136,6 @@ func (j *Journal) AppendJWTKey(ctx context.Context, slotID string, issuedAt time
 func (j *Journal) UpdateJWTKeyStatus(ctx context.Context, authorityID string, status journal.Status) error {
 	j.mu.Lock()
 	defer j.mu.Unlock()
-
-	backup := j.entries.JwtKeys
 
 	var found bool
 	for i := len(j.entries.JwtKeys) - 1; i >= 0; i-- {
@@ -176,12 +151,7 @@ func (j *Journal) UpdateJWTKeyStatus(ctx context.Context, authorityID string, st
 		return fmt.Errorf("no journal entry found with authority ID %q", authorityID)
 	}
 
-	if err := j.save(ctx); err != nil {
-		j.entries.JwtKeys = backup
-		return err
-	}
-
-	return nil
+	return j.save(ctx)
 }
 
 func (j *Journal) AppendWITKey(ctx context.Context, slotID string, issuedAt time.Time, witKey *ca.WITKey) error {
@@ -193,7 +163,6 @@ func (j *Journal) AppendWITKey(ctx context.Context, slotID string, issuedAt time
 		return err
 	}
 
-	backup := j.entries.WitKeys
 	j.entries.WitKeys = append(j.entries.WitKeys, &journal.WITKeyEntry{
 		SlotId:      slotID,
 		IssuedAt:    issuedAt.Unix(),
@@ -206,18 +175,10 @@ func (j *Journal) AppendWITKey(ctx context.Context, slotID string, issuedAt time
 
 	exceeded := len(j.entries.WitKeys) - journalCap
 	if exceeded > 0 {
-		// make a new slice so we keep growing the backing array to drop the first
-		witKeys := make([]*journal.WITKeyEntry, journalCap)
-		copy(witKeys, j.entries.WitKeys[exceeded:])
-		j.entries.WitKeys = witKeys
+		j.entries.WitKeys = slices.Clone(j.entries.WitKeys[exceeded:])
 	}
 
-	if err := j.save(ctx); err != nil {
-		j.entries.WitKeys = backup
-		return err
-	}
-
-	return nil
+	return j.save(ctx)
 }
 
 // UpdateWITKeyStatus updates a stored WITKey entry to have the given status,
@@ -225,8 +186,6 @@ func (j *Journal) AppendWITKey(ctx context.Context, slotID string, issuedAt time
 func (j *Journal) UpdateWITKeyStatus(ctx context.Context, authorityID string, status journal.Status) error {
 	j.mu.Lock()
 	defer j.mu.Unlock()
-
-	backup := j.entries.WitKeys
 
 	var found bool
 	for i := len(j.entries.WitKeys) - 1; i >= 0; i-- {
@@ -242,12 +201,7 @@ func (j *Journal) UpdateWITKeyStatus(ctx context.Context, authorityID string, st
 		return fmt.Errorf("no journal entry found with authority ID %q", authorityID)
 	}
 
-	if err := j.save(ctx); err != nil {
-		j.entries.WitKeys = backup
-		return err
-	}
-
-	return nil
+	return j.save(ctx)
 }
 
 func (j *Journal) setEntries(entries *journal.Entries) {
@@ -258,9 +212,9 @@ func (j *Journal) setEntries(entries *journal.Entries) {
 }
 
 // saveInDatastore saves the provided marshaled entries in the datastore.
-// If caJournalID has not been defined yet (it's value is 0), it first finds
-// the CA journal records that corresponds to this server. In case that there is
-// no CA record for this server, it creates one.
+// If caJournalID has not been defined yet (its value is 0), it first finds
+// the CA journal record that corresponds to this server. In case there is no
+// CA record for this server, it creates one.
 // The ID of the CA journal record that was saved is returned, in addition to
 // the error (if any) of the operation.
 func (j *Journal) saveInDatastore(ctx context.Context, entriesBytes []byte) (caJournalID uint, err error) {
@@ -333,8 +287,7 @@ func (j *Journal) findCAJournal(ctx context.Context) (*datastore.CAJournal, erro
 	return nil, nil
 }
 
-// save saves the CA journal both on disk and in the datastore.
-// TODO: stop saving the CA journal on disk in v1.10.
+// save saves the CA journal in the datastore.
 func (j *Journal) save(ctx context.Context) error {
 	entriesBytes, err := proto.Marshal(j.entries)
 	if err != nil {
