@@ -25,6 +25,7 @@ import (
 	"github.com/mitchellh/cli"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/agent"
+	"github.com/spiffe/spire/pkg/agent/broker"
 	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/agent/trustbundlesources"
 	"github.com/spiffe/spire/pkg/agent/workloadkey"
@@ -33,6 +34,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/config"
 	"github.com/spiffe/spire/pkg/common/fflag"
 	"github.com/spiffe/spire/pkg/common/health"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/log"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -94,6 +96,10 @@ type agentConfig struct {
 
 	AuthorizedDelegates []string `hcl:"authorized_delegates"`
 
+	// Broker holds the configuration for the SPIFFE Broker API endpoint
+	// (distinct from the Delegated Identity API's authorized_delegates).
+	Broker *brokerHCLConfig `hcl:"broker"`
+
 	ConfigPath string
 	ExpandEnv  bool
 
@@ -105,6 +111,78 @@ type agentConfig struct {
 	Experimental     experimentalConfig `hcl:"experimental"`
 
 	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions"`
+}
+
+// brokerHCLConfig is the HCL block for the SPIFFE Broker API endpoint:
+//
+//	broker {
+//	    # At least one of these MUST be set; both MAY be set to expose the
+//	    # broker endpoint over both transports simultaneously (e.g., UDS
+//	    # for a local sidecar broker AND TCP for a remote broker).
+//	    socket_path  = "/run/spire/agent/broker.sock"   # POSIX-only UDS
+//	    bind_address = "0.0.0.0:8443"                   # TCP, both platforms
+//
+//	    brokers = [
+//	        { id = "spiffe://example.org/some/broker" },
+//	    ]
+//	}
+type brokerHCLConfig struct {
+	// SocketPath binds the broker endpoint to a Unix domain socket at the
+	// given path. POSIX-only.
+	SocketPath string `hcl:"socket_path"`
+
+	// BindAddress binds the broker endpoint to a TCP address ("host:port").
+	// Works on both POSIX and Windows.
+	BindAddress string `hcl:"bind_address"`
+
+	// Brokers enumerates the brokers authorized to talk to this agent's
+	// broker endpoint. Each entry's `id` is any valid SPIFFE ID; cross-
+	// trust-domain broker identities are allowed.
+	Brokers []brokerHCLEntry `hcl:"brokers"`
+
+	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions"`
+}
+
+type brokerHCLEntry struct {
+	ID string `hcl:"id"`
+
+	// AllowedReferenceTypes restricts which WorkloadReference types this
+	// broker may use. Each entry is the verbatim protobuf type URL that
+	// the workload attestor plugin inspects, e.g.
+	// `type.googleapis.com/spiffe.reference.KubernetesObjectReference`.
+	// Use `"*"` to allow any reference type. Must list at least one entry.
+	AllowedReferenceTypes []string `hcl:"allowed_reference_types"`
+
+	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions"`
+}
+
+// brokerBindAddrs resolves the broker endpoint's listener addresses from
+// the HCL block. Returns one address per configured transport (TCP via
+// `bind_address`, UDS via `socket_path`). Both MAY be set; at least one
+// MUST be set. The TCP branch is platform-agnostic and resolved here; the
+// UDS branch delegates to `brokerSocketAddr` which is defined per platform
+// (POSIX has UDS support; Windows rejects with an error).
+func (c *agentConfig) brokerBindAddrs() ([]net.Addr, error) {
+	sp, ba := c.Broker.SocketPath, c.Broker.BindAddress
+	if sp == "" && ba == "" {
+		return nil, errors.New("broker requires socket_path, bind_address, or both")
+	}
+	var addrs []net.Addr
+	if sp != "" {
+		uds, err := c.brokerSocketAddr()
+		if err != nil {
+			return nil, err
+		}
+		addrs = append(addrs, uds)
+	}
+	if ba != "" {
+		tcp, err := net.ResolveTCPAddr("tcp", ba)
+		if err != nil {
+			return nil, fmt.Errorf("invalid broker.bind_address %q: %w", ba, err)
+		}
+		addrs = append(addrs, tcp)
+	}
+	return addrs, nil
 }
 
 type sdsConfig struct {
@@ -509,6 +587,8 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 		}
 		ac.AdminBindAddress = adminAddr
 	}
+
+
 	// Handle join token - read from file if specified
 	if c.Agent.JoinTokenFile != "" {
 		tokenBytes, err := os.ReadFile(c.Agent.JoinTokenFile)
@@ -584,6 +664,47 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 
 	ac.AuthorizedDelegates = c.Agent.AuthorizedDelegates
 
+	if c.Agent.Broker != nil {
+		bindAddrs, err := c.Agent.brokerBindAddrs()
+		if err != nil {
+			return nil, err
+		}
+		// Pass 1: validate every entry has a non-empty, unique ID. Doing
+		// this first means subsequent errors can reference brokers by ID
+		// instead of slice index — which is more helpful to operators
+		// since they wrote the IDs themselves.
+		seen := make(map[string]struct{}, len(c.Agent.Broker.Brokers))
+		for i, b := range c.Agent.Broker.Brokers {
+			if b.ID == "" {
+				return nil, fmt.Errorf("broker.brokers[%d].id: must be specified", i)
+			}
+			if _, dup := seen[b.ID]; dup {
+				return nil, fmt.Errorf("broker.brokers[%s].id: duplicate broker id", b.ID)
+			}
+			seen[b.ID] = struct{}{}
+		}
+
+		// Pass 2: per-broker field validation. ID is referenced in error
+		// messages now that we know it's set and unique.
+		brokers := make([]broker.Broker, 0, len(c.Agent.Broker.Brokers))
+		for _, b := range c.Agent.Broker.Brokers {
+			if _, err := spiffeid.FromString(b.ID); err != nil {
+				return nil, fmt.Errorf("broker.brokers[%s].id: %w", b.ID, err)
+			}
+			if len(b.AllowedReferenceTypes) == 0 {
+				return nil, fmt.Errorf("broker.brokers[%s].allowed_reference_types: must list at least one reference type URL", b.ID)
+			}
+			brokers = append(brokers, broker.Broker{
+				ID:                    b.ID,
+				AllowedReferenceTypes: b.AllowedReferenceTypes,
+			})
+		}
+		ac.Broker = agent.BrokerConfig{
+			BindAddresses: bindAddrs,
+			Brokers:       brokers,
+		}
+	}
+
 	if c.Agent.AvailabilityTarget != "" {
 		t, err := time.ParseDuration(c.Agent.AvailabilityTarget)
 		if err != nil {
@@ -641,6 +762,17 @@ func checkForUnknownConfig(c *Config, l logrus.FieldLogger) (err error) {
 
 	if a := c.Agent; a != nil && len(a.UnusedKeyPositions) != 0 {
 		detectedUnknown("agent", a.UnusedKeyPositions)
+	}
+
+	if a := c.Agent; a != nil && a.Broker != nil {
+		if len(a.Broker.UnusedKeyPositions) != 0 {
+			detectedUnknown("broker", a.Broker.UnusedKeyPositions)
+		}
+		for i, b := range a.Broker.Brokers {
+			if len(b.UnusedKeyPositions) != 0 {
+				detectedUnknown(fmt.Sprintf("broker.brokers[%d]", i), b.UnusedKeyPositions)
+			}
+		}
 	}
 
 	// TODO: Re-enable unused key detection for telemetry. See

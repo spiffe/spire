@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/go-spiffe/v2/proto/spiffe/reference"
 	"github.com/spiffe/spire/pkg/agent/common/sigstore"
 	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor"
 	"github.com/spiffe/spire/pkg/common/catalog"
@@ -32,6 +33,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/protobuf/types/known/anypb"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
 const (
@@ -791,6 +799,24 @@ func (s *Suite) loadPlugin(configuration string) workloadattestor.WorkloadAttest
 	return v1
 }
 
+func (s *Suite) loadPluginWithKubeClient(configuration string, kubeClient client.Client) (*Plugin, workloadattestor.WorkloadAttestor) {
+	v1 := new(workloadattestor.V1)
+	p := s.newPlugin()
+	p.kubeClient = kubeClient
+
+	plugintest.Load(s.T(), builtin(p), v1,
+		plugintest.CoreConfig(catalog.CoreConfig{
+			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
+		}),
+		plugintest.Configure(configuration),
+	)
+
+	if cHelper := s.oc.getContainerHelper(p); cHelper != nil {
+		p.setContainerHelper(cHelper)
+	}
+	return p, v1
+}
+
 func (s *Suite) loadInsecurePlugin() workloadattestor.WorkloadAttestor {
 	return s.loadPlugin(fmt.Sprintf(`
 		kubelet_read_only_port = %d
@@ -1021,6 +1047,174 @@ func (s *Suite) podListResponseCount() int {
 	return len(s.podList)
 }
 
+// testPodUID is the UID of the blog pod in testdata/pod_list.json.
+const testPodUID = "2c48913c-b29f-11e7-9350-020968147796"
+
+func (s *Suite) TestAttestReferenceWithPodUID_FoundInKubelet() {
+	s.startInsecureKubelet()
+	p := s.loadInsecurePlugin()
+
+	s.addPodListResponse(podListFilePath)
+
+	anyRef, err := anypb.New(&reference.KubernetesObjectReference{Type: &reference.KubernetesObjectType{Plural: "pods", Group: "core"}, Uid: testPodUID})
+	s.Require().NoError(err)
+
+	selectors, err := p.AttestReference(context.Background(), anyRef)
+	s.Require().NoError(err)
+	s.requireSelectorsEqual(testPodSelectors, selectors)
+}
+
+func (s *Suite) TestAttestReferenceWithPodUID_FallbackToAPIServer() {
+	s.startInsecureKubelet()
+
+	// Serve an empty pod list so the kubelet lookup finds nothing.
+	emptyPodList := []byte(`{"items":[]}`)
+	s.podListMu.Lock()
+	s.podList = append(s.podList, emptyPodList)
+	s.podListMu.Unlock()
+
+	// Build a fake Kubernetes client with the blog pod.
+	blogPod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "blog-24ck7",
+			Namespace: "default",
+			UID:       types.UID(testPodUID),
+			Labels: map[string]string{
+				"k8s-app": "blog",
+				"version": "v0",
+			},
+			OwnerReferences: []metav1.OwnerReference{
+				{Kind: "ReplicationController", Name: "blog", UID: "2c401175-b29f-11e7-9350-020968147796"},
+			},
+		},
+		Spec: corev1.PodSpec{
+			NodeName:           "k8s-node-1",
+			ServiceAccountName: "default",
+		},
+		Status: corev1.PodStatus{
+			ContainerStatuses: []corev1.ContainerStatus{
+				{
+					Image:   "localhost/spiffe/blog:latest",
+					ImageID: "docker-pullable://localhost/spiffe/blog@sha256:0cfdaced91cb46dd7af48309799a3c351e4ca2d5e1ee9737ca0cbd932cb79898",
+				},
+				{
+					Image:   "localhost/spiffe/ghostunnel:latest",
+					ImageID: "docker-pullable://localhost/spiffe/ghostunnel@sha256:b2fc20676c92a433b9a91f3f4535faddec0c2c3613849ac12f02c1d5cfcd4c3a",
+				},
+			},
+		},
+	}
+	fakeClient := fake.NewClientBuilder().WithScheme(k8sScheme).WithObjects(blogPod).Build()
+
+	cfg := fmt.Sprintf(`
+		kubelet_read_only_port = %d
+		max_poll_attempts = 5
+		poll_retry_interval = "1s"
+`, s.kubeletPort())
+	_, wa := s.loadPluginWithKubeClient(cfg, fakeClient)
+
+	anyRef, err := anypb.New(&reference.KubernetesObjectReference{Type: &reference.KubernetesObjectType{Plural: "pods", Group: "core"}, Uid: testPodUID})
+	s.Require().NoError(err)
+
+	selectors, err := wa.AttestReference(context.Background(), anyRef)
+	s.Require().NoError(err)
+	s.requireSelectorsEqual(testPodSelectors, selectors)
+}
+
+func (s *Suite) TestAttestReferenceWithPodUID_NotFound() {
+	s.startInsecureKubelet()
+
+	emptyPodList := []byte(`{"items":[]}`)
+	s.podListMu.Lock()
+	s.podList = append(s.podList, emptyPodList)
+	s.podListMu.Unlock()
+
+	fakeClient := fake.NewClientBuilder().WithScheme(k8sScheme).Build()
+	cfg := fmt.Sprintf(`
+		kubelet_read_only_port = %d
+		max_poll_attempts = 5
+		poll_retry_interval = "1s"
+`, s.kubeletPort())
+	_, wa := s.loadPluginWithKubeClient(cfg, fakeClient)
+
+	anyRef, err := anypb.New(&reference.KubernetesObjectReference{Type: &reference.KubernetesObjectType{Plural: "pods", Group: "core"}, Uid: "nonexistent-uid"})
+	s.Require().NoError(err)
+
+	selectors, err := wa.AttestReference(context.Background(), anyRef)
+	s.RequireGRPCStatusContains(err, codes.NotFound, "not found")
+	s.Require().Nil(selectors)
+}
+
+func (s *Suite) TestAttestReferenceUnsupportedType() {
+	s.startInsecureKubelet()
+	p := s.loadInsecurePlugin()
+
+	anyRef := &anypb.Any{TypeUrl: "type.googleapis.com/unsupported.Type", Value: []byte{}}
+
+	selectors, err := p.AttestReference(context.Background(), anyRef)
+	s.RequireGRPCStatusContains(err, codes.InvalidArgument, "unsupported reference type")
+	s.Require().Nil(selectors)
+}
+
+func (s *Suite) TestAttestReferenceKubernetesObjectValidation() {
+	s.startInsecureKubelet()
+	p := s.loadInsecurePlugin()
+
+	testCases := []struct {
+		name   string
+		ref    *reference.KubernetesObjectReference
+		errMsg string
+	}{
+		{
+			name:   "missing type",
+			ref:    &reference.KubernetesObjectReference{Uid: testPodUID},
+			errMsg: "object reference is missing type",
+		},
+		{
+			name:   "missing plural",
+			ref:    &reference.KubernetesObjectReference{Type: &reference.KubernetesObjectType{Group: "core"}, Uid: testPodUID},
+			errMsg: "object reference type is missing plural",
+		},
+		{
+			name:   "missing group",
+			ref:    &reference.KubernetesObjectReference{Type: &reference.KubernetesObjectType{Plural: "pods"}, Uid: testPodUID},
+			errMsg: "object reference type is missing group",
+		},
+		{
+			name:   "missing key and uid",
+			ref:    &reference.KubernetesObjectReference{Type: &reference.KubernetesObjectType{Plural: "pods", Group: "core"}},
+			errMsg: "object reference is missing key and UID",
+		},
+		{
+			name: "key missing name",
+			ref: &reference.KubernetesObjectReference{
+				Type: &reference.KubernetesObjectType{Plural: "pods", Group: "core"},
+				Key:  &reference.KubernetesObjectKey{Namespace: "shop"},
+			},
+			errMsg: "object reference key is missing name",
+		},
+		{
+			name: "pod key missing namespace",
+			ref: &reference.KubernetesObjectReference{
+				Type: &reference.KubernetesObjectType{Plural: "pods", Group: "core"},
+				Key:  &reference.KubernetesObjectKey{Name: "checkout"},
+			},
+			errMsg: "namespace is required when name is set for a namespaced resource",
+		},
+	}
+
+	for _, tc := range testCases {
+		s.T().Run(tc.name, func(t *testing.T) {
+			anyRef, err := anypb.New(tc.ref)
+			s.Require().NoError(err)
+
+			selectors, err := p.AttestReference(context.Background(), anyRef)
+			s.RequireGRPCStatusContains(err, codes.InvalidArgument, tc.errMsg)
+			s.Require().Nil(selectors)
+		})
+	}
+}
+
 type fakeSigstoreVerifier struct {
 	mu sync.Mutex
 
@@ -1042,4 +1236,86 @@ func (v *fakeSigstoreVerifier) Verify(_ context.Context, imageID string) ([]stri
 	}
 
 	return nil, fmt.Errorf("failed to verify signature for image %s", imageID)
+}
+
+func TestGetSelectorValuesFromObjectMeta(t *testing.T) {
+	truePtr := true
+	falsePtr := false
+
+	for _, tc := range []struct {
+		name     string
+		objType  *reference.KubernetesObjectType
+		gvk      schema.GroupVersionKind
+		obj      *metav1.PartialObjectMetadata
+		expected []string
+	}{
+		{
+			name:    "namespaced with all fields",
+			objType: &reference.KubernetesObjectType{Plural: "deployments", Group: "apps"},
+			gvk:     schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: "Deployment"},
+			obj: &metav1.PartialObjectMetadata{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        "checkout",
+					Namespace:   "shop",
+					UID:         "a1b2c3",
+					Labels:      map[string]string{"app": "checkout"},
+					Annotations: map[string]string{"team": "payments"}, // ignored — annotations are not used as selectors
+					OwnerReferences: []metav1.OwnerReference{
+						{APIVersion: "apps/v1", Kind: "ReplicaSet", Name: "checkout-rs", UID: "owner-uid-1", Controller: &truePtr},
+						{APIVersion: "v1", Kind: "ConfigMap", Name: "checkout-cm", UID: "owner-uid-2", Controller: &falsePtr},
+					},
+				},
+			},
+			expected: []string{
+				"uid:a1b2c3",
+				"resource:deployments.apps",
+				"type:deployments.apps",
+				"plural:deployments",
+				"group:apps",
+				"apiGroup:apps",
+				"version:v1",
+				"apiVersion:apps/v1",
+				"kind:Deployment",
+				"name:checkout",
+				"namespace:shop",
+				"key:shop/checkout",
+				"label:app:checkout",
+				"owner-key:apps/ReplicaSet/checkout-rs",
+				"owner-uid:apps/ReplicaSet/owner-uid-1",
+				"controller-key:apps/ReplicaSet/checkout-rs",
+				"controller-uid:apps/ReplicaSet/owner-uid-1",
+				"owner-key:core/ConfigMap/checkout-cm",
+				"owner-uid:core/ConfigMap/owner-uid-2",
+			},
+		},
+		{
+			name:    "cluster-scoped, no owners/labels",
+			objType: &reference.KubernetesObjectType{Plural: "nodes", Group: "core"},
+			gvk:     schema.GroupVersionKind{Group: "", Version: "v1", Kind: "Node"},
+			obj: &metav1.PartialObjectMetadata{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "ip-10-0-1-42.ec2.internal",
+					UID:  "node-uid",
+				},
+			},
+			expected: []string{
+				"uid:node-uid",
+				"resource:nodes.core",
+				"type:nodes.core",
+				"plural:nodes",
+				"group:core",
+				"apiGroup:core",
+				"version:v1",
+				"apiVersion:v1",
+				"kind:Node",
+				"name:ip-10-0-1-42.ec2.internal",
+				"key:ip-10-0-1-42.ec2.internal",
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got := getSelectorValuesFromObjectMeta(tc.objType, tc.gvk, tc.obj)
+			assert.ElementsMatch(t, tc.expected, got)
+		})
+	}
 }

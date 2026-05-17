@@ -36,6 +36,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/protobuf/types/known/anypb"
 )
 
 var (
@@ -867,6 +868,11 @@ type FakeWorkloadPIDAttestor struct {
 }
 
 func (fa FakeWorkloadPIDAttestor) Attest(_ context.Context, _ int) ([]*common.Selector, error) {
+	return fa.selectors, fa.err
+}
+
+func (fa FakeWorkloadPIDAttestor) AttestReference(_ context.Context, _ *anypb.Any) ([]*common.Selector, error) {
+	// TODO(arndt) do we want more logic here?
 	return fa.selectors, fa.err
 }
 

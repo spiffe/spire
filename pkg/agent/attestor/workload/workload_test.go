@@ -181,10 +181,17 @@ func (s *WorkloadAttestorTestSuite) TestAttestLogsOnContextCancellation() {
 	spiretest.AssertLogs(s.T(), s.loggerHook.AllEntries(), []spiretest.LogEntry{
 		{
 			Level:   logrus.ErrorLevel,
-			Message: "Timed out collecting selectors for PID",
+			Message: "Timed out collecting selectors",
+			Data: logrus.Fields{
+				logrus.ErrorKey: context.Canceled.Error(),
+			},
+		},
+		{
+			Level:   logrus.ErrorLevel,
+			Message: `workload attestor "faketimeoutattestor" failed`,
 			Data: logrus.Fields{
 				telemetry.PID:   fmt.Sprint(pid),
-				logrus.ErrorKey: context.Canceled.Error(),
+				logrus.ErrorKey: "rpc error: code = Canceled desc = workloadattestor(faketimeoutattestor): context canceled",
 			},
 		},
 	})
