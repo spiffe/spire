@@ -209,7 +209,7 @@ func (p *Plugin) serveNonce(ctx context.Context, l net.Listener, agentName strin
 		fmt.Fprintln(w, nonce)
 	})
 
-	go func() {
+	go func() { //nolint:gosec // G118: complaint about context.Background()
 		<-ctx.Done()
 		_ = s.Shutdown(context.Background())
 	}()

@@ -125,7 +125,7 @@ func configureConnection(cfg *configuration, isReadOnly bool) (*mysql.Config, er
 
 	// MySQL still allows, and in some places requires, older TLS versions. For example, when built with yaSSL, it is limited to TLSv1 and TLSv1.1.
 	// TODO: consider making this more secure by default
-	tlsConf := tls.Config{} //nolint: gosec // see above
+	tlsConf := tls.Config{}
 
 	// load and configure Root CA if it exists
 	if len(cfg.RootCAPath) > 0 {

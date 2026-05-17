@@ -166,7 +166,7 @@ func (p *hcClientPlugin) GRPCClient(ctx context.Context, b *goplugin.GRPCBroker,
 		}
 	})
 
-	ctx, cancel := context.WithCancel(ctx)
+	ctx, cancel := context.WithCancel(ctx) //nolint:gosec // G118: false complaint about cancel not being called
 	wg.Go(func() {
 		<-ctx.Done()
 		if !gracefulStopWithTimeout(server) {

@@ -1558,7 +1558,7 @@ type FakeManager struct {
 	ca          *testca.CA
 	identities  []cache.Identity
 	updates     []*cache.WorkloadUpdate
-	subscribers int32
+	subscribers atomic.Int32
 	err         error
 }
 
@@ -1589,7 +1589,7 @@ func (m *FakeManager) SubscribeToCacheChanges(context.Context, cache.Selectors) 
 	if m.err != nil {
 		return nil, m.err
 	}
-	atomic.AddInt32(&m.subscribers, 1)
+	m.subscribers.Add(1)
 	return newFakeSubscriber(m, m.updates), nil
 }
 
@@ -1601,11 +1601,11 @@ func (m *FakeManager) FetchWorkloadUpdate([]*common.Selector) *cache.WorkloadUpd
 }
 
 func (m *FakeManager) Subscribers() int {
-	return int(atomic.LoadInt32(&m.subscribers))
+	return int(m.subscribers.Load())
 }
 
 func (m *FakeManager) subscriberDone() {
-	atomic.AddInt32(&m.subscribers, -1)
+	m.subscribers.Add(-1)
 }
 
 type fakeSubscriber struct {

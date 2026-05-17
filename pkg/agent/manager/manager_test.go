@@ -1879,8 +1879,8 @@ type mockAPI struct {
 	svid []*x509.Certificate
 
 	// Counts the number of requests received from clients
-	getAuthorizedEntriesCount int32
-	batchNewX509SVIDCount     int32
+	getAuthorizedEntriesCount atomic.Int32
+	batchNewX509SVIDCount     atomic.Int32
 
 	// Last agent version received via PostStatus
 	lastAgentVersion string
@@ -1964,7 +1964,7 @@ func (h *mockAPI) PostStatus(_ context.Context, req *agentv1.PostStatusRequest) 
 }
 
 func (h *mockAPI) GetAuthorizedEntries(_ context.Context, req *entryv1.GetAuthorizedEntriesRequest) (*entryv1.GetAuthorizedEntriesResponse, error) {
-	count := atomic.AddInt32(&h.getAuthorizedEntriesCount, 1)
+	count := h.getAuthorizedEntriesCount.Add(1)
 	if h.c.getAuthorizedEntries != nil {
 		return h.c.getAuthorizedEntries(h, count, req)
 	}
@@ -1972,7 +1972,7 @@ func (h *mockAPI) GetAuthorizedEntries(_ context.Context, req *entryv1.GetAuthor
 }
 
 func (h *mockAPI) BatchNewX509SVID(_ context.Context, req *svidv1.BatchNewX509SVIDRequest) (*svidv1.BatchNewX509SVIDResponse, error) {
-	count := atomic.AddInt32(&h.batchNewX509SVIDCount, 1)
+	count := h.batchNewX509SVIDCount.Add(1)
 
 	var entries map[string]*common.RegistrationEntry
 	if h.c.batchNewX509SVIDEntries != nil {

@@ -879,23 +879,23 @@ type FakeManager struct {
 	updates     []*cache.WorkloadUpdate
 	cacheUpdate map[spiffeid.TrustDomain]*cache.Bundle
 
-	subscribers int32
+	subscribers atomic.Int32
 	err         error
 }
 
 func (m *FakeManager) Subscribers() int {
-	return int(atomic.LoadInt32(&m.subscribers))
+	return int(m.subscribers.Load())
 }
 
 func (m *FakeManager) subscriberDone() {
-	atomic.AddInt32(&m.subscribers, -1)
+	m.subscribers.Add(-1)
 }
 
 func (m *FakeManager) SubscribeToCacheChanges(context.Context, cache.Selectors) (cache.Subscriber, error) {
 	if m.err != nil {
 		return nil, m.err
 	}
-	atomic.AddInt32(&m.subscribers, 1)
+	m.subscribers.Add(1)
 	return newFakeSubscriber(m, m.updates), nil
 }
 
