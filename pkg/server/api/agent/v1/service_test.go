@@ -1191,7 +1191,7 @@ func TestBanAgent(t *testing.T) {
 			if tt.expectCode != codes.OK {
 				require.Nil(t, banResp)
 
-				attestedNode, err := test.ds.FetchAttestedNode(ctx, node.SpiffeId)
+				attestedNode, err := test.ds.FetchAttestedNode(ctx, node.SpiffeId, datastore.RequireCurrent)
 				require.NoError(t, err)
 				require.NotNil(t, attestedNode)
 				require.NotZero(t, attestedNode.CertSerialNumber)
@@ -1202,7 +1202,7 @@ func TestBanAgent(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, banResp)
 
-			attestedNode, err := test.ds.FetchAttestedNode(ctx, idutil.RequireIDProtoString(tt.reqID))
+			attestedNode, err := test.ds.FetchAttestedNode(ctx, idutil.RequireIDProtoString(tt.reqID), datastore.RequireCurrent)
 			require.NoError(t, err)
 			require.NotNil(t, attestedNode)
 
@@ -1425,7 +1425,7 @@ func TestDeleteAgent(t *testing.T) {
 				spiretest.RequireGRPCStatus(t, err, tt.code, tt.err)
 
 				// Verify node was not deleted
-				attestedNode, err := test.ds.FetchAttestedNode(ctx, node1.SpiffeId)
+				attestedNode, err := test.ds.FetchAttestedNode(ctx, node1.SpiffeId, datastore.RequireCurrent)
 				require.NoError(t, err)
 				require.NotNil(t, attestedNode)
 
@@ -1437,7 +1437,7 @@ func TestDeleteAgent(t *testing.T) {
 
 			id := idutil.RequireIDFromProto(tt.req.Id)
 
-			attestedNode, err := test.ds.FetchAttestedNode(ctx, id.String())
+			attestedNode, err := test.ds.FetchAttestedNode(ctx, id.String(), datastore.RequireCurrent)
 			require.NoError(t, err)
 			require.Nil(t, attestedNode)
 		})
@@ -2044,7 +2044,7 @@ func TestRenewAgent(t *testing.T) {
 			require.Equal(t, []*url.URL{agentID.URL()}, x509Svid.URIs)
 
 			// Validate attested node in datastore
-			updatedNode, err := test.ds.FetchAttestedNode(ctx, agentID.String())
+			updatedNode, err := test.ds.FetchAttestedNode(ctx, agentID.String(), datastore.RequireCurrent)
 			require.NoError(t, err)
 			require.NotNil(t, updatedNode)
 			expectedNode := tt.createNode
@@ -2170,7 +2170,7 @@ func TestPostStatus(t *testing.T) {
 					require.NotNil(t, resp)
 
 					// Verify the agent version was updated in the datastore
-					node, err := test.ds.FetchAttestedNode(context.Background(), agentID.String())
+					node, err := test.ds.FetchAttestedNode(context.Background(), agentID.String(), datastore.RequireCurrent)
 					require.NoError(t, err)
 					require.NotNil(t, node)
 					require.Equal(t, tt.expectVersion, node.AgentVersion)
@@ -3503,7 +3503,7 @@ func (s *serviceTest) assertAttestAgentResult(t *testing.T, expectedID spiffeid.
 }
 
 func (s *serviceTest) assertAgentWasStored(t *testing.T, expectedID string, expectedSelectors []*common.Selector, expectedVersion string, agentSpiffeIdAsSelector bool) {
-	attestedAgent, err := s.ds.FetchAttestedNode(ctx, expectedID)
+	attestedAgent, err := s.ds.FetchAttestedNode(ctx, expectedID, datastore.RequireCurrent)
 	require.NoError(t, err)
 	require.NotNil(t, attestedAgent)
 	require.Equal(t, expectedID, attestedAgent.SpiffeId)

@@ -420,7 +420,7 @@ func (ds *fakeDataStore) DeleteRegistrationEntryEventForTesting(context.Context,
 	return ds.err
 }
 
-func (ds *fakeDataStore) FetchAttestedNode(context.Context, string) (*common.AttestedNode, error) {
+func (ds *fakeDataStore) FetchAttestedNode(context.Context, string, datastore.DataConsistency) (*common.AttestedNode, error) {
 	return &common.AttestedNode{}, ds.err
 }
 
@@ -444,7 +444,7 @@ func (ds *fakeDataStore) FetchRegistrationEntry(context.Context, string) (*commo
 	return &common.RegistrationEntry{}, ds.err
 }
 
-func (ds *fakeDataStore) FetchRegistrationEntries(context.Context, []string) (map[string]*common.RegistrationEntry, error) {
+func (ds *fakeDataStore) FetchRegistrationEntries(context.Context, []string, datastore.DataConsistency) (map[string]*common.RegistrationEntry, error) {
 	return map[string]*common.RegistrationEntry{}, ds.err
 }
 

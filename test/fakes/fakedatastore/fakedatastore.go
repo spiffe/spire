@@ -141,11 +141,11 @@ func (s *DataStore) CreateAttestedNode(ctx context.Context, node *common.Atteste
 	return s.ds.CreateAttestedNode(ctx, node)
 }
 
-func (s *DataStore) FetchAttestedNode(ctx context.Context, spiffeID string) (*common.AttestedNode, error) {
+func (s *DataStore) FetchAttestedNode(ctx context.Context, spiffeID string, dataConsistency datastore.DataConsistency) (*common.AttestedNode, error) {
 	if err := s.getNextError(); err != nil {
 		return nil, err
 	}
-	return s.ds.FetchAttestedNode(ctx, spiffeID)
+	return s.ds.FetchAttestedNode(ctx, spiffeID, dataConsistency)
 }
 
 func (s *DataStore) ListAttestedNodes(ctx context.Context, req *datastore.ListAttestedNodesRequest) (*datastore.ListAttestedNodesResponse, error) {
@@ -293,11 +293,11 @@ func (s *DataStore) FetchRegistrationEntry(ctx context.Context, entryID string) 
 	return s.ds.FetchRegistrationEntry(ctx, entryID)
 }
 
-func (s *DataStore) FetchRegistrationEntries(ctx context.Context, entryIDs []string) (map[string]*common.RegistrationEntry, error) {
+func (s *DataStore) FetchRegistrationEntries(ctx context.Context, entryIDs []string, dataConsistency datastore.DataConsistency) (map[string]*common.RegistrationEntry, error) {
 	if err := s.getNextError(); err != nil {
 		return nil, err
 	}
-	return s.ds.FetchRegistrationEntries(ctx, entryIDs)
+	return s.ds.FetchRegistrationEntries(ctx, entryIDs, dataConsistency)
 }
 
 func (s *DataStore) ListRegistrationEntries(ctx context.Context, req *datastore.ListRegistrationEntriesRequest) (*datastore.ListRegistrationEntriesResponse, error) {

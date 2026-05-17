@@ -307,14 +307,13 @@ func (ds *Plugin) CreateAttestedNode(ctx context.Context, node *common.AttestedN
 }
 
 // FetchAttestedNode fetches an existing attested node by SPIFFE ID
-func (ds *Plugin) FetchAttestedNode(ctx context.Context, spiffeID string) (attestedNode *common.AttestedNode, err error) {
-	if err = ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
-		attestedNode, err = fetchAttestedNode(tx, spiffeID)
-		return err
-	}); err != nil {
-		return nil, err
+func (ds *Plugin) FetchAttestedNode(ctx context.Context, spiffeID string,
+	dataConsistency datastore.DataConsistency,
+) (*common.AttestedNode, error) {
+	if dataConsistency == datastore.TolerateStale && ds.roDb != nil {
+		return fetchAttestedNode(ctx, ds.roDb, spiffeID)
 	}
-	return attestedNode, nil
+	return fetchAttestedNode(ctx, ds.db, spiffeID)
 }
 
 // CountAttestedNodes counts all attested nodes
@@ -523,8 +522,11 @@ func (ds *Plugin) FetchRegistrationEntry(ctx context.Context,
 
 // FetchRegistrationEntries fetches existing registrations by entry IDs
 func (ds *Plugin) FetchRegistrationEntries(ctx context.Context,
-	entryIDs []string,
+	entryIDs []string, dataConsistency datastore.DataConsistency,
 ) (map[string]*common.RegistrationEntry, error) {
+	if dataConsistency == datastore.TolerateStale && ds.roDb != nil {
+		return fetchRegistrationEntries(ctx, ds.roDb, entryIDs)
+	}
 	return fetchRegistrationEntries(ctx, ds.db, entryIDs)
 }
 
@@ -1633,7 +1635,13 @@ func createAttestedNode(tx *gorm.DB, node *common.AttestedNode) (*common.Atteste
 	return modelToAttestedNode(model), nil
 }
 
-func fetchAttestedNode(tx *gorm.DB, spiffeID string) (*common.AttestedNode, error) {
+func fetchAttestedNode(ctx context.Context, db *sqlDB, spiffeID string) (*common.AttestedNode, error) {
+	tx := db.BeginTx(ctx, nil)
+	if err := tx.Error; err != nil {
+		return nil, newWrappedSQLError(err)
+	}
+	defer tx.Rollback()
+
 	var model AttestedNode
 	err := tx.Find(&model, "spiffe_id = ?", spiffeID).Error
 	switch {

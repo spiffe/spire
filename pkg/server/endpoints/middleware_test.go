@@ -288,7 +288,7 @@ func TestAgentAuthorizer(t *testing.T) {
 				require.Fail(t, "unexpected error code")
 			}
 
-			attestedNode, err := ds.FetchAttestedNode(context.Background(), tt.node.SpiffeId)
+			attestedNode, err := ds.FetchAttestedNode(context.Background(), tt.node.SpiffeId, datastore.RequireCurrent)
 			require.NoError(t, err)
 			spiretest.RequireProtoEqual(t, tt.expectedNode, attestedNode)
 		})

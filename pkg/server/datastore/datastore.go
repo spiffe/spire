@@ -35,7 +35,7 @@ type DataStore interface {
 	CreateOrReturnRegistrationEntry(context.Context, *common.RegistrationEntry) (*common.RegistrationEntry, bool, error)
 	DeleteRegistrationEntry(ctx context.Context, entryID string) (*common.RegistrationEntry, error)
 	FetchRegistrationEntry(ctx context.Context, entryID string) (*common.RegistrationEntry, error)
-	FetchRegistrationEntries(ctx context.Context, entryIDs []string) (map[string]*common.RegistrationEntry, error)
+	FetchRegistrationEntries(ctx context.Context, entryIDs []string, dataConsistency DataConsistency) (map[string]*common.RegistrationEntry, error)
 	ListRegistrationEntries(context.Context, *ListRegistrationEntriesRequest) (*ListRegistrationEntriesResponse, error)
 	PruneRegistrationEntries(ctx context.Context, expiresBefore time.Time) error
 	UpdateRegistrationEntry(context.Context, *common.RegistrationEntry, *common.RegistrationEntryMask) (*common.RegistrationEntry, error)
@@ -51,7 +51,7 @@ type DataStore interface {
 	CountAttestedNodes(context.Context, *CountAttestedNodesRequest) (int32, error)
 	CreateAttestedNode(context.Context, *common.AttestedNode) (*common.AttestedNode, error)
 	DeleteAttestedNode(ctx context.Context, spiffeID string) (*common.AttestedNode, error)
-	FetchAttestedNode(ctx context.Context, spiffeID string) (*common.AttestedNode, error)
+	FetchAttestedNode(ctx context.Context, spiffeID string, dataConsistency DataConsistency) (*common.AttestedNode, error)
 	ListAttestedNodes(context.Context, *ListAttestedNodesRequest) (*ListAttestedNodesResponse, error)
 	UpdateAttestedNode(context.Context, *common.AttestedNode, *common.AttestedNodeMask) (*common.AttestedNode, error)
 	PruneAttestedExpiredNodes(ctx context.Context, expiredBefore time.Time, includeNonReattestable bool) error

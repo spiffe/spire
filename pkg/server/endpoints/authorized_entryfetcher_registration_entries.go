@@ -226,7 +226,7 @@ func (a *registrationEntries) updateCachedEntries(ctx context.Context) error {
 	entryIds := slices.Collect(maps.Keys(a.fetchEntries))
 	for pageStart := 0; pageStart < len(entryIds); pageStart += int(a.pageSize) {
 		fetchEntries := a.fetchEntriesPage(entryIds, pageStart)
-		commonEntries, err := a.ds.FetchRegistrationEntries(ctx, fetchEntries)
+		commonEntries, err := a.ds.FetchRegistrationEntries(ctx, fetchEntries, datastore.TolerateStale)
 		if err != nil {
 			return err
 		}

@@ -68,7 +68,7 @@ func (c *Cache) LookupAttestedNode(id string) (*common.AttestedNode, time.Time) 
 }
 
 func (c *Cache) FetchAttestedNode(ctx context.Context, id string) (*common.AttestedNode, error) {
-	node, err := c.ds.FetchAttestedNode(ctx, id)
+	node, err := c.ds.FetchAttestedNode(ctx, id, datastore.RequireCurrent)
 	if err != nil {
 		c.RemoveAttestedNode(id)
 		return nil, err

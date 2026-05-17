@@ -60,7 +60,7 @@ func (v1 *agentStoreV1) GetAgentInfo(ctx context.Context, req *agentstorev1.GetA
 		return nil, err
 	}
 
-	attestedNode, err := deps.DataStore.FetchAttestedNode(ctx, req.AgentId)
+	attestedNode, err := deps.DataStore.FetchAttestedNode(ctx, req.AgentId, datastore.RequireCurrent)
 	if err != nil {
 		return nil, err
 	}
