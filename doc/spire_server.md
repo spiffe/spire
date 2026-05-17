@@ -827,11 +827,17 @@ server {
 telemetry {
     Prometheus {
         port = 1234
-        #optional TLS for prometheus
+        # optional TLS for prometheus
         tls {
-            cert_file = "/path/to/cert.pem"
-            key_file = "/path/to/key.pem"
-            client_ca_file = "/path/to/ca.pem" # optional CA file for mTLS
+            use_spire_svid = true
+            authorized_spiffe_ids = [
+                "spiffe://example.org/monitoring/prometheus",
+            ]
+
+            # Alternatively, configure a web certificate directly:
+            # cert_file = "/path/to/cert.pem"
+            # key_file = "/path/to/key.pem"
+            # client_ca_file = "/path/to/ca.pem"
         }
     }
 }
