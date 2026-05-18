@@ -89,13 +89,9 @@ func TestEndpoints(t *testing.T) {
 				{Type: fakemetrics.IncrCounterType, Key: []string{"workload_api", "connection"}, Val: 1},
 				{Type: fakemetrics.SetGaugeType, Key: []string{"workload_api", "connections"}, Val: 1},
 				{Type: fakemetrics.SetGaugeType, Key: []string{"workload_api", "connections"}, Val: 0},
-				// Call counter
-				{Type: fakemetrics.IncrCounterWithLabelsType, Key: []string{"rpc", "workload_api", "fetch_jwtsvid"}, Val: 1, Labels: []metrics.Label{
-					{Name: "status", Value: "OK"},
-				}},
-				{Type: fakemetrics.MeasureSinceWithLabelsType, Key: []string{"rpc", "workload_api", "fetch_jwtsvid", "elapsed_time"}, Val: 0, Labels: []metrics.Label{
-					{Name: "status", Value: "OK"},
-				}},
+				// RPC call counter is intentionally not emitted: the caller
+				// PID matches the agent PID (os.Getpid()), so the middleware
+				// discards per-call metrics to avoid health-check noise.
 			},
 		},
 		{
@@ -116,13 +112,9 @@ func TestEndpoints(t *testing.T) {
 				{Type: fakemetrics.IncrCounterType, Key: []string{"sds_api", "connection"}, Val: 1},
 				{Type: fakemetrics.SetGaugeType, Key: []string{"sds_api", "connections"}, Val: 1},
 				{Type: fakemetrics.SetGaugeType, Key: []string{"sds_api", "connections"}, Val: 0},
-				// Call counter
-				{Type: fakemetrics.IncrCounterWithLabelsType, Key: []string{"rpc", "sds", "v3", "fetch_secrets"}, Val: 1, Labels: []metrics.Label{
-					{Name: "status", Value: "OK"},
-				}},
-				{Type: fakemetrics.MeasureSinceWithLabelsType, Key: []string{"rpc", "sds", "v3", "fetch_secrets", "elapsed_time"}, Val: 0, Labels: []metrics.Label{
-					{Name: "status", Value: "OK"},
-				}},
+				// RPC call counter is intentionally not emitted: the caller
+				// PID matches the agent PID (os.Getpid()), so the middleware
+				// discards per-call metrics to avoid health-check noise.
 			},
 		},
 		{
