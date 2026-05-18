@@ -13,7 +13,9 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"net"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -32,6 +34,7 @@ import (
 	"github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/peer"
 )
 
 func TestX509PoP(t *testing.T) {
@@ -551,6 +554,107 @@ func unmarshal(t *testing.T, data []byte, obj any) {
 
 func expectNoChallenge(context.Context, []byte) ([]byte, error) {
 	return nil, errors.New("challenge is not expected")
+}
+
+func (s *Suite) TestVerifyClientIP() {
+	clientIP := net.ParseIP("192.0.2.1")
+
+	makePayload := func(t *testing.T, certs [][]byte) []byte {
+		return marshal(t, &x509pop.AttestationData{Certificates: certs})
+	}
+
+	s.T().Run("client IP not available", func(t *testing.T) {
+		config := s.createConfiguration("ca_bundle_path", "verify_client_ip = true")
+		attestor := s.loadPlugin(t, config)
+		payload := makePayload(t, s.leafBundle)
+		challengeFn := func(ctx context.Context, challenge []byte) ([]byte, error) {
+			popChallenge := new(x509pop.Challenge)
+			unmarshal(t, challenge, popChallenge)
+			response, err := x509pop.CalculateResponse(s.leafKey, popChallenge)
+			require.NoError(t, err)
+			return marshal(t, response), nil
+		}
+		result, err := attestor.Attest(context.Background(), payload, challengeFn)
+		spiretest.RequireGRPCStatusContains(t, err, codes.Internal, "client IP not available for verification")
+		require.Nil(t, result)
+	})
+
+	s.T().Run("client IP does not match cert SAN", func(t *testing.T) {
+		config := s.createConfiguration("ca_bundle_path", "verify_client_ip = true")
+		attestor := s.loadPlugin(t, config)
+		payload := makePayload(t, s.leafBundle)
+		ctx := peer.NewContext(context.Background(), &peer.Peer{
+			Addr: &net.TCPAddr{IP: clientIP, Port: 12345},
+		})
+		challengeFn := func(ctx context.Context, challenge []byte) ([]byte, error) {
+			popChallenge := new(x509pop.Challenge)
+			unmarshal(t, challenge, popChallenge)
+			response, err := x509pop.CalculateResponse(s.leafKey, popChallenge)
+			require.NoError(t, err)
+			return marshal(t, response), nil
+		}
+		result, err := attestor.Attest(ctx, payload, challengeFn)
+		spiretest.RequireGRPCStatusContains(t, err, codes.PermissionDenied, "does not match any certificate IP SAN")
+		require.Nil(t, result)
+	})
+
+	s.T().Run("client IP matches cert SAN", func(t *testing.T) {
+		certChain, leafKey, rootCertPath := generateCertChainWithIPSAN(t, clientIP)
+		config := fmt.Sprintf("ca_bundle_path = %q\nverify_client_ip = true\n", rootCertPath)
+		attestor := s.loadPlugin(t, config)
+		payload := makePayload(t, certChain)
+		ctx := peer.NewContext(context.Background(), &peer.Peer{
+			Addr: &net.TCPAddr{IP: clientIP, Port: 12345},
+		})
+		challengeFn := func(ctx context.Context, challenge []byte) ([]byte, error) {
+			popChallenge := new(x509pop.Challenge)
+			unmarshal(t, challenge, popChallenge)
+			response, err := x509pop.CalculateResponse(leafKey, popChallenge)
+			require.NoError(t, err)
+			return marshal(t, response), nil
+		}
+		result, err := attestor.Attest(ctx, payload, challengeFn)
+		require.NoError(t, err)
+		require.NotNil(t, result)
+	})
+}
+
+func generateCertChainWithIPSAN(t *testing.T, ip net.IP) (certChain [][]byte, leafKey crypto.PrivateKey, rootCertPath string) {
+	t.Helper()
+
+	rootKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+
+	rootTemplate := &x509.Certificate{
+		SerialNumber:          big.NewInt(1),
+		BasicConstraintsValid: true,
+		IsCA:                  true,
+		NotBefore:             time.Now(),
+		NotAfter:              time.Now().Add(24 * time.Hour),
+	}
+	rootDER, err := x509.CreateCertificate(rand.Reader, rootTemplate, rootTemplate, &rootKey.PublicKey, rootKey)
+	require.NoError(t, err)
+	rootCert, err := x509.ParseCertificate(rootDER)
+	require.NoError(t, err)
+
+	leafKeyRSA, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+
+	leafTemplate := &x509.Certificate{
+		SerialNumber: big.NewInt(2),
+		KeyUsage:     x509.KeyUsageDigitalSignature,
+		NotBefore:    time.Now(),
+		NotAfter:     time.Now().Add(24 * time.Hour),
+		IPAddresses:  []net.IP{ip},
+	}
+	leafDER, err := x509.CreateCertificate(rand.Reader, leafTemplate, rootCert, &leafKeyRSA.PublicKey, rootKey)
+	require.NoError(t, err)
+
+	rootPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: rootDER})
+	rootCertPath = filepath.Join(t.TempDir(), "root.pem")
+	require.NoError(t, os.WriteFile(rootCertPath, rootPEM, 0o600))
+
+	return [][]byte{leafDER}, leafKeyRSA, rootCertPath
 }
 
 func generateCertWithRSAKeySize(t *testing.T, keySize int) []byte {

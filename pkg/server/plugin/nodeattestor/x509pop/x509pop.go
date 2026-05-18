@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/url"
 	"strings"
 	"sync"
@@ -23,7 +24,9 @@ import (
 	"github.com/spiffe/spire/pkg/common/plugin/x509pop"
 	"github.com/spiffe/spire/pkg/common/pluginconf"
 	"github.com/spiffe/spire/pkg/common/util"
+	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 )
 
@@ -54,6 +57,7 @@ type Config struct {
 	AgentPathTemplate string   `hcl:"agent_path_template"`
 	MaxIntermediates  *int     `hcl:"max_intermediates"`
 	MaxRSAKeySize     *int     `hcl:"max_rsa_key_size"`
+	VerifyClientIP    bool     `hcl:"verify_client_ip"`
 }
 
 type configuration struct {
@@ -64,6 +68,7 @@ type configuration struct {
 	pathTemplate     *agentpathtemplate.Template
 	maxIntermediates int
 	maxRSAKeySize    int
+	verifyClientIP   bool
 }
 
 func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *configuration {
@@ -151,6 +156,7 @@ func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginco
 		svidPrefix:       svidPrefix,
 		maxIntermediates: maxIntermediates,
 		maxRSAKeySize:    maxRSAKeySize,
+		verifyClientIP:   hclConfig.VerifyClientIP,
 	}
 
 	return newConfig
@@ -286,6 +292,27 @@ func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 
 	if err := x509pop.VerifyChallengeResponse(leaf.PublicKey, challenge, response); err != nil {
 		return status.Errorf(codes.PermissionDenied, "challenge response verification failed: %v", err)
+	}
+
+	if config.verifyClientIP {
+		ips := metadata.ValueFromIncomingContext(stream.Context(), nodeattestor.XForwardedClientIPKey)
+		if len(ips) == 0 || ips[0] == "" {
+			return status.Error(codes.Internal, "client IP not available for verification")
+		}
+		clientIP := net.ParseIP(ips[0])
+		if clientIP == nil {
+			return status.Errorf(codes.Internal, "invalid client IP %q", ips[0])
+		}
+		matched := false
+		for _, certIP := range leaf.IPAddresses {
+			if certIP.Equal(clientIP) {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			return status.Errorf(codes.PermissionDenied, "client IP %s does not match any certificate IP SAN", clientIP)
+		}
 	}
 
 	svidPath := ""

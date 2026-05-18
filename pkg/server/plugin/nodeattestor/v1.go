@@ -11,6 +11,7 @@ import (
 	"github.com/spiffe/spire/proto/spire/common"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
 )
 
@@ -20,6 +21,11 @@ const (
 	// It must not be used for security decisions (such as authentication, authorization, or trust domain selection) in attestor plugins without threat assessment.
 	// Valid uses include diagnostics, logging, or configuration side-loading
 	XForwardedHostKey = "X-Untrusted-Forwarded-Host"
+
+	// XForwardedClientIPKey is the metadata key for the client IP address observed by the server.
+	// Note: This reflects the immediate connecting peer, and may not represent the true client origin
+	// in scenarios including load balancers and other middlebox patterns
+	XForwardedClientIPKey = "X-Forwarded-Client-IP"
 )
 
 type V1 struct {
@@ -44,6 +50,11 @@ func (v1 *V1) Attest(ctx context.Context, payload []byte, challengeFn func(ctx c
 		v1.Log.WithError(err).Warn("Failed to extract ':authority' header from gRPC metadata")
 	}
 	ctx = metadata.AppendToOutgoingContext(ctx, XForwardedHostKey, originalHost)
+
+	// Forward observed client IP to downstream plugins
+	// Note: Empty string is provided if unavailable. Plugins that require it
+	// (e.g. x509pop with verify_client_ip enabled) handle the IP absence
+	ctx = metadata.AppendToOutgoingContext(ctx, XForwardedClientIPKey, getClientIP(ctx))
 
 	stream, err := v1.NodeAttestorPluginClient.Attest(ctx)
 	if err != nil {
@@ -117,6 +128,19 @@ func (v1 *V1) streamError(err error) error {
 		return v1.Error(codes.Internal, "plugin closed stream unexpectedly")
 	}
 	return v1.WrapErr(err)
+}
+
+// getClientIP returns the IP address of the connecting peer, or an empty string if unavailable
+func getClientIP(ctx context.Context) string {
+	p, ok := peer.FromContext(ctx)
+	if !ok {
+		return ""
+	}
+	host, _, err := net.SplitHostPort(p.Addr.String())
+	if err != nil {
+		return p.Addr.String()
+	}
+	return host
 }
 
 func getOriginalHost(ctx context.Context) (string, error) {
