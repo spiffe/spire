@@ -1,5 +1,54 @@
 # Changelog
 
+## [1.15.0] - 2026-05-18
+
+### Added
+
+- New `account_id` selector for `aws_iid` nodeattestor (#6697)
+- TLS support for the prometheus metrics sink (#6718)
+- Support for specifying that X509-SVIDs for a registration entry should not be prefetched (#6360)
+- The docker workload attestor now supports rootless Podman (#6798)
+- PROXY protocol support for rate limiting behind load balancers (#6819)
+- Support for the agent to fetch the X509-SVID for SPIFFE attestation mode from the Workload API socket (#6884)
+- `iss` claim support for WIT-SVIDs (#6857)
+- Instance flag support for `spire-server` and `spire-agent` CLI (#6789)
+- Experimental, optional `spiffe_id` node selector to help aliasing individual nodes (#6865)
+- HashiCorp Vault Key Manager plugin (#6889)
+
+### Changed
+
+- A metric label was renamed from 'bootstraped' to 'bootstrapped' (#6503)
+- Updated cosign to the v3 major release (#6493)
+- Authorized entry lookup with events based cache should now be as fast as without the events based cache (#6645)
+- `spire-agent api fetch x509` returns bundles in sorted alphabetic order by trust domain (#6784)
+- The `k8s_psat` node attestors includes the cluster in the attestation failure logs (#6785)
+- Azure sdk libraries have been updated to more recent major versions. (#6494)
+- The `sigstore` support in k8s and docker attestors was promoted out of experimental (#6901, #6906)
+- The `spire-agent` WorkloadAPI server now specifies a read buffer size which may improve memory usage with large number of connections (#6875)
+- Stop wrapping objects in slices when printing (#6655)
+  > [!IMPORTANT]
+  > This is a potentially breaking changes if you make use of the JSON out of the CLI
+- Documented image selector limitations for k8s workload attestor (#6930)
+- `gcp_iit` node attestor will now use service account email from identity token so it no longer depends on `use_instance_metadata` being true  (#6869)
+- Upgraded Go to 1.26.3 (#6947)
+- Various testing, linter errors and improvements (#6891, #6836, #6864, #6788, #6847, #6809, #6830, #6831, #6746, #6777, #6745, #6776, #6782, #6744, #6734, #6756, #6752, #6740, #6738)
+
+### Fixed
+
+- Potential nil panic in the `spire` upstream authority plugin (#6773)
+- Nil panic in the `azure_imds` plugin (#6795)
+- `azure_key_vault` key manager plugin now supports Azure Managed HSM (#6751)
+- Connections to the agent Debug service would lead to "unrecognized service" errors in logs (#6878)
+- An issue in the `aws_kms` plugin which would revert rotated aliases (#6805)
+- Issue in the Upstream Authority plugin that could result in a delay in the propagation of bundle updates/changes (#6773)
+
+## [1.14.6] - 2026-04-27
+
+### Security
+
+- Fixed an issue in the `aws_iid` server node attestor plugin where the RSA-2048 PKCS7 attestation path verified the PKCS7 signature against its embedded content but returned the identity document parsed from a separate, attacker-controlled field of the attestation data. An attacker who controlled any EC2 instance could impersonate any other EC2 instance during node attestation, with all downstream attestation decisions operating on the forged identity. Thank you Tianshuo Han for reporting this issue.
+- Fixed a TOCTOU issue in the join token data store path where concurrent attestations using the same token could each succeed because `tx.Delete()` did not report when no row was deleted. The fix uses a read-modify-write transaction with row locking and verifies that exactly one row was deleted. Thank you Tianshuo Han for reporting this issue.
+
 ## [1.14.5] - 2026-04-08
 
 ### Security
