@@ -27,7 +27,7 @@
 - The `spire-agent` WorkloadAPI server now specifies a read buffer size which may improve memory usage with large number of connections (#6875)
 - Stop wrapping objects in slices when printing (#6655)
   > [!IMPORTANT]
-  > This is a potentially breaking changes if you make use of the JSON out of the CLI
+  > This is a potentially breaking change if you make use of the JSON output of the CLI
 - Documented image selector limitations for k8s workload attestor (#6930)
 - `gcp_iit` node attestor will now use service account email from identity token so it no longer depends on `use_instance_metadata` being true (#6869)
 - Upgraded Go to 1.26.3 (#6947)
