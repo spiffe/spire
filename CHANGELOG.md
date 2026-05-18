@@ -21,7 +21,7 @@
 - Updated cosign to the v3 major release (#6493)
 - Authorized entry lookup with events based cache should now be as fast as without the events based cache (#6645)
 - `spire-agent api fetch x509` returns bundles in sorted alphabetic order by trust domain (#6784)
-- The `k8s_psat` node attestors includes the cluster in the attestation failure logs (#6785)
+- The `k8s_psat` node attestor includes the cluster in the attestation failure logs (#6785)
 - Azure sdk libraries have been updated to more recent major versions. (#6494)
 - The `sigstore` support in k8s and docker attestors was promoted out of experimental (#6901, #6906)
 - The `spire-agent` WorkloadAPI server now specifies a read buffer size which may improve memory usage with large number of connections (#6875)
@@ -29,18 +29,17 @@
   > [!IMPORTANT]
   > This is a potentially breaking changes if you make use of the JSON out of the CLI
 - Documented image selector limitations for k8s workload attestor (#6930)
-- `gcp_iit` node attestor will now use service account email from identity token so it no longer depends on `use_instance_metadata` being true  (#6869)
+- `gcp_iit` node attestor will now use service account email from identity token so it no longer depends on `use_instance_metadata` being true (#6869)
 - Upgraded Go to 1.26.3 (#6947)
 - Various testing, linter errors and improvements (#6891, #6836, #6864, #6788, #6847, #6809, #6830, #6831, #6746, #6777, #6745, #6776, #6782, #6744, #6734, #6756, #6752, #6740, #6738)
 
 ### Fixed
 
 - Potential nil panic in the `spire` upstream authority plugin (#6773)
-- Nil panic in the `azure_imds` plugin (#6795)
+- Nil panic in the `azure_imds` plugin for instances without a Network Security Group attached (#6795)
 - `azure_key_vault` key manager plugin now supports Azure Managed HSM (#6751)
 - Connections to the agent Debug service would lead to "unrecognized service" errors in logs (#6878)
 - An issue in the `aws_kms` plugin which would revert rotated aliases (#6805)
-- Issue in the Upstream Authority plugin that could result in a delay in the propagation of bundle updates/changes (#6773)
 
 ## [1.14.6] - 2026-04-27
 
