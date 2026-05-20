@@ -665,6 +665,76 @@ func TestFetchJWTSVIDs(t *testing.T) {
 				},
 			},
 		},
+		{
+			testName:     "admin identity is excluded",
+			authSpiffeID: []string{"spiffe://example.org/one"},
+			selectors:    []*types.Selector{{Type: "sa", Value: "foo"}},
+			audience:     []string{"AUDIENCE"},
+			identities: []cache.Identity{
+				{
+					Entry: &common.RegistrationEntry{
+						SpiffeId: id1.String(),
+						Admin:    true,
+					},
+					PrivateKey: x509SVID1.PrivateKey,
+					SVID:       x509SVID1.Certificates,
+				},
+			},
+			expectCode: codes.PermissionDenied,
+			expectMsg:  "no identity issued",
+		},
+		{
+			testName:     "downstream identity is excluded",
+			authSpiffeID: []string{"spiffe://example.org/one"},
+			selectors:    []*types.Selector{{Type: "sa", Value: "foo"}},
+			audience:     []string{"AUDIENCE"},
+			identities: []cache.Identity{
+				{
+					Entry: &common.RegistrationEntry{
+						SpiffeId:   id1.String(),
+						Downstream: true,
+					},
+					PrivateKey: x509SVID1.PrivateKey,
+					SVID:       x509SVID1.Certificates,
+				},
+			},
+			expectCode: codes.PermissionDenied,
+			expectMsg:  "no identity issued",
+		},
+		{
+			testName:     "admin identity excluded, normal identity returned",
+			authSpiffeID: []string{"spiffe://example.org/one"},
+			selectors:    []*types.Selector{{Type: "sa", Value: "foo"}},
+			audience:     []string{"AUDIENCE"},
+			identities: []cache.Identity{
+				{
+					Entry: &common.RegistrationEntry{
+						SpiffeId: id1.String(),
+						Admin:    true,
+					},
+					PrivateKey: x509SVID1.PrivateKey,
+					SVID:       x509SVID1.Certificates,
+				},
+				identities[1],
+			},
+			jwtSVIDsResp: map[spiffeid.ID]*client.JWTSVID{
+				id2: {
+					Token:     jwtSVID2Token,
+					ExpiresAt: time.Unix(1680786600, 0),
+					IssuedAt:  time.Unix(1680783000, 0),
+				},
+			},
+			expectResp: &delegatedidentityv1.FetchJWTSVIDsResponse{
+				Svids: []*types.JWTSVID{
+					{
+						Token:     jwtSVID2Token,
+						Id:        api.ProtoFromID(id2),
+						ExpiresAt: 1680786600,
+						IssuedAt:  1680783000,
+					},
+				},
+			},
+		},
 	} {
 		t.Run(tt.testName, func(t *testing.T) {
 			params := testParams{
