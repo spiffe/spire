@@ -5,6 +5,7 @@ import (
 	"crypto"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"math/big"
@@ -353,7 +354,11 @@ func (b *Builder) BuildWorkloadJWTSVIDClaims(ctx context.Context, params Workloa
 	}
 
 	if params.IncludeJTI {
-		attributes.Claims["jti"] = uuid.Must(uuid.NewV4()).String()
+		jtiBytes, err := uuid.NewV4()
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate jti: %w", err)
+		}
+		attributes.Claims["jti"] = base64.RawURLEncoding.EncodeToString(jtiBytes[:])
 	}
 	if b.config.JWTIssuer != "" {
 		attributes.Claims["iss"] = b.config.JWTIssuer

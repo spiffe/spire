@@ -1701,6 +1701,98 @@ func TestFetchJWTSVID(t *testing.T) {
 	require.Nil(t, svid)
 }
 
+func TestFetchJWTSVIDWithJTIBypassesCache(t *testing.T) {
+	dir := spiretest.TempDir(t)
+	km := fakeagentkeymanager.New(t, dir)
+
+	fetchResp := &svidv1.NewJWTSVIDResponse{}
+
+	clk := clock.NewMock(t)
+	api := newMockAPI(t, &mockAPIConfig{
+		km: km,
+		getAuthorizedEntries: func(*mockAPI, int32, *entryv1.GetAuthorizedEntriesRequest) (*entryv1.GetAuthorizedEntriesResponse, error) {
+			return makeGetAuthorizedEntriesResponse(t, "resp1", "resp2"), nil
+		},
+		batchNewX509SVIDEntries: func(*mockAPI, int32) []*common.RegistrationEntry {
+			return makeBatchNewX509SVIDEntries("resp1", "resp2")
+		},
+		newJWTSVID: func(*mockAPI, *svidv1.NewJWTSVIDRequest) (*svidv1.NewJWTSVIDResponse, error) {
+			return fetchResp, nil
+		},
+		clk:     clk,
+		svidTTL: 200,
+	})
+
+	cat := fakeagentcatalog.New()
+	cat.SetKeyManager(km)
+
+	baseSVID, baseSVIDKey := api.newSVID(joinTokenID, 1*time.Hour)
+
+	c := &Config{
+		ServerAddr:       api.addr,
+		SVID:             baseSVID,
+		SVIDKey:          baseSVIDKey,
+		Log:              testLogger,
+		TrustDomain:      trustDomain,
+		Storage:          openStorage(t, dir),
+		Bundle:           api.bundle,
+		Metrics:          &telemetry.Blackhole{},
+		Catalog:          cat,
+		Clk:              clk,
+		WorkloadKeyType:  workloadkey.ECP256,
+		SVIDStoreCache:   storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
+		RotationStrategy: rotationutil.NewRotationStrategy(0),
+	}
+
+	m := newManager(c)
+	require.NoError(t, m.Initialize(context.Background()))
+
+	baseEntry := regEntriesMap["resp2"][0]
+	jtiEntry := &common.RegistrationEntry{
+		EntryId:  baseEntry.EntryId,
+		SpiffeId: baseEntry.SpiffeId,
+		AdditionalAttributes: &common.RegistrationEntry_AdditionalAttributes{
+			JwtSvidIncludeJti: true,
+		},
+	}
+	jtiEntrySPIFFEId, err := idutil.IDProtoFromString(jtiEntry.SpiffeId)
+	require.NoError(t, err)
+
+	audience := []string{"foo"}
+	now := clk.Now()
+
+	// First call: server returns token A and the cache is empty.
+	tokenA := "A"
+	fetchResp.Svid = &types.JWTSVID{
+		Token:     tokenA,
+		Id:        jtiEntrySPIFFEId,
+		IssuedAt:  now.Unix(),
+		ExpiresAt: now.Add(time.Minute).Unix(),
+	}
+	svid, err := m.FetchJWTSVID(context.Background(), jtiEntry, audience)
+	require.NoError(t, err)
+	require.Equal(t, tokenA, svid.Token)
+
+	// A non-JTI entry would have populated the JWT cache by now. Assert the
+	// cache stays empty, proving the fresh token was NOT written back.
+	require.Equal(t, 0, m.CountJWTSVIDs(), "JWT-SVID cache must remain empty when JwtSvidIncludeJti is true")
+
+	// Second call: server returns token B with a not-expiring-soon expiration.
+	// A cache-respecting fetch would return cached token A; a bypassing fetch
+	// must hit the server and return the fresh token B.
+	tokenB := "B"
+	fetchResp.Svid = &types.JWTSVID{
+		Token:     tokenB,
+		Id:        jtiEntrySPIFFEId,
+		IssuedAt:  now.Unix(),
+		ExpiresAt: now.Add(time.Minute).Unix(),
+	}
+	svid, err = m.FetchJWTSVID(context.Background(), jtiEntry, audience)
+	require.NoError(t, err)
+	require.Equal(t, tokenB, svid.Token, "JTI entry must bypass cache reads and return the freshly minted token")
+	require.Equal(t, 0, m.CountJWTSVIDs(), "JWT-SVID cache must remain empty after second JTI fetch")
+}
+
 func TestStorableSVIDsSync(t *testing.T) {
 	dir := spiretest.TempDir(t)
 	km := fakeagentkeymanager.New(t, dir)

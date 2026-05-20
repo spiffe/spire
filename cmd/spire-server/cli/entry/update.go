@@ -80,6 +80,11 @@ type updateCommand struct {
 	jwtSVIDIncludeJTI    bool
 	jwtSVIDIncludeJTISet bool
 
+	// additionalAttributesSet is true when any AdditionalAttributes flag was
+	// supplied on the command line. It gates whether the existing entry must
+	// be fetched to preserve the attributes the user did not specify.
+	additionalAttributesSet bool
+
 	printer cliprinter.Printer
 
 	env *commoncli.Env
@@ -112,12 +117,14 @@ func (c *updateCommand) AppendFlags(f *flag.FlagSet) {
 		func(_ string) error {
 			c.disableX509SVIDPrefetchSet = true
 			c.disableX509SVIDPrefetch = true
+			c.additionalAttributesSet = true
 			return nil
 		})
 	f.BoolFunc("jwtSVIDIncludeJTI", "A boolean value that, when set, includes a unique 'jti' claim in JWT-SVIDs issued for this entry and bypasses the agent JWT-SVID cache",
 		func(_ string) error {
 			c.jwtSVIDIncludeJTISet = true
 			c.jwtSVIDIncludeJTI = true
+			c.additionalAttributesSet = true
 			return nil
 		})
 	cliprinter.AppendFlagWithCustomPretty(&c.printer, f, c.env, prettyPrintUpdate)
@@ -141,12 +148,12 @@ func (c *updateCommand) Run(ctx context.Context, _ *commoncli.Env, serverClient 
 
 	client := serverClient.NewEntryClient()
 
-	// When the user supplies exactly one of the additional-attribute flags via
-	// command-line (i.e. not -data), fetch the existing entry to preserve the
-	// sibling bit they did not set. The protobuf AdditionalAttributes message
-	// has no per-field mask, so without this merge step a partial CLI update
-	// would clobber the unspecified attribute with its zero value.
-	if c.path == "" && c.disableX509SVIDPrefetchSet != c.jwtSVIDIncludeJTISet {
+	// When any AdditionalAttributes flag is supplied via command-line (i.e. not
+	// -data), fetch the existing entry to preserve the attributes the user did
+	// not specify. The protobuf AdditionalAttributes message has no per-field
+	// mask, so without this merge step a partial CLI update would clobber the
+	// unspecified attributes with their zero values.
+	if c.path == "" && c.additionalAttributesSet {
 		existing, err := client.GetEntry(ctx, &entryv1.GetEntryRequest{Id: c.entryID})
 		if err != nil {
 			return fmt.Errorf("failed to fetch existing entry to merge additional attributes: %w", err)

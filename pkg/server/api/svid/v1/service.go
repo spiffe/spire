@@ -403,7 +403,11 @@ func (s *Service) NewJWTSVID(ctx context.Context, req *svidv1.NewJWTSVIDRequest)
 		return nil, api.MakeErr(log, codes.NotFound, "entry not found or not authorized", nil)
 	}
 
-	jwtsvid, err := s.mintJWTSVID(ctx, entry.GetSpiffeId(), req.Audience, entry.GetJwtSvidTtl(), entry.GetAdditionalAttributes().GetJwtSvidIncludeJti())
+	var includeJTI bool
+	if attrs := entry.GetAdditionalAttributes(); attrs != nil {
+		includeJTI = attrs.GetJwtSvidIncludeJti()
+	}
+	jwtsvid, err := s.mintJWTSVID(ctx, entry.GetSpiffeId(), req.Audience, entry.GetJwtSvidTtl(), includeJTI)
 	if err != nil {
 		return nil, err
 	}

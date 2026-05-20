@@ -423,8 +423,8 @@ func TestUpdate(t *testing.T) {
 		fakeResp  *entryv1.BatchUpdateEntryResponse
 		serverErr error
 
-		expGetReq    *entryv1.GetEntryRequest
-		fakeGetResp  *types.Entry
+		expGetReq   *entryv1.GetEntryRequest
+		fakeGetResp *types.Entry
 
 		expOutPretty string
 		expOutJSON   string
@@ -865,7 +865,7 @@ JwtSvidIncludeJti       : true
 }`,
 		},
 		{
-			name: "Update with both additional-attribute flags bypasses GetEntry",
+			name: "Update with both additional-attribute flags still fetches existing entry",
 			args: []string{
 				"-entryID", "entry-id",
 				"-spiffeID", "spiffe://example.org/workload",
@@ -873,6 +873,16 @@ JwtSvidIncludeJti       : true
 				"-selector", "unix:uid:1",
 				"-disableX509SVIDPrefetch",
 				"-jwtSVIDIncludeJTI",
+			},
+			expGetReq: &entryv1.GetEntryRequest{Id: "entry-id"},
+			fakeGetResp: &types.Entry{
+				Id:       "entry-id",
+				SpiffeId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/workload"},
+				ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/parent"},
+				AdditionalAttributes: &types.Entry_AdditionalAttributes{
+					DisableX509SvidPrefetch: false,
+					JwtSvidIncludeJti:       false,
+				},
 			},
 			expReq: &entryv1.BatchUpdateEntryRequest{Entries: []*types.Entry{
 				{

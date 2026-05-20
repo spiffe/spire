@@ -1134,8 +1134,20 @@ func TestServiceNewJWTSVID(t *testing.T) {
 		ParentId: api.ProtoFromID(agentID),
 		SpiffeId: &types.SPIFFEID{},
 	}
+	entryJTIDisabled := &types.Entry{
+		Id:                   "agent-entry-jti-disabled",
+		ParentId:             api.ProtoFromID(agentID),
+		SpiffeId:             &types.SPIFFEID{TrustDomain: "example.org", Path: "/agent-jti-disabled"},
+		AdditionalAttributes: &types.Entry_AdditionalAttributes{JwtSvidIncludeJti: false},
+	}
+	entryJTIEnabled := &types.Entry{
+		Id:                   "agent-entry-jti-enabled",
+		ParentId:             api.ProtoFromID(agentID),
+		SpiffeId:             &types.SPIFFEID{TrustDomain: "example.org", Path: "/agent-jti-enabled"},
+		AdditionalAttributes: &types.Entry_AdditionalAttributes{JwtSvidIncludeJti: true},
+	}
 
-	test.ef.entries = []*types.Entry{entry, entryWithTTL, entryWithJWTTTL, invalidEntry}
+	test.ef.entries = []*types.Entry{entry, entryWithTTL, entryWithJWTTTL, invalidEntry, entryJTIDisabled, entryJTIEnabled}
 	now := test.ca.Clock().Now().UTC()
 
 	issuedAt := now
@@ -1153,6 +1165,7 @@ func TestServiceNewJWTSVID(t *testing.T) {
 		failCallerID    bool
 		audience        []string
 		rateLimiterErr  error
+		expectJTI       bool
 		expectLogs      []spiretest.LogEntry
 	}{
 		{
@@ -1408,6 +1421,69 @@ func TestServiceNewJWTSVID(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:      "success without additional attributes does not include jti",
+			audience:  []string{"AUDIENCE"},
+			entry:     entry,
+			expiresAt: expiresAt,
+			expectJTI: false,
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:         "success",
+						telemetry.Type:           "audit",
+						telemetry.Audience:       "AUDIENCE",
+						telemetry.RegistrationID: "agent-entry-id",
+						telemetry.SPIFFEID:       "spiffe://example.org/agent",
+						telemetry.TTL:            "0",
+					},
+				},
+			},
+		},
+		{
+			name:      "success with jwtSvidIncludeJti false does not include jti",
+			audience:  []string{"AUDIENCE"},
+			entry:     entryJTIDisabled,
+			expiresAt: expiresAt,
+			expectJTI: false,
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:         "success",
+						telemetry.Type:           "audit",
+						telemetry.Audience:       "AUDIENCE",
+						telemetry.RegistrationID: "agent-entry-jti-disabled",
+						telemetry.SPIFFEID:       "spiffe://example.org/agent-jti-disabled",
+						telemetry.TTL:            "0",
+					},
+				},
+			},
+		},
+		{
+			name:      "success with jwtSvidIncludeJti true includes jti",
+			audience:  []string{"AUDIENCE"},
+			entry:     entryJTIEnabled,
+			expiresAt: expiresAt,
+			expectJTI: true,
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:         "success",
+						telemetry.Type:           "audit",
+						telemetry.Audience:       "AUDIENCE",
+						telemetry.RegistrationID: "agent-entry-jti-enabled",
+						telemetry.SPIFFEID:       "spiffe://example.org/agent-jti-enabled",
+						telemetry.TTL:            "0",
+					},
+				},
+			},
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			test.logHook.Reset()
@@ -1415,6 +1491,8 @@ func TestServiceNewJWTSVID(t *testing.T) {
 			test.ca.SetDisableJWTSVIDs(tt.disableJWTSVIDs)
 			if tt.failMinting {
 				test.ca.SetError(errors.New("oh no"))
+			} else {
+				test.ca.SetError(nil)
 			}
 
 			test.rateLimiter.count = 1
@@ -1446,6 +1524,16 @@ func TestServiceNewJWTSVID(t *testing.T) {
 				tt.expiresAt,
 				expiresAt,
 				time.Duration(tt.entry.X509SvidTtl)*time.Second)
+
+			parsed, err := jwt.ParseSigned(resp.Svid.Token, jwtsvid.AllowedSignatureAlgorithms)
+			require.NoError(t, err)
+			var jtiClaims jwt.Claims
+			require.NoError(t, parsed.UnsafeClaimsWithoutVerification(&jtiClaims))
+			if tt.expectJTI {
+				require.NotEmpty(t, jtiClaims.ID, "expected jti claim to be present")
+			} else {
+				require.Empty(t, jtiClaims.ID, "expected no jti claim")
+			}
 		})
 	}
 }

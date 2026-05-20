@@ -8,6 +8,7 @@ import (
 	"crypto/rand"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"math"
@@ -18,7 +19,6 @@ import (
 
 	"github.com/go-jose/go-jose/v4"
 	"github.com/go-jose/go-jose/v4/jwt"
-	"github.com/gofrs/uuid/v5"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	credentialcomposerv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/credentialcomposer/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
@@ -1333,7 +1333,7 @@ func TestBuildWorkloadJWTSVIDClaimsIncludeJTI(t *testing.T) {
 		}
 
 		jtis := make(map[string]bool)
-		for i := 0; i < 10; i++ {
+		for range 10 {
 			template, err := credBuilder.BuildWorkloadJWTSVIDClaims(ctx, params)
 			require.NoError(t, err)
 
@@ -1341,8 +1341,9 @@ func TestBuildWorkloadJWTSVIDClaimsIncludeJTI(t *testing.T) {
 			require.True(t, ok, "jti claim should be a string")
 			require.NotEmpty(t, jti, "jti should not be empty")
 
-			_, err = uuid.FromString(jti)
-			require.NoError(t, err, "jti should be a valid UUID")
+			decoded, err := base64.RawURLEncoding.DecodeString(jti)
+			require.NoError(t, err, "jti should be a valid base64url string")
+			require.Len(t, decoded, 16, "jti should encode 16 random bytes")
 
 			require.False(t, jtis[jti], "jti should be unique across calls")
 			jtis[jti] = true
