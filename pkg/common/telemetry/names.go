@@ -13,6 +13,7 @@ const (
 	// Activate functionality related to activating some element (such as X509 CA manager);
 	// should be used with other tags to add clarity
 	Activate = "activate"
+
 	// Append functionality related to appending some element (such as part of a bundle);
 	// should be used with other tags to add clarity
 	Append = "append"
@@ -20,6 +21,7 @@ const (
 	// Attest functionality related to attesting; should be used with other tags
 	// to add clarity
 	Attest = "attest"
+
 	// Create functionality related to creating some entity; should be used with other tags
 	// to add clarity
 	Create = "create"

@@ -712,6 +712,16 @@ func TestNewServerConfig(t *testing.T) {
 					},
 				}
 			},
+			logOptions: assertLogsContainEntries([]spiretest.LogEntry{
+				{
+					Level:   logrus.WarnLevel,
+					Message: "Bundle endpoint is configured but has no profile set, using https_spiffe as default; please configure a profile explicitly. This will be fatal in a future release.",
+					Data: logrus.Fields{
+						telemetry.Alert:     "true",
+						telemetry.AlertType: telemetry.DeprecatedConfigAlertType,
+					},
+				},
+			}),
 			test: func(t *testing.T, c *server.Config) {
 				require.Equal(t, "192.168.1.1", c.Federation.BundleEndpoint.Address.IP.String())
 				require.Equal(t, 1337, c.Federation.BundleEndpoint.Address.Port)
