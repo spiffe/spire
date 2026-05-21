@@ -15,10 +15,11 @@ attestation or to resolve selectors.
 
 ## Configuration
 
-| Configuration         | Required | Description                                                                                                                 | Default                                                                  |
-| --------------------- | -------- | --------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| `tenants`             | Required | A map of tenants, keyed by tenant domain, that are authorized for attestation. Tokens for unspecified tenants are rejected. |                                                                          |
-| `agent_path_template` | Optional | A URL path portion format of Agent's SPIFFE ID. Describe in text/template format.                                           | `"/{{ .PluginName }}/{{ .TenantID }}/{{ .SubscriptionID }}/{{ .VMID }}"` |
+| Configuration               | Required | Description                                                                                                                                                                                                      | Default                                                                  |
+| --------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `tenants`                   | Required | A map of tenants, keyed by tenant domain, that are authorized for attestation. Tokens for unspecified tenants are rejected.                                                                                      |                                                                          |
+| `agent_path_template`       | Optional | A URL path portion format of Agent's SPIFFE ID. Describe in text/template format.                                                                                                                                | `"/{{ .PluginName }}/{{ .TenantID }}/{{ .SubscriptionID }}/{{ .VMID }}"` |
+| `allowed_metadata_domains`  | Optional | A list of allowed Azure metadata domains for certificate validation. Used to validate the Subject Alternative Name (SAN) in certificates from Azure IMDS. Useful for testing with custom Azure environments. | `["metadata.azure.com"]`                                                 |
 
 Each tenant in the main configuration supports the following
 
@@ -175,6 +176,23 @@ NodeAttestor "azure_imds" {
             }
         }
         agent_path_template = "/{{ .PluginName }}/{{ .TenantID }}/{{ .SubscriptionID }}/{{ .VMID }}/custom"
+    }
+}
+```
+
+#### Configuration with Custom Metadata Domains
+
+This configuration allows custom Azure metadata domains for testing with non-production Azure environments:
+
+```hcl
+NodeAttestor "azure_imds" {
+    plugin_data {
+        tenants = {
+            "example.onmicrosoft.com" = {
+                restrict_to_subscriptions = ["d5b40d61-272e-48da-beb9-05f295c42bd6"]
+            }
+        }
+        allowed_metadata_domains = ["metadata.azure.com", "custom.metadata.domain"]
     }
 }
 ```

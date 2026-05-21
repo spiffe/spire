@@ -178,8 +178,10 @@ func validateCertificateChain(signingCert, intermediateCert *x509.Certificate) e
 		}
 	}
 	rootCerts := x509.NewCertPool()
-	for _, c := range roots {
-		rootCerts.AppendCertsFromPEM([]byte(c))
+	for i, c := range roots {
+		if !rootCerts.AppendCertsFromPEM([]byte(c)) {
+			return fmt.Errorf("failed to parse root certificate at index %d", i)
+		}
 	}
 	opts := x509.VerifyOptions{
 		Intermediates: intermediates,
