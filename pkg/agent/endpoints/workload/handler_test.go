@@ -7,6 +7,7 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"sync/atomic"
 	"testing"
@@ -42,6 +43,19 @@ var (
 	td2 = spiffeid.RequireTrustDomainFromString("domain2.test")
 
 	workloadID = spiffeid.RequireFromPath(td, "/workload")
+
+	k8sNamespaceSelector = &common.Selector{
+		Type:  "k8s",
+		Value: "ns:default",
+	}
+	k8sPodLabelSelector = &common.Selector{
+		Type:  "k8s",
+		Value: "pod-label:secret:value",
+	}
+	unixUserSelector = &common.Selector{
+		Type:  "unix",
+		Value: "user:root",
+	}
 )
 
 func TestFetchX509SVID(t *testing.T) {
@@ -75,21 +89,62 @@ func TestFetchX509SVID(t *testing.T) {
 	identities[4].Entry.CreatedAt = now + 7200
 
 	for _, tt := range []struct {
-		name       string
-		updates    []*cache.WorkloadUpdate
-		attestErr  error
-		managerErr error
-		asPID      int
-		expectCode codes.Code
-		expectMsg  string
-		expectResp *workloadPB.X509SVIDResponse
-		expectLogs []spiretest.LogEntry
+		name         string
+		updates      []*cache.WorkloadUpdate
+		selectors    []*common.Selector
+		logSelectors []string
+		attestErr    error
+		managerErr   error
+		asPID        int
+		expectCode   codes.Code
+		expectMsg    string
+		expectResp   *workloadPB.X509SVIDResponse
+		expectLogs   []spiretest.LogEntry
 	}{
 		{
 			name:       "no identity issued",
 			updates:    []*cache.WorkloadUpdate{{}},
 			expectCode: codes.PermissionDenied,
 			expectMsg:  "no identity issued",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "No identity issued",
+					Data: logrus.Fields{
+						"registered": "false",
+						"service":    "WorkloadAPI",
+						"method":     "FetchX509SVID",
+					},
+				},
+			},
+		},
+		{
+			name:         "no identity issued with loggable selectors",
+			updates:      []*cache.WorkloadUpdate{{}},
+			selectors:    []*common.Selector{k8sNamespaceSelector, k8sPodLabelSelector, unixUserSelector},
+			logSelectors: []string{"k8s:ns", "unix:user"},
+			expectCode:   codes.PermissionDenied,
+			expectMsg:    "no identity issued",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "No identity issued",
+					Data: logrus.Fields{
+						"registered": "false",
+						"selectors":  fmt.Sprint([]*common.Selector{k8sNamespaceSelector, unixUserSelector}),
+						"service":    "WorkloadAPI",
+						"method":     "FetchX509SVID",
+					},
+				},
+			},
+		},
+		{
+			name:         "no identity issued with selectors but no allowlist match",
+			updates:      []*cache.WorkloadUpdate{{}},
+			selectors:    []*common.Selector{k8sNamespaceSelector},
+			logSelectors: []string{"k8s:n"},
+			expectCode:   codes.PermissionDenied,
+			expectMsg:    "no identity issued",
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
@@ -268,12 +323,14 @@ func TestFetchX509SVID(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			params := testParams{
-				CA:         ca,
-				Updates:    tt.updates,
-				AttestErr:  tt.attestErr,
-				ExpectLogs: tt.expectLogs,
-				AsPID:      tt.asPID,
-				ManagerErr: tt.managerErr,
+				CA:           ca,
+				Updates:      tt.updates,
+				Selectors:    tt.selectors,
+				LogSelectors: tt.logSelectors,
+				AttestErr:    tt.attestErr,
+				ExpectLogs:   tt.expectLogs,
+				AsPID:        tt.asPID,
+				ManagerErr:   tt.managerErr,
 			}
 			runTest(t, params,
 				func(ctx context.Context, client workloadPB.SpiffeWorkloadAPIClient) {
@@ -301,6 +358,8 @@ func TestFetchX509Bundles(t *testing.T) {
 	for _, tt := range []struct {
 		testName                      string
 		updates                       []*cache.WorkloadUpdate
+		selectors                     []*common.Selector
+		logSelectors                  []string
 		attestErr                     error
 		managerErr                    error
 		expectCode                    codes.Code
@@ -320,6 +379,26 @@ func TestFetchX509Bundles(t *testing.T) {
 					Message: "No identity issued",
 					Data: logrus.Fields{
 						"registered": "false",
+						"service":    "WorkloadAPI",
+						"method":     "FetchX509Bundles",
+					},
+				},
+			},
+		},
+		{
+			testName:     "no identity issued with loggable selectors",
+			updates:      []*cache.WorkloadUpdate{{}},
+			selectors:    []*common.Selector{k8sNamespaceSelector, k8sPodLabelSelector},
+			logSelectors: []string{"k8s:ns"},
+			expectCode:   codes.PermissionDenied,
+			expectMsg:    "no identity issued",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "No identity issued",
+					Data: logrus.Fields{
+						"registered": "false",
+						"selectors":  fmt.Sprint([]*common.Selector{k8sNamespaceSelector}),
 						"service":    "WorkloadAPI",
 						"method":     "FetchX509Bundles",
 					},
@@ -428,6 +507,8 @@ func TestFetchX509Bundles(t *testing.T) {
 			params := testParams{
 				CA:                            ca,
 				Updates:                       tt.updates,
+				Selectors:                     tt.selectors,
+				LogSelectors:                  tt.logSelectors,
 				AttestErr:                     tt.attestErr,
 				ExpectLogs:                    tt.expectLogs,
 				AllowUnauthenticatedVerifiers: tt.allowUnauthenticatedVerifiers,
@@ -618,6 +699,8 @@ func TestFetchJWTSVID(t *testing.T) {
 		identities   []cache.Identity
 		spiffeID     string
 		audience     []string
+		selectors    []*common.Selector
+		logSelectors []string
 		attestErr    error
 		managerErr   error
 		expectCode   codes.Code
@@ -670,6 +753,26 @@ func TestFetchJWTSVID(t *testing.T) {
 					Message: "No identity issued",
 					Data: logrus.Fields{
 						"registered": "false",
+						"service":    "WorkloadAPI",
+						"method":     "FetchJWTSVID",
+					},
+				},
+			},
+		},
+		{
+			name:         "no identity issued with loggable selectors",
+			audience:     []string{"AUDIENCE"},
+			selectors:    []*common.Selector{k8sNamespaceSelector, k8sPodLabelSelector},
+			logSelectors: []string{"k8s:ns"},
+			expectCode:   codes.PermissionDenied,
+			expectMsg:    "no identity issued",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "No identity issued",
+					Data: logrus.Fields{
+						"registered": "false",
+						"selectors":  fmt.Sprint([]*common.Selector{k8sNamespaceSelector}),
 						"service":    "WorkloadAPI",
 						"method":     "FetchJWTSVID",
 					},
@@ -837,11 +940,13 @@ func TestFetchJWTSVID(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			params := testParams{
-				CA:         ca,
-				Identities: tt.identities,
-				AttestErr:  tt.attestErr,
-				ManagerErr: tt.managerErr,
-				ExpectLogs: tt.expectLogs,
+				CA:           ca,
+				Identities:   tt.identities,
+				Selectors:    tt.selectors,
+				LogSelectors: tt.logSelectors,
+				AttestErr:    tt.attestErr,
+				ManagerErr:   tt.managerErr,
+				ExpectLogs:   tt.expectLogs,
 			}
 			runTest(t, params,
 				func(ctx context.Context, client workloadPB.SpiffeWorkloadAPIClient) {
@@ -895,6 +1000,8 @@ func TestFetchJWTBundles(t *testing.T) {
 	for _, tt := range []struct {
 		name                          string
 		updates                       []*cache.WorkloadUpdate
+		selectors                     []*common.Selector
+		logSelectors                  []string
 		attestErr                     error
 		managerErr                    error
 		expectCode                    codes.Code
@@ -914,6 +1021,26 @@ func TestFetchJWTBundles(t *testing.T) {
 					Message: "No identity issued",
 					Data: logrus.Fields{
 						"registered": "false",
+						"service":    "WorkloadAPI",
+						"method":     "FetchJWTBundles",
+					},
+				},
+			},
+		},
+		{
+			name:         "no identity issued with loggable selectors",
+			updates:      []*cache.WorkloadUpdate{{}},
+			selectors:    []*common.Selector{k8sNamespaceSelector, k8sPodLabelSelector},
+			logSelectors: []string{"k8s:ns"},
+			expectCode:   codes.PermissionDenied,
+			expectMsg:    "no identity issued",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "No identity issued",
+					Data: logrus.Fields{
+						"registered": "false",
+						"selectors":  fmt.Sprint([]*common.Selector{k8sNamespaceSelector}),
 						"service":    "WorkloadAPI",
 						"method":     "FetchJWTBundles",
 					},
@@ -1043,6 +1170,8 @@ func TestFetchJWTBundles(t *testing.T) {
 			params := testParams{
 				CA:                            ca,
 				Updates:                       tt.updates,
+				Selectors:                     tt.selectors,
+				LogSelectors:                  tt.logSelectors,
 				AttestErr:                     tt.attestErr,
 				ExpectLogs:                    tt.expectLogs,
 				AllowUnauthenticatedVerifiers: tt.allowUnauthenticatedVerifiers,
@@ -1500,6 +1629,8 @@ type testParams struct {
 	CA                            *testca.CA
 	Identities                    []cache.Identity
 	Updates                       []*cache.WorkloadUpdate
+	Selectors                     []*common.Selector
+	LogSelectors                  []string
 	AttestErr                     error
 	ManagerErr                    error
 	ExpectLogs                    []spiretest.LogEntry
@@ -1521,9 +1652,10 @@ func runTest(t *testing.T, params testParams, fn func(ctx context.Context, clien
 	handler := workload.New(workload.Config{
 		TrustDomain:                   td,
 		Manager:                       manager,
-		Attestor:                      &FakeAttestor{err: params.AttestErr},
+		Attestor:                      &FakeAttestor{selectors: params.Selectors, err: params.AttestErr},
 		AllowUnauthenticatedVerifiers: params.AllowUnauthenticatedVerifiers,
 		AllowedForeignJWTClaims:       params.AllowedForeignJWTClaims,
+		LogSelectors:                  params.LogSelectors,
 	})
 
 	server := grpctest.StartServer(t, func(s grpc.ServiceRegistrar) {
