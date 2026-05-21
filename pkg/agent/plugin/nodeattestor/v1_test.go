@@ -184,9 +184,12 @@ func (plugin *fakeV1Plugin) AidAttestation(stream nodeattestorv1.NodeAttestor_Ai
 }
 
 func challengeResponses(ss ...[]byte) map[string]string {
-	set := make(map[string]string)
-	for i := 0; i < len(ss); i += 2 {
-		set[string(ss[i])] = string(ss[i+1])
+	if len(ss)%2 != 0 {
+		panic(fmt.Sprintf("challengeResponse: arg len (%d) must be even", len(ss)))
 	}
-	return set
+	result := make(map[string]string)
+	for i := 0; i < len(ss); i += 2 {
+		result[string(ss[i])] = string(ss[i+1]) //nolint:gosec // silence "G602: slice index out of range" finding
+	}
+	return result
 }
