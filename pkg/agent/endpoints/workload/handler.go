@@ -136,7 +136,7 @@ func (h *Handler) FetchJWTBundles(_ *workload.JWTBundlesRequest, stream workload
 	for {
 		select {
 		case update := <-subscriber.Updates():
-			if previousResp, err = h.sendJWTBundlesResponse(update, stream, selectors, log, h.c.AllowUnauthenticatedVerifiers, previousResp, start); err != nil {
+			if previousResp, err = h.sendJWTBundlesResponse(update, stream, selectors, log, previousResp, start); err != nil {
 				return err
 			}
 		case <-ctx.Done():
@@ -231,14 +231,11 @@ func (h *Handler) FetchX509SVID(_ *workload.X509SVIDRequest, stream workload.Spi
 	}
 	defer subscriber.Finish()
 
-	// The agent health check currently exercises the Workload API.
-	// Only log if it is not the agent itself.
-	quietLogging := isAgent(ctx)
 	for {
 		select {
 		case update := <-subscriber.Updates():
 			update.Identities = filterIdentities(update.Identities, log)
-			if err := h.sendX509SVIDResponse(update, stream, selectors, log, quietLogging, start); err != nil {
+			if err := h.sendX509SVIDResponse(update, stream, selectors, log, start); err != nil {
 				return err
 			}
 		case <-ctx.Done():
@@ -266,14 +263,11 @@ func (h *Handler) FetchX509Bundles(_ *workload.X509BundlesRequest, stream worklo
 	}
 	defer subscriber.Finish()
 
-	// The agent health check currently exercises the Workload API.
-	// Only log if it is not the agent itself.
-	quietLogging := isAgent(ctx)
 	var previousResp *workload.X509BundlesResponse
 	for {
 		select {
 		case update := <-subscriber.Updates():
-			previousResp, err = h.sendX509BundlesResponse(update, stream, selectors, log, h.c.AllowUnauthenticatedVerifiers, previousResp, quietLogging, start)
+			previousResp, err = h.sendX509BundlesResponse(update, stream, selectors, log, previousResp, start)
 			if err != nil {
 				return err
 			}
@@ -306,10 +300,14 @@ func (h *Handler) fetchJWTSVID(ctx context.Context, log logrus.FieldLogger, entr
 	}, nil
 }
 
-func (h *Handler) sendX509BundlesResponse(update *cache.WorkloadUpdate, stream workload.SpiffeWorkloadAPI_FetchX509BundlesServer, selectors []*common.Selector, log logrus.FieldLogger, allowUnauthenticatedVerifiers bool, previousResponse *workload.X509BundlesResponse, quietLogging bool, start time.Time) (*workload.X509BundlesResponse, error) {
-	if !allowUnauthenticatedVerifiers && !update.HasIdentity() {
+func (h *Handler) sendX509BundlesResponse(update *cache.WorkloadUpdate, stream workload.SpiffeWorkloadAPI_FetchX509BundlesServer, selectors []*common.Selector, log logrus.FieldLogger, previousResponse *workload.X509BundlesResponse, start time.Time) (*workload.X509BundlesResponse, error) {
+	ctx := stream.Context()
+	// The agent health check currently exercises the Workload API.
+	// Only log if it is not the agent itself.
+	quietLogging := isAgent(ctx)
+	if !h.c.AllowUnauthenticatedVerifiers && !update.HasIdentity() {
 		if !quietLogging {
-			h.logNoIdentityIssued(stream.Context(), log, selectors, start)
+			h.logNoIdentityIssued(ctx, log, selectors, start)
 		}
 		return nil, status.Error(codes.PermissionDenied, "no identity issued")
 	}
@@ -325,7 +323,7 @@ func (h *Handler) sendX509BundlesResponse(update *cache.WorkloadUpdate, stream w
 	}
 
 	if err := stream.Send(resp); err != nil {
-		loggerWithContextInfo(stream.Context(), log, start, err).Error("Failed to send X509 bundle response")
+		loggerWithContextInfo(ctx, log, start, err).Error("Failed to send X509 bundle response")
 		return nil, err
 	}
 
@@ -352,10 +350,14 @@ func composeX509BundlesResponse(update *cache.WorkloadUpdate) (*workload.X509Bun
 	}, nil
 }
 
-func (h *Handler) sendX509SVIDResponse(update *cache.WorkloadUpdate, stream workload.SpiffeWorkloadAPI_FetchX509SVIDServer, selectors []*common.Selector, log logrus.FieldLogger, quietLogging bool, start time.Time) (err error) {
+func (h *Handler) sendX509SVIDResponse(update *cache.WorkloadUpdate, stream workload.SpiffeWorkloadAPI_FetchX509SVIDServer, selectors []*common.Selector, log logrus.FieldLogger, start time.Time) (err error) {
+	ctx := stream.Context()
+	// The agent health check currently exercises the Workload API.
+	// Only log if it is not the agent itself.
+	quietLogging := isAgent(ctx)
 	if len(update.Identities) == 0 {
 		if !quietLogging {
-			h.logNoIdentityIssued(stream.Context(), log, selectors, start)
+			h.logNoIdentityIssued(ctx, log, selectors, start)
 		}
 		return status.Error(codes.PermissionDenied, "no identity issued")
 	}
@@ -369,7 +371,7 @@ func (h *Handler) sendX509SVIDResponse(update *cache.WorkloadUpdate, stream work
 	}
 
 	if err := stream.Send(resp); err != nil {
-		loggerWithContextInfo(stream.Context(), log, start, err).Error("Failed to send X.509 SVID response")
+		loggerWithContextInfo(ctx, log, start, err).Error("Failed to send X.509 SVID response")
 		return err
 	}
 
@@ -424,9 +426,10 @@ func composeX509SVIDResponse(update *cache.WorkloadUpdate) (*workload.X509SVIDRe
 	return resp, nil
 }
 
-func (h *Handler) sendJWTBundlesResponse(update *cache.WorkloadUpdate, stream workload.SpiffeWorkloadAPI_FetchJWTBundlesServer, selectors []*common.Selector, log logrus.FieldLogger, allowUnauthenticatedVerifiers bool, previousResponse *workload.JWTBundlesResponse, start time.Time) (*workload.JWTBundlesResponse, error) {
-	if !allowUnauthenticatedVerifiers && !update.HasIdentity() {
-		h.logNoIdentityIssued(stream.Context(), log, selectors, start)
+func (h *Handler) sendJWTBundlesResponse(update *cache.WorkloadUpdate, stream workload.SpiffeWorkloadAPI_FetchJWTBundlesServer, selectors []*common.Selector, log logrus.FieldLogger, previousResponse *workload.JWTBundlesResponse, start time.Time) (*workload.JWTBundlesResponse, error) {
+	ctx := stream.Context()
+	if !h.c.AllowUnauthenticatedVerifiers && !update.HasIdentity() {
+		h.logNoIdentityIssued(ctx, log, selectors, start)
 		return nil, status.Error(codes.PermissionDenied, "no identity issued")
 	}
 
@@ -441,7 +444,7 @@ func (h *Handler) sendJWTBundlesResponse(update *cache.WorkloadUpdate, stream wo
 	}
 
 	if err := stream.Send(resp); err != nil {
-		loggerWithContextInfo(stream.Context(), log, start, err).Error("Failed to send JWT bundle response")
+		loggerWithContextInfo(ctx, log, start, err).Error("Failed to send JWT bundle response")
 		return nil, err
 	}
 
