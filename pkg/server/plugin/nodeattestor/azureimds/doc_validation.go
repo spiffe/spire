@@ -11,6 +11,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"slices"
 	"time"
 
 	"github.com/smallstep/pkcs7"
@@ -153,10 +154,8 @@ func validateAzureCertificates(signingCert *x509.Certificate, allowedMetadataDom
 func validateAzureCertificate(cert *x509.Certificate, allowedDomains []string) error {
 	// Check SAN DNS names
 	for _, dnsName := range cert.DNSNames {
-		for _, allowedDomain := range allowedDomains {
-			if dnsName == allowedDomain {
-				return nil
-			}
+		if slices.Contains(allowedDomains, dnsName) {
+			return nil
 		}
 	}
 
