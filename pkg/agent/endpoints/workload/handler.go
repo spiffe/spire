@@ -40,14 +40,16 @@ type Attestor interface {
 	Attest(ctx context.Context) ([]*common.Selector, error)
 }
 
-// RateLimiter enforces per-SPIFFE-ID rate limiting on Workload API methods.
+// RateLimiter enforces per-selector-set rate limiting on Workload API methods.
 type RateLimiter interface {
-	RateLimit(fullMethod string, spiffeIDs []string) error
+	RateLimit(fullMethod string, selectors []*common.Selector) error
 }
 
 const (
-	MethodFetchX509SVID = "/SpiffeWorkloadAPI/FetchX509SVID"
-	MethodFetchJWTSVID  = "/SpiffeWorkloadAPI/FetchJWTSVID"
+	MethodFetchX509SVID    = "/SpiffeWorkloadAPI/FetchX509SVID"
+	MethodFetchJWTSVID     = "/SpiffeWorkloadAPI/FetchJWTSVID"
+	MethodFetchX509Bundles = "/SpiffeWorkloadAPI/FetchX509Bundles"
+	MethodFetchJWTBundles  = "/SpiffeWorkloadAPI/FetchJWTBundles"
 )
 
 type Config struct {
@@ -71,15 +73,11 @@ func New(c Config) *Handler {
 	}
 }
 
-func (h *Handler) rateLimitByEntries(fullMethod string, entries []*common.RegistrationEntry) error {
+func (h *Handler) rateLimit(fullMethod string, selectors []*common.Selector) error {
 	if h.c.RateLimiter == nil {
 		return nil
 	}
-	spiffeIDs := make([]string, 0, len(entries))
-	for _, e := range entries {
-		spiffeIDs = append(spiffeIDs, e.SpiffeId)
-	}
-	return h.c.RateLimiter.RateLimit(fullMethod, spiffeIDs)
+	return h.c.RateLimiter.RateLimit(fullMethod, selectors)
 }
 
 // FetchJWTSVID processes request for a JWT-SVID. In case of multiple fetched SVIDs with same hint, the SVID that has the oldest
@@ -104,14 +102,16 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *workload.JWTSVIDRequest
 		return nil, err
 	}
 
+	if !isAgent(ctx) {
+		if err := h.rateLimit(MethodFetchJWTSVID, selectors); err != nil {
+			return nil, err
+		}
+	}
+
 	log = log.WithField(telemetry.Registered, true)
 
 	entries := h.c.Manager.MatchingRegistrationEntries(selectors)
 	entries = filterRegistrations(entries, log)
-
-	if err := h.rateLimitByEntries(MethodFetchJWTSVID, entries); err != nil {
-		return nil, err
-	}
 
 	resp = new(workload.JWTSVIDResponse)
 
@@ -148,6 +148,12 @@ func (h *Handler) FetchJWTBundles(_ *workload.JWTBundlesRequest, stream workload
 	if err != nil {
 		log.WithError(err).Error("Workload attestation failed")
 		return err
+	}
+
+	if !isAgent(ctx) {
+		if err := h.rateLimit(MethodFetchJWTBundles, selectors); err != nil {
+			return err
+		}
 	}
 
 	subscriber, err := h.c.Manager.SubscribeToCacheChanges(ctx, selectors)
@@ -247,8 +253,10 @@ func (h *Handler) FetchX509SVID(_ *workload.X509SVIDRequest, stream workload.Spi
 		return err
 	}
 
-	if err := h.rateLimitByEntries(MethodFetchX509SVID, h.c.Manager.MatchingRegistrationEntries(selectors)); err != nil {
-		return err
+	if !isAgent(ctx) {
+		if err := h.rateLimit(MethodFetchX509SVID, selectors); err != nil {
+			return err
+		}
 	}
 
 	subscriber, err := h.c.Manager.SubscribeToCacheChanges(ctx, selectors)
@@ -283,6 +291,12 @@ func (h *Handler) FetchX509Bundles(_ *workload.X509BundlesRequest, stream worklo
 	if err != nil {
 		log.WithError(err).Error("Workload attestation failed")
 		return err
+	}
+
+	if !isAgent(ctx) {
+		if err := h.rateLimit(MethodFetchX509Bundles, selectors); err != nil {
+			return err
+		}
 	}
 
 	subscriber, err := h.c.Manager.SubscribeToCacheChanges(ctx, selectors)

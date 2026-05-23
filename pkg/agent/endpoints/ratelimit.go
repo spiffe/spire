@@ -1,11 +1,17 @@
 package endpoints
 
 import (
+	"slices"
+	"strings"
+
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/spire/pkg/agent/endpoints/sdsv3"
 	"github.com/spiffe/spire/pkg/agent/endpoints/workload"
 	"github.com/spiffe/spire/pkg/common/ratelimit"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/telemetry/agent/workloadapi"
+	"github.com/spiffe/spire/pkg/common/util"
+	"github.com/spiffe/spire/proto/spire/common"
 	"golang.org/x/time/rate"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -35,36 +41,57 @@ func (l *perCallerRateLimiter) Allow(key string) bool {
 	return limiter.AllowN(l.inner.Now(), 1)
 }
 
-// WorkloadRateLimiter enforces per-SPIFFE-ID rate limiting on Workload API
+// selectorSetKey builds a collision-resistant string key from a selector set.
+// Selectors are sorted for stability, then joined with two distinct separators
+// ('\x00' between type/value, '\x01' between pairs). Empty input returns "<unattested>".
+func selectorSetKey(selectors []*common.Selector) string {
+	if len(selectors) == 0 {
+		return "<unattested>"
+	}
+	sorted := slices.Clone(selectors)
+	util.SortSelectors(sorted)
+	var b strings.Builder
+	for i, s := range sorted {
+		if i > 0 {
+			b.WriteByte('\x01')
+		}
+		b.WriteString(s.Type)
+		b.WriteByte('\x00')
+		b.WriteString(s.Value)
+	}
+	return b.String()
+}
+
+// WorkloadRateLimiter enforces per-selector-set rate limiting on Workload API
 // methods. It is called from the handler after workload attestation, once the
-// caller's SPIFFE IDs are known.
+// caller's attested selectors are known.
 type WorkloadRateLimiter struct {
 	limiters map[string]*perCallerRateLimiter
 	metrics  telemetry.Metrics
 }
 
 // RateLimit checks whether the request for fullMethod should be allowed given
-// the caller's SPIFFE IDs. If any SPIFFE ID exceeds its rate limit, it returns
-// a ResourceExhausted error.
-func (r *WorkloadRateLimiter) RateLimit(fullMethod string, spiffeIDs []string) error {
-	if r == nil {
-		return nil
-	}
+// the caller's attested selectors. The selector set is treated as a single key,
+// so all workloads with the same selector set share one token bucket. Callers
+// with no selectors share an "<unattested>" bucket. Methods without a
+// configured limit pass through.
+func (r *WorkloadRateLimiter) RateLimit(fullMethod string, selectors []*common.Selector) error {
 	limiter, ok := r.limiters[fullMethod]
 	if !ok {
 		return nil
 	}
-	for _, id := range spiffeIDs {
-		if !limiter.Allow(id) {
-			workloadapi.IncrRateLimitExceededCounter(r.metrics, fullMethod)
-			return status.Errorf(codes.ResourceExhausted, "rate limit exceeded for %s", fullMethod)
-		}
+	key := selectorSetKey(selectors)
+	if !limiter.Allow(key) {
+		workloadapi.IncrRateLimitExceededCounter(r.metrics, fullMethod)
+		return status.Errorf(codes.Unavailable, "rate limit exceeded for %s", fullMethod)
 	}
 	return nil
 }
 
-// NewWorkloadRateLimiter creates a rate limiter from the given config.
-// Returns nil if no limits are configured (all rates are 0).
+// NewWorkloadRateLimiter creates a rate limiter from the given config. Methods
+// with a zero limit are omitted from the limiters map and pass through at
+// RateLimit time; if no methods are configured the result is effectively a
+// no-op for every call.
 func NewWorkloadRateLimiter(cfg WorkloadAPIRateLimitConfig, log logrus.FieldLogger, metrics telemetry.Metrics) *WorkloadRateLimiter {
 	type methodLimit struct {
 		method string
@@ -74,6 +101,10 @@ func NewWorkloadRateLimiter(cfg WorkloadAPIRateLimitConfig, log logrus.FieldLogg
 	methods := []methodLimit{
 		{workload.MethodFetchX509SVID, cfg.FetchX509SVID},
 		{workload.MethodFetchJWTSVID, cfg.FetchJWTSVID},
+		{workload.MethodFetchX509Bundles, cfg.FetchX509Bundles},
+		{workload.MethodFetchJWTBundles, cfg.FetchJWTBundles},
+		{sdsv3.MethodStreamSecrets, cfg.StreamSecrets},
+		{sdsv3.MethodFetchSecrets, cfg.FetchSecrets},
 	}
 
 	limiters := make(map[string]*perCallerRateLimiter)
@@ -85,10 +116,6 @@ func NewWorkloadRateLimiter(cfg WorkloadAPIRateLimitConfig, log logrus.FieldLogg
 				telemetry.Limit:  ml.limit,
 			}).Info("Workload API rate limiting enabled")
 		}
-	}
-
-	if len(limiters) == 0 {
-		return nil
 	}
 
 	return &WorkloadRateLimiter{

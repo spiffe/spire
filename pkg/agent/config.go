@@ -120,7 +120,7 @@ type Config struct {
 	// TLSPolicy determines the post-quantum-safe TLS policy to apply to all TLS connections.
 	TLSPolicy tlspolicy.Policy
 
-	// WorkloadAPIRateLimit configures per-SPIFFE-ID rate limiting for Workload API methods.
+	// WorkloadAPIRateLimit configures per-selector-set rate limiting for Workload API and SDS methods.
 	WorkloadAPIRateLimit WorkloadAPIRateLimitConfig
 }
 

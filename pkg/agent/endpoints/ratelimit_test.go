@@ -7,9 +7,11 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus/hooks/test"
+	"github.com/spiffe/spire/pkg/agent/endpoints/sdsv3"
 	"github.com/spiffe/spire/pkg/agent/endpoints/workload"
 	"github.com/spiffe/spire/pkg/common/ratelimit"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	"github.com/spiffe/spire/proto/spire/common"
 	testclock "github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/fakes/fakemetrics"
 	"github.com/stretchr/testify/assert"
@@ -131,6 +133,33 @@ func TestPerCallerRateLimiterConcurrency(t *testing.T) {
 	wg.Wait()
 }
 
+// selectors builds a []*common.Selector from alternating type/value strings.
+func selectors(pairs ...string) []*common.Selector {
+	if len(pairs)%2 != 0 {
+		panic("selectors: odd number of arguments")
+	}
+	out := make([]*common.Selector, 0, len(pairs)/2)
+	for i := 0; i < len(pairs); i += 2 {
+		out = append(out, &common.Selector{Type: pairs[i], Value: pairs[i+1]})
+	}
+	return out
+}
+
+func TestSelectorSetKey(t *testing.T) {
+	// Same selectors in different order produce the same key.
+	s1 := selectors("k8s", "pod:a", "unix", "uid:1000")
+	s2 := selectors("unix", "uid:1000", "k8s", "pod:a")
+	assert.Equal(t, selectorSetKey(s1), selectorSetKey(s2))
+
+	// Different selector sets produce different keys.
+	s3 := selectors("k8s", "pod:b", "unix", "uid:1000")
+	assert.NotEqual(t, selectorSetKey(s1), selectorSetKey(s3))
+
+	// Empty selector set maps to the shared unattested bucket.
+	assert.Equal(t, "<unattested>", selectorSetKey(nil))
+	assert.Equal(t, "<unattested>", selectorSetKey([]*common.Selector{}))
+}
+
 func TestWorkloadRateLimiterRateLimit(t *testing.T) {
 	log, _ := test.NewNullLogger()
 	metrics := telemetry.Blackhole{}
@@ -140,16 +169,16 @@ func TestWorkloadRateLimiterRateLimit(t *testing.T) {
 	rl := NewWorkloadRateLimiter(cfg, log, metrics)
 	require.NotNil(t, rl)
 
-	ids := []string{"spiffe://example.org/foo"}
+	sel := selectors("k8s", "pod:foo")
 
 	// First two calls are allowed.
-	require.NoError(t, rl.RateLimit(workload.MethodFetchX509SVID, ids))
-	require.NoError(t, rl.RateLimit(workload.MethodFetchX509SVID, ids))
+	require.NoError(t, rl.RateLimit(workload.MethodFetchX509SVID, sel))
+	require.NoError(t, rl.RateLimit(workload.MethodFetchX509SVID, sel))
 
 	// Third call is rejected.
-	err := rl.RateLimit(workload.MethodFetchX509SVID, ids)
+	err := rl.RateLimit(workload.MethodFetchX509SVID, sel)
 	require.Error(t, err)
-	assert.Equal(t, codes.ResourceExhausted, status.Code(err))
+	assert.Equal(t, codes.Unavailable, status.Code(err))
 	assert.Contains(t, status.Convert(err).Message(), "rate limit exceeded")
 }
 
@@ -162,14 +191,14 @@ func TestWorkloadRateLimiterUnconfiguredMethod(t *testing.T) {
 	rl := NewWorkloadRateLimiter(cfg, log, metrics)
 	require.NotNil(t, rl)
 
-	ids := []string{"spiffe://example.org/foo"}
+	sel := selectors("k8s", "pod:foo")
 
 	// Exhaust FetchX509SVID.
-	require.NoError(t, rl.RateLimit(workload.MethodFetchX509SVID, ids))
-	require.Error(t, rl.RateLimit(workload.MethodFetchX509SVID, ids))
+	require.NoError(t, rl.RateLimit(workload.MethodFetchX509SVID, sel))
+	require.Error(t, rl.RateLimit(workload.MethodFetchX509SVID, sel))
 
 	// FetchJWTSVID is not configured; it passes through.
-	require.NoError(t, rl.RateLimit(workload.MethodFetchJWTSVID, ids))
+	require.NoError(t, rl.RateLimit(workload.MethodFetchJWTSVID, sel))
 }
 
 func TestWorkloadRateLimiterNonWorkloadMethod(t *testing.T) {
@@ -181,26 +210,22 @@ func TestWorkloadRateLimiterNonWorkloadMethod(t *testing.T) {
 	rl := NewWorkloadRateLimiter(cfg, log, metrics)
 	require.NotNil(t, rl)
 
-	ids := []string{"spiffe://example.org/foo"}
+	sel := selectors("k8s", "pod:foo")
 
 	// Non-Workload API methods always pass through.
-	require.NoError(t, rl.RateLimit("/grpc.health.v1.Health/Check", ids))
-	require.NoError(t, rl.RateLimit("/envoy.service.secret.v3.SecretDiscoveryService/FetchSecrets", ids))
-}
-
-func TestWorkloadRateLimiterNilIsNoOp(t *testing.T) {
-	var rl *WorkloadRateLimiter
-	// Nil rate limiter always allows.
-	require.NoError(t, rl.RateLimit(workload.MethodFetchX509SVID, []string{"spiffe://example.org/foo"}))
-	require.NoError(t, rl.RateLimit(workload.MethodFetchX509SVID, []string{"spiffe://example.org/foo"}))
+	require.NoError(t, rl.RateLimit("/grpc.health.v1.Health/Check", sel))
+	require.NoError(t, rl.RateLimit("/envoy.service.secret.v3.SecretDiscoveryService/FetchSecrets", sel))
 }
 
 func TestNewWorkloadRateLimiterAllZero(t *testing.T) {
 	log, _ := test.NewNullLogger()
 	metrics := telemetry.Blackhole{}
-	// All-zero config returns nil.
+	// All-zero config still returns a usable limiter; every method passes through.
 	rl := NewWorkloadRateLimiter(WorkloadAPIRateLimitConfig{}, log, metrics)
-	require.Nil(t, rl)
+	require.NotNil(t, rl)
+	assert.Empty(t, rl.limiters)
+	require.NoError(t, rl.RateLimit(workload.MethodFetchX509SVID, selectors("k8s", "pod:foo")))
+	require.NoError(t, rl.RateLimit(workload.MethodFetchJWTSVID, nil))
 }
 
 func TestNewWorkloadRateLimiterBothMethods(t *testing.T) {
@@ -217,24 +242,31 @@ func TestNewWorkloadRateLimiterBothMethods(t *testing.T) {
 	assert.Contains(t, rl.limiters, workload.MethodFetchJWTSVID)
 }
 
-func TestWorkloadRateLimiterIndependentSPIFFEIDs(t *testing.T) {
+func TestNewWorkloadRateLimiterAllSixMethods(t *testing.T) {
 	log, _ := test.NewNullLogger()
 	metrics := telemetry.Blackhole{}
 	cfg := WorkloadAPIRateLimitConfig{
-		FetchJWTSVID: 1,
+		FetchX509SVID:    1,
+		FetchJWTSVID:     2,
+		FetchX509Bundles: 3,
+		FetchJWTBundles:  4,
+		StreamSecrets:    5,
+		FetchSecrets:     6,
 	}
 	rl := NewWorkloadRateLimiter(cfg, log, metrics)
 	require.NotNil(t, rl)
-
-	// Different SPIFFE IDs have independent rate limits.
-	require.NoError(t, rl.RateLimit(workload.MethodFetchJWTSVID, []string{"spiffe://example.org/foo"}))
-	require.Error(t, rl.RateLimit(workload.MethodFetchJWTSVID, []string{"spiffe://example.org/foo"}))
-
-	// A different SPIFFE ID is not affected.
-	require.NoError(t, rl.RateLimit(workload.MethodFetchJWTSVID, []string{"spiffe://example.org/bar"}))
+	assert.Len(t, rl.limiters, 6)
+	assert.Contains(t, rl.limiters, workload.MethodFetchX509SVID)
+	assert.Contains(t, rl.limiters, workload.MethodFetchJWTSVID)
+	assert.Contains(t, rl.limiters, workload.MethodFetchX509Bundles)
+	assert.Contains(t, rl.limiters, workload.MethodFetchJWTBundles)
+	assert.Contains(t, rl.limiters, sdsv3.MethodStreamSecrets)
+	assert.Contains(t, rl.limiters, sdsv3.MethodFetchSecrets)
 }
 
-func TestWorkloadRateLimiterMultipleSPIFFEIDs(t *testing.T) {
+// TestWorkloadRateLimiterSelectorSetIndependence verifies that two callers
+// with different selector sets each have independent token buckets.
+func TestWorkloadRateLimiterSelectorSetIndependence(t *testing.T) {
 	log, _ := test.NewNullLogger()
 	metrics := telemetry.Blackhole{}
 	cfg := WorkloadAPIRateLimitConfig{
@@ -243,22 +275,20 @@ func TestWorkloadRateLimiterMultipleSPIFFEIDs(t *testing.T) {
 	rl := NewWorkloadRateLimiter(cfg, log, metrics)
 	require.NotNil(t, rl)
 
-	// First call with two SPIFFE IDs: allowed (both have tokens).
-	require.NoError(t, rl.RateLimit(workload.MethodFetchJWTSVID, []string{
-		"spiffe://example.org/foo",
-		"spiffe://example.org/bar",
-	}))
+	selA := selectors("k8s", "pod:a")
+	selB := selectors("k8s", "pod:b")
 
-	// Second call: foo is exhausted, so the whole call is rejected.
-	err := rl.RateLimit(workload.MethodFetchJWTSVID, []string{
-		"spiffe://example.org/foo",
-		"spiffe://example.org/bar",
-	})
-	require.Error(t, err)
-	assert.Equal(t, codes.ResourceExhausted, status.Code(err))
+	// Exhaust pod:a bucket.
+	require.NoError(t, rl.RateLimit(workload.MethodFetchJWTSVID, selA))
+	require.Error(t, rl.RateLimit(workload.MethodFetchJWTSVID, selA))
+
+	// pod:b has its own bucket and is still allowed.
+	require.NoError(t, rl.RateLimit(workload.MethodFetchJWTSVID, selB))
 }
 
-func TestWorkloadRateLimiterEmptySPIFFEIDs(t *testing.T) {
+// TestWorkloadRateLimiterSelectorSetOrdering verifies that selectors with the
+// same elements in different order map to the same bucket.
+func TestWorkloadRateLimiterSelectorSetOrdering(t *testing.T) {
 	log, _ := test.NewNullLogger()
 	metrics := telemetry.Blackhole{}
 	cfg := WorkloadAPIRateLimitConfig{
@@ -267,9 +297,32 @@ func TestWorkloadRateLimiterEmptySPIFFEIDs(t *testing.T) {
 	rl := NewWorkloadRateLimiter(cfg, log, metrics)
 	require.NotNil(t, rl)
 
-	// No SPIFFE IDs means no rate limit check is needed.
+	// Same selectors, different order — must share one bucket.
+	sel1 := selectors("k8s", "pod:x", "unix", "uid:500")
+	sel2 := selectors("unix", "uid:500", "k8s", "pod:x")
+
+	require.NoError(t, rl.RateLimit(workload.MethodFetchJWTSVID, sel1))
+	// sel2 resolves to the same key, so the bucket is exhausted.
+	require.Error(t, rl.RateLimit(workload.MethodFetchJWTSVID, sel2))
+}
+
+// TestWorkloadRateLimiterUnattestedBucket verifies that callers with no
+// selectors share a single "<unattested>" bucket.
+func TestWorkloadRateLimiterUnattestedBucket(t *testing.T) {
+	log, _ := test.NewNullLogger()
+	metrics := telemetry.Blackhole{}
+	cfg := WorkloadAPIRateLimitConfig{
+		FetchJWTSVID: 1,
+	}
+	rl := NewWorkloadRateLimiter(cfg, log, metrics)
+	require.NotNil(t, rl)
+
+	// First nil-selector call consumes the single token.
 	require.NoError(t, rl.RateLimit(workload.MethodFetchJWTSVID, nil))
-	require.NoError(t, rl.RateLimit(workload.MethodFetchJWTSVID, []string{}))
+
+	// A second nil-selector call (different caller, same empty set) is rejected
+	// because they share the "<unattested>" bucket.
+	require.Error(t, rl.RateLimit(workload.MethodFetchJWTSVID, []*common.Selector{}))
 }
 
 // TestWorkloadRateLimiterMetricsOnRejection verifies that
@@ -283,14 +336,14 @@ func TestWorkloadRateLimiterMetricsOnRejection(t *testing.T) {
 	rl := NewWorkloadRateLimiter(cfg, log, fm)
 	require.NotNil(t, rl)
 
-	ids := []string{"spiffe://example.org/foo"}
+	sel := selectors("k8s", "pod:foo")
 
 	// First call is allowed — no rate limit metric emitted.
-	require.NoError(t, rl.RateLimit(workload.MethodFetchJWTSVID, ids))
+	require.NoError(t, rl.RateLimit(workload.MethodFetchJWTSVID, sel))
 	assert.Empty(t, fm.AllMetrics(), "no metric expected when request is allowed")
 
 	// Second call is rejected — rate limit metric must be emitted.
-	err := rl.RateLimit(workload.MethodFetchJWTSVID, ids)
+	err := rl.RateLimit(workload.MethodFetchJWTSVID, sel)
 	require.Error(t, err)
 
 	items := fm.AllMetrics()

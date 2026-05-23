@@ -117,8 +117,12 @@ type sdsConfig struct {
 }
 
 type workloadAPIRateLimitConfig struct {
-	FetchX509SVID *int `hcl:"fetch_x509_svid"`
-	FetchJWTSVID  *int `hcl:"fetch_jwt_svid"`
+	FetchX509SVID    *int `hcl:"fetch_x509_svid"`
+	FetchJWTSVID     *int `hcl:"fetch_jwt_svid"`
+	FetchX509Bundles *int `hcl:"fetch_x509_bundles"`
+	FetchJWTBundles  *int `hcl:"fetch_jwt_bundles"`
+	StreamSecrets    *int `hcl:"stream_secrets"`
+	FetchSecrets     *int `hcl:"fetch_secrets"`
 
 	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions"`
 }
@@ -610,22 +614,37 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 
 	tlspolicy.LogPolicy(ac.TLSPolicy, log.NewHCLogAdapter(logger, "tlspolicy"))
 
-	rl := c.Agent.RateLimit
 	intVal := func(p *int) int {
 		if p == nil {
 			return 0
 		}
 		return *p
 	}
-	if v := intVal(rl.FetchX509SVID); v < 0 {
+	ac.WorkloadAPIRateLimit = agent.WorkloadAPIRateLimitConfig{
+		FetchX509SVID:    intVal(c.Agent.RateLimit.FetchX509SVID),
+		FetchJWTSVID:     intVal(c.Agent.RateLimit.FetchJWTSVID),
+		FetchX509Bundles: intVal(c.Agent.RateLimit.FetchX509Bundles),
+		FetchJWTBundles:  intVal(c.Agent.RateLimit.FetchJWTBundles),
+		StreamSecrets:    intVal(c.Agent.RateLimit.StreamSecrets),
+		FetchSecrets:     intVal(c.Agent.RateLimit.FetchSecrets),
+	}
+	if ac.WorkloadAPIRateLimit.FetchX509SVID < 0 {
 		return nil, errors.New("ratelimit.fetch_x509_svid must not be negative")
 	}
-	if v := intVal(rl.FetchJWTSVID); v < 0 {
+	if ac.WorkloadAPIRateLimit.FetchJWTSVID < 0 {
 		return nil, errors.New("ratelimit.fetch_jwt_svid must not be negative")
 	}
-	ac.WorkloadAPIRateLimit = agent.WorkloadAPIRateLimitConfig{
-		FetchX509SVID: intVal(rl.FetchX509SVID),
-		FetchJWTSVID:  intVal(rl.FetchJWTSVID),
+	if ac.WorkloadAPIRateLimit.FetchX509Bundles < 0 {
+		return nil, errors.New("ratelimit.fetch_x509_bundles must not be negative")
+	}
+	if ac.WorkloadAPIRateLimit.FetchJWTBundles < 0 {
+		return nil, errors.New("ratelimit.fetch_jwt_bundles must not be negative")
+	}
+	if ac.WorkloadAPIRateLimit.StreamSecrets < 0 {
+		return nil, errors.New("ratelimit.stream_secrets must not be negative")
+	}
+	if ac.WorkloadAPIRateLimit.FetchSecrets < 0 {
+		return nil, errors.New("ratelimit.fetch_secrets must not be negative")
 	}
 
 	if cmp.Diff(experimentalConfig{}, c.Agent.Experimental) != "" {

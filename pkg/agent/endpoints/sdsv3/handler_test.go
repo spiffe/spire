@@ -31,6 +31,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
+	grpcstatus "google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/structpb"
 )
@@ -1196,6 +1197,67 @@ func TestFetchSecrets(t *testing.T) {
 			requireSecrets(t, resp, tt.expectSecrets...)
 		})
 	}
+}
+
+// fakeRateLimiter allows the first N calls per method and rejects the rest.
+type fakeRateLimiter struct {
+	mu    sync.Mutex
+	calls map[string]int
+	limit int
+}
+
+func newFakeRateLimiter(limit int) *fakeRateLimiter {
+	return &fakeRateLimiter{calls: make(map[string]int), limit: limit}
+}
+
+func (r *fakeRateLimiter) RateLimit(fullMethod string, _ []*common.Selector) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.calls[fullMethod]++
+	if r.calls[fullMethod] > r.limit {
+		return grpcstatus.Errorf(codes.Unavailable, "rate limit exceeded for %s", fullMethod)
+	}
+	return nil
+}
+
+func TestStreamSecretsRateLimit(t *testing.T) {
+	rl := newFakeRateLimiter(1)
+	test := setupTestWithConfig(t, Config{RateLimiter: rl})
+	defer test.cleanup()
+
+	// First stream open is within the limit.
+	stream, err := test.handler.StreamSecrets(context.Background())
+	require.NoError(t, err)
+	test.sendAndWait(stream, &discovery_v3.DiscoveryRequest{ResourceNames: []string{"default"}})
+	require.NoError(t, stream.CloseSend())
+	_, err = stream.Recv()
+	require.NoError(t, err)
+
+	// Second stream open exhausts the limit.
+	stream2, err := test.handler.StreamSecrets(context.Background())
+	require.NoError(t, err)
+	require.NoError(t, stream2.Send(&discovery_v3.DiscoveryRequest{}))
+	_, err = stream2.Recv()
+	require.Error(t, err)
+	spiretest.RequireGRPCStatusContains(t, err, codes.Unavailable, "rate limit exceeded")
+}
+
+func TestFetchSecretsRateLimit(t *testing.T) {
+	rl := newFakeRateLimiter(1)
+	test := setupTestWithConfig(t, Config{RateLimiter: rl})
+	defer test.cleanup()
+
+	req := &discovery_v3.DiscoveryRequest{ResourceNames: []string{"default"}}
+
+	// First call is within the limit.
+	resp, err := test.handler.FetchSecrets(context.Background(), req)
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+
+	// Second call exhausts the limit.
+	_, err = test.handler.FetchSecrets(context.Background(), req)
+	require.Error(t, err)
+	spiretest.RequireGRPCStatusContains(t, err, codes.Unavailable, "rate limit exceeded")
 }
 
 func setupTest(t *testing.T) *handlerTest {

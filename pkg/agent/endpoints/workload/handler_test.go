@@ -35,6 +35,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
@@ -924,6 +925,46 @@ func TestFetchJWTSVID(t *testing.T) {
 	}
 }
 
+// rejectAllRateLimiter counts invocations and rejects every call. Used to
+// verify that the handler's isAgent(ctx) guard short-circuits before reaching
+// the limiter.
+type rejectAllRateLimiter struct {
+	called atomic.Int32
+}
+
+func (r *rejectAllRateLimiter) RateLimit(string, []*common.Selector) error {
+	r.called.Add(1)
+	return status.Errorf(codes.Unavailable, "rate limit exceeded")
+}
+
+// TestRateLimitAgentExemption verifies that workload handlers skip rate
+// limiting when the caller PID matches the agent's own PID. Without this
+// exemption, an operator-configured low rate limit could deny the agent's own
+// health probe (which exercises FetchX509Bundles) and mark the agent unhealthy.
+func TestRateLimitAgentExemption(t *testing.T) {
+	ca := testca.New(t, td)
+	x509SVID := ca.CreateX509SVID(workloadID)
+	identities := []cache.Identity{identityFromX509SVID(x509SVID, "id0")}
+
+	rl := &rejectAllRateLimiter{}
+	params := testParams{
+		CA:          ca,
+		Identities:  identities,
+		AsPID:       os.Getpid(),
+		RateLimiter: rl,
+	}
+	runTest(t, params, func(ctx context.Context, c workloadPB.SpiffeWorkloadAPIClient) {
+		for i := 0; i < 3; i++ {
+			resp, err := c.FetchJWTSVID(ctx, &workloadPB.JWTSVIDRequest{
+				Audience: []string{"AUDIENCE"},
+			})
+			require.NoError(t, err, "call %d should succeed when caller is the agent", i)
+			require.NotNil(t, resp)
+		}
+	})
+	assert.Zero(t, rl.called.Load(), "rate limiter must not be invoked for agent-self calls")
+}
+
 func TestFetchJWTBundles(t *testing.T) {
 	td := spiffeid.RequireTrustDomainFromString("domain.test")
 	ca := testca.New(t, td)
@@ -1564,6 +1605,7 @@ type testParams struct {
 	AsPID                         int
 	AllowUnauthenticatedVerifiers bool
 	AllowedForeignJWTClaims       map[string]struct{}
+	RateLimiter                   workload.RateLimiter
 }
 
 func runTest(t *testing.T, params testParams, fn func(ctx context.Context, client workloadPB.SpiffeWorkloadAPIClient)) {
@@ -1585,6 +1627,7 @@ func runTest(t *testing.T, params testParams, fn func(ctx context.Context, clien
 		},
 		AllowUnauthenticatedVerifiers: params.AllowUnauthenticatedVerifiers,
 		AllowedForeignJWTClaims:       params.AllowedForeignJWTClaims,
+		RateLimiter:                   params.RateLimiter,
 	})
 
 	server := grpctest.StartServer(t, func(s grpc.ServiceRegistrar) {

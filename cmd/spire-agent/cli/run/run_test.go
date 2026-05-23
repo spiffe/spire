@@ -1110,6 +1110,72 @@ func TestNewAgentConfig(t *testing.T) {
 				require.Nil(t, ac)
 			},
 		},
+		{
+			msg: "ratelimit all six knobs are configurable",
+			input: func(c *Config) {
+				a, b, d, e, f, g := 10, 20, 30, 40, 50, 60
+				c.Agent.RateLimit.FetchX509SVID = &a
+				c.Agent.RateLimit.FetchJWTSVID = &b
+				c.Agent.RateLimit.FetchX509Bundles = &d
+				c.Agent.RateLimit.FetchJWTBundles = &e
+				c.Agent.RateLimit.StreamSecrets = &f
+				c.Agent.RateLimit.FetchSecrets = &g
+			},
+			test: func(t *testing.T, ac *agent.Config) {
+				require.Equal(t, agent.WorkloadAPIRateLimitConfig{
+					FetchX509SVID:    10,
+					FetchJWTSVID:     20,
+					FetchX509Bundles: 30,
+					FetchJWTBundles:  40,
+					StreamSecrets:    50,
+					FetchSecrets:     60,
+				}, ac.WorkloadAPIRateLimit)
+			},
+		},
+		{
+			msg:         "ratelimit fetch_x509_bundles negative value returns an error",
+			expectError: true,
+			input: func(c *Config) {
+				v := -1
+				c.Agent.RateLimit.FetchX509Bundles = &v
+			},
+			test: func(t *testing.T, ac *agent.Config) {
+				require.Nil(t, ac)
+			},
+		},
+		{
+			msg:         "ratelimit fetch_jwt_bundles negative value returns an error",
+			expectError: true,
+			input: func(c *Config) {
+				v := -1
+				c.Agent.RateLimit.FetchJWTBundles = &v
+			},
+			test: func(t *testing.T, ac *agent.Config) {
+				require.Nil(t, ac)
+			},
+		},
+		{
+			msg:         "ratelimit stream_secrets negative value returns an error",
+			expectError: true,
+			input: func(c *Config) {
+				v := -1
+				c.Agent.RateLimit.StreamSecrets = &v
+			},
+			test: func(t *testing.T, ac *agent.Config) {
+				require.Nil(t, ac)
+			},
+		},
+		{
+			msg:         "ratelimit fetch_secrets negative value returns an error",
+			expectError: true,
+			input: func(c *Config) {
+				v := -1
+				c.Agent.RateLimit.FetchSecrets = &v
+			},
+			test: func(t *testing.T, ac *agent.Config) {
+				require.Nil(t, ac)
+			},
+		},
 	}
 	cases = append(cases, newAgentConfigCasesOS(t)...)
 	for _, testCase := range cases {

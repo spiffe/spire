@@ -31,7 +31,15 @@ import (
 
 const (
 	disableSPIFFECertValidationKey = "disable_spiffe_cert_validation"
+
+	MethodStreamSecrets = "/envoy.service.secret.v3.SecretDiscoveryService/StreamSecrets"
+	MethodFetchSecrets  = "/envoy.service.secret.v3.SecretDiscoveryService/FetchSecrets"
 )
+
+// RateLimiter enforces per-selector-set rate limiting on SDS methods.
+type RateLimiter interface {
+	RateLimit(fullMethod string, selectors []*common.Selector) error
+}
 
 type Attestor interface {
 	Attest(ctx context.Context) ([]*common.Selector, error)
@@ -45,6 +53,7 @@ type Manager interface {
 type Config struct {
 	Attestor                    Attestor
 	Manager                     Manager
+	RateLimiter                 RateLimiter
 	DefaultAllBundlesName       string
 	DefaultBundleName           string
 	DefaultSVIDName             string
@@ -64,12 +73,23 @@ func New(config Config) *Handler {
 	return &Handler{c: config}
 }
 
+func (h *Handler) rateLimit(fullMethod string, selectors []*common.Selector) error {
+	if h.c.RateLimiter == nil {
+		return nil
+	}
+	return h.c.RateLimiter.RateLimit(fullMethod, selectors)
+}
+
 func (h *Handler) StreamSecrets(stream secret_v3.SecretDiscoveryService_StreamSecretsServer) error {
 	log := rpccontext.Logger(stream.Context())
 
 	selectors, err := h.c.Attestor.Attest(stream.Context())
 	if err != nil {
 		log.WithError(err).Error("Failed to attest the workload")
+		return err
+	}
+
+	if err := h.rateLimit(MethodStreamSecrets, selectors); err != nil {
 		return err
 	}
 
@@ -230,6 +250,10 @@ func (h *Handler) FetchSecrets(ctx context.Context, req *discovery_v3.DiscoveryR
 	selectors, err := h.c.Attestor.Attest(ctx)
 	if err != nil {
 		log.WithError(err).Error("Failed to attest the workload")
+		return nil, err
+	}
+
+	if err := h.rateLimit(MethodFetchSecrets, selectors); err != nil {
 		return nil, err
 	}
 
