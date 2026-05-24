@@ -106,6 +106,7 @@ check-server-started() {
   for ((i=1;i<=MAXCHECKS;i++)); do
       log-info "checking for starting server APIs ($i of $MAXCHECKS max)..."
       docker compose logs "$1"
+      # The server emits the below log twice: TCP and UDS listener
       if [ "$(docker compose logs "$1" | grep -c "Starting Server APIs")" -ge 2 ]; then
           return 0
       fi
