@@ -1850,6 +1850,54 @@ func (s *PluginSuite) TestPruneAttestedExpiredNodesCascadesEntries() {
 	s.Equal(expiredChild.EntryId, resp.Events[0].EntryID)
 }
 
+func (s *PluginSuite) TestDeleteAttestedNodeNonJoinTokenDoesNotCascade() {
+	nodeSpiffeID := "spiffe://example.org/spire/agent/aws_iid/123/i-abcdef"
+
+	_, err := s.ds.CreateAttestedNode(ctx, &common.AttestedNode{
+		SpiffeId:            nodeSpiffeID,
+		AttestationDataType: "aws_iid",
+		CertSerialNumber:    "badcafe",
+		CertNotAfter:        time.Now().Add(time.Hour).Unix(),
+	})
+	s.Require().NoError(err)
+
+	// Workload entry parented directly on a non-join-token attested node — a
+	// supported registration pattern. Deleting the node must NOT cascade to it.
+	childEntry, err := s.ds.CreateRegistrationEntry(ctx, &common.RegistrationEntry{
+		ParentId: nodeSpiffeID,
+		SpiffeId: "spiffe://example.org/workload",
+		Selectors: []*common.Selector{
+			{Type: "unix", Value: "uid:1000"},
+		},
+	})
+	s.Require().NoError(err)
+
+	resp, err := s.ds.ListRegistrationEntryEvents(ctx, &datastore.ListRegistrationEntryEventsRequest{})
+	s.Require().NoError(err)
+	var lastEventID uint
+	if len(resp.Events) > 0 {
+		lastEventID = resp.Events[len(resp.Events)-1].EventID
+	}
+
+	_, err = s.ds.DeleteAttestedNode(ctx, nodeSpiffeID)
+	s.Require().NoError(err)
+
+	attestedNode, err := s.ds.FetchAttestedNode(ctx, nodeSpiffeID)
+	s.Require().NoError(err)
+	s.Nil(attestedNode)
+
+	fetched, err := s.ds.FetchRegistrationEntry(ctx, childEntry.EntryId)
+	s.Require().NoError(err)
+	s.Require().NotNil(fetched)
+	s.Equal(childEntry.EntryId, fetched.EntryId)
+
+	resp, err = s.ds.ListRegistrationEntryEvents(ctx, &datastore.ListRegistrationEntryEventsRequest{
+		GreaterThanEventID: lastEventID,
+	})
+	s.Require().NoError(err)
+	s.Empty(resp.Events)
+}
+
 func (s *PluginSuite) TestListAttestedNodeEvents() {
 	var expectedEvents []datastore.AttestedNodeEvent
 

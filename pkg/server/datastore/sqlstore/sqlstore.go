@@ -2400,36 +2400,37 @@ func deleteAttestedNodeAndSelectors(tx *gorm.DB, spiffeID string, logger logrus.
 		nodeSelectorModel NodeSelector
 	)
 
-	// Cascade: delete registration entries whose parent is this attested node's
-	// SVID. This includes the alias row that SPIRE auto-creates in
-	// createJoinTokenRegistrationEntry when CreateJoinToken is called with
-	// AgentId, which would otherwise outlive the node it was minted for.
-	var childEntries []RegisteredEntry
-	if err := tx.Where("parent_id = ?", spiffeID).Find(&childEntries).Error; err != nil {
+	if err := tx.Find(&nodeModel, "spiffe_id = ?", spiffeID).Error; err != nil {
 		return nil, newWrappedSQLError(err)
 	}
-	for _, entry := range childEntries {
-		if err := deleteRegistrationEntrySupport(tx, entry); err != nil {
-			return nil, err
+
+	// Cascade only for join-token-attested nodes: SPIRE itself auto-creates the
+	// alias registration entry whose parent_id is the node SVID; cascading other
+	// attestors here would silently delete user-created workload entries.
+	if nodeModel.DataType == "join_token" {
+		var childEntries []RegisteredEntry
+		if err := tx.Where("parent_id = ?", spiffeID).Find(&childEntries).Error; err != nil {
+			return nil, newWrappedSQLError(err)
 		}
-		if err := createRegistrationEntryEvent(tx, &datastore.RegistrationEntryEvent{
-			EntryID: entry.EntryID,
-		}); err != nil {
-			return nil, err
+		for _, entry := range childEntries {
+			if err := deleteRegistrationEntrySupport(tx, entry); err != nil {
+				return nil, err
+			}
+			if err := createRegistrationEntryEvent(tx, &datastore.RegistrationEntryEvent{
+				EntryID: entry.EntryID,
+			}); err != nil {
+				return nil, err
+			}
+			logger.WithFields(logrus.Fields{
+				telemetry.SPIFFEID:       entry.SpiffeID,
+				telemetry.ParentID:       entry.ParentID,
+				telemetry.RegistrationID: entry.EntryID,
+			}).Info("Cascade-deleted registration entry on attested node deletion")
 		}
-		logger.WithFields(logrus.Fields{
-			telemetry.SPIFFEID:       entry.SpiffeID,
-			telemetry.ParentID:       entry.ParentID,
-			telemetry.RegistrationID: entry.EntryID,
-		}).Info("Cascade-deleted registration entry on attested node deletion")
 	}
 
 	// batch delete all associated node selectors
 	if err := tx.Where("spiffe_id = ?", spiffeID).Delete(&nodeSelectorModel).Error; err != nil {
-		return nil, newWrappedSQLError(err)
-	}
-
-	if err := tx.Find(&nodeModel, "spiffe_id = ?", spiffeID).Error; err != nil {
 		return nil, newWrappedSQLError(err)
 	}
 
