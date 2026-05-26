@@ -302,7 +302,7 @@ func (m *manager) FetchJWTSVID(ctx context.Context, entry *common.RegistrationEn
 
 	// When the entry opts into a JTI claim, every request must yield a fresh token,
 	// so the JWT-SVID cache is bypassed.
-	bypassCache := entry.AdditionalAttributes.GetJwtSvidIncludeJti()
+	bypassCache := entry.GetAdditionalAttributes().GetJwtSvidIncludeJti()
 
 	now := m.clk.Now()
 	var cachedSVID *client.JWTSVID

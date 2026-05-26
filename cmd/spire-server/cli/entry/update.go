@@ -14,6 +14,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/cliprinter"
 	"github.com/spiffe/spire/pkg/common/util"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/protobuf/proto"
 )
 
 // NewUpdateCommand creates a new "update" subcommand for "entry" command.
@@ -169,18 +170,24 @@ func (c *updateCommand) Run(ctx context.Context, _ *commoncli.Env, serverClient 
 	return c.printer.PrintProto(resp)
 }
 
-// mergeAdditionalAttributes preserves the sibling AdditionalAttributes bit on
-// e by reading it from existing whenever the corresponding flag was not set on
-// the command line. A nil existing.AdditionalAttributes is treated as zero.
+// mergeAdditionalAttributes preserves existing AdditionalAttributes by cloning
+// them first and then overriding only the fields explicitly set on the command
+// line. A nil existing.AdditionalAttributes is treated as zero.
 func mergeAdditionalAttributes(e, existing *types.Entry, disablePrefetchSet, includeJTISet bool) {
-	if e.AdditionalAttributes == nil {
+	requestedAttrs := e.GetAdditionalAttributes()
+	existingAttrs := existing.GetAdditionalAttributes()
+
+	if existingAttrs != nil {
+		e.AdditionalAttributes = proto.Clone(existingAttrs).(*types.Entry_AdditionalAttributes)
+	} else if e.AdditionalAttributes == nil {
 		e.AdditionalAttributes = &types.Entry_AdditionalAttributes{}
 	}
-	if !disablePrefetchSet && existing.AdditionalAttributes != nil {
-		e.AdditionalAttributes.DisableX509SvidPrefetch = existing.AdditionalAttributes.DisableX509SvidPrefetch
+
+	if disablePrefetchSet {
+		e.AdditionalAttributes.DisableX509SvidPrefetch = requestedAttrs.GetDisableX509SvidPrefetch()
 	}
-	if !includeJTISet && existing.AdditionalAttributes != nil {
-		e.AdditionalAttributes.JwtSvidIncludeJti = existing.AdditionalAttributes.JwtSvidIncludeJti
+	if includeJTISet {
+		e.AdditionalAttributes.JwtSvidIncludeJti = requestedAttrs.GetJwtSvidIncludeJti()
 	}
 }
 

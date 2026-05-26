@@ -10,6 +10,7 @@ import (
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/protobuf/encoding/protowire"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -415,6 +416,11 @@ func TestUpdate(t *testing.T) {
 		},
 	}
 
+	additionalAttributesWithUnknown := func(attrs *types.Entry_AdditionalAttributes) *types.Entry_AdditionalAttributes {
+		attrs.ProtoReflect().SetUnknown(protowire.AppendVarint(protowire.AppendTag(nil, 99, protowire.VarintType), 123))
+		return attrs
+	}
+
 	for _, tt := range []struct {
 		name string
 		args []string
@@ -777,9 +783,9 @@ JwtSvidIncludeJti       : true
 			expGetReq: &entryv1.GetEntryRequest{Id: "entry-id"},
 			fakeGetResp: &types.Entry{
 				Id: "entry-id",
-				AdditionalAttributes: &types.Entry_AdditionalAttributes{
+				AdditionalAttributes: additionalAttributesWithUnknown(&types.Entry_AdditionalAttributes{
 					JwtSvidIncludeJti: true,
-				},
+				}),
 			},
 			expReq: &entryv1.BatchUpdateEntryRequest{Entries: []*types.Entry{
 				{
@@ -787,10 +793,10 @@ JwtSvidIncludeJti       : true
 					SpiffeId:  &types.SPIFFEID{TrustDomain: "example.org", Path: "/workload"},
 					ParentId:  &types.SPIFFEID{TrustDomain: "example.org", Path: "/parent"},
 					Selectors: []*types.Selector{{Type: "unix", Value: "uid:1"}},
-					AdditionalAttributes: &types.Entry_AdditionalAttributes{
+					AdditionalAttributes: additionalAttributesWithUnknown(&types.Entry_AdditionalAttributes{
 						DisableX509SvidPrefetch: true,
 						JwtSvidIncludeJti:       true,
-					},
+					}),
 				},
 			}},
 			fakeResp: &entryv1.BatchUpdateEntryResponse{
