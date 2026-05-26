@@ -2404,15 +2404,23 @@ func deleteAttestedNodeAndSelectors(tx *gorm.DB, spiffeID string, logger logrus.
 		return nil, newWrappedSQLError(err)
 	}
 
-	// Cascade only for join-token-attested nodes: SPIRE itself auto-creates the
-	// alias registration entry whose parent_id is the node SVID; cascading other
-	// attestors here would silently delete user-created workload entries.
+	// Cascade only for join-token-attested nodes, and only for entries that match
+	// the auto-alias shape that createJoinTokenRegistrationEntry writes (single
+	// "spiffe_id" selector whose value is the parent SVID). Other parent_id-keyed
+	// entries are user-managed workload entries and must be preserved.
 	if nodeModel.DataType == "join_token" {
-		var childEntries []RegisteredEntry
-		if err := tx.Where("parent_id = ?", spiffeID).Find(&childEntries).Error; err != nil {
+		var candidates []RegisteredEntry
+		if err := tx.Where("parent_id = ?", spiffeID).Find(&candidates).Error; err != nil {
 			return nil, newWrappedSQLError(err)
 		}
-		for _, entry := range childEntries {
+		for _, entry := range candidates {
+			var selectors []Selector
+			if err := tx.Where("registered_entry_id = ?", entry.ID).Find(&selectors).Error; err != nil {
+				return nil, newWrappedSQLError(err)
+			}
+			if len(selectors) != 1 || selectors[0].Type != "spiffe_id" || selectors[0].Value != entry.ParentID {
+				continue
+			}
 			if err := deleteRegistrationEntrySupport(tx, entry); err != nil {
 				return nil, err
 			}

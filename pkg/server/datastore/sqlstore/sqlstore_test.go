@@ -1633,6 +1633,18 @@ func (s *PluginSuite) TestDeleteAttestedNode() {
 	})
 }
 
+// lastRegistrationEntryEventID returns the highest existing entry event ID, or 0
+// if none exist. Used by cascade tests to scope GreaterThanEventID assertions to
+// events created during the test.
+func (s *PluginSuite) lastRegistrationEntryEventID() uint {
+	resp, err := s.ds.ListRegistrationEntryEvents(ctx, &datastore.ListRegistrationEntryEventsRequest{})
+	s.Require().NoError(err)
+	if len(resp.Events) == 0 {
+		return 0
+	}
+	return resp.Events[len(resp.Events)-1].EventID
+}
+
 func (s *PluginSuite) TestDeleteAttestedNodeCascadesEntries() {
 	nodeSpiffeID := "spiffe://example.org/spire/agent/join_token/cascade-delete-test"
 
@@ -1656,13 +1668,7 @@ func (s *PluginSuite) TestDeleteAttestedNodeCascadesEntries() {
 	})
 	s.Require().NoError(err)
 
-	// Snapshot the last event ID so we can check for new events after delete.
-	resp, err := s.ds.ListRegistrationEntryEvents(ctx, &datastore.ListRegistrationEntryEventsRequest{})
-	s.Require().NoError(err)
-	var lastEventID uint
-	if len(resp.Events) > 0 {
-		lastEventID = resp.Events[len(resp.Events)-1].EventID
-	}
+	lastEventID := s.lastRegistrationEntryEventID()
 
 	// Deleting the attested node cascades to the child entry.
 	_, err = s.ds.DeleteAttestedNode(ctx, nodeSpiffeID)
@@ -1677,7 +1683,7 @@ func (s *PluginSuite) TestDeleteAttestedNodeCascadesEntries() {
 	s.Nil(fetched)
 
 	// A new registration entry event was emitted for the cascaded delete.
-	resp, err = s.ds.ListRegistrationEntryEvents(ctx, &datastore.ListRegistrationEntryEventsRequest{
+	resp, err := s.ds.ListRegistrationEntryEvents(ctx, &datastore.ListRegistrationEntryEventsRequest{
 		GreaterThanEventID: lastEventID,
 	})
 	s.Require().NoError(err)
@@ -1685,8 +1691,8 @@ func (s *PluginSuite) TestDeleteAttestedNodeCascadesEntries() {
 	s.Equal(childEntry.EntryId, resp.Events[0].EntryID)
 }
 
-func (s *PluginSuite) TestDeleteAttestedNodeCascadesMultipleEntriesIncludingFederation() {
-	nodeSpiffeID := "spiffe://example.org/spire/agent/join_token/cascade-multi-test"
+func (s *PluginSuite) TestDeleteAttestedNodeJoinTokenPreservesNonAliasChildEntries() {
+	nodeSpiffeID := "spiffe://example.org/spire/agent/join_token/cascade-shape-test"
 
 	_, err := s.ds.CreateAttestedNode(ctx, &common.AttestedNode{
 		SpiffeId:            nodeSpiffeID,
@@ -1696,83 +1702,60 @@ func (s *PluginSuite) TestDeleteAttestedNodeCascadesMultipleEntriesIncludingFede
 	})
 	s.Require().NoError(err)
 
-	// Federated bundle so a child entry can FederatesWith it. This exercises the
-	// Association("FederatesWith").Clear() path in deleteRegistrationEntrySupport
-	// during cascade.
-	s.createBundle("spiffe://otherdomain.org")
-
-	// Three child entries parented on the node. The middle one federates with the
-	// bundle; the others don't. All must be cascade-deleted on node delete.
-	child1, err := s.ds.CreateRegistrationEntry(ctx, &common.RegistrationEntry{
+	// Alias-shaped child: the single "spiffe_id" selector whose value matches the
+	// parent SVID is exactly what createJoinTokenRegistrationEntry writes. Cascade
+	// must remove it.
+	aliasChild, err := s.ds.CreateRegistrationEntry(ctx, &common.RegistrationEntry{
 		ParentId:  nodeSpiffeID,
-		SpiffeId:  "spiffe://example.org/workload-1",
-		Selectors: []*common.Selector{{Type: "spiffe_id", Value: nodeSpiffeID}},
-	})
-	s.Require().NoError(err)
-	child2, err := s.ds.CreateRegistrationEntry(ctx, &common.RegistrationEntry{
-		ParentId:      nodeSpiffeID,
-		SpiffeId:      "spiffe://example.org/workload-2",
-		Selectors:     []*common.Selector{{Type: "Type1", Value: "Value1"}},
-		FederatesWith: []string{"spiffe://otherdomain.org"},
-	})
-	s.Require().NoError(err)
-	child3, err := s.ds.CreateRegistrationEntry(ctx, &common.RegistrationEntry{
-		ParentId:  nodeSpiffeID,
-		SpiffeId:  "spiffe://example.org/workload-3",
+		SpiffeId:  "spiffe://example.org/workload-alias",
 		Selectors: []*common.Selector{{Type: "spiffe_id", Value: nodeSpiffeID}},
 	})
 	s.Require().NoError(err)
 
-	// Also attach node selectors to the same node to verify the cascade and the
-	// existing node-selector delete both run in the same transaction without
-	// interfering.
+	// User-managed entry parented on the same node but with a non-alias selector
+	// shape. Cascade must preserve it — these are real workload entries that
+	// SPIRE never creates implicitly.
+	workloadChild, err := s.ds.CreateRegistrationEntry(ctx, &common.RegistrationEntry{
+		ParentId:  nodeSpiffeID,
+		SpiffeId:  "spiffe://example.org/workload-real",
+		Selectors: []*common.Selector{{Type: "unix", Value: "uid:1000"}},
+	})
+	s.Require().NoError(err)
+
+	// Attach node selectors so the cascade and existing node-selector delete run
+	// in the same transaction without interfering.
 	err = s.ds.SetNodeSelectors(ctx, nodeSpiffeID, []*common.Selector{
 		{Type: "ATTEST", Value: "VALUE"},
 	})
 	s.Require().NoError(err)
 
-	resp, err := s.ds.ListRegistrationEntryEvents(ctx, &datastore.ListRegistrationEntryEventsRequest{})
-	s.Require().NoError(err)
-	var lastEventID uint
-	if len(resp.Events) > 0 {
-		lastEventID = resp.Events[len(resp.Events)-1].EventID
-	}
+	lastEventID := s.lastRegistrationEntryEventID()
 
-	// Delete the attested node; all three children cascade.
 	_, err = s.ds.DeleteAttestedNode(ctx, nodeSpiffeID)
 	s.Require().NoError(err)
 
-	// All three child entries are gone.
-	for _, c := range []*common.RegistrationEntry{child1, child2, child3} {
-		fetched, err := s.ds.FetchRegistrationEntry(ctx, c.EntryId)
-		s.Require().NoError(err)
-		s.Nilf(fetched, "child entry %s should be deleted", c.EntryId)
-	}
+	// Alias child is gone; user-managed workload child survives.
+	fetchedAlias, err := s.ds.FetchRegistrationEntry(ctx, aliasChild.EntryId)
+	s.Require().NoError(err)
+	s.Nil(fetchedAlias)
 
-	// Node selectors are cleared (existing behavior, verified alongside the new cascade).
+	fetchedWorkload, err := s.ds.FetchRegistrationEntry(ctx, workloadChild.EntryId)
+	s.Require().NoError(err)
+	s.Require().NotNil(fetchedWorkload)
+	s.Equal(workloadChild.EntryId, fetchedWorkload.EntryId)
+
+	// Node selectors are cleared (pre-existing behavior, verified alongside cascade).
 	nodeSelectors, err := s.ds.GetNodeSelectors(ctx, nodeSpiffeID, datastore.RequireCurrent)
 	s.Require().NoError(err)
 	s.Nil(nodeSelectors)
 
-	// The federated bundle itself is preserved; only the association was cleared.
-	bundle, err := s.ds.FetchBundle(ctx, "spiffe://otherdomain.org")
-	s.Require().NoError(err)
-	s.NotNil(bundle)
-
-	// Exactly three new entry events were emitted, one per cascaded delete,
-	// matching the created entry IDs (order-independent).
-	resp, err = s.ds.ListRegistrationEntryEvents(ctx, &datastore.ListRegistrationEntryEventsRequest{
+	// Exactly one cascade event was emitted, for the alias child only.
+	resp, err := s.ds.ListRegistrationEntryEvents(ctx, &datastore.ListRegistrationEntryEventsRequest{
 		GreaterThanEventID: lastEventID,
 	})
 	s.Require().NoError(err)
-	s.Require().Len(resp.Events, 3)
-	eventIDs := make(map[string]bool, 3)
-	for _, e := range resp.Events {
-		eventIDs[e.EntryID] = true
-	}
-	s.Truef(eventIDs[child1.EntryId], "event for child1 %s missing", child1.EntryId)
-	s.Truef(eventIDs[child2.EntryId], "event for child2 %s missing", child2.EntryId)
-	s.Truef(eventIDs[child3.EntryId], "event for child3 %s missing", child3.EntryId)
+	s.Require().Len(resp.Events, 1)
+	s.Equal(aliasChild.EntryId, resp.Events[0].EntryID)
 }
 
 func (s *PluginSuite) TestPruneAttestedExpiredNodesCascadesEntries() {
@@ -1815,12 +1798,7 @@ func (s *PluginSuite) TestPruneAttestedExpiredNodesCascadesEntries() {
 	})
 	s.Require().NoError(err)
 
-	resp, err := s.ds.ListRegistrationEntryEvents(ctx, &datastore.ListRegistrationEntryEventsRequest{})
-	s.Require().NoError(err)
-	var lastEventID uint
-	if len(resp.Events) > 0 {
-		lastEventID = resp.Events[len(resp.Events)-1].EventID
-	}
+	lastEventID := s.lastRegistrationEntryEventID()
 
 	err = s.ds.PruneAttestedExpiredNodes(ctx, now.Add(-time.Minute), false)
 	s.Require().NoError(err)
@@ -1842,7 +1820,7 @@ func (s *PluginSuite) TestPruneAttestedExpiredNodesCascadesEntries() {
 	s.NotNil(fetchedValidChild)
 
 	// Exactly one new registration entry event was emitted, for the cascaded delete.
-	resp, err = s.ds.ListRegistrationEntryEvents(ctx, &datastore.ListRegistrationEntryEventsRequest{
+	resp, err := s.ds.ListRegistrationEntryEvents(ctx, &datastore.ListRegistrationEntryEventsRequest{
 		GreaterThanEventID: lastEventID,
 	})
 	s.Require().NoError(err)
@@ -1861,23 +1839,19 @@ func (s *PluginSuite) TestDeleteAttestedNodeNonJoinTokenDoesNotCascade() {
 	})
 	s.Require().NoError(err)
 
-	// Workload entry parented directly on a non-join-token attested node — a
-	// supported registration pattern. Deleting the node must NOT cascade to it.
+	// Alias-shaped child entry parented on a non-join-token node. Even though the
+	// selector shape matches the auto-alias pattern, the DataType filter must
+	// still skip cascade — only join_token-attested nodes have auto-alias entries.
 	childEntry, err := s.ds.CreateRegistrationEntry(ctx, &common.RegistrationEntry{
 		ParentId: nodeSpiffeID,
 		SpiffeId: "spiffe://example.org/workload",
 		Selectors: []*common.Selector{
-			{Type: "unix", Value: "uid:1000"},
+			{Type: "spiffe_id", Value: nodeSpiffeID},
 		},
 	})
 	s.Require().NoError(err)
 
-	resp, err := s.ds.ListRegistrationEntryEvents(ctx, &datastore.ListRegistrationEntryEventsRequest{})
-	s.Require().NoError(err)
-	var lastEventID uint
-	if len(resp.Events) > 0 {
-		lastEventID = resp.Events[len(resp.Events)-1].EventID
-	}
+	lastEventID := s.lastRegistrationEntryEventID()
 
 	_, err = s.ds.DeleteAttestedNode(ctx, nodeSpiffeID)
 	s.Require().NoError(err)
@@ -1891,7 +1865,7 @@ func (s *PluginSuite) TestDeleteAttestedNodeNonJoinTokenDoesNotCascade() {
 	s.Require().NotNil(fetched)
 	s.Equal(childEntry.EntryId, fetched.EntryId)
 
-	resp, err = s.ds.ListRegistrationEntryEvents(ctx, &datastore.ListRegistrationEntryEventsRequest{
+	resp, err := s.ds.ListRegistrationEntryEvents(ctx, &datastore.ListRegistrationEntryEventsRequest{
 		GreaterThanEventID: lastEventID,
 	})
 	s.Require().NoError(err)
