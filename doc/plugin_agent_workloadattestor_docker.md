@@ -4,17 +4,17 @@ The `docker` plugin generates selectors based on container labels for workloads 
 It does so by retrieving the workload's container ID from its cgroup membership on Unix systems or Job Object names on Windows,
 then querying the container runtime API (Docker by default, or Podman when detected) for the container's labels.
 
-| Configuration                  | Description                                                                                    | Default                          |
-|--------------------------------|------------------------------------------------------------------------------------------------|----------------------------------|
-| docker_socket_path             | The location of the docker daemon socket (Unix)                                                | "unix:///var/run/docker.sock"    |
-| podman_socket_path             | The location of the rootful Podman socket (Unix)                                               | "unix:///run/podman/podman.sock" |
-| podman_socket_path_template    | The socket template for rootless Podman (Unix). Must contain one `%d` UID placeholder         | "unix:///run/user/%d/podman/podman.sock" |
-| docker_version                 | The API version of the docker daemon. If not specified                                         |                                  |
-| container_id_cgroup_matchers   | A list of patterns used to discover container IDs from cgroup entries (Unix)                   |                                  |
-| docker_host                    | The location of the Docker Engine API endpoint (Windows only)                                  | "npipe:////./pipe/docker_engine" |
-| sigstore                       | Sigstore options. See [Sigstore options](#sigstore-options). When set, enables verification of container image signatures and attestations. |                                  |
-| use_new_container_locator      | If true, enables the new container locator algorithm that has support for cgroups v2           | true                             |
-| verbose_container_locator_logs | If true, enables verbose logging of mountinfo and cgroup information used to locate containers | false                            |
+| Configuration                  | Description                                                                                                                                 | Default                                  |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------- |
+| docker_socket_path             | The location of the docker daemon socket (Unix)                                                                                             | "unix:///var/run/docker.sock"            |
+| podman_socket_path             | The location of the rootful Podman socket (Unix)                                                                                            | "unix:///run/podman/podman.sock"         |
+| podman_socket_path_template    | The socket template for rootless Podman (Unix). Must contain one `%d` UID placeholder                                                       | "unix:///run/user/%d/podman/podman.sock" |
+| docker_version                 | The API version of the docker daemon. If not specified                                                                                      |                                          |
+| container_id_cgroup_matchers   | A list of patterns used to discover container IDs from cgroup entries (Unix)                                                                |                                          |
+| docker_host                    | The location of the Docker Engine API endpoint (Windows only)                                                                               | "npipe:////./pipe/docker_engine"         |
+| sigstore                       | Sigstore options. See [Sigstore options](#sigstore-options). When set, enables verification of container image signatures and attestations. |                                          |
+| use_new_container_locator      | If true, enables the new container locator algorithm that has support for cgroups v2                                                        | true                                     |
+| verbose_container_locator_logs | If true, enables verbose logging of mountinfo and cgroup information used to locate containers                                              | false                                    |
 
 A sample configuration:
 

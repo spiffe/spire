@@ -303,7 +303,7 @@ func (e *Endpoints) ListenAndServe(ctx context.Context) error {
 }
 
 func (e *Endpoints) createTCPServer(ctx context.Context, unaryInterceptor grpc.UnaryServerInterceptor, streamInterceptor grpc.StreamServerInterceptor) *grpc.Server {
-	tlsConfig := &tls.Config{ //nolint: gosec // False positive, getTLSConfig is setting MinVersion
+	tlsConfig := &tls.Config{
 		GetConfigForClient: e.getTLSConfig(ctx),
 		// Disable session ticket resumption so that VerifyPeerCertificate is
 		// called on every connection, ensuring the peer certificate chain is
@@ -468,6 +468,7 @@ func (e *Endpoints) getTLSConfig(ctx context.Context) func(*tls.ClientHelloInfo)
 		spiffeTLSConfig.MinVersion = tls.VersionTLS12
 		spiffeTLSConfig.NextProtos = []string{http2.NextProtoTLS}
 		spiffeTLSConfig.VerifyPeerCertificate = e.serverSpiffeVerificationFunc(bundleSrc)
+		spiffeTLSConfig.SessionTicketsDisabled = true
 
 		err := tlspolicy.ApplyPolicy(spiffeTLSConfig, e.TLSPolicy)
 		if err != nil {

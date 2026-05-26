@@ -238,23 +238,23 @@ func (p *Plugin) updateBundles(ctx context.Context) (err error) {
 	for _, client := range clients {
 		list, err := client.GetList(ctx)
 		if err != nil {
-			updateErrs.WriteString(fmt.Sprintf("unable to get list: %v, ", err))
+			fmt.Fprintf(&updateErrs, "unable to get list: %v, ", err)
 			continue
 		}
 		listItems, err := meta.ExtractList(list)
 		if err != nil {
-			updateErrs.WriteString(fmt.Sprintf("unable to extract list items: %v, ", err))
+			fmt.Fprintf(&updateErrs, "unable to extract list items: %v, ", err)
 			continue
 		}
 		for _, item := range listItems {
 			itemMeta, err := meta.Accessor(item)
 			if err != nil {
-				updateErrs.WriteString(fmt.Sprintf("unable to extract metadata for item: %v, ", err))
+				fmt.Fprintf(&updateErrs, "unable to extract metadata for item: %v, ", err)
 				continue
 			}
 			err = p.updateBundle(ctx, client, itemMeta.GetNamespace(), itemMeta.GetName())
 			if err != nil && status.Code(err) != codes.AlreadyExists {
-				updateErrs.WriteString(fmt.Sprintf("%s: %v, ", namespacedName(itemMeta), err))
+				fmt.Fprintf(&updateErrs, "%s: %v, ", namespacedName(itemMeta), err)
 			}
 		}
 	}
