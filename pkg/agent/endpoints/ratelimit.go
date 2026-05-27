@@ -114,7 +114,7 @@ func NewWorkloadRateLimiter(cfg WorkloadAPIRateLimitConfig, log logrus.FieldLogg
 			log.WithFields(logrus.Fields{
 				telemetry.Method: ml.method,
 				telemetry.Limit:  ml.limit,
-			}).Info("Workload API rate limiting enabled")
+			}).Info("Workload API/SDS rate limiting enabled")
 		}
 	}
 
