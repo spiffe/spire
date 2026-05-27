@@ -217,6 +217,7 @@ func ProtoFromAdditionalAttributes(in *common.RegistrationEntry_AdditionalAttrib
 	if in != nil {
 		return &types.Entry_AdditionalAttributes{
 			DisableX509SvidPrefetch: in.DisableX509SvidPrefetch,
+			JwtSvidIncludeJti:       in.JwtSvidIncludeJti,
 		}
 	}
 	return nil
@@ -226,6 +227,7 @@ func AdditionalAttributesFromProto(in *types.Entry_AdditionalAttributes) *common
 	if in != nil {
 		return &common.RegistrationEntry_AdditionalAttributes{
 			DisableX509SvidPrefetch: in.DisableX509SvidPrefetch,
+			JwtSvidIncludeJti:       in.JwtSvidIncludeJti,
 		}
 	}
 	return nil

@@ -651,18 +651,19 @@ func (s *Service) updateEntry(ctx context.Context, e *types.Entry, inputMask *ty
 	var mask *common.RegistrationEntryMask
 	if inputMask != nil {
 		mask = &common.RegistrationEntryMask{
-			SpiffeId:      inputMask.SpiffeId,
-			ParentId:      inputMask.ParentId,
-			FederatesWith: inputMask.FederatesWith,
-			Admin:         inputMask.Admin,
-			Downstream:    inputMask.Downstream,
-			EntryExpiry:   inputMask.ExpiresAt,
-			DnsNames:      inputMask.DnsNames,
-			Selectors:     inputMask.Selectors,
-			StoreSvid:     inputMask.StoreSvid,
-			X509SvidTtl:   inputMask.X509SvidTtl,
-			JwtSvidTtl:    inputMask.JwtSvidTtl,
-			Hint:          inputMask.Hint,
+			SpiffeId:             inputMask.SpiffeId,
+			ParentId:             inputMask.ParentId,
+			FederatesWith:        inputMask.FederatesWith,
+			Admin:                inputMask.Admin,
+			Downstream:           inputMask.Downstream,
+			EntryExpiry:          inputMask.ExpiresAt,
+			DnsNames:             inputMask.DnsNames,
+			Selectors:            inputMask.Selectors,
+			StoreSvid:            inputMask.StoreSvid,
+			X509SvidTtl:          inputMask.X509SvidTtl,
+			JwtSvidTtl:           inputMask.JwtSvidTtl,
+			Hint:                 inputMask.Hint,
+			AdditionalAttributes: inputMask.AdditionalAttributes,
 		}
 	}
 	dsEntry, err := s.ds.UpdateRegistrationEntry(ctx, convEntry, mask)
