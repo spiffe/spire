@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.14.7] - 2026-05-28
+
+### Security
+
+- Fixed an issue in the `azure_imds` server node attestor plugin where attested document validation anchored the first certificate in the PKCS7 certificate bag to the trusted Azure roots, while the signature was verified against a separate signer certificate resolved from the PKCS7 SignerInfo. An attacker could place a legitimate Azure metadata certificate in the bag alongside content signed by an unrelated certificate and have a forged attested document accepted, impersonating an arbitrary virtual machine during node attestation. Thank you Carlo Teubner for reporting this issue.
+
+### Changed
+
+- Updated the Go toolchain to 1.26.3.
+- Updated `golang.org/x/net` to v0.55.0, `golang.org/x/crypto` to v0.52.0, and `github.com/go-jose/go-jose/v4` to v4.1.4.
+
 ## [1.14.6] - 2026-04-27
 
 ### Security
