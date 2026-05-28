@@ -14,20 +14,23 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/spire/pkg/common/tlspolicy"
 	"github.com/spiffe/spire/pkg/common/util"
 )
 
 type prometheusRunner struct {
-	c      *PrometheusConfig
-	log    logrus.FieldLogger
-	server *http.Server
-	sink   Sink
+	c         *PrometheusConfig
+	log       logrus.FieldLogger
+	server    *http.Server
+	sink      Sink
+	tlsPolicy tlspolicy.Policy
 }
 
 func newPrometheusRunner(c *MetricsConfig) (sinkRunner, error) {
 	runner := &prometheusRunner{
-		c:   c.FileConfig.Prometheus,
-		log: c.Logger,
+		c:         c.FileConfig.Prometheus,
+		log:       c.Logger,
+		tlsPolicy: c.TLSPolicy,
 	}
 
 	if runner.c == nil {
@@ -68,6 +71,9 @@ func newPrometheusRunner(c *MetricsConfig) (sinkRunner, error) {
 		tlsCfg, tlsCfgErr := runner.newTLSConfig()
 		if tlsCfgErr != nil {
 			return runner, fmt.Errorf("failed to create TLS config for Prometheus: %w", tlsCfgErr)
+		}
+		if err := tlspolicy.ApplyPolicy(tlsCfg, runner.tlsPolicy); err != nil {
+			return runner, fmt.Errorf("failed to apply TLS policy for Prometheus: %w", err)
 		}
 		runner.server.TLSConfig = tlsCfg
 	}
