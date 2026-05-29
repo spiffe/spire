@@ -313,11 +313,23 @@ func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 		return status.Errorf(codes.Internal, "failed to make spiffe id: %v", err)
 	}
 
+	selectors := buildSelectorValues(leaf, chains, sanSelectors)
+
+	if config.mode == "spiffe" {
+		agentIDStr := spiffeid.String()
+
+		if lastSlash := strings.LastIndex(agentIDStr, "/"); lastSlash != -1 {
+			parentID := agentIDStr[:lastSlash]
+			parentID = strings.TrimSuffix(parentID, "/")
+			selectors = append(selectors, "agent_id_parent:" + parentID)
+		}
+	}
+
 	return stream.Send(&nodeattestorv1.AttestResponse{
 		Response: &nodeattestorv1.AttestResponse_AgentAttributes{
 			AgentAttributes: &nodeattestorv1.AgentAttributes{
 				SpiffeId:       spiffeid.String(),
-				SelectorValues: buildSelectorValues(leaf, chains, sanSelectors),
+				SelectorValues: selectors,
 				CanReattest:    true,
 			},
 		},

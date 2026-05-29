@@ -182,6 +182,14 @@ func (s *Suite) TestAttestSuccess() {
 				{Type: "x509pop", Value: "san:environment:production"},
 				{Type: "x509pop", Value: "san:key:path/to/value"},
 			}
+
+			if tt.desc == "success with spiffe exchange" {
+				expectedSelectors = append(expectedSelectors, &common.Selector{
+					Type:  "x509pop",
+					Value: "agent_id_parent:spiffe://example.org/spire/agent/x509pop",
+				})
+			}
+
 			spirecommonutil.SortSelectors(expectedSelectors)
 			spirecommonutil.SortSelectors(result.Selectors)
 
