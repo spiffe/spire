@@ -68,8 +68,8 @@ func validateAttestedDocument(ctx context.Context, doc *azure.AttestedDocument, 
 	}
 
 	// Step 7: Perform Azure-specific certificate validation
-	if err := validateAzureCertificates(signingCert, allowedMetadataDomains); err != nil {
-		return nil, fmt.Errorf("azure certificate validation failed: %w", err)
+	if err := validateAzureCertificate(signingCert, allowedMetadataDomains); err != nil {
+		return nil, fmt.Errorf("signing certificate validation failed: %w", err)
 	}
 
 	// Step 8: Validate certificate chain
@@ -137,20 +137,10 @@ func getIntermediateCertificate(ctx context.Context, signingCert *x509.Certifica
 	return cert, nil
 }
 
-// validateAzureCertificates performs Azure-specific certificate validation
+// validateAzureCertificate performs Azure-specific certificate validation.
 // Following Azure's recommendation to validate the certificate Subject Alternative Name (SAN)
 // to confirm it's from Azure, rather than pinning specific intermediate CA names.
 // See: https://learn.microsoft.com/en-us/azure/virtual-machines/instance-metadata-service?tabs=linux#signature-validation-guidance
-func validateAzureCertificates(signingCert *x509.Certificate, allowedMetadataDomains []string) error {
-	if err := validateAzureCertificate(signingCert, allowedMetadataDomains); err != nil {
-		return fmt.Errorf("signing certificate validation failed: %w", err)
-	}
-	return nil
-}
-
-// validateAzureCertificate validates that the certificate is for an allowed Azure metadata domain
-// by checking the Subject Alternative Name (SAN) extension. Per RFC 6125 and modern PKI standards,
-// SAN is the authoritative source for certificate identity validation (Subject CN is deprecated).
 func validateAzureCertificate(cert *x509.Certificate, allowedDomains []string) error {
 	// Check SAN DNS names
 	for _, dnsName := range cert.DNSNames {
