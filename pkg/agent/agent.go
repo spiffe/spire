@@ -84,6 +84,7 @@ func (a *Agent) Run(ctx context.Context) error {
 		Logger:      a.c.Log.WithField(telemetry.SubsystemName, telemetry.Telemetry),
 		ServiceName: telemetry.SpireAgent,
 		TrustDomain: a.c.TrustDomain.Name(),
+		TLSPolicy:   a.c.TLSPolicy,
 	})
 	if err != nil {
 		return err

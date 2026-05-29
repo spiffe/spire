@@ -3,6 +3,7 @@ package telemetry
 import (
 	"github.com/hashicorp/hcl/hcl/token"
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/spire/pkg/common/tlspolicy"
 )
 
 type MetricsConfig struct {
@@ -11,6 +12,7 @@ type MetricsConfig struct {
 	ServiceName string
 	Sinks       []Sink
 	TrustDomain string
+	TLSPolicy   tlspolicy.Policy
 }
 
 type FileConfig struct {
