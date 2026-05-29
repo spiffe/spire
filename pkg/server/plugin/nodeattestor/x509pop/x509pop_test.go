@@ -91,11 +91,12 @@ func (s *Suite) SetupTest() {
 
 func (s *Suite) TestAttestSuccess() {
 	tests := []struct {
-		desc          string
-		giveConfig    string
-		expectAgentID string
-		certs         [][]byte
-		serialnumber  string
+		desc                        string
+		giveConfig                  string
+		expectAgentID               string
+		certs                       [][]byte
+		serialnumber                string
+		expectAgentIDParentSelector bool
 	}{
 		{
 			desc:          "default success (ca_bundle_path)",
@@ -126,11 +127,12 @@ func (s *Suite) TestAttestSuccess() {
 			serialnumber:  "serialnumber:0a1b2c3d4e5f",
 		},
 		{
-			desc:          "success with spiffe exchange",
-			expectAgentID: "spiffe://example.org/spire/agent/x509pop/testhost",
-			giveConfig:    s.createConfigurationModeSPIFFE(""),
-			certs:         s.svidExchange,
-			serialnumber:  "serialnumber:0a1b2c3d4e7f",
+			desc:                        "success with spiffe exchange",
+			expectAgentID:               "spiffe://example.org/spire/agent/x509pop/testhost",
+			giveConfig:                  s.createConfigurationModeSPIFFE(""),
+			expectAgentIDParentSelector: true,
+			certs:                       s.svidExchange,
+			serialnumber:                "serialnumber:0a1b2c3d4e7f",
 		},
 		{
 			desc:          "success with custom X509pop san selectors",
@@ -183,7 +185,7 @@ func (s *Suite) TestAttestSuccess() {
 				{Type: "x509pop", Value: "san:key:path/to/value"},
 			}
 
-			if tt.desc == "success with spiffe exchange" {
+			if tt.expectAgentIDParentSelector {
 				expectedSelectors = append(expectedSelectors, &common.Selector{
 					Type:  "x509pop",
 					Value: "agent_id_parent:spiffe://example.org/spire/agent/x509pop",

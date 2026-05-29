@@ -321,7 +321,7 @@ func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 		if lastSlash := strings.LastIndex(agentIDStr, "/"); lastSlash != -1 {
 			parentID := agentIDStr[:lastSlash]
 			parentID = strings.TrimSuffix(parentID, "/")
-			selectors = append(selectors, "agent_id_parent:" + parentID)
+			selectors = append(selectors, "agent_id_parent:"+parentID)
 		}
 	}
 
