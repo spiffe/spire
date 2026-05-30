@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto"
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -50,7 +51,12 @@ type SVIDCache[SVID interface{}] interface {
 
 func (m *manager) syncSVIDs(ctx context.Context) (err error) {
 	m.x509SVIDCache.SyncSVIDsWithSubscribers()
-	return m.updateX509SVIDs(ctx, m.c.Log.WithField(telemetry.CacheType, "workload"), m.x509SVIDCache)
+	x509Error := m.updateX509SVIDs(ctx, m.c.Log.WithField(telemetry.CacheType, "workload"), m.x509SVIDCache)
+
+	m.witSVIDCache.SyncSVIDsWithSubscribers()
+	witError := m.updateWITSVIDs(ctx, m.c.Log.WithField(telemetry.CacheType, "workload"), m.witSVIDCache)
+
+	return errors.Join(x509Error, witError)
 }
 
 // processTaintedAuthorities verifies if a new authority is tainted and forces rotation in all caches if required.
@@ -111,6 +117,10 @@ func (m *manager) synchronize(ctx context.Context) (err error) {
 	}
 
 	if err := m.updateX509SVIDCache(ctx, cacheUpdate, m.c.Log.WithField(telemetry.CacheType, telemetry_agent.CacheTypeWorkload), "", m.x509SVIDCache); err != nil {
+		return err
+	}
+
+	if err := m.updateWITSVIDCache(ctx, cacheUpdate, m.c.Log.WithField(telemetry.CacheType, telemetry_agent.CacheTypeWorkload), "", m.witSVIDCache); err != nil {
 		return err
 	}
 
@@ -282,6 +292,166 @@ func (m *manager) fetchX509SVIDs(ctx context.Context, csrs []csrRequest) (_ *cac
 	}
 
 	return &cache.UpdateSVIDs[*cache.X509SVID]{
+		SVIDs: byEntryID,
+	}, nil
+}
+
+func (m *manager) updateWITSVIDCache(ctx context.Context, update *cache.UpdateEntries, log logrus.FieldLogger, cacheType string, c SVIDCache[*cache.WITSVID]) error {
+	// update the cache and build a list of CSRs that need to be processed
+	// in this interval.
+	//
+	// the values in `update` now belong to the cache. DO NOT MODIFY.
+	var expiring int
+	var outdated int
+	c.UpdateEntries(update, func(existingEntry, newEntry *common.RegistrationEntry, svid *cache.WITSVID) bool {
+		switch {
+		case svid == nil:
+			// no SVID
+		case len(svid.Token) == 0:
+			// SVID has an empty chain. this is not expected to happen.
+			log.WithFields(logrus.Fields{
+				telemetry.RegistrationID: newEntry.EntryId,
+				telemetry.SPIFFEID:       newEntry.SpiffeId,
+			}).Warn("cached WIT-SVID is empty")
+		case m.c.RotationStrategy.ShouldRotateWIT(m.c.Clk.Now(), svid.Expiry()):
+			expiring++
+		case existingEntry != nil && existingEntry.RevisionNumber != newEntry.RevisionNumber:
+			// Registration entry has been updated
+			outdated++
+		default:
+			// SVID is good
+			return false
+		}
+
+		return true
+	})
+
+	// TODO: this values are not real, we may remove
+	if expiring > 0 {
+		telemetry_agent.AddCacheManagerExpiredSVIDsSample(m.c.Metrics, cacheType, float32(expiring))
+		log.WithField(telemetry.ExpiringSVIDs, expiring).Debug("Updating expiring SVIDs in cache")
+	}
+	if outdated > 0 {
+		telemetry_agent.AddCacheManagerOutdatedSVIDsSample(m.c.Metrics, cacheType, float32(outdated))
+		log.WithField(telemetry.OutdatedSVIDs, outdated).Debug("Updating SVIDs with outdated attributes in cache")
+	}
+
+	return m.updateWITSVIDs(ctx, log, c)
+}
+
+func (m *manager) updateWITSVIDs(ctx context.Context, log logrus.FieldLogger, c SVIDCache[*cache.WITSVID]) error {
+	m.updateSVIDMu.Lock()
+	defer m.updateSVIDMu.Unlock()
+
+	staleEntries := c.GetStaleEntries()
+	if len(staleEntries) > 0 {
+		var csrs []csrRequest
+		sizeLimit := m.csrSizeLimitedBackoff.NextBackOff()
+		log.WithFields(logrus.Fields{
+			telemetry.Count: len(staleEntries),
+			telemetry.Limit: sizeLimit,
+		}).Debug("Renewing stale entries")
+
+		for _, entry := range staleEntries {
+			// we've exceeded the CSR limit, don't make any more CSRs
+			if len(csrs) >= sizeLimit {
+				break
+			}
+
+			csrs = append(csrs, csrRequest{
+				EntryID:              entry.Entry.EntryId,
+				SpiffeID:             entry.Entry.SpiffeId,
+				CurrentSVIDExpiresAt: entry.SVIDExpiresAt,
+			})
+		}
+
+		update, err := m.fetchWITSVIDs(ctx, csrs)
+		if err != nil {
+			return err
+		}
+		// the values in `update` now belong to the cache. DO NOT MODIFY.
+		c.UpdateSVIDs(update)
+	}
+	return nil
+}
+
+func (m *manager) fetchWITSVIDs(ctx context.Context, csrs []csrRequest) (_ *cache.UpdateSVIDs[*cache.WITSVID], err error) {
+	// Put all the CSRs in an array to make just one call with all the CSRs.
+	counter := telemetry_agent.StartManagerFetchSVIDsUpdatesCall(m.c.Metrics)
+	defer counter.Done(&err)
+	defer func() {
+		if err == nil {
+			m.csrSizeLimitedBackoff.Success()
+		}
+	}()
+
+	publicKeysIn := make(map[string]crypto.PublicKey)
+	privateKeys := make(map[string]crypto.Signer, len(csrs))
+	for _, csr := range csrs {
+		log := m.c.Log.WithFields(logrus.Fields{
+			"spiffe_id": csr.SpiffeID,
+			"entry_id":  csr.EntryID,
+		})
+		if !csr.CurrentSVIDExpiresAt.IsZero() {
+			log = log.WithField("expires_at", csr.CurrentSVIDExpiresAt.Format(time.RFC3339))
+		}
+
+		// Since entryIDs are unique, this shouldn't happen. Log just in case
+		if _, ok := privateKeys[csr.EntryID]; ok {
+			log.Warnf("Ignoring duplicate X509-SVID renewal for entry ID: %q", csr.EntryID)
+			continue
+		}
+
+		if csr.CurrentSVIDExpiresAt.IsZero() {
+			log.Info("Creating WIT-SVID")
+		} else {
+			log.Info("Renewing WIT-SVID")
+		}
+
+		signer, err := m.c.WorkloadKeyType.GenerateSigner()
+		if err != nil {
+			return nil, err
+		}
+		privateKeys[csr.EntryID] = signer
+		publicKeysIn[csr.EntryID] = signer.Public()
+	}
+
+	svidsOut, err := m.client.NewWITSVIDs(ctx, publicKeysIn)
+	if err != nil {
+		// Reduce csr size for next invocation
+		m.csrSizeLimitedBackoff.Failure()
+		return nil, err
+	}
+
+	byEntryID := make(map[string]*cache.WITSVID, len(svidsOut))
+	for entryID, svid := range svidsOut {
+		privateKey, ok := privateKeys[entryID]
+		if !ok {
+			continue
+		}
+		/*
+			chain, err := x509.ParseCertificates(svid.CertChain)
+			if err != nil {
+				return nil, err
+			}
+
+			svidLifetime := chain[0].NotAfter.Sub(chain[0].NotBefore)
+			if m.c.RotationStrategy.ShouldFallbackX509DefaultRotation(svidLifetime) {
+				log := m.c.Log.WithFields(logrus.Fields{
+					"spiffe_id": chain[0].URIs[0].String(),
+					"entry_id":  entryID,
+				})
+				log.Warn("X509 SVID lifetime isn't long enough to guarantee the availability_target, falling back to the default rotation strategy")
+			}
+		*/
+
+		byEntryID[entryID] = &cache.WITSVID{
+			Token:      svid.Token,
+			PrivateKey: privateKey,
+		}
+	}
+
+	return &cache.UpdateSVIDs[*cache.WITSVID]{
 		SVIDs: byEntryID,
 	}, nil
 }
