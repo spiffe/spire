@@ -140,8 +140,8 @@ type Config struct {
 	// In a future SPIRE version, this will default to true. The alias-based
 	// approach will be deprecated in a future version and removed in a later one.
 	//
-	// Note: When enabled, the plugin requires permission to use the
-	// resourcegroupstaggingapi:GetResources API action.
+	// Note: When enabled, the plugin requires the tag:GetResources IAM
+	// permission (from the AWS Resource Groups Tagging API).
 	EnableTagBasedKeyDiscovery bool `hcl:"enable_tag_based_key_discovery" json:"enable_tag_based_key_discovery"`
 }
 
@@ -1206,8 +1206,9 @@ func buildKeyTags(tags map[string]string) []types.Tag {
 // at creation time. These tags enable efficient key discovery via the AWS
 // Resource Groups Tagging API.
 //
-// Note: spire-last-update is intentionally omitted here. It is set exclusively
-// by keepActiveKeys, which runs on a regular schedule.
+// Note: spire-last-update is intentionally omitted here. It is stamped
+// separately at key creation and during migration (with the current
+// timestamp) and refreshed on a regular schedule by keepActiveKeys.
 func (p *Plugin) buildSPIRETags(serverID, trustDomain string) []types.Tag {
 	return []types.Tag{
 		{
