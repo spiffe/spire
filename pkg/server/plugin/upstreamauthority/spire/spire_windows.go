@@ -7,7 +7,14 @@ import (
 	"net"
 
 	"github.com/spiffe/spire/pkg/common/namedpipe"
+	"github.com/spiffe/spire/pkg/common/pluginconf"
 )
+
+func validateWorkloadAPIConfig(config *Configuration, status *pluginconf.Status) {
+	if config.Experimental.WorkloadAPINamedPipeName == "" && config.WorkloadAPISocket == "" {
+		status.ReportError("workload_api_named_pipe_name is required")
+	}
+}
 
 func (p *Plugin) getWorkloadAPIAddr() (net.Addr, error) {
 	if p.config.WorkloadAPISocket != "" {

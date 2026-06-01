@@ -25,6 +25,13 @@ func configureCasesOS(*testing.T) []configureCase {
 			expectServerAddr:         "localhost:8081",
 		},
 		{
+			name:            "missing workload api named pipe",
+			serverAddr:      "localhost",
+			serverPort:      "8081",
+			expectCode:      codes.InvalidArgument,
+			expectMsgPrefix: "workload_api_named_pipe_name is required",
+		},
+		{
 			name:              "workload_api_named_pipe_name configured",
 			serverAddr:        "localhost",
 			serverPort:        "8081",

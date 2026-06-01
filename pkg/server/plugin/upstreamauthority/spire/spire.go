@@ -46,7 +46,7 @@ func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginco
 		return nil
 	}
 
-	// TODO: add field validation
+	validateWorkloadAPIConfig(newConfig, status)
 	return newConfig
 }
 
