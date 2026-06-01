@@ -120,8 +120,9 @@ in `MAINTAINERS.md` set these expectations:
   public API, for example `proto/private/server/journal/`.
 
 The public gRPC API and plugin interface protobufs live in separate
-repositories (`spire-api-sdk` and `spire-plugin-sdk`, both dependencies in
-`go.mod`), not in this repository.
+repositories ([`spire-api-sdk`](https://github.com/spiffe/spire-api-sdk) and
+[`spire-plugin-sdk`](https://github.com/spiffe/spire-plugin-sdk), both
+dependencies in `go.mod`), not in this repository.
 
 Packages should be exported through interfaces, and interaction with a package
 should go through its interface. Define an interface in its own lowercase file
