@@ -39,7 +39,7 @@ func configureCasesOS(t *testing.T) []configureCase {
 			serverPort:               "8081",
 			workloadAPINamedPipeName: "socketPath",
 			expectCode:               codes.InvalidArgument,
-			expectMsgPrefix:          "unable to set Workload API address: configuration: workload_api_named_pipe_name is not supported in this platform; please use workload_api_socket instead",
+			expectMsgPrefix:          "configuration: workload_api_named_pipe_name is not supported in this platform; please use workload_api_socket instead",
 		},
 	}
 }

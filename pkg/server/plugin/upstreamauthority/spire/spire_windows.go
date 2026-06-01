@@ -11,6 +11,9 @@ import (
 )
 
 func validateWorkloadAPIConfig(config *Configuration, status *pluginconf.Status) {
+	if config.WorkloadAPISocket != "" {
+		status.ReportError("configuration: workload_api_socket is not supported in this platform; please use workload_api_named_pipe_name instead")
+	}
 	if config.Experimental.WorkloadAPINamedPipeName == "" && config.WorkloadAPISocket == "" {
 		status.ReportError("workload_api_named_pipe_name is required")
 	}
