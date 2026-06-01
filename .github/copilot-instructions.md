@@ -114,8 +114,14 @@ in `MAINTAINERS.md` set these expectations:
   support packages.
 - `pkg/common/`: functionality shared by agent, server, and plugins.
 - `pkg/{agent,server}/plugin/<name>/`: built-in plugin implementations.
-- `proto/spire/{agent,server,api,common}/<name>/`: gRPC `.proto` files and
-  generated code. Protobuf package names are `spire.{server,agent,api,common}.<name>`.
+- `proto/spire/common/`: shared protobuf definitions (package `spire.common`),
+  with plugin-related common types under `proto/spire/common/plugin/`.
+- `proto/private/`: internal protobuf definitions that are not part of the
+  public API, for example `proto/private/server/journal/`.
+
+The public gRPC API and plugin interface protobufs live in separate
+repositories (`spire-api-sdk` and `spire-plugin-sdk`, both dependencies in
+`go.mod`), not in this repository.
 
 Packages should be exported through interfaces, and interaction with a package
 should go through its interface. Define an interface in its own lowercase file
