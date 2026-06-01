@@ -142,7 +142,9 @@ behavior and validation stay consistent across platforms.
   messages end with a period.
 - Log messages use structured logging fields to convey context rather than
   string formatting, which increases message cardinality and hinders
-  aggregation. Log message text itself uses standard casing.
+  aggregation. Field names should be the constants defined in
+  `pkg/common/telemetry/names.go` rather than ad-hoc strings. Log message text
+  itself uses standard casing.
 
 ### Language version
 
@@ -171,8 +173,9 @@ Go rather than reporting a build error based on an older language version.
 
 ## Metrics
 
-- Label names should be constants defined in the `telemetry` package, and
-  metrics should be defined centrally in `telemetry` or its subpackages.
+- Label names should be the constants defined in the `telemetry` package
+  (`pkg/common/telemetry/names.go`), and metrics should be defined centrally in
+  `telemetry` or its subpackages.
 - Count in aggregate: accumulate counts in a loop and emit a single metric after
   the loop rather than emitting one metric per iteration.
 - Labels must be singular: a label name appears at most once per metric, its
