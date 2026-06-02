@@ -120,7 +120,7 @@ func TestFetchX509SVID(t *testing.T) {
 		{
 			name:         "no identity issued with loggable selectors",
 			updates:      []*cache.WorkloadUpdate{{}},
-			selectors:    []*common.Selector{k8sNamespaceSelector, k8sPodLabelSelector, unixUserSelector},
+			selectors:    []*common.Selector{unixUserSelector, k8sPodLabelSelector, k8sNamespaceSelector},
 			logSelectors: []string{"k8s:ns", "unix:user"},
 			expectCode:   codes.PermissionDenied,
 			expectMsg:    "no identity issued",

@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
@@ -522,6 +523,7 @@ func selectorFieldFromSelectors(selectors []*common.Selector) string {
 	for _, selector := range selectors {
 		selectorFields = append(selectorFields, renderSelector(selector))
 	}
+	slices.Sort(selectorFields)
 	return strings.Join(selectorFields, ",")
 }
 
