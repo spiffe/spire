@@ -512,9 +512,17 @@ func (h *Handler) logNoIdentityIssued(ctx context.Context, log logrus.FieldLogge
 		telemetry.Registered: false,
 	}
 	if loggableSelectors := filterLoggableSelectors(selectors, h.c.LogSelectors); len(loggableSelectors) > 0 {
-		fields[telemetry.Selectors] = loggableSelectors
+		fields[telemetry.Selectors] = selectorFieldFromSelectors(loggableSelectors)
 	}
 	loggerWithContextInfo(ctx, log.WithFields(fields), start, nil).Error("No identity issued")
+}
+
+func selectorFieldFromSelectors(selectors []*common.Selector) string {
+	selectorFields := make([]string, 0, len(selectors))
+	for _, selector := range selectors {
+		selectorFields = append(selectorFields, renderSelector(selector))
+	}
+	return strings.Join(selectorFields, ",")
 }
 
 func filterLoggableSelectors(selectors []*common.Selector, logSelectorPrefixes []string) []*common.Selector {
@@ -536,10 +544,7 @@ func isLoggableSelector(selector *common.Selector, logSelectorPrefixes []string)
 		return false
 	}
 
-	selectorValue := selector.Type
-	if selector.Value != "" {
-		selectorValue += ":" + selector.Value
-	}
+	selectorValue := renderSelector(selector)
 
 	// Workload attestor subtypes are encoded in the selector value, e.g.
 	// Type="k8s", Value="ns:default", so match against the rendered selector.
@@ -549,6 +554,14 @@ func isLoggableSelector(selector *common.Selector, logSelectorPrefixes []string)
 		}
 	}
 	return false
+}
+
+func renderSelector(selector *common.Selector) string {
+	selectorValue := selector.Type
+	if selector.Value != "" {
+		selectorValue += ":" + selector.Value
+	}
+	return selectorValue
 }
 
 func (h *Handler) getWorkloadBundles(selectors []*common.Selector) (bundles []*spiffebundle.Bundle) {

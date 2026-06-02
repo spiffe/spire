@@ -7,7 +7,6 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"os"
 	"sync/atomic"
 	"testing"
@@ -131,7 +130,7 @@ func TestFetchX509SVID(t *testing.T) {
 					Message: "No identity issued",
 					Data: logrus.Fields{
 						"registered": "false",
-						"selectors":  fmt.Sprint([]*common.Selector{k8sNamespaceSelector, unixUserSelector}),
+						"selectors":  "k8s:ns:default,unix:user:root",
 						"service":    "WorkloadAPI",
 						"method":     "FetchX509SVID",
 					},
@@ -398,7 +397,7 @@ func TestFetchX509Bundles(t *testing.T) {
 					Message: "No identity issued",
 					Data: logrus.Fields{
 						"registered": "false",
-						"selectors":  fmt.Sprint([]*common.Selector{k8sNamespaceSelector}),
+						"selectors":  "k8s:ns:default",
 						"service":    "WorkloadAPI",
 						"method":     "FetchX509Bundles",
 					},
@@ -772,7 +771,7 @@ func TestFetchJWTSVID(t *testing.T) {
 					Message: "No identity issued",
 					Data: logrus.Fields{
 						"registered": "false",
-						"selectors":  fmt.Sprint([]*common.Selector{k8sNamespaceSelector}),
+						"selectors":  "k8s:ns:default",
 						"service":    "WorkloadAPI",
 						"method":     "FetchJWTSVID",
 					},
@@ -1040,7 +1039,7 @@ func TestFetchJWTBundles(t *testing.T) {
 					Message: "No identity issued",
 					Data: logrus.Fields{
 						"registered": "false",
-						"selectors":  fmt.Sprint([]*common.Selector{k8sNamespaceSelector}),
+						"selectors":  "k8s:ns:default",
 						"service":    "WorkloadAPI",
 						"method":     "FetchJWTBundles",
 					},
