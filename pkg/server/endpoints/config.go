@@ -160,6 +160,7 @@ func (c *Config) maybeMakeBundleEndpointServer() (Server, func(context.Context) 
 		}),
 		RefreshHint: c.BundleEndpoint.RefreshHint,
 		ServerAuth:  serverAuth,
+		TLSPolicy:   c.TLSPolicy,
 	}), certificateReloadTask
 }
 

@@ -93,12 +93,23 @@ Common functionality for agent, server, and plugins
 
 The implementation of each plugin and their support packages
 
-`/proto/spire/{agent,server,api,common}/<name>/`
+`/proto/spire/common/` and `/proto/private/`
 
-gRPC .proto files, their generated .pb.go, and README_pb.md.
+Protobuf `.proto` files and their generated `.pb.go` code. `/proto/spire/common/`
+holds shared message definitions (package `spire.common`), with plugin-related
+common types under `/proto/spire/common/plugin/`. `/proto/private/` holds internal
+definitions that are not part of the public API, such as
+`/proto/private/server/journal/`.
 
-The protobuf package names should be `spire.{server,agent,api,common}.<name>` and the go package name
-should be specified with `option go_package = "<name>";`
+Protobuf files under `/proto/spire/` use the `spire.` package namespace (e.g.
+`spire.common` and `spire.common.plugin`). The go package name is specified with
+the full import path, e.g.
+`option go_package = "github.com/spiffe/spire/proto/spire/common";`
+
+The public gRPC API and plugin interface protobufs are maintained in separate
+repositories, [`spire-api-sdk`](https://github.com/spiffe/spire-api-sdk) and
+[`spire-plugin-sdk`](https://github.com/spiffe/spire-plugin-sdk), rather than in
+this repository.
 
 ### Interfaces
 
