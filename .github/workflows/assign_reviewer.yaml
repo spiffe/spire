@@ -1,37 +1,37 @@
 name: assign-reviewer
 
-# Round-robin reviewer assignment plus a "ball in court" indicator.
+# Round-robin assignee ("ball in court") for pull requests.
 #
-# A single reviewer is picked from a fixed pool in round-robin order when a PR
-# is opened (or marked ready for review). The rotation is derived from the PR
-# number, so it is stateless and deterministic: no persisted index, and the
-# reviewer for a given PR can always be recomputed.
+# This workflow does not request reviewers: the repository's CODEOWNERS file
+# already requests the maintainers on every PR. Instead it designates a single
+# rotated maintainer as the PR *assignee* to show who owns the next action
+# ("ball in court"), and keeps that up to date as the review progresses:
+#   - opened / ready_for_review -> a maintainer is chosen round-robin and set
+#     as the assignee.
+#   - that maintainer requests changes or comments -> ball to the author.
+#   - that maintainer approves -> they stay assigned (a maintainer merges).
+#   - a human re-requests a review while the ball is with the author -> the
+#     assignee flips to the requested maintainer.
 #
-# Who owes the next action ("ball in court") is then kept up to date as the
-# review progresses:
-#   - opened / ready_for_review -> reviewer R is requested and set as assignee.
-#   - R requests changes or comments -> ball to the author.
-#   - R approves -> the reviewer stays assigned (a maintainer merges).
-#   - a human re-requests a review -> assignee flips to the requested reviewer.
+# The rotation is derived from the PR number, so it is stateless and
+# deterministic: no persisted index, and the assignee for a given PR can always
+# be recomputed. The pool is an explicit list below, separate from CODEOWNERS,
+# so it can be adjusted for availability (leave, inactivity) without touching
+# ownership.
 #
-# A maintainer holding the ball is shown by assigning them. The author holding
-# the ball is shown with the "awaiting-author" label instead of an assignee,
-# because external contributors generally cannot be set as assignees (only the
-# author after commenting, collaborators with write access, or org members with
-# read access are eligible), so an assignee would be silently dropped. The
-# label has no such restriction. It is created automatically if missing.
+# The author holding the ball is shown with the "awaiting-author" label rather
+# than an assignee, because external contributors generally cannot be set as
+# assignees (only the author after commenting, collaborators with write access,
+# or org members with read access are eligible), so an assignee would be
+# silently dropped. The label has no such restriction and is created
+# automatically if missing.
 #
 # pull_request_target and pull_request_review are used (instead of
 # pull_request) so the workflow has a write-scoped token on PRs opened from
 # forks, which is the common case for external contributions. This is safe
 # here because the job never checks out or executes any code from the PR; it
-# only reads PR metadata and calls the review-request / assignee / label APIs,
-# never interpolating PR-controlled text into a shell.
-#
-# Note: API calls made with the default GITHUB_TOKEN do not trigger new
-# workflow runs, so the review request we issue on "opened" does not re-trigger
-# the "review_requested" handler (no loops). Only human-initiated re-requests
-# fire that handler.
+# only reads PR metadata and calls the assignee / label APIs, never
+# interpolating PR-controlled text into a shell.
 
 on:
   pull_request_target:
@@ -52,14 +52,14 @@ jobs:
   assign-reviewer:
     runs-on: ubuntu-latest
     permissions:
-      pull-requests: write # request reviewers, manage assignees
+      pull-requests: write # manage assignees
       issues: write        # create and apply the awaiting-author label
     steps:
       - uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
         with:
           script: |
-            // Reviewer pool, rotated in this order. Edit this list to change
-            // who participates in the rotation.
+            // Rotation pool, separate from CODEOWNERS. Edit this list to adjust
+            // who participates according to availability.
             const POOL = [
               'amartinezfayo',
               'sorindumitru',
@@ -75,6 +75,8 @@ jobs:
             const action = context.payload.action;
             const eq = (a, b) => a.toLowerCase() === b.toLowerCase();
             const assignees = () => (pr.assignees || []).map(a => a.login);
+            const inPool = (login) => POOL.some(p => eq(p, login));
+            const poolHoldsBall = () => assignees().some(a => inPool(a));
 
             // Ensure the awaiting-author label exists (addLabels does not
             // create missing labels), then apply it.
@@ -83,10 +85,16 @@ jobs:
                 await github.rest.issues.getLabel({ owner, repo, name: AUTHOR_LABEL });
               } catch (e) {
                 if (e.status !== 404) throw e;
-                await github.rest.issues.createLabel({
-                  owner, repo, name: AUTHOR_LABEL, color: 'fbca04',
-                  description: 'Waiting on the PR author to address review feedback',
-                });
+                try {
+                  await github.rest.issues.createLabel({
+                    owner, repo, name: AUTHOR_LABEL, color: 'fbca04',
+                    description: 'Waiting on the PR author to address review feedback',
+                  });
+                } catch (err) {
+                  // 422: another run for a different PR created the label
+                  // first (benign race); proceed to apply it.
+                  if (err.status !== 422) throw err;
+                }
               }
               await github.rest.issues.addLabels({
                 owner, repo, issue_number: pr.number, labels: [AUTHOR_LABEL],
@@ -107,8 +115,7 @@ jobs:
             // and clear the author label. Non-pool assignees are left intact.
             async function setMaintainerCourt(login) {
               const current = assignees();
-              const toRemove = current.filter(a =>
-                POOL.some(p => eq(p, a)) && !eq(a, login));
+              const toRemove = current.filter(a => inPool(a) && !eq(a, login));
               if (toRemove.length > 0) {
                 await github.rest.issues.removeAssignees({
                   owner, repo, issue_number: pr.number, assignees: toRemove,
@@ -126,7 +133,7 @@ jobs:
             // Ball in the author's court: clear pool assignees and apply the
             // awaiting-author label.
             async function setAuthorCourt() {
-              const toRemove = assignees().filter(a => POOL.some(p => eq(p, a)));
+              const toRemove = assignees().filter(a => inPool(a));
               if (toRemove.length > 0) {
                 await github.rest.issues.removeAssignees({
                   owner, repo, issue_number: pr.number, assignees: toRemove,
@@ -136,44 +143,39 @@ jobs:
               core.info(`Ball in court: ${pr.user.login} (author), PR #${pr.number}.`);
             }
 
-            // 1) New PR (or draft promoted to ready): round-robin assign.
+            // 1) New PR (or draft promoted to ready): round-robin the assignee.
             if (eventName === 'pull_request_target' &&
                 (action === 'opened' || action === 'ready_for_review')) {
               if (pr.draft) {
                 core.info(`PR #${pr.number} is a draft; skipping.`);
                 return;
               }
-              if (pr.user.type === 'Bot' || pr.user.login.endsWith('[bot]')) {
-                core.info(`PR #${pr.number} authored by bot ${pr.user.login}; skipping.`);
-                return;
-              }
-              // Don't override reviewers that are already requested (manual
-              // pre-assignment, or a re-run after we already assigned).
-              if ((pr.requested_reviewers || []).length > 0) {
-                core.info(`PR #${pr.number} already has requested reviewers; skipping.`);
-                return;
-              }
-              // Exclude the author so contributors never review their own PR.
+              // Exclude the author so a maintainer who opens a PR is not made
+              // the assignee of their own PR.
               const candidates = POOL.filter(u => !eq(u, pr.user.login));
               if (candidates.length === 0) {
-                core.info('No eligible reviewers after excluding the author; skipping.');
+                core.info('No eligible maintainers after excluding the author; skipping.');
                 return;
               }
               const reviewer = candidates[pr.number % candidates.length];
-              core.info(`Round-robin reviewer for PR #${pr.number}: ${reviewer}.`);
-              await github.rest.pulls.requestReviewers({
-                owner, repo, pull_number: pr.number, reviewers: [reviewer],
-              });
+              core.info(`Round-robin assignee for PR #${pr.number}: ${reviewer}.`);
               await setMaintainerCourt(reviewer);
               return;
             }
 
-            // 2) A human (re-)requested a review: ball goes to that reviewer.
+            // 2) A review was (re-)requested. Move the ball to that maintainer,
+            //    but only if no pool member currently holds it. This keeps the
+            //    round-robin assignee from being clobbered by the CODEOWNERS
+            //    auto-request that fires when a PR is opened; it only acts on a
+            //    genuine re-request after the ball has gone back to the author.
             if (eventName === 'pull_request_target' && action === 'review_requested') {
               const reviewer = context.payload.requested_reviewer;
-              // Ignore team requests (no individual) and bot reviewers.
-              if (!reviewer || reviewer.type === 'Bot') {
-                core.info('Review request is not for an individual user; skipping.');
+              if (!reviewer || reviewer.type === 'Bot' || !inPool(reviewer.login)) {
+                core.info('Review request is not for a pool member; skipping.');
+                return;
+              }
+              if (poolHoldsBall()) {
+                core.info(`A pool member already holds the ball on PR #${pr.number}; not overriding.`);
                 return;
               }
               await setMaintainerCourt(reviewer.login);
@@ -181,11 +183,20 @@ jobs:
             }
 
             // 3) A review was submitted: move the ball based on the verdict.
+            // Only reviews from pool members drive the ball-in-court state, so
+            // a drive-by review from a non-pool user cannot clear the assigned
+            // maintainer or, on approval, be set as a (possibly non-assignable)
+            // assignee.
             if (eventName === 'pull_request_review' && action === 'submitted') {
+              const submitter = context.payload.review.user.login;
+              if (!inPool(submitter)) {
+                core.info(`Review by ${submitter} is not from a pool member; leaving court unchanged.`);
+                return;
+              }
               const state = (context.payload.review.state || '').toLowerCase();
               if (state === 'approved') {
                 // Reviewer stays assigned (a maintainer merges).
-                await setMaintainerCourt(context.payload.review.user.login);
+                await setMaintainerCourt(submitter);
               } else if (state === 'changes_requested' || state === 'commented') {
                 // Ball back to the author to address feedback.
                 await setAuthorCourt();
