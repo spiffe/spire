@@ -62,6 +62,17 @@ jobs:
         run: make lint
       - name: Tidy check
         run: make tidy-check
+      # go.mod and go.sum have no code owner (see CODEOWNERS) so that
+      # Dependabot updates can be auto-merged. Reject replace/exclude
+      # directives so a go.mod-only PR cannot redirect a module to a
+      # different source repository without maintainer review.
+      - name: Module directive check
+        run: |
+          directives=$(go mod edit -json | jq '[.Replace, .Exclude] | map(length) | add')
+          if [ "$directives" != "0" ]; then
+            echo "::error file=go.mod::go.mod must not contain replace or exclude directives"
+            exit 1
+          fi
       - name: Generate check
         run: make generate-check
       - name: Shell check

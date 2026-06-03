@@ -97,9 +97,23 @@ jobs:
 
           HEAD_SHA=$(echo "$COMMIT" | jq -r '.sha')
 
+          # Determine whether the PR touches only the dependency manifests.
+          # Only go.mod and go.sum are exempt from code owner review (see
+          # CODEOWNERS), so a PR touching any other file cannot be merged
+          # by this workflow. In particular, github-actions ecosystem
+          # updates modify workflow files and require maintainer review.
+          NON_MANIFEST_COUNT=$(gh api --paginate "repos/${REPO}/pulls/${PR_NUMBER}/files" \
+            --jq '.[].filename' | grep -cv -e '^go\.mod$' -e '^go\.sum$' || true)
+          if [ "$NON_MANIFEST_COUNT" = "0" ]; then
+            MANIFEST_ONLY=true
+          else
+            MANIFEST_ONLY=false
+          fi
+
           echo "number=${PR_NUMBER}" >> "$GITHUB_OUTPUT"
           echo "update-type=${UPDATE_TYPE}" >> "$GITHUB_OUTPUT"
           echo "head-sha=${HEAD_SHA}" >> "$GITHUB_OUTPUT"
+          echo "manifest-only=${MANIFEST_ONLY}" >> "$GITHUB_OUTPUT"
 
       # Auto-merge all non-major updates. CI catches regressions regardless
       # of semver level, and major updates are excluded as they signal
@@ -114,6 +128,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ steps.pr.outputs.number }}
           HEAD_SHA: ${{ steps.pr.outputs.head-sha }}
+          MANIFEST_ONLY: ${{ steps.pr.outputs.manifest-only }}
           REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
@@ -174,6 +189,17 @@ jobs:
           gh api --method PATCH "repos/${REPO}/issues/${PR_NUMBER}" \
             --field "milestone=${MILESTONE_NUMBER}"
 
+          # PRs touching files beyond go.mod/go.sum (e.g. github-actions
+          # ecosystem updates, which modify workflow files) require code
+          # owner review and cannot be merged by this workflow. Stop after
+          # the milestone assignment and leave review and merge to the
+          # maintainers.
+          if [ "$MANIFEST_ONLY" != "true" ]; then
+            echo "PR #${PR_NUMBER} touches files other than go.mod/go.sum: leaving review and merge to maintainers."
+            echo ":information_source: **Dependabot auto-merge skipped:** PR #${PR_NUMBER} touches files beyond the dependency manifests and requires maintainer review." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
           gh pr review --approve "$PR_URL"
 
           # Verify the HEAD SHA has not changed since it was verified in
@@ -186,4 +212,18 @@ jobs:
             exit 1
           fi
 
-          gh pr merge --squash "$PR_URL"
+          # At this point the PR meets all branch protection requirements
+          # (CI passed, DCO passed, approved above, and go.mod/go.sum have
+          # no code owner), so gh adds it directly to the merge queue, the
+          # same as clicking "Merge when ready". The queue revalidates CI
+          # before the PR lands. Retry briefly because GitHub recomputes
+          # the mergeability state asynchronously after the approval.
+          for attempt in 1 2 3; do
+            if gh pr merge --squash "$PR_URL"; then
+              exit 0
+            fi
+            echo "Merge attempt ${attempt} failed; retrying in 15s..."
+            sleep 15
+          done
+          echo "::error::Could not add PR #${PR_NUMBER} to the merge queue."
+          exit 1

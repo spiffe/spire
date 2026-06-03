@@ -6,6 +6,12 @@ updates:
     interval: "daily"
     time: "09:00"
     timezone: "America/Los_Angeles"
+  # Wait for new releases to age before opening update PRs. Since
+  # Dependabot patch/minor updates are auto-merged once CI passes,
+  # the cooldown preserves a window for the ecosystem to detect and
+  # report compromised releases before they can land unattended.
+  cooldown:
+    default-days: 7
   groups:
     actions:
       patterns:
@@ -50,4 +56,10 @@ updates:
   directory: "/"
   schedule:
    interval: daily
+  # Let new action releases age before opening update PRs, so that a
+  # compromised release has a window to be detected and reported by the
+  # ecosystem before it is proposed for review (e.g. the March 2025
+  # tj-actions/changed-files compromise was reverted within days).
+  cooldown:
+    default-days: 7
   open-pull-requests-limit: 20

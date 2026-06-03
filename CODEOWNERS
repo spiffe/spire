@@ -1,5 +1,13 @@
 * @evan2645 @amartinezfayo @sorindumitru @MarcosDY @rturner3
 
+# The dependency manifests have no code owner so that Dependabot
+# patch/minor updates can be auto-merged once CI passes (see
+# .github/workflows/dependabot_automerge.yml). PRs touching any other
+# file still require maintainer review. CI rejects replace/exclude
+# directives in go.mod, so these files cannot redirect module sources.
+/go.mod
+/go.sum
+
 ##########################################
 # Maintainers
 ##########################################
