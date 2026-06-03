@@ -102,8 +102,13 @@ jobs:
           # CODEOWNERS), so a PR touching any other file cannot be merged
           # by this workflow. In particular, github-actions ecosystem
           # updates modify workflow files and require maintainer review.
-          NON_MANIFEST_COUNT=$(gh api --paginate "repos/${REPO}/pulls/${PR_NUMBER}/files" \
-            --jq '.[].filename' | grep -cv -e '^go\.mod$' -e '^go\.sum$' || true)
+          # Fetch the file list separately from counting so that an API
+          # failure aborts the step (fails closed) instead of being masked
+          # by the || true that only covers the expected grep exit code
+          # when the count is zero.
+          PR_FILES=$(gh api --paginate "repos/${REPO}/pulls/${PR_NUMBER}/files" \
+            --jq '.[].filename')
+          NON_MANIFEST_COUNT=$(echo "$PR_FILES" | grep -cv -e '^go\.mod$' -e '^go\.sum$' || true)
           if [ "$NON_MANIFEST_COUNT" = "0" ]; then
             MANIFEST_ONLY=true
           else
