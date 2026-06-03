@@ -317,6 +317,30 @@ func (ds *Plugin) FetchAttestedNode(ctx context.Context, spiffeID string) (attes
 	return attestedNode, nil
 }
 
+// FetchAttestedNodes fetches existing attested nodes by SPIFFE IDs, including their selectors
+func (ds *Plugin) FetchAttestedNodes(ctx context.Context, spiffeIDs []string) (map[string]*common.AttestedNode, error) {
+	nodesMap := make(map[string]*common.AttestedNode)
+	if len(spiffeIDs) == 0 {
+		return nodesMap, nil
+	}
+
+	var resp *datastore.ListAttestedNodesResponse
+	if err := ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
+		resp, err = listAttestedNodes(ctx, ds.db, ds.log, &datastore.ListAttestedNodesRequest{
+			BySpiffeIDs:    spiffeIDs,
+			FetchSelectors: true,
+		})
+		return err
+	}); err != nil {
+		return nil, err
+	}
+
+	for _, node := range resp.Nodes {
+		nodesMap[node.SpiffeId] = node
+	}
+	return nodesMap, nil
+}
+
 // CountAttestedNodes counts all attested nodes
 func (ds *Plugin) CountAttestedNodes(ctx context.Context, req *datastore.CountAttestedNodesRequest) (count int32, err error) {
 	if countAttestedNodesHasFilters(req) {
@@ -2048,6 +2072,14 @@ func buildListAttestedNodesQueryCTE(req *datastore.ListAttestedNodesRequest, dbT
 		}
 	}
 
+	// Filter by a set of SPIFFE IDs
+	if len(req.BySpiffeIDs) > 0 {
+		builder.WriteString("\t\tAND spiffe_id IN (")
+		builder.WriteString(buildQuestions(req.BySpiffeIDs))
+		builder.WriteString(")\n")
+		args = append(args, buildArgs(req.BySpiffeIDs)...)
+	}
+
 	builder.WriteString(")")
 	// Fetch all selectors from filtered entries
 	if fetchSelectors {
@@ -2280,6 +2312,14 @@ FROM attested_node_entries N
 			} else {
 				builder.WriteString("\t\tAND can_reattest = false\n")
 			}
+		}
+
+		// Filter by a set of SPIFFE IDs
+		if len(req.BySpiffeIDs) > 0 {
+			builder.WriteString(" AND N.spiffe_id IN (")
+			builder.WriteString(buildQuestions(req.BySpiffeIDs))
+			builder.WriteString(")")
+			args = append(args, buildArgs(req.BySpiffeIDs)...)
 		}
 		return nil
 	}
