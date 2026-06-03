@@ -4,11 +4,11 @@ import (
 	"context"
 	"errors"
 	"slices"
-	"strings"
 	"time"
 
 	gocql "github.com/apache/cassandra-gocql-driver/v2"
 	datastorev1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/datastore/v1alpha1"
+	"github.com/tjons/cassandra-toolbox/qb"
 )
 
 func (p *Plugin) ListAttestedNodeEvents(
@@ -19,23 +19,21 @@ func (p *Plugin) ListAttestedNodeEvents(
 		return nil, errors.New("request is required")
 	}
 
-	b := strings.Builder{}
-	b.WriteString("SELECT event_id, spiffe_id, created_at FROM attested_node_entries_events ")
-	var args []any
+	query := qb.NewSelect().
+		From("attested_node_entries_events").
+		Columns([]string{"event_id", "spiffe_id", "created_at"}).
+		AllowFiltering()
 
 	switch {
 	case req.GetGreaterThanEventId() > 0 && req.GetLessThanEventId() > 0:
 		return nil, errors.New("can't set both greater and less than event id")
 	case req.GetLessThanEventId() > 0:
-		b.WriteString("WHERE event_id < ? ")
-		args = append(args, req.GetLessThanEventId())
+		query.Where("event_id", qb.LessThan(req.GetLessThanEventId()))
 	case req.GetGreaterThanEventId() > 0:
-		b.WriteString("WHERE event_id > ? ")
-		args = append(args, req.GetGreaterThanEventId())
+		query.Where("event_id", qb.GreaterThan(req.GetGreaterThanEventId()))
 	}
-	b.WriteString(" ALLOW FILTERING")
 
-	iter := p.db.session.Query(b.String(), args...).Consistency(p.db.cfg.ReadConsistency).IterContext(ctx)
+	iter := p.db.ReadQuery(query).IterContext(ctx)
 	scanner := iter.Scanner()
 	events := make([]*datastorev1.AttestedNodeEvent, 0)
 
@@ -96,13 +94,17 @@ func (p *Plugin) createAttestedNodeEvent(ctx context.Context, event *datastorev1
 		event.EventId = nextID
 	}
 
-	query := `INSERT INTO attested_node_entries_events (event_id, created_at, updated_at, spiffe_id) VALUES (?, ?, ?, ?)`
-	if err := p.db.session.Query(query,
-		event.EventId,
-		time.Now().UTC(),
-		time.Now().UTC(),
-		event.SpiffeId,
-	).Consistency(p.db.cfg.WriteConsistency).ExecContext(ctx); err != nil {
+	query := qb.NewInsert().
+		Into("attested_node_entries_events").
+		Columns("event_id", "created_at", "updated_at", "spiffe_id").
+		Values(
+			event.EventId,
+			time.Now().UTC(),
+			time.Now().UTC(),
+			event.SpiffeId,
+		)
+
+	if err := p.db.WriteQuery(query).ExecContext(ctx); err != nil {
 		return newCassandraError("failed to create attested node event: %s", err.Error())
 	}
 
@@ -110,10 +112,13 @@ func (p *Plugin) createAttestedNodeEvent(ctx context.Context, event *datastorev1
 }
 
 func (p *Plugin) getNextAttestedNodeEventID(ctx context.Context) (uint64, error) {
-	q := `SELECT max(event_id) FROM attested_node_entries_events ALLOW FILTERING`
+	q := qb.NewSelect().
+		Column("max(event_id)").
+		From("attested_node_entries_events").
+		AllowFiltering()
 
 	var maxID *uint64
-	if err := p.db.session.Query(q).Consistency(p.db.cfg.ReadConsistency).ScanContext(ctx, &maxID); err != nil && err != gocql.ErrNotFound {
+	if err := p.db.ReadQuery(q).ScanContext(ctx, &maxID); err != nil && err != gocql.ErrNotFound {
 		return 0, newCassandraError("failed to get max attested node event ID: %s", err.Error())
 	}
 	if maxID == nil {
@@ -123,11 +128,19 @@ func (p *Plugin) getNextAttestedNodeEventID(ctx context.Context) (uint64, error)
 	return uint64(*maxID) + 1, nil
 }
 
-func (p *Plugin) PruneAttestedNodeEvents(ctx context.Context, req *datastorev1.PruneAttestedNodeEventsRequest) (*datastorev1.PruneAttestedNodeEventsResponse, error) {
+func (p *Plugin) PruneAttestedNodeEvents(
+	ctx context.Context,
+	req *datastorev1.PruneAttestedNodeEventsRequest,
+) (*datastorev1.PruneAttestedNodeEventsResponse, error) {
 	cutoff := time.Now().UTC().Add(-time.Duration(req.OlderThan * int64(time.Second)))
 
-	idsQ := `SELECT event_id, spiffe_id FROM attested_node_entries_events WHERE created_at < ? ALLOW FILTERING`
-	scanner := p.db.session.Query(idsQ, cutoff).Consistency(p.db.cfg.ReadConsistency).IterContext(ctx).Scanner()
+	idsQ := qb.NewSelect().
+		From("attested_node_entries_events").
+		Columns([]string{"event_id", "spiffe_id"}).
+		Where("created_at", qb.LessThan(cutoff)).
+		AllowFiltering()
+
+	scanner := p.db.ReadQuery(idsQ).IterContext(ctx).Scanner()
 
 	var events []*datastorev1.AttestedNodeEvent
 	for scanner.Next() {
@@ -142,11 +155,16 @@ func (p *Plugin) PruneAttestedNodeEvents(ctx context.Context, req *datastorev1.P
 	}
 
 	b := p.db.session.Batch(gocql.LoggedBatch).Consistency(p.db.cfg.WriteConsistency)
-	deleteQ := `DELETE FROM attested_node_entries_events WHERE spiffe_id = ? AND event_id = ?`
+
 	for _, event := range events {
+		deleteQ := qb.NewDelete().
+			From("attested_node_entries_events").
+			Where("spiffe_id", qb.Equals(event.SpiffeId)).
+			Where("event_id", qb.Equals(event.EventId))
+
 		b.Entries = append(b.Entries, gocql.BatchEntry{
-			Stmt:       deleteQ,
-			Args:       []any{event.SpiffeId, event.EventId},
+			Stmt:       deleteQ.ToCQL(),
+			Args:       deleteQ.QueryValues(),
 			Idempotent: true,
 		})
 	}
@@ -157,11 +175,17 @@ func (p *Plugin) PruneAttestedNodeEvents(ctx context.Context, req *datastorev1.P
 	return &datastorev1.PruneAttestedNodeEventsResponse{}, nil
 }
 
-func (p *Plugin) FetchAttestedNodeEvent(ctx context.Context, req *datastorev1.FetchAttestedNodeEventRequest) (*datastorev1.FetchAttestedNodeEventResponse, error) {
-	q := `SELECT event_id, spiffe_id FROM attested_node_entries_events WHERE event_id = ?`
+func (p *Plugin) FetchAttestedNodeEvent(
+	ctx context.Context,
+	req *datastorev1.FetchAttestedNodeEventRequest,
+) (*datastorev1.FetchAttestedNodeEventResponse, error) {
+	q := qb.NewSelect().
+		From("attested_node_entries_events").
+		Columns([]string{"event_id", "spiffe_id"}).
+		Where("event_id", qb.Equals(req.EventId))
 
 	var event datastorev1.AttestedNodeEvent
-	if err := p.db.session.Query(q, req.EventId).Consistency(p.db.cfg.ReadConsistency).ScanContext(ctx,
+	if err := p.db.ReadQuery(q).ScanContext(ctx,
 		&event.EventId,
 		&event.SpiffeId,
 	); err != nil {
@@ -176,7 +200,10 @@ func (p *Plugin) FetchAttestedNodeEvent(ctx context.Context, req *datastorev1.Fe
 	}, nil
 }
 
-func (p *Plugin) CreateAttestedNodeEvent(ctx context.Context, req *datastorev1.CreateAttestedNodeEventRequest) (*datastorev1.CreateAttestedNodeEventResponse, error) {
+func (p *Plugin) CreateAttestedNodeEvent(
+	ctx context.Context,
+	req *datastorev1.CreateAttestedNodeEventRequest,
+) (*datastorev1.CreateAttestedNodeEventResponse, error) {
 	err := p.createAttestedNodeEvent(ctx, &datastorev1.AttestedNodeEvent{
 		EventId:  req.Event.EventId,
 		SpiffeId: req.Event.SpiffeId,
@@ -188,12 +215,17 @@ func (p *Plugin) CreateAttestedNodeEvent(ctx context.Context, req *datastorev1.C
 	return &datastorev1.CreateAttestedNodeEventResponse{}, nil
 }
 
-func (p *Plugin) DeleteAttestedNodeEvent(ctx context.Context, req *datastorev1.DeleteAttestedNodeEventRequest) (*datastorev1.DeleteAttestedNodeEventResponse, error) {
-	findEventQ := `SELECT spiffe_id FROM attested_node_entries_events WHERE event_id = ?`
+func (p *Plugin) DeleteAttestedNodeEvent(
+	ctx context.Context,
+	req *datastorev1.DeleteAttestedNodeEventRequest,
+) (*datastorev1.DeleteAttestedNodeEventResponse, error) {
+	findEventQ := qb.NewSelect().
+		From("attested_node_entries_events").
+		Column("spiffe_id").
+		Where("event_id", qb.Equals(req.EventId))
 
 	var spiffeID string
-	if err := p.db.session.Query(findEventQ, req.EventId).
-		Consistency(p.db.cfg.ReadConsistency).
+	if err := p.db.ReadQuery(findEventQ).
 		ScanContext(ctx, &spiffeID); err != nil {
 		if err == gocql.ErrNotFound {
 			return nil, NotFoundErr
@@ -201,12 +233,12 @@ func (p *Plugin) DeleteAttestedNodeEvent(ctx context.Context, req *datastorev1.D
 		return nil, newCassandraError("failed to find attested node event for deletion: %s", err.Error())
 	}
 
-	deleteQ := `DELETE FROM attested_node_entries_events WHERE spiffe_id = ? AND event_id = ?`
-	if err := p.db.session.Query(
-		deleteQ,
-		spiffeID,
-		req.EventId,
-	).Consistency(p.db.cfg.WriteConsistency).ExecContext(ctx); err != nil {
+	deleteQ := qb.NewDelete().
+		From("attested_node_entries_events").
+		Where("spiffe_id", qb.Equals(spiffeID)).
+		Where("event_id", qb.Equals(req.EventId))
+
+	if err := p.db.WriteQuery(deleteQ).ExecContext(ctx); err != nil {
 		return nil, newCassandraError("failed to delete attested node event: %s", err.Error())
 	}
 

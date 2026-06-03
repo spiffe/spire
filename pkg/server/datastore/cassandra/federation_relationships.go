@@ -4,11 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 
 	gocql "github.com/apache/cassandra-gocql-driver/v2"
 	datastorev1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/datastore/v1alpha1"
-	"github.com/tjons/cassandra-toolbox/qb/pages"
+	"github.com/tjons/cassandra-toolbox/pages"
+	"github.com/tjons/cassandra-toolbox/qb"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -20,9 +20,13 @@ var AllTrueFederationRelationshipMask = &datastorev1.FederationRelationshipMask{
 }
 
 func (p *Plugin) federationRelationshipExists(ctx context.Context, trustDomainID string) (bool, error) {
+	existsQuery := qb.NewSelect().
+		Column("trust_domain").
+		From("federated_trust_domains").
+		Where("trust_domain", qb.Equals(trustDomainID))
+
 	var id string
-	err := p.db.session.Query(`SELECT trust_domain FROM federated_trust_domains WHERE trust_domain = ?`, trustDomainID).
-		Consistency(p.db.cfg.ReadConsistency).ScanContext(ctx, &id)
+	err := p.db.ReadQuery(existsQuery).ScanContext(ctx, &id)
 	if err != nil {
 		if errors.Is(err, gocql.ErrNotFound) {
 			return false, nil
@@ -48,16 +52,19 @@ func (p *Plugin) CreateFederationRelationship(
 		return nil, status.Error(codes.AlreadyExists, "federation relationship already exists")
 	}
 
-	createQ := `
-		INSERT INTO federated_trust_domains (
-			created_at,
-			updated_at,
-			trust_domain,
-			bundle_endpoint_url,
-			bundle_endpoint_profile,
-			endpoint_spiffe_id
-		) VALUES (toTimestamp(now()), toTimestamp(now()), ?, ?, ?, ?)
-	`
+	var esi string
+	if fr.Relationship.BundleEndpointType == datastorev1.BundleEndpointType_BUNDLE_ENDPOINT_TYPE_SPIFFE {
+		esi = fr.Relationship.GetBundleEndpointSpiffeId()
+	}
+
+	createQuery := qb.NewInsert().
+		Into("federated_trust_domains").
+		SetColumn("created_at", qb.CqlFunction("toTimestamp(now())")).
+		SetColumn("updated_at", qb.CqlFunction("toTimestamp(now())")).
+		SetColumn("trust_domain", fr.Relationship.TrustDomainId).
+		SetColumn("bundle_endpoint_url", fr.Relationship.BundleEndpointUrl).
+		SetColumn("bundle_endpoint_profile", fr.Relationship.BundleEndpointType.String()).
+		SetColumn("endpoint_spiffe_id", esi)
 
 	if fr.Relationship.TrustDomainBundle != nil {
 		_, err := p.SetBundle(ctx, &datastorev1.SetBundleRequest{
@@ -68,18 +75,7 @@ func (p *Plugin) CreateFederationRelationship(
 		}
 	}
 
-	var esi string
-	if fr.Relationship.BundleEndpointType == datastorev1.BundleEndpointType_BUNDLE_ENDPOINT_TYPE_SPIFFE {
-		esi = fr.Relationship.GetBundleEndpointSpiffeId()
-	}
-
-	err = p.db.session.Query(createQ,
-		fr.Relationship.TrustDomainId,
-		fr.Relationship.BundleEndpointUrl,
-		fr.Relationship.BundleEndpointType.String(),
-		esi,
-	).Consistency(p.db.cfg.WriteConsistency).Exec()
-	if err != nil {
+	if err := p.db.WriteQuery(createQuery).ExecContext(ctx); err != nil {
 		return nil, newWrappedCassandraError(fmt.Errorf("unable to create federation relationship: %w", err))
 	}
 
@@ -88,24 +84,25 @@ func (p *Plugin) CreateFederationRelationship(
 	}, nil
 }
 
-func (p *Plugin) FetchFederationRelationship(ctx context.Context, req *datastorev1.FetchFederationRelationshipRequest) (*datastorev1.FetchFederationRelationshipResponse, error) {
+func (p *Plugin) FetchFederationRelationship(
+	ctx context.Context,
+	req *datastorev1.FetchFederationRelationshipRequest,
+) (*datastorev1.FetchFederationRelationshipResponse, error) {
 	if req.GetTrustDomainId() == "" {
 		return nil, status.Error(codes.InvalidArgument, "trust domain is required")
 	}
 
 	record := new(datastorev1.FederationRelationship)
-	fetchQ := `
-		SELECT
-			trust_domain,
-			bundle_endpoint_url,
-			bundle_endpoint_profile,
-			endpoint_spiffe_id
-		FROM federated_trust_domains
-		WHERE trust_domain = ?
-	`
+	fetchQuery := qb.NewSelect().
+		Column("trust_domain").
+		Column("bundle_endpoint_url").
+		Column("bundle_endpoint_profile").
+		Column("endpoint_spiffe_id").
+		From("federated_trust_domains").
+		Where("trust_domain", qb.Equals(req.GetTrustDomainId()))
 
 	var bundleEndpointType string
-	if err := p.db.session.Query(fetchQ, req.GetTrustDomainId()).Consistency(p.db.cfg.ReadConsistency).ScanContext(
+	if err := p.db.ReadQuery(fetchQuery).ScanContext(
 		ctx,
 		&record.TrustDomainId,
 		&record.BundleEndpointUrl,
@@ -133,21 +130,27 @@ func (p *Plugin) FetchFederationRelationship(ctx context.Context, req *datastore
 	}, nil
 }
 
-func (p *Plugin) ListFederationRelationships(ctx context.Context, req *datastorev1.ListFederationRelationshipsRequest) (*datastorev1.ListFederationRelationshipsResponse, error) {
-	pager := pages.NewQueryPaginator(req.GetPagination() != nil, req.GetPagination().GetPageSize(), req.GetPagination().GetPageToken())
+func (p *Plugin) ListFederationRelationships(
+	ctx context.Context,
+	req *datastorev1.ListFederationRelationshipsRequest,
+) (*datastorev1.ListFederationRelationshipsResponse, error) {
+	pager := pages.NewQueryPaginator(
+		req.GetPagination() != nil,
+		req.GetPagination().GetPageSize(),
+		req.GetPagination().GetPageToken())
 	if err := pager.Validate(); err != nil {
 		return nil, err
 	}
 
-	listQ := `SELECT
-			trust_domain,
-			bundle_endpoint_url,
-			bundle_endpoint_profile,
-			endpoint_spiffe_id
-		FROM federated_trust_domains
-		ALLOW FILTERING
-	`
-	query := p.db.session.Query(listQ).Consistency(p.db.cfg.ReadConsistency)
+	listQuery := qb.NewSelect().
+		Column("trust_domain").
+		Column("bundle_endpoint_url").
+		Column("bundle_endpoint_profile").
+		Column("endpoint_spiffe_id").
+		From("federated_trust_domains").
+		AllowFiltering()
+
+	query := p.db.ReadQuery(listQuery)
 	pager.BindToQuery(query)
 
 	resp := &datastorev1.ListFederationRelationshipsResponse{
@@ -220,8 +223,8 @@ func (p *Plugin) DeleteFederationRelationship(ctx context.Context, req *datastor
 		return nil, status.Error(codes.NotFound, NotFoundErr.Error())
 	}
 
-	deleteQ := `DELETE FROM federated_trust_domains WHERE trust_domain = ?`
-	err = p.db.session.Query(deleteQ, req.GetTrustDomainId()).Consistency(p.db.cfg.WriteConsistency).Exec()
+	deleteQuery := qb.NewDelete().From("federated_trust_domains").Where("trust_domain", qb.Equals(req.GetTrustDomainId()))
+	err = p.db.WriteQuery(deleteQuery).ExecContext(ctx)
 	if err != nil {
 		if errors.Is(err, gocql.ErrNotFound) {
 			return nil, status.Error(codes.NotFound, NotFoundErr.Error())
@@ -252,21 +255,20 @@ func (p *Plugin) UpdateFederationRelationship(
 		return nil, status.Error(codes.NotFound, fmt.Errorf("unable to fetch federation relationship: %w", NotFoundErr).Error())
 	}
 
-	args := []any{}
-	fields := []string{}
+	updateQuery := qb.NewUpdate().
+		Table("federated_trust_domains").
+		Set("updated_at", qb.CqlFunction("toTimestamp(now())")).
+		Where("trust_domain", qb.Equals(req.GetRelationship().TrustDomainId))
 
 	if req.GetMask().GetBundleEndpointUrl() {
-		fields = append(fields, "bundle_endpoint_url = ?")
-		args = append(args, req.GetRelationship().GetBundleEndpointUrl())
+		updateQuery.Set("bundle_endpoint_url", req.GetRelationship().GetBundleEndpointUrl())
 	}
 
 	if req.GetMask().GetBundleEndpointProfile() {
-		fields = append(fields, "bundle_endpoint_profile = ?")
-		args = append(args, req.GetRelationship().GetBundleEndpointType().String())
+		updateQuery.Set("bundle_endpoint_profile", req.GetRelationship().GetBundleEndpointType().String())
 
 		if req.GetRelationship().GetBundleEndpointType() == datastorev1.BundleEndpointType_BUNDLE_ENDPOINT_TYPE_SPIFFE {
-			fields = append(fields, "endpoint_spiffe_id = ?")
-			args = append(args, req.GetRelationship().GetBundleEndpointSpiffeId())
+			updateQuery.Set("endpoint_spiffe_id", req.GetRelationship().GetBundleEndpointSpiffeId())
 		}
 	}
 
@@ -280,16 +282,7 @@ func (p *Plugin) UpdateFederationRelationship(
 		}
 	}
 
-	updateQ := strings.Builder{}
-	updateQ.WriteString("UPDATE federated_trust_domains SET updated_at = toTimestamp(now())")
-	for _, field := range fields {
-		updateQ.WriteString(", ")
-		updateQ.WriteString(field)
-	}
-	updateQ.WriteString(" WHERE trust_domain = ?")
-	args = append(args, req.GetRelationship().GetTrustDomainId())
-
-	err = p.db.session.Query(updateQ.String(), args...).Consistency(p.db.cfg.WriteConsistency).Exec()
+	err = p.db.WriteQuery(updateQuery).ExecContext(ctx)
 	if err != nil {
 		return nil, newWrappedCassandraError(fmt.Errorf("unable to update federation relationship: %w", err))
 	}

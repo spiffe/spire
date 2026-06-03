@@ -11,8 +11,8 @@ import (
 	datastorev1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/datastore/v1alpha1"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/proto/spire/common"
+	"github.com/tjons/cassandra-toolbox/pages"
 	"github.com/tjons/cassandra-toolbox/qb"
-	"github.com/tjons/cassandra-toolbox/qb/pages"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
@@ -405,14 +405,10 @@ func (p *Plugin) PruneBundle(ctx context.Context, req *datastorev1.PruneBundleRe
 }
 
 func (p *Plugin) bundleExistsForTrustDomain(ctx context.Context, trustDomainID string) (bool, error) {
-	var count int
-	existsQ := `
-	SELECT COUNT(*)
-	FROM bundles	
-	WHERE trust_domain = ?`
+	existsQuery := qb.NewSelect().Column("COUNT(*)").From("bundles").Where("trust_domain", qb.Equals(trustDomainID))
 
-	query := p.db.session.Query(existsQ, trustDomainID).Consistency(gocql.Serial)
-	if err := query.ScanContext(ctx, &count); err != nil {
+	var count int
+	if err := p.db.ReadQuery(existsQuery).ScanContext(ctx, &count); err != nil {
 		if errors.Is(err, gocql.ErrNotFound) {
 			return false, nil
 		}
@@ -455,14 +451,17 @@ func (p *Plugin) createBundle(ctx context.Context, newBundle *datastorev1.Bundle
 	// The Bundle will always have a row set with an empty federated_entry_id.
 	// This allows federation relationships to come and go without impacting the bundle data itself,
 	// and simplifies query patterns.
-	createQ := `
-	INSERT INTO bundles (created_at, updated_at, trust_domain, data, federated_entry_id)
-	VALUES (toTimestamp(now()), toTimestamp(now()), ?, ?, '')
-	`
-	query := p.db.session.Query(createQ, newBundle.TrustDomainId, newBundle.Data).Consistency(p.db.cfg.WriteConsistency)
-
-	err := query.ExecContext(ctx)
-	if err != nil {
+	createQuery := qb.NewInsert().
+		Into("bundles").
+		Columns("created_at", "updated_at", "trust_domain", "data", "federated_entry_id").
+		Values(
+			qb.CqlFunction("toTimestamp(now())"),
+			qb.CqlFunction("toTimestamp(now())"),
+			newBundle.TrustDomainId,
+			newBundle.Data,
+			"",
+		)
+	if err := p.db.WriteQuery(createQuery).ExecContext(ctx); err != nil {
 		return nil, newWrappedCassandraError(err)
 	}
 
@@ -470,13 +469,17 @@ func (p *Plugin) createBundle(ctx context.Context, newBundle *datastorev1.Bundle
 }
 
 func (p *Plugin) updateBundle(ctx context.Context, req *datastorev1.UpdateBundleRequest) (*datastorev1.UpdateBundleResponse, error) {
-	existingModel := &datastorev1.Bundle{}
-	readQ := `
-	SELECT DISTINCT created_at, updated_at, trust_domain, data
-	FROM bundles WHERE trust_domain = ?
-	`
+	readQuery := qb.NewSelect().
+		Distinct().
+		Column("created_at").
+		Column("updated_at").
+		Column("trust_domain").
+		Column("data").
+		From("bundles").
+		Where("trust_domain", qb.Equals(req.Bundle.TrustDomainId))
 
-	query := p.db.session.Query(readQ, req.Bundle.TrustDomainId).Consistency(gocql.Serial)
+	existingModel := &datastorev1.Bundle{}
+	query := p.db.ReadQuery(readQuery).Consistency(gocql.Serial)
 	if err := query.ScanContext(
 		ctx,
 		&existingModel.CreatedAt,
@@ -532,13 +535,13 @@ func (p *Plugin) updateBundle(ctx context.Context, req *datastorev1.UpdateBundle
 		return nil, newWrappedCassandraError(err)
 	}
 
-	updateQ := `
-	UPDATE bundles 
-	SET updated_at = toTimestamp(now()),
-		data = ?
-	WHERE trust_domain = ?
-	`
-	query = p.db.session.Query(updateQ, modelDataToSave.Data, modelDataToSave.TrustDomainId).Consistency(p.db.cfg.WriteConsistency)
+	updateQuery := qb.NewUpdate().
+		Table("bundles").
+		Set("updated_at", qb.CqlFunction("toTimestamp(now())")).
+		Set("data", modelDataToSave.Data).
+		Where("trust_domain", qb.Equals(modelDataToSave.TrustDomainId))
+
+	query = p.db.WriteQuery(updateQuery).Consistency(p.db.cfg.WriteConsistency)
 	if err = query.ExecContext(ctx); err != nil {
 		return nil, newWrappedCassandraError(err)
 	}
