@@ -16,7 +16,7 @@ The `sql` plugin implements SQL based data storage for the SPIRE server using SQ
 | disable_migration    | True to disable auto-migration functionality. Use of this flag allows finer control over when datastore migrations occur and coordination of the migration of a datastore shared with a SPIRE Server cluster. Only available for databases from SPIRE Code version 0.9.0 or later. |
 
 For more information on the `max_open_conns`, `max_idle_conns`, and `conn_max_lifetime`, refer to the
-documentation for the Go [`database/sql`](https://golang.org/pkg/database/sql/#DB) package.
+documentation for the Go [`database/sql`](https://pkg.go.dev/database/sql#DB) package.
 
 > **Note:** The SQL plugin uses an internal default setting of 30 seconds for the maximum idle time per connection (ConnMaxIdleTime). This setting is not configurable through the plugin configuration.
 
@@ -29,13 +29,13 @@ We use the [mattn/go-sqlite3](https://github.com/mattn/go-sqlite3) driver. It ac
 Save database in file:
 
 ```hcl
-connection_string="DATABASE_FILE.db"
+connection_string = "DATABASE_FILE.db"
 ```
 
 Save database in memory:
 
 ```hcl
-connection_string="file:memdb?mode=memory&cache=shared"
+connection_string = "file:memdb?mode=memory&cache=shared"
 ```
 
 If you are compiling SPIRE from source, please see [SQLite and CGO](#sqlite-and-cgo) for additional information.
@@ -53,12 +53,12 @@ If you are compiling SPIRE from source, please see [SQLite and CGO](#sqlite-and-
 
 ### `database_type = "postgres"`
 
-The `connection_string` for the PostgreSQL database connection consists of the number of configuration options separated by spaces.
+The `connection_string` for the PostgreSQL database connection consists of a number of configuration options separated by spaces.
 
 For example:
 
 ```hcl
-connection_string="dbname=postgres user=postgres password=password host=localhost sslmode=disable"
+connection_string = "dbname=postgres user=postgres password=password host=localhost sslmode=disable"
 ```
 
 Consult the [lib/pq driver documentation](https://pkg.go.dev/github.com/lib/pq#hdr-Connection_String_Parameters) for more `connection_string` options.
@@ -93,7 +93,7 @@ a number of versions. Older versions may still work, but they are not tested.
 * require - Always SSL (skip verification)
 * verify-ca - Always SSL (verify that the certificate presented by the
   server was signed by a trusted CA)
-* verify-full - Always SSL (verify that the certification presented by
+* verify-full - Always SSL (verify that the certificate presented by
   the server was signed by a trusted CA and the server host name
   matches the one in the certificate)
 
@@ -116,7 +116,7 @@ When connecting to a Cloud SQL PostgreSQL instance, use a connection string with
 
 ### `database_type = "mysql"`
 
-The `connection_string` for the MySQL database connection consists of the number of configuration options (optional parts marked by square brackets):
+The `connection_string` for the MySQL database connection consists of a number of configuration options (optional parts marked by square brackets):
 
 ```text
 username[:password]@][protocol[(address)]]/dbname[?param1=value1&...&paramN=valueN]
@@ -125,15 +125,15 @@ username[:password]@][protocol[(address)]]/dbname[?param1=value1&...&paramN=valu
 For example:
 
 ```hcl
-connection_string="username:password@tcp(localhost:3306)/dbname?parseTime=true"
+connection_string = "username:password@tcp(localhost:3306)/dbname?parseTime=true"
 ```
 
 Consult the [MySQL driver repository](https://github.com/go-sql-driver/mysql#usage) for more `connection_string` options.
 
 #### Supported MySQL versions
 
-We support all currently maintainted versions of MySQL and run [integration tests](../test/integration/suites/datastore-mysql/) against LTS releases. Older versions of
-may still work, but are not tested.
+We support all currently maintained versions of MySQL and run [integration tests](../test/integration/suites/datastore-mysql/) against LTS releases. Older versions of
+MySQL may still work, but are not tested.
 
 #### Configuration Options
 
@@ -204,7 +204,7 @@ Settings of the [`postgres`](#database_type--postgres) database type also apply 
             }
             connection_string = "dbname=spire user=test_user host=spire-test.example.us-east-2.rds.amazonaws.com port=5432 sslmode=require"
         }
-   }
+    }
 ```
 
 #### "aws_mysql"
