@@ -3,7 +3,7 @@
 # the SoftHSM module via dlopen at runtime, so the static binary fails with
 # "could not open PKCS#11". This image instead compiles a DYNAMICALLY-linked
 # spire-server so dlopen works. Build context must be the repo root.
-ARG goversion=1.25.6
+ARG goversion=1.26.4
 FROM golang:${goversion}-alpine3.22 AS builder
 
 # build-base provides gcc/musl-dev for cgo (go-sqlite3 etc.).
