@@ -214,7 +214,7 @@ func TestBuildCacheSavesSkippedEvents(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, registrationEntries)
 
-	attestedNodes, err := buildAttestedNodesCache(ctx, log, metrics, ds, clk, cache, nodeCache, defaultCacheReloadInterval, defaultEventTimeout)
+	attestedNodes, err := buildAttestedNodesCache(ctx, log, metrics, ds, clk, cache, nodeCache, pageSize, defaultCacheReloadInterval, defaultEventTimeout)
 	require.NoError(t, err)
 	require.NotNil(t, attestedNodes)
 
