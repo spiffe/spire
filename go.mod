@@ -76,7 +76,7 @@ require (
 	github.com/sigstore/sigstore v1.10.8
 	github.com/sirupsen/logrus v1.9.4
 	github.com/smallstep/pkcs7 v0.2.1
-	github.com/spiffe/go-spiffe/v2 v2.6.0
+	github.com/spiffe/go-spiffe/v2 v2.7.0
 	github.com/spiffe/spire-api-sdk v1.2.5-0.20260428072036-00f73a61093a
 	github.com/spiffe/spire-plugin-sdk v1.4.4-0.20251120194148-791bbd274dc7
 	github.com/stretchr/testify v1.11.1
@@ -331,5 +331,3 @@ require (
 	sigs.k8s.io/structured-merge-diff/v6 v6.3.2 // indirect
 	sigs.k8s.io/yaml v1.6.0 // indirect
 )
-
-replace github.com/spiffe/go-spiffe => ../go-spiffe

@@ -508,7 +508,7 @@ func (c *LRUCache[SVID]) UpdateSVIDs(update *UpdateSVIDs[SVID]) {
 			telemetry.Entry:    record.entry.EntryId,
 			telemetry.SPIFFEID: record.entry.SpiffeId,
 		})
-		log.Debug("SVID updated")
+		log.Info("SVID updated", "Svid", svid)
 
 		// Registration entry is updated, remove it from stale map
 		delete(c.staleEntries, entryID)

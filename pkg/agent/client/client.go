@@ -425,8 +425,9 @@ func (c *client) NewWITSVIDs(ctx context.Context, publicKeys map[string]crypto.P
 		}
 
 		params = append(params, &svidv1.NewWITSVIDParams{
-			EntryId:   entryID,
-			PublicKey: pkixPublicKey,
+			EntryId:          entryID,
+			PublicKey:        pkixPublicKey,
+			SigningAlgorithm: "ES256",
 		})
 	}
 

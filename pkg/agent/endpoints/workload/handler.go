@@ -21,6 +21,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/jwtsvid"
+	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/proto/spire/common"
@@ -33,6 +34,7 @@ import (
 
 type Manager interface {
 	SubscribeToX509SVIDCacheChanges(ctx context.Context, key cache.Selectors) (cache.Subscriber, error)
+	SubscribeToWITSVIDCacheChanges(ctx context.Context, key cache.Selectors) (cache.Subscriber, error)
 	MatchingRegistrationEntries(selectors []*common.Selector) []*common.RegistrationEntry
 	FetchJWTSVID(ctx context.Context, entry *common.RegistrationEntry, audience []string) (*client.JWTSVID, error)
 	FetchWorkloadUpdate([]*common.Selector) *cache.WorkloadUpdate
@@ -291,7 +293,7 @@ func (h *Handler) FetchWITSVID(_ *workload.WITSVIDRequest, stream workload.Spiff
 		return err
 	}
 
-	subscriber, err := h.c.Manager.SubscribeToX509SVIDCacheChanges(ctx, selectors)
+	subscriber, err := h.c.Manager.SubscribeToWITSVIDCacheChanges(ctx, selectors)
 	if err != nil {
 		loggerWithContextInfo(ctx, log, start, err).Error("Subscribe to cache changes failed")
 		return err
@@ -586,19 +588,20 @@ func composeWITBundlesResponse(update *cache.WorkloadUpdate) (*workload.WITBundl
 		return nil, errors.New("bundle not available")
 	}
 
-	bundles := make(map[string][]byte)
+	bundles := make(map[string]string)
 
-	var err error
-	bundles[update.Bundle.TrustDomain().IDString()], err = bundleutil.MarshalWITSVIDBundle(update.Bundle)
+	bundle, err := bundleutil.MarshalWITSVIDBundle(update.Bundle)
 	if err != nil {
 		return nil, err
 	}
+	bundles[update.Bundle.TrustDomain().IDString()] = string(bundle)
 	if update.HasIdentity() {
 		for _, federatedBundle := range update.FederatedBundles {
-			bundles[federatedBundle.TrustDomain().IDString()], err = bundleutil.MarshalWITSVIDBundle(federatedBundle)
+			bundle, err = bundleutil.MarshalWITSVIDBundle(federatedBundle)
 			if err != nil {
 				return nil, err
 			}
+			bundles[federatedBundle.TrustDomain().IDString()] = string(bundle)
 		}
 	}
 
@@ -624,7 +627,7 @@ func sendWITSVIDResponse(update *cache.WorkloadUpdate, stream workload.SpiffeWor
 	}
 
 	if err := stream.Send(resp); err != nil {
-		loggerWithContextInfo(stream.Context(), log, start, err).Error("Failed to send X.509 SVID response")
+		loggerWithContextInfo(stream.Context(), log, start, err).Error("Failed to send WIT SVID response")
 		return err
 	}
 
@@ -650,7 +653,7 @@ func composeWITSVIDResponse(update *cache.WorkloadUpdate) (*workload.WITSVIDResp
 	for _, identity := range update.Identities {
 		id := identity.Entry.SpiffeId
 
-		keyData, err := x509.MarshalPKCS8PrivateKey(identity.PrivateKey)
+		keyData, err := pemutil.EncodePKCS8PrivateKey(identity.PrivateKey)
 		if err != nil {
 			return nil, fmt.Errorf("marshal key for %v: %w", id, err)
 		}
