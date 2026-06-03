@@ -75,8 +75,9 @@ jobs:
             const action = context.payload.action;
             const eq = (a, b) => a.toLowerCase() === b.toLowerCase();
             const assignees = () => (pr.assignees || []).map(a => a.login);
+            const labels = () => (pr.labels || []).map(l => l.name);
             const inPool = (login) => POOL.some(p => eq(p, login));
-            const poolHoldsBall = () => assignees().some(a => inPool(a));
+            const authorHoldsBall = () => labels().some(n => eq(n, AUTHOR_LABEL));
 
             // Ensure the awaiting-author label exists (addLabels does not
             // create missing labels), then apply it.
@@ -164,18 +165,19 @@ jobs:
             }
 
             // 2) A review was (re-)requested. Move the ball to that maintainer,
-            //    but only if no pool member currently holds it. This keeps the
-            //    round-robin assignee from being clobbered by the CODEOWNERS
-            //    auto-request that fires when a PR is opened; it only acts on a
-            //    genuine re-request after the ball has gone back to the author.
+            //    but only when the ball is currently in the author's court (the
+            //    awaiting-author label is present). This restricts the path to
+            //    genuine re-requests after feedback, so the CODEOWNERS
+            //    auto-request that fires when a PR is opened cannot override the
+            //    rotated assignee regardless of how the events are ordered.
             if (eventName === 'pull_request_target' && action === 'review_requested') {
               const reviewer = context.payload.requested_reviewer;
               if (!reviewer || reviewer.type === 'Bot' || !inPool(reviewer.login)) {
                 core.info('Review request is not for a pool member; skipping.');
                 return;
               }
-              if (poolHoldsBall()) {
-                core.info(`A pool member already holds the ball on PR #${pr.number}; not overriding.`);
+              if (!authorHoldsBall()) {
+                core.info(`Ball is not in the author's court on PR #${pr.number}; not overriding the rotation.`);
                 return;
               }
               await setMaintainerCourt(reviewer.login);
@@ -201,6 +203,7 @@ jobs:
                 // Ball back to the author to address feedback.
                 await setAuthorCourt();
               }
-              // Anything else (e.g. dismissed): leave the court as-is.
+              // Any other review state leaves whose court the ball is in
+              // unchanged.
               return;
             }
