@@ -186,11 +186,11 @@ For PostgreSQL databases on AWS RDS using IAM authentication. The `region` setti
 
 This is the complete list of configuration options under the `database_type` setting when `aws_postgres` is set:
 
-| Configuration     | Description                           | Required                                                               | Default                                             |
-|-------------------|---------------------------------------|------------------------------------------------------------------------|-----------------------------------------------------|
-| access_key_id     | AWS access key id.                    | Required only if AWS_ACCESS_KEY_ID environment variable is not set.    | Value of AWS_ACCESS_KEY_ID environment variable.    |
-| secret_access_key | AWS secret access key.                | Required only if AWS_SECRET_ACCESSKEY environment variable is not set. | Value of AWS_SECRET_ACCESSKEY environment variable. |
-| region            | AWS region of the database.           | Yes.                                                                   |                                                     |
+| Configuration     | Description                           | Required                                                                | Default                                              |
+|-------------------|---------------------------------------|-------------------------------------------------------------------------|------------------------------------------------------|
+| access_key_id     | AWS access key id.                    | Required only if AWS_ACCESS_KEY_ID environment variable is not set.     | Value of AWS_ACCESS_KEY_ID environment variable.     |
+| secret_access_key | AWS secret access key.                | Required only if AWS_SECRET_ACCESS_KEY environment variable is not set. | Value of AWS_SECRET_ACCESS_KEY environment variable. |
+| region            | AWS region of the database.           | Yes.                                                                    |                                                      |
 
 Settings of the [`postgres`](#database_type--postgres) database type also apply here.
 
@@ -213,11 +213,11 @@ For MySQL databases on AWS RDS using IAM authentication. The `region` setting is
 
 This is the complete list of configuration options under the `database_type` setting when `aws_mysql` is set:
 
-| Configuration     | Description                           | Required                                                               | Default                                             |
-|-------------------|---------------------------------------|------------------------------------------------------------------------|-----------------------------------------------------|
-| access_key_id     | AWS access key id.                    | Required only if AWS_ACCESS_KEY_ID environment variable is not set.    | Value of AWS_ACCESS_KEY_ID environment variable.    |
-| secret_access_key | AWS secret access key.                | Required only if AWS_SECRET_ACCESSKEY environment variable is not set. | Value of AWS_SECRET_ACCESSKEY environment variable. |
-| region            | AWS region of the database.           | Yes.                                                                   |                                                     |
+| Configuration     | Description                           | Required                                                                | Default                                              |
+|-------------------|---------------------------------------|-------------------------------------------------------------------------|------------------------------------------------------|
+| access_key_id     | AWS access key id.                    | Required only if AWS_ACCESS_KEY_ID environment variable is not set.     | Value of AWS_ACCESS_KEY_ID environment variable.     |
+| secret_access_key | AWS secret access key.                | Required only if AWS_SECRET_ACCESS_KEY environment variable is not set. | Value of AWS_SECRET_ACCESS_KEY environment variable. |
+| region            | AWS region of the database.           | Yes.                                                                    |                                                      |
 
 Settings of the [`mysql`](#database_type--mysql) database type also apply here.
 
