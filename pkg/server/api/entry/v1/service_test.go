@@ -1244,6 +1244,9 @@ func TestGetEntry(t *testing.T) {
 		DnsNames:    []string{"dns1", "dns2"},
 		Downstream:  true,
 		Hint:        "internal",
+		AdditionalAttributes: &common.RegistrationEntry_AdditionalAttributes{
+			DisableX509SvidPrefetch: true,
+		},
 	})
 	require.NoError(t, err)
 
@@ -1309,6 +1312,9 @@ func TestGetEntry(t *testing.T) {
 				Downstream:    true,
 				ExpiresAt:     expiresAt,
 				Hint:          "internal",
+				AdditionalAttributes: &types.Entry_AdditionalAttributes{
+					DisableX509SvidPrefetch: true,
+				},
 			},
 			expectLogs: []spiretest.LogEntry{
 				{
@@ -1508,6 +1514,9 @@ func TestBatchCreateEntry(t *testing.T) {
 		X509SvidTtl:   45,
 		JwtSvidTtl:    30,
 		Hint:          "external",
+		AdditionalAttributes: &types.Entry_AdditionalAttributes{
+			DisableX509SvidPrefetch: true,
+		},
 	}
 	// Registration entry for test entry
 	testDSEntry := &common.RegistrationEntry{
@@ -1526,7 +1535,10 @@ func TestBatchCreateEntry(t *testing.T) {
 		X509SvidTtl:   45,
 		JwtSvidTtl:    30,
 		Hint:          "external",
-		CreatedAt:     1678731397,
+		AdditionalAttributes: &common.RegistrationEntry_AdditionalAttributes{
+			DisableX509SvidPrefetch: true,
+		},
+		CreatedAt: 1678731397,
 	}
 
 	for _, tt := range []struct {
@@ -1846,7 +1858,10 @@ func TestBatchCreateEntry(t *testing.T) {
 						JwtSvidTtl:    30,
 						StoreSvid:     false,
 						Hint:          "external",
-						CreatedAt:     1678731397,
+						AdditionalAttributes: &types.Entry_AdditionalAttributes{
+							DisableX509SvidPrefetch: true,
+						},
+						CreatedAt: 1678731397,
 					},
 				},
 			},
@@ -4064,6 +4079,97 @@ func TestBatchUpdateEntry(t *testing.T) {
 							telemetry.Type:           "audit",
 							telemetry.RegistrationID: m[entry1SpiffeID.Path],
 							telemetry.Hint:           "newHint",
+						},
+					},
+				}
+			},
+		},
+		{
+			name:           "Success Update AdditionalAttributes",
+			initialEntries: []*types.Entry{initialEntry},
+			inputMask: &types.EntryMask{
+				AdditionalAttributes: true,
+			},
+			outputMask: &types.EntryMask{
+				AdditionalAttributes: true,
+			},
+			updateEntries: []*types.Entry{
+				{
+					AdditionalAttributes: &types.Entry_AdditionalAttributes{
+						JwtSvidIncludeJti: true,
+					},
+				},
+			},
+			expectDsEntries: func(id string) []*types.Entry {
+				modifiedEntry := proto.Clone(initialEntry).(*types.Entry)
+				modifiedEntry.Id = id
+				modifiedEntry.AdditionalAttributes = &types.Entry_AdditionalAttributes{
+					JwtSvidIncludeJti: true,
+				}
+				modifiedEntry.RevisionNumber = 1
+				return []*types.Entry{modifiedEntry}
+			},
+			expectResults: []*entryv1.BatchUpdateEntryResponse_Result{
+				{
+					Status: &types.Status{Code: int32(codes.OK), Message: "OK"},
+					Entry: &types.Entry{
+						AdditionalAttributes: &types.Entry_AdditionalAttributes{
+							JwtSvidIncludeJti: true,
+						},
+					},
+				},
+			},
+			expectLogs: func(m map[string]string) []spiretest.LogEntry {
+				return []spiretest.LogEntry{
+					{
+						Level:   logrus.InfoLevel,
+						Message: "API accessed",
+						Data: logrus.Fields{
+							telemetry.Status:         "success",
+							telemetry.Type:           "audit",
+							telemetry.RegistrationID: m[entry1SpiffeID.Path],
+						},
+					},
+				}
+			},
+		},
+		{
+			name:           "Success Don't Update AdditionalAttributes",
+			initialEntries: []*types.Entry{initialEntry},
+			inputMask:      &types.EntryMask{
+				// With AdditionalAttributes false, the update should be a no-op for that field
+			},
+			outputMask: &types.EntryMask{
+				AdditionalAttributes: true,
+			},
+			updateEntries: []*types.Entry{
+				{
+					AdditionalAttributes: &types.Entry_AdditionalAttributes{
+						JwtSvidIncludeJti: true,
+					},
+				},
+			},
+			expectDsEntries: func(m string) []*types.Entry {
+				modifiedEntry := proto.Clone(initialEntry).(*types.Entry)
+				modifiedEntry.Id = m
+				modifiedEntry.RevisionNumber = 1
+				return []*types.Entry{modifiedEntry}
+			},
+			expectResults: []*entryv1.BatchUpdateEntryResponse_Result{
+				{
+					Status: &types.Status{Code: int32(codes.OK), Message: "OK"},
+					Entry:  &types.Entry{},
+				},
+			},
+			expectLogs: func(m map[string]string) []spiretest.LogEntry {
+				return []spiretest.LogEntry{
+					{
+						Level:   logrus.InfoLevel,
+						Message: "API accessed",
+						Data: logrus.Fields{
+							telemetry.Status:         "success",
+							telemetry.Type:           "audit",
+							telemetry.RegistrationID: m[entry1SpiffeID.Path],
 						},
 					},
 				}

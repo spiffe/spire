@@ -125,17 +125,6 @@ func TestConfigure(t *testing.T) {
 }
 
 func TestAttestFailures(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/.well-known/spiffe/nodeattestor/http_challenge/default/challenge" {
-			t.Errorf("Expected to request '/.well-known/spiffe/nodeattestor/http_challenge/default/challenge', got: %s", r.URL.Path)
-		}
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`123456789abcdefghijklmnopqrstuvwxyz`))
-	}))
-	defer server.Close()
-
-	client := newClientWithLocalIntercept(server.URL)
-
 	challengeFnNil := func(ctx context.Context, challenge []byte) ([]byte, error) {
 		return nil, nil
 	}
@@ -147,6 +136,7 @@ func TestAttestFailures(t *testing.T) {
 		payload     []byte
 		challengeFn func(ctx context.Context, challenge []byte) ([]byte, error)
 		tofu        bool
+		redirect    string
 	}{
 		{
 			name:        "Attest fails if payload doesnt exist",
@@ -298,7 +288,7 @@ func TestAttestFailures(t *testing.T) {
 		},
 		{
 			name:        "Attest fails if nonce does not match",
-			expErr:      "rpc error: code = PermissionDenied desc = nodeattestor(http_challenge): challenge verification failed: expected nonce \"bad123456789abcdefghijklmnopqrstuvwxyz\" but got \"123456789abcdefghijklmnopqrstuvwxyz\"",
+			expErr:      "rpc error: code = PermissionDenied desc = nodeattestor(http_challenge): challenge verification failed: expected nonce was not found in HTTP response",
 			hclConf:     "",
 			tofu:        true,
 			challengeFn: challengeFnNil,
@@ -320,9 +310,37 @@ func TestAttestFailures(t *testing.T) {
 				Port:      80,
 			}),
 		},
+		{
+			name:        "Attest fails if http server redirects",
+			expErr:      "challenge verification failed: Get \"https://private.example.com\": http redirects are disabled",
+			hclConf:     "",
+			redirect:    "https://private.example.com",
+			tofu:        true,
+			challengeFn: challengeFnNil,
+			payload: marshalPayload(t, &common_httpchallenge.AttestationData{
+				HostName:  "foo",
+				AgentName: "default",
+				Port:      80,
+			}),
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path != "/.well-known/spiffe/nodeattestor/http_challenge/default/challenge" {
+					t.Errorf("Expected to request '/.well-known/spiffe/nodeattestor/http_challenge/default/challenge', got: %s", r.URL.Path)
+				}
+				if tt.redirect != "" {
+					http.Redirect(w, r, tt.redirect, http.StatusMovedPermanently)
+					return
+				}
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write([]byte(`123456789abcdefghijklmnopqrstuvwxyz`))
+			}))
+			defer server.Close()
+
+			client := newClientWithLocalIntercept(server.URL)
+
 			var testNonce string
 			if tt.tofu {
 				testNonce = "bad123456789abcdefghijklmnopqrstuvwxyz"

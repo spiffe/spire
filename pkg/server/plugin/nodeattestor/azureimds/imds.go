@@ -427,7 +427,10 @@ func buildSelectors(ctx context.Context, tenant *tenantConfig, vmssName *string,
 
 	// add network interface selectors
 	for _, networkInterface := range vm.Interfaces {
-		selectorMap[selectorValue("network-security-group", networkInterface.SecurityGroup.ResourceGroup, networkInterface.SecurityGroup.Name)] = true
+		sg := networkInterface.SecurityGroup
+		if sg.ResourceGroup != "" || sg.Name != "" {
+			selectorMap[selectorValue("network-security-group", sg.ResourceGroup, sg.Name)] = true
+		}
 		for _, subnet := range networkInterface.Subnets {
 			selectorMap[selectorValue("virtual-network", subnet.VNet)] = true
 			selectorMap[selectorValue("virtual-network-subnet", subnet.VNet, subnet.SubnetName)] = true

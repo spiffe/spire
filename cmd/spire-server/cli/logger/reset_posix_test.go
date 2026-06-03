@@ -4,6 +4,8 @@ package logger_test
 
 var (
 	resetUsage = `Usage of logger reset:
+  -instance string
+    	Instance name to substitute into socket templates (env SPIRE_SERVER_PRIVATE_SOCKET_TEMPLATE).
   -output value
     	Desired output format (pretty, json); default: pretty.
   -socketPath string

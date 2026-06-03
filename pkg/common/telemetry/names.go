@@ -210,8 +210,17 @@ const (
 	// CertFilePath tags a certificate file path used for TLS connections.
 	CertFilePath = "cert_file_path"
 
+	// KeyID tags a key ID
+	KeyID = "key_id"
+
 	// KeyFilePath tags a key file path used for TLS connections.
 	KeyFilePath = "key_file_path"
+
+	// KeyName tags the key name
+	KeyName = "key_name"
+
+	// KeyType tags the key type
+	KeyType = "key_type"
 
 	// CGroupPath tags a linux CGroup path, most likely for use in attestation
 	CGroupPath = "cgroup_path"
@@ -250,6 +259,18 @@ const (
 
 	// DatabaseType labels a database type (MySQL, postgres...)
 	DatabaseType = "db_type"
+
+	// Alert tags log events that should be easy for operators to alert on.
+	Alert = "alert"
+
+	// AlertType tags the category of an alert log event.
+	AlertType = "alert_type"
+
+	// DeprecatedConfigAlertType tags alerts for deprecated configuration settings.
+	DeprecatedConfigAlertType = "deprecated_config"
+
+	// DeprecatedServiceAlertType tags alerts for deprecated plugin services.
+	DeprecatedServiceAlertType = "deprecated_service"
 
 	// DeprecatedServiceName tags the deprecated service name
 	DeprecatedServiceName = "deprecated_service_name"
@@ -407,9 +428,6 @@ const (
 
 	// ParentID tags parent ID for an entry
 	ParentID = "parent_id"
-
-	// PartialSelectors is a partial set of selectors for a workload
-	PartialSelectors = "partial_selectors"
 
 	// Path declares some logic path, likely on the file system
 	Path = "path"
@@ -693,9 +711,6 @@ const (
 
 	// EntriesByEntryIDCache functionality related to the entries btree cache indexed by EntryID
 	EntriesByEntryIDCache = "entries_by_entryid_cache"
-
-	// EntriesByParentIDCache functionality related to the entries btree cache indexed by ParentID
-	EntriesByParentIDCache = "entries_by_parentid_cache"
 
 	// Cache type tag
 	CacheType = "cache_type"

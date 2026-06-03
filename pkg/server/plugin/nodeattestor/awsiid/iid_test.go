@@ -74,6 +74,13 @@ func TestAttest(t *testing.T) {
 	otherAWSCACert = generateCertificate(t, testkey.MustRSA2048())
 	defaultAttestationData := buildAttestationDataRSA2048Signature(t)
 	attentionDataWithRSA1024Signature := buildAttestationDataRSA1024Signature(t)
+	orgTestAttestationData := buildAttestationDataRSA2048SignatureWithDoc(t, imds.InstanceIdentityDocument{
+		AccountID:        testAccountID,
+		InstanceID:       testInstance,
+		Region:           testRegion,
+		AvailabilityZone: testAvailabilityZone,
+		ImageID:          testImageID,
+	})
 
 	for _, tt := range []struct {
 		name                                  string
@@ -176,6 +183,7 @@ func TestAttest(t *testing.T) {
 			name:     "success with zero device index",
 			expectID: "spiffe://example.org/spire/agent/aws_iid/test-account/test-region/test-instance",
 			expectSelectors: []*common.Selector{
+				{Type: caws.PluginName, Value: "account_id:test-account"},
 				{Type: caws.PluginName, Value: "az:test-az"},
 				{Type: caws.PluginName, Value: "image:id:test-image-id"},
 				{Type: caws.PluginName, Value: "instance:id:test-instance"},
@@ -191,6 +199,7 @@ func TestAttest(t *testing.T) {
 			},
 			expectID: "spiffe://example.org/spire/agent/aws_iid/test-account/test-region/test-instance",
 			expectSelectors: []*common.Selector{
+				{Type: caws.PluginName, Value: "account_id:test-account"},
 				{Type: caws.PluginName, Value: "az:test-az"},
 				{Type: caws.PluginName, Value: "image:id:test-image-id"},
 				{Type: caws.PluginName, Value: "instance:id:test-instance"},
@@ -205,6 +214,7 @@ func TestAttest(t *testing.T) {
 			},
 			expectID: "spiffe://example.org/spire/agent/aws_iid/test-account/test-region/test-instance",
 			expectSelectors: []*common.Selector{
+				{Type: caws.PluginName, Value: "account_id:test-account"},
 				{Type: caws.PluginName, Value: "az:test-az"},
 				{Type: caws.PluginName, Value: "image:id:test-image-id"},
 				{Type: caws.PluginName, Value: "instance:id:test-instance"},
@@ -219,6 +229,7 @@ func TestAttest(t *testing.T) {
 			},
 			expectID: "spiffe://example.org/spire/agent/aws_iid/test-account/test-region/test-instance",
 			expectSelectors: []*common.Selector{
+				{Type: caws.PluginName, Value: "account_id:test-account"},
 				{Type: caws.PluginName, Value: "az:test-az"},
 				{Type: caws.PluginName, Value: "image:id:test-image-id"},
 				{Type: caws.PluginName, Value: "instance:id:test-instance"},
@@ -248,6 +259,7 @@ func TestAttest(t *testing.T) {
 			},
 			expectID: "spiffe://example.org/spire/agent/aws_iid/test-account/test-region/test-instance",
 			expectSelectors: []*common.Selector{
+				{Type: caws.PluginName, Value: "account_id:test-account"},
 				{Type: caws.PluginName, Value: "az:test-az"},
 				{Type: caws.PluginName, Value: "image:id:test-image-id"},
 				{Type: caws.PluginName, Value: "instance:id:test-instance"},
@@ -304,6 +316,7 @@ func TestAttest(t *testing.T) {
 			},
 			expectID: "spiffe://example.org/spire/agent/aws_iid/test-account/test-region/test-instance",
 			expectSelectors: []*common.Selector{
+				{Type: caws.PluginName, Value: "account_id:test-account"},
 				{Type: caws.PluginName, Value: "az:test-az"},
 				{Type: caws.PluginName, Value: "image:id:test-image-id"},
 				{Type: caws.PluginName, Value: "instance:id:test-instance"},
@@ -315,6 +328,7 @@ func TestAttest(t *testing.T) {
 			config:   `agent_path_template = "/{{ .PluginName }}/custom/{{ .AccountID }}/{{ .Region }}/{{ .InstanceID }}"`,
 			expectID: "spiffe://example.org/spire/agent/aws_iid/custom/test-account/test-region/test-instance",
 			expectSelectors: []*common.Selector{
+				{Type: caws.PluginName, Value: "account_id:test-account"},
 				{Type: caws.PluginName, Value: "az:test-az"},
 				{Type: caws.PluginName, Value: "image:id:test-image-id"},
 				{Type: caws.PluginName, Value: "instance:id:test-instance"},
@@ -334,6 +348,7 @@ func TestAttest(t *testing.T) {
 			config:   `agent_path_template = "/{{ .PluginName }}/zone1/{{ .Tags.Hostname }}"`,
 			expectID: "spiffe://example.org/spire/agent/aws_iid/zone1/host1",
 			expectSelectors: []*common.Selector{
+				{Type: caws.PluginName, Value: "account_id:test-account"},
 				{Type: caws.PluginName, Value: "az:test-az"},
 				{Type: caws.PluginName, Value: "image:id:test-image-id"},
 				{Type: caws.PluginName, Value: "instance:id:test-instance"},
@@ -376,6 +391,7 @@ func TestAttest(t *testing.T) {
 			},
 			expectID: "spiffe://example.org/spire/agent/aws_iid/test-account/test-region/test-instance",
 			expectSelectors: []*common.Selector{
+				{Type: caws.PluginName, Value: "account_id:test-account"},
 				{Type: caws.PluginName, Value: "az:test-az"},
 				{Type: caws.PluginName, Value: "iamrole:role1"},
 				{Type: caws.PluginName, Value: "iamrole:role2"},
@@ -417,6 +433,7 @@ func TestAttest(t *testing.T) {
 			},
 			expectID: "spiffe://example.org/spire/agent/aws_iid/test-account/test-region/test-instance",
 			expectSelectors: []*common.Selector{
+				{Type: caws.PluginName, Value: "account_id:test-account"},
 				{Type: caws.PluginName, Value: "az:test-az"},
 				{Type: caws.PluginName, Value: "image:id:test-image-id"},
 				{Type: caws.PluginName, Value: "instance:id:test-instance"},
@@ -449,37 +466,20 @@ func TestAttest(t *testing.T) {
 					Status: types.AccountStatusSuspended,
 				}}
 			},
-			overrideAttestationData: func(id caws.IIDAttestationData) caws.IIDAttestationData {
-				doc := imds.InstanceIdentityDocument{
-					AccountID:        testAccountID,
-					InstanceID:       testInstance,
-					Region:           testRegion,
-					AvailabilityZone: testAvailabilityZone,
-					ImageID:          testImageID,
-				}
-				docBytes, _ := json.Marshal(doc)
-				id.Document = string(docBytes)
-				return id
+			overrideAttestationData: func(caws.IIDAttestationData) caws.IIDAttestationData {
+				return orgTestAttestationData
 			},
 			expectMsgPrefix: fmt.Sprintf("nodeattestor(aws_iid): failed aws ec2 attestation, nodes account id: %v is not part of configured organization or doesn't have ACTIVE status", testAccountID),
 		},
 		{
 			name:   "success when organization validation feature is turned on",
 			config: `verify_organization = { management_account_id = "12345" assume_org_role = "test-orgrole" management_account_region = "test-orgregion" }`,
-			overrideAttestationData: func(id caws.IIDAttestationData) caws.IIDAttestationData {
-				doc := imds.InstanceIdentityDocument{
-					AccountID:        testAccountID,
-					InstanceID:       testInstance,
-					Region:           testRegion,
-					AvailabilityZone: testAvailabilityZone,
-					ImageID:          testImageID,
-				}
-				docBytes, _ := json.Marshal(doc)
-				id.Document = string(docBytes)
-				return id
+			overrideAttestationData: func(caws.IIDAttestationData) caws.IIDAttestationData {
+				return orgTestAttestationData
 			},
 			expectID: "spiffe://example.org/spire/agent/aws_iid/123456789/test-region/test-instance",
 			expectSelectors: []*common.Selector{
+				{Type: caws.PluginName, Value: "account_id:123456789"},
 				{Type: caws.PluginName, Value: "az:test-az"},
 				{Type: caws.PluginName, Value: "image:id:test-image-id"},
 				{Type: caws.PluginName, Value: "instance:id:test-instance"},
@@ -491,6 +491,7 @@ func TestAttest(t *testing.T) {
 			config:   `validate_eks_cluster_membership = { eks_cluster_names = ["test-cluster"] }`,
 			expectID: "spiffe://example.org/spire/agent/aws_iid/test-account/test-region/test-instance",
 			expectSelectors: []*common.Selector{
+				{Type: caws.PluginName, Value: "account_id:test-account"},
 				{Type: caws.PluginName, Value: "az:test-az"},
 				{Type: caws.PluginName, Value: "image:id:test-image-id"},
 				{Type: caws.PluginName, Value: "instance:id:test-instance"},
@@ -594,6 +595,91 @@ func TestAttest(t *testing.T) {
 			spiretest.AssertProtoListEqual(t, tt.expectSelectors, result.Selectors)
 		})
 	}
+}
+
+// TestUnmarshalIdentityDocumentPKCS7ContentBinding verifies that the
+// identity document returned by unmarshalAndValidateIdentityDocument
+// is always derived from the cryptographically verified content, not
+// from the unverified Document field in the attestation payload.
+func TestUnmarshalIdentityDocumentPKCS7ContentBinding(t *testing.T) {
+	testAWSCACert = generateCertificate(t, testAWSCAKey)
+
+	getAWSCACert := func(string, PublicKeyType) (*x509.Certificate, error) {
+		return testAWSCACert, nil
+	}
+
+	realDoc := imds.InstanceIdentityDocument{
+		AccountID:        "real-account",
+		InstanceID:       "real-instance",
+		Region:           testRegion,
+		AvailabilityZone: "real-az",
+		ImageID:          "real-image",
+	}
+	realDocBytes, err := json.Marshal(realDoc)
+	require.NoError(t, err)
+
+	forgedDoc := imds.InstanceIdentityDocument{
+		AccountID:        "forged-account",
+		InstanceID:       "forged-instance",
+		Region:           testRegion,
+		AvailabilityZone: "forged-az",
+		ImageID:          "forged-image",
+	}
+	forgedDocBytes, err := json.Marshal(forgedDoc)
+	require.NoError(t, err)
+
+	t.Run("RSA-2048 accepts matching document and PKCS7 content", func(t *testing.T) {
+		signature := generatePKCS7Signature(t, realDocBytes, testAWSCAKey)
+		attestationData := caws.IIDAttestationData{
+			Document:         string(realDocBytes),
+			SignatureRSA2048: base64.StdEncoding.EncodeToString(signature),
+		}
+		payload, err := json.Marshal(attestationData)
+		require.NoError(t, err)
+
+		doc, err := unmarshalAndValidateIdentityDocument(payload, getAWSCACert)
+		require.NoError(t, err)
+		assert.Equal(t, realDoc.AccountID, doc.AccountID)
+		assert.Equal(t, realDoc.InstanceID, doc.InstanceID)
+		assert.Equal(t, realDoc.Region, doc.Region)
+		assert.Equal(t, realDoc.AvailabilityZone, doc.AvailabilityZone)
+		assert.Equal(t, realDoc.ImageID, doc.ImageID)
+	})
+
+	t.Run("RSA-2048 rejects mismatched document and PKCS7 content", func(t *testing.T) {
+		// Sign the real document with RSA-2048 PKCS7, but put the
+		// forged document in the Document field.
+		signature := generatePKCS7Signature(t, realDocBytes, testAWSCAKey)
+		attestationData := caws.IIDAttestationData{
+			Document:         string(forgedDocBytes),
+			SignatureRSA2048: base64.StdEncoding.EncodeToString(signature),
+		}
+		payload, err := json.Marshal(attestationData)
+		require.NoError(t, err)
+
+		_, err = unmarshalAndValidateIdentityDocument(payload, getAWSCACert)
+		spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, "instance identity document does not match the verified PKCS7 content")
+	})
+
+	t.Run("RSA-1024 rejects mismatched document and signature", func(t *testing.T) {
+		// Sign the real document with RSA-1024, but put the forged
+		// document in the Document field. The RSA-1024 path verifies
+		// the signature directly against the Document field, so the
+		// mismatch causes a verification failure.
+		docHash := sha256.Sum256(realDocBytes)
+		sig, err := rsa.SignPKCS1v15(rand.Reader, testAWSCAKey, crypto.SHA256, docHash[:])
+		require.NoError(t, err)
+
+		attestationData := caws.IIDAttestationData{
+			Document:  string(forgedDocBytes),
+			Signature: base64.StdEncoding.EncodeToString(sig),
+		}
+		payload, err := json.Marshal(attestationData)
+		require.NoError(t, err)
+
+		_, err = unmarshalAndValidateIdentityDocument(payload, getAWSCACert)
+		spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, "failed to verify the cryptographic signature")
+	})
 }
 
 func TestConfigure(t *testing.T) {
@@ -876,27 +962,20 @@ func (c *fakeClient) DescribeNodegroup(_ context.Context, input *eks.DescribeNod
 }
 
 func buildAttestationDataRSA2048Signature(t *testing.T) caws.IIDAttestationData {
-	// doc body
-	doc := imds.InstanceIdentityDocument{
+	return buildAttestationDataRSA2048SignatureWithDoc(t, imds.InstanceIdentityDocument{
 		AccountID:        testAccount,
 		InstanceID:       testInstance,
 		Region:           testRegion,
 		AvailabilityZone: testAvailabilityZone,
 		ImageID:          testImageID,
-	}
+	})
+}
+
+func buildAttestationDataRSA2048SignatureWithDoc(t *testing.T, doc imds.InstanceIdentityDocument) caws.IIDAttestationData {
 	docBytes, err := json.Marshal(doc)
 	require.NoError(t, err)
 
-	signedData, err := pkcs7.NewSignedData(docBytes)
-	require.NoError(t, err)
-
-	privateKey := crypto.PrivateKey(testAWSCAKey)
-	err = signedData.AddSigner(testAWSCACert, privateKey, pkcs7.SignerInfoConfig{})
-	require.NoError(t, err)
-
 	signature := generatePKCS7Signature(t, docBytes, testAWSCAKey)
-
-	// base64 encode the signature
 	signatureEncoded := base64.StdEncoding.EncodeToString(signature)
 
 	return caws.IIDAttestationData{

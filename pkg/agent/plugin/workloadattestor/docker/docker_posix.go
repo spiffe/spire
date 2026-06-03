@@ -8,12 +8,24 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strconv"
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/spiffe/spire/pkg/agent/common/cgroups"
 	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor/docker/cgroup"
 	"github.com/spiffe/spire/pkg/common/containerinfo"
 	"github.com/spiffe/spire/pkg/common/pluginconf"
+)
+
+const (
+	defaultPodmanSocketPath         = "unix:///run/podman/podman.sock"
+	defaultPodmanSocketPathTemplate = "unix:///run/user/%d/podman/podman.sock"
+)
+
+var (
+	rePodmanCgroup = regexp.MustCompile(`(?:libpod-|/libpod/)`)
+	reUserSliceUID = regexp.MustCompile(`/user-(\d+)\.slice/`)
 )
 
 type OSConfig struct {
@@ -32,6 +44,15 @@ type OSConfig struct {
 	// VerboseContainerLocatorLogs, if true, dumps extra information to the log
 	// about mountinfo and cgroup information used to locate the container.
 	VerboseContainerLocatorLogs bool `hcl:"verbose_container_locator_logs"`
+
+	// PodmanSocketPath is the socket path for rootful Podman (no user namespace).
+	// Defaults to "unix:///run/podman/podman.sock".
+	PodmanSocketPath string `hcl:"podman_socket_path" json:"podman_socket_path"`
+
+	// PodmanSocketPathTemplate is the socket path template for rootless Podman.
+	// The placeholder %d is replaced with the container owner's host UID extracted
+	// from the cgroup path. Defaults to "unix:///run/user/%d/podman/podman.sock".
+	PodmanSocketPathTemplate string `hcl:"podman_socket_path_template" json:"podman_socket_path_template"`
 
 	// Used by tests to use a fake /proc directory instead of the real one
 	rootDir string
@@ -63,10 +84,25 @@ func (p *Plugin) createHelper(c *dockerPluginConfig, status *pluginconf.Status) 
 		rootDir = "/"
 	}
 
+	podmanSocketPath := c.PodmanSocketPath
+	if podmanSocketPath == "" {
+		podmanSocketPath = defaultPodmanSocketPath
+	}
+	podmanSocketPathTemplate := c.PodmanSocketPathTemplate
+	if podmanSocketPathTemplate == "" {
+		podmanSocketPathTemplate = defaultPodmanSocketPathTemplate
+	}
+	if err := validatePodmanSocketPathTemplate(podmanSocketPathTemplate); err != nil {
+		status.ReportErrorf("invalid podman_socket_path_template: %v", err)
+		return nil
+	}
+
 	return &containerHelper{
 		rootDir:                     rootDir,
 		containerIDFinder:           containerIDFinder,
 		verboseContainerLocatorLogs: c.VerboseContainerLocatorLogs,
+		podmanSocketPath:            podmanSocketPath,
+		podmanSocketPathTemplate:    podmanSocketPathTemplate,
 	}
 }
 
@@ -80,19 +116,77 @@ type containerHelper struct {
 	rootDir                     string
 	containerIDFinder           cgroup.ContainerIDFinder
 	verboseContainerLocatorLogs bool
+	podmanSocketPath            string
+	podmanSocketPathTemplate    string
 }
 
-func (h *containerHelper) getContainerID(pID int32, log hclog.Logger) (string, error) {
+func (h *containerHelper) getContainerIDAndSocket(pID int32, log hclog.Logger) (string, string, error) {
 	if h.containerIDFinder != nil {
 		cgroupList, err := cgroups.GetCgroups(pID, dirFS(h.rootDir))
 		if err != nil {
-			return "", err
+			return "", "", err
 		}
-		return getContainerIDFromCGroups(h.containerIDFinder, cgroupList)
+		containerID, err := getContainerIDFromCGroups(h.containerIDFinder, cgroupList)
+		if err != nil || containerID == "" {
+			return "", "", err
+		}
+		return containerID, h.detectPodmanSocket(cgroupList, log), nil
 	}
 
 	extractor := containerinfo.Extractor{RootDir: h.rootDir, VerboseLogging: h.verboseContainerLocatorLogs}
-	return extractor.GetContainerID(pID, log)
+	containerID, err := extractor.GetContainerID(pID, log)
+	if err != nil || containerID == "" {
+		return "", "", err
+	}
+
+	cgroupList, err := cgroups.GetCgroups(pID, dirFS(h.rootDir))
+	if err != nil {
+		log.Warn("Failed to read cgroups for Podman detection, falling back to Docker client", "pid", pID, "err", err)
+		return containerID, "", nil
+	}
+	return containerID, h.detectPodmanSocket(cgroupList, log), nil
+}
+
+func (h *containerHelper) detectPodmanSocket(cgroupList []cgroups.Cgroup, log hclog.Logger) string {
+	for _, cg := range cgroupList {
+		if !rePodmanCgroup.MatchString(cg.GroupPath) {
+			continue
+		}
+		if m := reUserSliceUID.FindStringSubmatch(cg.GroupPath); m != nil {
+			if uid, err := strconv.ParseUint(m[1], 10, 32); err == nil {
+				return fmt.Sprintf(h.podmanSocketPathTemplate, uid)
+			}
+			log.Warn("Failed to parse rootless Podman UID from cgroup path, falling back to rootful Podman socket", "uid", m[1], "cgroup_path", cg.GroupPath)
+		}
+		return h.podmanSocketPath
+	}
+	return ""
+}
+
+func validatePodmanSocketPathTemplate(template string) error {
+	var placeholders int
+	for i := 0; i < len(template); i++ {
+		if template[i] != '%' {
+			continue
+		}
+		if i+1 >= len(template) {
+			return errors.New("trailing % at end of template")
+		}
+		switch template[i+1] {
+		case '%':
+			i++
+		case 'd':
+			placeholders++
+			i++
+		default:
+			return errors.New("template only supports escaped %% or the %d UID placeholder")
+		}
+	}
+
+	if placeholders != 1 {
+		return errors.New("template must contain exactly one %d UID placeholder")
+	}
+	return nil
 }
 
 func getDockerHost(c *dockerPluginConfig) string {

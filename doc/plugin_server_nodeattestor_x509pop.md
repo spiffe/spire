@@ -16,13 +16,15 @@ the identity certificate. The SPIFFE ID has the form:
 spiffe://<trust_domain>/spire/agent/x509pop/<fingerprint>
 ```
 
-| Configuration         | Description                                                                                                                                                                                                                                    | Default                                 |
-|-----------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------|
-| `mode`                | If `spiffe`, use the spire servers own trust bundle to use for validation. If `external_pki`, use the specified CA(s).                                                                                                                         | external_pki                                                    |
-| `svid_prefix`            | The prefix of the SVID to use for matching valid SVIDS and exchanging them for Node SVIDs                                                                                                                                                   | /spire-exchange                                                 |
-| `ca_bundle_path`      | The path to the trusted CA bundle on disk. The file must contain one or more PEM blocks forming the set of trusted root CA's for chain-of-trust verification. If the CA certificates are in more than one file, use `ca_bundle_paths` instead. |                                                                 |
-| `ca_bundle_paths`     | A list of paths to trusted CA bundles on disk. The files must contain one or more PEM blocks forming the set of trusted root CA's for chain-of-trust verification.                                                                             |                                                                 |
-| `agent_path_template` | A URL path portion format of Agent's SPIFFE ID. Describe in text/template format.                                                                                                                                                              | See [Agent Path Template](#agent-path-template) for details   |
+| Configuration         | Description                                                                                                                                                                                                                                    | Default                                                     |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| `mode`                | If `spiffe`, use the spire servers own trust bundle to use for validation. If `external_pki`, use the specified CA(s).                                                                                                                         | external_pki                                                |
+| `svid_prefix`         | The prefix of the SVID to use for matching valid SVIDS and exchanging them for Node SVIDs                                                                                                                                                      | /spire-exchange                                             |
+| `ca_bundle_path`      | The path to the trusted CA bundle on disk. The file must contain one or more PEM blocks forming the set of trusted root CA's for chain-of-trust verification. If the CA certificates are in more than one file, use `ca_bundle_paths` instead. |                                                             |
+| `ca_bundle_paths`     | A list of paths to trusted CA bundles on disk. The files must contain one or more PEM blocks forming the set of trusted root CA's for chain-of-trust verification.                                                                             |                                                             |
+| `agent_path_template` | A URL path portion format of Agent's SPIFFE ID. Describe in text/template format.                                                                                                                                                              | See [Agent Path Template](#agent-path-template) for details |
+| `max_intermediates`   | Maximum number of intermediate certificates allowed in the certificate chain. This limit helps prevent resource exhaustion attacks.                                                                                                            | 4                                                           |
+| `max_rsa_key_size`    | Maximum RSA key size in bits allowed in certificates. This limit helps prevent resource exhaustion attacks from excessively large keys.                                                                                                        | 8192                                                        |
 
 A sample configuration:
 
@@ -33,6 +35,12 @@ A sample configuration:
 
             # Change the agent's SPIFFE ID format
             # agent_path_template = "/cn/{{ .Subject.CommonName }}"
+
+            # Optional: Maximum number of intermediate certificates (default: 4)
+            # max_intermediates = 4
+
+            # Optional: Maximum RSA key size in bits (default: 8192)
+            # max_rsa_key_size = 8192
         }
     }
 ```
@@ -62,15 +70,16 @@ Specifying the value of `agent_path_template` provides a way of customizing the 
 | `external_pki` | `{{ .PluginName }}/{{ .Fingerprint }}`     |
 
 The template formatter is using Golang text/template conventions. It can reference values provided by the plugin or in a [golang x509.Certificate](https://pkg.go.dev/crypto/x509#Certificate).
-Details about the template engine are available [here](template_engine.md).
+Details about the template engine are available in the [template engine documentation](template_engine.md).
 
 Some useful values are:
 
-| Value                 | Description                                                                                  |
-|-----------------------|----------------------------------------------------------------------------------------------|
-| .PluginName           | The name of the plugin                                                                       |
-| .Fingerprint          | The SHA1 fingerprint of the agent's x509 certificate                                         |
-| .TrustDomain          | The configured trust domain                                                                  |
-| .Subject.CommonName   | The common name field of the agent's x509 certificate                                        |
-| .SerialNumberHex      | The serial number field of the agent's x509 certificate represented as lowercase hexadecimal |
-| .SVIDPathTrimmed      | The SVID Path after trimming off the SVID prefix                                             |
+| Value                       | Description                                                                                  |
+|-----------------------------|----------------------------------------------------------------------------------------------|
+| .PluginName                 | The name of the plugin                                                                       |
+| .Fingerprint                | The SHA1 fingerprint of the agent's x509 certificate                                         |
+| .TrustDomain                | The configured trust domain                                                                  |
+| .Subject.CommonName         | The common name field of the agent's x509 certificate                                        |
+| .SerialNumberHex            | The serial number field of the agent's x509 certificate represented as lowercase hexadecimal |
+| .SVIDPathTrimmed            | The SVID Path after trimming off the SVID prefix                                             |
+| .URISanSelectors.&lt;key&gt;| The value of the URI San selector with key `<key>`                                           |

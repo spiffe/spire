@@ -51,7 +51,7 @@ func NewFileSource(config FileSourceConfig) *FileSource {
 		cancel: cancel,
 	}
 
-	go s.pollEvery(ctx, config.Path, config.PollInterval)
+	s.wg.Go(func() { s.pollEvery(ctx, config.Path, config.PollInterval) })
 	return s
 }
 
@@ -77,9 +77,6 @@ func (s *FileSource) LastSuccessfulPoll() time.Time {
 }
 
 func (s *FileSource) pollEvery(ctx context.Context, path string, interval time.Duration) {
-	s.wg.Add(1)
-	defer s.wg.Done()
-
 	s.log.WithField("interval", interval).Debug("Polling started")
 	for {
 		s.pollOnce(path)

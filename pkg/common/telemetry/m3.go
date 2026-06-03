@@ -227,14 +227,12 @@ func (r *m3Runner) run(ctx context.Context) error {
 	}
 
 	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		<-ctx.Done()
 		for _, s := range r.loadedSinks {
 			s.closer.Close()
 		}
-	}()
+	})
 
 	wg.Wait()
 	return ctx.Err()

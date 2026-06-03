@@ -54,6 +54,8 @@ type Config struct {
 
 	AllowedForeignJWTClaims []string
 
+	LogSelectors []string
+
 	TrustDomain spiffeid.TrustDomain
 
 	// WorkloadAPIRateLimit configures per-selector-set rate limiting for Workload API and SDS methods.

@@ -15,9 +15,9 @@ import (
 	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
 	"github.com/hashicorp/go-hclog"
-	"github.com/sigstore/cosign/v2/pkg/cosign"
-	"github.com/sigstore/cosign/v2/pkg/oci"
-	cosignremote "github.com/sigstore/cosign/v2/pkg/oci/remote"
+	"github.com/sigstore/cosign/v3/pkg/cosign"
+	"github.com/sigstore/cosign/v3/pkg/oci"
+	cosignremote "github.com/sigstore/cosign/v3/pkg/oci/remote"
 	"github.com/sigstore/rekor/pkg/client"
 	rekorclient "github.com/sigstore/rekor/pkg/generated/client"
 	"github.com/sigstore/sigstore/pkg/cryptoutils"
@@ -58,8 +58,8 @@ type ImageVerifier struct {
 }
 
 type sigstoreFunctions struct {
-	verifyImageSignatures   cosignVerifyFn
-	verifyImageAttestations cosignVerifyFn
+	verifyImageSignatures   cosignVerifyImageSignaturesFn
+	verifyImageAttestations cosignVerifyImageAttestationsFn
 	getRekorClient          getRekorClientFn
 	getFulcioRoots          getCertPoolFn
 	getFulcioIntermediates  getCertPoolFn
@@ -67,7 +67,8 @@ type sigstoreFunctions struct {
 	getCTLogPublicKeys      getTLogPublicKeysFn
 }
 
-type cosignVerifyFn func(context.Context, name.Reference, *cosign.CheckOpts) ([]oci.Signature, bool, error)
+type cosignVerifyImageSignaturesFn func(context.Context, name.Reference, *cosign.CheckOpts) ([]oci.Signature, bool, error)
+type cosignVerifyImageAttestationsFn func(context.Context, name.Reference, *cosign.CheckOpts, ...name.Option) ([]oci.Signature, bool, error)
 type getRekorClientFn func(string, ...client.Option) (*rekorclient.Rekor, error)
 type getCertPoolFn func() (*x509.CertPool, error)
 type getTLogPublicKeysFn func(context.Context) (*cosign.TrustedTransparencyLogPubKeys, error)

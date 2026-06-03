@@ -29,8 +29,8 @@ func TestWithMetrics(t *testing.T) {
 	methodNames := make(map[string]struct{})
 	wv := reflect.ValueOf(w)
 	wt := reflect.TypeOf(w)
-	for i := range wt.NumMethod() {
-		methodNames[wt.Method(i).Name] = struct{}{}
+	for method := range wt.Methods() {
+		methodNames[method.Name] = struct{}{}
 	}
 
 	for _, tt := range []struct {

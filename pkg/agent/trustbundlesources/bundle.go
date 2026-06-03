@@ -223,7 +223,7 @@ func (b *Bundle) updateMetrics() {
 	if b.startTime.IsZero() {
 		bootstrapped = 1
 	}
-	b.metrics.SetGaugeWithLabels([]string{"bootstraped"}, float32(bootstrapped), []telemetry.Label{})
+	b.metrics.SetGaugeWithLabels([]string{"bootstrapped"}, float32(bootstrapped), []telemetry.Label{})
 	b.metrics.SetGaugeWithLabels([]string{"bootstrap_seconds"}, float32(seconds), []telemetry.Label{
 		{Name: "mode", Value: use},
 	})

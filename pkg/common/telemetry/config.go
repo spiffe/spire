@@ -3,6 +3,7 @@ package telemetry
 import (
 	"github.com/hashicorp/hcl/hcl/token"
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/spire/pkg/common/tlspolicy"
 )
 
 type MetricsConfig struct {
@@ -11,6 +12,7 @@ type MetricsConfig struct {
 	ServiceName string
 	Sinks       []Sink
 	TrustDomain string
+	TLSPolicy   tlspolicy.Policy
 }
 
 type FileConfig struct {
@@ -39,7 +41,14 @@ type DogStatsdConfig struct {
 type PrometheusConfig struct {
 	Host               string                 `hcl:"host"`
 	Port               int                    `hcl:"port"`
+	TLS                *TLSConfig             `hcl:"tls"`
 	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions"`
+}
+
+type TLSConfig struct {
+	CertFile     string `hcl:"cert_file"`
+	KeyFile      string `hcl:"key_file"`
+	ClientCAFile string `hcl:"client_ca_file"` // optional
 }
 
 type StatsdConfig struct {

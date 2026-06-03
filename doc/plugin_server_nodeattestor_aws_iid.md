@@ -33,7 +33,7 @@ Sample configuration:
     }
 ```
 
-If `assume_role` is set, the SPIRE server will assume the role as specified by the template `arn:{{Partition}}:iam::{{AccountID}}:role/{{AssumeRole}}` where `Partition` comes from the AWS NodeAttestor plugin configuration if specified otherwise set to 'aws', `AccountID` is taken from the AWS IID document sent by the SPIRE agent to the SPIRE server and `AssumeRole` comes from the AWS NodeAttestor plugin configuration. Details about the template engine are available [here](template_engine.md).
+If `assume_role` is set, the SPIRE server will assume the role as specified by the template `arn:{{Partition}}:iam::{{AccountID}}:role/{{AssumeRole}}` where `Partition` comes from the AWS NodeAttestor plugin configuration if specified otherwise set to 'aws', `AccountID` is taken from the AWS IID document sent by the SPIRE agent to the SPIRE server and `AssumeRole` comes from the AWS NodeAttestor plugin configuration. Details about the template engine are available in the [template engine documentation](template_engine.md).
 
 In the following configuration,
 
@@ -103,9 +103,9 @@ Trust Relationship
 
 For configuring AWS Node attestation method with EKS cluster validation following configuration can be used:
 
-| Field Name          | Description                                                                                   | Constraints                                |
-|---------------------|-----------------------------------------------------------------------------------------------|--------------------------------------------|
-| eks_cluster_names   | List of EKS cluster names that nodes are allowed to belong to                                | required                                   |
+| Field Name        | Description                                                   | Constraints |
+| ----------------- | ------------------------------------------------------------- | ----------- |
+| eks_cluster_names | List of EKS cluster names that nodes are allowed to belong to | required    |
 
 Using the block `validate_eks_cluster_membership` the EKS cluster validation node attestation method will be enabled. With above configuration SPIRE server will verify that the attesting node is part of one of the specified EKS clusters. When not used, block ex. `validate_eks_cluster_membership = {}` should not be empty, it should be completely removed as its optional or should have all required parameters namely `eks_cluster_names`.
 
@@ -191,6 +191,7 @@ This plugin generates the following selectors related to the instance where the 
 
 | Selector            | Example                                               | Description                                                      |
 |---------------------|-------------------------------------------------------|------------------------------------------------------------------|
+| Account ID          | `aws_iid:account_id:123456789012`                     | The ID of the AWS account the instance belongs to.               |
 | Availability Zone   | `aws_iid:az:us-west-2b`                               | The Availability Zone in which the instance is running.          |
 | IAM role            | `aws_iid:iamrole:arn:aws:iam::123456789012:role/Blog` | An IAM role within the instance profile for the instance         |
 | Image ID            | `aws_iid:image:id:ami-5fb8c835`                       | The ID of the AMI used to launch the instance.                   |

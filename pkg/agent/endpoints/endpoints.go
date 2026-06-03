@@ -20,6 +20,10 @@ import (
 	"github.com/spiffe/spire/pkg/common/telemetry"
 )
 
+const (
+	readBufferSize = 4096
+)
+
 type Server interface {
 	ListenAndServe(ctx context.Context) error
 	WaitForListening(listening chan struct{})
@@ -70,6 +74,7 @@ func New(c Config) *Endpoints {
 		RateLimiter:                   workloadRateLimiter,
 		AllowUnauthenticatedVerifiers: c.AllowUnauthenticatedVerifiers,
 		AllowedForeignJWTClaims:       allowedClaims,
+		LogSelectors:                  c.LogSelectors,
 		TrustDomain:                   c.TrustDomain,
 	})
 
@@ -111,6 +116,7 @@ func (e *Endpoints) ListenAndServe(ctx context.Context) error {
 		grpc.Creds(peertracker.NewCredentials()),
 		grpc.UnaryInterceptor(unaryInterceptor),
 		grpc.StreamInterceptor(streamInterceptor),
+		grpc.ReadBufferSize(readBufferSize),
 	)
 
 	workload_pb.RegisterSpiffeWorkloadAPIServer(server, e.workloadAPIServer)

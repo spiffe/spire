@@ -20,6 +20,7 @@ import (
 	"github.com/andres-erbsen/clock"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
+	hcltoken "github.com/hashicorp/hcl/hcl/token"
 	workloadattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/agent/workloadattestor/v1"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/agent/common/sigstore"
@@ -133,13 +134,10 @@ type HCLConfig struct {
 	// about mountinfo and cgroup information used to locate the container.
 	VerboseContainerLocatorLogs bool `hcl:"verbose_container_locator_logs"`
 
-	// Experimental enables experimental features.
-	Experimental experimentalK8SConfig `hcl:"experimental,omitempty"`
-}
-
-type experimentalK8SConfig struct {
 	// Sigstore contains sigstore specific configs.
 	Sigstore *sigstore.HCLConfig `hcl:"sigstore,omitempty"`
+
+	UnusedKeyPositions map[string][]hcltoken.Pos `hcl:",unusedKeyPositions"`
 }
 
 // k8sConfig holds the configuration distilled from HCL
@@ -171,6 +169,8 @@ func (p *Plugin) buildConfig(coreConfig catalog.CoreConfig, hclText string, stat
 		status.ReportErrorf("unable to decode configuration: %v", err)
 		return nil
 	}
+
+	pluginconf.ReportUnusedKeys(status, newConfig.UnusedKeyPositions)
 
 	// Determine max poll attempts with default
 	maxPollAttempts := newConfig.MaxPollAttempts
@@ -231,8 +231,8 @@ func (p *Plugin) buildConfig(coreConfig catalog.CoreConfig, hclText string, stat
 	nodeName := p.getNodeName(newConfig.NodeName, newConfig.NodeNameEnv)
 
 	var sigstoreConfig *sigstore.Config
-	if newConfig.Experimental.Sigstore != nil {
-		sigstoreConfig = sigstore.NewConfigFromHCL(newConfig.Experimental.Sigstore, p.log)
+	if newConfig.Sigstore != nil {
+		sigstoreConfig = sigstore.NewConfigFromHCL(newConfig.Sigstore, p.log)
 	}
 
 	// return the kubelet client
@@ -516,6 +516,7 @@ func (p *Plugin) reloadKubeletClient(config *k8sConfig) (err error) {
 	// with the raw kubelet certs that we can verify directly.
 	case config.NodeName == "":
 		tlsConfig.InsecureSkipVerify = true
+		tlsConfig.SessionTicketsDisabled = true
 		tlsConfig.VerifyPeerCertificate = func(rawCerts [][]byte, _ [][]*x509.Certificate) error {
 			var certs []*x509.Certificate
 			for _, rawCert := range rawCerts {
@@ -789,6 +790,11 @@ func getPodImageIdentifiers(containerStatuses ...corev1.ContainerStatus) map[str
 	// while also maintaining backwards compatibility and allowing for dynamic workload registration (k8s operator)
 	// when the SHA is not yet known (e.g. before the image pull is initiated at workload creation time)
 	// More info here: https://github.com/spiffe/spire/issues/2026
+	//
+	// Note: The tag-based Image value can be non-deterministic when multiple
+	// tags share the same digest, as the CRI API does not standardize which
+	// tag to report. Prefer digest-based selectors for reliable matching.
+	// See https://github.com/spiffe/spire/issues/4287
 	for _, containerStatus := range containerStatuses {
 		podImages[containerStatus.ImageID] = struct{}{}
 		podImages[containerStatus.Image] = struct{}{}

@@ -42,15 +42,13 @@ func (s *service) Execute(args []string, changeRequest <-chan svc.ChangeRequest,
 		retCode int
 	)
 	ctx, stop := context.WithCancel(context.Background())
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		s.mtx.RLock()
 		defer s.mtx.RUnlock()
 		if retCode = s.executeServiceFn(ctx, stop, osArgs); retCode != 0 {
 			retCode = int(windows.ERROR_FATAL_APP_EXIT)
 		}
-	}()
+	})
 
 loop:
 	for {

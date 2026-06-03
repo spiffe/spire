@@ -3,7 +3,6 @@ package docker
 import (
 	"context"
 	"fmt"
-	"sort"
 	"strings"
 	"sync"
 
@@ -48,6 +47,11 @@ type Docker interface {
 	ImageInspectWithRaw(ctx context.Context, imageID string) (image.InspectResponse, []byte, error)
 }
 
+type podmanDocker interface {
+	Docker
+	Close() error
+}
+
 type Plugin struct {
 	workloadattestorv1.UnsafeWorkloadAttestorServer
 	configv1.UnsafeConfigServer
@@ -55,16 +59,25 @@ type Plugin struct {
 	log     hclog.Logger
 	retryer *retryer
 
-	mtx              sync.RWMutex
-	docker           Docker
-	c                *containerHelper
-	sigstoreVerifier sigstore.Verifier
+	mtx                 sync.RWMutex
+	docker              Docker
+	c                   *containerHelper
+	sigstoreVerifier    sigstore.Verifier
+	podmanClientFactory func(socketPath string) (podmanDocker, error)
 }
 
 func New() *Plugin {
 	return &Plugin{
-		retryer: newRetryer(),
+		retryer:             newRetryer(),
+		podmanClientFactory: defaultPodmanClientFactory,
 	}
+}
+
+func defaultPodmanClientFactory(socketPath string) (podmanDocker, error) {
+	return dockerclient.NewClientWithOpts(
+		dockerclient.WithHost(socketPath),
+		dockerclient.WithAPIVersionNegotiation(),
+	)
 }
 
 type dockerPluginConfig struct {
@@ -75,16 +88,12 @@ type dockerPluginConfig struct {
 
 	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions"`
 
-	Experimental experimentalConfig `hcl:"experimental,omitempty" json:"experimental"`
+	// Sigstore contains sigstore specific configs.
+	Sigstore *sigstore.HCLConfig `hcl:"sigstore,omitempty" json:"sigstore"`
 
 	containerHelper *containerHelper
 	dockerOpts      []dockerclient.Opt
 	sigstoreConfig  *sigstore.Config
-}
-
-type experimentalConfig struct {
-	// Sigstore contains sigstore specific configs.
-	Sigstore *sigstore.HCLConfig `hcl:"sigstore,omitempty"`
 }
 
 func (p *Plugin) buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *dockerPluginConfig {
@@ -95,15 +104,7 @@ func (p *Plugin) buildConfig(coreConfig catalog.CoreConfig, hclText string, stat
 		return nil
 	}
 
-	if len(newConfig.UnusedKeyPositions) > 0 {
-		var keys []string
-		for k := range newConfig.UnusedKeyPositions {
-			keys = append(keys, k)
-		}
-
-		sort.Strings(keys)
-		status.ReportErrorf("unknown configurations detected: %s", strings.Join(keys, ","))
-	}
+	pluginconf.ReportUnusedKeys(status, newConfig.UnusedKeyPositions)
 
 	newConfig.containerHelper = p.createHelper(newConfig, status)
 
@@ -117,8 +118,8 @@ func (p *Plugin) buildConfig(coreConfig catalog.CoreConfig, hclText string, stat
 		newConfig.dockerOpts = append(newConfig.dockerOpts, dockerclient.WithVersion(newConfig.DockerVersion))
 	}
 
-	if newConfig.Experimental.Sigstore != nil {
-		newConfig.sigstoreConfig = sigstore.NewConfigFromHCL(newConfig.Experimental.Sigstore, p.log)
+	if newConfig.Sigstore != nil {
+		newConfig.sigstoreConfig = sigstore.NewConfigFromHCL(newConfig.Sigstore, p.log)
 	}
 
 	return newConfig
@@ -132,7 +133,7 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestReque
 	p.mtx.RLock()
 	defer p.mtx.RUnlock()
 
-	containerID, err := p.c.getContainerID(req.Pid, p.log)
+	containerID, podmanSocket, err := p.c.getContainerIDAndSocket(req.Pid, p.log)
 	switch {
 	case err != nil:
 		return nil, err
@@ -141,9 +142,23 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestReque
 		return &workloadattestorv1.AttestResponse{}, nil
 	}
 
+	client := p.docker
+	if podmanSocket != "" {
+		podmanClient, err := p.podmanClientFactory(podmanSocket)
+		if err != nil {
+			return nil, fmt.Errorf("unable to create Podman client for socket %q: %w", podmanSocket, err)
+		}
+		defer func() {
+			if closeErr := podmanClient.Close(); closeErr != nil {
+				p.log.Warn("Failed to close Podman client", telemetry.Error, closeErr)
+			}
+		}()
+		client = podmanClient
+	}
+
 	var container container.InspectResponse
 	err = p.retryer.Retry(ctx, func() error {
-		container, err = p.docker.ContainerInspect(ctx, containerID)
+		container, err = client.ContainerInspect(ctx, containerID)
 		return err
 	})
 	if err != nil {
@@ -156,7 +171,7 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestReque
 	var inspectErr error
 	imageName := container.Config.Image
 	if imageName != "" || p.sigstoreVerifier != nil {
-		imageJSON, _, inspectErr = p.docker.ImageInspectWithRaw(ctx, imageName)
+		imageJSON, _, inspectErr = client.ImageInspectWithRaw(ctx, imageName)
 	}
 
 	// Add image_config_digest selector

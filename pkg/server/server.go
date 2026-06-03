@@ -107,6 +107,7 @@ func (s *Server) run(ctx context.Context) (err error) {
 		Logger:      s.config.Log.WithField(telemetry.SubsystemName, telemetry.Telemetry),
 		ServiceName: telemetry.SpireServer,
 		TrustDomain: s.config.TrustDomain.Name(),
+		TLSPolicy:   s.config.TLSPolicy,
 	})
 	if err != nil {
 		return err
@@ -272,21 +273,17 @@ func (s *Server) setupProfiling(ctx context.Context) (stop func()) {
 
 		// kick off a goroutine to serve the pprof endpoints and one to
 		// gracefully shut down the server when profiling is being torn down
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			if err := server.ListenAndServe(); err != nil {
 				s.config.Log.WithError(err).Warn("Unable to serve profiling server")
 			}
-		}()
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		})
+		wg.Go(func() {
 			<-ctx.Done()
 			if err := server.Shutdown(ctx); err != nil {
 				s.config.Log.WithError(err).Warn("Unable to shutdown the server cleanly")
 			}
-		}()
+		})
 	}
 	if s.config.ProfilingFreq > 0 {
 		c := &profiling.Config{
@@ -296,13 +293,11 @@ func (s *Server) setupProfiling(ctx context.Context) (stop func()) {
 			RunGCBeforeHeapProfile: true,
 			Profiles:               s.config.ProfilingNames,
 		}
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			if err := profiling.Run(ctx, c); err != nil {
 				s.config.Log.WithError(err).Warn("Failed to run profiling")
 			}
-		}()
+		})
 	}
 
 	return func() {
@@ -334,6 +329,7 @@ func (s *Server) newCredBuilder(cat catalog.Catalog) (*credtemplate.Builder, err
 		X509SVIDTTL:         s.config.X509SVIDTTL,
 		JWTSVIDTTL:          s.config.JWTSVIDTTL,
 		JWTIssuer:           s.config.JWTIssuer,
+		WITIssuer:           s.config.WITIssuer,
 		CredentialComposers: cat.GetCredentialComposers(),
 		TLSPolicy:           s.config.TLSPolicy,
 	})
@@ -450,10 +446,12 @@ func (s *Server) newEndpointsServer(ctx context.Context, catalog catalog.Catalog
 		PruneEventsOlderThan:         s.config.PruneEventsOlderThan,
 		EventTimeout:                 s.config.EventTimeout,
 		AuditLogEnabled:              s.config.AuditLogEnabled,
+		ProxyProtocolTrustedCIDRs:    s.config.ProxyProtocolTrustedCIDRs,
 		AuthPolicyEngine:             authPolicyEngine,
 		BundleManager:                bundleManager,
 		AdminIDs:                     s.config.AdminIDs,
 		MaxAttestedNodeInfoStaleness: s.config.MaxAttestedNodeInfoStaleness,
+		AgentSpiffeIdAsSelector:      s.config.Experimental.AgentSpiffeIdAsSelector,
 	}
 	if s.config.Federation.BundleEndpoint != nil {
 		config.BundleEndpoint.Address = s.config.Federation.BundleEndpoint.Address

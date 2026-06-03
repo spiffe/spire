@@ -345,11 +345,9 @@ func (s *streamState) Start(fn func(context.Context)) {
 	s.stopped = make(chan struct{})
 	ctx, cancel := context.WithCancel(context.Background())
 	s.cancel = cancel
-	s.wg.Add(1)
-	go func() {
-		defer s.wg.Done()
+	s.wg.Go(func() {
 		fn(ctx)
-	}()
+	})
 }
 
 func (s *streamState) WaitUntilStopped(ctx context.Context) error {

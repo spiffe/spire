@@ -1493,7 +1493,7 @@ func NewNodeScenario(t *testing.T, setup *nodeScenarioSetup) *scenario {
 	log, hook := test.NewNullLogger()
 	log.SetLevel(logrus.DebugLevel)
 	clk := clock.NewMock(t)
-	cache := authorizedentries.NewCache(clk)
+	cache := authorizedentries.NewCache(clk, "example.org")
 	metrics := fakemetrics.New()
 	ds := fakedatastore.New(t)
 

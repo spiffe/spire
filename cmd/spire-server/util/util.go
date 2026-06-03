@@ -155,7 +155,11 @@ func (a *Adapter) Run(args []string) int {
 		return 1
 	}
 
-	addr := a.getGRPCAddr()
+	addr, err := a.getGRPCAddr()
+	if err != nil {
+		fmt.Fprintln(a.env.Stderr, "Error: "+err.Error())
+		return 1
+	}
 	client, err := NewServerClient(addr)
 	if err != nil {
 		fmt.Fprintln(a.env.Stderr, "Error: "+err.Error())

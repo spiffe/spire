@@ -18,6 +18,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/storage"
 	"github.com/spiffe/spire/pkg/agent/svid"
 	"github.com/spiffe/spire/pkg/common/backoff"
+	"github.com/spiffe/spire/pkg/common/errorutil"
 	"github.com/spiffe/spire/pkg/common/nodeutil"
 	"github.com/spiffe/spire/pkg/common/rotationutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -226,7 +227,7 @@ func (m *manager) Run(ctx context.Context) error {
 			m.svid.Run)
 
 		switch {
-		case err == nil || errors.Is(err, context.Canceled):
+		case err == nil || errors.Is(err, context.Canceled) || errorutil.IsSIGINTOrSIGTERMError(err):
 			m.c.Log.Info("Cache manager stopped")
 			return nil
 		case nodeutil.ShouldAgentReattest(err):
@@ -299,10 +300,18 @@ func (m *manager) FetchJWTSVID(ctx context.Context, entry *common.RegistrationEn
 		return nil, fmt.Errorf("invalid SPIFFE ID: %w", err)
 	}
 
+	// When the entry opts into a JTI claim, every request must yield a fresh token,
+	// so the JWT-SVID cache is bypassed.
+	bypassCache := entry.GetAdditionalAttributes().GetJwtSvidIncludeJti()
+
 	now := m.clk.Now()
-	cachedSVID, ok := m.cache.GetJWTSVID(spiffeID, audience)
-	if ok && !m.c.RotationStrategy.JWTSVIDExpiresSoon(cachedSVID, now) {
-		return cachedSVID, nil
+	var cachedSVID *client.JWTSVID
+	var ok bool
+	if !bypassCache {
+		cachedSVID, ok = m.cache.GetJWTSVID(spiffeID, audience)
+		if ok && !m.c.RotationStrategy.JWTSVIDExpiresSoon(cachedSVID, now) {
+			return cachedSVID, nil
+		}
 	}
 
 	// Determine if an unexpired JWT-SVID exists in the cache to pass
@@ -322,7 +331,9 @@ func (m *manager) FetchJWTSVID(ctx context.Context, entry *common.RegistrationEn
 		return cachedSVID, nil
 	}
 
-	m.cache.SetJWTSVID(svidSPIFFEID, audience, newSVID)
+	if !bypassCache {
+		m.cache.SetJWTSVID(svidSPIFFEID, audience, newSVID)
+	}
 	return newSVID, nil
 }
 
@@ -354,9 +365,9 @@ func (m *manager) runSynchronizer(ctx context.Context) error {
 			}
 			seconds := time.Since(startTime)
 			if seconds < m.c.RebootstrapDelay {
-				fmt.Printf("Trust Bandle and Server dont agree.... Ignoring for now. Rebootstrap timeout left: %s\n", m.c.RebootstrapDelay-seconds)
+				m.c.Log.WithField("time_left", m.c.RebootstrapDelay-seconds).Info("Trust Bundle and Server don't agree, ignoring for now")
 			} else {
-				fmt.Printf("Trust Bandle and Server dont agree.... rebootstrapping")
+				m.c.Log.Warn("Trust Bundle and Server don't agree, rebootstrapping")
 				err = m.c.TrustBundleSources.SetForceRebootstrap()
 				if err != nil {
 					return err

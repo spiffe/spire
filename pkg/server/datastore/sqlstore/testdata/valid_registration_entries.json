@@ -53,5 +53,17 @@
       }
     ],
     "spiffe_id": "SpiffeId4"
+  },
+  {
+    "selectors": [
+      {
+        "type": "Type1",
+        "value": "Value3"
+      }
+    ],
+    "spiffe_id": "SpiffeId1",
+    "additional_attributes": {
+      "disable_x509_svid_prefetch": true
+    }
   }
 ]

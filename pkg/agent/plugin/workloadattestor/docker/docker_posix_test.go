@@ -3,6 +3,7 @@
 package docker
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -15,6 +16,11 @@ import (
 
 const (
 	testCgroupEntries = "10:devices:/docker/6469646e742065787065637420616e796f6e6520746f20726561642074686973"
+
+	testRootlessPodmanCgroupEntries         = "0::/user.slice/user-1000.slice/user@1000.service/user.slice/libpod-6469646e742065787065637420616e796f6e6520746f20726561642074686973.scope"
+	testRootfulPodmanCgroupEntries          = "0::/machine.slice/libpod-6469646e742065787065637420616e796f6e6520746f20726561642074686973.scope"
+	testCgroupfsRootlessPodmanCgroupEntries = "0::/user.slice/user-2000.slice/user@2000.service/user.slice/libpod/6469646e742065787065637420616e796f6e6520746f20726561642074686973"
+	testInvalidUIDPodmanCgroupEntries       = "0::/user.slice/user-4294967296.slice/user@4294967296.service/user.slice/libpod-6469646e742065787065637420616e796f6e6520746f20726561642074686973.scope"
 )
 
 func TestContainerExtraction(t *testing.T) {
@@ -169,6 +175,8 @@ func verifyConfigDefault(t *testing.T, c *containerHelper) {
 	// The unit tests configure the plugin to use the new container info
 	// extraction code so the legacy finder should be set to nil.
 	require.Nil(t, c.containerIDFinder)
+	require.Equal(t, defaultPodmanSocketPath, c.podmanSocketPath)
+	require.Equal(t, defaultPodmanSocketPathTemplate, c.podmanSocketPathTemplate)
 }
 
 func withDefaultDataOpt(tb testing.TB) testPluginOpt {
@@ -196,4 +204,170 @@ func withConfig(t *testing.T, trustDomain string, cfg string) testPluginOpt {
 		err := doConfigure(t, p, trustDomain, cfg)
 		require.NoError(t, err)
 	}
+}
+
+func withPodmanClientFactory(factory func(string) (podmanDocker, error)) testPluginOpt {
+	return func(p *Plugin) {
+		p.podmanClientFactory = factory
+	}
+}
+
+func TestPodmanContainerExtraction(t *testing.T) {
+	tests := []struct {
+		desc               string
+		cgroups            string
+		expectedSocketPath string
+	}{
+		{
+			desc:               "rootless podman systemd cgroups v2",
+			cgroups:            testRootlessPodmanCgroupEntries,
+			expectedSocketPath: "unix:///run/user/1000/podman/podman.sock",
+		},
+		{
+			desc:               "rootful podman systemd cgroups v2",
+			cgroups:            testRootfulPodmanCgroupEntries,
+			expectedSocketPath: defaultPodmanSocketPath,
+		},
+		{
+			desc:               "rootless podman cgroupfs (no systemd)",
+			cgroups:            testCgroupfsRootlessPodmanCgroupEntries,
+			expectedSocketPath: "unix:///run/user/2000/podman/podman.sock",
+		},
+		{
+			desc:               "rootless podman with invalid uid falls back to rootful socket",
+			cgroups:            testInvalidUIDPodmanCgroupEntries,
+			expectedSocketPath: defaultPodmanSocketPath,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			rootDirOpt := prepareRootDirOpt(t, tt.cgroups)
+
+			var gotSocketPath string
+			p := newTestPlugin(t,
+				rootDirOpt,
+				withDocker(dockerError{}),
+				withPodmanClientFactory(func(socketPath string) (podmanDocker, error) {
+					gotSocketPath = socketPath
+					return noOpCloseableDocker{Docker: fakeContainer{Image: "my-podman-image"}}, nil
+				}),
+			)
+
+			selectorValues, err := doAttest(t, p)
+			require.NoError(t, err)
+			require.Equal(t, tt.expectedSocketPath, gotSocketPath, "wrong Podman socket path")
+			require.Contains(t, selectorValues, "image_id:my-podman-image")
+		})
+	}
+}
+
+func TestPodmanCustomSocketConfig(t *testing.T) {
+	t.Run("custom rootful socket", func(t *testing.T) {
+		p := newTestPlugin(t, withConfig(t, "example.org", `
+podman_socket_path = "unix:///custom/podman.sock"
+`))
+		require.Equal(t, "unix:///custom/podman.sock", p.c.podmanSocketPath)
+		require.Equal(t, defaultPodmanSocketPathTemplate, p.c.podmanSocketPathTemplate)
+	})
+
+	t.Run("custom rootless socket template", func(t *testing.T) {
+		p := newTestPlugin(t, withConfig(t, "example.org", `
+podman_socket_path_template = "unix:///var/run/user/%d/podman.sock"
+`))
+		require.Equal(t, defaultPodmanSocketPath, p.c.podmanSocketPath)
+		require.Equal(t, "unix:///var/run/user/%d/podman.sock", p.c.podmanSocketPathTemplate)
+	})
+
+	t.Run("rootless podman uses custom template", func(t *testing.T) {
+		rootDirOpt := prepareRootDirOpt(t, testRootlessPodmanCgroupEntries)
+
+		var gotSocketPath string
+		p := newTestPlugin(t,
+			withConfig(t, "example.org", `
+podman_socket_path_template = "unix:///custom/user/%d/podman.sock"
+`),
+			rootDirOpt,
+			withPodmanClientFactory(func(socketPath string) (podmanDocker, error) {
+				gotSocketPath = socketPath
+				return noOpCloseableDocker{Docker: fakeContainer{Image: "img"}}, nil
+			}),
+		)
+
+		_, err := doAttest(t, p)
+		require.NoError(t, err)
+		require.Equal(t, "unix:///custom/user/1000/podman.sock", gotSocketPath)
+	})
+
+	t.Run("invalid template is rejected", func(t *testing.T) {
+		for _, invalidTemplate := range []string{
+			"unix:///run/user/%s/podman/podman.sock",
+			"unix:///run/user/%d/podman%",
+			"unix:///run/user/podman%",
+		} {
+			t.Run(invalidTemplate, func(t *testing.T) {
+				p := New()
+				err := doConfigure(t, p, "example.org", `
+podman_socket_path_template = "`+invalidTemplate+`"
+`)
+				require.Error(t, err)
+				require.Contains(t, err.Error(), "invalid podman_socket_path_template")
+			})
+		}
+	})
+}
+
+type noOpCloseableDocker struct {
+	Docker
+}
+
+func (f noOpCloseableDocker) Close() error {
+	return nil
+}
+
+type closeableFakeContainer struct {
+	fakeContainer
+	closed bool
+}
+
+func (f *closeableFakeContainer) Close() error {
+	f.closed = true
+	return nil
+}
+
+func TestPodmanClientFactoryError(t *testing.T) {
+	rootDirOpt := prepareRootDirOpt(t, testRootlessPodmanCgroupEntries)
+
+	p := newTestPlugin(t,
+		rootDirOpt,
+		withDocker(dockerError{}),
+		withPodmanClientFactory(func(string) (podmanDocker, error) {
+			return nil, errors.New("connection refused")
+		}),
+	)
+
+	_, err := doAttest(t, p)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "unable to create Podman client")
+}
+
+func TestPodmanClientIsClosed(t *testing.T) {
+	rootDirOpt := prepareRootDirOpt(t, testRootlessPodmanCgroupEntries)
+	var client *closeableFakeContainer
+
+	p := newTestPlugin(t,
+		rootDirOpt,
+		withDocker(dockerError{}),
+		withPodmanClientFactory(func(string) (podmanDocker, error) {
+			client = &closeableFakeContainer{
+				fakeContainer: fakeContainer{Image: "img"},
+			}
+			return client, nil
+		}),
+	)
+
+	_, err := doAttest(t, p)
+	require.NoError(t, err)
+	require.NotNil(t, client)
+	require.True(t, client.closed)
 }

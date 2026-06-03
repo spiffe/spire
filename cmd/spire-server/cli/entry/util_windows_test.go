@@ -8,6 +8,8 @@ const (
     	If set, the SPIFFE ID in this entry will be granted access to the SPIRE Server's management APIs
   -data string
     	Path to a file containing registration JSON (optional). If set to '-', read the JSON from stdin.
+  -disableX509SVIDPrefetch
+    	A boolean value that, when set, disables prefetching X509 SVID for this entry
   -dns value
     	A DNS name that will be included in SVIDs issued based on this entry, where appropriate. Can be used more than once
   -downstream
@@ -20,7 +22,8 @@ const (
     	SPIFFE ID of a trust domain to federate with. Can be used more than once
   -hint string
     	The entry hint, used to disambiguate entries with the same SPIFFE ID
-  -jwtSVIDTTL int
+  -jwtSVIDIncludeJTI
+` + "    \tA boolean value that, when set, includes a unique 'jti' claim in JWT-SVIDs issued for this entry and bypasses the agent JWT-SVID cache\n" + `  -jwtSVIDTTL int
     	The lifetime, in seconds, for JWT-SVIDs issued based on this registration entry.
   -namedPipeName string
     	Pipe name of the SPIRE Server API named pipe (default "\\spire-server\\private\\api")
@@ -68,6 +71,8 @@ const (
     	If set, the SPIFFE ID in this entry will be granted access to the SPIRE Server's management APIs
   -data string
     	Path to a file containing registration JSON (optional). If set to '-', read the JSON from stdin.
+  -disableX509SVIDPrefetch
+    	A boolean value that, when set, disables prefetching X509 SVID for this entry
   -dns value
     	A DNS name that will be included in SVIDs issued based on this entry, where appropriate. Can be used more than once
   -downstream
@@ -80,7 +85,8 @@ const (
     	SPIFFE ID of a trust domain to federate with. Can be used more than once
   -hint string
     	The entry hint, used to disambiguate entries with the same SPIFFE ID
-  -jwtSVIDTTL int
+  -jwtSVIDIncludeJTI
+` + "    \tA boolean value that, when set, includes a unique 'jti' claim in JWT-SVIDs issued for this entry and bypasses the agent JWT-SVID cache\n" + `  -jwtSVIDTTL int
     	The lifetime, in seconds, for JWT-SVIDs issued based on this registration entry.
   -namedPipeName string
     	Pipe name of the SPIRE Server API named pipe (default "\\spire-server\\private\\api")

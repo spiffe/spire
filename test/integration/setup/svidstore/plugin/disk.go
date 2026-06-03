@@ -97,7 +97,7 @@ func (p *Plugin) updateFile(op func(map[string]*svidstorev1.X509SVID)) error {
 
 	op(p.svids)
 
-	data, err := json.Marshal(p.svids)
+	data, err := json.Marshal(p.svids) //nolint:gosec // G117: complaint about marshaling PrivateKey field
 	if err != nil {
 		return status.Errorf(codes.Internal, "failed to marshal json: %s", err.Error())
 	}

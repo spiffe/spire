@@ -1,6 +1,7 @@
 package awsiid
 
 import (
+	"bytes"
 	"context"
 	"crypto"
 	"crypto/rsa"
@@ -70,6 +71,7 @@ const (
 	accessKeyIDVarName = "AWS_ACCESS_KEY_ID"
 	// secretAccessKeyVarName env car name for AWS secret access key
 	secretAccessKeyVarName   = "AWS_SECRET_ACCESS_KEY" //nolint: gosec // false positive
+	accountIDSelectorPrefix  = "account_id"
 	azSelectorPrefix         = "az"
 	imageIDSelectorPrefix    = "image:id"
 	instanceIDSelectorPrefix = "instance:id"
@@ -486,6 +488,14 @@ func unmarshalAndValidateIdentityDocument(data []byte, getAWSCACertificate func(
 		if err := pkcs7Sig.Verify(); err != nil {
 			return imds.InstanceIdentityDocument{}, status.Errorf(codes.InvalidArgument, "failed verification of instance identity cryptographic signature: %v", err)
 		}
+
+		// Verify the PKCS7 content matches the Document field
+		// to prevent substitution attacks where an attacker
+		// provides a legitimate PKCS7 signature from their
+		// own instance alongside a forged identity document.
+		if !bytes.Equal(pkcs7Sig.Content, []byte(attestationData.Document)) {
+			return imds.InstanceIdentityDocument{}, status.Error(codes.InvalidArgument, "instance identity document does not match the verified PKCS7 content")
+		}
 	}
 
 	return doc, nil
@@ -580,6 +590,7 @@ func (p *IIDAttestorPlugin) resolveSelectors(parent context.Context, instancesDe
 }
 
 func resolveIIDocSelectors(selectorSet map[string]bool, iiDoc imds.InstanceIdentityDocument) {
+	selectorSet[fmt.Sprintf("%s:%s", accountIDSelectorPrefix, iiDoc.AccountID)] = true
 	selectorSet[fmt.Sprintf("%s:%s", imageIDSelectorPrefix, iiDoc.ImageID)] = true
 	selectorSet[fmt.Sprintf("%s:%s", instanceIDSelectorPrefix, iiDoc.InstanceID)] = true
 	selectorSet[fmt.Sprintf("%s:%s", regionSelectorPrefix, iiDoc.Region)] = true

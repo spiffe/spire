@@ -58,6 +58,7 @@ This may be useful for templating configuration files, for example across differ
 | `log_file`                        | File to write logs to                                                                                                                                                                                                                             |                                  |
 | `log_level`                       | Sets the logging level &lt;DEBUG&vert;INFO&vert;WARN&vert;ERROR&gt;                                                                                                                                                                               | INFO                             |
 | `log_format`                      | Format of logs, &lt;text&vert;json&gt;                                                                                                                                                                                                            | Text                             |
+| `log_selectors`                   | Workload selector prefixes allowed in diagnostic logs. Selector values can contain sensitive information; only configure prefixes whose values are acceptable to write to logs. Example: `["k8s:ns", "k8s:sa", "unix:user"]`                      |                                  |
 | `log_source_location`             | If true, logs include source file, line number, and method name fields (adds a bit of runtime cost)                                                                                                                                               | false                            |
 | `profiling_enabled`               | If true, enables a [net/http/pprof](https://pkg.go.dev/net/http/pprof) endpoint                                                                                                                                                                   | false                            |
 | `profiling_freq`                  | Frequency of dumping profiling data to disk. Only enabled when `profiling_enabled` is `true` and `profiling_freq` > 0.                                                                                                                            |                                  |
@@ -72,7 +73,7 @@ This may be useful for templating configuration files, for example across differ
 | `trust_bundle_unix_socket`        | Make the request specified via trust_bundle_url happen against the specified unix socket.                                                                                                                                                         |                                  |
 | `trust_bundle_format`             | Format of the initial trust bundle, pem or spiffe                                                                                                                                                                                                 | pem                              |
 | `trust_domain`                    | The trust domain that this agent belongs to (should be no more than 255 characters)                                                                                                                                                               |                                  |
-| `workload_x509_svid_key_type`     | The workload X509 SVID key type &lt;rsa-2048&vert;ec-p256&vert;ec-p384&gt;                                                                                                                                                                                     | ec-p256                          |
+| `workload_x509_svid_key_type`     | The workload X509 SVID key type &lt;rsa-2048&vert;ec-p256&vert;ec-p384&gt;                                                                                                                                                                        | ec-p256                          |
 | `availability_target`             | The minimum amount of time desired to gracefully handle SPIRE Server or Agent downtime. This configurable influences how aggressively X509 SVIDs should be rotated. If set, must be at least 24h. See [Availability Target](#availability-target) |                                  |
 | `x509_svid_cache_max_size`        | Soft limit of max number of X509-SVIDs that would be stored in LRU cache                                                                                                                                                                          | 1000                             |
 | `jwt_svid_cache_max_size`         | Hard limit of max number of JWT-SVIDs that would be stored in LRU cache                                                                                                                                                                           | 1000                             |
@@ -144,7 +145,7 @@ There are three main options and a sub option:
 1. If the `trust_bundle_path` option is used, the agent will read a bootstrap trust bundle from the file at that path. You need to safely copy or share the file before starting the SPIRE Agent.
 2. If the `trust_bundle_url` option is used, the agent will read the bootstrap trust bundle from the specified URL.
     1. If trust_bundle_unix_socket is unset, **The URL must start with `https://` for security, and the server must have a valid certificate (verified with the system trust store).** This can be used to rapidly deploy SPIRE agents without having to manually share a file. Keep in mind the contents of the URL need to be kept up to date.
-    2. If trust_bundle_unix_socket is set, **The URL must start with `http://`.** This can be used along with a local service running on the socket to fetch up to date trust bundles via some site specific, secure meachanism.
+    2. If trust_bundle_unix_socket is set, **The URL must start with `http://`.** This can be used along with a local service running on the socket to fetch up to date trust bundles via some site specific, secure mechanism.
 3. If the `insecure_bootstrap` option is set to `true`, then the agent will not use a bootstrap trust bundle. It will connect to the SPIRE Server without authenticating it. This is not a secure configuration, because a man-in-the-middle attacker could control the SPIRE infrastructure. It is included because it is a useful option for testing and development.
 
 Only one of these three main options may be set at a time.
@@ -156,14 +157,14 @@ There are two options that relate to rebootstrapping
 `rebootstrap_mode` can be set to one of `never`, `auto`, or `always`.
 
 1. When set to `never`, the agent will be prevented from automated rebootstrapping, and manual recovery will be necessary if trust is ever lost.
-2. When set to `always`, the agent will attempt to rebootstrap, attesting the server again using the `trust_bundel_path`, `trust_bundle_url`, and/or `trust_bundle_unix_socket` settings when needed. The ability to rebootstrap needs to be supported by the agent NodeAttestor plugin along with the configuration of the server. The `always` mode will fail the agent if the plugin, server, and configurations are incompatible.
+2. When set to `always`, the agent will attempt to rebootstrap, attesting the server again using the `trust_bundle_path`, `trust_bundle_url`, and/or `trust_bundle_unix_socket` settings when needed. The ability to rebootstrap needs to be supported by the agent NodeAttestor plugin along with the configuration of the server. The `always` mode will fail the agent if the plugin, server, and configurations are incompatible.
 3. `auto` mode functions like `always` except when unsupported, it will automatically disable rebootstrapping of the agent.
 
 The other option is `rebootstrap_delay`. It defaults to `10m`. This is the duration to wait between when a server is first seen that isn't trusted by the agents trust bundle and when to start the rebootstrapping process. No rebootstrapping is allowed during this delay period. If a secure server connection is established successfully during this delay period, the delay clock will be reset.
 
-Considerations for `rebootstra_delay` configuration:
+Considerations for `rebootstrap_delay` configuration:
 
-* In an environment where it is possible for someone to attempt a man in the middle attack between the agent and server, having the duration higher will minimize agent unavailability due to needless reboostrapping
+* In an environment where it is possible for someone to attempt a man in the middle attack between the agent and server, having the duration higher will minimize agent unavailability due to needless rebootstrapping
 * Having the duration lower will allow for faster recovery of agent trust when it was offline too long or the server needed to be reinstalled in away that couldn't allow continuity in the trust bundle.
 
 ### SDS Configuration
@@ -294,23 +295,23 @@ health_checks {
 All the configuration file above options have identical command-line counterparts. In addition,
 the following flags are available:
 
-| Command                          | Action                                                                              | Default               |
-|----------------------------------|-------------------------------------------------------------------------------------|-----------------------|
-| `-allowUnauthenticatedVerifiers` | Allow agent to release trust bundles to unauthenticated verifiers                   |                       |
-| `-config`                        | Path to a SPIRE config file                                                         | conf/agent/agent.conf |
-| `-dataDir`                       | A directory the agent can use for its runtime data                                  |                       |
-| `-expandEnv`                     | Expand environment $VARIABLES in the config file                                    |                       |
-| `-joinToken`                     | An optional token which has been generated by the SPIRE server                      |                       |
+| Command                          | Action                                                                                        | Default               |
+| -------------------------------- | --------------------------------------------------------------------------------------------- | --------------------- |
+| `-allowUnauthenticatedVerifiers` | Allow agent to release trust bundles to unauthenticated verifiers                             |                       |
+| `-config`                        | Path to a SPIRE config file                                                                   | conf/agent/agent.conf |
+| `-dataDir`                       | A directory the agent can use for its runtime data                                            |                       |
+| `-expandEnv`                     | Expand environment $VARIABLES in the config file                                              |                       |
+| `-joinToken`                     | An optional token which has been generated by the SPIRE server                                |                       |
 | `-joinTokenFile`                 | Path to a file containing an optional join token which has been generated by the SPIRE server |                       |
-| `-logFile`                       | File to write logs to                                                               |                       |
-| `-logFormat`                     | Format of logs, &lt;text&vert;json&gt;                                              |                       |
-| `-logLevel`                      | DEBUG, INFO, WARN or ERROR                                                          |                       |
-| `-serverAddress`                 | IP address or DNS name of the SPIRE server                                          |                       |
-| `-serverPort`                    | Port number of the SPIRE server                                                     |                       |
-| `-socketPath`                    | Location to bind the workload API socket                                            |                       |
-| `-trustBundle`                   | Path to the SPIRE server CA bundle                                                  |                       |
-| `-trustBundleUrl`                | URL to download the SPIRE server CA bundle                                          |                       |
-| `-trustDomain`                   | The trust domain that this agent belongs to (should be no more than 255 characters) |                       |
+| `-logFile`                       | File to write logs to                                                                         |                       |
+| `-logFormat`                     | Format of logs, &lt;text&vert;json&gt;                                                        |                       |
+| `-logLevel`                      | DEBUG, INFO, WARN or ERROR                                                                    |                       |
+| `-serverAddress`                 | IP address or DNS name of the SPIRE server                                                    |                       |
+| `-serverPort`                    | Port number of the SPIRE server                                                               |                       |
+| `-socketPath`                    | Location to bind the workload API socket                                                      |                       |
+| `-trustBundle`                   | Path to the SPIRE server CA bundle                                                            |                       |
+| `-trustBundleUrl`                | URL to download the SPIRE server CA bundle                                                    |                       |
+| `-trustDomain`                   | The trust domain that this agent belongs to (should be no more than 255 characters)           |                       |
 
 #### Running SPIRE Agent as a Windows service
 
@@ -421,6 +422,12 @@ agent {
 telemetry {
     Prometheus {
         port = 1234
+        #optional TLS for prometheus
+        tls {
+            cert_file = "/path/to/cert.pem"
+            key_file = "/path/to/key.pem"
+            client_ca_file = "/path/to/ca.pem" # optional CA file for mTLS
+        }
     }
 }
 

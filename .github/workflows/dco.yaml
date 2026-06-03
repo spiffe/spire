@@ -5,6 +5,10 @@ on:
   merge_group:
     types:
       - checks_requested
+
+permissions:
+  contents: read
+
 jobs:
   check-dco:
     runs-on: ubuntu-latest

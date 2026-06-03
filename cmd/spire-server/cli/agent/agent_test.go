@@ -561,10 +561,10 @@ SPIFFE ID         : spiffe://example.org/spire/agent/agent3
 Error             : rpc error: code = Internal desc = some error when deleting agent
 `,
 			expectedStdoutJSON: fmt.Sprintf(
-				`[{"expired_agents":[
+				`{"expired_agents":[
 {"agent_id":"%s","deleted":false,"error":"rpc error: code = Internal desc = some error when deleting agent"},
 {"agent_id":"%s","deleted":false,"error":"rpc error: code = Internal desc = some error when deleting agent"}
-]}]`,
+]}`,
 				spiffeid.RequireFromPath(td, expiredAgents[1].Id.Path).String(),
 				spiffeid.RequireFromPath(td, expiredAgents[2].Id.Path).String(),
 			),
@@ -586,7 +586,7 @@ Agents purged:
 SPIFFE ID         : spiffe://example.org/spire/agent/agent3
 `,
 			expectedStdoutJSON: fmt.Sprintf(
-				`[{"expired_agents":[{"agent_id":"%s","deleted":true}]}]`,
+				`{"expired_agents":[{"agent_id":"%s","deleted":true}]}`,
 				spiffeid.RequireFromPath(td, expiredAgents[2].Id.Path).String(),
 			),
 		},
@@ -611,7 +611,7 @@ SPIFFE ID         : spiffe://example.org/spire/agent/agent2
 SPIFFE ID         : spiffe://example.org/spire/agent/agent3
 `,
 			expectedStdoutJSON: fmt.Sprintf(
-				`[{"expired_agents":[{"agent_id":"%s","deleted":true},{"agent_id":"%s","deleted":true},{"agent_id":"%s","deleted":true}]}]`,
+				`{"expired_agents":[{"agent_id":"%s","deleted":true},{"agent_id":"%s","deleted":true},{"agent_id":"%s","deleted":true}]}`,
 				spiffeid.RequireFromPath(td, expiredAgents[0].Id.Path).String(),
 				spiffeid.RequireFromPath(td, expiredAgents[1].Id.Path).String(),
 				spiffeid.RequireFromPath(td, expiredAgents[2].Id.Path).String(),
@@ -636,7 +636,7 @@ SPIFFE ID         : spiffe://example.org/spire/agent/agent2
 SPIFFE ID         : spiffe://example.org/spire/agent/agent3
 `,
 			expectedStdoutJSON: fmt.Sprintf(
-				`[{"expired_agents":[{"agent_id":"%s","deleted":true},{"agent_id":"%s","deleted":true}]}]`,
+				`{"expired_agents":[{"agent_id":"%s","deleted":true},{"agent_id":"%s","deleted":true}]}`,
 				spiffeid.RequireFromPath(td, expiredAgents[1].Id.Path).String(),
 				spiffeid.RequireFromPath(td, expiredAgents[2].Id.Path).String(),
 			),
@@ -650,7 +650,7 @@ SPIFFE ID         : spiffe://example.org/spire/agent/agent3
 				OutputMask: &types.AgentMask{X509SvidExpiresAt: true},
 			},
 			expectedStdoutPretty: `No agents to purge.`,
-			expectedStdoutJSON:   `[{"expired_agents":[]}]`,
+			expectedStdoutJSON:   `{"expired_agents":[]}`,
 		},
 		{
 			name:           "using dry run",
@@ -668,7 +668,7 @@ SPIFFE ID         : spiffe://example.org/spire/agent/agent2
 SPIFFE ID         : spiffe://example.org/spire/agent/agent3
 `,
 			expectedStdoutJSON: fmt.Sprintf(
-				`[{"expired_agents":[{"agent_id":"%s","deleted":false},{"agent_id":"%s","deleted":false}]}]`,
+				`{"expired_agents":[{"agent_id":"%s","deleted":false},{"agent_id":"%s","deleted":false}]}`,
 				spiffeid.RequireFromPath(td, expiredAgents[1].Id.Path).String(),
 				spiffeid.RequireFromPath(td, expiredAgents[2].Id.Path).String(),
 			),
@@ -682,7 +682,7 @@ SPIFFE ID         : spiffe://example.org/spire/agent/agent3
 				OutputMask: &types.AgentMask{X509SvidExpiresAt: true},
 			},
 			expectedStdoutPretty: `No agents to purge.`,
-			expectedStdoutJSON:   `[{"expired_agents":[]}]`,
+			expectedStdoutJSON:   `{"expired_agents":[]}`,
 		},
 	} {
 		for _, format := range availableFormats {

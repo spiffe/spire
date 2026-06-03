@@ -1,5 +1,118 @@
 # Changelog
 
+## [1.15.1] - 2026-05-28
+
+### Security
+
+- Fixed an issue in the `azure_imds` server node attestor plugin where attested document validation anchored the first certificate in the PKCS7 certificate bag to the trusted Azure roots, while the signature was verified against a separate signer certificate resolved from the PKCS7 SignerInfo. An attacker could place a legitimate Azure metadata certificate in the bag alongside content signed by an unrelated certificate and have a forged attested document accepted, impersonating an arbitrary virtual machine during node attestation. Thank you Carlo Teubner for reporting this issue.
+
+### Changed
+
+- Updated `golang.org/x/net` to v0.55.0 and `golang.org/x/crypto` to v0.52.0.
+
+## [1.15.0] - 2026-05-19
+
+### Added
+
+- New `account_id` selector for `aws_iid` nodeattestor (#6697)
+- TLS support for the prometheus metrics sink (#6718)
+- Support for specifying that X509-SVIDs for a registration entry should not be prefetched (#6360)
+- The docker workload attestor now supports rootless Podman (#6798)
+- PROXY protocol support for rate limiting behind load balancers (#6819)
+- Support for the agent to fetch the X509-SVID for SPIFFE attestation mode from the Workload API socket (#6884)
+- `iss` claim support for WIT-SVIDs (#6857)
+- Instance flag support for `spire-server` and `spire-agent` CLI (#6789)
+- Experimental, optional `spiffe_id` node selector to help aliasing individual nodes (#6865)
+- HashiCorp Vault Key Manager plugin (#6889)
+
+### Changed
+
+- A metric label was renamed from 'bootstraped' to 'bootstrapped' (#6503)
+- Updated cosign to the v3 major release (#6493)
+- Authorized entry lookup with events based cache should now be as fast as without the events based cache (#6645)
+- `spire-agent api fetch x509` returns bundles in sorted alphabetic order by trust domain (#6784)
+- The `k8s_psat` node attestor includes the cluster in the attestation failure logs (#6785)
+- Azure sdk libraries have been updated to more recent major versions. (#6494)
+- The `sigstore` support in k8s and docker attestors was promoted out of experimental (#6901, #6906)
+- The `spire-agent` WorkloadAPI server now specifies a read buffer size which may improve memory usage with large number of connections (#6875)
+- Stop wrapping objects in slices when printing (#6655)
+  > :rotating_light: **_This is a potentially breaking change if you make use of the JSON output of the CLI_** :rotating_light:
+- Documented image selector limitations for k8s workload attestor (#6930)
+- `gcp_iit` node attestor will now use service account email from identity token so it no longer depends on `use_instance_metadata` being true (#6869)
+- Upgraded Go to 1.26.3 (#6947)
+- Various testing, linter errors and improvements (#6891, #6836, #6864, #6788, #6847, #6809, #6830, #6831, #6746, #6777, #6745, #6776, #6782, #6744, #6734, #6756, #6752, #6740, #6738)
+
+### Fixed
+
+- Potential nil panic in the `spire` upstream authority plugin (#6773)
+- Nil panic in the `azure_imds` plugin for instances without a Network Security Group attached (#6795)
+- `azure_key_vault` key manager plugin now supports Azure Managed HSM (#6751)
+- Connections to the agent Debug service would lead to "unrecognized service" errors in logs (#6878)
+- An issue in the `aws_kms` plugin which would revert rotated aliases (#6805)
+
+## [1.14.7] - 2026-05-28
+
+### Security
+
+- Fixed an issue in the `azure_imds` server node attestor plugin where attested document validation anchored the first certificate in the PKCS7 certificate bag to the trusted Azure roots, while the signature was verified against a separate signer certificate resolved from the PKCS7 SignerInfo. An attacker could place a legitimate Azure metadata certificate in the bag alongside content signed by an unrelated certificate and have a forged attested document accepted, impersonating an arbitrary virtual machine during node attestation. Thank you Carlo Teubner for reporting this issue.
+
+### Changed
+
+- Updated the Go toolchain to 1.26.3.
+- Updated `golang.org/x/net` to v0.55.0, `golang.org/x/crypto` to v0.52.0, and `github.com/go-jose/go-jose/v4` to v4.1.4.
+
+## [1.14.6] - 2026-04-27
+
+### Security
+
+- Fixed an issue in the `aws_iid` server node attestor plugin where the RSA-2048 PKCS7 attestation path verified the PKCS7 signature against its embedded content but returned the identity document parsed from a separate, attacker-controlled field of the attestation data. An attacker who controlled any EC2 instance could impersonate any other EC2 instance during node attestation, with all downstream attestation decisions operating on the forged identity. Thank you Tianshuo Han for reporting this issue.
+- Fixed a TOCTOU issue in the join token data store path where concurrent attestations using the same token could each succeed because `tx.Delete()` did not report when no row was deleted. The fix uses a read-modify-write transaction with row locking and verifies that exactly one row was deleted. Thank you Tianshuo Han for reporting this issue.
+
+## [1.14.5] - 2026-04-08
+
+### Security
+
+- Upgrade Go to 1.26.2 to address CVE-2026-32282, CVE-2026-32289, CVE-2026-33810, CVE-2026-27144, CVE-2026-27143, CVE-2026-32288, CVE-2026-32283, CVE-2026-27140, CVE-2026-32281
+
+## [1.14.4] - 2026-03-19
+
+### Fixed
+
+- The version that the agent was reporting at startup would get replaced by an empty string every time the agent re-attests or re-news it's SVID (#6763)
+
+## [1.14.3] - 2026-03-18
+
+### Added
+
+- `spire-agent` version is now reported to `spire-server` via the PostStatus API and visible in `GetAgent`/`ListAgents` CLI output (#6542)
+
+### Changed
+
+- The `RequirePQKEM` TLS policy now uses the standardized `X25519MLKEM768` instead of the draft `x25519Kyber768Draft00` (#6703)
+- OPA policy evaluation performance improved by ~2x, based on benchmarking, through use of partial evaluation (#6633)
+
+### Fixed
+
+- `ReadOnlyEntry.Clone()` was incorrectly copying the `Admin` boolean into the `Downstream` field when applying an output mask, causing clients of `GetAuthorizedEntries` and `SyncAuthorizedEntries` to receive corrupted authorization metadata. The `Admin` and `Downstream` booleana were not used in `spire-agent` so there was no impact from this (#6636)
+- The periodic node cache rebuild was only executing once instead of running continuously at the configured interval (#6661)
+- Race condition in the `spire` upstream authority plugin during shutdown that could cause a nil pointer dereference on the bundle client (#6590)
+- `aws_iid` attestor AWS request timeout increased from 5s to 20s to prevent intermittent attestation failures in large AWS Organizations (#6558)
+- Federated trust bundles are now fetched concurrently, reducing the chance of exceeding the agent sync timeout when there are many federation relationships (#6491)
+- JWT-SVID refresh now uses a 1s timeout when a cached SVID already exists, preventing an unresponsive server from blocking delivery of a valid cached SVID (#6454)
+- Documentation improvements (#6607, #6608, #6632)
+
+### Security
+
+- Selectors are no longer logged at the agent level to avoid potential leakage of sensitive information (#6732)
+- Fixed an issue where TLS session ticket resumption on the server TCP endpoint could bypass SPIFFE certificate chain validation against the current trust bundle. TLS session tickets are now disabled on the server side, ensuring `VerifyPeerCertificate` runs on every connection (#6715)
+
+## [1.14.2] - 2026-03-03
+
+### Security
+
+- Fixed an issue in the `http_challenge` server node attestor plugin which allowed an attacker to make an SSRF attack. The attacker could potentially redirect the server to a domain that they wouldn't normally have access. spire-server would make an unauthenticated GET request to that domain and return the first 64 bytes of the response to the attacker. Thank you, Oleh Konko (@1seal) for reporting this isuse.
+- Fixed an issue in the `x509pop` server node attestor plugin which allowed an attacker to make spire-server consume large and disproportionate mounts of CPU time for the node attestation process. Thank you [Jakub Ciolek](https://github.com/jake-ciolek) for reporting this issue.
+
 ## [1.14.1] - 2026-01-15
 
 ### Changed
@@ -43,6 +156,13 @@
 
 - Added k8s_configmap BundlePublisher to documentation (#6437)
 - Added tpm_devid to supported Agent plugins documentation (#6449)
+
+## [1.13.4] - 2026-03-03
+
+### Security
+
+- Fixed an issue in the `http_challenge` server node attestor plugin which allowed an attacker to make an SSRF attack. The attacker could potentially redirect the server to a domain that they wouldn't normally have access. spire-server would make an unauthenticated GET request to that domain and return the first 64 bytes of the response to the attacker. Thank you, Oleh Konko (@1seal) for reporting this isuse.
+- Fixed an issue in the `x509pop` server node attestor plugin which allowed an attacker to make spire-server consume large and disproportionate mounts of CPU time for the node attestation process. Thank you [Jakub Ciolek](https://github.com/jake-ciolek) for reporting this issue.
 
 ## [1.13.3] - 2025-10-23
 

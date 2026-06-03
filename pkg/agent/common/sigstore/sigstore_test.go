@@ -18,9 +18,9 @@ import (
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/types"
 	"github.com/hashicorp/go-hclog"
-	"github.com/sigstore/cosign/v2/pkg/cosign"
-	"github.com/sigstore/cosign/v2/pkg/cosign/bundle"
-	"github.com/sigstore/cosign/v2/pkg/oci"
+	"github.com/sigstore/cosign/v3/pkg/cosign"
+	"github.com/sigstore/cosign/v3/pkg/cosign/bundle"
+	"github.com/sigstore/cosign/v3/pkg/oci"
 	"github.com/sigstore/rekor/pkg/client"
 	rekorclient "github.com/sigstore/rekor/pkg/generated/client"
 	"github.com/sigstore/sigstore/pkg/signature/payload"
@@ -623,7 +623,7 @@ type fakeCosignVerifyAttestationsFn struct {
 	CallCount int
 }
 
-func (f *fakeCosignVerifyAttestationsFn) Verify(_ context.Context, _ name.Reference, _ *cosign.CheckOpts) ([]oci.Signature, bool, error) {
+func (f *fakeCosignVerifyAttestationsFn) Verify(_ context.Context, _ name.Reference, _ *cosign.CheckOpts, _ ...name.Option) ([]oci.Signature, bool, error) {
 	resp := f.Responses[f.CallCount]
 	f.CallCount++
 	return resp.Signatures, resp.BundleVerified, resp.Err

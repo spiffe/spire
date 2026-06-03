@@ -18,7 +18,7 @@ type Flag string
 // representations. It is loaded directly from the config file.
 type RawConfig []string
 
-// To add a feature flag, decleare it here along with its config name.
+// To add a feature flag, declare it here along with its config name.
 // Then, add it to the `flags` package-level singleton map below, setting the
 // appropriate default value. Flags should always be opt-in and default to
 // false, with the only exception being flags that are in the process of being

@@ -63,7 +63,13 @@ Here is a sample configuration:
 ```hcl
 telemetry {
         Prometheus {
-                port = 9988
+            port = 9988
+            #optional TLS for prometheus
+            tls {
+                cert_file = "/path/to/cert.pem"
+                key_file = "/path/to/key.pem"
+                client_ca_file = "/path/to/ca.pem" # optional CA file for mTLS
+            }
         }
 
         DogStatsd = [

@@ -33,7 +33,7 @@ func TestNewAuthorizedEntryFetcherEvents(t *testing.T) {
 	nodeCache, err := nodecache.New(ctx, log, ds, clk, false, true)
 	require.Nil(t, err)
 
-	ef, err := NewAuthorizedEntryFetcherEvents(ctx, AuthorizedEntryFetcherEventsConfig{
+	ef, err := NewAuthorizedEntryFetcherEvents(ctx, "example.org", AuthorizedEntryFetcherEventsConfig{
 		log:                     log,
 		metrics:                 metrics,
 		clk:                     clk,
@@ -55,7 +55,6 @@ func TestNewAuthorizedEntryFetcherEvents(t *testing.T) {
 		nodeSkippedEventMetric(0),
 
 		entriesByEntryIDMetric(0),
-		entriesByParentIDMetric(0),
 		entriesSkippedEventMetric(0),
 	}
 
@@ -136,7 +135,6 @@ func TestNewAuthorizedEntryFetcherEvents(t *testing.T) {
 		nodeAliasesByEntryIDMetric(1),
 		nodeAliasesBySelectorMetric(1),
 		entriesByEntryIDMetric(2),
-		entriesByParentIDMetric(2),
 	}
 
 	assert.ElementsMatch(t, expectedMetrics, metrics.AllMetrics(), "should emit metrics for node aliases, entries, and agents")
@@ -155,7 +153,7 @@ func TestNewAuthorizedEntryFetcherEventsErrorBuildingCache(t *testing.T) {
 	nodeCache, err := nodecache.New(ctx, log, ds, clk, false, true)
 	require.Nil(t, err)
 
-	ef, err := NewAuthorizedEntryFetcherEvents(ctx, AuthorizedEntryFetcherEventsConfig{
+	ef, err := NewAuthorizedEntryFetcherEvents(ctx, "example.org", AuthorizedEntryFetcherEventsConfig{
 		log:                     log,
 		metrics:                 metrics,
 		clk:                     clk,
@@ -210,7 +208,7 @@ func TestBuildCacheSavesSkippedEvents(t *testing.T) {
 	nodeCache, err := nodecache.New(ctx, log, ds, clk, false, true)
 	require.Nil(t, err)
 
-	cache := authorizedentries.NewCache(clk)
+	cache := authorizedentries.NewCache(clk, "example.org")
 
 	registrationEntries, err := buildRegistrationEntriesCache(ctx, log, metrics, ds, clk, cache, pageSize, defaultCacheReloadInterval, defaultEventTimeout)
 	require.NoError(t, err)
@@ -236,7 +234,6 @@ func TestBuildCacheSavesSkippedEvents(t *testing.T) {
 		nodeSkippedEventMetric(2),
 
 		entriesByEntryIDMetric(0),
-		entriesByParentIDMetric(0),
 		entriesSkippedEventMetric(1),
 	}
 	assert.ElementsMatch(t, expectedMetrics, metrics.AllMetrics(), "should emit no metrics")
@@ -250,7 +247,7 @@ func TestRunUpdateCacheTaskDoesFullUpdate(t *testing.T) {
 	ds := fakedatastore.New(t)
 	metrics := fakemetrics.New()
 
-	ef, err := NewAuthorizedEntryFetcherEvents(ctx, AuthorizedEntryFetcherEventsConfig{
+	ef, err := NewAuthorizedEntryFetcherEvents(ctx, "example.org", AuthorizedEntryFetcherEventsConfig{
 		log:                     log,
 		metrics:                 metrics,
 		clk:                     clk,
@@ -308,7 +305,7 @@ func TestRunUpdateCacheTaskPrunesExpiredAgents(t *testing.T) {
 	nodeCache, err := nodecache.New(ctx, log, ds, clk, false, true)
 	require.Nil(t, err)
 
-	ef, err := NewAuthorizedEntryFetcherEvents(ctx, AuthorizedEntryFetcherEventsConfig{
+	ef, err := NewAuthorizedEntryFetcherEvents(ctx, "example.org", AuthorizedEntryFetcherEventsConfig{
 		log:                     log,
 		metrics:                 metrics,
 		clk:                     clk,
@@ -332,7 +329,7 @@ func TestRunUpdateCacheTaskPrunesExpiredAgents(t *testing.T) {
 	clk.WaitForTickerMulti(time.Second, 2, "waiting to create tickers")
 	entries, err := ef.FetchAuthorizedEntries(ctx, agentID)
 	assert.NoError(t, err)
-	require.Zero(t, entries)
+	require.Empty(t, entries)
 
 	// Create Attested Node and Registration Entry
 	_, err = ds.CreateAttestedNode(ctx, &common.AttestedNode{
@@ -390,7 +387,7 @@ func TestUpdateRegistrationEntriesCacheSkippedEvents(t *testing.T) {
 	nodeCache, err := nodecache.New(ctx, log, ds, clk, false, true)
 	require.Nil(t, err)
 
-	ef, err := NewAuthorizedEntryFetcherEvents(ctx, AuthorizedEntryFetcherEventsConfig{
+	ef, err := NewAuthorizedEntryFetcherEvents(ctx, "example.org", AuthorizedEntryFetcherEventsConfig{
 		log:                     log,
 		metrics:                 metrics,
 		clk:                     clk,
@@ -409,7 +406,7 @@ func TestUpdateRegistrationEntriesCacheSkippedEvents(t *testing.T) {
 	// Ensure no entries are in there to start
 	entries, err := ef.FetchAuthorizedEntries(ctx, agentID)
 	require.NoError(t, err)
-	require.Zero(t, entries)
+	require.Empty(t, entries)
 
 	// Create Initial Registration Entry
 	entry1, err := ds.CreateRegistrationEntry(ctx, &common.RegistrationEntry{
@@ -527,7 +524,7 @@ func TestUpdateRegistrationEntriesCacheSkippedStartupEvents(t *testing.T) {
 	nodeCache, err := nodecache.New(ctx, log, ds, clk, false, true)
 	require.Nil(t, err)
 
-	ef, err := NewAuthorizedEntryFetcherEvents(ctx, AuthorizedEntryFetcherEventsConfig{
+	ef, err := NewAuthorizedEntryFetcherEvents(ctx, "example.org", AuthorizedEntryFetcherEventsConfig{
 		log:                     log,
 		metrics:                 metrics,
 		clk:                     clk,
@@ -613,7 +610,7 @@ func TestUpdateAttestedNodesCacheSkippedEvents(t *testing.T) {
 	nodeCache, err := nodecache.New(ctx, log, ds, clk, false, true)
 	require.Nil(t, err)
 
-	ef, err := NewAuthorizedEntryFetcherEvents(ctx, AuthorizedEntryFetcherEventsConfig{
+	ef, err := NewAuthorizedEntryFetcherEvents(ctx, "example.org", AuthorizedEntryFetcherEventsConfig{
 		log:                     log,
 		metrics:                 metrics,
 		clk:                     clk,
@@ -633,7 +630,7 @@ func TestUpdateAttestedNodesCacheSkippedEvents(t *testing.T) {
 	// Ensure no entries are in there to start
 	entries, err := ef.FetchAuthorizedEntries(ctx, agent2)
 	require.NoError(t, err)
-	require.Zero(t, entries)
+	require.Empty(t, entries)
 
 	// Create node alias for agent 2
 	alias, err := ds.CreateRegistrationEntry(ctx, &common.RegistrationEntry{
@@ -803,7 +800,7 @@ func TestUpdateAttestedNodesCacheSkippedStartupEvents(t *testing.T) {
 	nodeCache, err := nodecache.New(ctx, log, ds, clk, false, true)
 	require.Nil(t, err)
 
-	ef, err := NewAuthorizedEntryFetcherEvents(ctx, AuthorizedEntryFetcherEventsConfig{
+	ef, err := NewAuthorizedEntryFetcherEvents(ctx, "example.org", AuthorizedEntryFetcherEventsConfig{
 		log:                  log,
 		metrics:              metrics,
 		clk:                  clk,
@@ -822,7 +819,7 @@ func TestUpdateAttestedNodesCacheSkippedStartupEvents(t *testing.T) {
 	// Ensure there are no entries to start
 	entries, err := ef.FetchAuthorizedEntries(ctx, agent1)
 	require.NoError(t, err)
-	require.Zero(t, len(entries))
+	require.Empty(t, entries)
 
 	// Recreate attested node and selectors for agent 1
 	_, err = ds.CreateAttestedNode(ctx, &common.AttestedNode{
@@ -854,7 +851,7 @@ func TestUpdateAttestedNodesCacheSkippedStartupEvents(t *testing.T) {
 
 	entries, err = ef.FetchAuthorizedEntries(ctx, agent1)
 	require.NoError(t, err)
-	require.Zero(t, len(entries))
+	require.Empty(t, entries)
 
 	// Add back in deleted event
 	err = ds.CreateAttestedNodeEventForTesting(ctx, &datastore.AttestedNodeEvent{
@@ -882,7 +879,7 @@ func TestFullCacheReloadRecoversFromSkippedRegistrationEntryEvents(t *testing.T)
 	nodeCache, err := nodecache.New(ctx, log, ds, clk, false, true)
 	require.Nil(t, err)
 
-	ef, err := NewAuthorizedEntryFetcherEvents(ctx, AuthorizedEntryFetcherEventsConfig{
+	ef, err := NewAuthorizedEntryFetcherEvents(ctx, "example.org", AuthorizedEntryFetcherEventsConfig{
 		log:                     log,
 		metrics:                 metrics,
 		clk:                     clk,
@@ -901,7 +898,7 @@ func TestFullCacheReloadRecoversFromSkippedRegistrationEntryEvents(t *testing.T)
 	// Ensure no entries are in there to start
 	entries, err := ef.FetchAuthorizedEntries(ctx, agentID)
 	require.NoError(t, err)
-	require.Zero(t, entries)
+	require.Empty(t, entries)
 
 	// Create Initial Registration Entry
 	entry1, err := ds.CreateRegistrationEntry(ctx, &common.RegistrationEntry{
@@ -969,7 +966,7 @@ func TestFullCacheReloadRecoversFromSkippedAttestedNodeEvents(t *testing.T) {
 	nodeCache, err := nodecache.New(ctx, log, ds, clk, false, true)
 	require.Nil(t, err)
 
-	ef, err := NewAuthorizedEntryFetcherEvents(ctx, AuthorizedEntryFetcherEventsConfig{
+	ef, err := NewAuthorizedEntryFetcherEvents(ctx, "example.org", AuthorizedEntryFetcherEventsConfig{
 		log:                     log,
 		metrics:                 metrics,
 		clk:                     clk,
@@ -989,7 +986,7 @@ func TestFullCacheReloadRecoversFromSkippedAttestedNodeEvents(t *testing.T) {
 	// Ensure no entries are in there to start
 	entries, err := ef.FetchAuthorizedEntries(ctx, agent2)
 	require.NoError(t, err)
-	require.Zero(t, entries)
+	require.Empty(t, entries)
 
 	// Create node alias for agent 2
 	alias, err := ds.CreateRegistrationEntry(ctx, &common.RegistrationEntry{
@@ -1125,15 +1122,6 @@ func entriesByEntryIDMetric(val float64) fakemetrics.MetricItem {
 	return fakemetrics.MetricItem{
 		Type:   fakemetrics.SetGaugeType,
 		Key:    []string{telemetry.Entry, telemetry.EntriesByEntryIDCache, telemetry.Count},
-		Val:    val,
-		Labels: nil,
-	}
-}
-
-func entriesByParentIDMetric(val float64) fakemetrics.MetricItem {
-	return fakemetrics.MetricItem{
-		Type:   fakemetrics.SetGaugeType,
-		Key:    []string{telemetry.Entry, telemetry.EntriesByParentIDCache, telemetry.Count},
 		Val:    val,
 		Labels: nil,
 	}

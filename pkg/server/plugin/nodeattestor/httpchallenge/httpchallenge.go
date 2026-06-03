@@ -3,6 +3,7 @@ package httpchallenge
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"regexp"
 	"sync"
@@ -33,9 +34,14 @@ func BuiltIn() catalog.BuiltIn {
 	return builtin(New())
 }
 
+func disableHTTPRedirects(req *http.Request, via []*http.Request) error {
+	return errors.New("http redirects are disabled")
+}
+
 func BuiltInTesting(client *http.Client, forceNonce string) catalog.BuiltIn {
 	plugin := New()
 	plugin.client = client
+	plugin.client.CheckRedirect = disableHTTPRedirects
 	plugin.forceNonce = forceNonce
 	return builtin(plugin)
 }
@@ -131,7 +137,9 @@ type Plugin struct {
 
 func New() *Plugin {
 	return &Plugin{
-		client: http.DefaultClient,
+		client: &http.Client{
+			CheckRedirect: disableHTTPRedirects,
+		},
 	}
 }
 

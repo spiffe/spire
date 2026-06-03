@@ -5241,6 +5241,9 @@ func (s *PluginSuite) TestMigration() {
 			case 23:
 				// Migration from v23 to v24 adds agent_version column
 				prepareDB(true)
+			case 24:
+				// Migration from v24 to v25 adds additional_attributes column
+				prepareDB(true)
 			default:
 				t.Fatalf("no migration test added for schema version %d", schemaVersion)
 			}

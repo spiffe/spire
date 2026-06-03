@@ -63,6 +63,10 @@ func run(configPath string, expandEnv bool) error {
 	}
 	defer log.Close()
 
+	if config.AllowInsecureScheme {
+		log.Warn("allow_insecure_scheme is enabled. JWKS keys will be served over HTTP. This setting must only be used in development environments.")
+	}
+
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
@@ -93,7 +97,11 @@ func run(configPath string, expandEnv bool) error {
 		}
 	}
 
-	var handler http.Handler = NewHandler(log, domainPolicy, source, config.AllowInsecureScheme, config.SetKeyUse, jwtIssuer, jwksURI, config.ServerPathPrefix)
+	var handler http.Handler
+	handler, err = NewHandler(log, domainPolicy, source, config.AllowInsecureScheme, config.SetKeyUse, jwtIssuer, jwksURI, config.ServerPathPrefix)
+	if err != nil {
+		return err
+	}
 	if config.LogRequests {
 		log.Info("Logging all requests")
 		handler = logHandler(log, handler)

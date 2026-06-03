@@ -88,6 +88,7 @@ type serverConfig struct {
 	LogSourceLocation            bool               `hcl:"log_source_location"`
 	PruneAttestedNodesExpiredFor string             `hcl:"prune_attested_nodes_expired_for"`
 	PruneNonReattestableNodes    bool               `hcl:"prune_tofu_nodes"`
+	ProxyProtocolTrustedCIDRs    []string           `hcl:"proxy_protocol_trusted_cidrs"`
 	RateLimit                    rateLimitConfig    `hcl:"ratelimit"`
 	SocketPath                   string             `hcl:"socket_path"`
 	TrustDomain                  string             `hcl:"trust_domain"`
@@ -106,6 +107,7 @@ type serverConfig struct {
 }
 
 type experimentalConfig struct {
+	AgentSpiffeIdAsSelector bool                        `hcl:"agent_spiffe_id_as_selector"`
 	AuthOpaPolicyEngine     *authpolicy.OpaEngineConfig `hcl:"auth_opa_policy_engine"`
 	CacheReloadInterval     string                      `hcl:"cache_reload_interval"`
 	FullCacheReloadInterval string                      `hcl:"full_cache_reload_interval"`
@@ -115,6 +117,7 @@ type experimentalConfig struct {
 	SQLTransactionTimeout   string                      `hcl:"sql_transaction_timeout"`
 	RequirePQKEM            bool                        `hcl:"require_pq_kem"`
 	WITKeyType              string                      `hcl:"wit_key_type"`
+	WITIssuer               string                      `hcl:"wit_issuer"`
 
 	Flags fflag.RawConfig `hcl:"feature_flags"`
 
@@ -429,6 +432,7 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 
 	sc.DataDir = c.Server.DataDir
 	sc.AuditLogEnabled = c.Server.AuditLogEnabled
+	sc.ProxyProtocolTrustedCIDRs = c.Server.ProxyProtocolTrustedCIDRs
 
 	td, err := spiffeid.TrustDomainFromString(c.Server.TrustDomain)
 	if err != nil {
@@ -579,6 +583,8 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 		sc.CATTL = ttl
 	}
 
+	sc.Experimental.AgentSpiffeIdAsSelector = c.Server.Experimental.AgentSpiffeIdAsSelector
+
 	// If the configured TTLs can lead to surprises, then do our best to log an
 	// accurate message and guide the user to resolution
 	type ttlCheck struct {
@@ -671,6 +677,7 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 	}
 
 	sc.JWTIssuer = c.Server.JWTIssuer
+	sc.WITIssuer = c.Server.Experimental.WITIssuer
 
 	if subject := c.Server.CASubject; subject != nil {
 		sc.CASubject = pkix.Name{
@@ -750,7 +757,10 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 	}
 
 	if c.Server.Experimental.SQLTransactionTimeout != "" {
-		sc.Log.Warn("experimental.sql_transaction_timeout is deprecated, use experimental.event_timeout instead")
+		sc.Log.WithFields(logrus.Fields{
+			telemetry.Alert:     true,
+			telemetry.AlertType: telemetry.DeprecatedConfigAlertType,
+		}).Warn("experimental.sql_transaction_timeout is deprecated, use experimental.event_timeout instead")
 		interval, err := time.ParseDuration(c.Server.Experimental.SQLTransactionTimeout)
 		if err != nil {
 			return nil, fmt.Errorf("could not parse SQL transaction timeout interval: %w", err)
@@ -786,12 +796,18 @@ func setBundleEndpointConfigProfile(config *bundleEndpointConfig, dataDir string
 		return errors.New("either bundle endpoint 'acme' or 'profile' can be set, but not both")
 
 	case config.ACME != nil:
-		log.Warn("ACME configuration within the bundle_endpoint is deprecated. Please use ACME configuration as part of the https_web profile instead.")
+		log.WithFields(logrus.Fields{
+			telemetry.Alert:     true,
+			telemetry.AlertType: telemetry.DeprecatedConfigAlertType,
+		}).Warn("ACME configuration within the bundle_endpoint is deprecated. Please use ACME configuration as part of the https_web profile instead.")
 		federationConfig.BundleEndpoint.ACME = configToACMEConfig(config.ACME, dataDir)
 		return nil
 
 	case config.Profile == nil:
-		log.Warn("Bundle endpoint is configured but has no profile set, using https_spiffe as default; please configure a profile explicitly. This will be fatal in a future release.")
+		log.WithFields(logrus.Fields{
+			telemetry.Alert:     true,
+			telemetry.AlertType: telemetry.DeprecatedConfigAlertType,
+		}).Warn("Bundle endpoint is configured but has no profile set, using https_spiffe as default; please configure a profile explicitly. This will be fatal in a future release.")
 		return nil
 	}
 
@@ -955,6 +971,12 @@ func validateConfig(c *Config) error {
 
 	if c.Server.Experimental.EventTimeout != "" && c.Server.Experimental.SQLTransactionTimeout != "" {
 		return errors.New("both experimental sql_transaction_timeout and event_timeout set, only set event_timeout")
+	}
+
+	for _, cidr := range c.Server.ProxyProtocolTrustedCIDRs {
+		if _, _, err := net.ParseCIDR(cidr); err != nil {
+			return fmt.Errorf("invalid proxy_protocol_trusted_cidrs value %q: %w", cidr, err)
+		}
 	}
 
 	return c.validateOS()

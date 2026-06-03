@@ -94,7 +94,7 @@ func (s *Service) isCallerAuthorized(ctx context.Context, log logrus.FieldLogger
 	numRegisteredEntries := len(entries)
 
 	if numRegisteredEntries == 0 {
-		log.Error("no identity issued")
+		logNoIdentityIssued(ctx, log)
 		return nil, status.Error(codes.PermissionDenied, "no identity issued")
 	}
 
@@ -371,6 +371,11 @@ func (s *Service) FetchJWTSVIDs(ctx context.Context, req *delegatedidentityv1.Fe
 
 	entries := s.manager.MatchingRegistrationEntries(selectors)
 	for _, entry := range entries {
+		// Do not send admin nor downstream SVIDs to the caller
+		if entry.Admin || entry.Downstream {
+			continue
+		}
+
 		spiffeID, err := spiffeid.FromString(entry.SpiffeId)
 		if err != nil {
 			log.WithField(telemetry.SPIFFEID, entry.SpiffeId).WithError(err).Error("Invalid requested SPIFFE ID")
@@ -401,7 +406,7 @@ func (s *Service) FetchJWTSVIDs(ctx context.Context, req *delegatedidentityv1.Fe
 	}
 
 	if len(resp.Svids) == 0 {
-		log.Error("No identity issued")
+		logNoIdentityIssued(ctx, log)
 		return nil, status.Error(codes.PermissionDenied, "no identity issued")
 	}
 
@@ -469,4 +474,12 @@ func marshalBundle(certs []*x509.Certificate) []byte {
 		bundle = append(bundle, c.Raw...)
 	}
 	return bundle
+}
+
+func logNoIdentityIssued(ctx context.Context, log logrus.FieldLogger) {
+	if err := ctx.Err(); err != nil {
+		log.WithError(err).Error("No identity issued")
+		return
+	}
+	log.Error("No identity issued")
 }

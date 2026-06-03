@@ -35,32 +35,35 @@ import (
 
 // Config is the service configuration
 type Config struct {
-	Catalog     catalog.Catalog
-	Clock       clock.Clock
-	DataStore   datastore.DataStore
-	ServerCA    ca.ServerCA
-	TrustDomain spiffeid.TrustDomain
+	Catalog                 catalog.Catalog
+	Clock                   clock.Clock
+	DataStore               datastore.DataStore
+	ServerCA                ca.ServerCA
+	TrustDomain             spiffeid.TrustDomain
+	AgentSpiffeIdAsSelector bool
 }
 
 // Service implements the v1 agent service
 type Service struct {
 	agentv1.UnsafeAgentServer
 
-	cat catalog.Catalog
-	clk clock.Clock
-	ds  datastore.DataStore
-	ca  ca.ServerCA
-	td  spiffeid.TrustDomain
+	cat                     catalog.Catalog
+	clk                     clock.Clock
+	ds                      datastore.DataStore
+	ca                      ca.ServerCA
+	td                      spiffeid.TrustDomain
+	AgentSpiffeIdAsSelector bool
 }
 
 // New creates a new agent service
 func New(config Config) *Service {
 	return &Service{
-		cat: config.Catalog,
-		clk: config.Clock,
-		ds:  config.DataStore,
-		ca:  config.ServerCA,
-		td:  config.TrustDomain,
+		cat:                     config.Catalog,
+		clk:                     config.Clock,
+		ds:                      config.DataStore,
+		ca:                      config.ServerCA,
+		td:                      config.TrustDomain,
+		AgentSpiffeIdAsSelector: config.AgentSpiffeIdAsSelector,
 	}
 }
 
@@ -325,6 +328,13 @@ func (s *Service) AttestAgent(stream agentv1.Agent_AttestAgentServer) error {
 		}
 	}
 
+	if attestResult.AgentID != "" && s.AgentSpiffeIdAsSelector {
+		attestResult.Selectors = append(attestResult.Selectors, &common.Selector{
+			Type:  "spiffe_id",
+			Value: attestResult.AgentID,
+		})
+	}
+
 	agentID, err := spiffeid.FromString(attestResult.AgentID)
 	if err != nil {
 		return api.MakeErr(log, codes.Internal, "invalid agent ID", err)
@@ -387,7 +397,7 @@ func (s *Service) AttestAgent(stream agentv1.Agent_AttestAgentServer) error {
 			CertSerialNumber: svid[0].SerialNumber.String(),
 			CanReattest:      attestResult.CanReattest,
 		}
-		if _, err := s.ds.UpdateAttestedNode(ctx, node, nil); err != nil {
+		if _, err := s.ds.UpdateAttestedNode(ctx, node, api.UpdateAttestedNodeCertificateMask); err != nil {
 			return api.MakeErr(log, codes.Internal, "failed to update attested agent", err)
 		}
 	}

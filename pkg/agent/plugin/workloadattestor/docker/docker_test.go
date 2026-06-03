@@ -157,6 +157,10 @@ func TestDockerErrorContextCancel(t *testing.T) {
 }
 
 func TestDockerConfig(t *testing.T) {
+	// Make sure sigstore caches things in memory instead of trying
+	// to cache them to some directory.
+	t.Setenv("SIGSTORE_NO_CACHE", "true")
+
 	for _, tt := range []struct {
 		name               string
 		trustDomain        string
@@ -174,21 +178,19 @@ func TestDockerConfig(t *testing.T) {
 			name:        "sigstore configuration",
 			trustDomain: "example.org",
 			config: `
-					experimental {
-    					sigstore {
-        					allowed_identities = {
-            					"test-issuer-1" = ["*@example.com", "subject@otherdomain.com"]
-            					"test-issuer-2" = ["domain/ci.yaml@refs/tags/*"]
-        					}
-        					skipped_images = ["registry/image@sha256:examplehash"]
-        					rekor_url = "https://test.dev"
-        					ignore_sct = true
-        					ignore_tlog = true
-                            ignore_attestations = true
-        					registry_username = "user"
-        					registry_password = "pass"
-    					}
-			}`,
+					sigstore {
+						allowed_identities = {
+							"test-issuer-1" = ["*@example.com", "subject@otherdomain.com"]
+							"test-issuer-2" = ["domain/ci.yaml@refs/tags/*"]
+						}
+						skipped_images = ["registry/image@sha256:examplehash"]
+						rekor_url = "https://test.dev"
+						ignore_sct = true
+						ignore_tlog = true
+						ignore_attestations = true
+						registry_username = "user"
+						registry_password = "pass"
+					}`,
 			sigstoreConfigured: true,
 		},
 		{
@@ -208,6 +210,18 @@ invalid1 = "/oh/"
 invalid2 = "/no/"`,
 			expectCode: codes.InvalidArgument,
 			expectMsg:  "unknown configurations detected: invalid1,invalid2",
+		},
+		{
+			name:        "stale experimental block is rejected",
+			trustDomain: "example.org",
+			config: `
+					experimental {
+						sigstore {
+							rekor_url = "https://rekor.sigstore.dev"
+						}
+					}`,
+			expectCode: codes.InvalidArgument,
+			expectMsg:  "unknown configurations detected: experimental",
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -254,10 +268,10 @@ func TestNewConfigFromHCL(t *testing.T) {
 					"test-issuer-2": {"domain/ci.yaml@refs/tags/*"},
 				},
 				SkippedImages:      []string{"registry/image@sha256:examplehash"},
-				RekorURL:           strPtr("https://test.dev"),
-				IgnoreSCT:          boolPtr(true),
-				IgnoreTlog:         boolPtr(true),
-				IgnoreAttestations: boolPtr(true),
+				RekorURL:           new("https://test.dev"),
+				IgnoreSCT:          new(true),
+				IgnoreTlog:         new(true),
+				IgnoreAttestations: new(true),
 				RegistryCredentials: map[string]*sigstore.RegistryCredential{
 					"registry": {
 						Username: "user",
@@ -539,12 +553,4 @@ func (f *fakeSigstoreVerifier) Verify(_ context.Context, imageID string) ([]stri
 		return nil, fmt.Errorf("unexpected image ID: %s", imageID)
 	}
 	return f.selectors, f.err
-}
-
-func strPtr(s string) *string {
-	return &s
-}
-
-func boolPtr(b bool) *bool {
-	return &b
 }

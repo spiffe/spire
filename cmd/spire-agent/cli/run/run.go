@@ -75,6 +75,7 @@ type agentConfig struct {
 	LogFile                       string    `hcl:"log_file"`
 	LogFormat                     string    `hcl:"log_format"`
 	LogLevel                      string    `hcl:"log_level"`
+	LogSelectors                  []string  `hcl:"log_selectors"`
 	LogSourceLocation             bool      `hcl:"log_source_location"`
 	SDS                           sdsConfig `hcl:"sds"`
 	ServerAddress                 string    `hcl:"server_address"`
@@ -489,7 +490,10 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 
 	ac.UseSyncAuthorizedEntries = true
 	if c.Agent.Experimental.UseSyncAuthorizedEntries != nil {
-		ac.Log.Warn("The 'use_sync_authorized_entries' configuration is deprecated. The option to disable it will be removed in SPIRE 1.13.")
+		ac.Log.WithFields(logrus.Fields{
+			telemetry.Alert:     true,
+			telemetry.AlertType: telemetry.DeprecatedConfigAlertType,
+		}).Warn("The 'use_sync_authorized_entries' configuration is deprecated. The option to disable it will be removed in SPIRE 1.13.")
 		ac.UseSyncAuthorizedEntries = *c.Agent.Experimental.UseSyncAuthorizedEntries
 	}
 
@@ -571,6 +575,7 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 	ac.ProfilingFreq = c.Agent.ProfilingFreq
 	ac.ProfilingNames = c.Agent.ProfilingNames
 
+	ac.LogSelectors = c.Agent.LogSelectors
 	ac.AllowedForeignJWTClaims = c.Agent.AllowedForeignJWTClaims
 
 	ac.PluginConfigs, err = catalog.PluginConfigsFromHCLNode(c.Plugins)

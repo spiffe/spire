@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"math/rand"
 	"net/url"
 	"path/filepath"
 	"sort"
@@ -499,7 +500,7 @@ func BenchmarkBuildInMemory(b *testing.B) {
 	allEntries, agents := buildBenchmarkData()
 
 	for b.Loop() {
-		_, err := Build(context.Background(), "example.org", makeEntryIterator(allEntries), makeAgentIterator(agents))
+		_, err := Build(context.Background(), "domain.test", makeEntryIterator(allEntries), makeAgentIterator(agents))
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -508,11 +509,13 @@ func BenchmarkBuildInMemory(b *testing.B) {
 
 func BenchmarkGetAuthorizedEntriesInMemory(b *testing.B) {
 	allEntries, agents := buildBenchmarkData()
-	cache, err := Build(context.Background(), "example.org", makeEntryIterator(allEntries), makeAgentIterator(agents))
+	cache, err := Build(context.Background(), "domain.test", makeEntryIterator(allEntries), makeAgentIterator(agents))
 	require.NoError(b, err)
 	b.ResetTimer()
-	for i := range b.N {
-		cache.GetAuthorizedEntries(agents[i%len(agents)].ID)
+
+	for b.Loop() {
+		entries := cache.GetAuthorizedEntries(agents[rand.Intn(len(agents))].ID) //nolint:gosec
+		require.NotEmpty(b, entries)
 	}
 }
 

@@ -193,6 +193,7 @@ func TestAgentAuthorizer(t *testing.T) {
 				CertSerialNumber:    "CURRENT",
 				NewCertSerialNumber: agentSVID.SerialNumber.String(),
 				CanReattest:         true,
+				AgentVersion:        "1.2.3",
 			},
 			expectedCode: codes.OK,
 			expectedNode: &common.AttestedNode{
@@ -200,6 +201,7 @@ func TestAgentAuthorizer(t *testing.T) {
 				CertSerialNumber:    agentSVID.SerialNumber.String(),
 				NewCertSerialNumber: "",
 				CanReattest:         true,
+				AgentVersion:        "1.2.3",
 			},
 		},
 		{

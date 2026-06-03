@@ -1,0 +1,10 @@
+#!/bin/bash
+
+source init-kubectl
+
+if [ -z "$SUCCESS" ]; then
+   ./bin/kubectl -nspire logs deployment/spire-server --all-containers || true
+fi
+
+export KUBECONFIG=
+./bin/kind delete cluster --name vault-test

@@ -2,8 +2,10 @@ package x509pop
 
 import (
 	"context"
+	"crypto/rsa"
 	"crypto/x509"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/url"
 	"strings"
@@ -27,6 +29,10 @@ import (
 
 const (
 	pluginName = "x509pop"
+
+	// Default security limits to prevent resource exhaustion attacks
+	defaultMaxIntermediates = 4
+	defaultMaxRSAKeySize    = 8192
 )
 
 func BuiltIn() catalog.BuiltIn {
@@ -46,14 +52,18 @@ type Config struct {
 	CABundlePath      string   `hcl:"ca_bundle_path"`
 	CABundlePaths     []string `hcl:"ca_bundle_paths"`
 	AgentPathTemplate string   `hcl:"agent_path_template"`
+	MaxIntermediates  *int     `hcl:"max_intermediates"`
+	MaxRSAKeySize     *int     `hcl:"max_rsa_key_size"`
 }
 
 type configuration struct {
-	mode         string
-	svidPrefix   string
-	trustDomain  spiffeid.TrustDomain
-	trustBundle  *x509.CertPool
-	pathTemplate *agentpathtemplate.Template
+	mode             string
+	svidPrefix       string
+	trustDomain      spiffeid.TrustDomain
+	trustBundle      *x509.CertPool
+	pathTemplate     *agentpathtemplate.Template
+	maxIntermediates int
+	maxRSAKeySize    int
 }
 
 func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *configuration {
@@ -117,12 +127,30 @@ func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginco
 		}
 	}
 
+	maxIntermediates := defaultMaxIntermediates
+	if hclConfig.MaxIntermediates != nil {
+		if *hclConfig.MaxIntermediates <= 0 {
+			status.ReportError("max_intermediates must be greater than 0")
+		}
+		maxIntermediates = *hclConfig.MaxIntermediates
+	}
+
+	maxRSAKeySize := defaultMaxRSAKeySize
+	if hclConfig.MaxRSAKeySize != nil {
+		if *hclConfig.MaxRSAKeySize <= 0 {
+			status.ReportError("max_rsa_key_size must be greater than 0")
+		}
+		maxRSAKeySize = *hclConfig.MaxRSAKeySize
+	}
+
 	newConfig := &configuration{
-		trustDomain:  coreConfig.TrustDomain,
-		trustBundle:  util.NewCertPool(trustBundles...),
-		pathTemplate: pathTemplate,
-		mode:         hclConfig.Mode,
-		svidPrefix:   svidPrefix,
+		trustDomain:      coreConfig.TrustDomain,
+		trustBundle:      util.NewCertPool(trustBundles...),
+		pathTemplate:     pathTemplate,
+		mode:             hclConfig.Mode,
+		svidPrefix:       svidPrefix,
+		maxIntermediates: maxIntermediates,
+		maxRSAKeySize:    maxRSAKeySize,
 	}
 
 	return newConfig
@@ -175,16 +203,35 @@ func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 	if len(attestationData.Certificates) == 0 {
 		return status.Error(codes.InvalidArgument, "no certificate to attest")
 	}
+
+	// Check intermediate count limit before parsing to prevent resource exhaustion
+	numIntermediates := len(attestationData.Certificates) - 1
+	if numIntermediates > config.maxIntermediates {
+		return status.Error(codes.InvalidArgument, "too many intermediate certificates")
+	}
+
 	leaf, err := x509.ParseCertificate(attestationData.Certificates[0])
 	if err != nil {
 		return status.Errorf(codes.InvalidArgument, "unable to parse leaf certificate: %v", err)
 	}
+
+	// Validate leaf certificate key size
+	if err := validateRSAKeySize(leaf, config.maxRSAKeySize); err != nil {
+		return status.Error(codes.InvalidArgument, "leaf certificate key size too large")
+	}
+
 	intermediates := x509.NewCertPool()
 	for i, intermediateBytes := range attestationData.Certificates[1:] {
 		intermediate, err := x509.ParseCertificate(intermediateBytes)
 		if err != nil {
 			return status.Errorf(codes.InvalidArgument, "unable to parse intermediate certificate %d: %v", i, err)
 		}
+
+		// Validate intermediate certificate key size
+		if err := validateRSAKeySize(intermediate, config.maxRSAKeySize); err != nil {
+			return status.Errorf(codes.InvalidArgument, "intermediate certificate %d key size too large", i)
+		}
+
 		intermediates.AddCert(intermediate)
 	}
 
@@ -383,4 +430,18 @@ func (p *Plugin) parseUriSanSelectors(leaf *x509.Certificate, trustDomain string
 		}
 	}
 	return uriSelectorMap
+}
+
+// Checks if an RSA public key exceeds the maximum allowed size.
+func validateRSAKeySize(cert *x509.Certificate, maxRSAKeySize int) error {
+	if cert.PublicKeyAlgorithm != x509.RSA {
+		return nil
+	}
+	if rsaKey, ok := cert.PublicKey.(*rsa.PublicKey); ok {
+		keySize := rsaKey.N.BitLen()
+		if keySize > maxRSAKeySize {
+			return errors.New("RSA key size exceeds maximum")
+		}
+	}
+	return nil
 }

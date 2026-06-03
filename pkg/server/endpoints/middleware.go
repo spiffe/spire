@@ -106,7 +106,7 @@ func AgentAuthorizer(ds datastore.DataStore, nodeCache api.AttestedNodeCache, ma
 				CertNotAfter:     attestedNode.NewCertNotAfter,
 				CertSerialNumber: attestedNode.NewCertSerialNumber,
 				CanReattest:      attestedNode.CanReattest,
-			}, nil)
+			}, api.UpdateAttestedNodeCertificateMask)
 			if err != nil {
 				log.WithFields(logrus.Fields{
 					telemetry.SVIDSerialNumber: agentSVID.SerialNumber.String(),

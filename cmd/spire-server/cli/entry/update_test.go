@@ -10,6 +10,7 @@ import (
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/protobuf/encoding/protowire"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -190,7 +191,45 @@ func TestUpdate(t *testing.T) {
         "revision_number": "0",
         "store_svid": true,
         "jwt_svid_ttl": 300
-      }`
+      }
+    }`
+	entry4JSON := `{
+        "id": "entry-id-4",
+        "spiffe_id": {
+          "trust_domain": "example.org",
+          "path": "/DisableX509SvidPrefetch"
+        },
+        "parent_id": {
+          "trust_domain": "example.org",
+          "path": "/spire/agent/join_token/TokenDatabase"
+        },
+        "selectors": [
+          {
+            "type": "type",
+            "value": "key1:value"
+          },
+          {
+            "type": "type",
+            "value": "key2:value"
+          }
+        ],
+        "x509_svid_ttl": 200,
+        "federates_with": [],
+        "hint": "",
+        "admin": false,
+        "created_at": "1547583197",
+        "downstream": false,
+        "expires_at": "0",
+        "dns_names": [],
+        "revision_number": "0",
+        "jwt_svid_ttl": 300,
+        "store_svid": false,
+        "additional_attributes": {
+          "disable_x509_svid_prefetch": true,
+          "jwt_svid_include_jti": false
+        }
+      }
+    }`
 	nonExistentEntryJSON := `{
         "id": "non-existent-id",
         "spiffe_id": {
@@ -321,12 +360,29 @@ func TestUpdate(t *testing.T) {
 		JwtSvidTtl:  300,
 	}
 
+	entry5 := &types.Entry{
+		Id:       "entry-id-4",
+		SpiffeId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/DisableX509SvidPrefetch"},
+		ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/spire/agent/join_token/TokenDatabase"},
+		Selectors: []*types.Selector{
+			{Type: "type", Value: "key1:value"},
+			{Type: "type", Value: "key2:value"},
+		},
+		X509SvidTtl: 200,
+		JwtSvidTtl:  300,
+		AdditionalAttributes: &types.Entry_AdditionalAttributes{
+			DisableX509SvidPrefetch: true,
+		},
+	}
+
 	entry2Resp := proto.Clone(entry2).(*types.Entry)
 	entry2Resp.CreatedAt = 1547583197
 	entry3Resp := proto.Clone(entry3).(*types.Entry)
 	entry3Resp.CreatedAt = 1547583197
 	entry4Resp := proto.Clone(entry4).(*types.Entry)
 	entry4Resp.CreatedAt = 1547583197
+	entry5Resp := proto.Clone(entry5).(*types.Entry)
+	entry5Resp.CreatedAt = 1547583197
 
 	fakeRespOKFromFile := &entryv1.BatchUpdateEntryResponse{
 		Results: []*entryv1.BatchUpdateEntryResponse_Result{
@@ -340,6 +396,10 @@ func TestUpdate(t *testing.T) {
 			},
 			{
 				Entry:  entry4Resp,
+				Status: &types.Status{Code: int32(codes.OK), Message: "OK"},
+			},
+			{
+				Entry:  entry5Resp,
 				Status: &types.Status{Code: int32(codes.OK), Message: "OK"},
 			},
 		},
@@ -356,6 +416,11 @@ func TestUpdate(t *testing.T) {
 		},
 	}
 
+	additionalAttributesWithUnknown := func(attrs *types.Entry_AdditionalAttributes) *types.Entry_AdditionalAttributes {
+		attrs.ProtoReflect().SetUnknown(protowire.AppendVarint(protowire.AppendTag(nil, 99, protowire.VarintType), 123))
+		return attrs
+	}
+
 	for _, tt := range []struct {
 		name string
 		args []string
@@ -363,6 +428,9 @@ func TestUpdate(t *testing.T) {
 		expReq    *entryv1.BatchUpdateEntryRequest
 		fakeResp  *entryv1.BatchUpdateEntryResponse
 		serverErr error
+
+		expGetReq   *entryv1.GetEntryRequest
+		fakeGetResp *types.Entry
 
 		expOutPretty string
 		expOutJSON   string
@@ -403,10 +471,11 @@ func TestUpdate(t *testing.T) {
 			args: []string{"-entryID", "entry-id", "-spiffeID", "spiffe://example.org/workload", "-parentID", "spiffe://example.org/parent", "-selector", "unix:uid:1"},
 			expReq: &entryv1.BatchUpdateEntryRequest{Entries: []*types.Entry{
 				{
-					Id:        "entry-id",
-					SpiffeId:  &types.SPIFFEID{TrustDomain: "example.org", Path: "/workload"},
-					ParentId:  &types.SPIFFEID{TrustDomain: "example.org", Path: "/parent"},
-					Selectors: []*types.Selector{{Type: "unix", Value: "uid:1"}},
+					Id:                   "entry-id",
+					SpiffeId:             &types.SPIFFEID{TrustDomain: "example.org", Path: "/workload"},
+					ParentId:             &types.SPIFFEID{TrustDomain: "example.org", Path: "/parent"},
+					Selectors:            []*types.Selector{{Type: "unix", Value: "uid:1"}},
+					AdditionalAttributes: &types.Entry_AdditionalAttributes{},
 				},
 			}},
 			serverErr:    errors.New("server-error"),
@@ -436,22 +505,22 @@ func TestUpdate(t *testing.T) {
 				Entries: []*types.Entry{entry1},
 			},
 			fakeResp: fakeRespOKFromCmd,
-			expOutPretty: fmt.Sprintf(`Entry ID         : entry-id
-SPIFFE ID        : spiffe://example.org/workload
-Parent ID        : spiffe://example.org/parent
-Revision         : 0
-Downstream       : true
-X509-SVID TTL    : 60
-JWT-SVID TTL     : 30
-Expiration time  : %s
-Selector         : zebra:zebra:2000
-Selector         : alpha:alpha:2000
-FederatesWith    : spiffe://domaina.test
-FederatesWith    : spiffe://domainb.test
-DNS name         : unu1000
-DNS name         : ung1000
-Admin            : true
-Hint             : external
+			expOutPretty: fmt.Sprintf(`Entry ID                : entry-id
+SPIFFE ID               : spiffe://example.org/workload
+Parent ID               : spiffe://example.org/parent
+Revision                : 0
+Downstream              : true
+X509-SVID TTL           : 60
+JWT-SVID TTL            : 30
+Expiration time         : %s
+Selector                : zebra:zebra:2000
+Selector                : alpha:alpha:2000
+FederatesWith           : spiffe://domaina.test
+FederatesWith           : spiffe://domainb.test
+DNS name                : unu1000
+DNS name                : ung1000
+Admin                   : true
+Hint                    : external
 
 `, time.Unix(1552410266, 0).UTC()),
 			expOutJSON: fmt.Sprintf(`{
@@ -497,20 +566,20 @@ Hint             : external
 					},
 				},
 			},
-			expOutPretty: fmt.Sprintf(`Entry ID         : entry-id
-SPIFFE ID        : spiffe://example.org/workload
-Parent ID        : spiffe://example.org/parent
-Revision         : 0
-X509-SVID TTL    : 60
-JWT-SVID TTL     : 30
-Expiration time  : %s
-Selector         : type:key1:value
-Selector         : type:key2:value
-FederatesWith    : spiffe://domaina.test
-FederatesWith    : spiffe://domainb.test
-DNS name         : unu1000
-DNS name         : ung1000
-StoreSvid        : true
+			expOutPretty: fmt.Sprintf(`Entry ID                : entry-id
+SPIFFE ID               : spiffe://example.org/workload
+Parent ID               : spiffe://example.org/parent
+Revision                : 0
+X509-SVID TTL           : 60
+JWT-SVID TTL            : 30
+Expiration time         : %s
+Selector                : type:key1:value
+Selector                : type:key2:value
+FederatesWith           : spiffe://domaina.test
+FederatesWith           : spiffe://domainb.test
+DNS name                : unu1000
+DNS name                : ung1000
+StoreSvid               : true
 
 `, time.Unix(1552410266, 0).UTC()),
 			expOutJSON: fmt.Sprintf(`{
@@ -531,36 +600,46 @@ StoreSvid        : true
 				"-data", "../../../../test/fixture/registration/good-for-update.json",
 			},
 			expReq: &entryv1.BatchUpdateEntryRequest{
-				Entries: []*types.Entry{entry2, entry3, entry4},
+				Entries: []*types.Entry{entry2, entry3, entry4, entry5},
 			},
 			fakeResp: fakeRespOKFromFile,
-			expOutPretty: `Entry ID         : entry-id-1
-SPIFFE ID        : spiffe://example.org/Blog
-Parent ID        : spiffe://example.org/spire/agent/join_token/TokenBlog
-Revision         : 0
-X509-SVID TTL    : 200
-JWT-SVID TTL     : 300
-Selector         : unix:uid:1111
-Admin            : true
-Hint             : external
+			expOutPretty: `Entry ID                : entry-id-1
+SPIFFE ID               : spiffe://example.org/Blog
+Parent ID               : spiffe://example.org/spire/agent/join_token/TokenBlog
+Revision                : 0
+X509-SVID TTL           : 200
+JWT-SVID TTL            : 300
+Selector                : unix:uid:1111
+Admin                   : true
+Hint                    : external
 
-Entry ID         : entry-id-2
-SPIFFE ID        : spiffe://example.org/Database
-Parent ID        : spiffe://example.org/spire/agent/join_token/TokenDatabase
-Revision         : 0
-X509-SVID TTL    : 200
-JWT-SVID TTL     : 300
-Selector         : unix:uid:1111
+Entry ID                : entry-id-2
+SPIFFE ID               : spiffe://example.org/Database
+Parent ID               : spiffe://example.org/spire/agent/join_token/TokenDatabase
+Revision                : 0
+X509-SVID TTL           : 200
+JWT-SVID TTL            : 300
+Selector                : unix:uid:1111
 
-Entry ID         : entry-id-3
-SPIFFE ID        : spiffe://example.org/Storesvid
-Parent ID        : spiffe://example.org/spire/agent/join_token/TokenDatabase
-Revision         : 0
-X509-SVID TTL    : 200
-JWT-SVID TTL     : 300
-Selector         : type:key1:value
-Selector         : type:key2:value
-StoreSvid        : true
+Entry ID                : entry-id-3
+SPIFFE ID               : spiffe://example.org/Storesvid
+Parent ID               : spiffe://example.org/spire/agent/join_token/TokenDatabase
+Revision                : 0
+X509-SVID TTL           : 200
+JWT-SVID TTL            : 300
+Selector                : type:key1:value
+Selector                : type:key2:value
+StoreSvid               : true
+
+Entry ID                : entry-id-4
+SPIFFE ID               : spiffe://example.org/DisableX509SvidPrefetch
+Parent ID               : spiffe://example.org/spire/agent/join_token/TokenDatabase
+Revision                : 0
+X509-SVID TTL           : 200
+JWT-SVID TTL            : 300
+Selector                : type:key1:value
+Selector                : type:key2:value
+DisableX509SvidPrefetch : true
 
 `,
 			expOutJSON: fmt.Sprintf(`
@@ -583,10 +662,330 @@ StoreSvid        : true
         "code": 0,
         "message": "OK"
       },
+      "entry": %s,
+    {
+      "status": {
+        "code": 0,
+        "message": "OK"
+      },
       "entry": %s
+  ]
+}`, entry1JSON, entry2JSON, entry3JSON, entry4JSON),
+		},
+		{
+			name: "Update preserves DisableX509SvidPrefetch when only jwtSVIDIncludeJTI is set",
+			args: []string{
+				"-entryID", "entry-id",
+				"-spiffeID", "spiffe://example.org/workload",
+				"-parentID", "spiffe://example.org/parent",
+				"-selector", "unix:uid:1",
+				"-jwtSVIDIncludeJTI",
+			},
+			expGetReq: &entryv1.GetEntryRequest{Id: "entry-id"},
+			fakeGetResp: &types.Entry{
+				Id: "entry-id",
+				AdditionalAttributes: &types.Entry_AdditionalAttributes{
+					DisableX509SvidPrefetch: true,
+				},
+			},
+			expReq: &entryv1.BatchUpdateEntryRequest{Entries: []*types.Entry{
+				{
+					Id:        "entry-id",
+					SpiffeId:  &types.SPIFFEID{TrustDomain: "example.org", Path: "/workload"},
+					ParentId:  &types.SPIFFEID{TrustDomain: "example.org", Path: "/parent"},
+					Selectors: []*types.Selector{{Type: "unix", Value: "uid:1"}},
+					AdditionalAttributes: &types.Entry_AdditionalAttributes{
+						DisableX509SvidPrefetch: true,
+						JwtSvidIncludeJti:       true,
+					},
+				},
+			}},
+			fakeResp: &entryv1.BatchUpdateEntryResponse{
+				Results: []*entryv1.BatchUpdateEntryResponse_Result{
+					{
+						Status: &types.Status{Code: int32(codes.OK), Message: "OK"},
+						Entry: &types.Entry{
+							Id:        "entry-id",
+							SpiffeId:  &types.SPIFFEID{TrustDomain: "example.org", Path: "/workload"},
+							ParentId:  &types.SPIFFEID{TrustDomain: "example.org", Path: "/parent"},
+							Selectors: []*types.Selector{{Type: "unix", Value: "uid:1"}},
+							AdditionalAttributes: &types.Entry_AdditionalAttributes{
+								DisableX509SvidPrefetch: true,
+								JwtSvidIncludeJti:       true,
+							},
+						},
+					},
+				},
+			},
+			expOutPretty: `Entry ID                : entry-id
+SPIFFE ID               : spiffe://example.org/workload
+Parent ID               : spiffe://example.org/parent
+Revision                : 0
+X509-SVID TTL           : default
+JWT-SVID TTL            : default
+Selector                : unix:uid:1
+DisableX509SvidPrefetch : true
+JwtSvidIncludeJti       : true
+
+`,
+			expOutJSON: `{
+  "results": [
+    {
+      "status": {
+        "code": 0,
+        "message": "OK"
+      },
+      "entry": {
+        "id": "entry-id",
+        "spiffe_id": {
+          "trust_domain": "example.org",
+          "path": "/workload"
+        },
+        "parent_id": {
+          "trust_domain": "example.org",
+          "path": "/parent"
+        },
+        "selectors": [
+          {
+            "type": "unix",
+            "value": "uid:1"
+          }
+        ],
+        "x509_svid_ttl": 0,
+        "federates_with": [],
+        "admin": false,
+        "downstream": false,
+        "expires_at": "0",
+        "dns_names": [],
+        "revision_number": "0",
+        "store_svid": false,
+        "jwt_svid_ttl": 0,
+        "hint": "",
+        "created_at": "0",
+        "additional_attributes": {
+          "disable_x509_svid_prefetch": true,
+          "jwt_svid_include_jti": true
+        }
+      }
     }
   ]
-}`, entry1JSON, entry2JSON, entry3JSON),
+}`,
+		},
+		{
+			name: "Update preserves JwtSvidIncludeJti when only disableX509SVIDPrefetch is set",
+			args: []string{
+				"-entryID", "entry-id",
+				"-spiffeID", "spiffe://example.org/workload",
+				"-parentID", "spiffe://example.org/parent",
+				"-selector", "unix:uid:1",
+				"-disableX509SVIDPrefetch",
+			},
+			expGetReq: &entryv1.GetEntryRequest{Id: "entry-id"},
+			fakeGetResp: &types.Entry{
+				Id: "entry-id",
+				AdditionalAttributes: additionalAttributesWithUnknown(&types.Entry_AdditionalAttributes{
+					JwtSvidIncludeJti: true,
+				}),
+			},
+			expReq: &entryv1.BatchUpdateEntryRequest{Entries: []*types.Entry{
+				{
+					Id:        "entry-id",
+					SpiffeId:  &types.SPIFFEID{TrustDomain: "example.org", Path: "/workload"},
+					ParentId:  &types.SPIFFEID{TrustDomain: "example.org", Path: "/parent"},
+					Selectors: []*types.Selector{{Type: "unix", Value: "uid:1"}},
+					AdditionalAttributes: additionalAttributesWithUnknown(&types.Entry_AdditionalAttributes{
+						DisableX509SvidPrefetch: true,
+						JwtSvidIncludeJti:       true,
+					}),
+				},
+			}},
+			fakeResp: &entryv1.BatchUpdateEntryResponse{
+				Results: []*entryv1.BatchUpdateEntryResponse_Result{
+					{
+						Status: &types.Status{Code: int32(codes.OK), Message: "OK"},
+						Entry: &types.Entry{
+							Id:        "entry-id",
+							SpiffeId:  &types.SPIFFEID{TrustDomain: "example.org", Path: "/workload"},
+							ParentId:  &types.SPIFFEID{TrustDomain: "example.org", Path: "/parent"},
+							Selectors: []*types.Selector{{Type: "unix", Value: "uid:1"}},
+							AdditionalAttributes: &types.Entry_AdditionalAttributes{
+								DisableX509SvidPrefetch: true,
+								JwtSvidIncludeJti:       true,
+							},
+						},
+					},
+				},
+			},
+			expOutPretty: `Entry ID                : entry-id
+SPIFFE ID               : spiffe://example.org/workload
+Parent ID               : spiffe://example.org/parent
+Revision                : 0
+X509-SVID TTL           : default
+JWT-SVID TTL            : default
+Selector                : unix:uid:1
+DisableX509SvidPrefetch : true
+JwtSvidIncludeJti       : true
+
+`,
+			expOutJSON: `{
+  "results": [
+    {
+      "status": {
+        "code": 0,
+        "message": "OK"
+      },
+      "entry": {
+        "id": "entry-id",
+        "spiffe_id": {
+          "trust_domain": "example.org",
+          "path": "/workload"
+        },
+        "parent_id": {
+          "trust_domain": "example.org",
+          "path": "/parent"
+        },
+        "selectors": [
+          {
+            "type": "unix",
+            "value": "uid:1"
+          }
+        ],
+        "x509_svid_ttl": 0,
+        "federates_with": [],
+        "admin": false,
+        "downstream": false,
+        "expires_at": "0",
+        "dns_names": [],
+        "revision_number": "0",
+        "store_svid": false,
+        "jwt_svid_ttl": 0,
+        "hint": "",
+        "created_at": "0",
+        "additional_attributes": {
+          "disable_x509_svid_prefetch": true,
+          "jwt_svid_include_jti": true
+        }
+      }
+    }
+  ]
+}`,
+		},
+		{
+			name: "Update with both additional-attribute flags still fetches existing entry",
+			args: []string{
+				"-entryID", "entry-id",
+				"-spiffeID", "spiffe://example.org/workload",
+				"-parentID", "spiffe://example.org/parent",
+				"-selector", "unix:uid:1",
+				"-disableX509SVIDPrefetch",
+				"-jwtSVIDIncludeJTI",
+			},
+			expGetReq: &entryv1.GetEntryRequest{Id: "entry-id"},
+			fakeGetResp: &types.Entry{
+				Id:       "entry-id",
+				SpiffeId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/workload"},
+				ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/parent"},
+				AdditionalAttributes: &types.Entry_AdditionalAttributes{
+					DisableX509SvidPrefetch: false,
+					JwtSvidIncludeJti:       false,
+				},
+			},
+			expReq: &entryv1.BatchUpdateEntryRequest{Entries: []*types.Entry{
+				{
+					Id:        "entry-id",
+					SpiffeId:  &types.SPIFFEID{TrustDomain: "example.org", Path: "/workload"},
+					ParentId:  &types.SPIFFEID{TrustDomain: "example.org", Path: "/parent"},
+					Selectors: []*types.Selector{{Type: "unix", Value: "uid:1"}},
+					AdditionalAttributes: &types.Entry_AdditionalAttributes{
+						DisableX509SvidPrefetch: true,
+						JwtSvidIncludeJti:       true,
+					},
+				},
+			}},
+			fakeResp: &entryv1.BatchUpdateEntryResponse{
+				Results: []*entryv1.BatchUpdateEntryResponse_Result{
+					{
+						Status: &types.Status{Code: int32(codes.OK), Message: "OK"},
+						Entry: &types.Entry{
+							Id:        "entry-id",
+							SpiffeId:  &types.SPIFFEID{TrustDomain: "example.org", Path: "/workload"},
+							ParentId:  &types.SPIFFEID{TrustDomain: "example.org", Path: "/parent"},
+							Selectors: []*types.Selector{{Type: "unix", Value: "uid:1"}},
+							AdditionalAttributes: &types.Entry_AdditionalAttributes{
+								DisableX509SvidPrefetch: true,
+								JwtSvidIncludeJti:       true,
+							},
+						},
+					},
+				},
+			},
+			expOutPretty: `Entry ID                : entry-id
+SPIFFE ID               : spiffe://example.org/workload
+Parent ID               : spiffe://example.org/parent
+Revision                : 0
+X509-SVID TTL           : default
+JWT-SVID TTL            : default
+Selector                : unix:uid:1
+DisableX509SvidPrefetch : true
+JwtSvidIncludeJti       : true
+
+`,
+			expOutJSON: `{
+  "results": [
+    {
+      "status": {
+        "code": 0,
+        "message": "OK"
+      },
+      "entry": {
+        "id": "entry-id",
+        "spiffe_id": {
+          "trust_domain": "example.org",
+          "path": "/workload"
+        },
+        "parent_id": {
+          "trust_domain": "example.org",
+          "path": "/parent"
+        },
+        "selectors": [
+          {
+            "type": "unix",
+            "value": "uid:1"
+          }
+        ],
+        "x509_svid_ttl": 0,
+        "federates_with": [],
+        "admin": false,
+        "downstream": false,
+        "expires_at": "0",
+        "dns_names": [],
+        "revision_number": "0",
+        "store_svid": false,
+        "jwt_svid_ttl": 0,
+        "hint": "",
+        "created_at": "0",
+        "additional_attributes": {
+          "disable_x509_svid_prefetch": true,
+          "jwt_svid_include_jti": true
+        }
+      }
+    }
+  ]
+}`,
+		},
+		{
+			name: "Update with partial additional attribute aborts when GetEntry fails",
+			args: []string{
+				"-entryID", "entry-id",
+				"-spiffeID", "spiffe://example.org/workload",
+				"-parentID", "spiffe://example.org/parent",
+				"-selector", "unix:uid:1",
+				"-jwtSVIDIncludeJTI",
+			},
+			expGetReq:    &entryv1.GetEntryRequest{Id: "entry-id"},
+			serverErr:    errors.New("get-entry-failed"),
+			expErrPretty: "Error: failed to fetch existing entry to merge additional attributes: rpc error: code = Unknown desc = get-entry-failed\n",
+			expErrJSON:   "Error: failed to fetch existing entry to merge additional attributes: rpc error: code = Unknown desc = get-entry-failed\n",
 		},
 		{
 			name: "Entry not found",
@@ -601,13 +1000,13 @@ StoreSvid        : true
 			}},
 			fakeResp: fakeRespErr,
 			expErrPretty: `Failed to update the following entry (code: NotFound, msg: "failed to update entry: datastore-sql: record not found"):
-Entry ID         : non-existent-id
-SPIFFE ID        : spiffe://example.org/workload
-Parent ID        : spiffe://example.org/parent
-Revision         : 0
-X509-SVID TTL    : default
-JWT-SVID TTL     : default
-Selector         : unix:uid:1
+Entry ID                : non-existent-id
+SPIFFE ID               : spiffe://example.org/workload
+Parent ID               : spiffe://example.org/parent
+Revision                : 0
+X509-SVID TTL           : default
+JWT-SVID TTL            : default
+Selector                : unix:uid:1
 
 Error: failed to update one or more entries
 `,
@@ -630,6 +1029,8 @@ Error: failed to update one or more entries
 				test.server.err = tt.serverErr
 				test.server.expBatchUpdateEntryReq = tt.expReq
 				test.server.batchUpdateEntryResp = tt.fakeResp
+				test.server.expGetEntryReq = tt.expGetReq
+				test.server.getEntryResp = tt.fakeGetResp
 				args := tt.args
 				args = append(args, "-output", format)
 

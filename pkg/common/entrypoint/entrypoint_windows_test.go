@@ -52,14 +52,12 @@ func (s *fakeSystemCall) Run(string, svc.Handler) error {
 		exitCode      uint32
 	)
 
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		s.mtx.RLock()
 		defer s.mtx.RUnlock()
 
 		svcSpecificEC, exitCode = s.s.Execute(s.args, s.changeRequestCh, s.statusCh)
-	}()
+	})
 
 	c := make(chan struct{})
 	go func() {

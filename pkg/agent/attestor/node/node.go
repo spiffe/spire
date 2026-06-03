@@ -273,7 +273,7 @@ func (a *attestor) serverConn(bundle *spiffebundle.Bundle) (*grpc.ClientConn, er
 	// reached what appears to be the right trust domain server.
 	tlsConfig := &tls.Config{
 		InsecureSkipVerify: true, //nolint: gosec // this is required in order to do non-hostname based verification
-		VerifyPeerCertificate: func(rawCerts [][]byte, _ [][]*x509.Certificate) error {
+		VerifyPeerCertificate: func(rawCerts [][]byte, _ [][]*x509.Certificate) error { //nolint:gosec // we don't need SessionTicketsDisabled
 			a.c.Log.Warn("Insecure bootstrap enabled; skipping server certificate verification")
 			if len(rawCerts) == 0 {
 				// This is not really possible without a catastrophic bug
