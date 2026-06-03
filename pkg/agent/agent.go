@@ -462,6 +462,7 @@ func (a *Agent) newEndpoints(metrics telemetry.Metrics, mgr manager.Manager, att
 		DisableSPIFFECertValidation:   a.c.DisableSPIFFECertValidation,
 		AllowUnauthenticatedVerifiers: a.c.AllowUnauthenticatedVerifiers,
 		AllowedForeignJWTClaims:       a.c.AllowedForeignJWTClaims,
+		LogSelectors:                  a.c.LogSelectors,
 		TrustDomain:                   a.c.TrustDomain,
 	})
 }

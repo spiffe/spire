@@ -8,6 +8,8 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"slices"
+	"strings"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -45,6 +47,7 @@ type Config struct {
 	Attestor                      Attestor
 	AllowUnauthenticatedVerifiers bool
 	AllowedForeignJWTClaims       map[string]struct{}
+	LogSelectors                  []string
 	TrustDomain                   spiffeid.TrustDomain
 }
 
@@ -104,7 +107,7 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *workload.JWTSVIDRequest
 	}
 
 	if len(resp.Svids) == 0 {
-		logNoIdentityIssued(ctx, log, start)
+		h.logNoIdentityIssued(ctx, log, selectors, start)
 		return nil, status.Error(codes.PermissionDenied, "no identity issued")
 	}
 
@@ -134,7 +137,7 @@ func (h *Handler) FetchJWTBundles(_ *workload.JWTBundlesRequest, stream workload
 	for {
 		select {
 		case update := <-subscriber.Updates():
-			if previousResp, err = sendJWTBundlesResponse(update, stream, log, h.c.AllowUnauthenticatedVerifiers, previousResp, start); err != nil {
+			if previousResp, err = h.sendJWTBundlesResponse(update, stream, selectors, log, previousResp, start); err != nil {
 				return err
 			}
 		case <-ctx.Done():
@@ -229,14 +232,11 @@ func (h *Handler) FetchX509SVID(_ *workload.X509SVIDRequest, stream workload.Spi
 	}
 	defer subscriber.Finish()
 
-	// The agent health check currently exercises the Workload API.
-	// Only log if it is not the agent itself.
-	quietLogging := isAgent(ctx)
 	for {
 		select {
 		case update := <-subscriber.Updates():
 			update.Identities = filterIdentities(update.Identities, log)
-			if err := sendX509SVIDResponse(update, stream, log, quietLogging, start); err != nil {
+			if err := h.sendX509SVIDResponse(update, stream, selectors, log, start); err != nil {
 				return err
 			}
 		case <-ctx.Done():
@@ -264,14 +264,11 @@ func (h *Handler) FetchX509Bundles(_ *workload.X509BundlesRequest, stream worklo
 	}
 	defer subscriber.Finish()
 
-	// The agent health check currently exercises the Workload API.
-	// Only log if it is not the agent itself.
-	quietLogging := isAgent(ctx)
 	var previousResp *workload.X509BundlesResponse
 	for {
 		select {
 		case update := <-subscriber.Updates():
-			previousResp, err = sendX509BundlesResponse(update, stream, log, h.c.AllowUnauthenticatedVerifiers, previousResp, quietLogging, start)
+			previousResp, err = h.sendX509BundlesResponse(update, stream, selectors, log, previousResp, start)
 			if err != nil {
 				return err
 			}
@@ -304,10 +301,14 @@ func (h *Handler) fetchJWTSVID(ctx context.Context, log logrus.FieldLogger, entr
 	}, nil
 }
 
-func sendX509BundlesResponse(update *cache.WorkloadUpdate, stream workload.SpiffeWorkloadAPI_FetchX509BundlesServer, log logrus.FieldLogger, allowUnauthenticatedVerifiers bool, previousResponse *workload.X509BundlesResponse, quietLogging bool, start time.Time) (*workload.X509BundlesResponse, error) {
-	if !allowUnauthenticatedVerifiers && !update.HasIdentity() {
+func (h *Handler) sendX509BundlesResponse(update *cache.WorkloadUpdate, stream workload.SpiffeWorkloadAPI_FetchX509BundlesServer, selectors []*common.Selector, log logrus.FieldLogger, previousResponse *workload.X509BundlesResponse, start time.Time) (*workload.X509BundlesResponse, error) {
+	ctx := stream.Context()
+	// The agent health check currently exercises the Workload API.
+	// Only log if it is not the agent itself.
+	quietLogging := isAgent(ctx)
+	if !h.c.AllowUnauthenticatedVerifiers && !update.HasIdentity() {
 		if !quietLogging {
-			logNoIdentityIssued(stream.Context(), log, start)
+			h.logNoIdentityIssued(ctx, log, selectors, start)
 		}
 		return nil, status.Error(codes.PermissionDenied, "no identity issued")
 	}
@@ -323,7 +324,7 @@ func sendX509BundlesResponse(update *cache.WorkloadUpdate, stream workload.Spiff
 	}
 
 	if err := stream.Send(resp); err != nil {
-		loggerWithContextInfo(stream.Context(), log, start, err).Error("Failed to send X509 bundle response")
+		loggerWithContextInfo(ctx, log, start, err).Error("Failed to send X509 bundle response")
 		return nil, err
 	}
 
@@ -350,10 +351,14 @@ func composeX509BundlesResponse(update *cache.WorkloadUpdate) (*workload.X509Bun
 	}, nil
 }
 
-func sendX509SVIDResponse(update *cache.WorkloadUpdate, stream workload.SpiffeWorkloadAPI_FetchX509SVIDServer, log logrus.FieldLogger, quietLogging bool, start time.Time) (err error) {
+func (h *Handler) sendX509SVIDResponse(update *cache.WorkloadUpdate, stream workload.SpiffeWorkloadAPI_FetchX509SVIDServer, selectors []*common.Selector, log logrus.FieldLogger, start time.Time) (err error) {
+	ctx := stream.Context()
+	// The agent health check currently exercises the Workload API.
+	// Only log if it is not the agent itself.
+	quietLogging := isAgent(ctx)
 	if len(update.Identities) == 0 {
 		if !quietLogging {
-			logNoIdentityIssued(stream.Context(), log, start)
+			h.logNoIdentityIssued(ctx, log, selectors, start)
 		}
 		return status.Error(codes.PermissionDenied, "no identity issued")
 	}
@@ -367,7 +372,7 @@ func sendX509SVIDResponse(update *cache.WorkloadUpdate, stream workload.SpiffeWo
 	}
 
 	if err := stream.Send(resp); err != nil {
-		loggerWithContextInfo(stream.Context(), log, start, err).Error("Failed to send X.509 SVID response")
+		loggerWithContextInfo(ctx, log, start, err).Error("Failed to send X.509 SVID response")
 		return err
 	}
 
@@ -422,9 +427,10 @@ func composeX509SVIDResponse(update *cache.WorkloadUpdate) (*workload.X509SVIDRe
 	return resp, nil
 }
 
-func sendJWTBundlesResponse(update *cache.WorkloadUpdate, stream workload.SpiffeWorkloadAPI_FetchJWTBundlesServer, log logrus.FieldLogger, allowUnauthenticatedVerifiers bool, previousResponse *workload.JWTBundlesResponse, start time.Time) (*workload.JWTBundlesResponse, error) {
-	if !allowUnauthenticatedVerifiers && !update.HasIdentity() {
-		logNoIdentityIssued(stream.Context(), log, start)
+func (h *Handler) sendJWTBundlesResponse(update *cache.WorkloadUpdate, stream workload.SpiffeWorkloadAPI_FetchJWTBundlesServer, selectors []*common.Selector, log logrus.FieldLogger, previousResponse *workload.JWTBundlesResponse, start time.Time) (*workload.JWTBundlesResponse, error) {
+	ctx := stream.Context()
+	if !h.c.AllowUnauthenticatedVerifiers && !update.HasIdentity() {
+		h.logNoIdentityIssued(ctx, log, selectors, start)
 		return nil, status.Error(codes.PermissionDenied, "no identity issued")
 	}
 
@@ -439,7 +445,7 @@ func sendJWTBundlesResponse(update *cache.WorkloadUpdate, stream workload.Spiffe
 	}
 
 	if err := stream.Send(resp); err != nil {
-		loggerWithContextInfo(stream.Context(), log, start, err).Error("Failed to send JWT bundle response")
+		loggerWithContextInfo(ctx, log, start, err).Error("Failed to send JWT bundle response")
 		return nil, err
 	}
 
@@ -502,8 +508,62 @@ func loggerWithContextInfo(ctx context.Context, log logrus.FieldLogger, start ti
 	return log
 }
 
-func logNoIdentityIssued(ctx context.Context, log logrus.FieldLogger, start time.Time) {
-	loggerWithContextInfo(ctx, log.WithField(telemetry.Registered, false), start, nil).Error("No identity issued")
+func (h *Handler) logNoIdentityIssued(ctx context.Context, log logrus.FieldLogger, selectors []*common.Selector, start time.Time) {
+	fields := logrus.Fields{
+		telemetry.Registered: false,
+	}
+	if loggableSelectors := filterLoggableSelectors(selectors, h.c.LogSelectors); len(loggableSelectors) > 0 {
+		fields[telemetry.Selectors] = selectorFieldFromSelectors(loggableSelectors)
+	}
+	loggerWithContextInfo(ctx, log.WithFields(fields), start, nil).Error("No identity issued")
+}
+
+func selectorFieldFromSelectors(selectors []*common.Selector) string {
+	selectorFields := make([]string, 0, len(selectors))
+	for _, selector := range selectors {
+		selectorFields = append(selectorFields, renderSelector(selector))
+	}
+	slices.Sort(selectorFields)
+	return strings.Join(selectorFields, ",")
+}
+
+func filterLoggableSelectors(selectors []*common.Selector, logSelectorPrefixes []string) []*common.Selector {
+	if len(logSelectorPrefixes) == 0 {
+		return nil
+	}
+
+	var loggableSelectors []*common.Selector
+	for _, selector := range selectors {
+		if isLoggableSelector(selector, logSelectorPrefixes) {
+			loggableSelectors = append(loggableSelectors, selector)
+		}
+	}
+	return loggableSelectors
+}
+
+func isLoggableSelector(selector *common.Selector, logSelectorPrefixes []string) bool {
+	if selector == nil {
+		return false
+	}
+
+	selectorValue := renderSelector(selector)
+
+	// Workload attestor subtypes are encoded in the selector value, e.g.
+	// Type="k8s", Value="ns:default", so match against the rendered selector.
+	for _, prefix := range logSelectorPrefixes {
+		if selectorValue == prefix || strings.HasPrefix(selectorValue, prefix+":") {
+			return true
+		}
+	}
+	return false
+}
+
+func renderSelector(selector *common.Selector) string {
+	selectorValue := selector.Type
+	if selector.Value != "" {
+		selectorValue += ":" + selector.Value
+	}
+	return selectorValue
 }
 
 func (h *Handler) getWorkloadBundles(selectors []*common.Selector) (bundles []*spiffebundle.Bundle) {

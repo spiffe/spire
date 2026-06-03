@@ -75,6 +75,7 @@ type agentConfig struct {
 	LogFile                       string    `hcl:"log_file"`
 	LogFormat                     string    `hcl:"log_format"`
 	LogLevel                      string    `hcl:"log_level"`
+	LogSelectors                  []string  `hcl:"log_selectors"`
 	LogSourceLocation             bool      `hcl:"log_source_location"`
 	SDS                           sdsConfig `hcl:"sds"`
 	ServerAddress                 string    `hcl:"server_address"`
@@ -561,6 +562,7 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 	ac.ProfilingFreq = c.Agent.ProfilingFreq
 	ac.ProfilingNames = c.Agent.ProfilingNames
 
+	ac.LogSelectors = c.Agent.LogSelectors
 	ac.AllowedForeignJWTClaims = c.Agent.AllowedForeignJWTClaims
 
 	ac.PluginConfigs, err = catalog.PluginConfigsFromHCLNode(c.Plugins)
