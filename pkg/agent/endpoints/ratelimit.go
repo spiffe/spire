@@ -1,8 +1,9 @@
 package endpoints
 
 import (
+	"crypto/sha256"
+	"io"
 	"slices"
-	"strings"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/agent/endpoints/sdsv3"
@@ -41,25 +42,28 @@ func (l *perCallerRateLimiter) Allow(key string) bool {
 	return limiter.AllowN(l.inner.Now(), 1)
 }
 
-// selectorSetKey builds a collision-resistant string key from a selector set.
-// Selectors are sorted for stability, then joined with two distinct separators
-// ('\x00' between type/value, '\x01' between pairs). Empty input returns "<unattested>".
+// selectorSetKey builds a collision-resistant key from a selector set by
+// hashing the sorted type/value pairs with SHA-256. Hashing keeps the map key a
+// fixed, small size regardless of how many selectors the caller has. Selectors
+// are sorted for stability, and a nul byte is written after each item to avoid
+// ambiguity between adjacent items. The raw digest is returned as a string;
+// it's only ever used as a map key, so it does not need to be printable. Empty
+// input returns "<unattested>".
 func selectorSetKey(selectors []*common.Selector) string {
 	if len(selectors) == 0 {
 		return "<unattested>"
 	}
 	sorted := slices.Clone(selectors)
 	util.SortSelectors(sorted)
-	var b strings.Builder
-	for i, s := range sorted {
-		if i > 0 {
-			b.WriteByte('\x01')
-		}
-		b.WriteString(s.Type)
-		b.WriteByte('\x00')
-		b.WriteString(s.Value)
+
+	h := sha256.New()
+	for _, s := range sorted {
+		_, _ = io.WriteString(h, s.Type)
+		h.Write([]byte{0})
+		_, _ = io.WriteString(h, s.Value)
+		h.Write([]byte{0})
 	}
-	return b.String()
+	return string(h.Sum(nil))
 }
 
 // WorkloadRateLimiter enforces per-selector-set rate limiting on Workload API

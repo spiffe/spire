@@ -155,6 +155,10 @@ func TestSelectorSetKey(t *testing.T) {
 	s3 := selectors("k8s", "pod:b", "unix", "uid:1000")
 	assert.NotEqual(t, selectorSetKey(s1), selectorSetKey(s3))
 
+	// Selectors whose concatenation would collide without separators map to
+	// distinct keys (type "a"/value "bc" vs type "ab"/value "c").
+	assert.NotEqual(t, selectorSetKey(selectors("a", "bc")), selectorSetKey(selectors("ab", "c")))
+
 	// Empty selector set maps to the shared unattested bucket.
 	assert.Equal(t, "<unattested>", selectorSetKey(nil))
 	assert.Equal(t, "<unattested>", selectorSetKey([]*common.Selector{}))

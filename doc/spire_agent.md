@@ -76,7 +76,6 @@ This may be useful for templating configuration files, for example across differ
 | `availability_target`             | The minimum amount of time desired to gracefully handle SPIRE Server or Agent downtime. This configurable influences how aggressively X509 SVIDs should be rotated. If set, must be at least 24h. See [Availability Target](#availability-target) |                                  |
 | `x509_svid_cache_max_size`        | Soft limit of max number of X509-SVIDs that would be stored in LRU cache                                                                                                                                                                          | 1000                             |
 | `jwt_svid_cache_max_size`         | Hard limit of max number of JWT-SVIDs that would be stored in LRU cache                                                                                                                                                                           | 1000                             |
-| `ratelimit`                       | Optional per-caller rate limiting for Workload API and SDS methods, enforced after workload attestation. See [Workload API Rate Limiting](#workload-api-rate-limiting) for details.                                                               |                                  |
 
 | experimental                  | Description                                                                                         | Default                 |
 |:------------------------------|-----------------------------------------------------------------------------------------------------|-------------------------|
@@ -85,10 +84,13 @@ This may be useful for templating configuration files, for example across differ
 | `use_sync_authorized_entries` | Use SyncAuthorizedEntries API for periodically synchronization of authorized entries                | true                    |
 | `require_pq_kem`              | Require use of a post-quantum-safe key exchange method for TLS handshakes                           | false                   |
 | `jwt_svid_cache_hit_timeout`  | Custom gRPC timeout (between 5 and 30s) when retrieving a NewJWTSVID when a valid JWT-SVID in cache | 30s                     |
+| `ratelimit`                   | Optional per-caller rate limiting for Workload API and SDS methods, enforced after workload attestation. See [Workload API Rate Limiting](#workload-api-rate-limiting) for details. | |
 
 ### Workload API Rate Limiting
 
 The `ratelimit` configuration block enforces per-caller rate limits on Workload API and Envoy SDS methods to protect the agent from noisy-neighbor workloads and reconnection storms.
+
+This feature is **experimental** and lives under the `experimental` block. Its configuration may change or move in a future release (targeted for promotion or removal in 1.16/1.17).
 
 **Key resolution:** Rate limits are enforced after workload attestation. The caller's attested selector set (the full set of `type:value` pairs returned by the attestor) is used as the rate-limit key — all workloads with the same selector set share one token bucket, and workloads with different selector sets never interfere. Callers that cannot be attested (empty selector set) share a single `<unattested>` bucket. The agent's own health probe is exempt from rate limiting.
 
@@ -108,13 +110,15 @@ Example configuration:
 ```hcl
 agent {
     # ...
-    ratelimit {
-        fetch_x509_svid    = 100
-        fetch_jwt_svid     = 500
-        fetch_x509_bundles = 20
-        fetch_jwt_bundles  = 20
-        stream_secrets     = 50
-        fetch_secrets      = 50
+    experimental {
+        ratelimit {
+            fetch_x509_svid    = 100
+            fetch_jwt_svid     = 500
+            fetch_x509_bundles = 20
+            fetch_jwt_bundles  = 20
+            stream_secrets     = 50
+            fetch_secrets      = 50
+        }
     }
 }
 ```

@@ -1067,7 +1067,7 @@ func TestNewAgentConfig(t *testing.T) {
 			msg: "ratelimit fetch_x509_svid is configurable",
 			input: func(c *Config) {
 				v := 100
-				c.Agent.RateLimit.FetchX509SVID = &v
+				c.Agent.Experimental.RateLimit.FetchX509SVID = &v
 			},
 			test: func(t *testing.T, ac *agent.Config) {
 				require.Equal(t, 100, ac.WorkloadAPIRateLimit.FetchX509SVID)
@@ -1078,8 +1078,8 @@ func TestNewAgentConfig(t *testing.T) {
 			msg: "ratelimit both methods are configurable",
 			input: func(c *Config) {
 				a, d := 1, 3
-				c.Agent.RateLimit.FetchX509SVID = &a
-				c.Agent.RateLimit.FetchJWTSVID = &d
+				c.Agent.Experimental.RateLimit.FetchX509SVID = &a
+				c.Agent.Experimental.RateLimit.FetchJWTSVID = &d
 			},
 			test: func(t *testing.T, ac *agent.Config) {
 				require.Equal(t, agent.WorkloadAPIRateLimitConfig{
@@ -1093,7 +1093,7 @@ func TestNewAgentConfig(t *testing.T) {
 			expectError: true,
 			input: func(c *Config) {
 				v := -1
-				c.Agent.RateLimit.FetchX509SVID = &v
+				c.Agent.Experimental.RateLimit.FetchX509SVID = &v
 			},
 			test: func(t *testing.T, ac *agent.Config) {
 				require.Nil(t, ac)
@@ -1104,7 +1104,7 @@ func TestNewAgentConfig(t *testing.T) {
 			expectError: true,
 			input: func(c *Config) {
 				v := -1
-				c.Agent.RateLimit.FetchJWTSVID = &v
+				c.Agent.Experimental.RateLimit.FetchJWTSVID = &v
 			},
 			test: func(t *testing.T, ac *agent.Config) {
 				require.Nil(t, ac)
@@ -1114,12 +1114,12 @@ func TestNewAgentConfig(t *testing.T) {
 			msg: "ratelimit all six knobs are configurable",
 			input: func(c *Config) {
 				a, b, d, e, f, g := 10, 20, 30, 40, 50, 60
-				c.Agent.RateLimit.FetchX509SVID = &a
-				c.Agent.RateLimit.FetchJWTSVID = &b
-				c.Agent.RateLimit.FetchX509Bundles = &d
-				c.Agent.RateLimit.FetchJWTBundles = &e
-				c.Agent.RateLimit.StreamSecrets = &f
-				c.Agent.RateLimit.FetchSecrets = &g
+				c.Agent.Experimental.RateLimit.FetchX509SVID = &a
+				c.Agent.Experimental.RateLimit.FetchJWTSVID = &b
+				c.Agent.Experimental.RateLimit.FetchX509Bundles = &d
+				c.Agent.Experimental.RateLimit.FetchJWTBundles = &e
+				c.Agent.Experimental.RateLimit.StreamSecrets = &f
+				c.Agent.Experimental.RateLimit.FetchSecrets = &g
 			},
 			test: func(t *testing.T, ac *agent.Config) {
 				require.Equal(t, agent.WorkloadAPIRateLimitConfig{
@@ -1137,7 +1137,7 @@ func TestNewAgentConfig(t *testing.T) {
 			expectError: true,
 			input: func(c *Config) {
 				v := -1
-				c.Agent.RateLimit.FetchX509Bundles = &v
+				c.Agent.Experimental.RateLimit.FetchX509Bundles = &v
 			},
 			test: func(t *testing.T, ac *agent.Config) {
 				require.Nil(t, ac)
@@ -1148,7 +1148,7 @@ func TestNewAgentConfig(t *testing.T) {
 			expectError: true,
 			input: func(c *Config) {
 				v := -1
-				c.Agent.RateLimit.FetchJWTBundles = &v
+				c.Agent.Experimental.RateLimit.FetchJWTBundles = &v
 			},
 			test: func(t *testing.T, ac *agent.Config) {
 				require.Nil(t, ac)
@@ -1159,7 +1159,7 @@ func TestNewAgentConfig(t *testing.T) {
 			expectError: true,
 			input: func(c *Config) {
 				v := -1
-				c.Agent.RateLimit.StreamSecrets = &v
+				c.Agent.Experimental.RateLimit.StreamSecrets = &v
 			},
 			test: func(t *testing.T, ac *agent.Config) {
 				require.Nil(t, ac)
@@ -1170,7 +1170,7 @@ func TestNewAgentConfig(t *testing.T) {
 			expectError: true,
 			input: func(c *Config) {
 				v := -1
-				c.Agent.RateLimit.FetchSecrets = &v
+				c.Agent.Experimental.RateLimit.FetchSecrets = &v
 			},
 			test: func(t *testing.T, ac *agent.Config) {
 				require.Nil(t, ac)

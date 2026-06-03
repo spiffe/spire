@@ -94,8 +94,6 @@ type agentConfig struct {
 
 	AuthorizedDelegates []string `hcl:"authorized_delegates"`
 
-	RateLimit workloadAPIRateLimitConfig `hcl:"ratelimit"`
-
 	ConfigPath string
 	ExpandEnv  bool
 
@@ -134,6 +132,8 @@ type experimentalConfig struct {
 	AdminNamedPipeName       string `hcl:"admin_named_pipe_name"`
 	UseSyncAuthorizedEntries *bool  `hcl:"use_sync_authorized_entries"`
 	RequirePQKEM             bool   `hcl:"require_pq_kem"`
+
+	RateLimit workloadAPIRateLimitConfig `hcl:"ratelimit"`
 
 	Flags fflag.RawConfig `hcl:"feature_flags"`
 }
@@ -621,30 +621,30 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 		return *p
 	}
 	ac.WorkloadAPIRateLimit = agent.WorkloadAPIRateLimitConfig{
-		FetchX509SVID:    intVal(c.Agent.RateLimit.FetchX509SVID),
-		FetchJWTSVID:     intVal(c.Agent.RateLimit.FetchJWTSVID),
-		FetchX509Bundles: intVal(c.Agent.RateLimit.FetchX509Bundles),
-		FetchJWTBundles:  intVal(c.Agent.RateLimit.FetchJWTBundles),
-		StreamSecrets:    intVal(c.Agent.RateLimit.StreamSecrets),
-		FetchSecrets:     intVal(c.Agent.RateLimit.FetchSecrets),
+		FetchX509SVID:    intVal(c.Agent.Experimental.RateLimit.FetchX509SVID),
+		FetchJWTSVID:     intVal(c.Agent.Experimental.RateLimit.FetchJWTSVID),
+		FetchX509Bundles: intVal(c.Agent.Experimental.RateLimit.FetchX509Bundles),
+		FetchJWTBundles:  intVal(c.Agent.Experimental.RateLimit.FetchJWTBundles),
+		StreamSecrets:    intVal(c.Agent.Experimental.RateLimit.StreamSecrets),
+		FetchSecrets:     intVal(c.Agent.Experimental.RateLimit.FetchSecrets),
 	}
 	if ac.WorkloadAPIRateLimit.FetchX509SVID < 0 {
-		return nil, errors.New("ratelimit.fetch_x509_svid must not be negative")
+		return nil, errors.New("experimental.ratelimit.fetch_x509_svid must not be negative")
 	}
 	if ac.WorkloadAPIRateLimit.FetchJWTSVID < 0 {
-		return nil, errors.New("ratelimit.fetch_jwt_svid must not be negative")
+		return nil, errors.New("experimental.ratelimit.fetch_jwt_svid must not be negative")
 	}
 	if ac.WorkloadAPIRateLimit.FetchX509Bundles < 0 {
-		return nil, errors.New("ratelimit.fetch_x509_bundles must not be negative")
+		return nil, errors.New("experimental.ratelimit.fetch_x509_bundles must not be negative")
 	}
 	if ac.WorkloadAPIRateLimit.FetchJWTBundles < 0 {
-		return nil, errors.New("ratelimit.fetch_jwt_bundles must not be negative")
+		return nil, errors.New("experimental.ratelimit.fetch_jwt_bundles must not be negative")
 	}
 	if ac.WorkloadAPIRateLimit.StreamSecrets < 0 {
-		return nil, errors.New("ratelimit.stream_secrets must not be negative")
+		return nil, errors.New("experimental.ratelimit.stream_secrets must not be negative")
 	}
 	if ac.WorkloadAPIRateLimit.FetchSecrets < 0 {
-		return nil, errors.New("ratelimit.fetch_secrets must not be negative")
+		return nil, errors.New("experimental.ratelimit.fetch_secrets must not be negative")
 	}
 
 	if cmp.Diff(experimentalConfig{}, c.Agent.Experimental) != "" {
@@ -726,8 +726,8 @@ func checkForUnknownConfig(c *Config, l logrus.FieldLogger) (err error) {
 		detectedUnknown("health check", c.HealthChecks.UnusedKeyPositions)
 	}
 
-	if a := c.Agent; a != nil && len(a.RateLimit.UnusedKeyPositions) != 0 {
-		detectedUnknown("ratelimit", a.RateLimit.UnusedKeyPositions)
+	if a := c.Agent; a != nil && len(a.Experimental.RateLimit.UnusedKeyPositions) != 0 {
+		detectedUnknown("ratelimit", a.Experimental.RateLimit.UnusedKeyPositions)
 	}
 
 	return err

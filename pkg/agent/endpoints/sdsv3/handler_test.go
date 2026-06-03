@@ -5,6 +5,7 @@ import (
 	"crypto/x509"
 	"errors"
 	"net"
+	"os"
 	"sync"
 	"testing"
 	"time"
@@ -18,6 +19,7 @@ import (
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire/pkg/agent/api/rpccontext"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/common/api/middleware"
 	"github.com/spiffe/spire/pkg/common/peertracker"
@@ -1220,9 +1222,19 @@ func (r *fakeRateLimiter) RateLimit(fullMethod string, _ []*common.Selector) err
 	return nil
 }
 
+// invoked reports whether RateLimit was called for any method.
+func (r *fakeRateLimiter) invoked() bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return len(r.calls) > 0
+}
+
 func TestStreamSecretsRateLimit(t *testing.T) {
 	rl := newFakeRateLimiter(1)
-	test := setupTestWithConfig(t, Config{RateLimiter: rl})
+	// Use a caller PID that is not the agent's own so the agent exemption does
+	// not apply and rate limiting is actually enforced. In production the
+	// peertracker middleware always sets a caller PID.
+	test := setupTestWithConfigAsPID(t, Config{RateLimiter: rl}, os.Getpid()+1)
 	defer test.cleanup()
 
 	// First stream open is within the limit.
@@ -1244,7 +1256,10 @@ func TestStreamSecretsRateLimit(t *testing.T) {
 
 func TestFetchSecretsRateLimit(t *testing.T) {
 	rl := newFakeRateLimiter(1)
-	test := setupTestWithConfig(t, Config{RateLimiter: rl})
+	// Use a caller PID that is not the agent's own so the agent exemption does
+	// not apply and rate limiting is actually enforced. In production the
+	// peertracker middleware always sets a caller PID.
+	test := setupTestWithConfigAsPID(t, Config{RateLimiter: rl}, os.Getpid()+1)
 	defer test.cleanup()
 
 	req := &discovery_v3.DiscoveryRequest{ResourceNames: []string{"default"}}
@@ -1260,17 +1275,48 @@ func TestFetchSecretsRateLimit(t *testing.T) {
 	spiretest.RequireGRPCStatusContains(t, err, codes.Unavailable, "rate limit exceeded")
 }
 
+// TestRateLimitAgentExemption verifies that the SDS handlers skip rate limiting
+// when the caller PID matches the agent's own PID, mirroring the Workload API
+// behavior. A reject-all limiter with a configured limit of 0 would deny every
+// call if it were consulted.
+func TestRateLimitAgentExemption(t *testing.T) {
+	t.Run("StreamSecrets", func(t *testing.T) {
+		rl := newFakeRateLimiter(0)
+		test := setupTestWithConfigAsPID(t, Config{RateLimiter: rl}, os.Getpid())
+		defer test.cleanup()
+
+		stream, err := test.handler.StreamSecrets(context.Background())
+		require.NoError(t, err)
+		test.sendAndWait(stream, &discovery_v3.DiscoveryRequest{ResourceNames: []string{"default"}})
+		require.NoError(t, stream.CloseSend())
+		_, err = stream.Recv()
+		require.NoError(t, err)
+		require.False(t, rl.invoked(), "rate limiter must not be invoked for agent-self calls")
+	})
+
+	t.Run("FetchSecrets", func(t *testing.T) {
+		rl := newFakeRateLimiter(0)
+		test := setupTestWithConfigAsPID(t, Config{RateLimiter: rl}, os.Getpid())
+		defer test.cleanup()
+
+		resp, err := test.handler.FetchSecrets(context.Background(), &discovery_v3.DiscoveryRequest{ResourceNames: []string{"default"}})
+		require.NoError(t, err)
+		require.NotNil(t, resp)
+		require.False(t, rl.invoked(), "rate limiter must not be invoked for agent-self calls")
+	})
+}
+
 func setupTest(t *testing.T) *handlerTest {
-	return setupTestWithManager(t, Config{}, NewFakeManager(t))
+	return setupTestWithManager(t, Config{}, NewFakeManager(t), 0)
 }
 
 func setupErrTest(t *testing.T) *handlerTest {
 	manager := NewFakeManager(t)
 	manager.err = errors.New("bad-error")
-	return setupTestWithManager(t, Config{}, manager)
+	return setupTestWithManager(t, Config{}, manager, 0)
 }
 
-func setupTestWithManager(t *testing.T, c Config, manager *FakeManager) *handlerTest {
+func setupTestWithManager(t *testing.T, c Config, manager *FakeManager, asPID int) *handlerTest {
 	defaultConfig := Config{
 		Manager:                     manager,
 		Attestor:                    FakeAttestor(workloadSelectors),
@@ -1291,7 +1337,16 @@ func setupTestWithManager(t *testing.T, c Config, manager *FakeManager) *handler
 	conn, err := grpc.NewClient(listener.Addr().String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	require.NoError(t, err)
 	log, _ := test.NewNullLogger()
-	unaryInterceptor, streamInterceptor := middleware.Interceptors(middleware.WithLogger(log))
+	mw := middleware.WithLogger(log)
+	if asPID != 0 {
+		// Inject a caller PID into the request context, mirroring the
+		// production peertracker middleware, so the handler's isAgent check
+		// can be exercised.
+		mw = middleware.Chain(mw, middleware.Preprocess(func(ctx context.Context, _ string, _ any) (context.Context, error) {
+			return rpccontext.WithCallerPID(ctx, asPID), nil
+		}))
+	}
+	unaryInterceptor, streamInterceptor := middleware.Interceptors(mw)
 	server := grpc.NewServer(grpc.Creds(FakeCreds{}),
 		grpc.UnaryInterceptor(unaryInterceptor),
 		grpc.StreamInterceptor(streamInterceptor),
@@ -1314,7 +1369,12 @@ func setupTestWithManager(t *testing.T, c Config, manager *FakeManager) *handler
 
 func setupTestWithConfig(t *testing.T, c Config) *handlerTest {
 	manager := NewFakeManager(t)
-	return setupTestWithManager(t, c, manager)
+	return setupTestWithManager(t, c, manager, 0)
+}
+
+func setupTestWithConfigAsPID(t *testing.T, c Config, asPID int) *handlerTest {
+	manager := NewFakeManager(t)
+	return setupTestWithManager(t, c, manager, asPID)
 }
 
 type handlerTest struct {

@@ -110,16 +110,14 @@ func TestPerKeyLimiterConcurrency(t *testing.T) {
 	l := NewPerKeyLimiter(newTestLimiterFactory(10))
 
 	var wg sync.WaitGroup
-	wg.Add(goroutines)
 	for i := range goroutines {
-		go func(id int) {
-			defer wg.Done()
-			key := fmt.Sprintf("key:%d", id%5)
+		wg.Go(func() {
+			key := fmt.Sprintf("key:%d", i%5)
 			for range callsPerGoroutine {
 				lim := l.GetLimiter(key)
 				lim.AllowN(time.Now(), 1)
 			}
-		}(i)
+		})
 	}
 	wg.Wait()
 }

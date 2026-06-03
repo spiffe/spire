@@ -937,32 +937,156 @@ func (r *rejectAllRateLimiter) RateLimit(string, []*common.Selector) error {
 	return status.Errorf(codes.Unavailable, "rate limit exceeded")
 }
 
-// TestRateLimitAgentExemption verifies that workload handlers skip rate
-// limiting when the caller PID matches the agent's own PID. Without this
-// exemption, an operator-configured low rate limit could deny the agent's own
-// health probe (which exercises FetchX509Bundles) and mark the agent unhealthy.
+// TestRateLimitAgentExemption verifies that the rate-limited workload handlers
+// skip rate limiting when the caller PID matches the agent's own PID. Without
+// this exemption, an operator-configured low rate limit could deny the agent's
+// own health probe (which exercises the Workload API) and mark the agent
+// unhealthy. Every rate-limited method is exercised so the guard can't regress
+// on one of them.
 func TestRateLimitAgentExemption(t *testing.T) {
 	ca := testca.New(t, td)
 	x509SVID := ca.CreateX509SVID(workloadID)
 	identities := []cache.Identity{identityFromX509SVID(x509SVID, "id0")}
-
-	rl := &rejectAllRateLimiter{}
-	params := testParams{
-		CA:          ca,
-		Identities:  identities,
-		AsPID:       os.Getpid(),
-		RateLimiter: rl,
+	updates := []*cache.WorkloadUpdate{
+		{
+			Identities: identities,
+			Bundle:     ca.Bundle(),
+		},
 	}
-	runTest(t, params, func(ctx context.Context, c workloadPB.SpiffeWorkloadAPIClient) {
-		for i := 0; i < 3; i++ {
-			resp, err := c.FetchJWTSVID(ctx, &workloadPB.JWTSVIDRequest{
-				Audience: []string{"AUDIENCE"},
+
+	for _, tt := range []struct {
+		name   string
+		invoke func(t *testing.T, ctx context.Context, c workloadPB.SpiffeWorkloadAPIClient)
+	}{
+		{
+			name: "FetchX509SVID",
+			invoke: func(t *testing.T, ctx context.Context, c workloadPB.SpiffeWorkloadAPIClient) {
+				stream, err := c.FetchX509SVID(ctx, &workloadPB.X509SVIDRequest{})
+				require.NoError(t, err)
+				resp, err := stream.Recv()
+				require.NoError(t, err)
+				require.NotNil(t, resp)
+			},
+		},
+		{
+			name: "FetchJWTSVID",
+			invoke: func(t *testing.T, ctx context.Context, c workloadPB.SpiffeWorkloadAPIClient) {
+				resp, err := c.FetchJWTSVID(ctx, &workloadPB.JWTSVIDRequest{
+					Audience: []string{"AUDIENCE"},
+				})
+				require.NoError(t, err)
+				require.NotNil(t, resp)
+			},
+		},
+		{
+			name: "FetchX509Bundles",
+			invoke: func(t *testing.T, ctx context.Context, c workloadPB.SpiffeWorkloadAPIClient) {
+				stream, err := c.FetchX509Bundles(ctx, &workloadPB.X509BundlesRequest{})
+				require.NoError(t, err)
+				resp, err := stream.Recv()
+				require.NoError(t, err)
+				require.NotNil(t, resp)
+			},
+		},
+		{
+			name: "FetchJWTBundles",
+			invoke: func(t *testing.T, ctx context.Context, c workloadPB.SpiffeWorkloadAPIClient) {
+				stream, err := c.FetchJWTBundles(ctx, &workloadPB.JWTBundlesRequest{})
+				require.NoError(t, err)
+				resp, err := stream.Recv()
+				require.NoError(t, err)
+				require.NotNil(t, resp)
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			rl := &rejectAllRateLimiter{}
+			params := testParams{
+				CA:          ca,
+				Identities:  identities,
+				Updates:     updates,
+				AsPID:       os.Getpid(),
+				RateLimiter: rl,
+			}
+			runTest(t, params, func(ctx context.Context, c workloadPB.SpiffeWorkloadAPIClient) {
+				tt.invoke(t, ctx, c)
 			})
-			require.NoError(t, err, "call %d should succeed when caller is the agent", i)
-			require.NotNil(t, resp)
-		}
-	})
-	assert.Zero(t, rl.called.Load(), "rate limiter must not be invoked for agent-self calls")
+			assert.Zero(t, rl.called.Load(), "rate limiter must not be invoked for agent-self calls")
+		})
+	}
+}
+
+// TestRateLimitEnforced is the counterpart to TestRateLimitAgentExemption: it
+// verifies that for a non-agent caller every rate-limited method consults the
+// limiter and surfaces its rejection. This covers the branch where the caller
+// is not the agent, ensuring each handler passes the request context through to
+// the limiter.
+func TestRateLimitEnforced(t *testing.T) {
+	ca := testca.New(t, td)
+	x509SVID := ca.CreateX509SVID(workloadID)
+	identities := []cache.Identity{identityFromX509SVID(x509SVID, "id0")}
+	updates := []*cache.WorkloadUpdate{
+		{
+			Identities: identities,
+			Bundle:     ca.Bundle(),
+		},
+	}
+
+	for _, tt := range []struct {
+		name   string
+		invoke func(t *testing.T, ctx context.Context, c workloadPB.SpiffeWorkloadAPIClient) error
+	}{
+		{
+			name: "FetchX509SVID",
+			invoke: func(t *testing.T, ctx context.Context, c workloadPB.SpiffeWorkloadAPIClient) error {
+				stream, err := c.FetchX509SVID(ctx, &workloadPB.X509SVIDRequest{})
+				require.NoError(t, err)
+				_, err = stream.Recv()
+				return err
+			},
+		},
+		{
+			name: "FetchJWTSVID",
+			invoke: func(t *testing.T, ctx context.Context, c workloadPB.SpiffeWorkloadAPIClient) error {
+				_, err := c.FetchJWTSVID(ctx, &workloadPB.JWTSVIDRequest{Audience: []string{"AUDIENCE"}})
+				return err
+			},
+		},
+		{
+			name: "FetchX509Bundles",
+			invoke: func(t *testing.T, ctx context.Context, c workloadPB.SpiffeWorkloadAPIClient) error {
+				stream, err := c.FetchX509Bundles(ctx, &workloadPB.X509BundlesRequest{})
+				require.NoError(t, err)
+				_, err = stream.Recv()
+				return err
+			},
+		},
+		{
+			name: "FetchJWTBundles",
+			invoke: func(t *testing.T, ctx context.Context, c workloadPB.SpiffeWorkloadAPIClient) error {
+				stream, err := c.FetchJWTBundles(ctx, &workloadPB.JWTBundlesRequest{})
+				require.NoError(t, err)
+				_, err = stream.Recv()
+				return err
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			rl := &rejectAllRateLimiter{}
+			params := testParams{
+				CA:          ca,
+				Identities:  identities,
+				Updates:     updates,
+				AsPID:       os.Getpid() + 1,
+				RateLimiter: rl,
+			}
+			runTest(t, params, func(ctx context.Context, c workloadPB.SpiffeWorkloadAPIClient) {
+				err := tt.invoke(t, ctx, c)
+				spiretest.RequireGRPCStatus(t, err, codes.Unavailable, "rate limit exceeded")
+			})
+			assert.NotZero(t, rl.called.Load(), "rate limiter must be invoked for non-agent calls")
+		})
+	}
 }
 
 func TestFetchJWTBundles(t *testing.T) {
