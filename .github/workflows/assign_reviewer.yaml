@@ -144,6 +144,14 @@ jobs:
               core.info(`Ball in court: ${pr.user.login} (author), PR #${pr.number}.`);
             }
 
+            // Skip bot-authored PRs (for example Dependabot). These are handled
+            // by the auto-merge workflow and do not take part in the review
+            // rotation.
+            if (pr.user.type === 'Bot' || pr.user.login.endsWith('[bot]')) {
+              core.info(`PR #${pr.number} authored by bot ${pr.user.login}; skipping.`);
+              return;
+            }
+
             // 1) New PR (or draft promoted to ready): round-robin the assignee.
             if (eventName === 'pull_request_target' &&
                 (action === 'opened' || action === 'ready_for_review')) {
