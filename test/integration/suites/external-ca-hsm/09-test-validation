@@ -1,0 +1,69 @@
+#!/bin/bash
+
+log-info "Testing certificate validation..."
+
+# Stop the server
+docker-stop spire-server
+
+# Test 1: Invalid certificate chain (intermediate not signed by root)
+log-debug "Test: Invalid certificate chain..."
+cp certs/intermediate-cert.pem certs/intermediate-cert.pem.backup
+
+# Create a self-signed intermediate (not signed by root). Use -config with an
+# explicit extensions section instead of -addext: the default openssl.cnf
+# already injects basicConstraints, so -addext produces a DUPLICATE extension
+# (OID 2.5.29.19) that fails to parse before the signature check is reached.
+openssl req -new -x509 -key certs/intermediate-key.pem -out certs/intermediate-cert.pem -days 1 \
+    -subj "/C=US/O=INVALID/CN=Bad Intermediate" \
+    -extensions v3_ca \
+    -config <(cat <<EOF
+[req]
+distinguished_name = req_distinguished_name
+
+[req_distinguished_name]
+
+[v3_ca]
+basicConstraints=critical,CA:TRUE
+keyUsage=critical,keyCertSign,cRLSign
+subjectKeyIdentifier=hash
+EOF
+)
+
+# Try to start server - should fail
+docker compose up -d spire-server
+sleep 5
+
+# Capture logs to a variable and grep a here-string: piping `docker compose
+# logs` into `grep -q` trips SIGPIPE+pipefail (grep exits early on match,
+# killing the upstream writer) and would false-fail this step.
+grep -q "intermediate CA certificate is not signed by root CA" <<< "$(docker compose logs spire-server)" || \
+    fail-now "Server should have rejected invalid certificate chain"
+
+log-debug "✓ Correctly rejected invalid certificate chain"
+
+# Restore valid certificate
+cp certs/intermediate-cert.pem.backup certs/intermediate-cert.pem
+docker-stop spire-server
+
+# Test 2: Non-CA certificate
+log-debug "Test: Non-CA certificate..."
+openssl x509 -req -in certs/intermediate.csr -CA certs/root-cert.pem -CAkey certs/root-key.pem \
+    -CAcreateserial -out certs/intermediate-cert.pem -days 180 \
+    -extfile <(cat <<EOF
+basicConstraints=critical,CA:FALSE
+keyUsage=critical,digitalSignature
+EOF
+)
+
+docker compose up -d spire-server
+sleep 5
+
+grep -q "intermediate certificate is not a CA certificate" <<< "$(docker compose logs spire-server)" || \
+    fail-now "Server should have rejected non-CA certificate"
+
+log-debug "✓ Correctly rejected non-CA certificate"
+
+# Restore valid certificate for remaining tests
+cp certs/intermediate-cert.pem.backup certs/intermediate-cert.pem
+
+log-success "Certificate validation working correctly"

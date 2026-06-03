@@ -1,0 +1,10 @@
+#!/bin/bash
+
+log-info "Starting SPIRE agent..."
+
+docker-up spire-agent
+
+# Give the agent time to attest
+sleep 5
+
+log-success "Agent started"

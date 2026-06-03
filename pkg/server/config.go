@@ -153,6 +153,10 @@ type Config struct {
 
 	// DisableWITSVIDs, if true, WIT-SVID profile is disabled
 	DisableWITSVIDs bool
+
+	// ExternalCA configures the server to use an external CA for X.509 SVID
+	// signing.
+	ExternalCA ExternalCAConfig
 }
 
 type ExperimentalConfig struct {
@@ -166,6 +170,24 @@ type FederationConfig struct {
 	// FederatesWith holds the federation configuration for trust domains this
 	// server federates with.
 	FederatesWith map[spiffeid.TrustDomain]bundle_client.TrustDomainConfig
+}
+
+type ExternalCAConfig struct {
+	// Enabled indicates whether to use an external CA for X.509 SVID signing.
+	Enabled bool
+	// RootCertFilePath is the path to the root certificate file of the external CA.
+	RootCertFilePath string
+	// CertFilePath is the path to the certificate file of the external CA.
+	CertFilePath string
+	// PKCS11 contains the PKCS#11 configuration for accessing the external CA's private key.
+	PKCS11 *PKCS11Config
+}
+
+type PKCS11Config struct {
+	// PKCS11URI is the PKCS#11 URI used to locate the external CA's private key.
+	PKCS11URI string
+	// PKCS11Object is the PKCS#11 object label or ID used to identify the external CA's private key.
+	PKCS11Object string
 }
 
 func New(config Config) *Server {

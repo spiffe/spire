@@ -1,0 +1,68 @@
+#!/bin/bash
+
+log-info "Setting up certificates and HSM..."
+
+# Create directories
+mkdir -p certs
+
+# Generate root CA private key
+log-debug "Generating root CA..."
+openssl ecparam -name prime256v1 -genkey -noout -out certs/root-key.pem
+
+# Generate root CA certificate using config to avoid duplicate extensions
+openssl req -new -x509 -key certs/root-key.pem -out certs/root-cert.pem -days 365 \
+    -subj "/C=US/O=SPIRE/CN=Root CA" \
+    -extensions v3_ca \
+    -config <(cat <<EOF
+[req]
+distinguished_name = req_distinguished_name
+
+[req_distinguished_name]
+
+[v3_ca]
+basicConstraints=critical,CA:TRUE
+keyUsage=critical,keyCertSign,cRLSign
+subjectKeyIdentifier=hash
+EOF
+) || fail-now "Failed to generate root CA"
+
+# Generate intermediate CA private key in unencrypted PKCS#8 form.
+# SoftHSM's --import only accepts PKCS#8 ("BEGIN PRIVATE KEY"); the SEC1 output
+# of `openssl ecparam -genkey` ("BEGIN EC PRIVATE KEY") is rejected.
+log-debug "Generating intermediate CA..."
+openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-256 \
+    -out certs/intermediate-key.pem || fail-now "Failed to generate intermediate key"
+
+# Generate intermediate CA CSR
+openssl req -new -key certs/intermediate-key.pem -out certs/intermediate.csr \
+    -subj "/C=US/O=SPIRE/CN=Intermediate CA" || fail-now "Failed to generate intermediate CSR"
+
+# Sign intermediate CA with root CA
+openssl x509 -req -in certs/intermediate.csr -CA certs/root-cert.pem -CAkey certs/root-key.pem \
+    -CAcreateserial -out certs/intermediate-cert.pem -days 180 \
+    -extfile <(cat <<EOF
+basicConstraints=critical,CA:TRUE,pathlen:0
+keyUsage=critical,digitalSignature,keyCertSign,cRLSign
+subjectKeyIdentifier=hash
+authorityKeyIdentifier=keyid:always
+EOF
+) || fail-now "Failed to sign intermediate CA"
+
+# Extract public key from intermediate cert to verify later
+openssl x509 -in certs/intermediate-cert.pem -noout -pubkey > certs/intermediate-pubkey.pem
+
+# Create SoftHSM configuration
+log-debug "Configuring SoftHSM..."
+cat > conf/server/softhsm2.conf <<EOF
+directories.tokendir = /var/lib/softhsm/tokens
+objectstore.backend = file
+log.level = INFO
+EOF
+
+# Initialize SoftHSM token (will be done in container)
+# For now, just prepare the configuration
+
+# Setup x509pop for agent attestation
+"${ROOTDIR}/setup/x509pop/setup.sh" conf/server conf/agent
+
+log-success "Setup complete"

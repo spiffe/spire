@@ -1,0 +1,11 @@
+#!/bin/bash
+
+if [ -z "${SUCCESS}" ]; then
+    log-warn "Test suite failed. Dumping server logs:"
+    docker compose logs spire-server
+
+    log-warn "Agent logs:"
+    docker compose logs spire-agent
+fi
+
+docker-cleanup

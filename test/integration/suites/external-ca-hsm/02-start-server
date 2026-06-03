@@ -1,0 +1,17 @@
+#!/bin/bash
+
+log-info "Starting SPIRE server with external CA..."
+
+# Stop and restart server to pick up configuration
+docker-stop spire-server
+docker compose up -d spire-server
+
+# Check that server started successfully
+check-server-started spire-server
+
+# Verify server is using external CA
+log-debug "Checking server logs for external CA messages..."
+docker compose logs spire-server | grep -q "Loaded external X.509 CA from HSM" || \
+    fail-now "Server did not log external CA initialization"
+
+log-success "Server started with external CA"

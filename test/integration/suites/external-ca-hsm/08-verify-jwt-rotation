@@ -1,0 +1,23 @@
+#!/bin/bash
+
+log-info "Verifying JWT keys still rotate..."
+
+# Fetch a JWT-SVID to confirm JWT signing works under the external X.509 CA.
+log-debug "Fetching JWT-SVID..."
+docker compose exec -T spire-agent \
+    /opt/spire/bin/spire-agent api fetch jwt -audience test \
+    -spiffeID spiffe://domain.test/workload -output json \
+    || fail-now "Failed to fetch JWT-SVID"
+
+# JWT keys rotate independently of the static X.509 CA. Confirm the server is
+# preparing/activating JWT keys (rotation is alive). Capture logs to a variable
+# and grep a here-string: piping `docker compose logs` into `grep -q` trips
+# SIGPIPE+pipefail (grep exits early on match, killing the upstream writer) and
+# would false-fail this step.
+SERVER_LOGS=$(docker compose logs spire-server)
+grep -q "JWT key prepared" <<< "$SERVER_LOGS" \
+    || fail-now "No JWT key preparation found in logs"
+grep -q "JWT key activated" <<< "$SERVER_LOGS" \
+    || fail-now "No JWT key activation found in logs"
+
+log-success "JWT keys are rotating correctly"

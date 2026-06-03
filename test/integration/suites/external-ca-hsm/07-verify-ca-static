@@ -1,0 +1,44 @@
+#!/bin/bash
+
+log-info "Verifying X.509 CA remains static..."
+
+# Get the current intermediate CA authority ID from server logs
+AUTHORITY_ID_1=$(docker compose logs spire-server | grep "Loaded external X.509 CA from HSM" | grep -o 'authority_id=[^ ]*' | cut -d= -f2 | tail -1)
+
+if [ -z "$AUTHORITY_ID_1" ]; then
+    fail-now "Could not extract authority ID from logs"
+fi
+
+log-debug "Initial authority ID: $AUTHORITY_ID_1"
+
+# Wait for longer than the normal CA rotation period would be
+# In standard mode with 1m CA TTL, rotation would happen
+# With external CA, it should NOT rotate
+log-info "Waiting 90 seconds to ensure no CA rotation occurs..."
+sleep 90
+
+# Check logs again - should still show the same authority ID
+# and should NOT show any CA rotation messages. Capture logs to a variable and
+# grep here-strings: piping `docker compose logs` into `grep -q` trips
+# SIGPIPE+pipefail and would mask a real rotation.
+SERVER_LOGS=$(docker compose logs spire-server)
+
+grep -q "Preparing X.509 CA" <<< "$SERVER_LOGS" && \
+    fail-now "ERROR: X.509 CA rotation occurred when it should be static"
+
+grep "X.509 CA activated" <<< "$SERVER_LOGS" | grep -qv "Loaded external" && \
+    fail-now "ERROR: X.509 CA activation occurred when it should be static"
+
+# Verify authority ID is still the same
+AUTHORITY_ID_2=$(grep "Loaded external X.509 CA from HSM" <<< "$SERVER_LOGS" | grep -o 'authority_id=[^ ]*' | cut -d= -f2 | tail -1)
+
+if [ "$AUTHORITY_ID_1" != "$AUTHORITY_ID_2" ]; then
+    fail-now "Authority ID changed! Expected: $AUTHORITY_ID_1, Got: $AUTHORITY_ID_2"
+fi
+
+# Verify SVIDs still work
+log-debug "Verifying SVIDs still work after waiting period..."
+docker compose exec -T spire-agent \
+    /opt/spire/bin/spire-agent api fetch x509 || fail-now "SVID fetch failed after wait period"
+
+log-success "X.509 CA correctly remains static"

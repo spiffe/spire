@@ -227,6 +227,7 @@ func (s *Server) run(ctx context.Context) (err error) {
 		registrationManager.Run,
 		bundlePublishingManager.Run,
 		catalog.ReconfigureTask(s.config.Log.WithField(telemetry.SubsystemName, "reconfigurer"), cat),
+		healthChecker.ListenAndServe,
 	}
 
 	if s.config.LogReopener != nil {
@@ -355,7 +356,7 @@ func (s *Server) newCA(metrics telemetry.Metrics, credBuilder *credtemplate.Buil
 }
 
 func (s *Server) newCAManager(ctx context.Context, cat catalog.Catalog, metrics telemetry.Metrics, serverCA *ca.CA, credBuilder *credtemplate.Builder, credValidator *credvalidator.Validator) (*manager.Manager, error) {
-	caManager, err := manager.NewManager(ctx, manager.Config{
+	managerConfig := manager.Config{
 		CA:              serverCA,
 		Catalog:         cat,
 		TrustDomain:     s.config.TrustDomain,
@@ -369,7 +370,19 @@ func (s *Server) newCAManager(ctx context.Context, cat catalog.Catalog, metrics 
 		DisableWITSVIDs: s.config.DisableWITSVIDs,
 		JWTKeyType:      s.config.JWTKeyType,
 		WITKeyType:      s.config.WITKeyType,
-	})
+	}
+	// Configure external CA if enabled
+	if s.config.ExternalCA.Enabled {
+		managerConfig.UseExternalX509CA = true
+		managerConfig.RootCertPath = s.config.ExternalCA.RootCertFilePath
+		managerConfig.IntermediateCertPath = s.config.ExternalCA.CertFilePath
+		if s.config.ExternalCA.PKCS11 != nil {
+			managerConfig.PKCS11URI = s.config.ExternalCA.PKCS11.PKCS11URI
+			managerConfig.PKCS11SigningKey = s.config.ExternalCA.PKCS11.PKCS11Object
+		}
+	}
+
+	caManager, err := manager.NewManager(ctx, managerConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -378,6 +391,9 @@ func (s *Server) newCAManager(ctx context.Context, cat catalog.Catalog, metrics 
 }
 
 func (s *Server) newCASync(ctx context.Context, healthChecker health.Checker, caManager *manager.Manager) (*rotator.Rotator, error) {
+	if caManager.IsStaticX509CA() {
+		s.config.Log.Info("Using static X.509 CA. X.509 CA rotation will be disabled, but JWT key rotation will continue normally.")
+	}
 	caSync := rotator.NewRotator(rotator.Config{
 		Log:           s.config.Log.WithField(telemetry.SubsystemName, telemetry.CAManager),
 		Manager:       caManager,
