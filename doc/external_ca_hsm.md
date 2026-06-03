@@ -85,26 +85,7 @@ server {
         }
     }
 }
-
-plugins {
-    DataStore "sql" {
-        plugin_data {
-            database_type = "postgres"
-            connection_string = "postgresql://user:pass@localhost/spire"
-        }
-    }
-
-    NodeAttestor "join_token" {
-        plugin_data {}
-    }
-
-    # KeyManager still used for JWT keys
-    KeyManager "disk" {
-        plugin_data {
-            keys_path = "/opt/spire/.data/keys.json"
-        }
-    }
-}
+...
 ```
 
 ### Configuration Parameters
@@ -192,8 +173,7 @@ JWT keys continue to rotate normally using the configured KeyManager. This ensur
 ### High Availability
 
 For HA deployments:
-- All SPIRE servers must be configured identically
-- All servers must have access to the same HSM
+- All SPIRE servers can either share an HSM (network) or use different ones so long as the root CA is shared
 - Certificate files must be available on all nodes
 - HSM must support concurrent access from multiple servers
 
@@ -282,26 +262,6 @@ pkcs11-tool --token "MyToken" --login --list-objects
 # Test signing operation
 pkcs11-tool --token "MyToken" --login --sign --id <key-id>
 ```
-
-## Migration
-
-### From Standard SPIRE to External CA
-
-1. **Generate or obtain certificates** from your PKI
-2. **Import intermediate key** to HSM
-3. **Stop SPIRE Server**
-4. **Add external_ca configuration**
-5. **Start SPIRE Server**
-
-Note: This is a one-way migration. Reverting requires reconfiguring all workloads.
-
-### Testing the Migration
-
-1. Set up a test environment mirroring production
-2. Configure external CA in test
-3. Verify workload SVIDs are issued correctly
-4. Check agent connectivity
-5. Monitor for any errors over several rotation cycles
 
 ## Limitations
 
