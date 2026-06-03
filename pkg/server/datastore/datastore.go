@@ -52,6 +52,7 @@ type DataStore interface {
 	CreateAttestedNode(context.Context, *common.AttestedNode) (*common.AttestedNode, error)
 	DeleteAttestedNode(ctx context.Context, spiffeID string) (*common.AttestedNode, error)
 	FetchAttestedNode(ctx context.Context, spiffeID string) (*common.AttestedNode, error)
+	FetchAttestedNodes(ctx context.Context, spiffeIDs []string) (map[string]*common.AttestedNode, error)
 	ListAttestedNodes(context.Context, *ListAttestedNodesRequest) (*ListAttestedNodesResponse, error)
 	UpdateAttestedNode(context.Context, *common.AttestedNode, *common.AttestedNodeMask) (*common.AttestedNode, error)
 	PruneAttestedExpiredNodes(ctx context.Context, expiredBefore time.Time, includeNonReattestable bool) error
@@ -161,6 +162,7 @@ type ListAttestedNodesRequest struct {
 	ByBanned          *bool
 	ByExpiresBefore   time.Time
 	BySelectorMatch   *BySelectors
+	BySpiffeIDs       []string
 	FetchSelectors    bool
 	Pagination        *Pagination
 	ByCanReattest     *bool

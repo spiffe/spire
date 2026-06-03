@@ -148,6 +148,13 @@ func (s *DataStore) FetchAttestedNode(ctx context.Context, spiffeID string) (*co
 	return s.ds.FetchAttestedNode(ctx, spiffeID)
 }
 
+func (s *DataStore) FetchAttestedNodes(ctx context.Context, spiffeIDs []string) (map[string]*common.AttestedNode, error) {
+	if err := s.getNextError(); err != nil {
+		return nil, err
+	}
+	return s.ds.FetchAttestedNodes(ctx, spiffeIDs)
+}
+
 func (s *DataStore) ListAttestedNodes(ctx context.Context, req *datastore.ListAttestedNodesRequest) (*datastore.ListAttestedNodesResponse, error) {
 	if err := s.getNextError(); err != nil {
 		return nil, err
