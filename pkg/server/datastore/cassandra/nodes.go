@@ -9,8 +9,8 @@ import (
 
 	gocql "github.com/apache/cassandra-gocql-driver/v2"
 	datastorev1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/datastore/v1alpha1"
+	"github.com/tjons/cassandra-toolbox/pages"
 	"github.com/tjons/cassandra-toolbox/qb"
-	"github.com/tjons/cassandra-toolbox/qb/pages"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -98,36 +98,38 @@ func (p *Plugin) CreateAttestedNode(ctx context.Context, req *datastorev1.Create
 }
 
 func (p *Plugin) createAttestedNode(ctx context.Context, model *datastorev1.AttestedNode) (*datastorev1.AttestedNode, error) {
-	createAttestedNodeQuery := `
-		INSERT INTO attested_node_entries (
-			created_at,
-			updated_at,
-			spiffe_id,
-			attestation_data_type,
-			serial_number,
-			cert_not_after,
-			new_serial_number,
-			new_cert_not_after,
-			can_reattest,
-			agent_version,
-			selector_type_value,
-			banned
-		) VALUES (toTimestamp(now()), toTimestamp(now()), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`
+	createAttestedNodeQuery := qb.NewInsert().
+		Into("attested_node_entries").
+		Columns(
+			"created_at",
+			"updated_at",
+			"spiffe_id",
+			"attestation_data_type",
+			"serial_number",
+			"cert_not_after",
+			"new_serial_number",
+			"new_cert_not_after",
+			"can_reattest",
+			"agent_version",
+			"selector_type_value",
+			"banned",
+		).
+		Values(
+			qb.Literal("toTimestamp(now())"),
+			qb.Literal("toTimestamp(now())"),
+			model.GetSpiffeId(),
+			model.GetAttestationDataType(),
+			model.GetCertSerialNumber(),
+			model.GetCertNotAfter(),
+			model.GetNewCertSerialNumber(),
+			model.GetNewCertNotAfter(),
+			model.GetCanReattest(),
+			model.GetAgentVersion(),
+			"",
+			model.GetCertSerialNumber() == "",
+		)
 
-	if err := p.db.session.Query(
-		createAttestedNodeQuery,
-		model.GetSpiffeId(),
-		model.GetAttestationDataType(),
-		model.GetCertSerialNumber(),
-		model.GetCertNotAfter(),
-		model.GetNewCertSerialNumber(),
-		model.GetNewCertNotAfter(),
-		model.GetCanReattest(),
-		model.GetAgentVersion(),
-		"",
-		model.GetCertSerialNumber() == "",
-	).ExecContext(ctx); err != nil {
+	if err := p.db.WriteQuery(createAttestedNodeQuery).ExecContext(ctx); err != nil {
 		return nil, newWrappedCassandraError(err)
 	}
 

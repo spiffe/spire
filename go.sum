@@ -113,6 +113,8 @@ github.com/andreyvit/diff v0.0.0-20170406064948-c7f18ee00883/go.mod h1:rCTlJbsFo
 github.com/andybalholm/cascadia v1.1.0/go.mod h1:GsXiBklL0woXo1j/WYWtSYYC4ouU9PqHO0sqidkEA4Y=
 github.com/apache/cassandra-gocql-driver/v2 v2.0.0 h1:Omnzb1Z/P90Dr2TbVNu54ICQL7TKVIIsJO231w484HU=
 github.com/apache/cassandra-gocql-driver/v2 v2.0.0/go.mod h1:QH/asJjB3mHvY6Dot6ZKMMpTcOrWJ8i9GhsvG1g0PK4=
+github.com/apache/cassandra-gocql-driver/v2 v2.1.1 h1:DjmtmSRoUuIFswczA8LPBppRb8T9vxqNP5Txc/lQxhE=
+github.com/apache/cassandra-gocql-driver/v2 v2.1.1/go.mod h1:QH/asJjB3mHvY6Dot6ZKMMpTcOrWJ8i9GhsvG1g0PK4=
 github.com/arbovm/levenshtein v0.0.0-20160628152529-48b4e1c0c4d0 h1:jfIu9sQUG6Ig+0+Ap1h4unLjW6YQJpKZVmUzxsD4E/Q=
 github.com/arbovm/levenshtein v0.0.0-20160628152529-48b4e1c0c4d0/go.mod h1:t2tdKJDJF9BV14lnkjHmOQgcvEKgtqs5a1N3LNdJhGE=
 github.com/armon/go-metrics v0.4.1/go.mod h1:E6amYzXo6aW1tqzoZGT755KkbgrJsSdpwZ+3JqfkOG4=
@@ -858,6 +860,10 @@ github.com/titanous/rocacheck v0.0.0-20171023193734-afe73141d399 h1:e/5i7d4oYZ+C
 github.com/titanous/rocacheck v0.0.0-20171023193734-afe73141d399/go.mod h1:LdwHTNJT99C5fTAzDz0ud328OgXz+gierycbcIx2fRs=
 github.com/tjons/cassandra-toolbox v0.0.0-20260314211553-cdb30cc01b34 h1:ymRJ3UeFD5u+I7HxbiBXX65NXzJ/H6DRRsJSX4LVFDE=
 github.com/tjons/cassandra-toolbox v0.0.0-20260314211553-cdb30cc01b34/go.mod h1:r7A2k5T3lg+7FRTLah8mAeUaephHObjiihDz6COTBSM=
+github.com/tjons/cassandra-toolbox v0.1.0 h1:H2YOl37hYQTcUlNHMYRA/6Ot/uDmKVhdpnZIw3Lh8oY=
+github.com/tjons/cassandra-toolbox v0.1.0/go.mod h1:viuoJtgZkNSCMVu9Edb4J67+EGIsmAyXDI7Gn09CVMU=
+github.com/tjons/cassandra-toolbox v0.1.1 h1:80rAQYjyGlnLUl778L3zn1gNOYeJspsX3V6qfJv8P4E=
+github.com/tjons/cassandra-toolbox v0.1.1/go.mod h1:viuoJtgZkNSCMVu9Edb4J67+EGIsmAyXDI7Gn09CVMU=
 github.com/tklauser/go-sysconf v0.3.16 h1:frioLaCQSsF5Cy1jgRBrzr6t502KIIwQ0MArYICU0nA=
 github.com/tklauser/go-sysconf v0.3.16/go.mod h1:/qNL9xxDhc7tx3HSRsLWNnuzbVfh3e7gh/BmM179nYI=
 github.com/tklauser/numcpus v0.11.0 h1:nSTwhKH5e1dMNsCdVBukSZrURJRoHbSEQjdEbY+9RXw=
@@ -1183,3 +1189,4 @@ sigs.k8s.io/yaml v1.6.0 h1:G8fkbMSAFqgEFgh4b1wmtzDnioxFCUgTZhlbj5P9QYs=
 sigs.k8s.io/yaml v1.6.0/go.mod h1:796bPqUfzR/0jLAl6XjHl3Ck7MiyVv8dbTdyT3/pMf4=
 software.sslmate.com/src/go-pkcs12 v0.4.0 h1:H2g08FrTvSFKUj+D309j1DPfk5APnIdAQAB8aEykJ5k=
 software.sslmate.com/src/go-pkcs12 v0.4.0/go.mod h1:Qiz0EyvDRJjjxGyUQa2cCNZn/wMyzrRJ/qcDXOQazLI=
+software.sslmate.com/src/go-pkcs12 v0.6.0 h1:f3sQittAeF+pao32Vb+mkli+ZyT+VwKaD014qFGq6oU=

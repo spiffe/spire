@@ -2,7 +2,7 @@ package cassandra
 
 import (
 	datastorev1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/datastore/v1alpha1"
-	"github.com/tjons/cassandra-toolbox/qb/pages"
+	"github.com/tjons/cassandra-toolbox/pages"
 )
 
 func responsePaginationFromPager(pager *pages.QueryPaginator) *datastorev1.Pagination {

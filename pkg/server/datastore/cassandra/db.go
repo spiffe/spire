@@ -96,7 +96,9 @@ func (p *Plugin) createSession(config *runtimeConfiguration) (*gocql.Session, er
 	}
 
 	if config.TLSConfig.RequireMTLS() {
-		// Verify that the files can be read before attempting to use them for TLS configuration, to fail fast if there are any issues with the provided paths or files.
+		// Verify that the files can be read before attempting to use them
+		// for TLS configuration, to fail fast if there are any issues
+		// with the provided paths or files.
 		clientCert, err := os.ReadFile(config.TLSConfig.ClientCertPath)
 		if err != nil {
 			return nil, fmt.Errorf("unable to read client certificate: %w", err)
@@ -128,7 +130,9 @@ func (p *Plugin) createSession(config *runtimeConfiguration) (*gocql.Session, er
 			CaPath:                 config.TLSConfig.RootCAPath,
 		}
 	} else if config.TLSConfig.RequireTLS() {
-		// Verify that the file can be read before attempting to use it for TLS configuration, to fail fast if there are any issues with the provided path or file.
+		// Verify that the file can be read before attempting to use it
+		// for TLS configuration, to fail fast if there are any issues
+		// with the provided path or file.
 		rootCA, err := os.ReadFile(config.TLSConfig.RootCAPath)
 		if err != nil {
 			return nil, fmt.Errorf("unable to read root CA certificate: %w", err)

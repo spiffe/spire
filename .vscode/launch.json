@@ -63,7 +63,7 @@
                 "1",
                 "-test.v",
                 "-testify.m",
-                "^(TestCreateOrReturnRegistrationEntry)$"
+                "^(TestCreateRegistrationEntry)$"
             ],
             "preLaunchTask":"start cassandra",
             "postDebugTask": "stop cassandra",
