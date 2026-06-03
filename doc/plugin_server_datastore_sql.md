@@ -24,6 +24,8 @@ documentation for the Go [`database/sql`](https://golang.org/pkg/database/sql/#D
 
 ### `database_type = "sqlite3"`
 
+We use the [mattn/go-sqlite3](https://github.com/mattn/go-sqlite3) driver. It accepts a [SQLite database filename or URI](https://sqlite.org/c3ref/open.html) as a connection string, along with [driver-specific extensions](https://pkg.go.dev/github.com/mattn/go-sqlite3#readme-connection-string) for setting pragmas and similar options.
+
 Save database in file:
 
 ```hcl
