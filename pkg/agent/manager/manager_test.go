@@ -1058,8 +1058,8 @@ func TestSubscribersGetUpToDateBundle(t *testing.T) {
 	util.RunWithTimeout(t, 1*time.Second, func() {
 		// Update should contain a new bundle.
 		u := <-sub.Updates()
-		if len(u.Bundle.X509Authorities()) != 2 {
-			t.Fatalf("expected 2 bundles, got: %d", len(u.Bundle.X509Authorities()))
+		if len(u.Bundle.X509Authorities()) != 3 {
+			t.Fatalf("expected 3 bundles, got: %d", len(u.Bundle.X509Authorities()))
 		}
 		if !u.Bundle.Equal(c.Bundle) {
 			t.Fatal("bundles were expected to be equal")
@@ -1577,7 +1577,7 @@ func TestSurvivesCARotation(t *testing.T) {
 	newCAUpdate := <-updates
 	newRoots := newCAUpdate.Bundle.X509Authorities()
 	require.Contains(t, newRoots, initialRoot)
-	require.Len(t, newRoots, 2)
+	require.Len(t, newRoots, 3)
 }
 
 func TestFetchJWTSVID(t *testing.T) {
@@ -1974,6 +1974,7 @@ type mockAPI struct {
 	// Counts the number of requests received from clients
 	getAuthorizedEntriesCount atomic.Int32
 	batchNewX509SVIDCount     atomic.Int32
+	batchNewWITSVIDCount      atomic.Int32
 
 	// Last agent version received via PostStatus
 	lastAgentVersion string
@@ -2100,7 +2101,40 @@ func (h *mockAPI) NewJWTSVID(_ context.Context, req *svidv1.NewJWTSVIDRequest) (
 	if h.c.newJWTSVID != nil {
 		return h.c.newJWTSVID(h, req)
 	}
+
 	return nil, errors.New("no FetchJWTSVID implementation for test")
+}
+
+func (h *mockAPI) BatchNewWITSVID(_ context.Context, req *svidv1.BatchNewWITSVIDRequest) (*svidv1.BatchNewWITSVIDResponse, error) {
+	count := h.batchNewWITSVIDCount.Add(1)
+
+	var entries map[string]*common.RegistrationEntry
+	if h.c.batchNewX509SVIDEntries != nil {
+		entries = regEntriesAsMap(h.c.batchNewX509SVIDEntries(h, count))
+	}
+	resp := new(svidv1.BatchNewWITSVIDResponse)
+	for _, param := range req.Params {
+		_, ok := entries[param.EntryId]
+		if !ok {
+			resp.Results = append(resp.Results, &svidv1.BatchNewWITSVIDResponse_Result{
+				Status: api.CreateStatusf(codes.NotFound, "entry %q not found", param.EntryId),
+			})
+			continue
+		}
+		svid := &types.WITSVID{
+			Token:     "test",
+			ExpiresAt: time.Now().Add(time.Hour).Unix(),
+		}
+
+		// Keep latest's SVIDs per entry
+		//h.lastestSVIDs[entry.EntryId] = svid
+
+		resp.Results = append(resp.Results, &svidv1.BatchNewWITSVIDResponse_Result{
+			Status: api.OK(),
+			Svid:   svid,
+		})
+	}
+	return resp, nil
 }
 
 func (h *mockAPI) GetBundle(context.Context, *bundlev1.GetBundleRequest) (*types.Bundle, error) {
