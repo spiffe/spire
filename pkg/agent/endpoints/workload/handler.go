@@ -278,6 +278,14 @@ func (h *Handler) FetchX509Bundles(_ *workload.X509BundlesRequest, stream worklo
 	}
 }
 
+func (h *Handler) FetchWITSVID(_ *workload.WITSVIDRequest, stream workload.SpiffeWorkloadAPI_FetchWITSVIDServer) error {
+	return status.Error(codes.Unimplemented, "fetching WIT-SVIDs is not implemented")
+}
+
+func (h *Handler) FetchWITBundles(_ *workload.WITBundlesRequest, stream workload.SpiffeWorkloadAPI_FetchWITBundlesServer) error {
+	return status.Error(codes.Unimplemented, "fetching WIT bundles is not implemented")
+}
+
 func (h *Handler) fetchJWTSVID(ctx context.Context, log logrus.FieldLogger, entry *common.RegistrationEntry, audience []string, start time.Time) (*workload.JWTSVID, error) {
 	spiffeID, err := spiffeid.FromString(entry.SpiffeId)
 	if err != nil {
