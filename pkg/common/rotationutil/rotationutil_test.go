@@ -87,7 +87,7 @@ func TestShouldRotateX509(t *testing.T) {
 			cert, err := tc.makeCertTemplate()
 			require.NoError(t, err)
 
-			rs := NewRotationStrategy(tc.availabilityTarget)
+			rs := NewRotationStrategy(tc.availabilityTarget, tc.availabilityTarget)
 			actual := rs.ShouldRotateX509(mockClk.Now(), cert)
 			assert.Equal(t, tc.shouldRotate, actual)
 		})
@@ -158,7 +158,7 @@ func TestJWTSVIDExpiresSoon(t *testing.T) {
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
-			rs := NewRotationStrategy(tc.availabilityTarget)
+			rs := NewRotationStrategy(tc.availabilityTarget, tc.availabilityTarget)
 			actual := rs.JWTSVIDExpiresSoon(tc.token, mockClk.Now())
 			assert.Equal(t, tc.shouldRotate, actual)
 		})

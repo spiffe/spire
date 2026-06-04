@@ -14,11 +14,13 @@ const (
 
 type RotationStrategy struct {
 	x509AvailabilityTarget time.Duration
+	witAvailabilityTarget  time.Duration
 }
 
-func NewRotationStrategy(x509AvailabilityTarget time.Duration) *RotationStrategy {
+func NewRotationStrategy(x509AvailabilityTarget, witAvailabilityTarget time.Duration) *RotationStrategy {
 	return &RotationStrategy{
 		x509AvailabilityTarget: x509AvailabilityTarget,
+		witAvailabilityTarget:  witAvailabilityTarget,
 	}
 }
 
@@ -35,6 +37,12 @@ func (rs *RotationStrategy) ShouldFallbackX509DefaultRotation(lifetime time.Dura
 // on presented current time, and the certificate's expiration.
 func (rs *RotationStrategy) ShouldRotateX509(now time.Time, cert *x509.Certificate) bool {
 	return shouldRotateX509(now, cert.NotBefore, cert.NotAfter, rs.x509AvailabilityTarget)
+}
+
+// ShouldRotateWIT determines if a given SVID should be rotated, based
+// on presented current time, and the token's expiration.
+func (rs *RotationStrategy) ShouldRotateWIT(now time.Time, expiry time.Time) bool {
+	return shouldRotateX509(now, time.Now(), expiry, rs.witAvailabilityTarget)
 }
 
 // X509Expired returns true if the given X509 cert has expired

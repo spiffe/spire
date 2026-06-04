@@ -11,8 +11,12 @@ type Subscriber interface {
 	Finish()
 }
 
+type subscriberCache interface {
+	unsubscribe(*lruCacheSubscriber)
+}
+
 type lruCacheSubscriber struct {
-	cache   *LRUCache
+	cache   subscriberCache
 	set     selectorSet
 	setFree func()
 
@@ -21,7 +25,7 @@ type lruCacheSubscriber struct {
 	done bool
 }
 
-func newLRUCacheSubscriber(cache *LRUCache, selectors []*common.Selector) *lruCacheSubscriber {
+func newLRUCacheSubscriber(cache subscriberCache, selectors []*common.Selector) *lruCacheSubscriber {
 	set, setFree := allocSelectorSet(selectors...)
 	return &lruCacheSubscriber{
 		cache:   cache,

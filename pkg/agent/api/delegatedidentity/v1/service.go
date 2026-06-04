@@ -182,7 +182,7 @@ func (s *Service) SubscribeToX509SVIDs(req *delegatedidentityv1.SubscribeToX509S
 		"request_selectors":  selectors,
 	}).Debug("Subscribing to cache changes")
 
-	subscriber, err := s.manager.SubscribeToCacheChanges(ctx, selectors)
+	subscriber, err := s.manager.SubscribeToX509SVIDCacheChanges(ctx, selectors)
 	if err != nil {
 		log.WithError(err).Error("Subscribe to cache changes failed")
 		return err
@@ -232,7 +232,7 @@ func sendX509SVIDResponse(update *cache.WorkloadUpdate, stream delegatedidentity
 		// Ideally ID Proto parsing should succeed, but if it fails,
 		// ignore the error and still log with empty spiffe_id.
 		id, _ := idutil.IDProtoString(svid.X509Svid.Id)
-		ttl := time.Until(update.Identities[i].SVID[0].NotAfter)
+		ttl := time.Until(update.Identities[i].X509SVID[0].NotAfter)
 		log.WithFields(logrus.Fields{
 			telemetry.SPIFFEID: id,
 			telemetry.TTL:      ttl.Seconds(),
@@ -261,7 +261,7 @@ func composeX509SVIDBySelectors(update *cache.WorkloadUpdate) (*delegatedidentit
 		}
 
 		// check if SVIDs exist for the identity
-		if len(identity.SVID) == 0 {
+		if len(identity.X509SVID) == 0 {
 			return nil, errors.New("unable to get SVID from identity")
 		}
 
@@ -278,8 +278,8 @@ func composeX509SVIDBySelectors(update *cache.WorkloadUpdate) (*delegatedidentit
 		svid := &delegatedidentityv1.X509SVIDWithKey{
 			X509Svid: &types.X509SVID{
 				Id:        id,
-				CertChain: x509util.RawCertsFromCertificates(identity.SVID),
-				ExpiresAt: identity.SVID[0].NotAfter.Unix(),
+				CertChain: x509util.RawCertsFromCertificates(identity.X509SVID),
+				ExpiresAt: identity.X509SVID[0].NotAfter.Unix(),
 				Hint:      identity.Entry.Hint,
 			},
 			X509SvidKey: keyData,

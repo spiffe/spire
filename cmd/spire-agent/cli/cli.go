@@ -31,6 +31,9 @@ func (cc *CLI) Run(ctx context.Context, args []string) int {
 		"api fetch jwt": func() (cli.Command, error) {
 			return api.NewFetchJWTCommand(), nil
 		},
+		"api fetch wit": func() (cli.Command, error) {
+			return api.NewFetchWITCommand(), nil
+		},
 		"api validate jwt": func() (cli.Command, error) {
 			return api.NewValidateJWTCommand(), nil
 		},

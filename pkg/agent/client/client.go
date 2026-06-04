@@ -72,6 +72,12 @@ type JWTSVID struct {
 	ExpiresAt time.Time
 }
 
+type WITSVID struct {
+	Token     string
+	IssuedAt  time.Time
+	ExpiresAt time.Time
+}
+
 type SyncStats struct {
 	Entries SyncEntriesStats
 	Bundles SyncBundlesStats
@@ -94,6 +100,7 @@ type Client interface {
 	RenewSVID(ctx context.Context, csr []byte) (*X509SVID, error)
 	NewX509SVIDs(ctx context.Context, csrs map[string][]byte) (map[string]*X509SVID, error)
 	NewJWTSVID(ctx context.Context, entryID string, audience []string, hasCacheHit bool) (*JWTSVID, spiffeid.ID, error)
+	NewWITSVIDs(ctx context.Context, publicKeys map[string]crypto.PublicKey) (map[string]*WITSVID, error)
 	PostStatus(ctx context.Context, agentVersion string) error
 
 	// Release releases any resources that were held by this Client, if any.
@@ -400,6 +407,50 @@ func (c *client) NewJWTSVID(ctx context.Context, entryID string, audience []stri
 		IssuedAt:  time.Unix(svid.IssuedAt, 0).UTC(),
 		ExpiresAt: time.Unix(svid.ExpiresAt, 0).UTC(),
 	}, spiffeId, nil
+}
+
+func (c *client) NewWITSVIDs(ctx context.Context, publicKeys map[string]crypto.PublicKey) (map[string]*WITSVID, error) {
+	c.c.RotMtx.RLock()
+	defer c.c.RotMtx.RUnlock()
+
+	ctx, cancel := context.WithTimeout(ctx, rpcTimeout)
+	defer cancel()
+
+	svids := make(map[string]*WITSVID)
+	var params []*svidv1.NewWITSVIDParams
+	for entryID, publicKey := range publicKeys {
+		pkixPublicKey, err := x509.MarshalPKIXPublicKey(publicKey)
+		if err != nil {
+			return nil, err
+		}
+
+		params = append(params, &svidv1.NewWITSVIDParams{
+			EntryId:          entryID,
+			PublicKey:        pkixPublicKey,
+			SigningAlgorithm: "ES256",
+		})
+	}
+
+	protoSVIDs, err := c.fetchWITSVIDs(ctx, params)
+	if err != nil {
+		return nil, err
+	}
+
+	for i, s := range protoSVIDs {
+		entryID := params[i].EntryId
+		if s == nil {
+			c.c.Log.WithField(telemetry.RegistrationID, entryID).Debug("Entry not found")
+			continue
+		}
+
+		svids[entryID] = &WITSVID{
+			Token:     s.Token,
+			IssuedAt:  time.Unix(s.IssuedAt, 0).UTC(),
+			ExpiresAt: time.Unix(s.ExpiresAt, 0).UTC(),
+		}
+	}
+
+	return svids, nil
 }
 
 // Release the underlying connection.
@@ -760,6 +811,39 @@ func (c *client) fetchSVIDs(ctx context.Context, params []*svidv1.NewX509SVIDPar
 				telemetry.Status:         r.Status.Code,
 				telemetry.Error:          r.Status.Message,
 			}).Warn("Failed to mint X509 SVID")
+		}
+
+		svids = append(svids, r.Svid)
+	}
+
+	return svids, nil
+}
+
+func (c *client) fetchWITSVIDs(ctx context.Context, params []*svidv1.NewWITSVIDParams) ([]*types.WITSVID, error) {
+	svidClient, connection, err := c.newSVIDClient()
+	if err != nil {
+		return nil, err
+	}
+	defer connection.Release()
+
+	resp, err := svidClient.BatchNewWITSVID(ctx, &svidv1.BatchNewWITSVIDRequest{
+		Params: params,
+	})
+	if err != nil {
+		c.release(connection)
+		c.withErrorFields(err).Error("Failed to batch new WIT-SVID(s)")
+		return nil, fmt.Errorf("failed to batch new WIT-SVID(s): %w", err)
+	}
+
+	okStatus := int32(codes.OK)
+	var svids []*types.WITSVID
+	for i, r := range resp.Results {
+		if r.Status.Code != okStatus {
+			c.c.Log.WithFields(logrus.Fields{
+				telemetry.RegistrationID: params[i].EntryId,
+				telemetry.Status:         r.Status.Code,
+				telemetry.Error:          r.Status.Message,
+			}).Warn("Failed to mint WIT-SVID")
 		}
 
 		svids = append(svids, r.Svid)

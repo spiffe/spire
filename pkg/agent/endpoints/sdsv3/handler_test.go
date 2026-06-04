@@ -1277,7 +1277,7 @@ func (h *handlerTest) setWorkloadUpdate(workloadCert *x509.Certificate) {
 					Entry: &common.RegistrationEntry{
 						SpiffeId: "spiffe://domain.test/workload",
 					},
-					SVID:       []*x509.Certificate{workloadCert},
+					X509SVID:   []*x509.Certificate{workloadCert},
 					PrivateKey: workloadKey,
 				},
 			},
@@ -1324,7 +1324,7 @@ func NewFakeManager(t *testing.T) *FakeManager {
 	}
 }
 
-func (m *FakeManager) SubscribeToCacheChanges(_ context.Context, selectors cache.Selectors) (cache.Subscriber, error) {
+func (m *FakeManager) SubscribeToX509SVIDCacheChanges(_ context.Context, selectors cache.Selectors) (cache.Subscriber, error) {
 	if m.err != nil {
 		return nil, m.err
 	}

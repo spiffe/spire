@@ -961,7 +961,7 @@ func (m *FakeManager) subscriberDone() {
 	m.subscribers.Add(-1)
 }
 
-func (m *FakeManager) SubscribeToCacheChanges(context.Context, cache.Selectors) (cache.Subscriber, error) {
+func (m *FakeManager) SubscribeToX509SVIDCacheChanges(context.Context, cache.Selectors) (cache.Subscriber, error) {
 	if m.err != nil {
 		return nil, m.err
 	}
@@ -1033,7 +1033,7 @@ func identityFromX509SVID(svid *x509svid.SVID) cache.Identity {
 	return cache.Identity{
 		Entry:      &common.RegistrationEntry{SpiffeId: svid.ID.String()},
 		PrivateKey: svid.PrivateKey,
-		SVID:       svid.Certificates,
+		X509SVID:   svid.Certificates,
 	}
 }
 
@@ -1041,7 +1041,7 @@ func identityFromX509SVIDWithoutSVID(svid *x509svid.SVID) cache.Identity {
 	return cache.Identity{
 		Entry:      &common.RegistrationEntry{SpiffeId: svid.ID.String()},
 		PrivateKey: svid.PrivateKey,
-		SVID:       nil,
+		X509SVID:   nil,
 	}
 }
 
@@ -1064,9 +1064,9 @@ func (m *FakeManager) SubscribeToBundleChanges() *cache.BundleStream {
 	return myCache.BundleCache.SubscribeToBundleChanges()
 }
 
-func newTestCache() *cache.LRUCache {
+func newTestCache() *cache.LRUCache[*cache.X509SVID] {
 	log, _ := test.NewNullLogger()
-	return cache.NewLRUCache(log, trustDomain1, bundle1, telemetry.Blackhole{}, cache.DefaultSVIDCacheMaxSize, cache.DefaultSVIDCacheMaxSize, clock.New())
+	return cache.NewLRUCache[*cache.X509SVID](log, trustDomain1, bundle1, telemetry.Blackhole{}, cache.DefaultSVIDCacheMaxSize, cache.DefaultSVIDCacheMaxSize, clock.New())
 }
 
 func generateSubscribeToX509SVIDMetrics() []fakemetrics.MetricItem {

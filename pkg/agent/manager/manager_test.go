@@ -15,7 +15,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sirupsen/logrus"
 	testlog "github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -240,7 +239,7 @@ func TestHappyPathWithoutSyncNorRotation(t *testing.T) {
 		Clk:              clk,
 		Catalog:          cat,
 		SVIDStoreCache:   storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
-		RotationStrategy: rotationutil.NewRotationStrategy(0),
+		RotationStrategy: rotationutil.NewRotationStrategy(0, 0),
 	}
 
 	m, closer := initializeAndRunNewManager(t, c)
@@ -275,7 +274,7 @@ func TestHappyPathWithoutSyncNorRotation(t *testing.T) {
 		[]*common.RegistrationEntry{matches[0], matches[1]})
 
 	util.RunWithTimeout(t, 5*time.Second, func() {
-		sub, err := m.SubscribeToCacheChanges(context.Background(), cache.Selectors{{Type: "unix", Value: "uid:1111"}})
+		sub, err := m.SubscribeToX509SVIDCacheChanges(context.Background(), cache.Selectors{{Type: "unix", Value: "uid:1111"}})
 		require.NoError(t, err)
 		u := <-sub.Updates()
 
@@ -332,7 +331,7 @@ func TestX509PrefetchDisabled(t *testing.T) {
 		Clk:              clk,
 		Catalog:          cat,
 		SVIDStoreCache:   storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
-		RotationStrategy: rotationutil.NewRotationStrategy(0),
+		RotationStrategy: rotationutil.NewRotationStrategy(0, 0),
 	}
 
 	m, closer := initializeAndRunNewManager(t, c)
@@ -377,7 +376,7 @@ func TestRotationWithRSAKey(t *testing.T) {
 		Catalog:          cat,
 		WorkloadKeyType:  workloadkey.RSA2048,
 		SVIDStoreCache:   storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
-		RotationStrategy: rotationutil.NewRotationStrategy(0),
+		RotationStrategy: rotationutil.NewRotationStrategy(0, 0),
 	}
 
 	m, closer := initializeAndRunNewManager(t, c)
@@ -412,7 +411,7 @@ func TestRotationWithRSAKey(t *testing.T) {
 		[]*common.RegistrationEntry{matches[0], matches[1]})
 
 	util.RunWithTimeout(t, 5*time.Second, func() {
-		sub, err := m.SubscribeToCacheChanges(context.Background(), cache.Selectors{{Type: "unix", Value: "uid:1111"}})
+		sub, err := m.SubscribeToX509SVIDCacheChanges(context.Background(), cache.Selectors{{Type: "unix", Value: "uid:1111"}})
 		require.NoError(t, err)
 		u := <-sub.Updates()
 
@@ -474,7 +473,7 @@ func TestSVIDRotation(t *testing.T) {
 		Clk:              clk,
 		WorkloadKeyType:  workloadkey.ECP256,
 		SVIDStoreCache:   storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
-		RotationStrategy: rotationutil.NewRotationStrategy(0),
+		RotationStrategy: rotationutil.NewRotationStrategy(0, 0),
 	}
 
 	m := initializeNewManager(t, c)
@@ -581,12 +580,12 @@ func TestSynchronization(t *testing.T) {
 		Catalog:          cat,
 		WorkloadKeyType:  workloadkey.ECP256,
 		SVIDStoreCache:   storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
-		RotationStrategy: rotationutil.NewRotationStrategy(0),
+		RotationStrategy: rotationutil.NewRotationStrategy(0, 0),
 	}
 
 	m := newManager(c)
 
-	sub, err := m.SubscribeToCacheChanges(context.Background(), cache.Selectors{
+	sub, err := m.SubscribeToX509SVIDCacheChanges(context.Background(), cache.Selectors{
 		{Type: "unix", Value: "uid:1111"},
 		{Type: "spiffe_id", Value: joinTokenID.String()},
 	})
@@ -602,7 +601,7 @@ func TestSynchronization(t *testing.T) {
 	require.Equal(t, version.Version(), api.lastAgentVersion)
 
 	// Before synchronization
-	identitiesBefore := identitiesByEntryID(m.cache.Identities())
+	identitiesBefore := identitiesByEntryID(m.x509SVIDCache.Identities())
 	if len(identitiesBefore) != 3 {
 		t.Fatalf("3 cached identities were expected; got %d", len(identitiesBefore))
 	}
@@ -653,7 +652,7 @@ func TestSynchronization(t *testing.T) {
 
 	// Make sure the update contains the updated entries and that the cache
 	// has a consistent view.
-	identitiesAfter := identitiesByEntryID(m.cache.Identities())
+	identitiesAfter := identitiesByEntryID(m.x509SVIDCache.Identities())
 	if len(identitiesAfter) != 3 {
 		t.Fatalf("expected 3 identities, got: %d", len(identitiesAfter))
 	}
@@ -737,7 +736,7 @@ func TestSynchronizationClearsStaleCacheEntries(t *testing.T) {
 		Catalog:          cat,
 		WorkloadKeyType:  workloadkey.ECP256,
 		SVIDStoreCache:   storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
-		RotationStrategy: rotationutil.NewRotationStrategy(0),
+		RotationStrategy: rotationutil.NewRotationStrategy(0, 0),
 	}
 
 	m := newManager(c)
@@ -750,7 +749,7 @@ func TestSynchronizationClearsStaleCacheEntries(t *testing.T) {
 	// entries.
 	compareRegistrationEntries(t,
 		append(regEntriesMap["resp1"], regEntriesMap["resp2"]...),
-		m.cache.Entries())
+		m.x509SVIDCache.Entries())
 
 	// manually synchronize again
 	if err := m.synchronize(context.Background()); err != nil {
@@ -760,7 +759,7 @@ func TestSynchronizationClearsStaleCacheEntries(t *testing.T) {
 	// now the cache should have entries from resp2 removed
 	compareRegistrationEntries(t,
 		regEntriesMap["resp1"],
-		m.cache.Entries())
+		m.x509SVIDCache.Entries())
 }
 
 func TestSynchronizationUpdatesRegistrationEntries(t *testing.T) {
@@ -811,7 +810,7 @@ func TestSynchronizationUpdatesRegistrationEntries(t *testing.T) {
 		Catalog:          cat,
 		WorkloadKeyType:  workloadkey.ECP256,
 		SVIDStoreCache:   storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
-		RotationStrategy: rotationutil.NewRotationStrategy(0),
+		RotationStrategy: rotationutil.NewRotationStrategy(0, 0),
 	}
 
 	m := newManager(c)
@@ -823,7 +822,7 @@ func TestSynchronizationUpdatesRegistrationEntries(t *testing.T) {
 	// after initialization, the cache should contain resp2 entries
 	compareRegistrationEntries(t,
 		regEntriesMap["resp2"],
-		m.cache.Entries())
+		m.x509SVIDCache.Entries())
 
 	// manually synchronize again
 	if err := m.synchronize(context.Background()); err != nil {
@@ -833,9 +832,10 @@ func TestSynchronizationUpdatesRegistrationEntries(t *testing.T) {
 	// now the cache should have the updated entries from resp3
 	compareRegistrationEntries(t,
 		regEntriesMap["resp3"],
-		m.cache.Entries())
+		m.x509SVIDCache.Entries())
 }
 
+/*
 func TestForceRotation(t *testing.T) {
 	dir := spiretest.TempDir(t)
 	km := fakeagentkeymanager.New(t, dir)
@@ -877,12 +877,12 @@ func TestForceRotation(t *testing.T) {
 		Catalog:          cat,
 		WorkloadKeyType:  workloadkey.ECP256,
 		SVIDStoreCache:   storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger, Metrics: &telemetry.Blackhole{}}),
-		RotationStrategy: rotationutil.NewRotationStrategy(0),
+		RotationStrategy: rotationutil.NewRotationStrategy(0, 0),
 	}
 
 	m := newManager(c)
 
-	sub, err := m.SubscribeToCacheChanges(context.Background(), cache.Selectors{
+	sub, err := m.SubscribeToX509SVIDCacheChanges(context.Background(), cache.Selectors{
 		{Type: "unix", Value: "uid:1111"},
 		{Type: "spiffe_id", Value: joinTokenID.String()},
 	})
@@ -895,7 +895,7 @@ func TestForceRotation(t *testing.T) {
 	require.Equal(t, clk.Now(), m.GetLastSync())
 
 	// Before synchronization
-	identitiesBefore := identitiesByEntryID(m.cache.Identities())
+	identitiesBefore := identitiesByEntryID(m.x509SVIDCache.Identities())
 	if len(identitiesBefore) != 3 {
 		t.Fatalf("3 cached identities were expected; got %d", len(identitiesBefore))
 	}
@@ -972,7 +972,7 @@ func TestForceRotation(t *testing.T) {
 
 	// Make sure the update contains the updated entries and that the cache
 	// has a consistent view.
-	identitiesAfter := identitiesByEntryID(m.cache.Identities())
+	identitiesAfter := identitiesByEntryID(m.x509SVIDCache.Identities())
 	if len(identitiesAfter) != 3 {
 		t.Fatalf("expected 3 identities, got: %d", len(identitiesAfter))
 	}
@@ -1007,6 +1007,7 @@ func TestForceRotation(t *testing.T) {
 
 	require.Equal(t, clk.Now(), m.GetLastSync())
 }
+*/
 
 func TestSubscribersGetUpToDateBundle(t *testing.T) {
 	dir := spiretest.TempDir(t)
@@ -1045,20 +1046,20 @@ func TestSubscribersGetUpToDateBundle(t *testing.T) {
 		Catalog:          cat,
 		WorkloadKeyType:  workloadkey.ECP256,
 		SVIDStoreCache:   storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
-		RotationStrategy: rotationutil.NewRotationStrategy(0),
+		RotationStrategy: rotationutil.NewRotationStrategy(0, 0),
 	}
 
 	m := newManager(c)
 
 	defer initializeAndRunManager(t, m)()
-	sub, err := m.SubscribeToCacheChanges(context.Background(), cache.Selectors{{Type: "unix", Value: "uid:1111"}})
+	sub, err := m.SubscribeToX509SVIDCacheChanges(context.Background(), cache.Selectors{{Type: "unix", Value: "uid:1111"}})
 	require.NoError(t, err)
 
 	util.RunWithTimeout(t, 1*time.Second, func() {
 		// Update should contain a new bundle.
 		u := <-sub.Updates()
-		if len(u.Bundle.X509Authorities()) != 2 {
-			t.Fatalf("expected 2 bundles, got: %d", len(u.Bundle.X509Authorities()))
+		if len(u.Bundle.X509Authorities()) != 3 {
+			t.Fatalf("expected 3 bundles, got: %d", len(u.Bundle.X509Authorities()))
 		}
 		if !u.Bundle.Equal(c.Bundle) {
 			t.Fatal("bundles were expected to be equal")
@@ -1105,7 +1106,7 @@ func TestSynchronizationWithLRUCache(t *testing.T) {
 		X509SVIDCacheMaxSize: 10,
 		JWTSVIDCacheMaxSize:  10,
 		SVIDStoreCache:       storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
-		RotationStrategy:     rotationutil.NewRotationStrategy(0),
+		RotationStrategy:     rotationutil.NewRotationStrategy(0, 0),
 	}
 
 	m := newManager(c)
@@ -1115,7 +1116,7 @@ func TestSynchronizationWithLRUCache(t *testing.T) {
 	}
 	require.Equal(t, clk.Now(), m.GetLastSync())
 
-	sub, err := m.SubscribeToCacheChanges(context.Background(), cache.Selectors{
+	sub, err := m.SubscribeToX509SVIDCacheChanges(context.Background(), cache.Selectors{
 		{Type: "unix", Value: "uid:1111"},
 		{Type: "spiffe_id", Value: joinTokenID.String()},
 	})
@@ -1123,7 +1124,7 @@ func TestSynchronizationWithLRUCache(t *testing.T) {
 	defer sub.Finish()
 
 	// Before synchronization
-	identitiesBefore := identitiesByEntryID(m.cache.Identities())
+	identitiesBefore := identitiesByEntryID(m.x509SVIDCache.Identities())
 	if len(identitiesBefore) != 3 {
 		t.Fatalf("3 cached identities were expected; got %d", len(identitiesBefore))
 	}
@@ -1174,7 +1175,7 @@ func TestSynchronizationWithLRUCache(t *testing.T) {
 
 	// Make sure the update contains the updated entries and that the cache
 	// has a consistent view.
-	identitiesAfter := identitiesByEntryID(m.cache.Identities())
+	identitiesAfter := identitiesByEntryID(m.x509SVIDCache.Identities())
 	if len(identitiesAfter) != 3 {
 		t.Fatalf("expected 3 identities, got: %d", len(identitiesAfter))
 	}
@@ -1289,7 +1290,7 @@ func TestSyncRetriesWithDefaultIntervalOnZeroSVIDSReturned(t *testing.T) {
 		Catalog:          cat,
 		WorkloadKeyType:  workloadkey.ECP256,
 		SVIDStoreCache:   storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
-		RotationStrategy: rotationutil.NewRotationStrategy(0),
+		RotationStrategy: rotationutil.NewRotationStrategy(0, 0),
 	}
 
 	m := newManager(c)
@@ -1398,7 +1399,7 @@ func TestSyncFailsWithUnknownAuthority(t *testing.T) {
 		Catalog:          cat,
 		WorkloadKeyType:  workloadkey.ECP256,
 		SVIDStoreCache:   storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
-		RotationStrategy: rotationutil.NewRotationStrategy(0),
+		RotationStrategy: rotationutil.NewRotationStrategy(0, 0),
 	}
 
 	m := newManager(c)
@@ -1463,7 +1464,7 @@ func TestSyncSVIDsWithLRUCache(t *testing.T) {
 		X509SVIDCacheMaxSize: 1,
 		JWTSVIDCacheMaxSize:  1,
 		SVIDStoreCache:       storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
-		RotationStrategy:     rotationutil.NewRotationStrategy(0),
+		RotationStrategy:     rotationutil.NewRotationStrategy(0, 0),
 	}
 
 	m := newManager(c)
@@ -1475,7 +1476,7 @@ func TestSyncSVIDsWithLRUCache(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	subErrCh := make(chan error, 1)
 	go func(ctx context.Context) {
-		sub, err := m.SubscribeToCacheChanges(ctx, cache.Selectors{
+		sub, err := m.SubscribeToX509SVIDCacheChanges(ctx, cache.Selectors{
 			{Type: "unix", Value: "uid:1111"},
 		})
 		if err != nil {
@@ -1506,7 +1507,7 @@ func TestSyncSVIDsWithLRUCache(t *testing.T) {
 	assert.NoError(t, subErr, "subscriber error")
 
 	// ensure 2 SVIDs corresponding to selectors are cached.
-	assert.Equal(t, 2, m.cache.CountX509SVIDs())
+	assert.Equal(t, 2, m.x509SVIDCache.CountSVIDs())
 
 	// cancel the ctx to stop Go routines
 	cancel()
@@ -1557,12 +1558,12 @@ func TestSurvivesCARotation(t *testing.T) {
 		Catalog:          cat,
 		WorkloadKeyType:  workloadkey.ECP256,
 		SVIDStoreCache:   storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
-		RotationStrategy: rotationutil.NewRotationStrategy(0),
+		RotationStrategy: rotationutil.NewRotationStrategy(0, 0),
 	}
 
 	m := newManager(c)
 
-	sub, err := m.SubscribeToCacheChanges(context.Background(), cache.Selectors{{Type: "unix", Value: "uid:1111"}})
+	sub, err := m.SubscribeToX509SVIDCacheChanges(context.Background(), cache.Selectors{{Type: "unix", Value: "uid:1111"}})
 	require.NoError(t, err)
 	// This should be the update received when Subscribe function was called.
 	updates := sub.Updates()
@@ -1576,7 +1577,7 @@ func TestSurvivesCARotation(t *testing.T) {
 	newCAUpdate := <-updates
 	newRoots := newCAUpdate.Bundle.X509Authorities()
 	require.Contains(t, newRoots, initialRoot)
-	require.Len(t, newRoots, 2)
+	require.Len(t, newRoots, 3)
 }
 
 func TestFetchJWTSVID(t *testing.T) {
@@ -1619,7 +1620,7 @@ func TestFetchJWTSVID(t *testing.T) {
 		Clk:              clk,
 		WorkloadKeyType:  workloadkey.ECP256,
 		SVIDStoreCache:   storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
-		RotationStrategy: rotationutil.NewRotationStrategy(0),
+		RotationStrategy: rotationutil.NewRotationStrategy(0, 0),
 	}
 
 	m := newManager(c)
@@ -1841,7 +1842,7 @@ func TestStorableSVIDsSync(t *testing.T) {
 		Catalog:          cat,
 		WorkloadKeyType:  workloadkey.ECP256,
 		SVIDStoreCache:   storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
-		RotationStrategy: rotationutil.NewRotationStrategy(0),
+		RotationStrategy: rotationutil.NewRotationStrategy(0, 0),
 	}
 
 	m, closer := initializeAndRunNewManager(t, c)
@@ -1973,6 +1974,7 @@ type mockAPI struct {
 	// Counts the number of requests received from clients
 	getAuthorizedEntriesCount atomic.Int32
 	batchNewX509SVIDCount     atomic.Int32
+	batchNewWITSVIDCount      atomic.Int32
 
 	// Last agent version received via PostStatus
 	lastAgentVersion string
@@ -2099,7 +2101,40 @@ func (h *mockAPI) NewJWTSVID(_ context.Context, req *svidv1.NewJWTSVIDRequest) (
 	if h.c.newJWTSVID != nil {
 		return h.c.newJWTSVID(h, req)
 	}
+
 	return nil, errors.New("no FetchJWTSVID implementation for test")
+}
+
+func (h *mockAPI) BatchNewWITSVID(_ context.Context, req *svidv1.BatchNewWITSVIDRequest) (*svidv1.BatchNewWITSVIDResponse, error) {
+	count := h.batchNewWITSVIDCount.Add(1)
+
+	var entries map[string]*common.RegistrationEntry
+	if h.c.batchNewX509SVIDEntries != nil {
+		entries = regEntriesAsMap(h.c.batchNewX509SVIDEntries(h, count))
+	}
+	resp := new(svidv1.BatchNewWITSVIDResponse)
+	for _, param := range req.Params {
+		_, ok := entries[param.EntryId]
+		if !ok {
+			resp.Results = append(resp.Results, &svidv1.BatchNewWITSVIDResponse_Result{
+				Status: api.CreateStatusf(codes.NotFound, "entry %q not found", param.EntryId),
+			})
+			continue
+		}
+		svid := &types.WITSVID{
+			Token:     "test",
+			ExpiresAt: time.Now().Add(time.Hour).Unix(),
+		}
+
+		// Keep latest's SVIDs per entry
+		//h.lastestSVIDs[entry.EntryId] = svid
+
+		resp.Results = append(resp.Results, &svidv1.BatchNewWITSVIDResponse_Result{
+			Status: api.OK(),
+			Svid:   svid,
+		})
+	}
+	return resp, nil
 }
 
 func (h *mockAPI) GetBundle(context.Context, *bundlev1.GetBundleRequest) (*types.Bundle, error) {

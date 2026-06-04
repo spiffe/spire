@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/spiffe/go-spiffe/v2/proto/spiffe/workload"
 	commoncli "github.com/spiffe/spire/pkg/common/cli"
 )
 
@@ -55,4 +56,31 @@ func printX509FederatedBundle(env *commoncli.Env, trustDomain string, bundle []*
 		env.Printf("[%s] CA #%v Valid After:\t%v\n", trustDomain, num, ca.NotBefore)
 		env.Printf("[%s] CA #%v Valid Until:\t%v\n", trustDomain, num, ca.NotAfter)
 	}
+}
+
+func printWITSVIDResponse(env *commoncli.Env, svids []*workload.WITSVID, respTime time.Duration) {
+	lenMsg := fmt.Sprintf("Received %d svid", len(svids))
+	if len(svids) != 1 {
+		lenMsg += "s"
+	}
+	lenMsg += fmt.Sprintf(" after %s", respTime)
+
+	env.Println(lenMsg)
+	for _, svid := range svids {
+		env.Println()
+		printWITSVID(env, svid)
+	}
+
+	env.Println()
+}
+
+func printWITSVID(env *commoncli.Env, svid *workload.WITSVID) {
+	// Print SPIFFE ID first so if we run into a problem, we
+	// get to know which record it was
+	env.Printf("SPIFFE ID:\t%s\n", svid.SpiffeId)
+	if svid.Hint != "" {
+		env.Printf("Hint:\t\t\t%s\n", svid.Hint)
+	}
+	env.Printf("Token:\t\t%s\n", svid.WitSvid)
+	env.Printf("Key:\t\t%s\n", svid.WitSvidKey)
 }

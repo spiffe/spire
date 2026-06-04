@@ -359,7 +359,7 @@ func (a *Agent) newManager(ctx context.Context, sto storage.Storage, cat catalog
 		JWTSVIDCacheMaxSize:      a.c.JWTSVIDCacheMaxSize,
 		SVIDStoreCache:           cache,
 		NodeAttestor:             na,
-		RotationStrategy:         rotationutil.NewRotationStrategy(a.c.AvailabilityTarget),
+		RotationStrategy:         rotationutil.NewRotationStrategy(a.c.AvailabilityTarget, a.c.AvailabilityTarget),
 		TLSPolicy:                a.c.TLSPolicy,
 	}
 
