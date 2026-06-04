@@ -331,7 +331,8 @@ define image_rule
 .PHONY: $1
 $1: $3 container-builder
 	@echo Building docker image $2 $(PLATFORM)…
-	$(E)docker buildx build \
+	$(E).github/workflows/scripts/retry.sh \
+		docker buildx build \
 		--platform $(PLATFORMS) \
 		--build-arg goversion=$(go_version) \
 		--build-arg TAG=$(TAG) \
