@@ -25,12 +25,19 @@ func configureCasesOS(*testing.T) []configureCase {
 			expectServerAddr:         "localhost:8081",
 		},
 		{
-			name:              "workload_api_named_pipe_name configured",
+			name:              "workload_api_socket configured",
 			serverAddr:        "localhost",
 			serverPort:        "8081",
 			workloadAPISocket: "socketPath",
 			expectCode:        codes.InvalidArgument,
-			expectMsgPrefix:   "unable to set Workload API address: configuration: workload_api_socket is not supported in this platform; please use workload_api_named_pipe_name instead",
+			expectMsgPrefix:   "configuration: workload_api_socket is not supported in this platform; please use workload_api_named_pipe_name instead",
+		},
+		{
+			name:            "empty workload_api_named_pipe_name",
+			serverAddr:      "localhost",
+			serverPort:      "8081",
+			expectCode:      codes.InvalidArgument,
+			expectMsgPrefix: "configuration: workload_api_named_pipe_name must be set",
 		},
 	}
 }

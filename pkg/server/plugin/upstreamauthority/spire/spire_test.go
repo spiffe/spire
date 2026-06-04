@@ -69,6 +69,18 @@ func TestConfigure(t *testing.T) {
 			expectMsgPrefix: "plugin configuration is malformed",
 		},
 		{
+			name:            "empty server address",
+			serverPort:      "8081",
+			expectCode:      codes.InvalidArgument,
+			expectMsgPrefix: "configuration: server_address must be set",
+		},
+		{
+			name:            "empty server port",
+			serverAddr:      "localhost",
+			expectCode:      codes.InvalidArgument,
+			expectMsgPrefix: "configuration: server_port must be set",
+		},
+		{
 			name:               "no trust domain",
 			serverAddr:         "localhost",
 			serverPort:         "8081",
@@ -182,9 +194,9 @@ func TestMintX509CA(t *testing.T) {
 			getCSR: func() ([]byte, crypto.PublicKey) {
 				return csr, pubKey
 			},
-			customServerAddr: "localhost",
+			customServerAddr: "localhost:0",
 			expectCode:       codes.Internal,
-			expectMsgPrefix:  `upstreamauthority(spire): unable to request a new Downstream X509CA: rpc error: code = Unavailable desc = delegating_resolver: invalid target address ":": missing port after port-separator colon`,
+			expectMsgPrefix:  `upstreamauthority(spire): unable to request a new Downstream X509CA: rpc error: code = Unavailable desc = connection error:`,
 		},
 		{
 			name: "invalid scheme",

@@ -46,7 +46,15 @@ func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginco
 		return nil
 	}
 
-	// TODO: add field validation
+	if newConfig.ServerAddr == "" {
+		status.ReportError("configuration: server_address must be set")
+	}
+	if newConfig.ServerPort == "" {
+		status.ReportError("configuration: server_port must be set")
+	}
+
+	validateConfig(newConfig, status)
+
 	return newConfig
 }
 
