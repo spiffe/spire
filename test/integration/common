@@ -34,11 +34,10 @@ fail-now() {
 # retry runs the given command, retrying with exponential backoff if it fails.
 # It is intended to harden steps against transient registry/network errors
 # (e.g. Docker Hub image pull timeouts) that would otherwise cause spurious CI
-# failures. The number of attempts and the initial backoff (in seconds) can be
-# tuned via the RETRY_ATTEMPTS and RETRY_DELAY environment variables.
+# failures.
 retry() {
-    local attempts="${RETRY_ATTEMPTS:-5}"
-    local delay="${RETRY_DELAY:-5}"
+    local attempts=5
+    local delay=5
     local max_delay=60
     local attempt=1
     while true; do
