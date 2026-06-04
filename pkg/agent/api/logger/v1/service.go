@@ -39,7 +39,7 @@ type Service struct {
 func New(c Config) *Service {
 	launchLogLevel := c.Log.GetLevel()
 	c.Log.WithFields(logrus.Fields{
-		telemetry.LaunchLogLevel: launchLogLevel,
+		telemetry.LaunchLogLevel: launchLogLevel.String(),
 	}).Info("Logger service configured")
 
 	return &Service{
@@ -57,7 +57,7 @@ func (s *Service) GetLogger(ctx context.Context, _ *loggerv1.GetLoggerRequest) (
 }
 
 func (s *Service) SetLogLevel(ctx context.Context, req *loggerv1.SetLogLevelRequest) (*apitype.Logger, error) {
-	rpccontext.AddRPCAuditFields(ctx, logrus.Fields{telemetry.NewLogLevel: req.NewLevel})
+	rpccontext.AddRPCAuditFields(ctx, logrus.Fields{telemetry.NewLogLevel: req.NewLevel.String()})
 	log := rpccontext.Logger(ctx)
 
 	if req.NewLevel == apitype.LogLevel_UNSPECIFIED {
@@ -80,7 +80,7 @@ func (s *Service) SetLogLevel(ctx context.Context, req *loggerv1.SetLogLevelRequ
 
 func (s *Service) ResetLogLevel(ctx context.Context, _ *loggerv1.ResetLogLevelRequest) (*apitype.Logger, error) {
 	log := rpccontext.Logger(ctx)
-	log.WithField(telemetry.LaunchLogLevel, s.launchLevel).Info("ResetLogLevel Called")
+	log.WithField(telemetry.LaunchLogLevel, s.launchLevel.String()).Info("ResetLogLevel Called")
 
 	s.log.SetLevel(s.launchLevel)
 
