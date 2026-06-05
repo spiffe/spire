@@ -34,16 +34,16 @@ You may use all, some, or none of the collectors. The following collectors suppo
 
 ### `Prometheus`
 
-| Configuration | Type     | Description                        |
-|---------------|----------|------------------------------------|
-| `host`        | `string` | Prometheus exporter listen address |
-| `port`        | `int`    | Prometheus exporter listen port    |
+| Configuration | Type     | Description                                   |
+|---------------|----------|-----------------------------------------------|
+| `host`        | `string` | Prometheus exporter listen address            |
+| `port`        | `int`    | Prometheus exporter listen port               |
 | `tls`         | `object` | TLS configuration for the Prometheus exporter |
 
 #### `Prometheus.tls`
 
 | Configuration | Type | Description |
-|---------------|------|-------------|
+| ------------- | ---- | ----------- |
 | `cert_file` | `string` | Path to the PEM-encoded certificate for the Prometheus exporter. Must be set with `key_file` unless `use_spire_svid` is enabled |
 | `key_file` | `string` | Path to the PEM-encoded private key for the Prometheus exporter. Must be set with `cert_file` unless `use_spire_svid` is enabled |
 | `client_ca_file` | `string` | Optional path to the PEM-encoded CA bundle used to verify client certificates for mTLS. Cannot be combined with `authorized_spiffe_ids` |
