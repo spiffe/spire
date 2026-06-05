@@ -43,6 +43,8 @@ type Config struct {
 
 	AllowedForeignJWTClaims []string
 
+	LogSelectors []string
+
 	TrustDomain spiffeid.TrustDomain
 
 	// Hooks used by the unit tests to assert that the configuration provided

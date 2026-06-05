@@ -1,11 +1,15 @@
 package azureimds
 
 import (
+	"bytes"
 	"context"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/base64"
+	"encoding/pem"
+	"io"
 	"math/big"
+	"net/http"
 	"regexp"
 	"testing"
 	"time"
@@ -624,4 +628,110 @@ func createTestCertWithIssuer(t *testing.T, template *x509.Certificate, issuerCN
 	certKey := testkey.NewEC256(t)
 	cert := spiretest.CreateCertificate(t, template, parentCert, certKey.Public(), parentKey)
 	return cert
+}
+
+// TestValidateAttestedDocumentRejectsContentSignedByNonAzureCertificate ensures
+// that a document whose content is signed by a non-Azure certificate is
+// rejected even when a genuine Azure metadata certificate is placed first in
+// the PKCS#7 certificate bag. The bag is attacker controlled and unordered, so
+// the certificate that signed the content (resolved from SignerInfo) must be
+// the same one that Azure and chain validation run against. Validating the
+// first certificate in the bag instead allowed attacker-signed content to be
+// accepted.
+func TestValidateAttestedDocumentRejectsContentSignedByNonAzureCertificate(t *testing.T) {
+	originalRoots := roots
+	originalTransport := http.DefaultClient.Transport
+	t.Cleanup(func() {
+		roots = originalRoots
+		http.DefaultClient.Transport = originalTransport
+	})
+
+	// Trust a test root so the genuine Azure chain validates.
+	rootKey := testkey.NewEC256(t)
+	rootCert := spiretest.SelfSignCertificateWithKey(t, &x509.Certificate{
+		SerialNumber:          big.NewInt(1),
+		Subject:               pkix.Name{CommonName: "DigiCert Global Root G2"},
+		NotBefore:             time.Now().Add(-time.Hour),
+		NotAfter:              time.Now().Add(time.Hour),
+		IsCA:                  true,
+		BasicConstraintsValid: true,
+		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageCRLSign,
+	}, rootKey)
+	roots = []string{string(pem.EncodeToMemory(&pem.Block{
+		Type:  "CERTIFICATE",
+		Bytes: rootCert.Raw,
+	}))}
+
+	intermediateKey := testkey.NewEC256(t)
+	intermediateCert := spiretest.CreateCertificate(t, &x509.Certificate{
+		SerialNumber:          big.NewInt(2),
+		Subject:               pkix.Name{CommonName: "Microsoft Azure RSA TLS Issuing CA 03"},
+		NotBefore:             time.Now().Add(-time.Hour),
+		NotAfter:              time.Now().Add(time.Hour),
+		IsCA:                  true,
+		BasicConstraintsValid: true,
+		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageCRLSign,
+	}, rootCert, intermediateKey.Public(), rootKey)
+
+	// Serve the intermediate certificate for the CA Issuers lookup.
+	http.DefaultClient.Transport = roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		require.Equal(t, "https", req.URL.Scheme)
+		require.Equal(t, MicrosoftIntermediateIssuerHost, req.URL.Host)
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Body:       io.NopCloser(bytes.NewReader(intermediateCert.Raw)),
+			Header:     make(http.Header),
+		}, nil
+	})
+
+	// A genuine Azure metadata certificate that chains to the trusted root. It
+	// is placed in the bag but does not sign the content.
+	azureMetadataKey := testkey.NewEC256(t)
+	azureMetadataCert := spiretest.CreateCertificate(t, &x509.Certificate{
+		SerialNumber:          big.NewInt(3),
+		Subject:               pkix.Name{CommonName: "metadata.azure.com"},
+		NotBefore:             time.Now().Add(-time.Hour),
+		NotAfter:              time.Now().Add(time.Hour),
+		IssuingCertificateURL: []string{"https://www.microsoft.com/pkiops/certs/test-azure-intermediate.crt"},
+		KeyUsage:              x509.KeyUsageDigitalSignature,
+		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+	}, intermediateCert, azureMetadataKey.Public(), intermediateKey)
+
+	// The attacker-controlled certificate that actually signs the content. It
+	// advertises the same Microsoft CA Issuers host so validation proceeds to
+	// Azure certificate validation, which rejects the non-Azure subject.
+	attackerKey := testkey.NewEC256(t)
+	attackerCert := spiretest.SelfSignCertificateWithKey(t, &x509.Certificate{
+		SerialNumber:          big.NewInt(4),
+		Subject:               pkix.Name{CommonName: "attacker.example.test"},
+		NotBefore:             time.Now().Add(-time.Hour),
+		NotAfter:              time.Now().Add(time.Hour),
+		IssuingCertificateURL: []string{"https://www.microsoft.com/pkiops/certs/test-azure-intermediate.crt"},
+		KeyUsage:              x509.KeyUsageDigitalSignature,
+	}, attackerKey)
+
+	signedData, err := pkcs7.NewSignedData([]byte(`{"subscriptionId":"attacker-subscription","vmId":"550e8400-e29b-41d4-a716-446655440000","nonce":"server-nonce"}`))
+	require.NoError(t, err)
+
+	// Place the Azure certificate first in the bag, then sign with the attacker
+	// certificate so SignerInfo points at the non-Azure signer.
+	signedData.AddCertificate(azureMetadataCert)
+	require.NoError(t, signedData.AddSigner(attackerCert, attackerKey, pkcs7.SignerInfoConfig{}))
+
+	signature, err := signedData.Finish()
+	require.NoError(t, err)
+
+	content, err := validateAttestedDocument(context.Background(), &azure.AttestedDocument{
+		Encoding:  "pkcs7-signature",
+		Signature: base64.StdEncoding.EncodeToString(signature),
+	})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "azure certificate validation failed")
+	require.Nil(t, content)
+}
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (fn roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return fn(req)
 }

@@ -113,6 +113,7 @@ func (s *Server) run(ctx context.Context) (err error) {
 		Logger:      s.config.Log.WithField(telemetry.SubsystemName, telemetry.Telemetry),
 		ServiceName: telemetry.SpireServer,
 		TrustDomain: s.config.TrustDomain.Name(),
+		TLSPolicy:   s.config.TLSPolicy,
 		GetX509SVID: func() (*x509svid.SVID, error) {
 			if svidRotator == nil {
 				return nil, errors.New("server SVID rotator is not initialized")

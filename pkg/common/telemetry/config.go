@@ -7,6 +7,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/go-spiffe/v2/svid/x509svid"
+	"github.com/spiffe/spire/pkg/common/tlspolicy"
 )
 
 type MetricsConfig struct {
@@ -15,6 +16,7 @@ type MetricsConfig struct {
 	ServiceName              string
 	Sinks                    []Sink
 	TrustDomain              string
+	TLSPolicy                tlspolicy.Policy
 	GetX509SVID              func() (*x509svid.SVID, error)
 	GetX509BundleAuthorities func(spiffeid.TrustDomain) ([]*x509.Certificate, error)
 }

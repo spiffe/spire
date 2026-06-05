@@ -87,6 +87,7 @@ func (a *Agent) Run(ctx context.Context) error {
 		Logger:      a.c.Log.WithField(telemetry.SubsystemName, telemetry.Telemetry),
 		ServiceName: telemetry.SpireAgent,
 		TrustDomain: a.c.TrustDomain.Name(),
+		TLSPolicy:   a.c.TLSPolicy,
 		GetX509SVID: func() (*x509svid.SVID, error) {
 			if mgr == nil {
 				return nil, errors.New("agent manager is not initialized")
@@ -214,7 +215,7 @@ func (a *Agent) Run(ctx context.Context) error {
 
 			if x509util.IsUnknownAuthorityError(err) {
 				if a.c.TrustBundleSources.IsBootstrap() {
-					a.c.Log.Info("Trust Bundle and Server dont agree.... bootstrapping again")
+					a.c.Log.Info("Trust Bundle and Server don't agree, bootstrapping again")
 				} else if a.c.RebootstrapMode != RebootstrapNever {
 					startTime, err := a.c.TrustBundleSources.GetStartTime()
 					if err != nil {
@@ -223,10 +224,10 @@ func (a *Agent) Run(ctx context.Context) error {
 					seconds := time.Since(startTime)
 					if seconds < a.c.RebootstrapDelay {
 						a.c.Log.WithFields(logrus.Fields{
-							"time left": a.c.RebootstrapDelay - seconds,
-						}).Info("Trust Bundle and Server dont agree.... Ignoring for now.")
+							"time_left": a.c.RebootstrapDelay - seconds,
+						}).Info("Trust Bundle and Server don't agree, ignoring for now")
 					} else {
-						a.c.Log.Warn("Trust Bundle and Server dont agree.... rebootstrapping")
+						a.c.Log.Warn("Trust Bundle and Server don't agree, rebootstrapping")
 						err = sto.StoreBundle(nil)
 						if err != nil {
 							return err
@@ -426,10 +427,10 @@ func (a *Agent) newManager(ctx context.Context, sto storage.Storage, cat catalog
 			seconds := time.Since(startTime)
 			if seconds < a.c.RebootstrapDelay {
 				a.c.Log.WithFields(logrus.Fields{
-					"time left": a.c.RebootstrapDelay - seconds,
-				}).Info("Trust Bundle and Server dont agree.... Ignoring for now.")
+					"time_left": a.c.RebootstrapDelay - seconds,
+				}).Info("Trust Bundle and Server don't agree, ignoring for now")
 			} else {
-				a.c.Log.Info("Trust Bundle and Server dont agree.... rebootstrapping")
+				a.c.Log.Info("Trust Bundle and Server don't agree, rebootstrapping")
 				err = a.c.TrustBundleSources.SetForceRebootstrap()
 				if err != nil {
 					return nil, err
@@ -496,6 +497,7 @@ func (a *Agent) newEndpoints(metrics telemetry.Metrics, mgr manager.Manager, att
 		DisableSPIFFECertValidation:   a.c.DisableSPIFFECertValidation,
 		AllowUnauthenticatedVerifiers: a.c.AllowUnauthenticatedVerifiers,
 		AllowedForeignJWTClaims:       a.c.AllowedForeignJWTClaims,
+		LogSelectors:                  a.c.LogSelectors,
 		TrustDomain:                   a.c.TrustDomain,
 	})
 }

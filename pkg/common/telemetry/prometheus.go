@@ -18,6 +18,7 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/go-spiffe/v2/spiffetls/tlsconfig"
 	"github.com/spiffe/go-spiffe/v2/svid/x509svid"
+	"github.com/spiffe/spire/pkg/common/tlspolicy"
 	"github.com/spiffe/spire/pkg/common/util"
 )
 
@@ -26,6 +27,7 @@ type prometheusRunner struct {
 	log                      logrus.FieldLogger
 	server                   *http.Server
 	sink                     Sink
+	tlsPolicy                tlspolicy.Policy
 	getX509SVID              func() (*x509svid.SVID, error)
 	getX509BundleAuthorities func(spiffeid.TrustDomain) ([]*x509.Certificate, error)
 }
@@ -34,6 +36,7 @@ func newPrometheusRunner(c *MetricsConfig) (sinkRunner, error) {
 	runner := &prometheusRunner{
 		c:                        c.FileConfig.Prometheus,
 		log:                      c.Logger,
+		tlsPolicy:                c.TLSPolicy,
 		getX509SVID:              c.GetX509SVID,
 		getX509BundleAuthorities: c.GetX509BundleAuthorities,
 	}
@@ -76,6 +79,9 @@ func newPrometheusRunner(c *MetricsConfig) (sinkRunner, error) {
 		tlsCfg, tlsCfgErr := runner.newTLSConfig()
 		if tlsCfgErr != nil {
 			return runner, fmt.Errorf("failed to create TLS config for Prometheus: %w", tlsCfgErr)
+		}
+		if err := tlspolicy.ApplyPolicy(tlsCfg, runner.tlsPolicy); err != nil {
+			return runner, fmt.Errorf("failed to apply TLS policy for Prometheus: %w", err)
 		}
 		runner.server.TLSConfig = tlsCfg
 	}
