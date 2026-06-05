@@ -70,7 +70,7 @@ func (h *Handler) StreamSecrets(stream secret_v3.SecretDiscoveryService_StreamSe
 	selectors, err := h.c.Attestor.Attest(stream.Context())
 	if err != nil {
 		log.WithError(err).Error("Failed to attest the workload")
-		return err
+		return workloadAttestationFailedError(stream.Context())
 	}
 
 	sub, err := h.c.Manager.SubscribeToCacheChanges(stream.Context(), selectors)
@@ -224,13 +224,20 @@ func (h *Handler) DeltaSecrets(secret_v3.SecretDiscoveryService_DeltaSecretsServ
 	return status.Error(codes.Unimplemented, "Method is not implemented")
 }
 
+func workloadAttestationFailedError(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return status.Error(codes.Unavailable, "workload attestation failed")
+}
+
 func (h *Handler) FetchSecrets(ctx context.Context, req *discovery_v3.DiscoveryRequest) (*discovery_v3.DiscoveryResponse, error) {
 	log := rpccontext.Logger(ctx).WithField(telemetry.ResourceNames, req.ResourceNames)
 
 	selectors, err := h.c.Attestor.Attest(ctx)
 	if err != nil {
 		log.WithError(err).Error("Failed to attest the workload")
-		return nil, err
+		return nil, workloadAttestationFailedError(ctx)
 	}
 
 	upd := h.c.Manager.FetchWorkloadUpdate(selectors)

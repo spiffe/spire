@@ -166,8 +166,8 @@ func TestFetchX509SVID(t *testing.T) {
 		{
 			name:       "attest error",
 			attestErr:  errors.New("ohno"),
-			expectCode: codes.Unknown,
-			expectMsg:  "ohno",
+			expectCode: codes.Unavailable,
+			expectMsg:  "workload attestation failed",
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
@@ -407,8 +407,8 @@ func TestFetchX509Bundles(t *testing.T) {
 		{
 			testName:   "attest error",
 			attestErr:  errors.New("ohno"),
-			expectCode: codes.Unknown,
-			expectMsg:  "ohno",
+			expectCode: codes.Unavailable,
+			expectMsg:  "workload attestation failed",
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
@@ -804,8 +804,8 @@ func TestFetchJWTSVID(t *testing.T) {
 			name:       "attest error",
 			audience:   []string{"AUDIENCE"},
 			attestErr:  errors.New("ohno"),
-			expectCode: codes.Unknown,
-			expectMsg:  "ohno",
+			expectCode: codes.Unavailable,
+			expectMsg:  "workload attestation failed",
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
@@ -1049,8 +1049,8 @@ func TestFetchJWTBundles(t *testing.T) {
 		{
 			name:       "attest error",
 			attestErr:  errors.New("ohno"),
-			expectCode: codes.Unknown,
-			expectMsg:  "ohno",
+			expectCode: codes.Unavailable,
+			expectMsg:  "workload attestation failed",
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
@@ -1432,8 +1432,8 @@ func TestValidateJWTSVID(t *testing.T) {
 			svid:       "BAD",
 			audience:   "AUDIENCE",
 			attestErr:  errors.New("ohno"),
-			expectCode: codes.Unknown,
-			expectMsg:  "ohno",
+			expectCode: codes.Unavailable,
+			expectMsg:  "workload attestation failed",
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
