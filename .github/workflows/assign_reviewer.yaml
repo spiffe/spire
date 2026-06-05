@@ -1,21 +1,22 @@
 name: assign-reviewer
 
-# Round-robin assignee ("ball in court") for pull requests.
+# Rotating assignee ("ball in court") for pull requests.
 #
 # This workflow does not request reviewers: the repository's CODEOWNERS file
 # already requests the maintainers on every PR. Instead it designates a single
-# rotated maintainer as the PR *assignee* to show who owns the next action
+# maintainer as the PR *assignee* to show who owns the next action
 # ("ball in court"), and keeps that up to date as the review progresses:
-#   - opened / ready_for_review -> a maintainer is chosen round-robin and set
-#     as the assignee.
+#   - opened / ready_for_review -> a maintainer is chosen at random from the
+#     pool and set as the assignee.
 #   - that maintainer requests changes or comments -> ball to the author.
 #   - that maintainer approves -> they stay assigned (a maintainer merges).
 #   - a human re-requests a review while the ball is with the author -> the
 #     assignee flips to the requested maintainer.
 #
-# The rotation is derived from the PR number, so it is stateless and
-# deterministic: no persisted index, and the assignee for a given PR can always
-# be recomputed. The pool is an explicit list below, separate from CODEOWNERS,
+# The assignee is picked at random from the pool, which evens out over time and
+# avoids the bias of mapping the shared PR/issue number namespace onto the pool.
+# The selection is stateless: no persisted index or external state. The pool is
+# an explicit list below, separate from CODEOWNERS,
 # so it can be adjusted for availability (leave, inactivity) without touching
 # ownership.
 #
@@ -152,7 +153,7 @@ jobs:
               return;
             }
 
-            // 1) New PR (or draft promoted to ready): round-robin the assignee.
+            // 1) New PR (or draft promoted to ready): pick a random pool member.
             if (eventName === 'pull_request_target' &&
                 (action === 'opened' || action === 'ready_for_review')) {
               if (pr.draft) {
@@ -166,8 +167,8 @@ jobs:
                 core.info('No eligible maintainers after excluding the author; skipping.');
                 return;
               }
-              const reviewer = candidates[pr.number % candidates.length];
-              core.info(`Round-robin assignee for PR #${pr.number}: ${reviewer}.`);
+              const reviewer = candidates[Math.floor(Math.random() * candidates.length)];
+              core.info(`Selected assignee for PR #${pr.number}: ${reviewer}.`);
               await setMaintainerCourt(reviewer);
               return;
             }
