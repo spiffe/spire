@@ -17,7 +17,6 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/mount-utils"
 )
 
 var (
@@ -82,7 +81,7 @@ func (e *Extractor) extractInfo(pid int32, log hclog.Logger, extractPodUID bool)
 func (e *Extractor) extractPodUIDAndContainerIDFromMountInfo(pid int32, log hclog.Logger, extractPodUID bool) (types.UID, string, error) {
 	mountInfoPath := filepath.Join(e.RootDir, "/proc", fmt.Sprint(pid), "mountinfo")
 
-	mountInfos, err := mount.ParseMountInfo(mountInfoPath)
+	mountInfos, err := parseMountInfo(mountInfoPath)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
 			return "", "", nil
