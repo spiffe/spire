@@ -40,10 +40,15 @@ on:
   pull_request_review:
     types: [submitted]
 
-# Serialize runs per PR so overlapping events don't race on assignee/label
-# state. Don't cancel in-progress runs; each event must be processed.
+# Serialize runs per PR and per event action so overlapping events don't race
+# on assignee/label state. The action is part of the group on purpose: when a
+# PR opens, GitHub fires the "opened" event together with a burst of CODEOWNERS
+# "review_requested" events, and a single group plus cancel-in-progress: false
+# makes GitHub cancel all but the latest pending run, which can drop the
+# "opened" run that assigns the reviewer. Keeping each action in its own group
+# lets "opened" run on its own while same-action bursts still collapse safely.
 concurrency:
-  group: assign-reviewer-${{ github.event.pull_request.number }}
+  group: assign-reviewer-${{ github.event.pull_request.number }}-${{ github.event_name }}-${{ github.event.action }}
   cancel-in-progress: false
 
 permissions:
