@@ -6,6 +6,16 @@ The `tpm_devid` plugin attests nodes that own a TPM
 and that have been provisioned with a DevID certificate through an out-of-band
 mechanism.
 
+## Prerequisites
+
+The server must be configured with the CA certificate(s) that signed the agents'
+LDevID certificates (`devid_ca_path`). These are the same CA certificates used
+during the out-of-band node provisioning process. See the
+[TPM Deployment Walkthrough](tpm_deployment_walkthrough.md) for an end-to-end
+overview including how nodes are provisioned.
+
+## How It Works
+
 The plugin issues two challenges to the agent:
 
 1. A proof-of-possession challenge: This is required to verify the node is in
