@@ -9,8 +9,8 @@ mechanism.
 ## Prerequisites
 
 The server must be configured with the CA certificate(s) that signed the agents'
-LDevID certificates (`devid_ca_path`). These are the same CA certificates used
-during the out-of-band node provisioning process. See the
+DevID (LDevID) certificates (`devid_ca_path`). These are the same CA
+certificates used during the out-of-band node provisioning process. See the
 [TPM Deployment Walkthrough](tpm_deployment_walkthrough.md) for an end-to-end
 overview including how nodes are provisioned.
 

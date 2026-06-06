@@ -10,14 +10,16 @@ and agents running on hardware with TPM 2.0 support.
 
 - **Control Plane**: Multiple servers sharing a SQL datastore (Postgres or
   MySQL) for persistence and HA.
-- **Agent Nodes**: Physical or virtual infrastructure with `/dev/tpm0`
-  available.
+- **Agent Nodes**: Physical or virtual infrastructure with a TPM 2.0 device
+  accessible via the kernel driver.
 - **LDevID**: TPM-bound Local Device Identifiers provisioned out-of-band.
 
 ## Requirements
 
-- **TPM 2.0 hardware**: Accessible via `/dev/tpm0`.
-- **Pre-provisioned DevID**: Key blobs and certificates must be on-node before
+- **TPM 2.0 hardware**: A TPM 2.0 device accessible via the kernel driver. The
+  agent plugin autodetects the path; set `tpm_device_path` explicitly if
+  autodetection fails.
+- **Pre-provisioned LDevID**: Key blobs and certificates must be on-node before
   starting the agent.
 - **Internal CA**: The CA that signed the LDevIDs must be trusted by the
   SPIRE Server.
@@ -130,17 +132,42 @@ human-readable SPIFFE ID (such as `spiffe://example.org/node/primary`) for
 associating subsequent workload entries.
 
 ```shell
-(in dev shell) # ./bin/spire-server entry create \
-    -spiffeID spiffe://example.org/node/primary \
-    -node \
-    -selector tpm_devid:subject:cn:node-01.example.org
+spire-server entry create \
+  -spiffeID spiffe://example.org/node/primary \
+  -node \
+  -selector tpm_devid:subject:cn:node-01.example.org
 ```
 
 ## Scaling and Recovery
 
-**Horizontal Scaling**: Add server instances to the cluster by pointing them
-to the same datastore. Scale agents by provisioning new TPM-backed nodes.
+### Adding a SPIRE Server
 
-**Trust Recovery**: If an agent's certificate expires or the node is wiped,
-re-provision the TPM and refresh the agent's identity. The agent will
-re-attest using the new hardware-bound DevID on its next cycle.
+1. Deploy the new server instance with the same `server.conf`, pointing at the
+   shared datastore (`connection_string`).
+2. Copy the trust bundle from an existing server:
+
+   ```shell
+   spire-server bundle show -format spiffe > bundle.pem
+   ```
+
+3. Import it on the new instance if federation is used, or let the shared
+   datastore sync it automatically.
+4. Update your load balancer or DNS record to include the new server address.
+
+### Adding an Agent Node
+
+1. Provision the new node's TPM with an LDevID following [Section 1](#1-provisioning).
+2. Deploy the SPIRE Agent with the same `agent.conf`.
+3. Optionally create a registration entry scoped to the new node's identity
+   (see [Section 4](#4-node-registration)).
+
+### Certificate Expiry or Node Re-imaging
+
+If an agent's LDevID certificate expires or the node is wiped:
+
+1. Re-provision the TPM by repeating [Section 1](#1-provisioning) to generate
+   a new key pair and obtain a fresh certificate from the CA.
+2. Replace the artifact files on disk (`devid.crt.pem`, `devid.pub.blob`,
+   `devid.priv.blob`) with the new ones.
+3. Restart the SPIRE Agent. It will re-attest using the new hardware-bound
+   LDevID on its next connection to the server.
