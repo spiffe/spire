@@ -51,7 +51,7 @@ require (
 	github.com/google/go-cmp v0.7.0
 	github.com/google/go-containerregistry v0.21.6
 	github.com/google/go-tpm v0.9.8
-	github.com/google/go-tpm-tools v0.4.8
+	github.com/google/go-tpm-tools v0.4.9
 	github.com/googleapis/gax-go/v2 v2.22.0
 	github.com/gorilla/handlers v1.5.2
 	github.com/hashicorp/go-hclog v1.6.3
@@ -117,6 +117,7 @@ require (
 	github.com/Azure/go-ansiterm v0.0.0-20250102033503-faa5f7b0171c // indirect
 	github.com/AzureAD/microsoft-authentication-library-for-go v1.7.1 // indirect
 	github.com/DataDog/datadog-go v3.2.0+incompatible // indirect
+	github.com/GoogleCloudPlatform/confidential-space/server v0.0.0-20260522213940-e5c6d01a3007 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.31.0 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/metric v0.55.0 // indirect
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping v0.55.0 // indirect
@@ -202,6 +203,7 @@ require (
 	github.com/google/certificate-transparency-go v1.3.3 // indirect
 	github.com/google/gnostic-models v0.7.0 // indirect
 	github.com/google/go-configfs-tsm v0.3.3-0.20240919001351-b4b5b84fdcbc // indirect
+	github.com/google/go-eventlog v0.0.3-0.20260416001248-6807b85eecf0 // indirect
 	github.com/google/go-sev-guest v0.14.0 // indirect
 	github.com/google/go-tdx-guest v0.3.2-0.20250814004405-ffb0869e6f4d // indirect
 	github.com/google/logger v1.1.1 // indirect
