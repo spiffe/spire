@@ -2,18 +2,11 @@ package k8s
 
 import (
 	"context"
-	"crypto/tls"
-	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"net/http"
 	"net/url"
 	"os"
-	"path/filepath"
-	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -25,11 +18,8 @@ import (
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/agent/common/sigstore"
 	"github.com/spiffe/spire/pkg/common/catalog"
-	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/pluginconf"
 	"github.com/spiffe/spire/pkg/common/telemetry"
-	"github.com/valyala/fastjson"
-	"golang.org/x/sync/singleflight"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	corev1 "k8s.io/api/core/v1"
@@ -142,24 +132,12 @@ type HCLConfig struct {
 
 // k8sConfig holds the configuration distilled from HCL
 type k8sConfig struct {
-	Secure                     bool
-	Port                       int
-	MaxPollAttempts            int
-	PollRetryInterval          time.Duration
-	SkipKubeletVerification    bool
-	TokenPath                  string
-	CertificatePath            string
-	PrivateKeyPath             string
-	UseAnonymousAuthentication bool
-	KubeletCAPath              string
-	NodeName                   string
-	ReloadInterval             time.Duration
-	DisableContainerSelectors  bool
-	ContainerHelper            ContainerHelper
-	sigstoreConfig             *sigstore.Config
-
-	Client     *kubeletClient
-	LastReload time.Time
+	MaxPollAttempts           int
+	PollRetryInterval         time.Duration
+	DisableContainerSelectors bool
+	ContainerHelper           ContainerHelper
+	sigstoreConfig            *sigstore.Config
+	podListFetcherConfig      podListFetcherConfig
 }
 
 func (p *Plugin) buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *k8sConfig {
@@ -235,23 +213,35 @@ func (p *Plugin) buildConfig(coreConfig catalog.CoreConfig, hclText string, stat
 		sigstoreConfig = sigstore.NewConfigFromHCL(newConfig.Sigstore, p.log)
 	}
 
-	// return the kubelet client
+	kubeletCAPath := newConfig.KubeletCAPath
+	if kubeletCAPath == "" {
+		kubeletCAPath = p.defaultKubeletCAPath()
+	}
+	tokenPath := newConfig.TokenPath
+	if tokenPath == "" {
+		tokenPath = p.defaultTokenPath()
+	}
+
+	// Return the plugin and pod list fetcher configuration.
 	return &k8sConfig{
-		Secure:                     secure,
-		Port:                       port,
-		MaxPollAttempts:            maxPollAttempts,
-		PollRetryInterval:          pollRetryInterval,
-		SkipKubeletVerification:    newConfig.SkipKubeletVerification,
-		TokenPath:                  newConfig.TokenPath,
-		CertificatePath:            newConfig.CertificatePath,
-		PrivateKeyPath:             newConfig.PrivateKeyPath,
-		UseAnonymousAuthentication: newConfig.UseAnonymousAuthentication,
-		KubeletCAPath:              newConfig.KubeletCAPath,
-		NodeName:                   nodeName,
-		ReloadInterval:             reloadInterval,
-		DisableContainerSelectors:  newConfig.DisableContainerSelectors,
-		ContainerHelper:            containerHelper,
-		sigstoreConfig:             sigstoreConfig,
+		MaxPollAttempts:           maxPollAttempts,
+		PollRetryInterval:         pollRetryInterval,
+		DisableContainerSelectors: newConfig.DisableContainerSelectors,
+		ContainerHelper:           containerHelper,
+		sigstoreConfig:            sigstoreConfig,
+		podListFetcherConfig: podListFetcherConfig{
+			pollRetryInterval:          pollRetryInterval,
+			secure:                     secure,
+			port:                       port,
+			skipKubeletVerification:    newConfig.SkipKubeletVerification,
+			tokenPath:                  tokenPath,
+			certificatePath:            newConfig.CertificatePath,
+			privateKeyPath:             newConfig.PrivateKeyPath,
+			useAnonymousAuthentication: newConfig.UseAnonymousAuthentication,
+			kubeletCAPath:              kubeletCAPath,
+			nodeName:                   nodeName,
+			reloadInterval:             reloadInterval,
+		},
 	}
 }
 
@@ -274,20 +264,27 @@ type Plugin struct {
 	containerHelper  ContainerHelper
 	sigstoreVerifier sigstore.Verifier
 
-	cachedPodList           map[string]*fastjson.Value
-	cachedPodListValidUntil time.Time
-	singleflight            singleflight.Group
+	podListFetcher *podListFetcher
 }
 
 func New() *Plugin {
-	return &Plugin{
-		clock:  clock.New(),
+	pluginClock := clock.New()
+	p := &Plugin{
+		clock:  pluginClock,
 		getenv: os.Getenv,
 	}
+	p.podListFetcher = newPodListFetcher(pluginClock, p.rootDir)
+	return p
+}
+
+func (p *Plugin) Close() error {
+	p.podListFetcher.close()
+	return nil
 }
 
 func (p *Plugin) SetLogger(log hclog.Logger) {
 	p.log = log
+	p.podListFetcher.setLogger(log)
 }
 
 func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestRequest) (*workloadattestorv1.AttestResponse, error) {
@@ -313,18 +310,29 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestReque
 	)
 
 	// Poll pod information and search for the pod with the container. If
-	// the pod is not found then delay for a little bit and try again.
+	// the pod is not found then wait for the fetcher to provide a newer
+	// result and try again.
 	var scratch []byte
+	var podListVersion uint64
 	for attempt := 1; ; attempt++ {
-		log = log.With(telemetry.Attempt, attempt)
+		log := log.With(telemetry.Attempt, attempt)
 
-		podList, err := p.getPodList(ctx, config.Client, config.PollRetryInterval/2)
-		if err != nil {
-			return nil, err
+		// The pod list fetcher takes care of caching and rate-limiting / backoffing.
+		podList, podListErr := p.podListFetcher.fetchNext(ctx, podListVersion)
+		if podListErr != nil {
+			if ctx.Err() != nil {
+				return nil, ctx.Err()
+			}
+			if errors.Is(podListErr, errPodListFetcherClosed) {
+				return nil, status.Error(codes.Unavailable, podListErr.Error())
+			}
+			// Otherwise, we'll log podListErr below, and we may retry.
+		} else {
+			podListVersion = podList.version
 		}
 
 		var attestResponse *workloadattestorv1.AttestResponse
-		for podKey, podValue := range podList {
+		for podKey, podValue := range podList.pods {
 			if podKnown {
 				if podKey != string(podUID) {
 					// The pod holding the container is known. Skip unrelated pods.
@@ -338,7 +346,7 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestReque
 
 			pod := new(corev1.Pod)
 			if err := json.Unmarshal(scratch, &pod); err != nil {
-				return nil, status.Errorf(codes.Internal, "unable to decode pod info from kubelet response: %v", err)
+				return nil, status.Errorf(codes.Unavailable, "unable to decode pod info from kubelet response: %v", err)
 			}
 
 			var selectorValues []string
@@ -356,9 +364,12 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestReque
 
 				if sigstoreVerifier != nil {
 					log.Debug("Attempting to verify sigstore image signature", "image", containerStatus.Image)
-					sigstoreSelectors, err := p.sigstoreVerifier.Verify(ctx, containerStatus.ImageID)
+					sigstoreSelectors, err := sigstoreVerifier.Verify(ctx, containerStatus.ImageID)
 					if err != nil {
-						return nil, status.Errorf(codes.Internal, "error verifying sigstore image signature for imageID %s: %v", containerStatus.ImageID, err)
+						if ctx.Err() != nil {
+							return nil, ctx.Err()
+						}
+						return nil, status.Errorf(codes.PermissionDenied, "error verifying sigstore image signature for imageID %s: %v", containerStatus.ImageID, err)
 					}
 					selectorValues = append(selectorValues, sigstoreSelectors...)
 				}
@@ -384,18 +395,22 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestReque
 		}
 
 		// if the container was not located after the maximum number of attempts then the search is over.
-		if attempt >= config.MaxPollAttempts {
+		switch {
+		case attempt >= config.MaxPollAttempts:
+			if podListErr != nil {
+				log.Warn("Unable to get pod list; giving up", telemetry.Error, podListErr)
+				return nil, status.Error(codes.Unavailable, podListErr.Error())
+			}
 			log.Warn("Container id not found; giving up")
 			return nil, status.Error(codes.DeadlineExceeded, "no selectors found after max poll attempts")
-		}
-
-		// wait a bit for containers to initialize before trying again.
-		log.Debug("Container id not found", telemetry.RetryInterval, config.PollRetryInterval)
-
-		select {
-		case <-p.clock.After(config.PollRetryInterval):
-		case <-ctx.Done():
-			return nil, status.Errorf(codes.Canceled, "no selectors found: %v", ctx.Err())
+		case podListErr != nil:
+			log.Warn("Unable to get pod list; will retry after backoff",
+				telemetry.Error, podListErr,
+				telemetry.RetryInterval, config.PollRetryInterval)
+		default:
+			// wait a bit for containers to initialize before trying again.
+			log.Debug("Container id not found; will retry after backoff",
+				telemetry.RetryInterval, config.PollRetryInterval)
 		}
 	}
 }
@@ -403,10 +418,6 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestReque
 func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) (resp *configv1.ConfigureResponse, err error) {
 	newConfig, _, err := pluginconf.Build(req, p.buildConfig)
 	if err != nil {
-		return nil, err
-	}
-
-	if err := p.reloadKubeletClient(newConfig); err != nil {
 		return nil, err
 	}
 
@@ -420,6 +431,13 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 		sigstoreVerifier = verifier
 	}
 
+	if err := p.podListFetcher.configure(ctx, newConfig.podListFetcherConfig); err != nil {
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+		return nil, status.Error(codes.InvalidArgument, err.Error())
+	}
+
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.config = newConfig
@@ -430,7 +448,13 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 }
 
 func (p *Plugin) Validate(_ context.Context, req *configv1.ValidateRequest) (resp *configv1.ValidateResponse, err error) {
-	_, notes, err := pluginconf.Build(req, p.buildConfig)
+	newConfig, notes, err := pluginconf.Build(req, p.buildConfig)
+	if err == nil {
+		err = p.podListFetcher.validate(newConfig.podListFetcherConfig)
+		if err != nil {
+			notes = append(notes, err.Error())
+		}
+	}
 
 	return &configv1.ValidateResponse{
 		Valid: err == nil,
@@ -445,194 +469,13 @@ func (p *Plugin) getConfig() (*k8sConfig, ContainerHelper, sigstore.Verifier, er
 	if p.config == nil {
 		return nil, nil, nil, status.Error(codes.FailedPrecondition, "not configured")
 	}
-	if err := p.reloadKubeletClient(p.config); err != nil {
-		p.log.Warn("Unable to load kubelet client", "err", err)
-	}
 	return p.config, p.containerHelper, p.sigstoreVerifier, nil
-}
-
-func (p *Plugin) setPodListCache(podList map[string]*fastjson.Value, cacheFor time.Duration) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
-	p.cachedPodList = podList
-	p.cachedPodListValidUntil = p.clock.Now().Add(cacheFor)
-}
-
-func (p *Plugin) getPodListCache() map[string]*fastjson.Value {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-
-	if p.clock.Now().Sub(p.cachedPodListValidUntil) >= 0 {
-		return nil
-	}
-
-	return p.cachedPodList
 }
 
 func (p *Plugin) setContainerHelper(c ContainerHelper) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.containerHelper = c
-}
-
-func (p *Plugin) reloadKubeletClient(config *k8sConfig) (err error) {
-	// The insecure client only needs to be loaded once.
-	if !config.Secure {
-		if config.Client == nil {
-			config.Client = &kubeletClient{
-				URL: url.URL{
-					Scheme: "http",
-					Host:   fmt.Sprintf("127.0.0.1:%d", config.Port),
-				},
-			}
-		}
-		return nil
-	}
-
-	// Is the client still fresh?
-	if config.Client != nil && p.clock.Now().Sub(config.LastReload) < config.ReloadInterval {
-		return nil
-	}
-
-	tlsConfig := &tls.Config{
-		InsecureSkipVerify: config.SkipKubeletVerification, //nolint: gosec // intentionally configurable
-	}
-
-	var rootCAs *x509.CertPool
-	if !config.SkipKubeletVerification {
-		rootCAs, err = p.loadKubeletCA(config.KubeletCAPath)
-		if err != nil {
-			return err
-		}
-	}
-
-	switch {
-	case config.SkipKubeletVerification:
-
-	// When contacting the kubelet over localhost, skip the hostname validation.
-	// Unfortunately Go does not make this straightforward. We disable
-	// verification but supply a VerifyPeerCertificate that will be called
-	// with the raw kubelet certs that we can verify directly.
-	case config.NodeName == "":
-		tlsConfig.InsecureSkipVerify = true
-		tlsConfig.SessionTicketsDisabled = true
-		tlsConfig.VerifyPeerCertificate = func(rawCerts [][]byte, _ [][]*x509.Certificate) error {
-			var certs []*x509.Certificate
-			for _, rawCert := range rawCerts {
-				cert, err := x509.ParseCertificate(rawCert)
-				if err != nil {
-					return err
-				}
-				certs = append(certs, cert)
-			}
-
-			// this is improbable.
-			if len(certs) == 0 {
-				return errors.New("no certs presented by kubelet")
-			}
-
-			_, err := certs[0].Verify(x509.VerifyOptions{
-				Roots:         rootCAs,
-				Intermediates: newCertPool(certs[1:]),
-			})
-			return err
-		}
-	default:
-		tlsConfig.RootCAs = rootCAs
-	}
-
-	var token string
-	switch {
-	case config.UseAnonymousAuthentication:
-	// Don't load credentials if using anonymous authentication
-	case config.CertificatePath != "" && config.PrivateKeyPath != "":
-		kp, err := p.loadX509KeyPair(config.CertificatePath, config.PrivateKeyPath)
-		if err != nil {
-			return err
-		}
-		tlsConfig.Certificates = append(tlsConfig.Certificates, *kp)
-	case config.CertificatePath != "" && config.PrivateKeyPath == "":
-		return status.Error(codes.InvalidArgument, "the private key path is required with the certificate path")
-	case config.CertificatePath == "" && config.PrivateKeyPath != "":
-		return status.Error(codes.InvalidArgument, "the certificate path is required with the private key path")
-	case config.CertificatePath == "" && config.PrivateKeyPath == "":
-		token, err = p.loadToken(config.TokenPath)
-		if err != nil {
-			return err
-		}
-	}
-
-	host := config.NodeName
-	if host == "" {
-		host = "127.0.0.1"
-	}
-
-	config.Client = &kubeletClient{
-		Transport: &http.Transport{
-			TLSClientConfig: tlsConfig,
-		},
-		URL: url.URL{
-			Scheme: "https",
-			Host:   fmt.Sprintf("%s:%d", host, config.Port),
-		},
-		Token: token,
-	}
-	config.LastReload = p.clock.Now()
-	return nil
-}
-
-func (p *Plugin) loadKubeletCA(path string) (*x509.CertPool, error) {
-	if path == "" {
-		path = p.defaultKubeletCAPath()
-	}
-	caPEM, err := p.readFile(path)
-	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "unable to load kubelet CA: %v", err)
-	}
-	certs, err := pemutil.ParseCertificates(caPEM)
-	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "unable to parse kubelet CA: %v", err)
-	}
-
-	return newCertPool(certs), nil
-}
-
-func (p *Plugin) loadX509KeyPair(cert, key string) (*tls.Certificate, error) {
-	certPEM, err := p.readFile(cert)
-	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "unable to load certificate: %v", err)
-	}
-	keyPEM, err := p.readFile(key)
-	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "unable to load private key: %v", err)
-	}
-	kp, err := tls.X509KeyPair(certPEM, keyPEM)
-	if err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "unable to load keypair: %v", err)
-	}
-	return &kp, nil
-}
-
-func (p *Plugin) loadToken(path string) (string, error) {
-	if path == "" {
-		path = p.defaultTokenPath()
-	}
-	token, err := p.readFile(path)
-	if err != nil {
-		return "", status.Errorf(codes.InvalidArgument, "unable to load token: %v", err)
-	}
-	return strings.TrimSpace(string(token)), nil
-}
-
-// readFile reads the contents of a file through the filesystem interface
-func (p *Plugin) readFile(path string) ([]byte, error) {
-	f, err := os.Open(filepath.Join(p.rootDir, path))
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-	return io.ReadAll(f)
 }
 
 func (p *Plugin) getNodeName(name string, env string) string {
@@ -644,95 +487,6 @@ func (p *Plugin) getNodeName(name string, env string) string {
 	default:
 		return p.getenv(defaultNodeNameEnv)
 	}
-}
-
-func (p *Plugin) getPodList(ctx context.Context, client *kubeletClient, cacheFor time.Duration) (map[string]*fastjson.Value, error) {
-	result := p.getPodListCache()
-	if result != nil {
-		return result, nil
-	}
-
-	podList, err, _ := p.singleflight.Do("podList", func() (any, error) {
-		result := p.getPodListCache()
-		if result != nil {
-			return result, nil
-		}
-
-		podListBytes, err := client.GetPodList(ctx)
-		if err != nil {
-			return nil, err
-		}
-
-		var parser fastjson.Parser
-		podList, err := parser.ParseBytes(podListBytes)
-		if err != nil {
-			return nil, status.Errorf(codes.Internal, "unable to parse kubelet response: %v", err)
-		}
-
-		items := podList.GetArray("items")
-		result = make(map[string]*fastjson.Value, len(items))
-
-		for _, podValue := range items {
-			uid := string(podValue.Get("metadata", "uid").GetStringBytes())
-
-			if uid == "" {
-				p.log.Warn("Pod has no UID", "pod", podValue)
-				continue
-			}
-
-			result[uid] = podValue
-		}
-
-		p.setPodListCache(result, cacheFor)
-
-		return result, nil
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	return podList.(map[string]*fastjson.Value), nil
-}
-
-type kubeletClient struct {
-	Transport *http.Transport
-	URL       url.URL
-	Token     string
-}
-
-func (c *kubeletClient) GetPodList(ctx context.Context) ([]byte, error) {
-	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	defer cancel()
-
-	url := c.URL
-	url.Path = "/pods"
-	req, err := http.NewRequestWithContext(ctx, "GET", url.String(), nil)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "unable to create request: %v", err)
-	}
-	if c.Token != "" {
-		req.Header.Set("Authorization", "Bearer "+c.Token)
-	}
-
-	client := &http.Client{}
-	if c.Transport != nil {
-		client.Transport = c.Transport
-	}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "unable to perform request: %v", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, status.Errorf(codes.Internal, "unexpected status code on pods response: %d %s", resp.StatusCode, tryRead(resp.Body))
-	}
-
-	out, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "unable to read pods response: %v", err)
-	}
-	return out, nil
 }
 
 func lookUpContainerInPod(containerID string, status corev1.PodStatus, log hclog.Logger) (*corev1.ContainerStatus, bool) {
@@ -781,7 +535,7 @@ func lookUpContainerInPod(containerID string, status corev1.PodStatus, log hclog
 
 func getPodImageIdentifiers(containerStatuses ...corev1.ContainerStatus) map[string]struct{} {
 	// Map is used purely to exclude duplicate selectors, value is unused.
-	podImages := make(map[string]struct{})
+	podImages := make(map[string]struct{}, 2*len(containerStatuses))
 	// Note that for each pod image we generate *2* matching selectors.
 	// This is to support matching against ImageID, which has a SHA
 	// docker.io/envoyproxy/envoy-alpine@sha256:bf862e5f5eca0a73e7e538224578c5cf867ce2be91b5eaed22afc153c00363eb
@@ -809,8 +563,8 @@ func getSelectorValuesFromPodInfo(pod *corev1.Pod) []string {
 		fmt.Sprintf("node-name:%s", pod.Spec.NodeName),
 		fmt.Sprintf("pod-uid:%s", pod.UID),
 		fmt.Sprintf("pod-name:%s", pod.Name),
-		fmt.Sprintf("pod-image-count:%s", strconv.Itoa(len(pod.Status.ContainerStatuses))),
-		fmt.Sprintf("pod-init-image-count:%s", strconv.Itoa(len(pod.Status.InitContainerStatuses))),
+		fmt.Sprintf("pod-image-count:%d", len(pod.Status.ContainerStatuses)),
+		fmt.Sprintf("pod-init-image-count:%d", len(pod.Status.InitContainerStatuses)),
 	}
 
 	for podImage := range getPodImageIdentifiers(pod.Status.ContainerStatuses...) {
@@ -837,18 +591,4 @@ func getSelectorValuesFromWorkloadContainerStatus(status *corev1.ContainerStatus
 		selectorValues = append(selectorValues, fmt.Sprintf("container-image:%s", containerImage))
 	}
 	return selectorValues
-}
-
-func tryRead(r io.Reader) string {
-	buf := make([]byte, 1024)
-	n, _ := r.Read(buf)
-	return string(buf[:n])
-}
-
-func newCertPool(certs []*x509.Certificate) *x509.CertPool {
-	certPool := x509.NewCertPool()
-	for _, cert := range certs {
-		certPool.AddCert(cert)
-	}
-	return certPool
 }
