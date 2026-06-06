@@ -3,10 +3,8 @@
 package k8s
 
 import (
-	"io"
 	"log"
 	"os"
-	"path/filepath"
 	"regexp"
 	"strings"
 	"unicode"
@@ -57,7 +55,7 @@ func (h *containerHelper) Configure(config *HCLConfig, log hclog.Logger) error {
 
 func (h *containerHelper) GetPodUIDAndContainerID(pID int32, log hclog.Logger) (types.UID, string, error) {
 	if !h.useNewContainerLocator {
-		cgroups, err := cgroups.GetCgroups(pID, dirFS(h.rootDir))
+		cgroups, err := cgroups.GetCgroups(pID, os.DirFS(h.rootDir))
 		if err != nil {
 			return "", "", status.Errorf(codes.Internal, "unable to obtain cgroups: %v", err)
 		}
@@ -199,10 +197,4 @@ func canonicalizePodUID(uid string) types.UID {
 		}
 		return r
 	}, uid))
-}
-
-type dirFS string
-
-func (d dirFS) Open(p string) (io.ReadCloser, error) {
-	return os.Open(filepath.Join(string(d), p))
 }
