@@ -9,6 +9,7 @@ import (
 	"encoding/pem"
 	"io"
 	"math/big"
+	"net/http"
 	"testing"
 	"time"
 
@@ -134,39 +135,44 @@ func TestValidateAzureCertificates(t *testing.T) {
 	tests := []struct {
 		name          string
 		signingCert   *x509.Certificate
+		domains       []string
 		expectErr     bool
 		errorContains string
 	}{
 		{
-			name: "valid signing certificate with SAN",
+			name: "valid signing certificate with single-level subdomain SAN",
+			signingCert: createTestCertWithIssuer(t, &x509.Certificate{
+				Subject:  pkix.Name{CommonName: "metadata.azure.com"},
+				DNSNames: []string{"eastus.metadata.azure.com"},
+			}, "Microsoft Azure RSA TLS Issuing CA 03"),
+			domains:   allowedMetadataDomains,
+			expectErr: false,
+		},
+		{
+			name: "valid signing certificate with exact domain match",
 			signingCert: createTestCertWithIssuer(t, &x509.Certificate{
 				Subject:  pkix.Name{CommonName: "metadata.azure.com"},
 				DNSNames: []string{"metadata.azure.com"},
 			}, "Microsoft Azure RSA TLS Issuing CA 03"),
+			domains:   allowedMetadataDomains,
 			expectErr: false,
 		},
 		{
-			name: "valid signing certificate with SAN but different CN",
-			signingCert: createTestCertWithIssuer(t, &x509.Certificate{
-				Subject:  pkix.Name{CommonName: "other.domain.com"},
-				DNSNames: []string{"metadata.azure.com"},
-			}, "Microsoft Azure RSA TLS Issuing CA 03"),
-			expectErr: false,
-		},
-		{
-			name: "works with any issuer name - G2 pattern",
+			name: "valid signing certificate with different regional SAN",
 			signingCert: createTestCertWithIssuer(t, &x509.Certificate{
 				Subject:  pkix.Name{CommonName: "metadata.azure.com"},
-				DNSNames: []string{"metadata.azure.com"},
+				DNSNames: []string{"centralus.metadata.azure.com"},
+			}, "Microsoft Azure RSA TLS Issuing CA 03"),
+			domains:   allowedMetadataDomains,
+			expectErr: false,
+		},
+		{
+			name: "works with any issuer name - G2 issuer",
+			signingCert: createTestCertWithIssuer(t, &x509.Certificate{
+				Subject:  pkix.Name{CommonName: "metadata.azure.com"},
+				DNSNames: []string{"westus2.metadata.azure.com"},
 			}, "Microsoft TLS G2 RSA CA OCSP 10"),
-			expectErr: false,
-		},
-		{
-			name: "works with any issuer name - old pattern",
-			signingCert: createTestCertWithIssuer(t, &x509.Certificate{
-				Subject:  pkix.Name{CommonName: "metadata.azure.com"},
-				DNSNames: []string{"metadata.azure.com"},
-			}, "Microsoft Azure RSA TLS Issuing CA 07"),
+			domains:   allowedMetadataDomains,
 			expectErr: false,
 		},
 		{
@@ -175,8 +181,9 @@ func TestValidateAzureCertificates(t *testing.T) {
 				Subject:  pkix.Name{CommonName: "metadata.azure.com"},
 				DNSNames: nil,
 			}, "Microsoft Azure RSA TLS Issuing CA 03"),
+			domains:       allowedMetadataDomains,
 			expectErr:     true,
-			errorContains: "certificate does not have any allowed domain in SAN",
+			errorContains: "certificate does not have any valid domain in SAN",
 		},
 		{
 			name: "wrong SAN domain should fail",
@@ -184,22 +191,89 @@ func TestValidateAzureCertificates(t *testing.T) {
 				Subject:  pkix.Name{CommonName: "metadata.azure.com"},
 				DNSNames: []string{"wrong.domain.com"},
 			}, "Microsoft Azure RSA TLS Issuing CA 03"),
+			domains:       allowedMetadataDomains,
 			expectErr:     true,
-			errorContains: "certificate does not have any allowed domain in SAN",
+			errorContains: "certificate does not have any valid domain in SAN",
 		},
 		{
-			name: "multiple SANs with one matching",
+			name: "multi-level subdomain should succeed",
+			signingCert: createTestCertWithIssuer(t, &x509.Certificate{
+				Subject:  pkix.Name{CommonName: "metadata.azure.com"},
+				DNSNames: []string{"sub.eastus.metadata.azure.com"},
+			}, "Microsoft Azure RSA TLS Issuing CA 03"),
+			domains:   allowedMetadataDomains,
+			expectErr: false,
+		},
+		{
+			name: "multiple SANs with one matching domain",
 			signingCert: createTestCertWithIssuer(t, &x509.Certificate{
 				Subject:  pkix.Name{CommonName: "other.domain.com"},
-				DNSNames: []string{"other.domain.com", "metadata.azure.com", "another.domain.com"},
+				DNSNames: []string{"other.domain.com", "westus.metadata.azure.com", "another.domain.com"},
 			}, "Microsoft Azure RSA TLS Issuing CA 03"),
+			domains:   allowedMetadataDomains,
 			expectErr: false,
+		},
+		{
+			name: "government cloud domain",
+			signingCert: createTestCertWithIssuer(t, &x509.Certificate{
+				Subject:  pkix.Name{CommonName: "metadata.azure.us"},
+				DNSNames: []string{"usgovvirginia.metadata.azure.us"},
+			}, "Microsoft Azure RSA TLS Issuing CA 03"),
+			domains:   []string{"metadata.azure.us"},
+			expectErr: false,
+		},
+		{
+			name: "multiple allowed domains - matches first domain",
+			signingCert: createTestCertWithIssuer(t, &x509.Certificate{
+				Subject:  pkix.Name{CommonName: "metadata.azure.com"},
+				DNSNames: []string{"eastus.metadata.azure.com"},
+			}, "Microsoft Azure RSA TLS Issuing CA 03"),
+			domains:   []string{"metadata.azure.com", "metadata.azure.us"},
+			expectErr: false,
+		},
+		{
+			name: "multiple allowed domains - matches second domain",
+			signingCert: createTestCertWithIssuer(t, &x509.Certificate{
+				Subject:  pkix.Name{CommonName: "metadata.azure.us"},
+				DNSNames: []string{"usgovvirginia.metadata.azure.us"},
+			}, "Microsoft Azure RSA TLS Issuing CA 03"),
+			domains:   []string{"metadata.azure.com", "metadata.azure.us"},
+			expectErr: false,
+		},
+		{
+			name: "multiple allowed domains - matches none",
+			signingCert: createTestCertWithIssuer(t, &x509.Certificate{
+				Subject:  pkix.Name{CommonName: "metadata.azure.cn"},
+				DNSNames: []string{"chinaeast.metadata.azure.cn"},
+			}, "Microsoft Azure RSA TLS Issuing CA 03"),
+			domains:       []string{"metadata.azure.com", "metadata.azure.us"},
+			expectErr:     true,
+			errorContains: "certificate does not have any valid domain in SAN",
+		},
+		{
+			name: "three-level subdomain should succeed",
+			signingCert: createTestCertWithIssuer(t, &x509.Certificate{
+				Subject:  pkix.Name{CommonName: "metadata.azure.com"},
+				DNSNames: []string{"a.b.c.metadata.azure.com"},
+			}, "Microsoft Azure RSA TLS Issuing CA 03"),
+			domains:   allowedMetadataDomains,
+			expectErr: false,
+		},
+		{
+			name: "subdomain not matching base domain should fail",
+			signingCert: createTestCertWithIssuer(t, &x509.Certificate{
+				Subject:  pkix.Name{CommonName: "metadata.azure.com"},
+				DNSNames: []string{"metadata.azure.com.attacker.com"},
+			}, "Microsoft Azure RSA TLS Issuing CA 03"),
+			domains:       allowedMetadataDomains,
+			expectErr:     true,
+			errorContains: "certificate does not have any valid domain in SAN",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validateAzureCertificates(tt.signingCert, allowedMetadataDomains)
+			err := validateAzureCertificate(tt.signingCert, tt.domains)
 
 			if tt.expectErr {
 				require.Error(t, err)
@@ -564,9 +638,9 @@ func TestValidateAttestedDocumentRejectsContentSignedByNonAzureCertificate(t *te
 	content, err := validateAttestedDocument(context.Background(), &azure.AttestedDocument{
 		Encoding:  "pkcs7-signature",
 		Signature: base64.StdEncoding.EncodeToString(signature),
-	})
+	}, []string{DefaultMetadataDomain})
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "azure certificate validation failed")
+	require.Contains(t, err.Error(), "signing certificate validation failed")
 	require.Nil(t, content)
 }
 

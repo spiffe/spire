@@ -11,7 +11,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"slices"
+	"strings"
 	"time"
 
 	"github.com/smallstep/pkcs7"
@@ -146,18 +146,26 @@ func getIntermediateCertificate(ctx context.Context, signingCert *x509.Certifica
 
 // validateAzureCertificate performs Azure-specific certificate validation.
 // Following Azure's recommendation to validate the certificate Subject Alternative Name (SAN)
-// to confirm it's from Azure, rather than pinning specific intermediate CA names.
 // See: https://learn.microsoft.com/en-us/azure/virtual-machines/instance-metadata-service?tabs=linux#signature-validation-guidance
-func validateAzureCertificate(cert *x509.Certificate, allowedDomains []string) error {
-	// Check SAN DNS names
+func validateAzureCertificate(cert *x509.Certificate, baseDomains []string) error {
+	// Check SAN DNS names against each allowed base domain
 	for _, dnsName := range cert.DNSNames {
-		if slices.Contains(allowedDomains, dnsName) {
-			return nil
+		for _, baseDomain := range baseDomains {
+			// Accept exact match with base domain
+			if dnsName == baseDomain {
+				return nil
+			}
+
+			// Accept any subdomain under the base domain (e.g., eastus.metadata.azure.com, sub.eastus.metadata.azure.com)
+			suffix := "." + baseDomain
+			if strings.HasSuffix(dnsName, suffix) {
+				return nil
+			}
 		}
 	}
 
-	return fmt.Errorf("certificate does not have any allowed domain in SAN (found SANs=%v, allowed=%v)",
-		cert.DNSNames, allowedDomains)
+	return fmt.Errorf("certificate does not have any valid domain in SAN (found SANs=%v, allowed domains=%v)",
+		cert.DNSNames, baseDomains)
 }
 
 // validateCertificateChain validates the certificate chain against the DigiCert Global Root CA

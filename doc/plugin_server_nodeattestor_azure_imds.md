@@ -15,11 +15,11 @@ attestation or to resolve selectors.
 
 ## Configuration
 
-| Configuration               | Required | Description                                                                                                                                                                                                      | Default                                                                  |
-| --------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| `tenants`                   | Required | A map of tenants, keyed by tenant domain, that are authorized for attestation. Tokens for unspecified tenants are rejected.                                                                                      |                                                                          |
-| `agent_path_template`       | Optional | A URL path portion format of Agent's SPIFFE ID. Describe in text/template format.                                                                                                                                | `"/{{ .PluginName }}/{{ .TenantID }}/{{ .SubscriptionID }}/{{ .VMID }}"` |
-| `allowed_metadata_domains`  | Optional | A list of allowed Azure metadata domains for certificate validation. Used to validate the Subject Alternative Name (SAN) in certificates from Azure IMDS. Useful for testing with custom Azure environments. | `["metadata.azure.com"]`                                                 |
+| Configuration               | Required | Description                                                                                                                                                                                                                                                                            | Default                                                                  |
+| --------------------------- | -------- |----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------| ------------------------------------------------------------------------ |
+| `tenants`                   | Required | A map of tenants, keyed by tenant domain, that are authorized for attestation. Tokens for unspecified tenants are rejected.                                                                                                                                                            |                                                                          |
+| `agent_path_template`       | Optional | A URL path portion format of Agent's SPIFFE ID. Describe in text/template format.                                                                                                                                                                                                      | `"/{{ .PluginName }}/{{ .TenantID }}/{{ .SubscriptionID }}/{{ .VMID }}"` |
+| `allowed_metadata_domains`  | Optional | A list of allowed Azure metadata domains for certificate validation. Each domain accepts the base domain (e.g., `metadata.azure.com`) and automatically validates certificates with that domain or any subdomain (e.g., `eastus.metadata.azure.com`, `sub.eastus.metadata.azure.com`). | `["metadata.azure.com"]`                                                 |
 
 Each tenant in the main configuration supports the following
 
@@ -182,7 +182,7 @@ NodeAttestor "azure_imds" {
 
 #### Configuration with Custom Metadata Domains
 
-This configuration allows custom Azure metadata domains for testing with non-production Azure environments:
+This configuration shows how to configure for non-commercial Azure environments such as Azure Government:
 
 ```hcl
 NodeAttestor "azure_imds" {
@@ -192,7 +192,27 @@ NodeAttestor "azure_imds" {
                 restrict_to_subscriptions = ["d5b40d61-272e-48da-beb9-05f295c42bd6"]
             }
         }
-        allowed_metadata_domains = ["metadata.azure.com", "custom.metadata.domain"]
+        allowed_metadata_domains = ["metadata.azure.us"]
+    }
+}
+```
+
+#### Configuration with Multiple Cloud Environments
+
+This configuration demonstrates how to allow attestation from multiple Azure environments (e.g., commercial and government clouds):
+
+```hcl
+NodeAttestor "azure_imds" {
+    plugin_data {
+        tenants = {
+            "commercial.onmicrosoft.com" = {
+                restrict_to_subscriptions = ["d5b40d61-272e-48da-beb9-05f295c42bd6"]
+            }
+            "government.onmicrosoft.us" = {
+                restrict_to_subscriptions = ["a1b2c3d4-5678-9012-3456-789012345678"]
+            }
+        }
+        allowed_metadata_domains = ["metadata.azure.com", "metadata.azure.us"]
     }
 }
 ```
