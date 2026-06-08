@@ -229,8 +229,8 @@ func (a *attestedNodes) updateCachedNodes(ctx context.Context) error {
 
 		for _, spiffeId := range fetchNodes {
 			node, ok := nodes[spiffeId]
-			// Node was deleted
-			if !ok {
+			// Node was deleted (absent from the response, or explicitly nil)
+			if !ok || node == nil {
 				a.nodeCache.RemoveAttestedNode(spiffeId)
 				a.cache.RemoveAgent(spiffeId)
 				delete(a.fetchNodes, spiffeId)

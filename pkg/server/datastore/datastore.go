@@ -52,6 +52,8 @@ type DataStore interface {
 	CreateAttestedNode(context.Context, *common.AttestedNode) (*common.AttestedNode, error)
 	DeleteAttestedNode(ctx context.Context, spiffeID string) (*common.AttestedNode, error)
 	FetchAttestedNode(ctx context.Context, spiffeID string) (*common.AttestedNode, error)
+	// FetchAttestedNodes fetches the given nodes (with selectors) keyed by SPIFFE ID.
+	// IDs with no existing node are omitted from the map and may be treated as deleted.
 	FetchAttestedNodes(ctx context.Context, spiffeIDs []string) (map[string]*common.AttestedNode, error)
 	ListAttestedNodes(context.Context, *ListAttestedNodesRequest) (*ListAttestedNodesResponse, error)
 	UpdateAttestedNode(context.Context, *common.AttestedNode, *common.AttestedNodeMask) (*common.AttestedNode, error)

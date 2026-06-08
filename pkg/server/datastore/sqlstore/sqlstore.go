@@ -324,14 +324,11 @@ func (ds *Plugin) FetchAttestedNodes(ctx context.Context, spiffeIDs []string) (m
 		return nodesMap, nil
 	}
 
-	var resp *datastore.ListAttestedNodesResponse
-	if err := ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
-		resp, err = listAttestedNodes(ctx, ds.db, ds.log, &datastore.ListAttestedNodesRequest{
-			BySpiffeIDs:    spiffeIDs,
-			FetchSelectors: true,
-		})
-		return err
-	}); err != nil {
+	resp, err := listAttestedNodes(ctx, ds.db, ds.log, &datastore.ListAttestedNodesRequest{
+		BySpiffeIDs:    spiffeIDs,
+		FetchSelectors: true,
+	})
+	if err != nil {
 		return nil, err
 	}
 
