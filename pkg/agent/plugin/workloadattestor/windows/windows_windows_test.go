@@ -137,7 +137,7 @@ func TestAttest(t *testing.T) {
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.InfoLevel,
-					Message: "group name selectors disabled; skipping LookupAccount for groups, only group_sid selectors will be produced",
+					Message: "Group name selectors disabled; skipping LookupAccount for groups, only group_sid selectors will be produced",
 				},
 			},
 		},
