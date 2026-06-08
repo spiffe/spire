@@ -139,8 +139,9 @@ func selectors(pairs ...string) []*common.Selector {
 		panic("selectors: odd number of arguments")
 	}
 	out := make([]*common.Selector, 0, len(pairs)/2)
-	for i := 0; i < len(pairs); i += 2 {
-		out = append(out, &common.Selector{Type: pairs[i], Value: pairs[i+1]})
+	for len(pairs) >= 2 {
+		out = append(out, &common.Selector{Type: pairs[0], Value: pairs[1]})
+		pairs = pairs[2:]
 	}
 	return out
 }
