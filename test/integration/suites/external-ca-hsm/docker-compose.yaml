@@ -1,0 +1,24 @@
+services:
+  spire-server:
+    build:
+      context: ${REPODIR}
+      dockerfile: test/integration/suites/external-ca-hsm/Dockerfile
+    image: spire-server-hsm:latest-local
+    hostname: spire-server
+    volumes:
+      - ./conf/server:/opt/spire/conf/server
+      - ./certs:/opt/spire/certs
+      - softhsm-tokens:/var/lib/softhsm
+    environment:
+      - SOFTHSM2_CONF=/opt/spire/conf/server/softhsm2.conf
+    command: ["-config", "/opt/spire/conf/server/server.conf"]
+
+  spire-agent:
+    image: spire-agent:latest-local
+    hostname: spire-agent
+    depends_on: ["spire-server"]
+    volumes:
+      - ./conf/agent:/opt/spire/conf/agent
+    command: ["-config", "/opt/spire/conf/agent/agent.conf"]
+volumes:
+  softhsm-tokens:

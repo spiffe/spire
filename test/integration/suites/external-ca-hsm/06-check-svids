@@ -1,0 +1,30 @@
+#!/bin/bash
+
+log-info "Checking that X509-SVIDs can be fetched..."
+
+# Entry propagation to the agent is asynchronous, so retry the fetch until the
+# SVID is issued instead of failing on the first "no identity issued".
+# Write into the bind-mounted agent conf dir so the files are visible on the
+# host (the spire-agent image is FROM scratch: no shell/openssl in-container).
+MAXCHECKS=30
+INTERVAL=1
+for ((i=1;i<=MAXCHECKS;i++)); do
+    log-info "fetching X509-SVID ($i of $MAXCHECKS max)..."
+    if docker compose exec -T spire-agent \
+        /opt/spire/bin/spire-agent api fetch x509 -write /opt/spire/conf/agent; then
+        break
+    fi
+    if [ "$i" -eq "$MAXCHECKS" ]; then
+        fail-now "Failed to fetch X509-SVID"
+    fi
+    sleep "${INTERVAL}"
+done
+
+# Verify the SVID chain on the host (openssl is available here).
+log-debug "Verifying SVID chain..."
+test -f conf/agent/svid.0.pem || fail-now "SVID file was not written"
+test -f conf/agent/bundle.0.pem || fail-now "bundle file was not written"
+openssl verify -CAfile conf/agent/bundle.0.pem conf/agent/svid.0.pem \
+    || fail-now "SVID chain verification failed"
+
+log-success "X509-SVIDs are working correctly"

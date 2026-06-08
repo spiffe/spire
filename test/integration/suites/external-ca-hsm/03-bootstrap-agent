@@ -1,0 +1,13 @@
+#!/bin/bash
+
+log-info "Bootstrapping agent..."
+
+# Create registration entry for the agent
+docker compose exec -T spire-server \
+    /opt/spire/bin/spire-server entry create \
+    -parentID "spiffe://domain.test/spire/server" \
+    -spiffeID "spiffe://domain.test/agent" \
+    -selector "x509pop:subject:cn:agent" \
+    -node || fail-now "Failed to create agent entry"
+
+log-success "Agent bootstrapped"

@@ -118,6 +118,7 @@ type experimentalConfig struct {
 	RequirePQKEM            bool                        `hcl:"require_pq_kem"`
 	WITKeyType              string                      `hcl:"wit_key_type"`
 	WITIssuer               string                      `hcl:"wit_issuer"`
+	ExternalCA              *externalCAConfig           `hcl:"external_ca"`
 
 	Flags fflag.RawConfig `hcl:"feature_flags"`
 
@@ -131,6 +132,18 @@ type caSubjectConfig struct {
 	Organization       []string               `hcl:"organization"`
 	CommonName         string                 `hcl:"common_name"`
 	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions"`
+}
+
+type externalCAConfig struct {
+	Enabled          bool          `hcl:"enabled"`
+	RootCertFilePath string        `hcl:"root_cert_file_path"`
+	CertFilePath     string        `hcl:"cert_file_path"`
+	PKCS11           *pkcs11Config `hcl:"pkcs11"`
+}
+
+type pkcs11Config struct {
+	Pkcs11URI    string `hcl:"pkcs11_uri"`
+	Pkcs11Object string `hcl:"pkcs11_object"`
 }
 
 type federationConfig struct {
@@ -785,6 +798,20 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 
 	for _, f := range c.Server.Experimental.Flags {
 		sc.Log.Warnf("Developer feature flag %q has been enabled", f)
+	}
+
+	if c.Server.Experimental.ExternalCA != nil && c.Server.Experimental.ExternalCA.Enabled {
+		sc.ExternalCA = server.ExternalCAConfig{
+			Enabled:          c.Server.Experimental.ExternalCA.Enabled,
+			RootCertFilePath: c.Server.Experimental.ExternalCA.RootCertFilePath,
+			CertFilePath:     c.Server.Experimental.ExternalCA.CertFilePath,
+		}
+		if c.Server.Experimental.ExternalCA.PKCS11 != nil {
+			sc.ExternalCA.PKCS11 = &server.PKCS11Config{
+				PKCS11URI:    c.Server.Experimental.ExternalCA.PKCS11.Pkcs11URI,
+				PKCS11Object: c.Server.Experimental.ExternalCA.PKCS11.Pkcs11Object,
+			}
+		}
 	}
 
 	return sc, nil

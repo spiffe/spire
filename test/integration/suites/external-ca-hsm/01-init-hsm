@@ -1,0 +1,24 @@
+#!/bin/bash
+
+log-info "Initializing HSM and importing keys..."
+
+# Initialize the SoftHSM token and import the intermediate CA key BEFORE the
+# server runs. The server's entrypoint is "spire-server run" with a PKCS#11
+# external CA config, so if it starts before the token exists it crashes with
+# "could not open PKCS#11". We override the entrypoint to "sh" and run a
+# throwaway container; the token persists to the host via the ./softhsm volume.
+log-debug "Initializing SoftHSM token and importing intermediate CA key..."
+docker compose run --rm -T --entrypoint sh spire-server -c '
+    set -e
+    softhsm2-util --init-token --slot 0 --label "SPIRE" --so-pin 5678 --pin 1234
+    # Select the token by label, not slot: SoftHSM assigns a new random slot id
+    # after init, so "--slot 0" may no longer point at the token we created.
+    softhsm2-util --import /opt/spire/certs/intermediate-key.pem \
+        --token "SPIRE" \
+        --label "intermediate-ca-key" \
+        --id 01 \
+        --pin 1234
+    softhsm2-util --show-slots
+' || fail-now "Failed to initialize HSM and import key"
+
+log-success "HSM initialized and key imported"

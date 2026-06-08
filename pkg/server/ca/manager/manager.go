@@ -8,6 +8,7 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"io"
 	"sync"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/backoff"
 	"github.com/spiffe/spire/pkg/common/coretypes/x509certificate"
+	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	telemetry_server "github.com/spiffe/spire/pkg/common/telemetry/server"
 	"github.com/spiffe/spire/pkg/common/x509util"
@@ -28,6 +30,8 @@ import (
 	"github.com/spiffe/spire/pkg/server/plugin/notifier"
 	"github.com/spiffe/spire/proto/private/server/journal"
 	"github.com/spiffe/spire/proto/spire/common"
+	"go.step.sm/crypto/kms/apiv1"
+	"go.step.sm/crypto/kms/pkcs11"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -82,20 +86,25 @@ type AuthorityManager interface {
 }
 
 type Config struct {
-	CredBuilder     *credtemplate.Builder
-	CredValidator   *credvalidator.Validator
-	CA              ManagedCA
-	Catalog         catalog.Catalog
-	TrustDomain     spiffeid.TrustDomain
-	X509CAKeyType   keymanager.KeyType
-	DisableJWTSVIDs bool
-	DisableWITSVIDs bool
-	JWTKeyType      keymanager.KeyType
-	WITKeyType      keymanager.KeyType
-	Dir             string
-	Log             logrus.FieldLogger
-	Metrics         telemetry.Metrics
-	Clock           clock.Clock
+	CredBuilder          *credtemplate.Builder
+	CredValidator        *credvalidator.Validator
+	CA                   ManagedCA
+	Catalog              catalog.Catalog
+	TrustDomain          spiffeid.TrustDomain
+	X509CAKeyType        keymanager.KeyType
+	DisableJWTSVIDs      bool
+	DisableWITSVIDs      bool
+	JWTKeyType           keymanager.KeyType
+	WITKeyType           keymanager.KeyType
+	Dir                  string
+	Log                  logrus.FieldLogger
+	Metrics              telemetry.Metrics
+	Clock                clock.Clock
+	UseExternalX509CA    bool
+	RootCertPath         string
+	IntermediateCertPath string
+	PKCS11URI            string
+	PKCS11SigningKey     string
 }
 
 type Manager struct {
@@ -125,6 +134,22 @@ type Manager struct {
 
 	// Used for testing backoff, must not be set in regular code
 	triggerBackOffCh chan error
+	// pkcs11KMS to avoid resource leaks
+	pkcs11KMS io.Closer
+}
+
+// publicKeysEqual compares two public keys for equality.
+// Supports RSA, ECDSA, and Ed25519 keys.
+func publicKeysEqual(a, b crypto.PublicKey) bool {
+	aBytes, err := x509.MarshalPKIXPublicKey(a)
+	if err != nil {
+		return false
+	}
+	bBytes, err := x509.MarshalPKIXPublicKey(b)
+	if err != nil {
+		return false
+	}
+	return bytes.Equal(aBytes, bBytes)
 }
 
 func NewManager(ctx context.Context, c Config) (*Manager, error) {
@@ -161,6 +186,102 @@ func NewManager(ctx context.Context, c Config) (*Manager, error) {
 		Catalog:        c.Catalog,
 		UpstreamClient: m.upstreamClient,
 	}
+	if c.UseExternalX509CA {
+		// Validate configuration
+		if c.RootCertPath == "" {
+			return nil, fmt.Errorf("external CA mode requires root_cert_file_path to be configured")
+		}
+		if c.IntermediateCertPath == "" {
+			return nil, fmt.Errorf("external CA mode requires cert_file_path to be configured")
+		}
+		if c.PKCS11URI == "" {
+			return nil, fmt.Errorf("external CA mode requires pkcs11_uri to be configured")
+		}
+		if c.PKCS11SigningKey == "" {
+			return nil, fmt.Errorf("external CA mode requires pkcs11_object to be configured")
+		}
+
+		// Load certificates
+		rootCA, err := pemutil.LoadCertificate(c.RootCertPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load root CA certificate: %w", err)
+		}
+
+		intermediateCA, err := pemutil.LoadCertificate(c.IntermediateCertPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load intermediate CA certificate: %w", err)
+		}
+
+		// Validate certificate chain
+		if err := intermediateCA.CheckSignatureFrom(rootCA); err != nil {
+			return nil, fmt.Errorf("intermediate CA certificate is not signed by root CA: %w", err)
+		}
+
+		// Verify intermediate has CA constraints
+		if !intermediateCA.IsCA {
+			return nil, fmt.Errorf("intermediate certificate is not a CA certificate (BasicConstraints.CA is false)")
+		}
+
+		if _, err := m.appendBundle(ctx, []*x509.Certificate{rootCA, intermediateCA}, nil, nil); err != nil {
+			return nil, fmt.Errorf("failed to append certs to bundle: %w", err)
+		}
+
+		// Load signer from HSM
+		p11, err := pkcs11.New(ctx, apiv1.Options{
+			Type: "pkcs11",
+			URI:  c.PKCS11URI,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to initialize PKCS#11: %w", err)
+		}
+		m.pkcs11KMS = p11
+		signer, err := p11.CreateSigner(&apiv1.CreateSignerRequest{
+			SigningKey: c.PKCS11SigningKey,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to create signer from HSM: %w", err)
+		}
+
+		// Verify signer's public key matches the intermediate certificate's public key
+		if !publicKeysEqual(signer.Public(), intermediateCA.PublicKey) {
+			return nil, fmt.Errorf("HSM signer public key does not match intermediate certificate public key")
+		}
+
+		x509CA := &ca.X509CA{
+			Signer:      signer,
+			Certificate: intermediateCA,
+		}
+
+		m.currentX509CA = &x509CASlot{
+			id:                  c.PKCS11SigningKey,
+			x509CA:              x509CA,
+			issuedAt:            intermediateCA.NotBefore,
+			status:              journal.Status_ACTIVE,
+			authorityID:         x509util.SubjectKeyIDToString(intermediateCA.SubjectKeyId),
+			upstreamAuthorityID: x509util.SubjectKeyIDToString(intermediateCA.AuthorityKeyId),
+			publicKey:           intermediateCA.PublicKey,
+			notAfter:            intermediateCA.NotAfter,
+		}
+
+		// Initialize nextX509CA as an empty slot to prevent nil pointer issues with the rotator
+		m.nextX509CA = &x509CASlot{}
+
+		m.c.CA.SetX509CA(x509CA)
+
+		// Log certificate info and warn if approaching expiration
+		timeUntilExpiry := time.Until(intermediateCA.NotAfter)
+		m.c.Log.WithFields(logrus.Fields{
+			"authority_id": m.currentX509CA.authorityID,
+			"not_before":   intermediateCA.NotBefore,
+			"not_after":    intermediateCA.NotAfter,
+			"expires_in":   timeUntilExpiry.String(),
+		}).Info("Loaded external X.509 CA from HSM")
+
+		// Warn if certificate is approaching expiration
+		if timeUntilExpiry < 30*24*time.Hour {
+			m.c.Log.WithField("expires_in", timeUntilExpiry.String()).Warn("External CA certificate is approaching expiration")
+		}
+	}
 
 	journal, slots, err := loader.load(ctx)
 	if err != nil {
@@ -169,13 +290,20 @@ func NewManager(ctx context.Context, c Config) (*Manager, error) {
 
 	now := m.c.Clock.Now()
 	m.journal = journal
-	if currentX509CA, ok := slots[CurrentX509CASlot]; ok {
-		m.currentX509CA = currentX509CA.(*x509CASlot)
 
-		if !currentX509CA.IsEmpty() && !currentX509CA.ShouldActivateNext(now) {
-			// activate the X509CA immediately if it is set and not within
-			// activation time of the next X509CA.
-			m.activateX509CA(ctx)
+	// Set the active X.509 authority ID in the journal when using external CA
+	if c.UseExternalX509CA {
+		m.journal.SetActiveX509AuthorityID(m.currentX509CA.authorityID)
+	}
+	if !c.UseExternalX509CA {
+		if currentX509CA, ok := slots[CurrentX509CASlot]; ok {
+			m.currentX509CA = currentX509CA.(*x509CASlot)
+
+			if !currentX509CA.IsEmpty() && !currentX509CA.ShouldActivateNext(now) {
+				// activate the X509CA immediately if it is set and not within
+				// activation time of the next X509CA.
+				m.activateX509CA(ctx)
+			}
 		}
 	}
 
@@ -221,6 +349,13 @@ func (m *Manager) Close() {
 	if m.upstreamClient != nil {
 		_ = m.upstreamClient.Close()
 	}
+	if m.pkcs11KMS != nil {
+		_ = m.pkcs11KMS.Close()
+	}
+}
+
+func (m *Manager) IsStaticX509CA() bool {
+	return m.c.UseExternalX509CA
 }
 
 func (m *Manager) NotifyTaintedX509Authority(ctx context.Context, authorityID string) error {
@@ -327,6 +462,10 @@ func (m *Manager) IsUpstreamAuthority() bool {
 func (m *Manager) ActivateX509CA(ctx context.Context) {
 	m.x509CAMutex.RLock()
 	defer m.x509CAMutex.RUnlock()
+	if m.c.UseExternalX509CA {
+		m.c.Log.Debug("Static X.509 CA mode: skipping ActivateX509CA")
+		return
+	}
 
 	m.activateX509CA(ctx)
 }

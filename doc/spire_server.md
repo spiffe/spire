@@ -96,18 +96,8 @@ This may be useful for templating configuration files, for example across differ
 | `organization`              | Array of `Organization` values |                |
 | `common_name`               | The `CommonName` value         |                |
 
-| experimental                  | Description                                                                                                                                                                                                            | Default                            |
-|:------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------------------------|
-| `agent_spiffe_id_as_selector` | Enable adding the agent spiffe_id to the list of node selectors automatically.                                                                                                                                         | false                              |
-| `cache_reload_interval`       | The amount of time between two reloads of the in-memory entry cache. Increasing this will mitigate high database load for extra large deployments, but will also slow propagation of new or updated entries to agents. | 5s                                 |
-| `full_cache_reload_interval`  | How often to a full reload of the cache from the database when using the events based cache.                                                                                                                           | 24h                                |
-| `events_based_cache`          | Use events to update the cache with what's changed since the last update. Enabling this will reduce overhead on the database.                                                                                          | false                              |
-| `prune_events_older_than`     | How old an event can be before being deleted. Used with events based cache. Decreasing this will keep the events table smaller, but will increase risk of missing an event if connection to the database is down.      | 12h                                |
-| `event_timeout`               | Maximum time to wait for an event to come in before giving up.                                                                                                                                                         | 15m                                |
-| `auth_opa_policy_engine`      | The [auth opa_policy engine](/doc/authorization_policy_engine.md) used for authorization decisions                                                                                                                     | default SPIRE authorization policy |
-| `named_pipe_name`             | Pipe name of the SPIRE Server API named pipe (Windows only)                                                                                                                                                            | \spire-server\private\api          |
-| `require_pq_kem`              | Require use of a post-quantum-safe key exchange method for TLS handshakes                                                                                                                                              | false                              |
 | `wit_issuer`                  | The issuer claim used when minting WIT-SVIDs                                                                                                                                                                           |                                    |
+| `external_ca`                 | Configuration for using an existing CA from an HSM (see [External CA Configuration](#external-ca-configuration))                                                                                                       |                                    |
 
 | ratelimit     | Description                                                                                                                                        | Default |
 |:--------------|----------------------------------------------------------------------------------------------------------------------------------------------------|---------|
@@ -122,6 +112,62 @@ This may be useful for templating configuration files, for example across differ
 |:------------------------------|-------------------------------------------------------------------------------------------|----------------|
 | `rego_path`                   | File to retrieve OPA rego policy for authorization.                                       |                |
 | `policy_data_path`            | File to retrieve databindings for policy evaluation.                                      |                |
+
+### External CA Configuration
+
+The `external_ca` configuration allows SPIRE Server to use an existing Certificate Authority from an HSM (Hardware Security Module) instead of generating its own intermediate CA. This is useful for integrating SPIRE with existing PKI infrastructure where CA keys are stored in hardware security modules.
+
+When enabled, SPIRE will:
+- Load an existing intermediate CA certificate and use the corresponding private key from an HSM for signing operations
+- Skip X.509 CA rotation (the external CA remains static)
+- Continue normal JWT key rotation for JWT-SVID signing
+
+**Important Notes:**
+- This is an experimental feature and may change in future releases
+- The intermediate CA certificate must be renewed manually before expiration
+- SPIRE will log a warning when the certificate is within 30 days of expiration
+- The HSM must be accessible via PKCS#11
+
+For detailed information, see the [External CA with HSM documentation](/doc/external_ca_hsm.md).
+
+| external_ca         | Description                                                                                | Required |
+|:--------------------|--------------------------------------------------------------------------------------------|----------|
+| `enabled`           | Enable external CA mode                                                                    | Yes      |
+| `root_cert_file_path` | Path to the root CA certificate (PEM format)                                              | Yes      |
+| `cert_file_path`    | Path to the intermediate CA certificate (PEM format)                                      | Yes      |
+| `pkcs11`            | PKCS#11 configuration for accessing the HSM                                                | Yes      |
+
+| pkcs11       | Description                                                                                           | Required |
+|:-------------|-------------------------------------------------------------------------------------------------------|----------|
+| `pkcs11_uri` | PKCS#11 URI for connecting to the HSM (e.g., "pkcs11:token=MyToken;pin-value=1234")                  | Yes      |
+| `pkcs11_object` | Name or identifier of the private key object in the HSM                                            | Yes      |
+
+**Example Configuration:**
+
+```hcl
+server {
+    trust_domain = "example.org"
+    data_dir = "/opt/spire/data"
+
+    experimental {
+        external_ca {
+            enabled = true
+            root_cert_file_path = "/opt/spire/conf/root-ca.pem"
+            cert_file_path = "/opt/spire/conf/intermediate-ca.pem"
+            pkcs11 {
+                pkcs11_uri = "pkcs11:token=MyHSM;pin-value=secret"
+                pkcs11_object = "intermediate-ca-key"
+            }
+        }
+    }
+}
+```
+
+**Certificate Requirements:**
+- The intermediate certificate must be signed by the root certificate
+- The intermediate certificate must have `CA:TRUE` in BasicConstraints
+- The private key in the HSM must correspond to the intermediate certificate's public key
+- Both certificates must be in PEM format
 
 ### Profiling Names
 
@@ -822,6 +868,19 @@ server {
         organization = ["SPIRE"]
         common_name = ""
     }
+
+    # Experimental: Use an external CA from an HSM
+    # experimental {
+    #     external_ca {
+    #         enabled = true
+    #         root_cert_file_path = "/opt/spire/conf/root-ca.pem"
+    #         cert_file_path = "/opt/spire/conf/intermediate-ca.pem"
+    #         pkcs11 {
+    #             pkcs11_uri = "pkcs11:token=MyHSM;pin-value=secret"
+    #             pkcs11_object = "intermediate-ca-key"
+    #         }
+    #     }
+    # }
 }
 
 telemetry {

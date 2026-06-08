@@ -1,0 +1,13 @@
+#!/bin/bash
+
+log-info "Creating workload registration entry..."
+
+# Create a workload registration entry
+docker compose exec -T spire-server \
+    /opt/spire/bin/spire-server entry create \
+    -parentID "spiffe://domain.test/agent" \
+    -spiffeID "spiffe://domain.test/workload" \
+    -selector "unix:uid:0" \
+    -x509SVIDTTL 60 || fail-now "Failed to create workload entry"
+
+log-success "Workload entry created"

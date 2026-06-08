@@ -208,6 +208,15 @@ func (j *Journal) setEntries(entries *journal.Entries) {
 	j.entries = entries
 }
 
+// SetActiveX509AuthorityID sets the active X.509 authority ID for external CA usage.
+// This is used when the CA is managed externally (e.g., via HSM) and not tracked in the journal.
+func (j *Journal) SetActiveX509AuthorityID(authorityID string) {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+
+	j.activeX509AuthorityID = authorityID
+}
+
 // saveInDatastore saves the provided marshaled entries in the datastore.
 // If caJournalID has not been defined yet (its value is 0), it first finds
 // the CA journal record that corresponds to this server. In case there is no
