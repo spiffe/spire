@@ -188,7 +188,7 @@ func (p *Plugin) newProcessInfo(pid int32, queryPath bool, disableGroupNames boo
 		}
 	}
 	if !disableGroupNames {
-		p.log.Debug("lookupAccount (groups) completed", "count", len(groups), "elapsed_ms", time.Since(start).Milliseconds())
+		p.log.Debug("Group account name lookups completed", "count", len(groups), "duration_ms", time.Since(start).Milliseconds())
 	}
 
 	if queryPath {
