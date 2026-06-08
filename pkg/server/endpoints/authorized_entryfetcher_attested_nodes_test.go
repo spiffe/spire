@@ -79,6 +79,13 @@ func TestLoadNodeCache(t *testing.T) {
 			expectedError: "any error, doesn't matter",
 		},
 		{
+			name: "loading with a non-positive page size raises an error",
+			setup: &nodeScenarioSetup{
+				pageSize: -1,
+			},
+			expectedError: "page size must be positive, got -1",
+		},
+		{
 			name: "initial load loads nothing",
 		},
 		{

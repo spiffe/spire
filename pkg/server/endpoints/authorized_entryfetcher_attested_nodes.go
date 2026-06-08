@@ -162,6 +162,10 @@ func (a *attestedNodes) loadCache(ctx context.Context) error {
 // buildAttestedNodesCache fetches all attested nodes and adds the unexpired ones to the cache.
 // It runs once at startup.
 func buildAttestedNodesCache(ctx context.Context, log logrus.FieldLogger, metrics telemetry.Metrics, ds datastore.DataStore, clk clock.Clock, cache *authorizedentries.Cache, nodeCache *nodecache.Cache, pageSize int32, cacheReloadInterval, eventTimeout time.Duration) (*attestedNodes, error) {
+	if pageSize <= 0 {
+		return nil, fmt.Errorf("page size must be positive, got %d", pageSize)
+	}
+
 	pollPeriods := PollPeriods(cacheReloadInterval, eventTimeout)
 
 	attestedNodes := &attestedNodes{
