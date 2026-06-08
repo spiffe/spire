@@ -11,6 +11,7 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	agentv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/agent/v1"
 	bundlev1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/bundle/v1"
+	debugv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/debug/v1"
 	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
 	localauthorityv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/localauthority/v1"
 	loggerv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/logger/v1"
@@ -44,6 +45,7 @@ type ServerClient interface {
 	Release()
 	NewAgentClient() agentv1.AgentClient
 	NewBundleClient() bundlev1.BundleClient
+	NewDebugClient() debugv1.DebugClient
 	NewEntryClient() entryv1.EntryClient
 	NewLoggerClient() loggerv1.LoggerClient
 	NewSVIDClient() svidv1.SVIDClient
@@ -74,6 +76,10 @@ func (c *serverClient) NewAgentClient() agentv1.AgentClient {
 
 func (c *serverClient) NewBundleClient() bundlev1.BundleClient {
 	return bundlev1.NewBundleClient(c.conn)
+}
+
+func (c *serverClient) NewDebugClient() debugv1.DebugClient {
+	return debugv1.NewDebugClient(c.conn)
 }
 
 func (c *serverClient) NewEntryClient() entryv1.EntryClient {
