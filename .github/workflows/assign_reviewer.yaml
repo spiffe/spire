@@ -74,7 +74,15 @@ jobs:
               Buffer.from(poolFile.content, poolFile.encoding).toString('utf8'),
             ).reviewers;
             const inPool = (login) => POOL.some(p => eq(p, login));
-            const authorHoldsBall = () => assignees().some(a => eq(a, pr.user.login));
+            // The ball is in the author's court only when the author is assigned
+            // and no pool member other than the author also is, so a re-request
+            // does not override a maintainer who is still (for example,
+            // manually) co-assigned.
+            const authorHoldsBall = () => {
+              const current = assignees();
+              return current.some(a => eq(a, pr.user.login)) &&
+                !current.some(a => inPool(a) && !eq(a, pr.user.login));
+            };
 
             // Make `login` the sole ball-in-court assignee among flow
             // participants (the pool members and the PR author), leaving any
