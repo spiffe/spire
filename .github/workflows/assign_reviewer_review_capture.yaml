@@ -8,10 +8,12 @@ name: assign-reviewer-review-capture
 # assign-reviewer-review-apply workflow (triggered via workflow_run) needs to
 # move the assignee with a write token.
 #
-# It never writes to the repository, never checks out or runs any PR code, and
-# only records the PR number, the review state, and the reviewer login, all of
-# which come from trusted event metadata (this file runs from the default
-# branch). The apply workflow still validates every field before use.
+# It never writes to the repository and never checks out or runs any PR code.
+# Note that pull_request_review runs the PR's own copy of this workflow, so a
+# fork PR can run a modified version of this file. That gains no privileges
+# (the token stays read-only), but it means the artifact contents are not
+# trusted: the apply workflow validates every field and binds the artifact to
+# the triggering PR's head SHA before acting on it.
 
 on:
   pull_request_review:

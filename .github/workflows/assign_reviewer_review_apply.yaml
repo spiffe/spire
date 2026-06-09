@@ -12,12 +12,14 @@ name: assign-reviewer-review-apply
 #   - reviewer approves  -> the reviewer stays assigned (a maintainer merges).
 #   - changes requested or comment -> the author is assigned (their court).
 #
-# Security: this never checks out or runs any PR code. The only thing it
-# consumes from the (fork-triggered) capture run is a small JSON artifact, which
-# it treats as untrusted: it validates the PR number is a positive integer and
-# the review state is one of the known values, only ever assigns a login that is
-# in the pool or is the PR author (re-fetched from the API), and never
-# interpolates artifact data into a shell.
+# Security: this never checks out or runs any PR code. The capture artifact is
+# treated as untrusted (a fork PR can run a modified capture, since
+# pull_request_review uses the PR's own workflow copy): it validates the PR
+# number is a positive integer and the review state is one of the known values,
+# binds the artifact to the triggering PR by requiring the re-fetched PR head to
+# equal the run's head SHA (so a forged pr_number cannot target a victim PR),
+# only ever assigns a login that is in the pool or is the PR author re-fetched
+# from the API, and never interpolates artifact data into a shell.
 
 on:
   workflow_run:
@@ -103,6 +105,27 @@ jobs:
             const author = pr.user.login;
             const current = (pr.assignees || []).map(a => a.login);
 
+            // Bind the artifact to the PR that actually triggered the capture
+            // run. pull_request_review runs the PR's own copy of the capture
+            // workflow, so a fork can ship a modified capture that uploads an
+            // arbitrary pr_number; the field validation above only checks it is
+            // a positive integer. Requiring the re-fetched PR's head to equal
+            // the triggering run's head SHA limits any forged artifact to the
+            // attacker's own PR (whose head is the only one that can match),
+            // rather than letting it act on a victim PR. A legitimate apply that
+            // races a fresh push is skipped and reconciles on the next event.
+            if (pr.head.sha !== context.payload.workflow_run.head_sha) {
+              core.info(`PR #${prNumber} head does not match the capture run head; ignoring (forged or stale artifact).`);
+              return;
+            }
+
+            // Skip bot-authored PRs (for example Dependabot); they are owned by
+            // the auto-merge workflow and do not take part in the rotation.
+            if (pr.user.type === 'Bot' || pr.user.login.endsWith('[bot]')) {
+              core.info(`PR #${prNumber} authored by bot ${pr.user.login}; skipping.`);
+              return;
+            }
+
             // The apply is asynchronous, so the PR may have closed in between.
             if (pr.state !== 'open') {
               core.info(`PR #${prNumber} is ${pr.state}; leaving court unchanged.`);
@@ -112,6 +135,21 @@ jobs:
             // assign them to it (the open handler excludes the author too).
             if (eq(submitter, author)) {
               core.info(`Self-review by ${submitter} on PR #${prNumber}; leaving court unchanged.`);
+              return;
+            }
+
+            // Confirm the claimed review actually exists. The capture is
+            // fork-modifiable, so without this a forged artifact could fabricate
+            // a pool member's review on the attacker's own PR. Require a real
+            // review by `submitter` in `state` before acting on it.
+            const reviews = await github.paginate(github.rest.pulls.listReviews, {
+              owner, repo, pull_number: prNumber, per_page: 100,
+            });
+            const reviewExists = reviews.some(r =>
+              r.user && eq(r.user.login, submitter) &&
+              (r.state || '').toLowerCase() === state);
+            if (!reviewExists) {
+              core.info(`No ${state} review by ${submitter} on PR #${prNumber}; ignoring (forged or stale artifact).`);
               return;
             }
 
