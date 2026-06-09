@@ -117,8 +117,8 @@ github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 h1:DklsrG3d
 github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2/go.mod h1:WaHUgvxTVq04UNunO+XhnAqY/wQc+bxr74GqbsZ/Jqw=
 github.com/aws/aws-sdk-go v1.55.8 h1:JRmEUbU52aJQZ2AjX4q4Wu7t4uZjOu71uyNmaWlUkJQ=
 github.com/aws/aws-sdk-go v1.55.8/go.mod h1:ZkViS9AqA6otK+JBBNH2++sx1sgxrPKcSzPPvQkUtXk=
-github.com/aws/aws-sdk-go-v2 v1.41.10 h1:i/Ezw+xWTo/EtO/lEq6xBYu9RXpRb3QPN5UlTsJg8Ck=
-github.com/aws/aws-sdk-go-v2 v1.41.10/go.mod h1:+HsoOEX80qAVUitj1A2DhCNTjmb3edVyuDypb6LNEeo=
+github.com/aws/aws-sdk-go-v2 v1.42.0 h1:XvXMJTkFQtpBKIWZnmr9ZEOc2InWM2yldjXEJ/bymhA=
+github.com/aws/aws-sdk-go-v2 v1.42.0/go.mod h1:27+ACypSLljLAEKsCYOmrjKh83vuTRkuAe9Uv/3A4bg=
 github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.11 h1:h5+3VT69KUBK24grGuuA5saDJTj2IIjLb9au668Fo5I=
 github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.11/go.mod h1:dnakxebH6UwFvcvujL0LVggYQ8nEvBGjU4G/V79Nv94=
 github.com/aws/aws-sdk-go-v2/config v1.32.14 h1:opVIRo/ZbbI8OIqSOKmpFaY7IwfFUOCCXBsUpJOwDdI=
