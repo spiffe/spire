@@ -19,8 +19,8 @@ name: assign-reviewer
 #
 # The maintainer is picked at random from the pool, which evens out over time.
 # The selection is stateless: no persisted index or external state. The pool is
-# an explicit list below, separate from CODEOWNERS, so it can be adjusted for
-# availability (leave, inactivity) without touching ownership.
+# defined in .github/reviewer-pool.json, separate from CODEOWNERS, so it can be
+# adjusted for availability (leave, inactivity) without touching ownership.
 #
 # This runs on pull_request_target, which has a write-scoped token even for PRs
 # from forks. It is safe because the job never checks out or executes any code
@@ -50,7 +50,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read       # read .github/reviewer-pool.json
-      pull-requests: write # manage assignees
+      issues: write        # add/remove assignees (the issues API endpoint)
+      pull-requests: write # add/remove assignees on the pull request
     steps:
       - uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
         with:
@@ -62,10 +63,10 @@ jobs:
             const assignees = () => (pr.assignees || []).map(a => a.login);
 
             // The reviewer pool lives in .github/reviewer-pool.json so it has a
-            // single, discoverable source of truth shared with
-            // assign-reviewer-review-apply.yaml. Read it from the default branch
-            // (the API default ref) so a PR from a fork cannot substitute its
-            // own pool.
+            // single, discoverable source of truth shared with the apply
+            // workflow (assign_reviewer_review_apply.yaml). Read it from the
+            // default branch (the API default ref) so a PR from a fork cannot
+            // substitute its own pool.
             const { data: poolFile } = await github.rest.repos.getContent({
               owner, repo, path: '.github/reviewer-pool.json',
             });
