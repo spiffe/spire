@@ -12,8 +12,9 @@ name: assign-reviewer-review-capture
 # Note that pull_request_review runs the PR's own copy of this workflow, so a
 # fork PR can run a modified version of this file. That gains no privileges
 # (the token stays read-only), but it means the artifact contents are not
-# trusted: the apply workflow validates every field and binds the artifact to
-# the triggering PR's head SHA before acting on it.
+# trusted: the apply workflow validates every field, binds the artifact to the
+# triggering PR's head SHA, and confirms via the API that the claimed review
+# exists before acting on it.
 
 on:
   pull_request_review:

@@ -18,8 +18,10 @@ name: assign-reviewer-review-apply
 # number is a positive integer and the review state is one of the known values,
 # binds the artifact to the triggering PR by requiring the re-fetched PR head to
 # equal the run's head SHA (so a forged pr_number cannot target a victim PR),
-# only ever assigns a login that is in the pool or is the PR author re-fetched
-# from the API, and never interpolates artifact data into a shell.
+# confirms via the API that the named reviewer actually submitted a review in
+# that state (so a forged artifact cannot fabricate one), skips bot-authored
+# PRs, only ever assigns a login that is in the pool or is the PR author
+# re-fetched from the API, and never interpolates artifact data into a shell.
 
 on:
   workflow_run:
