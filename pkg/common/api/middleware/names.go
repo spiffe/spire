@@ -21,6 +21,7 @@ const (
 	HealthServiceShortName             = "Health"
 	LoggerServiceName                  = "logger.v1.Logger"
 	LoggerServiceShortName             = "Logger"
+	AgentLoggerServiceName             = "spire.api.agent.logger.v1.Logger"
 	DebugServiceName                   = "spire.agent.debug.v1.Debug"
 	DebugServiceShortName              = "Debug"
 	DelegatedIdentityServiceName       = "spire.api.agent.delegatedidentity.v1.DelegatedIdentity"
@@ -37,6 +38,7 @@ var (
 		WorkloadAPIServiceName, WorkloadAPIServiceShortName,
 		EnvoySDSv3ServiceName, EnvoySDSv3ServiceShortName,
 		HealthServiceName, HealthServiceShortName,
+		AgentLoggerServiceName, LoggerServiceShortName,
 		LoggerServiceName, LoggerServiceShortName,
 		DebugServiceName, DebugServiceShortName,
 		DelegatedIdentityServiceName, DelegatedIdentityServiceShortName,

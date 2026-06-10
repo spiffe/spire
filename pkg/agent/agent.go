@@ -17,6 +17,7 @@ import (
 	"github.com/spiffe/go-spiffe/v2/svid/x509svid"
 	"github.com/spiffe/go-spiffe/v2/workloadapi"
 	admin_api "github.com/spiffe/spire/pkg/agent/api"
+	agentlogger "github.com/spiffe/spire/pkg/agent/api/logger/v1"
 	node_attestor "github.com/spiffe/spire/pkg/agent/attestor/node"
 	workload_attestor "github.com/spiffe/spire/pkg/agent/attestor/workload"
 	"github.com/spiffe/spire/pkg/agent/catalog"
@@ -288,7 +289,10 @@ func (a *Agent) Run(ctx context.Context) error {
 	}
 
 	if a.c.AdminBindAddress != nil {
-		adminEndpoints := a.newAdminEndpoints(metrics, mgr, workloadAttestor, a.c.AuthorizedDelegates)
+		adminEndpoints, err := a.newAdminEndpoints(metrics, mgr, workloadAttestor, a.c.AuthorizedDelegates)
+		if err != nil {
+			return err
+		}
 		tasks = append(tasks, adminEndpoints.ListenAndServe)
 	}
 
@@ -502,11 +506,17 @@ func (a *Agent) newEndpoints(metrics telemetry.Metrics, mgr manager.Manager, att
 	})
 }
 
-func (a *Agent) newAdminEndpoints(metrics telemetry.Metrics, mgr manager.Manager, attestor workload_attestor.Attestor, authorizedDelegates []string) admin_api.Server {
+func (a *Agent) newAdminEndpoints(metrics telemetry.Metrics, mgr manager.Manager, attestor workload_attestor.Attestor, authorizedDelegates []string) (admin_api.Server, error) {
+	rootLog, ok := a.c.Log.(agentlogger.Logger)
+	if !ok {
+		return nil, fmt.Errorf("logger type %T does not support runtime level adjustment (need agentlogger.Logger interface)", a.c.Log)
+	}
+
 	config := &admin_api.Config{
 		BindAddr:            a.c.AdminBindAddress,
 		Manager:             mgr,
 		Log:                 a.c.Log,
+		RootLog:             rootLog,
 		Metrics:             metrics,
 		TrustDomain:         a.c.TrustDomain,
 		Uptime:              uptime.Uptime,
@@ -514,7 +524,7 @@ func (a *Agent) newAdminEndpoints(metrics telemetry.Metrics, mgr manager.Manager
 		AuthorizedDelegates: authorizedDelegates,
 	}
 
-	return admin_api.New(config)
+	return admin_api.New(config), nil
 }
 
 // CheckHealth is used as a top-level health check for the agent.

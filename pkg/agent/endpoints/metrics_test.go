@@ -12,6 +12,7 @@ import (
 	workload_pb "github.com/spiffe/go-spiffe/v2/proto/spiffe/workload"
 	debugv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/agent/debug/v1"
 	delegatedidentityv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/agent/delegatedidentity/v1"
+	loggerv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/agent/logger/v1"
 	"github.com/spiffe/spire/pkg/common/peertracker"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -72,6 +73,52 @@ func TestDebugServiceConnectionMetrics(t *testing.T) {
 	assert.True(t, foundGaugeDown, "Expected debug_api connections gauge to decrement")
 }
 
+// TestLoggerServiceConnectionMetrics verifies that Logger API calls going through
+// the agent middleware emit the correct connection metrics.
+func TestLoggerServiceConnectionMetrics(t *testing.T) {
+	log, hook := test.NewNullLogger()
+	log.Level = logrus.DebugLevel
+	metrics := fakemetrics.New()
+
+	server := grpctest.StartServer(t,
+		func(s grpc.ServiceRegistrar) {
+			loggerv1.RegisterLoggerServer(s, &fakeLoggerServer{})
+		},
+		grpctest.Middleware(Middleware(log, metrics)),
+	)
+
+	conn := server.NewGRPCClient(t)
+	client := loggerv1.NewLoggerClient(conn)
+
+	_, _ = client.GetLogger(context.Background(), &loggerv1.GetLoggerRequest{})
+
+	for _, entry := range hook.AllEntries() {
+		if entry.Level == logrus.ErrorLevel {
+			assert.NotContains(t, entry.Message, "unrecognized service for connection metrics",
+				"Logger service should be recognized by connection metrics middleware")
+		}
+	}
+
+	allMetrics := metrics.AllMetrics()
+	require.NotEmpty(t, allMetrics)
+
+	var foundConnectionCounter, foundGaugeUp, foundGaugeDown bool
+	for _, m := range allMetrics {
+		if m.Type == fakemetrics.IncrCounterType && assert.ObjectsAreEqual([]string{"logger_api", "connection"}, m.Key) {
+			foundConnectionCounter = true
+		}
+		if m.Type == fakemetrics.SetGaugeType && assert.ObjectsAreEqual([]string{"logger_api", "connections"}, m.Key) && m.Val == 1 {
+			foundGaugeUp = true
+		}
+		if m.Type == fakemetrics.SetGaugeType && assert.ObjectsAreEqual([]string{"logger_api", "connections"}, m.Key) && m.Val == 0 {
+			foundGaugeDown = true
+		}
+	}
+	assert.True(t, foundConnectionCounter, "Expected logger_api connection counter metric")
+	assert.True(t, foundGaugeUp, "Expected logger_api connections gauge to increment")
+	assert.True(t, foundGaugeDown, "Expected logger_api connections gauge to decrement")
+}
+
 // TestAllAgentServicesHandledByConnectionMetrics registers every gRPC service
 // that the agent exposes (across both the Workload API and Admin API servers),
 // makes a call to each one through the middleware, and asserts that none
@@ -92,6 +139,7 @@ func TestAllAgentServicesHandledByConnectionMetrics(t *testing.T) {
 			grpc_health_v1.RegisterHealthServer(s, &grpc_health_v1.UnimplementedHealthServer{})
 			debugv1.RegisterDebugServer(s, &fakeDebugServer{})
 			delegatedidentityv1.RegisterDelegatedIdentityServer(s, &fakeDelegatedIdentityServer{})
+			loggerv1.RegisterLoggerServer(s, &fakeLoggerServer{})
 		},
 		grpctest.Middleware(Middleware(log, metrics)),
 	)
@@ -133,6 +181,13 @@ func TestAllAgentServicesHandledByConnectionMetrics(t *testing.T) {
 		hook.Reset()
 		client := delegatedidentityv1.NewDelegatedIdentityClient(conn)
 		_, _ = client.FetchJWTSVIDs(ctx, &delegatedidentityv1.FetchJWTSVIDsRequest{})
+		assertNoMisconfigurationLog(t, hook)
+	})
+
+	t.Run("Logger", func(t *testing.T) {
+		hook.Reset()
+		client := loggerv1.NewLoggerClient(conn)
+		_, _ = client.GetLogger(ctx, &loggerv1.GetLoggerRequest{})
 		assertNoMisconfigurationLog(t, hook)
 	})
 }
@@ -253,3 +308,7 @@ type fakeWatcherWithPID int
 func (w fakeWatcherWithPID) Close()         {}
 func (w fakeWatcherWithPID) IsAlive() error { return nil }
 func (w fakeWatcherWithPID) PID() int32     { return int32(w) }
+
+type fakeLoggerServer struct {
+	loggerv1.UnimplementedLoggerServer
+}
