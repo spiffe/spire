@@ -71,12 +71,18 @@ func TestExtractPodUIDAndContainerID(t *testing.T) {
 		assertErrorContains(t, "testdata/k8s/container-id-conflict", "multiple container IDs found")
 	})
 
-	t.Run("failed to read mountinfo", func(t *testing.T) {
+	t.Run("neither cgroup nor mountinfo exist", func(t *testing.T) {
 		assertNotFound(t, "testdata/does-not-exist")
 	})
 
-	t.Run("falls back to cgroup file", func(t *testing.T) {
-		assertFound(t, "testdata/other/fallback", "", testContainerID)
+	t.Run("extracts from cgroup file", func(t *testing.T) {
+		assertFound(t, "testdata/other/cgroup-primary", "", testContainerID)
+	})
+
+	t.Run("falls back to mountinfo", func(t *testing.T) {
+		// The cgroup file exists but contains no identifiers, so the
+		// information is extracted from mountinfo instead.
+		assertFound(t, "testdata/other/mountinfo-fallback", testPodUID, testContainerID)
 	})
 
 	t.Run("cgroup takes priority over spoofed mountinfo", func(t *testing.T) {
@@ -133,12 +139,18 @@ func TestExtractContainerID(t *testing.T) {
 		assertErrorContains(t, "testdata/docker/container-id-conflict", "multiple container IDs found")
 	})
 
-	t.Run("failed to read mountinfo", func(t *testing.T) {
+	t.Run("neither cgroup nor mountinfo exist", func(t *testing.T) {
 		assertNotFound(t, "testdata/does-not-exist")
 	})
 
-	t.Run("falls back to cgroup file", func(t *testing.T) {
-		assertFound(t, "testdata/other/fallback", testContainerID)
+	t.Run("extracts from cgroup file", func(t *testing.T) {
+		assertFound(t, "testdata/other/cgroup-primary", testContainerID)
+	})
+
+	t.Run("falls back to mountinfo", func(t *testing.T) {
+		// The cgroup file exists but contains no identifiers, so the
+		// information is extracted from mountinfo instead.
+		assertFound(t, "testdata/other/mountinfo-fallback", testContainerID)
 	})
 
 	t.Run("cgroup takes priority over spoofed mountinfo", func(t *testing.T) {
