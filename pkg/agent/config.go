@@ -57,6 +57,9 @@ type Config struct {
 
 	Log logrus.FieldLogger
 
+	// Workload selector prefixes allowed to be included in diagnostic logs.
+	LogSelectors []string
+
 	// LogReopener facilitates handling a signal to rotate log file.
 	LogReopener func(context.Context) error
 

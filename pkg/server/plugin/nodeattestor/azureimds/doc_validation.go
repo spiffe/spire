@@ -44,12 +44,19 @@ func validateAttestedDocument(ctx context.Context, doc *azure.AttestedDocument, 
 		return nil, fmt.Errorf("failed to parse PKCS7 signature: %w", err)
 	}
 
-	// Step 3: Extract the signing certificate
+	// Step 3: Extract the signing certificate. The PKCS#7 certificate bag is
+	// unordered and may carry certificates that did not sign the content, so we
+	// resolve the actual signer instead of assuming it is the first entry. This
+	// keeps the certificate that Azure and chain validation run against in sync
+	// with the certificate that Verify uses to check the signature.
 	if len(pkcs7Sig.Certificates) == 0 {
 		return nil, errors.New("no certificates found in PKCS7 signature")
 	}
 
-	signingCert := pkcs7Sig.Certificates[0]
+	signingCert := pkcs7Sig.GetOnlySigner()
+	if signingCert == nil {
+		return nil, errors.New("expected exactly one signer certificate in PKCS7 signature")
+	}
 
 	// Step 4: Get the intermediate certificate from CA Issuers extension
 	intermediateCert, err := getIntermediateCertificate(ctx, signingCert)

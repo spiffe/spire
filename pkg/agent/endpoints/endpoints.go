@@ -71,6 +71,7 @@ func New(c Config) *Endpoints {
 		Attestor:                      attestor,
 		AllowUnauthenticatedVerifiers: c.AllowUnauthenticatedVerifiers,
 		AllowedForeignJWTClaims:       allowedClaims,
+		LogSelectors:                  c.LogSelectors,
 		TrustDomain:                   c.TrustDomain,
 	})
 

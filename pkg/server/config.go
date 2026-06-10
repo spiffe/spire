@@ -155,7 +155,10 @@ type Config struct {
 	DisableWITSVIDs bool
 }
 
-type ExperimentalConfig struct{}
+type ExperimentalConfig struct {
+	// AgentSpiffeIdAsSelector, if true, includes the agent spiffe id as a node selector.
+	AgentSpiffeIdAsSelector bool
+}
 
 type FederationConfig struct {
 	// BundleEndpoint contains the federation bundle endpoint configuration.

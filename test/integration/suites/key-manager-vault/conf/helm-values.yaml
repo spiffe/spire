@@ -1,0 +1,33 @@
+global:
+  enabled: true
+  tlsDisable: false
+server:
+  extraEnvironmentVars:
+    VAULT_CACERT: /vault/userconfig/vault-tls/vault_ca.pem
+    VAULT_TLSCERT: /vault/userconfig/vault-tls/vault.pem
+    VAULT_TLSKEY: /vault/userconfig/vault-tls/vault_key.pem
+  volumes:
+    - name: userconfig-vault-tls
+      secret:
+        defaultMode: 420
+        secretName: vault-tls
+  volumeMounts:
+    - mountPath: /vault/userconfig/vault-tls
+      name: userconfig-vault-tls
+      readOnly: true
+  standalone:
+    enabled: "-"
+    config: |
+      listener "tcp" {
+        address = "[::]:8200"
+        cluster_address = "[::]:8201"
+
+        tls_cert_file = "/vault/userconfig/vault-tls/vault.pem"
+        tls_key_file  = "/vault/userconfig/vault-tls/vault_key.pem"
+      
+        tls_disable_client_certs = false      
+      }
+
+      storage "file" {
+        path = "/vault/data"
+      }

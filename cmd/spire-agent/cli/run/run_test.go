@@ -16,6 +16,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/agent/workloadkey"
 	"github.com/spiffe/spire/pkg/common/log"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/assert"
@@ -304,6 +305,24 @@ func TestMergeInput(t *testing.T) {
 			cliInput:  func(c *agentConfig) {},
 			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "INFO", c.Agent.LogLevel)
+			},
+		},
+		{
+			msg:       "log_selectors should default to empty if not set",
+			fileInput: func(c *Config) {},
+			cliInput:  func(c *agentConfig) {},
+			test: func(t *testing.T, c *Config) {
+				require.Empty(t, c.Agent.LogSelectors)
+			},
+		},
+		{
+			msg: "log_selectors should be configurable by file",
+			fileInput: func(c *Config) {
+				c.Agent.LogSelectors = []string{"k8s:ns", "unix:user"}
+			},
+			cliInput: func(c *agentConfig) {},
+			test: func(t *testing.T, c *Config) {
+				require.Equal(t, []string{"k8s:ns", "unix:user"}, c.Agent.LogSelectors)
 			},
 		},
 		{
@@ -816,6 +835,15 @@ func TestNewAgentConfig(t *testing.T) {
 			},
 		},
 		{
+			msg: "log_selectors is copied",
+			input: func(c *Config) {
+				c.Agent.LogSelectors = []string{"k8s:ns", "unix:user"}
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Equal(t, []string{"k8s:ns", "unix:user"}, c.LogSelectors)
+			},
+		},
+		{
 			msg: "workload_key_type is set",
 			input: func(c *Config) {
 				c.Agent.WorkloadX509SVIDKeyType = "rsa-2048"
@@ -871,6 +899,37 @@ func TestNewAgentConfig(t *testing.T) {
 			},
 			test: func(t *testing.T, c *agent.Config) {
 				require.Nil(t, c)
+			},
+		},
+		{
+			msg: "use_sync_authorized_entries logs deprecation alert",
+			input: func(c *Config) {
+				useSyncAuthorizedEntries := false
+				c.Agent.Experimental.UseSyncAuthorizedEntries = &useSyncAuthorizedEntries
+			},
+			logOptions: func(t *testing.T) []log.Option {
+				return []log.Option{
+					func(logger *log.Logger) error {
+						logger.SetOutput(io.Discard)
+						hook := test.NewLocal(logger.Logger)
+						t.Cleanup(func() {
+							spiretest.AssertLogsContainEntries(t, hook.AllEntries(), []spiretest.LogEntry{
+								{
+									Level:   logrus.WarnLevel,
+									Message: "The 'use_sync_authorized_entries' configuration is deprecated. The option to disable it will be removed in SPIRE 1.13.",
+									Data: logrus.Fields{
+										telemetry.Alert:     "true",
+										telemetry.AlertType: telemetry.DeprecatedConfigAlertType,
+									},
+								},
+							})
+						})
+						return nil
+					},
+				}
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.False(t, c.UseSyncAuthorizedEntries)
 			},
 		},
 		{

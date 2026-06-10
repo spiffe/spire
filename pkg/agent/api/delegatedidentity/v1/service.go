@@ -371,6 +371,11 @@ func (s *Service) FetchJWTSVIDs(ctx context.Context, req *delegatedidentityv1.Fe
 
 	entries := s.manager.MatchingRegistrationEntries(selectors)
 	for _, entry := range entries {
+		// Do not send admin nor downstream SVIDs to the caller
+		if entry.Admin || entry.Downstream {
+			continue
+		}
+
 		spiffeID, err := spiffeid.FromString(entry.SpiffeId)
 		if err != nil {
 			log.WithField(telemetry.SPIFFEID, entry.SpiffeId).WithError(err).Error("Invalid requested SPIFFE ID")
