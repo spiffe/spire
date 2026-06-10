@@ -77,6 +77,20 @@ func TestConfigure(t *testing.T) {
 			expectCode:         codes.InvalidArgument,
 			expectMsgPrefix:    "server core configuration must contain trust_domain",
 		},
+		{
+			name:              "missing server address",
+			serverPort:        "8081",
+			workloadAPISocket: "socketPath",
+			expectCode:        codes.InvalidArgument,
+			expectMsgPrefix:   "server_address is required",
+		},
+		{
+			name:              "missing server port",
+			serverAddr:        "localhost",
+			workloadAPISocket: "socketPath",
+			expectCode:        codes.InvalidArgument,
+			expectMsgPrefix:   "server_port is required",
+		},
 	}
 	cases = append(cases, configureCasesOS(t)...)
 	for _, tt := range cases {
@@ -176,15 +190,6 @@ func TestMintX509CA(t *testing.T) {
 			getCSR: func() ([]byte, crypto.PublicKey) {
 				return csr, pubKey
 			},
-		},
-		{
-			name: "invalid server address",
-			getCSR: func() ([]byte, crypto.PublicKey) {
-				return csr, pubKey
-			},
-			customServerAddr: "localhost",
-			expectCode:       codes.Internal,
-			expectMsgPrefix:  `upstreamauthority(spire): unable to request a new Downstream X509CA: rpc error: code = Unavailable desc = delegating_resolver: invalid target address ":": missing port after port-separator colon`,
 		},
 		{
 			name: "invalid scheme",
