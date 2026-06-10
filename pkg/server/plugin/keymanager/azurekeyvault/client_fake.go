@@ -218,7 +218,7 @@ func (k *kmsClientFake) DeleteKey(_ context.Context, name string, _ *azkeys.Dele
 	if k.deleteKeyErr != nil {
 		return azkeys.DeleteKeyResponse{}, k.deleteKeyErr
 	}
-	keyEntry, err := k.store.fetchKeyEntry(name)
+	keyEntry, err := k.store.FetchKeyEntry(name)
 	if err != nil {
 		return azkeys.DeleteKeyResponse{}, err
 	}
@@ -233,19 +233,27 @@ func (k *kmsClientFake) DeleteKey(_ context.Context, name string, _ *azkeys.Dele
 	return azkeys.DeleteKeyResponse{DeletedKey: deletedKey}, nil
 }
 
-func (k *kmsClientFake) UpdateKey(_ context.Context, name, _ string, _ azkeys.UpdateKeyParameters, _ *azkeys.UpdateKeyOptions) (azkeys.UpdateKeyResponse, error) {
+func (k *kmsClientFake) UpdateKey(_ context.Context, name, _ string, params azkeys.UpdateKeyParameters, _ *azkeys.UpdateKeyOptions) (azkeys.UpdateKeyResponse, error) {
 	k.mu.RLock()
 	defer k.mu.RUnlock()
 	if k.updateKeyErr != nil {
 		return azkeys.UpdateKeyResponse{}, k.updateKeyErr
 	}
+
+	k.store.mu.Lock()
+	defer k.store.mu.Unlock()
+
 	keyEntry, err := k.store.fetchKeyEntry(name)
 	if err != nil {
 		return azkeys.UpdateKeyResponse{}, err
 	}
 
+	if params.Tags != nil {
+		keyEntry.KeyBundle.Tags = params.Tags
+	}
+
 	keyEntry.KeyBundle.Attributes.Updated = new(k.store.clk.Now())
-	k.store.SaveKeyEntry(keyEntry)
+	k.store.fakeKeys[keyEntry.KeyBundle.Key.KID.Name()] = keyEntry
 
 	keyBundle := &azkeys.KeyBundle{
 		Attributes: keyEntry.KeyBundle.Attributes,
@@ -262,7 +270,7 @@ func (k *kmsClientFake) GetKey(_ context.Context, keyName, _ string, _ *azkeys.G
 	if k.getKeyErr != nil {
 		return azkeys.GetKeyResponse{}, k.getKeyErr
 	}
-	keyEntry, err := k.store.fetchKeyEntry(keyName)
+	keyEntry, err := k.store.FetchKeyEntry(keyName)
 	if err != nil {
 		return azkeys.GetKeyResponse{}, err
 	}

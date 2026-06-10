@@ -54,6 +54,11 @@ type Base struct {
 	entries map[string]*KeyEntry
 }
 
+// DefaultGenerator returns the standard crypto-based key generator used when no custom generator is provided.
+func DefaultGenerator() Generator {
+	return defaultGenerator{}
+}
+
 // New creates a new base key manager using the provided config.
 func New(config Config) *Base {
 	if config.Generator == nil {

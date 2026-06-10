@@ -1,6 +1,7 @@
 package awskms
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -11,8 +12,10 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"text/template"
 	"time"
 
+	sprig "github.com/Masterminds/sprig/v3"
 	"github.com/andres-erbsen/clock"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/kms"
@@ -26,6 +29,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/diskutil"
 	"github.com/spiffe/spire/pkg/common/pluginconf"
+	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -44,6 +48,9 @@ const (
 
 	disposeKeysFrequency = time.Hour * 48
 	keyThreshold         = time.Hour * 48
+
+	sharedKeyFreshnessThreshold = 15 * time.Minute
+	lockTTL                     = 10 * time.Minute
 )
 
 var (
@@ -91,11 +98,18 @@ type Plugin struct {
 	stsClient      stsClient
 	trustDomain    string
 	serverID       string
+	region         string
 	scheduleDelete chan string
 	cancelTasks    context.CancelFunc
 	hooks          pluginHooks
 	keyPolicy      *string
 	keyTags        []types.Tag
+
+	// Shared keys configuration
+	sharedKeysEnabled   bool
+	jwtKeyAliasTemplate *template.Template
+	lockAliasTemplate   *template.Template
+	keyIDRegex          *regexp.Regexp
 }
 
 // Config provides configuration context for the plugin
@@ -107,6 +121,13 @@ type Config struct {
 	KeyIdentifierValue string            `hcl:"key_identifier_value" json:"key_identifier_value"`
 	KeyPolicyFile      string            `hcl:"key_policy_file" json:"key_policy_file"`
 	KeyTags            map[string]string `hcl:"key_tags" json:"key_tags"`
+	SharedKeys         *SharedKeysConfig `hcl:"shared_keys" json:"shared_keys"`
+}
+
+type SharedKeysConfig struct {
+	JWTKeyAliasTemplate  string `hcl:"jwt_key_alias_template" json:"jwt_key_alias_template"`
+	LockAliasTemplate    string `hcl:"lock_alias_template" json:"lock_alias_template"`
+	KeyIDExtractionRegex string `hcl:"key_id_extraction_regex" json:"key_id_extraction_regex"`
 }
 
 func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *Config {
@@ -136,7 +157,6 @@ func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginco
 	if newConfig.KeyIdentifierFile == "" && newConfig.KeyIdentifierValue == "" {
 		status.ReportError("configuration requires a key identifier file or a key identifier value")
 	}
-
 	if newConfig.KeyIdentifierFile != "" && newConfig.KeyIdentifierValue != "" {
 		status.ReportError("configuration can't have a key identifier file and a key identifier value at the same time")
 	}
@@ -147,6 +167,34 @@ func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginco
 		}
 	}
 
+	if newConfig.SharedKeys != nil {
+		if newConfig.SharedKeys.JWTKeyAliasTemplate == "" {
+			status.ReportError("configuration missing jwt_key_alias_template in shared_keys")
+		} else {
+			if _, err := template.New("jwt_key_alias_template").Funcs(sprig.TxtFuncMap()).Parse(newConfig.SharedKeys.JWTKeyAliasTemplate); err != nil {
+				status.ReportErrorf("failed to parse jwt_key_alias_template: %v", err)
+			}
+		}
+
+		if newConfig.SharedKeys.LockAliasTemplate == "" {
+			status.ReportError("configuration missing lock_alias_template in shared_keys")
+		} else {
+			if _, err := template.New("lock_alias_template").Funcs(sprig.TxtFuncMap()).Parse(newConfig.SharedKeys.LockAliasTemplate); err != nil {
+				status.ReportErrorf("failed to parse lock_alias_template: %v", err)
+			}
+		}
+
+		if newConfig.SharedKeys.KeyIDExtractionRegex == "" {
+			status.ReportError("configuration missing key_id_extraction_regex in shared_keys")
+		} else {
+			re, err := regexp.Compile(newConfig.SharedKeys.KeyIDExtractionRegex)
+			if err != nil {
+				status.ReportErrorf("failed to compile key_id_extraction_regex: %v", err)
+			} else if re.NumSubexp() != 1 {
+				status.ReportError("key_id_extraction_regex must have exactly one capturing group")
+			}
+		}
+	}
 	return newConfig
 }
 
@@ -198,7 +246,9 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 			return nil, err
 		}
 	}
-	p.log.Debug("Loaded server id", "server_id", serverID)
+	if serverID != "" {
+		p.log.Debug("Loaded server id", "server_id", serverID)
+	}
 
 	awsCfg, err := newAWSConfig(ctx, newConfig)
 	if err != nil {
@@ -215,11 +265,46 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 		return nil, status.Errorf(codes.Internal, "failed to create KMS client: %v", err)
 	}
 
+	trustDomain := sanitizeTrustDomain(req.CoreConfiguration.TrustDomain)
+	perServerExtractor := func(aliasName string) (string, bool) {
+		prefix := path.Join(aliasPrefix, trustDomain, serverID) + "/"
+		trimmed := strings.TrimPrefix(aliasName, prefix)
+		if trimmed == aliasName {
+			return "", false
+		}
+		return decodeKeyID(trimmed), true
+	}
+
+	var keyIDExtractor func(string) (string, bool)
+	if newConfig.SharedKeys != nil {
+		p.sharedKeysEnabled = true
+		p.jwtKeyAliasTemplate = template.Must(template.New("jwt_key_alias_template").Funcs(sprig.TxtFuncMap()).Parse(newConfig.SharedKeys.JWTKeyAliasTemplate))
+		p.lockAliasTemplate = template.Must(template.New("lock_alias_template").Funcs(sprig.TxtFuncMap()).Parse(newConfig.SharedKeys.LockAliasTemplate))
+		p.keyIDRegex = regexp.MustCompile(newConfig.SharedKeys.KeyIDExtractionRegex)
+
+		re := p.keyIDRegex
+		// In shared keys mode only JWT keys are shared (discovered via the
+		// configured regex). X509 CA and WIT keys remain per-server, so they are
+		// discovered via this server's own alias prefix.
+		keyIDExtractor = func(aliasName string) (string, bool) {
+			if m := re.FindStringSubmatch(aliasName); len(m) >= 2 {
+				return m[1], true
+			}
+			return perServerExtractor(aliasName)
+		}
+	} else {
+		p.sharedKeysEnabled = false
+		p.jwtKeyAliasTemplate = nil
+		p.lockAliasTemplate = nil
+		p.keyIDRegex = nil
+
+		keyIDExtractor = perServerExtractor
+	}
+
 	fetcher := &keyFetcher{
-		log:         p.log,
-		kmsClient:   kc,
-		serverID:    serverID,
-		trustDomain: req.CoreConfiguration.TrustDomain,
+		log:            p.log,
+		kmsClient:      kc,
+		keyIDExtractor: keyIDExtractor,
 	}
 	p.log.Debug("Fetching key aliases from KMS")
 	keyEntries, err := fetcher.fetchKeyEntries(ctx)
@@ -235,6 +320,7 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 	p.stsClient = sc
 	p.trustDomain = req.CoreConfiguration.TrustDomain
 	p.serverID = serverID
+	p.region = newConfig.Region
 
 	if len(newConfig.KeyTags) > 0 {
 		p.keyTags = buildKeyTags(newConfig.KeyTags)
@@ -267,6 +353,7 @@ func (p *Plugin) Validate(ctx context.Context, req *configv1.ValidateRequest) (*
 }
 
 // GenerateKey creates a key in KMS. If a key already exists in the local storage, it is updated.
+// In shared keys mode, implements optimistic coordination with lock acquisition to prevent race conditions.
 func (p *Plugin) GenerateKey(ctx context.Context, req *keymanagerv1.GenerateKeyRequest) (*keymanagerv1.GenerateKeyResponse, error) {
 	if req.KeyId == "" {
 		return nil, status.Error(codes.InvalidArgument, "key id is required")
@@ -275,15 +362,212 @@ func (p *Plugin) GenerateKey(ctx context.Context, req *keymanagerv1.GenerateKeyR
 		return nil, status.Error(codes.InvalidArgument, "key type is required")
 	}
 
+	// Serialize all generations per server instance: prevents intra-server races on
+	// pluginData swap and ensures only one outstanding CreateKey per server.
+	// Cross-server contention is handled by the distributed lock alias inside the shared-keys path.
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
 	spireKeyID := req.KeyId
+
+	// Only JWT signing keys are shared between servers. When shared keys mode is
+	// disabled, or for non-JWT keys (X509 CA, WIT) which always remain per-server,
+	// use simple key generation with this server's own alias.
+	if !p.sharedKeysEnabled || !keymanager.IsSharedKeyID(spireKeyID) {
+		newKeyEntry, err := p.createKey(ctx, spireKeyID, req.KeyType)
+		if err != nil {
+			return nil, err
+		}
+
+		err = p.assignAlias(ctx, newKeyEntry)
+		if err != nil {
+			return nil, err
+		}
+
+		p.entries[spireKeyID] = *newKeyEntry
+
+		return &keymanagerv1.GenerateKeyResponse{
+			PublicKey: newKeyEntry.PublicKey,
+		}, nil
+	}
+
+	// Shared keys mode: Implement optimistic coordination with lock acquisition
+	aliasName, err := p.generateAliasName(spireKeyID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Generate lock alias name if lock template is configured
+	var lockAlias string
+	if p.lockAliasTemplate != nil {
+		data := sharedKeysTemplateData(sanitizeTrustDomain(p.trustDomain), spireKeyID, p.serverID, p.region)
+
+		var buf bytes.Buffer
+		if err := p.lockAliasTemplate.Execute(&buf, data); err != nil {
+			return nil, status.Errorf(codes.Internal, "failed to execute lock_alias_template: %v", err)
+		}
+		lockAlias = buf.String()
+	}
+
+	// 1. Optimistic check: See if a fresh key already exists
+	aliasDesc, err := p.kmsClient.DescribeKey(ctx, &kms.DescribeKeyInput{
+		KeyId: aws.String(aliasName),
+	})
+	if err == nil && aliasDesc.KeyMetadata != nil && aliasDesc.KeyMetadata.Enabled && aliasDesc.KeyMetadata.CreationDate != nil {
+		// Check freshness (15 minute threshold)
+		if p.hooks.clk.Now().Sub(*aliasDesc.KeyMetadata.CreationDate) < sharedKeyFreshnessThreshold {
+			// Check KeySpec matches
+			ks, ok := keySpecFromKeyType(req.KeyType)
+			if ok && aliasDesc.KeyMetadata.KeySpec == ks {
+				p.log.Info("Shared key was recently created. Reusing existing key.", "alias", aliasName, "key_id", *aliasDesc.KeyMetadata.KeyId)
+
+				// Fetch existing public key directly from KMS to return it
+				kmsPubKey, err := p.kmsClient.GetPublicKey(ctx, &kms.GetPublicKeyInput{KeyId: aliasDesc.KeyMetadata.KeyId})
+				if err != nil {
+					return nil, status.Errorf(codes.Internal, "failed to fetch existing public key: %v", err)
+				}
+
+				// Update local cache with existing key details
+				reusedEntry := &keyEntry{
+					Arn:       *aliasDesc.KeyMetadata.Arn,
+					AliasName: aliasName,
+					PublicKey: &keymanagerv1.PublicKey{
+						Id:          req.KeyId,
+						Type:        req.KeyType,
+						PkixData:    kmsPubKey.PublicKey,
+						Fingerprint: makeFingerprint(kmsPubKey.PublicKey),
+					},
+				}
+				p.entries[req.KeyId] = *reusedEntry
+
+				return &keymanagerv1.GenerateKeyResponse{
+					PublicKey: reusedEntry.PublicKey,
+				}, nil
+			}
+		}
+	} else if err != nil {
+		// Log but ignore error (maybe alias doesn't exist yet), proceed to generation
+		var notFound *types.NotFoundException
+		if !errors.As(err, &notFound) {
+			p.log.Debug("Failed to check existing key freshness (optimistic)", "alias", aliasName, "error", err)
+		}
+	}
+
+	// 2. Create the new key (CMK)
 	newKeyEntry, err := p.createKey(ctx, spireKeyID, req.KeyType)
 	if err != nil {
 		return nil, err
 	}
 
+	// 3. Acquire Lock (if configured)
+	if lockAlias != "" {
+		// Try to create the lock alias pointing to the new key
+		_, err := p.kmsClient.CreateAlias(ctx, &kms.CreateAliasInput{
+			AliasName:   aws.String(lockAlias),
+			TargetKeyId: &newKeyEntry.Arn,
+		})
+
+		if err != nil {
+			var alreadyExists *types.AlreadyExistsException
+			if errors.As(err, &alreadyExists) {
+				// Check if the existing lock is stale (> lockTTL) by inspecting the target
+				// key's creation date. If stale, force-break the lock and retry.
+				if lockDesc, descErr := p.kmsClient.DescribeKey(ctx, &kms.DescribeKeyInput{KeyId: aws.String(lockAlias)}); descErr == nil &&
+					lockDesc.KeyMetadata != nil && lockDesc.KeyMetadata.CreationDate != nil &&
+					p.hooks.clk.Now().Sub(*lockDesc.KeyMetadata.CreationDate) > lockTTL {
+					p.log.Warn("Stale rotation lock detected; force-breaking it.", "lock_alias", lockAlias,
+						"lock_age", p.hooks.clk.Now().Sub(*lockDesc.KeyMetadata.CreationDate))
+					if _, delErr := p.kmsClient.DeleteAlias(ctx, &kms.DeleteAliasInput{AliasName: aws.String(lockAlias)}); delErr != nil {
+						p.log.Error("Failed to delete stale lock alias", "lock_alias", lockAlias, "error", delErr)
+					} else if _, retryErr := p.kmsClient.CreateAlias(ctx, &kms.CreateAliasInput{
+						AliasName:   aws.String(lockAlias),
+						TargetKeyId: &newKeyEntry.Arn,
+					}); retryErr == nil {
+						p.log.Debug("Acquired rotation lock after breaking stale lock", "lock_alias", lockAlias)
+						goto lockAcquired
+					}
+				}
+
+				p.log.Warn("Rotation lock held by another instance. Aborting rotation.", "lock_alias", lockAlias)
+
+				// Clean up the unused key we just created
+				select {
+				case p.scheduleDelete <- newKeyEntry.Arn:
+					p.log.Debug("Unused key enqueued for deletion", keyArnTag, newKeyEntry.Arn)
+				default:
+					p.log.Error("Failed to enqueue unused key for deletion", keyArnTag, newKeyEntry.Arn)
+				}
+
+				return nil, status.Errorf(codes.Aborted, "rotation lock held: %v", err)
+			}
+			// Other error
+			return nil, status.Errorf(codes.Internal, "failed to acquire lock: %v", err)
+		}
+	lockAcquired:
+
+		p.log.Debug("Acquired rotation lock", "lock_alias", lockAlias)
+
+		// Defer Release Lock
+		defer func() {
+			_, err := p.kmsClient.DeleteAlias(ctx, &kms.DeleteAliasInput{
+				AliasName: aws.String(lockAlias),
+			})
+			if err != nil {
+				p.log.Error("Failed to release rotation lock", "lock_alias", lockAlias, "error", err)
+			} else {
+				p.log.Debug("Released rotation lock", "lock_alias", lockAlias)
+			}
+		}()
+	}
+
+	// 4. Check if the alias already points to a fresh key (concurrency check)
+	// We do this after acquiring the lock (if applicable) to ensure we are seeing the latest state.
+	aliasDesc, err = p.kmsClient.DescribeKey(ctx, &kms.DescribeKeyInput{
+		KeyId: aws.String(newKeyEntry.AliasName),
+	})
+	if err == nil && aliasDesc.KeyMetadata != nil && aliasDesc.KeyMetadata.Enabled && aliasDesc.KeyMetadata.CreationDate != nil {
+		// Check freshness (15 minute threshold)
+		if p.hooks.clk.Now().Sub(*aliasDesc.KeyMetadata.CreationDate) < sharedKeyFreshnessThreshold {
+			// Check KeySpec matches
+			ks, ok := keySpecFromKeyType(req.KeyType)
+			if ok && aliasDesc.KeyMetadata.KeySpec == ks {
+				p.log.Info("Shared key was recently rotated by another instance. Reusing existing key.", "alias", newKeyEntry.AliasName, "key_id", *aliasDesc.KeyMetadata.KeyId)
+
+				// Cleanup the unused candidate key since we are reusing the existing one
+				select {
+				case p.scheduleDelete <- newKeyEntry.Arn:
+					p.log.Debug("Unused candidate key enqueued for deletion", keyArnTag, newKeyEntry.Arn)
+				default:
+					p.log.Error("Failed to enqueue unused candidate key for deletion", keyArnTag, newKeyEntry.Arn)
+				}
+
+				// Fetch existing public key directly from KMS to return it
+				kmsPubKey, err := p.kmsClient.GetPublicKey(ctx, &kms.GetPublicKeyInput{KeyId: aliasDesc.KeyMetadata.KeyId})
+				if err != nil {
+					return nil, status.Errorf(codes.Internal, "failed to fetch existing public key: %v", err)
+				}
+
+				// Update local cache with existing key details
+				reusedEntry := &keyEntry{
+					Arn:       *aliasDesc.KeyMetadata.Arn,
+					AliasName: newKeyEntry.AliasName,
+					PublicKey: &keymanagerv1.PublicKey{
+						Id:          req.KeyId,
+						Type:        req.KeyType,
+						PkixData:    kmsPubKey.PublicKey,
+						Fingerprint: makeFingerprint(kmsPubKey.PublicKey),
+					},
+				}
+				p.entries[req.KeyId] = *reusedEntry
+
+				return &keymanagerv1.GenerateKeyResponse{
+					PublicKey: reusedEntry.PublicKey,
+				}, nil
+			}
+		}
+	}
+
+	// 5. Assign the real alias (Rotation point)
 	err = p.assignAlias(ctx, newKeyEntry)
 	if err != nil {
 		return nil, err
@@ -408,9 +692,14 @@ func (p *Plugin) createKey(ctx context.Context, spireKeyID string, keyType keyma
 		return nil, status.Error(codes.Internal, "malformed get public key response")
 	}
 
+	aliasName, err := p.generateAliasName(spireKeyID)
+	if err != nil {
+		return nil, err
+	}
+
 	return &keyEntry{
 		Arn:       *key.KeyMetadata.Arn,
-		AliasName: p.aliasFromSpireKeyID(spireKeyID),
+		AliasName: aliasName,
 		PublicKey: &keymanagerv1.PublicKey{
 			Id:          spireKeyID,
 			Type:        keyType,
@@ -633,7 +922,7 @@ func (p *Plugin) disposeAliases(ctx context.Context) error {
 			switch {
 			case alias.AliasName == nil || alias.LastUpdatedDate == nil || alias.AliasArn == nil:
 				continue
-				// if alias does not belong to trust domain skip
+			// if alias does not belong to trust domain skip
 			case !strings.HasPrefix(*alias.AliasName, p.aliasPrefixForTrustDomain()):
 				continue
 			// if alias belongs to current server skip
@@ -821,6 +1110,36 @@ func (p *Plugin) aliasPrefixForTrustDomain() string {
 func (p *Plugin) notifyDelete(err error) {
 	if p.hooks.scheduleDeleteSignal != nil {
 		p.hooks.scheduleDeleteSignal <- err
+	}
+}
+
+func (p *Plugin) generateAliasName(id string) (string, error) {
+	if p.sharedKeysEnabled && keymanager.IsSharedKeyID(id) {
+		data := sharedKeysTemplateData(sanitizeTrustDomain(p.trustDomain), id, p.serverID, p.region)
+
+		var buf bytes.Buffer
+		if err := p.jwtKeyAliasTemplate.Execute(&buf, data); err != nil {
+			return "", status.Errorf(codes.Internal, "failed to execute jwt_key_alias_template: %v", err)
+		}
+		return buf.String(), nil
+	}
+	return p.aliasFromSpireKeyID(id), nil
+}
+
+// sharedKeysTemplateData builds the template data struct for shared-keys templates.
+func sharedKeysTemplateData(trustDomain, keyID, serverID, region string) any {
+	return struct {
+		TrustDomain string
+		KeyID       string
+		ServerID    string
+		Region      string
+		Env         string
+	}{
+		TrustDomain: trustDomain,
+		KeyID:       keyID,
+		ServerID:    serverID,
+		Region:      region,
+		Env:         os.Getenv("SPIRE_ENV"),
 	}
 }
 

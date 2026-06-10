@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -45,6 +46,7 @@ const (
 	KeyArn               = "arn:aws:kms:region:1234:key/abcd-fghi"
 	aliasName            = "alias/SPIRE_SERVER/test_example_org/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee/spireKeyID"
 	spireKeyID           = "spireKeyID"
+	sharedJWTKeyID       = keymanager.JWTSignerKeyIDPrefix + spireKeyID
 	testTimeout          = 60 * time.Second
 )
 
@@ -2562,4 +2564,428 @@ func waitForSignal(t *testing.T, ch chan error) error {
 		t.Fail()
 	}
 	return nil
+}
+
+func TestConfigure_SharedKeys(t *testing.T) {
+	for _, tt := range []struct {
+		name             string
+		err              string
+		code             codes.Code
+		configureRequest *configv1.ConfigureRequest
+	}{
+		{
+			name: "success: shared keys enabled",
+			configureRequest: configureRequestWithString(`{
+				"access_key_id":"access_key_id",
+				"secret_access_key":"secret_access_key",
+				"region":"us-west-2",
+				"key_identifier_value":"test-server",
+				"shared_keys": {
+					"jwt_key_alias_template": "alias/spire-jwt-{{ .TrustDomain }}-{{ .KeyID }}",
+					"lock_alias_template": "alias/spire-lock-{{ .TrustDomain }}-{{ .KeyID }}",
+					"key_id_extraction_regex": "^alias/spire-jwt-[^-]+-(.+)$"
+				}
+			}`),
+		},
+		{
+			name: "missing jwt_key_alias_template",
+			configureRequest: configureRequestWithString(`{
+				"access_key_id":"access_key_id",
+				"secret_access_key":"secret_access_key",
+				"region":"us-west-2",
+				"key_identifier_value":"test-server",
+				"shared_keys": {
+					"lock_alias_template": "alias/spire-lock-{{ .TrustDomain }}-{{ .KeyID }}",
+					"key_id_extraction_regex": "^alias/spire-jwt-[^-]+-(.+)$"
+				}
+			}`),
+			err:  "configuration missing jwt_key_alias_template in shared_keys",
+			code: codes.InvalidArgument,
+		},
+		{
+			name: "missing lock_alias_template",
+			configureRequest: configureRequestWithString(`{
+				"access_key_id":"access_key_id",
+				"secret_access_key":"secret_access_key",
+				"region":"us-west-2",
+				"key_identifier_value":"test-server",
+				"shared_keys": {
+					"jwt_key_alias_template": "alias/spire-jwt-{{ .TrustDomain }}-{{ .KeyID }}",
+					"key_id_extraction_regex": "^alias/spire-jwt-[^-]+-(.+)$"
+				}
+			}`),
+			err:  "configuration missing lock_alias_template in shared_keys",
+			code: codes.InvalidArgument,
+		},
+		{
+			name: "missing key_id_extraction_regex",
+			configureRequest: configureRequestWithString(`{
+				"access_key_id":"access_key_id",
+				"secret_access_key":"secret_access_key",
+				"region":"us-west-2",
+				"key_identifier_value":"test-server",
+				"shared_keys": {
+					"jwt_key_alias_template": "alias/spire-jwt-{{ .TrustDomain }}-{{ .KeyID }}",
+					"lock_alias_template": "alias/spire-lock-{{ .TrustDomain }}-{{ .KeyID }}"
+				}
+			}`),
+			err:  "configuration missing key_id_extraction_regex in shared_keys",
+			code: codes.InvalidArgument,
+		},
+		{
+			name: "invalid jwt_key_alias_template",
+			configureRequest: configureRequestWithString(`{
+				"access_key_id":"access_key_id",
+				"secret_access_key":"secret_access_key",
+				"region":"us-west-2",
+				"key_identifier_value":"test-server",
+				"shared_keys": {
+					"jwt_key_alias_template": "alias/spire-jwt-{{ .TrustDomain }}-{{ .KeyID ",
+					"lock_alias_template": "alias/spire-lock-{{ .TrustDomain }}-{{ .KeyID }}",
+					"key_id_extraction_regex": "^alias/spire-jwt-[^-]+-(.+)$"
+				}
+			}`),
+			err:  "failed to parse jwt_key_alias_template",
+			code: codes.InvalidArgument,
+		},
+		{
+			name: "invalid key_id_extraction_regex",
+			configureRequest: configureRequestWithString(`{
+				"access_key_id":"access_key_id",
+				"secret_access_key":"secret_access_key",
+				"region":"us-west-2",
+				"key_identifier_value":"test-server",
+				"shared_keys": {
+					"jwt_key_alias_template": "alias/spire-jwt-{{ .TrustDomain }}-{{ .KeyID }}",
+					"lock_alias_template": "alias/spire-lock-{{ .TrustDomain }}-{{ .KeyID }}",
+					"key_id_extraction_regex": "[invalid"
+				}
+			}`),
+			err:  "failed to compile key_id_extraction_regex",
+			code: codes.InvalidArgument,
+		},
+		{
+			name: "key_id_extraction_regex without capture group",
+			configureRequest: configureRequestWithString(`{
+				"access_key_id":"access_key_id",
+				"secret_access_key":"secret_access_key",
+				"region":"us-west-2",
+				"key_identifier_value":"test-server",
+				"shared_keys": {
+					"jwt_key_alias_template": "alias/spire-jwt-{{ .TrustDomain }}-{{ .KeyID }}",
+					"lock_alias_template": "alias/spire-lock-{{ .TrustDomain }}-{{ .KeyID }}",
+					"key_id_extraction_regex": "^alias/spire-jwt-.*$"
+				}
+			}`),
+			err:  "key_id_extraction_regex must have exactly one capturing group",
+			code: codes.InvalidArgument,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			ts := setupTest(t)
+			_, err := ts.plugin.Configure(ctx, tt.configureRequest)
+			if tt.err != "" {
+				spiretest.RequireGRPCStatusContains(t, err, tt.code, tt.err)
+				return
+			}
+			require.NoError(t, err)
+		})
+	}
+}
+
+func TestGenerateKey_SharedKeys(t *testing.T) {
+	sharedKeysConfig := `{
+		"access_key_id":"access_key_id",
+		"secret_access_key":"secret_access_key",
+		"region":"us-west-2",
+		"key_identifier_value":"test-server",
+		"shared_keys": {
+			"jwt_key_alias_template": "alias/spire-jwt-{{ .TrustDomain }}-{{ .KeyID }}",
+			"lock_alias_template": "alias/spire-lock-{{ .TrustDomain }}-{{ .KeyID }}",
+			"key_id_extraction_regex": "^alias/spire-jwt-[^-]+-(.+)$"
+		}
+	}`
+
+	expectedAlias := "alias/spire-jwt-test_example_org-" + sharedJWTKeyID
+	expectedLockAlias := "alias/spire-lock-test_example_org-" + sharedJWTKeyID
+
+	for _, tt := range []struct {
+		name              string
+		err               string
+		code              codes.Code
+		fakeEntries       []fakeKeyEntry
+		request           *keymanagerv1.GenerateKeyRequest
+		createKeyErr      string
+		createAliasErr    string
+		deleteAliasErr    string // For lock release
+		describeKeyErr    string
+		getPublicKeyErr   string
+		instanceAccountID string
+		instanceRoleARN   string
+	}{
+		{
+			name: "success: new key",
+			request: &keymanagerv1.GenerateKeyRequest{
+				KeyId:   sharedJWTKeyID,
+				KeyType: keymanagerv1.KeyType_EC_P256,
+			},
+		},
+		{
+			name: "success: reuse existing fresh key",
+			request: &keymanagerv1.GenerateKeyRequest{
+				KeyId:   sharedJWTKeyID,
+				KeyType: keymanagerv1.KeyType_EC_P256,
+			},
+			fakeEntries: []fakeKeyEntry{
+				{
+					AliasName:    aws.String(expectedAlias),
+					KeyID:        aws.String(keyID),
+					KeySpec:      types.KeySpecEccNistP256,
+					Enabled:      true,
+					CreationDate: &unixEpoch, // Will be updated in test setup to be fresh
+					PublicKey:    []byte("foo"),
+				},
+			},
+		},
+		{
+			name: "success: rotate key (existing key stale)",
+			request: &keymanagerv1.GenerateKeyRequest{
+				KeyId:   sharedJWTKeyID,
+				KeyType: keymanagerv1.KeyType_EC_P256,
+			},
+			fakeEntries: []fakeKeyEntry{
+				{
+					AliasName:    aws.String(expectedAlias),
+					KeyID:        aws.String(keyID),
+					KeySpec:      types.KeySpecEccNistP256,
+					Enabled:      true,
+					CreationDate: &unixEpoch, // Stale
+					PublicKey:    []byte("foo"),
+				},
+			},
+		},
+		{
+			name: "fail: lock held",
+			request: &keymanagerv1.GenerateKeyRequest{
+				KeyId:   sharedJWTKeyID,
+				KeyType: keymanagerv1.KeyType_EC_P256,
+			},
+			err:  "rotation lock held",
+			code: codes.Aborted,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			ts := setupTest(t)
+
+			// Adjust creation date for freshness test
+			if tt.name == "success: reuse existing fresh key" {
+				now := ts.clockHook.Now()
+				tt.fakeEntries[0].CreationDate = &now
+			}
+
+			ts.fakeKMSClient.setEntries(tt.fakeEntries)
+			ts.fakeKMSClient.setCreateKeyErr(tt.createKeyErr)
+
+			if tt.name == "fail: lock held" {
+				ts.fakeKMSClient.setCreateAliasesTypedErr(&types.AlreadyExistsException{Message: aws.String("already exists")})
+			} else if tt.createAliasErr != "" {
+				ts.fakeKMSClient.setCreateAliasesErr(tt.createAliasErr)
+			}
+
+			ts.fakeKMSClient.setDeleteAliasErr(tt.deleteAliasErr)
+			ts.fakeKMSClient.setDescribeKeyErr(tt.describeKeyErr)
+			ts.fakeKMSClient.setgetPublicKeyErr(tt.getPublicKeyErr)
+
+			configureReq := configureRequestWithString(sharedKeysConfig)
+			_, err := ts.plugin.Configure(ctx, configureReq)
+			require.NoError(t, err)
+
+			resp, err := ts.plugin.GenerateKey(ctx, tt.request)
+			if tt.err != "" {
+				spiretest.RequireGRPCStatusContains(t, err, tt.code, tt.err)
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, resp)
+
+			// Verify lock was released if it was acquired (implied by success in rotation cases)
+			if tt.name == "success: new key" || tt.name == "success: rotate key (existing key stale)" {
+				// In the fake client, we can check if DeleteAlias was called for the lock alias?
+				// The fake client doesn't track calls easily, but we can check if the lock alias exists.
+				// It shouldn't exist.
+				_, ok := ts.fakeKMSClient.store.aliases[expectedLockAlias]
+				require.False(t, ok, "lock alias should be released")
+
+				// Verify the key alias exists
+				_, ok = ts.fakeKMSClient.store.aliases[expectedAlias]
+				require.True(t, ok, "key alias should exist")
+			}
+		})
+	}
+}
+
+func TestGenerateKey_SharedKeys_OnlyJWTKeysAreShared(t *testing.T) {
+	sharedKeysConfig := `{
+		"access_key_id":"access_key_id",
+		"secret_access_key":"secret_access_key",
+		"region":"us-west-2",
+		"key_identifier_value":"test-server",
+		"shared_keys": {
+			"jwt_key_alias_template": "alias/spire-jwt-{{ .TrustDomain }}-{{ .KeyID }}",
+			"lock_alias_template": "alias/spire-lock-{{ .TrustDomain }}-{{ .KeyID }}",
+			"key_id_extraction_regex": "^alias/spire-jwt-[^-]+-(.+)$"
+		}
+	}`
+
+	x509KeyID := keymanager.X509CAKeyIDPrefix + "A"
+	jwtAlias := "alias/spire-jwt-test_example_org-" + sharedJWTKeyID
+	x509PerServerAlias := "alias/SPIRE_SERVER/test_example_org/test-server/" + x509KeyID
+
+	ts := setupTest(t)
+	_, err := ts.plugin.Configure(ctx, configureRequestWithString(sharedKeysConfig))
+	require.NoError(t, err)
+
+	// X509 CA keys are not shared: they use this server's per-server alias.
+	_, err = ts.plugin.GenerateKey(ctx, &keymanagerv1.GenerateKeyRequest{
+		KeyId:   x509KeyID,
+		KeyType: keymanagerv1.KeyType_EC_P256,
+	})
+	require.NoError(t, err)
+
+	// JWT signing keys are shared: they use the shared template alias.
+	_, err = ts.plugin.GenerateKey(ctx, &keymanagerv1.GenerateKeyRequest{
+		KeyId:   sharedJWTKeyID,
+		KeyType: keymanagerv1.KeyType_EC_P256,
+	})
+	require.NoError(t, err)
+
+	_, ok := ts.fakeKMSClient.store.aliases[x509PerServerAlias]
+	require.True(t, ok, "X509 CA key should use the per-server alias")
+	_, ok = ts.fakeKMSClient.store.aliases[jwtAlias]
+	require.True(t, ok, "JWT signing key should use the shared template alias")
+
+	_, ok = ts.fakeKMSClient.store.aliases["alias/spire-jwt-test_example_org-"+x509KeyID]
+	require.False(t, ok, "X509 CA key must not use the shared template alias")
+}
+
+func TestGenerateKey_SharedKeys_StaleLockBroken(t *testing.T) {
+	sharedKeysConfig := `{
+		"access_key_id":"access_key_id",
+		"secret_access_key":"secret_access_key",
+		"region":"us-west-2",
+		"key_identifier_value":"test-server",
+		"shared_keys": {
+			"jwt_key_alias_template": "alias/spire-jwt-{{ .TrustDomain }}-{{ .KeyID }}",
+			"lock_alias_template": "alias/spire-lock-{{ .TrustDomain }}-{{ .KeyID }}",
+			"key_id_extraction_regex": "^alias/spire-jwt-[^-]+-(.+)$"
+		}
+	}`
+	expectedAlias := "alias/spire-jwt-test_example_org-" + sharedJWTKeyID
+	expectedLockAlias := "alias/spire-lock-test_example_org-" + sharedJWTKeyID
+
+	ts := setupTest(t)
+
+	// Advance clock by 15 minutes (beyond lockTTL=10m) so the stale key
+	// pre-created for the lock appears old.
+	ts.clockHook.Add(15 * time.Minute)
+
+	// Pre-seed a stale lock: create a key whose CreationDate is now in the past
+	// (before clock advance), then create the lock alias pointing to it.
+	staleKey := fakeKeyEntry{
+		AliasName:    aws.String(expectedLockAlias),
+		KeyID:        aws.String("stale-lock-key-id"),
+		KeySpec:      types.KeySpecEccNistP256,
+		Enabled:      true,
+		CreationDate: aws.Time(ts.clockHook.Now().Add(-15 * time.Minute)), // 15 min old
+		PublicKey:    []byte("stale"),
+	}
+	ts.fakeKMSClient.setEntries([]fakeKeyEntry{staleKey})
+
+	configureReq := configureRequestWithString(sharedKeysConfig)
+	_, err := ts.plugin.Configure(ctx, configureReq)
+	require.NoError(t, err)
+
+	resp, err := ts.plugin.GenerateKey(ctx, &keymanagerv1.GenerateKeyRequest{
+		KeyId:   sharedJWTKeyID,
+		KeyType: keymanagerv1.KeyType_EC_P256,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+
+	// The new key alias must exist and the lock must be released.
+	_, lockExists := ts.fakeKMSClient.store.aliases[expectedLockAlias]
+	require.False(t, lockExists, "stale lock should have been broken and released")
+	_, keyExists := ts.fakeKMSClient.store.aliases[expectedAlias]
+	require.True(t, keyExists, "key alias should exist after stale lock was broken")
+}
+
+func TestGenerateKey_SharedKeys_ConcurrentContention(t *testing.T) {
+	sharedKeysConfigFmt := `{
+		"access_key_id":"access_key_id",
+		"secret_access_key":"secret_access_key",
+		"region":"us-west-2",
+		"key_identifier_value":"%s",
+		"shared_keys": {
+			"jwt_key_alias_template": "alias/spire-jwt-{{ .TrustDomain }}-{{ .KeyID }}",
+			"lock_alias_template": "alias/spire-lock-{{ .TrustDomain }}-{{ .KeyID }}",
+			"key_id_extraction_regex": "^alias/spire-jwt-[^-]+-(.+)$"
+		}
+	}`
+	expectedAlias := "alias/spire-jwt-test_example_org-" + sharedJWTKeyID
+
+	c := clock.NewMock()
+	fakeKMSClient := newKMSClientFake(t, c)
+	fakeSTSClient := newSTSClientFake()
+
+	makePlugin := func(serverID string) *Plugin {
+		p := newPlugin(
+			func(aws.Config) (kmsClient, error) { return fakeKMSClient, nil },
+			func(aws.Config) (stsClient, error) { return fakeSTSClient, nil },
+		)
+		km := new(keymanager.V1)
+		plugintest.Load(t, builtin(p), km)
+		p.hooks.clk = c
+		_, err := p.Configure(ctx, configureRequestWithString(fmt.Sprintf(sharedKeysConfigFmt, serverID)))
+		require.NoError(t, err)
+		return p
+	}
+
+	p1 := makePlugin("server-1")
+	p2 := makePlugin("server-2")
+
+	req := &keymanagerv1.GenerateKeyRequest{
+		KeyId:   sharedJWTKeyID,
+		KeyType: keymanagerv1.KeyType_EC_P256,
+	}
+
+	type result struct {
+		resp *keymanagerv1.GenerateKeyResponse
+		err  error
+	}
+	results := make(chan result, 2)
+
+	var wg sync.WaitGroup
+	for _, p := range []*Plugin{p1, p2} {
+		wg.Add(1)
+		go func(p *Plugin) {
+			defer wg.Done()
+			resp, err := p.GenerateKey(ctx, req)
+			results <- result{resp, err}
+		}(p)
+	}
+	wg.Wait()
+	close(results)
+
+	_, aliasExists := fakeKMSClient.store.aliases[expectedAlias]
+	require.True(t, aliasExists, "JWT key alias should exist after concurrent generation")
+
+	var successes int
+	for r := range results {
+		if r.err == nil {
+			require.NotNil(t, r.resp)
+			successes++
+		}
+	}
+	require.Greater(t, successes, 0, "at least one GenerateKey call should succeed")
 }

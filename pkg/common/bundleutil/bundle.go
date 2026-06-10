@@ -222,6 +222,52 @@ func MergeBundles(a, b *common.Bundle) (*common.Bundle, bool) {
 	return c, changed
 }
 
+func DedupSigningKeysByKid(bundle *common.Bundle) bool {
+	jwtKeys, jwtChanged := dedupPublicKeysByKid(bundle.JwtSigningKeys)
+	witKeys, witChanged := dedupPublicKeysByKid(bundle.WitSigningKeys)
+	if jwtChanged {
+		bundle.JwtSigningKeys = jwtKeys
+	}
+	if witChanged {
+		bundle.WitSigningKeys = witKeys
+	}
+	return jwtChanged || witChanged
+}
+
+func dedupPublicKeysByKid(keys []*common.PublicKey) ([]*common.PublicKey, bool) {
+	order := make([]string, 0, len(keys))
+	chosen := make(map[string]*common.PublicKey, len(keys))
+	tainted := make(map[string]bool, len(keys))
+	duplicates := false
+	for _, key := range keys {
+		if existing, ok := chosen[key.Kid]; ok {
+			duplicates = true
+			tainted[key.Kid] = tainted[key.Kid] || key.TaintedKey
+			if key.NotAfter > existing.NotAfter {
+				chosen[key.Kid] = key
+			}
+			continue
+		}
+		order = append(order, key.Kid)
+		chosen[key.Kid] = key
+		tainted[key.Kid] = key.TaintedKey
+	}
+	if !duplicates {
+		return keys, false
+	}
+
+	deduped := make([]*common.PublicKey, 0, len(order))
+	for _, kid := range order {
+		key := chosen[kid]
+		if key.TaintedKey != tainted[kid] {
+			key = proto.Clone(key).(*common.PublicKey)
+			key.TaintedKey = tainted[kid]
+		}
+		deduped = append(deduped, key)
+	}
+	return deduped, true
+}
+
 // PruneBundle removes the bundle RootCAs and JWT keys that expired before a given time
 // It returns an error if pruning results in a bundle with no CAs or keys
 func PruneBundle(bundle *common.Bundle, expiration time.Time, log logrus.FieldLogger) (*common.Bundle, bool, error) {

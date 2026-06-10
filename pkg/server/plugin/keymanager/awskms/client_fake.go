@@ -433,6 +433,12 @@ func (k *kmsClientFake) setCreateAliasesErr(fakeError string) {
 	}
 }
 
+func (k *kmsClientFake) setCreateAliasesTypedErr(err error) {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	k.createAliasErr = err
+}
+
 func (k *kmsClientFake) setUpdateAliasErr(fakeError string) {
 	k.mu.Lock()
 	defer k.mu.Unlock()
@@ -514,15 +520,14 @@ type fakeAlias struct {
 }
 
 func (fs *fakeStore) SaveKeyEntry(input *fakeKeyEntry) {
+	fs.mu.Lock()
+	defer fs.mu.Unlock()
+
 	if input.KeyID == nil {
 		input.KeyID = aws.String(strconv.Itoa(fs.nextID))
 		fs.nextID++
 	}
 	input.Arn = aws.String(arnFromKeyID(*input.KeyID))
-
-	fs.mu.Lock()
-	defer fs.mu.Unlock()
-
 	fs.keyEntries[*input.KeyID] = input
 }
 

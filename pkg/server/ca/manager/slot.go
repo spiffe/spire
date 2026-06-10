@@ -16,6 +16,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/pkg/server/catalog"
+	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
 	"github.com/spiffe/spire/proto/private/server/journal"
 	"github.com/spiffe/spire/proto/spire/common"
 	"google.golang.org/grpc/codes"
@@ -592,15 +593,15 @@ func (s *SlotLoader) makeSigner(ctx context.Context, keyID string) (crypto.Signe
 }
 
 func x509CAKmKeyID(id string) string {
-	return fmt.Sprintf("x509-CA-%s", id)
+	return keymanager.X509CAKeyIDPrefix + id
 }
 
 func jwtKeyKmKeyID(id string) string {
-	return fmt.Sprintf("JWT-Signer-%s", id)
+	return keymanager.JWTSignerKeyIDPrefix + id
 }
 
 func witKeyKmKeyID(id string) string {
-	return fmt.Sprintf("WIT-Signer-%s", id)
+	return keymanager.WITSignerKeyIDPrefix + id
 }
 
 func containsJwkSigningKeyID(keys []*common.PublicKey, kid string) bool {
