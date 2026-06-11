@@ -12,8 +12,8 @@ updates:
   cooldown:
     default-days: 7
   # Collapse all minor and patch updates into a single weekly PR.
-  # Major updates remain ungrouped so each breaking change can be
-  # reviewed independently.
+  # Major bumps remain ungrouped and each one opens its own PR, so
+  # each breaking change can be reviewed independently.
   groups:
     minor-and-patch:
       patterns:
@@ -42,6 +42,9 @@ updates:
   # 2025 tj-actions/changed-files compromise was reverted within days).
   cooldown:
     default-days: 7
+  # Collapse all minor and patch updates into a single weekly PR.
+  # Major bumps remain ungrouped and each one opens its own PR, so
+  # each breaking change can be reviewed independently.
   groups:
     minor-and-patch:
       patterns:
