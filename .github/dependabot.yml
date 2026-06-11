@@ -3,38 +3,24 @@ updates:
 - package-ecosystem: gomod
   directory: "/"
   schedule:
-    interval: "daily"
+    interval: "weekly"
     time: "09:00"
     timezone: "America/Los_Angeles"
+  # Wait for new releases to age before opening update PRs, preserving
+  # a window for the ecosystem to detect and report a compromised
+  # release before it is proposed for review.
+  cooldown:
+    default-days: 7
+  # Collapse all minor and patch updates into a single weekly PR.
+  # Major updates remain ungrouped so each breaking change can be
+  # reviewed independently.
   groups:
-    actions:
+    minor-and-patch:
       patterns:
-        - "github.com/actions/*"
-    aws-sdk:
-      patterns:
-        - "github.com/aws/aws-sdk-go-v2/*"
-        - "github.com/aws/smithy-go"
-    azure-sdk:
-      patterns:
-        - "github.com/Azure/azure-sdk-for-go/*"
-    google-cloud-sdk:
-      patterns:
-        - "cloud.google.com/go/*"
-        - "google.golang.org/api"
-        - "google.golang.org/grpc"
-        - "github.com/googleapis/*"
-    golang.org/x:
-      patterns:
-        - "golang.org/x/*"
-    hashicorp-vault:
-      patterns:
-        - "github.com/hashicorp/vault/*"
-    k8s.io:
-      patterns:
-        - "k8s.io/*"
-    sigs.k8s.io:
-      patterns:
-        - "sigs.k8s.io/*"
+        - "*"
+      update-types:
+        - "minor"
+        - "patch"
   ignore:
   - dependency-name: "github.com/spiffe/spire-api-sdk"
   - dependency-name: "github.com/spiffe/spire-plugin-sdk"
@@ -49,5 +35,18 @@ updates:
 - package-ecosystem: "github-actions"
   directory: "/"
   schedule:
-   interval: daily
+    interval: "weekly"
+  # Wait for new action releases to age before opening update PRs, so
+  # that a compromised release has a window to be detected and reported
+  # by the ecosystem before it is proposed for review (e.g. the March
+  # 2025 tj-actions/changed-files compromise was reverted within days).
+  cooldown:
+    default-days: 7
+  groups:
+    minor-and-patch:
+      patterns:
+        - "*"
+      update-types:
+        - "minor"
+        - "patch"
   open-pull-requests-limit: 20
