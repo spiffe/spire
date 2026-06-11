@@ -1,0 +1,150 @@
+name: assign-reviewer
+
+# Rotating assignee ("ball in court") for pull requests.
+#
+# This workflow does not request reviewers: the repository's CODEOWNERS file
+# already requests the maintainers on every PR. Instead it designates a single
+# maintainer as the PR assignee to show who owns the next action ("ball in
+# court"), and keeps that up to date as the review progresses:
+#   - opened / ready_for_review -> a maintainer is chosen at random from the
+#     pool and set as the assignee.
+#   - a human re-requests a review while the ball is with the author -> the
+#     assignee flips to the requested maintainer.
+#
+# Review submissions (the flip to the author on changes requested, and the
+# reviewer staying assigned on approval) are handled by the companion
+# assign-reviewer-review-capture and assign-reviewer-review-apply workflows.
+# That split exists because review handling needs a write token on PRs from
+# forks, which the pull_request_review event does not provide; see those files.
+#
+# The maintainer is picked at random from the pool, which evens out over time.
+# The selection is stateless: no persisted index or external state. The pool is
+# defined in .github/reviewer-pool.json, separate from CODEOWNERS, so it can be
+# adjusted for availability (leave, inactivity) without touching ownership.
+#
+# This runs on pull_request_target, which has a write-scoped token even for PRs
+# from forks. It is safe because the job never checks out or executes any code
+# from the PR; it only reads PR metadata and calls the assignee API, never
+# interpolating PR-controlled text into a shell.
+
+on:
+  pull_request_target:
+    types: [opened, ready_for_review, review_requested]
+
+# Serialize runs per PR and per event action so overlapping events don't race
+# on the assignee. The action is part of the group on purpose: when a PR opens,
+# GitHub fires the "opened" event together with a burst of CODEOWNERS
+# "review_requested" events, and a single group plus cancel-in-progress: false
+# makes GitHub cancel all but the latest pending run, which can drop the
+# "opened" run that assigns the reviewer. Keeping each action in its own group
+# lets "opened" run on its own while same-action bursts still collapse safely.
+concurrency:
+  group: assign-reviewer-${{ github.event.pull_request.number }}-${{ github.event_name }}-${{ github.event.action }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  assign-reviewer:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read       # read .github/reviewer-pool.json
+      issues: write        # add/remove assignees (the issues API endpoint)
+      pull-requests: write # add/remove assignees on the pull request
+    steps:
+      - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const pr = context.payload.pull_request;
+            const action = context.payload.action;
+            const eq = (a, b) => a.toLowerCase() === b.toLowerCase();
+            const assignees = () => (pr.assignees || []).map(a => a.login);
+
+            // The reviewer pool lives in .github/reviewer-pool.json so it has a
+            // single, discoverable source of truth shared with the apply
+            // workflow (assign_reviewer_review_apply.yaml). Read it from the
+            // default branch (the API default ref) so a PR from a fork cannot
+            // substitute its own pool.
+            const { data: poolFile } = await github.rest.repos.getContent({
+              owner, repo, path: '.github/reviewer-pool.json',
+            });
+            const POOL = JSON.parse(
+              Buffer.from(poolFile.content, poolFile.encoding).toString('utf8'),
+            ).reviewers;
+            const inPool = (login) => POOL.some(p => eq(p, login));
+            // The ball is in the author's court only when the author is assigned
+            // and no pool member other than the author also is, so a re-request
+            // does not override a maintainer who is still (for example,
+            // manually) co-assigned.
+            const authorHoldsBall = () => {
+              const current = assignees();
+              return current.some(a => eq(a, pr.user.login)) &&
+                !current.some(a => inPool(a) && !eq(a, pr.user.login));
+            };
+
+            // Make `login` the sole ball-in-court assignee among flow
+            // participants (the pool members and the PR author), leaving any
+            // unrelated, manually-added assignees untouched.
+            async function setCourt(login) {
+              const flow = [...POOL, pr.user.login];
+              const current = assignees();
+              const toRemove = current.filter(a =>
+                flow.some(f => eq(f, a)) && !eq(a, login));
+              if (toRemove.length > 0) {
+                await github.rest.issues.removeAssignees({
+                  owner, repo, issue_number: pr.number, assignees: toRemove,
+                });
+              }
+              if (!current.some(a => eq(a, login))) {
+                await github.rest.issues.addAssignees({
+                  owner, repo, issue_number: pr.number, assignees: [login],
+                });
+              }
+              core.info(`Ball in court: ${login}, PR #${pr.number}.`);
+            }
+
+            // Skip bot-authored PRs (for example Dependabot). These are handled
+            // by the auto-merge workflow and do not take part in the rotation.
+            if (pr.user.type === 'Bot' || pr.user.login.endsWith('[bot]')) {
+              core.info(`PR #${pr.number} authored by bot ${pr.user.login}; skipping.`);
+              return;
+            }
+
+            // 1) New PR (or draft promoted to ready): pick a random pool member.
+            if (action === 'opened' || action === 'ready_for_review') {
+              if (pr.draft) {
+                core.info(`PR #${pr.number} is a draft; skipping.`);
+                return;
+              }
+              // Exclude the author so a maintainer who opens a PR is not made
+              // the assignee of their own PR.
+              const candidates = POOL.filter(u => !eq(u, pr.user.login));
+              if (candidates.length === 0) {
+                core.info('No eligible maintainers after excluding the author; skipping.');
+                return;
+              }
+              const reviewer = candidates[Math.floor(Math.random() * candidates.length)];
+              core.info(`Selected assignee for PR #${pr.number}: ${reviewer}.`);
+              await setCourt(reviewer);
+              return;
+            }
+
+            // 2) A review was (re-)requested. Move the ball to that maintainer,
+            //    but only when the ball is currently in the author's court (the
+            //    author is the assignee). This keeps the CODEOWNERS auto-request
+            //    that fires on open from overriding the rotated assignee.
+            if (action === 'review_requested') {
+              const reviewer = context.payload.requested_reviewer;
+              if (!reviewer || reviewer.type === 'Bot' || !inPool(reviewer.login)) {
+                core.info('Review request is not for a pool member; skipping.');
+                return;
+              }
+              if (!authorHoldsBall()) {
+                core.info(`Ball is not in the author's court on PR #${pr.number}; not overriding the rotation.`);
+                return;
+              }
+              await setCourt(reviewer.login);
+              return;
+            }

@@ -308,6 +308,24 @@ func TestMergeInput(t *testing.T) {
 			},
 		},
 		{
+			msg:       "log_selectors should default to empty if not set",
+			fileInput: func(c *Config) {},
+			cliInput:  func(c *agentConfig) {},
+			test: func(t *testing.T, c *Config) {
+				require.Empty(t, c.Agent.LogSelectors)
+			},
+		},
+		{
+			msg: "log_selectors should be configurable by file",
+			fileInput: func(c *Config) {
+				c.Agent.LogSelectors = []string{"k8s:ns", "unix:user"}
+			},
+			cliInput: func(c *agentConfig) {},
+			test: func(t *testing.T, c *Config) {
+				require.Equal(t, []string{"k8s:ns", "unix:user"}, c.Agent.LogSelectors)
+			},
+		},
+		{
 			msg: "log_level should be configurable by file",
 			fileInput: func(c *Config) {
 				c.Agent.LogLevel = "DEBUG"
@@ -814,6 +832,15 @@ func TestNewAgentConfig(t *testing.T) {
 			},
 			test: func(t *testing.T, c *agent.Config) {
 				require.Equal(t, workloadkey.ECP256, c.WorkloadKeyType)
+			},
+		},
+		{
+			msg: "log_selectors is copied",
+			input: func(c *Config) {
+				c.Agent.LogSelectors = []string{"k8s:ns", "unix:user"}
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Equal(t, []string{"k8s:ns", "unix:user"}, c.LogSelectors)
 			},
 		},
 		{

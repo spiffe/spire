@@ -170,12 +170,14 @@ func TestEndpoints(t *testing.T) {
 				DefaultAllBundlesName:       "DefaultAllBundlesName",
 				DisableSPIFFECertValidation: true,
 				AllowedForeignJWTClaims:     tt.allowedClaims,
+				LogSelectors:                []string{"k8s:ns"},
 
 				// Assert the provided config and return a fake Workload API server
 				newWorkloadAPIServer: func(c workload.Config) workload_pb.SpiffeWorkloadAPIServer {
 					attestor, ok := c.Attestor.(PeerTrackerAttestor)
 					require.True(t, ok, "attestor was not a PeerTrackerAttestor wrapper")
 					assert.Equal(t, FakeManager{}, c.Manager)
+					assert.Equal(t, []string{"k8s:ns"}, c.LogSelectors)
 					if tt.expectClaims != nil {
 						assert.Equal(t, tt.expectClaims, c.AllowedForeignJWTClaims)
 					} else {

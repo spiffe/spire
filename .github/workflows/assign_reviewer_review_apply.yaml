@@ -1,0 +1,177 @@
+name: assign-reviewer-review-apply
+
+# Privileged half of the review ball-in-court update.
+#
+# Triggered by the completion of assign-reviewer-review-capture via
+# workflow_run. A workflow_run run executes from the default branch with a
+# write-scoped token even when the originating review was on a PR from a fork,
+# which is what lets it move the assignee where the pull_request_review event
+# could not.
+#
+# Ball-in-court rules applied here:
+#   - reviewer approves  -> the reviewer stays assigned (a maintainer merges).
+#   - changes requested or comment -> the author is assigned (their court).
+#
+# Security: this never checks out or runs any PR code. The capture artifact is
+# treated as untrusted (a fork PR can run a modified capture, since
+# pull_request_review uses the PR's own workflow copy): it validates the PR
+# number is a positive integer and the review state is one of the known values,
+# binds the artifact to the triggering PR by requiring the re-fetched PR head to
+# equal the run's head SHA (so a forged pr_number cannot target a victim PR),
+# confirms via the API that the named reviewer actually submitted a review in
+# that state (so a forged artifact cannot fabricate one), skips bot-authored
+# PRs, only ever assigns a login that is in the pool or is the PR author
+# re-fetched from the API, and never interpolates artifact data into a shell.
+
+on:
+  workflow_run:
+    workflows: [assign-reviewer-review-capture]
+    types: [completed]
+
+# Serialize applies for the same commit so close-together reviews don't race on
+# the assignee. The PR number is not in the workflow_run context for fork PRs,
+# so the head SHA is used as the grouping key.
+concurrency:
+  group: assign-reviewer-review-apply-${{ github.event.workflow_run.head_sha }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    # Only act when the capture run succeeded (so the artifact exists).
+    if: github.event.workflow_run.conclusion == 'success'
+    permissions:
+      contents: read       # read .github/reviewer-pool.json
+      issues: write        # add/remove assignees (the issues API endpoint)
+      pull-requests: write # add/remove assignees on the pull request
+      actions: read        # download the artifact from the capture run
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: assign-reviewer-review
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ github.token }}
+      - uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
+        with:
+          script: |
+            const fs = require('fs');
+
+            const { owner, repo } = context.repo;
+            const eq = (a, b) => a.toLowerCase() === b.toLowerCase();
+
+            // The reviewer pool lives in .github/reviewer-pool.json so it has a
+            // single, discoverable source of truth shared with
+            // assign_reviewer.yaml. This workflow_run job already runs from the
+            // default branch, so the default ref is the trusted pool.
+            const { data: poolFile } = await github.rest.repos.getContent({
+              owner, repo, path: '.github/reviewer-pool.json',
+            });
+            const POOL = JSON.parse(
+              Buffer.from(poolFile.content, poolFile.encoding).toString('utf8'),
+            ).reviewers;
+            const inPool = (login) => POOL.some(p => eq(p, login));
+
+            // The artifact comes from a fork-triggered run; treat it as
+            // untrusted and validate every field before use.
+            let raw;
+            try {
+              raw = JSON.parse(fs.readFileSync('review.json', 'utf8'));
+            } catch (e) {
+              core.warning(`Could not read captured review data: ${e.message}`);
+              return;
+            }
+            const prNumber = Number(raw.pr_number);
+            const state = String(raw.review_state || '').toLowerCase();
+            const submitter = String(raw.submitter || '');
+            if (!Number.isInteger(prNumber) || prNumber <= 0) {
+              core.warning('Captured pr_number is not a positive integer; ignoring.');
+              return;
+            }
+            if (!['approved', 'changes_requested', 'commented'].includes(state)) {
+              core.info(`Review state "${state}" does not change the court; nothing to do.`);
+              return;
+            }
+            // Only reviews from pool members drive the ball-in-court state.
+            if (!inPool(submitter)) {
+              core.info(`Review by ${submitter} is not from a pool member; leaving court unchanged.`);
+              return;
+            }
+
+            // Re-fetch the PR so we act on its current author and assignees.
+            const { data: pr } = await github.rest.pulls.get({
+              owner, repo, pull_number: prNumber,
+            });
+            const author = pr.user.login;
+            const current = (pr.assignees || []).map(a => a.login);
+
+            // Bind the artifact to the PR that actually triggered the capture
+            // run. pull_request_review runs the PR's own copy of the capture
+            // workflow, so a fork can ship a modified capture that uploads an
+            // arbitrary pr_number; the field validation above only checks it is
+            // a positive integer. Requiring the re-fetched PR's head to equal
+            // the triggering run's head SHA limits any forged artifact to the
+            // attacker's own PR (whose head is the only one that can match),
+            // rather than letting it act on a victim PR. A legitimate apply that
+            // races a fresh push is skipped and reconciles on the next event.
+            if (pr.head.sha !== context.payload.workflow_run.head_sha) {
+              core.info(`PR #${prNumber} head does not match the capture run head; ignoring (forged or stale artifact).`);
+              return;
+            }
+
+            // Skip bot-authored PRs (for example Dependabot); they are owned by
+            // the auto-merge workflow and do not take part in the rotation.
+            if (pr.user.type === 'Bot' || pr.user.login.endsWith('[bot]')) {
+              core.info(`PR #${prNumber} authored by bot ${pr.user.login}; skipping.`);
+              return;
+            }
+
+            // The apply is asynchronous, so the PR may have closed in between.
+            if (pr.state !== 'open') {
+              core.info(`PR #${prNumber} is ${pr.state}; leaving court unchanged.`);
+              return;
+            }
+            // A pool member can leave a comment review on their own PR; don't
+            // assign them to it (the open handler excludes the author too).
+            if (eq(submitter, author)) {
+              core.info(`Self-review by ${submitter} on PR #${prNumber}; leaving court unchanged.`);
+              return;
+            }
+
+            // Confirm the claimed review actually exists. The capture is
+            // fork-modifiable, so without this a forged artifact could fabricate
+            // a pool member's review on the attacker's own PR. Require a real
+            // review by `submitter` in `state` before acting on it.
+            const reviews = await github.paginate(github.rest.pulls.listReviews, {
+              owner, repo, pull_number: prNumber, per_page: 100,
+            });
+            const reviewExists = reviews.some(r =>
+              r.user && eq(r.user.login, submitter) &&
+              (r.state || '').toLowerCase() === state);
+            if (!reviewExists) {
+              core.info(`No ${state} review by ${submitter} on PR #${prNumber}; ignoring (forged or stale artifact).`);
+              return;
+            }
+
+            // Approve keeps the reviewer assigned; otherwise the author owns it.
+            const target = state === 'approved' ? submitter : author;
+
+            // Make `target` the sole ball-in-court assignee among flow
+            // participants (pool members and the author), leaving unrelated,
+            // manually-added assignees untouched.
+            const flow = [...POOL, author];
+            const toRemove = current.filter(a =>
+              flow.some(f => eq(f, a)) && !eq(a, target));
+            if (toRemove.length > 0) {
+              await github.rest.issues.removeAssignees({
+                owner, repo, issue_number: prNumber, assignees: toRemove,
+              });
+            }
+            if (!current.some(a => eq(a, target))) {
+              await github.rest.issues.addAssignees({
+                owner, repo, issue_number: prNumber, assignees: [target],
+              });
+            }
+            core.info(`Ball in court: ${target}, PR #${prNumber}.`);

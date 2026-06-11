@@ -58,6 +58,7 @@ This may be useful for templating configuration files, for example across differ
 | `log_file`                        | File to write logs to                                                                                                                                                                                                                             |                                  |
 | `log_level`                       | Sets the logging level &lt;DEBUG&vert;INFO&vert;WARN&vert;ERROR&gt;                                                                                                                                                                               | INFO                             |
 | `log_format`                      | Format of logs, &lt;text&vert;json&gt;                                                                                                                                                                                                            | Text                             |
+| `log_selectors`                   | Workload selector prefixes allowed in diagnostic logs. Selector values can contain sensitive information; only configure prefixes whose values are acceptable to write to logs. Example: `["k8s:ns", "k8s:sa", "unix:user"]`                      |                                  |
 | `log_source_location`             | If true, logs include source file, line number, and method name fields (adds a bit of runtime cost)                                                                                                                                               | false                            |
 | `profiling_enabled`               | If true, enables a [net/http/pprof](https://pkg.go.dev/net/http/pprof) endpoint                                                                                                                                                                   | false                            |
 | `profiling_freq`                  | Frequency of dumping profiling data to disk. Only enabled when `profiling_enabled` is `true` and `profiling_freq` > 0.                                                                                                                            |                                  |
@@ -381,11 +382,17 @@ agent {
 telemetry {
     Prometheus {
         port = 1234
-        #optional TLS for prometheus
+        # optional TLS for prometheus
         tls {
-            cert_file = "/path/to/cert.pem"
-            key_file = "/path/to/key.pem"
-            client_ca_file = "/path/to/ca.pem" # optional CA file for mTLS
+            use_spire_svid = true
+            authorized_spiffe_ids = [
+                "spiffe://example.org/monitoring/prometheus",
+            ]
+
+            # Alternatively, configure a web certificate directly:
+            # cert_file = "/path/to/cert.pem"
+            # key_file = "/path/to/key.pem"
+            # client_ca_file = "/path/to/ca.pem"
         }
     }
 }
