@@ -20,26 +20,25 @@ type Stream interface {
 }
 
 type property struct {
-	mu      sync.Mutex
-	value   any
-	updates []any
-	streams map[*stream]struct{}
+	mu    sync.Mutex
+	state *state
 }
 
 type stream struct {
 	property *property
-	value    any
-	next     int
+	state    *state
+}
 
-	changes       chan struct{}
-	changesClosed bool
+type state struct {
+	value any
+	next  *state
+	done  chan struct{}
 }
 
 // NewProperty creates a property with the provided initial value.
 func NewProperty(value any) Property {
 	return &property{
-		value:   value,
-		streams: make(map[*stream]struct{}),
+		state: newState(value),
 	}
 }
 
@@ -47,70 +46,51 @@ func (p *property) Value() any {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	return p.value
+	return p.state.value
 }
 
 func (p *property) Update(value any) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	p.value = value
-	p.updates = append(p.updates, value)
-
-	for s := range p.streams {
-		if s.hasNextLocked() {
-			s.closeChangesLocked()
-		}
-	}
+	next := newState(value)
+	p.state.next = next
+	close(p.state.done)
+	p.state = next
 }
 
 func (p *property) Observe() Stream {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	s := &stream{
+	return &stream{
 		property: p,
-		value:    p.value,
-		next:     len(p.updates),
-		changes:  make(chan struct{}),
+		state:    p.state,
 	}
-	p.streams[s] = struct{}{}
-	return s
 }
 
 func (s *stream) Value() any {
 	s.property.mu.Lock()
 	defer s.property.mu.Unlock()
 
-	return s.value
+	return s.state.value
 }
 
 func (s *stream) Changes() chan struct{} {
 	s.property.mu.Lock()
 	defer s.property.mu.Unlock()
 
-	if s.hasNextLocked() {
-		s.closeChangesLocked()
-	}
-	return s.changes
+	return s.state.done
 }
 
 func (s *stream) Next() any {
 	s.property.mu.Lock()
 	defer s.property.mu.Unlock()
 
-	if !s.hasNextLocked() {
-		return s.value
+	if s.state.next != nil {
+		s.state = s.state.next
 	}
-
-	s.value = s.property.updates[s.next]
-	s.next++
-	s.changes = make(chan struct{})
-	s.changesClosed = false
-	if s.hasNextLocked() {
-		s.closeChangesLocked()
-	}
-	return s.value
+	return s.state.value
 }
 
 func (s *stream) WaitNext() any {
@@ -122,34 +102,22 @@ func (s *stream) HasNext() bool {
 	s.property.mu.Lock()
 	defer s.property.mu.Unlock()
 
-	return s.hasNextLocked()
+	return s.state.next != nil
 }
 
 func (s *stream) Clone() Stream {
 	s.property.mu.Lock()
 	defer s.property.mu.Unlock()
 
-	clone := &stream{
+	return &stream{
 		property: s.property,
-		value:    s.value,
-		next:     s.next,
-		changes:  make(chan struct{}),
+		state:    s.state,
 	}
-	if clone.hasNextLocked() {
-		clone.closeChangesLocked()
-	}
-	s.property.streams[clone] = struct{}{}
-	return clone
 }
 
-func (s *stream) hasNextLocked() bool {
-	return s.next < len(s.property.updates)
-}
-
-func (s *stream) closeChangesLocked() {
-	if s.changesClosed {
-		return
+func newState(value any) *state {
+	return &state{
+		value: value,
+		done:  make(chan struct{}),
 	}
-	close(s.changes)
-	s.changesClosed = true
 }
