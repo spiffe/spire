@@ -10,6 +10,9 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strconv"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -59,6 +62,7 @@ dZglS5kKnYigmwDh+/U=
 `
 	spireKeyID1       = "spireKeyID-1"
 	spireKeyID2       = "spireKeyID-2"
+	sharedJWTKeyID1   = keymanager.JWTSignerKeyIDPrefix + spireKeyID1
 	testTimeout       = 60 * time.Second
 	validPolicyFile   = "custom_policy_file.json"
 	validServerID     = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
@@ -71,10 +75,11 @@ var (
 	cryptoKeyName1 = path.Join(validKeyRing, "cryptoKeys", fmt.Sprintf("test-crypto-key/spire-key-%s-spireKeyID-1", validServerID))
 	cryptoKeyName2 = path.Join(validKeyRing, "cryptoKeys", fmt.Sprintf("test-crypto-key/spire-key-%s-spireKeyID-2", validServerID))
 	fakeTime       = timestamppb.Now()
+	unixEpoch      = time.Unix(0, 0)
 
 	pubKey = &kmspb.PublicKey{
-		Pem:       pemCert,
-		PemCrc32C: &wrapperspb.Int64Value{Value: int64(crc32Checksum([]byte(pemCert)))},
+		Pem:       strings.ReplaceAll(pemCert, "\r\n", "\n"),
+		PemCrc32C: &wrapperspb.Int64Value{Value: int64(crc32Checksum([]byte(strings.ReplaceAll(pemCert, "\r\n", "\n"))))},
 	}
 )
 
@@ -1778,4 +1783,424 @@ func maxDuration(d1, d2 time.Duration) time.Duration {
 	}
 
 	return d2
+}
+
+func TestConfigure_SharedKeys(t *testing.T) {
+	for _, tt := range []struct {
+		name             string
+		err              string
+		code             codes.Code
+		configureRequest *configv1.ConfigureRequest
+	}{
+		{
+			name: "valid shared keys config",
+			configureRequest: configureRequestWithString(fmt.Sprintf(`{
+				"key_identifier_value": "test-server",
+				"key_ring": "%s",
+				"shared_keys": {
+					"crypto_key_template": "spire-key-{{ .TrustDomain }}-{{ .KeyID }}",
+					"lock_label_template": "spire-lock-{{ .TrustDomain }}-{{ .KeyID }}",
+					"key_id_extraction_regex": "^spire-key-test-example-org-(.+)$"
+				}
+			}`, validKeyRing)),
+		},
+		{
+			name: "missing crypto_key_template",
+			configureRequest: configureRequestWithString(fmt.Sprintf(`{
+				"key_identifier_value": "test-server",
+				"key_ring": "%s",
+				"shared_keys": {
+					"lock_label_template": "spire-lock-{{ .TrustDomain }}-{{ .KeyID }}",
+					"key_id_extraction_regex": "^spire-key-test-example-org-(.+)$"
+				}
+			}`, validKeyRing)),
+			err:  "configuration missing crypto_key_template in shared_keys",
+			code: codes.InvalidArgument,
+		},
+		{
+			name: "missing key_id_extraction_regex",
+			configureRequest: configureRequestWithString(fmt.Sprintf(`{
+				"key_identifier_value": "test-server",
+				"key_ring": "%s",
+				"shared_keys": {
+					"crypto_key_template": "spire-key-{{ .TrustDomain }}-{{ .KeyID }}",
+					"lock_label_template": "spire-lock-{{ .TrustDomain }}-{{ .KeyID }}"
+				}
+			}`, validKeyRing)),
+			err:  "configuration missing key_id_extraction_regex in shared_keys",
+			code: codes.InvalidArgument,
+		},
+		{
+			name: "invalid crypto_key_template",
+			configureRequest: configureRequestWithString(fmt.Sprintf(`{
+				"key_identifier_value": "test-server",
+				"key_ring": "%s",
+				"shared_keys": {
+					"crypto_key_template": "spire-key-{{ .TrustDomain }}-{{ .KeyID ",
+					"lock_label_template": "spire-lock-{{ .TrustDomain }}-{{ .KeyID }}",
+					"key_id_extraction_regex": "^spire-key-test-example-org-(.+)$"
+				}
+			}`, validKeyRing)),
+			err:  "failed to parse crypto_key_template",
+			code: codes.InvalidArgument,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			ts := setupTest(t)
+			_, err := ts.plugin.Configure(ctx, tt.configureRequest)
+
+			if tt.err != "" {
+				spiretest.RequireGRPCStatusContains(t, err, tt.code, tt.err)
+				return
+			}
+
+			require.NoError(t, err)
+		})
+	}
+}
+
+func TestGenerateKey_SharedKeys(t *testing.T) {
+	sharedKeysConfig := fmt.Sprintf(`{
+		"key_identifier_value": "test-server",
+		"key_ring": "%s",
+		"shared_keys": {
+			"crypto_key_template": "spire-key-{{ .TrustDomain }}-{{ .KeyID }}",
+			"lock_label_template": "spire-lock-{{ .TrustDomain }}-{{ .KeyID }}",
+			"key_id_extraction_regex": "^spire-key-test-example-org-(.+)$"
+		}
+	}`, validKeyRing)
+
+	// Trust domain "test.example.org" is sanitized to "test-example-org" for both the
+	// crypto key name template and the lock label template (both use .TrustDomain = sanitized TD).
+	expectedCryptoKeyName := path.Join(validKeyRing, "cryptoKeys", "spire-key-test-example-org-"+sharedJWTKeyID1)
+	expectedLockLabel := "spire-lock-test-example-org-" + sharedJWTKeyID1
+
+	for _, tt := range []struct {
+		name                       string
+		err                        string
+		code                       codes.Code
+		fakeCryptoKeys             []*fakeCryptoKey
+		request                    *keymanagerv1.GenerateKeyRequest
+		createKeyErr               error
+		getCryptoKeyErr            error
+		updateCryptoKeyErr         error // For lock acquisition/release
+		getPublicKeyErr            error
+		destroyCryptoKeyVersionErr error
+	}{
+		{
+			name: "success: new key",
+			request: &keymanagerv1.GenerateKeyRequest{
+				KeyId:   sharedJWTKeyID1,
+				KeyType: keymanagerv1.KeyType_EC_P256,
+			},
+		},
+		{
+			name: "success: reuse existing fresh key",
+			request: &keymanagerv1.GenerateKeyRequest{
+				KeyId:   sharedJWTKeyID1,
+				KeyType: keymanagerv1.KeyType_EC_P256,
+			},
+			fakeCryptoKeys: []*fakeCryptoKey{
+				{
+					CryptoKey: &kmspb.CryptoKey{
+						Name:            expectedCryptoKeyName,
+						Labels:          map[string]string{labelNameActive: "true"},
+						VersionTemplate: &kmspb.CryptoKeyVersionTemplate{Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256},
+					},
+					fakeCryptoKeyVersions: map[string]*fakeCryptoKeyVersion{
+						"1": {
+							publicKey: pubKey,
+							CryptoKeyVersion: &kmspb.CryptoKeyVersion{
+								Algorithm:  kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256,
+								Name:       fmt.Sprintf("%s/cryptoKeyVersions/1", expectedCryptoKeyName),
+								State:      kmspb.CryptoKeyVersion_ENABLED,
+								CreateTime: timestamppb.New(time.Now()), // Fresh
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "success: rotate key (existing key stale)",
+			request: &keymanagerv1.GenerateKeyRequest{
+				KeyId:   sharedJWTKeyID1,
+				KeyType: keymanagerv1.KeyType_EC_P256,
+			},
+			fakeCryptoKeys: []*fakeCryptoKey{
+				{
+					CryptoKey: &kmspb.CryptoKey{
+						Name:            expectedCryptoKeyName,
+						Labels:          map[string]string{labelNameActive: "true"},
+						VersionTemplate: &kmspb.CryptoKeyVersionTemplate{Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256},
+					},
+					fakeCryptoKeyVersions: map[string]*fakeCryptoKeyVersion{
+						"1": {
+							publicKey: pubKey,
+							CryptoKeyVersion: &kmspb.CryptoKeyVersion{
+								Algorithm:  kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256,
+								Name:       fmt.Sprintf("%s/cryptoKeyVersions/1", expectedCryptoKeyName),
+								State:      kmspb.CryptoKeyVersion_ENABLED,
+								CreateTime: timestamppb.New(unixEpoch), // Stale
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "fail: lock held",
+			request: &keymanagerv1.GenerateKeyRequest{
+				KeyId:   sharedJWTKeyID1,
+				KeyType: keymanagerv1.KeyType_EC_P256,
+			},
+			fakeCryptoKeys: []*fakeCryptoKey{
+				{
+					CryptoKey: &kmspb.CryptoKey{
+						Name:            expectedCryptoKeyName,
+						Labels:          map[string]string{labelNameActive: "true", expectedLockLabel: "true"}, // Lock held
+						VersionTemplate: &kmspb.CryptoKeyVersionTemplate{Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256},
+					},
+					fakeCryptoKeyVersions: map[string]*fakeCryptoKeyVersion{
+						"1": {
+							publicKey: pubKey,
+							CryptoKeyVersion: &kmspb.CryptoKeyVersion{
+								Algorithm:  kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256,
+								Name:       fmt.Sprintf("%s/cryptoKeyVersions/1", expectedCryptoKeyName),
+								State:      kmspb.CryptoKeyVersion_ENABLED,
+								CreateTime: timestamppb.New(unixEpoch), // Stale
+							},
+						},
+					},
+				},
+			},
+			err:  "rotation lock held",
+			code: codes.Aborted,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			ts := setupTest(t)
+
+			// Adjust creation date for freshness test
+			if tt.name == "success: reuse existing fresh key" {
+				tt.fakeCryptoKeys[0].fakeCryptoKeyVersions["1"].CryptoKeyVersion.CreateTime = timestamppb.New(ts.clockHook.Now())
+			}
+
+			// For the lock-held test, stamp the lock label with a fresh (non-stale) unix timestamp.
+			if tt.name == "fail: lock held" && len(tt.fakeCryptoKeys) > 0 {
+				now := ts.clockHook.Now()
+				tt.fakeCryptoKeys[0].Labels[expectedLockLabel] = strconv.FormatInt(now.Unix(), 10)
+			}
+
+			ts.fakeKMSClient.putFakeCryptoKeys(tt.fakeCryptoKeys)
+			ts.fakeKMSClient.setCreateCryptoKeyErr(tt.createKeyErr)
+			ts.fakeKMSClient.setUpdateCryptoKeyErr(tt.updateCryptoKeyErr)
+			ts.fakeKMSClient.setDestroyCryptoKeyVersionErr(tt.destroyCryptoKeyVersionErr)
+
+			// We need to set getPublicKeyErr if needed, but for success cases it should be nil (default)
+			if tt.getPublicKeyErr != nil {
+				ts.fakeKMSClient.setGetPublicKeySequentialErrs(tt.getPublicKeyErr, 1)
+			}
+
+			ts.plugin.hooks.scheduleDestroySignal = make(chan error)
+
+			configureReq := configureRequestWithString(sharedKeysConfig)
+			_, err := ts.plugin.Configure(ctx, configureReq)
+			require.NoError(t, err)
+
+			resp, err := ts.plugin.GenerateKey(ctx, tt.request)
+			if tt.err != "" {
+				spiretest.RequireGRPCStatusContains(t, err, tt.code, tt.err)
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, resp)
+
+			// Verify lock was released if it was acquired (implied by success in rotation cases)
+			if tt.name == "success: new key" || tt.name == "success: rotate key (existing key stale)" {
+				// Check if the crypto key exists
+				fakeKey, ok := ts.fakeKMSClient.store.fetchFakeCryptoKey(expectedCryptoKeyName)
+				require.True(t, ok, "crypto key should exist")
+
+				// Check lock label
+				_, locked := fakeKey.Labels[expectedLockLabel]
+				require.False(t, locked, "lock label should be released")
+			}
+		})
+	}
+}
+
+func TestGenerateKey_SharedKeys_OnlyJWTKeysAreShared(t *testing.T) {
+	sharedKeysConfig := fmt.Sprintf(`{
+		"key_identifier_value": "test-server",
+		"key_ring": "%s",
+		"shared_keys": {
+			"crypto_key_template": "spire-key-{{ .TrustDomain }}-{{ .KeyID }}",
+			"lock_label_template": "spire-lock-{{ .TrustDomain }}-{{ .KeyID }}",
+			"key_id_extraction_regex": "^spire-key-test-example-org-(.+)$"
+		}
+	}`, validKeyRing)
+
+	x509KeyID := keymanager.X509CAKeyIDPrefix + "A"
+	jwtCryptoKeyName := path.Join(validKeyRing, "cryptoKeys", "spire-key-test-example-org-"+sharedJWTKeyID1)
+	x509PerServerName := path.Join(validKeyRing, "cryptoKeys", "spire-key-test-server-"+x509KeyID)
+	x509SharedName := path.Join(validKeyRing, "cryptoKeys", "spire-key-test-example-org-"+x509KeyID)
+
+	ts := setupTest(t)
+	ts.plugin.hooks.scheduleDestroySignal = make(chan error)
+	_, err := ts.plugin.Configure(ctx, configureRequestWithString(sharedKeysConfig))
+	require.NoError(t, err)
+
+	// X509 CA keys are not shared: they use this server's per-server crypto key name.
+	_, err = ts.plugin.GenerateKey(ctx, &keymanagerv1.GenerateKeyRequest{
+		KeyId:   x509KeyID,
+		KeyType: keymanagerv1.KeyType_EC_P256,
+	})
+	require.NoError(t, err)
+
+	// JWT signing keys are shared: they use the shared template crypto key name.
+	_, err = ts.plugin.GenerateKey(ctx, &keymanagerv1.GenerateKeyRequest{
+		KeyId:   sharedJWTKeyID1,
+		KeyType: keymanagerv1.KeyType_EC_P256,
+	})
+	require.NoError(t, err)
+
+	_, ok := ts.fakeKMSClient.store.fetchFakeCryptoKey(x509PerServerName)
+	require.True(t, ok, "X509 CA key should use the per-server crypto key name")
+	_, ok = ts.fakeKMSClient.store.fetchFakeCryptoKey(jwtCryptoKeyName)
+	require.True(t, ok, "JWT signing key should use the shared template crypto key name")
+	_, ok = ts.fakeKMSClient.store.fetchFakeCryptoKey(x509SharedName)
+	require.False(t, ok, "X509 CA key must not use the shared template crypto key name")
+}
+
+func TestGenerateKey_SharedKeys_StaleLockBroken(t *testing.T) {
+	sharedKeysConfig := fmt.Sprintf(`{
+		"key_identifier_value": "test-server",
+		"key_ring": "%s",
+		"shared_keys": {
+			"crypto_key_template": "spire-key-{{ .TrustDomain }}-{{ .KeyID }}",
+			"lock_label_template": "spire-lock-{{ .TrustDomain }}-{{ .KeyID }}",
+			"key_id_extraction_regex": "^spire-key-test-example-org-(.+)$"
+		}
+	}`, validKeyRing)
+
+	expectedCryptoKeyName := path.Join(validKeyRing, "cryptoKeys", "spire-key-test-example-org-"+sharedJWTKeyID1)
+	expectedLockLabel := "spire-lock-test-example-org-" + sharedJWTKeyID1
+
+	ts := setupTest(t)
+
+	// Advance clock by 15 minutes so the stale lock timestamp appears old.
+	ts.clockHook.Add(15 * time.Minute)
+	staleLockTime := ts.clockHook.Now().Add(-15 * time.Minute)
+
+	staleKeyWithLock := &fakeCryptoKey{
+		CryptoKey: &kmspb.CryptoKey{
+			Name: expectedCryptoKeyName,
+			Labels: map[string]string{
+				labelNameActive:   "true",
+				expectedLockLabel: strconv.FormatInt(staleLockTime.Unix(), 10),
+			},
+			VersionTemplate: &kmspb.CryptoKeyVersionTemplate{Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256},
+		},
+		fakeCryptoKeyVersions: map[string]*fakeCryptoKeyVersion{
+			"1": {
+				publicKey: pubKey,
+				CryptoKeyVersion: &kmspb.CryptoKeyVersion{
+					Algorithm:  kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256,
+					Name:       fmt.Sprintf("%s/cryptoKeyVersions/1", expectedCryptoKeyName),
+					State:      kmspb.CryptoKeyVersion_ENABLED,
+					CreateTime: timestamppb.New(unixEpoch), // Stale key version
+				},
+			},
+		},
+	}
+	ts.fakeKMSClient.putFakeCryptoKeys([]*fakeCryptoKey{staleKeyWithLock})
+	ts.plugin.hooks.scheduleDestroySignal = make(chan error)
+
+	configureReq := configureRequestWithString(sharedKeysConfig)
+	_, err := ts.plugin.Configure(ctx, configureReq)
+	require.NoError(t, err)
+
+	resp, err := ts.plugin.GenerateKey(ctx, &keymanagerv1.GenerateKeyRequest{
+		KeyId:   sharedJWTKeyID1,
+		KeyType: keymanagerv1.KeyType_EC_P256,
+	})
+	require.NoError(t, err, "stale lock should be broken and rotation should succeed")
+	require.NotNil(t, resp)
+
+	// Lock label should be gone from the key after successful rotation.
+	fakeKey, ok := ts.fakeKMSClient.store.fetchFakeCryptoKey(expectedCryptoKeyName)
+	require.True(t, ok, "crypto key should exist")
+	_, locked := fakeKey.Labels[expectedLockLabel]
+	require.False(t, locked, "stale lock label should have been removed")
+}
+
+func TestGenerateKey_SharedKeys_ConcurrentContention(t *testing.T) {
+	sharedKeysConfigFmt := fmt.Sprintf(`{
+		"key_identifier_value": "%%s",
+		"key_ring": "%s",
+		"shared_keys": {
+			"crypto_key_template": "spire-key-{{ .TrustDomain }}-{{ .KeyID }}",
+			"lock_label_template": "spire-lock-{{ .TrustDomain }}-{{ .KeyID }}",
+			"key_id_extraction_regex": "^spire-key-test-example-org-(.+)$"
+		}
+	}`, validKeyRing)
+	expectedCryptoKeyName := path.Join(validKeyRing, "cryptoKeys", "spire-key-test-example-org-"+sharedJWTKeyID1)
+
+	c := clock.NewMock(t)
+	fakeCli := newKMSClientFake(t, c)
+
+	makePlugin := func(serverID string) *Plugin {
+		p := newPlugin(
+			func(ctx context.Context, opts ...option.ClientOption) (cloudKeyManagementService, error) {
+				fakeCli.opts = opts
+				return fakeCli, nil
+			},
+		)
+		km := new(keymanager.V1)
+		plugintest.Load(t, builtin(p), km)
+		p.hooks.clk = c
+		_, err := p.Configure(ctx, configureRequestWithString(fmt.Sprintf(sharedKeysConfigFmt, serverID)))
+		require.NoError(t, err)
+		return p
+	}
+
+	p1 := makePlugin("server-1")
+	p2 := makePlugin("server-2")
+
+	req := &keymanagerv1.GenerateKeyRequest{
+		KeyId:   sharedJWTKeyID1,
+		KeyType: keymanagerv1.KeyType_EC_P256,
+	}
+
+	type result struct {
+		resp *keymanagerv1.GenerateKeyResponse
+		err  error
+	}
+	results := make(chan result, 2)
+
+	var wg sync.WaitGroup
+	for _, p := range []*Plugin{p1, p2} {
+		wg.Add(1)
+		go func(p *Plugin) {
+			defer wg.Done()
+			resp, err := p.GenerateKey(ctx, req)
+			results <- result{resp, err}
+		}(p)
+	}
+	wg.Wait()
+	close(results)
+
+	_, cryptoKeyExists := fakeCli.store.fetchFakeCryptoKey(expectedCryptoKeyName)
+	require.True(t, cryptoKeyExists, "CryptoKey should exist after concurrent generation")
+
+	var successes int
+	for r := range results {
+		if r.err == nil {
+			require.NotNil(t, r.resp)
+			successes++
+		}
+	}
+	require.Greater(t, successes, 0, "at least one GenerateKey call should succeed")
 }

@@ -2,8 +2,6 @@ package awskms
 
 import (
 	"context"
-	"path"
-	"strings"
 	"sync"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -17,10 +15,9 @@ import (
 )
 
 type keyFetcher struct {
-	log         hclog.Logger
-	kmsClient   kmsClient
-	serverID    string
-	trustDomain string
+	log            hclog.Logger
+	kmsClient      kmsClient
+	keyIDExtractor func(string) (string, bool)
 }
 
 func (kf *keyFetcher) fetchKeyEntries(ctx context.Context) ([]*keyEntry, error) {
@@ -47,7 +44,7 @@ func (kf *keyFetcher) fetchKeyEntries(ctx context.Context) ([]*keyEntry, error) 
 				continue
 			}
 
-			spireKeyID, ok := kf.spireKeyIDFromAlias(*alias.AliasName)
+			spireKeyID, ok := kf.keyIDExtractor(*alias.AliasName)
 			// ignore aliases/keys not belonging to this server
 			if !ok {
 				continue
@@ -131,14 +128,4 @@ func (kf *keyFetcher) fetchKeyEntryDetails(ctx context.Context, alias types.Alia
 			Fingerprint: makeFingerprint(publicKeyResp.PublicKey),
 		},
 	}, nil
-}
-
-func (kf *keyFetcher) spireKeyIDFromAlias(aliasName string) (string, bool) {
-	trustDomain := sanitizeTrustDomain(kf.trustDomain)
-	prefix := path.Join(aliasPrefix, trustDomain, kf.serverID) + "/"
-	trimmed := strings.TrimPrefix(aliasName, prefix)
-	if trimmed == aliasName {
-		return "", false
-	}
-	return decodeKeyID(trimmed), true
 }

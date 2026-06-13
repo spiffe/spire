@@ -15,10 +15,12 @@ import (
 )
 
 type keyFetcher struct {
-	keyVaultClient cloudKeyManagementService
-	log            hclog.Logger
-	serverID       string
-	trustDomain    string
+	keyVaultClient    cloudKeyManagementService
+	log               hclog.Logger
+	serverID          string
+	trustDomain       string
+	sharedKeysEnabled bool
+	keyIDExtractor    func(*azkeys.KeyProperties) (string, bool)
 }
 
 // fetchKeyEntries requests Key Vault to get the list of keys that are
@@ -43,7 +45,7 @@ func (kf *keyFetcher) fetchKeyEntries(ctx context.Context) ([]*keyEntry, error) 
 				continue
 			}
 
-			spireKeyID, ok := spireKeyIDFromKeyName(key.KID.Name())
+			spireKeyID, ok := kf.keyIDExtractor(key)
 			if !ok {
 				kf.log.Warn("Could not get SPIRE Key ID from key", keyNameTag, key.KID.Name())
 				continue
@@ -76,8 +78,19 @@ func (kf *keyFetcher) fetchKeyEntries(ctx context.Context) ([]*keyEntry, error) 
 
 func (kf *keyFetcher) keyBelongsToServer(key *azkeys.KeyProperties) bool {
 	trustDomain, hasTD := key.Tags[tagNameServerTrustDomain]
+	if !hasTD {
+		return false
+	}
+	if *trustDomain != kf.trustDomain {
+		return false
+	}
+	// In shared keys mode any key in the trust domain may be a shared key;
+	// the keyIDExtractor (regex) will filter to the relevant ones.
+	if kf.sharedKeysEnabled {
+		return true
+	}
 	serverID, hasServerID := key.Tags[tagNameServerID]
-	return hasTD && hasServerID && *trustDomain == kf.trustDomain && *serverID == kf.serverID
+	return hasServerID && *serverID == kf.serverID
 }
 
 func (kf *keyFetcher) fetchKeyEntryDetails(ctx context.Context, keyProperties *azkeys.KeyProperties, spireKeyID string) (*keyEntry, error) {

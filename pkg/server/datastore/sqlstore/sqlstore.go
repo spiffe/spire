@@ -1284,6 +1284,9 @@ func appendBundle(tx *gorm.DB, b *common.Bundle) (*common.Bundle, error) {
 	}
 
 	bundle, changed := bundleutil.MergeBundles(bundle, b)
+	if bundleutil.DedupSigningKeysByKid(bundle) {
+		changed = true
+	}
 	if changed {
 		bundle.SequenceNumber++
 		newModel, err := bundleToModel(bundle)

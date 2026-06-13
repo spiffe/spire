@@ -1,7 +1,6 @@
 package manager
 
 import (
-	"bytes"
 	"context"
 	"crypto"
 	"crypto/rand"
@@ -1208,7 +1207,7 @@ func (u *bundleUpdater) appendBundle(ctx context.Context, bundle *common.Bundle)
 }
 
 func newJWTKey(signer crypto.Signer, expiresAt time.Time) (*ca.JWTKey, error) {
-	kid, err := newKeyID()
+	kid, err := deterministicKeyID(signer)
 	if err != nil {
 		return nil, err
 	}
@@ -1221,7 +1220,7 @@ func newJWTKey(signer crypto.Signer, expiresAt time.Time) (*ca.JWTKey, error) {
 }
 
 func newWITKey(signer crypto.Signer, expiresAt time.Time) (*ca.WITKey, error) {
-	kid, err := newKeyID()
+	kid, err := deterministicKeyID(signer)
 	if err != nil {
 		return nil, err
 	}
@@ -1233,22 +1232,12 @@ func newWITKey(signer crypto.Signer, expiresAt time.Time) (*ca.WITKey, error) {
 	}, nil
 }
 
-func newKeyID() (string, error) {
-	choices := make([]byte, 32)
-	_, err := rand.Read(choices)
+func deterministicKeyID(signer crypto.Signer) (string, error) {
+	subjectKeyID, err := x509util.GetSubjectKeyID(signer.Public())
 	if err != nil {
 		return "", err
 	}
-	return keyIDFromBytes(choices), nil
-}
-
-func keyIDFromBytes(choices []byte) string {
-	const alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-	buf := new(bytes.Buffer)
-	for _, choice := range choices {
-		buf.WriteByte(alphabet[int(choice)%len(alphabet)])
-	}
-	return buf.String()
+	return x509util.SubjectKeyIDToString(subjectKeyID), nil
 }
 
 func publicKeyFromJWTKey(jwtKey *ca.JWTKey) (*common.PublicKey, error) {

@@ -468,8 +468,13 @@ func (k *fakeKMSClient) CreateCryptoKey(_ context.Context, req *kmspb.CreateCryp
 		return nil, k.createCryptoKeyErr
 	}
 
+	name := path.Join(req.Parent, "cryptoKeys", req.CryptoKeyId)
+	if _, ok := k.store.fetchFakeCryptoKey(name); ok {
+		return nil, status.Error(codes.AlreadyExists, fmt.Sprintf("CryptoKey %s already exists", name))
+	}
+
 	cryptoKey := &kmspb.CryptoKey{
-		Name:            path.Join(req.Parent, req.CryptoKeyId),
+		Name:            name,
 		Labels:          req.CryptoKey.Labels,
 		VersionTemplate: req.CryptoKey.VersionTemplate,
 	}
@@ -554,6 +559,18 @@ func (k *fakeKMSClient) DestroyCryptoKeyVersion(_ context.Context, req *kmspb.De
 	return cryptoKeyVersion, nil
 }
 
+func (k *fakeKMSClient) GetCryptoKey(_ context.Context, req *kmspb.GetCryptoKeyRequest, _ ...gax.CallOption) (*kmspb.CryptoKey, error) {
+	k.mu.RLock()
+	defer k.mu.RUnlock()
+
+	fck, ok := k.store.fetchFakeCryptoKey(req.Name)
+	if !ok {
+		return nil, status.Errorf(codes.NotFound, "CryptoKey %q not found", req.Name)
+	}
+
+	return fck.CryptoKey, nil
+}
+
 func (k *fakeKMSClient) GetCryptoKeyVersion(_ context.Context, req *kmspb.GetCryptoKeyVersionRequest, _ ...gax.CallOption) (*kmspb.CryptoKeyVersion, error) {
 	k.mu.RLock()
 	defer k.mu.RUnlock()
@@ -587,7 +604,10 @@ func (k *fakeKMSClient) GetPublicKey(_ context.Context, req *kmspb.GetPublicKeyR
 
 	if k.pemCrc32C != nil {
 		// Override pemCrc32C
-		fakeCryptoKeyVersion.publicKey.PemCrc32C = k.pemCrc32C
+		// Return a copy to avoid modifying the original stored key which might be shared
+		pkCopy := proto.Clone(fakeCryptoKeyVersion.publicKey).(*kmspb.PublicKey)
+		pkCopy.PemCrc32C = k.pemCrc32C
+		return pkCopy, nil
 	}
 
 	return fakeCryptoKeyVersion.publicKey, nil
@@ -752,8 +772,8 @@ func (k *fakeKMSClient) createFakeCryptoKeyVersion(cryptoKey *kmspb.CryptoKey, v
 	return &fakeCryptoKeyVersion{
 		privateKey: privateKey,
 		publicKey: &kmspb.PublicKey{
-			Pem:       pemCert.String(),
-			PemCrc32C: &wrapperspb.Int64Value{Value: int64(crc32Checksum(pemCert.Bytes()))},
+			Pem:       strings.ReplaceAll(pemCert.String(), "\r\n", "\n"),
+			PemCrc32C: &wrapperspb.Int64Value{Value: int64(crc32Checksum([]byte(strings.ReplaceAll(pemCert.String(), "\r\n", "\n"))))},
 		},
 		CryptoKeyVersion: &kmspb.CryptoKeyVersion{
 			Name:      path.Join(cryptoKey.Name, "cryptoKeyVersions", version),

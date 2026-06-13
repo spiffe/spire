@@ -17,11 +17,13 @@ import (
 )
 
 type keyFetcher struct {
-	keyRing   string
-	kmsClient cloudKeyManagementService
-	log       hclog.Logger
-	serverID  string
-	tdHash    string
+	keyRing           string
+	kmsClient         cloudKeyManagementService
+	log               hclog.Logger
+	serverID          string
+	tdHash            string
+	keyIDExtractor    func(*kmspb.CryptoKey) (string, bool)
+	sharedKeysEnabled bool
 }
 
 // fetchKeyEntries requests Cloud KMS to get the list of CryptoKeys that are
@@ -31,10 +33,22 @@ func (kf *keyFetcher) fetchKeyEntries(ctx context.Context) ([]*keyEntry, error) 
 	var keyEntriesMutex sync.Mutex
 	g, ctx := errgroup.WithContext(ctx)
 
+	// Build filter based on whether we're using shared keys or not
+	var filter string
+	if kf.sharedKeysEnabled {
+		// Shared keys mode: list all active keys in the trust domain. The key ID
+		// extractor narrows per-server (X509 CA/WIT) keys to this server, while
+		// shared JWT keys (created by any server) are matched by the configured regex.
+		filter = fmt.Sprintf("labels.%s = %s AND labels.%s = true",
+			labelNameServerTD, kf.tdHash, labelNameActive)
+	} else {
+		filter = fmt.Sprintf("labels.%s = %s AND labels.%s = %s AND labels.%s = true",
+			labelNameServerTD, kf.tdHash, labelNameServerID, kf.serverID, labelNameActive)
+	}
+
 	it := kf.kmsClient.ListCryptoKeys(ctx, &kmspb.ListCryptoKeysRequest{
 		Parent: kf.keyRing,
-		Filter: fmt.Sprintf("labels.%s = %s AND labels.%s = %s AND labels.%s = true",
-			labelNameServerTD, kf.tdHash, labelNameServerID, kf.serverID, labelNameActive),
+		Filter: filter,
 	})
 	for {
 		cryptoKey, err := it.Next()
@@ -44,9 +58,8 @@ func (kf *keyFetcher) fetchKeyEntries(ctx context.Context) ([]*keyEntry, error) 
 		if err != nil {
 			return nil, status.Errorf(codes.Internal, "failed to list SPIRE Server keys in Cloud KMS: %v", err)
 		}
-		spireKeyID, ok := getSPIREKeyIDFromCryptoKeyName(cryptoKey.Name)
+		spireKeyID, ok := kf.keyIDExtractor(cryptoKey)
 		if !ok {
-			kf.log.Warn("Could not get SPIRE Key ID from CryptoKey", cryptoKeyNameTag, cryptoKey.Name)
 			continue
 		}
 

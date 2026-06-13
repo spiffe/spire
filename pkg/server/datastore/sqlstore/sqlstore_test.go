@@ -837,6 +837,36 @@ func (s *PluginSuite) TestTaintJWTKey() {
 	validateBundle(taintedKey, 1)
 }
 
+func (s *PluginSuite) TestAppendBundleDedupsSigningKeysByKid() {
+	t := s.T()
+
+	bundle := bundleutil.BundleProtoFromRootCAs("spiffe://foo", nil)
+	bundle.JwtSigningKeys = []*common.PublicKey{
+		{Kid: "shared", PkixBytes: []byte("pkix"), NotAfter: 100},
+	}
+	_, err := s.ds.CreateBundle(ctx, bundle)
+	require.NoError(t, err)
+
+	// A second server publishes the same shared key with a later NotAfter.
+	appended := bundleutil.BundleProtoFromRootCAs("spiffe://foo", nil)
+	appended.JwtSigningKeys = []*common.PublicKey{
+		{Kid: "shared", PkixBytes: []byte("pkix"), NotAfter: 200},
+	}
+	_, err = s.ds.AppendBundle(ctx, appended)
+	require.NoError(t, err)
+
+	fetched, err := s.ds.FetchBundle(ctx, "spiffe://foo")
+	require.NoError(t, err)
+	require.Len(t, fetched.JwtSigningKeys, 1)
+	require.Equal(t, "shared", fetched.JwtSigningKeys[0].Kid)
+	require.EqualValues(t, 200, fetched.JwtSigningKeys[0].NotAfter)
+
+	// With a single entry per kid, tainting the shared key succeeds.
+	publicKey, err := s.ds.TaintJWTKey(ctx, "spiffe://foo", "shared")
+	require.NoError(t, err)
+	require.NotNil(t, publicKey)
+}
+
 func (s *PluginSuite) TestRevokeJWTKey() {
 	t := s.T()
 	// Setup
