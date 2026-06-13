@@ -299,6 +299,9 @@ func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 		if len(ips) == 0 || ips[0] == "" {
 			return status.Error(codes.Internal, "client IP not available for verification")
 		}
+		if len(ips) > 1 {
+			p.log.Warn("Multiple client IP values found in metadata, using first value")
+		}
 		clientIP := net.ParseIP(ips[0])
 		if clientIP == nil {
 			return status.Errorf(codes.Internal, "invalid client IP %q", ips[0])

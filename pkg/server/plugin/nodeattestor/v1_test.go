@@ -189,8 +189,11 @@ type ForwardedClientIPV1Plugin struct {
 
 func (plugin *ForwardedClientIPV1Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 	ips := metadata.ValueFromIncomingContext(stream.Context(), nodeattestor.XForwardedClientIPKey)
-	if len(ips) == 0 || ips[0] != plugin.ExpectedIP {
-		return errors.New("expected forwarded client IP in context metadata")
+	if len(ips) == 0 {
+		return errors.New("client IP metadata key not present")
+	}
+	if ips[0] != plugin.ExpectedIP {
+		return errors.New("forwarded client IP does not match expected value")
 	}
 	if _, err := stream.Recv(); err != nil {
 		return err
@@ -213,6 +216,22 @@ func TestClientIPForwarding(t *testing.T) {
 		Addr: &net.TCPAddr{IP: net.ParseIP("192.0.2.1"), Port: 12345},
 	})
 	result, err := na.Attest(ctx, []byte("unused"), func(ctx context.Context, challenge []byte) ([]byte, error) {
+		return challenge, nil
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+}
+
+func TestClientIPForwardingNoPeer(t *testing.T) {
+	// When no peer is in the context, an empty string should be forwarded.
+	// Plugins that require a real IP (e.g. x509pop with verify_client_ip=true)
+	// are responsible for rejecting the empty value.
+	server := nodeattestorv1.NodeAttestorPluginServer(&ForwardedClientIPV1Plugin{ExpectedIP: ""})
+	na := new(nodeattestor.V1)
+	plugintest.Load(t, catalog.MakeBuiltIn("test", server), na)
+
+	result, err := na.Attest(context.Background(), []byte("unused"), func(ctx context.Context, challenge []byte) ([]byte, error) {
 		return challenge, nil
 	})
 

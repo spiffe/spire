@@ -617,6 +617,27 @@ func (s *Suite) TestVerifyClientIP() {
 		require.NoError(t, err)
 		require.NotNil(t, result)
 	})
+
+	s.T().Run("client IPv6 matches cert SAN", func(t *testing.T) {
+		ipv6 := net.ParseIP("2001:db8::1")
+		certChain, leafKey, rootCertPath := generateCertChainWithIPSAN(t, ipv6)
+		config := fmt.Sprintf("ca_bundle_path = %q\nverify_client_ip = true\n", rootCertPath)
+		attestor := s.loadPlugin(t, config)
+		payload := makePayload(t, certChain)
+		ctx := peer.NewContext(context.Background(), &peer.Peer{
+			Addr: &net.TCPAddr{IP: ipv6, Port: 12345},
+		})
+		challengeFn := func(ctx context.Context, challenge []byte) ([]byte, error) {
+			popChallenge := new(x509pop.Challenge)
+			unmarshal(t, challenge, popChallenge)
+			response, err := x509pop.CalculateResponse(leafKey, popChallenge)
+			require.NoError(t, err)
+			return marshal(t, response), nil
+		}
+		result, err := attestor.Attest(ctx, payload, challengeFn)
+		require.NoError(t, err)
+		require.NotNil(t, result)
+	})
 }
 
 func generateCertChainWithIPSAN(t *testing.T, ip net.IP) (certChain [][]byte, leafKey crypto.PrivateKey, rootCertPath string) {

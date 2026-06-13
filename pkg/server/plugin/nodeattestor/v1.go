@@ -44,7 +44,7 @@ func (v1 *V1) Attest(ctx context.Context, payload []byte, challengeFn func(ctx c
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	// forward original request host to downstream plugins
+	// Forward original request host to downstream plugins
 	originalHost, err := getOriginalHost(ctx)
 	if err != nil {
 		v1.Log.WithError(err).Warn("Failed to extract ':authority' header from gRPC metadata")
