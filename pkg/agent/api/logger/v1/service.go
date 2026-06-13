@@ -6,10 +6,10 @@ import (
 	"github.com/sirupsen/logrus"
 	loggerv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/agent/logger/v1"
 	apitype "github.com/spiffe/spire-api-sdk/proto/spire/api/types"
+	"github.com/spiffe/spire/pkg/agent/api/rpccontext"
 	commonlogger "github.com/spiffe/spire/pkg/common/api/logger"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/api"
-	"github.com/spiffe/spire/pkg/server/api/rpccontext"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 )
