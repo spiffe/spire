@@ -12,7 +12,7 @@ import (
 	"github.com/spiffe/go-spiffe/v2/svid/x509svid"
 	debugv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/debug/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
-	"github.com/spiffe/spire/pkg/server/api"
+	commonapi "github.com/spiffe/spire/pkg/common/api"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
 	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/pkg/server/svid"
@@ -80,16 +80,16 @@ func (s *Service) GetInfo(ctx context.Context, _ *debugv1.GetInfoRequest) (*debu
 	if s.getInfoResp.ts.IsZero() || s.clock.Now().Sub(s.getInfoResp.ts) >= cacheExpiry {
 		nodes, err := s.ds.CountAttestedNodes(ctx, &datastore.CountAttestedNodesRequest{})
 		if err != nil {
-			return nil, api.MakeErr(log, codes.Internal, "failed to count agents", err)
+			return nil, commonapi.MakeErr(log, codes.Internal, "failed to count agents", err)
 		}
 		entries, err := s.ds.CountRegistrationEntries(ctx, &datastore.CountRegistrationEntriesRequest{})
 		if err != nil {
-			return nil, api.MakeErr(log, codes.Internal, "failed to count entries", err)
+			return nil, commonapi.MakeErr(log, codes.Internal, "failed to count entries", err)
 		}
 
 		bundles, err := s.ds.CountBundles(ctx)
 		if err != nil {
-			return nil, api.MakeErr(log, codes.Internal, "failed to count bundles", err)
+			return nil, commonapi.MakeErr(log, codes.Internal, "failed to count bundles", err)
 		}
 
 		svidChain, err := s.getCertificateChain(ctx, log)
@@ -117,11 +117,11 @@ func (s *Service) getCertificateChain(ctx context.Context, log logrus.FieldLogge
 	// Extract trustdomains bundle and append federated bundles
 	bundle, err := s.ds.FetchBundle(ctx, trustDomainID)
 	if err != nil {
-		return nil, api.MakeErr(log, codes.Internal, "failed to fetch trust domain bundle", err)
+		return nil, commonapi.MakeErr(log, codes.Internal, "failed to fetch trust domain bundle", err)
 	}
 
 	if bundle == nil {
-		return nil, api.MakeErr(log, codes.NotFound, "trust domain bundle not found", nil)
+		return nil, commonapi.MakeErr(log, codes.NotFound, "trust domain bundle not found", nil)
 	}
 
 	// Create bundle source using rootCAs
@@ -129,7 +129,7 @@ func (s *Service) getCertificateChain(ctx context.Context, log logrus.FieldLogge
 	for _, b := range bundle.RootCas {
 		cert, err := x509.ParseCertificate(b.DerBytes)
 		if err != nil {
-			return nil, api.MakeErr(log, codes.Internal, "failed to parse bundle", err)
+			return nil, commonapi.MakeErr(log, codes.Internal, "failed to parse bundle", err)
 		}
 		rootCAs = append(rootCAs, cert)
 	}
@@ -138,7 +138,7 @@ func (s *Service) getCertificateChain(ctx context.Context, log logrus.FieldLogge
 	// Verify certificate to extract SVID chain
 	_, chains, err := x509svid.Verify(s.so.State().SVID, bundleSource)
 	if err != nil {
-		return nil, api.MakeErr(log, codes.Internal, "failed verification against bundle", err)
+		return nil, commonapi.MakeErr(log, codes.Internal, "failed verification against bundle", err)
 	}
 
 	// Create SVID chain for response

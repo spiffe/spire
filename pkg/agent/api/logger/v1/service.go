@@ -9,7 +9,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/api/rpccontext"
 	commonlogger "github.com/spiffe/spire/pkg/common/api/logger"
 	"github.com/spiffe/spire/pkg/common/telemetry"
-	"github.com/spiffe/spire/pkg/server/api"
+	"github.com/spiffe/spire/pkg/common/api"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 )

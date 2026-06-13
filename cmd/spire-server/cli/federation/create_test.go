@@ -12,7 +12,7 @@ import (
 	trustdomainv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/trustdomain/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/common/pemutil"
-	"github.com/spiffe/spire/pkg/server/api"
+	commonapi "github.com/spiffe/spire/pkg/common/api"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
@@ -201,7 +201,7 @@ func TestCreate(t *testing.T) {
 			fakeResp: &trustdomainv1.BatchCreateFederationRelationshipResponse{
 				Results: []*trustdomainv1.BatchCreateFederationRelationshipResponse_Result{
 					{
-						Status:                 api.OK(),
+						Status:                 commonapi.OK(),
 						FederationRelationship: frSPIFFE,
 					},
 				},
@@ -239,7 +239,7 @@ Endpoint SPIFFE ID        : spiffe://other.org/bundle
 			fakeResp: &trustdomainv1.BatchCreateFederationRelationshipResponse{
 				Results: []*trustdomainv1.BatchCreateFederationRelationshipResponse_Result{
 					{
-						Status:                 api.OK(),
+						Status:                 commonapi.OK(),
 						FederationRelationship: frSPIFFEAndBundle,
 					},
 				},
@@ -290,7 +290,7 @@ Endpoint SPIFFE ID        : spiffe://td-3.org/bundle
 			fakeResp: &trustdomainv1.BatchCreateFederationRelationshipResponse{
 				Results: []*trustdomainv1.BatchCreateFederationRelationshipResponse_Result{
 					{
-						Status:                 api.OK(),
+						Status:                 commonapi.OK(),
 						FederationRelationship: frWeb,
 					},
 				},
@@ -368,9 +368,9 @@ Error: failed to create one or more federation relationships
 			},
 			fakeResp: &trustdomainv1.BatchCreateFederationRelationshipResponse{
 				Results: []*trustdomainv1.BatchCreateFederationRelationshipResponse_Result{
-					{FederationRelationship: frWeb, Status: api.OK()},
-					{FederationRelationship: frSPIFFE, Status: api.OK()},
-					{FederationRelationship: frPemAuthority, Status: api.OK()},
+					{FederationRelationship: frWeb, Status: commonapi.OK()},
+					{FederationRelationship: frSPIFFE, Status: commonapi.OK()},
+					{FederationRelationship: frPemAuthority, Status: commonapi.OK()},
 				},
 			},
 			expOutPretty: `

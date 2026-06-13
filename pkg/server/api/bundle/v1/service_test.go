@@ -20,6 +20,7 @@ import (
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/common/jwtutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	commonapi "github.com/spiffe/spire/pkg/common/api"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/api/bundle/v1"
 	"github.com/spiffe/spire/pkg/server/api/middleware"
@@ -1762,7 +1763,7 @@ func TestBatchCreateFederatedBundle(t *testing.T) {
 			},
 			expectedResults: []*bundlev1.BatchCreateFederatedBundleResponse_Result{
 				{
-					Status: api.OK(),
+					Status: commonapi.OK(),
 					Bundle: &types.Bundle{
 						TrustDomain:    "another-example.org",
 						RefreshHint:    60,
@@ -1801,7 +1802,7 @@ func TestBatchCreateFederatedBundle(t *testing.T) {
 			outputMask:      &types.BundleMask{},
 			expectedResults: []*bundlev1.BatchCreateFederatedBundleResponse_Result{
 				{
-					Status: api.OK(),
+					Status: commonapi.OK(),
 					Bundle: &types.Bundle{TrustDomain: federatedTrustDomain.Name()},
 				},
 			},
@@ -1835,7 +1836,7 @@ func TestBatchCreateFederatedBundle(t *testing.T) {
 			bundlesToCreate: []*types.Bundle{makeValidBundle(t, federatedTrustDomain)},
 			expectedResults: []*bundlev1.BatchCreateFederatedBundleResponse_Result{
 				{
-					Status: api.OK(),
+					Status: commonapi.OK(),
 					Bundle: makeValidBundle(t, federatedTrustDomain),
 				},
 			},
@@ -1878,7 +1879,7 @@ func TestBatchCreateFederatedBundle(t *testing.T) {
 				}(),
 			},
 			expectedResults: []*bundlev1.BatchCreateFederatedBundleResponse_Result{
-				{Status: api.CreateStatus(codes.InvalidArgument, `trust domain argument is not valid: trust domain characters are limited to lowercase letters, numbers, dots, dashes, and underscores`)},
+				{Status: commonapi.CreateStatus(codes.InvalidArgument, `trust domain argument is not valid: trust domain characters are limited to lowercase letters, numbers, dots, dashes, and underscores`)},
 			},
 			expectedLogMsgs: []spiretest.LogEntry{
 				{
@@ -1918,7 +1919,7 @@ func TestBatchCreateFederatedBundle(t *testing.T) {
 				}(),
 			},
 			expectedResults: []*bundlev1.BatchCreateFederatedBundleResponse_Result{
-				{Status: api.CreateStatus(codes.InvalidArgument, `creating a federated bundle for the server's own trust domain is not allowed`)},
+				{Status: commonapi.CreateStatus(codes.InvalidArgument, `creating a federated bundle for the server's own trust domain is not allowed`)},
 			},
 			expectedLogMsgs: []spiretest.LogEntry{
 				{
@@ -1952,11 +1953,11 @@ func TestBatchCreateFederatedBundle(t *testing.T) {
 			bundlesToCreate: []*types.Bundle{makeValidBundle(t, federatedTrustDomain), makeValidBundle(t, federatedTrustDomain)},
 			expectedResults: []*bundlev1.BatchCreateFederatedBundleResponse_Result{
 				{
-					Status: api.OK(),
+					Status: commonapi.OK(),
 					Bundle: makeValidBundle(t, federatedTrustDomain),
 				},
 				{
-					Status: api.CreateStatus(codes.AlreadyExists, "bundle already exists"),
+					Status: commonapi.CreateStatus(codes.AlreadyExists, "bundle already exists"),
 				},
 			},
 			expectedLogMsgs: []spiretest.LogEntry{
@@ -2013,7 +2014,7 @@ func TestBatchCreateFederatedBundle(t *testing.T) {
 			bundlesToCreate: []*types.Bundle{makeValidBundle(t, federatedTrustDomain)},
 			dsError:         errors.New("datastore error"),
 			expectedResults: []*bundlev1.BatchCreateFederatedBundleResponse_Result{
-				{Status: api.CreateStatus(codes.Internal, `unable to create bundle: datastore error`)},
+				{Status: commonapi.CreateStatus(codes.Internal, `unable to create bundle: datastore error`)},
 			},
 			expectedLogMsgs: []spiretest.LogEntry{
 				{
@@ -2056,7 +2057,7 @@ func TestBatchCreateFederatedBundle(t *testing.T) {
 				},
 			},
 			expectedResults: []*bundlev1.BatchCreateFederatedBundleResponse_Result{
-				{Status: api.CreateStatusf(codes.InvalidArgument, `failed to convert bundle: unable to parse X.509 authority: %v`, expectedX509Err)},
+				{Status: commonapi.CreateStatusf(codes.InvalidArgument, `failed to convert bundle: unable to parse X.509 authority: %v`, expectedX509Err)},
 			},
 			expectedLogMsgs: []spiretest.LogEntry{
 				{
@@ -2132,7 +2133,7 @@ func TestBatchUpdateFederatedBundle(t *testing.T) {
 			},
 			expectedResults: []*bundlev1.BatchCreateFederatedBundleResponse_Result{
 				{
-					Status: api.OK(),
+					Status: commonapi.OK(),
 					Bundle: makeValidBundle(t, federatedTrustDomain),
 				},
 			},
@@ -2173,7 +2174,7 @@ func TestBatchUpdateFederatedBundle(t *testing.T) {
 			},
 			expectedResults: []*bundlev1.BatchCreateFederatedBundleResponse_Result{
 				{
-					Status: api.OK(),
+					Status: commonapi.OK(),
 					Bundle: makeValidBundle(t, federatedTrustDomain),
 				},
 			},
@@ -2211,7 +2212,7 @@ func TestBatchUpdateFederatedBundle(t *testing.T) {
 			},
 			expectedResults: []*bundlev1.BatchCreateFederatedBundleResponse_Result{
 				{
-					Status: api.OK(),
+					Status: commonapi.OK(),
 					Bundle: &types.Bundle{
 						TrustDomain: federatedTrustDomain.Name(),
 						RefreshHint: makeValidBundle(t, federatedTrustDomain).RefreshHint,
@@ -2257,7 +2258,7 @@ func TestBatchUpdateFederatedBundle(t *testing.T) {
 				}(),
 			},
 			expectedResults: []*bundlev1.BatchCreateFederatedBundleResponse_Result{
-				{Status: api.CreateStatus(codes.InvalidArgument, `trust domain argument is not valid: trust domain characters are limited to lowercase letters, numbers, dots, dashes, and underscores`)},
+				{Status: commonapi.CreateStatus(codes.InvalidArgument, `trust domain argument is not valid: trust domain characters are limited to lowercase letters, numbers, dots, dashes, and underscores`)},
 			},
 			expectedLogMsgs: []spiretest.LogEntry{
 				{
@@ -2297,7 +2298,7 @@ func TestBatchUpdateFederatedBundle(t *testing.T) {
 				}(),
 			},
 			expectedResults: []*bundlev1.BatchCreateFederatedBundleResponse_Result{
-				{Status: api.CreateStatus(codes.InvalidArgument, `updating a federated bundle for the server's own trust domain is not allowed`)},
+				{Status: commonapi.CreateStatus(codes.InvalidArgument, `updating a federated bundle for the server's own trust domain is not allowed`)},
 			},
 			expectedLogMsgs: []spiretest.LogEntry{
 				{
@@ -2331,7 +2332,7 @@ func TestBatchUpdateFederatedBundle(t *testing.T) {
 			bundlesToUpdate: []*types.Bundle{makeValidBundle(t, federatedTrustDomain)},
 			expectedResults: []*bundlev1.BatchCreateFederatedBundleResponse_Result{
 				{
-					Status: api.CreateStatus(codes.NotFound, "bundle not found"),
+					Status: commonapi.CreateStatus(codes.NotFound, "bundle not found"),
 				},
 			},
 			expectedLogMsgs: []spiretest.LogEntry{
@@ -2366,7 +2367,7 @@ func TestBatchUpdateFederatedBundle(t *testing.T) {
 			bundlesToUpdate: []*types.Bundle{makeValidBundle(t, federatedTrustDomain)},
 			dsError:         errors.New("datastore error"),
 			expectedResults: []*bundlev1.BatchCreateFederatedBundleResponse_Result{
-				{Status: api.CreateStatus(codes.Internal, `failed to update bundle: datastore error`)},
+				{Status: commonapi.CreateStatus(codes.Internal, `failed to update bundle: datastore error`)},
 			},
 			expectedLogMsgs: []spiretest.LogEntry{
 				{
@@ -2409,7 +2410,7 @@ func TestBatchUpdateFederatedBundle(t *testing.T) {
 				},
 			},
 			expectedResults: []*bundlev1.BatchCreateFederatedBundleResponse_Result{
-				{Status: api.CreateStatus(codes.InvalidArgument, fmt.Sprintf("failed to convert bundle: unable to parse X.509 authority: %v", expectedX509Err))},
+				{Status: commonapi.CreateStatus(codes.InvalidArgument, fmt.Sprintf("failed to convert bundle: unable to parse X.509 authority: %v", expectedX509Err))},
 			},
 			expectedLogMsgs: []spiretest.LogEntry{
 				{
@@ -2442,10 +2443,10 @@ func TestBatchUpdateFederatedBundle(t *testing.T) {
 			bundlesToUpdate:   []*types.Bundle{makeValidBundle(t, spiffeid.RequireTrustDomainFromString("non-existent-td")), makeValidBundle(t, federatedTrustDomain)},
 			expectedResults: []*bundlev1.BatchCreateFederatedBundleResponse_Result{
 				{
-					Status: api.CreateStatus(codes.NotFound, "bundle not found"),
+					Status: commonapi.CreateStatus(codes.NotFound, "bundle not found"),
 				},
 				{
-					Status: api.OK(),
+					Status: commonapi.OK(),
 					Bundle: makeValidBundle(t, federatedTrustDomain),
 				},
 			},
@@ -2568,7 +2569,7 @@ func TestBatchSetFederatedBundle(t *testing.T) {
 			},
 			expectedResults: []*bundlev1.BatchSetFederatedBundleResponse_Result{
 				{
-					Status: api.OK(),
+					Status: commonapi.OK(),
 					Bundle: &types.Bundle{
 						TrustDomain: "another-example.org",
 						RefreshHint: 60,
@@ -2606,7 +2607,7 @@ func TestBatchSetFederatedBundle(t *testing.T) {
 			outputMask:   &types.BundleMask{},
 			expectedResults: []*bundlev1.BatchSetFederatedBundleResponse_Result{
 				{
-					Status: api.OK(),
+					Status: commonapi.OK(),
 					Bundle: &types.Bundle{TrustDomain: federatedTrustDomain.Name()},
 				},
 			},
@@ -2640,7 +2641,7 @@ func TestBatchSetFederatedBundle(t *testing.T) {
 			bundlesToSet: []*types.Bundle{makeValidBundle(t, federatedTrustDomain)},
 			expectedResults: []*bundlev1.BatchSetFederatedBundleResponse_Result{
 				{
-					Status: api.OK(),
+					Status: commonapi.OK(),
 					Bundle: makeValidBundle(t, federatedTrustDomain),
 				},
 			},
@@ -2678,11 +2679,11 @@ func TestBatchSetFederatedBundle(t *testing.T) {
 			bundlesToSet: []*types.Bundle{makeValidBundle(t, federatedTrustDomain), updatedBundle},
 			expectedResults: []*bundlev1.BatchSetFederatedBundleResponse_Result{
 				{
-					Status: api.OK(),
+					Status: commonapi.OK(),
 					Bundle: makeValidBundle(t, federatedTrustDomain),
 				},
 				{
-					Status: api.OK(),
+					Status: commonapi.OK(),
 					Bundle: updatedBundle,
 				},
 			},
@@ -2743,7 +2744,7 @@ func TestBatchSetFederatedBundle(t *testing.T) {
 				}(),
 			},
 			expectedResults: []*bundlev1.BatchSetFederatedBundleResponse_Result{
-				{Status: api.CreateStatus(codes.InvalidArgument, `trust domain argument is not valid: trust domain characters are limited to lowercase letters, numbers, dots, dashes, and underscores`)},
+				{Status: commonapi.CreateStatus(codes.InvalidArgument, `trust domain argument is not valid: trust domain characters are limited to lowercase letters, numbers, dots, dashes, and underscores`)},
 			},
 			expectedLogMsgs: []spiretest.LogEntry{
 				{
@@ -2783,7 +2784,7 @@ func TestBatchSetFederatedBundle(t *testing.T) {
 				}(),
 			},
 			expectedResults: []*bundlev1.BatchSetFederatedBundleResponse_Result{
-				{Status: api.CreateStatus(codes.InvalidArgument, `setting a federated bundle for the server's own trust domain is not allowed`)},
+				{Status: commonapi.CreateStatus(codes.InvalidArgument, `setting a federated bundle for the server's own trust domain is not allowed`)},
 			},
 			expectedLogMsgs: []spiretest.LogEntry{
 				{
@@ -2817,7 +2818,7 @@ func TestBatchSetFederatedBundle(t *testing.T) {
 			bundlesToSet: []*types.Bundle{makeValidBundle(t, federatedTrustDomain)},
 			dsError:      errors.New("datastore error"),
 			expectedResults: []*bundlev1.BatchSetFederatedBundleResponse_Result{
-				{Status: api.CreateStatus(codes.Internal, `failed to set bundle: datastore error`)},
+				{Status: commonapi.CreateStatus(codes.Internal, `failed to set bundle: datastore error`)},
 			},
 			expectedLogMsgs: []spiretest.LogEntry{
 				{
@@ -2860,7 +2861,7 @@ func TestBatchSetFederatedBundle(t *testing.T) {
 				},
 			},
 			expectedResults: []*bundlev1.BatchSetFederatedBundleResponse_Result{
-				{Status: api.CreateStatusf(codes.InvalidArgument, `failed to convert bundle: unable to parse X.509 authority: %v`, expectedX509Err)},
+				{Status: commonapi.CreateStatusf(codes.InvalidArgument, `failed to convert bundle: unable to parse X.509 authority: %v`, expectedX509Err)},
 			},
 			expectedLogMsgs: []spiretest.LogEntry{
 				{

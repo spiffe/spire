@@ -18,6 +18,7 @@ import (
 	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	commonapi "github.com/spiffe/spire/pkg/common/api"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/api/entry/v1"
 	"github.com/spiffe/spire/pkg/server/api/middleware"
@@ -4730,7 +4731,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 			spiffeToIDMap := make(map[string]string)
 			updateEntries := tt.updateEntries
 			for i := range createResp.Results {
-				require.Equal(t, api.OK(), createResp.Results[i].Status)
+				require.Equal(t, commonapi.OK(), createResp.Results[i].Status)
 				updateEntries[i].Id = createResp.Results[i].Entry.Id
 				spiffeToIDMap[createResp.Results[i].Entry.SpiffeId.Path] = createResp.Results[i].Entry.Id
 			}

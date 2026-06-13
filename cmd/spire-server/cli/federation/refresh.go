@@ -11,7 +11,7 @@ import (
 	"github.com/spiffe/spire/cmd/spire-server/util"
 	commoncli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/cliprinter"
-	"github.com/spiffe/spire/pkg/server/api"
+	commonapi "github.com/spiffe/spire/pkg/common/api"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -55,7 +55,7 @@ func (c *refreshCommand) Run(ctx context.Context, _ *commoncli.Env, serverClient
 
 	switch status.Code(err) {
 	case codes.OK:
-		return c.printer.PrintProto(api.OK())
+		return c.printer.PrintProto(commonapi.OK())
 	case codes.NotFound:
 		return fmt.Errorf("there is no federation relationship with trust domain %q", c.id)
 	default:

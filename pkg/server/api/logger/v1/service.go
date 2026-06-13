@@ -8,7 +8,7 @@ import (
 	apitype "github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	commonlogger "github.com/spiffe/spire/pkg/common/api/logger"
 	"github.com/spiffe/spire/pkg/common/telemetry"
-	"github.com/spiffe/spire/pkg/server/api"
+	commonapi "github.com/spiffe/spire/pkg/common/api"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -61,12 +61,12 @@ func (s *Service) SetLogLevel(ctx context.Context, req *loggerv1.SetLogLevelRequ
 	log := rpccontext.Logger(ctx)
 
 	if req.NewLevel == apitype.LogLevel_UNSPECIFIED {
-		return nil, api.MakeErr(log, codes.InvalidArgument, "newLevel value cannot be LogLevel_UNSPECIFIED", nil)
+		return nil, commonapi.MakeErr(log, codes.InvalidArgument, "newLevel value cannot be LogLevel_UNSPECIFIED", nil)
 	}
 
 	newLogLevel, ok := commonlogger.LogrusLevel[req.NewLevel]
 	if !ok {
-		return nil, api.MakeErr(log, codes.InvalidArgument, "unsupported log level", nil)
+		return nil, commonapi.MakeErr(log, codes.InvalidArgument, "unsupported log level", nil)
 	}
 
 	log.WithFields(logrus.Fields{

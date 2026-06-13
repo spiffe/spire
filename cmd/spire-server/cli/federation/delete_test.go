@@ -6,7 +6,7 @@ import (
 
 	trustdomainv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/trustdomain/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
-	"github.com/spiffe/spire/pkg/server/api"
+	commonapi "github.com/spiffe/spire/pkg/common/api"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -47,7 +47,7 @@ func TestDelete(t *testing.T) {
 			deleteResp: &trustdomainv1.BatchDeleteFederationRelationshipResponse{
 				Results: []*trustdomainv1.BatchDeleteFederationRelationshipResponse_Result{
 					{
-						Status:      api.OK(),
+						Status:      commonapi.OK(),
 						TrustDomain: "example.org",
 					},
 				},
