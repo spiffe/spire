@@ -52,12 +52,10 @@ func (s *Service) GetLogger(ctx context.Context, _ *loggerv1.GetLoggerRequest) (
 	log := rpccontext.Logger(ctx)
 	log.Info("GetLogger Called")
 
-	rpccontext.AuditRPC(ctx)
 	return s.createAPILogger(), nil
 }
 
 func (s *Service) SetLogLevel(ctx context.Context, req *loggerv1.SetLogLevelRequest) (*apitype.Logger, error) {
-	rpccontext.AddRPCAuditFields(ctx, logrus.Fields{telemetry.NewLogLevel: req.NewLevel.String()})
 	log := rpccontext.Logger(ctx)
 
 	if req.NewLevel == apitype.LogLevel_UNSPECIFIED {
@@ -74,7 +72,6 @@ func (s *Service) SetLogLevel(ctx context.Context, req *loggerv1.SetLogLevelRequ
 	}).Info("SetLogLevel Called")
 	s.log.SetLevel(newLogLevel)
 
-	rpccontext.AuditRPC(ctx)
 	return s.createAPILogger(), nil
 }
 
@@ -84,7 +81,6 @@ func (s *Service) ResetLogLevel(ctx context.Context, _ *loggerv1.ResetLogLevelRe
 
 	s.log.SetLevel(s.launchLevel)
 
-	rpccontext.AuditRPC(ctx)
 	return s.createAPILogger(), nil
 }
 
