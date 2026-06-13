@@ -19,7 +19,7 @@ const (
 	EnvoySDSv3ServiceShortName         = "SDS.v3"
 	HealthServiceName                  = "grpc.health.v1.Health"
 	HealthServiceShortName             = "Health"
-	LoggerServiceName                  = "logger.v1.Logger"
+	LoggerServiceName                  = "spire.api.agent.logger.v1.Logger"
 	LoggerServiceShortName             = "Logger"
 	DebugServiceName                   = "spire.agent.debug.v1.Debug"
 	DebugServiceShortName              = "Debug"
