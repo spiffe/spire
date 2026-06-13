@@ -4,8 +4,8 @@ import (
 	"context"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
-	"github.com/spiffe/spire/pkg/common/telemetry"
 	commonapi "github.com/spiffe/spire/pkg/common/api"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
 	"github.com/spiffe/spire/pkg/server/datastore"
 	"google.golang.org/grpc"

@@ -7,9 +7,9 @@ import (
 	loggerv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/agent/logger/v1"
 	apitype "github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/agent/api/rpccontext"
+	"github.com/spiffe/spire/pkg/common/api"
 	commonlogger "github.com/spiffe/spire/pkg/common/api/logger"
 	"github.com/spiffe/spire/pkg/common/telemetry"
-	"github.com/spiffe/spire/pkg/common/api"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 )

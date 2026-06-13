@@ -9,9 +9,9 @@ import (
 	"github.com/mitchellh/cli"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/server/trustdomain/v1"
 	"github.com/spiffe/spire/cmd/spire-server/util"
+	commonapi "github.com/spiffe/spire/pkg/common/api"
 	commoncli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/cliprinter"
-	commonapi "github.com/spiffe/spire/pkg/common/api"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )

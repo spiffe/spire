@@ -391,7 +391,7 @@ Checks SPIRE agent's health.
 | Command       | Action                                | Default                          |
 |:--------------|:--------------------------------------|:---------------------------------|
 | `-shallow`    | Perform a less stringent health check |                                  |
-| `-socketPath` | Path to the SPIRE Agent API socket    | /tmp/spire-agent/private/admin.sock |
+| `-socketPath` | Path to the SPIRE Agent API socket    | /tmp/spire-agent/public/api.sock |
 | `-verbose`    | Print verbose information             |                                  |
 
 ### `spire-agent logger get`
