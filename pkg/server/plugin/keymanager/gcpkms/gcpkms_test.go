@@ -401,6 +401,12 @@ func TestConfigure(t *testing.T) {
 				require.Nil(t, tt.config, "The test case must define a configuration or a configuration request, not both.")
 				configureRequest = tt.configureRequest
 			}
+			go func() {
+				for range tt.getPublicKeyErrCount - 1 {
+					ts.clockHook.WaitForSleep(testTimeout, "timed out waiting for backoff sleep")
+					ts.clockHook.Add(time.Second) // >= backoffMax, releases the pending sleep
+				}
+			}()
 			_, err := ts.plugin.Configure(ctx, configureRequest)
 
 			spiretest.RequireGRPCStatusContains(t, err, tt.expectCode, tt.expectMsg)
@@ -1000,6 +1006,12 @@ func TestGenerateKey(t *testing.T) {
 
 			ts.fakeKMSClient.setGetPublicKeySequentialErrs(tt.getPublicKeyErr, tt.getPublicKeyErrCount)
 
+			go func() {
+				for range tt.getPublicKeyErrCount - 1 {
+					ts.clockHook.WaitForSleep(testTimeout, "timed out waiting for backoff sleep")
+					ts.clockHook.Add(time.Second) // >= backoffMax, releases the pending sleep
+				}
+			}()
 			resp, err := ts.plugin.GenerateKey(ctx, tt.generateKeyReq)
 			if tt.expectMsg != "" {
 				spiretest.RequireGRPCStatusContains(t, err, tt.expectCode, tt.expectMsg)
@@ -1232,7 +1244,7 @@ func TestGetPublicKeys(t *testing.T) {
 			for _, fakeKey := range storedFakeCryptoKeys {
 				storedFakeCryptoKeyVersions := fakeKey.fetchFakeCryptoKeyVersions()
 				for _, fakeKeyVersion := range storedFakeCryptoKeyVersions {
-					pubKey, err := getPublicKeyFromCryptoKeyVersion(ctx, ts.plugin.log, ts.fakeKMSClient, fakeKeyVersion.CryptoKeyVersion.Name)
+					pubKey, err := getPublicKeyFromCryptoKeyVersion(ctx, ts.plugin.log, ts.fakeKMSClient, fakeKeyVersion.CryptoKeyVersion.Name, ts.plugin.hooks.clk)
 					require.NoError(t, err)
 					require.Equal(t, pubKey, resp.PublicKeys[0].PkixData)
 				}
