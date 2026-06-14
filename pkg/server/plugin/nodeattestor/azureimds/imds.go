@@ -58,8 +58,9 @@ type TenantConfig struct {
 }
 
 type IMDSAttestorConfig struct {
-	Tenants           map[string]*TenantConfig `hcl:"tenants" json:"tenants"`
-	AgentPathTemplate string                   `hcl:"agent_path_template" json:"agent_path_template"`
+	Tenants                map[string]*TenantConfig `hcl:"tenants" json:"tenants"`
+	AgentPathTemplate      string                   `hcl:"agent_path_template" json:"agent_path_template"`
+	AllowedMetadataDomains []string                 `hcl:"allowed_metadata_domains" json:"allowed_metadata_domains"`
 }
 
 type tenantConfig struct {
@@ -69,9 +70,10 @@ type tenantConfig struct {
 }
 
 type imdsAttestorConfig struct {
-	td             spiffeid.TrustDomain
-	tenants        map[string]*tenantConfig
-	idPathTemplate *agentpathtemplate.Template
+	td                     spiffeid.TrustDomain
+	tenants                map[string]*tenantConfig
+	idPathTemplate         *agentpathtemplate.Template
+	allowedMetadataDomains []string
 }
 
 func (t *tenantConfig) subscriptionAllowed(subscriptionID string) bool {
@@ -195,10 +197,16 @@ func (p *IMDSAttestorPlugin) buildConfig(coreConfig catalog.CoreConfig, hclText 
 		}
 	}
 
+	allowedMetadataDomains := newConfig.AllowedMetadataDomains
+	if len(allowedMetadataDomains) == 0 {
+		allowedMetadataDomains = []string{DefaultMetadataDomain}
+	}
+
 	return &imdsAttestorConfig{
-		td:             coreConfig.TrustDomain,
-		tenants:        tenants,
-		idPathTemplate: tmpl,
+		td:                     coreConfig.TrustDomain,
+		tenants:                tenants,
+		idPathTemplate:         tmpl,
+		allowedMetadataDomains: allowedMetadataDomains,
 	}
 }
 
@@ -216,7 +224,7 @@ type IMDSAttestorPlugin struct {
 		tenantIdMap         map[string]string
 		newClient           func(azcore.TokenCredential) (apiClient, error)
 		fetchCredential     func(string) (azcore.TokenCredential, error)
-		validateAttestedDoc func(context.Context, *azure.AttestedDocument) (*azure.AttestedDocumentContent, error)
+		validateAttestedDoc func(context.Context, *azure.AttestedDocument, []string) (*azure.AttestedDocumentContent, error)
 		lookupTenantID      func(string) (string, error)
 	}
 }
@@ -288,7 +296,7 @@ func (p *IMDSAttestorPlugin) Attest(stream nodeattestorv1.NodeAttestor_AttestSer
 	}
 
 	// parse the document
-	docData, err := p.hooks.validateAttestedDoc(stream.Context(), &attestationData.Document)
+	docData, err := p.hooks.validateAttestedDoc(stream.Context(), &attestationData.Document, config.allowedMetadataDomains)
 	if err != nil {
 		return status.Errorf(codes.InvalidArgument, "failed to validate attested document: %v", err)
 	}
