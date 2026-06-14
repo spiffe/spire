@@ -78,13 +78,53 @@ This may be useful for templating configuration files, for example across differ
 | `x509_svid_cache_max_size`        | Soft limit of max number of X509-SVIDs that would be stored in LRU cache                                                                                                                                                                          | 1000                             |
 | `jwt_svid_cache_max_size`         | Hard limit of max number of JWT-SVIDs that would be stored in LRU cache                                                                                                                                                                           | 1000                             |
 
-| experimental                  | Description                                                                                         | Default                 |
-|:------------------------------|-----------------------------------------------------------------------------------------------------|-------------------------|
-| `named_pipe_name`             | Pipe name to bind the SPIRE Agent API named pipe (Windows only)                                     | \spire-agent\public\api |
-| `sync_interval`               | Sync interval with SPIRE server with exponential backoff                                            | 5 sec                   |
-| `use_sync_authorized_entries` | Use SyncAuthorizedEntries API for periodically synchronization of authorized entries                | true                    |
-| `require_pq_kem`              | Require use of a post-quantum-safe key exchange method for TLS handshakes                           | false                   |
-| `jwt_svid_cache_hit_timeout`  | Custom gRPC timeout (between 5 and 30s) when retrieving a NewJWTSVID when a valid JWT-SVID in cache | 30s                     |
+| experimental                  | Description                                                                                                                                                                         | Default                 |
+| :---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------- |
+| `named_pipe_name`             | Pipe name to bind the SPIRE Agent API named pipe (Windows only)                                                                                                                     | \spire-agent\public\api |
+| `sync_interval`               | Sync interval with SPIRE server with exponential backoff                                                                                                                            | 5 sec                   |
+| `use_sync_authorized_entries` | Use SyncAuthorizedEntries API for periodically synchronization of authorized entries                                                                                                | true                    |
+| `require_pq_kem`              | Require use of a post-quantum-safe key exchange method for TLS handshakes                                                                                                           | false                   |
+| `jwt_svid_cache_hit_timeout`  | Custom gRPC timeout (between 5 and 30s) when retrieving a NewJWTSVID when a valid JWT-SVID in cache                                                                                 | 30s                     |
+| `ratelimit`                   | Optional per-caller rate limiting for Workload API and SDS methods, enforced after workload attestation. See [Workload API Rate Limiting](#workload-api-rate-limiting) for details. |                         |
+
+### Workload API Rate Limiting
+
+The `ratelimit` configuration block enforces per-caller rate limits on Workload API and Envoy SDS methods to protect the agent from noisy-neighbor workloads and reconnection storms.
+
+This feature is **experimental** and lives under the `experimental` block. Its configuration may change or move in a future release (targeted for promotion or removal in 1.16/1.17).
+
+**Key resolution:** Rate limits are enforced after workload attestation. The caller's attested selector set (the full set of `type:value` pairs returned by the attestor) is used as the rate-limit key — all workloads with the same selector set share one token bucket, and workloads with different selector sets never interfere. Callers that cannot be attested (empty selector set) share a single `<unattested>` bucket. The agent's own health probe is exempt from rate limiting.
+
+| ratelimit            | Description                                                                                 | Default      |
+| :------------------- | ------------------------------------------------------------------------------------------- | ------------ |
+| `fetch_x509_svid`    | Max stream opens per second per selector set for `FetchX509SVID`. 0 disables rate limiting. | 0 (disabled) |
+| `fetch_jwt_svid`     | Max calls per second per selector set for `FetchJWTSVID`. 0 disables rate limiting.         | 0 (disabled) |
+| `fetch_x509_bundles` | Max stream opens per second per selector set for `FetchX509Bundles`. 0 disables.            | 0 (disabled) |
+| `fetch_jwt_bundles`  | Max stream opens per second per selector set for `FetchJWTBundles`. 0 disables.             | 0 (disabled) |
+| `stream_secrets`     | Max stream opens per second per selector set for SDS `StreamSecrets`. 0 disables.           | 0 (disabled) |
+| `fetch_secrets`      | Max calls per second per selector set for SDS `FetchSecrets`. 0 disables.                   | 0 (disabled) |
+
+For streaming RPCs (`FetchX509SVID`, `FetchX509Bundles`, `FetchJWTBundles`, `StreamSecrets`), the rate limit is enforced at stream establishment (i.e., per reconnect), not per message.
+
+Example configuration:
+
+```hcl
+agent {
+    # ...
+    experimental {
+        ratelimit {
+            fetch_x509_svid    = 100
+            fetch_jwt_svid     = 500
+            fetch_x509_bundles = 20
+            fetch_jwt_bundles  = 20
+            stream_secrets     = 50
+            fetch_secrets      = 50
+        }
+    }
+}
+```
+
+Calls exceeding the rate limit receive an `Unavailable` gRPC status code.
 
 ### Server Attestation
 
