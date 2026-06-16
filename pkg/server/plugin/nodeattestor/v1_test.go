@@ -207,36 +207,52 @@ func (plugin *ForwardedClientIPV1Plugin) Attest(stream nodeattestorv1.NodeAttest
 	})
 }
 
-func TestClientIPForwarding(t *testing.T) {
-	server := nodeattestorv1.NodeAttestorPluginServer(&ForwardedClientIPV1Plugin{ExpectedIP: "192.0.2.1"})
-	na := new(nodeattestor.V1)
-	plugintest.Load(t, catalog.MakeBuiltIn("test", server), na)
-
-	ctx := peer.NewContext(context.Background(), &peer.Peer{
-		Addr: &net.TCPAddr{IP: net.ParseIP("192.0.2.1"), Port: 12345},
-	})
-	result, err := na.Attest(ctx, []byte("unused"), func(ctx context.Context, challenge []byte) ([]byte, error) {
+func TestGetClientIP(t *testing.T) {
+	attestFn := func(ctx context.Context, challenge []byte) ([]byte, error) {
 		return challenge, nil
-	})
+	}
 
-	require.NoError(t, err)
-	require.NotNil(t, result)
-}
+	for _, tt := range []struct {
+		name       string
+		ctx        context.Context
+		expectedIP string
+	}{
+		{
+			name:       "IPv4 peer",
+			ctx:        peer.NewContext(context.Background(), &peer.Peer{Addr: &net.TCPAddr{IP: net.ParseIP("192.0.2.1"), Port: 12345}}),
+			expectedIP: "192.0.2.1",
+		},
+		{
+			name:       "IPv6 peer",
+			ctx:        peer.NewContext(context.Background(), &peer.Peer{Addr: &net.TCPAddr{IP: net.ParseIP("2001:db8::1"), Port: 12345}}),
+			expectedIP: "2001:db8::1",
+		},
+		{
+			name:       "no peer in context",
+			ctx:        context.Background(),
+			expectedIP: "",
+		},
+		{
+			name:       "nil peer addr",
+			ctx:        peer.NewContext(context.Background(), &peer.Peer{Addr: nil}),
+			expectedIP: "",
+		},
+		{
+			name:       "unix socket addr",
+			ctx:        peer.NewContext(context.Background(), &peer.Peer{Addr: &net.UnixAddr{Name: "/tmp/spire.sock", Net: "unix"}}),
+			expectedIP: "",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			server := nodeattestorv1.NodeAttestorPluginServer(&ForwardedClientIPV1Plugin{ExpectedIP: tt.expectedIP})
+			na := new(nodeattestor.V1)
+			plugintest.Load(t, catalog.MakeBuiltIn("test", server), na)
 
-func TestClientIPForwardingNoPeer(t *testing.T) {
-	// When no peer is in the context, an empty string should be forwarded.
-	// Plugins that require a real IP (e.g. x509pop with verify_client_ip=true)
-	// are responsible for rejecting the empty value.
-	server := nodeattestorv1.NodeAttestorPluginServer(&ForwardedClientIPV1Plugin{ExpectedIP: ""})
-	na := new(nodeattestor.V1)
-	plugintest.Load(t, catalog.MakeBuiltIn("test", server), na)
-
-	result, err := na.Attest(context.Background(), []byte("unused"), func(ctx context.Context, challenge []byte) ([]byte, error) {
-		return challenge, nil
-	})
-
-	require.NoError(t, err)
-	require.NotNil(t, result)
+			result, err := na.Attest(tt.ctx, []byte("unused"), attestFn)
+			require.NoError(t, err)
+			require.NotNil(t, result)
+		})
+	}
 }
 
 func TestHostForwarding(t *testing.T) {

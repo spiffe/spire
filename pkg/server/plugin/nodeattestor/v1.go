@@ -133,14 +133,18 @@ func (v1 *V1) streamError(err error) error {
 // getClientIP returns the IP address of the connecting peer, or an empty string if unavailable
 func getClientIP(ctx context.Context) string {
 	p, ok := peer.FromContext(ctx)
-	if !ok {
+	if !ok || p.Addr == nil {
 		return ""
 	}
-	host, _, err := net.SplitHostPort(p.Addr.String())
-	if err != nil {
-		return p.Addr.String()
+	addr := p.Addr.String()
+	if host, _, err := net.SplitHostPort(addr); err == nil {
+		addr = host
 	}
-	return host
+	ip := net.ParseIP(addr)
+	if ip == nil {
+		return ""
+	}
+	return ip.String()
 }
 
 func getOriginalHost(ctx context.Context) (string, error) {
