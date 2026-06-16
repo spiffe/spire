@@ -261,7 +261,7 @@ func (a *registrationEntries) fetchEntriesPage(entryIds []string, pageStart int)
 	return entryIds[pageStart:pageEnd]
 }
 
-func (a *registrationEntries) commitReload(cache *authorizedentries.Cache) {
+func (a *registrationEntries) swapCache(cache *authorizedentries.Cache) {
 	a.cache = cache
 	a.fetchEntries = make(map[string]struct{})
 }

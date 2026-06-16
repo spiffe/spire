@@ -239,7 +239,7 @@ func (a *attestedNodes) updateCachedNodes(ctx context.Context) error {
 	return nil
 }
 
-func (a *attestedNodes) commitReload(cache *authorizedentries.Cache) {
+func (a *attestedNodes) swapCache(cache *authorizedentries.Cache) {
 	a.cache = cache
 	a.fetchNodes = make(map[string]struct{})
 }

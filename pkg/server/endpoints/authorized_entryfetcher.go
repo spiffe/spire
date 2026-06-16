@@ -44,7 +44,7 @@ type AuthorizedEntryFetcherEvents struct {
 type eventsBasedCache interface {
 	updateCache(ctx context.Context) error
 	loadCache(ctx context.Context, cache *authorizedentries.Cache) error
-	commitReload(cache *authorizedentries.Cache)
+	swapCache(cache *authorizedentries.Cache)
 }
 
 func NewAuthorizedEntryFetcherEvents(ctx context.Context, trustDomain string, c AuthorizedEntryFetcherEventsConfig) (*AuthorizedEntryFetcherEvents, error) {
@@ -153,8 +153,8 @@ func (a *AuthorizedEntryFetcherEvents) reloadCache(ctx context.Context) error {
 		return err
 	}
 
-	a.registrationEntries.commitReload(cache)
-	a.attestedNodes.commitReload(cache)
+	a.registrationEntries.swapCache(cache)
+	a.attestedNodes.swapCache(cache)
 
 	a.mu.Lock()
 	a.cache = cache
