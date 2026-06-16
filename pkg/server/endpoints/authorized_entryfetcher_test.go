@@ -3,6 +3,7 @@ package endpoints
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 	"time"
 
@@ -1487,6 +1488,139 @@ func entriesSkippedEventMetric(val float64) fakemetrics.MetricItem {
 		Val:    val,
 		Labels: nil,
 	}
+}
+
+func TestConcurrentReloadAndFetch(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+
+	log, _ := test.NewNullLogger()
+	clk := clock.NewMock(t)
+	ds := fakedatastore.New(t)
+	metrics := fakemetrics.New()
+
+	nodeCache, err := nodecache.New(ctx, log, ds, clk, false, true)
+	require.NoError(t, err)
+
+	agentID := spiffeid.RequireFromString("spiffe://example.org/myagent")
+
+	// Create an attested node with selectors
+	_, err = ds.CreateAttestedNode(ctx, &common.AttestedNode{
+		SpiffeId:     agentID.String(),
+		CertNotAfter: time.Now().Add(5 * time.Hour).Unix(),
+	})
+	require.NoError(t, err)
+
+	err = ds.SetNodeSelectors(ctx, agentID.String(), []*common.Selector{
+		{Type: "test", Value: "alias"},
+	})
+	require.NoError(t, err)
+
+	// Create a node alias
+	_, err = ds.CreateRegistrationEntry(ctx, &common.RegistrationEntry{
+		SpiffeId: "spiffe://example.org/alias",
+		ParentId: "spiffe://example.org/spire/server",
+		Selectors: []*common.Selector{
+			{Type: "test", Value: "alias"},
+		},
+	})
+	require.NoError(t, err)
+
+	// Create registration entries
+	entry1, err := ds.CreateRegistrationEntry(ctx, &common.RegistrationEntry{
+		SpiffeId: "spiffe://example.org/workload1",
+		ParentId: agentID.String(),
+		Selectors: []*common.Selector{
+			{Type: "workload", Value: "one"},
+		},
+	})
+	require.NoError(t, err)
+
+	entry2, err := ds.CreateRegistrationEntry(ctx, &common.RegistrationEntry{
+		SpiffeId: "spiffe://example.org/workload2",
+		ParentId: agentID.String(),
+		Selectors: []*common.Selector{
+			{Type: "workload", Value: "two"},
+		},
+	})
+	require.NoError(t, err)
+
+	ef, err := NewAuthorizedEntryFetcherEvents(ctx, "example.org", AuthorizedEntryFetcherEventsConfig{
+		log:                     log,
+		metrics:                 metrics,
+		clk:                     clk,
+		ds:                      ds,
+		nodeCache:               nodeCache,
+		cacheReloadInterval:     defaultCacheReloadInterval,
+		fullCacheReloadInterval: defaultFullCacheReloadInterval,
+		pruneEventsOlderThan:    defaultPruneEventsOlderThan,
+		eventTimeout:            defaultEventTimeout,
+	})
+	require.NoError(t, err)
+
+	// Populate the cache with initial data
+	err = ef.updateCache(ctx)
+	require.NoError(t, err)
+
+	entries, err := ef.FetchAuthorizedEntries(ctx, agentID)
+	require.NoError(t, err)
+	require.Len(t, entries, 2)
+
+	// Run concurrent readers alongside reloadCache.
+	// With -race, the race detector will flag any unsynchronized access.
+	const numReaders = 4
+	const numIterations = 50
+	const numGoroutines = numReaders*2 + 1
+
+	var start, done sync.WaitGroup
+	start.Add(numGoroutines)
+
+	// Readers calling FetchAuthorizedEntries
+	for range numReaders {
+		done.Go(func() {
+			start.Done()
+			start.Wait()
+			for range numIterations {
+				fetched, err := ef.FetchAuthorizedEntries(ctx, agentID)
+				assert.NoError(t, err)
+				assert.NotEmpty(t, fetched)
+			}
+		})
+	}
+
+	// Readers calling LookupAuthorizedEntries
+	for range numReaders {
+		done.Go(func() {
+			start.Done()
+			start.Wait()
+			entryIDs := map[string]struct{}{
+				entry1.EntryId: {},
+				entry2.EntryId: {},
+			}
+			for range numIterations {
+				looked, err := ef.LookupAuthorizedEntries(ctx, agentID, entryIDs)
+				assert.NoError(t, err)
+				assert.NotEmpty(t, looked)
+			}
+		})
+	}
+
+	// Writer calling reloadCache concurrently
+	done.Go(func() {
+		start.Done()
+		start.Wait()
+		for range numIterations {
+			err := ef.reloadCache(ctx)
+			assert.NoError(t, err)
+		}
+	})
+
+	done.Wait()
+
+	// Verify cache is still correct after all the concurrent activity
+	entries, err = ef.FetchAuthorizedEntries(ctx, agentID)
+	require.NoError(t, err)
+	compareEntries(t, entries, entry1, entry2)
 }
 
 func compareEntries(t *testing.T, authorizedEntries []api.ReadOnlyEntry, entries ...*common.RegistrationEntry) {
