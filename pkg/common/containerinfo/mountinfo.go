@@ -3,6 +3,7 @@
 package containerinfo
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"strings"
@@ -33,16 +34,20 @@ type mountInfo struct {
 // is therefore valid: the double space between "tmpfs" and "rw,size=8192k"
 // unambiguously means an empty source. The upstream parser counts that as 9
 // fields (it expects at least 10) and rejects the entire file, which made the
-// docker and k8s workload attestors fail attestation outright. This parser is
-// position-aware around the "-" separator so an empty source is tolerated.
+// docker and k8s workload attestors fail attestation outright. This parser
+// uses strings.Split (single-space delimiter) so the empty source field is
+// preserved as an empty string rather than collapsed.
 func parseMountInfo(filename string) ([]mountInfo, error) {
-	content, err := os.ReadFile(filename)
+	f, err := os.Open(filename)
 	if err != nil {
 		return nil, err
 	}
+	defer f.Close()
 
 	var infos []mountInfo
-	for _, line := range strings.Split(string(content), "\n") {
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := scanner.Text()
 		if line == "" {
 			continue
 		}
@@ -51,6 +56,9 @@ func parseMountInfo(filename string) ([]mountInfo, error) {
 			return nil, err
 		}
 		infos = append(infos, info)
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, err
 	}
 	return infos, nil
 }
@@ -63,40 +71,42 @@ func parseMountInfo(filename string) ([]mountInfo, error) {
 //	(9) filesystem type  (10) mount source  (11) super options
 //
 // Only the fields the extractor needs (root and filesystem type) are returned.
-// Fields up to the "-" separator are whitespace-separated and never empty, so
-// strings.Fields is safe there. The three fields after the separator are taken
-// by position so an empty source (field 10) is preserved rather than collapsed.
+// The line is split on single spaces so that an empty mount source (field 10)
+// is preserved as an empty string rather than collapsed by strings.Fields.
 func parseMountInfoLine(line string) (mountInfo, error) {
-	// Split the line into the part before the "-" separator and the part after
-	// it. The separator is a standalone "-" token, so it is surrounded by
-	// spaces. Splitting on " - " keeps it unambiguous: optional-field tags
-	// before the separator never equal a bare "-", and the post-separator
-	// fields are matched by position below.
-	sep := strings.Index(line, " - ")
-	if sep < 0 {
+	// Split on single spaces so empty fields (e.g. an empty mount source
+	// between "tmpfs" and the super options) survive as empty strings.
+	fields := strings.Split(line, " ")
+
+	// Locate the "-" separator. Everything before it is the fixed +
+	// optional-tag fields; everything after is fstype, source, super options.
+	sepIdx := -1
+	for i, f := range fields {
+		if f == "-" {
+			sepIdx = i
+			break
+		}
+	}
+	if sepIdx < 0 {
 		return mountInfo{}, fmt.Errorf("missing separator in mountinfo line: %s", line)
 	}
 
-	before := strings.Fields(line[:sep])
-	// Fields before the separator: mount ID, parent ID, major:minor, root,
-	// mount point, mount options, then zero or more optional fields. The root
-	// is field index 3 (zero-based).
-	if len(before) < 6 {
+	// Before the separator: mount ID (0), parent ID (1), major:minor (2),
+	// root (3), mount point (4), mount options (5), then zero or more
+	// optional fields. We need at least 6.
+	if sepIdx < 6 {
 		return mountInfo{}, fmt.Errorf("expected at least 6 fields before separator in mountinfo line: %s", line)
 	}
 
-	// After the separator there are exactly three positional fields:
-	// filesystem type, mount source, and super options. The source may be
-	// empty, so parse by splitting into at most three fields and keeping the
-	// first (filesystem type). Trailing whitespace from an empty source does
-	// not affect the filesystem type, which is the first non-empty token.
-	after := strings.Fields(line[sep+len(" - "):])
-	if len(after) < 1 {
+	// After the separator: filesystem type (sepIdx+1), mount source
+	// (sepIdx+2, may be empty), super options (sepIdx+3). We only need
+	// the filesystem type.
+	if sepIdx+1 >= len(fields) || fields[sepIdx+1] == "" {
 		return mountInfo{}, fmt.Errorf("missing filesystem type in mountinfo line: %s", line)
 	}
 
 	return mountInfo{
-		Root:   before[3],
-		FsType: after[0],
+		Root:   fields[3],
+		FsType: fields[sepIdx+1],
 	}, nil
 }
