@@ -62,6 +62,13 @@ func (m *Mock) WaitForAfterCh() <-chan time.Duration {
 	return m.afterC
 }
 
+// SleepCh returns a channel that receives the duration of each Sleep as it
+// begins. Callers can use it to advance the clock by the slept duration,
+// driving a Sleep-based retry loop without coupling to the number of sleeps.
+func (m *Mock) SleepCh() <-chan time.Duration {
+	return m.sleepC
+}
+
 // WaitForTimer waits up to the specified timeout for Timer to be called on the clock.
 func (m *Mock) WaitForTimer(timeout time.Duration, format string, args ...any) {
 	select {

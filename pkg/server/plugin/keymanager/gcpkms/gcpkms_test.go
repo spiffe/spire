@@ -401,13 +401,22 @@ func TestConfigure(t *testing.T) {
 				require.Nil(t, tt.config, "The test case must define a configuration or a configuration request, not both.")
 				configureRequest = tt.configureRequest
 			}
+			// The retry loop blocks on the mock clock's Sleep. Advance the
+			// clock from a background goroutine by exactly the slept duration
+			// each time a sleep begins, until the call under test completes.
+			done := make(chan struct{})
 			go func() {
-				for range tt.getPublicKeyErrCount - 1 {
-					ts.clockHook.WaitForSleep(testTimeout, "timed out waiting for backoff sleep")
-					ts.clockHook.Add(time.Second) // >= backoffMax, releases the pending sleep
+				for {
+					select {
+					case <-done:
+						return
+					case d := <-ts.clockHook.SleepCh():
+						ts.clockHook.Add(d)
+					}
 				}
 			}()
 			_, err := ts.plugin.Configure(ctx, configureRequest)
+			close(done)
 
 			spiretest.RequireGRPCStatusContains(t, err, tt.expectCode, tt.expectMsg)
 			if tt.expectCode != codes.OK {
@@ -1006,13 +1015,22 @@ func TestGenerateKey(t *testing.T) {
 
 			ts.fakeKMSClient.setGetPublicKeySequentialErrs(tt.getPublicKeyErr, tt.getPublicKeyErrCount)
 
+			// The retry loop blocks on the mock clock's Sleep. Advance the
+			// clock from a background goroutine by exactly the slept duration
+			// each time a sleep begins, until the call under test completes.
+			done := make(chan struct{})
 			go func() {
-				for range tt.getPublicKeyErrCount - 1 {
-					ts.clockHook.WaitForSleep(testTimeout, "timed out waiting for backoff sleep")
-					ts.clockHook.Add(time.Second) // >= backoffMax, releases the pending sleep
+				for {
+					select {
+					case <-done:
+						return
+					case d := <-ts.clockHook.SleepCh():
+						ts.clockHook.Add(d)
+					}
 				}
 			}()
 			resp, err := ts.plugin.GenerateKey(ctx, tt.generateKeyReq)
+			close(done)
 			if tt.expectMsg != "" {
 				spiretest.RequireGRPCStatusContains(t, err, tt.expectCode, tt.expectMsg)
 				return
