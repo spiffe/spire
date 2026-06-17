@@ -96,7 +96,7 @@ require (
 	k8s.io/apimachinery v0.36.1
 	k8s.io/client-go v0.36.1
 	k8s.io/kube-aggregator v0.36.1
-	k8s.io/mount-utils v0.36.1
+	k8s.io/mount-utils v0.36.2
 	sigs.k8s.io/controller-runtime v0.24.1
 )
 
