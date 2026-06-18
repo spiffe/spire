@@ -405,6 +405,7 @@ func TestConfigure(t *testing.T) {
 			// clock from a background goroutine by exactly the slept duration
 			// each time a sleep begins, until the call under test completes.
 			done := make(chan struct{})
+			defer close(done)
 			go func() {
 				for {
 					select {
@@ -416,7 +417,6 @@ func TestConfigure(t *testing.T) {
 				}
 			}()
 			_, err := ts.plugin.Configure(ctx, configureRequest)
-			close(done)
 
 			spiretest.RequireGRPCStatusContains(t, err, tt.expectCode, tt.expectMsg)
 			if tt.expectCode != codes.OK {
@@ -1019,6 +1019,7 @@ func TestGenerateKey(t *testing.T) {
 			// clock from a background goroutine by exactly the slept duration
 			// each time a sleep begins, until the call under test completes.
 			done := make(chan struct{})
+			defer close(done)
 			go func() {
 				for {
 					select {
@@ -1030,7 +1031,6 @@ func TestGenerateKey(t *testing.T) {
 				}
 			}()
 			resp, err := ts.plugin.GenerateKey(ctx, tt.generateKeyReq)
-			close(done)
 			if tt.expectMsg != "" {
 				spiretest.RequireGRPCStatusContains(t, err, tt.expectCode, tt.expectMsg)
 				return

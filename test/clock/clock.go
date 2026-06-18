@@ -62,9 +62,13 @@ func (m *Mock) WaitForAfterCh() <-chan time.Duration {
 	return m.afterC
 }
 
-// SleepCh returns a channel that receives the duration of each Sleep as it
-// begins. Callers can use it to advance the clock by the slept duration,
-// driving a Sleep-based retry loop without coupling to the number of sleeps.
+// SleepCh returns the channel that Sleep notifies when a sleep begins,
+// carrying the sleep duration. The notification is a non-blocking send on a
+// buffered channel, so it can be dropped if a previous one has not been
+// drained. Drive a Sleep-based retry loop by receiving each notification and
+// advancing the clock by its duration before the next Sleep can begin: that
+// keeps at most one sleep outstanding (so nothing is dropped) and avoids
+// coupling to the number of sleeps.
 func (m *Mock) SleepCh() <-chan time.Duration {
 	return m.sleepC
 }
