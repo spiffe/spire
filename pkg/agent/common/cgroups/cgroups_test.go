@@ -1,10 +1,9 @@
 package cgroups
 
 import (
-	"io"
 	"os"
-	"strings"
 	"testing"
+	"testing/fstest"
 
 	"github.com/stretchr/testify/require"
 )
@@ -71,10 +70,8 @@ var (
 )
 
 func TestCgroups(t *testing.T) {
-	cgroups, err := GetCgroups(123, FakeFileSystem{
-		Files: map[string]string{
-			"/proc/123/cgroup": cgSimple,
-		},
+	cgroups, err := GetCgroups(123, fstest.MapFS{
+		"proc/123/cgroup": {Data: []byte(cgSimple)},
 	})
 	require.NoError(t, err)
 	require.Len(t, cgroups, 11)
@@ -82,40 +79,24 @@ func TestCgroups(t *testing.T) {
 }
 
 func TestCgroupsNotFound(t *testing.T) {
-	cgroups, err := GetCgroups(123, FakeFileSystem{})
+	cgroups, err := GetCgroups(123, fstest.MapFS{})
 	require.True(t, os.IsNotExist(err))
 	require.Nil(t, cgroups)
 }
 
 func TestCgroupsBadFormat(t *testing.T) {
-	cgroups, err := GetCgroups(123, FakeFileSystem{
-		Files: map[string]string{
-			"/proc/123/cgroup": cgBadFormat,
-		},
+	cgroups, err := GetCgroups(123, fstest.MapFS{
+		"proc/123/cgroup": {Data: []byte(cgBadFormat)},
 	})
 	require.EqualError(t, err, `invalid cgroup entry, contains 2 colon separated fields but expected at least 3: "11:hugetlb"`)
 	require.Nil(t, cgroups)
 }
 
 func TestUnifiedCgroups(t *testing.T) {
-	cgroups, err := GetCgroups(1234, FakeFileSystem{
-		Files: map[string]string{
-			"/proc/1234/cgroup": cgUnified,
-		},
+	cgroups, err := GetCgroups(1234, fstest.MapFS{
+		"proc/1234/cgroup": {Data: []byte(cgUnified)},
 	})
 	require.NoError(t, err)
 	require.Len(t, cgroups, 11)
 	require.Equal(t, expectUnifiedCgroup, cgroups)
-}
-
-type FakeFileSystem struct {
-	Files map[string]string
-}
-
-func (fs FakeFileSystem) Open(path string) (io.ReadCloser, error) {
-	data, ok := fs.Files[path]
-	if !ok {
-		return nil, os.ErrNotExist
-	}
-	return io.NopCloser(strings.NewReader(data)), nil
 }
