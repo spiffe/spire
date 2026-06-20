@@ -135,7 +135,7 @@ func (a *attestedNodes) scanForNewEvents(ctx context.Context) error {
 	return nil
 }
 
-func (a *attestedNodes) loadCache(ctx context.Context) error {
+func (a *attestedNodes) loadCache(ctx context.Context, cache *authorizedentries.Cache) error {
 	// TODO: determine if this needs paging
 	nodesResp, err := a.ds.ListAttestedNodes(ctx, &datastore.ListAttestedNodesRequest{
 		FetchSelectors: true,
@@ -149,7 +149,7 @@ func (a *attestedNodes) loadCache(ctx context.Context) error {
 		if agentExpiresAt.Before(a.clk.Now()) {
 			continue
 		}
-		a.cache.UpdateAgent(node.SpiffeId, agentExpiresAt, api.ProtoFromSelectors(node.Selectors))
+		cache.UpdateAgent(node.SpiffeId, agentExpiresAt, api.ProtoFromSelectors(node.Selectors))
 		a.nodeCache.UpdateAttestedNode(node)
 	}
 
@@ -187,7 +187,7 @@ func buildAttestedNodesCache(ctx context.Context, log logrus.FieldLogger, metric
 		return nil, err
 	}
 
-	if err := attestedNodes.loadCache(ctx); err != nil {
+	if err := attestedNodes.loadCache(ctx, cache); err != nil {
 		return nil, err
 	}
 
@@ -237,6 +237,11 @@ func (a *attestedNodes) updateCachedNodes(ctx context.Context) error {
 		delete(a.fetchNodes, spiffeId)
 	}
 	return nil
+}
+
+func (a *attestedNodes) swapCache(cache *authorizedentries.Cache) {
+	a.cache = cache
+	a.fetchNodes = make(map[string]struct{})
 }
 
 func (a *attestedNodes) emitMetrics() {
