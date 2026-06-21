@@ -398,9 +398,9 @@ Checks SPIRE agent's health.
 
 Gets the current logging level of the SPIRE Agent.
 
-| Command       | Action                             | Default                             |
-|:--------------|:-----------------------------------|:------------------------------------|
-| `-socketPath` | Path to the SPIRE Agent API socket | /tmp/spire-agent/private/admin.sock |
+| Command       | Action                                   | Default                             |
+|:--------------|:-----------------------------------------|:------------------------------------|
+| `-socketPath` | Path to the SPIRE Agent Admin API socket | /tmp/spire-agent/private/admin.sock |
 
 ### `spire-agent logger set`
 
@@ -409,15 +409,15 @@ Sets the logging level of the SPIRE Agent.
 | Command       | Action                                                                    | Default                             |
 |:--------------|:--------------------------------------------------------------------------|:------------------------------------|
 | `-level`      | The new log level, one of (panic, fatal, error, warn, info, debug, trace) |                                     |
-| `-socketPath` | Path to the SPIRE Agent API socket                                        | /tmp/spire-agent/private/admin.sock |
+| `-socketPath` | Path to the SPIRE Agent Admin API socket                                  | /tmp/spire-agent/private/admin.sock |
 
 ### `spire-agent logger reset`
 
 Resets the logging level of the SPIRE Agent to the level it was set to at launch.
 
-| Command       | Action                             | Default                             |
-|:--------------|:-----------------------------------|:------------------------------------|
-| `-socketPath` | Path to the SPIRE Agent API socket | /tmp/spire-agent/private/admin.sock |
+| Command       | Action                                   | Default                             |
+|:--------------|:-----------------------------------------|:------------------------------------|
+| `-socketPath` | Path to the SPIRE Agent Admin API socket | /tmp/spire-agent/private/admin.sock |
 
 ### `spire-agent validate`
 
