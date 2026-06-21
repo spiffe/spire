@@ -42,7 +42,7 @@ func (m *connectionMetrics) Preprocess(ctx context.Context, _ string, _ any) (co
 		case middleware.DebugServiceName:
 			adminapi.IncrDebugAPIConnectionCounter(m.metrics)
 			adminapi.SetDebugAPIConnectionGauge(m.metrics, atomic.AddInt32(&m.debugAPIConns, 1))
-		case middleware.LoggerServiceName:
+		case middleware.AgentLoggerServiceName:
 			adminapi.IncrLoggerAPIConnectionCounter(m.metrics)
 			adminapi.SetLoggerAPIConnectionGauge(m.metrics, atomic.AddInt32(&m.loggerAPIConns, 1))
 		case middleware.HealthServiceName, middleware.ServerReflectionServiceName, middleware.ServerReflectionV1AlphaServiceName:
@@ -65,7 +65,7 @@ func (m *connectionMetrics) Postprocess(ctx context.Context, _ string, _ bool, _
 			adminapi.SetDelegatedIdentityAPIConnectionGauge(m.metrics, atomic.AddInt32(&m.delegatedIdentityAPIConns, -1))
 		case middleware.DebugServiceName:
 			adminapi.SetDebugAPIConnectionGauge(m.metrics, atomic.AddInt32(&m.debugAPIConns, -1))
-		case middleware.LoggerServiceName:
+		case middleware.AgentLoggerServiceName:
 			adminapi.SetLoggerAPIConnectionGauge(m.metrics, atomic.AddInt32(&m.loggerAPIConns, -1))
 		case middleware.HealthServiceName, middleware.ServerReflectionServiceName, middleware.ServerReflectionV1AlphaServiceName:
 			// Intentionally not emitting metrics for health and reflection services
