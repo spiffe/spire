@@ -13,7 +13,7 @@ const (
   -endpointSpiffeID string
     	SPIFFE ID of the SPIFFE bundle endpoint server. Only used for 'spiffe' profile.
   -instance string
-        Instance name to substitute into socket templates (env SPIRE_SERVER_PRIVATE_SOCKET_TEMPLATE).
+    	Instance name to substitute into socket templates (env SPIRE_SERVER_PRIVATE_SOCKET_TEMPLATE).
   -namedPipeName string
     	Pipe name of the SPIRE Server API named pipe (default "\\spire-server\\private\\api")
   -output value
@@ -25,37 +25,41 @@ const (
   -trustDomainBundlePath string
     	Path to the trust domain bundle data (optional).
 `
+
 	deleteUsage = `Usage of federation delete:
   -id string
     	SPIFFE ID of the trust domain
   -instance string
-        Instance name to substitute into socket templates (env SPIRE_SERVER_PRIVATE_SOCKET_TEMPLATE).
+    	Instance name to substitute into socket templates (env SPIRE_SERVER_PRIVATE_SOCKET_TEMPLATE).
   -namedPipeName string
     	Pipe name of the SPIRE Server API named pipe (default "\\spire-server\\private\\api")
   -output value
     	Desired output format (pretty, json); default: pretty.
 `
+
 	listUsage = `Usage of federation list:
   -instance string
-        Instance name to substitute into socket templates (env SPIRE_SERVER_PRIVATE_SOCKET_TEMPLATE).
+    	Instance name to substitute into socket templates (env SPIRE_SERVER_PRIVATE_SOCKET_TEMPLATE).
   -namedPipeName string
     	Pipe name of the SPIRE Server API named pipe (default "\\spire-server\\private\\api")
   -output value
     	Desired output format (pretty, json); default: pretty.
 `
+
 	refreshUsage = `Usage of federation refresh:
   -id string
     	SPIFFE ID of the trust domain
   -instance string
-        Instance name to substitute into socket templates (env SPIRE_SERVER_PRIVATE_SOCKET_TEMPLATE).
+    	Instance name to substitute into socket templates (env SPIRE_SERVER_PRIVATE_SOCKET_TEMPLATE).
   -namedPipeName string
     	Pipe name of the SPIRE Server API named pipe (default "\\spire-server\\private\\api")
   -output value
     	Desired output format (pretty, json); default: pretty.
 `
+
 	showUsage = `Usage of federation show:
   -instance string
-        Instance name to substitute into socket templates (env SPIRE_SERVER_PRIVATE_SOCKET_TEMPLATE).
+    	Instance name to substitute into socket templates (env SPIRE_SERVER_PRIVATE_SOCKET_TEMPLATE).
   -namedPipeName string
     	Pipe name of the SPIRE Server API named pipe (default "\\spire-server\\private\\api")
   -output value
@@ -63,6 +67,7 @@ const (
   -trustDomain string
     	The trust domain name of the federation relationship to show
 `
+
 	updateUsage = `Usage of federation update:
   -bundleEndpointProfile string
     	Endpoint profile type (either "https_web" or "https_spiffe")
@@ -72,6 +77,8 @@ const (
     	Path to a file containing federation relationships in JSON format (optional). If set to '-', read the JSON from stdin.
   -endpointSpiffeID string
     	SPIFFE ID of the SPIFFE bundle endpoint server. Only used for 'spiffe' profile.
+  -instance string
+    	Instance name to substitute into socket templates (env SPIRE_SERVER_PRIVATE_SOCKET_TEMPLATE).
   -namedPipeName string
     	Pipe name of the SPIRE Server API named pipe (default "\\spire-server\\private\\api")
   -output value

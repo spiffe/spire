@@ -33,9 +33,11 @@ qNV3lKIL59N7G2B4ojbhfSNneSIIpP448uPxUnaunaQZ+/m7+x9oobIp
 -----END PRIVATE KEY-----
 `))
 	availableFormats = []string{"pretty", "json"}
-	expectedUsage    = `Usage of jwt mint:
+	expectedUsage = `Usage of jwt mint:
   -audience value
-    	Audience claim that will be included in the SVID. Can be used more than once.` + clitest.AddrOutputUsage +
+    	Audience claim that will be included in the SVID. Can be used more than once.
+  -instance string
+    	Instance name to substitute into socket templates (env SPIRE_SERVER_PRIVATE_SOCKET_TEMPLATE).` + clitest.AddrOutputUsage +
 		`  -spiffeID string
     	SPIFFE ID of the JWT-SVID
   -ttl duration

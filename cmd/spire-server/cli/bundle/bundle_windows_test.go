@@ -9,7 +9,7 @@ var (
   -id string
     	SPIFFE ID of the trust domain
   -instance string
-        Instance name to substitute into socket templates (env SPIRE_SERVER_PRIVATE_SOCKET_TEMPLATE).
+    	Instance name to substitute into socket templates (env SPIRE_SERVER_PRIVATE_SOCKET_TEMPLATE).
   -namedPipeName string
     	Pipe name of the SPIRE Server API named pipe (default "\\spire-server\\private\\api")
   -output value
@@ -17,41 +17,45 @@ var (
   -path string
     	Path to the bundle data
 `
+
 	showUsage = `Usage of bundle show:
   -format string
     	The format to show the bundle (only pretty output format supports this flag). Either "pem" or "spiffe". (default "pem")
   -instance string
-        Instance name to substitute into socket templates (env SPIRE_SERVER_PRIVATE_SOCKET_TEMPLATE).
+    	Instance name to substitute into socket templates (env SPIRE_SERVER_PRIVATE_SOCKET_TEMPLATE).
   -namedPipeName string
     	Pipe name of the SPIRE Server API named pipe (default "\\spire-server\\private\\api")
   -output value
     	Desired output format (pretty, json); default: pretty.
 `
+
 	countUsage = `Usage of bundle count:
   -instance string
-        Instance name to substitute into socket templates (env SPIRE_SERVER_PRIVATE_SOCKET_TEMPLATE).
+    	Instance name to substitute into socket templates (env SPIRE_SERVER_PRIVATE_SOCKET_TEMPLATE).
   -namedPipeName string
     	Pipe name of the SPIRE Server API named pipe (default "\\spire-server\\private\\api")
   -output value
     	Desired output format (pretty, json); default: pretty.
 `
+
 	listUsage = `Usage of bundle list:
   -format string
     	The format to list federated bundles (only pretty output format supports this flag). Either "pem" or "spiffe". (default "pem")
   -id string
     	SPIFFE ID of the trust domain
   -instance string
-        Instance name to substitute into socket templates (env SPIRE_SERVER_PRIVATE_SOCKET_TEMPLATE).
+    	Instance name to substitute into socket templates (env SPIRE_SERVER_PRIVATE_SOCKET_TEMPLATE).
   -namedPipeName string
     	Pipe name of the SPIRE Server API named pipe (default "\\spire-server\\private\\api")
   -output value
     	Desired output format (pretty, json); default: pretty.
 `
+
 	deleteUsage = `Usage of bundle delete:
   -id string
     	SPIFFE ID of the trust domain
   -instance string
-        Instance name to substitute into socket templates (env SPIRE_SERVER_PRIVATE_SOCKET_TEMPLATE).
+    	Instance name to substitute into socket templates (env SPIRE_SERVER_PRIVATE_SOCKET_TEMPLATE).
   -mode string
     	Deletion mode: one of restrict, delete, or dissociate (default "restrict")
   -namedPipeName string

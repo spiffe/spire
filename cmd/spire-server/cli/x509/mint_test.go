@@ -34,8 +34,9 @@ import (
 var (
 	expectedUsage = `Usage of x509 mint:
   -dns value
-    	DNS name that will be included in SVID. Can be used more than once.` + clitest.AddrOutputUsage +
-		`  -spiffeID string
+    	DNS name that will be included in SVID. Can be used more than once.
+  -instance string
+    	Instance name to substitute into socket templates (env SPIRE_SERVER_PRIVATE_SOCKET_TEMPLATE).` + clitest.AddrOutputUsage + `  -spiffeID string
     	SPIFFE ID of the X509-SVID
   -ttl duration
     	TTL of the X509-SVID
