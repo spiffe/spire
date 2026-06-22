@@ -4085,6 +4085,97 @@ func TestBatchUpdateEntry(t *testing.T) {
 			},
 		},
 		{
+			name:           "Success Update AdditionalAttributes",
+			initialEntries: []*types.Entry{initialEntry},
+			inputMask: &types.EntryMask{
+				AdditionalAttributes: true,
+			},
+			outputMask: &types.EntryMask{
+				AdditionalAttributes: true,
+			},
+			updateEntries: []*types.Entry{
+				{
+					AdditionalAttributes: &types.Entry_AdditionalAttributes{
+						JwtSvidIncludeJti: true,
+					},
+				},
+			},
+			expectDsEntries: func(id string) []*types.Entry {
+				modifiedEntry := proto.Clone(initialEntry).(*types.Entry)
+				modifiedEntry.Id = id
+				modifiedEntry.AdditionalAttributes = &types.Entry_AdditionalAttributes{
+					JwtSvidIncludeJti: true,
+				}
+				modifiedEntry.RevisionNumber = 1
+				return []*types.Entry{modifiedEntry}
+			},
+			expectResults: []*entryv1.BatchUpdateEntryResponse_Result{
+				{
+					Status: &types.Status{Code: int32(codes.OK), Message: "OK"},
+					Entry: &types.Entry{
+						AdditionalAttributes: &types.Entry_AdditionalAttributes{
+							JwtSvidIncludeJti: true,
+						},
+					},
+				},
+			},
+			expectLogs: func(m map[string]string) []spiretest.LogEntry {
+				return []spiretest.LogEntry{
+					{
+						Level:   logrus.InfoLevel,
+						Message: "API accessed",
+						Data: logrus.Fields{
+							telemetry.Status:         "success",
+							telemetry.Type:           "audit",
+							telemetry.RegistrationID: m[entry1SpiffeID.Path],
+						},
+					},
+				}
+			},
+		},
+		{
+			name:           "Success Don't Update AdditionalAttributes",
+			initialEntries: []*types.Entry{initialEntry},
+			inputMask:      &types.EntryMask{
+				// With AdditionalAttributes false, the update should be a no-op for that field
+			},
+			outputMask: &types.EntryMask{
+				AdditionalAttributes: true,
+			},
+			updateEntries: []*types.Entry{
+				{
+					AdditionalAttributes: &types.Entry_AdditionalAttributes{
+						JwtSvidIncludeJti: true,
+					},
+				},
+			},
+			expectDsEntries: func(m string) []*types.Entry {
+				modifiedEntry := proto.Clone(initialEntry).(*types.Entry)
+				modifiedEntry.Id = m
+				modifiedEntry.RevisionNumber = 1
+				return []*types.Entry{modifiedEntry}
+			},
+			expectResults: []*entryv1.BatchUpdateEntryResponse_Result{
+				{
+					Status: &types.Status{Code: int32(codes.OK), Message: "OK"},
+					Entry:  &types.Entry{},
+				},
+			},
+			expectLogs: func(m map[string]string) []spiretest.LogEntry {
+				return []spiretest.LogEntry{
+					{
+						Level:   logrus.InfoLevel,
+						Message: "API accessed",
+						Data: logrus.Fields{
+							telemetry.Status:         "success",
+							telemetry.Type:           "audit",
+							telemetry.RegistrationID: m[entry1SpiffeID.Path],
+						},
+					},
+				}
+			},
+		},
+		{
 			name:           "Success Don't Update X509SVIDTTL",
 			initialEntries: []*types.Entry{initialEntry},
 			inputMask:      &types.EntryMask{

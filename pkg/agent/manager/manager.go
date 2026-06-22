@@ -94,6 +94,9 @@ type Manager interface {
 
 	// GetBundle get latest cached bundle
 	GetBundle() *cache.Bundle
+
+	// GetBundles gets the latest cached bundles for all trust domains.
+	GetBundles() map[spiffeid.TrustDomain]*cache.Bundle
 }
 
 // Cache stores each registration entry, signed X509-SVIDs for those entries,
@@ -103,6 +106,9 @@ type Cache interface {
 
 	// Bundle gets latest cached bundle
 	Bundle() *spiffebundle.Bundle
+
+	// Bundles gets the latest cached bundles for all trust domains.
+	Bundles() map[spiffeid.TrustDomain]*spiffebundle.Bundle
 
 	// SyncSVIDsWithSubscribers syncs SVID cache
 	SyncSVIDsWithSubscribers()
@@ -300,10 +306,18 @@ func (m *manager) FetchJWTSVID(ctx context.Context, entry *common.RegistrationEn
 		return nil, fmt.Errorf("invalid SPIFFE ID: %w", err)
 	}
 
+	// When the entry opts into a JTI claim, every request must yield a fresh token,
+	// so the JWT-SVID cache is bypassed.
+	bypassCache := entry.GetAdditionalAttributes().GetJwtSvidIncludeJti()
+
 	now := m.clk.Now()
-	cachedSVID, ok := m.cache.GetJWTSVID(spiffeID, audience)
-	if ok && !m.c.RotationStrategy.JWTSVIDExpiresSoon(cachedSVID, now) {
-		return cachedSVID, nil
+	var cachedSVID *client.JWTSVID
+	var ok bool
+	if !bypassCache {
+		cachedSVID, ok = m.cache.GetJWTSVID(spiffeID, audience)
+		if ok && !m.c.RotationStrategy.JWTSVIDExpiresSoon(cachedSVID, now) {
+			return cachedSVID, nil
+		}
 	}
 
 	// Determine if an unexpired JWT-SVID exists in the cache to pass
@@ -323,7 +337,9 @@ func (m *manager) FetchJWTSVID(ctx context.Context, entry *common.RegistrationEn
 		return cachedSVID, nil
 	}
 
-	m.cache.SetJWTSVID(svidSPIFFEID, audience, newSVID)
+	if !bypassCache {
+		m.cache.SetJWTSVID(svidSPIFFEID, audience, newSVID)
+	}
 	return newSVID, nil
 }
 
@@ -355,9 +371,9 @@ func (m *manager) runSynchronizer(ctx context.Context) error {
 			}
 			seconds := time.Since(startTime)
 			if seconds < m.c.RebootstrapDelay {
-				fmt.Printf("Trust Bandle and Server dont agree.... Ignoring for now. Rebootstrap timeout left: %s\n", m.c.RebootstrapDelay-seconds)
+				m.c.Log.WithField("time_left", m.c.RebootstrapDelay-seconds).Info("Trust Bundle and Server don't agree, ignoring for now")
 			} else {
-				fmt.Printf("Trust Bandle and Server dont agree.... rebootstrapping")
+				m.c.Log.Warn("Trust Bundle and Server don't agree, rebootstrapping")
 				err = m.c.TrustBundleSources.SetForceRebootstrap()
 				if err != nil {
 					return err
@@ -428,6 +444,13 @@ func (m *manager) GetBundle() *cache.Bundle {
 	defer m.mtx.RUnlock()
 
 	return m.cache.Bundle()
+}
+
+func (m *manager) GetBundles() map[spiffeid.TrustDomain]*cache.Bundle {
+	m.mtx.RLock()
+	defer m.mtx.RUnlock()
+
+	return m.cache.Bundles()
 }
 
 func (m *manager) runSVIDObserver(ctx context.Context) error {

@@ -31,13 +31,41 @@ fail-now() {
     exit 1
 }
 
+# retry runs the given command, retrying with exponential backoff if it fails.
+# It is intended to harden steps against transient registry/network errors
+# (e.g. Docker Hub image pull timeouts) that would otherwise cause spurious CI
+# failures.
+retry() {
+    local attempts=5
+    local delay=5
+    local max_delay=60
+    local attempt=1
+    while true; do
+        if "$@"; then
+            return 0
+        fi
+        if [ "${attempt}" -ge "${attempts}" ]; then
+            log-warn "command failed after ${attempt} attempt(s): $*"
+            return 1
+        fi
+        log-warn "command failed (attempt ${attempt}/${attempts}), retrying in ${delay}s: $*"
+        sleep "${delay}"
+        attempt=$((attempt + 1))
+        delay=$((delay * 2))
+        if [ "${delay}" -gt "${max_delay}" ]; then
+            delay="${max_delay}"
+        fi
+    done
+}
+
 docker-up() {
     if [ $# -eq 0 ]; then
         log-debug "bringing up services..."
     else
         log-debug "bringing up $*..."
     fi
-    docker compose up -d "$@" || fail-now "failed to bring up services."
+    # Retry to harden against transient image pull failures during startup.
+    retry docker compose up -d "$@" || fail-now "failed to bring up services."
 }
 
 docker-wait-for-healthy() {
@@ -106,7 +134,8 @@ check-server-started() {
   for ((i=1;i<=MAXCHECKS;i++)); do
       log-info "checking for starting server APIs ($i of $MAXCHECKS max)..."
       docker compose logs "$1"
-      if docker compose logs "$1" | grep "Starting Server APIs"; then
+      # The server emits the below log twice: TCP and UDS listener
+      if [ "$(docker compose logs "$1" | grep -c "Starting Server APIs")" -ge 2 ]; then
           return 0
       fi
       sleep "${CHECKINTERVAL}"
@@ -205,7 +234,8 @@ ENTRYPOINT ["/usr/bin/dumb-init", "supervisord", "--nodaemon", "--configuration"
 CMD []
 EOF
 
-    docker build --target envoy-agent-mashup -t envoy-agent-mashup .
+    # Retry to harden against transient pulls of the envoy base image.
+    retry docker build --target envoy-agent-mashup -t envoy-agent-mashup .
 }
 
 curl-with-retry() {
@@ -337,6 +367,11 @@ start-kind-cluster() {
     local kind_path=$1
     local kind_name=$2
     local kind_config_path=$3
+
+    # Pre-pull the node image with retry to harden against transient Docker Hub
+    # failures. kind uses the locally cached image when present, so it won't
+    # attempt its own (un-retried) pull during cluster creation.
+    retry docker pull "${K8SIMAGE}" || fail-now "unable to pull node image ${K8SIMAGE}"
 
     log-info "starting cluster..."
     "${kind_path}" create cluster --name "${kind_name}" --config "${kind_config_path}" --image "${K8SIMAGE}" || fail-now "unable to create cluster"

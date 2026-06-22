@@ -16,6 +16,7 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/log"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server"
 	bundleClient "github.com/spiffe/spire/pkg/server/bundle/client"
 	"github.com/spiffe/spire/pkg/server/credtemplate"
@@ -711,6 +712,16 @@ func TestNewServerConfig(t *testing.T) {
 					},
 				}
 			},
+			logOptions: assertLogsContainEntries([]spiretest.LogEntry{
+				{
+					Level:   logrus.WarnLevel,
+					Message: "Bundle endpoint is configured but has no profile set, using https_spiffe as default; please configure a profile explicitly. This will be fatal in a future release.",
+					Data: logrus.Fields{
+						telemetry.Alert:     "true",
+						telemetry.AlertType: telemetry.DeprecatedConfigAlertType,
+					},
+				},
+			}),
 			test: func(t *testing.T, c *server.Config) {
 				require.Equal(t, "192.168.1.1", c.Federation.BundleEndpoint.Address.IP.String())
 				require.Equal(t, 1337, c.Federation.BundleEndpoint.Address.Port)
@@ -728,6 +739,27 @@ func TestNewServerConfig(t *testing.T) {
 							Email:        "mail@example.org",
 							ToSAccepted:  true,
 						},
+					},
+				}
+			},
+			logOptions: func(t *testing.T) []log.Option {
+				return []log.Option{
+					func(logger *log.Logger) error {
+						logger.SetOutput(io.Discard)
+						hook := test.NewLocal(logger.Logger)
+						t.Cleanup(func() {
+							spiretest.AssertLogsContainEntries(t, hook.AllEntries(), []spiretest.LogEntry{
+								{
+									Level:   logrus.WarnLevel,
+									Message: "ACME configuration within the bundle_endpoint is deprecated. Please use ACME configuration as part of the https_web profile instead.",
+									Data: logrus.Fields{
+										telemetry.Alert:     "true",
+										telemetry.AlertType: telemetry.DeprecatedConfigAlertType,
+									},
+								},
+							})
+						})
+						return nil
 					},
 				}
 			},
@@ -1216,6 +1248,27 @@ func TestNewServerConfig(t *testing.T) {
 			msg: "sql_transaction_timeout is correctly parsed",
 			input: func(c *Config) {
 				c.Server.Experimental.SQLTransactionTimeout = "1m"
+			},
+			logOptions: func(t *testing.T) []log.Option {
+				return []log.Option{
+					func(logger *log.Logger) error {
+						logger.SetOutput(io.Discard)
+						hook := test.NewLocal(logger.Logger)
+						t.Cleanup(func() {
+							spiretest.AssertLogsContainEntries(t, hook.AllEntries(), []spiretest.LogEntry{
+								{
+									Level:   logrus.WarnLevel,
+									Message: "experimental.sql_transaction_timeout is deprecated, use experimental.event_timeout instead",
+									Data: logrus.Fields{
+										telemetry.Alert:     "true",
+										telemetry.AlertType: telemetry.DeprecatedConfigAlertType,
+									},
+								},
+							})
+						})
+						return nil
+					},
+				}
 			},
 			test: func(t *testing.T, c *server.Config) {
 				require.Equal(t, time.Minute, c.EventTimeout)

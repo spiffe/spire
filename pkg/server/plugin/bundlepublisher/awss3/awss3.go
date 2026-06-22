@@ -141,7 +141,6 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 		p.log.Warn(note)
 	}
 
-	// seems wrong to change plugin s3Client before config change
 	awsCfg, err := newAWSConfig(ctx, newConfig)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to create client configuration: %v", err)
@@ -150,9 +149,11 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to create client: %v", err)
 	}
-	p.s3Client = s3Client
 
-	p.setConfig(newConfig)
+	// Store the config and client together under one lock so that
+	// PublishBundle always observes a matching pair, even when Configure
+	// runs concurrently as a result of a dynamic reconfiguration.
+	p.setConfig(newConfig, s3Client)
 	p.setBundle(nil)
 	return &configv1.ConfigureResponse{}, nil
 }
@@ -169,7 +170,7 @@ func (p *Plugin) Validate(ctx context.Context, req *configv1.ValidateRequest) (*
 // PublishBundle puts the bundle in the configured S3 bucket name and
 // object key.
 func (p *Plugin) PublishBundle(ctx context.Context, req *bundlepublisherv1.PublishBundleRequest) (*bundlepublisherv1.PublishBundleResponse, error) {
-	config, err := p.getConfig()
+	config, s3Client, err := p.getConfig()
 	if err != nil {
 		return nil, err
 	}
@@ -195,7 +196,7 @@ func (p *Plugin) PublishBundle(ctx context.Context, req *bundlepublisherv1.Publi
 		return nil, status.Errorf(codes.Internal, "could not format bundle: %v", err.Error())
 	}
 
-	_, err = p.s3Client.PutObject(ctx, &s3.PutObjectInput{
+	_, err = s3Client.PutObject(ctx, &s3.PutObjectInput{
 		Bucket: aws.String(config.Bucket),
 		Body:   bytes.NewReader(bundleBytes),
 		Key:    aws.String(config.ObjectKey),
@@ -212,21 +213,23 @@ func (p *Plugin) PublishBundle(ctx context.Context, req *bundlepublisherv1.Publi
 
 // getBundle gets the latest bundle that the plugin has.
 func (p *Plugin) getBundle() *types.Bundle {
-	p.configMtx.RLock()
-	defer p.configMtx.RUnlock()
+	p.bundleMtx.RLock()
+	defer p.bundleMtx.RUnlock()
 
 	return p.bundle
 }
 
-// getConfig gets the configuration of the plugin.
-func (p *Plugin) getConfig() (*Config, error) {
+// getConfig gets the configuration of the plugin along with the client
+// created for it. Both are returned together so callers always observe a
+// matching pair.
+func (p *Plugin) getConfig() (*Config, simpleStorageService, error) {
 	p.configMtx.RLock()
 	defer p.configMtx.RUnlock()
 
 	if p.config == nil {
-		return nil, status.Error(codes.FailedPrecondition, "not configured")
+		return nil, nil, status.Error(codes.FailedPrecondition, "not configured")
 	}
-	return p.config, nil
+	return p.config, p.s3Client, nil
 }
 
 // setBundle updates the current bundle in the plugin with the provided bundle.
@@ -237,12 +240,14 @@ func (p *Plugin) setBundle(bundle *types.Bundle) {
 	p.bundle = bundle
 }
 
-// setConfig sets the configuration for the plugin.
-func (p *Plugin) setConfig(config *Config) {
+// setConfig sets the configuration for the plugin along with the client
+// created for it, updating both atomically under one lock.
+func (p *Plugin) setConfig(config *Config, client simpleStorageService) {
 	p.configMtx.Lock()
 	defer p.configMtx.Unlock()
 
 	p.config = config
+	p.s3Client = client
 }
 
 // builtin creates a new BundlePublisher built-in plugin.

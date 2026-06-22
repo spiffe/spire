@@ -331,7 +331,8 @@ define image_rule
 .PHONY: $1
 $1: $3 container-builder
 	@echo Building docker image $2 $(PLATFORM)…
-	$(E)docker buildx build \
+	$(E).github/workflows/scripts/retry.sh \
+		docker buildx build \
 		--platform $(PLATFORMS) \
 		--build-arg goversion=$(go_version) \
 		--build-arg TAG=$(TAG) \
@@ -502,7 +503,7 @@ dev-shell: | go-check
 # execute on the go binary and also need the right path in order to locate the
 # correct go binary.
 go-check:
-ifeq (go$(go_version), $(shell $(go_path) go version 2>/dev/null | cut -f3 -d' '))
+ifeq (go$(go_version), $(firstword $(subst -, ,$(word 3,$(shell $(go_path) go version 2>/dev/null)))))
 else ifeq ($(os1),windows)
 	@echo "Installing go$(go_version)..."
 	$(E)rm -rf $(dir $(go_dir))

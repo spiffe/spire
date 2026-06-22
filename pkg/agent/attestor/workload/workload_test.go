@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"testing"
 
 	"github.com/sirupsen/logrus"
@@ -36,6 +37,7 @@ var (
 		2: nil,
 		3: {"baz"},
 		4: {"baz"},
+		// 5: attestor2 cannot attest process 5
 	}
 )
 
@@ -71,28 +73,55 @@ func (s *WorkloadAttestorTestSuite) TestAttestWorkload() {
 
 	// both attestors succeed but with no selectors
 	selectors, err := s.attestor.Attest(ctx, 1)
-	s.Assert().Nil(err)
+	s.Nil(err)
 	s.Empty(selectors)
 
 	// attestor1 has selectors, but not attestor2
 	selectors, err = s.attestor.Attest(ctx, 2)
-	s.Assert().Nil(err)
+	s.Nil(err)
 	spiretest.AssertProtoListEqual(s.T(), selectors1, selectors)
 
 	// attestor2 has selectors, attestor1 fails
 	selectors, err = s.attestor.Attest(ctx, 3)
-	s.Assert().Nil(err)
+	s.Nil(err)
 	spiretest.AssertProtoListEqual(s.T(), selectors2, selectors)
 
 	// both have selectors
 	selectors, err = s.attestor.Attest(ctx, 4)
-	s.Assert().Nil(err)
+	s.Nil(err)
 	util.SortSelectors(selectors)
-	combined := make([]*common.Selector, 0, len(selectors1)+len(selectors2))
-	combined = append(combined, selectors1...)
-	combined = append(combined, selectors2...)
+	combined := slices.Concat(selectors1, selectors2)
 	util.SortSelectors(combined)
 	spiretest.AssertProtoListEqual(s.T(), combined, selectors)
+
+	// neither attestor can attest the workload
+	selectors, err = s.attestor.Attest(ctx, 5)
+	spiretest.AssertErrorContains(s.T(), err, `workload attestor "fake1" failed`)
+	spiretest.AssertErrorContains(s.T(), err, `workloadattestor(fake1): cannot attest pid 5`)
+	spiretest.AssertErrorContains(s.T(), err, `workload attestor "fake2" failed`)
+	spiretest.AssertErrorContains(s.T(), err, `workloadattestor(fake2): cannot attest pid 5`)
+	s.Nil(selectors)
+}
+
+func (s *WorkloadAttestorTestSuite) TestAttestLogsOnPartialFailure() {
+	s.catalog.SetWorkloadAttestors(
+		fakeworkloadattestor.New(s.T(), "fake1", attestor1Pids),
+		fakeworkloadattestor.New(s.T(), "fake2", attestor2Pids),
+	)
+
+	selectors, err := s.attestor.Attest(ctx, 3)
+	s.Nil(err)
+	spiretest.AssertProtoListEqual(s.T(), selectors2, selectors)
+	spiretest.AssertLogs(s.T(), s.loggerHook.AllEntries(), []spiretest.LogEntry{
+		{
+			Level:   logrus.ErrorLevel,
+			Message: "Failed to collect all selectors for PID",
+			Data: logrus.Fields{
+				telemetry.PID:   "3",
+				logrus.ErrorKey: `workload attestor "fake1" failed: rpc error: code = Unknown desc = workloadattestor(fake1): cannot attest pid 3`,
+			},
+		},
+	})
 }
 
 func (s *WorkloadAttestorTestSuite) TestAttestWorkloadMetrics() {
@@ -106,7 +135,7 @@ func (s *WorkloadAttestorTestSuite) TestAttestWorkloadMetrics() {
 	s.attestor.c.Metrics = metrics
 
 	selectors, err := s.attestor.Attest(ctx, 2)
-	s.Assert().Nil(err)
+	s.Nil(err)
 
 	// Create expected metrics
 	expected := fakemetrics.New()
@@ -124,7 +153,8 @@ func (s *WorkloadAttestorTestSuite) TestAttestWorkloadMetrics() {
 
 	// No selectors expected
 	selectors, err = s.attestor.Attest(ctx, 3)
-	s.Assert().Nil(err)
+	spiretest.AssertErrorContains(s.T(), err, `workload attestor "fake1" failed`)
+	spiretest.AssertErrorContains(s.T(), err, `workloadattestor(fake1): cannot attest pid 3`)
 	s.Empty(selectors)
 
 	// Create expected metrics with error key
@@ -132,9 +162,8 @@ func (s *WorkloadAttestorTestSuite) TestAttestWorkloadMetrics() {
 	err = errors.New("some error")
 	attestorCounter = telemetry_workload.StartAttestorCall(expected, "fake1")
 	attestorCounter.Done(&err)
-	telemetry_workload.AddDiscoveredSelectorsSample(expected, float32(0))
 	attestationCounter = telemetry_workload.StartAttestationCall(expected)
-	attestationCounter.Done(nil)
+	attestationCounter.Done(&err)
 
 	s.Require().Equal(expected.AllMetrics(), metrics.AllMetrics())
 }
@@ -162,10 +191,10 @@ func (s *WorkloadAttestorTestSuite) TestAttestLogsOnContextCancellation() {
 	ctx, cancel := context.WithCancel(context.Background())
 	var selectors []*common.Selector
 	var attestErr error
-	go func(innerCtx context.Context, pid int) {
-		selectors, attestErr = s.attestor.Attest(innerCtx, pid)
+	go func() {
+		selectors, attestErr = s.attestor.Attest(ctx, pid)
 		attestCh <- struct{}{}
-	}(ctx, pid)
+	}()
 
 	// Wait for one of the plugins to return selectors
 	<-selectorC
@@ -176,8 +205,8 @@ func (s *WorkloadAttestorTestSuite) TestAttestLogsOnContextCancellation() {
 	// Wait for attestation goroutine to complete execution
 	<-attestCh
 
-	s.Assert().Nil(selectors)
-	s.Assert().Error(attestErr)
+	s.Nil(selectors)
+	s.Error(attestErr)
 	spiretest.AssertLogs(s.T(), s.loggerHook.AllEntries(), []spiretest.LogEntry{
 		{
 			Level:   logrus.ErrorLevel,

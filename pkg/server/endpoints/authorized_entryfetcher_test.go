@@ -3,6 +3,7 @@ package endpoints
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 	"time"
 
@@ -1073,6 +1074,359 @@ func TestFullCacheReloadRecoversFromSkippedAttestedNodeEvents(t *testing.T) {
 	compareEntries(t, entries, entry)
 }
 
+func TestReloadCacheRecoversFromSkippedRegistrationEntryEvents(t *testing.T) {
+	ctx := context.Background()
+	log, _ := test.NewNullLogger()
+	clk := clock.NewMock(t)
+	ds := fakedatastore.New(t)
+	metrics := fakemetrics.New()
+
+	nodeCache, err := nodecache.New(ctx, log, ds, clk, false, true)
+	require.Nil(t, err)
+
+	ef, err := NewAuthorizedEntryFetcherEvents(ctx, "example.org", AuthorizedEntryFetcherEventsConfig{
+		log:                     log,
+		metrics:                 metrics,
+		clk:                     clk,
+		ds:                      ds,
+		nodeCache:               nodeCache,
+		cacheReloadInterval:     defaultCacheReloadInterval,
+		fullCacheReloadInterval: defaultFullCacheReloadInterval,
+		pruneEventsOlderThan:    defaultPruneEventsOlderThan,
+		eventTimeout:            defaultEventTimeout,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, ef)
+
+	agentID := spiffeid.RequireFromString("spiffe://example.org/myagent")
+
+	// Ensure no entries are in there to start
+	entries, err := ef.FetchAuthorizedEntries(ctx, agentID)
+	require.NoError(t, err)
+	require.Empty(t, entries)
+
+	// Create Initial Registration Entry
+	entry1, err := ds.CreateRegistrationEntry(ctx, &common.RegistrationEntry{
+		SpiffeId: "spiffe://example.org/workload",
+		ParentId: agentID.String(),
+		Selectors: []*common.Selector{
+			{
+				Type:  "workload",
+				Value: "one",
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	// Ensure it gets added to cache
+	err = ef.updateCache(ctx)
+	require.NoError(t, err)
+
+	entries, err = ef.FetchAuthorizedEntries(ctx, agentID)
+	require.NoError(t, err)
+	compareEntries(t, entries, entry1)
+
+	// Create Second entry
+	entry2, err := ds.CreateRegistrationEntry(ctx, &common.RegistrationEntry{
+		SpiffeId: "spiffe://example.org/workload2",
+		ParentId: agentID.String(),
+		Selectors: []*common.Selector{
+			{
+				Type:  "workload",
+				Value: "two",
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	// Delete the event
+	err = ds.DeleteRegistrationEntryEventForTesting(ctx, 2)
+	require.NoError(t, err)
+
+	// Check second entry is not added to cache
+	err = ef.updateCache(ctx)
+	require.NoError(t, err)
+
+	entries, err = ef.FetchAuthorizedEntries(ctx, agentID)
+	require.NoError(t, err)
+	compareEntries(t, entries, entry1)
+
+	// Reload the cache (not full rebuild)
+	err = ef.reloadCache(ctx)
+	require.NoError(t, err)
+
+	// Should be 2 entries now
+	entries, err = ef.FetchAuthorizedEntries(ctx, agentID)
+	require.NoError(t, err)
+	compareEntries(t, entries, entry1, entry2)
+}
+
+func TestReloadCacheRecoversFromSkippedAttestedNodeEvents(t *testing.T) {
+	ctx := context.Background()
+	log, _ := test.NewNullLogger()
+	clk := clock.NewMock(t)
+	ds := fakedatastore.New(t)
+	metrics := fakemetrics.New()
+
+	nodeCache, err := nodecache.New(ctx, log, ds, clk, false, true)
+	require.Nil(t, err)
+
+	ef, err := NewAuthorizedEntryFetcherEvents(ctx, "example.org", AuthorizedEntryFetcherEventsConfig{
+		log:                     log,
+		metrics:                 metrics,
+		clk:                     clk,
+		ds:                      ds,
+		nodeCache:               nodeCache,
+		cacheReloadInterval:     defaultCacheReloadInterval,
+		fullCacheReloadInterval: defaultFullCacheReloadInterval,
+		pruneEventsOlderThan:    defaultPruneEventsOlderThan,
+		eventTimeout:            defaultEventTimeout,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, ef)
+
+	agent1 := spiffeid.RequireFromString("spiffe://example.org/myagent1")
+	agent2 := spiffeid.RequireFromString("spiffe://example.org/myagent2")
+
+	// Ensure no entries are in there to start
+	entries, err := ef.FetchAuthorizedEntries(ctx, agent2)
+	require.NoError(t, err)
+	require.Empty(t, entries)
+
+	// Create node alias for agent 2
+	alias, err := ds.CreateRegistrationEntry(ctx, &common.RegistrationEntry{
+		SpiffeId: "spiffe://example.org/alias",
+		ParentId: "spiffe://example.org/spire/server",
+		Selectors: []*common.Selector{
+			{
+				Type:  "test",
+				Value: "alias",
+			},
+		},
+	})
+	assert.NoError(t, err)
+
+	// Create a registration entry parented to the alias
+	entry, err := ds.CreateRegistrationEntry(ctx, &common.RegistrationEntry{
+		SpiffeId: "spiffe://example.org/viaalias",
+		ParentId: alias.SpiffeId,
+		Selectors: []*common.Selector{
+			{
+				Type:  "workload",
+				Value: "two",
+			},
+		},
+	})
+	assert.NoError(t, err)
+
+	// Create both Attested Nodes
+	_, err = ds.CreateAttestedNode(ctx, &common.AttestedNode{
+		SpiffeId:     agent1.String(),
+		CertNotAfter: time.Now().Add(5 * time.Hour).Unix(),
+	})
+	require.NoError(t, err)
+
+	_, err = ds.CreateAttestedNode(ctx, &common.AttestedNode{
+		SpiffeId:     agent2.String(),
+		CertNotAfter: time.Now().Add(5 * time.Hour).Unix(),
+	})
+	require.NoError(t, err)
+
+	// Create selectors for agent 2
+	err = ds.SetNodeSelectors(ctx, agent2.String(), []*common.Selector{
+		{
+			Type:  "test",
+			Value: "alias",
+		},
+		{
+			Type:  "test",
+			Value: "cluster2",
+		},
+	})
+	assert.NoError(t, err)
+
+	// Create selectors for agent 1
+	err = ds.SetNodeSelectors(ctx, agent1.String(), []*common.Selector{
+		{
+			Type:  "test",
+			Value: "cluster1",
+		},
+	})
+	assert.NoError(t, err)
+
+	// Delete the events for agent 2 to simulate missed events
+	err = ds.DeleteAttestedNodeEventForTesting(ctx, 2)
+	require.NoError(t, err)
+	err = ds.DeleteAttestedNodeEventForTesting(ctx, 3)
+	require.NoError(t, err)
+
+	// Should not be in cache yet
+	err = ef.updateCache(ctx)
+	require.NoError(t, err)
+
+	entries, err = ef.FetchAuthorizedEntries(ctx, agent2)
+	require.NoError(t, err)
+	require.Len(t, entries, 0)
+
+	// Reload cache (not full rebuild)
+	err = ef.reloadCache(ctx)
+	require.NoError(t, err)
+
+	// Should be recovered
+	entries, err = ef.FetchAuthorizedEntries(ctx, agent2)
+	require.NoError(t, err)
+	compareEntries(t, entries, entry)
+}
+
+func TestReloadCachePreservesEventState(t *testing.T) {
+	ctx := context.Background()
+	log, _ := test.NewNullLogger()
+	clk := clock.NewMock(t)
+	ds := fakedatastore.New(t)
+	countingDS := &nodeCallCountingDataStore{DataStore: ds}
+	metrics := fakemetrics.New()
+
+	nodeCache, err := nodecache.New(ctx, log, ds, clk, false, true)
+	require.Nil(t, err)
+
+	ef, err := NewAuthorizedEntryFetcherEvents(ctx, "example.org", AuthorizedEntryFetcherEventsConfig{
+		log:                     log,
+		metrics:                 metrics,
+		clk:                     clk,
+		ds:                      countingDS,
+		nodeCache:               nodeCache,
+		cacheReloadInterval:     defaultCacheReloadInterval,
+		fullCacheReloadInterval: defaultFullCacheReloadInterval,
+		pruneEventsOlderThan:    defaultPruneEventsOlderThan,
+		eventTimeout:            defaultEventTimeout,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, ef)
+
+	agentID := spiffeid.RequireFromString("spiffe://example.org/myagent")
+
+	// Create a registration entry and process it to establish event state
+	entry1, err := ds.CreateRegistrationEntry(ctx, &common.RegistrationEntry{
+		SpiffeId: "spiffe://example.org/workload",
+		ParentId: agentID.String(),
+		Selectors: []*common.Selector{
+			{
+				Type:  "workload",
+				Value: "one",
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	// Create attested node
+	_, err = ds.CreateAttestedNode(ctx, &common.AttestedNode{
+		SpiffeId:     agentID.String(),
+		CertNotAfter: time.Now().Add(5 * time.Hour).Unix(),
+	})
+	require.NoError(t, err)
+
+	err = ds.SetNodeSelectors(ctx, agentID.String(), []*common.Selector{
+		{
+			Type:  "workload",
+			Value: "one",
+		},
+	})
+	require.NoError(t, err)
+
+	// Process events to establish lastEvent watermarks
+	err = ef.updateCache(ctx)
+	require.NoError(t, err)
+
+	entries, err := ef.FetchAuthorizedEntries(ctx, agentID)
+	require.NoError(t, err)
+	compareEntries(t, entries, entry1)
+
+	// Capture event state before reload
+	regEntries := ef.registrationEntries.(*registrationEntries)
+	nodeEntries := ef.attestedNodes.(*attestedNodes)
+	lastRegEvent := regEntries.lastEvent
+	lastNodeEvent := nodeEntries.lastEvent
+	firstRegEvent := regEntries.firstEvent
+	firstNodeEvent := nodeEntries.firstEvent
+
+	require.NotZero(t, lastRegEvent, "should have processed registration entry events")
+	require.NotZero(t, lastNodeEvent, "should have processed attested node events")
+
+	// Reload cache
+	err = ef.reloadCache(ctx)
+	require.NoError(t, err)
+
+	// Verify event state is preserved
+	require.Equal(t, lastRegEvent, regEntries.lastEvent, "lastEvent should be preserved across reload")
+	require.Equal(t, lastNodeEvent, nodeEntries.lastEvent, "lastEvent should be preserved across reload")
+	require.Equal(t, firstRegEvent, regEntries.firstEvent, "firstEvent should be preserved across reload")
+	require.Equal(t, firstNodeEvent, nodeEntries.firstEvent, "firstEvent should be preserved across reload")
+
+	// Verify fetchNodes/fetchEntries are cleared
+	require.Empty(t, regEntries.fetchEntries, "fetchEntries should be cleared after reload")
+	require.Empty(t, nodeEntries.fetchNodes, "fetchNodes should be cleared after reload")
+
+	// Verify cache still has correct data
+	entries, err = ef.FetchAuthorizedEntries(ctx, agentID)
+	require.NoError(t, err)
+	compareEntries(t, entries, entry1)
+
+	// Reset counters and call updateCache with no new events — should not
+	// trigger individual FetchAttestedNode or GetNodeSelectors calls.
+	countingDS.fetchAttestedNodeCount = 0
+	countingDS.getNodeSelectorsCount = 0
+	countingDS.fetchRegistrationEntriesCount = 0
+
+	err = ef.updateCache(ctx)
+	require.NoError(t, err)
+
+	require.Zero(t, countingDS.fetchAttestedNodeCount, "should not fetch individual attested nodes after reload")
+	require.Zero(t, countingDS.getNodeSelectorsCount, "should not fetch individual node selectors after reload")
+	require.Zero(t, countingDS.fetchRegistrationEntriesCount, "should not fetch individual registration entries after reload")
+
+	// Create a new entry after the reload — should be picked up by event-based update
+	entry2, err := ds.CreateRegistrationEntry(ctx, &common.RegistrationEntry{
+		SpiffeId: "spiffe://example.org/workload2",
+		ParentId: agentID.String(),
+		Selectors: []*common.Selector{
+			{
+				Type:  "workload",
+				Value: "two",
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	err = ef.updateCache(ctx)
+	require.NoError(t, err)
+
+	entries, err = ef.FetchAuthorizedEntries(ctx, agentID)
+	require.NoError(t, err)
+	compareEntries(t, entries, entry1, entry2)
+}
+
+type nodeCallCountingDataStore struct {
+	datastore.DataStore
+	fetchAttestedNodeCount        int
+	getNodeSelectorsCount         int
+	fetchRegistrationEntriesCount int
+}
+
+func (d *nodeCallCountingDataStore) FetchAttestedNode(ctx context.Context, spiffeID string) (*common.AttestedNode, error) {
+	d.fetchAttestedNodeCount++
+	return d.DataStore.FetchAttestedNode(ctx, spiffeID)
+}
+
+func (d *nodeCallCountingDataStore) GetNodeSelectors(ctx context.Context, spiffeID string, dataConsistency datastore.DataConsistency) ([]*common.Selector, error) {
+	d.getNodeSelectorsCount++
+	return d.DataStore.GetNodeSelectors(ctx, spiffeID, dataConsistency)
+}
+
+func (d *nodeCallCountingDataStore) FetchRegistrationEntries(ctx context.Context, entryIDs []string) (map[string]*common.RegistrationEntry, error) {
+	d.fetchRegistrationEntriesCount++
+	return d.DataStore.FetchRegistrationEntries(ctx, entryIDs)
+}
+
 // AgentsByIDCacheCount
 func agentsByIDMetric(val float64) fakemetrics.MetricItem {
 	return fakemetrics.MetricItem{
@@ -1134,6 +1488,139 @@ func entriesSkippedEventMetric(val float64) fakemetrics.MetricItem {
 		Val:    val,
 		Labels: nil,
 	}
+}
+
+func TestConcurrentReloadAndFetch(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+
+	log, _ := test.NewNullLogger()
+	clk := clock.NewMock(t)
+	ds := fakedatastore.New(t)
+	metrics := fakemetrics.New()
+
+	nodeCache, err := nodecache.New(ctx, log, ds, clk, false, true)
+	require.NoError(t, err)
+
+	agentID := spiffeid.RequireFromString("spiffe://example.org/myagent")
+
+	// Create an attested node with selectors
+	_, err = ds.CreateAttestedNode(ctx, &common.AttestedNode{
+		SpiffeId:     agentID.String(),
+		CertNotAfter: time.Now().Add(5 * time.Hour).Unix(),
+	})
+	require.NoError(t, err)
+
+	err = ds.SetNodeSelectors(ctx, agentID.String(), []*common.Selector{
+		{Type: "test", Value: "alias"},
+	})
+	require.NoError(t, err)
+
+	// Create a node alias
+	_, err = ds.CreateRegistrationEntry(ctx, &common.RegistrationEntry{
+		SpiffeId: "spiffe://example.org/alias",
+		ParentId: "spiffe://example.org/spire/server",
+		Selectors: []*common.Selector{
+			{Type: "test", Value: "alias"},
+		},
+	})
+	require.NoError(t, err)
+
+	// Create registration entries
+	entry1, err := ds.CreateRegistrationEntry(ctx, &common.RegistrationEntry{
+		SpiffeId: "spiffe://example.org/workload1",
+		ParentId: agentID.String(),
+		Selectors: []*common.Selector{
+			{Type: "workload", Value: "one"},
+		},
+	})
+	require.NoError(t, err)
+
+	entry2, err := ds.CreateRegistrationEntry(ctx, &common.RegistrationEntry{
+		SpiffeId: "spiffe://example.org/workload2",
+		ParentId: agentID.String(),
+		Selectors: []*common.Selector{
+			{Type: "workload", Value: "two"},
+		},
+	})
+	require.NoError(t, err)
+
+	ef, err := NewAuthorizedEntryFetcherEvents(ctx, "example.org", AuthorizedEntryFetcherEventsConfig{
+		log:                     log,
+		metrics:                 metrics,
+		clk:                     clk,
+		ds:                      ds,
+		nodeCache:               nodeCache,
+		cacheReloadInterval:     defaultCacheReloadInterval,
+		fullCacheReloadInterval: defaultFullCacheReloadInterval,
+		pruneEventsOlderThan:    defaultPruneEventsOlderThan,
+		eventTimeout:            defaultEventTimeout,
+	})
+	require.NoError(t, err)
+
+	// Populate the cache with initial data
+	err = ef.updateCache(ctx)
+	require.NoError(t, err)
+
+	entries, err := ef.FetchAuthorizedEntries(ctx, agentID)
+	require.NoError(t, err)
+	require.Len(t, entries, 2)
+
+	// Run concurrent readers alongside reloadCache.
+	// With -race, the race detector will flag any unsynchronized access.
+	const numReaders = 4
+	const numIterations = 50
+	const numGoroutines = numReaders*2 + 1
+
+	var start, done sync.WaitGroup
+	start.Add(numGoroutines)
+
+	// Readers calling FetchAuthorizedEntries
+	for range numReaders {
+		done.Go(func() {
+			start.Done()
+			start.Wait()
+			for range numIterations {
+				fetched, err := ef.FetchAuthorizedEntries(ctx, agentID)
+				assert.NoError(t, err)
+				assert.NotEmpty(t, fetched)
+			}
+		})
+	}
+
+	// Readers calling LookupAuthorizedEntries
+	for range numReaders {
+		done.Go(func() {
+			start.Done()
+			start.Wait()
+			entryIDs := map[string]struct{}{
+				entry1.EntryId: {},
+				entry2.EntryId: {},
+			}
+			for range numIterations {
+				looked, err := ef.LookupAuthorizedEntries(ctx, agentID, entryIDs)
+				assert.NoError(t, err)
+				assert.NotEmpty(t, looked)
+			}
+		})
+	}
+
+	// Writer calling reloadCache concurrently
+	done.Go(func() {
+		start.Done()
+		start.Wait()
+		for range numIterations {
+			err := ef.reloadCache(ctx)
+			assert.NoError(t, err)
+		}
+	})
+
+	done.Wait()
+
+	// Verify cache is still correct after all the concurrent activity
+	entries, err = ef.FetchAuthorizedEntries(ctx, agentID)
+	require.NoError(t, err)
+	compareEntries(t, entries, entry1, entry2)
 }
 
 func compareEntries(t *testing.T, authorizedEntries []api.ReadOnlyEntry, entries ...*common.RegistrationEntry) {

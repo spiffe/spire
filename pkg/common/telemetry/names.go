@@ -260,6 +260,18 @@ const (
 	// DatabaseType labels a database type (MySQL, postgres...)
 	DatabaseType = "db_type"
 
+	// Alert tags log events that should be easy for operators to alert on.
+	Alert = "alert"
+
+	// AlertType tags the category of an alert log event.
+	AlertType = "alert_type"
+
+	// DeprecatedConfigAlertType tags alerts for deprecated configuration settings.
+	DeprecatedConfigAlertType = "deprecated_config"
+
+	// DeprecatedServiceAlertType tags alerts for deprecated plugin services.
+	DeprecatedServiceAlertType = "deprecated_service"
+
 	// DeprecatedServiceName tags the deprecated service name
 	DeprecatedServiceName = "deprecated_service_name"
 
@@ -446,6 +458,9 @@ const (
 
 	// Pruned flagging something has been pruned
 	Pruned = "pruned"
+
+	// RateLimitExceeded tags a rate limit exceeded event
+	RateLimitExceeded = "rate_limit_exceeded"
 
 	// ReadOnly tags something read-only
 	ReadOnly = "read_only"

@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"cloud.google.com/go/kms/apiv1/kmspb"
+	"github.com/andres-erbsen/clock"
 	"github.com/hashicorp/go-hclog"
 	keymanagerv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/keymanager/v1"
 	"golang.org/x/sync/errgroup"
@@ -22,6 +23,7 @@ type keyFetcher struct {
 	log       hclog.Logger
 	serverID  string
 	tdHash    string
+	clk       clock.Clock
 }
 
 // fetchKeyEntries requests Cloud KMS to get the list of CryptoKeys that are
@@ -104,7 +106,7 @@ func (kf *keyFetcher) getKeyEntriesFromCryptoKey(ctx context.Context, cryptoKey 
 			return nil, status.Errorf(codes.Internal, "unsupported CryptoKeyVersionAlgorithm: %v", cryptoKeyVersion.Algorithm)
 		}
 
-		pubKey, err := getPublicKeyFromCryptoKeyVersion(ctx, kf.log, kf.kmsClient, cryptoKeyVersion.Name)
+		pubKey, err := getPublicKeyFromCryptoKeyVersion(ctx, kf.log, kf.kmsClient, cryptoKeyVersion.Name, kf.clk)
 		if err != nil {
 			return nil, status.Errorf(codes.Internal, "error getting public key: %v", err)
 		}

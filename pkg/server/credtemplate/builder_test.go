@@ -8,6 +8,7 @@ import (
 	"crypto/rand"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"math"
@@ -1198,6 +1199,7 @@ func TestBuildWorkloadJWTSVIDClaims(t *testing.T) {
 					return
 				}
 				require.NoError(t, err)
+				require.NotContains(t, template, "jti", "jti should not be set when IncludeJTI is false")
 
 				expected := map[string]any{
 					"aud": []string{"AUDIENCE"},
@@ -1320,6 +1322,33 @@ func TestBuildWorkloadWITSVIDClaims(t *testing.T) {
 			})
 		})
 	}
+}
+
+func TestBuildWorkloadJWTSVIDClaimsIncludeJTI(t *testing.T) {
+	testBuilder(t, nil, func(t *testing.T, credBuilder *credtemplate.Builder) {
+		params := credtemplate.WorkloadJWTSVIDParams{
+			SPIFFEID:   workloadID,
+			Audience:   []string{"AUDIENCE"},
+			IncludeJTI: true,
+		}
+
+		jtis := make(map[string]bool)
+		for range 10 {
+			template, err := credBuilder.BuildWorkloadJWTSVIDClaims(ctx, params)
+			require.NoError(t, err)
+
+			jti, ok := template["jti"].(string)
+			require.True(t, ok, "jti claim should be a string")
+			require.NotEmpty(t, jti, "jti should not be empty")
+
+			decoded, err := base64.RawURLEncoding.DecodeString(jti)
+			require.NoError(t, err, "jti should be a valid base64url string")
+			require.Len(t, decoded, 16, "jti should encode 16 random bytes")
+
+			require.False(t, jtis[jti], "jti should be unique across calls")
+			jtis[jti] = true
+		}
+	})
 }
 
 func testBuilder(t *testing.T, overrideConfig func(config *credtemplate.Config), fn func(*testing.T, *credtemplate.Builder)) {

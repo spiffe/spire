@@ -58,6 +58,7 @@ This may be useful for templating configuration files, for example across differ
 | `log_file`                        | File to write logs to                                                                                                                                                                                                                             |                                  |
 | `log_level`                       | Sets the logging level &lt;DEBUG&vert;INFO&vert;WARN&vert;ERROR&gt;                                                                                                                                                                               | INFO                             |
 | `log_format`                      | Format of logs, &lt;text&vert;json&gt;                                                                                                                                                                                                            | Text                             |
+| `log_selectors`                   | Workload selector prefixes allowed in diagnostic logs. Selector values can contain sensitive information; only configure prefixes whose values are acceptable to write to logs. Example: `["k8s:ns", "k8s:sa", "unix:user"]`                      |                                  |
 | `log_source_location`             | If true, logs include source file, line number, and method name fields (adds a bit of runtime cost)                                                                                                                                               | false                            |
 | `profiling_enabled`               | If true, enables a [net/http/pprof](https://pkg.go.dev/net/http/pprof) endpoint                                                                                                                                                                   | false                            |
 | `profiling_freq`                  | Frequency of dumping profiling data to disk. Only enabled when `profiling_enabled` is `true` and `profiling_freq` > 0.                                                                                                                            |                                  |
@@ -72,18 +73,58 @@ This may be useful for templating configuration files, for example across differ
 | `trust_bundle_unix_socket`        | Make the request specified via trust_bundle_url happen against the specified unix socket.                                                                                                                                                         |                                  |
 | `trust_bundle_format`             | Format of the initial trust bundle, pem or spiffe                                                                                                                                                                                                 | pem                              |
 | `trust_domain`                    | The trust domain that this agent belongs to (should be no more than 255 characters)                                                                                                                                                               |                                  |
-| `workload_x509_svid_key_type`     | The workload X509 SVID key type &lt;rsa-2048&vert;ec-p256&vert;ec-p384&gt;                                                                                                                                                                                     | ec-p256                          |
+| `workload_x509_svid_key_type`     | The workload X509 SVID key type &lt;rsa-2048&vert;ec-p256&vert;ec-p384&gt;                                                                                                                                                                        | ec-p256                          |
 | `availability_target`             | The minimum amount of time desired to gracefully handle SPIRE Server or Agent downtime. This configurable influences how aggressively X509 SVIDs should be rotated. If set, must be at least 24h. See [Availability Target](#availability-target) |                                  |
 | `x509_svid_cache_max_size`        | Soft limit of max number of X509-SVIDs that would be stored in LRU cache                                                                                                                                                                          | 1000                             |
 | `jwt_svid_cache_max_size`         | Hard limit of max number of JWT-SVIDs that would be stored in LRU cache                                                                                                                                                                           | 1000                             |
 
-| experimental                  | Description                                                                                         | Default                 |
-|:------------------------------|-----------------------------------------------------------------------------------------------------|-------------------------|
-| `named_pipe_name`             | Pipe name to bind the SPIRE Agent API named pipe (Windows only)                                     | \spire-agent\public\api |
-| `sync_interval`               | Sync interval with SPIRE server with exponential backoff                                            | 5 sec                   |
-| `use_sync_authorized_entries` | Use SyncAuthorizedEntries API for periodically synchronization of authorized entries                | true                    |
-| `require_pq_kem`              | Require use of a post-quantum-safe key exchange method for TLS handshakes                           | false                   |
-| `jwt_svid_cache_hit_timeout`  | Custom gRPC timeout (between 5 and 30s) when retrieving a NewJWTSVID when a valid JWT-SVID in cache | 30s                     |
+| experimental                  | Description                                                                                                                                                                         | Default                 |
+| :---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------- |
+| `named_pipe_name`             | Pipe name to bind the SPIRE Agent API named pipe (Windows only)                                                                                                                     | \spire-agent\public\api |
+| `sync_interval`               | Sync interval with SPIRE server with exponential backoff                                                                                                                            | 5 sec                   |
+| `use_sync_authorized_entries` | Use SyncAuthorizedEntries API for periodically synchronization of authorized entries                                                                                                | true                    |
+| `require_pq_kem`              | Require use of a post-quantum-safe key exchange method for TLS handshakes                                                                                                           | false                   |
+| `jwt_svid_cache_hit_timeout`  | Custom gRPC timeout (between 5 and 30s) when retrieving a NewJWTSVID when a valid JWT-SVID in cache                                                                                 | 30s                     |
+| `ratelimit`                   | Optional per-caller rate limiting for Workload API and SDS methods, enforced after workload attestation. See [Workload API Rate Limiting](#workload-api-rate-limiting) for details. |                         |
+
+### Workload API Rate Limiting
+
+The `ratelimit` configuration block enforces per-caller rate limits on Workload API and Envoy SDS methods to protect the agent from noisy-neighbor workloads and reconnection storms.
+
+This feature is **experimental** and lives under the `experimental` block. Its configuration may change or move in a future release (targeted for promotion or removal in 1.16/1.17).
+
+**Key resolution:** Rate limits are enforced after workload attestation. The caller's attested selector set (the full set of `type:value` pairs returned by the attestor) is used as the rate-limit key — all workloads with the same selector set share one token bucket, and workloads with different selector sets never interfere. Callers that cannot be attested (empty selector set) share a single `<unattested>` bucket. The agent's own health probe is exempt from rate limiting.
+
+| ratelimit            | Description                                                                                 | Default      |
+| :------------------- | ------------------------------------------------------------------------------------------- | ------------ |
+| `fetch_x509_svid`    | Max stream opens per second per selector set for `FetchX509SVID`. 0 disables rate limiting. | 0 (disabled) |
+| `fetch_jwt_svid`     | Max calls per second per selector set for `FetchJWTSVID`. 0 disables rate limiting.         | 0 (disabled) |
+| `fetch_x509_bundles` | Max stream opens per second per selector set for `FetchX509Bundles`. 0 disables.            | 0 (disabled) |
+| `fetch_jwt_bundles`  | Max stream opens per second per selector set for `FetchJWTBundles`. 0 disables.             | 0 (disabled) |
+| `stream_secrets`     | Max stream opens per second per selector set for SDS `StreamSecrets`. 0 disables.           | 0 (disabled) |
+| `fetch_secrets`      | Max calls per second per selector set for SDS `FetchSecrets`. 0 disables.                   | 0 (disabled) |
+
+For streaming RPCs (`FetchX509SVID`, `FetchX509Bundles`, `FetchJWTBundles`, `StreamSecrets`), the rate limit is enforced at stream establishment (i.e., per reconnect), not per message.
+
+Example configuration:
+
+```hcl
+agent {
+    # ...
+    experimental {
+        ratelimit {
+            fetch_x509_svid    = 100
+            fetch_jwt_svid     = 500
+            fetch_x509_bundles = 20
+            fetch_jwt_bundles  = 20
+            stream_secrets     = 50
+            fetch_secrets      = 50
+        }
+    }
+}
+```
+
+Calls exceeding the rate limit receive an `Unavailable` gRPC status code.
 
 ### Server Attestation
 
@@ -254,23 +295,23 @@ health_checks {
 All the configuration file above options have identical command-line counterparts. In addition,
 the following flags are available:
 
-| Command                          | Action                                                                              | Default               |
-|----------------------------------|-------------------------------------------------------------------------------------|-----------------------|
-| `-allowUnauthenticatedVerifiers` | Allow agent to release trust bundles to unauthenticated verifiers                   |                       |
-| `-config`                        | Path to a SPIRE config file                                                         | conf/agent/agent.conf |
-| `-dataDir`                       | A directory the agent can use for its runtime data                                  |                       |
-| `-expandEnv`                     | Expand environment $VARIABLES in the config file                                    |                       |
-| `-joinToken`                     | An optional token which has been generated by the SPIRE server                      |                       |
+| Command                          | Action                                                                                        | Default               |
+| -------------------------------- | --------------------------------------------------------------------------------------------- | --------------------- |
+| `-allowUnauthenticatedVerifiers` | Allow agent to release trust bundles to unauthenticated verifiers                             |                       |
+| `-config`                        | Path to a SPIRE config file                                                                   | conf/agent/agent.conf |
+| `-dataDir`                       | A directory the agent can use for its runtime data                                            |                       |
+| `-expandEnv`                     | Expand environment $VARIABLES in the config file                                              |                       |
+| `-joinToken`                     | An optional token which has been generated by the SPIRE server                                |                       |
 | `-joinTokenFile`                 | Path to a file containing an optional join token which has been generated by the SPIRE server |                       |
-| `-logFile`                       | File to write logs to                                                               |                       |
-| `-logFormat`                     | Format of logs, &lt;text&vert;json&gt;                                              |                       |
-| `-logLevel`                      | DEBUG, INFO, WARN or ERROR                                                          |                       |
-| `-serverAddress`                 | IP address or DNS name of the SPIRE server                                          |                       |
-| `-serverPort`                    | Port number of the SPIRE server                                                     |                       |
-| `-socketPath`                    | Location to bind the workload API socket                                            |                       |
-| `-trustBundle`                   | Path to the SPIRE server CA bundle                                                  |                       |
-| `-trustBundleUrl`                | URL to download the SPIRE server CA bundle                                          |                       |
-| `-trustDomain`                   | The trust domain that this agent belongs to (should be no more than 255 characters) |                       |
+| `-logFile`                       | File to write logs to                                                                         |                       |
+| `-logFormat`                     | Format of logs, &lt;text&vert;json&gt;                                                        |                       |
+| `-logLevel`                      | DEBUG, INFO, WARN or ERROR                                                                    |                       |
+| `-serverAddress`                 | IP address or DNS name of the SPIRE server                                                    |                       |
+| `-serverPort`                    | Port number of the SPIRE server                                                               |                       |
+| `-socketPath`                    | Location to bind the workload API socket                                                      |                       |
+| `-trustBundle`                   | Path to the SPIRE server CA bundle                                                            |                       |
+| `-trustBundleUrl`                | URL to download the SPIRE server CA bundle                                                    |                       |
+| `-trustDomain`                   | The trust domain that this agent belongs to (should be no more than 255 characters)           |                       |
 
 #### Running SPIRE Agent as a Windows service
 
@@ -381,11 +422,17 @@ agent {
 telemetry {
     Prometheus {
         port = 1234
-        #optional TLS for prometheus
+        # optional TLS for prometheus
         tls {
-            cert_file = "/path/to/cert.pem"
-            key_file = "/path/to/key.pem"
-            client_ca_file = "/path/to/ca.pem" # optional CA file for mTLS
+            use_spire_svid = true
+            authorized_spiffe_ids = [
+                "spiffe://example.org/monitoring/prometheus",
+            ]
+
+            # Alternatively, configure a web certificate directly:
+            # cert_file = "/path/to/cert.pem"
+            # key_file = "/path/to/key.pem"
+            # client_ca_file = "/path/to/ca.pem"
         }
     }
 }

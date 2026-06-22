@@ -16,6 +16,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/agent/workloadkey"
 	"github.com/spiffe/spire/pkg/common/log"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/assert"
@@ -304,6 +305,24 @@ func TestMergeInput(t *testing.T) {
 			cliInput:  func(c *agentConfig) {},
 			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "INFO", c.Agent.LogLevel)
+			},
+		},
+		{
+			msg:       "log_selectors should default to empty if not set",
+			fileInput: func(c *Config) {},
+			cliInput:  func(c *agentConfig) {},
+			test: func(t *testing.T, c *Config) {
+				require.Empty(t, c.Agent.LogSelectors)
+			},
+		},
+		{
+			msg: "log_selectors should be configurable by file",
+			fileInput: func(c *Config) {
+				c.Agent.LogSelectors = []string{"k8s:ns", "unix:user"}
+			},
+			cliInput: func(c *agentConfig) {},
+			test: func(t *testing.T, c *Config) {
+				require.Equal(t, []string{"k8s:ns", "unix:user"}, c.Agent.LogSelectors)
 			},
 		},
 		{
@@ -816,6 +835,15 @@ func TestNewAgentConfig(t *testing.T) {
 			},
 		},
 		{
+			msg: "log_selectors is copied",
+			input: func(c *Config) {
+				c.Agent.LogSelectors = []string{"k8s:ns", "unix:user"}
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Equal(t, []string{"k8s:ns", "unix:user"}, c.LogSelectors)
+			},
+		},
+		{
 			msg: "workload_key_type is set",
 			input: func(c *Config) {
 				c.Agent.WorkloadX509SVIDKeyType = "rsa-2048"
@@ -871,6 +899,37 @@ func TestNewAgentConfig(t *testing.T) {
 			},
 			test: func(t *testing.T, c *agent.Config) {
 				require.Nil(t, c)
+			},
+		},
+		{
+			msg: "use_sync_authorized_entries logs deprecation alert",
+			input: func(c *Config) {
+				useSyncAuthorizedEntries := false
+				c.Agent.Experimental.UseSyncAuthorizedEntries = &useSyncAuthorizedEntries
+			},
+			logOptions: func(t *testing.T) []log.Option {
+				return []log.Option{
+					func(logger *log.Logger) error {
+						logger.SetOutput(io.Discard)
+						hook := test.NewLocal(logger.Logger)
+						t.Cleanup(func() {
+							spiretest.AssertLogsContainEntries(t, hook.AllEntries(), []spiretest.LogEntry{
+								{
+									Level:   logrus.WarnLevel,
+									Message: "The 'use_sync_authorized_entries' configuration is deprecated. The option to disable it will be removed in SPIRE 1.13.",
+									Data: logrus.Fields{
+										telemetry.Alert:     "true",
+										telemetry.AlertType: telemetry.DeprecatedConfigAlertType,
+									},
+								},
+							})
+						})
+						return nil
+					},
+				}
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.False(t, c.UseSyncAuthorizedEntries)
 			},
 		},
 		{
@@ -1054,6 +1113,128 @@ func TestNewAgentConfig(t *testing.T) {
 				require.Nil(t, ac)
 			},
 		},
+		{
+			msg: "ratelimit defaults to zero (disabled)",
+			input: func(c *Config) {
+				// no ratelimit config set
+			},
+			test: func(t *testing.T, ac *agent.Config) {
+				require.Equal(t, agent.WorkloadAPIRateLimitConfig{}, ac.WorkloadAPIRateLimit)
+			},
+		},
+		{
+			msg: "ratelimit fetch_x509_svid is configurable",
+			input: func(c *Config) {
+				v := 100
+				c.Agent.Experimental.RateLimit.FetchX509SVID = &v
+			},
+			test: func(t *testing.T, ac *agent.Config) {
+				require.Equal(t, 100, ac.WorkloadAPIRateLimit.FetchX509SVID)
+				require.Equal(t, 0, ac.WorkloadAPIRateLimit.FetchJWTSVID)
+			},
+		},
+		{
+			msg: "ratelimit both methods are configurable",
+			input: func(c *Config) {
+				a, d := 1, 3
+				c.Agent.Experimental.RateLimit.FetchX509SVID = &a
+				c.Agent.Experimental.RateLimit.FetchJWTSVID = &d
+			},
+			test: func(t *testing.T, ac *agent.Config) {
+				require.Equal(t, agent.WorkloadAPIRateLimitConfig{
+					FetchX509SVID: 1,
+					FetchJWTSVID:  3,
+				}, ac.WorkloadAPIRateLimit)
+			},
+		},
+		{
+			msg:         "ratelimit fetch_x509_svid negative value returns an error",
+			expectError: true,
+			input: func(c *Config) {
+				v := -1
+				c.Agent.Experimental.RateLimit.FetchX509SVID = &v
+			},
+			test: func(t *testing.T, ac *agent.Config) {
+				require.Nil(t, ac)
+			},
+		},
+		{
+			msg:         "ratelimit fetch_jwt_svid negative value returns an error",
+			expectError: true,
+			input: func(c *Config) {
+				v := -1
+				c.Agent.Experimental.RateLimit.FetchJWTSVID = &v
+			},
+			test: func(t *testing.T, ac *agent.Config) {
+				require.Nil(t, ac)
+			},
+		},
+		{
+			msg: "ratelimit all six knobs are configurable",
+			input: func(c *Config) {
+				a, b, d, e, f, g := 10, 20, 30, 40, 50, 60
+				c.Agent.Experimental.RateLimit.FetchX509SVID = &a
+				c.Agent.Experimental.RateLimit.FetchJWTSVID = &b
+				c.Agent.Experimental.RateLimit.FetchX509Bundles = &d
+				c.Agent.Experimental.RateLimit.FetchJWTBundles = &e
+				c.Agent.Experimental.RateLimit.StreamSecrets = &f
+				c.Agent.Experimental.RateLimit.FetchSecrets = &g
+			},
+			test: func(t *testing.T, ac *agent.Config) {
+				require.Equal(t, agent.WorkloadAPIRateLimitConfig{
+					FetchX509SVID:    10,
+					FetchJWTSVID:     20,
+					FetchX509Bundles: 30,
+					FetchJWTBundles:  40,
+					StreamSecrets:    50,
+					FetchSecrets:     60,
+				}, ac.WorkloadAPIRateLimit)
+			},
+		},
+		{
+			msg:         "ratelimit fetch_x509_bundles negative value returns an error",
+			expectError: true,
+			input: func(c *Config) {
+				v := -1
+				c.Agent.Experimental.RateLimit.FetchX509Bundles = &v
+			},
+			test: func(t *testing.T, ac *agent.Config) {
+				require.Nil(t, ac)
+			},
+		},
+		{
+			msg:         "ratelimit fetch_jwt_bundles negative value returns an error",
+			expectError: true,
+			input: func(c *Config) {
+				v := -1
+				c.Agent.Experimental.RateLimit.FetchJWTBundles = &v
+			},
+			test: func(t *testing.T, ac *agent.Config) {
+				require.Nil(t, ac)
+			},
+		},
+		{
+			msg:         "ratelimit stream_secrets negative value returns an error",
+			expectError: true,
+			input: func(c *Config) {
+				v := -1
+				c.Agent.Experimental.RateLimit.StreamSecrets = &v
+			},
+			test: func(t *testing.T, ac *agent.Config) {
+				require.Nil(t, ac)
+			},
+		},
+		{
+			msg:         "ratelimit fetch_secrets negative value returns an error",
+			expectError: true,
+			input: func(c *Config) {
+				v := -1
+				c.Agent.Experimental.RateLimit.FetchSecrets = &v
+			},
+			test: func(t *testing.T, ac *agent.Config) {
+				require.Nil(t, ac)
+			},
+		},
 	}
 	cases = append(cases, newAgentConfigCasesOS(t)...)
 	for _, testCase := range cases {
@@ -1212,6 +1393,16 @@ func TestWarnOnUnknownConfig(t *testing.T) {
 			expectedLogEntries: []logEntry{
 				{
 					section: "health check",
+					keys:    "unknown_option1,unknown_option2",
+				},
+			},
+		},
+		{
+			msg:      "in nested ratelimit block",
+			confFile: "agent_bad_nested_ratelimit_block.conf",
+			expectedLogEntries: []logEntry{
+				{
+					section: "ratelimit",
 					keys:    "unknown_option1,unknown_option2",
 				},
 			},

@@ -751,6 +751,7 @@ func TestReadOnlyEntryClone(t *testing.T) {
 		StoreSvid:      true,
 		AdditionalAttributes: &types.Entry_AdditionalAttributes{
 			DisableX509SvidPrefetch: false,
+			JwtSvidIncludeJti:       true,
 		},
 	}
 
