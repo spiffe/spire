@@ -7,6 +7,7 @@ import (
 	"flag"
 	"fmt"
 	"net"
+	"unsafe"
 
 	"github.com/spiffe/spire/cmd/spire-agent/cli/common"
 	"github.com/spiffe/spire/pkg/agent"
@@ -79,5 +80,23 @@ func enableSeDebugPrivilege() error {
 		},
 	}
 
-	return windows.AdjustTokenPrivileges(token, false, &tp, 0, nil, nil)
+	// We can't use the AdjustTokenPrivileges function from x/sys/windows because
+	// it currently does not handle the ERROR_NOT_ALL_ASSIGNED error. Based on testing
+	// it seems to return a nil error even if fails to adjust the privileges.
+	procAdjustTokenPrivileges := windows.NewLazySystemDLL("advapi32.dll").NewProc("AdjustTokenPrivileges")
+	result, _, err := procAdjustTokenPrivileges.Call(
+		uintptr(token),
+		0,
+		uintptr(unsafe.Pointer(&tp)),
+		0,
+		0,
+		0,
+	)
+	if result == 0 {
+		return fmt.Errorf("AdjustTokenPrivileges failed: %w", err)
+	}
+	if errors.Is(err, windows.ERROR_NOT_ALL_ASSIGNED) {
+		return errors.New("SeDebugPrivilege is not held by this token")
+	}
+	return nil
 }
