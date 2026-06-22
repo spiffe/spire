@@ -136,7 +136,7 @@ func (a *registrationEntries) scanForNewEvents(ctx context.Context) error {
 	return nil
 }
 
-func (a *registrationEntries) loadCache(ctx context.Context) error {
+func (a *registrationEntries) loadCache(ctx context.Context, cache *authorizedentries.Cache) error {
 	// Build the cache
 	var token string
 	for {
@@ -162,7 +162,7 @@ func (a *registrationEntries) loadCache(ctx context.Context) error {
 		}
 
 		for _, entry := range entries {
-			a.cache.UpdateEntry(entry)
+			cache.UpdateEntry(entry)
 		}
 	}
 	return nil
@@ -198,7 +198,7 @@ func buildRegistrationEntriesCache(ctx context.Context, log logrus.FieldLogger, 
 		return nil, err
 	}
 
-	if err := registrationEntries.loadCache(ctx); err != nil {
+	if err := registrationEntries.loadCache(ctx, cache); err != nil {
 		return nil, err
 	}
 
@@ -259,6 +259,11 @@ func (a *registrationEntries) updateCachedEntries(ctx context.Context) error {
 func (a *registrationEntries) fetchEntriesPage(entryIds []string, pageStart int) []string {
 	pageEnd := min(len(entryIds), pageStart+int(a.pageSize))
 	return entryIds[pageStart:pageEnd]
+}
+
+func (a *registrationEntries) swapCache(cache *authorizedentries.Cache) {
+	a.cache = cache
+	a.fetchEntries = make(map[string]struct{})
 }
 
 func (a *registrationEntries) emitMetrics() {

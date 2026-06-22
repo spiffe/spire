@@ -42,9 +42,22 @@ type Attestor interface {
 	Attest(ctx context.Context) ([]*common.Selector, error)
 }
 
+// RateLimiter enforces per-selector-set rate limiting on Workload API methods.
+type RateLimiter interface {
+	RateLimit(fullMethod string, selectors []*common.Selector) error
+}
+
+const (
+	MethodFetchX509SVID    = "/SpiffeWorkloadAPI/FetchX509SVID"
+	MethodFetchJWTSVID     = "/SpiffeWorkloadAPI/FetchJWTSVID"
+	MethodFetchX509Bundles = "/SpiffeWorkloadAPI/FetchX509Bundles"
+	MethodFetchJWTBundles  = "/SpiffeWorkloadAPI/FetchJWTBundles"
+)
+
 type Config struct {
 	Manager                       Manager
 	Attestor                      Attestor
+	RateLimiter                   RateLimiter
 	AllowUnauthenticatedVerifiers bool
 	AllowedForeignJWTClaims       map[string]struct{}
 	LogSelectors                  []string
@@ -61,6 +74,19 @@ func New(c Config) *Handler {
 	return &Handler{
 		c: c,
 	}
+}
+
+func (h *Handler) rateLimit(ctx context.Context, fullMethod string, selectors []*common.Selector) error {
+	if h.c.RateLimiter == nil {
+		return nil
+	}
+	// Exempt the agent's own calls from rate limiting so that an
+	// operator-configured limit can't deny the agent itself (e.g. the health
+	// check, which exercises the Workload API) and mark it unhealthy.
+	if isAgent(ctx) {
+		return nil
+	}
+	return h.c.RateLimiter.RateLimit(fullMethod, selectors)
 }
 
 // FetchJWTSVID processes request for a JWT-SVID. In case of multiple fetched SVIDs with same hint, the SVID that has the oldest
@@ -83,6 +109,10 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *workload.JWTSVIDRequest
 	selectors, err := h.c.Attestor.Attest(ctx)
 	if err != nil {
 		loggerWithContextInfo(ctx, log, start, err).Error("Workload attestation failed")
+		return nil, workloadAttestationFailedError(ctx)
+	}
+
+	if err := h.rateLimit(ctx, MethodFetchJWTSVID, selectors); err != nil {
 		return nil, err
 	}
 
@@ -123,6 +153,10 @@ func (h *Handler) FetchJWTBundles(_ *workload.JWTBundlesRequest, stream workload
 	selectors, err := h.c.Attestor.Attest(ctx)
 	if err != nil {
 		loggerWithContextInfo(ctx, log, start, err).Error("Workload attestation failed")
+		return workloadAttestationFailedError(ctx)
+	}
+
+	if err := h.rateLimit(ctx, MethodFetchJWTBundles, selectors); err != nil {
 		return err
 	}
 
@@ -164,7 +198,7 @@ func (h *Handler) ValidateJWTSVID(ctx context.Context, req *workload.ValidateJWT
 	selectors, err := h.c.Attestor.Attest(ctx)
 	if err != nil {
 		loggerWithContextInfo(ctx, log, start, err).Error("Workload attestation failed")
-		return nil, err
+		return nil, workloadAttestationFailedError(ctx)
 	}
 
 	bundles := h.getWorkloadBundles(selectors)
@@ -222,6 +256,10 @@ func (h *Handler) FetchX509SVID(_ *workload.X509SVIDRequest, stream workload.Spi
 	selectors, err := h.c.Attestor.Attest(ctx)
 	if err != nil {
 		loggerWithContextInfo(ctx, log, start, err).Error("Workload attestation failed")
+		return workloadAttestationFailedError(ctx)
+	}
+
+	if err := h.rateLimit(ctx, MethodFetchX509SVID, selectors); err != nil {
 		return err
 	}
 
@@ -254,6 +292,10 @@ func (h *Handler) FetchX509Bundles(_ *workload.X509BundlesRequest, stream worklo
 	selectors, err := h.c.Attestor.Attest(ctx)
 	if err != nil {
 		loggerWithContextInfo(ctx, log, start, err).Error("Workload attestation failed")
+		return workloadAttestationFailedError(ctx)
+	}
+
+	if err := h.rateLimit(ctx, MethodFetchX509Bundles, selectors); err != nil {
 		return err
 	}
 
@@ -284,6 +326,13 @@ func (h *Handler) FetchWITSVID(_ *workload.WITSVIDRequest, stream workload.Spiff
 
 func (h *Handler) FetchWITBundles(_ *workload.WITBundlesRequest, stream workload.SpiffeWorkloadAPI_FetchWITBundlesServer) error {
 	return status.Error(codes.Unimplemented, "fetching WIT bundles is not implemented")
+}
+
+func workloadAttestationFailedError(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return status.Error(codes.Unavailable, "workload attestation failed")
 }
 
 func (h *Handler) fetchJWTSVID(ctx context.Context, log logrus.FieldLogger, entry *common.RegistrationEntry, audience []string, start time.Time) (*workload.JWTSVID, error) {

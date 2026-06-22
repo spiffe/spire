@@ -43,6 +43,8 @@ type AuthorizedEntryFetcherEvents struct {
 
 type eventsBasedCache interface {
 	updateCache(ctx context.Context) error
+	loadCache(ctx context.Context, cache *authorizedentries.Cache) error
+	swapCache(cache *authorizedentries.Cache)
 }
 
 func NewAuthorizedEntryFetcherEvents(ctx context.Context, trustDomain string, c AuthorizedEntryFetcherEventsConfig) (*AuthorizedEntryFetcherEvents, error) {
@@ -91,7 +93,7 @@ func (a *AuthorizedEntryFetcherEvents) RunUpdateCacheTask(ctx context.Context) e
 			return ctx.Err()
 		case <-cacheReloadTicker.C:
 			if fullCacheReload {
-				if err := a.buildCache(ctx); err != nil {
+				if err := a.reloadCache(ctx); err != nil {
 					a.c.log.WithError(err).Error("Failed to full refresh entry cache")
 					continue
 				}
@@ -138,6 +140,27 @@ func (a *AuthorizedEntryFetcherEvents) updateCache(ctx context.Context) error {
 	updateAttestedNodesCacheErr := a.attestedNodes.updateCache(ctx)
 
 	return errors.Join(updateRegistrationEntriesCacheErr, updateAttestedNodesCacheErr)
+}
+
+func (a *AuthorizedEntryFetcherEvents) reloadCache(ctx context.Context) error {
+	cache := authorizedentries.NewCache(a.c.clk, a.trustDomain)
+
+	if err := a.registrationEntries.loadCache(ctx, cache); err != nil {
+		return err
+	}
+
+	if err := a.attestedNodes.loadCache(ctx, cache); err != nil {
+		return err
+	}
+
+	a.registrationEntries.swapCache(cache)
+	a.attestedNodes.swapCache(cache)
+
+	a.mu.Lock()
+	a.cache = cache
+	a.mu.Unlock()
+
+	return nil
 }
 
 func (a *AuthorizedEntryFetcherEvents) buildCache(ctx context.Context) error {

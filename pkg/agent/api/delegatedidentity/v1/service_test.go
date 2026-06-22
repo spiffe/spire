@@ -85,7 +85,7 @@ func TestSubscribeToX509SVIDs(t *testing.T) {
 		{
 			testName:   "attest error",
 			attestErr:  errors.New("ohno"),
-			expectCode: codes.Internal,
+			expectCode: codes.Unavailable,
 			expectMsg:  "workload attestation failed",
 		},
 		{
@@ -378,7 +378,7 @@ func TestSubscribeToX509Bundles(t *testing.T) {
 		{
 			testName:   "Attest error",
 			attestErr:  errors.New("ohno"),
-			expectCode: codes.Internal,
+			expectCode: codes.Unavailable,
 			expectMsg:  "workload attestation failed",
 		},
 		{
@@ -480,6 +480,7 @@ func TestFetchJWTSVIDs(t *testing.T) {
 		expectCode   codes.Code
 		expectMsg    string
 		attestErr    error
+		delegateErr  error
 		managerErr   error
 		expectResp   *delegatedidentityv1.FetchJWTSVIDsResponse
 	}{
@@ -492,7 +493,7 @@ func TestFetchJWTSVIDs(t *testing.T) {
 			testName:   "Attest error",
 			attestErr:  errors.New("ohno"),
 			audience:   []string{"AUDIENCE"},
-			expectCode: codes.Internal,
+			expectCode: codes.Unavailable,
 			expectMsg:  "workload attestation failed",
 		},
 		{
@@ -573,6 +574,18 @@ func TestFetchJWTSVIDs(t *testing.T) {
 			},
 			expectCode: codes.InvalidArgument,
 			expectMsg:  "could not parse provided selectors",
+		},
+		{
+			testName:     "delegate workload attest error",
+			authSpiffeID: []string{"spiffe://example.org/one"},
+			pid:          447,
+			audience:     []string{"AUDIENCE"},
+			identities: []cache.Identity{
+				identities[0],
+			},
+			delegateErr: errors.New("ohno"),
+			expectCode:  codes.Unavailable,
+			expectMsg:   "workload attestation failed",
 		},
 		{
 			testName:     "success with one identity",
@@ -742,6 +755,7 @@ func TestFetchJWTSVIDs(t *testing.T) {
 				Identities:   tt.identities,
 				AuthSpiffeID: tt.authSpiffeID,
 				AttestErr:    tt.attestErr,
+				DelegateErr:  tt.delegateErr,
 				ManagerErr:   tt.managerErr,
 				JwtSVIDS:     tt.jwtSVIDsResp,
 			}
@@ -786,7 +800,7 @@ func TestSubscribeToJWTBundles(t *testing.T) {
 		{
 			testName:   "Attest error",
 			attestErr:  errors.New("ohno"),
-			expectCode: codes.Internal,
+			expectCode: codes.Unavailable,
 			expectMsg:  "workload attestation failed",
 		},
 		{
@@ -870,6 +884,7 @@ type testParams struct {
 	JwtSVIDS     map[spiffeid.ID]*client.JWTSVID
 	AuthSpiffeID []string
 	AttestErr    error
+	DelegateErr  error
 	ManagerErr   error
 	Metrics      *fakemetrics.FakeMetrics
 }
@@ -900,7 +915,7 @@ func runTest(t *testing.T, params testParams, fn func(ctx context.Context, clien
 	}
 
 	service.delegateWorkloadAttestor = FakeWorkloadPIDAttestor{
-		err: params.AttestErr,
+		err: params.DelegateErr,
 	}
 
 	unaryInterceptor, streamInterceptor := middleware.Interceptors(middleware.WithLogger(log))
