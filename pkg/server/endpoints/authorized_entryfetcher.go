@@ -171,7 +171,7 @@ func (a *AuthorizedEntryFetcherEvents) buildCache(ctx context.Context) error {
 		return err
 	}
 
-	attestedNodes, err := buildAttestedNodesCache(ctx, a.c.log, a.c.metrics, a.c.ds, a.c.clk, cache, a.c.nodeCache, a.c.cacheReloadInterval, a.c.eventTimeout)
+	attestedNodes, err := buildAttestedNodesCache(ctx, a.c.log, a.c.metrics, a.c.ds, a.c.clk, cache, a.c.nodeCache, pageSize, a.c.cacheReloadInterval, a.c.eventTimeout)
 	if err != nil {
 		return err
 	}

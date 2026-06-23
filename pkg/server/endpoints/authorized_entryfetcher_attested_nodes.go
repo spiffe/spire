@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
 	"time"
 
 	"github.com/andres-erbsen/clock"
@@ -35,6 +37,7 @@ type attestedNodes struct {
 
 	eventTracker *eventTracker
 	eventTimeout time.Duration
+	pageSize     int32
 
 	fetchNodes map[string]struct{}
 
@@ -158,7 +161,11 @@ func (a *attestedNodes) loadCache(ctx context.Context, cache *authorizedentries.
 
 // buildAttestedNodesCache fetches all attested nodes and adds the unexpired ones to the cache.
 // It runs once at startup.
-func buildAttestedNodesCache(ctx context.Context, log logrus.FieldLogger, metrics telemetry.Metrics, ds datastore.DataStore, clk clock.Clock, cache *authorizedentries.Cache, nodeCache *nodecache.Cache, cacheReloadInterval, eventTimeout time.Duration) (*attestedNodes, error) {
+func buildAttestedNodesCache(ctx context.Context, log logrus.FieldLogger, metrics telemetry.Metrics, ds datastore.DataStore, clk clock.Clock, cache *authorizedentries.Cache, nodeCache *nodecache.Cache, pageSize int32, cacheReloadInterval, eventTimeout time.Duration) (*attestedNodes, error) {
+	if pageSize <= 0 {
+		return nil, fmt.Errorf("page size must be positive, got %d", pageSize)
+	}
+
 	pollPeriods := PollPeriods(cacheReloadInterval, eventTimeout)
 
 	attestedNodes := &attestedNodes{
@@ -169,6 +176,7 @@ func buildAttestedNodesCache(ctx context.Context, log logrus.FieldLogger, metric
 		log:          log,
 		metrics:      metrics,
 		eventTimeout: eventTimeout,
+		pageSize:     pageSize,
 
 		eventsBeforeFirst: make(map[uint]struct{}),
 		fetchNodes:        make(map[string]struct{}),
@@ -211,32 +219,37 @@ func (a *attestedNodes) updateCache(ctx context.Context) error {
 }
 
 func (a *attestedNodes) updateCachedNodes(ctx context.Context) error {
-	for spiffeId := range a.fetchNodes {
-		node, err := a.ds.FetchAttestedNode(ctx, spiffeId)
+	spiffeIds := slices.Collect(maps.Keys(a.fetchNodes))
+	for pageStart := 0; pageStart < len(spiffeIds); pageStart += int(a.pageSize) {
+		fetchNodes := a.fetchNodesPage(spiffeIds, pageStart)
+		nodes, err := a.ds.FetchAttestedNodes(ctx, fetchNodes)
 		if err != nil {
-			continue
+			return err
 		}
 
-		// Node was deleted
-		if node == nil {
-			a.nodeCache.RemoveAttestedNode(spiffeId)
-			a.cache.RemoveAgent(spiffeId)
+		for _, spiffeId := range fetchNodes {
+			node, ok := nodes[spiffeId]
+			// Node was deleted (absent from the response, or explicitly nil)
+			if !ok || node == nil {
+				a.nodeCache.RemoveAttestedNode(spiffeId)
+				a.cache.RemoveAgent(spiffeId)
+				delete(a.fetchNodes, spiffeId)
+				continue
+			}
+
+			agentExpiresAt := time.Unix(node.CertNotAfter, 0)
+			a.cache.UpdateAgent(node.SpiffeId, agentExpiresAt, api.ProtoFromSelectors(node.Selectors))
+			a.nodeCache.UpdateAttestedNode(node)
 			delete(a.fetchNodes, spiffeId)
-			continue
 		}
-
-		selectors, err := a.ds.GetNodeSelectors(ctx, spiffeId, datastore.RequireCurrent)
-		if err != nil {
-			continue
-		}
-		node.Selectors = selectors
-
-		agentExpiresAt := time.Unix(node.CertNotAfter, 0)
-		a.cache.UpdateAgent(node.SpiffeId, agentExpiresAt, api.ProtoFromSelectors(node.Selectors))
-		a.nodeCache.UpdateAttestedNode(node)
-		delete(a.fetchNodes, spiffeId)
 	}
 	return nil
+}
+
+// fetchNodesPage gets the range for the page starting at pageStart
+func (a *attestedNodes) fetchNodesPage(spiffeIds []string, pageStart int) []string {
+	pageEnd := min(len(spiffeIds), pageStart+int(a.pageSize))
+	return spiffeIds[pageStart:pageEnd]
 }
 
 func (a *attestedNodes) swapCache(cache *authorizedentries.Cache) {

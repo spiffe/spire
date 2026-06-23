@@ -131,6 +131,12 @@ func (w metricsWrapper) FetchAttestedNode(ctx context.Context, spiffeID string) 
 	return w.ds.FetchAttestedNode(ctx, spiffeID)
 }
 
+func (w metricsWrapper) FetchAttestedNodes(ctx context.Context, spiffeIDs []string) (_ map[string]*common.AttestedNode, err error) {
+	callCounter := StartFetchNodeCall(w.m)
+	defer callCounter.Done(&err)
+	return w.ds.FetchAttestedNodes(ctx, spiffeIDs)
+}
+
 func (w metricsWrapper) FetchAttestedNodeEvent(ctx context.Context, eventID uint) (_ *datastore.AttestedNodeEvent, err error) {
 	callCounter := StartFetchAttestedNodeEventCall(w.m)
 	defer callCounter.Done(&err)
