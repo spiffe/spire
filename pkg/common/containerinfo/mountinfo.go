@@ -6,6 +6,7 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 )
 
@@ -80,13 +81,7 @@ func parseMountInfoLine(line string) (mountInfo, error) {
 
 	// Locate the "-" separator. Everything before it is the fixed +
 	// optional-tag fields; everything after is fstype, source, super options.
-	sepIdx := -1
-	for i, f := range fields {
-		if f == "-" {
-			sepIdx = i
-			break
-		}
-	}
+	sepIdx := slices.Index(fields, "-")
 	if sepIdx < 0 {
 		return mountInfo{}, fmt.Errorf("missing separator in mountinfo line: %s", line)
 	}
