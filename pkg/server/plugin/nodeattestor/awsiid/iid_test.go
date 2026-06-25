@@ -517,10 +517,13 @@ func TestAttest(t *testing.T) {
 			},
 		},
 		{
-			name:            "fail when account id is not present in account_list_file",
-			config:          fmt.Sprintf(`verify_organization = { account_list_file = %q }`, orgAccountListFilePath),
+			name:   "fail when account id is not present in account_list_file",
+			config: fmt.Sprintf(`verify_organization = { account_list_file = %q }`, orgAccountListFilePath),
+			overrideAttestationData: func(caws.IIDAttestationData) caws.IIDAttestationData {
+				return orgTestAttestationData
+			},
 			expectCode:      codes.Internal,
-			expectMsgPrefix: fmt.Sprintf("nodeattestor(aws_iid): failed aws ec2 attestation, nodes account id: %v is not part of configured organization or doesn't have ACTIVE status", testAccount),
+			expectMsgPrefix: fmt.Sprintf("nodeattestor(aws_iid): failed aws ec2 attestation, nodes account id: %v is not part of configured organization or doesn't have ACTIVE status", testAccountID),
 		},
 		{
 			name:     "success when EKS cluster validation feature is turned on",
@@ -863,6 +866,29 @@ func TestConfigure(t *testing.T) {
 		err := doConfig(t, coreConfig, fmt.Sprintf(`verify_organization = { account_list_file = %q }`, filepath.ToSlash(accountListFile)))
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "account_list_file")
+	})
+
+	t.Run("fail, account_list_file mutually exclusive even with a single AWS role field", func(t *testing.T) {
+		accountListFile := filepath.Join(t.TempDir(), "org-accounts.json")
+		require.NoError(t, os.WriteFile(accountListFile, []byte(`["111111111111"]`), 0o600))
+		err := doConfig(t, coreConfig, fmt.Sprintf(`verify_organization = { account_list_file = %q management_account_id = "dummy_account" }`, filepath.ToSlash(accountListFile)))
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "mutually exclusive")
+	})
+
+	t.Run("success, account_list_file with management_account_region (region ignored)", func(t *testing.T) {
+		accountListFile := filepath.Join(t.TempDir(), "org-accounts.json")
+		require.NoError(t, os.WriteFile(accountListFile, []byte(`["111111111111"]`), 0o600))
+		err := doConfig(t, coreConfig, fmt.Sprintf(`verify_organization = { account_list_file = %q management_account_region = "us-east-1" }`, filepath.ToSlash(accountListFile)))
+		require.NoError(t, err)
+	})
+
+	t.Run("fail, account_list_file with org_account_map_ttl below minimum", func(t *testing.T) {
+		accountListFile := filepath.Join(t.TempDir(), "org-accounts.json")
+		require.NoError(t, os.WriteFile(accountListFile, []byte(`["111111111111"]`), 0o600))
+		err := doConfig(t, coreConfig, fmt.Sprintf(`verify_organization = { account_list_file = %q org_account_map_ttl = "10s" }`, filepath.ToSlash(accountListFile)))
+		require.Error(t, err)
+		require.Contains(t, err.Error(), orgAccountListTTL)
 	})
 
 	t.Run("success, validate_eks_cluster_membership block without eks_cluster_names property set", func(t *testing.T) {

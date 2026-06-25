@@ -67,7 +67,9 @@ For large organizations, calling `organizations:ListAccounts` can be expensive: 
 
 To avoid this, set `account_list_file` to the path of a JSON file containing the organization's account IDs. When set, the plugin reads the account list from this file instead of calling AWS, and **no `organizations:ListAccounts` IAM permission is required**. `account_list_file` is mutually exclusive with `management_account_id` and `assume_org_role`.
 
-The file is read and validated at configuration time (the plugin fails to start if the file is missing or malformed) and re-read on the `org_account_map_ttl` interval, so updates are picked up without restarting the server.
+The file is read and validated at configuration time (the plugin fails to start if the file is missing or malformed). It is then re-read when the cached list is older than `org_account_map_ttl`; the refresh happens lazily on the next attestation after the TTL has elapsed (there is no background timer), so updates are picked up without restarting the server.
+
+The list is fail-closed: if the file is empty, unreadable, or malformed at runtime, accounts validated against it will fail attestation rather than be allowed. Keep the file current, and note that an empty list (`[]`) rejects every account.
 
 The file format is a JSON array of 12-digit AWS account IDs. The operator is responsible for populating it with only eligible (e.g. ACTIVE) accounts:
 

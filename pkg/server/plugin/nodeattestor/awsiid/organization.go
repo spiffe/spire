@@ -72,6 +72,9 @@ func newOrganizationValidationBase(config *orgValidationConfig) *orgValidator {
 		orgConfig:      config,
 		retries:        orgAccountRetries,
 		clk:            clock.New(),
+		// Default to a no-op logger so direct callers (e.g. tests) never
+		// nil-deref; SetLogger replaces this in the plugin lifecycle.
+		log: hclog.NewNullLogger(),
 	}
 
 	return client
@@ -162,7 +165,7 @@ func (o *orgValidator) lookupCache(ctx context.Context, orgClient organizations.
 	if !accountIsmemberOfOrg && !reValidatedCache {
 		orgAccountList, err := o.refreshCache(ctx, orgClient)
 		if err != nil {
-			o.log.Error("Failed to refresh cache, while validating account id: %v", accountIDOfNode, "error", err.Error())
+			o.log.Error("failed to refresh org account list cache while validating account id", "account_id", accountIDOfNode, "error", err)
 			return false, err
 		}
 		_, accountIsmemberOfOrg = orgAccountList[accountIDOfNode]
@@ -226,6 +229,9 @@ func (o *orgValidator) reloadAccountList(ctx context.Context, orgClient organiza
 		orgAccountsMap, err = parseAccountListFile(o.orgConfig.AccountListFile)
 		if err != nil {
 			return nil, fmt.Errorf("issue while reading org account list file: %w", err)
+		}
+		if len(orgAccountsMap) == 0 {
+			o.log.Warn("org account list file is empty; all accounts will fail organization validation", "account_list_file", o.orgConfig.AccountListFile)
 		}
 	} else {
 		var err error
