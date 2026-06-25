@@ -13,6 +13,8 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -81,6 +83,19 @@ func TestAttest(t *testing.T) {
 		AvailabilityZone: testAvailabilityZone,
 		ImageID:          testImageID,
 	})
+	orgFileTestAttestationData := buildAttestationDataRSA2048SignatureWithDoc(t, imds.InstanceIdentityDocument{
+		AccountID:        "111111111111",
+		InstanceID:       testInstance,
+		Region:           testRegion,
+		AvailabilityZone: testAvailabilityZone,
+		ImageID:          testImageID,
+	})
+	// Account list file containing "111111111111" but NOT testAccountID (the
+	// account the fake ListAccounts API returns), so a successful attestation
+	// with that account proves the list was sourced from the file rather than
+	// from the AWS Organizations API.
+	orgAccountListFilePath := filepath.ToSlash(filepath.Join(t.TempDir(), "org-accounts.json"))
+	require.NoError(t, os.WriteFile(orgAccountListFilePath, []byte(`["111111111111", "222222222222"]`), 0o600))
 
 	for _, tt := range []struct {
 		name                                  string
@@ -487,6 +502,27 @@ func TestAttest(t *testing.T) {
 			},
 		},
 		{
+			name:   "success when organization validation is sourced from account_list_file",
+			config: fmt.Sprintf(`verify_organization = { account_list_file = %q }`, orgAccountListFilePath),
+			overrideAttestationData: func(caws.IIDAttestationData) caws.IIDAttestationData {
+				return orgFileTestAttestationData
+			},
+			expectID: "spiffe://example.org/spire/agent/aws_iid/111111111111/test-region/test-instance",
+			expectSelectors: []*common.Selector{
+				{Type: caws.PluginName, Value: "account_id:111111111111"},
+				{Type: caws.PluginName, Value: "az:test-az"},
+				{Type: caws.PluginName, Value: "image:id:test-image-id"},
+				{Type: caws.PluginName, Value: "instance:id:test-instance"},
+				{Type: caws.PluginName, Value: "region:test-region"},
+			},
+		},
+		{
+			name:            "fail when account id is not present in account_list_file",
+			config:          fmt.Sprintf(`verify_organization = { account_list_file = %q }`, orgAccountListFilePath),
+			expectCode:      codes.Internal,
+			expectMsgPrefix: fmt.Sprintf("nodeattestor(aws_iid): failed aws ec2 attestation, nodes account id: %v is not part of configured organization or doesn't have ACTIVE status", testAccount),
+		},
+		{
 			name:     "success when EKS cluster validation feature is turned on",
 			config:   `validate_eks_cluster_membership = { eks_cluster_names = ["test-cluster"] }`,
 			expectID: "spiffe://example.org/spire/agent/aws_iid/test-account/test-region/test-instance",
@@ -797,6 +833,36 @@ func TestConfigure(t *testing.T) {
 	t.Run("success, verify_organization featured enabled with all params", func(t *testing.T) {
 		err := doConfig(t, coreConfig, `verify_organization = { management_account_id = "dummy_account" assume_org_role = "dummy_role" org_account_map_ttl = "1m30s" }`)
 		require.NoError(t, err)
+	})
+
+	t.Run("success, verify_organization with account_list_file", func(t *testing.T) {
+		accountListFile := filepath.Join(t.TempDir(), "org-accounts.json")
+		require.NoError(t, os.WriteFile(accountListFile, []byte(`["111111111111", "222222222222"]`), 0o600))
+		err := doConfig(t, coreConfig, fmt.Sprintf(`verify_organization = { account_list_file = %q }`, filepath.ToSlash(accountListFile)))
+		require.NoError(t, err)
+	})
+
+	t.Run("fail, verify_organization account_list_file is mutually exclusive with management_account_id/assume_org_role", func(t *testing.T) {
+		accountListFile := filepath.Join(t.TempDir(), "org-accounts.json")
+		require.NoError(t, os.WriteFile(accountListFile, []byte(`["111111111111"]`), 0o600))
+		err := doConfig(t, coreConfig, fmt.Sprintf(`verify_organization = { account_list_file = %q management_account_id = "dummy_account" assume_org_role = "dummy_role" }`, filepath.ToSlash(accountListFile)))
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "mutually exclusive")
+	})
+
+	t.Run("fail, verify_organization account_list_file does not exist", func(t *testing.T) {
+		missing := filepath.ToSlash(filepath.Join(t.TempDir(), "does-not-exist.json"))
+		err := doConfig(t, coreConfig, fmt.Sprintf(`verify_organization = { account_list_file = %q }`, missing))
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "account_list_file")
+	})
+
+	t.Run("fail, verify_organization account_list_file is malformed", func(t *testing.T) {
+		accountListFile := filepath.Join(t.TempDir(), "org-accounts.json")
+		require.NoError(t, os.WriteFile(accountListFile, []byte(`not json`), 0o600))
+		err := doConfig(t, coreConfig, fmt.Sprintf(`verify_organization = { account_list_file = %q }`, filepath.ToSlash(accountListFile)))
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "account_list_file")
 	})
 
 	t.Run("success, validate_eks_cluster_membership block without eks_cluster_names property set", func(t *testing.T) {
