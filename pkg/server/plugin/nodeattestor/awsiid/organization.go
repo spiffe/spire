@@ -221,24 +221,15 @@ func (o *orgValidator) reloadAccountList(ctx context.Context, orgClient organiza
 		return o.orgAccountList, nil
 	}
 
-	// Build new org accounts list, either from a configured file or from the
-	// AWS Organizations API.
 	var orgAccountsMap map[string]any
+	var err error
 	if o.orgConfig.useAccountListFile() {
-		var err error
-		orgAccountsMap, err = parseAccountListFile(o.orgConfig.AccountListFile)
-		if err != nil {
-			return nil, fmt.Errorf("failed to load org account list: %w", err)
-		}
-		if len(orgAccountsMap) == 0 {
-			o.log.Warn("org account list file is empty; all accounts will fail organization validation", "account_list_file", o.orgConfig.AccountListFile)
-		}
+		orgAccountsMap, err = o.reloadAccountListFromFile()
 	} else {
-		var err error
-		orgAccountsMap, err = listAccountsFromAPI(ctx, orgClient)
-		if err != nil {
-			return nil, err
-		}
+		orgAccountsMap, err = o.reloadAccountListFromAPI(ctx, orgClient)
+	}
+	if err != nil {
+		return nil, err
 	}
 
 	// Update timestamp, if it was not invoked as part of cache miss.
@@ -252,6 +243,21 @@ func (o *orgValidator) reloadAccountList(ctx context.Context, orgClient organiza
 	o.orgAccountList = orgAccountsMap
 
 	return o.orgAccountList, nil
+}
+
+func (o *orgValidator) reloadAccountListFromFile() (map[string]any, error) {
+	orgAccountsMap, err := parseAccountListFile(o.orgConfig.AccountListFile)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load org account list: %w", err)
+	}
+	if len(orgAccountsMap) == 0 {
+		o.log.Warn("org account list file is empty; all accounts will fail organization validation", "account_list_file", o.orgConfig.AccountListFile)
+	}
+	return orgAccountsMap, nil
+}
+
+func (o *orgValidator) reloadAccountListFromAPI(ctx context.Context, orgClient organizations.ListAccountsAPIClient) (map[string]any, error) {
+	return listAccountsFromAPI(ctx, orgClient)
 }
 
 // checkIFTTLIsExpire check if the creation time is pass defined ttl
