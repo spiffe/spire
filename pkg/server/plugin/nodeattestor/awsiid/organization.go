@@ -228,7 +228,7 @@ func (o *orgValidator) reloadAccountList(ctx context.Context, orgClient organiza
 		var err error
 		orgAccountsMap, err = parseAccountListFile(o.orgConfig.AccountListFile)
 		if err != nil {
-			return nil, fmt.Errorf("issue while reading org account list file: %w", err)
+			return nil, fmt.Errorf("failed to load org account list: %w", err)
 		}
 		if len(orgAccountsMap) == 0 {
 			o.log.Warn("org account list file is empty; all accounts will fail organization validation", "account_list_file", o.orgConfig.AccountListFile)
@@ -306,13 +306,13 @@ func parseAccountListFile(path string) (map[string]any, error) {
 
 	var accountIDs []string
 	if err := json.Unmarshal(data, &accountIDs); err != nil {
-		return nil, fmt.Errorf("unable to parse account list file, expected a JSON array of account IDs: %w", err)
+		return nil, fmt.Errorf("unable to parse account list file %q, expected a JSON array of account IDs: %w", path, err)
 	}
 
 	orgAccountsMap := make(map[string]any, len(accountIDs))
 	for _, accID := range accountIDs {
 		if !awsAccountIDPattern.MatchString(accID) {
-			return nil, fmt.Errorf("invalid account id %q in account list file, expected a 12-digit AWS account id", accID)
+			return nil, fmt.Errorf("invalid account id %q in account list file %q, expected a 12-digit AWS account id", accID, path)
 		}
 		orgAccountsMap[accID] = struct{}{}
 	}
