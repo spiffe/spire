@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	dockerclient "github.com/docker/docker/client"
+	dockerclient "github.com/moby/moby/client"
 	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor/docker/cgroup"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"

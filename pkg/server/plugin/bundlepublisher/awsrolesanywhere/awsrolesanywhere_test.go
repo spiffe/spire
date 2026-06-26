@@ -3,7 +3,9 @@ package awsrolesanywhere
 import (
 	"context"
 	"crypto/x509"
+	"encoding/json"
 	"errors"
+	"sync"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -19,6 +21,7 @@ import (
 	"github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/protobuf/proto"
 )
 
 func TestConfigure(t *testing.T) {
@@ -312,6 +315,82 @@ func TestPublishMultiple(t *testing.T) {
 	})
 	require.Nil(t, resp)
 	require.Error(t, err)
+}
+
+// TestConcurrentConfigureAndPublish exercises Configure running concurrently
+// with PublishBundle, as happens with dynamic reconfiguration. It is meant to
+// be run with the race detector to catch unsynchronized access to the client.
+func TestConcurrentConfigureAndPublish(t *testing.T) {
+	config := &Config{
+		AccessKeyID:     "access-key-id",
+		SecretAccessKey: "secret-access-key",
+		Region:          "region",
+		TrustAnchorID:   "trust-anchor-id",
+	}
+
+	newClient := func(awsConfig aws.Config) (rolesAnywhere, error) {
+		return &fakeClient{
+			t:                   t,
+			expectTrustAnchorID: aws.String(config.TrustAnchorID),
+		}, nil
+	}
+	p := newPlugin(newClient)
+
+	var err error
+	plugintest.Load(t, builtin(p), nil,
+		plugintest.CaptureConfigureError(&err),
+		plugintest.CoreConfig(catalog.CoreConfig{
+			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
+		}),
+		plugintest.ConfigureJSON(config),
+	)
+	require.NoError(t, err)
+
+	hclConfig, err := json.Marshal(config)
+	require.NoError(t, err)
+	configureReq := &configv1.ConfigureRequest{
+		CoreConfiguration: &configv1.CoreConfiguration{TrustDomain: "example.org"},
+		HclConfiguration:  string(hclConfig),
+	}
+
+	bundle := getTestBundle(t)
+
+	const iterations = 100
+	errCh := make(chan error, 2)
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	go func() {
+		defer wg.Done()
+		for range iterations {
+			if _, cerr := p.Configure(context.Background(), configureReq); cerr != nil {
+				errCh <- cerr
+				return
+			}
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+		for i := range iterations {
+			// Vary the bundle so the dedup check does not short-circuit and
+			// PublishBundle reaches the client.
+			b := proto.Clone(bundle).(*types.Bundle)
+			b.SequenceNumber = uint64(i + 1)
+			if _, perr := p.PublishBundle(context.Background(), &bundlepublisherv1.PublishBundleRequest{
+				Bundle: b,
+			}); perr != nil {
+				errCh <- perr
+				return
+			}
+		}
+	}()
+
+	wg.Wait()
+	close(errCh)
+	for e := range errCh {
+		require.NoError(t, e)
+	}
 }
 
 type fakeClient struct {

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"maps"
+	"os"
 	"sort"
 	"strconv"
 
@@ -31,7 +32,15 @@ import (
 
 const (
 	disableSPIFFECertValidationKey = "disable_spiffe_cert_validation"
+
+	MethodStreamSecrets = "/envoy.service.secret.v3.SecretDiscoveryService/StreamSecrets"
+	MethodFetchSecrets  = "/envoy.service.secret.v3.SecretDiscoveryService/FetchSecrets"
 )
+
+// RateLimiter enforces per-selector-set rate limiting on SDS methods.
+type RateLimiter interface {
+	RateLimit(fullMethod string, selectors []*common.Selector) error
+}
 
 type Attestor interface {
 	Attest(ctx context.Context) ([]*common.Selector, error)
@@ -45,6 +54,7 @@ type Manager interface {
 type Config struct {
 	Attestor                    Attestor
 	Manager                     Manager
+	RateLimiter                 RateLimiter
 	DefaultAllBundlesName       string
 	DefaultBundleName           string
 	DefaultSVIDName             string
@@ -64,12 +74,35 @@ func New(config Config) *Handler {
 	return &Handler{c: config}
 }
 
+func (h *Handler) rateLimit(ctx context.Context, fullMethod string, selectors []*common.Selector) error {
+	if h.c.RateLimiter == nil {
+		return nil
+	}
+	// Exempt the agent's own calls from rate limiting so that an
+	// operator-configured limit can't deny the agent itself (e.g. health
+	// probes) and mark it unhealthy. Mirrors the Workload API handler.
+	if isAgent(ctx) {
+		return nil
+	}
+	return h.c.RateLimiter.RateLimit(fullMethod, selectors)
+}
+
+// isAgent returns true if the caller PID from the provided context is the
+// agent's own PID.
+func isAgent(ctx context.Context) bool {
+	return rpccontext.CallerPID(ctx) == os.Getpid()
+}
+
 func (h *Handler) StreamSecrets(stream secret_v3.SecretDiscoveryService_StreamSecretsServer) error {
 	log := rpccontext.Logger(stream.Context())
 
 	selectors, err := h.c.Attestor.Attest(stream.Context())
 	if err != nil {
 		log.WithError(err).Error("Failed to attest the workload")
+		return workloadAttestationFailedError(stream.Context())
+	}
+
+	if err := h.rateLimit(stream.Context(), MethodStreamSecrets, selectors); err != nil {
 		return err
 	}
 
@@ -224,12 +257,23 @@ func (h *Handler) DeltaSecrets(secret_v3.SecretDiscoveryService_DeltaSecretsServ
 	return status.Error(codes.Unimplemented, "Method is not implemented")
 }
 
+func workloadAttestationFailedError(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return status.Error(codes.Unavailable, "workload attestation failed")
+}
+
 func (h *Handler) FetchSecrets(ctx context.Context, req *discovery_v3.DiscoveryRequest) (*discovery_v3.DiscoveryResponse, error) {
 	log := rpccontext.Logger(ctx).WithField(telemetry.ResourceNames, req.ResourceNames)
 
 	selectors, err := h.c.Attestor.Attest(ctx)
 	if err != nil {
 		log.WithError(err).Error("Failed to attest the workload")
+		return nil, workloadAttestationFailedError(ctx)
+	}
+
+	if err := h.rateLimit(ctx, MethodFetchSecrets, selectors); err != nil {
 		return nil, err
 	}
 

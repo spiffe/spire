@@ -930,6 +930,80 @@ func (s *PluginSuite) TestFetchAttestedNodeMissing() {
 	s.Require().Nil(attestedNode)
 }
 
+func (s *PluginSuite) TestFetchAttestedNodes() {
+	createNode := func(spiffeID string, selectors []*common.Selector) *common.AttestedNode {
+		node, err := s.ds.CreateAttestedNode(ctx, &common.AttestedNode{
+			SpiffeId:            spiffeID,
+			AttestationDataType: "aws-tag",
+			CertSerialNumber:    "badcafe",
+			CertNotAfter:        time.Now().Add(time.Hour).Unix(),
+		})
+		s.Require().NoError(err)
+		s.setNodeSelectors(spiffeID, selectors)
+		node.Selectors = selectors
+		return node
+	}
+
+	node1 := createNode("spiffe://example.org/node1", []*common.Selector{{Type: "a", Value: "1"}})
+	node2 := createNode("spiffe://example.org/node2", []*common.Selector{{Type: "b", Value: "2"}})
+	node3 := createNode("spiffe://example.org/node3", []*common.Selector{{Type: "c", Value: "3"}})
+
+	// Create a node and then delete it so we can test it doesn't get returned with the fetch
+	node4 := createNode("spiffe://example.org/node4", []*common.Selector{{Type: "d", Value: "4"}})
+	deletedNode, err := s.ds.DeleteAttestedNode(ctx, node4.SpiffeId)
+	s.Require().NoError(err)
+	s.Require().NotNil(deletedNode)
+
+	for _, tt := range []struct {
+		name            string
+		nodes           []*common.AttestedNode
+		deletedSpiffeID string
+	}{
+		{
+			name: "No nodes",
+		},
+		{
+			name:  "Nodes 1 and 2",
+			nodes: []*common.AttestedNode{node1, node2},
+		},
+		{
+			name:  "Nodes 1, 2, and 3",
+			nodes: []*common.AttestedNode{node1, node2, node3},
+		},
+		{
+			name:            "Deleted node",
+			nodes:           []*common.AttestedNode{node2, node3},
+			deletedSpiffeID: deletedNode.SpiffeId,
+		},
+	} {
+		s.T().Run(tt.name, func(t *testing.T) {
+			spiffeIDs := make([]string, 0, len(tt.nodes))
+			for _, node := range tt.nodes {
+				spiffeIDs = append(spiffeIDs, node.SpiffeId)
+			}
+			fetchedNodes, err := s.ds.FetchAttestedNodes(ctx, append(spiffeIDs, tt.deletedSpiffeID))
+			s.Require().NoError(err)
+
+			// Make sure all nodes we want to fetch are present, including selectors.
+			s.Require().Equal(len(tt.nodes), len(fetchedNodes))
+			for _, node := range tt.nodes {
+				fetchedNode, ok := fetchedNodes[node.SpiffeId]
+				s.Require().True(ok)
+				s.RequireProtoEqual(node, fetchedNode)
+			}
+
+			// Make sure any deleted nodes are not present.
+			_, ok := fetchedNodes[tt.deletedSpiffeID]
+			s.Require().False(ok)
+		})
+	}
+
+	// An empty request returns an empty map.
+	fetchedNodes, err := s.ds.FetchAttestedNodes(ctx, nil)
+	s.Require().NoError(err)
+	s.Require().Empty(fetchedNodes)
+}
+
 func (s *PluginSuite) TestListAttestedNodes() {
 	// Connection is never used, each test creates a connection to a different database
 	s.ds.Close()

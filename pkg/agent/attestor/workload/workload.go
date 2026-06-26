@@ -2,6 +2,7 @@ package attestor
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 
@@ -42,11 +43,12 @@ type Config struct {
 	selectorHook func([]*common.Selector)
 }
 
-// Attest invokes all workload attestor plugins against the provided PID. If an error
-// is encountered, it is logged and selectors from the failing plugin are discarded.
-func (wla *attestor) Attest(ctx context.Context, pid int) ([]*common.Selector, error) {
+// Attest invokes all workload attestor plugins against the provided PID. If some
+// attestors fail, the errors are logged and selectors from the failing plugins
+// are discarded. If all attestors fail, the combined error is returned.
+func (wla *attestor) Attest(ctx context.Context, pid int) (_ []*common.Selector, retErr error) {
 	counter := telemetry_workload.StartAttestationCall(wla.c.Metrics)
-	defer counter.Done(nil)
+	defer counter.Done(&retErr)
 
 	log := wla.c.Log.WithField(telemetry.PID, pid)
 
@@ -55,17 +57,18 @@ func (wla *attestor) Attest(ctx context.Context, pid int) ([]*common.Selector, e
 	errChan := make(chan error)
 
 	for _, p := range plugins {
-		go func(p workloadattestor.WorkloadAttestor) {
+		go func() {
 			if selectors, err := wla.invokeAttestor(ctx, p, pid); err == nil {
 				sChan <- selectors
 			} else {
 				errChan <- err
 			}
-		}(p)
+		}()
 	}
 
 	// Collect the results
-	selectors := []*common.Selector{}
+	var selectors []*common.Selector
+	var errs []error
 	for range plugins {
 		select {
 		case s := <-sChan:
@@ -76,14 +79,23 @@ func (wla *attestor) Attest(ctx context.Context, pid int) ([]*common.Selector, e
 				log.WithError(ctx.Err()).Error("Timed out collecting selectors for PID")
 				return nil, ctx.Err()
 			}
-			log.WithError(err).Error("Failed to collect all selectors for PID")
+			errs = append(errs, err)
 		case <-ctx.Done():
 			log.WithError(ctx.Err()).Error("Timed out collecting selectors for PID")
 			return nil, ctx.Err()
 		}
 	}
 
+	if len(plugins) > 0 && len(errs) == len(plugins) {
+		return nil, errors.Join(errs...)
+	}
+
+	if len(errs) > 0 {
+		log.WithError(errors.Join(errs...)).Error("Failed to collect all selectors for PID")
+	}
+
 	telemetry_workload.AddDiscoveredSelectorsSample(wla.c.Metrics, float32(len(selectors)))
+
 	// The agent health check currently exercises the Workload API. Since this
 	// can happen with some frequency, it has a tendency to fill up logs with
 	// hard-to-filter details if we're not careful (e.g. issue #1537). Only log
@@ -91,6 +103,7 @@ func (wla *attestor) Attest(ctx context.Context, pid int) ([]*common.Selector, e
 	if pid != os.Getpid() {
 		log.WithField(telemetry.Selectors, selectors).Debug("PID attested to have selectors")
 	}
+
 	return selectors, nil
 }
 

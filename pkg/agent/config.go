@@ -7,6 +7,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire/pkg/agent/endpoints"
 	"github.com/spiffe/spire/pkg/agent/trustbundlesources"
 	"github.com/spiffe/spire/pkg/agent/workloadkey"
 	"github.com/spiffe/spire/pkg/common/catalog"
@@ -20,6 +21,9 @@ const (
 	RebootstrapAuto   = "auto"
 	RebootstrapAlways = "always"
 )
+
+// WorkloadAPIRateLimitConfig is an alias for endpoints.WorkloadAPIRateLimitConfig.
+type WorkloadAPIRateLimitConfig = endpoints.WorkloadAPIRateLimitConfig
 
 type Config struct {
 	// Address to bind the workload api to
@@ -56,6 +60,9 @@ type Config struct {
 	PluginConfigs catalog.PluginConfigs
 
 	Log logrus.FieldLogger
+
+	// Workload selector prefixes allowed to be included in diagnostic logs.
+	LogSelectors []string
 
 	// LogReopener facilitates handling a signal to rotate log file.
 	LogReopener func(context.Context) error
@@ -115,6 +122,9 @@ type Config struct {
 
 	// TLSPolicy determines the post-quantum-safe TLS policy to apply to all TLS connections.
 	TLSPolicy tlspolicy.Policy
+
+	// WorkloadAPIRateLimit configures per-selector-set rate limiting for Workload API and SDS methods.
+	WorkloadAPIRateLimit WorkloadAPIRateLimitConfig
 }
 
 func New(c *Config) *Agent {

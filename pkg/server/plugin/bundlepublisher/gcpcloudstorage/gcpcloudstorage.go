@@ -141,9 +141,10 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to create client: %v", err)
 	}
-	p.gcsClient = gcsClient
-
-	p.setConfig(newConfig)
+	// Store the config and client together under one lock so that
+	// PublishBundle always observes a matching pair, even when Configure
+	// runs concurrently as a result of a dynamic reconfiguration.
+	p.setConfig(newConfig, gcsClient)
 
 	p.setBundle(nil)
 
@@ -161,7 +162,7 @@ func (p *Plugin) Validate(ctx context.Context, req *configv1.ValidateRequest) (*
 
 // PublishBundle puts the bundle in the configured GCS bucket and object name.
 func (p *Plugin) PublishBundle(ctx context.Context, req *bundlepublisherv1.PublishBundleRequest) (*bundlepublisherv1.PublishBundleResponse, error) {
-	config, err := p.getConfig()
+	config, gcsClient, err := p.getConfig()
 	if err != nil {
 		return nil, err
 	}
@@ -187,7 +188,7 @@ func (p *Plugin) PublishBundle(ctx context.Context, req *bundlepublisherv1.Publi
 		return nil, status.Errorf(codes.Internal, "could not format bundle: %v", err.Error())
 	}
 
-	bucketHandle := p.gcsClient.Bucket(config.BucketName)
+	bucketHandle := gcsClient.Bucket(config.BucketName)
 	if bucketHandle == nil { // Purely defensive, the Bucket function implemented in GCS always returns a BucketHandle.
 		return nil, status.Error(codes.Internal, "could not get bucket handle")
 	}
@@ -233,30 +234,36 @@ func (p *Plugin) PublishBundle(ctx context.Context, req *bundlepublisherv1.Publi
 
 // Close is called when the plugin is unloaded. Closes the client.
 func (p *Plugin) Close() error {
-	if p.gcsClient == nil {
+	p.configMtx.RLock()
+	gcsClient := p.gcsClient
+	p.configMtx.RUnlock()
+
+	if gcsClient == nil {
 		return nil
 	}
 	p.log.Debug("Closing the connection to the Cloud Storage API service")
-	return p.gcsClient.Close()
+	return gcsClient.Close()
 }
 
 // getBundle gets the latest bundle that the plugin has.
 func (p *Plugin) getBundle() *types.Bundle {
-	p.configMtx.RLock()
-	defer p.configMtx.RUnlock()
+	p.bundleMtx.RLock()
+	defer p.bundleMtx.RUnlock()
 
 	return p.bundle
 }
 
-// getConfig gets the configuration of the plugin.
-func (p *Plugin) getConfig() (*Config, error) {
+// getConfig gets the configuration of the plugin along with the client
+// created for it. Both are returned together so callers always observe a
+// matching pair.
+func (p *Plugin) getConfig() (*Config, gcsService, error) {
 	p.configMtx.RLock()
 	defer p.configMtx.RUnlock()
 
 	if p.config == nil {
-		return nil, status.Error(codes.FailedPrecondition, "not configured")
+		return nil, nil, status.Error(codes.FailedPrecondition, "not configured")
 	}
-	return p.config, nil
+	return p.config, p.gcsClient, nil
 }
 
 // setBundle updates the current bundle in the plugin with the provided bundle.
@@ -267,12 +274,14 @@ func (p *Plugin) setBundle(bundle *types.Bundle) {
 	p.bundle = bundle
 }
 
-// setConfig sets the configuration for the plugin.
-func (p *Plugin) setConfig(config *Config) {
+// setConfig sets the configuration for the plugin along with the client
+// created for it, updating both atomically under one lock.
+func (p *Plugin) setConfig(config *Config, client gcsService) {
 	p.configMtx.Lock()
 	defer p.configMtx.Unlock()
 
 	p.config = config
+	p.gcsClient = client
 }
 
 // builtin creates a new BundlePublisher built-in plugin.
