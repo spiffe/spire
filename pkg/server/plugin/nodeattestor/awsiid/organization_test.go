@@ -222,7 +222,7 @@ func TestReloadAccountListFromFile(t *testing.T) {
 	require.NoError(t, os.WriteFile(path, []byte(`not json`), 0o600))
 	testOrgValidator.clk = buildNewMockClock(2*time.Minute, testClockMutAfter)
 	_, err = testOrgValidator.reloadAccountList(context.Background(), nil, false)
-	require.ErrorContains(t, err, "issue while reading org account list file")
+	require.ErrorContains(t, err, "failed to load org account list")
 }
 
 func TestIsMemberAccountFromFile(t *testing.T) {
