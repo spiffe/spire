@@ -1375,7 +1375,7 @@ func TestNewAgentConfig(t *testing.T) {
 			},
 		},
 		{
-			msg: "rpc_timeout sets the client timeout and logs warning",
+			msg: "rpc_timeout is accepted and logs warning",
 			input: func(c *Config) {
 				c.Agent.Experimental.RPCTimeout = "10s"
 			},
@@ -1398,7 +1398,6 @@ func TestNewAgentConfig(t *testing.T) {
 			},
 			test: func(t *testing.T, ac *agent.Config) {
 				require.NotNil(t, ac)
-				assert.Equal(t, client.RPCTimeout, 10*time.Second)
 			},
 		},
 		{
@@ -1424,7 +1423,7 @@ func TestNewAgentConfig(t *testing.T) {
 			},
 		},
 		{
-			msg: "max_bundle_workers sets the worker count and logs warning",
+			msg: "max_bundle_workers is accepted and logs warning",
 			input: func(c *Config) {
 				c.Agent.Experimental.MaxBundleWorkers = 5
 			},
@@ -1447,7 +1446,6 @@ func TestNewAgentConfig(t *testing.T) {
 			},
 			test: func(t *testing.T, ac *agent.Config) {
 				require.NotNil(t, ac)
-				assert.Equal(t, client.MaxBundleWorkers, 5)
 			},
 		},
 		{

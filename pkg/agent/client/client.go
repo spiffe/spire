@@ -31,15 +31,17 @@ import (
 )
 
 const (
-	rpcTimeout       = 30 * time.Second
-	maxBundleWorkers = 10
+	defaultRPCTimeout       = 30 * time.Second
+	defaultMaxBundleWorkers = 10
 )
 
 var (
 	ErrUnableToGetStream = errors.New("unable to get a stream")
 
-	RPCTimeout       = rpcTimeout
-	MaxBundleWorkers = maxBundleWorkers
+	rpcTimeout = defaultRPCTimeout
+
+	// maxBundleWorkers is the maximum number of worker goroutines to use when fetching bundles.
+	maxBundleWorkers = defaultMaxBundleWorkers
 
 	entryOutputMask = &types.EntryMask{
 		SpiffeId:             true,
@@ -57,7 +59,7 @@ var (
 	// RPCTimeoutWithCacheHit can be more aggressive with timeouts in cases where a valid SVID
 	// exists in the cache but is old enough to try for a new SVID quickly. This is configurable
 	// in the Experimental Config of the Agent, and can be set as low as 5 seconds
-	RPCTimeoutWithCacheHit = rpcTimeout
+	RPCTimeoutWithCacheHit = defaultRPCTimeout
 
 	// jwtSVIDRetryInterval is the initial backoff interval used when retrying
 	// transient NewJWTSVID failures. It is a var so tests can shorten it.
@@ -65,11 +67,11 @@ var (
 )
 
 func SetRPCTimeout(d time.Duration) {
-	RPCTimeout = d
+	rpcTimeout = d
 }
 
 func SetMaxBundleWorkers(n int) {
-	MaxBundleWorkers = n
+	maxBundleWorkers = n
 }
 
 func SetJWTSVIDCacheHitTimeout(d time.Duration) {
@@ -172,7 +174,7 @@ func (c *client) FetchUpdates(ctx context.Context) (*Update, error) {
 	c.c.RotMtx.RLock()
 	defer c.c.RotMtx.RUnlock()
 
-	ctx, cancel := context.WithTimeout(ctx, RPCTimeout)
+	ctx, cancel := context.WithTimeout(ctx, rpcTimeout)
 	defer cancel()
 
 	protoEntries, err := c.fetchEntries(ctx)
@@ -238,7 +240,7 @@ func (c *client) SyncUpdates(ctx context.Context, cachedEntries map[string]*comm
 	c.c.RotMtx.RLock()
 	defer c.c.RotMtx.RUnlock()
 
-	ctx, cancel := context.WithTimeout(ctx, RPCTimeout)
+	ctx, cancel := context.WithTimeout(ctx, rpcTimeout)
 	defer cancel()
 
 	entriesStats, err := c.syncEntries(ctx, cachedEntries)
@@ -280,7 +282,7 @@ func (c *client) SyncUpdates(ctx context.Context, cachedEntries map[string]*comm
 }
 
 func (c *client) RenewSVID(ctx context.Context, csr []byte) (*X509SVID, error) {
-	ctx, cancel := context.WithTimeout(ctx, RPCTimeout)
+	ctx, cancel := context.WithTimeout(ctx, rpcTimeout)
 	defer cancel()
 
 	agentClient, connection, err := c.newAgentClient()
@@ -314,7 +316,7 @@ func (c *client) PostStatus(ctx context.Context, agentVersion string) error {
 	c.c.RotMtx.RLock()
 	defer c.c.RotMtx.RUnlock()
 
-	ctx, cancel := context.WithTimeout(ctx, RPCTimeout)
+	ctx, cancel := context.WithTimeout(ctx, rpcTimeout)
 	defer cancel()
 
 	agentClient, connection, err := c.newAgentClient()
@@ -339,7 +341,7 @@ func (c *client) NewX509SVIDs(ctx context.Context, csrs map[string][]byte) (map[
 	c.c.RotMtx.RLock()
 	defer c.c.RotMtx.RUnlock()
 
-	ctx, cancel := context.WithTimeout(ctx, RPCTimeout)
+	ctx, cancel := context.WithTimeout(ctx, rpcTimeout)
 	defer cancel()
 
 	svids := make(map[string]*X509SVID)
@@ -783,13 +785,13 @@ func (c *client) fetchBundles(ctx context.Context, federatedBundles []string) ([
 
 // fetchFederatedBundlesConcurrently fetches federated bundles concurrently.
 // This is done to improve sync times when there are many federations. This should ensure that the
-// sync does not exceed RPCTimeout.
+// sync does not exceed rpcTimeout.
 func (c *client) fetchFederatedBundlesConcurrently(ctx context.Context, bundleClient bundlev1.BundleClient, trustDomains []string, bundles []*types.Bundle) ([]*types.Bundle, error) {
 	jobCh := make(chan string)
 	resultCh := make(chan fetchBundleResult, len(trustDomains))
 	// Start a set of worker goroutines.
 	wg := sync.WaitGroup{}
-	for range min(MaxBundleWorkers, len(trustDomains)) {
+	for range min(maxBundleWorkers, len(trustDomains)) {
 		wg.Go(func() {
 			for trustDomain := range jobCh {
 				bundle, err := c.fetchFederatedBundle(ctx, bundleClient, trustDomain)
