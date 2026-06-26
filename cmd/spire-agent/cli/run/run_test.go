@@ -1135,10 +1135,8 @@ func TestNewAgentConfig(t *testing.T) {
 					},
 				}
 			},
-			test: func(t *testing.T, ac *agent.Config) {
-				require.NotNil(t, ac)
-				assert.Equal(t, client.RPCTimeout, 10*time.Second)
-			},
+			require.NotNil(t, ac)
+			assert.Equal(t, 10*time.Second, client.RPCTimeout)
 		},
 		{
 			msg:                "rpc_timeout returns an error if <= 0",
@@ -1184,10 +1182,8 @@ func TestNewAgentConfig(t *testing.T) {
 					},
 				}
 			},
-			test: func(t *testing.T, ac *agent.Config) {
-				require.NotNil(t, ac)
-				assert.Equal(t, client.MaxBundleWorkers, 5)
-			},
+			require.NotNil(t, ac)
+			assert.Equal(t, 5, client.MaxBundleWorkers)
 		},
 		{
 			msg:                "max_bundle_workers returns an error if < 1",
