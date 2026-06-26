@@ -85,7 +85,7 @@ When using key tagging, you must add the `kms:TagResource` permission to the IAM
 - Maximum of 50 tags (AWS KMS limit)
 - Tag keys and values must use valid characters: letters, numbers, spaces, and the following special characters: `+ - = . _ : / @`
 - Tag keys cannot start with `aws:` (reserved by AWS)
-- Tag keys cannot start with `spire-` (reserved for future use)
+- Tag keys cannot start with `spire-` (reserved for SPIRE-managed tags)
 
 **Tag validation**
 The plugin validates all user-defined tags during configuration. If any tag violates AWS KMS tagging constraints, the plugin will fail to configure and report a detailed error message indicating the specific validation failure.

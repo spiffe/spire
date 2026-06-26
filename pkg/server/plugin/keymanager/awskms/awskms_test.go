@@ -3077,8 +3077,6 @@ func TestDisposeKeysViaTags(t *testing.T) {
 			ts.plugin.hooks.disposeAliasesSignal = make(chan error)
 			disposeKeysSignal := make(chan error)
 			ts.plugin.hooks.disposeKeysSignal = disposeKeysSignal
-			deleteSignal := make(chan error)
-			ts.plugin.hooks.scheduleDeleteSignal = deleteSignal
 
 			_, err := ts.plugin.Configure(ctx, configureTagBasedRequest(t))
 			require.NoError(t, err)
@@ -3103,18 +3101,17 @@ func TestDisposeKeysViaTags(t *testing.T) {
 			}
 			require.NoError(t, err)
 
-			// Wait for expected deletions to be processed
-			for range tt.expectDeleteCount {
-				_ = waitForSignal(t, deleteSignal)
-			}
-
-			// Verify spire-active=false was set for each disposed key
 			ts.fakeKMSClient.mu.RLock()
-			calls := ts.fakeKMSClient.tagResourceCalls
+			deleteCalls := ts.fakeKMSClient.scheduleKeyDeletionCalls
+			tagCalls := ts.fakeKMSClient.tagResourceCalls
 			ts.fakeKMSClient.mu.RUnlock()
 
+			// Disposal schedules deletion synchronously, one call per stale key.
+			require.Len(t, deleteCalls, tt.expectDeleteCount)
+
+			// Verify spire-active=false was set for each disposed key.
 			var inactiveTagCount int
-			for _, call := range calls {
+			for _, call := range tagCalls {
 				for _, tag := range call.Tags {
 					if tag.TagKey != nil && *tag.TagKey == tagKeyActive &&
 						tag.TagValue != nil && *tag.TagValue == "false" {
@@ -3127,21 +3124,21 @@ func TestDisposeKeysViaTags(t *testing.T) {
 	}
 }
 
-// TestDisposeKeysViaTagsFullDeleteQueue verifies that when the scheduleDelete
-// queue is full, a stale key is left spire-active=true (not marked inactive)
-// so it is retried on the next cycle. Marking it inactive would drop it from
-// the GetResources(active=true) filter without ever enqueueing it for
-// deletion, and tag mode has no creation-date sweeper to reclaim it.
-func TestDisposeKeysViaTagsFullDeleteQueue(t *testing.T) {
+// TestDisposeKeysViaTagsScheduleDeletionError verifies that when scheduling a
+// stale key for deletion fails, the key is left spire-active=true (not marked
+// inactive) so it is retried on the next cycle. Marking it inactive first would
+// drop it from the GetResources(active=true) filter without it ever being
+// scheduled for deletion, and tag mode has no creation-date sweeper to reclaim
+// it.
+func TestDisposeKeysViaTagsScheduleDeletionError(t *testing.T) {
 	ts := setupTest(t)
 	ts.plugin.kmsClient = ts.fakeKMSClient
 	ts.plugin.taggingClient = ts.fakeTaggingClient
 	ts.plugin.serverID = validServerID
 	ts.plugin.trustDomain = "test.example.org"
 
-	// Fill the delete queue to capacity so the enqueue hits the default branch.
-	ts.plugin.scheduleDelete = make(chan string, 1)
-	ts.plugin.scheduleDelete <- fakeKeyArnPrefix + "prefill"
+	// Make ScheduleKeyDeletion fail so the key is not marked inactive.
+	ts.fakeKMSClient.setScheduleKeyDeletionErr(errors.New("schedule deletion failed"))
 
 	staleKeyArn := fakeKeyArnPrefix + "stale-key"
 	ts.fakeTaggingClient.setResources([]rgtatypes.ResourceTagMapping{
@@ -3161,16 +3158,16 @@ func TestDisposeKeysViaTagsFullDeleteQueue(t *testing.T) {
 	ts.clockHook.Add(keyThresholdForTagDiscovery)
 
 	err := ts.plugin.disposeKeysViaTags(ctx)
-	require.NoError(t, err)
+	require.Error(t, err)
 
-	// The key must not be marked inactive, since it was never enqueued.
+	// The key must not be marked inactive, since scheduling deletion failed.
 	ts.fakeKMSClient.mu.RLock()
 	calls := ts.fakeKMSClient.tagResourceCalls
 	ts.fakeKMSClient.mu.RUnlock()
 	for _, call := range calls {
 		for _, tag := range call.Tags {
 			if tag.TagKey != nil && *tag.TagKey == tagKeyActive {
-				require.Fail(t, "stale key should not be marked inactive when the delete queue is full")
+				require.Fail(t, "stale key should not be marked inactive when scheduling deletion fails")
 			}
 		}
 	}

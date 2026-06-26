@@ -1411,22 +1411,31 @@ func (p *Plugin) disposeKeysViaTags(ctx context.Context) error {
 			log := p.log.With(keyArnTag, keyArn)
 			log.Debug("Found stale key beyond threshold")
 
-			// Schedule the key for deletion. Only mark it inactive once it has
-			// been enqueued: marking spire-active=false drops the key from the
-			// GetResources(active=true) filter, so if the queue is full and we
-			// skipped enqueueing, leaving it active=true lets the next cycle
-			// retry it. Tag mode has no creation-date orphan sweeper to fall
-			// back on, unlike the legacy alias path.
-			select {
-			case p.scheduleDelete <- keyArn:
-				log.Debug("Key enqueued for deletion")
-			default:
-				log.Error("Failed to enqueue key for deletion; leaving key active for retry on the next cycle")
+			// Schedule the key for deletion synchronously and only mark it
+			// inactive once the deletion has been scheduled. Marking
+			// spire-active=false drops the key from the GetResources(active=true)
+			// filter, so doing it before the deletion is actually scheduled
+			// could orphan the key if the server stops in between, and tag mode
+			// has no creation-date orphan sweeper to fall back on like the
+			// legacy alias path does.
+			_, err := p.kmsClient.ScheduleKeyDeletion(ctx, &kms.ScheduleKeyDeletionInput{
+				KeyId:               &keyArn,
+				PendingWindowInDays: aws.Int32(7),
+			})
+			// A key that is already pending deletion (for example, scheduled on
+			// a previous cycle that stopped before marking it inactive) is
+			// treated as success so the spire-active tag can still be cleared.
+			// Any other error leaves the key active so it is retried next cycle.
+			var invalidState *types.KMSInvalidStateException
+			if err != nil && !errors.As(err, &invalidState) {
+				log.Error("Failed to schedule key for deletion", reasonTag, err)
+				errs = append(errs, err.Error())
 				continue
 			}
+			log.Debug("Key scheduled for deletion")
 
 			// Mark the key as inactive by updating the spire-active tag.
-			_, err := p.kmsClient.TagResource(ctx, &kms.TagResourceInput{
+			_, err = p.kmsClient.TagResource(ctx, &kms.TagResourceInput{
 				KeyId: &keyArn,
 				Tags: []types.Tag{
 					{

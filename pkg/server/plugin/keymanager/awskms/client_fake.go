@@ -30,25 +30,26 @@ import (
 )
 
 type kmsClientFake struct {
-	t                      *testing.T
-	store                  fakeStore
-	mu                     sync.RWMutex
-	testKeys               testkey.Keys
-	validAliasName         *regexp.Regexp
-	createKeyErr           error
-	describeKeyErr         error
-	describeKeyMalformed   bool
-	getPublicKeyErr        error
-	listAliasesErr         error
-	createAliasErr         error
-	updateAliasErr         error
-	scheduleKeyDeletionErr error
-	signErr                error
-	listKeysErr            error
-	deleteAliasErr         error
-	tagResourceErr         error
-	tagResourceCalls       []kms.TagResourceInput
-	createKeyCalls         []kms.CreateKeyInput
+	t                        *testing.T
+	store                    fakeStore
+	mu                       sync.RWMutex
+	testKeys                 testkey.Keys
+	validAliasName           *regexp.Regexp
+	createKeyErr             error
+	describeKeyErr           error
+	describeKeyMalformed     bool
+	getPublicKeyErr          error
+	listAliasesErr           error
+	createAliasErr           error
+	updateAliasErr           error
+	scheduleKeyDeletionErr   error
+	signErr                  error
+	listKeysErr              error
+	deleteAliasErr           error
+	tagResourceErr           error
+	tagResourceCalls         []kms.TagResourceInput
+	createKeyCalls           []kms.CreateKeyInput
+	scheduleKeyDeletionCalls []string
 
 	expectedKeyPolicy *string
 }
@@ -274,12 +275,13 @@ func (k *kmsClientFake) ListAliases(_ context.Context, input *kms.ListAliasesInp
 }
 
 func (k *kmsClientFake) ScheduleKeyDeletion(_ context.Context, input *kms.ScheduleKeyDeletionInput, _ ...func(*kms.Options)) (*kms.ScheduleKeyDeletionOutput, error) {
-	k.mu.RLock()
-	defer k.mu.RUnlock()
+	k.mu.Lock()
+	defer k.mu.Unlock()
 	if k.scheduleKeyDeletionErr != nil {
 		return nil, k.scheduleKeyDeletionErr
 	}
 
+	k.scheduleKeyDeletionCalls = append(k.scheduleKeyDeletionCalls, *input.KeyId)
 	k.store.DeleteKeyEntry(*input.KeyId)
 
 	return &kms.ScheduleKeyDeletionOutput{}, nil
