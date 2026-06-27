@@ -87,6 +87,11 @@ func TestJWTSVIDCache(t *testing.T) {
 					Val:    0,
 					Labels: []metrics.Label{{Name: "status", Value: "OK"}},
 				},
+				{
+					Type: fakemetrics.SetGaugeType,
+					Key:  []string{telemetry.JWTSVIDCacheSize},
+					Val:  0,
+				},
 			},
 		},
 		{
@@ -123,6 +128,11 @@ func TestJWTSVIDCache(t *testing.T) {
 					Key:    []string{telemetry.CacheManager, agent.CacheTypeWorkload, telemetry.ProcessTaintedJWTSVIDs, telemetry.ElapsedTime},
 					Val:    0,
 					Labels: []metrics.Label{{Name: "status", Value: "OK"}},
+				},
+				{
+					Type: fakemetrics.SetGaugeType,
+					Key:  []string{telemetry.JWTSVIDCacheSize},
+					Val:  0,
 				},
 			},
 		},
@@ -170,6 +180,11 @@ func TestJWTSVIDCache(t *testing.T) {
 					Val:    0,
 					Labels: []metrics.Label{{Name: "status", Value: "OK"}},
 				},
+				{
+					Type: fakemetrics.SetGaugeType,
+					Key:  []string{telemetry.JWTSVIDCacheSize},
+					Val:  0,
+				},
 			},
 		},
 		{
@@ -198,6 +213,11 @@ func TestJWTSVIDCache(t *testing.T) {
 					Val:    0,
 					Labels: []metrics.Label{{Name: "status", Value: "OK"}},
 				},
+				{
+					Type: fakemetrics.SetGaugeType,
+					Key:  []string{telemetry.JWTSVIDCacheSize},
+					Val:  3,
+				},
 			},
 		},
 	} {
@@ -206,6 +226,10 @@ func TestJWTSVIDCache(t *testing.T) {
 			if tt.setJWTSVIDsCached != nil {
 				tt.setJWTSVIDsCached(cache)
 			}
+
+			// Reset after populating the cache so the assertions below only
+			// cover the metrics emitted while tainting.
+			resetLogsAndMetrics(logHook, fakeMetrics)
 
 			// Remove tainted authority, should not be cached anymore
 			cache.TaintJWTSVIDs(ctx, tt.taintedKeyIDs)
