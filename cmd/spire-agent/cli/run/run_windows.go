@@ -15,6 +15,13 @@ import (
 	"golang.org/x/sys/windows"
 )
 
+var (
+	// We can't use the AdjustTokenPrivileges function from x/sys/windows because
+	// it currently does not handle the ERROR_NOT_ALL_ASSIGNED error. Based on testing
+	// it seems to return a nil error even if fails to adjust the privileges.
+	procAdjustTokenPrivileges = windows.NewLazySystemDLL("advapi32.dll").NewProc("AdjustTokenPrivileges")
+)
+
 func (c *agentConfig) addOSFlags(flags *flag.FlagSet) {
 	flags.StringVar(&c.Experimental.NamedPipeName, "namedPipeName", "", "Pipe name to bind the SPIRE Agent API named pipe")
 }
@@ -80,10 +87,6 @@ func enableSeDebugPrivilege() error {
 		},
 	}
 
-	// We can't use the AdjustTokenPrivileges function from x/sys/windows because
-	// it currently does not handle the ERROR_NOT_ALL_ASSIGNED error. Based on testing
-	// it seems to return a nil error even if fails to adjust the privileges.
-	procAdjustTokenPrivileges := windows.NewLazySystemDLL("advapi32.dll").NewProc("AdjustTokenPrivileges")
 	result, _, err := procAdjustTokenPrivileges.Call(
 		uintptr(token),
 		0,
