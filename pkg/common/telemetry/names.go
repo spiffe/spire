@@ -402,6 +402,9 @@ const (
 	// LocalAuthorityID tags a local authority ID
 	LocalAuthorityID = "local_authority_id"
 
+	// LoggerAPI functionality related to logger endpoints
+	LoggerAPI = "logger_api"
+
 	// Mode tags a bundle deletion mode
 	Mode = "mode"
 

@@ -6,6 +6,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	loggerv1 "github.com/spiffe/spire/pkg/agent/api/logger/v1"
 	attestor "github.com/spiffe/spire/pkg/agent/attestor/workload"
 	"github.com/spiffe/spire/pkg/agent/manager"
 	"github.com/spiffe/spire/pkg/common/peertracker"
@@ -18,6 +19,9 @@ type Config struct {
 	Manager manager.Manager
 
 	Log logrus.FieldLogger
+
+	// The root logger for the entire process
+	RootLog loggerv1.Logger
 
 	Metrics telemetry.Metrics
 

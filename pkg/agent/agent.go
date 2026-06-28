@@ -508,6 +508,7 @@ func (a *Agent) newAdminEndpoints(metrics telemetry.Metrics, mgr manager.Manager
 		BindAddr:            a.c.AdminBindAddress,
 		Manager:             mgr,
 		Log:                 a.c.Log,
+		RootLog:             a.c.Log,
 		Metrics:             metrics,
 		TrustDomain:         a.c.TrustDomain,
 		Uptime:              uptime.Uptime,

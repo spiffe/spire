@@ -4,8 +4,8 @@ import (
 	"context"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	commonapi "github.com/spiffe/spire/pkg/common/api"
 	"github.com/spiffe/spire/pkg/common/telemetry"
-	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
 	"github.com/spiffe/spire/pkg/server/datastore"
 	"google.golang.org/grpc"
@@ -45,7 +45,7 @@ func (s *Service) Check(ctx context.Context, req *grpc_health_v1.HealthCheckRequ
 
 	// Ensure per-service health is not being requested.
 	if req.Service != "" {
-		return nil, api.MakeErr(log, codes.InvalidArgument, "per-service health is not supported", nil)
+		return nil, commonapi.MakeErr(log, codes.InvalidArgument, "per-service health is not supported", nil)
 	}
 
 	bundle, err := s.ds.FetchBundle(ctx, s.td.IDString())

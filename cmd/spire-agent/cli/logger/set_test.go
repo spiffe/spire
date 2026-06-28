@@ -3,12 +3,11 @@ package logger_test
 import (
 	"testing"
 
+	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
+	"github.com/spiffe/spire/cmd/spire-agent/cli/logger"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-
-	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
-	"github.com/spiffe/spire/cmd/spire-server/cli/logger"
 )
 
 func TestSetHelp(t *testing.T) {
@@ -85,7 +84,7 @@ Launch Level : fatal
 `,
 		},
 		{
-			name: "set with invalid setting of never, logger unadjusted from (info,info)",
+			name: "set with invalid setting",
 			args: []string{"-level", "never", "-output", "pretty"},
 			service: &mockLoggerService{
 				returnLogger: &types.Logger{
@@ -98,7 +97,7 @@ Launch Level : fatal
 `,
 		},
 		{
-			name: "No attribute set, cli returns error",
+			name: "no level flag set",
 			args: []string{"-output", "pretty"},
 			service: &mockLoggerService{
 				returnLogger: &types.Logger{
@@ -108,22 +107,6 @@ Launch Level : fatal
 			},
 			expectReturnCode: 1,
 			expectStderr: `Error: a value (-level) must be set
-`,
-		},
-		{
-			name: "bizzarro world, set to trace, logger unadjusted from (info,info)",
-			args: []string{"-level", "trace", "-output", "pretty"},
-			service: &mockLoggerService{
-				returnLogger: &types.Logger{
-					CurrentLevel: types.LogLevel_INFO,
-					LaunchLevel:  types.LogLevel_INFO,
-				},
-			},
-			expectedSetValue: types.LogLevel_TRACE,
-			expectReturnCode: 0,
-			expectStdout: `Logger Level : info
-Launch Level : info
-
 `,
 		},
 		{

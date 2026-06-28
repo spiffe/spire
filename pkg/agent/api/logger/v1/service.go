@@ -4,12 +4,12 @@ import (
 	"context"
 
 	"github.com/sirupsen/logrus"
-	loggerv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/logger/v1"
+	loggerv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/agent/logger/v1"
 	apitype "github.com/spiffe/spire-api-sdk/proto/spire/api/types"
-	commonapi "github.com/spiffe/spire/pkg/common/api"
+	"github.com/spiffe/spire/pkg/agent/api/rpccontext"
+	"github.com/spiffe/spire/pkg/common/api"
 	commonlogger "github.com/spiffe/spire/pkg/common/api/logger"
 	"github.com/spiffe/spire/pkg/common/telemetry"
-	"github.com/spiffe/spire/pkg/server/api/rpccontext"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 )
@@ -52,21 +52,19 @@ func (s *Service) GetLogger(ctx context.Context, _ *loggerv1.GetLoggerRequest) (
 	log := rpccontext.Logger(ctx)
 	log.Info("GetLogger Called")
 
-	rpccontext.AuditRPC(ctx)
 	return s.createAPILogger(), nil
 }
 
 func (s *Service) SetLogLevel(ctx context.Context, req *loggerv1.SetLogLevelRequest) (*apitype.Logger, error) {
-	rpccontext.AddRPCAuditFields(ctx, logrus.Fields{telemetry.NewLogLevel: req.NewLevel.String()})
 	log := rpccontext.Logger(ctx)
 
 	if req.NewLevel == apitype.LogLevel_UNSPECIFIED {
-		return nil, commonapi.MakeErr(log, codes.InvalidArgument, "newLevel value cannot be LogLevel_UNSPECIFIED", nil)
+		return nil, api.MakeErr(log, codes.InvalidArgument, "newLevel value cannot be LogLevel_UNSPECIFIED", nil)
 	}
 
 	newLogLevel, ok := commonlogger.LogrusLevel[req.NewLevel]
 	if !ok {
-		return nil, commonapi.MakeErr(log, codes.InvalidArgument, "unsupported log level", nil)
+		return nil, api.MakeErr(log, codes.InvalidArgument, "unsupported log level", nil)
 	}
 
 	log.WithFields(logrus.Fields{
@@ -74,7 +72,6 @@ func (s *Service) SetLogLevel(ctx context.Context, req *loggerv1.SetLogLevelRequ
 	}).Info("SetLogLevel Called")
 	s.log.SetLevel(newLogLevel)
 
-	rpccontext.AuditRPC(ctx)
 	return s.createAPILogger(), nil
 }
 
@@ -84,7 +81,6 @@ func (s *Service) ResetLogLevel(ctx context.Context, _ *loggerv1.ResetLogLevelRe
 
 	s.log.SetLevel(s.launchLevel)
 
-	rpccontext.AuditRPC(ctx)
 	return s.createAPILogger(), nil
 }
 

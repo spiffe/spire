@@ -13,6 +13,7 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	agentv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/agent/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
+	commonapi "github.com/spiffe/spire/pkg/common/api"
 	"github.com/spiffe/spire/pkg/common/errorutil"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/nodeutil"
@@ -101,7 +102,7 @@ func (s *Service) CountAgents(ctx context.Context, req *agentv1.CountAgentsReque
 		if filter.BySelectorMatch != nil {
 			selectors, err := api.SelectorsFromProto(filter.BySelectorMatch.Selectors)
 			if err != nil {
-				return nil, api.MakeErr(log, codes.InvalidArgument, "failed to parse selectors", err)
+				return nil, commonapi.MakeErr(log, codes.InvalidArgument, "failed to parse selectors", err)
 			}
 			countReq.BySelectorMatch = &datastore.BySelectors{
 				Match:     datastore.MatchBehavior(filter.BySelectorMatch.Match),
@@ -113,7 +114,7 @@ func (s *Service) CountAgents(ctx context.Context, req *agentv1.CountAgentsReque
 	count, err := s.ds.CountAttestedNodes(ctx, countReq)
 	if err != nil {
 		log := rpccontext.Logger(ctx)
-		return nil, api.MakeErr(log, codes.Internal, "failed to count agents", err)
+		return nil, commonapi.MakeErr(log, codes.Internal, "failed to count agents", err)
 	}
 	rpccontext.AuditRPC(ctx)
 
@@ -152,7 +153,7 @@ func (s *Service) ListAgents(ctx context.Context, req *agentv1.ListAgentsRequest
 		if filter.BySelectorMatch != nil {
 			selectors, err := api.SelectorsFromProto(filter.BySelectorMatch.Selectors)
 			if err != nil {
-				return nil, api.MakeErr(log, codes.InvalidArgument, "failed to parse selectors", err)
+				return nil, commonapi.MakeErr(log, codes.InvalidArgument, "failed to parse selectors", err)
 			}
 			listReq.BySelectorMatch = &datastore.BySelectors{
 				Match:     datastore.MatchBehavior(filter.BySelectorMatch.Match),
@@ -171,7 +172,7 @@ func (s *Service) ListAgents(ctx context.Context, req *agentv1.ListAgentsRequest
 
 	dsResp, err := s.ds.ListAttestedNodes(ctx, listReq)
 	if err != nil {
-		return nil, api.MakeErr(log, codes.Internal, "failed to list agents", err)
+		return nil, commonapi.MakeErr(log, codes.Internal, "failed to list agents", err)
 	}
 
 	resp := &agentv1.ListAgentsResponse{}
@@ -202,28 +203,28 @@ func (s *Service) GetAgent(ctx context.Context, req *agentv1.GetAgentRequest) (*
 
 	agentID, err := api.TrustDomainAgentIDFromProto(ctx, s.td, req.Id)
 	if err != nil {
-		return nil, api.MakeErr(log, codes.InvalidArgument, "invalid agent ID", err)
+		return nil, commonapi.MakeErr(log, codes.InvalidArgument, "invalid agent ID", err)
 	}
 	rpccontext.AddRPCAuditFields(ctx, logrus.Fields{telemetry.SPIFFEID: agentID.String()})
 
 	log = log.WithField(telemetry.SPIFFEID, agentID.String())
 	attestedNode, err := s.ds.FetchAttestedNode(ctx, agentID.String())
 	if err != nil {
-		return nil, api.MakeErr(log, codes.Internal, "failed to fetch agent", err)
+		return nil, commonapi.MakeErr(log, codes.Internal, "failed to fetch agent", err)
 	}
 
 	if attestedNode == nil {
-		return nil, api.MakeErr(log, codes.NotFound, "agent not found", err)
+		return nil, commonapi.MakeErr(log, codes.NotFound, "agent not found", err)
 	}
 
 	selectors, err := s.getSelectorsFromAgentID(ctx, attestedNode.SpiffeId)
 	if err != nil {
-		return nil, api.MakeErr(log, codes.Internal, "failed to get selectors from agent", err)
+		return nil, commonapi.MakeErr(log, codes.Internal, "failed to get selectors from agent", err)
 	}
 
 	agent, err := api.AttestedNodeToProto(attestedNode, selectors)
 	if err != nil {
-		return nil, api.MakeErr(log, codes.Internal, "failed to convert attested node to agent", err)
+		return nil, commonapi.MakeErr(log, codes.Internal, "failed to convert attested node to agent", err)
 	}
 
 	rpccontext.AuditRPC(ctx)
@@ -237,7 +238,7 @@ func (s *Service) DeleteAgent(ctx context.Context, req *agentv1.DeleteAgentReque
 
 	id, err := api.TrustDomainAgentIDFromProto(ctx, s.td, req.Id)
 	if err != nil {
-		return nil, api.MakeErr(log, codes.InvalidArgument, "invalid agent ID", err)
+		return nil, commonapi.MakeErr(log, codes.InvalidArgument, "invalid agent ID", err)
 	}
 	rpccontext.AddRPCAuditFields(ctx, logrus.Fields{telemetry.SPIFFEID: id.String()})
 
@@ -250,9 +251,9 @@ func (s *Service) DeleteAgent(ctx context.Context, req *agentv1.DeleteAgentReque
 		rpccontext.AuditRPC(ctx)
 		return &emptypb.Empty{}, nil
 	case codes.NotFound:
-		return nil, api.MakeErr(log, codes.NotFound, "agent not found", err)
+		return nil, commonapi.MakeErr(log, codes.NotFound, "agent not found", err)
 	default:
-		return nil, api.MakeErr(log, codes.Internal, "failed to remove agent", err)
+		return nil, commonapi.MakeErr(log, codes.Internal, "failed to remove agent", err)
 	}
 }
 
@@ -262,7 +263,7 @@ func (s *Service) BanAgent(ctx context.Context, req *agentv1.BanAgentRequest) (*
 
 	id, err := api.TrustDomainAgentIDFromProto(ctx, s.td, req.Id)
 	if err != nil {
-		return nil, api.MakeErr(log, codes.InvalidArgument, "invalid agent ID", err)
+		return nil, commonapi.MakeErr(log, codes.InvalidArgument, "invalid agent ID", err)
 	}
 	rpccontext.AddRPCAuditFields(ctx, logrus.Fields{telemetry.SPIFFEID: id.String()})
 
@@ -283,9 +284,9 @@ func (s *Service) BanAgent(ctx context.Context, req *agentv1.BanAgentRequest) (*
 		rpccontext.AuditRPC(ctx)
 		return &emptypb.Empty{}, nil
 	case codes.NotFound:
-		return nil, api.MakeErr(log, codes.NotFound, "agent not found", err)
+		return nil, commonapi.MakeErr(log, codes.NotFound, "agent not found", err)
 	default:
-		return nil, api.MakeErr(log, codes.Internal, "failed to ban agent", err)
+		return nil, commonapi.MakeErr(log, codes.Internal, "failed to ban agent", err)
 	}
 }
 
@@ -295,18 +296,18 @@ func (s *Service) AttestAgent(stream agentv1.Agent_AttestAgentServer) error {
 	log := rpccontext.Logger(ctx)
 
 	if err := rpccontext.RateLimit(ctx, 1); err != nil {
-		return api.MakeErr(log, status.Code(err), "rejecting request due to attest agent rate limiting", err)
+		return commonapi.MakeErr(log, status.Code(err), "rejecting request due to attest agent rate limiting", err)
 	}
 
 	req, err := stream.Recv()
 	if err != nil {
-		return api.MakeErr(log, codes.InvalidArgument, "failed to receive request from stream", err)
+		return commonapi.MakeErr(log, codes.InvalidArgument, "failed to receive request from stream", err)
 	}
 
 	// validate
 	params := req.GetParams()
 	if err := validateAttestAgentParams(params); err != nil {
-		return api.MakeErr(log, codes.InvalidArgument, "malformed param", err)
+		return commonapi.MakeErr(log, codes.InvalidArgument, "malformed param", err)
 	}
 	rpccontext.AddRPCAuditFields(ctx, logrus.Fields{
 		telemetry.NodeAttestorType: params.Data.Type,
@@ -337,7 +338,7 @@ func (s *Service) AttestAgent(stream agentv1.Agent_AttestAgentServer) error {
 
 	agentID, err := spiffeid.FromString(attestResult.AgentID)
 	if err != nil {
-		return api.MakeErr(log, codes.Internal, "invalid agent ID", err)
+		return commonapi.MakeErr(log, codes.Internal, "invalid agent ID", err)
 	}
 
 	log = log.WithField(telemetry.AgentID, agentID)
@@ -350,7 +351,7 @@ func (s *Service) AttestAgent(stream agentv1.Agent_AttestAgentServer) error {
 	// Deprecated: enforce that IDs produced by Node Attestors are in the
 	// reserved namespace for that Node Attestor starting in SPIRE 1.4.
 	if agentID.Path() == idutil.ServerIDPath {
-		return api.MakeErr(log, codes.Internal, "agent ID cannot collide with the server ID", nil)
+		return commonapi.MakeErr(log, codes.Internal, "agent ID cannot collide with the server ID", nil)
 	}
 	if err := api.VerifyTrustDomainAgentIDForNodeAttestor(s.td, agentID, params.Data.Type); err != nil {
 		log.WithError(err).Warn("The node attestor produced an invalid agent ID; future releases will enforce that agent IDs are within the reserved agent namesepace for the node attestor")
@@ -359,11 +360,11 @@ func (s *Service) AttestAgent(stream agentv1.Agent_AttestAgentServer) error {
 	// fetch the agent/node to check if it was already attested or banned
 	attestedNode, err := s.ds.FetchAttestedNode(ctx, agentID.String())
 	if err != nil {
-		return api.MakeErr(log, codes.Internal, "failed to fetch agent", err)
+		return commonapi.MakeErr(log, codes.Internal, "failed to fetch agent", err)
 	}
 
 	if attestedNode != nil && nodeutil.IsAgentBanned(attestedNode) {
-		return api.MakeErr(log, codes.PermissionDenied, "failed to attest: agent is banned", nil)
+		return commonapi.MakeErr(log, codes.PermissionDenied, "failed to attest: agent is banned", nil)
 	}
 
 	// parse and sign CSR
@@ -375,7 +376,7 @@ func (s *Service) AttestAgent(stream agentv1.Agent_AttestAgentServer) error {
 	// dedupe and store node selectors
 	err = s.ds.SetNodeSelectors(ctx, agentID.String(), selector.Dedupe(attestResult.Selectors))
 	if err != nil {
-		return api.MakeErr(log, codes.Internal, "failed to update selectors", err)
+		return commonapi.MakeErr(log, codes.Internal, "failed to update selectors", err)
 	}
 
 	// create or update attested entry
@@ -388,7 +389,7 @@ func (s *Service) AttestAgent(stream agentv1.Agent_AttestAgentServer) error {
 			CanReattest:         attestResult.CanReattest,
 		}
 		if _, err := s.ds.CreateAttestedNode(ctx, node); err != nil {
-			return api.MakeErr(log, codes.Internal, "failed to create attested agent", err)
+			return commonapi.MakeErr(log, codes.Internal, "failed to create attested agent", err)
 		}
 	} else {
 		node := &common.AttestedNode{
@@ -398,7 +399,7 @@ func (s *Service) AttestAgent(stream agentv1.Agent_AttestAgentServer) error {
 			CanReattest:      attestResult.CanReattest,
 		}
 		if _, err := s.ds.UpdateAttestedNode(ctx, node, api.UpdateAttestedNodeCertificateMask); err != nil {
-			return api.MakeErr(log, codes.Internal, "failed to update attested agent", err)
+			return commonapi.MakeErr(log, codes.Internal, "failed to update attested agent", err)
 		}
 	}
 
@@ -411,7 +412,7 @@ func (s *Service) AttestAgent(stream agentv1.Agent_AttestAgentServer) error {
 	log.Info("Agent attestation request completed")
 
 	if err := stream.Send(response); err != nil {
-		return api.MakeErr(log, codes.Internal, "failed to send response over stream", err)
+		return commonapi.MakeErr(log, codes.Internal, "failed to send response over stream", err)
 	}
 	rpccontext.AuditRPC(ctx)
 
@@ -426,21 +427,21 @@ func (s *Service) RenewAgent(ctx context.Context, req *agentv1.RenewAgentRequest
 	}
 
 	if err := rpccontext.RateLimit(ctx, 1); err != nil {
-		return nil, api.MakeErr(log, status.Code(err), "rejecting request due to renew agent rate limiting", err)
+		return nil, commonapi.MakeErr(log, status.Code(err), "rejecting request due to renew agent rate limiting", err)
 	}
 
 	callerID, ok := rpccontext.CallerID(ctx)
 	if !ok {
-		return nil, api.MakeErr(log, codes.Internal, "caller ID missing from request context", nil)
+		return nil, commonapi.MakeErr(log, codes.Internal, "caller ID missing from request context", nil)
 	}
 
 	attestedNode, err := s.ds.FetchAttestedNode(ctx, callerID.String())
 	if err != nil {
-		return nil, api.MakeErr(log, codes.Internal, "failed to fetch agent", err)
+		return nil, commonapi.MakeErr(log, codes.Internal, "failed to fetch agent", err)
 	}
 
 	if attestedNode == nil {
-		return nil, api.MakeErr(log, codes.NotFound, "agent not found", err)
+		return nil, commonapi.MakeErr(log, codes.NotFound, "agent not found", err)
 	}
 
 	// Agent attempted to renew when it should've been reattesting
@@ -451,10 +452,10 @@ func (s *Service) RenewAgent(ctx context.Context, req *agentv1.RenewAgentRequest
 	log.Info("Renewing agent SVID")
 
 	if req.Params == nil {
-		return nil, api.MakeErr(log, codes.InvalidArgument, "params cannot be nil", nil)
+		return nil, commonapi.MakeErr(log, codes.InvalidArgument, "params cannot be nil", nil)
 	}
 	if len(req.Params.Csr) == 0 {
-		return nil, api.MakeErr(log, codes.InvalidArgument, "missing CSR", nil)
+		return nil, commonapi.MakeErr(log, codes.InvalidArgument, "missing CSR", nil)
 	}
 
 	agentSVID, err := s.signSvid(ctx, callerID, req.Params.Csr, log)
@@ -491,12 +492,12 @@ func (s *Service) PostStatus(ctx context.Context, req *agentv1.PostStatusRequest
 	log := rpccontext.Logger(ctx)
 
 	if err := rpccontext.RateLimit(ctx, 1); err != nil {
-		return nil, api.MakeErr(log, status.Code(err), "rejecting request due to post status rate limiting", err)
+		return nil, commonapi.MakeErr(log, status.Code(err), "rejecting request due to post status rate limiting", err)
 	}
 
 	callerID, ok := rpccontext.CallerID(ctx)
 	if !ok {
-		return nil, api.MakeErr(log, codes.Internal, "caller ID missing from request context", nil)
+		return nil, commonapi.MakeErr(log, codes.Internal, "caller ID missing from request context", nil)
 	}
 
 	agentVersion := req.GetAgentVersion()
@@ -508,7 +509,7 @@ func (s *Service) PostStatus(ctx context.Context, req *agentv1.PostStatusRequest
 
 	if agentVersion != "" {
 		if len(agentVersion) > 255 {
-			return nil, api.MakeErr(log, codes.InvalidArgument, "agent version is too long (max 255 characters)", nil)
+			return nil, commonapi.MakeErr(log, codes.InvalidArgument, "agent version is too long (max 255 characters)", nil)
 		}
 
 		rpccontext.AddRPCAuditFields(ctx, logrus.Fields{
@@ -546,7 +547,7 @@ func (s *Service) CreateJoinToken(ctx context.Context, req *agentv1.CreateJoinTo
 	rpccontext.AddRPCAuditFields(ctx, parseRequest())
 
 	if req.Ttl < 1 {
-		return nil, api.MakeErr(log, codes.InvalidArgument, "ttl is required, you must provide one", nil)
+		return nil, commonapi.MakeErr(log, codes.InvalidArgument, "ttl is required, you must provide one", nil)
 	}
 
 	// If provided, check that the AgentID is valid BEFORE creating the join token so we can fail early
@@ -555,7 +556,7 @@ func (s *Service) CreateJoinToken(ctx context.Context, req *agentv1.CreateJoinTo
 	if req.AgentId != nil {
 		agentID, err = api.TrustDomainWorkloadIDFromProto(ctx, s.td, req.AgentId)
 		if err != nil {
-			return nil, api.MakeErr(log, codes.InvalidArgument, "invalid agent ID", err)
+			return nil, commonapi.MakeErr(log, codes.InvalidArgument, "invalid agent ID", err)
 		}
 		rpccontext.AddRPCAuditFields(ctx, logrus.Fields{telemetry.SPIFFEID: agentID.String()})
 		log.WithField(telemetry.SPIFFEID, agentID.String())
@@ -565,7 +566,7 @@ func (s *Service) CreateJoinToken(ctx context.Context, req *agentv1.CreateJoinTo
 	if req.Token == "" {
 		u, err := uuid.NewV4()
 		if err != nil {
-			return nil, api.MakeErr(log, codes.Internal, "failed to generate token UUID", err)
+			return nil, commonapi.MakeErr(log, codes.Internal, "failed to generate token UUID", err)
 		}
 		req.Token = u.String()
 	}
@@ -577,13 +578,13 @@ func (s *Service) CreateJoinToken(ctx context.Context, req *agentv1.CreateJoinTo
 		Expiry: expiry,
 	})
 	if err != nil {
-		return nil, api.MakeErr(log, codes.Internal, "failed to create token", err)
+		return nil, commonapi.MakeErr(log, codes.Internal, "failed to create token", err)
 	}
 
 	if req.AgentId != nil {
 		err := s.createJoinTokenRegistrationEntry(ctx, req.Token, agentID.String())
 		if err != nil {
-			return nil, api.MakeErr(log, codes.Internal, "failed to create join token registration entry", err)
+			return nil, commonapi.MakeErr(log, codes.Internal, "failed to create join token registration entry", err)
 		}
 	}
 	rpccontext.AuditRPC(ctx)
@@ -613,16 +614,16 @@ func (s *Service) updateAttestedNode(ctx context.Context, node *common.AttestedN
 	case codes.OK:
 		return nil
 	case codes.NotFound:
-		return api.MakeErr(log, codes.NotFound, "agent not found", err)
+		return commonapi.MakeErr(log, codes.NotFound, "agent not found", err)
 	default:
-		return api.MakeErr(log, codes.Internal, "failed to update agent", err)
+		return commonapi.MakeErr(log, codes.Internal, "failed to update agent", err)
 	}
 }
 
 func (s *Service) signSvid(ctx context.Context, agentID spiffeid.ID, csr []byte, log logrus.FieldLogger) ([]*x509.Certificate, error) {
 	parsedCsr, err := x509.ParseCertificateRequest(csr)
 	if err != nil {
-		return nil, api.MakeErr(log, codes.InvalidArgument, "failed to parse CSR", err)
+		return nil, commonapi.MakeErr(log, codes.InvalidArgument, "failed to parse CSR", err)
 	}
 
 	// Sign a new X509 SVID
@@ -631,7 +632,7 @@ func (s *Service) signSvid(ctx context.Context, agentID spiffeid.ID, csr []byte,
 		PublicKey: parsedCsr.PublicKey,
 	})
 	if err != nil {
-		return nil, api.MakeErr(log, codes.Internal, "failed to sign X509 SVID", err)
+		return nil, commonapi.MakeErr(log, codes.Internal, "failed to sign X509 SVID", err)
 	}
 
 	return x509Svid, nil
@@ -652,22 +653,22 @@ func (s *Service) attestJoinToken(ctx context.Context, token string) (*nodeattes
 	joinToken, err := s.ds.FetchJoinToken(ctx, token)
 	switch {
 	case err != nil:
-		return nil, api.MakeErr(log, codes.Internal, "failed to fetch join token", err)
+		return nil, commonapi.MakeErr(log, codes.Internal, "failed to fetch join token", err)
 	case joinToken == nil:
-		return nil, api.MakeErr(log, codes.InvalidArgument, "failed to attest: join token does not exist or has already been used", nil)
+		return nil, commonapi.MakeErr(log, codes.InvalidArgument, "failed to attest: join token does not exist or has already been used", nil)
 	}
 
 	err = s.ds.DeleteJoinToken(ctx, token)
 	switch {
 	case err != nil:
-		return nil, api.MakeErr(log, codes.Internal, "failed to delete join token", err)
+		return nil, commonapi.MakeErr(log, codes.Internal, "failed to delete join token", err)
 	case joinToken.Expiry.Before(s.clk.Now()):
-		return nil, api.MakeErr(log, codes.InvalidArgument, "join token expired", nil)
+		return nil, commonapi.MakeErr(log, codes.InvalidArgument, "join token expired", nil)
 	}
 
 	agentID, err := joinTokenID(s.td, token)
 	if err != nil {
-		return nil, api.MakeErr(log, codes.Internal, "failed to create join token ID", err)
+		return nil, commonapi.MakeErr(log, codes.Internal, "failed to create join token ID", err)
 	}
 
 	return &nodeattestor.AttestResult{
@@ -681,7 +682,7 @@ func (s *Service) attestChallengeResponse(ctx context.Context, agentStream agent
 
 	nodeAttestor, ok := s.cat.GetNodeAttestorNamed(attestorType)
 	if !ok {
-		return nil, api.MakeErr(log, codes.FailedPrecondition, "error getting node attestor", fmt.Errorf("could not find node attestor type %q", attestorType))
+		return nil, commonapi.MakeErr(log, codes.FailedPrecondition, "error getting node attestor", fmt.Errorf("could not find node attestor type %q", attestorType))
 	}
 
 	result, err := nodeAttestor.Attest(ctx, params.Data.Payload, func(ctx context.Context, challenge []byte) ([]byte, error) {
@@ -691,19 +692,19 @@ func (s *Service) attestChallengeResponse(ctx context.Context, agentStream agent
 			},
 		}
 		if err := agentStream.Send(resp); err != nil {
-			return nil, api.MakeErr(log, codes.Internal, "failed to send challenge to agent", err)
+			return nil, commonapi.MakeErr(log, codes.Internal, "failed to send challenge to agent", err)
 		}
 
 		req, err := agentStream.Recv()
 		if err != nil {
-			return nil, api.MakeErr(log, codes.Internal, "failed to receive challenge from agent", err)
+			return nil, commonapi.MakeErr(log, codes.Internal, "failed to receive challenge from agent", err)
 		}
 
 		return req.GetChallengeResponse(), nil
 	})
 	if err != nil {
 		st := status.Convert(err)
-		return nil, api.MakeErr(log, st.Code(), st.Message(), nil)
+		return nil, commonapi.MakeErr(log, st.Code(), st.Message(), nil)
 	}
 	return result, nil
 }

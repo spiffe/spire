@@ -7,6 +7,7 @@ import (
 	"github.com/mitchellh/cli"
 	"github.com/spiffe/spire/cmd/spire-agent/cli/api"
 	"github.com/spiffe/spire/cmd/spire-agent/cli/healthcheck"
+	"github.com/spiffe/spire/cmd/spire-agent/cli/logger"
 	"github.com/spiffe/spire/cmd/spire-agent/cli/run"
 	"github.com/spiffe/spire/cmd/spire-agent/cli/validate"
 	"github.com/spiffe/spire/pkg/common/log"
@@ -42,6 +43,15 @@ func (cc *CLI) Run(ctx context.Context, args []string) int {
 		},
 		"healthcheck": func() (cli.Command, error) {
 			return healthcheck.NewHealthCheckCommand(), nil
+		},
+		"logger get": func() (cli.Command, error) {
+			return logger.NewGetCommand(), nil
+		},
+		"logger set": func() (cli.Command, error) {
+			return logger.NewSetCommand(), nil
+		},
+		"logger reset": func() (cli.Command, error) {
+			return logger.NewResetCommand(), nil
 		},
 		"validate": func() (cli.Command, error) {
 			return validate.NewValidateCommand(), nil
