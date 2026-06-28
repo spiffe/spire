@@ -236,11 +236,11 @@ func sendX509SVIDResponse(update *cache.WorkloadUpdate, stream delegatedidentity
 	// log details on each SVID
 	// a response has already been sent so nothing is
 	// blocked on this logic
-	for i, svid := range resp.X509Svids {
+	for _, svid := range resp.X509Svids {
 		// Ideally ID Proto parsing should succeed, but if it fails,
 		// ignore the error and still log with empty spiffe_id.
 		id, _ := idutil.IDProtoString(svid.X509Svid.Id)
-		ttl := time.Until(update.Identities[i].SVID[0].NotAfter)
+		ttl := time.Until(time.Unix(svid.X509Svid.ExpiresAt, 0))
 		log.WithFields(logrus.Fields{
 			telemetry.SPIFFEID: id,
 			telemetry.TTL:      ttl.Seconds(),
