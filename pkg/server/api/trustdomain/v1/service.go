@@ -6,6 +6,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	commonapi "github.com/spiffe/spire/pkg/common/api"
 	"github.com/spiffe/spire/pkg/common/protoutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/api"
@@ -72,7 +73,7 @@ func (s *Service) ListFederationRelationships(ctx context.Context, req *trustdom
 
 	dsResp, err := s.ds.ListFederationRelationships(ctx, listReq)
 	if err != nil {
-		return nil, api.MakeErr(log, codes.Internal, "failed to list federation relationships", err)
+		return nil, commonapi.MakeErr(log, codes.Internal, "failed to list federation relationships", err)
 	}
 
 	resp := &trustdomainv1.ListFederationRelationshipsResponse{}
@@ -83,7 +84,7 @@ func (s *Service) ListFederationRelationships(ctx context.Context, req *trustdom
 	for _, fr := range dsResp.FederationRelationships {
 		tFederationRelationship, err := api.FederationRelationshipToProto(fr, req.OutputMask)
 		if err != nil {
-			return nil, api.MakeErr(log, codes.InvalidArgument, "failed to convert datastore response", err)
+			return nil, commonapi.MakeErr(log, codes.InvalidArgument, "failed to convert datastore response", err)
 		}
 		resp.FederationRelationships = append(resp.FederationRelationships, tFederationRelationship)
 	}
@@ -99,22 +100,22 @@ func (s *Service) GetFederationRelationship(ctx context.Context, req *trustdomai
 
 	trustDomain, err := spiffeid.TrustDomainFromString(req.TrustDomain)
 	if err != nil {
-		return nil, api.MakeErr(log, codes.InvalidArgument, "failed to parse trust domain", err)
+		return nil, commonapi.MakeErr(log, codes.InvalidArgument, "failed to parse trust domain", err)
 	}
 
 	dsResp, err := s.ds.FetchFederationRelationship(ctx, trustDomain)
 	if err != nil {
-		return nil, api.MakeErr(log, codes.Internal, "failed to fetch federation relationship", err)
+		return nil, commonapi.MakeErr(log, codes.Internal, "failed to fetch federation relationship", err)
 	}
 
 	// if the entry is not found, FetchFederationRelationship returns nil, nil
 	if dsResp == nil {
-		return nil, api.MakeErr(log, codes.NotFound, "federation relationship does not exist", err)
+		return nil, commonapi.MakeErr(log, codes.NotFound, "federation relationship does not exist", err)
 	}
 
 	tFederationRelationship, err := api.FederationRelationshipToProto(dsResp, req.OutputMask)
 	if err != nil {
-		return nil, api.MakeErr(log, codes.Internal, "failed to convert datastore response", err)
+		return nil, commonapi.MakeErr(log, codes.Internal, "failed to convert datastore response", err)
 	}
 
 	rpccontext.AuditRPC(ctx)
@@ -195,7 +196,7 @@ func (s *Service) RefreshBundle(ctx context.Context, req *trustdomainv1.RefreshB
 
 	trustDomain, err := spiffeid.TrustDomainFromString(req.GetTrustDomain())
 	if err != nil {
-		return nil, api.MakeErr(log, codes.InvalidArgument, "failed to parse trust domain", err)
+		return nil, commonapi.MakeErr(log, codes.InvalidArgument, "failed to parse trust domain", err)
 	}
 
 	log = log.WithField(telemetry.TrustDomainID, trustDomain.Name())
@@ -203,10 +204,10 @@ func (s *Service) RefreshBundle(ctx context.Context, req *trustdomainv1.RefreshB
 
 	isManagedByBm, err := s.br.RefreshBundleFor(ctx, trustDomain)
 	if err != nil {
-		return nil, api.MakeErr(log, codes.Internal, "failed to refresh bundle", err)
+		return nil, commonapi.MakeErr(log, codes.Internal, "failed to refresh bundle", err)
 	}
 	if !isManagedByBm {
-		return nil, api.MakeErr(log, codes.NotFound, fmt.Sprintf("no relationship with trust domain %q", trustDomain), nil)
+		return nil, commonapi.MakeErr(log, codes.NotFound, fmt.Sprintf("no relationship with trust domain %q", trustDomain), nil)
 	}
 
 	log.Debug("Bundle refreshed")
@@ -221,27 +222,27 @@ func (s *Service) createFederationRelationship(ctx context.Context, f *types.Fed
 	dsFederationRelationship, err := api.ProtoToFederationRelationship(f)
 	if err != nil {
 		return &trustdomainv1.BatchCreateFederationRelationshipResponse_Result{
-			Status: api.MakeStatus(log, codes.InvalidArgument, "failed to convert federation relationship", err),
+			Status: commonapi.MakeStatus(log, codes.InvalidArgument, "failed to convert federation relationship", err),
 		}
 	}
 
 	if s.td.Compare(dsFederationRelationship.TrustDomain) == 0 {
 		return &trustdomainv1.BatchCreateFederationRelationshipResponse_Result{
-			Status: api.MakeStatus(log, codes.InvalidArgument, "unable to create federation relationship for server trust domain", nil),
+			Status: commonapi.MakeStatus(log, codes.InvalidArgument, "unable to create federation relationship for server trust domain", nil),
 		}
 	}
 
 	resp, err := s.ds.CreateFederationRelationship(ctx, dsFederationRelationship)
 	if err != nil {
 		return &trustdomainv1.BatchCreateFederationRelationshipResponse_Result{
-			Status: api.MakeStatus(log, codes.Internal, "failed to create federation relationship", err),
+			Status: commonapi.MakeStatus(log, codes.Internal, "failed to create federation relationship", err),
 		}
 	}
 
 	tFederationRelationship, err := api.FederationRelationshipToProto(resp, outputMask)
 	if err != nil {
 		return &trustdomainv1.BatchCreateFederationRelationshipResponse_Result{
-			Status: api.MakeStatus(log, codes.Internal, "failed to convert datastore response", err),
+			Status: commonapi.MakeStatus(log, codes.Internal, "failed to convert datastore response", err),
 		}
 	}
 
@@ -253,7 +254,7 @@ func (s *Service) createFederationRelationship(ctx context.Context, f *types.Fed
 	log.Debug("Federation relationship created")
 
 	return &trustdomainv1.BatchCreateFederationRelationshipResponse_Result{
-		Status:                 api.OK(),
+		Status:                 commonapi.OK(),
 		FederationRelationship: tFederationRelationship,
 	}
 }
@@ -265,7 +266,7 @@ func (s *Service) updateFederationRelationship(ctx context.Context, fr *types.Fe
 	dFederationRelationship, err := api.ProtoToFederationRelationship(fr)
 	if err != nil {
 		return &trustdomainv1.BatchUpdateFederationRelationshipResponse_Result{
-			Status: api.MakeStatus(log, codes.InvalidArgument, "failed to convert federation relationship", err),
+			Status: commonapi.MakeStatus(log, codes.InvalidArgument, "failed to convert federation relationship", err),
 		}
 	}
 
@@ -276,14 +277,14 @@ func (s *Service) updateFederationRelationship(ctx context.Context, fr *types.Fe
 	resp, err := s.ds.UpdateFederationRelationship(ctx, dFederationRelationship, inputMask)
 	if err != nil {
 		return &trustdomainv1.BatchUpdateFederationRelationshipResponse_Result{
-			Status: api.MakeStatus(log, codes.Internal, "failed to update federation relationship", err),
+			Status: commonapi.MakeStatus(log, codes.Internal, "failed to update federation relationship", err),
 		}
 	}
 
 	tFederationRelationship, err := api.FederationRelationshipToProto(resp, outputMask)
 	if err != nil {
 		return &trustdomainv1.BatchUpdateFederationRelationshipResponse_Result{
-			Status: api.MakeStatus(log, codes.Internal, "failed to convert federation relationship to proto", err),
+			Status: commonapi.MakeStatus(log, codes.Internal, "failed to convert federation relationship to proto", err),
 		}
 	}
 	// Warning in case of SPIFFE endpoint that does not have a bundle
@@ -293,7 +294,7 @@ func (s *Service) updateFederationRelationship(ctx context.Context, fr *types.Fe
 	log.Debug("Federation relationship updated")
 
 	return &trustdomainv1.BatchUpdateFederationRelationshipResponse_Result{
-		Status:                 api.OK(),
+		Status:                 commonapi.OK(),
 		FederationRelationship: tFederationRelationship,
 	}
 }
@@ -304,7 +305,7 @@ func (s *Service) deleteFederationRelationship(ctx context.Context, td string) *
 	if td == "" {
 		return &trustdomainv1.BatchDeleteFederationRelationshipResponse_Result{
 			TrustDomain: td,
-			Status:      api.MakeStatus(log, codes.InvalidArgument, "missing trust domain", nil),
+			Status:      commonapi.MakeStatus(log, codes.InvalidArgument, "missing trust domain", nil),
 		}
 	}
 
@@ -314,7 +315,7 @@ func (s *Service) deleteFederationRelationship(ctx context.Context, td string) *
 	if err != nil {
 		return &trustdomainv1.BatchDeleteFederationRelationshipResponse_Result{
 			TrustDomain: td,
-			Status:      api.MakeStatus(log, codes.InvalidArgument, "failed to parse trust domain", err),
+			Status:      commonapi.MakeStatus(log, codes.InvalidArgument, "failed to parse trust domain", err),
 		}
 	}
 
@@ -324,17 +325,17 @@ func (s *Service) deleteFederationRelationship(ctx context.Context, td string) *
 		log.Debug("Federation relationship deleted")
 		return &trustdomainv1.BatchDeleteFederationRelationshipResponse_Result{
 			TrustDomain: trustDomain.Name(),
-			Status:      api.OK(),
+			Status:      commonapi.OK(),
 		}
 	case codes.NotFound:
 		return &trustdomainv1.BatchDeleteFederationRelationshipResponse_Result{
 			TrustDomain: trustDomain.Name(),
-			Status:      api.MakeStatus(log, codes.NotFound, "federation relationship not found", nil),
+			Status:      commonapi.MakeStatus(log, codes.NotFound, "federation relationship not found", nil),
 		}
 	default:
 		return &trustdomainv1.BatchDeleteFederationRelationshipResponse_Result{
 			TrustDomain: trustDomain.Name(),
-			Status:      api.MakeStatus(log, codes.Internal, "failed to delete federation relationship", err),
+			Status:      commonapi.MakeStatus(log, codes.Internal, "failed to delete federation relationship", err),
 		}
 	}
 }

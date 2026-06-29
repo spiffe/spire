@@ -1,0 +1,62 @@
+#!/bin/bash
+
+get-log-level() {
+  docker compose exec -T spire-agent \
+    /opt/spire/bin/spire-agent logger get -output json \
+    -socketPath /opt/debug.sock | jq -r .current_level
+}
+
+# Check current log level is DEBUG
+if [[ $(get-log-level) != "DEBUG" ]]; then
+  fail-now "Agent log level is not set to DEBUG"
+fi
+
+docker compose exec -T spire-server \
+    /opt/spire/bin/spire-server entry create \
+    -parentID "spiffe://domain.test/spire/agent/x509pop/$(fingerprint conf/agent/agent.crt.pem)" \
+    -spiffeID "spiffe://domain.test/workload-logged" \
+    -selector "unix:uid:8001"
+
+docker compose exec -T spire-server \
+    /opt/spire/bin/spire-server entry create \
+    -parentID "spiffe://domain.test/spire/agent/x509pop/$(fingerprint conf/agent/agent.crt.pem)" \
+    -spiffeID "spiffe://domain.test/workload-not-logged" \
+    -selector "unix:uid:8002"
+
+check-synced-entry spire-agent "spiffe://domain.test/workload-logged"
+check-synced-entry spire-agent "spiffe://domain.test/workload-not-logged"
+
+docker compose exec -u 8001 -T spire-agent \
+  /opt/spire/bin/spire-agent api fetch jwt -audience shouldappearinlogs
+
+if ! docker compose logs spire-agent | grep FetchJWTSVID | grep -q workload-logged; then
+  fail-now "FetchJWTSVID was not logged when it was supposed to."
+fi
+
+docker compose exec -T spire-agent \
+  /opt/spire/bin/spire-agent logger set -level info -socketPath /opt/debug.sock
+
+if [[ $(get-log-level) != "INFO" ]]; then
+  fail-now "Agent log level is not set to INFO"
+fi
+
+docker compose exec -u 8002 -T spire-agent \
+  /opt/spire/bin/spire-agent api fetch jwt -audience shouldnotappearinlogs
+
+if docker compose logs spire-agent | grep FetchJWTSVID | grep -q workload-not-logged; then
+  fail-now "FetchJWTSVID was logged when it was not supposed to."
+fi
+
+docker compose exec -T spire-agent \
+  /opt/spire/bin/spire-agent logger reset -socketPath /opt/debug.sock
+
+if [[ $(get-log-level) != "DEBUG" ]]; then
+  fail-now "Agent log level is not set to DEBUG"
+fi
+
+docker compose exec -u 8002 -T spire-agent \
+  /opt/spire/bin/spire-agent api fetch jwt -audience shouldnotappearinlogs
+
+if ! docker compose logs spire-agent | grep FetchJWTSVID | grep -q workload-not-logged; then
+  fail-now "FetchJWTSVID was not logged when it was supposed to."
+fi

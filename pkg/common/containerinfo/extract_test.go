@@ -168,4 +168,12 @@ func TestExtractContainerID(t *testing.T) {
 	t.Run("has multiple cgroup mounts on slash v2", func(t *testing.T) {
 		assertFound(t, "testdata/docker/cgroup-mount-at-slash/v2", testContainerID)
 	})
+
+	t.Run("tolerates tmpfs mount with empty source", func(t *testing.T) {
+		// Regression test for #7036: a tmpfs mount has no source, which renders
+		// as an empty field in /proc/<pid>/mountinfo. The container ID must
+		// still be extracted from the cgroup mount on the same file rather than
+		// the whole file being rejected.
+		assertFound(t, "testdata/docker/tmpfs-empty-source", testContainerID)
+	})
 }

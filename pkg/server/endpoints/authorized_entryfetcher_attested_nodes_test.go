@@ -79,6 +79,13 @@ func TestLoadNodeCache(t *testing.T) {
 			expectedError: "any error, doesn't matter",
 		},
 		{
+			name: "loading with a non-positive page size raises an error",
+			setup: &nodeScenarioSetup{
+				pageSize: -1,
+			},
+			expectedError: "page size must be positive, got -1",
+		},
+		{
 			name: "initial load loads nothing",
 		},
 		{
@@ -1432,6 +1439,39 @@ func TestUpdateAttestedNodesCache(t *testing.T) {
 
 			expectedAuthorizedEntries: []string{},
 		},
+		{
+			name: "empty cache, fetch five nodes spanning multiple pages, three new and two deletes",
+			setup: &nodeScenarioSetup{
+				pageSize: 2,
+			},
+			createAttestedNodes: []*common.AttestedNode{
+				{
+					SpiffeId:     "spiffe://example.org/test_node_1",
+					CertNotAfter: time.Now().Add(time.Duration(240) * time.Hour).Unix(),
+				},
+				{
+					SpiffeId:     "spiffe://example.org/test_node_3",
+					CertNotAfter: time.Now().Add(time.Duration(240) * time.Hour).Unix(),
+				},
+				{
+					SpiffeId:     "spiffe://example.org/test_node_5",
+					CertNotAfter: time.Now().Add(time.Duration(240) * time.Hour).Unix(),
+				},
+			},
+			fetchNodes: []string{
+				"spiffe://example.org/test_node_1",
+				"spiffe://example.org/test_node_2",
+				"spiffe://example.org/test_node_3",
+				"spiffe://example.org/test_node_4",
+				"spiffe://example.org/test_node_5",
+			},
+
+			expectedAuthorizedEntries: []string{
+				"spiffe://example.org/test_node_1",
+				"spiffe://example.org/test_node_3",
+				"spiffe://example.org/test_node_5",
+			},
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			scenario := NewNodeScenario(t, tt.setup)
@@ -1472,19 +1512,21 @@ func TestUpdateAttestedNodesCache(t *testing.T) {
 
 // utility functions
 type scenario struct {
-	ctx     context.Context
-	log     *logrus.Logger
-	hook    *test.Hook
-	clk     *clock.Mock
-	cache   *authorizedentries.Cache
-	metrics *fakemetrics.FakeMetrics
-	ds      *fakedatastore.DataStore
+	ctx      context.Context
+	log      *logrus.Logger
+	hook     *test.Hook
+	clk      *clock.Mock
+	cache    *authorizedentries.Cache
+	metrics  *fakemetrics.FakeMetrics
+	ds       *fakedatastore.DataStore
+	pageSize int32
 }
 
 type nodeScenarioSetup struct {
 	attestedNodes      []*common.AttestedNode
 	attestedNodeEvents []*datastore.AttestedNodeEvent
 	err                error
+	pageSize           int32
 }
 
 func NewNodeScenario(t *testing.T, setup *nodeScenarioSetup) *scenario {
@@ -1499,6 +1541,10 @@ func NewNodeScenario(t *testing.T, setup *nodeScenarioSetup) *scenario {
 
 	if setup == nil {
 		setup = &nodeScenarioSetup{}
+	}
+	pageSize := setup.pageSize
+	if pageSize == 0 {
+		pageSize = 1024
 	}
 
 	var err error
@@ -1522,13 +1568,14 @@ func NewNodeScenario(t *testing.T, setup *nodeScenarioSetup) *scenario {
 	}
 
 	return &scenario{
-		ctx:     ctx,
-		log:     log,
-		hook:    hook,
-		clk:     clk,
-		cache:   cache,
-		metrics: metrics,
-		ds:      ds,
+		ctx:      ctx,
+		log:      log,
+		hook:     hook,
+		clk:      clk,
+		cache:    cache,
+		metrics:  metrics,
+		ds:       ds,
+		pageSize: pageSize,
 	}
 }
 
@@ -1538,7 +1585,7 @@ func (s *scenario) buildAttestedNodesCache() (*attestedNodes, error) {
 		return nil, err
 	}
 
-	attestedNodes, err := buildAttestedNodesCache(s.ctx, s.log, s.metrics, s.ds, s.clk, s.cache, nodeCache, defaultCacheReloadInterval, defaultEventTimeout)
+	attestedNodes, err := buildAttestedNodesCache(s.ctx, s.log, s.metrics, s.ds, s.clk, s.cache, nodeCache, s.pageSize, defaultCacheReloadInterval, defaultEventTimeout)
 	if attestedNodes != nil {
 		// clear out the fetches
 		for node := range attestedNodes.fetchNodes {

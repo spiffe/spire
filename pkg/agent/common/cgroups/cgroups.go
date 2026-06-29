@@ -3,15 +3,9 @@ package cgroups
 import (
 	"bufio"
 	"fmt"
-	"io"
+	"io/fs"
 	"strings"
 )
-
-// Filesystem abstracts filesystem operations.
-type FileSystem interface {
-	// Open opens the named file for reading.
-	Open(name string) (io.ReadCloser, error)
-}
 
 // Cgroup represents a linux cgroup.
 type Cgroup struct {
@@ -28,9 +22,9 @@ type Cgroup struct {
 // For more information, see:
 //   - http://man7.org/linux/man-pages/man7/cgroups.7.html
 //   - https://www.kernel.org/doc/Documentation/cgroup-v2.txt
-func GetCgroups(pid int32, fs FileSystem) ([]Cgroup, error) {
-	path := fmt.Sprintf("/proc/%v/cgroup", pid)
-	file, err := fs.Open(path)
+func GetCgroups(pid int32, fsys fs.FS) ([]Cgroup, error) {
+	path := fmt.Sprintf("proc/%v/cgroup", pid)
+	file, err := fsys.Open(path)
 	if err != nil {
 		return nil, err
 	}

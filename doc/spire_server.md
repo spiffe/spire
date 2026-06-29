@@ -637,6 +637,31 @@ Checks SPIRE server's health.
 | `-socketPath` | Path to the SPIRE Server API socket   | /tmp/spire-server/private/api.sock |
 | `-verbose`    | Print verbose information             |                                    |
 
+### `spire-server logger get`
+
+Gets the current logging level of the SPIRE Server.
+
+| Command       | Action                              | Default                            |
+|:--------------|:------------------------------------|:-----------------------------------|
+| `-socketPath` | Path to the SPIRE Server API socket | /tmp/spire-server/private/api.sock |
+
+### `spire-server logger set`
+
+Sets the logging level of the SPIRE Server.
+
+| Command       | Action                                                                    | Default                            |
+|:--------------|:--------------------------------------------------------------------------|:-----------------------------------|
+| `-level`      | The new log level, one of (panic, fatal, error, warn, info, debug, trace) |                                    |
+| `-socketPath` | Path to the SPIRE Server API socket                                       | /tmp/spire-server/private/api.sock |
+
+### `spire-server logger reset`
+
+Resets the logging level of the SPIRE Server to the level it was set to at launch.
+
+| Command       | Action                              | Default                            |
+|:--------------|:------------------------------------|:-----------------------------------|
+| `-socketPath` | Path to the SPIRE Server API socket | /tmp/spire-server/private/api.sock |
+
 ### `spire-server validate`
 
 Validates a SPIRE server configuration file.  Arguments are the same as `spire-server run`.
