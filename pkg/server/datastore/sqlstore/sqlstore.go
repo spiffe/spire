@@ -2442,9 +2442,11 @@ func deleteAttestedNodeAndSelectors(tx *gorm.DB, spiffeID string, logger logrus.
 	}
 
 	// Cascade only for join-token-attested nodes, and only for entries that match
-	// the auto-alias shape that createJoinTokenRegistrationEntry writes (single
-	// "spiffe_id" selector whose value is the parent SVID). Other parent_id-keyed
-	// entries are user-managed workload entries and must be preserved.
+	// the auto-alias shape that (*Service).createJoinTokenRegistrationEntry in
+	// pkg/server/api/agent/v1/service.go writes (single "spiffe_id" selector whose
+	// value is the parent SVID). Keep this matcher in sync with that writer; the two
+	// are exercised together by TestCascadeDeleteJoinTokenAliasEntry. Other
+	// parent_id-keyed entries are user-managed workload entries and must be preserved.
 	if nodeModel.DataType == "join_token" {
 		var candidates []RegisteredEntry
 		if err := tx.Where("parent_id = ?", spiffeID).Find(&candidates).Error; err != nil {
