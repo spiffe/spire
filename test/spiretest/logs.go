@@ -61,8 +61,13 @@ func normalizeData(data logrus.Fields) logrus.Fields {
 	if len(data) == 0 {
 		return nil
 	}
+	// Build a new map rather than mutating the caller's. The entries come
+	// from a logrus hook that shares each entry's Data map with logrus
+	// itself, so a background goroutine may still be formatting (reading)
+	// the same map while we normalize it. Mutating in place would race.
+	out := make(logrus.Fields, len(data))
 	for key, field := range data {
-		data[key] = fmt.Sprint(field)
+		out[key] = fmt.Sprint(field)
 	}
-	return data
+	return out
 }
