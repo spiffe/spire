@@ -157,6 +157,8 @@ github.com/aws/aws-sdk-go-v2/service/kms v1.53.1 h1:ZG4esUs5NrDr6lwKDZLE+746tq7n
 github.com/aws/aws-sdk-go-v2/service/kms v1.53.1/go.mod h1:f8U49SXXH38WX8B1oFXG8igfV+MZ5mgM9b/trTlBf2E=
 github.com/aws/aws-sdk-go-v2/service/organizations v1.51.1 h1:5hM1jQjIzEiu07ZqQ8iI4sC+06C8a+idNtytO65dhAw=
 github.com/aws/aws-sdk-go-v2/service/organizations v1.51.1/go.mod h1:urLFj1twuR/h5T0wN/2/kmY1gxBFa1tTKr+c60lZ2fA=
+github.com/aws/aws-sdk-go-v2/service/resourcegroupstaggingapi v1.33.3 h1:cbpUm/70ixkgEnoSjn0QlEr2h0sRxPePELoF2DnQWHc=
+github.com/aws/aws-sdk-go-v2/service/resourcegroupstaggingapi v1.33.3/go.mod h1:X1hs6YxHBTOd8urqr4UY/630+PkthkarMTAn66Hmeo0=
 github.com/aws/aws-sdk-go-v2/service/rolesanywhere v1.23.0 h1:BD6q8KEiom1qJpDC7kmBrKwMXCRkuSy7JXWPhQThFkI=
 github.com/aws/aws-sdk-go-v2/service/rolesanywhere v1.23.0/go.mod h1:kJgqmGmlOPqTe9cntPrSgMdIQ3cAama8TAW+NKaDCzE=
 github.com/aws/aws-sdk-go-v2/service/s3 v1.104.0 h1:ta8csKy5vN91F3i5gGR85lFV0srBqySEji7Jroes6rE=
