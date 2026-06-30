@@ -597,6 +597,10 @@ func (s *Service) createJoinTokenRegistrationEntry(ctx context.Context, token st
 	if err != nil {
 		return fmt.Errorf("failed to create join token ID: %w", err)
 	}
+	// This auto-alias entry shape (parent_id == the single "spiffe_id" selector's
+	// value) is what deleteAttestedNodeAndSelectors in the SQL datastore matches to
+	// cascade-delete the entry when the join-token node is removed. Changing the shape
+	// here requires updating that matcher (and TestCascadeDeleteJoinTokenAliasEntry).
 	entry := &common.RegistrationEntry{
 		ParentId: parentID.String(),
 		SpiffeId: agentID,

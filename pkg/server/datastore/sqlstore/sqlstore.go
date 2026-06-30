@@ -386,7 +386,7 @@ func (ds *Plugin) UpdateAttestedNode(ctx context.Context, n *common.AttestedNode
 // DeleteAttestedNode deletes the given attested node and the associated node selectors.
 func (ds *Plugin) DeleteAttestedNode(ctx context.Context, spiffeID string) (attestedNode *common.AttestedNode, err error) {
 	if err = ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
-		attestedNode, err = deleteAttestedNodeAndSelectors(tx, spiffeID)
+		attestedNode, err = deleteAttestedNodeAndSelectors(tx, spiffeID, ds.log)
 		if err != nil {
 			return err
 		}
@@ -1857,7 +1857,7 @@ func pruneAttestedExpiredNodes(tx *gorm.DB, expiredBefore time.Time, include boo
 	defer func() { logger.WithField("count", count).Info("Pruned expired agents") }()
 
 	for _, node := range expiredNodes {
-		_, err := deleteAttestedNodeAndSelectors(tx, node.SpiffeID)
+		_, err := deleteAttestedNodeAndSelectors(tx, node.SpiffeID, logger)
 		if err != nil {
 			return err
 		}
@@ -2431,18 +2431,53 @@ func updateAttestedNode(tx *gorm.DB, n *common.AttestedNode, mask *common.Attest
 	return modelToAttestedNode(model), nil
 }
 
-func deleteAttestedNodeAndSelectors(tx *gorm.DB, spiffeID string) (*common.AttestedNode, error) {
+func deleteAttestedNodeAndSelectors(tx *gorm.DB, spiffeID string, logger logrus.FieldLogger) (*common.AttestedNode, error) {
 	var (
 		nodeModel         AttestedNode
 		nodeSelectorModel NodeSelector
 	)
 
-	// batch delete all associated node selectors
-	if err := tx.Where("spiffe_id = ?", spiffeID).Delete(&nodeSelectorModel).Error; err != nil {
+	if err := tx.Find(&nodeModel, "spiffe_id = ?", spiffeID).Error; err != nil {
 		return nil, newWrappedSQLError(err)
 	}
 
-	if err := tx.Find(&nodeModel, "spiffe_id = ?", spiffeID).Error; err != nil {
+	// Cascade only for join-token-attested nodes, and only for entries that match
+	// the auto-alias shape that (*Service).createJoinTokenRegistrationEntry in
+	// pkg/server/api/agent/v1/service.go writes (single "spiffe_id" selector whose
+	// value is the parent SVID). Keep this matcher in sync with that writer; the two
+	// are exercised together by TestCascadeDeleteJoinTokenAliasEntry. Other
+	// parent_id-keyed entries are user-managed workload entries and must be preserved.
+	if nodeModel.DataType == "join_token" {
+		var candidates []RegisteredEntry
+		if err := tx.Where("parent_id = ?", spiffeID).Find(&candidates).Error; err != nil {
+			return nil, newWrappedSQLError(err)
+		}
+		for _, entry := range candidates {
+			var selectors []Selector
+			if err := tx.Where("registered_entry_id = ?", entry.ID).Find(&selectors).Error; err != nil {
+				return nil, newWrappedSQLError(err)
+			}
+			if len(selectors) != 1 || selectors[0].Type != "spiffe_id" || selectors[0].Value != entry.ParentID {
+				continue
+			}
+			if err := deleteRegistrationEntrySupport(tx, entry); err != nil {
+				return nil, err
+			}
+			if err := createRegistrationEntryEvent(tx, &datastore.RegistrationEntryEvent{
+				EntryID: entry.EntryID,
+			}); err != nil {
+				return nil, err
+			}
+			logger.WithFields(logrus.Fields{
+				telemetry.SPIFFEID:       entry.SpiffeID,
+				telemetry.ParentID:       entry.ParentID,
+				telemetry.RegistrationID: entry.EntryID,
+			}).Info("Cascade-deleted registration entry on attested node deletion")
+		}
+	}
+
+	// batch delete all associated node selectors
+	if err := tx.Where("spiffe_id = ?", spiffeID).Delete(&nodeSelectorModel).Error; err != nil {
 		return nil, newWrappedSQLError(err)
 	}
 
