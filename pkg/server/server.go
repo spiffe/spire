@@ -447,10 +447,10 @@ func (s *Server) newNodeManager(cat catalog.Catalog, metrics telemetry.Metrics) 
 		DataStore: cat.GetDataStore(),
 		Log:       s.config.Log.WithField(telemetry.SubsystemName, telemetry.NodeManager),
 		Metrics:   metrics,
+		BatchSize: s.config.PruneAttestedNodesBatchSize,
 		PruneArgs: node.PruneArgs{
 			ExpiredFor:             s.config.PruneAttestedNodesExpiredFor,
 			IncludeNonReattestable: s.config.PruneNonReattestableNodes,
-			BatchSize:              s.config.PruneAttestedNodesBatchSize,
 		},
 	})
 	return nodeManager

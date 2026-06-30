@@ -52,10 +52,6 @@ const (
 
 	defaultConfigPath = "conf/server/server.conf"
 	defaultLogLevel   = "INFO"
-
-	// defaultPruneAttestedNodesBatchSize is the number of expired attested
-	// nodes pruned per cycle when prune_attested_nodes_batch_size is unset.
-	defaultPruneAttestedNodesBatchSize = 1000
 )
 
 var defaultRateLimit = true
@@ -717,9 +713,6 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 		}
 
 		sc.PruneAttestedNodesBatchSize = c.Server.PruneAttestedNodesBatchSize
-		if sc.PruneAttestedNodesBatchSize <= 0 {
-			sc.PruneAttestedNodesBatchSize = defaultPruneAttestedNodesBatchSize
-		}
 	}
 
 	if c.Server.DisableJWTSVIDs {

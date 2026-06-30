@@ -545,12 +545,12 @@ func TestNewServerConfig(t *testing.T) {
 			},
 		},
 		{
-			msg: "prune_attested_nodes_batch_size should default when unset",
+			msg: "prune_attested_nodes_batch_size is left unset for the datastore to default",
 			input: func(c *Config) {
 				c.Server.PruneAttestedNodesExpiredFor = "1h"
 			},
 			test: func(t *testing.T, c *server.Config) {
-				require.Equal(t, defaultPruneAttestedNodesBatchSize, c.PruneAttestedNodesBatchSize)
+				require.Equal(t, 0, c.PruneAttestedNodesBatchSize)
 			},
 		},
 		{

@@ -20,9 +20,6 @@ const (
 type PruneArgs struct {
 	ExpiredFor             time.Duration
 	IncludeNonReattestable bool
-	// BatchSize is the maximum number of expired nodes pruned per cycle.
-	// A non-positive value falls back to the datastore default.
-	BatchSize int
 }
 
 type ManagerConfig struct {
@@ -33,6 +30,10 @@ type ManagerConfig struct {
 
 	Clock    clock.Clock
 	Interval time.Duration
+
+	// BatchSize is the maximum number of expired nodes pruned per cycle.
+	// A non-positive value falls back to the datastore default.
+	BatchSize int
 
 	PruneArgs
 }
