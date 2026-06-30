@@ -5,11 +5,21 @@ package run
 import (
 	"errors"
 	"flag"
+	"fmt"
 	"net"
+	"unsafe"
 
 	"github.com/spiffe/spire/cmd/spire-agent/cli/common"
 	"github.com/spiffe/spire/pkg/agent"
 	"github.com/spiffe/spire/pkg/common/namedpipe"
+	"golang.org/x/sys/windows"
+)
+
+var (
+	// We can't use the AdjustTokenPrivileges function from x/sys/windows because
+	// it currently does not handle the ERROR_NOT_ALL_ASSIGNED error. Based on testing
+	// it seems to return a nil error even if fails to adjust the privileges.
+	procAdjustTokenPrivileges = windows.NewLazySystemDLL("advapi32.dll").NewProc("AdjustTokenPrivileges")
 )
 
 func (c *agentConfig) addOSFlags(flags *flag.FlagSet) {
@@ -43,7 +53,53 @@ func (c *agentConfig) validateOS() error {
 	return nil
 }
 
-func prepareEndpoints(*agent.Config) error {
-	// Nothing to do in this platform
+func prepareEndpoints(c *agent.Config) error {
+	if err := enableSeDebugPrivilege(); err != nil {
+		c.Log.WithError(err).Warn("Could not enable SeDebugPrivilege; workload attestation of processes running as more privileged users may fail")
+	} else {
+		c.Log.Info("Enabled SeDebugPrivilege")
+	}
+	return nil
+}
+
+func enableSeDebugPrivilege() error {
+	var token windows.Token
+	err := windows.OpenProcessToken(windows.CurrentProcess(), windows.TOKEN_ADJUST_PRIVILEGES|windows.TOKEN_QUERY, &token)
+	if err != nil {
+		return fmt.Errorf("failed to open process token: %w", err)
+	}
+	defer token.Close()
+
+	var luid windows.LUID
+	seDebug, err := windows.UTF16PtrFromString("SeDebugPrivilege")
+	if err != nil {
+		return fmt.Errorf("failed to encode privilege name: %w", err)
+	}
+	err = windows.LookupPrivilegeValue(nil, seDebug, &luid)
+	if err != nil {
+		return fmt.Errorf("failed to look up SeDebugPrivilege: %w", err)
+	}
+
+	tp := windows.Tokenprivileges{
+		PrivilegeCount: 1,
+		Privileges: [1]windows.LUIDAndAttributes{
+			{Luid: luid, Attributes: windows.SE_PRIVILEGE_ENABLED},
+		},
+	}
+
+	result, _, err := procAdjustTokenPrivileges.Call(
+		uintptr(token),
+		0,
+		uintptr(unsafe.Pointer(&tp)),
+		0,
+		0,
+		0,
+	)
+	if result == 0 {
+		return fmt.Errorf("AdjustTokenPrivileges failed: %w", err)
+	}
+	if errors.Is(err, windows.ERROR_NOT_ALL_ASSIGNED) {
+		return errors.New("SeDebugPrivilege is not held by this token")
+	}
 	return nil
 }
