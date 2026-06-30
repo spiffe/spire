@@ -535,6 +535,25 @@ func TestNewServerConfig(t *testing.T) {
 
 	cases := []newServerConfigCase{
 		{
+			msg: "prune_attested_nodes_batch_size should be correctly parsed",
+			input: func(c *Config) {
+				c.Server.PruneAttestedNodesExpiredFor = "1h"
+				c.Server.PruneAttestedNodesBatchSize = 5000
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Equal(t, 5000, c.PruneAttestedNodesBatchSize)
+			},
+		},
+		{
+			msg: "prune_attested_nodes_batch_size should default when unset",
+			input: func(c *Config) {
+				c.Server.PruneAttestedNodesExpiredFor = "1h"
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Equal(t, defaultPruneAttestedNodesBatchSize, c.PruneAttestedNodesBatchSize)
+			},
+		},
+		{
 			msg: "bind_address and bind_port should be correctly parsed",
 			input: func(c *Config) {
 				c.Server.BindAddress = "192.168.1.1"

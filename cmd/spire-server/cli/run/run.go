@@ -52,6 +52,10 @@ const (
 
 	defaultConfigPath = "conf/server/server.conf"
 	defaultLogLevel   = "INFO"
+
+	// defaultPruneAttestedNodesBatchSize is the number of expired attested
+	// nodes pruned per cycle when prune_attested_nodes_batch_size is unset.
+	defaultPruneAttestedNodesBatchSize = 1000
 )
 
 var defaultRateLimit = true
@@ -87,6 +91,7 @@ type serverConfig struct {
 	LogFormat                    string             `hcl:"log_format"`
 	LogSourceLocation            bool               `hcl:"log_source_location"`
 	PruneAttestedNodesExpiredFor string             `hcl:"prune_attested_nodes_expired_for"`
+	PruneAttestedNodesBatchSize  int                `hcl:"prune_attested_nodes_batch_size"`
 	PruneNonReattestableNodes    bool               `hcl:"prune_tofu_nodes"`
 	ProxyProtocolTrustedCIDRs    []string           `hcl:"proxy_protocol_trusted_cidrs"`
 	RateLimit                    rateLimitConfig    `hcl:"ratelimit"`
@@ -709,6 +714,11 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 		sc.PruneAttestedNodesExpiredFor = expiredFor
 		if c.Server.PruneNonReattestableNodes {
 			sc.PruneNonReattestableNodes = c.Server.PruneNonReattestableNodes
+		}
+
+		sc.PruneAttestedNodesBatchSize = c.Server.PruneAttestedNodesBatchSize
+		if sc.PruneAttestedNodesBatchSize <= 0 {
+			sc.PruneAttestedNodesBatchSize = defaultPruneAttestedNodesBatchSize
 		}
 	}
 

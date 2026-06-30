@@ -57,7 +57,7 @@ type DataStore interface {
 	FetchAttestedNodes(ctx context.Context, spiffeIDs []string) (map[string]*common.AttestedNode, error)
 	ListAttestedNodes(context.Context, *ListAttestedNodesRequest) (*ListAttestedNodesResponse, error)
 	UpdateAttestedNode(context.Context, *common.AttestedNode, *common.AttestedNodeMask) (*common.AttestedNode, error)
-	PruneAttestedExpiredNodes(ctx context.Context, expiredBefore time.Time, includeNonReattestable bool) error
+	PruneAttestedExpiredNodes(ctx context.Context, expiredBefore time.Time, includeNonReattestable bool, batchSize int) error
 
 	// Nodes Events
 	ListAttestedNodeEvents(ctx context.Context, req *ListAttestedNodeEventsRequest) (*ListAttestedNodeEventsResponse, error)

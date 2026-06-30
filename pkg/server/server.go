@@ -450,6 +450,7 @@ func (s *Server) newNodeManager(cat catalog.Catalog, metrics telemetry.Metrics) 
 		PruneArgs: node.PruneArgs{
 			ExpiredFor:             s.config.PruneAttestedNodesExpiredFor,
 			IncludeNonReattestable: s.config.PruneNonReattestableNodes,
+			BatchSize:              s.config.PruneAttestedNodesBatchSize,
 		},
 	})
 	return nodeManager
