@@ -27,9 +27,11 @@ const (
   -instance string
     	Instance name to substitute into socket templates (env SPIRE_SERVER_PRIVATE_SOCKET_TEMPLATE).
   -jwtSVIDTTL int
+  -jwtSVIDIncludeJTI
+` + "    \tA boolean value that, when set, includes a unique 'jti' claim in JWT-SVIDs issued for this entry and bypasses the agent JWT-SVID cache\n" + `  -jwtSVIDTTL int
     	The lifetime, in seconds, for JWT-SVIDs issued based on this registration entry.
   -namedPipeName string
-    	Pipe name of the SPIRE Server API named pipe (default "\\spire-server\\private\\api")
+        Pipe name of the SPIRE Server API named pipe (default "\\spire-server\\private\\api")
   -node
     	If set, this entry will be applied to matching nodes rather than workloads
   -output value
@@ -94,6 +96,8 @@ const (
     	The entry hint, used to disambiguate entries with the same SPIFFE ID
   -jwtSVIDTTL int
     	The lifetime, in seconds, for JWT-SVIDs issued based on this registration entry.
+  -instance string
+    	Instance name to substitute into socket templates (env SPIRE_SERVER_PRIVATE_SOCKET_TEMPLATE).		
   -namedPipeName string
     	Pipe name of the SPIRE Server API named pipe (default "\\spire-server\\private\\api")
   -output value
