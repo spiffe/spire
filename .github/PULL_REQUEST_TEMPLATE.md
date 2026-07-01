@@ -15,6 +15,11 @@ https://github.com/apps/dco
      from the assigned maintainer (the "Reviewers" section of the PR has a
      refresh icon next to their name). This puts the ball back in their court
      so they know it is ready for another look.
+   - When addressing review comments, please add new commits rather than
+     force-pushing. Individual commits that address comments are easier to
+     review than a single commit containing all the changes again. Pull
+     requests are squashed at merge time, so there is no need to squash and
+     force-push in the PR.
    - Please also look at any comments from Copilot and address them if needed.
      Posting a short reply to each one helps reviewers see whether it has been
      addressed or consciously considered, even when no code change is needed.
