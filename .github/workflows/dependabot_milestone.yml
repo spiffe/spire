@@ -6,15 +6,19 @@ on:
 
 permissions:
   contents: read
-  issues: write
+  # A milestone is set on a Dependabot PR, and the write is checked against
+  # the pull-requests scope because the target object is a pull request, even
+  # though it goes through the issues REST endpoint. issues: write is not
+  # enough here.
+  pull-requests: write
 
 jobs:
   assign-milestone:
     name: assign-milestone
     runs-on: ubuntu-22.04
     # Only act on PRs opened by Dependabot. pull_request_target runs in
-    # the base branch context, so GITHUB_TOKEN can write to issues and
-    # pull requests, and the PR branch code never executes here.
+    # the base branch context, so GITHUB_TOKEN can write to pull requests,
+    # and the PR branch code never executes here.
     if: github.event.pull_request.user.login == 'dependabot[bot]'
 
     steps:
