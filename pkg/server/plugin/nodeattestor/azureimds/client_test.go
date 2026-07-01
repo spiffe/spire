@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v7"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resourcegraph/armresourcegraph"
 	"github.com/stretchr/testify/require"
 )
 
@@ -196,4 +197,95 @@ func TestBuildVirtualMachineFromVMSSInstanceNoNetworkProfile(t *testing.T) {
 	require.Equal(t, vmID, vm.VMID)
 	require.Equal(t, "rg", vm.ResourceGroup)
 	require.Empty(t, vm.Interfaces)
+}
+
+// TestExtractArmResourceGraphItemsNetworkInterface locks in the shape the
+// standalone-VM NIC query must return. The Resource Graph response must carry
+// securityGroup as an object so it unmarshals into SecurityGroup; a string
+// value (the pre-fix behavior) fails to unmarshal and breaks attestation.
+func TestExtractArmResourceGraphItemsNetworkInterface(t *testing.T) {
+	tests := []struct {
+		name        string
+		totalRecord int64
+		data        any
+		expected    []*NetworkInterface
+		expectErr   string
+	}{
+		{
+			name:        "security group as object unmarshals",
+			totalRecord: 1,
+			data: []any{
+				map[string]any{
+					"name":          "nic-1",
+					"resourceGroup": "rg-1",
+					"securityGroup": map[string]any{
+						"resourceGroup": "nsg-rg",
+						"name":          "nsg-1",
+					},
+					"subnets": []any{
+						map[string]any{"vnet": "vnet-1", "name": "subnet-1"},
+					},
+				},
+			},
+			expected: []*NetworkInterface{
+				{
+					Name:          "nic-1",
+					SecurityGroup: SecurityGroup{ResourceGroup: "nsg-rg", Name: "nsg-1"},
+					Subnets:       []Subnet{{VNet: "vnet-1", SubnetName: "subnet-1"}},
+				},
+			},
+		},
+		{
+			name:        "empty security group object unmarshals",
+			totalRecord: 1,
+			data: []any{
+				map[string]any{
+					"name":          "nic-1",
+					"resourceGroup": "rg-1",
+					"securityGroup": map[string]any{"resourceGroup": "", "name": ""},
+				},
+			},
+			expected: []*NetworkInterface{
+				{Name: "nic-1", SecurityGroup: SecurityGroup{}},
+			},
+		},
+		{
+			name:        "security group as string fails to unmarshal",
+			totalRecord: 1,
+			data: []any{
+				map[string]any{
+					"name":          "nic-1",
+					"resourceGroup": "rg-1",
+					"securityGroup": `{"resourceGroup":"nsg-rg","name":"nsg-1"}`,
+				},
+			},
+			expectErr: "unable to unmarshal item",
+		},
+		{
+			name:        "no records returns not found",
+			totalRecord: 0,
+			data:        []any{},
+			expectErr:   "resource not found",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			resp := armresourcegraph.ClientResourcesResponse{
+				QueryResponse: armresourcegraph.QueryResponse{
+					TotalRecords: &tc.totalRecord,
+					Data:         tc.data,
+				},
+			}
+
+			items, err := extractArmResourceGraphItems[NetworkInterface](resp)
+			if tc.expectErr != "" {
+				require.ErrorContains(t, err, tc.expectErr)
+				require.Nil(t, items)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tc.expected, items)
+		})
+	}
 }
