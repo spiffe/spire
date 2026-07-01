@@ -144,6 +144,37 @@ check-server-started() {
   fail-now "timed out waiting for server to start"
 }
 
+# Counts how many times the server has logged that it started its APIs. The
+# server emits the "Starting Server APIs" line twice per boot (TCP and UDS
+# listeners).
+count-server-api-starts() {
+  # grep -c exits non-zero when there are no matches, which would trip the
+  # step's errexit/pipefail, so swallow that into a zero count.
+  docker compose logs "$1" | grep -c "Starting Server APIs" || true
+}
+
+# Like check-server-started but safe to use after "docker compose restart".
+# A restart reuses the same container, so its log still contains the
+# "Starting Server APIs" markers from the pre-restart boot. Callers capture the
+# marker count before restarting and pass it here so we wait for the restarted
+# server to emit its own two markers rather than returning on the stale ones.
+wait-for-server-restarted() {
+  local container="$1"
+  local baseline="$2"
+  local want=$((baseline + 2))
+  MAXCHECKS=30
+  CHECKINTERVAL=1
+  for ((i=1;i<=MAXCHECKS;i++)); do
+      log-info "checking for restarted server APIs ($i of $MAXCHECKS max)..."
+      if [ "$(count-server-api-starts "$container")" -ge "$want" ]; then
+          return 0
+      fi
+      sleep "${CHECKINTERVAL}"
+  done
+
+  fail-now "timed out waiting for server to restart"
+}
+
 check-log-line() {
   # Check at most 30 times (with one second in between) that the agent has
   # successfully synced down the workload entry.
