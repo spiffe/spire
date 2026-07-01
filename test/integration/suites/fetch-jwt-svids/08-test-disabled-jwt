@@ -5,13 +5,7 @@ log-info "testing disabled JWT functionality..."
 # Replace with disable_jwt_svids = true configuration
 sed -i.bak "s#disable_jwt_svids = false#disable_jwt_svids = true#g" conf/server/server.conf
 
-# The restart reuses the container, so its log keeps the "Starting Server APIs"
-# markers from the original boot. Capture that count first and wait for the
-# restarted server to emit its own markers, otherwise the readiness check would
-# return on the stale ones before the server is actually listening again.
-baseline=$(count-server-api-starts spire-server)
-docker compose restart spire-server
-wait-for-server-restarted spire-server "$baseline"
+docker-spire-server-restart spire-server
 
 test-jwt-disabled-command() {
     local test_name="$1"

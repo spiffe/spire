@@ -148,9 +148,12 @@ check-server-started() {
 # server emits the "Starting Server APIs" line twice per boot (TCP and UDS
 # listeners).
 count-server-api-starts() {
-  # grep -c exits non-zero when there are no matches, which would trip the
-  # step's errexit/pipefail, so swallow that into a zero count.
-  docker compose logs "$1" | grep -c "Starting Server APIs" || true
+  # Capture the logs first so a "docker compose logs" failure still surfaces
+  # under errexit/pipefail. Only grep's no-match exit code is tolerated, since
+  # zero matches is a valid count.
+  local logs
+  logs=$(docker compose logs "$1")
+  echo "${logs}" | grep -c "Starting Server APIs" || true
 }
 
 # Like check-server-started but safe to use after "docker compose restart".
@@ -173,6 +176,26 @@ wait-for-server-restarted() {
   done
 
   fail-now "timed out waiting for server to restart"
+}
+
+# Restarts the given server containers and waits for each to be ready again.
+# Unlike a fresh start, "docker compose restart" reuses the container and keeps
+# the pre-restart "Starting Server APIs" markers in its log, so the marker count
+# is baselined before the restart and we wait for it to grow afterwards.
+docker-spire-server-restart() {
+  local -a baselines=()
+  local container
+  for container in "$@"; do
+      baselines+=("$(count-server-api-starts "${container}")")
+  done
+
+  docker compose restart "$@"
+
+  local i=0
+  for container in "$@"; do
+      wait-for-server-restarted "${container}" "${baselines[$i]}"
+      i=$((i + 1))
+  done
 }
 
 check-log-line() {
