@@ -175,6 +175,12 @@ func (c *azureClient) getVMSSInfo(ctx context.Context, subscriptionIDs []*string
 }
 
 func (c *azureClient) getNetworkInterfaces(ctx context.Context, vmId string, subscriptionId *string) ([]*NetworkInterface, error) {
+	// Azure Resource Graph lowercases the resourceGroup segment of the id
+	// column on the resources table, but nested property values such as
+	// properties.virtualMachine.id keep their original casing. Compare with
+	// tolower on both sides so a standalone VM whose NIC records a
+	// differently-cased VM id still matches. See:
+	// https://learn.microsoft.com/en-us/azure/governance/resource-graph/concepts/explore-resources
 	query := fmt.Sprintf(`
 	Resources
 	| where type == "microsoft.network/networkinterfaces"
