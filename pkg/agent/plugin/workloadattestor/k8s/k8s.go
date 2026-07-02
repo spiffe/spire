@@ -178,6 +178,12 @@ type HCLConfig struct {
 	// about mountinfo and cgroup information used to locate the container.
 	VerboseContainerLocatorLogs bool `hcl:"verbose_container_locator_logs"`
 
+	// EnableNamespaceLabels enables fetching namespace labels from the
+	// Kubernetes API server. When enabled, namespace labels are available
+	// as selectors. This requires the SPIRE agent service account to have
+	// RBAC permissions to get namespaces.
+	EnableNamespaceLabels bool `hcl:"enable_namespace_labels"`
+
 	// Sigstore contains sigstore specific configs.
 	Sigstore *sigstore.HCLConfig `hcl:"sigstore,omitempty"`
 
@@ -245,6 +251,7 @@ type k8sConfig struct {
 	NodeName                   string
 	ReloadInterval             time.Duration
 	DisableContainerSelectors  bool
+	EnableNamespaceLabels      bool
 	ContainerHelper            ContainerHelper
 	sigstoreConfig             *sigstore.Config
 	APIServerCache             k8sAPIServerCacheConfig
@@ -343,6 +350,7 @@ func (p *Plugin) buildConfig(coreConfig catalog.CoreConfig, hclText string, stat
 		NodeName:                   nodeName,
 		ReloadInterval:             reloadInterval,
 		DisableContainerSelectors:  newConfig.DisableContainerSelectors,
+		EnableNamespaceLabels:      newConfig.EnableNamespaceLabels,
 		ContainerHelper:            containerHelper,
 		sigstoreConfig:             sigstoreConfig,
 		APIServerCache:             apiServerCacheConfig,
@@ -504,6 +512,14 @@ type Plugin struct {
 	cachedPodList           map[string]*fastjson.Value
 	cachedPodListValidUntil time.Time
 	singleflight            singleflight.Group
+
+	namespaceCacheMu sync.RWMutex
+	namespaceCache   map[string]*namespaceEntry
+}
+
+type namespaceEntry struct {
+	labels    map[string]string
+	expiresAt time.Time
 }
 
 func New() *Plugin {
@@ -677,6 +693,15 @@ func (p *Plugin) attestByPIDReference(ctx context.Context, pid int32) (*attestRe
 					selectorValues = append(selectorValues, getSelectorValuesFromWorkloadContainerStatus(containerStatus)...)
 				}
 
+				if config.EnableNamespaceLabels {
+					nsLabels, err := p.getNamespaceLabels(ctx, pod.Namespace)
+					if err != nil {
+						log.Warn("Unable to get namespace labels", "namespace", pod.Namespace, "err", err)
+					} else {
+						selectorValues = append(selectorValues, getSelectorValuesFromNamespaceLabels(nsLabels)...)
+					}
+				}
+
 				if sigstoreVerifier != nil {
 					log.Debug("Attempting to verify sigstore image signature", "image", containerStatus.Image)
 					sigstoreSelectors, err := p.sigstoreVerifier.Verify(ctx, containerStatus.ImageID)
@@ -691,6 +716,15 @@ func (p *Plugin) attestByPIDReference(ctx context.Context, pid int32) (*attestRe
 				// but the pod is known. If container selectors have been
 				// disabled, then allow the pod selectors to be used.
 				selectorValues = append(selectorValues, getSelectorValuesFromPodInfo(pod)...)
+
+				if config.EnableNamespaceLabels {
+					nsLabels, err := p.getNamespaceLabels(ctx, pod.Namespace)
+					if err != nil {
+						log.Warn("Unable to get namespace labels", "namespace", pod.Namespace, "err", err)
+					} else {
+						selectorValues = append(selectorValues, getSelectorValuesFromNamespaceLabels(nsLabels)...)
+					}
+				}
 			}
 
 			if len(selectorValues) > 0 {
@@ -1707,6 +1741,73 @@ func getPodImageIdentifiers(containerStatuses ...corev1.ContainerStatus) map[str
 		podImages[containerStatus.Image] = struct{}{}
 	}
 	return podImages
+}
+
+const namespaceCacheTTL = 5 * time.Minute
+
+func (p *Plugin) getNamespaceLabels(ctx context.Context, namespace string) (map[string]string, error) {
+	p.namespaceCacheMu.RLock()
+	if entry, ok := p.namespaceCache[namespace]; ok && p.clock.Now().Before(entry.expiresAt) {
+		p.namespaceCacheMu.RUnlock()
+		return entry.labels, nil
+	}
+	p.namespaceCacheMu.RUnlock()
+
+	result, err, _ := p.singleflight.Do("ns:"+namespace, func() (any, error) {
+		// Re-check cache; another goroutine may have populated it.
+		p.namespaceCacheMu.RLock()
+		if entry, ok := p.namespaceCache[namespace]; ok && p.clock.Now().Before(entry.expiresAt) {
+			p.namespaceCacheMu.RUnlock()
+			return entry.labels, nil
+		}
+		p.namespaceCacheMu.RUnlock()
+
+		kubeClient, err := p.getOrCreateKubeClient()
+		if err != nil {
+			return nil, fmt.Errorf("unable to create kube client: %w", err)
+		}
+
+		var ns corev1.Namespace
+		if err := kubeClient.Get(ctx, client.ObjectKey{Name: namespace}, &ns); err != nil {
+			return nil, fmt.Errorf("unable to get namespace %q: %w", namespace, err)
+		}
+
+		labels := ns.Labels
+		if labels == nil {
+			labels = map[string]string{}
+		}
+
+		p.namespaceCacheMu.Lock()
+		if p.namespaceCache == nil {
+			p.namespaceCache = make(map[string]*namespaceEntry)
+		}
+		now := p.clock.Now()
+		for key, entry := range p.namespaceCache {
+			if now.After(entry.expiresAt) {
+				delete(p.namespaceCache, key)
+			}
+		}
+		p.namespaceCache[namespace] = &namespaceEntry{
+			labels:    labels,
+			expiresAt: now.Add(namespaceCacheTTL),
+		}
+		p.namespaceCacheMu.Unlock()
+
+		return labels, nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return result.(map[string]string), nil
+}
+
+func getSelectorValuesFromNamespaceLabels(labels map[string]string) []string {
+	selectorValues := make([]string, 0, len(labels))
+	for k, v := range labels {
+		selectorValues = append(selectorValues, fmt.Sprintf("ns-label:%s:%s", k, v))
+	}
+	return selectorValues
 }
 
 func getSelectorValuesFromPodInfo(pod *corev1.Pod) []string {
