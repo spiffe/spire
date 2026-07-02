@@ -269,10 +269,10 @@ func (w metricsWrapper) PruneRegistrationEntryEvents(ctx context.Context, olderT
 	return w.ds.PruneRegistrationEntryEvents(ctx, olderThan)
 }
 
-func (w metricsWrapper) PruneAttestedExpiredNodes(ctx context.Context, expiredBefore time.Time, includeNonReattestable bool) (err error) {
+func (w metricsWrapper) PruneAttestedExpiredNodes(ctx context.Context, expiredBefore time.Time, includeNonReattestable bool, batchSize int) (err error) {
 	callCounter := StartPruneAttestedExpiredNodes(w.m)
 	defer callCounter.Done(&err)
-	return w.ds.PruneAttestedExpiredNodes(ctx, expiredBefore, includeNonReattestable)
+	return w.ds.PruneAttestedExpiredNodes(ctx, expiredBefore, includeNonReattestable, batchSize)
 }
 
 func (w metricsWrapper) SetBundle(ctx context.Context, bundle *common.Bundle) (_ *common.Bundle, err error) {
