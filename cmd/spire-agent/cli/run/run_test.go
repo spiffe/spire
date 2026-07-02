@@ -13,6 +13,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/pkg/agent"
+	agentbroker "github.com/spiffe/spire/pkg/agent/broker"
 	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/agent/workloadkey"
 	"github.com/spiffe/spire/pkg/common/log"
@@ -1029,6 +1030,89 @@ func TestNewAgentConfig(t *testing.T) {
 			},
 		},
 		{
+			msg: "broker allowed reference types parse object entries",
+			input: func(c *Config) {
+				c.Agent.Experimental.Broker = &brokerHCLConfig{
+					BindAddress: "127.0.0.1:8443",
+					Brokers: []brokerHCLEntry{
+						{
+							ID: "spiffe://example.org/broker",
+							AllowedReferenceTypes: []brokerAllowedReferenceTypeHCLEntry{
+								{TypeURL: "type.googleapis.com/spiffe.broker.KubernetesObjectReference", AllowOverTCP: true},
+								{TypeURL: "type.googleapis.com/spiffe.broker.WorkloadPIDReference"},
+							},
+						},
+					},
+				}
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Len(t, c.Broker.Brokers, 1)
+				require.Equal(t, []agentbroker.AllowedReferenceType{
+					{TypeURL: "type.googleapis.com/spiffe.broker.KubernetesObjectReference", AllowOverTCP: true},
+					{TypeURL: "type.googleapis.com/spiffe.broker.WorkloadPIDReference"},
+				}, c.Broker.Brokers[0].AllowedReferenceTypes)
+			},
+		},
+		{
+			msg:                "broker allowed_reference_types is required",
+			expectError:        true,
+			requireErrorPrefix: "experimental.broker.brokers[spiffe://example.org/broker].allowed_reference_types: must list at least one reference type URL",
+			input: func(c *Config) {
+				c.Agent.Experimental.Broker = &brokerHCLConfig{
+					BindAddress: "127.0.0.1:8443",
+					Brokers: []brokerHCLEntry{
+						{ID: "spiffe://example.org/broker"},
+					},
+				}
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
+			msg:                "broker allowed reference type requires type_url",
+			expectError:        true,
+			requireErrorPrefix: "experimental.broker.brokers[spiffe://example.org/broker].allowed_reference_types[0].type_url: must be specified",
+			input: func(c *Config) {
+				c.Agent.Experimental.Broker = &brokerHCLConfig{
+					BindAddress: "127.0.0.1:8443",
+					Brokers: []brokerHCLEntry{
+						{
+							ID: "spiffe://example.org/broker",
+							AllowedReferenceTypes: []brokerAllowedReferenceTypeHCLEntry{
+								{},
+							},
+						},
+					},
+				}
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
+			msg:                "broker wildcard must be the only allowed reference type",
+			expectError:        true,
+			requireErrorPrefix: "experimental.broker.brokers[spiffe://example.org/broker].allowed_reference_types: wildcard \"*\" must be the only allowed reference type",
+			input: func(c *Config) {
+				c.Agent.Experimental.Broker = &brokerHCLConfig{
+					BindAddress: "127.0.0.1:8443",
+					Brokers: []brokerHCLEntry{
+						{
+							ID: "spiffe://example.org/broker",
+							AllowedReferenceTypes: []brokerAllowedReferenceTypeHCLEntry{
+								{TypeURL: "*"},
+								{TypeURL: "type.googleapis.com/spiffe.broker.KubernetesObjectReference"},
+							},
+						},
+					},
+				}
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
 			msg: "availability_target parses a duration",
 			input: func(c *Config) {
 				c.Agent.AvailabilityTarget = "24h"
@@ -1261,6 +1345,46 @@ func TestNewAgentConfig(t *testing.T) {
 			testCase.test(t, ac)
 		})
 	}
+}
+
+func TestParseBrokerAllowedReferenceTypes(t *testing.T) {
+	file, err := os.CreateTemp("", "spire-agent-broker-*.conf")
+	require.NoError(t, err)
+	defer os.Remove(file.Name())
+
+	_, err = file.WriteString(`
+agent {
+    experimental {
+        broker {
+            bind_address = "127.0.0.1:8443"
+            brokers = [
+                {
+                    id = "spiffe://example.org/broker"
+                    allowed_reference_types = [
+                        {
+                            type_url = "type.googleapis.com/spiffe.broker.KubernetesObjectReference"
+                            allow_over_tcp = true
+                        },
+                        {
+                            type_url = "type.googleapis.com/spiffe.broker.WorkloadPIDReference"
+                        },
+                    ]
+                },
+            ]
+        }
+    }
+}
+`)
+	require.NoError(t, err)
+	require.NoError(t, file.Close())
+
+	c, err := ParseFile(file.Name(), false)
+	require.NoError(t, err)
+	require.NotNil(t, c.Agent.Experimental.Broker)
+	require.Equal(t, []brokerAllowedReferenceTypeHCLEntry{
+		{TypeURL: "type.googleapis.com/spiffe.broker.KubernetesObjectReference", AllowOverTCP: true},
+		{TypeURL: "type.googleapis.com/spiffe.broker.WorkloadPIDReference"},
+	}, c.Agent.Experimental.Broker.Brokers[0].AllowedReferenceTypes)
 }
 
 // defaultValidConfig returns the bare minimum config required to

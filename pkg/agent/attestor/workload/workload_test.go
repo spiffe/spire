@@ -18,6 +18,9 @@ import (
 	"github.com/spiffe/spire/test/fakes/fakeworkloadattestor"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/suite"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/anypb"
 )
 
 var (
@@ -112,16 +115,52 @@ func (s *WorkloadAttestorTestSuite) TestAttestLogsOnPartialFailure() {
 	selectors, err := s.attestor.Attest(ctx, 3)
 	s.Nil(err)
 	spiretest.AssertProtoListEqual(s.T(), selectors2, selectors)
-	spiretest.AssertLogs(s.T(), s.loggerHook.AllEntries(), []spiretest.LogEntry{
+	spiretest.AssertLogsAnyOrder(s.T(), s.loggerHook.AllEntries(), []spiretest.LogEntry{
 		{
 			Level:   logrus.ErrorLevel,
-			Message: "Failed to collect all selectors for PID",
+			Message: `workload attestor "fake1" failed`,
 			Data: logrus.Fields{
 				telemetry.PID:   "3",
+				logrus.ErrorKey: "rpc error: code = Unknown desc = workloadattestor(fake1): cannot attest pid 3",
+			},
+		},
+		{
+			Level:   logrus.ErrorLevel,
+			Message: "Failed to collect all selectors",
+			Data: logrus.Fields{
 				logrus.ErrorKey: `workload attestor "fake1" failed: rpc error: code = Unknown desc = workloadattestor(fake1): cannot attest pid 3`,
 			},
 		},
 	})
+}
+
+func (s *WorkloadAttestorTestSuite) TestAttestReferenceSkipsUnsupportedAttestors() {
+	s.catalog.SetWorkloadAttestors(
+		&referenceWorkloadAttestor{name: "k8s", selectors: selectors1},
+		&referenceWorkloadAttestor{name: "unix", err: status.Error(codes.Unimplemented, "AttestReference not implemented")},
+	)
+
+	selectors, err := s.attestor.AttestReference(ctx, &anypb.Any{TypeUrl: "type.googleapis.com/example.Reference"})
+	s.Require().NoError(err)
+	spiretest.AssertProtoListEqual(s.T(), selectors1, selectors)
+	for _, entry := range s.loggerHook.AllEntries() {
+		s.NotEqual(logrus.ErrorLevel, entry.Level)
+	}
+}
+
+func (s *WorkloadAttestorTestSuite) TestAttestReferenceReturnsUnimplementedWhenNoAttestorHandlesReference() {
+	s.catalog.SetWorkloadAttestors(
+		&referenceWorkloadAttestor{name: "unix", err: status.Error(codes.Unimplemented, "AttestReference not implemented")},
+		&referenceWorkloadAttestor{name: "docker", err: status.Error(codes.Unimplemented, "AttestReference not implemented")},
+	)
+
+	selectors, err := s.attestor.AttestReference(ctx, &anypb.Any{TypeUrl: "type.googleapis.com/example.Reference"})
+	s.Require().Error(err)
+	s.Equal(codes.Unimplemented, status.Code(err))
+	s.Empty(selectors)
+	for _, entry := range s.loggerHook.AllEntries() {
+		s.NotEqual(logrus.ErrorLevel, entry.Level)
+	}
 }
 
 func (s *WorkloadAttestorTestSuite) TestAttestWorkloadMetrics() {
@@ -205,16 +244,45 @@ func (s *WorkloadAttestorTestSuite) TestAttestLogsOnContextCancellation() {
 	// Wait for attestation goroutine to complete execution
 	<-attestCh
 
-	s.Nil(selectors)
-	s.Error(attestErr)
-	spiretest.AssertLogs(s.T(), s.loggerHook.AllEntries(), []spiretest.LogEntry{
+	s.Assert().Nil(selectors)
+	s.Assert().Error(attestErr)
+	spiretest.AssertLogsAnyOrder(s.T(), s.loggerHook.AllEntries(), []spiretest.LogEntry{
 		{
 			Level:   logrus.ErrorLevel,
-			Message: "Timed out collecting selectors for PID",
+			Message: "Timed out collecting selectors",
 			Data: logrus.Fields{
-				telemetry.PID:   fmt.Sprint(pid),
 				logrus.ErrorKey: context.Canceled.Error(),
 			},
 		},
+		{
+			Level:   logrus.ErrorLevel,
+			Message: `workload attestor "faketimeoutattestor" failed`,
+			Data: logrus.Fields{
+				telemetry.PID:   fmt.Sprint(pid),
+				logrus.ErrorKey: "rpc error: code = Canceled desc = workloadattestor(faketimeoutattestor): context canceled",
+			},
+		},
 	})
+}
+
+type referenceWorkloadAttestor struct {
+	name      string
+	selectors []*common.Selector
+	err       error
+}
+
+func (a *referenceWorkloadAttestor) Name() string {
+	return a.name
+}
+
+func (a *referenceWorkloadAttestor) Type() string {
+	return "WorkloadAttestor"
+}
+
+func (a *referenceWorkloadAttestor) Attest(context.Context, int) ([]*common.Selector, error) {
+	return nil, status.Error(codes.Unimplemented, "Attest not implemented")
+}
+
+func (a *referenceWorkloadAttestor) AttestReference(context.Context, *anypb.Any) ([]*common.Selector, error) {
+	return a.selectors, a.err
 }

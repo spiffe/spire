@@ -18,6 +18,7 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/agent/api/rpccontext"
 	"github.com/spiffe/spire/pkg/agent/client"
+	"github.com/spiffe/spire/pkg/agent/common/hintsfilter"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/jwtsvid"
@@ -119,7 +120,7 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *workload.JWTSVIDRequest
 	log = log.WithField(telemetry.Registered, true)
 
 	entries := h.c.Manager.MatchingRegistrationEntries(selectors)
-	entries = filterRegistrations(entries, log)
+	entries = hintsfilter.FilterRegistrations(entries, log)
 
 	resp = new(workload.JWTSVIDResponse)
 
@@ -273,7 +274,7 @@ func (h *Handler) FetchX509SVID(_ *workload.X509SVIDRequest, stream workload.Spi
 	for {
 		select {
 		case update := <-subscriber.Updates():
-			update.Identities = filterIdentities(update.Identities, log)
+			update.Identities = hintsfilter.FilterIdentities(update.Identities, log)
 			if err := h.sendX509SVIDResponse(update, stream, selectors, log, start); err != nil {
 				return err
 			}
@@ -677,81 +678,4 @@ func isClaimAllowed(claim string, allowedClaims map[string]struct{}) bool {
 		_, ok := allowedClaims[claim]
 		return ok
 	}
-}
-
-func filterIdentities(identities []cache.Identity, log logrus.FieldLogger) []cache.Identity {
-	var filteredIdentities []cache.Identity
-	var entries []*common.RegistrationEntry
-	for _, identity := range identities {
-		entries = append(entries, identity.Entry)
-	}
-
-	entriesToRemove := getEntriesToRemove(entries, log)
-
-	for _, identity := range identities {
-		if _, ok := entriesToRemove[identity.Entry.EntryId]; !ok {
-			filteredIdentities = append(filteredIdentities, identity)
-		}
-	}
-
-	return filteredIdentities
-}
-
-func filterRegistrations(entries []*common.RegistrationEntry, log logrus.FieldLogger) []*common.RegistrationEntry {
-	var filteredEntries []*common.RegistrationEntry
-	entriesToRemove := getEntriesToRemove(entries, log)
-
-	for _, entry := range entries {
-		if _, ok := entriesToRemove[entry.EntryId]; !ok {
-			filteredEntries = append(filteredEntries, entry)
-		}
-	}
-
-	return filteredEntries
-}
-
-func getEntriesToRemove(entries []*common.RegistrationEntry, log logrus.FieldLogger) map[string]struct{} {
-	entriesToRemove := make(map[string]struct{})
-	hintsMap := make(map[string]*common.RegistrationEntry)
-
-	for _, entry := range entries {
-		if entry.Hint == "" {
-			continue
-		}
-		if entryWithNonUniqueHint, ok := hintsMap[entry.Hint]; ok {
-			entryToMaintain, entryToRemove := hintTieBreaking(entry, entryWithNonUniqueHint)
-
-			hintsMap[entry.Hint] = entryToMaintain
-			entriesToRemove[entryToRemove.EntryId] = struct{}{}
-
-			log.WithFields(logrus.Fields{
-				telemetry.Hint:           entryToRemove.Hint,
-				telemetry.RegistrationID: entryToRemove.EntryId,
-			}).Warn("Ignoring entry with duplicate hint")
-		} else {
-			hintsMap[entry.Hint] = entry
-		}
-	}
-
-	return entriesToRemove
-}
-
-func hintTieBreaking(entryA *common.RegistrationEntry, entryB *common.RegistrationEntry) (maintain *common.RegistrationEntry, remove *common.RegistrationEntry) {
-	switch {
-	case entryA.CreatedAt < entryB.CreatedAt:
-		maintain = entryA
-		remove = entryB
-	case entryA.CreatedAt > entryB.CreatedAt:
-		maintain = entryB
-		remove = entryA
-	default:
-		if entryA.EntryId < entryB.EntryId {
-			maintain = entryA
-			remove = entryB
-		} else {
-			maintain = entryB
-			remove = entryA
-		}
-	}
-	return
 }

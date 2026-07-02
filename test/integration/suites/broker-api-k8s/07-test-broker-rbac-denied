@@ -1,0 +1,131 @@
+#!/bin/bash
+
+set -e
+
+source init-kubectl
+
+AGENT_MANIFEST=./conf/agent/spire-agent.yaml
+MUTATED_AGENT_CONFIG=false
+
+wait-for-agent-rollout() {
+    MAXROLLOUTCHECKS=12
+    ROLLOUTCHECKINTERVAL=15s
+    for ((i=0; i<${MAXROLLOUTCHECKS}; i++)); do
+        log-info "checking rollout status for spire daemonset/spire-agent..."
+        if ./bin/kubectl -nspire rollout status daemonset/spire-agent --timeout="${ROLLOUTCHECKINTERVAL}"; then
+            return
+        fi
+        log-warn "describing spire daemonset/spire-agent..."
+        ./bin/kubectl -nspire describe daemonset/spire-agent || true
+        log-warn "logs for spire-agent pods..."
+        ./bin/kubectl -nspire logs -l app=spire-agent --all-containers --tail=-1 || true
+    done
+    fail-now "Failed waiting for daemonset/spire-agent to roll out."
+}
+
+restart-agent-and-wait() {
+    ./bin/kubectl -nspire rollout restart daemonset/spire-agent
+    wait-for-agent-rollout
+}
+
+apply-agent-config-with-access-policy() {
+    local policy=$1
+    log-info "setting k8s broker access_policy to ${policy}"
+    sed "s/access_policy = \"enforced\"/access_policy = \"${policy}\"/" "${AGENT_MANIFEST}" | ./bin/kubectl apply -f -
+    MUTATED_AGENT_CONFIG=true
+    restart-agent-and-wait
+}
+
+apply-agent-config-without-access-policy() {
+    log-info "removing k8s broker access_policy"
+    sed '/access_policy = "enforced"/d' "${AGENT_MANIFEST}" | ./bin/kubectl apply -f -
+    MUTATED_AGENT_CONFIG=true
+    ./bin/kubectl -nspire rollout restart daemonset/spire-agent
+}
+
+restore-agent-config() {
+    if [ "${MUTATED_AGENT_CONFIG}" != true ]; then
+        return
+    fi
+    log-info "restoring k8s broker access_policy to enforced"
+    ./bin/kubectl apply -f "${AGENT_MANIFEST}" || true
+    ./bin/kubectl -nspire rollout restart daemonset/spire-agent || true
+    ./bin/kubectl -nspire rollout status daemonset/spire-agent --timeout=180s || true
+}
+
+trap restore-agent-config EXIT
+
+assert-agent-logs-contain() {
+    local needle=$1
+    local logs
+
+    logs=$(./bin/kubectl -nspire logs -l app=spire-agent --all-containers --tail=-1 2>&1 || true)
+    if echo "${logs}" | grep -F "${needle}" >/dev/null; then
+        return
+    fi
+
+    logs=$(./bin/kubectl -nspire logs -l app=spire-agent --all-containers --previous --tail=-1 2>&1 || true)
+    if echo "${logs}" | grep -F "${needle}" >/dev/null; then
+        return
+    fi
+
+    ./bin/kubectl -nspire describe pods -l app=spire-agent || true
+    fail-now "spire-agent logs did not contain expected text: ${needle}"
+}
+
+log-info "Test: access_policy=enforced denies a broker lacking Kubernetes RBAC"
+
+./bin/kubectl -nspire exec -t rbac-denied-broker -- /brokerclient \
+    -ref-type object \
+    -plural pods -group core \
+    -namespace spire -name target-pod \
+    -expect-err PermissionDenied \
+    || fail-now "rbac-denied-broker did not get PermissionDenied from Kubernetes authorization"
+
+log-success "rbac-denied-broker rejected by Kubernetes authorization as expected"
+
+log-info "Test: access_policy=enforced denies PID references for a broker lacking Kubernetes RBAC"
+
+TARGET_PID=$(./bin/kubectl -nspire exec -t rbac-denied-broker -- sh -c \
+    "ps -ef | grep '[s]pire-agent api watch' | awk '{print \$1}' | head -n1")
+
+if [ -z "${TARGET_PID}" ]; then
+    fail-now "could not resolve target-pod PID from rbac-denied-broker"
+fi
+
+./bin/kubectl -nspire exec -t rbac-denied-broker -- /brokerclient \
+    -ref-type pid \
+    -pid "${TARGET_PID}" \
+    -expect-err PermissionDenied \
+    || fail-now "rbac-denied-broker PID reference did not get PermissionDenied from Kubernetes authorization"
+
+log-success "rbac-denied-broker PID reference rejected by Kubernetes authorization as expected"
+
+apply-agent-config-with-access-policy permissive
+
+log-info "Test: access_policy=permissive allows a broker lacking Kubernetes RBAC"
+
+./bin/kubectl -nspire exec -t rbac-denied-broker -- /brokerclient \
+    -ref-type object \
+    -plural pods -group core \
+    -namespace spire -name target-pod \
+    -expected-spiffe spiffe://example.org/target-pod \
+    || fail-now "rbac-denied-broker failed under permissive access policy"
+
+log-success "rbac-denied-broker succeeded under permissive access policy"
+
+apply-agent-config-without-access-policy
+
+log-info "Test: missing experimental.broker.access_policy prevents the k8s workload attestor from starting"
+
+if ./bin/kubectl -nspire rollout status daemonset/spire-agent --timeout=60s; then
+    fail-now "spire-agent rolled out successfully without experimental.broker.access_policy"
+fi
+
+assert-agent-logs-contain "experimental.broker.access_policy: must be specified as one of [permissive, enforced]"
+
+log-success "spire-agent rejected missing experimental.broker.access_policy as expected"
+
+restore-agent-config
+MUTATED_AGENT_CONFIG=false
+trap - EXIT

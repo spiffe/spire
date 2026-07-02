@@ -493,6 +493,9 @@ const (
 	// Reconfigurable tags whether something is reconfigurable.
 	Reconfigurable = "reconfigurable"
 
+	// ReferenceType tags a workload reference type URL
+	ReferenceType = "reference_type"
+
 	// RefreshHint tags a bundle refresh hint
 	RefreshHint = "refresh_hint"
 
@@ -851,6 +854,9 @@ const (
 
 	// AuthorizeCall functionality related to authorizing an incoming call
 	AuthorizeCall = "authorize_call"
+
+	// BrokerAPI functionality related to broker endpoints
+	BrokerAPI = "broker_api"
 
 	// CreateFederatedBundle functionality related to creating a federated bundle
 	CreateFederatedBundle = "create_federated_bundle"

@@ -7,6 +7,7 @@ import (
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	loggerv1 "github.com/spiffe/spire/pkg/agent/api/logger/v1"
+	"github.com/spiffe/spire/pkg/agent/broker"
 	"github.com/spiffe/spire/pkg/agent/endpoints"
 	"github.com/spiffe/spire/pkg/agent/trustbundlesources"
 	"github.com/spiffe/spire/pkg/agent/workloadkey"
@@ -117,6 +118,12 @@ type Config struct {
 
 	AuthorizedDelegates []string
 
+	// Broker holds the SPIFFE Broker API endpoint configuration. Distinct
+	// from AuthorizedDelegates, which gates the Delegated Identity API.
+	// Modeled as a struct (rather than a bare slice) so future top-level
+	// broker configuration can be added without breaking this field's API.
+	Broker BrokerConfig
+
 	// AvailabilityTarget controls how frequently rotate SVIDs
 	AvailabilityTarget time.Duration
 
@@ -125,6 +132,19 @@ type Config struct {
 
 	// WorkloadAPIRateLimit configures per-selector-set rate limiting for Workload API and SDS methods.
 	WorkloadAPIRateLimit WorkloadAPIRateLimitConfig
+}
+
+// BrokerConfig mirrors the agent's `experimental.broker {}` HCL block.
+type BrokerConfig struct {
+	// BindAddresses are the addresses the broker endpoint listens on. Each
+	// element is a `*net.UnixAddr` (UDS, POSIX only) or a `*net.TCPAddr`.
+	// Multiple entries are served simultaneously by a single gRPC server.
+	// Empty disables the broker endpoint.
+	BindAddresses []net.Addr
+
+	// Brokers enumerates the brokers authorized to talk to this agent's
+	// broker endpoint.
+	Brokers []broker.Broker
 }
 
 func New(c *Config) *Agent {

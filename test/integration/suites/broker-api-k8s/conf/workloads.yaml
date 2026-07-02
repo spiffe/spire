@@ -1,0 +1,328 @@
+# The "target" workload — a regular pod the broker(s) will fetch SVIDs for
+# via PID reference and via KubernetesObjectReference(pods/core).
+# It runs `spire-agent api watch` so it stays alive with a steady PID.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: target-pod
+  namespace: spire
+  labels:
+    app: target-pod
+spec:
+  hostPID: true
+  nodeName: broker-api-k8s-worker
+  containers:
+    - name: target
+      image: spire-agent:latest-local
+      imagePullPolicy: Never
+      command: ["/opt/spire/bin/spire-agent", "api", "watch"]
+      args: ["-socketPath", "/run/spire/agent-sockets/api.sock"]
+      volumeMounts:
+        - name: spire-agent-socket
+          mountPath: /run/spire/agent-sockets
+          readOnly: false
+  volumes:
+    - name: spire-agent-socket
+      hostPath:
+        path: /run/spire/agent-sockets
+        type: Directory
+
+---
+# Pod on the same node as the scoped broker pods. It only needs to
+# exist for KubernetesObjectReference lookups.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: same-node-target-pod
+  namespace: spire
+  labels:
+    app: same-node-target-pod
+spec:
+  nodeName: broker-api-k8s-worker
+  containers:
+    - name: target
+      image: broker-client:latest-local
+      imagePullPolicy: Never
+      command: ["/bin/sleep", "infinity"]
+
+---
+# Pod on a different node than the scoped broker pods. It only needs to
+# exist for KubernetesObjectReference lookups.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: other-node-target-pod
+  namespace: spire
+  labels:
+    app: other-node-target-pod
+spec:
+  nodeName: broker-api-k8s-worker2
+  containers:
+    - name: target
+      image: broker-client:latest-local
+      imagePullPolicy: Never
+      command: ["/bin/sleep", "infinity"]
+
+---
+# The "target" non-pod object — a Flux Kustomization CR. No controller is
+# required; the resource just needs to exist in the API server so the broker
+# can reference it.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: target-kustomization
+  namespace: spire
+spec:
+  interval: 1m
+  path: ./apps
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: dummy
+
+---
+# The "broker" - authorized in the agent config to use PID references over UDS
+# and Kubernetes object references over UDS or TCP.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: broker
+  namespace: spire
+  labels:
+    app: broker
+spec:
+  hostPID: true
+  nodeName: broker-api-k8s-worker
+  containers:
+    - name: broker
+      image: broker-client:latest-local
+      imagePullPolicy: Never
+      command: ["/bin/sleep", "infinity"]
+      volumeMounts:
+        - name: spire-agent-socket
+          mountPath: /run/spire/agent-sockets
+          readOnly: false
+        - name: spire-broker-socket
+          mountPath: /run/spire/broker-sockets
+          readOnly: false
+  volumes:
+    - name: spire-agent-socket
+      hostPath:
+        path: /run/spire/agent-sockets
+        type: Directory
+    - name: spire-broker-socket
+      hostPath:
+        path: /run/spire/broker-sockets
+        type: Directory
+
+---
+# Broker whose k8s attestor pod reference scope is `cluster`.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: cluster-broker
+  namespace: spire
+  labels:
+    app: cluster-broker
+spec:
+  hostPID: true
+  nodeName: broker-api-k8s-worker
+  containers:
+    - name: cluster-broker
+      image: broker-client:latest-local
+      imagePullPolicy: Never
+      command: ["/bin/sleep", "infinity"]
+      volumeMounts:
+        - name: spire-agent-socket
+          mountPath: /run/spire/agent-sockets
+          readOnly: false
+        - name: spire-broker-socket
+          mountPath: /run/spire/broker-sockets
+          readOnly: false
+  volumes:
+    - name: spire-agent-socket
+      hostPath:
+        path: /run/spire/agent-sockets
+        type: Directory
+    - name: spire-broker-socket
+      hostPath:
+        path: /run/spire/broker-sockets
+        type: Directory
+
+---
+# Broker whose k8s attestor pod reference scope is `agent_node`.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: agent-node-broker
+  namespace: spire
+  labels:
+    app: agent-node-broker
+spec:
+  hostPID: true
+  nodeName: broker-api-k8s-worker
+  containers:
+    - name: agent-node-broker
+      image: broker-client:latest-local
+      imagePullPolicy: Never
+      command: ["/bin/sleep", "infinity"]
+      volumeMounts:
+        - name: spire-agent-socket
+          mountPath: /run/spire/agent-sockets
+          readOnly: false
+        - name: spire-broker-socket
+          mountPath: /run/spire/broker-sockets
+          readOnly: false
+  volumes:
+    - name: spire-agent-socket
+      hostPath:
+        path: /run/spire/agent-sockets
+        type: Directory
+    - name: spire-broker-socket
+      hostPath:
+        path: /run/spire/broker-sockets
+        type: Directory
+
+---
+# Broker allowed to use KubernetesObjectReference over the local UDS only.
+# Its object references must be rejected over the TCP broker listener because
+# allow_over_tcp is not set for that reference type.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: local-only-object-broker
+  namespace: spire
+  labels:
+    app: local-only-object-broker
+spec:
+  hostPID: true
+  nodeName: broker-api-k8s-worker
+  containers:
+    - name: local-only-object-broker
+      image: broker-client:latest-local
+      imagePullPolicy: Never
+      command: ["/bin/sleep", "infinity"]
+      volumeMounts:
+        - name: spire-agent-socket
+          mountPath: /run/spire/agent-sockets
+          readOnly: false
+        - name: spire-broker-socket
+          mountPath: /run/spire/broker-sockets
+          readOnly: false
+  volumes:
+    - name: spire-agent-socket
+      hostPath:
+        path: /run/spire/agent-sockets
+        type: Directory
+    - name: spire-broker-socket
+      hostPath:
+        path: /run/spire/broker-sockets
+        type: Directory
+
+---
+# The "restricted broker" — authorized in the agent config but limited to
+# WorkloadPIDReference only. KubernetesObjectReference attempts should be
+# rejected with PermissionDenied at the gRPC layer.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: restricted-broker
+  namespace: spire
+  labels:
+    app: restricted-broker
+spec:
+  hostPID: true
+  nodeName: broker-api-k8s-worker
+  containers:
+    - name: restricted-broker
+      image: broker-client:latest-local
+      imagePullPolicy: Never
+      command: ["/bin/sleep", "infinity"]
+      volumeMounts:
+        - name: spire-agent-socket
+          mountPath: /run/spire/agent-sockets
+          readOnly: false
+        - name: spire-broker-socket
+          mountPath: /run/spire/broker-sockets
+          readOnly: false
+  volumes:
+    - name: spire-agent-socket
+      hostPath:
+        path: /run/spire/agent-sockets
+        type: Directory
+    - name: spire-broker-socket
+      hostPath:
+        path: /run/spire/broker-sockets
+        type: Directory
+
+---
+# The "RBAC denied broker" is authorized by the Broker API config to use
+# KubernetesObjectReference, but its broker SPIFFE ID is not allowed to use
+# `impersonate-via-spire` by the Kubernetes authorizer.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: rbac-denied-broker
+  namespace: spire
+  labels:
+    app: rbac-denied-broker
+spec:
+  hostPID: true
+  nodeName: broker-api-k8s-worker
+  containers:
+    - name: rbac-denied-broker
+      image: broker-client:latest-local
+      imagePullPolicy: Never
+      command: ["/bin/sleep", "infinity"]
+      volumeMounts:
+        - name: spire-agent-socket
+          mountPath: /run/spire/agent-sockets
+          readOnly: false
+        - name: spire-broker-socket
+          mountPath: /run/spire/broker-sockets
+          readOnly: false
+  volumes:
+    - name: spire-agent-socket
+      hostPath:
+        path: /run/spire/agent-sockets
+        type: Directory
+    - name: spire-broker-socket
+      hostPath:
+        path: /run/spire/broker-sockets
+        type: Directory
+
+---
+# The "unauthorized workload" — gets its own SVID via the Workload API just
+# fine, but isn't in the agent's broker allowlist. Attempts to dial the
+# broker endpoint should fail at the mTLS layer.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: unauthorized-workload
+  namespace: spire
+  labels:
+    app: unauthorized-workload
+spec:
+  hostPID: true
+  nodeName: broker-api-k8s-worker
+  containers:
+    - name: unauthorized-workload
+      image: broker-client:latest-local
+      imagePullPolicy: Never
+      command: ["/bin/sleep", "infinity"]
+      volumeMounts:
+        - name: spire-agent-socket
+          mountPath: /run/spire/agent-sockets
+          readOnly: false
+        - name: spire-broker-socket
+          mountPath: /run/spire/broker-sockets
+          readOnly: false
+  volumes:
+    - name: spire-agent-socket
+      hostPath:
+        path: /run/spire/agent-sockets
+        type: Directory
+    - name: spire-broker-socket
+      hostPath:
+        path: /run/spire/broker-sockets
+        type: Directory

@@ -42,6 +42,13 @@ func (c *agentConfig) hasAdminAddr() bool {
 	return c.Experimental.AdminNamedPipeName != ""
 }
 
+// brokerSocketAddr resolves the UDS branch of broker bind-address selection.
+// Windows does not support UDS for the broker endpoint; configure
+// `experimental.broker.bind_address` (TCP) instead.
+func (c *agentConfig) brokerSocketAddr() (net.Addr, error) {
+	return nil, errors.New("experimental.broker.socket_path is not supported on this platform; use experimental.broker.bind_address (TCP) instead")
+}
+
 // validateOS performs windows specific validations of the agent config
 func (c *agentConfig) validateOS() error {
 	if c.SocketPath != "" {

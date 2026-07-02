@@ -24,7 +24,9 @@ import (
 	"github.com/hashicorp/hcl/hcl/token"
 	"github.com/mitchellh/cli"
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/agent"
+	"github.com/spiffe/spire/pkg/agent/broker"
 	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/agent/trustbundlesources"
 	"github.com/spiffe/spire/pkg/agent/workloadkey"
@@ -108,6 +110,117 @@ type agentConfig struct {
 	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions"`
 }
 
+// brokerHCLConfig is the HCL block for the SPIFFE Broker API endpoint:
+//
+//	broker {
+//	    # At least one of these MUST be set; both MAY be set to expose the
+//	    # broker endpoint over both transports simultaneously (e.g., UDS
+//	    # for a local sidecar broker AND TCP for a remote broker).
+//	    socket_path  = "/run/spire/agent/broker.sock"   # POSIX-only UDS
+//	    bind_address = "0.0.0.0:8443"                   # TCP, both platforms
+//
+//	    brokers = [
+//	        {
+//	            id = "spiffe://example.org/some/broker"
+//	            allowed_reference_types = [
+//	                {
+//	                    type_url = "type.googleapis.com/spiffe.broker.KubernetesObjectReference"
+//	                    allow_over_tcp = true
+//	                },
+//	            ]
+//	        },
+//	    ]
+//	}
+type brokerHCLConfig struct {
+	// SocketPath binds the broker endpoint to a Unix domain socket at the
+	// given path. POSIX-only.
+	SocketPath string `hcl:"socket_path"`
+
+	// BindAddress binds the broker endpoint to a TCP address ("host:port").
+	// Works on both POSIX and Windows.
+	BindAddress string `hcl:"bind_address"`
+
+	// Brokers enumerates the brokers authorized to talk to this agent's
+	// broker endpoint. Each entry's `id` is any valid SPIFFE ID; cross-
+	// trust-domain broker identities are allowed.
+	Brokers []brokerHCLEntry `hcl:"brokers"`
+
+	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions"`
+}
+
+type brokerHCLEntry struct {
+	ID string `hcl:"id"`
+
+	// AllowedReferenceTypes restricts which WorkloadReference types this
+	// broker may use. Each entry's type_url is the verbatim protobuf type
+	// URL that the workload attestor plugin inspects. Use `"*"` to allow
+	// any reference type. Must list at least one entry.
+	AllowedReferenceTypes []brokerAllowedReferenceTypeHCLEntry `hcl:"allowed_reference_types"`
+
+	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions"`
+}
+
+type brokerAllowedReferenceTypeHCLEntry struct {
+	// TypeURL is the verbatim protobuf type URL the workload attestor plugin
+	// inspects. The wildcard `"*"` allows any reference type.
+	TypeURL string `hcl:"type_url"`
+
+	// AllowOverTCP permits this reference type over the TCP listener. The
+	// default is false, so the reference type is only allowed over UDS.
+	AllowOverTCP bool `hcl:"allow_over_tcp"`
+
+	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions"`
+}
+
+// brokerBindAddrs resolves the broker endpoint's listener addresses from
+// the HCL block. Returns one address per configured transport (TCP via
+// `bind_address`, UDS via `socket_path`). Both MAY be set; at least one
+// MUST be set. The TCP branch is platform-agnostic and resolved here; the
+// UDS branch delegates to `brokerSocketAddr` which is defined per platform
+// (POSIX has UDS support; Windows rejects with an error).
+func (c *agentConfig) brokerBindAddrs() ([]net.Addr, error) {
+	sp, ba := c.Experimental.Broker.SocketPath, c.Experimental.Broker.BindAddress
+	if sp == "" && ba == "" {
+		return nil, errors.New("experimental.broker requires socket_path, bind_address, or both")
+	}
+	var addrs []net.Addr
+	if sp != "" {
+		uds, err := c.brokerSocketAddr()
+		if err != nil {
+			return nil, err
+		}
+		addrs = append(addrs, uds)
+	}
+	if ba != "" {
+		tcp, err := net.ResolveTCPAddr("tcp", ba)
+		if err != nil {
+			return nil, fmt.Errorf("invalid experimental.broker.bind_address %q: %w", ba, err)
+		}
+		addrs = append(addrs, tcp)
+	}
+	return addrs, nil
+}
+
+func brokerAllowedReferenceTypesFromHCL(brokerID string, in []brokerAllowedReferenceTypeHCLEntry) ([]broker.AllowedReferenceType, error) {
+	if len(in) == 0 {
+		return nil, fmt.Errorf("experimental.broker.brokers[%s].allowed_reference_types: must list at least one reference type URL", brokerID)
+	}
+	out := make([]broker.AllowedReferenceType, 0, len(in))
+	for i, allowed := range in {
+		if allowed.TypeURL == "" {
+			return nil, fmt.Errorf("experimental.broker.brokers[%s].allowed_reference_types[%d].type_url: must be specified", brokerID, i)
+		}
+		if allowed.TypeURL == "*" && len(in) != 1 {
+			return nil, fmt.Errorf("experimental.broker.brokers[%s].allowed_reference_types: wildcard \"*\" must be the only allowed reference type", brokerID)
+		}
+		out = append(out, broker.AllowedReferenceType{
+			TypeURL:      allowed.TypeURL,
+			AllowOverTCP: allowed.AllowOverTCP,
+		})
+	}
+	return out, nil
+}
+
 type sdsConfig struct {
 	DefaultSVIDName             string `hcl:"default_svid_name"`
 	DefaultBundleName           string `hcl:"default_bundle_name"`
@@ -135,6 +248,12 @@ type experimentalConfig struct {
 	RequirePQKEM             bool   `hcl:"require_pq_kem"`
 
 	RateLimit workloadAPIRateLimitConfig `hcl:"ratelimit"`
+
+	// Broker holds the configuration for the SPIFFE Broker API endpoint
+	// (distinct from the Delegated Identity API's authorized_delegates).
+	// Kept under `experimental` while the spec stabilizes — breaking
+	// changes may land before this moves to the top-level config.
+	Broker *brokerHCLConfig `hcl:"broker"`
 
 	Flags fflag.RawConfig `hcl:"feature_flags"`
 }
@@ -526,6 +645,7 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 		}
 		ac.AdminBindAddress = adminAddr
 	}
+
 	// Handle join token - read from file if specified
 	if c.Agent.JoinTokenFile != "" {
 		tokenBytes, err := os.ReadFile(c.Agent.JoinTokenFile)
@@ -601,6 +721,48 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 	}
 
 	ac.AuthorizedDelegates = c.Agent.AuthorizedDelegates
+
+	if c.Agent.Experimental.Broker != nil {
+		bindAddrs, err := c.Agent.brokerBindAddrs()
+		if err != nil {
+			return nil, err
+		}
+		// Pass 1: validate every entry has a non-empty, unique ID. Doing
+		// this first means subsequent errors can reference brokers by ID
+		// instead of slice index — which is more helpful to operators
+		// since they wrote the IDs themselves.
+		seen := make(map[string]struct{}, len(c.Agent.Experimental.Broker.Brokers))
+		for i, b := range c.Agent.Experimental.Broker.Brokers {
+			if b.ID == "" {
+				return nil, fmt.Errorf("experimental.broker.brokers[%d].id: must be specified", i)
+			}
+			if _, dup := seen[b.ID]; dup {
+				return nil, fmt.Errorf("experimental.broker.brokers[%s].id: duplicate broker id", b.ID)
+			}
+			seen[b.ID] = struct{}{}
+		}
+
+		// Pass 2: per-broker field validation. ID is referenced in error
+		// messages now that we know it's set and unique.
+		brokers := make([]broker.Broker, 0, len(c.Agent.Experimental.Broker.Brokers))
+		for _, b := range c.Agent.Experimental.Broker.Brokers {
+			if _, err := spiffeid.FromString(b.ID); err != nil {
+				return nil, fmt.Errorf("experimental.broker.brokers[%s].id: %w", b.ID, err)
+			}
+			allowedReferenceTypes, err := brokerAllowedReferenceTypesFromHCL(b.ID, b.AllowedReferenceTypes)
+			if err != nil {
+				return nil, err
+			}
+			brokers = append(brokers, broker.Broker{
+				ID:                    b.ID,
+				AllowedReferenceTypes: allowedReferenceTypes,
+			})
+		}
+		ac.Broker = agent.BrokerConfig{
+			BindAddresses: bindAddrs,
+			Brokers:       brokers,
+		}
+	}
 
 	if c.Agent.AvailabilityTarget != "" {
 		t, err := time.ParseDuration(c.Agent.AvailabilityTarget)
@@ -692,6 +854,22 @@ func checkForUnknownConfig(c *Config, l logrus.FieldLogger) (err error) {
 
 	if a := c.Agent; a != nil && len(a.UnusedKeyPositions) != 0 {
 		detectedUnknown("agent", a.UnusedKeyPositions)
+	}
+
+	if a := c.Agent; a != nil && a.Experimental.Broker != nil {
+		if len(a.Experimental.Broker.UnusedKeyPositions) != 0 {
+			detectedUnknown("experimental.broker", a.Experimental.Broker.UnusedKeyPositions)
+		}
+		for i, b := range a.Experimental.Broker.Brokers {
+			if len(b.UnusedKeyPositions) != 0 {
+				detectedUnknown(fmt.Sprintf("experimental.broker.brokers[%d]", i), b.UnusedKeyPositions)
+			}
+			for j, allowed := range b.AllowedReferenceTypes {
+				if len(allowed.UnusedKeyPositions) != 0 {
+					detectedUnknown(fmt.Sprintf("experimental.broker.brokers[%d].allowed_reference_types[%d]", i, j), allowed.UnusedKeyPositions)
+				}
+			}
+		}
 	}
 
 	// TODO: Re-enable unused key detection for telemetry. See

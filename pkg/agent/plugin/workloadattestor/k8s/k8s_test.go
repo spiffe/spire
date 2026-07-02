@@ -19,7 +19,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/spiffe/go-spiffe/v2/exp/proto/spiffe/broker"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	workloadattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/agent/workloadattestor/v1"
+	"github.com/spiffe/spire/pkg/agent/broker/brokercontext"
 	"github.com/spiffe/spire/pkg/agent/common/sigstore"
 	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor"
 	"github.com/spiffe/spire/pkg/common/catalog"
@@ -32,10 +35,22 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/protobuf/types/known/anypb"
+	authv1 "k8s.io/api/authorization/v1"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 )
 
 const (
 	pid = 123
+
+	testBrokerID = "spiffe://example.org/broker"
 
 	testPollRetryInterval = time.Second
 
@@ -47,6 +62,8 @@ const (
 )
 
 var (
+	testBrokerSPIFFEID = spiffeid.RequireFromString(testBrokerID)
+
 	clientKey, _ = pemutil.ParseECPrivateKey([]byte(`-----BEGIN PRIVATE KEY-----
 MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgNRa/6HIy0uwQe8iG
 Kz24zEvwGiIsTDPHzrLUaml1hQ6hRANCAATz6vtJYIvPM0KOqKpdDPlsOw09hZ8P
@@ -140,6 +157,59 @@ func (s *Suite) TestAttestWithPidInPod() {
 	p := s.loadInsecurePlugin()
 
 	s.requireAttestSuccessWithPod(p)
+}
+
+func (s *Suite) TestAttestWithPidDoesNotRunBrokerRBAC() {
+	s.startInsecureKubelet()
+	var reviews []authv1.SubjectAccessReview
+	p := s.loadInsecurePluginWithBrokerAndKubeClient(fakeKubeClientWithSubjectAccessReview(false, &reviews))
+
+	s.addPodListResponse(podListFilePath)
+	s.addGetContainerResponsePidInPod()
+
+	selectors, err := p.Attest(context.Background(), pid)
+	s.Require().NoError(err)
+	s.requireSelectorsEqual(testPodAndContainerSelectors, selectors)
+	s.Require().Empty(reviews)
+}
+
+func (s *Suite) TestAttestWithBrokerCallerDoesNotRunBrokerRBACWhenPermissive() {
+	s.startInsecureKubelet()
+	var reviews []authv1.SubjectAccessReview
+	p := s.loadRawInsecurePluginWithBrokerAndKubeClient(fakeKubeClientWithSubjectAccessReview(false, &reviews))
+
+	s.addPodListResponse(podListFilePath)
+	s.addGetContainerResponsePidInPod()
+
+	resp, err := p.Attest(testBrokerContext(), &workloadattestorv1.AttestRequest{Pid: int32(pid)})
+	s.Require().NoError(err)
+	s.requireSelectorValuesEqual(testPodAndContainerSelectors, resp.GetSelectorValues())
+	s.Require().Empty(reviews)
+}
+
+func (s *Suite) TestAttestWithBrokerCallerRunsBrokerRBACWhenEnforced() {
+	s.startInsecureKubelet()
+	var reviews []authv1.SubjectAccessReview
+	p := s.loadRawInsecurePluginWithEnforcedAccessPolicyAndKubeClient(fakeKubeClientWithSubjectAccessReview(true, &reviews))
+
+	s.addPodListResponse(podListFilePath)
+	s.addGetContainerResponsePidInPod()
+
+	resp, err := p.Attest(testBrokerContext(), &workloadattestorv1.AttestRequest{Pid: int32(pid)})
+	s.Require().NoError(err)
+	s.requireSelectorValuesEqual(testPodAndContainerSelectors, resp.GetSelectorValues())
+	s.Require().Len(reviews, 1)
+
+	review := reviews[0]
+	assert.Equal(s.T(), testBrokerID, review.Spec.User)
+	assert.Empty(s.T(), review.Spec.Groups)
+	if assert.NotNil(s.T(), review.Spec.ResourceAttributes) {
+		assert.Equal(s.T(), "", review.Spec.ResourceAttributes.Group)
+		assert.Equal(s.T(), "pods", review.Spec.ResourceAttributes.Resource)
+		assert.Equal(s.T(), "default", review.Spec.ResourceAttributes.Namespace)
+		assert.Equal(s.T(), "blog-24ck7", review.Spec.ResourceAttributes.Name)
+		assert.Equal(s.T(), brokerImpersonationReviewVerb, review.Spec.ResourceAttributes.Verb)
+	}
 }
 
 func (s *Suite) TestAttestWithPidInPodAfterRetry() {
@@ -343,6 +413,7 @@ func (s *Suite) TestConfigure() {
 		PollRetryInterval time.Duration
 		ReloadInterval    time.Duration
 		SigstoreConfig    *sigstore.Config
+		APIServerCache    bool
 	}
 
 	testCases := []struct {
@@ -446,6 +517,42 @@ func (s *Suite) TestConfigure() {
 				PollRetryInterval: defaultPollRetryInterval,
 				ReloadInterval:    defaultReloadInterval,
 			},
+		},
+		{
+			name:        "API server cache enabled",
+			trustDomain: "example.org",
+			hcl: `
+				kubelet_read_only_port = 12345
+				experimental {
+					api_server {
+						cache {
+							enabled = true
+						}
+					}
+				}
+			`,
+			config: &config{
+				Insecure:          true,
+				KubeletURL:        "http://127.0.0.1:12345",
+				MaxPollAttempts:   defaultMaxPollAttempts,
+				PollRetryInterval: defaultPollRetryInterval,
+				ReloadInterval:    defaultReloadInterval,
+				APIServerCache:    true,
+			},
+		},
+		{
+			name:        "top-level API server cache is rejected",
+			trustDomain: "example.org",
+			hcl: `
+				kubelet_read_only_port = 12345
+				api_server {
+					cache {
+						enabled = true
+					}
+				}
+			`,
+			errCode: codes.InvalidArgument,
+			errMsg:  "unknown configurations detected: api_server",
 		},
 
 		{
@@ -624,6 +731,195 @@ func (s *Suite) TestConfigure() {
 			assert.Equal(t, testCase.config.MaxPollAttempts, c.MaxPollAttempts)
 			assert.Equal(t, testCase.config.PollRetryInterval, c.PollRetryInterval)
 			assert.Equal(t, testCase.config.ReloadInterval, c.ReloadInterval)
+			assert.Equal(t, testCase.config.APIServerCache, c.APIServerCache.Enabled)
+		})
+	}
+}
+
+func (s *Suite) TestConfigureBroker() {
+	testCases := []struct {
+		name        string
+		hcl         string
+		expectedErr string
+	}{
+		{
+			name: "valid broker",
+			hcl: fmt.Sprintf(`
+				kubelet_read_only_port = 12345
+				%s
+			`, testBrokerConfig()),
+		},
+		{
+			name: "top-level broker is rejected",
+			hcl: `
+				kubelet_read_only_port = 12345
+				broker {
+					access_policy = "permissive"
+					brokers = [
+						{ id = "spiffe://example.org/broker" }
+					]
+				}
+			`,
+			expectedErr: "unknown configurations detected: broker",
+		},
+		{
+			name: "valid pod reference scope",
+			hcl: `
+				kubelet_read_only_port = 12345
+				experimental {
+					broker {
+						access_policy = "permissive"
+						brokers = [
+							{
+								id = "spiffe://example.org/broker"
+								pod_reference_scope = "cluster"
+							}
+						]
+					}
+				}
+			`,
+		},
+		{
+			name: "valid enforced access policy",
+			hcl: `
+				kubelet_read_only_port = 12345
+				experimental {
+					broker {
+						access_policy = "enforced"
+						brokers = [
+							{
+								id = "spiffe://example.org/broker"
+							}
+						]
+					}
+				}
+			`,
+		},
+		{
+			name: "missing access policy",
+			hcl: `
+				kubelet_read_only_port = 12345
+				experimental {
+					broker {
+						brokers = [
+							{ id = "spiffe://example.org/broker" }
+						]
+					}
+				}
+			`,
+			expectedErr: "experimental.broker.access_policy: must be specified as one of [permissive, enforced]",
+		},
+		{
+			name: "invalid access policy",
+			hcl: `
+				kubelet_read_only_port = 12345
+				experimental {
+					broker {
+						access_policy = "disabled"
+						brokers = [
+							{ id = "spiffe://example.org/broker" }
+						]
+					}
+				}
+			`,
+			expectedErr: `experimental.broker.access_policy: unsupported value "disabled"; must be one of [permissive, enforced]`,
+		},
+		{
+			name: "empty brokers",
+			hcl: `
+				kubelet_read_only_port = 12345
+				experimental {
+					broker {
+						access_policy = "permissive"
+						brokers = []
+					}
+				}
+			`,
+			expectedErr: "experimental.broker.brokers: at least one broker is required",
+		},
+		{
+			name: "missing id",
+			hcl: `
+				kubelet_read_only_port = 12345
+				experimental {
+					broker {
+						access_policy = "permissive"
+						brokers = [
+							{}
+						]
+					}
+				}
+			`,
+			expectedErr: "experimental.broker.brokers[0].id: must be specified",
+		},
+		{
+			name: "duplicate id",
+			hcl: `
+				kubelet_read_only_port = 12345
+				experimental {
+					broker {
+						access_policy = "permissive"
+						brokers = [
+							{ id = "spiffe://example.org/broker" },
+							{ id = "spiffe://example.org/broker" },
+						]
+					}
+				}
+			`,
+			expectedErr: "experimental.broker.brokers[spiffe://example.org/broker].id: duplicate broker id",
+		},
+		{
+			name: "invalid id",
+			hcl: `
+				kubelet_read_only_port = 12345
+				experimental {
+					broker {
+						access_policy = "permissive"
+						brokers = [
+							{ id = "not-a-spiffe-id" }
+						]
+					}
+				}
+			`,
+			expectedErr: "experimental.broker.brokers[not-a-spiffe-id].id",
+		},
+		{
+			name: "invalid pod reference scope",
+			hcl: `
+				kubelet_read_only_port = 12345
+				experimental {
+					broker {
+						access_policy = "permissive"
+						brokers = [
+							{
+								id = "spiffe://example.org/broker"
+								pod_reference_scope = "Cluster"
+							}
+						]
+					}
+				}
+			`,
+			expectedErr: `experimental.broker.brokers[spiffe://example.org/broker].pod_reference_scope: unsupported value "Cluster"; must be one of [agent_node, cluster]`,
+		},
+	}
+
+	for _, tc := range testCases {
+		s.T().Run(tc.name, func(t *testing.T) {
+			p := s.newPlugin()
+
+			var err error
+			plugintest.Load(t, builtin(p), nil,
+				plugintest.CoreConfig(catalog.CoreConfig{
+					TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
+				}),
+				plugintest.Configure(tc.hcl),
+				plugintest.CaptureConfigureError(&err))
+
+			if tc.expectedErr != "" {
+				s.RequireGRPCStatusContains(err, codes.InvalidArgument, tc.expectedErr)
+				return
+			}
+			require.NoError(t, err)
 		})
 	}
 }
@@ -681,7 +977,7 @@ func (s *Suite) TestConfigureWithSigstore() {
 			expectedError: "unable to decode configuration",
 		},
 		{
-			name:        "stale experimental block is rejected",
+			name:        "stale experimental sigstore block is rejected",
 			trustDomain: "example.org",
 			hcl: `
 				    skip_kubelet_verification = true
@@ -691,7 +987,7 @@ func (s *Suite) TestConfigureWithSigstore() {
 						}
 					}
 			`,
-			expectedError: "unknown configurations detected: experimental",
+			expectedError: "unknown configurations detected: sigstore",
 		},
 		{
 			name:        "unknown top-level key is rejected",
@@ -791,12 +1087,97 @@ func (s *Suite) loadPlugin(configuration string) workloadattestor.WorkloadAttest
 	return v1
 }
 
+func (s *Suite) loadPluginWithKubeClient(configuration string, kubeClient client.Client) workloadattestor.WorkloadAttestor {
+	return s.loadPluginWithKubeClients(configuration, kubeClient, kubeClient)
+}
+
+func (s *Suite) loadPluginWithKubeClients(configuration string, kubeClient, kubeMetadataClient client.Client) workloadattestor.WorkloadAttestor {
+	v1 := new(workloadattestor.V1)
+	p := s.newPlugin()
+	p.kubeClient = kubeClient
+	p.kubeMetadataClient = kubeMetadataClient
+
+	plugintest.Load(s.T(), builtin(p), v1,
+		plugintest.CoreConfig(catalog.CoreConfig{
+			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
+		}),
+		plugintest.Configure(configuration),
+	)
+
+	if cHelper := s.oc.getContainerHelper(p); cHelper != nil {
+		p.setContainerHelper(cHelper)
+	}
+	return v1
+}
+
+func (s *Suite) loadRawPluginWithKubeClient(configuration string, kubeClient client.Client) *Plugin {
+	return s.loadRawPluginWithKubeClients(configuration, kubeClient, kubeClient)
+}
+
+func (s *Suite) loadRawPluginWithKubeClients(configuration string, kubeClient, kubeMetadataClient client.Client) *Plugin {
+	p := s.newPlugin()
+	p.kubeClient = kubeClient
+	p.kubeMetadataClient = kubeMetadataClient
+
+	plugintest.Load(s.T(), builtin(p), nil,
+		plugintest.CoreConfig(catalog.CoreConfig{
+			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
+		}),
+		plugintest.Configure(configuration),
+	)
+
+	if cHelper := s.oc.getContainerHelper(p); cHelper != nil {
+		p.setContainerHelper(cHelper)
+	}
+	return p
+}
+
 func (s *Suite) loadInsecurePlugin() workloadattestor.WorkloadAttestor {
 	return s.loadPlugin(fmt.Sprintf(`
 		kubelet_read_only_port = %d
 		max_poll_attempts = 5
 		poll_retry_interval = "1s"
 `, s.kubeletPort()))
+}
+
+func (s *Suite) loadInsecurePluginWithBroker() workloadattestor.WorkloadAttestor {
+	return s.loadInsecurePluginWithExtra(testBrokerConfig())
+}
+
+func (s *Suite) loadInsecurePluginWithBrokerAndKubeClient(kubeClient client.Client) workloadattestor.WorkloadAttestor {
+	return s.loadPluginWithKubeClient(fmt.Sprintf(`
+		kubelet_read_only_port = %d
+		max_poll_attempts = 5
+		poll_retry_interval = "1s"
+		%s
+`, s.kubeletPort(), testBrokerConfig()), kubeClient)
+}
+
+func (s *Suite) loadInsecurePluginWithEnforcedAccessPolicyAndKubeClient(kubeClient client.Client) workloadattestor.WorkloadAttestor {
+	return s.loadPluginWithKubeClient(fmt.Sprintf(`
+		kubelet_read_only_port = %d
+		max_poll_attempts = 5
+		poll_retry_interval = "1s"
+		%s
+`, s.kubeletPort(), testBrokerConfigWithEnforcedAccessPolicy()), kubeClient)
+}
+
+func (s *Suite) loadRawInsecurePluginWithBrokerAndKubeClient(kubeClient client.Client) *Plugin {
+	return s.loadRawPluginWithKubeClient(fmt.Sprintf(`
+		kubelet_read_only_port = %d
+		max_poll_attempts = 5
+		poll_retry_interval = "1s"
+		%s
+`, s.kubeletPort(), testBrokerConfig()), kubeClient)
+}
+
+func (s *Suite) loadRawInsecurePluginWithEnforcedAccessPolicyAndKubeClient(kubeClient client.Client) *Plugin {
+	return s.loadRawPluginWithKubeClient(fmt.Sprintf(`
+		kubelet_read_only_port = %d
+		max_poll_attempts = 5
+		poll_retry_interval = "1s"
+		%s
+`, s.kubeletPort(), testBrokerConfigWithEnforcedAccessPolicy()), kubeClient)
 }
 
 func (s *Suite) loadInsecurePluginWithExtra(extraConfig string) workloadattestor.WorkloadAttestor {
@@ -816,6 +1197,121 @@ func (s *Suite) loadInsecurePluginWithSigstore() workloadattestor.WorkloadAttest
 		sigstore {
 		}
 	`, s.kubeletPort()))
+}
+
+func testBrokerConfig() string {
+	return testBrokerConfigWithAccessPolicy("", string(brokerAccessPolicyPermissive))
+}
+
+func testBrokerConfigWithEnforcedAccessPolicy() string {
+	return testBrokerConfigWithAccessPolicy("", string(brokerAccessPolicyEnforced))
+}
+
+func testBrokerConfigWithPodReferenceScope(scope string) string {
+	return testBrokerConfigWithAccessPolicy(scope, string(brokerAccessPolicyPermissive))
+}
+
+func testBrokerConfigWithAccessPolicy(scope, accessPolicy string) string {
+	var scopeConfig string
+	if scope != "" {
+		scopeConfig = fmt.Sprintf("\n\t\t\t\t\t\tpod_reference_scope = %q", scope)
+	}
+	return fmt.Sprintf(`
+		experimental {
+			broker {
+				access_policy = %q
+				brokers = [
+					{
+						id = %q%s
+					}
+				]
+			}
+		}
+`, accessPolicy, testBrokerID, scopeConfig)
+}
+
+func testBrokerContext() context.Context {
+	return brokercontext.WithCallerID(context.Background(), testBrokerSPIFFEID)
+}
+
+func fakeKubeClientWithSubjectAccessReview(allowed bool, reviews *[]authv1.SubjectAccessReview, objects ...client.Object) client.Client {
+	return fakeKubeClientWithSubjectAccessReviewAndRESTMapper(allowed, reviews, nil, objects...)
+}
+
+func fakeKubeClientWithSubjectAccessReviewAndRESTMapper(allowed bool, reviews *[]authv1.SubjectAccessReview, mapper meta.RESTMapper, objects ...client.Object) client.Client {
+	return fakeKubeClientWithSubjectAccessReviewAndRESTMapperAndInterceptors(allowed, reviews, mapper, interceptor.Funcs{}, objects...)
+}
+
+func fakeKubeClientWithSubjectAccessReviewAndRESTMapperAndInterceptors(allowed bool, reviews *[]authv1.SubjectAccessReview, mapper meta.RESTMapper, funcs interceptor.Funcs, objects ...client.Object) client.Client {
+	create := funcs.Create
+	funcs.Create = func(ctx context.Context, c client.WithWatch, obj client.Object, opts ...client.CreateOption) error {
+		review, ok := obj.(*authv1.SubjectAccessReview)
+		if !ok {
+			if create != nil {
+				return create(ctx, c, obj, opts...)
+			}
+			return c.Create(ctx, obj, opts...)
+		}
+		if reviews != nil {
+			*reviews = append(*reviews, *review.DeepCopy())
+		}
+		review.Status.Allowed = allowed
+		return nil
+	}
+
+	builder := fake.NewClientBuilder().
+		WithScheme(k8sScheme).
+		WithObjects(objects...).
+		WithInterceptorFuncs(funcs)
+	if mapper != nil {
+		builder = builder.WithRESTMapper(mapper)
+	}
+	return builder.Build()
+}
+
+func fakeKubeMetadataClient(objects ...*metav1.PartialObjectMetadata) client.Client {
+	return fakeKubeMetadataClientWithListHook(nil, objects...)
+}
+
+func fakeKubeMetadataClientWithListHook(hook func(client.ObjectList, ...client.ListOption), objects ...*metav1.PartialObjectMetadata) client.Client {
+	return fake.NewClientBuilder().
+		WithScheme(k8sScheme).
+		WithInterceptorFuncs(interceptor.Funcs{
+			List: func(ctx context.Context, c client.WithWatch, list client.ObjectList, opts ...client.ListOption) error {
+				metadataList, ok := list.(*metav1.PartialObjectMetadataList)
+				if !ok {
+					return c.List(ctx, list, opts...)
+				}
+				if hook != nil {
+					hook(list, opts...)
+				}
+
+				listOptions := &client.ListOptions{}
+				for _, opt := range opts {
+					opt.ApplyToList(listOptions)
+				}
+
+				listGVK := metadataList.GetObjectKind().GroupVersionKind()
+				itemKind := listGVK.Kind
+				if len(itemKind) > len("List") && itemKind[len(itemKind)-len("List"):] == "List" {
+					itemKind = itemKind[:len(itemKind)-len("List")]
+				}
+				itemGVK := schema.GroupVersionKind{Group: listGVK.Group, Version: listGVK.Version, Kind: itemKind}
+
+				metadataList.Items = nil
+				for _, obj := range objects {
+					if obj.GetObjectKind().GroupVersionKind() != itemGVK {
+						continue
+					}
+					if listOptions.Namespace != "" && obj.Namespace != listOptions.Namespace {
+						continue
+					}
+					metadataList.Items = append(metadataList.Items, *obj.DeepCopy())
+				}
+				return nil
+			},
+		}).
+		Build()
 }
 
 func (s *Suite) startInsecureKubelet() {
@@ -983,6 +1479,14 @@ func (s *Suite) requireSelectorsEqual(expected, actual []*common.Selector) {
 	s.RequireProtoListEqual(expected, actual)
 }
 
+func (s *Suite) requireSelectorValuesEqual(expected []*common.Selector, actual []string) {
+	selectors := make([]*common.Selector, 0, len(actual))
+	for _, value := range actual {
+		selectors = append(selectors, &common.Selector{Type: pluginName, Value: value})
+	}
+	s.requireSelectorsEqual(expected, selectors)
+}
+
 func (s *Suite) goAttest(p workloadattestor.WorkloadAttestor) <-chan attestResult {
 	resultCh := make(chan attestResult, 1)
 	go func() {
@@ -1021,6 +1525,520 @@ func (s *Suite) podListResponseCount() int {
 	return len(s.podList)
 }
 
+// testPodUID is the UID of the blog pod in testdata/pod_list.json.
+const testPodUID = "2c48913c-b29f-11e7-9350-020968147796"
+
+func testAPIServerBlogPod() *corev1.Pod {
+	return &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "blog-24ck7",
+			Namespace: "default",
+			UID:       types.UID(testPodUID),
+			Labels: map[string]string{
+				"k8s-app": "blog",
+				"version": "v0",
+			},
+			OwnerReferences: []metav1.OwnerReference{
+				{Kind: "ReplicationController", Name: "blog", UID: "2c401175-b29f-11e7-9350-020968147796"},
+			},
+		},
+		Spec: corev1.PodSpec{
+			NodeName:           "k8s-node-1",
+			ServiceAccountName: "default",
+		},
+		Status: corev1.PodStatus{
+			ContainerStatuses: []corev1.ContainerStatus{
+				{
+					Image:   "localhost/spiffe/blog:latest",
+					ImageID: "docker-pullable://localhost/spiffe/blog@sha256:0cfdaced91cb46dd7af48309799a3c351e4ca2d5e1ee9737ca0cbd932cb79898",
+				},
+				{
+					Image:   "localhost/spiffe/ghostunnel:latest",
+					ImageID: "docker-pullable://localhost/spiffe/ghostunnel@sha256:b2fc20676c92a433b9a91f3f4535faddec0c2c3613849ac12f02c1d5cfcd4c3a",
+				},
+			},
+		},
+	}
+}
+
+func testAPIServerBlogPodMetadata() *metav1.PartialObjectMetadata {
+	pod := testAPIServerBlogPod()
+	obj := &metav1.PartialObjectMetadata{ObjectMeta: pod.ObjectMeta}
+	obj.SetGroupVersionKind(schema.GroupVersionKind{Version: "v1", Kind: "Pod"})
+	return obj
+}
+
+func (s *Suite) TestAttestReferenceWithPIDSkipsBrokerRBACWhenPermissive() {
+	s.startInsecureKubelet()
+	var reviews []authv1.SubjectAccessReview
+	p := s.loadInsecurePluginWithBrokerAndKubeClient(fakeKubeClientWithSubjectAccessReview(false, &reviews))
+
+	s.addPodListResponse(podListFilePath)
+	s.addGetContainerResponsePidInPod()
+
+	anyRef, err := anypb.New(&broker.WorkloadPIDReference{Pid: int32(pid)})
+	s.Require().NoError(err)
+
+	selectors, err := p.AttestReference(testBrokerContext(), anyRef)
+	s.Require().NoError(err)
+	s.requireSelectorsEqual(testPodAndContainerSelectors, selectors)
+	s.Require().Empty(reviews)
+}
+
+func (s *Suite) TestAttestReferenceWithPIDBrokerRBACAllowedWhenEnforced() {
+	s.startInsecureKubelet()
+	var reviews []authv1.SubjectAccessReview
+	p := s.loadInsecurePluginWithEnforcedAccessPolicyAndKubeClient(fakeKubeClientWithSubjectAccessReview(true, &reviews))
+
+	s.addPodListResponse(podListFilePath)
+	s.addGetContainerResponsePidInPod()
+
+	anyRef, err := anypb.New(&broker.WorkloadPIDReference{Pid: int32(pid)})
+	s.Require().NoError(err)
+
+	selectors, err := p.AttestReference(testBrokerContext(), anyRef)
+	s.Require().NoError(err)
+	s.requireSelectorsEqual(testPodAndContainerSelectors, selectors)
+	s.Require().Len(reviews, 1)
+
+	review := reviews[0]
+	assert.Equal(s.T(), testBrokerID, review.Spec.User)
+	assert.Empty(s.T(), review.Spec.Groups)
+	if assert.NotNil(s.T(), review.Spec.ResourceAttributes) {
+		assert.Equal(s.T(), "", review.Spec.ResourceAttributes.Group)
+		assert.Equal(s.T(), "pods", review.Spec.ResourceAttributes.Resource)
+		assert.Equal(s.T(), "default", review.Spec.ResourceAttributes.Namespace)
+		assert.Equal(s.T(), "blog-24ck7", review.Spec.ResourceAttributes.Name)
+		assert.Equal(s.T(), brokerImpersonationReviewVerb, review.Spec.ResourceAttributes.Verb)
+	}
+}
+
+func (s *Suite) TestAttestReferenceWithPIDBrokerRBACDenied() {
+	s.startInsecureKubelet()
+	p := s.loadInsecurePluginWithEnforcedAccessPolicyAndKubeClient(fakeKubeClientWithSubjectAccessReview(false, nil))
+
+	s.addPodListResponse(podListFilePath)
+	s.addGetContainerResponsePidInPod()
+
+	anyRef, err := anypb.New(&broker.WorkloadPIDReference{Pid: int32(pid)})
+	s.Require().NoError(err)
+
+	selectors, err := p.AttestReference(testBrokerContext(), anyRef)
+	s.RequireGRPCStatusContains(err, codes.PermissionDenied, "Kubernetes authorizer does not allow the broker to use impersonate-via-spire for the referenced object")
+	s.Require().Nil(selectors)
+}
+
+func (s *Suite) TestAttestReferenceWithPodUID_FoundInKubelet() {
+	s.startInsecureKubelet()
+	p := s.loadInsecurePluginWithBrokerAndKubeClient(fakeKubeClientWithSubjectAccessReview(true, nil))
+
+	s.addPodListResponse(podListFilePath)
+
+	anyRef, err := anypb.New(&broker.KubernetesObjectReference{Type: &broker.KubernetesObjectType{Plural: "pods", Group: "core"}, Uid: testPodUID})
+	s.Require().NoError(err)
+
+	selectors, err := p.AttestReference(testBrokerContext(), anyRef)
+	s.Require().NoError(err)
+	s.requireSelectorsEqual(testPodSelectors, selectors)
+}
+
+func (s *Suite) TestAttestReferenceWithPodUID_DefaultScopeDoesNotCallAPIServer() {
+	s.startInsecureKubelet()
+
+	// Serve an empty pod list so the kubelet lookup finds nothing.
+	emptyPodList := []byte(`{"items":[]}`)
+	s.podListMu.Lock()
+	s.podList = append(s.podList, emptyPodList)
+	s.podListMu.Unlock()
+
+	var reviews []authv1.SubjectAccessReview
+	var metadataPodLists int
+	var livePodGets int
+	var livePodLists int
+	liveClient := fakeKubeClientWithSubjectAccessReviewAndRESTMapperAndInterceptors(true, &reviews, nil, interceptor.Funcs{
+		Get: func(ctx context.Context, c client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+			if _, ok := obj.(*corev1.Pod); ok {
+				livePodGets++
+			}
+			return c.Get(ctx, key, obj, opts...)
+		},
+		List: func(ctx context.Context, c client.WithWatch, list client.ObjectList, opts ...client.ListOption) error {
+			if _, ok := list.(*corev1.PodList); ok {
+				livePodLists++
+			}
+			return c.List(ctx, list, opts...)
+		},
+	}, testAPIServerBlogPod())
+	metadataClient := fakeKubeMetadataClientWithListHook(func(list client.ObjectList, opts ...client.ListOption) {
+		if _, ok := list.(*metav1.PartialObjectMetadataList); ok {
+			metadataPodLists++
+		}
+	}, testAPIServerBlogPodMetadata())
+	cfg := fmt.Sprintf(`
+		kubelet_read_only_port = %d
+		max_poll_attempts = 5
+		poll_retry_interval = "1s"
+		%s
+`, s.kubeletPort(), testBrokerConfig())
+	wa := s.loadPluginWithKubeClients(cfg, liveClient, metadataClient)
+
+	anyRef, err := anypb.New(&broker.KubernetesObjectReference{Type: &broker.KubernetesObjectType{Plural: "pods", Group: "core"}, Uid: testPodUID})
+	s.Require().NoError(err)
+
+	selectors, err := wa.AttestReference(testBrokerContext(), anyRef)
+	s.RequireGRPCStatusContains(err, codes.NotFound, "pod with UID 2c48913c-b29f-11e7-9350-020968147796 not found on agent node")
+	s.Require().Nil(selectors)
+	assert.Zero(s.T(), metadataPodLists)
+	assert.Zero(s.T(), livePodGets)
+	assert.Zero(s.T(), livePodLists)
+	s.Require().Empty(reviews)
+}
+
+func (s *Suite) TestAttestReferenceWithPodName_DefaultScopeDoesNotCallAPIServer() {
+	s.startInsecureKubelet()
+
+	// Serve an empty pod list so the kubelet lookup finds nothing.
+	emptyPodList := []byte(`{"items":[]}`)
+	s.podListMu.Lock()
+	s.podList = append(s.podList, emptyPodList)
+	s.podListMu.Unlock()
+
+	var reviews []authv1.SubjectAccessReview
+	var livePodGets int
+	var livePodLists int
+	liveClient := fakeKubeClientWithSubjectAccessReviewAndRESTMapperAndInterceptors(true, &reviews, nil, interceptor.Funcs{
+		Get: func(ctx context.Context, c client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+			if _, ok := obj.(*corev1.Pod); ok {
+				livePodGets++
+			}
+			return c.Get(ctx, key, obj, opts...)
+		},
+		List: func(ctx context.Context, c client.WithWatch, list client.ObjectList, opts ...client.ListOption) error {
+			if _, ok := list.(*corev1.PodList); ok {
+				livePodLists++
+			}
+			return c.List(ctx, list, opts...)
+		},
+	}, testAPIServerBlogPod())
+	cfg := fmt.Sprintf(`
+		kubelet_read_only_port = %d
+		max_poll_attempts = 5
+		poll_retry_interval = "1s"
+		%s
+`, s.kubeletPort(), testBrokerConfig())
+	wa := s.loadPluginWithKubeClient(cfg, liveClient)
+
+	anyRef, err := anypb.New(&broker.KubernetesObjectReference{
+		Type: &broker.KubernetesObjectType{Plural: "pods", Group: "core"},
+		Key:  &broker.KubernetesObjectKey{Namespace: "default", Name: "blog-24ck7"},
+	})
+	s.Require().NoError(err)
+
+	selectors, err := wa.AttestReference(testBrokerContext(), anyRef)
+	s.RequireGRPCStatusContains(err, codes.NotFound, "pod default/blog-24ck7 not found on agent node")
+	s.Require().Nil(selectors)
+	assert.Zero(s.T(), livePodGets)
+	assert.Zero(s.T(), livePodLists)
+	s.Require().Empty(reviews)
+}
+
+func (s *Suite) TestAttestReferenceWithPodUID_FallbackToAPIServerWithClusterScope() {
+	s.startInsecureKubelet()
+
+	// Serve an empty pod list so the kubelet lookup finds nothing.
+	emptyPodList := []byte(`{"items":[]}`)
+	s.podListMu.Lock()
+	s.podList = append(s.podList, emptyPodList)
+	s.podListMu.Unlock()
+
+	liveClient := fakeKubeClientWithSubjectAccessReview(true, nil, testAPIServerBlogPod())
+	metadataClient := fakeKubeMetadataClient(testAPIServerBlogPodMetadata())
+	cfg := fmt.Sprintf(`
+		kubelet_read_only_port = %d
+		max_poll_attempts = 5
+		poll_retry_interval = "1s"
+		%s
+`, s.kubeletPort(), testBrokerConfigWithPodReferenceScope("cluster"))
+	wa := s.loadPluginWithKubeClients(cfg, liveClient, metadataClient)
+
+	anyRef, err := anypb.New(&broker.KubernetesObjectReference{Type: &broker.KubernetesObjectType{Plural: "pods", Group: "core"}, Uid: testPodUID})
+	s.Require().NoError(err)
+
+	selectors, err := wa.AttestReference(testBrokerContext(), anyRef)
+	s.Require().NoError(err)
+	s.requireSelectorsEqual(testPodSelectors, selectors)
+}
+
+func (s *Suite) TestAttestReferenceWithPodName_FallbackToAPIServerWithClusterScope() {
+	s.startInsecureKubelet()
+
+	// Serve an empty pod list so the kubelet lookup finds nothing.
+	emptyPodList := []byte(`{"items":[]}`)
+	s.podListMu.Lock()
+	s.podList = append(s.podList, emptyPodList)
+	s.podListMu.Unlock()
+
+	liveClient := fakeKubeClientWithSubjectAccessReview(true, nil, testAPIServerBlogPod())
+	cfg := fmt.Sprintf(`
+		kubelet_read_only_port = %d
+		max_poll_attempts = 5
+		poll_retry_interval = "1s"
+		%s
+`, s.kubeletPort(), testBrokerConfigWithPodReferenceScope("cluster"))
+	wa := s.loadPluginWithKubeClient(cfg, liveClient)
+
+	anyRef, err := anypb.New(&broker.KubernetesObjectReference{
+		Type: &broker.KubernetesObjectType{Plural: "pods", Group: "core"},
+		Key:  &broker.KubernetesObjectKey{Namespace: "default", Name: "blog-24ck7"},
+	})
+	s.Require().NoError(err)
+
+	selectors, err := wa.AttestReference(testBrokerContext(), anyRef)
+	s.Require().NoError(err)
+	s.requireSelectorsEqual(testPodSelectors, selectors)
+}
+
+func (s *Suite) TestAttestReferenceWithPodUID_NotFound() {
+	s.startInsecureKubelet()
+
+	emptyPodList := []byte(`{"items":[]}`)
+	s.podListMu.Lock()
+	s.podList = append(s.podList, emptyPodList)
+	s.podListMu.Unlock()
+
+	liveClient := fakeKubeClientWithSubjectAccessReview(true, nil)
+	metadataClient := fakeKubeMetadataClient()
+	cfg := fmt.Sprintf(`
+		kubelet_read_only_port = %d
+		max_poll_attempts = 5
+		poll_retry_interval = "1s"
+		%s
+`, s.kubeletPort(), testBrokerConfig())
+	wa := s.loadPluginWithKubeClients(cfg, liveClient, metadataClient)
+
+	anyRef, err := anypb.New(&broker.KubernetesObjectReference{Type: &broker.KubernetesObjectType{Plural: "pods", Group: "core"}, Uid: "nonexistent-uid"})
+	s.Require().NoError(err)
+
+	selectors, err := wa.AttestReference(testBrokerContext(), anyRef)
+	s.RequireGRPCStatusContains(err, codes.NotFound, "not found")
+	s.Require().Nil(selectors)
+}
+
+func (s *Suite) TestAttestReferenceUnsupportedType() {
+	s.startInsecureKubelet()
+	p := s.loadInsecurePluginWithBroker()
+
+	anyRef := &anypb.Any{TypeUrl: "type.googleapis.com/unsupported.Type", Value: []byte{}}
+
+	selectors, err := p.AttestReference(testBrokerContext(), anyRef)
+	s.RequireGRPCStatusContains(err, codes.InvalidArgument, "unsupported reference type")
+	s.Require().Nil(selectors)
+}
+
+func (s *Suite) TestAttestReferenceKubernetesObjectValidation() {
+	s.startInsecureKubelet()
+	p := s.loadInsecurePluginWithBrokerAndKubeClient(fakeKubeClientWithSubjectAccessReview(true, nil))
+
+	testCases := []struct {
+		name   string
+		ref    *broker.KubernetesObjectReference
+		errMsg string
+	}{
+		{
+			name:   "missing type",
+			ref:    &broker.KubernetesObjectReference{Uid: testPodUID},
+			errMsg: "object reference is missing type",
+		},
+		{
+			name:   "missing plural",
+			ref:    &broker.KubernetesObjectReference{Type: &broker.KubernetesObjectType{Group: "core"}, Uid: testPodUID},
+			errMsg: "object reference type is missing plural",
+		},
+		{
+			name:   "missing group",
+			ref:    &broker.KubernetesObjectReference{Type: &broker.KubernetesObjectType{Plural: "pods"}, Uid: testPodUID},
+			errMsg: "object reference type is missing group",
+		},
+		{
+			name:   "missing key and uid",
+			ref:    &broker.KubernetesObjectReference{Type: &broker.KubernetesObjectType{Plural: "pods", Group: "core"}},
+			errMsg: "object reference is missing key and UID",
+		},
+		{
+			name: "key missing name",
+			ref: &broker.KubernetesObjectReference{
+				Type: &broker.KubernetesObjectType{Plural: "pods", Group: "core"},
+				Key:  &broker.KubernetesObjectKey{Namespace: "shop"},
+			},
+			errMsg: "object reference key is missing name",
+		},
+		{
+			name: "pod key missing namespace",
+			ref: &broker.KubernetesObjectReference{
+				Type: &broker.KubernetesObjectType{Plural: "pods", Group: "core"},
+				Key:  &broker.KubernetesObjectKey{Name: "checkout"},
+			},
+			errMsg: "namespace is required when name is set for a namespaced resource",
+		},
+	}
+
+	for _, tc := range testCases {
+		s.T().Run(tc.name, func(t *testing.T) {
+			anyRef, err := anypb.New(tc.ref)
+			s.Require().NoError(err)
+
+			selectors, err := p.AttestReference(testBrokerContext(), anyRef)
+			s.RequireGRPCStatusContains(err, codes.InvalidArgument, tc.errMsg)
+			s.Require().Nil(selectors)
+		})
+	}
+}
+
+func (s *Suite) TestAttestReferenceRequiresBrokerConfig() {
+	s.startInsecureKubelet()
+	p := s.loadInsecurePlugin()
+
+	anyRef, err := anypb.New(&broker.KubernetesObjectReference{Type: &broker.KubernetesObjectType{Plural: "pods", Group: "core"}, Uid: testPodUID})
+	s.Require().NoError(err)
+
+	selectors, err := p.AttestReference(testBrokerContext(), anyRef)
+	s.RequireGRPCStatusContains(err, codes.Internal, "broker configuration missing")
+	s.Require().Nil(selectors)
+}
+
+func (s *Suite) TestAttestReferenceWithoutBrokerCallerDoesNotRequireBrokerConfig() {
+	s.startInsecureKubelet()
+	p := s.loadInsecurePlugin()
+	s.addPodListResponse(podListFilePath)
+
+	anyRef, err := anypb.New(&broker.KubernetesObjectReference{Type: &broker.KubernetesObjectType{Plural: "pods", Group: "core"}, Uid: testPodUID})
+	s.Require().NoError(err)
+
+	selectors, err := p.AttestReference(context.Background(), anyRef)
+	s.Require().NoError(err)
+	s.requireSelectorsEqual(testPodSelectors, selectors)
+}
+
+func (s *Suite) TestAttestReferenceWithoutBrokerCallerDoesNotRunBrokerRBAC() {
+	s.startInsecureKubelet()
+	var reviews []authv1.SubjectAccessReview
+	p := s.loadInsecurePluginWithBrokerAndKubeClient(fakeKubeClientWithSubjectAccessReview(false, &reviews))
+	s.addPodListResponse(podListFilePath)
+
+	anyRef, err := anypb.New(&broker.KubernetesObjectReference{Type: &broker.KubernetesObjectType{Plural: "pods", Group: "core"}, Uid: testPodUID})
+	s.Require().NoError(err)
+
+	selectors, err := p.AttestReference(context.Background(), anyRef)
+	s.Require().NoError(err)
+	s.requireSelectorsEqual(testPodSelectors, selectors)
+	s.Require().Empty(reviews)
+}
+
+func (s *Suite) TestAttestReferenceBrokerRBACDenied() {
+	s.startInsecureKubelet()
+	p := s.loadInsecurePluginWithEnforcedAccessPolicyAndKubeClient(fakeKubeClientWithSubjectAccessReview(false, nil))
+	s.addPodListResponse(podListFilePath)
+
+	anyRef, err := anypb.New(&broker.KubernetesObjectReference{Type: &broker.KubernetesObjectType{Plural: "pods", Group: "core"}, Uid: testPodUID})
+	s.Require().NoError(err)
+
+	selectors, err := p.AttestReference(testBrokerContext(), anyRef)
+	s.RequireGRPCStatusContains(err, codes.PermissionDenied, "Kubernetes authorizer does not allow the broker to use impersonate-via-spire for the referenced object")
+	s.Require().Nil(selectors)
+}
+
+func (s *Suite) TestAttestReferenceBrokerRBACUsesResolvedObject() {
+	s.startInsecureKubelet()
+	var reviews []authv1.SubjectAccessReview
+	p := s.loadInsecurePluginWithEnforcedAccessPolicyAndKubeClient(fakeKubeClientWithSubjectAccessReview(true, &reviews))
+	s.addPodListResponse(podListFilePath)
+
+	anyRef, err := anypb.New(&broker.KubernetesObjectReference{Type: &broker.KubernetesObjectType{Plural: "pods", Group: "core"}, Uid: testPodUID})
+	s.Require().NoError(err)
+
+	selectors, err := p.AttestReference(testBrokerContext(), anyRef)
+	s.Require().NoError(err)
+	s.requireSelectorsEqual(testPodSelectors, selectors)
+	s.Require().Len(reviews, 1)
+
+	review := reviews[0]
+	assert.Equal(s.T(), testBrokerID, review.Spec.User)
+	assert.Empty(s.T(), review.Spec.Groups)
+	if assert.NotNil(s.T(), review.Spec.ResourceAttributes) {
+		assert.Equal(s.T(), "", review.Spec.ResourceAttributes.Group)
+		assert.Equal(s.T(), "pods", review.Spec.ResourceAttributes.Resource)
+		assert.Equal(s.T(), "default", review.Spec.ResourceAttributes.Namespace)
+		assert.Equal(s.T(), "blog-24ck7", review.Spec.ResourceAttributes.Name)
+		assert.Equal(s.T(), brokerImpersonationReviewVerb, review.Spec.ResourceAttributes.Verb)
+	}
+}
+
+func (s *Suite) TestAttestReferenceBrokerRBACUsesResolvedGenericObject() {
+	s.startInsecureKubelet()
+
+	gvk := schema.GroupVersionKind{
+		Group:   "kustomize.toolkit.fluxcd.io",
+		Version: "v1",
+		Kind:    "Kustomization",
+	}
+	gvr := schema.GroupVersionResource{
+		Group:    gvk.Group,
+		Version:  gvk.Version,
+		Resource: "kustomizations",
+	}
+	mapper := meta.NewDefaultRESTMapper([]schema.GroupVersion{gvk.GroupVersion()})
+	mapper.AddSpecific(gvk, gvr, schema.GroupVersionResource{
+		Group:    gvk.Group,
+		Version:  gvk.Version,
+		Resource: "kustomization",
+	}, meta.RESTScopeNamespace)
+
+	obj := &metav1.PartialObjectMetadata{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "tenant-a",
+			Namespace: "flux-system",
+			UID:       "kustomization-uid",
+		},
+	}
+	obj.SetGroupVersionKind(gvk)
+
+	var reviews []authv1.SubjectAccessReview
+	p := s.loadInsecurePluginWithEnforcedAccessPolicyAndKubeClient(fakeKubeClientWithSubjectAccessReviewAndRESTMapper(true, &reviews, mapper, obj))
+
+	anyRef, err := anypb.New(&broker.KubernetesObjectReference{
+		Type: &broker.KubernetesObjectType{
+			Plural: "kustomizations",
+			Group:  "kustomize.toolkit.fluxcd.io",
+		},
+		Uid: "kustomization-uid",
+	})
+	s.Require().NoError(err)
+
+	selectors, err := p.AttestReference(testBrokerContext(), anyRef)
+	s.Require().NoError(err)
+	s.Require().Len(reviews, 1)
+
+	selectorValues := make([]string, 0, len(selectors))
+	for _, selector := range selectors {
+		assert.Equal(s.T(), "k8s", selector.Type)
+		selectorValues = append(selectorValues, selector.Value)
+	}
+	assert.Contains(s.T(), selectorValues, "uid:kustomization-uid")
+	assert.Contains(s.T(), selectorValues, "namespace:flux-system")
+	assert.Contains(s.T(), selectorValues, "name:tenant-a")
+
+	review := reviews[0]
+	assert.Equal(s.T(), testBrokerID, review.Spec.User)
+	assert.Empty(s.T(), review.Spec.Groups)
+	if assert.NotNil(s.T(), review.Spec.ResourceAttributes) {
+		assert.Equal(s.T(), "kustomize.toolkit.fluxcd.io", review.Spec.ResourceAttributes.Group)
+		assert.Equal(s.T(), "kustomizations", review.Spec.ResourceAttributes.Resource)
+		assert.Equal(s.T(), "flux-system", review.Spec.ResourceAttributes.Namespace)
+		assert.Equal(s.T(), "tenant-a", review.Spec.ResourceAttributes.Name)
+		assert.Equal(s.T(), brokerImpersonationReviewVerb, review.Spec.ResourceAttributes.Verb)
+	}
+}
+
 type fakeSigstoreVerifier struct {
 	mu sync.Mutex
 
@@ -1042,4 +2060,82 @@ func (v *fakeSigstoreVerifier) Verify(_ context.Context, imageID string) ([]stri
 	}
 
 	return nil, fmt.Errorf("failed to verify signature for image %s", imageID)
+}
+
+func TestGetSelectorValuesFromObjectMeta(t *testing.T) {
+	truePtr := true
+	falsePtr := false
+
+	for _, tc := range []struct {
+		name     string
+		objType  *broker.KubernetesObjectType
+		gvk      schema.GroupVersionKind
+		obj      *metav1.PartialObjectMetadata
+		expected []string
+	}{
+		{
+			name:    "namespaced with all fields",
+			objType: &broker.KubernetesObjectType{Plural: "deployments", Group: "apps"},
+			gvk:     schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: "Deployment"},
+			obj: &metav1.PartialObjectMetadata{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        "checkout",
+					Namespace:   "shop",
+					UID:         "a1b2c3",
+					Labels:      map[string]string{"app": "checkout"},
+					Annotations: map[string]string{"team": "payments"}, // ignored — annotations are not used as selectors
+					OwnerReferences: []metav1.OwnerReference{
+						{APIVersion: "apps/v1", Kind: "ReplicaSet", Name: "checkout-rs", UID: "owner-uid-1", Controller: &truePtr},
+						{APIVersion: "v1", Kind: "ConfigMap", Name: "checkout-cm", UID: "owner-uid-2", Controller: &falsePtr},
+					},
+				},
+			},
+			expected: []string{
+				"uid:a1b2c3",
+				"resource:deployments.apps",
+				"plural:deployments",
+				"group:apps",
+				"version:v1",
+				"apiVersion:apps/v1",
+				"kind:Deployment",
+				"name:checkout",
+				"namespace:shop",
+				"key:shop/checkout",
+				"label:app:checkout",
+				"owner-key:apps/ReplicaSet/checkout-rs",
+				"owner-uid:apps/ReplicaSet/owner-uid-1",
+				"controller-key:apps/ReplicaSet/checkout-rs",
+				"controller-uid:apps/ReplicaSet/owner-uid-1",
+				"owner-key:core/ConfigMap/checkout-cm",
+				"owner-uid:core/ConfigMap/owner-uid-2",
+			},
+		},
+		{
+			name:    "cluster-scoped, no owners/labels",
+			objType: &broker.KubernetesObjectType{Plural: "nodes", Group: "core"},
+			gvk:     schema.GroupVersionKind{Group: "", Version: "v1", Kind: "Node"},
+			obj: &metav1.PartialObjectMetadata{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "ip-10-0-1-42.ec2.internal",
+					UID:  "node-uid",
+				},
+			},
+			expected: []string{
+				"uid:node-uid",
+				"resource:nodes.core",
+				"plural:nodes",
+				"group:core",
+				"version:v1",
+				"apiVersion:v1",
+				"kind:Node",
+				"name:ip-10-0-1-42.ec2.internal",
+				"key:ip-10-0-1-42.ec2.internal",
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got := getSelectorValuesFromObjectMeta(tc.objType, tc.gvk, tc.obj)
+			assert.ElementsMatch(t, tc.expected, got)
+		})
+	}
 }
