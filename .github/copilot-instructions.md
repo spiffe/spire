@@ -167,6 +167,7 @@ assumption from this document. In particular, do not raise any of the following
   were already per-iteration before 1.22.)
 - **`min`, `max`, and `clear` builtins**, and other features introduced up to
   the toolchain's version.
+- **`new(x)`** where `x` is an expression rather than a type.
 
 If you believe a construct fails to compile, prefer assuming it is valid modern
 Go rather than reporting a build error based on an older language version.

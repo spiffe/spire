@@ -18,6 +18,7 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/agent/api/rpccontext"
 	"github.com/spiffe/spire/pkg/agent/client"
+	"github.com/spiffe/spire/pkg/agent/common/hintsfilter"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/jwtsvid"
@@ -42,9 +43,22 @@ type Attestor interface {
 	Attest(ctx context.Context) ([]*common.Selector, error)
 }
 
+// RateLimiter enforces per-selector-set rate limiting on Workload API methods.
+type RateLimiter interface {
+	RateLimit(fullMethod string, selectors []*common.Selector) error
+}
+
+const (
+	MethodFetchX509SVID    = "/SpiffeWorkloadAPI/FetchX509SVID"
+	MethodFetchJWTSVID     = "/SpiffeWorkloadAPI/FetchJWTSVID"
+	MethodFetchX509Bundles = "/SpiffeWorkloadAPI/FetchX509Bundles"
+	MethodFetchJWTBundles  = "/SpiffeWorkloadAPI/FetchJWTBundles"
+)
+
 type Config struct {
 	Manager                       Manager
 	Attestor                      Attestor
+	RateLimiter                   RateLimiter
 	AllowUnauthenticatedVerifiers bool
 	AllowedForeignJWTClaims       map[string]struct{}
 	LogSelectors                  []string
@@ -61,6 +75,19 @@ func New(c Config) *Handler {
 	return &Handler{
 		c: c,
 	}
+}
+
+func (h *Handler) rateLimit(ctx context.Context, fullMethod string, selectors []*common.Selector) error {
+	if h.c.RateLimiter == nil {
+		return nil
+	}
+	// Exempt the agent's own calls from rate limiting so that an
+	// operator-configured limit can't deny the agent itself (e.g. the health
+	// check, which exercises the Workload API) and mark it unhealthy.
+	if isAgent(ctx) {
+		return nil
+	}
+	return h.c.RateLimiter.RateLimit(fullMethod, selectors)
 }
 
 // FetchJWTSVID processes request for a JWT-SVID. In case of multiple fetched SVIDs with same hint, the SVID that has the oldest
@@ -86,10 +113,14 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *workload.JWTSVIDRequest
 		return nil, workloadAttestationFailedError(ctx)
 	}
 
+	if err := h.rateLimit(ctx, MethodFetchJWTSVID, selectors); err != nil {
+		return nil, err
+	}
+
 	log = log.WithField(telemetry.Registered, true)
 
 	entries := h.c.Manager.MatchingRegistrationEntries(selectors)
-	entries = filterRegistrations(entries, log)
+	entries = hintsfilter.FilterRegistrations(entries, log)
 
 	resp = new(workload.JWTSVIDResponse)
 
@@ -124,6 +155,10 @@ func (h *Handler) FetchJWTBundles(_ *workload.JWTBundlesRequest, stream workload
 	if err != nil {
 		loggerWithContextInfo(ctx, log, start, err).Error("Workload attestation failed")
 		return workloadAttestationFailedError(ctx)
+	}
+
+	if err := h.rateLimit(ctx, MethodFetchJWTBundles, selectors); err != nil {
+		return err
 	}
 
 	subscriber, err := h.c.Manager.SubscribeToCacheChanges(ctx, selectors)
@@ -225,6 +260,10 @@ func (h *Handler) FetchX509SVID(_ *workload.X509SVIDRequest, stream workload.Spi
 		return workloadAttestationFailedError(ctx)
 	}
 
+	if err := h.rateLimit(ctx, MethodFetchX509SVID, selectors); err != nil {
+		return err
+	}
+
 	subscriber, err := h.c.Manager.SubscribeToCacheChanges(ctx, selectors)
 	if err != nil {
 		loggerWithContextInfo(ctx, log, start, err).Error("Subscribe to cache changes failed")
@@ -235,7 +274,7 @@ func (h *Handler) FetchX509SVID(_ *workload.X509SVIDRequest, stream workload.Spi
 	for {
 		select {
 		case update := <-subscriber.Updates():
-			update.Identities = filterIdentities(update.Identities, log)
+			update.Identities = hintsfilter.FilterIdentities(update.Identities, log)
 			if err := h.sendX509SVIDResponse(update, stream, selectors, log, start); err != nil {
 				return err
 			}
@@ -255,6 +294,10 @@ func (h *Handler) FetchX509Bundles(_ *workload.X509BundlesRequest, stream worklo
 	if err != nil {
 		loggerWithContextInfo(ctx, log, start, err).Error("Workload attestation failed")
 		return workloadAttestationFailedError(ctx)
+	}
+
+	if err := h.rateLimit(ctx, MethodFetchX509Bundles, selectors); err != nil {
+		return err
 	}
 
 	subscriber, err := h.c.Manager.SubscribeToCacheChanges(ctx, selectors)
@@ -635,81 +678,4 @@ func isClaimAllowed(claim string, allowedClaims map[string]struct{}) bool {
 		_, ok := allowedClaims[claim]
 		return ok
 	}
-}
-
-func filterIdentities(identities []cache.Identity, log logrus.FieldLogger) []cache.Identity {
-	var filteredIdentities []cache.Identity
-	var entries []*common.RegistrationEntry
-	for _, identity := range identities {
-		entries = append(entries, identity.Entry)
-	}
-
-	entriesToRemove := getEntriesToRemove(entries, log)
-
-	for _, identity := range identities {
-		if _, ok := entriesToRemove[identity.Entry.EntryId]; !ok {
-			filteredIdentities = append(filteredIdentities, identity)
-		}
-	}
-
-	return filteredIdentities
-}
-
-func filterRegistrations(entries []*common.RegistrationEntry, log logrus.FieldLogger) []*common.RegistrationEntry {
-	var filteredEntries []*common.RegistrationEntry
-	entriesToRemove := getEntriesToRemove(entries, log)
-
-	for _, entry := range entries {
-		if _, ok := entriesToRemove[entry.EntryId]; !ok {
-			filteredEntries = append(filteredEntries, entry)
-		}
-	}
-
-	return filteredEntries
-}
-
-func getEntriesToRemove(entries []*common.RegistrationEntry, log logrus.FieldLogger) map[string]struct{} {
-	entriesToRemove := make(map[string]struct{})
-	hintsMap := make(map[string]*common.RegistrationEntry)
-
-	for _, entry := range entries {
-		if entry.Hint == "" {
-			continue
-		}
-		if entryWithNonUniqueHint, ok := hintsMap[entry.Hint]; ok {
-			entryToMaintain, entryToRemove := hintTieBreaking(entry, entryWithNonUniqueHint)
-
-			hintsMap[entry.Hint] = entryToMaintain
-			entriesToRemove[entryToRemove.EntryId] = struct{}{}
-
-			log.WithFields(logrus.Fields{
-				telemetry.Hint:           entryToRemove.Hint,
-				telemetry.RegistrationID: entryToRemove.EntryId,
-			}).Warn("Ignoring entry with duplicate hint")
-		} else {
-			hintsMap[entry.Hint] = entry
-		}
-	}
-
-	return entriesToRemove
-}
-
-func hintTieBreaking(entryA *common.RegistrationEntry, entryB *common.RegistrationEntry) (maintain *common.RegistrationEntry, remove *common.RegistrationEntry) {
-	switch {
-	case entryA.CreatedAt < entryB.CreatedAt:
-		maintain = entryA
-		remove = entryB
-	case entryA.CreatedAt > entryB.CreatedAt:
-		maintain = entryB
-		remove = entryA
-	default:
-		if entryA.EntryId < entryB.EntryId {
-			maintain = entryA
-			remove = entryB
-		} else {
-			maintain = entryB
-			remove = entryA
-		}
-	}
-	return
 }

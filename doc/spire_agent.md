@@ -78,13 +78,54 @@ This may be useful for templating configuration files, for example across differ
 | `x509_svid_cache_max_size`        | Soft limit of max number of X509-SVIDs that would be stored in LRU cache                                                                                                                                                                          | 1000                             |
 | `jwt_svid_cache_max_size`         | Hard limit of max number of JWT-SVIDs that would be stored in LRU cache                                                                                                                                                                           | 1000                             |
 
-| experimental                  | Description                                                                                         | Default                 |
-|:------------------------------|-----------------------------------------------------------------------------------------------------|-------------------------|
-| `named_pipe_name`             | Pipe name to bind the SPIRE Agent API named pipe (Windows only)                                     | \spire-agent\public\api |
-| `sync_interval`               | Sync interval with SPIRE server with exponential backoff                                            | 5 sec                   |
-| `use_sync_authorized_entries` | Use SyncAuthorizedEntries API for periodically synchronization of authorized entries                | true                    |
-| `require_pq_kem`              | Require use of a post-quantum-safe key exchange method for TLS handshakes                           | false                   |
-| `jwt_svid_cache_hit_timeout`  | Custom gRPC timeout (between 5 and 30s) when retrieving a NewJWTSVID when a valid JWT-SVID in cache | 30s                     |
+| experimental                  | Description                                                                                                                                                                         | Default                 |
+| :---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------- |
+| `named_pipe_name`             | Pipe name to bind the SPIRE Agent API named pipe (Windows only)                                                                                                                     | \spire-agent\public\api |
+| `sync_interval`               | Sync interval with SPIRE server with exponential backoff                                                                                                                            | 5 sec                   |
+| `use_sync_authorized_entries` | Use SyncAuthorizedEntries API for periodically synchronization of authorized entries                                                                                                | true                    |
+| `require_pq_kem`              | Require use of a post-quantum-safe key exchange method for TLS handshakes                                                                                                           | false                   |
+| `jwt_svid_cache_hit_timeout`  | Custom gRPC timeout (between 5 and 30s) when retrieving a NewJWTSVID when a valid JWT-SVID in cache                                                                                 | 30s                     |
+| `ratelimit`                   | Optional per-caller rate limiting for Workload API and SDS methods, enforced after workload attestation. See [Workload API Rate Limiting](#workload-api-rate-limiting) for details. |                         |
+| `broker`                      | Optional SPIFFE Broker API endpoint configuration. See [SPIFFE Broker API](#spiffe-broker-api).                                                                                     |                         |
+
+### Workload API Rate Limiting
+
+The `ratelimit` configuration block enforces per-caller rate limits on Workload API and Envoy SDS methods to protect the agent from noisy-neighbor workloads and reconnection storms.
+
+This feature is **experimental** and lives under the `experimental` block. Its configuration may change or move in a future release (targeted for promotion or removal in 1.16/1.17).
+
+**Key resolution:** Rate limits are enforced after workload attestation. The caller's attested selector set (the full set of `type:value` pairs returned by the attestor) is used as the rate-limit key — all workloads with the same selector set share one token bucket, and workloads with different selector sets never interfere. Callers that cannot be attested (empty selector set) share a single `<unattested>` bucket. The agent's own health probe is exempt from rate limiting.
+
+| ratelimit            | Description                                                                                 | Default      |
+| :------------------- | ------------------------------------------------------------------------------------------- | ------------ |
+| `fetch_x509_svid`    | Max stream opens per second per selector set for `FetchX509SVID`. 0 disables rate limiting. | 0 (disabled) |
+| `fetch_jwt_svid`     | Max calls per second per selector set for `FetchJWTSVID`. 0 disables rate limiting.         | 0 (disabled) |
+| `fetch_x509_bundles` | Max stream opens per second per selector set for `FetchX509Bundles`. 0 disables.            | 0 (disabled) |
+| `fetch_jwt_bundles`  | Max stream opens per second per selector set for `FetchJWTBundles`. 0 disables.             | 0 (disabled) |
+| `stream_secrets`     | Max stream opens per second per selector set for SDS `StreamSecrets`. 0 disables.           | 0 (disabled) |
+| `fetch_secrets`      | Max calls per second per selector set for SDS `FetchSecrets`. 0 disables.                   | 0 (disabled) |
+
+For streaming RPCs (`FetchX509SVID`, `FetchX509Bundles`, `FetchJWTBundles`, `StreamSecrets`), the rate limit is enforced at stream establishment (i.e., per reconnect), not per message.
+
+Example configuration:
+
+```hcl
+agent {
+    # ...
+    experimental {
+        ratelimit {
+            fetch_x509_svid    = 100
+            fetch_jwt_svid     = 500
+            fetch_x509_bundles = 20
+            fetch_jwt_bundles  = 20
+            stream_secrets     = 50
+            fetch_secrets      = 50
+        }
+    }
+}
+```
+
+Calls exceeding the rate limit receive an `Unavailable` gRPC status code.
 
 ### Server Attestation
 
@@ -354,6 +395,31 @@ Checks SPIRE agent's health.
 | `-socketPath` | Path to the SPIRE Agent API socket    | /tmp/spire-agent/public/api.sock |
 | `-verbose`    | Print verbose information             |                                  |
 
+### `spire-agent logger get`
+
+Gets the current logging level of the SPIRE Agent.
+
+| Command       | Action                                   | Default                             |
+|:--------------|:-----------------------------------------|:------------------------------------|
+| `-socketPath` | Path to the SPIRE Agent Admin API socket | /tmp/spire-agent/private/admin.sock |
+
+### `spire-agent logger set`
+
+Sets the logging level of the SPIRE Agent.
+
+| Command       | Action                                                                    | Default                             |
+|:--------------|:--------------------------------------------------------------------------|:------------------------------------|
+| `-level`      | The new log level, one of (panic, fatal, error, warn, info, debug, trace) |                                     |
+| `-socketPath` | Path to the SPIRE Agent Admin API socket                                  | /tmp/spire-agent/private/admin.sock |
+
+### `spire-agent logger reset`
+
+Resets the logging level of the SPIRE Agent to the level it was set to at launch.
+
+| Command       | Action                                   | Default                             |
+|:--------------|:-----------------------------------------|:------------------------------------|
+| `-socketPath` | Path to the SPIRE Agent Admin API socket | /tmp/spire-agent/private/admin.sock |
+
 ### `spire-agent validate`
 
 Validates a SPIRE agent configuration file.
@@ -478,6 +544,140 @@ agent {
     ]
 }
 ```
+
+## SPIFFE Broker API
+
+The SPIFFE Broker API lets an authorized infrastructure component (a "broker")
+obtain SVIDs and trust bundles on behalf of workloads that the broker
+references, rather than the workload connecting to SPIRE Agent itself. It
+implements the [SPIFFE Broker API](https://github.com/spiffe/spiffe/blob/main/standards/SPIFFE_Broker_API.md)
+specification and is served from SPIRE Agent over a dedicated, mutually
+authenticated endpoint that is distinct from the Workload API.
+
+> **Status:** experimental. The Broker API is being stabilized as the
+> upstream SPIFFE specification matures; breaking changes may land before
+> this configuration moves out of `experimental`.
+
+How it differs from the existing APIs:
+
+* The **Workload API** is invoked by a workload to obtain its own SVID,
+  and the workload is attested implicitly via its socket peer credentials.
+* The **Delegated Identity API** lets an authorized delegate impersonate
+  any workload in the agent's scope; the delegate is responsible for
+  identifying the target workload (by selectors or PID).
+* The **Broker API** is also delegate-style — a broker presents a
+  `WorkloadReference` identifying a workload, and the agent runs its
+  configured workload attestor stack against that reference to produce
+  selectors. Unlike the Delegated Identity API, the broker never
+  hand-supplies selectors; the agent's own attestor remains the source of
+  truth for what selectors apply to a reference. This makes the Broker
+  API safe to expose across the network (over mTLS) and not just over a
+  local UDS.
+
+The specification currently defines two reference types:
+
+* `WorkloadPIDReference` — a process ID on the agent's node. Per
+  [SPIFFE Broker API §3.1.2](https://github.com/spiffe/spiffe/blob/main/standards/SPIFFE_Broker_API.md#312-reference-scope),
+  this is a local reference and should not cross network boundaries.
+  SPIRE Agent enforces this server-side via each broker's
+  `allowed_reference_types[].allow_over_tcp` setting (see
+  [Configuration](#configuration)), which defaults to false: TCP requests
+  are denied unless the operator explicitly opts the reference type in.
+* `KubernetesObjectReference` — an arbitrary Kubernetes object identified
+  by `type` (resource and group) plus `key` (namespace and name) and/or
+  `uid`. SPIRE Agent's `k8s` workload attestor can support this reference
+  type when its `allowed_reference_types` includes
+  `type.googleapis.com/spiffe.broker.KubernetesObjectReference`, and emits
+  selectors describing the object (`k8s:pod-name`, etc. for pods; or the
+  generic `k8s:resource`, `k8s:kind`, `k8s:name`, ... for any other
+  resource).
+
+When the `k8s` workload attestor handles Broker API `AttestReference` calls,
+its plugin-level `experimental.broker` block is required for every reference type. Set
+`experimental.broker.access_policy = "enforced"` to make the attestor run Kubernetes
+`SubjectAccessReview` checks against the resolved pod for
+`WorkloadPIDReference`, and against the referenced object for
+`KubernetesObjectReference`. Set `experimental.broker.access_policy = "permissive"` to
+skip those checks. The setting is required; there is no default.
+
+### Transport and authentication
+
+The Broker API is gated by mutual TLS using X.509-SVIDs. A broker is
+expected to obtain its own SVID via the Workload API first, then use that
+SVID to dial the broker endpoint. The agent presents its own SVID and
+verifies the broker's certificate against the configured per-broker
+allowlist.
+
+Per the spec, every request must carry the `broker.spiffe.io: true` gRPC
+metadata header as an SSRF mitigation. SPIRE Agent rejects requests that
+omit it with `InvalidArgument`. This applies to _every_ method, including
+gRPC server reflection (which is only served over UDS). Tools like
+`grpcurl`/`grpcui` do not send the header by default, so reflection calls
+must set it explicitly, e.g.:
+
+```sh
+grpcurl -unix -rpc-header 'broker.spiffe.io: true' /path/to/broker.sock list
+```
+
+### Configuration
+
+The endpoint is enabled by adding a `broker` block under `experimental`
+in the agent config. At least one of `socket_path` (POSIX-only UDS) or
+`bind_address` (TCP, all platforms) must be set; both may be set
+simultaneously.
+
+The `socket_path` must not live in the same directory as the Workload
+API socket — SPIRE Agent will refuse to start otherwise.
+
+Each entry in `brokers` enumerates an authorized broker's SPIFFE ID
+(cross-trust-domain identities are allowed) and the reference types it
+may use. The `allowed_reference_types` list is required and must contain
+at least one object. Each object requires `type_url`, the verbatim
+protobuf type URL. Set `allow_over_tcp = true` on an entry only when that
+reference type is safe over the network; it defaults to false, so UDS is
+allowed but TCP is denied. Use a single object with `type_url = "*"` to
+allow any reference type the agent's attestor stack understands.
+
+```hcl
+agent {
+    trust_domain = "example.org"
+    ...
+    experimental {
+        broker {
+            socket_path  = "/run/spire/broker-sockets/broker.sock"  # POSIX UDS
+            bind_address = "0.0.0.0:8443"                           # optional TCP
+
+            brokers = [
+                {
+                    id = "spiffe://example.org/some/broker"
+                    allowed_reference_types = [
+                        {
+                            type_url = "type.googleapis.com/spiffe.broker.WorkloadPIDReference"
+                        },
+                        {
+                            type_url = "type.googleapis.com/spiffe.broker.KubernetesObjectReference"
+                            allow_over_tcp = true
+                        },
+                    ]
+                },
+                {
+                    id = "spiffe://example.org/wildcard/broker"
+                    allowed_reference_types = [
+                        {
+                            type_url = "*"
+                        },
+                    ]
+                },
+            ]
+        }
+    }
+}
+```
+
+Brokers whose ID isn't in this list are rejected at the TLS layer.
+Brokers in the list but using a reference type outside their
+`allowed_reference_types` are rejected with `PermissionDenied` at the
+gRPC layer.
 
 ## Envoy SDS Support
 

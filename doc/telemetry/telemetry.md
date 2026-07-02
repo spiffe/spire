@@ -102,6 +102,7 @@ The following metrics are emitted:
 | Sample       | `workload_api`, `discovered_selectors`                                   |                              | The number of selectors discovered during a workload attestation process.             |
 | Call Counter | `workload_api`, `workload_attestation`                                   |                              | The Workload API is performing a workload attestation.                                |
 | Call Counter | `workload_api`, `workload_attestor`                                      | `attestor`                   | The Workload API is invoking a given attestor.                                        |
+| Counter      | `workload_api`, `rate_limit_exceeded`                                    | `method`                     | A Workload API or SDS request was rejected due to per-selector-set rate limiting.     |
 | Gauge        | `started`                                                                | `version`, `trust_domain_id` | Information about the Agent.                                                          |
 | Gauge        | `uptime_in_ms`                                                           |                              | The uptime of the Agent in milliseconds.                                              |
 | Counter      | `debug_api`, `connection`                                                |                              | The Debug API has successfully established a connection.                              |

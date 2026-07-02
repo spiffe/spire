@@ -1,0 +1,32 @@
+#!/bin/bash
+
+set -e
+
+source init-kubectl
+
+log-info "Test: broker fetches target-pod SVID via KubernetesObjectReference (pods/core) by name"
+
+./bin/kubectl -nspire exec -t broker -- /brokerclient \
+    -ref-type object \
+    -plural pods -group core \
+    -namespace spire -name target-pod \
+    -expected-spiffe spiffe://example.org/target-pod \
+    || fail-now "broker failed to fetch SVID via pod object reference by name"
+
+log-info "Test: broker fetches target-pod SVID via KubernetesObjectReference (pods/core) by UID"
+
+# This mirrors the Istio ztunnel shape: the broker connects over the local UDS
+# and the k8s workload attestor uses the default pod_reference_scope=agent_node.
+TARGET_POD_UID=$(./bin/kubectl -nspire get pod target-pod -o jsonpath='{.metadata.uid}')
+if [ -z "${TARGET_POD_UID}" ]; then
+    fail-now "could not resolve target-pod UID"
+fi
+
+./bin/kubectl -nspire exec -t broker -- /brokerclient \
+    -ref-type object \
+    -plural pods -group core \
+    -uid "${TARGET_POD_UID}" \
+    -expected-spiffe spiffe://example.org/target-pod \
+    || fail-now "broker failed to fetch SVID via pod UID object reference"
+
+log-success "broker fetched target-pod SVID via KubernetesObjectReference by name and UID"

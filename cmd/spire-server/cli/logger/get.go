@@ -8,6 +8,7 @@ import (
 	"github.com/mitchellh/cli"
 	api "github.com/spiffe/spire-api-sdk/proto/spire/api/server/logger/v1"
 	"github.com/spiffe/spire/cmd/spire-server/util"
+	commonlogger "github.com/spiffe/spire/pkg/common/api/logger"
 	commoncli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/cliprinter"
 )
@@ -55,5 +56,5 @@ func (c *getCommand) Run(ctx context.Context, _ *commoncli.Env, serverClient uti
 
 // Formatting for the logger under pretty printing of output.
 func (c *getCommand) prettyPrintLogger(env *commoncli.Env, results ...any) error {
-	return PrettyPrintLogger(env, results...)
+	return commonlogger.PrettyPrintLogger(env, results...)
 }

@@ -66,9 +66,12 @@ func New(c Config) *Endpoints {
 		allowedClaims[claim] = struct{}{}
 	}
 
+	workloadRateLimiter := NewWorkloadRateLimiter(c.WorkloadAPIRateLimit, c.Log, c.Metrics)
+
 	workloadAPIServer := c.newWorkloadAPIServer(workload.Config{
 		Manager:                       c.Manager,
 		Attestor:                      attestor,
+		RateLimiter:                   workloadRateLimiter,
 		AllowUnauthenticatedVerifiers: c.AllowUnauthenticatedVerifiers,
 		AllowedForeignJWTClaims:       allowedClaims,
 		LogSelectors:                  c.LogSelectors,
@@ -78,6 +81,7 @@ func New(c Config) *Endpoints {
 	sdsv3Server := c.newSDSv3Server(sdsv3.Config{
 		Attestor:                    attestor,
 		Manager:                     c.Manager,
+		RateLimiter:                 workloadRateLimiter,
 		DefaultSVIDName:             c.DefaultSVIDName,
 		DefaultBundleName:           c.DefaultBundleName,
 		DefaultAllBundlesName:       c.DefaultAllBundlesName,

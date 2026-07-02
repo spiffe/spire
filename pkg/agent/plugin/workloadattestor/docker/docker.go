@@ -6,12 +6,11 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/api/types/image"
-	dockerclient "github.com/docker/docker/client"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
 	"github.com/hashicorp/hcl/hcl/token"
+	"github.com/moby/moby/api/types/container"
+	dockerclient "github.com/moby/moby/client"
 	workloadattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/agent/workloadattestor/v1"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/agent/common/sigstore"
@@ -43,8 +42,8 @@ func builtin(p *Plugin) catalog.BuiltIn {
 
 // Docker is a subset of the docker client functionality, useful for mocking.
 type Docker interface {
-	ContainerInspect(ctx context.Context, containerID string) (container.InspectResponse, error)
-	ImageInspectWithRaw(ctx context.Context, imageID string) (image.InspectResponse, []byte, error)
+	ContainerInspect(ctx context.Context, containerID string, options dockerclient.ContainerInspectOptions) (dockerclient.ContainerInspectResult, error)
+	ImageInspect(ctx context.Context, imageID string, inspectOpts ...dockerclient.ImageInspectOption) (dockerclient.ImageInspectResult, error)
 }
 
 type podmanDocker interface {
@@ -74,9 +73,8 @@ func New() *Plugin {
 }
 
 func defaultPodmanClientFactory(socketPath string) (podmanDocker, error) {
-	return dockerclient.NewClientWithOpts(
+	return dockerclient.New(
 		dockerclient.WithHost(socketPath),
-		dockerclient.WithAPIVersionNegotiation(),
 	)
 }
 
@@ -112,10 +110,8 @@ func (p *Plugin) buildConfig(coreConfig catalog.CoreConfig, hclText string, stat
 	if dockerHost != "" {
 		newConfig.dockerOpts = append(newConfig.dockerOpts, dockerclient.WithHost(dockerHost))
 	}
-	if newConfig.DockerVersion == "" {
-		newConfig.dockerOpts = append(newConfig.dockerOpts, dockerclient.WithAPIVersionNegotiation())
-	} else {
-		newConfig.dockerOpts = append(newConfig.dockerOpts, dockerclient.WithVersion(newConfig.DockerVersion))
+	if newConfig.DockerVersion != "" {
+		newConfig.dockerOpts = append(newConfig.dockerOpts, dockerclient.WithAPIVersion(newConfig.DockerVersion))
 	}
 
 	if newConfig.Sigstore != nil {
@@ -156,22 +152,22 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestReque
 		client = podmanClient
 	}
 
-	var container container.InspectResponse
+	var containerResult dockerclient.ContainerInspectResult
 	err = p.retryer.Retry(ctx, func() error {
-		container, err = client.ContainerInspect(ctx, containerID)
+		containerResult, err = client.ContainerInspect(ctx, containerID, dockerclient.ContainerInspectOptions{})
 		return err
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	selectors := getSelectorValuesFromConfig(container.Config)
+	selectors := getSelectorValuesFromConfig(containerResult.Container.Config)
 
-	var imageJSON image.InspectResponse
+	var imageJSON dockerclient.ImageInspectResult
 	var inspectErr error
-	imageName := container.Config.Image
+	imageName := containerResult.Container.Config.Image
 	if imageName != "" || p.sigstoreVerifier != nil {
-		imageJSON, _, inspectErr = client.ImageInspectWithRaw(ctx, imageName)
+		imageJSON, inspectErr = client.ImageInspect(ctx, imageName)
 	}
 
 	// Add image_config_digest selector
@@ -215,6 +211,13 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestReque
 	}, nil
 }
 
+// AttestReference returns Unimplemented. This plugin does not handle
+// reference-based workload attestation; the host falls back to PID-based
+// Attest when the reference is a WorkloadPIDReference.
+func (p *Plugin) AttestReference(_ context.Context, _ *workloadattestorv1.AttestReferenceRequest) (*workloadattestorv1.AttestReferenceResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "AttestReference not implemented")
+}
+
 func getSelectorValuesFromConfig(cfg *container.Config) []string {
 	var selectorValues []string
 	for label, value := range cfg.Labels {
@@ -235,7 +238,7 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 		return nil, err
 	}
 
-	docker, err := dockerclient.NewClientWithOpts(newConfig.dockerOpts...)
+	docker, err := dockerclient.New(newConfig.dockerOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -245,6 +248,7 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 		verifier := sigstore.NewVerifier(newConfig.sigstoreConfig)
 		err = verifier.Init(ctx)
 		if err != nil {
+			_ = docker.Close()
 			return nil, status.Errorf(codes.InvalidArgument, "error initializing sigstore verifier: %v", err)
 		}
 		sigstoreVerifier = verifier

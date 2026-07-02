@@ -5,9 +5,7 @@ package docker
 import (
 	"errors"
 	"fmt"
-	"io"
 	"os"
-	"path/filepath"
 	"regexp"
 	"strconv"
 
@@ -106,12 +104,6 @@ func (p *Plugin) createHelper(c *dockerPluginConfig, status *pluginconf.Status) 
 	}
 }
 
-type dirFS string
-
-func (d dirFS) Open(p string) (io.ReadCloser, error) {
-	return os.Open(filepath.Join(string(d), p))
-}
-
 type containerHelper struct {
 	rootDir                     string
 	containerIDFinder           cgroup.ContainerIDFinder
@@ -122,7 +114,7 @@ type containerHelper struct {
 
 func (h *containerHelper) getContainerIDAndSocket(pID int32, log hclog.Logger) (string, string, error) {
 	if h.containerIDFinder != nil {
-		cgroupList, err := cgroups.GetCgroups(pID, dirFS(h.rootDir))
+		cgroupList, err := cgroups.GetCgroups(pID, os.DirFS(h.rootDir))
 		if err != nil {
 			return "", "", err
 		}
@@ -139,7 +131,7 @@ func (h *containerHelper) getContainerIDAndSocket(pID int32, log hclog.Logger) (
 		return "", "", err
 	}
 
-	cgroupList, err := cgroups.GetCgroups(pID, dirFS(h.rootDir))
+	cgroupList, err := cgroups.GetCgroups(pID, os.DirFS(h.rootDir))
 	if err != nil {
 		log.Warn("Failed to read cgroups for Podman detection, falling back to Docker client", "pid", pID, "err", err)
 		return containerID, "", nil

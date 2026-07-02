@@ -71,6 +71,15 @@ In addition to the conventions covered in the SPIFFE project's
 [CONTRIBUTING](https://github.com/spiffe/spiffe/blob/main/CONTRIBUTING.md), the following
 conventions apply to the SPIRE repository:
 
+### Pull request review process
+
+When you open a pull request, the description is pre-filled from our
+[pull request template](.github/PULL_REQUEST_TEMPLATE.md?plain=1), which
+explains how our review process works: the rotating "ball in court" assignee,
+re-requesting a review after you address comments, preferring new commits over
+force-pushing, and handling Copilot comments. Please follow the guidance shown
+there when you open and iterate on your PR.
+
 ### SQL Plugin Changes
 
 Datastore changes must be present in at least one full minor release cycle prior to introducing code changes that depend on them.

@@ -41,6 +41,8 @@ Defenses against this are:
 
 ### Notes
 
+- The workload attestor opens the access token of the calling process using [OpenProcessToken](https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-openprocesstoken). When the workload runs under a more privileged account than the SPIRE agent, this requires the agent process to have the [SE_DEBUG_NAME](https://learn.microsoft.com/en-us/windows/win32/secauthz/privilege-constants) privilege. The SPIRE agent attempts to enable this privilege at startup and logs a warning if it cannot. Ensure the account running the SPIRE agent has been granted this privilege if attestation of higher-privileged workloads is needed.
+
 - An enabled group in a token is a group that has the [SE_GROUP_ENABLED](https://docs.microsoft.com/en-us/windows/win32/secauthz/sid-attributes-in-an-access-token) attribute.
 
 - User and group account names are expressed using the [down-level logon name format](https://docs.microsoft.com/en-us/windows/win32/secauthn/user-name-formats#down-level-logon-name).

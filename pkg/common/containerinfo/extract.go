@@ -5,7 +5,6 @@ package containerinfo
 import (
 	"errors"
 	"fmt"
-	"io"
 	"io/fs"
 	"os"
 	"path"
@@ -18,7 +17,6 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/mount-utils"
 )
 
 var (
@@ -83,7 +81,7 @@ func (e *Extractor) extractInfo(pid int32, log hclog.Logger, extractPodUID bool)
 func (e *Extractor) extractPodUIDAndContainerIDFromMountInfo(pid int32, log hclog.Logger, extractPodUID bool) (types.UID, string, error) {
 	mountInfoPath := filepath.Join(e.RootDir, "/proc", fmt.Sprint(pid), "mountinfo")
 
-	mountInfos, err := mount.ParseMountInfo(mountInfoPath)
+	mountInfos, err := parseMountInfo(mountInfoPath)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
 			return "", "", nil
@@ -137,7 +135,7 @@ func (e *Extractor) extractPodUIDAndContainerIDFromMountInfo(pid int32, log hclo
 }
 
 func (e *Extractor) extractPodUIDAndContainerIDFromCGroups(pid int32, log hclog.Logger, extractPodUID bool) (types.UID, string, error) {
-	cgroups, err := cgroups.GetCgroups(pid, dirFS(e.RootDir))
+	cgroups, err := cgroups.GetCgroups(pid, os.DirFS(e.RootDir))
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
 			return "", "", nil
@@ -163,12 +161,6 @@ func (e *Extractor) extractPodUIDAndContainerIDFromCGroups(pid int32, log hclog.
 		}
 	}
 	return ex.PodUID(), ex.ContainerID(), nil
-}
-
-type dirFS string
-
-func (d dirFS) Open(p string) (io.ReadCloser, error) {
-	return os.Open(filepath.Join(string(d), p))
 }
 
 type extractor struct {

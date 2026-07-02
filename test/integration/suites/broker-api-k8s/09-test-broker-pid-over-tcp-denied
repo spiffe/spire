@@ -1,0 +1,25 @@
+#!/bin/bash
+
+set -e
+
+source init-kubectl
+
+log-info "Test: PID reference over TCP is denied by allow_over_tcp"
+
+# The broker permits PID references over UDS but does not set allow_over_tcp
+# for that reference type. A PID reference passed over the TCP listener must
+# be rejected with PermissionDenied.
+TARGET_PID=$(./bin/kubectl -nspire exec -t broker -- sh -c \
+    "ps -ef | grep '[s]pire-agent api watch' | awk '{print \$1}' | head -n1")
+
+if [ -z "${TARGET_PID}" ]; then
+    fail-now "could not resolve target-pod PID from broker"
+fi
+
+./bin/kubectl -nspire exec -t broker -- /brokerclient \
+    -broker-addr dns:///spire-broker:8443 \
+    -ref-type pid -pid "${TARGET_PID}" \
+    -expect-err PermissionDenied \
+    || fail-now "PID-over-TCP was not denied"
+
+log-success "PID reference over TCP rejected with PermissionDenied"

@@ -36,6 +36,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/protobuf/types/known/anypb"
 )
 
 var (
@@ -322,6 +323,51 @@ func TestSubscribeToX509SVIDs(t *testing.T) {
 				FederatesWith: []string{
 					federatedBundle1.TrustDomain().IDString(),
 					federatedBundle2.TrustDomain().IDString(),
+				},
+			},
+			expectMetrics: generateSubscribeToX509SVIDMetrics(),
+		},
+		{
+			testName:     "admin and downstream identities excluded from X509 SVIDs response",
+			authSpiffeID: []string{"spiffe://example.org/one"},
+			identities: []cache.Identity{
+				identities[0],
+			},
+			updates: []*cache.WorkloadUpdate{
+				{
+					Identities: []cache.Identity{
+						{
+							Entry: &common.RegistrationEntry{
+								SpiffeId: id1.String(),
+								Admin:    true,
+							},
+							PrivateKey: x509SVID1.PrivateKey,
+							SVID:       x509SVID1.Certificates,
+						},
+						{
+							Entry: &common.RegistrationEntry{
+								SpiffeId:   id1.String(),
+								Downstream: true,
+							},
+							PrivateKey: x509SVID1.PrivateKey,
+							SVID:       x509SVID1.Certificates,
+						},
+						identities[1],
+					},
+					Bundle: bundle,
+				},
+			},
+			expectResp: &delegatedidentityv1.SubscribeToX509SVIDsResponse{
+				X509Svids: []*delegatedidentityv1.X509SVIDWithKey{
+					{
+						X509Svid: &types.X509SVID{
+							Id:        utilIDProtoFromString(t, x509SVID2.ID.String()),
+							CertChain: x509util.RawCertsFromCertificates(x509SVID2.Certificates),
+							ExpiresAt: x509SVID2.Certificates[0].NotAfter.Unix(),
+							Hint:      "external",
+						},
+						X509SvidKey: pkcs8FromSigner(t, x509SVID2.PrivateKey),
+					},
 				},
 			},
 			expectMetrics: generateSubscribeToX509SVIDMetrics(),
@@ -952,6 +998,10 @@ type FakeWorkloadPIDAttestor struct {
 }
 
 func (fa FakeWorkloadPIDAttestor) Attest(_ context.Context, _ int) ([]*common.Selector, error) {
+	return fa.selectors, fa.err
+}
+
+func (fa FakeWorkloadPIDAttestor) AttestReference(_ context.Context, _ *anypb.Any) ([]*common.Selector, error) {
 	return fa.selectors, fa.err
 }
 
