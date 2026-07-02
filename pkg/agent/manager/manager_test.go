@@ -31,6 +31,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/storage"
 	"github.com/spiffe/spire/pkg/agent/trustbundlesources"
 	"github.com/spiffe/spire/pkg/agent/workloadkey"
+	commonapi "github.com/spiffe/spire/pkg/common/api"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/rotationutil"
@@ -2075,7 +2076,7 @@ func (h *mockAPI) BatchNewX509SVID(_ context.Context, req *svidv1.BatchNewX509SV
 		entry, ok := entries[param.EntryId]
 		if !ok {
 			resp.Results = append(resp.Results, &svidv1.BatchNewX509SVIDResponse_Result{
-				Status: api.CreateStatusf(codes.NotFound, "entry %q not found", param.EntryId),
+				Status: commonapi.CreateStatusf(codes.NotFound, "entry %q not found", param.EntryId),
 			})
 			continue
 		}
@@ -2085,7 +2086,7 @@ func (h *mockAPI) BatchNewX509SVID(_ context.Context, req *svidv1.BatchNewX509SV
 		h.lastestSVIDs[entry.EntryId] = svid
 
 		resp.Results = append(resp.Results, &svidv1.BatchNewX509SVIDResponse_Result{
-			Status: api.OK(),
+			Status: commonapi.OK(),
 			Svid: &types.X509SVID{
 				CertChain: x509util.RawCertsFromCertificates(svid),
 				ExpiresAt: svid[0].NotAfter.Unix(),

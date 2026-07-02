@@ -586,8 +586,11 @@ func (k *fakeKMSClient) GetPublicKey(_ context.Context, req *kmspb.GetPublicKeyR
 	}
 
 	if k.pemCrc32C != nil {
-		// Override pemCrc32C
-		fakeCryptoKeyVersion.publicKey.PemCrc32C = k.pemCrc32C
+		// Override pemCrc32C on a clone so the shared fixture public key is
+		// not mutated, which would corrupt it for other tests and reruns.
+		publicKey := proto.Clone(fakeCryptoKeyVersion.publicKey).(*kmspb.PublicKey)
+		publicKey.PemCrc32C = k.pemCrc32C
+		return publicKey, nil
 	}
 
 	return fakeCryptoKeyVersion.publicKey, nil

@@ -5,7 +5,6 @@ package containerinfo
 import (
 	"errors"
 	"fmt"
-	"io"
 	"io/fs"
 	"os"
 	"path"
@@ -18,7 +17,6 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/mount-utils"
 )
 
 var (
@@ -50,22 +48,28 @@ func (e *Extractor) GetPodUIDAndContainerID(pid int32, log hclog.Logger) (types.
 }
 
 func (e *Extractor) extractInfo(pid int32, log hclog.Logger, extractPodUID bool) (types.UID, string, error) {
-	// Try to get the information from /proc/pid/mountinfo first. Otherwise,
-	// fall back to /proc/pid/cgroup. If it isn't in mountinfo, then the
-	// workload being attested likely originates in the same Pod as the agent.
+	// Try to get the information from /proc/pid/cgroup first. The kernel
+	// controls this file and a workload cannot forge it, so it is the
+	// authoritative source of identity.
+	//
+	// Only fall back to /proc/pid/mountinfo when cgroup yields nothing (e.g.
+	// same-pod attestation where the cgroup path lacks container identifiers).
+	// mountinfo is controlled by the workload's mount namespace and can be
+	// crafted to impersonate another workload by bind-mounting a foreign
+	// cgroup, so it must not take precedence over the cgroup file.
 	//
 	// It may not be possible to attest a process running in the same container
 	// as the agent because, depending on how cgroups are being used,
 	// /proc/<pid>/mountinfo or /proc/<pid>/cgroup may not contain any
 	// information on the container ID or pod.
 
-	podUID, containerID, err := e.extractPodUIDAndContainerIDFromMountInfo(pid, log, extractPodUID)
+	podUID, containerID, err := e.extractPodUIDAndContainerIDFromCGroups(pid, log, extractPodUID)
 	if err != nil {
 		return "", "", err
 	}
 
 	if containerID == "" {
-		podUID, containerID, err = e.extractPodUIDAndContainerIDFromCGroups(pid, log, extractPodUID)
+		podUID, containerID, err = e.extractPodUIDAndContainerIDFromMountInfo(pid, log, extractPodUID)
 		if err != nil {
 			return "", "", err
 		}
@@ -77,7 +81,7 @@ func (e *Extractor) extractInfo(pid int32, log hclog.Logger, extractPodUID bool)
 func (e *Extractor) extractPodUIDAndContainerIDFromMountInfo(pid int32, log hclog.Logger, extractPodUID bool) (types.UID, string, error) {
 	mountInfoPath := filepath.Join(e.RootDir, "/proc", fmt.Sprint(pid), "mountinfo")
 
-	mountInfos, err := mount.ParseMountInfo(mountInfoPath)
+	mountInfos, err := parseMountInfo(mountInfoPath)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
 			return "", "", nil
@@ -131,7 +135,7 @@ func (e *Extractor) extractPodUIDAndContainerIDFromMountInfo(pid int32, log hclo
 }
 
 func (e *Extractor) extractPodUIDAndContainerIDFromCGroups(pid int32, log hclog.Logger, extractPodUID bool) (types.UID, string, error) {
-	cgroups, err := cgroups.GetCgroups(pid, dirFS(e.RootDir))
+	cgroups, err := cgroups.GetCgroups(pid, os.DirFS(e.RootDir))
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
 			return "", "", nil
@@ -157,12 +161,6 @@ func (e *Extractor) extractPodUIDAndContainerIDFromCGroups(pid int32, log hclog.
 		}
 	}
 	return ex.PodUID(), ex.ContainerID(), nil
-}
-
-type dirFS string
-
-func (d dirFS) Open(p string) (io.ReadCloser, error) {
-	return os.Open(filepath.Join(string(d), p))
 }
 
 type extractor struct {

@@ -13,10 +13,13 @@ import (
 
 	"github.com/andres-erbsen/clock"
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/go-spiffe/v2/svid/x509svid"
 	"github.com/spiffe/go-spiffe/v2/workloadapi"
 	admin_api "github.com/spiffe/spire/pkg/agent/api"
 	node_attestor "github.com/spiffe/spire/pkg/agent/attestor/node"
 	workload_attestor "github.com/spiffe/spire/pkg/agent/attestor/workload"
+	"github.com/spiffe/spire/pkg/agent/broker"
 	"github.com/spiffe/spire/pkg/agent/catalog"
 	"github.com/spiffe/spire/pkg/agent/endpoints"
 	"github.com/spiffe/spire/pkg/agent/manager"
@@ -79,12 +82,46 @@ func (a *Agent) Run(ctx context.Context) error {
 		defer stopProfiling()
 	}
 
+	var mgr manager.Manager
 	metrics, err := telemetry.NewMetrics(&telemetry.MetricsConfig{
 		FileConfig:  a.c.Telemetry,
 		Logger:      a.c.Log.WithField(telemetry.SubsystemName, telemetry.Telemetry),
 		ServiceName: telemetry.SpireAgent,
 		TrustDomain: a.c.TrustDomain.Name(),
 		TLSPolicy:   a.c.TLSPolicy,
+		GetX509SVID: func() (*x509svid.SVID, error) {
+			if mgr == nil {
+				return nil, errors.New("agent manager is not initialized")
+			}
+
+			credentials := mgr.GetCurrentCredentials()
+			if len(credentials.SVID) == 0 {
+				return nil, errors.New("no certificates found")
+			}
+
+			id, err := x509svid.IDFromCert(credentials.SVID[0])
+			if err != nil {
+				return nil, err
+			}
+
+			return &x509svid.SVID{
+				ID:           id,
+				Certificates: credentials.SVID,
+				PrivateKey:   credentials.Key,
+			}, nil
+		},
+		GetX509BundleAuthorities: func(td spiffeid.TrustDomain) ([]*x509.Certificate, error) {
+			if mgr == nil {
+				return nil, errors.New("agent manager is not initialized")
+			}
+
+			bundle := mgr.GetBundles()[td]
+			if bundle == nil {
+				return nil, fmt.Errorf("no bundle found for trust domain %q", td)
+			}
+
+			return bundle.X509Authorities(), nil
+		},
 	})
 	if err != nil {
 		return err
@@ -109,8 +146,6 @@ func (a *Agent) Run(ctx context.Context) error {
 	}
 
 	taskRunner := util.NewTaskRunner(ctx, cancel)
-	taskRunner.StartTasks(metrics.ListenAndServe)
-
 	nodeAttestor := nodeattestor.JoinToken(a.c.Log, a.c.JoinToken)
 	if a.c.JoinToken == "" {
 		nodeAttestor = cat.GetNodeAttestor()
@@ -227,7 +262,7 @@ func (a *Agent) Run(ctx context.Context) error {
 
 	svidStoreCache := a.newSVIDStoreCache(metrics)
 
-	manager, err := a.newManager(ctx, sto, cat, metrics, as, svidStoreCache, nodeAttestor)
+	mgr, err = a.newManager(ctx, sto, cat, metrics, as, svidStoreCache, nodeAttestor)
 	if err != nil {
 		return err
 	}
@@ -239,22 +274,41 @@ func (a *Agent) Run(ctx context.Context) error {
 		Metrics: metrics,
 	})
 
-	agentEndpoints := a.newEndpoints(metrics, manager, workloadAttestor)
+	agentEndpoints := a.newEndpoints(metrics, mgr, workloadAttestor)
 	go func() {
 		agentEndpoints.WaitForListening(readyForHealthChecks)
 		a.started = true
 	}()
 
 	tasks := []func(context.Context) error{
-		manager.Run,
+		metrics.ListenAndServe,
+		mgr.Run,
 		storeService.Run,
 		agentEndpoints.ListenAndServe,
 		catalog.ReconfigureTask(a.c.Log.WithField(telemetry.SubsystemName, "reconfigurer"), cat),
 	}
 
 	if a.c.AdminBindAddress != nil {
-		adminEndpoints := a.newAdminEndpoints(metrics, manager, workloadAttestor, a.c.AuthorizedDelegates)
+		adminEndpoints := a.newAdminEndpoints(metrics, mgr, workloadAttestor, a.c.AuthorizedDelegates)
 		tasks = append(tasks, adminEndpoints.ListenAndServe)
+	}
+
+	if len(a.c.Broker.BindAddresses) != 0 {
+		brokerEndpoints, err := broker.New(&broker.Config{
+			BindAddrs:    a.c.Broker.BindAddresses,
+			Manager:      mgr,
+			Log:          a.c.Log,
+			Metrics:      metrics,
+			Attestor:     workloadAttestor,
+			Brokers:      a.c.Broker.Brokers,
+			SVIDSource:   liveAgentSVIDSource{m: mgr},
+			BundleSource: mgr.GetX509Bundle(),
+			TLSPolicy:    a.c.TLSPolicy,
+		})
+		if err != nil {
+			return fmt.Errorf("failed to create broker endpoints: %w", err)
+		}
+		tasks = append(tasks, brokerEndpoints.ListenAndServe)
 	}
 
 	if a.c.LogReopener != nil {
@@ -464,6 +518,7 @@ func (a *Agent) newEndpoints(metrics telemetry.Metrics, mgr manager.Manager, att
 		AllowedForeignJWTClaims:       a.c.AllowedForeignJWTClaims,
 		LogSelectors:                  a.c.LogSelectors,
 		TrustDomain:                   a.c.TrustDomain,
+		WorkloadAPIRateLimit:          a.c.WorkloadAPIRateLimit,
 	})
 }
 
@@ -472,6 +527,7 @@ func (a *Agent) newAdminEndpoints(metrics telemetry.Metrics, mgr manager.Manager
 		BindAddr:            a.c.AdminBindAddress,
 		Manager:             mgr,
 		Log:                 a.c.Log,
+		RootLog:             a.c.Log,
 		Metrics:             metrics,
 		TrustDomain:         a.c.TrustDomain,
 		Uptime:              uptime.Uptime,
@@ -520,6 +576,27 @@ func (a *Agent) checkWorkloadAPI() error {
 
 type agentHealthDetails struct {
 	WorkloadAPIErr string `json:"make_new_x509_err,omitempty"`
+}
+
+// liveAgentSVIDSource adapts the agent manager into an x509svid.Source that
+// always reflects the manager's currently rotated agent SVID. Without this,
+// passing the bootstrap AttestationResult directly would freeze the listener
+// on the bootstrap cert until it expires.
+type liveAgentSVIDSource struct {
+	m manager.Manager
+}
+
+func (s liveAgentSVIDSource) GetX509SVID() (*x509svid.SVID, error) {
+	state := s.m.GetCurrentCredentials()
+	id, err := x509svid.IDFromCert(state.SVID[0])
+	if err != nil {
+		return nil, err
+	}
+	return &x509svid.SVID{
+		ID:           id,
+		Certificates: state.SVID,
+		PrivateKey:   state.Key,
+	}, nil
 }
 
 func errString(suppress bool, err error) string {

@@ -1,0 +1,58 @@
+#!/bin/bash
+
+set -e
+
+source init-kubectl
+
+readarray -t NODEUIDS < <(./bin/kubectl get nodes -o jsonpath='{range .items[*]}{.metadata.uid}{"\n"}{end}')
+PARENTS=()
+for nodeUID in "${NODEUIDS[@]}"; do
+    if [ -n "${nodeUID}" ]; then
+        PARENTS+=("spiffe://example.org/spire/agent/k8s_psat/example-cluster/${nodeUID}")
+    fi
+done
+
+if [ "${#PARENTS[@]}" -eq 0 ]; then
+    fail-now "no Kubernetes nodes found for agent parent IDs"
+fi
+
+create-entry() {
+    local spiffeID=$1; shift
+    local parent
+    for parent in "${PARENTS[@]}"; do
+        log-info "creating entry ${spiffeID} under ${parent}..."
+        ./bin/kubectl -nspire exec -t deployment/spire-server -- \
+            /opt/spire/bin/spire-server entry create \
+                -spiffeID "${spiffeID}" \
+                -parentID "${parent}" \
+                "$@"
+    done
+}
+
+# Brokers — registered by their pod-name selectors.
+create-entry "spiffe://example.org/broker"               -selector "k8s:pod-name:broker"
+create-entry "spiffe://example.org/cluster-broker"       -selector "k8s:pod-name:cluster-broker"
+create-entry "spiffe://example.org/agent-node-broker"    -selector "k8s:pod-name:agent-node-broker"
+create-entry "spiffe://example.org/local-only-object-broker" -selector "k8s:pod-name:local-only-object-broker"
+create-entry "spiffe://example.org/restricted-broker"    -selector "k8s:pod-name:restricted-broker"
+create-entry "spiffe://example.org/rbac-denied-broker"   -selector "k8s:pod-name:rbac-denied-broker"
+create-entry "spiffe://example.org/unauthorized-workload" -selector "k8s:pod-name:unauthorized-workload"
+
+# Target pods — matched by the legacy PID path and/or by the
+# KubernetesObjectReference(pods/core) path. The k8s attestor emits
+# `pod-name` in both cases.
+create-entry "spiffe://example.org/target-pod" -selector "k8s:pod-name:target-pod"
+create-entry "spiffe://example.org/same-node-target-pod" -selector "k8s:pod-name:same-node-target-pod"
+create-entry "spiffe://example.org/other-node-target-pod" -selector "k8s:pod-name:other-node-target-pod"
+
+# Target Kustomization — matched by the uniform object-meta selector
+# vocabulary emitted by getSelectorValuesFromObjectMeta.
+create-entry "spiffe://example.org/target-kustomization" \
+    -selector "k8s:resource:kustomizations.kustomize.toolkit.fluxcd.io" \
+    -selector "k8s:namespace:spire" \
+    -selector "k8s:name:target-kustomization"
+
+# Give the agent a moment to sync entries before the test steps invoke
+# brokerclient (the binary will also retry internally via the workloadapi
+# source, so this is just a fast-path comfort wait).
+sleep 15

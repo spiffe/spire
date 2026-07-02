@@ -13,6 +13,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/pkg/agent"
+	agentbroker "github.com/spiffe/spire/pkg/agent/broker"
 	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/agent/workloadkey"
 	"github.com/spiffe/spire/pkg/common/log"
@@ -1029,6 +1030,89 @@ func TestNewAgentConfig(t *testing.T) {
 			},
 		},
 		{
+			msg: "broker allowed reference types parse object entries",
+			input: func(c *Config) {
+				c.Agent.Experimental.Broker = &brokerHCLConfig{
+					BindAddress: "127.0.0.1:8443",
+					Brokers: []brokerHCLEntry{
+						{
+							ID: "spiffe://example.org/broker",
+							AllowedReferenceTypes: []brokerAllowedReferenceTypeHCLEntry{
+								{TypeURL: "type.googleapis.com/spiffe.broker.KubernetesObjectReference", AllowOverTCP: true},
+								{TypeURL: "type.googleapis.com/spiffe.broker.WorkloadPIDReference"},
+							},
+						},
+					},
+				}
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Len(t, c.Broker.Brokers, 1)
+				require.Equal(t, []agentbroker.AllowedReferenceType{
+					{TypeURL: "type.googleapis.com/spiffe.broker.KubernetesObjectReference", AllowOverTCP: true},
+					{TypeURL: "type.googleapis.com/spiffe.broker.WorkloadPIDReference"},
+				}, c.Broker.Brokers[0].AllowedReferenceTypes)
+			},
+		},
+		{
+			msg:                "broker allowed_reference_types is required",
+			expectError:        true,
+			requireErrorPrefix: "experimental.broker.brokers[spiffe://example.org/broker].allowed_reference_types: must list at least one reference type URL",
+			input: func(c *Config) {
+				c.Agent.Experimental.Broker = &brokerHCLConfig{
+					BindAddress: "127.0.0.1:8443",
+					Brokers: []brokerHCLEntry{
+						{ID: "spiffe://example.org/broker"},
+					},
+				}
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
+			msg:                "broker allowed reference type requires type_url",
+			expectError:        true,
+			requireErrorPrefix: "experimental.broker.brokers[spiffe://example.org/broker].allowed_reference_types[0].type_url: must be specified",
+			input: func(c *Config) {
+				c.Agent.Experimental.Broker = &brokerHCLConfig{
+					BindAddress: "127.0.0.1:8443",
+					Brokers: []brokerHCLEntry{
+						{
+							ID: "spiffe://example.org/broker",
+							AllowedReferenceTypes: []brokerAllowedReferenceTypeHCLEntry{
+								{},
+							},
+						},
+					},
+				}
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
+			msg:                "broker wildcard must be the only allowed reference type",
+			expectError:        true,
+			requireErrorPrefix: "experimental.broker.brokers[spiffe://example.org/broker].allowed_reference_types: wildcard \"*\" must be the only allowed reference type",
+			input: func(c *Config) {
+				c.Agent.Experimental.Broker = &brokerHCLConfig{
+					BindAddress: "127.0.0.1:8443",
+					Brokers: []brokerHCLEntry{
+						{
+							ID: "spiffe://example.org/broker",
+							AllowedReferenceTypes: []brokerAllowedReferenceTypeHCLEntry{
+								{TypeURL: "*"},
+								{TypeURL: "type.googleapis.com/spiffe.broker.KubernetesObjectReference"},
+							},
+						},
+					},
+				}
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
 			msg: "availability_target parses a duration",
 			input: func(c *Config) {
 				c.Agent.AvailabilityTarget = "24h"
@@ -1113,6 +1197,128 @@ func TestNewAgentConfig(t *testing.T) {
 				require.Nil(t, ac)
 			},
 		},
+		{
+			msg: "ratelimit defaults to zero (disabled)",
+			input: func(c *Config) {
+				// no ratelimit config set
+			},
+			test: func(t *testing.T, ac *agent.Config) {
+				require.Equal(t, agent.WorkloadAPIRateLimitConfig{}, ac.WorkloadAPIRateLimit)
+			},
+		},
+		{
+			msg: "ratelimit fetch_x509_svid is configurable",
+			input: func(c *Config) {
+				v := 100
+				c.Agent.Experimental.RateLimit.FetchX509SVID = &v
+			},
+			test: func(t *testing.T, ac *agent.Config) {
+				require.Equal(t, 100, ac.WorkloadAPIRateLimit.FetchX509SVID)
+				require.Equal(t, 0, ac.WorkloadAPIRateLimit.FetchJWTSVID)
+			},
+		},
+		{
+			msg: "ratelimit both methods are configurable",
+			input: func(c *Config) {
+				a, d := 1, 3
+				c.Agent.Experimental.RateLimit.FetchX509SVID = &a
+				c.Agent.Experimental.RateLimit.FetchJWTSVID = &d
+			},
+			test: func(t *testing.T, ac *agent.Config) {
+				require.Equal(t, agent.WorkloadAPIRateLimitConfig{
+					FetchX509SVID: 1,
+					FetchJWTSVID:  3,
+				}, ac.WorkloadAPIRateLimit)
+			},
+		},
+		{
+			msg:         "ratelimit fetch_x509_svid negative value returns an error",
+			expectError: true,
+			input: func(c *Config) {
+				v := -1
+				c.Agent.Experimental.RateLimit.FetchX509SVID = &v
+			},
+			test: func(t *testing.T, ac *agent.Config) {
+				require.Nil(t, ac)
+			},
+		},
+		{
+			msg:         "ratelimit fetch_jwt_svid negative value returns an error",
+			expectError: true,
+			input: func(c *Config) {
+				v := -1
+				c.Agent.Experimental.RateLimit.FetchJWTSVID = &v
+			},
+			test: func(t *testing.T, ac *agent.Config) {
+				require.Nil(t, ac)
+			},
+		},
+		{
+			msg: "ratelimit all six knobs are configurable",
+			input: func(c *Config) {
+				a, b, d, e, f, g := 10, 20, 30, 40, 50, 60
+				c.Agent.Experimental.RateLimit.FetchX509SVID = &a
+				c.Agent.Experimental.RateLimit.FetchJWTSVID = &b
+				c.Agent.Experimental.RateLimit.FetchX509Bundles = &d
+				c.Agent.Experimental.RateLimit.FetchJWTBundles = &e
+				c.Agent.Experimental.RateLimit.StreamSecrets = &f
+				c.Agent.Experimental.RateLimit.FetchSecrets = &g
+			},
+			test: func(t *testing.T, ac *agent.Config) {
+				require.Equal(t, agent.WorkloadAPIRateLimitConfig{
+					FetchX509SVID:    10,
+					FetchJWTSVID:     20,
+					FetchX509Bundles: 30,
+					FetchJWTBundles:  40,
+					StreamSecrets:    50,
+					FetchSecrets:     60,
+				}, ac.WorkloadAPIRateLimit)
+			},
+		},
+		{
+			msg:         "ratelimit fetch_x509_bundles negative value returns an error",
+			expectError: true,
+			input: func(c *Config) {
+				v := -1
+				c.Agent.Experimental.RateLimit.FetchX509Bundles = &v
+			},
+			test: func(t *testing.T, ac *agent.Config) {
+				require.Nil(t, ac)
+			},
+		},
+		{
+			msg:         "ratelimit fetch_jwt_bundles negative value returns an error",
+			expectError: true,
+			input: func(c *Config) {
+				v := -1
+				c.Agent.Experimental.RateLimit.FetchJWTBundles = &v
+			},
+			test: func(t *testing.T, ac *agent.Config) {
+				require.Nil(t, ac)
+			},
+		},
+		{
+			msg:         "ratelimit stream_secrets negative value returns an error",
+			expectError: true,
+			input: func(c *Config) {
+				v := -1
+				c.Agent.Experimental.RateLimit.StreamSecrets = &v
+			},
+			test: func(t *testing.T, ac *agent.Config) {
+				require.Nil(t, ac)
+			},
+		},
+		{
+			msg:         "ratelimit fetch_secrets negative value returns an error",
+			expectError: true,
+			input: func(c *Config) {
+				v := -1
+				c.Agent.Experimental.RateLimit.FetchSecrets = &v
+			},
+			test: func(t *testing.T, ac *agent.Config) {
+				require.Nil(t, ac)
+			},
+		},
 	}
 	cases = append(cases, newAgentConfigCasesOS(t)...)
 	for _, testCase := range cases {
@@ -1139,6 +1345,46 @@ func TestNewAgentConfig(t *testing.T) {
 			testCase.test(t, ac)
 		})
 	}
+}
+
+func TestParseBrokerAllowedReferenceTypes(t *testing.T) {
+	file, err := os.CreateTemp("", "spire-agent-broker-*.conf")
+	require.NoError(t, err)
+	defer os.Remove(file.Name())
+
+	_, err = file.WriteString(`
+agent {
+    experimental {
+        broker {
+            bind_address = "127.0.0.1:8443"
+            brokers = [
+                {
+                    id = "spiffe://example.org/broker"
+                    allowed_reference_types = [
+                        {
+                            type_url = "type.googleapis.com/spiffe.broker.KubernetesObjectReference"
+                            allow_over_tcp = true
+                        },
+                        {
+                            type_url = "type.googleapis.com/spiffe.broker.WorkloadPIDReference"
+                        },
+                    ]
+                },
+            ]
+        }
+    }
+}
+`)
+	require.NoError(t, err)
+	require.NoError(t, file.Close())
+
+	c, err := ParseFile(file.Name(), false)
+	require.NoError(t, err)
+	require.NotNil(t, c.Agent.Experimental.Broker)
+	require.Equal(t, []brokerAllowedReferenceTypeHCLEntry{
+		{TypeURL: "type.googleapis.com/spiffe.broker.KubernetesObjectReference", AllowOverTCP: true},
+		{TypeURL: "type.googleapis.com/spiffe.broker.WorkloadPIDReference"},
+	}, c.Agent.Experimental.Broker.Brokers[0].AllowedReferenceTypes)
 }
 
 // defaultValidConfig returns the bare minimum config required to
@@ -1271,6 +1517,16 @@ func TestWarnOnUnknownConfig(t *testing.T) {
 			expectedLogEntries: []logEntry{
 				{
 					section: "health check",
+					keys:    "unknown_option1,unknown_option2",
+				},
+			},
+		},
+		{
+			msg:      "in nested ratelimit block",
+			confFile: "agent_bad_nested_ratelimit_block.conf",
+			expectedLogEntries: []logEntry{
+				{
+					section: "ratelimit",
 					keys:    "unknown_option1,unknown_option2",
 				},
 			},

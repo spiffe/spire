@@ -402,6 +402,9 @@ const (
 	// LocalAuthorityID tags a local authority ID
 	LocalAuthorityID = "local_authority_id"
 
+	// LoggerAPI functionality related to logger endpoints
+	LoggerAPI = "logger_api"
+
 	// Mode tags a bundle deletion mode
 	Mode = "mode"
 
@@ -459,6 +462,9 @@ const (
 	// Pruned flagging something has been pruned
 	Pruned = "pruned"
 
+	// RateLimitExceeded tags a rate limit exceeded event
+	RateLimitExceeded = "rate_limit_exceeded"
+
 	// ReadOnly tags something read-only
 	ReadOnly = "read_only"
 
@@ -486,6 +492,9 @@ const (
 
 	// Reconfigurable tags whether something is reconfigurable.
 	Reconfigurable = "reconfigurable"
+
+	// ReferenceType tags a workload reference type URL
+	ReferenceType = "reference_type"
 
 	// RefreshHint tags a bundle refresh hint
 	RefreshHint = "refresh_hint"
@@ -845,6 +854,9 @@ const (
 
 	// AuthorizeCall functionality related to authorizing an incoming call
 	AuthorizeCall = "authorize_call"
+
+	// BrokerAPI functionality related to broker endpoints
+	BrokerAPI = "broker_api"
 
 	// CreateFederatedBundle functionality related to creating a federated bundle
 	CreateFederatedBundle = "create_federated_bundle"

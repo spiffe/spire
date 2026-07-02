@@ -3,7 +3,6 @@ package logger_test
 import (
 	"bytes"
 	"context"
-	"io"
 	"testing"
 
 	"github.com/spiffe/spire/test/clitest"
@@ -88,22 +87,4 @@ func (s *mockLoggerService) SetLogLevel(_ context.Context, req *loggerv1.SetLogL
 func (s *mockLoggerService) ResetLogLevel(context.Context, *loggerv1.ResetLogLevelRequest) (*types.Logger, error) {
 	s.receivedSetValue = nil
 	return s.returnLogger, s.returnErr
-}
-
-var _ io.Writer = &errorWriter{}
-
-type errorWriter struct {
-	ReturnError error
-	Buffer      bytes.Buffer
-}
-
-func (e *errorWriter) Write(p []byte) (n int, err error) {
-	if e.ReturnError != nil {
-		return 0, e.ReturnError
-	}
-	return e.Buffer.Write(p)
-}
-
-func (e *errorWriter) String() string {
-	return e.Buffer.String()
 }

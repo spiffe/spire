@@ -1,0 +1,16 @@
+#!/bin/bash
+
+set -e
+
+source init-kubectl
+
+log-info "Test: broker fetches Flux Kustomization SVID via KubernetesObjectReference"
+
+./bin/kubectl -nspire exec -t broker -- /brokerclient \
+    -ref-type object \
+    -plural kustomizations -group kustomize.toolkit.fluxcd.io \
+    -namespace spire -name target-kustomization \
+    -expected-spiffe spiffe://example.org/target-kustomization \
+    || fail-now "broker failed to fetch SVID for Flux Kustomization"
+
+log-success "broker fetched Flux Kustomization SVID via KubernetesObjectReference"

@@ -31,13 +31,41 @@ fail-now() {
     exit 1
 }
 
+# retry runs the given command, retrying with exponential backoff if it fails.
+# It is intended to harden steps against transient registry/network errors
+# (e.g. Docker Hub image pull timeouts) that would otherwise cause spurious CI
+# failures.
+retry() {
+    local attempts=5
+    local delay=5
+    local max_delay=60
+    local attempt=1
+    while true; do
+        if "$@"; then
+            return 0
+        fi
+        if [ "${attempt}" -ge "${attempts}" ]; then
+            log-warn "command failed after ${attempt} attempt(s): $*"
+            return 1
+        fi
+        log-warn "command failed (attempt ${attempt}/${attempts}), retrying in ${delay}s: $*"
+        sleep "${delay}"
+        attempt=$((attempt + 1))
+        delay=$((delay * 2))
+        if [ "${delay}" -gt "${max_delay}" ]; then
+            delay="${max_delay}"
+        fi
+    done
+}
+
 docker-up() {
     if [ $# -eq 0 ]; then
         log-debug "bringing up services..."
     else
         log-debug "bringing up $*..."
     fi
-    docker compose up -d "$@" || fail-now "failed to bring up services."
+    # Retry to harden against transient image pull failures during startup.
+    retry docker compose up -d "$@" || fail-now "failed to bring up services."
 }
 
 docker-wait-for-healthy() {
@@ -114,6 +142,60 @@ check-server-started() {
   done
 
   fail-now "timed out waiting for server to start"
+}
+
+# Counts how many times the server has logged that it started its APIs. The
+# server emits the "Starting Server APIs" line twice per boot (TCP and UDS
+# listeners).
+count-server-api-starts() {
+  # Capture the logs first so a "docker compose logs" failure still surfaces
+  # under errexit/pipefail. Only grep's no-match exit code is tolerated, since
+  # zero matches is a valid count.
+  local logs
+  logs=$(docker compose logs "$1")
+  echo "${logs}" | grep -c "Starting Server APIs" || true
+}
+
+# Like check-server-started but safe to use after "docker compose restart".
+# A restart reuses the same container, so its log still contains the
+# "Starting Server APIs" markers from the pre-restart boot. Callers capture the
+# marker count before restarting and pass it here so we wait for the restarted
+# server to emit its own two markers rather than returning on the stale ones.
+wait-for-server-restarted() {
+  local container="$1"
+  local baseline="$2"
+  local want=$((baseline + 2))
+  MAXCHECKS=30
+  CHECKINTERVAL=1
+  for ((i=1;i<=MAXCHECKS;i++)); do
+      log-info "checking for restarted server APIs ($i of $MAXCHECKS max)..."
+      if [ "$(count-server-api-starts "$container")" -ge "$want" ]; then
+          return 0
+      fi
+      sleep "${CHECKINTERVAL}"
+  done
+
+  fail-now "timed out waiting for server to restart"
+}
+
+# Restarts the given server containers and waits for each to be ready again.
+# Unlike a fresh start, "docker compose restart" reuses the container and keeps
+# the pre-restart "Starting Server APIs" markers in its log, so the marker count
+# is baselined before the restart and we wait for it to grow afterwards.
+docker-spire-server-restart() {
+  local -a baselines=()
+  local container
+  for container in "$@"; do
+      baselines+=("$(count-server-api-starts "${container}")")
+  done
+
+  docker compose restart "$@"
+
+  local i=0
+  for container in "$@"; do
+      wait-for-server-restarted "${container}" "${baselines[$i]}"
+      i=$((i + 1))
+  done
 }
 
 check-log-line() {
@@ -206,7 +288,8 @@ ENTRYPOINT ["/usr/bin/dumb-init", "supervisord", "--nodaemon", "--configuration"
 CMD []
 EOF
 
-    docker build --target envoy-agent-mashup -t envoy-agent-mashup .
+    # Retry to harden against transient pulls of the envoy base image.
+    retry docker build --target envoy-agent-mashup -t envoy-agent-mashup .
 }
 
 curl-with-retry() {
@@ -338,6 +421,11 @@ start-kind-cluster() {
     local kind_path=$1
     local kind_name=$2
     local kind_config_path=$3
+
+    # Pre-pull the node image with retry to harden against transient Docker Hub
+    # failures. kind uses the locally cached image when present, so it won't
+    # attempt its own (un-retried) pull during cluster creation.
+    retry docker pull "${K8SIMAGE}" || fail-now "unable to pull node image ${K8SIMAGE}"
 
     log-info "starting cluster..."
     "${kind_path}" create cluster --name "${kind_name}" --config "${kind_config_path}" --image "${K8SIMAGE}" || fail-now "unable to create cluster"

@@ -11,31 +11,23 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"regexp"
+	"strings"
 	"time"
 
 	"github.com/smallstep/pkcs7"
 	"github.com/spiffe/spire/pkg/common/plugin/azure"
 )
 
-// Azure-specific certificate validation constants
-var (
-	// Expected subject patterns for Azure certificates
-	AzureMetadataSubject = regexp.MustCompile(`^metadata\.azure\.com$`)
-
-	// Expected issuer patterns
-	MicrosoftAzureRSATLSIssuer = regexp.MustCompile(`^Microsoft Azure RSA TLS Issuing CA \d{2}$`)
-	// The azure Docs state that it should be DigiCert Global Root CA, but it is actually DigiCert Global Root G2 which is the newer version
-	DigiCertGlobalRootCA = regexp.MustCompile(`^DigiCert Global Root G2$`)
-)
-
 const (
-	// expected microsoft issuer host
+	// Default metadata domain for commercial Azure
+	DefaultMetadataDomain = "metadata.azure.com"
+
+	// Expected microsoft issuer host for intermediate certificate fetching
 	MicrosoftIntermediateIssuerHost = "www.microsoft.com"
 )
 
 // ValidateAttestedDocument validates the Azure IMDS attested document signature
-func validateAttestedDocument(ctx context.Context, doc *azure.AttestedDocument) (*azure.AttestedDocumentContent, error) {
+func validateAttestedDocument(ctx context.Context, doc *azure.AttestedDocument, allowedMetadataDomains []string) (*azure.AttestedDocumentContent, error) {
 	if doc.Signature == "" {
 		return nil, errors.New("missing signature in attested document")
 	}
@@ -83,8 +75,8 @@ func validateAttestedDocument(ctx context.Context, doc *azure.AttestedDocument) 
 	}
 
 	// Step 7: Perform Azure-specific certificate validation
-	if err := validateAzureCertificates(signingCert, intermediateCert); err != nil {
-		return nil, fmt.Errorf("azure certificate validation failed: %w", err)
+	if err := validateAzureCertificate(signingCert, allowedMetadataDomains); err != nil {
+		return nil, fmt.Errorf("signing certificate validation failed: %w", err)
 	}
 
 	// Step 8: Validate certificate chain
@@ -152,59 +144,28 @@ func getIntermediateCertificate(ctx context.Context, signingCert *x509.Certifica
 	return cert, nil
 }
 
-// validateAzureCertificates performs Azure-specific certificate validation
-func validateAzureCertificates(signingCert, intermediateCert *x509.Certificate) error {
-	// Validate signing certificate subject
-	if err := validateCertificateSubject(signingCert, AzureMetadataSubject); err != nil {
-		return fmt.Errorf("signing certificate subject validation failed: %w", err)
-	}
+// validateAzureCertificate performs Azure-specific certificate validation.
+// Following Azure's recommendation to validate the certificate Subject Alternative Name (SAN)
+// See: https://learn.microsoft.com/en-us/azure/virtual-machines/instance-metadata-service?tabs=linux#signature-validation-guidance
+func validateAzureCertificate(cert *x509.Certificate, baseDomains []string) error {
+	// Check SAN DNS names against each allowed base domain
+	for _, dnsName := range cert.DNSNames {
+		for _, baseDomain := range baseDomains {
+			// Accept exact match with base domain
+			if dnsName == baseDomain {
+				return nil
+			}
 
-	// Validate signing certificate issuer
-	if err := validateCertificateIssuer(signingCert, MicrosoftAzureRSATLSIssuer); err != nil {
-		return fmt.Errorf("signing certificate issuer validation failed: %w", err)
-	}
-
-	if intermediateCert != nil {
-		// Validate intermediate certificate issuer
-		if err := validateCertificateIssuer(intermediateCert, DigiCertGlobalRootCA); err != nil {
-			return fmt.Errorf("intermediate certificate issuer validation failed: %w", err)
-		}
-
-		// Validate intermediate certificate subject
-		if err := validateCertificateSubject(intermediateCert, MicrosoftAzureRSATLSIssuer); err != nil {
-			return fmt.Errorf("intermediate certificate subject validation failed: %w", err)
+			// Accept any subdomain under the base domain (e.g., eastus.metadata.azure.com, sub.eastus.metadata.azure.com)
+			suffix := "." + baseDomain
+			if strings.HasSuffix(dnsName, suffix) {
+				return nil
+			}
 		}
 	}
 
-	return nil
-}
-
-// validateCertificateSubject validates that the certificate subject matches the expected regex pattern
-func validateCertificateSubject(cert *x509.Certificate, expectedSubject *regexp.Regexp) error {
-	subject := cert.Subject.CommonName
-	if subject == "" {
-		return errors.New("certificate has no common name in subject")
-	}
-
-	if !expectedSubject.MatchString(subject) {
-		return fmt.Errorf("certificate subject %q does not match expected pattern %q", subject, expectedSubject.String())
-	}
-
-	return nil
-}
-
-// validateCertificateIssuer validates that the certificate issuer matches the expected regex pattern
-func validateCertificateIssuer(cert *x509.Certificate, expectedIssuer *regexp.Regexp) error {
-	issuer := cert.Issuer.CommonName
-	if issuer == "" {
-		return errors.New("certificate has no common name in issuer")
-	}
-
-	if !expectedIssuer.MatchString(issuer) {
-		return fmt.Errorf("certificate issuer %q does not match expected pattern %q", issuer, expectedIssuer.String())
-	}
-
-	return nil
+	return fmt.Errorf("certificate does not have any valid domain in SAN (found SANs=%v, allowed domains=%v)",
+		cert.DNSNames, baseDomains)
 }
 
 // validateCertificateChain validates the certificate chain against the DigiCert Global Root CA
@@ -221,8 +182,10 @@ func validateCertificateChain(signingCert, intermediateCert *x509.Certificate) e
 		}
 	}
 	rootCerts := x509.NewCertPool()
-	for _, c := range roots {
-		rootCerts.AppendCertsFromPEM([]byte(c))
+	for i, c := range roots {
+		if !rootCerts.AppendCertsFromPEM([]byte(c)) {
+			return fmt.Errorf("failed to parse root certificate at index %d", i)
+		}
 	}
 	opts := x509.VerifyOptions{
 		Intermediates: intermediates,

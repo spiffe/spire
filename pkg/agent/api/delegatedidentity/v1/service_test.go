@@ -36,6 +36,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/protobuf/types/known/anypb"
 )
 
 var (
@@ -85,7 +86,7 @@ func TestSubscribeToX509SVIDs(t *testing.T) {
 		{
 			testName:   "attest error",
 			attestErr:  errors.New("ohno"),
-			expectCode: codes.Internal,
+			expectCode: codes.Unavailable,
 			expectMsg:  "workload attestation failed",
 		},
 		{
@@ -326,6 +327,51 @@ func TestSubscribeToX509SVIDs(t *testing.T) {
 			},
 			expectMetrics: generateSubscribeToX509SVIDMetrics(),
 		},
+		{
+			testName:     "admin and downstream identities excluded from X509 SVIDs response",
+			authSpiffeID: []string{"spiffe://example.org/one"},
+			identities: []cache.Identity{
+				identities[0],
+			},
+			updates: []*cache.WorkloadUpdate{
+				{
+					Identities: []cache.Identity{
+						{
+							Entry: &common.RegistrationEntry{
+								SpiffeId: id1.String(),
+								Admin:    true,
+							},
+							PrivateKey: x509SVID1.PrivateKey,
+							SVID:       x509SVID1.Certificates,
+						},
+						{
+							Entry: &common.RegistrationEntry{
+								SpiffeId:   id1.String(),
+								Downstream: true,
+							},
+							PrivateKey: x509SVID1.PrivateKey,
+							SVID:       x509SVID1.Certificates,
+						},
+						identities[1],
+					},
+					Bundle: bundle,
+				},
+			},
+			expectResp: &delegatedidentityv1.SubscribeToX509SVIDsResponse{
+				X509Svids: []*delegatedidentityv1.X509SVIDWithKey{
+					{
+						X509Svid: &types.X509SVID{
+							Id:        utilIDProtoFromString(t, x509SVID2.ID.String()),
+							CertChain: x509util.RawCertsFromCertificates(x509SVID2.Certificates),
+							ExpiresAt: x509SVID2.Certificates[0].NotAfter.Unix(),
+							Hint:      "external",
+						},
+						X509SvidKey: pkcs8FromSigner(t, x509SVID2.PrivateKey),
+					},
+				},
+			},
+			expectMetrics: generateSubscribeToX509SVIDMetrics(),
+		},
 	} {
 		t.Run(tt.testName, func(t *testing.T) {
 			metrics := fakemetrics.New()
@@ -378,7 +424,7 @@ func TestSubscribeToX509Bundles(t *testing.T) {
 		{
 			testName:   "Attest error",
 			attestErr:  errors.New("ohno"),
-			expectCode: codes.Internal,
+			expectCode: codes.Unavailable,
 			expectMsg:  "workload attestation failed",
 		},
 		{
@@ -480,6 +526,7 @@ func TestFetchJWTSVIDs(t *testing.T) {
 		expectCode   codes.Code
 		expectMsg    string
 		attestErr    error
+		delegateErr  error
 		managerErr   error
 		expectResp   *delegatedidentityv1.FetchJWTSVIDsResponse
 	}{
@@ -492,7 +539,7 @@ func TestFetchJWTSVIDs(t *testing.T) {
 			testName:   "Attest error",
 			attestErr:  errors.New("ohno"),
 			audience:   []string{"AUDIENCE"},
-			expectCode: codes.Internal,
+			expectCode: codes.Unavailable,
 			expectMsg:  "workload attestation failed",
 		},
 		{
@@ -573,6 +620,18 @@ func TestFetchJWTSVIDs(t *testing.T) {
 			},
 			expectCode: codes.InvalidArgument,
 			expectMsg:  "could not parse provided selectors",
+		},
+		{
+			testName:     "delegate workload attest error",
+			authSpiffeID: []string{"spiffe://example.org/one"},
+			pid:          447,
+			audience:     []string{"AUDIENCE"},
+			identities: []cache.Identity{
+				identities[0],
+			},
+			delegateErr: errors.New("ohno"),
+			expectCode:  codes.Unavailable,
+			expectMsg:   "workload attestation failed",
 		},
 		{
 			testName:     "success with one identity",
@@ -742,6 +801,7 @@ func TestFetchJWTSVIDs(t *testing.T) {
 				Identities:   tt.identities,
 				AuthSpiffeID: tt.authSpiffeID,
 				AttestErr:    tt.attestErr,
+				DelegateErr:  tt.delegateErr,
 				ManagerErr:   tt.managerErr,
 				JwtSVIDS:     tt.jwtSVIDsResp,
 			}
@@ -786,7 +846,7 @@ func TestSubscribeToJWTBundles(t *testing.T) {
 		{
 			testName:   "Attest error",
 			attestErr:  errors.New("ohno"),
-			expectCode: codes.Internal,
+			expectCode: codes.Unavailable,
 			expectMsg:  "workload attestation failed",
 		},
 		{
@@ -870,6 +930,7 @@ type testParams struct {
 	JwtSVIDS     map[spiffeid.ID]*client.JWTSVID
 	AuthSpiffeID []string
 	AttestErr    error
+	DelegateErr  error
 	ManagerErr   error
 	Metrics      *fakemetrics.FakeMetrics
 }
@@ -900,7 +961,7 @@ func runTest(t *testing.T, params testParams, fn func(ctx context.Context, clien
 	}
 
 	service.delegateWorkloadAttestor = FakeWorkloadPIDAttestor{
-		err: params.AttestErr,
+		err: params.DelegateErr,
 	}
 
 	unaryInterceptor, streamInterceptor := middleware.Interceptors(middleware.WithLogger(log))
@@ -937,6 +998,10 @@ type FakeWorkloadPIDAttestor struct {
 }
 
 func (fa FakeWorkloadPIDAttestor) Attest(_ context.Context, _ int) ([]*common.Selector, error) {
+	return fa.selectors, fa.err
+}
+
+func (fa FakeWorkloadPIDAttestor) AttestReference(_ context.Context, _ *anypb.Any) ([]*common.Selector, error) {
 	return fa.selectors, fa.err
 }
 

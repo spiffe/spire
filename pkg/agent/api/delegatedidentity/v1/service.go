@@ -85,7 +85,7 @@ func (s *Service) isCallerAuthorized(ctx context.Context, log logrus.FieldLogger
 		callerSelectors, err = s.peerAttestor.Attest(ctx)
 		if err != nil {
 			log.WithError(err).Error("Workload attestation failed")
-			return nil, status.Error(codes.Internal, "workload attestation failed")
+			return nil, workloadAttestationFailedError(ctx)
 		}
 	}
 
@@ -112,6 +112,13 @@ func (s *Service) isCallerAuthorized(ctx context.Context, log logrus.FieldLogger
 	}).Error("Permission denied; caller not configured as an authorized delegate.")
 
 	return nil, status.Error(codes.PermissionDenied, "caller not configured as an authorized delegate")
+}
+
+func workloadAttestationFailedError(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return status.Error(codes.Unavailable, "workload attestation failed")
 }
 
 func (s *Service) constructValidSelectorsFromReq(ctx context.Context, log logrus.FieldLogger, reqPid int32, reqSelectors []*types.Selector) ([]*common.Selector, error) {
@@ -142,7 +149,8 @@ func (s *Service) constructValidSelectorsFromReq(ctx context.Context, log logrus
 		// Delegate authorized, use PID the delegate gave us to try and attest on-behalf-of
 		selectors, err = s.delegateWorkloadAttestor.Attest(ctx, int(reqPid))
 		if err != nil {
-			return nil, err
+			log.WithError(err).Error("Workload attestation failed")
+			return nil, workloadAttestationFailedError(ctx)
 		}
 	}
 
@@ -228,11 +236,11 @@ func sendX509SVIDResponse(update *cache.WorkloadUpdate, stream delegatedidentity
 	// log details on each SVID
 	// a response has already been sent so nothing is
 	// blocked on this logic
-	for i, svid := range resp.X509Svids {
+	for _, svid := range resp.X509Svids {
 		// Ideally ID Proto parsing should succeed, but if it fails,
 		// ignore the error and still log with empty spiffe_id.
 		id, _ := idutil.IDProtoString(svid.X509Svid.Id)
-		ttl := time.Until(update.Identities[i].SVID[0].NotAfter)
+		ttl := time.Until(time.Unix(svid.X509Svid.ExpiresAt, 0))
 		log.WithFields(logrus.Fields{
 			telemetry.SPIFFEID: id,
 			telemetry.TTL:      ttl.Seconds(),

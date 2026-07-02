@@ -12,9 +12,9 @@ import (
 	"os"
 	"strings"
 
+	"dario.cat/mergo"
 	"github.com/hashicorp/go-hclog"
 	vapi "github.com/hashicorp/vault/api"
-	"github.com/imdario/mergo"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 

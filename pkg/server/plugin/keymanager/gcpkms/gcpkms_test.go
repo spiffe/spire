@@ -401,6 +401,21 @@ func TestConfigure(t *testing.T) {
 				require.Nil(t, tt.config, "The test case must define a configuration or a configuration request, not both.")
 				configureRequest = tt.configureRequest
 			}
+			// The retry loop blocks on the mock clock's Sleep. Advance the
+			// clock from a background goroutine by exactly the slept duration
+			// each time a sleep begins, until the call under test completes.
+			done := make(chan struct{})
+			defer close(done)
+			go func() {
+				for {
+					select {
+					case <-done:
+						return
+					case d := <-ts.clockHook.SleepCh():
+						ts.clockHook.Add(d)
+					}
+				}
+			}()
 			_, err := ts.plugin.Configure(ctx, configureRequest)
 
 			spiretest.RequireGRPCStatusContains(t, err, tt.expectCode, tt.expectMsg)
@@ -1000,6 +1015,21 @@ func TestGenerateKey(t *testing.T) {
 
 			ts.fakeKMSClient.setGetPublicKeySequentialErrs(tt.getPublicKeyErr, tt.getPublicKeyErrCount)
 
+			// The retry loop blocks on the mock clock's Sleep. Advance the
+			// clock from a background goroutine by exactly the slept duration
+			// each time a sleep begins, until the call under test completes.
+			done := make(chan struct{})
+			defer close(done)
+			go func() {
+				for {
+					select {
+					case <-done:
+						return
+					case d := <-ts.clockHook.SleepCh():
+						ts.clockHook.Add(d)
+					}
+				}
+			}()
 			resp, err := ts.plugin.GenerateKey(ctx, tt.generateKeyReq)
 			if tt.expectMsg != "" {
 				spiretest.RequireGRPCStatusContains(t, err, tt.expectCode, tt.expectMsg)
@@ -1232,7 +1262,7 @@ func TestGetPublicKeys(t *testing.T) {
 			for _, fakeKey := range storedFakeCryptoKeys {
 				storedFakeCryptoKeyVersions := fakeKey.fetchFakeCryptoKeyVersions()
 				for _, fakeKeyVersion := range storedFakeCryptoKeyVersions {
-					pubKey, err := getPublicKeyFromCryptoKeyVersion(ctx, ts.plugin.log, ts.fakeKMSClient, fakeKeyVersion.CryptoKeyVersion.Name)
+					pubKey, err := getPublicKeyFromCryptoKeyVersion(ctx, ts.plugin.log, ts.fakeKMSClient, fakeKeyVersion.CryptoKeyVersion.Name, ts.plugin.hooks.clk)
 					require.NoError(t, err)
 					require.Equal(t, pubKey, resp.PublicKeys[0].PkixData)
 				}

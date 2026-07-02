@@ -246,6 +246,7 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 		log:       p.log,
 		serverID:  serverID,
 		tdHash:    tdHashString,
+		clk:       p.hooks.clk,
 	}
 	p.log.Debug("Fetching keys from Cloud KMS", "key_ring", newConfig.KeyRing)
 	keyEntries, err := fetcher.fetchKeyEntries(ctx)
@@ -463,7 +464,7 @@ func (p *Plugin) createKey(ctx context.Context, spireKeyID string, keyType keyma
 	cryptoKeyVersionName := cryptoKey.Name + "/cryptoKeyVersions/1"
 	log.Debug("CryptoKeyVersion version added", cryptoKeyVersionNameTag, cryptoKeyVersionName)
 
-	pubKey, err := getPublicKeyFromCryptoKeyVersion(ctx, p.log, p.kmsClient, cryptoKeyVersionName)
+	pubKey, err := getPublicKeyFromCryptoKeyVersion(ctx, p.log, p.kmsClient, cryptoKeyVersionName, p.hooks.clk)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to get public key: %v", err)
 	}
@@ -517,7 +518,7 @@ func (p *Plugin) addCryptoKeyVersionToCachedEntry(ctx context.Context, entry key
 	}
 	log.Debug("CryptoKeyVersion added", cryptoKeyVersionNameTag, cryptoKeyVersion.Name)
 
-	pubKey, err := getPublicKeyFromCryptoKeyVersion(ctx, p.log, p.kmsClient, cryptoKeyVersion.Name)
+	pubKey, err := getPublicKeyFromCryptoKeyVersion(ctx, p.log, p.kmsClient, cryptoKeyVersion.Name, p.hooks.clk)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get public key: %w", err)
 	}
@@ -1078,7 +1079,10 @@ func getOrCreateServerID(idPath string) (string, error) {
 
 // getPublicKeyFromCryptoKeyVersion requests Cloud KMS to get the public key
 // of the specified CryptoKeyVersion.
-func getPublicKeyFromCryptoKeyVersion(ctx context.Context, log hclog.Logger, kmsClient cloudKeyManagementService, cryptoKeyVersionName string) ([]byte, error) {
+func getPublicKeyFromCryptoKeyVersion(ctx context.Context, log hclog.Logger, kmsClient cloudKeyManagementService, cryptoKeyVersionName string, clk clock.Clock) ([]byte, error) {
+	backoffMin := 10 * time.Millisecond
+	backoffMax := time.Second
+	backoff := backoffMin
 	kmsPublicKey, errGetPublicKey := kmsClient.GetPublicKey(ctx, &kmspb.GetPublicKeyRequest{Name: cryptoKeyVersionName})
 	attempts := 1
 
@@ -1114,6 +1118,10 @@ func getPublicKeyFromCryptoKeyVersion(ctx context.Context, log hclog.Logger, kms
 		log.Warn("Could not get the public key because the CryptoKeyVersion is still being generated. Trying again.")
 		attempts++
 		kmsPublicKey, errGetPublicKey = kmsClient.GetPublicKey(ctx, &kmspb.GetPublicKeyRequest{Name: cryptoKeyVersionName})
+		if errGetPublicKey != nil {
+			backoff = min(backoff*2, backoffMax)
+			clk.Sleep(backoff)
+		}
 	}
 
 	// Perform integrity verification.

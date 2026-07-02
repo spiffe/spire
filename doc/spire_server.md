@@ -83,7 +83,7 @@ This may be useful for templating configuration files, for example across differ
 | `profiling_freq`                   | Frequency of dumping profiling data to disk. Only enabled when `profiling_enabled` is `true` and `profiling_freq` > 0.                                                                                                                                                                                                                                                                 |                                                                |
 | `profiling_names`                  | List of profile names that will be dumped to disk on each profiling tick, see [Profiling Names](#profiling-names)                                                                                                                                                                                                                                                                      |                                                                |
 | `profiling_port`                   | Port number of the [net/http/pprof](https://pkg.go.dev/net/http/pprof) endpoint. Only used when `profiling_enabled` is `true`.                                                                                                                                                                                                                                                         |                                                                |
-| `prune_attested_nodes_expired_for` | Enables periodic purging of attested node records with expired SVIDs where the expiry time further in the past than the specified duration. Non-reattestable nodes are not pruned unless `prune_tofu_nodes` is set to `true`. Banned nodes are not pruned.                                                                                                                             |                                                                |
+| `prune_attested_nodes_expired_for` | Enables periodic purging of attested node records with expired SVIDs where the expiry time further in the past than the specified duration. Non-reattestable nodes are not pruned unless `prune_tofu_nodes` is set to `true`. Banned nodes are not pruned. Join-token nodes also cascade-delete the `CreateJoinToken` alias entry on prune or `agent evict`/`purge` (forward-only).    |                                                                |
 | `prune_tofu_nodes`                 | Includes expired TOFU nodes into consideration for pruning. This does not affect banned nodes, which are not pruned.                                                                                                                                                                                                                                                                   | false                                                          |
 | `ratelimit`                        | Rate limiting configurations, usually used when the server is behind a load balancer (see below)                                                                                                                                                                                                                                                                                       |                                                                |
 | `socket_path`                      | Path to bind the SPIRE Server API socket to (Unix only)                                                                                                                                                                                                                                                                                                                                | /tmp/spire-server/private/api.sock                             |
@@ -637,6 +637,31 @@ Checks SPIRE server's health.
 | `-socketPath` | Path to the SPIRE Server API socket   | /tmp/spire-server/private/api.sock |
 | `-verbose`    | Print verbose information             |                                    |
 
+### `spire-server logger get`
+
+Gets the current logging level of the SPIRE Server.
+
+| Command       | Action                              | Default                            |
+|:--------------|:------------------------------------|:-----------------------------------|
+| `-socketPath` | Path to the SPIRE Server API socket | /tmp/spire-server/private/api.sock |
+
+### `spire-server logger set`
+
+Sets the logging level of the SPIRE Server.
+
+| Command       | Action                                                                    | Default                            |
+|:--------------|:--------------------------------------------------------------------------|:-----------------------------------|
+| `-level`      | The new log level, one of (panic, fatal, error, warn, info, debug, trace) |                                    |
+| `-socketPath` | Path to the SPIRE Server API socket                                       | /tmp/spire-server/private/api.sock |
+
+### `spire-server logger reset`
+
+Resets the logging level of the SPIRE Server to the level it was set to at launch.
+
+| Command       | Action                              | Default                            |
+|:--------------|:------------------------------------|:-----------------------------------|
+| `-socketPath` | Path to the SPIRE Server API socket | /tmp/spire-server/private/api.sock |
+
 ### `spire-server validate`
 
 Validates a SPIRE server configuration file.  Arguments are the same as `spire-server run`.
@@ -827,11 +852,17 @@ server {
 telemetry {
     Prometheus {
         port = 1234
-        #optional TLS for prometheus
+        # optional TLS for prometheus
         tls {
-            cert_file = "/path/to/cert.pem"
-            key_file = "/path/to/key.pem"
-            client_ca_file = "/path/to/ca.pem" # optional CA file for mTLS
+            use_spire_svid = true
+            authorized_spiffe_ids = [
+                "spiffe://example.org/monitoring/prometheus",
+            ]
+
+            # Alternatively, configure a web certificate directly:
+            # cert_file = "/path/to/cert.pem"
+            # key_file = "/path/to/key.pem"
+            # client_ca_file = "/path/to/ca.pem"
         }
     }
 }

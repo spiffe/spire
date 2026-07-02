@@ -4,23 +4,34 @@ log-info "testing disabled JWT functionality..."
 
 # Replace with disable_jwt_svids = true configuration
 sed -i.bak "s#disable_jwt_svids = false#disable_jwt_svids = true#g" conf/server/server.conf
-docker compose restart spire-server
-check-server-started spire-server
+
+docker-spire-server-restart spire-server
 
 test-jwt-disabled-command() {
     local test_name="$1"
     shift 1
     local command=("$@")
-    
-    if ! ERROR_OUTPUT=$("${command[@]}" 2>&1); then
+
+    # Retry to ride out the brief window right after the restart where the
+    # server (or the agent's connection to it) is not ready yet and the command
+    # fails with a transient transport error instead of the expected JWT
+    # disabled error. The agent JWT fetch reaches the server over its TCP API,
+    # so it is the check most prone to racing the restart.
+    local MAXCHECKS=15
+    local CHECKINTERVAL=1
+    for ((i=1;i<=MAXCHECKS;i++)); do
+        if ERROR_OUTPUT=$("${command[@]}" 2>&1); then
+            fail-now "$test_name should have failed when JWT is disabled"
+        fi
         if echo "$ERROR_OUTPUT" | grep -q "JWT functionality is disabled"; then
             log-info "✓ $test_name correctly failed with JWT disabled error"
-        else
-            fail-now "$test_name expected JWT disabled error, but got: $ERROR_OUTPUT"
+            return 0
         fi
-    else
-        fail-now "$test_name should have failed when JWT is disabled"
-    fi
+        log-info "$test_name not ready yet (attempt $i of $MAXCHECKS): $ERROR_OUTPUT"
+        sleep "${CHECKINTERVAL}"
+    done
+
+    fail-now "$test_name expected JWT disabled error, but got: $ERROR_OUTPUT"
 }
 
 test-jwt-disabled-command "JWT authority prepare" \
