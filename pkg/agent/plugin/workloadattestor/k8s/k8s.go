@@ -893,9 +893,6 @@ func (p *Plugin) findPodByName(ctx context.Context, config *k8sConfig, namespace
 		}
 		return nil, status.Errorf(codes.Internal, "unable to get pod from Kubernetes API: %v", err)
 	}
-	if err := checkPodReferenceScope(scope, config.NodeName, pod); err != nil {
-		return nil, err
-	}
 	return pod, nil
 }
 
@@ -947,23 +944,7 @@ func (p *Plugin) findPodByUID(ctx context.Context, config *k8sConfig, uid types.
 	if pod.UID != uid {
 		return nil, status.Errorf(codes.NotFound, "pod %s/%s has UID %s, expected %s", pod.Namespace, pod.Name, pod.UID, uid)
 	}
-	if err := checkPodReferenceScope(scope, config.NodeName, pod); err != nil {
-		return nil, err
-	}
 	return pod, nil
-}
-
-func checkPodReferenceScope(scope podReferenceScope, agentNodeName string, pod *corev1.Pod) error {
-	if scope != podReferenceScopeAgentNode {
-		return nil
-	}
-	if agentNodeName == "" {
-		return status.Error(codes.Internal, "agent node name is not configured")
-	}
-	if pod.Spec.NodeName != agentNodeName {
-		return status.Error(codes.PermissionDenied, "pod is not on the agent node")
-	}
-	return nil
 }
 
 // decodePodFromKubelet rehydrates a `corev1.Pod` from the partially-parsed

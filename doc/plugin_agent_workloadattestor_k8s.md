@@ -48,7 +48,6 @@ since [hostprocess](https://kubernetes.io/docs/tasks/configure-pod-container/cre
 
 | Configuration                           | Description                                                                                                                                                                                                                             |
 |-----------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `experimental.api_server.cache.enabled` | If true, enables a controller-runtime Kubernetes API server cache for object-reference lookups. Defaults to false.                                                                                                                      |
 | `disable_container_selectors`           | If true, container selectors are not produced. This can be used to produce pod selectors when the workload pod is known but the workload container is not ready at the time of attestation.                                             |
 | `kubelet_read_only_port`                | The kubelet read-only port. This is mutually exclusive with `kubelet_secure_port`.                                                                                                                                                      |
 | `kubelet_secure_port`                   | The kubelet secure port. It defaults to `10250` unless `kubelet_read_only_port` is set.                                                                                                                                                 |
@@ -60,10 +59,17 @@ since [hostprocess](https://kubernetes.io/docs/tasks/configure-pod-container/cre
 | `use_anonymous_authentication`          | If true, use anonymous authentication for kubelet communication                                                                                                                                                                         |
 | `node_name_env`                         | The environment variable used to obtain the node name. Defaults to `MY_NODE_NAME`.                                                                                                                                                      |
 | `node_name`                             | The name of the node. Overrides the value obtained by the environment variable specified by `node_name_env`.                                                                                                                            |
-| `experimental.broker`                   | Experimental Broker API options for `AttestReference`. Required when this plugin handles Broker API references. See [Broker API](#broker-api).                                                                                          |
+| `experimental`                          | The experimental options that are subject to change or removal (see below).                                                                                                                                                             |
 | `sigstore`                              | Sigstore options. Options described below. See [Sigstore options](#sigstore-options). When set, enables verification of container image signatures and attestations.                                                                    |
 | `use_new_container_locator`             | If true, enables the new container locator algorithm that has support for cgroups v2. Defaults to true.                                                                                                                                 |
 | `verbose_container_locator_logs`        | If true, enables verbose logging of mountinfo and cgroup information used to locate containers. Defaults to false.                                                                                                                      |
+
+These are the current experimental configurations.
+
+| experimental               | Description                                                                                                                       | Default |
+|:---------------------------|-----------------------------------------------------------------------------------------------------------------------------------|---------|
+| `api_server.cache.enabled` | If true, enables a controller-runtime Kubernetes API server cache for object-reference lookups.                                   | false   |
+| `broker`                   | Broker API options for `AttestReference`. Required when this plugin handles Broker API references. See [Broker API](#broker-api). |         |
 
 ## Sigstore feature
 
