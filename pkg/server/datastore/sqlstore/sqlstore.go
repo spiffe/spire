@@ -2931,7 +2931,7 @@ FROM
 	registered_entries
 WHERE id IN (SELECT id FROM listing)
 
-UNION
+UNION ALL
 
 SELECT
 	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL, NULL, NULL, NULL
@@ -2944,7 +2944,7 @@ ON
 WHERE
 	F.registered_entry_id IN (SELECT id FROM listing)
 
-UNION
+UNION ALL
 
 SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL, NULL, NULL
@@ -2952,7 +2952,7 @@ FROM
 	dns_names
 WHERE registered_entry_id IN (SELECT id FROM listing)
 
-UNION
+UNION ALL
 
 SELECT
 	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL, NULL, NULL
