@@ -3,10 +3,11 @@
 The `windows` plugin generates Windows-based selectors for workloads calling the agent.
 It does so by opening an access token associated with the workload process. The system is then interrogated to retrieve user and group account information from that access token.
 
-| Configuration            | Description                                                                                                                                                | Default |
-|--------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------|---------|
-| `discover_workload_path` | If true, the workload path will be discovered by the plugin and used to provide additional selectors                                                       | false   |
-| `workload_size_limit`    | The limit of workload binary sizes when calculating certain selectors (e.g. sha256). If zero, no limit is enforced. If negative, never calculate the hash. | 0       |
+| Configuration                  | Description                                                                                                                                                                                                                                                          | Default |
+|--------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------|
+| `discover_workload_path`       | If true, the workload path will be discovered by the plugin and used to provide additional selectors                                                                                                                                                                 | false   |
+| `workload_size_limit`          | The limit of workload binary sizes when calculating certain selectors (e.g. sha256). If zero, no limit is enforced. If negative, never calculate the hash.                                                                                                           | 0       |
+| `disable_group_name_selectors` | If true, skips resolving group SIDs to human-readable names, avoiding potentially expensive account name resolution (e.g. against a Domain Controller). Group SID selectors (`group_sid`) are always collected regardless. Only `group_name` selectors are affected. | false   |
 
 ## Workload Selectors
 
@@ -46,6 +47,8 @@ Defenses against this are:
 - An enabled group in a token is a group that has the [SE_GROUP_ENABLED](https://docs.microsoft.com/en-us/windows/win32/secauthz/sid-attributes-in-an-access-token) attribute.
 
 - User and group account names are expressed using the [down-level logon name format](https://docs.microsoft.com/en-us/windows/win32/secauthn/user-name-formats#down-level-logon-name).
+
+- Enabling `disable_group_name_selectors` will cause existing workload registration entries that use `group_name` selectors to stop matching. Operators should audit those entries and switch them to `group_sid` selectors before enabling this flag.
 
 ## Configuration
 
