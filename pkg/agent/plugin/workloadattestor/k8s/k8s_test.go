@@ -379,6 +379,61 @@ func (s *Suite) TestAttestWhenContainerReadyButContainerSelectorsDisabled() {
 	s.requireAttestSuccess(p, testPodSelectors)
 }
 
+func (s *Suite) TestAttestWithNamespaceLabels() {
+	s.startInsecureKubelet()
+
+	ns := &corev1.Namespace{}
+	ns.Name = "default"
+	ns.Labels = map[string]string{
+		"team":        "backend",
+		"environment": "production",
+	}
+	kubeClient := fake.NewClientBuilder().WithScheme(k8sScheme).WithObjects(ns).Build()
+	p := s.loadPluginWithKubeClient(fmt.Sprintf(`
+		kubelet_read_only_port = %d
+		max_poll_attempts = 5
+		poll_retry_interval = "1s"
+		enable_namespace_labels = true
+	`, s.kubeletPort()), kubeClient)
+
+	s.addPodListResponse(podListFilePath)
+	s.addGetContainerResponsePidInPod()
+
+	expectedSelectors := append(slices.Clone(testPodAndContainerSelectors),
+		&common.Selector{Type: "k8s", Value: "ns-label:environment:production"},
+		&common.Selector{Type: "k8s", Value: "ns-label:team:backend"},
+	)
+	s.requireAttestSuccess(p, expectedSelectors)
+}
+
+func (s *Suite) TestAttestWithNamespaceLabelsDisabled() {
+	s.startInsecureKubelet()
+	p := s.loadInsecurePlugin()
+
+	s.addPodListResponse(podListFilePath)
+	s.addGetContainerResponsePidInPod()
+
+	s.requireAttestSuccess(p, testPodAndContainerSelectors)
+}
+
+func (s *Suite) TestAttestWithNamespaceLabelsErrorFailsAttestation() {
+	s.startInsecureKubelet()
+
+	// Empty client with no namespace object → Get will return not-found
+	kubeClient := fake.NewClientBuilder().WithScheme(k8sScheme).Build()
+	p := s.loadPluginWithKubeClient(fmt.Sprintf(`
+		kubelet_read_only_port = %d
+		max_poll_attempts = 5
+		poll_retry_interval = "1s"
+		enable_namespace_labels = true
+	`, s.kubeletPort()), kubeClient)
+
+	s.addPodListResponse(podListFilePath)
+	s.addGetContainerResponsePidInPod()
+
+	s.requireAttestFailure(p, codes.Internal, "unable to get namespace labels")
+}
+
 func (s *Suite) TestAttestWithSigstoreSelectors() {
 	s.startInsecureKubelet()
 	p := s.loadInsecurePluginWithSigstore()
@@ -1642,6 +1697,38 @@ func (s *Suite) TestAttestReferenceWithPodUID_FoundInKubelet() {
 	s.requireSelectorsEqual(testPodSelectors, selectors)
 }
 
+func (s *Suite) TestAttestReferenceWithPodUID_NamespaceLabels() {
+	s.startInsecureKubelet()
+
+	ns := &corev1.Namespace{}
+	ns.Name = "default"
+	ns.Labels = map[string]string{
+		"team":        "backend",
+		"environment": "production",
+	}
+	kubeClient := fakeKubeClientWithSubjectAccessReview(true, nil, testAPIServerBlogPod(), ns)
+	p := s.loadPluginWithKubeClient(fmt.Sprintf(`
+		kubelet_read_only_port = %d
+		max_poll_attempts = 5
+		poll_retry_interval = "1s"
+		enable_namespace_labels = true
+		%s
+	`, s.kubeletPort(), testBrokerConfig()), kubeClient)
+
+	s.addPodListResponse(podListFilePath)
+
+	anyRef, err := anypb.New(&broker.KubernetesObjectReference{Type: &broker.KubernetesObjectType{Plural: "pods", Group: "core"}, Uid: testPodUID})
+	s.Require().NoError(err)
+
+	expectedSelectors := append(slices.Clone(testPodSelectors),
+		&common.Selector{Type: "k8s", Value: "ns-label:environment:production"},
+		&common.Selector{Type: "k8s", Value: "ns-label:team:backend"},
+	)
+	selectors, err := p.AttestReference(testBrokerContext(), anyRef)
+	s.Require().NoError(err)
+	s.requireSelectorsEqual(expectedSelectors, selectors)
+}
+
 func (s *Suite) TestAttestReferenceWithPodUID_DefaultScopeDoesNotCallAPIServer() {
 	s.startInsecureKubelet()
 
@@ -1971,6 +2058,71 @@ func (s *Suite) TestAttestReferenceBrokerRBACUsesResolvedObject() {
 		assert.Equal(s.T(), "blog-24ck7", review.Spec.ResourceAttributes.Name)
 		assert.Equal(s.T(), brokerImpersonationReviewVerb, review.Spec.ResourceAttributes.Verb)
 	}
+}
+
+func (s *Suite) TestAttestReferenceGenericObject_NamespaceLabels() {
+	s.startInsecureKubelet()
+
+	gvk := schema.GroupVersionKind{
+		Group:   "kustomize.toolkit.fluxcd.io",
+		Version: "v1",
+		Kind:    "Kustomization",
+	}
+	gvr := schema.GroupVersionResource{
+		Group:    gvk.Group,
+		Version:  gvk.Version,
+		Resource: "kustomizations",
+	}
+	mapper := meta.NewDefaultRESTMapper([]schema.GroupVersion{gvk.GroupVersion()})
+	mapper.AddSpecific(gvk, gvr, schema.GroupVersionResource{
+		Group:    gvk.Group,
+		Version:  gvk.Version,
+		Resource: "kustomization",
+	}, meta.RESTScopeNamespace)
+
+	obj := &metav1.PartialObjectMetadata{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "tenant-a",
+			Namespace: "flux-system",
+			UID:       "kustomization-uid",
+		},
+	}
+	obj.SetGroupVersionKind(gvk)
+
+	ns := &corev1.Namespace{}
+	ns.Name = "flux-system"
+	ns.Labels = map[string]string{
+		"team": "platform",
+	}
+
+	kubeClient := fakeKubeClientWithSubjectAccessReviewAndRESTMapper(true, nil, mapper, obj, ns)
+	p := s.loadPluginWithKubeClient(fmt.Sprintf(`
+		kubelet_read_only_port = %d
+		max_poll_attempts = 5
+		poll_retry_interval = "1s"
+		enable_namespace_labels = true
+		%s
+	`, s.kubeletPort(), testBrokerConfig()), kubeClient)
+
+	anyRef, err := anypb.New(&broker.KubernetesObjectReference{
+		Type: &broker.KubernetesObjectType{
+			Plural: "kustomizations",
+			Group:  "kustomize.toolkit.fluxcd.io",
+		},
+		Uid: "kustomization-uid",
+	})
+	s.Require().NoError(err)
+
+	selectors, err := p.AttestReference(testBrokerContext(), anyRef)
+	s.Require().NoError(err)
+
+	selectorValues := make([]string, 0, len(selectors))
+	for _, selector := range selectors {
+		selectorValues = append(selectorValues, selector.Value)
+	}
+	assert.Contains(s.T(), selectorValues, "ns-label:team:platform")
+	assert.Contains(s.T(), selectorValues, "namespace:flux-system")
+	assert.Contains(s.T(), selectorValues, "name:tenant-a")
 }
 
 func (s *Suite) TestAttestReferenceBrokerRBACUsesResolvedGenericObject() {
