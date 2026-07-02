@@ -1569,7 +1569,7 @@ func (s *PluginSuite) TestPruneAttestedExpiredNodes() {
 	}
 
 	s.Run("prune before expiry", func() {
-		err := s.ds.PruneAttestedExpiredNodes(ctx, now.Add(-time.Hour), false)
+		err := s.ds.PruneAttestedExpiredNodes(ctx, now.Add(-time.Hour), false, 0)
 		s.Require().NoError(err)
 
 		// check that none of the nodes gets deleted
@@ -1581,7 +1581,7 @@ func (s *PluginSuite) TestPruneAttestedExpiredNodes() {
 	})
 
 	s.Run("prune expired attested nodes", func() {
-		err := s.ds.PruneAttestedExpiredNodes(ctx, now.Add(-time.Minute), false)
+		err := s.ds.PruneAttestedExpiredNodes(ctx, now.Add(-time.Minute), false, 0)
 		s.Require().NoError(err)
 
 		// check that the unexpired node is present
@@ -1610,7 +1610,7 @@ func (s *PluginSuite) TestPruneAttestedExpiredNodes() {
 	})
 
 	s.Run("prune expired attested nodes including non-reattestable nodes", func() {
-		err := s.ds.PruneAttestedExpiredNodes(ctx, now.Add(-time.Minute), true)
+		err := s.ds.PruneAttestedExpiredNodes(ctx, now.Add(-time.Minute), true, 0)
 		s.Require().NoError(err)
 
 		// check that the valid node is still present
@@ -1632,6 +1632,46 @@ func (s *PluginSuite) TestPruneAttestedExpiredNodes() {
 		s.Require().NoError(err)
 		s.NotNil(attestedBannedNode)
 	})
+}
+
+func (s *PluginSuite) TestPruneAttestedExpiredNodesBatchSize() {
+	clk := clock.NewMock(s.T())
+	now := clk.Now()
+
+	const total = 5
+
+	for i := range total {
+		id := fmt.Sprintf("spiffe://example.org/expired-%d", i)
+		_, err := s.ds.CreateAttestedNode(ctx, &common.AttestedNode{
+			SpiffeId:            id,
+			AttestationDataType: "aws-tag",
+			CertSerialNumber:    "badcafe",
+			CanReattest:         true,
+			CertNotAfter:        now.Add(-time.Hour).Unix(),
+		})
+		s.Require().NoError(err)
+	}
+
+	countNodes := func() int {
+		resp, err := s.ds.ListAttestedNodes(ctx, &datastore.ListAttestedNodesRequest{})
+		s.Require().NoError(err)
+		return len(resp.Nodes)
+	}
+	s.Require().Equal(total, countNodes())
+
+	// A batch size smaller than the backlog only prunes up to batchSize per call.
+	err := s.ds.PruneAttestedExpiredNodes(ctx, now.Add(-time.Minute), false, 2)
+	s.Require().NoError(err)
+	s.Require().Equal(total-2, countNodes())
+
+	err = s.ds.PruneAttestedExpiredNodes(ctx, now.Add(-time.Minute), false, 2)
+	s.Require().NoError(err)
+	s.Require().Equal(total-4, countNodes())
+
+	// A final call drains the remainder.
+	err = s.ds.PruneAttestedExpiredNodes(ctx, now.Add(-time.Minute), false, 2)
+	s.Require().NoError(err)
+	s.Require().Equal(0, countNodes())
 }
 
 func (s *PluginSuite) TestDeleteAttestedNode() {
@@ -1874,7 +1914,7 @@ func (s *PluginSuite) TestPruneAttestedExpiredNodesCascadesEntries() {
 
 	lastEventID := s.lastRegistrationEntryEventID()
 
-	err = s.ds.PruneAttestedExpiredNodes(ctx, now.Add(-time.Minute), false)
+	err = s.ds.PruneAttestedExpiredNodes(ctx, now.Add(-time.Minute), false, 0)
 	s.Require().NoError(err)
 
 	// Expired node and its child entry are gone.

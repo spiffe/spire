@@ -31,6 +31,10 @@ type ManagerConfig struct {
 	Clock    clock.Clock
 	Interval time.Duration
 
+	// BatchSize is the maximum number of expired nodes pruned per cycle.
+	// A non-positive value falls back to the datastore default.
+	BatchSize int
+
 	PruneArgs
 }
 
@@ -94,6 +98,6 @@ func (m *Manager) prune(ctx context.Context, expiredBefore time.Time, includeNon
 	counter := telemetry_server.StartNodeManagerPruneAttestedExpiredNodesCall(m.c.Metrics)
 	defer counter.Done(&err)
 
-	err = m.c.DataStore.PruneAttestedExpiredNodes(ctx, expiredBefore, includeNonReattestable)
+	err = m.c.DataStore.PruneAttestedExpiredNodes(ctx, expiredBefore, includeNonReattestable, m.c.BatchSize)
 	return err
 }

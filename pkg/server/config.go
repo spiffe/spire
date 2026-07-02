@@ -144,6 +144,11 @@ type Config struct {
 	// considered for pruning.
 	PruneNonReattestableNodes bool
 
+	// PruneAttestedNodesBatchSize is the maximum number of expired attested
+	// nodes pruned per cycle. When non-positive, a default is used. Only applies
+	// when PruneAttestedNodesExpiredFor is set.
+	PruneAttestedNodesBatchSize int
+
 	// MaxAttestedNodeInfoStaleness determines how long to trust cached attested
 	// node information, before requiring refreshing it from the datastore.
 	MaxAttestedNodeInfoStaleness time.Duration

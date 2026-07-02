@@ -396,7 +396,7 @@ func (ds *fakeDataStore) DeleteAttestedNode(context.Context, string) (*common.At
 	return &common.AttestedNode{}, ds.err
 }
 
-func (ds *fakeDataStore) PruneAttestedExpiredNodes(context.Context, time.Time, bool) error {
+func (ds *fakeDataStore) PruneAttestedExpiredNodes(context.Context, time.Time, bool, int) error {
 	return ds.err
 }
 

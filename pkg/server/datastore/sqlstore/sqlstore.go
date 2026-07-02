@@ -70,6 +70,11 @@ const (
 
 	// Maximum size for additional attributes message in a registration entry
 	maxAdditionalAttributesSize = 65535
+
+	// defaultPruneAttestedNodesBatchSize is the number of expired attested
+	// nodes pruned per call when no batch size (or a non-positive one) is
+	// provided.
+	defaultPruneAttestedNodesBatchSize = 1000
 )
 
 // Configuration for the sql datastore implementation.
@@ -401,10 +406,11 @@ func (ds *Plugin) DeleteAttestedNode(ctx context.Context, spiffeID string) (atte
 
 // PruneAttestedExpiredNodes deletes attested nodes with expiration time further than a given duration in the past.
 // Non-reattestable nodes are not deleted by default, and have to be included explicitly by setting
-// includeNonReattestable = true. Banned nodes are not deleted.
-func (ds *Plugin) PruneAttestedExpiredNodes(ctx context.Context, expiredBefore time.Time, includeNonReattestable bool) error {
+// includeNonReattestable = true. Banned nodes are not deleted. At most batchSize nodes are pruned per call;
+// a non-positive batchSize falls back to the default.
+func (ds *Plugin) PruneAttestedExpiredNodes(ctx context.Context, expiredBefore time.Time, includeNonReattestable bool, batchSize int) error {
 	return ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
-		return pruneAttestedExpiredNodes(tx, expiredBefore, includeNonReattestable, ds.log)
+		return pruneAttestedExpiredNodes(tx, expiredBefore, includeNonReattestable, batchSize, ds.log)
 	})
 }
 
@@ -1846,10 +1852,14 @@ func includeNonReattestable(include bool) func(db *gorm.DB) *gorm.DB {
 	}
 }
 
-func pruneAttestedExpiredNodes(tx *gorm.DB, expiredBefore time.Time, include bool, logger logrus.FieldLogger) error {
+func pruneAttestedExpiredNodes(tx *gorm.DB, expiredBefore time.Time, include bool, batchSize int, logger logrus.FieldLogger) error {
 	var expiredNodes []AttestedNode
 
-	if err := tx.Scopes(expiredForDuration(expiredBefore), includeNonReattestable(include), notBanned).Limit(1000).Find(&expiredNodes).Error; err != nil {
+	if batchSize <= 0 {
+		batchSize = defaultPruneAttestedNodesBatchSize
+	}
+
+	if err := tx.Scopes(expiredForDuration(expiredBefore), includeNonReattestable(include), notBanned).Limit(batchSize).Find(&expiredNodes).Error; err != nil {
 		return newWrappedSQLError(err)
 	}
 
