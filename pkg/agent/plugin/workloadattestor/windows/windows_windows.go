@@ -211,7 +211,7 @@ func (p *Plugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*
 	p.config = newConfig
 
 	if newConfig.DisableGroupNameSelectors {
-		p.log.Info("Group name selectors disabled; skipping LookupAccount for groups, only group_sid selectors will be produced")
+		p.log.Info("Group name selectors disabled; only group_sid selectors will be produced for groups")
 	}
 
 	return &configv1.ConfigureResponse{}, nil
