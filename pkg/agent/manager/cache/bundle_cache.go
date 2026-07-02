@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"maps"
 
-	"github.com/imkira/go-observer"
 	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
 	"github.com/spiffe/go-spiffe/v2/bundle/x509bundle"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire/pkg/common/observer"
 )
 
 type Bundle = spiffebundle.Bundle

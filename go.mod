@@ -61,7 +61,6 @@ require (
 	github.com/hashicorp/hcl v1.0.1-vault-7
 	github.com/hashicorp/vault/api v1.23.0
 	github.com/hashicorp/vault/sdk v0.25.1
-	github.com/imkira/go-observer v1.0.3
 	github.com/jackc/pgx/v5 v5.10.0
 	github.com/jinzhu/gorm v1.9.16
 	github.com/lib/pq v1.12.3
