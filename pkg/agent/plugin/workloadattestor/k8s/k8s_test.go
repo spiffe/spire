@@ -379,6 +379,62 @@ func (s *Suite) TestAttestWhenContainerReadyButContainerSelectorsDisabled() {
 	s.requireAttestSuccess(p, testPodSelectors)
 }
 
+func (s *Suite) TestAttestWithNamespaceLabels() {
+	s.startInsecureKubelet()
+
+	ns := &corev1.Namespace{}
+	ns.Name = "default"
+	ns.Labels = map[string]string{
+		"team":        "backend",
+		"environment": "production",
+	}
+	kubeClient := fake.NewClientBuilder().WithScheme(k8sScheme).WithObjects(ns).Build()
+	p := s.loadPluginWithKubeClient(fmt.Sprintf(`
+		kubelet_read_only_port = %d
+		max_poll_attempts = 5
+		poll_retry_interval = "1s"
+		enable_namespace_labels = true
+	`, s.kubeletPort()), kubeClient)
+
+	s.addPodListResponse(podListFilePath)
+	s.addGetContainerResponsePidInPod()
+
+	expectedSelectors := append(slices.Clone(testPodAndContainerSelectors),
+		&common.Selector{Type: "k8s", Value: "ns-label:environment:production"},
+		&common.Selector{Type: "k8s", Value: "ns-label:team:backend"},
+	)
+	s.requireAttestSuccess(p, expectedSelectors)
+}
+
+func (s *Suite) TestAttestWithNamespaceLabelsDisabled() {
+	s.startInsecureKubelet()
+	p := s.loadInsecurePlugin()
+
+	s.addPodListResponse(podListFilePath)
+	s.addGetContainerResponsePidInPod()
+
+	s.requireAttestSuccess(p, testPodAndContainerSelectors)
+}
+
+func (s *Suite) TestAttestWithNamespaceLabelsErrorFallsBack() {
+	s.startInsecureKubelet()
+
+	// Empty client with no namespace object → Get will return not-found
+	kubeClient := fake.NewClientBuilder().WithScheme(k8sScheme).Build()
+	p := s.loadPluginWithKubeClient(fmt.Sprintf(`
+		kubelet_read_only_port = %d
+		max_poll_attempts = 5
+		poll_retry_interval = "1s"
+		enable_namespace_labels = true
+	`, s.kubeletPort()), kubeClient)
+
+	s.addPodListResponse(podListFilePath)
+	s.addGetContainerResponsePidInPod()
+
+	// Attestation succeeds without namespace label selectors
+	s.requireAttestSuccess(p, testPodAndContainerSelectors)
+}
+
 func (s *Suite) TestAttestWithSigstoreSelectors() {
 	s.startInsecureKubelet()
 	p := s.loadInsecurePluginWithSigstore()
