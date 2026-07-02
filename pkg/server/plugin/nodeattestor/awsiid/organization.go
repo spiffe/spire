@@ -2,7 +2,10 @@ package awsiid
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"os"
+	"regexp"
 	"sync"
 	"time"
 
@@ -20,11 +23,15 @@ const (
 	orgAccRegion             = "management_account_region" // required for cache key
 	orgAccountStatus         = "ACTIVE"                    // Only allow node account id's with status ACTIVE
 	orgAccountListTTL        = "org_account_map_ttl"       // Cache the list of account for specific time, if not sent default will be used.
+	orgAccountListFile       = "account_list_file"         // Source the org account list from a file instead of the AWS Organizations API.
 	orgAccountDefaultListTTL = "3m"                        // pull account list after 3 minutes
 	orgAccountMinListTTL     = "1m"                        // Minimum TTL configuration to pull the org account list
 	orgAccountRetries        = 5
 	orgDefaultAccRegion      = "us-west-2"
 )
+
+// awsAccountIDPattern matches a 12-digit AWS account ID.
+var awsAccountIDPattern = regexp.MustCompile(`^[0-9]{12}$`)
 
 var (
 	orgAccountDefaultListDuration, _ = time.ParseDuration(orgAccountDefaultListTTL)
@@ -32,10 +39,17 @@ var (
 )
 
 type orgValidationConfig struct {
-	AccountID      string `hcl:"management_account_id"`
-	AccountRole    string `hcl:"assume_org_role"`
-	AccountRegion  string `hcl:"management_account_region"`
-	AccountListTTL string `hcl:"org_account_map_ttl"`
+	AccountID       string `hcl:"management_account_id"`
+	AccountRole     string `hcl:"assume_org_role"`
+	AccountRegion   string `hcl:"management_account_region"`
+	AccountListTTL  string `hcl:"org_account_map_ttl"`
+	AccountListFile string `hcl:"account_list_file"`
+}
+
+// useAccountListFile reports whether the org account list should be sourced from
+// a file rather than from the AWS Organizations API.
+func (c *orgValidationConfig) useAccountListFile() bool {
+	return c.AccountListFile != ""
 }
 
 type orgValidator struct {
@@ -58,6 +72,9 @@ func newOrganizationValidationBase(config *orgValidationConfig) *orgValidator {
 		orgConfig:      config,
 		retries:        orgAccountRetries,
 		clk:            clock.New(),
+		// Default to a no-op logger so direct callers (e.g. tests) never
+		// nil-deref; SetLogger replaces this in the plugin lifecycle.
+		log: hclog.NewNullLogger(),
 	}
 
 	return client
@@ -148,7 +165,7 @@ func (o *orgValidator) lookupCache(ctx context.Context, orgClient organizations.
 	if !accountIsmemberOfOrg && !reValidatedCache {
 		orgAccountList, err := o.refreshCache(ctx, orgClient)
 		if err != nil {
-			o.log.Error("Failed to refresh cache, while validating account id: %v", accountIDOfNode, "error", err.Error())
+			o.log.Error("failed to refresh org account list cache while validating account id", "account_id", accountIDOfNode, "error", err)
 			return false, err
 		}
 		_, accountIsmemberOfOrg = orgAccountList[accountIDOfNode]
@@ -204,13 +221,59 @@ func (o *orgValidator) reloadAccountList(ctx context.Context, orgClient organiza
 		return o.orgAccountList, nil
 	}
 
-	// Get the list of accounts
+	var orgAccountsMap map[string]any
+	var err error
+	if o.orgConfig.useAccountListFile() {
+		orgAccountsMap, err = o.reloadAccountListFromFile()
+	} else {
+		orgAccountsMap, err = o.reloadAccountListFromAPI(ctx, orgClient)
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	// Update timestamp, if it was not invoked as part of cache miss.
+	if !catchBurst {
+		o.orgAccountListValidDuration = o.clk.Now().UTC().Add(o.orgAccountListCacheTTL)
+		// Also reset the retries
+		o.retries = orgAccountRetries
+	}
+
+	// Overwrite the cache/list
+	o.orgAccountList = orgAccountsMap
+
+	return o.orgAccountList, nil
+}
+
+func (o *orgValidator) reloadAccountListFromFile() (map[string]any, error) {
+	orgAccountsMap, err := parseAccountListFile(o.orgConfig.AccountListFile)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load org account list: %w", err)
+	}
+	if len(orgAccountsMap) == 0 {
+		o.log.Warn("org account list file is empty; all accounts will fail organization validation", "account_list_file", o.orgConfig.AccountListFile)
+	}
+	return orgAccountsMap, nil
+}
+
+func (o *orgValidator) reloadAccountListFromAPI(ctx context.Context, orgClient organizations.ListAccountsAPIClient) (map[string]any, error) {
+	return listAccountsFromAPI(ctx, orgClient)
+}
+
+// checkIFTTLIsExpire check if the creation time is pass defined ttl
+func (o *orgValidator) checkIfTTLIsExpired(ttl time.Time) bool {
+	currTimeStamp := o.clk.Now().UTC()
+	return currTimeStamp.After(ttl)
+}
+
+// listAccountsFromAPI pulls the list of ACTIVE accounts belonging to the
+// organization from the AWS Organizations API, handling pagination.
+func listAccountsFromAPI(ctx context.Context, orgClient organizations.ListAccountsAPIClient) (map[string]any, error) {
 	listAccountsOp, err := orgClient.ListAccounts(ctx, &organizations.ListAccountsInput{})
 	if err != nil {
 		return nil, fmt.Errorf("issue while getting list of accounts: %w", err)
 	}
 
-	// Build new org accounts list
 	orgAccountsMap := make(map[string]any)
 
 	// Update the org account list cache with ACTIVE accounts & handle pagination
@@ -234,21 +297,31 @@ func (o *orgValidator) reloadAccountList(ctx context.Context, orgClient organiza
 		}
 	}
 
-	// Update timestamp, if it was not invoked as part of cache miss.
-	if !catchBurst {
-		o.orgAccountListValidDuration = o.clk.Now().UTC().Add(o.orgAccountListCacheTTL)
-		// Also reset the retries
-		o.retries = orgAccountRetries
-	}
-
-	// Overwrite the cache/list
-	o.orgAccountList = orgAccountsMap
-
-	return o.orgAccountList, nil
+	return orgAccountsMap, nil
 }
 
-// checkIFTTLIsExpire check if the creation time is pass defined ttl
-func (o *orgValidator) checkIfTTLIsExpired(ttl time.Time) bool {
-	currTimeStamp := o.clk.Now().UTC()
-	return currTimeStamp.After(ttl)
+// parseAccountListFile reads a JSON array of 12-digit AWS account IDs from the
+// given path and returns them as a lookup map matching the shape produced by the
+// AWS Organizations API path. The operator is responsible for populating the
+// file with only eligible (e.g. ACTIVE) accounts.
+func parseAccountListFile(path string) (map[string]any, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("unable to read account list file: %w", err)
+	}
+
+	var accountIDs []string
+	if err := json.Unmarshal(data, &accountIDs); err != nil {
+		return nil, fmt.Errorf("unable to parse account list file %q, expected a JSON array of account IDs: %w", path, err)
+	}
+
+	orgAccountsMap := make(map[string]any, len(accountIDs))
+	for _, accID := range accountIDs {
+		if !awsAccountIDPattern.MatchString(accID) {
+			return nil, fmt.Errorf("invalid account id %q in account list file %q, expected a 12-digit AWS account id", accID, path)
+		}
+		orgAccountsMap[accID] = struct{}{}
+	}
+
+	return orgAccountsMap, nil
 }
