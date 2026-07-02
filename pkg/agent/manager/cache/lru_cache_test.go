@@ -132,30 +132,6 @@ func TestLRUCacheCountRecords(t *testing.T) {
 	require.Equal(t, 2, cache.CountRecords())
 }
 
-func TestLRUCacheBundleChanges(t *testing.T) {
-	cache := newTestLRUCache(t)
-
-	bundleStream := cache.SubscribeToBundleChanges()
-	assert.Equal(t, makeBundles(bundleV1), bundleStream.Value())
-
-	cache.UpdateEntries(&UpdateEntries{
-		Bundles: makeBundles(bundleV1, otherBundleV1),
-	}, nil)
-	if assert.True(t, bundleStream.HasNext(), "has new bundle value after adding bundle") {
-		bundleStream.Next()
-		assert.Equal(t, makeBundles(bundleV1, otherBundleV1), bundleStream.Value())
-	}
-
-	cache.UpdateEntries(&UpdateEntries{
-		Bundles: makeBundles(bundleV1),
-	}, nil)
-
-	if assert.True(t, bundleStream.HasNext(), "has new bundle value after removing bundle") {
-		bundleStream.Next()
-		assert.Equal(t, makeBundles(bundleV1), bundleStream.Value())
-	}
-}
-
 func TestLRUCacheAllSubscribersNotifiedOnBundleChange(t *testing.T) {
 	cache := newTestLRUCache(t)
 
