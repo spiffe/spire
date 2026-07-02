@@ -25,3 +25,7 @@ This page describes some options to get started with SPIRE.
 ## MacOS
 
 * There are no pre-built SPIRE executables available for MacOS, but [Quickstart for Linux and MacOS X](https://spiffe.io/docs/latest/spire/installing/getting-started-linux-macos-x/) describes how to download and build SPIRE to test a simple one-node installation of the SPIRE Server and Agent
+
+## TPM
+
+* [TPM Deployment Walkthrough](tpm_deployment_walkthrough.md) provides a comprehensive guide for deploying a redundant SPIRE cluster using TPM for node attestation.
