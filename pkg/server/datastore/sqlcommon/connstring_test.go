@@ -1,4 +1,4 @@
-package sqlstore
+package sqlcommon
 
 import (
 	"testing"
@@ -66,9 +66,15 @@ func TestEmbellishSQLite3ConnString(t *testing.T) {
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			actual, err := embellishSQLite3ConnString(testCase.in)
+			actual, err := EmbellishSQLite3ConnString(testCase.in)
 			require.NoError(t, err)
 			require.Equal(t, testCase.expected, actual)
 		})
 	}
+}
+
+func TestEmbellishSQLite3ConnStringRejectsUnsupportedScheme(t *testing.T) {
+	_, err := EmbellishSQLite3ConnString("mysql://data.db")
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "unsupported scheme")
 }
