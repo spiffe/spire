@@ -510,7 +510,7 @@ func migrateVersion(tx *gorm.DB, currVersion int, log logrus.FieldLogger) (versi
 	// And the migrateToVXX function will be like this:
 	// func migrateToVXX(tx *gorm.DB) error {
 	//   if err := tx.AutoMigrate(&Foo{}, &Bar{}).Error; err != nil {
-	//     return sqlError.Wrap(err)
+	//     return sqlcommon.NewWrappedSQLError(err)
 	//   }
 	//   return nil
 	// }
