@@ -177,6 +177,10 @@ func TestMigration(t *testing.T) {
 	ds := newTestPlugin(t)
 	dir := t.TempDir()
 
+	t.Cleanup(func() {
+		ds.Close()
+	})
+
 	for schemaVersion := range latestSchemaVersion {
 		t.Run(fmt.Sprintf("migration_from_schema_version_%d", schemaVersion), func(t *testing.T) {
 			require := require.New(t)
