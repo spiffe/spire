@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"sync"
+
+	"github.com/spiffe/spire/pkg/server/datastore/sqlcommon"
 )
 
 type stmtCache struct {
@@ -25,7 +27,7 @@ func (cache *stmtCache) get(ctx context.Context, query string) (*sql.Stmt, error
 
 	stmt, err := cache.db.PrepareContext(ctx, query)
 	if err != nil {
-		return nil, newWrappedSQLError(err)
+		return nil, sqlcommon.NewWrappedSQLError(err)
 	}
 	value, loaded = cache.stmts.LoadOrStore(query, stmt)
 	if loaded {

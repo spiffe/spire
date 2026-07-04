@@ -29,6 +29,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/pkg/server/datastore"
+	"github.com/spiffe/spire/pkg/server/datastore/sqlcommon"
 	"github.com/spiffe/spire/proto/private/server/journal"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/clock"
@@ -3850,7 +3851,7 @@ func (s *PluginSuite) TestUpdateRegistrationEntryWithMask() {
 					{Type: "Type2", Value: "Value2"},
 				}
 			},
-			err: newValidationError("invalid registration entry: selector types must be the same when store SVID is enabled"),
+			err: sqlcommon.NewValidationError("invalid registration entry: selector types must be the same when store SVID is enabled"),
 		},
 
 		// ENTRYEXPIRY FIELD -- This field isn't validated so we just check with good data
