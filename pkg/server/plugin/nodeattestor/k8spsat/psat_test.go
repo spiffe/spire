@@ -163,7 +163,7 @@ func (s *AttestorSuite) TestAttestFailsWithMissingNamespaceClaim() {
 	s.apiServerClient.SetTokenStatus(token, createTokenStatus(tokenData, true, defaultAudience))
 	s.requireAttestError(makePayload("FOO", token),
 		codes.Internal,
-		"nodeattestor(k8s_psat): fail to parse username from token review status")
+		"nodeattestor(k8s_psat): failed to parse username from token review status")
 }
 
 func (s *AttestorSuite) TestAttestFailsWithMissingServiceAccountNameClaim() {
@@ -176,7 +176,7 @@ func (s *AttestorSuite) TestAttestFailsWithMissingServiceAccountNameClaim() {
 	s.apiServerClient.SetTokenStatus(token, createTokenStatus(tokenData, true, defaultAudience))
 	s.requireAttestError(makePayload("FOO", token),
 		codes.Internal,
-		"nodeattestor(k8s_psat): fail to parse username from token review status")
+		"nodeattestor(k8s_psat): failed to parse username from token review status")
 }
 
 func (s *AttestorSuite) TestAttestFailsWithMissingPodNameClaim() {
@@ -189,7 +189,7 @@ func (s *AttestorSuite) TestAttestFailsWithMissingPodNameClaim() {
 	s.apiServerClient.SetTokenStatus(token, createTokenStatus(tokenData, true, defaultAudience))
 	s.requireAttestError(makePayload("FOO", token),
 		codes.Internal,
-		"nodeattestor(k8s_psat): fail to get pod name from token review status")
+		"nodeattestor(k8s_psat): failed to get pod name from token review status")
 }
 
 func (s *AttestorSuite) TestAttestFailsWithMissingPodUIDClaim() {
@@ -202,7 +202,7 @@ func (s *AttestorSuite) TestAttestFailsWithMissingPodUIDClaim() {
 	s.apiServerClient.SetTokenStatus(token, createTokenStatus(tokenData, true, defaultAudience))
 	s.requireAttestError(makePayload("FOO", token),
 		codes.Internal,
-		"nodeattestor(k8s_psat): fail to get pod UID from token review status")
+		"nodeattestor(k8s_psat): failed to get pod UID from token review status")
 }
 
 func (s *AttestorSuite) TestAttestFailsIfServiceAccountNotAllowed() {
@@ -230,7 +230,7 @@ func (s *AttestorSuite) TestAttestFailsIfCannotGetPod() {
 	s.apiServerClient.SetTokenStatus(token, createTokenStatus(tokenData, true, defaultAudience))
 	s.requireAttestError(makePayload("FOO", token),
 		codes.Internal,
-		"nodeattestor(k8s_psat): fail to get pod from k8s API server")
+		"nodeattestor(k8s_psat): failed to get pod from k8s API server")
 }
 
 func (s *AttestorSuite) TestAttestFailsIfCannotGetNode() {
@@ -245,7 +245,7 @@ func (s *AttestorSuite) TestAttestFailsIfCannotGetNode() {
 	s.apiServerClient.SetPod(createPod("NS1", "PODNAME", "PODUID", "NODENAME", "172.16.0.1"))
 	s.requireAttestError(makePayload("FOO", token),
 		codes.Internal,
-		"nodeattestor(k8s_psat): fail to get node from k8s API server")
+		"nodeattestor(k8s_psat): failed to get node from k8s API server")
 }
 
 func (s *AttestorSuite) TestAttestFailsIfNodeUIDIsEmpty() {
