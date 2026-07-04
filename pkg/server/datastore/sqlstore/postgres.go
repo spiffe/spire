@@ -3,7 +3,6 @@ package sqlstore
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jinzhu/gorm"
@@ -28,24 +27,7 @@ func (p postgresDB) connect(ctx context.Context, cfg *sqlcommon.Configuration, i
 	var errOpen error
 	switch {
 	case cfg.DBTypeConfig.AWSPostgres != nil:
-		c, err := pgx.ParseConfig(connString)
-		if err != nil {
-			return nil, "", false, err
-		}
-		if c.Password != "" {
-			return nil, "", false, errors.New("invalid postgres configuration: password should not be set when using IAM authentication")
-		}
-
-		awsrdsConfig := &awsrds.Config{
-			Region:          cfg.DBTypeConfig.AWSPostgres.Region,
-			AccessKeyID:     cfg.DBTypeConfig.AWSPostgres.AccessKeyID,
-			SecretAccessKey: cfg.DBTypeConfig.AWSPostgres.SecretAccessKey,
-			Endpoint:        fmt.Sprintf("%s:%d", c.Host, c.Port),
-			DbUser:          c.User,
-			DriverName:      awsrds.PostgresDriverName,
-			ConnString:      connString,
-		}
-		dsn, err := awsrdsConfig.FormatDSN()
+		dsn, err := sqlcommon.BuildAWSPostgresDSN(cfg)
 		if err != nil {
 			return nil, "", false, err
 		}

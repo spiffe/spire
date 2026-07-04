@@ -2,10 +2,7 @@ package sqlstore
 
 import (
 	"context"
-	"crypto/tls"
-	"crypto/x509"
 	"errors"
-	"os"
 	"strings"
 
 	"github.com/go-sql-driver/mysql"
@@ -27,12 +24,8 @@ type mysqlDB struct {
 	logger logrus.FieldLogger
 }
 
-const (
-	tlsConfigName = "spireCustomTLS"
-)
-
 func (my mysqlDB) connect(ctx context.Context, cfg *sqlcommon.Configuration, isReadOnly bool) (db *gorm.DB, version string, supportsCTE bool, err error) {
-	mysqlConfig, err := configureConnection(cfg, isReadOnly)
+	mysqlConfig, err := sqlcommon.ConfigureMySQLConnection(cfg, isReadOnly)
 	if err != nil {
 		return nil, "", false, err
 	}
@@ -40,17 +33,7 @@ func (my mysqlDB) connect(ctx context.Context, cfg *sqlcommon.Configuration, isR
 	var errOpen error
 	switch {
 	case cfg.DBTypeConfig.AWSMySQL != nil:
-		awsrdsConfig := &awsrds.Config{
-			Region:          cfg.DBTypeConfig.AWSMySQL.Region,
-			AccessKeyID:     cfg.DBTypeConfig.AWSMySQL.AccessKeyID,
-			SecretAccessKey: cfg.DBTypeConfig.AWSMySQL.SecretAccessKey,
-			Endpoint:        mysqlConfig.Addr,
-			DbUser:          mysqlConfig.User,
-			DriverName:      awsrds.MySQLDriverName,
-			ConnString:      mysqlConfig.FormatDSN(),
-		}
-
-		dsn, err := awsrdsConfig.FormatDSN()
+		dsn, err := sqlcommon.BuildAWSMySQLDSN(cfg, mysqlConfig)
 		if err != nil {
 			return nil, "", false, err
 		}
@@ -134,75 +117,4 @@ func (my mysqlDB) isParseError(err error) bool {
 
 func (my mysqlDB) isConstraintViolation(err error) bool {
 	return sqlcommon.IsMySQLConstraintViolation(err)
-}
-
-// configureConnection modifies the connection string to support features that
-// normally require code changes, like custom Root CAs or client certificates
-func configureConnection(cfg *sqlcommon.Configuration, isReadOnly bool) (*mysql.Config, error) {
-	connectionString := sqlcommon.GetConnectionString(cfg, isReadOnly)
-	mysqlConfig, err := mysql.ParseDSN(connectionString)
-	if err != nil {
-		// the connection string should have already been validated by now
-		// (in validateMySQLConfig)
-		return nil, err
-	}
-
-	if !hasTLSConfig(cfg) {
-		// connection string doesn't have to be modified
-		return mysqlConfig, nil
-	}
-
-	var tlsConf tls.Config
-
-	// load and configure Root CA if it exists
-	if len(cfg.RootCAPath) > 0 {
-		rootCertPool := x509.NewCertPool()
-		pem, err := os.ReadFile(cfg.RootCAPath)
-		if err != nil {
-			return nil, errors.New("invalid mysql config: cannot find Root CA defined in root_ca_path")
-		}
-
-		if ok := rootCertPool.AppendCertsFromPEM(pem); !ok {
-			return nil, errors.New("invalid mysql config: failed to parse Root CA defined in root_ca_path")
-		}
-		tlsConf.RootCAs = rootCertPool
-	}
-
-	// load and configure client certificate if it exists
-	if len(cfg.ClientCertPath) > 0 && len(cfg.ClientKeyPath) > 0 {
-		clientCert := make([]tls.Certificate, 0, 1)
-		certs, err := tls.LoadX509KeyPair(cfg.ClientCertPath, cfg.ClientKeyPath)
-		if err != nil {
-			return nil, errors.New("invalid mysql config: failed to load client certificate defined in client_cert_path and client_key_path")
-		}
-		clientCert = append(clientCert, certs)
-		tlsConf.Certificates = clientCert
-	}
-
-	// register a custom TLS config that uses custom Root CAs with the MySQL driver
-	if err := mysql.RegisterTLSConfig(tlsConfigName, &tlsConf); err != nil {
-		return nil, errors.New("failed to register mysql TLS config")
-	}
-
-	// instruct MySQL driver to use the custom TLS config
-	mysqlConfig.TLSConfig = tlsConfigName
-
-	return mysqlConfig, nil
-}
-
-func hasTLSConfig(cfg *sqlcommon.Configuration) bool {
-	return len(cfg.RootCAPath) > 0 || len(cfg.ClientCertPath) > 0 && len(cfg.ClientKeyPath) > 0
-}
-
-func validateMySQLConfig(cfg *sqlcommon.Configuration, isReadOnly bool) error {
-	opts, err := mysql.ParseDSN(sqlcommon.GetConnectionString(cfg, isReadOnly))
-	if err != nil {
-		return sqlcommon.NewWrappedSQLError(err)
-	}
-
-	if !opts.ParseTime {
-		return sqlcommon.NewSQLError("invalid mysql config: missing parseTime=true param in connection_string")
-	}
-
-	return nil
 }
