@@ -1,48 +1,54 @@
-package sqlstore
+package sqlstorev2
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"strings"
 
-	"github.com/go-sql-driver/mysql"
-	"github.com/jinzhu/gorm"
+	gomysql "github.com/go-sql-driver/mysql"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/server/datastore/sqlcommon"
 	"github.com/spiffe/spire/pkg/server/datastore/sqldriver/awsrds"
-
-	// gorm mysql `cloudsql` dialect, for GCP
-	// Cloud SQL Proxy
-	_ "github.com/GoogleCloudPlatform/cloudsql-proxy/proxy/dialers/mysql"
-	// gorm mysql dialect init registration
-	// also needed for GCP Cloud SQL Proxy
-	_ "github.com/jinzhu/gorm/dialects/mysql"
+	"gorm.io/driver/mysql"
+	"gorm.io/gorm"
 )
 
 type mysqlDB struct {
-	logger logrus.FieldLogger
+	log logrus.FieldLogger
 }
 
 func (my mysqlDB) connect(ctx context.Context, cfg *sqlcommon.Configuration, isReadOnly bool) (db *gorm.DB, version string, supportsCTE bool, err error) {
+	if cfg.DBTypeConfig == nil {
+		return nil, "", false, errors.New("missing datastore configuration")
+	}
+
+	// Build the driver config, injecting any custom TLS material
+	// (root_ca_path / client_cert_path / client_key_path) exactly as v1 does.
 	mysqlConfig, err := sqlcommon.ConfigureMySQLConnection(cfg, isReadOnly)
 	if err != nil {
 		return nil, "", false, err
 	}
 
-	var errOpen error
 	switch {
 	case cfg.DBTypeConfig.AWSMySQL != nil:
 		dsn, err := sqlcommon.BuildAWSMySQLDSN(cfg, mysqlConfig)
 		if err != nil {
 			return nil, "", false, err
 		}
-		db, errOpen = gorm.Open(awsrds.MySQLDriverName, dsn)
+		sqlDB, err := sql.Open(awsrds.MySQLDriverName, dsn)
+		if err != nil {
+			return nil, "", false, newWrappedSQLError(err)
+		}
+		db, err = gorm.Open(mysql.New(mysql.Config{Conn: sqlDB}), gormConfig(cfg, my.log))
+		if err != nil {
+			return nil, "", false, newWrappedSQLError(err)
+		}
 	default:
-		db, errOpen = gorm.Open("mysql", mysqlConfig.FormatDSN())
-	}
-
-	if errOpen != nil {
-		return nil, "", false, errOpen
+		db, err = gorm.Open(mysql.Open(mysqlConfig.FormatDSN()), gormConfig(cfg, my.log))
+		if err != nil {
+			return nil, "", false, newWrappedSQLError(err)
+		}
 	}
 
 	version, err = queryVersion(ctx, db, sqlcommon.MySQLVersionQuery)
@@ -51,24 +57,27 @@ func (my mysqlDB) connect(ctx context.Context, cfg *sqlcommon.Configuration, isR
 	}
 
 	if strings.HasPrefix(version, "5.7.") {
-		my.logger.Warn("MySQL 5.7 is no longer officially supported, and SPIRE does not guarantee compatibility with MySQL 5.7. Consider upgrading to a newer version of MySQL.")
+		my.log.Warn("MySQL 5.7 is no longer officially supported, and SPIRE does not guarantee compatibility with MySQL 5.7. Consider upgrading to a newer version of MySQL.")
 	}
 
 	supportsCTE, err = my.supportsCTE(ctx, db)
 	if err != nil {
 		return nil, "", false, err
 	}
-
 	return db, version, supportsCTE, nil
 }
 
+func (my mysqlDB) isConstraintViolation(err error) bool {
+	return sqlcommon.IsMySQLConstraintViolation(err)
+}
+
 func (my mysqlDB) supportsCTE(ctx context.Context, gormDB *gorm.DB) (bool, error) {
-	db := gormDB.DB()
-	if db == nil {
-		return false, errors.New("unable to get raw database object")
+	raw, err := gormDB.DB()
+	if err != nil {
+		return false, newWrappedSQLError(err)
 	}
 	var value int64
-	err := db.QueryRowContext(ctx, "WITH a AS (SELECT 1 AS v) SELECT * FROM a;").Scan(&value)
+	err = raw.QueryRowContext(ctx, "WITH a AS (SELECT 1 AS v) SELECT * FROM a;").Scan(&value)
 	switch {
 	case err == nil:
 		return true, nil
@@ -80,11 +89,7 @@ func (my mysqlDB) supportsCTE(ctx context.Context, gormDB *gorm.DB) (bool, error
 }
 
 func (my mysqlDB) isParseError(err error) bool {
-	var e *mysql.MySQLError
+	var e *gomysql.MySQLError
 	ok := errors.As(err, &e)
 	return ok && e.Number == 1064 // ER_PARSE_ERROR
-}
-
-func (my mysqlDB) isConstraintViolation(err error) bool {
-	return sqlcommon.IsMySQLConstraintViolation(err)
 }
