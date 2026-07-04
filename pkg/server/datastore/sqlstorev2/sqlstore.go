@@ -59,15 +59,16 @@ func (ds *Plugin) Close() error {
 // RawScan runs a raw query and scans the result into dest. Matches the
 // signature of the future sqltest.RawQuerier so the shared suite can consume
 // it in a later issue. It guards against being called before a successful
-// Configure and takes ds.mu so it does not race a concurrent reconfigure.
+// Configure and holds ds.mu for the whole query so a concurrent Configure
+// cannot swap or close the underlying connection mid-scan. This is a
+// test-support helper, so blocking a reconfigure for the duration is fine.
 func (ds *Plugin) RawScan(dest any, query string) error {
 	ds.mu.Lock()
-	db := ds.db
-	ds.mu.Unlock()
-	if db == nil {
+	defer ds.mu.Unlock()
+	if ds.db == nil {
 		return newSQLError("datastore is not configured")
 	}
-	return db.Raw(query).Scan(dest).Error
+	return ds.db.Raw(query).Scan(dest).Error
 }
 
 // Configure parses the HCL config, validates it, and opens the connection(s).

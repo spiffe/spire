@@ -15,7 +15,7 @@ type sqliteDB struct {
 	log logrus.FieldLogger
 }
 
-func (s sqliteDB) connect(ctx context.Context, cfg *sqlcommon.Configuration, isReadOnly bool) (db *gorm.DB, version string, supportsCTE bool, err error) {
+func (s sqliteDB) connect(context.Context, *sqlcommon.Configuration, bool) (db *gorm.DB, version string, supportsCTE bool, err error) {
 	return nil, "", false, errors.New("sqlite3 is not a supported dialect when CGO is not enabled")
 }
 
