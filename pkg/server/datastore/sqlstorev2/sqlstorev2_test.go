@@ -82,7 +82,7 @@ func TestConfigureSQLite(t *testing.T) {
 	dir := t.TempDir()
 	// Register Close AFTER TempDir so LIFO cleanup releases the DB file
 	// handle before RemoveAll (avoids a Windows "file in use" failure).
-	t.Cleanup(func() { ds.Close() })
+	t.Cleanup(func() { require.NoError(t, ds.Close()) })
 
 	dbPath := filepath.ToSlash(filepath.Join(dir, "db.sqlite3"))
 	err := ds.Configure(context.Background(), fmt.Sprintf(`
