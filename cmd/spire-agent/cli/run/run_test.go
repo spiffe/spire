@@ -1054,6 +1054,41 @@ func TestNewAgentConfig(t *testing.T) {
 			},
 		},
 		{
+			msg: "workload_api can be disabled when broker is configured",
+			input: func(c *Config) {
+				enabled := false
+				c.Agent.WorkloadAPI = &workloadAPIConfig{Enabled: &enabled}
+				c.Agent.Experimental.Broker = &brokerHCLConfig{
+					BindAddress: "127.0.0.1:8443",
+					Brokers: []brokerHCLEntry{
+						{
+							ID: "spiffe://example.org/broker",
+							AllowedReferenceTypes: []brokerAllowedReferenceTypeHCLEntry{
+								{TypeURL: "type.googleapis.com/spiffe.broker.WorkloadPIDReference"},
+							},
+						},
+					},
+				}
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c.BindAddress)
+				require.Len(t, c.Broker.BindAddresses, 1)
+				require.Len(t, c.Broker.Brokers, 1)
+			},
+		},
+		{
+			msg:                "workload_api cannot be disabled without broker",
+			expectError:        true,
+			requireErrorPrefix: "workload_api.enabled=false requires experimental.broker to be configured",
+			input: func(c *Config) {
+				enabled := false
+				c.Agent.WorkloadAPI = &workloadAPIConfig{Enabled: &enabled}
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
 			msg:                "broker allowed_reference_types is required",
 			expectError:        true,
 			requireErrorPrefix: "experimental.broker.brokers[spiffe://example.org/broker].allowed_reference_types: must list at least one reference type URL",
@@ -1354,6 +1389,9 @@ func TestParseBrokerAllowedReferenceTypes(t *testing.T) {
 
 	_, err = file.WriteString(`
 agent {
+    workload_api {
+        enabled = false
+    }
     experimental {
         broker {
             bind_address = "127.0.0.1:8443"
@@ -1380,6 +1418,9 @@ agent {
 
 	c, err := ParseFile(file.Name(), false)
 	require.NoError(t, err)
+	require.NotNil(t, c.Agent.WorkloadAPI)
+	require.NotNil(t, c.Agent.WorkloadAPI.Enabled)
+	require.False(t, *c.Agent.WorkloadAPI.Enabled)
 	require.NotNil(t, c.Agent.Experimental.Broker)
 	require.Equal(t, []brokerAllowedReferenceTypeHCLEntry{
 		{TypeURL: "type.googleapis.com/spiffe.broker.KubernetesObjectReference", AllowOverTCP: true},

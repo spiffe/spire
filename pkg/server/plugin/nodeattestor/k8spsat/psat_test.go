@@ -323,6 +323,44 @@ func (s *AttestorSuite) TestAttestSuccess() {
 	}, result.Selectors)
 }
 
+func (s *AttestorSuite) TestAttestSuccessWithPodUIDAgentID() {
+	attestor := s.loadPluginWithConfig(`
+		clusters = {
+			"FOO" = {
+				service_account_allow_list = ["NS1:SA1"]
+				kube_config_file = ""
+				use_pod_uid_for_agent_id = true
+			}
+		}
+	`)
+
+	tokenData := &TokenData{
+		namespace:          "NS1",
+		serviceAccountName: "SA1",
+		podName:            "PODNAME-1",
+		podUID:             "PODUID-1",
+	}
+	token := s.signToken(s.fooSigner, tokenData)
+	s.apiServerClient.SetTokenStatus(token, createTokenStatus(tokenData, true, defaultAudience))
+	s.apiServerClient.SetPod(createPod("NS1", "PODNAME-1", "NODENAME-1", "172.16.10.1"))
+	s.apiServerClient.SetNode(createNode("NODENAME-1", "NODEUID-1"))
+
+	result, err := attestor.Attest(context.Background(), makePayload("FOO", token), expectNoChallenge)
+	s.Require().NoError(err)
+	s.Require().NotNil(result)
+	s.Require().Equal(result.AgentID, "spiffe://example.org/spire/agent/k8s_psat/FOO/pod/PODUID-1")
+	s.RequireProtoListEqual([]*common.Selector{
+		{Type: "k8s_psat", Value: "cluster:FOO"},
+		{Type: "k8s_psat", Value: "agent_ns:NS1"},
+		{Type: "k8s_psat", Value: "agent_sa:SA1"},
+		{Type: "k8s_psat", Value: "agent_pod_name:PODNAME-1"},
+		{Type: "k8s_psat", Value: "agent_pod_uid:PODUID-1"},
+		{Type: "k8s_psat", Value: "agent_node_ip:172.16.10.1"},
+		{Type: "k8s_psat", Value: "agent_node_name:NODENAME-1"},
+		{Type: "k8s_psat", Value: "agent_node_uid:NODEUID-1"},
+	}, result.Selectors)
+}
+
 func (s *AttestorSuite) TestConfigure() {
 	doConfig := func(coreConfig catalog.CoreConfig, config string) error {
 		var err error
@@ -388,9 +426,7 @@ func (s *AttestorSuite) signToken(signer jose.Signer, tokenData *TokenData) stri
 }
 
 func (s *AttestorSuite) loadPlugin() nodeattestor.NodeAttestor {
-	attestor := New()
-	v1 := new(nodeattestor.V1)
-	plugintest.Load(s.T(), builtin(attestor), v1, plugintest.Configure(`
+	return s.loadPluginWithConfig(`
 		clusters = {
 			"FOO" = {
 				service_account_allow_list = ["NS1:SA1"]
@@ -404,14 +440,23 @@ func (s *AttestorSuite) loadPlugin() nodeattestor.NodeAttestor {
 				audience = ["AUDIENCE"]
 			}
 		}
-	`), plugintest.CoreConfig(catalog.CoreConfig{
-		TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
-	}))
+	`)
+}
+
+func (s *AttestorSuite) loadPluginWithConfig(config string) nodeattestor.NodeAttestor {
+	attestor := New()
+	v1 := new(nodeattestor.V1)
+	plugintest.Load(s.T(), builtin(attestor), v1,
+		plugintest.Configure(config),
+		plugintest.CoreConfig(catalog.CoreConfig{
+			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
+		}))
 
 	// TODO: provide this client in a cleaner way
 	s.apiServerClient = newFakeAPIServerClient()
-	attestor.config.clusters["FOO"].client = s.apiServerClient
-	attestor.config.clusters["BAR"].client = s.apiServerClient
+	for _, cluster := range attestor.config.clusters {
+		cluster.client = s.apiServerClient
+	}
 	return v1
 }
 

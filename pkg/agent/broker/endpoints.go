@@ -85,7 +85,8 @@ type AllowedReferenceType struct {
 }
 
 type Endpoints struct {
-	c *Config
+	c         *Config
+	listening chan struct{}
 }
 
 func New(c *Config) (*Endpoints, error) {
@@ -106,7 +107,8 @@ func New(c *Config) (*Endpoints, error) {
 		return nil, errors.New("bundle source is required")
 	}
 	return &Endpoints{
-		c: c,
+		c:         c,
+		listening: make(chan struct{}, 1),
 	}, nil
 }
 
@@ -179,6 +181,8 @@ func (e *Endpoints) ListenAndServe(ctx context.Context) error {
 		}).Info("Starting SPIFFE Broker Endpoint")
 	}
 
+	e.triggerListeningHook()
+
 	// Fan one gRPC server out across every listener with an errgroup. The
 	// first goroutine to error (or context cancellation) cancels the
 	// errgroup's context, which the watcher goroutine uses to call
@@ -205,6 +209,21 @@ func (e *Endpoints) ListenAndServe(ctx context.Context) error {
 	}
 	e.c.Log.Info("SPIFFE Broker Endpoint has stopped")
 	return nil
+}
+
+func (e *Endpoints) WaitForListening(listening chan struct{}) {
+	<-e.listening
+	select {
+	case listening <- struct{}{}:
+	default:
+	}
+}
+
+func (e *Endpoints) triggerListeningHook() {
+	select {
+	case e.listening <- struct{}{}:
+	default:
+	}
 }
 
 func (e *Endpoints) registerBrokerAPI(server *grpc.Server) {

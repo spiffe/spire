@@ -51,6 +51,9 @@ type ClusterConfig struct {
 	// Attestation is denied if coming from a service account that is not in the list
 	ServiceAccountAllowList []string `hcl:"service_account_allow_list"`
 
+	// Use the agent pod UID instead of the node UID when generating the agent SPIFFE ID
+	UsePodUIDForAgentID bool `hcl:"use_pod_uid_for_agent_id"`
+
 	// Audience for PSAT token validation
 	// If audience is not configured, defaultAudience will be used
 	// If audience value is set to an empty slice, k8s apiserver audience will be used
@@ -74,6 +77,7 @@ type attestorConfig struct {
 
 type clusterConfig struct {
 	serviceAccounts      map[string]bool
+	usePodUIDForAgentID  bool
 	audience             []string
 	client               apiserver.Client
 	allowedNodeLabelKeys map[string]bool
@@ -125,6 +129,7 @@ func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginco
 
 		newConfig.clusters[name] = &clusterConfig{
 			serviceAccounts:      serviceAccounts,
+			usePodUIDForAgentID:  hclCluster.UsePodUIDForAgentID,
 			audience:             audience,
 			client:               apiserver.New(hclCluster.KubeConfigFile),
 			allowedNodeLabelKeys: allowedNodeLabelKeys,
@@ -258,11 +263,16 @@ func (p *AttestorPlugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer)
 		}
 	}
 
+	agentIDPathSuffix := nodeUID
+	if cluster.usePodUIDForAgentID {
+		agentIDPathSuffix = fmt.Sprintf("pod/%s", podUID)
+	}
+
 	return stream.Send(&nodeattestorv1.AttestResponse{
 		Response: &nodeattestorv1.AttestResponse_AgentAttributes{
 			AgentAttributes: &nodeattestorv1.AgentAttributes{
 				CanReattest:    true,
-				SpiffeId:       k8s.AgentID(pluginName, config.trustDomain, attestationData.Cluster, nodeUID),
+				SpiffeId:       k8s.AgentID(pluginName, config.trustDomain, attestationData.Cluster, agentIDPathSuffix),
 				SelectorValues: selectorValues,
 			},
 		},

@@ -30,17 +30,19 @@ func (c *agentConfig) getAddr() (net.Addr, error) {
 }
 
 func (c *agentConfig) getAdminAddr() (net.Addr, error) {
-	socketPathAbs, err := filepath.Abs(c.SocketPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get absolute path for socket_path: %w", err)
-	}
 	adminSocketPathAbs, err := filepath.Abs(c.AdminSocketPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get absolute path for admin_socket_path: %w", err)
 	}
 
-	if strings.HasPrefix(adminSocketPathAbs, filepath.Dir(socketPathAbs)+"/") {
-		return nil, errors.New("admin socket cannot be in the same directory or a subdirectory as that containing the Workload API socket")
+	if c.workloadAPIEnabled() {
+		socketPathAbs, err := filepath.Abs(c.SocketPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get absolute path for socket_path: %w", err)
+		}
+		if strings.HasPrefix(adminSocketPathAbs, filepath.Dir(socketPathAbs)+"/") {
+			return nil, errors.New("admin socket cannot be in the same directory or a subdirectory as that containing the Workload API socket")
+		}
 	}
 
 	return &net.UnixAddr{
@@ -56,17 +58,19 @@ func (c *agentConfig) hasAdminAddr() bool {
 // brokerSocketAddr resolves the UDS branch of broker bind-address selection.
 // Returns the platform-agnostic TCP branch is handled in brokerBindAddr.
 func (c *agentConfig) brokerSocketAddr() (net.Addr, error) {
-	socketPathAbs, err := filepath.Abs(c.SocketPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get absolute path for socket_path: %w", err)
-	}
 	brokerSocketPathAbs, err := filepath.Abs(c.Experimental.Broker.SocketPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get absolute path for experimental.broker.socket_path: %w", err)
 	}
 
-	if strings.HasPrefix(brokerSocketPathAbs, filepath.Dir(socketPathAbs)+"/") {
-		return nil, errors.New("broker socket cannot be in the same directory or a subdirectory as that containing the Workload API socket")
+	if c.workloadAPIEnabled() {
+		socketPathAbs, err := filepath.Abs(c.SocketPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get absolute path for socket_path: %w", err)
+		}
+		if strings.HasPrefix(brokerSocketPathAbs, filepath.Dir(socketPathAbs)+"/") {
+			return nil, errors.New("broker socket cannot be in the same directory or a subdirectory as that containing the Workload API socket")
+		}
 	}
 
 	return &net.UnixAddr{
@@ -87,12 +91,14 @@ func (c *agentConfig) validateOS() error {
 }
 
 func prepareEndpoints(c *agent.Config) error {
-	// Create uds dir and parents if not exists
-	dir := filepath.Dir(c.BindAddress.String())
-	if _, statErr := os.Stat(dir); os.IsNotExist(statErr) {
-		c.Log.WithField("dir", dir).Infof("Creating spire agent UDS directory")
-		if err := os.MkdirAll(dir, 0755); err != nil {
-			return err
+	if c.BindAddress != nil {
+		// Create uds dir and parents if not exists
+		dir := filepath.Dir(c.BindAddress.String())
+		if _, statErr := os.Stat(dir); os.IsNotExist(statErr) {
+			c.Log.WithField("dir", dir).Infof("Creating spire agent UDS directory")
+			if err := os.MkdirAll(dir, 0755); err != nil {
+				return err
+			}
 		}
 	}
 

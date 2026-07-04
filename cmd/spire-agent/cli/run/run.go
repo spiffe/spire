@@ -67,33 +67,34 @@ type Config struct {
 }
 
 type agentConfig struct {
-	DataDir                       string    `hcl:"data_dir"`
-	AdminSocketPath               string    `hcl:"admin_socket_path"`
-	InsecureBootstrap             bool      `hcl:"insecure_bootstrap"`
-	RebootstrapMode               string    `hcl:"rebootstrap_mode"`
-	RebootstrapDelay              string    `hcl:"rebootstrap_delay"`
-	JoinToken                     string    `hcl:"join_token"`
-	JoinTokenFile                 string    `hcl:"join_token_file"`
-	LogFile                       string    `hcl:"log_file"`
-	LogFormat                     string    `hcl:"log_format"`
-	LogLevel                      string    `hcl:"log_level"`
-	LogSelectors                  []string  `hcl:"log_selectors"`
-	LogSourceLocation             bool      `hcl:"log_source_location"`
-	SDS                           sdsConfig `hcl:"sds"`
-	ServerAddress                 string    `hcl:"server_address"`
-	ServerPort                    int       `hcl:"server_port"`
-	SocketPath                    string    `hcl:"socket_path"`
-	WorkloadX509SVIDKeyType       string    `hcl:"workload_x509_svid_key_type"`
-	TrustBundleFormat             string    `hcl:"trust_bundle_format"`
-	TrustBundlePath               string    `hcl:"trust_bundle_path"`
-	TrustBundleUnixSocket         string    `hcl:"trust_bundle_unix_socket"`
-	TrustBundleURL                string    `hcl:"trust_bundle_url"`
-	TrustDomain                   string    `hcl:"trust_domain"`
-	AllowUnauthenticatedVerifiers bool      `hcl:"allow_unauthenticated_verifiers"`
-	AllowedForeignJWTClaims       []string  `hcl:"allowed_foreign_jwt_claims"`
-	AvailabilityTarget            string    `hcl:"availability_target"`
-	X509SVIDCacheMaxSize          int       `hcl:"x509_svid_cache_max_size"`
-	JWTSVIDCacheMaxSize           int       `hcl:"jwt_svid_cache_max_size"`
+	DataDir                       string             `hcl:"data_dir"`
+	AdminSocketPath               string             `hcl:"admin_socket_path"`
+	InsecureBootstrap             bool               `hcl:"insecure_bootstrap"`
+	RebootstrapMode               string             `hcl:"rebootstrap_mode"`
+	RebootstrapDelay              string             `hcl:"rebootstrap_delay"`
+	JoinToken                     string             `hcl:"join_token"`
+	JoinTokenFile                 string             `hcl:"join_token_file"`
+	LogFile                       string             `hcl:"log_file"`
+	LogFormat                     string             `hcl:"log_format"`
+	LogLevel                      string             `hcl:"log_level"`
+	LogSelectors                  []string           `hcl:"log_selectors"`
+	LogSourceLocation             bool               `hcl:"log_source_location"`
+	SDS                           sdsConfig          `hcl:"sds"`
+	ServerAddress                 string             `hcl:"server_address"`
+	ServerPort                    int                `hcl:"server_port"`
+	SocketPath                    string             `hcl:"socket_path"`
+	WorkloadX509SVIDKeyType       string             `hcl:"workload_x509_svid_key_type"`
+	TrustBundleFormat             string             `hcl:"trust_bundle_format"`
+	TrustBundlePath               string             `hcl:"trust_bundle_path"`
+	TrustBundleUnixSocket         string             `hcl:"trust_bundle_unix_socket"`
+	TrustBundleURL                string             `hcl:"trust_bundle_url"`
+	TrustDomain                   string             `hcl:"trust_domain"`
+	AllowUnauthenticatedVerifiers bool               `hcl:"allow_unauthenticated_verifiers"`
+	AllowedForeignJWTClaims       []string           `hcl:"allowed_foreign_jwt_claims"`
+	AvailabilityTarget            string             `hcl:"availability_target"`
+	X509SVIDCacheMaxSize          int                `hcl:"x509_svid_cache_max_size"`
+	JWTSVIDCacheMaxSize           int                `hcl:"jwt_svid_cache_max_size"`
+	WorkloadAPI                   *workloadAPIConfig `hcl:"workload_api"`
 
 	AuthorizedDelegates []string `hcl:"authorized_delegates"`
 
@@ -228,6 +229,15 @@ type sdsConfig struct {
 	DisableSPIFFECertValidation bool   `hcl:"disable_spiffe_cert_validation"`
 }
 
+type workloadAPIConfig struct {
+	// Enabled controls whether the agent serves the Workload API and SDS
+	// endpoint. It defaults to true. Setting it to false requires the Broker
+	// API endpoint to be configured.
+	Enabled *bool `hcl:"enabled"`
+
+	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions"`
+}
+
 type workloadAPIRateLimitConfig struct {
 	FetchX509SVID    *int `hcl:"fetch_x509_svid"`
 	FetchJWTSVID     *int `hcl:"fetch_jwt_svid"`
@@ -359,6 +369,10 @@ func (c *agentConfig) validate() error {
 		return errors.New("agent section must be configured")
 	}
 
+	if !c.workloadAPIEnabled() && c.Experimental.Broker == nil {
+		return errors.New("workload_api.enabled=false requires experimental.broker to be configured")
+	}
+
 	// Validate join token configuration
 	if c.JoinToken != "" && c.JoinTokenFile != "" {
 		return errors.New("only one of join_token or join_token_file can be specified, not both")
@@ -429,6 +443,10 @@ func (c *agentConfig) validate() error {
 	}
 
 	return c.validateOS()
+}
+
+func (c *agentConfig) workloadAPIEnabled() bool {
+	return c.WorkloadAPI == nil || c.WorkloadAPI.Enabled == nil || *c.WorkloadAPI.Enabled
 }
 
 func ParseFile(path string, expandEnv bool) (*Config, error) {
@@ -632,11 +650,13 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 	}
 	ac.TrustDomain = td
 
-	addr, err := c.Agent.getAddr()
-	if err != nil {
-		return nil, err
+	if c.Agent.workloadAPIEnabled() {
+		addr, err := c.Agent.getAddr()
+		if err != nil {
+			return nil, err
+		}
+		ac.BindAddress = addr
 	}
-	ac.BindAddress = addr
 
 	if c.Agent.hasAdminAddr() {
 		adminAddr, err := c.Agent.getAdminAddr()
@@ -854,6 +874,10 @@ func checkForUnknownConfig(c *Config, l logrus.FieldLogger) (err error) {
 
 	if a := c.Agent; a != nil && len(a.UnusedKeyPositions) != 0 {
 		detectedUnknown("agent", a.UnusedKeyPositions)
+	}
+
+	if a := c.Agent; a != nil && a.WorkloadAPI != nil && len(a.WorkloadAPI.UnusedKeyPositions) != 0 {
+		detectedUnknown("agent.workload_api", a.WorkloadAPI.UnusedKeyPositions)
 	}
 
 	if a := c.Agent; a != nil && a.Experimental.Broker != nil {

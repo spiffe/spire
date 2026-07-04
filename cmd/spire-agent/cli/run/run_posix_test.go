@@ -363,6 +363,52 @@ func newAgentConfigCasesOS(t *testing.T) []newAgentConfigCase {
 			},
 		},
 		{
+			msg:         "broker socket cannot share workload API socket directory when Workload API is enabled",
+			expectError: true,
+			input: func(c *Config) {
+				c.Agent.SocketPath = "/tmp/spire-agent/public/api.sock"
+				c.Agent.Experimental.Broker = &brokerHCLConfig{
+					SocketPath: "/tmp/spire-agent/public/broker.sock",
+					Brokers: []brokerHCLEntry{
+						{
+							ID: "spiffe://example.org/broker",
+							AllowedReferenceTypes: []brokerAllowedReferenceTypeHCLEntry{
+								{TypeURL: "type.googleapis.com/spiffe.broker.WorkloadPIDReference"},
+							},
+						},
+					},
+				}
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
+			msg: "broker socket can share disabled Workload API socket directory",
+			input: func(c *Config) {
+				enabled := false
+				c.Agent.WorkloadAPI = &workloadAPIConfig{Enabled: &enabled}
+				c.Agent.SocketPath = "/tmp/spire-agent/public/api.sock"
+				c.Agent.Experimental.Broker = &brokerHCLConfig{
+					SocketPath: "/tmp/spire-agent/public/broker.sock",
+					Brokers: []brokerHCLEntry{
+						{
+							ID: "spiffe://example.org/broker",
+							AllowedReferenceTypes: []brokerAllowedReferenceTypeHCLEntry{
+								{TypeURL: "type.googleapis.com/spiffe.broker.WorkloadPIDReference"},
+							},
+						},
+					},
+				}
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c.BindAddress)
+				require.Len(t, c.Broker.BindAddresses, 1)
+				require.Equal(t, "/tmp/spire-agent/public/broker.sock", c.Broker.BindAddresses[0].String())
+				require.Equal(t, "unix", c.Broker.BindAddresses[0].Network())
+			},
+		},
+		{
 			msg: "log_file allows to reopen",
 			input: func(c *Config) {
 				c.Agent.LogFile = path.Join(testDir, "foo")

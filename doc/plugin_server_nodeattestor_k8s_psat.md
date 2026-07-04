@@ -5,10 +5,16 @@
 The `k8s_psat` plugin attests nodes running inside of Kubernetes. The server
 validates the signed projected service account token provided by the agent.
 This validation is performed using Kubernetes [Token Review API](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.19/#tokenreview-v1-authentication-k8s-io). In addition to validation, this API provides other useful information (namespace, service account name and pod name) that SPIRE server uses to build selectors.
-Kubernetes API server is also queried to get extra data like node UID, which is used to generate a SPIFFE ID with the form:
+Kubernetes API server is also queried to get extra data like node UID, which is used by default to generate a SPIFFE ID with the form:
 
 ```xml
 spiffe://<trust_domain>/spire/agent/k8s_psat/<cluster>/<node UID>
+```
+
+When `use_pod_uid_for_agent_id` is enabled for a cluster, the agent SPIFFE ID is instead generated from the pod UID:
+
+```xml
+spiffe://<trust_domain>/spire/agent/k8s_psat/<cluster>/pod/<pod UID>
 ```
 
 The server does not need to be running in Kubernetes in order to perform node
@@ -29,6 +35,7 @@ Each cluster in the main configuration requires the following configuration:
 | Configuration                | Description                                                                                                                                                                                                                                                                 | Default          |
 |------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------|
 | `service_account_allow_list` | A list of service account names, qualified by namespace (for example, "default:blog" or "production:web") to allow for node attestation. Attestation will be rejected for tokens bound to service accounts that aren't in the allow list.                                   |                  |
+| `use_pod_uid_for_agent_id`   | Use agent pod UID instead of node UID when generating the agent SPIFFE ID. When enabled, the ID has the form `spiffe://<trust_domain>/spire/agent/k8s_psat/<cluster>/pod/<pod UID>`.                                                                                        | false            |
 | `audience`                   | Audience for token validation. If it is set to an empty array (`[]`), Kubernetes API server audience is used                                                                                                                                                                | ["spire-server"] |
 | `kube_config_file`           | Path to a k8s configuration file for API Server authentication. A kubernetes configuration file must be specified if SPIRE server runs outside of the k8s cluster. If empty, SPIRE server is assumed to be running inside the cluster and in-cluster configuration is used. | ""               |
 | `allowed_node_label_keys`    | Node label keys considered for selectors                                                                                                                                                                                                                                    |                  |

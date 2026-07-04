@@ -27,7 +27,7 @@ const (
 type WorkloadAPIRateLimitConfig = endpoints.WorkloadAPIRateLimitConfig
 
 type Config struct {
-	// Address to bind the workload api to
+	// Address to bind the workload API to. Nil disables the Workload API and SDS endpoint.
 	BindAddress net.Addr
 
 	// Directory to store runtime data

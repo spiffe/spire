@@ -66,7 +66,8 @@ This may be useful for templating configuration files, for example across differ
 | `profiling_port`                  | Port number of the [net/http/pprof](https://pkg.go.dev/net/http/pprof) endpoint. Only used when `profiling_enabled` is `true`.                                                                                                                    |                                  |
 | `server_address`                  | DNS name or IP address of the SPIRE server                                                                                                                                                                                                        |                                  |
 | `server_port`                     | Port number of the SPIRE server                                                                                                                                                                                                                   |                                  |
-| `socket_path`                     | Location to bind the SPIRE Agent API socket (Unix only)                                                                                                                                                                                           | /tmp/spire-agent/public/api.sock |
+| `socket_path`                     | Location to bind the SPIRE Agent API socket (Unix only). Only used when the Workload API is enabled.                                                                                                                                              | /tmp/spire-agent/public/api.sock |
+| `workload_api`                    | Optional Workload API and SDS endpoint configuration. Set `enabled = false` only when `experimental.broker` is configured to run the agent with the Broker API and no Workload API.                                                               | `enabled = true`                 |
 | `sds`                             | Optional SDS configuration section                                                                                                                                                                                                                |                                  |
 | `trust_bundle_path`               | Path to the SPIRE server CA bundle                                                                                                                                                                                                                |                                  |
 | `trust_bundle_url`                | URL to download the initial SPIRE server trust bundle                                                                                                                                                                                             |                                  |
@@ -87,6 +88,24 @@ This may be useful for templating configuration files, for example across differ
 | `jwt_svid_cache_hit_timeout`  | Custom gRPC timeout (between 5 and 30s) when retrieving a NewJWTSVID when a valid JWT-SVID in cache                                                                                 | 30s                     |
 | `ratelimit`                   | Optional per-caller rate limiting for Workload API and SDS methods, enforced after workload attestation. See [Workload API Rate Limiting](#workload-api-rate-limiting) for details. |                         |
 | `broker`                      | Optional SPIFFE Broker API endpoint configuration. See [SPIFFE Broker API](#spiffe-broker-api).                                                                                     |                         |
+
+### Workload API
+
+The Workload API and SDS endpoints are enabled by default. To run an agent with only the SPIFFE Broker API, configure `workload_api.enabled = false` and configure `experimental.broker`. When the Workload API is disabled, `socket_path` is not used and the Workload API/SDS endpoints are not served.
+
+```hcl
+agent {
+    workload_api {
+        enabled = false
+    }
+
+    experimental {
+        broker {
+            # Broker API configuration...
+        }
+    }
+}
+```
 
 ### Workload API Rate Limiting
 
@@ -626,8 +645,7 @@ in the agent config. At least one of `socket_path` (POSIX-only UDS) or
 `bind_address` (TCP, all platforms) must be set; both may be set
 simultaneously.
 
-The `socket_path` must not live in the same directory as the Workload
-API socket — SPIRE Agent will refuse to start otherwise.
+When the Workload API is enabled, the Broker API `socket_path` must not live in the same directory as the Workload API socket; SPIRE Agent will refuse to start otherwise. This restriction does not apply when `workload_api.enabled = false`.
 
 Each entry in `brokers` enumerates an authorized broker's SPIFFE ID
 (cross-trust-domain identities are allowed) and the reference types it
@@ -642,6 +660,11 @@ allow any reference type the agent's attestor stack understands.
 agent {
     trust_domain = "example.org"
     ...
+    # Optional: run only the Broker API.
+    # workload_api {
+    #     enabled = false
+    # }
+
     experimental {
         broker {
             socket_path  = "/run/spire/broker-sockets/broker.sock"  # POSIX UDS

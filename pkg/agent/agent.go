@@ -153,7 +153,7 @@ func (a *Agent) Run(ctx context.Context) error {
 
 	var as *node_attestor.AttestationResult
 
-	readyForHealthChecks := make(chan struct{})
+	readyForHealthChecks := make(chan struct{}, 1)
 	go func() {
 		a.startHealthChecks(readyForHealthChecks, taskRunner, healthChecker)
 	}()
@@ -274,18 +274,21 @@ func (a *Agent) Run(ctx context.Context) error {
 		Metrics: metrics,
 	})
 
-	agentEndpoints := a.newEndpoints(metrics, mgr, workloadAttestor)
-	go func() {
-		agentEndpoints.WaitForListening(readyForHealthChecks)
-		a.started = true
-	}()
-
 	tasks := []func(context.Context) error{
 		metrics.ListenAndServe,
 		mgr.Run,
 		storeService.Run,
-		agentEndpoints.ListenAndServe,
 		catalog.ReconfigureTask(a.c.Log.WithField(telemetry.SubsystemName, "reconfigurer"), cat),
+	}
+
+	workloadAPIEnabled := a.c.BindAddress != nil
+	if workloadAPIEnabled {
+		agentEndpoints := a.newEndpoints(metrics, mgr, workloadAttestor)
+		go func() {
+			agentEndpoints.WaitForListening(readyForHealthChecks)
+			a.started = true
+		}()
+		tasks = append(tasks, agentEndpoints.ListenAndServe)
 	}
 
 	if a.c.AdminBindAddress != nil {
@@ -293,8 +296,9 @@ func (a *Agent) Run(ctx context.Context) error {
 		tasks = append(tasks, adminEndpoints.ListenAndServe)
 	}
 
+	var brokerEndpoints *broker.Endpoints
 	if len(a.c.Broker.BindAddresses) != 0 {
-		brokerEndpoints, err := broker.New(&broker.Config{
+		brokerEndpoints, err = broker.New(&broker.Config{
 			BindAddrs:    a.c.Broker.BindAddresses,
 			Manager:      mgr,
 			Log:          a.c.Log,
@@ -309,6 +313,17 @@ func (a *Agent) Run(ctx context.Context) error {
 			return fmt.Errorf("failed to create broker endpoints: %w", err)
 		}
 		tasks = append(tasks, brokerEndpoints.ListenAndServe)
+	}
+
+	if !workloadAPIEnabled {
+		go func() {
+			if brokerEndpoints != nil {
+				brokerEndpoints.WaitForListening(readyForHealthChecks)
+			} else {
+				close(readyForHealthChecks)
+			}
+			a.started = true
+		}()
 	}
 
 	if a.c.LogReopener != nil {
@@ -540,6 +555,14 @@ func (a *Agent) newAdminEndpoints(metrics telemetry.Metrics, mgr manager.Manager
 
 // CheckHealth is used as a top-level health check for the agent.
 func (a *Agent) CheckHealth() health.State {
+	if a.c.BindAddress == nil {
+		return health.State{
+			Started: &a.started,
+			Ready:   a.started,
+			Live:    true,
+		}
+	}
+
 	err := a.checkWorkloadAPI()
 
 	// Both liveness and readiness checks are done by
