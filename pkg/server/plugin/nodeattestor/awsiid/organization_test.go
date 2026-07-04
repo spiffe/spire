@@ -298,6 +298,32 @@ func TestReloadAccountListFromEmptyFile(t *testing.T) {
 	require.False(t, ok)
 }
 
+// TestEmptyFileCachesProperly verifies that an empty account list file is
+// cached for the full TTL and not re-read on every attestation.
+func TestEmptyFileCachesProperly(t *testing.T) {
+	path := writeAccountListFile(t, `[]`)
+	testOrgValidator := buildOrgValidationClientFromFile(path)
+
+	// First load seeds the cache.
+	_, err := testOrgValidator.reloadAccountList(context.Background(), nil, false)
+	require.NoError(t, err)
+	require.Empty(t, testOrgValidator.orgAccountList)
+	require.False(t, testOrgValidator.orgAccountListValidDuration.IsZero())
+
+	// Rewrite the file with a different account. Within TTL direct reload
+	// calls with !catchBurst should short-circuit and NOT re-read.
+	require.NoError(t, os.WriteFile(path, []byte(`["111111111111"]`), 0o600))
+	_, err = testOrgValidator.reloadAccountList(context.Background(), nil, false)
+	require.NoError(t, err)
+	require.Empty(t, testOrgValidator.orgAccountList, "empty list should be cached, not re-read within TTL")
+
+	// Advance past TTL: should re-read and pick up the new account.
+	testOrgValidator.clk = buildNewMockClock(2*time.Minute, testClockMutAfter)
+	accounts, err := testOrgValidator.reloadAccountList(context.Background(), nil, false)
+	require.NoError(t, err)
+	require.Contains(t, accounts, testFileAccountID)
+}
+
 func buildNewMockClock(t time.Duration, mut string) *clock.Mock {
 	testClock := clock.NewMock()
 	switch mut := mut; mut {

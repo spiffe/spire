@@ -104,6 +104,7 @@ func (o *orgValidator) configure(config *orgValidationConfig) error {
 
 	// While doing configuration invalidate the map so we don't keep using old one.
 	o.orgAccountList = make(map[string]any)
+	o.orgAccountListValidDuration = time.Time{}
 	o.retries = orgAccountRetries
 
 	t, err := time.ParseDuration(config.AccountListTTL)
@@ -198,8 +199,8 @@ func (o *orgValidator) checkIfOrgAccountListIsStale() bool {
 	o.mutex.RLock()
 	defer o.mutex.RUnlock()
 
-	// Map is empty that means this is first time plugin is being initialised
-	if len(o.orgAccountList) == 0 {
+	// First init: account list not loaded yet.
+	if o.orgAccountListValidDuration.IsZero() {
 		return true
 	}
 
@@ -212,7 +213,7 @@ func (o *orgValidator) reloadAccountList(ctx context.Context, orgClient organiza
 	defer o.mutex.Unlock()
 
 	// Make sure: we are not doing cache burst and account map is not updated recently from different go routine.
-	if !catchBurst && len(o.orgAccountList) != 0 && !o.checkIfTTLIsExpired(o.orgAccountListValidDuration) {
+	if !catchBurst && !o.orgAccountListValidDuration.IsZero() && !o.checkIfTTLIsExpired(o.orgAccountListValidDuration) {
 		return o.orgAccountList, nil
 	}
 
