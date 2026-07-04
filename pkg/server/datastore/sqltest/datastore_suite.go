@@ -132,14 +132,14 @@ func (s *Suite) newDataStore() DataStoreUnderTest {
 		jm := struct {
 			JournalMode string
 		}{}
-		s.Require().NoError(ds.(RawQuerier).RawScan(&jm, "PRAGMA journal_mode"))
+		s.Require().NoError(ds.RawScan(&jm, "PRAGMA journal_mode"))
 		s.Require().Equal(jm.JournalMode, "wal")
 
 		// assert that foreign_key support is enabled
 		fk := struct {
 			ForeignKeys string
 		}{}
-		s.Require().NoError(ds.(RawQuerier).RawScan(&fk, "PRAGMA foreign_keys"))
+		s.Require().NoError(ds.RawScan(&fk, "PRAGMA foreign_keys"))
 		s.Require().Equal(fk.ForeignKeys, "1")
 	case "mysql":
 		s.T().Logf("CONN STRING: %q", s.cfg.ConnString)
@@ -168,29 +168,6 @@ func (s *Suite) newDataStore() DataStoreUnderTest {
 	}
 
 	return ds
-}
-
-// maybeRebindForTest rewrites "?" placeholders to positional placeholders
-// (e.g. "$1") for postgres dialects. Copied from sqlstore's maybeRebind so
-// tests needing raw SQL don't require an unexported hook into sqlstore.
-func maybeRebindForTest(dbType, query string) string {
-	if dbType == "postgres" || dbType == "aws_postgres" {
-		return postgreSQLRebindForTest(query)
-	}
-	return query
-}
-
-func postgreSQLRebindForTest(s string) string {
-	var buf strings.Builder
-	var n int
-	for i := strings.Index(s, "?"); i != -1; i = strings.Index(s, "?") {
-		n++
-		buf.WriteString(s[:i])
-		buf.WriteString("$" + strconv.Itoa(n))
-		s = s[i+1:]
-	}
-	buf.WriteString(s)
-	return buf.String()
 }
 
 func (s *Suite) TestInvalidPluginConfiguration() {
@@ -2311,9 +2288,9 @@ func (s *Suite) TestListNodeSelectors() {
 
 func (s *Suite) TestListNodeSelectorsGroupsBySpiffeID() {
 	insertSelector := func(id int, spiffeID, selectorType, selectorValue string) {
-		query := maybeRebindForTest(s.ds.(RawQuerier).DatabaseType(),
+		query := s.ds.Rebind(
 			"INSERT INTO node_resolver_map_entries(id, spiffe_id, type, value) VALUES (?, ?, ?, ?)")
-		s.Require().NoError(s.ds.(RawQuerier).RawExec(query, id, spiffeID, selectorType, selectorValue))
+		s.Require().NoError(s.ds.RawExec(query, id, spiffeID, selectorType, selectorValue))
 	}
 
 	// Insert selectors out of order in respect to the SPIFFE ID so
@@ -3566,7 +3543,7 @@ func (s *Suite) TestListRegistrationEntriesWhenCruftRowsExist() {
 	// This is gross. Since the bug that left selectors around has been fixed
 	// (#1191), I'm not sure how else to test this other than just sneaking in
 	// there and removing the registered_entries row.
-	s.Require().NoError(s.ds.(RawQuerier).RawExec("DELETE FROM registered_entries"))
+	s.Require().NoError(s.ds.RawExec("DELETE FROM registered_entries"))
 
 	// Assert that no rows are returned.
 	resp, err := s.ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{})
@@ -5260,7 +5237,7 @@ func (s *Suite) TestPristineDatabaseMigrationValues() {
 		Version     int
 		CodeVersion string
 	}
-	s.Require().NoError(s.ds.(RawQuerier).RawScan(&m, "SELECT version, code_version FROM migrations"))
+	s.Require().NoError(s.ds.RawScan(&m, "SELECT version, code_version FROM migrations"))
 	s.Require().Equal(s.cfg.ExpectedSchemaVersion, m.Version)
 	s.Require().Equal(s.cfg.ExpectedCodeVersion, m.CodeVersion)
 }
@@ -5271,10 +5248,9 @@ func (s *Suite) TestPristineDatabaseMigrationValues() {
 // exercised. It uses the raw escape hatch (stable published columns) so it runs
 // on every dialect. endpointSPIFFEID may be empty.
 func (s *Suite) insertCorruptFederatedTrustDomain(trustDomain, bundleEndpointURL, bundleEndpointProfile, endpointSPIFFEID string) {
-	dbType := s.ds.(RawQuerier).DatabaseType()
-	query := maybeRebindForTest(dbType, "INSERT INTO federated_trust_domains"+
+	query := s.ds.Rebind("INSERT INTO federated_trust_domains" +
 		"(trust_domain, bundle_endpoint_url, bundle_endpoint_profile, endpoint_spiffe_id) VALUES (?, ?, ?, ?)")
-	s.Require().NoError(s.ds.(RawQuerier).RawExec(query, trustDomain, bundleEndpointURL, bundleEndpointProfile, endpointSPIFFEID))
+	s.Require().NoError(s.ds.RawExec(query, trustDomain, bundleEndpointURL, bundleEndpointProfile, endpointSPIFFEID))
 }
 
 func (s *Suite) TestFetchFederationRelationship() {

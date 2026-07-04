@@ -10,10 +10,14 @@ import (
 	"github.com/spiffe/spire/test/spiretest"
 )
 
-// DataStoreUnderTest is the surface the shared suite exercises.
+// DataStoreUnderTest is the surface the shared suite exercises. It embeds
+// RawQuerier so the raw-SQL escape hatch is part of the compile-time contract:
+// an implementation missing or mis-typing any RawQuerier method fails to build
+// rather than panicking mid-run on a failed type assertion.
 type DataStoreUnderTest interface {
 	datastore.DataStore
 	io.Closer
+	RawQuerier
 	Configure(ctx context.Context, hclConfiguration string) error
 }
 
@@ -28,11 +32,11 @@ type Config struct {
 
 	// ExpectedSchemaVersion is the schema version a freshly-migrated database
 	// should report in its migrations table (the implementation's latest schema
-	// version). ExpectedCodeVersion is the SPIRE code version string it should
-	// record. Both are supplied by the caller so the shared suite stays
-	// decoupled from any single implementation's internal constants.
+	// version).
 	ExpectedSchemaVersion int
-	ExpectedCodeVersion   string
+
+	// ExpectedCodeVersion is the SPIRE code version string it should record.
+	ExpectedCodeVersion string
 }
 
 // Run executes the shared datastore conformance suite against the datastore

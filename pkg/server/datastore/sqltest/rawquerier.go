@@ -6,4 +6,7 @@ type RawQuerier interface {
 	RawScan(dest any, query string) error
 	RawExec(query string, args ...any) error
 	DatabaseType() string
+	// Rebind rewrites "?" placeholders to the dialect's positional form so the
+	// suite does not reimplement the production placeholder-rewriting logic.
+	Rebind(query string) string
 }
