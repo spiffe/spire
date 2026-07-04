@@ -275,7 +275,7 @@ func (s *AttestorSuite) TestAttestFailsIfPodUIDDoesNotMatchTokenStatus() {
 	s.apiServerClient.SetTokenStatus(token, createTokenStatus(tokenData, true, defaultAudience))
 	s.apiServerClient.SetPod(createPod("NS1", "PODNAME", "OTHER-PODUID", "NODENAME", "172.16.0.1"))
 	s.requireAttestError(makePayload("FOO", token),
-		codes.Internal,
+		codes.PermissionDenied,
 		"pod UID mismatch")
 }
 

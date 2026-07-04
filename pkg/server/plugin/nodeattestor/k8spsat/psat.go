@@ -230,7 +230,7 @@ func (p *AttestorPlugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer)
 		return status.Errorf(codes.Internal, "fail to get pod from k8s API server for cluster %q: %v", attestationData.Cluster, err)
 	}
 	if string(pod.UID) != podUID {
-		return status.Errorf(codes.Internal, "pod UID mismatch for cluster %q", attestationData.Cluster)
+		return status.Errorf(codes.PermissionDenied, "pod UID mismatch for cluster %q", attestationData.Cluster)
 	}
 
 	node, err := cluster.client.GetNode(stream.Context(), pod.Spec.NodeName)
