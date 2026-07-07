@@ -317,7 +317,7 @@ func (s *Suite) TestAttestOverSecurePortViaTokenAuth() {
 	// write out a different token and make sure it is picked up on reload
 	s.writeFile(defaultTokenPath, "bad-token")
 	s.clock.Add(defaultReloadInterval)
-	s.requireAttestFailure(p, codes.Internal, `expected "Bearer default-token", got "Bearer bad-token"`)
+	s.requireAttestFailure(p, `expected "Bearer default-token", got "Bearer bad-token"`)
 }
 
 func (s *Suite) TestAttestOverSecurePortViaClientAuth() {
@@ -337,7 +337,7 @@ func (s *Suite) TestAttestOverSecurePortViaClientAuth() {
 	s.writeCert(certPath, clientCert)
 
 	s.clock.Add(defaultReloadInterval)
-	s.requireAttestFailure(p, codes.Internal, "remote error: tls")
+	s.requireAttestFailure(p, "remote error: tls")
 }
 
 func (s *Suite) TestAttestOverSecurePortViaAnonymousAuth() {
@@ -431,7 +431,7 @@ func (s *Suite) TestAttestWithNamespaceLabelsErrorFailsAttestation() {
 	s.addPodListResponse(podListFilePath)
 	s.addGetContainerResponsePidInPod()
 
-	s.requireAttestFailure(p, codes.Internal, "unable to get namespace labels")
+	s.requireAttestFailure(p, "unable to get namespace labels")
 }
 
 func (s *Suite) TestAttestWithSigstoreSelectors() {
@@ -1519,9 +1519,9 @@ func (s *Suite) requireAttestSuccess(p workloadattestor.WorkloadAttestor, expect
 	s.requireSelectorsEqual(expectedSelectors, selectors)
 }
 
-func (s *Suite) requireAttestFailure(p workloadattestor.WorkloadAttestor, code codes.Code, contains string) {
+func (s *Suite) requireAttestFailure(p workloadattestor.WorkloadAttestor, contains string) {
 	selectors, err := p.Attest(context.Background(), pid)
-	s.RequireGRPCStatusContains(err, code, contains)
+	s.RequireGRPCStatusContains(err, codes.Internal, contains)
 	s.Require().Nil(selectors)
 }
 

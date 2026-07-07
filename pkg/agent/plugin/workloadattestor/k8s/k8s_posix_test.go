@@ -203,7 +203,7 @@ func (s *Suite) requireAttestSuccessWithCrioPod(p workloadattestor.WorkloadAttes
 func (s *Suite) requireAttestFailWithDuplicateContainerID(p workloadattestor.WorkloadAttestor) {
 	s.addPodListResponse(crioPodListDuplicateContainerIDFilePath)
 	s.addCgroupsResponse(cgPidInCrioPodFilePath)
-	s.requireAttestFailure(p, codes.Internal, "two pods found with same container Id")
+	s.requireAttestFailure(p, "two pods found with same container Id")
 }
 
 func (s *Suite) requireAttestSuccessWithPodSystemdCgroups(p workloadattestor.WorkloadAttestor) {
