@@ -92,7 +92,11 @@ NodeAttestor "aws_iid" {
 
 A common deployment pattern is to run a single org-wide enumerator (for example, a Kubernetes CronJob that calls `ListAccounts` and writes the result to a ConfigMap mounted into the `spire-server` pods). This gives all replicas a shared account list sourced from one AWS caller, without SPIRE needing to know anything about the refresh mechanism. The same approach works with a sidecar, an init container, or a file on a VM.
 
-The role under: `assume_role` must be created in the management account: `management_account_id`, and it should have a trust relationship with the role assumed by spire server. Below is a sample policy depicting the permissions required along with the trust relationship that needs to be created in management account.
+### AWS IAM Permissions for Organization Validation (API mode)
+
+When using the API-based configuration (with `management_account_id` and `assume_org_role`), the following IAM permissions are required.
+
+The role `assume_org_role` must be created in the management account (`management_account_id`) and should have a trust relationship with the role assumed by the SPIRE server. Below is a sample policy depicting the permissions required along with the trust relationship that needs to be created in the management account.
 
 Policy :
 
@@ -130,6 +134,8 @@ Trust Relationship
     ]
 }
 ```
+
+**Note:** No `organizations:ListAccounts` IAM permission is required when using `account_list_file` mode.
 
 ## Enabling AWS Node Attestation EKS Cluster Validation
 
