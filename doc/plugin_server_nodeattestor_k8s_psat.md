@@ -5,10 +5,16 @@
 The `k8s_psat` plugin attests nodes running inside of Kubernetes. The server
 validates the signed projected service account token provided by the agent.
 This validation is performed using Kubernetes [Token Review API](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.19/#tokenreview-v1-authentication-k8s-io). In addition to validation, this API provides other useful information (namespace, service account name and pod name) that SPIRE server uses to build selectors.
-Kubernetes API server is also queried to get extra data like node UID, which is used to generate a SPIFFE ID with the form:
+Kubernetes API server is also queried to get extra data like node UID, which is used by default to generate a SPIFFE ID with the form:
 
 ```xml
 spiffe://<trust_domain>/spire/agent/k8s_psat/<cluster>/<node UID>
+```
+
+A cluster can instead be configured to use the attesting pod UID for the generated agent SPIFFE ID:
+
+```xml
+spiffe://<trust_domain>/spire/agent/k8s_psat/<cluster>/pod/<pod UID>
 ```
 
 The server does not need to be running in Kubernetes in order to perform node
@@ -33,6 +39,7 @@ Each cluster in the main configuration requires the following configuration:
 | `kube_config_file`           | Path to a k8s configuration file for API Server authentication. A kubernetes configuration file must be specified if SPIRE server runs outside of the k8s cluster. If empty, SPIRE server is assumed to be running inside the cluster and in-cluster configuration is used. | ""               |
 | `allowed_node_label_keys`    | Node label keys considered for selectors                                                                                                                                                                                                                                    |                  |
 | `allowed_pod_label_keys`     | Pod label keys considered for selectors                                                                                                                                                                                                                                     |                  |
+| `use_pod_uid_for_agent_id`   | Use the attesting pod UID instead of the node UID when generating the agent SPIFFE ID. The pod UID is prefixed with `pod/` in the ID path.                                                                                                                                  | false            |
 
 A sample configuration for SPIRE server running inside a Kubernetes cluster:
 
@@ -42,6 +49,7 @@ A sample configuration for SPIRE server running inside a Kubernetes cluster:
             clusters = {
                 "MyCluster" = {
                     service_account_allow_list = ["production:spire-agent"]
+                    # use_pod_uid_for_agent_id = true
                 }
         }
     }
@@ -56,6 +64,7 @@ A sample configuration for SPIRE server running outside of a Kubernetes cluster:
                 "MyCluster" = {
                     service_account_allow_list = ["production:spire-agent"]
                     kube_config_file = "path/to/kubeconfig/file"
+                    # use_pod_uid_for_agent_id = true
                 }
         }
     }

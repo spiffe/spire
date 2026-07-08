@@ -323,6 +323,34 @@ func (s *AttestorSuite) TestAttestSuccess() {
 	}, result.Selectors)
 }
 
+func (s *AttestorSuite) TestAttestSuccessWithPodUIDAgentID() {
+	tokenData := &TokenData{
+		namespace:          "NS1",
+		serviceAccountName: "SA1",
+		podName:            "PODNAME-3",
+		podUID:             "PODUID-3",
+	}
+	token := s.signToken(s.fooSigner, tokenData)
+	s.apiServerClient.SetTokenStatus(token, createTokenStatus(tokenData, true, defaultAudience))
+	s.apiServerClient.SetPod(createPod("NS1", "PODNAME-3", "NODENAME-3", "172.16.10.3"))
+	s.apiServerClient.SetNode(createNode("NODENAME-3", "NODEUID-3"))
+
+	result, err := s.attestor.Attest(context.Background(), makePayload("POD", token), expectNoChallenge)
+	s.Require().NoError(err)
+	s.Require().NotNil(result)
+	s.Require().Equal("spiffe://example.org/spire/agent/k8s_psat/POD/pod/PODUID-3", result.AgentID)
+	s.RequireProtoListEqual([]*common.Selector{
+		{Type: "k8s_psat", Value: "cluster:POD"},
+		{Type: "k8s_psat", Value: "agent_ns:NS1"},
+		{Type: "k8s_psat", Value: "agent_sa:SA1"},
+		{Type: "k8s_psat", Value: "agent_pod_name:PODNAME-3"},
+		{Type: "k8s_psat", Value: "agent_pod_uid:PODUID-3"},
+		{Type: "k8s_psat", Value: "agent_node_ip:172.16.10.3"},
+		{Type: "k8s_psat", Value: "agent_node_name:NODENAME-3"},
+		{Type: "k8s_psat", Value: "agent_node_uid:NODEUID-3"},
+	}, result.Selectors)
+}
+
 func (s *AttestorSuite) TestConfigure() {
 	doConfig := func(coreConfig catalog.CoreConfig, config string) error {
 		var err error
@@ -403,6 +431,11 @@ func (s *AttestorSuite) loadPlugin() nodeattestor.NodeAttestor {
 				kube_config_file= ""
 				audience = ["AUDIENCE"]
 			}
+			"POD" = {
+				service_account_allow_list = ["NS1:SA1"]
+				kube_config_file = ""
+				use_pod_uid_for_agent_id = true
+			}
 		}
 	`), plugintest.CoreConfig(catalog.CoreConfig{
 		TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
@@ -412,6 +445,7 @@ func (s *AttestorSuite) loadPlugin() nodeattestor.NodeAttestor {
 	s.apiServerClient = newFakeAPIServerClient()
 	attestor.config.clusters["FOO"].client = s.apiServerClient
 	attestor.config.clusters["BAR"].client = s.apiServerClient
+	attestor.config.clusters["POD"].client = s.apiServerClient
 	return v1
 }
 
