@@ -274,18 +274,23 @@ func (a *Agent) Run(ctx context.Context) error {
 		Metrics: metrics,
 	})
 
-	agentEndpoints := a.newEndpoints(metrics, mgr, workloadAttestor)
-	go func() {
-		agentEndpoints.WaitForListening(readyForHealthChecks)
-		a.started = true
-	}()
-
 	tasks := []func(context.Context) error{
 		metrics.ListenAndServe,
 		mgr.Run,
 		storeService.Run,
-		agentEndpoints.ListenAndServe,
 		catalog.ReconfigureTask(a.c.Log.WithField(telemetry.SubsystemName, "reconfigurer"), cat),
+	}
+
+	if a.c.BindAddress != nil {
+		agentEndpoints := a.newEndpoints(metrics, mgr, workloadAttestor)
+		go func() {
+			agentEndpoints.WaitForListening(readyForHealthChecks)
+			a.started = true
+		}()
+		tasks = append(tasks, agentEndpoints.ListenAndServe)
+	} else {
+		a.started = true
+		close(readyForHealthChecks)
 	}
 
 	if a.c.AdminBindAddress != nil {
@@ -518,6 +523,8 @@ func (a *Agent) newEndpoints(metrics telemetry.Metrics, mgr manager.Manager, att
 		AllowedForeignJWTClaims:       a.c.AllowedForeignJWTClaims,
 		LogSelectors:                  a.c.LogSelectors,
 		TrustDomain:                   a.c.TrustDomain,
+		DisableWorkloadAPI:            a.c.DisableWorkloadAPI,
+		DisableSDSAPI:                 a.c.DisableSDSAPI,
 		WorkloadAPIRateLimit:          a.c.WorkloadAPIRateLimit,
 	})
 }
@@ -540,6 +547,14 @@ func (a *Agent) newAdminEndpoints(metrics telemetry.Metrics, mgr manager.Manager
 
 // CheckHealth is used as a top-level health check for the agent.
 func (a *Agent) CheckHealth() health.State {
+	if a.c.BindAddress == nil || a.c.DisableWorkloadAPI {
+		return health.State{
+			Started: &a.started,
+			Ready:   a.started,
+			Live:    true,
+		}
+	}
+
 	err := a.checkWorkloadAPI()
 
 	// Both liveness and readiness checks are done by
