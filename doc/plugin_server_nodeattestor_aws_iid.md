@@ -51,16 +51,52 @@ assuming AWS IID document sent from the spire agent contains `accountId : 123456
 
 For configuring AWS Node attestation method with organization validation following configuration can be used:
 
-| Field Name                 | Description                                                                                   | Constraints                                |
-|----------------------------|-----------------------------------------------------------------------------------------------|--------------------------------------------|
-| management_account_id      | Account id of the organzation                                                                 | required                                   |
-| management_account_region  | Region of management account id                                                               | optional                                   |
-| assume_org_role            | IAM Role name, with capablities to list accounts                                              | required                                   |
-| org_account_map_ttl        | Cache the list of accounts for particular time. Should be  >= 1 minute. Defaults to 3 minute. | optional                                   |
+| Field Name                | Description                                                                                   | Constraints                                  |
+|---------------------------|-----------------------------------------------------------------------------------------------|----------------------------------------------|
+| management_account_id     | Account id of the organization                                                                | required (unless `account_list_file` is set) |
+| management_account_region | Region of management account id                                                               | optional                                     |
+| assume_org_role           | IAM Role name, with capabilities to list accounts                                             | required (unless `account_list_file` is set) |
+| org_account_map_ttl       | Cache the list of accounts for particular time. Should be >= 1 minute. Defaults to 3 minutes. | optional                                     |
+| account_list_file         | Source the org account list from a file instead of the AWS Organizations API                  | optional                                     |
 
 Using the block `verify_organization` the org validation node attestation method will be enabled. With above configuration spire server will form and try to assume the role as: `arn:aws:iam::management_account_id:role/assume_org_role`. When not used, block ex. `verify_organization = {}` should not be empty, it should be completely removed as its optional or should have all required parameters namely `management_account_id`, `assume_org_role`.
 
-The role under: `assume_role` must be created in the management account: `management_account_id`, and it should have a trust relationship with the role assumed by spire server. Below is a sample policy depicting the permissions required along with the trust relationship that needs to be created in management account.
+### Sourcing the account list from a file
+
+For large organizations, calling `organizations:ListAccounts` can be expensive: the API returns at most 20 accounts per page, the list is cached per `spire-server` process, and the cache TTL timer is per replica. With many replicas and a large org this multiplies load on the management account's shared `ListAccounts` throttle pool and can lead to `TooManyRequestsException` errors for SPIRE and other callers.
+
+To avoid this, set `account_list_file` to the path of a JSON file containing the organization's account IDs. When set, the plugin reads the account list from this file instead of calling AWS, and **no `organizations:ListAccounts` IAM permission is required**. `account_list_file` is mutually exclusive with `management_account_id` and `assume_org_role`.
+
+The file is read and validated at configuration time (the plugin fails to start if the file is missing or malformed). It is then re-read when the cached list is older than `org_account_map_ttl`; the refresh happens lazily on the next attestation after the TTL has elapsed (there is no background timer), so updates are picked up without restarting the server.
+
+The list is fail-closed: if the file is empty, unreadable, or malformed at runtime, accounts validated against it will fail attestation rather than be allowed. Keep the file current, and note that an empty list (`[]`) rejects every account.
+
+The file format is a JSON array of 12-digit AWS account IDs. The operator is responsible for populating it with only eligible (e.g. ACTIVE) accounts:
+
+```json
+["111111111111", "222222222222", "333333333333"]
+```
+
+Sample configuration:
+
+```hcl
+NodeAttestor "aws_iid" {
+    plugin_data {
+        verify_organization = {
+            account_list_file   = "/etc/spire/org-accounts.json"
+            org_account_map_ttl = "15m"
+        }
+    }
+}
+```
+
+A common deployment pattern is to run a single org-wide enumerator (for example, a Kubernetes CronJob that calls `ListAccounts` and writes the result to a ConfigMap mounted into the `spire-server` pods). This gives all replicas a shared account list sourced from one AWS caller, without SPIRE needing to know anything about the refresh mechanism. The same approach works with a sidecar, an init container, or a file on a VM.
+
+### AWS IAM Permissions for Organization Validation (API mode)
+
+When using the API-based configuration (with `management_account_id` and `assume_org_role`), the following IAM permissions are required.
+
+The role `assume_org_role` must be created in the management account (`management_account_id`) and should have a trust relationship with the role assumed by the SPIRE server. Below is a sample policy depicting the permissions required along with the trust relationship that needs to be created in the management account.
 
 Policy :
 
@@ -98,6 +134,8 @@ Trust Relationship
     ]
 }
 ```
+
+**Note:** No `organizations:ListAccounts` IAM permission is required when using `account_list_file` mode.
 
 ## Enabling AWS Node Attestation EKS Cluster Validation
 
@@ -180,7 +218,7 @@ The following is an example for a IAM policy needed to get instance's info from 
 
 **Note:** Additional permissions are required when using optional validation features:
 
-- For organization validation (`verify_organization`): `organizations:ListAccounts`
+- For organization validation (`verify_organization`): `organizations:ListAccounts` (not required when `account_list_file` is configured)
 - For EKS cluster validation (`validate_eks_cluster_membership`): `eks:ListNodegroups`, `eks:DescribeNodegroup`, `autoscaling:DescribeAutoScalingGroups`
 
 For more information on security credentials, see <https://docs.aws.amazon.com/general/latest/gr/aws-security-credentials.html>.
