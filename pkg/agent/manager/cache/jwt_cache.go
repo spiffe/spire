@@ -39,8 +39,8 @@ type jwtSvidElement struct {
 }
 
 func (c *JWTSVIDCache) CountJWTSVIDs() int {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 
 	return len(c.svids)
 }
