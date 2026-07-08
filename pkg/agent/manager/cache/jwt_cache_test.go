@@ -286,6 +286,47 @@ func TestJWTSVIDCacheSize(t *testing.T) {
 	assert.False(t, ok)
 }
 
+func TestCountJWTSVIDs(t *testing.T) {
+	now := time.Now()
+	// Tokens signed with distinct key IDs (keyID1/keyID2) so they can be tainted.
+	tok1 := "eyJhbGciOiJFUzI1NiIsImtpZCI6ImRaRGZZaXcxdUd6TXdkTVlITDdGRVl5SzhIT0tLd0xYIiwidHlwIjoiSldUIn0.eyJhdWQiOlsidGVzdC1hdWRpZW5jZSJdLCJleHAiOjE3MjQzNjU3MzEsImlhdCI6MTcyNDI3OTQwNywic3ViIjoic3BpZmZlOi8vZXhhbXBsZS5vcmcvYWdlbnQvZGJ1c2VyIn0.dFr-oWhm5tK0bBuVXt-sGESM5l7hhoY-Gtt5DkuFoJL5Y9d4ZfmicCvUCjL4CqDB3BO_cPqmFfrO7H7pxQbGLg"
+	tok2 := "eyJhbGciOiJFUzI1NiIsImtpZCI6ImNKMXI5TVY4OTZTWXBMY0RMUjN3Q29QRHprTXpkN25tIiwidHlwIjoiSldUIn0.eyJhdWQiOlsidGVzdC1hdWRpZW5jZSJdLCJleHAiOjE3Mjg1NzEwMjUsImlhdCI6MTcyODU3MDcyNSwic3ViIjoic3BpZmZlOi8vZXhhbXBsZS5vcmcvYWdlbnQvZGJ1c2VyIn0.1YnDj7nknwIHEuNKEN0cNypXKS4SUeILXlNOsOs2XElHzfKhhDcl0sYKYtQc1Itf6cygz9C16VOQ_Yjoos2Qfg"
+	keyID1 := "dZDfYiw1uGzMwdMYHL7FEYyK8HOKKwLX"
+	svid1 := &client.JWTSVID{Token: tok1, IssuedAt: now, ExpiresAt: now.Add(time.Minute)}
+	svid2 := &client.JWTSVID{Token: tok2, IssuedAt: now, ExpiresAt: now.Add(time.Minute)}
+
+	fakeMetrics := fakemetrics.New()
+	log, _ := test.NewNullLogger()
+	log.Level = logrus.DebugLevel
+	cache := NewJWTSVIDCache(log, fakeMetrics, 2)
+
+	spiffeID := spiffeid.RequireFromString("spiffe://example.org/blog")
+
+	// An empty cache holds no SVIDs.
+	assert.Equal(t, 0, cache.CountJWTSVIDs())
+
+	// Caching an SVID increases the count.
+	cache.SetJWTSVID(spiffeID, []string{"audience-1"}, svid1)
+	assert.Equal(t, 1, cache.CountJWTSVIDs())
+
+	// A distinct key (different audience) increases the count.
+	cache.SetJWTSVID(spiffeID, []string{"audience-2"}, svid2)
+	assert.Equal(t, 2, cache.CountJWTSVIDs())
+
+	// Overwriting an existing key does not change the count.
+	cache.SetJWTSVID(spiffeID, []string{"audience-1"}, svid2)
+	assert.Equal(t, 2, cache.CountJWTSVIDs())
+
+	// The count never exceeds the configured max size; inserting past the
+	// limit evicts the least recently used entry.
+	cache.SetJWTSVID(spiffeID, []string{"audience-3"}, svid1)
+	assert.Equal(t, 2, cache.CountJWTSVIDs())
+
+	// Tainting removes matching SVIDs and lowers the count.
+	cache.TaintJWTSVIDs(context.Background(), map[string]struct{}{keyID1: {}})
+	assert.Equal(t, 1, cache.CountJWTSVIDs())
+}
+
 func TestJWTSVIDCacheKeyHashing(t *testing.T) {
 	spiffeID := spiffeid.RequireFromString("spiffe://example.org/blog")
 	now := time.Now()
