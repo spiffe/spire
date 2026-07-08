@@ -4,13 +4,16 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"os"
 	"path/filepath"
 	"runtime"
 	"testing"
+	"time"
 
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/pkg/server/datastore/sqltest"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -173,9 +176,35 @@ func TestConfigure(t *testing.T) {
 	}
 }
 
+// removeDirWithRetry removes dir, retrying a few times on Windows where a
+// closed SQLite file handle may not be released immediately. On other
+// platforms a single RemoveAll always succeeds.
+func removeDirWithRetry(t *testing.T, dir string) {
+	const attempts = 20
+	var err error
+	for range attempts {
+		if err = os.RemoveAll(dir); err == nil {
+			return
+		}
+		if runtime.GOOS != "windows" {
+			break
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	assert.NoError(t, err, "failed to remove migration temp dir %q", dir)
+}
+
 func TestMigration(t *testing.T) {
 	ds := newTestPlugin(t)
-	dir := t.TempDir()
+
+	// Use a dedicated directory instead of t.TempDir(): the migration DBs run
+	// in WAL mode, and on Windows the SQLite file handle (plus its -wal/-shm
+	// sidecars) is not always released synchronously when Close() returns.
+	// t.TempDir()'s built-in RemoveAll fails hard on the first "file in use"
+	// error, causing a flake; removeDirWithRetry retries instead.
+	dir, err := os.MkdirTemp("", "migration")
+	require.NoError(t, err)
+	t.Cleanup(func() { removeDirWithRetry(t, dir) })
 
 	for schemaVersion := range latestSchemaVersion {
 		t.Run(fmt.Sprintf("migration_from_schema_version_%d", schemaVersion), func(t *testing.T) {
