@@ -512,7 +512,8 @@ func TestDisposeStaleCryptoKeys(t *testing.T) {
 	// advances below deterministically fire it. Advancing before the ticker is
 	// created shifts the ticker's baseline, which makes the runs below depend
 	// on goroutine scheduling.
-	_ = waitForSignal(t, ts.plugin.hooks.disposeCryptoKeysSignal)
+	err = waitForSignal(t, ts.plugin.hooks.disposeCryptoKeysSignal)
+	require.NoError(t, err)
 
 	// Advance one ticker period to run disposeCryptoKeys. The CryptoKeys are
 	// already stale, so this run schedules their CryptoKeyVersions for
@@ -547,7 +548,8 @@ func TestDisposeStaleCryptoKeys(t *testing.T) {
 	// CryptoKeys no longer have enabled CryptoKeyVersions, this run marks them
 	// inactive.
 	ts.clockHook.Add(disposeCryptoKeysFrequency)
-	_ = waitForSignal(t, ts.plugin.hooks.disposeCryptoKeysSignal)
+	err = waitForSignal(t, ts.plugin.hooks.disposeCryptoKeysSignal)
+	require.NoError(t, err)
 
 	// Since the CryptoKey doesn't have any enabled CryptoKeyVersions at
 	// this point, it should be set as inactive.
