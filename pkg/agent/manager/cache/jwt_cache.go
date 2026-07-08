@@ -39,8 +39,8 @@ type jwtSvidElement struct {
 }
 
 func (c *JWTSVIDCache) CountJWTSVIDs() int {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 
 	return len(c.svids)
 }
@@ -74,6 +74,8 @@ func (c *JWTSVIDCache) GetJWTSVID(spiffeID spiffeid.ID, audience []string) (*cli
 }
 
 func (c *JWTSVIDCache) SetJWTSVID(spiffeID spiffeid.ID, audience []string, svid *client.JWTSVID) {
+	defer func() { agent.SetJWTSVIDCacheSize(c.metrics, c.CountJWTSVIDs()) }()
+
 	key := jwtSVIDKey(spiffeID, audience)
 
 	c.mu.Lock()
@@ -103,6 +105,8 @@ func (c *JWTSVIDCache) SetJWTSVID(spiffeID spiffeid.ID, audience []string, svid 
 }
 
 func (c *JWTSVIDCache) TaintJWTSVIDs(ctx context.Context, taintedJWTAuthorities map[string]struct{}) {
+	defer func() { agent.SetJWTSVIDCacheSize(c.metrics, c.CountJWTSVIDs()) }()
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
