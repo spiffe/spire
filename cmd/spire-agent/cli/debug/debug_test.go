@@ -22,7 +22,7 @@ type debugTest struct {
 	cmd cli.Command
 }
 
-func setupTest(t *testing.T) *debugTest {
+func setupTest() *debugTest {
 	stdin := new(bytes.Buffer)
 	stdout := new(bytes.Buffer)
 	stderr := new(bytes.Buffer)
@@ -42,18 +42,18 @@ func setupTest(t *testing.T) *debugTest {
 }
 
 func TestSynopsis(t *testing.T) {
-	test := setupTest(t)
+	test := setupTest()
 	require.Equal(t, "Prints debug information about the agent", test.cmd.Synopsis())
 }
 
 func TestHelp(t *testing.T) {
-	test := setupTest(t)
+	test := setupTest()
 	require.Empty(t, test.cmd.Help())
 	require.Equal(t, usage, test.stderr.String())
 }
 
 func TestBadFlags(t *testing.T) {
-	test := setupTest(t)
+	test := setupTest()
 
 	code := test.cmd.Run([]string{"-badflag"})
 	require.NotEqual(t, 0, code)
@@ -62,7 +62,7 @@ func TestBadFlags(t *testing.T) {
 }
 
 func TestFailsOnUnavailable(t *testing.T) {
-	test := setupTest(t)
+	test := setupTest()
 
 	code := test.cmd.Run([]string{socketAddrArg, socketAddrUnavailable})
 	require.NotEqual(t, 0, code)
@@ -93,7 +93,7 @@ func TestGetInfo(t *testing.T) {
 		debugv1.RegisterDebugServer(srv, &fakeDebugServer{resp: fakeResp})
 	})
 
-	test := setupTest(t)
+	test := setupTest()
 	code := test.cmd.Run([]string{socketAddrArg, socketAddr})
 	require.Equal(t, 0, code, "exit code; stderr: %s", test.stderr.String())
 	require.Empty(t, test.stderr.String(), "stderr")
@@ -117,7 +117,7 @@ func TestGetInfoJSON(t *testing.T) {
 		debugv1.RegisterDebugServer(srv, &fakeDebugServer{resp: fakeResp})
 	})
 
-	test := setupTest(t)
+	test := setupTest()
 	code := test.cmd.Run([]string{socketAddrArg, socketAddr, "-output", "json"})
 	require.Equal(t, 0, code, "exit code; stderr: %s", test.stderr.String())
 	require.Empty(t, test.stderr.String(), "stderr")

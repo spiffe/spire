@@ -628,6 +628,16 @@ Displays the details (including node selectors) of an attested node given its sp
 | `-socketPath` | Path to the SPIRE Server API socket                 | /tmp/spire-server/private/api.sock |
 | `-spiffeID`   | The SPIFFE ID of the agent to show (agent identity) |                                    |
 
+### `spire-server debug getinfo`
+
+Prints debug information about the server, including uptime, registered
+agent/entry/federated bundle counts, and the server's own SVID chain.
+
+| Command       | Action                                   | Default                            |
+|:--------------|:-----------------------------------------|:-----------------------------------|
+| `-output`     | Desired output format (`pretty`, `json`) | `pretty`                           |
+| `-socketPath` | Path to the SPIRE Server API socket      | /tmp/spire-server/private/api.sock |
+
 ### `spire-server healthcheck`
 
 Checks SPIRE server's health.

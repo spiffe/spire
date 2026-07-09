@@ -9,9 +9,9 @@ import (
 
 	"github.com/mitchellh/cli"
 	debugv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/debug/v1"
+	"github.com/spiffe/spire/cmd/spire-server/util"
 	commoncli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/cliprinter"
-	"github.com/spiffe/spire/cmd/spire-server/util"
 )
 
 // NewGetInfoCommand creates a new "debug getinfo" subcommand for "debug" command.
