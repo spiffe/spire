@@ -311,5 +311,5 @@ func TestMarshalWITSVIDBundle(t *testing.T) {
 		],
 		"spiffe_refresh_hint": 60,
 		"spiffe_sequence": 42
-	}`, string(bundleBytes))
+	}`, bundleBytes)
 }
