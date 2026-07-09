@@ -4,8 +4,8 @@
 
 ### Added
 
-- JWT-SVID audience policy configuration with JTI claim support (#6514)
-- Per-caller rate limiting for the agent Workload API and Envoy SDS (#6724)
+- Support for configuring JTI claim inclusion in JWT-SVIDs at entry level (#6514)
+- Experimental per-caller rate limiting for the agent Workload API and Envoy SDS (#6724)
 - TLS support for the Prometheus metrics endpoint using a SPIRE SVID, with an optional SPIFFE ID allowlist (#6812)
 - Optional verification of client certificate IPs in the `x509pop` node attestor (#6911)
 - SPIFFE Broker endpoint, API, and documentation (#6915, #7112)
@@ -15,6 +15,10 @@
 - Tag-based key discovery support in the `aws_kms` Key Manager plugin (#7006)
 - Logger service for `spire-agent` (#7017)
 - Configurable batch size for pruning attested nodes (#7100)
+
+### Security
+
+- Migrated `github.com/docker/docker` dependencies to their `github.com/moby/moby` equivalents to resolve CVEs (#7078)
 
 ### Changed
 
@@ -26,7 +30,6 @@
 - Pod and container IDs are now preferably determined from the cgroup file (#7060)
 - Optimized the MySQL list entries query to reduce database CPU usage under load (#7113)
 - Added AWS CA certificates for new regions to the `aws_iid` node attestor (#6879)
-- Migrated `github.com/docker/docker` dependencies to their `github.com/moby/moby` equivalents to resolve CVEs (#7078)
 - Documented `URISanSelectors` for the agent SPIFFE ID template (#6872)
 - Datastore configuration documentation updates (#7023)
 
@@ -34,7 +37,7 @@
 
 - `azure_imds` node attestation for standalone VMs (#6807)
 - `azure_imds` plugin signature validation (#6960)
-- Registered entries are now cascade-deleted when an attested node is deleted (#6946)
+- The auto-created join-token alias entry is now cascade-deleted when its attested node is deleted, evicted, or pruned (#6946)
 - The CA journal now survives transient datastore save failures, preserving CA continuity (#6964)
 - The delegated API no longer serves JWT-SVIDs for admin or downstream entries (#6972)
 - The event cache now keeps previous first/last event information when reloading (#6994)
