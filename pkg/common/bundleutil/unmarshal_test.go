@@ -103,6 +103,21 @@ func TestUnmarshal(t *testing.T) {
 			}`,
 			err: "missing key ID in jwt-svid entry 0",
 		},
+		{
+			name: "wit-svid with no keyid",
+			doc: `{
+				"keys": [
+					{
+						"use": "wit-svid",
+						"kty": "EC",
+						"crv": "P-256",
+						"x": "kkEn5E2Hd_rvCRDCVMNj3deN0ADij9uJVmN-El0CJz0",
+						"y": "qNrnjhtzrtTR0bRgI2jPIC1nEgcWNX63YcZOEzyo1iA"
+					}
+				]
+			}`,
+			err: "missing key ID in wit-svid entry 0",
+		},
 	}
 
 	for _, testCase := range testCases {
@@ -116,4 +131,18 @@ func TestUnmarshal(t *testing.T) {
 			require.Equal(t, testCase.bundle, bundle)
 		})
 	}
+}
+
+func TestUnmarshalRoundTripsWITAuthorities(t *testing.T) {
+	trustDomain := spiffeid.RequireTrustDomainFromString("domain.test")
+	bundle := spiffebundle.New(trustDomain)
+	bundle.SetRefreshHint(0)
+	require.NoError(t, bundle.AddWITAuthority("BAR", testKey.Public()))
+
+	marshaled, err := Marshal(bundle)
+	require.NoError(t, err)
+
+	unmarshaled, err := Unmarshal(trustDomain, marshaled)
+	require.NoError(t, err)
+	require.Equal(t, bundle, unmarshaled)
 }
