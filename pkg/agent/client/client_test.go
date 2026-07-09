@@ -1120,11 +1120,9 @@ func TestNewWITSVIDs(t *testing.T) {
 			var wg sync.WaitGroup
 			var svids map[string]*WITSVID
 			err := errors.New("a not nil error")
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
+			wg.Go(func() {
 				svids, err = sClient.NewWITSVIDs(ctx, newTestPublicKeys(t))
-			}()
+			})
 
 			// The request should wait until the SVID rotation finishes
 			require.Contains(t, "a not nil error", err.Error())
