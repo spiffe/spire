@@ -421,7 +421,7 @@ func (c *client) NewWITSVIDs(ctx context.Context, publicKeys map[string]crypto.P
 	for entryID, publicKey := range publicKeys {
 		pkixPublicKey, err := x509.MarshalPKIXPublicKey(publicKey)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to marshal PKIX public key for entry %q: %w", entryID, err)
 		}
 
 		params = append(params, &svidv1.NewWITSVIDParams{
