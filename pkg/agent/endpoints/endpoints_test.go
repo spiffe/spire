@@ -236,9 +236,10 @@ func TestEndpoints(t *testing.T) {
 			spiretest.AssertLogs(t, hook.AllEntries(), append([]spiretest.LogEntry{
 				{
 					Level:   logrus.InfoLevel,
-					Message: "Starting Workload and SDS APIs",
+					Message: "Starting agent APIs",
 					Data: logrus.Fields{
 						"address": endpoints.addr.String(),
+						"apis":    "Workload and SDS APIs",
 						"network": addr.Network(),
 					},
 				},

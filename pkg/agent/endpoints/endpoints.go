@@ -22,6 +22,7 @@ import (
 
 const (
 	readBufferSize = 4096
+	apiNamesField  = "apis"
 )
 
 type Server interface {
@@ -152,7 +153,8 @@ func (e *Endpoints) ListenAndServe(ctx context.Context) error {
 	e.log.WithFields(logrus.Fields{
 		telemetry.Network: e.addr.Network(),
 		telemetry.Address: e.addr,
-	}).Infof("Starting %s", e.apiNames)
+		apiNamesField:     e.apiNames,
+	}).Info("Starting agent APIs")
 	e.triggerListeningHook()
 	errChan := make(chan error)
 	go func() { errChan <- server.Serve(l) }()
@@ -160,7 +162,7 @@ func (e *Endpoints) ListenAndServe(ctx context.Context) error {
 	select {
 	case err = <-errChan:
 	case <-ctx.Done():
-		e.log.Infof("Stopping %s", e.apiNames)
+		e.log.WithField(apiNamesField, e.apiNames).Info("Stopping agent APIs")
 		server.Stop()
 		err = <-errChan
 		if errors.Is(err, grpc.ErrServerStopped) {

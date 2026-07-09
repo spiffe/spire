@@ -289,6 +289,7 @@ func (a *Agent) Run(ctx context.Context) error {
 		}()
 		tasks = append(tasks, agentEndpoints.ListenAndServe)
 	} else {
+		a.c.Log.WithField("apis", "Workload and SDS APIs").Info("Skipping agent APIs because public endpoint is disabled")
 		a.started = true
 		close(readyForHealthChecks)
 	}
@@ -547,7 +548,7 @@ func (a *Agent) newAdminEndpoints(metrics telemetry.Metrics, mgr manager.Manager
 
 // CheckHealth is used as a top-level health check for the agent.
 func (a *Agent) CheckHealth() health.State {
-	if a.c.BindAddress == nil || a.c.DisableWorkloadAPI {
+	if a.c.BindAddress == nil {
 		return health.State{
 			Started: &a.started,
 			Ready:   a.started,

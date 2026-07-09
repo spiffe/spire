@@ -49,6 +49,8 @@ This may be useful for templating configuration files, for example across differ
 | `allowed_foreign_jwt_claims`      | List of trusted claims to be returned when validating foreign JWTSVIDs                                                                                                                                                                            |                                  |
 | `authorized_delegates`            | A SPIFFE ID list of the authorized delegates. See [Delegated Identity API](#delegated-identity-api) for more information                                                                                                                          |                                  |
 | `data_dir`                        | A directory the agent can use for its runtime data                                                                                                                                                                                                | $PWD                             |
+| `disable_sds_api`                 | Disable the Envoy SDS API. The public socket or named pipe remains exposed if the Workload API is enabled.                                                                                                                                        | false                            |
+| `disable_workload_api`            | Disable the SPIFFE Workload API. The public socket or named pipe remains exposed if SDS is enabled.                                                                                                                                               | false                            |
 | `experimental`                    | The experimental options that are subject to change or removal (see below)                                                                                                                                                                        |                                  |
 | `insecure_bootstrap`              | If true, the agent bootstraps without verifying the server's identity                                                                                                                                                                             | false                            |
 | `rebootstrap_mode`                | Can be one of 'never', 'auto', or 'always'                                                                                                                                                                                                        | never                            |
@@ -67,8 +69,6 @@ This may be useful for templating configuration files, for example across differ
 | `server_address`                  | DNS name or IP address of the SPIRE server                                                                                                                                                                                                        |                                  |
 | `server_port`                     | Port number of the SPIRE server                                                                                                                                                                                                                   |                                  |
 | `socket_path`                     | Location to bind the SPIRE Agent Workload API and SDS socket (Unix only). The socket is exposed unless both `disable_workload_api` and `disable_sds_api` are `true`.                                                                              | /tmp/spire-agent/public/api.sock |
-| `disable_workload_api`            | Disable the SPIFFE Workload API. The public socket or named pipe remains exposed if SDS is enabled.                                                                                                                                               | false                            |
-| `disable_sds_api`                 | Disable the Envoy SDS API. The public socket or named pipe remains exposed if the Workload API is enabled.                                                                                                                                        | false                            |
 | `sds`                             | Optional SDS configuration section                                                                                                                                                                                                                |                                  |
 | `trust_bundle_path`               | Path to the SPIRE server CA bundle                                                                                                                                                                                                                |                                  |
 | `trust_bundle_url`                | URL to download the initial SPIRE server trust bundle                                                                                                                                                                                             |                                  |
@@ -303,14 +303,14 @@ the following flags are available:
 | `-allowUnauthenticatedVerifiers` | Allow agent to release trust bundles to unauthenticated verifiers                             |                       |
 | `-config`                        | Path to a SPIRE config file                                                                   | conf/agent/agent.conf |
 | `-dataDir`                       | A directory the agent can use for its runtime data                                            |                       |
+| `-disableSDSAPI`                 | Disable the Envoy SDS API                                                                     | false                 |
+| `-disableWorkloadAPI`            | Disable the SPIFFE Workload API                                                               | false                 |
 | `-expandEnv`                     | Expand environment $VARIABLES in the config file                                              |                       |
 | `-joinToken`                     | An optional token which has been generated by the SPIRE server                                |                       |
 | `-joinTokenFile`                 | Path to a file containing an optional join token which has been generated by the SPIRE server |                       |
 | `-logFile`                       | File to write logs to                                                                         |                       |
 | `-logFormat`                     | Format of logs, &lt;text&vert;json&gt;                                                        |                       |
 | `-logLevel`                      | DEBUG, INFO, WARN or ERROR                                                                    |                       |
-| `-disableWorkloadAPI`            | Disable the SPIFFE Workload API                                                               | false                 |
-| `-disableSDSAPI`                 | Disable the Envoy SDS API                                                                     | false                 |
 | `-serverAddress`                 | IP address or DNS name of the SPIRE server                                                    |                       |
 | `-serverPort`                    | Port number of the SPIRE server                                                               |                       |
 | `-socketPath`                    | Location to bind the Workload API and SDS socket                                              |                       |
@@ -392,6 +392,8 @@ Attaches to the workload API and watches for X509-SVID updates, printing details
 ### `spire-agent healthcheck`
 
 Checks SPIRE agent's health.
+
+This command connects to the public Workload API/SDS endpoint. If both `disable_workload_api` and `disable_sds_api` are `true`, use the `health_checks` HTTP listener for liveness and readiness probes instead.
 
 | Command       | Action                                | Default                          |
 |:--------------|:--------------------------------------|:---------------------------------|
