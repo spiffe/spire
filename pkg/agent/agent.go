@@ -392,6 +392,10 @@ func (a *Agent) attest(ctx context.Context, sto storage.Storage, cat catalog.Cat
 }
 
 func (a *Agent) newManager(ctx context.Context, sto storage.Storage, cat catalog.Catalog, metrics telemetry.Metrics, as *node_attestor.AttestationResult, cache *storecache.Cache, na nodeattestor.NodeAttestor) (manager.Manager, error) {
+	if !as.Reattestable && cat.GetKeyManager().Name() == "memory" {
+		a.c.Log.Warn("Node attestation is not reattestable and the 'memory' key manager is in use; if the agent process is restarted, it will be unable to obtain a new SVID and will need to be manually evicted to be able to re-attest.")
+	}
+
 	config := &manager.Config{
 		SVID:                     as.SVID,
 		SVIDKey:                  as.Key,
