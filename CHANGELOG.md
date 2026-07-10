@@ -1,5 +1,56 @@
 # Changelog
 
+## [1.15.2] - 2026-07-09
+
+### Added
+
+- Support for configuring JTI claim inclusion in JWT-SVIDs at entry level (#6514)
+- Experimental per-caller rate limiting for the agent Workload API and Envoy SDS (#6724)
+- TLS support for the Prometheus metrics endpoint using a SPIRE SVID, with an optional SPIFFE ID allowlist (#6812)
+- Optional verification of client certificate IPs in the `x509pop` node attestor (#6911)
+- SPIFFE Broker endpoint, API, and documentation (#6915, #7112)
+- `disable_group_name_selectors` option for the Windows workload attestor (#6957)
+- `log_selectors` configuration item for the agent (#6981)
+- Support for two additional PQC curves (#6999)
+- Tag-based key discovery support in the `aws_kms` Key Manager plugin (#7006)
+- Logger service for `spire-agent` (#7017)
+- Configurable batch size for pruning attested nodes (#7100)
+
+### Security
+
+- Migrated `github.com/docker/docker` dependencies to their `github.com/moby/moby` equivalents to resolve CVEs (#7078)
+
+### Changed
+
+- Deprecation warnings now use dedicated log markers, making them easier to detect in logs (#6908)
+- The OIDC Discovery Provider now warns when `allow_insecure_scheme` is enabled (#6970)
+- The post-quantum cryptography policy is now applied to the bundle endpoint and Prometheus server (#6995)
+- Attested nodes are now fetched in bulk, reducing database load in large deployments (#7022)
+- Agent health check loopback calls no longer emit RPC metrics, reducing metrics noise (#6929)
+- Pod and container IDs are now preferably determined from the cgroup file (#7060)
+- Optimized the MySQL list entries query to reduce database CPU usage under load (#7113)
+- Added AWS CA certificates for new regions to the `aws_iid` node attestor (#6879)
+- Documented `URISanSelectors` for the agent SPIFFE ID template (#6872)
+- Datastore configuration documentation updates (#7023)
+
+### Fixed
+
+- `azure_imds` node attestation for standalone VMs (#6807)
+- `azure_imds` plugin signature validation (#6960)
+- The auto-created join-token alias entry is now cascade-deleted when its attested node is deleted, evicted, or pruned (#6946)
+- The CA journal now survives transient datastore save failures, preserving CA continuity (#6964)
+- The delegated API no longer serves JWT-SVIDs for admin or downstream entries (#6972)
+- The event cache now keeps previous first/last event information when reloading (#6994)
+- The structured logger is now used for rebootstrap messages, and typos were fixed (#7000)
+- The `spire` upstream authority plugin now validates a missing Workload API endpoint (#7008)
+- The `gcp_kms` plugin no longer intermittently fails to retrieve a newly created public key (#6924)
+- Tolerate `mountinfo` lines with an empty mount source (#7044)
+- The agent now treats failure of all attestation plugins as an overall failure and returns `Unavailable` (#7045)
+- Fixed the `http_challenge` agent name validation regex (#7066)
+- Corrected TTL logging in the delegated identity X.509-SVID subscriber (#7071)
+- `spire-agent` now attempts to enable `SE_DEBUG_PRIVILEGE` at startup on Windows (#7073)
+- Data races in the built-in BundlePublisher plugins on dynamic reconfiguration (#7082)
+
 ## [1.15.1] - 2026-05-28
 
 ### Security
