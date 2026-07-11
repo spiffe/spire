@@ -430,7 +430,7 @@ func TestConfigure(t *testing.T) {
 			// Assert that the keys have been loaded
 			storedFakeCryptoKeys := ts.fakeKMSClient.store.fetchFakeCryptoKeys()
 			for _, expectedFakeCryptoKey := range storedFakeCryptoKeys {
-				spireKeyID, ok := getSPIREKeyIDFromCryptoKeyName(expectedFakeCryptoKey.Name)
+				spireKeyID, ok := getSPIREKeyIDFromCryptoKeyName(expectedFakeCryptoKey.Name, ts.plugin.pd.serverID)
 				require.True(t, ok)
 
 				entry, ok := ts.plugin.entries[spireKeyID]
@@ -439,6 +439,56 @@ func TestConfigure(t *testing.T) {
 			}
 
 			require.Equal(t, tt.expectOpts, ts.plugin.kmsClient.(*fakeKMSClient).opts)
+		})
+	}
+}
+
+func TestGetSPIREKeyIDFromCryptoKeyName(t *testing.T) {
+	for _, tt := range []struct {
+		name          string
+		cryptoKeyName string
+		serverID      string
+		expectKeyID   string
+		expectOK      bool
+	}{
+		{
+			name:          "uuid server id (key_identifier_file)",
+			cryptoKeyName: path.Join(validKeyRing, "cryptoKeys", fmt.Sprintf("spire-key-%s-x509-CA-A", validServerID)),
+			serverID:      validServerID,
+			expectKeyID:   "x509-CA-A",
+			expectOK:      true,
+		},
+		{
+			name:          "short custom server id (key_identifier_value)",
+			cryptoKeyName: path.Join(validKeyRing, "cryptoKeys", "spire-key-dpt-gcp-38d0-x509-CA-A"),
+			serverID:      "dpt-gcp-38d0",
+			expectKeyID:   "x509-CA-A",
+			expectOK:      true,
+		},
+		{
+			name:          "server id containing dashes (key_identifier_value)",
+			cryptoKeyName: path.Join(validKeyRing, "cryptoKeys", "spire-key-my-server-JWT-B"),
+			serverID:      "my-server",
+			expectKeyID:   "JWT-B",
+			expectOK:      true,
+		},
+		{
+			name:          "prefix does not match server id",
+			cryptoKeyName: path.Join(validKeyRing, "cryptoKeys", "spire-key-other-server-x509-CA-A"),
+			serverID:      "dpt-gcp-38d0",
+			expectOK:      false,
+		},
+		{
+			name:          "no spire key id after server id",
+			cryptoKeyName: path.Join(validKeyRing, "cryptoKeys", "spire-key-dpt-gcp-38d0"),
+			serverID:      "dpt-gcp-38d0",
+			expectOK:      false,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			spireKeyID, ok := getSPIREKeyIDFromCryptoKeyName(tt.cryptoKeyName, tt.serverID)
+			require.Equal(t, tt.expectOK, ok)
+			require.Equal(t, tt.expectKeyID, spireKeyID)
 		})
 	}
 }
