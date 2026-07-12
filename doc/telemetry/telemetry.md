@@ -96,6 +96,7 @@ The following metrics are emitted:
 | Counter      | `sds_api`, `connections`                                                 |                              | The SDS API has successfully established a connection.                                |
 | Gauge        | `sds_api`, `connections`                                                 |                              | The number of active connection that the SDS API has.                                 |
 | Gauge        | `lru_cache_svid_map_size`                                                |                              | The total number of SVIDs in the LRU cache SVID map.                                  |
+| Gauge        | `jwt_svid_cache_size`                                                    |                              | The total number of JWT-SVIDs in the JWT-SVID cache.                                  |
 | Counter      | `workload_api`, `bundles_update`, `jwt`                                  |                              | The Workload API has successfully updated a JWT bundle.                               |
 | Counter      | `workload_api`, `connection`                                             |                              | The Workload API has successfully established a new connection.                       |
 | Gauge        | `workload_api`, `connections`                                            |                              | The number of active connections that the Workload API has.                           |

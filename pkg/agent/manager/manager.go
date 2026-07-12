@@ -129,17 +129,8 @@ type Cache interface {
 	// CountX509SVIDs in cache stored
 	CountX509SVIDs() int
 
-	// CountJWTSVIDs in cache stored
-	CountJWTSVIDs() int
-
 	// FetchWorkloadUpdate for given selectors
 	FetchWorkloadUpdate(selectors []*common.Selector) *cache.WorkloadUpdate
-
-	// GetJWTSVID provides JWT-SVID
-	GetJWTSVID(id spiffeid.ID, audience []string) (*client.JWTSVID, bool)
-
-	// SetJWTSVID adds JWT-SVID to cache
-	SetJWTSVID(id spiffeid.ID, audience []string, svid *client.JWTSVID)
 
 	// Entries get all registration entries
 	Entries() []*common.RegistrationEntry
@@ -150,6 +141,22 @@ type Cache interface {
 	X509Bundle() x509bundle.Source
 }
 
+type JWTCache interface {
+	// CountJWTSVIDs in cache stored
+	CountJWTSVIDs() int
+
+	// GetJWTSVID provides JWT-SVID
+	GetJWTSVID(id spiffeid.ID, audience []string) (*client.JWTSVID, bool)
+
+	// SetJWTSVID adds JWT-SVID to cache
+	SetJWTSVID(id spiffeid.ID, audience []string, svid *client.JWTSVID)
+
+	// TaintJWTSVIDs removes JWT-SVIDs with tainted authorities from the cache,
+	// forcing the server to issue a new JWT-SVID when one with a tainted
+	// authority is requested.
+	TaintJWTSVIDs(ctx context.Context, taintedJWTAuthorities map[string]struct{})
+}
+
 type manager struct {
 	c *Config
 
@@ -158,8 +165,9 @@ type manager struct {
 	// Protects multiple goroutines from requesting SVID signings at the same time
 	updateSVIDMu sync.RWMutex
 
-	cache Cache
-	svid  svid.Rotator
+	cache    Cache
+	jwtCache JWTCache
+	svid     svid.Rotator
 
 	storage storage.Storage
 
@@ -294,7 +302,7 @@ func (m *manager) CountX509SVIDs() int {
 }
 
 func (m *manager) CountJWTSVIDs() int {
-	return m.cache.CountJWTSVIDs()
+	return m.jwtCache.CountJWTSVIDs()
 }
 
 func (m *manager) CountSVIDStoreX509SVIDs() int {
@@ -320,7 +328,7 @@ func (m *manager) FetchJWTSVID(ctx context.Context, entry *common.RegistrationEn
 	var cachedSVID *client.JWTSVID
 	var ok bool
 	if !bypassCache {
-		cachedSVID, ok = m.cache.GetJWTSVID(spiffeID, audience)
+		cachedSVID, ok = m.jwtCache.GetJWTSVID(spiffeID, audience)
 		if ok && !m.c.RotationStrategy.JWTSVIDExpiresSoon(cachedSVID, now) {
 			return cachedSVID, nil
 		}
@@ -344,7 +352,7 @@ func (m *manager) FetchJWTSVID(ctx context.Context, entry *common.RegistrationEn
 	}
 
 	if !bypassCache {
-		m.cache.SetJWTSVID(svidSPIFFEID, audience, newSVID)
+		m.jwtCache.SetJWTSVID(svidSPIFFEID, audience, newSVID)
 	}
 	return newSVID, nil
 }
