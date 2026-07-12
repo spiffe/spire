@@ -17,7 +17,9 @@ The agent will contact the kubelet using the node name obtained via the
 `node_name_env` or `node_name` configurables. If a node name is not obtained,
 the kubelet is contacted over 127.0.0.1 (requires host networking to be
 enabled). In the latter case, the hostname is used to perform certificate
-server name validation against the kubelet certificate.
+server name validation against the kubelet certificate. Set
+`disable_kubelet_client = true` only for broker-only deployments that do not
+need PID-based workload attestation or agent-node-scoped pod references.
 
 > **Note** kubelet authentication via bearer token requires that the kubelet be
 > started with the `--authentication-token-webhook` flag.
@@ -49,6 +51,7 @@ since [hostprocess](https://kubernetes.io/docs/tasks/configure-pod-container/cre
 | Configuration                           | Description                                                                                                                                                                                                                             |
 |-----------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `disable_container_selectors`           | If true, container selectors are not produced. This can be used to produce pod selectors when the workload pod is known but the workload container is not ready at the time of attestation.                                             |
+| `disable_kubelet_client`                | If true, disables kubelet client setup and kubelet pod-list calls. PID-based workload attestation and `pod_reference_scope = "agent_node"` pod references are unavailable. Mutually exclusive with kubelet client settings.            |
 | `enable_namespace_labels`               | If true, namespace labels are fetched from the Kubernetes API server and produced as selectors. Requires RBAC `get`, `list` and `watch` on `namespaces`. Disabled by default.                                                           |
 | `kubelet_read_only_port`                | The kubelet read-only port. This is mutually exclusive with `kubelet_secure_port`.                                                                                                                                                      |
 | `kubelet_secure_port`                   | The kubelet secure port. It defaults to `10250` unless `kubelet_read_only_port` is set.                                                                                                                                                 |
@@ -149,7 +152,9 @@ Kubernetes `SubjectAccessReview` requests for resolved objects. Use
 Kubernetes before selectors are returned. Use `access_policy = "permissive"`
 to skip that authorization check. Each broker may set `pod_reference_scope` to
 `agent_node` (default) or `cluster`; this only affects pod
-`KubernetesObjectReference` resolution.
+`KubernetesObjectReference` resolution. Broker-only agents that set
+`disable_kubelet_client = true` must configure every broker with
+`pod_reference_scope = "cluster"`.
 
 Example:
 
@@ -183,12 +188,14 @@ does not use the broker configuration or run this review.
 For `KubernetesObjectReference`, the reference identifies the target object by
 its resource (`<plural>.<group>`, with `core` as the group string for core
 resources) and either its namespaced name (`namespace` + `name`), its `uid`,
-or both. Pod references try the local kubelet pod list first. With the default
-`pod_reference_scope = "agent_node"`, pod references are limited to information
-returned by the local kubelet and do not fall back to the Kubernetes API
-server. With `pod_reference_scope = "cluster"`, pod references may fall back to
-the Kubernetes API server and resolve pods on any node. Non-pod object
-references are resolved through the Kubernetes API server. When
+or both. Pod references use the local kubelet pod list as a fast path when a
+kubelet client is available. With the default
+`pod_reference_scope = "agent_node"`, the kubelet client is required and pod
+references are limited to information returned by the local kubelet. With
+`pod_reference_scope = "cluster"`, a disabled or unavailable kubelet client does
+not prevent resolution: the plugin falls back to the Kubernetes API server and
+can resolve pods on any node. Non-pod object references are resolved through
+the Kubernetes API server. When
 `experimental.broker.access_policy = "enforced"`, the plugin then creates the same
 `SubjectAccessReview` for the referenced object. The review uses the broker
 SPIFFE ID as the SAR username, no groups, the reference's resource group and
@@ -197,14 +204,14 @@ review, attestation fails with `PermissionDenied`. Kubernetes API server
 lookups require the agent ServiceAccount to have permission for the referenced
 resource.
 
-**Pods (`pods/core`).** A `KubernetesObjectReference` to a pod is attested
-through the same pod-resolution path as the PID-based reference and emits
+**Pods (`pods/core`).** A `KubernetesObjectReference` to a pod emits
 the **same** pod-shaped selectors documented in the table above
 (`k8s:ns`, `k8s:sa`, `k8s:pod-name`, `k8s:container-name`, `k8s:pod-uid`,
 `k8s:pod-label`, `k8s:pod-image`, `k8s:pod-owner`, ...). By default, broker
 pod references are limited to pods returned by the local kubelet
 (`agent_node`). Set `pod_reference_scope = "cluster"` for a broker that must
-reference pods on other nodes through the Kubernetes API server. A registration
+reference pods on other nodes through the Kubernetes API server, or when the
+agent is configured with `disable_kubelet_client = true`. A registration
 entry written for the PID-based flow continues to match either reference type.
 
 **Other resources (any `<plural>.<group>` for which the agent has permission).**
