@@ -81,7 +81,7 @@ func validateAttestedDocument(ctx context.Context, doc *azure.AttestedDocument, 
 
 	// Step 8: Validate certificate chain
 	if err := validateCertificateChain(signingCert, intermediateCert, additionalRoots); err != nil {
-		return nil, fmt.Errorf("certificate chain validation failed: %w", err)
+		return nil, err
 	}
 
 	// Final step: Unmarshal the attested document payload
