@@ -2,6 +2,7 @@ package azureimds
 
 import (
 	"context"
+	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -794,7 +795,7 @@ func (s *IMDSAttestorSuite) loadPluginWithChallengeHandler(
 		}
 		return domain, nil
 	}
-	attestor.hooks.validateAttestedDoc = func(ctx context.Context, doc *azure.AttestedDocument, allowedMetadataDomains []string) (*azure.AttestedDocumentContent, error) {
+	attestor.hooks.validateAttestedDoc = func(ctx context.Context, doc *azure.AttestedDocument, allowedMetadataDomains []string, additionalRoots []*x509.Certificate) (*azure.AttestedDocumentContent, error) {
 		s.lastValidatedDoc = doc
 		var (
 			content *azure.AttestedDocumentContent

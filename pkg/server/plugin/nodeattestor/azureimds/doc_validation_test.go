@@ -324,7 +324,7 @@ func TestValidateCertificateChain(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			signingCert, intermediateCert := tt.setupCerts()
-			err := validateCertificateChain(signingCert, intermediateCert)
+			err := validateCertificateChain(signingCert, intermediateCert, nil)
 
 			if tt.expectErr {
 				require.Error(t, err)
@@ -482,7 +482,7 @@ func TestValidateAttestedDocument(t *testing.T) {
 
 			ctx := context.Background()
 			allowedMetadataDomains := []string{DefaultMetadataDomain}
-			content, err := validateAttestedDocument(ctx, doc, allowedMetadataDomains)
+			content, err := validateAttestedDocument(ctx, doc, allowedMetadataDomains, nil)
 
 			if tt.expectErr {
 				require.Error(t, err)
@@ -638,7 +638,7 @@ func TestValidateAttestedDocumentRejectsContentSignedByNonAzureCertificate(t *te
 	content, err := validateAttestedDocument(context.Background(), &azure.AttestedDocument{
 		Encoding:  "pkcs7-signature",
 		Signature: base64.StdEncoding.EncodeToString(signature),
-	}, []string{DefaultMetadataDomain})
+	}, []string{DefaultMetadataDomain}, nil)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "signing certificate validation failed")
 	require.Nil(t, content)
@@ -648,4 +648,38 @@ type roundTripFunc func(*http.Request) (*http.Response, error)
 
 func (fn roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
 	return fn(req)
+}
+
+func TestValidateCertificateChainWithAdditionalRoots(t *testing.T) {
+	// Root that is deliberately NOT in the embedded roots list.
+	rootKey := testkey.NewEC256(t)
+	rootCert := spiretest.SelfSignCertificateWithKey(t, &x509.Certificate{
+		SerialNumber:          big.NewInt(100),
+		Subject:               pkix.Name{CommonName: "Custom Test Root CA"},
+		NotBefore:             time.Now().Add(-time.Hour),
+		NotAfter:              time.Now().Add(time.Hour * 24 * 365),
+		IsCA:                  true,
+		BasicConstraintsValid: true,
+		KeyUsage:              x509.KeyUsageCertSign,
+	}, rootKey)
+
+	signingKey := testkey.NewEC256(t)
+	signingCert := spiretest.CreateCertificate(t, &x509.Certificate{
+		SerialNumber: big.NewInt(101),
+		Subject:      pkix.Name{CommonName: "metadata.azure.com"},
+		Issuer:       pkix.Name{CommonName: "Custom Test Root CA"},
+		NotBefore:    time.Now().Add(-time.Hour),
+		NotAfter:     time.Now().Add(time.Hour * 24 * 365),
+	}, rootCert, signingKey.Public(), rootKey)
+
+	t.Run("rejected without the additional root", func(t *testing.T) {
+		err := validateCertificateChain(signingCert, nil, nil)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "certificate chain validation failed")
+	})
+
+	t.Run("accepted when supplied as an additional root", func(t *testing.T) {
+		err := validateCertificateChain(signingCert, nil, []*x509.Certificate{rootCert})
+		require.NoError(t, err)
+	})
 }
