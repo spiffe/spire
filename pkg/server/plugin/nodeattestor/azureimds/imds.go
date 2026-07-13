@@ -20,6 +20,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/azure"
 	"github.com/spiffe/spire/pkg/common/pluginconf"
+	"github.com/spiffe/spire/pkg/common/util"
 	nodeattestorbase "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/base"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -62,6 +63,7 @@ type IMDSAttestorConfig struct {
 	Tenants                map[string]*TenantConfig `hcl:"tenants" json:"tenants"`
 	AgentPathTemplate      string                   `hcl:"agent_path_template" json:"agent_path_template"`
 	AllowedMetadataDomains []string                 `hcl:"allowed_metadata_domains" json:"allowed_metadata_domains"`
+	TrustBundlePath        string                   `hcl:"trust_bundle_path" json:"trust_bundle_path"`
 }
 
 type tenantConfig struct {
@@ -75,6 +77,7 @@ type imdsAttestorConfig struct {
 	tenants                map[string]*tenantConfig
 	idPathTemplate         *agentpathtemplate.Template
 	allowedMetadataDomains []string
+	additionalRoots        []*x509.Certificate
 }
 
 func (t *tenantConfig) subscriptionAllowed(subscriptionID string) bool {
@@ -203,11 +206,21 @@ func (p *IMDSAttestorPlugin) buildConfig(coreConfig catalog.CoreConfig, hclText 
 		allowedMetadataDomains = []string{DefaultMetadataDomain}
 	}
 
+	var additionalRoots []*x509.Certificate
+	if newConfig.TrustBundlePath != "" {
+		certs, err := util.LoadCertificates(newConfig.TrustBundlePath)
+		if err != nil {
+			status.ReportErrorf("unable to load trust bundle %q: %v", newConfig.TrustBundlePath, err)
+		}
+		additionalRoots = certs
+	}
+
 	return &imdsAttestorConfig{
 		td:                     coreConfig.TrustDomain,
 		tenants:                tenants,
 		idPathTemplate:         tmpl,
 		allowedMetadataDomains: allowedMetadataDomains,
+		additionalRoots:        additionalRoots,
 	}
 }
 
@@ -297,7 +310,7 @@ func (p *IMDSAttestorPlugin) Attest(stream nodeattestorv1.NodeAttestor_AttestSer
 	}
 
 	// parse the document
-	docData, err := p.hooks.validateAttestedDoc(stream.Context(), &attestationData.Document, config.allowedMetadataDomains, nil)
+	docData, err := p.hooks.validateAttestedDoc(stream.Context(), &attestationData.Document, config.allowedMetadataDomains, config.additionalRoots)
 	if err != nil {
 		return status.Errorf(codes.InvalidArgument, "failed to validate attested document: %v", err)
 	}
