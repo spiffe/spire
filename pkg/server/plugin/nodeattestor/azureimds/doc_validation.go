@@ -27,7 +27,7 @@ const (
 )
 
 // ValidateAttestedDocument validates the Azure IMDS attested document signature
-func validateAttestedDocument(ctx context.Context, doc *azure.AttestedDocument, allowedMetadataDomains []string) (*azure.AttestedDocumentContent, error) {
+func validateAttestedDocument(ctx context.Context, doc *azure.AttestedDocument, allowedMetadataDomains []string, additionalRoots []*x509.Certificate) (*azure.AttestedDocumentContent, error) {
 	if doc.Signature == "" {
 		return nil, errors.New("missing signature in attested document")
 	}
@@ -80,7 +80,7 @@ func validateAttestedDocument(ctx context.Context, doc *azure.AttestedDocument, 
 	}
 
 	// Step 8: Validate certificate chain
-	if err := validateCertificateChain(signingCert, intermediateCert); err != nil {
+	if err := validateCertificateChain(signingCert, intermediateCert, additionalRoots); err != nil {
 		return nil, fmt.Errorf("certificate chain validation failed: %w", err)
 	}
 
@@ -168,8 +168,9 @@ func validateAzureCertificate(cert *x509.Certificate, baseDomains []string) erro
 		cert.DNSNames, baseDomains)
 }
 
-// validateCertificateChain validates the certificate chain against the DigiCert Global Root CA
-func validateCertificateChain(signingCert, intermediateCert *x509.Certificate) error {
+// validateCertificateChain validates the certificate chain against the embedded
+// roots plus any operator-configured additional roots.
+func validateCertificateChain(signingCert, intermediateCert *x509.Certificate, additionalRoots []*x509.Certificate) error {
 	intermediates := x509.NewCertPool()
 	if intermediateCert != nil {
 		intermediates.AddCert(intermediateCert)
@@ -186,6 +187,9 @@ func validateCertificateChain(signingCert, intermediateCert *x509.Certificate) e
 		if !rootCerts.AppendCertsFromPEM([]byte(c)) {
 			return fmt.Errorf("failed to parse root certificate at index %d", i)
 		}
+	}
+	for _, c := range additionalRoots {
+		rootCerts.AddCert(c)
 	}
 	opts := x509.VerifyOptions{
 		Intermediates: intermediates,

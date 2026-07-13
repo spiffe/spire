@@ -2,6 +2,7 @@ package azureimds
 
 import (
 	"context"
+	"crypto/x509"
 	"encoding/json"
 	"os"
 	"sort"
@@ -224,7 +225,7 @@ type IMDSAttestorPlugin struct {
 		tenantIdMap         map[string]string
 		newClient           func(azcore.TokenCredential) (apiClient, error)
 		fetchCredential     func(string) (azcore.TokenCredential, error)
-		validateAttestedDoc func(context.Context, *azure.AttestedDocument, []string) (*azure.AttestedDocumentContent, error)
+		validateAttestedDoc func(context.Context, *azure.AttestedDocument, []string, []*x509.Certificate) (*azure.AttestedDocumentContent, error)
 		lookupTenantID      func(string) (string, error)
 	}
 }
@@ -296,7 +297,7 @@ func (p *IMDSAttestorPlugin) Attest(stream nodeattestorv1.NodeAttestor_AttestSer
 	}
 
 	// parse the document
-	docData, err := p.hooks.validateAttestedDoc(stream.Context(), &attestationData.Document, config.allowedMetadataDomains)
+	docData, err := p.hooks.validateAttestedDoc(stream.Context(), &attestationData.Document, config.allowedMetadataDomains, nil)
 	if err != nil {
 		return status.Errorf(codes.InvalidArgument, "failed to validate attested document: %v", err)
 	}
