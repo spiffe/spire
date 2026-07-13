@@ -643,6 +643,8 @@ func (s *IMDSAttestorSuite) TestConfigure() {
 			`, bundlePath)),
 		)
 		require.NoError(t, err)
+		require.Len(t, attestor.config.additionalRoots, 1)
+		require.Equal(t, cert.Raw, attestor.config.additionalRoots[0].Raw)
 	})
 
 	s.T().Run("trust_bundle_path missing file", func(t *testing.T) {
