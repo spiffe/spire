@@ -20,6 +20,7 @@ attestation or to resolve selectors.
 | `tenants`                   | Required | A map of tenants, keyed by tenant domain, that are authorized for attestation. Tokens for unspecified tenants are rejected.                                                                                                                                                            |                                                                          |
 | `agent_path_template`       | Optional | A URL path portion format of Agent's SPIFFE ID. Describe in text/template format.                                                                                                                                                                                                      | `"/{{ .PluginName }}/{{ .TenantID }}/{{ .SubscriptionID }}/{{ .VMID }}"` |
 | `allowed_metadata_domains`  | Optional | A list of allowed Azure metadata domains for certificate validation. Each domain accepts the base domain (e.g., `metadata.azure.com`) and automatically validates certificates with that domain or any subdomain (e.g., `eastus.metadata.azure.com`, `sub.eastus.metadata.azure.com`). | `["metadata.azure.com"]`                                                 |
+| `trust_bundle_path`         | Optional | Path to a PEM file with one or more additional root CA certificates to trust when validating the signing certificate chain. These are added to (not a replacement for) the roots embedded in SPIRE, letting operators trust a new Azure root CA without waiting for a new SPIRE release. |                                                                          |
 
 Each tenant in the main configuration supports the following
 
@@ -213,6 +214,25 @@ NodeAttestor "azure_imds" {
             }
         }
         allowed_metadata_domains = ["metadata.azure.com", "metadata.azure.us"]
+    }
+}
+```
+
+#### Configuration with an Additional Trust Bundle
+
+This configuration trusts additional root CAs from a PEM file on disk, in
+addition to the roots embedded in SPIRE. This lets operators react to an Azure
+root CA change without waiting for a new SPIRE release:
+
+```hcl
+NodeAttestor "azure_imds" {
+    plugin_data {
+        tenants = {
+            "example.onmicrosoft.com" = {
+                restrict_to_subscriptions = ["d5b40d61-272e-48da-beb9-05f295c42bd6"]
+            }
+        }
+        trust_bundle_path = "/opt/spire/conf/azure-roots.pem"
     }
 }
 ```
