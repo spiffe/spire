@@ -265,8 +265,25 @@ func TestConfigure(t *testing.T) {
 		{
 			name:             "key identifier value too long",
 			configureRequest: configureRequestWithString(fmt.Sprintf(`{"access_key_id":"access_key_id","secret_access_key":"secret_access_key","region":"region","key_identifier_value":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","key_policy_file":"","key_ring":"%s"}`, validKeyRing)),
-			expectMsg:        "Key identifier must not be longer than 63 characters",
+			expectMsg:        "Key identifier must not be longer than 40 characters",
 			expectCode:       codes.InvalidArgument,
+		},
+		{
+			// A 41-character identifier would push the generated CryptoKey ID
+			// (spire-key-<serverID>-<spireKeyID>) past Cloud KMS's 63-character
+			// limit, so it must be rejected.
+			name:             "key identifier value one over limit",
+			configureRequest: configureRequestWithString(fmt.Sprintf(`{"access_key_id":"access_key_id","secret_access_key":"secret_access_key","region":"region","key_identifier_value":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","key_policy_file":"","key_ring":"%s"}`, validKeyRing)),
+			expectMsg:        "Key identifier must not be longer than 40 characters",
+			expectCode:       codes.InvalidArgument,
+		},
+		{
+			// A 40-character identifier is the longest that still fits.
+			name: "key identifier value at limit",
+			config: &Config{
+				KeyIdentifierValue: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+				KeyRing:            validKeyRing,
+			},
 		},
 		{
 			name: "custom policy file does not exist",
