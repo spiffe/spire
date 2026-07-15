@@ -236,9 +236,10 @@ func TestEndpoints(t *testing.T) {
 			spiretest.AssertLogs(t, hook.AllEntries(), append([]spiretest.LogEntry{
 				{
 					Level:   logrus.InfoLevel,
-					Message: "Starting Workload and SDS APIs",
+					Message: "Starting agent APIs",
 					Data: logrus.Fields{
 						"address": endpoints.addr.String(),
+						"apis":    "Workload and SDS APIs",
 						"network": addr.Network(),
 					},
 				},
@@ -246,6 +247,165 @@ func TestEndpoints(t *testing.T) {
 			assert.Equal(t, tt.expectedMetrics, metrics.AllMetrics())
 		})
 	}
+}
+
+func TestEndpointsDisableAPIs(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+
+	baseServices := []string{
+		middleware.HealthServiceName,
+		middleware.ServerReflectionServiceName,
+		middleware.ServerReflectionV1AlphaServiceName,
+	}
+
+	for _, tt := range []struct {
+		name                string
+		disableWorkloadAPI  bool
+		disableSDSAPI       bool
+		expectedServices    []string
+		expectWorkloadCode  codes.Code
+		expectSDSCode       codes.Code
+		expectWorkloadBuilt bool
+		expectSDSBuilt      bool
+	}{
+		{
+			name:                "both APIs enabled",
+			expectedServices:    append(baseServices, middleware.WorkloadAPIServiceName, middleware.EnvoySDSv3ServiceName),
+			expectWorkloadCode:  codes.OK,
+			expectSDSCode:       codes.OK,
+			expectWorkloadBuilt: true,
+			expectSDSBuilt:      true,
+		},
+		{
+			name:                "workload API disabled",
+			disableWorkloadAPI:  true,
+			expectedServices:    append(baseServices, middleware.EnvoySDSv3ServiceName),
+			expectWorkloadCode:  codes.Unimplemented,
+			expectSDSCode:       codes.OK,
+			expectWorkloadBuilt: false,
+			expectSDSBuilt:      true,
+		},
+		{
+			name:                "SDS API disabled",
+			disableSDSAPI:       true,
+			expectedServices:    append(baseServices, middleware.WorkloadAPIServiceName),
+			expectWorkloadCode:  codes.OK,
+			expectSDSCode:       codes.Unimplemented,
+			expectWorkloadBuilt: true,
+			expectSDSBuilt:      false,
+		},
+		{
+			name:                "both APIs disabled",
+			disableWorkloadAPI:  true,
+			disableSDSAPI:       true,
+			expectedServices:    baseServices,
+			expectWorkloadCode:  codes.Unimplemented,
+			expectSDSCode:       codes.Unimplemented,
+			expectWorkloadBuilt: false,
+			expectSDSBuilt:      false,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			log, _ := test.NewNullLogger()
+			metrics := fakemetrics.New()
+			addr := getTestAddr(t)
+			var workloadBuilt bool
+			var sdsBuilt bool
+
+			endpoints := New(Config{
+				BindAddr:              addr,
+				Log:                   log,
+				Metrics:               metrics,
+				Attestor:              FakeAttestor{},
+				Manager:               FakeManager{},
+				DisableWorkloadAPI:    tt.disableWorkloadAPI,
+				DisableSDSAPI:         tt.disableSDSAPI,
+				DefaultSVIDName:       "DefaultSVIDName",
+				DefaultBundleName:     "DefaultBundleName",
+				DefaultAllBundlesName: "DefaultAllBundlesName",
+				newWorkloadAPIServer: func(c workload.Config) workload_pb.SpiffeWorkloadAPIServer {
+					workloadBuilt = true
+					attestor, ok := c.Attestor.(PeerTrackerAttestor)
+					require.True(t, ok, "attestor was not a PeerTrackerAttestor wrapper")
+					return FakeWorkloadAPIServer{Attestor: attestor}
+				},
+				newSDSv3Server: func(c sdsv3.Config) secret_v3.SecretDiscoveryServiceServer {
+					sdsBuilt = true
+					attestor, ok := c.Attestor.(PeerTrackerAttestor)
+					require.True(t, ok, "attestor was not a PeerTrackerAttestor wrapper")
+					return FakeSDSv3Server{Attestor: attestor}
+				},
+				newHealthServer: func(c healthv1.Config) grpc_health_v1.HealthServer {
+					assert.Equal(t, tt.disableWorkloadAPI, c.DisableWorkloadAPI)
+					return FakeHealthServer{}
+				},
+			})
+			endpoints.hooks.listening = make(chan struct{})
+
+			serveCtx, stopServing := context.WithCancel(ctx)
+			defer stopServing()
+			errCh := make(chan error, 1)
+			go func() {
+				errCh <- endpoints.ListenAndServe(serveCtx)
+			}()
+			defer func() {
+				stopServing()
+				assert.NoError(t, <-errCh)
+			}()
+			waitForListening(t, endpoints, errCh)
+
+			target, err := util.GetTargetName(endpoints.addr)
+			require.NoError(t, err)
+			conn, err := util.NewGRPCClient(target)
+			require.NoError(t, err)
+			defer conn.Close()
+
+			assert.Equal(t, tt.expectWorkloadBuilt, workloadBuilt)
+			assert.Equal(t, tt.expectSDSBuilt, sdsBuilt)
+			assert.ElementsMatch(t, tt.expectedServices, listServices(ctx, t, conn))
+
+			callCtx := metadata.NewOutgoingContext(ctx, metadata.Pairs("workload.spiffe.io", "true"))
+			wlClient := workload_pb.NewSpiffeWorkloadAPIClient(conn)
+			_, err = wlClient.FetchJWTSVID(callCtx, &workload_pb.JWTSVIDRequest{})
+			if tt.expectWorkloadCode == codes.OK {
+				require.NoError(t, err)
+			} else {
+				require.Equal(t, tt.expectWorkloadCode, status.Code(err))
+			}
+
+			sdsClient := secret_v3.NewSecretDiscoveryServiceClient(conn)
+			_, err = sdsClient.FetchSecrets(ctx, &discovery_v3.DiscoveryRequest{})
+			if tt.expectSDSCode == codes.OK {
+				require.NoError(t, err)
+			} else {
+				require.Equal(t, tt.expectSDSCode, status.Code(err))
+			}
+		})
+	}
+}
+
+func listServices(ctx context.Context, t *testing.T, conn *grpc.ClientConn) []string {
+	client := grpc_reflection_v1.NewServerReflectionClient(conn)
+	clientStream, err := client.ServerReflectionInfo(ctx)
+	require.NoError(t, err)
+
+	err = clientStream.Send(&grpc_reflection_v1.ServerReflectionRequest{
+		MessageRequest: &grpc_reflection_v1.ServerReflectionRequest_ListServices{},
+	})
+	require.NoError(t, err)
+
+	resp, err := clientStream.Recv()
+	require.NoError(t, err)
+
+	listResp := resp.GetListServicesResponse()
+	require.NotNil(t, listResp)
+
+	var serviceNames []string
+	for _, service := range listResp.Service {
+		serviceNames = append(serviceNames, service.Name)
+	}
+	return serviceNames
 }
 
 type FakeManager struct {
