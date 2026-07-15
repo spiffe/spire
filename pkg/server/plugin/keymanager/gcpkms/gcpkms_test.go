@@ -447,13 +447,18 @@ func TestDisposeStaleCryptoKeys(t *testing.T) {
 	configureRequest := configureRequestWithDefaults(t)
 	ts := setupTest(t)
 	now := ts.clockHook.Now()
+	// The CryptoKeys carry a last-update timestamp older than maxStaleDuration,
+	// so they are already stale. Combined with the single-period clock advances
+	// below, this makes stale detection independent of the exact mock-clock
+	// value observed at each ticker tick.
+	staleLastUpdate := fmt.Sprintf("%d", now.Add(-maxStaleDuration-time.Hour).Unix())
 	fakeCryptoKeys := []*fakeCryptoKey{
 		{
 			CryptoKey: &kmspb.CryptoKey{
 				Name: cryptoKeyName1,
 				Labels: map[string]string{
 					labelNameActive:     "true",
-					labelNameLastUpdate: fmt.Sprintf("%d", now.Unix()),
+					labelNameLastUpdate: staleLastUpdate,
 				},
 				VersionTemplate: &kmspb.CryptoKeyVersionTemplate{Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256},
 			},
@@ -473,7 +478,7 @@ func TestDisposeStaleCryptoKeys(t *testing.T) {
 				Name: cryptoKeyName2,
 				Labels: map[string]string{
 					labelNameActive:     "true",
-					labelNameLastUpdate: fmt.Sprintf("%d", now.Unix()),
+					labelNameLastUpdate: staleLastUpdate,
 				},
 				VersionTemplate: &kmspb.CryptoKeyVersionTemplate{Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256},
 			},
@@ -501,15 +506,21 @@ func TestDisposeStaleCryptoKeys(t *testing.T) {
 	_, err := ts.plugin.Configure(ctx, configureRequest)
 	require.NoError(t, err)
 
-	// Move the clock to start disposeCryptoKeysTask.
-	clkAdv := maxDuration(disposeCryptoKeysFrequency, maxStaleDuration)
-	ts.clockHook.Add(clkAdv)
+	// Wait for disposeCryptoKeysTask to be initialized before advancing the
+	// clock. The task creates its ticker and only then emits this
+	// notification, so draining it here guarantees the ticker exists and the
+	// advances below deterministically fire it. Advancing before the ticker is
+	// created shifts the ticker's baseline, which makes the runs below depend
+	// on goroutine scheduling.
+	err = waitForSignal(t, ts.plugin.hooks.disposeCryptoKeysSignal)
+	require.NoError(t, err)
 
-	// Wait for dispose disposeCryptoKeysTask to be initialized.
-	_ = waitForSignal(t, ts.plugin.hooks.disposeCryptoKeysSignal)
-
-	// Move the clock to make sure that we have stale CryptoKeys.
-	ts.clockHook.Add(maxStaleDuration)
+	// Advance one ticker period to run disposeCryptoKeys. The CryptoKeys are
+	// already stale, so this run schedules their CryptoKeyVersions for
+	// destruction. Advancing exactly one period fires the ticker once with the
+	// clock at the advanced time, avoiding the intermediate clock values that a
+	// multi-period advance would expose to the running task.
+	ts.clockHook.Add(disposeCryptoKeysFrequency)
 
 	// Wait for destroy notification of all the CryptoKeyVersions.
 	storedFakeCryptoKeys := ts.fakeKMSClient.store.fetchFakeCryptoKeys()
@@ -531,11 +542,14 @@ func TestDisposeStaleCryptoKeys(t *testing.T) {
 		}
 	}
 
-	// Move the clock to start disposeCryptoKeysTask again.
+	// Advance another ticker period to run disposeCryptoKeys again. The task
+	// blocks on the unbuffered notification channel after each run, so drain
+	// the previous run's notification to let this run proceed. Since the
+	// CryptoKeys no longer have enabled CryptoKeyVersions, this run marks them
+	// inactive.
 	ts.clockHook.Add(disposeCryptoKeysFrequency)
-
-	// Wait for dispose disposeCryptoKeysTask to be initialized.
-	_ = waitForSignal(t, ts.plugin.hooks.disposeCryptoKeysSignal)
+	err = waitForSignal(t, ts.plugin.hooks.disposeCryptoKeysSignal)
+	require.NoError(t, err)
 
 	// Since the CryptoKey doesn't have any enabled CryptoKeyVersions at
 	// this point, it should be set as inactive.
@@ -1800,12 +1814,4 @@ func waitForSignal(t *testing.T, ch chan error) error {
 		t.Fail()
 	}
 	return nil
-}
-
-func maxDuration(d1, d2 time.Duration) time.Duration {
-	if d1 > d2 {
-		return d1
-	}
-
-	return d2
 }
