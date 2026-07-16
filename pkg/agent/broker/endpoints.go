@@ -194,8 +194,6 @@ func (e *Endpoints) ListenAndServe(ctx context.Context) error {
 			telemetry.Address: l.Addr().String(),
 		}).Info("Starting SPIFFE Broker Endpoint")
 	}
-	close(e.hooks.listening)
-
 	// Fan one gRPC server out across every listener with an errgroup. The
 	// first goroutine to error (or context cancellation) cancels the
 	// errgroup's context, which the watcher goroutine uses to call
@@ -216,6 +214,7 @@ func (e *Endpoints) ListenAndServe(ctx context.Context) error {
 		return nil
 	})
 
+	close(e.hooks.listening)
 	if err := g.Wait(); err != nil {
 		e.c.Log.WithError(err).Error("SPIFFE Broker Endpoint stopped prematurely")
 		return err
