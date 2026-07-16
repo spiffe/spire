@@ -25,6 +25,7 @@ import (
 	"github.com/mitchellh/cli"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/go-spiffe/v2/workloadapi"
 	"github.com/spiffe/spire/pkg/agent"
 	"github.com/spiffe/spire/pkg/agent/broker"
 	"github.com/spiffe/spire/pkg/agent/client"
@@ -396,12 +397,8 @@ func (c *agentConfig) validate() error {
 		case c.TrustBundleUnixSocket != "":
 			return errors.New("trust_bundle_unix_socket can not be used with trust_bundle_spiffe_workload_api")
 		}
-		u, err := url.Parse(c.TrustBundleSpiffeWorkloadAPI)
-		if err != nil {
-			return fmt.Errorf("unable to parse trust bundle SPIFFE Workload API endpoint: %w", err)
-		}
-		if u.Scheme == "" {
-			return errors.New("trust_bundle_spiffe_workload_api must be a URI with a scheme such as unix:// or tcp://")
+		if err := workloadapi.ValidateAddress(c.TrustBundleSpiffeWorkloadAPI); err != nil {
+			return fmt.Errorf("trust_bundle_spiffe_workload_api is not a valid SPIFFE Workload API endpoint address: %w", err)
 		}
 	}
 

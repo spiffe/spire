@@ -831,7 +831,7 @@ func TestNewAgentConfig(t *testing.T) {
 			input: func(c *Config) {
 				// remove trust_bundle_path provided by defaultValidConfig()
 				c.Agent.TrustBundlePath = ""
-				c.Agent.TrustBundleSpiffeWorkloadAPI = "unix:///tmp/agent.sock"
+				c.Agent.TrustBundleSpiffeWorkloadAPI = testWorkloadAPIAddr
 				c.Agent.InsecureBootstrap = true
 			},
 			test: func(t *testing.T, c *agent.Config) {
@@ -846,7 +846,7 @@ func TestNewAgentConfig(t *testing.T) {
 				// remove trust_bundle_path provided by defaultValidConfig()
 				c.Agent.TrustBundlePath = ""
 				c.Agent.TrustBundleURL = "https://foo.bar/trustbundle"
-				c.Agent.TrustBundleSpiffeWorkloadAPI = "unix:///tmp/agent.sock"
+				c.Agent.TrustBundleSpiffeWorkloadAPI = testWorkloadAPIAddr
 			},
 			test: func(t *testing.T, c *agent.Config) {
 				require.Nil(t, c)
@@ -858,7 +858,7 @@ func TestNewAgentConfig(t *testing.T) {
 			requireErrorPrefix: "only one of trust_bundle_path or trust_bundle_spiffe_workload_api can be specified, not both",
 			input: func(c *Config) {
 				c.Agent.TrustBundlePath = "foo"
-				c.Agent.TrustBundleSpiffeWorkloadAPI = "unix:///tmp/agent.sock"
+				c.Agent.TrustBundleSpiffeWorkloadAPI = testWorkloadAPIAddr
 			},
 			test: func(t *testing.T, c *agent.Config) {
 				require.Nil(t, c)
@@ -872,16 +872,16 @@ func TestNewAgentConfig(t *testing.T) {
 				// remove trust_bundle_path provided by defaultValidConfig()
 				c.Agent.TrustBundlePath = ""
 				c.Agent.TrustBundleUnixSocket = "foo.bar"
-				c.Agent.TrustBundleSpiffeWorkloadAPI = "unix:///tmp/agent.sock"
+				c.Agent.TrustBundleSpiffeWorkloadAPI = testWorkloadAPIAddr
 			},
 			test: func(t *testing.T, c *agent.Config) {
 				require.Nil(t, c)
 			},
 		},
 		{
-			msg:                "trust_bundle_spiffe_workload_api must be a URI with a scheme",
+			msg:                "trust_bundle_spiffe_workload_api must be a valid workload api endpoint address",
 			expectError:        true,
-			requireErrorPrefix: "trust_bundle_spiffe_workload_api must be a URI with a scheme such as unix:// or tcp://",
+			requireErrorPrefix: "trust_bundle_spiffe_workload_api is not a valid SPIFFE Workload API endpoint address",
 			input: func(c *Config) {
 				// remove trust_bundle_path provided by defaultValidConfig()
 				c.Agent.TrustBundlePath = ""
@@ -896,7 +896,7 @@ func TestNewAgentConfig(t *testing.T) {
 			input: func(c *Config) {
 				// remove trust_bundle_path provided by defaultValidConfig()
 				c.Agent.TrustBundlePath = ""
-				c.Agent.TrustBundleSpiffeWorkloadAPI = "unix:///tmp/agent.sock"
+				c.Agent.TrustBundleSpiffeWorkloadAPI = testWorkloadAPIAddr
 			},
 			test: func(t *testing.T, c *agent.Config) {
 				require.NotNil(t, c.TrustBundleSources)
