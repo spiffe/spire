@@ -280,18 +280,16 @@ func (a *Agent) Run(ctx context.Context) error {
 		storeService.Run,
 		catalog.ReconfigureTask(a.c.Log.WithField(telemetry.SubsystemName, "reconfigurer"), cat),
 	}
+	var apiReadyChannels []chan struct{}
 
 	if a.c.BindAddress != nil {
 		agentEndpoints := a.newEndpoints(metrics, mgr, workloadAttestor)
-		go func() {
-			agentEndpoints.WaitForListening(readyForHealthChecks)
-			a.started = true
-		}()
+		listening := make(chan struct{})
+		apiReadyChannels = append(apiReadyChannels, listening)
+		go agentEndpoints.WaitForListening(listening)
 		tasks = append(tasks, agentEndpoints.ListenAndServe)
 	} else {
 		a.c.Log.WithField("apis", "Workload and SDS APIs").Info("Skipping agent APIs because public endpoint is disabled")
-		a.started = true
-		close(readyForHealthChecks)
 	}
 
 	if a.c.AdminBindAddress != nil {
@@ -314,8 +312,19 @@ func (a *Agent) Run(ctx context.Context) error {
 		if err != nil {
 			return fmt.Errorf("failed to create broker endpoints: %w", err)
 		}
+		listening := make(chan struct{})
+		apiReadyChannels = append(apiReadyChannels, listening)
+		go brokerEndpoints.WaitForListening(listening)
 		tasks = append(tasks, brokerEndpoints.ListenAndServe)
 	}
+
+	go func() {
+		for _, listening := range apiReadyChannels {
+			<-listening
+		}
+		a.started = true
+		close(readyForHealthChecks)
+	}()
 
 	if a.c.LogReopener != nil {
 		tasks = append(tasks, a.c.LogReopener)
