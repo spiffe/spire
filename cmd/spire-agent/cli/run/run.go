@@ -88,6 +88,7 @@ type agentConfig struct {
 	WorkloadX509SVIDKeyType       string    `hcl:"workload_x509_svid_key_type"`
 	TrustBundleFormat             string    `hcl:"trust_bundle_format"`
 	TrustBundlePath               string    `hcl:"trust_bundle_path"`
+	TrustBundleSpiffeWorkloadAPI  string    `hcl:"trust_bundle_spiffe_workload_api"`
 	TrustBundleUnixSocket         string    `hcl:"trust_bundle_unix_socket"`
 	TrustBundleURL                string    `hcl:"trust_bundle_url"`
 	TrustDomain                   string    `hcl:"trust_domain"`
@@ -378,11 +379,32 @@ func (c *agentConfig) validate() error {
 		return errors.New("trust_domain must be configured")
 	}
 
-	// If insecure_bootstrap is set, trust_bundle_path or trust_bundle_url cannot be set
+	// If insecure_bootstrap is set, trust_bundle_path, trust_bundle_url, or trust_bundle_spiffe_workload_api cannot be set
 	// If trust_bundle_url is set, download the trust bundle using HTTP and parse it from memory
 	// If trust_bundle_path is set, parse the trust bundle file on disk
-	// Both cannot be set
+	// If trust_bundle_spiffe_workload_api is set, fetch the trust bundle from the specified SPIFFE Workload API endpoint
+	// Only one can be set
 	// The trust bundle URL must start with HTTPS
+	if c.TrustBundleSpiffeWorkloadAPI != "" {
+		switch {
+		case c.InsecureBootstrap:
+			return errors.New("only one of insecure_bootstrap or trust_bundle_spiffe_workload_api can be specified, not both")
+		case c.TrustBundleURL != "":
+			return errors.New("only one of trust_bundle_url or trust_bundle_spiffe_workload_api can be specified, not both")
+		case c.TrustBundlePath != "":
+			return errors.New("only one of trust_bundle_path or trust_bundle_spiffe_workload_api can be specified, not both")
+		case c.TrustBundleUnixSocket != "":
+			return errors.New("trust_bundle_unix_socket can not be used with trust_bundle_spiffe_workload_api")
+		}
+		u, err := url.Parse(c.TrustBundleSpiffeWorkloadAPI)
+		if err != nil {
+			return fmt.Errorf("unable to parse trust bundle SPIFFE Workload API endpoint: %w", err)
+		}
+		if u.Scheme == "" {
+			return errors.New("trust_bundle_spiffe_workload_api must be a URI with a scheme such as unix:// or tcp://")
+		}
+	}
+
 	if c.InsecureBootstrap {
 		switch {
 		case c.TrustBundleURL != "" && c.TrustBundlePath != "":
@@ -392,8 +414,8 @@ func (c *agentConfig) validate() error {
 		case c.TrustBundlePath != "":
 			return errors.New("only one of insecure_bootstrap or trust_bundle_path can be specified, not both")
 		}
-	} else if c.TrustBundlePath == "" && c.TrustBundleURL == "" {
-		return errors.New("trust_bundle_path or trust_bundle_url must be configured unless insecure_bootstrap is set")
+	} else if c.TrustBundlePath == "" && c.TrustBundleURL == "" && c.TrustBundleSpiffeWorkloadAPI == "" {
+		return errors.New("trust_bundle_path, trust_bundle_url, or trust_bundle_spiffe_workload_api must be configured unless insecure_bootstrap is set")
 	}
 
 	if c.TrustBundleURL != "" && c.TrustBundlePath != "" {
@@ -682,14 +704,15 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 	ac.DisableSPIFFECertValidation = c.Agent.SDS.DisableSPIFFECertValidation
 
 	ts := &trustbundlesources.Config{
-		InsecureBootstrap:     c.Agent.InsecureBootstrap,
-		TrustBundleFormat:     c.Agent.TrustBundleFormat,
-		TrustBundlePath:       c.Agent.TrustBundlePath,
-		TrustBundleURL:        c.Agent.TrustBundleURL,
-		TrustBundleUnixSocket: c.Agent.TrustBundleUnixSocket,
-		TrustDomain:           c.Agent.TrustDomain,
-		ServerAddress:         c.Agent.ServerAddress,
-		ServerPort:            c.Agent.ServerPort,
+		InsecureBootstrap:            c.Agent.InsecureBootstrap,
+		TrustBundleFormat:            c.Agent.TrustBundleFormat,
+		TrustBundlePath:              c.Agent.TrustBundlePath,
+		TrustBundleURL:               c.Agent.TrustBundleURL,
+		TrustBundleUnixSocket:        c.Agent.TrustBundleUnixSocket,
+		TrustBundleSpiffeWorkloadAPI: c.Agent.TrustBundleSpiffeWorkloadAPI,
+		TrustDomain:                  c.Agent.TrustDomain,
+		ServerAddress:                c.Agent.ServerAddress,
+		ServerPort:                   c.Agent.ServerPort,
 	}
 
 	ac.TrustBundleSources = trustbundlesources.New(ts, ac.Log.WithField("Logger", "TrustBundleSources"))
