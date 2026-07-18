@@ -178,6 +178,12 @@ type HCLConfig struct {
 	// about mountinfo and cgroup information used to locate the container.
 	VerboseContainerLocatorLogs bool `hcl:"verbose_container_locator_logs"`
 
+	// EnableNamespaceLabels enables fetching namespace labels from the
+	// Kubernetes API server. When enabled, namespace labels are available
+	// as selectors. This requires the SPIRE agent service account to have
+	// RBAC permissions to get namespaces.
+	EnableNamespaceLabels bool `hcl:"enable_namespace_labels"`
+
 	// Sigstore contains sigstore specific configs.
 	Sigstore *sigstore.HCLConfig `hcl:"sigstore,omitempty"`
 
@@ -245,6 +251,7 @@ type k8sConfig struct {
 	NodeName                   string
 	ReloadInterval             time.Duration
 	DisableContainerSelectors  bool
+	EnableNamespaceLabels      bool
 	ContainerHelper            ContainerHelper
 	sigstoreConfig             *sigstore.Config
 	APIServerCache             k8sAPIServerCacheConfig
@@ -343,6 +350,7 @@ func (p *Plugin) buildConfig(coreConfig catalog.CoreConfig, hclText string, stat
 		NodeName:                   nodeName,
 		ReloadInterval:             reloadInterval,
 		DisableContainerSelectors:  newConfig.DisableContainerSelectors,
+		EnableNamespaceLabels:      newConfig.EnableNamespaceLabels,
 		ContainerHelper:            containerHelper,
 		sigstoreConfig:             sigstoreConfig,
 		APIServerCache:             apiServerCacheConfig,
@@ -677,6 +685,14 @@ func (p *Plugin) attestByPIDReference(ctx context.Context, pid int32) (*attestRe
 					selectorValues = append(selectorValues, getSelectorValuesFromWorkloadContainerStatus(containerStatus)...)
 				}
 
+				if config.EnableNamespaceLabels {
+					nsLabels, err := p.getNamespaceLabels(ctx, pod.Namespace)
+					if err != nil {
+						return nil, status.Errorf(codes.Internal, "unable to get namespace labels for %q: %v", pod.Namespace, err)
+					}
+					selectorValues = append(selectorValues, getSelectorValuesFromNamespaceLabels(nsLabels)...)
+				}
+
 				if sigstoreVerifier != nil {
 					log.Debug("Attempting to verify sigstore image signature", "image", containerStatus.Image)
 					sigstoreSelectors, err := p.sigstoreVerifier.Verify(ctx, containerStatus.ImageID)
@@ -691,6 +707,14 @@ func (p *Plugin) attestByPIDReference(ctx context.Context, pid int32) (*attestRe
 				// but the pod is known. If container selectors have been
 				// disabled, then allow the pod selectors to be used.
 				selectorValues = append(selectorValues, getSelectorValuesFromPodInfo(pod)...)
+
+				if config.EnableNamespaceLabels {
+					nsLabels, err := p.getNamespaceLabels(ctx, pod.Namespace)
+					if err != nil {
+						return nil, status.Errorf(codes.Internal, "unable to get namespace labels for %q: %v", pod.Namespace, err)
+					}
+					selectorValues = append(selectorValues, getSelectorValuesFromNamespaceLabels(nsLabels)...)
+				}
 			}
 
 			if len(selectorValues) > 0 {
@@ -839,8 +863,17 @@ func (p *Plugin) attestByPodReference(ctx context.Context, brokerEntry *k8sBroke
 		return nil, status.Errorf(codes.NotFound, "pod %s/%s has UID %s, expected %s", pod.Namespace, pod.Name, pod.UID, uid)
 	}
 
+	selectorValues := getSelectorValuesFromPodInfo(pod)
+	if config.EnableNamespaceLabels {
+		nsLabels, err := p.getNamespaceLabels(ctx, pod.Namespace)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "unable to get namespace labels for %q: %v", pod.Namespace, err)
+		}
+		selectorValues = append(selectorValues, getSelectorValuesFromNamespaceLabels(nsLabels)...)
+	}
+
 	return &attestReferenceResult{
-		Response:        &workloadattestorv1.AttestReferenceResponse{SelectorValues: getSelectorValuesFromPodInfo(pod)},
+		Response:        &workloadattestorv1.AttestReferenceResponse{SelectorValues: selectorValues},
 		ObjectReference: objRef,
 		Namespace:       pod.Namespace,
 		Name:            pod.Name,
@@ -1012,9 +1045,23 @@ func (p *Plugin) attestByObjectReference(ctx context.Context, objRef *broker.Kub
 		return nil, status.Errorf(codes.NotFound, "%s.%s %s/%s has UID %s, expected %s",
 			r.GetPlural(), r.GetGroup(), obj.Namespace, obj.Name, obj.UID, uid)
 	}
+
+	selectorValues := getSelectorValuesFromObjectMeta(r, gvk, obj)
+	config, _, _, err := p.getConfig()
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "unable to get config: %v", err)
+	}
+	if config.EnableNamespaceLabels && namespaced && obj.Namespace != "" {
+		nsLabels, err := p.getNamespaceLabels(ctx, obj.Namespace)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "unable to get namespace labels for %q: %v", obj.Namespace, err)
+		}
+		selectorValues = append(selectorValues, getSelectorValuesFromNamespaceLabels(nsLabels)...)
+	}
+
 	return &attestReferenceResult{
 		Response: &workloadattestorv1.AttestReferenceResponse{
-			SelectorValues: getSelectorValuesFromObjectMeta(r, gvk, obj),
+			SelectorValues: selectorValues,
 		},
 		ObjectReference: objRef,
 		Namespace:       obj.Namespace,
@@ -1707,6 +1754,29 @@ func getPodImageIdentifiers(containerStatuses ...corev1.ContainerStatus) map[str
 		podImages[containerStatus.Image] = struct{}{}
 	}
 	return podImages
+}
+
+func (p *Plugin) getNamespaceLabels(ctx context.Context, namespace string) (map[string]string, error) {
+	kubeClient, err := p.getOrCreateKubeMetadataClient(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("unable to set up kube client: %w", err)
+	}
+
+	obj := &metav1.PartialObjectMetadata{}
+	obj.SetGroupVersionKind(corev1.SchemeGroupVersion.WithKind("Namespace"))
+	if err := kubeClient.Get(ctx, client.ObjectKey{Name: namespace}, obj); err != nil {
+		return nil, fmt.Errorf("unable to get namespace %q: %w", namespace, err)
+	}
+
+	return obj.Labels, nil
+}
+
+func getSelectorValuesFromNamespaceLabels(labels map[string]string) []string {
+	selectorValues := make([]string, 0, len(labels))
+	for k, v := range labels {
+		selectorValues = append(selectorValues, fmt.Sprintf("ns-label:%s:%s", k, v))
+	}
+	return selectorValues
 }
 
 func getSelectorValuesFromPodInfo(pod *corev1.Pod) []string {

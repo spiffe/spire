@@ -22,6 +22,7 @@ import (
 
 const (
 	readBufferSize = 4096
+	apiNamesField  = "apis"
 )
 
 type Server interface {
@@ -36,6 +37,7 @@ type Endpoints struct {
 	workloadAPIServer workload_pb.SpiffeWorkloadAPIServer
 	sdsv3Server       secret_v3.SecretDiscoveryServiceServer
 	healthServer      grpc_health_v1.HealthServer
+	apiNames          string
 
 	hooks struct {
 		listening chan struct{} // Hook to signal when the server starts listening
@@ -45,12 +47,12 @@ type Endpoints struct {
 func New(c Config) *Endpoints {
 	attestor := PeerTrackerAttestor{Attestor: c.Attestor}
 
-	if c.newWorkloadAPIServer == nil {
+	if !c.DisableWorkloadAPI && c.newWorkloadAPIServer == nil {
 		c.newWorkloadAPIServer = func(c workload.Config) workload_pb.SpiffeWorkloadAPIServer {
 			return workload.New(c)
 		}
 	}
-	if c.newSDSv3Server == nil {
+	if !c.DisableSDSAPI && c.newSDSv3Server == nil {
 		c.newSDSv3Server = func(c sdsv3.Config) secret_v3.SecretDiscoveryServiceServer {
 			return sdsv3.New(c)
 		}
@@ -68,28 +70,35 @@ func New(c Config) *Endpoints {
 
 	workloadRateLimiter := NewWorkloadRateLimiter(c.WorkloadAPIRateLimit, c.Log, c.Metrics)
 
-	workloadAPIServer := c.newWorkloadAPIServer(workload.Config{
-		Manager:                       c.Manager,
-		Attestor:                      attestor,
-		RateLimiter:                   workloadRateLimiter,
-		AllowUnauthenticatedVerifiers: c.AllowUnauthenticatedVerifiers,
-		AllowedForeignJWTClaims:       allowedClaims,
-		LogSelectors:                  c.LogSelectors,
-		TrustDomain:                   c.TrustDomain,
-	})
+	var workloadAPIServer workload_pb.SpiffeWorkloadAPIServer
+	if !c.DisableWorkloadAPI {
+		workloadAPIServer = c.newWorkloadAPIServer(workload.Config{
+			Manager:                       c.Manager,
+			Attestor:                      attestor,
+			RateLimiter:                   workloadRateLimiter,
+			AllowUnauthenticatedVerifiers: c.AllowUnauthenticatedVerifiers,
+			AllowedForeignJWTClaims:       allowedClaims,
+			LogSelectors:                  c.LogSelectors,
+			TrustDomain:                   c.TrustDomain,
+		})
+	}
 
-	sdsv3Server := c.newSDSv3Server(sdsv3.Config{
-		Attestor:                    attestor,
-		Manager:                     c.Manager,
-		RateLimiter:                 workloadRateLimiter,
-		DefaultSVIDName:             c.DefaultSVIDName,
-		DefaultBundleName:           c.DefaultBundleName,
-		DefaultAllBundlesName:       c.DefaultAllBundlesName,
-		DisableSPIFFECertValidation: c.DisableSPIFFECertValidation,
-	})
+	var sdsv3Server secret_v3.SecretDiscoveryServiceServer
+	if !c.DisableSDSAPI {
+		sdsv3Server = c.newSDSv3Server(sdsv3.Config{
+			Attestor:                    attestor,
+			Manager:                     c.Manager,
+			RateLimiter:                 workloadRateLimiter,
+			DefaultSVIDName:             c.DefaultSVIDName,
+			DefaultBundleName:           c.DefaultBundleName,
+			DefaultAllBundlesName:       c.DefaultAllBundlesName,
+			DisableSPIFFECertValidation: c.DisableSPIFFECertValidation,
+		})
+	}
 
 	healthServer := c.newHealthServer(healthv1.Config{
-		Addr: c.BindAddr,
+		Addr:               c.BindAddr,
+		DisableWorkloadAPI: c.DisableWorkloadAPI,
 	})
 
 	return &Endpoints{
@@ -99,6 +108,7 @@ func New(c Config) *Endpoints {
 		workloadAPIServer: workloadAPIServer,
 		sdsv3Server:       sdsv3Server,
 		healthServer:      healthServer,
+		apiNames:          apiNames(c.DisableWorkloadAPI, c.DisableSDSAPI),
 		hooks: struct {
 			listening chan struct{}
 		}{
@@ -119,8 +129,12 @@ func (e *Endpoints) ListenAndServe(ctx context.Context) error {
 		grpc.ReadBufferSize(readBufferSize),
 	)
 
-	workload_pb.RegisterSpiffeWorkloadAPIServer(server, e.workloadAPIServer)
-	secret_v3.RegisterSecretDiscoveryServiceServer(server, e.sdsv3Server)
+	if e.workloadAPIServer != nil {
+		workload_pb.RegisterSpiffeWorkloadAPIServer(server, e.workloadAPIServer)
+	}
+	if e.sdsv3Server != nil {
+		secret_v3.RegisterSecretDiscoveryServiceServer(server, e.sdsv3Server)
+	}
 	grpc_health_v1.RegisterHealthServer(server, e.healthServer)
 
 	reflection.Register(server)
@@ -139,7 +153,8 @@ func (e *Endpoints) ListenAndServe(ctx context.Context) error {
 	e.log.WithFields(logrus.Fields{
 		telemetry.Network: e.addr.Network(),
 		telemetry.Address: e.addr,
-	}).Info("Starting Workload and SDS APIs")
+		apiNamesField:     e.apiNames,
+	}).Info("Starting agent APIs")
 	e.triggerListeningHook()
 	errChan := make(chan error)
 	go func() { errChan <- server.Serve(l) }()
@@ -147,7 +162,7 @@ func (e *Endpoints) ListenAndServe(ctx context.Context) error {
 	select {
 	case err = <-errChan:
 	case <-ctx.Done():
-		e.log.Info("Stopping Workload and SDS APIs")
+		e.log.WithField(apiNamesField, e.apiNames).Info("Stopping agent APIs")
 		server.Stop()
 		err = <-errChan
 		if errors.Is(err, grpc.ErrServerStopped) {
@@ -155,6 +170,19 @@ func (e *Endpoints) ListenAndServe(ctx context.Context) error {
 		}
 	}
 	return err
+}
+
+func apiNames(disableWorkloadAPI, disableSDSAPI bool) string {
+	switch {
+	case !disableWorkloadAPI && !disableSDSAPI:
+		return "Workload and SDS APIs"
+	case disableWorkloadAPI && !disableSDSAPI:
+		return "SDS API"
+	case !disableWorkloadAPI && disableSDSAPI:
+		return "Workload API"
+	default:
+		return "no APIs"
+	}
 }
 
 func (e *Endpoints) triggerListeningHook() {

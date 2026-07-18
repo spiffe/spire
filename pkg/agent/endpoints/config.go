@@ -58,6 +58,10 @@ type Config struct {
 
 	TrustDomain spiffeid.TrustDomain
 
+	DisableWorkloadAPI bool
+
+	DisableSDSAPI bool
+
 	// WorkloadAPIRateLimit configures per-selector-set rate limiting for Workload API and SDS methods.
 	WorkloadAPIRateLimit WorkloadAPIRateLimitConfig
 

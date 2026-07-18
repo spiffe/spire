@@ -27,8 +27,14 @@ const (
 type WorkloadAPIRateLimitConfig = endpoints.WorkloadAPIRateLimitConfig
 
 type Config struct {
-	// Address to bind the workload api to
+	// Address to bind the public Workload API/SDS endpoint to. Nil disables the endpoint.
 	BindAddress net.Addr
+
+	// DisableWorkloadAPI disables serving the SPIFFE Workload API.
+	DisableWorkloadAPI bool
+
+	// DisableSDSAPI disables serving the Envoy SDS API.
+	DisableSDSAPI bool
 
 	// Directory to store runtime data
 	DataDir string

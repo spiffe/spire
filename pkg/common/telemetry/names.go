@@ -66,6 +66,9 @@ const (
 	// (server)
 	GetPublicKeys = "get_public_keys"
 
+	// JWTSVIDCacheSize is the gauge that holds the number of cached JWT-SVIDs
+	JWTSVIDCacheSize = "jwt_svid_cache_size"
+
 	// Keys related to keys used on HCL
 	Keys = "keys"
 

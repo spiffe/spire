@@ -35,6 +35,7 @@ func TestServiceCheck(t *testing.T) {
 
 	for _, tt := range []struct {
 		name                string
+		disableWorkloadAPI  bool
 		wlapiCode           codes.Code
 		service             string
 		expectCode          codes.Code
@@ -50,6 +51,13 @@ func TestServiceCheck(t *testing.T) {
 		{
 			name:                "success with PermissionDenied",
 			wlapiCode:           codes.PermissionDenied,
+			expectCode:          codes.OK,
+			expectServingStatus: grpc_health_v1.HealthCheckResponse_SERVING,
+		},
+		{
+			name:                "success with Workload API disabled",
+			disableWorkloadAPI:  true,
+			wlapiCode:           codes.Unavailable,
 			expectCode:          codes.OK,
 			expectServingStatus: grpc_health_v1.HealthCheckResponse_SERVING,
 		},
@@ -92,7 +100,8 @@ func TestServiceCheck(t *testing.T) {
 			}
 
 			service := health.New(health.Config{
-				Addr: spiretest.StartWorkloadAPI(t, wlAPI),
+				Addr:               spiretest.StartWorkloadAPI(t, wlAPI),
+				DisableWorkloadAPI: tt.disableWorkloadAPI,
 			})
 
 			server := grpctest.StartServer(t, func(s grpc.ServiceRegistrar) {

@@ -23,14 +23,18 @@ func RegisterService(s grpc.ServiceRegistrar, service *Service) {
 
 // Config is the service configuration
 type Config struct {
-	// Addr is the Workload API socket address
+	// Addr is the public Workload API/SDS endpoint address.
 	Addr net.Addr
+
+	// DisableWorkloadAPI indicates that the Workload API is not registered on the endpoint.
+	DisableWorkloadAPI bool
 }
 
 // New creates a new Health service
 func New(config Config) *Service {
 	return &Service{
-		addr: config.Addr,
+		addr:               config.Addr,
+		disableWorkloadAPI: config.DisableWorkloadAPI,
 	}
 }
 
@@ -38,7 +42,8 @@ func New(config Config) *Service {
 type Service struct {
 	grpc_health_v1.UnimplementedHealthServer
 
-	addr net.Addr
+	addr               net.Addr
+	disableWorkloadAPI bool
 }
 
 func (s *Service) Check(ctx context.Context, req *grpc_health_v1.HealthCheckRequest) (*grpc_health_v1.HealthCheckResponse, error) {
@@ -47,6 +52,12 @@ func (s *Service) Check(ctx context.Context, req *grpc_health_v1.HealthCheckRequ
 	// Ensure per-service health is not being requested.
 	if req.Service != "" {
 		return nil, api.MakeErr(log, codes.InvalidArgument, "per-service health is not supported", nil)
+	}
+
+	if s.disableWorkloadAPI {
+		return &grpc_health_v1.HealthCheckResponse{
+			Status: grpc_health_v1.HealthCheckResponse_SERVING,
+		}, nil
 	}
 
 	clientOption, err := util.GetWorkloadAPIClientOption(s.addr)

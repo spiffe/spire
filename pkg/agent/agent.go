@@ -274,18 +274,22 @@ func (a *Agent) Run(ctx context.Context) error {
 		Metrics: metrics,
 	})
 
-	agentEndpoints := a.newEndpoints(metrics, mgr, workloadAttestor)
-	go func() {
-		agentEndpoints.WaitForListening(readyForHealthChecks)
-		a.started = true
-	}()
-
 	tasks := []func(context.Context) error{
 		metrics.ListenAndServe,
 		mgr.Run,
 		storeService.Run,
-		agentEndpoints.ListenAndServe,
 		catalog.ReconfigureTask(a.c.Log.WithField(telemetry.SubsystemName, "reconfigurer"), cat),
+	}
+	var apiReadyChannels []chan struct{}
+
+	if a.c.BindAddress != nil {
+		agentEndpoints := a.newEndpoints(metrics, mgr, workloadAttestor)
+		listening := make(chan struct{})
+		apiReadyChannels = append(apiReadyChannels, listening)
+		go agentEndpoints.WaitForListening(listening)
+		tasks = append(tasks, agentEndpoints.ListenAndServe)
+	} else {
+		a.c.Log.WithField("apis", "Workload and SDS APIs").Info("Skipping agent APIs because public endpoint is disabled")
 	}
 
 	if a.c.AdminBindAddress != nil {
@@ -308,8 +312,19 @@ func (a *Agent) Run(ctx context.Context) error {
 		if err != nil {
 			return fmt.Errorf("failed to create broker endpoints: %w", err)
 		}
+		listening := make(chan struct{})
+		apiReadyChannels = append(apiReadyChannels, listening)
+		go brokerEndpoints.WaitForListening(listening)
 		tasks = append(tasks, brokerEndpoints.ListenAndServe)
 	}
+
+	go func() {
+		for _, listening := range apiReadyChannels {
+			<-listening
+		}
+		a.started = true
+		close(readyForHealthChecks)
+	}()
 
 	if a.c.LogReopener != nil {
 		tasks = append(tasks, a.c.LogReopener)
@@ -518,6 +533,8 @@ func (a *Agent) newEndpoints(metrics telemetry.Metrics, mgr manager.Manager, att
 		AllowedForeignJWTClaims:       a.c.AllowedForeignJWTClaims,
 		LogSelectors:                  a.c.LogSelectors,
 		TrustDomain:                   a.c.TrustDomain,
+		DisableWorkloadAPI:            a.c.DisableWorkloadAPI,
+		DisableSDSAPI:                 a.c.DisableSDSAPI,
 		WorkloadAPIRateLimit:          a.c.WorkloadAPIRateLimit,
 	})
 }
@@ -540,6 +557,14 @@ func (a *Agent) newAdminEndpoints(metrics telemetry.Metrics, mgr manager.Manager
 
 // CheckHealth is used as a top-level health check for the agent.
 func (a *Agent) CheckHealth() health.State {
+	if a.c.BindAddress == nil {
+		return health.State{
+			Started: &a.started,
+			Ready:   a.started,
+			Live:    true,
+		}
+	}
+
 	err := a.checkWorkloadAPI()
 
 	// Both liveness and readiness checks are done by
