@@ -204,7 +204,14 @@ func TestMigration(t *testing.T) {
 	// error, causing a flake; removeDirWithRetry retries instead.
 	dir, err := os.MkdirTemp("", "migration")
 	require.NoError(t, err)
-	t.Cleanup(func() { removeDirWithRetry(t, dir) })
+	t.Cleanup(func() {
+		// Close the plugin before removing the temp dir. Cleanups run LIFO, so
+		// this runs before newTestPlugin's own ds.Close(); without it the last
+		// migration DB is still open when we remove the dir, which fails on
+		// Windows where an open file cannot be unlinked.
+		ds.Close()
+		removeDirWithRetry(t, dir)
+	})
 
 	for schemaVersion := range latestSchemaVersion {
 		t.Run(fmt.Sprintf("migration_from_schema_version_%d", schemaVersion), func(t *testing.T) {
