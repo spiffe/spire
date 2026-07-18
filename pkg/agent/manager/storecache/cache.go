@@ -256,10 +256,6 @@ func (c *Cache) TaintX509SVIDs(ctx context.Context, taintedX509Authorities []*x5
 	c.c.Log.WithField(telemetry.TaintedX509SVIDs, taintedSVIDs).Info("Tainted X.509 SVIDs")
 }
 
-func (c *Cache) TaintJWTSVIDs(ctx context.Context, taintedJWTAuthorities map[string]struct{}) {
-	// Nothing to do here
-}
-
 // GetStaleEntries obtains a list of stale entries, that needs new SVIDs
 func (c *Cache) GetStaleEntries() []*cache.StaleEntry {
 	c.mtx.Lock()

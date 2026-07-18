@@ -137,6 +137,8 @@ func TestParseFlagsGood(t *testing.T) {
 		"-serverAddress=127.0.0.1",
 		"-serverPort=8081",
 		"-namedPipeName=\\spire-agent\\public\\api",
+		"-disableWorkloadAPI",
+		"-disableSDSAPI",
 		"-trustBundle=conf/agent/dummy_root_ca.crt",
 		"-trustBundleUrl=https://test.url",
 		"-trustDomain=example.org",
@@ -148,6 +150,8 @@ func TestParseFlagsGood(t *testing.T) {
 	assert.Equal(t, "127.0.0.1", c.ServerAddress)
 	assert.Equal(t, 8081, c.ServerPort)
 	assert.Equal(t, "\\spire-agent\\public\\api", c.Experimental.NamedPipeName)
+	assert.True(t, c.DisableWorkloadAPI)
+	assert.True(t, c.DisableSDSAPI)
 	assert.Equal(t, "conf/agent/dummy_root_ca.crt", c.TrustBundlePath)
 	assert.Equal(t, "https://test.url", c.TrustBundleURL)
 	assert.Equal(t, "example.org", c.TrustDomain)
@@ -269,6 +273,43 @@ func newAgentConfigCasesOS(*testing.T) []newAgentConfigCase {
 				require.Equal(t, "\\\\.\\pipe\\foo", c.BindAddress.String())
 				require.Equal(t, "foo", c.BindAddress.(*namedpipe.Addr).PipeName())
 				require.Equal(t, "pipe", c.BindAddress.(*namedpipe.Addr).Network())
+			},
+		},
+		{
+			msg: "disable_workload_api keeps named pipe enabled",
+			input: func(c *Config) {
+				c.Agent.Experimental.NamedPipeName = "foo"
+				c.Agent.DisableWorkloadAPI = true
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Equal(t, "\\\\.\\pipe\\foo", c.BindAddress.String())
+				require.True(t, c.DisableWorkloadAPI)
+				require.False(t, c.DisableSDSAPI)
+			},
+		},
+		{
+			msg: "disable_sds_api keeps named pipe enabled",
+			input: func(c *Config) {
+				c.Agent.Experimental.NamedPipeName = "foo"
+				c.Agent.DisableSDSAPI = true
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Equal(t, "\\\\.\\pipe\\foo", c.BindAddress.String())
+				require.False(t, c.DisableWorkloadAPI)
+				require.True(t, c.DisableSDSAPI)
+			},
+		},
+		{
+			msg: "disable_workload_api and disable_sds_api disable named pipe",
+			input: func(c *Config) {
+				c.Agent.Experimental.NamedPipeName = "foo"
+				c.Agent.DisableWorkloadAPI = true
+				c.Agent.DisableSDSAPI = true
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c.BindAddress)
+				require.True(t, c.DisableWorkloadAPI)
+				require.True(t, c.DisableSDSAPI)
 			},
 		},
 		{

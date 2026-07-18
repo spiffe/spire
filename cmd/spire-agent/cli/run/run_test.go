@@ -554,6 +554,62 @@ func TestMergeInput(t *testing.T) {
 			},
 		},
 		{
+			msg:       "disable_workload_api should default to false",
+			fileInput: func(c *Config) {},
+			cliInput:  func(c *agentConfig) {},
+			test: func(t *testing.T, c *Config) {
+				require.False(t, c.Agent.DisableWorkloadAPI)
+			},
+		},
+		{
+			msg: "disable_workload_api should be configurable by file",
+			fileInput: func(c *Config) {
+				c.Agent.DisableWorkloadAPI = true
+			},
+			cliInput: func(c *agentConfig) {},
+			test: func(t *testing.T, c *Config) {
+				require.True(t, c.Agent.DisableWorkloadAPI)
+			},
+		},
+		{
+			msg:       "disable_workload_api should be configurable by CLI flag",
+			fileInput: func(c *Config) {},
+			cliInput: func(c *agentConfig) {
+				c.DisableWorkloadAPI = true
+			},
+			test: func(t *testing.T, c *Config) {
+				require.True(t, c.Agent.DisableWorkloadAPI)
+			},
+		},
+		{
+			msg:       "disable_sds_api should default to false",
+			fileInput: func(c *Config) {},
+			cliInput:  func(c *agentConfig) {},
+			test: func(t *testing.T, c *Config) {
+				require.False(t, c.Agent.DisableSDSAPI)
+			},
+		},
+		{
+			msg: "disable_sds_api should be configurable by file",
+			fileInput: func(c *Config) {
+				c.Agent.DisableSDSAPI = true
+			},
+			cliInput: func(c *agentConfig) {},
+			test: func(t *testing.T, c *Config) {
+				require.True(t, c.Agent.DisableSDSAPI)
+			},
+		},
+		{
+			msg:       "disable_sds_api should be configurable by CLI flag",
+			fileInput: func(c *Config) {},
+			cliInput: func(c *agentConfig) {
+				c.DisableSDSAPI = true
+			},
+			test: func(t *testing.T, c *Config) {
+				require.True(t, c.Agent.DisableSDSAPI)
+			},
+		},
+		{
 			msg: "require_pq_kem should be configurable by file",
 			fileInput: func(c *Config) {
 				c.Agent.Experimental.RequirePQKEM = true
@@ -991,6 +1047,49 @@ func TestNewAgentConfig(t *testing.T) {
 				assert.Equal(t, c.DefaultBundleName, "DefaultBundleName")
 				assert.Equal(t, c.DefaultAllBundlesName, "DefaultAllBundlesName")
 				assert.True(t, c.DisableSPIFFECertValidation)
+			},
+		},
+		{
+			msg:   "public endpoint is enabled by default",
+			input: func(c *Config) {},
+			test: func(t *testing.T, c *agent.Config) {
+				require.NotNil(t, c.BindAddress)
+				require.False(t, c.DisableWorkloadAPI)
+				require.False(t, c.DisableSDSAPI)
+			},
+		},
+		{
+			msg: "disable_workload_api keeps public endpoint enabled",
+			input: func(c *Config) {
+				c.Agent.DisableWorkloadAPI = true
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.NotNil(t, c.BindAddress)
+				require.True(t, c.DisableWorkloadAPI)
+				require.False(t, c.DisableSDSAPI)
+			},
+		},
+		{
+			msg: "disable_sds_api keeps public endpoint enabled",
+			input: func(c *Config) {
+				c.Agent.DisableSDSAPI = true
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.NotNil(t, c.BindAddress)
+				require.False(t, c.DisableWorkloadAPI)
+				require.True(t, c.DisableSDSAPI)
+			},
+		},
+		{
+			msg: "disable_workload_api and disable_sds_api disable public endpoint",
+			input: func(c *Config) {
+				c.Agent.DisableWorkloadAPI = true
+				c.Agent.DisableSDSAPI = true
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c.BindAddress)
+				require.True(t, c.DisableWorkloadAPI)
+				require.True(t, c.DisableSDSAPI)
 			},
 		},
 		{

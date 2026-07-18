@@ -151,6 +151,8 @@ func TestParseFlagsGood(t *testing.T) {
 		"-serverAddress=127.0.0.1",
 		"-serverPort=8081",
 		"-socketPath=/tmp/spire-agent/public/api.sock",
+		"-disableWorkloadAPI",
+		"-disableSDSAPI",
 		"-trustBundle=conf/agent/dummy_root_ca.crt",
 		"-trustBundleUrl=https://test.url",
 		"-trustDomain=example.org",
@@ -162,6 +164,8 @@ func TestParseFlagsGood(t *testing.T) {
 	assert.Equal(t, c.ServerAddress, "127.0.0.1")
 	assert.Equal(t, c.ServerPort, 8081)
 	assert.Equal(t, c.SocketPath, "/tmp/spire-agent/public/api.sock")
+	assert.True(t, c.DisableWorkloadAPI)
+	assert.True(t, c.DisableSDSAPI)
 	assert.Equal(t, c.TrustBundlePath, "conf/agent/dummy_root_ca.crt")
 	assert.Equal(t, c.TrustBundleURL, "https://test.url")
 	assert.Equal(t, c.TrustDomain, "example.org")
@@ -297,6 +301,20 @@ func newAgentConfigCasesOS(t *testing.T) []newAgentConfigCase {
 			},
 		},
 		{
+			msg: "admin_socket_path can share disabled public endpoint socket directory",
+			input: func(c *Config) {
+				c.Agent.SocketPath = "/tmp/workload.sock"
+				c.Agent.DisableWorkloadAPI = true
+				c.Agent.DisableSDSAPI = true
+				c.Agent.AdminSocketPath = "/tmp/admin.sock"
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c.BindAddress)
+				require.Equal(t, "/tmp/admin.sock", c.AdminBindAddress.String())
+				require.Equal(t, "unix", c.AdminBindAddress.Network())
+			},
+		},
+		{
 			msg: "admin_socket_path configured with similar folder that socket_path",
 			input: func(c *Config) {
 				c.Agent.SocketPath = "/tmp/workload/workload.sock"
@@ -332,6 +350,18 @@ func newAgentConfigCasesOS(t *testing.T) []newAgentConfigCase {
 			},
 		},
 		{
+			msg:         "admin_socket_path same folder as socket_path when only workload API is disabled",
+			expectError: true,
+			input: func(c *Config) {
+				c.Agent.SocketPath = "/tmp/workload.sock"
+				c.Agent.DisableWorkloadAPI = true
+				c.Agent.AdminSocketPath = "/tmp/admin.sock"
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
 			msg:         "admin_socket_path configured with subfolder socket_path",
 			expectError: true,
 			input: func(c *Config) {
@@ -351,6 +381,31 @@ func newAgentConfigCasesOS(t *testing.T) []newAgentConfigCase {
 			},
 			test: func(t *testing.T, c *agent.Config) {
 				require.Nil(t, c)
+			},
+		},
+		{
+			msg: "broker socket can share disabled public endpoint socket directory",
+			input: func(c *Config) {
+				c.Agent.SocketPath = "/tmp/workload.sock"
+				c.Agent.DisableWorkloadAPI = true
+				c.Agent.DisableSDSAPI = true
+				c.Agent.Experimental.Broker = &brokerHCLConfig{
+					SocketPath: "/tmp/broker.sock",
+					Brokers: []brokerHCLEntry{
+						{
+							ID: "spiffe://example.org/broker",
+							AllowedReferenceTypes: []brokerAllowedReferenceTypeHCLEntry{
+								{TypeURL: "type.googleapis.com/spiffe.broker.WorkloadPIDReference"},
+							},
+						},
+					},
+				}
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c.BindAddress)
+				require.Len(t, c.Broker.BindAddresses, 1)
+				require.Equal(t, "/tmp/broker.sock", c.Broker.BindAddresses[0].String())
+				require.Equal(t, "unix", c.Broker.BindAddresses[0].Network())
 			},
 		},
 		{

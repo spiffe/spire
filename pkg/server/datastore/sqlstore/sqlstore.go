@@ -113,6 +113,45 @@ func New(log logrus.FieldLogger) *Plugin {
 	}
 }
 
+// RawScan runs a raw query and scans a single result into dest.
+// Test-support escape hatch for the shared sqltest suite.
+func (ds *Plugin) RawScan(dest any, query string) error {
+	if ds.db == nil {
+		return errors.New("datastore-sql: datastore is not configured")
+	}
+	return ds.db.Raw(query).Scan(dest).Error
+}
+
+// RawExec runs a raw statement against the underlying *sql.DB.
+// Test-support escape hatch for the shared sqltest suite.
+func (ds *Plugin) RawExec(query string, args ...any) error {
+	if ds.db == nil {
+		return errors.New("datastore-sql: datastore is not configured")
+	}
+	_, err := ds.db.raw.Exec(query, args...)
+	return err
+}
+
+// DatabaseType returns the configured database type (e.g. "sqlite3",
+// "postgres", "mysql").
+// Test-support escape hatch for the shared sqltest suite.
+func (ds *Plugin) DatabaseType() string {
+	if ds.db == nil {
+		return ""
+	}
+	return ds.db.databaseType
+}
+
+// Rebind rewrites "?" placeholders to the configured dialect's positional
+// placeholder form using the same logic production queries use.
+// Test-support escape hatch for the shared sqltest suite.
+func (ds *Plugin) Rebind(query string) string {
+	if ds.db == nil {
+		return ""
+	}
+	return maybeRebind(ds.db.databaseType, query)
+}
+
 // CreateBundle stores the given bundle
 func (ds *Plugin) CreateBundle(ctx context.Context, b *common.Bundle) (bundle *common.Bundle, err error) {
 	if err = ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {

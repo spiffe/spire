@@ -21,3 +21,7 @@ func SetEntriesMapSize(m telemetry.Metrics, recordMapSize int) {
 func SetSVIDMapSize(m telemetry.Metrics, svidMapSize int) {
 	m.SetGauge([]string{telemetry.SVIDMapSize}, float32(svidMapSize))
 }
+
+func SetJWTSVIDCacheSize(m telemetry.Metrics, cacheSize int) {
+	m.SetGauge([]string{telemetry.JWTSVIDCacheSize}, float32(cacheSize))
+}

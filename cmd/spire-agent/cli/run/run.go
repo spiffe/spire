@@ -83,6 +83,8 @@ type agentConfig struct {
 	ServerAddress                 string    `hcl:"server_address"`
 	ServerPort                    int       `hcl:"server_port"`
 	SocketPath                    string    `hcl:"socket_path"`
+	DisableWorkloadAPI            bool      `hcl:"disable_workload_api"`
+	DisableSDSAPI                 bool      `hcl:"disable_sds_api"`
 	WorkloadX509SVIDKeyType       string    `hcl:"workload_x509_svid_key_type"`
 	TrustBundleFormat             string    `hcl:"trust_bundle_format"`
 	TrustBundlePath               string    `hcl:"trust_bundle_path"`
@@ -483,6 +485,8 @@ func parseFlags(name string, args []string, output io.Writer) (*agentConfig, err
 	flags.StringVar(&c.ServerAddress, "serverAddress", "", "IP address or DNS name of the SPIRE server")
 	flags.IntVar(&c.ServerPort, "serverPort", 0, "Port number of the SPIRE server")
 	flags.StringVar(&c.TrustDomain, "trustDomain", "", "The trust domain that this agent belongs to")
+	flags.BoolVar(&c.DisableWorkloadAPI, "disableWorkloadAPI", false, "Disable the SPIFFE Workload API")
+	flags.BoolVar(&c.DisableSDSAPI, "disableSDSAPI", false, "Disable the Envoy SDS API")
 	flags.StringVar(&c.TrustBundlePath, "trustBundle", "", "Path to the SPIRE server CA bundle")
 	flags.StringVar(&c.TrustBundleURL, "trustBundleUrl", "", "URL to download the SPIRE server CA bundle")
 	flags.StringVar(&c.TrustBundleFormat, "trustBundleFormat", "", fmt.Sprintf("Format of the bootstrap trust bundle, %q or %q", trustbundlesources.BundleFormatPEM, trustbundlesources.BundleFormatSPIFFE))
@@ -522,6 +526,10 @@ func mergeInput(fileInput *Config, cliInput *agentConfig) (*Config, error) {
 	}
 
 	return c, nil
+}
+
+func (c *agentConfig) endpointEnabled() bool {
+	return !c.DisableWorkloadAPI || !c.DisableSDSAPI
 }
 
 func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool) (*agent.Config, error) {
@@ -632,11 +640,15 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 	}
 	ac.TrustDomain = td
 
-	addr, err := c.Agent.getAddr()
-	if err != nil {
-		return nil, err
+	ac.DisableWorkloadAPI = c.Agent.DisableWorkloadAPI
+	ac.DisableSDSAPI = c.Agent.DisableSDSAPI
+	if c.Agent.endpointEnabled() {
+		addr, err := c.Agent.getAddr()
+		if err != nil {
+			return nil, err
+		}
+		ac.BindAddress = addr
 	}
-	ac.BindAddress = addr
 
 	if c.Agent.hasAdminAddr() {
 		adminAddr, err := c.Agent.getAdminAddr()
