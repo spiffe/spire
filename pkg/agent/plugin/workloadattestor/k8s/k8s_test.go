@@ -460,6 +460,7 @@ func (s *Suite) TestConfigure() {
 
 	type config struct {
 		Insecure          bool
+		KubeletDisabled   bool
 		VerifyKubelet     bool
 		HasNodeName       bool
 		Token             string
@@ -502,6 +503,19 @@ func (s *Suite) TestConfigure() {
 				VerifyKubelet:     true,
 				Token:             "default-token",
 				KubeletURL:        "https://127.0.0.1:10250",
+				MaxPollAttempts:   defaultMaxPollAttempts,
+				PollRetryInterval: defaultPollRetryInterval,
+				ReloadInterval:    defaultReloadInterval,
+			},
+		},
+		{
+			name:        "kubelet client disabled",
+			trustDomain: "example.org",
+			hcl: `
+				disable_kubelet_client = true
+			`,
+			config: &config{
+				KubeletDisabled:   true,
 				MaxPollAttempts:   defaultMaxPollAttempts,
 				PollRetryInterval: defaultPollRetryInterval,
 				ReloadInterval:    defaultReloadInterval,
@@ -626,6 +640,16 @@ func (s *Suite) TestConfigure() {
 			`,
 			errCode: codes.InvalidArgument,
 			errMsg:  "cannot use both the read-only and secure port",
+		},
+		{
+			name:        "disable kubelet client with kubelet config",
+			trustDomain: "example.org",
+			hcl: `
+				disable_kubelet_client = true
+				kubelet_secure_port = 12345
+			`,
+			errCode: codes.InvalidArgument,
+			errMsg:  "disable_kubelet_client cannot be used with kubelet_secure_port",
 		},
 		{
 			name:        "non-existent kubelet ca",
@@ -763,6 +787,16 @@ func (s *Suite) TestConfigure() {
 			c, _, _, err := p.getConfig()
 			require.NoError(t, err)
 
+			assert.Equal(t, testCase.config.KubeletDisabled, c.DisableKubeletClient)
+			assert.Equal(t, testCase.config.MaxPollAttempts, c.MaxPollAttempts)
+			assert.Equal(t, testCase.config.PollRetryInterval, c.PollRetryInterval)
+			assert.Equal(t, testCase.config.ReloadInterval, c.ReloadInterval)
+			assert.Equal(t, testCase.config.APIServerCache, c.APIServerCache.Enabled)
+			if testCase.config.KubeletDisabled {
+				assert.Nil(t, c.Client)
+				return
+			}
+
 			switch {
 			case testCase.config.Insecure:
 				assert.Nil(t, c.Client.Transport)
@@ -783,10 +817,6 @@ func (s *Suite) TestConfigure() {
 			}
 			assert.Equal(t, testCase.config.Token, c.Client.Token)
 			assert.Equal(t, testCase.config.KubeletURL, c.Client.URL.String())
-			assert.Equal(t, testCase.config.MaxPollAttempts, c.MaxPollAttempts)
-			assert.Equal(t, testCase.config.PollRetryInterval, c.PollRetryInterval)
-			assert.Equal(t, testCase.config.ReloadInterval, c.ReloadInterval)
-			assert.Equal(t, testCase.config.APIServerCache, c.APIServerCache.Enabled)
 		})
 	}
 }
@@ -803,6 +833,21 @@ func (s *Suite) TestConfigureBroker() {
 				kubelet_read_only_port = 12345
 				%s
 			`, testBrokerConfig()),
+		},
+		{
+			name: "valid broker with kubelet client disabled",
+			hcl: fmt.Sprintf(`
+				disable_kubelet_client = true
+				%s
+			`, testBrokerConfigWithClusterPodReferenceScope()),
+		},
+		{
+			name: "disable kubelet client requires cluster pod reference scope",
+			hcl: fmt.Sprintf(`
+				disable_kubelet_client = true
+				%s
+			`, testBrokerConfig()),
+			expectedErr: `experimental.broker.brokers[spiffe://example.org/broker].pod_reference_scope must be "cluster" when disable_kubelet_client is true`,
 		},
 		{
 			name: "top-level broker is rejected",
@@ -1262,8 +1307,8 @@ func testBrokerConfigWithEnforcedAccessPolicy() string {
 	return testBrokerConfigWithAccessPolicy("", string(brokerAccessPolicyEnforced))
 }
 
-func testBrokerConfigWithPodReferenceScope(scope string) string {
-	return testBrokerConfigWithAccessPolicy(scope, string(brokerAccessPolicyPermissive))
+func testBrokerConfigWithClusterPodReferenceScope() string {
+	return testBrokerConfigWithAccessPolicy(string(podReferenceScopeCluster), string(brokerAccessPolicyPermissive))
 }
 
 func testBrokerConfigWithAccessPolicy(scope, accessPolicy string) string {
@@ -1845,7 +1890,7 @@ func (s *Suite) TestAttestReferenceWithPodUID_FallbackToAPIServerWithClusterScop
 		max_poll_attempts = 5
 		poll_retry_interval = "1s"
 		%s
-`, s.kubeletPort(), testBrokerConfigWithPodReferenceScope("cluster"))
+`, s.kubeletPort(), testBrokerConfigWithClusterPodReferenceScope())
 	wa := s.loadPluginWithKubeClients(cfg, liveClient, metadataClient)
 
 	anyRef, err := anypb.New(&broker.KubernetesObjectReference{Type: &broker.KubernetesObjectType{Plural: "pods", Group: "core"}, Uid: testPodUID})
@@ -1871,7 +1916,7 @@ func (s *Suite) TestAttestReferenceWithPodName_FallbackToAPIServerWithClusterSco
 		max_poll_attempts = 5
 		poll_retry_interval = "1s"
 		%s
-`, s.kubeletPort(), testBrokerConfigWithPodReferenceScope("cluster"))
+`, s.kubeletPort(), testBrokerConfigWithClusterPodReferenceScope())
 	wa := s.loadPluginWithKubeClient(cfg, liveClient)
 
 	anyRef, err := anypb.New(&broker.KubernetesObjectReference{
@@ -1883,6 +1928,148 @@ func (s *Suite) TestAttestReferenceWithPodName_FallbackToAPIServerWithClusterSco
 	selectors, err := wa.AttestReference(testBrokerContext(), anyRef)
 	s.Require().NoError(err)
 	s.requireSelectorsEqual(testPodSelectors, selectors)
+}
+
+func (s *Suite) TestAttestReferenceWithPodUID_FallsBackToAPIServerWhenKubeletFails() {
+	s.startInsecureKubelet()
+
+	// Do not configure a pod list response. The kubelet returns an error.
+	liveClient := fakeKubeClientWithSubjectAccessReview(true, nil, testAPIServerBlogPod())
+	metadataClient := fakeKubeMetadataClient(testAPIServerBlogPodMetadata())
+	cfg := fmt.Sprintf(`
+		kubelet_read_only_port = %d
+		max_poll_attempts = 5
+		poll_retry_interval = "1s"
+		%s
+`, s.kubeletPort(), testBrokerConfigWithClusterPodReferenceScope())
+	wa := s.loadPluginWithKubeClients(cfg, liveClient, metadataClient)
+
+	anyRef, err := anypb.New(&broker.KubernetesObjectReference{Type: &broker.KubernetesObjectType{Plural: "pods", Group: "core"}, Uid: testPodUID})
+	s.Require().NoError(err)
+
+	selectors, err := wa.AttestReference(testBrokerContext(), anyRef)
+	s.Require().NoError(err)
+	s.requireSelectorsEqual(testPodSelectors, selectors)
+}
+
+func (s *Suite) TestAttestReferenceWithPodName_FallsBackToAPIServerWhenKubeletFails() {
+	s.startInsecureKubelet()
+
+	// Do not configure a pod list response. The kubelet returns an error.
+	liveClient := fakeKubeClientWithSubjectAccessReview(true, nil, testAPIServerBlogPod())
+	cfg := fmt.Sprintf(`
+		kubelet_read_only_port = %d
+		max_poll_attempts = 5
+		poll_retry_interval = "1s"
+		%s
+`, s.kubeletPort(), testBrokerConfigWithClusterPodReferenceScope())
+	wa := s.loadPluginWithKubeClient(cfg, liveClient)
+
+	anyRef, err := anypb.New(&broker.KubernetesObjectReference{
+		Type: &broker.KubernetesObjectType{Plural: "pods", Group: "core"},
+		Key:  &broker.KubernetesObjectKey{Namespace: "default", Name: "blog-24ck7"},
+	})
+	s.Require().NoError(err)
+
+	selectors, err := wa.AttestReference(testBrokerContext(), anyRef)
+	s.Require().NoError(err)
+	s.requireSelectorsEqual(testPodSelectors, selectors)
+}
+
+func (s *Suite) TestAttestReferenceWithPodUID_FallsBackToAPIServerWhenKubeletClientDisabled() {
+	liveClient := fakeKubeClientWithSubjectAccessReview(true, nil, testAPIServerBlogPod())
+	metadataClient := fakeKubeMetadataClient(testAPIServerBlogPodMetadata())
+	cfg := fmt.Sprintf(`
+		disable_kubelet_client = true
+		%s
+`, testBrokerConfigWithClusterPodReferenceScope())
+	wa := s.loadPluginWithKubeClients(cfg, liveClient, metadataClient)
+
+	anyRef, err := anypb.New(&broker.KubernetesObjectReference{Type: &broker.KubernetesObjectType{Plural: "pods", Group: "core"}, Uid: testPodUID})
+	s.Require().NoError(err)
+
+	selectors, err := wa.AttestReference(testBrokerContext(), anyRef)
+	s.Require().NoError(err)
+	s.requireSelectorsEqual(testPodSelectors, selectors)
+}
+
+func (s *Suite) TestAttestReferenceWithPodName_FallsBackToAPIServerWhenKubeletClientDisabled() {
+	liveClient := fakeKubeClientWithSubjectAccessReview(true, nil, testAPIServerBlogPod())
+	cfg := fmt.Sprintf(`
+		disable_kubelet_client = true
+		%s
+`, testBrokerConfigWithClusterPodReferenceScope())
+	wa := s.loadPluginWithKubeClient(cfg, liveClient)
+
+	anyRef, err := anypb.New(&broker.KubernetesObjectReference{
+		Type: &broker.KubernetesObjectType{Plural: "pods", Group: "core"},
+		Key:  &broker.KubernetesObjectKey{Namespace: "default", Name: "blog-24ck7"},
+	})
+	s.Require().NoError(err)
+
+	selectors, err := wa.AttestReference(testBrokerContext(), anyRef)
+	s.Require().NoError(err)
+	s.requireSelectorsEqual(testPodSelectors, selectors)
+}
+
+func (s *Suite) TestAttestReferenceWithPID_FailsWhenKubeletClientDisabled() {
+	wa := s.loadPluginWithKubeClient(`disable_kubelet_client = true`, fakeKubeClientWithSubjectAccessReview(true, nil))
+
+	anyRef, err := anypb.New(&broker.WorkloadPIDReference{Pid: int32(pid)})
+	s.Require().NoError(err)
+
+	selectors, err := wa.AttestReference(context.Background(), anyRef)
+	s.RequireGRPCStatusContains(err, codes.FailedPrecondition, "kubelet client is disabled")
+	s.Require().Nil(selectors)
+}
+
+func (s *Suite) TestAttestReferenceWithPodUID_DefaultScopeFailsWhenKubeletClientDisabled() {
+	wa := s.loadPluginWithKubeClient(`disable_kubelet_client = true`, fakeKubeClientWithSubjectAccessReview(true, nil, testAPIServerBlogPod()))
+
+	anyRef, err := anypb.New(&broker.KubernetesObjectReference{Type: &broker.KubernetesObjectType{Plural: "pods", Group: "core"}, Uid: testPodUID})
+	s.Require().NoError(err)
+
+	selectors, err := wa.AttestReference(context.Background(), anyRef)
+	s.RequireGRPCStatusContains(err, codes.FailedPrecondition, "kubelet client is disabled")
+	s.Require().Nil(selectors)
+}
+
+func (s *Suite) TestFindPodByUID_FallsBackToAPIServerWithKubeletClientDisabled() {
+	p := s.newPlugin()
+	p.kubeClient = fakeKubeClientWithSubjectAccessReview(true, nil, testAPIServerBlogPod())
+	p.kubeMetadataClient = fakeKubeMetadataClient(testAPIServerBlogPodMetadata())
+
+	pod, err := p.findPodByUID(context.Background(), &k8sConfig{DisableKubeletClient: true}, testPodUID, podReferenceScopeCluster)
+	s.Require().NoError(err)
+	s.Require().Equal(testPodUID, string(pod.UID))
+}
+
+func (s *Suite) TestFindPodByName_FallsBackToAPIServerWithKubeletClientDisabled() {
+	p := s.newPlugin()
+	p.kubeClient = fakeKubeClientWithSubjectAccessReview(true, nil, testAPIServerBlogPod())
+
+	pod, err := p.findPodByName(context.Background(), &k8sConfig{DisableKubeletClient: true}, "default", "blog-24ck7", podReferenceScopeCluster)
+	s.Require().NoError(err)
+	s.Require().Equal(testPodUID, string(pod.UID))
+}
+
+func (s *Suite) TestFindPodByUID_AgentNodeScopeRequiresEnabledKubeletClient() {
+	p := s.newPlugin()
+	p.kubeClient = fakeKubeClientWithSubjectAccessReview(true, nil, testAPIServerBlogPod())
+	p.kubeMetadataClient = fakeKubeMetadataClient(testAPIServerBlogPodMetadata())
+
+	pod, err := p.findPodByUID(context.Background(), &k8sConfig{DisableKubeletClient: true}, testPodUID, podReferenceScopeAgentNode)
+	s.RequireGRPCStatusContains(err, codes.FailedPrecondition, "kubelet client is disabled")
+	s.Require().Nil(pod)
+}
+
+func (s *Suite) TestFindPodByName_AgentNodeScopeRequiresEnabledKubeletClient() {
+	p := s.newPlugin()
+	p.kubeClient = fakeKubeClientWithSubjectAccessReview(true, nil, testAPIServerBlogPod())
+
+	pod, err := p.findPodByName(context.Background(), &k8sConfig{DisableKubeletClient: true}, "default", "blog-24ck7", podReferenceScopeAgentNode)
+	s.RequireGRPCStatusContains(err, codes.FailedPrecondition, "kubelet client is disabled")
+	s.Require().Nil(pod)
 }
 
 func (s *Suite) TestAttestReferenceWithPodUID_NotFound() {
