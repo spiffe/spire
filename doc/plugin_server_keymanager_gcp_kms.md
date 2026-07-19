@@ -70,7 +70,12 @@ that it has previously managed and will recreate new keys on demand.
 If you need more control over the identifier that's used for the server, the
 `key_identifier_value` setting can be used to specify a
 static identifier for the server instance. This setting is appropriate in situations
-where a key identifier file can't be persisted.
+where a key identifier file can't be persisted. The value must contain only
+lowercase letters, numbers, underscores (`_`), and dashes (`-`), and must not be
+longer than 40 characters. The limit leaves room for the `spire-key-` prefix and
+the SPIRE key ID suffix so that the generated Cloud KMS
+[CryptoKey ID](https://cloud.google.com/kms/docs/reference/rest/v1/projects.locations.keyRings.cryptoKeys/create)
+stays within its 63-character limit.
 
 The plugin attempts to detect and prune stale CryptoKeys. To facilitate stale
 CryptoKey detection, the plugin actively updates the `spire-last-update` label

@@ -46,7 +46,7 @@ func (kf *keyFetcher) fetchKeyEntries(ctx context.Context) ([]*keyEntry, error) 
 		if err != nil {
 			return nil, status.Errorf(codes.Internal, "failed to list SPIRE Server keys in Cloud KMS: %v", err)
 		}
-		spireKeyID, ok := getSPIREKeyIDFromCryptoKeyName(cryptoKey.Name)
+		spireKeyID, ok := getSPIREKeyIDFromCryptoKeyName(cryptoKey.Name, kf.serverID)
 		if !ok {
 			kf.log.Warn("Could not get SPIRE Key ID from CryptoKey", cryptoKeyNameTag, cryptoKey.Name)
 			continue
@@ -130,29 +130,27 @@ func (kf *keyFetcher) getKeyEntriesFromCryptoKey(ctx context.Context, cryptoKey 
 
 // getSPIREKeyIDFromCryptoKeyName parses a CryptoKey resource name to get the
 // SPIRE Key ID. This Key ID is used in the Server KeyManager interface.
-func getSPIREKeyIDFromCryptoKeyName(cryptoKeyName string) (string, bool) {
+func getSPIREKeyIDFromCryptoKeyName(cryptoKeyName, serverID string) (string, bool) {
 	// cryptoKeyName is the resource name for the CryptoKey holding the SPIRE Key
-	// in the format: projects/*/locations/*/keyRings/*/cryptoKeys/spire-key-*-*.
+	// in the format: projects/*/locations/*/keyRings/*/cryptoKeys/spire-key-<serverID>-<spireKeyID>.
 	// Example: projects/project-name/locations/us-east1/keyRings/key-ring-name/cryptoKeys/spire-key-1f2e225a-91d8-4589-a4fe-f88b7bb04bac-x509-CA-A
+	//
+	// The server ID is not fixed-length (it is a UUID with key_identifier_file
+	// but an arbitrary value with key_identifier_value), so it must be stripped
+	// using the known prefix built by generateCryptoKeyID rather than a fixed
+	// offset.
 
-	// Get the last element of the path.
+	// Get the CryptoKeyID (last element of the path).
 	i := strings.LastIndex(cryptoKeyName, "/")
 	if i < 0 {
-		// All CryptoKeys are under a Key Ring; not a valid Crypto Key name.
 		return "", false
 	}
-
-	// The i index will indicate us where
-	// "spire-key-1f2e225a-91d8-4589-a4fe-f88b7bb04bac-x509-CA-A" starts.
-	// Now we have to get the position where the SPIRE Key ID starts.
-	// For that, we need to add the length of the CryptoKey name prefix that we
-	// are using, the UUID length, and the two "-" separators used in our format.
-	spireKeyIDIndex := i + len(cryptoKeyNamePrefix) + 39 // 39 is the UUID length plus two '-' separators
-	if spireKeyIDIndex >= len(cryptoKeyName) {
-		// The index is out of range.
+	cryptoKeyID := cryptoKeyName[i+1:]
+	prefix := fmt.Sprintf("%s-%s-", cryptoKeyNamePrefix, serverID)
+	spireKeyID, ok := strings.CutPrefix(cryptoKeyID, prefix)
+	if !ok || spireKeyID == "" {
 		return "", false
 	}
-	spireKeyID := cryptoKeyName[spireKeyIDIndex:]
 	return spireKeyID, true
 }
 

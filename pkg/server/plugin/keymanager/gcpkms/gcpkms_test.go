@@ -265,8 +265,25 @@ func TestConfigure(t *testing.T) {
 		{
 			name:             "key identifier value too long",
 			configureRequest: configureRequestWithString(fmt.Sprintf(`{"access_key_id":"access_key_id","secret_access_key":"secret_access_key","region":"region","key_identifier_value":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","key_policy_file":"","key_ring":"%s"}`, validKeyRing)),
-			expectMsg:        "Key identifier must not be longer than 63 characters",
+			expectMsg:        "Key identifier must not be longer than 40 characters",
 			expectCode:       codes.InvalidArgument,
+		},
+		{
+			// A 41-character identifier would push the generated CryptoKey ID
+			// (spire-key-<serverID>-<spireKeyID>) past Cloud KMS's 63-character
+			// limit, so it must be rejected.
+			name:             "key identifier value one over limit",
+			configureRequest: configureRequestWithString(fmt.Sprintf(`{"access_key_id":"access_key_id","secret_access_key":"secret_access_key","region":"region","key_identifier_value":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","key_policy_file":"","key_ring":"%s"}`, validKeyRing)),
+			expectMsg:        "Key identifier must not be longer than 40 characters",
+			expectCode:       codes.InvalidArgument,
+		},
+		{
+			// A 40-character identifier is the longest that still fits.
+			name: "key identifier value at limit",
+			config: &Config{
+				KeyIdentifierValue: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+				KeyRing:            validKeyRing,
+			},
 		},
 		{
 			name: "custom policy file does not exist",
@@ -430,7 +447,7 @@ func TestConfigure(t *testing.T) {
 			// Assert that the keys have been loaded
 			storedFakeCryptoKeys := ts.fakeKMSClient.store.fetchFakeCryptoKeys()
 			for _, expectedFakeCryptoKey := range storedFakeCryptoKeys {
-				spireKeyID, ok := getSPIREKeyIDFromCryptoKeyName(expectedFakeCryptoKey.Name)
+				spireKeyID, ok := getSPIREKeyIDFromCryptoKeyName(expectedFakeCryptoKey.Name, ts.plugin.pd.serverID)
 				require.True(t, ok)
 
 				entry, ok := ts.plugin.entries[spireKeyID]
@@ -439,6 +456,56 @@ func TestConfigure(t *testing.T) {
 			}
 
 			require.Equal(t, tt.expectOpts, ts.plugin.kmsClient.(*fakeKMSClient).opts)
+		})
+	}
+}
+
+func TestGetSPIREKeyIDFromCryptoKeyName(t *testing.T) {
+	for _, tt := range []struct {
+		name          string
+		cryptoKeyName string
+		serverID      string
+		expectKeyID   string
+		expectOK      bool
+	}{
+		{
+			name:          "uuid server id (key_identifier_file)",
+			cryptoKeyName: path.Join(validKeyRing, "cryptoKeys", fmt.Sprintf("spire-key-%s-x509-CA-A", validServerID)),
+			serverID:      validServerID,
+			expectKeyID:   "x509-CA-A",
+			expectOK:      true,
+		},
+		{
+			name:          "short custom server id (key_identifier_value)",
+			cryptoKeyName: path.Join(validKeyRing, "cryptoKeys", "spire-key-dpt-gcp-38d0-x509-CA-A"),
+			serverID:      "dpt-gcp-38d0",
+			expectKeyID:   "x509-CA-A",
+			expectOK:      true,
+		},
+		{
+			name:          "server id containing dashes (key_identifier_value)",
+			cryptoKeyName: path.Join(validKeyRing, "cryptoKeys", "spire-key-my-server-JWT-B"),
+			serverID:      "my-server",
+			expectKeyID:   "JWT-B",
+			expectOK:      true,
+		},
+		{
+			name:          "prefix does not match server id",
+			cryptoKeyName: path.Join(validKeyRing, "cryptoKeys", "spire-key-other-server-x509-CA-A"),
+			serverID:      "dpt-gcp-38d0",
+			expectOK:      false,
+		},
+		{
+			name:          "no spire key id after server id",
+			cryptoKeyName: path.Join(validKeyRing, "cryptoKeys", "spire-key-dpt-gcp-38d0"),
+			serverID:      "dpt-gcp-38d0",
+			expectOK:      false,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			spireKeyID, ok := getSPIREKeyIDFromCryptoKeyName(tt.cryptoKeyName, tt.serverID)
+			require.Equal(t, tt.expectOK, ok)
+			require.Equal(t, tt.expectKeyID, spireKeyID)
 		})
 	}
 }
