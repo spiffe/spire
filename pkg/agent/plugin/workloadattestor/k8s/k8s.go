@@ -113,6 +113,11 @@ type HCLConfig struct {
 	// 10250). This option is mutually exclusive with KubeletReadOnlyPort.
 	KubeletSecurePort int `hcl:"kubelet_secure_port"`
 
+	// DisableKubeletClient disables kubelet client setup and kubelet pod-list
+	// calls. PID-based workload attestation and agent_node pod reference
+	// resolution require the kubelet client.
+	DisableKubeletClient bool `hcl:"disable_kubelet_client"`
+
 	// MaxPollAttempts is the maximum number of polling attempts for the
 	// container hosting the workload process.
 	MaxPollAttempts int `hcl:"max_poll_attempts"`
@@ -240,6 +245,7 @@ type k8sAPIServerCacheConfig struct {
 type k8sConfig struct {
 	Secure                     bool
 	Port                       int
+	DisableKubeletClient       bool
 	MaxPollAttempts            int
 	PollRetryInterval          time.Duration
 	SkipKubeletVerification    bool
@@ -271,6 +277,7 @@ func (p *Plugin) buildConfig(coreConfig catalog.CoreConfig, hclText string, stat
 
 	pluginconf.ReportUnusedKeys(status, newConfig.UnusedKeyPositions)
 	apiServerCacheConfig, brokerConfig := buildExperimentalConfig(newConfig.Experimental, status)
+	validateDisableKubeletClientConfig(newConfig, brokerConfig, status)
 
 	// Determine max poll attempts with default
 	maxPollAttempts := newConfig.MaxPollAttempts
@@ -339,6 +346,7 @@ func (p *Plugin) buildConfig(coreConfig catalog.CoreConfig, hclText string, stat
 	return &k8sConfig{
 		Secure:                     secure,
 		Port:                       port,
+		DisableKubeletClient:       newConfig.DisableKubeletClient,
 		MaxPollAttempts:            maxPollAttempts,
 		PollRetryInterval:          pollRetryInterval,
 		SkipKubeletVerification:    newConfig.SkipKubeletVerification,
@@ -355,6 +363,43 @@ func (p *Plugin) buildConfig(coreConfig catalog.CoreConfig, hclText string, stat
 		sigstoreConfig:             sigstoreConfig,
 		APIServerCache:             apiServerCacheConfig,
 		Broker:                     brokerConfig,
+	}
+}
+
+func validateDisableKubeletClientConfig(config *HCLConfig, brokerConfig *k8sBrokerConfig, status *pluginconf.Status) {
+	if !config.DisableKubeletClient {
+		return
+	}
+
+	conflicts := []struct {
+		name string
+		set  bool
+	}{
+		{name: "kubelet_read_only_port", set: config.KubeletReadOnlyPort > 0},
+		{name: "kubelet_secure_port", set: config.KubeletSecurePort > 0},
+		{name: "kubelet_ca_path", set: config.KubeletCAPath != ""},
+		{name: "skip_kubelet_verification", set: config.SkipKubeletVerification},
+		{name: "token_path", set: config.TokenPath != ""},
+		{name: "certificate_path", set: config.CertificatePath != ""},
+		{name: "private_key_path", set: config.PrivateKeyPath != ""},
+		{name: "use_anonymous_authentication", set: config.UseAnonymousAuthentication},
+		{name: "node_name_env", set: config.NodeNameEnv != ""},
+		{name: "node_name", set: config.NodeName != ""},
+		{name: "reload_interval", set: config.ReloadInterval != ""},
+	}
+	for _, conflict := range conflicts {
+		if conflict.set {
+			status.ReportErrorf("disable_kubelet_client cannot be used with %s", conflict.name)
+		}
+	}
+
+	if brokerConfig == nil {
+		return
+	}
+	for brokerID, brokerEntry := range brokerConfig.Brokers {
+		if brokerEntry.PodReferenceScope != podReferenceScopeCluster {
+			status.ReportErrorf("experimental.broker.brokers[%s].pod_reference_scope must be \"cluster\" when disable_kubelet_client is true", brokerID)
+		}
 	}
 }
 
@@ -626,6 +671,9 @@ func (p *Plugin) attestByPIDReference(ctx context.Context, pid int32) (*attestRe
 	if err != nil {
 		return nil, err
 	}
+	if config.Client == nil {
+		return nil, kubeletClientUnavailableError(config)
+	}
 
 	podUID, containerID, err := containerHelper.GetPodUIDAndContainerID(pid, p.log)
 	if err != nil {
@@ -824,14 +872,15 @@ func (p *Plugin) getBrokerEntryIfPresent(ctx context.Context, config *k8sConfig)
 // required when key is set); this function adds the pod-specific namespace
 // requirement (pods are always namespaced) and enforces the spec cross-check
 // ("if both key and uid are supplied, the resolved pod's UID MUST match the
-// supplied uid"). Resolution tries the kubelet pod list first (cheap,
-// node-local, indexed by UID — same path the PID-based flow uses). With
-// agent_node scope, resolution is limited to that kubelet pod list and does
-// not fall back to the API server. Selector emission uses pod-shaped selectors
-// (sa, ns, pod-uid, pod-name, pod-image, pod-label, pod-owner, ...), distinct
-// from the generic-object vocabulary so registration entries
-// can match pod-specific fields like container images and service accounts
-// that aren't present on a PartialObjectMetadata.
+// supplied uid"). Resolution uses the kubelet pod list first when available
+// (cheap, node-local, indexed by UID). With agent_node scope, the kubelet
+// client is required and resolution is limited to that pod list. With cluster
+// scope, resolution falls back to the Kubernetes API server when the kubelet
+// client is disabled, unavailable, or does not report the pod. Selector
+// emission uses pod-shaped selectors (sa, ns, pod-uid, pod-name, pod-image,
+// pod-label, pod-owner, ...), distinct from the generic-object vocabulary so
+// registration entries can match pod-specific fields like container images and
+// service accounts that aren't present on a PartialObjectMetadata.
 func (p *Plugin) attestByPodReference(ctx context.Context, brokerEntry *k8sBrokerEntry, objRef *broker.KubernetesObjectReference) (*attestReferenceResult, error) {
 	key := objRef.GetKey()
 	namespace := key.GetNamespace()
@@ -887,16 +936,16 @@ func brokerPodReferenceScope(brokerEntry *k8sBrokerEntry) podReferenceScope {
 	return brokerEntry.PodReferenceScope
 }
 
-// findPodByName resolves a single pod by its namespaced name. The kubelet
-// pod list is iterated first; this is O(n) over the node's pods (the list
-// is indexed by UID, not name) but n is small in practice and saves an API
-// server round-trip when the pod is local. Under agent_node scope, resolution
-// stops at the kubelet pod list. Under cluster scope, if the pod is not in the
-// kubelet list, the apiserver answers a precise Get directly — no list, no
-// client-side filter.
+// findPodByName resolves a single pod by its namespaced name. When configured,
+// the kubelet pod list is iterated first; this is O(n) over the node's pods (the
+// list is indexed by UID, not name) but n is small in practice and saves an API
+// server round-trip when the pod is local. Under agent_node scope, the kubelet
+// client is required and resolution stops at its pod list. Under cluster scope,
+// an unavailable kubelet client is ignored and the apiserver answers a precise
+// Get directly — no list, no client-side filter.
 func (p *Plugin) findPodByName(ctx context.Context, config *k8sConfig, namespace, name string, scope podReferenceScope) (*corev1.Pod, error) {
 	// Try kubelet pod list first; iterate to find a match by namespace+name.
-	podList, err := p.getPodList(ctx, config.Client, config.PollRetryInterval/2)
+	podList, err := p.getPodListForReference(ctx, config, scope)
 	if err != nil {
 		return nil, err
 	}
@@ -929,18 +978,19 @@ func (p *Plugin) findPodByName(ctx context.Context, config *k8sConfig, namespace
 	return pod, nil
 }
 
-// findPodByUID resolves a single pod by its Kubernetes UID. The kubelet pod
-// list is checked first because it's already keyed by UID and only contains
-// pods scheduled to this node — both common-case wins. Under agent_node scope,
-// resolution stops at the kubelet pod list. Under cluster scope, if the pod is
-// not in the kubelet list, it falls back to a cluster-wide
+// findPodByUID resolves a single pod by its Kubernetes UID. When configured,
+// the kubelet pod list is checked first because it's already keyed by UID and
+// only contains pods scheduled to this node — both common-case wins. Under
+// agent_node scope, the kubelet client is required and resolution stops at its
+// pod list. Under cluster scope, an unavailable kubelet client is ignored and
+// resolution falls back to a cluster-wide
 // PartialObjectMetadata List from the API server cache to resolve the pod
 // name+namespace, then fetches the full pod with a single live Get. Kubernetes
 // does not support `metadata.uid` as a field selector, so we list and filter
 // client-side regardless.
 func (p *Plugin) findPodByUID(ctx context.Context, config *k8sConfig, uid types.UID, scope podReferenceScope) (*corev1.Pod, error) {
 	// Try kubelet pod list first (already indexed by UID).
-	podList, err := p.getPodList(ctx, config.Client, config.PollRetryInterval/2)
+	podList, err := p.getPodListForReference(ctx, config, scope)
 	if err != nil {
 		return nil, err
 	}
@@ -978,6 +1028,32 @@ func (p *Plugin) findPodByUID(ctx context.Context, config *k8sConfig, uid types.
 		return nil, status.Errorf(codes.NotFound, "pod %s/%s has UID %s, expected %s", pod.Namespace, pod.Name, pod.UID, uid)
 	}
 	return pod, nil
+}
+
+func (p *Plugin) getPodListForReference(ctx context.Context, config *k8sConfig, scope podReferenceScope) (map[string]*fastjson.Value, error) {
+	if config.Client == nil {
+		if scope != podReferenceScopeCluster {
+			return nil, kubeletClientUnavailableError(config)
+		}
+		return nil, nil
+	}
+
+	podList, err := p.getPodList(ctx, config.Client, config.PollRetryInterval/2)
+	if err != nil {
+		if scope != podReferenceScopeCluster {
+			return nil, err
+		}
+		p.log.Debug("Unable to query kubelet for pod reference; falling back to Kubernetes API", telemetry.Error, err)
+		return nil, nil
+	}
+	return podList, nil
+}
+
+func kubeletClientUnavailableError(config *k8sConfig) error {
+	if config.DisableKubeletClient {
+		return status.Error(codes.FailedPrecondition, "kubelet client is disabled")
+	}
+	return status.Error(codes.FailedPrecondition, "kubelet client is not configured")
 }
 
 // decodePodFromKubelet rehydrates a `corev1.Pod` from the partially-parsed
@@ -1431,6 +1507,10 @@ func (p *Plugin) setContainerHelper(c ContainerHelper) {
 }
 
 func (p *Plugin) reloadKubeletClient(config *k8sConfig) (err error) {
+	if config.DisableKubeletClient {
+		return nil
+	}
+
 	// The insecure client only needs to be loaded once.
 	if !config.Secure {
 		if config.Client == nil {
@@ -1601,6 +1681,10 @@ func (p *Plugin) getNodeName(name string, env string) string {
 }
 
 func (p *Plugin) getPodList(ctx context.Context, client *kubeletClient, cacheFor time.Duration) (map[string]*fastjson.Value, error) {
+	if client == nil {
+		return nil, status.Error(codes.FailedPrecondition, "kubelet client is not configured")
+	}
+
 	result := p.getPodListCache()
 	if result != nil {
 		return result, nil
