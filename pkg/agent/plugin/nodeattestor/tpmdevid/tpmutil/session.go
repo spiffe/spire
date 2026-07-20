@@ -90,33 +90,99 @@ func NewSession(scfg *SessionConfig) (*Session, error) {
 		return nil, fmt.Errorf("cannot generate random password for storage root key: %w", err)
 	}
 
+	// Determine which SRK template the DevID key requires.
+	// RSA DevID → SRKTemplateHighRSA; ECC DevID → SRKTemplateHighECC.
+	devIDPub, err := tpm2.DecodePublic(scfg.DevIDPub)
+	if err != nil {
+		return nil, fmt.Errorf("cannot decode DevID public key: %w", err)
+	}
+	var devIDSRKTemplate tpm2.Public
+	switch devIDPub.Type {
+	case tpm2.AlgRSA:
+		devIDSRKTemplate = SRKTemplateHighRSA()
+	case tpm2.AlgECC:
+		devIDSRKTemplate = SRKTemplateHighECC()
+	default:
+		return nil, fmt.Errorf("unsupported DevID key type: 0x%04x", devIDPub.Type)
+	}
+
+	// Create one owner-hierarchy SRK. For RSA DevIDs this handle is reused for
+	// DevID loading, AK creation, and AK loading — TPM2_CreatePrimary is called
+	// once instead of three times. For ECC DevIDs a second RSA SRK is needed for
+	// the AK (reducing from three calls to two).
+	devIDSRKHandle, _, _, _, _, _, err := tpm2.CreatePrimaryEx(
+		rwc, tpm2.HandleOwner,
+		tpm2.PCRSelection{},
+		scfg.Passwords.OwnerHierarchy,
+		srkPassword,
+		devIDSRKTemplate,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("cannot create owner SRK: %w", err)
+	}
+
 	// Load DevID
-	tpm.devID, err = tpm.loadKey(
+	tpm.devID, err = tpm.loadKeyWithSRK(
 		scfg.DevIDPub,
 		scfg.DevIDPriv,
+		devIDSRKHandle,
 		srkPassword,
-		scfg.Passwords.DevIDKey)
+		scfg.Passwords.DevIDKey,
+	)
 	if err != nil {
+		tpm.flushContext(devIDSRKHandle)
 		return nil, fmt.Errorf("cannot load DevID key on TPM: %w", err)
 	}
 
 	// Create Attestation Key
 	akPassword, err := newRandomPassword()
 	if err != nil {
+		tpm.flushContext(devIDSRKHandle)
 		return nil, fmt.Errorf("cannot generate random password for attesation key: %w", err)
 	}
-	akPriv, akPub, err := tpm.createAttestationKey(srkPassword, akPassword)
+
+	// For ECC DevIDs the AK always uses SRKTemplateHighRSA, so a separate SRK
+	// is needed. For RSA DevIDs the same SRK serves all three operations.
+	akSRKHandle := devIDSRKHandle
+	if devIDPub.Type == tpm2.AlgECC {
+		akSRKHandle, _, _, _, _, _, err = tpm2.CreatePrimaryEx(
+			rwc, tpm2.HandleOwner,
+			tpm2.PCRSelection{},
+			scfg.Passwords.OwnerHierarchy,
+			srkPassword,
+			SRKTemplateHighRSA(),
+		)
+		if err != nil {
+			tpm.flushContext(devIDSRKHandle)
+			return nil, fmt.Errorf("cannot create RSA SRK for attestation key: %w", err)
+		}
+	}
+
+	akPriv, akPub, err := tpm.createAttestationKeyWithSRK(akSRKHandle, srkPassword, akPassword)
 	if err != nil {
+		tpm.flushContext(devIDSRKHandle)
+		if akSRKHandle != devIDSRKHandle {
+			tpm.flushContext(akSRKHandle)
+		}
 		return nil, fmt.Errorf("cannot create attestation key: %w", err)
 	}
 	tpm.akPub = akPub
 
 	// Load Attestation Key
-	tpm.ak, err = tpm.loadKey(
+	tpm.ak, err = tpm.loadKeyWithSRK(
 		akPub,
 		akPriv,
+		akSRKHandle,
 		srkPassword,
-		akPassword)
+		akPassword,
+	)
+	// Flush SRK(s) before creating the EK. At this point devID and ak occupy two
+	// transient slots; some chips (e.g. Infineon SLB9672) enforce a three-slot
+	// limit, so the EK CreatePrimary needs the SRK slot freed first.
+	tpm.flushContext(devIDSRKHandle)
+	if akSRKHandle != devIDSRKHandle {
+		tpm.flushContext(akSRKHandle)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("cannot load attestation key: %w", err)
 	}
@@ -317,6 +383,53 @@ func (c *Session) loadKey(publicKey, privateKey []byte, parentKeyPassword, keyPa
 	}, nil
 }
 
+// loadKeyWithSRK loads a key pair into the TPM under an already-created SRK.
+// The caller is responsible for flushing srkHandle after all operations complete.
+func (c *Session) loadKeyWithSRK(publicKey, privateKey []byte, srkHandle tpmutil.Handle, srkPassword, keyPassword string) (*SigningKey, error) {
+	pub, err := tpm2.DecodePublic(publicKey)
+	if err != nil {
+		return nil, fmt.Errorf("tpm2.DecodePublic failed: %w", err)
+	}
+
+	canSign := pub.Attributes&tpm2.FlagSign != 0
+	if !canSign {
+		return nil, errors.New("not a signing key")
+	}
+
+	var sigHashAlg tpm2.Algorithm
+	switch pub.Type {
+	case tpm2.AlgRSA:
+		rsaParams := pub.RSAParameters
+		if rsaParams != nil {
+			sigHashAlg = rsaParams.Sign.Hash
+		}
+	case tpm2.AlgECC:
+		eccParams := pub.ECCParameters
+		if eccParams != nil {
+			sigHashAlg = eccParams.Sign.Hash
+		}
+	default:
+		return nil, fmt.Errorf("bad key type: 0x%04x", pub.Type)
+	}
+
+	if sigHashAlg.IsNull() {
+		return nil, errors.New("signature hash algorithm is NULL")
+	}
+
+	keyHandle, _, err := tpm2.Load(c.rwc, srkHandle, srkPassword, publicKey, privateKey)
+	if err != nil {
+		return nil, fmt.Errorf("tpm2.Load failed: %w", err)
+	}
+
+	return &SigningKey{
+		Handle:     keyHandle,
+		sigHashAlg: sigHashAlg,
+		rw:         c.rwc,
+		log:        c.log,
+		password:   keyPassword,
+	}, nil
+}
+
 func (c *Session) createAttestationKey(parentKeyPassword, keyPassword string) ([]byte, []byte, error) {
 	srkHandle, _, _, _, _, _, err :=
 		tpm2.CreatePrimaryEx(c.rwc,
@@ -342,6 +455,23 @@ func (c *Session) createAttestationKey(parentKeyPassword, keyPassword string) ([
 		return nil, nil, fmt.Errorf("failed to create AK: %w", err)
 	}
 
+	return privBlob, pubBlob, nil
+}
+
+// createAttestationKeyWithSRK creates an RSA attestation key under an already-created SRK.
+// The caller is responsible for flushing srkHandle after all operations complete.
+func (c *Session) createAttestationKeyWithSRK(srkHandle tpmutil.Handle, srkPassword, keyPassword string) ([]byte, []byte, error) {
+	privBlob, pubBlob, _, _, _, err := tpm2.CreateKey(
+		c.rwc,
+		srkHandle,
+		tpm2.PCRSelection{},
+		srkPassword,
+		keyPassword,
+		client.AKTemplateRSA(),
+	)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to create AK: %w", err)
+	}
 	return privBlob, pubBlob, nil
 }
 
