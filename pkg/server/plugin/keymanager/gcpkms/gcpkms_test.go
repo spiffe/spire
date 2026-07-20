@@ -265,8 +265,25 @@ func TestConfigure(t *testing.T) {
 		{
 			name:             "key identifier value too long",
 			configureRequest: configureRequestWithString(fmt.Sprintf(`{"access_key_id":"access_key_id","secret_access_key":"secret_access_key","region":"region","key_identifier_value":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","key_policy_file":"","key_ring":"%s"}`, validKeyRing)),
-			expectMsg:        "Key identifier must not be longer than 63 characters",
+			expectMsg:        "Key identifier must not be longer than 40 characters",
 			expectCode:       codes.InvalidArgument,
+		},
+		{
+			// A 41-character identifier would push the generated CryptoKey ID
+			// (spire-key-<serverID>-<spireKeyID>) past Cloud KMS's 63-character
+			// limit, so it must be rejected.
+			name:             "key identifier value one over limit",
+			configureRequest: configureRequestWithString(fmt.Sprintf(`{"access_key_id":"access_key_id","secret_access_key":"secret_access_key","region":"region","key_identifier_value":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","key_policy_file":"","key_ring":"%s"}`, validKeyRing)),
+			expectMsg:        "Key identifier must not be longer than 40 characters",
+			expectCode:       codes.InvalidArgument,
+		},
+		{
+			// A 40-character identifier is the longest that still fits.
+			name: "key identifier value at limit",
+			config: &Config{
+				KeyIdentifierValue: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+				KeyRing:            validKeyRing,
+			},
 		},
 		{
 			name: "custom policy file does not exist",
@@ -430,7 +447,7 @@ func TestConfigure(t *testing.T) {
 			// Assert that the keys have been loaded
 			storedFakeCryptoKeys := ts.fakeKMSClient.store.fetchFakeCryptoKeys()
 			for _, expectedFakeCryptoKey := range storedFakeCryptoKeys {
-				spireKeyID, ok := getSPIREKeyIDFromCryptoKeyName(expectedFakeCryptoKey.Name)
+				spireKeyID, ok := getSPIREKeyIDFromCryptoKeyName(expectedFakeCryptoKey.Name, ts.plugin.pd.serverID)
 				require.True(t, ok)
 
 				entry, ok := ts.plugin.entries[spireKeyID]
@@ -443,17 +460,72 @@ func TestConfigure(t *testing.T) {
 	}
 }
 
+func TestGetSPIREKeyIDFromCryptoKeyName(t *testing.T) {
+	for _, tt := range []struct {
+		name          string
+		cryptoKeyName string
+		serverID      string
+		expectKeyID   string
+		expectOK      bool
+	}{
+		{
+			name:          "uuid server id (key_identifier_file)",
+			cryptoKeyName: path.Join(validKeyRing, "cryptoKeys", fmt.Sprintf("spire-key-%s-x509-CA-A", validServerID)),
+			serverID:      validServerID,
+			expectKeyID:   "x509-CA-A",
+			expectOK:      true,
+		},
+		{
+			name:          "short custom server id (key_identifier_value)",
+			cryptoKeyName: path.Join(validKeyRing, "cryptoKeys", "spire-key-dpt-gcp-38d0-x509-CA-A"),
+			serverID:      "dpt-gcp-38d0",
+			expectKeyID:   "x509-CA-A",
+			expectOK:      true,
+		},
+		{
+			name:          "server id containing dashes (key_identifier_value)",
+			cryptoKeyName: path.Join(validKeyRing, "cryptoKeys", "spire-key-my-server-JWT-B"),
+			serverID:      "my-server",
+			expectKeyID:   "JWT-B",
+			expectOK:      true,
+		},
+		{
+			name:          "prefix does not match server id",
+			cryptoKeyName: path.Join(validKeyRing, "cryptoKeys", "spire-key-other-server-x509-CA-A"),
+			serverID:      "dpt-gcp-38d0",
+			expectOK:      false,
+		},
+		{
+			name:          "no spire key id after server id",
+			cryptoKeyName: path.Join(validKeyRing, "cryptoKeys", "spire-key-dpt-gcp-38d0"),
+			serverID:      "dpt-gcp-38d0",
+			expectOK:      false,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			spireKeyID, ok := getSPIREKeyIDFromCryptoKeyName(tt.cryptoKeyName, tt.serverID)
+			require.Equal(t, tt.expectOK, ok)
+			require.Equal(t, tt.expectKeyID, spireKeyID)
+		})
+	}
+}
+
 func TestDisposeStaleCryptoKeys(t *testing.T) {
 	configureRequest := configureRequestWithDefaults(t)
 	ts := setupTest(t)
 	now := ts.clockHook.Now()
+	// The CryptoKeys carry a last-update timestamp older than maxStaleDuration,
+	// so they are already stale. Combined with the single-period clock advances
+	// below, this makes stale detection independent of the exact mock-clock
+	// value observed at each ticker tick.
+	staleLastUpdate := fmt.Sprintf("%d", now.Add(-maxStaleDuration-time.Hour).Unix())
 	fakeCryptoKeys := []*fakeCryptoKey{
 		{
 			CryptoKey: &kmspb.CryptoKey{
 				Name: cryptoKeyName1,
 				Labels: map[string]string{
 					labelNameActive:     "true",
-					labelNameLastUpdate: fmt.Sprintf("%d", now.Unix()),
+					labelNameLastUpdate: staleLastUpdate,
 				},
 				VersionTemplate: &kmspb.CryptoKeyVersionTemplate{Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256},
 			},
@@ -473,7 +545,7 @@ func TestDisposeStaleCryptoKeys(t *testing.T) {
 				Name: cryptoKeyName2,
 				Labels: map[string]string{
 					labelNameActive:     "true",
-					labelNameLastUpdate: fmt.Sprintf("%d", now.Unix()),
+					labelNameLastUpdate: staleLastUpdate,
 				},
 				VersionTemplate: &kmspb.CryptoKeyVersionTemplate{Algorithm: kmspb.CryptoKeyVersion_EC_SIGN_P256_SHA256},
 			},
@@ -501,15 +573,21 @@ func TestDisposeStaleCryptoKeys(t *testing.T) {
 	_, err := ts.plugin.Configure(ctx, configureRequest)
 	require.NoError(t, err)
 
-	// Move the clock to start disposeCryptoKeysTask.
-	clkAdv := maxDuration(disposeCryptoKeysFrequency, maxStaleDuration)
-	ts.clockHook.Add(clkAdv)
+	// Wait for disposeCryptoKeysTask to be initialized before advancing the
+	// clock. The task creates its ticker and only then emits this
+	// notification, so draining it here guarantees the ticker exists and the
+	// advances below deterministically fire it. Advancing before the ticker is
+	// created shifts the ticker's baseline, which makes the runs below depend
+	// on goroutine scheduling.
+	err = waitForSignal(t, ts.plugin.hooks.disposeCryptoKeysSignal)
+	require.NoError(t, err)
 
-	// Wait for dispose disposeCryptoKeysTask to be initialized.
-	_ = waitForSignal(t, ts.plugin.hooks.disposeCryptoKeysSignal)
-
-	// Move the clock to make sure that we have stale CryptoKeys.
-	ts.clockHook.Add(maxStaleDuration)
+	// Advance one ticker period to run disposeCryptoKeys. The CryptoKeys are
+	// already stale, so this run schedules their CryptoKeyVersions for
+	// destruction. Advancing exactly one period fires the ticker once with the
+	// clock at the advanced time, avoiding the intermediate clock values that a
+	// multi-period advance would expose to the running task.
+	ts.clockHook.Add(disposeCryptoKeysFrequency)
 
 	// Wait for destroy notification of all the CryptoKeyVersions.
 	storedFakeCryptoKeys := ts.fakeKMSClient.store.fetchFakeCryptoKeys()
@@ -531,11 +609,14 @@ func TestDisposeStaleCryptoKeys(t *testing.T) {
 		}
 	}
 
-	// Move the clock to start disposeCryptoKeysTask again.
+	// Advance another ticker period to run disposeCryptoKeys again. The task
+	// blocks on the unbuffered notification channel after each run, so drain
+	// the previous run's notification to let this run proceed. Since the
+	// CryptoKeys no longer have enabled CryptoKeyVersions, this run marks them
+	// inactive.
 	ts.clockHook.Add(disposeCryptoKeysFrequency)
-
-	// Wait for dispose disposeCryptoKeysTask to be initialized.
-	_ = waitForSignal(t, ts.plugin.hooks.disposeCryptoKeysSignal)
+	err = waitForSignal(t, ts.plugin.hooks.disposeCryptoKeysSignal)
+	require.NoError(t, err)
 
 	// Since the CryptoKey doesn't have any enabled CryptoKeyVersions at
 	// this point, it should be set as inactive.
@@ -1800,12 +1881,4 @@ func waitForSignal(t *testing.T, ch chan error) error {
 		t.Fail()
 	}
 	return nil
-}
-
-func maxDuration(d1, d2 time.Duration) time.Duration {
-	if d1 > d2 {
-		return d1
-	}
-
-	return d2
 }

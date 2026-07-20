@@ -86,6 +86,10 @@ type AllowedReferenceType struct {
 
 type Endpoints struct {
 	c *Config
+
+	hooks struct {
+		listening chan struct{}
+	}
 }
 
 func New(c *Config) (*Endpoints, error) {
@@ -107,7 +111,19 @@ func New(c *Config) (*Endpoints, error) {
 	}
 	return &Endpoints{
 		c: c,
+		hooks: struct {
+			listening chan struct{}
+		}{
+			listening: make(chan struct{}),
+		},
 	}, nil
+}
+
+// WaitForListening signals on listening after all configured Broker API
+// listeners have been created.
+func (e *Endpoints) WaitForListening(listening chan struct{}) {
+	<-e.hooks.listening
+	listening <- struct{}{}
 }
 
 func (e *Endpoints) ListenAndServe(ctx context.Context) error {
@@ -178,7 +194,6 @@ func (e *Endpoints) ListenAndServe(ctx context.Context) error {
 			telemetry.Address: l.Addr().String(),
 		}).Info("Starting SPIFFE Broker Endpoint")
 	}
-
 	// Fan one gRPC server out across every listener with an errgroup. The
 	// first goroutine to error (or context cancellation) cancels the
 	// errgroup's context, which the watcher goroutine uses to call
@@ -199,6 +214,7 @@ func (e *Endpoints) ListenAndServe(ctx context.Context) error {
 		return nil
 	})
 
+	close(e.hooks.listening)
 	if err := g.Wait(); err != nil {
 		e.c.Log.WithError(err).Error("SPIFFE Broker Endpoint stopped prematurely")
 		return err

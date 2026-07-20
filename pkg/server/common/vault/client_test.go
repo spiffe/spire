@@ -1086,7 +1086,7 @@ func TestSignData(t *testing.T) {
 
 			require.NotNil(t, capturedBody, "sign request body not captured")
 			require.Equal(t, true, capturedBody["prehashed"], "prehashed must be boolean true")
-			require.Equal(t, "asn1", capturedBody["marshalling_algorithm"])
+			require.Equal(t, "asn1", capturedBody["marshaling_algorithm"])
 
 			_, hasSigAlgo := capturedBody["signature_algorithm"]
 			require.Equal(t, tt.wantSigAlgoInBody, hasSigAlgo,
