@@ -141,10 +141,21 @@ func NewSession(scfg *SessionConfig) (*Session, error) {
 		return nil, fmt.Errorf("cannot generate random password for attesation key: %w", err)
 	}
 
-	// For ECC DevIDs the AK always uses SRKTemplateHighRSA, so a separate SRK
-	// is needed. For RSA DevIDs the same SRK serves all three operations.
+	// For ECC DevIDs the AK always uses SRKTemplateHighRSA, so a separate RSA
+	// SRK is needed. Flush the ECC devIDSRKHandle immediately after devID is
+	// loaded — it is no longer needed, and freeing the slot avoids hitting the
+	// TPM's transient object limit when the RSA akSRKHandle is created.
+	// For RSA DevIDs the same SRK serves all three operations.
+	//
+	// separateAKSRK tracks whether akSRKHandle is a distinct object from
+	// devIDSRKHandle. We cannot use handle-value comparison after flushing
+	// devIDSRKHandle because the TPM may reuse the same handle number for the
+	// newly created akSRKHandle.
+	separateAKSRK := false
 	akSRKHandle := devIDSRKHandle
 	if devIDPub.Type == tpm2.AlgECC {
+		tpm.flushContext(devIDSRKHandle)
+		separateAKSRK = true
 		akSRKHandle, _, _, _, _, _, err = tpm2.CreatePrimaryEx(
 			rwc, tpm2.HandleOwner,
 			tpm2.PCRSelection{},
@@ -153,15 +164,16 @@ func NewSession(scfg *SessionConfig) (*Session, error) {
 			SRKTemplateHighRSA(),
 		)
 		if err != nil {
-			tpm.flushContext(devIDSRKHandle)
 			return nil, fmt.Errorf("cannot create RSA SRK for attestation key: %w", err)
 		}
 	}
 
 	akPriv, akPub, err := tpm.createAttestationKeyWithSRK(akSRKHandle, srkPassword, akPassword)
 	if err != nil {
-		tpm.flushContext(devIDSRKHandle)
-		if akSRKHandle != devIDSRKHandle {
+		if !separateAKSRK {
+			tpm.flushContext(devIDSRKHandle)
+		}
+		if separateAKSRK {
 			tpm.flushContext(akSRKHandle)
 		}
 		return nil, fmt.Errorf("cannot create attestation key: %w", err)
@@ -179,8 +191,10 @@ func NewSession(scfg *SessionConfig) (*Session, error) {
 	// Flush SRK(s) before creating the EK. At this point devID and ak occupy two
 	// transient slots; some chips (e.g. Infineon SLB9672) enforce a three-slot
 	// limit, so the EK CreatePrimary needs the SRK slot freed first.
-	tpm.flushContext(devIDSRKHandle)
-	if akSRKHandle != devIDSRKHandle {
+	if !separateAKSRK {
+		tpm.flushContext(devIDSRKHandle)
+	}
+	if separateAKSRK {
 		tpm.flushContext(akSRKHandle)
 	}
 	if err != nil {
