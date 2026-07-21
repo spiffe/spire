@@ -343,7 +343,7 @@ func (cmd *Command) Run(args []string) int {
 	defer stop()
 
 	err = a.Run(ctx)
-	if err != nil {
+	if err != nil && !errors.Is(err, context.Canceled) {
 		c.Log.WithError(err).Error("Agent crashed")
 		return 1
 	}
