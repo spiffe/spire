@@ -287,7 +287,7 @@ func (cmd *Command) Run(args []string) int {
 	defer stop()
 
 	err = s.Run(ctx)
-	if err != nil {
+	if err != nil && !errors.Is(err, context.Canceled) {
 		c.Log.WithError(err).Error("Server crashed")
 		return 1
 	}
