@@ -25,11 +25,11 @@ var (
 )
 
 type DataStore struct {
-	ds   datastore.DataStore
+	ds   datastore.TestableDataStore
 	errs []error
 }
 
-var _ datastore.DataStore = (*DataStore)(nil)
+var _ datastore.TestableDataStore = (*DataStore)(nil)
 
 func New(tb testing.TB) *DataStore {
 	log, _ := test.NewNullLogger()

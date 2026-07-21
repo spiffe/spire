@@ -44,8 +44,6 @@ type DataStore interface {
 	ListRegistrationEntryEvents(ctx context.Context, req *ListRegistrationEntryEventsRequest) (*ListRegistrationEntryEventsResponse, error)
 	PruneRegistrationEntryEvents(ctx context.Context, olderThan time.Duration) error
 	FetchRegistrationEntryEvent(ctx context.Context, eventID uint) (*RegistrationEntryEvent, error)
-	CreateRegistrationEntryEventForTesting(ctx context.Context, event *RegistrationEntryEvent) error
-	DeleteRegistrationEntryEventForTesting(ctx context.Context, eventID uint) error
 
 	// Nodes
 	CountAttestedNodes(context.Context, *CountAttestedNodesRequest) (int32, error)
@@ -63,8 +61,6 @@ type DataStore interface {
 	ListAttestedNodeEvents(ctx context.Context, req *ListAttestedNodeEventsRequest) (*ListAttestedNodeEventsResponse, error)
 	PruneAttestedNodeEvents(ctx context.Context, olderThan time.Duration) error
 	FetchAttestedNodeEvent(ctx context.Context, eventID uint) (*AttestedNodeEvent, error)
-	CreateAttestedNodeEventForTesting(ctx context.Context, event *AttestedNodeEvent) error
-	DeleteAttestedNodeEventForTesting(ctx context.Context, eventID uint) error
 
 	// Node selectors
 	GetNodeSelectors(ctx context.Context, spiffeID string, dataConsistency DataConsistency) ([]*common.Selector, error)
@@ -88,6 +84,19 @@ type DataStore interface {
 	SetCAJournal(ctx context.Context, caJournal *CAJournal) (*CAJournal, error)
 	FetchCAJournal(ctx context.Context, activeX509AuthorityID string) (*CAJournal, error)
 	PruneCAJournals(ctx context.Context, allCAsExpireBefore int64) error
+}
+
+// TestableDataStore extends DataStore with helper methods that are only meant
+// to be used from tests. Implementations that back tests (the SQL plugin and
+// the fake datastore) satisfy this interface; production code should depend on
+// DataStore instead.
+type TestableDataStore interface {
+	DataStore
+
+	CreateRegistrationEntryEventForTesting(ctx context.Context, event *RegistrationEntryEvent) error
+	DeleteRegistrationEntryEventForTesting(ctx context.Context, eventID uint) error
+	CreateAttestedNodeEventForTesting(ctx context.Context, event *AttestedNodeEvent) error
+	DeleteAttestedNodeEventForTesting(ctx context.Context, eventID uint) error
 	ListCAJournalsForTesting(ctx context.Context) ([]*CAJournal, error)
 }
 

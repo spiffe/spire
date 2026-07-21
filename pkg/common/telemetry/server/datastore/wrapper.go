@@ -35,12 +35,6 @@ func (w metricsWrapper) CreateAttestedNode(ctx context.Context, node *common.Att
 	return w.ds.CreateAttestedNode(ctx, node)
 }
 
-func (w metricsWrapper) CreateAttestedNodeEventForTesting(ctx context.Context, event *datastore.AttestedNodeEvent) (err error) {
-	callCounter := StartCreateAttestedNodeEventForTestingCall(w.m)
-	defer callCounter.Done(&err)
-	return w.ds.CreateAttestedNodeEventForTesting(ctx, event)
-}
-
 func (w metricsWrapper) CreateBundle(ctx context.Context, bundle *common.Bundle) (_ *common.Bundle, err error) {
 	callCounter := StartCreateBundleCall(w.m)
 	defer callCounter.Done(&err)
@@ -65,12 +59,6 @@ func (w metricsWrapper) CreateOrReturnRegistrationEntry(ctx context.Context, ent
 	return w.ds.CreateOrReturnRegistrationEntry(ctx, entry)
 }
 
-func (w metricsWrapper) CreateRegistrationEntryEventForTesting(ctx context.Context, event *datastore.RegistrationEntryEvent) (err error) {
-	callCounter := StartCreateRegistrationEntryEventForTestingCall(w.m)
-	defer callCounter.Done(&err)
-	return w.ds.CreateRegistrationEntryEventForTesting(ctx, event)
-}
-
 func (w metricsWrapper) CreateFederationRelationship(ctx context.Context, fr *datastore.FederationRelationship) (_ *datastore.FederationRelationship, err error) {
 	callCounter := StartCreateFederationRelationshipCall(w.m)
 	defer callCounter.Done(&err)
@@ -87,12 +75,6 @@ func (w metricsWrapper) DeleteAttestedNode(ctx context.Context, spiffeID string)
 	callCounter := StartDeleteNodeCall(w.m)
 	defer callCounter.Done(&err)
 	return w.ds.DeleteAttestedNode(ctx, spiffeID)
-}
-
-func (w metricsWrapper) DeleteAttestedNodeEventForTesting(ctx context.Context, eventID uint) (err error) {
-	callCounter := StartDeleteAttestedNodeEventForTestingCall(w.m)
-	defer callCounter.Done(&err)
-	return w.ds.DeleteAttestedNodeEventForTesting(ctx, eventID)
 }
 
 func (w metricsWrapper) DeleteBundle(ctx context.Context, trustDomain string, mode datastore.DeleteMode) (err error) {
@@ -117,12 +99,6 @@ func (w metricsWrapper) DeleteRegistrationEntry(ctx context.Context, entryID str
 	callCounter := StartDeleteRegistrationCall(w.m)
 	defer callCounter.Done(&err)
 	return w.ds.DeleteRegistrationEntry(ctx, entryID)
-}
-
-func (w metricsWrapper) DeleteRegistrationEntryEventForTesting(ctx context.Context, eventID uint) (err error) {
-	callCounter := StartDeleteRegistrationEntryEventForTestingCall(w.m)
-	defer callCounter.Done(&err)
-	return w.ds.DeleteRegistrationEntryEventForTesting(ctx, eventID)
 }
 
 func (w metricsWrapper) FetchAttestedNode(ctx context.Context, spiffeID string) (_ *common.AttestedNode, err error) {
@@ -345,12 +321,6 @@ func (w metricsWrapper) FetchCAJournal(ctx context.Context, activeX509AuthorityI
 	callCounter := StartFetchCAJournal(w.m)
 	defer callCounter.Done(&err)
 	return w.ds.FetchCAJournal(ctx, activeX509AuthorityID)
-}
-
-func (w metricsWrapper) ListCAJournalsForTesting(ctx context.Context) (_ []*datastore.CAJournal, err error) {
-	callCounter := StartListCAJournalsForTesting(w.m)
-	defer callCounter.Done(&err)
-	return w.ds.ListCAJournalsForTesting(ctx)
 }
 
 func (w metricsWrapper) PruneCAJournals(ctx context.Context, allCAsExpireBefore int64) (err error) {
