@@ -51,6 +51,7 @@ A sample configuration for SPIRE server running inside a Kubernetes cluster:
                     service_account_allow_list = ["production:spire-agent"]
                     # use_pod_uid_for_agent_id = true
                 }
+            }
         }
     }
 ```
@@ -66,9 +67,67 @@ A sample configuration for SPIRE server running outside of a Kubernetes cluster:
                     kube_config_file = "path/to/kubeconfig/file"
                     # use_pod_uid_for_agent_id = true
                 }
+            }
         }
     }
 ```
+
+## Running node-UID and pod-UID agents in one Kubernetes cluster
+
+The keys in `clusters` are logical attestation profiles. They do not have to
+correspond one-to-one with Kubernetes API servers. A single Kubernetes cluster
+can have one server-side entry for agents that should use node UIDs in their
+agent SPIFFE IDs and another entry for agents that should use pod UIDs.
+
+```hcl
+    NodeAttestor "k8s_psat" {
+        plugin_data {
+            clusters = {
+                "MyClusterNodes" = {
+                    service_account_allow_list = ["spire:spire-agent"]
+                }
+                "MyClusterPods" = {
+                    service_account_allow_list = ["spire:spire-broker-agent"]
+                    use_pod_uid_for_agent_id = true
+                }
+            }
+        }
+    }
+```
+
+DaemonSet agents normally select the node-UID entry with the agent-side
+`cluster = "MyClusterNodes"` setting. This preserves the usual one agent
+identity per Kubernetes node. Deployment-based agents, or any other agents
+where multiple agent pods may run on the same node, select the pod-UID entry
+with `cluster = "MyClusterPods"` so each attesting pod gets a distinct concrete
+agent SPIFFE ID.
+
+Because the `k8s_psat:cluster:<name>` selector contains the logical cluster
+entry name selected by the agent, node alias entries must match that name. For
+example, a Deployment-based agent using the `spire:spire-broker-agent` Service
+Account can have one stable alias entry for the group of pods with:
+
+* Parent ID: `spiffe://<trust_domain>/spire/server`
+* SPIFFE ID: the stable alias for that logical agent group
+* Selectors: `k8s_psat:cluster:MyClusterPods`,
+  `k8s_psat:agent_ns:spire`, and
+  `k8s_psat:agent_sa:spire-broker-agent`
+
+Registration entries can then use the alias as their parent ID. This keeps the
+registration surface stable even though the concrete pod-UID agent IDs change
+when Deployment pods are replaced.
+
+This pattern is useful for a TCP-only [SPIFFE Broker API](spire_agent.md#spiffe-broker-api)
+deployment. DaemonSet agents can keep using node-UID agent IDs for ordinary
+Workload API traffic, while one or more Deployment-based agents use pod-UID
+agent IDs to serve the Broker API over TCP. Broker SVID entries can remain
+parented to the DaemonSet agent alias they use through the Workload API, and
+object entries served by the Broker API can be parented to the Deployment-based
+agent alias. When the k8s workload attestor uses
+`experimental.broker.access_policy = "enforced"`, Kubernetes RBAC must also
+allow the broker SPIFFE IDs to use SPIRE-specific `impersonate-via-spire` verb
+on the referenced objects, as described in the
+[k8s workload attestor Broker API documentation](plugin_agent_workloadattestor_k8s.md#broker-api).
 
 The Kubernetes user defined in the kube config file needs to have ClusterRoleBindings assigned to ClusterRoles containing at least the following permissions:
 
