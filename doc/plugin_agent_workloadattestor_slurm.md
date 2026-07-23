@@ -6,7 +6,12 @@ The `slurm` plugin generates selectors for workloads that are part of a
 job identifier and the job step of the calling workload.
 
 Because the cgroup hierarchy is created and owned by `slurmstepd` and the kernel — not by
-the workload — the job and step derived from it cannot be forged by the workload.
+the workload — the job and step derived from it cannot be forged by the workload. To keep
+this guarantee, the plugin only matches the scope at its real location directly under the
+root-owned `/system.slice` (i.e. `/system.slice/[<nodename>_]slurmstepd.scope/...`). A
+workload with a writable or delegated cgroup subtree (for example a rootless container or a
+systemd user session) cannot create cgroups under `/system.slice`, so a look-alike path in
+its own subtree is not attested.
 
 This plugin does not accept any configuration options.
 

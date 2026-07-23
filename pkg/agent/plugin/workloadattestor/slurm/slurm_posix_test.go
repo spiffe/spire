@@ -63,6 +63,19 @@ func TestAttest(t *testing.T) {
 			cgroups: "0::/user.slice/user-1000.slice/session-3.scope\n",
 		},
 		{
+			// A workload with a writable/delegated cgroup subtree could mkdir a
+			// look-alike slurmstepd.scope path. It must NOT be attested because
+			// it is not rooted at the root-owned /system.slice.
+			name:    "forged scope under user.slice is rejected",
+			cgroups: "0::/user.slice/user-1000.slice/user@1000.service/slurmstepd.scope/job_999/step_0\n",
+		},
+		{
+			// Even a nested "system.slice" segment created inside a delegated
+			// subtree must not match, since the pattern is anchored to the start.
+			name:    "forged nested system.slice is rejected",
+			cgroups: "0::/user.slice/user-1000.slice/system.slice/slurmstepd.scope/job_999/step_0\n",
+		},
+		{
 			name:           "conflicting slurm jobs",
 			cgroups:        "0::/system.slice/slurmstepd.scope/job_1/step_0/slurm\n0::/system.slice/slurmstepd.scope/job_2/step_0/slurm\n",
 			expectCode:     codes.FailedPrecondition,

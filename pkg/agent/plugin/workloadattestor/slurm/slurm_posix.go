@@ -23,10 +23,20 @@ import (
 //
 // <JOBDIR> is either "job_<numeric>" (when CgroupJobIdPaths=yes) or a bare SLUID,
 // which is Crockford Base32 with a leading 's'. <STEP> is a numeric step id or one
-// of the special names (batch, extern, interactive, TBD). Anchoring on
-// "slurmstepd.scope/" also matches the "<nodename>_slurmstepd.scope" form used with
-// --enable-multiple-slurmd, since that segment ends in "slurmstepd.scope".
-var slurmCgroupRe = regexp.MustCompile(`slurmstepd\.scope/(job_\d+|s[0-9A-Za-z]+)/step_([^/]+)`)
+// of the special names (batch, extern, interactive, TBD). The "[^/]*slurmstepd\.scope"
+// segment also matches the "<nodename>_slurmstepd.scope" form used with
+// --enable-multiple-slurmd.
+//
+// The pattern is anchored to "/system.slice/" at the very start of the cgroup
+// path on purpose: Slurm always creates its scope directly under the top-level
+// system.slice, which is owned by the root systemd instance. Anchoring here
+// preserves the non-forgeability of the attestation. An unprivileged workload
+// may have a writable/delegated cgroup subtree (rootless containers, systemd
+// user sessions) in which it could mkdir a look-alike ".../slurmstepd.scope/
+// job_N/step_X" and migrate into it; but such a path is rooted at /user.slice
+// (or the delegated root), never at /system.slice, so it will not match here and
+// cannot self-assign slurm selectors.
+var slurmCgroupRe = regexp.MustCompile(`^/system\.slice/[^/]*slurmstepd\.scope/(job_\d+|s[0-9A-Za-z]+)/step_([^/]+)`)
 
 func builtin(p *Plugin) catalog.BuiltIn {
 	return catalog.MakeBuiltIn(pluginName,
