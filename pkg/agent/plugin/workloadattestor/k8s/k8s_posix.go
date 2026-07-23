@@ -47,7 +47,7 @@ func (h *containerHelper) Configure(config *HCLConfig, log hclog.Logger) error {
 	if h.useNewContainerLocator {
 		log.Info("Using the new container locator")
 	} else {
-		log.Warn("Using the legacy container locator. This option will removed in a future release.")
+		log.Warn("Using the legacy container locator. This option will be removed in a future release.")
 	}
 
 	return nil
@@ -143,13 +143,7 @@ func reSubMatchMap(r *regexp.Regexp, str string) map[string]string {
 }
 
 func isValidCGroupPathMatches(matches map[string]string) bool {
-	if matches == nil {
-		return false
-	}
-	if matches["mustnotmatch"] != "" {
-		return false
-	}
-	return true
+	return matches != nil && matches["mustnotmatch"] == ""
 }
 
 func getPodUIDAndContainerIDFromCGroupPath(cgroupPath string) (types.UID, string, bool) {
@@ -193,7 +187,7 @@ func getPodUIDAndContainerIDFromCGroupPath(cgroupPath string) (types.UID, string
 func canonicalizePodUID(uid string) types.UID {
 	return types.UID(strings.Map(func(r rune) rune {
 		if unicode.IsPunct(r) {
-			r = '-'
+			return '-'
 		}
 		return r
 	}, uid))
