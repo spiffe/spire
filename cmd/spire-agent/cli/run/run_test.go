@@ -811,9 +811,9 @@ func TestNewAgentConfig(t *testing.T) {
 			},
 		},
 		{
-			msg:                "trust_bundle_path or trust_bundle_url must be configured unless insecure_bootstrap is set",
+			msg:                "trust_bundle_path, trust_bundle_url, or trust_bundle_spiffe_workload_api must be configured unless insecure_bootstrap is set",
 			expectError:        true,
-			requireErrorPrefix: "trust_bundle_path or trust_bundle_url must be configured unless insecure_bootstrap is set",
+			requireErrorPrefix: "trust_bundle_path, trust_bundle_url, or trust_bundle_spiffe_workload_api must be configured unless insecure_bootstrap is set",
 			input: func(c *Config) {
 				// in this case, remove trust_bundle_path provided by defaultValidConfig()
 				c.Agent.TrustBundlePath = ""
@@ -822,6 +822,84 @@ func TestNewAgentConfig(t *testing.T) {
 			},
 			test: func(t *testing.T, c *agent.Config) {
 				require.Nil(t, c)
+			},
+		},
+		{
+			msg:                "insecure_bootstrap and trust_bundle_spiffe_workload_api cannot both be set",
+			expectError:        true,
+			requireErrorPrefix: "only one of insecure_bootstrap or trust_bundle_spiffe_workload_api can be specified, not both",
+			input: func(c *Config) {
+				// remove trust_bundle_path provided by defaultValidConfig()
+				c.Agent.TrustBundlePath = ""
+				c.Agent.TrustBundleSpiffeWorkloadAPI = testWorkloadAPIAddr
+				c.Agent.InsecureBootstrap = true
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
+			msg:                "trust_bundle_url and trust_bundle_spiffe_workload_api cannot both be set",
+			expectError:        true,
+			requireErrorPrefix: "only one of trust_bundle_url or trust_bundle_spiffe_workload_api can be specified, not both",
+			input: func(c *Config) {
+				// remove trust_bundle_path provided by defaultValidConfig()
+				c.Agent.TrustBundlePath = ""
+				c.Agent.TrustBundleURL = "https://foo.bar/trustbundle"
+				c.Agent.TrustBundleSpiffeWorkloadAPI = testWorkloadAPIAddr
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
+			msg:                "trust_bundle_path and trust_bundle_spiffe_workload_api cannot both be set",
+			expectError:        true,
+			requireErrorPrefix: "only one of trust_bundle_path or trust_bundle_spiffe_workload_api can be specified, not both",
+			input: func(c *Config) {
+				c.Agent.TrustBundlePath = "foo"
+				c.Agent.TrustBundleSpiffeWorkloadAPI = testWorkloadAPIAddr
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
+			msg:                "trust_bundle_unix_socket and trust_bundle_spiffe_workload_api cannot both be set",
+			expectError:        true,
+			requireErrorPrefix: "trust_bundle_unix_socket can not be used with trust_bundle_spiffe_workload_api",
+			input: func(c *Config) {
+				// remove trust_bundle_path provided by defaultValidConfig()
+				c.Agent.TrustBundlePath = ""
+				c.Agent.TrustBundleUnixSocket = "foo.bar"
+				c.Agent.TrustBundleSpiffeWorkloadAPI = testWorkloadAPIAddr
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
+			msg:                "trust_bundle_spiffe_workload_api must be a valid workload api endpoint address",
+			expectError:        true,
+			requireErrorPrefix: "trust_bundle_spiffe_workload_api is not a valid SPIFFE Workload API endpoint address",
+			input: func(c *Config) {
+				// remove trust_bundle_path provided by defaultValidConfig()
+				c.Agent.TrustBundlePath = ""
+				c.Agent.TrustBundleSpiffeWorkloadAPI = "/tmp/agent.sock"
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
+			msg: "trust_bundle_spiffe_workload_api satisfies the trust bundle source requirement",
+			input: func(c *Config) {
+				// remove trust_bundle_path provided by defaultValidConfig()
+				c.Agent.TrustBundlePath = ""
+				c.Agent.TrustBundleSpiffeWorkloadAPI = testWorkloadAPIAddr
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.NotNil(t, c.TrustBundleSources)
 			},
 		},
 		{

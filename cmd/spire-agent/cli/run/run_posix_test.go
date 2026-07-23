@@ -19,6 +19,10 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+// testWorkloadAPIAddr is a platform-appropriate SPIFFE Workload API endpoint
+// address for exercising trust_bundle_spiffe_workload_api validation.
+const testWorkloadAPIAddr = "unix:///tmp/agent.sock"
+
 func TestCommand_Run(t *testing.T) {
 	testTempDir := t.TempDir()
 	testDataDir := fmt.Sprintf("%s/data", testTempDir)

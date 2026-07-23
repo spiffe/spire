@@ -18,6 +18,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// testWorkloadAPIAddr is a platform-appropriate SPIFFE Workload API endpoint
+// address for exercising trust_bundle_spiffe_workload_api validation.
+const testWorkloadAPIAddr = "npipe:agent"
+
 func TestCommand_Run(t *testing.T) {
 	testTempDir := t.TempDir()
 	testDataDir := fmt.Sprintf("%s/data", testTempDir)

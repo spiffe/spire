@@ -28,10 +28,11 @@ type WorkloadAPI struct {
 	ExpFetchJWTSVIDReq    *workload.JWTSVIDRequest
 	ExpFetchJWTBundlesReq *workload.JWTBundlesRequest
 
-	fetchX509SVIDRequest   FakeRequest
-	fetchJWTSVIDRequest    FakeRequest
-	fetchJWTBundlesRequest FakeRequest
-	validateJWTRequest     FakeRequest
+	fetchX509SVIDRequest    FakeRequest
+	fetchX509BundlesRequest FakeRequest
+	fetchJWTSVIDRequest     FakeRequest
+	fetchJWTBundlesRequest  FakeRequest
+	validateJWTRequest      FakeRequest
 }
 
 func New(t *testing.T, responses ...*FakeRequest) *WorkloadAPI {
@@ -45,6 +46,8 @@ func New(t *testing.T, responses ...*FakeRequest) *WorkloadAPI {
 		switch response.Resp.(type) {
 		case *workload.X509SVIDResponse:
 			w.fetchX509SVIDRequest = *response
+		case *workload.X509BundlesResponse:
+			w.fetchX509BundlesRequest = *response
 		case *workload.JWTSVIDResponse:
 			w.fetchJWTSVIDRequest = *response
 		case *workload.JWTBundlesResponse:
@@ -85,6 +88,31 @@ func (w *WorkloadAPI) FetchX509SVID(req *workload.X509SVIDRequest, stream worklo
 		<-stream.Context().Done()
 	} else {
 		require.FailNow(w.t, fmt.Sprintf("unexpected message type %T", w.fetchX509SVIDRequest.Resp))
+	}
+
+	return nil
+}
+
+func (w *WorkloadAPI) FetchX509Bundles(req *workload.X509BundlesRequest, stream workload.SpiffeWorkloadAPI_FetchX509BundlesServer) error {
+	if err := checkSecurityHeader(stream.Context()); err != nil {
+		return err
+	}
+
+	if w.fetchX509BundlesRequest.Err != nil {
+		return w.fetchX509BundlesRequest.Err
+	}
+
+	if request, ok := w.fetchX509BundlesRequest.Req.(*workload.X509BundlesRequest); ok {
+		spiretest.AssertProtoEqual(w.t, request, req)
+	} else {
+		require.FailNow(w.t, fmt.Sprintf("unexpected message type %T", w.fetchX509BundlesRequest.Req))
+	}
+
+	if response, ok := w.fetchX509BundlesRequest.Resp.(*workload.X509BundlesResponse); ok {
+		_ = stream.Send(response)
+		<-stream.Context().Done()
+	} else {
+		require.FailNow(w.t, fmt.Sprintf("unexpected message type %T", w.fetchX509BundlesRequest.Resp))
 	}
 
 	return nil
