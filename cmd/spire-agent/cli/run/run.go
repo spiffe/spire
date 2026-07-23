@@ -244,6 +244,8 @@ type workloadAPIRateLimitConfig struct {
 type experimentalConfig struct {
 	SyncInterval             string `hcl:"sync_interval"`
 	JWTSVIDCacheHitTimeout   string `hcl:"jwt_svid_cache_hit_timeout"`
+	RPCTimeout               string `hcl:"rpc_timeout"`
+	MaxBundleWorkers         int    `hcl:"max_bundle_workers"`
 	NamedPipeName            string `hcl:"named_pipe_name"`
 	AdminNamedPipeName       string `hcl:"admin_named_pipe_name"`
 	UseSyncAuthorizedEntries *bool  `hcl:"use_sync_authorized_entries"`
@@ -613,6 +615,26 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 		}
 		client.SetJWTSVIDCacheHitTimeout(timeout)
 		logger.Warn("The use of 'jwt_svid_cache_hit_timeout' is experimental")
+	}
+
+	if c.Agent.Experimental.RPCTimeout != "" {
+		timeout, err := time.ParseDuration(c.Agent.Experimental.RPCTimeout)
+		if err != nil {
+			return nil, fmt.Errorf("could not parse rpc_timeout: %w", err)
+		}
+		if timeout <= 0 {
+			return nil, fmt.Errorf("rpc_timeout (%s) must be greater than 0", timeout)
+		}
+		client.SetRPCTimeout(timeout)
+		logger.Warn("The use of 'rpc_timeout' is experimental")
+	}
+
+	if c.Agent.Experimental.MaxBundleWorkers != 0 {
+		if c.Agent.Experimental.MaxBundleWorkers < 1 {
+			return nil, fmt.Errorf("max_bundle_workers (%d) must be greater than 0", c.Agent.Experimental.MaxBundleWorkers)
+		}
+		client.SetMaxBundleWorkers(c.Agent.Experimental.MaxBundleWorkers)
+		logger.Warn("The use of 'max_bundle_workers' is experimental")
 	}
 
 	ac.UseSyncAuthorizedEntries = true

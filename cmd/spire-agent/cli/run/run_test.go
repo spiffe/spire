@@ -1297,6 +1297,89 @@ func TestNewAgentConfig(t *testing.T) {
 			},
 		},
 		{
+			msg: "rpc_timeout sets the client timeout and logs warning",
+			input: func(c *Config) {
+				c.Agent.Experimental.RPCTimeout = "10s"
+			},
+			logOptions: func(t *testing.T) []log.Option {
+				return []log.Option{
+					func(logger *log.Logger) error {
+						logger.SetOutput(io.Discard)
+						hook := test.NewLocal(logger.Logger)
+						t.Cleanup(func() {
+							spiretest.AssertLogsContainEntries(t, hook.AllEntries(), []spiretest.LogEntry{
+								{
+									Level:   logrus.WarnLevel,
+									Message: "The use of 'rpc_timeout' is experimental",
+								},
+							})
+						})
+						return nil
+					},
+				}
+			},
+			require.NotNil(t, ac)
+			assert.Equal(t, 10*time.Second, client.RPCTimeout)
+		},
+		{
+			msg:                "rpc_timeout returns an error if <= 0",
+			expectError:        true,
+			requireErrorPrefix: "rpc_timeout (0s) must be greater than 0",
+			input: func(c *Config) {
+				c.Agent.Experimental.RPCTimeout = "0s"
+			},
+			test: func(t *testing.T, ac *agent.Config) {
+				require.Nil(t, ac)
+			},
+		},
+		{
+			msg:                "rpc_timeout returns an error if invalid duration",
+			expectError:        true,
+			requireErrorPrefix: "could not parse rpc_timeout:",
+			input: func(c *Config) {
+				c.Agent.Experimental.RPCTimeout = "invalid"
+			},
+			test: func(t *testing.T, ac *agent.Config) {
+				require.Nil(t, ac)
+			},
+		},
+		{
+			msg: "max_bundle_workers sets the worker count and logs warning",
+			input: func(c *Config) {
+				c.Agent.Experimental.MaxBundleWorkers = 5
+			},
+			logOptions: func(t *testing.T) []log.Option {
+				return []log.Option{
+					func(logger *log.Logger) error {
+						logger.SetOutput(io.Discard)
+						hook := test.NewLocal(logger.Logger)
+						t.Cleanup(func() {
+							spiretest.AssertLogsContainEntries(t, hook.AllEntries(), []spiretest.LogEntry{
+								{
+									Level:   logrus.WarnLevel,
+									Message: "The use of 'max_bundle_workers' is experimental",
+								},
+							})
+						})
+						return nil
+					},
+				}
+			},
+			require.NotNil(t, ac)
+			assert.Equal(t, 5, client.MaxBundleWorkers)
+		},
+		{
+			msg:                "max_bundle_workers returns an error if < 1",
+			expectError:        true,
+			requireErrorPrefix: "max_bundle_workers (-1) must be greater than 0",
+			input: func(c *Config) {
+				c.Agent.Experimental.MaxBundleWorkers = -1
+			},
+			test: func(t *testing.T, ac *agent.Config) {
+				require.Nil(t, ac)
+			},
+		},
+		{
 			msg: "ratelimit defaults to zero (disabled)",
 			input: func(c *Config) {
 				// no ratelimit config set
