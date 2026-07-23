@@ -3,6 +3,9 @@ package client
 import (
 	"context"
 	"crypto"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
 	"crypto/x509"
 	"errors"
 	"fmt"
@@ -80,9 +83,17 @@ var (
 		},
 	}
 
-	testSvids = map[string]*X509SVID{
+	testX509SVIDs = map[string]*X509SVID{
 		"entry-id": {
 			CertChain: []byte{11, 22, 33},
+		},
+	}
+
+	testWITSVIDs = map[string]*WITSVID{
+		"entry-id": {
+			Token:     "SOME TOKEN",
+			IssuedAt:  time.Unix(12345, 0).UTC(),
+			ExpiresAt: time.Unix(54321, 0).UTC(),
 		},
 	}
 
@@ -505,7 +516,7 @@ func TestNewX509SVIDs(t *testing.T) {
 			batchSVIDErr:   nil,
 			wantError:      assert.NoError,
 			assertFuncConn: assertConnectionIsNotNil,
-			testSvids:      testSvids,
+			testSvids:      testX509SVIDs,
 		},
 		{
 			name:           "failed",
@@ -567,6 +578,15 @@ func TestNewX509SVIDs(t *testing.T) {
 func newTestCSRs() map[string][]byte {
 	return map[string][]byte{
 		"entry-id": {1, 2, 3, 4},
+	}
+}
+
+func newTestPublicKeys(t *testing.T) map[string]crypto.PublicKey {
+	signer, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+
+	return map[string]crypto.PublicKey{
+		"entry-id": signer.Public(),
 	}
 }
 
@@ -990,6 +1010,139 @@ func TestFetchJWTSVID(t *testing.T) {
 	}
 }
 
+func TestNewWITSVIDs(t *testing.T) {
+	logHook.Reset()
+
+	sClient, tc := createClient(t)
+	entries := []*types.Entry{
+		{
+			Id:       "ENTRYID1",
+			ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/host"},
+			SpiffeId: &types.SPIFFEID{
+				TrustDomain: "example.org",
+				Path:        "/id1",
+			},
+			Selectors: []*types.Selector{
+				{Type: "S", Value: "1"},
+			},
+			FederatesWith:  []string{"domain1.test"},
+			RevisionNumber: 1234,
+		},
+		// This entry should be ignored since it is missing an entry ID
+		{
+			ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/host"},
+			SpiffeId: &types.SPIFFEID{
+				TrustDomain: "example.org",
+				Path:        "/id2",
+			},
+			Selectors: []*types.Selector{
+				{Type: "S", Value: "2"},
+			},
+			FederatesWith: []string{"domain2.test"},
+		},
+		// This entry should be ignored since it is missing a SPIFFE ID
+		{
+			Id:       "ENTRYID3",
+			ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/host"},
+			Selectors: []*types.Selector{
+				{Type: "S", Value: "3"},
+			},
+		},
+		// This entry should be ignored since it is missing selectors
+		{
+			Id:       "ENTRYID4",
+			ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/host"},
+			SpiffeId: &types.SPIFFEID{
+				TrustDomain: "example.org",
+				Path:        "/id4",
+			},
+		},
+	}
+	witSVIDs := map[string]*types.WITSVID{
+		"entry-id": {
+			Id:        &types.SPIFFEID{TrustDomain: "example.org", Path: "/path"},
+			Token:     "SOME TOKEN",
+			IssuedAt:  12345,
+			ExpiresAt: 54321,
+		},
+	}
+
+	tests := []struct {
+		name           string
+		entries        []*types.Entry
+		witSVIDs       map[string]*types.WITSVID
+		batchSVIDErr   error
+		wantError      assert.ErrorAssertionFunc
+		assertFuncConn func(t *testing.T, client *client)
+		testSvids      map[string]*WITSVID
+		expectedLogs   []spiretest.LogEntry
+	}{
+		{
+			name:           "success",
+			entries:        entries,
+			witSVIDs:       witSVIDs,
+			batchSVIDErr:   nil,
+			wantError:      assert.NoError,
+			assertFuncConn: assertConnectionIsNotNil,
+			testSvids:      testWITSVIDs,
+		},
+		{
+			name:           "failed",
+			entries:        entries,
+			witSVIDs:       witSVIDs,
+			batchSVIDErr:   status.Error(codes.NotFound, "not found when executing BatchNewWITSVID"),
+			wantError:      assert.Error,
+			assertFuncConn: assertConnectionIsNil,
+			testSvids:      nil,
+			expectedLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Failed to batch new WIT-SVID(s)",
+					Data: logrus.Fields{
+						telemetry.StatusCode:    "NotFound",
+						telemetry.StatusMessage: "not found when executing BatchNewWITSVID",
+						logrus.ErrorKey:         "rpc error: code = NotFound desc = not found when executing BatchNewWITSVID",
+					},
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tc.entryServer.entries = tt.entries
+			tc.svidServer.witSVIDs = tt.witSVIDs
+			tc.svidServer.batchSVIDErr = tt.batchSVIDErr
+
+			// Simulate an ongoing SVID rotation (request should not be made in the middle of a rotation)
+			sClient.c.RotMtx.Lock()
+
+			// Do the request in a different go routine
+			var wg sync.WaitGroup
+			var svids map[string]*WITSVID
+			err := errors.New("a not nil error")
+			wg.Go(func() {
+				svids, err = sClient.NewWITSVIDs(ctx, newTestPublicKeys(t))
+			})
+
+			// The request should wait until the SVID rotation finishes
+			require.Contains(t, "a not nil error", err.Error())
+			require.Nil(t, svids)
+
+			// Simulate the end of the SVID rotation
+			sClient.c.RotMtx.Unlock()
+			wg.Wait()
+
+			// Assert results
+			spiretest.AssertLogsContainEntries(t, logHook.AllEntries(), tt.expectedLogs)
+			tt.assertFuncConn(t, sClient)
+			if !tt.wantError(t, err, fmt.Sprintf("error was not expected for test case %s", tt.name)) {
+				return
+			}
+			assert.Equal(t, tt.testSvids, svids)
+		})
+	}
+}
+
 // createClient creates a sample client with mocked components for testing purposes
 func createClient(t *testing.T) (*client, *testServer) {
 	tc := &testServer{
@@ -1118,6 +1271,7 @@ type fakeSVIDServer struct {
 	newJWTSVID      error
 	x509SVIDs       map[string]*types.X509SVID
 	jwtSVID         *types.JWTSVID
+	witSVIDs        map[string]*types.WITSVID
 	simulateRelease func()
 }
 
@@ -1163,6 +1317,42 @@ func (c *fakeSVIDServer) NewJWTSVID(context.Context, *svidv1.NewJWTSVIDRequest) 
 	}
 	return &svidv1.NewJWTSVIDResponse{
 		Svid: c.jwtSVID,
+	}, nil
+}
+
+func (c *fakeSVIDServer) BatchNewWITSVID(_ context.Context, in *svidv1.BatchNewWITSVIDRequest) (*svidv1.BatchNewWITSVIDResponse, error) {
+	if c.batchSVIDErr != nil {
+		return nil, c.batchSVIDErr
+	}
+
+	// Simulate async calls
+	if c.simulateRelease != nil {
+		go c.simulateRelease()
+	}
+
+	var results []*svidv1.BatchNewWITSVIDResponse_Result
+	for _, param := range in.Params {
+		svid, ok := c.witSVIDs[param.EntryId]
+		switch {
+		case ok:
+			results = append(results, &svidv1.BatchNewWITSVIDResponse_Result{
+				Status: &types.Status{
+					Code: int32(codes.OK),
+				},
+				Svid: svid,
+			})
+		default:
+			results = append(results, &svidv1.BatchNewWITSVIDResponse_Result{
+				Status: &types.Status{
+					Code:    int32(codes.NotFound),
+					Message: "svid not found",
+				},
+			})
+		}
+	}
+
+	return &svidv1.BatchNewWITSVIDResponse{
+		Results: results,
 	}, nil
 }
 
