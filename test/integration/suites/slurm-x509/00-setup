@@ -24,16 +24,18 @@ sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
     slurm-wlm munge
 
 # munge key (the package usually generates one; create if missing).
-if [ ! -f /etc/munge/munge.key ]; then
+# /etc/munge is 0700 munge:munge, so probe with sudo (a bare `-f` test as the
+# non-root runner user is a false negative and would wrongly re-create the key).
+if ! sudo test -f /etc/munge/munge.key; then
     log-debug "creating munge key..."
     if command -v mungekey >/dev/null 2>&1; then
         sudo mungekey --create
     else
         sudo /usr/sbin/create-munge-key -f
     fi
-    sudo chown munge:munge /etc/munge/munge.key
-    sudo chmod 0400 /etc/munge/munge.key
 fi
+sudo chown munge:munge /etc/munge/munge.key
+sudo chmod 0400 /etc/munge/munge.key
 
 # Writable state/spool/log dirs (slurmctld runs as the slurm user).
 sudo install -d -m 0755 -o slurm -g slurm /var/spool/slurmctld /var/log/slurm
