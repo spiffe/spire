@@ -1,0 +1,19 @@
+#!/bin/bash
+
+# Submit the blocking fetch job (runs as the current, unprivileged user).
+JOBID=$(sbatch --parsable conf/job/fetch-svid.sh)
+[ -n "${JOBID}" ] || fail-now "could not parse jobid from sbatch output"
+echo "${JOBID}" > job.id
+log-info "submitted slurm job ${JOBID}"
+
+# Wait until the job is RUNNING so its slurmstepd.scope/job_<id>/step_batch
+# cgroup exists and the fetch loop is actively retrying.
+for i in $(seq 1 30); do
+    ST=$(squeue -h -j "${JOBID}" -o '%T' 2>/dev/null | tr -d '[:space:]' || true)
+    log-debug "job ${JOBID} state: '${ST}' ($i/30)"
+    [ "${ST}" = "RUNNING" ] && break
+    # If it already left the queue it finished/failed fast; fall through and let
+    # the verify step report the outcome.
+    [ -z "${ST}" ] && break
+    sleep 2
+done
