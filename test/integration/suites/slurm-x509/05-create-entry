@@ -1,0 +1,14 @@
+#!/bin/bash
+
+JOBID=$(cat job.id)
+
+log-debug "creating registration entry for slurm job ${JOBID}..."
+docker compose exec -T spire-server \
+    /opt/spire/bin/spire-server entry create \
+    -parentID "spiffe://domain.test/spire/agent/x509pop/$(fingerprint conf/agent/agent.crt.pem)" \
+    -spiffeID "spiffe://domain.test/workload/slurm-job" \
+    -selector "slurm:job_id:${JOBID}" \
+    -selector "slurm:step:batch" \
+    -x509SVIDTTL 0
+
+check-synced-entry "spire-agent" "spiffe://domain.test/workload/slurm-job"

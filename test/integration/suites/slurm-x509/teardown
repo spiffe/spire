@@ -1,0 +1,15 @@
+#!/bin/bash
+
+if [ -z "${SUCCESS}" ]; then
+    docker compose logs || true
+    sudo journalctl -u slurmd --no-pager 2>/dev/null | tail -n 200 || true
+    sudo cat /var/log/slurm/slurmctld.log 2>/dev/null | tail -n 200 || true
+    sudo cat /var/log/slurm/slurmd.log 2>/dev/null | tail -n 200 || true
+fi
+
+docker-down
+
+# Restore host state (the runner is shared across suites).
+sudo scancel -a >/dev/null 2>&1 || true
+sudo systemctl stop slurmd slurmctld munge >/dev/null 2>&1 || true
+sudo rm -rf /tmp/slurm-spire-sockets /tmp/slurm-spire-jobs || true

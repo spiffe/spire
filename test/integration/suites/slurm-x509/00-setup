@@ -1,0 +1,80 @@
+#!/bin/bash
+
+set -e
+
+# --- SPIRE x509pop node attestation material -------------------------------
+"${ROOTDIR}/setup/x509pop/setup.sh" conf/server conf/agent
+
+# --- Extract the (static) agent binary onto the host so the Slurm job can run
+#     `spire-agent api fetch x509` as a host process. ---------------------
+log-debug "extracting spire-agent binary to the host..."
+cid=$(docker create spire-agent:latest-local)
+docker cp "${cid}:/opt/spire/bin/spire-agent" ./spire-agent
+docker rm "${cid}" >/dev/null
+sudo install -m 0755 ./spire-agent /usr/local/bin/spire-agent
+
+# --- Host-shared directories for the workload socket and job output --------
+sudo rm -rf /tmp/slurm-spire-sockets /tmp/slurm-spire-jobs
+sudo install -d -m 0777 /tmp/slurm-spire-sockets /tmp/slurm-spire-jobs
+
+# --- Install and configure a single-node Slurm cluster on the host ---------
+log-debug "installing Slurm and munge..."
+sudo apt-get update
+sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+    slurm-wlm munge
+
+# munge key (the package usually generates one; create if missing).
+if [ ! -f /etc/munge/munge.key ]; then
+    log-debug "creating munge key..."
+    if command -v mungekey >/dev/null 2>&1; then
+        sudo mungekey --create
+    else
+        sudo /usr/sbin/create-munge-key -f
+    fi
+    sudo chown munge:munge /etc/munge/munge.key
+    sudo chmod 0400 /etc/munge/munge.key
+fi
+
+# Writable state/spool/log dirs (slurmctld runs as the slurm user).
+sudo install -d -m 0755 -o slurm -g slurm /var/spool/slurmctld /var/log/slurm
+sudo install -d -m 0755 /var/spool/slurmd
+
+# Install slurm.conf (hostname substituted) + cgroup.conf.
+NODENAME=$(hostname -s)
+log-info "configuring Slurm node '${NODENAME}'"
+sed "s/NODENAME/${NODENAME}/g" conf/slurm/slurm.conf > slurm.conf.rendered
+sudo install -m 0644 slurm.conf.rendered /etc/slurm/slurm.conf
+sudo install -m 0644 conf/slurm/cgroup.conf /etc/slurm/cgroup.conf
+
+# --- Start the daemons -----------------------------------------------------
+log-debug "starting munge/slurmctld/slurmd..."
+sudo systemctl restart munge
+sudo systemctl restart slurmctld
+sudo systemctl restart slurmd
+
+# munge round-trips before we trust slurm auth.
+for i in $(seq 1 15); do
+    if munge -n | unmunge >/dev/null 2>&1; then
+        break
+    fi
+    log-debug "waiting for munge ($i/15)..."
+    sleep 2
+done
+
+# Wait for the node to reach IDLE.
+STATE=""
+for i in $(seq 1 30); do
+    STATE=$(sinfo -h -N -o '%T' 2>/dev/null | tr -d '[:space:]' || true)
+    log-debug "slurm node state: '${STATE}' ($i/30)"
+    [ "${STATE}" = "idle" ] && break
+    sleep 2
+done
+
+if [ "${STATE}" != "idle" ]; then
+    scontrol show node "${NODENAME}" || true
+    sudo journalctl -u slurmd --no-pager | tail -n 100 || true
+    sudo cat /var/log/slurm/slurmctld.log 2>/dev/null | tail -n 100 || true
+    fail-now "slurm node did not reach IDLE (state='${STATE}')"
+fi
+
+log-info "slurm node '${NODENAME}' is IDLE"
