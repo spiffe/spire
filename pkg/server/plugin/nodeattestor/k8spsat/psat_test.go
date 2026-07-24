@@ -163,7 +163,7 @@ func (s *AttestorSuite) TestAttestFailsWithMissingNamespaceClaim() {
 	s.apiServerClient.SetTokenStatus(token, createTokenStatus(tokenData, true, defaultAudience))
 	s.requireAttestError(makePayload("FOO", token),
 		codes.Internal,
-		"nodeattestor(k8s_psat): fail to parse username from token review status")
+		"nodeattestor(k8s_psat): failed to parse username from token review status")
 }
 
 func (s *AttestorSuite) TestAttestFailsWithMissingServiceAccountNameClaim() {
@@ -176,7 +176,7 @@ func (s *AttestorSuite) TestAttestFailsWithMissingServiceAccountNameClaim() {
 	s.apiServerClient.SetTokenStatus(token, createTokenStatus(tokenData, true, defaultAudience))
 	s.requireAttestError(makePayload("FOO", token),
 		codes.Internal,
-		"nodeattestor(k8s_psat): fail to parse username from token review status")
+		"nodeattestor(k8s_psat): failed to parse username from token review status")
 }
 
 func (s *AttestorSuite) TestAttestFailsWithMissingPodNameClaim() {
@@ -189,7 +189,7 @@ func (s *AttestorSuite) TestAttestFailsWithMissingPodNameClaim() {
 	s.apiServerClient.SetTokenStatus(token, createTokenStatus(tokenData, true, defaultAudience))
 	s.requireAttestError(makePayload("FOO", token),
 		codes.Internal,
-		"nodeattestor(k8s_psat): fail to get pod name from token review status")
+		"nodeattestor(k8s_psat): failed to get pod name from token review status")
 }
 
 func (s *AttestorSuite) TestAttestFailsWithMissingPodUIDClaim() {
@@ -202,7 +202,7 @@ func (s *AttestorSuite) TestAttestFailsWithMissingPodUIDClaim() {
 	s.apiServerClient.SetTokenStatus(token, createTokenStatus(tokenData, true, defaultAudience))
 	s.requireAttestError(makePayload("FOO", token),
 		codes.Internal,
-		"nodeattestor(k8s_psat): fail to get pod UID from token review status")
+		"nodeattestor(k8s_psat): failed to get pod UID from token review status")
 }
 
 func (s *AttestorSuite) TestAttestFailsIfServiceAccountNotAllowed() {
@@ -230,7 +230,7 @@ func (s *AttestorSuite) TestAttestFailsIfCannotGetPod() {
 	s.apiServerClient.SetTokenStatus(token, createTokenStatus(tokenData, true, defaultAudience))
 	s.requireAttestError(makePayload("FOO", token),
 		codes.Internal,
-		"nodeattestor(k8s_psat): fail to get pod from k8s API server")
+		"nodeattestor(k8s_psat): failed to get pod from k8s API server")
 }
 
 func (s *AttestorSuite) TestAttestFailsIfCannotGetNode() {
@@ -242,10 +242,10 @@ func (s *AttestorSuite) TestAttestFailsIfCannotGetNode() {
 	}
 	token := s.signToken(s.fooSigner, tokenData)
 	s.apiServerClient.SetTokenStatus(token, createTokenStatus(tokenData, true, defaultAudience))
-	s.apiServerClient.SetPod(createPod("NS1", "PODNAME", "NODENAME", "172.16.0.1"))
+	s.apiServerClient.SetPod(createPod("NS1", "PODNAME", "PODUID", "NODENAME", "172.16.0.1"))
 	s.requireAttestError(makePayload("FOO", token),
 		codes.Internal,
-		"nodeattestor(k8s_psat): fail to get node from k8s API server")
+		"nodeattestor(k8s_psat): failed to get node from k8s API server")
 }
 
 func (s *AttestorSuite) TestAttestFailsIfNodeUIDIsEmpty() {
@@ -257,11 +257,26 @@ func (s *AttestorSuite) TestAttestFailsIfNodeUIDIsEmpty() {
 	}
 	token := s.signToken(s.fooSigner, tokenData)
 	s.apiServerClient.SetTokenStatus(token, createTokenStatus(tokenData, true, defaultAudience))
-	s.apiServerClient.SetPod(createPod("NS1", "PODNAME", "NODENAME", "172.16.0.1"))
+	s.apiServerClient.SetPod(createPod("NS1", "PODNAME", "PODUID", "NODENAME", "172.16.0.1"))
 	s.apiServerClient.SetNode(createNode("NODENAME", ""))
 	s.requireAttestError(makePayload("FOO", token),
 		codes.Internal,
 		"node UID is empty")
+}
+
+func (s *AttestorSuite) TestAttestFailsIfPodUIDDoesNotMatchTokenStatus() {
+	tokenData := &TokenData{
+		namespace:          "NS1",
+		serviceAccountName: "SA1",
+		podName:            "PODNAME",
+		podUID:             "PODUID",
+	}
+	token := s.signToken(s.fooSigner, tokenData)
+	s.apiServerClient.SetTokenStatus(token, createTokenStatus(tokenData, true, defaultAudience))
+	s.apiServerClient.SetPod(createPod("NS1", "PODNAME", "OTHER-PODUID", "NODENAME", "172.16.0.1"))
+	s.requireAttestError(makePayload("FOO", token),
+		codes.PermissionDenied,
+		`pod UID mismatch for pod "PODNAME" in cluster "FOO": token bound to pod UID "PODUID"`)
 }
 
 func (s *AttestorSuite) TestAttestSuccess() {
@@ -274,7 +289,7 @@ func (s *AttestorSuite) TestAttestSuccess() {
 	}
 	token := s.signToken(s.fooSigner, tokenData)
 	s.apiServerClient.SetTokenStatus(token, createTokenStatus(tokenData, true, defaultAudience))
-	s.apiServerClient.SetPod(createPod("NS1", "PODNAME-1", "NODENAME-1", "172.16.10.1"))
+	s.apiServerClient.SetPod(createPod("NS1", "PODNAME-1", "PODUID-1", "NODENAME-1", "172.16.10.1"))
 	s.apiServerClient.SetNode(createNode("NODENAME-1", "NODEUID-1"))
 
 	result, err := s.attestor.Attest(context.Background(), makePayload("FOO", token), expectNoChallenge)
@@ -303,7 +318,7 @@ func (s *AttestorSuite) TestAttestSuccess() {
 	}
 	token = s.signToken(s.barSigner, tokenData)
 	s.apiServerClient.SetTokenStatus(token, createTokenStatus(tokenData, true, []string{"AUDIENCE"}))
-	s.apiServerClient.SetPod(createPod("NS2", "PODNAME-2", "NODENAME-2", "172.16.10.2"))
+	s.apiServerClient.SetPod(createPod("NS2", "PODNAME-2", "PODUID-2", "NODENAME-2", "172.16.10.2"))
 	s.apiServerClient.SetNode(createNode("NODENAME-2", "NODEUID-2"))
 
 	// Success with BAR signed token
@@ -332,7 +347,7 @@ func (s *AttestorSuite) TestAttestSuccessWithPodUIDAgentID() {
 	}
 	token := s.signToken(s.fooSigner, tokenData)
 	s.apiServerClient.SetTokenStatus(token, createTokenStatus(tokenData, true, defaultAudience))
-	s.apiServerClient.SetPod(createPod("NS1", "PODNAME-3", "NODENAME-3", "172.16.10.3"))
+	s.apiServerClient.SetPod(createPod("NS1", "PODNAME-3", "PODUID-3", "NODENAME-3", "172.16.10.3"))
 	s.apiServerClient.SetNode(createNode("NODENAME-3", "NODEUID-3"))
 
 	result, err := s.attestor.Attest(context.Background(), makePayload("POD", token), expectNoChallenge)
@@ -496,11 +511,12 @@ func createTokenStatus(tokenData *TokenData, authenticated bool, audience []stri
 	}
 }
 
-func createPod(namespace, podName, nodeName string, hostIP string) *corev1.Pod {
+func createPod(namespace, podName, podUID, nodeName, hostIP string) *corev1.Pod {
 	return &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: namespace,
 			Name:      podName,
+			UID:       types.UID(podUID),
 			Labels: map[string]string{
 				"PODLABEL-A": "A",
 				"PODLABEL-B": "B",
