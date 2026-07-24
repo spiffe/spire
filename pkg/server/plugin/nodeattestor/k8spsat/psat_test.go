@@ -276,7 +276,7 @@ func (s *AttestorSuite) TestAttestFailsIfPodUIDDoesNotMatchTokenStatus() {
 	s.apiServerClient.SetPod(createPod("NS1", "PODNAME", "OTHER-PODUID", "NODENAME", "172.16.0.1"))
 	s.requireAttestError(makePayload("FOO", token),
 		codes.PermissionDenied,
-		"pod UID mismatch")
+		`pod UID mismatch for pod "PODNAME" in cluster "FOO": token bound to pod UID "PODUID"`)
 }
 
 func (s *AttestorSuite) TestAttestSuccess() {
@@ -347,7 +347,7 @@ func (s *AttestorSuite) TestAttestSuccessWithPodUIDAgentID() {
 	}
 	token := s.signToken(s.fooSigner, tokenData)
 	s.apiServerClient.SetTokenStatus(token, createTokenStatus(tokenData, true, defaultAudience))
-	s.apiServerClient.SetPod(createPod("NS1", "PODNAME-3", "NODENAME-3", "172.16.10.3"))
+	s.apiServerClient.SetPod(createPod("NS1", "PODNAME-3", "PODUID-3", "NODENAME-3", "172.16.10.3"))
 	s.apiServerClient.SetNode(createNode("NODENAME-3", "NODEUID-3"))
 
 	result, err := s.attestor.Attest(context.Background(), makePayload("POD", token), expectNoChallenge)
