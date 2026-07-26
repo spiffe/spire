@@ -878,12 +878,17 @@ func TestFetchUpdatesWithManyFederations(t *testing.T) {
 func TestFetchJWTSVID(t *testing.T) {
 	client, tc := createClient(t)
 
+	// Keep retries fast so the transient-error cases don't wait on real backoff.
+	defer setJWTSVIDRetryInterval(time.Millisecond)()
+
 	issuedAt := time.Now().Unix()
 	expiresAt := time.Now().Add(time.Minute).Unix()
 	for _, tt := range []struct {
 		name           string
 		setupTest      func(err error)
 		err            string
+		errIsPrefix    bool
+		ctxTimeout     time.Duration
 		expectSVID     *JWTSVID
 		expectSPIFFEID spiffeid.ID
 		fetchErr       error
@@ -910,12 +915,25 @@ func TestFetchJWTSVID(t *testing.T) {
 			expectSPIFFEID: spiffeid.RequireFromString("spiffe://example.org/workload"),
 		},
 		{
-			name: "client fails",
+			name: "transient error gives up when context expires",
 			setupTest: func(err error) {
 				tc.svidServer.newJWTSVID = err
 			},
-			err:      "failed to fetch JWT SVID: rpc error: code = Unknown desc = client fails",
-			fetchErr: errors.New("client fails"),
+			// A transient error is retried until the context deadline, so only
+			// the stable wrapper is asserted (the final error may be the injected
+			// error or a context error, depending on timing).
+			err:         "failed to fetch JWT SVID",
+			errIsPrefix: true,
+			ctxTimeout:  100 * time.Millisecond,
+			fetchErr:    status.Error(codes.Unavailable, "server unavailable"),
+		},
+		{
+			name: "permanent error returns immediately",
+			setupTest: func(err error) {
+				tc.svidServer.newJWTSVID = err
+			},
+			err:      "failed to fetch JWT SVID: rpc error: code = Unimplemented desc = unimplemented",
+			fetchErr: status.Error(codes.Unimplemented, "unimplemented"),
 		},
 		{
 			name: "empty response",
@@ -959,26 +977,27 @@ func TestFetchJWTSVID(t *testing.T) {
 			},
 			err: "JWTSVID issued after it has expired",
 		},
-		{
-			name: "grpc call to NewJWTSVID fails",
-			setupTest: func(err error) {
-				tc.svidServer.jwtSVID = &types.JWTSVID{
-					Token:     "token",
-					ExpiresAt: expiresAt,
-					IssuedAt:  issuedAt,
-				}
-				tc.svidServer.newJWTSVID = err
-			},
-			err:      "failed to fetch JWT SVID: rpc error: code = Internal desc = NewJWTSVID fails",
-			fetchErr: status.Error(codes.Internal, "NewJWTSVID fails"),
-		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
+			// Reset any injected error from a previous case.
+			tc.svidServer.newJWTSVID = nil
 			tt.setupTest(tt.fetchErr)
-			resp, spiffeId, err := client.NewJWTSVID(ctx, "entry-id", []string{"myAud"}, false)
+
+			callCtx := ctx
+			if tt.ctxTimeout > 0 {
+				var cancel context.CancelFunc
+				callCtx, cancel = context.WithTimeout(ctx, tt.ctxTimeout)
+				defer cancel()
+			}
+
+			resp, spiffeId, err := client.NewJWTSVID(callCtx, "entry-id", []string{"myAud"}, false)
 			if tt.err != "" {
 				require.Nil(t, resp)
-				require.EqualError(t, err, tt.err)
+				if tt.errIsPrefix {
+					require.ErrorContains(t, err, tt.err)
+				} else {
+					require.EqualError(t, err, tt.err)
+				}
 				return
 			}
 
@@ -988,6 +1007,66 @@ func TestFetchJWTSVID(t *testing.T) {
 			require.Equal(t, tt.expectSPIFFEID, spiffeId)
 		})
 	}
+}
+
+func TestNewJWTSVIDRetry(t *testing.T) {
+	defer setJWTSVIDRetryInterval(time.Millisecond)()
+
+	issuedAt := time.Now().Unix()
+	expiresAt := time.Now().Add(time.Minute).Unix()
+	goodSVID := &types.JWTSVID{
+		Token: "token",
+		Id: &types.SPIFFEID{
+			TrustDomain: "example.org",
+			Path:        "/workload",
+		},
+		ExpiresAt: expiresAt,
+		IssuedAt:  issuedAt,
+	}
+
+	t.Run("retries transient errors until success", func(t *testing.T) {
+		client, tc := createClient(t)
+		tc.svidServer.jwtSVID = goodSVID
+		tc.svidServer.newJWTSVID = status.Error(codes.Unavailable, "server unavailable")
+		tc.svidServer.newJWTSVIDFailN = 2
+
+		resp, spiffeID, err := client.NewJWTSVID(ctx, "entry-id", []string{"myAud"}, false)
+		require.NoError(t, err)
+		require.NotNil(t, resp)
+		require.Equal(t, spiffeid.RequireFromString("spiffe://example.org/workload"), spiffeID)
+		require.Equal(t, 3, tc.svidServer.newJWTSVIDCallCount(), "should retry twice before succeeding")
+	})
+
+	t.Run("does not retry permanent errors", func(t *testing.T) {
+		client, tc := createClient(t)
+		tc.svidServer.newJWTSVID = status.Error(codes.Unimplemented, "unimplemented")
+
+		resp, _, err := client.NewJWTSVID(ctx, "entry-id", []string{"myAud"}, false)
+		require.Nil(t, resp)
+		require.EqualError(t, err, "failed to fetch JWT SVID: rpc error: code = Unimplemented desc = unimplemented")
+		require.Equal(t, 1, tc.svidServer.newJWTSVIDCallCount(), "permanent errors must not be retried")
+	})
+
+	t.Run("gives up when the context expires", func(t *testing.T) {
+		client, tc := createClient(t)
+		tc.svidServer.newJWTSVID = status.Error(codes.Unavailable, "server unavailable")
+
+		callCtx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
+		defer cancel()
+
+		resp, _, err := client.NewJWTSVID(callCtx, "entry-id", []string{"myAud"}, false)
+		require.Nil(t, resp)
+		require.ErrorContains(t, err, "failed to fetch JWT SVID")
+		require.Greater(t, tc.svidServer.newJWTSVIDCallCount(), 1, "should have retried more than once")
+	})
+}
+
+// setJWTSVIDRetryInterval overrides the NewJWTSVID retry backoff interval and
+// returns a function that restores the previous value.
+func setJWTSVIDRetryInterval(d time.Duration) func() {
+	prev := jwtSVIDRetryInterval
+	jwtSVIDRetryInterval = d
+	return func() { jwtSVIDRetryInterval = prev }
 }
 
 // createClient creates a sample client with mocked components for testing purposes
@@ -1114,11 +1193,20 @@ func (c *fakeBundleServer) GetFederatedBundle(_ context.Context, in *bundlev1.Ge
 type fakeSVIDServer struct {
 	svidv1.UnimplementedSVIDServer
 
+	mu              sync.Mutex
 	batchSVIDErr    error
 	newJWTSVID      error
+	newJWTSVIDFailN int // number of initial NewJWTSVID calls that fail; 0 means every call fails while newJWTSVID is set
+	newJWTSVIDCalls int
 	x509SVIDs       map[string]*types.X509SVID
 	jwtSVID         *types.JWTSVID
 	simulateRelease func()
+}
+
+func (c *fakeSVIDServer) newJWTSVIDCallCount() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.newJWTSVIDCalls
 }
 
 func (c *fakeSVIDServer) BatchNewX509SVID(_ context.Context, in *svidv1.BatchNewX509SVIDRequest) (*svidv1.BatchNewX509SVIDResponse, error) {
@@ -1158,7 +1246,12 @@ func (c *fakeSVIDServer) BatchNewX509SVID(_ context.Context, in *svidv1.BatchNew
 }
 
 func (c *fakeSVIDServer) NewJWTSVID(context.Context, *svidv1.NewJWTSVIDRequest) (*svidv1.NewJWTSVIDResponse, error) {
-	if c.newJWTSVID != nil {
+	c.mu.Lock()
+	c.newJWTSVIDCalls++
+	call := c.newJWTSVIDCalls
+	c.mu.Unlock()
+
+	if c.newJWTSVID != nil && (c.newJWTSVIDFailN == 0 || call <= c.newJWTSVIDFailN) {
 		return nil, c.newJWTSVID
 	}
 	return &svidv1.NewJWTSVIDResponse{
