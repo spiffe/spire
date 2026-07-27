@@ -59,7 +59,6 @@ The configuration file is **required** by the provider. It contains
 
 | experimental             | Type   | Required?          | Description                                          | Default |
 |--------------------------|--------|--------------------|------------------------------------------------------|---------|
-| `require_pq_kem`         | bool   | optional           | Require post-quantum-safe KEM for TLS connections. Overrides `tls_profile` curve and minimum TLS version settings. | `false` |
 | `listen_named_pipe_name` | string | required\[1\]\[3\] | Pipe name to listen with a named pipe. Windows only. |         |
 
 <!-- markdownlint-configure-file { "MD053": false } -->
@@ -117,9 +116,6 @@ Applied to HTTPS listeners when using `serving_cert_file` or `acme`. Not applied
 | `min_tls_version`   | string   | optional  | Minimum TLS version (for example `VersionTLS13`). |         |
 | `cipher_suites`     | strings  | optional  | Allowed TLS 1.2 cipher suites.                   |         |
 | `curve_preferences` | strings  | optional  | Preferred key exchange curves.                   |         |
-
-When `experimental.require_pq_kem` is true, it overrides curve preferences and
-minimum TLS version from this block.
 
 #### Server API Section
 

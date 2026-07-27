@@ -116,9 +116,6 @@ tls_profile {
         "secp256r1",
     ]
 }
-experimental {
-    require_pq_kem = true
-}
 serving_cert_file {
     cert_file_path = "test.crt"
     key_file_path = "test.key"
@@ -137,10 +134,9 @@ server_api {
 		"TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384",
 	}, c.TLSProfile.CipherSuites)
 	require.Equal(t, []string{"X25519MLKEM768", "X25519", "secp256r1"}, c.TLSProfile.CurvePreferences)
-	require.True(t, c.Experimental.RequirePQKEM)
 
 	policy := c.TLSPolicy()
-	require.True(t, policy.RequirePQKEM)
+	require.False(t, policy.RequirePQKEM)
 	require.NotNil(t, policy.Profile)
 	require.Equal(t, c.TLSProfile, policy.Profile)
 }

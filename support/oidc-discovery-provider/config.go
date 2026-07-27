@@ -207,10 +207,6 @@ type experimentalConfig struct {
 	// to listen for plaintext HTTP on, for when deployed behind another
 	// webserver or sidecar.
 	ListenNamedPipeName string `hcl:"listen_named_pipe_name" json:"listen_named_pipe_name"`
-
-	// RequirePQKEM determines if a post-quantum-safe KEM should be required for
-	// TLS connections. When enabled it takes precedence over TLSProfile settings.
-	RequirePQKEM bool `hcl:"require_pq_kem"`
 }
 
 type experimentalServerAPIConfig struct {
@@ -225,8 +221,7 @@ type experimentalWorkloadAPIConfig struct {
 
 func (c *Config) TLSPolicy() tlspolicy.Policy {
 	return tlspolicy.Policy{
-		RequirePQKEM: c.Experimental.RequirePQKEM,
-		Profile:      c.TLSProfile,
+		Profile: c.TLSProfile,
 	}
 }
 
