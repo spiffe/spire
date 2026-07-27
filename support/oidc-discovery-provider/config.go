@@ -84,8 +84,8 @@ type Config struct {
 	// Experimental options that are subject to change or removal.
 	Experimental experimentalConfig `hcl:"experimental"`
 
-	// TLSProfile configures OpenShift/Kubernetes-style TLS settings for HTTPS
-	// listeners (disk certificate and ACME modes).
+	// TLSProfile configures TLS profile settings for HTTPS listeners
+	// (disk certificate and ACME modes).
 	TLSProfile *tlspolicy.TLSProfile `hcl:"tls_profile"`
 
 	// JWTIssuer specifies the issuer for the OIDC provider configuration request.

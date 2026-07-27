@@ -12,8 +12,8 @@ import (
 	cliflag "k8s.io/component-base/cli/flag"
 )
 
-// TLSProfile describes OpenShift/Kubernetes-style TLS profile settings for
-// terminating endpoints. Unset fields are not applied.
+// TLSProfile describes TLS profile settings for terminating endpoints.
+// Unset fields are not applied.
 type TLSProfile struct {
 	MinTLSVersion    string   `hcl:"min_tls_version"`
 	CipherSuites     []string `hcl:"cipher_suites"`
