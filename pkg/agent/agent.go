@@ -82,7 +82,21 @@ func (a *Agent) Run(ctx context.Context) error {
 		defer stopProfiling()
 	}
 
-	var mgr manager.Manager
+	// mgr is assigned by newManager well after the telemetry sinks are started, so
+	// the callbacks below can run on exporter goroutines before that write lands.
+	// An interface value is two words, making an unsynchronized read a data race
+	// rather than just a torn nil check, so all reads from other goroutines go
+	// through getManager.
+	var (
+		mgrMu sync.Mutex
+		mgr   manager.Manager
+	)
+	getManager := func() manager.Manager {
+		mgrMu.Lock()
+		defer mgrMu.Unlock()
+		return mgr
+	}
+
 	metrics, err := telemetry.NewMetrics(&telemetry.MetricsConfig{
 		FileConfig:  a.c.Telemetry,
 		Logger:      a.c.Log.WithField(telemetry.SubsystemName, telemetry.Telemetry),
@@ -90,6 +104,7 @@ func (a *Agent) Run(ctx context.Context) error {
 		TrustDomain: a.c.TrustDomain.Name(),
 		TLSPolicy:   a.c.TLSPolicy,
 		GetX509SVID: func() (*x509svid.SVID, error) {
+			mgr := getManager()
 			if mgr == nil {
 				return nil, errors.New("agent manager is not initialized")
 			}
@@ -111,6 +126,7 @@ func (a *Agent) Run(ctx context.Context) error {
 			}, nil
 		},
 		GetX509BundleAuthorities: func(td spiffeid.TrustDomain) ([]*x509.Certificate, error) {
+			mgr := getManager()
 			if mgr == nil {
 				return nil, errors.New("agent manager is not initialized")
 			}
@@ -146,6 +162,16 @@ func (a *Agent) Run(ctx context.Context) error {
 	}
 
 	taskRunner := util.NewTaskRunner(ctx, cancel)
+
+	// Start the telemetry sinks before node attestation. Attestation can retry for
+	// bootstrapBackoffMaxElapsedTime, or rebootstrapBackoffMaxElapsedTime when
+	// rebootstrapping, and every return before StartTasks(tasks...) below would
+	// otherwise leave the exporter unbound - so an agent that never attests
+	// successfully exposes no metrics at all, including spire_agent_started,
+	// spire_agent_uptime and the bootstrap gauges. This also gates the InMem sink's
+	// signal handler, since MetricsImpl.ListenAndServe drives every sink runner.
+	taskRunner.StartTasks(metrics.ListenAndServe)
+
 	nodeAttestor := nodeattestor.JoinToken(a.c.Log, a.c.JoinToken)
 	if a.c.JoinToken == "" {
 		nodeAttestor = cat.GetNodeAttestor()
@@ -262,10 +288,16 @@ func (a *Agent) Run(ctx context.Context) error {
 
 	svidStoreCache := a.newSVIDStoreCache(metrics)
 
-	mgr, err = a.newManager(ctx, sto, cat, metrics, as, svidStoreCache, nodeAttestor)
+	newMgr, err := a.newManager(ctx, sto, cat, metrics, as, svidStoreCache, nodeAttestor)
 	if err != nil {
 		return err
 	}
+	// Publish under the lock; the telemetry callbacks may already be reading via
+	// getManager. Reads below are on this goroutine and need no locking, as
+	// nothing else writes mgr.
+	mgrMu.Lock()
+	mgr = newMgr
+	mgrMu.Unlock()
 
 	storeService := a.newSVIDStoreService(svidStoreCache, cat, metrics)
 	workloadAttestor := workload_attestor.New(&workload_attestor.Config{
@@ -275,7 +307,6 @@ func (a *Agent) Run(ctx context.Context) error {
 	})
 
 	tasks := []func(context.Context) error{
-		metrics.ListenAndServe,
 		mgr.Run,
 		storeService.Run,
 		catalog.ReconfigureTask(a.c.Log.WithField(telemetry.SubsystemName, "reconfigurer"), cat),
