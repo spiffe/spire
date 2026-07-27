@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -178,36 +179,56 @@ func reserveFreePorts(t *testing.T, n int) []int {
 func requireScrapeContains(t *testing.T, port int, runErr <-chan error, want string) string {
 	t.Helper()
 	endpoint := fmt.Sprintf("http://127.0.0.1:%d/metrics", port)
-	deadline := time.Now().Add(30 * time.Second)
-	var lastErr error
+	// Bounded per-request timeout so a stalled response fails this attempt rather
+	// than hanging until the outer deadline.
+	client := &http.Client{Timeout: 2 * time.Second}
 
-	for time.Now().Before(deadline) {
+	// The condition runs on another goroutine, so these are mutex-guarded rather
+	// than relying on require.Eventually's internal ordering.
+	var (
+		mu      sync.Mutex
+		body    string
+		lastErr error
+		exitErr error
+		exited  bool
+	)
+
+	require.Eventually(t, func() bool {
 		select {
 		case err := <-runErr:
-			t.Fatalf("Run returned before %q was scrapeable: %v", want, err)
+			mu.Lock()
+			exitErr, exited = err, true
+			mu.Unlock()
+			return true
 		default:
 		}
 
-		body, err := scrapeOnce(endpoint)
+		got, err := scrapeOnce(client, endpoint)
+		mu.Lock()
+		defer mu.Unlock()
 		if err != nil {
 			lastErr = err
-			time.Sleep(100 * time.Millisecond)
-			continue
+			return false
 		}
-		if strings.Contains(body, want) {
-			return body
+		if strings.Contains(got, want) {
+			body = got
+			return true
 		}
-		time.Sleep(100 * time.Millisecond)
-	}
+		return false
+	}, 30*time.Second, 100*time.Millisecond,
+		"%q never became scrapeable on %s; "+
+			"is metrics.ListenAndServe still started before node attestation in Run?",
+		want, endpoint)
 
-	t.Fatalf("%q never became scrapeable on %s (last error: %v); "+
-		"is metrics.ListenAndServe still started before node attestation in Run?",
-		want, endpoint, lastErr)
-	return ""
+	mu.Lock()
+	defer mu.Unlock()
+	require.False(t, exited, "Run returned before %q was scrapeable: %v", want, exitErr)
+	require.NotEmpty(t, body, "no metrics body captured (last scrape error: %v)", lastErr)
+	return body
 }
 
-func scrapeOnce(endpoint string) (string, error) {
-	resp, err := http.Get(endpoint) //nolint: gosec // fixed loopback URL built in-test
+func scrapeOnce(client *http.Client, endpoint string) (string, error) {
+	resp, err := client.Get(endpoint) //nolint: gosec // fixed loopback URL built in-test
 	if err != nil {
 		return "", err
 	}
