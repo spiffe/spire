@@ -275,7 +275,7 @@ func newACMEListener(log logrus.FieldLogger, config *Config) (net.Listener, erro
 
 func applyListenerTLSPolicy(tlsConfig *tls.Config, policy tlspolicy.Policy) error {
 	tlsConfig.MinVersion = tls.VersionTLS12
-	return tlspolicy.ApplyPolicy(tlsConfig, policy)
+	return tlspolicy.ApplyPolicy(tlsConfig, policy, true)
 }
 
 func logHandler(log logrus.FieldLogger, handler http.Handler) http.Handler {

@@ -35,7 +35,7 @@ func (s staticSVIDSource) GetX509SVID() (*x509svid.SVID, error) {
 func brokerListenerTLSConfig(svidSource x509svid.Source, bundleSource x509bundle.Source, brokerIDs []spiffeid.ID, policy tlspolicy.Policy) (*tls.Config, error) {
 	tlsConfig := tlsconfig.MTLSServerConfig(svidSource, bundleSource, tlsconfig.AuthorizeOneOf(brokerIDs...))
 	tlsConfig.SessionTicketsDisabled = true
-	if err := tlspolicy.ApplyPolicy(tlsConfig, policy); err != nil {
+	if err := tlspolicy.ApplyPolicy(tlsConfig, policy, true); err != nil {
 		return nil, fmt.Errorf("failed to apply TLS policy: %w", err)
 	}
 	return tlsConfig, nil

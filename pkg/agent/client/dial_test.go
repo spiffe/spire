@@ -14,7 +14,7 @@ import (
 )
 
 // serverGRPCClientTLSConfig mirrors the TLS setup in NewServerGRPCClient so
-// profile application can be tested without dialing.
+// policy application can be tested without dialing.
 func serverGRPCClientTLSConfig(config ServerClientConfig) (*tls.Config, error) {
 	bundleSource := newBundleSource(config.TrustDomain, config.GetBundle)
 	serverID, err := idutil.ServerID(config.TrustDomain)
@@ -30,14 +30,14 @@ func serverGRPCClientTLSConfig(config ServerClientConfig) (*tls.Config, error) {
 		tlsConfig = tlsconfig.MTLSClientConfig(newX509SVIDSource(config.GetAgentCertificate), bundleSource, authorizer)
 	}
 
-	if err := tlspolicy.ApplyPolicy(tlsConfig, config.TLSPolicy); err != nil {
+	if err := tlspolicy.ApplyPolicy(tlsConfig, config.TLSPolicy, false); err != nil {
 		return nil, err
 	}
 
 	return tlsConfig, nil
 }
 
-func TestServerGRPCClientTLSProfile(t *testing.T) {
+func TestServerGRPCClientTLSProfileNotApplied(t *testing.T) {
 	td := spiffeid.RequireTrustDomainFromString("example.org")
 	ca := testca.New(t, td)
 
@@ -60,24 +60,29 @@ func TestServerGRPCClientTLSProfile(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	require.Equal(t, uint16(tls.VersionTLS13), tlsConfig.MinVersion)
-	require.NotEmpty(t, tlsConfig.CipherSuites)
-	require.Equal(t, []tls.CurveID{tls.X25519MLKEM768, tls.CurveP256}, tlsConfig.CurvePreferences)
+	require.NotEqual(t, uint16(tls.VersionTLS13), tlsConfig.MinVersion)
+	require.Empty(t, tlsConfig.CipherSuites)
+	require.Empty(t, tlsConfig.CurvePreferences)
 }
 
-func TestServerGRPCClientTLSProfileInvalid(t *testing.T) {
+func TestServerGRPCClientRequirePQKEM(t *testing.T) {
 	td := spiffeid.RequireTrustDomainFromString("example.org")
 	ca := testca.New(t, td)
 
-	_, err := serverGRPCClientTLSConfig(ServerClientConfig{
+	tlsConfig, err := serverGRPCClientTLSConfig(ServerClientConfig{
 		TrustDomain: td,
 		GetBundle: func() []*x509.Certificate {
 			return ca.X509Authorities()
 		},
 		TLSPolicy: tlspolicy.Policy{
-			Profile: &tlspolicy.TLSProfile{MinTLSVersion: "VersionTLS99"},
+			RequirePQKEM: true,
 		},
 	})
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "invalid minTLSVersion")
+	require.NoError(t, err)
+	require.Equal(t, uint16(tls.VersionTLS13), tlsConfig.MinVersion)
+	require.Equal(t, []tls.CurveID{
+		tls.X25519MLKEM768,
+		tls.SecP256r1MLKEM768,
+		tls.SecP384r1MLKEM1024,
+	}, tlsConfig.CurvePreferences)
 }

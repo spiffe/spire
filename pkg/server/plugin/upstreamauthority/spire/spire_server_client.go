@@ -63,7 +63,7 @@ func (c *serverClient) start(ctx context.Context) error {
 	}
 
 	tlsConfig := tlsconfig.MTLSClientConfig(source, source, tlsconfig.AuthorizeID(c.serverID))
-	err = tlspolicy.ApplyPolicy(tlsConfig, c.tlsPolicy)
+	err = tlspolicy.ApplyPolicy(tlsConfig, c.tlsPolicy, false)
 	if err != nil {
 		source.Close()
 		return status.Errorf(codes.Internal, "error applying TLS policy: %v", err)

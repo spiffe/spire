@@ -41,7 +41,7 @@ const (
 func bundleListenerTLSConfig(serverAuth ServerAuth, policy tlspolicy.Policy) (*tls.Config, error) {
 	tlsConfig := serverAuth.GetTLSConfig()
 	tlsConfig.MinVersion = tls.VersionTLS12
-	if err := tlspolicy.ApplyPolicy(tlsConfig, policy); err != nil {
+	if err := tlspolicy.ApplyPolicy(tlsConfig, policy, true); err != nil {
 		return nil, err
 	}
 	return tlsConfig, nil

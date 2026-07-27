@@ -80,7 +80,7 @@ func newPrometheusRunner(c *MetricsConfig) (sinkRunner, error) {
 		if tlsCfgErr != nil {
 			return runner, fmt.Errorf("failed to create TLS config for Prometheus: %w", tlsCfgErr)
 		}
-		if err := tlspolicy.ApplyPolicy(tlsCfg, runner.tlsPolicy); err != nil {
+		if err := tlspolicy.ApplyPolicy(tlsCfg, runner.tlsPolicy, true); err != nil {
 			return runner, fmt.Errorf("failed to apply TLS policy for Prometheus: %w", err)
 		}
 		runner.server.TLSConfig = tlsCfg

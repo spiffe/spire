@@ -56,10 +56,14 @@ func LogPolicy(policy Policy, logger hclog.Logger) {
 
 // ApplyPolicy applies the policy options in policy to a given tls.Config,
 // which is assumed to have already been obtained from the go-spiffe tlsconfig
-// package.
-func ApplyPolicy(config *tls.Config, policy Policy) error {
-	if err := applyProfile(config, policy.Profile); err != nil {
-		return err
+// package. TLSProfile settings are applied only when isServer is true, i.e. for
+// terminating TLS endpoints (listeners). Client-side TLS configs receive
+// RequirePQKEM only.
+func ApplyPolicy(config *tls.Config, policy Policy, isServer bool) error {
+	if isServer {
+		if err := applyProfile(config, policy.Profile); err != nil {
+			return err
+		}
 	}
 
 	if policy.RequirePQKEM {

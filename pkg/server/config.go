@@ -131,7 +131,8 @@ type Config struct {
 	// X509-SVID, are granted admin rights.
 	AdminIDs []spiffeid.ID
 
-	// TLSPolicy determines the policy settings to apply to all TLS connections.
+	// TLSPolicy holds TLS profile and PQ KEM settings. Profile fields apply only
+	// at terminating server endpoints (see tlspolicy.ApplyPolicy isServer).
 	TLSPolicy tlspolicy.Policy
 
 	// PruneAttestedNodesExpiredFor enables periodic removal of attested nodes

@@ -55,7 +55,7 @@ The configuration file is **required** by the provider. It contains
 | `jwt_issuer`            | string  | optional           | Specifies the issuer for the OIDC provider configuration request                               |          |
 | `jwks_uri`              | string  | optional           | Specifies the JWKS URI returned in the discovery document                                      |          |
 | `server_path_prefix`    | string  | optional           | If specified, all endpoints listened to will be prefixed by this value                         | `"/"`    |
-| `tls_profile`           | section | optional           | OpenShift/Kubernetes-style TLS settings for HTTPS listeners (disk certificate and ACME modes).   |          |
+| `tls_profile`           | section | optional           | OpenShift/Kubernetes-style TLS settings for **terminating** HTTPS listeners (disk certificate and ACME modes). Not applied to outbound clients. |          |
 
 | experimental             | Type   | Required?          | Description                                          | Default |
 |--------------------------|--------|--------------------|------------------------------------------------------|---------|
@@ -108,8 +108,9 @@ will terminate if another domain is requested.
 
 #### TLS Profile Section
 
-Applied to HTTPS listeners when using `serving_cert_file` or `acme`. Not applied to
-`insecure_addr`, `listen_socket_path`, or named pipe modes.
+Applied to **terminating** HTTPS listeners when using `serving_cert_file` or `acme`.
+Not applied to `insecure_addr`, `listen_socket_path`, named pipe modes, or any
+outbound TLS client connections.
 
 | Key                 | Type     | Required? | Description                                      | Default |
 |---------------------|----------|-----------|--------------------------------------------------|---------|

@@ -20,7 +20,7 @@ These are the current experimental configurations:
 | experimental                 | Description                                                                                               | Default |
 |------------------------------|-----------------------------------------------------------------------------------------------------------|---------|
 | workload_api_named_pipe_name | Pipe name of the Workload API named pipe (Windows only; e.g. pipe name of the SPIRE Agent API named pipe) |         |
-| require_pq_kem               | Require use of a post-quantum-safe key exchange method for TLS handshakes                                 | false   |
+| require_pq_kem               | Require use of a post-quantum-safe key exchange method for TLS handshakes on the **outbound** gRPC client to the upstream SPIRE server. TLS profile settings are not applied to this client. | false   |
 
 Sample configuration (Unix):
 

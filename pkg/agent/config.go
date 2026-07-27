@@ -133,7 +133,8 @@ type Config struct {
 	// AvailabilityTarget controls how frequently rotate SVIDs
 	AvailabilityTarget time.Duration
 
-	// TLSPolicy determines the post-quantum-safe TLS policy to apply to all TLS connections.
+	// TLSPolicy holds TLS profile and PQ KEM settings. Profile fields apply only
+	// at terminating endpoints; the outbound server gRPC client receives PQ KEM only.
 	TLSPolicy tlspolicy.Policy
 
 	// WorkloadAPIRateLimit configures per-selector-set rate limiting for Workload API and SDS methods.

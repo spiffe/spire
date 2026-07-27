@@ -15,7 +15,7 @@ func TestApplyPolicy(t *testing.T) {
 	tlsConfig := &tls.Config{
 		MinVersion: tls.VersionTLS12,
 	}
-	err := ApplyPolicy(tlsConfig, Policy{})
+	err := ApplyPolicy(tlsConfig, Policy{}, false)
 	require.NoError(err)
 
 	require.Equal(0, len(tlsConfig.CurvePreferences))
@@ -29,7 +29,7 @@ func TestApplyPolicy(t *testing.T) {
 	}
 	err = ApplyPolicy(tlsConfig, Policy{
 		RequirePQKEM: true,
-	})
+	}, false)
 	require.NoError(err)
 
 	require.Equal([]tls.CurveID{tls.X25519MLKEM768, tls.SecP256r1MLKEM768, tls.SecP384r1MLKEM1024}, tlsConfig.CurvePreferences)
@@ -38,7 +38,7 @@ func TestApplyPolicy(t *testing.T) {
 
 func TestApplyPolicyNilProfile(t *testing.T) {
 	tlsConfig := &tls.Config{MinVersion: tls.VersionTLS12}
-	err := ApplyPolicy(tlsConfig, Policy{Profile: nil})
+	err := ApplyPolicy(tlsConfig, Policy{Profile: nil}, false)
 	require.NoError(t, err)
 	require.Equal(t, uint16(tls.VersionTLS12), tlsConfig.MinVersion)
 	require.Empty(t, tlsConfig.CipherSuites)
@@ -63,7 +63,7 @@ func TestApplyPolicyProfile(t *testing.T) {
 				"secp256r1",
 			},
 		},
-	})
+	}, true)
 	require.NoError(t, err)
 	require.Equal(t, uint16(tls.VersionTLS13), tlsConfig.MinVersion)
 	require.NotEmpty(t, tlsConfig.CipherSuites)
@@ -74,7 +74,7 @@ func TestApplyPolicyProfilePartial(t *testing.T) {
 	tlsConfig := &tls.Config{MinVersion: tls.VersionTLS12}
 	err := ApplyPolicy(tlsConfig, Policy{
 		Profile: &TLSProfile{MinTLSVersion: "VersionTLS12"},
-	})
+	}, true)
 	require.NoError(t, err)
 	require.Equal(t, uint16(tls.VersionTLS12), tlsConfig.MinVersion)
 	require.Empty(t, tlsConfig.CipherSuites)
@@ -89,7 +89,7 @@ func TestApplyPolicyRequirePQKEMOverridesProfileCurves(t *testing.T) {
 			MinTLSVersion:    "VersionTLS12",
 			CurvePreferences: []string{"X25519"},
 		},
-	})
+	}, true)
 	require.NoError(t, err)
 	require.Equal(t, uint16(tls.VersionTLS13), tlsConfig.MinVersion)
 	require.Equal(t, []tls.CurveID{
@@ -99,11 +99,24 @@ func TestApplyPolicyRequirePQKEMOverridesProfileCurves(t *testing.T) {
 	}, tlsConfig.CurvePreferences)
 }
 
+func TestApplyPolicyProfileSkippedForClient(t *testing.T) {
+	tlsConfig := &tls.Config{MinVersion: tls.VersionTLS12}
+	err := ApplyPolicy(tlsConfig, Policy{
+		Profile: &TLSProfile{
+			MinTLSVersion:    "VersionTLS13",
+			CurvePreferences: []string{"X25519"},
+		},
+	}, false)
+	require.NoError(t, err)
+	require.Equal(t, uint16(tls.VersionTLS12), tlsConfig.MinVersion)
+	require.Empty(t, tlsConfig.CurvePreferences)
+}
+
 func TestApplyPolicyInvalidMinTLSVersion(t *testing.T) {
 	tlsConfig := &tls.Config{MinVersion: tls.VersionTLS12}
 	err := ApplyPolicy(tlsConfig, Policy{
 		Profile: &TLSProfile{MinTLSVersion: "VersionTLS99"},
-	})
+	}, true)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "invalid minTLSVersion")
 }
@@ -112,7 +125,7 @@ func TestApplyPolicyInvalidCipherSuite(t *testing.T) {
 	tlsConfig := &tls.Config{MinVersion: tls.VersionTLS12}
 	err := ApplyPolicy(tlsConfig, Policy{
 		Profile: &TLSProfile{CipherSuites: []string{"TLS_NOT_A_CIPHER"}},
-	})
+	}, true)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "invalid cipherSuites")
 }
@@ -121,7 +134,7 @@ func TestApplyPolicyInvalidCurve(t *testing.T) {
 	tlsConfig := &tls.Config{MinVersion: tls.VersionTLS12}
 	err := ApplyPolicy(tlsConfig, Policy{
 		Profile: &TLSProfile{CurvePreferences: []string{"unknown-curve"}},
-	})
+	}, true)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "invalid curvePreferences")
 }

@@ -37,7 +37,8 @@ type ServerClientConfig struct {
 	// certificate to present to the server during the TLS handshake.
 	GetAgentCertificate func() *tls.Certificate
 
-	// TLSPolicy determines the post-quantum-safe policy to apply to all TLS connections.
+	// TLSPolicy determines PQ KEM settings for the outbound server gRPC client.
+	// TLSProfile fields are not applied on client connections.
 	TLSPolicy tlspolicy.Policy
 
 	// dialOpts are optional gRPC dial options
@@ -59,7 +60,7 @@ func NewServerGRPCClient(config ServerClientConfig) (*grpc.ClientConn, error) {
 		tlsConfig = tlsconfig.MTLSClientConfig(newX509SVIDSource(config.GetAgentCertificate), bundleSource, authorizer)
 	}
 
-	err = tlspolicy.ApplyPolicy(tlsConfig, config.TLSPolicy)
+	err = tlspolicy.ApplyPolicy(tlsConfig, config.TLSPolicy, false)
 	if err != nil {
 		return nil, err
 	}

@@ -281,17 +281,17 @@ func TestListenAndServe(t *testing.T) {
 	defer localConn.Close()
 
 	noauthConfig := tlsconfig.TLSClientConfig(ca.X509Bundle(), tlsconfig.AuthorizeID(serverID))
-	require.NoError(t, tlspolicy.ApplyPolicy(noauthConfig, endpoints.TLSPolicy))
+	require.NoError(t, tlspolicy.ApplyPolicy(noauthConfig, endpoints.TLSPolicy, true))
 	noauthConn := dialTCP(noauthConfig)
 	defer noauthConn.Close()
 
 	agentConfig := tlsconfig.MTLSClientConfig(agentSVID, ca.X509Bundle(), tlsconfig.AuthorizeID(serverID))
-	require.NoError(t, tlspolicy.ApplyPolicy(agentConfig, endpoints.TLSPolicy))
+	require.NoError(t, tlspolicy.ApplyPolicy(agentConfig, endpoints.TLSPolicy, true))
 	agentConn := dialTCP(agentConfig)
 	defer agentConn.Close()
 
 	adminConfig := tlsconfig.MTLSClientConfig(adminSVID, ca.X509Bundle(), tlsconfig.AuthorizeID(serverID))
-	require.NoError(t, tlspolicy.ApplyPolicy(adminConfig, endpoints.TLSPolicy))
+	require.NoError(t, tlspolicy.ApplyPolicy(adminConfig, endpoints.TLSPolicy, true))
 	adminConn := dialTCP(adminConfig)
 	defer adminConn.Close()
 
@@ -299,7 +299,7 @@ func TestListenAndServe(t *testing.T) {
 	defer downstreamConn.Close()
 
 	federatedAdminConfig := tlsconfig.MTLSClientConfig(foreignAdminSVID, ca.X509Bundle(), tlsconfig.AuthorizeID(serverID))
-	require.NoError(t, tlspolicy.ApplyPolicy(federatedAdminConfig, endpoints.TLSPolicy))
+	require.NoError(t, tlspolicy.ApplyPolicy(federatedAdminConfig, endpoints.TLSPolicy, true))
 	federatedAdminConn := dialTCP(federatedAdminConfig)
 	defer federatedAdminConn.Close()
 
@@ -309,7 +309,7 @@ func TestListenAndServe(t *testing.T) {
 		badSVID := testca.New(t, testTD).CreateX509SVID(agentID)
 
 		tlsConfig := tlsconfig.MTLSClientConfig(badSVID, ca.X509Bundle(), tlsconfig.AuthorizeID(serverID))
-		require.NoError(t, tlspolicy.ApplyPolicy(tlsConfig, endpoints.TLSPolicy))
+		require.NoError(t, tlspolicy.ApplyPolicy(tlsConfig, endpoints.TLSPolicy, true))
 
 		badConn, err := grpc.NewClient(
 			endpoints.TCPAddr.String(),
@@ -375,7 +375,7 @@ func TestListenAndServe(t *testing.T) {
 		unfederatedConfig := tlsconfig.MTLSClientConfig(unfederatedForeignAdminSVID, ca.X509Bundle(), tlsconfig.AuthorizeID(serverID))
 
 		for _, config := range []*tls.Config{unauthenticatedConfig, unauthorizedConfig, unfederatedConfig} {
-			require.NoError(t, tlspolicy.ApplyPolicy(config, endpoints.TLSPolicy))
+			require.NoError(t, tlspolicy.ApplyPolicy(config, endpoints.TLSPolicy, true))
 
 			conn, err := grpc.NewClient(endpoints.TCPAddr.String(),
 				grpc.WithTransportCredentials(credentials.NewTLS(config)),
