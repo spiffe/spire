@@ -2,18 +2,92 @@ package broker
 
 import (
 	"context"
+	"crypto/tls"
+	"fmt"
 	"net"
 	"testing"
 
+	"github.com/spiffe/go-spiffe/v2/bundle/x509bundle"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/go-spiffe/v2/spiffetls/tlsconfig"
+	"github.com/spiffe/go-spiffe/v2/svid/x509svid"
 	brokerapi "github.com/spiffe/spire/pkg/agent/broker/api"
 	"github.com/spiffe/spire/pkg/common/api/middleware"
+	"github.com/spiffe/spire/pkg/common/tlspolicy"
+	"github.com/spiffe/spire/test/testca"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
 )
+
+type staticSVIDSource struct {
+	svid *x509svid.SVID
+}
+
+func (s staticSVIDSource) GetX509SVID() (*x509svid.SVID, error) {
+	return s.svid, nil
+}
+
+// brokerListenerTLSConfig mirrors the TLS setup in Endpoints.ListenAndServe so
+// profile application can be tested without duplicating production helpers.
+func brokerListenerTLSConfig(svidSource x509svid.Source, bundleSource x509bundle.Source, brokerIDs []spiffeid.ID, policy tlspolicy.Policy) (*tls.Config, error) {
+	tlsConfig := tlsconfig.MTLSServerConfig(svidSource, bundleSource, tlsconfig.AuthorizeOneOf(brokerIDs...))
+	tlsConfig.SessionTicketsDisabled = true
+	if err := tlspolicy.ApplyPolicy(tlsConfig, policy); err != nil {
+		return nil, fmt.Errorf("failed to apply TLS policy: %w", err)
+	}
+	return tlsConfig, nil
+}
+
+func TestBrokerListenerTLSProfile(t *testing.T) {
+	td := spiffeid.RequireTrustDomainFromString("example.org")
+	ca := testca.New(t, td)
+	agentSVID := ca.CreateX509SVID(spiffeid.RequireFromPath(td, "/agent"))
+	brokerID := spiffeid.RequireFromPath(td, "/broker")
+
+	tlsConfig, err := brokerListenerTLSConfig(
+		staticSVIDSource{svid: agentSVID},
+		ca.X509Bundle(),
+		[]spiffeid.ID{brokerID},
+		tlspolicy.Policy{
+			Profile: &tlspolicy.TLSProfile{
+				MinTLSVersion: "VersionTLS13",
+				CipherSuites: []string{
+					"TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
+				},
+				CurvePreferences: []string{
+					"X25519MLKEM768",
+					"secp256r1",
+				},
+			},
+		},
+	)
+	require.NoError(t, err)
+	require.Equal(t, uint16(tls.VersionTLS13), tlsConfig.MinVersion)
+	require.NotEmpty(t, tlsConfig.CipherSuites)
+	require.Equal(t, []tls.CurveID{tls.X25519MLKEM768, tls.CurveP256}, tlsConfig.CurvePreferences)
+}
+
+func TestBrokerListenerTLSProfileInvalid(t *testing.T) {
+	td := spiffeid.RequireTrustDomainFromString("example.org")
+	ca := testca.New(t, td)
+	agentSVID := ca.CreateX509SVID(spiffeid.RequireFromPath(td, "/agent"))
+	brokerID := spiffeid.RequireFromPath(td, "/broker")
+
+	_, err := brokerListenerTLSConfig(
+		staticSVIDSource{svid: agentSVID},
+		ca.X509Bundle(),
+		[]spiffeid.ID{brokerID},
+		tlspolicy.Policy{
+			Profile: &tlspolicy.TLSProfile{MinTLSVersion: "VersionTLS99"},
+		},
+	)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "failed to apply TLS policy")
+	require.Contains(t, err.Error(), "invalid minTLSVersion")
+}
 
 func TestRestrictReflectionToUDS(t *testing.T) {
 	for _, tt := range []struct {

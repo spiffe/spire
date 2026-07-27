@@ -66,37 +66,37 @@ type Config struct {
 }
 
 type serverConfig struct {
-	AdminIDs                     []string           `hcl:"admin_ids"`
-	AgentTTL                     string             `hcl:"agent_ttl"`
-	AuditLogEnabled              bool               `hcl:"audit_log_enabled"`
-	BindAddress                  string             `hcl:"bind_address"`
-	BindPort                     int                `hcl:"bind_port"`
-	CAKeyType                    string             `hcl:"ca_key_type"`
-	CASubject                    *caSubjectConfig   `hcl:"ca_subject"`
-	CATTL                        string             `hcl:"ca_ttl"`
-	DataDir                      string             `hcl:"data_dir"`
-	DefaultX509SVIDTTL           string             `hcl:"default_x509_svid_ttl"`
-	DefaultJWTSVIDTTL            string             `hcl:"default_jwt_svid_ttl"`
-	Experimental                 experimentalConfig `hcl:"experimental"`
-	Federation                   *federationConfig  `hcl:"federation"`
-	DisableJWTSVIDs              bool               `hcl:"disable_jwt_svids"`
-	JWTIssuer                    string             `hcl:"jwt_issuer"`
-	JWTKeyType                   string             `hcl:"jwt_key_type"`
-	LogFile                      string             `hcl:"log_file"`
-	LogLevel                     string             `hcl:"log_level"`
-	LogFormat                    string             `hcl:"log_format"`
-	LogSourceLocation            bool               `hcl:"log_source_location"`
-	PruneAttestedNodesExpiredFor string             `hcl:"prune_attested_nodes_expired_for"`
-	PruneAttestedNodesBatchSize  int                `hcl:"prune_attested_nodes_batch_size"`
-	PruneNonReattestableNodes    bool               `hcl:"prune_tofu_nodes"`
-	ProxyProtocolTrustedCIDRs    []string           `hcl:"proxy_protocol_trusted_cidrs"`
-	RateLimit                    rateLimitConfig    `hcl:"ratelimit"`
-	SocketPath                   string             `hcl:"socket_path"`
-	TrustDomain                  string             `hcl:"trust_domain"`
-	MaxAttestedNodeInfoStaleness *string            `hcl:"max_attested_node_info_staleness"`
-
-	ConfigPath string
-	ExpandEnv  bool
+	AdminIDs                     []string              `hcl:"admin_ids"`
+	AgentTTL                     string                `hcl:"agent_ttl"`
+	AuditLogEnabled              bool                  `hcl:"audit_log_enabled"`
+	BindAddress                  string                `hcl:"bind_address"`
+	BindPort                     int                   `hcl:"bind_port"`
+	CAKeyType                    string                `hcl:"ca_key_type"`
+	CASubject                    *caSubjectConfig      `hcl:"ca_subject"`
+	CATTL                        string                `hcl:"ca_ttl"`
+	DataDir                      string                `hcl:"data_dir"`
+	DefaultX509SVIDTTL           string                `hcl:"default_x509_svid_ttl"`
+	DefaultJWTSVIDTTL            string                `hcl:"default_jwt_svid_ttl"`
+	Experimental                 experimentalConfig    `hcl:"experimental"`
+	Federation                   *federationConfig     `hcl:"federation"`
+	DisableJWTSVIDs              bool                  `hcl:"disable_jwt_svids"`
+	JWTIssuer                    string                `hcl:"jwt_issuer"`
+	JWTKeyType                   string                `hcl:"jwt_key_type"`
+	LogFile                      string                `hcl:"log_file"`
+	LogLevel                     string                `hcl:"log_level"`
+	LogFormat                    string                `hcl:"log_format"`
+	LogSourceLocation            bool                  `hcl:"log_source_location"`
+	PruneAttestedNodesExpiredFor string                `hcl:"prune_attested_nodes_expired_for"`
+	PruneAttestedNodesBatchSize  int                   `hcl:"prune_attested_nodes_batch_size"`
+	PruneNonReattestableNodes    bool                  `hcl:"prune_tofu_nodes"`
+	ProxyProtocolTrustedCIDRs    []string              `hcl:"proxy_protocol_trusted_cidrs"`
+	RateLimit                    rateLimitConfig       `hcl:"ratelimit"`
+	SocketPath                   string                `hcl:"socket_path"`
+	TrustDomain                  string                `hcl:"trust_domain"`
+	MaxAttestedNodeInfoStaleness *string               `hcl:"max_attested_node_info_staleness"`
+	TLSProfile                   *tlspolicy.TLSProfile `hcl:"tls_profile"`
+	ConfigPath                   string
+	ExpandEnv                    bool
 
 	// Undocumented configurables
 	ProfilingEnabled bool     `hcl:"profiling_enabled"`
@@ -522,6 +522,7 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 
 	sc.TLSPolicy = tlspolicy.Policy{
 		RequirePQKEM: c.Server.Experimental.RequirePQKEM,
+		Profile:      c.Server.TLSProfile,
 	}
 
 	tlspolicy.LogPolicy(sc.TLSPolicy, log.NewHCLogAdapter(logger, "tlspolicy"))

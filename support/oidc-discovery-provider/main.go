@@ -21,6 +21,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/diskcertmanager"
 	"github.com/spiffe/spire/pkg/common/log"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	"github.com/spiffe/spire/pkg/common/tlspolicy"
 	"github.com/spiffe/spire/pkg/common/version"
 )
 
@@ -225,6 +226,10 @@ func newListenerWithServingCert(ctx context.Context, log logrus.FieldLogger, con
 	}()
 
 	tlsConfig := certManager.GetTLSConfig()
+	if err := applyListenerTLSPolicy(tlsConfig, config.TLSPolicy()); err != nil {
+		return nil, err
+	}
+	log.Infoln("TLS Policy applied", config.TLSPolicy())
 
 	tcpListener, err := net.ListenTCP("tcp", config.ServingCertFile.Addr)
 	if err != nil {
@@ -255,7 +260,10 @@ func newACMEListener(log logrus.FieldLogger, config *Config) (net.Listener, erro
 	}
 
 	tlsConfig := m.TLSConfig()
-	tlsConfig.MinVersion = tls.VersionTLS12
+	if err := applyListenerTLSPolicy(tlsConfig, config.TLSPolicy()); err != nil {
+		return nil, err
+	}
+	log.Infoln("TLS Policy applied", config.TLSPolicy())
 
 	tcpListener, err := net.ListenTCP("tcp", &net.TCPAddr{Port: 443})
 	if err != nil {
@@ -263,6 +271,11 @@ func newACMEListener(log logrus.FieldLogger, config *Config) (net.Listener, erro
 	}
 
 	return &tlsListener{TCPListener: tcpListener, conf: tlsConfig}, nil
+}
+
+func applyListenerTLSPolicy(tlsConfig *tls.Config, policy tlspolicy.Policy) error {
+	tlsConfig.MinVersion = tls.VersionTLS12
+	return tlspolicy.ApplyPolicy(tlsConfig, policy)
 }
 
 func logHandler(log logrus.FieldLogger, handler http.Handler) http.Handler {

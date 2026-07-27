@@ -1,10 +1,13 @@
 package main
 
 import (
+	"crypto/tls"
 	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/hashicorp/hcl"
+	"github.com/spiffe/spire/pkg/common/tlspolicy"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
 )
@@ -96,4 +99,74 @@ func TestParseConfig(t *testing.T) {
 			require.Equal(t, testCase.out, actual)
 		})
 	}
+}
+
+func TestParseTLSProfileFromHCL(t *testing.T) {
+	const configString = `
+domains = ["domain.test"]
+tls_profile {
+    min_tls_version = "VersionTLS13"
+    cipher_suites = [
+        "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
+        "TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384",
+    ]
+    curve_preferences = [
+        "X25519MLKEM768",
+        "X25519",
+        "secp256r1",
+    ]
+}
+experimental {
+    require_pq_kem = true
+}
+serving_cert_file {
+    cert_file_path = "test.crt"
+    key_file_path = "test.key"
+}
+server_api {
+    address = "unix:///some/socket/path"
+}
+`
+	c := new(Config)
+	require.NoError(t, hcl.Decode(c, configString))
+
+	require.NotNil(t, c.TLSProfile)
+	require.Equal(t, "VersionTLS13", c.TLSProfile.MinTLSVersion)
+	require.Equal(t, []string{
+		"TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
+		"TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384",
+	}, c.TLSProfile.CipherSuites)
+	require.Equal(t, []string{"X25519MLKEM768", "X25519", "secp256r1"}, c.TLSProfile.CurvePreferences)
+	require.True(t, c.Experimental.RequirePQKEM)
+
+	policy := c.TLSPolicy()
+	require.True(t, policy.RequirePQKEM)
+	require.NotNil(t, policy.Profile)
+	require.Equal(t, c.TLSProfile, policy.Profile)
+}
+
+func TestApplyListenerTLSPolicy(t *testing.T) {
+	t.Run("invalid profile fails at startup", func(t *testing.T) {
+		cfg := &tls.Config{}
+		err := applyListenerTLSPolicy(cfg, tlspolicy.Policy{
+			Profile: &tlspolicy.TLSProfile{
+				MinTLSVersion: "not-a-version",
+			},
+		})
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "invalid minTLSVersion")
+	})
+
+	t.Run("applies profile and pq kem", func(t *testing.T) {
+		cfg := &tls.Config{}
+		err := applyListenerTLSPolicy(cfg, tlspolicy.Policy{
+			RequirePQKEM: true,
+			Profile: &tlspolicy.TLSProfile{
+				MinTLSVersion: "VersionTLS12",
+			},
+		})
+		require.NoError(t, err)
+		require.Equal(t, uint16(tls.VersionTLS13), cfg.MinVersion)
+		require.Equal(t, []tls.CurveID{tls.X25519MLKEM768, tls.SecP256r1MLKEM768, tls.SecP384r1MLKEM1024}, cfg.CurvePreferences)
+	})
 }

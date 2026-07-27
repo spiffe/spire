@@ -10,6 +10,7 @@ import (
 
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire/pkg/common/config"
+	"github.com/spiffe/spire/pkg/common/tlspolicy"
 )
 
 const (
@@ -82,6 +83,10 @@ type Config struct {
 
 	// Experimental options that are subject to change or removal.
 	Experimental experimentalConfig `hcl:"experimental"`
+
+	// TLSProfile configures OpenShift/Kubernetes-style TLS settings for HTTPS
+	// listeners (disk certificate and ACME modes).
+	TLSProfile *tlspolicy.TLSProfile `hcl:"tls_profile"`
 
 	// JWTIssuer specifies the issuer for the OIDC provider configuration request.
 	JWTIssuer string `hcl:"jwt_issuer"`
@@ -202,6 +207,10 @@ type experimentalConfig struct {
 	// to listen for plaintext HTTP on, for when deployed behind another
 	// webserver or sidecar.
 	ListenNamedPipeName string `hcl:"listen_named_pipe_name" json:"listen_named_pipe_name"`
+
+	// RequirePQKEM determines if a post-quantum-safe KEM should be required for
+	// TLS connections. When enabled it takes precedence over TLSProfile settings.
+	RequirePQKEM bool `hcl:"require_pq_kem"`
 }
 
 type experimentalServerAPIConfig struct {
@@ -212,6 +221,13 @@ type experimentalServerAPIConfig struct {
 type experimentalWorkloadAPIConfig struct {
 	// Pipe name of the Workload API named pipe.
 	NamedPipeName string `hcl:"named_pipe_name" json:"named_pipe_name"`
+}
+
+func (c *Config) TLSPolicy() tlspolicy.Policy {
+	return tlspolicy.Policy{
+		RequirePQKEM: c.Experimental.RequirePQKEM,
+		Profile:      c.TLSProfile,
+	}
 }
 
 func LoadConfig(path string, expandEnv bool) (*Config, error) {

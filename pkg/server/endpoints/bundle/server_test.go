@@ -24,6 +24,7 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/diskcertmanager"
 	"github.com/spiffe/spire/pkg/common/pemutil"
+	"github.com/spiffe/spire/pkg/common/tlspolicy"
 	"github.com/spiffe/spire/pkg/server/endpoints/bundle/internal/acmetest"
 	"github.com/spiffe/spire/test/fakes/fakeserverkeymanager"
 	"github.com/spiffe/spire/test/spiretest"
@@ -34,6 +35,72 @@ import (
 const (
 	serverCertLifetime = time.Hour
 )
+
+// bundleListenerTLSConfig mirrors the TLS setup in Server.ListenAndServe so
+// profile application can be tested without production helpers.
+func bundleListenerTLSConfig(serverAuth ServerAuth, policy tlspolicy.Policy) (*tls.Config, error) {
+	tlsConfig := serverAuth.GetTLSConfig()
+	tlsConfig.MinVersion = tls.VersionTLS12
+	if err := tlspolicy.ApplyPolicy(tlsConfig, policy); err != nil {
+		return nil, err
+	}
+	return tlsConfig, nil
+}
+
+func TestBundleListenerTLSProfile(t *testing.T) {
+	serverCert, serverKey := createServerCertificate(t)
+	auth := testSPIFFEAuth(serverCert, serverKey)
+
+	tlsConfig, err := bundleListenerTLSConfig(auth, tlspolicy.Policy{
+		Profile: &tlspolicy.TLSProfile{
+			MinTLSVersion: "VersionTLS13",
+			CipherSuites: []string{
+				"TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
+			},
+			CurvePreferences: []string{
+				"X25519MLKEM768",
+				"secp256r1",
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, uint16(tls.VersionTLS13), tlsConfig.MinVersion)
+	require.NotEmpty(t, tlsConfig.CipherSuites)
+	require.Equal(t, []tls.CurveID{tls.X25519MLKEM768, tls.CurveP256}, tlsConfig.CurvePreferences)
+}
+
+func TestBundleListenerTLSProfileInvalid(t *testing.T) {
+	serverCert, serverKey := createServerCertificate(t)
+	auth := testSPIFFEAuth(serverCert, serverKey)
+
+	_, err := bundleListenerTLSConfig(auth, tlspolicy.Policy{
+		Profile: &tlspolicy.TLSProfile{MinTLSVersion: "VersionTLS99"},
+	})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "invalid minTLSVersion")
+}
+
+func TestServerTLSProfileAppliedAtStartup(t *testing.T) {
+	serverCert, serverKey := createServerCertificate(t)
+	trustDomain := spiffeid.RequireTrustDomainFromString("domain.test")
+	bundle := spiffebundle.New(trustDomain)
+	bundle.AddX509Authority(serverCert)
+
+	log, _ := test.NewNullLogger()
+	server := NewServer(ServerConfig{
+		Log:        log,
+		Address:    "127.0.0.1:0",
+		Getter:     testGetter(bundle),
+		ServerAuth: testSPIFFEAuth(serverCert, serverKey),
+		TLSPolicy: tlspolicy.Policy{
+			Profile: &tlspolicy.TLSProfile{MinTLSVersion: "VersionTLS99"},
+		},
+	})
+
+	err := server.ListenAndServe(context.Background())
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "invalid minTLSVersion")
+}
 
 func TestServer(t *testing.T) {
 	serverCert, serverKey := createServerCertificate(t)

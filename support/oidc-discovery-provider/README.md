@@ -55,9 +55,11 @@ The configuration file is **required** by the provider. It contains
 | `jwt_issuer`            | string  | optional           | Specifies the issuer for the OIDC provider configuration request                               |          |
 | `jwks_uri`              | string  | optional           | Specifies the JWKS URI returned in the discovery document                                      |          |
 | `server_path_prefix`    | string  | optional           | If specified, all endpoints listened to will be prefixed by this value                         | `"/"`    |
+| `tls_profile`           | section | optional           | OpenShift/Kubernetes-style TLS settings for HTTPS listeners (disk certificate and ACME modes).   |          |
 
 | experimental             | Type   | Required?          | Description                                          | Default |
 |--------------------------|--------|--------------------|------------------------------------------------------|---------|
+| `require_pq_kem`         | bool   | optional           | Require post-quantum-safe KEM for TLS connections. Overrides `tls_profile` curve and minimum TLS version settings. | `false` |
 | `listen_named_pipe_name` | string | required\[1\]\[3\] | Pipe name to listen with a named pipe. Windows only. |         |
 
 <!-- markdownlint-configure-file { "MD053": false } -->
@@ -104,6 +106,20 @@ will terminate if another domain is requested.
 | `key_file_path`      | string   | required  | The private key file path, the file must contain PEM encoded data. |          |
 | `file_sync_interval` | duration | optional  | Controls how frequently the service polls the files for changes.   | 1 minute |
 | `addr`               | string   | optional  | Exposes the service on the given address.                          | :443     |
+
+#### TLS Profile Section
+
+Applied to HTTPS listeners when using `serving_cert_file` or `acme`. Not applied to
+`insecure_addr`, `listen_socket_path`, or named pipe modes.
+
+| Key                 | Type     | Required? | Description                                      | Default |
+|---------------------|----------|-----------|--------------------------------------------------|---------|
+| `min_tls_version`   | string   | optional  | Minimum TLS version (for example `VersionTLS13`). |         |
+| `cipher_suites`     | strings  | optional  | Allowed TLS 1.2 cipher suites.                   |         |
+| `curve_preferences` | strings  | optional  | Preferred key exchange curves.                   |         |
+
+When `experimental.require_pq_kem` is true, it overrides curve preferences and
+minimum TLS version from this block.
 
 #### Server API Section
 
