@@ -470,7 +470,7 @@ func (e *Endpoints) getTLSConfig(ctx context.Context) func(*tls.ClientHelloInfo)
 		spiffeTLSConfig.VerifyPeerCertificate = e.serverSpiffeVerificationFunc(bundleSrc)
 		spiffeTLSConfig.SessionTicketsDisabled = true
 
-	err := tlspolicy.ApplyPolicy(spiffeTLSConfig, e.TLSPolicy, true)
+		err := tlspolicy.ApplyPolicy(spiffeTLSConfig, e.TLSPolicy, true)
 		if err != nil {
 			return nil, err
 		}
