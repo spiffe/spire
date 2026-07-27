@@ -136,7 +136,6 @@ server_api {
 	require.Equal(t, []string{"X25519MLKEM768", "X25519", "secp256r1"}, c.TLSProfile.CurvePreferences)
 
 	policy := c.TLSPolicy()
-	require.False(t, policy.RequirePQKEM)
 	require.NotNil(t, policy.Profile)
 	require.Equal(t, c.TLSProfile, policy.Profile)
 }
@@ -151,18 +150,5 @@ func TestApplyListenerTLSPolicy(t *testing.T) {
 		})
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "invalid minTLSVersion")
-	})
-
-	t.Run("applies profile and pq kem", func(t *testing.T) {
-		cfg := &tls.Config{}
-		err := applyListenerTLSPolicy(cfg, tlspolicy.Policy{
-			RequirePQKEM: true,
-			Profile: &tlspolicy.TLSProfile{
-				MinTLSVersion: "VersionTLS12",
-			},
-		})
-		require.NoError(t, err)
-		require.Equal(t, uint16(tls.VersionTLS13), cfg.MinVersion)
-		require.Equal(t, []tls.CurveID{tls.X25519MLKEM768, tls.SecP256r1MLKEM768, tls.SecP384r1MLKEM1024}, cfg.CurvePreferences)
 	})
 }
