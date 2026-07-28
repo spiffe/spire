@@ -64,7 +64,7 @@ func run(configPath string, expandEnv bool) error {
 	defer log.Close()
 
 	if config.AllowInsecureScheme {
-		log.Warn("allow_insecure_scheme is enabled. JWKS keys will be served over HTTP. Only enable this when the network path to the provider is trusted end-to-end (for example, TLS terminated at a trusted reverse proxy or load balancer on a private network).")
+		log.Warn("allow_insecure_scheme is enabled. JWKS keys will be served over HTTP. Only enable this when the network path to the provider is trusted end-to-end (for example, when TLS is terminated at a trusted reverse proxy or load balancer on a private network)")
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)

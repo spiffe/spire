@@ -66,13 +66,13 @@ The configuration file is **required** by the provider. It contains
 
 [1]: One of `acme`, `serving_cert_file` or `listen_socket_path` must be defined.
 
-[3]: The `allow_insecure_scheme` should only be enabled when the network path to the provider is trusted end-to-end (for example, TLS terminated at a trusted reverse proxy or load balancer on a private network). It only works in conjunction with `insecure_addr` or `listen_socket_path`.
+[3]: The `allow_insecure_scheme` should only be enabled when the network path to the provider is trusted end-to-end (for example, when TLS is terminated at a trusted reverse proxy or load balancer on a private network). It only works in conjunction with `insecure_addr` or `listen_socket_path`.
 
 #### Considerations for Windows platforms
 
 [1]: One of `acme`, `serving_cert_file` or `listen_named_pipe_name` must be defined.
 
-[3]: The `allow_insecure_scheme` should only be enabled when the network path to the provider is trusted end-to-end (for example, TLS terminated at a trusted reverse proxy or load balancer on a private network). It only works in conjunction with `insecure_addr` or `listen_named_pipe_name`.
+[3]: The `allow_insecure_scheme` should only be enabled when the network path to the provider is trusted end-to-end (for example, when TLS is terminated at a trusted reverse proxy or load balancer on a private network). It only works in conjunction with `insecure_addr` or `listen_named_pipe_name`.
 
 #### Considerations for all platforms
 
