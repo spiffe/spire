@@ -7,13 +7,14 @@ import (
 	"net"
 	"net/http"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
-	workload_pb "github.com/spiffe/go-spiffe/v2/proto/spiffe/workload"
 	"github.com/sirupsen/logrus/hooks/test"
+	workload_pb "github.com/spiffe/go-spiffe/v2/proto/spiffe/workload"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
@@ -125,7 +126,7 @@ func TestMetricsServedDuringAttestationRetry(t *testing.T) {
 		PluginConfigs: catalog.PluginConfigs{
 			{Type: "KeyManager", Name: "memory"},
 			{Type: "NodeAttestor", Name: "join_token"},
-			{Type: "WorkloadAttestor", Name: "unix"},
+			{Type: "WorkloadAttestor", Name: platformWorkloadAttestor()},
 		},
 		// Insecure bootstrap keeps the test free of certificates and bundle files:
 		// GetBundle returns no bundle, and attestation proceeds straight to the dial.
@@ -155,6 +156,16 @@ func TestMetricsServedDuringAttestationRetry(t *testing.T) {
 	case <-time.After(30 * time.Second):
 		t.Fatal("timeout waiting for Run to return after context cancellation")
 	}
+}
+
+// platformWorkloadAttestor names a WorkloadAttestor that loads on this platform.
+// catalog.Load requires at least one, and the unix and windows attestors are
+// mirror images that return Unimplemented on the other platform.
+func platformWorkloadAttestor() string {
+	if runtime.GOOS == "windows" {
+		return "windows"
+	}
+	return "unix"
 }
 
 // reserveFreePorts returns n distinct ports with nothing listening on them.
@@ -228,7 +239,7 @@ func requireScrapeContains(t *testing.T, port int, runErr <-chan error, want str
 }
 
 func scrapeOnce(client *http.Client, endpoint string) (string, error) {
-	resp, err := client.Get(endpoint) //nolint: gosec // fixed loopback URL built in-test
+	resp, err := client.Get(endpoint)
 	if err != nil {
 		return "", err
 	}
