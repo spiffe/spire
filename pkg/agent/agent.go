@@ -96,6 +96,15 @@ func (a *Agent) Run(ctx context.Context) error {
 		defer mgrMu.Unlock()
 		return mgr
 	}
+	// Kept separate from newManager so the lock is only held for the assignment.
+	// newManager retries Initialize for up to bootstrapBackoffMaxElapsedTime, or
+	// rebootstrapBackoffMaxElapsedTime when rebootstrapping, and holding mgrMu
+	// across that would stall every scrape for the same period.
+	setManager := func(m manager.Manager) {
+		mgrMu.Lock()
+		defer mgrMu.Unlock()
+		mgr = m
+	}
 
 	metrics, err := telemetry.NewMetrics(&telemetry.MetricsConfig{
 		FileConfig:  a.c.Telemetry,
@@ -292,12 +301,10 @@ func (a *Agent) Run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	// Publish under the lock; the telemetry callbacks may already be reading via
-	// getManager. Reads below are on this goroutine and need no locking, as
-	// nothing else writes mgr.
-	mgrMu.Lock()
-	mgr = newMgr
-	mgrMu.Unlock()
+	// Publish it; the telemetry callbacks may already be reading via getManager.
+	// Reads below are on this goroutine and need no locking, as nothing else
+	// writes mgr.
+	setManager(newMgr)
 
 	storeService := a.newSVIDStoreService(svidStoreCache, cat, metrics)
 	workloadAttestor := workload_attestor.New(&workload_attestor.Config{
