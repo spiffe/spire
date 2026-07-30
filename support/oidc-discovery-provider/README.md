@@ -55,7 +55,7 @@ The configuration file is **required** by the provider. It contains
 | `jwt_issuer`            | string  | optional           | Specifies the issuer for the OIDC provider configuration request                               |          |
 | `jwks_uri`              | string  | optional           | Specifies the JWKS URI returned in the discovery document                                      |          |
 | `server_path_prefix`    | string  | optional           | If specified, all endpoints listened to will be prefixed by this value                         | `"/"`    |
-| `tls_profile`           | section | optional           | TLS profile settings for **terminating** HTTPS listeners (disk certificate and ACME modes). Not applied to outbound clients. |          |
+| `tls_profile`           | section | optional           | TLS profile for terminating HTTPS listeners (disk certificate and ACME modes).                 |          |
 
 | experimental             | Type   | Required?          | Description                                          | Default |
 |--------------------------|--------|--------------------|------------------------------------------------------|---------|
@@ -114,7 +114,7 @@ outbound TLS client connections.
 
 | Key                 | Type     | Required? | Description                                      | Default |
 |---------------------|----------|-----------|--------------------------------------------------|---------|
-| `min_tls_version`   | string   | optional  | Minimum TLS version (for example `VersionTLS13`). |         |
+| `min_tls_version`   | string   | optional  | Minimum TLS version (e.g. `VersionTLS13`).       |         |
 | `cipher_suites`     | strings  | optional  | Allowed TLS 1.2 cipher suites.                   |         |
 | `curve_preferences` | strings  | optional  | Preferred key exchange curves.                   |         |
 
