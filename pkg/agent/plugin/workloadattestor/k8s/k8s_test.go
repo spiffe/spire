@@ -56,6 +56,8 @@ const (
 
 	podListFilePath           = "testdata/pod_list.json"
 	podListNotRunningFilePath = "testdata/pod_list_not_running.json"
+	podListFailedFilePath     = "testdata/pod_list_failed.json"
+	podListSucceededFilePath  = "testdata/pod_list_succeeded.json"
 
 	certPath = "cert.pem"
 	keyPath  = "key.pem"
@@ -273,6 +275,72 @@ func (s *Suite) TestAttestPodListCache() {
 	s.clock.Add(testPollRetryInterval / 2)
 	s.requireAttestSuccess(p, testPodAndContainerSelectors)
 	s.Require().Equal(0, s.podListResponseCount())
+}
+
+func (s *Suite) TestAttestFailedPodTrackedByDefault() {
+	// By default a pod in the Failed phase is still tracked, so a workload
+	// whose container is present in that pod continues to attest normally.
+	s.startInsecureKubelet()
+	p := s.loadInsecurePlugin()
+	s.addPodListResponse(podListFailedFilePath)
+	s.addGetContainerResponsePidInPod()
+	s.requireAttestSuccess(p, testPodAndContainerSelectors)
+}
+
+func (s *Suite) TestAttestSucceededPodTrackedByDefault() {
+	// By default a pod in the Succeeded phase is still tracked, so a workload
+	// whose container is present in that pod continues to attest normally.
+	s.startInsecureKubelet()
+	p := s.loadInsecurePlugin()
+	s.addPodListResponse(podListSucceededFilePath)
+	s.addGetContainerResponsePidInPod()
+	s.requireAttestSuccess(p, testPodAndContainerSelectors)
+}
+
+func (s *Suite) TestAttestExcludeCompletedPodsFailed() {
+	// With exclude_completed_pods enabled, a Failed pod is dropped from the
+	// kubelet pod-list cache, so its container can no longer be found and
+	// attestation fails after exhausting the poll attempts.
+	s.startInsecureKubelet()
+	p := s.loadInsecurePluginWithExtra("exclude_completed_pods = true")
+	s.addGetContainerResponsePidInPod()
+	s.requireAttestExcludedAfterRetry(p, podListFailedFilePath)
+}
+
+func (s *Suite) TestAttestExcludeCompletedPodsSucceeded() {
+	// With exclude_completed_pods enabled, a Succeeded pod is dropped from the
+	// kubelet pod-list cache, so its container can no longer be found and
+	// attestation fails after exhausting the poll attempts.
+	s.startInsecureKubelet()
+	p := s.loadInsecurePluginWithExtra("exclude_completed_pods = true")
+	s.addGetContainerResponsePidInPod()
+	s.requireAttestExcludedAfterRetry(p, podListSucceededFilePath)
+}
+
+// requireAttestExcludedAfterRetry serves the given pod-list fixture on every
+// poll attempt and asserts that attestation exhausts its retries because the
+// target pod was excluded from the cache.
+func (s *Suite) requireAttestExcludedAfterRetry(p workloadattestor.WorkloadAttestor, fixturePath string) {
+	// The cache TTL is poll_retry_interval/2, so each poll attempt re-fetches
+	// the pod list. Serve one response per attempt (max_poll_attempts).
+	for range 5 {
+		s.addPodListResponse(fixturePath)
+	}
+
+	resultCh := s.goAttest(p)
+
+	for range 4 {
+		s.clock.WaitForAfter(time.Minute, "waiting for retry timer")
+		s.clock.Add(testPollRetryInterval)
+	}
+
+	select {
+	case result := <-resultCh:
+		s.Require().Nil(result.selectors)
+		s.RequireGRPCStatusContains(result.err, codes.DeadlineExceeded, "no selectors found after max poll attempts")
+	case <-time.After(time.Minute):
+		s.FailNow("timed out waiting for attest response")
+	}
 }
 
 func (s *Suite) TestAttestWithPidNotInPodAfterRetry() {
