@@ -112,11 +112,11 @@ Applied to **terminating** HTTPS listeners when using `serving_cert_file` or `ac
 Not applied to `insecure_addr`, `listen_socket_path`, named pipe modes, or any
 outbound TLS client connections.
 
-| Key                 | Type     | Required? | Description                                      | Default |
-|---------------------|----------|-----------|--------------------------------------------------|---------|
-| `min_tls_version`   | string   | optional  | Minimum TLS version (e.g. `VersionTLS13`).       |         |
-| `cipher_suites`     | strings  | optional  | Allowed TLS 1.2 cipher suites.                   |         |
-| `curve_preferences` | strings  | optional  | Preferred key exchange curves.                   |         |
+| Key                 | Type    | Required? | Description                                | Default |
+| ------------------- | ------- | --------- | ------------------------------------------ | ------- |
+| `min_tls_version`   | string  | optional  | Minimum TLS version (e.g. `VersionTLS13`). |         |
+| `cipher_suites`     | strings | optional  | Allowed TLS 1.2 cipher suites.             |         |
+| `curve_preferences` | strings | optional  | Preferred key exchange curves.             |         |
 
 #### Server API Section
 
