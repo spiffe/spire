@@ -80,9 +80,9 @@ roleRef:
 ---
 
 # ConfigMap containing the latest trust bundle for the trust domain. It is
-# updated by SPIRE using the k8sbundle notifier plugin. SPIRE agents mount
-# this config map and use the certificate to bootstrap trust with the SPIRE
-# server during attestation.
+# updated by SPIRE using the k8s_configmap BundlePublisher plugin. SPIRE agents
+# mount this config map and use the certificate to bootstrap trust with the
+# SPIRE server during attestation.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -131,10 +131,19 @@ data:
         }
       }
 
-      Notifier "k8sbundle" {
+      BundlePublisher "k8s_configmap" {
         plugin_data {
-          # This plugin updates the bundle.crt value in the spire:spire-bundle
-          # ConfigMap by default, so no additional configuration is necessary.
+          # Publishes the trust bundle to the bundle.crt key of the
+          # spire:spire-bundle ConfigMap, which SPIRE agents mount to bootstrap
+          # trust with the server during attestation.
+          clusters = {
+            "example-cluster" = {
+              configmap_name = "spire-bundle"
+              configmap_key  = "bundle.crt"
+              namespace      = "spire"
+              format         = "pem"
+            }
+          }
         }
       }
     }

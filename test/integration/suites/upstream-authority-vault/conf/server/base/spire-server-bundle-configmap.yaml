@@ -1,7 +1,5 @@
 # ConfigMap containing the latest trust bundle for the trust domain. It is
-# updated by SPIRE using the k8sbundle notifier plugin. SPIRE agents mount
-# this config map and use the certificate to bootstrap trust with the SPIRE
-# server during attestation.
+# updated by SPIRE using the k8s_configmap BundlePublisher plugin.
 apiVersion: v1
 kind: ConfigMap
 metadata:
