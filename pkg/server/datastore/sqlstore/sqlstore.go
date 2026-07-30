@@ -15,9 +15,6 @@ import (
 	"unicode"
 
 	"github.com/gofrs/uuid/v5"
-	"github.com/hashicorp/hcl"
-	"github.com/hashicorp/hcl/hcl/ast"
-	"github.com/hashicorp/hcl/hcl/printer"
 	"github.com/jinzhu/gorm"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/util"
@@ -53,19 +50,6 @@ var validEntryIDChars = &unicode.RangeTable{
 const (
 	PluginName = "sql"
 
-	// MySQL database type
-	MySQL = "mysql"
-	// PostgreSQL database type
-	PostgreSQL = "postgres"
-	// SQLite database type
-	SQLite = "sqlite3"
-
-	// MySQL database provided by an AWS service
-	AWSMySQL = "aws_mysql"
-
-	// PostgreSQL database type provided by an AWS service
-	AWSPostgreSQL = "aws_postgres"
-
 	// Maximum size for preallocation in a paginated request
 	maxResultPreallocation = 1000
 
@@ -76,6 +60,17 @@ const (
 	// nodes pruned per call when no batch size (or a non-positive one) is
 	// provided.
 	defaultPruneAttestedNodesBatchSize = 1000
+)
+
+// Aliases kept for the many existing v1 call sites (isMySQLDbType,
+// isPostgresDbType, isSQLiteDbType, migration.go, query sites, etc.) so they
+// keep compiling without needing to reference sqlcommon directly.
+const (
+	MySQL         = sqlcommon.MySQL
+	PostgreSQL    = sqlcommon.PostgreSQL
+	SQLite        = sqlcommon.SQLite
+	AWSMySQL      = sqlcommon.AWSMySQL
+	AWSPostgreSQL = sqlcommon.AWSPostgreSQL
 )
 
 type sqlDB struct {
@@ -881,19 +876,12 @@ checkAuthorities:
 // Configure parses HCL config payload into config struct, opens new DB based on the result, and
 // prunes all orphaned records
 func (ds *Plugin) Configure(ctx context.Context, hclConfiguration string) error {
-	config := &sqlcommon.Configuration{}
-	if err := hcl.Decode(config, hclConfiguration); err != nil {
-		return err
-	}
-
-	dbTypeConfig, err := parseDatabaseTypeASTNode(config.DatabaseTypeNode)
+	config, err := sqlcommon.BuildConfig(hclConfiguration)
 	if err != nil {
 		return err
 	}
 
-	config.DBTypeConfig = dbTypeConfig
-
-	if err := configValidate(config); err != nil {
+	if err := sqlcommon.ConfigValidate(config); err != nil {
 		return err
 	}
 
@@ -901,13 +889,13 @@ func (ds *Plugin) Configure(ctx context.Context, hclConfiguration string) error 
 }
 
 func (ds *Plugin) Validate(ctx context.Context, coreConfig catalog.CoreConfig, configuration string) (*configv1.ValidateResponse, error) {
-	config, err := buildConfig(configuration)
+	config, err := sqlcommon.BuildConfig(configuration)
 	if err != nil {
 		return &configv1.ValidateResponse{
 			Notes: []string{err.Error()},
 		}, err
 	}
-	err = configValidate(config)
+	err = sqlcommon.ConfigValidate(config)
 	if err != nil {
 		return &configv1.ValidateResponse{
 			Notes: []string{err.Error()},
@@ -917,21 +905,6 @@ func (ds *Plugin) Validate(ctx context.Context, coreConfig catalog.CoreConfig, c
 	return &configv1.ValidateResponse{
 		Valid: true,
 	}, nil
-}
-
-func buildConfig(hclConfiguration string) (*sqlcommon.Configuration, error) {
-	config := &sqlcommon.Configuration{}
-	if err := hcl.Decode(config, hclConfiguration); err != nil {
-		return nil, err
-	}
-
-	dbTypeConfig, err := parseDatabaseTypeASTNode(config.DatabaseTypeNode)
-	if err != nil {
-		return nil, err
-	}
-
-	config.DBTypeConfig = dbTypeConfig
-	return config, nil
 }
 
 func (ds *Plugin) openConnections(ctx context.Context, config *sqlcommon.Configuration) error {
@@ -4898,42 +4871,6 @@ func bindVarsFn(fn func(int) string, query string) string {
 	return buf.String()
 }
 
-func configValidate(cfg *sqlcommon.Configuration) error {
-	if cfg.DBTypeConfig.DatabaseType == "" {
-		return sqlcommon.NewSQLError("database_type must be set")
-	}
-
-	if cfg.ConnectionString == "" {
-		return sqlcommon.NewSQLError("connection_string must be set")
-	}
-
-	if isMySQLDbType(cfg.DBTypeConfig.DatabaseType) {
-		if err := validateMySQLConfig(cfg, false); err != nil {
-			return err
-		}
-
-		if cfg.RoConnectionString != "" {
-			if err := validateMySQLConfig(cfg, true); err != nil {
-				return err
-			}
-		}
-	}
-
-	if cfg.DBTypeConfig.AWSMySQL != nil {
-		if err := cfg.DBTypeConfig.AWSMySQL.Validate(); err != nil {
-			return err
-		}
-	}
-
-	if cfg.DBTypeConfig.AWSPostgres != nil {
-		if err := cfg.DBTypeConfig.AWSPostgres.Validate(); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
 func queryVersion(ctx context.Context, gormDB *gorm.DB, query string) (string, error) {
 	db := gormDB.DB()
 	if db == nil {
@@ -5103,58 +5040,16 @@ func deleteCAJournal(tx *gorm.DB, caJournalID uint) error {
 	return nil
 }
 
-func parseDatabaseTypeASTNode(node ast.Node) (*sqlcommon.DBTypeConfig, error) {
-	lt, ok := node.(*ast.LiteralType)
-	if ok {
-		return &sqlcommon.DBTypeConfig{DatabaseType: strings.Trim(lt.Token.Text, "\"")}, nil
-	}
-
-	// We expect the node to be *ast.ObjectList.
-	objectList, ok := node.(*ast.ObjectList)
-	if !ok {
-		return nil, errors.New("malformed database type configuration")
-	}
-
-	if len(objectList.Items) != 1 {
-		return nil, errors.New("exactly one database type is expected")
-	}
-
-	if len(objectList.Items[0].Keys) != 1 {
-		return nil, errors.New("exactly one key is expected")
-	}
-
-	var data bytes.Buffer
-	if err := printer.DefaultConfig.Fprint(&data, node); err != nil {
-		return nil, err
-	}
-
-	dbTypeConfig := new(sqlcommon.DBTypeConfig)
-	if err := hcl.Decode(dbTypeConfig, data.String()); err != nil {
-		return nil, fmt.Errorf("failed to decode configuration: %w", err)
-	}
-
-	databaseType := strings.Trim(objectList.Items[0].Keys[0].Token.Text, "\"")
-	switch databaseType {
-	case AWSMySQL:
-	case AWSPostgreSQL:
-	default:
-		return nil, fmt.Errorf("unknown database type: %s", databaseType)
-	}
-
-	dbTypeConfig.DatabaseType = databaseType
-	return dbTypeConfig, nil
-}
-
 func isMySQLDbType(dbType string) bool {
-	return dbType == MySQL || dbType == AWSMySQL
+	return sqlcommon.IsMySQLDbType(dbType)
 }
 
 func isPostgresDbType(dbType string) bool {
-	return dbType == PostgreSQL || dbType == AWSPostgreSQL
+	return sqlcommon.IsPostgresDbType(dbType)
 }
 
 func isSQLiteDbType(dbType string) bool {
-	return dbType == SQLite
+	return sqlcommon.IsSQLiteDbType(dbType)
 }
 
 func calculateResultPreallocation(pagination *datastore.Pagination) int32 {
