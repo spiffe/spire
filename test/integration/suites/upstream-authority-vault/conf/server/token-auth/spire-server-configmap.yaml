@@ -53,10 +53,18 @@ data:
         }
       }
 
-      Notifier "k8sbundle" {
+      BundlePublisher "k8s_configmap" {
         plugin_data {
-          # This plugin updates the bundle.crt value in the spire:spire-bundle
-          # ConfigMap by default, so no additional configuration is necessary.
+          # Publishes the trust bundle to the bundle.crt key of the
+          # spire:spire-bundle ConfigMap.
+          clusters = {
+            "example-cluster" = {
+              configmap_name = "spire-bundle"
+              configmap_key  = "bundle.crt"
+              namespace      = "spire"
+              format         = "pem"
+            }
+          }
         }
       }
     }
