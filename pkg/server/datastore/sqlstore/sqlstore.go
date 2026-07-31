@@ -2138,6 +2138,16 @@ SELECT
 
 	builder.WriteString("\n")
 	builder.WriteString(fromQuery)
+
+	// Without pagination or selector match the `id IN (SELECT DISTINCT id ...)`
+	// wrapper is a no-op that forces PostgreSQL to materialize the CTE twice.
+	needsIDSubquery := req.Pagination != nil ||
+		(req.BySelectorMatch != nil && len(req.BySelectorMatch.Selectors) > 0)
+	if !needsIDSubquery {
+		builder.WriteString("\nORDER BY id ASC\n")
+		return builder.String(), args, nil
+	}
+
 	builder.WriteString("\nWHERE id IN (\n")
 
 	// MySQL requires a subquery in order to apply pagination
