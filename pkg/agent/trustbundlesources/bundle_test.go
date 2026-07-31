@@ -8,11 +8,16 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/sirupsen/logrus/hooks/test"
+	"github.com/spiffe/go-spiffe/v2/proto/spiffe/workload"
 	"github.com/spiffe/spire/pkg/agent/storage"
+	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	"github.com/spiffe/spire/test/fakes/fakeworkloadapi"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/require"
@@ -35,13 +40,16 @@ func TestGetBundle(t *testing.T) {
     ]
 }`
 	cases := []struct {
-		msg               string
-		insecureBootstrap bool
-		error             bool
-		trustBundlePath   string
-		trustBundleFormat string
-		trustBundleURL    bool
-		trustBundleSocket string
+		msg                          string
+		insecureBootstrap            bool
+		error                        bool
+		trustBundlePath              string
+		trustBundleFormat            string
+		trustBundleURL               bool
+		trustBundleSocket            string
+		trustBundleWorkloadAPI       bool
+		workloadAPIServedTrustDomain string
+		trustBundleWorkloadAPIAddr   string
 	}{
 		{
 			msg:               "insecure mode",
@@ -84,6 +92,26 @@ func TestGetBundle(t *testing.T) {
 			trustBundleFormat: BundleFormatSPIFFE,
 			trustBundleSocket: "doesnotexist",
 		},
+		{
+			msg:                          "from spiffe workload api ok",
+			insecureBootstrap:            false,
+			error:                        false,
+			trustBundleWorkloadAPI:       true,
+			workloadAPIServedTrustDomain: "example.org",
+		},
+		{
+			msg:                          "from spiffe workload api wrong trust domain",
+			insecureBootstrap:            false,
+			error:                        true,
+			trustBundleWorkloadAPI:       true,
+			workloadAPIServedTrustDomain: "otherdomain.test",
+		},
+		{
+			msg:                        "from spiffe workload api that doesn't exist",
+			insecureBootstrap:          false,
+			error:                      true,
+			trustBundleWorkloadAPIAddr: "unix:///doesnotexist",
+		},
 	}
 	for _, testCase := range cases {
 		t.Run(testCase.msg, func(t *testing.T) {
@@ -101,6 +129,27 @@ func TestGetBundle(t *testing.T) {
 				}))
 			if testCase.trustBundleURL {
 				c.TrustBundleURL = testServer.URL
+			}
+			if testCase.trustBundleWorkloadAPI {
+				certs, err := pemutil.LoadCertificates(testTrustBundlePath)
+				require.NoError(t, err)
+				var bundleDER []byte
+				for _, cert := range certs {
+					bundleDER = append(bundleDER, cert.Raw...)
+				}
+				wlAPI := fakeworkloadapi.New(t, &fakeworkloadapi.FakeRequest{
+					Req: &workload.X509BundlesRequest{},
+					Resp: &workload.X509BundlesResponse{
+						Bundles: map[string][]byte{testCase.workloadAPIServedTrustDomain: bundleDER},
+					},
+				})
+				c.TrustBundleSpiffeWorkloadAPI = getWorkloadAPITestAddress(wlAPI.Addr().String())
+			}
+			if testCase.trustBundleWorkloadAPIAddr != "" {
+				c.TrustBundleSpiffeWorkloadAPI = testCase.trustBundleWorkloadAPIAddr
+			}
+			if c.TrustBundleSpiffeWorkloadAPI != "" {
+				c.TrustDomain = "example.org"
 			}
 			log, _ := test.NewNullLogger()
 			tbs := New(&c, log)
@@ -266,6 +315,13 @@ func TestDownloadTrustBundle(t *testing.T) {
 			}
 		})
 	}
+}
+
+func getWorkloadAPITestAddress(path string) string {
+	if runtime.GOOS == "windows" {
+		return "npipe:" + strings.TrimPrefix(path, `\\.\pipe\`)
+	}
+	return "unix://" + path
 }
 
 func openStorage(t *testing.T, dir string) storage.Storage {
