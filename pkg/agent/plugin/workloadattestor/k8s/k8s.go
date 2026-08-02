@@ -685,6 +685,7 @@ func (p *Plugin) attestByPIDReference(ctx context.Context, pid int32) (*attestRe
 				return nil, status.Error(codes.Unavailable, podListErr.Error())
 			}
 			// Otherwise, we'll log podListErr below, and we may retry.
+			// Note that podList.pods will be nil, so the loop below is a no-op.
 		} else {
 			podListVersion = podList.version
 		}
