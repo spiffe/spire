@@ -47,9 +47,10 @@ type podListFetcher struct {
 	log     hclog.Logger
 	rootDir string
 
-	actionCh chan func()
-	stopCh   chan struct{}
-	wg       sync.WaitGroup
+	actionCh  chan func()
+	stopCh    chan struct{}
+	wg        sync.WaitGroup
+	closeOnce sync.Once
 
 	// The fields below are owned by the run goroutine.
 	config           *podListFetcherConfig
@@ -78,7 +79,7 @@ type podListFetchResult struct {
 }
 
 // newPodListFetcher constructs a pod list fetcher and starts its run goroutine.
-// The caller must eventually call close exactly once.
+// The caller must eventually call close.
 func newPodListFetcher(clock clock.Clock, rootDir string) *podListFetcher {
 	f := podListFetcher{
 		clock:        clock,
@@ -154,9 +155,11 @@ func (f *podListFetcher) fetchNext(ctx context.Context, afterVersion uint64) (ve
 }
 
 // close stops the run goroutine, cancels any in-flight kubelet request, and
-// waits for all background operations to finish. It must be called exactly once.
+// waits for all background operations to finish. It is safe to call repeatedly.
 func (f *podListFetcher) close() {
-	close(f.stopCh)
+	f.closeOnce.Do(func() {
+		close(f.stopCh)
+	})
 	f.wg.Wait()
 }
 

@@ -326,6 +326,13 @@ func TestPodListFetcherCloseWaitsForFetch(t *testing.T) {
 	require.ErrorIs(t, (<-result).err, errPodListFetcherClosed)
 }
 
+func TestPodListFetcherCloseIsIdempotent(t *testing.T) {
+	fetcher, _ := newTestPodListFetcher(t)
+
+	fetcher.close()
+	fetcher.close()
+}
+
 func TestPodListFetcherCloseWaitsForKubeletClientBuild(t *testing.T) {
 	fetcher := newPodListFetcher(clock.NewMock(t), "")
 
