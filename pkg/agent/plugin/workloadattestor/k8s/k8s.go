@@ -733,7 +733,7 @@ func (p *Plugin) attestByPIDReference(ctx context.Context, pid int32) (*attestRe
 						if ctx.Err() != nil {
 							return nil, ctx.Err()
 						}
-						return nil, status.Errorf(codes.PermissionDenied, "error verifying sigstore image signature for imageID %s: %v", containerStatus.ImageID, err)
+						return nil, status.Errorf(codes.Internal, "error verifying sigstore image signature for imageID %s: %v", containerStatus.ImageID, err)
 					}
 					selectorValues = append(selectorValues, sigstoreSelectors...)
 				}
