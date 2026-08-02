@@ -864,24 +864,25 @@ func (p *Plugin) getBrokerEntryIfPresent(ctx context.Context, config *k8sConfig)
 // required when key is set); this function adds the pod-specific namespace
 // requirement (pods are always namespaced) and enforces the spec cross-check
 // ("if both key and uid are supplied, the resolved pod's UID MUST match the
-// supplied uid"). Resolution tries the kubelet pod list first (cheap,
-// node-local, indexed by UID — same path the PID-based flow uses). With
-// agent_node scope, resolution is limited to that kubelet pod list and does
-// not fall back to the API server. Selector emission uses pod-shaped selectors
-// (sa, ns, pod-uid, pod-name, pod-image, pod-label, pod-owner, ...), distinct
-// from the generic-object vocabulary so registration entries
-// can match pod-specific fields like container images and service accounts
-// that aren't present on a PartialObjectMetadata.
+// supplied uid"). Resolution uses the kubelet pod list first when available
+// (cheap, node-local, indexed by UID). With agent_node scope, the kubelet
+// client is required and resolution is limited to that pod list. With cluster
+// scope, resolution falls back to the Kubernetes API server when the kubelet
+// client is disabled, unavailable, or does not report the pod. Selector
+// emission uses pod-shaped selectors (sa, ns, pod-uid, pod-name, pod-image,
+// pod-label, pod-owner, ...), distinct from the generic-object vocabulary so
+// registration entries can match pod-specific fields like container images and
+// service accounts that aren't present on a PartialObjectMetadata.
 func (p *Plugin) attestByPodReference(ctx context.Context, brokerEntry *k8sBrokerEntry, objRef *broker.KubernetesObjectReference) (*attestReferenceResult, error) {
-	config, _, _, err := p.getConfig()
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "unable to get config: %v", err)
-	}
-
 	key := objRef.GetKey()
 	namespace := key.GetNamespace()
 	name := key.GetName()
 	uid := types.UID(objRef.GetUid())
+
+	config, _, _, err := p.getConfig()
+	if err != nil {
+		return nil, err
+	}
 
 	var pod *corev1.Pod
 	switch {
@@ -927,13 +928,13 @@ func brokerPodReferenceScope(brokerEntry *k8sBrokerEntry) podReferenceScope {
 	return brokerEntry.PodReferenceScope
 }
 
-// findPodByName resolves a single pod by its namespaced name. The kubelet
-// pod list is iterated first; this is O(n) over the node's pods (the list
-// is indexed by UID, not name) but n is small in practice and saves an API
-// server round-trip when the pod is local. Under agent_node scope, resolution
-// stops at the kubelet pod list. Under cluster scope, if the pod is not in the
-// kubelet list, the apiserver answers a precise Get directly — no list, no
-// client-side filter.
+// findPodByName resolves a single pod by its namespaced name. When configured,
+// the kubelet pod list is iterated first; this is O(n) over the node's pods (the
+// list is indexed by UID, not name) but n is small in practice and saves an API
+// server round-trip when the pod is local. Under agent_node scope, the kubelet
+// client is required and resolution stops at its pod list. Under cluster scope,
+// an unavailable kubelet client is ignored and the apiserver answers a precise
+// Get directly — no list, no client-side filter.
 func (p *Plugin) findPodByName(ctx context.Context, config *k8sConfig, namespace, name string, scope podReferenceScope) (*corev1.Pod, error) {
 	// Try kubelet pod list first; iterate to find a match by namespace+name.
 	podList, err := p.getPodListForReference(ctx, config, scope)
@@ -969,11 +970,12 @@ func (p *Plugin) findPodByName(ctx context.Context, config *k8sConfig, namespace
 	return pod, nil
 }
 
-// findPodByUID resolves a single pod by its Kubernetes UID. The kubelet pod
-// list is checked first because it's already keyed by UID and only contains
-// pods scheduled to this node — both common-case wins. Under agent_node scope,
-// resolution stops at the kubelet pod list. Under cluster scope, if the pod is
-// not in the kubelet list, it falls back to a cluster-wide
+// findPodByUID resolves a single pod by its Kubernetes UID. When configured,
+// the kubelet pod list is checked first because it's already keyed by UID and
+// only contains pods scheduled to this node — both common-case wins. Under
+// agent_node scope, the kubelet client is required and resolution stops at its
+// pod list. Under cluster scope, an unavailable kubelet client is ignored and
+// resolution falls back to a cluster-wide
 // PartialObjectMetadata List from the API server cache to resolve the pod
 // name+namespace, then fetches the full pod with a single live Get. Kubernetes
 // does not support `metadata.uid` as a field selector, so we list and filter
