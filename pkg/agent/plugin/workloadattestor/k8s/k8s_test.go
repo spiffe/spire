@@ -16,7 +16,6 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -550,8 +549,7 @@ func (s *Suite) TestValidate() {
 		`,
 	})
 	s.Require().NoError(err)
-	s.Require().False(resp.Valid)
-	s.Require().Contains(strings.Join(resp.Notes, " "), "unable to load token")
+	s.Require().True(resp.Valid)
 	s.Require().Nil(p.podListFetcher.client)
 	s.Require().Nil(p.podListFetcher.config)
 }

@@ -124,12 +124,6 @@ func (f *podListFetcher) configure(ctx context.Context, config podListFetcherCon
 	}
 }
 
-// validate validates the given config.
-func (f *podListFetcher) validate(config podListFetcherConfig) error {
-	_, err := f.buildClient(config, nil)
-	return err
-}
-
 // fetchNext returns a cached result newer than afterVersion while that result is
 // fresh, or waits for the next shared kubelet request.
 func (f *podListFetcher) fetchNext(ctx context.Context, afterVersion uint64) (versionedPodList, error) {

@@ -1456,13 +1456,7 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 }
 
 func (p *Plugin) Validate(_ context.Context, req *configv1.ValidateRequest) (resp *configv1.ValidateResponse, err error) {
-	newConfig, notes, err := pluginconf.Build(req, p.buildConfig)
-	if err == nil && !newConfig.DisableKubeletClient {
-		err = p.podListFetcher.validate(newConfig.podListFetcherConfig)
-		if err != nil {
-			notes = append(notes, err.Error())
-		}
-	}
+	_, notes, err := pluginconf.Build(req, p.buildConfig)
 
 	return &configv1.ValidateResponse{
 		Valid: err == nil,
