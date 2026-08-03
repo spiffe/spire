@@ -2139,11 +2139,11 @@ SELECT
 	builder.WriteString("\n")
 	builder.WriteString(fromQuery)
 
-	// Without pagination or selector match the `id IN (SELECT DISTINCT id ...)`
-	// wrapper is a no-op that forces PostgreSQL to materialize the CTE twice.
-	needsIDSubquery := req.Pagination != nil ||
-		(req.BySelectorMatch != nil && len(req.BySelectorMatch.Selectors) > 0)
-	if !needsIDSubquery {
+	// Skip the wrapper only for bounded ID fetches. Keep the existing query
+	// shape for other requests to avoid changing full-load plans.
+	hasSelectorMatch := req.BySelectorMatch != nil && len(req.BySelectorMatch.Selectors) > 0
+	isBulkIDFetch := len(req.BySpiffeIDs) > 0 && req.Pagination == nil && !hasSelectorMatch
+	if isBulkIDFetch {
 		builder.WriteString("\nORDER BY id ASC\n")
 		return builder.String(), args, nil
 	}
