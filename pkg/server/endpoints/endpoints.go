@@ -375,7 +375,7 @@ func (e *Endpoints) runTCPServer(ctx context.Context, server *grpc.Server) error
 // wrapListenerWithProxyProtocol wraps a net.Listener with PROXY protocol
 // support, restricting header acceptance to the given trusted CIDRs.
 func wrapListenerWithProxyProtocol(l net.Listener, trustedCIDRs []string) (net.Listener, error) {
-	policy, err := proxyproto.ConnStrictWhiteListPolicy(trustedCIDRs)
+	policy, err := proxyproto.PolicyFromRanges(trustedCIDRs, proxyproto.USE, proxyproto.REJECT)
 	if err != nil {
 		return nil, err
 	}
