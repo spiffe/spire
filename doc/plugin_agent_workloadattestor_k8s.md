@@ -70,10 +70,10 @@ since [hostprocess](https://kubernetes.io/docs/tasks/configure-pod-container/cre
 
 These are the current experimental configurations.
 
-| experimental               | Description                                                                                                                       | Default |
-|:---------------------------|-----------------------------------------------------------------------------------------------------------------------------------|---------|
-| `api_server.cache.enabled` | If true, enables a controller-runtime Kubernetes API server cache for object-reference lookups.                                   | false   |
-| `broker`                   | Broker API options for `AttestReference`. Required when this plugin handles Broker API references. See [Broker API](#broker-api). |         |
+| experimental               | Description                                                                                                                                           | Default |
+|:---------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------|---------|
+| `api_server.cache.enabled` | If true, enables a controller-runtime Kubernetes API server cache for object-reference lookups.                                                       | false   |
+| `broker`                   | Broker API options for `AttestReference`. Optional; when omitted, brokers get the default (node-scoped) configuration. See [Broker API](#broker-api). |         |
 
 ## Sigstore feature
 
@@ -143,20 +143,64 @@ If `ignore_tlog` is set to `true`, the selectors based on the Rekor bundle (`-lo
 When SPIRE Agent's [SPIFFE Broker API](spire_agent.md#spiffe-broker-api) is
 enabled, the k8s workload attestor handles Broker API `AttestReference`
 requests for `WorkloadPIDReference` and `KubernetesObjectReference`.
-`AttestReference` requires an `experimental.broker` block in the plugin configuration. Each
-`experimental.broker.brokers` entry identifies one broker SPIFFE ID that may use this
-plugin. Broker IDs must be valid, unique, and non-empty. The required
-block-level `access_policy` setting controls whether the plugin creates
-Kubernetes `SubjectAccessReview` requests for resolved objects. Use
-`access_policy = "enforced"` to authorize every resolved object with
-Kubernetes before selectors are returned. Use `access_policy = "permissive"`
-to skip that authorization check. Each broker may set `pod_reference_scope` to
-`agent_node` (default) or `cluster`; this only affects pod
-`KubernetesObjectReference` resolution. Broker-only agents that set
-`disable_kubelet_client = true` must configure every broker with
-`pod_reference_scope = "cluster"`.
 
-Example:
+The `experimental.broker.brokers` list carries **per-broker overrides**,
+naming brokers that need a wider scope than the default and configuring each
+one. A broker with no entry uses the **default broker configuration**:
+`pod_reference_scope = "agent_node"`, which allows `WorkloadPIDReference` and
+node-local pod `KubernetesObjectReference`s. List a broker with
+`pod_reference_scope = "cluster"` to let it resolve resources beyond the
+agent's node — pods on other nodes and non-pod objects, which are cluster-wide.
+When listed, broker IDs must be valid, unique, and non-empty.
+
+Which brokers may reach the plugin at all is decided by the agent's own broker
+endpoint (`experimental.broker.brokers` in the agent configuration), so the
+plugin serves every authorized broker with the default configuration unless an
+entry overrides it. The list may be empty or omitted — as may the whole
+`experimental.broker` block — leaving every broker on the default.
+
+The block-level `access_policy` setting (required when the `broker` block is
+present) controls whether the plugin creates Kubernetes `SubjectAccessReview`
+requests for resolved objects. Use `access_policy = "enforced"` to authorize
+every resolved object with Kubernetes before selectors are returned (the
+review uses the broker SPIFFE ID as the SAR username, so this applies to
+default brokers too). Use `access_policy = "permissive"` to skip that
+authorization check. With no `broker` block, behavior is permissive.
+
+> [!IMPORTANT]
+> In `permissive` mode, any broker the agent's broker endpoint forwarded can
+> resolve node-scoped pods with no Kubernetes authorization check. Use
+> `access_policy = "enforced"` to require a `SubjectAccessReview` per resolved
+> object.
+
+`pod_reference_scope` bounds what a broker may resolve. `agent_node` (the
+default) limits it to node-local resources — pods on the agent's node, resolved
+through the local kubelet. `cluster` widens resolution to the Kubernetes API
+server: pods on any node, plus non-pod `KubernetesObjectReference`s, which are
+inherently cluster-wide. A node-scoped broker that sends a non-pod object
+reference is rejected with `PermissionDenied`. Broker-only agents that set
+`disable_kubelet_client = true` must configure every *listed* broker with
+`pod_reference_scope = "cluster"`; the default broker's scope automatically
+becomes `cluster` in that mode, since node scope is unavailable without the
+kubelet client.
+
+Minimal configuration — default (node-scoped) access for every authorized
+broker, with Kubernetes authorization enforced:
+
+```hcl
+WorkloadAttestor "k8s" {
+  plugin_data {
+    experimental {
+      broker {
+        access_policy = "enforced"
+      }
+    }
+  }
+}
+```
+
+Example with a per-broker override (cluster scope for one broker; all other
+brokers still get the node-scoped default):
 
 ```hcl
 WorkloadAttestor "k8s" {
@@ -194,8 +238,10 @@ kubelet client is available. With the default
 references are limited to information returned by the local kubelet. With
 `pod_reference_scope = "cluster"`, a disabled or unavailable kubelet client does
 not prevent resolution: the plugin falls back to the Kubernetes API server and
-can resolve pods on any node. Non-pod object references are resolved through
-the Kubernetes API server. When
+can resolve pods on any node. Non-pod object references are cluster-wide, so
+they require `pod_reference_scope = "cluster"` and are resolved through the
+Kubernetes API server; a node-scoped broker that sends one is rejected with
+`PermissionDenied`. When
 `experimental.broker.access_policy = "enforced"`, the plugin then creates the same
 `SubjectAccessReview` for the referenced object. The review uses the broker
 SPIFFE ID as the SAR username, no groups, the reference's resource group and
