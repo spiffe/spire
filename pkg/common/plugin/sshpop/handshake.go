@@ -183,7 +183,7 @@ func (s *ServerHandshake) verifyClientIPAgainstSourceAddress(cert *ssh.Certifica
 // comma-separated list of IPs and/or CIDRs. The client address is a parsed IP
 // (as observed by SPIRE), not a net.TCPAddr.
 func checkSourceAddress(clientIP net.IP, sourceAddrs string) error {
-	for _, sourceAddr := range strings.Split(sourceAddrs, ",") {
+	for sourceAddr := range strings.SplitSeq(sourceAddrs, ",") {
 		if allowedIP := net.ParseIP(sourceAddr); allowedIP != nil {
 			if allowedIP.Equal(clientIP) {
 				return nil
