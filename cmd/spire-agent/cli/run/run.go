@@ -133,6 +133,20 @@ type agentConfig struct {
 //	                },
 //	            ]
 //	        },
+//	        {
+//	            # A broker that performs its own workload attestation and maps
+//	            # the result onto selectors. The reference type must be named
+//	            # verbatim (the "*" wildcard does not grant it) and requires a
+//	            # selector_assertion block.
+//	            id = "spiffe://example.org/service/spire-identity-exchange"
+//	            allowed_reference_types = [
+//	                { type_url = "type.googleapis.com/spiffe.broker.SelectorReference" },
+//	            ]
+//	            selector_assertion {
+//	                allowed_selector_types = ["k8s_psat", "github_actions"]
+//	                max_selectors          = 128
+//	            }
+//	        },
 //	    ]
 //	}
 type brokerHCLConfig struct {
@@ -158,20 +172,49 @@ type brokerHCLEntry struct {
 	// AllowedReferenceTypes restricts which WorkloadReference types this
 	// broker may use. Each entry's type_url is the verbatim protobuf type
 	// URL that the workload attestor plugin inspects. Use `"*"` to allow
-	// any reference type. Must list at least one entry.
+	// any reference type the agent can attest for itself. Must list at least
+	// one entry.
 	AllowedReferenceTypes []brokerAllowedReferenceTypeHCLEntry `hcl:"allowed_reference_types"`
+
+	// SelectorAssertion configures this broker's use of reference types that
+	// carry selectors the broker asserts itself. Required when, and only when,
+	// allowed_reference_types names such a type.
+	SelectorAssertion *brokerSelectorAssertionHCLConfig `hcl:"selector_assertion"`
 
 	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions"`
 }
 
 type brokerAllowedReferenceTypeHCLEntry struct {
 	// TypeURL is the verbatim protobuf type URL the workload attestor plugin
-	// inspects. The wildcard `"*"` allows any reference type.
+	// inspects. The wildcard `"*"` allows any reference type the agent can
+	// attest for itself; it does not grant reference types carrying asserted
+	// selectors.
 	TypeURL string `hcl:"type_url"`
 
 	// AllowOverTCP permits this reference type over the TCP listener. The
 	// default is false, so the reference type is only allowed over UDS.
+	//
+	// Setting it on a reference type carrying asserted selectors is allowed but
+	// consequential: unlike the reference types the agent attests for itself, it
+	// puts unattested selector assertion on the network.
 	AllowOverTCP bool `hcl:"allow_over_tcp"`
+
+	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions"`
+}
+
+// brokerSelectorAssertionHCLConfig is the per-broker policy for asserted
+// selectors. A broker with this block supplies selectors directly instead of
+// naming a workload the agent attests, so the agent accepts them as already
+// attested and this block is what bounds them.
+type brokerSelectorAssertionHCLConfig struct {
+	// AllowedSelectorTypes lists the selector types this broker may assert
+	// (e.g. "k8s_psat"). Must list at least one entry; the wildcard is not
+	// accepted.
+	AllowedSelectorTypes []string `hcl:"allowed_selector_types"`
+
+	// MaxSelectors caps how many selectors one reference may carry. Defaults
+	// to 128 when unset.
+	MaxSelectors int `hcl:"max_selectors"`
 
 	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions"`
 }
@@ -205,6 +248,13 @@ func (c *agentConfig) brokerBindAddrs() ([]net.Addr, error) {
 	return addrs, nil
 }
 
+// brokerReferenceTypeRequiresExplicitGrant reports whether a reference type URL
+// is excluded from the `"*"` wildcard and so must be named verbatim. Kept in
+// sync with the api package's requiresExplicitGrant.
+func brokerReferenceTypeRequiresExplicitGrant(typeURL string) bool {
+	return typeURL == broker.SelectorReferenceTypeURL
+}
+
 func brokerAllowedReferenceTypesFromHCL(brokerID string, in []brokerAllowedReferenceTypeHCLEntry) ([]broker.AllowedReferenceType, error) {
 	if len(in) == 0 {
 		return nil, fmt.Errorf("experimental.broker.brokers[%s].allowed_reference_types: must list at least one reference type URL", brokerID)
@@ -214,8 +264,17 @@ func brokerAllowedReferenceTypesFromHCL(brokerID string, in []brokerAllowedRefer
 		if allowed.TypeURL == "" {
 			return nil, fmt.Errorf("experimental.broker.brokers[%s].allowed_reference_types[%d].type_url: must be specified", brokerID, i)
 		}
-		if allowed.TypeURL == "*" && len(in) != 1 {
-			return nil, fmt.Errorf("experimental.broker.brokers[%s].allowed_reference_types: wildcard \"*\" must be the only allowed reference type", brokerID)
+		// The wildcard may only be combined with reference types it does not
+		// grant, i.e. those requiring an explicit grant.
+		if allowed.TypeURL == "*" {
+			for j, other := range in {
+				if j == i || other.TypeURL == "*" {
+					continue
+				}
+				if !brokerReferenceTypeRequiresExplicitGrant(other.TypeURL) {
+					return nil, fmt.Errorf("experimental.broker.brokers[%s].allowed_reference_types: wildcard \"*\" may only be combined with reference types that require an explicit grant", brokerID)
+				}
+			}
 		}
 		out = append(out, broker.AllowedReferenceType{
 			TypeURL:      allowed.TypeURL,
@@ -223,6 +282,61 @@ func brokerAllowedReferenceTypesFromHCL(brokerID string, in []brokerAllowedRefer
 		})
 	}
 	return out, nil
+}
+
+// brokerSelectorAssertionFromHCL validates the selector_assertion block against
+// the broker's reference type list. The block and a selector-bearing reference
+// type are required together: one without the other is always a mistake.
+func brokerSelectorAssertionFromHCL(brokerID string, in *brokerSelectorAssertionHCLConfig, allowed []broker.AllowedReferenceType) (*broker.SelectorAssertion, error) {
+	var namesSelectorReference bool
+	for _, a := range allowed {
+		if a.TypeURL == broker.SelectorReferenceTypeURL {
+			namesSelectorReference = true
+			break
+		}
+	}
+
+	if in == nil {
+		if namesSelectorReference {
+			return nil, fmt.Errorf("experimental.broker.brokers[%s]: reference type %q requires a selector_assertion block", brokerID, broker.SelectorReferenceTypeURL)
+		}
+		return nil, nil
+	}
+	if !namesSelectorReference {
+		return nil, fmt.Errorf("experimental.broker.brokers[%s].selector_assertion: requires reference type %q in allowed_reference_types", brokerID, broker.SelectorReferenceTypeURL)
+	}
+
+	if len(in.AllowedSelectorTypes) == 0 {
+		return nil, fmt.Errorf("experimental.broker.brokers[%s].selector_assertion.allowed_selector_types: must list at least one selector type", brokerID)
+	}
+	seen := make(map[string]struct{}, len(in.AllowedSelectorTypes))
+	selectorTypes := make([]string, 0, len(in.AllowedSelectorTypes))
+	for i, selectorType := range in.AllowedSelectorTypes {
+		switch {
+		case selectorType == "":
+			return nil, fmt.Errorf("experimental.broker.brokers[%s].selector_assertion.allowed_selector_types[%d]: must not be empty", brokerID, i)
+		case selectorType == "*":
+			return nil, fmt.Errorf("experimental.broker.brokers[%s].selector_assertion.allowed_selector_types[%d]: wildcard \"*\" is not supported; list selector types explicitly", brokerID, i)
+		case strings.Contains(selectorType, ":"):
+			return nil, fmt.Errorf("experimental.broker.brokers[%s].selector_assertion.allowed_selector_types[%d]: selector type must not contain ':'", brokerID, i)
+		}
+		if _, ok := seen[selectorType]; ok {
+			continue
+		}
+		seen[selectorType] = struct{}{}
+		selectorTypes = append(selectorTypes, selectorType)
+	}
+
+	// Zero is indistinguishable from unset in HCL, so it means "use the
+	// default". Only a negative value is an error.
+	if in.MaxSelectors < 0 {
+		return nil, fmt.Errorf("experimental.broker.brokers[%s].selector_assertion.max_selectors: must not be negative; omit it to use the default", brokerID)
+	}
+
+	return &broker.SelectorAssertion{
+		AllowedSelectorTypes: selectorTypes,
+		MaxSelectors:         in.MaxSelectors,
+	}, nil
 }
 
 type sdsConfig struct {
@@ -785,9 +899,14 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 			if err != nil {
 				return nil, err
 			}
+			selectorAssertion, err := brokerSelectorAssertionFromHCL(b.ID, b.SelectorAssertion, allowedReferenceTypes)
+			if err != nil {
+				return nil, err
+			}
 			brokers = append(brokers, broker.Broker{
 				ID:                    b.ID,
 				AllowedReferenceTypes: allowedReferenceTypes,
+				SelectorAssertion:     selectorAssertion,
 			})
 		}
 		ac.Broker = agent.BrokerConfig{
@@ -900,6 +1019,9 @@ func checkForUnknownConfig(c *Config, l logrus.FieldLogger) (err error) {
 				if len(allowed.UnusedKeyPositions) != 0 {
 					detectedUnknown(fmt.Sprintf("experimental.broker.brokers[%d].allowed_reference_types[%d]", i, j), allowed.UnusedKeyPositions)
 				}
+			}
+			if sa := b.SelectorAssertion; sa != nil && len(sa.UnusedKeyPositions) != 0 {
+				detectedUnknown(fmt.Sprintf("experimental.broker.brokers[%d].selector_assertion", i), sa.UnusedKeyPositions)
 			}
 		}
 	}

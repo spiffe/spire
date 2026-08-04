@@ -17,6 +17,12 @@ import (
 const (
 	k8sType = "type.googleapis.com/spiffe.broker.KubernetesObjectReference"
 	pidType = "type.googleapis.com/spiffe.broker.PIDReference"
+
+	// nonCanonicalSelectorType is a SelectorReference under a non-canonical
+	// type URL prefix. anypb resolves a type URL by the segment after the last
+	// "/", so this unmarshals into a SelectorReference exactly as the canonical
+	// URL does, and must be gated identically.
+	nonCanonicalSelectorType = "example.com/spiffe.broker.SelectorReference"
 )
 
 func udsContext() context.Context {
@@ -49,12 +55,13 @@ func TestAuthorizeReferenceType(t *testing.T) {
 	other := spiffeid.RequireFromString("spiffe://example.org/other")
 
 	for _, tt := range []struct {
-		name       string
-		byCaller   map[spiffeid.ID]ReferenceTypePolicy
-		ctx        context.Context
-		caller     spiffeid.ID
-		ref        *anypb.Any
-		expectCode codes.Code
+		name        string
+		byCaller    map[spiffeid.ID]ReferenceTypePolicy
+		selByCaller map[spiffeid.ID]SelectorAssertionPolicy
+		ctx         context.Context
+		caller      spiffeid.ID
+		ref         *anypb.Any
+		expectCode  codes.Code
 	}{
 		{
 			name:       "nil reference is rejected before any gate",
@@ -158,10 +165,103 @@ func TestAuthorizeReferenceType(t *testing.T) {
 			ref:        ref(pidType),
 			expectCode: codes.PermissionDenied,
 		},
+		{
+			// The wildcard means "any type my attestor stack can resolve". A
+			// selector reference is resolved by nothing, so inheriting it from
+			// the wildcard would silently escalate existing wildcard brokers.
+			name: "wildcard does not grant the selector reference",
+			byCaller: map[spiffeid.ID]ReferenceTypePolicy{caller: {
+				AllowAny: true,
+			}},
+			ctx:        udsContext(),
+			caller:     caller,
+			ref:        ref(SelectorReferenceTypeURL),
+			expectCode: codes.PermissionDenied,
+		},
+		{
+			// The gate matches on protobuf message name, not the raw type URL,
+			// so a non-canonical prefix cannot smuggle a selector reference
+			// past the wildcard exclusion.
+			name: "wildcard does not grant a non-canonically prefixed selector reference",
+			byCaller: map[spiffeid.ID]ReferenceTypePolicy{caller: {
+				AllowAny: true,
+			}},
+			ctx:        udsContext(),
+			caller:     caller,
+			ref:        ref(nonCanonicalSelectorType),
+			expectCode: codes.PermissionDenied,
+		},
+		{
+			name: "selector reference allowed over UDS when explicitly granted",
+			byCaller: map[spiffeid.ID]ReferenceTypePolicy{caller: {
+				Types: map[string]ReferenceTypeAccess{SelectorReferenceTypeURL: {}},
+			}},
+			selByCaller: map[spiffeid.ID]SelectorAssertionPolicy{caller: {
+				AllowedSelectorTypes: map[string]struct{}{"k8s_psat": {}},
+			}},
+			ctx:        udsContext(),
+			caller:     caller,
+			ref:        ref(SelectorReferenceTypeURL),
+			expectCode: codes.OK,
+		},
+		{
+			// TCP for asserted selectors is governed by allow_over_tcp on the
+			// explicitly named entry, exactly as for any other reference type.
+			name: "selector reference denied over TCP without allow_over_tcp",
+			byCaller: map[spiffeid.ID]ReferenceTypePolicy{caller: {
+				Types: map[string]ReferenceTypeAccess{SelectorReferenceTypeURL: {}},
+			}},
+			selByCaller: map[spiffeid.ID]SelectorAssertionPolicy{caller: {
+				AllowedSelectorTypes: map[string]struct{}{"k8s_psat": {}},
+			}},
+			ctx:        tcpContext(),
+			caller:     caller,
+			ref:        ref(SelectorReferenceTypeURL),
+			expectCode: codes.PermissionDenied,
+		},
+		{
+			name: "selector reference allowed over TCP when the entry opts in",
+			byCaller: map[spiffeid.ID]ReferenceTypePolicy{caller: {
+				Types: map[string]ReferenceTypeAccess{SelectorReferenceTypeURL: {AllowOverTCP: true}},
+			}},
+			selByCaller: map[spiffeid.ID]SelectorAssertionPolicy{caller: {
+				AllowedSelectorTypes: map[string]struct{}{"k8s_psat": {}},
+			}},
+			ctx:        tcpContext(),
+			caller:     caller,
+			ref:        ref(SelectorReferenceTypeURL),
+			expectCode: codes.OK,
+		},
+		{
+			// The wildcard grants TCP to types it covers, but must not reach the
+			// selector reference even when AllowAnyOverTCP is set.
+			name: "wildcard with TCP does not grant selector reference over TCP",
+			byCaller: map[spiffeid.ID]ReferenceTypePolicy{caller: {
+				AllowAny:        true,
+				AllowAnyOverTCP: true,
+			}},
+			ctx:        tcpContext(),
+			caller:     caller,
+			ref:        ref(SelectorReferenceTypeURL),
+			expectCode: codes.PermissionDenied,
+		},
+		{
+			// The fail-open-over-UDS default for unconfigured callers must not
+			// extend to the selector reference.
+			name: "selector reference denied when caller has no policy",
+			byCaller: map[spiffeid.ID]ReferenceTypePolicy{other: {
+				AllowAny: true,
+			}},
+			ctx:        udsContext(),
+			caller:     caller,
+			ref:        ref(SelectorReferenceTypeURL),
+			expectCode: codes.PermissionDenied,
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			s := New(Config{
 				AllowedReferenceTypesByCaller: tt.byCaller,
+				SelectorAssertionByCaller:     tt.selByCaller,
 			})
 			err := s.authorizeReferenceType(tt.ctx, tt.caller, tt.ref)
 			if tt.expectCode == codes.OK {

@@ -30,6 +30,10 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+// SelectorReferenceTypeURL is re-exported so the agent CLI can validate broker
+// configuration without importing the api package directly.
+const SelectorReferenceTypeURL = brokerapi.SelectorReferenceTypeURL
+
 type Config struct {
 	// BindAddrs are the addresses the endpoint listens on. Each may be a
 	// `*net.UnixAddr` or a `*net.TCPAddr`; the same gRPC server (and same
@@ -70,7 +74,16 @@ type Broker struct {
 	// `type.googleapis.com/spiffe.broker.KubernetesObjectReference`). Use
 	// `"*"` to allow any reference type this agent's workload attestor stack
 	// understands. Must list at least one entry.
+	//
+	// The wildcard does not cover reference types that carry broker-asserted
+	// selectors; those must be named verbatim and configured via
+	// SelectorAssertion.
 	AllowedReferenceTypes []AllowedReferenceType
+
+	// SelectorAssertion configures this broker's use of reference types that
+	// carry asserted selectors. It is required when, and only when,
+	// AllowedReferenceTypes names such a type.
+	SelectorAssertion *SelectorAssertion
 }
 
 // AllowedReferenceType describes a WorkloadReference type the broker may use.
@@ -82,6 +95,20 @@ type AllowedReferenceType struct {
 	// AllowOverTCP permits this reference type over TCP. When false, the
 	// reference type is only allowed over UDS.
 	AllowOverTCP bool
+}
+
+// SelectorAssertion is a broker's policy for asserting selectors directly,
+// rather than naming a workload the agent attests for itself. Whether the
+// broker may do so over TCP is governed by AllowOverTCP on the corresponding
+// AllowedReferenceType entry, as for any other reference type.
+type SelectorAssertion struct {
+	// AllowedSelectorTypes is the set of selector types the broker may assert.
+	// Must list at least one entry.
+	AllowedSelectorTypes []string
+
+	// MaxSelectors caps how many selectors one reference may carry. Zero means
+	// brokerapi.DefaultMaxAssertedSelectors.
+	MaxSelectors int
 }
 
 type Endpoints struct {
@@ -230,6 +257,7 @@ func (e *Endpoints) registerBrokerAPI(server *grpc.Server) {
 		Metrics:                       e.c.Metrics,
 		Log:                           e.c.Log.WithField(telemetry.SubsystemName, telemetry.BrokerAPI),
 		AllowedReferenceTypesByCaller: buildAllowedReferenceTypeMap(e.c.Brokers),
+		SelectorAssertionByCaller:     buildSelectorAssertionMap(e.c.Brokers),
 	})
 
 	brokerapi.RegisterService(server, service)
@@ -258,12 +286,53 @@ func buildAllowedReferenceTypeMap(brokers []Broker) map[spiffeid.ID]brokerapi.Re
 			if allowed.TypeURL == "*" {
 				policy.AllowAny = true
 				policy.AllowAnyOverTCP = allowed.AllowOverTCP
-				policy.Types = nil
-				break
+				// Keep collecting explicit entries. The wildcard does not
+				// cover reference types requiring an explicit grant, so it
+				// must be able to coexist with them.
+				continue
 			}
 			policy.Types[allowed.TypeURL] = access
 		}
 		out[id] = policy
+	}
+	return out
+}
+
+// buildSelectorAssertionMap pre-computes the per-caller asserted-selector
+// policy. Brokers without a SelectorAssertion block are absent from the map,
+// which the api service treats as "may not assert selectors". Brokers whose ID
+// fails to parse are skipped, as in buildAllowedReferenceTypeMap.
+func buildSelectorAssertionMap(brokers []Broker) map[spiffeid.ID]brokerapi.SelectorAssertionPolicy {
+	if len(brokers) == 0 {
+		return nil
+	}
+	var out map[spiffeid.ID]brokerapi.SelectorAssertionPolicy
+	for _, b := range brokers {
+		if b.SelectorAssertion == nil {
+			continue
+		}
+		id, err := spiffeid.FromString(b.ID)
+		if err != nil {
+			continue
+		}
+
+		allowedTypes := make(map[string]struct{}, len(b.SelectorAssertion.AllowedSelectorTypes))
+		for _, selectorType := range b.SelectorAssertion.AllowedSelectorTypes {
+			allowedTypes[selectorType] = struct{}{}
+		}
+
+		maxSelectors := b.SelectorAssertion.MaxSelectors
+		if maxSelectors <= 0 {
+			maxSelectors = brokerapi.DefaultMaxAssertedSelectors
+		}
+
+		if out == nil {
+			out = make(map[spiffeid.ID]brokerapi.SelectorAssertionPolicy)
+		}
+		out[id] = brokerapi.SelectorAssertionPolicy{
+			AllowedSelectorTypes: allowedTypes,
+			MaxSelectors:         maxSelectors,
+		}
 	}
 	return out
 }

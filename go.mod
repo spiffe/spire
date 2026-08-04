@@ -331,3 +331,10 @@ require (
 	sigs.k8s.io/structured-merge-diff/v6 v6.3.3 // indirect
 	sigs.k8s.io/yaml v1.6.0 // indirect
 )
+
+// TODO(kfox): temporary. Points at a fork carrying the in-progress
+// spiffe.broker.SelectorReference proto, so this branch builds for anyone who
+// checks it out. Once the change lands upstream, drop this directive and pin a
+// github.com/spiffe/go-spiffe/v2 pseudo-version instead, as is already done for
+// spire-api-sdk and spire-plugin-sdk above.
+replace github.com/spiffe/go-spiffe/v2 => github.com/kfox1111/go-spiffe/v2 v2.0.0-20260804145020-ab7247e14076
