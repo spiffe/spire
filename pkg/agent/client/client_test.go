@@ -1106,6 +1106,99 @@ func TestNewWITSVIDs(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:    "missing SVID",
+			entries: entries,
+			witSVIDs: map[string]*types.WITSVID{
+				"entry-id": nil,
+			},
+			wantError:      assert.NoError,
+			assertFuncConn: assertConnectionIsNotNil,
+			testSvids:      map[string]*WITSVID{},
+			expectedLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Invalid WIT-SVID",
+					Data: logrus.Fields{
+						telemetry.RegistrationID: "entry-id",
+						logrus.ErrorKey:          "WITSVID response missing SVID",
+					},
+				},
+			},
+		},
+		{
+			name:    "missing issued at",
+			entries: entries,
+			witSVIDs: map[string]*types.WITSVID{
+				"entry-id": {
+					Id:        &types.SPIFFEID{TrustDomain: "example.org", Path: "/path"},
+					Token:     "SOME TOKEN",
+					ExpiresAt: 54321,
+				},
+			},
+			wantError:      assert.NoError,
+			assertFuncConn: assertConnectionIsNotNil,
+			testSvids:      map[string]*WITSVID{},
+			expectedLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Invalid WIT-SVID",
+					Data: logrus.Fields{
+						telemetry.RegistrationID: "entry-id",
+						logrus.ErrorKey:          "WITSVID missing issued at",
+					},
+				},
+			},
+		},
+		{
+			name:    "missing expires at",
+			entries: entries,
+			witSVIDs: map[string]*types.WITSVID{
+				"entry-id": {
+					Id:       &types.SPIFFEID{TrustDomain: "example.org", Path: "/path"},
+					Token:    "SOME TOKEN",
+					IssuedAt: 12345,
+				},
+			},
+			wantError:      assert.NoError,
+			assertFuncConn: assertConnectionIsNotNil,
+			testSvids:      map[string]*WITSVID{},
+			expectedLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Invalid WIT-SVID",
+					Data: logrus.Fields{
+						telemetry.RegistrationID: "entry-id",
+						logrus.ErrorKey:          "WITSVID missing expires at",
+					},
+				},
+			},
+		},
+		{
+			name:    "issued after expired",
+			entries: entries,
+			witSVIDs: map[string]*types.WITSVID{
+				"entry-id": {
+					Id:        &types.SPIFFEID{TrustDomain: "example.org", Path: "/path"},
+					Token:     "SOME TOKEN",
+					IssuedAt:  54321,
+					ExpiresAt: 12345,
+				},
+			},
+			wantError:      assert.NoError,
+			assertFuncConn: assertConnectionIsNotNil,
+			testSvids:      map[string]*WITSVID{},
+			expectedLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Invalid WIT-SVID",
+					Data: logrus.Fields{
+						telemetry.RegistrationID: "entry-id",
+						logrus.ErrorKey:          "WITSVID issued after it has expired",
+					},
+				},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

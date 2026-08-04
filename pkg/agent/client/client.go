@@ -439,7 +439,6 @@ func (c *client) NewWITSVIDs(ctx context.Context, publicKeys map[string]crypto.P
 	for i, s := range protoSVIDs {
 		entryID := params[i].EntryId
 		if s == nil {
-			c.c.Log.WithField(telemetry.RegistrationID, entryID).Debug("Entry not found")
 			continue
 		}
 
@@ -844,21 +843,32 @@ func (c *client) fetchWITSVIDs(ctx context.Context, params []*svidv1.NewWITSVIDP
 				telemetry.Status:         r.Status.Code,
 				telemetry.Error:          r.Status.Message,
 			}).Warn("Failed to mint WIT-SVID")
+			svids = append(svids, nil)
+			continue
 		}
 
 		svid := r.Svid
+		var svidErr error
 		switch {
 		case svid == nil:
-			return nil, errors.New("WITSVID response missing SVID")
+			svidErr = errors.New("WITSVID response missing SVID")
 		case svid.IssuedAt == 0:
-			return nil, errors.New("WITSVID missing issued at")
+			svidErr = errors.New("WITSVID missing issued at")
 		case svid.ExpiresAt == 0:
-			return nil, errors.New("WITSVID missing expires at")
+			svidErr = errors.New("WITSVID missing expires at")
 		case svid.IssuedAt > svid.ExpiresAt:
-			return nil, errors.New("WITSVID issued after it has expired")
+			svidErr = errors.New("WITSVID issued after it has expired")
+		}
+		if svidErr != nil {
+			c.c.Log.WithFields(logrus.Fields{
+				telemetry.RegistrationID: params[i].EntryId,
+				logrus.ErrorKey:          svidErr.Error(),
+			}).Error("Invalid WIT-SVID")
+			svids = append(svids, nil)
+			continue
 		}
 
-		svids = append(svids, r.Svid)
+		svids = append(svids, svid)
 	}
 
 	return svids, nil
