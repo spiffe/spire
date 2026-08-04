@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/andres-erbsen/clock"
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
@@ -1123,15 +1122,10 @@ func utilIDProtoFromString(t *testing.T, id string) *types.SPIFFEID {
 }
 
 func (m *FakeManager) SubscribeToBundleChanges() *cache.BundleStream {
-	myCache := newTestCache()
-	myCache.BundleCache.Update(m.cacheUpdate)
+	bundleCache := cache.NewBundleCache(trustDomain1, bundle1)
+	bundleCache.Update(m.cacheUpdate)
 
-	return myCache.BundleCache.SubscribeToBundleChanges()
-}
-
-func newTestCache() *cache.LRUCache {
-	log, _ := test.NewNullLogger()
-	return cache.NewLRUCache(log, trustDomain1, bundle1, telemetry.Blackhole{}, cache.DefaultSVIDCacheMaxSize, clock.New())
+	return bundleCache.SubscribeToBundleChanges()
 }
 
 func generateSubscribeToX509SVIDMetrics() []fakemetrics.MetricItem {
