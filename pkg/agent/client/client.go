@@ -100,7 +100,7 @@ type Client interface {
 	RenewSVID(ctx context.Context, csr []byte) (*X509SVID, error)
 	NewX509SVIDs(ctx context.Context, csrs map[string][]byte) (map[string]*X509SVID, error)
 	NewJWTSVID(ctx context.Context, entryID string, audience []string, hasCacheHit bool) (*JWTSVID, spiffeid.ID, error)
-	NewWITSVIDs(ctx context.Context, publicKeys map[string]crypto.PublicKey) (map[string]*WITSVID, error)
+	NewWITSVIDs(ctx context.Context, publicKeys map[string]crypto.PublicKey, signatureAlgorithm string) (map[string]*WITSVID, error)
 	PostStatus(ctx context.Context, agentVersion string) error
 
 	// Release releases any resources that were held by this Client, if any.
@@ -409,7 +409,7 @@ func (c *client) NewJWTSVID(ctx context.Context, entryID string, audience []stri
 	}, spiffeId, nil
 }
 
-func (c *client) NewWITSVIDs(ctx context.Context, publicKeys map[string]crypto.PublicKey) (map[string]*WITSVID, error) {
+func (c *client) NewWITSVIDs(ctx context.Context, publicKeys map[string]crypto.PublicKey, signatureAlgorithm string) (map[string]*WITSVID, error) {
 	c.c.RotMtx.RLock()
 	defer c.c.RotMtx.RUnlock()
 
@@ -425,8 +425,9 @@ func (c *client) NewWITSVIDs(ctx context.Context, publicKeys map[string]crypto.P
 		}
 
 		params = append(params, &svidv1.NewWITSVIDParams{
-			EntryId:   entryID,
-			PublicKey: pkixPublicKey,
+			EntryId:          entryID,
+			PublicKey:        pkixPublicKey,
+			SigningAlgorithm: signatureAlgorithm,
 		})
 	}
 

@@ -1121,7 +1121,7 @@ func TestNewWITSVIDs(t *testing.T) {
 			var svids map[string]*WITSVID
 			err := errors.New("a not nil error")
 			wg.Go(func() {
-				svids, err = sClient.NewWITSVIDs(ctx, newTestPublicKeys(t))
+				svids, err = sClient.NewWITSVIDs(ctx, newTestPublicKeys(t), "ES256")
 			})
 
 			// The request should wait until the SVID rotation finishes
