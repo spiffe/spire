@@ -846,6 +846,18 @@ func (c *client) fetchWITSVIDs(ctx context.Context, params []*svidv1.NewWITSVIDP
 			}).Warn("Failed to mint WIT-SVID")
 		}
 
+		svid := r.Svid
+		switch {
+		case svid == nil:
+			return nil, errors.New("WITSVID response missing SVID")
+		case svid.IssuedAt == 0:
+			return nil, errors.New("WITSVID missing issued at")
+		case svid.ExpiresAt == 0:
+			return nil, errors.New("WITSVID missing expires at")
+		case svid.IssuedAt > svid.ExpiresAt:
+			return nil, errors.New("WITSVID issued after it has expired")
+		}
+
 		svids = append(svids, r.Svid)
 	}
 
