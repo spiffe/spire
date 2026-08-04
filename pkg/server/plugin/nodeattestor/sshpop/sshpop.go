@@ -9,7 +9,9 @@ import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/sshpop"
 	"github.com/spiffe/spire/pkg/common/pluginconf"
+	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 )
 
@@ -55,7 +57,7 @@ func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 	}
 
 	handshaker := p.sshserver.NewHandshake()
-	if err := handshaker.VerifyAttestationData(payload); err != nil {
+	if err := handshaker.VerifyAttestationData(payload, clientIPFromContext(stream.Context())); err != nil {
 		return err
 	}
 	challenge, err := handshaker.IssueChallenge()
@@ -115,4 +117,12 @@ func (p *Plugin) Validate(_ context.Context, req *configv1.ValidateRequest) (*co
 		Valid: err == nil,
 		Notes: notes,
 	}, nil
+}
+
+func clientIPFromContext(ctx context.Context) string {
+	ips := metadata.ValueFromIncomingContext(ctx, nodeattestor.XForwardedClientIPKey)
+	if len(ips) == 0 {
+		return ""
+	}
+	return ips[0]
 }

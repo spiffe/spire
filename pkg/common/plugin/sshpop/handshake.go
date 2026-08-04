@@ -111,7 +111,14 @@ func (c *ClientHandshake) RespondToChallenge(req []byte) ([]byte, error) {
 	return b, nil
 }
 
-func (s *ServerHandshake) VerifyAttestationData(data []byte) error {
+// sourceAddressCriticalOption is the OpenSSH certificate critical option that
+// restricts which client addresses may use the certificate. golang.org/x/crypto/ssh
+// accepts this option in CheckCert but only enforces it during user authentication
+// (serverAuthenticate), not when validating host certificates. sshpop uses
+// CheckHostKey for host certs, so source-address would otherwise be ignored.
+const sourceAddressCriticalOption = "source-address"
+
+func (s *ServerHandshake) VerifyAttestationData(data []byte, clientIP string) error {
 	if s.state != stateServerInit {
 		return status.Error(codes.FailedPrecondition, "server must be in init state to verify data")
 	}
@@ -137,6 +144,9 @@ func (s *ServerHandshake) VerifyAttestationData(data []byte) error {
 	if err := s.s.certChecker.CheckHostKey(addr, &net.IPAddr{}, cert); err != nil {
 		return status.Errorf(codes.Internal, "failed to check host key: %v", err)
 	}
+	if err := s.verifyClientIPAgainstSourceAddress(cert, clientIP); err != nil {
+		return err
+	}
 	s.hostname, err = decanonicalizeHostname(cert.ValidPrincipals[0], s.s.canonicalDomain)
 	if err != nil {
 		return status.Errorf(codes.Internal, "failed to decanonicalize hostname: %v", err)
@@ -144,6 +154,51 @@ func (s *ServerHandshake) VerifyAttestationData(data []byte) error {
 	s.cert = cert
 	s.state = stateAttestationDataVerified
 	return nil
+}
+
+// verifyClientIPAgainstSourceAddress enforces the source-address critical option
+// when verify_client_ip is enabled. If the option is absent, attestation is unchanged.
+func (s *ServerHandshake) verifyClientIPAgainstSourceAddress(cert *ssh.Certificate, clientIPStr string) error {
+	if !s.s.verifyClientIP {
+		return nil
+	}
+	sourceAddrs, ok := cert.CriticalOptions[sourceAddressCriticalOption]
+	if !ok || sourceAddrs == "" {
+		return nil
+	}
+	if clientIPStr == "" {
+		return status.Error(codes.Internal, "client IP not available for verification")
+	}
+	clientIP := net.ParseIP(clientIPStr)
+	if clientIP == nil {
+		return status.Errorf(codes.Internal, "invalid client IP %q", clientIPStr)
+	}
+	if err := checkSourceAddress(clientIP, sourceAddrs); err != nil {
+		return status.Errorf(codes.PermissionDenied, "client IP verification failed: %v", err)
+	}
+	return nil
+}
+
+// checkSourceAddress mirrors golang.org/x/crypto/ssh checkSourceAddress: a
+// comma-separated list of IPs and/or CIDRs. The client address is a parsed IP
+// (as observed by SPIRE), not a net.TCPAddr.
+func checkSourceAddress(clientIP net.IP, sourceAddrs string) error {
+	for _, sourceAddr := range strings.Split(sourceAddrs, ",") {
+		if allowedIP := net.ParseIP(sourceAddr); allowedIP != nil {
+			if allowedIP.Equal(clientIP) {
+				return nil
+			}
+			continue
+		}
+		_, ipNet, err := net.ParseCIDR(sourceAddr)
+		if err != nil {
+			return fmt.Errorf("error parsing source-address restriction %q: %w", sourceAddr, err)
+		}
+		if ipNet.Contains(clientIP) {
+			return nil
+		}
+	}
+	return fmt.Errorf("client IP %s is not allowed by source-address restriction", clientIP)
 }
 
 func decanonicalizeHostname(fqdn, domain string) (string, error) {

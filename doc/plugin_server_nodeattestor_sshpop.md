@@ -21,6 +21,7 @@ spiffe://<trust_domain>/spire/agent/sshpop/<fingerprint>
 | `cert_authorities_path` | A file that contains a list of trusted CAs in ssh `authorized_keys` format.                                                    |                                         |
 | `canonical_domain`      | A domain suffix for validating the hostname against the certificate's valid principals. See CanonicalDomains in ssh_config(5). |                                         |
 | `agent_path_template`   | A URL path portion format of Agent's SPIFFE ID. Describe in text/template format.                                              | `"{{ .PluginName}}/{{ .Fingerprint }}"` |
+| `verify_client_ip`      | If `true`, and the host certificate includes a `source-address` critical option, validates the connecting peer's IP against that option (comma-separated IPs and/or CIDRs). Certificates without `source-address` are unaffected. Reflects the immediate peer - may not represent true client origin behind load balancers. `source-address` is commonly documented for user certificates; OpenSSH tooling can still place it on host certificates. | false |
 
 If both `cert_authorities` and `cert_authorities_path` are configured, the resulting set of authorized keys is the union of both sets.
 
@@ -50,6 +51,9 @@ If both `cert_authorities` and `cert_authorities_path` are configured, the resul
 
             # Change the agent's SPIFFE ID format
             # agent_path_template = "static/{{ index .ValidPrincipals 0 }}"
+
+            # Optional: when true, enforce source-address critical option if present
+            # verify_client_ip = true
         }
     }
 ```
