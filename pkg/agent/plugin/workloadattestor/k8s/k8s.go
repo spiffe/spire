@@ -174,6 +174,15 @@ type HCLConfig struct {
 	// (e.g. when a postStart hook has yet to complete).
 	DisableContainerSelectors bool `hcl:"disable_container_selectors"`
 
+	// ExcludeCompletedPods, when true, causes pods that have reached a
+	// terminal status.phase ("Failed" or "Succeeded") to be dropped from the
+	// kubelet pod-list cache instead of being tracked. Such pods (e.g. evicted
+	// pods, pods left in ContainerStatusUnknown after a node problem, or
+	// completed jobs) have no running containers and are never the target of
+	// workload attestation, so excluding them reduces the plugin's memory
+	// footprint on nodes that accumulate large numbers of terminated pods.
+	ExcludeCompletedPods bool `hcl:"exclude_completed_pods"`
+
 	// UseNewContainerLocator, if true, uses the new container locator
 	// mechanism instead of the legacy cgroup matchers. Defaults to true if
 	// unset. This configurable will be removed in a future release.
@@ -257,6 +266,7 @@ type k8sConfig struct {
 	NodeName                   string
 	ReloadInterval             time.Duration
 	DisableContainerSelectors  bool
+	ExcludeCompletedPods       bool
 	EnableNamespaceLabels      bool
 	ContainerHelper            ContainerHelper
 	sigstoreConfig             *sigstore.Config
@@ -358,6 +368,7 @@ func (p *Plugin) buildConfig(coreConfig catalog.CoreConfig, hclText string, stat
 		NodeName:                   nodeName,
 		ReloadInterval:             reloadInterval,
 		DisableContainerSelectors:  newConfig.DisableContainerSelectors,
+		ExcludeCompletedPods:       newConfig.ExcludeCompletedPods,
 		EnableNamespaceLabels:      newConfig.EnableNamespaceLabels,
 		ContainerHelper:            containerHelper,
 		sigstoreConfig:             sigstoreConfig,
@@ -697,7 +708,7 @@ func (p *Plugin) attestByPIDReference(ctx context.Context, pid int32) (*attestRe
 	for attempt := 1; ; attempt++ {
 		log = log.With(telemetry.Attempt, attempt)
 
-		podList, err := p.getPodList(ctx, config.Client, config.PollRetryInterval/2)
+		podList, err := p.getPodList(ctx, config.Client, config.PollRetryInterval/2, config.ExcludeCompletedPods)
 		if err != nil {
 			return nil, err
 		}
@@ -1038,7 +1049,7 @@ func (p *Plugin) getPodListForReference(ctx context.Context, config *k8sConfig, 
 		return nil, nil
 	}
 
-	podList, err := p.getPodList(ctx, config.Client, config.PollRetryInterval/2)
+	podList, err := p.getPodList(ctx, config.Client, config.PollRetryInterval/2, config.ExcludeCompletedPods)
 	if err != nil {
 		if scope != podReferenceScopeCluster {
 			return nil, err
@@ -1680,7 +1691,7 @@ func (p *Plugin) getNodeName(name string, env string) string {
 	}
 }
 
-func (p *Plugin) getPodList(ctx context.Context, client *kubeletClient, cacheFor time.Duration) (map[string]*fastjson.Value, error) {
+func (p *Plugin) getPodList(ctx context.Context, client *kubeletClient, cacheFor time.Duration, excludeCompletedPods bool) (map[string]*fastjson.Value, error) {
 	if client == nil {
 		return nil, status.Error(codes.FailedPrecondition, "kubelet client is not configured")
 	}
@@ -1716,6 +1727,19 @@ func (p *Plugin) getPodList(ctx context.Context, client *kubeletClient, cacheFor
 			if uid == "" {
 				p.log.Warn("Pod has no UID", "pod", podValue)
 				continue
+			}
+
+			// Pods in a terminal phase (Failed or Succeeded) have no running
+			// containers and can never host a workload being attested. Failed
+			// pods include evicted pods and pods left in ContainerStatusUnknown
+			// after a node problem; Succeeded pods include completed jobs.
+			// Optionally drop them so they do not balloon the cache on nodes
+			// with many terminated pods.
+			if excludeCompletedPods {
+				phase := string(podValue.Get("status", "phase").GetStringBytes())
+				if phase == string(corev1.PodFailed) || phase == string(corev1.PodSucceeded) {
+					continue
+				}
 			}
 
 			result[uid] = podValue
