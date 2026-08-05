@@ -1807,11 +1807,11 @@ func listAttestedNodeEvents(db *sqlDB, req *datastore.ListAttestedNodeEventsRequ
 			return nil, sqlcommon.NewWrappedSQLError(err)
 		}
 
-		if err := db.Find(&events, query.String(), id).Order("id asc").Error; err != nil {
+		if err := db.Order("id asc").Find(&events, query.String(), id).Error; err != nil {
 			return nil, sqlcommon.NewWrappedSQLError(err)
 		}
 	} else {
-		if err := db.Find(&events).Order("id asc").Error; err != nil {
+		if err := db.Order("id asc").Find(&events).Error; err != nil {
 			return nil, sqlcommon.NewWrappedSQLError(err)
 		}
 	}
@@ -4326,11 +4326,11 @@ func listRegistrationEntryEvents(db *sqlDB, req *datastore.ListRegistrationEntry
 			return nil, sqlcommon.NewWrappedSQLError(err)
 		}
 
-		if err := db.Find(&events, query.String(), id).Order("id asc").Error; err != nil {
+		if err := db.Order("id asc").Find(&events, query.String(), id).Error; err != nil {
 			return nil, sqlcommon.NewWrappedSQLError(err)
 		}
 	} else {
-		if err := db.Find(&events).Order("id asc").Error; err != nil {
+		if err := db.Order("id asc").Find(&events).Error; err != nil {
 			return nil, sqlcommon.NewWrappedSQLError(err)
 		}
 	}

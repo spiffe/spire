@@ -555,18 +555,6 @@
               "interval": "",
               "legendFormat": "",
               "refId": "A"
-            },
-            {
-              "datasource": {
-                "type": "prometheus",
-                "uid": "${DS_PROMETHEUS}"
-              },
-              "exemplar": true,
-              "expr": "",
-              "hide": false,
-              "interval": "",
-              "legendFormat": "",
-              "refId": "B"
             }
           ],
           "title": "SPIRE Agent: GET JWT status",
@@ -645,18 +633,6 @@
               "interval": "",
               "legendFormat": "",
               "refId": "A"
-            },
-            {
-              "datasource": {
-                "type": "prometheus",
-                "uid": "${DS_PROMETHEUS}"
-              },
-              "exemplar": true,
-              "expr": "",
-              "hide": false,
-              "interval": "",
-              "legendFormat": "",
-              "refId": "B"
             }
           ],
           "title": "SPIRE Agent: GET x509 status",
