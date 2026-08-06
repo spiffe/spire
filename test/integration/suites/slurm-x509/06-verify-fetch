@@ -1,0 +1,26 @@
+#!/bin/bash
+
+JOBID=$(cat job.id)
+
+# Wait for the job to finish (it exits 0 as soon as the fetch succeeds).
+for i in $(seq 1 60); do
+    ST=$(squeue -h -j "${JOBID}" -o '%T' 2>/dev/null | tr -d '[:space:]' || true)
+    [ -z "${ST}" ] && break
+    log-debug "waiting for job ${JOBID} to finish (state '${ST}') ($i/60)..."
+    sleep 2
+done
+
+# Job diagnostics (cgroup line + fetch attempts).
+cat "/tmp/slurm-spire-jobs/slurm-${JOBID}.out" 2>/dev/null || true
+
+MARKER="/tmp/slurm-spire-jobs/${JOBID}/SUCCESS"
+[ -f "${MARKER}" ] || fail-now "job ${JOBID} did not write a SUCCESS marker (fetch failed)"
+
+grep -q "FETCH_SUCCESS job=${JOBID}" "${MARKER}" \
+    || fail-now "job ${JOBID} did not report FETCH_SUCCESS"
+grep -q "SPIFFE_ID=spiffe://domain.test/workload/slurm-job" "${MARKER}" \
+    || fail-now "job ${JOBID} fetched an unexpected SPIFFE ID: $(cat "${MARKER}")"
+[ -f "/tmp/slurm-spire-jobs/${JOBID}/svid.0.pem" ] \
+    || fail-now "job ${JOBID} did not write svid.0.pem"
+
+log-success "slurm workload attested via cgroup and fetched its X.509-SVID (job ${JOBID})"
