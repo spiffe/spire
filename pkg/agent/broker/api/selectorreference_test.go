@@ -4,8 +4,8 @@ import (
 	"testing"
 
 	"github.com/sirupsen/logrus/hooks/test"
-	"github.com/spiffe/go-spiffe/v2/exp/proto/spiffe/broker"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/assert"
@@ -16,10 +16,10 @@ import (
 )
 
 func TestReferenceMessageName(t *testing.T) {
-	assert.Equal(t, "spiffe.broker.SelectorReference", referenceMessageName(SelectorReferenceTypeURL))
-	assert.Equal(t, "spiffe.broker.SelectorReference", referenceMessageName(nonCanonicalSelectorType))
+	assert.Equal(t, "spire.api.types.SelectorReference", referenceMessageName(SelectorReferenceTypeURL))
+	assert.Equal(t, "spire.api.types.SelectorReference", referenceMessageName(nonCanonicalSelectorType))
 	// A bare message name with no prefix is returned unchanged.
-	assert.Equal(t, "spiffe.broker.SelectorReference", referenceMessageName("spiffe.broker.SelectorReference"))
+	assert.Equal(t, "spire.api.types.SelectorReference", referenceMessageName("spire.api.types.SelectorReference"))
 	assert.Equal(t, "spiffe.broker.WorkloadPIDReference", referenceMessageName("type.googleapis.com/spiffe.broker.WorkloadPIDReference"))
 	assert.Equal(t, "", referenceMessageName(""))
 }
@@ -32,7 +32,7 @@ func TestIsSelectorReference(t *testing.T) {
 	assert.False(t, isSelectorReference(k8sType))
 	assert.False(t, isSelectorReference(""))
 	// A different message in the same package must not match.
-	assert.False(t, isSelectorReference("type.googleapis.com/spiffe.broker.SelectorReferenceOther"))
+	assert.False(t, isSelectorReference("type.googleapis.com/spire.api.types.SelectorReferenceOther"))
 }
 
 func TestRequiresExplicitGrant(t *testing.T) {
@@ -43,15 +43,15 @@ func TestRequiresExplicitGrant(t *testing.T) {
 }
 
 // selectorRef packs selectors into an Any as a SelectorReference.
-func selectorRef(t *testing.T, selectors ...*broker.Selector) *anypb.Any {
+func selectorRef(t *testing.T, selectors ...*types.Selector) *anypb.Any {
 	t.Helper()
-	packed, err := anypb.New(&broker.SelectorReference{Selectors: selectors})
+	packed, err := anypb.New(&types.SelectorReference{Selectors: selectors})
 	require.NoError(t, err)
 	return packed
 }
 
-func sel(selectorType, value string) *broker.Selector {
-	return &broker.Selector{Type: selectorType, Value: value}
+func sel(selectorType, value string) *types.Selector {
+	return &types.Selector{Type: selectorType, Value: value}
 }
 
 func TestSelectorsFromSelectorReference(t *testing.T) {
@@ -197,7 +197,7 @@ func TestSelectorsFromSelectorReferenceDefaultsMaxSelectors(t *testing.T) {
 		AllowedSelectorTypes: map[string]struct{}{"k8s_psat": {}},
 	}}})
 
-	selectors := make([]*broker.Selector, 0, DefaultMaxAssertedSelectors)
+	selectors := make([]*types.Selector, 0, DefaultMaxAssertedSelectors)
 	for i := range DefaultMaxAssertedSelectors {
 		selectors = append(selectors, sel("k8s_psat", "pod-label:n"+string(rune('a'+i%26))))
 	}

@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/sirupsen/logrus"
-	"github.com/spiffe/go-spiffe/v2/exp/proto/spiffe/broker"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -21,7 +20,7 @@ import (
 // WorkloadReference extension. A broker using this reference type supplies the
 // selectors itself rather than naming something the agent can attest, so the
 // agent accepts them as already attested.
-const SelectorReferenceTypeURL = "type.googleapis.com/spiffe.broker.SelectorReference"
+const SelectorReferenceTypeURL = "type.googleapis.com/spire.api.types.SelectorReference"
 
 // DefaultMaxAssertedSelectors is the default ceiling on how many selectors a
 // single SelectorReference may carry. It is generous enough for real callers
@@ -30,17 +29,21 @@ const SelectorReferenceTypeURL = "type.googleapis.com/spiffe.broker.SelectorRefe
 const DefaultMaxAssertedSelectors = 128
 
 // selectorReferenceMessageName is the fully qualified protobuf message name of
-// SelectorReference, i.e. "spiffe.broker.SelectorReference".
-var selectorReferenceMessageName = string((&broker.SelectorReference{}).ProtoReflect().Descriptor().FullName())
+// SelectorReference, i.e. "spire.api.types.SelectorReference".
+var selectorReferenceMessageName = string((&types.SelectorReference{}).ProtoReflect().Descriptor().FullName())
 
 // referenceMessageName returns the fully qualified protobuf message name from a
 // protobuf type URL, which is everything after the last "/".
 //
 // Matching on the message name rather than the whole type URL is deliberate and
 // security relevant: anypb only compares the segment after the final "/" when
-// unmarshaling, so "example.com/spiffe.broker.SelectorReference" unmarshals into
-// a SelectorReference just as the canonical URL does. A gate that compared raw
-// type URL strings could therefore be bypassed with a non-canonical prefix.
+// unmarshaling, so "example.com/spire.api.types.SelectorReference" unmarshals
+// into a SelectorReference just as the canonical URL does. A gate that compared
+// raw type URL strings could therefore be bypassed with a non-canonical prefix.
+//
+// Note this is intentionally stricter than the plain reference.TypeUrl switch
+// in the k8s workload attestor: that dispatch only selects behavior, whereas
+// this feeds an authorization decision.
 func referenceMessageName(typeURL string) string {
 	if i := strings.LastIndex(typeURL, "/"); i >= 0 {
 		return typeURL[i+1:]
@@ -83,7 +86,7 @@ type SelectorAssertionPolicy struct {
 // attestor: the broker is the attestor, and the agent's job is to bound what it
 // is allowed to assert.
 func (s *Service) selectorsFromSelectorReference(ctx context.Context, log logrus.FieldLogger, caller spiffeid.ID, ref *anypb.Any) ([]*common.Selector, error) {
-	var selRef broker.SelectorReference
+	var selRef types.SelectorReference
 	if err := anypb.UnmarshalTo(ref, &selRef, proto.UnmarshalOptions{}); err != nil {
 		log.WithError(err).Error("Malformed selector reference")
 		return nil, status.Errorf(codes.InvalidArgument, "malformed selector reference: %v", err)
@@ -118,16 +121,11 @@ func (s *Service) selectorsFromSelectorReference(ctx context.Context, log logrus
 		return nil, status.Errorf(codes.InvalidArgument, "selector reference contains %d selectors; at most %d are allowed", len(selRef.Selectors), maxSelectors)
 	}
 
-	// Reuse the Delegated Identity API's selector validation, which rejects an
-	// empty type, an empty value, and a type containing ":".
-	protoSelectors := make([]*types.Selector, 0, len(selRef.Selectors))
-	for _, selector := range selRef.Selectors {
-		protoSelectors = append(protoSelectors, &types.Selector{
-			Type:  selector.GetType(),
-			Value: selector.GetValue(),
-		})
-	}
-	selectors, err := api.SelectorsFromProto(protoSelectors)
+	// SelectorReference carries types.Selector directly, so this is the same
+	// validation the Delegated Identity API applies to caller-supplied
+	// selectors: it rejects an empty type, an empty value, and a type
+	// containing ":".
+	selectors, err := api.SelectorsFromProto(selRef.Selectors)
 	if err != nil {
 		log.WithError(err).Error("Invalid argument; could not parse provided selectors")
 		return nil, status.Error(codes.InvalidArgument, "could not parse provided selectors")

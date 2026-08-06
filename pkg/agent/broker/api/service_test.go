@@ -22,7 +22,7 @@ const (
 	// type URL prefix. anypb resolves a type URL by the segment after the last
 	// "/", so this unmarshals into a SelectorReference exactly as the canonical
 	// URL does, and must be gated identically.
-	nonCanonicalSelectorType = "example.com/spiffe.broker.SelectorReference"
+	nonCanonicalSelectorType = "example.com/spire.api.types.SelectorReference"
 )
 
 func udsContext() context.Context {

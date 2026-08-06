@@ -18,6 +18,7 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/go-spiffe/v2/spiffetls/tlsconfig"
 	"github.com/spiffe/go-spiffe/v2/workloadapi"
+	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/metadata"
@@ -127,7 +128,7 @@ func buildRequest() (*broker.SubscribeToX509SVIDRequest, error) {
 		if parseErr != nil {
 			return nil, parseErr
 		}
-		packed, err = anypb.New(&broker.SelectorReference{Selectors: parsed})
+		packed, err = anypb.New(&types.SelectorReference{Selectors: parsed})
 	default:
 		return nil, fmt.Errorf("unknown ref-type %q", *refType)
 	}
@@ -145,17 +146,17 @@ func buildRequest() (*broker.SubscribeToX509SVIDRequest, error) {
 //
 // An empty input yields no selectors, which lets a suite step assert that the
 // agent rejects an empty asserted set.
-func parseSelectors(in string) ([]*broker.Selector, error) {
+func parseSelectors(in string) ([]*types.Selector, error) {
 	if in == "" {
 		return nil, nil
 	}
-	var out []*broker.Selector
+	var out []*types.Selector
 	for raw := range strings.SplitSeq(in, ",") {
 		selectorType, value, found := strings.Cut(raw, ":")
 		if !found {
 			return nil, fmt.Errorf("selector %q is not in type:value form", raw)
 		}
-		out = append(out, &broker.Selector{Type: selectorType, Value: value})
+		out = append(out, &types.Selector{Type: selectorType, Value: value})
 	}
 	return out, nil
 }

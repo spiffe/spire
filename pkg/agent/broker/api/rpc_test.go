@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"net/url"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -15,6 +16,7 @@ import (
 	"github.com/spiffe/go-spiffe/v2/exp/proto/spiffe/broker"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/go-spiffe/v2/svid/x509svid"
+	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/agent/manager"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
@@ -285,7 +287,7 @@ func entryFor(id spiffeid.ID) *common.RegistrationEntry {
 }
 
 // selectorReferenceRequest wraps a SelectorReference in a WorkloadReference.
-func selectorReferenceRequest(t *testing.T, selectors ...*broker.Selector) *broker.WorkloadReference {
+func selectorReferenceRequest(t *testing.T, selectors ...*types.Selector) *broker.WorkloadReference {
 	t.Helper()
 	return &broker.WorkloadReference{Reference: selectorRef(t, selectors...)}
 }
@@ -422,7 +424,7 @@ func TestFetchJWTSVIDExcludesAdminAndDownstreamEntries(t *testing.T) {
 // single validated token, spanning the plugin's own type plus the exchange's
 // stack selector.
 func TestFetchJWTSVIDWithRealisticAssertedSelectorSet(t *testing.T) {
-	asserted := []*broker.Selector{
+	asserted := []*types.Selector{
 		sel("github_actions", "repository:example/repo"),
 		sel("github_actions", "repository_owner:example"),
 		sel("github_actions", "ref:refs/heads/main"),
@@ -550,13 +552,16 @@ func TestReferenceResolutionMetrics(t *testing.T) {
 
 	// The asserted path skips the workload attestor entirely, so this counter
 	// is the only way to see it on a dashboard. Label values are sanitized by
-	// the metrics layer, which replaces "." and "/" with "_".
+	// the metrics layer, which replaces "." and "/" with "_". Derive the
+	// expected value from the constant so it cannot drift if the type URL
+	// changes.
+	sanitizedTypeURL := strings.NewReplacer(".", "_", "/", "_").Replace(SelectorReferenceTypeURL)
 	assert.Contains(t, metrics.AllMetrics(), fakemetrics.MetricItem{
 		Type: fakemetrics.IncrCounterWithLabelsType,
 		Key:  []string{telemetry.BrokerAPI, telemetry.ReferenceResolution},
 		Val:  1,
 		Labels: []telemetry.Label{
-			{Name: telemetry.ReferenceType, Value: "type_googleapis_com_spiffe_broker_SelectorReference"},
+			{Name: telemetry.ReferenceType, Value: sanitizedTypeURL},
 			{Name: telemetry.ResolutionMode, Value: telemetry.ResolutionModeAsserted},
 		},
 	})

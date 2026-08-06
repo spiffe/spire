@@ -333,8 +333,8 @@ require (
 )
 
 // TODO(kfox): temporary. Points at a fork carrying the in-progress
-// spiffe.broker.SelectorReference proto, so this branch builds for anyone who
-// checks it out. Once the change lands upstream, drop this directive and pin a
-// github.com/spiffe/go-spiffe/v2 pseudo-version instead, as is already done for
-// spire-api-sdk and spire-plugin-sdk above.
-replace github.com/spiffe/go-spiffe/v2 => github.com/kfox1111/go-spiffe/v2 v2.0.0-20260804145020-ab7247e14076
+// spire.api.types.SelectorReference proto, so this branch builds for anyone who
+// checks it out. The fork branch is based on spire-api-sdk's `next`, which is
+// where the pinned pseudo-version above already comes from. Once the change
+// lands on `next`, drop this directive and bump that pin instead.
+replace github.com/spiffe/spire-api-sdk => github.com/kfox1111/spire-api-sdk v0.0.0-20260806145937-ebf0eecdae5a

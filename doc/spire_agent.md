@@ -622,7 +622,7 @@ SPIRE additionally supports a `SelectorReference` reference type, carrying a
 list of selectors the broker asserts directly:
 
 ```text
-type.googleapis.com/spiffe.broker.SelectorReference
+type.googleapis.com/spire.api.types.SelectorReference
 ```
 
 This exists for brokers that perform their own workload attestation using
@@ -768,7 +768,7 @@ agent {
                     id = "spiffe://example.org/service/spire-identity-exchange"
                     allowed_reference_types = [
                         {
-                            type_url = "type.googleapis.com/spiffe.broker.SelectorReference"
+                            type_url = "type.googleapis.com/spire.api.types.SelectorReference"
                         },
                     ]
                     selector_assertion {

@@ -140,7 +140,7 @@ type agentConfig struct {
 //	            # selector_assertion block.
 //	            id = "spiffe://example.org/service/spire-identity-exchange"
 //	            allowed_reference_types = [
-//	                { type_url = "type.googleapis.com/spiffe.broker.SelectorReference" },
+//	                { type_url = "type.googleapis.com/spire.api.types.SelectorReference" },
 //	            ]
 //	            selector_assertion {
 //	                allowed_selector_types = ["k8s_psat", "github_actions"]

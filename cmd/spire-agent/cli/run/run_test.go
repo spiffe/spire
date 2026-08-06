@@ -1350,7 +1350,7 @@ func TestNewAgentConfig(t *testing.T) {
 		{
 			msg:                "broker selector reference requires a selector_assertion block",
 			expectError:        true,
-			requireErrorPrefix: "experimental.broker.brokers[spiffe://example.org/broker]: reference type \"type.googleapis.com/spiffe.broker.SelectorReference\" requires a selector_assertion block",
+			requireErrorPrefix: "experimental.broker.brokers[spiffe://example.org/broker]: reference type \"type.googleapis.com/spire.api.types.SelectorReference\" requires a selector_assertion block",
 			input: func(c *Config) {
 				c.Agent.Experimental.Broker = &brokerHCLConfig{
 					BindAddress: "127.0.0.1:8443",
@@ -1371,7 +1371,7 @@ func TestNewAgentConfig(t *testing.T) {
 		{
 			msg:                "broker selector_assertion requires the selector reference type",
 			expectError:        true,
-			requireErrorPrefix: "experimental.broker.brokers[spiffe://example.org/broker].selector_assertion: requires reference type \"type.googleapis.com/spiffe.broker.SelectorReference\" in allowed_reference_types",
+			requireErrorPrefix: "experimental.broker.brokers[spiffe://example.org/broker].selector_assertion: requires reference type \"type.googleapis.com/spire.api.types.SelectorReference\" in allowed_reference_types",
 			input: func(c *Config) {
 				c.Agent.Experimental.Broker = &brokerHCLConfig{
 					BindAddress: "127.0.0.1:8443",
