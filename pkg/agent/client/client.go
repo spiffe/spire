@@ -891,7 +891,7 @@ func (c *client) withErrorFields(err error) logrus.FieldLogger {
 
 func isRetriable(err error) bool {
 	switch status.Code(err) {
-	case codes.Unknown, codes.Canceled, codes.DeadlineExceeded, codes.Internal, codes.InvalidArgument, codes.Unimplemented:
+	case codes.Unknown, codes.Canceled, codes.DeadlineExceeded, codes.InvalidArgument, codes.Unimplemented:
 		return false
 	default:
 		return true
