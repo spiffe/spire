@@ -2032,7 +2032,7 @@ func buildListAttestedNodesQueryCTE(req *datastore.ListAttestedNodesRequest, dbT
 
 	// Filter by pagination token
 	if req.Pagination != nil && req.Pagination.Token != "" {
-		token, err := strconv.ParseUint(req.Pagination.Token, 10, 32)
+		token, err := strconv.ParseUint(req.Pagination.Token, 10, 64)
 		if err != nil {
 			return "", nil, status.Errorf(codes.InvalidArgument, "could not parse token '%v'", req.Pagination.Token)
 		}
@@ -2275,7 +2275,7 @@ FROM attested_node_entries N
 
 		// Filter by pagination token
 		if req.Pagination != nil && req.Pagination.Token != "" {
-			token, err := strconv.ParseUint(req.Pagination.Token, 10, 32)
+			token, err := strconv.ParseUint(req.Pagination.Token, 10, 64)
 			if err != nil {
 				return status.Errorf(codes.InvalidArgument, "could not parse token '%v'", req.Pagination.Token)
 			}
@@ -3819,7 +3819,7 @@ func appendListRegistrationEntriesFilterQuery(filterExp string, builder *strings
 		}
 
 		if len(req.Pagination.Token) > 0 {
-			token, err := strconv.ParseUint(req.Pagination.Token, 10, 32)
+			token, err := strconv.ParseUint(req.Pagination.Token, 10, 64)
 			if err != nil {
 				return false, nil, status.Errorf(codes.InvalidArgument, "could not parse token '%v'", req.Pagination.Token)
 			}
@@ -4083,7 +4083,7 @@ func applyPagination(p *datastore.Pagination, entryTx *gorm.DB) (*gorm.DB, error
 	entryTx = entryTx.Order("id asc").Limit(p.PageSize)
 
 	if len(p.Token) > 0 {
-		id, err := strconv.ParseUint(p.Token, 10, 32)
+		id, err := strconv.ParseUint(p.Token, 10, 64)
 		if err != nil {
 			return nil, status.Errorf(codes.InvalidArgument, "could not parse token '%v'", p.Token)
 		}

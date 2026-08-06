@@ -443,6 +443,20 @@ func (s *Suite) TestListBundlesWithPagination() {
 				PageSize: 2,
 			},
 		},
+		{
+			// Regression test: tokens beyond 32 bits must parse successfully,
+			// since the underlying ID column is not limited to 32 bits.
+			name:         "token larger than 32 bits",
+			expectedList: []*common.Bundle{},
+			pagination: &datastore.Pagination{
+				Token:    "5000000000",
+				PageSize: 2,
+			},
+			expectedPagination: &datastore.Pagination{
+				Token:    "",
+				PageSize: 2,
+			},
+		},
 	}
 	for _, test := range tests {
 		s.T().Run(test.name, func(t *testing.T) {
