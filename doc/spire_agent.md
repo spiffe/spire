@@ -388,7 +388,9 @@ Attaches to the workload API and watches for X509-SVID updates, printing details
 ### `spire-agent debug getinfo`
 
 Prints debug information about the agent, including uptime, last successful
-sync time, cached SVID counts, and the agent's own SVID chain.
+sync time, cached SVID counts, and the agent's own SVID chain. This command
+requires the Agent Admin API to be enabled (e.g., via `admin_socket_path` on
+Unix or `admin_named_pipe_name` on Windows).
 
 | Command       | Action                                    | Default                             |
 |:--------------|:------------------------------------------|:------------------------------------|

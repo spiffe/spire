@@ -2,7 +2,6 @@ package debug
 
 import (
 	"context"
-	"errors"
 	"flag"
 	"fmt"
 	"time"
@@ -54,7 +53,7 @@ func (c *getInfoCommand) Run(ctx context.Context, _ *commoncli.Env, client util.
 func prettyPrintGetInfo(env *commoncli.Env, results ...any) error {
 	resp, ok := results[0].(*debugv1.GetInfoResponse)
 	if !ok {
-		return errors.New("internal error: cli printer; please report this bug")
+		return cliprinter.ErrInternalCustomPrettyFunc
 	}
 
 	env.Printf("Server Debug Info:\n")

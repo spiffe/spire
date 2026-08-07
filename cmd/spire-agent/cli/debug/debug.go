@@ -2,7 +2,6 @@ package debug
 
 import (
 	"context"
-	"errors"
 	"flag"
 	"fmt"
 	"time"
@@ -87,12 +86,12 @@ func (c *getInfoCommand) run() error {
 func prettyPrintGetInfo(env *commoncli.Env, results ...any) error {
 	resp, ok := results[0].(*debugv1.GetInfoResponse)
 	if !ok {
-		return errors.New("internal error: cli printer; please report this bug")
+		return cliprinter.ErrInternalCustomPrettyFunc
 	}
 
 	env.Printf("Agent Debug Info:\n")
 	env.Printf("  Uptime:                          %s\n", (time.Duration(resp.Uptime) * time.Second).String())
-	env.Printf("  Last Sync Success:               %s\n", time.Unix(resp.LastSyncSuccess, 0).UTC().Format(time.RFC3339))
+	env.Printf("  Last Sync Success:               %s\n", formatLastSync(resp.LastSyncSuccess))
 	env.Printf("  Cached X.509 SVIDs:              %d\n", resp.CachedX509SvidsCount)
 	env.Printf("  Cached JWT SVIDs:                %d\n", resp.CachedJwtSvidsCount)
 	env.Printf("  Cached SVID Store X.509 SVIDs:   %d\n", resp.CachedSvidstoreX509SvidsCount)
@@ -107,6 +106,13 @@ func prettyPrintGetInfo(env *commoncli.Env, results ...any) error {
 	}
 
 	return nil
+}
+
+func formatLastSync(lastSyncSuccess int64) string {
+	if lastSyncSuccess == 0 {
+		return "(never)"
+	}
+	return time.Unix(lastSyncSuccess, 0).UTC().Format(time.RFC3339)
 }
 
 func spiffeIDString(cert *debugv1.GetInfoResponse_Cert) string {
