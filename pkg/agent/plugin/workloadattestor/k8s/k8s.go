@@ -426,14 +426,10 @@ func buildBrokerConfig(path string, brokerConfig *k8sBrokerHCLConfig, status *pl
 
 	pluginconf.ReportUnusedKeys(status, brokerConfig.UnusedKeyPositions)
 	accessPolicy, _ := buildBrokerAccessPolicy(path, brokerConfig.AccessPolicy, status)
-	if len(brokerConfig.Brokers) == 0 {
-		status.ReportErrorf("%s.brokers: at least one broker is required", path)
-		return &k8sBrokerConfig{
-			AccessPolicy: accessPolicy,
-			Brokers:      map[string]k8sBrokerEntry{},
-		}
-	}
 
+	// The brokers list carries per-broker override configuration (e.g. pod_reference_scope).
+	// Any broker not listed here falls back to the default entry synthesized in getBrokerEntryIfPresent,
+	// so an empty (or omitted) list is valid.
 	brokers := make(map[string]k8sBrokerEntry, len(brokerConfig.Brokers))
 	seen := make(map[string]struct{}, len(brokerConfig.Brokers))
 	for i, b := range brokerConfig.Brokers {
@@ -847,16 +843,32 @@ func (p *Plugin) getBrokerEntryIfPresent(ctx context.Context, config *k8sConfig)
 		return nil, status.Errorf(codes.Internal, "unable to determine broker caller identity: %v", err)
 	}
 	if !ok {
+		// Not a broker call; normal PID-based attestation applies.
 		return nil, nil
 	}
-	if config.Broker == nil {
-		return nil, status.Error(codes.Internal, "broker configuration missing")
+
+	// The brokers map holds per-broker overrides only. A broker that is
+	// explicitly configured uses its entry; any other broker (including when
+	// no broker block is configured at all) falls back to the default entry
+	// below rather than being rejected. The agent's broker endpoint is the
+	// allowlist for which brokers may reach the plugin in the first place.
+	if config.Broker != nil {
+		if brokerEntry, ok := config.Broker.Brokers[callerID.String()]; ok {
+			return &brokerEntry, nil
+		}
 	}
-	brokerEntry, ok := config.Broker.Brokers[callerID.String()]
-	if !ok {
-		return nil, status.Errorf(codes.PermissionDenied, "broker %q is not configured", callerID.String())
+
+	// Synthesize the default entry: node scope, which limits the broker to
+	// PID and pod references. Node scope needs the kubelet client, so fall
+	// back to cluster scope when it is disabled.
+	scope := podReferenceScopeAgentNode
+	if config.DisableKubeletClient {
+		scope = podReferenceScopeCluster
 	}
-	return &brokerEntry, nil
+	return &k8sBrokerEntry{
+		ID:                callerID,
+		PodReferenceScope: scope,
+	}, nil
 }
 
 // attestByPodReference handles the `pods/core` path: a Kubernetes object

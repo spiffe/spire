@@ -4,18 +4,21 @@ set -e
 
 source init-kubectl
 
-log-info "Test: broker fetches Flux Kustomization SVID via the TCP broker listener"
+log-info "Test: cluster-scoped broker fetches Flux Kustomization SVID via the TCP broker listener"
 
-# The broker pod normally dials the agent over the local UDS. For this
-# step we override -broker-addr to point at the spire-broker ClusterIP
+# The cluster-broker pod normally dials the agent over the local UDS. For
+# this step we override -broker-addr to point at the spire-broker ClusterIP
 # Service, which fronts the agent's TCP listener on port 8443. mTLS,
 # allowlist, and reference-type semantics are identical to the UDS path.
-./bin/kubectl -nspire exec -t broker -- /brokerclient \
+# Non-pod object references require pod_reference_scope = "cluster", which
+# is why this uses cluster-broker rather than the node-scoped default broker
+# (see 04-test-broker-pod-reference-scopes).
+./bin/kubectl -nspire exec -t cluster-broker -- /brokerclient \
     -broker-addr dns:///spire-broker:8443 \
     -ref-type object \
     -plural kustomizations -group kustomize.toolkit.fluxcd.io \
     -namespace spire -name target-kustomization \
     -expected-spiffe spiffe://example.org/target-kustomization \
-    || fail-now "broker failed to fetch SVID over TCP"
+    || fail-now "cluster-scoped broker failed to fetch SVID over TCP"
 
-log-success "broker fetched SVID over TCP via the spire-broker Service"
+log-success "cluster-scoped broker fetched SVID over TCP via the spire-broker Service"
