@@ -101,7 +101,7 @@ type agentConfig struct {
 
 	AuthorizedDelegates []string `hcl:"authorized_delegates"`
 
-	TLSProfile *tlspolicy.TLSProfile `hcl:"tls_profile"`
+	TLSConfig *tlspolicy.TLSConfig `hcl:"tls_config"`
 
 	ConfigPath string
 	ExpandEnv  bool
@@ -811,7 +811,7 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 
 	ac.TLSPolicy = tlspolicy.Policy{
 		RequirePQKEM: c.Agent.Experimental.RequirePQKEM,
-		Profile:      c.Agent.TLSProfile,
+		TLSCfg:       c.Agent.TLSConfig,
 	}
 
 	tlspolicy.LogPolicy(ac.TLSPolicy, log.NewHCLogAdapter(logger, "tlspolicy"))

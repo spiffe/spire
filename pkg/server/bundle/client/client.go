@@ -71,7 +71,7 @@ func NewClient(config ClientConfig) (Client, error) {
 
 		transport.TLSClientConfig = tlsconfig.TLSClientConfig(bundle, authorizer)
 
-		err := tlspolicy.ApplyPolicy(transport.TLSClientConfig, config.TLSPolicy, false)
+		err := tlspolicy.ApplyPolicy(transport.TLSClientConfig, config.TLSPolicy)
 		if err != nil {
 			return nil, err
 		}

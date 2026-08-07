@@ -154,7 +154,7 @@ func (e *Endpoints) ListenAndServe(ctx context.Context) error {
 	// Disable session ticket resumption so the peer-authorization callback
 	// runs on every connection — same rationale as the SPIRE server endpoint.
 	tlsConfig.SessionTicketsDisabled = true
-	if err := tlspolicy.ApplyPolicy(tlsConfig, e.c.TLSPolicy, true); err != nil {
+	if err := tlspolicy.ApplyPolicy(tlsConfig, e.c.TLSPolicy, tlspolicy.WithServerTLSConfig()); err != nil {
 		return fmt.Errorf("failed to apply TLS policy: %w", err)
 	}
 	server := grpc.NewServer(

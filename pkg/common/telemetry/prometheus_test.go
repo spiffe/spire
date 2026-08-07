@@ -117,7 +117,7 @@ func newTestPrometheusRunner(c *MetricsConfig) (sinkRunner, error) {
 	return runner, err
 }
 
-func TestPrometheusTLSProfile(t *testing.T) {
+func TestPrometheusWithTLSPolicy(t *testing.T) {
 	certFile, keyFile := createTestCertAndKey(t)
 	config := testPrometheusConfig()
 	config.FileConfig.Prometheus.TLS = &TLSConfig{
@@ -125,7 +125,7 @@ func TestPrometheusTLSProfile(t *testing.T) {
 		KeyFile:  keyFile,
 	}
 	config.TLSPolicy = tlspolicy.Policy{
-		Profile: &tlspolicy.TLSProfile{
+		TLSCfg: &tlspolicy.TLSConfig{
 			MinTLSVersion: "VersionTLS13",
 			CipherSuites: []string{
 				"TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
@@ -148,7 +148,7 @@ func TestPrometheusTLSProfile(t *testing.T) {
 	require.Equal(t, []tls.CurveID{tls.X25519MLKEM768, tls.CurveP256}, pr.server.TLSConfig.CurvePreferences)
 }
 
-func TestPrometheusTLSProfileInvalid(t *testing.T) {
+func TestPrometheusWithInvalidTLSPolicy(t *testing.T) {
 	certFile, keyFile := createTestCertAndKey(t)
 	config := testPrometheusConfig()
 	config.FileConfig.Prometheus.TLS = &TLSConfig{
@@ -156,7 +156,7 @@ func TestPrometheusTLSProfileInvalid(t *testing.T) {
 		KeyFile:  keyFile,
 	}
 	config.TLSPolicy = tlspolicy.Policy{
-		Profile: &tlspolicy.TLSProfile{MinTLSVersion: "VersionTLS99"},
+		TLSCfg: &tlspolicy.TLSConfig{MinTLSVersion: "VersionTLS99"},
 	}
 
 	runner, err := newTestPrometheusRunner(config)
@@ -168,7 +168,7 @@ func TestPrometheusTLSProfileInvalid(t *testing.T) {
 	}
 }
 
-func TestPrometheusTLSProfileWithSPIFFESVID(t *testing.T) {
+func TestPrometheusWithTLSPolicyAndSPIFFESVID(t *testing.T) {
 	td := spiffeid.RequireTrustDomainFromString("example.org")
 	serverCA := testca.New(t, td)
 	serverSVID := serverCA.CreateX509SVID(spiffeid.RequireFromPath(td, "/spire/server"))
@@ -181,7 +181,7 @@ func TestPrometheusTLSProfileWithSPIFFESVID(t *testing.T) {
 		return serverSVID, nil
 	}
 	config.TLSPolicy = tlspolicy.Policy{
-		Profile: &tlspolicy.TLSProfile{
+		TLSCfg: &tlspolicy.TLSConfig{
 			MinTLSVersion:    "VersionTLS13",
 			CurvePreferences: []string{"X25519"},
 		},

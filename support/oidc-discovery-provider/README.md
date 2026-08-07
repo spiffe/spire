@@ -55,7 +55,7 @@ The configuration file is **required** by the provider. It contains
 | `jwt_issuer`            | string  | optional           | Specifies the issuer for the OIDC provider configuration request                               |          |
 | `jwks_uri`              | string  | optional           | Specifies the JWKS URI returned in the discovery document                                      |          |
 | `server_path_prefix`    | string  | optional           | If specified, all endpoints listened to will be prefixed by this value                         | `"/"`    |
-| `tls_profile`           | section | optional           | TLS profile for terminating HTTPS listeners (disk certificate and ACME modes).                 |          |
+| `tls_config`            | section | optional           | TLS config for terminating HTTPS listeners (disk certificate and ACME modes).                  |          |
 
 | experimental             | Type   | Required?          | Description                                          | Default |
 |--------------------------|--------|--------------------|------------------------------------------------------|---------|
@@ -106,7 +106,7 @@ will terminate if another domain is requested.
 | `file_sync_interval` | duration | optional  | Controls how frequently the service polls the files for changes.   | 1 minute |
 | `addr`               | string   | optional  | Exposes the service on the given address.                          | :443     |
 
-#### TLS Profile Section
+#### TLS Config Section
 
 Applied to **terminating** HTTPS listeners when using `serving_cert_file` or `acme`.
 Not applied to `insecure_addr`, `listen_socket_path`, named pipe modes, or any

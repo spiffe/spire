@@ -81,13 +81,13 @@ This may be useful for templating configuration files, for example across differ
 | `x509_svid_cache_max_size`        | Soft limit of max number of X509-SVIDs that would be stored in LRU cache                                                                                                                                                                          | 1000                             |
 | `jwt_svid_cache_max_size`         | Hard limit of max number of JWT-SVIDs that would be stored in LRU cache                                                                                                                                                                           | 1000                             |
 
-| tls_profile         | Description                                                                                                  | Default |
+| tls_config          | Description                                                                                                  | Default |
 |:-------------------:|:------------------------------------------------------------------------------------------------------------:|:-------:|
 | `min_tls_version`   | Minimum TLS version for terminating agent listeners (e.g. `VersionTLS13`).                                   |         |
 | `cipher_suites`     | Allowed TLS 1.2 cipher suites for terminating listeners. Has limited effect when minimum TLS version is 1.3. |         |
 | `curve_preferences` | Preferred key exchange curves (e.g. `X25519MLKEM768`).                                                       |         |
 
-`tls_profile` is a top-level `agent { ... }` block (not experimental). Profile settings apply only to **inbound TLS listeners** (`ApplyPolicy` with `isServer=true`). They are **not** applied to the outbound mTLS gRPC client to the SPIRE server.
+`tls_config` is a top-level `agent { ... }` block (not experimental). Settings apply only to **inbound TLS listeners** (`ApplyPolicy` with `WithServerTLSConfig()`). They are **not** applied to the outbound mTLS gRPC client to the SPIRE server.
 
 | experimental                  | Description                                                                                                                                                                         | Default                 |
 |:-----------------------------:|:-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------:|:-----------------------:|

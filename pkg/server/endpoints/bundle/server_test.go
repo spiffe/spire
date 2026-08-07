@@ -41,18 +41,18 @@ const (
 func bundleListenerTLSConfig(serverAuth ServerAuth, policy tlspolicy.Policy) (*tls.Config, error) {
 	tlsConfig := serverAuth.GetTLSConfig()
 	tlsConfig.MinVersion = tls.VersionTLS12
-	if err := tlspolicy.ApplyPolicy(tlsConfig, policy, true); err != nil {
+	if err := tlspolicy.ApplyPolicy(tlsConfig, policy, tlspolicy.WithServerTLSConfig()); err != nil {
 		return nil, err
 	}
 	return tlsConfig, nil
 }
 
-func TestBundleListenerTLSProfile(t *testing.T) {
+func TestBundleListenerTLSPolicy(t *testing.T) {
 	serverCert, serverKey := createServerCertificate(t)
 	auth := testSPIFFEAuth(serverCert, serverKey)
 
 	tlsConfig, err := bundleListenerTLSConfig(auth, tlspolicy.Policy{
-		Profile: &tlspolicy.TLSProfile{
+		TLSCfg: &tlspolicy.TLSConfig{
 			MinTLSVersion: "VersionTLS13",
 			CipherSuites: []string{
 				"TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
@@ -69,18 +69,18 @@ func TestBundleListenerTLSProfile(t *testing.T) {
 	require.Equal(t, []tls.CurveID{tls.X25519MLKEM768, tls.CurveP256}, tlsConfig.CurvePreferences)
 }
 
-func TestBundleListenerTLSProfileInvalid(t *testing.T) {
+func TestBundleListenerTLSPolicyInvalid(t *testing.T) {
 	serverCert, serverKey := createServerCertificate(t)
 	auth := testSPIFFEAuth(serverCert, serverKey)
 
 	_, err := bundleListenerTLSConfig(auth, tlspolicy.Policy{
-		Profile: &tlspolicy.TLSProfile{MinTLSVersion: "VersionTLS99"},
+		TLSCfg: &tlspolicy.TLSConfig{MinTLSVersion: "VersionTLS99"},
 	})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "invalid minTLSVersion")
 }
 
-func TestServerTLSProfileAppliedAtStartup(t *testing.T) {
+func TestServerTLSPolicyAppliedAtStartup(t *testing.T) {
 	serverCert, serverKey := createServerCertificate(t)
 	trustDomain := spiffeid.RequireTrustDomainFromString("domain.test")
 	bundle := spiffebundle.New(trustDomain)
@@ -93,7 +93,7 @@ func TestServerTLSProfileAppliedAtStartup(t *testing.T) {
 		Getter:     testGetter(bundle),
 		ServerAuth: testSPIFFEAuth(serverCert, serverKey),
 		TLSPolicy: tlspolicy.Policy{
-			Profile: &tlspolicy.TLSProfile{MinTLSVersion: "VersionTLS99"},
+			TLSCfg: &tlspolicy.TLSConfig{MinTLSVersion: "VersionTLS99"},
 		},
 	})
 

@@ -35,13 +35,13 @@ func (s staticSVIDSource) GetX509SVID() (*x509svid.SVID, error) {
 func brokerListenerTLSConfig(svidSource x509svid.Source, bundleSource x509bundle.Source, brokerIDs []spiffeid.ID, policy tlspolicy.Policy) (*tls.Config, error) {
 	tlsConfig := tlsconfig.MTLSServerConfig(svidSource, bundleSource, tlsconfig.AuthorizeOneOf(brokerIDs...))
 	tlsConfig.SessionTicketsDisabled = true
-	if err := tlspolicy.ApplyPolicy(tlsConfig, policy, true); err != nil {
+	if err := tlspolicy.ApplyPolicy(tlsConfig, policy, tlspolicy.WithServerTLSConfig()); err != nil {
 		return nil, fmt.Errorf("failed to apply TLS policy: %w", err)
 	}
 	return tlsConfig, nil
 }
 
-func TestBrokerListenerTLSProfile(t *testing.T) {
+func TestBrokerListenerWithTLSPolicy(t *testing.T) {
 	td := spiffeid.RequireTrustDomainFromString("example.org")
 	ca := testca.New(t, td)
 	agentSVID := ca.CreateX509SVID(spiffeid.RequireFromPath(td, "/agent"))
@@ -52,7 +52,7 @@ func TestBrokerListenerTLSProfile(t *testing.T) {
 		ca.X509Bundle(),
 		[]spiffeid.ID{brokerID},
 		tlspolicy.Policy{
-			Profile: &tlspolicy.TLSProfile{
+			TLSCfg: &tlspolicy.TLSConfig{
 				MinTLSVersion: "VersionTLS13",
 				CipherSuites: []string{
 					"TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
@@ -70,7 +70,7 @@ func TestBrokerListenerTLSProfile(t *testing.T) {
 	require.Equal(t, []tls.CurveID{tls.X25519MLKEM768, tls.CurveP256}, tlsConfig.CurvePreferences)
 }
 
-func TestBrokerListenerTLSProfileInvalid(t *testing.T) {
+func TestBrokerListenerWithInvalidTLSPolicy(t *testing.T) {
 	td := spiffeid.RequireTrustDomainFromString("example.org")
 	ca := testca.New(t, td)
 	agentSVID := ca.CreateX509SVID(spiffeid.RequireFromPath(td, "/agent"))
@@ -81,7 +81,7 @@ func TestBrokerListenerTLSProfileInvalid(t *testing.T) {
 		ca.X509Bundle(),
 		[]spiffeid.ID{brokerID},
 		tlspolicy.Policy{
-			Profile: &tlspolicy.TLSProfile{MinTLSVersion: "VersionTLS99"},
+			TLSCfg: &tlspolicy.TLSConfig{MinTLSVersion: "VersionTLS99"},
 		},
 	)
 	require.Error(t, err)

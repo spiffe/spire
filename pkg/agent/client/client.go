@@ -112,8 +112,7 @@ type Config struct {
 	// RotMtx is used to prevent the creation of new connections during SVID rotations
 	RotMtx *sync.RWMutex
 
-	// TLSPolicy determines PQ KEM settings for outbound server gRPC connections.
-	// TLSProfile fields are not applied on client connections.
+	// TLSPolicy determines the post-quantum-safe policy to apply to all TLS connections.
 	TLSPolicy tlspolicy.Policy
 }
 

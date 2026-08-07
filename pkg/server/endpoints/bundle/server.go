@@ -65,7 +65,7 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 	tlsConfig := s.c.ServerAuth.GetTLSConfig()
 	tlsConfig.MinVersion = tls.VersionTLS12
 
-	if err := tlspolicy.ApplyPolicy(tlsConfig, s.c.TLSPolicy, true); err != nil {
+	if err := tlspolicy.ApplyPolicy(tlsConfig, s.c.TLSPolicy, tlspolicy.WithServerTLSConfig()); err != nil {
 		return err
 	}
 

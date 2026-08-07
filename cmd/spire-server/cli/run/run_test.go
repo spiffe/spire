@@ -1385,26 +1385,26 @@ func TestNewServerConfig(t *testing.T) {
 			},
 		},
 		{
-			msg:   "TLS profile is omitted by default",
+			msg:   "TLS config is omitted by default",
 			input: func(c *Config) {},
 			test: func(t *testing.T, c *server.Config) {
-				require.Nil(t, c.TLSPolicy.Profile)
+				require.Nil(t, c.TLSPolicy.TLSCfg)
 			},
 		},
 		{
-			msg: "TLS profile is configured",
+			msg: "TLS config is configured",
 			input: func(c *Config) {
-				c.Server.TLSProfile = &tlspolicy.TLSProfile{
+				c.Server.TLSConfig = &tlspolicy.TLSConfig{
 					MinTLSVersion:    "VersionTLS13",
 					CipherSuites:     []string{"TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"},
 					CurvePreferences: []string{"X25519", "secp256r1"},
 				}
 			},
 			test: func(t *testing.T, c *server.Config) {
-				require.NotNil(t, c.TLSPolicy.Profile)
-				require.Equal(t, "VersionTLS13", c.TLSPolicy.Profile.MinTLSVersion)
-				require.Equal(t, []string{"TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"}, c.TLSPolicy.Profile.CipherSuites)
-				require.Equal(t, []string{"X25519", "secp256r1"}, c.TLSPolicy.Profile.CurvePreferences)
+				require.NotNil(t, c.TLSPolicy.TLSCfg)
+				require.Equal(t, "VersionTLS13", c.TLSPolicy.TLSCfg.MinTLSVersion)
+				require.Equal(t, []string{"TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"}, c.TLSPolicy.TLSCfg.CipherSuites)
+				require.Equal(t, []string{"X25519", "secp256r1"}, c.TLSPolicy.TLSCfg.CurvePreferences)
 			},
 		},
 	}
@@ -1433,7 +1433,7 @@ func TestNewServerConfig(t *testing.T) {
 	}
 }
 
-func TestParseTLSProfileFromHCL(t *testing.T) {
+func TestParseTLSConfigFromHCL(t *testing.T) {
 	const configString = `
 server {
     bind_address = "0.0.0.0"
@@ -1441,7 +1441,7 @@ server {
     trust_domain = "example.org"
     data_dir = "."
     log_level = "INFO"
-    tls_profile {
+    tls_config {
         min_tls_version = "VersionTLS13"
         cipher_suites = [
             "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
@@ -1462,20 +1462,20 @@ plugins {}
 	c := &Config{}
 	require.NoError(t, hcl.Decode(c, configString))
 
-	require.NotNil(t, c.Server.TLSProfile)
-	require.Equal(t, "VersionTLS13", c.Server.TLSProfile.MinTLSVersion)
+	require.NotNil(t, c.Server.TLSConfig)
+	require.Equal(t, "VersionTLS13", c.Server.TLSConfig.MinTLSVersion)
 	require.Equal(t, []string{
 		"TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
 		"TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384",
-	}, c.Server.TLSProfile.CipherSuites)
-	require.Equal(t, []string{"X25519MLKEM768", "X25519", "secp256r1"}, c.Server.TLSProfile.CurvePreferences)
+	}, c.Server.TLSConfig.CipherSuites)
+	require.Equal(t, []string{"X25519MLKEM768", "X25519", "secp256r1"}, c.Server.TLSConfig.CurvePreferences)
 	require.True(t, c.Server.Experimental.RequirePQKEM)
 
 	sc, err := NewServerConfig(c, nil, false)
 	require.NoError(t, err)
 	require.True(t, sc.TLSPolicy.RequirePQKEM)
-	require.NotNil(t, sc.TLSPolicy.Profile)
-	require.Equal(t, c.Server.TLSProfile, sc.TLSPolicy.Profile)
+	require.NotNil(t, sc.TLSPolicy.TLSCfg)
+	require.Equal(t, c.Server.TLSConfig, sc.TLSPolicy.TLSCfg)
 }
 
 // defaultValidConfig returns the bare minimum config required to

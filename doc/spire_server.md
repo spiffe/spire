@@ -92,13 +92,13 @@ This may be useful for templating configuration files, for example across differ
 | `trust_domain`                     | The trust domain that this server belongs to (should be no more than 255 characters)                                                                                                                                                                                                                                                                                                   |                                                                |
 | `max_attested_node_info_staleness` | How long to cache and use attested node information before requiring fetching up to date data from the datastore.                                                                                                                                                                                                                                                                      | 0s                                                             |
 
-| tls_profile         | Description                                                                                                  | Default |
+| tls_config          | Description                                                                                                  | Default |
 |:-------------------:|:------------------------------------------------------------------------------------------------------------:|:-------:|
 | `min_tls_version`   | Minimum TLS version for terminating server listeners (e.g. `VersionTLS13`).                                  |         |
 | `cipher_suites`     | Allowed TLS 1.2 cipher suites for terminating listeners. Has limited effect when minimum TLS version is 1.3. |         |
 | `curve_preferences` | Preferred key exchange curves (e.g. `X25519MLKEM768`).                                                       |         |
 
-`tls_profile` is a top-level `server { ... }` block (not experimental). Profile settings apply only to **inbound TLS listeners** (`ApplyPolicy` with `isServer=true`). They are **not** applied to outbound TLS clients.
+`tls_config` is a top-level `server { ... }` block (not experimental). Settings apply only to **inbound TLS listeners** (`ApplyPolicy` with `WithServerTLSConfig()`). They are **not** applied to outbound TLS clients.
 
 | ca_subject                  | Description                    | Default        |
 |:----------------------------|--------------------------------|----------------|

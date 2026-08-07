@@ -101,10 +101,10 @@ func TestParseConfig(t *testing.T) {
 	}
 }
 
-func TestParseTLSProfileFromHCL(t *testing.T) {
+func TestParseTLSConfigFromHCL(t *testing.T) {
 	const configString = `
 domains = ["domain.test"]
-tls_profile {
+tls_config {
     min_tls_version = "VersionTLS13"
     cipher_suites = [
         "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
@@ -127,24 +127,24 @@ server_api {
 	c := new(Config)
 	require.NoError(t, hcl.Decode(c, configString))
 
-	require.NotNil(t, c.TLSProfile)
-	require.Equal(t, "VersionTLS13", c.TLSProfile.MinTLSVersion)
+	require.NotNil(t, c.TLSConfig)
+	require.Equal(t, "VersionTLS13", c.TLSConfig.MinTLSVersion)
 	require.Equal(t, []string{
 		"TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
 		"TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384",
-	}, c.TLSProfile.CipherSuites)
-	require.Equal(t, []string{"X25519MLKEM768", "X25519", "secp256r1"}, c.TLSProfile.CurvePreferences)
+	}, c.TLSConfig.CipherSuites)
+	require.Equal(t, []string{"X25519MLKEM768", "X25519", "secp256r1"}, c.TLSConfig.CurvePreferences)
 
 	policy := c.TLSPolicy()
-	require.NotNil(t, policy.Profile)
-	require.Equal(t, c.TLSProfile, policy.Profile)
+	require.NotNil(t, policy.TLSCfg)
+	require.Equal(t, c.TLSConfig, policy.TLSCfg)
 }
 
-func TestApplyListenerTLSPolicy(t *testing.T) {
-	t.Run("invalid profile fails at startup", func(t *testing.T) {
+func TestApplyTLSPolicyWithInvalidServerTLSConfig(t *testing.T) {
+	t.Run("invalid config fails at startup", func(t *testing.T) {
 		cfg := &tls.Config{}
 		err := applyListenerTLSPolicy(cfg, tlspolicy.Policy{
-			Profile: &tlspolicy.TLSProfile{
+			TLSCfg: &tlspolicy.TLSConfig{
 				MinTLSVersion: "not-a-version",
 			},
 		})

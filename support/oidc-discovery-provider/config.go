@@ -84,9 +84,9 @@ type Config struct {
 	// Experimental options that are subject to change or removal.
 	Experimental experimentalConfig `hcl:"experimental"`
 
-	// TLSProfile configures TLS profile settings for HTTPS listeners
+	// TLSConfig configures TLS settings for HTTPS listeners
 	// (disk certificate and ACME modes).
-	TLSProfile *tlspolicy.TLSProfile `hcl:"tls_profile"`
+	TLSConfig *tlspolicy.TLSConfig `hcl:"tls_config"`
 
 	// JWTIssuer specifies the issuer for the OIDC provider configuration request.
 	JWTIssuer string `hcl:"jwt_issuer"`
@@ -221,7 +221,7 @@ type experimentalWorkloadAPIConfig struct {
 
 func (c *Config) TLSPolicy() tlspolicy.Policy {
 	return tlspolicy.Policy{
-		Profile: c.TLSProfile,
+		TLSCfg: c.TLSConfig,
 	}
 }
 
