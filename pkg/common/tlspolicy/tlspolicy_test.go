@@ -9,6 +9,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func mustNewPolicy(t *testing.T, requirePQKEM bool, cfg *TLSConfig) Policy {
+	t.Helper()
+	p, err := NewPolicy(requirePQKEM, cfg)
+	require.NoError(t, err)
+	return p
+}
+
 func TestApplyPolicy(t *testing.T) {
 	require := require.New(t)
 
@@ -38,7 +45,9 @@ func TestApplyPolicy(t *testing.T) {
 
 func TestApplyPolicyNilConfig(t *testing.T) {
 	tlsConfig := &tls.Config{MinVersion: tls.VersionTLS12}
-	err := ApplyPolicy(tlsConfig, Policy{TLSCfg: nil})
+	policy, err := NewPolicy(false, nil)
+	require.NoError(t, err)
+	err = ApplyPolicy(tlsConfig, policy)
 	require.NoError(t, err)
 	require.Equal(t, uint16(tls.VersionTLS12), tlsConfig.MinVersion)
 	require.Empty(t, tlsConfig.CipherSuites)
@@ -54,16 +63,15 @@ func TestLogPolicyNilConfig(t *testing.T) {
 
 func TestApplyPolicyConfig(t *testing.T) {
 	tlsConfig := &tls.Config{MinVersion: tls.VersionTLS12}
-	err := ApplyPolicy(tlsConfig, Policy{
-		TLSCfg: &TLSConfig{
-			MinTLSVersion: "VersionTLS13",
-			CipherSuites:  []string{"TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"},
-			CurvePreferences: []string{
-				"X25519MLKEM768",
-				"secp256r1",
-			},
+	policy := mustNewPolicy(t, false, &TLSConfig{
+		MinTLSVersion: "VersionTLS13",
+		CipherSuites:  []string{"TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"},
+		CurvePreferences: []string{
+			"X25519MLKEM768",
+			"secp256r1",
 		},
-	}, WithServerTLSConfig())
+	})
+	err := ApplyPolicy(tlsConfig, policy, WithServerTLSConfig())
 	require.NoError(t, err)
 	require.Equal(t, uint16(tls.VersionTLS13), tlsConfig.MinVersion)
 	require.NotEmpty(t, tlsConfig.CipherSuites)
@@ -72,9 +80,8 @@ func TestApplyPolicyConfig(t *testing.T) {
 
 func TestApplyPolicyConfigPartial(t *testing.T) {
 	tlsConfig := &tls.Config{MinVersion: tls.VersionTLS12}
-	err := ApplyPolicy(tlsConfig, Policy{
-		TLSCfg: &TLSConfig{MinTLSVersion: "VersionTLS12"},
-	}, WithServerTLSConfig())
+	policy := mustNewPolicy(t, false, &TLSConfig{MinTLSVersion: "VersionTLS12"})
+	err := ApplyPolicy(tlsConfig, policy, WithServerTLSConfig())
 	require.NoError(t, err)
 	require.Equal(t, uint16(tls.VersionTLS12), tlsConfig.MinVersion)
 	require.Empty(t, tlsConfig.CipherSuites)
@@ -83,13 +90,11 @@ func TestApplyPolicyConfigPartial(t *testing.T) {
 
 func TestApplyPolicyRequirePQKEMOverridesConfigCurves(t *testing.T) {
 	tlsConfig := &tls.Config{MinVersion: tls.VersionTLS12}
-	err := ApplyPolicy(tlsConfig, Policy{
-		RequirePQKEM: true,
-		TLSCfg: &TLSConfig{
-			MinTLSVersion:    "VersionTLS12",
-			CurvePreferences: []string{"X25519"},
-		},
-	}, WithServerTLSConfig())
+	policy := mustNewPolicy(t, true, &TLSConfig{
+		MinTLSVersion:    "VersionTLS12",
+		CurvePreferences: []string{"X25519"},
+	})
+	err := ApplyPolicy(tlsConfig, policy, WithServerTLSConfig())
 	require.NoError(t, err)
 	require.Equal(t, uint16(tls.VersionTLS13), tlsConfig.MinVersion)
 	require.Equal(t, []tls.CurveID{
@@ -101,40 +106,30 @@ func TestApplyPolicyRequirePQKEMOverridesConfigCurves(t *testing.T) {
 
 func TestApplyPolicyConfigSkippedForClient(t *testing.T) {
 	tlsConfig := &tls.Config{MinVersion: tls.VersionTLS12}
-	err := ApplyPolicy(tlsConfig, Policy{
-		TLSCfg: &TLSConfig{
-			MinTLSVersion:    "VersionTLS13",
-			CurvePreferences: []string{"X25519"},
-		},
+	policy := mustNewPolicy(t, false, &TLSConfig{
+		MinTLSVersion:    "VersionTLS13",
+		CurvePreferences: []string{"X25519"},
 	})
+	err := ApplyPolicy(tlsConfig, policy)
 	require.NoError(t, err)
 	require.Equal(t, uint16(tls.VersionTLS12), tlsConfig.MinVersion)
 	require.Empty(t, tlsConfig.CurvePreferences)
 }
 
-func TestApplyPolicyInvalidMinTLSVersion(t *testing.T) {
-	tlsConfig := &tls.Config{MinVersion: tls.VersionTLS12}
-	err := ApplyPolicy(tlsConfig, Policy{
-		TLSCfg: &TLSConfig{MinTLSVersion: "VersionTLS99"},
-	}, WithServerTLSConfig())
+func TestNewPolicyInvalidMinTLSVersion(t *testing.T) {
+	_, err := NewPolicy(false, &TLSConfig{MinTLSVersion: "VersionTLS99"})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "invalid minTLSVersion")
 }
 
-func TestApplyPolicyInvalidCipherSuite(t *testing.T) {
-	tlsConfig := &tls.Config{MinVersion: tls.VersionTLS12}
-	err := ApplyPolicy(tlsConfig, Policy{
-		TLSCfg: &TLSConfig{CipherSuites: []string{"TLS_NOT_A_CIPHER"}},
-	}, WithServerTLSConfig())
+func TestNewPolicyInvalidCipherSuite(t *testing.T) {
+	_, err := NewPolicy(false, &TLSConfig{CipherSuites: []string{"TLS_NOT_A_CIPHER"}})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "invalid cipherSuites")
 }
 
-func TestApplyPolicyInvalidCurve(t *testing.T) {
-	tlsConfig := &tls.Config{MinVersion: tls.VersionTLS12}
-	err := ApplyPolicy(tlsConfig, Policy{
-		TLSCfg: &TLSConfig{CurvePreferences: []string{"unknown-curve"}},
-	}, WithServerTLSConfig())
+func TestNewPolicyInvalidCurve(t *testing.T) {
+	_, err := NewPolicy(false, &TLSConfig{CurvePreferences: []string{"unknown-curve"}})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "invalid curvePreferences")
 }

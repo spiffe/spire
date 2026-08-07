@@ -20,6 +20,13 @@ type TLSConfig struct {
 	MinTLSVersion    string   `hcl:"min_tls_version"`
 }
 
+// ParsedTLSConfig holds tls_config values parsed once at startup.
+type ParsedTLSConfig struct {
+	MinTLSVersion    uint16
+	CipherSuites     []uint16
+	CurvePreferences []tls.CurveID
+}
+
 // Policy describes policy options to be applied to a TLS configuration.
 //
 // A zero-initialised Policy provides reasonable defaults.
@@ -29,7 +36,8 @@ type Policy struct {
 	// minimum version settings.
 	RequirePQKEM bool
 
-	TLSCfg *TLSConfig
+	// TLSCfg holds parsed tls_config settings. Populated by NewPolicy or ParseTLSConfig.
+	TLSCfg *ParsedTLSConfig
 }
 
 // ApplyOption selects optional parts of Policy to apply.
@@ -44,7 +52,8 @@ type ApplyOption func(*tls.Config, Policy) error
 // do not support the configured parameters.
 func WithServerTLSConfig() ApplyOption {
 	return func(cfg *tls.Config, policy Policy) error {
-		return applyConfig(cfg, policy.TLSCfg)
+		policy.applyServerTLSConfig(cfg)
+		return nil
 	}
 }
 
@@ -59,20 +68,20 @@ func LogPolicy(policy Policy, logger hclog.Logger) {
 		logger.Debug("No TLS config configured")
 		return
 	}
-	if policy.TLSCfg.MinTLSVersion != "" {
+	if policy.TLSCfg.MinTLSVersion != 0 {
 		logger.Debug("TLS config min TLS version configured", "min_tls_version", policy.TLSCfg.MinTLSVersion)
 	}
 	if len(policy.TLSCfg.CipherSuites) > 0 {
-		logger.Debug("TLS config cipher suites configured", "count", len(policy.TLSCfg.CipherSuites))
+		logger.Debug("TLS config cipher suites configured:", "cipher_suites", policy.TLSCfg.CipherSuites)
 	}
 	if len(policy.TLSCfg.CurvePreferences) > 0 {
-		logger.Debug("TLS config curve preferences configured", "count", len(policy.TLSCfg.CurvePreferences))
+		logger.Debug("TLS config curve preferences configured", "curve_preferences", policy.TLSCfg.CurvePreferences)
 	}
 }
 
 // ApplyPolicy applies policy to config. RequirePQKEM is always honored when
-// set. HCL tls_config fields are applied only when WithServerTLSConfig() is
-// passed. TLSConfig is applied before RequirePQKEM so PQ settings take precedence.
+// set. TLSConfig fields are applied only when WithServerTLSConfig() is
+// passed. TLSConfig is applied before RequirePQKEM so PQ settings take precedence for backward compatibility.
 func ApplyPolicy(config *tls.Config, policy Policy, opts ...ApplyOption) error {
 	for _, opt := range opts {
 		if err := opt(config, policy); err != nil {
@@ -85,6 +94,18 @@ func ApplyPolicy(config *tls.Config, policy Policy, opts ...ApplyOption) error {
 	}
 
 	return nil
+}
+
+func (p Policy) applyServerTLSConfig(cfg *tls.Config) {
+	if p.TLSCfg != nil && p.TLSCfg.MinTLSVersion != 0 {
+		cfg.MinVersion = p.TLSCfg.MinTLSVersion
+	}
+	if p.TLSCfg != nil && len(p.TLSCfg.CipherSuites) > 0 {
+		cfg.CipherSuites = append([]uint16(nil), p.TLSCfg.CipherSuites...)
+	}
+	if p.TLSCfg != nil && len(p.TLSCfg.CurvePreferences) > 0 {
+		cfg.CurvePreferences = append([]tls.CurveID(nil), p.TLSCfg.CurvePreferences...)
+	}
 }
 
 func applyRequirePQKEM(config *tls.Config) {
@@ -101,40 +122,59 @@ func applyRequirePQKEM(config *tls.Config) {
 	}
 }
 
-func (p *TLSConfig) empty() bool {
-	return p.MinTLSVersion == "" && len(p.CipherSuites) == 0 && len(p.CurvePreferences) == 0
+// NewPolicy builds a Policy and parses tls_config once at startup.
+func NewPolicy(requirePQKEM bool, cfg *TLSConfig) (Policy, error) {
+	p := Policy{RequirePQKEM: requirePQKEM}
+	if cfg == nil {
+		return p, nil
+	}
+
+	parsed, err := ParseTLSConfig(cfg)
+	if err != nil {
+		return p, err
+	}
+
+	p.TLSCfg = parsed
+	return p, nil
 }
 
-func applyConfig(cfg *tls.Config, config *TLSConfig) error {
-	if config == nil || config.empty() {
-		return nil
+// ParseTLSConfig parses tls_config strings into typed TLS settings.
+func ParseTLSConfig(cfg *TLSConfig) (*ParsedTLSConfig, error) {
+	if cfg == nil || cfg.empty() {
+		return nil, nil
 	}
 
-	if config.MinTLSVersion != "" {
-		minVersion, err := cliflag.TLSVersion(config.MinTLSVersion)
+	var parsedTLSCfg ParsedTLSConfig
+
+	if cfg.MinTLSVersion != "" {
+		minVersion, err := cliflag.TLSVersion(cfg.MinTLSVersion)
 		if err != nil {
-			return fmt.Errorf("invalid minTLSVersion %q: %w", config.MinTLSVersion, err)
+			return nil, fmt.Errorf("invalid minTLSVersion %q: %w", cfg.MinTLSVersion, err)
 		}
-		cfg.MinVersion = minVersion
+		parsedTLSCfg.MinTLSVersion = minVersion
 	}
 
-	if len(config.CipherSuites) > 0 {
-		cipherSuites, err := cliflag.TLSCipherSuites(config.CipherSuites)
+	if len(cfg.CipherSuites) > 0 {
+		cipherSuites, err := cliflag.TLSCipherSuites(cfg.CipherSuites)
 		if err != nil {
-			return fmt.Errorf("invalid cipherSuites: %w", err)
+			return nil, fmt.Errorf("invalid cipherSuites: %w", err)
 		}
-		cfg.CipherSuites = cipherSuites
+		parsedTLSCfg.CipherSuites = cipherSuites
 	}
 
-	if len(config.CurvePreferences) > 0 {
-		curves, err := parseCurvePreferences(config.CurvePreferences)
+	if len(cfg.CurvePreferences) > 0 {
+		curves, err := parseCurvePreferences(cfg.CurvePreferences)
 		if err != nil {
-			return fmt.Errorf("invalid curvePreferences: %w", err)
+			return nil, fmt.Errorf("invalid curvePreferences: %w", err)
 		}
-		cfg.CurvePreferences = curves
+		parsedTLSCfg.CurvePreferences = curves
 	}
 
-	return nil
+	return &parsedTLSCfg, nil
+}
+
+func (p *TLSConfig) empty() bool {
+	return p.MinTLSVersion == "" && len(p.CipherSuites) == 0 && len(p.CurvePreferences) == 0
 }
 
 func parseCurvePreferences(names []string) ([]tls.CurveID, error) {

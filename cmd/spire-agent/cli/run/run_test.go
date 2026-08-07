@@ -1,6 +1,7 @@
 package run
 
 import (
+	"crypto/tls"
 	"io"
 	"os"
 	"path"
@@ -1345,9 +1346,9 @@ func TestNewAgentConfig(t *testing.T) {
 			},
 			test: func(t *testing.T, c *agent.Config) {
 				require.NotNil(t, c.TLSPolicy.TLSCfg)
-				require.Equal(t, "VersionTLS13", c.TLSPolicy.TLSCfg.MinTLSVersion)
-				require.Equal(t, []string{"TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"}, c.TLSPolicy.TLSCfg.CipherSuites)
-				require.Equal(t, []string{"X25519", "secp256r1"}, c.TLSPolicy.TLSCfg.CurvePreferences)
+				require.Equal(t, uint16(tls.VersionTLS13), c.TLSPolicy.TLSCfg.MinTLSVersion)
+				require.Equal(t, []uint16{tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256}, c.TLSPolicy.TLSCfg.CipherSuites)
+				require.Equal(t, []tls.CurveID{tls.X25519, tls.CurveP256}, c.TLSPolicy.TLSCfg.CurvePreferences)
 			},
 		},
 		{
@@ -1594,7 +1595,9 @@ plugins {}
 	require.NoError(t, err)
 	require.True(t, ac.TLSPolicy.RequirePQKEM)
 	require.NotNil(t, ac.TLSPolicy.TLSCfg)
-	require.Equal(t, c.Agent.TLSConfig, ac.TLSPolicy.TLSCfg)
+	require.Equal(t, uint16(tls.VersionTLS13), ac.TLSPolicy.TLSCfg.MinTLSVersion)
+	require.Equal(t, []uint16{tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256}, ac.TLSPolicy.TLSCfg.CipherSuites)
+	require.Equal(t, []tls.CurveID{tls.X25519MLKEM768, tls.X25519, tls.CurveP256}, ac.TLSPolicy.TLSCfg.CurvePreferences)
 }
 
 func TestParseBrokerAllowedReferenceTypes(t *testing.T) {

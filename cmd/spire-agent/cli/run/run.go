@@ -809,9 +809,9 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 		ac.AvailabilityTarget = t
 	}
 
-	ac.TLSPolicy = tlspolicy.Policy{
-		RequirePQKEM: c.Agent.Experimental.RequirePQKEM,
-		TLSCfg:       c.Agent.TLSConfig,
+	ac.TLSPolicy, err = tlspolicy.NewPolicy(c.Agent.Experimental.RequirePQKEM, c.Agent.TLSConfig)
+	if err != nil {
+		return nil, fmt.Errorf("unable to parse configured TLS configuration: %w", err)
 	}
 
 	tlspolicy.LogPolicy(ac.TLSPolicy, log.NewHCLogAdapter(logger, "tlspolicy"))

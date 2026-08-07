@@ -219,12 +219,6 @@ type experimentalWorkloadAPIConfig struct {
 	NamedPipeName string `hcl:"named_pipe_name" json:"named_pipe_name"`
 }
 
-func (c *Config) TLSPolicy() tlspolicy.Policy {
-	return tlspolicy.Policy{
-		TLSCfg: c.TLSConfig,
-	}
-}
-
 func LoadConfig(path string, expandEnv bool) (*Config, error) {
 	hclBytes, err := os.ReadFile(path)
 	if err != nil {
@@ -363,6 +357,14 @@ func ParseConfig(hclConfig string) (_ *Config, err error) {
 	if c.JWKSURI == "" && c.JWTIssuer != "" {
 		fmt.Printf("Warning: The jwt_issuer configuration will also affect the jwks_uri behavior when jwks_url is not set. This behaviour will be changed in 1.13.0.")
 	}
+
+	if c.TLSConfig != nil {
+		_, err = tlspolicy.ParseTLSConfig(c.TLSConfig)
+		if err != nil {
+			return nil, fmt.Errorf("invalid TLS config: %w", err)
+		}
+	}
+
 	return c, nil
 }
 

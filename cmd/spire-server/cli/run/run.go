@@ -520,9 +520,9 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 	sc.ProfilingFreq = c.Server.ProfilingFreq
 	sc.ProfilingNames = c.Server.ProfilingNames
 
-	sc.TLSPolicy = tlspolicy.Policy{
-		RequirePQKEM: c.Server.Experimental.RequirePQKEM,
-		TLSCfg:       c.Server.TLSConfig,
+	sc.TLSPolicy, err = tlspolicy.NewPolicy(c.Server.Experimental.RequirePQKEM, c.Server.TLSConfig)
+	if err != nil {
+		return nil, fmt.Errorf("unable to parse configured TLS configuration: %w", err)
 	}
 
 	tlspolicy.LogPolicy(sc.TLSPolicy, log.NewHCLogAdapter(logger, "tlspolicy"))

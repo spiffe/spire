@@ -47,22 +47,21 @@ func TestBrokerListenerWithTLSPolicy(t *testing.T) {
 	agentSVID := ca.CreateX509SVID(spiffeid.RequireFromPath(td, "/agent"))
 	brokerID := spiffeid.RequireFromPath(td, "/broker")
 
+	policy, err := tlspolicy.NewPolicy(false, &tlspolicy.TLSConfig{
+		MinTLSVersion: "VersionTLS13",
+		CipherSuites:  []string{"TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"},
+		CurvePreferences: []string{
+			"X25519MLKEM768",
+			"secp256r1",
+		},
+	})
+	require.NoError(t, err)
+
 	tlsConfig, err := brokerListenerTLSConfig(
 		staticSVIDSource{svid: agentSVID},
 		ca.X509Bundle(),
 		[]spiffeid.ID{brokerID},
-		tlspolicy.Policy{
-			TLSCfg: &tlspolicy.TLSConfig{
-				MinTLSVersion: "VersionTLS13",
-				CipherSuites: []string{
-					"TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
-				},
-				CurvePreferences: []string{
-					"X25519MLKEM768",
-					"secp256r1",
-				},
-			},
-		},
+		policy,
 	)
 	require.NoError(t, err)
 	require.Equal(t, uint16(tls.VersionTLS13), tlsConfig.MinVersion)
@@ -71,21 +70,10 @@ func TestBrokerListenerWithTLSPolicy(t *testing.T) {
 }
 
 func TestBrokerListenerWithInvalidTLSPolicy(t *testing.T) {
-	td := spiffeid.RequireTrustDomainFromString("example.org")
-	ca := testca.New(t, td)
-	agentSVID := ca.CreateX509SVID(spiffeid.RequireFromPath(td, "/agent"))
-	brokerID := spiffeid.RequireFromPath(td, "/broker")
-
-	_, err := brokerListenerTLSConfig(
-		staticSVIDSource{svid: agentSVID},
-		ca.X509Bundle(),
-		[]spiffeid.ID{brokerID},
-		tlspolicy.Policy{
-			TLSCfg: &tlspolicy.TLSConfig{MinTLSVersion: "VersionTLS99"},
-		},
-	)
+	_, err := tlspolicy.NewPolicy(false, &tlspolicy.TLSConfig{
+		MinTLSVersion: "not-a-version",
+	})
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "failed to apply TLS policy")
 	require.Contains(t, err.Error(), "invalid minTLSVersion")
 }
 

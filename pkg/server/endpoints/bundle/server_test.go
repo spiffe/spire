@@ -51,18 +51,18 @@ func TestBundleListenerTLSPolicy(t *testing.T) {
 	serverCert, serverKey := createServerCertificate(t)
 	auth := testSPIFFEAuth(serverCert, serverKey)
 
-	tlsConfig, err := bundleListenerTLSConfig(auth, tlspolicy.Policy{
-		TLSCfg: &tlspolicy.TLSConfig{
-			MinTLSVersion: "VersionTLS13",
-			CipherSuites: []string{
-				"TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
-			},
-			CurvePreferences: []string{
-				"X25519MLKEM768",
-				"secp256r1",
-			},
+	policy, err := tlspolicy.NewPolicy(false, &tlspolicy.TLSConfig{
+		MinTLSVersion: "VersionTLS13",
+		CipherSuites: []string{
+			"TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
+		},
+		CurvePreferences: []string{
+			"X25519MLKEM768",
+			"secp256r1",
 		},
 	})
+	require.NoError(t, err)
+	tlsConfig, err := bundleListenerTLSConfig(auth, policy)
 	require.NoError(t, err)
 	require.Equal(t, uint16(tls.VersionTLS13), tlsConfig.MinVersion)
 	require.NotEmpty(t, tlsConfig.CipherSuites)
@@ -70,34 +70,13 @@ func TestBundleListenerTLSPolicy(t *testing.T) {
 }
 
 func TestBundleListenerTLSPolicyInvalid(t *testing.T) {
-	serverCert, serverKey := createServerCertificate(t)
-	auth := testSPIFFEAuth(serverCert, serverKey)
-
-	_, err := bundleListenerTLSConfig(auth, tlspolicy.Policy{
-		TLSCfg: &tlspolicy.TLSConfig{MinTLSVersion: "VersionTLS99"},
-	})
+	_, err := tlspolicy.NewPolicy(false, &tlspolicy.TLSConfig{MinTLSVersion: "VersionTLS99"})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "invalid minTLSVersion")
 }
 
 func TestServerTLSPolicyAppliedAtStartup(t *testing.T) {
-	serverCert, serverKey := createServerCertificate(t)
-	trustDomain := spiffeid.RequireTrustDomainFromString("domain.test")
-	bundle := spiffebundle.New(trustDomain)
-	bundle.AddX509Authority(serverCert)
-
-	log, _ := test.NewNullLogger()
-	server := NewServer(ServerConfig{
-		Log:        log,
-		Address:    "127.0.0.1:0",
-		Getter:     testGetter(bundle),
-		ServerAuth: testSPIFFEAuth(serverCert, serverKey),
-		TLSPolicy: tlspolicy.Policy{
-			TLSCfg: &tlspolicy.TLSConfig{MinTLSVersion: "VersionTLS99"},
-		},
-	})
-
-	err := server.ListenAndServe(context.Background())
+	_, err := tlspolicy.NewPolicy(false, &tlspolicy.TLSConfig{MinTLSVersion: "VersionTLS99"})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "invalid minTLSVersion")
 }

@@ -124,18 +124,18 @@ func TestPrometheusWithTLSPolicy(t *testing.T) {
 		CertFile: certFile,
 		KeyFile:  keyFile,
 	}
-	config.TLSPolicy = tlspolicy.Policy{
-		TLSCfg: &tlspolicy.TLSConfig{
-			MinTLSVersion: "VersionTLS13",
-			CipherSuites: []string{
-				"TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
-			},
-			CurvePreferences: []string{
-				"X25519MLKEM768",
-				"secp256r1",
-			},
+	policy, err := tlspolicy.NewPolicy(false, &tlspolicy.TLSConfig{
+		MinTLSVersion: "VersionTLS13",
+		CipherSuites: []string{
+			"TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
 		},
-	}
+		CurvePreferences: []string{
+			"X25519MLKEM768",
+			"secp256r1",
+		},
+	})
+	require.NoError(t, err)
+	config.TLSPolicy = policy
 
 	runner, err := newTestPrometheusRunner(config)
 	require.NoError(t, err)
@@ -149,23 +149,9 @@ func TestPrometheusWithTLSPolicy(t *testing.T) {
 }
 
 func TestPrometheusWithInvalidTLSPolicy(t *testing.T) {
-	certFile, keyFile := createTestCertAndKey(t)
-	config := testPrometheusConfig()
-	config.FileConfig.Prometheus.TLS = &TLSConfig{
-		CertFile: certFile,
-		KeyFile:  keyFile,
-	}
-	config.TLSPolicy = tlspolicy.Policy{
-		TLSCfg: &tlspolicy.TLSConfig{MinTLSVersion: "VersionTLS99"},
-	}
-
-	runner, err := newTestPrometheusRunner(config)
+	_, err := tlspolicy.NewPolicy(false, &tlspolicy.TLSConfig{MinTLSVersion: "VersionTLS99"})
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "failed to apply TLS policy for Prometheus")
 	require.Contains(t, err.Error(), "invalid minTLSVersion")
-	if runner != nil {
-		assert.Nil(t, runner.(*prometheusRunner).server.TLSConfig)
-	}
 }
 
 func TestPrometheusWithTLSPolicyAndSPIFFESVID(t *testing.T) {
@@ -180,12 +166,12 @@ func TestPrometheusWithTLSPolicyAndSPIFFESVID(t *testing.T) {
 	config.GetX509SVID = func() (*x509svid.SVID, error) {
 		return serverSVID, nil
 	}
-	config.TLSPolicy = tlspolicy.Policy{
-		TLSCfg: &tlspolicy.TLSConfig{
-			MinTLSVersion:    "VersionTLS13",
-			CurvePreferences: []string{"X25519"},
-		},
-	}
+	policy, err := tlspolicy.NewPolicy(false, &tlspolicy.TLSConfig{
+		MinTLSVersion:    "VersionTLS13",
+		CurvePreferences: []string{"X25519"},
+	})
+	require.NoError(t, err)
+	config.TLSPolicy = policy
 
 	runner, err := newTestPrometheusRunner(config)
 	require.NoError(t, err)

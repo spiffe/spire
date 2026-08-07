@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire/pkg/common/tlspolicy"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
@@ -124,8 +123,8 @@ server_api {
     address = "unix:///some/socket/path"
 }
 `
-	c := new(Config)
-	require.NoError(t, hcl.Decode(c, configString))
+	c, err := ParseConfig(configString)
+	require.NoError(t, err)
 
 	require.NotNil(t, c.TLSConfig)
 	require.Equal(t, "VersionTLS13", c.TLSConfig.MinTLSVersion)
@@ -135,18 +134,21 @@ server_api {
 	}, c.TLSConfig.CipherSuites)
 	require.Equal(t, []string{"X25519MLKEM768", "X25519", "secp256r1"}, c.TLSConfig.CurvePreferences)
 
-	policy := c.TLSPolicy()
+	policy, err := tlspolicy.NewPolicy(false, c.TLSConfig)
+	require.NoError(t, err)
 	require.NotNil(t, policy.TLSCfg)
-	require.Equal(t, c.TLSConfig, policy.TLSCfg)
+	require.Equal(t, uint16(tls.VersionTLS13), policy.TLSCfg.MinTLSVersion)
+	require.Equal(t, []uint16{
+		tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+		tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+	}, policy.TLSCfg.CipherSuites)
+	require.Equal(t, []tls.CurveID{tls.X25519MLKEM768, tls.X25519, tls.CurveP256}, policy.TLSCfg.CurvePreferences)
 }
 
 func TestApplyTLSPolicyWithInvalidServerTLSConfig(t *testing.T) {
 	t.Run("invalid config fails at startup", func(t *testing.T) {
-		cfg := &tls.Config{}
-		err := applyListenerTLSPolicy(cfg, tlspolicy.Policy{
-			TLSCfg: &tlspolicy.TLSConfig{
-				MinTLSVersion: "not-a-version",
-			},
+		_, err := tlspolicy.NewPolicy(false, &tlspolicy.TLSConfig{
+			MinTLSVersion: "not-a-version",
 		})
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "invalid minTLSVersion")

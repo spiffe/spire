@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"crypto/tls"
+
 	"github.com/hashicorp/hcl"
 	"github.com/hashicorp/hcl/hcl/ast"
 	"github.com/sirupsen/logrus"
@@ -1402,9 +1404,12 @@ func TestNewServerConfig(t *testing.T) {
 			},
 			test: func(t *testing.T, c *server.Config) {
 				require.NotNil(t, c.TLSPolicy.TLSCfg)
-				require.Equal(t, "VersionTLS13", c.TLSPolicy.TLSCfg.MinTLSVersion)
-				require.Equal(t, []string{"TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"}, c.TLSPolicy.TLSCfg.CipherSuites)
-				require.Equal(t, []string{"X25519", "secp256r1"}, c.TLSPolicy.TLSCfg.CurvePreferences)
+				require.Equal(t, uint16(tls.VersionTLS13), c.TLSPolicy.TLSCfg.MinTLSVersion)
+				require.Equal(t, []uint16{tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256}, c.TLSPolicy.TLSCfg.CipherSuites)
+				require.Equal(t, []tls.CurveID{
+					tls.X25519,
+					tls.CurveP256,
+				}, c.TLSPolicy.TLSCfg.CurvePreferences)
 			},
 		},
 	}
@@ -1475,7 +1480,12 @@ plugins {}
 	require.NoError(t, err)
 	require.True(t, sc.TLSPolicy.RequirePQKEM)
 	require.NotNil(t, sc.TLSPolicy.TLSCfg)
-	require.Equal(t, c.Server.TLSConfig, sc.TLSPolicy.TLSCfg)
+	require.Equal(t, uint16(tls.VersionTLS13), sc.TLSPolicy.TLSCfg.MinTLSVersion)
+	require.Equal(t, []uint16{
+		tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+		tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+	}, sc.TLSPolicy.TLSCfg.CipherSuites)
+	require.Equal(t, []tls.CurveID{tls.X25519MLKEM768, tls.X25519, tls.CurveP256}, sc.TLSPolicy.TLSCfg.CurvePreferences)
 }
 
 // defaultValidConfig returns the bare minimum config required to
