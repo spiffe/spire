@@ -8,78 +8,42 @@ import (
 
 	"github.com/mitchellh/cli"
 	debugv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/agent/debug/v1"
+	"github.com/spiffe/spire/cmd/spire-agent/util"
 	commoncli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/cliprinter"
-	"github.com/spiffe/spire/pkg/common/util"
 )
 
-// NewGetInfoCommand creates a new "debug getinfo" subcommand for "debug" command.
 func NewGetInfoCommand() cli.Command {
-	return newGetInfoCommand(commoncli.DefaultEnv)
+	return NewGetInfoCommandWithEnv(commoncli.DefaultEnv)
 }
 
-func newGetInfoCommand(env *commoncli.Env) *getInfoCommand {
-	return &getInfoCommand{
-		env: env,
-	}
+func NewGetInfoCommandWithEnv(env *commoncli.Env) cli.Command {
+	return util.AdaptCommand(env, &getInfoCommand{env: env})
 }
 
 type getInfoCommand struct {
-	getInfoCommandOS
-
 	env     *commoncli.Env
 	printer cliprinter.Printer
 }
 
-func (c *getInfoCommand) Help() string {
-	_ = c.parseFlags([]string{"-h"})
-	return ""
+func (*getInfoCommand) Name() string {
+	return "debug getinfo"
 }
 
-func (c *getInfoCommand) Synopsis() string {
+func (*getInfoCommand) Synopsis() string {
 	return "Prints debug information about the agent"
 }
 
-func (c *getInfoCommand) Run(args []string) int {
-	if err := c.parseFlags(args); err != nil {
-		return 1
-	}
-	if err := c.run(); err != nil {
-		_ = c.env.ErrPrintf("Error: %v\n", err)
-		return 1
-	}
-	return 0
-}
-
-func (c *getInfoCommand) parseFlags(args []string) error {
-	fs := flag.NewFlagSet("debug getinfo", flag.ContinueOnError)
-	fs.SetOutput(c.env.Stderr)
-	c.addOSFlags(fs)
+func (c *getInfoCommand) AppendFlags(fs *flag.FlagSet) {
 	cliprinter.AppendFlagWithCustomPretty(&c.printer, fs, c.env, prettyPrintGetInfo)
-	return fs.Parse(args)
 }
 
-func (c *getInfoCommand) run() error {
-	addr, err := c.getAddr()
+func (c *getInfoCommand) Run(ctx context.Context, _ *commoncli.Env, client util.AgentClient) error {
+	debugClient := client.NewDebugClient()
+	resp, err := debugClient.GetInfo(ctx, &debugv1.GetInfoRequest{})
 	if err != nil {
 		return err
 	}
-	target, err := util.GetTargetName(addr)
-	if err != nil {
-		return err
-	}
-	conn, err := util.NewGRPCClient(target)
-	if err != nil {
-		return err
-	}
-	defer conn.Close()
-
-	debugClient := debugv1.NewDebugClient(conn)
-	resp, err := debugClient.GetInfo(context.Background(), &debugv1.GetInfoRequest{})
-	if err != nil {
-		return err
-	}
-
 	return c.printer.PrintProto(resp)
 }
 
