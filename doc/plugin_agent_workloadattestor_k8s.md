@@ -147,11 +147,11 @@ requests for `WorkloadPIDReference` and `KubernetesObjectReference`.
 The `experimental.broker.brokers` list carries **per-broker overrides**,
 naming brokers that need a wider scope than the default and configuring each
 one. A broker with no entry uses the **default broker configuration**:
-`pod_reference_scope = "agent_node"`, which allows `WorkloadPIDReference` and
-node-local pod `KubernetesObjectReference`s. List a broker with
-`pod_reference_scope = "cluster"` to let it resolve resources beyond the
-agent's node — pods on other nodes and non-pod objects, which are cluster-wide.
-When listed, broker IDs must be valid, unique, and non-empty.
+`pod_reference_scope = "agent_node"`, which allows `WorkloadPIDReference`,
+node-local pod `KubernetesObjectReference`s, and non-pod
+`KubernetesObjectReference`s (always resolved cluster-wide). List a broker
+with `pod_reference_scope = "cluster"` to let it also resolve pods on other
+nodes. When listed, broker IDs must be valid, unique, and non-empty.
 
 Which brokers may reach the plugin at all is decided by the agent's own broker
 endpoint (`experimental.broker.brokers` in the agent configuration), so the
@@ -173,12 +173,13 @@ authorization check. With no `broker` block, behavior is permissive.
 > `access_policy = "enforced"` to require a `SubjectAccessReview` per resolved
 > object.
 
-`pod_reference_scope` bounds what a broker may resolve. `agent_node` (the
-default) limits it to node-local resources — pods on the agent's node, resolved
-through the local kubelet. `cluster` widens resolution to the Kubernetes API
-server: pods on any node, plus non-pod `KubernetesObjectReference`s, which are
-inherently cluster-wide. A node-scoped broker that sends a non-pod object
-reference is rejected with `PermissionDenied`. Broker-only agents that set
+`pod_reference_scope` bounds what a broker may resolve for pod references.
+`agent_node` (the default) limits pod resolution to node-local resources —
+pods on the agent's node, resolved through the local kubelet. `cluster` widens
+pod resolution to the Kubernetes API server: pods on any node. Non-pod
+`KubernetesObjectReference`s are inherently cluster-wide and are always
+resolved through the Kubernetes API server, regardless of the broker's
+`pod_reference_scope`. Broker-only agents that set
 `disable_kubelet_client = true` must configure every *listed* broker with
 `pod_reference_scope = "cluster"`; the default broker's scope automatically
 becomes `cluster` in that mode, since node scope is unavailable without the
@@ -238,10 +239,9 @@ kubelet client is available. With the default
 references are limited to information returned by the local kubelet. With
 `pod_reference_scope = "cluster"`, a disabled or unavailable kubelet client does
 not prevent resolution: the plugin falls back to the Kubernetes API server and
-can resolve pods on any node. Non-pod object references are cluster-wide, so
-they require `pod_reference_scope = "cluster"` and are resolved through the
-Kubernetes API server; a node-scoped broker that sends one is rejected with
-`PermissionDenied`. When
+can resolve pods on any node. Non-pod object references are cluster-wide and
+are always resolved through the Kubernetes API server, regardless of
+`pod_reference_scope`. When
 `experimental.broker.access_policy = "enforced"`, the plugin then creates the same
 `SubjectAccessReview` for the referenced object. The review uses the broker
 SPIFFE ID as the SAR username, no groups, the reference's resource group and

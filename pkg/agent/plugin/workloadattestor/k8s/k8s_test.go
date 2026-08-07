@@ -2249,40 +2249,6 @@ func (s *Suite) TestAttestReferenceWithoutBrokerConfigUsesDefaultBroker() {
 	s.requireSelectorsEqual(testPodSelectors, selectors)
 }
 
-func (s *Suite) TestAttestReferenceDefaultBrokerRejectsNonPodObjectReference() {
-	s.startInsecureKubelet()
-	p := s.loadInsecurePlugin()
-
-	// The default broker is node-scoped, so it is limited to pods; non-pod
-	// (cluster-wide) objects require cluster scope.
-	anyRef, err := anypb.New(&broker.KubernetesObjectReference{
-		Type: &broker.KubernetesObjectType{Plural: "deployments", Group: "apps"},
-		Key:  &broker.KubernetesObjectKey{Namespace: "default", Name: "blog"},
-	})
-	s.Require().NoError(err)
-
-	selectors, err := p.AttestReference(testBrokerContext(), anyRef)
-	s.RequireGRPCStatusContains(err, codes.PermissionDenied, `non-pod object references require pod_reference_scope "cluster"`)
-	s.Require().Nil(selectors)
-}
-
-func (s *Suite) TestAttestReferenceNodeScopedBrokerRejectsNonPodObjectReference() {
-	s.startInsecureKubelet()
-	// An explicitly listed broker with the default (agent_node) scope is also
-	// limited to pods: non-pod object references require cluster scope.
-	p := s.loadInsecurePluginWithExtra(testBrokerConfig())
-
-	anyRef, err := anypb.New(&broker.KubernetesObjectReference{
-		Type: &broker.KubernetesObjectType{Plural: "deployments", Group: "apps"},
-		Key:  &broker.KubernetesObjectKey{Namespace: "default", Name: "blog"},
-	})
-	s.Require().NoError(err)
-
-	selectors, err := p.AttestReference(testBrokerContext(), anyRef)
-	s.RequireGRPCStatusContains(err, codes.PermissionDenied, `non-pod object references require pod_reference_scope "cluster"`)
-	s.Require().Nil(selectors)
-}
-
 func (s *Suite) TestAttestReferenceWithoutBrokerCallerDoesNotRequireBrokerConfig() {
 	s.startInsecureKubelet()
 	p := s.loadInsecurePlugin()

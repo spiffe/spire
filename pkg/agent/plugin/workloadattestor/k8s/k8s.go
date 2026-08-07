@@ -804,11 +804,6 @@ func (p *Plugin) attestByKubernetesObjectReference(ctx context.Context, brokerEn
 	case objType.Plural == "pods" && objType.Group == "core":
 		return p.attestByPodReference(ctx, brokerEntry, objRef)
 	default:
-		// Non-pod objects are cluster-wide, so they require cluster scope;
-		// node-scoped brokers are limited to pods.
-		if brokerPodReferenceScope(brokerEntry) != podReferenceScopeCluster {
-			return nil, status.Error(codes.PermissionDenied, `non-pod object references require pod_reference_scope "cluster"`)
-		}
 		return p.attestByObjectReference(ctx, objRef)
 	}
 }
