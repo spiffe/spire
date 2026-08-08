@@ -2,12 +2,18 @@ package azureimds
 
 import (
 	"context"
+	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math/big"
+	"os"
+	"path/filepath"
 	"slices"
 	"sort"
 	"testing"
+	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
@@ -15,12 +21,14 @@ import (
 	agentstorev1 "github.com/spiffe/spire-plugin-sdk/proto/spire/hostservice/server/agentstore/v1"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/plugin/azure"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/fakes/fakeagentstore"
 	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
+	"github.com/spiffe/spire/test/testkey"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 )
@@ -606,6 +614,57 @@ func (s *IMDSAttestorSuite) TestConfigure() {
 		require.NoError(t, err)
 	})
 
+	s.T().Run("trust_bundle_path loads additional roots", func(t *testing.T) {
+		key := testkey.NewEC256(t)
+		cert := spiretest.SelfSignCertificateWithKey(t, &x509.Certificate{
+			SerialNumber:          big.NewInt(1),
+			Subject:               pkix.Name{CommonName: "Custom Test Root CA"},
+			NotBefore:             time.Now().Add(-time.Hour),
+			NotAfter:              time.Now().Add(time.Hour * 24 * 365),
+			IsCA:                  true,
+			BasicConstraintsValid: true,
+			KeyUsage:              x509.KeyUsageCertSign,
+		}, key)
+		bundlePath := filepath.Join(t.TempDir(), "roots.pem")
+		require.NoError(t, os.WriteFile(bundlePath, pemutil.EncodeCertificate(cert), 0600))
+
+		attestor := s.newTestAttestor()
+		v1 := new(nodeattestor.V1)
+		var err error
+		plugintest.Load(t, builtin(attestor), v1,
+			plugintest.CaptureConfigureError(&err),
+			plugintest.HostServices(agentstorev1.AgentStoreServiceServer(s.agentStore)),
+			plugintest.CoreConfig(coreConfig),
+			plugintest.Configure(fmt.Sprintf(`
+				tenants = {
+					"example.com" = {}
+				}
+				trust_bundle_path = %q
+			`, bundlePath)),
+		)
+		require.NoError(t, err)
+		require.Len(t, attestor.config.additionalRoots, 1)
+		require.Equal(t, cert.Raw, attestor.config.additionalRoots[0].Raw)
+	})
+
+	s.T().Run("trust_bundle_path missing file", func(t *testing.T) {
+		attestor := s.newTestAttestor()
+		v1 := new(nodeattestor.V1)
+		var err error
+		plugintest.Load(t, builtin(attestor), v1,
+			plugintest.CaptureConfigureError(&err),
+			plugintest.HostServices(agentstorev1.AgentStoreServiceServer(s.agentStore)),
+			plugintest.CoreConfig(coreConfig),
+			plugintest.Configure(`
+				tenants = {
+					"example.com" = {}
+				}
+				trust_bundle_path = "/does/not/exist.pem"
+			`),
+		)
+		spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, "unable to load trust bundle")
+	})
+
 	s.T().Run("success with secret auth", func(t *testing.T) {
 		attestor := s.newTestAttestor()
 
@@ -794,7 +853,7 @@ func (s *IMDSAttestorSuite) loadPluginWithChallengeHandler(
 		}
 		return domain, nil
 	}
-	attestor.hooks.validateAttestedDoc = func(ctx context.Context, doc *azure.AttestedDocument, allowedMetadataDomains []string) (*azure.AttestedDocumentContent, error) {
+	attestor.hooks.validateAttestedDoc = func(ctx context.Context, doc *azure.AttestedDocument, allowedMetadataDomains []string, additionalRoots []*x509.Certificate) (*azure.AttestedDocumentContent, error) {
 		s.lastValidatedDoc = doc
 		var (
 			content *azure.AttestedDocumentContent
