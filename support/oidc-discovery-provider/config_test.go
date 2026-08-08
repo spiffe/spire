@@ -4,6 +4,7 @@ import (
 	"crypto/tls"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/spiffe/spire/pkg/common/tlspolicy"
@@ -101,7 +102,22 @@ func TestParseConfig(t *testing.T) {
 }
 
 func TestParseTLSConfigFromHCL(t *testing.T) {
-	const configString = `
+	serverAPISection := `
+server_api {
+    address = "unix:///some/socket/path"
+}
+`
+	if runtime.GOOS == "windows" {
+		serverAPISection = `
+server_api {
+    experimental {
+        named_pipe_name = "\\name\\for\\server\\api"
+    }
+}
+`
+	}
+
+	configString := `
 domains = ["domain.test"]
 tls_config {
     min_tls_version = "VersionTLS13"
@@ -119,10 +135,7 @@ serving_cert_file {
     cert_file_path = "test.crt"
     key_file_path = "test.key"
 }
-server_api {
-    address = "unix:///some/socket/path"
-}
-`
+` + serverAPISection
 	c, err := ParseConfig(configString)
 	require.NoError(t, err)
 
