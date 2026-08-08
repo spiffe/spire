@@ -92,6 +92,14 @@ This may be useful for templating configuration files, for example across differ
 | `trust_domain`                     | The trust domain that this server belongs to (should be no more than 255 characters)                                                                                                                                                                                                                                                                                                   |                                                                |
 | `max_attested_node_info_staleness` | How long to cache and use attested node information before requiring fetching up to date data from the datastore.                                                                                                                                                                                                                                                                      | 0s                                                             |
 
+| tls_config          | Description                                                                                                  | Default |
+|:-------------------:|:------------------------------------------------------------------------------------------------------------:|:-------:|
+| `min_tls_version`   | Minimum TLS version for terminating server listeners (e.g. `VersionTLS13`).                                  |         |
+| `cipher_suites`     | Allowed TLS 1.2 cipher suites for terminating listeners. Has limited effect when minimum TLS version is 1.3. |         |
+| `curve_preferences` | Preferred key exchange curves (e.g. `X25519MLKEM768`).                                                       |         |
+
+`tls_config` is a top-level `server { ... }` block (not experimental). Settings apply only to **inbound TLS listeners** (`ApplyPolicy` with `WithServerTLSConfig()`). They are **not** applied to outbound TLS clients.
+
 | ca_subject                  | Description                    | Default        |
 |:----------------------------|--------------------------------|----------------|
 | `country`                   | Array of `Country` values      |                |
@@ -99,7 +107,7 @@ This may be useful for templating configuration files, for example across differ
 | `common_name`               | The `CommonName` value         |                |
 
 | experimental                  | Description                                                                                                                                                                                                            | Default                            |
-|:------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------------------------|
+|:-----------------------------:|:----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------:|:----------------------------------:|
 | `agent_spiffe_id_as_selector` | Enable adding the agent spiffe_id to the list of node selectors automatically.                                                                                                                                         | false                              |
 | `cache_reload_interval`       | The amount of time between two reloads of the in-memory entry cache. Increasing this will mitigate high database load for extra large deployments, but will also slow propagation of new or updated entries to agents. | 5s                                 |
 | `full_cache_reload_interval`  | How often to a full reload of the cache from the database when using the events based cache.                                                                                                                           | 24h                                |
@@ -108,7 +116,7 @@ This may be useful for templating configuration files, for example across differ
 | `event_timeout`               | Maximum time to wait for an event to come in before giving up.                                                                                                                                                         | 15m                                |
 | `auth_opa_policy_engine`      | The [auth opa_policy engine](/doc/authorization_policy_engine.md) used for authorization decisions                                                                                                                     | default SPIRE authorization policy |
 | `named_pipe_name`             | Pipe name of the SPIRE Server API named pipe (Windows only)                                                                                                                                                            | \spire-server\private\api          |
-| `require_pq_kem`              | Require use of a post-quantum-safe key exchange method for TLS handshakes                                                                                                                                              | false                              |
+| `require_pq_kem`              | Require post-quantum-safe KEM on terminating server listeners.                                                                                                                                                         | false                              |
 | `wit_issuer`                  | The issuer claim used when minting WIT-SVIDs                                                                                                                                                                           |                                    |
 
 | ratelimit     | Description                                                                                                                                        | Default |
