@@ -12,7 +12,9 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
+	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/pkg/server/datastore/sqltest"
+	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -102,6 +104,64 @@ func TestBuildQuestionsAndPlaceholders(t *testing.T) {
 			require.Equal(t, tt.expectedQuestions, questions)
 			placeholders := buildPlaceholders(tt.entries)
 			require.Equal(t, tt.expectedPlaceholders, placeholders)
+		})
+	}
+}
+
+func TestBuildListAttestedNodesQueryCTEIDSubquery(t *testing.T) {
+	for _, tt := range []struct {
+		name           string
+		req            *datastore.ListAttestedNodesRequest
+		wantIDSubquery bool
+	}{
+		{
+			name: "bulk ID fetch",
+			req: &datastore.ListAttestedNodesRequest{
+				BySpiffeIDs:    []string{"spiffe://example.org/node"},
+				FetchSelectors: true,
+			},
+		},
+		{
+			name: "unfiltered full load",
+			req: &datastore.ListAttestedNodesRequest{
+				FetchSelectors: true,
+			},
+			wantIDSubquery: true,
+		},
+		{
+			name: "paginated bulk ID fetch",
+			req: &datastore.ListAttestedNodesRequest{
+				BySpiffeIDs:    []string{"spiffe://example.org/node"},
+				FetchSelectors: true,
+				Pagination: &datastore.Pagination{
+					PageSize: 100,
+				},
+			},
+			wantIDSubquery: true,
+		},
+		{
+			name: "selector-matched bulk ID fetch",
+			req: &datastore.ListAttestedNodesRequest{
+				BySpiffeIDs:    []string{"spiffe://example.org/node"},
+				FetchSelectors: true,
+				BySelectorMatch: &datastore.BySelectors{
+					Selectors: []*common.Selector{
+						{Type: "type", Value: "value"},
+					},
+					Match: datastore.MatchAny,
+				},
+			},
+			wantIDSubquery: true,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			query, _, err := buildListAttestedNodesQueryCTE(tt.req, PostgreSQL)
+			require.NoError(t, err)
+			if tt.wantIDSubquery {
+				require.Contains(t, query, "WHERE id IN (")
+			} else {
+				require.NotContains(t, query, "WHERE id IN (")
+			}
 		})
 	}
 }
