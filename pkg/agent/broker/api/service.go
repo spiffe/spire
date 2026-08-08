@@ -21,6 +21,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/telemetry/agent/adminapi"
+	"github.com/spiffe/spire/pkg/common/telemetry/agent/brokerapi"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/proto/spire/common"
 	"google.golang.org/grpc"
@@ -45,8 +46,15 @@ type Config struct {
 	// AllowedReferenceTypesByCaller restricts which WorkloadReference type
 	// URLs each authenticated caller (broker SPIFFE ID) may use and whether
 	// each type is also allowed over TCP. A caller missing from the map has
-	// no restriction over UDS, but remains denied over TCP.
+	// no restriction over UDS for reference types the agent can attest, but
+	// remains denied over TCP, and is always denied reference types that
+	// require an explicit grant (see requiresExplicitGrant).
 	AllowedReferenceTypesByCaller map[spiffeid.ID]ReferenceTypePolicy
+
+	// SelectorAssertionByCaller holds the per-caller policy for reference
+	// types that carry broker-asserted selectors. A caller missing from the
+	// map may not assert selectors at all.
+	SelectorAssertionByCaller map[spiffeid.ID]SelectorAssertionPolicy
 }
 
 func New(config Config) *Service {
@@ -55,6 +63,7 @@ func New(config Config) *Service {
 		peerAttestor:                  config.Attestor,
 		metrics:                       config.Metrics,
 		allowedReferenceTypesByCaller: config.AllowedReferenceTypesByCaller,
+		selectorAssertionByCaller:     config.SelectorAssertionByCaller,
 	}
 }
 
@@ -71,11 +80,17 @@ type ReferenceTypePolicy struct {
 }
 
 func (p ReferenceTypePolicy) AccessFor(typeURL string) (ReferenceTypeAccess, bool) {
-	if p.AllowAny {
+	// An explicit entry always wins, so the wildcard can coexist with an
+	// explicitly granted reference type.
+	if access, ok := p.Types[typeURL]; ok {
+		return access, true
+	}
+	// The wildcard covers only reference types the agent can attest for
+	// itself. Types requiring an explicit grant are never inherited from it.
+	if p.AllowAny && !requiresExplicitGrant(typeURL) {
 		return ReferenceTypeAccess{AllowOverTCP: p.AllowAnyOverTCP}, true
 	}
-	access, ok := p.Types[typeURL]
-	return access, ok
+	return ReferenceTypeAccess{}, false
 }
 
 // Service implements the SPIFFE Broker API server.
@@ -86,11 +101,16 @@ type Service struct {
 	peerAttestor                  workloadattestor.Attestor
 	metrics                       telemetry.Metrics
 	allowedReferenceTypesByCaller map[spiffeid.ID]ReferenceTypePolicy
+	selectorAssertionByCaller     map[spiffeid.ID]SelectorAssertionPolicy
 }
 
 // authorizeReferenceType applies the per-broker reference type policy. UDS
 // requests only need the type to be allowed. TCP requests additionally need
-// that same allowed type to opt in to TCP use.
+// that same allowed type to opt in to TCP use via allow_over_tcp.
+//
+// Reference types requiring an explicit grant (see requiresExplicitGrant) are
+// never granted by the "*" wildcard, and are denied outright for callers with
+// no policy at all.
 func (s *Service) authorizeReferenceType(ctx context.Context, caller spiffeid.ID, ref *anypb.Any) error {
 	// Reject malformed requests before the allowlist gates so a missing or
 	// empty reference yields InvalidArgument rather than PermissionDenied.
@@ -108,6 +128,13 @@ func (s *Service) authorizeReferenceType(ctx context.Context, caller spiffeid.ID
 			return status.Errorf(codes.PermissionDenied, "reference type %q is not allowed over TCP for broker %q", ref.GetTypeUrl(), caller)
 		}
 		return nil
+	}
+	// The caller has no policy at all. Reference types the agent can attest
+	// stay permitted over UDS for backward compatibility, but types requiring
+	// an explicit grant are denied outright — an unconfigured caller must never
+	// inherit the ability to assert selectors.
+	if requiresExplicitGrant(ref.GetTypeUrl()) {
+		return status.Errorf(codes.PermissionDenied, "broker %q is not allowed to use reference type %q", caller, ref.GetTypeUrl())
 	}
 	if isTCPCaller(ctx) {
 		return status.Errorf(codes.PermissionDenied, "reference type %q is not allowed over TCP for broker %q", ref.GetTypeUrl(), caller)
@@ -163,7 +190,7 @@ func (s *Service) SubscribeToX509SVID(req *broker.SubscribeToX509SVIDRequest, st
 		return err
 	}
 
-	selectors, err := s.constructValidSelectorsFromReference(brokercontext.WithCallerID(ctx, peer), log, req.Reference)
+	selectors, err := s.constructValidSelectorsFromReference(brokercontext.WithCallerID(ctx, peer), log, peer, req.Reference)
 	if err != nil {
 		return err
 	}
@@ -213,7 +240,7 @@ func (s *Service) SubscribeToX509Bundles(req *broker.SubscribeToX509BundlesReque
 	// The bundle response is workload-independent, but per the SPIFFE Broker
 	// API spec the request still identifies a workload. Validate the reference
 	// resolves so a caller can't pull bundles for workloads it can't attest.
-	if _, err := s.constructValidSelectorsFromReference(brokercontext.WithCallerID(ctx, peer), log, req.Reference); err != nil {
+	if _, err := s.constructValidSelectorsFromReference(brokercontext.WithCallerID(ctx, peer), log, peer, req.Reference); err != nil {
 		return err
 	}
 
@@ -263,7 +290,7 @@ func (s *Service) FetchJWTSVID(ctx context.Context, req *broker.FetchJWTSVIDRequ
 		return nil, err
 	}
 
-	selectors, err := s.constructValidSelectorsFromReference(brokercontext.WithCallerID(ctx, peer), log, req.Reference)
+	selectors, err := s.constructValidSelectorsFromReference(brokercontext.WithCallerID(ctx, peer), log, peer, req.Reference)
 	if err != nil {
 		return nil, err
 	}
@@ -272,6 +299,12 @@ func (s *Service) FetchJWTSVID(ctx context.Context, req *broker.FetchJWTSVIDRequ
 	entries := s.manager.MatchingRegistrationEntries(selectors)
 	entries = hintsfilter.FilterRegistrations(entries, log)
 	for _, entry := range entries {
+		// Do not send admin nor downstream SVIDs to the caller, matching the
+		// X.509 profile in composeX509SVIDBySelectors.
+		if entry.Admin || entry.Downstream {
+			continue
+		}
+
 		spiffeID, err := spiffeid.FromString(entry.SpiffeId)
 		if err != nil {
 			log.WithField(telemetry.SPIFFEID, entry.SpiffeId).WithError(err).Error("Invalid requested SPIFFE ID")
@@ -321,7 +354,7 @@ func (s *Service) SubscribeToJWTBundles(req *broker.SubscribeToJWTBundlesRequest
 	// The bundle response is workload-independent, but per the SPIFFE Broker
 	// API spec the request still identifies a workload. Validate the reference
 	// resolves so a caller can't pull bundles for workloads it can't attest.
-	if _, err := s.constructValidSelectorsFromReference(brokercontext.WithCallerID(ctx, peer), log, req.Reference); err != nil {
+	if _, err := s.constructValidSelectorsFromReference(brokercontext.WithCallerID(ctx, peer), log, peer, req.Reference); err != nil {
 		return err
 	}
 
@@ -358,10 +391,24 @@ func (s *Service) SubscribeToJWTBundles(req *broker.SubscribeToJWTBundlesRequest
 	}
 }
 
-func (s *Service) constructValidSelectorsFromReference(ctx context.Context, log logrus.FieldLogger, ref *broker.WorkloadReference) ([]*common.Selector, error) {
+func (s *Service) constructValidSelectorsFromReference(ctx context.Context, log logrus.FieldLogger, caller spiffeid.ID, ref *broker.WorkloadReference) ([]*common.Selector, error) {
 	if ref == nil {
 		log.Error("No workload reference provided")
 		return nil, status.Error(codes.InvalidArgument, "workload reference must be provided")
+	}
+
+	// Reference types that carry selectors are resolved here rather than by the
+	// attestor catalog. A workload attestor plugin cannot express them: the
+	// plugin facade stamps its own name as the type of every selector it
+	// returns (see workloadattestor.V1.selectorsFrom), so a plugin can never
+	// round-trip an asserted set spanning arbitrary selector types.
+	if isSelectorReference(ref.GetReference().GetTypeUrl()) {
+		selectors, err := s.selectorsFromSelectorReference(ctx, log, caller, ref.Reference)
+		if err != nil {
+			return nil, err
+		}
+		brokerapi.IncrReferenceResolutionCounter(s.metrics, SelectorReferenceTypeURL, telemetry.ResolutionModeAsserted)
+		return selectors, nil
 	}
 
 	selectors, err := s.peerAttestor.AttestReference(ctx, ref.Reference)
@@ -376,6 +423,7 @@ func (s *Service) constructValidSelectorsFromReference(ctx context.Context, log 
 		return nil, status.Errorf(codes.Unauthenticated, "workload attestation failed: %v", err)
 	}
 
+	brokerapi.IncrReferenceResolutionCounter(s.metrics, ref.GetReference().GetTypeUrl(), telemetry.ResolutionModeAttested)
 	return selectors, nil
 }
 

@@ -70,6 +70,7 @@ func TestRestrictReflectionToUDS(t *testing.T) {
 func TestBuildAllowedReferenceTypeMap(t *testing.T) {
 	brokerID := spiffeid.RequireFromString("spiffe://example.org/broker")
 	wildcardID := spiffeid.RequireFromString("spiffe://example.org/wildcard")
+	mixedID := spiffeid.RequireFromString("spiffe://example.org/mixed")
 	k8sType := "type.googleapis.com/spiffe.broker.KubernetesObjectReference"
 	pidType := "type.googleapis.com/spiffe.broker.WorkloadPIDReference"
 
@@ -93,6 +94,16 @@ func TestBuildAllowedReferenceTypeMap(t *testing.T) {
 				{TypeURL: "*", AllowOverTCP: true},
 			},
 		},
+		{
+			ID: mixedID.String(),
+			AllowedReferenceTypes: []AllowedReferenceType{
+				{TypeURL: "*", AllowOverTCP: true},
+				{TypeURL: SelectorReferenceTypeURL},
+			},
+			SelectorAssertion: &SelectorAssertion{
+				AllowedSelectorTypes: []string{"k8s_psat"},
+			},
+		},
 	})
 
 	require.Equal(t, map[spiffeid.ID]brokerapi.ReferenceTypePolicy{
@@ -105,8 +116,70 @@ func TestBuildAllowedReferenceTypeMap(t *testing.T) {
 		wildcardID: {
 			AllowAny:        true,
 			AllowAnyOverTCP: true,
+			Types:           map[string]brokerapi.ReferenceTypeAccess{},
+		},
+		// The wildcard must not swallow explicitly granted types: a broker can
+		// hold "*" for attestable references and separately be granted the
+		// selector reference, which "*" deliberately does not cover.
+		mixedID: {
+			AllowAny:        true,
+			AllowAnyOverTCP: true,
+			Types: map[string]brokerapi.ReferenceTypeAccess{
+				SelectorReferenceTypeURL: {},
+			},
 		},
 	}, policies)
+}
+
+func TestBuildSelectorAssertionMap(t *testing.T) {
+	assertingID := spiffeid.RequireFromString("spiffe://example.org/asserting")
+	plainID := spiffeid.RequireFromString("spiffe://example.org/plain")
+
+	policies := buildSelectorAssertionMap([]Broker{
+		{
+			ID: assertingID.String(),
+			SelectorAssertion: &SelectorAssertion{
+				AllowedSelectorTypes: []string{"k8s_psat", "github_actions"},
+				MaxSelectors:         32,
+			},
+		},
+		{
+			// No selector_assertion block: absent from the map entirely, which
+			// the service treats as "may not assert selectors".
+			ID: plainID.String(),
+		},
+		{
+			ID: "not a spiffe id",
+			SelectorAssertion: &SelectorAssertion{
+				AllowedSelectorTypes: []string{"k8s_psat"},
+			},
+		},
+	})
+
+	require.Equal(t, map[spiffeid.ID]brokerapi.SelectorAssertionPolicy{
+		assertingID: {
+			AllowedSelectorTypes: map[string]struct{}{
+				"k8s_psat":       {},
+				"github_actions": {},
+			},
+			MaxSelectors: 32,
+		},
+	}, policies)
+}
+
+func TestBuildSelectorAssertionMapDefaultsMaxSelectors(t *testing.T) {
+	assertingID := spiffeid.RequireFromString("spiffe://example.org/asserting")
+
+	policies := buildSelectorAssertionMap([]Broker{
+		{
+			ID: assertingID.String(),
+			SelectorAssertion: &SelectorAssertion{
+				AllowedSelectorTypes: []string{"k8s_psat"},
+			},
+		},
+	})
+
+	require.Equal(t, brokerapi.DefaultMaxAssertedSelectors, policies[assertingID].MaxSelectors)
 }
 
 // TestPreprocessorChain exercises restrictReflectionToUDS and

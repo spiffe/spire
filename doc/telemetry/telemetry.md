@@ -111,6 +111,7 @@ The following metrics are emitted:
 | Counter      | `delegated_identity_api`, `connection`                                   |                              | The Delegated Identity API has successfully established a connection.                 |
 | Gauge        | `delegated_identity_api`, `connections`                                  |                              | The number of active connection that the Delegated Identity API has.                  |
 | Latency      | `delegated_identity_api`, `subscribe_x509_svid` `first_x509_svid_update` |                              | The latency fetching first X.509-SVID in Delegated Identity API.                      |
+| Counter      | `broker_api`, `reference_resolution`                                     | `reference_type`, `resolution_mode` | A Broker API workload reference resolved to selectors. `resolution_mode` is `attested` when the agent's own workload attestor resolved the reference, or `asserted` when the broker supplied the selectors itself. Asserted resolutions do not appear in the workload attestation metrics. |
 
 Note: These are the keys and labels that SPIRE emits, but the format of the
 metric once ingested could vary depending on the metric collector. For example,

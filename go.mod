@@ -331,3 +331,10 @@ require (
 	sigs.k8s.io/structured-merge-diff/v6 v6.3.3 // indirect
 	sigs.k8s.io/yaml v1.6.0 // indirect
 )
+
+// TODO(kfox): temporary. Points at a fork carrying the in-progress
+// spire.api.types.SelectorReference proto, so this branch builds for anyone who
+// checks it out. The fork branch is based on spire-api-sdk's `next`, which is
+// where the pinned pseudo-version above already comes from. Once the change
+// lands on `next`, drop this directive and bump that pin instead.
+replace github.com/spiffe/spire-api-sdk => github.com/kfox1111/spire-api-sdk v0.0.0-20260806145937-ebf0eecdae5a

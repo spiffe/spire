@@ -37,6 +37,15 @@ create-entry "spiffe://example.org/local-only-object-broker" -selector "k8s:pod-
 create-entry "spiffe://example.org/restricted-broker"    -selector "k8s:pod-name:restricted-broker"
 create-entry "spiffe://example.org/rbac-denied-broker"   -selector "k8s:pod-name:rbac-denied-broker"
 create-entry "spiffe://example.org/unauthorized-workload" -selector "k8s:pod-name:unauthorized-workload"
+create-entry "spiffe://example.org/selector-broker"      -selector "k8s:pod-name:selector-broker"
+create-entry "spiffe://example.org/wildcard-broker"      -selector "k8s:pod-name:wildcard-broker"
+
+# Target for asserted selectors. Nothing attests these — the selector-broker
+# asserts them directly. Matching is subset-based, so any asserted set that is
+# a superset of these two selects this entry.
+create-entry "spiffe://example.org/asserted-target" \
+    -selector "k8s_psat:namespace:spire" \
+    -selector "k8s_psat:service_account_name:default"
 
 # Target pods — matched by the legacy PID path and/or by the
 # KubernetesObjectReference(pods/core) path. The k8s attestor emits

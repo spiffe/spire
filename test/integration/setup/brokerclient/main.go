@@ -1,8 +1,8 @@
 // brokerclient is the e2e test driver for the SPIFFE Broker API. It fetches
 // its own SVID from the Workload API, then dials the agent's broker endpoint
 // with mTLS and exercises the requested scenario (PID reference, Kubernetes
-// object reference). It asserts either a specific SPIFFE ID in the response
-// or a specific gRPC error code.
+// object reference, asserted selectors). It asserts either a specific SPIFFE ID
+// in the response or a specific gRPC error code.
 package main
 
 import (
@@ -11,12 +11,14 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/spiffe/go-spiffe/v2/exp/proto/spiffe/broker"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/go-spiffe/v2/spiffetls/tlsconfig"
 	"github.com/spiffe/go-spiffe/v2/workloadapi"
+	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/metadata"
@@ -28,8 +30,9 @@ var (
 	workloadAPIAddr = flag.String("workload-api", "unix:///run/spire/agent-sockets/api.sock", "Workload API socket URI")
 	brokerAddr      = flag.String("broker-addr", "unix:///run/spire/broker-sockets/broker.sock", "Broker API socket URI")
 	trustDomain     = flag.String("trust-domain", "example.org", "Trust domain to authorize when dialing the broker")
-	refType         = flag.String("ref-type", "", "Reference type: pid|object")
+	refType         = flag.String("ref-type", "", "Reference type: pid|object|selectors")
 	pid             = flag.Int("pid", 0, "PID for pid reference")
+	selectors       = flag.String("selectors", "", "Comma-separated type:value selectors for the selectors reference (e.g. \"k8s_psat:ns:default,k8s_psat:pod-name:foo\")")
 	plural          = flag.String("plural", "", "K8s resource plural (e.g. pods, deployments, kustomizations)")
 	group           = flag.String("group", "", "K8s resource group (e.g. core, apps, kustomize.toolkit.fluxcd.io)")
 	namespace       = flag.String("namespace", "", "K8s object namespace")
@@ -120,6 +123,12 @@ func buildRequest() (*broker.SubscribeToX509SVIDRequest, error) {
 			ref.Uid = *uid
 		}
 		packed, err = anypb.New(ref)
+	case "selectors":
+		parsed, parseErr := parseSelectors(*selectors)
+		if parseErr != nil {
+			return nil, parseErr
+		}
+		packed, err = anypb.New(&types.SelectorReference{Selectors: parsed})
 	default:
 		return nil, fmt.Errorf("unknown ref-type %q", *refType)
 	}
@@ -129,6 +138,27 @@ func buildRequest() (*broker.SubscribeToX509SVIDRequest, error) {
 	return &broker.SubscribeToX509SVIDRequest{
 		Reference: &broker.WorkloadReference{Reference: packed},
 	}, nil
+}
+
+// parseSelectors parses a comma-separated list of "type:value" selectors. The
+// value may itself contain colons (e.g. "k8s_psat:ns:default" is type
+// "k8s_psat", value "ns:default"), so only the first colon is a separator.
+//
+// An empty input yields no selectors, which lets a suite step assert that the
+// agent rejects an empty asserted set.
+func parseSelectors(in string) ([]*types.Selector, error) {
+	if in == "" {
+		return nil, nil
+	}
+	var out []*types.Selector
+	for raw := range strings.SplitSeq(in, ",") {
+		selectorType, value, found := strings.Cut(raw, ":")
+		if !found {
+			return nil, fmt.Errorf("selector %q is not in type:value form", raw)
+		}
+		out = append(out, &types.Selector{Type: selectorType, Value: value})
+	}
+	return out, nil
 }
 
 func checkErr(err error) error {

@@ -1268,9 +1268,9 @@ func TestNewAgentConfig(t *testing.T) {
 			},
 		},
 		{
-			msg:                "broker wildcard must be the only allowed reference type",
+			msg:                "broker wildcard may not be combined with an attestable reference type",
 			expectError:        true,
-			requireErrorPrefix: "experimental.broker.brokers[spiffe://example.org/broker].allowed_reference_types: wildcard \"*\" must be the only allowed reference type",
+			requireErrorPrefix: "experimental.broker.brokers[spiffe://example.org/broker].allowed_reference_types: wildcard \"*\" may only be combined with reference types that require an explicit grant",
 			input: func(c *Config) {
 				c.Agent.Experimental.Broker = &brokerHCLConfig{
 					BindAddress: "127.0.0.1:8443",
@@ -1280,6 +1280,230 @@ func TestNewAgentConfig(t *testing.T) {
 							AllowedReferenceTypes: []brokerAllowedReferenceTypeHCLEntry{
 								{TypeURL: "*"},
 								{TypeURL: "type.googleapis.com/spiffe.broker.KubernetesObjectReference"},
+							},
+						},
+					},
+				}
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
+			// The wildcard does not grant the selector reference, so the two
+			// must be able to coexist.
+			msg: "broker wildcard may be combined with the selector reference",
+			input: func(c *Config) {
+				c.Agent.Experimental.Broker = &brokerHCLConfig{
+					BindAddress: "127.0.0.1:8443",
+					Brokers: []brokerHCLEntry{
+						{
+							ID: "spiffe://example.org/broker",
+							AllowedReferenceTypes: []brokerAllowedReferenceTypeHCLEntry{
+								{TypeURL: "*"},
+								{TypeURL: agentbroker.SelectorReferenceTypeURL},
+							},
+							SelectorAssertion: &brokerSelectorAssertionHCLConfig{
+								AllowedSelectorTypes: []string{"k8s_psat"},
+							},
+						},
+					},
+				}
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Equal(t, []agentbroker.AllowedReferenceType{
+					{TypeURL: "*"},
+					{TypeURL: agentbroker.SelectorReferenceTypeURL},
+				}, c.Broker.Brokers[0].AllowedReferenceTypes)
+				require.Equal(t, &agentbroker.SelectorAssertion{
+					AllowedSelectorTypes: []string{"k8s_psat"},
+				}, c.Broker.Brokers[0].SelectorAssertion)
+			},
+		},
+		{
+			msg: "broker selector_assertion round-trips",
+			input: func(c *Config) {
+				c.Agent.Experimental.Broker = &brokerHCLConfig{
+					BindAddress: "127.0.0.1:8443",
+					Brokers: []brokerHCLEntry{
+						{
+							ID: "spiffe://example.org/broker",
+							AllowedReferenceTypes: []brokerAllowedReferenceTypeHCLEntry{
+								{TypeURL: agentbroker.SelectorReferenceTypeURL},
+							},
+							SelectorAssertion: &brokerSelectorAssertionHCLConfig{
+								// Duplicates are deduped silently.
+								AllowedSelectorTypes: []string{"k8s_psat", "github_actions", "k8s_psat"},
+								MaxSelectors:         32,
+							},
+						},
+					},
+				}
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Equal(t, &agentbroker.SelectorAssertion{
+					AllowedSelectorTypes: []string{"k8s_psat", "github_actions"},
+					MaxSelectors:         32,
+				}, c.Broker.Brokers[0].SelectorAssertion)
+			},
+		},
+		{
+			msg:                "broker selector reference requires a selector_assertion block",
+			expectError:        true,
+			requireErrorPrefix: "experimental.broker.brokers[spiffe://example.org/broker]: reference type \"type.googleapis.com/spire.api.types.SelectorReference\" requires a selector_assertion block",
+			input: func(c *Config) {
+				c.Agent.Experimental.Broker = &brokerHCLConfig{
+					BindAddress: "127.0.0.1:8443",
+					Brokers: []brokerHCLEntry{
+						{
+							ID: "spiffe://example.org/broker",
+							AllowedReferenceTypes: []brokerAllowedReferenceTypeHCLEntry{
+								{TypeURL: agentbroker.SelectorReferenceTypeURL},
+							},
+						},
+					},
+				}
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
+			msg:                "broker selector_assertion requires the selector reference type",
+			expectError:        true,
+			requireErrorPrefix: "experimental.broker.brokers[spiffe://example.org/broker].selector_assertion: requires reference type \"type.googleapis.com/spire.api.types.SelectorReference\" in allowed_reference_types",
+			input: func(c *Config) {
+				c.Agent.Experimental.Broker = &brokerHCLConfig{
+					BindAddress: "127.0.0.1:8443",
+					Brokers: []brokerHCLEntry{
+						{
+							ID: "spiffe://example.org/broker",
+							AllowedReferenceTypes: []brokerAllowedReferenceTypeHCLEntry{
+								{TypeURL: "type.googleapis.com/spiffe.broker.WorkloadPIDReference"},
+							},
+							SelectorAssertion: &brokerSelectorAssertionHCLConfig{
+								AllowedSelectorTypes: []string{"k8s_psat"},
+							},
+						},
+					},
+				}
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
+			// TCP for asserted selectors is opted into with allow_over_tcp on the
+			// reference type entry, exactly as for any other reference type.
+			msg: "broker selector reference accepts allow_over_tcp on the reference type",
+			input: func(c *Config) {
+				c.Agent.Experimental.Broker = &brokerHCLConfig{
+					BindAddress: "127.0.0.1:8443",
+					Brokers: []brokerHCLEntry{
+						{
+							ID: "spiffe://example.org/broker",
+							AllowedReferenceTypes: []brokerAllowedReferenceTypeHCLEntry{
+								{TypeURL: agentbroker.SelectorReferenceTypeURL, AllowOverTCP: true},
+							},
+							SelectorAssertion: &brokerSelectorAssertionHCLConfig{
+								AllowedSelectorTypes: []string{"k8s_psat"},
+							},
+						},
+					},
+				}
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Equal(t, []agentbroker.AllowedReferenceType{
+					{TypeURL: agentbroker.SelectorReferenceTypeURL, AllowOverTCP: true},
+				}, c.Broker.Brokers[0].AllowedReferenceTypes)
+			},
+		},
+		{
+			msg:                "broker selector_assertion requires at least one selector type",
+			expectError:        true,
+			requireErrorPrefix: "experimental.broker.brokers[spiffe://example.org/broker].selector_assertion.allowed_selector_types: must list at least one selector type",
+			input: func(c *Config) {
+				c.Agent.Experimental.Broker = &brokerHCLConfig{
+					BindAddress: "127.0.0.1:8443",
+					Brokers: []brokerHCLEntry{
+						{
+							ID: "spiffe://example.org/broker",
+							AllowedReferenceTypes: []brokerAllowedReferenceTypeHCLEntry{
+								{TypeURL: agentbroker.SelectorReferenceTypeURL},
+							},
+							SelectorAssertion: &brokerSelectorAssertionHCLConfig{},
+						},
+					},
+				}
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
+			msg:                "broker selector_assertion rejects a wildcard selector type",
+			expectError:        true,
+			requireErrorPrefix: "experimental.broker.brokers[spiffe://example.org/broker].selector_assertion.allowed_selector_types[0]: wildcard \"*\" is not supported; list selector types explicitly",
+			input: func(c *Config) {
+				c.Agent.Experimental.Broker = &brokerHCLConfig{
+					BindAddress: "127.0.0.1:8443",
+					Brokers: []brokerHCLEntry{
+						{
+							ID: "spiffe://example.org/broker",
+							AllowedReferenceTypes: []brokerAllowedReferenceTypeHCLEntry{
+								{TypeURL: agentbroker.SelectorReferenceTypeURL},
+							},
+							SelectorAssertion: &brokerSelectorAssertionHCLConfig{
+								AllowedSelectorTypes: []string{"*"},
+							},
+						},
+					},
+				}
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
+			msg:                "broker selector_assertion rejects a selector type containing a colon",
+			expectError:        true,
+			requireErrorPrefix: "experimental.broker.brokers[spiffe://example.org/broker].selector_assertion.allowed_selector_types[0]: selector type must not contain ':'",
+			input: func(c *Config) {
+				c.Agent.Experimental.Broker = &brokerHCLConfig{
+					BindAddress: "127.0.0.1:8443",
+					Brokers: []brokerHCLEntry{
+						{
+							ID: "spiffe://example.org/broker",
+							AllowedReferenceTypes: []brokerAllowedReferenceTypeHCLEntry{
+								{TypeURL: agentbroker.SelectorReferenceTypeURL},
+							},
+							SelectorAssertion: &brokerSelectorAssertionHCLConfig{
+								AllowedSelectorTypes: []string{"k8s_psat:ns"},
+							},
+						},
+					},
+				}
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
+			msg:                "broker selector_assertion rejects a negative max_selectors",
+			expectError:        true,
+			requireErrorPrefix: "experimental.broker.brokers[spiffe://example.org/broker].selector_assertion.max_selectors: must not be negative; omit it to use the default",
+			input: func(c *Config) {
+				c.Agent.Experimental.Broker = &brokerHCLConfig{
+					BindAddress: "127.0.0.1:8443",
+					Brokers: []brokerHCLEntry{
+						{
+							ID: "spiffe://example.org/broker",
+							AllowedReferenceTypes: []brokerAllowedReferenceTypeHCLEntry{
+								{TypeURL: agentbroker.SelectorReferenceTypeURL},
+							},
+							SelectorAssertion: &brokerSelectorAssertionHCLConfig{
+								AllowedSelectorTypes: []string{"k8s_psat"},
+								MaxSelectors:         -1,
 							},
 						},
 					},

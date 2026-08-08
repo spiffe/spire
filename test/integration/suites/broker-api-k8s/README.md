@@ -40,6 +40,21 @@ real workloads. Covers:
 * Per-reference `allow_over_tcp` denies PID and Kubernetes object references
   over TCP unless the specific reference type explicitly opts in - fail-closed
   against remote use of local-only reference types.
+* A broker with a `selector_assertion` block fetches an SVID via
+  `SelectorReference`, asserting selectors the agent never attests. The target
+  entry is registered with `k8s_psat` selectors that no attestor in this suite
+  produces, so a match proves the asserted set alone selected it.
+* That same broker is denied with `PermissionDenied` when it asserts a selector
+  type outside its `allowed_selector_types` (including when mixed in with
+  allowed ones), and with `InvalidArgument` for an empty set or one exceeding
+  `max_selectors`.
+* A broker holding `type_url = "*"` is denied `SelectorReference` — the wildcard
+  covers only reference types the agent can attest for itself, so an agent
+  upgrade cannot silently grant selector assertion to brokers that already hold
+  the wildcard. That broker retains access to PID references.
+* Asserted selectors are denied over the TCP listener because the
+  `SelectorReference` entry does not set `allow_over_tcp`, while the identical
+  request still succeeds over UDS.
 
 Only the Flux Kustomization CRD is installed (no controllers); the resource
 just needs to exist in the API server so the broker can reference it.
