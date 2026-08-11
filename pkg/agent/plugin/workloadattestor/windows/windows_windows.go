@@ -5,6 +5,7 @@ package windows
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -67,6 +68,9 @@ type processInfo struct {
 	path       string
 	groups     []string
 	groupsSIDs []string
+	// Services are a slice type, as windows allows shared services (e.g., svchost.exe)
+	serviceNames        []string
+	serviceDisplayNames []string
 }
 
 func (p *Plugin) SetLogger(log hclog.Logger) {
@@ -91,6 +95,10 @@ func (p *Plugin) Attest(_ context.Context, req *workloadattestorv1.AttestRequest
 	}
 	for _, group := range process.groups {
 		selectorValues = addSelectorValueIfNotEmpty(selectorValues, "group_name", group)
+	}
+
+	for _, serviceName := range process.serviceNames {
+		selectorValues = addSelectorValueIfNotEmpty(selectorValues, "service_name", serviceName)
 	}
 
 	// obtaining the workload process path and digest are behind a config flag
@@ -169,6 +177,9 @@ func (p *Plugin) newProcessInfo(pid int32, queryPath bool, disableGroupNames boo
 	}
 	groups := p.q.AllGroups(tokenGroups)
 
+	const AllServicesSid = "S-1-5-80-0"
+	const ServiceSidPrefix = "S-1-5-80-"
+
 	start := time.Now()
 	for _, group := range groups {
 		// Each group has a set of attributes that control how
@@ -177,14 +188,31 @@ func (p *Plugin) newProcessInfo(pid int32, queryPath bool, disableGroupNames boo
 		// https://docs.microsoft.com/en-us/windows/win32/secauthz/sid-attributes-in-an-access-token
 		enabledSelector := getGroupEnabledSelector(group.Attributes)
 		processInfo.groupsSIDs = append(processInfo.groupsSIDs, enabledSelector+":"+group.Sid.String())
+		var groupAccount, groupDomain string
 		if !disableGroupNames {
-			groupAccount, groupDomain, err := p.q.LookupAccount(group.Sid)
+			groupAccount, groupDomain, err = p.q.LookupAccount(group.Sid)
 			if err != nil {
 				p.log.Warn("failed to lookup account from group SID", "sid", group.Sid, "error", err)
 				continue
 			}
 			// If the LookupAccount call succeeded, we know that groupAccount is not empty
 			processInfo.groups = append(processInfo.groups, enabledSelector+":"+parseAccount(groupAccount, groupDomain))
+		}
+		// Is this a service?
+		if strings.HasPrefix(group.Sid.String(), ServiceSidPrefix) && group.Sid.String() != AllServicesSid {
+			// if disableGroupNames is set, we have to do a LookupAccount call anyway to get the service name,
+			// this lookup is local only, we will not force queries on an AD so this should be fine.
+			if groupAccount == "" {
+				groupAccount, groupDomain, err = p.q.LookupAccount(group.Sid)
+				if err != nil {
+					p.log.Warn("failed to lookup account from group SID", "sid", group.Sid, "error", err)
+					continue
+				}
+			}
+
+			var serviceName = groupAccount
+
+			processInfo.serviceNames = append(processInfo.serviceNames, serviceName)
 		}
 	}
 	if !disableGroupNames {
