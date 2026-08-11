@@ -8,6 +8,7 @@ It does so by opening an access token associated with the workload process. The 
 | `discover_workload_path`       | If true, the workload path will be discovered by the plugin and used to provide additional selectors                                                                                                                                                                 | false   |
 | `workload_size_limit`          | The limit of workload binary sizes when calculating certain selectors (e.g. sha256). If zero, no limit is enforced. If negative, never calculate the hash.                                                                                                           | 0       |
 | `disable_group_name_selectors` | If true, skips resolving group SIDs to human-readable names, avoiding potentially expensive account name resolution (e.g. against a Domain Controller). Group SID selectors (`group_sid`) are always collected regardless. Only `group_name` selectors are affected. | false   |
+| `enable_service_discovery`     | If true, the plugin will attempt to discover the service associated with the workload if it is running as a service. Services with unrestricted SID Type are automatically included by default.                                                                      | false   |
 
 ## Workload Selectors
 
@@ -19,6 +20,7 @@ It does so by opening an access token associated with the workload process. The 
 | `windows:group_sid:se_group_enabled:false`  | The security identifier (SID) that identifies a not enabled group associated with the access token from the workload process (e.g. `windows:group_sid:se_group_enabled:false:S-1-5-32-544`)                             |
 | `windows:group_name:se_group_enabled:true`  | The group name of an enabled group associated with the access token from the workload process (e.g. `windows:group_name:se_group_enabled:true:computer-or-domain\mygroup`)                                              |
 | `windows:group_name:se_group_enabled:false` | The group name of a not enabled group associated with the access token from the workload process (e.g. `windows:group_name:se_group_enabled:false:computer-or-domain\mygroup`)                                          |
+| `windows:service_name`                      | The name of the service associated with the workload if it is running as a service (e.g. `windows:service_name:MyService`)                                                                                              |
 
 Workload path enabled selectors (available when configured with `discover_workload_path = true`):
 
@@ -49,6 +51,8 @@ Defenses against this are:
 - User and group account names are expressed using the [down-level logon name format](https://docs.microsoft.com/en-us/windows/win32/secauthn/user-name-formats#down-level-logon-name).
 
 - Enabling `disable_group_name_selectors` will cause existing workload registration entries that use `group_name` selectors to stop matching. Operators should audit those entries and switch them to `group_sid` selectors before enabling this flag.
+
+- The `service_name` selector deliver the service name. By default it will return only services with an unrestricted SID Type. In order to opt-in for a custom service run `sc.exe sidtype <ServiceName> unrestricted` as admin. Read more about [SERVICE_SID_INFO](https://learn.microsoft.com/en-us/windows/win32/api/winsvc/ns-winsvc-service_sid_info). Alternatively, the `enable_service_discovery` configuration option can be set to true to discover all services regardless of their SID Type.
 
 ## Configuration
 
