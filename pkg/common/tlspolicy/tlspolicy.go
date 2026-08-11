@@ -4,6 +4,7 @@ package tlspolicy
 
 import (
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -69,13 +70,21 @@ func LogPolicy(policy Policy, logger hclog.Logger) {
 		return
 	}
 	if policy.TLSCfg.MinTLSVersion != 0 {
-		logger.Debug("TLS config min TLS version configured", "min_tls_version", policy.TLSCfg.MinTLSVersion)
+		logger.Debug("TLS config min TLS version configured", "min_tls_version", tls.VersionName(policy.TLSCfg.MinTLSVersion))
 	}
 	if len(policy.TLSCfg.CipherSuites) > 0 {
-		logger.Debug("TLS config cipher suites configured:", "cipher_suites", policy.TLSCfg.CipherSuites)
+		cipherSuites := make([]string, 0, len(policy.TLSCfg.CipherSuites))
+		for _, cipherSuite := range policy.TLSCfg.CipherSuites {
+			cipherSuites = append(cipherSuites, tls.CipherSuiteName(cipherSuite))
+		}
+		logger.Debug("TLS config cipher suites configured:", "cipher_suites", cipherSuites)
 	}
 	if len(policy.TLSCfg.CurvePreferences) > 0 {
-		logger.Debug("TLS config curve preferences configured", "curve_preferences", policy.TLSCfg.CurvePreferences)
+		curvePreferences := make([]string, 0, len(policy.TLSCfg.CurvePreferences))
+		for _, curvePreference := range policy.TLSCfg.CurvePreferences {
+			curvePreferences = append(curvePreferences, curvePreference.String())
+		}
+		logger.Debug("TLS config curve preferences configured", "curve_preferences", curvePreferences)
 	}
 }
 
@@ -129,7 +138,9 @@ func NewPolicy(requirePQKEM bool, cfg *TLSConfig) (Policy, error) {
 		return p, nil
 	}
 
-	parsed, err := ParseTLSConfig(cfg)
+	logger := hclog.NewNullLogger()
+
+	parsed, err := ParseTLSConfig(cfg, logger)
 	if err != nil {
 		return p, err
 	}
@@ -139,35 +150,51 @@ func NewPolicy(requirePQKEM bool, cfg *TLSConfig) (Policy, error) {
 }
 
 // ParseTLSConfig parses tls_config strings into typed TLS settings.
-func ParseTLSConfig(cfg *TLSConfig) (*ParsedTLSConfig, error) {
+func ParseTLSConfig(cfg *TLSConfig, logger hclog.Logger) (*ParsedTLSConfig, error) {
 	if cfg == nil || cfg.empty() {
 		return nil, nil
 	}
 
-	var parsedTLSCfg ParsedTLSConfig
+	// Default to TLS 1.2
+	parsedTLSCfg := ParsedTLSConfig{MinTLSVersion: uint16(tls.VersionTLS12)}
 
 	if cfg.MinTLSVersion != "" {
 		minVersion, err := cliflag.TLSVersion(cfg.MinTLSVersion)
 		if err != nil {
 			return nil, fmt.Errorf("invalid minTLSVersion %q: %w", cfg.MinTLSVersion, err)
 		}
+		if minVersion < tls.VersionTLS12 {
+			minVersion = tls.VersionTLS12
+		}
 		parsedTLSCfg.MinTLSVersion = minVersion
 	}
 
 	if len(cfg.CipherSuites) > 0 {
-		cipherSuites, err := cliflag.TLSCipherSuites(cfg.CipherSuites)
-		if err != nil {
-			return nil, fmt.Errorf("invalid cipherSuites: %w", err)
+		if parsedTLSCfg.MinTLSVersion >= tls.VersionTLS13 {
+			logger.Debug("cipherSuites is ignored because minTLSVersion is VersionTLS13 or higher; Go negotiates TLS 1.3 cipher suites automatically")
+		} else {
+			cipherSuites, err := parseCipherSuites(cfg.CipherSuites, logger)
+			if err != nil {
+				return nil, fmt.Errorf("invalid cipherSuites: %w", err)
+			}
+			if len(cipherSuites) == 0 {
+				logger.Debug("no supported cipherSuites remain after filtering; Go TLS defaults will be used")
+			} else {
+				parsedTLSCfg.CipherSuites = cipherSuites
+			}
 		}
-		parsedTLSCfg.CipherSuites = cipherSuites
 	}
 
 	if len(cfg.CurvePreferences) > 0 {
-		curves, err := parseCurvePreferences(cfg.CurvePreferences)
+		curves, err := curvePreferences(cfg.CurvePreferences, parsedTLSCfg.MinTLSVersion, logger)
 		if err != nil {
 			return nil, fmt.Errorf("invalid curvePreferences: %w", err)
 		}
-		parsedTLSCfg.CurvePreferences = curves
+		if len(curves) == 0 {
+			logger.Debug("no supported curvePreferences remain after filtering; Go TLS defaults will be used")
+		} else {
+			parsedTLSCfg.CurvePreferences = curves
+		}
 	}
 
 	return &parsedTLSCfg, nil
@@ -177,54 +204,95 @@ func (p *TLSConfig) empty() bool {
 	return p.MinTLSVersion == "" && len(p.CipherSuites) == 0 && len(p.CurvePreferences) == 0
 }
 
-func parseCurvePreferences(names []string) ([]tls.CurveID, error) {
-	curves := make([]tls.CurveID, 0, len(names))
+func parseCipherSuites(names []string, logger hclog.Logger) ([]uint16, error) {
+	insecureCiphers := cliflag.InsecureTLSCiphers()
+	secureCiphers := make([]string, 0, len(names))
+	for _, name := range names {
+		if _, ok := insecureCiphers[name]; ok {
+			logger.Debug("insecure cipher suite filtered out", "cipher_suite", name)
+			continue
+		}
+		secureCiphers = append(secureCiphers, name)
+	}
+	return cliflag.TLSCipherSuites(secureCiphers)
+}
+
+var wellknownCurveAliases = map[string]int32{
+	"curvep256":          int32(tls.CurveP256),
+	"p-256":              int32(tls.CurveP256),
+	"p256":               int32(tls.CurveP256),
+	"secp256r1":          int32(tls.CurveP256),
+	"curvep384":          int32(tls.CurveP384),
+	"p-384":              int32(tls.CurveP384),
+	"p384":               int32(tls.CurveP384),
+	"secp384r1":          int32(tls.CurveP384),
+	"curvep521":          int32(tls.CurveP521),
+	"p-521":              int32(tls.CurveP521),
+	"p521":               int32(tls.CurveP521),
+	"secp521r1":          int32(tls.CurveP521),
+	"x25519":             int32(tls.X25519),
+	"x25519mlkem768":     int32(tls.X25519MLKEM768),
+	"secp256r1mlkem768":  int32(tls.SecP256r1MLKEM768),
+	"secp384r1mlkem1024": int32(tls.SecP384r1MLKEM1024),
+}
+
+func curvePreferences(names []string, minVersion uint16, logger hclog.Logger) ([]tls.CurveID, error) {
+	givenCurveIDs := make([]int32, 0, len(names))
+
 	for _, name := range names {
 		name = strings.TrimSpace(name)
 		if name == "" {
 			continue
 		}
+		id, err := curveIDFromName(name)
+		if err != nil {
+			return nil, err
+		}
+		givenCurveIDs = append(givenCurveIDs, id)
+	}
 
-		if isDecimal(name) {
-			id, err := strconv.ParseUint(name, 10, 16)
-			if err != nil {
-				return nil, fmt.Errorf("invalid curve ID %q: %w", name, err)
-			}
-			curves = append(curves, tls.CurveID(id))
+	curves, err := cliflag.TLSCurvePreferences(givenCurveIDs)
+	if err != nil {
+		return nil, err
+	}
+
+	if minVersion >= tls.VersionTLS13 || len(curves) == 0 {
+		return curves, nil
+	}
+
+	hasClassicalCurve := false
+	for _, curve := range curves {
+		if isTLS13OnlyCurve(curve) {
+			logger.Debug("TLS 1.2 does not support curve", "curve", curve.String())
 			continue
 		}
-
-		switch strings.ToLower(name) {
-		case "curvep256", "p-256", "p256", "secp256r1":
-			curves = append(curves, tls.CurveP256)
-		case "curvep384", "p-384", "p384", "secp384r1":
-			curves = append(curves, tls.CurveP384)
-		case "curvep521", "p-521", "p521", "secp521r1":
-			curves = append(curves, tls.CurveP521)
-		case "x25519":
-			curves = append(curves, tls.X25519)
-		case "x25519mlkem768":
-			curves = append(curves, tls.X25519MLKEM768)
-		case "secp256r1mlkem768":
-			curves = append(curves, tls.SecP256r1MLKEM768)
-		case "secp384r1mlkem1024":
-			curves = append(curves, tls.SecP384r1MLKEM1024)
-		default:
-			return nil, fmt.Errorf("unknown curve %q", name)
-		}
+		hasClassicalCurve = true
+	}
+	if !hasClassicalCurve {
+		return nil, errors.New("curvePreferences must include at least one classical curve when minTLSVersion is below VersionTLS13")
 	}
 
 	return curves, nil
 }
 
-func isDecimal(name string) bool {
-	if name == "" {
+func curveIDFromName(name string) (int32, error) {
+	if id, ok := wellknownCurveAliases[strings.ToLower(name)]; ok {
+		return id, nil
+	}
+
+	id, err := strconv.ParseInt(name, 10, 32)
+	if err != nil {
+		return 0, fmt.Errorf("unknown curve %q", name)
+	}
+
+	return int32(id), nil
+}
+
+func isTLS13OnlyCurve(curve tls.CurveID) bool {
+	switch curve {
+	case tls.X25519MLKEM768, tls.SecP256r1MLKEM768, tls.SecP384r1MLKEM1024:
+		return true
+	default:
 		return false
 	}
-	for _, r := range name {
-		if r < '0' || r > '9' {
-			return false
-		}
-	}
-	return true
 }
