@@ -415,7 +415,8 @@ func TestApplyPolicy(t *testing.T) {
 	err := ApplyPolicy(tlsConfig, Policy{})
 	require.NoError(err)
 
-	require.Equal(0, len(tlsConfig.CurvePreferences))
+	require.Nil(tlsConfig.CipherSuites)
+	require.Nil(tlsConfig.CurvePreferences)
 	require.Equal(uint16(tls.VersionTLS12), tlsConfig.MinVersion)
 
 	tlsConfig = &tls.Config{
@@ -440,8 +441,8 @@ func TestApplyPolicyNilConfig(t *testing.T) {
 	err = ApplyPolicy(tlsConfig, policy)
 	require.NoError(t, err)
 	require.Equal(t, uint16(tls.VersionTLS12), tlsConfig.MinVersion)
-	require.Empty(t, tlsConfig.CipherSuites)
-	require.Empty(t, tlsConfig.CurvePreferences)
+	require.Nil(t, tlsConfig.CipherSuites)
+	require.Nil(t, tlsConfig.CurvePreferences)
 }
 
 func TestLogPolicyNilConfig(t *testing.T) {
@@ -464,7 +465,7 @@ func TestApplyPolicyConfig(t *testing.T) {
 	err := ApplyPolicy(tlsConfig, policy, WithServerTLSConfig())
 	require.NoError(t, err)
 	require.Equal(t, uint16(tls.VersionTLS13), tlsConfig.MinVersion)
-	require.Empty(t, tlsConfig.CipherSuites)
+	require.Nil(t, tlsConfig.CipherSuites)
 	require.Equal(t, []tls.CurveID{tls.X25519MLKEM768, tls.CurveP256}, tlsConfig.CurvePreferences)
 }
 
@@ -474,8 +475,8 @@ func TestApplyPolicyConfigPartial(t *testing.T) {
 	err := ApplyPolicy(tlsConfig, policy, WithServerTLSConfig())
 	require.NoError(t, err)
 	require.Equal(t, uint16(tls.VersionTLS12), tlsConfig.MinVersion)
-	require.Empty(t, tlsConfig.CipherSuites)
-	require.Empty(t, tlsConfig.CurvePreferences)
+	require.Nil(t, tlsConfig.CipherSuites)
+	require.Nil(t, tlsConfig.CurvePreferences)
 }
 
 func TestApplyPolicyRequirePQKEMOverridesConfigCurves(t *testing.T) {
@@ -503,7 +504,69 @@ func TestApplyPolicyConfigSkippedForClient(t *testing.T) {
 	err := ApplyPolicy(tlsConfig, policy)
 	require.NoError(t, err)
 	require.Equal(t, uint16(tls.VersionTLS12), tlsConfig.MinVersion)
-	require.Empty(t, tlsConfig.CurvePreferences)
+	require.Nil(t, tlsConfig.CurvePreferences)
+}
+
+func TestApplyPolicyEmptyCipherAndCurveAreNil(t *testing.T) {
+	tests := []struct {
+		name   string
+		cfg    *TLSConfig
+		input  *tls.Config
+	}{
+		{
+			name:  "nil tls_config policy",
+			cfg:   nil,
+			input: &tls.Config{MinVersion: tls.VersionTLS12},
+		},
+		{
+			name:  "empty tls_config policy",
+			cfg:   &TLSConfig{},
+			input: &tls.Config{MinVersion: tls.VersionTLS12},
+		},
+		{
+			name: "min tls version only",
+			cfg: &TLSConfig{
+				MinTLSVersion: "VersionTLS12",
+			},
+			input: &tls.Config{MinVersion: tls.VersionTLS12},
+		},
+		{
+			name: "all insecure ciphers filtered",
+			cfg: &TLSConfig{
+				CipherSuites: []string{"TLS_ECDHE_RSA_WITH_RC4_128_SHA"},
+			},
+			input: &tls.Config{MinVersion: tls.VersionTLS12},
+		},
+		{
+			name: "whitespace-only curve preferences",
+			cfg: &TLSConfig{
+				CurvePreferences: []string{"", " "},
+			},
+			input: &tls.Config{MinVersion: tls.VersionTLS12},
+		},
+		{
+			name: "pre-populated empty slices on input",
+			cfg:  nil,
+			input: &tls.Config{
+				MinVersion:       tls.VersionTLS12,
+				CipherSuites:     []uint16{},
+				CurvePreferences: []tls.CurveID{},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			policy, err := NewPolicy(false, tt.cfg, hclog.NewNullLogger())
+			require.NoError(t, err)
+
+			tlsConfig := tt.input
+			err = ApplyPolicy(tlsConfig, policy, WithServerTLSConfig())
+			require.NoError(t, err)
+			require.Nil(t, tlsConfig.CipherSuites, "CipherSuites must be nil, not an empty slice")
+			require.Nil(t, tlsConfig.CurvePreferences, "CurvePreferences must be nil, not an empty slice")
+		})
+	}
 }
 
 func TestNewPolicyReturnsZeroPolicyOnError(t *testing.T) {

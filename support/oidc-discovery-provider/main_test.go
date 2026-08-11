@@ -26,7 +26,19 @@ func TestApplyTLSPolicy(t *testing.T) {
 	tlsConfig := &tls.Config{}
 	require.NoError(t, applyTLSPolicy(tlsConfig, policy))
 	require.Equal(t, uint16(tls.VersionTLS13), tlsConfig.MinVersion)
+	require.Nil(t, tlsConfig.CipherSuites)
 	require.Equal(t, []tls.CurveID{tls.X25519MLKEM768, tls.CurveP256}, tlsConfig.CurvePreferences)
+}
+
+func TestApplyTLSPolicyEmptyConfig(t *testing.T) {
+	policy, err := tlspolicy.NewPolicy(false, nil, nil)
+	require.NoError(t, err)
+
+	tlsConfig := &tls.Config{}
+	require.NoError(t, applyTLSPolicy(tlsConfig, policy))
+	require.Equal(t, uint16(tls.VersionTLS12), tlsConfig.MinVersion)
+	require.Nil(t, tlsConfig.CipherSuites)
+	require.Nil(t, tlsConfig.CurvePreferences)
 }
 
 func TestMain_UnexpectedArguments(t *testing.T) {

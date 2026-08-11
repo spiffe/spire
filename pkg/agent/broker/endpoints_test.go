@@ -53,8 +53,31 @@ func TestBrokerListenerWithTLSPolicy(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Equal(t, uint16(tls.VersionTLS13), tlsConfig.MinVersion)
-	require.Empty(t, tlsConfig.CipherSuites)
+	require.Nil(t, tlsConfig.CipherSuites)
 	require.Equal(t, []tls.CurveID{tls.X25519MLKEM768, tls.CurveP256}, tlsConfig.CurvePreferences)
+}
+
+func TestBrokerListenerWithEmptyTLSPolicy(t *testing.T) {
+	td := spiffeid.RequireTrustDomainFromString("example.org")
+	ca := testca.New(t, td)
+	agentSVID := ca.CreateX509SVID(spiffeid.RequireFromPath(td, "/agent"))
+	brokerID := spiffeid.RequireFromPath(td, "/broker")
+
+	policy, err := tlspolicy.NewPolicy(false, nil, nil)
+	require.NoError(t, err)
+
+	tlsConfig, err := buildListenerTLSConfig(&Config{
+		SVIDSource:   staticSVIDSource{svid: agentSVID},
+		BundleSource: ca.X509Bundle(),
+		Brokers: []Broker{
+			{ID: brokerID.String()},
+		},
+		TLSPolicy: policy,
+	})
+	require.NoError(t, err)
+	require.Equal(t, uint16(tls.VersionTLS12), tlsConfig.MinVersion)
+	require.Nil(t, tlsConfig.CipherSuites)
+	require.Nil(t, tlsConfig.CurvePreferences)
 }
 
 func TestBrokerListenerWithInvalidTLSPolicy(t *testing.T) {

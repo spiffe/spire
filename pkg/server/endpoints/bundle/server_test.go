@@ -54,8 +54,21 @@ func TestBundleListenerTLSPolicy(t *testing.T) {
 	tlsConfig, err := buildListenerTLSConfig(&Server{c: ServerConfig{ServerAuth: auth, TLSPolicy: policy}})
 	require.NoError(t, err)
 	require.Equal(t, uint16(tls.VersionTLS13), tlsConfig.MinVersion)
-	require.Empty(t, tlsConfig.CipherSuites)
+	require.Nil(t, tlsConfig.CipherSuites)
 	require.Equal(t, []tls.CurveID{tls.X25519MLKEM768, tls.CurveP256}, tlsConfig.CurvePreferences)
+}
+
+func TestBundleListenerWithEmptyTLSPolicy(t *testing.T) {
+	serverCert, serverKey := createServerCertificate(t)
+	auth := testSPIFFEAuth(serverCert, serverKey)
+
+	policy, err := tlspolicy.NewPolicy(false, nil, nil)
+	require.NoError(t, err)
+	tlsConfig, err := buildListenerTLSConfig(&Server{c: ServerConfig{ServerAuth: auth, TLSPolicy: policy}})
+	require.NoError(t, err)
+	require.Equal(t, uint16(tls.VersionTLS12), tlsConfig.MinVersion)
+	require.Nil(t, tlsConfig.CipherSuites)
+	require.Nil(t, tlsConfig.CurvePreferences)
 }
 
 func TestBundleListenerTLSPolicyInvalid(t *testing.T) {
