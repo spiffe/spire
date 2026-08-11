@@ -133,7 +133,7 @@ func TestPrometheusWithTLSPolicy(t *testing.T) {
 			"X25519MLKEM768",
 			"secp256r1",
 		},
-	})
+	}, nil)
 	require.NoError(t, err)
 	config.TLSPolicy = policy
 
@@ -144,12 +144,12 @@ func TestPrometheusWithTLSPolicy(t *testing.T) {
 	pr := runner.(*prometheusRunner)
 	require.NotNil(t, pr.server.TLSConfig)
 	require.Equal(t, uint16(tls.VersionTLS13), pr.server.TLSConfig.MinVersion)
-	require.NotEmpty(t, pr.server.TLSConfig.CipherSuites)
+	require.Empty(t, pr.server.TLSConfig.CipherSuites)
 	require.Equal(t, []tls.CurveID{tls.X25519MLKEM768, tls.CurveP256}, pr.server.TLSConfig.CurvePreferences)
 }
 
 func TestPrometheusWithInvalidTLSPolicy(t *testing.T) {
-	_, err := tlspolicy.NewPolicy(false, &tlspolicy.TLSConfig{MinTLSVersion: "VersionTLS99"})
+	_, err := tlspolicy.NewPolicy(false, &tlspolicy.TLSConfig{MinTLSVersion: "VersionTLS99"}, nil)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "invalid minTLSVersion")
 }
@@ -169,7 +169,7 @@ func TestPrometheusWithTLSPolicyAndSPIFFESVID(t *testing.T) {
 	policy, err := tlspolicy.NewPolicy(false, &tlspolicy.TLSConfig{
 		MinTLSVersion:    "VersionTLS13",
 		CurvePreferences: []string{"X25519"},
-	})
+	}, nil)
 	require.NoError(t, err)
 	config.TLSPolicy = policy
 

@@ -1347,7 +1347,7 @@ func TestNewAgentConfig(t *testing.T) {
 			test: func(t *testing.T, c *agent.Config) {
 				require.NotNil(t, c.TLSPolicy.TLSCfg)
 				require.Equal(t, uint16(tls.VersionTLS13), c.TLSPolicy.TLSCfg.MinTLSVersion)
-				require.Equal(t, []uint16{tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256}, c.TLSPolicy.TLSCfg.CipherSuites)
+				require.Nil(t, c.TLSPolicy.TLSCfg.CipherSuites)
 				require.Equal(t, []tls.CurveID{tls.X25519, tls.CurveP256}, c.TLSPolicy.TLSCfg.CurvePreferences)
 			},
 		},
@@ -1596,7 +1596,7 @@ plugins {}
 	require.True(t, ac.TLSPolicy.RequirePQKEM)
 	require.NotNil(t, ac.TLSPolicy.TLSCfg)
 	require.Equal(t, uint16(tls.VersionTLS13), ac.TLSPolicy.TLSCfg.MinTLSVersion)
-	require.Equal(t, []uint16{tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256}, ac.TLSPolicy.TLSCfg.CipherSuites)
+	require.Nil(t, ac.TLSPolicy.TLSCfg.CipherSuites)
 	require.Equal(t, []tls.CurveID{tls.X25519MLKEM768, tls.X25519, tls.CurveP256}, ac.TLSPolicy.TLSCfg.CurvePreferences)
 }
 

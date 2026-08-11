@@ -106,13 +106,19 @@ func ApplyPolicy(config *tls.Config, policy Policy, opts ...ApplyOption) error {
 }
 
 func (p Policy) applyServerTLSConfig(cfg *tls.Config) {
-	if p.TLSCfg != nil && p.TLSCfg.MinTLSVersion != 0 {
+	if p.TLSCfg == nil {
+		// Default to TLS 1.2
+		cfg.MinVersion = tls.VersionTLS12
+		return
+	}
+
+	if p.TLSCfg.MinTLSVersion != 0 {
 		cfg.MinVersion = p.TLSCfg.MinTLSVersion
 	}
-	if p.TLSCfg != nil && len(p.TLSCfg.CipherSuites) > 0 {
+	if len(p.TLSCfg.CipherSuites) > 0 {
 		cfg.CipherSuites = append([]uint16(nil), p.TLSCfg.CipherSuites...)
 	}
-	if p.TLSCfg != nil && len(p.TLSCfg.CurvePreferences) > 0 {
+	if len(p.TLSCfg.CurvePreferences) > 0 {
 		cfg.CurvePreferences = append([]tls.CurveID(nil), p.TLSCfg.CurvePreferences...)
 	}
 }
@@ -132,13 +138,15 @@ func applyRequirePQKEM(config *tls.Config) {
 }
 
 // NewPolicy builds a Policy and parses tls_config once at startup.
-func NewPolicy(requirePQKEM bool, cfg *TLSConfig) (Policy, error) {
+func NewPolicy(requirePQKEM bool, cfg *TLSConfig, logger hclog.Logger) (Policy, error) {
 	p := Policy{RequirePQKEM: requirePQKEM}
 	if cfg == nil {
 		return p, nil
 	}
 
-	logger := hclog.NewNullLogger()
+	if logger == nil {
+		logger = hclog.Default()
+	}
 
 	parsed, err := ParseTLSConfig(cfg, logger)
 	if err != nil {
@@ -164,21 +172,21 @@ func ParseTLSConfig(cfg *TLSConfig, logger hclog.Logger) (*ParsedTLSConfig, erro
 			return nil, fmt.Errorf("invalid minTLSVersion %q: %w", cfg.MinTLSVersion, err)
 		}
 		if minVersion < tls.VersionTLS12 {
-			minVersion = tls.VersionTLS12
+			return nil, fmt.Errorf("minTLSVersion %q is below the minimum supported version VersionTLS12", cfg.MinTLSVersion)
 		}
 		parsedTLSCfg.MinTLSVersion = minVersion
 	}
 
 	if len(cfg.CipherSuites) > 0 {
 		if parsedTLSCfg.MinTLSVersion >= tls.VersionTLS13 {
-			logger.Debug("cipherSuites is ignored because minTLSVersion is VersionTLS13 or higher; Go negotiates TLS 1.3 cipher suites automatically")
+			logger.Info("cipherSuites is ignored because minTLSVersion is VersionTLS13 or higher; Go negotiates TLS 1.3 cipher suites automatically")
 		} else {
 			cipherSuites, err := parseCipherSuites(cfg.CipherSuites, logger)
 			if err != nil {
 				return nil, fmt.Errorf("invalid cipherSuites: %w", err)
 			}
 			if len(cipherSuites) == 0 {
-				logger.Debug("no supported cipherSuites remain after filtering; Go TLS defaults will be used")
+				logger.Warn("no supported cipherSuites remain after filtering; Go TLS defaults will be used")
 			} else {
 				parsedTLSCfg.CipherSuites = cipherSuites
 			}
@@ -191,7 +199,7 @@ func ParseTLSConfig(cfg *TLSConfig, logger hclog.Logger) (*ParsedTLSConfig, erro
 			return nil, fmt.Errorf("invalid curvePreferences: %w", err)
 		}
 		if len(curves) == 0 {
-			logger.Debug("no supported curvePreferences remain after filtering; Go TLS defaults will be used")
+			logger.Warn("no supported curvePreferences remain after filtering; Go TLS defaults will be used")
 		} else {
 			parsedTLSCfg.CurvePreferences = curves
 		}
@@ -209,7 +217,7 @@ func parseCipherSuites(names []string, logger hclog.Logger) ([]uint16, error) {
 	secureCiphers := make([]string, 0, len(names))
 	for _, name := range names {
 		if _, ok := insecureCiphers[name]; ok {
-			logger.Debug("insecure cipher suite filtered out", "cipher_suite", name)
+			logger.Warn("insecure cipher suite filtered out", "cipher_suite", name)
 			continue
 		}
 		secureCiphers = append(secureCiphers, name)

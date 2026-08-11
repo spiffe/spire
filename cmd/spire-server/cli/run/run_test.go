@@ -1405,7 +1405,7 @@ func TestNewServerConfig(t *testing.T) {
 			test: func(t *testing.T, c *server.Config) {
 				require.NotNil(t, c.TLSPolicy.TLSCfg)
 				require.Equal(t, uint16(tls.VersionTLS13), c.TLSPolicy.TLSCfg.MinTLSVersion)
-				require.Equal(t, []uint16{tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256}, c.TLSPolicy.TLSCfg.CipherSuites)
+				require.Nil(t, c.TLSPolicy.TLSCfg.CipherSuites)
 				require.Equal(t, []tls.CurveID{
 					tls.X25519,
 					tls.CurveP256,
@@ -1481,10 +1481,7 @@ plugins {}
 	require.True(t, sc.TLSPolicy.RequirePQKEM)
 	require.NotNil(t, sc.TLSPolicy.TLSCfg)
 	require.Equal(t, uint16(tls.VersionTLS13), sc.TLSPolicy.TLSCfg.MinTLSVersion)
-	require.Equal(t, []uint16{
-		tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
-		tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
-	}, sc.TLSPolicy.TLSCfg.CipherSuites)
+	require.Nil(t, sc.TLSPolicy.TLSCfg.CipherSuites)
 	require.Equal(t, []tls.CurveID{tls.X25519MLKEM768, tls.X25519, tls.CurveP256}, sc.TLSPolicy.TLSCfg.CurvePreferences)
 }
 

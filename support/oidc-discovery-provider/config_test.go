@@ -147,14 +147,11 @@ serving_cert_file {
 	}, c.TLSConfig.CipherSuites)
 	require.Equal(t, []string{"X25519MLKEM768", "X25519", "secp256r1"}, c.TLSConfig.CurvePreferences)
 
-	policy, err := tlspolicy.NewPolicy(false, c.TLSConfig)
+	policy, err := tlspolicy.NewPolicy(false, c.TLSConfig, nil)
 	require.NoError(t, err)
 	require.NotNil(t, policy.TLSCfg)
 	require.Equal(t, uint16(tls.VersionTLS13), policy.TLSCfg.MinTLSVersion)
-	require.Equal(t, []uint16{
-		tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
-		tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
-	}, policy.TLSCfg.CipherSuites)
+	require.Nil(t, policy.TLSCfg.CipherSuites)
 	require.Equal(t, []tls.CurveID{tls.X25519MLKEM768, tls.X25519, tls.CurveP256}, policy.TLSCfg.CurvePreferences)
 }
 
@@ -162,7 +159,7 @@ func TestApplyTLSPolicyWithInvalidServerTLSConfig(t *testing.T) {
 	t.Run("invalid config fails at startup", func(t *testing.T) {
 		_, err := tlspolicy.NewPolicy(false, &tlspolicy.TLSConfig{
 			MinTLSVersion: "not-a-version",
-		})
+		}, nil)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "invalid minTLSVersion")
 	})

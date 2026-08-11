@@ -358,13 +358,6 @@ func ParseConfig(hclConfig string) (_ *Config, err error) {
 		fmt.Printf("Warning: The jwt_issuer configuration will also affect the jwks_uri behavior when jwks_url is not set. This behaviour will be changed in 1.13.0.")
 	}
 
-	if c.TLSConfig != nil {
-		_, err = tlspolicy.ParseTLSConfig(c.TLSConfig)
-		if err != nil {
-			return nil, fmt.Errorf("invalid TLS config: %w", err)
-		}
-	}
-
 	return c, nil
 }
 

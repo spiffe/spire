@@ -54,7 +54,7 @@ func TestBrokerListenerWithTLSPolicy(t *testing.T) {
 			"X25519MLKEM768",
 			"secp256r1",
 		},
-	})
+	}, nil)
 	require.NoError(t, err)
 
 	tlsConfig, err := brokerListenerTLSConfig(
@@ -65,14 +65,14 @@ func TestBrokerListenerWithTLSPolicy(t *testing.T) {
 	)
 	require.NoError(t, err)
 	require.Equal(t, uint16(tls.VersionTLS13), tlsConfig.MinVersion)
-	require.NotEmpty(t, tlsConfig.CipherSuites)
+	require.Empty(t, tlsConfig.CipherSuites)
 	require.Equal(t, []tls.CurveID{tls.X25519MLKEM768, tls.CurveP256}, tlsConfig.CurvePreferences)
 }
 
 func TestBrokerListenerWithInvalidTLSPolicy(t *testing.T) {
 	_, err := tlspolicy.NewPolicy(false, &tlspolicy.TLSConfig{
 		MinTLSVersion: "not-a-version",
-	})
+	}, nil)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "invalid minTLSVersion")
 }

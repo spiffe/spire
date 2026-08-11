@@ -11,7 +11,7 @@ import (
 
 func mustNewPolicy(t *testing.T, requirePQKEM bool, cfg *TLSConfig) Policy {
 	t.Helper()
-	p, err := NewPolicy(requirePQKEM, cfg)
+	p, err := NewPolicy(requirePQKEM, cfg, hclog.NewNullLogger())
 	require.NoError(t, err)
 	return p
 }
@@ -52,20 +52,6 @@ func TestParseTLSConfigValid(t *testing.T) {
 			wantMin: tls.VersionTLS13,
 		},
 		{
-			name: "minTLSVersion VersionTLS10 floored to TLS 1.2",
-			in: &TLSConfig{
-				MinTLSVersion: "VersionTLS10",
-			},
-			wantMin: tls.VersionTLS12,
-		},
-		{
-			name: "minTLSVersion VersionTLS11 floored to TLS 1.2",
-			in: &TLSConfig{
-				MinTLSVersion: "VersionTLS11",
-			},
-			wantMin: tls.VersionTLS12,
-		},
-		{
 			name: "cipherSuites only",
 			in: &TLSConfig{
 				CipherSuites: []string{
@@ -73,6 +59,7 @@ func TestParseTLSConfigValid(t *testing.T) {
 					"TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384",
 				},
 			},
+			wantMin:    tls.VersionTLS12,
 			wantCipher: []uint16{ecdheRSA, ecdheECDSA},
 		},
 		{
@@ -80,6 +67,7 @@ func TestParseTLSConfigValid(t *testing.T) {
 			in: &TLSConfig{
 				CipherSuites: []string{"TLS_ECDHE_RSA_WITH_RC4_128_SHA"},
 			},
+			wantMin: tls.VersionTLS12,
 		},
 		{
 			name: "mixed secure and insecure cipherSuites",
@@ -89,6 +77,7 @@ func TestParseTLSConfigValid(t *testing.T) {
 					"TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
 				},
 			},
+			wantMin:    tls.VersionTLS12,
 			wantCipher: []uint16{ecdheRSA},
 		},
 		{
@@ -105,6 +94,7 @@ func TestParseTLSConfigValid(t *testing.T) {
 				CipherSuites:     []string{"TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"},
 				CurvePreferences: []string{"X25519", "secp256r1"},
 			},
+			wantMin:    tls.VersionTLS12,
 			wantCipher: []uint16{ecdheRSA},
 			wantCurves: []tls.CurveID{tls.X25519, tls.CurveP256},
 		},
@@ -190,6 +180,7 @@ func TestParseTLSConfigValid(t *testing.T) {
 			in: &TLSConfig{
 				CurvePreferences: []string{fmt.Sprintf("%d", tls.X25519)},
 			},
+			wantMin:    tls.VersionTLS12,
 			wantCurves: []tls.CurveID{tls.X25519},
 		},
 		{
@@ -214,6 +205,7 @@ func TestParseTLSConfigValid(t *testing.T) {
 			in: &TLSConfig{
 				CurvePreferences: []string{"", " X25519 ", " secp256r1"},
 			},
+			wantMin:    tls.VersionTLS12,
 			wantCurves: []tls.CurveID{tls.X25519, tls.CurveP256},
 		},
 		{
@@ -221,6 +213,7 @@ func TestParseTLSConfigValid(t *testing.T) {
 			in: &TLSConfig{
 				CurvePreferences: []string{"", " "},
 			},
+			wantMin: tls.VersionTLS12,
 		},
 		{
 			name: "curve name aliases are case insensitive",
@@ -279,6 +272,13 @@ func TestParseTLSConfigInvalid(t *testing.T) {
 				MinTLSVersion: "VersionTLS99",
 			},
 			errPart: "invalid minTLSVersion",
+		},
+		{
+			name: "minTLSVersion below VersionTLS12",
+			in: &TLSConfig{
+				MinTLSVersion: "VersionTLS10",
+			},
+			errPart: "below the minimum supported version VersionTLS12",
 		},
 		{
 			name: "unknown cipherSuite",
@@ -435,7 +435,7 @@ func TestApplyPolicy(t *testing.T) {
 
 func TestApplyPolicyNilConfig(t *testing.T) {
 	tlsConfig := &tls.Config{MinVersion: tls.VersionTLS12}
-	policy, err := NewPolicy(false, nil)
+	policy, err := NewPolicy(false, nil, hclog.NewNullLogger())
 	require.NoError(t, err)
 	err = ApplyPolicy(tlsConfig, policy)
 	require.NoError(t, err)
@@ -507,7 +507,7 @@ func TestApplyPolicyConfigSkippedForClient(t *testing.T) {
 }
 
 func TestNewPolicyReturnsZeroPolicyOnError(t *testing.T) {
-	policy, err := NewPolicy(false, &TLSConfig{CurvePreferences: []string{"X25519MLKEM768"}})
+	policy, err := NewPolicy(false, &TLSConfig{CurvePreferences: []string{"X25519MLKEM768"}}, hclog.NewNullLogger())
 	require.Error(t, err)
 	require.False(t, policy.RequirePQKEM)
 	require.Nil(t, policy.TLSCfg)
