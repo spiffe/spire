@@ -181,7 +181,8 @@ type HCLConfig struct {
 	// completed jobs) have no running containers and are never the target of
 	// workload attestation, so excluding them reduces the plugin's memory
 	// footprint on nodes that accumulate large numbers of terminated pods.
-	ExcludeCompletedPods bool `hcl:"exclude_completed_pods"`
+	// Defaults to true if unset.
+	ExcludeCompletedPods *bool `hcl:"exclude_completed_pods"`
 
 	// UseNewContainerLocator, if true, uses the new container locator
 	// mechanism instead of the legacy cgroup matchers. Defaults to true if
@@ -368,7 +369,7 @@ func (p *Plugin) buildConfig(coreConfig catalog.CoreConfig, hclText string, stat
 		NodeName:                   nodeName,
 		ReloadInterval:             reloadInterval,
 		DisableContainerSelectors:  newConfig.DisableContainerSelectors,
-		ExcludeCompletedPods:       newConfig.ExcludeCompletedPods,
+		ExcludeCompletedPods:       newConfig.ExcludeCompletedPods == nil || *newConfig.ExcludeCompletedPods,
 		EnableNamespaceLabels:      newConfig.EnableNamespaceLabels,
 		ContainerHelper:            containerHelper,
 		sigstoreConfig:             sigstoreConfig,

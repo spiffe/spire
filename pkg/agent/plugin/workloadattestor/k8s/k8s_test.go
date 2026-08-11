@@ -277,44 +277,46 @@ func (s *Suite) TestAttestPodListCache() {
 	s.Require().Equal(0, s.podListResponseCount())
 }
 
-func (s *Suite) TestAttestFailedPodTrackedByDefault() {
-	// By default a pod in the Failed phase is still tracked, so a workload
-	// whose container is present in that pod continues to attest normally.
+func (s *Suite) TestAttestExcludeCompletedPodsFailedByDefault() {
+	// exclude_completed_pods defaults to true, so a Failed pod is dropped from
+	// the kubelet pod-list cache, its container can no longer be found, and
+	// attestation fails after exhausting the poll attempts.
 	s.startInsecureKubelet()
 	p := s.loadInsecurePlugin()
+	s.addGetContainerResponsePidInPod()
+	s.requireAttestExcludedAfterRetry(p, podListFailedFilePath)
+}
+
+func (s *Suite) TestAttestExcludeCompletedPodsSucceededByDefault() {
+	// exclude_completed_pods defaults to true, so a Succeeded pod is dropped
+	// from the kubelet pod-list cache, its container can no longer be found,
+	// and attestation fails after exhausting the poll attempts.
+	s.startInsecureKubelet()
+	p := s.loadInsecurePlugin()
+	s.addGetContainerResponsePidInPod()
+	s.requireAttestExcludedAfterRetry(p, podListSucceededFilePath)
+}
+
+func (s *Suite) TestAttestTrackFailedPodWhenExcludeDisabled() {
+	// With exclude_completed_pods = false, a Failed pod is still tracked, so a
+	// workload whose container is present in that pod continues to attest
+	// normally.
+	s.startInsecureKubelet()
+	p := s.loadInsecurePluginWithExtra("exclude_completed_pods = false")
 	s.addPodListResponse(podListFailedFilePath)
 	s.addGetContainerResponsePidInPod()
 	s.requireAttestSuccess(p, testPodAndContainerSelectors)
 }
 
-func (s *Suite) TestAttestSucceededPodTrackedByDefault() {
-	// By default a pod in the Succeeded phase is still tracked, so a workload
-	// whose container is present in that pod continues to attest normally.
+func (s *Suite) TestAttestTrackSucceededPodWhenExcludeDisabled() {
+	// With exclude_completed_pods = false, a Succeeded pod is still tracked, so
+	// a workload whose container is present in that pod continues to attest
+	// normally.
 	s.startInsecureKubelet()
-	p := s.loadInsecurePlugin()
+	p := s.loadInsecurePluginWithExtra("exclude_completed_pods = false")
 	s.addPodListResponse(podListSucceededFilePath)
 	s.addGetContainerResponsePidInPod()
 	s.requireAttestSuccess(p, testPodAndContainerSelectors)
-}
-
-func (s *Suite) TestAttestExcludeCompletedPodsFailed() {
-	// With exclude_completed_pods enabled, a Failed pod is dropped from the
-	// kubelet pod-list cache, so its container can no longer be found and
-	// attestation fails after exhausting the poll attempts.
-	s.startInsecureKubelet()
-	p := s.loadInsecurePluginWithExtra("exclude_completed_pods = true")
-	s.addGetContainerResponsePidInPod()
-	s.requireAttestExcludedAfterRetry(p, podListFailedFilePath)
-}
-
-func (s *Suite) TestAttestExcludeCompletedPodsSucceeded() {
-	// With exclude_completed_pods enabled, a Succeeded pod is dropped from the
-	// kubelet pod-list cache, so its container can no longer be found and
-	// attestation fails after exhausting the poll attempts.
-	s.startInsecureKubelet()
-	p := s.loadInsecurePluginWithExtra("exclude_completed_pods = true")
-	s.addGetContainerResponsePidInPod()
-	s.requireAttestExcludedAfterRetry(p, podListSucceededFilePath)
 }
 
 // requireAttestExcludedAfterRetry serves the given pod-list fixture on every
