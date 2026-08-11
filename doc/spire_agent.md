@@ -391,6 +391,18 @@ Attaches to the workload API and watches for X509-SVID updates, printing details
 |---------------|------------------------------------|----------------------------------|
 | `-socketPath` | Path to the SPIRE Agent API socket | /tmp/spire-agent/public/api.sock |
 
+### `spire-agent debug getinfo`
+
+Prints debug information about the agent, including uptime, last successful
+sync time, cached SVID counts, and the agent's own SVID chain. This command
+requires the Agent Admin API to be enabled (e.g., via `admin_socket_path` on
+Unix or `admin_named_pipe_name` on Windows).
+
+| Command       | Action                                    | Default                             |
+|:--------------|:------------------------------------------|:------------------------------------|
+| `-output`     | Desired output format (`pretty`, `json`)  | `pretty`                            |
+| `-socketPath` | Path to the SPIRE Agent admin API socket  | /tmp/spire-agent/private/admin.sock |
+
 ### `spire-agent healthcheck`
 
 Checks SPIRE agent's health.
