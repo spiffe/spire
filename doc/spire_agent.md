@@ -81,11 +81,11 @@ This may be useful for templating configuration files, for example across differ
 | `x509_svid_cache_max_size`        | Soft limit of max number of X509-SVIDs that would be stored in LRU cache                                                                                                                                                                          | 1000                             |
 | `jwt_svid_cache_max_size`         | Hard limit of max number of JWT-SVIDs that would be stored in LRU cache                                                                                                                                                                           | 1000                             |
 
-| tls_config          | Description                                                                                                  | Default |
-|:-------------------:|:------------------------------------------------------------------------------------------------------------:|:-------:|
-| `min_tls_version`   | Minimum TLS version for terminating agent listeners (e.g. `VersionTLS12`, `VersionTLS13`). Values below `VersionTLS12` are rejected at startup. When omitted, defaults to TLS 1.2. | TLS 1.2 when block is present |
-| `cipher_suites`     | Allowed TLS 1.2 cipher suites for terminating listeners. Ignored when `min_tls_version` is `VersionTLS13` or higher (Go negotiates TLS 1.3 ciphers). Insecure suite names are filtered with a warning. | Go defaults if all filtered |
-| `curve_preferences` | Preferred key exchange curves (e.g. `X25519MLKEM768`, `X25519`, `secp256r1`). When minimum TLS is 1.2, at least one classical curve is required. |         |
+| tls_config         | Description                                                                                                                                                                                           | Default                      |
+|--------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------------------|
+| `min_tls_version`  | Minimum TLS version for terminating agent listeners (e.g. `VersionTLS12`, `VersionTLS13`). Values below `VersionTLS12` are rejected at startup. When omitted, defaults to TLS 1.2.                    | TLS 1.2 when block is present|
+| `cipher_suites`    | Allowed TLS 1.2 cipher suites for terminating listeners. Ignored when `min_tls_version` is `VersionTLS13` or higher (Go negotiates TLS 1.3 ciphers). Insecure suite names are filtered with a warning.| Go defaults if all filtered  |
+| `curve_preferences`| Preferred key exchange curves (e.g. `X25519MLKEM768`, `X25519`, `secp256r1`). When minimum TLS is 1.2, at least one classical curve is required.                                                      |                              |
 
 `tls_config` is a top-level `agent { ... }` block (not experimental). It is parsed once at startup; invalid values prevent the agent from starting. Settings apply only to **inbound TLS listeners** — SPIFFE Broker API and Prometheus HTTPS (`ApplyPolicy` with `WithServerTLSConfig()`). They are **not** applied to the outbound mTLS gRPC client to the SPIRE server.
 

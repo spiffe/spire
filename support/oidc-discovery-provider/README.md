@@ -113,11 +113,11 @@ Not applied to `insecure_addr`, `listen_socket_path`, named pipe modes, or any
 outbound TLS client connections. Parsed once at startup; invalid values prevent
 the provider from starting.
 
-| Key                 | Type    | Required? | Description                                | Default |
-| ------------------- | ------- | --------- | ------------------------------------------ | ------- |
-| `min_tls_version`   | string  | optional  | Minimum TLS version (e.g. `VersionTLS12`, `VersionTLS13`). Values below `VersionTLS12` are rejected. When omitted, defaults to TLS 1.2. | TLS 1.2 when block is present |
-| `cipher_suites`     | strings | optional  | Allowed TLS 1.2 cipher suites. Ignored when `min_tls_version` is `VersionTLS13` or higher. Insecure suite names are filtered with a warning. | Go defaults if all filtered |
-| `curve_preferences` | strings | optional  | Preferred key exchange curves. When minimum TLS is 1.2, at least one classical curve is required. |         |
+| Key                | Type   | Required?| Description                                                                                                                                 | Default                      |
+|--------------------|--------|----------|---------------------------------------------------------------------------------------------------------------------------------------------|------------------------------|
+| `min_tls_version`  | string | optional | Minimum TLS version (e.g. `VersionTLS12`, `VersionTLS13`). Values below `VersionTLS12` are rejected. When omitted, defaults to TLS 1.2.     | TLS 1.2 when block is present|
+| `cipher_suites`    | strings| optional | Allowed TLS 1.2 cipher suites. Ignored when `min_tls_version` is `VersionTLS13` or higher. Insecure suite names are filtered with a warning.| Go defaults if all filtered  |
+| `curve_preferences`| strings| optional | Preferred key exchange curves. When minimum TLS is 1.2, at least one classical curve is required.                                           |                              |
 
 #### Server API Section
 

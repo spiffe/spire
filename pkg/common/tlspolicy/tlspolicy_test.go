@@ -509,9 +509,9 @@ func TestApplyPolicyConfigSkippedForClient(t *testing.T) {
 
 func TestApplyPolicyEmptyCipherAndCurveAreNil(t *testing.T) {
 	tests := []struct {
-		name   string
-		cfg    *TLSConfig
-		input  *tls.Config
+		name  string
+		cfg   *TLSConfig
+		input *tls.Config
 	}{
 		{
 			name:  "nil tls_config policy",
