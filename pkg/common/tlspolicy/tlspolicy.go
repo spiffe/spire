@@ -109,6 +109,8 @@ func (p Policy) applyServerTLSConfig(cfg *tls.Config) {
 	if p.TLSCfg == nil {
 		// Default to TLS 1.2
 		cfg.MinVersion = tls.VersionTLS12
+		cfg.CipherSuites = nil
+		cfg.CurvePreferences = nil
 		return
 	}
 
@@ -117,9 +119,13 @@ func (p Policy) applyServerTLSConfig(cfg *tls.Config) {
 	}
 	if len(p.TLSCfg.CipherSuites) > 0 {
 		cfg.CipherSuites = append([]uint16(nil), p.TLSCfg.CipherSuites...)
+	} else {
+		cfg.CipherSuites = nil
 	}
 	if len(p.TLSCfg.CurvePreferences) > 0 {
 		cfg.CurvePreferences = append([]tls.CurveID(nil), p.TLSCfg.CurvePreferences...)
+	} else {
+		cfg.CurvePreferences = nil
 	}
 }
 
