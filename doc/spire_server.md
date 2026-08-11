@@ -94,11 +94,13 @@ This may be useful for templating configuration files, for example across differ
 
 | tls_config          | Description                                                                                                  | Default |
 |:-------------------:|:------------------------------------------------------------------------------------------------------------:|:-------:|
-| `min_tls_version`   | Minimum TLS version for terminating server listeners (e.g. `VersionTLS13`).                                  |         |
-| `cipher_suites`     | Allowed TLS 1.2 cipher suites for terminating listeners. Has limited effect when minimum TLS version is 1.3. |         |
-| `curve_preferences` | Preferred key exchange curves (e.g. `X25519MLKEM768`).                                                       |         |
+| `min_tls_version`   | Minimum TLS version for terminating server listeners (e.g. `VersionTLS12`, `VersionTLS13`). Values below `VersionTLS12` are rejected at startup. When omitted, defaults to TLS 1.2. | TLS 1.2 when block is present |
+| `cipher_suites`     | Allowed TLS 1.2 cipher suites for terminating listeners. Ignored when `min_tls_version` is `VersionTLS13` or higher (Go negotiates TLS 1.3 ciphers). Insecure suite names are filtered with a warning. | Go defaults if all filtered |
+| `curve_preferences` | Preferred key exchange curves (e.g. `X25519MLKEM768`, `X25519`, `secp256r1`). When minimum TLS is 1.2, at least one classical curve is required. |         |
 
-`tls_config` is a top-level `server { ... }` block (not experimental). Settings apply only to **inbound TLS listeners** (`ApplyPolicy` with `WithServerTLSConfig()`). They are **not** applied to outbound TLS clients.
+`tls_config` is a top-level `server { ... }` block (not experimental). It is parsed once at startup; invalid values prevent the server from starting. Settings apply only to **inbound TLS listeners** — gRPC TCP API, federation bundle HTTPS endpoint, and Prometheus HTTPS (`ApplyPolicy` with `WithServerTLSConfig()`). They are **not** applied to outbound TLS clients.
+
+When `experimental.require_pq_kem` is enabled, it overrides `min_tls_version` and `curve_preferences` on connections where the policy is applied.
 
 | ca_subject                  | Description                    | Default        |
 |:----------------------------|--------------------------------|----------------|
