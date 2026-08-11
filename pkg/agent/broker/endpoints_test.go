@@ -3,13 +3,10 @@ package broker
 import (
 	"context"
 	"crypto/tls"
-	"fmt"
 	"net"
 	"testing"
 
-	"github.com/spiffe/go-spiffe/v2/bundle/x509bundle"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
-	"github.com/spiffe/go-spiffe/v2/spiffetls/tlsconfig"
 	"github.com/spiffe/go-spiffe/v2/svid/x509svid"
 	brokerapi "github.com/spiffe/spire/pkg/agent/broker/api"
 	"github.com/spiffe/spire/pkg/common/api/middleware"
@@ -30,17 +27,6 @@ func (s staticSVIDSource) GetX509SVID() (*x509svid.SVID, error) {
 	return s.svid, nil
 }
 
-// brokerListenerTLSConfig mirrors the TLS setup in Endpoints.ListenAndServe so
-// profile application can be tested without duplicating production helpers.
-func brokerListenerTLSConfig(svidSource x509svid.Source, bundleSource x509bundle.Source, brokerIDs []spiffeid.ID, policy tlspolicy.Policy) (*tls.Config, error) {
-	tlsConfig := tlsconfig.MTLSServerConfig(svidSource, bundleSource, tlsconfig.AuthorizeOneOf(brokerIDs...))
-	tlsConfig.SessionTicketsDisabled = true
-	if err := tlspolicy.ApplyPolicy(tlsConfig, policy, tlspolicy.WithServerTLSConfig()); err != nil {
-		return nil, fmt.Errorf("failed to apply TLS policy: %w", err)
-	}
-	return tlsConfig, nil
-}
-
 func TestBrokerListenerWithTLSPolicy(t *testing.T) {
 	td := spiffeid.RequireTrustDomainFromString("example.org")
 	ca := testca.New(t, td)
@@ -57,12 +43,14 @@ func TestBrokerListenerWithTLSPolicy(t *testing.T) {
 	}, nil)
 	require.NoError(t, err)
 
-	tlsConfig, err := brokerListenerTLSConfig(
-		staticSVIDSource{svid: agentSVID},
-		ca.X509Bundle(),
-		[]spiffeid.ID{brokerID},
-		policy,
-	)
+	tlsConfig, err := buildListenerTLSConfig(&Config{
+		SVIDSource:   staticSVIDSource{svid: agentSVID},
+		BundleSource: ca.X509Bundle(),
+		Brokers: []Broker{
+			{ID: brokerID.String()},
+		},
+		TLSPolicy: policy,
+	})
 	require.NoError(t, err)
 	require.Equal(t, uint16(tls.VersionTLS13), tlsConfig.MinVersion)
 	require.Empty(t, tlsConfig.CipherSuites)

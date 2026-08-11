@@ -36,17 +36,6 @@ const (
 	serverCertLifetime = time.Hour
 )
 
-// bundleListenerTLSConfig mirrors the TLS setup in Server.ListenAndServe so
-// profile application can be tested without production helpers.
-func bundleListenerTLSConfig(serverAuth ServerAuth, policy tlspolicy.Policy) (*tls.Config, error) {
-	tlsConfig := serverAuth.GetTLSConfig()
-	tlsConfig.MinVersion = tls.VersionTLS12
-	if err := tlspolicy.ApplyPolicy(tlsConfig, policy, tlspolicy.WithServerTLSConfig()); err != nil {
-		return nil, err
-	}
-	return tlsConfig, nil
-}
-
 func TestBundleListenerTLSPolicy(t *testing.T) {
 	serverCert, serverKey := createServerCertificate(t)
 	auth := testSPIFFEAuth(serverCert, serverKey)
@@ -62,7 +51,7 @@ func TestBundleListenerTLSPolicy(t *testing.T) {
 		},
 	}, nil)
 	require.NoError(t, err)
-	tlsConfig, err := bundleListenerTLSConfig(auth, policy)
+	tlsConfig, err := buildListenerTLSConfig(&Server{c: ServerConfig{ServerAuth: auth, TLSPolicy: policy}})
 	require.NoError(t, err)
 	require.Equal(t, uint16(tls.VersionTLS13), tlsConfig.MinVersion)
 	require.Empty(t, tlsConfig.CipherSuites)
