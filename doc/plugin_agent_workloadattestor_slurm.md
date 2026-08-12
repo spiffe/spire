@@ -17,15 +17,15 @@ This plugin does not accept any configuration options.
 
 General selectors:
 
-| Selector       | Value                                                                                   |
-| -------------- | --------------------------------------------------------------------------------------- |
-| `slurm:job_id` | Numeric Slurm job id when `CgroupJobIdPaths=yes` is set (e.g. `slurm:job_id:3385`).     |
-| `slurm:sluid`  | Slurm SLUID of the job; the default job identifier (e.g. `slurm:sluid:s5K1KKYAYG5D00`). |
-| `slurm:step`   | Job step: a number or `batch`/`extern`/`interactive` (e.g. `slurm:step:batch`).         |
+| Selector       | Value                                                                                                               |
+| -------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `slurm:job_id` | Numeric Slurm job id when `CgroupJobIdPaths=yes` is set (e.g. `slurm:job_id:3385`). Only slurm version < 26.05      |
+| `slurm:sluid`  | Slurm SLUID of the job; the default job identifier (e.g. `slurm:sluid:s5K1KKYAYG5D00`). Only slurm verison >= 26.05 |
+| `slurm:step`   | Job step: a number or `batch`/`extern`/`interactive` (e.g. `slurm:step:batch`).                                     |
 
 Exactly one of `slurm:job_id` or `slurm:sluid` is produced for a given workload, depending
-on how Slurm is configured (SLUIDs are the default; numeric job ids require
-`CgroupJobIdPaths=yes`). A `slurm:step` selector is always produced alongside it.
+on Slurm version and how Slurm is configured (SLUIDs are the default starting with 26.05; numeric job ids require
+`CgroupJobIdPaths=yes` or older Slurm). A `slurm:step` selector is always produced alongside it.
 
 A sample configuration:
 
@@ -38,3 +38,7 @@ A sample configuration:
 
 This plugin is only supported on Unix systems and requires that Slurm is configured to use
 the cgroup/v2 plugin (`ProctrackType=proctrack/cgroup` with cgroup v2).
+
+## Containerized deployment
+
+When the agent runs in a container, it needs to share the host PID and cgroup namespaces.
