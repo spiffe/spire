@@ -18,8 +18,10 @@ func SetEntriesMapSize(m telemetry.Metrics, recordMapSize int) {
 	m.SetGauge([]string{telemetry.RecordMapSize}, float32(recordMapSize))
 }
 
-func SetSVIDMapSize(m telemetry.Metrics, svidMapSize int) {
-	m.SetGauge([]string{telemetry.SVIDMapSize}, float32(svidMapSize))
+func SetSVIDMapSize(m telemetry.Metrics, svidType string, svidMapSize int) {
+	m.SetGaugeWithLabels([]string{telemetry.SVIDMapSize}, float32(svidMapSize), []telemetry.Label{
+		{Name: telemetry.SVIDType, Value: svidType},
+	})
 }
 
 func SetJWTSVIDCacheSize(m telemetry.Metrics, cacheSize int) {

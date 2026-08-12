@@ -66,6 +66,7 @@ type X509SVIDLRUCache struct {
 
 func NewX509LRUCache(config LRUCacheConfig[X509SVID, X509WorkloadUpdate]) *X509SVIDLRUCache {
 	config.BuildUpdate = buildX509WorkloadUpdate
+	config.SVIDType = "X509"
 	if config.ShouldPrefetch == nil {
 		config.ShouldPrefetch = func(entry *common.RegistrationEntry) bool {
 			return entry.GetAdditionalAttributes() == nil || !entry.AdditionalAttributes.DisableX509SvidPrefetch

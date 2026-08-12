@@ -56,6 +56,9 @@ type LRUCacheConfig[SVID CachedSVID, Update any] struct {
 	SvidCacheMaxSize int
 	Clk              clock.Clock
 
+	// SVIDType identifies the type of SVID stored in the cache.
+	SVIDType string
+
 	// BuildUpdate constructs the typed update from matching records, SVIDs, and bundles.
 	BuildUpdate func(cache *LRUCache[SVID, Update], set selectorSet) *Update
 
@@ -147,6 +150,9 @@ type LRUCache[SVID CachedSVID, Update any] struct {
 	// svidCacheMaxSize is a soft limit of max number of SVIDs that would be stored in cache
 	svidCacheMaxSize int
 
+	// svidType identifies the type of SVID stored in the cache
+	svidType string
+
 	subscribeBackoffFn func() backoff.BackOff
 
 	// buildUpdate constructs the typed update payload for subscribers
@@ -174,6 +180,7 @@ func NewLRUCache[SVID CachedSVID, Update any](config LRUCacheConfig[SVID, Update
 		},
 		svids:            make(map[string]*SVID),
 		svidCacheMaxSize: maxSize,
+		svidType:         config.SVIDType,
 		clk:              config.Clk,
 		subscribeBackoffFn: func() backoff.BackOff {
 			return backoff.NewBackoff(config.Clk, SVIDSyncInterval)
@@ -464,7 +471,7 @@ func (c *LRUCache[SVID, Update]) UpdateEntries(update *UpdateEntries, checkSVID 
 // UpdateSVIDs updates SVIDs in the cache for the given entries.
 func (c *LRUCache[SVID, Update]) UpdateSVIDs(svids map[string]*SVID) {
 	c.mu.Lock()
-	defer func() { agentmetrics.SetSVIDMapSize(c.metrics, c.CountSVIDs()) }()
+	defer func() { agentmetrics.SetSVIDMapSize(c.metrics, c.svidType, c.CountSVIDs()) }()
 	defer c.mu.Unlock()
 
 	// Allocate a set of selectors that
