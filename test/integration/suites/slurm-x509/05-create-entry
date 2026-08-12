@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# This suite is GitHub-Actions-only; skip (with success) elsewhere.
+source "${RUNDIR}/skip-unless-github-actions.sh"
+
 JOBID=$(cat job.id)
 
 log-debug "creating registration entry for slurm job ${JOBID}..."

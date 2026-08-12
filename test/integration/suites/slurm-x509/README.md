@@ -24,3 +24,12 @@ The test submits a batch job that blocks retrying `spire-agent api fetch x509` u
 issued. Meanwhile the test reads the job id from `squeue`, creates a registration entry with
 `slurm:job_id:<jobid>` + `slurm:step:batch` selectors, and then verifies the job fetched its
 SVID.
+
+## GitHub Actions only
+
+Because it installs Slurm/munge on the host, starts host systemd services, and manipulates the
+host cgroup tree, this suite is intended to run **only on the ephemeral GitHub Actions runners**
+used by the SPIRE integration job. Every step (and the teardown) sources
+`skip-unless-github-actions.sh`, which — when `GITHUB_ACTIONS` is not `true` — prints a notice
+and exits with success. Running the suite on a developer workstation is therefore a safe no-op
+(it does not modify the host); it is only actually exercised in CI.

@@ -2,6 +2,9 @@
 
 set -e
 
+# This suite is GitHub-Actions-only; skip (with success) elsewhere.
+source "${RUNDIR}/skip-unless-github-actions.sh"
+
 # --- SPIRE x509pop node attestation material -------------------------------
 "${ROOTDIR}/setup/x509pop/setup.sh" conf/server conf/agent
 

@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# This suite is GitHub-Actions-only; skip (with success) elsewhere.
+source "${RUNDIR}/skip-unless-github-actions.sh"
+
 # Submit the blocking fetch job (runs as the current, unprivileged user).
 JOBID=$(sbatch --parsable conf/job/fetch-svid.sh)
 [ -n "${JOBID}" ] || fail-now "could not parse jobid from sbatch output"

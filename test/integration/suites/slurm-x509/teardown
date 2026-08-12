@@ -1,5 +1,9 @@
 #!/bin/bash
 
+# This suite is GitHub-Actions-only; skip (with success) elsewhere. Nothing was
+# started locally, so there is nothing to tear down.
+source "${RUNDIR}/skip-unless-github-actions.sh"
+
 if [ -z "${SUCCESS}" ]; then
     docker compose logs || true
     sudo journalctl -u slurmd --no-pager 2>/dev/null | tail -n 200 || true

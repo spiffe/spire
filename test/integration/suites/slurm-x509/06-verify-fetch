@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# This suite is GitHub-Actions-only; skip (with success) elsewhere.
+source "${RUNDIR}/skip-unless-github-actions.sh"
+
 JOBID=$(cat job.id)
 
 # Wait for the job to finish (it exits 0 as soon as the fetch succeeds).

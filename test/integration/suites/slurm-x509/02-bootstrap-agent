@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# This suite is GitHub-Actions-only; skip (with success) elsewhere.
+source "${RUNDIR}/skip-unless-github-actions.sh"
+
 log-debug "bootstrapping agent..."
 docker compose exec -T spire-server \
     /opt/spire/bin/spire-server bundle show > conf/agent/bootstrap.crt
