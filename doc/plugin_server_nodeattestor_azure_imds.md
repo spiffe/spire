@@ -277,3 +277,13 @@ The Azure IMDS attested document, which this attestor leverages to prove node me
 While many operators choose to configure their systems to block access to the IMDS attested document, the SPIRE project cannot guarantee this posture. To mitigate the associated risk, the `azure_imds` node attestor implements Trust On First Use (or TOFU) semantics. For any given node, attestation may occur only once. Subsequent attestation attempts will be rejected.
 
 It is still possible for non-agent code to complete node attestation before SPIRE Agent can, however this condition is easily and quickly detectable as SPIRE Agent will fail to start, and both SPIRE Agent and SPIRE Server will log the occurrence. Such cases should be investigated as possible security incidents.
+
+### Additional Root CAs
+
+Certificates supplied via `trust_bundle_path` become trust anchors for node attestation. They are added to the root CAs embedded in SPIRE, which remain trusted and cannot be removed or overridden through configuration.
+
+Any party able to issue certificates under one of these roots can produce an attested document that this attestor accepts. The Subject Alternative Name check compares against `allowed_metadata_domains` without binding to a particular issuer, so a certificate issued under an operator-supplied root carrying a SAN such as `metadata.azure.com` will pass. The subscription and tenant allowlists limit which tenants and subscriptions may be claimed, but within an allowed tenant the holder of such a key can attest as an arbitrary virtual machine.
+
+Configure this option only with root CAs you have verified are operated by Microsoft. Protect the bundle file accordingly, since write access to it is sufficient to introduce a new trust anchor.
+
+The bundle is read once, when the plugin is configured. Changes to the file do not take effect until the plugin is configured again, which normally means restarting SPIRE Server.
