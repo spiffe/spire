@@ -9,12 +9,13 @@ const (
 )
 
 type Config struct {
-	InsecureBootstrap     bool
-	TrustBundleFormat     string
-	TrustBundlePath       string
-	TrustBundleURL        string
-	TrustBundleUnixSocket string
-	TrustDomain           string
-	ServerAddress         string
-	ServerPort            int
+	InsecureBootstrap            bool
+	TrustBundleFormat            string
+	TrustBundlePath              string
+	TrustBundleURL               string
+	TrustBundleUnixSocket        string
+	TrustBundleSpiffeWorkloadAPI string
+	TrustDomain                  string
+	ServerAddress                string
+	ServerPort                   int
 }
