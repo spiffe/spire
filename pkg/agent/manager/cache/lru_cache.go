@@ -679,8 +679,8 @@ func (c *LRUCache[SVID, Update]) updateOrCreateRecord(newEntry *common.Registrat
 	return record, existingEntry
 }
 
-// Make a set of all the selectors being added
 func (c *LRUCache[SVID, Update]) diffSelectors(existingEntry, newEntry *common.RegistrationEntry, added, removed selectorSet) {
+	// Make a set of all the selectors being added
 	if newEntry != nil {
 		added.Merge(newEntry.Selectors...)
 	}
