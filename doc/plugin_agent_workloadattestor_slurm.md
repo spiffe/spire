@@ -17,11 +17,11 @@ This plugin does not accept any configuration options.
 
 General selectors:
 
-| Selector       | Value                                                                                                               |
-| -------------- | ------------------------------------------------------------------------------------------------------------------- |
-| `slurm:job_id` | Numeric Slurm job id when `CgroupJobIdPaths=yes` is set (e.g. `slurm:job_id:3385`). Only slurm version < 26.05      |
-| `slurm:sluid`  | Slurm SLUID of the job; the default job identifier (e.g. `slurm:sluid:s5K1KKYAYG5D00`). Only slurm verison >= 26.05 |
-| `slurm:step`   | Job step: a number or `batch`/`extern`/`interactive` (e.g. `slurm:step:batch`).                                     |
+| Selector       | Value                                                                                                                                          |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `slurm:job_id` | Numeric Slurm job id. Used when slurm version < 26.05 or when `CgroupJobIdPaths=yes` is set on slurm >= 26.05                                  |
+| `slurm:sluid`  | Slurm SLUID of the job; the default job identifier (e.g. `slurm:sluid:s5K1KKYAYG5D00`) when slurm version >= 26.05 and `CgroupJobIDPaths!=yes` |
+| `slurm:step`   | Job step: a number or `batch`/`extern`/`interactive` (e.g. `slurm:step:batch`).                                                                |
 
 Exactly one of `slurm:job_id` or `slurm:sluid` is produced for a given workload, depending
 on Slurm version and how Slurm is configured (SLUIDs are the default starting with 26.05; numeric job ids require
