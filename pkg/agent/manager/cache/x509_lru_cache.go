@@ -7,6 +7,8 @@ import (
 	"sort"
 	"time"
 
+	"github.com/andres-erbsen/clock"
+	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -64,18 +66,41 @@ type X509SVIDLRUCache struct {
 	taintedBatchProcessedCh chan struct{}
 }
 
-func NewX509LRUCache(config LRUCacheConfig[X509SVID, X509WorkloadUpdate]) *X509SVIDLRUCache {
-	config.BuildUpdate = buildX509WorkloadUpdate
-	config.SVIDType = "X509"
-	if config.ShouldPrefetch == nil {
-		config.ShouldPrefetch = func(entry *common.RegistrationEntry) bool {
+type X509LRUCacheConfig struct {
+	Log              logrus.FieldLogger
+	TrustDomain      spiffeid.TrustDomain
+	Bundle           *Bundle
+	Metrics          telemetry.Metrics
+	SvidCacheMaxSize int
+	Clk              clock.Clock
+
+	// ShouldPrefetch determines whether a given entry should be prefetched.
+	// If nil, entries are eligible for prefetch unless they disable it via
+	// AdditionalAttributes.
+	ShouldPrefetch func(*common.RegistrationEntry) bool
+}
+
+func NewX509LRUCache(config X509LRUCacheConfig) *X509SVIDLRUCache {
+	shouldPrefetch := config.ShouldPrefetch
+	if shouldPrefetch == nil {
+		shouldPrefetch = func(entry *common.RegistrationEntry) bool {
 			return entry.GetAdditionalAttributes() == nil || !entry.AdditionalAttributes.DisableX509SvidPrefetch
 		}
 	}
 	c := &X509SVIDLRUCache{
 		processingBatchSize: defaultProcessingBatchSize,
 	}
-	c.LRUCache = NewLRUCache(config)
+	c.LRUCache = NewLRUCache(LRUCacheConfig[X509SVID, X509WorkloadUpdate]{
+		Log:              config.Log,
+		TrustDomain:      config.TrustDomain,
+		Bundle:           config.Bundle,
+		Metrics:          config.Metrics,
+		SvidCacheMaxSize: config.SvidCacheMaxSize,
+		Clk:              config.Clk,
+		SVIDType:         "X509",
+		BuildUpdate:      buildX509WorkloadUpdate,
+		ShouldPrefetch:   shouldPrefetch,
+	})
 	return c
 }
 

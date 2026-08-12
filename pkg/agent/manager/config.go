@@ -73,7 +73,7 @@ func newManager(c *Config) *manager {
 	}
 
 	logger := c.Log.WithField(telemetry.SubsystemName, telemetry.CacheManager)
-	x509Cache := managerCache.NewX509LRUCache(managerCache.LRUCacheConfig[managerCache.X509SVID, managerCache.X509WorkloadUpdate]{
+	x509Cache := managerCache.NewX509LRUCache(managerCache.X509LRUCacheConfig{
 		Log:              logger,
 		TrustDomain:      c.TrustDomain,
 		Bundle:           c.Bundle,

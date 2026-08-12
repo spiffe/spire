@@ -1224,7 +1224,7 @@ func BenchmarkLRUCacheGlobalNotification(b *testing.B) {
 
 func newTestLRUCache(t testing.TB) *X509SVIDLRUCache {
 	log, _ := test.NewNullLogger()
-	return NewX509LRUCache(LRUCacheConfig[X509SVID, X509WorkloadUpdate]{
+	return NewX509LRUCache(X509LRUCacheConfig{
 		Log:         log,
 		TrustDomain: spiffeid.RequireTrustDomainFromString("domain.test"),
 		Bundle:      bundleV1,
@@ -1235,7 +1235,7 @@ func newTestLRUCache(t testing.TB) *X509SVIDLRUCache {
 
 func newTestLRUCacheWithConfig(svidCacheMaxSize int, clk clock.Clock) *X509SVIDLRUCache {
 	log, _ := test.NewNullLogger()
-	return NewX509LRUCache(LRUCacheConfig[X509SVID, X509WorkloadUpdate]{
+	return NewX509LRUCache(X509LRUCacheConfig{
 		Log:              log,
 		TrustDomain:      trustDomain1,
 		Bundle:           bundleV1,
