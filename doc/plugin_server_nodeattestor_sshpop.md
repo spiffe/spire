@@ -15,15 +15,15 @@ which is an unpadded url-safe base64 encoded sha256 hash of the certificate in o
 spiffe://<trust_domain>/spire/agent/sshpop/<fingerprint>
 ```
 
-| Configuration           | Description                                                                                                                    | Default                                 |
-|-------------------------|--------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------|
-| `cert_authorities`      | A list of trusted CAs in ssh `authorized_keys` format.                                                                         |                                         |
-| `cert_authorities_path` | A file that contains a list of trusted CAs in ssh `authorized_keys` format.                                                    |                                         |
-| `canonical_domain`      | A domain suffix for validating the hostname against the certificate's valid principals. See CanonicalDomains in ssh_config(5). |                                         |
-| `agent_path_template`   | A URL path portion format of Agent's SPIFFE ID. Describe in text/template format.                                              | `"{{ .PluginName}}/{{ .Fingerprint }}"` |
-| `verify_client_ip`      | If `true`, match peer IP to host-cert `source-address` when set (IPs/CIDRs). No-op if absent. Peer may be a load balancer.     | false                                   |
+| Configuration           | Description                                                                                                                                                                                                                                                                                       | Default                                 |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
+| `cert_authorities`      | A list of trusted CAs in ssh `authorized_keys` format.                                                                                                                                                                                                                                            |                                         |
+| `cert_authorities_path` | A file that contains a list of trusted CAs in ssh `authorized_keys` format.                                                                                                                                                                                                                       |                                         |
+| `canonical_domain`      | A domain suffix for validating the hostname against the certificate's valid principals. See CanonicalDomains in ssh_config(5).                                                                                                                                                                    |                                         |
+| `agent_path_template`   | A URL path portion format of Agent's SPIFFE ID. Describe in text/template format.                                                                                                                                                                                                                 | `"{{ .PluginName}}/{{ .Fingerprint }}"` |
+| `verify_client_ip`      | If `true`, validates the connecting peer's IP against the certificate's `source-address` critical option (IPs and/or CIDRs). Attestation fails if the option is absent or no entry matches. Reflects the immediate connecting peer, which may be a load balancer rather than the agent behind it. | false                                   |
 
-When `verify_client_ip` is enabled, only certificates that include the OpenSSH `source-address` critical option are checked. That option is commonly documented for user certificates; OpenSSH tooling can still place it on host certificates.
+When `verify_client_ip` is enabled, certificates must carry the OpenSSH `source-address` critical option; a certificate without it is rejected. That option is commonly documented for user certificates; OpenSSH tooling can still place it on host certificates.
 
 If both `cert_authorities` and `cert_authorities_path` are configured, the resulting set of authorized keys is the union of both sets.
 

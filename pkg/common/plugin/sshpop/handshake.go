@@ -157,14 +157,16 @@ func (s *ServerHandshake) VerifyAttestationData(data []byte, clientIP string) er
 }
 
 // verifyClientIPAgainstSourceAddress enforces the source-address critical option
-// when verify_client_ip is enabled. If the option is absent, attestation is unchanged.
+// when verify_client_ip is enabled. A certificate without the option is
+// rejected, so that enabling the option always means the client IP was
+// verified rather than silently verifying nothing.
 func (s *ServerHandshake) verifyClientIPAgainstSourceAddress(cert *ssh.Certificate, clientIPStr string) error {
 	if !s.s.verifyClientIP {
 		return nil
 	}
 	sourceAddrs, ok := cert.CriticalOptions[sourceAddressCriticalOption]
 	if !ok || sourceAddrs == "" {
-		return nil
+		return status.Errorf(codes.PermissionDenied, "certificate has no %q critical option", sourceAddressCriticalOption)
 	}
 	if clientIPStr == "" {
 		return status.Error(codes.Internal, "client IP not available for verification")

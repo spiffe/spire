@@ -6,7 +6,6 @@ import (
 	"crypto/rand"
 	"encoding/json"
 	"fmt"
-	"net"
 	"reflect"
 	"testing"
 
@@ -261,10 +260,11 @@ func TestVerifyClientIPAgainstSourceAddress(t *testing.T) {
 			expectCode:     codes.OK,
 		},
 		{
-			desc:           "flag on without source-address is a no-op",
+			desc:           "flag on rejects a certificate without source-address",
 			verifyClientIP: true,
-			clientIP:       "",
-			expectCode:     codes.OK,
+			clientIP:       "10.0.0.5",
+			expectCode:     codes.PermissionDenied,
+			expectMsg:      `certificate has no "source-address" critical option`,
 		},
 		{
 			desc:           "flag on with source-address requires client IP",
@@ -349,14 +349,6 @@ func TestVerifyClientIPAgainstSourceAddress(t *testing.T) {
 			spiretest.RequireGRPCStatusContains(t, err, tt.expectCode, tt.expectMsg)
 		})
 	}
-}
-
-func TestCheckSourceAddress(t *testing.T) {
-	require.NoError(t, checkSourceAddress(net.ParseIP("10.0.0.5"), "10.0.0.5"))
-	require.NoError(t, checkSourceAddress(net.ParseIP("10.0.0.5"), "10.0.0.0/24"))
-	require.NoError(t, checkSourceAddress(net.ParseIP("192.168.1.5"), "10.0.0.0/24,192.168.1.5"))
-	require.Error(t, checkSourceAddress(net.ParseIP("10.0.1.5"), "10.0.0.0/24"))
-	require.Error(t, checkSourceAddress(net.ParseIP("10.0.0.1"), "not-a-cidr"))
 }
 
 func TestIssueChallengeUniqueness(t *testing.T) {

@@ -4,6 +4,8 @@ import (
 	"context"
 	"sync"
 
+	"github.com/hashicorp/go-hclog"
+
 	nodeattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/nodeattestor/v1"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
@@ -11,7 +13,6 @@ import (
 	"github.com/spiffe/spire/pkg/common/pluginconf"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 )
 
@@ -19,8 +20,14 @@ type Plugin struct {
 	nodeattestorv1.UnsafeNodeAttestorServer
 	configv1.UnsafeConfigServer
 
+	log hclog.Logger
+
 	mu        sync.RWMutex
 	sshserver *sshpop.Server
+}
+
+func (p *Plugin) SetLogger(log hclog.Logger) {
+	p.log = log
 }
 
 func BuiltIn() catalog.BuiltIn {
@@ -57,7 +64,7 @@ func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 	}
 
 	handshaker := p.sshserver.NewHandshake()
-	if err := handshaker.VerifyAttestationData(payload, clientIPFromContext(stream.Context())); err != nil {
+	if err := handshaker.VerifyAttestationData(payload, nodeattestor.ClientIPFromContext(stream.Context(), p.log)); err != nil {
 		return err
 	}
 	challenge, err := handshaker.IssueChallenge()
@@ -117,12 +124,4 @@ func (p *Plugin) Validate(_ context.Context, req *configv1.ValidateRequest) (*co
 		Valid: err == nil,
 		Notes: notes,
 	}, nil
-}
-
-func clientIPFromContext(ctx context.Context) string {
-	ips := metadata.ValueFromIncomingContext(ctx, nodeattestor.XForwardedClientIPKey)
-	if len(ips) == 0 {
-		return ""
-	}
-	return ips[0]
 }
