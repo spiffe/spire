@@ -317,7 +317,7 @@ func TestValidateCertificateChain(t *testing.T) {
 				return signingCert, nil
 			},
 			expectErr:     true,
-			errorContains: "certificate chain validation failed",
+			errorContains: "unable to verify signing certificate against root CAs",
 		},
 	}
 
@@ -675,7 +675,7 @@ func TestValidateCertificateChainWithAdditionalRoots(t *testing.T) {
 	t.Run("rejected without the additional root", func(t *testing.T) {
 		err := validateCertificateChain(signingCert, nil, nil)
 		require.Error(t, err)
-		require.Contains(t, err.Error(), "certificate chain validation failed")
+		require.Contains(t, err.Error(), "unable to verify signing certificate against root CAs")
 	})
 
 	t.Run("accepted when supplied as an additional root", func(t *testing.T) {

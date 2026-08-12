@@ -81,7 +81,7 @@ func validateAttestedDocument(ctx context.Context, doc *azure.AttestedDocument, 
 
 	// Step 8: Validate certificate chain
 	if err := validateCertificateChain(signingCert, intermediateCert, additionalRoots); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("certificate chain validation failed: %w", err)
 	}
 
 	// Final step: Unmarshal the attested document payload
@@ -197,7 +197,7 @@ func validateCertificateChain(signingCert, intermediateCert *x509.Certificate, a
 	}
 	_, err := signingCert.Verify(opts)
 	if err != nil {
-		return fmt.Errorf("certificate chain validation failed: %w", err)
+		return fmt.Errorf("unable to verify signing certificate against root CAs: %w", err)
 	}
 
 	return nil
