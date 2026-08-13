@@ -256,7 +256,7 @@ func (c *LRUCache[SVID, Update]) NewSubscriber(selectors []*common.Selector) Sub
 // updated through a call to UpdateSVIDs.
 func (c *LRUCache[SVID, Update]) UpdateEntries(update *UpdateEntries, checkSVID func(*common.RegistrationEntry, *common.RegistrationEntry, *SVID) bool) {
 	c.mu.Lock()
-	defer func() { agentmetrics.SetEntriesMapSize(c.metrics, c.CountRecords()) }()
+	defer func() { agentmetrics.SetEntriesMapSize(c.metrics, c.svidType, c.CountRecords()) }()
 	defer c.mu.Unlock()
 
 	// Remove bundles that no longer exist. The bundle for the agent trust

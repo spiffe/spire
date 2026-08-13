@@ -14,8 +14,10 @@ func IncrementEntriesRemoved(m telemetry.Metrics, entriesRemoved int) {
 	m.IncrCounter([]string{telemetry.EntryRemoved}, float32(entriesRemoved))
 }
 
-func SetEntriesMapSize(m telemetry.Metrics, recordMapSize int) {
-	m.SetGauge([]string{telemetry.RecordMapSize}, float32(recordMapSize))
+func SetEntriesMapSize(m telemetry.Metrics, svidType string, recordMapSize int) {
+	m.SetGaugeWithLabels([]string{telemetry.RecordMapSize}, float32(recordMapSize), []telemetry.Label{
+		{Name: telemetry.SVIDType, Value: svidType},
+	})
 }
 
 func SetSVIDMapSize(m telemetry.Metrics, svidType string, svidMapSize int) {

@@ -92,7 +92,7 @@ The following metrics are emitted:
 | Call Counter | `cache_manager`, `workload`, `process_tainted_jwt_svids`                 |                              | The Sync Manager is processing tainted JWTSVIDs.                                      |
 | Call Counter | `cache_manager`, `workload`, `process_tainted_x509_svids`                |                              | The Sync Manager is processing tainted X.509 SVIDs.                                   |
 | Call Counter | `cache_manager`, `svid_store`, `process_tainted_x509_svids`              |                              | The Sync Manager is processing tainted X.509 SVIDs in the SVID store cache.           |
-| Gauge        | `lru_cache_record_map_size`                                              |                              | The total number of entries in the LRU cache records map.                             |
+| Gauge        | `lru_cache_record_map_size`                                              | `svid_type`                  | The total number of entries in the LRU cache records map.                             |
 | Counter      | `sds_api`, `connections`                                                 |                              | The SDS API has successfully established a connection.                                |
 | Gauge        | `sds_api`, `connections`                                                 |                              | The number of active connection that the SDS API has.                                 |
 | Gauge        | `lru_cache_svid_map_size`                                                | `svid_type`                  | The total number of SVIDs in the LRU cache SVID map.                                  |

@@ -1124,7 +1124,7 @@ func TestMetrics(t *testing.T) {
 		{Type: fakemetrics.IncrCounterType, Key: []string{telemetry.EntryRemoved}, Val: 0},
 		{Type: fakemetrics.IncrCounterType, Key: []string{telemetry.EntryAdded}, Val: 2},
 		{Type: fakemetrics.IncrCounterType, Key: []string{telemetry.EntryUpdated}, Val: 0},
-		{Type: fakemetrics.SetGaugeType, Key: []string{telemetry.RecordMapSize}, Val: 2},
+		{Type: fakemetrics.SetGaugeWithLabelsType, Key: []string{telemetry.RecordMapSize}, Val: 2, Labels: []telemetry.Label{{Name: telemetry.SVIDType, Value: "X509"}}},
 	}, fakeMetrics.AllMetrics())
 
 	// add SVIDs to cache
@@ -1133,7 +1133,7 @@ func TestMetrics(t *testing.T) {
 		{Type: fakemetrics.IncrCounterType, Key: []string{telemetry.EntryRemoved}, Val: 0},
 		{Type: fakemetrics.IncrCounterType, Key: []string{telemetry.EntryAdded}, Val: 2},
 		{Type: fakemetrics.IncrCounterType, Key: []string{telemetry.EntryUpdated}, Val: 0},
-		{Type: fakemetrics.SetGaugeType, Key: []string{telemetry.RecordMapSize}, Val: 2},
+		{Type: fakemetrics.SetGaugeWithLabelsType, Key: []string{telemetry.RecordMapSize}, Val: 2, Labels: []telemetry.Label{{Name: telemetry.SVIDType, Value: "X509"}}},
 		{Type: fakemetrics.SetGaugeWithLabelsType, Key: []string{telemetry.SVIDMapSize}, Val: 1, Labels: []telemetry.Label{{Name: telemetry.SVIDType, Value: "X509"}}},
 	}, fakeMetrics.AllMetrics())
 
@@ -1148,16 +1148,16 @@ func TestMetrics(t *testing.T) {
 		{Type: fakemetrics.IncrCounterType, Key: []string{telemetry.EntryRemoved}, Val: 0},
 		{Type: fakemetrics.IncrCounterType, Key: []string{telemetry.EntryAdded}, Val: 2},
 		{Type: fakemetrics.IncrCounterType, Key: []string{telemetry.EntryUpdated}, Val: 0},
-		{Type: fakemetrics.SetGaugeType, Key: []string{telemetry.RecordMapSize}, Val: 2},
+		{Type: fakemetrics.SetGaugeWithLabelsType, Key: []string{telemetry.RecordMapSize}, Val: 2, Labels: []telemetry.Label{{Name: telemetry.SVIDType, Value: "X509"}}},
 		{Type: fakemetrics.SetGaugeWithLabelsType, Key: []string{telemetry.SVIDMapSize}, Val: 1, Labels: []telemetry.Label{{Name: telemetry.SVIDType, Value: "X509"}}},
 		{Type: fakemetrics.IncrCounterType, Key: []string{telemetry.EntryRemoved}, Val: 1},
 		{Type: fakemetrics.IncrCounterType, Key: []string{telemetry.EntryAdded}, Val: 0},
 		{Type: fakemetrics.IncrCounterType, Key: []string{telemetry.EntryUpdated}, Val: 1},
-		{Type: fakemetrics.SetGaugeType, Key: []string{telemetry.RecordMapSize}, Val: 1},
+		{Type: fakemetrics.SetGaugeWithLabelsType, Key: []string{telemetry.RecordMapSize}, Val: 1, Labels: []telemetry.Label{{Name: telemetry.SVIDType, Value: "X509"}}},
 		{Type: fakemetrics.IncrCounterType, Key: []string{telemetry.EntryRemoved}, Val: 0},
 		{Type: fakemetrics.IncrCounterType, Key: []string{telemetry.EntryAdded}, Val: 1},
 		{Type: fakemetrics.IncrCounterType, Key: []string{telemetry.EntryUpdated}, Val: 1},
-		{Type: fakemetrics.SetGaugeType, Key: []string{telemetry.RecordMapSize}, Val: 2},
+		{Type: fakemetrics.SetGaugeWithLabelsType, Key: []string{telemetry.RecordMapSize}, Val: 2, Labels: []telemetry.Label{{Name: telemetry.SVIDType, Value: "X509"}}},
 	}, fakeMetrics.AllMetrics())
 }
 
