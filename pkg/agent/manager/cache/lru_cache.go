@@ -839,10 +839,10 @@ func (c *LRUCache[SVID, Update]) matchingEntries(set selectorSet) []*common.Regi
 	return out
 }
 
-// Build and dedup a list of candidate entries. Don't check for selector set inclusion yet, since
-// that is a more expensive operation, and we could easily have duplicate
-// entries to check.
 func (c *LRUCache[SVID, Update]) getRecordsForSelectors(set selectorSet) (lruCacheRecordSet, func()) {
+	// Build and dedup a list of candidate entries. Don't check for selector set inclusion yet, since
+	// that is a more expensive operation, and we could easily have duplicate
+	// entries to check.
 	records, recordsDone := allocLRUCacheRecordSet()
 	for selector := range set {
 		if index := c.getSelectorIndexForRead(selector); index != nil {
