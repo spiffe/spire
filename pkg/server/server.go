@@ -317,13 +317,15 @@ func (s *Server) setupProfiling(ctx context.Context) (stop func()) {
 		// kick off a goroutine to serve the pprof endpoints and one to
 		// gracefully shut down the server when profiling is being torn down
 		wg.Go(func() {
-			if err := server.ListenAndServe(); err != nil {
+			if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 				s.config.Log.WithError(err).Warn("Unable to serve profiling server")
 			}
 		})
 		wg.Go(func() {
 			<-ctx.Done()
-			if err := server.Shutdown(ctx); err != nil {
+			shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer shutdownCancel()
+			if err := server.Shutdown(shutdownCtx); err != nil {
 				s.config.Log.WithError(err).Warn("Unable to shutdown the server cleanly")
 			}
 		})
