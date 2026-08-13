@@ -38,10 +38,10 @@ func TestGetAWSCACertificate(t *testing.T) {
 		defaultCA, err := pemutil.ParseCertificate([]byte(awsrsa1024.AWSCACert))
 		require.NoError(t, err)
 
-		cert, err := getAWSCACertificate("us-east-0", RSA1024)
+		cert, err := getAWSCACertificate("xx-fake-0", RSA1024)
 		require.NoError(t, err)
-		assert.NotNil(t, cert)
-		assert.Equal(t, cert, defaultCA)
+		require.NotNil(t, cert)
+		assert.Equal(t, defaultCA, cert)
 	})
 
 	// RSA-2048 has no fallback — unknown regions must error
