@@ -162,13 +162,17 @@ func (p *IITAttestorPlugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServ
 	}
 
 	computeEngineMetadata := identityMetadata.Google.ComputeEngine
+	requireTofu := true
 
-	if !slices.Contains(c.ProjectIDAllowList, computeEngineMetadata.ProjectID) {
+	if len(c.ProjectIDAllowList) > 0 && !slices.Contains(c.ProjectIDAllowList, computeEngineMetadata.ProjectID) {
 		return status.Errorf(codes.PermissionDenied, "identity token project ID %q is not in the allow list", computeEngineMetadata.ProjectID)
 	}
 
-	if len(c.ServiceAccountEmailAllowList) > 0 && !slices.Contains(c.ServiceAccountEmailAllowList, identityMetadata.Email) {
-		return status.Errorf(codes.PermissionDenied, "identity token service account email %q is not in the allow list", identityMetadata.Email)
+	if len(c.ServiceAccountEmailAllowList) > 0 {
+		requireTofu = false
+		if !slices.Contains(c.ServiceAccountEmailAllowList, identityMetadata.Email) {
+			return status.Errorf(codes.PermissionDenied, "identity token service account email %q is not in the allow list", identityMetadata.Email)
+		}
 	}
 
 	id, err := gcp.MakeAgentID(c.trustDomain, c.idPathTemplate, identityMetadata)
@@ -176,7 +180,7 @@ func (p *IITAttestorPlugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServ
 		return status.Errorf(codes.Internal, "failed to create agent ID: %v", err)
 	}
 
-	if len(c.ServiceAccountEmailAllowList) == 0 {
+	if requireTofu {
 		if err := p.AssessTOFU(stream.Context(), id.String(), p.log); err != nil {
 			return err
 		}
@@ -209,7 +213,7 @@ func (p *IITAttestorPlugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServ
 			AgentAttributes: &nodeattestorv1.AgentAttributes{
 				SpiffeId:       id.String(),
 				SelectorValues: selectorValues,
-				CanReattest:    false,
+				CanReattest:    !requireTofu,
 			},
 		},
 	})

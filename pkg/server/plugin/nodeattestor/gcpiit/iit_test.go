@@ -174,6 +174,20 @@ service_account_email_allow_list = ["` + testServiceAccount + `"]
 	s.Require().Equal(testAgentID, result.AgentID)
 }
 
+func (s *IITAttestorSuite) TestAttestSuccessWithOnlyServiceAccountEmailAllowListSkipsTOFU() {
+	s.agentStore.SetAgentInfo(&agentstorev1.AgentInfo{
+		AgentId: testAgentID,
+	})
+
+	s.attestor = s.loadPluginWithConfig(`
+service_account_email_allow_list = ["` + testServiceAccount + `"]
+`)
+
+	result, err := s.attestor.Attest(context.Background(), s.signDefaultToken(), expectNoChallenge)
+	s.Require().NoError(err)
+	s.Require().Equal(testAgentID, result.AgentID)
+}
+
 func (s *IITAttestorSuite) TestAttestSuccess() {
 	payload := s.signDefaultToken()
 

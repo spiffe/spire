@@ -4,7 +4,7 @@
 
 The `gcp_iit` plugin automatically attests instances using the [GCP Instance Identity Token](https://cloud.google.com/compute/docs/instances/verifying-instance-identity). It also allows an operator to use GCP Instance IDs when defining SPIFFE ID attestation policies.
 Agents attested by the gcp_iit attestor will be issued a SPIFFE ID like `spiffe://TRUST_DOMAIN/spire/agent/gcp_iit/PROJECT_ID/INSTANCE_ID`
-This plugin requires an allow list of ProjectIDs from which nodes can be attested. Nodes may optionally be further restricted to a `service_account_email_allow_list` (see Security Considerations).
+This plugin requires either an allow list of Project IDs (the ID in which the instance runs, not the service account) from which nodes can be attested or an allow list for service account emails (see Security Considerations).
 
 ## Configuration
 
