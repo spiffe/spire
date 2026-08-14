@@ -157,6 +157,7 @@ service_account_email_allow_list = ["other@developer.gserviceaccount.com", "` + 
 	result, err := s.attestor.Attest(context.Background(), s.signDefaultToken(), expectNoChallenge)
 	s.Require().NoError(err)
 	s.Require().Equal(testAgentID, result.AgentID)
+	s.Require().True(result.CanReattest)
 }
 
 func (s *IITAttestorSuite) TestAttestSuccessWithServiceAccountEmailAllowListSkipsTOFU() {
@@ -172,6 +173,7 @@ service_account_email_allow_list = ["` + testServiceAccount + `"]
 	result, err := s.attestor.Attest(context.Background(), s.signDefaultToken(), expectNoChallenge)
 	s.Require().NoError(err)
 	s.Require().Equal(testAgentID, result.AgentID)
+	s.Require().True(result.CanReattest)
 }
 
 func (s *IITAttestorSuite) TestAttestSuccessWithOnlyServiceAccountEmailAllowListSkipsTOFU() {
@@ -186,6 +188,7 @@ service_account_email_allow_list = ["` + testServiceAccount + `"]
 	result, err := s.attestor.Attest(context.Background(), s.signDefaultToken(), expectNoChallenge)
 	s.Require().NoError(err)
 	s.Require().Equal(testAgentID, result.AgentID)
+	s.Require().True(result.CanReattest)
 }
 
 func (s *IITAttestorSuite) TestAttestSuccess() {
@@ -195,6 +198,7 @@ func (s *IITAttestorSuite) TestAttestSuccess() {
 	s.Require().NoError(err)
 
 	s.Require().Equal(testAgentID, result.AgentID)
+	s.Require().False(result.CanReattest)
 	s.RequireProtoListEqual([]*common.Selector{
 		{Type: "gcp_iit", Value: "project-id:" + testProject},
 		{Type: "gcp_iit", Value: "zone:" + testZone},
