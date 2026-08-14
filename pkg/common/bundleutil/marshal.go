@@ -14,6 +14,7 @@ type marshalConfig struct {
 	sequenceNumber uint64
 	noX509SVIDKeys bool
 	noJWTSVIDKeys  bool
+	noWITSVIDKeys  bool
 	standardJWKS   bool
 }
 
@@ -59,12 +60,39 @@ func NoJWTSVIDKeys() MarshalOption {
 	})
 }
 
+// NoWITSVIDKeys skips marshalling WIT SVID keys
+func NoWITSVIDKeys() MarshalOption {
+	return marshalOption(func(c *marshalConfig) error {
+		c.noWITSVIDKeys = true
+		return nil
+	})
+}
+
 // StandardJWKS omits SPIFFE-specific parameters from the marshaled bundle
 func StandardJWKS() MarshalOption {
 	return marshalOption(func(c *marshalConfig) error {
 		c.standardJWKS = true
 		return nil
 	})
+}
+
+func MarshalX509SVIDBundle(bundle *spiffebundle.Bundle, opts ...MarshalOption) ([]byte, error) {
+	allOpts := append([]MarshalOption{NoJWTSVIDKeys(), NoWITSVIDKeys()}, opts...)
+	return Marshal(bundle, allOpts...)
+}
+
+func MarshalJWTSVIDBundle(bundle *spiffebundle.Bundle, opts ...MarshalOption) ([]byte, error) {
+	allOpts := append([]MarshalOption{NoX509SVIDKeys(), NoWITSVIDKeys()}, opts...)
+	return Marshal(bundle, allOpts...)
+}
+
+func MarshalWITSVIDBundle(bundle *spiffebundle.Bundle, opts ...MarshalOption) (string, error) {
+	allOpts := append([]MarshalOption{NoX509SVIDKeys(), NoJWTSVIDKeys()}, opts...)
+	marshaledBundle, err := Marshal(bundle, allOpts...)
+	if err != nil {
+		return "", err
+	}
+	return string(marshaledBundle), nil
 }
 
 func Marshal(bundle *spiffebundle.Bundle, opts ...MarshalOption) ([]byte, error) {
@@ -114,6 +142,16 @@ func Marshal(bundle *spiffebundle.Bundle, opts ...MarshalOption) ([]byte, error)
 				Key:   jwtSigningKey,
 				KeyID: keyID,
 				Use:   maybeUse(jwtSVIDUse),
+			})
+		}
+	}
+
+	if !c.noWITSVIDKeys {
+		for keyID, witSigningKey := range bundle.WITAuthorities() {
+			jwks.Keys = append(jwks.Keys, jose.JSONWebKey{
+				Key:   witSigningKey,
+				KeyID: keyID,
+				Use:   maybeUse(witSVIDUse),
 			})
 		}
 	}
