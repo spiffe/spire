@@ -21,7 +21,7 @@ import (
 	"github.com/sigstore/rekor/pkg/client"
 	rekorclient "github.com/sigstore/rekor/pkg/generated/client"
 	"github.com/sigstore/sigstore/pkg/cryptoutils"
-	"github.com/sigstore/sigstore/pkg/fulcioroots"
+	"github.com/sigstore/sigstore/pkg/fulcioroots" //nolint:staticcheck // deprecated in favor of sigstore-go TUF, tracked in https://github.com/spiffe/spire/issues/7214
 	"github.com/spiffe/spire/pkg/common/telemetry"
 )
 
