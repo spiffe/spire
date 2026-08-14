@@ -77,13 +77,14 @@ type IITAttestorConfig struct {
 	allowedLabelKeys    map[string]bool
 	allowedMetadataKeys map[string]bool
 
-	ProjectIDAllowList   []string `hcl:"projectid_allow_list"`
-	AgentPathTemplate    string   `hcl:"agent_path_template"`
-	UseInstanceMetadata  bool     `hcl:"use_instance_metadata"`
-	AllowedLabelKeys     []string `hcl:"allowed_label_keys"`
-	AllowedMetadataKeys  []string `hcl:"allowed_metadata_keys"`
-	MaxMetadataValueSize int      `hcl:"max_metadata_value_size"`
-	ServiceAccountFile   string   `hcl:"service_account_file"`
+	ProjectIDAllowList           []string `hcl:"projectid_allow_list"`
+	ServiceAccountEmailAllowList []string `hcl:"service_account_email_allow_list"`
+	AgentPathTemplate            string   `hcl:"agent_path_template"`
+	UseInstanceMetadata          bool     `hcl:"use_instance_metadata"`
+	AllowedLabelKeys             []string `hcl:"allowed_label_keys"`
+	AllowedMetadataKeys          []string `hcl:"allowed_metadata_keys"`
+	MaxMetadataValueSize         int      `hcl:"max_metadata_value_size"`
+	ServiceAccountFile           string   `hcl:"service_account_file"`
 }
 
 func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *IITAttestorConfig {
@@ -93,8 +94,8 @@ func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginco
 		return nil
 	}
 
-	if len(newConfig.ProjectIDAllowList) == 0 {
-		status.ReportError("projectid_allow_list is required")
+	if len(newConfig.ProjectIDAllowList) == 0 && len(newConfig.ServiceAccountEmailAllowList) == 0 {
+		status.ReportError("projectid_allow_list or service_account_email_allow_list is required")
 	}
 
 	tmpl := gcp.DefaultAgentPathTemplate
@@ -166,13 +167,19 @@ func (p *IITAttestorPlugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServ
 		return status.Errorf(codes.PermissionDenied, "identity token project ID %q is not in the allow list", computeEngineMetadata.ProjectID)
 	}
 
+	if len(c.ServiceAccountEmailAllowList) > 0 && !slices.Contains(c.ServiceAccountEmailAllowList, identityMetadata.Email) {
+		return status.Errorf(codes.PermissionDenied, "identity token service account email %q is not in the allow list", identityMetadata.Email)
+	}
+
 	id, err := gcp.MakeAgentID(c.trustDomain, c.idPathTemplate, identityMetadata)
 	if err != nil {
 		return status.Errorf(codes.Internal, "failed to create agent ID: %v", err)
 	}
 
-	if err := p.AssessTOFU(stream.Context(), id.String(), p.log); err != nil {
-		return err
+	if len(c.ServiceAccountEmailAllowList) == 0 {
+		if err := p.AssessTOFU(stream.Context(), id.String(), p.log); err != nil {
+			return err
+		}
 	}
 
 	var instance *compute.Instance

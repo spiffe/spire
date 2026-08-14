@@ -4,19 +4,20 @@
 
 The `gcp_iit` plugin automatically attests instances using the [GCP Instance Identity Token](https://cloud.google.com/compute/docs/instances/verifying-instance-identity). It also allows an operator to use GCP Instance IDs when defining SPIFFE ID attestation policies.
 Agents attested by the gcp_iit attestor will be issued a SPIFFE ID like `spiffe://TRUST_DOMAIN/spire/agent/gcp_iit/PROJECT_ID/INSTANCE_ID`
-This plugin requires an allow list of ProjectID from which nodes can be attested. This also means that you shouldn't run multiple trust domains from the same GCP project.
+This plugin requires an allow list of ProjectIDs from which nodes can be attested. Nodes may optionally be further restricted to a `service_account_email_allow_list` (see Security Considerations).
 
 ## Configuration
 
-| Configuration             | Description                                                                                                                             | Default                                                   |
-|---------------------------|-----------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------|
-| `projectid_allow_list`    | List of ProjectIDs from which nodes can be attested.                                                                                    |                                                           |
-| `use_instance_metadata`   | If true, instance metadata is fetched from the Google Compute Engine API and used to augment the node selectors produced by the plugin. | false                                                     |
-| `service_account_file`    | Path to the service account file used to authenticate with the Google Compute Engine API                                                |                                                           |
-| `allowed_label_keys`      | Instance label keys considered for selectors                                                                                            |                                                           |
-| `allowed_metadata_keys`   | Instance metadata keys considered for selectors                                                                                         |                                                           |
-| `max_metadata_value_size` | Sets the maximum metadata value size considered by the plugin for selectors                                                             | 128                                                       |
-| `agent_path_template`     | A URL path portion format of Agent's SPIFFE ID. Describe in text/template format.                                                       | `"/{{ .PluginName }}/{{ .ProjectID }}/{{ .InstanceID }}"` |
+| Configuration                      | Description                                                                                                                             | Default                                                   |
+|------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------|
+| `projectid_allow_list`             | List of ProjectIDs from which nodes can be attested.                                                                                    |                                                           |
+| `service_account_email_allow_list` | List of service account emails from which nodes can be attested. If unset, nodes may attest using any service account.                  |                                                           |
+| `use_instance_metadata`            | If true, instance metadata is fetched from the Google Compute Engine API and used to augment the node selectors produced by the plugin. | false                                                     |
+| `service_account_file`             | Path to the service account file used to authenticate with the Google Compute Engine API                                                |                                                           |
+| `allowed_label_keys`               | Instance label keys considered for selectors                                                                                            |                                                           |
+| `allowed_metadata_keys`            | Instance metadata keys considered for selectors                                                                                         |                                                           |
+| `max_metadata_value_size`          | Sets the maximum metadata value size considered by the plugin for selectors                                                             | 128                                                       |
+| `agent_path_template`              | A URL path portion format of Agent's SPIFFE ID. Describe in text/template format.                                                       | `"/{{ .PluginName }}/{{ .ProjectID }}/{{ .InstanceID }}"` |
 
 A sample configuration:
 
@@ -33,7 +34,7 @@ A sample configuration:
 This plugin generates the following selectors based on information contained in the Instance Identity Token:
 
 | Selector                | Example                                                      | Description                               |
-|-------------------------|--------------------------------------------------------------|------------------------------------------ |
+|-------------------------|--------------------------------------------------------------|-------------------------------------------|
 | `gcp_iit:project-id`    | `gcp_iit:project-id:big-kahuna-123456`                       | ID of the project containing the instance |
 | `gcp_iit:zone`          | `gcp_iit:zone:us-west1-b`                                    | Zone containing the instance              |
 | `gcp_iit:instance-name` | `gcp_iit:instance-name:blog-server`                          | Name of the instance                      |
@@ -92,6 +93,6 @@ Some useful values are:
 
 The Instance Identity Token, which this attestor leverages to prove node identity, is available to any process running on the node by default. As a result, it is possible for non-agent code running on a node to attest to the SPIRE Server, allowing it to obtain any workload identity that the node is authorized to run.
 
-While many operators choose to configure their systems to block access to the Instance Identity Token, the SPIRE project cannot guarantee this posture. To mitigate the associated risk, the `gcp_iit` node attestor implements Trust On First Use (or TOFU) semantics. For any given node, attestation may occur only once. Subsequent attestation attempts will be rejected.
+While many operators choose to configure their systems to block access to the Instance Identity Token, the SPIRE project cannot guarantee this posture. To mitigate the associated risk, the `gcp_iit` node attestor implements Trust On First Use (or TOFU) semantics by default: for any given node, attestation may occur only once, and subsequent attestation attempts will be rejected. Configuring `service_account_email_allow_list` disables this protection, instead allowing repeat attestation from any node presenting a service account in the allow list. Only allow list service accounts that are exclusively used by trusted agents and consider changing the agent template to `"/{{ .PluginName }}/{{ .ServiceAccount }}"`.
 
 It is still possible for non-agent code to complete node attestation before SPIRE Agent can, however this condition is easily and quickly detectable as SPIRE Agent will fail to start, and both SPIRE Agent and SPIRE Server will log the occurrence. Such cases should be investigated as possible security incidents.

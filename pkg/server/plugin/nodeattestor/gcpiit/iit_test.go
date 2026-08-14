@@ -139,6 +139,41 @@ service_account_file = "error_sa.json"
 	s.requireAttestError(s.T(), s.signDefaultToken(), codes.Internal, `nodeattestor(gcp_iit): failed to fetch instance metadata: expected sa file "test_sa.json", got "error_sa.json"`)
 }
 
+func (s *IITAttestorSuite) TestErrorOnServiceAccountEmailMismatch() {
+	s.attestor = s.loadPluginWithConfig(`
+projectid_allow_list = ["test-project"]
+service_account_email_allow_list = ["other@developer.gserviceaccount.com"]
+`)
+
+	s.requireAttestError(s.T(), s.signDefaultToken(), codes.PermissionDenied, `nodeattestor(gcp_iit): identity token service account email "123456789-compute@developer.gserviceaccount.com" is not in the allow list`)
+}
+
+func (s *IITAttestorSuite) TestAttestSuccessWithServiceAccountEmailAllowList() {
+	s.attestor = s.loadPluginWithConfig(`
+projectid_allow_list = ["test-project"]
+service_account_email_allow_list = ["other@developer.gserviceaccount.com", "` + testServiceAccount + `"]
+`)
+
+	result, err := s.attestor.Attest(context.Background(), s.signDefaultToken(), expectNoChallenge)
+	s.Require().NoError(err)
+	s.Require().Equal(testAgentID, result.AgentID)
+}
+
+func (s *IITAttestorSuite) TestAttestSuccessWithServiceAccountEmailAllowListSkipsTOFU() {
+	s.agentStore.SetAgentInfo(&agentstorev1.AgentInfo{
+		AgentId: testAgentID,
+	})
+
+	s.attestor = s.loadPluginWithConfig(`
+projectid_allow_list = ["test-project"]
+service_account_email_allow_list = ["` + testServiceAccount + `"]
+`)
+
+	result, err := s.attestor.Attest(context.Background(), s.signDefaultToken(), expectNoChallenge)
+	s.Require().NoError(err)
+	s.Require().Equal(testAgentID, result.AgentID)
+}
+
 func (s *IITAttestorSuite) TestAttestSuccess() {
 	payload := s.signDefaultToken()
 
@@ -284,9 +319,23 @@ projectid_allow_list = ["bar"]
 		spiretest.AssertGRPCStatusContains(t, err, codes.InvalidArgument, "server core configuration must contain trust_domain")
 	})
 
-	s.T().Run("missing projectID allow list", func(t *testing.T) {
+	s.T().Run("missing allow list", func(t *testing.T) {
 		err := doConfig(t, coreConfig, "")
-		spiretest.AssertGRPCStatusContains(t, err, codes.InvalidArgument, "projectid_allow_list is required")
+		spiretest.AssertGRPCStatusContains(t, err, codes.InvalidArgument, "projectid_allow_list or service_account_email_allow_list is required")
+	})
+
+	s.T().Run("only projectid_allow_list", func(t *testing.T) {
+		err := doConfig(t, coreConfig, `
+projectid_allow_list = ["bar"]
+		`)
+		require.NoError(t, err)
+	})
+
+	s.T().Run("only service_account_email_allow_list", func(t *testing.T) {
+		err := doConfig(t, coreConfig, `
+service_account_email_allow_list = ["test@developer.gserviceaccount.com"]
+		`)
+		require.NoError(t, err)
 	})
 
 	s.T().Run("bad SVID template", func(t *testing.T) {
