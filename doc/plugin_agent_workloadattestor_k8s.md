@@ -48,25 +48,28 @@ need PID-based workload attestation or agent-node-scoped pod references.
 **Note** To run on Windows containers, Kubernetes v1.24+ and containerd v1.6+ are required,
 since [hostprocess](https://kubernetes.io/docs/tasks/configure-pod-container/create-hostprocess-pod/) container is required on the agent container.
 
-| Configuration                           | Description                                                                                                                                                                                                                             |
-|-----------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `disable_container_selectors`           | If true, container selectors are not produced. This can be used to produce pod selectors when the workload pod is known but the workload container is not ready at the time of attestation.                                             |
-| `disable_kubelet_client`                | If true, disables kubelet client setup and kubelet pod-list calls. PID-based workload attestation and `pod_reference_scope = "agent_node"` pod references are unavailable. Mutually exclusive with kubelet client settings.             |
-| `enable_namespace_labels`               | If true, namespace labels are fetched from the Kubernetes API server and produced as selectors. Requires RBAC `get`, `list` and `watch` on `namespaces`. Disabled by default.                                                           |
-| `kubelet_read_only_port`                | The kubelet read-only port. This is mutually exclusive with `kubelet_secure_port`.                                                                                                                                                      |
-| `kubelet_secure_port`                   | The kubelet secure port. It defaults to `10250` unless `kubelet_read_only_port` is set.                                                                                                                                                 |
-| `kubelet_ca_path`                       | The path on disk to a file containing CA certificates used to verify the kubelet certificate. Required unless `skip_kubelet_verification` is set. Defaults to the cluster CA bundle `/run/secrets/kubernetes.io/serviceaccount/ca.crt`. |
-| `skip_kubelet_verification`             | If true, kubelet certificate verification is skipped                                                                                                                                                                                    |
-| `token_path`                            | The path on disk to the bearer token used for kubelet authentication. Defaults to the service account token `/run/secrets/kubernetes.io/serviceaccount/token`                                                                           |
-| `certificate_path`                      | The path on disk to client certificate used for kubelet authentication                                                                                                                                                                  |
-| `private_key_path`                      | The path on disk to client key used for kubelet authentication                                                                                                                                                                          |
-| `use_anonymous_authentication`          | If true, use anonymous authentication for kubelet communication                                                                                                                                                                         |
-| `node_name_env`                         | The environment variable used to obtain the node name. Defaults to `MY_NODE_NAME`.                                                                                                                                                      |
-| `node_name`                             | The name of the node. Overrides the value obtained by the environment variable specified by `node_name_env`.                                                                                                                            |
-| `experimental`                          | The experimental options that are subject to change or removal (see below).                                                                                                                                                             |
-| `sigstore`                              | Sigstore options. Options described below. See [Sigstore options](#sigstore-options). When set, enables verification of container image signatures and attestations.                                                                    |
-| `use_new_container_locator`             | If true, enables the new container locator algorithm that has support for cgroups v2. Defaults to true.                                                                                                                                 |
-| `verbose_container_locator_logs`        | If true, enables verbose logging of mountinfo and cgroup information used to locate containers. Defaults to false.                                                                                                                      |
+| Configuration                           | Description                                                                                                                                                                                                                                 |
+|-----------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `disable_container_selectors`           | If true, container selectors are not produced. This can be used to produce pod selectors when the workload pod is known but the workload container is not ready at the time of attestation.                                                 |
+| `disable_kubelet_client`                | If true, disables kubelet client setup and kubelet pod-list calls. PID-based workload attestation and `pod_reference_scope = "agent_node"` pod references are unavailable. Mutually exclusive with kubelet client settings.                 |
+| `enable_namespace_labels`               | If true, namespace labels are fetched from the Kubernetes API server and produced as selectors. Requires RBAC `get`, `list` and `watch` on `namespaces`. Disabled by default.                                                               |
+| `kubelet_read_only_port`                | The kubelet read-only port. This is mutually exclusive with `kubelet_secure_port`.                                                                                                                                                          |
+| `kubelet_secure_port`                   | The kubelet secure port. It defaults to `10250` unless `kubelet_read_only_port` is set.                                                                                                                                                     |
+| `kubelet_ca_path`                       | The path on disk to a file containing CA certificates used to verify the kubelet certificate. Required unless `skip_kubelet_verification` is set. Defaults to the cluster CA bundle `/var/run/secrets/kubernetes.io/serviceaccount/ca.crt`. |
+| `skip_kubelet_verification`             | If true, kubelet certificate verification is skipped.                                                                                                                                                                                       |
+| `token_path`                            | The path on disk to the bearer token used for kubelet authentication. Defaults to the service account token `/var/run/secrets/kubernetes.io/serviceaccount/token`.                                                                          |
+| `certificate_path`                      | The path on disk to client certificate used for kubelet authentication.                                                                                                                                                                     |
+| `private_key_path`                      | The path on disk to client key used for kubelet authentication.                                                                                                                                                                             |
+| `use_anonymous_authentication`          | If true, use anonymous authentication for kubelet communication.                                                                                                                                                                            |
+| `node_name_env`                         | The environment variable used to obtain the node name for kubelet requests. Defaults to `MY_NODE_NAME`.                                                                                                                                     |
+| `node_name`                             | The node name used for kubelet requests. Overrides the value obtained from the env var specified by `node_name_env`.                                                                                                                        |
+| `max_poll_attempts`                     | The maximum number of kubelet polling attempts while locating the workload container/pod. Defaults to `60`.                                                                                                                                 |
+| `poll_retry_interval`                   | The interval between kubelet polling attempts while locating the workload container/pod. Defaults to `500ms`.                                                                                                                               |
+| `reload_interval`                       | How often kubelet TLS and token configuration is reloaded from disk. Defaults to `1m`.                                                                                                                                                      |
+| `experimental`                          | The experimental options that are subject to change or removal (see below).                                                                                                                                                                 |
+| `sigstore`                              | Sigstore options. Options described below. See [Sigstore options](#sigstore-options). When set, enables verification of container image signatures and attestations.                                                                        |
+| `use_new_container_locator`             | If true, enables the new container locator algorithm that has support for cgroups v2. Defaults to true.                                                                                                                                     |
+| `verbose_container_locator_logs`        | If true, enables verbose logging of mountinfo and cgroup information used to locate containers. Defaults to false.                                                                                                                          |
 
 These are the current experimental configurations.
 
@@ -124,13 +127,13 @@ Sigstore enabled selectors (available when configured to use `sigstore`)
 |--------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | k8s:image-signature:verified               | When the image signature was verified and is valid.                                                                                                                                                                                       |
 | k8s:image-attestations:verified            | When the image attestations were verified and are valid.                                                                                                                                                                                  |
-| k8s:image-signature-value                  | The base64 encoded value of the signature (eg. `k8s:image-signature-content:MEUCIQCyem8Gcr0sPFMP7fTXazCN57NcN5+MjxJw9Oo0x2eM+AIgdgBP96BO1Te/NdbjHbUeb0BUye6deRgVtQEv5No5smA=`)                                                            |
+| k8s:image-signature-value                  | The base64 encoded value of the signature (eg. `k8s:image-signature-value:MEUCIQCyem8Gcr0sPFMP7fTXazCN57NcN5+MjxJw9Oo0x2eM+AIg...`).                                                                                                      |
 | k8s:image-signature-subject                | The OIDC principal that signed the image (e.g., `k8s:image-signature-subject:spirex@example.com`)                                                                                                                                         |
 | k8s:image-signature-issuer                 | The OIDC issuer of the signature (e.g., `k8s:image-signature-issuer:https://accounts.google.com`)                                                                                                                                         |
 | k8s:image-signature-log-id                 | A unique LogID for the Rekor transparency log entry (eg. `k8s:image-signature-log-id:c0d23d6ad406973f9559f3ba2d1ca01f84147d8ffc5b8445c224f98b95918123`)                                                                                   |
 | k8s:image-signature-log-index              | The log index for the Rekor transparency log entry (eg. `k8s:image-signature-log-index:105695637`)                                                                                                                                        |
 | k8s:image-signature-integrated-time        | The time (in Unix timestamp format) when the image signature was integrated into the signature transparency log (eg. `k8s:image-signature-integrated-time:1719237832`)                                                                    |
-| k8s:image-signature-signed-entry-timestamp | The base64 encoded signed entry (signature over the logID, logIndex, body and integratedTime) (eg. `k8s:image-signature-integrated-time:MEQCIDP77vB0/MEbR1QKZ7Ol8PgFwGEEvnQJiv5cO7ATDYRwAiB9eBLYZjclxRNaaNJVBdQfP9Y8vGVJjwdbisme2cKabc`)  |
+| k8s:image-signature-signed-entry-timestamp | The base64 encoded signed entry (signature over the logID, logIndex, body and integratedTime) (eg. `k8s:image-signature-signed-entry-timestamp:MEQCIDP77vB0/MEbR1QK...`).                                                                 |
 
 If `ignore_tlog` is set to `true`, the selectors based on the Rekor bundle (`-log-id`, `-log-index`, `-integrated-time`, and `-signed-entry-timestamp`) are not generated.
 
@@ -368,7 +371,7 @@ WorkloadAttestor "k8s" {
 }
 ```
 
-To use the secure kubelet port, verify via `/run/secrets/kubernetes.io/serviceaccount/ca.crt`, and authenticate via the default service account token:
+To use the secure kubelet port, verify via `/var/run/secrets/kubernetes.io/serviceaccount/ca.crt`, and authenticate via the default service account token:
 
 ```hcl
 WorkloadAttestor "k8s" {
@@ -428,7 +431,7 @@ WorkloadAttestor "k8s" {
 
 ## Platform support
 
-This plugin is only supported on Unix systems.
+This plugin is supported on Unix systems and Windows hostprocess containers.
 
 ## Known issues
 

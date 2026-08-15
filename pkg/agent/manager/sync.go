@@ -100,6 +100,13 @@ func (m *manager) synchronize(ctx context.Context) (err error) {
 		return err
 	}
 
+	// Update the shared bundle cache as soon as the latest bundles are
+	// available. This keeps bundle consumers (rotator, broker, bundle
+	// observer) in sync even if a later step (e.g. SVID fetching) fails, and
+	// avoids a stale bundle view relative to the workload cache, which is
+	// updated by updateCache below.
+	m.bundleCache.Update(cacheUpdate.Bundles)
+
 	// Process all tainted authorities. The bundle is shared between both caches using regular cache data.
 	if err := m.processTaintedAuthorities(ctx, cacheUpdate.Bundles[m.c.TrustDomain], cacheUpdate.TaintedX509Authorities, cacheUpdate.TaintedJWTAuthorities); err != nil {
 		return err
