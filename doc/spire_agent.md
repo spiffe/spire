@@ -30,6 +30,7 @@ This document is a configuration reference for SPIRE Agent. It includes informat
 | WorkloadAttestor | [k8s](/doc/plugin_agent_workloadattestor_k8s.md)                        | A workload attestor which allows selectors based on Kubernetes constructs such `ns` (namespace) and `sa` (service account)                       |
 | WorkloadAttestor | [unix](/doc/plugin_agent_workloadattestor_unix.md)                      | A workload attestor which generates unix-based selectors like `uid` and `gid`                                                                    |
 | WorkloadAttestor | [systemd](/doc/plugin_agent_workloadattestor_systemd.md)                | A workload attestor which generates selectors based on systemd unit properties such as `Id` and `FragmentPath`                                   |
+| WorkloadAttestor | [slurm](/doc/plugin_agent_workloadattestor_slurm.md)                    | A workload attestor which allows selectors based on Slurm job information                                                                        |
 | SVIDStore        | [aws_secretsmanager](/doc/plugin_agent_svidstore_aws_secretsmanager.md) | An SVIDstore which stores secrets in the AWS secrets manager with the resulting X509-SVIDs of the entries that the agent is entitled to.         |
 | SVIDStore        | [gcp_secretmanager](/doc/plugin_agent_svidstore_gcp_secretmanager.md)   | An SVIDStore which stores secrets in the Google Cloud Secret Manager with the resulting X509-SVIDs of the entries that the agent is entitled to. |
 
@@ -390,6 +391,18 @@ Attaches to the workload API and watches for X509-SVID updates, printing details
 | Command       | Action                             | Default                          |
 |---------------|------------------------------------|----------------------------------|
 | `-socketPath` | Path to the SPIRE Agent API socket | /tmp/spire-agent/public/api.sock |
+
+### `spire-agent debug getinfo`
+
+Prints debug information about the agent, including uptime, last successful
+sync time, cached SVID counts, and the agent's own SVID chain. This command
+requires the Agent Admin API to be enabled (e.g., via `admin_socket_path` on
+Unix or `admin_named_pipe_name` on Windows).
+
+| Command       | Action                                    | Default                             |
+|:--------------|:------------------------------------------|:------------------------------------|
+| `-output`     | Desired output format (`pretty`, `json`)  | `pretty`                            |
+| `-socketPath` | Path to the SPIRE Agent admin API socket  | /tmp/spire-agent/private/admin.sock |
 
 ### `spire-agent healthcheck`
 
