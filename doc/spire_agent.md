@@ -722,10 +722,10 @@ with reference types it does not itself grant — currently just
 A broker that asserts selectors instead of naming a workload the agent
 attests also needs a `selector_assertion` block:
 
-| Field | Required | Default | Description |
-|:------|:---------|:--------|:------------|
-| `allowed_selector_types` | yes | | Selector types this broker may assert, e.g. `["k8s_psat"]`. Must be non-empty. `"*"` is not accepted; list types explicitly. |
-| `max_selectors` | no | `128` | Cap on how many selectors one reference may carry. |
+| Field                    | Required | Default | Description                                                                                                                  |
+|:-------------------------|:---------|:--------|:-----------------------------------------------------------------------------------------------------------------------------|
+| `allowed_selector_types` | yes      |         | Selector types this broker may assert, e.g. `["k8s_psat"]`. Must be non-empty. `"*"` is not accepted; list types explicitly. |
+| `max_selectors`          | no       | `128`   | Cap on how many selectors one reference may carry.                                                                           |
 
 Whether the broker may assert selectors over the TCP listener is controlled by
 `allow_over_tcp` on its `SelectorReference` entry in `allowed_reference_types`,
