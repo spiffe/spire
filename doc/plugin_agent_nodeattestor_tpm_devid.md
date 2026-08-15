@@ -14,6 +14,11 @@ creating a Certificate Signing Request (CSR), and having it signed by an interna
 See the [TPM Deployment Walkthrough](tpm_deployment_walkthrough.md) for step-by-step
 provisioning commands using `tpm2-tools`.
 
+`devid_pub_path` and `devid_priv_path` must contain raw `TPMT_PUBLIC` and
+`TPMT_PRIVATE` structures. `tpm2_create` writes these blobs in their TPM2B form,
+prefixed with a two-byte big-endian length that has to be stripped before the
+agent can load them.
+
 ## How It Works
 
 The plugin responds to two challenges requested by the server:
