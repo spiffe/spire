@@ -57,6 +57,8 @@ subjects:
     name: spiffe://example.org/local-only-object-broker
   - kind: User
     name: spiffe://example.org/restricted-broker
+  - kind: User
+    name: spiffe://example.org/wildcard-broker
 roleRef:
   kind: ClusterRole
   name: spire-broker-impersonation-role
@@ -243,6 +245,13 @@ data:
                 },
                 {
                   id = "spiffe://example.org/rbac-denied-broker"
+                },
+                {
+                  # Holds the "*" wildcard at the endpoint. It is denied
+                  # SelectorReference there, but must still be able to use the
+                  # reference types the agent attests, so the plugin has to know
+                  # about it too.
+                  id = "spiffe://example.org/wildcard-broker"
                 },
               ]
             }
