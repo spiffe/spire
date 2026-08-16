@@ -9,8 +9,10 @@ import (
 	"github.com/andres-erbsen/clock"
 	"github.com/go-jose/go-jose/v4"
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
 	bundlev1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/bundle/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
+	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/util"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/proto"
@@ -32,12 +34,13 @@ type ServerAPISource struct {
 	clock  clock.Clock
 	cancel context.CancelFunc
 
-	mu       sync.RWMutex
-	wg       sync.WaitGroup
-	bundle   *types.Bundle
-	jwks     *jose.JSONWebKeySet
-	modTime  time.Time
-	pollTime time.Time
+	mu           sync.RWMutex
+	wg           sync.WaitGroup
+	bundle       *types.Bundle
+	spiffeBundle *spiffebundle.Bundle
+	jwks         *jose.JSONWebKeySet
+	modTime      time.Time
+	pollTime     time.Time
 }
 
 func NewServerAPISource(config ServerAPISourceConfig) (*ServerAPISource, error) {
@@ -81,6 +84,15 @@ func (s *ServerAPISource) FetchKeySet() (*jose.JSONWebKeySet, time.Time, bool) {
 	return s.jwks, s.modTime, true
 }
 
+func (s *ServerAPISource) FetchBundle() (*spiffebundle.Bundle, time.Time, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.spiffeBundle == nil {
+		return nil, time.Time{}, false
+	}
+	return s.spiffeBundle, s.modTime, true
+}
+
 func (s *ServerAPISource) LastSuccessfulPoll() time.Time {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -110,7 +122,10 @@ func (s *ServerAPISource) pollOnce(ctx context.Context, client bundlev1.BundleCl
 
 	bundle, err := client.GetBundle(ctx, &bundlev1.GetBundleRequest{
 		OutputMask: &types.BundleMask{
-			JwtAuthorities: true,
+			X509Authorities: true,
+			JwtAuthorities:  true,
+			RefreshHint:     true,
+			SequenceNumber:  true,
 		},
 	})
 	if err != nil {
@@ -147,9 +162,30 @@ func (s *ServerAPISource) parseBundle(bundle *types.Bundle) {
 		})
 	}
 
+	// Convert the bundle into the SPIFFE representation served by the
+	// all-keys endpoint. If the conversion fails, hold on to the previously
+	// converted bundle rather than serving a partial one.
+	spiffeBundle, err := spiffeBundleFromAPIBundle(bundle)
+	if err != nil {
+		s.log.WithError(err).Warn("Failed to convert bundle into SPIFFE trust bundle")
+	}
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.bundle = bundle
 	s.jwks = jwks
+	if spiffeBundle != nil {
+		s.spiffeBundle = spiffeBundle
+	}
 	s.modTime = s.clock.Now()
+}
+
+// spiffeBundleFromAPIBundle converts a bundle returned by the SPIRE Server API
+// into a SPIFFE trust bundle, preserving the refresh hint and sequence number.
+func spiffeBundleFromAPIBundle(bundle *types.Bundle) (*spiffebundle.Bundle, error) {
+	commonBundle, err := bundleutil.CommonBundleFromProto(bundle)
+	if err != nil {
+		return nil, err
+	}
+	return bundleutil.SPIFFEBundleFromProto(commonBundle)
 }
