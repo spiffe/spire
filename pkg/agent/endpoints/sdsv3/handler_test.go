@@ -853,7 +853,7 @@ func TestStreamSecretsBadNonce(t *testing.T) {
 	requireSecrets(t, resp, workloadTLSCertificate2)
 }
 
-func TestStreamSecretsErrInSubscribeToCacheChanges(t *testing.T) {
+func TestStreamSecretsErrInSubscribeToX509CacheChanges(t *testing.T) {
 	test := setupErrTest(t)
 	defer test.server.Stop()
 
@@ -1446,7 +1446,7 @@ func NewFakeManager(t *testing.T) *FakeManager {
 	}
 }
 
-func (m *FakeManager) SubscribeToCacheChanges(_ context.Context, selectors cache.Selectors) (cache.Subscriber[cache.X509WorkloadUpdate], error) {
+func (m *FakeManager) SubscribeToX509CacheChanges(_ context.Context, selectors cache.Selectors) (cache.Subscriber[cache.X509WorkloadUpdate], error) {
 	if m.err != nil {
 		return nil, m.err
 	}

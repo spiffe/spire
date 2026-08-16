@@ -48,9 +48,9 @@ type Manager interface {
 	// Run runs the manager. It will block until the context is cancelled.
 	Run(ctx context.Context) error
 
-	// SubscribeToCacheChanges returns a Subscriber on which cache entry updates are sent
+	// SubscribeToX509CacheChanges returns a Subscriber on which cache entry updates are sent
 	// for a particular set of selectors.
-	SubscribeToCacheChanges(ctx context.Context, key cache.Selectors) (cache.Subscriber[cache.X509WorkloadUpdate], error)
+	SubscribeToX509CacheChanges(ctx context.Context, key cache.Selectors) (cache.Subscriber[cache.X509WorkloadUpdate], error)
 
 	// SubscribeToSVIDChanges returns a new observer.Stream on which svid.State instances are received
 	// each time an SVID rotation finishes.
@@ -216,7 +216,7 @@ func (m *manager) Run(ctx context.Context) error {
 	}
 }
 
-func (m *manager) SubscribeToCacheChanges(ctx context.Context, selectors cache.Selectors) (cache.Subscriber[cache.X509WorkloadUpdate], error) {
+func (m *manager) SubscribeToX509CacheChanges(ctx context.Context, selectors cache.Selectors) (cache.Subscriber[cache.X509WorkloadUpdate], error) {
 	return m.x509Cache.SubscribeToWorkloadUpdates(ctx, selectors)
 }
 
