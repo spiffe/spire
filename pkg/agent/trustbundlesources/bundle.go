@@ -15,11 +15,16 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/go-spiffe/v2/workloadapi"
 	"github.com/spiffe/spire/pkg/agent/storage"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 )
+
+// spiffeWorkloadAPIFetchTimeout bounds each trust bundle fetch from the
+// SPIFFE Workload API. The agent retries with backoff on failure.
+const spiffeWorkloadAPIFetchTimeout = time.Minute
 
 type Bundle struct {
 	config             *Config
@@ -140,6 +145,7 @@ func (b *Bundle) IsRebootstrap() bool {
 }
 
 func (b *Bundle) GetBundle() ([]*x509.Certificate, bool, error) {
+	var bundle []*x509.Certificate
 	var bundleBytes []byte
 	var err error
 
@@ -154,6 +160,17 @@ func (b *Bundle) GetBundle() ([]*x509.Certificate, bool, error) {
 	b.updateMetrics()
 
 	switch {
+	case b.config.TrustBundleSpiffeWorkloadAPI != "":
+		if b.use == UseRebootstrap {
+			b.log.Info(fmt.Sprintf("Server reattestation attempt %d. Started %s.", b.connectionAttempts, b.startTime.Format(time.RFC3339)))
+		} else {
+			b.log.Info(fmt.Sprintf("Server attestation attempt %d. Started %s.", b.connectionAttempts, b.startTime.Format(time.RFC3339)))
+		}
+		b.log.Debug(fmt.Sprintf("Fetching trust bundle from SPIFFE Workload API: %s", b.config.TrustBundleSpiffeWorkloadAPI))
+		bundle, err = fetchTrustBundleFromWorkloadAPI(b.config.TrustBundleSpiffeWorkloadAPI, b.config.TrustDomain)
+		if err != nil {
+			return nil, false, err
+		}
 	case b.config.TrustBundleURL != "":
 		u, err := url.Parse(b.config.TrustBundleURL)
 		if err != nil {
@@ -195,9 +212,11 @@ func (b *Bundle) GetBundle() ([]*x509.Certificate, bool, error) {
 		}
 	}
 
-	bundle, err := parseTrustBundle(bundleBytes, b.config.TrustBundleFormat)
-	if err != nil {
-		return nil, false, err
+	if bundle == nil {
+		bundle, err = parseTrustBundle(bundleBytes, b.config.TrustBundleFormat)
+		if err != nil {
+			return nil, false, err
+		}
 	}
 
 	if len(bundle) == 0 {
@@ -287,6 +306,28 @@ func downloadTrustBundle(trustBundleURL string, trustBundleUnixSocket string) ([
 	}
 
 	return pemBytes, nil
+}
+
+func fetchTrustBundleFromWorkloadAPI(workloadAPIAddr string, trustDomain string) ([]*x509.Certificate, error) {
+	td, err := spiffeid.TrustDomainFromString(trustDomain)
+	if err != nil {
+		return nil, fmt.Errorf("unable to parse trust domain: %w", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), spiffeWorkloadAPIFetchTimeout)
+	defer cancel()
+
+	bundles, err := workloadapi.FetchX509Bundles(ctx, workloadapi.WithAddr(workloadAPIAddr))
+	if err != nil {
+		return nil, fmt.Errorf("unable to fetch trust bundle from SPIFFE Workload API %s: %w", workloadAPIAddr, err)
+	}
+
+	bundle, err := bundles.GetX509BundleForTrustDomain(td)
+	if err != nil {
+		return nil, fmt.Errorf("SPIFFE Workload API %s did not provide a trust bundle for trust domain %q: %w", workloadAPIAddr, td, err)
+	}
+
+	return bundle.X509Authorities(), nil
 }
 
 func loadTrustBundle(path string) ([]byte, error) {

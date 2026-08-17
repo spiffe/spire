@@ -1,0 +1,9 @@
+#!/bin/bash
+
+# This suite is GitHub-Actions-only; skip (with success) elsewhere.
+source "${RUNDIR}/skip-unless-github-actions.sh"
+
+docker-up spire-agent
+
+# Confirm the agent attested to the server before we submit a workload.
+check-log-line spire-agent "Node attestation was successful"

@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 
+	debugv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/agent/debug/v1"
 	loggerv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/agent/logger/v1"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
 	"google.golang.org/grpc"
@@ -22,6 +23,7 @@ func NewGRPCClient(addr string) (*grpc.ClientConn, error) {
 type AgentClient interface {
 	Release()
 	NewLoggerClient() loggerv1.LoggerClient
+	NewDebugClient() debugv1.DebugClient
 }
 
 func NewAgentClient(addr string) (AgentClient, error) {
@@ -42,6 +44,10 @@ func (c *agentClient) Release() {
 
 func (c *agentClient) NewLoggerClient() loggerv1.LoggerClient {
 	return loggerv1.NewLoggerClient(c.conn)
+}
+
+func (c *agentClient) NewDebugClient() debugv1.DebugClient {
+	return debugv1.NewDebugClient(c.conn)
 }
 
 // Command is a common interface for commands in this package. The adapter

@@ -44,6 +44,13 @@ func unmarshal(trustDomain spiffeid.TrustDomain, doc *bundleDoc) (*spiffebundle.
 			if err := bundle.AddJWTAuthority(key.KeyID, key.Key); err != nil {
 				return nil, fmt.Errorf("failed to add jwt-svid entry %d: %w", i, err)
 			}
+		case witSVIDUse:
+			if key.KeyID == "" {
+				return nil, fmt.Errorf("missing key ID in wit-svid entry %d", i)
+			}
+			if err := bundle.AddWITAuthority(key.KeyID, key.Key); err != nil {
+				return nil, fmt.Errorf("failed to add wit-svid entry %d: %w", i, err)
+			}
 		case "":
 			return nil, fmt.Errorf("missing use for key entry %d", i)
 		default:
