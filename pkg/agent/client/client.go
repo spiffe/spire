@@ -95,7 +95,6 @@ type SyncBundlesStats struct {
 }
 
 type Client interface {
-	FetchUpdates(ctx context.Context) (*Update, error)
 	SyncUpdates(ctx context.Context, cachedEntries map[string]*common.RegistrationEntry, cachedBundles map[string]*common.Bundle) (SyncStats, error)
 	RenewSVID(ctx context.Context, csr []byte) (*X509SVID, error)
 	NewX509SVIDs(ctx context.Context, csrs map[string][]byte) (map[string]*X509SVID, error)
@@ -147,65 +146,6 @@ func newClient(c *Config) *client {
 	return &client{
 		c: c,
 	}
-}
-
-func (c *client) FetchUpdates(ctx context.Context) (*Update, error) {
-	c.c.RotMtx.RLock()
-	defer c.c.RotMtx.RUnlock()
-
-	ctx, cancel := context.WithTimeout(ctx, rpcTimeout)
-	defer cancel()
-
-	protoEntries, err := c.fetchEntries(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	regEntries := make(map[string]*common.RegistrationEntry)
-	federatesWith := make(map[string]bool)
-	for _, e := range protoEntries {
-		entry, err := slicedEntryFromProto(e)
-		if err != nil {
-			c.c.Log.WithFields(logrus.Fields{
-				telemetry.RegistrationID: e.Id,
-				telemetry.SPIFFEID:       e.SpiffeId,
-				telemetry.Selectors:      e.Selectors,
-				telemetry.Error:          err.Error(),
-			}).Warn("Received malformed entry from SPIRE server; are the server and agent versions compatible?")
-			continue
-		}
-
-		// Get all federated trust domains
-		for _, td := range entry.FederatesWith {
-			federatesWith[td] = true
-		}
-		regEntries[entry.EntryId] = entry
-	}
-
-	keys := make([]string, 0, len(federatesWith))
-	for key := range federatesWith {
-		keys = append(keys, key)
-	}
-
-	protoBundles, err := c.fetchBundles(ctx, keys)
-	if err != nil {
-		return nil, err
-	}
-
-	bundles := make(map[string]*common.Bundle)
-	for _, b := range protoBundles {
-		bundle, err := bundleutil.CommonBundleFromProto(b)
-		if err != nil {
-			c.c.Log.WithError(err).Warn("Received malformed bundle from SPIRE server; are the server and agent versions compatible?")
-			continue
-		}
-		bundles[bundle.TrustDomainId] = bundle
-	}
-
-	return &Update{
-		Entries: regEntries,
-		Bundles: bundles,
-	}, nil
 }
 
 func (c *client) SyncUpdates(ctx context.Context, cachedEntries map[string]*common.RegistrationEntry, cachedBundles map[string]*common.Bundle) (SyncStats, error) {
@@ -487,25 +427,6 @@ func (c *client) newServerGRPCClient() (*grpc.ClientConn, error) {
 		TLSPolicy: c.c.TLSPolicy,
 		dialOpts:  c.dialOpts,
 	})
-}
-
-func (c *client) fetchEntries(ctx context.Context) ([]*types.Entry, error) {
-	entryClient, connection, err := c.newEntryClient()
-	if err != nil {
-		return nil, err
-	}
-	defer connection.Release()
-
-	resp, err := entryClient.GetAuthorizedEntries(ctx, &entryv1.GetAuthorizedEntriesRequest{
-		OutputMask: entryOutputMask,
-	})
-	if err != nil {
-		c.release(connection)
-		c.withErrorFields(err).Error("Failed to fetch authorized entries")
-		return nil, fmt.Errorf("failed to fetch authorized entries: %w", err)
-	}
-
-	return resp.Entries, err
 }
 
 func (c *client) syncEntries(ctx context.Context, cachedEntries map[string]*common.RegistrationEntry) (SyncEntriesStats, error) {

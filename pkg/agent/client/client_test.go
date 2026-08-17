@@ -15,7 +15,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/go-cmp/cmp"
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -36,7 +35,6 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
 	"google.golang.org/grpc/test/bufconn"
-	"google.golang.org/protobuf/testing/protocmp"
 )
 
 var (
@@ -112,99 +110,6 @@ var (
 		},
 	}
 )
-
-func TestFetchUpdates(t *testing.T) {
-	client, tc := createClient(t)
-
-	tc.entryServer.entries = []*types.Entry{
-		{
-			Id:       "ENTRYID1",
-			ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/host"},
-			SpiffeId: &types.SPIFFEID{
-				TrustDomain: "example.org",
-				Path:        "/id1",
-			},
-			Selectors: []*types.Selector{
-				{Type: "S", Value: "1"},
-			},
-			FederatesWith:  []string{"domain1.test"},
-			RevisionNumber: 1234,
-			Hint:           "external",
-		},
-		// This entry should be ignored since it is missing an entry ID
-		{
-			ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/host"},
-			SpiffeId: &types.SPIFFEID{
-				TrustDomain: "example.org",
-				Path:        "/id2",
-			},
-			Selectors: []*types.Selector{
-				{Type: "S", Value: "2"},
-			},
-			FederatesWith: []string{"domain2.test"},
-		},
-		// This entry should be ignored since it is missing a SPIFFE ID
-		{
-			Id:       "ENTRYID3",
-			ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/host"},
-			Selectors: []*types.Selector{
-				{Type: "S", Value: "3"},
-			},
-		},
-		// This entry should be ignored since it is missing selectors
-		{
-			Id:       "ENTRYID4",
-			ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/host"},
-			SpiffeId: &types.SPIFFEID{
-				TrustDomain: "example.org",
-				Path:        "/id4",
-			},
-		},
-	}
-
-	tc.svidServer.x509SVIDs = map[string]*types.X509SVID{
-		"entry-id": {
-			Id:        &types.SPIFFEID{TrustDomain: "example.org", Path: "/path"},
-			CertChain: [][]byte{{11, 22, 33}},
-		},
-	}
-
-	tc.bundleServer.serverBundle = makeAPIBundle("example.org")
-	tc.bundleServer.federatedBundles = map[string]*types.Bundle{
-		"domain1.test": makeAPIBundle("domain1.test"),
-		"domain2.test": makeAPIBundle("domain2.test"),
-	}
-
-	// Simulate an ongoing SVID rotation (request should not be made in the middle of a rotation)
-	client.c.RotMtx.Lock()
-
-	// Do the request in a different go routine
-	var wg sync.WaitGroup
-	var update *Update
-	err := errors.New("a not nil error")
-	wg.Go(func() {
-		update, err = client.FetchUpdates(ctx)
-	})
-
-	// The request should wait until the SVID rotation finishes
-	require.Contains(t, "a not nil error", err.Error())
-	require.Nil(t, update)
-
-	// Simulate the end of the SVID rotation
-	client.c.RotMtx.Unlock()
-	wg.Wait()
-
-	// Assert results
-	require.Nil(t, err)
-	assert.Equal(t, testBundles, update.Bundles)
-	// Only the first registration entry should be returned since the rest are
-	// invalid for one reason or another
-	if assert.Len(t, update.Entries, 1) {
-		entry := testEntries[0]
-		assert.Equal(t, entry, update.Entries[entry.EntryId])
-	}
-	assertConnectionIsNotNil(t, client)
-}
 
 func TestSyncUpdatesBundles(t *testing.T) {
 	client, tc := createClient(t)
@@ -590,7 +495,7 @@ func newTestPublicKeys(t *testing.T) map[string]crypto.PublicKey {
 	}
 }
 
-func TestFetchReleaseWaitsForFetchUpdatesToFinish(t *testing.T) {
+func TestFetchReleaseWaitsForSyncUpdatesToFinish(t *testing.T) {
 	client, tc := createClient(t)
 
 	tc.entryServer.entries = []*types.Entry{
@@ -607,35 +512,6 @@ func TestFetchReleaseWaitsForFetchUpdatesToFinish(t *testing.T) {
 			FederatesWith:  []string{"domain1.test"},
 			RevisionNumber: 1234,
 			Hint:           "external",
-		},
-		// This entry should be ignored since it is missing an entry ID
-		{
-			ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/host"},
-			SpiffeId: &types.SPIFFEID{
-				TrustDomain: "example.org",
-				Path:        "/id2",
-			},
-			Selectors: []*types.Selector{
-				{Type: "S", Value: "2"},
-			},
-			FederatesWith: []string{"domain2.test"},
-		},
-		// This entry should be ignored since it is missing a SPIFFE ID
-		{
-			Id:       "ENTRYID3",
-			ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/host"},
-			Selectors: []*types.Selector{
-				{Type: "S", Value: "3"},
-			},
-		},
-		// This entry should be ignored since it is missing selectors
-		{
-			Id:       "ENTRYID4",
-			ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/host"},
-			SpiffeId: &types.SPIFFEID{
-				TrustDomain: "example.org",
-				Path:        "/id4",
-			},
 		},
 	}
 
@@ -667,16 +543,14 @@ func TestFetchReleaseWaitsForFetchUpdatesToFinish(t *testing.T) {
 		},
 	}
 
-	update, err := client.FetchUpdates(ctx)
+	cachedEntries := make(map[string]*common.RegistrationEntry)
+	cachedBundles := make(map[string]*common.Bundle)
+	_, err := client.SyncUpdates(ctx, cachedEntries, cachedBundles)
 	require.NoError(t, err)
 
-	assert.Equal(t, testBundles, update.Bundles)
-	// Only the first registration entry should be returned since the rest are
-	// invalid for one reason or another
-	if assert.Len(t, update.Entries, 1) {
-		entry := testEntries[0]
-		assert.Equal(t, entry, update.Entries[entry.EntryId])
-	}
+	assert.Equal(t, testBundles, cachedBundles)
+	entry := testEntries[0]
+	assert.Equal(t, entry, cachedEntries[entry.EntryId])
 	select {
 	case <-waitForRelease:
 	case <-time.After(time.Second * 5):
@@ -764,81 +638,27 @@ func TestNewNodeInternalClientRelease(t *testing.T) {
 	}
 }
 
-func TestFetchUpdatesReleaseConnectionIfItFailsToFetch(t *testing.T) {
-	for _, tt := range []struct {
-		name      string
-		err       string
-		setupTest func(tc *testServer)
-	}{
-		{
-			name: "Entries",
-			setupTest: func(tc *testServer) {
-				tc.entryServer.err = errors.New("an error")
-			},
-			err: "failed to fetch authorized entries: rpc error: code = Unknown desc = an error",
-		},
-		{
-			name: "Agent bundle",
-			setupTest: func(tc *testServer) {
-				tc.bundleServer.bundleErr = errors.New("an error")
-			},
-			err: "failed to fetch bundle: rpc error: code = Unknown desc = an error",
-		},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			client, tc := createClient(t)
-			tt.setupTest(tc)
-
-			update, err := client.FetchUpdates(ctx)
-			assert.Nil(t, update)
-			assert.EqualError(t, err, tt.err)
-			assertConnectionIsNil(t, client)
-		})
-	}
-}
-
-func TestFetchUpdatesReleaseConnectionIfItFails(t *testing.T) {
+func TestSyncUpdatesReleaseConnectionIfItFailsToFetch(t *testing.T) {
 	client, tc := createClient(t)
+	tc.bundleServer.bundleErr = errors.New("an error")
 
-	tc.entryServer.err = errors.New("an error")
-
-	update, err := client.FetchUpdates(ctx)
-	assert.Nil(t, update)
-	assert.Error(t, err)
+	cachedEntries := make(map[string]*common.RegistrationEntry)
+	cachedBundles := make(map[string]*common.Bundle)
+	stats, err := client.SyncUpdates(ctx, cachedEntries, cachedBundles)
+	assert.Zero(t, stats)
+	assert.EqualError(t, err, "failed to fetch bundle: rpc error: code = Unknown desc = an error")
 	assertConnectionIsNil(t, client)
 }
 
-func TestFetchUpdatesAddStructuredLoggingIfCallToFetchEntriesFails(t *testing.T) {
-	logHook.Reset()
-	client, tc := createClient(t)
-
-	tc.entryServer.err = status.Error(codes.Internal, "call to grpc method fetchEntries has failed")
-	update, err := client.FetchUpdates(ctx)
-	assert.Nil(t, update)
-	assert.Error(t, err)
-	assertConnectionIsNil(t, client)
-
-	var entries []spiretest.LogEntry
-	entries = append(entries, spiretest.LogEntry{
-		Level:   logrus.ErrorLevel,
-		Message: "Failed to fetch authorized entries",
-		Data: logrus.Fields{
-			telemetry.StatusCode:    "Internal",
-			telemetry.StatusMessage: "call to grpc method fetchEntries has failed",
-			telemetry.Error:         tc.entryServer.err.Error(),
-		},
-	})
-
-	spiretest.AssertLogs(t, logHook.AllEntries(), entries)
-}
-
-func TestFetchUpdatesAddStructuredLoggingIfCallToFetchBundlesFails(t *testing.T) {
+func TestSyncUpdatesAddStructuredLoggingIfCallToFetchBundlesFails(t *testing.T) {
 	logHook.Reset()
 	client, tc := createClient(t)
 
 	tc.bundleServer.bundleErr = status.Error(codes.Internal, "call to grpc method fetchBundles has failed")
-	update, err := client.FetchUpdates(ctx)
-	assert.Nil(t, update)
+	cachedEntries := make(map[string]*common.RegistrationEntry)
+	cachedBundles := make(map[string]*common.Bundle)
+	stats, err := client.SyncUpdates(ctx, cachedEntries, cachedBundles)
+	assert.Zero(t, stats)
 	assert.Error(t, err)
 	assertConnectionIsNil(t, client)
 
@@ -856,7 +676,7 @@ func TestFetchUpdatesAddStructuredLoggingIfCallToFetchBundlesFails(t *testing.T)
 	spiretest.AssertLogs(t, logHook.AllEntries(), entries)
 }
 
-func TestFetchUpdatesWithManyFederations(t *testing.T) {
+func TestSyncUpdatesWithManyFederations(t *testing.T) {
 	client, tc := createClient(t)
 
 	// Create more federations than the number of workers in fetchFederatedBundlesConcurrently, to
@@ -877,7 +697,9 @@ func TestFetchUpdatesWithManyFederations(t *testing.T) {
 		tc.bundleServer.federatedBundles[domain] = makeAPIBundle(domain)
 	}
 
-	update, err := client.FetchUpdates(ctx)
+	cachedEntries := make(map[string]*common.RegistrationEntry)
+	cachedBundles := make(map[string]*common.Bundle)
+	_, err := client.SyncUpdates(ctx, cachedEntries, cachedBundles)
 
 	// Assert results
 	require.Nil(t, err)
@@ -887,11 +709,11 @@ func TestFetchUpdatesWithManyFederations(t *testing.T) {
 	for _, domain := range federatesWith {
 		wantBundles["spiffe://"+domain] = makeCommonBundle(domain)
 	}
-	assert.Equal(t, wantBundles, update.Bundles)
+	assert.Equal(t, wantBundles, cachedBundles)
 	wantEntries := map[string]*common.RegistrationEntry{
 		"ENTRYID1": makeCommonEntry("ENTRYID1", 1234, createdAt, federatesWith),
 	}
-	assert.Equal(t, wantEntries, update.Entries)
+	assert.Equal(t, wantEntries, cachedEntries)
 	assertConnectionIsNotNil(t, client)
 }
 
@@ -1290,25 +1112,10 @@ type fakeEntryServer struct {
 	entryv1.UnimplementedEntryServer
 
 	entries []*types.Entry
-	err     error
 }
 
 func (c *fakeEntryServer) SetEntries(entries ...*types.Entry) {
 	c.entries = entries
-}
-
-func (c *fakeEntryServer) GetAuthorizedEntries(_ context.Context, in *entryv1.GetAuthorizedEntriesRequest) (*entryv1.GetAuthorizedEntriesResponse, error) {
-	if c.err != nil {
-		return nil, c.err
-	}
-
-	if err := checkAuthorizedEntryOutputMask(in.OutputMask); err != nil {
-		return nil, err
-	}
-
-	return &entryv1.GetAuthorizedEntriesResponse{
-		Entries: c.entries,
-	}, nil
 }
 
 func (c *fakeEntryServer) SyncAuthorizedEntries(stream entryv1.Entry_SyncAuthorizedEntriesServer) error {
@@ -1474,24 +1281,6 @@ type testServer struct {
 	bundleServer *fakeBundleServer
 	entryServer  *fakeEntryServer
 	svidServer   *fakeSVIDServer
-}
-
-func checkAuthorizedEntryOutputMask(outputMask *types.EntryMask) error {
-	if diff := cmp.Diff(outputMask, &types.EntryMask{
-		SpiffeId:             true,
-		Selectors:            true,
-		FederatesWith:        true,
-		Admin:                true,
-		Downstream:           true,
-		RevisionNumber:       true,
-		StoreSvid:            true,
-		Hint:                 true,
-		AdditionalAttributes: true,
-		CreatedAt:            true,
-	}, protocmp.Transform()); diff != "" {
-		return status.Errorf(codes.InvalidArgument, "invalid output mask requested: %s", diff)
-	}
-	return nil
 }
 
 func makeAPIBundle(trustDomainName string) *types.Bundle {
