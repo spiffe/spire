@@ -244,12 +244,11 @@ type workloadAPIRateLimitConfig struct {
 }
 
 type experimentalConfig struct {
-	SyncInterval             string `hcl:"sync_interval"`
-	JWTSVIDCacheHitTimeout   string `hcl:"jwt_svid_cache_hit_timeout"`
-	NamedPipeName            string `hcl:"named_pipe_name"`
-	AdminNamedPipeName       string `hcl:"admin_named_pipe_name"`
-	UseSyncAuthorizedEntries *bool  `hcl:"use_sync_authorized_entries"`
-	RequirePQKEM             bool   `hcl:"require_pq_kem"`
+	SyncInterval           string `hcl:"sync_interval"`
+	JWTSVIDCacheHitTimeout string `hcl:"jwt_svid_cache_hit_timeout"`
+	NamedPipeName          string `hcl:"named_pipe_name"`
+	AdminNamedPipeName     string `hcl:"admin_named_pipe_name"`
+	RequirePQKEM           bool   `hcl:"require_pq_kem"`
 
 	RateLimit workloadAPIRateLimitConfig `hcl:"ratelimit"`
 
@@ -632,15 +631,6 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 		}
 		client.SetJWTSVIDCacheHitTimeout(timeout)
 		logger.Warn("The use of 'jwt_svid_cache_hit_timeout' is experimental")
-	}
-
-	ac.UseSyncAuthorizedEntries = true
-	if c.Agent.Experimental.UseSyncAuthorizedEntries != nil {
-		ac.Log.WithFields(logrus.Fields{
-			telemetry.Alert:     true,
-			telemetry.AlertType: telemetry.DeprecatedConfigAlertType,
-		}).Warn("The 'use_sync_authorized_entries' configuration is deprecated. The option to disable it will be removed in SPIRE 1.13.")
-		ac.UseSyncAuthorizedEntries = *c.Agent.Experimental.UseSyncAuthorizedEntries
 	}
 
 	if c.Agent.X509SVIDCacheMaxSize < 0 {

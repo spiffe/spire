@@ -295,22 +295,14 @@ func (m *manager) fetchEntries(ctx context.Context) (_ *cache.UpdateEntries, _ *
 	counter := telemetry_agent.StartManagerFetchEntriesUpdatesCall(m.c.Metrics)
 	defer counter.Done(&err)
 
-	var update *client.Update
-	if m.c.UseSyncAuthorizedEntries {
-		stats, err := m.client.SyncUpdates(ctx, m.syncedEntries, m.syncedBundles)
-		if err != nil {
-			return nil, nil, err
-		}
-		telemetry_agent.SetSyncStats(m.c.Metrics, stats)
-		update = &client.Update{
-			Entries: m.syncedEntries,
-			Bundles: m.syncedBundles,
-		}
-	} else {
-		update, err = m.client.FetchUpdates(ctx)
-		if err != nil {
-			return nil, nil, err
-		}
+	stats, err := m.client.SyncUpdates(ctx, m.syncedEntries, m.syncedBundles)
+	if err != nil {
+		return nil, nil, err
+	}
+	telemetry_agent.SetSyncStats(m.c.Metrics, stats)
+	update := &client.Update{
+		Entries: m.syncedEntries,
+		Bundles: m.syncedBundles,
 	}
 
 	bundles, err := parseBundles(update.Bundles)
