@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"github.com/hashicorp/go-hclog"
-	cliflag "k8s.io/component-base/cli/flag"
 )
 
 // TLSConfig describes TLS configuration settings for terminating endpoints.
@@ -173,7 +172,7 @@ func ParseTLSConfig(cfg *TLSConfig, logger hclog.Logger) (*ParsedTLSConfig, erro
 	parsedTLSCfg := ParsedTLSConfig{MinTLSVersion: uint16(tls.VersionTLS12)}
 
 	if cfg.MinTLSVersion != "" {
-		minVersion, err := cliflag.TLSVersion(cfg.MinTLSVersion)
+		minVersion, err := TLSVersion(cfg.MinTLSVersion)
 		if err != nil {
 			return nil, fmt.Errorf("invalid minTLSVersion %q: %w", cfg.MinTLSVersion, err)
 		}
@@ -219,7 +218,7 @@ func (p *TLSConfig) empty() bool {
 }
 
 func parseCipherSuites(names []string, logger hclog.Logger) ([]uint16, error) {
-	insecureCiphers := cliflag.InsecureTLSCiphers()
+	insecureCiphers := InsecureTLSCiphers()
 	secureCiphers := make([]string, 0, len(names))
 	for _, name := range names {
 		if _, ok := insecureCiphers[name]; ok {
@@ -228,7 +227,7 @@ func parseCipherSuites(names []string, logger hclog.Logger) ([]uint16, error) {
 		}
 		secureCiphers = append(secureCiphers, name)
 	}
-	return cliflag.TLSCipherSuites(secureCiphers)
+	return TLSCipherSuites(secureCiphers)
 }
 
 var wellknownCurveAliases = map[string]int32{
@@ -265,7 +264,7 @@ func curvePreferences(names []string, minVersion uint16, logger hclog.Logger) ([
 		givenCurveIDs = append(givenCurveIDs, id)
 	}
 
-	curves, err := cliflag.TLSCurvePreferences(givenCurveIDs)
+	curves, err := TLSCurvePreferences(givenCurveIDs)
 	if err != nil {
 		return nil, err
 	}
