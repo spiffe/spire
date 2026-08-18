@@ -15,6 +15,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent"
 	agentbroker "github.com/spiffe/spire/pkg/agent/broker"
 	"github.com/spiffe/spire/pkg/agent/client"
+	"github.com/spiffe/spire/pkg/agent/trustbundlesources"
 	"github.com/spiffe/spire/pkg/agent/workloadkey"
 	"github.com/spiffe/spire/pkg/common/log"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -811,9 +812,9 @@ func TestNewAgentConfig(t *testing.T) {
 			},
 		},
 		{
-			msg:                "trust_bundle_path, trust_bundle_url, or trust_bundle_spiffe_workload_api must be configured unless insecure_bootstrap is set",
+			msg:                "trust_bundle_path, trust_bundle_url, trust_bundle_spiffe_workload_api, or trust_bundle_configmap must be configured unless insecure_bootstrap is set",
 			expectError:        true,
-			requireErrorPrefix: "trust_bundle_path, trust_bundle_url, or trust_bundle_spiffe_workload_api must be configured unless insecure_bootstrap is set",
+			requireErrorPrefix: "trust_bundle_path, trust_bundle_url, trust_bundle_spiffe_workload_api, or trust_bundle_configmap must be configured unless insecure_bootstrap is set",
 			input: func(c *Config) {
 				// in this case, remove trust_bundle_path provided by defaultValidConfig()
 				c.Agent.TrustBundlePath = ""
@@ -897,6 +898,87 @@ func TestNewAgentConfig(t *testing.T) {
 				// remove trust_bundle_path provided by defaultValidConfig()
 				c.Agent.TrustBundlePath = ""
 				c.Agent.TrustBundleSpiffeWorkloadAPI = testWorkloadAPIAddr
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.NotNil(t, c.TrustBundleSources)
+			},
+		},
+		{
+			msg:                "insecure_bootstrap and trust_bundle_configmap cannot both be set",
+			expectError:        true,
+			requireErrorPrefix: "only one of insecure_bootstrap or trust_bundle_configmap can be specified, not both",
+			input: func(c *Config) {
+				// remove trust_bundle_path provided by defaultValidConfig()
+				c.Agent.TrustBundlePath = ""
+				c.Agent.TrustBundleConfigMap = &trustBundleConfigMapHCLConfig{}
+				c.Agent.InsecureBootstrap = true
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
+			msg:                "trust_bundle_url and trust_bundle_configmap cannot both be set",
+			expectError:        true,
+			requireErrorPrefix: "only one of trust_bundle_url or trust_bundle_configmap can be specified, not both",
+			input: func(c *Config) {
+				// remove trust_bundle_path provided by defaultValidConfig()
+				c.Agent.TrustBundlePath = ""
+				c.Agent.TrustBundleURL = "https://foo.bar/trustbundle"
+				c.Agent.TrustBundleConfigMap = &trustBundleConfigMapHCLConfig{}
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
+			msg:                "trust_bundle_path and trust_bundle_configmap cannot both be set",
+			expectError:        true,
+			requireErrorPrefix: "only one of trust_bundle_path or trust_bundle_configmap can be specified, not both",
+			input: func(c *Config) {
+				c.Agent.TrustBundlePath = "foo"
+				c.Agent.TrustBundleConfigMap = &trustBundleConfigMapHCLConfig{}
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
+			msg:                "trust_bundle_spiffe_workload_api and trust_bundle_configmap cannot both be set",
+			expectError:        true,
+			requireErrorPrefix: "only one of trust_bundle_spiffe_workload_api or trust_bundle_configmap can be specified, not both",
+			input: func(c *Config) {
+				// remove trust_bundle_path provided by defaultValidConfig()
+				c.Agent.TrustBundlePath = ""
+				c.Agent.TrustBundleSpiffeWorkloadAPI = testWorkloadAPIAddr
+				c.Agent.TrustBundleConfigMap = &trustBundleConfigMapHCLConfig{}
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
+			msg:                "trust_bundle_unix_socket and trust_bundle_configmap cannot both be set",
+			expectError:        true,
+			requireErrorPrefix: "trust_bundle_unix_socket can not be used with trust_bundle_configmap",
+			input: func(c *Config) {
+				// remove trust_bundle_path provided by defaultValidConfig()
+				c.Agent.TrustBundlePath = ""
+				c.Agent.TrustBundleUnixSocket = "foo.bar"
+				c.Agent.TrustBundleConfigMap = &trustBundleConfigMapHCLConfig{}
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
+			msg: "trust_bundle_configmap satisfies the trust bundle source requirement",
+			input: func(c *Config) {
+				// remove trust_bundle_path provided by defaultValidConfig()
+				c.Agent.TrustBundlePath = ""
+				c.Agent.TrustBundleConfigMap = &trustBundleConfigMapHCLConfig{
+					Namespace: "spire-server",
+				}
 			},
 			test: func(t *testing.T, c *agent.Config) {
 				require.NotNil(t, c.TrustBundleSources)
@@ -1562,6 +1644,46 @@ agent {
 		{TypeURL: "type.googleapis.com/spiffe.broker.KubernetesObjectReference", AllowOverTCP: true},
 		{TypeURL: "type.googleapis.com/spiffe.broker.WorkloadPIDReference"},
 	}, c.Agent.Experimental.Broker.Brokers[0].AllowedReferenceTypes)
+}
+
+func TestParseTrustBundleConfigMap(t *testing.T) {
+	file, err := os.CreateTemp("", "spire-agent-configmap-*.conf")
+	require.NoError(t, err)
+	defer os.Remove(file.Name())
+
+	_, err = file.WriteString(`
+agent {
+    trust_bundle_configmap {
+        namespace       = "spire-server"
+        name            = "some-bundle"
+        key             = "some-key.crt"
+        kubeconfig_path = "/etc/spire/agent/kubeconfig"
+    }
+}
+`)
+	require.NoError(t, err)
+	require.NoError(t, file.Close())
+
+	c, err := ParseFile(file.Name(), false)
+	require.NoError(t, err)
+	require.NotNil(t, c.Agent.TrustBundleConfigMap)
+	require.Equal(t, &trustbundlesources.ConfigMapConfig{
+		Namespace:      "spire-server",
+		Name:           "some-bundle",
+		Key:            "some-key.crt",
+		KubeConfigPath: "/etc/spire/agent/kubeconfig",
+	}, trustBundleConfigMapConfig(c.Agent.TrustBundleConfigMap))
+}
+
+func TestTrustBundleConfigMapConfigDefaults(t *testing.T) {
+	require.Nil(t, trustBundleConfigMapConfig(nil))
+
+	// The namespace intentionally stays empty; it is resolved from the agent's
+	// service account when the bundle is fetched.
+	require.Equal(t, &trustbundlesources.ConfigMapConfig{
+		Name: "spire-bundle",
+		Key:  "bundle.crt",
+	}, trustBundleConfigMapConfig(&trustBundleConfigMapHCLConfig{}))
 }
 
 // defaultValidConfig returns the bare minimum config required to

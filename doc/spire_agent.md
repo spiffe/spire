@@ -75,6 +75,7 @@ This may be useful for templating configuration files, for example across differ
 | `trust_bundle_url`                | URL to download the initial SPIRE server trust bundle                                                                                                                                                                                             |                                  |
 | `trust_bundle_unix_socket`        | Make the request specified via trust_bundle_url happen against the specified unix socket.                                                                                                                                                         |                                  |
 | `trust_bundle_spiffe_workload_api`| SPIFFE Workload API endpoint (e.g. `unix:///run/spire/agent.sock`) to fetch the SPIRE server trust bundle from. Useful for nested agents. `trust_bundle_format` does not apply to this source.                                                    |                                  |
+| `trust_bundle_configmap`          | Optional section describing a Kubernetes ConfigMap to fetch the initial SPIRE server trust bundle from. See [Trust bundle ConfigMap configuration](#trust-bundle-configmap-configuration)                                                         |                                  |
 | `trust_bundle_format`             | Format of the initial trust bundle, pem or spiffe                                                                                                                                                                                                 | pem                              |
 | `trust_domain`                    | The trust domain that this agent belongs to (should be no more than 255 characters)                                                                                                                                                               |                                  |
 | `workload_x509_svid_key_type`     | The workload X509 SVID key type &lt;rsa-2048&vert;ec-p256&vert;ec-p384&gt;                                                                                                                                                                        | ec-p256                          |
@@ -145,16 +146,76 @@ The second case is when trust is lost and must be reestablished, known as Reboos
 
 ### Configuring the source for Server Attestation
 
-There are four main options and a sub option:
+There are five main options and a sub option:
 
 1. If the `trust_bundle_path` option is used, the agent will read a bootstrap trust bundle from the file at that path. You need to safely copy or share the file before starting the SPIRE Agent.
 2. If the `trust_bundle_url` option is used, the agent will read the bootstrap trust bundle from the specified URL.
     1. If trust_bundle_unix_socket is unset, **The URL must start with `https://` for security, and the server must have a valid certificate (verified with the system trust store).** This can be used to rapidly deploy SPIRE agents without having to manually share a file. Keep in mind the contents of the URL need to be kept up to date.
     2. If trust_bundle_unix_socket is set, **The URL must start with `http://`.** This can be used along with a local service running on the socket to fetch up to date trust bundles via some site specific, secure mechanism.
 3. If the `trust_bundle_spiffe_workload_api` option is used, the agent will fetch a fresh copy of the trust bundle for its trust domain from the SPIFFE Workload API at the specified endpoint (e.g. `unix:///run/spire/agent.sock`, or `npipe:pipeName` on Windows) every time bootstrapping or rebootstrapping is needed. This is useful when nesting SPIRE Agents, such as with the `x509pop` NodeAttestor pointed at an upstream agent's Workload API, without needing a separate adapter daemon.
-4. If the `insecure_bootstrap` option is set to `true`, then the agent will not use a bootstrap trust bundle. It will connect to the SPIRE Server without authenticating it. This is not a secure configuration, because a man-in-the-middle attacker could control the SPIRE infrastructure. It is included because it is a useful option for testing and development.
+4. If the `trust_bundle_configmap` section is used, the agent will fetch a fresh copy of the trust bundle from a Kubernetes ConfigMap every time bootstrapping or rebootstrapping is needed. See [Trust bundle ConfigMap configuration](#trust-bundle-configmap-configuration).
+5. If the `insecure_bootstrap` option is set to `true`, then the agent will not use a bootstrap trust bundle. It will connect to the SPIRE Server without authenticating it. This is not a secure configuration, because a man-in-the-middle attacker could control the SPIRE infrastructure. It is included because it is a useful option for testing and development.
 
-Only one of these four main options may be set at a time.
+Only one of these five main options may be set at a time.
+
+### Trust bundle ConfigMap configuration
+
+The `trust_bundle_configmap` section tells the agent to read the bootstrap trust bundle from a Kubernetes ConfigMap through the API server, rather than from a file, a URL, or the SPIFFE Workload API.
+
+A ConfigMap can only be mounted as a volume by pods in its own namespace, so distributing the bundle by mount requires a copy of it in every namespace that runs an agent, plus something to keep those copies in sync. Reading it through the API server has no such restriction: a single ConfigMap can be shared with agents in any namespace. This matters when agents have to be split across namespaces, for example because Pod Security Standards are applied per namespace and a privileged per-node agent cannot share a namespace with an unprivileged one.
+
+| trust_bundle_configmap | Description                                                                                                                                                                                   | Default                   |
+|:-----------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------|
+| `namespace`            | Namespace holding the ConfigMap. If unset, the namespace the agent itself is running in is used, as reported by its service account.                                                          | the agent's own namespace |
+| `name`                 | Name of the ConfigMap                                                                                                                                                                         | spire-bundle              |
+| `key`                  | Key within the ConfigMap holding the trust bundle                                                                                                                                             | bundle.crt                |
+| `kubeconfig_path`      | Path to a kubeconfig file used to connect to the API server. If unset, the connection is configured from the ambient environment (in-cluster credentials, `KUBECONFIG`, or `~/.kube/config`). |                           |
+
+`trust_bundle_format` applies to the value read from the ConfigMap, the same as it does for a bundle read from a file or a URL.
+
+Example configuration:
+
+```hcl
+agent {
+    # ...
+    trust_bundle_configmap {
+        namespace = "spire-server"
+        name      = "spire-bundle"
+        key       = "bundle.crt"
+    }
+}
+```
+
+The agent's service account must be granted `get` access to the ConfigMap in the namespace the ConfigMap lives in. When the agent runs in a different namespace than the ConfigMap, the `Role` goes in the ConfigMap's namespace and the `RoleBinding` names the agent's service account in the agent's namespace:
+
+```yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: spire-bundle-reader
+  namespace: spire-server
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    resourceNames: ["spire-bundle"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: spire-bundle-reader
+  namespace: spire-server
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: spire-bundle-reader
+subjects:
+  - kind: ServiceAccount
+    name: spire-agent
+    namespace: spire-agents
+```
+
+The bundle is read from the ConfigMap on every bootstrap and rebootstrap attempt, so an updated ConfigMap is picked up on the next attempt without restarting the agent.
 
 ### Rebootstrapping
 
@@ -163,7 +224,7 @@ There are two options that relate to rebootstrapping
 `rebootstrap_mode` can be set to one of `never`, `auto`, or `always`.
 
 1. When set to `never`, the agent will be prevented from automated rebootstrapping, and manual recovery will be necessary if trust is ever lost.
-2. When set to `always`, the agent will attempt to rebootstrap, attesting the server again using the `trust_bundle_path`, `trust_bundle_url`, `trust_bundle_unix_socket`, and/or `trust_bundle_spiffe_workload_api` settings when needed. The ability to rebootstrap needs to be supported by the agent NodeAttestor plugin along with the configuration of the server. The `always` mode will fail the agent if the plugin, server, and configurations are incompatible.
+2. When set to `always`, the agent will attempt to rebootstrap, attesting the server again using the `trust_bundle_path`, `trust_bundle_url`, `trust_bundle_unix_socket`, `trust_bundle_spiffe_workload_api`, and/or `trust_bundle_configmap` settings when needed. The ability to rebootstrap needs to be supported by the agent NodeAttestor plugin along with the configuration of the server. The `always` mode will fail the agent if the plugin, server, and configurations are incompatible.
 3. `auto` mode functions like `always` except when unsupported, it will automatically disable rebootstrapping of the agent.
 
 The other option is `rebootstrap_delay`. It defaults to `10m`. This is the duration to wait between when a server is first seen that isn't trusted by the agents trust bundle and when to start the rebootstrapping process. No rebootstrapping is allowed during this delay period. If a secure server connection is established successfully during this delay period, the delay clock will be reset.

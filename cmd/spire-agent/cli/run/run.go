@@ -68,36 +68,39 @@ type Config struct {
 }
 
 type agentConfig struct {
-	DataDir                       string    `hcl:"data_dir"`
-	AdminSocketPath               string    `hcl:"admin_socket_path"`
-	InsecureBootstrap             bool      `hcl:"insecure_bootstrap"`
-	RebootstrapMode               string    `hcl:"rebootstrap_mode"`
-	RebootstrapDelay              string    `hcl:"rebootstrap_delay"`
-	JoinToken                     string    `hcl:"join_token"`
-	JoinTokenFile                 string    `hcl:"join_token_file"`
-	LogFile                       string    `hcl:"log_file"`
-	LogFormat                     string    `hcl:"log_format"`
-	LogLevel                      string    `hcl:"log_level"`
-	LogSelectors                  []string  `hcl:"log_selectors"`
-	LogSourceLocation             bool      `hcl:"log_source_location"`
-	SDS                           sdsConfig `hcl:"sds"`
-	ServerAddress                 string    `hcl:"server_address"`
-	ServerPort                    int       `hcl:"server_port"`
-	SocketPath                    string    `hcl:"socket_path"`
-	DisableWorkloadAPI            bool      `hcl:"disable_workload_api"`
-	DisableSDSAPI                 bool      `hcl:"disable_sds_api"`
-	WorkloadX509SVIDKeyType       string    `hcl:"workload_x509_svid_key_type"`
-	TrustBundleFormat             string    `hcl:"trust_bundle_format"`
-	TrustBundlePath               string    `hcl:"trust_bundle_path"`
-	TrustBundleSpiffeWorkloadAPI  string    `hcl:"trust_bundle_spiffe_workload_api"`
-	TrustBundleUnixSocket         string    `hcl:"trust_bundle_unix_socket"`
-	TrustBundleURL                string    `hcl:"trust_bundle_url"`
-	TrustDomain                   string    `hcl:"trust_domain"`
-	AllowUnauthenticatedVerifiers bool      `hcl:"allow_unauthenticated_verifiers"`
-	AllowedForeignJWTClaims       []string  `hcl:"allowed_foreign_jwt_claims"`
-	AvailabilityTarget            string    `hcl:"availability_target"`
-	X509SVIDCacheMaxSize          int       `hcl:"x509_svid_cache_max_size"`
-	JWTSVIDCacheMaxSize           int       `hcl:"jwt_svid_cache_max_size"`
+	DataDir                      string    `hcl:"data_dir"`
+	AdminSocketPath              string    `hcl:"admin_socket_path"`
+	InsecureBootstrap            bool      `hcl:"insecure_bootstrap"`
+	RebootstrapMode              string    `hcl:"rebootstrap_mode"`
+	RebootstrapDelay             string    `hcl:"rebootstrap_delay"`
+	JoinToken                    string    `hcl:"join_token"`
+	JoinTokenFile                string    `hcl:"join_token_file"`
+	LogFile                      string    `hcl:"log_file"`
+	LogFormat                    string    `hcl:"log_format"`
+	LogLevel                     string    `hcl:"log_level"`
+	LogSelectors                 []string  `hcl:"log_selectors"`
+	LogSourceLocation            bool      `hcl:"log_source_location"`
+	SDS                          sdsConfig `hcl:"sds"`
+	ServerAddress                string    `hcl:"server_address"`
+	ServerPort                   int       `hcl:"server_port"`
+	SocketPath                   string    `hcl:"socket_path"`
+	DisableWorkloadAPI           bool      `hcl:"disable_workload_api"`
+	DisableSDSAPI                bool      `hcl:"disable_sds_api"`
+	WorkloadX509SVIDKeyType      string    `hcl:"workload_x509_svid_key_type"`
+	TrustBundleFormat            string    `hcl:"trust_bundle_format"`
+	TrustBundlePath              string    `hcl:"trust_bundle_path"`
+	TrustBundleSpiffeWorkloadAPI string    `hcl:"trust_bundle_spiffe_workload_api"`
+	TrustBundleUnixSocket        string    `hcl:"trust_bundle_unix_socket"`
+	TrustBundleURL               string    `hcl:"trust_bundle_url"`
+	TrustDomain                  string    `hcl:"trust_domain"`
+
+	TrustBundleConfigMap *trustBundleConfigMapHCLConfig `hcl:"trust_bundle_configmap"`
+
+	AllowUnauthenticatedVerifiers bool     `hcl:"allow_unauthenticated_verifiers"`
+	AllowedForeignJWTClaims       []string `hcl:"allowed_foreign_jwt_claims"`
+	AvailabilityTarget            string   `hcl:"availability_target"`
+	X509SVIDCacheMaxSize          int      `hcl:"x509_svid_cache_max_size"`
+	JWTSVIDCacheMaxSize           int      `hcl:"jwt_svid_cache_max_size"`
 
 	AuthorizedDelegates []string `hcl:"authorized_delegates"`
 
@@ -112,6 +115,56 @@ type agentConfig struct {
 	Experimental     experimentalConfig `hcl:"experimental"`
 
 	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions"`
+}
+
+// trustBundleConfigMapHCLConfig is the HCL block locating the Kubernetes
+// ConfigMap holding the bootstrap trust bundle:
+//
+//	trust_bundle_configmap {
+//	    # Namespace holding the ConfigMap. Defaults to the namespace the
+//	    # agent itself is running in. A ConfigMap in another namespace can
+//	    # be used as long as the agent's service account is granted get
+//	    # access to it, which avoids having to copy the bundle into every
+//	    # namespace that runs an agent.
+//	    namespace = "spire-server"
+//
+//	    name = "spire-bundle"
+//	    key  = "bundle.crt"
+//
+//	    # Path to a kubeconfig file. Only needed when the agent is not
+//	    # running in a pod with usable in-cluster credentials.
+//	    kubeconfig_path = "/etc/spire/agent/kubeconfig"
+//	}
+type trustBundleConfigMapHCLConfig struct {
+	Namespace      string `hcl:"namespace"`
+	Name           string `hcl:"name"`
+	Key            string `hcl:"key"`
+	KubeConfigPath string `hcl:"kubeconfig_path"`
+
+	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions"`
+}
+
+// trustBundleConfigMapConfig resolves the ConfigMap trust bundle source,
+// applying defaults. The namespace is deliberately left alone; it is resolved
+// from the agent's service account when the bundle is fetched.
+func trustBundleConfigMapConfig(in *trustBundleConfigMapHCLConfig) *trustbundlesources.ConfigMapConfig {
+	if in == nil {
+		return nil
+	}
+
+	out := &trustbundlesources.ConfigMapConfig{
+		Namespace:      in.Namespace,
+		Name:           in.Name,
+		Key:            in.Key,
+		KubeConfigPath: in.KubeConfigPath,
+	}
+	if out.Name == "" {
+		out.Name = trustbundlesources.DefaultConfigMapName
+	}
+	if out.Key == "" {
+		out.Key = trustbundlesources.DefaultConfigMapKey
+	}
+	return out
 }
 
 // brokerHCLConfig is the HCL block for the SPIFFE Broker API endpoint:
@@ -380,12 +433,28 @@ func (c *agentConfig) validate() error {
 		return errors.New("trust_domain must be configured")
 	}
 
-	// If insecure_bootstrap is set, trust_bundle_path, trust_bundle_url, or trust_bundle_spiffe_workload_api cannot be set
+	// If insecure_bootstrap is set, trust_bundle_path, trust_bundle_url, trust_bundle_spiffe_workload_api, or trust_bundle_configmap cannot be set
 	// If trust_bundle_url is set, download the trust bundle using HTTP and parse it from memory
 	// If trust_bundle_path is set, parse the trust bundle file on disk
 	// If trust_bundle_spiffe_workload_api is set, fetch the trust bundle from the specified SPIFFE Workload API endpoint
+	// If trust_bundle_configmap is set, fetch the trust bundle from the specified Kubernetes ConfigMap
 	// Only one can be set
 	// The trust bundle URL must start with HTTPS
+	if c.TrustBundleConfigMap != nil {
+		switch {
+		case c.InsecureBootstrap:
+			return errors.New("only one of insecure_bootstrap or trust_bundle_configmap can be specified, not both")
+		case c.TrustBundleURL != "":
+			return errors.New("only one of trust_bundle_url or trust_bundle_configmap can be specified, not both")
+		case c.TrustBundlePath != "":
+			return errors.New("only one of trust_bundle_path or trust_bundle_configmap can be specified, not both")
+		case c.TrustBundleSpiffeWorkloadAPI != "":
+			return errors.New("only one of trust_bundle_spiffe_workload_api or trust_bundle_configmap can be specified, not both")
+		case c.TrustBundleUnixSocket != "":
+			return errors.New("trust_bundle_unix_socket can not be used with trust_bundle_configmap")
+		}
+	}
+
 	if c.TrustBundleSpiffeWorkloadAPI != "" {
 		switch {
 		case c.InsecureBootstrap:
@@ -411,8 +480,8 @@ func (c *agentConfig) validate() error {
 		case c.TrustBundlePath != "":
 			return errors.New("only one of insecure_bootstrap or trust_bundle_path can be specified, not both")
 		}
-	} else if c.TrustBundlePath == "" && c.TrustBundleURL == "" && c.TrustBundleSpiffeWorkloadAPI == "" {
-		return errors.New("trust_bundle_path, trust_bundle_url, or trust_bundle_spiffe_workload_api must be configured unless insecure_bootstrap is set")
+	} else if c.TrustBundlePath == "" && c.TrustBundleURL == "" && c.TrustBundleSpiffeWorkloadAPI == "" && c.TrustBundleConfigMap == nil {
+		return errors.New("trust_bundle_path, trust_bundle_url, trust_bundle_spiffe_workload_api, or trust_bundle_configmap must be configured unless insecure_bootstrap is set")
 	}
 
 	if c.TrustBundleURL != "" && c.TrustBundlePath != "" {
@@ -707,6 +776,7 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 		TrustBundleURL:               c.Agent.TrustBundleURL,
 		TrustBundleUnixSocket:        c.Agent.TrustBundleUnixSocket,
 		TrustBundleSpiffeWorkloadAPI: c.Agent.TrustBundleSpiffeWorkloadAPI,
+		TrustBundleConfigMap:         trustBundleConfigMapConfig(c.Agent.TrustBundleConfigMap),
 		TrustDomain:                  c.Agent.TrustDomain,
 		ServerAddress:                c.Agent.ServerAddress,
 		ServerPort:                   c.Agent.ServerPort,
