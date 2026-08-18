@@ -73,8 +73,14 @@ func newManager(c *Config) *manager {
 	}
 
 	logger := c.Log.WithField(telemetry.SubsystemName, telemetry.CacheManager)
-	cache := managerCache.NewLRUCache(logger, c.TrustDomain, c.Bundle,
-		c.Metrics, c.X509SVIDCacheMaxSize, c.Clk)
+	x509Cache := managerCache.NewX509LRUCache(managerCache.X509LRUCacheConfig{
+		Log:              logger,
+		TrustDomain:      c.TrustDomain,
+		Bundle:           c.Bundle,
+		Metrics:          c.Metrics,
+		SvidCacheMaxSize: c.X509SVIDCacheMaxSize,
+		Clk:              c.Clk,
+	})
 
 	jwtCache := managerCache.NewJWTSVIDCache(logger, c.Metrics, c.JWTSVIDCacheMaxSize)
 
@@ -100,7 +106,7 @@ func newManager(c *Config) *manager {
 
 	m := &manager{
 		bundleCache:    bundleCache,
-		cache:          cache,
+		x509Cache:      x509Cache,
 		jwtCache:       jwtCache,
 		c:              c,
 		mtx:            new(sync.RWMutex),

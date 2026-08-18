@@ -193,13 +193,13 @@ func (c *Cache) UpdateEntries(update *cache.UpdateEntries, checkSVID func(*commo
 	}
 }
 
-// UpdateSVIDs updates cache with latest SVIDs
-func (c *Cache) UpdateSVIDs(update *cache.UpdateSVIDs) {
+// UpdateX509SVIDs updates cache with latest SVIDs
+func (c *Cache) UpdateX509SVIDs(svids map[string]*cache.X509SVID) {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
 	// Add/update records for registration entries in the update
-	for entryID, svid := range update.X509SVIDs {
+	for entryID, svid := range svids {
 		record, existingEntry := c.records[entryID]
 		if !existingEntry {
 			c.c.Log.WithField(telemetry.RegistrationID, entryID).Error("Entry not found")

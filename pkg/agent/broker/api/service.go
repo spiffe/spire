@@ -379,7 +379,7 @@ func (s *Service) constructValidSelectorsFromReference(ctx context.Context, log 
 	return selectors, nil
 }
 
-func sendX509SVIDResponse(update *cache.WorkloadUpdate, stream broker.API_SubscribeToX509SVIDServer, log logrus.FieldLogger) (err error) {
+func sendX509SVIDResponse(update *cache.X509WorkloadUpdate, stream broker.API_SubscribeToX509SVIDServer, log logrus.FieldLogger) (err error) {
 	resp, notAfters, err := composeX509SVIDBySelectors(update)
 	if err != nil {
 		log.WithError(err).Error("Could not serialize X.509 SVID response")
@@ -407,7 +407,7 @@ func sendX509SVIDResponse(update *cache.WorkloadUpdate, stream broker.API_Subscr
 	return nil
 }
 
-func composeX509SVIDBySelectors(update *cache.WorkloadUpdate) (*broker.SubscribeToX509SVIDResponse, []time.Time, error) {
+func composeX509SVIDBySelectors(update *cache.X509WorkloadUpdate) (*broker.SubscribeToX509SVIDResponse, []time.Time, error) {
 	resp := new(broker.SubscribeToX509SVIDResponse)
 	resp.Svids = make([]*broker.X509SVID, 0, len(update.Identities))
 	resp.FederatedBundles = make(map[string][]byte, len(update.FederatedBundles))
