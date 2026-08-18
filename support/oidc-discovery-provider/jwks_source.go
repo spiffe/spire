@@ -8,7 +8,7 @@ import (
 )
 
 type JWKSSource interface {
-	// FetchJWKS returns the key set and modified time.
+	// FetchKeySet returns the key set and modified time.
 	FetchKeySet() (*jose.JSONWebKeySet, time.Time, bool)
 
 	// FetchBundle returns the full SPIFFE trust bundle and modified time.
