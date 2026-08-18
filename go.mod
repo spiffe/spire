@@ -79,7 +79,7 @@ require (
 	github.com/sirupsen/logrus v1.9.4
 	github.com/smallstep/pkcs7 v0.2.3
 	github.com/spiffe/go-spiffe/v2 v2.8.1
-	github.com/spiffe/spire-api-sdk v1.2.5-0.20260428072036-00f73a61093a
+	github.com/spiffe/spire-api-sdk v1.2.5-0.20260818191912-c5c261f1c31c
 	github.com/spiffe/spire-plugin-sdk v1.4.4-0.20260617144146-5dcde407c4d1
 	github.com/stretchr/testify v1.11.1
 	github.com/uber-go/tally/v4 v4.1.17
@@ -330,10 +330,3 @@ require (
 	sigs.k8s.io/structured-merge-diff/v6 v6.3.3 // indirect
 	sigs.k8s.io/yaml v1.6.0 // indirect
 )
-
-// TODO(kfox): temporary. Points at a fork carrying the in-progress
-// spire.api.types.SelectorReference proto, so this branch builds for anyone who
-// checks it out. The fork branch is based on spire-api-sdk's `next`, which is
-// where the pinned pseudo-version above already comes from. Once the change
-// lands on `next`, drop this directive and bump that pin instead.
-replace github.com/spiffe/spire-api-sdk => github.com/kfox1111/spire-api-sdk v0.0.0-20260806145937-ebf0eecdae5a
