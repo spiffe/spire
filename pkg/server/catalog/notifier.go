@@ -35,4 +35,6 @@ func (repo *notifierRepository) BuiltIns() []catalog.BuiltIn {
 type notifierV1 struct{}
 
 func (notifierV1) New() catalog.Facade { return new(notifier.V1) }
-func (notifierV1) Deprecated() bool    { return true }
+func (notifierV1) Deprecated() (bool, string) {
+	return true, "use the BundlePublisher plugin type instead"
+}
