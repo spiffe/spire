@@ -16,5 +16,5 @@ func getServiceAccountNamespacePath() string {
 	if mountPoint == "" {
 		return filepath.FromSlash(serviceAccountNamespacePath)
 	}
-	return filepath.Join(mountPoint, serviceAccountNamespacePath)
+	return filepath.Join(mountPoint, filepath.FromSlash(serviceAccountNamespacePath[1:]))
 }
