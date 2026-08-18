@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/go-jose/go-jose/v4"
+	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 )
 
@@ -20,6 +21,7 @@ JBCRRy24/UAZY70ZviCRAJ4ePscJtnN1y1wDH13GgOAL2y52xIbtkshYmw==
 type FakeKeySetSource struct {
 	mu       sync.Mutex
 	jwks     *jose.JSONWebKeySet
+	bundle   *spiffebundle.Bundle
 	modTime  time.Time
 	pollTime time.Time
 }
@@ -39,6 +41,23 @@ func (s *FakeKeySetSource) FetchKeySet() (*jose.JSONWebKeySet, time.Time, bool) 
 		return nil, time.Time{}, false
 	}
 	return s.jwks, s.modTime, true
+}
+
+func (s *FakeKeySetSource) SetBundle(bundle *spiffebundle.Bundle, modTime time.Time, pollTime time.Time) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.bundle = bundle
+	s.modTime = modTime
+	s.pollTime = pollTime
+}
+
+func (s *FakeKeySetSource) FetchBundle() (*spiffebundle.Bundle, time.Time, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.bundle == nil {
+		return nil, time.Time{}, false
+	}
+	return s.bundle, s.modTime, true
 }
 
 func (s *FakeKeySetSource) Close() error {

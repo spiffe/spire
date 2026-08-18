@@ -10,6 +10,7 @@ import (
 	"github.com/go-jose/go-jose/v4"
 	"github.com/gorilla/handlers"
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/cryptoutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 )
@@ -55,9 +56,14 @@ func NewHandler(log logrus.FieldLogger, domainPolicy DomainPolicy, source JWKSSo
 	if err != nil {
 		return nil, err
 	}
+	allKeysPath, err := url.JoinPath(serverPathPrefix, "/all-keys")
+	if err != nil {
+		return nil, err
+	}
 
 	mux.Handle(wkPath, handlers.ProxyHeaders(http.HandlerFunc(h.serveWellKnown)))
 	mux.Handle(jwksPath, http.HandlerFunc(h.serveKeys))
+	mux.Handle(allKeysPath, http.HandlerFunc(h.serveAllKeys))
 
 	h.Handler = mux
 	return h, nil
@@ -181,6 +187,44 @@ func (h *Handler) serveKeys(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	http.ServeContent(w, r, "keys", modTime, bytes.NewReader(jwksBytes))
+}
+
+// serveAllKeys serves the full trust bundle in the SPIFFE bundle format, i.e.
+// both the X.509 and JWT authorities, tagged with their SPIFFE use. Unlike the
+// keys endpoint, the document is suitable for consumption by a SPIRE Server
+// configured to federate with this trust domain.
+func (h *Handler) serveAllKeys(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "GET" {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	bundle, modTime, ok := h.source.FetchBundle()
+	if !ok {
+		http.Error(w, "document not available", http.StatusInternalServerError)
+		return
+	}
+
+	if bundle.Empty() {
+		http.Error(w, "no keys available in this service", http.StatusNotImplemented)
+		return
+	}
+
+	// The refresh hint conveyed by the source is used when it provides one,
+	// otherwise it is derived from the lifetime of the X.509 authorities.
+	bundleBytes, err := bundleutil.Marshal(bundle, bundleutil.OverrideRefreshHint(bundleutil.CalculateRefreshHint(bundle)))
+	if err != nil {
+		http.Error(w, "failed to marshal bundle", http.StatusInternalServerError)
+		return
+	}
+
+	// Disable caching
+	w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+	w.Header().Set("Pragma", "no-cache")
+	w.Header().Set("Expires", "0")
+
+	w.Header().Set("Content-Type", "application/json")
+	http.ServeContent(w, r, "all-keys", modTime, bytes.NewReader(bundleBytes))
 }
 
 func (h *Handler) verifyHost(host string) error {
