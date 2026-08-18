@@ -20,7 +20,7 @@ the OIDC discovery document served at `/instance/1/.well-known/openid-configurat
 The provider by default relies on ACME to obtain TLS certificates that it uses to
 serve the documents securely.
 
-### The `/all-keys` endpoint
+## The `/all-keys` endpoint
 
 Where `/keys` returns a plain JWKS containing only the JWT authorities, `/all-keys`
 returns the complete trust bundle in the [SPIFFE bundle format](https://github.com/spiffe/spiffe/blob/main/standards/SPIFFE_Trust_Domain_and_Bundle.md#4-spiffe-bundle-format):
