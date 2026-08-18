@@ -50,7 +50,7 @@ type Manager interface {
 
 	// SubscribeToCacheChanges returns a Subscriber on which cache entry updates are sent
 	// for a particular set of selectors.
-	SubscribeToCacheChanges(ctx context.Context, key cache.Selectors) (cache.Subscriber, error)
+	SubscribeToCacheChanges(ctx context.Context, key cache.Selectors) (cache.Subscriber[cache.X509WorkloadUpdate], error)
 
 	// SubscribeToSVIDChanges returns a new observer.Stream on which svid.State instances are received
 	// each time an SVID rotation finishes.
@@ -75,7 +75,7 @@ type Manager interface {
 	MatchingRegistrationEntries(selectors []*common.Selector) []*common.RegistrationEntry
 
 	// FetchWorkloadUpdates gets the latest workload update for the selectors
-	FetchWorkloadUpdate(selectors []*common.Selector) *cache.WorkloadUpdate
+	FetchWorkloadUpdate(selectors []*common.Selector) *cache.X509WorkloadUpdate
 
 	// FetchJWTSVID returns a JWT SVID for the specified SPIFFEID and audience. If there
 	// is no JWT cached, the manager will get one signed upstream.
@@ -103,49 +103,6 @@ type Manager interface {
 	GetX509Bundle() x509bundle.Source
 }
 
-// Cache stores each registration entry, signed X509-SVIDs for those entries,
-// bundles, and JWT SVIDs for the agent.
-type Cache interface {
-	SVIDCache
-
-	// SyncSVIDsWithSubscribers syncs SVID cache
-	SyncSVIDsWithSubscribers()
-
-	// SubscribeToWorkloadUpdates creates a subscriber for given selector set.
-	SubscribeToWorkloadUpdates(ctx context.Context, selectors cache.Selectors) (cache.Subscriber, error)
-
-	// MatchingRegistrationEntries with given selectors
-	MatchingRegistrationEntries(selectors []*common.Selector) []*common.RegistrationEntry
-
-	// CountX509SVIDs in cache stored
-	CountX509SVIDs() int
-
-	// FetchWorkloadUpdate for given selectors
-	FetchWorkloadUpdate(selectors []*common.Selector) *cache.WorkloadUpdate
-
-	// Entries get all registration entries
-	Entries() []*common.RegistrationEntry
-
-	// Identities get all identities in cache
-	Identities() []cache.Identity
-}
-
-type JWTCache interface {
-	// CountJWTSVIDs in cache stored
-	CountJWTSVIDs() int
-
-	// GetJWTSVID provides JWT-SVID
-	GetJWTSVID(id spiffeid.ID, audience []string) (*client.JWTSVID, bool)
-
-	// SetJWTSVID adds JWT-SVID to cache
-	SetJWTSVID(id spiffeid.ID, audience []string, svid *client.JWTSVID)
-
-	// TaintJWTSVIDs removes JWT-SVIDs with tainted authorities from the cache,
-	// forcing the server to issue a new JWT-SVID when one with a tainted
-	// authority is requested.
-	TaintJWTSVIDs(ctx context.Context, taintedJWTAuthorities map[string]struct{})
-}
-
 type manager struct {
 	c *Config
 
@@ -155,8 +112,8 @@ type manager struct {
 	updateSVIDMu sync.RWMutex
 
 	bundleCache *cache.BundleCache
-	cache       Cache
-	jwtCache    JWTCache
+	x509Cache   *cache.X509SVIDLRUCache
+	jwtCache    *cache.JWTSVIDCache
 	svid        svid.Rotator
 
 	storage storage.Storage
@@ -259,8 +216,8 @@ func (m *manager) Run(ctx context.Context) error {
 	}
 }
 
-func (m *manager) SubscribeToCacheChanges(ctx context.Context, selectors cache.Selectors) (cache.Subscriber, error) {
-	return m.cache.SubscribeToWorkloadUpdates(ctx, selectors)
+func (m *manager) SubscribeToCacheChanges(ctx context.Context, selectors cache.Selectors) (cache.Subscriber[cache.X509WorkloadUpdate], error) {
+	return m.x509Cache.SubscribeToWorkloadUpdates(ctx, selectors)
 }
 
 func (m *manager) SubscribeToSVIDChanges() observer.Stream {
@@ -284,11 +241,11 @@ func (m *manager) SetRotationFinishedHook(f func()) {
 }
 
 func (m *manager) MatchingRegistrationEntries(selectors []*common.Selector) []*common.RegistrationEntry {
-	return m.cache.MatchingRegistrationEntries(selectors)
+	return m.x509Cache.MatchingRegistrationEntries(selectors)
 }
 
 func (m *manager) CountX509SVIDs() int {
-	return m.cache.CountX509SVIDs()
+	return m.x509Cache.CountSVIDs()
 }
 
 func (m *manager) CountJWTSVIDs() int {
@@ -300,8 +257,8 @@ func (m *manager) CountSVIDStoreX509SVIDs() int {
 }
 
 // FetchWorkloadUpdates gets the latest workload update for the selectors
-func (m *manager) FetchWorkloadUpdate(selectors []*common.Selector) *cache.WorkloadUpdate {
-	return m.cache.FetchWorkloadUpdate(selectors)
+func (m *manager) FetchWorkloadUpdate(selectors []*common.Selector) *cache.X509WorkloadUpdate {
+	return m.x509Cache.FetchWorkloadUpdate(selectors)
 }
 
 func (m *manager) FetchJWTSVID(ctx context.Context, entry *common.RegistrationEntry, audience []string) (*client.JWTSVID, error) {
@@ -403,7 +360,7 @@ func (m *manager) runSynchronizer(ctx context.Context) error {
 
 			// Clamp the sync interval to the default value when the agent doesn't have any SVIDs cached
 			// AND the previous sync request succeeded
-			if m.cache.CountX509SVIDs() == 0 {
+			if m.x509Cache.CountSVIDs() == 0 {
 				syncInterval = min(syncInterval, defaultSyncInterval)
 			}
 		}
