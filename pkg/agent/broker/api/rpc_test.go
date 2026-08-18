@@ -63,7 +63,7 @@ type testParams struct {
 	AllowedReferenceTypes *ReferenceTypePolicy
 
 	// Updates are fed to SubscribeToX509SVID subscribers in order.
-	Updates []*cache.WorkloadUpdate
+	Updates []*cache.X509WorkloadUpdate
 
 	// Entries back MatchingRegistrationEntries.
 	Entries []*common.RegistrationEntry
@@ -210,7 +210,7 @@ func (a *countingAttestor) AttestReferenceCalls() int {
 type fakeManager struct {
 	manager.Manager
 
-	updates  []*cache.WorkloadUpdate
+	updates  []*cache.X509WorkloadUpdate
 	entries  []*common.RegistrationEntry
 	jwtSVIDs map[spiffeid.ID]*client.JWTSVID
 
@@ -219,7 +219,7 @@ type fakeManager struct {
 	lastSelectors atomic.Pointer[[]*common.Selector]
 }
 
-func (m *fakeManager) SubscribeToCacheChanges(_ context.Context, selectors cache.Selectors) (cache.Subscriber, error) {
+func (m *fakeManager) SubscribeToCacheChanges(_ context.Context, selectors cache.Selectors) (cache.Subscriber[cache.X509WorkloadUpdate], error) {
 	captured := []*common.Selector(selectors)
 	m.lastSelectors.Store(&captured)
 	return newFakeSubscriber(m.updates), nil
@@ -251,12 +251,12 @@ func (m *fakeManager) LastSelectors() []*common.Selector {
 }
 
 type fakeSubscriber struct {
-	ch     chan *cache.WorkloadUpdate
+	ch     chan *cache.X509WorkloadUpdate
 	cancel context.CancelFunc
 }
 
-func newFakeSubscriber(updates []*cache.WorkloadUpdate) *fakeSubscriber {
-	ch := make(chan *cache.WorkloadUpdate)
+func newFakeSubscriber(updates []*cache.X509WorkloadUpdate) *fakeSubscriber {
+	ch := make(chan *cache.X509WorkloadUpdate)
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
 		for _, update := range updates {
@@ -271,11 +271,11 @@ func newFakeSubscriber(updates []*cache.WorkloadUpdate) *fakeSubscriber {
 	return &fakeSubscriber{ch: ch, cancel: cancel}
 }
 
-func (s *fakeSubscriber) Updates() <-chan *cache.WorkloadUpdate { return s.ch }
-func (s *fakeSubscriber) Finish()                               { s.cancel() }
+func (s *fakeSubscriber) Updates() <-chan *cache.X509WorkloadUpdate { return s.ch }
+func (s *fakeSubscriber) Finish()                                   { s.cancel() }
 
-func identityFor(svid *x509svid.SVID, entry *common.RegistrationEntry) cache.Identity {
-	return cache.Identity{
+func identityFor(svid *x509svid.SVID, entry *common.RegistrationEntry) cache.X509Identity {
+	return cache.X509Identity{
 		Entry:      entry,
 		PrivateKey: svid.PrivateKey,
 		SVID:       svid.Certificates,
@@ -300,10 +300,10 @@ func TestSubscribeToX509SVIDWithSelectorReference(t *testing.T) {
 		SelectorAssertion: &SelectorAssertionPolicy{
 			AllowedSelectorTypes: map[string]struct{}{"k8s_psat": {}},
 		},
-		Updates: []*cache.WorkloadUpdate{
+		Updates: []*cache.X509WorkloadUpdate{
 			{
 				Bundle:     ca.Bundle(),
-				Identities: []cache.Identity{identityFor(svid, entryFor(workloadID))},
+				Identities: []cache.X509Identity{identityFor(svid, entryFor(workloadID))},
 			},
 		},
 	}
@@ -337,10 +337,10 @@ func TestSubscribeToX509SVIDExcludesAdminAndDownstreamEntries(t *testing.T) {
 		SelectorAssertion: &SelectorAssertionPolicy{
 			AllowedSelectorTypes: map[string]struct{}{"k8s_psat": {}},
 		},
-		Updates: []*cache.WorkloadUpdate{
+		Updates: []*cache.X509WorkloadUpdate{
 			{
 				Bundle: ca.Bundle(),
-				Identities: []cache.Identity{
+				Identities: []cache.X509Identity{
 					identityFor(workloadSVID, entryFor(workloadID)),
 					identityFor(adminSVID, adminEntry),
 				},
