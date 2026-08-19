@@ -32,6 +32,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/trustbundlesources"
 	"github.com/spiffe/spire/pkg/agent/workloadkey"
 	commonapi "github.com/spiffe/spire/pkg/common/api"
+	"github.com/spiffe/spire/pkg/common/backoff"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/rotationutil"
@@ -44,6 +45,7 @@ import (
 	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/fakes/fakeagentcatalog"
 	"github.com/spiffe/spire/test/fakes/fakeagentkeymanager"
+	"github.com/spiffe/spire/test/fakes/fakemetrics"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/testca"
 	"github.com/spiffe/spire/test/testkey"
@@ -55,6 +57,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/peer"
+	"google.golang.org/protobuf/proto"
 )
 
 var (
@@ -689,6 +692,99 @@ func TestSynchronization(t *testing.T) {
 	}
 
 	require.Equal(t, clk.Now(), m.GetLastSync())
+}
+
+func TestUpdateX509SVIDCacheReportsAllStaleSVIDs(t *testing.T) {
+	dir := spiretest.TempDir(t)
+	km := fakeagentkeymanager.New(t, dir)
+	clk := clock.NewMock(t)
+	metrics := fakemetrics.New()
+	api := newMockAPI(t, &mockAPIConfig{
+		km: km,
+		getAuthorizedEntries: func(*mockAPI, int32, *entryv1.GetAuthorizedEntriesRequest) (*entryv1.GetAuthorizedEntriesResponse, error) {
+			return makeGetAuthorizedEntriesResponse(t, "resp1", "resp2"), nil
+		},
+		batchNewX509SVIDEntries: func(*mockAPI, int32) []*common.RegistrationEntry {
+			return makeBatchNewX509SVIDEntries("resp1", "resp2")
+		},
+		svidTTL: 3600,
+		clk:     clk,
+	})
+
+	baseSVID, baseSVIDKey := api.newSVID(joinTokenID, time.Hour)
+	cat := fakeagentcatalog.New()
+	cat.SetKeyManager(km)
+	m := newManager(&Config{
+		ServerAddr:       api.addr,
+		SVID:             baseSVID,
+		SVIDKey:          baseSVIDKey,
+		Log:              testLogger,
+		TrustDomain:      trustDomain,
+		Storage:          openStorage(t, dir),
+		Bundle:           api.bundle,
+		Metrics:          metrics,
+		Clk:              clk,
+		Catalog:          cat,
+		WorkloadKeyType:  workloadkey.ECP256,
+		SVIDStoreCache:   storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
+		RotationStrategy: rotationutil.NewRotationStrategy(0),
+	})
+	require.NoError(t, m.Initialize(context.Background()))
+
+	m.x509Cache.UpdateX509SVIDs(map[string]*cache.X509SVID{
+		"0001": {
+			Chain: []*x509.Certificate{{
+				NotBefore: clk.Now().Add(-time.Hour),
+				NotAfter:  clk.Now().Add(-time.Second),
+			}},
+		},
+	})
+	entries := make([]*common.RegistrationEntry, 0, len(regEntriesMap["resp1"])+len(regEntriesMap["resp2"]))
+	entries = append(entries, regEntriesMap["resp1"]...)
+	entries = append(entries, regEntriesMap["resp2"]...)
+	updatedEntries := make(map[string]*common.RegistrationEntry, len(entries))
+	for _, entry := range entries {
+		updatedEntry, ok := proto.Clone(entry).(*common.RegistrationEntry)
+		require.True(t, ok)
+		if entry.EntryId != "0001" {
+			updatedEntry.RevisionNumber++
+		}
+		updatedEntries[entry.EntryId] = updatedEntry
+	}
+
+	metrics.Reset()
+	api.lastestSVIDs = make(map[string][]*x509.Certificate)
+	m.csrSizeLimitedBackoff = backoff.NewSizeLimitedBackOff(1)
+	require.NoError(t, m.updateX509SVIDCache(context.Background(), &cache.UpdateEntries{
+		Bundles: map[spiffeid.TrustDomain]*cache.Bundle{
+			trustDomain: api.bundle,
+		},
+		RegistrationEntries: updatedEntries,
+	}, testLogger, "", m.x509Cache))
+
+	require.Len(t, api.lastestSVIDs, 1, "CSR limit should renew only one stale SVID")
+	var staleSVIDSamples []fakemetrics.MetricItem
+	for _, metric := range metrics.AllMetrics() {
+		if metric.Type != fakemetrics.AddSampleType {
+			continue
+		}
+		if reflect.DeepEqual(metric.Key, []string{telemetry.CacheManager, telemetry.ExpiringSVIDs}) ||
+			reflect.DeepEqual(metric.Key, []string{telemetry.CacheManager, telemetry.OutdatedSVIDs}) {
+			staleSVIDSamples = append(staleSVIDSamples, metric)
+		}
+	}
+	assert.Equal(t, []fakemetrics.MetricItem{
+		{
+			Type: fakemetrics.AddSampleType,
+			Key:  []string{telemetry.CacheManager, telemetry.ExpiringSVIDs},
+			Val:  1,
+		},
+		{
+			Type: fakemetrics.AddSampleType,
+			Key:  []string{telemetry.CacheManager, telemetry.OutdatedSVIDs},
+			Val:  2,
+		},
+	}, staleSVIDSamples)
 }
 
 func TestSynchronizationClearsStaleCacheEntries(t *testing.T) {

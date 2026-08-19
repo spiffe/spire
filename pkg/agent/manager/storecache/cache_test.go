@@ -23,6 +23,7 @@ import (
 	"github.com/spiffe/spire/test/testca"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 )
 
 var (
@@ -1238,6 +1239,57 @@ func TestCheckSVID(t *testing.T) {
 		assert.Equal(t, x509SVID, xs)
 		return true
 	})
+}
+
+func TestUpdateEntriesResult(t *testing.T) {
+	log, _ := test.NewNullLogger()
+	c := storecache.New(&storecache.Config{
+		Log:         log,
+		TrustDomain: td,
+	})
+
+	update := createUpdateEntries()
+	c.UpdateEntries(update, nil)
+	expiresAt := time.Now().Add(time.Hour)
+	c.UpdateX509SVIDs(map[string]*cache.X509SVID{
+		"foh": {Chain: []*x509.Certificate{{NotAfter: expiresAt}}},
+		"bar": {Chain: []*x509.Certificate{{NotAfter: expiresAt}}},
+	})
+
+	updatedEntries := make(map[string]*common.RegistrationEntry, len(update.RegistrationEntries))
+	for id, entry := range update.RegistrationEntries {
+		updatedEntry, ok := proto.Clone(entry).(*common.RegistrationEntry)
+		require.True(t, ok)
+		updatedEntry.RevisionNumber++
+		updatedEntries[id] = updatedEntry
+	}
+	result := c.UpdateEntries(&cache.UpdateEntries{
+		Bundles:             update.Bundles,
+		RegistrationEntries: updatedEntries,
+	}, func(_ *common.RegistrationEntry, newEntry *common.RegistrationEntry, _ *cache.X509SVID) bool {
+		return newEntry.EntryId == "foh"
+	})
+
+	assert.Equal(t, cache.UpdateEntriesResult{
+		ExpiringSVIDs: 1,
+		OutdatedSVIDs: 1,
+	}, result)
+
+	c.UpdateX509SVIDs(map[string]*cache.X509SVID{
+		"foh": {Chain: []*x509.Certificate{{NotAfter: expiresAt}}},
+		"bar": {Chain: []*x509.Certificate{{NotAfter: expiresAt}}},
+	})
+	updatedBundle := spiffebundle.FromX509Authorities(td, []*x509.Certificate{{Raw: []byte{3}}})
+	result = c.UpdateEntries(&cache.UpdateEntries{
+		Bundles: map[spiffeid.TrustDomain]*spiffebundle.Bundle{
+			td:          updatedBundle,
+			federatedTD: federatedBundle,
+		},
+		RegistrationEntries: updatedEntries,
+	}, func(*common.RegistrationEntry, *common.RegistrationEntry, *cache.X509SVID) bool {
+		return false
+	})
+	assert.Equal(t, cache.UpdateEntriesResult{OutdatedSVIDs: 2}, result)
 }
 
 func TestReadyToStore(t *testing.T) {

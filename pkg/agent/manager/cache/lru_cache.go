@@ -34,6 +34,12 @@ type UpdateEntries struct {
 	RegistrationEntries map[string]*common.RegistrationEntry
 }
 
+// UpdateEntriesResult holds SVID counts collected while updating cache entries.
+type UpdateEntriesResult struct {
+	ExpiringSVIDs int
+	OutdatedSVIDs int
+}
+
 // StaleEntry holds stale entries with SVIDs expiration time
 type StaleEntry struct {
 	// Entry stale registration entry
@@ -254,7 +260,7 @@ func (c *LRUCache[SVID, Update]) NewSubscriber(selectors []*common.Selector) Sub
 // if the SVID for the entry is stale, or otherwise in need of rotation. Entries marked stale
 // through the checkSVID callback are returned from GetStaleEntries() until the SVID is
 // updated through a call to UpdateSVIDs.
-func (c *LRUCache[SVID, Update]) UpdateEntries(update *UpdateEntries, checkSVID func(*common.RegistrationEntry, *common.RegistrationEntry, *SVID) bool) {
+func (c *LRUCache[SVID, Update]) UpdateEntries(update *UpdateEntries, checkSVID func(*common.RegistrationEntry, *common.RegistrationEntry, *SVID) bool) UpdateEntriesResult {
 	c.mu.Lock()
 	defer func() { agentmetrics.SetEntriesMapSize(c.metrics, c.svidType, c.CountRecords()) }()
 	defer c.mu.Unlock()
@@ -449,10 +455,21 @@ func (c *LRUCache[SVID, Update]) UpdateEntries(update *UpdateEntries, checkSVID 
 		}
 	}
 
+	result := UpdateEntriesResult{}
+
 	// Update all stale svids or svids whose registration entry is outdated
 	for id, svid := range c.svids {
-		if _, ok := outdatedEntries[id]; ok || (checkSVID != nil && checkSVID(nil, c.records[id].entry, svid)) {
+		expiring := checkSVID != nil && checkSVID(nil, c.records[id].entry, svid)
+		_, outdated := outdatedEntries[id]
+		if expiring || outdated {
 			c.staleEntries[id] = true
+		}
+
+		switch {
+		case expiring && svid != nil && !(*svid).ExpiresAt().IsZero():
+			result.ExpiringSVIDs++
+		case outdated && svid != nil && !(*svid).ExpiresAt().IsZero():
+			result.OutdatedSVIDs++
 		}
 	}
 
@@ -466,6 +483,8 @@ func (c *LRUCache[SVID, Update]) UpdateEntries(update *UpdateEntries, checkSVID 
 	} else {
 		c.notifyBySelectorSet(notifySets...)
 	}
+
+	return result
 }
 
 // UpdateSVIDs updates SVIDs in the cache for the given entries.
