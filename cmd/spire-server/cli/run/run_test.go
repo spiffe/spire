@@ -721,6 +721,49 @@ func TestNewServerConfig(t *testing.T) {
 			},
 		},
 		{
+			// not an OS specific case: unlike the signal based reopen, in
+			// process rotation works on every platform
+			msg: "log_file_rotation configures a self rotating log file",
+			input: func(c *Config) {
+				c.Server.LogFile = filepath.Join(spiretest.TempDir(t), "server.log")
+				c.Server.LogFileRotation = &log.RotationConfig{
+					MaxSizeMB:  10,
+					MaxFiles:   3,
+					MaxAgeDays: 7,
+				}
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.NotNil(t, c.Log)
+				require.NotNil(t, c.LogReopener)
+
+				l := c.Log.(*log.Logger)
+				// the temp dir cannot be removed on Windows while the log
+				// file is still open
+				t.Cleanup(func() { _ = l.Close() })
+
+				rotatable, ok := l.Out.(*log.RotatableFile)
+				require.True(t, ok, "expected a RotatableFile, got %T", l.Out)
+				require.FileExists(t, rotatable.Name())
+			},
+		},
+		{
+			msg: "log_file without log_file_rotation stays reopenable",
+			input: func(c *Config) {
+				c.Server.LogFile = filepath.Join(spiretest.TempDir(t), "server.log")
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.NotNil(t, c.Log)
+				require.NotNil(t, c.LogReopener)
+
+				l := c.Log.(*log.Logger)
+				// the temp dir cannot be removed on Windows while the log
+				// file is still open
+				t.Cleanup(func() { _ = l.Close() })
+
+				require.IsType(t, &log.ReopenableFile{}, l.Out)
+			},
+		},
+		{
 			msg: "bundle endpoint is parsed and configured correctly",
 			input: func(c *Config) {
 				c.Server.Federation = &federationConfig{
@@ -1459,6 +1502,37 @@ func TestValidateConfig(t *testing.T) {
 			expectedErr: "plugins section must be configured",
 		},
 		{
+			name: "log_file_rotation requires log_file",
+			applyConf: func(c *Config) {
+				c.Server.LogFileRotation = &log.RotationConfig{MaxSizeMB: 10}
+			},
+			expectedErr: "log_file must be configured to use log_file_rotation",
+		},
+		{
+			name: "log_file_rotation max_size_mb must not be negative",
+			applyConf: func(c *Config) {
+				c.Server.LogFile = "foo"
+				c.Server.LogFileRotation = &log.RotationConfig{MaxSizeMB: -1}
+			},
+			expectedErr: "invalid log_file_rotation configuration: max_size_mb (-1) must not be negative",
+		},
+		{
+			name: "log_file_rotation max_files must not be negative",
+			applyConf: func(c *Config) {
+				c.Server.LogFile = "foo"
+				c.Server.LogFileRotation = &log.RotationConfig{MaxFiles: -1}
+			},
+			expectedErr: "invalid log_file_rotation configuration: max_files (-1) must not be negative",
+		},
+		{
+			name: "log_file_rotation max_age_days must not be negative",
+			applyConf: func(c *Config) {
+				c.Server.LogFile = "foo"
+				c.Server.LogFileRotation = &log.RotationConfig{MaxAgeDays: -1}
+			},
+			expectedErr: "invalid log_file_rotation configuration: max_age_days (-1) must not be negative",
+		},
+		{
 			name: "if ACME is used, federation.bundle_endpoint.acme.domain_name must be configured",
 			applyConf: func(c *Config) {
 				c.Server.Federation = &federationConfig{
@@ -1560,6 +1634,16 @@ func TestWarnOnUnknownConfig(t *testing.T) {
 			expectedLogEntries: []logEntry{
 				{
 					section: "server",
+					keys:    "unknown_option1,unknown_option2",
+				},
+			},
+		},
+		{
+			msg:      "in nested log_file_rotation block",
+			confFile: "server_bad_nested_log_file_rotation_block.conf",
+			expectedLogEntries: []logEntry{
+				{
+					section: "log_file_rotation",
 					keys:    "unknown_option1,unknown_option2",
 				},
 			},
