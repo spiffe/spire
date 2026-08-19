@@ -231,17 +231,8 @@ func parseCipherSuites(names []string, logger hclog.Logger) ([]uint16, error) {
 }
 
 var wellknownCurveAliases = map[string]int32{
-	"curvep256":          int32(tls.CurveP256),
-	"p-256":              int32(tls.CurveP256),
-	"p256":               int32(tls.CurveP256),
 	"secp256r1":          int32(tls.CurveP256),
-	"curvep384":          int32(tls.CurveP384),
-	"p-384":              int32(tls.CurveP384),
-	"p384":               int32(tls.CurveP384),
 	"secp384r1":          int32(tls.CurveP384),
-	"curvep521":          int32(tls.CurveP521),
-	"p-521":              int32(tls.CurveP521),
-	"p521":               int32(tls.CurveP521),
 	"secp521r1":          int32(tls.CurveP521),
 	"x25519":             int32(tls.X25519),
 	"x25519mlkem768":     int32(tls.X25519MLKEM768),

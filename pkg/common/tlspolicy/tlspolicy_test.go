@@ -376,9 +376,6 @@ func TestParseTLSConfigCurveNameAliases(t *testing.T) {
 		in   string
 		want tls.CurveID
 	}{
-		{"CurveP256", "CurveP256", tls.CurveP256},
-		{"P256", "P256", tls.CurveP256},
-		{"P-256", "P-256", tls.CurveP256},
 		{"secp256r1", "secp256r1", tls.CurveP256},
 		{"secp384r1", "secp384r1", tls.CurveP384},
 		{"secp521r1", "secp521r1", tls.CurveP521},
