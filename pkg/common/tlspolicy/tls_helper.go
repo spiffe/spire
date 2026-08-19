@@ -7,6 +7,7 @@ package tlspolicy
 import (
 	"crypto/tls"
 	"fmt"
+	"maps"
 	"math"
 	"strings"
 )
@@ -35,20 +36,14 @@ func init() {
 // security issues.
 func InsecureTLSCiphers() map[string]uint16 {
 	cipherKeys := make(map[string]uint16, len(insecureCiphers))
-	for k, v := range insecureCiphers {
-		cipherKeys[k] = v
-	}
+	maps.Copy(cipherKeys, insecureCiphers)
 	return cipherKeys
 }
 
 func allCiphers() map[string]uint16 {
 	acceptedCiphers := make(map[string]uint16, len(ciphers)+len(insecureCiphers))
-	for k, v := range ciphers {
-		acceptedCiphers[k] = v
-	}
-	for k, v := range insecureCiphers {
-		acceptedCiphers[k] = v
-	}
+	maps.Copy(acceptedCiphers, ciphers)
+	maps.Copy(acceptedCiphers, insecureCiphers)
 	return acceptedCiphers
 }
 
@@ -62,7 +57,7 @@ func TLSCipherSuites(cipherNames []string) ([]uint16, error) {
 	for _, cipher := range cipherNames {
 		intValue, ok := possibleCiphers[cipher]
 		if !ok {
-			return nil, fmt.Errorf("Cipher suite %s not supported or doesn't exist", cipher)
+			return nil, fmt.Errorf("cipher suite %s not supported or doesn't exist", cipher)
 		}
 		ciphersIntSlice = append(ciphersIntSlice, intValue)
 	}

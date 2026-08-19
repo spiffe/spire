@@ -67,7 +67,7 @@ func TestTLSCipherSuites(t *testing.T) {
 		{
 			name:    "unknown cipher",
 			in:      []string{"TLS_NOT_A_CIPHER"},
-			wantErr: "Cipher suite TLS_NOT_A_CIPHER not supported or doesn't exist",
+			wantErr: "cipher suite TLS_NOT_A_CIPHER not supported or doesn't exist",
 		},
 		{
 			name: "insecure cipher resolves",
