@@ -3,9 +3,13 @@
 //
 // The ball is tracked through the PR assignee. The court holder is the
 // single flow participant (a pool member or the PR author) currently
-// assigned. Handlers flip the court only when the acting user holds the
-// ball, so repeated events are no-ops and manual assignee changes are
-// never overridden.
+// assigned. Activity-driven flips (pushes, conversation comments, the
+// author's review replies) only happen when the acting user holds the
+// ball, so repeated events are no-ops and those flips never override a
+// manual assignee change. The initial assignment on open and the flips on
+// pool-member review submissions move the court unconditionally, and
+// setCourt only ever touches flow participants, leaving unrelated,
+// manually-added assignees in place.
 //
 // This file is always loaded from a trusted ref (the PR base branch, or
 // the default branch on workflow_run and issue_comment), never from PR
