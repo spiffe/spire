@@ -21,6 +21,7 @@ import (
 	"github.com/spiffe/spire/test/testca"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 )
 
 var (
@@ -87,6 +88,51 @@ func TestLRUCacheMatchingRegistrationIdentities(t *testing.T) {
 	cache.UpdateSVIDs(map[string]*X509SVID{})
 	assert.Equal(t, []*common.RegistrationEntry{bar, foo},
 		cache.MatchingRegistrationEntries(makeSelectors("A", "B")))
+}
+
+func TestLRUCacheUpdateEntriesResult(t *testing.T) {
+	cache := newTestLRUCache(t)
+	foo := makeRegistrationEntry("FOO", "A")
+	bar := makeRegistrationEntry("BAR", "B")
+	baz := makeRegistrationEntry("BAZ", "C")
+	qux := makeRegistrationEntry("QUX", "D")
+	for _, entry := range []*common.RegistrationEntry{foo, bar, baz, qux} {
+		entry.RevisionNumber = 1
+	}
+
+	cache.UpdateEntries(&UpdateEntries{
+		Bundles:             makeBundles(bundleV1),
+		RegistrationEntries: makeRegistrationEntries(foo, bar, baz, qux),
+	}, nil)
+	expiresAt := time.Now().Add(time.Hour)
+	cache.UpdateSVIDs(map[string]*X509SVID{
+		foo.EntryId: {Chain: []*x509.Certificate{{NotAfter: expiresAt}}},
+		bar.EntryId: {Chain: []*x509.Certificate{{NotAfter: expiresAt}}},
+		baz.EntryId: {Chain: []*x509.Certificate{{NotAfter: expiresAt}}},
+		qux.EntryId: {},
+	})
+
+	updatedFoo, ok := proto.Clone(foo).(*common.RegistrationEntry)
+	require.True(t, ok)
+	updatedFoo.RevisionNumber++
+	updatedBar, ok := proto.Clone(bar).(*common.RegistrationEntry)
+	require.True(t, ok)
+	updatedBar.RevisionNumber++
+	updatedQux, ok := proto.Clone(qux).(*common.RegistrationEntry)
+	require.True(t, ok)
+	updatedQux.RevisionNumber++
+	result := cache.UpdateEntries(&UpdateEntries{
+		Bundles:             makeBundles(bundleV1),
+		RegistrationEntries: makeRegistrationEntries(updatedFoo, updatedBar, baz, updatedQux),
+	}, func(_ *common.RegistrationEntry, newEntry *common.RegistrationEntry, _ *X509SVID) bool {
+		return newEntry.EntryId != bar.EntryId
+	})
+
+	assert.Equal(t, UpdateEntriesResult{
+		ExpiringSVIDs: 2,
+		OutdatedSVIDs: 1,
+	}, result)
+	assert.Len(t, cache.GetStaleEntries(), 4)
 }
 
 func TestLRUCacheCountSVIDs(t *testing.T) {
