@@ -91,12 +91,12 @@ func (s *Suite) SetupTest() {
 
 func (s *Suite) TestAttestSuccess() {
 	tests := []struct {
-		desc                        string
-		giveConfig                  string
-		expectAgentID               string
-		certs                       [][]byte
-		serialnumber                string
-		expectAgentIDParentSelector bool
+		desc              string
+		giveConfig        string
+		expectAgentID     string
+		certs             [][]byte
+		serialnumber      string
+		expectGroup       string
 	}{
 		{
 			desc:          "default success (ca_bundle_path)",
@@ -127,12 +127,11 @@ func (s *Suite) TestAttestSuccess() {
 			serialnumber:  "serialnumber:0a1b2c3d4e5f",
 		},
 		{
-			desc:                        "success with spiffe exchange",
-			expectAgentID:               "spiffe://example.org/spire/agent/x509pop/testhost",
-			giveConfig:                  s.createConfigurationModeSPIFFE(""),
-			expectAgentIDParentSelector: true,
-			certs:                       s.svidExchange,
-			serialnumber:                "serialnumber:0a1b2c3d4e7f",
+			desc:          "success with spiffe exchange",
+			expectAgentID: "spiffe://example.org/spire/agent/x509pop/testhost",
+			giveConfig:    s.createConfigurationModeSPIFFE(""),
+			certs:         s.svidExchange,
+			serialnumber:  "serialnumber:0a1b2c3d4e7f",
 		},
 		{
 			desc:          "success with custom X509pop san selectors",
@@ -147,6 +146,21 @@ func (s *Suite) TestAttestSuccess() {
 			giveConfig:    s.createConfiguration("ca_bundle_path", "max_intermediates = 1"),
 			certs:         s.leafBundle, // has 1 leaf and 1 intermediate
 			serialnumber:  "serialnumber:0a1b2c3d4e5f",
+		},
+		{
+			desc:          "success with group selector",
+			expectAgentID: "spiffe://example.org/spire/agent/x509pop/testhost",
+			giveConfig:    s.createConfigurationModeSPIFFE(`group_path_template = "{{ .SVIDPathTrimmed }}"` + "\n" + `groups = ["testhost"]`),
+			certs:         s.svidExchange,
+			serialnumber:  "serialnumber:0a1b2c3d4e7f",
+			expectGroup:   "group:testhost",
+		},
+		{
+			desc:          "group selector not emitted when path not allowed",
+			expectAgentID: "spiffe://example.org/spire/agent/x509pop/testhost",
+			giveConfig:    s.createConfigurationModeSPIFFE(`group_path_template = "{{ .SVIDPathTrimmed }}"` + "\n" + `groups = ["other"]`),
+			certs:         s.svidExchange,
+			serialnumber:  "serialnumber:0a1b2c3d4e7f",
 		},
 	}
 
@@ -185,10 +199,10 @@ func (s *Suite) TestAttestSuccess() {
 				{Type: "x509pop", Value: "san:key:path/to/value"},
 			}
 
-			if tt.expectAgentIDParentSelector {
+			if tt.expectGroup != "" {
 				expectedSelectors = append(expectedSelectors, &common.Selector{
 					Type:  "x509pop",
-					Value: "agent_id_parent:spiffe://example.org/spire/agent/x509pop",
+					Value: tt.expectGroup,
 				})
 			}
 
@@ -484,6 +498,23 @@ func (s *Suite) TestConfigure() {
 		`, s.rootCertPath))
 
 		require.NoError(t, err)
+	})
+
+	s.T().Run("invalid group_path_template", func(t *testing.T) {
+		err := doConfig(t, coreConfig, `
+		mode = "spiffe"
+		group_path_template = "{{ .Invalid"
+		groups = ["/foo"]
+		`)
+		spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, "failed to parse group path template")
+	})
+
+	s.T().Run("group_path_template without allowed list", func(t *testing.T) {
+		err := doConfig(t, coreConfig, `
+		mode = "spiffe"
+		group_path_template = "{{ .SVIDPathTrimmed }}"
+		`)
+		spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, "groups must be set when group_path_template is configured")
 	})
 }
 
