@@ -2138,6 +2138,16 @@ SELECT
 
 	builder.WriteString("\n")
 	builder.WriteString(fromQuery)
+
+	// Skip the wrapper only for bounded ID fetches. Keep the existing query
+	// shape for other requests to avoid changing full-load plans.
+	hasSelectorMatch := req.BySelectorMatch != nil && len(req.BySelectorMatch.Selectors) > 0
+	isBulkIDFetch := len(req.BySpiffeIDs) > 0 && req.Pagination == nil && !hasSelectorMatch
+	if isBulkIDFetch {
+		builder.WriteString("\nORDER BY id ASC\n")
+		return builder.String(), args, nil
+	}
+
 	builder.WriteString("\nWHERE id IN (\n")
 
 	// MySQL requires a subquery in order to apply pagination

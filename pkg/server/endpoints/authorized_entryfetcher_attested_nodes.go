@@ -35,9 +35,9 @@ type attestedNodes struct {
 	firstEventTime time.Time
 	lastEvent      uint
 
-	eventTracker *eventTracker
-	eventTimeout time.Duration
-	pageSize     int32
+	eventTracker  *eventTracker
+	eventTimeout  time.Duration
+	fetchPageSize int32
 
 	fetchNodes map[string]struct{}
 
@@ -161,22 +161,22 @@ func (a *attestedNodes) loadCache(ctx context.Context, cache *authorizedentries.
 
 // buildAttestedNodesCache fetches all attested nodes and adds the unexpired ones to the cache.
 // It runs once at startup.
-func buildAttestedNodesCache(ctx context.Context, log logrus.FieldLogger, metrics telemetry.Metrics, ds datastore.DataStore, clk clock.Clock, cache *authorizedentries.Cache, nodeCache *nodecache.Cache, pageSize int32, cacheReloadInterval, eventTimeout time.Duration) (*attestedNodes, error) {
-	if pageSize <= 0 {
-		return nil, fmt.Errorf("page size must be positive, got %d", pageSize)
+func buildAttestedNodesCache(ctx context.Context, log logrus.FieldLogger, metrics telemetry.Metrics, ds datastore.DataStore, clk clock.Clock, cache *authorizedentries.Cache, nodeCache *nodecache.Cache, fetchPageSize int32, cacheReloadInterval, eventTimeout time.Duration) (*attestedNodes, error) {
+	if fetchPageSize <= 0 {
+		return nil, fmt.Errorf("page size must be positive, got %d", fetchPageSize)
 	}
 
 	pollPeriods := PollPeriods(cacheReloadInterval, eventTimeout)
 
 	attestedNodes := &attestedNodes{
-		cache:        cache,
-		nodeCache:    nodeCache,
-		clk:          clk,
-		ds:           ds,
-		log:          log,
-		metrics:      metrics,
-		eventTimeout: eventTimeout,
-		pageSize:     pageSize,
+		cache:         cache,
+		nodeCache:     nodeCache,
+		clk:           clk,
+		ds:            ds,
+		log:           log,
+		metrics:       metrics,
+		eventTimeout:  eventTimeout,
+		fetchPageSize: fetchPageSize,
 
 		eventsBeforeFirst: make(map[uint]struct{}),
 		fetchNodes:        make(map[string]struct{}),
@@ -220,7 +220,7 @@ func (a *attestedNodes) updateCache(ctx context.Context) error {
 
 func (a *attestedNodes) updateCachedNodes(ctx context.Context) error {
 	spiffeIds := slices.Collect(maps.Keys(a.fetchNodes))
-	for pageStart := 0; pageStart < len(spiffeIds); pageStart += int(a.pageSize) {
+	for pageStart := 0; pageStart < len(spiffeIds); pageStart += int(a.fetchPageSize) {
 		fetchNodes := a.fetchNodesPage(spiffeIds, pageStart)
 		nodes, err := a.ds.FetchAttestedNodes(ctx, fetchNodes)
 		if err != nil {
@@ -248,7 +248,7 @@ func (a *attestedNodes) updateCachedNodes(ctx context.Context) error {
 
 // fetchNodesPage gets the range for the page starting at pageStart
 func (a *attestedNodes) fetchNodesPage(spiffeIds []string, pageStart int) []string {
-	pageEnd := min(len(spiffeIds), pageStart+int(a.pageSize))
+	pageEnd := min(len(spiffeIds), pageStart+int(a.fetchPageSize))
 	return spiffeIds[pageStart:pageEnd]
 }
 
