@@ -2692,7 +2692,9 @@ func createRegistrationEntry(tx *gorm.DB, entry *common.RegistrationEntry) (*com
 		}
 	}
 
-	registrationEntry, err := modelToEntry(tx, newRegisteredEntry)
+	// The federation associations were just written from federatesWith, so the
+	// trust domains are already known and do not need to be read back.
+	registrationEntry, err := modelToEntryWithFederatesWith(tx, newRegisteredEntry, bundlesToTrustDomains(federatesWith))
 	if err != nil {
 		return nil, err
 	}
@@ -4193,15 +4195,15 @@ func updateRegistrationEntry(tx *gorm.DB, e *common.RegistrationEntry, mask *com
 		if err := tx.Model(&entry).Association("FederatesWith").Replace(federatesWith).Error; err != nil {
 			return nil, err
 		}
-		// The FederatesWith field in entry is filled in by the call to modelToEntry below
+
+		// The associations were just replaced with federatesWith, so the trust
+		// domains are already known and do not need to be read back.
+		return modelToEntryWithFederatesWith(tx, entry, bundlesToTrustDomains(federatesWith))
 	}
 
-	returnEntry, err := modelToEntry(tx, entry)
-	if err != nil {
-		return nil, err
-	}
-
-	return returnEntry, nil
+	// FederatesWith was not part of this update, so the existing associations are
+	// unchanged and have to be read to build the response.
+	return modelToEntry(tx, entry)
 }
 
 func deleteRegistrationEntry(tx *gorm.DB, entryID string) (*common.RegistrationEntry, error) {
@@ -4746,6 +4748,18 @@ func bundleToModel(pb *common.Bundle) (*Bundle, error) {
 }
 
 func modelToEntry(tx *gorm.DB, model RegisteredEntry) (*common.RegistrationEntry, error) {
+	var fetchedBundles []*Bundle
+	if err := tx.Model(&model).Association("FederatesWith").Find(&fetchedBundles).Error; err != nil {
+		return nil, sqlcommon.NewWrappedSQLError(err)
+	}
+
+	return modelToEntryWithFederatesWith(tx, model, bundlesToTrustDomains(fetchedBundles))
+}
+
+// modelToEntryWithFederatesWith builds the API representation of an entry for
+// callers that already know which trust domains the entry federates with. It
+// avoids reading the FederatesWith association back from the database.
+func modelToEntryWithFederatesWith(tx *gorm.DB, model RegisteredEntry, federatesWith []string) (*common.RegistrationEntry, error) {
 	var fetchedSelectors []*Selector
 	if err := tx.Model(&model).Related(&fetchedSelectors).Error; err != nil {
 		return nil, sqlcommon.NewWrappedSQLError(err)
@@ -4770,16 +4784,6 @@ func modelToEntry(tx *gorm.DB, model RegisteredEntry) (*common.RegistrationEntry
 		for _, fetchedDNS := range fetchedDNSs {
 			dnsList = append(dnsList, fetchedDNS.Value)
 		}
-	}
-
-	var fetchedBundles []*Bundle
-	if err := tx.Model(&model).Association("FederatesWith").Find(&fetchedBundles).Error; err != nil {
-		return nil, sqlcommon.NewWrappedSQLError(err)
-	}
-
-	var federatesWith []string
-	for _, bundle := range fetchedBundles {
-		federatesWith = append(federatesWith, bundle.TrustDomain)
 	}
 
 	AdditionalAttributes := &common.RegistrationEntry_AdditionalAttributes{}
@@ -4856,6 +4860,12 @@ func modelToCAJournal(model CAJournal) *datastore.CAJournal {
 }
 
 func makeFederatesWith(tx *gorm.DB, ids []string) ([]*Bundle, error) {
+	if len(ids) == 0 {
+		// The query below cannot match a row when there are no ids to look for,
+		// and the verification loop below has nothing to check, so skip both.
+		return nil, nil
+	}
+
 	var bundles []*Bundle
 	if err := tx.Where("trust_domain in (?)", ids).Find(&bundles).Error; err != nil {
 		return nil, err
@@ -4874,6 +4884,22 @@ func makeFederatesWith(tx *gorm.DB, ids []string) ([]*Bundle, error) {
 	}
 
 	return bundles, nil
+}
+
+// bundlesToTrustDomains returns the trust domains of the given bundles. The
+// bundle rows are unique per trust domain, so the result contains no duplicates
+// even when the same trust domain was requested more than once.
+func bundlesToTrustDomains(bundles []*Bundle) []string {
+	if len(bundles) == 0 {
+		return nil
+	}
+
+	trustDomains := make([]string, 0, len(bundles))
+	for _, bundle := range bundles {
+		trustDomains = append(trustDomains, bundle.TrustDomain)
+	}
+
+	return trustDomains
 }
 
 func bindVars(db *gorm.DB, query string) string {
