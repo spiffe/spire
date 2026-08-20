@@ -647,6 +647,36 @@ func (s *IMDSAttestorSuite) TestConfigure() {
 		require.Equal(t, cert.Raw, attestor.config.additionalRoots[0].Raw)
 	})
 
+	s.T().Run("trust_bundle_path rejects non-CA certificate", func(t *testing.T) {
+		key := testkey.NewEC256(t)
+		cert := spiretest.SelfSignCertificateWithKey(t, &x509.Certificate{
+			SerialNumber:          big.NewInt(1),
+			Subject:               pkix.Name{CommonName: "Not A CA"},
+			NotBefore:             time.Now().Add(-time.Hour),
+			NotAfter:              time.Now().Add(time.Hour * 24 * 365),
+			IsCA:                  false,
+			BasicConstraintsValid: true,
+		}, key)
+		bundlePath := filepath.Join(t.TempDir(), "leaf.pem")
+		require.NoError(t, os.WriteFile(bundlePath, pemutil.EncodeCertificate(cert), 0600))
+
+		attestor := s.newTestAttestor()
+		v1 := new(nodeattestor.V1)
+		var err error
+		plugintest.Load(t, builtin(attestor), v1,
+			plugintest.CaptureConfigureError(&err),
+			plugintest.HostServices(agentstorev1.AgentStoreServiceServer(s.agentStore)),
+			plugintest.CoreConfig(coreConfig),
+			plugintest.Configure(fmt.Sprintf(`
+				tenants = {
+					"example.com" = {}
+				}
+				trust_bundle_path = %q
+			`, bundlePath)),
+		)
+		spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, "contains a non-CA certificate")
+	})
+
 	s.T().Run("trust_bundle_path missing file", func(t *testing.T) {
 		attestor := s.newTestAttestor()
 		v1 := new(nodeattestor.V1)

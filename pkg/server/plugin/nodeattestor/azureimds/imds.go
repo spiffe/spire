@@ -212,6 +212,11 @@ func (p *IMDSAttestorPlugin) buildConfig(coreConfig catalog.CoreConfig, hclText 
 		if err != nil {
 			status.ReportErrorf("unable to load trust bundle %q: %v", newConfig.TrustBundlePath, err)
 		}
+		for _, cert := range certs {
+			if !cert.IsCA {
+				status.ReportErrorf("trust bundle %q contains a non-CA certificate (subject %q)", newConfig.TrustBundlePath, cert.Subject)
+			}
+		}
 		additionalRoots = certs
 	}
 
