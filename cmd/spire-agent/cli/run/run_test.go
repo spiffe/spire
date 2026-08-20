@@ -13,6 +13,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/pkg/agent"
+	agentbroker "github.com/spiffe/spire/pkg/agent/broker"
 	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/agent/workloadkey"
 	"github.com/spiffe/spire/pkg/common/log"
@@ -308,6 +309,24 @@ func TestMergeInput(t *testing.T) {
 			},
 		},
 		{
+			msg:       "log_selectors should default to empty if not set",
+			fileInput: func(c *Config) {},
+			cliInput:  func(c *agentConfig) {},
+			test: func(t *testing.T, c *Config) {
+				require.Empty(t, c.Agent.LogSelectors)
+			},
+		},
+		{
+			msg: "log_selectors should be configurable by file",
+			fileInput: func(c *Config) {
+				c.Agent.LogSelectors = []string{"k8s:ns", "unix:user"}
+			},
+			cliInput: func(c *agentConfig) {},
+			test: func(t *testing.T, c *Config) {
+				require.Equal(t, []string{"k8s:ns", "unix:user"}, c.Agent.LogSelectors)
+			},
+		},
+		{
 			msg: "log_level should be configurable by file",
 			fileInput: func(c *Config) {
 				c.Agent.LogLevel = "DEBUG"
@@ -535,6 +554,62 @@ func TestMergeInput(t *testing.T) {
 			},
 		},
 		{
+			msg:       "disable_workload_api should default to false",
+			fileInput: func(c *Config) {},
+			cliInput:  func(c *agentConfig) {},
+			test: func(t *testing.T, c *Config) {
+				require.False(t, c.Agent.DisableWorkloadAPI)
+			},
+		},
+		{
+			msg: "disable_workload_api should be configurable by file",
+			fileInput: func(c *Config) {
+				c.Agent.DisableWorkloadAPI = true
+			},
+			cliInput: func(c *agentConfig) {},
+			test: func(t *testing.T, c *Config) {
+				require.True(t, c.Agent.DisableWorkloadAPI)
+			},
+		},
+		{
+			msg:       "disable_workload_api should be configurable by CLI flag",
+			fileInput: func(c *Config) {},
+			cliInput: func(c *agentConfig) {
+				c.DisableWorkloadAPI = true
+			},
+			test: func(t *testing.T, c *Config) {
+				require.True(t, c.Agent.DisableWorkloadAPI)
+			},
+		},
+		{
+			msg:       "disable_sds_api should default to false",
+			fileInput: func(c *Config) {},
+			cliInput:  func(c *agentConfig) {},
+			test: func(t *testing.T, c *Config) {
+				require.False(t, c.Agent.DisableSDSAPI)
+			},
+		},
+		{
+			msg: "disable_sds_api should be configurable by file",
+			fileInput: func(c *Config) {
+				c.Agent.DisableSDSAPI = true
+			},
+			cliInput: func(c *agentConfig) {},
+			test: func(t *testing.T, c *Config) {
+				require.True(t, c.Agent.DisableSDSAPI)
+			},
+		},
+		{
+			msg:       "disable_sds_api should be configurable by CLI flag",
+			fileInput: func(c *Config) {},
+			cliInput: func(c *agentConfig) {
+				c.DisableSDSAPI = true
+			},
+			test: func(t *testing.T, c *Config) {
+				require.True(t, c.Agent.DisableSDSAPI)
+			},
+		},
+		{
 			msg: "require_pq_kem should be configurable by file",
 			fileInput: func(c *Config) {
 				c.Agent.Experimental.RequirePQKEM = true
@@ -736,9 +811,9 @@ func TestNewAgentConfig(t *testing.T) {
 			},
 		},
 		{
-			msg:                "trust_bundle_path or trust_bundle_url must be configured unless insecure_bootstrap is set",
+			msg:                "trust_bundle_path, trust_bundle_url, or trust_bundle_spiffe_workload_api must be configured unless insecure_bootstrap is set",
 			expectError:        true,
-			requireErrorPrefix: "trust_bundle_path or trust_bundle_url must be configured unless insecure_bootstrap is set",
+			requireErrorPrefix: "trust_bundle_path, trust_bundle_url, or trust_bundle_spiffe_workload_api must be configured unless insecure_bootstrap is set",
 			input: func(c *Config) {
 				// in this case, remove trust_bundle_path provided by defaultValidConfig()
 				c.Agent.TrustBundlePath = ""
@@ -747,6 +822,84 @@ func TestNewAgentConfig(t *testing.T) {
 			},
 			test: func(t *testing.T, c *agent.Config) {
 				require.Nil(t, c)
+			},
+		},
+		{
+			msg:                "insecure_bootstrap and trust_bundle_spiffe_workload_api cannot both be set",
+			expectError:        true,
+			requireErrorPrefix: "only one of insecure_bootstrap or trust_bundle_spiffe_workload_api can be specified, not both",
+			input: func(c *Config) {
+				// remove trust_bundle_path provided by defaultValidConfig()
+				c.Agent.TrustBundlePath = ""
+				c.Agent.TrustBundleSpiffeWorkloadAPI = testWorkloadAPIAddr
+				c.Agent.InsecureBootstrap = true
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
+			msg:                "trust_bundle_url and trust_bundle_spiffe_workload_api cannot both be set",
+			expectError:        true,
+			requireErrorPrefix: "only one of trust_bundle_url or trust_bundle_spiffe_workload_api can be specified, not both",
+			input: func(c *Config) {
+				// remove trust_bundle_path provided by defaultValidConfig()
+				c.Agent.TrustBundlePath = ""
+				c.Agent.TrustBundleURL = "https://foo.bar/trustbundle"
+				c.Agent.TrustBundleSpiffeWorkloadAPI = testWorkloadAPIAddr
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
+			msg:                "trust_bundle_path and trust_bundle_spiffe_workload_api cannot both be set",
+			expectError:        true,
+			requireErrorPrefix: "only one of trust_bundle_path or trust_bundle_spiffe_workload_api can be specified, not both",
+			input: func(c *Config) {
+				c.Agent.TrustBundlePath = "foo"
+				c.Agent.TrustBundleSpiffeWorkloadAPI = testWorkloadAPIAddr
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
+			msg:                "trust_bundle_unix_socket and trust_bundle_spiffe_workload_api cannot both be set",
+			expectError:        true,
+			requireErrorPrefix: "trust_bundle_unix_socket can not be used with trust_bundle_spiffe_workload_api",
+			input: func(c *Config) {
+				// remove trust_bundle_path provided by defaultValidConfig()
+				c.Agent.TrustBundlePath = ""
+				c.Agent.TrustBundleUnixSocket = "foo.bar"
+				c.Agent.TrustBundleSpiffeWorkloadAPI = testWorkloadAPIAddr
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
+			msg:                "trust_bundle_spiffe_workload_api must be a valid workload api endpoint address",
+			expectError:        true,
+			requireErrorPrefix: "trust_bundle_spiffe_workload_api is not a valid SPIFFE Workload API endpoint address",
+			input: func(c *Config) {
+				// remove trust_bundle_path provided by defaultValidConfig()
+				c.Agent.TrustBundlePath = ""
+				c.Agent.TrustBundleSpiffeWorkloadAPI = "/tmp/agent.sock"
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
+			msg: "trust_bundle_spiffe_workload_api satisfies the trust bundle source requirement",
+			input: func(c *Config) {
+				// remove trust_bundle_path provided by defaultValidConfig()
+				c.Agent.TrustBundlePath = ""
+				c.Agent.TrustBundleSpiffeWorkloadAPI = testWorkloadAPIAddr
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.NotNil(t, c.TrustBundleSources)
 			},
 		},
 		{
@@ -814,6 +967,15 @@ func TestNewAgentConfig(t *testing.T) {
 			},
 			test: func(t *testing.T, c *agent.Config) {
 				require.Equal(t, workloadkey.ECP256, c.WorkloadKeyType)
+			},
+		},
+		{
+			msg: "log_selectors is copied",
+			input: func(c *Config) {
+				c.Agent.LogSelectors = []string{"k8s:ns", "unix:user"}
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Equal(t, []string{"k8s:ns", "unix:user"}, c.LogSelectors)
 			},
 		},
 		{
@@ -966,6 +1128,49 @@ func TestNewAgentConfig(t *testing.T) {
 			},
 		},
 		{
+			msg:   "public endpoint is enabled by default",
+			input: func(c *Config) {},
+			test: func(t *testing.T, c *agent.Config) {
+				require.NotNil(t, c.BindAddress)
+				require.False(t, c.DisableWorkloadAPI)
+				require.False(t, c.DisableSDSAPI)
+			},
+		},
+		{
+			msg: "disable_workload_api keeps public endpoint enabled",
+			input: func(c *Config) {
+				c.Agent.DisableWorkloadAPI = true
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.NotNil(t, c.BindAddress)
+				require.True(t, c.DisableWorkloadAPI)
+				require.False(t, c.DisableSDSAPI)
+			},
+		},
+		{
+			msg: "disable_sds_api keeps public endpoint enabled",
+			input: func(c *Config) {
+				c.Agent.DisableSDSAPI = true
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.NotNil(t, c.BindAddress)
+				require.False(t, c.DisableWorkloadAPI)
+				require.True(t, c.DisableSDSAPI)
+			},
+		},
+		{
+			msg: "disable_workload_api and disable_sds_api disable public endpoint",
+			input: func(c *Config) {
+				c.Agent.DisableWorkloadAPI = true
+				c.Agent.DisableSDSAPI = true
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c.BindAddress)
+				require.True(t, c.DisableWorkloadAPI)
+				require.True(t, c.DisableSDSAPI)
+			},
+		},
+		{
 			msg: "allowed_foreign_jwt_claims no provided",
 			input: func(c *Config) {
 			},
@@ -999,6 +1204,89 @@ func TestNewAgentConfig(t *testing.T) {
 			},
 			test: func(t *testing.T, c *agent.Config) {
 				assert.NotNil(t, c)
+			},
+		},
+		{
+			msg: "broker allowed reference types parse object entries",
+			input: func(c *Config) {
+				c.Agent.Experimental.Broker = &brokerHCLConfig{
+					BindAddress: "127.0.0.1:8443",
+					Brokers: []brokerHCLEntry{
+						{
+							ID: "spiffe://example.org/broker",
+							AllowedReferenceTypes: []brokerAllowedReferenceTypeHCLEntry{
+								{TypeURL: "type.googleapis.com/spiffe.broker.KubernetesObjectReference", AllowOverTCP: true},
+								{TypeURL: "type.googleapis.com/spiffe.broker.WorkloadPIDReference"},
+							},
+						},
+					},
+				}
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Len(t, c.Broker.Brokers, 1)
+				require.Equal(t, []agentbroker.AllowedReferenceType{
+					{TypeURL: "type.googleapis.com/spiffe.broker.KubernetesObjectReference", AllowOverTCP: true},
+					{TypeURL: "type.googleapis.com/spiffe.broker.WorkloadPIDReference"},
+				}, c.Broker.Brokers[0].AllowedReferenceTypes)
+			},
+		},
+		{
+			msg:                "broker allowed_reference_types is required",
+			expectError:        true,
+			requireErrorPrefix: "experimental.broker.brokers[spiffe://example.org/broker].allowed_reference_types: must list at least one reference type URL",
+			input: func(c *Config) {
+				c.Agent.Experimental.Broker = &brokerHCLConfig{
+					BindAddress: "127.0.0.1:8443",
+					Brokers: []brokerHCLEntry{
+						{ID: "spiffe://example.org/broker"},
+					},
+				}
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
+			msg:                "broker allowed reference type requires type_url",
+			expectError:        true,
+			requireErrorPrefix: "experimental.broker.brokers[spiffe://example.org/broker].allowed_reference_types[0].type_url: must be specified",
+			input: func(c *Config) {
+				c.Agent.Experimental.Broker = &brokerHCLConfig{
+					BindAddress: "127.0.0.1:8443",
+					Brokers: []brokerHCLEntry{
+						{
+							ID: "spiffe://example.org/broker",
+							AllowedReferenceTypes: []brokerAllowedReferenceTypeHCLEntry{
+								{},
+							},
+						},
+					},
+				}
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
+			msg:                "broker wildcard must be the only allowed reference type",
+			expectError:        true,
+			requireErrorPrefix: "experimental.broker.brokers[spiffe://example.org/broker].allowed_reference_types: wildcard \"*\" must be the only allowed reference type",
+			input: func(c *Config) {
+				c.Agent.Experimental.Broker = &brokerHCLConfig{
+					BindAddress: "127.0.0.1:8443",
+					Brokers: []brokerHCLEntry{
+						{
+							ID: "spiffe://example.org/broker",
+							AllowedReferenceTypes: []brokerAllowedReferenceTypeHCLEntry{
+								{TypeURL: "*"},
+								{TypeURL: "type.googleapis.com/spiffe.broker.KubernetesObjectReference"},
+							},
+						},
+					},
+				}
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
 			},
 		},
 		{
@@ -1086,6 +1374,128 @@ func TestNewAgentConfig(t *testing.T) {
 				require.Nil(t, ac)
 			},
 		},
+		{
+			msg: "ratelimit defaults to zero (disabled)",
+			input: func(c *Config) {
+				// no ratelimit config set
+			},
+			test: func(t *testing.T, ac *agent.Config) {
+				require.Equal(t, agent.WorkloadAPIRateLimitConfig{}, ac.WorkloadAPIRateLimit)
+			},
+		},
+		{
+			msg: "ratelimit fetch_x509_svid is configurable",
+			input: func(c *Config) {
+				v := 100
+				c.Agent.Experimental.RateLimit.FetchX509SVID = &v
+			},
+			test: func(t *testing.T, ac *agent.Config) {
+				require.Equal(t, 100, ac.WorkloadAPIRateLimit.FetchX509SVID)
+				require.Equal(t, 0, ac.WorkloadAPIRateLimit.FetchJWTSVID)
+			},
+		},
+		{
+			msg: "ratelimit both methods are configurable",
+			input: func(c *Config) {
+				a, d := 1, 3
+				c.Agent.Experimental.RateLimit.FetchX509SVID = &a
+				c.Agent.Experimental.RateLimit.FetchJWTSVID = &d
+			},
+			test: func(t *testing.T, ac *agent.Config) {
+				require.Equal(t, agent.WorkloadAPIRateLimitConfig{
+					FetchX509SVID: 1,
+					FetchJWTSVID:  3,
+				}, ac.WorkloadAPIRateLimit)
+			},
+		},
+		{
+			msg:         "ratelimit fetch_x509_svid negative value returns an error",
+			expectError: true,
+			input: func(c *Config) {
+				v := -1
+				c.Agent.Experimental.RateLimit.FetchX509SVID = &v
+			},
+			test: func(t *testing.T, ac *agent.Config) {
+				require.Nil(t, ac)
+			},
+		},
+		{
+			msg:         "ratelimit fetch_jwt_svid negative value returns an error",
+			expectError: true,
+			input: func(c *Config) {
+				v := -1
+				c.Agent.Experimental.RateLimit.FetchJWTSVID = &v
+			},
+			test: func(t *testing.T, ac *agent.Config) {
+				require.Nil(t, ac)
+			},
+		},
+		{
+			msg: "ratelimit all six knobs are configurable",
+			input: func(c *Config) {
+				a, b, d, e, f, g := 10, 20, 30, 40, 50, 60
+				c.Agent.Experimental.RateLimit.FetchX509SVID = &a
+				c.Agent.Experimental.RateLimit.FetchJWTSVID = &b
+				c.Agent.Experimental.RateLimit.FetchX509Bundles = &d
+				c.Agent.Experimental.RateLimit.FetchJWTBundles = &e
+				c.Agent.Experimental.RateLimit.StreamSecrets = &f
+				c.Agent.Experimental.RateLimit.FetchSecrets = &g
+			},
+			test: func(t *testing.T, ac *agent.Config) {
+				require.Equal(t, agent.WorkloadAPIRateLimitConfig{
+					FetchX509SVID:    10,
+					FetchJWTSVID:     20,
+					FetchX509Bundles: 30,
+					FetchJWTBundles:  40,
+					StreamSecrets:    50,
+					FetchSecrets:     60,
+				}, ac.WorkloadAPIRateLimit)
+			},
+		},
+		{
+			msg:         "ratelimit fetch_x509_bundles negative value returns an error",
+			expectError: true,
+			input: func(c *Config) {
+				v := -1
+				c.Agent.Experimental.RateLimit.FetchX509Bundles = &v
+			},
+			test: func(t *testing.T, ac *agent.Config) {
+				require.Nil(t, ac)
+			},
+		},
+		{
+			msg:         "ratelimit fetch_jwt_bundles negative value returns an error",
+			expectError: true,
+			input: func(c *Config) {
+				v := -1
+				c.Agent.Experimental.RateLimit.FetchJWTBundles = &v
+			},
+			test: func(t *testing.T, ac *agent.Config) {
+				require.Nil(t, ac)
+			},
+		},
+		{
+			msg:         "ratelimit stream_secrets negative value returns an error",
+			expectError: true,
+			input: func(c *Config) {
+				v := -1
+				c.Agent.Experimental.RateLimit.StreamSecrets = &v
+			},
+			test: func(t *testing.T, ac *agent.Config) {
+				require.Nil(t, ac)
+			},
+		},
+		{
+			msg:         "ratelimit fetch_secrets negative value returns an error",
+			expectError: true,
+			input: func(c *Config) {
+				v := -1
+				c.Agent.Experimental.RateLimit.FetchSecrets = &v
+			},
+			test: func(t *testing.T, ac *agent.Config) {
+				require.Nil(t, ac)
+			},
+		},
 	}
 	cases = append(cases, newAgentConfigCasesOS(t)...)
 	for _, testCase := range cases {
@@ -1112,6 +1522,46 @@ func TestNewAgentConfig(t *testing.T) {
 			testCase.test(t, ac)
 		})
 	}
+}
+
+func TestParseBrokerAllowedReferenceTypes(t *testing.T) {
+	file, err := os.CreateTemp("", "spire-agent-broker-*.conf")
+	require.NoError(t, err)
+	defer os.Remove(file.Name())
+
+	_, err = file.WriteString(`
+agent {
+    experimental {
+        broker {
+            bind_address = "127.0.0.1:8443"
+            brokers = [
+                {
+                    id = "spiffe://example.org/broker"
+                    allowed_reference_types = [
+                        {
+                            type_url = "type.googleapis.com/spiffe.broker.KubernetesObjectReference"
+                            allow_over_tcp = true
+                        },
+                        {
+                            type_url = "type.googleapis.com/spiffe.broker.WorkloadPIDReference"
+                        },
+                    ]
+                },
+            ]
+        }
+    }
+}
+`)
+	require.NoError(t, err)
+	require.NoError(t, file.Close())
+
+	c, err := ParseFile(file.Name(), false)
+	require.NoError(t, err)
+	require.NotNil(t, c.Agent.Experimental.Broker)
+	require.Equal(t, []brokerAllowedReferenceTypeHCLEntry{
+		{TypeURL: "type.googleapis.com/spiffe.broker.KubernetesObjectReference", AllowOverTCP: true},
+		{TypeURL: "type.googleapis.com/spiffe.broker.WorkloadPIDReference"},
+	}, c.Agent.Experimental.Broker.Brokers[0].AllowedReferenceTypes)
 }
 
 // defaultValidConfig returns the bare minimum config required to
@@ -1244,6 +1694,16 @@ func TestWarnOnUnknownConfig(t *testing.T) {
 			expectedLogEntries: []logEntry{
 				{
 					section: "health check",
+					keys:    "unknown_option1,unknown_option2",
+				},
+			},
+		},
+		{
+			msg:      "in nested ratelimit block",
+			confFile: "agent_bad_nested_ratelimit_block.conf",
+			expectedLogEntries: []logEntry{
+				{
+					section: "ratelimit",
 					keys:    "unknown_option1,unknown_option2",
 				},
 			},

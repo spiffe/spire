@@ -67,7 +67,16 @@ log-info "installing hashicorp vault..."
 ./bin/kubectl create -f csr.yaml
 ./bin/kubectl certificate -n vault approve vault.svc
 log-debug "waiting for certificate to be issued by k8s..."
-timeout 30s bash -c 'while [[ -z $(./bin/kubectl get csr -n vault vault.svc -o jsonpath="{.status.certificate}" 2>/dev/null) ]]; do sleep 1; done'
+MAXCERTCHECKS=30
+for ((i=1; i<=MAXCERTCHECKS; i++)); do
+    if [[ -n $(./bin/kubectl get csr -n vault vault.svc -o jsonpath="{.status.certificate}" 2>/dev/null) ]]; then
+        break
+    fi
+    if [[ $i -eq $MAXCERTCHECKS ]]; then
+        fail-now "certificate was not issued by k8s after ${MAXCERTCHECKS} checks"
+    fi
+    sleep 1
+done
 ./bin/kubectl get csr -n vault vault.svc -o jsonpath='{.status.certificate}' | openssl base64 -d -A -out vault.pem
 ./bin/kubectl config view --raw --minify --flatten -o jsonpath='{.clusters[].cluster.certificate-authority-data}' \
               | base64 -d > vault_ca.pem

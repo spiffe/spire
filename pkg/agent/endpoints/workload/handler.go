@@ -8,6 +8,8 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"slices"
+	"strings"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -16,6 +18,7 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/agent/api/rpccontext"
 	"github.com/spiffe/spire/pkg/agent/client"
+	"github.com/spiffe/spire/pkg/agent/common/hintsfilter"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/jwtsvid"
@@ -30,21 +33,35 @@ import (
 )
 
 type Manager interface {
-	SubscribeToCacheChanges(ctx context.Context, key cache.Selectors) (cache.Subscriber, error)
+	SubscribeToCacheChanges(ctx context.Context, key cache.Selectors) (cache.Subscriber[cache.X509WorkloadUpdate], error)
 	MatchingRegistrationEntries(selectors []*common.Selector) []*common.RegistrationEntry
 	FetchJWTSVID(ctx context.Context, entry *common.RegistrationEntry, audience []string) (*client.JWTSVID, error)
-	FetchWorkloadUpdate([]*common.Selector) *cache.WorkloadUpdate
+	FetchWorkloadUpdate([]*common.Selector) *cache.X509WorkloadUpdate
 }
 
 type Attestor interface {
 	Attest(ctx context.Context) ([]*common.Selector, error)
 }
 
+// RateLimiter enforces per-selector-set rate limiting on Workload API methods.
+type RateLimiter interface {
+	RateLimit(fullMethod string, selectors []*common.Selector) error
+}
+
+const (
+	MethodFetchX509SVID    = "/SpiffeWorkloadAPI/FetchX509SVID"
+	MethodFetchJWTSVID     = "/SpiffeWorkloadAPI/FetchJWTSVID"
+	MethodFetchX509Bundles = "/SpiffeWorkloadAPI/FetchX509Bundles"
+	MethodFetchJWTBundles  = "/SpiffeWorkloadAPI/FetchJWTBundles"
+)
+
 type Config struct {
 	Manager                       Manager
 	Attestor                      Attestor
+	RateLimiter                   RateLimiter
 	AllowUnauthenticatedVerifiers bool
 	AllowedForeignJWTClaims       map[string]struct{}
+	LogSelectors                  []string
 	TrustDomain                   spiffeid.TrustDomain
 }
 
@@ -58,6 +75,19 @@ func New(c Config) *Handler {
 	return &Handler{
 		c: c,
 	}
+}
+
+func (h *Handler) rateLimit(ctx context.Context, fullMethod string, selectors []*common.Selector) error {
+	if h.c.RateLimiter == nil {
+		return nil
+	}
+	// Exempt the agent's own calls from rate limiting so that an
+	// operator-configured limit can't deny the agent itself (e.g. the health
+	// check, which exercises the Workload API) and mark it unhealthy.
+	if isAgent(ctx) {
+		return nil
+	}
+	return h.c.RateLimiter.RateLimit(fullMethod, selectors)
 }
 
 // FetchJWTSVID processes request for a JWT-SVID. In case of multiple fetched SVIDs with same hint, the SVID that has the oldest
@@ -80,13 +110,17 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *workload.JWTSVIDRequest
 	selectors, err := h.c.Attestor.Attest(ctx)
 	if err != nil {
 		loggerWithContextInfo(ctx, log, start, err).Error("Workload attestation failed")
+		return nil, workloadAttestationFailedError(ctx)
+	}
+
+	if err := h.rateLimit(ctx, MethodFetchJWTSVID, selectors); err != nil {
 		return nil, err
 	}
 
 	log = log.WithField(telemetry.Registered, true)
 
 	entries := h.c.Manager.MatchingRegistrationEntries(selectors)
-	entries = filterRegistrations(entries, log)
+	entries = hintsfilter.FilterRegistrations(entries, log)
 
 	resp = new(workload.JWTSVIDResponse)
 
@@ -104,7 +138,7 @@ func (h *Handler) FetchJWTSVID(ctx context.Context, req *workload.JWTSVIDRequest
 	}
 
 	if len(resp.Svids) == 0 {
-		logNoIdentityIssued(ctx, log, start)
+		h.logNoIdentityIssued(ctx, log, selectors, start)
 		return nil, status.Error(codes.PermissionDenied, "no identity issued")
 	}
 
@@ -120,6 +154,10 @@ func (h *Handler) FetchJWTBundles(_ *workload.JWTBundlesRequest, stream workload
 	selectors, err := h.c.Attestor.Attest(ctx)
 	if err != nil {
 		loggerWithContextInfo(ctx, log, start, err).Error("Workload attestation failed")
+		return workloadAttestationFailedError(ctx)
+	}
+
+	if err := h.rateLimit(ctx, MethodFetchJWTBundles, selectors); err != nil {
 		return err
 	}
 
@@ -134,7 +172,7 @@ func (h *Handler) FetchJWTBundles(_ *workload.JWTBundlesRequest, stream workload
 	for {
 		select {
 		case update := <-subscriber.Updates():
-			if previousResp, err = sendJWTBundlesResponse(update, stream, log, h.c.AllowUnauthenticatedVerifiers, previousResp, start); err != nil {
+			if previousResp, err = h.sendJWTBundlesResponse(update, stream, selectors, log, previousResp, start); err != nil {
 				return err
 			}
 		case <-ctx.Done():
@@ -161,7 +199,7 @@ func (h *Handler) ValidateJWTSVID(ctx context.Context, req *workload.ValidateJWT
 	selectors, err := h.c.Attestor.Attest(ctx)
 	if err != nil {
 		loggerWithContextInfo(ctx, log, start, err).Error("Workload attestation failed")
-		return nil, err
+		return nil, workloadAttestationFailedError(ctx)
 	}
 
 	bundles := h.getWorkloadBundles(selectors)
@@ -219,6 +257,10 @@ func (h *Handler) FetchX509SVID(_ *workload.X509SVIDRequest, stream workload.Spi
 	selectors, err := h.c.Attestor.Attest(ctx)
 	if err != nil {
 		loggerWithContextInfo(ctx, log, start, err).Error("Workload attestation failed")
+		return workloadAttestationFailedError(ctx)
+	}
+
+	if err := h.rateLimit(ctx, MethodFetchX509SVID, selectors); err != nil {
 		return err
 	}
 
@@ -229,14 +271,11 @@ func (h *Handler) FetchX509SVID(_ *workload.X509SVIDRequest, stream workload.Spi
 	}
 	defer subscriber.Finish()
 
-	// The agent health check currently exercises the Workload API.
-	// Only log if it is not the agent itself.
-	quietLogging := isAgent(ctx)
 	for {
 		select {
 		case update := <-subscriber.Updates():
-			update.Identities = filterIdentities(update.Identities, log)
-			if err := sendX509SVIDResponse(update, stream, log, quietLogging, start); err != nil {
+			update.Identities = hintsfilter.FilterIdentities(update.Identities, log)
+			if err := h.sendX509SVIDResponse(update, stream, selectors, log, start); err != nil {
 				return err
 			}
 		case <-ctx.Done():
@@ -254,6 +293,10 @@ func (h *Handler) FetchX509Bundles(_ *workload.X509BundlesRequest, stream worklo
 	selectors, err := h.c.Attestor.Attest(ctx)
 	if err != nil {
 		loggerWithContextInfo(ctx, log, start, err).Error("Workload attestation failed")
+		return workloadAttestationFailedError(ctx)
+	}
+
+	if err := h.rateLimit(ctx, MethodFetchX509Bundles, selectors); err != nil {
 		return err
 	}
 
@@ -264,14 +307,11 @@ func (h *Handler) FetchX509Bundles(_ *workload.X509BundlesRequest, stream worklo
 	}
 	defer subscriber.Finish()
 
-	// The agent health check currently exercises the Workload API.
-	// Only log if it is not the agent itself.
-	quietLogging := isAgent(ctx)
 	var previousResp *workload.X509BundlesResponse
 	for {
 		select {
 		case update := <-subscriber.Updates():
-			previousResp, err = sendX509BundlesResponse(update, stream, log, h.c.AllowUnauthenticatedVerifiers, previousResp, quietLogging, start)
+			previousResp, err = h.sendX509BundlesResponse(update, stream, selectors, log, previousResp, start)
 			if err != nil {
 				return err
 			}
@@ -279,6 +319,21 @@ func (h *Handler) FetchX509Bundles(_ *workload.X509BundlesRequest, stream worklo
 			return nil
 		}
 	}
+}
+
+func (h *Handler) FetchWITSVID(_ *workload.WITSVIDRequest, stream workload.SpiffeWorkloadAPI_FetchWITSVIDServer) error {
+	return status.Error(codes.Unimplemented, "fetching WIT-SVIDs is not implemented")
+}
+
+func (h *Handler) FetchWITBundles(_ *workload.WITBundlesRequest, stream workload.SpiffeWorkloadAPI_FetchWITBundlesServer) error {
+	return status.Error(codes.Unimplemented, "fetching WIT bundles is not implemented")
+}
+
+func workloadAttestationFailedError(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return status.Error(codes.Unavailable, "workload attestation failed")
 }
 
 func (h *Handler) fetchJWTSVID(ctx context.Context, log logrus.FieldLogger, entry *common.RegistrationEntry, audience []string, start time.Time) (*workload.JWTSVID, error) {
@@ -304,10 +359,14 @@ func (h *Handler) fetchJWTSVID(ctx context.Context, log logrus.FieldLogger, entr
 	}, nil
 }
 
-func sendX509BundlesResponse(update *cache.WorkloadUpdate, stream workload.SpiffeWorkloadAPI_FetchX509BundlesServer, log logrus.FieldLogger, allowUnauthenticatedVerifiers bool, previousResponse *workload.X509BundlesResponse, quietLogging bool, start time.Time) (*workload.X509BundlesResponse, error) {
-	if !allowUnauthenticatedVerifiers && !update.HasIdentity() {
+func (h *Handler) sendX509BundlesResponse(update *cache.X509WorkloadUpdate, stream workload.SpiffeWorkloadAPI_FetchX509BundlesServer, selectors []*common.Selector, log logrus.FieldLogger, previousResponse *workload.X509BundlesResponse, start time.Time) (*workload.X509BundlesResponse, error) {
+	ctx := stream.Context()
+	// The agent health check currently exercises the Workload API.
+	// Only log if it is not the agent itself.
+	quietLogging := isAgent(ctx)
+	if !h.c.AllowUnauthenticatedVerifiers && !update.HasIdentity() {
 		if !quietLogging {
-			logNoIdentityIssued(stream.Context(), log, start)
+			h.logNoIdentityIssued(ctx, log, selectors, start)
 		}
 		return nil, status.Error(codes.PermissionDenied, "no identity issued")
 	}
@@ -323,14 +382,14 @@ func sendX509BundlesResponse(update *cache.WorkloadUpdate, stream workload.Spiff
 	}
 
 	if err := stream.Send(resp); err != nil {
-		loggerWithContextInfo(stream.Context(), log, start, err).Error("Failed to send X509 bundle response")
+		loggerWithContextInfo(ctx, log, start, err).Error("Failed to send X509 bundle response")
 		return nil, err
 	}
 
 	return resp, nil
 }
 
-func composeX509BundlesResponse(update *cache.WorkloadUpdate) (*workload.X509BundlesResponse, error) {
+func composeX509BundlesResponse(update *cache.X509WorkloadUpdate) (*workload.X509BundlesResponse, error) {
 	if update.Bundle == nil {
 		// This should be purely defensive since the cache should always supply
 		// a bundle.
@@ -350,10 +409,14 @@ func composeX509BundlesResponse(update *cache.WorkloadUpdate) (*workload.X509Bun
 	}, nil
 }
 
-func sendX509SVIDResponse(update *cache.WorkloadUpdate, stream workload.SpiffeWorkloadAPI_FetchX509SVIDServer, log logrus.FieldLogger, quietLogging bool, start time.Time) (err error) {
+func (h *Handler) sendX509SVIDResponse(update *cache.X509WorkloadUpdate, stream workload.SpiffeWorkloadAPI_FetchX509SVIDServer, selectors []*common.Selector, log logrus.FieldLogger, start time.Time) (err error) {
+	ctx := stream.Context()
+	// The agent health check currently exercises the Workload API.
+	// Only log if it is not the agent itself.
+	quietLogging := isAgent(ctx)
 	if len(update.Identities) == 0 {
 		if !quietLogging {
-			logNoIdentityIssued(stream.Context(), log, start)
+			h.logNoIdentityIssued(ctx, log, selectors, start)
 		}
 		return status.Error(codes.PermissionDenied, "no identity issued")
 	}
@@ -367,7 +430,7 @@ func sendX509SVIDResponse(update *cache.WorkloadUpdate, stream workload.SpiffeWo
 	}
 
 	if err := stream.Send(resp); err != nil {
-		loggerWithContextInfo(stream.Context(), log, start, err).Error("Failed to send X.509 SVID response")
+		loggerWithContextInfo(ctx, log, start, err).Error("Failed to send X.509 SVID response")
 		return err
 	}
 
@@ -389,7 +452,7 @@ func sendX509SVIDResponse(update *cache.WorkloadUpdate, stream workload.SpiffeWo
 	return nil
 }
 
-func composeX509SVIDResponse(update *cache.WorkloadUpdate) (*workload.X509SVIDResponse, error) {
+func composeX509SVIDResponse(update *cache.X509WorkloadUpdate) (*workload.X509SVIDResponse, error) {
 	resp := new(workload.X509SVIDResponse)
 	resp.Svids = []*workload.X509SVID{}
 	resp.FederatedBundles = make(map[string][]byte)
@@ -422,9 +485,10 @@ func composeX509SVIDResponse(update *cache.WorkloadUpdate) (*workload.X509SVIDRe
 	return resp, nil
 }
 
-func sendJWTBundlesResponse(update *cache.WorkloadUpdate, stream workload.SpiffeWorkloadAPI_FetchJWTBundlesServer, log logrus.FieldLogger, allowUnauthenticatedVerifiers bool, previousResponse *workload.JWTBundlesResponse, start time.Time) (*workload.JWTBundlesResponse, error) {
-	if !allowUnauthenticatedVerifiers && !update.HasIdentity() {
-		logNoIdentityIssued(stream.Context(), log, start)
+func (h *Handler) sendJWTBundlesResponse(update *cache.X509WorkloadUpdate, stream workload.SpiffeWorkloadAPI_FetchJWTBundlesServer, selectors []*common.Selector, log logrus.FieldLogger, previousResponse *workload.JWTBundlesResponse, start time.Time) (*workload.JWTBundlesResponse, error) {
+	ctx := stream.Context()
+	if !h.c.AllowUnauthenticatedVerifiers && !update.HasIdentity() {
+		h.logNoIdentityIssued(ctx, log, selectors, start)
 		return nil, status.Error(codes.PermissionDenied, "no identity issued")
 	}
 
@@ -439,14 +503,14 @@ func sendJWTBundlesResponse(update *cache.WorkloadUpdate, stream workload.Spiffe
 	}
 
 	if err := stream.Send(resp); err != nil {
-		loggerWithContextInfo(stream.Context(), log, start, err).Error("Failed to send JWT bundle response")
+		loggerWithContextInfo(ctx, log, start, err).Error("Failed to send JWT bundle response")
 		return nil, err
 	}
 
 	return resp, nil
 }
 
-func composeJWTBundlesResponse(update *cache.WorkloadUpdate) (*workload.JWTBundlesResponse, error) {
+func composeJWTBundlesResponse(update *cache.X509WorkloadUpdate) (*workload.JWTBundlesResponse, error) {
 	if update.Bundle == nil {
 		// This should be purely defensive since the cache should always supply
 		// a bundle.
@@ -502,8 +566,62 @@ func loggerWithContextInfo(ctx context.Context, log logrus.FieldLogger, start ti
 	return log
 }
 
-func logNoIdentityIssued(ctx context.Context, log logrus.FieldLogger, start time.Time) {
-	loggerWithContextInfo(ctx, log.WithField(telemetry.Registered, false), start, nil).Error("No identity issued")
+func (h *Handler) logNoIdentityIssued(ctx context.Context, log logrus.FieldLogger, selectors []*common.Selector, start time.Time) {
+	fields := logrus.Fields{
+		telemetry.Registered: false,
+	}
+	if loggableSelectors := filterLoggableSelectors(selectors, h.c.LogSelectors); len(loggableSelectors) > 0 {
+		fields[telemetry.Selectors] = selectorFieldFromSelectors(loggableSelectors)
+	}
+	loggerWithContextInfo(ctx, log.WithFields(fields), start, nil).Error("No identity issued")
+}
+
+func selectorFieldFromSelectors(selectors []*common.Selector) string {
+	selectorFields := make([]string, 0, len(selectors))
+	for _, selector := range selectors {
+		selectorFields = append(selectorFields, renderSelector(selector))
+	}
+	slices.Sort(selectorFields)
+	return strings.Join(selectorFields, ",")
+}
+
+func filterLoggableSelectors(selectors []*common.Selector, logSelectorPrefixes []string) []*common.Selector {
+	if len(logSelectorPrefixes) == 0 {
+		return nil
+	}
+
+	var loggableSelectors []*common.Selector
+	for _, selector := range selectors {
+		if isLoggableSelector(selector, logSelectorPrefixes) {
+			loggableSelectors = append(loggableSelectors, selector)
+		}
+	}
+	return loggableSelectors
+}
+
+func isLoggableSelector(selector *common.Selector, logSelectorPrefixes []string) bool {
+	if selector == nil {
+		return false
+	}
+
+	selectorValue := renderSelector(selector)
+
+	// Workload attestor subtypes are encoded in the selector value, e.g.
+	// Type="k8s", Value="ns:default", so match against the rendered selector.
+	for _, prefix := range logSelectorPrefixes {
+		if selectorValue == prefix || strings.HasPrefix(selectorValue, prefix+":") {
+			return true
+		}
+	}
+	return false
+}
+
+func renderSelector(selector *common.Selector) string {
+	selectorValue := selector.Type
+	if selector.Value != "" {
+		selectorValue += ":" + selector.Value
+	}
+	return selectorValue
 }
 
 func (h *Handler) getWorkloadBundles(selectors []*common.Selector) (bundles []*spiffebundle.Bundle) {
@@ -560,81 +678,4 @@ func isClaimAllowed(claim string, allowedClaims map[string]struct{}) bool {
 		_, ok := allowedClaims[claim]
 		return ok
 	}
-}
-
-func filterIdentities(identities []cache.Identity, log logrus.FieldLogger) []cache.Identity {
-	var filteredIdentities []cache.Identity
-	var entries []*common.RegistrationEntry
-	for _, identity := range identities {
-		entries = append(entries, identity.Entry)
-	}
-
-	entriesToRemove := getEntriesToRemove(entries, log)
-
-	for _, identity := range identities {
-		if _, ok := entriesToRemove[identity.Entry.EntryId]; !ok {
-			filteredIdentities = append(filteredIdentities, identity)
-		}
-	}
-
-	return filteredIdentities
-}
-
-func filterRegistrations(entries []*common.RegistrationEntry, log logrus.FieldLogger) []*common.RegistrationEntry {
-	var filteredEntries []*common.RegistrationEntry
-	entriesToRemove := getEntriesToRemove(entries, log)
-
-	for _, entry := range entries {
-		if _, ok := entriesToRemove[entry.EntryId]; !ok {
-			filteredEntries = append(filteredEntries, entry)
-		}
-	}
-
-	return filteredEntries
-}
-
-func getEntriesToRemove(entries []*common.RegistrationEntry, log logrus.FieldLogger) map[string]struct{} {
-	entriesToRemove := make(map[string]struct{})
-	hintsMap := make(map[string]*common.RegistrationEntry)
-
-	for _, entry := range entries {
-		if entry.Hint == "" {
-			continue
-		}
-		if entryWithNonUniqueHint, ok := hintsMap[entry.Hint]; ok {
-			entryToMaintain, entryToRemove := hintTieBreaking(entry, entryWithNonUniqueHint)
-
-			hintsMap[entry.Hint] = entryToMaintain
-			entriesToRemove[entryToRemove.EntryId] = struct{}{}
-
-			log.WithFields(logrus.Fields{
-				telemetry.Hint:           entryToRemove.Hint,
-				telemetry.RegistrationID: entryToRemove.EntryId,
-			}).Warn("Ignoring entry with duplicate hint")
-		} else {
-			hintsMap[entry.Hint] = entry
-		}
-	}
-
-	return entriesToRemove
-}
-
-func hintTieBreaking(entryA *common.RegistrationEntry, entryB *common.RegistrationEntry) (maintain *common.RegistrationEntry, remove *common.RegistrationEntry) {
-	switch {
-	case entryA.CreatedAt < entryB.CreatedAt:
-		maintain = entryA
-		remove = entryB
-	case entryA.CreatedAt > entryB.CreatedAt:
-		maintain = entryB
-		remove = entryA
-	default:
-		if entryA.EntryId < entryB.EntryId {
-			maintain = entryA
-			remove = entryB
-		} else {
-			maintain = entryB
-			remove = entryA
-		}
-	}
-	return
 }

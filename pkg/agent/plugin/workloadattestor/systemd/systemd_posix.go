@@ -75,6 +75,13 @@ func (p *Plugin) Attest(ctx context.Context, req *workloadattestorv1.AttestReque
 	}, nil
 }
 
+// AttestReference returns Unimplemented. This plugin does not handle
+// reference-based workload attestation; the host falls back to PID-based
+// Attest when the reference is a WorkloadPIDReference.
+func (p *Plugin) AttestReference(_ context.Context, _ *workloadattestorv1.AttestReferenceRequest) (*workloadattestorv1.AttestReferenceResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "AttestReference not implemented")
+}
+
 func (p *Plugin) Close() error {
 	p.dbusMutex.Lock()
 	defer p.dbusMutex.Unlock()

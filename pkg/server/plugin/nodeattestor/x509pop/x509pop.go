@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/url"
 	"strings"
 	"sync"
@@ -23,7 +24,9 @@ import (
 	"github.com/spiffe/spire/pkg/common/plugin/x509pop"
 	"github.com/spiffe/spire/pkg/common/pluginconf"
 	"github.com/spiffe/spire/pkg/common/util"
+	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 )
 
@@ -54,6 +57,7 @@ type Config struct {
 	AgentPathTemplate string   `hcl:"agent_path_template"`
 	MaxIntermediates  *int     `hcl:"max_intermediates"`
 	MaxRSAKeySize     *int     `hcl:"max_rsa_key_size"`
+  VerifyClientIP    bool     `hcl:"verify_client_ip"`
 	GroupPathTemplate string   `hcl:"group_path_template"`
 	Groups            []string `hcl:"groups"`
 }
@@ -66,6 +70,7 @@ type configuration struct {
 	pathTemplate       *agentpathtemplate.Template
 	maxIntermediates   int
 	maxRSAKeySize      int
+	verifyClientIP     bool
 	groupPathTemplate  *agentpathtemplate.Template
 	groups             []string
 }
@@ -167,7 +172,8 @@ func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginco
 		svidPrefix:        svidPrefix,
 		maxIntermediates:  maxIntermediates,
 		maxRSAKeySize:     maxRSAKeySize,
-		groupPathTemplate: groupPathTemplate,
+		verifyClientIP:    hclConfig.VerifyClientIP,
+    groupPathTemplate: groupPathTemplate,
 		groups:            hclConfig.Groups,
 	}
 
@@ -269,6 +275,30 @@ func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 	})
 	if err != nil {
 		return status.Errorf(codes.PermissionDenied, "certificate verification failed: %v", err)
+	}
+
+	if config.verifyClientIP {
+		ips := metadata.ValueFromIncomingContext(stream.Context(), nodeattestor.XForwardedClientIPKey)
+		if len(ips) == 0 || ips[0] == "" {
+			return status.Error(codes.Internal, "client IP not available for verification")
+		}
+		if len(ips) > 1 {
+			p.log.Warn("Multiple client IP values found in metadata, using first value")
+		}
+		clientIP := net.ParseIP(ips[0])
+		if clientIP == nil {
+			return status.Errorf(codes.Internal, "invalid client IP %q", ips[0])
+		}
+		matched := false
+		for _, certIP := range leaf.IPAddresses {
+			if certIP.Equal(clientIP) {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			return status.Errorf(codes.PermissionDenied, "client IP %s does not match any certificate IP SAN", clientIP)
+		}
 	}
 
 	// now that the leaf certificate is trusted, issue a challenge to the node

@@ -2357,6 +2357,66 @@ func TestCreateJoinTokenWithAgentId(t *testing.T) {
 	require.Equal(t, "spiffe://example.org/spire/agent/join_token/"+token.Value, listEntries.Entries[0].Selectors[0].Value)
 }
 
+// TestCascadeDeleteJoinTokenAliasEntry exercises the real create→delete path: a
+// CreateJoinToken with an AgentId writes the auto-alias entry via
+// createJoinTokenRegistrationEntry, and DeleteAgent removes the join-token node, which
+// must cascade-delete that alias entry through deleteAttestedNodeAndSelectors in the
+// SQL datastore. If either side's notion of the alias shape drifts, this fails.
+// fakedatastore is backed by the real sqlstore, so the cascade actually runs.
+func TestCascadeDeleteJoinTokenAliasEntry(t *testing.T) {
+	test := setupServiceTest(t, 0, false)
+	defer test.Cleanup()
+
+	token, err := test.client.CreateJoinToken(ctx, &agentv1.CreateJoinTokenRequest{
+		Ttl:     1000,
+		AgentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/valid"},
+	})
+	require.NoError(t, err)
+
+	nodeID := "spiffe://example.org/spire/agent/join_token/" + token.Value
+
+	listEntries, err := test.ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{})
+	require.NoError(t, err)
+	require.Len(t, listEntries.Entries, 1)
+	aliasEntryID := listEntries.Entries[0].EntryId
+	require.Equal(t, nodeID, listEntries.Entries[0].ParentId)
+
+	// Attest the node as a join-token node so it carries the SPIFFE ID and DataType
+	// the cascade keys on.
+	_, err = test.ds.CreateAttestedNode(ctx, &common.AttestedNode{
+		SpiffeId:            nodeID,
+		AttestationDataType: "join_token",
+		CertSerialNumber:    "badcafe",
+		CertNotAfter:        time.Now().Add(time.Hour).Unix(),
+	})
+	require.NoError(t, err)
+
+	beforeEvents, err := test.ds.ListRegistrationEntryEvents(ctx, &datastore.ListRegistrationEntryEventsRequest{})
+	require.NoError(t, err)
+	var lastEventID uint
+	if n := len(beforeEvents.Events); n > 0 {
+		lastEventID = beforeEvents.Events[n-1].EventID
+	}
+
+	_, err = test.client.DeleteAgent(ctx, &agentv1.DeleteAgentRequest{
+		Id: &types.SPIFFEID{TrustDomain: "example.org", Path: "/spire/agent/join_token/" + token.Value},
+	})
+	require.NoError(t, err)
+
+	// The alias entry is cascade-deleted...
+	deleted, err := test.ds.FetchRegistrationEntry(ctx, aliasEntryID)
+	require.NoError(t, err)
+	require.Nil(t, deleted)
+
+	// ...and a registration entry event is emitted for it.
+	events, err := test.ds.ListRegistrationEntryEvents(ctx, &datastore.ListRegistrationEntryEventsRequest{
+		GreaterThanEventID: lastEventID,
+	})
+	require.NoError(t, err)
+	require.Len(t, events.Events, 1)
+	require.Equal(t, aliasEntryID, events.Events[0].EntryID)
+}
+
 func TestAttestAgent(t *testing.T) {
 	testCsr, err := x509.CreateCertificateRequest(rand.Reader, &x509.CertificateRequest{}, testKey)
 	require.NoError(t, err)

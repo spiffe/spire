@@ -12,6 +12,7 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
+	commonapi "github.com/spiffe/spire/pkg/common/api"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
@@ -74,7 +75,7 @@ func (s *Service) CountEntries(ctx context.Context, req *entryv1.CountEntriesReq
 		if req.Filter.ByParentId != nil {
 			parentID, err := api.TrustDomainMemberIDFromProto(ctx, s.td, req.Filter.ByParentId)
 			if err != nil {
-				return nil, api.MakeErr(log, codes.InvalidArgument, "malformed parent ID filter", err)
+				return nil, commonapi.MakeErr(log, codes.InvalidArgument, "malformed parent ID filter", err)
 			}
 			countReq.ByParentID = parentID.String()
 		}
@@ -82,7 +83,7 @@ func (s *Service) CountEntries(ctx context.Context, req *entryv1.CountEntriesReq
 		if req.Filter.BySpiffeId != nil {
 			spiffeID, err := api.TrustDomainWorkloadIDFromProto(ctx, s.td, req.Filter.BySpiffeId)
 			if err != nil {
-				return nil, api.MakeErr(log, codes.InvalidArgument, "malformed SPIFFE ID filter", err)
+				return nil, commonapi.MakeErr(log, codes.InvalidArgument, "malformed SPIFFE ID filter", err)
 			}
 			countReq.BySpiffeID = spiffeID.String()
 		}
@@ -90,10 +91,10 @@ func (s *Service) CountEntries(ctx context.Context, req *entryv1.CountEntriesReq
 		if req.Filter.BySelectors != nil {
 			dsSelectors, err := api.SelectorsFromProto(req.Filter.BySelectors.Selectors)
 			if err != nil {
-				return nil, api.MakeErr(log, codes.InvalidArgument, "malformed selectors filter", err)
+				return nil, commonapi.MakeErr(log, codes.InvalidArgument, "malformed selectors filter", err)
 			}
 			if len(dsSelectors) == 0 {
-				return nil, api.MakeErr(log, codes.InvalidArgument, "malformed selectors filter", errors.New("empty selector set"))
+				return nil, commonapi.MakeErr(log, codes.InvalidArgument, "malformed selectors filter", errors.New("empty selector set"))
 			}
 			countReq.BySelectors = &datastore.BySelectors{
 				Match:     datastore.MatchBehavior(req.Filter.BySelectors.Match),
@@ -106,12 +107,12 @@ func (s *Service) CountEntries(ctx context.Context, req *entryv1.CountEntriesReq
 			for _, tdStr := range req.Filter.ByFederatesWith.TrustDomains {
 				td, err := spiffeid.TrustDomainFromString(tdStr)
 				if err != nil {
-					return nil, api.MakeErr(log, codes.InvalidArgument, "malformed federates with filter", err)
+					return nil, commonapi.MakeErr(log, codes.InvalidArgument, "malformed federates with filter", err)
 				}
 				trustDomains = append(trustDomains, td.IDString())
 			}
 			if len(trustDomains) == 0 {
-				return nil, api.MakeErr(log, codes.InvalidArgument, "malformed federates with filter", errors.New("empty trust domain set"))
+				return nil, commonapi.MakeErr(log, codes.InvalidArgument, "malformed federates with filter", errors.New("empty trust domain set"))
 			}
 			countReq.ByFederatesWith = &datastore.ByFederatesWith{
 				Match:        datastore.MatchBehavior(req.Filter.ByFederatesWith.Match),
@@ -127,7 +128,7 @@ func (s *Service) CountEntries(ctx context.Context, req *entryv1.CountEntriesReq
 	count, err := s.ds.CountRegistrationEntries(ctx, countReq)
 	if err != nil {
 		log := rpccontext.Logger(ctx)
-		return nil, api.MakeErr(log, codes.Internal, "failed to count entries", err)
+		return nil, commonapi.MakeErr(log, codes.Internal, "failed to count entries", err)
 	}
 	rpccontext.AuditRPC(ctx)
 
@@ -157,7 +158,7 @@ func (s *Service) ListEntries(ctx context.Context, req *entryv1.ListEntriesReque
 		if req.Filter.ByParentId != nil {
 			parentID, err := api.TrustDomainMemberIDFromProto(ctx, s.td, req.Filter.ByParentId)
 			if err != nil {
-				return nil, api.MakeErr(log, codes.InvalidArgument, "malformed parent ID filter", err)
+				return nil, commonapi.MakeErr(log, codes.InvalidArgument, "malformed parent ID filter", err)
 			}
 			listReq.ByParentID = parentID.String()
 		}
@@ -165,7 +166,7 @@ func (s *Service) ListEntries(ctx context.Context, req *entryv1.ListEntriesReque
 		if req.Filter.BySpiffeId != nil {
 			spiffeID, err := api.TrustDomainWorkloadIDFromProto(ctx, s.td, req.Filter.BySpiffeId)
 			if err != nil {
-				return nil, api.MakeErr(log, codes.InvalidArgument, "malformed SPIFFE ID filter", err)
+				return nil, commonapi.MakeErr(log, codes.InvalidArgument, "malformed SPIFFE ID filter", err)
 			}
 			listReq.BySpiffeID = spiffeID.String()
 		}
@@ -173,10 +174,10 @@ func (s *Service) ListEntries(ctx context.Context, req *entryv1.ListEntriesReque
 		if req.Filter.BySelectors != nil {
 			dsSelectors, err := api.SelectorsFromProto(req.Filter.BySelectors.Selectors)
 			if err != nil {
-				return nil, api.MakeErr(log, codes.InvalidArgument, "malformed selectors filter", err)
+				return nil, commonapi.MakeErr(log, codes.InvalidArgument, "malformed selectors filter", err)
 			}
 			if len(dsSelectors) == 0 {
-				return nil, api.MakeErr(log, codes.InvalidArgument, "malformed selectors filter", errors.New("empty selector set"))
+				return nil, commonapi.MakeErr(log, codes.InvalidArgument, "malformed selectors filter", errors.New("empty selector set"))
 			}
 			listReq.BySelectors = &datastore.BySelectors{
 				Match:     datastore.MatchBehavior(req.Filter.BySelectors.Match),
@@ -189,12 +190,12 @@ func (s *Service) ListEntries(ctx context.Context, req *entryv1.ListEntriesReque
 			for _, tdStr := range req.Filter.ByFederatesWith.TrustDomains {
 				td, err := spiffeid.TrustDomainFromString(tdStr)
 				if err != nil {
-					return nil, api.MakeErr(log, codes.InvalidArgument, "malformed federates with filter", err)
+					return nil, commonapi.MakeErr(log, codes.InvalidArgument, "malformed federates with filter", err)
 				}
 				trustDomains = append(trustDomains, td.IDString())
 			}
 			if len(trustDomains) == 0 {
-				return nil, api.MakeErr(log, codes.InvalidArgument, "malformed federates with filter", errors.New("empty trust domain set"))
+				return nil, commonapi.MakeErr(log, codes.InvalidArgument, "malformed federates with filter", errors.New("empty trust domain set"))
 			}
 			listReq.ByFederatesWith = &datastore.ByFederatesWith{
 				Match:        datastore.MatchBehavior(req.Filter.ByFederatesWith.Match),
@@ -209,7 +210,7 @@ func (s *Service) ListEntries(ctx context.Context, req *entryv1.ListEntriesReque
 
 	dsResp, err := s.ds.ListRegistrationEntries(ctx, listReq)
 	if err != nil {
-		return nil, api.MakeErr(log, codes.Internal, "failed to list entries", err)
+		return nil, commonapi.MakeErr(log, codes.Internal, "failed to list entries", err)
 	}
 
 	resp := &entryv1.ListEntriesResponse{}
@@ -236,22 +237,22 @@ func (s *Service) GetEntry(ctx context.Context, req *entryv1.GetEntryRequest) (*
 	log := rpccontext.Logger(ctx)
 
 	if req.Id == "" {
-		return nil, api.MakeErr(log, codes.InvalidArgument, "missing ID", nil)
+		return nil, commonapi.MakeErr(log, codes.InvalidArgument, "missing ID", nil)
 	}
 	rpccontext.AddRPCAuditFields(ctx, logrus.Fields{telemetry.RegistrationID: req.Id})
 	log = log.WithField(telemetry.RegistrationID, req.Id)
 	registrationEntry, err := s.ds.FetchRegistrationEntry(ctx, req.Id)
 	if err != nil {
-		return nil, api.MakeErr(log, codes.Internal, "failed to fetch entry", err)
+		return nil, commonapi.MakeErr(log, codes.Internal, "failed to fetch entry", err)
 	}
 
 	if registrationEntry == nil {
-		return nil, api.MakeErr(log, codes.NotFound, "entry not found", nil)
+		return nil, commonapi.MakeErr(log, codes.NotFound, "entry not found", nil)
 	}
 
 	entry, err := api.RegistrationEntryToProto(registrationEntry)
 	if err != nil {
-		return nil, api.MakeErr(log, codes.Internal, "failed to convert entry", err)
+		return nil, commonapi.MakeErr(log, codes.Internal, "failed to convert entry", err)
 	}
 	applyMask(entry, req.OutputMask)
 	rpccontext.AuditRPC(ctx)
@@ -281,13 +282,13 @@ func (s *Service) createEntry(ctx context.Context, e *types.Entry, outputMask *t
 	cEntry, err := api.ProtoToRegistrationEntry(ctx, s.td, e)
 	if err != nil {
 		return &entryv1.BatchCreateEntryResponse_Result{
-			Status: api.MakeStatus(log, codes.InvalidArgument, "failed to convert entry", err),
+			Status: commonapi.MakeStatus(log, codes.InvalidArgument, "failed to convert entry", err),
 		}
 	}
 
 	log = log.WithField(telemetry.SPIFFEID, cEntry.SpiffeId)
 
-	resultStatus := api.OK()
+	resultStatus := commonapi.OK()
 	regEntry, existing, err := s.ds.CreateOrReturnRegistrationEntry(ctx, cEntry)
 	switch {
 	case err != nil:
@@ -296,16 +297,16 @@ func (s *Service) createEntry(ctx context.Context, e *types.Entry, outputMask *t
 			statusCode = codes.Internal
 		}
 		return &entryv1.BatchCreateEntryResponse_Result{
-			Status: api.MakeStatus(log, statusCode, "failed to create entry", err),
+			Status: commonapi.MakeStatus(log, statusCode, "failed to create entry", err),
 		}
 	case existing:
-		resultStatus = api.CreateStatus(codes.AlreadyExists, "similar entry already exists")
+		resultStatus = commonapi.CreateStatus(codes.AlreadyExists, "similar entry already exists")
 	}
 
 	tEntry, err := api.RegistrationEntryToProto(regEntry)
 	if err != nil {
 		return &entryv1.BatchCreateEntryResponse_Result{
-			Status: api.MakeStatus(log, codes.Internal, "failed to convert entry", err),
+			Status: commonapi.MakeStatus(log, codes.Internal, "failed to convert entry", err),
 		}
 	}
 
@@ -356,7 +357,7 @@ func (s *Service) deleteEntry(ctx context.Context, id string) *entryv1.BatchDele
 	if id == "" {
 		return &entryv1.BatchDeleteEntryResponse_Result{
 			Id:     id,
-			Status: api.MakeStatus(log, codes.InvalidArgument, "missing entry ID", nil),
+			Status: commonapi.MakeStatus(log, codes.InvalidArgument, "missing entry ID", nil),
 		}
 	}
 
@@ -367,17 +368,17 @@ func (s *Service) deleteEntry(ctx context.Context, id string) *entryv1.BatchDele
 	case codes.OK:
 		return &entryv1.BatchDeleteEntryResponse_Result{
 			Id:     id,
-			Status: api.OK(),
+			Status: commonapi.OK(),
 		}
 	case codes.NotFound:
 		return &entryv1.BatchDeleteEntryResponse_Result{
 			Id:     id,
-			Status: api.MakeStatus(log, codes.NotFound, "entry not found", nil),
+			Status: commonapi.MakeStatus(log, codes.NotFound, "entry not found", nil),
 		}
 	default:
 		return &entryv1.BatchDeleteEntryResponse_Result{
 			Id:     id,
-			Status: api.MakeStatus(log, codes.Internal, "failed to delete entry", err),
+			Status: commonapi.MakeStatus(log, codes.Internal, "failed to delete entry", err),
 		}
 	}
 }
@@ -560,12 +561,12 @@ func SyncAuthorizedEntries(stream entryv1.Entry_SyncAuthorizedEntriesServer, ent
 func (s *Service) fetchEntries(ctx context.Context, log logrus.FieldLogger) ([]api.ReadOnlyEntry, error) {
 	callerID, ok := rpccontext.CallerID(ctx)
 	if !ok {
-		return nil, api.MakeErr(log, codes.Internal, "caller ID missing from request context", nil)
+		return nil, commonapi.MakeErr(log, codes.Internal, "caller ID missing from request context", nil)
 	}
 
 	entries, err := s.ef.FetchAuthorizedEntries(ctx, callerID)
 	if err != nil {
-		return nil, api.MakeErr(log, codes.Internal, "failed to fetch entries", err)
+		return nil, commonapi.MakeErr(log, codes.Internal, "failed to fetch entries", err)
 	}
 
 	return entries, nil
@@ -644,7 +645,7 @@ func (s *Service) updateEntry(ctx context.Context, e *types.Entry, inputMask *ty
 	convEntry, err := api.ProtoToRegistrationEntryWithMask(ctx, s.td, e, inputMask)
 	if err != nil {
 		return &entryv1.BatchUpdateEntryResponse_Result{
-			Status: api.MakeStatus(log, codes.InvalidArgument, "failed to convert entry", err),
+			Status: commonapi.MakeStatus(log, codes.InvalidArgument, "failed to convert entry", err),
 		}
 	}
 
@@ -673,21 +674,21 @@ func (s *Service) updateEntry(ctx context.Context, e *types.Entry, inputMask *ty
 			statusCode = codes.Internal
 		}
 		return &entryv1.BatchUpdateEntryResponse_Result{
-			Status: api.MakeStatus(log, statusCode, "failed to update entry", err),
+			Status: commonapi.MakeStatus(log, statusCode, "failed to update entry", err),
 		}
 	}
 
 	tEntry, err := api.RegistrationEntryToProto(dsEntry)
 	if err != nil {
 		return &entryv1.BatchUpdateEntryResponse_Result{
-			Status: api.MakeStatus(log, codes.Internal, "failed to convert entry in updateEntry", err),
+			Status: commonapi.MakeStatus(log, codes.Internal, "failed to convert entry in updateEntry", err),
 		}
 	}
 
 	applyMask(tEntry, outputMask)
 
 	return &entryv1.BatchUpdateEntryResponse_Result{
-		Status: api.OK(),
+		Status: commonapi.OK(),
 		Entry:  tEntry,
 	}
 }

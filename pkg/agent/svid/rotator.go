@@ -9,7 +9,6 @@ import (
 	"sync"
 
 	"github.com/andres-erbsen/clock"
-	"github.com/imkira/go-observer"
 	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
 	agentv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/agent/v1"
 	node_attestor "github.com/spiffe/spire/pkg/agent/attestor/node"
@@ -17,6 +16,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/plugin/keymanager"
 	"github.com/spiffe/spire/pkg/common/backoff"
 	"github.com/spiffe/spire/pkg/common/nodeutil"
+	"github.com/spiffe/spire/pkg/common/observer"
 	"github.com/spiffe/spire/pkg/common/rotationutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	telemetry_agent "github.com/spiffe/spire/pkg/common/telemetry/agent"

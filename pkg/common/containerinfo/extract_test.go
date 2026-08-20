@@ -71,12 +71,26 @@ func TestExtractPodUIDAndContainerID(t *testing.T) {
 		assertErrorContains(t, "testdata/k8s/container-id-conflict", "multiple container IDs found")
 	})
 
-	t.Run("failed to read mountinfo", func(t *testing.T) {
+	t.Run("neither cgroup nor mountinfo exist", func(t *testing.T) {
 		assertNotFound(t, "testdata/does-not-exist")
 	})
 
-	t.Run("falls back to cgroup file", func(t *testing.T) {
-		assertFound(t, "testdata/other/fallback", "", testContainerID)
+	t.Run("extracts from cgroup file", func(t *testing.T) {
+		assertFound(t, "testdata/other/cgroup-primary", "", testContainerID)
+	})
+
+	t.Run("falls back to mountinfo", func(t *testing.T) {
+		// The cgroup file exists but contains no identifiers, so the
+		// information is extracted from mountinfo instead.
+		assertFound(t, "testdata/other/mountinfo-fallback", testPodUID, testContainerID)
+	})
+
+	t.Run("cgroup takes priority over spoofed mountinfo", func(t *testing.T) {
+		// A workload may bind-mount another workload's cgroup into its own
+		// mount namespace so that mountinfo reports a different pod/container
+		// than the kernel-assigned cgroup. The cgroup file cannot be forged,
+		// so it must take priority.
+		assertFound(t, "testdata/other/mountinfo-impersonation", "", testContainerID)
 	})
 }
 
@@ -125,12 +139,26 @@ func TestExtractContainerID(t *testing.T) {
 		assertErrorContains(t, "testdata/docker/container-id-conflict", "multiple container IDs found")
 	})
 
-	t.Run("failed to read mountinfo", func(t *testing.T) {
+	t.Run("neither cgroup nor mountinfo exist", func(t *testing.T) {
 		assertNotFound(t, "testdata/does-not-exist")
 	})
 
-	t.Run("falls back to cgroup file", func(t *testing.T) {
-		assertFound(t, "testdata/other/fallback", testContainerID)
+	t.Run("extracts from cgroup file", func(t *testing.T) {
+		assertFound(t, "testdata/other/cgroup-primary", testContainerID)
+	})
+
+	t.Run("falls back to mountinfo", func(t *testing.T) {
+		// The cgroup file exists but contains no identifiers, so the
+		// information is extracted from mountinfo instead.
+		assertFound(t, "testdata/other/mountinfo-fallback", testContainerID)
+	})
+
+	t.Run("cgroup takes priority over spoofed mountinfo", func(t *testing.T) {
+		// A workload may bind-mount another workload's cgroup into its own
+		// mount namespace so that mountinfo reports a different container
+		// than the kernel-assigned cgroup. The cgroup file cannot be forged,
+		// so it must take priority.
+		assertFound(t, "testdata/other/mountinfo-impersonation", testContainerID)
 	})
 
 	t.Run("has multiple cgroup mounts on slash v1", func(t *testing.T) {
@@ -139,5 +167,13 @@ func TestExtractContainerID(t *testing.T) {
 
 	t.Run("has multiple cgroup mounts on slash v2", func(t *testing.T) {
 		assertFound(t, "testdata/docker/cgroup-mount-at-slash/v2", testContainerID)
+	})
+
+	t.Run("tolerates tmpfs mount with empty source", func(t *testing.T) {
+		// Regression test for #7036: a tmpfs mount has no source, which renders
+		// as an empty field in /proc/<pid>/mountinfo. The container ID must
+		// still be extracted from the cgroup mount on the same file rather than
+		// the whole file being rejected.
+		assertFound(t, "testdata/docker/tmpfs-empty-source", testContainerID)
 	})
 }

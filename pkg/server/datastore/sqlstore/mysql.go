@@ -11,6 +11,7 @@ import (
 	"github.com/go-sql-driver/mysql"
 	"github.com/jinzhu/gorm"
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/spire/pkg/server/datastore/sqlcommon"
 	"github.com/spiffe/spire/pkg/server/datastore/sqldriver/awsrds"
 
 	// gorm mysql `cloudsql` dialect, for GCP
@@ -29,7 +30,7 @@ const (
 	tlsConfigName = "spireCustomTLS"
 )
 
-func (my mysqlDB) connect(ctx context.Context, cfg *configuration, isReadOnly bool) (db *gorm.DB, version string, supportsCTE bool, err error) {
+func (my mysqlDB) connect(ctx context.Context, cfg *sqlcommon.Configuration, isReadOnly bool) (db *gorm.DB, version string, supportsCTE bool, err error) {
 	mysqlConfig, err := configureConnection(cfg, isReadOnly)
 	if err != nil {
 		return nil, "", false, err
@@ -37,11 +38,11 @@ func (my mysqlDB) connect(ctx context.Context, cfg *configuration, isReadOnly bo
 
 	var errOpen error
 	switch {
-	case cfg.databaseTypeConfig.AWSMySQL != nil:
+	case cfg.DBTypeConfig.AWSMySQL != nil:
 		awsrdsConfig := &awsrds.Config{
-			Region:          cfg.databaseTypeConfig.AWSMySQL.Region,
-			AccessKeyID:     cfg.databaseTypeConfig.AWSMySQL.AccessKeyID,
-			SecretAccessKey: cfg.databaseTypeConfig.AWSMySQL.SecretAccessKey,
+			Region:          cfg.DBTypeConfig.AWSMySQL.Region,
+			AccessKeyID:     cfg.DBTypeConfig.AWSMySQL.AccessKeyID,
+			SecretAccessKey: cfg.DBTypeConfig.AWSMySQL.SecretAccessKey,
 			Endpoint:        mysqlConfig.Addr,
 			DbUser:          mysqlConfig.User,
 			DriverName:      awsrds.MySQLDriverName,
@@ -61,7 +62,7 @@ func (my mysqlDB) connect(ctx context.Context, cfg *configuration, isReadOnly bo
 		return nil, "", false, errOpen
 	}
 
-	version, err = queryVersion(ctx, db, "SELECT VERSION()")
+	version, err = queryVersion(ctx, db, sqlcommon.MySQLVersionQuery)
 	if err != nil {
 		return nil, "", false, err
 	}
@@ -102,15 +103,13 @@ func (my mysqlDB) isParseError(err error) bool {
 }
 
 func (my mysqlDB) isConstraintViolation(err error) bool {
-	var e *mysql.MySQLError
-	ok := errors.As(err, &e)
-	return ok && e.Number == 1062 // ER_DUP_ENTRY
+	return sqlcommon.IsMySQLConstraintViolation(err)
 }
 
 // configureConnection modifies the connection string to support features that
 // normally require code changes, like custom Root CAs or client certificates
-func configureConnection(cfg *configuration, isReadOnly bool) (*mysql.Config, error) {
-	connectionString := getConnectionString(cfg, isReadOnly)
+func configureConnection(cfg *sqlcommon.Configuration, isReadOnly bool) (*mysql.Config, error) {
+	connectionString := sqlcommon.GetConnectionString(cfg, isReadOnly)
 	mysqlConfig, err := mysql.ParseDSN(connectionString)
 	if err != nil {
 		// the connection string should have already been validated by now
@@ -161,18 +160,18 @@ func configureConnection(cfg *configuration, isReadOnly bool) (*mysql.Config, er
 	return mysqlConfig, nil
 }
 
-func hasTLSConfig(cfg *configuration) bool {
+func hasTLSConfig(cfg *sqlcommon.Configuration) bool {
 	return len(cfg.RootCAPath) > 0 || len(cfg.ClientCertPath) > 0 && len(cfg.ClientKeyPath) > 0
 }
 
-func validateMySQLConfig(cfg *configuration, isReadOnly bool) error {
-	opts, err := mysql.ParseDSN(getConnectionString(cfg, isReadOnly))
+func validateMySQLConfig(cfg *sqlcommon.Configuration, isReadOnly bool) error {
+	opts, err := mysql.ParseDSN(sqlcommon.GetConnectionString(cfg, isReadOnly))
 	if err != nil {
-		return newWrappedSQLError(err)
+		return sqlcommon.NewWrappedSQLError(err)
 	}
 
 	if !opts.ParseTime {
-		return newSQLError("invalid mysql config: missing parseTime=true param in connection_string")
+		return sqlcommon.NewSQLError("invalid mysql config: missing parseTime=true param in connection_string")
 	}
 
 	return nil

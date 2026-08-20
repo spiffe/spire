@@ -1,0 +1,27 @@
+#!/bin/bash
+
+set -e
+
+mkdir -p ./bin
+
+KIND_PATH=./bin/kind
+KUBECTL_PATH=./bin/kubectl
+
+download-kind "${KIND_PATH}"
+download-kubectl "${KUBECTL_PATH}"
+
+start-kind-cluster "${KIND_PATH}" broker-api-k8s ./conf/kind-config.yaml
+
+# Build the brokerclient binary and bake it into a tiny image.
+log-info "building brokerclient and broker-client image..."
+"${ROOTDIR}/setup/brokerclient/build.sh" "$(pwd)/conf/brokerclient"
+docker build -t broker-client:latest-local -f ./conf/broker-client.Dockerfile ./conf
+
+container_images=(
+  "spire-server:latest-local"
+  "spire-agent:latest-local"
+  "broker-client:latest-local"
+)
+load-images "${KIND_PATH}" broker-api-k8s "${container_images[@]}"
+
+set-kubectl-context "${KUBECTL_PATH}" kind-broker-api-k8s

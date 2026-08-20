@@ -1,0 +1,340 @@
+# ServiceAccount for the SPIRE agent
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: spire-agent
+  namespace: spire
+
+---
+# Cluster role granting the agent permission to:
+#  - read pods/nodes for the legacy PID/k8s_psat path
+#  - read Kustomization CRs so the broker API can attest non-pod object references
+#  - create SubjectAccessReviews for broker authorization checks
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: spire-agent-cluster-role
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "nodes", "nodes/proxy"]
+    verbs: ["get", "list"]
+  - apiGroups: ["kustomize.toolkit.fluxcd.io"]
+    resources: ["kustomizations"]
+    verbs: ["get", "list"]
+  - apiGroups: ["authorization.k8s.io"]
+    resources: ["subjectaccessreviews"]
+    verbs: ["create"]
+
+---
+# Cluster role used by the k8s workload attestor's SubjectAccessReview check.
+# The broker SPIFFE ID is used as the SubjectAccessReview username.
+# Use SPIRE's custom verb, not Kubernetes' built-in `impersonate` verb.
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: spire-broker-impersonation-role
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["impersonate-via-spire"]
+  - apiGroups: ["kustomize.toolkit.fluxcd.io"]
+    resources: ["kustomizations"]
+    verbs: ["impersonate-via-spire"]
+
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: spire-broker-impersonation-role-binding
+subjects:
+  - kind: User
+    name: spiffe://example.org/broker
+  - kind: User
+    name: spiffe://example.org/cluster-broker
+  - kind: User
+    name: spiffe://example.org/agent-node-broker
+  - kind: User
+    name: spiffe://example.org/local-only-object-broker
+  - kind: User
+    name: spiffe://example.org/restricted-broker
+roleRef:
+  kind: ClusterRole
+  name: spire-broker-impersonation-role
+  apiGroup: rbac.authorization.k8s.io
+
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: spire-agent-cluster-role-binding
+subjects:
+  - kind: ServiceAccount
+    name: spire-agent
+    namespace: spire
+roleRef:
+  kind: ClusterRole
+  name: spire-agent-cluster-role
+  apiGroup: rbac.authorization.k8s.io
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: spire-agent
+  namespace: spire
+data:
+  agent.conf: |
+    agent {
+      data_dir = "/run/spire"
+      log_level = "DEBUG"
+      server_address = "spire-server"
+      server_port = "8081"
+      socket_path = "/run/spire/agent-sockets/api.sock"
+      trust_bundle_path = "/run/spire/bundle/bundle.crt"
+      trust_domain = "example.org"
+
+      experimental {
+        # Enable the SPIFFE Broker API endpoint on both a UDS (for local
+        # brokers) and a TCP listener (for remote brokers). The TCP port
+        # is fronted by the spire-broker Service. Each authorized broker
+        # presents a SPIFFE ID; mTLS at the listener gates the set.
+        broker {
+          socket_path  = "/run/spire/broker-sockets/broker.sock"
+          bind_address = "0.0.0.0:8443"
+          # Fail closed for TCP except KubernetesObjectReference entries that
+          # explicitly opt in with allow_over_tcp.
+          brokers = [
+            {
+              id = "spiffe://example.org/broker"
+              allowed_reference_types = [
+                {
+                  type_url = "type.googleapis.com/spiffe.broker.WorkloadPIDReference"
+                },
+                {
+                  type_url = "type.googleapis.com/spiffe.broker.KubernetesObjectReference"
+                  allow_over_tcp = true
+                },
+              ]
+            },
+            {
+              id = "spiffe://example.org/cluster-broker"
+              allowed_reference_types = [
+                {
+                  type_url = "type.googleapis.com/spiffe.broker.KubernetesObjectReference"
+                  allow_over_tcp = true
+                },
+              ]
+            },
+            {
+              id = "spiffe://example.org/agent-node-broker"
+              allowed_reference_types = [
+                {
+                  type_url = "type.googleapis.com/spiffe.broker.KubernetesObjectReference"
+                  allow_over_tcp = true
+                },
+              ]
+            },
+            {
+              id = "spiffe://example.org/local-only-object-broker"
+              allowed_reference_types = [
+                {
+                  type_url = "type.googleapis.com/spiffe.broker.KubernetesObjectReference"
+                },
+              ]
+            },
+            {
+              id = "spiffe://example.org/restricted-broker"
+              allowed_reference_types = [
+                {
+                  type_url = "type.googleapis.com/spiffe.broker.WorkloadPIDReference"
+                },
+              ]
+            },
+            {
+              id = "spiffe://example.org/rbac-denied-broker"
+              allowed_reference_types = [
+                {
+                  type_url = "type.googleapis.com/spiffe.broker.WorkloadPIDReference"
+                },
+                {
+                  type_url = "type.googleapis.com/spiffe.broker.KubernetesObjectReference"
+                  allow_over_tcp = true
+                },
+              ]
+            },
+          ]
+        }
+      }
+    }
+
+    plugins {
+      NodeAttestor "k8s_psat" {
+        plugin_data {
+          cluster = "example-cluster"
+        }
+      }
+
+      KeyManager "memory" {
+        plugin_data {
+        }
+      }
+
+      WorkloadAttestor "k8s" {
+        plugin_data {
+          # Skip kubelet cert verification (kind doesn't ship a CA bundle entry for it).
+          skip_kubelet_verification = true
+          node_name_env = "MY_NODE_NAME"
+
+          experimental {
+            api_server {
+              cache {
+                enabled = true
+              }
+            }
+
+            # Broker-specific Kubernetes authorization config.
+            # access_policy = "enforced" opts in to SubjectAccessReview checks.
+            # The broker SPIFFE ID is used as the SubjectAccessReview username.
+            broker {
+              access_policy = "enforced"
+              brokers = [
+                {
+                  id = "spiffe://example.org/broker"
+                },
+                {
+                  id = "spiffe://example.org/cluster-broker"
+                  pod_reference_scope = "cluster"
+                },
+                {
+                  id = "spiffe://example.org/agent-node-broker"
+                  pod_reference_scope = "agent_node"
+                },
+                {
+                  id = "spiffe://example.org/local-only-object-broker"
+                },
+                {
+                  id = "spiffe://example.org/restricted-broker"
+                },
+                {
+                  id = "spiffe://example.org/rbac-denied-broker"
+                },
+              ]
+            }
+          }
+        }
+      }
+    }
+
+    health_checks {
+      listener_enabled = true
+      bind_address = "0.0.0.0"
+      bind_port = "8080"
+      live_path = "/live"
+      ready_path = "/ready"
+    }
+
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: spire-agent
+  namespace: spire
+  labels:
+    app: spire-agent
+spec:
+  selector:
+    matchLabels:
+      app: spire-agent
+  updateStrategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      namespace: spire
+      labels:
+        app: spire-agent
+    spec:
+      hostPID: true
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      serviceAccountName: spire-agent
+      containers:
+        - name: spire-agent
+          image: spire-agent:latest-local
+          imagePullPolicy: Never
+          args: ["-config", "/run/spire/config/agent.conf"]
+          env:
+            - name: MY_NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          ports:
+            - name: broker
+              containerPort: 8443
+          volumeMounts:
+            - name: spire-config
+              mountPath: /run/spire/config
+              readOnly: true
+            - name: spire-bundle
+              mountPath: /run/spire/bundle
+              readOnly: true
+            - name: spire-agent-socket
+              mountPath: /run/spire/agent-sockets
+              readOnly: false
+            - name: spire-broker-socket
+              mountPath: /run/spire/broker-sockets
+              readOnly: false
+            - name: spire-token
+              mountPath: /var/run/secrets/tokens
+          livenessProbe:
+            httpGet:
+              path: /live
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 10
+      volumes:
+        - name: spire-config
+          configMap:
+            name: spire-agent
+        - name: spire-bundle
+          configMap:
+            name: spire-bundle
+        - name: spire-agent-socket
+          hostPath:
+            path: /run/spire/agent-sockets
+            type: DirectoryOrCreate
+        - name: spire-broker-socket
+          hostPath:
+            path: /run/spire/broker-sockets
+            type: DirectoryOrCreate
+        - name: spire-token
+          projected:
+            sources:
+              - serviceAccountToken:
+                  path: spire-agent
+                  expirationSeconds: 7200
+                  audience: spire-server
+
+---
+# Fronts the agent's broker TCP listener so remote-style brokers can reach
+# it without depending on hostNetwork or the node IP. Targets the daemonset
+# pods directly via the `app=spire-agent` selector.
+apiVersion: v1
+kind: Service
+metadata:
+  name: spire-broker
+  namespace: spire
+spec:
+  type: ClusterIP
+  selector:
+    app: spire-agent
+  ports:
+    - name: broker
+      port: 8443
+      targetPort: 8443
+      protocol: TCP

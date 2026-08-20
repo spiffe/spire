@@ -1,0 +1,26 @@
+#!/bin/bash
+
+set -e
+
+source init-kubectl
+
+log-info "Test: unauthorized workload CAN still fetch its own SVID via Workload API"
+
+./bin/kubectl -nspire exec -t unauthorized-workload -- /brokerclient \
+    -skip-broker \
+    || fail-now "unauthorized workload should still be able to use the Workload API"
+
+log-success "unauthorized workload fetched its own SVID via Workload API"
+
+log-info "Test: unauthorized workload is REJECTED at mTLS when dialing the broker endpoint"
+
+# Its SPIFFE ID is not in the agent's broker allowlist, so the server's mTLS
+# authorizer fails the cert verification. gRPC surfaces this as Unavailable.
+./bin/kubectl -nspire exec -t unauthorized-workload -- /brokerclient \
+    -ref-type object \
+    -plural pods -group core \
+    -namespace spire -name target-pod \
+    -expect-err Unavailable \
+    || fail-now "unauthorized workload was not rejected at mTLS layer"
+
+log-success "unauthorized workload rejected at mTLS layer as expected"

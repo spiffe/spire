@@ -794,7 +794,7 @@ func (s *IMDSAttestorSuite) loadPluginWithChallengeHandler(
 		}
 		return domain, nil
 	}
-	attestor.hooks.validateAttestedDoc = func(ctx context.Context, doc *azure.AttestedDocument) (*azure.AttestedDocumentContent, error) {
+	attestor.hooks.validateAttestedDoc = func(ctx context.Context, doc *azure.AttestedDocument, allowedMetadataDomains []string) (*azure.AttestedDocumentContent, error) {
 		s.lastValidatedDoc = doc
 		var (
 			content *azure.AttestedDocumentContent

@@ -17,6 +17,7 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	svidv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/svid/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
+	commonapi "github.com/spiffe/spire/pkg/common/api"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/jwtsvid"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -76,45 +77,45 @@ func (s *Service) MintX509SVID(ctx context.Context, req *svidv1.MintX509SVIDRequ
 	})
 
 	if len(req.Csr) == 0 {
-		return nil, api.MakeErr(log, codes.InvalidArgument, "missing CSR", nil)
+		return nil, commonapi.MakeErr(log, codes.InvalidArgument, "missing CSR", nil)
 	}
 
 	csr, err := x509.ParseCertificateRequest(req.Csr)
 	if err != nil {
-		return nil, api.MakeErr(log, codes.InvalidArgument, "malformed CSR", err)
+		return nil, commonapi.MakeErr(log, codes.InvalidArgument, "malformed CSR", err)
 	}
 
 	if err := csr.CheckSignature(); err != nil {
-		return nil, api.MakeErr(log, codes.InvalidArgument, "failed to verify CSR signature", err)
+		return nil, commonapi.MakeErr(log, codes.InvalidArgument, "failed to verify CSR signature", err)
 	}
 
 	switch {
 	case len(csr.URIs) == 0:
-		return nil, api.MakeErr(log, codes.InvalidArgument, "CSR URI SAN is required", nil)
+		return nil, commonapi.MakeErr(log, codes.InvalidArgument, "CSR URI SAN is required", nil)
 	case len(csr.URIs) > 1:
-		return nil, api.MakeErr(log, codes.InvalidArgument, "only one URI SAN is expected", nil)
+		return nil, commonapi.MakeErr(log, codes.InvalidArgument, "only one URI SAN is expected", nil)
 	}
 
 	id, err := spiffeid.FromURI(csr.URIs[0])
 	if err != nil {
-		return nil, api.MakeErr(log, codes.InvalidArgument, "CSR URI SAN is invalid", err)
+		return nil, commonapi.MakeErr(log, codes.InvalidArgument, "CSR URI SAN is invalid", err)
 	}
 
 	if err := api.VerifyTrustDomainWorkloadID(s.td, id); err != nil {
-		return nil, api.MakeErr(log, codes.InvalidArgument, "CSR URI SAN is invalid", err)
+		return nil, commonapi.MakeErr(log, codes.InvalidArgument, "CSR URI SAN is invalid", err)
 	}
 
 	dnsNames := make([]string, 0, len(csr.DNSNames))
 	for _, dnsName := range csr.DNSNames {
 		err := x509util.ValidateLabel(dnsName)
 		if err != nil {
-			return nil, api.MakeErr(log, codes.InvalidArgument, "CSR DNS name is invalid", err)
+			return nil, commonapi.MakeErr(log, codes.InvalidArgument, "CSR DNS name is invalid", err)
 		}
 		dnsNames = append(dnsNames, dnsName)
 	}
 
 	if err := x509util.CheckForWildcardOverlap(dnsNames); err != nil {
-		return nil, api.MakeErr(log, codes.InvalidArgument, "CSR DNS name contains a wildcard that covers another non-wildcard name", err)
+		return nil, commonapi.MakeErr(log, codes.InvalidArgument, "CSR DNS name contains a wildcard that covers another non-wildcard name", err)
 	}
 
 	x509SVID, err := s.ca.SignWorkloadX509SVID(ctx, ca.WorkloadX509SVIDParams{
@@ -125,7 +126,7 @@ func (s *Service) MintX509SVID(ctx context.Context, req *svidv1.MintX509SVIDRequ
 		Subject:   csr.Subject,
 	})
 	if err != nil {
-		return nil, api.MakeErr(log, codes.Internal, "failed to sign X509-SVID", err)
+		return nil, commonapi.MakeErr(log, codes.Internal, "failed to sign X509-SVID", err)
 	}
 
 	commonX509SVIDLogFields := logrus.Fields{
@@ -156,7 +157,7 @@ func (s *Service) MintX509SVID(ctx context.Context, req *svidv1.MintX509SVIDRequ
 func (s *Service) MintJWTSVID(ctx context.Context, req *svidv1.MintJWTSVIDRequest) (*svidv1.MintJWTSVIDResponse, error) {
 	log := rpccontext.Logger(ctx)
 	if s.isJWTSVIDsDisabled() {
-		return nil, api.MakeErr(log, codes.Unimplemented, "JWT functionality is disabled", nil)
+		return nil, commonapi.MakeErr(log, codes.Unimplemented, "JWT functionality is disabled", nil)
 	}
 
 	rpccontext.AddRPCAuditFields(ctx, s.fieldsFromJWTSvidParams(ctx, req.Id, req.Audience, req.Ttl))
@@ -174,7 +175,7 @@ func (s *Service) MintJWTSVID(ctx context.Context, req *svidv1.MintJWTSVIDReques
 func (s *Service) MintWITSVID(ctx context.Context, req *svidv1.MintWITSVIDRequest) (*svidv1.MintWITSVIDResponse, error) {
 	log := rpccontext.Logger(ctx)
 	if s.isWITSVIDsDisabled() {
-		return nil, api.MakeErr(log, codes.Unimplemented, "WIT functionality is disabled", nil)
+		return nil, commonapi.MakeErr(log, codes.Unimplemented, "WIT functionality is disabled", nil)
 	}
 
 	rpccontext.AddRPCAuditFields(ctx, s.fieldsFromWITSvidParams(ctx, req.Id, req.Ttl))
@@ -193,11 +194,11 @@ func (s *Service) BatchNewX509SVID(ctx context.Context, req *svidv1.BatchNewX509
 	log := rpccontext.Logger(ctx)
 
 	if len(req.Params) == 0 {
-		return nil, api.MakeErr(log, codes.InvalidArgument, "missing parameters", nil)
+		return nil, commonapi.MakeErr(log, codes.InvalidArgument, "missing parameters", nil)
 	}
 
 	if err := rpccontext.RateLimit(ctx, len(req.Params)); err != nil {
-		return nil, api.MakeErr(log, status.Code(err), "rejecting request due to certificate signing rate limiting", err)
+		return nil, commonapi.MakeErr(log, status.Code(err), "rejecting request due to certificate signing rate limiting", err)
 	}
 
 	requestedEntries := make(map[string]struct{})
@@ -245,12 +246,12 @@ func (s *Service) BatchNewX509SVID(ctx context.Context, req *svidv1.BatchNewX509
 func (s *Service) findEntries(ctx context.Context, log logrus.FieldLogger, entries map[string]struct{}) (map[string]api.ReadOnlyEntry, error) {
 	callerID, ok := rpccontext.CallerID(ctx)
 	if !ok {
-		return nil, api.MakeErr(log, codes.Internal, "caller ID missing from request context", nil)
+		return nil, commonapi.MakeErr(log, codes.Internal, "caller ID missing from request context", nil)
 	}
 
 	foundEntries, err := s.ef.LookupAuthorizedEntries(ctx, callerID, entries)
 	if err != nil {
-		return nil, api.MakeErr(log, codes.Internal, "failed to fetch registration entries", err)
+		return nil, commonapi.MakeErr(log, codes.Internal, "failed to fetch registration entries", err)
 	}
 	return foundEntries, nil
 }
@@ -262,11 +263,11 @@ func (s *Service) newX509SVID(ctx context.Context, param *svidv1.NewX509SVIDPara
 	switch {
 	case param.EntryId == "":
 		return &svidv1.BatchNewX509SVIDResponse_Result{
-			Status: api.MakeStatus(log, codes.InvalidArgument, "missing entry ID", nil),
+			Status: commonapi.MakeStatus(log, codes.InvalidArgument, "missing entry ID", nil),
 		}
 	case len(param.Csr) == 0:
 		return &svidv1.BatchNewX509SVIDResponse_Result{
-			Status: api.MakeStatus(log, codes.InvalidArgument, "missing CSR", nil),
+			Status: commonapi.MakeStatus(log, codes.InvalidArgument, "missing CSR", nil),
 		}
 	}
 
@@ -275,20 +276,20 @@ func (s *Service) newX509SVID(ctx context.Context, param *svidv1.NewX509SVIDPara
 	entry, ok := entries[param.EntryId]
 	if !ok {
 		return &svidv1.BatchNewX509SVIDResponse_Result{
-			Status: api.MakeStatus(log, codes.NotFound, "entry not found or not authorized", nil),
+			Status: commonapi.MakeStatus(log, codes.NotFound, "entry not found or not authorized", nil),
 		}
 	}
 
 	csr, err := x509.ParseCertificateRequest(param.Csr)
 	if err != nil {
 		return &svidv1.BatchNewX509SVIDResponse_Result{
-			Status: api.MakeStatus(log, codes.InvalidArgument, "malformed CSR", err),
+			Status: commonapi.MakeStatus(log, codes.InvalidArgument, "malformed CSR", err),
 		}
 	}
 
 	if err := csr.CheckSignature(); err != nil {
 		return &svidv1.BatchNewX509SVIDResponse_Result{
-			Status: api.MakeStatus(log, codes.InvalidArgument, "invalid CSR signature", err),
+			Status: commonapi.MakeStatus(log, codes.InvalidArgument, "invalid CSR signature", err),
 		}
 	}
 
@@ -296,7 +297,7 @@ func (s *Service) newX509SVID(ctx context.Context, param *svidv1.NewX509SVIDPara
 	if err != nil {
 		// This shouldn't be the case unless there is invalid data in the datastore
 		return &svidv1.BatchNewX509SVIDResponse_Result{
-			Status: api.MakeStatus(log, codes.Internal, "entry has malformed SPIFFE ID", err),
+			Status: commonapi.MakeStatus(log, codes.Internal, "entry has malformed SPIFFE ID", err),
 		}
 	}
 	log = log.WithField(telemetry.SPIFFEID, spiffeID.String())
@@ -309,7 +310,7 @@ func (s *Service) newX509SVID(ctx context.Context, param *svidv1.NewX509SVIDPara
 	})
 	if err != nil {
 		return &svidv1.BatchNewX509SVIDResponse_Result{
-			Status: api.MakeStatus(log, codes.Internal, "failed to sign X509-SVID", err),
+			Status: commonapi.MakeStatus(log, codes.Internal, "failed to sign X509-SVID", err),
 		}
 	}
 
@@ -324,7 +325,7 @@ func (s *Service) newX509SVID(ctx context.Context, param *svidv1.NewX509SVIDPara
 			CertChain: x509util.RawCertsFromCertificates(x509Svid),
 			ExpiresAt: x509Svid[0].NotAfter.Unix(),
 		},
-		Status: api.OK(),
+		Status: commonapi.OK(),
 	}
 }
 
@@ -333,7 +334,7 @@ func (s *Service) mintJWTSVID(ctx context.Context, protoID *types.SPIFFEID, audi
 
 	id, err := api.TrustDomainWorkloadIDFromProto(ctx, s.td, protoID)
 	if err != nil {
-		return nil, api.MakeErr(log, codes.InvalidArgument, "invalid SPIFFE ID", err)
+		return nil, commonapi.MakeErr(log, codes.InvalidArgument, "invalid SPIFFE ID", err)
 	}
 
 	log = log.WithField(telemetry.SPIFFEID, id.String())
@@ -342,7 +343,7 @@ func (s *Service) mintJWTSVID(ctx context.Context, protoID *types.SPIFFEID, audi
 	})
 
 	if len(audience) == 0 {
-		return nil, api.MakeErr(log, codes.InvalidArgument, "at least one audience is required", nil)
+		return nil, commonapi.MakeErr(log, codes.InvalidArgument, "at least one audience is required", nil)
 	}
 
 	token, err := s.ca.SignWorkloadJWTSVID(ctx, ca.WorkloadJWTSVIDParams{
@@ -352,12 +353,12 @@ func (s *Service) mintJWTSVID(ctx context.Context, protoID *types.SPIFFEID, audi
 		IncludeJTI: includeJTI,
 	})
 	if err != nil {
-		return nil, api.MakeErr(log, codes.Internal, "failed to sign JWT-SVID", err)
+		return nil, commonapi.MakeErr(log, codes.Internal, "failed to sign JWT-SVID", err)
 	}
 
 	issuedAt, expiresAt, err := jwtsvid.GetTokenExpiry(token)
 	if err != nil {
-		return nil, api.MakeErr(log, codes.Internal, "failed to get JWT-SVID expiry", err)
+		return nil, commonapi.MakeErr(log, codes.Internal, "failed to get JWT-SVID expiry", err)
 	}
 
 	log.WithFields(logrus.Fields{
@@ -381,11 +382,11 @@ func (s *Service) NewJWTSVID(ctx context.Context, req *svidv1.NewJWTSVIDRequest)
 	})
 
 	if err := rpccontext.RateLimit(ctx, 1); err != nil {
-		return nil, api.MakeErr(log, status.Code(err), "rejecting request due to JWT signing request rate limiting", err)
+		return nil, commonapi.MakeErr(log, status.Code(err), "rejecting request due to JWT signing request rate limiting", err)
 	}
 
 	if s.isJWTSVIDsDisabled() {
-		return nil, api.MakeErr(log, codes.Unimplemented, "JWT functionality is disabled", nil)
+		return nil, commonapi.MakeErr(log, codes.Unimplemented, "JWT functionality is disabled", nil)
 	}
 
 	entries := map[string]struct{}{
@@ -400,7 +401,7 @@ func (s *Service) NewJWTSVID(ctx context.Context, req *svidv1.NewJWTSVIDRequest)
 
 	entry, ok := entriesMap[req.EntryId]
 	if !ok {
-		return nil, api.MakeErr(log, codes.NotFound, "entry not found or not authorized", nil)
+		return nil, commonapi.MakeErr(log, codes.NotFound, "entry not found or not authorized", nil)
 	}
 
 	var includeJTI bool
@@ -424,11 +425,11 @@ func (s *Service) BatchNewWITSVID(ctx context.Context, req *svidv1.BatchNewWITSV
 	log := rpccontext.Logger(ctx)
 
 	if len(req.Params) == 0 {
-		return nil, api.MakeErr(log, codes.InvalidArgument, "missing parameters", nil)
+		return nil, commonapi.MakeErr(log, codes.InvalidArgument, "missing parameters", nil)
 	}
 
 	if err := rpccontext.RateLimit(ctx, len(req.Params)); err != nil {
-		return nil, api.MakeErr(log, status.Code(err), "rejecting request due to certificate signing rate limiting", err)
+		return nil, commonapi.MakeErr(log, status.Code(err), "rejecting request due to certificate signing rate limiting", err)
 	}
 
 	requestedEntries := make(map[string]struct{})
@@ -477,18 +478,18 @@ func (s *Service) mintWITSVID(ctx context.Context, protoID *types.SPIFFEID, publ
 
 	id, err := api.TrustDomainWorkloadIDFromProto(ctx, s.td, protoID)
 	if err != nil {
-		return nil, api.MakeErr(log, codes.InvalidArgument, "invalid SPIFFE ID", err)
+		return nil, commonapi.MakeErr(log, codes.InvalidArgument, "invalid SPIFFE ID", err)
 	}
 
 	log = log.WithField(telemetry.SPIFFEID, id.String())
 
 	publicKey, err := x509.ParsePKIXPublicKey(publicKeyDer)
 	if err != nil {
-		return nil, api.MakeErr(log, codes.InvalidArgument, "invalid public key", err)
+		return nil, commonapi.MakeErr(log, codes.InvalidArgument, "invalid public key", err)
 	}
 
 	if err := ValidatePublicKeyAndSigningAlgorithm(publicKey, signingAlgorithm); err != nil {
-		return nil, api.MakeErr(log, codes.InvalidArgument, "invalid signing algorithm or key type", err)
+		return nil, commonapi.MakeErr(log, codes.InvalidArgument, "invalid signing algorithm or key type", err)
 	}
 
 	token, err := s.ca.SignWorkloadWITSVID(ctx, ca.WorkloadWITSVIDParams{
@@ -500,12 +501,12 @@ func (s *Service) mintWITSVID(ctx context.Context, protoID *types.SPIFFEID, publ
 		},
 	})
 	if err != nil {
-		return nil, api.MakeErr(log, codes.Internal, "failed to sign WIT-SVID", err)
+		return nil, commonapi.MakeErr(log, codes.Internal, "failed to sign WIT-SVID", err)
 	}
 
 	issuedAt, expiresAt, err := jwtsvid.GetTokenExpiry(token)
 	if err != nil {
-		return nil, api.MakeErr(log, codes.Internal, "failed to get WIT-SVID expiry", err)
+		return nil, commonapi.MakeErr(log, codes.Internal, "failed to get WIT-SVID expiry", err)
 	}
 
 	log.WithFields(logrus.Fields{
@@ -527,11 +528,11 @@ func (s *Service) newWITSVID(ctx context.Context, param *svidv1.NewWITSVIDParams
 	switch {
 	case param.EntryId == "":
 		return &svidv1.BatchNewWITSVIDResponse_Result{
-			Status: api.MakeStatus(log, codes.InvalidArgument, "missing entry ID", nil),
+			Status: commonapi.MakeStatus(log, codes.InvalidArgument, "missing entry ID", nil),
 		}
 	case len(param.PublicKey) == 0:
 		return &svidv1.BatchNewWITSVIDResponse_Result{
-			Status: api.MakeStatus(log, codes.InvalidArgument, "missing public key", nil),
+			Status: commonapi.MakeStatus(log, codes.InvalidArgument, "missing public key", nil),
 		}
 	}
 
@@ -540,20 +541,20 @@ func (s *Service) newWITSVID(ctx context.Context, param *svidv1.NewWITSVIDParams
 	entry, ok := entries[param.EntryId]
 	if !ok {
 		return &svidv1.BatchNewWITSVIDResponse_Result{
-			Status: api.MakeStatus(log, codes.NotFound, "entry not found or not authorized", nil),
+			Status: commonapi.MakeStatus(log, codes.NotFound, "entry not found or not authorized", nil),
 		}
 	}
 
 	publicKey, err := x509.ParsePKIXPublicKey(param.PublicKey)
 	if err != nil {
 		return &svidv1.BatchNewWITSVIDResponse_Result{
-			Status: api.MakeStatus(log, codes.InvalidArgument, "malformed public key", err),
+			Status: commonapi.MakeStatus(log, codes.InvalidArgument, "malformed public key", err),
 		}
 	}
 
 	if err := ValidatePublicKeyAndSigningAlgorithm(publicKey, param.SigningAlgorithm); err != nil {
 		return &svidv1.BatchNewWITSVIDResponse_Result{
-			Status: api.MakeStatus(log, codes.InvalidArgument, "invalid signing algorithm or key type", err),
+			Status: commonapi.MakeStatus(log, codes.InvalidArgument, "invalid signing algorithm or key type", err),
 		}
 	}
 
@@ -561,7 +562,7 @@ func (s *Service) newWITSVID(ctx context.Context, param *svidv1.NewWITSVIDParams
 	if err != nil {
 		// This shouldn't be the case unless there is invalid data in the datastore
 		return &svidv1.BatchNewWITSVIDResponse_Result{
-			Status: api.MakeStatus(log, codes.Internal, "entry has malformed SPIFFE ID", err),
+			Status: commonapi.MakeStatus(log, codes.Internal, "entry has malformed SPIFFE ID", err),
 		}
 	}
 
@@ -578,14 +579,14 @@ func (s *Service) newWITSVID(ctx context.Context, param *svidv1.NewWITSVIDParams
 	})
 	if err != nil {
 		return &svidv1.BatchNewWITSVIDResponse_Result{
-			Status: api.MakeStatus(log, codes.Internal, "failed to sign WIT-SVID", err),
+			Status: commonapi.MakeStatus(log, codes.Internal, "failed to sign WIT-SVID", err),
 		}
 	}
 
 	issuedAt, expiresAt, err := jwtsvid.GetTokenExpiry(witSvid)
 	if err != nil {
 		return &svidv1.BatchNewWITSVIDResponse_Result{
-			Status: api.MakeStatus(log, codes.Internal, "failed to get WIT-SVID expiry", err),
+			Status: commonapi.MakeStatus(log, codes.Internal, "failed to get WIT-SVID expiry", err),
 		}
 	}
 
@@ -607,12 +608,12 @@ func (s *Service) NewDownstreamX509CA(ctx context.Context, req *svidv1.NewDownst
 	})
 
 	if err := rpccontext.RateLimit(ctx, 1); err != nil {
-		return nil, api.MakeErr(log, status.Code(err), "rejecting request due to downstream CA signing rate limit", err)
+		return nil, commonapi.MakeErr(log, status.Code(err), "rejecting request due to downstream CA signing rate limit", err)
 	}
 
 	downstreamEntries, isDownstream := rpccontext.CallerDownstreamEntries(ctx)
 	if !isDownstream {
-		return nil, api.MakeErr(log, codes.Internal, "caller is not a downstream workload", nil)
+		return nil, commonapi.MakeErr(log, codes.Internal, "caller is not a downstream workload", nil)
 	}
 
 	entry := downstreamEntries[0]
@@ -638,7 +639,7 @@ func (s *Service) NewDownstreamX509CA(ctx context.Context, req *svidv1.NewDownst
 		TTL:       time.Duration(ttl) * time.Second,
 	})
 	if err != nil {
-		return nil, api.MakeErr(log, codes.Internal, "failed to sign downstream X.509 CA", err)
+		return nil, commonapi.MakeErr(log, codes.Internal, "failed to sign downstream X.509 CA", err)
 	}
 
 	log.WithFields(logrus.Fields{
@@ -648,11 +649,11 @@ func (s *Service) NewDownstreamX509CA(ctx context.Context, req *svidv1.NewDownst
 
 	bundle, err := s.ds.FetchBundle(ctx, s.td.IDString())
 	if err != nil {
-		return nil, api.MakeErr(log, codes.Internal, "failed to fetch bundle", err)
+		return nil, commonapi.MakeErr(log, codes.Internal, "failed to fetch bundle", err)
 	}
 
 	if bundle == nil {
-		return nil, api.MakeErr(log, codes.NotFound, "bundle not found", nil)
+		return nil, commonapi.MakeErr(log, codes.NotFound, "bundle not found", nil)
 	}
 
 	rawRootCerts := make([][]byte, 0, len(bundle.RootCas))
@@ -716,11 +717,11 @@ func parseAndCheckCSR(ctx context.Context, csrBytes []byte) (*x509.CertificateRe
 
 	csr, err := x509.ParseCertificateRequest(csrBytes)
 	if err != nil {
-		return nil, api.MakeErr(log, codes.InvalidArgument, "malformed CSR", err)
+		return nil, commonapi.MakeErr(log, codes.InvalidArgument, "malformed CSR", err)
 	}
 
 	if err := csr.CheckSignature(); err != nil {
-		return nil, api.MakeErr(log, codes.InvalidArgument, "invalid CSR signature", err)
+		return nil, commonapi.MakeErr(log, codes.InvalidArgument, "invalid CSR signature", err)
 	}
 
 	return csr, nil

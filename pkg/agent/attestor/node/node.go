@@ -36,13 +36,6 @@ const (
 	roundRobinServiceConfig = `{ "loadBalancingConfig": [ { "round_robin": {} } ] }`
 )
 
-type AttestationResult struct {
-	SVID         []*x509.Certificate
-	Key          keymanager.Key
-	Bundle       *spiffebundle.Bundle
-	Reattestable bool
-}
-
 type Attestor interface {
 	Attest(ctx context.Context) (*AttestationResult, error)
 }

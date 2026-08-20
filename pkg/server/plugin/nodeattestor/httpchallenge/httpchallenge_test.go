@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	neturl "net/url"
+	"strings"
 	"testing"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -251,6 +252,42 @@ func TestAttestFailures(t *testing.T) {
 			}),
 		},
 		{
+			name:        "Attest fails if agentname has a caret",
+			expErr:      "rpc error: code = InvalidArgument desc = nodeattestor(http_challenge): agent name is not valid",
+			hclConf:     "",
+			tofu:        true,
+			challengeFn: challengeFnNil,
+			payload: marshalPayload(t, &common_httpchallenge.AttestationData{
+				HostName:  "foo",
+				AgentName: "a^b",
+				Port:      80,
+			}),
+		},
+		{
+			name:        "Attest fails if agentname has an underscore",
+			expErr:      "rpc error: code = InvalidArgument desc = nodeattestor(http_challenge): agent name is not valid",
+			hclConf:     "",
+			tofu:        true,
+			challengeFn: challengeFnNil,
+			payload: marshalPayload(t, &common_httpchallenge.AttestationData{
+				HostName:  "foo",
+				AgentName: "a_b",
+				Port:      80,
+			}),
+		},
+		{
+			name:        "Attest fails if agentname has a backtick",
+			expErr:      "rpc error: code = InvalidArgument desc = nodeattestor(http_challenge): agent name is not valid",
+			hclConf:     "",
+			tofu:        true,
+			challengeFn: challengeFnNil,
+			payload: marshalPayload(t, &common_httpchallenge.AttestationData{
+				HostName:  "foo",
+				AgentName: "a`b",
+				Port:      80,
+			}),
+		},
+		{
 			name:        "Attest fails if required port is different from given one",
 			expErr:      "rpc error: code = InvalidArgument desc = nodeattestor(http_challenge): port 81 is not allowed to be used by this server",
 			hclConf:     "required_port = 80",
@@ -357,8 +394,8 @@ func TestAttestFailures(t *testing.T) {
 
 func TestAttestSucceeds(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/.well-known/spiffe/nodeattestor/http_challenge/default/challenge" {
-			t.Errorf("Expected to request '/.well-known/spiffe/nodeattestor/http_challenge/default/challenge', got: %s", r.URL.Path)
+		if !strings.HasPrefix(r.URL.Path, "/.well-known/spiffe/nodeattestor/http_challenge/") || !strings.HasSuffix(r.URL.Path, "/challenge") {
+			t.Errorf("Unexpected challenge path: %s", r.URL.Path)
 		}
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`123456789abcdefghijklmnopqrstuvwxyz`))
@@ -406,6 +443,42 @@ func TestAttestSucceeds(t *testing.T) {
 			payload: marshalPayload(t, &common_httpchallenge.AttestationData{
 				HostName:  "foo",
 				AgentName: "default",
+				Port:      80,
+			}),
+			expectedAgentID: "spiffe://example.org/spire/agent/http_challenge/foo",
+			expectedSelectors: []*common.Selector{
+				{
+					Type:  "http_challenge",
+					Value: "hostname:foo",
+				},
+			},
+		},
+		{
+			name:        "Attest succeeds for an agent name with a dash",
+			hclConf:     "",
+			tofu:        true,
+			challengeFn: challengeFnNil,
+			payload: marshalPayload(t, &common_httpchallenge.AttestationData{
+				HostName:  "foo",
+				AgentName: "agent-01",
+				Port:      80,
+			}),
+			expectedAgentID: "spiffe://example.org/spire/agent/http_challenge/foo",
+			expectedSelectors: []*common.Selector{
+				{
+					Type:  "http_challenge",
+					Value: "hostname:foo",
+				},
+			},
+		},
+		{
+			name:        "Attest succeeds for an agent name with trailing digits",
+			hclConf:     "",
+			tofu:        true,
+			challengeFn: challengeFnNil,
+			payload: marshalPayload(t, &common_httpchallenge.AttestationData{
+				HostName:  "foo",
+				AgentName: "host01",
 				Port:      80,
 			}),
 			expectedAgentID: "spiffe://example.org/spire/agent/http_challenge/foo",

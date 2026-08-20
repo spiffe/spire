@@ -34,6 +34,8 @@ func ApplyPolicy(config *tls.Config, policy Policy) error {
 		// List only known PQ-safe KEMs as valid curves.
 		config.CurvePreferences = []tls.CurveID{
 			tls.X25519MLKEM768,
+			tls.SecP256r1MLKEM768,
+			tls.SecP384r1MLKEM1024,
 		}
 
 		// Require TLS 1.3, as all PQ-safe KEMs require it anyway.

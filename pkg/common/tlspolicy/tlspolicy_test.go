@@ -30,6 +30,6 @@ func TestApplyPolicy(t *testing.T) {
 	})
 	require.NoError(err)
 
-	require.Equal(tlsConfig.CurvePreferences, []tls.CurveID{tls.X25519MLKEM768})
-	require.Equal(tlsConfig.MinVersion, uint16(tls.VersionTLS13))
+	require.Equal([]tls.CurveID{tls.X25519MLKEM768, tls.SecP256r1MLKEM768, tls.SecP384r1MLKEM1024}, tlsConfig.CurvePreferences)
+	require.Equal(uint16(tls.VersionTLS13), tlsConfig.MinVersion)
 }

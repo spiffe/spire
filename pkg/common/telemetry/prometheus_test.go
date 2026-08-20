@@ -17,6 +17,9 @@ import (
 	prommetrics "github.com/hashicorp/go-metrics/prometheus"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus/hooks/test"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/go-spiffe/v2/svid/x509svid"
+	"github.com/spiffe/spire/test/testca"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -254,6 +257,212 @@ func TestPrometheusTLSConfig(t *testing.T) {
 	}
 }
 
+func TestPrometheusSPIFFETLSConfig(t *testing.T) {
+	td := spiffeid.RequireTrustDomainFromString("example.org")
+	foreignTD := spiffeid.RequireTrustDomainFromString("foreign.example.org")
+
+	serverCA := testca.New(t, td)
+	foreignCA := testca.New(t, foreignTD)
+
+	serverSVID := serverCA.CreateX509SVID(spiffeid.RequireFromPath(td, "/spire/server"))
+	allowedClientSVID := foreignCA.CreateX509SVID(spiffeid.RequireFromPath(foreignTD, "/prometheus"))
+	disallowedClientSVID := serverCA.CreateX509SVID(spiffeid.RequireFromPath(td, "/other-client"))
+
+	tests := []struct {
+		name        string
+		setupConfig func(*MetricsConfig)
+		validateTLS func(t *testing.T, runner *prometheusRunner)
+	}{
+		{
+			name: "use SPIRE SVID without client allowlist",
+			setupConfig: func(config *MetricsConfig) {
+				config.FileConfig.Prometheus.TLS = &TLSConfig{
+					UseSPIRESVID: true,
+				}
+				config.GetX509SVID = func() (*x509svid.SVID, error) {
+					return serverSVID, nil
+				}
+			},
+			validateTLS: func(t *testing.T, runner *prometheusRunner) {
+				require.NotNil(t, runner.server.TLSConfig)
+				certificate, err := runner.server.TLSConfig.GetCertificate(&tls.ClientHelloInfo{})
+				require.NoError(t, err)
+				require.NotNil(t, certificate)
+				assert.Equal(t, serverSVID.Certificates[0].Raw, certificate.Certificate[0])
+				assert.Equal(t, tls.NoClientCert, runner.server.TLSConfig.ClientAuth)
+				assert.True(t, runner.server.TLSConfig.SessionTicketsDisabled)
+			},
+		},
+		{
+			name: "use SPIRE SVID with authorized SPIFFE IDs",
+			setupConfig: func(config *MetricsConfig) {
+				config.FileConfig.Prometheus.TLS = &TLSConfig{
+					UseSPIRESVID:        true,
+					AuthorizedSPIFFEIDs: []string{allowedClientSVID.ID.String()},
+				}
+				config.GetX509SVID = func() (*x509svid.SVID, error) {
+					return serverSVID, nil
+				}
+				config.GetX509BundleAuthorities = func(td spiffeid.TrustDomain) ([]*x509.Certificate, error) {
+					switch td {
+					case serverCA.X509Bundle().TrustDomain():
+						return serverCA.X509Authorities(), nil
+					case foreignCA.X509Bundle().TrustDomain():
+						return foreignCA.X509Authorities(), nil
+					default:
+						return nil, nil
+					}
+				}
+			},
+			validateTLS: func(t *testing.T, runner *prometheusRunner) {
+				require.NotNil(t, runner.server.TLSConfig)
+				assert.Equal(t, tls.RequireAnyClientCert, runner.server.TLSConfig.ClientAuth)
+				assert.True(t, runner.server.TLSConfig.SessionTicketsDisabled)
+				require.NoError(t, runner.server.TLSConfig.VerifyPeerCertificate(rawCerts(allowedClientSVID.Certificates), nil))
+				require.Error(t, runner.server.TLSConfig.VerifyPeerCertificate(rawCerts(disallowedClientSVID.Certificates), nil))
+			},
+		},
+		{
+			name: "use web certificate with authorized SPIFFE IDs",
+			setupConfig: func(config *MetricsConfig) {
+				certFile, keyFile := createTestCertAndKey(t)
+				config.FileConfig.Prometheus.TLS = &TLSConfig{
+					CertFile:            certFile,
+					KeyFile:             keyFile,
+					AuthorizedSPIFFEIDs: []string{allowedClientSVID.ID.String()},
+				}
+				config.GetX509BundleAuthorities = func(td spiffeid.TrustDomain) ([]*x509.Certificate, error) {
+					switch td {
+					case foreignCA.X509Bundle().TrustDomain():
+						return foreignCA.X509Authorities(), nil
+					default:
+						return nil, nil
+					}
+				}
+			},
+			validateTLS: func(t *testing.T, runner *prometheusRunner) {
+				require.NotNil(t, runner.server.TLSConfig)
+				assert.Len(t, runner.server.TLSConfig.Certificates, 1)
+				assert.Equal(t, tls.RequireAnyClientCert, runner.server.TLSConfig.ClientAuth)
+				assert.True(t, runner.server.TLSConfig.SessionTicketsDisabled)
+				require.NoError(t, runner.server.TLSConfig.VerifyPeerCertificate(rawCerts(allowedClientSVID.Certificates), nil))
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config := testPrometheusConfig()
+			tt.setupConfig(config)
+
+			runner, err := newTestPrometheusRunner(config)
+			require.NoError(t, err)
+			require.NotNil(t, runner)
+
+			tt.validateTLS(t, runner.(*prometheusRunner))
+		})
+	}
+}
+
+func TestPrometheusTLSConfigValidation(t *testing.T) {
+	td := spiffeid.RequireTrustDomainFromString("example.org")
+	serverCA := testca.New(t, td)
+	serverSVID := serverCA.CreateX509SVID(spiffeid.RequireFromPath(td, "/spire/server"))
+
+	tests := []struct {
+		name             string
+		setupConfig      func(*MetricsConfig)
+		errorMsgContains string
+	}{
+		{
+			name: "use SPIRE SVID with cert file",
+			setupConfig: func(config *MetricsConfig) {
+				certFile, keyFile := createTestCertAndKey(t)
+				config.FileConfig.Prometheus.TLS = &TLSConfig{
+					UseSPIRESVID: true,
+					CertFile:     certFile,
+					KeyFile:      keyFile,
+				}
+				config.GetX509SVID = func() (*x509svid.SVID, error) {
+					return serverSVID, nil
+				}
+			},
+			errorMsgContains: "cert_file and key_file cannot be configured when use_spire_svid is enabled",
+		},
+		{
+			name: "missing key pair without SPIRE SVID",
+			setupConfig: func(config *MetricsConfig) {
+				config.FileConfig.Prometheus.TLS = &TLSConfig{}
+			},
+			errorMsgContains: "cert_file and key_file must both be configured unless use_spire_svid is enabled",
+		},
+		{
+			name: "authorized SPIFFE IDs with client CA file",
+			setupConfig: func(config *MetricsConfig) {
+				certFile, keyFile := createTestCertAndKey(t)
+				caFile := createTestCA(t)
+				config.FileConfig.Prometheus.TLS = &TLSConfig{
+					CertFile:            certFile,
+					KeyFile:             keyFile,
+					ClientCAFile:        caFile,
+					AuthorizedSPIFFEIDs: []string{"spiffe://example.org/prometheus"},
+				}
+			},
+			errorMsgContains: "client_ca_file cannot be configured with authorized_spiffe_ids",
+		},
+		{
+			name: "invalid authorized SPIFFE ID",
+			setupConfig: func(config *MetricsConfig) {
+				certFile, keyFile := createTestCertAndKey(t)
+				config.FileConfig.Prometheus.TLS = &TLSConfig{
+					CertFile:            certFile,
+					KeyFile:             keyFile,
+					AuthorizedSPIFFEIDs: []string{"not-a-spiffe-id"},
+				}
+				config.GetX509BundleAuthorities = func(td spiffeid.TrustDomain) ([]*x509.Certificate, error) {
+					return serverCA.X509Authorities(), nil
+				}
+			},
+			errorMsgContains: `invalid authorized SPIFFE ID "not-a-spiffe-id"`,
+		},
+		{
+			name: "use SPIRE SVID without SVID source",
+			setupConfig: func(config *MetricsConfig) {
+				config.FileConfig.Prometheus.TLS = &TLSConfig{
+					UseSPIRESVID: true,
+				}
+			},
+			errorMsgContains: "use_spire_svid requires access to the current SPIRE SVID",
+		},
+		{
+			name: "authorized SPIFFE IDs without bundle source",
+			setupConfig: func(config *MetricsConfig) {
+				certFile, keyFile := createTestCertAndKey(t)
+				config.FileConfig.Prometheus.TLS = &TLSConfig{
+					CertFile:            certFile,
+					KeyFile:             keyFile,
+					AuthorizedSPIFFEIDs: []string{"spiffe://example.org/prometheus"},
+				}
+			},
+			errorMsgContains: "authorized_spiffe_ids requires access to SPIRE trust bundles",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config := testPrometheusConfig()
+			tt.setupConfig(config)
+
+			runner, err := newTestPrometheusRunner(config)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.errorMsgContains)
+			if runner != nil {
+				assert.Nil(t, runner.(*prometheusRunner).server.TLSConfig)
+			}
+		})
+	}
+}
+
 // createTestCertAndKey creates a temporary self-signed certificate and private key file
 // and returns the paths to both files
 func createTestCertAndKey(t *testing.T) (string, string) {
@@ -346,4 +555,12 @@ func createTempFile(t *testing.T, content []byte) string {
 	err = tmpFile.Close()
 	require.NoError(t, err)
 	return tmpFilePath
+}
+
+func rawCerts(certs []*x509.Certificate) [][]byte {
+	raw := make([][]byte, 0, len(certs))
+	for _, cert := range certs {
+		raw = append(raw, cert.Raw)
+	}
+	return raw
 }

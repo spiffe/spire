@@ -71,6 +71,15 @@ In addition to the conventions covered in the SPIFFE project's
 [CONTRIBUTING](https://github.com/spiffe/spiffe/blob/main/CONTRIBUTING.md), the following
 conventions apply to the SPIRE repository:
 
+### Pull request review process
+
+When you open a pull request, the description is pre-filled from our
+[pull request template](.github/PULL_REQUEST_TEMPLATE.md?plain=1), which
+explains how our review process works: the rotating "ball in court" assignee,
+re-requesting a review after you address comments, preferring new commits over
+force-pushing, and handling Copilot comments. Please follow the guidance shown
+there when you open and iterate on your PR.
+
 ### SQL Plugin Changes
 
 Datastore changes must be present in at least one full minor release cycle prior to introducing code changes that depend on them.
@@ -93,12 +102,23 @@ Common functionality for agent, server, and plugins
 
 The implementation of each plugin and their support packages
 
-`/proto/spire/{agent,server,api,common}/<name>/`
+`/proto/spire/common/` and `/proto/private/`
 
-gRPC .proto files, their generated .pb.go, and README_pb.md.
+Protobuf `.proto` files and their generated `.pb.go` code. `/proto/spire/common/`
+holds shared message definitions (package `spire.common`), with plugin-related
+common types under `/proto/spire/common/plugin/`. `/proto/private/` holds internal
+definitions that are not part of the public API, such as
+`/proto/private/server/journal/`.
 
-The protobuf package names should be `spire.{server,agent,api,common}.<name>` and the go package name
-should be specified with `option go_package = "<name>";`
+Protobuf files under `/proto/spire/` use the `spire.` package namespace (e.g.
+`spire.common` and `spire.common.plugin`). The go package name is specified with
+the full import path, e.g.
+`option go_package = "github.com/spiffe/spire/proto/spire/common";`
+
+The public gRPC API and plugin interface protobufs are maintained in separate
+repositories, [`spire-api-sdk`](https://github.com/spiffe/spire-api-sdk) and
+[`spire-plugin-sdk`](https://github.com/spiffe/spire-plugin-sdk), rather than in
+this repository.
 
 ### Interfaces
 

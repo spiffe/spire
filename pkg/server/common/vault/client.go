@@ -12,9 +12,9 @@ import (
 	"os"
 	"strings"
 
+	"dario.cat/mergo"
 	"github.com/hashicorp/go-hclog"
 	vapi "github.com/hashicorp/vault/api"
-	"github.com/imdario/mergo"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -512,9 +512,9 @@ func (c *Client) SignData(ctx context.Context, keyName string, data []byte, hash
 	encodedData := base64.StdEncoding.EncodeToString(data)
 
 	body := map[string]any{
-		"input":                 encodedData,
-		"marshalling_algorithm": "asn1",
-		"prehashed":             true,
+		"input":                encodedData,
+		"marshaling_algorithm": "asn1",
+		"prehashed":            true,
 	}
 	if signatureAlgo != TransitSignatureAlgorithmNone {
 		body["signature_algorithm"] = signatureAlgo

@@ -28,6 +28,7 @@ import (
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	iamtypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
+	"github.com/aws/aws-sdk-go-v2/service/organizations"
 	"github.com/fullsailor/pkcs7"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
@@ -217,9 +218,15 @@ func (p *IIDAttestorPlugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServ
 	if c.ValidateOrgAccountID != nil {
 		ctxValidateOrg, cancel := context.WithTimeout(stream.Context(), awsTimeout)
 		defer cancel()
-		orgClient, err := p.clients.getClient(ctxValidateOrg, c.ValidateOrgAccountID.AccountRegion, c.ValidateOrgAccountID.AccountID)
-		if err != nil {
-			return status.Errorf(codes.Internal, "failed to get org client: %v", err)
+
+		// In file mode the account list is sourced from disk, so no AWS
+		// Organizations client is required.
+		var orgClient organizations.ListAccountsAPIClient
+		if !c.ValidateOrgAccountID.useAccountListFile() {
+			orgClient, err = p.clients.getClient(ctxValidateOrg, c.ValidateOrgAccountID.AccountRegion, c.ValidateOrgAccountID.AccountID)
+			if err != nil {
+				return status.Errorf(codes.Internal, "failed to get org client: %v", err)
+			}
 		}
 
 		valid, err := p.orgValidation.IsMemberAccount(ctxValidateOrg, orgClient, attestationData.AccountID)
@@ -651,21 +658,32 @@ func isValidAWSPartition(partition string) bool {
 }
 
 func validateOrganizationConfig(config *IIDAttestorConfig) error {
-	checkAccID := config.ValidateOrgAccountID.AccountID
-	checkAccRole := config.ValidateOrgAccountID.AccountRole
-	checkAccRegion := config.ValidateOrgAccountID.AccountRegion
+	cfg := config.ValidateOrgAccountID
 
-	if checkAccID == "" || checkAccRole == "" {
-		return status.Errorf(codes.InvalidArgument, "please ensure that %q & %q are present inside block or remove the block: %q for feature node attestation using account id verification", orgAccountID, orgAccountRole, "verify_organization")
-	}
+	if cfg.useAccountListFile() {
+		// File mode: the account list is sourced from disk, so the AWS
+		// Organizations API fields are not used and must not be set.
+		if cfg.AccountID != "" || cfg.AccountRole != "" {
+			return status.Errorf(codes.InvalidArgument, "%q is mutually exclusive with %q and %q in the block: %q", orgAccountListFile, orgAccountID, orgAccountRole, "verify_organization")
+		}
 
-	if checkAccRegion == "" {
-		config.ValidateOrgAccountID.AccountRegion = orgDefaultAccRegion
+		// Fail at configure time if the file is missing or malformed.
+		if _, err := parseAccountListFile(cfg.AccountListFile); err != nil {
+			return status.Errorf(codes.InvalidArgument, "invalid %q in the block: %q: %v", orgAccountListFile, "verify_organization", err)
+		}
+	} else {
+		if cfg.AccountID == "" || cfg.AccountRole == "" {
+			return status.Errorf(codes.InvalidArgument, "please ensure that %q & %q are present inside block or remove the block: %q for feature node attestation using account id verification", orgAccountID, orgAccountRole, "verify_organization")
+		}
+
+		if cfg.AccountRegion == "" {
+			cfg.AccountRegion = orgDefaultAccRegion
+		}
 	}
 
 	// check TTL if specified
 	ttl := orgAccountDefaultListDuration
-	checkTTL := config.ValidateOrgAccountID.AccountListTTL
+	checkTTL := cfg.AccountListTTL
 	if checkTTL != "" {
 		t, err := time.ParseDuration(checkTTL)
 		if err != nil {
@@ -680,7 +698,7 @@ func validateOrganizationConfig(config *IIDAttestorConfig) error {
 	}
 
 	// Assign default ttl if ttl doesnt exist.
-	config.ValidateOrgAccountID.AccountListTTL = ttl.String()
+	cfg.AccountListTTL = ttl.String()
 
 	return nil
 }

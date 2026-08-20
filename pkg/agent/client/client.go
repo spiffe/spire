@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/andres-erbsen/clock"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	agentv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/agent/v1"
@@ -18,6 +19,7 @@ import (
 	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
 	svidv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/svid/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
+	"github.com/spiffe/spire/pkg/common/backoff"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -55,6 +57,10 @@ var (
 	// exists in the cache but is old enough to try for a new SVID quickly. This is configurable
 	// in the Experimental Config of the Agent, and can be set as low as 5 seconds
 	RPCTimeoutWithCacheHit = rpcTimeout
+
+	// jwtSVIDRetryInterval is the initial backoff interval used when retrying
+	// transient NewJWTSVID failures. It is a var so tests can shorten it.
+	jwtSVIDRetryInterval = time.Second
 )
 
 func SetJWTSVIDCacheHitTimeout(d time.Duration) {
@@ -67,6 +73,12 @@ type X509SVID struct {
 }
 
 type JWTSVID struct {
+	Token     string
+	IssuedAt  time.Time
+	ExpiresAt time.Time
+}
+
+type WITSVID struct {
 	Token     string
 	IssuedAt  time.Time
 	ExpiresAt time.Time
@@ -94,6 +106,7 @@ type Client interface {
 	RenewSVID(ctx context.Context, csr []byte) (*X509SVID, error)
 	NewX509SVIDs(ctx context.Context, csrs map[string][]byte) (map[string]*X509SVID, error)
 	NewJWTSVID(ctx context.Context, entryID string, audience []string, hasCacheHit bool) (*JWTSVID, spiffeid.ID, error)
+	NewWITSVIDs(ctx context.Context, publicKeys map[string]crypto.PublicKey, signatureAlgorithm string) (map[string]*WITSVID, error)
 	PostStatus(ctx context.Context, agentVersion string) error
 
 	// Release releases any resources that were held by this Client, if any.
@@ -121,6 +134,9 @@ type client struct {
 	connections *nodeConn
 	m           sync.Mutex
 
+	// clk is used for backoff timing when retrying transient failures.
+	clk clock.Clock
+
 	// dialOpts optionally sets gRPC dial options
 	dialOpts []grpc.DialOption
 }
@@ -138,7 +154,8 @@ func New(c *Config) Client {
 
 func newClient(c *Config) *client {
 	return &client{
-		c: c,
+		c:   c,
+		clk: clock.New(),
 	}
 }
 
@@ -351,20 +368,74 @@ func (c *client) NewX509SVIDs(ctx context.Context, csrs map[string][]byte) (map[
 }
 
 func (c *client) NewJWTSVID(ctx context.Context, entryID string, audience []string, hasCacheHit bool) (*JWTSVID, spiffeid.ID, error) {
-	c.c.RotMtx.RLock()
-	defer c.c.RotMtx.RUnlock()
-
 	timeout := rpcTimeout
 	if hasCacheHit {
 		timeout = RPCTimeoutWithCacheHit
 	}
 
+	// The timeout bounds the entire retry loop: every attempt shares this single
+	// deadline, and retries continue until it (or the caller's context) expires.
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
+	fetchBackoff := backoff.NewBackoff(c.clk, jwtSVIDRetryInterval)
+	for {
+		svid, err := c.fetchJWTSVID(ctx, entryID, audience)
+		if err != nil {
+			if !isRetriable(err) {
+				c.withErrorFields(err).Error("Failed to fetch JWT SVID")
+				return nil, spiffeid.ID{}, fmt.Errorf("failed to fetch JWT SVID: %w", err)
+			}
+
+			c.withErrorFields(err).Debug("Failed to fetch JWT SVID; retrying")
+			select {
+			case <-ctx.Done():
+				c.withErrorFields(err).Error("Failed to fetch JWT SVID")
+				return nil, spiffeid.ID{}, fmt.Errorf("failed to fetch JWT SVID: %w", err)
+			case <-c.clk.After(fetchBackoff.NextBackOff()):
+				continue
+			}
+		}
+
+		// A malformed response indicates a server/agent mismatch rather than a
+		// transient failure, so it is not retried.
+		switch {
+		case svid == nil:
+			return nil, spiffeid.ID{}, errors.New("JWTSVID response missing SVID")
+		case svid.IssuedAt == 0:
+			return nil, spiffeid.ID{}, errors.New("JWTSVID missing issued at")
+		case svid.ExpiresAt == 0:
+			return nil, spiffeid.ID{}, errors.New("JWTSVID missing expires at")
+		case svid.IssuedAt > svid.ExpiresAt:
+			return nil, spiffeid.ID{}, errors.New("JWTSVID issued after it has expired")
+		}
+
+		spiffeId, err := idutil.IDFromProto(svid.Id)
+		if err != nil {
+			return nil, spiffeid.ID{}, fmt.Errorf("could not parse JWT-SVID SPIFFE ID: %w", err)
+		}
+
+		return &JWTSVID{
+			Token:     svid.Token,
+			IssuedAt:  time.Unix(svid.IssuedAt, 0).UTC(),
+			ExpiresAt: time.Unix(svid.ExpiresAt, 0).UTC(),
+		}, spiffeId, nil
+	}
+}
+
+// fetchJWTSVID performs a single NewJWTSVID RPC. Any returned error is the raw
+// error from the connection or gRPC call so the caller can classify it for
+// retries.
+func (c *client) fetchJWTSVID(ctx context.Context, entryID string, audience []string) (*types.JWTSVID, error) {
+	// The rotation lock is taken per attempt (rather than around the whole retry
+	// loop) so that a retrying request does not block SVID rotation for the
+	// entire timeout window; each attempt uses whatever connection is current.
+	c.c.RotMtx.RLock()
+	defer c.c.RotMtx.RUnlock()
+
 	svidClient, connection, err := c.newSVIDClient()
 	if err != nil {
-		return nil, spiffeid.ID{}, err
+		return nil, err
 	}
 	defer connection.Release()
 
@@ -374,32 +445,53 @@ func (c *client) NewJWTSVID(ctx context.Context, entryID string, audience []stri
 	})
 	if err != nil {
 		c.release(connection)
-		c.withErrorFields(err).Error("Failed to fetch JWT SVID")
-		return nil, spiffeid.ID{}, fmt.Errorf("failed to fetch JWT SVID: %w", err)
+		return nil, err
 	}
 
-	svid := resp.Svid
-	switch {
-	case svid == nil:
-		return nil, spiffeid.ID{}, errors.New("JWTSVID response missing SVID")
-	case svid.IssuedAt == 0:
-		return nil, spiffeid.ID{}, errors.New("JWTSVID missing issued at")
-	case svid.ExpiresAt == 0:
-		return nil, spiffeid.ID{}, errors.New("JWTSVID missing expires at")
-	case svid.IssuedAt > svid.ExpiresAt:
-		return nil, spiffeid.ID{}, errors.New("JWTSVID issued after it has expired")
+	return resp.Svid, nil
+}
+
+func (c *client) NewWITSVIDs(ctx context.Context, publicKeys map[string]crypto.PublicKey, signatureAlgorithm string) (map[string]*WITSVID, error) {
+	c.c.RotMtx.RLock()
+	defer c.c.RotMtx.RUnlock()
+
+	ctx, cancel := context.WithTimeout(ctx, rpcTimeout)
+	defer cancel()
+
+	svids := make(map[string]*WITSVID)
+	var params []*svidv1.NewWITSVIDParams
+	for entryID, publicKey := range publicKeys {
+		pkixPublicKey, err := x509.MarshalPKIXPublicKey(publicKey)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal PKIX public key for entry %q: %w", entryID, err)
+		}
+
+		params = append(params, &svidv1.NewWITSVIDParams{
+			EntryId:          entryID,
+			PublicKey:        pkixPublicKey,
+			SigningAlgorithm: signatureAlgorithm,
+		})
 	}
 
-	spiffeId, err := idutil.IDFromProto(svid.Id)
+	protoSVIDs, err := c.fetchWITSVIDs(ctx, params)
 	if err != nil {
-		return nil, spiffeid.ID{}, fmt.Errorf("could not parse JWT-SVID SPIFFE ID: %w", err)
+		return nil, err
 	}
 
-	return &JWTSVID{
-		Token:     svid.Token,
-		IssuedAt:  time.Unix(svid.IssuedAt, 0).UTC(),
-		ExpiresAt: time.Unix(svid.ExpiresAt, 0).UTC(),
-	}, spiffeId, nil
+	for i, s := range protoSVIDs {
+		entryID := params[i].EntryId
+		if s == nil {
+			continue
+		}
+
+		svids[entryID] = &WITSVID{
+			Token:     s.Token,
+			IssuedAt:  time.Unix(s.IssuedAt, 0).UTC(),
+			ExpiresAt: time.Unix(s.ExpiresAt, 0).UTC(),
+		}
+	}
+
+	return svids, nil
 }
 
 // Release the underlying connection.
@@ -768,6 +860,62 @@ func (c *client) fetchSVIDs(ctx context.Context, params []*svidv1.NewX509SVIDPar
 	return svids, nil
 }
 
+func (c *client) fetchWITSVIDs(ctx context.Context, params []*svidv1.NewWITSVIDParams) ([]*types.WITSVID, error) {
+	svidClient, connection, err := c.newSVIDClient()
+	if err != nil {
+		return nil, err
+	}
+	defer connection.Release()
+
+	resp, err := svidClient.BatchNewWITSVID(ctx, &svidv1.BatchNewWITSVIDRequest{
+		Params: params,
+	})
+	if err != nil {
+		c.release(connection)
+		c.withErrorFields(err).Error("Failed to batch new WIT-SVID(s)")
+		return nil, fmt.Errorf("failed to batch new WIT-SVID(s): %w", err)
+	}
+
+	okStatus := int32(codes.OK)
+	var svids []*types.WITSVID
+	for i, r := range resp.Results {
+		if r.Status.Code != okStatus {
+			c.c.Log.WithFields(logrus.Fields{
+				telemetry.RegistrationID: params[i].EntryId,
+				telemetry.Status:         r.Status.Code,
+				telemetry.Error:          r.Status.Message,
+			}).Warn("Failed to mint WIT-SVID")
+			svids = append(svids, nil)
+			continue
+		}
+
+		svid := r.Svid
+		var svidErr error
+		switch {
+		case svid == nil:
+			svidErr = errors.New("WITSVID response missing SVID")
+		case svid.IssuedAt == 0:
+			svidErr = errors.New("WITSVID missing issued at")
+		case svid.ExpiresAt == 0:
+			svidErr = errors.New("WITSVID missing expires at")
+		case svid.IssuedAt > svid.ExpiresAt:
+			svidErr = errors.New("WITSVID issued after it has expired")
+		}
+		if svidErr != nil {
+			c.c.Log.WithFields(logrus.Fields{
+				telemetry.RegistrationID: params[i].EntryId,
+				logrus.ErrorKey:          svidErr.Error(),
+			}).Error("Invalid WIT-SVID")
+			svids = append(svids, nil)
+			continue
+		}
+
+		svids = append(svids, svid)
+	}
+
+	return svids, nil
+}
+
 func (c *client) newEntryClient() (entryv1.EntryClient, *nodeConn, error) {
 	conn, err := c.getOrOpenConn()
 	if err != nil {
@@ -845,4 +993,13 @@ func (c *client) withErrorFields(err error) logrus.FieldLogger {
 	}
 
 	return logger
+}
+
+func isRetriable(err error) bool {
+	switch status.Code(err) {
+	case codes.Unknown, codes.Canceled, codes.DeadlineExceeded, codes.InvalidArgument, codes.Unimplemented:
+		return false
+	default:
+		return true
+	}
 }

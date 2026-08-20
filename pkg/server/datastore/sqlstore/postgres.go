@@ -7,7 +7,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jinzhu/gorm"
-	"github.com/lib/pq"
+	"github.com/spiffe/spire/pkg/server/datastore/sqlcommon"
 	"github.com/spiffe/spire/pkg/server/datastore/sqldriver/awsrds"
 
 	// gorm postgres `cloudsql` dialect, for GCP Cloud SQL Proxy
@@ -18,15 +18,15 @@ import (
 
 type postgresDB struct{}
 
-func (p postgresDB) connect(ctx context.Context, cfg *configuration, isReadOnly bool) (db *gorm.DB, version string, supportsCTE bool, err error) {
-	if cfg.databaseTypeConfig == nil {
+func (p postgresDB) connect(ctx context.Context, cfg *sqlcommon.Configuration, isReadOnly bool) (db *gorm.DB, version string, supportsCTE bool, err error) {
+	if cfg.DBTypeConfig == nil {
 		return nil, "", false, errors.New("missing datastore configuration")
 	}
 
-	connString := getConnectionString(cfg, isReadOnly)
+	connString := sqlcommon.GetConnectionString(cfg, isReadOnly)
 	var errOpen error
 	switch {
-	case cfg.databaseTypeConfig.AWSPostgres != nil:
+	case cfg.DBTypeConfig.AWSPostgres != nil:
 		c, err := pgx.ParseConfig(connString)
 		if err != nil {
 			return nil, "", false, err
@@ -36,9 +36,9 @@ func (p postgresDB) connect(ctx context.Context, cfg *configuration, isReadOnly 
 		}
 
 		awsrdsConfig := &awsrds.Config{
-			Region:          cfg.databaseTypeConfig.AWSPostgres.Region,
-			AccessKeyID:     cfg.databaseTypeConfig.AWSPostgres.AccessKeyID,
-			SecretAccessKey: cfg.databaseTypeConfig.AWSPostgres.SecretAccessKey,
+			Region:          cfg.DBTypeConfig.AWSPostgres.Region,
+			AccessKeyID:     cfg.DBTypeConfig.AWSPostgres.AccessKeyID,
+			SecretAccessKey: cfg.DBTypeConfig.AWSPostgres.SecretAccessKey,
 			Endpoint:        fmt.Sprintf("%s:%d", c.Host, c.Port),
 			DbUser:          c.User,
 			DriverName:      awsrds.PostgresDriverName,
@@ -57,7 +57,7 @@ func (p postgresDB) connect(ctx context.Context, cfg *configuration, isReadOnly 
 		return nil, "", false, errOpen
 	}
 
-	version, err = queryVersion(ctx, db, "SHOW server_version")
+	version, err = queryVersion(ctx, db, sqlcommon.PostgresVersionQuery)
 	if err != nil {
 		return nil, "", false, err
 	}
@@ -68,8 +68,5 @@ func (p postgresDB) connect(ctx context.Context, cfg *configuration, isReadOnly 
 }
 
 func (p postgresDB) isConstraintViolation(err error) bool {
-	var e *pq.Error
-	ok := errors.As(err, &e)
-	// "23xxx" is the constraint violation class for PostgreSQL
-	return ok && e.Code.Class() == "23"
+	return sqlcommon.IsPostgresConstraintViolation(err)
 }

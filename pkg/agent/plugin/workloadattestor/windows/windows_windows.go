@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
@@ -33,8 +34,9 @@ func New() *Plugin {
 }
 
 type Configuration struct {
-	DiscoverWorkloadPath bool  `hcl:"discover_workload_path"`
-	WorkloadSizeLimit    int64 `hcl:"workload_size_limit"`
+	DiscoverWorkloadPath      bool  `hcl:"discover_workload_path"`
+	WorkloadSizeLimit         int64 `hcl:"workload_size_limit"`
+	DisableGroupNameSelectors bool  `hcl:"disable_group_name_selectors"`
 }
 
 func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *Configuration {
@@ -77,7 +79,7 @@ func (p *Plugin) Attest(_ context.Context, req *workloadattestorv1.AttestRequest
 		return nil, err
 	}
 
-	process, err := p.newProcessInfo(req.Pid, config.DiscoverWorkloadPath)
+	process, err := p.newProcessInfo(req.Pid, config.DiscoverWorkloadPath, config.DisableGroupNameSelectors)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to get process information: %v", err)
 	}
@@ -112,7 +114,14 @@ func (p *Plugin) Attest(_ context.Context, req *workloadattestorv1.AttestRequest
 	}, nil
 }
 
-func (p *Plugin) newProcessInfo(pid int32, queryPath bool) (*processInfo, error) {
+// AttestReference returns Unimplemented. This plugin does not handle
+// reference-based workload attestation; the host falls back to PID-based
+// Attest when the reference is a WorkloadPIDReference.
+func (p *Plugin) AttestReference(_ context.Context, _ *workloadattestorv1.AttestReferenceRequest) (*workloadattestorv1.AttestReferenceResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "AttestReference not implemented")
+}
+
+func (p *Plugin) newProcessInfo(pid int32, queryPath bool, disableGroupNames bool) (*processInfo, error) {
 	p.log = p.log.With(telemetry.PID, pid)
 
 	h, err := p.q.OpenProcess(pid)
@@ -160,6 +169,7 @@ func (p *Plugin) newProcessInfo(pid int32, queryPath bool) (*processInfo, error)
 	}
 	groups := p.q.AllGroups(tokenGroups)
 
+	start := time.Now()
 	for _, group := range groups {
 		// Each group has a set of attributes that control how
 		// the system uses the SID in an access check.
@@ -167,13 +177,18 @@ func (p *Plugin) newProcessInfo(pid int32, queryPath bool) (*processInfo, error)
 		// https://docs.microsoft.com/en-us/windows/win32/secauthz/sid-attributes-in-an-access-token
 		enabledSelector := getGroupEnabledSelector(group.Attributes)
 		processInfo.groupsSIDs = append(processInfo.groupsSIDs, enabledSelector+":"+group.Sid.String())
-		groupAccount, groupDomain, err := p.q.LookupAccount(group.Sid)
-		if err != nil {
-			p.log.Warn("failed to lookup account from group SID", "sid", group.Sid, "error", err)
-			continue
+		if !disableGroupNames {
+			groupAccount, groupDomain, err := p.q.LookupAccount(group.Sid)
+			if err != nil {
+				p.log.Warn("failed to lookup account from group SID", "sid", group.Sid, "error", err)
+				continue
+			}
+			// If the LookupAccount call succeeded, we know that groupAccount is not empty
+			processInfo.groups = append(processInfo.groups, enabledSelector+":"+parseAccount(groupAccount, groupDomain))
 		}
-		// If the LookupAccount call succeeded, we know that groupAccount is not empty
-		processInfo.groups = append(processInfo.groups, enabledSelector+":"+parseAccount(groupAccount, groupDomain))
+	}
+	if !disableGroupNames {
+		p.log.Debug("Group account name lookups completed", "count", len(groups), "duration_ms", time.Since(start).Milliseconds())
 	}
 
 	if queryPath {
@@ -194,6 +209,10 @@ func (p *Plugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.config = newConfig
+
+	if newConfig.DisableGroupNameSelectors {
+		p.log.Info("Group name selectors disabled; only group_sid selectors will be produced for groups")
+	}
 
 	return &configv1.ConfigureResponse{}, nil
 }

@@ -27,7 +27,7 @@ const (
 )
 
 var (
-	agentNamePattern = regexp.MustCompile("^[a-zA-z]+[a-zA-Z0-9-]$")
+	agentNamePattern = regexp.MustCompile("^[a-zA-Z][a-zA-Z0-9-]*$")
 )
 
 func BuiltIn() catalog.BuiltIn {
@@ -279,8 +279,7 @@ func buildSelectorValues(hostName string) []string {
 }
 
 func validateAgentName(agentName string) error {
-	l := agentNamePattern.FindAllStringSubmatch(agentName, -1)
-	if len(l) != 1 || len(l[0]) == 0 || len(agentName) > 32 {
+	if !agentNamePattern.MatchString(agentName) || len(agentName) > 32 {
 		return status.Error(codes.InvalidArgument, "agent name is not valid")
 	}
 	return nil

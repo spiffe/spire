@@ -3,10 +3,8 @@
 package k8s
 
 import (
-	"io"
 	"log"
 	"os"
-	"path/filepath"
 	"regexp"
 	"strings"
 	"unicode"
@@ -49,7 +47,7 @@ func (h *containerHelper) Configure(config *HCLConfig, log hclog.Logger) error {
 	if h.useNewContainerLocator {
 		log.Info("Using the new container locator")
 	} else {
-		log.Warn("Using the legacy container locator. This option will removed in a future release.")
+		log.Warn("Using the legacy container locator. This option will be removed in a future release.")
 	}
 
 	return nil
@@ -57,7 +55,7 @@ func (h *containerHelper) Configure(config *HCLConfig, log hclog.Logger) error {
 
 func (h *containerHelper) GetPodUIDAndContainerID(pID int32, log hclog.Logger) (types.UID, string, error) {
 	if !h.useNewContainerLocator {
-		cgroups, err := cgroups.GetCgroups(pID, dirFS(h.rootDir))
+		cgroups, err := cgroups.GetCgroups(pID, os.DirFS(h.rootDir))
 		if err != nil {
 			return "", "", status.Errorf(codes.Internal, "unable to obtain cgroups: %v", err)
 		}
@@ -145,13 +143,7 @@ func reSubMatchMap(r *regexp.Regexp, str string) map[string]string {
 }
 
 func isValidCGroupPathMatches(matches map[string]string) bool {
-	if matches == nil {
-		return false
-	}
-	if matches["mustnotmatch"] != "" {
-		return false
-	}
-	return true
+	return matches != nil && matches["mustnotmatch"] == ""
 }
 
 func getPodUIDAndContainerIDFromCGroupPath(cgroupPath string) (types.UID, string, bool) {
@@ -195,14 +187,8 @@ func getPodUIDAndContainerIDFromCGroupPath(cgroupPath string) (types.UID, string
 func canonicalizePodUID(uid string) types.UID {
 	return types.UID(strings.Map(func(r rune) rune {
 		if unicode.IsPunct(r) {
-			r = '-'
+			return '-'
 		}
 		return r
 	}, uid))
-}
-
-type dirFS string
-
-func (d dirFS) Open(p string) (io.ReadCloser, error) {
-	return os.Open(filepath.Join(string(d), p))
 }

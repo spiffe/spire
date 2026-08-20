@@ -4,7 +4,9 @@ import (
 	"context"
 	"testing"
 
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	workloadattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/agent/workloadattestor/v1"
+	"github.com/spiffe/spire/pkg/agent/broker/brokercontext"
 	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/proto/spire/common"
@@ -13,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/anypb"
 )
 
 func TestV1(t *testing.T) {
@@ -47,6 +50,17 @@ func TestV1(t *testing.T) {
 	})
 }
 
+func TestV1AttestReferencePropagatesBrokerCallerID(t *testing.T) {
+	expectedID := spiffeid.RequireFromString("spiffe://example.org/broker")
+	fake := &fakeReferencePluginV1{expectedID: expectedID}
+	plugin := new(workloadattestor.V1)
+	plugintest.Load(t, catalog.MakeBuiltIn("test", workloadattestorv1.WorkloadAttestorPluginServer(fake)), plugin)
+
+	selectors, err := plugin.AttestReference(brokercontext.WithCallerID(context.Background(), expectedID), &anypb.Any{TypeUrl: "test"})
+	require.NoError(t, err)
+	spiretest.RequireProtoListEqual(t, []*common.Selector{{Type: "test", Value: "broker-id-ok"}}, selectors)
+}
+
 func makeFakeV1Plugin(t *testing.T, selectorValues map[int][]string) workloadattestor.WorkloadAttestor {
 	fake := &fakePluginV1{selectorValues: selectorValues}
 	server := workloadattestorv1.WorkloadAttestorPluginServer(fake)
@@ -71,4 +85,23 @@ func (plugin fakePluginV1) Attest(_ context.Context, req *workloadattestorv1.Att
 	return &workloadattestorv1.AttestResponse{
 		SelectorValues: selectorValues,
 	}, nil
+}
+
+type fakeReferencePluginV1 struct {
+	workloadattestorv1.UnimplementedWorkloadAttestorServer
+	expectedID spiffeid.ID
+}
+
+func (plugin *fakeReferencePluginV1) AttestReference(ctx context.Context, _ *workloadattestorv1.AttestReferenceRequest) (*workloadattestorv1.AttestReferenceResponse, error) {
+	actualID, ok, err := brokercontext.CallerIDFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		return nil, status.Error(codes.Internal, "missing broker caller")
+	}
+	if actualID != plugin.expectedID {
+		return nil, status.Errorf(codes.Internal, "got broker caller %q", actualID.String())
+	}
+	return &workloadattestorv1.AttestReferenceResponse{SelectorValues: []string{"broker-id-ok"}}, nil
 }

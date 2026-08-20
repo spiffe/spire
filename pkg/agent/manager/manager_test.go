@@ -31,6 +31,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/storage"
 	"github.com/spiffe/spire/pkg/agent/trustbundlesources"
 	"github.com/spiffe/spire/pkg/agent/workloadkey"
+	commonapi "github.com/spiffe/spire/pkg/common/api"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/rotationutil"
@@ -602,7 +603,7 @@ func TestSynchronization(t *testing.T) {
 	require.Equal(t, version.Version(), api.lastAgentVersion)
 
 	// Before synchronization
-	identitiesBefore := identitiesByEntryID(m.cache.Identities())
+	identitiesBefore := identitiesByEntryID(m.x509Cache.Identities())
 	if len(identitiesBefore) != 3 {
 		t.Fatalf("3 cached identities were expected; got %d", len(identitiesBefore))
 	}
@@ -653,7 +654,7 @@ func TestSynchronization(t *testing.T) {
 
 	// Make sure the update contains the updated entries and that the cache
 	// has a consistent view.
-	identitiesAfter := identitiesByEntryID(m.cache.Identities())
+	identitiesAfter := identitiesByEntryID(m.x509Cache.Identities())
 	if len(identitiesAfter) != 3 {
 		t.Fatalf("expected 3 identities, got: %d", len(identitiesAfter))
 	}
@@ -750,7 +751,7 @@ func TestSynchronizationClearsStaleCacheEntries(t *testing.T) {
 	// entries.
 	compareRegistrationEntries(t,
 		append(regEntriesMap["resp1"], regEntriesMap["resp2"]...),
-		m.cache.Entries())
+		m.x509Cache.Entries())
 
 	// manually synchronize again
 	if err := m.synchronize(context.Background()); err != nil {
@@ -760,7 +761,7 @@ func TestSynchronizationClearsStaleCacheEntries(t *testing.T) {
 	// now the cache should have entries from resp2 removed
 	compareRegistrationEntries(t,
 		regEntriesMap["resp1"],
-		m.cache.Entries())
+		m.x509Cache.Entries())
 }
 
 func TestSynchronizationUpdatesRegistrationEntries(t *testing.T) {
@@ -823,7 +824,7 @@ func TestSynchronizationUpdatesRegistrationEntries(t *testing.T) {
 	// after initialization, the cache should contain resp2 entries
 	compareRegistrationEntries(t,
 		regEntriesMap["resp2"],
-		m.cache.Entries())
+		m.x509Cache.Entries())
 
 	// manually synchronize again
 	if err := m.synchronize(context.Background()); err != nil {
@@ -833,7 +834,7 @@ func TestSynchronizationUpdatesRegistrationEntries(t *testing.T) {
 	// now the cache should have the updated entries from resp3
 	compareRegistrationEntries(t,
 		regEntriesMap["resp3"],
-		m.cache.Entries())
+		m.x509Cache.Entries())
 }
 
 func TestForceRotation(t *testing.T) {
@@ -895,7 +896,7 @@ func TestForceRotation(t *testing.T) {
 	require.Equal(t, clk.Now(), m.GetLastSync())
 
 	// Before synchronization
-	identitiesBefore := identitiesByEntryID(m.cache.Identities())
+	identitiesBefore := identitiesByEntryID(m.x509Cache.Identities())
 	if len(identitiesBefore) != 3 {
 		t.Fatalf("3 cached identities were expected; got %d", len(identitiesBefore))
 	}
@@ -972,7 +973,7 @@ func TestForceRotation(t *testing.T) {
 
 	// Make sure the update contains the updated entries and that the cache
 	// has a consistent view.
-	identitiesAfter := identitiesByEntryID(m.cache.Identities())
+	identitiesAfter := identitiesByEntryID(m.x509Cache.Identities())
 	if len(identitiesAfter) != 3 {
 		t.Fatalf("expected 3 identities, got: %d", len(identitiesAfter))
 	}
@@ -1123,7 +1124,7 @@ func TestSynchronizationWithLRUCache(t *testing.T) {
 	defer sub.Finish()
 
 	// Before synchronization
-	identitiesBefore := identitiesByEntryID(m.cache.Identities())
+	identitiesBefore := identitiesByEntryID(m.x509Cache.Identities())
 	if len(identitiesBefore) != 3 {
 		t.Fatalf("3 cached identities were expected; got %d", len(identitiesBefore))
 	}
@@ -1174,7 +1175,7 @@ func TestSynchronizationWithLRUCache(t *testing.T) {
 
 	// Make sure the update contains the updated entries and that the cache
 	// has a consistent view.
-	identitiesAfter := identitiesByEntryID(m.cache.Identities())
+	identitiesAfter := identitiesByEntryID(m.x509Cache.Identities())
 	if len(identitiesAfter) != 3 {
 		t.Fatalf("expected 3 identities, got: %d", len(identitiesAfter))
 	}
@@ -1506,7 +1507,7 @@ func TestSyncSVIDsWithLRUCache(t *testing.T) {
 	assert.NoError(t, subErr, "subscriber error")
 
 	// ensure 2 SVIDs corresponding to selectors are cached.
-	assert.Equal(t, 2, m.cache.CountX509SVIDs())
+	assert.Equal(t, 2, m.x509Cache.CountSVIDs())
 
 	// cancel the ctx to stop Go routines
 	cancel()
@@ -1920,8 +1921,8 @@ func regEntriesAsMap(res []*common.RegistrationEntry) (result map[string]*common
 	return result
 }
 
-func identitiesByEntryID(ces []cache.Identity) (result map[string]cache.Identity) {
-	result = map[string]cache.Identity{}
+func identitiesByEntryID(ces []cache.X509Identity) (result map[string]cache.X509Identity) {
+	result = map[string]cache.X509Identity{}
 	for _, ce := range ces {
 		result[ce.Entry.EntryId] = ce
 	}
@@ -2075,7 +2076,7 @@ func (h *mockAPI) BatchNewX509SVID(_ context.Context, req *svidv1.BatchNewX509SV
 		entry, ok := entries[param.EntryId]
 		if !ok {
 			resp.Results = append(resp.Results, &svidv1.BatchNewX509SVIDResponse_Result{
-				Status: api.CreateStatusf(codes.NotFound, "entry %q not found", param.EntryId),
+				Status: commonapi.CreateStatusf(codes.NotFound, "entry %q not found", param.EntryId),
 			})
 			continue
 		}
@@ -2085,7 +2086,7 @@ func (h *mockAPI) BatchNewX509SVID(_ context.Context, req *svidv1.BatchNewX509SV
 		h.lastestSVIDs[entry.EntryId] = svid
 
 		resp.Results = append(resp.Results, &svidv1.BatchNewX509SVIDResponse_Result{
-			Status: api.OK(),
+			Status: commonapi.OK(),
 			Svid: &types.X509SVID{
 				CertChain: x509util.RawCertsFromCertificates(svid),
 				ExpiresAt: svid[0].NotAfter.Unix(),

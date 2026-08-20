@@ -12,6 +12,7 @@ import (
 	workload_pb "github.com/spiffe/go-spiffe/v2/proto/spiffe/workload"
 	debugv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/agent/debug/v1"
 	delegatedidentityv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/agent/delegatedidentity/v1"
+	loggerv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/agent/logger/v1"
 	"github.com/spiffe/spire/pkg/common/peertracker"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -91,6 +92,7 @@ func TestAllAgentServicesHandledByConnectionMetrics(t *testing.T) {
 			secret_v3.RegisterSecretDiscoveryServiceServer(s, &secret_v3.UnimplementedSecretDiscoveryServiceServer{})
 			grpc_health_v1.RegisterHealthServer(s, &grpc_health_v1.UnimplementedHealthServer{})
 			debugv1.RegisterDebugServer(s, &fakeDebugServer{})
+			loggerv1.RegisterLoggerServer(s, &fakeLoggerServer{})
 			delegatedidentityv1.RegisterDelegatedIdentityServer(s, &fakeDelegatedIdentityServer{})
 		},
 		grpctest.Middleware(Middleware(log, metrics)),
@@ -126,6 +128,13 @@ func TestAllAgentServicesHandledByConnectionMetrics(t *testing.T) {
 		hook.Reset()
 		client := debugv1.NewDebugClient(conn)
 		_, _ = client.GetInfo(ctx, &debugv1.GetInfoRequest{})
+		assertNoMisconfigurationLog(t, hook)
+	})
+
+	t.Run("Logger", func(t *testing.T) {
+		hook.Reset()
+		client := loggerv1.NewLoggerClient(conn)
+		_, _ = client.GetLogger(ctx, &loggerv1.GetLoggerRequest{})
 		assertNoMisconfigurationLog(t, hook)
 	})
 
@@ -246,6 +255,10 @@ type fakeDebugServer struct {
 
 type fakeDelegatedIdentityServer struct {
 	delegatedidentityv1.UnimplementedDelegatedIdentityServer
+}
+
+type fakeLoggerServer struct {
+	loggerv1.UnimplementedLoggerServer
 }
 
 type fakeWatcherWithPID int
