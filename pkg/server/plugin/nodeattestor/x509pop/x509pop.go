@@ -57,7 +57,7 @@ type Config struct {
 	AgentPathTemplate string   `hcl:"agent_path_template"`
 	MaxIntermediates  *int     `hcl:"max_intermediates"`
 	MaxRSAKeySize     *int     `hcl:"max_rsa_key_size"`
-  VerifyClientIP    bool     `hcl:"verify_client_ip"`
+	VerifyClientIP    bool     `hcl:"verify_client_ip"`
 	GroupPathTemplate string   `hcl:"group_path_template"`
 	Groups            []string `hcl:"groups"`
 }
@@ -173,7 +173,7 @@ func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginco
 		maxIntermediates:  maxIntermediates,
 		maxRSAKeySize:     maxRSAKeySize,
 		verifyClientIP:    hclConfig.VerifyClientIP,
-    groupPathTemplate: groupPathTemplate,
+		groupPathTemplate: groupPathTemplate,
 		groups:            hclConfig.Groups,
 	}
 
