@@ -243,6 +243,8 @@ type workloadAPIRateLimitConfig struct {
 	FetchJWTSVID     *int `hcl:"fetch_jwt_svid"`
 	FetchX509Bundles *int `hcl:"fetch_x509_bundles"`
 	FetchJWTBundles  *int `hcl:"fetch_jwt_bundles"`
+	FetchWITSVID     *int `hcl:"fetch_wit_svid"`
+	FetchWITBundles  *int `hcl:"fetch_wit_bundles"`
 	StreamSecrets    *int `hcl:"stream_secrets"`
 	FetchSecrets     *int `hcl:"fetch_secrets"`
 
@@ -875,6 +877,8 @@ func newAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig, skip
 		FetchJWTSVID:     intVal(c.Agent.Experimental.RateLimit.FetchJWTSVID),
 		FetchX509Bundles: intVal(c.Agent.Experimental.RateLimit.FetchX509Bundles),
 		FetchJWTBundles:  intVal(c.Agent.Experimental.RateLimit.FetchJWTBundles),
+		FetchWITSVID:     intVal(c.Agent.Experimental.RateLimit.FetchWITSVID),
+		FetchWITBundles:  intVal(c.Agent.Experimental.RateLimit.FetchWITBundles),
 		StreamSecrets:    intVal(c.Agent.Experimental.RateLimit.StreamSecrets),
 		FetchSecrets:     intVal(c.Agent.Experimental.RateLimit.FetchSecrets),
 	}
@@ -889,6 +893,12 @@ func newAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig, skip
 	}
 	if ac.WorkloadAPIRateLimit.FetchJWTBundles < 0 {
 		return nil, errors.New("experimental.ratelimit.fetch_jwt_bundles must not be negative")
+	}
+	if ac.WorkloadAPIRateLimit.FetchWITSVID < 0 {
+		return nil, errors.New("experimental.ratelimit.fetch_wit_svid must not be negative")
+	}
+	if ac.WorkloadAPIRateLimit.FetchWITBundles < 0 {
+		return nil, errors.New("experimental.ratelimit.fetch_wit_bundles must not be negative")
 	}
 	if ac.WorkloadAPIRateLimit.StreamSecrets < 0 {
 		return nil, errors.New("experimental.ratelimit.stream_secrets must not be negative")

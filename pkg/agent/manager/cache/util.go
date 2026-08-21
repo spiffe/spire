@@ -17,11 +17,11 @@ func sortEntriesByID(entries []*common.RegistrationEntry) {
 // identity is implemented by the per-SVID-type identities held in a workload
 // update.
 type identity interface {
-	entryID() string
+	GetEntry() *common.RegistrationEntry
 }
 
 func sortIdentities[T identity](identities []T) {
 	sort.Slice(identities, func(a, b int) bool {
-		return identities[a].entryID() < identities[b].entryID()
+		return identities[a].GetEntry().EntryId < identities[b].GetEntry().EntryId
 	})
 }

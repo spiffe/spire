@@ -147,10 +147,12 @@ This feature is **experimental** and lives under the `experimental` block. Its c
 | `fetch_jwt_svid`     | Max calls per second per selector set for `FetchJWTSVID`. 0 disables rate limiting.         | 0 (disabled) |
 | `fetch_x509_bundles` | Max stream opens per second per selector set for `FetchX509Bundles`. 0 disables.            | 0 (disabled) |
 | `fetch_jwt_bundles`  | Max stream opens per second per selector set for `FetchJWTBundles`. 0 disables.             | 0 (disabled) |
+| `fetch_wit_svid`     | Max stream opens per second per selector set for `FetchWITSVID`. 0 disables.                | 0 (disabled) |
+| `fetch_wit_bundles`  | Max stream opens per second per selector set for `FetchWITBundles`. 0 disables.             | 0 (disabled) |
 | `stream_secrets`     | Max stream opens per second per selector set for SDS `StreamSecrets`. 0 disables.           | 0 (disabled) |
 | `fetch_secrets`      | Max calls per second per selector set for SDS `FetchSecrets`. 0 disables.                   | 0 (disabled) |
 
-For streaming RPCs (`FetchX509SVID`, `FetchX509Bundles`, `FetchJWTBundles`, `StreamSecrets`), the rate limit is enforced at stream establishment (i.e., per reconnect), not per message.
+For streaming RPCs (`FetchX509SVID`, `FetchX509Bundles`, `FetchJWTBundles`, `FetchWITSVID`, `FetchWITBundles`, `StreamSecrets`), the rate limit is enforced at stream establishment (i.e., per reconnect), not per message.
 
 Example configuration:
 
