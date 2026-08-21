@@ -96,9 +96,9 @@ type ServerConfig struct {
 	// the certificate's valid principals. See CanonicalDomains in ssh_config(5).
 	CanonicalDomain   string `hcl:"canonical_domain"`
 	AgentPathTemplate string `hcl:"agent_path_template"`
-	// VerifyClientIP, when true, checks the connecting peer's IP against a
-	// source-address critical option on the host certificate when that option
-	// is present. Certificates without source-address are unaffected.
+	// VerifyClientIP, when true, requires the host certificate to carry a
+	// source-address critical option and checks the connecting peer's IP
+	// against it. Certificates without source-address are rejected.
 	VerifyClientIP bool `hcl:"verify_client_ip"`
 
 	certChecker       *ssh.CertChecker

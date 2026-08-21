@@ -54,7 +54,7 @@ If both `cert_authorities` and `cert_authorities_path` are configured, the resul
             # Change the agent's SPIFFE ID format
             # agent_path_template = "static/{{ index .ValidPrincipals 0 }}"
 
-            # Optional: when true, enforce source-address critical option if present
+            # Optional: when true, require and enforce the source-address critical option
             # verify_client_ip = true
         }
     }
