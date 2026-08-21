@@ -1,0 +1,11 @@
+#!/bin/bash
+
+source init-kubectl
+
+if [ -z "$SUCCESS" ]; then
+    ./bin/kubectl -n spire logs deployment/spire-server --all-containers || true
+    ./bin/kubectl -n spire-test logs deployment/eviden-kms --all-containers || true
+fi
+
+export KUBECONFIG=
+./bin/kind delete cluster --name eviden-kms-ua

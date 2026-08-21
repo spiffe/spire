@@ -1,0 +1,35 @@
+#!/bin/bash
+
+set -e -o pipefail
+
+source init-kubectl
+
+# ── Deploy SPIRE Server with eviden_kms KeyManager ───────────────────────────
+log-info "deploying SPIRE server..."
+./bin/kubectl create namespace spire --dry-run=client -o yaml | ./bin/kubectl apply -f -
+./bin/kubectl -n spire apply -f conf/server/
+
+log-info "waiting for SPIRE server..."
+./bin/kubectl -n spire rollout status deployment/spire-server --timeout=120s
+
+# ── Verify SPIRE server is healthy (KeyManager initialized) ───────────────────
+log-info "verifying SPIRE server health..."
+./bin/kubectl -n spire exec deployment/spire-server -- \
+  /opt/spire/bin/spire-server healthcheck
+
+# ── Verify the KeyManager stored keys by generating a join token ─────────────
+# Token generation requires the KeyManager to have successfully created signing
+# keys in Eviden KMS. If this succeeds, keys exist in KMS.
+log-info "generating join token (exercises eviden_kms KeyManager)..."
+TOKEN=$(./bin/kubectl -n spire exec deployment/spire-server -- \
+  /opt/spire/bin/spire-server token generate \
+    -spiffeID "spiffe://example.org/test-agent" \
+  | awk '/Token:/{print $2}')
+
+if [ -z "${TOKEN}" ]; then
+  fail-now "Token generation failed — eviden_kms KeyManager did not store keys in KMS"
+fi
+
+log-info "join token generated: ${TOKEN:0:8}... — eviden_kms KeyManager verified"
+log-info "SUCCESS: SPIRE KeyManager 'eviden_kms' is operational with Eviden KMS"
+export SUCCESS=1

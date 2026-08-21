@@ -1,0 +1,20 @@
+#!/bin/bash
+
+mkdir -p ./bin
+
+KINDVERSION=v0.24.0
+KUBECTLVERSION=v1.31.2
+K8SIMAGE=kindest/node:v1.31.0
+
+KIND_PATH=./bin/kind
+KUBECTL_PATH=./bin/kubectl
+
+download-kind "${KIND_PATH}"
+download-kubectl "${KUBECTL_PATH}"
+
+start-kind-cluster "${KIND_PATH}" eviden-kms-ua
+
+container_images=("spire-server:latest-local" "ghcr.io/cosmian/kms:5.26.0")
+load-images "${KIND_PATH}" eviden-kms-ua "${container_images[@]}"
+
+log-info "kind cluster 'eviden-kms-ua' ready with SPIRE and KMS images loaded"

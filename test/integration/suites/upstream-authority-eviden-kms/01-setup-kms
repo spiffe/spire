@@ -1,0 +1,139 @@
+#!/bin/bash
+
+set -e -o pipefail
+
+source init-kubectl
+
+KMS_IMAGE="ghcr.io/cosmian/kms:5.26.0"
+KMS_TOKEN="test-api-token"
+CA_KEY_UID="spire-root-ca-key"
+CA_EXT_HEX="5B76335F63615D0A6261736963436F6E73747261696E74733D637269746963616C2C43413A545255450A6B657955736167653D637269746963616C2C6B6579436572745369676E2C63726C5369676E2C6469676974616C5369676E61747572650A"
+
+# ── Create namespace ──────────────────────────────────────────────────────────
+./bin/kubectl create namespace spire-test --dry-run=client -o yaml | ./bin/kubectl apply -f -
+
+# ── Deploy Eviden KMS (plain HTTP, token auth) ────────────────────────────────
+log-info "deploying Eviden KMS ${KMS_IMAGE}..."
+cat <<YAML | ./bin/kubectl apply -f -
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: eviden-kms
+  namespace: spire-test
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: eviden-kms
+  template:
+    metadata:
+      labels:
+        app: eviden-kms
+    spec:
+      containers:
+      - name: kms
+        image: ${KMS_IMAGE}
+        imagePullPolicy: IfNotPresent
+        env:
+          - name: KMS_DEFAULT_USERNAME
+            value: "${KMS_TOKEN}"
+        ports:
+          - containerPort: 9998
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: eviden-kms
+  namespace: spire-test
+spec:
+  selector:
+    app: eviden-kms
+  ports:
+  - port: 9998
+    targetPort: 9998
+YAML
+
+log-info "waiting for KMS to be ready..."
+./bin/kubectl -n spire-test rollout status deployment/eviden-kms --timeout=120s
+./bin/kubectl -n spire-test wait --for=condition=ready pod -l app=eviden-kms --timeout=60s
+
+# ── Port-forward KMS so we can call KMIP from the host ───────────────────────
+log-info "port-forwarding KMS to localhost:19998..."
+./bin/kubectl -n spire-test port-forward service/eviden-kms 19998:9998 &
+PF_PID=$!
+# Ensure port-forward is killed even if the script exits early (set -e or signal).
+trap 'kill "${PF_PID}" 2>/dev/null || true' EXIT
+sleep 3
+
+# ── Provision root CA private key pair ───────────────────────────────────────
+log-info "provisioning root CA key pair (uid=${CA_KEY_UID})..."
+curl -sf -X POST http://localhost:19998/kmip/2_1 \
+  -H 'Content-Type: application/json' \
+  -d "{
+    \"tag\":\"CreateKeyPair\",\"value\":[
+      {\"tag\":\"CommonAttributes\",\"value\":[
+        {\"tag\":\"CryptographicAlgorithm\",\"type\":\"Enumeration\",\"value\":\"EC\"},
+        {\"tag\":\"CryptographicDomainParameters\",\"value\":[
+          {\"tag\":\"RecommendedCurve\",\"type\":\"Enumeration\",\"value\":\"P384\"}
+        ]},
+        {\"tag\":\"KeyFormatType\",\"type\":\"Enumeration\",\"value\":\"ECPrivateKey\"},
+        {\"tag\":\"ActivationDate\",\"type\":\"DateTime\",\"value\":\"2024-01-01T00:00:00Z\"}
+      ]},
+      {\"tag\":\"PrivateKeyAttributes\",\"value\":[
+        {\"tag\":\"UniqueIdentifier\",\"type\":\"TextString\",\"value\":\"${CA_KEY_UID}\"},
+        {\"tag\":\"CryptographicUsageMask\",\"type\":\"Integer\",\"value\":1063425}
+      ]},
+      {\"tag\":\"PublicKeyAttributes\",\"value\":[
+        {\"tag\":\"CryptographicUsageMask\",\"type\":\"Integer\",\"value\":1051138}
+      ]}
+    ]
+  }" >/dev/null
+
+# ── Create self-signed CA certificate (links cert to the key pair) ────────────
+# This CertificateLink is required by the KMS Certify operation when used as a CA.
+log-info "creating self-signed CA certificate..."
+curl -sf -X POST http://localhost:19998/kmip/2_1 \
+  -H 'Content-Type: application/json' \
+  -d "{
+    \"tag\":\"Certify\",\"value\":[
+      {\"tag\":\"UniqueIdentifier\",\"type\":\"TextString\",\"value\":\"${CA_KEY_UID}_pk\"},
+      {\"tag\":\"Attributes\",\"value\":[
+        {\"tag\":\"CertificateType\",\"type\":\"Enumeration\",\"value\":\"X509\"},
+        {\"tag\":\"CertificateAttributes\",\"value\":[
+          {\"tag\":\"CertificateSubjectCn\",\"type\":\"TextString\",\"value\":\"SPIRE Integration Test Root CA\"},
+          {\"tag\":\"CertificateSubjectO\",\"type\":\"TextString\",\"value\":\"SPIFFE\"},
+          {\"tag\":\"CertificateSubjectOu\",\"type\":\"TextString\",\"value\":\"\"},
+          {\"tag\":\"CertificateSubjectEmail\",\"type\":\"TextString\",\"value\":\"\"},
+          {\"tag\":\"CertificateSubjectC\",\"type\":\"TextString\",\"value\":\"US\"},
+          {\"tag\":\"CertificateSubjectSt\",\"type\":\"TextString\",\"value\":\"\"},
+          {\"tag\":\"CertificateSubjectL\",\"type\":\"TextString\",\"value\":\"\"},
+          {\"tag\":\"CertificateSubjectUid\",\"type\":\"TextString\",\"value\":\"\"},
+          {\"tag\":\"CertificateSubjectSerialNumber\",\"type\":\"TextString\",\"value\":\"\"},
+          {\"tag\":\"CertificateSubjectTitle\",\"type\":\"TextString\",\"value\":\"\"},
+          {\"tag\":\"CertificateSubjectDc\",\"type\":\"TextString\",\"value\":\"\"},
+          {\"tag\":\"CertificateSubjectDnQualifier\",\"type\":\"TextString\",\"value\":\"\"},
+          {\"tag\":\"CertificateIssuerCn\",\"type\":\"TextString\",\"value\":\"\"},
+          {\"tag\":\"CertificateIssuerO\",\"type\":\"TextString\",\"value\":\"\"},
+          {\"tag\":\"CertificateIssuerOu\",\"type\":\"TextString\",\"value\":\"\"},
+          {\"tag\":\"CertificateIssuerEmail\",\"type\":\"TextString\",\"value\":\"\"},
+          {\"tag\":\"CertificateIssuerC\",\"type\":\"TextString\",\"value\":\"\"},
+          {\"tag\":\"CertificateIssuerSt\",\"type\":\"TextString\",\"value\":\"\"},
+          {\"tag\":\"CertificateIssuerL\",\"type\":\"TextString\",\"value\":\"\"},
+          {\"tag\":\"CertificateIssuerUid\",\"type\":\"TextString\",\"value\":\"\"},
+          {\"tag\":\"CertificateIssuerSerialNumber\",\"type\":\"TextString\",\"value\":\"\"},
+          {\"tag\":\"CertificateIssuerTitle\",\"type\":\"TextString\",\"value\":\"\"},
+          {\"tag\":\"CertificateIssuerDc\",\"type\":\"TextString\",\"value\":\"\"},
+          {\"tag\":\"CertificateIssuerDnQualifier\",\"type\":\"TextString\",\"value\":\"\"}
+        ]},
+        {\"tag\":\"Attribute\",\"value\":[
+          {\"tag\":\"VendorIdentification\",\"type\":\"TextString\",\"value\":\"cosmian\"},
+          {\"tag\":\"AttributeName\",\"type\":\"TextString\",\"value\":\"x509-extension\"},
+          {\"tag\":\"AttributeValue\",\"type\":\"ByteString\",\"value\":\"${CA_EXT_HEX}\"}
+        ]}
+      ]}
+    ]
+  }" >/dev/null
+
+kill "${PF_PID}" 2>/dev/null || true
+
+log-info "Eviden KMS ready: CA key pair + self-signed cert provisioned (uid=${CA_KEY_UID})"

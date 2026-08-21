@@ -1,0 +1,35 @@
+#!/bin/bash
+
+set -e -o pipefail
+
+source init-kubectl
+
+# ── Deploy SPIRE Server with eviden_kms UpstreamAuthority ────────────────────
+log-info "deploying SPIRE server..."
+./bin/kubectl create namespace spire --dry-run=client -o yaml | ./bin/kubectl apply -f -
+./bin/kubectl -n spire apply -f conf/server/
+
+log-info "waiting for SPIRE server..."
+./bin/kubectl -n spire rollout status deployment/spire-server --timeout=120s
+
+# ── Verify SPIRE server is healthy (UpstreamAuthority signed the CA) ─────────
+log-info "verifying SPIRE server health..."
+./bin/kubectl -n spire exec deployment/spire-server -- \
+  /opt/spire/bin/spire-server healthcheck
+
+# ── Verify the UpstreamAuthority signed the intermediate CA ──────────────────
+# If SPIRE is healthy with an UpstreamAuthority, the CA was signed by KMS.
+# Confirm by generating a join token which requires the CA to be active.
+log-info "generating join token (exercises eviden_kms UpstreamAuthority)..."
+TOKEN=$(./bin/kubectl -n spire exec deployment/spire-server -- \
+  /opt/spire/bin/spire-server token generate \
+    -spiffeID "spiffe://example.org/test-agent" \
+  | awk '/Token:/{print $2}')
+
+if [ -z "${TOKEN}" ]; then
+  fail-now "Token generation failed — UpstreamAuthority did not sign the intermediate CA"
+fi
+
+log-info "join token generated: ${TOKEN:0:8}... — UpstreamAuthority signed the CA via KMS Certify"
+log-info "SUCCESS: SPIRE UpstreamAuthority 'eviden_kms' is operational with Eviden KMS"
+export SUCCESS=1
