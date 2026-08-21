@@ -17,6 +17,16 @@ const (
   -timeout value
     	Time to wait for a response (default 5s)
 `
+	fetchWITUsage = `Usage of fetch wit:
+  -namedPipeName string
+    	Pipe name of the SPIRE Agent API named pipe (default "\\spire-agent\\public\\api")
+  -output value
+    	Desired output format (pretty, json); default: pretty.
+  -spiffeID string
+    	SPIFFE ID subject (optional)
+  -timeout value
+    	Time to wait for a response (default 5s)
+`
 	fetchX509Usage = `Usage of fetch x509:
   -namedPipeName string
     	Pipe name of the SPIRE Agent API named pipe (default "\\spire-agent\\public\\api")

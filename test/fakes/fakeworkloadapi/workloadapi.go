@@ -32,6 +32,8 @@ type WorkloadAPI struct {
 	fetchX509BundlesRequest FakeRequest
 	fetchJWTSVIDRequest     FakeRequest
 	fetchJWTBundlesRequest  FakeRequest
+	fetchWITSVIDRequest     FakeRequest
+	fetchWITBundlesRequest  FakeRequest
 	validateJWTRequest      FakeRequest
 }
 
@@ -52,6 +54,10 @@ func New(t *testing.T, responses ...*FakeRequest) *WorkloadAPI {
 			w.fetchJWTSVIDRequest = *response
 		case *workload.JWTBundlesResponse:
 			w.fetchJWTBundlesRequest = *response
+		case *workload.WITSVIDResponse:
+			w.fetchWITSVIDRequest = *response
+		case *workload.WITBundlesResponse:
+			w.fetchWITBundlesRequest = *response
 		case *workload.ValidateJWTSVIDResponse:
 			w.validateJWTRequest = *response
 		default:
@@ -156,6 +162,56 @@ func (w *WorkloadAPI) FetchJWTBundles(req *workload.JWTBundlesRequest, stream wo
 	} else {
 		require.FailNow(w.t, fmt.Sprintf("unexpected message type %T", w.fetchJWTBundlesRequest.Resp))
 	}
+	return nil
+}
+
+func (w *WorkloadAPI) FetchWITSVID(req *workload.WITSVIDRequest, stream workload.SpiffeWorkloadAPI_FetchWITSVIDServer) error {
+	if err := checkSecurityHeader(stream.Context()); err != nil {
+		return err
+	}
+
+	if w.fetchWITSVIDRequest.Err != nil {
+		return w.fetchWITSVIDRequest.Err
+	}
+
+	if request, ok := w.fetchWITSVIDRequest.Req.(*workload.WITSVIDRequest); ok {
+		spiretest.AssertProtoEqual(w.t, request, req)
+	} else {
+		require.FailNow(w.t, fmt.Sprintf("unexpected message type %T", w.fetchWITSVIDRequest.Req))
+	}
+
+	if response, ok := w.fetchWITSVIDRequest.Resp.(*workload.WITSVIDResponse); ok {
+		_ = stream.Send(response)
+		<-stream.Context().Done()
+	} else {
+		require.FailNow(w.t, fmt.Sprintf("unexpected message type %T", w.fetchWITSVIDRequest.Resp))
+	}
+
+	return nil
+}
+
+func (w *WorkloadAPI) FetchWITBundles(req *workload.WITBundlesRequest, stream workload.SpiffeWorkloadAPI_FetchWITBundlesServer) error {
+	if err := checkSecurityHeader(stream.Context()); err != nil {
+		return err
+	}
+
+	if w.fetchWITBundlesRequest.Err != nil {
+		return w.fetchWITBundlesRequest.Err
+	}
+
+	if request, ok := w.fetchWITBundlesRequest.Req.(*workload.WITBundlesRequest); ok {
+		spiretest.AssertProtoEqual(w.t, request, req)
+	} else {
+		require.FailNow(w.t, fmt.Sprintf("unexpected message type %T", w.fetchWITBundlesRequest.Req))
+	}
+
+	if response, ok := w.fetchWITBundlesRequest.Resp.(*workload.WITBundlesResponse); ok {
+		_ = stream.Send(response)
+		<-stream.Context().Done()
+	} else {
+		require.FailNow(w.t, fmt.Sprintf("unexpected message type %T", w.fetchWITBundlesRequest.Resp))
+	}
+
 	return nil
 }
 

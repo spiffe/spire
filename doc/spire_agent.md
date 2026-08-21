@@ -433,6 +433,16 @@ Calls the workload API to fetch a x.509-SVID.
 | `-timeout`    | Time to wait for a response           | 1s                               |
 | `-write`      | Write SVID data to the specified path |                                  |
 
+### `spire-agent api fetch wit`
+
+Calls the workload API to fetch a WIT-SVID. Requires the agent to be running with WIT-SVIDs enabled (see the `enable_wit_svids` experimental option); otherwise the call fails with `Unimplemented`.
+
+| Command       | Action                                              | Default                          |
+|---------------|-----------------------------------------------------|----------------------------------|
+| `-socketPath` | Path to the SPIRE Agent API socket                  | /tmp/spire-agent/public/api.sock |
+| `-spiffeID`   | The SPIFFE ID of the WIT being requested (optional) |                                  |
+| `-timeout`    | Time to wait for a response                         | 1s                               |
+
 ### `spire-agent api validate jwt`
 
 Calls the workload API to validate the supplied JWT-SVID.
