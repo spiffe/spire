@@ -138,6 +138,15 @@ func (p *Plugin) GenerateKey(ctx context.Context, req *keymanagerv1.GenerateKeyR
 		return nil, status.Error(codes.InvalidArgument, "key type is required")
 	}
 
+	// Snapshot mutable state under RLock so GenerateKey doesn't race with Configure.
+	p.mu.RLock()
+	client := p.client
+	serverID := p.serverID
+	p.mu.RUnlock()
+	if client == nil {
+		return nil, status.Error(codes.FailedPrecondition, "plugin not configured")
+	}
+
 	kt, err := toKMIPKeyType(req.KeyType)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "%v", err)
@@ -146,17 +155,17 @@ func (p *Plugin) GenerateKey(ctx context.Context, req *keymanagerv1.GenerateKeyR
 	// Store three metadata tags: server-id, spire-key-id, and key-type.
 	// All three are needed to reconstruct the full PublicKey on restart.
 	tags := []string{
-		serverIDTag(p.serverID),
+		serverIDTag(serverID),
 		spireKeyIDTag(req.KeyId),
 		spireKeyTypeTag(req.KeyType),
 	}
 
-	resp, err := p.client.CreateKeyPair(ctx, kt, tags)
+	resp, err := client.CreateKeyPair(ctx, kt, tags)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to create key pair: %v", err)
 	}
 
-	attrResp, err := p.client.GetPublicKey(ctx, resp.PublicKeyUID)
+	attrResp, err := client.GetPublicKey(ctx, resp.PublicKeyUID)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to get public key after create: %v", err)
 	}
@@ -172,7 +181,7 @@ func (p *Plugin) GenerateKey(ctx context.Context, req *keymanagerv1.GenerateKeyR
 	// Schedule deletion of the old key if one already exists for this key ID.
 	if old, ok := p.entries[req.KeyId]; ok {
 		go func() {
-			if err := p.client.Destroy(context.Background(), old.privateKeyUID); err != nil {
+			if err := client.Destroy(context.Background(), old.privateKeyUID); err != nil {
 				p.logger.Warn("Failed to destroy old key", "uid", old.privateKeyUID, "err", err)
 			}
 		}()
@@ -193,8 +202,12 @@ func (p *Plugin) SignData(ctx context.Context, req *keymanagerv1.SignDataRequest
 	}
 
 	p.mu.RLock()
+	client := p.client
 	entry, ok := p.entries[req.KeyId]
 	p.mu.RUnlock()
+	if client == nil {
+		return nil, status.Error(codes.FailedPrecondition, "plugin not configured")
+	}
 	if !ok {
 		return nil, status.Errorf(codes.NotFound, "key %q not found", req.KeyId)
 	}
@@ -204,7 +217,7 @@ func (p *Plugin) SignData(ctx context.Context, req *keymanagerv1.SignDataRequest
 		return nil, status.Errorf(codes.InvalidArgument, "%v", err)
 	}
 
-	sig, err := p.client.Sign(ctx, entry.privateKeyUID, req.Data, hashAlgo, sigAlgo)
+	sig, err := client.Sign(ctx, entry.privateKeyUID, req.Data, hashAlgo, sigAlgo)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to sign data: %v", err)
 	}
@@ -262,10 +275,15 @@ func (p *Plugin) recoverKeys(ctx context.Context) error {
 		}
 
 		spireKeyID := tagValue(tags, "x-spire-key-id:")
-		keyType := tagValueToKeyType(tagValue(tags, "x-spire-key-type:"))
-
 		if spireKeyID == "" {
 			p.logger.Warn("Key has no x-spire-key-id tag; skipping recovery", "priv_uid", privUID)
+			continue
+		}
+
+		keyType, err := tagValueToKeyType(tagValue(tags, "x-spire-key-type:"))
+		if err != nil {
+			p.logger.Warn("Key has unknown or missing x-spire-key-type tag; skipping recovery",
+				"priv_uid", privUID, "tag", tagValue(tags, "x-spire-key-type:"))
 			continue
 		}
 
@@ -305,18 +323,20 @@ func tagValue(tags []string, prefix string) string {
 }
 
 // tagValueToKeyType converts a stored key-type tag value back to a SPIRE KeyType.
-func tagValueToKeyType(s string) keymanagerv1.KeyType {
+// Returns an error for unknown or missing values to prevent silent misclassification
+// during key recovery.
+func tagValueToKeyType(s string) (keymanagerv1.KeyType, error) {
 	switch s {
 	case "EC_P256":
-		return keymanagerv1.KeyType_EC_P256
+		return keymanagerv1.KeyType_EC_P256, nil
 	case "EC_P384":
-		return keymanagerv1.KeyType_EC_P384
+		return keymanagerv1.KeyType_EC_P384, nil
 	case "RSA_2048":
-		return keymanagerv1.KeyType_RSA_2048
+		return keymanagerv1.KeyType_RSA_2048, nil
 	case "RSA_4096":
-		return keymanagerv1.KeyType_RSA_4096
+		return keymanagerv1.KeyType_RSA_4096, nil
 	default:
-		return keymanagerv1.KeyType_EC_P256 // safe fallback
+		return keymanagerv1.KeyType_UNSPECIFIED_KEY_TYPE, fmt.Errorf("unknown key type tag %q", s)
 	}
 }
 

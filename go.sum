@@ -71,8 +71,8 @@ github.com/AzureAD/microsoft-authentication-extensions-for-go/cache v0.1.1 h1:WJ
 github.com/AzureAD/microsoft-authentication-extensions-for-go/cache v0.1.1/go.mod h1:tCcJZ0uHAmvjsVYzEFivsRTN00oz5BEsRgQHu5JZ9WE=
 github.com/AzureAD/microsoft-authentication-library-for-go v1.7.2 h1:RHK7bS+HQMslb1sZpAokUt+zTVmue0hKSs2C791hhzU=
 github.com/AzureAD/microsoft-authentication-library-for-go v1.7.2/go.mod h1:HKpQxkWaGLJ+D/5H8QRpyQXA1eKjxkFlOMwck5+33Jk=
-github.com/Cosmian/kmip-go v0.2.0 h1:DueZFXtajXFnPCpnii/VURcSYHeimIDrXL6diaAVP54=
-github.com/Cosmian/kmip-go v0.2.0/go.mod h1:1oIPQuH21aQlzUa5OW4+3gAFexa44SDNb3zmZG4DIUs=
+github.com/Cosmian/kmip-go v0.4.0 h1:KCNjeWyIMB+8NffeZunpavF+EicNFRSMAbEXAMqQRr0=
+github.com/Cosmian/kmip-go v0.4.0/go.mod h1:1oIPQuH21aQlzUa5OW4+3gAFexa44SDNb3zmZG4DIUs=
 github.com/DataDog/datadog-go v4.8.3+incompatible h1:fNGaYSuObuQb5nzeTQqowRAd9bpDIRRV4/gUtIBjh8Q=
 github.com/DataDog/datadog-go v4.8.3+incompatible/go.mod h1:LButxg5PwREeZtORoXG3tL4fMGNddJ+vMq1mwgfaqoQ=
 github.com/GoogleCloudPlatform/cloudsql-proxy v1.38.2 h1:tjd+PuIxv1zWQi6t8PJsEfcABCrJ6bqwtHfAqS+j47A=

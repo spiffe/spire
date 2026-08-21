@@ -157,7 +157,12 @@ func (p *Plugin) MintX509CAAndSubscribe(req *upstreamauthorityv1.MintX509CAReque
 	// Encode CSR as PEM for the KMS Certify operation.
 	csrPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE REQUEST", Bytes: req.Csr})
 
-	certifyResp, err := client.Certify(stream.Context(), csrPEM, caKeyUID, caCertUID, []byte("[v3_ca]\nbasicConstraints=critical,CA:TRUE,pathlen:0\nkeyUsage=critical,keyCertSign,crlSign,digitalSignature\n"))
+	// Note: req.PreferredTtl is acknowledged but not forwarded to the KMS. The Eviden KMS
+	// Certify operation does not accept a validity period alongside CSR-based requests
+	// without the full certificate subject. CA certificate TTL is controlled by the KMS
+	// server configuration (see github.com/Cosmian/kmip-go for details).
+	certifyResp, err := client.Certify(stream.Context(), csrPEM, caKeyUID, caCertUID,
+		[]byte("[v3_ca]\nbasicConstraints=critical,CA:TRUE,pathlen:0\nkeyUsage=critical,keyCertSign,crlSign,digitalSignature\n"))
 	if err != nil {
 		return status.Errorf(codes.Internal, "failed to certify CSR: %v", err)
 	}
@@ -179,14 +184,16 @@ func (p *Plugin) MintX509CAAndSubscribe(req *upstreamauthorityv1.MintX509CAReque
 	if caCertUID != "" {
 		caChainResp, err := client.ExportCertificate(stream.Context(), caCertUID)
 		if err != nil {
-			p.logger.Warn("Failed to retrieve CA certificate; upstream roots will be empty", "err", err)
-		} else if len(caChainResp) > 0 {
-			if caCert, err := parseCertBytes(caChainResp); err == nil {
-				upstreamRoots = []*x509.Certificate{caCert}
-			}
+			// ca_cert_uid is explicitly configured; fail fast rather than return empty roots.
+			return status.Errorf(codes.Internal, "failed to retrieve configured CA certificate %q: %v", caCertUID, err)
 		}
+		caCert, err := parseCertBytes(caChainResp)
+		if err != nil {
+			return status.Errorf(codes.Internal, "failed to parse configured CA certificate %q: %v", caCertUID, err)
+		}
+		upstreamRoots = []*x509.Certificate{caCert}
 	} else {
-		// Fall back: use the signed cert as a self-anchored root (single-tier CA).
+		// No CA cert UID: use the signed cert as a self-anchored root (single-tier CA).
 		upstreamRoots = []*x509.Certificate{signedCert}
 	}
 

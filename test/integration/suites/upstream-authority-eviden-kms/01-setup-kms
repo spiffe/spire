@@ -61,6 +61,8 @@ log-info "waiting for KMS to be ready..."
 log-info "port-forwarding KMS to localhost:19998..."
 ./bin/kubectl -n spire-test port-forward service/eviden-kms 19998:9998 &
 PF_PID=$!
+# Ensure port-forward is killed even if the script exits early (set -e or signal).
+trap 'kill "${PF_PID}" 2>/dev/null || true' EXIT
 sleep 3
 
 # ── Provision root CA private key pair ───────────────────────────────────────
