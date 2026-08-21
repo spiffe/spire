@@ -99,7 +99,16 @@ func SPIFFEBundleToProto(b *spiffebundle.Bundle) (*common.Bundle, error) {
 		})
 	}
 
-	/* TODO: Parse WIT authorities once go-spiffe adds support */
+	for kid, key := range b.WITAuthorities() {
+		pkixBytes, err := x509.MarshalPKIXPublicKey(key)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal public key: %w", err)
+		}
+		bundle.WitSigningKeys = append(bundle.WitSigningKeys, &common.PublicKey{
+			PkixBytes: pkixBytes,
+			Kid:       kid,
+		})
+	}
 
 	return bundle, nil
 }
@@ -113,12 +122,10 @@ func SPIFFEBundleFromProto(b *common.Bundle) (*spiffebundle.Bundle, error) {
 	if err != nil {
 		return nil, err
 	}
-	/* TODO: Set WIT authorities once go-spiffe adds support
 	witSigningKeys, err := WITSigningKeysFromBundleProto(b)
 	if err != nil {
 		return nil, err
 	}
-	*/
 	td, err := spiffeid.TrustDomainFromString(b.TrustDomainId)
 	if err != nil {
 		return nil, err
@@ -127,6 +134,7 @@ func SPIFFEBundleFromProto(b *common.Bundle) (*spiffebundle.Bundle, error) {
 	bundle := spiffebundle.New(td)
 	bundle.SetX509Authorities(rootCAs)
 	bundle.SetJWTAuthorities(jwtSigningKeys)
+	bundle.SetWITAuthorities(witSigningKeys)
 	bundle.SetRefreshHint(time.Second * time.Duration(b.RefreshHint))
 	bundle.SetSequenceNumber(b.SequenceNumber)
 

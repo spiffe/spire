@@ -287,10 +287,13 @@ func TestSPIFFEBundleToProto(t *testing.T) {
 	bundle := spiffebundle.FromX509Authorities(td, ca.X509Authorities())
 	err = bundle.AddJWTAuthority("key-id-1", ca.X509Authorities()[0].PublicKey)
 	require.NoError(t, err)
+	err = bundle.AddWITAuthority("wit-key-id-1", ca.X509Authorities()[0].PublicKey)
+	require.NoError(t, err)
 	bundle.SetRefreshHint(time.Second * 10)
 	bundle.SetSequenceNumber(42)
 	bundleNoRefreshHint := spiffebundle.FromX509Authorities(td, ca.X509Authorities())
 	bundleInvalidKey := spiffebundle.FromJWTAuthorities(td, map[string]crypto.PublicKey{"some-key": "invalid format"})
+	bundleInvalidWITKey := spiffebundle.FromWITAuthorities(td, map[string]crypto.PublicKey{"some-key": "invalid format"})
 
 	tests := []struct {
 		name     string
@@ -299,7 +302,7 @@ func TestSPIFFEBundleToProto(t *testing.T) {
 		expErr   error
 	}{
 		{
-			name:   "success with jwt and x509 authorities",
+			name:   "success with jwt, wit and x509 authorities",
 			bundle: bundle,
 			expProto: &common.Bundle{
 				TrustDomainId:  td.IDString(),
@@ -310,6 +313,12 @@ func TestSPIFFEBundleToProto(t *testing.T) {
 					{
 						PkixBytes: pkixBytes,
 						Kid:       "key-id-1",
+					},
+				},
+				WitSigningKeys: []*common.PublicKey{
+					{
+						PkixBytes: pkixBytes,
+						Kid:       "wit-key-id-1",
 					},
 				},
 			},
@@ -327,6 +336,11 @@ func TestSPIFFEBundleToProto(t *testing.T) {
 		{
 			name:   "fail with error marshalling jwt public key",
 			bundle: bundleInvalidKey,
+			expErr: errors.New("failed to marshal public key: x509: unsupported public key type: string"),
+		},
+		{
+			name:   "fail with error marshalling wit public key",
+			bundle: bundleInvalidWITKey,
 			expErr: errors.New("failed to marshal public key: x509: unsupported public key type: string"),
 		},
 	}
@@ -353,6 +367,8 @@ func TestSPIFFEBundleFromProto(t *testing.T) {
 	bundle := spiffebundle.FromX509Authorities(td, ca.X509Authorities())
 	err = bundle.AddJWTAuthority("key-id-1", ca.X509Authorities()[0].PublicKey)
 	require.NoError(t, err)
+	err = bundle.AddWITAuthority("wit-key-id-1", ca.X509Authorities()[0].PublicKey)
+	require.NoError(t, err)
 	bundle.SetRefreshHint(time.Second * 10)
 	bundle.SetSequenceNumber(42)
 	bundleZeroedRefreshHint := spiffebundle.FromX509Authorities(td, ca.X509Authorities())
@@ -366,7 +382,7 @@ func TestSPIFFEBundleFromProto(t *testing.T) {
 		expErr    error
 	}{
 		{
-			name: "success with jwt and x509 authorities",
+			name: "success with jwt, wit and x509 authorities",
 			proto: &common.Bundle{
 				TrustDomainId:  td.IDString(),
 				RootCas:        []*common.Certificate{{DerBytes: rootCA.Raw}},
@@ -376,6 +392,12 @@ func TestSPIFFEBundleFromProto(t *testing.T) {
 					{
 						PkixBytes: pkixBytes,
 						Kid:       "key-id-1",
+					},
+				},
+				WitSigningKeys: []*common.PublicKey{
+					{
+						PkixBytes: pkixBytes,
+						Kid:       "wit-key-id-1",
 					},
 				},
 			},
@@ -425,6 +447,22 @@ func TestSPIFFEBundleFromProto(t *testing.T) {
 				},
 			},
 			expErr: errors.New("unable to parse JWT signing key 0: asn1: structure error: tags don't match (16 vs" +
+				" {class:1 tag:9 length:110 isCompound:true}) {optional:false explicit:false application:false " +
+				"private:false defaultValue:<nil> tag:<nil> stringType:0 timeType:0 set:false omitEmpty:false} " +
+				"publicKeyInfo @2"),
+		},
+		{
+			name: "fail with error parsing wit authority",
+			proto: &common.Bundle{
+				TrustDomainId: td.IDString(),
+				RootCas:       []*common.Certificate{{DerBytes: rootCA.Raw}},
+				WitSigningKeys: []*common.PublicKey{
+					{
+						PkixBytes: []byte("invalid"),
+					},
+				},
+			},
+			expErr: errors.New("unable to parse WIT signing key 0: asn1: structure error: tags don't match (16 vs" +
 				" {class:1 tag:9 length:110 isCompound:true}) {optional:false explicit:false application:false " +
 				"private:false defaultValue:<nil> tag:<nil> stringType:0 timeType:0 set:false omitEmpty:false} " +
 				"publicKeyInfo @2"),

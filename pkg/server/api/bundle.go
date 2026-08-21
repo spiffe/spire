@@ -92,12 +92,18 @@ func ProtoToBundle(b *types.Bundle) (*common.Bundle, error) {
 		return nil, fmt.Errorf("unable to parse JWT authority: %w", err)
 	}
 
+	witSigningKeys, err := ParseWITAuthorities(b.WitAuthorities)
+	if err != nil {
+		return nil, fmt.Errorf("unable to parse WIT authority: %w", err)
+	}
+
 	commonBundle := &common.Bundle{
 		TrustDomainId:  td.IDString(),
 		RefreshHint:    b.RefreshHint,
 		SequenceNumber: b.SequenceNumber,
 		RootCas:        rootCas,
 		JwtSigningKeys: jwtSigningKeys,
+		WitSigningKeys: witSigningKeys,
 	}
 
 	return commonBundle, nil
@@ -110,6 +116,7 @@ func ProtoToBundleMask(mask *types.BundleMask) *common.BundleMask {
 
 	return &common.BundleMask{
 		JwtSigningKeys: mask.JwtAuthorities,
+		WitSigningKeys: mask.WitAuthorities,
 		RootCas:        mask.X509Authorities,
 		RefreshHint:    mask.RefreshHint,
 		SequenceNumber: mask.SequenceNumber,
@@ -143,13 +150,36 @@ func ParseJWTAuthorities(keys []*types.JWTKey) ([]*common.PublicKey, error) {
 		}
 
 		jwtKeys = append(jwtKeys, &common.PublicKey{
-			PkixBytes: key.PublicKey,
-			Kid:       key.KeyId,
-			NotAfter:  key.ExpiresAt,
+			PkixBytes:  key.PublicKey,
+			Kid:        key.KeyId,
+			NotAfter:   key.ExpiresAt,
+			TaintedKey: key.Tainted,
 		})
 	}
 
 	return jwtKeys, nil
+}
+
+func ParseWITAuthorities(keys []*types.WITKey) ([]*common.PublicKey, error) {
+	var witKeys []*common.PublicKey
+	for _, key := range keys {
+		if _, err := x509.ParsePKIXPublicKey(key.PublicKey); err != nil {
+			return nil, err
+		}
+
+		if key.KeyId == "" {
+			return nil, errors.New("missing key ID")
+		}
+
+		witKeys = append(witKeys, &common.PublicKey{
+			PkixBytes:  key.PublicKey,
+			Kid:        key.KeyId,
+			NotAfter:   key.ExpiresAt,
+			TaintedKey: key.Tainted,
+		})
+	}
+
+	return witKeys, nil
 }
 
 func HashByte(b []byte) string {
