@@ -97,7 +97,7 @@ func NewX509LRUCache(config X509LRUCacheConfig) *X509SVIDLRUCache {
 		Metrics:          config.Metrics,
 		SvidCacheMaxSize: config.SvidCacheMaxSize,
 		Clk:              config.Clk,
-		SVIDType:         "X509",
+		SVIDType:         agentmetrics.SVIDTypeX509,
 		BuildUpdate:      buildX509WorkloadUpdate,
 		ShouldPrefetch:   shouldPrefetch,
 	})

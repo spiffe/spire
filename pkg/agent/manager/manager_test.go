@@ -1067,6 +1067,91 @@ func TestSubscribersGetUpToDateBundle(t *testing.T) {
 	})
 }
 
+func TestWITSVIDsAreDisabledByDefault(t *testing.T) {
+	dir := spiretest.TempDir(t)
+	km := fakeagentkeymanager.New(t, dir)
+
+	clk := clock.NewMock(t)
+	api := newMockAPI(t, &mockAPIConfig{
+		km:      km,
+		svidTTL: 200,
+		clk:     clk,
+	})
+
+	m := newManager(newWITTestConfig(t, dir, api, km, clk, false))
+	require.Nil(t, m.witCache)
+
+	_, err := m.SubscribeToWITCacheChanges(context.Background(), cache.Selectors{{Type: "unix", Value: "uid:1111"}})
+	require.ErrorIs(t, err, ErrWITSVIDsDisabled)
+}
+
+func TestWITSVIDSynchronization(t *testing.T) {
+	dir := spiretest.TempDir(t)
+	km := fakeagentkeymanager.New(t, dir)
+
+	clk := clock.NewMock(t)
+	api := newMockAPI(t, &mockAPIConfig{
+		km: km,
+		getAuthorizedEntries: func(*mockAPI, int32, *entryv1.GetAuthorizedEntriesRequest) (*entryv1.GetAuthorizedEntriesResponse, error) {
+			return makeGetAuthorizedEntriesResponse(t, "resp1", "resp2"), nil
+		},
+		batchNewX509SVIDEntries: func(*mockAPI, int32) []*common.RegistrationEntry {
+			return makeBatchNewX509SVIDEntries("resp1", "resp2")
+		},
+		svidTTL: 200,
+		clk:     clk,
+	})
+
+	m := newManager(newWITTestConfig(t, dir, api, km, clk, true))
+	require.NoError(t, m.Initialize(context.Background()))
+
+	// The WIT-SVIDs are synchronized alongside the X509-SVIDs
+	require.Equal(t, m.x509Cache.CountSVIDs(), m.witCache.CountSVIDs())
+	require.Positive(t, m.witCache.CountSVIDs())
+
+	sub, err := m.SubscribeToWITCacheChanges(context.Background(), cache.Selectors{
+		{Type: "unix", Value: "uid:1111"},
+		{Type: "spiffe_id", Value: joinTokenID.String()},
+	})
+	require.NoError(t, err)
+	defer sub.Finish()
+
+	util.RunWithTimeout(t, time.Second, func() {
+		u := <-sub.Updates()
+		require.Len(t, u.Identities, 3)
+		require.True(t, u.Bundle.Equal(api.bundle))
+		for _, identity := range u.Identities {
+			require.Equal(t, fmt.Sprintf("WIT-SVID for %s", identity.Entry.EntryId), identity.Token)
+			require.NotNil(t, identity.PrivateKey)
+		}
+	})
+}
+
+func newWITTestConfig(t *testing.T, dir string, api *mockAPI, km keymanager.KeyManager, clk clock.Clock, enableWITSVIDs bool) *Config {
+	baseSVID, baseSVIDKey := api.newSVID(joinTokenID, 1*time.Hour)
+	cat := fakeagentcatalog.New()
+	cat.SetKeyManager(km)
+
+	return &Config{
+		ServerAddr:       api.addr,
+		SVID:             baseSVID,
+		SVIDKey:          baseSVIDKey,
+		Log:              testLogger,
+		TrustDomain:      trustDomain,
+		Storage:          openStorage(t, dir),
+		Bundle:           api.bundle,
+		Metrics:          &telemetry.Blackhole{},
+		RotationInterval: time.Hour,
+		SyncInterval:     time.Hour,
+		Clk:              clk,
+		Catalog:          cat,
+		WorkloadKeyType:  workloadkey.ECP256,
+		SVIDStoreCache:   storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
+		RotationStrategy: rotationutil.NewRotationStrategy(0),
+		EnableWITSVIDs:   enableWITSVIDs,
+	}
+}
+
 func TestSynchronizationWithLRUCache(t *testing.T) {
 	dir := spiretest.TempDir(t)
 	km := fakeagentkeymanager.New(t, dir)
@@ -1974,6 +2059,7 @@ type mockAPI struct {
 	// Counts the number of requests received from clients
 	getAuthorizedEntriesCount atomic.Int32
 	batchNewX509SVIDCount     atomic.Int32
+	batchNewWITSVIDCount      atomic.Int32
 
 	// Last agent version received via PostStatus
 	lastAgentVersion string
@@ -2090,6 +2176,31 @@ func (h *mockAPI) BatchNewX509SVID(_ context.Context, req *svidv1.BatchNewX509SV
 			Svid: &types.X509SVID{
 				CertChain: x509util.RawCertsFromCertificates(svid),
 				ExpiresAt: svid[0].NotAfter.Unix(),
+			},
+		})
+	}
+	return resp, nil
+}
+
+func (h *mockAPI) BatchNewWITSVID(_ context.Context, req *svidv1.BatchNewWITSVIDRequest) (*svidv1.BatchNewWITSVIDResponse, error) {
+	h.batchNewWITSVIDCount.Add(1)
+
+	now := h.clk.Now()
+	resp := new(svidv1.BatchNewWITSVIDResponse)
+	for _, param := range req.Params {
+		if _, err := x509.ParsePKIXPublicKey(param.PublicKey); err != nil {
+			resp.Results = append(resp.Results, &svidv1.BatchNewWITSVIDResponse_Result{
+				Status: commonapi.CreateStatusf(codes.InvalidArgument, "malformed public key for entry %q", param.EntryId),
+			})
+			continue
+		}
+
+		resp.Results = append(resp.Results, &svidv1.BatchNewWITSVIDResponse_Result{
+			Status: commonapi.OK(),
+			Svid: &types.WITSVID{
+				Token:     fmt.Sprintf("WIT-SVID for %s", param.EntryId),
+				IssuedAt:  now.Unix(),
+				ExpiresAt: now.Add(time.Hour).Unix(),
 			},
 		})
 	}

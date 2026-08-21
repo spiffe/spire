@@ -971,9 +971,10 @@ func TestTaintX509SVIDs(t *testing.T) {
 			},
 			expectMetrics: []fakemetrics.MetricItem{
 				{
-					Type: fakemetrics.AddSampleType,
-					Key:  []string{telemetry.CacheManager, telemetry.ExpiringSVIDs, agent.CacheTypeSVIDStore},
-					Val:  3,
+					Type:   fakemetrics.AddSampleWithLabelsType,
+					Key:    []string{telemetry.CacheManager, telemetry.ExpiringSVIDs, agent.CacheTypeSVIDStore},
+					Val:    3,
+					Labels: []metrics.Label{{Name: telemetry.SVIDType, Value: agent.SVIDTypeX509}},
 				},
 				{
 					Type:   fakemetrics.IncrCounterWithLabelsType,
@@ -1010,9 +1011,10 @@ func TestTaintX509SVIDs(t *testing.T) {
 			},
 			expectMetrics: []fakemetrics.MetricItem{
 				{
-					Type: fakemetrics.AddSampleType,
-					Key:  []string{telemetry.CacheManager, telemetry.ExpiringSVIDs, agent.CacheTypeSVIDStore},
-					Val:  0,
+					Type:   fakemetrics.AddSampleWithLabelsType,
+					Key:    []string{telemetry.CacheManager, telemetry.ExpiringSVIDs, agent.CacheTypeSVIDStore},
+					Val:    0,
+					Labels: []metrics.Label{{Name: telemetry.SVIDType, Value: agent.SVIDTypeX509}},
 				},
 				{
 					Type:   fakemetrics.IncrCounterWithLabelsType,

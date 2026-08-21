@@ -47,6 +47,21 @@ func (keyType KeyType) GenerateSigner() (crypto.Signer, error) {
 	}
 }
 
+// SigningAlgorithm returns the JOSE signing algorithm to be used with keys of
+// this type.
+func (keyType KeyType) SigningAlgorithm() (string, error) {
+	switch keyType {
+	case ECP256:
+		return "ES256", nil
+	case ECP384:
+		return "ES384", nil
+	case RSA2048:
+		return "RS256", nil
+	default:
+		return "", fmt.Errorf("unknown key type %q", keyType)
+	}
+}
+
 // String returns the string representation of the key type
 func (keyType KeyType) String() string {
 	switch keyType {

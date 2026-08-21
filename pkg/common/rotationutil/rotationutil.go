@@ -55,6 +55,13 @@ func (rs *RotationStrategy) JWTSVIDExpiresSoon(svid *client.JWTSVID, now time.Ti
 	return shouldRotateJWT(now, svid.IssuedAt, svid.ExpiresAt)
 }
 
+// WITSVIDExpiresSoon determines if a WIT-SVID with the given lifetime should be
+// rotated, based on the presented current time. Also returns true if the
+// WIT-SVID is already expired.
+func WITSVIDExpiresSoon(issuedAt, expiresAt, now time.Time) bool {
+	return shouldRotateJWT(now, issuedAt, expiresAt)
+}
+
 // JWTSVIDExpired returns true if the given SVID is expired.
 func JWTSVIDExpired(svid *client.JWTSVID, now time.Time) bool {
 	return !now.Before(svid.ExpiresAt)
