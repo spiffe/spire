@@ -84,23 +84,18 @@ func provision(socket, agentDir, serverDir string) error {
 		return fmt.Errorf("cannot provision DevID: %w", err)
 	}
 
-	for dir, files := range map[string]map[string][]byte{
-		agentDir: {
-			"devid.crt.pem":   certsToPEM(devIDCert),
-			"devid.priv.blob": privateBlob,
-			"devid.pub.blob":  publicBlob,
-		},
-		serverDir: {
-			"devid-ca.pem":       certsToPEM(devIDCA),
-			"endorsement-ca.pem": certsToPEM(endorsementCA),
-		},
-	} {
-		if err := writeFiles(dir, files); err != nil {
-			return err
-		}
+	if err := writeFiles(agentDir, map[string][]byte{
+		"devid.crt.pem":   certsToPEM(devIDCert),
+		"devid.priv.blob": privateBlob,
+		"devid.pub.blob":  publicBlob,
+	}); err != nil {
+		return err
 	}
 
-	return nil
+	return writeFiles(serverDir, map[string][]byte{
+		"devid-ca.pem":       certsToPEM(devIDCA),
+		"endorsement-ca.pem": certsToPEM(endorsementCA),
+	})
 }
 
 // provisionEndorsementCertificate regenerates the endorsement key exactly as
@@ -186,13 +181,13 @@ func storeEndorsementCertificate(rwc io.ReadWriter, ekCert []byte) error {
 // provisionDevID creates a DevID key under a storage root key built from the
 // same template the agent loads it with, and certifies it with a throwaway
 // provisioning CA. Returns the CA root, the leaf, and the TPM key blobs.
-func provisionDevID(rwc io.ReadWriter) (root *x509.Certificate, leaf *x509.Certificate, privateBlob, publicBlob []byte, err error) {
+func provisionDevID(rwc io.ReadWriter) (*x509.Certificate, *x509.Certificate, []byte, []byte, error) {
 	rootKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
 		return nil, nil, nil, nil, fmt.Errorf("cannot generate DevID root key: %w", err)
 	}
 
-	root, err = createRootCertificate(rootKey, &x509.Certificate{
+	root, err := createRootCertificate(rootKey, &x509.Certificate{
 		SerialNumber:          big.NewInt(1),
 		Subject:               pkix.Name{CommonName: "devid-root"},
 		BasicConstraintsValid: true,
@@ -209,15 +204,15 @@ func provisionDevID(rwc io.ReadWriter) (root *x509.Certificate, leaf *x509.Certi
 		return nil, nil, nil, nil, fmt.Errorf("cannot create storage root key: %w", err)
 	}
 	defer func() {
-		if flushErr := tpm2.FlushContext(rwc, srkHandle); flushErr != nil && err == nil {
-			err = fmt.Errorf("cannot flush storage root key handle: %w", flushErr)
+		if err := tpm2.FlushContext(rwc, srkHandle); err != nil {
+			log.Printf("warning: cannot flush storage root key handle: %v", err)
 		}
 	}()
 
 	devIDTemplate := client.AKTemplateRSA()
 	devIDTemplate.Attributes = devIDKeyAttributes
 
-	privateBlob, publicBlob, _, _, _, err = tpm2.CreateKey(rwc, srkHandle,
+	privateBlob, publicBlob, _, _, _, err := tpm2.CreateKey(rwc, srkHandle,
 		tpm2.PCRSelection{}, "", "", devIDTemplate)
 	if err != nil {
 		return nil, nil, nil, nil, fmt.Errorf("cannot create DevID key: %w", err)
@@ -228,11 +223,10 @@ func provisionDevID(rwc io.ReadWriter) (root *x509.Certificate, leaf *x509.Certi
 		return nil, nil, nil, nil, fmt.Errorf("cannot get DevID public key: %w", err)
 	}
 
-	leaf, err = createCertificate(devIDPublicKey, &x509.Certificate{
+	leaf, err := createCertificate(devIDPublicKey, &x509.Certificate{
 		SerialNumber: big.NewInt(2),
 		Subject:      pkix.Name{CommonName: "devid-leaf"},
 		KeyUsage:     x509.KeyUsageDigitalSignature,
-		NotBefore:    time.Now().Add(-time.Hour),
 		NotAfter:     neverExpires,
 	}, rootKey, root)
 	if err != nil {
