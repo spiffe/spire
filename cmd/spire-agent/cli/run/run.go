@@ -260,6 +260,8 @@ type experimentalConfig struct {
 	AdminNamedPipeName        string `hcl:"admin_named_pipe_name"`
 	RequirePQKEM              bool   `hcl:"require_pq_kem"`
 	ServerLoadBalancingConfig string `hcl:"server_load_balancing_config"`
+	EnableWITSVIDs            bool   `hcl:"enable_wit_svids"`
+	WITSVIDCacheMaxSize       int    `hcl:"wit_svid_cache_max_size"`
 
 	RateLimit workloadAPIRateLimitConfig `hcl:"ratelimit"`
 
@@ -702,6 +704,20 @@ func newAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig, skip
 		return nil, errors.New("jwt_svid_cache_max_size should not be negative")
 	}
 	ac.JWTSVIDCacheMaxSize = c.Agent.JWTSVIDCacheMaxSize
+
+	if c.Agent.Experimental.WITSVIDCacheMaxSize < 0 {
+		return nil, errors.New("experimental.wit_svid_cache_max_size should not be negative")
+	}
+	ac.WITSVIDCacheMaxSize = c.Agent.Experimental.WITSVIDCacheMaxSize
+
+	// WIT-SVIDs need both the feature flag and the experimental config option
+	// while the profile is under development.
+	if c.Agent.Experimental.EnableWITSVIDs {
+		ac.EnableWITSVIDs = fflag.IsSet(fflag.FlagWITSVID)
+		if !ac.EnableWITSVIDs {
+			logger.Warnf("The experimental.enable_wit_svids configuration requires the %q feature flag; WIT-SVIDs remain disabled", fflag.FlagWITSVID)
+		}
+	}
 
 	td, err := common_cli.ParseTrustDomain(c.Agent.TrustDomain, logger)
 	if err != nil {
