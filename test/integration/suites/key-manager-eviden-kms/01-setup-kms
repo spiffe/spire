@@ -1,0 +1,58 @@
+#!/bin/bash
+
+set -e -o pipefail
+
+source init-kubectl
+
+KMS_IMAGE="ghcr.io/cosmian/kms:5.26.0"
+KMS_TOKEN="test-api-token"
+
+# ── Create namespace ──────────────────────────────────────────────────────────
+./bin/kubectl create namespace spire-test --dry-run=client -o yaml | ./bin/kubectl apply -f -
+
+# ── Deploy Eviden KMS (plain HTTP, token auth) ────────────────────────────────
+log-info "deploying Eviden KMS ${KMS_IMAGE}..."
+cat <<YAML | ./bin/kubectl apply -f -
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: eviden-kms
+  namespace: spire-test
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: eviden-kms
+  template:
+    metadata:
+      labels:
+        app: eviden-kms
+    spec:
+      containers:
+      - name: eviden-kms
+        image: ${KMS_IMAGE}
+        imagePullPolicy: IfNotPresent
+        env:
+          - name: KMS_DEFAULT_USERNAME
+            value: "${KMS_TOKEN}"
+        ports:
+          - containerPort: 9998
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: eviden-kms
+  namespace: spire-test
+spec:
+  selector:
+    app: eviden-kms
+  ports:
+  - port: 9998
+    targetPort: 9998
+YAML
+
+log-info "waiting for KMS to be ready..."
+./bin/kubectl -n spire-test rollout status deployment/eviden-kms --timeout=120s
+./bin/kubectl -n spire-test wait --for=condition=ready pod -l app=eviden-kms --timeout=60s
+
+log-info "Eviden KMS is ready"
