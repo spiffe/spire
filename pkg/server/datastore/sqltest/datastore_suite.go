@@ -443,6 +443,24 @@ func (s *Suite) TestListBundlesWithPagination() {
 				PageSize: 2,
 			},
 		},
+		{
+			// Regression test: tokens beyond 32 bits must parse successfully,
+			// since the underlying ID column is not limited to 32 bits on
+			// every dialect (e.g. CockroachDB's bigint unique_rowid()). On
+			// dialects where the ID column IS 32-bit (postgres, mysql), the
+			// token is clamped to the column's max representable value,
+			// which still selects no rows since no such ID can exist.
+			name:         "token larger than 32 bits",
+			expectedList: []*common.Bundle{},
+			pagination: &datastore.Pagination{
+				Token:    "5000000000",
+				PageSize: 2,
+			},
+			expectedPagination: &datastore.Pagination{
+				Token:    "",
+				PageSize: 2,
+			},
+		},
 	}
 	for _, test := range tests {
 		s.T().Run(test.name, func(t *testing.T) {
