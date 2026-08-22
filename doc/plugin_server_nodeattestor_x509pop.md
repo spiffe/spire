@@ -26,6 +26,8 @@ spiffe://<trust_domain>/spire/agent/x509pop/<fingerprint>
 | `max_intermediates`   | Maximum number of intermediate certificates allowed in the certificate chain. This limit helps prevent resource exhaustion attacks.                                                                                                            | 4                                                              |
 | `max_rsa_key_size`    | Maximum RSA key size in bits allowed in certificates. This limit helps prevent resource exhaustion attacks from excessively large keys.                                                                                                        | 8192                                                           |
 | `verify_client_ip`    | If `true`, validates the connecting peer's IP against the leaf certificate's IP SANs. Attestation fails if no SAN matches. Reflects the immediate peer - may not represent true client origin behind load balancers.                           | false                                                          |
+| `group_path_template` | Go text/template used to derive a group path from SVID data in SPIFFE mode. If empty, no group selector is produced.                                                                                                                           |                                                                |
+| `groups`              | Whitelist of group paths that may be emitted as selectors. The group path produced by `group_path_template` must be in this list to be emitted.                                                                                                |                                                                |
 
 A sample configuration:
 
@@ -48,12 +50,13 @@ A sample configuration:
 
 ## Selectors
 
-| Selector         | Example                                                           | Description                                                                                                                                                                                                |
-|------------------|-------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Common Name      | `x509pop:subject:cn:example.org`                                  | The Subject's Common Name (see X.500 Distinguished Names)                                                                                                                                                  |
-| SHA1 Fingerprint | `x509pop:ca:fingerprint:0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33` | The SHA1 fingerprint as a hex string for each cert in the PoP chain, excluding the leaf.                                                                                                                   |
-| SerialNumber     | `x509pop:serialnumber:0a1b2c3d4e5f`                               | The leaf certificate serial number as a lowercase hexadecimal string                                                                                                                                       |
-| San              | `x509pop:san:<key>:<value>`                                       | The san selectors on the leaf certificate. The expected format of the uri san is `x509pop://<trust_domain>/<key>/<value>`. One selector is exposed per uri san corresponding to x509pop uri scheme. string |
+| Selector         | Example                                                           | Description                                                                                                                                                                                                          |
+|------------------|-------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Common Name      | `x509pop:subject:cn:example.org`                                  | The Subject's Common Name (see X.500 Distinguished Names)                                                                                                                                                            |
+| SHA1 Fingerprint | `x509pop:ca:fingerprint:0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33` | The SHA1 fingerprint as a hex string for each cert in the PoP chain, excluding the leaf.                                                                                                                             |
+| SerialNumber     | `x509pop:serialnumber:0a1b2c3d4e5f`                               | The leaf certificate serial number as a lowercase hexadecimal string                                                                                                                                                 |
+| San              | `x509pop:san:<key>:<value>`                                       | The san selectors on the leaf certificate. The expected format of the uri san is `x509pop://<trust_domain>/<key>/<value>`. One selector is exposed per uri san corresponding to x509pop uri scheme. string           |
+| group            | `x509pop:group:/cluster/foo/identity-exchange`                    | Group path derived from `group_path_template` in SPIFFE mode. Only emitted when the derived path is in `groups`.                                                                                       |
 
 ## SVID Path Prefix
 

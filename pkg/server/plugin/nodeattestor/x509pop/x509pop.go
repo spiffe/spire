@@ -58,17 +58,21 @@ type Config struct {
 	MaxIntermediates  *int     `hcl:"max_intermediates"`
 	MaxRSAKeySize     *int     `hcl:"max_rsa_key_size"`
 	VerifyClientIP    bool     `hcl:"verify_client_ip"`
+	GroupPathTemplate string   `hcl:"group_path_template"`
+	Groups            []string `hcl:"groups"`
 }
 
 type configuration struct {
-	mode             string
-	svidPrefix       string
-	trustDomain      spiffeid.TrustDomain
-	trustBundle      *x509.CertPool
-	pathTemplate     *agentpathtemplate.Template
-	maxIntermediates int
-	maxRSAKeySize    int
-	verifyClientIP   bool
+	mode               string
+	svidPrefix         string
+	trustDomain        spiffeid.TrustDomain
+	trustBundle        *x509.CertPool
+	pathTemplate       *agentpathtemplate.Template
+	maxIntermediates   int
+	maxRSAKeySize      int
+	verifyClientIP     bool
+	groupPathTemplate  *agentpathtemplate.Template
+	groups             []string
 }
 
 func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *configuration {
@@ -124,6 +128,18 @@ func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginco
 		pathTemplate = tmpl
 	}
 
+	var groupPathTemplate *agentpathtemplate.Template
+	if len(hclConfig.GroupPathTemplate) > 0 {
+		tmpl, err := agentpathtemplate.Parse(hclConfig.GroupPathTemplate)
+		if err != nil {
+			status.ReportErrorf("failed to parse group path template: %q", hclConfig.GroupPathTemplate)
+		}
+		groupPathTemplate = tmpl
+	}
+	if groupPathTemplate != nil && len(hclConfig.Groups) == 0 {
+		status.ReportError("groups must be set when group_path_template is configured")
+	}
+
 	svidPrefix := "/spire-exchange/"
 	if hclConfig.SVIDPrefix != nil {
 		svidPrefix = *hclConfig.SVIDPrefix
@@ -149,14 +165,16 @@ func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginco
 	}
 
 	newConfig := &configuration{
-		trustDomain:      coreConfig.TrustDomain,
-		trustBundle:      util.NewCertPool(trustBundles...),
-		pathTemplate:     pathTemplate,
-		mode:             hclConfig.Mode,
-		svidPrefix:       svidPrefix,
-		maxIntermediates: maxIntermediates,
-		maxRSAKeySize:    maxRSAKeySize,
-		verifyClientIP:   hclConfig.VerifyClientIP,
+		trustDomain:       coreConfig.TrustDomain,
+		trustBundle:       util.NewCertPool(trustBundles...),
+		pathTemplate:      pathTemplate,
+		mode:              hclConfig.Mode,
+		svidPrefix:        svidPrefix,
+		maxIntermediates:  maxIntermediates,
+		maxRSAKeySize:     maxRSAKeySize,
+		verifyClientIP:    hclConfig.VerifyClientIP,
+		groupPathTemplate: groupPathTemplate,
+		groups:            hclConfig.Groups,
 	}
 
 	return newConfig
@@ -343,11 +361,43 @@ func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 		return status.Errorf(codes.Internal, "failed to make spiffe id: %v", err)
 	}
 
+	selectors := buildSelectorValues(leaf, chains, sanSelectors)
+
+	if config.mode == "spiffe" && config.groupPathTemplate != nil {
+		// Build template data for group path
+		groupData := struct {
+			*x509.Certificate
+			SerialNumberHex string
+			Fingerprint      string
+			PluginName       string
+			TrustDomain      string
+			SVIDPathTrimmed  string
+			URISanSelectors  map[string]string
+		}{
+			Certificate:     leaf,
+			SerialNumberHex: x509pop.SerialNumberHex(leaf.SerialNumber),
+			Fingerprint:     x509pop.Fingerprint(leaf),
+			PluginName:      x509pop.PluginName,
+			TrustDomain:     config.trustDomain.Name(),
+			SVIDPathTrimmed: svidPath,
+			URISanSelectors: sanSelectors,
+		}
+		groupPath, err := config.groupPathTemplate.Execute(groupData)
+		if err == nil {
+			for _, allowed := range config.groups {
+				if groupPath == allowed {
+					selectors = append(selectors, "group:"+groupPath)
+					break
+				}
+			}
+		}
+	}
+
 	return stream.Send(&nodeattestorv1.AttestResponse{
 		Response: &nodeattestorv1.AttestResponse_AgentAttributes{
 			AgentAttributes: &nodeattestorv1.AgentAttributes{
 				SpiffeId:       spiffeid.String(),
-				SelectorValues: buildSelectorValues(leaf, chains, sanSelectors),
+				SelectorValues: selectors,
 				CanReattest:    true,
 			},
 		},
