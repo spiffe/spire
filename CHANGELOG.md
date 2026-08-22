@@ -1,5 +1,38 @@
 # Changelog
 
+## [1.15.3] - 2026-08-21
+
+### Added
+
+- Slurm workload attestor (#7160)
+- `azure_blob` BundlePublisher plugin for publishing the trust bundle to Azure Blob Storage (#7030)
+- `trust_bundle_spiffe_workload_api` agent configuration option to fetch the initial trust bundle from a Workload API endpoint, simplifying nested agent deployments (#7148)
+- `disable_workload_api` and `disable_sds_api` agent options to disable the Workload API and SDS APIs on the public endpoint (#7122)
+- `disable_kubelet_client` option for the `k8s` workload attestor (#7142)
+- `use_pod_uid_for_agent_id` option in the `k8s_psat` node attestor to derive agent IDs from pod UIDs instead of node UIDs (#7123)
+- Opt-in `enable_namespace_labels` option in the `k8s` workload attestor, producing `ns-label` selectors from namespace labels (#7094)
+- `account_list_file` option in the `aws_iid` node attestor to source the `verify_organization` account list from a file instead of the AWS Organizations API (#7092)
+- `debug getinfo` command in the `spire-server` and `spire-agent` CLIs to access the Debug APIs (#7133)
+- Incremental WIT-SVID work, including support for building WIT-SVIDs in the `svid.v1` API client and marshalling support for WIT-SVID keys (#7132, #7134)
+
+### Changed
+
+- The Broker API endpoint is now included in health checks when enabled (#7141)
+- Improved coordination of kubelet pod list fetching in the `k8s` workload attestor, reducing attestation latency and redundant kubelet requests (#7085)
+- The `gcp_kms` Key Manager plugin no longer requires `key_identifier_value` to be 36 characters long (#7140)
+- The agent now warns when the `memory` Key Manager is used with a node attestor that does not support re-attestation (#7139)
+- Reworded the OIDC Discovery Provider `allow_insecure_scheme` warning to describe the actual safety condition instead of implying development-only use (#7165)
+- Updated AWS CA certificates in the `aws_iid` node attestor (#7138)
+- Updated Go to 1.26.6 (#7188, #7212)
+
+### Fixed
+
+- The events-based cache now fetches events ordered by ID, preventing spurious skipped-event tracking and unnecessary event lookups at startup (#7189)
+- Agent telemetry sinks now start before node attestation, so metrics are served while the agent is still attesting (#7166)
+- The agent and server no longer log a crash message and exit with a non-zero status when shut down during startup (#7154)
+- The `hashicorp_vault` Key Manager plugin no longer triggers unrecognized parameter warnings in Vault and OpenBao audit logs (#7150)
+- The example Grafana dashboard no longer includes empty query targets that caused panel query errors (#7178)
+
 ## [1.15.2] - 2026-07-09
 
 ### Added
