@@ -1,0 +1,28 @@
+#!/bin/bash
+
+set -e
+
+source init-kubectl
+
+log-info "Test: asserted selectors are denied over the TCP listener by default"
+
+# selector-broker's SelectorReference entry does not set allow_over_tcp, so the
+# same request that succeeds over UDS must be denied over TCP.
+./bin/kubectl -nspire exec -t selector-broker -- /brokerclient \
+    -broker-addr dns:///spire-broker:8443 \
+    -ref-type selectors \
+    -selectors "k8s_psat:namespace:spire,k8s_psat:service_account_name:default" \
+    -expect-err PermissionDenied \
+    || fail-now "selector-broker was allowed to assert selectors over TCP"
+
+log-success "asserted selectors rejected over TCP with PermissionDenied"
+
+log-info "Test: the same assertion still succeeds over UDS"
+
+./bin/kubectl -nspire exec -t selector-broker -- /brokerclient \
+    -ref-type selectors \
+    -selectors "k8s_psat:namespace:spire,k8s_psat:service_account_name:default" \
+    -expected-spiffe spiffe://example.org/asserted-target \
+    || fail-now "selector-broker could not assert selectors over UDS"
+
+log-success "asserted selectors still work over UDS"

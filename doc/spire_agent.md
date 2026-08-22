@@ -587,15 +587,23 @@ How it differs from the existing APIs:
   any workload in the agent's scope; the delegate is responsible for
   identifying the target workload (by selectors or PID).
 * The **Broker API** is also delegate-style — a broker presents a
-  `WorkloadReference` identifying a workload, and the agent runs its
-  configured workload attestor stack against that reference to produce
-  selectors. Unlike the Delegated Identity API, the broker never
-  hand-supplies selectors; the agent's own attestor remains the source of
-  truth for what selectors apply to a reference. This makes the Broker
-  API safe to expose across the network (over mTLS) and not just over a
-  local UDS.
+  `WorkloadReference` identifying a workload. For the reference types the
+  agent can resolve itself (`WorkloadPIDReference`,
+  `KubernetesObjectReference`), the agent runs its configured workload
+  attestor stack against that reference to produce selectors, so the agent
+  remains the source of truth for what selectors apply. Those reference
+  types are safe to expose across the network (over mTLS) and not just
+  over a local UDS.
 
-The specification currently defines two reference types:
+  This does **not** hold for `SelectorReference`, where the broker supplies
+  the selectors itself and the agent accepts them as already attested. A
+  broker authorized for that reference type has the same impersonation
+  power over the agent's scope as a Delegated Identity API delegate, so it
+  requires explicit opt-in and is not covered by the `"*"` wildcard. See
+  [Asserted selectors](#asserted-selectors).
+
+The specification currently defines two reference types the agent resolves
+itself:
 
 * `WorkloadPIDReference` — a process ID on the agent's node. Per
   [SPIFFE Broker API §3.1.2](https://github.com/spiffe/spiffe/blob/main/standards/SPIFFE_Broker_API.md#312-reference-scope),
@@ -620,6 +628,69 @@ its plugin-level `experimental.broker` block is required for every reference typ
 `WorkloadPIDReference`, and against the referenced object for
 `KubernetesObjectReference`. Set `experimental.broker.access_policy = "permissive"` to
 skip those checks. The setting is required; there is no default.
+
+### Asserted selectors
+
+SPIRE additionally supports a `SelectorReference` reference type, carrying a
+list of selectors the broker asserts directly:
+
+```text
+type.googleapis.com/spire.api.types.SelectorReference
+```
+
+This exists for brokers that perform their own workload attestation using
+mechanisms SPIRE has no attestor for — for example a service that validates a
+GitHub Actions OIDC token, a GitLab CI token, or a Kubernetes projected service
+account token, and maps the validated claims onto selectors so existing
+registration entries can match. It is the Broker API equivalent of the
+Delegated Identity API's selector-based requests, and it lets such a service
+authenticate with its own X.509-SVID instead of having to be a workload
+attested by the very agent it is calling.
+
+> **Warning:** the agent cannot verify an asserted selector set. There is no
+> object to resolve and no process to inspect, so the selectors are treated as
+> already attested and every registration entry whose selectors are a subset of
+> the asserted set will match. A broker authorized for this reference type can
+> obtain SVIDs — including private keys — for any identity in that agent's scope
+> whose selectors it can name. This is the same impersonation power the
+> [Delegated Identity API](#delegated-identity-api) grants its delegates, and it
+> also bypasses any plugin-level authorization (such as the `k8s` attestor's
+> `SubjectAccessReview` checks), because the reference never reaches a plugin.
+> Scope the agent's registration entries accordingly — for example by parenting
+> only the intended entries to a node alias for the agent this broker talks to.
+
+Because of that, the reference type is governed by three rules that differ from
+the other reference types:
+
+* **It must be named verbatim.** `type_url = "*"` grants only the reference
+  types the agent's attestor stack can resolve; it never grants
+  `SelectorReference`. This keeps an agent upgrade from silently handing the
+  capability to an existing wildcard broker. The wildcard and an explicit
+  `SelectorReference` entry may appear together in the same
+  `allowed_reference_types` list.
+* **TCP requires an opt-in, and deserves more thought here than elsewhere.** As
+  for every other reference type, TCP use is enabled by `allow_over_tcp` on the
+  entry, which defaults to false, so asserted selectors are UDS-only unless you
+  say otherwise. The consequence differs sharply from the attested reference
+  types: enabling it lets a remote holder of the broker's private key assert
+  selectors with no attestation, no existence check, and no Kubernetes RBAC
+  check. Leave it false unless the broker genuinely cannot be colocated with the
+  agent.
+* **A `selector_assertion` block is required.** It must list at least one
+  selector type in `allowed_selector_types`. The block and the reference type
+  are required together: either one without the other is a config error.
+
+Requests are rejected with `InvalidArgument` when the reference carries no
+selectors, carries more than `max_selectors`, or contains a selector with an
+empty type, an empty value, or a `:` in its type. They are rejected with
+`PermissionDenied` when the broker asserts a selector type outside its
+`allowed_selector_types`, or when it has no `selector_assertion` policy at all.
+
+Every accepted assertion is logged at `INFO` with the broker's SPIFFE ID, the
+transport, and the asserted selectors, and counted under the
+`broker_api.reference_resolution` metric with `resolution_mode=asserted`. The
+asserted path does not run the workload attestor, so it does not appear in the
+attestation metrics — this log and counter are how you audit it.
 
 ### Transport and authentication
 
@@ -656,8 +727,22 @@ may use. The `allowed_reference_types` list is required and must contain
 at least one object. Each object requires `type_url`, the verbatim
 protobuf type URL. Set `allow_over_tcp = true` on an entry only when that
 reference type is safe over the network; it defaults to false, so UDS is
-allowed but TCP is denied. Use a single object with `type_url = "*"` to
-allow any reference type the agent's attestor stack understands.
+allowed but TCP is denied. Use `type_url = "*"` to allow any reference type
+the agent's attestor stack understands. The wildcard may only be combined
+with reference types it does not itself grant — currently just
+`SelectorReference` (see [Asserted selectors](#asserted-selectors)).
+
+A broker that asserts selectors instead of naming a workload the agent
+attests also needs a `selector_assertion` block:
+
+| Field                    | Required | Default | Description                                                                                                                  |
+|:-------------------------|:---------|:--------|:-----------------------------------------------------------------------------------------------------------------------------|
+| `allowed_selector_types` | yes      |         | Selector types this broker may assert, e.g. `["k8s_psat"]`. Must be non-empty. `"*"` is not accepted; list types explicitly. |
+| `max_selectors`          | no       | `128`   | Cap on how many selectors one reference may carry.                                                                           |
+
+Whether the broker may assert selectors over the TCP listener is controlled by
+`allow_over_tcp` on its `SelectorReference` entry in `allowed_reference_types`,
+as for any other reference type.
 
 ```hcl
 agent {
@@ -688,6 +773,21 @@ agent {
                             type_url = "*"
                         },
                     ]
+                },
+                {
+                    # A broker that does its own workload attestation and maps
+                    # the result onto selectors. Note that "*" would NOT grant
+                    # this reference type; it must be named verbatim.
+                    id = "spiffe://example.org/service/spire-identity-exchange"
+                    allowed_reference_types = [
+                        {
+                            type_url = "type.googleapis.com/spire.api.types.SelectorReference"
+                        },
+                    ]
+                    selector_assertion {
+                        allowed_selector_types = ["k8s_psat", "github_actions"]
+                        max_selectors          = 128
+                    }
                 },
             ]
         }

@@ -1,0 +1,51 @@
+#!/bin/bash
+
+set -e
+
+source init-kubectl
+
+log-info "Test: selector-broker may not assert a selector type outside its allowlist"
+
+# selector_assertion.allowed_selector_types is ["k8s_psat"], so asserting a
+# unix selector is rejected before anything is matched. Without this bound, the
+# broker could name any workload's selectors on the node.
+./bin/kubectl -nspire exec -t selector-broker -- /brokerclient \
+    -ref-type selectors \
+    -selectors "unix:uid:0" \
+    -expect-err PermissionDenied \
+    || fail-now "selector-broker was not denied for a disallowed selector type"
+
+log-success "disallowed selector type rejected with PermissionDenied"
+
+log-info "Test: a disallowed type mixed in with allowed ones is still denied"
+
+./bin/kubectl -nspire exec -t selector-broker -- /brokerclient \
+    -ref-type selectors \
+    -selectors "k8s_psat:namespace:spire,k8s_psat:service_account_name:default,unix:uid:0" \
+    -expect-err PermissionDenied \
+    || fail-now "selector-broker was not denied for a mixed selector set"
+
+log-success "mixed selector set rejected with PermissionDenied"
+
+log-info "Test: an empty asserted selector set is rejected"
+
+./bin/kubectl -nspire exec -t selector-broker -- /brokerclient \
+    -ref-type selectors \
+    -selectors "" \
+    -expect-err InvalidArgument \
+    || fail-now "selector-broker was not denied for an empty selector set"
+
+log-success "empty selector set rejected with InvalidArgument"
+
+log-info "Test: exceeding max_selectors is rejected"
+
+# The agent config sets max_selectors = 16 for this broker.
+MANY=$(for i in $(seq 1 20); do printf "k8s_psat:pod_label:n%s," "${i}"; done | sed 's/,$//')
+
+./bin/kubectl -nspire exec -t selector-broker -- /brokerclient \
+    -ref-type selectors \
+    -selectors "${MANY}" \
+    -expect-err InvalidArgument \
+    || fail-now "selector-broker was not denied for exceeding max_selectors"
+
+log-success "oversized selector set rejected with InvalidArgument"
