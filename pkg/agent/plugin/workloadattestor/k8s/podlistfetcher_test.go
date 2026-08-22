@@ -441,7 +441,7 @@ func TestPodListFetcherRunProcessesRequestsWhileConfiguringKubeletClient(t *test
 		<-release
 		return fetcher.buildKubeletClient(config, previousClient)
 	}
-	fetcher.fetch = func(ctx context.Context, _ *kubeletClient) (map[string]*fastjson.Value, error) {
+	fetcher.fetch = func(ctx context.Context, _ *kubeletClient, _ podListFetcherConfig) (map[string]*fastjson.Value, error) {
 		<-ctx.Done()
 		return nil, ctx.Err()
 	}
@@ -525,7 +525,7 @@ func TestPodListFetcherReconfigurePreservesCache(t *testing.T) {
 
 	var oldRequestCount atomic.Int32
 	var newRequestCount atomic.Int32
-	fetcher.fetch = func(_ context.Context, client *kubeletClient) (map[string]*fastjson.Value, error) {
+	fetcher.fetch = func(_ context.Context, client *kubeletClient, _ podListFetcherConfig) (map[string]*fastjson.Value, error) {
 		if client.endpoint.Port() == "1" {
 			oldRequestCount.Add(1)
 		} else {
@@ -574,7 +574,7 @@ func TestPodListFetcherReconfigureUpdatesCacheLifetime(t *testing.T) {
 		fetcher, mockClock := newTestPodListFetcher(t)
 
 		var requestCount atomic.Int32
-		fetcher.fetch = func(context.Context, *kubeletClient) (map[string]*fastjson.Value, error) {
+		fetcher.fetch = func(context.Context, *kubeletClient, podListFetcherConfig) (map[string]*fastjson.Value, error) {
 			requestCount.Add(1)
 			return map[string]*fastjson.Value{}, nil
 		}
@@ -599,7 +599,7 @@ func TestPodListFetcherReconfigureUpdatesCacheLifetime(t *testing.T) {
 		fetcher, mockClock := newTestPodListFetcher(t)
 
 		var requestCount atomic.Int32
-		fetcher.fetch = func(context.Context, *kubeletClient) (map[string]*fastjson.Value, error) {
+		fetcher.fetch = func(context.Context, *kubeletClient, podListFetcherConfig) (map[string]*fastjson.Value, error) {
 			requestCount.Add(1)
 			return map[string]*fastjson.Value{}, nil
 		}
@@ -631,7 +631,7 @@ func TestPodListFetcherReloadsKubeletClient(t *testing.T) {
 		clock:    mockClock,
 		config:   &firstConfig,
 		actionCh: make(chan func(), 1),
-		fetch: func(context.Context, *kubeletClient) (map[string]*fastjson.Value, error) {
+		fetch: func(context.Context, *kubeletClient, podListFetcherConfig) (map[string]*fastjson.Value, error) {
 			return map[string]*fastjson.Value{}, nil
 		},
 	}
@@ -726,7 +726,7 @@ func TestPodListFetcherCreatesAndInstallsConfiguredKubeletClient(t *testing.T) {
 		port:              1,
 	}
 	usedClient := make(chan *kubeletClient, 1)
-	fetcher.fetch = func(_ context.Context, client *kubeletClient) (map[string]*fastjson.Value, error) {
+	fetcher.fetch = func(_ context.Context, client *kubeletClient, _ podListFetcherConfig) (map[string]*fastjson.Value, error) {
 		usedClient <- client
 		return map[string]*fastjson.Value{}, nil
 	}
@@ -755,10 +755,11 @@ func TestPodListFetcherConfiguresKubeletClientDuringFetch(t *testing.T) {
 
 func TestPodListFetcherParsePodList(t *testing.T) {
 	for _, testCase := range []struct {
-		name     string
-		response string
-		wantUIDs []string
-		wantErr  string
+		name                 string
+		response             string
+		excludeCompletedPods bool
+		wantUIDs             []string
+		wantErr              string
 	}{
 		{
 			name: "indexes pods by UID",
@@ -767,6 +768,26 @@ func TestPodListFetcherParsePodList(t *testing.T) {
 				{"metadata":{"uid":"pod-2"}}
 			]}`,
 			wantUIDs: []string{"pod-1", "pod-2"},
+		},
+		{
+			name: "keeps terminal-phase pods when exclusion disabled",
+			response: `{"items":[
+				{"metadata":{"uid":"running"},"status":{"phase":"Running"}},
+				{"metadata":{"uid":"failed"},"status":{"phase":"Failed"}},
+				{"metadata":{"uid":"succeeded"},"status":{"phase":"Succeeded"}}
+			]}`,
+			wantUIDs: []string{"running", "failed", "succeeded"},
+		},
+		{
+			name: "drops terminal-phase pods when exclusion enabled",
+			response: `{"items":[
+				{"metadata":{"uid":"running"},"status":{"phase":"Running"}},
+				{"metadata":{"uid":"pending"},"status":{"phase":"Pending"}},
+				{"metadata":{"uid":"failed"},"status":{"phase":"Failed"}},
+				{"metadata":{"uid":"succeeded"},"status":{"phase":"Succeeded"}}
+			]}`,
+			excludeCompletedPods: true,
+			wantUIDs:             []string{"running", "pending"},
 		},
 		{
 			name:     "accepts null items as an empty list",
@@ -803,7 +824,7 @@ func TestPodListFetcherParsePodList(t *testing.T) {
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			fetcher := podListFetcher{log: hclog.NewNullLogger()}
-			pods, err := fetcher.parsePodList([]byte(testCase.response))
+			pods, err := fetcher.parsePodList([]byte(testCase.response), testCase.excludeCompletedPods)
 			if testCase.wantErr != "" {
 				require.ErrorContains(t, err, testCase.wantErr)
 				return
@@ -830,7 +851,7 @@ func newTestPodListFetcher(t *testing.T) (*podListFetcher, *clock.Mock) {
 func configureTestFetcher(t *testing.T, fetcher *podListFetcher, fetch func(context.Context) (map[string]*fastjson.Value, error)) {
 	t.Helper()
 
-	fetcher.fetch = func(ctx context.Context, _ *kubeletClient) (map[string]*fastjson.Value, error) {
+	fetcher.fetch = func(ctx context.Context, _ *kubeletClient, _ podListFetcherConfig) (map[string]*fastjson.Value, error) {
 		return fetch(ctx)
 	}
 	require.NoError(t, fetcher.configure(t.Context(), podListFetcherConfig{

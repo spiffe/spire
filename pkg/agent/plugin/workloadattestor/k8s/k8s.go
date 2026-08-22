@@ -165,6 +165,16 @@ type HCLConfig struct {
 	// (e.g. when a postStart hook has yet to complete).
 	DisableContainerSelectors bool `hcl:"disable_container_selectors"`
 
+	// ExcludeCompletedPods, when true, causes pods that have reached a
+	// terminal status.phase ("Failed" or "Succeeded") to be dropped from the
+	// kubelet pod-list cache instead of being tracked. Such pods (e.g. evicted
+	// pods, pods left in ContainerStatusUnknown after a node problem, or
+	// completed jobs) have no running containers and are never the target of
+	// workload attestation, so excluding them reduces the plugin's memory
+	// footprint on nodes that accumulate large numbers of terminated pods.
+	// Defaults to true if unset.
+	ExcludeCompletedPods *bool `hcl:"exclude_completed_pods"`
+
 	// UseNewContainerLocator, if true, uses the new container locator
 	// mechanism instead of the legacy cgroup matchers. Defaults to true if
 	// unset. This configurable will be removed in a future release.
@@ -361,6 +371,7 @@ func (p *Plugin) buildConfig(coreConfig catalog.CoreConfig, hclText string, stat
 			kubeletCAPath:              kubeletCAPath,
 			nodeName:                   nodeName,
 			reloadInterval:             reloadInterval,
+			excludeCompletedPods:       newConfig.ExcludeCompletedPods == nil || *newConfig.ExcludeCompletedPods,
 		},
 	}
 }
