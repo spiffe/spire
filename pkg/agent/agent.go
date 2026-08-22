@@ -50,6 +50,7 @@ const (
 	bootstrapBackoffMaxElapsedTime   = 1 * time.Minute
 	startHealthChecksTimeout         = 8 * time.Second
 	rebootstrapBackoffMaxElapsedTime = 24 * time.Hour
+	profilingServerShutdownTimeout   = 500 * time.Millisecond
 )
 
 type Agent struct {
@@ -401,10 +402,10 @@ func (a *Agent) setupProfiling(ctx context.Context) (stop func()) {
 		})
 		wg.Go(func() {
 			<-ctx.Done()
-			shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+			shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), profilingServerShutdownTimeout)
 			defer shutdownCancel()
 			if err := server.Shutdown(shutdownCtx); err != nil {
-				a.c.Log.WithError(err).Warn("Unable to shut down cleanly")
+				a.c.Log.WithError(err).Warn("Unable to cleanly shut down profiling server")
 			}
 		})
 	}

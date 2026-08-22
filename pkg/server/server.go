@@ -58,6 +58,8 @@ const (
 	invalidSpiffeIDAttestedNode      = "could not parse SPIFFE ID, from attested node"
 
 	pageSize = 1
+
+	profilingServerShutdownTimeout = 500 * time.Millisecond
 )
 
 type Server struct {
@@ -323,10 +325,10 @@ func (s *Server) setupProfiling(ctx context.Context) (stop func()) {
 		})
 		wg.Go(func() {
 			<-ctx.Done()
-			shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+			shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), profilingServerShutdownTimeout)
 			defer shutdownCancel()
 			if err := server.Shutdown(shutdownCtx); err != nil {
-				s.config.Log.WithError(err).Warn("Unable to shutdown the server cleanly")
+				s.config.Log.WithError(err).Warn("Unable to cleanly shut down profiling server")
 			}
 		})
 	}
