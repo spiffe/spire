@@ -68,36 +68,37 @@ type Config struct {
 }
 
 type agentConfig struct {
-	DataDir                       string    `hcl:"data_dir"`
-	AdminSocketPath               string    `hcl:"admin_socket_path"`
-	InsecureBootstrap             bool      `hcl:"insecure_bootstrap"`
-	RebootstrapMode               string    `hcl:"rebootstrap_mode"`
-	RebootstrapDelay              string    `hcl:"rebootstrap_delay"`
-	JoinToken                     string    `hcl:"join_token"`
-	JoinTokenFile                 string    `hcl:"join_token_file"`
-	LogFile                       string    `hcl:"log_file"`
-	LogFormat                     string    `hcl:"log_format"`
-	LogLevel                      string    `hcl:"log_level"`
-	LogSelectors                  []string  `hcl:"log_selectors"`
-	LogSourceLocation             bool      `hcl:"log_source_location"`
-	SDS                           sdsConfig `hcl:"sds"`
-	ServerAddress                 string    `hcl:"server_address"`
-	ServerPort                    int       `hcl:"server_port"`
-	SocketPath                    string    `hcl:"socket_path"`
-	DisableWorkloadAPI            bool      `hcl:"disable_workload_api"`
-	DisableSDSAPI                 bool      `hcl:"disable_sds_api"`
-	WorkloadX509SVIDKeyType       string    `hcl:"workload_x509_svid_key_type"`
-	TrustBundleFormat             string    `hcl:"trust_bundle_format"`
-	TrustBundlePath               string    `hcl:"trust_bundle_path"`
-	TrustBundleSpiffeWorkloadAPI  string    `hcl:"trust_bundle_spiffe_workload_api"`
-	TrustBundleUnixSocket         string    `hcl:"trust_bundle_unix_socket"`
-	TrustBundleURL                string    `hcl:"trust_bundle_url"`
-	TrustDomain                   string    `hcl:"trust_domain"`
-	AllowUnauthenticatedVerifiers bool      `hcl:"allow_unauthenticated_verifiers"`
-	AllowedForeignJWTClaims       []string  `hcl:"allowed_foreign_jwt_claims"`
-	AvailabilityTarget            string    `hcl:"availability_target"`
-	X509SVIDCacheMaxSize          int       `hcl:"x509_svid_cache_max_size"`
-	JWTSVIDCacheMaxSize           int       `hcl:"jwt_svid_cache_max_size"`
+	DataDir                       string              `hcl:"data_dir"`
+	AdminSocketPath               string              `hcl:"admin_socket_path"`
+	InsecureBootstrap             bool                `hcl:"insecure_bootstrap"`
+	RebootstrapMode               string              `hcl:"rebootstrap_mode"`
+	RebootstrapDelay              string              `hcl:"rebootstrap_delay"`
+	JoinToken                     string              `hcl:"join_token"`
+	JoinTokenFile                 string              `hcl:"join_token_file"`
+	LogFile                       string              `hcl:"log_file"`
+	LogFileRotation               *log.RotationConfig `hcl:"log_file_rotation"`
+	LogFormat                     string              `hcl:"log_format"`
+	LogLevel                      string              `hcl:"log_level"`
+	LogSelectors                  []string            `hcl:"log_selectors"`
+	LogSourceLocation             bool                `hcl:"log_source_location"`
+	SDS                           sdsConfig           `hcl:"sds"`
+	ServerAddress                 string              `hcl:"server_address"`
+	ServerPort                    int                 `hcl:"server_port"`
+	SocketPath                    string              `hcl:"socket_path"`
+	DisableWorkloadAPI            bool                `hcl:"disable_workload_api"`
+	DisableSDSAPI                 bool                `hcl:"disable_sds_api"`
+	WorkloadX509SVIDKeyType       string              `hcl:"workload_x509_svid_key_type"`
+	TrustBundleFormat             string              `hcl:"trust_bundle_format"`
+	TrustBundlePath               string              `hcl:"trust_bundle_path"`
+	TrustBundleSpiffeWorkloadAPI  string              `hcl:"trust_bundle_spiffe_workload_api"`
+	TrustBundleUnixSocket         string              `hcl:"trust_bundle_unix_socket"`
+	TrustBundleURL                string              `hcl:"trust_bundle_url"`
+	TrustDomain                   string              `hcl:"trust_domain"`
+	AllowUnauthenticatedVerifiers bool                `hcl:"allow_unauthenticated_verifiers"`
+	AllowedForeignJWTClaims       []string            `hcl:"allowed_foreign_jwt_claims"`
+	AvailabilityTarget            string              `hcl:"availability_target"`
+	X509SVIDCacheMaxSize          int                 `hcl:"x509_svid_cache_max_size"`
+	JWTSVIDCacheMaxSize           int                 `hcl:"jwt_svid_cache_max_size"`
 
 	AuthorizedDelegates []string `hcl:"authorized_delegates"`
 
@@ -296,6 +297,17 @@ func Help(name string, writer io.Writer) string {
 }
 
 func LoadConfig(name string, args []string, logOptions []log.Option, output io.Writer, allowUnknownConfig bool) (*agent.Config, error) {
+	return loadConfig(name, args, logOptions, output, allowUnknownConfig, false)
+}
+
+// LoadConfigForValidation loads the configuration without opening log_file, so
+// that validating the config of a running agent does not append to, or rotate,
+// that agent's live log.
+func LoadConfigForValidation(name string, args []string, logOptions []log.Option, output io.Writer) (*agent.Config, error) {
+	return loadConfig(name, args, logOptions, output, false, true)
+}
+
+func loadConfig(name string, args []string, logOptions []log.Option, output io.Writer, allowUnknownConfig, skipLogFile bool) (*agent.Config, error) {
 	// First parse the CLI flags so we can get the config
 	// file path, if set
 	cliInput, err := parseFlags(name, args, output)
@@ -320,7 +332,7 @@ func LoadConfig(name string, args []string, logOptions []log.Option, output io.W
 		return nil, fmt.Errorf("error loading feature flags: %w", err)
 	}
 
-	return NewAgentConfig(input, logOptions, allowUnknownConfig)
+	return newAgentConfig(input, logOptions, allowUnknownConfig, skipLogFile)
 }
 
 func (cmd *Command) Run(args []string) int {
@@ -378,6 +390,15 @@ func (c *agentConfig) validate() error {
 
 	if c.TrustDomain == "" {
 		return errors.New("trust_domain must be configured")
+	}
+
+	if c.LogFileRotation != nil {
+		if c.LogFile == "" {
+			return errors.New("log_file must be configured to use log_file_rotation")
+		}
+		if err := c.LogFileRotation.Validate(); err != nil {
+			return fmt.Errorf("invalid log_file_rotation configuration: %w", err)
+		}
 	}
 
 	// If insecure_bootstrap is set, trust_bundle_path, trust_bundle_url, or trust_bundle_spiffe_workload_api cannot be set
@@ -552,6 +573,10 @@ func (c *agentConfig) endpointEnabled() bool {
 }
 
 func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool) (*agent.Config, error) {
+	return newAgentConfig(c, logOptions, allowUnknownConfig, false)
+}
+
+func newAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig, skipLogFile bool) (*agent.Config, error) {
 	ac := &agent.Config{}
 
 	if err := validateConfig(c); err != nil {
@@ -599,10 +624,10 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 	if c.Agent.LogSourceLocation {
 		logOptions = append(logOptions, log.WithSourceLocation())
 	}
-	var reopenableFile *log.ReopenableFile
-	if c.Agent.LogFile != "" {
+	var reopenableFile log.ReopenableWriteCloser
+	if c.Agent.LogFile != "" && !skipLogFile {
 		var err error
-		reopenableFile, err = log.NewReopenableFile(c.Agent.LogFile)
+		reopenableFile, err = log.NewOutputFile(c.Agent.LogFile, c.Agent.LogFileRotation)
 		if err != nil {
 			return nil, err
 		}
@@ -886,6 +911,10 @@ func checkForUnknownConfig(c *Config, l logrus.FieldLogger) (err error) {
 
 	if a := c.Agent; a != nil && len(a.UnusedKeyPositions) != 0 {
 		detectedUnknown("agent", a.UnusedKeyPositions)
+	}
+
+	if a := c.Agent; a != nil && a.LogFileRotation != nil && len(a.LogFileRotation.UnusedKeyPositions) != 0 {
+		detectedUnknown("log_file_rotation", a.LogFileRotation.UnusedKeyPositions)
 	}
 
 	if a := c.Agent; a != nil && a.Experimental.Broker != nil {

@@ -71,6 +71,27 @@ func TestParseConfig(t *testing.T) {
 			err:  "unable to decode configuration",
 		},
 		{
+			name: "log_file_rotation without log_path",
+			in: `
+				domains = ["domain.test"]
+				log_file_rotation {
+					max_size_mb = 100
+				}
+			`,
+			err: "log_path must be configured to use the log_file_rotation configuration section",
+		},
+		{
+			name: "log_file_rotation with a negative max_size_mb",
+			in: `
+				domains = ["domain.test"]
+				log_path = "/tmp/oidc.log"
+				log_file_rotation {
+					max_size_mb = -1
+				}
+			`,
+			err: "invalid log_file_rotation configuration section: max_size_mb (-1) must not be negative",
+		},
+		{
 			name: "no source section configured",
 			in: `
 				domains = ["domain.test"]

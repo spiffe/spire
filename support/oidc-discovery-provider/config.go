@@ -10,6 +10,7 @@ import (
 
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire/pkg/common/config"
+	"github.com/spiffe/spire/pkg/common/log"
 )
 
 const (
@@ -27,6 +28,11 @@ type Config struct {
 	LogFormat string `hcl:"log_format"`
 	LogLevel  string `hcl:"log_level"`
 	LogPath   string `hcl:"log_path"`
+
+	// LogFileRotation, when set, has the provider rotate LogPath itself. The
+	// provider does not handle SIGUSR2, so without it rotation is left to an
+	// external tool using logrotate's lossy copytruncate.
+	LogFileRotation *log.RotationConfig `hcl:"log_file_rotation"`
 
 	// LogRequests is a debug option that logs all incoming requests
 	LogRequests bool `hcl:"log_requests"`
@@ -234,6 +240,15 @@ func ParseConfig(hclConfig string) (_ *Config, err error) {
 
 	if c.LogLevel == "" {
 		c.LogLevel = defaultLogLevel
+	}
+
+	if c.LogFileRotation != nil {
+		if c.LogPath == "" {
+			return nil, errors.New("log_path must be configured to use the log_file_rotation configuration section")
+		}
+		if err := c.LogFileRotation.Validate(); err != nil {
+			return nil, fmt.Errorf("invalid log_file_rotation configuration section: %w", err)
+		}
 	}
 
 	if len(c.Domains) == 0 {

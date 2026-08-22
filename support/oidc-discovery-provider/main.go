@@ -57,7 +57,19 @@ func run(configPath string, expandEnv bool) error {
 		return err
 	}
 
-	log, err := log.NewLogger(log.WithLevel(config.LogLevel), log.WithFormat(config.LogFormat), log.WithOutputFile(config.LogPath))
+	logOptions := []log.Option{
+		log.WithLevel(config.LogLevel),
+		log.WithFormat(config.LogFormat),
+	}
+	if config.LogPath != "" {
+		outputFile, err := log.NewOutputFile(config.LogPath, config.LogFileRotation)
+		if err != nil {
+			return err
+		}
+		logOptions = append(logOptions, log.WithReopenableOutputFile(outputFile))
+	}
+
+	log, err := log.NewLogger(logOptions...)
 	if err != nil {
 		return err
 	}
