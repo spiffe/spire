@@ -379,9 +379,6 @@ func (c *client) NewX509SVIDs(ctx context.Context, csrs map[string][]byte) (map[
 }
 
 func (c *client) NewJWTSVID(ctx context.Context, entryID string, audience []string, hasCacheHit bool) (*JWTSVID, spiffeid.ID, error) {
-	c.c.RotMtx.RLock()
-	defer c.c.RotMtx.RUnlock()
-
 	timeout := rpcTimeout
 	if hasCacheHit {
 		timeout = RPCTimeoutWithCacheHit
