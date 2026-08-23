@@ -1391,10 +1391,10 @@ func (h *handlerTest) cleanup() {
 }
 
 func (h *handlerTest) setWorkloadUpdate(workloadCert *x509.Certificate) {
-	var workloadUpdate *cache.WorkloadUpdate
+	var workloadUpdate *cache.X509WorkloadUpdate
 	if workloadCert != nil {
-		workloadUpdate = &cache.WorkloadUpdate{
-			Identities: []cache.Identity{
+		workloadUpdate = &cache.X509WorkloadUpdate{
+			Identities: []cache.X509Identity{
 				{
 					Entry: &common.RegistrationEntry{
 						SpiffeId: "spiffe://domain.test/workload",
@@ -1433,26 +1433,26 @@ type FakeManager struct {
 	t *testing.T
 
 	mu   sync.Mutex
-	upd  *cache.WorkloadUpdate
+	upd  *cache.X509WorkloadUpdate
 	next int
-	subs map[int]chan *cache.WorkloadUpdate
+	subs map[int]chan *cache.X509WorkloadUpdate
 	err  error
 }
 
 func NewFakeManager(t *testing.T) *FakeManager {
 	return &FakeManager{
 		t:    t,
-		subs: make(map[int]chan *cache.WorkloadUpdate),
+		subs: make(map[int]chan *cache.X509WorkloadUpdate),
 	}
 }
 
-func (m *FakeManager) SubscribeToCacheChanges(_ context.Context, selectors cache.Selectors) (cache.Subscriber, error) {
+func (m *FakeManager) SubscribeToCacheChanges(_ context.Context, selectors cache.Selectors) (cache.Subscriber[cache.X509WorkloadUpdate], error) {
 	if m.err != nil {
 		return nil, m.err
 	}
 	require.Equal(m.t, workloadSelectors, selectors)
 
-	updch := make(chan *cache.WorkloadUpdate, 1)
+	updch := make(chan *cache.X509WorkloadUpdate, 1)
 	if m.upd != nil {
 		updch <- m.upd
 	}
@@ -1468,13 +1468,13 @@ func (m *FakeManager) SubscribeToCacheChanges(_ context.Context, selectors cache
 	}), nil
 }
 
-func (m *FakeManager) FetchWorkloadUpdate([]*common.Selector) *cache.WorkloadUpdate {
+func (m *FakeManager) FetchWorkloadUpdate([]*common.Selector) *cache.X509WorkloadUpdate {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.upd
 }
 
-func (m *FakeManager) SetWorkloadUpdate(upd *cache.WorkloadUpdate) {
+func (m *FakeManager) SetWorkloadUpdate(upd *cache.X509WorkloadUpdate) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -1490,18 +1490,18 @@ func (m *FakeManager) SetWorkloadUpdate(upd *cache.WorkloadUpdate) {
 }
 
 type FakeSubscriber struct {
-	updch <-chan *cache.WorkloadUpdate
+	updch <-chan *cache.X509WorkloadUpdate
 	done  func()
 }
 
-func NewFakeSubscriber(updch <-chan *cache.WorkloadUpdate, done func()) *FakeSubscriber {
+func NewFakeSubscriber(updch <-chan *cache.X509WorkloadUpdate, done func()) *FakeSubscriber {
 	return &FakeSubscriber{
 		updch: updch,
 		done:  done,
 	}
 }
 
-func (s *FakeSubscriber) Updates() <-chan *cache.WorkloadUpdate {
+func (s *FakeSubscriber) Updates() <-chan *cache.X509WorkloadUpdate {
 	return s.updch
 }
 

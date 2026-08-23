@@ -1,5 +1,10 @@
 # Server plugin: Notifier "gcs_bundle"
 
+> [!WARNING]
+> The Notifier plugin type is deprecated and will be removed in a future
+> release. Use the [`gcp_cloudstorage` BundlePublisher](/doc/plugin_server_bundlepublisher_gcp_cloudstorage.md)
+> plugin instead.
+
 The `gcs_bundle` plugin responds to bundle loaded/updated events by fetching and
 pushing the latest root CA certificates from the trust bundle to an object in
 Google Cloud Storage.
