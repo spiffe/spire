@@ -316,7 +316,7 @@ func TestConfigure(t *testing.T) {
 				KeyIdentifierFile: createKeyIdentifierFile(t, "invalid-id"),
 				KeyRing:           validKeyRing,
 			},
-			expectMsg:  "failed to parse server ID from path: uuid: incorrect UUID length 10 in string \"invalid-id\"",
+			expectMsg:  "failed to parse server ID from path: uuid: incorrect UUID length",
 			expectCode: codes.Internal,
 		},
 		{

@@ -1,0 +1,22 @@
+services:
+  spire-server:
+    image: spire-server:latest-local
+    hostname: spire-server
+    volumes:
+      - ./conf/server:/opt/spire/conf/server
+    command: ["-config", "/opt/spire/conf/server/server.conf"]
+  spire-agent:
+    image: spire-agent:latest-local
+    hostname: spire-agent
+    depends_on: ["spire-server"]
+    # Share the host PID and cgroup namespaces so the agent can attest a Slurm
+    # job that runs as a host process: SO_PEERCRED returns the real host PID and
+    # /proc/<pid>/cgroup shows the full slurmstepd.scope path. Network namespace
+    # is left as the default compose bridge so "spire-server" still resolves.
+    pid: host
+    cgroup: host
+    volumes:
+      - ./conf/agent:/opt/spire/conf/agent
+      # Host-shared workload API socket dir so the host Slurm job can connect.
+      - /tmp/slurm-spire-sockets:/opt/spire/sockets
+    command: ["-config", "/opt/spire/conf/agent/agent.conf"]

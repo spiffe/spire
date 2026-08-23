@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"math"
 	"net/url"
 	"strconv"
 	"strings"
@@ -235,7 +236,7 @@ func (ds *Plugin) CountBundles(ctx context.Context) (count int32, err error) {
 // ListBundles can be used to fetch all existing bundles.
 func (ds *Plugin) ListBundles(ctx context.Context, req *datastore.ListBundlesRequest) (resp *datastore.ListBundlesResponse, err error) {
 	if err = ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
-		resp, err = listBundles(tx, req)
+		resp, err = listBundles(tx, req, ds.db.databaseType)
 		return err
 	}); err != nil {
 		return nil, err
@@ -756,7 +757,7 @@ func (ds *Plugin) FetchFederationRelationship(ctx context.Context, trustDomain s
 // ListFederationRelationships can be used to list all existing federation relationships
 func (ds *Plugin) ListFederationRelationships(ctx context.Context, req *datastore.ListFederationRelationshipsRequest) (resp *datastore.ListFederationRelationshipsResponse, err error) {
 	if err = ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
-		resp, err = listFederationRelationships(tx, req)
+		resp, err = listFederationRelationships(tx, req, ds.db.databaseType)
 		return err
 	}); err != nil {
 		return nil, err
@@ -1402,7 +1403,7 @@ func countBundles(tx *gorm.DB) (int32, error) {
 }
 
 // listBundles can be used to fetch all existing bundles.
-func listBundles(tx *gorm.DB, req *datastore.ListBundlesRequest) (*datastore.ListBundlesResponse, error) {
+func listBundles(tx *gorm.DB, req *datastore.ListBundlesRequest, dbType string) (*datastore.ListBundlesResponse, error) {
 	if req.Pagination != nil && req.Pagination.PageSize == 0 {
 		return nil, status.Error(codes.InvalidArgument, "cannot paginate with pagesize = 0")
 	}
@@ -1410,7 +1411,7 @@ func listBundles(tx *gorm.DB, req *datastore.ListBundlesRequest) (*datastore.Lis
 	p := req.Pagination
 	var err error
 	if p != nil {
-		tx, err = applyPagination(p, tx)
+		tx, err = applyPagination(p, tx, dbType)
 		if err != nil {
 			return nil, err
 		}
@@ -1807,11 +1808,11 @@ func listAttestedNodeEvents(db *sqlDB, req *datastore.ListAttestedNodeEventsRequ
 			return nil, sqlcommon.NewWrappedSQLError(err)
 		}
 
-		if err := db.Find(&events, query.String(), id).Order("id asc").Error; err != nil {
+		if err := db.Order("id asc").Find(&events, query.String(), id).Error; err != nil {
 			return nil, sqlcommon.NewWrappedSQLError(err)
 		}
 	} else {
-		if err := db.Find(&events).Order("id asc").Error; err != nil {
+		if err := db.Order("id asc").Find(&events).Error; err != nil {
 			return nil, sqlcommon.NewWrappedSQLError(err)
 		}
 	}
@@ -2032,9 +2033,9 @@ func buildListAttestedNodesQueryCTE(req *datastore.ListAttestedNodesRequest, dbT
 
 	// Filter by pagination token
 	if req.Pagination != nil && req.Pagination.Token != "" {
-		token, err := strconv.ParseUint(req.Pagination.Token, 10, 32)
+		token, err := parsePaginationToken(req.Pagination.Token, dbType)
 		if err != nil {
-			return "", nil, status.Errorf(codes.InvalidArgument, "could not parse token '%v'", req.Pagination.Token)
+			return "", nil, err
 		}
 		builder.WriteString("\t\tAND id > ?")
 		args = append(args, token)
@@ -2275,9 +2276,9 @@ FROM attested_node_entries N
 
 		// Filter by pagination token
 		if req.Pagination != nil && req.Pagination.Token != "" {
-			token, err := strconv.ParseUint(req.Pagination.Token, 10, 32)
+			token, err := parsePaginationToken(req.Pagination.Token, MySQL)
 			if err != nil {
-				return status.Errorf(codes.InvalidArgument, "could not parse token '%v'", req.Pagination.Token)
+				return err
 			}
 			builder.WriteString(" AND N.id > ?")
 			args = append(args, token)
@@ -2692,7 +2693,9 @@ func createRegistrationEntry(tx *gorm.DB, entry *common.RegistrationEntry) (*com
 		}
 	}
 
-	registrationEntry, err := modelToEntry(tx, newRegisteredEntry)
+	// The federation associations were just written from federatesWith, so the
+	// trust domains are already known and do not need to be read back.
+	registrationEntry, err := modelToEntryWithFederatesWith(tx, newRegisteredEntry, bundlesToTrustDomains(federatesWith))
 	if err != nil {
 		return nil, err
 	}
@@ -3819,9 +3822,9 @@ func appendListRegistrationEntriesFilterQuery(filterExp string, builder *strings
 		}
 
 		if len(req.Pagination.Token) > 0 {
-			token, err := strconv.ParseUint(req.Pagination.Token, 10, 32)
+			token, err := parsePaginationToken(req.Pagination.Token, dbType)
 			if err != nil {
-				return false, nil, status.Errorf(codes.InvalidArgument, "could not parse token '%v'", req.Pagination.Token)
+				return false, nil, err
 			}
 			if len(root.children) == 1 && len(root.children[0].children) == 0 {
 				builder.WriteString(" AND ")
@@ -4076,16 +4079,16 @@ func fillEntryFromRow(entry *common.RegistrationEntry, r *entryRow) error {
 }
 
 // applyPagination  add order limit and token to current query
-func applyPagination(p *datastore.Pagination, entryTx *gorm.DB) (*gorm.DB, error) {
+func applyPagination(p *datastore.Pagination, entryTx *gorm.DB, dbType string) (*gorm.DB, error) {
 	if p.PageSize == 0 {
 		return nil, status.Error(codes.InvalidArgument, "cannot paginate with pagesize = 0")
 	}
 	entryTx = entryTx.Order("id asc").Limit(p.PageSize)
 
 	if len(p.Token) > 0 {
-		id, err := strconv.ParseUint(p.Token, 10, 32)
+		id, err := parsePaginationToken(p.Token, dbType)
 		if err != nil {
-			return nil, status.Errorf(codes.InvalidArgument, "could not parse token '%v'", p.Token)
+			return nil, err
 		}
 		entryTx = entryTx.Where("id > ?", id)
 	}
@@ -4193,15 +4196,15 @@ func updateRegistrationEntry(tx *gorm.DB, e *common.RegistrationEntry, mask *com
 		if err := tx.Model(&entry).Association("FederatesWith").Replace(federatesWith).Error; err != nil {
 			return nil, err
 		}
-		// The FederatesWith field in entry is filled in by the call to modelToEntry below
+
+		// The associations were just replaced with federatesWith, so the trust
+		// domains are already known and do not need to be read back.
+		return modelToEntryWithFederatesWith(tx, entry, bundlesToTrustDomains(federatesWith))
 	}
 
-	returnEntry, err := modelToEntry(tx, entry)
-	if err != nil {
-		return nil, err
-	}
-
-	return returnEntry, nil
+	// FederatesWith was not part of this update, so the existing associations are
+	// unchanged and have to be read to build the response.
+	return modelToEntry(tx, entry)
 }
 
 func deleteRegistrationEntry(tx *gorm.DB, entryID string) (*common.RegistrationEntry, error) {
@@ -4316,11 +4319,11 @@ func listRegistrationEntryEvents(db *sqlDB, req *datastore.ListRegistrationEntry
 			return nil, sqlcommon.NewWrappedSQLError(err)
 		}
 
-		if err := db.Find(&events, query.String(), id).Order("id asc").Error; err != nil {
+		if err := db.Order("id asc").Find(&events, query.String(), id).Error; err != nil {
 			return nil, sqlcommon.NewWrappedSQLError(err)
 		}
 	} else {
-		if err := db.Find(&events).Order("id asc").Error; err != nil {
+		if err := db.Order("id asc").Find(&events).Error; err != nil {
 			return nil, sqlcommon.NewWrappedSQLError(err)
 		}
 	}
@@ -4466,7 +4469,7 @@ func fetchFederationRelationship(tx *gorm.DB, trustDomain spiffeid.TrustDomain) 
 }
 
 // listFederationRelationships can be used to fetch all existing federation relationships.
-func listFederationRelationships(tx *gorm.DB, req *datastore.ListFederationRelationshipsRequest) (*datastore.ListFederationRelationshipsResponse, error) {
+func listFederationRelationships(tx *gorm.DB, req *datastore.ListFederationRelationshipsRequest, dbType string) (*datastore.ListFederationRelationshipsResponse, error) {
 	if req.Pagination != nil && req.Pagination.PageSize == 0 {
 		return nil, status.Error(codes.InvalidArgument, "cannot paginate with pagesize = 0")
 	}
@@ -4474,7 +4477,7 @@ func listFederationRelationships(tx *gorm.DB, req *datastore.ListFederationRelat
 	p := req.Pagination
 	var err error
 	if p != nil {
-		tx, err = applyPagination(p, tx)
+		tx, err = applyPagination(p, tx, dbType)
 		if err != nil {
 			return nil, err
 		}
@@ -4746,6 +4749,18 @@ func bundleToModel(pb *common.Bundle) (*Bundle, error) {
 }
 
 func modelToEntry(tx *gorm.DB, model RegisteredEntry) (*common.RegistrationEntry, error) {
+	var fetchedBundles []*Bundle
+	if err := tx.Model(&model).Association("FederatesWith").Find(&fetchedBundles).Error; err != nil {
+		return nil, sqlcommon.NewWrappedSQLError(err)
+	}
+
+	return modelToEntryWithFederatesWith(tx, model, bundlesToTrustDomains(fetchedBundles))
+}
+
+// modelToEntryWithFederatesWith builds the API representation of an entry for
+// callers that already know which trust domains the entry federates with. It
+// avoids reading the FederatesWith association back from the database.
+func modelToEntryWithFederatesWith(tx *gorm.DB, model RegisteredEntry, federatesWith []string) (*common.RegistrationEntry, error) {
 	var fetchedSelectors []*Selector
 	if err := tx.Model(&model).Related(&fetchedSelectors).Error; err != nil {
 		return nil, sqlcommon.NewWrappedSQLError(err)
@@ -4770,16 +4785,6 @@ func modelToEntry(tx *gorm.DB, model RegisteredEntry) (*common.RegistrationEntry
 		for _, fetchedDNS := range fetchedDNSs {
 			dnsList = append(dnsList, fetchedDNS.Value)
 		}
-	}
-
-	var fetchedBundles []*Bundle
-	if err := tx.Model(&model).Association("FederatesWith").Find(&fetchedBundles).Error; err != nil {
-		return nil, sqlcommon.NewWrappedSQLError(err)
-	}
-
-	var federatesWith []string
-	for _, bundle := range fetchedBundles {
-		federatesWith = append(federatesWith, bundle.TrustDomain)
 	}
 
 	AdditionalAttributes := &common.RegistrationEntry_AdditionalAttributes{}
@@ -4856,6 +4861,12 @@ func modelToCAJournal(model CAJournal) *datastore.CAJournal {
 }
 
 func makeFederatesWith(tx *gorm.DB, ids []string) ([]*Bundle, error) {
+	if len(ids) == 0 {
+		// The query below cannot match a row when there are no ids to look for,
+		// and the verification loop below has nothing to check, so skip both.
+		return nil, nil
+	}
+
 	var bundles []*Bundle
 	if err := tx.Where("trust_domain in (?)", ids).Find(&bundles).Error; err != nil {
 		return nil, err
@@ -4874,6 +4885,22 @@ func makeFederatesWith(tx *gorm.DB, ids []string) ([]*Bundle, error) {
 	}
 
 	return bundles, nil
+}
+
+// bundlesToTrustDomains returns the trust domains of the given bundles. The
+// bundle rows are unique per trust domain, so the result contains no duplicates
+// even when the same trust domain was requested more than once.
+func bundlesToTrustDomains(bundles []*Bundle) []string {
+	if len(bundles) == 0 {
+		return nil
+	}
+
+	trustDomains := make([]string, 0, len(bundles))
+	for _, bundle := range bundles {
+		trustDomains = append(trustDomains, bundle.TrustDomain)
+	}
+
+	return trustDomains
 }
 
 func bindVars(db *gorm.DB, query string) string {
@@ -5155,6 +5182,32 @@ func isPostgresDbType(dbType string) bool {
 
 func isSQLiteDbType(dbType string) bool {
 	return dbType == SQLite
+}
+
+// maxPaginationToken returns the largest ID value the dialect's primary key
+// column can represent. Models declare ID as a Go uint, which GORM maps to a
+// signed 32-bit integer on PostgreSQL and an unsigned 32-bit integer on
+// MySQL, so tokens above those bounds can never match an existing row.
+func maxPaginationToken(dbType string) uint64 {
+	switch {
+	case isPostgresDbType(dbType):
+		return math.MaxInt32
+	case isMySQLDbType(dbType):
+		return math.MaxUint32
+	default:
+		return math.MaxUint64
+	}
+}
+
+// parsePaginationToken parses a pagination token, clamping it to the largest
+// value the dialect can compare against. A token beyond every representable
+// ID selects no rows, which is the correct result for a page past the end.
+func parsePaginationToken(token string, dbType string) (uint64, error) {
+	id, err := strconv.ParseUint(token, 10, 64)
+	if err != nil {
+		return 0, status.Errorf(codes.InvalidArgument, "could not parse token '%v'", token)
+	}
+	return min(id, maxPaginationToken(dbType)), nil
 }
 
 func calculateResultPreallocation(pagination *datastore.Pagination) int32 {

@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor/awsiid/awsrsa1024"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor/awsiid/awsrsa2048"
 )
@@ -34,9 +35,13 @@ func TestGetAWSCACertificate(t *testing.T) {
 
 	// RSA-1024 falls back to a default cert for regions not in its map
 	t.Run("RSA1024/default_fallback", func(t *testing.T) {
-		cert, err := getAWSCACertificate("us-east-1", RSA1024)
+		defaultCA, err := pemutil.ParseCertificate([]byte(awsrsa1024.AWSCACert))
 		require.NoError(t, err)
-		assert.NotNil(t, cert)
+
+		cert, err := getAWSCACertificate("xx-fake-0", RSA1024)
+		require.NoError(t, err)
+		require.NotNil(t, cert)
+		assert.Equal(t, defaultCA, cert)
 	})
 
 	// RSA-2048 has no fallback — unknown regions must error

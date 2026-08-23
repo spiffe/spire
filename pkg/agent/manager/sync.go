@@ -28,29 +28,35 @@ type csrRequest struct {
 	CurrentSVIDExpiresAt time.Time
 }
 
-type SVIDCache interface {
+// taintedAuthorities carries the tainted authority key IDs reported by the
+// server. They drive SVID rotation but are not part of the cache's entry
+// state, so they are kept out of cache.UpdateEntries.
+type taintedAuthorities struct {
+	X509 []string
+	JWT  map[string]struct{}
+}
+
+// Implemented by both the LRU cache and the store cache as the common
+// interface for updating cached X509-SVIDs.
+type x509SVIDCache interface {
 	// UpdateEntries updates entries on cache
 	UpdateEntries(update *cache.UpdateEntries, checkSVID func(*common.RegistrationEntry, *common.RegistrationEntry, *cache.X509SVID) bool)
 
-	// UpdateSVIDs updates SVIDs on provided records
-	UpdateSVIDs(update *cache.UpdateSVIDs)
+	// UpdateX509SVIDs updates SVIDs on provided records
+	UpdateX509SVIDs(update map[string]*cache.X509SVID)
 
 	// GetStaleEntries gets a list of records that need update SVIDs
 	GetStaleEntries() []*cache.StaleEntry
-
-	// TaintX509SVIDs marks all SVIDs signed by a tainted X.509 authority as tainted
-	// to force their rotation.
-	TaintX509SVIDs(ctx context.Context, taintedX509Authorities []*x509.Certificate)
 }
 
 func (m *manager) syncSVIDs(ctx context.Context) (err error) {
-	m.cache.SyncSVIDsWithSubscribers()
-	return m.updateSVIDs(ctx, m.c.Log.WithField(telemetry.CacheType, "workload"), m.cache)
+	m.x509Cache.SyncSVIDsWithSubscribers()
+	return m.updateX509SVIDs(ctx, m.c.Log.WithField(telemetry.CacheType, "workload"), m.x509Cache)
 }
 
 // processTaintedAuthorities verifies if a new authority is tainted and forces rotation in all caches if required.
-func (m *manager) processTaintedAuthorities(ctx context.Context, bundle *spiffebundle.Bundle, x509Authorities []string, jwtAuthorities map[string]struct{}) error {
-	newTaintedX509Authorities := getNewItemsFromSlice(m.processedTaintedX509Authorities, x509Authorities)
+func (m *manager) processTaintedAuthorities(ctx context.Context, bundle *spiffebundle.Bundle, tainted *taintedAuthorities) error {
+	newTaintedX509Authorities := getNewItemsFromSlice(m.processedTaintedX509Authorities, tainted.X509)
 	if len(newTaintedX509Authorities) > 0 {
 		m.c.Log.WithField(telemetry.SubjectKeyIDs, strings.Join(newTaintedX509Authorities, ",")).
 			Debug("New tainted X.509 authorities found")
@@ -61,7 +67,7 @@ func (m *manager) processTaintedAuthorities(ctx context.Context, bundle *spiffeb
 		}
 
 		// Taint all regular X.509 SVIDs
-		m.cache.TaintX509SVIDs(ctx, taintedX509Authorities)
+		m.x509Cache.TaintX509SVIDs(ctx, taintedX509Authorities)
 
 		// Taint all SVIDStore SVIDs
 		m.svidStoreCache.TaintX509SVIDs(ctx, taintedX509Authorities)
@@ -76,13 +82,13 @@ func (m *manager) processTaintedAuthorities(ctx context.Context, bundle *spiffeb
 		}
 	}
 
-	newTaintedJWTAuthorities := getNewItemsFromMap(m.processedTaintedJWTAuthorities, jwtAuthorities)
+	newTaintedJWTAuthorities := getNewItemsFromMap(m.processedTaintedJWTAuthorities, tainted.JWT)
 	if len(newTaintedJWTAuthorities) > 0 {
 		m.c.Log.WithField(telemetry.JWTAuthorityKeyIDs, strings.Join(newTaintedJWTAuthorities, ",")).
 			Debug("New tainted JWT authorities found")
 
 		// Taint JWT-SVIDs in the cache
-		m.jwtCache.TaintJWTSVIDs(ctx, jwtAuthorities)
+		m.jwtCache.TaintJWTSVIDs(ctx, tainted.JWT)
 
 		for _, subjectKeyID := range newTaintedJWTAuthorities {
 			m.processedTaintedJWTAuthorities[subjectKeyID] = struct{}{}
@@ -95,21 +101,28 @@ func (m *manager) processTaintedAuthorities(ctx context.Context, bundle *spiffeb
 // synchronize fetches the authorized entries from the server, updates the
 // cache, and fetches missing/expiring SVIDs.
 func (m *manager) synchronize(ctx context.Context) (err error) {
-	cacheUpdate, storeUpdate, err := m.fetchEntries(ctx)
+	cacheUpdate, storeUpdate, tainted, err := m.fetchEntries(ctx)
 	if err != nil {
 		return err
 	}
 
+	// Update the shared bundle cache as soon as the latest bundles are
+	// available. This keeps bundle consumers (rotator, broker, bundle
+	// observer) in sync even if a later step (e.g. SVID fetching) fails, and
+	// avoids a stale bundle view relative to the workload cache, which is
+	// updated by updateX509SVIDCache below.
+	m.bundleCache.Update(cacheUpdate.Bundles)
+
 	// Process all tainted authorities. The bundle is shared between both caches using regular cache data.
-	if err := m.processTaintedAuthorities(ctx, cacheUpdate.Bundles[m.c.TrustDomain], cacheUpdate.TaintedX509Authorities, cacheUpdate.TaintedJWTAuthorities); err != nil {
+	if err := m.processTaintedAuthorities(ctx, cacheUpdate.Bundles[m.c.TrustDomain], tainted); err != nil {
 		return err
 	}
 
-	if err := m.updateCache(ctx, cacheUpdate, m.c.Log.WithField(telemetry.CacheType, telemetry_agent.CacheTypeWorkload), "", m.cache); err != nil {
+	if err := m.updateX509SVIDCache(ctx, cacheUpdate, m.c.Log.WithField(telemetry.CacheType, telemetry_agent.CacheTypeWorkload), "", m.x509Cache); err != nil {
 		return err
 	}
 
-	if err := m.updateCache(ctx, storeUpdate, m.c.Log.WithField(telemetry.CacheType, telemetry_agent.CacheTypeSVIDStore), telemetry_agent.CacheTypeSVIDStore, m.svidStoreCache); err != nil {
+	if err := m.updateX509SVIDCache(ctx, storeUpdate, m.c.Log.WithField(telemetry.CacheType, telemetry_agent.CacheTypeSVIDStore), telemetry_agent.CacheTypeSVIDStore, m.svidStoreCache); err != nil {
 		return err
 	}
 
@@ -118,7 +131,7 @@ func (m *manager) synchronize(ctx context.Context) (err error) {
 	return nil
 }
 
-func (m *manager) updateCache(ctx context.Context, update *cache.UpdateEntries, log logrus.FieldLogger, cacheType string, c SVIDCache) error {
+func (m *manager) updateX509SVIDCache(ctx context.Context, update *cache.UpdateEntries, log logrus.FieldLogger, cacheType string, c x509SVIDCache) error {
 	// update the cache and build a list of CSRs that need to be processed
 	// in this interval.
 	//
@@ -158,10 +171,10 @@ func (m *manager) updateCache(ctx context.Context, update *cache.UpdateEntries, 
 		log.WithField(telemetry.OutdatedSVIDs, outdated).Debug("Updating SVIDs with outdated attributes in cache")
 	}
 
-	return m.updateSVIDs(ctx, log, c)
+	return m.updateX509SVIDs(ctx, log, c)
 }
 
-func (m *manager) updateSVIDs(ctx context.Context, log logrus.FieldLogger, c SVIDCache) error {
+func (m *manager) updateX509SVIDs(ctx context.Context, log logrus.FieldLogger, c x509SVIDCache) error {
 	m.updateSVIDMu.Lock()
 	defer m.updateSVIDMu.Unlock()
 
@@ -187,17 +200,17 @@ func (m *manager) updateSVIDs(ctx context.Context, log logrus.FieldLogger, c SVI
 			})
 		}
 
-		update, err := m.fetchSVIDs(ctx, csrs)
+		svids, err := m.fetchX509SVIDs(ctx, csrs)
 		if err != nil {
 			return err
 		}
 		// the values in `update` now belong to the cache. DO NOT MODIFY.
-		c.UpdateSVIDs(update)
+		c.UpdateX509SVIDs(svids)
 	}
 	return nil
 }
 
-func (m *manager) fetchSVIDs(ctx context.Context, csrs []csrRequest) (_ *cache.UpdateSVIDs, err error) {
+func (m *manager) fetchX509SVIDs(ctx context.Context, csrs []csrRequest) (_ map[string]*cache.X509SVID, err error) {
 	// Put all the CSRs in an array to make just one call with all the CSRs.
 	counter := telemetry_agent.StartManagerFetchSVIDsUpdatesCall(m.c.Metrics)
 	defer counter.Done(&err)
@@ -276,14 +289,12 @@ func (m *manager) fetchSVIDs(ctx context.Context, csrs []csrRequest) (_ *cache.U
 		}
 	}
 
-	return &cache.UpdateSVIDs{
-		X509SVIDs: byEntryID,
-	}, nil
+	return byEntryID, nil
 }
 
 // fetchEntries fetches entries that the agent is entitled to, divided in lists, one for regular entries and
 // another one for storable entries
-func (m *manager) fetchEntries(ctx context.Context) (_ *cache.UpdateEntries, _ *cache.UpdateEntries, err error) {
+func (m *manager) fetchEntries(ctx context.Context) (_ *cache.UpdateEntries, _ *cache.UpdateEntries, _ *taintedAuthorities, err error) {
 	// Put all the CSRs in an array to make just one call with all the CSRs.
 	counter := telemetry_agent.StartManagerFetchEntriesUpdatesCall(m.c.Metrics)
 	defer counter.Done(&err)
@@ -292,7 +303,7 @@ func (m *manager) fetchEntries(ctx context.Context) (_ *cache.UpdateEntries, _ *
 	if m.c.UseSyncAuthorizedEntries {
 		stats, err := m.client.SyncUpdates(ctx, m.syncedEntries, m.syncedBundles)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 		telemetry_agent.SetSyncStats(m.c.Metrics, stats)
 		update = &client.Update{
@@ -302,13 +313,13 @@ func (m *manager) fetchEntries(ctx context.Context) (_ *cache.UpdateEntries, _ *
 	} else {
 		update, err = m.client.FetchUpdates(ctx)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 	}
 
 	bundles, err := parseBundles(update.Bundles)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	// Get all Subject Key IDs and KeyIDs of tainted authorities
@@ -319,7 +330,7 @@ func (m *manager) fetchEntries(ctx context.Context) (_ *cache.UpdateEntries, _ *
 			if rootCA.TaintedKey {
 				cert, err := x509.ParseCertificate(rootCA.DerBytes)
 				if err != nil {
-					return nil, nil, fmt.Errorf("failed to parse tainted x509 authority: %w", err)
+					return nil, nil, nil, fmt.Errorf("failed to parse tainted x509 authority: %w", err)
 				}
 				subjectKeyID := x509util.SubjectKeyIDToString(cert.SubjectKeyId)
 				taintedX509Authorities = append(taintedX509Authorities, subjectKeyID)
@@ -345,15 +356,14 @@ func (m *manager) fetchEntries(ctx context.Context) (_ *cache.UpdateEntries, _ *
 	}
 
 	return &cache.UpdateEntries{
-			Bundles:                bundles,
-			RegistrationEntries:    cacheEntries,
-			TaintedJWTAuthorities:  taintedJWTAuthorities,
-			TaintedX509Authorities: taintedX509Authorities,
+			Bundles:             bundles,
+			RegistrationEntries: cacheEntries,
 		}, &cache.UpdateEntries{
-			Bundles:                bundles,
-			RegistrationEntries:    storeEntries,
-			TaintedJWTAuthorities:  taintedJWTAuthorities,
-			TaintedX509Authorities: taintedX509Authorities,
+			Bundles:             bundles,
+			RegistrationEntries: storeEntries,
+		}, &taintedAuthorities{
+			X509: taintedX509Authorities,
+			JWT:  taintedJWTAuthorities,
 		}, nil
 }
 

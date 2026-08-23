@@ -6,6 +6,7 @@ import (
 
 	"github.com/mitchellh/cli"
 	"github.com/spiffe/spire/cmd/spire-agent/cli/api"
+	"github.com/spiffe/spire/cmd/spire-agent/cli/debug"
 	"github.com/spiffe/spire/cmd/spire-agent/cli/healthcheck"
 	"github.com/spiffe/spire/cmd/spire-agent/cli/logger"
 	"github.com/spiffe/spire/cmd/spire-agent/cli/run"
@@ -23,6 +24,9 @@ func (cc *CLI) Run(ctx context.Context, args []string) int {
 	c := cli.NewCLI("spire-agent", version.Version())
 	c.Args = args
 	c.Commands = map[string]cli.CommandFactory{
+		"debug getinfo": func() (cli.Command, error) {
+			return debug.NewGetInfoCommand(), nil
+		},
 		"api fetch": func() (cli.Command, error) {
 			return api.NewFetchX509Command(), nil
 		},
