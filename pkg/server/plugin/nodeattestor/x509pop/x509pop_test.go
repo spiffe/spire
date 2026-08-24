@@ -158,7 +158,7 @@ func (s *Suite) TestAttestSuccess() {
 			giveConfig:    s.createConfigurationModeSPIFFE(`group_template = "{{ .SVIDPathTrimmed }}"` + "\n" + `groups = ["testhost"]`),
 			certs:         s.svidExchange,
 			serialnumber:  "serialnumber:0a1b2c3d4e7f",
-			expectGroups:  []string{"group:testhost"},
+			expectGroups:  []string{"testhost"},
 		},
 		{
 			desc:          "group selector not emitted when path not allowed",
@@ -173,7 +173,7 @@ func (s *Suite) TestAttestSuccess() {
 			giveConfig:    s.createConfiguration("ca_bundle_path", `group_template = "{{ .Subject.CommonName }}"`+"\n"+`groups = ["COMMONNAME"]`),
 			certs:         s.leafBundle,
 			serialnumber:  "serialnumber:0a1b2c3d4e5f",
-			expectGroups:  []string{"group:COMMONNAME"},
+			expectGroups:  []string{"COMMONNAME"},
 		},
 		{
 			desc:          "success with multiple groups from a json array",
@@ -181,7 +181,7 @@ func (s *Suite) TestAttestSuccess() {
 			giveConfig:    s.createConfigurationModeSPIFFE(`group_template = "[\"{{ .SVIDPathTrimmed }}\", \"all-nodes\"]"` + "\n" + `groups = ["testhost", "all-nodes"]`),
 			certs:         s.svidExchange,
 			serialnumber:  "serialnumber:0a1b2c3d4e7f",
-			expectGroups:  []string{"group:testhost", "group:all-nodes"},
+			expectGroups:  []string{"testhost", "all-nodes"},
 		},
 		{
 			desc:          "success with multiple groups rendered with toJson",
@@ -189,7 +189,7 @@ func (s *Suite) TestAttestSuccess() {
 			giveConfig:    s.createConfigurationModeSPIFFE(`group_template = "{{ list .SVIDPathTrimmed \"all-nodes\" | toJson }}"` + "\n" + `groups = ["testhost", "all-nodes"]`),
 			certs:         s.svidExchange,
 			serialnumber:  "serialnumber:0a1b2c3d4e7f",
-			expectGroups:  []string{"group:testhost", "group:all-nodes"},
+			expectGroups:  []string{"testhost", "all-nodes"},
 		},
 		{
 			desc:          "json array is filtered by the groups list",
@@ -197,7 +197,7 @@ func (s *Suite) TestAttestSuccess() {
 			giveConfig:    s.createConfigurationModeSPIFFE(`group_template = "[\"{{ .SVIDPathTrimmed }}\", \"all-nodes\"]"` + "\n" + `groups = ["all-nodes"]`),
 			certs:         s.svidExchange,
 			serialnumber:  "serialnumber:0a1b2c3d4e7f",
-			expectGroups:  []string{"group:all-nodes"},
+			expectGroups:  []string{"all-nodes"},
 		},
 		{
 			desc:          "duplicate groups are emitted once",
@@ -205,7 +205,7 @@ func (s *Suite) TestAttestSuccess() {
 			giveConfig:    s.createConfigurationModeSPIFFE(`group_template = "[\"{{ .SVIDPathTrimmed }}\", \"{{ .SVIDPathTrimmed }}\"]"` + "\n" + `groups = ["testhost"]`),
 			certs:         s.svidExchange,
 			serialnumber:  "serialnumber:0a1b2c3d4e7f",
-			expectGroups:  []string{"group:testhost"},
+			expectGroups:  []string{"testhost"},
 		},
 		{
 			desc:          "surrounding whitespace is trimmed from the group",
@@ -213,7 +213,7 @@ func (s *Suite) TestAttestSuccess() {
 			giveConfig:    s.createConfigurationModeSPIFFE(`group_template = "\n{{ .SVIDPathTrimmed }}\n"` + "\n" + `groups = ["testhost"]`),
 			certs:         s.svidExchange,
 			serialnumber:  "serialnumber:0a1b2c3d4e7f",
-			expectGroups:  []string{"group:testhost"},
+			expectGroups:  []string{"testhost"},
 		},
 		{
 			desc:          "no group when the template renders nothing",
@@ -242,7 +242,7 @@ func (s *Suite) TestAttestSuccess() {
 			giveConfig:    s.createConfigurationModeSPIFFE(`group_template = "[{{ .SVIDPathTrimmed }}"` + "\n" + `groups = ["[testhost"]`),
 			certs:         s.svidExchange,
 			serialnumber:  "serialnumber:0a1b2c3d4e7f",
-			expectGroups:  []string{"group:[testhost"},
+			expectGroups:  []string{"[testhost"},
 		},
 	}
 
@@ -284,7 +284,7 @@ func (s *Suite) TestAttestSuccess() {
 			for _, expectGroup := range tt.expectGroups {
 				expectedSelectors = append(expectedSelectors, &common.Selector{
 					Type:  "x509pop",
-					Value: expectGroup,
+					Value: "group:" + expectGroup,
 				})
 			}
 
