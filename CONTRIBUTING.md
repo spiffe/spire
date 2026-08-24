@@ -76,9 +76,9 @@ conventions apply to the SPIRE repository:
 When you open a pull request, the description is pre-filled from our
 [pull request template](.github/PULL_REQUEST_TEMPLATE.md?plain=1), which
 explains how our review process works: the rotating "ball in court" assignee,
-re-requesting a review after you address comments, preferring new commits over
-force-pushing, and handling Copilot comments. Please follow the guidance shown
-there when you open and iterate on your PR.
+how the assignee moves as you push commits and discuss, preferring new commits
+over force-pushing, and handling Copilot comments. Please follow the guidance
+shown there when you open and iterate on your PR.
 
 ### SQL Plugin Changes
 

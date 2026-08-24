@@ -28,14 +28,14 @@ func FilterRegistrations(entries []*common.RegistrationEntry, log logrus.FieldLo
 
 // FilterIdentities returns identities whose underlying registration entries
 // survive hint deduplication. Same tie-breaking rules as FilterRegistrations.
-func FilterIdentities(identities []cache.Identity, log logrus.FieldLogger) []cache.Identity {
+func FilterIdentities(identities []cache.X509Identity, log logrus.FieldLogger) []cache.X509Identity {
 	entries := make([]*common.RegistrationEntry, 0, len(identities))
 	for _, identity := range identities {
 		entries = append(entries, identity.Entry)
 	}
 	entriesToRemove := getEntriesToRemove(entries, log)
 
-	var filteredIdentities []cache.Identity
+	var filteredIdentities []cache.X509Identity
 	for _, identity := range identities {
 		if _, ok := entriesToRemove[identity.Entry.EntryId]; !ok {
 			filteredIdentities = append(filteredIdentities, identity)

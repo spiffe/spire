@@ -1,5 +1,11 @@
 # Server plugin: Notifier "k8sbundle"
 
+> [!WARNING]
+> The Notifier plugin type is deprecated and will be removed in a future
+> release. Use the [`k8s_configmap` BundlePublisher](/doc/plugin_server_bundlepublisher_k8s_configmap.md)
+> plugin instead. Note that the BundlePublisher plugin does not support
+> rotating the CA bundle in webhooks or API services.
+
 The `k8sbundle` plugin responds to bundle loaded/updated events by fetching and
 pushing the latest root CA certificates from the trust bundle to a Kubernetes
 ConfigMap, and optionally Webhooks and APIServices.

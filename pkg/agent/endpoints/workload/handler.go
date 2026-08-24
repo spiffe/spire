@@ -33,10 +33,10 @@ import (
 )
 
 type Manager interface {
-	SubscribeToCacheChanges(ctx context.Context, key cache.Selectors) (cache.Subscriber, error)
+	SubscribeToCacheChanges(ctx context.Context, key cache.Selectors) (cache.Subscriber[cache.X509WorkloadUpdate], error)
 	MatchingRegistrationEntries(selectors []*common.Selector) []*common.RegistrationEntry
 	FetchJWTSVID(ctx context.Context, entry *common.RegistrationEntry, audience []string) (*client.JWTSVID, error)
-	FetchWorkloadUpdate([]*common.Selector) *cache.WorkloadUpdate
+	FetchWorkloadUpdate([]*common.Selector) *cache.X509WorkloadUpdate
 }
 
 type Attestor interface {
@@ -359,7 +359,7 @@ func (h *Handler) fetchJWTSVID(ctx context.Context, log logrus.FieldLogger, entr
 	}, nil
 }
 
-func (h *Handler) sendX509BundlesResponse(update *cache.WorkloadUpdate, stream workload.SpiffeWorkloadAPI_FetchX509BundlesServer, selectors []*common.Selector, log logrus.FieldLogger, previousResponse *workload.X509BundlesResponse, start time.Time) (*workload.X509BundlesResponse, error) {
+func (h *Handler) sendX509BundlesResponse(update *cache.X509WorkloadUpdate, stream workload.SpiffeWorkloadAPI_FetchX509BundlesServer, selectors []*common.Selector, log logrus.FieldLogger, previousResponse *workload.X509BundlesResponse, start time.Time) (*workload.X509BundlesResponse, error) {
 	ctx := stream.Context()
 	// The agent health check currently exercises the Workload API.
 	// Only log if it is not the agent itself.
@@ -389,7 +389,7 @@ func (h *Handler) sendX509BundlesResponse(update *cache.WorkloadUpdate, stream w
 	return resp, nil
 }
 
-func composeX509BundlesResponse(update *cache.WorkloadUpdate) (*workload.X509BundlesResponse, error) {
+func composeX509BundlesResponse(update *cache.X509WorkloadUpdate) (*workload.X509BundlesResponse, error) {
 	if update.Bundle == nil {
 		// This should be purely defensive since the cache should always supply
 		// a bundle.
@@ -409,7 +409,7 @@ func composeX509BundlesResponse(update *cache.WorkloadUpdate) (*workload.X509Bun
 	}, nil
 }
 
-func (h *Handler) sendX509SVIDResponse(update *cache.WorkloadUpdate, stream workload.SpiffeWorkloadAPI_FetchX509SVIDServer, selectors []*common.Selector, log logrus.FieldLogger, start time.Time) (err error) {
+func (h *Handler) sendX509SVIDResponse(update *cache.X509WorkloadUpdate, stream workload.SpiffeWorkloadAPI_FetchX509SVIDServer, selectors []*common.Selector, log logrus.FieldLogger, start time.Time) (err error) {
 	ctx := stream.Context()
 	// The agent health check currently exercises the Workload API.
 	// Only log if it is not the agent itself.
@@ -452,7 +452,7 @@ func (h *Handler) sendX509SVIDResponse(update *cache.WorkloadUpdate, stream work
 	return nil
 }
 
-func composeX509SVIDResponse(update *cache.WorkloadUpdate) (*workload.X509SVIDResponse, error) {
+func composeX509SVIDResponse(update *cache.X509WorkloadUpdate) (*workload.X509SVIDResponse, error) {
 	resp := new(workload.X509SVIDResponse)
 	resp.Svids = []*workload.X509SVID{}
 	resp.FederatedBundles = make(map[string][]byte)
@@ -485,7 +485,7 @@ func composeX509SVIDResponse(update *cache.WorkloadUpdate) (*workload.X509SVIDRe
 	return resp, nil
 }
 
-func (h *Handler) sendJWTBundlesResponse(update *cache.WorkloadUpdate, stream workload.SpiffeWorkloadAPI_FetchJWTBundlesServer, selectors []*common.Selector, log logrus.FieldLogger, previousResponse *workload.JWTBundlesResponse, start time.Time) (*workload.JWTBundlesResponse, error) {
+func (h *Handler) sendJWTBundlesResponse(update *cache.X509WorkloadUpdate, stream workload.SpiffeWorkloadAPI_FetchJWTBundlesServer, selectors []*common.Selector, log logrus.FieldLogger, previousResponse *workload.JWTBundlesResponse, start time.Time) (*workload.JWTBundlesResponse, error) {
 	ctx := stream.Context()
 	if !h.c.AllowUnauthenticatedVerifiers && !update.HasIdentity() {
 		h.logNoIdentityIssued(ctx, log, selectors, start)
@@ -510,7 +510,7 @@ func (h *Handler) sendJWTBundlesResponse(update *cache.WorkloadUpdate, stream wo
 	return resp, nil
 }
 
-func composeJWTBundlesResponse(update *cache.WorkloadUpdate) (*workload.JWTBundlesResponse, error) {
+func composeJWTBundlesResponse(update *cache.X509WorkloadUpdate) (*workload.JWTBundlesResponse, error) {
 	if update.Bundle == nil {
 		// This should be purely defensive since the cache should always supply
 		// a bundle.
