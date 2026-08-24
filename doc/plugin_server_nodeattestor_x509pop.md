@@ -136,12 +136,12 @@ path template can use `toJson`, which makes rendering a list straightforward:
 
 ### When a group can not be derived
 
-| Result                                                        | Effect                                                             |
-|---------------------------------------------------------------|--------------------------------------------------------------------|
-| A group that is not in `groups`                               | No selector for that group. Logged at debug level.                 |
-| Empty output, or an empty JSON array                          | No group selector. Logged at debug level.                          |
-| The template fails to execute                                 | No group selector. Attestation still succeeds, logged at debug.    |
-| `fail "reason"`                                               | **Attestation is denied.** The reason is logged, not returned.     |
+| Result                                                        | Effect                                                              |
+|---------------------------------------------------------------|---------------------------------------------------------------------|
+| A group that is not in `groups`                               | No selector for that group. Logged at debug level.                  |
+| Empty output, or an empty JSON array                          | No group selector. Logged at debug level.                           |
+| The template fails to execute                                 | No group selector. Attestation still succeeds, logged at debug.     |
+| `fail "reason"`                                               | **Attestation is denied.** The reason is logged, not returned.      |
 | Output shaped like a JSON array that can not be parsed        | **Attestation is denied.** The parse error is logged, not returned. |
 
 Template execution failures are not fatal because a template may legitimately
