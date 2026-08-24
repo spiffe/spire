@@ -2036,10 +2036,17 @@ func (s *Suite) TestAttestReferenceWithPodName_FallsBackToAPIServerWhenKubeletCl
 func (s *Suite) TestAttestReferenceDefaultBrokerUsesClusterScopeWhenKubeletClientDisabled() {
 	liveClient := fakeKubeClientWithSubjectAccessReview(true, nil, testAPIServerBlogPod())
 	metadataClient := fakeKubeMetadataClient(testAPIServerBlogPodMetadata())
-	// No broker block: the default entry falls back to cluster scope because
-	// node scope is unavailable when the kubelet client is disabled, so the
-	// pod resolves via the API server.
-	wa := s.loadPluginWithKubeClients(`disable_kubelet_client = true`, liveClient, metadataClient)
+	// The broker is not listed, so it gets the default entry, which falls back
+	// to cluster scope because node scope is unavailable when the kubelet
+	// client is disabled, so the pod resolves via the API server.
+	wa := s.loadPluginWithKubeClients(`
+		disable_kubelet_client = true
+		experimental {
+			broker {
+				access_policy = "permissive"
+			}
+		}
+	`, liveClient, metadataClient)
 
 	anyRef, err := anypb.New(&broker.KubernetesObjectReference{Type: &broker.KubernetesObjectType{Plural: "pods", Group: "core"}, Uid: testPodUID})
 	s.Require().NoError(err)
@@ -2233,14 +2240,34 @@ func (s *Suite) TestAttestReferenceKubernetesObjectValidation() {
 	}
 }
 
-func (s *Suite) TestAttestReferenceWithoutBrokerConfigUsesDefaultBroker() {
+func (s *Suite) TestAttestReferenceRequiresBrokerConfig() {
 	s.startInsecureKubelet()
 	p := s.loadInsecurePlugin()
+
+	anyRef, err := anypb.New(&broker.KubernetesObjectReference{Type: &broker.KubernetesObjectType{Plural: "pods", Group: "core"}, Uid: testPodUID})
+	s.Require().NoError(err)
+
+	selectors, err := p.AttestReference(testBrokerContext(), anyRef)
+	s.RequireGRPCStatusContains(err, codes.Internal, "broker configuration missing")
+	s.Require().Nil(selectors)
+}
+
+func (s *Suite) TestAttestReferenceUnlistedBrokerUsesDefaultEntry() {
+	s.startInsecureKubelet()
+	p := s.loadPluginWithKubeClient(fmt.Sprintf(`
+		kubelet_read_only_port = %d
+		max_poll_attempts = 5
+		poll_retry_interval = "1s"
+		experimental {
+			broker {
+				access_policy = "permissive"
+			}
+		}
+	`, s.kubeletPort()), fakeKubeClientWithSubjectAccessReview(true, nil))
 	s.addPodListResponse(podListFilePath)
 
-	// A broker caller resolves via the default (node-scoped) entry even when no
-	// broker block is configured; the plugin does not require brokers to be
-	// enumerated here.
+	// A broker caller with no entry in the brokers list resolves via the
+	// default (node-scoped) entry; brokers do not have to be enumerated.
 	anyRef, err := anypb.New(&broker.KubernetesObjectReference{Type: &broker.KubernetesObjectType{Plural: "pods", Group: "core"}, Uid: testPodUID})
 	s.Require().NoError(err)
 

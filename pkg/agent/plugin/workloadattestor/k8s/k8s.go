@@ -812,7 +812,7 @@ func (p *Plugin) checkBrokerImpersonationForReference(ctx context.Context, confi
 	if brokerEntry == nil {
 		return nil
 	}
-	if config.Broker == nil || config.Broker.AccessPolicy != brokerAccessPolicyEnforced {
+	if config.Broker.AccessPolicy != brokerAccessPolicyEnforced {
 		return nil
 	}
 	objRef := result.ObjectReference
@@ -854,15 +854,17 @@ func (p *Plugin) getBrokerEntryIfPresent(ctx context.Context, config *k8sConfig)
 		return nil, nil
 	}
 
+	if config.Broker == nil {
+		return nil, status.Error(codes.Internal, "broker configuration missing")
+	}
+
 	// The brokers map holds per-broker overrides only. A broker that is
-	// explicitly configured uses its entry; any other broker (including when
-	// no broker block is configured at all) falls back to the default entry
-	// below rather than being rejected. The agent's broker endpoint is the
-	// allowlist for which brokers may reach the plugin in the first place.
-	if config.Broker != nil {
-		if brokerEntry, ok := config.Broker.Brokers[callerID.String()]; ok {
-			return &brokerEntry, nil
-		}
+	// explicitly configured uses its entry; any other broker falls back to the
+	// default entry below rather than being rejected. The agent's broker
+	// endpoint is the allowlist for which brokers may reach the plugin in the
+	// first place.
+	if brokerEntry, ok := config.Broker.Brokers[callerID.String()]; ok {
+		return &brokerEntry, nil
 	}
 
 	// Synthesize the default entry: node scope, which limits the broker to

@@ -73,7 +73,7 @@ These are the current experimental configurations.
 | experimental               | Description                                                                                                                                           | Default |
 |:---------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------|---------|
 | `api_server.cache.enabled` | If true, enables a controller-runtime Kubernetes API server cache for object-reference lookups.                                                       | false   |
-| `broker`                   | Broker API options for `AttestReference`. Optional; when omitted, brokers get the default (node-scoped) configuration. See [Broker API](#broker-api). |         |
+| `broker`                   | Broker API options for `AttestReference`. Required when this plugin handles Broker API references. See [Broker API](#broker-api).                     |         |
 
 ## Sigstore feature
 
@@ -144,6 +144,10 @@ When SPIRE Agent's [SPIFFE Broker API](spire_agent.md#spiffe-broker-api) is
 enabled, the k8s workload attestor handles Broker API `AttestReference`
 requests for `WorkloadPIDReference` and `KubernetesObjectReference`.
 
+`AttestReference` requires an `experimental.broker` block in the plugin
+configuration, with `access_policy` set. The `brokers` list inside it is
+optional.
+
 The `experimental.broker.brokers` list carries **per-broker overrides**,
 naming brokers that need a wider scope than the default and configuring each
 one. A broker with no entry uses the **default broker configuration**:
@@ -156,16 +160,15 @@ nodes. When listed, broker IDs must be valid, unique, and non-empty.
 Which brokers may reach the plugin at all is decided by the agent's own broker
 endpoint (`experimental.broker.brokers` in the agent configuration), so the
 plugin serves every authorized broker with the default configuration unless an
-entry overrides it. The list may be empty or omitted — as may the whole
-`experimental.broker` block — leaving every broker on the default.
+entry overrides it. The list may be empty or omitted, leaving every broker on
+the default.
 
-The block-level `access_policy` setting (required when the `broker` block is
-present) controls whether the plugin creates Kubernetes `SubjectAccessReview`
-requests for resolved objects. Use `access_policy = "enforced"` to authorize
-every resolved object with Kubernetes before selectors are returned (the
-review uses the broker SPIFFE ID as the SAR username, so this applies to
-default brokers too). Use `access_policy = "permissive"` to skip that
-authorization check. With no `broker` block, behavior is permissive.
+The block-level `access_policy` setting is required and has no default. It
+controls whether the plugin creates Kubernetes `SubjectAccessReview` requests
+for resolved objects. Use `access_policy = "enforced"` to authorize every
+resolved object with Kubernetes before selectors are returned (the review uses
+the broker SPIFFE ID as the SAR username, so this applies to default brokers
+too). Use `access_policy = "permissive"` to skip that authorization check.
 
 > [!IMPORTANT]
 > In `permissive` mode, any broker the agent's broker endpoint forwarded can
