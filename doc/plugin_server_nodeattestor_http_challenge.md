@@ -18,7 +18,7 @@ spiffe://<trust_domain>/spire/agent/http_challenge/<hostname>
 | `required_port`         | Set to a port number to require clients to listen only on that port. If unset, all port numbers are allowed                                                                                                                         |                                     |
 | `allow_non_root_ports`  | Set to true to allow ports >= 1024 to be used by the agents with the advertised_port                                                                                                                                                | true                                |
 | `tofu`                  | Trust on first use of the successful challenge. Can only be disabled if allow_non_root_ports=false or required_port < 1024                                                                                                          | true                                |
-| `verify_client_ip`      | If `true`, validates the connecting peer's IP against DNS addresses for the attested hostname. Attestation fails if lookup fails or no address matches. Reflects the immediate connecting peer, which may be a load balancer.      | false                               |
+| `verify_client_ip`      | If `true`, validates the connecting peer's IP against DNS addresses for the attested hostname. Attestation fails if lookup fails or no address matches. Reflects the immediate connecting peer, which may be a load balancer.       | false                               |
 
 A sample configuration:
 
