@@ -3,6 +3,7 @@ package httpchallenge_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -21,7 +22,10 @@ import (
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/fakes/fakeagentstore"
 	"github.com/spiffe/spire/test/plugintest"
+	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/peer"
 )
 
 func TestConfigure(t *testing.T) {
@@ -504,7 +508,131 @@ func TestAttestSucceeds(t *testing.T) {
 	}
 }
 
+func TestVerifyClientIP(t *testing.T) {
+	payload := marshalPayload(t, &common_httpchallenge.AttestationData{
+		HostName:  "foo",
+		AgentName: "default",
+		Port:      80,
+	})
+	challengeFn := func(context.Context, []byte) ([]byte, error) {
+		return nil, nil
+	}
+	failingTransport := &http.Client{
+		Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+			t.Fatal("http challenge must not run when client IP verification fails")
+			return nil, errors.New("unreachable")
+		}),
+	}
+
+	t.Run("flag off does not look up DNS", func(t *testing.T) {
+		server, client := challengeServer(t)
+		defer server.Close()
+		lookedUp := false
+		plugin := loadPluginWithLookup(t, "", false, client, "123456789abcdefghijklmnopqrstuvwxyz", func(context.Context, string) ([]net.IP, error) {
+			lookedUp = true
+			return nil, errors.New("lookup should not run")
+		})
+		result, err := plugin.Attest(context.Background(), payload, challengeFn)
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		require.False(t, lookedUp)
+	})
+
+	t.Run("client IP not available", func(t *testing.T) {
+		plugin := loadPluginWithLookup(t, "verify_client_ip = true", false, failingTransport, "123456789abcdefghijklmnopqrstuvwxyz",
+			func(context.Context, string) ([]net.IP, error) {
+				t.Fatal("lookup should not run when client IP is missing")
+				return nil, errors.New("unreachable")
+			})
+		result, err := plugin.Attest(context.Background(), payload, challengeFn)
+		spiretest.RequireGRPCStatusContains(t, err, codes.Internal, "client IP not available for verification")
+		require.Nil(t, result)
+	})
+
+	t.Run("client IP does not match DNS", func(t *testing.T) {
+		plugin := loadPluginWithLookup(t, "verify_client_ip = true", false, failingTransport, "123456789abcdefghijklmnopqrstuvwxyz",
+			func(_ context.Context, host string) ([]net.IP, error) {
+				require.Equal(t, "foo", host)
+				return []net.IP{net.ParseIP("192.0.2.99")}, nil
+			})
+		ctx := peerContext(net.ParseIP("192.0.2.1"))
+		result, err := plugin.Attest(ctx, payload, challengeFn)
+		spiretest.RequireGRPCStatusContains(t, err, codes.PermissionDenied, "does not match any address for hostname")
+		require.Nil(t, result)
+	})
+
+	t.Run("lookup error", func(t *testing.T) {
+		plugin := loadPluginWithLookup(t, "verify_client_ip = true", false, failingTransport, "123456789abcdefghijklmnopqrstuvwxyz",
+			func(context.Context, string) ([]net.IP, error) {
+				return nil, errors.New("nxdomain")
+			})
+		ctx := peerContext(net.ParseIP("192.0.2.1"))
+		result, err := plugin.Attest(ctx, payload, challengeFn)
+		spiretest.RequireGRPCStatusContains(t, err, codes.Internal, "failed to resolve hostname \"foo\"")
+		require.Nil(t, result)
+	})
+
+	t.Run("empty lookup answers", func(t *testing.T) {
+		plugin := loadPluginWithLookup(t, "verify_client_ip = true", false, failingTransport, "123456789abcdefghijklmnopqrstuvwxyz",
+			func(context.Context, string) ([]net.IP, error) {
+				return nil, nil
+			})
+		ctx := peerContext(net.ParseIP("192.0.2.1"))
+		result, err := plugin.Attest(ctx, payload, challengeFn)
+		spiretest.RequireGRPCStatusContains(t, err, codes.PermissionDenied, "does not match any address for hostname")
+		require.Nil(t, result)
+	})
+
+	t.Run("client IPv4 matches DNS", func(t *testing.T) {
+		server, client := challengeServer(t)
+		defer server.Close()
+		lookedUp := ""
+		plugin := loadPluginWithLookup(t, "verify_client_ip = true", false, client, "123456789abcdefghijklmnopqrstuvwxyz",
+			func(_ context.Context, host string) ([]net.IP, error) {
+				lookedUp = host
+				return []net.IP{net.ParseIP("192.0.2.1")}, nil
+			})
+		ctx := peerContext(net.ParseIP("192.0.2.1"))
+		result, err := plugin.Attest(ctx, payload, challengeFn)
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		require.Equal(t, "foo", lookedUp)
+		require.Equal(t, "spiffe://example.org/spire/agent/http_challenge/foo", result.AgentID)
+	})
+
+	t.Run("client IPv6 matches DNS", func(t *testing.T) {
+		server, client := challengeServer(t)
+		defer server.Close()
+		ipv6 := net.ParseIP("2001:db8::1")
+		plugin := loadPluginWithLookup(t, "verify_client_ip = true", false, client, "123456789abcdefghijklmnopqrstuvwxyz",
+			func(context.Context, string) ([]net.IP, error) {
+				return []net.IP{ipv6}, nil
+			})
+		ctx := peerContext(ipv6)
+		result, err := plugin.Attest(ctx, payload, challengeFn)
+		require.NoError(t, err)
+		require.NotNil(t, result)
+	})
+
+	t.Run("peer is one of several DNS addresses", func(t *testing.T) {
+		server, client := challengeServer(t)
+		defer server.Close()
+		plugin := loadPluginWithLookup(t, "verify_client_ip = true", false, client, "123456789abcdefghijklmnopqrstuvwxyz",
+			func(context.Context, string) ([]net.IP, error) {
+				return []net.IP{net.ParseIP("192.0.2.1"), net.ParseIP("192.0.2.2")}, nil
+			})
+		ctx := peerContext(net.ParseIP("192.0.2.2"))
+		result, err := plugin.Attest(ctx, payload, challengeFn)
+		require.NoError(t, err)
+		require.NotNil(t, result)
+	})
+}
+
 func loadPlugin(t *testing.T, config string, testTOFU bool, client *http.Client, testNonce string) nodeattestor.NodeAttestor {
+	return loadPluginWithLookup(t, config, testTOFU, client, testNonce, nil)
+}
+
+func loadPluginWithLookup(t *testing.T, config string, testTOFU bool, client *http.Client, testNonce string, lookupIPs func(context.Context, string) ([]net.IP, error)) nodeattestor.NodeAttestor {
 	v1 := new(nodeattestor.V1)
 	agentStore := fakeagentstore.New()
 	var configureErr error
@@ -521,8 +649,32 @@ func loadPlugin(t *testing.T, config string, testTOFU bool, client *http.Client,
 			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
 		}),
 	}
-	plugintest.Load(t, httpchallenge.BuiltInTesting(client, testNonce), v1, opts...)
+	plugintest.Load(t, httpchallenge.BuiltInTestingWithLookup(client, testNonce, lookupIPs), v1, opts...)
 	return v1
+}
+
+func peerContext(ip net.IP) context.Context {
+	return peer.NewContext(context.Background(), &peer.Peer{
+		Addr: &net.TCPAddr{IP: ip, Port: 12345},
+	})
+}
+
+func challengeServer(t *testing.T) (*httptest.Server, *http.Client) {
+	t.Helper()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.HasPrefix(r.URL.Path, "/.well-known/spiffe/nodeattestor/http_challenge/") || !strings.HasSuffix(r.URL.Path, "/challenge") {
+			t.Errorf("Unexpected challenge path: %s", r.URL.Path)
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`123456789abcdefghijklmnopqrstuvwxyz`))
+	}))
+	return server, newClientWithLocalIntercept(server.URL)
+}
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
 }
 
 func marshalPayload(t *testing.T, attReq *common_httpchallenge.AttestationData) []byte {

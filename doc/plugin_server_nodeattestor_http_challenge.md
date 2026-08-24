@@ -12,12 +12,13 @@ The SPIFFE ID has the form:
 spiffe://<trust_domain>/spire/agent/http_challenge/<hostname>
 ```
 
-| Configuration           | Description                                                                                                                                               | Default                             |
-|-------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------|
-| `allowed_dns_patterns`  | A list of regular expressions to match to the hostname being attested. If none match, attestation will fail. If unset, all hostnames are allowed.         |                                     |
-| `required_port`         | Set to a port number to require clients to listen only on that port. If unset, all port numbers are allowed                                               |                                     |
-| `allow_non_root_ports`  | Set to true to allow ports >= 1024 to be used by the agents with the advertised_port                                                                      | true                                |
-| `tofu`                  | Trust on first use of the successful challenge. Can only be disabled if allow_non_root_ports=false or required_port < 1024                                | true                                |
+| Configuration           | Description                                                                                                                                                                                                                         | Default                             |
+|-------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------|
+| `allowed_dns_patterns`  | A list of regular expressions to match to the hostname being attested. If none match, attestation will fail. If unset, all hostnames are allowed.                                                                                   |                                     |
+| `required_port`         | Set to a port number to require clients to listen only on that port. If unset, all port numbers are allowed                                                                                                                         |                                     |
+| `allow_non_root_ports`  | Set to true to allow ports >= 1024 to be used by the agents with the advertised_port                                                                                                                                                | true                                |
+| `tofu`                  | Trust on first use of the successful challenge. Can only be disabled if allow_non_root_ports=false or required_port < 1024                                                                                                          | true                                |
+| `verify_client_ip`      | If `true`, validates the connecting peer's IP against DNS addresses for the attested hostname. Attestation fails if lookup fails or no address matches. Reflects the immediate connecting peer, which may be a load balancer.      | false                               |
 
 A sample configuration:
 
@@ -29,6 +30,9 @@ A sample configuration:
 
             # Only allow clients to use port 80
             required_port = 80
+
+            # Optional: when true, require the connecting peer IP to match a DNS address for the attested hostname
+            # verify_client_ip = true
 
             # Change the agent's SPIFFE ID format
             # agent_path_template = "/spire/agent/http_challenge/{{ .Hostname }}"
@@ -53,3 +57,5 @@ Trust On First Use (or TOFU) is one such option. For any given node, attestation
 With TOFU, it is still possible for non-agent code to complete node attestation before SPIRE Agent can, however this condition is easily and quickly detectable as SPIRE Agent will fail to start, and both SPIRE Agent and SPIRE Server will log the occurrence. Such cases should be investigated as possible security incidents.
 
 You also can require the port to be a trusted port that only trusted user such as root can open (port number < 1024).
+
+When `verify_client_ip` is enabled, the connecting peer's IP must match a DNS address for the attested hostname. This reflects the immediate peer and may be a load balancer rather than the agent.

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net"
 	"net/http"
 	"regexp"
 	"sync"
@@ -17,8 +18,10 @@ import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/httpchallenge"
 	"github.com/spiffe/spire/pkg/common/pluginconf"
+	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	nodeattestorbase "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/base"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 )
 
@@ -39,10 +42,19 @@ func disableHTTPRedirects(req *http.Request, via []*http.Request) error {
 }
 
 func BuiltInTesting(client *http.Client, forceNonce string) catalog.BuiltIn {
+	return BuiltInTestingWithLookup(client, forceNonce, nil)
+}
+
+// BuiltInTestingWithLookup is BuiltInTesting with a DNS lookup hook.
+// A nil lookupIPs uses the system resolver.
+func BuiltInTestingWithLookup(client *http.Client, forceNonce string, lookupIPs func(context.Context, string) ([]net.IP, error)) catalog.BuiltIn {
 	plugin := New()
 	plugin.client = client
 	plugin.client.CheckRedirect = disableHTTPRedirects
 	plugin.forceNonce = forceNonce
+	if lookupIPs != nil {
+		plugin.lookupIPs = lookupIPs
+	}
 	return builtin(plugin)
 }
 
@@ -59,6 +71,7 @@ type configuration struct {
 	allowNonRootPorts bool
 	dnsPatterns       []*regexp.Regexp
 	tofu              bool
+	verifyClientIP    bool
 }
 
 func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *configuration {
@@ -111,6 +124,7 @@ func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginco
 		requiredPort:      hclConfig.RequiredPort,
 		allowNonRootPorts: allowNonRootPorts,
 		tofu:              tofu,
+		verifyClientIP:    hclConfig.VerifyClientIP,
 	}
 }
 
@@ -119,6 +133,7 @@ type Config struct {
 	RequiredPort       *int     `hcl:"required_port"`
 	AllowNonRootPorts  *bool    `hcl:"allow_non_root_ports"`
 	TOFU               *bool    `hcl:"tofu"`
+	VerifyClientIP     bool     `hcl:"verify_client_ip"`
 }
 
 type Plugin struct {
@@ -133,6 +148,7 @@ type Plugin struct {
 
 	client     *http.Client
 	forceNonce string
+	lookupIPs  func(context.Context, string) ([]net.IP, error)
 }
 
 func New() *Plugin {
@@ -177,6 +193,12 @@ func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 
 	if err = validateHostName(attestationData.HostName, config.dnsPatterns); err != nil {
 		return err
+	}
+
+	if config.verifyClientIP {
+		if err := p.verifyConnectingClientIP(stream.Context(), attestationData.HostName); err != nil {
+			return err
+		}
 	}
 
 	challenge, err := httpchallenge.GenerateChallenge(p.forceNonce)
@@ -268,6 +290,49 @@ func (p *Plugin) getConfig() (*configuration, error) {
 		return nil, status.Errorf(codes.FailedPrecondition, "not configured")
 	}
 	return p.config, nil
+}
+
+func (p *Plugin) verifyConnectingClientIP(ctx context.Context, hostName string) error {
+	ips := metadata.ValueFromIncomingContext(ctx, nodeattestor.XForwardedClientIPKey)
+	if len(ips) == 0 || ips[0] == "" {
+		return status.Error(codes.Internal, "client IP not available for verification")
+	}
+	if len(ips) > 1 && p.log != nil {
+		p.log.Warn("Multiple client IP values found in metadata, using first value")
+	}
+	clientIP := net.ParseIP(ips[0])
+	if clientIP == nil {
+		return status.Errorf(codes.Internal, "invalid client IP %q", ips[0])
+	}
+
+	lookup := p.lookupIPs
+	if lookup == nil {
+		lookup = defaultLookupIPs
+	}
+	resolved, err := lookup(ctx, hostName)
+	if err != nil {
+		return status.Errorf(codes.Internal, "failed to resolve hostname %q: %v", hostName, err)
+	}
+	for _, resolvedIP := range resolved {
+		if resolvedIP.Equal(clientIP) {
+			return nil
+		}
+	}
+	return status.Errorf(codes.PermissionDenied, "client IP %s does not match any address for hostname %q", clientIP, hostName)
+}
+
+func defaultLookupIPs(ctx context.Context, host string) ([]net.IP, error) {
+	addrs, err := net.DefaultResolver.LookupIPAddr(ctx, host)
+	if err != nil {
+		return nil, err
+	}
+	ips := make([]net.IP, 0, len(addrs))
+	for _, addr := range addrs {
+		if addr.IP != nil {
+			ips = append(ips, addr.IP)
+		}
+	}
+	return ips, nil
 }
 
 func buildSelectorValues(hostName string) []string {
