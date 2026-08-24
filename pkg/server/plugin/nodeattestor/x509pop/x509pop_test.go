@@ -19,6 +19,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	identityproviderv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/hostservice/server/identityprovider/v1"
 	plugintypes "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/types"
@@ -94,12 +96,12 @@ func (s *Suite) SetupTest() {
 
 func (s *Suite) TestAttestSuccess() {
 	tests := []struct {
-		desc              string
-		giveConfig        string
-		expectAgentID     string
-		certs             [][]byte
-		serialnumber      string
-		expectGroup       string
+		desc          string
+		giveConfig    string
+		expectAgentID string
+		certs         [][]byte
+		serialnumber  string
+		expectGroups  []string
 	}{
 		{
 			desc:          "default success (ca_bundle_path)",
@@ -153,17 +155,94 @@ func (s *Suite) TestAttestSuccess() {
 		{
 			desc:          "success with group selector",
 			expectAgentID: "spiffe://example.org/spire/agent/x509pop/testhost",
-			giveConfig:    s.createConfigurationModeSPIFFE(`group_path_template = "{{ .SVIDPathTrimmed }}"` + "\n" + `groups = ["testhost"]`),
+			giveConfig:    s.createConfigurationModeSPIFFE(`group_template = "{{ .SVIDPathTrimmed }}"` + "\n" + `groups = ["testhost"]`),
 			certs:         s.svidExchange,
 			serialnumber:  "serialnumber:0a1b2c3d4e7f",
-			expectGroup:   "group:testhost",
+			expectGroups:  []string{"group:testhost"},
 		},
 		{
 			desc:          "group selector not emitted when path not allowed",
 			expectAgentID: "spiffe://example.org/spire/agent/x509pop/testhost",
-			giveConfig:    s.createConfigurationModeSPIFFE(`group_path_template = "{{ .SVIDPathTrimmed }}"` + "\n" + `groups = ["other"]`),
+			giveConfig:    s.createConfigurationModeSPIFFE(`group_template = "{{ .SVIDPathTrimmed }}"` + "\n" + `groups = ["other"]`),
 			certs:         s.svidExchange,
 			serialnumber:  "serialnumber:0a1b2c3d4e7f",
+		},
+		{
+			desc:          "success with group selector in external_pki mode",
+			expectAgentID: "spiffe://example.org/spire/agent/x509pop/" + x509pop.Fingerprint(s.leafCert),
+			giveConfig:    s.createConfiguration("ca_bundle_path", `group_template = "{{ .Subject.CommonName }}"`+"\n"+`groups = ["COMMONNAME"]`),
+			certs:         s.leafBundle,
+			serialnumber:  "serialnumber:0a1b2c3d4e5f",
+			expectGroups:  []string{"group:COMMONNAME"},
+		},
+		{
+			desc:          "success with multiple groups from a json array",
+			expectAgentID: "spiffe://example.org/spire/agent/x509pop/testhost",
+			giveConfig:    s.createConfigurationModeSPIFFE(`group_template = "[\"{{ .SVIDPathTrimmed }}\", \"all-nodes\"]"` + "\n" + `groups = ["testhost", "all-nodes"]`),
+			certs:         s.svidExchange,
+			serialnumber:  "serialnumber:0a1b2c3d4e7f",
+			expectGroups:  []string{"group:testhost", "group:all-nodes"},
+		},
+		{
+			desc:          "success with multiple groups rendered with toJson",
+			expectAgentID: "spiffe://example.org/spire/agent/x509pop/testhost",
+			giveConfig:    s.createConfigurationModeSPIFFE(`group_template = "{{ list .SVIDPathTrimmed \"all-nodes\" | toJson }}"` + "\n" + `groups = ["testhost", "all-nodes"]`),
+			certs:         s.svidExchange,
+			serialnumber:  "serialnumber:0a1b2c3d4e7f",
+			expectGroups:  []string{"group:testhost", "group:all-nodes"},
+		},
+		{
+			desc:          "json array is filtered by the groups list",
+			expectAgentID: "spiffe://example.org/spire/agent/x509pop/testhost",
+			giveConfig:    s.createConfigurationModeSPIFFE(`group_template = "[\"{{ .SVIDPathTrimmed }}\", \"all-nodes\"]"` + "\n" + `groups = ["all-nodes"]`),
+			certs:         s.svidExchange,
+			serialnumber:  "serialnumber:0a1b2c3d4e7f",
+			expectGroups:  []string{"group:all-nodes"},
+		},
+		{
+			desc:          "duplicate groups are emitted once",
+			expectAgentID: "spiffe://example.org/spire/agent/x509pop/testhost",
+			giveConfig:    s.createConfigurationModeSPIFFE(`group_template = "[\"{{ .SVIDPathTrimmed }}\", \"{{ .SVIDPathTrimmed }}\"]"` + "\n" + `groups = ["testhost"]`),
+			certs:         s.svidExchange,
+			serialnumber:  "serialnumber:0a1b2c3d4e7f",
+			expectGroups:  []string{"group:testhost"},
+		},
+		{
+			desc:          "surrounding whitespace is trimmed from the group",
+			expectAgentID: "spiffe://example.org/spire/agent/x509pop/testhost",
+			giveConfig:    s.createConfigurationModeSPIFFE(`group_template = "\n{{ .SVIDPathTrimmed }}\n"` + "\n" + `groups = ["testhost"]`),
+			certs:         s.svidExchange,
+			serialnumber:  "serialnumber:0a1b2c3d4e7f",
+			expectGroups:  []string{"group:testhost"},
+		},
+		{
+			desc:          "no group when the template renders nothing",
+			expectAgentID: "spiffe://example.org/spire/agent/x509pop/testhost",
+			giveConfig:    s.createConfigurationModeSPIFFE(`group_template = "{{ if hasKey .URISanSelectors \"nope\" }}{{ .URISanSelectors.nope }}{{ end }}"` + "\n" + `groups = ["testhost"]`),
+			certs:         s.svidExchange,
+			serialnumber:  "serialnumber:0a1b2c3d4e7f",
+		},
+		{
+			desc:          "no group when the template renders an empty json array",
+			expectAgentID: "spiffe://example.org/spire/agent/x509pop/testhost",
+			giveConfig:    s.createConfigurationModeSPIFFE(`group_template = "[]"` + "\n" + `groups = ["testhost"]`),
+			certs:         s.svidExchange,
+			serialnumber:  "serialnumber:0a1b2c3d4e7f",
+		},
+		{
+			desc:          "no group when the template fails to execute",
+			expectAgentID: "spiffe://example.org/spire/agent/x509pop/testhost",
+			giveConfig:    s.createConfigurationModeSPIFFE(`group_template = "{{ .URISanSelectors.nope }}"` + "\n" + `groups = ["testhost"]`),
+			certs:         s.svidExchange,
+			serialnumber:  "serialnumber:0a1b2c3d4e7f",
+		},
+		{
+			desc:          "output that is not a complete json array is treated as plain text",
+			expectAgentID: "spiffe://example.org/spire/agent/x509pop/testhost",
+			giveConfig:    s.createConfigurationModeSPIFFE(`group_template = "[{{ .SVIDPathTrimmed }}"` + "\n" + `groups = ["[testhost"]`),
+			certs:         s.svidExchange,
+			serialnumber:  "serialnumber:0a1b2c3d4e7f",
+			expectGroups:  []string{"group:[testhost"},
 		},
 	}
 
@@ -202,10 +281,10 @@ func (s *Suite) TestAttestSuccess() {
 				{Type: "x509pop", Value: "san:key:path/to/value"},
 			}
 
-			if tt.expectGroup != "" {
+			for _, expectGroup := range tt.expectGroups {
 				expectedSelectors = append(expectedSelectors, &common.Selector{
 					Type:  "x509pop",
-					Value: tt.expectGroup,
+					Value: expectGroup,
 				})
 			}
 
@@ -373,6 +452,20 @@ func (s *Suite) TestAttestFailure() {
 		attestFails(t, attestor, payload, codes.InvalidArgument,
 			"nodeattestor(x509pop): intermediate certificate 0 key size too large")
 	})
+
+	s.T().Run("group template rejects the node", func(t *testing.T) {
+		attestor := s.loadPlugin(t, s.createConfigurationModeSPIFFE(`group_template = "{{ fail \"rejected for a reason\" }}"`+"\n"+`groups = ["testhost"]`))
+
+		challengeResponseFails(t, attestor, s.svidExchange, "", true, codes.PermissionDenied,
+			"nodeattestor(x509pop): node rejected by group policy")
+	})
+
+	s.T().Run("group template produces invalid json", func(t *testing.T) {
+		attestor := s.loadPlugin(t, s.createConfigurationModeSPIFFE(`group_template = "[\"testhost\" \"all-nodes\"]"`+"\n"+`groups = ["testhost"]`))
+
+		challengeResponseFails(t, attestor, s.svidExchange, "", true, codes.PermissionDenied,
+			"nodeattestor(x509pop): group template produced invalid output")
+	})
 }
 
 func (s *Suite) TestConfigure() {
@@ -503,21 +596,132 @@ func (s *Suite) TestConfigure() {
 		require.NoError(t, err)
 	})
 
-	s.T().Run("invalid group_path_template", func(t *testing.T) {
+	s.T().Run("invalid group_template", func(t *testing.T) {
 		err := doConfig(t, coreConfig, `
 		mode = "spiffe"
-		group_path_template = "{{ .Invalid"
+		group_template = "{{ .Invalid"
 		groups = ["/foo"]
 		`)
-		spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, "failed to parse group path template")
+		spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, "failed to parse group template")
 	})
 
-	s.T().Run("group_path_template without allowed list", func(t *testing.T) {
+	s.T().Run("group_template without allowed list", func(t *testing.T) {
 		err := doConfig(t, coreConfig, `
 		mode = "spiffe"
-		group_path_template = "{{ .SVIDPathTrimmed }}"
+		group_template = "{{ .SVIDPathTrimmed }}"
 		`)
-		spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, "groups must be set when group_path_template is configured")
+		spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, "groups must be set when group_template is configured")
+	})
+
+	s.T().Run("invalid group_template reports the reason", func(t *testing.T) {
+		err := doConfig(t, coreConfig, `
+		mode = "spiffe"
+		group_template = "{{ .Invalid"
+		groups = ["/foo"]
+		`)
+		spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, "unclosed action")
+	})
+
+	s.T().Run("groups without group_template", func(t *testing.T) {
+		err := doConfig(t, coreConfig, `
+		mode = "spiffe"
+		groups = ["/foo"]
+		`)
+		spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, "group_template must be set when groups is configured")
+	})
+
+	s.T().Run("group_template can use the json functions", func(t *testing.T) {
+		err := doConfig(t, coreConfig, `
+		mode = "spiffe"
+		group_template = "{{ list .SVIDPathTrimmed | toJson }}"
+		groups = ["/foo"]
+		`)
+		require.NoError(t, err)
+	})
+
+	s.T().Run("agent_path_template can not use the json functions", func(t *testing.T) {
+		err := doConfig(t, coreConfig, `
+		mode = "spiffe"
+		agent_path_template = "{{ toJson . }}"
+		`)
+		spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, "failed to parse agent svid template")
+	})
+}
+
+func (s *Suite) TestGroupTemplateLogging() {
+	attest := func(t *testing.T, extraConfig string) ([]*logrus.Entry, error) {
+		log, hook := test.NewNullLogger()
+		log.SetLevel(logrus.DebugLevel)
+
+		attestor := s.loadPluginFull(t, s.createConfigurationModeSPIFFE(extraConfig), nil, plugintest.Log(log))
+		payload := marshal(t, &x509pop.AttestationData{Certificates: s.svidExchange})
+
+		_, err := attestor.Attest(context.Background(), payload, func(_ context.Context, challenge []byte) ([]byte, error) {
+			popChallenge := new(x509pop.Challenge)
+			unmarshal(t, challenge, popChallenge)
+			response, err := x509pop.CalculateResponse(s.leafKey, popChallenge)
+			require.NoError(t, err)
+			return marshal(t, response), nil
+		})
+		return hook.AllEntries(), err
+	}
+
+	requireLogged := func(t *testing.T, entries []*logrus.Entry, level logrus.Level, message string, containsField string) {
+		t.Helper()
+		for _, entry := range entries {
+			if entry.Message != message {
+				continue
+			}
+			require.Equal(t, level, entry.Level, "unexpected level for log entry %q", message)
+			if containsField != "" {
+				require.Contains(t, fmt.Sprint(entry.Data), containsField)
+			}
+			return
+		}
+		require.Failf(t, "log entry not found", "no entry with message %q in %v", message, entries)
+	}
+
+	s.T().Run("group not in the configured list", func(t *testing.T) {
+		entries, err := attest(t, `group_template = "{{ .SVIDPathTrimmed }}"`+"\n"+`groups = ["other"]`)
+		require.NoError(t, err)
+
+		spiretest.AssertLogsContainEntries(t, entries, []spiretest.LogEntry{
+			{
+				Level:   logrus.DebugLevel,
+				Message: "Group not in the configured groups list",
+				Data:    logrus.Fields{"group": "testhost"},
+			},
+		})
+	})
+
+	s.T().Run("template renders no groups", func(t *testing.T) {
+		entries, err := attest(t, `group_template = "[]"`+"\n"+`groups = ["testhost"]`)
+		require.NoError(t, err)
+
+		requireLogged(t, entries, logrus.DebugLevel, "Group template produced no groups", "")
+	})
+
+	s.T().Run("template fails to execute", func(t *testing.T) {
+		entries, err := attest(t, `group_template = "{{ .URISanSelectors.nope }}"`+"\n"+`groups = ["testhost"]`)
+		require.NoError(t, err)
+
+		requireLogged(t, entries, logrus.DebugLevel, "Failed to execute group template", "map has no entry for key")
+	})
+
+	s.T().Run("rejection reason is logged but not returned", func(t *testing.T) {
+		entries, err := attest(t, `group_template = "{{ fail \"rejected for a reason\" }}"`+"\n"+`groups = ["testhost"]`)
+		spiretest.RequireGRPCStatusContains(t, err, codes.PermissionDenied, "node rejected by group policy")
+		require.NotContains(t, err.Error(), "rejected for a reason")
+
+		requireLogged(t, entries, logrus.WarnLevel, "Node rejected by group template", "rejected for a reason")
+	})
+
+	s.T().Run("json error is logged but not returned", func(t *testing.T) {
+		entries, err := attest(t, `group_template = "[\"testhost\" \"all-nodes\"]"`+"\n"+`groups = ["testhost"]`)
+		spiretest.RequireGRPCStatusContains(t, err, codes.PermissionDenied, "group template produced invalid output")
+		require.NotContains(t, err.Error(), "invalid character")
+
+		requireLogged(t, entries, logrus.ErrorLevel, "Group template produced invalid output", "invalid character")
 	})
 }
 
@@ -525,7 +729,7 @@ func (s *Suite) loadPlugin(t *testing.T, config string) nodeattestor.NodeAttesto
 	return s.loadPluginFull(t, config, nil)
 }
 
-func (s *Suite) loadPluginFull(t *testing.T, config string, identityProvider *fakeidentityprovider.IdentityProvider) nodeattestor.NodeAttestor {
+func (s *Suite) loadPluginFull(t *testing.T, config string, identityProvider *fakeidentityprovider.IdentityProvider, extraOptions ...plugintest.Option) nodeattestor.NodeAttestor {
 	v1 := new(nodeattestor.V1)
 
 	if identityProvider == nil {
@@ -544,13 +748,14 @@ func (s *Suite) loadPluginFull(t *testing.T, config string, identityProvider *fa
 		identityProvider = fakeidentityprovider.New()
 		identityProvider.AppendBundle(bundle)
 	}
-	plugintest.Load(t, BuiltIn(), v1,
+	options := append([]plugintest.Option{
 		plugintest.HostServices(identityproviderv1.IdentityProviderServiceServer(identityProvider)),
 		plugintest.CoreConfig(catalog.CoreConfig{
 			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
 		}),
 		plugintest.Configure(config),
-	)
+	}, extraOptions...)
+	plugintest.Load(t, BuiltIn(), v1, options...)
 	return v1
 }
 
