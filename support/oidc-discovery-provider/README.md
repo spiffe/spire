@@ -61,8 +61,8 @@ The configuration file is **required** by the provider. It contains
 |--------------------------|--------|--------------------|------------------------------------------------------|---------|
 | `listen_named_pipe_name` | string | required\[1\]\[3\] | Pipe name to listen with a named pipe. Windows only. |         |
 
-| log_file_rotation | Type | Required? | Description                                                                                      | Default |
-|-------------------|------|-----------|--------------------------------------------------------------------------------------------------|---------|
+| log_file_rotation | Type | Required? | Description                                                                                       | Default |
+|-------------------|------|-----------|---------------------------------------------------------------------------------------------------|---------|
 | `max_size_mb`     | int  | optional  | Size in MiB `log_path` may reach before it is rotated. `0` disables size based rotation.          | `0`     |
 | `max_files`       | int  | optional  | Rotated files to retain, not counting the active file. `0` retains every rotated file.            | `0`     |
 | `max_age_days`    | int  | optional  | Age in days beyond which a rotated file is removed. `0` retains rotated files regardless of age.  | `0`     |
