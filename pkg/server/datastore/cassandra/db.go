@@ -20,9 +20,7 @@ type cassandraDB struct {
 }
 
 func (c *cassandraDB) WriteQuery(wq qb.QueryBuilder) *gocql.Query {
-	stmt, _ := wq.Build()
-
-	query := c.session.Query(stmt, wq.QueryValues()...)
+	query := c.session.Query(wq.ToCQL(), wq.QueryValues()...)
 	query.Consistency(c.cfg.WriteConsistency)
 
 	return query
@@ -57,6 +55,7 @@ func (p *Plugin) openConnection(ctx context.Context, config *runtimeConfiguratio
 		cfg: config,
 		log: p.log,
 	}
+
 	db.session, err = p.createSession(config)
 	if err != nil {
 		return fmt.Errorf("failed to create Cassandra session: %w", err)
