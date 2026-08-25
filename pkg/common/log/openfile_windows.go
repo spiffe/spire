@@ -6,21 +6,17 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-// openLogFile opens the log file for appending, allowing other processes to
-// rename or delete it while SPIRE keeps writing.
-//
-// os.OpenFile cannot be used here because Go opens files with FILE_SHARE_READ
-// and FILE_SHARE_WRITE only. Without FILE_SHARE_DELETE our own handle is what
-// denies the rename, so an external rotator cannot move the file aside the way
-// it can on POSIX.
+// openLogFile opens the log file for appending. It does not use os.OpenFile
+// because Go opens files with FILE_SHARE_READ and FILE_SHARE_WRITE only, and
+// without FILE_SHARE_DELETE our own handle is what denies an external rename.
 func openLogFile(name string) (*os.File, error) {
 	namep, err := windows.UTF16PtrFromString(name)
 	if err != nil {
 		return nil, &os.PathError{Op: "open", Path: name, Err: err}
 	}
 
-	// The access rights mirror what Go grants for os.O_APPEND, which appends at
-	// the end of the file rather than at the current offset.
+	// The rights Go grants for os.O_APPEND. GENERIC_WRITE is deliberately absent
+	// since it would append at the start of the file rather than the end.
 	const access = windows.FILE_APPEND_DATA |
 		windows.FILE_WRITE_ATTRIBUTES |
 		windows.FILE_WRITE_EA |

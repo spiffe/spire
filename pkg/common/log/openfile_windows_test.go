@@ -10,9 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// An external rotator has to be able to move the log file aside while SPIRE is
-// writing to it. That only works if the file is opened with FILE_SHARE_DELETE,
-// which os.OpenFile does not pass.
+// Fails with os.OpenFile, which does not pass FILE_SHARE_DELETE.
 func TestOpenLogFileAllowsExternalRename(t *testing.T) {
 	dir := spiretest.TempDir(t)
 	logPath := filepath.Join(dir, "test.log")
@@ -29,8 +27,7 @@ func TestOpenLogFileAllowsExternalRename(t *testing.T) {
 
 	require.NoError(t, os.Rename(logPath, rotated), "the log file must be renameable while it is open")
 
-	// The handle follows the file across the rename, as it does on POSIX, so
-	// writes keep landing in the rotated file until the reopen happens.
+	// The handle follows the file across the rename, as it does on POSIX.
 	_, err = f.WriteString(" after rename")
 	require.NoError(t, err)
 	require.NoError(t, f.Close())
