@@ -58,6 +58,8 @@ const (
 	invalidSpiffeIDAttestedNode      = "could not parse SPIFFE ID, from attested node"
 
 	pageSize = 1
+
+	profilingServerShutdownTimeout = 500 * time.Millisecond
 )
 
 type Server struct {
@@ -317,14 +319,16 @@ func (s *Server) setupProfiling(ctx context.Context) (stop func()) {
 		// kick off a goroutine to serve the pprof endpoints and one to
 		// gracefully shut down the server when profiling is being torn down
 		wg.Go(func() {
-			if err := server.ListenAndServe(); err != nil {
+			if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 				s.config.Log.WithError(err).Warn("Unable to serve profiling server")
 			}
 		})
 		wg.Go(func() {
 			<-ctx.Done()
-			if err := server.Shutdown(ctx); err != nil {
-				s.config.Log.WithError(err).Warn("Unable to shutdown the server cleanly")
+			shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), profilingServerShutdownTimeout)
+			defer shutdownCancel()
+			if err := server.Shutdown(shutdownCtx); err != nil {
+				s.config.Log.WithError(err).Warn("Unable to cleanly shut down profiling server")
 			}
 		})
 	}

@@ -28,5 +28,5 @@ func (repo *credentialComposerRepository) BuiltIns() []catalog.BuiltIn {
 
 type credentialComposerV1 struct{}
 
-func (credentialComposerV1) New() catalog.Facade { return new(credentialcomposer.V1) }
-func (credentialComposerV1) Deprecated() bool    { return false }
+func (credentialComposerV1) New() catalog.Facade        { return new(credentialcomposer.V1) }
+func (credentialComposerV1) Deprecated() (bool, string) { return false, "" }

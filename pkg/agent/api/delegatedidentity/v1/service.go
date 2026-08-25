@@ -219,7 +219,7 @@ func (s *Service) SubscribeToX509SVIDs(req *delegatedidentityv1.SubscribeToX509S
 	}
 }
 
-func sendX509SVIDResponse(update *cache.WorkloadUpdate, stream delegatedidentityv1.DelegatedIdentity_SubscribeToX509SVIDsServer, log logrus.FieldLogger) (err error) {
+func sendX509SVIDResponse(update *cache.X509WorkloadUpdate, stream delegatedidentityv1.DelegatedIdentity_SubscribeToX509SVIDsServer, log logrus.FieldLogger) (err error) {
 	resp, err := composeX509SVIDBySelectors(update)
 	if err != nil {
 		log.WithError(err).Error("Could not serialize X.509 SVID response")
@@ -250,7 +250,7 @@ func sendX509SVIDResponse(update *cache.WorkloadUpdate, stream delegatedidentity
 	return nil
 }
 
-func composeX509SVIDBySelectors(update *cache.WorkloadUpdate) (*delegatedidentityv1.SubscribeToX509SVIDsResponse, error) {
+func composeX509SVIDBySelectors(update *cache.X509WorkloadUpdate) (*delegatedidentityv1.SubscribeToX509SVIDsResponse, error) {
 	resp := new(delegatedidentityv1.SubscribeToX509SVIDsResponse)
 	resp.X509Svids = []*delegatedidentityv1.X509SVIDWithKey{}
 

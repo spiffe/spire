@@ -20,6 +20,7 @@ attestation or to resolve selectors.
 | `tenants`                   | Required | A map of tenants, keyed by tenant domain, that are authorized for attestation. Tokens for unspecified tenants are rejected.                                                                                                                                                            |                                                                          |
 | `agent_path_template`       | Optional | A URL path portion format of Agent's SPIFFE ID. Describe in text/template format.                                                                                                                                                                                                      | `"/{{ .PluginName }}/{{ .TenantID }}/{{ .SubscriptionID }}/{{ .VMID }}"` |
 | `allowed_metadata_domains`  | Optional | A list of allowed Azure metadata domains for certificate validation. Each domain accepts the base domain (e.g., `metadata.azure.com`) and automatically validates certificates with that domain or any subdomain (e.g., `eastus.metadata.azure.com`, `sub.eastus.metadata.azure.com`). | `["metadata.azure.com"]`                                                 |
+| `trust_bundle_path`         | Optional | Path to a PEM file with one or more additional root CA certificates to trust when validating the signing certificate chain. These are added to (not a replacement for) the roots embedded in SPIRE, so operators can trust a new Azure root CA without a new SPIRE release.            |                                                                          |
 
 Each tenant in the main configuration supports the following
 
@@ -217,6 +218,25 @@ NodeAttestor "azure_imds" {
 }
 ```
 
+#### Configuration with an Additional Trust Bundle
+
+This configuration trusts additional root CAs from a PEM file on disk, in
+addition to the roots embedded in SPIRE. This lets operators react to an Azure
+root CA change without waiting for a new SPIRE release:
+
+```hcl
+NodeAttestor "azure_imds" {
+    plugin_data {
+        tenants = {
+            "example.onmicrosoft.com" = {
+                restrict_to_subscriptions = ["d5b40d61-272e-48da-beb9-05f295c42bd6"]
+            }
+        }
+        trust_bundle_path = "/opt/spire/conf/azure-roots.pem"
+    }
+}
+```
+
 ## Selectors
 
 The plugin produces the following selectors.
@@ -257,3 +277,13 @@ The Azure IMDS attested document, which this attestor leverages to prove node me
 While many operators choose to configure their systems to block access to the IMDS attested document, the SPIRE project cannot guarantee this posture. To mitigate the associated risk, the `azure_imds` node attestor implements Trust On First Use (or TOFU) semantics. For any given node, attestation may occur only once. Subsequent attestation attempts will be rejected.
 
 It is still possible for non-agent code to complete node attestation before SPIRE Agent can, however this condition is easily and quickly detectable as SPIRE Agent will fail to start, and both SPIRE Agent and SPIRE Server will log the occurrence. Such cases should be investigated as possible security incidents.
+
+### Additional Root CAs
+
+Certificates supplied via `trust_bundle_path` become trust anchors for node attestation. They are added to the root CAs embedded in SPIRE, which remain trusted and cannot be removed or overridden through configuration.
+
+Any party able to issue certificates under one of these roots can produce an attested document that this attestor accepts. The Subject Alternative Name check compares against `allowed_metadata_domains` without binding to a particular issuer, so a certificate issued under an operator-supplied root carrying a SAN such as `metadata.azure.com` will pass. The subscription and tenant allowlists limit which tenants and subscriptions may be claimed, but within an allowed tenant the holder of such a key can attest as an arbitrary virtual machine.
+
+Configure this option only with root CAs you have verified are operated by Microsoft. Protect the bundle file accordingly, since write access to it is sufficient to introduce a new trust anchor.
+
+The bundle is read once, when the plugin is configured. Changes to the file do not take effect until the plugin is configured again, which normally means restarting SPIRE Server.

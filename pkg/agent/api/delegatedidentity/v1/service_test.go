@@ -63,7 +63,7 @@ func TestSubscribeToX509SVIDs(t *testing.T) {
 	federatedBundle1 := testca.New(t, trustDomain2).Bundle()
 	federatedBundle2 := testca.New(t, trustDomain3).Bundle()
 
-	identities := []cache.Identity{
+	identities := []cache.X509Identity{
 		identityFromX509SVID(x509SVID1),
 		identityFromX509SVID(x509SVID2),
 	}
@@ -71,8 +71,8 @@ func TestSubscribeToX509SVIDs(t *testing.T) {
 
 	for _, tt := range []struct {
 		testName      string
-		identities    []cache.Identity
-		updates       []*cache.WorkloadUpdate
+		identities    []cache.X509Identity
+		updates       []*cache.X509WorkloadUpdate
 		authSpiffeID  []string
 		expectCode    codes.Code
 		expectMsg     string
@@ -91,7 +91,7 @@ func TestSubscribeToX509SVIDs(t *testing.T) {
 		{
 			testName:     "incorrectly populate both pid and selectors",
 			authSpiffeID: []string{"spiffe://example.org/one"},
-			identities: []cache.Identity{
+			identities: []cache.X509Identity{
 				identities[0],
 			},
 			expectCode: codes.InvalidArgument,
@@ -104,7 +104,7 @@ func TestSubscribeToX509SVIDs(t *testing.T) {
 		{
 			testName:     "incorrectly populate neither pid or selectors",
 			authSpiffeID: []string{"spiffe://example.org/one"},
-			identities: []cache.Identity{
+			identities: []cache.X509Identity{
 				identities[0],
 			},
 			expectCode: codes.InvalidArgument,
@@ -117,7 +117,7 @@ func TestSubscribeToX509SVIDs(t *testing.T) {
 		{
 			testName:     "access to \"privileged\" admin API denied",
 			authSpiffeID: []string{"spiffe://example.org/one/wrong"},
-			identities: []cache.Identity{
+			identities: []cache.X509Identity{
 				identities[0],
 			},
 			expectCode: codes.PermissionDenied,
@@ -126,7 +126,7 @@ func TestSubscribeToX509SVIDs(t *testing.T) {
 		{
 			testName:     "subscribe to cache changes error",
 			authSpiffeID: []string{"spiffe://example.org/one"},
-			identities: []cache.Identity{
+			identities: []cache.X509Identity{
 				identities[0],
 			},
 			managerErr: errors.New("err"),
@@ -136,12 +136,12 @@ func TestSubscribeToX509SVIDs(t *testing.T) {
 		{
 			testName:     "workload update with one identity",
 			authSpiffeID: []string{"spiffe://example.org/one"},
-			identities: []cache.Identity{
+			identities: []cache.X509Identity{
 				identities[0],
 			},
-			updates: []*cache.WorkloadUpdate{
+			updates: []*cache.X509WorkloadUpdate{
 				{
-					Identities: []cache.Identity{
+					Identities: []cache.X509Identity{
 						identities[0],
 					},
 					Bundle: bundle,
@@ -164,12 +164,12 @@ func TestSubscribeToX509SVIDs(t *testing.T) {
 		{
 			testName:     "workload update with two identities",
 			authSpiffeID: []string{"spiffe://example.org/one"},
-			identities: []cache.Identity{
+			identities: []cache.X509Identity{
 				identities[0],
 			},
-			updates: []*cache.WorkloadUpdate{
+			updates: []*cache.X509WorkloadUpdate{
 				{
-					Identities: []cache.Identity{
+					Identities: []cache.X509Identity{
 						identities[0],
 						identities[1],
 					},
@@ -202,20 +202,20 @@ func TestSubscribeToX509SVIDs(t *testing.T) {
 		{
 			testName:     "no workload update",
 			authSpiffeID: []string{"spiffe://example.org/one"},
-			identities: []cache.Identity{
+			identities: []cache.X509Identity{
 				identities[0],
 			},
-			updates:    []*cache.WorkloadUpdate{{}},
+			updates:    []*cache.X509WorkloadUpdate{{}},
 			expectResp: &delegatedidentityv1.SubscribeToX509SVIDsResponse{},
 		},
 		{
 			testName:     "workload update without identity.SVID",
 			authSpiffeID: []string{"spiffe://example.org/one"},
-			identities: []cache.Identity{
+			identities: []cache.X509Identity{
 				identities[0],
 			},
-			updates: []*cache.WorkloadUpdate{
-				{Identities: []cache.Identity{
+			updates: []*cache.X509WorkloadUpdate{
+				{Identities: []cache.X509Identity{
 					identityFromX509SVIDWithoutSVID(x509SVID1),
 				}},
 			},
@@ -229,12 +229,12 @@ func TestSubscribeToX509SVIDs(t *testing.T) {
 			req: &delegatedidentityv1.SubscribeToX509SVIDsRequest{
 				Pid: 447,
 			},
-			identities: []cache.Identity{
+			identities: []cache.X509Identity{
 				identities[0],
 			},
-			updates: []*cache.WorkloadUpdate{
+			updates: []*cache.X509WorkloadUpdate{
 				{
-					Identities: []cache.Identity{
+					Identities: []cache.X509Identity{
 						identities[0],
 					},
 					Bundle: bundle,
@@ -261,12 +261,12 @@ func TestSubscribeToX509SVIDs(t *testing.T) {
 		{
 			testName:     "workload update with identity and federated bundles",
 			authSpiffeID: []string{"spiffe://example.org/one"},
-			identities: []cache.Identity{
+			identities: []cache.X509Identity{
 				identities[0],
 			},
-			updates: []*cache.WorkloadUpdate{
+			updates: []*cache.X509WorkloadUpdate{
 				{
-					Identities: []cache.Identity{
+					Identities: []cache.X509Identity{
 						identities[0],
 					},
 					Bundle: bundle,
@@ -293,12 +293,12 @@ func TestSubscribeToX509SVIDs(t *testing.T) {
 		{
 			testName:     "workload update with identity and two federated bundles",
 			authSpiffeID: []string{"spiffe://example.org/one"},
-			identities: []cache.Identity{
+			identities: []cache.X509Identity{
 				identities[0],
 			},
-			updates: []*cache.WorkloadUpdate{
+			updates: []*cache.X509WorkloadUpdate{
 				{
-					Identities: []cache.Identity{
+					Identities: []cache.X509Identity{
 						identities[0],
 					},
 					Bundle: bundle,
@@ -329,12 +329,12 @@ func TestSubscribeToX509SVIDs(t *testing.T) {
 		{
 			testName:     "admin and downstream identities excluded from X509 SVIDs response",
 			authSpiffeID: []string{"spiffe://example.org/one"},
-			identities: []cache.Identity{
+			identities: []cache.X509Identity{
 				identities[0],
 			},
-			updates: []*cache.WorkloadUpdate{
+			updates: []*cache.X509WorkloadUpdate{
 				{
-					Identities: []cache.Identity{
+					Identities: []cache.X509Identity{
 						{
 							Entry: &common.RegistrationEntry{
 								SpiffeId: id1.String(),
@@ -412,7 +412,7 @@ func TestSubscribeToX509Bundles(t *testing.T) {
 
 	for _, tt := range []struct {
 		testName     string
-		identities   []cache.Identity
+		identities   []cache.X509Identity
 		authSpiffeID []string
 		expectCode   codes.Code
 		expectMsg    string
@@ -429,7 +429,7 @@ func TestSubscribeToX509Bundles(t *testing.T) {
 		{
 			testName:     "Access to \"privileged\" admin API denied",
 			authSpiffeID: []string{"spiffe://example.org/one/wrong"},
-			identities: []cache.Identity{
+			identities: []cache.X509Identity{
 				identityFromX509SVID(x509SVID1),
 			},
 			expectCode: codes.PermissionDenied,
@@ -438,7 +438,7 @@ func TestSubscribeToX509Bundles(t *testing.T) {
 		{
 			testName:     "cache bundle update - one bundle",
 			authSpiffeID: []string{"spiffe://example.org/one"},
-			identities: []cache.Identity{
+			identities: []cache.X509Identity{
 				identityFromX509SVID(x509SVID1),
 			},
 			cacheUpdates: map[spiffeid.TrustDomain]*cache.Bundle{
@@ -455,7 +455,7 @@ func TestSubscribeToX509Bundles(t *testing.T) {
 		{
 			testName:     "cache bundle update - two bundles",
 			authSpiffeID: []string{"spiffe://example.org/one"},
-			identities: []cache.Identity{
+			identities: []cache.X509Identity{
 				identityFromX509SVID(x509SVID1),
 			},
 			cacheUpdates: map[spiffeid.TrustDomain]*cache.Bundle{
@@ -507,7 +507,7 @@ func TestFetchJWTSVIDs(t *testing.T) {
 	x509SVID2 := ca.CreateX509SVID(id2)
 	jwtSVID2Token := ca.CreateJWTSVID(id2, []string{"AUDIENCE"}).Marshal()
 
-	identities := []cache.Identity{
+	identities := []cache.X509Identity{
 		identityFromX509SVID(x509SVID1),
 		identityFromX509SVID(x509SVID2),
 	}
@@ -516,7 +516,7 @@ func TestFetchJWTSVIDs(t *testing.T) {
 
 	for _, tt := range []struct {
 		testName     string
-		identities   []cache.Identity
+		identities   []cache.X509Identity
 		jwtSVIDsResp map[spiffeid.ID]*client.JWTSVID
 		authSpiffeID []string
 		audience     []string
@@ -547,7 +547,7 @@ func TestFetchJWTSVIDs(t *testing.T) {
 			selectors:    []*types.Selector{{Type: "sa", Value: "foo"}},
 			pid:          447,
 			audience:     []string{"AUDIENCE"},
-			identities: []cache.Identity{
+			identities: []cache.X509Identity{
 				identities[0],
 			},
 			expectCode: codes.InvalidArgument,
@@ -559,7 +559,7 @@ func TestFetchJWTSVIDs(t *testing.T) {
 			selectors:    []*types.Selector{},
 			pid:          0,
 			audience:     []string{"AUDIENCE"},
-			identities: []cache.Identity{
+			identities: []cache.X509Identity{
 				identities[0],
 			},
 			expectCode: codes.InvalidArgument,
@@ -569,7 +569,7 @@ func TestFetchJWTSVIDs(t *testing.T) {
 			testName:     "Access to \"privileged\" admin API denied",
 			authSpiffeID: []string{"spiffe://example.org/one/wrong"},
 			audience:     []string{"AUDIENCE"},
-			identities: []cache.Identity{
+			identities: []cache.X509Identity{
 				identities[0],
 			},
 			expectCode: codes.PermissionDenied,
@@ -580,7 +580,7 @@ func TestFetchJWTSVIDs(t *testing.T) {
 			authSpiffeID: []string{"spiffe://example.org/one"},
 			selectors:    []*types.Selector{{Type: "sa", Value: "foo"}},
 			audience:     []string{"AUDIENCE"},
-			identities: []cache.Identity{
+			identities: []cache.X509Identity{
 				identities[0],
 			},
 			managerErr: errors.New("ohno"),
@@ -592,7 +592,7 @@ func TestFetchJWTSVIDs(t *testing.T) {
 			authSpiffeID: []string{"spiffe://example.org/one"},
 			selectors:    []*types.Selector{{Type: "", Value: "foo"}},
 			audience:     []string{"AUDIENCE"},
-			identities: []cache.Identity{
+			identities: []cache.X509Identity{
 				identities[0],
 			},
 			expectCode: codes.InvalidArgument,
@@ -603,7 +603,7 @@ func TestFetchJWTSVIDs(t *testing.T) {
 			authSpiffeID: []string{"spiffe://example.org/one"},
 			selectors:    []*types.Selector{{Type: "sa", Value: ""}},
 			audience:     []string{"AUDIENCE"},
-			identities: []cache.Identity{
+			identities: []cache.X509Identity{
 				identities[0],
 			},
 			expectCode: codes.InvalidArgument,
@@ -614,7 +614,7 @@ func TestFetchJWTSVIDs(t *testing.T) {
 			authSpiffeID: []string{"spiffe://example.org/one"},
 			selectors:    []*types.Selector{{Type: "sa:bar", Value: "boo"}},
 			audience:     []string{"AUDIENCE"},
-			identities: []cache.Identity{
+			identities: []cache.X509Identity{
 				identities[0],
 			},
 			expectCode: codes.InvalidArgument,
@@ -625,7 +625,7 @@ func TestFetchJWTSVIDs(t *testing.T) {
 			authSpiffeID: []string{"spiffe://example.org/one"},
 			pid:          447,
 			audience:     []string{"AUDIENCE"},
-			identities: []cache.Identity{
+			identities: []cache.X509Identity{
 				identities[0],
 			},
 			delegateErr: errors.New("ohno"),
@@ -637,7 +637,7 @@ func TestFetchJWTSVIDs(t *testing.T) {
 			authSpiffeID: []string{"spiffe://example.org/one"},
 			selectors:    []*types.Selector{{Type: "sa", Value: "foo"}},
 			audience:     []string{"AUDIENCE"},
-			identities: []cache.Identity{
+			identities: []cache.X509Identity{
 				identities[0],
 			},
 			jwtSVIDsResp: map[spiffeid.ID]*client.JWTSVID{
@@ -664,7 +664,7 @@ func TestFetchJWTSVIDs(t *testing.T) {
 			pid:          447,
 			authSpiffeID: []string{"spiffe://example.org/one"},
 			audience:     []string{"AUDIENCE"},
-			identities: []cache.Identity{
+			identities: []cache.X509Identity{
 				identities[0],
 			},
 			jwtSVIDsResp: map[spiffeid.ID]*client.JWTSVID{
@@ -728,7 +728,7 @@ func TestFetchJWTSVIDs(t *testing.T) {
 			authSpiffeID: []string{"spiffe://example.org/one"},
 			selectors:    []*types.Selector{{Type: "sa", Value: "foo"}},
 			audience:     []string{"AUDIENCE"},
-			identities: []cache.Identity{
+			identities: []cache.X509Identity{
 				{
 					Entry: &common.RegistrationEntry{
 						SpiffeId: id1.String(),
@@ -746,7 +746,7 @@ func TestFetchJWTSVIDs(t *testing.T) {
 			authSpiffeID: []string{"spiffe://example.org/one"},
 			selectors:    []*types.Selector{{Type: "sa", Value: "foo"}},
 			audience:     []string{"AUDIENCE"},
-			identities: []cache.Identity{
+			identities: []cache.X509Identity{
 				{
 					Entry: &common.RegistrationEntry{
 						SpiffeId:   id1.String(),
@@ -764,7 +764,7 @@ func TestFetchJWTSVIDs(t *testing.T) {
 			authSpiffeID: []string{"spiffe://example.org/one"},
 			selectors:    []*types.Selector{{Type: "sa", Value: "foo"}},
 			audience:     []string{"AUDIENCE"},
-			identities: []cache.Identity{
+			identities: []cache.X509Identity{
 				{
 					Entry: &common.RegistrationEntry{
 						SpiffeId: id1.String(),
@@ -834,7 +834,7 @@ func TestSubscribeToJWTBundles(t *testing.T) {
 
 	for _, tt := range []struct {
 		testName     string
-		identities   []cache.Identity
+		identities   []cache.X509Identity
 		authSpiffeID []string
 		expectCode   codes.Code
 		expectMsg    string
@@ -851,7 +851,7 @@ func TestSubscribeToJWTBundles(t *testing.T) {
 		{
 			testName:     "Access to \"privileged\" admin API denied",
 			authSpiffeID: []string{"spiffe://example.org/one/wrong"},
-			identities: []cache.Identity{
+			identities: []cache.X509Identity{
 				identityFromX509SVID(x509SVID1),
 			},
 			expectCode: codes.PermissionDenied,
@@ -860,7 +860,7 @@ func TestSubscribeToJWTBundles(t *testing.T) {
 		{
 			testName:     "cache bundle update - one bundle",
 			authSpiffeID: []string{"spiffe://example.org/one"},
-			identities: []cache.Identity{
+			identities: []cache.X509Identity{
 				identityFromX509SVID(x509SVID1),
 			},
 			cacheUpdates: map[spiffeid.TrustDomain]*cache.Bundle{
@@ -877,7 +877,7 @@ func TestSubscribeToJWTBundles(t *testing.T) {
 		{
 			testName:     "cache bundle update - two bundles",
 			authSpiffeID: []string{"spiffe://example.org/one"},
-			identities: []cache.Identity{
+			identities: []cache.X509Identity{
 				identityFromX509SVID(x509SVID1),
 			},
 			cacheUpdates: map[spiffeid.TrustDomain]*cache.Bundle{
@@ -923,8 +923,8 @@ func TestSubscribeToJWTBundles(t *testing.T) {
 
 type testParams struct {
 	CA           *testca.CA
-	Identities   []cache.Identity
-	Updates      []*cache.WorkloadUpdate
+	Identities   []cache.X509Identity
+	Updates      []*cache.X509WorkloadUpdate
 	CacheUpdates map[spiffeid.TrustDomain]*cache.Bundle
 	JwtSVIDS     map[spiffeid.ID]*client.JWTSVID
 	AuthSpiffeID []string
@@ -1008,9 +1008,9 @@ type FakeManager struct {
 	manager.Manager
 
 	ca          *testca.CA
-	identities  []cache.Identity
+	identities  []cache.X509Identity
 	jwtSVIDs    map[spiffeid.ID]*client.JWTSVID
-	updates     []*cache.WorkloadUpdate
+	updates     []*cache.X509WorkloadUpdate
 	cacheUpdate map[spiffeid.TrustDomain]*cache.Bundle
 
 	subscribers atomic.Int32
@@ -1025,7 +1025,7 @@ func (m *FakeManager) subscriberDone() {
 	m.subscribers.Add(-1)
 }
 
-func (m *FakeManager) SubscribeToCacheChanges(context.Context, cache.Selectors) (cache.Subscriber, error) {
+func (m *FakeManager) SubscribeToCacheChanges(context.Context, cache.Selectors) (cache.Subscriber[cache.X509WorkloadUpdate], error) {
 	if m.err != nil {
 		return nil, m.err
 	}
@@ -1060,12 +1060,12 @@ func (m *FakeManager) MatchingRegistrationEntries([]*common.Selector) []*common.
 
 type fakeSubscriber struct {
 	m      *FakeManager
-	ch     chan *cache.WorkloadUpdate
+	ch     chan *cache.X509WorkloadUpdate
 	cancel context.CancelFunc
 }
 
-func newFakeSubscriber(m *FakeManager, updates []*cache.WorkloadUpdate) *fakeSubscriber {
-	ch := make(chan *cache.WorkloadUpdate)
+func newFakeSubscriber(m *FakeManager, updates []*cache.X509WorkloadUpdate) *fakeSubscriber {
+	ch := make(chan *cache.X509WorkloadUpdate)
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
 		for _, update := range updates {
@@ -1084,7 +1084,7 @@ func newFakeSubscriber(m *FakeManager, updates []*cache.WorkloadUpdate) *fakeSub
 	}
 }
 
-func (s *fakeSubscriber) Updates() <-chan *cache.WorkloadUpdate {
+func (s *fakeSubscriber) Updates() <-chan *cache.X509WorkloadUpdate {
 	return s.ch
 }
 
@@ -1093,16 +1093,16 @@ func (s *fakeSubscriber) Finish() {
 	s.m.subscriberDone()
 }
 
-func identityFromX509SVID(svid *x509svid.SVID) cache.Identity {
-	return cache.Identity{
+func identityFromX509SVID(svid *x509svid.SVID) cache.X509Identity {
+	return cache.X509Identity{
 		Entry:      &common.RegistrationEntry{SpiffeId: svid.ID.String()},
 		PrivateKey: svid.PrivateKey,
 		SVID:       svid.Certificates,
 	}
 }
 
-func identityFromX509SVIDWithoutSVID(svid *x509svid.SVID) cache.Identity {
-	return cache.Identity{
+func identityFromX509SVIDWithoutSVID(svid *x509svid.SVID) cache.X509Identity {
+	return cache.X509Identity{
 		Entry:      &common.RegistrationEntry{SpiffeId: svid.ID.String()},
 		PrivateKey: svid.PrivateKey,
 		SVID:       nil,

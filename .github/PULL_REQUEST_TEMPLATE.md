@@ -10,11 +10,13 @@ https://github.com/apps/dco
    - When you open this PR (or mark it ready for review), a maintainer is
      automatically assigned to it. The assignee shows whose turn it is to act
      next, so you can always see who currently holds the ball.
-   - Pushing new commits does not automatically reassign the PR to the
-     maintainer. Once you are done addressing comments, re-request a review
-     from the assigned maintainer (the "Reviewers" section of the PR has a
-     refresh icon next to their name). This puts the ball back in their court
-     so they know it is ready for another look.
+   - The assignee follows the conversation automatically. When you push new
+     commits or comment while the ball is with you, it moves back to the
+     maintainer who reviewed your PR, so there is nothing you need to click
+     to signal that it is ready for another look. If you still have several
+     rounds of changes coming, consider converting the PR to a draft and
+     marking it ready for review when done, since drafts do not move the
+     assignee.
    - When addressing review comments, please add new commits rather than
      force-pushing. Individual commits that address comments are easier to
      review than a single commit containing all the changes again. Pull
