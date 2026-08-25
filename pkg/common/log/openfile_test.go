@@ -18,7 +18,7 @@ func TestOpenLogFileAppends(t *testing.T) {
 	f, err := openLogFile(logPath)
 	require.NoError(t, err)
 
-	_, err = f.Write([]byte("appended\n"))
+	_, err = f.WriteString("appended\n")
 	require.NoError(t, err)
 	require.NoError(t, f.Close())
 

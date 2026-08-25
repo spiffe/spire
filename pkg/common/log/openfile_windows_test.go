@@ -24,14 +24,14 @@ func TestOpenLogFileAllowsExternalRename(t *testing.T) {
 		_ = f.Close()
 	}()
 
-	_, err = f.Write([]byte("before rename"))
+	_, err = f.WriteString("before rename")
 	require.NoError(t, err)
 
 	require.NoError(t, os.Rename(logPath, rotated), "the log file must be renameable while it is open")
 
 	// The handle follows the file across the rename, as it does on POSIX, so
 	// writes keep landing in the rotated file until the reopen happens.
-	_, err = f.Write([]byte(" after rename"))
+	_, err = f.WriteString(" after rename")
 	require.NoError(t, err)
 	require.NoError(t, f.Close())
 
@@ -51,7 +51,7 @@ func TestOpenLogFileAllowsExternalDelete(t *testing.T) {
 		_ = f.Close()
 	}()
 
-	_, err = f.Write([]byte("content"))
+	_, err = f.WriteString("content")
 	require.NoError(t, err)
 
 	assert.NoError(t, os.Remove(logPath), "the log file must be deletable while it is open")
