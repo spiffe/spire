@@ -38,7 +38,7 @@ type (
 )
 
 func NewReopenableFile(name string) (*ReopenableFile, error) {
-	file, err := os.OpenFile(name, fileFlags, fileMode)
+	file, err := openLogFile(name)
 	if err != nil {
 		return nil, err
 	}
@@ -56,7 +56,7 @@ func (r *ReopenableFile) Reopen() error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	newFile, err := os.OpenFile(r.name, fileFlags, fileMode)
+	newFile, err := openLogFile(r.name)
 	if err != nil {
 		return fmt.Errorf("unable to reopen %s: %w", r.name, err)
 	}
