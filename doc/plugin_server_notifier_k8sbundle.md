@@ -172,20 +172,20 @@ writes the trust bundle to a Kubernetes ConfigMap as well, but every cluster is
 configured under the `clusters` map, including the local one, and the settings
 that `k8sbundle` fills in by default have to be set explicitly.
 
-| `k8sbundle`             | `k8s_configmap`   | Notes                                                |
-|-------------------------|-------------------|------------------------------------------------------|
-| `namespace`             | `namespace`       | Required. `k8sbundle` defaults it to `spire`.        |
-| `config_map`            | `configmap_name`  | Required. `k8sbundle` defaults it to `spire-bundle`. |
-| `config_map_key`        | `configmap_key`   | Required. `k8sbundle` defaults it to `bundle.crt`.   |
-| `kube_config_file_path` | `kubeconfig_path` | In-cluster credentials are used when unset.          |
-| `clusters`              | `clusters`        | Holds every cluster, keyed by an arbitrary ID.       |
-| `webhook_label`         |                   | Rotating webhook CA bundles is not supported.        |
-| `api_service_label`     |                   | Rotating API service CA bundles is not supported.    |
+| `k8sbundle`             | `k8s_configmap`            | Notes                                                |
+|-------------------------|----------------------------|------------------------------------------------------|
+| `namespace`             | `clusters.namespace`       | Required. `k8sbundle` defaults it to `spire`.        |
+| `config_map`            | `clusters.configmap_name`  | Required. `k8sbundle` defaults it to `spire-bundle`. |
+| `config_map_key`        | `clusters.configmap_key`   | Required. `k8sbundle` defaults it to `bundle.crt`.   |
+| `kube_config_file_path` | `clusters.kubeconfig_path` | In-cluster credentials are used when unset.          |
+| `clusters`              | `clusters`                 | Holds every cluster, keyed by an arbitrary ID.       |
+| `webhook_label`         |                            | Rotating webhook CA bundles is not supported.        |
+| `api_service_label`     |                            | Rotating API service CA bundles is not supported.    |
 
-Set `format` to `pem` to keep the ConfigMap contents unchanged, since
-`k8sbundle` writes the X.509 authorities PEM encoded. The `spiffe` and `jwks`
-formats include the JWT authorities as well, so switching to one of them changes
-what agents bootstrapping from the ConfigMap read.
+Set each cluster's `format` to `pem` to keep the ConfigMap contents unchanged,
+since `k8sbundle` writes the X.509 authorities PEM encoded. The `spiffe` and
+`jwks` formats include the JWT authorities as well, so switching to one of them
+changes what agents bootstrapping from the ConfigMap read.
 
 Two differences are worth reviewing before switching:
 
