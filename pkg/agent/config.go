@@ -77,6 +77,11 @@ type Config struct {
 	// Address of SPIRE server
 	ServerAddress string
 
+	// ServerLoadBalancingConfig is an opaque payload used as the
+	// loadBalancingConfig field of the gRPC service config used to connect to
+	// the SPIRE server. If empty, round robin load balancing is used.
+	ServerLoadBalancingConfig string
+
 	// SVID key type
 	WorkloadKeyType workloadkey.KeyType
 

@@ -47,6 +47,10 @@ type RotatorConfig struct {
 
 	// TLSPolicy determines the post-quantum-safe policy for TLS connections.
 	TLSPolicy tlspolicy.Policy
+
+	// LoadBalancingConfig is an optional, opaque payload used as the
+	// loadBalancingConfig field of the gRPC service config.
+	LoadBalancingConfig string
 }
 
 func NewRotator(c *RotatorConfig) (Rotator, client.Client) {
@@ -89,7 +93,8 @@ func newRotator(c *RotatorConfig) (*rotator, client.Client) {
 			}
 			return s.SVID, s.Key, rootCAs
 		},
-		TLSPolicy: c.TLSPolicy,
+		TLSPolicy:           c.TLSPolicy,
+		LoadBalancingConfig: c.LoadBalancingConfig,
 	}
 	client := client.New(cfg)
 

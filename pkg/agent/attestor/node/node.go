@@ -32,10 +32,6 @@ import (
 	"google.golang.org/grpc/credentials"
 )
 
-const (
-	roundRobinServiceConfig = `{ "loadBalancingConfig": [ { "round_robin": {} } ] }`
-)
-
 type Attestor interface {
 	Attest(ctx context.Context) (*AttestationResult, error)
 }
@@ -52,6 +48,10 @@ type Config struct {
 	ServerAddress        string
 	NodeAttestor         nodeattestor.NodeAttestor
 	TLSPolicy            tlspolicy.Policy
+
+	// LoadBalancingConfig is an optional, opaque payload used as the
+	// loadBalancingConfig field of the gRPC service config.
+	LoadBalancingConfig string
 }
 
 type attestor struct {
@@ -247,10 +247,11 @@ func (a *attestor) newSVID(ctx context.Context, key keymanager.Key, bundle *spif
 func (a *attestor) serverConn(bundle *spiffebundle.Bundle) (*grpc.ClientConn, error) {
 	if bundle != nil {
 		return client.NewServerGRPCClient(client.ServerClientConfig{
-			Address:     a.c.ServerAddress,
-			TrustDomain: a.c.TrustDomain,
-			GetBundle:   bundle.X509Authorities,
-			TLSPolicy:   a.c.TLSPolicy,
+			Address:             a.c.ServerAddress,
+			TrustDomain:         a.c.TrustDomain,
+			GetBundle:           bundle.X509Authorities,
+			TLSPolicy:           a.c.TLSPolicy,
+			LoadBalancingConfig: a.c.LoadBalancingConfig,
 		})
 	}
 
@@ -292,7 +293,7 @@ func (a *attestor) serverConn(bundle *spiffebundle.Bundle) (*grpc.ClientConn, er
 
 	return grpc.NewClient(
 		a.c.ServerAddress,
-		grpc.WithDefaultServiceConfig(roundRobinServiceConfig),
+		grpc.WithDefaultServiceConfig(client.MakeServiceConfigJSON(a.c.LoadBalancingConfig)),
 		grpc.WithDisableServiceConfig(),
 		grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
 	)

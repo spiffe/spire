@@ -50,6 +50,10 @@ type Config struct {
 	RotationStrategy         *rotationutil.RotationStrategy
 	TLSPolicy                tlspolicy.Policy
 
+	// LoadBalancingConfig is an optional, opaque payload used as the
+	// loadBalancingConfig field of the gRPC service config.
+	LoadBalancingConfig string
+
 	// Clk is the clock the manager will use to get time
 	Clk clock.Clock
 }
@@ -101,6 +105,8 @@ func newManager(c *Config) *manager {
 		Reattestable:     c.Reattestable,
 		RotationStrategy: c.RotationStrategy,
 		TLSPolicy:        c.TLSPolicy,
+
+		LoadBalancingConfig: c.LoadBalancingConfig,
 	}
 	svidRotator, client := svid.NewRotator(rotCfg)
 

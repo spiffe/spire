@@ -1027,6 +1027,33 @@ func TestNewAgentConfig(t *testing.T) {
 			},
 		},
 		{
+			msg: "server_load_balancing_config defaults to empty",
+			input: func(_ *Config) {
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Empty(t, c.ServerLoadBalancingConfig)
+			},
+		},
+		{
+			msg: "server_load_balancing_config is passed through",
+			input: func(c *Config) {
+				c.Agent.Experimental.ServerLoadBalancingConfig = `[ { "pick_first": {} } ]`
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Equal(t, `[ { "pick_first": {} } ]`, c.ServerLoadBalancingConfig)
+			},
+		},
+		{
+			msg:         "invalid server_load_balancing_config returns an error",
+			expectError: true,
+			input: func(c *Config) {
+				c.Agent.Experimental.ServerLoadBalancingConfig = `pick_first`
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
 			msg:         "invalid sync_interval returns an error",
 			expectError: true,
 			input: func(c *Config) {

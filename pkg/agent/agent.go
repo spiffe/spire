@@ -443,6 +443,7 @@ func (a *Agent) attest(ctx context.Context, sto storage.Storage, cat catalog.Cat
 		ServerAddress:        a.c.ServerAddress,
 		NodeAttestor:         na,
 		TLSPolicy:            a.c.TLSPolicy,
+		LoadBalancingConfig:  a.c.ServerLoadBalancingConfig,
 	}
 	return node_attestor.New(&config).Attest(ctx)
 }
@@ -475,6 +476,7 @@ func (a *Agent) newManager(ctx context.Context, sto storage.Storage, cat catalog
 		NodeAttestor:             na,
 		RotationStrategy:         rotationutil.NewRotationStrategy(a.c.AvailabilityTarget),
 		TLSPolicy:                a.c.TLSPolicy,
+		LoadBalancingConfig:      a.c.ServerLoadBalancingConfig,
 	}
 
 	mgr := manager.New(config)
