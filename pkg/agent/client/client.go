@@ -31,14 +31,17 @@ import (
 )
 
 const (
-	rpcTimeout = 30 * time.Second
-
-	// maxBundleWorkers is the maximum number of worker goroutines to use when fetching bundles.
-	maxBundleWorkers = 10
+	defaultRPCTimeout       = 30 * time.Second
+	defaultMaxBundleWorkers = 10
 )
 
 var (
 	ErrUnableToGetStream = errors.New("unable to get a stream")
+
+	rpcTimeout = defaultRPCTimeout
+
+	// maxBundleWorkers is the maximum number of worker goroutines to use when fetching bundles.
+	maxBundleWorkers = defaultMaxBundleWorkers
 
 	entryOutputMask = &types.EntryMask{
 		SpiffeId:             true,
@@ -56,12 +59,20 @@ var (
 	// RPCTimeoutWithCacheHit can be more aggressive with timeouts in cases where a valid SVID
 	// exists in the cache but is old enough to try for a new SVID quickly. This is configurable
 	// in the Experimental Config of the Agent, and can be set as low as 5 seconds
-	RPCTimeoutWithCacheHit = rpcTimeout
+	RPCTimeoutWithCacheHit = defaultRPCTimeout
 
 	// jwtSVIDRetryInterval is the initial backoff interval used when retrying
 	// transient NewJWTSVID failures. It is a var so tests can shorten it.
 	jwtSVIDRetryInterval = time.Second
 )
+
+func SetRPCTimeout(d time.Duration) {
+	rpcTimeout = d
+}
+
+func SetMaxBundleWorkers(n int) {
+	maxBundleWorkers = n
+}
 
 func SetJWTSVIDCacheHitTimeout(d time.Duration) {
 	RPCTimeoutWithCacheHit = d

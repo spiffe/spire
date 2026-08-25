@@ -681,7 +681,7 @@ func TestSyncUpdatesWithManyFederations(t *testing.T) {
 
 	// Create more federations than the number of workers in fetchFederatedBundlesConcurrently, to
 	// test that they can each consume multiple jobs.
-	const federationCount = 3 * maxBundleWorkers
+	const federationCount = 3 * defaultMaxBundleWorkers
 	federatesWith := make([]string, federationCount)
 	for i := range federationCount {
 		federatesWith[i] = fmt.Sprintf("domain%d.test", i)
