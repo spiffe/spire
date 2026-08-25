@@ -243,8 +243,7 @@ func LoadConfig(name string, args []string, logOptions []log.Option, output io.W
 }
 
 // LoadConfigForValidation loads the configuration without opening log_file, so
-// that validating the config of a running server does not append to that
-// server's live log.
+// that validating the config of a running server does not touch its log.
 func LoadConfigForValidation(name string, args []string, logOptions []log.Option, output io.Writer) (*server.Config, error) {
 	return loadConfig(name, args, logOptions, output, false, true)
 }

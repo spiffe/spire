@@ -304,8 +304,7 @@ func LoadConfig(name string, args []string, logOptions []log.Option, output io.W
 }
 
 // LoadConfigForValidation loads the configuration without opening log_file, so
-// that validating the config of a running agent does not append to that agent's
-// live log.
+// that validating the config of a running agent does not touch its log.
 func LoadConfigForValidation(name string, args []string, logOptions []log.Option, output io.Writer) (*agent.Config, error) {
 	return loadConfig(name, args, logOptions, output, false, true)
 }
