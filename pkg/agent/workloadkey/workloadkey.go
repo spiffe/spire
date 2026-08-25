@@ -58,7 +58,7 @@ func (keyType KeyType) SigningAlgorithm() (string, error) {
 	case RSA2048:
 		return "RS256", nil
 	default:
-		return "", fmt.Errorf("unknown key type %q", keyType)
+		return "", fmt.Errorf("unknown key type %q", keyType.String())
 	}
 }
 

@@ -52,7 +52,7 @@ type x509SVIDCache interface {
 
 func (m *manager) syncSVIDs(ctx context.Context) (err error) {
 	m.x509Cache.SyncSVIDsWithSubscribers()
-	if err := m.updateX509SVIDs(ctx, m.c.Log.WithField(telemetry.CacheType, "workload"), m.x509Cache); err != nil {
+	if err := m.updateX509SVIDs(ctx, m.c.Log.WithField(telemetry.CacheType, telemetry_agent.CacheTypeWorkload), m.x509Cache); err != nil {
 		return err
 	}
 
@@ -247,11 +247,11 @@ func (m *manager) updateWITSVIDCache(ctx context.Context, update *cache.UpdateEn
 	})
 
 	if expiring > 0 {
-		telemetry_agent.AddCacheManagerExpiredSVIDsSample(m.c.Metrics, "", telemetry_agent.SVIDTypeWIT, float32(expiring))
+		telemetry_agent.AddCacheManagerExpiredSVIDsSample(m.c.Metrics, telemetry_agent.CacheTypeWorkload, telemetry_agent.SVIDTypeWIT, float32(expiring))
 		log.WithField(telemetry.ExpiringSVIDs, expiring).Debug("Updating expiring SVIDs in cache")
 	}
 	if outdated > 0 {
-		telemetry_agent.AddCacheManagerOutdatedSVIDsSample(m.c.Metrics, "", telemetry_agent.SVIDTypeWIT, float32(outdated))
+		telemetry_agent.AddCacheManagerOutdatedSVIDsSample(m.c.Metrics, telemetry_agent.CacheTypeWorkload, telemetry_agent.SVIDTypeWIT, float32(outdated))
 		log.WithField(telemetry.OutdatedSVIDs, outdated).Debug("Updating SVIDs with outdated attributes in cache")
 	}
 
@@ -286,7 +286,10 @@ func (m *manager) updateWITSVIDs(ctx context.Context, log logrus.FieldLogger) er
 	return nil
 }
 
-func (m *manager) fetchWITSVIDs(ctx context.Context, staleEntries []*cache.StaleEntry) (map[string]*cache.WITSVID, error) {
+func (m *manager) fetchWITSVIDs(ctx context.Context, staleEntries []*cache.StaleEntry) (_ map[string]*cache.WITSVID, err error) {
+	counter := telemetry_agent.StartManagerFetchSVIDsUpdatesCall(m.c.Metrics)
+	defer counter.Done(&err)
+
 	signingAlgorithm, err := m.c.WorkloadKeyType.SigningAlgorithm()
 	if err != nil {
 		return nil, err
@@ -297,13 +300,13 @@ func (m *manager) fetchWITSVIDs(ctx context.Context, staleEntries []*cache.Stale
 	for _, staleEntry := range staleEntries {
 		entry := staleEntry.Entry
 		log := m.c.Log.WithFields(logrus.Fields{
-			"spiffe_id": entry.SpiffeId,
-			"entry_id":  entry.EntryId,
+			telemetry.SPIFFEID:       entry.SpiffeId,
+			telemetry.RegistrationID: entry.EntryId,
 		})
 		if staleEntry.SVIDExpiresAt.IsZero() {
 			log.Info("Creating WIT-SVID")
 		} else {
-			log.WithField("expires_at", staleEntry.SVIDExpiresAt.Format(time.RFC3339)).Info("Renewing WIT-SVID")
+			log.WithField(telemetry.ExpiresAt, staleEntry.SVIDExpiresAt.Format(time.RFC3339)).Info("Renewing WIT-SVID")
 		}
 
 		privateKey, err := m.c.WorkloadKeyType.GenerateSigner()
