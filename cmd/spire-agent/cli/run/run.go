@@ -191,7 +191,9 @@ func (c *agentConfig) brokerBindAddrs() ([]net.Addr, error) {
 	}
 	var addrs []net.Addr
 	if sp != "" {
+		//nolint: staticcheck,nolintlint // staticcheck because brokerSocketAddr always returns an error on Windows, nolintlint because this lint does nothing on linux
 		uds, err := c.brokerSocketAddr()
+		//nolint: staticcheck,nolintlint // same here because the linter complains about both of these lines
 		if err != nil {
 			return nil, err
 		}
