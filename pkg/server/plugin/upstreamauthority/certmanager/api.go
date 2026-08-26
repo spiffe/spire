@@ -39,12 +39,10 @@ func (p *Plugin) buildCertificateRequest(request *upstreamauthorityv1.MintX509CA
 	}
 
 	return &cmapi.CertificateRequest{
-		ObjectMeta: metav1.ObjectMeta{
-			GenerateName: "spiffe-ca-",
-			Namespace:    p.config.Namespace,
-			Labels: map[string]string{
-				"cert-manager.spiffe.io/trust-domain": p.trustDomain,
-			},
+		GenerateName: "spiffe-ca-",
+		Namespace:    p.config.Namespace,
+		Labels: map[string]string{
+			"cert-manager.spiffe.io/trust-domain": p.trustDomain,
 		},
 		Spec: cmapi.CertificateRequestSpec{
 			Duration: &metav1.Duration{

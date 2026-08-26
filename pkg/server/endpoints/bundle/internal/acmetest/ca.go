@@ -33,7 +33,7 @@
 //   appropriately by the SPIRE KeyManager signers.
 // - Fails new-reg requests if the terms-of-service has not been accepted
 
-//nolint // forked code
+// nolint // forked code
 package acmetest
 
 import (
@@ -223,7 +223,7 @@ func (ca *CAServer) Start() *CAServer {
 	return ca
 }
 
-func (ca *CAServer) serverURL(format string, arg ...interface{}) string {
+func (ca *CAServer) serverURL(format string, arg ...any) string {
 	return ca.server.URL + fmt.Sprintf(format, arg...)
 }
 
@@ -248,7 +248,7 @@ func (ca *CAServer) getHandler(domain string) (http.Handler, bool) {
 	return h, ok
 }
 
-func (ca *CAServer) httpErrorf(w http.ResponseWriter, code int, format string, a ...interface{}) {
+func (ca *CAServer) httpErrorf(w http.ResponseWriter, code int, format string, a ...any) {
 	s := fmt.Sprintf(format, a...)
 	// FORK DEVIATION FROM ORIGINAL CODE
 	// We intentionally comment out this line because
@@ -289,7 +289,7 @@ type discovery struct {
 	NewOrder   string `json:"newOrder"`
 	NewAuthz   string `json:"newAuthz"`
 
-	Meta discoveryMeta `json:"meta,omitempty"`
+	Meta discoveryMeta `json:"meta"`
 }
 
 type discoveryMeta struct {

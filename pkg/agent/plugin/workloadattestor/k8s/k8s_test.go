@@ -1802,17 +1802,15 @@ const testPodUID = "2c48913c-b29f-11e7-9350-020968147796"
 
 func testAPIServerBlogPod() *corev1.Pod {
 	return &corev1.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "blog-24ck7",
-			Namespace: "default",
-			UID:       types.UID(testPodUID),
-			Labels: map[string]string{
-				"k8s-app": "blog",
-				"version": "v0",
-			},
-			OwnerReferences: []metav1.OwnerReference{
-				{Kind: "ReplicationController", Name: "blog", UID: "2c401175-b29f-11e7-9350-020968147796"},
-			},
+		Name:      "blog-24ck7",
+		Namespace: "default",
+		UID:       types.UID(testPodUID),
+		Labels: map[string]string{
+			"k8s-app": "blog",
+			"version": "v0",
+		},
+		OwnerReferences: []metav1.OwnerReference{
+			{Kind: "ReplicationController", Name: "blog", UID: "2c401175-b29f-11e7-9350-020968147796"},
 		},
 		Spec: corev1.PodSpec{
 			NodeName:           "k8s-node-1",
@@ -2441,11 +2439,9 @@ func (s *Suite) TestAttestReferenceGenericObject_NamespaceLabels() {
 	}, meta.RESTScopeNamespace)
 
 	obj := &metav1.PartialObjectMetadata{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "tenant-a",
-			Namespace: "flux-system",
-			UID:       "kustomization-uid",
-		},
+		Name:      "tenant-a",
+		Namespace: "flux-system",
+		UID:       "kustomization-uid",
 	}
 	obj.SetGroupVersionKind(gvk)
 
@@ -2506,11 +2502,9 @@ func (s *Suite) TestAttestReferenceBrokerRBACUsesResolvedGenericObject() {
 	}, meta.RESTScopeNamespace)
 
 	obj := &metav1.PartialObjectMetadata{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "tenant-a",
-			Namespace: "flux-system",
-			UID:       "kustomization-uid",
-		},
+		Name:      "tenant-a",
+		Namespace: "flux-system",
+		UID:       "kustomization-uid",
 	}
 	obj.SetGroupVersionKind(gvk)
 
@@ -2590,16 +2584,14 @@ func TestGetSelectorValuesFromObjectMeta(t *testing.T) {
 			objType: &broker.KubernetesObjectType{Plural: "deployments", Group: "apps"},
 			gvk:     schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: "Deployment"},
 			obj: &metav1.PartialObjectMetadata{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:        "checkout",
-					Namespace:   "shop",
-					UID:         "a1b2c3",
-					Labels:      map[string]string{"app": "checkout"},
-					Annotations: map[string]string{"team": "payments"}, // ignored — annotations are not used as selectors
-					OwnerReferences: []metav1.OwnerReference{
-						{APIVersion: "apps/v1", Kind: "ReplicaSet", Name: "checkout-rs", UID: "owner-uid-1", Controller: &truePtr},
-						{APIVersion: "v1", Kind: "ConfigMap", Name: "checkout-cm", UID: "owner-uid-2", Controller: &falsePtr},
-					},
+				Name:        "checkout",
+				Namespace:   "shop",
+				UID:         "a1b2c3",
+				Labels:      map[string]string{"app": "checkout"},
+				Annotations: map[string]string{"team": "payments"}, // ignored — annotations are not used as selectors
+				OwnerReferences: []metav1.OwnerReference{
+					{APIVersion: "apps/v1", Kind: "ReplicaSet", Name: "checkout-rs", UID: "owner-uid-1", Controller: &truePtr},
+					{APIVersion: "v1", Kind: "ConfigMap", Name: "checkout-cm", UID: "owner-uid-2", Controller: &falsePtr},
 				},
 			},
 			expected: []string{
@@ -2627,10 +2619,8 @@ func TestGetSelectorValuesFromObjectMeta(t *testing.T) {
 			objType: &broker.KubernetesObjectType{Plural: "nodes", Group: "core"},
 			gvk:     schema.GroupVersionKind{Group: "", Version: "v1", Kind: "Node"},
 			obj: &metav1.PartialObjectMetadata{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "ip-10-0-1-42.ec2.internal",
-					UID:  "node-uid",
-				},
+				Name: "ip-10-0-1-42.ec2.internal",
+				UID:  "node-uid",
 			},
 			expected: []string{
 				"uid:node-uid",

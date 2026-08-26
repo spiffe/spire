@@ -1095,14 +1095,12 @@ func (ds *Plugin) gormToGRPCStatus(err error) error {
 		GRPCStatus() *status.Status
 	}
 
-	var statusError grpcStatusError
-	if errors.As(err, &statusError) {
+	if statusError, ok := errors.AsType[grpcStatusError](err); ok {
 		return statusError
 	}
 
 	code := codes.Unknown
-	var vErr *sqlcommon.ValidationError
-	if errors.As(err, &vErr) {
+	if _, ok := errors.AsType[*sqlcommon.ValidationError](err); ok {
 		code = codes.InvalidArgument
 	}
 
@@ -1788,9 +1786,7 @@ func countAttestedNodesWithFilters(ctx context.Context, db *sqlDB, _ logrus.Fiel
 
 func createAttestedNodeEvent(tx *gorm.DB, event *datastore.AttestedNodeEvent) error {
 	if err := tx.Create(&AttestedNodeEvent{
-		Model: Model{
-			ID: event.EventID,
-		},
+		ID:       event.EventID,
 		SpiffeID: event.SpiffeID,
 	}).Error; err != nil {
 		return sqlcommon.NewWrappedSQLError(err)
@@ -1900,9 +1896,7 @@ func fetchAttestedNodeEvent(db *sqlDB, eventID uint) (*datastore.AttestedNodeEve
 
 func deleteAttestedNodeEvent(tx *gorm.DB, eventID uint) error {
 	if err := tx.Delete(&AttestedNodeEvent{
-		Model: Model{
-			ID: eventID,
-		},
+		ID: eventID,
 	}).Error; err != nil {
 		return sqlcommon.NewWrappedSQLError(err)
 	}
@@ -4275,9 +4269,7 @@ func pruneRegistrationEntries(tx *gorm.DB, expiresBefore time.Time, logger logru
 
 func createRegistrationEntryEvent(tx *gorm.DB, event *datastore.RegistrationEntryEvent) error {
 	if err := tx.Create(&RegisteredEntryEvent{
-		Model: Model{
-			ID: event.EventID,
-		},
+		ID:      event.EventID,
 		EntryID: event.EntryID,
 	}).Error; err != nil {
 		return sqlcommon.NewWrappedSQLError(err)
@@ -4300,9 +4292,7 @@ func fetchRegistrationEntryEvent(db *sqlDB, eventID uint) (*datastore.Registrati
 
 func deleteRegistrationEntryEvent(tx *gorm.DB, eventID uint) error {
 	if err := tx.Delete(&RegisteredEntryEvent{
-		Model: Model{
-			ID: eventID,
-		},
+		ID: eventID,
 	}).Error; err != nil {
 		return sqlcommon.NewWrappedSQLError(err)
 	}

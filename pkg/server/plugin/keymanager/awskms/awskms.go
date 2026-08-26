@@ -613,22 +613,19 @@ func (p *Plugin) scheduleDeleteTask(ctx context.Context) {
 				continue
 			}
 
-			var notFoundErr *types.NotFoundException
-			if errors.As(err, &notFoundErr) {
+			if _, ok := errors.AsType[*types.NotFoundException](err); ok {
 				log.Error("Failed to schedule key deletion", reasonTag, "No such key")
 				p.notifyDelete(err)
 				continue
 			}
 
-			var invalidArnErr *types.InvalidArnException
-			if errors.As(err, &invalidArnErr) {
+			if _, ok := errors.AsType[*types.InvalidArnException](err); ok {
 				log.Error("Failed to schedule key deletion", reasonTag, "Invalid ARN")
 				p.notifyDelete(err)
 				continue
 			}
 
-			var invalidState *types.KMSInvalidStateException
-			if errors.As(err, &invalidState) {
+			if _, ok := errors.AsType[*types.KMSInvalidStateException](err); ok {
 				log.Error("Failed to schedule key deletion", reasonTag, "Key was on invalid state for deletion")
 				p.notifyDelete(err)
 				continue

@@ -149,8 +149,7 @@ func (p *SecretsManagerPlugin) PutX509SVID(ctx context.Context, req *svidstorev1
 		SecretId: aws.String(secretID),
 	})
 	if err != nil {
-		var resourceNorFoundErr *types.ResourceNotFoundException
-		if errors.As(err, &resourceNorFoundErr) {
+		if _, ok := errors.AsType[*types.ResourceNotFoundException](err); ok {
 			// Secret not found, creating one with provided `name`
 			resp, err := createSecret(ctx, p.smClient, secretBinary, opt)
 			if err != nil {
@@ -209,8 +208,7 @@ func (p *SecretsManagerPlugin) DeleteX509SVID(ctx context.Context, req *svidstor
 		SecretId: aws.String(secretID),
 	})
 	if err != nil {
-		var resourceNotFoundErr *types.ResourceNotFoundException
-		if errors.As(err, &resourceNotFoundErr) {
+		if _, ok := errors.AsType[*types.ResourceNotFoundException](err); ok {
 			p.log.With("secret_id", secretID).Warn("Secret not found")
 			return &svidstorev1.DeleteX509SVIDResponse{}, nil
 		}
