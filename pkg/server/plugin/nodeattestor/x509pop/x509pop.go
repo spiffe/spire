@@ -11,7 +11,6 @@ import (
 	"net/url"
 	"strings"
 	"sync"
-	"text/template"
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
@@ -76,32 +75,6 @@ type configuration struct {
 	groups           map[string]struct{}
 }
 
-// templateFailure is returned by the group template's fail function. It lets a
-// rejection the operator asked for be told apart from a template or data error.
-type templateFailure struct {
-	reason string
-}
-
-func (e *templateFailure) Error() string {
-	return e.reason
-}
-
-// errInvalidGroupJSON is returned when the group template renders something
-// shaped like a JSON array that cannot be unmarshaled.
-var errInvalidGroupJSON = errors.New("group template produced invalid JSON")
-
-// groupTemplateFuncs are the functions available to the group template in
-// addition to the default set. Templates rendering a list of groups need the
-// JSON encoders, and fail is replaced so that a deliberate rejection is
-// distinguishable from an ordinary execution error.
-func groupTemplateFuncs() template.FuncMap {
-	funcs := agentpathtemplate.JSONFuncMap()
-	funcs["fail"] = func(reason string) (string, error) {
-		return "", &templateFailure{reason: reason}
-	}
-	return funcs
-}
-
 func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *configuration {
 	hclConfig := new(Config)
 	if err := hcl.Decode(hclConfig, hclText); err != nil {
@@ -157,7 +130,7 @@ func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginco
 
 	var groupTemplate *agentpathtemplate.Template
 	if len(hclConfig.GroupTemplate) > 0 {
-		tmpl, err := agentpathtemplate.ParseWithFuncs(hclConfig.GroupTemplate, groupTemplateFuncs())
+		tmpl, err := agentpathtemplate.Parse(hclConfig.GroupTemplate)
 		if err != nil {
 			status.ReportErrorf("failed to parse group template %q: %v", hclConfig.GroupTemplate, err)
 		} else {
@@ -400,26 +373,21 @@ func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 
 	if config.groupTemplate != nil {
 		templateData := x509pop.NewTemplateData(config.trustDomain, leaf, svidPath, sanSelectors)
-		groups, err := renderGroups(config.groupTemplate, templateData)
-		var failure *templateFailure
+		rendered, err := config.groupTemplate.Execute(templateData)
+		group := strings.TrimSpace(rendered)
 		switch {
-		case errors.As(err, &failure):
-			// The template asked for this node to be rejected. The reason is
-			// operator authored, so it is logged here instead of being returned
-			// to a node that has not been admitted.
-			p.log.Warn("Node rejected by group template", "agent_id", spiffeid.String(), "reason", failure.reason)
-			return status.Error(codes.PermissionDenied, "node rejected by group policy")
-		case errors.Is(err, errInvalidGroupJSON):
-			p.log.Error("Group template produced invalid output", "agent_id", spiffeid.String(), "error", err)
-			return status.Error(codes.PermissionDenied, "group template produced invalid output")
 		case err != nil:
 			// The template may legitimately not apply to every certificate, so
 			// this is not fatal. No group selector is produced.
 			p.log.Debug("Failed to execute group template", "error", err)
-		case len(groups) == 0:
-			p.log.Debug("Group template produced no groups")
+		case group == "":
+			p.log.Debug("Group template produced no group")
 		default:
-			selectors = append(selectors, p.allowedGroupSelectors(config, groups)...)
+			if _, ok := config.groups[group]; ok {
+				selectors = append(selectors, "group:"+group)
+			} else {
+				p.log.Debug("Group not in the configured groups list", "group", group)
+			}
 		}
 	}
 
@@ -488,52 +456,6 @@ func (p *Plugin) getConfig() (*configuration, error) {
 		return nil, status.Errorf(codes.FailedPrecondition, "not configured")
 	}
 	return p.config, nil
-}
-
-// renderGroups executes the group template. The template renders either a
-// single group or, when the output is shaped like a JSON array, a list of them.
-// An empty result with a nil error means the template declined to assign a
-// group to the node.
-func renderGroups(groupTemplate *agentpathtemplate.Template, templateData any) ([]string, error) {
-	rendered, err := groupTemplate.Execute(templateData)
-	if err != nil {
-		return nil, err
-	}
-	rendered = strings.TrimSpace(rendered)
-	switch {
-	case rendered == "":
-		return nil, nil
-	case strings.HasPrefix(rendered, "[") && strings.HasSuffix(rendered, "]"):
-		var groups []string
-		if err := json.Unmarshal([]byte(rendered), &groups); err != nil {
-			return nil, fmt.Errorf("%w: %w", errInvalidGroupJSON, err)
-		}
-		return groups, nil
-	default:
-		return []string{rendered}, nil
-	}
-}
-
-// allowedGroupSelectors returns a selector value for each rendered group that
-// the configuration allows, skipping duplicates.
-func (p *Plugin) allowedGroupSelectors(config *configuration, groups []string) []string {
-	var selectorValues []string
-	seen := make(map[string]struct{}, len(groups))
-	for _, group := range groups {
-		if group == "" {
-			continue
-		}
-		if _, ok := seen[group]; ok {
-			continue
-		}
-		seen[group] = struct{}{}
-		if _, ok := config.groups[group]; !ok {
-			p.log.Debug("Group not in the configured groups list", "group", group)
-			continue
-		}
-		selectorValues = append(selectorValues, "group:"+group)
-	}
-	return selectorValues
 }
 
 func buildSelectorValues(leaf *x509.Certificate, chains [][]*x509.Certificate, sanSelectors map[string]string) []string {

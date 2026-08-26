@@ -26,7 +26,7 @@ spiffe://<trust_domain>/spire/agent/x509pop/<fingerprint>
 | `max_intermediates`   | Maximum number of intermediate certificates allowed in the certificate chain. This limit helps prevent resource exhaustion attacks.                                                                                                            | 4                                                              |
 | `max_rsa_key_size`    | Maximum RSA key size in bits allowed in certificates. This limit helps prevent resource exhaustion attacks from excessively large keys.                                                                                                        | 8192                                                           |
 | `verify_client_ip`    | If `true`, validates the connecting peer's IP against the leaf certificate's IP SANs. Attestation fails if no SAN matches. Reflects the immediate peer - may not represent true client origin behind load balancers.                           | false                                                          |
-| `group_template`      | Go text/template used to derive one or more group values from the certificate. If empty, no group selector is produced. See [Group Template](#group-template).                                                                                 |                                                                |
+| `group_template`      | Go text/template used to derive a group value from the certificate. If empty, no group selector is produced. See [Group Template](#group-template).                                                                                            |                                                                |
 | `groups`              | Allowlist of group values that may be emitted as selectors. A group produced by `group_template` must be in this list to be emitted. Required when `group_template` is set.                                                                    |                                                                |
 
 A sample configuration:
@@ -56,7 +56,7 @@ A sample configuration:
 | SHA1 Fingerprint | `x509pop:ca:fingerprint:0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33` | The SHA1 fingerprint as a hex string for each cert in the PoP chain, excluding the leaf.                                                                                                                             |
 | SerialNumber     | `x509pop:serialnumber:0a1b2c3d4e5f`                               | The leaf certificate serial number as a lowercase hexadecimal string                                                                                                                                                 |
 | San              | `x509pop:san:<key>:<value>`                                       | The san selectors on the leaf certificate. The expected format of the uri san is `x509pop://<trust_domain>/<key>/<value>`. One selector is exposed per uri san corresponding to x509pop uri scheme. string           |
-| Group            | `x509pop:group:/cluster/foo/identity-exchange`                    | A group derived from `group_template`. Only emitted when the derived value is in `groups`. One selector is emitted per group. See [Group Template](#group-template).                                                 |
+| Group            | `x509pop:group:/cluster/foo/identity-exchange`                    | A group derived from `group_template`. Only emitted when the derived value is in `groups`. See [Group Template](#group-template).                                                                                    |
 
 ## SVID Path Prefix
 
@@ -90,11 +90,11 @@ Some useful values are:
 
 ## Group Template
 
-Specifying `group_template` provides a way of deriving one or more group
-values from the attesting certificate, which are emitted as
-`x509pop:group:<value>` node selectors. It works in both modes and is hydrated
-with the same values as the [agent path template](#agent-path-template), except
-that `.SVIDPathTrimmed` is only populated when `mode = "spiffe"`.
+Specifying `group_template` provides a way of deriving a group value from the
+attesting certificate, which is emitted as an `x509pop:group:<value>` node
+selector. It works in both modes and is hydrated with the same values as the
+[agent path template](#agent-path-template), except that `.SVIDPathTrimmed` is
+only populated when `mode = "spiffe"`.
 
 The main use for this is node aliasing. Rather than creating an entry per agent,
 create a single node alias parented to the server and selected on the group,
@@ -111,57 +111,29 @@ The selector value comes from a template, and selector values are not otherwise
 validated, so the `groups` allowlist rather than the template is what bounds
 which groups a node can claim. It is required for that reason.
 
-### Rendering more than one group
-
-If the rendered output starts with `[` and ends with `]` it is parsed as a JSON
-array of strings, and one selector is emitted per allowed element. Anything else
-is treated as a single group value. Surrounding whitespace is trimmed before
-either interpretation, and duplicate groups are emitted once.
-
-In addition to the [template engine](template_engine.md) functions, the group
-path template can use `toJson`, which makes rendering a list straightforward:
-
 ```hcl
-    # A single group
     group_template = "{{ .SVIDPathTrimmed }}"
-
-    # Several groups
-    group_template = "{{ list .SVIDPathTrimmed \"all-nodes\" | toJson }}"
-
-    # Equivalent, written as literal JSON
-    group_template = "[\"{{ .SVIDPathTrimmed }}\", \"all-nodes\"]"
-
-    groups = ["/cluster/foo/identity-exchange", "all-nodes"]
+    groups = ["/cluster/foo/identity-exchange"]
 ```
+
+Surrounding whitespace is trimmed from the rendered value before it is compared
+against `groups`.
 
 ### When a group can not be derived
 
-| Result                                                        | Effect                                                              |
-|---------------------------------------------------------------|---------------------------------------------------------------------|
-| A group that is not in `groups`                               | No selector for that group. Logged at debug level.                  |
-| Empty output, or an empty JSON array                          | No group selector. Logged at debug level.                           |
-| The template fails to execute                                 | No group selector. Attestation still succeeds, logged at debug.     |
-| `fail "reason"`                                               | **Attestation is denied.** The reason is logged, not returned.      |
-| Output shaped like a JSON array that can not be parsed        | **Attestation is denied.** The parse error is logged, not returned. |
+| Result                          | Effect                                                          |
+|---------------------------------|-----------------------------------------------------------------|
+| A value that is not in `groups` | No group selector. Logged at debug level.                       |
+| Empty output                    | No group selector. Logged at debug level.                       |
+| The template fails to execute   | No group selector. Attestation still succeeds, logged at debug. |
 
-Template execution failures are not fatal because a template may legitimately
-not apply to every certificate. For example, referencing
-`.URISanSelectors.datacenter` fails on a certificate without that URI SAN, and
-making that fatal would prevent such nodes from attesting at all. Guard those
-cases in the template instead, and the node simply gets no group:
+Attestation never fails because of the group template. Execution failures in
+particular are not fatal, since a template may legitimately not apply to every
+certificate: referencing `.URISanSelectors.datacenter` fails on a certificate
+without that URI SAN, and making that fatal would prevent such nodes from
+attesting at all. Guard those cases in the template and the node simply gets no
+group:
 
 ```hcl
     group_template = "{{ if hasKey .URISanSelectors \"datacenter\" }}{{ .URISanSelectors.datacenter }}{{ end }}"
 ```
-
-Use `fail` when a certificate should be rejected outright rather than left
-without a group:
-
-```hcl
-    group_template = "{{ if hasKey .URISanSelectors \"datacenter\" }}{{ .URISanSelectors.datacenter }}{{ else }}{{ fail \"certificate has no datacenter SAN\" }}{{ end }}"
-```
-
-A denied node receives a generic error. The reason given to `fail` is only
-written to the server log, since it is operator authored and the node has not
-been admitted. Bear in mind that agents reattest, so a template that denies a
-node also denies agents that are already running.

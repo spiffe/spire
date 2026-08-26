@@ -101,7 +101,7 @@ func (s *Suite) TestAttestSuccess() {
 		expectAgentID string
 		certs         [][]byte
 		serialnumber  string
-		expectGroups  []string
+		expectGroup   string
 	}{
 		{
 			desc:          "default success (ca_bundle_path)",
@@ -158,7 +158,7 @@ func (s *Suite) TestAttestSuccess() {
 			giveConfig:    s.createConfigurationModeSPIFFE(`group_template = "{{ .SVIDPathTrimmed }}"` + "\n" + `groups = ["testhost"]`),
 			certs:         s.svidExchange,
 			serialnumber:  "serialnumber:0a1b2c3d4e7f",
-			expectGroups:  []string{"testhost"},
+			expectGroup:   "testhost",
 		},
 		{
 			desc:          "group selector not emitted when path not allowed",
@@ -173,39 +173,7 @@ func (s *Suite) TestAttestSuccess() {
 			giveConfig:    s.createConfiguration("ca_bundle_path", `group_template = "{{ .Subject.CommonName }}"`+"\n"+`groups = ["COMMONNAME"]`),
 			certs:         s.leafBundle,
 			serialnumber:  "serialnumber:0a1b2c3d4e5f",
-			expectGroups:  []string{"COMMONNAME"},
-		},
-		{
-			desc:          "success with multiple groups from a json array",
-			expectAgentID: "spiffe://example.org/spire/agent/x509pop/testhost",
-			giveConfig:    s.createConfigurationModeSPIFFE(`group_template = "[\"{{ .SVIDPathTrimmed }}\", \"all-nodes\"]"` + "\n" + `groups = ["testhost", "all-nodes"]`),
-			certs:         s.svidExchange,
-			serialnumber:  "serialnumber:0a1b2c3d4e7f",
-			expectGroups:  []string{"testhost", "all-nodes"},
-		},
-		{
-			desc:          "success with multiple groups rendered with toJson",
-			expectAgentID: "spiffe://example.org/spire/agent/x509pop/testhost",
-			giveConfig:    s.createConfigurationModeSPIFFE(`group_template = "{{ list .SVIDPathTrimmed \"all-nodes\" | toJson }}"` + "\n" + `groups = ["testhost", "all-nodes"]`),
-			certs:         s.svidExchange,
-			serialnumber:  "serialnumber:0a1b2c3d4e7f",
-			expectGroups:  []string{"testhost", "all-nodes"},
-		},
-		{
-			desc:          "json array is filtered by the groups list",
-			expectAgentID: "spiffe://example.org/spire/agent/x509pop/testhost",
-			giveConfig:    s.createConfigurationModeSPIFFE(`group_template = "[\"{{ .SVIDPathTrimmed }}\", \"all-nodes\"]"` + "\n" + `groups = ["all-nodes"]`),
-			certs:         s.svidExchange,
-			serialnumber:  "serialnumber:0a1b2c3d4e7f",
-			expectGroups:  []string{"all-nodes"},
-		},
-		{
-			desc:          "duplicate groups are emitted once",
-			expectAgentID: "spiffe://example.org/spire/agent/x509pop/testhost",
-			giveConfig:    s.createConfigurationModeSPIFFE(`group_template = "[\"{{ .SVIDPathTrimmed }}\", \"{{ .SVIDPathTrimmed }}\"]"` + "\n" + `groups = ["testhost"]`),
-			certs:         s.svidExchange,
-			serialnumber:  "serialnumber:0a1b2c3d4e7f",
-			expectGroups:  []string{"testhost"},
+			expectGroup:   "COMMONNAME",
 		},
 		{
 			desc:          "surrounding whitespace is trimmed from the group",
@@ -213,7 +181,7 @@ func (s *Suite) TestAttestSuccess() {
 			giveConfig:    s.createConfigurationModeSPIFFE(`group_template = "\n{{ .SVIDPathTrimmed }}\n"` + "\n" + `groups = ["testhost"]`),
 			certs:         s.svidExchange,
 			serialnumber:  "serialnumber:0a1b2c3d4e7f",
-			expectGroups:  []string{"testhost"},
+			expectGroup:   "testhost",
 		},
 		{
 			desc:          "no group when the template renders nothing",
@@ -223,26 +191,11 @@ func (s *Suite) TestAttestSuccess() {
 			serialnumber:  "serialnumber:0a1b2c3d4e7f",
 		},
 		{
-			desc:          "no group when the template renders an empty json array",
-			expectAgentID: "spiffe://example.org/spire/agent/x509pop/testhost",
-			giveConfig:    s.createConfigurationModeSPIFFE(`group_template = "[]"` + "\n" + `groups = ["testhost"]`),
-			certs:         s.svidExchange,
-			serialnumber:  "serialnumber:0a1b2c3d4e7f",
-		},
-		{
 			desc:          "no group when the template fails to execute",
 			expectAgentID: "spiffe://example.org/spire/agent/x509pop/testhost",
 			giveConfig:    s.createConfigurationModeSPIFFE(`group_template = "{{ .URISanSelectors.nope }}"` + "\n" + `groups = ["testhost"]`),
 			certs:         s.svidExchange,
 			serialnumber:  "serialnumber:0a1b2c3d4e7f",
-		},
-		{
-			desc:          "output that is not a complete json array is treated as plain text",
-			expectAgentID: "spiffe://example.org/spire/agent/x509pop/testhost",
-			giveConfig:    s.createConfigurationModeSPIFFE(`group_template = "[{{ .SVIDPathTrimmed }}"` + "\n" + `groups = ["[testhost"]`),
-			certs:         s.svidExchange,
-			serialnumber:  "serialnumber:0a1b2c3d4e7f",
-			expectGroups:  []string{"[testhost"},
 		},
 	}
 
@@ -281,10 +234,10 @@ func (s *Suite) TestAttestSuccess() {
 				{Type: "x509pop", Value: "san:key:path/to/value"},
 			}
 
-			for _, expectGroup := range tt.expectGroups {
+			if tt.expectGroup != "" {
 				expectedSelectors = append(expectedSelectors, &common.Selector{
 					Type:  "x509pop",
-					Value: "group:" + expectGroup,
+					Value: "group:" + tt.expectGroup,
 				})
 			}
 
@@ -452,20 +405,6 @@ func (s *Suite) TestAttestFailure() {
 		attestFails(t, attestor, payload, codes.InvalidArgument,
 			"nodeattestor(x509pop): intermediate certificate 0 key size too large")
 	})
-
-	s.T().Run("group template rejects the node", func(t *testing.T) {
-		attestor := s.loadPlugin(t, s.createConfigurationModeSPIFFE(`group_template = "{{ fail \"rejected for a reason\" }}"`+"\n"+`groups = ["testhost"]`))
-
-		challengeResponseFails(t, attestor, s.svidExchange, "", true, codes.PermissionDenied,
-			"nodeattestor(x509pop): node rejected by group policy")
-	})
-
-	s.T().Run("group template produces invalid json", func(t *testing.T) {
-		attestor := s.loadPlugin(t, s.createConfigurationModeSPIFFE(`group_template = "[\"testhost\" \"all-nodes\"]"`+"\n"+`groups = ["testhost"]`))
-
-		challengeResponseFails(t, attestor, s.svidExchange, "", true, codes.PermissionDenied,
-			"nodeattestor(x509pop): group template produced invalid output")
-	})
 }
 
 func (s *Suite) TestConfigure() {
@@ -629,23 +568,6 @@ func (s *Suite) TestConfigure() {
 		`)
 		spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, "group_template must be set when groups is configured")
 	})
-
-	s.T().Run("group_template can use the json functions", func(t *testing.T) {
-		err := doConfig(t, coreConfig, `
-		mode = "spiffe"
-		group_template = "{{ list .SVIDPathTrimmed | toJson }}"
-		groups = ["/foo"]
-		`)
-		require.NoError(t, err)
-	})
-
-	s.T().Run("agent_path_template can not use the json functions", func(t *testing.T) {
-		err := doConfig(t, coreConfig, `
-		mode = "spiffe"
-		agent_path_template = "{{ toJson . }}"
-		`)
-		spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, "failed to parse agent svid template")
-	})
 }
 
 func (s *Suite) TestGroupTemplateLogging() {
@@ -694,11 +616,11 @@ func (s *Suite) TestGroupTemplateLogging() {
 		})
 	})
 
-	s.T().Run("template renders no groups", func(t *testing.T) {
-		entries, err := attest(t, `group_template = "[]"`+"\n"+`groups = ["testhost"]`)
+	s.T().Run("template renders no group", func(t *testing.T) {
+		entries, err := attest(t, `group_template = "{{ if false }}unreachable{{ end }}"`+"\n"+`groups = ["testhost"]`)
 		require.NoError(t, err)
 
-		requireLogged(t, entries, logrus.DebugLevel, "Group template produced no groups", "")
+		requireLogged(t, entries, logrus.DebugLevel, "Group template produced no group", "")
 	})
 
 	s.T().Run("template fails to execute", func(t *testing.T) {
@@ -706,22 +628,6 @@ func (s *Suite) TestGroupTemplateLogging() {
 		require.NoError(t, err)
 
 		requireLogged(t, entries, logrus.DebugLevel, "Failed to execute group template", "map has no entry for key")
-	})
-
-	s.T().Run("rejection reason is logged but not returned", func(t *testing.T) {
-		entries, err := attest(t, `group_template = "{{ fail \"rejected for a reason\" }}"`+"\n"+`groups = ["testhost"]`)
-		spiretest.RequireGRPCStatusContains(t, err, codes.PermissionDenied, "node rejected by group policy")
-		require.NotContains(t, err.Error(), "rejected for a reason")
-
-		requireLogged(t, entries, logrus.WarnLevel, "Node rejected by group template", "rejected for a reason")
-	})
-
-	s.T().Run("json error is logged but not returned", func(t *testing.T) {
-		entries, err := attest(t, `group_template = "[\"testhost\" \"all-nodes\"]"`+"\n"+`groups = ["testhost"]`)
-		spiretest.RequireGRPCStatusContains(t, err, codes.PermissionDenied, "group template produced invalid output")
-		require.NotContains(t, err.Error(), "invalid character")
-
-		requireLogged(t, entries, logrus.ErrorLevel, "Group template produced invalid output", "invalid character")
 	})
 }
 
