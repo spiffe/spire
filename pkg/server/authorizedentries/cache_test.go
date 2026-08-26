@@ -424,7 +424,7 @@ func BenchmarkGetAuthorizedEntriesInMemory(b *testing.B) {
 	agents := slices.Collect(maps.Keys(test.agents))
 
 	for b.Loop() {
-		entries := cache.GetAuthorizedEntries(agents[rand.Intn(len(agents))]) //nolint:gosec
+		entries := cache.GetAuthorizedEntries(agents[rand.Intn(len(agents))])
 		require.NotEmpty(b, entries)
 	}
 }

@@ -3316,7 +3316,7 @@ func TestSyncAuthorizedEntries(t *testing.T) {
 }
 
 func FuzzSyncAuthorizedStreams(f *testing.F) {
-	rnd := rand.New(rand.NewSource(time.Now().Unix())) //nolint: gosec // this rand source ok for fuzz tests
+	rnd := rand.New(rand.NewSource(time.Now().Unix()))
 
 	const entryPageSize = 5
 
