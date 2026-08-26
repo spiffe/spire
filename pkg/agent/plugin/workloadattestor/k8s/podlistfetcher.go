@@ -13,6 +13,7 @@ import (
 	"github.com/andres-erbsen/clock"
 	"github.com/hashicorp/go-hclog"
 	"github.com/valyala/fastjson"
+	corev1 "k8s.io/api/core/v1"
 )
 
 const kubeletRequestTimeout = 10 * time.Second
@@ -31,6 +32,11 @@ type podListFetcherConfig struct {
 	kubeletCAPath              string
 	nodeName                   string
 	reloadInterval             time.Duration
+	// excludeCompletedPods drops pods in a terminal status.phase (Failed or
+	// Succeeded) while parsing the kubelet response, so they never enter the
+	// cache. Such pods have no running containers and are never the target of
+	// workload attestation.
+	excludeCompletedPods bool
 }
 
 // podListFetcher coordinates access to the kubelet pod list. Concurrent callers
@@ -64,7 +70,7 @@ type podListFetcher struct {
 	cachedFetchStart time.Time
 
 	// These are callbacks purely to facilitate testing.
-	fetch       func(context.Context, *kubeletClient) (map[string]*fastjson.Value, error)
+	fetch       func(context.Context, *kubeletClient, podListFetcherConfig) (map[string]*fastjson.Value, error)
 	buildClient func(podListFetcherConfig, *kubeletClient) (*kubeletClient, error)
 }
 
@@ -305,7 +311,7 @@ func (f *podListFetcher) startFetch() {
 			clientForFetch = reloadedClient
 		}
 
-		pods, err := fetch(fetchCtx, clientForFetch)
+		pods, err := fetch(fetchCtx, clientForFetch, config)
 		result := podListFetchResult{
 			versionedPodList: versionedPodList{pods: pods, version: version},
 			err:              err,
@@ -334,15 +340,15 @@ func (f *podListFetcher) fetchInFlight() bool {
 	return f.fetchCancel != nil
 }
 
-func (f *podListFetcher) fetchPodList(ctx context.Context, client *kubeletClient) (map[string]*fastjson.Value, error) {
+func (f *podListFetcher) fetchPodList(ctx context.Context, client *kubeletClient, config podListFetcherConfig) (map[string]*fastjson.Value, error) {
 	podListBytes, err := client.getPodList(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return f.parsePodList(podListBytes)
+	return f.parsePodList(podListBytes, config.excludeCompletedPods)
 }
 
-func (f *podListFetcher) parsePodList(podListBytes []byte) (map[string]*fastjson.Value, error) {
+func (f *podListFetcher) parsePodList(podListBytes []byte, excludeCompletedPods bool) (map[string]*fastjson.Value, error) {
 	var parser fastjson.Parser
 	podList, err := parser.ParseBytes(podListBytes)
 	if err != nil {
@@ -373,6 +379,20 @@ func (f *podListFetcher) parsePodList(podListBytes []byte) (map[string]*fastjson
 			f.log.Warn("Pod has no UID", "pod", podValue)
 			continue
 		}
+
+		// Pods in a terminal phase (Failed or Succeeded) have no running
+		// containers and can never host a workload being attested. Failed pods
+		// include evicted pods and pods left in ContainerStatusUnknown after a
+		// node problem; Succeeded pods include completed jobs. Optionally drop
+		// them so they do not balloon the cache on nodes with many terminated
+		// pods.
+		if excludeCompletedPods {
+			phase := string(podValue.Get("status", "phase").GetStringBytes())
+			if phase == string(corev1.PodFailed) || phase == string(corev1.PodSucceeded) {
+				continue
+			}
+		}
+
 		result[uid] = podValue
 	}
 
