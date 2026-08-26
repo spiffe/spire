@@ -2561,29 +2561,29 @@ func TestBatchDeleteEntry(t *testing.T) {
 			expectDs: dsEntries,
 			expectResult: func(m map[string]*common.RegistrationEntry) ([]*entryv1.BatchDeleteEntryResponse_Result, []spiretest.LogEntry) {
 				return []*entryv1.BatchDeleteEntryResponse_Result{
-						{
-							Status: &types.Status{
-								Code:    int32(codes.InvalidArgument),
-								Message: "missing entry ID",
-							},
+					{
+						Status: &types.Status{
+							Code:    int32(codes.InvalidArgument),
+							Message: "missing entry ID",
 						},
-					}, []spiretest.LogEntry{
-						{
-							Level:   logrus.ErrorLevel,
-							Message: "Invalid argument: missing entry ID",
+					},
+				}, []spiretest.LogEntry{
+					{
+						Level:   logrus.ErrorLevel,
+						Message: "Invalid argument: missing entry ID",
+					},
+					{
+						Level:   logrus.InfoLevel,
+						Message: "API accessed",
+						Data: logrus.Fields{
+							telemetry.Status:         "error",
+							telemetry.Type:           "audit",
+							telemetry.RegistrationID: "",
+							telemetry.StatusCode:     "InvalidArgument",
+							telemetry.StatusMessage:  "missing entry ID",
 						},
-						{
-							Level:   logrus.InfoLevel,
-							Message: "API accessed",
-							Data: logrus.Fields{
-								telemetry.Status:         "error",
-								telemetry.Type:           "audit",
-								telemetry.RegistrationID: "",
-								telemetry.StatusCode:     "InvalidArgument",
-								telemetry.StatusMessage:  "missing entry ID",
-							},
-						},
-					}
+					},
+				}
 			},
 			ids: func(m map[string]*common.RegistrationEntry) []string {
 				return []string{""}
@@ -2595,34 +2595,34 @@ func TestBatchDeleteEntry(t *testing.T) {
 			expectDs: dsEntries,
 			expectResult: func(m map[string]*common.RegistrationEntry) ([]*entryv1.BatchDeleteEntryResponse_Result, []spiretest.LogEntry) {
 				return []*entryv1.BatchDeleteEntryResponse_Result{
-						{
-							Status: &types.Status{
-								Code:    int32(codes.Internal),
-								Message: "failed to delete entry: some error",
-							},
-							Id: m[fooSpiffeID].EntryId,
+					{
+						Status: &types.Status{
+							Code:    int32(codes.Internal),
+							Message: "failed to delete entry: some error",
 						},
-					}, []spiretest.LogEntry{
-						{
-							Level:   logrus.ErrorLevel,
-							Message: "Failed to delete entry",
-							Data: logrus.Fields{
-								telemetry.RegistrationID: m[fooSpiffeID].EntryId,
-								logrus.ErrorKey:          "some error",
-							},
+						Id: m[fooSpiffeID].EntryId,
+					},
+				}, []spiretest.LogEntry{
+					{
+						Level:   logrus.ErrorLevel,
+						Message: "Failed to delete entry",
+						Data: logrus.Fields{
+							telemetry.RegistrationID: m[fooSpiffeID].EntryId,
+							logrus.ErrorKey:          "some error",
 						},
-						{
-							Level:   logrus.InfoLevel,
-							Message: "API accessed",
-							Data: logrus.Fields{
-								telemetry.Status:         "error",
-								telemetry.Type:           "audit",
-								telemetry.RegistrationID: m[fooSpiffeID].EntryId,
-								telemetry.StatusCode:     "Internal",
-								telemetry.StatusMessage:  "failed to delete entry: some error",
-							},
+					},
+					{
+						Level:   logrus.InfoLevel,
+						Message: "API accessed",
+						Data: logrus.Fields{
+							telemetry.Status:         "error",
+							telemetry.Type:           "audit",
+							telemetry.RegistrationID: m[fooSpiffeID].EntryId,
+							telemetry.StatusCode:     "Internal",
+							telemetry.StatusMessage:  "failed to delete entry: some error",
 						},
-					}
+					},
+				}
 			},
 			ids: func(m map[string]*common.RegistrationEntry) []string {
 				return []string{m[fooSpiffeID].EntryId}
@@ -2633,33 +2633,33 @@ func TestBatchDeleteEntry(t *testing.T) {
 			expectDs: dsEntries,
 			expectResult: func(m map[string]*common.RegistrationEntry) ([]*entryv1.BatchDeleteEntryResponse_Result, []spiretest.LogEntry) {
 				return []*entryv1.BatchDeleteEntryResponse_Result{
-						{
-							Status: &types.Status{
-								Code:    int32(codes.NotFound),
-								Message: "entry not found",
-							},
-							Id: "invalid id",
+					{
+						Status: &types.Status{
+							Code:    int32(codes.NotFound),
+							Message: "entry not found",
 						},
-					}, []spiretest.LogEntry{
-						{
-							Level:   logrus.ErrorLevel,
-							Message: "Entry not found",
-							Data: logrus.Fields{
-								telemetry.RegistrationID: "invalid id",
-							},
+						Id: "invalid id",
+					},
+				}, []spiretest.LogEntry{
+					{
+						Level:   logrus.ErrorLevel,
+						Message: "Entry not found",
+						Data: logrus.Fields{
+							telemetry.RegistrationID: "invalid id",
 						},
-						{
-							Level:   logrus.InfoLevel,
-							Message: "API accessed",
-							Data: logrus.Fields{
-								telemetry.Status:         "error",
-								telemetry.Type:           "audit",
-								telemetry.RegistrationID: "invalid id",
-								telemetry.StatusCode:     "NotFound",
-								telemetry.StatusMessage:  "entry not found",
-							},
+					},
+					{
+						Level:   logrus.InfoLevel,
+						Message: "API accessed",
+						Data: logrus.Fields{
+							telemetry.Status:         "error",
+							telemetry.Type:           "audit",
+							telemetry.RegistrationID: "invalid id",
+							telemetry.StatusCode:     "NotFound",
+							telemetry.StatusMessage:  "entry not found",
 						},
-					}
+					},
+				}
 			},
 			ids: func(m map[string]*common.RegistrationEntry) []string {
 				return []string{"invalid id"}
