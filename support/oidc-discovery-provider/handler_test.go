@@ -1258,6 +1258,77 @@ func TestHandlerAllKeys(t *testing.T) {
 	}
 }
 
+func TestHandlerResponseHeaders(t *testing.T) {
+	log, _ := test.NewNullLogger()
+	log.Level = logrus.DebugLevel
+
+	jwks := &jose.JSONWebKeySet{
+		Keys: []jose.JSONWebKey{
+			{
+				Key:       ec256Pubkey,
+				KeyID:     "KEYID",
+				Algorithm: "ES256",
+			},
+		},
+	}
+
+	testCases := []struct {
+		name         string
+		method       string
+		path         string
+		code         int
+		headers      map[string]string
+		absentHeader []string
+	}{
+		{
+			name:   "GET well-known",
+			method: "GET",
+			path:   "/.well-known/openid-configuration",
+			headers: map[string]string{
+				"Content-Type":                "application/json",
+				"Access-Control-Allow-Origin": "*",
+			},
+			// The discovery document is static, so it is left cacheable.
+			absentHeader: []string{"Cache-Control", "Pragma", "Expires"},
+		},
+		{
+			name:   "GET keys",
+			method: "GET",
+			path:   "/keys",
+			headers: map[string]string{
+				"Content-Type":                "application/json",
+				"Access-Control-Allow-Origin": "*",
+				"Cache-Control":               "no-cache, no-store, must-revalidate",
+				"Pragma":                      "no-cache",
+				"Expires":                     "0",
+			},
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			source := new(FakeKeySetSource)
+			source.SetKeySet(jwks, time.Time{}, time.Time{})
+
+			r, err := http.NewRequest(testCase.method, "https://domain.test"+testCase.path, nil)
+			require.NoError(t, err)
+			w := httptest.NewRecorder()
+
+			h, err := NewHandler(log, domainAllowlist(t, "domain.test"), source, false, false, nil, nil, "")
+			require.NoError(t, err)
+			h.ServeHTTP(w, r)
+
+			assert.Equal(t, http.StatusOK, w.Code)
+			for name, value := range testCase.headers {
+				assert.Equal(t, value, w.Header().Get(name), "header %q", name)
+			}
+			for _, name := range testCase.absentHeader {
+				assert.Empty(t, w.Header().Values(name), "header %q should not be set", name)
+			}
+		})
+	}
+}
+
 func domainAllowlist(t *testing.T, domains ...string) DomainPolicy {
 	policy, err := DomainAllowlist(domains...)
 	require.NoError(t, err)

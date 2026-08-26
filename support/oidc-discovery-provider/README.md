@@ -87,6 +87,7 @@ The configuration file is **required** by the provider. It contains
 | `jwt_issuer`            | string  | optional           | Specifies the issuer for the OIDC provider configuration request                               |          |
 | `jwks_uri`              | string  | optional           | Specifies the JWKS URI returned in the discovery document                                      |          |
 | `server_path_prefix`    | string  | optional           | If specified, all endpoints listened to will be prefixed by this value                         | `"/"`    |
+| `tls_config`            | section | optional           | TLS config for terminating HTTPS listeners (disk certificate and ACME modes).                  |          |
 
 | experimental             | Type   | Required?          | Description                                          | Default |
 |--------------------------|--------|--------------------|------------------------------------------------------|---------|
@@ -136,6 +137,19 @@ will terminate if another domain is requested.
 | `key_file_path`      | string   | required  | The private key file path, the file must contain PEM encoded data. |          |
 | `file_sync_interval` | duration | optional  | Controls how frequently the service polls the files for changes.   | 1 minute |
 | `addr`               | string   | optional  | Exposes the service on the given address.                          | :443     |
+
+#### TLS Config Section
+
+Applied to **terminating** HTTPS listeners when using `serving_cert_file` or `acme`.
+Not applied to `insecure_addr`, `listen_socket_path`, named pipe modes, or any
+outbound TLS client connections. Parsed once at startup; invalid values prevent
+the provider from starting.
+
+| Key                | Type   | Required?| Description                                                                                                                                 | Default                      |
+|--------------------|--------|----------|---------------------------------------------------------------------------------------------------------------------------------------------|------------------------------|
+| `min_tls_version`  | string | optional | Minimum TLS version (e.g. `VersionTLS12`, `VersionTLS13`). Values below `VersionTLS12` are rejected. When omitted, defaults to TLS 1.2.     | TLS 1.2 when block is present|
+| `cipher_suites`    | strings| optional | Allowed TLS 1.2 cipher suites. Ignored when `min_tls_version` is `VersionTLS13` or higher. Insecure suite names are filtered with a warning.| Go defaults if all filtered  |
+| `curve_preferences`| strings| optional | Preferred key exchange curves. When minimum TLS is 1.2, at least one classical curve is required.                                           |                              |
 
 #### Server API Section
 

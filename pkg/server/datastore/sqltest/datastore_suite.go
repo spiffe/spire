@@ -443,6 +443,24 @@ func (s *Suite) TestListBundlesWithPagination() {
 				PageSize: 2,
 			},
 		},
+		{
+			// Regression test: tokens beyond 32 bits must parse successfully,
+			// since the underlying ID column is not limited to 32 bits on
+			// every dialect (e.g. CockroachDB's bigint unique_rowid()). On
+			// dialects where the ID column IS 32-bit (postgres, mysql), the
+			// token is clamped to the column's max representable value,
+			// which still selects no rows since no such ID can exist.
+			name:         "token larger than 32 bits",
+			expectedList: []*common.Bundle{},
+			pagination: &datastore.Pagination{
+				Token:    "5000000000",
+				PageSize: 2,
+			},
+			expectedPagination: &datastore.Pagination{
+				Token:    "",
+				PageSize: 2,
+			},
+		},
 	}
 	for _, test := range tests {
 		s.T().Run(test.name, func(t *testing.T) {
@@ -4572,6 +4590,65 @@ func (s *Suite) TestRegistrationEntriesFederatesWithSuccess() {
 	// fetch the entry and make sure the federated trust ids come back
 	actual := s.fetchRegistrationEntry(expected.EntryId)
 	s.RequireProtoEqual(expected, actual)
+}
+
+func (s *Suite) TestRegistrationEntriesFederatesWithMultipleBundles() {
+	// create three bundles but only federate with two, so that the entry is
+	// associated with the exact bundles referenced and no others
+	s.createBundle("spiffe://otherdomain.org")
+	s.createBundle("spiffe://otherdomain2.org")
+	s.createBundle("spiffe://otherdomain3.org")
+
+	entry := makeFederatedRegistrationEntry()
+	entry.FederatesWith = []string{"spiffe://otherdomain.org", "spiffe://otherdomain2.org"}
+
+	// no ordering is defined for the federated trust domains, so compare them as
+	// sets rather than asserting an order the queries do not guarantee
+	created := s.createRegistrationEntry(entry)
+	expected := []string{"spiffe://otherdomain.org", "spiffe://otherdomain2.org"}
+	s.Require().ElementsMatch(expected, created.FederatesWith)
+	s.Require().ElementsMatch(expected, s.fetchRegistrationEntry(created.EntryId).FederatesWith)
+
+	// updating the federated bundles is reflected in the returned entry
+	created.FederatesWith = []string{"spiffe://otherdomain3.org"}
+	updated, err := s.ds.UpdateRegistrationEntry(ctx, created, nil)
+	s.Require().NoError(err)
+	s.Require().Equal([]string{"spiffe://otherdomain3.org"}, updated.FederatesWith)
+	s.RequireProtoEqual(updated, s.fetchRegistrationEntry(updated.EntryId))
+}
+
+func (s *Suite) TestRegistrationEntriesFederatesWithDuplicateTrustDomain() {
+	s.createBundle("spiffe://otherdomain.org")
+
+	entry := makeFederatedRegistrationEntry()
+	entry.FederatesWith = []string{"spiffe://otherdomain.org", "spiffe://otherdomain.org"}
+
+	// a trust domain named more than once is associated with the entry once
+	created := s.createRegistrationEntry(entry)
+	s.Require().Equal([]string{"spiffe://otherdomain.org"}, created.FederatesWith)
+	s.RequireProtoEqual(created, s.fetchRegistrationEntry(created.EntryId))
+}
+
+func (s *Suite) TestRegistrationEntriesWithoutFederatesWith() {
+	entry := makeFederatedRegistrationEntry()
+	entry.FederatesWith = nil
+
+	// an entry that federates with nothing round trips with no federated ids
+	created := s.createRegistrationEntry(entry)
+	s.Require().Empty(created.FederatesWith)
+	s.RequireProtoEqual(created, s.fetchRegistrationEntry(created.EntryId))
+
+	// the same holds after an update that leaves the entry unfederated
+	created.Admin = true
+	updated, err := s.ds.UpdateRegistrationEntry(ctx, created, nil)
+	s.Require().NoError(err)
+	s.Require().Empty(updated.FederatesWith)
+	s.RequireProtoEqual(updated, s.fetchRegistrationEntry(updated.EntryId))
+
+	// and the entry can still be deleted
+	deleted, err := s.ds.DeleteRegistrationEntry(ctx, updated.EntryId)
+	s.Require().NoError(err)
+	s.Require().Empty(deleted.FederatesWith)
 }
 
 func (s *Suite) TestDeleteBundleRestrictedByRegistrationEntries() {

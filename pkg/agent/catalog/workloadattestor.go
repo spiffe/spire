@@ -40,5 +40,5 @@ func (repo *workloadAttestorRepository) BuiltIns() []catalog.BuiltIn {
 
 type workloadAttestorV1 struct{}
 
-func (workloadAttestorV1) New() catalog.Facade { return new(workloadattestor.V1) }
-func (workloadAttestorV1) Deprecated() bool    { return false }
+func (workloadAttestorV1) New() catalog.Facade        { return new(workloadattestor.V1) }
+func (workloadAttestorV1) Deprecated() (bool, string) { return false, "" }

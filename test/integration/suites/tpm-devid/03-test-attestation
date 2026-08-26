@@ -1,0 +1,23 @@
+#!/bin/bash
+
+# The server derives the agent ID from the SHA-1 digest of the DevID
+# certificate, so deriving it here from the certificate we provisioned proves
+# the agent attested with that credential rather than merely that some agent
+# attested.
+EXPECTED_ID="spiffe://domain.test/spire/agent/tpm_devid/$(fingerprint conf/agent/devid.crt.pem)"
+log-debug "expecting agent ${EXPECTED_ID}"
+
+MAXCHECKS=30
+CHECKINTERVAL=1
+for ((i=1;i<=MAXCHECKS;i++)); do
+    log-info "checking for attested agent (${i} of ${MAXCHECKS})..."
+    AGENTS="$(docker compose exec -T spire-server /opt/spire/bin/spire-server agent list || true)"
+    if echo "${AGENTS}" | grep -q "${EXPECTED_ID}"; then
+        log-info "agent attested via tpm_devid"
+        exit 0
+    fi
+    sleep "${CHECKINTERVAL}"
+done
+
+log-warn "last agent list output: ${AGENTS}"
+fail-now "agent did not attest as ${EXPECTED_ID} after ${MAXCHECKS} checks"
