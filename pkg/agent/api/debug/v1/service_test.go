@@ -119,7 +119,6 @@ func TestGetInfo(t *testing.T) {
 			expectResp: &debugv1.GetInfoResponse{
 				LastSyncSuccess:               lastSync.UTC().Unix(),
 				SvidChain:                     x509SVIDChain,
-				SvidsCount:                    123,
 				CachedX509SvidsCount:          123,
 				CachedJwtSvidsCount:           123,
 				CachedSvidstoreX509SvidsCount: 123,
@@ -136,7 +135,6 @@ func TestGetInfo(t *testing.T) {
 			expectResp: &debugv1.GetInfoResponse{
 				LastSyncSuccess:               lastSync.UTC().Unix(),
 				SvidChain:                     svidWithIntermediateChain,
-				SvidsCount:                    456,
 				CachedX509SvidsCount:          456,
 				CachedJwtSvidsCount:           456,
 				CachedSvidstoreX509SvidsCount: 456,
@@ -146,7 +144,6 @@ func TestGetInfo(t *testing.T) {
 			name: "get response from cache",
 			expectResp: &debugv1.GetInfoResponse{
 				LastSyncSuccess:      cachedLastSync.Unix(),
-				SvidsCount:           99999,
 				CachedX509SvidsCount: 99999,
 				SvidChain:            x509SVIDChain,
 			},
