@@ -4008,13 +4008,13 @@ func TestBatchUpdateEntry(t *testing.T) {
 			},
 			updateEntries: []*types.Entry{
 				{
-					DnsNames: []string{"dnsUpdated"},
+					DnsNames: []string{"dnsupdated"},
 				},
 			},
 			expectDsEntries: func(id string) []*types.Entry {
 				modifiedEntry := proto.Clone(initialEntry).(*types.Entry)
 				modifiedEntry.Id = id
-				modifiedEntry.DnsNames = []string{"dnsUpdated"}
+				modifiedEntry.DnsNames = []string{"dnsupdated"}
 				modifiedEntry.RevisionNumber = 1
 				return []*types.Entry{modifiedEntry}
 			},
@@ -4022,7 +4022,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 				{
 					Status: &types.Status{Code: int32(codes.OK), Message: "OK"},
 					Entry: &types.Entry{
-						DnsNames: []string{"dnsUpdated"},
+						DnsNames: []string{"dnsupdated"},
 					},
 				},
 			},
@@ -4035,7 +4035,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 							telemetry.Status:         "success",
 							telemetry.Type:           "audit",
 							telemetry.RegistrationID: m[entry1SpiffeID.Path],
-							telemetry.DNSName:        "dnsUpdated",
+							telemetry.DNSName:        "dnsupdated",
 						},
 					},
 				}
