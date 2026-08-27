@@ -24,6 +24,7 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/diskcertmanager"
 	"github.com/spiffe/spire/pkg/common/pemutil"
+	"github.com/spiffe/spire/pkg/common/tlspolicy"
 	"github.com/spiffe/spire/pkg/server/endpoints/bundle/internal/acmetest"
 	"github.com/spiffe/spire/test/fakes/fakeserverkeymanager"
 	"github.com/spiffe/spire/test/spiretest"
@@ -34,6 +35,53 @@ import (
 const (
 	serverCertLifetime = time.Hour
 )
+
+func TestBundleListenerTLSPolicy(t *testing.T) {
+	serverCert, serverKey := createServerCertificate(t)
+	auth := testSPIFFEAuth(serverCert, serverKey)
+
+	policy, err := tlspolicy.NewPolicy(false, &tlspolicy.TLSConfig{
+		MinTLSVersion: "VersionTLS13",
+		CipherSuites: []string{
+			"TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
+		},
+		CurvePreferences: []string{
+			"X25519MLKEM768",
+			"secp256r1",
+		},
+	}, nil)
+	require.NoError(t, err)
+	tlsConfig, err := buildListenerTLSConfig(&Server{c: ServerConfig{ServerAuth: auth, TLSPolicy: policy}})
+	require.NoError(t, err)
+	require.Equal(t, uint16(tls.VersionTLS13), tlsConfig.MinVersion)
+	require.Nil(t, tlsConfig.CipherSuites)
+	require.Equal(t, []tls.CurveID{tls.X25519MLKEM768, tls.CurveP256}, tlsConfig.CurvePreferences)
+}
+
+func TestBundleListenerWithEmptyTLSPolicy(t *testing.T) {
+	serverCert, serverKey := createServerCertificate(t)
+	auth := testSPIFFEAuth(serverCert, serverKey)
+
+	policy, err := tlspolicy.NewPolicy(false, nil, nil)
+	require.NoError(t, err)
+	tlsConfig, err := buildListenerTLSConfig(&Server{c: ServerConfig{ServerAuth: auth, TLSPolicy: policy}})
+	require.NoError(t, err)
+	require.Equal(t, uint16(tls.VersionTLS12), tlsConfig.MinVersion)
+	require.Nil(t, tlsConfig.CipherSuites)
+	require.Nil(t, tlsConfig.CurvePreferences)
+}
+
+func TestBundleListenerTLSPolicyInvalid(t *testing.T) {
+	_, err := tlspolicy.NewPolicy(false, &tlspolicy.TLSConfig{MinTLSVersion: "VersionTLS99"}, nil)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "invalid minTLSVersion")
+}
+
+func TestServerTLSPolicyAppliedAtStartup(t *testing.T) {
+	_, err := tlspolicy.NewPolicy(false, &tlspolicy.TLSConfig{MinTLSVersion: "VersionTLS99"}, nil)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "invalid minTLSVersion")
+}
 
 func TestServer(t *testing.T) {
 	serverCert, serverKey := createServerCertificate(t)

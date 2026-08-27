@@ -1,6 +1,7 @@
 package run
 
 import (
+	"crypto/tls"
 	"io"
 	"os"
 	"path"
@@ -9,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hashicorp/hcl"
 	"github.com/hashicorp/hcl/hcl/ast"
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
@@ -17,6 +19,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/agent/workloadkey"
 	"github.com/spiffe/spire/pkg/common/log"
+	"github.com/spiffe/spire/pkg/common/tlspolicy"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/assert"
@@ -1294,6 +1297,29 @@ func TestNewAgentConfig(t *testing.T) {
 			},
 		},
 		{
+			msg:   "TLS config is omitted by default",
+			input: func(c *Config) {},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c.TLSPolicy.TLSCfg)
+			},
+		},
+		{
+			msg: "TLS config is configured",
+			input: func(c *Config) {
+				c.Agent.TLSConfig = &tlspolicy.TLSConfig{
+					MinTLSVersion:    "VersionTLS13",
+					CipherSuites:     []string{"TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"},
+					CurvePreferences: []string{"X25519", "secp256r1"},
+				}
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.NotNil(t, c.TLSPolicy.TLSCfg)
+				require.Equal(t, uint16(tls.VersionTLS13), c.TLSPolicy.TLSCfg.MinTLSVersion)
+				require.Nil(t, c.TLSPolicy.TLSCfg.CipherSuites)
+				require.Equal(t, []tls.CurveID{tls.X25519, tls.CurveP256}, c.TLSPolicy.TLSCfg.CurvePreferences)
+			},
+		},
+		{
 			msg: "jwt_svid_cache_hit_timeout sets the client timeout and logs warning",
 			input: func(c *Config) {
 				c.Agent.Experimental.JWTSVIDCacheHitTimeout = "10s"
@@ -1575,6 +1601,56 @@ func TestNewAgentConfig(t *testing.T) {
 			testCase.test(t, ac)
 		})
 	}
+}
+
+func TestParseTLSConfigFromHCL(t *testing.T) {
+	const configString = `
+agent {
+    data_dir = "."
+    log_level = "INFO"
+    server_address = "127.0.0.1"
+    server_port = "8081"
+    trust_domain = "example.org"
+    insecure_bootstrap = true
+    tls_config {
+        min_tls_version = "VersionTLS13"
+        cipher_suites = [
+            "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
+        ]
+        curve_preferences = [
+            "X25519MLKEM768",
+            "X25519",
+            "secp256r1",
+        ]
+    }
+    experimental {
+        require_pq_kem = true
+    }
+}
+plugins {}
+`
+	c := &Config{}
+	require.NoError(t, hcl.Decode(c, configString))
+
+	require.NotNil(t, c.Agent.TLSConfig)
+	require.Equal(t, "VersionTLS13", c.Agent.TLSConfig.MinTLSVersion)
+	require.Equal(t, []string{"TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"}, c.Agent.TLSConfig.CipherSuites)
+	require.Equal(t, []string{"X25519MLKEM768", "X25519", "secp256r1"}, c.Agent.TLSConfig.CurvePreferences)
+	require.True(t, c.Agent.Experimental.RequirePQKEM)
+
+	valid := defaultValidConfig()
+	valid.Agent.InsecureBootstrap = true
+	valid.Agent.TrustBundlePath = ""
+	valid.Agent.TLSConfig = c.Agent.TLSConfig
+	valid.Agent.Experimental.RequirePQKEM = c.Agent.Experimental.RequirePQKEM
+
+	ac, err := NewAgentConfig(valid, nil, false)
+	require.NoError(t, err)
+	require.True(t, ac.TLSPolicy.RequirePQKEM)
+	require.NotNil(t, ac.TLSPolicy.TLSCfg)
+	require.Equal(t, uint16(tls.VersionTLS13), ac.TLSPolicy.TLSCfg.MinTLSVersion)
+	require.Nil(t, ac.TLSPolicy.TLSCfg.CipherSuites)
+	require.Equal(t, []tls.CurveID{tls.X25519MLKEM768, tls.X25519, tls.CurveP256}, ac.TLSPolicy.TLSCfg.CurvePreferences)
 }
 
 func TestParseBrokerAllowedReferenceTypes(t *testing.T) {
