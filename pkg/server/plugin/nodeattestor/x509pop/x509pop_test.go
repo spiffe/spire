@@ -155,7 +155,7 @@ func (s *Suite) TestAttestSuccess() {
 		{
 			desc:          "success with group selector",
 			expectAgentID: "spiffe://example.org/spire/agent/x509pop/testhost",
-			giveConfig:    s.createConfigurationModeSPIFFE(`group_template = "{{ .SVIDPathTrimmed }}"` + "\n" + `groups = ["testhost"]`),
+			giveConfig:    s.createConfigurationModeSPIFFE(`group_template = "{{ .SVIDPathTrimmed }}"` + "\n" + `allowed_groups = ["testhost"]`),
 			certs:         s.svidExchange,
 			serialnumber:  "serialnumber:0a1b2c3d4e7f",
 			expectGroup:   "testhost",
@@ -163,14 +163,14 @@ func (s *Suite) TestAttestSuccess() {
 		{
 			desc:          "group selector not emitted when path not allowed",
 			expectAgentID: "spiffe://example.org/spire/agent/x509pop/testhost",
-			giveConfig:    s.createConfigurationModeSPIFFE(`group_template = "{{ .SVIDPathTrimmed }}"` + "\n" + `groups = ["other"]`),
+			giveConfig:    s.createConfigurationModeSPIFFE(`group_template = "{{ .SVIDPathTrimmed }}"` + "\n" + `allowed_groups = ["other"]`),
 			certs:         s.svidExchange,
 			serialnumber:  "serialnumber:0a1b2c3d4e7f",
 		},
 		{
 			desc:          "success with group selector in external_pki mode",
 			expectAgentID: "spiffe://example.org/spire/agent/x509pop/" + x509pop.Fingerprint(s.leafCert),
-			giveConfig:    s.createConfiguration("ca_bundle_path", `group_template = "{{ .Subject.CommonName }}"`+"\n"+`groups = ["COMMONNAME"]`),
+			giveConfig:    s.createConfiguration("ca_bundle_path", `group_template = "{{ .Subject.CommonName }}"`+"\n"+`allowed_groups = ["COMMONNAME"]`),
 			certs:         s.leafBundle,
 			serialnumber:  "serialnumber:0a1b2c3d4e5f",
 			expectGroup:   "COMMONNAME",
@@ -178,7 +178,7 @@ func (s *Suite) TestAttestSuccess() {
 		{
 			desc:          "surrounding whitespace is trimmed from the group",
 			expectAgentID: "spiffe://example.org/spire/agent/x509pop/testhost",
-			giveConfig:    s.createConfigurationModeSPIFFE(`group_template = "\n{{ .SVIDPathTrimmed }}\n"` + "\n" + `groups = ["testhost"]`),
+			giveConfig:    s.createConfigurationModeSPIFFE(`group_template = "\n{{ .SVIDPathTrimmed }}\n"` + "\n" + `allowed_groups = ["testhost"]`),
 			certs:         s.svidExchange,
 			serialnumber:  "serialnumber:0a1b2c3d4e7f",
 			expectGroup:   "testhost",
@@ -186,14 +186,14 @@ func (s *Suite) TestAttestSuccess() {
 		{
 			desc:          "no group when the template renders nothing",
 			expectAgentID: "spiffe://example.org/spire/agent/x509pop/testhost",
-			giveConfig:    s.createConfigurationModeSPIFFE(`group_template = "{{ if hasKey .URISanSelectors \"nope\" }}{{ .URISanSelectors.nope }}{{ end }}"` + "\n" + `groups = ["testhost"]`),
+			giveConfig:    s.createConfigurationModeSPIFFE(`group_template = "{{ if hasKey .URISanSelectors \"nope\" }}{{ .URISanSelectors.nope }}{{ end }}"` + "\n" + `allowed_groups = ["testhost"]`),
 			certs:         s.svidExchange,
 			serialnumber:  "serialnumber:0a1b2c3d4e7f",
 		},
 		{
 			desc:          "no group when the template fails to execute",
 			expectAgentID: "spiffe://example.org/spire/agent/x509pop/testhost",
-			giveConfig:    s.createConfigurationModeSPIFFE(`group_template = "{{ .URISanSelectors.nope }}"` + "\n" + `groups = ["testhost"]`),
+			giveConfig:    s.createConfigurationModeSPIFFE(`group_template = "{{ .URISanSelectors.nope }}"` + "\n" + `allowed_groups = ["testhost"]`),
 			certs:         s.svidExchange,
 			serialnumber:  "serialnumber:0a1b2c3d4e7f",
 		},
@@ -539,34 +539,34 @@ func (s *Suite) TestConfigure() {
 		err := doConfig(t, coreConfig, `
 		mode = "spiffe"
 		group_template = "{{ .Invalid"
-		groups = ["/foo"]
+		allowed_groups = ["foo"]
 		`)
 		spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, "failed to parse group template")
 	})
 
-	s.T().Run("group_template without allowed list", func(t *testing.T) {
+	s.T().Run("group_template without allowed_groups", func(t *testing.T) {
 		err := doConfig(t, coreConfig, `
 		mode = "spiffe"
 		group_template = "{{ .SVIDPathTrimmed }}"
 		`)
-		spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, "groups must be set when group_template is configured")
+		spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, "allowed_groups must be set when group_template is configured")
 	})
 
 	s.T().Run("invalid group_template reports the reason", func(t *testing.T) {
 		err := doConfig(t, coreConfig, `
 		mode = "spiffe"
 		group_template = "{{ .Invalid"
-		groups = ["/foo"]
+		allowed_groups = ["foo"]
 		`)
 		spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, "unclosed action")
 	})
 
-	s.T().Run("groups without group_template", func(t *testing.T) {
+	s.T().Run("allowed_groups without group_template", func(t *testing.T) {
 		err := doConfig(t, coreConfig, `
 		mode = "spiffe"
-		groups = ["/foo"]
+		allowed_groups = ["foo"]
 		`)
-		spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, "group_template must be set when groups is configured")
+		spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, "group_template must be set when allowed_groups is configured")
 	})
 }
 
@@ -604,27 +604,27 @@ func (s *Suite) TestGroupTemplateLogging() {
 	}
 
 	s.T().Run("group not in the configured list", func(t *testing.T) {
-		entries, err := attest(t, `group_template = "{{ .SVIDPathTrimmed }}"`+"\n"+`groups = ["other"]`)
+		entries, err := attest(t, `group_template = "{{ .SVIDPathTrimmed }}"`+"\n"+`allowed_groups = ["other"]`)
 		require.NoError(t, err)
 
 		spiretest.AssertLogsContainEntries(t, entries, []spiretest.LogEntry{
 			{
 				Level:   logrus.DebugLevel,
-				Message: "Group not in the configured groups list",
+				Message: "Group not in allowed_groups",
 				Data:    logrus.Fields{"group": "testhost"},
 			},
 		})
 	})
 
 	s.T().Run("template renders no group", func(t *testing.T) {
-		entries, err := attest(t, `group_template = "{{ if false }}unreachable{{ end }}"`+"\n"+`groups = ["testhost"]`)
+		entries, err := attest(t, `group_template = "{{ if false }}unreachable{{ end }}"`+"\n"+`allowed_groups = ["testhost"]`)
 		require.NoError(t, err)
 
 		requireLogged(t, entries, logrus.DebugLevel, "Group template produced no group", "")
 	})
 
 	s.T().Run("template fails to execute", func(t *testing.T) {
-		entries, err := attest(t, `group_template = "{{ .URISanSelectors.nope }}"`+"\n"+`groups = ["testhost"]`)
+		entries, err := attest(t, `group_template = "{{ .URISanSelectors.nope }}"`+"\n"+`allowed_groups = ["testhost"]`)
 		require.NoError(t, err)
 
 		requireLogged(t, entries, logrus.DebugLevel, "Failed to execute group template", "map has no entry for key")

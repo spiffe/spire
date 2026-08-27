@@ -59,7 +59,7 @@ type Config struct {
 	MaxRSAKeySize     *int     `hcl:"max_rsa_key_size"`
 	VerifyClientIP    bool     `hcl:"verify_client_ip"`
 	GroupTemplate     string   `hcl:"group_template"`
-	Groups            []string `hcl:"groups"`
+	AllowedGroups     []string `hcl:"allowed_groups"`
 }
 
 type configuration struct {
@@ -72,7 +72,7 @@ type configuration struct {
 	maxRSAKeySize    int
 	verifyClientIP   bool
 	groupTemplate    *agentpathtemplate.Template
-	groups           map[string]struct{}
+	allowedGroups    map[string]struct{}
 }
 
 func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *configuration {
@@ -136,16 +136,16 @@ func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginco
 		} else {
 			groupTemplate = tmpl
 		}
-		if len(hclConfig.Groups) == 0 {
-			status.ReportError("groups must be set when group_template is configured")
+		if len(hclConfig.AllowedGroups) == 0 {
+			status.ReportError("allowed_groups must be set when group_template is configured")
 		}
-	} else if len(hclConfig.Groups) > 0 {
-		status.ReportError("group_template must be set when groups is configured")
+	} else if len(hclConfig.AllowedGroups) > 0 {
+		status.ReportError("group_template must be set when allowed_groups is configured")
 	}
 
-	groups := make(map[string]struct{}, len(hclConfig.Groups))
-	for _, group := range hclConfig.Groups {
-		groups[group] = struct{}{}
+	allowedGroups := make(map[string]struct{}, len(hclConfig.AllowedGroups))
+	for _, group := range hclConfig.AllowedGroups {
+		allowedGroups[group] = struct{}{}
 	}
 
 	svidPrefix := "/spire-exchange/"
@@ -182,7 +182,7 @@ func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginco
 		maxRSAKeySize:    maxRSAKeySize,
 		verifyClientIP:   hclConfig.VerifyClientIP,
 		groupTemplate:    groupTemplate,
-		groups:           groups,
+		allowedGroups:    allowedGroups,
 	}
 
 	return newConfig
@@ -383,10 +383,10 @@ func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 		case group == "":
 			p.log.Debug("Group template produced no group")
 		default:
-			if _, ok := config.groups[group]; ok {
+			if _, ok := config.allowedGroups[group]; ok {
 				selectors = append(selectors, "group:"+group)
 			} else {
-				p.log.Debug("Group not in the configured groups list", "group", group)
+				p.log.Debug("Group not in allowed_groups", "group", group)
 			}
 		}
 	}

@@ -27,7 +27,7 @@ spiffe://<trust_domain>/spire/agent/x509pop/<fingerprint>
 | `max_rsa_key_size`    | Maximum RSA key size in bits allowed in certificates. This limit helps prevent resource exhaustion attacks from excessively large keys.                                                                                                        | 8192                                                           |
 | `verify_client_ip`    | If `true`, validates the connecting peer's IP against the leaf certificate's IP SANs. Attestation fails if no SAN matches. Reflects the immediate peer - may not represent true client origin behind load balancers.                           | false                                                          |
 | `group_template`      | Go text/template used to derive a group value from the certificate. If empty, no group selector is produced. See [Group Template](#group-template).                                                                                            |                                                                |
-| `groups`              | Allowlist of group values that may be emitted as selectors. A group produced by `group_template` must be in this list to be emitted. Required when `group_template` is set.                                                                    |                                                                |
+| `allowed_groups`      | Allowlist of group values that may be emitted as selectors. A group produced by `group_template` must be in this list to be emitted. Required when `group_template` is set.                                                                    |                                                                |
 
 A sample configuration:
 
@@ -56,7 +56,7 @@ A sample configuration:
 | SHA1 Fingerprint | `x509pop:ca:fingerprint:0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33` | The SHA1 fingerprint as a hex string for each cert in the PoP chain, excluding the leaf.                                                                                                                             |
 | SerialNumber     | `x509pop:serialnumber:0a1b2c3d4e5f`                               | The leaf certificate serial number as a lowercase hexadecimal string                                                                                                                                                 |
 | San              | `x509pop:san:<key>:<value>`                                       | The san selectors on the leaf certificate. The expected format of the uri san is `x509pop://<trust_domain>/<key>/<value>`. One selector is exposed per uri san corresponding to x509pop uri scheme. string           |
-| Group            | `x509pop:group:/cluster/foo/identity-exchange`                    | A group derived from `group_template`. Only emitted when the derived value is in `groups`. See [Group Template](#group-template).                                                                                    |
+| Group            | `x509pop:group:cluster/foo/identity-exchange`                     | A group derived from `group_template`. Only emitted when the derived value is in `allowed_groups`. See [Group Template](#group-template).                                                                            |
 
 ## SVID Path Prefix
 
@@ -104,28 +104,28 @@ then parent workload entries to the alias:
 spire-server entry create \
     -node \
     -spiffeID spiffe://example.org/cluster/foo \
-    -selector x509pop:group:/cluster/foo/identity-exchange
+    -selector x509pop:group:cluster/foo/identity-exchange
 ```
 
 The selector value comes from a template, and selector values are not otherwise
-validated, so the `groups` allowlist rather than the template is what bounds
+validated, so the `allowed_groups` list rather than the template is what bounds
 which groups a node can claim. It is required for that reason.
 
 ```hcl
     group_template = "{{ .SVIDPathTrimmed }}"
-    groups = ["/cluster/foo/identity-exchange"]
+    allowed_groups = ["cluster/foo/identity-exchange"]
 ```
 
 Surrounding whitespace is trimmed from the rendered value before it is compared
-against `groups`.
+against `allowed_groups`.
 
 ### When a group can not be derived
 
-| Result                          | Effect                                                          |
-|---------------------------------|-----------------------------------------------------------------|
-| A value that is not in `groups` | No group selector. Logged at debug level.                       |
-| Empty output                    | No group selector. Logged at debug level.                       |
-| The template fails to execute   | No group selector. Attestation still succeeds, logged at debug. |
+| Result                                  | Effect                                                          |
+|-----------------------------------------|-----------------------------------------------------------------|
+| A value that is not in `allowed_groups` | No group selector. Logged at debug level.                       |
+| Empty output                            | No group selector. Logged at debug level.                       |
+| The template fails to execute           | No group selector. Attestation still succeeds, logged at debug. |
 
 Attestation never fails because of the group template. Execution failures in
 particular are not fatal, since a template may legitimately not apply to every
