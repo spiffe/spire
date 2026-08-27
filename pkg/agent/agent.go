@@ -50,6 +50,7 @@ const (
 	bootstrapBackoffMaxElapsedTime   = 1 * time.Minute
 	startHealthChecksTimeout         = 8 * time.Second
 	rebootstrapBackoffMaxElapsedTime = 24 * time.Hour
+	profilingServerShutdownTimeout   = 500 * time.Millisecond
 )
 
 type Agent struct {
@@ -395,14 +396,16 @@ func (a *Agent) setupProfiling(ctx context.Context) (stop func()) {
 		// kick off a goroutine to serve the pprof endpoints and one to
 		// gracefully shut down the server when profiling is being torn down
 		wg.Go(func() {
-			if err := server.ListenAndServe(); err != nil {
+			if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 				a.c.Log.WithError(err).Warn("Unable to serve profiling server")
 			}
 		})
 		wg.Go(func() {
 			<-ctx.Done()
-			if err := server.Shutdown(ctx); err != nil {
-				a.c.Log.WithError(err).Warn("Unable to shut down cleanly")
+			shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), profilingServerShutdownTimeout)
+			defer shutdownCancel()
+			if err := server.Shutdown(shutdownCtx); err != nil {
+				a.c.Log.WithError(err).Warn("Unable to cleanly shut down profiling server")
 			}
 		})
 	}

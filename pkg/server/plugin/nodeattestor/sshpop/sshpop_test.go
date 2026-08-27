@@ -2,9 +2,17 @@ package sshpop
 
 import (
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/x509"
+	"encoding/pem"
 	"errors"
 	"fmt"
+	"net"
 	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -15,7 +23,9 @@ import (
 	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/ssh"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/peer"
 )
 
 func TestSSHPoP(t *testing.T) {
@@ -140,4 +150,87 @@ func (s *Suite) TestAttestFailure() {
 
 func expectNoChallenge(context.Context, []byte) ([]byte, error) {
 	return nil, errors.New("challenge is not expected")
+}
+
+func (s *Suite) TestVerifyClientIP() {
+	const sourceAddr = "10.0.0.5"
+
+	// The fixture certificates carry no source-address critical option, so mint
+	// a certificate that does and trust it for the duration of this test.
+	dir := s.T().TempDir()
+
+	caKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(s.T(), err)
+	caSigner, err := ssh.NewSignerFromSigner(caKey)
+	require.NoError(s.T(), err)
+
+	hostKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(s.T(), err)
+	hostSigner, err := ssh.NewSignerFromSigner(hostKey)
+	require.NoError(s.T(), err)
+
+	cert := &ssh.Certificate{
+		Key:             hostSigner.PublicKey(),
+		CertType:        ssh.HostCert,
+		ValidPrincipals: []string{"node.example.org"},
+		ValidBefore:     ssh.CertTimeInfinity,
+	}
+	cert.CriticalOptions = map[string]string{"source-address": sourceAddr}
+	require.NoError(s.T(), cert.SignCert(rand.Reader, caSigner))
+
+	hostKeyDER, err := x509.MarshalECPrivateKey(hostKey)
+	require.NoError(s.T(), err)
+	hostKeyPath := filepath.Join(dir, "host_key")
+	require.NoError(s.T(), os.WriteFile(hostKeyPath,
+		pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: hostKeyDER}), 0600))
+	hostCertPath := filepath.Join(dir, "host_key-cert.pub")
+	require.NoError(s.T(), os.WriteFile(hostCertPath, ssh.MarshalAuthorizedKey(cert), 0600))
+
+	certAuthority := strings.TrimSpace(string(ssh.MarshalAuthorizedKey(caSigner.PublicKey())))
+	serverConfig := fmt.Sprintf("cert_authorities = [%q]\nverify_client_ip = true", certAuthority)
+	clientConfig := fmt.Sprintf("host_key_path = %q\nhost_cert_path = %q", hostKeyPath, hostCertPath)
+
+	newAttestor := func(t *testing.T) (nodeattestor.NodeAttestor, *sshpop.Client) {
+		v1 := new(nodeattestor.V1)
+		plugintest.Load(t, BuiltIn(), v1,
+			plugintest.CoreConfig(catalog.CoreConfig{
+				TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
+			}),
+			plugintest.Configure(serverConfig),
+		)
+		client, err := sshpop.NewClient("example.org", clientConfig)
+		require.NoError(t, err)
+		return v1, client
+	}
+
+	attest := func(t *testing.T, ctx context.Context) error {
+		attestor, client := newAttestor(t)
+		handshake := client.NewHandshake()
+		attestationData, err := handshake.AttestationData()
+		require.NoError(t, err)
+		_, err = attestor.Attest(ctx, attestationData, func(_ context.Context, challenge []byte) ([]byte, error) {
+			return handshake.RespondToChallenge(challenge)
+		})
+		return err
+	}
+
+	contextWithPeer := func(ip string) context.Context {
+		return peer.NewContext(context.Background(), &peer.Peer{
+			Addr: &net.TCPAddr{IP: net.ParseIP(ip), Port: 12345},
+		})
+	}
+
+	s.T().Run("client IP matches source-address", func(t *testing.T) {
+		require.NoError(t, attest(t, contextWithPeer(sourceAddr)))
+	})
+
+	s.T().Run("client IP does not match source-address", func(t *testing.T) {
+		err := attest(t, contextWithPeer("10.0.0.6"))
+		spiretest.RequireGRPCStatusContains(t, err, codes.PermissionDenied, "client IP verification failed")
+	})
+
+	s.T().Run("client IP not available", func(t *testing.T) {
+		err := attest(t, context.Background())
+		spiretest.RequireGRPCStatusContains(t, err, codes.Internal, "client IP not available for verification")
+	})
 }

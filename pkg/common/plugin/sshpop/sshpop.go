@@ -50,6 +50,7 @@ type Server struct {
 	agentPathTemplate *agentpathtemplate.Template
 	trustDomain       spiffeid.TrustDomain
 	canonicalDomain   string
+	verifyClientIP    bool
 }
 
 // ClientConfig configures the client.
@@ -95,6 +96,10 @@ type ServerConfig struct {
 	// the certificate's valid principals. See CanonicalDomains in ssh_config(5).
 	CanonicalDomain   string `hcl:"canonical_domain"`
 	AgentPathTemplate string `hcl:"agent_path_template"`
+	// VerifyClientIP, when true, requires the host certificate to carry a
+	// source-address critical option and checks the connecting peer's IP
+	// against it. Certificates without source-address are rejected.
+	VerifyClientIP bool `hcl:"verify_client_ip"`
 
 	certChecker       *ssh.CertChecker
 	agentPathTemplate *agentpathtemplate.Template
@@ -150,6 +155,7 @@ func (sc *ServerConfig) NewServer() *Server {
 		agentPathTemplate: sc.agentPathTemplate,
 		trustDomain:       sc.trustDomain,
 		canonicalDomain:   sc.CanonicalDomain,
+		verifyClientIP:    sc.VerifyClientIP,
 	}
 }
 
