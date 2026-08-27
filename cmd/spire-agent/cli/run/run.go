@@ -246,13 +246,13 @@ type workloadAPIRateLimitConfig struct {
 }
 
 type experimentalConfig struct {
-	SyncInterval             string `hcl:"sync_interval"`
-	JWTSVIDCacheHitTimeout   string `hcl:"jwt_svid_cache_hit_timeout"`
-	RPCTimeout               string `hcl:"rpc_timeout"`
-	MaxBundleWorkers         int    `hcl:"max_bundle_workers"`
-	NamedPipeName            string `hcl:"named_pipe_name"`
-	AdminNamedPipeName       string `hcl:"admin_named_pipe_name"`
-	RequirePQKEM             bool   `hcl:"require_pq_kem"`
+	SyncInterval           string `hcl:"sync_interval"`
+	JWTSVIDCacheHitTimeout string `hcl:"jwt_svid_cache_hit_timeout"`
+	RPCTimeout             string `hcl:"rpc_timeout"`
+	MaxBundleWorkers       int    `hcl:"max_bundle_workers"`
+	NamedPipeName          string `hcl:"named_pipe_name"`
+	AdminNamedPipeName     string `hcl:"admin_named_pipe_name"`
+	RequirePQKEM           bool   `hcl:"require_pq_kem"`
 
 	RateLimit workloadAPIRateLimitConfig `hcl:"ratelimit"`
 
