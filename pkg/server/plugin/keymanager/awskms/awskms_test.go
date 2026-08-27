@@ -2588,6 +2588,19 @@ func configureTagBasedRequest(t *testing.T) *configv1.ConfigureRequest {
 	}
 }
 
+func configureRequestWithMultiRegion(t *testing.T, multiRegion bool) *configv1.ConfigureRequest {
+	return &configv1.ConfigureRequest{
+		CoreConfiguration: &configv1.CoreConfiguration{TrustDomain: "test.example.org"},
+		HclConfiguration: fmt.Sprintf(`{
+			"access_key_id": %q,
+			"secret_access_key": %q,
+			"region": %q,
+			"key_identifier_file": %q,
+			"multi_region": %t
+		}`, validAccessKeyID, validSecretAccessKey, validRegion, getKeyIdentifierFile(t), multiRegion),
+	}
+}
+
 // makeTaggedResource builds a ResourceTagMapping representing a KMS key that
 // is actively managed by the given server, with spire-key-id set.
 func makeTaggedResource(keyArn, spireKeyID, serverID, trustDomain string) rgtatypes.ResourceTagMapping {
@@ -2779,6 +2792,54 @@ func TestGenerateKeyTagBased(t *testing.T) {
 	require.Equal(t, "true", tags[tagKeyActive])
 	require.Equal(t, spireKeyID, tags[tagKeySPIREKeyID])
 	require.Equal(t, strconv.FormatInt(ts.clockHook.Now().Unix(), 10), tags[tagKeyLastUpdate])
+}
+
+// TestGenerateKeyMultiRegion verifies that the multi_region setting reaches
+// CreateKey. AWS only honors the multi-Region property at creation time, so
+// this is the only point at which it can take effect.
+func TestGenerateKeyMultiRegion(t *testing.T) {
+	for _, tt := range []struct {
+		name                string
+		configureRequest    *configv1.ConfigureRequest
+		expectedMultiRegion bool
+	}{
+		{
+			name:                "enabled",
+			configureRequest:    configureRequestWithMultiRegion(t, true),
+			expectedMultiRegion: true,
+		},
+		{
+			name:                "explicitly disabled",
+			configureRequest:    configureRequestWithMultiRegion(t, false),
+			expectedMultiRegion: false,
+		},
+		{
+			name:                "omitted defaults to disabled",
+			configureRequest:    configureRequestWithDefaults(t),
+			expectedMultiRegion: false,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			ts := setupTest(t)
+
+			_, err := ts.plugin.Configure(ctx, tt.configureRequest)
+			require.NoError(t, err)
+
+			_, err = ts.plugin.GenerateKey(ctx, &keymanagerv1.GenerateKeyRequest{
+				KeyId:   spireKeyID,
+				KeyType: keymanagerv1.KeyType_EC_P256,
+			})
+			require.NoError(t, err)
+
+			ts.fakeKMSClient.mu.RLock()
+			createCalls := ts.fakeKMSClient.createKeyCalls
+			ts.fakeKMSClient.mu.RUnlock()
+			require.Len(t, createCalls, 1)
+
+			require.NotNil(t, createCalls[0].MultiRegion)
+			require.Equal(t, tt.expectedMultiRegion, *createCalls[0].MultiRegion)
+		})
+	}
 }
 
 // TestFetchKeyEntryDetailsFromArn covers the defensive error branches of

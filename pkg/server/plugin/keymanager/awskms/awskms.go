@@ -118,6 +118,9 @@ type Plugin struct {
 
 	// useTagBasedDiscovery indicates whether to use tag-based or alias-based key discovery
 	useTagBasedDiscovery bool
+
+	// multiRegion indicates whether new keys are created as multi-Region keys
+	multiRegion bool
 }
 
 // Config provides configuration context for the plugin
@@ -143,6 +146,20 @@ type Config struct {
 	// Note: When enabled, the plugin requires the tag:GetResources IAM
 	// permission (from the AWS Resource Groups Tagging API).
 	EnableTagBasedKeyDiscovery bool `hcl:"enable_tag_based_key_discovery" json:"enable_tag_based_key_discovery"`
+
+	// MultiRegion creates new keys as AWS multi-Region keys, which are
+	// eligible to be replicated to other regions. AWS never replicates keys
+	// on its own, and neither does SPIRE: replicating the key and creating
+	// the corresponding alias or tags in each replica region is left to the
+	// operator. Aliases and tags are not shared properties of multi-Region
+	// keys, so a replica is not discoverable by this plugin in its region
+	// until they are created there.
+	//
+	// A key cannot be converted after creation, so this only affects keys
+	// created from the point it is enabled.
+	//
+	// Default: false
+	MultiRegion bool `hcl:"multi_region" json:"multi_region"`
 }
 
 func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *Config {
@@ -315,6 +332,7 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 	p.trustDomain = req.CoreConfiguration.TrustDomain
 	p.serverID = serverID
 	p.useTagBasedDiscovery = useTagBasedDiscovery
+	p.multiRegion = newConfig.MultiRegion
 
 	// Build the tag list applied to every new key. SPIRE-specific tags are
 	// only included when tag-based discovery is enabled, so that the legacy
@@ -486,6 +504,7 @@ func (p *Plugin) createKey(ctx context.Context, spireKeyID string, keyType keyma
 		KeyUsage:    types.KeyUsageTypeSignVerify,
 		KeySpec:     keySpec,
 		Policy:      p.keyPolicy,
+		MultiRegion: aws.Bool(p.multiRegion),
 	}
 
 	if p.useTagBasedDiscovery {

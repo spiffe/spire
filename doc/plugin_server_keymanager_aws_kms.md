@@ -15,6 +15,7 @@ The plugin accepts the following configuration options:
 | key_identifier_value             | string  | Required if key_identifier_file is not set  | A static identifier for the SPIRE server instance (used instead of `key_identifier_file`)                                 |                                                         |
 | key_policy_file                  | string  | no                                          | A file path location to a custom key policy in JSON format                                                                | ""                                                      |
 | enable_tag_based_key_discovery   | boolean | no                                          | Enable tag-based key discovery (recommended). See [Tag-based Key Discovery](#tag-based-key-discovery).                    | false                                                   |
+| multi_region                     | boolean | no                                          | Create new keys as [multi-Region keys](#multi-region-keys). Replication is not performed by SPIRE.                        | false                                                   |
 
 ### Server Instance Identification
 
@@ -93,6 +94,43 @@ The plugin validates all user-defined tags during configuration. If any tag viol
 **Tag lifecycle**
 When the `key_tags` configuration block is updated, only newly created keys will be tagged with the new configuration. Existing keys will not have their tags updated.
 
+### Multi-Region Keys
+
+Setting `multi_region` to `true` causes the plugin to create new keys as AWS
+[multi-Region keys](https://docs.aws.amazon.com/kms/latest/developerguide/multi-region-keys-overview.html).
+Such a key is a multi-Region _primary_ key that is eligible to be replicated
+into other regions, where the resulting replica shares its key ID and key
+material and can therefore produce interchangeable signatures.
+
+Enabling this setting does not, on its own, provide cross-region failover.
+Some important caveats:
+
+- AWS never replicates keys on its own, and neither does SPIRE. Creating a
+  replica in another region is left to the operator, via `ReplicateKey`.
+- Aliases and tags are _independent_ properties of multi-Region keys and are
+  not copied to replicas. A replica is therefore not discoverable by this
+  plugin in its region, under either discovery mode, until an equivalent
+  alias or tag set is created alongside it there.
+- Key policies are independent too. `ReplicateKey` attaches the AWS default
+  key policy unless one is supplied, so the policy this plugin applies —
+  whether from `key_policy_file` or the generated default described under
+  [Key policy](#key-policy) — is not carried over, and an equivalent policy
+  must be supplied for each replica or the plugin will be denied access to
+  it.
+- The plugin creates a new key each time the SPIRE server rotates, so a
+  replica reflects the key that existed when it was created and does not
+  track subsequent rotations.
+- A key's multi-Region property cannot be changed after creation. Enabling
+  this setting affects only keys created from that point on; existing keys
+  are replaced as the server rotates.
+
+Creating a multi-Region primary key requires `iam:CreateServiceLinkedRole` in
+addition to `kms:CreateKey`; see [AWS KMS Access](#aws-kms-access). Replicating
+that key additionally requires `kms:ReplicateKey` on the primary key, granted
+in its key policy, and `kms:CreateKey` in an IAM policy in the replica region —
+plus `kms:TagResource` there if the replica is tagged. Those replication
+permissions are needed by whoever performs the replication, not by this plugin.
+
 ### AWS KMS Access
 
 Access to AWS KMS can be given by either setting the `access_key_id` and `secret_access_key`, or by ensuring that the plugin runs on an EC2 instance with a given IAM role that has a specific set of permissions.
@@ -111,13 +149,16 @@ The IAM role must have an attached policy with the following permissions:
 
 The following additional permissions are required depending on the configuration:
 
-| Permission         | Required when                                                           |
-|--------------------|-------------------------------------------------------------------------|
-| `kms:ListKeys`     | Using alias-based key discovery (current default)                       |
-| `kms:TagResource`  | Using tag-based key discovery or `key_tags`                             |
-| `tag:GetResources` | Using tag-based key discovery (`enable_tag_based_key_discovery = true`) |
+| Permission                    | Required when                                                           |
+|-------------------------------|-------------------------------------------------------------------------|
+| `kms:ListKeys`                | Using alias-based key discovery (current default)                       |
+| `kms:TagResource`             | Using tag-based key discovery or `key_tags`                             |
+| `tag:GetResources`            | Using tag-based key discovery (`enable_tag_based_key_discovery = true`) |
+| `iam:CreateServiceLinkedRole` | Creating multi-Region keys (`multi_region = true`)                      |
 
 `tag:GetResources` belongs to the Resource Groups Tagging API, not to KMS. It is an identity-based permission and must be granted in the IAM identity's policy. It cannot be granted through the KMS key policy (including the default policy generated by the plugin).
+
+`iam:CreateServiceLinkedRole` is likewise an identity-based permission and cannot be granted through a key policy. AWS KMS requires it from any principal creating a multi-Region primary key, so that it can create the `AWSServiceRoleForKeyManagementServiceMultiRegionKeys` role used to synchronize shared properties between related keys. Without it, `CreateKey` fails when `multi_region` is enabled.
 
 ### Key policy
 
