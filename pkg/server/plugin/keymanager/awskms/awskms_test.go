@@ -2842,6 +2842,360 @@ func TestGenerateKeyMultiRegion(t *testing.T) {
 	}
 }
 
+// setupReplicaTest builds a plugin whose KMS clients are dispatched by region,
+// so the primary and each replica region are backed by distinct fakes. This
+// mirrors AWS, where a replica is a separate key resource in another region.
+func setupReplicaTest(t *testing.T, replicaRegions ...string) (*pluginTest, map[string]*kmsClientFake) {
+	log, logHook := test.NewNullLogger()
+	log.Level = logrus.DebugLevel
+
+	c := clock.NewMock()
+	primary := newKMSClientFake(t, c)
+	replicas := make(map[string]*kmsClientFake, len(replicaRegions))
+	for _, region := range replicaRegions {
+		replica := newKMSClientFake(t, c)
+		replicas[region] = replica
+		primary.setPeer(region, replica)
+	}
+
+	fakeSTSClient := newSTSClientFake()
+	fakeTaggingClient := newTaggingClientFake()
+	p := newPlugin(
+		func(cfg aws.Config) (kmsClient, error) {
+			if replica, ok := replicas[cfg.Region]; ok {
+				return replica, nil
+			}
+			return primary, nil
+		},
+		func(aws.Config) (taggingClient, error) { return fakeTaggingClient, nil },
+		func(aws.Config) (stsClient, error) { return fakeSTSClient, nil },
+	)
+	km := new(keymanager.V1)
+	plugintest.Load(t, builtin(p), km, plugintest.Log(log))
+
+	p.hooks.clk = c
+	p.hooks.replicateSignal = make(chan error, 10)
+
+	return &pluginTest{
+		plugin:            p,
+		fakeKMSClient:     primary,
+		fakeSTSClient:     fakeSTSClient,
+		fakeTaggingClient: fakeTaggingClient,
+		logHook:           logHook,
+		clockHook:         c,
+	}, replicas
+}
+
+// advanceUntilSignal advances the mock clock until the task signals. Advancing
+// once would race the worker reaching its Sleep call, which with a mock clock
+// leaves it blocked indefinitely.
+func advanceUntilSignal(t *testing.T, c *clock.Mock, ch chan error) error {
+	t.Helper()
+	deadline := time.After(testTimeout)
+	for {
+		select {
+		case err := <-ch:
+			return err
+		case <-deadline:
+			t.Fatal("timed out waiting for replication signal")
+			return nil
+		default:
+			c.Add(time.Second)
+			time.Sleep(time.Millisecond)
+		}
+	}
+}
+
+func configureReplicaRequest(t *testing.T, replicaRegions ...string) *configv1.ConfigureRequest {
+	regions, err := json.Marshal(replicaRegions)
+	require.NoError(t, err)
+
+	return &configv1.ConfigureRequest{
+		CoreConfiguration: &configv1.CoreConfiguration{TrustDomain: "test.example.org"},
+		HclConfiguration: fmt.Sprintf(`{
+			"access_key_id": %q,
+			"secret_access_key": %q,
+			"region": %q,
+			"key_identifier_file": %q,
+			"enable_tag_based_key_discovery": true,
+			"multi_region": true,
+			"replica_regions": %s
+		}`, validAccessKeyID, validSecretAccessKey, validRegion, getKeyIdentifierFile(t), regions),
+	}
+}
+
+// TestReplicateKey covers the happy path: a new key is replicated into every
+// configured region and given an alias there, since AWS copies neither aliases
+// nor tags to a replica.
+func TestReplicateKey(t *testing.T) {
+	const replicaRegion = "ap-northeast-1"
+	ts, replicas := setupReplicaTest(t, replicaRegion)
+
+	_, err := ts.plugin.Configure(ctx, configureReplicaRequest(t, replicaRegion))
+	require.NoError(t, err)
+
+	_, err = ts.plugin.GenerateKey(ctx, &keymanagerv1.GenerateKeyRequest{
+		KeyId:   spireKeyID,
+		KeyType: keymanagerv1.KeyType_EC_P256,
+	})
+	require.NoError(t, err)
+	require.NoError(t, waitForSignal(t, ts.plugin.hooks.replicateSignal))
+
+	ts.fakeKMSClient.mu.RLock()
+	replicateCalls := ts.fakeKMSClient.replicateKeyCalls
+	ts.fakeKMSClient.mu.RUnlock()
+	require.Len(t, replicateCalls, 1)
+	require.Equal(t, replicaRegion, *replicateCalls[0].ReplicaRegion)
+
+	// The replica must carry the SPIRE tags, including spire-key-id. Without
+	// it the replica satisfies the tag-discovery filter but cannot be mapped
+	// back to a SPIRE key, so it is found and then discarded.
+	tags := make(map[string]string, len(replicateCalls[0].Tags))
+	for _, tag := range replicateCalls[0].Tags {
+		tags[*tag.TagKey] = *tag.TagValue
+	}
+	require.Equal(t, spireKeyID, tags[tagKeySPIREKeyID])
+	require.Equal(t, "test.example.org", tags[tagKeyServerTD])
+	require.Equal(t, "true", tags[tagKeyActive])
+
+	// The alias must exist in the replica region, or a server running there
+	// cannot discover the key.
+	replicaAliases := replicas[replicaRegion].store.ListAliases()
+	require.Len(t, replicaAliases, 1)
+	require.Equal(t, aliasName, *replicaAliases[0].AliasName)
+}
+
+// TestReplicateKeyDeletesSupersededReplica verifies that rotation cleans up the
+// replica it displaced. AWS will not finish deleting a multi-Region primary
+// while any replica of it survives, so skipping this leaks a key per rotation.
+func TestReplicateKeyDeletesSupersededReplica(t *testing.T) {
+	const replicaRegion = "ap-northeast-1"
+	ts, replicas := setupReplicaTest(t, replicaRegion)
+
+	_, err := ts.plugin.Configure(ctx, configureReplicaRequest(t, replicaRegion))
+	require.NoError(t, err)
+
+	generate := func() {
+		_, err := ts.plugin.GenerateKey(ctx, &keymanagerv1.GenerateKeyRequest{
+			KeyId:   spireKeyID,
+			KeyType: keymanagerv1.KeyType_EC_P256,
+		})
+		require.NoError(t, err)
+		require.NoError(t, waitForSignal(t, ts.plugin.hooks.replicateSignal))
+	}
+
+	generate()
+	generate()
+
+	replica := replicas[replicaRegion]
+	replica.mu.RLock()
+	deletions := replica.scheduleKeyDeletionCalls
+	replica.mu.RUnlock()
+	require.Len(t, deletions, 1, "the superseded replica should be scheduled for deletion exactly once")
+
+	// The alias in the replica region must point at the surviving key, never
+	// at one pending deletion, which would fail plugin configuration there.
+	replicaAliases := replica.store.ListAliases()
+	require.Len(t, replicaAliases, 1)
+	require.NotEqual(t, deletions[0], *replicaAliases[0].KeyEntry.KeyID)
+}
+
+// TestReplicateKeyRetries verifies that a failing region is retried rather than
+// dropped: the alternative is a silently stale replica until the next rotation.
+func TestReplicateKeyRetries(t *testing.T) {
+	const replicaRegion = "ap-northeast-1"
+	ts, replicas := setupReplicaTest(t, replicaRegion)
+
+	_, err := ts.plugin.Configure(ctx, configureReplicaRequest(t, replicaRegion))
+	require.NoError(t, err)
+
+	ts.fakeKMSClient.setReplicateKeyErr(errors.New("replica region unreachable"))
+
+	_, err = ts.plugin.GenerateKey(ctx, &keymanagerv1.GenerateKeyRequest{
+		KeyId:   spireKeyID,
+		KeyType: keymanagerv1.KeyType_EC_P256,
+	})
+	require.NoError(t, err, "replication failure must not fail key generation")
+
+	err = waitForSignal(t, ts.plugin.hooks.replicateSignal)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "replica region unreachable")
+
+	// Recover, then let the retry through.
+	ts.fakeKMSClient.setReplicateKeyErr(nil)
+	require.NoError(t, advanceUntilSignal(t, ts.clockHook, ts.plugin.hooks.replicateSignal))
+
+	require.Len(t, replicas[replicaRegion].store.ListAliases(), 1)
+}
+
+// TestReplicateKeyDiscardsSupersededRequest verifies that a request left over
+// from an earlier rotation is dropped rather than replicated. Replaying it
+// would repoint the replica alias back at a key that has since been superseded.
+func TestReplicateKeyDiscardsSupersededRequest(t *testing.T) {
+	const replicaRegion = "ap-northeast-1"
+	ts, replicas := setupReplicaTest(t, replicaRegion)
+
+	_, err := ts.plugin.Configure(ctx, configureReplicaRequest(t, replicaRegion))
+	require.NoError(t, err)
+
+	_, err = ts.plugin.GenerateKey(ctx, &keymanagerv1.GenerateKeyRequest{
+		KeyId:   spireKeyID,
+		KeyType: keymanagerv1.KeyType_EC_P256,
+	})
+	require.NoError(t, err)
+	require.NoError(t, waitForSignal(t, ts.plugin.hooks.replicateSignal))
+
+	ts.plugin.mu.RLock()
+	supersededArn := ts.plugin.entries[spireKeyID].Arn
+	ts.plugin.mu.RUnlock()
+
+	// Rotate, so the first key is no longer current.
+	_, err = ts.plugin.GenerateKey(ctx, &keymanagerv1.GenerateKeyRequest{
+		KeyId:   spireKeyID,
+		KeyType: keymanagerv1.KeyType_EC_P256,
+	})
+	require.NoError(t, err)
+	require.NoError(t, waitForSignal(t, ts.plugin.hooks.replicateSignal))
+
+	ts.fakeKMSClient.mu.RLock()
+	callsBefore := len(ts.fakeKMSClient.replicateKeyCalls)
+	ts.fakeKMSClient.mu.RUnlock()
+
+	currentAliases := replicas[replicaRegion].store.ListAliases()
+	require.Len(t, currentAliases, 1)
+	currentTarget := *currentAliases[0].KeyEntry.KeyID
+
+	// Replay the request belonging to the superseded key.
+	ts.plugin.replicate[replicaRegion] <- replicateRequest{
+		spireKeyID: spireKeyID,
+		keyArn:     supersededArn,
+		aliasName:  aliasName,
+	}
+	require.NoError(t, waitForSignal(t, ts.plugin.hooks.replicateSignal))
+
+	ts.fakeKMSClient.mu.RLock()
+	callsAfter := len(ts.fakeKMSClient.replicateKeyCalls)
+	ts.fakeKMSClient.mu.RUnlock()
+	require.Equal(t, callsBefore, callsAfter, "a superseded request must not be replicated")
+
+	aliasesAfter := replicas[replicaRegion].store.ListAliases()
+	require.Len(t, aliasesAfter, 1)
+	require.Equal(t, currentTarget, *aliasesAfter[0].KeyEntry.KeyID, "the replica alias must still point at the current key")
+}
+
+// TestReplicateKeyIsolatesFailingRegion is the reason replication uses a queue
+// per region. A region that cannot be reached must not hold up the others: with
+// a single shared queue, the retries for the failing region would starve every
+// later key, so the healthy region would never see the second key.
+func TestReplicateKeyIsolatesFailingRegion(t *testing.T) {
+	const healthyRegion, failingRegion = "eu-west-1", "ap-northeast-1"
+	ts, replicas := setupReplicaTest(t, healthyRegion, failingRegion)
+
+	_, err := ts.plugin.Configure(ctx, configureReplicaRequest(t, healthyRegion, failingRegion))
+	require.NoError(t, err)
+
+	replicas[failingRegion].setCreateAliasesErr("region unreachable")
+
+	generate := func() {
+		_, err := ts.plugin.GenerateKey(ctx, &keymanagerv1.GenerateKeyRequest{
+			KeyId:   spireKeyID,
+			KeyType: keymanagerv1.KeyType_EC_P256,
+		})
+		require.NoError(t, err, "an unreachable replica region must not fail key generation")
+	}
+
+	generate()
+	require.Eventually(t, func() bool {
+		return len(replicas[healthyRegion].store.ListAliases()) == 1
+	}, testTimeout, time.Millisecond, "the healthy region should replicate the first key")
+
+	// Rotate. The failing region is still retrying the first key; the healthy
+	// region must nonetheless pick this one up.
+	generate()
+
+	ts.plugin.mu.RLock()
+	currentArn := ts.plugin.entries[spireKeyID].Arn
+	ts.plugin.mu.RUnlock()
+	currentKeyID, ok := parseKeyIDFromArn(currentArn)
+	require.True(t, ok)
+
+	require.Eventually(t, func() bool {
+		aliases := replicas[healthyRegion].store.ListAliases()
+		return len(aliases) == 1 && *aliases[0].KeyEntry.KeyID == currentKeyID
+	}, testTimeout, time.Millisecond, "the healthy region should not be starved by the failing one")
+
+	require.Empty(t, replicas[failingRegion].store.ListAliases(), "the failing region should still have no alias")
+}
+
+// TestConfigureReplicaRegions covers validation of the replica region list.
+func TestConfigureReplicaRegions(t *testing.T) {
+	for _, tt := range []struct {
+		name       string
+		multiRegon bool
+		regions    []string
+		err        string
+	}{
+		{
+			name:       "valid",
+			multiRegon: true,
+			regions:    []string{"ap-northeast-1", "eu-west-1"},
+		},
+		{
+			name:       "none configured",
+			multiRegon: true,
+		},
+		{
+			name:    "requires multi_region",
+			regions: []string{"ap-northeast-1"},
+			err:     "replica_regions requires multi_region to be enabled",
+		},
+		{
+			name:       "duplicated region",
+			multiRegon: true,
+			regions:    []string{"ap-northeast-1", "ap-northeast-1"},
+			err:        `replica region "ap-northeast-1" is duplicated`,
+		},
+		{
+			name:       "same as primary region",
+			multiRegon: true,
+			regions:    []string{validRegion},
+			err:        fmt.Sprintf("replica region %q must be different from the configured region", validRegion),
+		},
+		{
+			name:       "empty region",
+			multiRegon: true,
+			regions:    []string{""},
+			err:        "replica_regions must not contain an empty region",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			ts := setupTest(t)
+
+			configuredRegions := tt.regions
+			if configuredRegions == nil {
+				configuredRegions = []string{}
+			}
+			regions, err := json.Marshal(configuredRegions)
+			require.NoError(t, err)
+
+			_, err = ts.plugin.Configure(ctx, configureRequestWithString(fmt.Sprintf(`{
+				"access_key_id": %q,
+				"secret_access_key": %q,
+				"region": %q,
+				"key_identifier_file": %q,
+				"multi_region": %t,
+				"replica_regions": %s
+			}`, validAccessKeyID, validSecretAccessKey, validRegion, getKeyIdentifierFile(t), tt.multiRegon, regions)))
+
+			if tt.err != "" {
+				spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, tt.err)
+				return
+			}
+			require.NoError(t, err)
+		})
+	}
+}
+
 // TestFetchKeyEntryDetailsFromArn covers the defensive error branches of
 // tag-based key detail retrieval that are not exercised by the higher-level
 // Configure tests.

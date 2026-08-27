@@ -41,6 +41,10 @@ const (
 	keyArnTag    = "key_arn"
 	aliasNameTag = "alias_name"
 	reasonTag    = "reason"
+	replicaTag   = "replica_region"
+
+	// replicateQueueDepth bounds the per-region replication backlog.
+	replicateQueueDepth = 120
 
 	// KMS resource tags for key discovery
 	tagKeyServerTD   = "spire-server-td"   // Trust domain (no hashing needed - AWS allows dots and long values)
@@ -95,6 +99,7 @@ type pluginHooks struct {
 	disposeAliasesSignal chan error
 	disposeKeysSignal    chan error
 	keepActiveKeysSignal chan error
+	replicateSignal      chan error
 }
 
 // Plugin is the main representation of this keymanager plugin
@@ -121,6 +126,28 @@ type Plugin struct {
 
 	// multiRegion indicates whether new keys are created as multi-Region keys
 	multiRegion bool
+
+	// replicate carries keys awaiting replication, one queue per replica
+	// region. Queues are kept separate so that an unreachable region only
+	// delays its own replication rather than every region's.
+	replicate map[string]chan replicateRequest
+}
+
+// replicateRequest describes a newly created multi-Region primary key that
+// must be replicated into every configured replica region, along with the
+// metadata each replica needs in order to be discoverable in its own region.
+// Aliases and tags are independent properties of multi-Region keys, so AWS
+// does not copy them and the plugin must recreate them per region.
+type replicateRequest struct {
+	spireKeyID string
+	keyArn     string
+	aliasName  string
+	tags       []types.Tag
+
+	// supersededKeyArn is the key this one replaces, empty on first creation.
+	// Its replicas are deleted only after the alias in each replica region has
+	// been repointed, so the alias never targets a key pending deletion.
+	supersededKeyArn string
 }
 
 // Config provides configuration context for the plugin
@@ -148,18 +175,24 @@ type Config struct {
 	EnableTagBasedKeyDiscovery bool `hcl:"enable_tag_based_key_discovery" json:"enable_tag_based_key_discovery"`
 
 	// MultiRegion creates new keys as AWS multi-Region keys, which are
-	// eligible to be replicated to other regions. AWS never replicates keys
-	// on its own, and neither does SPIRE: replicating the key and creating
-	// the corresponding alias or tags in each replica region is left to the
-	// operator. Aliases and tags are not shared properties of multi-Region
-	// keys, so a replica is not discoverable by this plugin in its region
-	// until they are created there.
+	// eligible to be replicated to other regions. AWS never replicates a key
+	// on its own; set ReplicaRegions to have the plugin do it, along with the
+	// alias and tags each replica needs to be discoverable in its own region.
+	// With MultiRegion alone the keys are merely eligible.
 	//
 	// A key cannot be converted after creation, so this only affects keys
 	// created from the point it is enabled.
 	//
 	// Default: false
 	MultiRegion bool `hcl:"multi_region" json:"multi_region"`
+
+	// ReplicaRegions are the regions that each new multi-Region key is
+	// replicated into. Replication is performed asynchronously and retried,
+	// so a temporarily unreachable region does not block key generation.
+	// Requires MultiRegion to be enabled.
+	//
+	// Default: none
+	ReplicaRegions []string `hcl:"replica_regions" json:"replica_regions"`
 }
 
 func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *Config {
@@ -192,6 +225,25 @@ func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginco
 
 	if newConfig.KeyIdentifierFile != "" && newConfig.KeyIdentifierValue != "" {
 		status.ReportError("configuration can't have a key identifier file and a key identifier value at the same time")
+	}
+
+	if len(newConfig.ReplicaRegions) > 0 && !newConfig.MultiRegion {
+		status.ReportError("replica_regions requires multi_region to be enabled")
+	}
+
+	seenReplicaRegions := make(map[string]struct{}, len(newConfig.ReplicaRegions))
+	for _, region := range newConfig.ReplicaRegions {
+		switch region {
+		case "":
+			status.ReportError("replica_regions must not contain an empty region")
+		case newConfig.Region:
+			status.ReportErrorf("replica region %q must be different from the configured region", region)
+		default:
+			if _, ok := seenReplicaRegions[region]; ok {
+				status.ReportErrorf("replica region %q is duplicated", region)
+			}
+			seenReplicaRegions[region] = struct{}{}
+		}
 	}
 
 	if len(newConfig.KeyTags) > 0 {
@@ -255,7 +307,7 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 	}
 	p.log.Debug("Loaded server id", "server_id", serverID)
 
-	awsCfg, err := newAWSConfig(ctx, newConfig)
+	awsCfg, err := newAWSConfig(ctx, newConfig, newConfig.Region)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to create client configuration: %v", err)
 	}
@@ -268,6 +320,24 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 	kc, err := p.hooks.newKMSClient(awsCfg)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to create KMS client: %v", err)
+	}
+
+	// A client per replica region. Aliases are region-local resources, so the
+	// plugin needs to reach each replica region directly to make the replica
+	// discoverable there and to clean it up on rotation.
+	replicaClients := make(map[string]kmsClient, len(newConfig.ReplicaRegions))
+	replicateQueues := make(map[string]chan replicateRequest, len(newConfig.ReplicaRegions))
+	for _, region := range newConfig.ReplicaRegions {
+		replicaCfg, err := newAWSConfig(ctx, newConfig, region)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "failed to load AWS config for replica region %q: %v", region, err)
+		}
+		rc, err := p.hooks.newKMSClient(replicaCfg)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "failed to create KMS client for replica region %q: %v", region, err)
+		}
+		replicaClients[region] = rc
+		replicateQueues[region] = make(chan replicateRequest, replicateQueueDepth)
 	}
 
 	// Determine which discovery mode to use
@@ -333,6 +403,7 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 	p.serverID = serverID
 	p.useTagBasedDiscovery = useTagBasedDiscovery
 	p.multiRegion = newConfig.MultiRegion
+	p.replicate = replicateQueues
 
 	// Build the tag list applied to every new key. SPIRE-specific tags are
 	// only included when tag-based discovery is enabled, so that the legacy
@@ -360,6 +431,9 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 	// Start background tasks based on discovery mode
 	ctx, p.cancelTasks = context.WithCancel(context.Background())
 	go p.scheduleDeleteTask(ctx)
+	for region, replicaClient := range replicaClients {
+		go p.replicateTask(ctx, region, replicaClient, replicateQueues[region])
+	}
 
 	// Always refresh aliases so a downgrade to a version without
 	// tag-based discovery still finds keys with fresh aliases.
@@ -398,6 +472,8 @@ func (p *Plugin) GenerateKey(ctx context.Context, req *keymanagerv1.GenerateKeyR
 	defer p.mu.Unlock()
 
 	spireKeyID := req.KeyId
+	supersededEntry, hasSuperseded := p.entries[spireKeyID]
+
 	newKeyEntry, err := p.createKey(ctx, spireKeyID, req.KeyType)
 	if err != nil {
 		return nil, err
@@ -409,6 +485,12 @@ func (p *Plugin) GenerateKey(ctx context.Context, req *keymanagerv1.GenerateKeyR
 	}
 
 	p.entries[spireKeyID] = *newKeyEntry
+
+	var supersededKeyArn string
+	if hasSuperseded {
+		supersededKeyArn = supersededEntry.Arn
+	}
+	p.enqueueReplication(spireKeyID, newKeyEntry, supersededKeyArn)
 
 	return &keymanagerv1.GenerateKeyResponse{
 		PublicKey: newKeyEntry.PublicKey,
@@ -484,6 +566,41 @@ func (p *Plugin) GetPublicKeys(context.Context, *keymanagerv1.GetPublicKeysReque
 	return &keymanagerv1.GetPublicKeysResponse{PublicKeys: keys}, nil
 }
 
+// tagsForKey returns the tags applied to a key belonging to the given SPIRE
+// key ID. Replicas are tagged with the same set, so this must stay the single
+// source of truth: a replica missing spire-key-id satisfies the tag-based
+// discovery filter but cannot be mapped back to a SPIRE key, and is silently
+// discarded in the replica region. The caller must hold p.mu.
+func (p *Plugin) tagsForKey(spireKeyID string) []types.Tag {
+	if !p.useTagBasedDiscovery {
+		// Legacy alias-based mode: only apply user-defined tags (if any).
+		if len(p.keyTags) == 0 {
+			return nil
+		}
+		return append([]types.Tag(nil), p.keyTags...)
+	}
+
+	// When tag-based discovery is enabled, append the per-key SPIRE key ID tag
+	// so the key can be looked up by ID via the tagging API, and stamp
+	// spire-last-update so the key is immediately eligible for staleness
+	// evaluation. Stamping at creation (rather than waiting for the first
+	// keepActiveKeys tick) ensures a key is never left with spire-active=true
+	// but no spire-last-update, which would make it undisposable by other
+	// servers if this server dies before that tick.
+	tags := make([]types.Tag, len(p.keyTags), len(p.keyTags)+2)
+	copy(tags, p.keyTags)
+	return append(tags,
+		types.Tag{
+			TagKey:   aws.String(tagKeySPIREKeyID),
+			TagValue: aws.String(spireKeyID),
+		},
+		types.Tag{
+			TagKey:   aws.String(tagKeyLastUpdate),
+			TagValue: aws.String(strconv.FormatInt(p.hooks.clk.Now().Unix(), 10)),
+		},
+	)
+}
+
 func (p *Plugin) createKey(ctx context.Context, spireKeyID string, keyType keymanagerv1.KeyType) (*keyEntry, error) {
 	description := p.descriptionFromSpireKeyID(spireKeyID)
 	keySpec, ok := keySpecFromKeyType(keyType)
@@ -507,32 +624,7 @@ func (p *Plugin) createKey(ctx context.Context, spireKeyID string, keyType keyma
 		MultiRegion: aws.Bool(p.multiRegion),
 	}
 
-	if p.useTagBasedDiscovery {
-		// When tag-based discovery is enabled, append the per-key SPIRE key
-		// ID tag so the key can be looked up by ID via the tagging API, and
-		// stamp spire-last-update so the key is immediately eligible for
-		// staleness evaluation. Stamping at creation (rather than waiting for
-		// the first keepActiveKeys tick) ensures a key is never left with
-		// spire-active=true but no spire-last-update, which would make it
-		// undisposable by other servers if this server dies before that tick.
-		// Build a fresh slice to avoid mutating the shared p.keyTags slice.
-		tags := make([]types.Tag, len(p.keyTags), len(p.keyTags)+2)
-		copy(tags, p.keyTags)
-		tags = append(tags,
-			types.Tag{
-				TagKey:   aws.String(tagKeySPIREKeyID),
-				TagValue: aws.String(spireKeyID),
-			},
-			types.Tag{
-				TagKey:   aws.String(tagKeyLastUpdate),
-				TagValue: aws.String(strconv.FormatInt(p.hooks.clk.Now().Unix(), 10)),
-			},
-		)
-		createKeyInput.Tags = tags
-	} else if len(p.keyTags) > 0 {
-		// Legacy alias-based mode: only apply user-defined tags (if any).
-		createKeyInput.Tags = p.keyTags
-	}
+	createKeyInput.Tags = p.tagsForKey(spireKeyID)
 
 	key, err := p.kmsClient.CreateKey(ctx, createKeyInput)
 	if err != nil {
@@ -606,6 +698,204 @@ func (p *Plugin) setCache(keyEntries []*keyEntry) {
 		p.entries[e.PublicKey.Id] = *e
 		p.log.Debug("Key loaded", keyArnTag, e.Arn, aliasNameTag, e.AliasName)
 	}
+}
+
+// enqueueReplication schedules replication of a newly created key into the
+// configured replica regions. It never blocks: key generation is on the CA
+// rotation path, and a key missed here is replicated again on the next
+// rotation. The caller must hold p.mu.
+func (p *Plugin) enqueueReplication(spireKeyID string, entry *keyEntry, supersededKeyArn string) {
+	if len(p.replicate) == 0 {
+		return
+	}
+
+	req := replicateRequest{
+		spireKeyID:       spireKeyID,
+		keyArn:           entry.Arn,
+		aliasName:        entry.AliasName,
+		tags:             p.tagsForKey(spireKeyID),
+		supersededKeyArn: supersededKeyArn,
+	}
+
+	for region, queue := range p.replicate {
+		select {
+		case queue <- req:
+			p.log.Debug("Key enqueued for replication", keyArnTag, entry.Arn, replicaTag, region)
+		default:
+			p.log.Error("Failed to enqueue key for replication", keyArnTag, entry.Arn, replicaTag, region, reasonTag, "queue is full")
+		}
+	}
+}
+
+// isCurrentKey reports whether the given ARN is still the key the plugin holds
+// for that SPIRE key ID.
+func (p *Plugin) isCurrentKey(spireKeyID, keyArn string) bool {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	entry, ok := p.entries[spireKeyID]
+	return ok && entry.Arn == keyArn
+}
+
+// replicateTask is a long-running task that replicates keys into a single
+// replica region, and creates the alias that region needs to make the replica
+// discoverable. There is one of these per region, so a region that is
+// unreachable delays only its own replication and does not hold up the others.
+func (p *Plugin) replicateTask(ctx context.Context, region string, replicaClient kmsClient, queue chan replicateRequest) {
+	backoffMin := 1 * time.Second
+	backoffMax := 60 * time.Second
+	backoff := backoffMin
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case req := <-queue:
+			log := p.log.With(keyArnTag, req.keyArn, replicaTag, region)
+
+			// A request retried across a rotation is stale: replicating it now
+			// would repoint the replica alias back at a superseded key. Drop it
+			// and let the request for the current key do the work.
+			if !p.isCurrentKey(req.spireKeyID, req.keyArn) {
+				log.Debug("Discarding replication of superseded key")
+				p.notifyReplicate(nil)
+				continue
+			}
+
+			keyID, ok := parseKeyIDFromArn(req.keyArn)
+			if !ok {
+				// Not retryable, so drop it rather than spinning.
+				log.Error("Unable to determine key id for replication")
+				p.notifyReplicate(nil)
+				continue
+			}
+
+			err := p.replicateKeyToRegion(ctx, req, keyID, region, replicaClient)
+			if err == nil {
+				log.Debug("Key replicated")
+				backoff = backoffMin
+				p.notifyReplicate(nil)
+				continue
+			}
+
+			log.Error("Failed to replicate key", reasonTag, err)
+			select {
+			case queue <- req:
+				log.Debug("Key re-enqueued for replication")
+			default:
+				log.Error("Failed to re-enqueue key for replication")
+			}
+			p.notifyReplicate(err)
+			backoff = min(backoff*2, backoffMax)
+			p.hooks.clk.Sleep(backoff)
+		}
+	}
+}
+
+func (p *Plugin) replicateKeyToRegion(ctx context.Context, req replicateRequest, keyID, region string, replicaClient kmsClient) error {
+	log := p.log.With(keyArnTag, req.keyArn, replicaTag, region)
+
+	var replicaArn string
+	replicaResp, err := p.kmsClient.ReplicateKey(ctx, &kms.ReplicateKeyInput{
+		KeyId:         aws.String(req.keyArn),
+		ReplicaRegion: aws.String(region),
+		Tags:          req.tags,
+	})
+
+	var alreadyExistsErr *types.AlreadyExistsException
+	switch {
+	case err == nil:
+		if replicaResp.ReplicaKeyMetadata == nil || replicaResp.ReplicaKeyMetadata.Arn == nil {
+			return errors.New("malformed replicate key response: missing replica key arn")
+		}
+		replicaArn = *replicaResp.ReplicaKeyMetadata.Arn
+		log.Debug("Replica key created")
+	case errors.As(err, &alreadyExistsErr):
+		// A replica is already present, which is the normal case when an
+		// earlier attempt created the key but failed before the alias.
+		describeResp, describeErr := replicaClient.DescribeKey(ctx, &kms.DescribeKeyInput{KeyId: aws.String(keyID)})
+		if describeErr != nil {
+			return fmt.Errorf("describing existing replica: %w", describeErr)
+		}
+		if describeResp.KeyMetadata == nil || describeResp.KeyMetadata.Arn == nil {
+			return errors.New("malformed describe key response: missing replica key arn")
+		}
+		replicaArn = *describeResp.KeyMetadata.Arn
+	default:
+		return fmt.Errorf("replicating key: %w", err)
+	}
+
+	// Aliases are an independent property of multi-Region keys, so AWS does
+	// not copy them. Without one the replica is invisible to a plugin running
+	// in the replica region.
+	_, err = replicaClient.CreateAlias(ctx, &kms.CreateAliasInput{
+		AliasName:   aws.String(req.aliasName),
+		TargetKeyId: aws.String(replicaArn),
+	})
+	if err != nil {
+		if !errors.As(err, &alreadyExistsErr) {
+			return fmt.Errorf("creating replica alias: %w", err)
+		}
+		_, err = replicaClient.UpdateAlias(ctx, &kms.UpdateAliasInput{
+			AliasName:   aws.String(req.aliasName),
+			TargetKeyId: aws.String(replicaArn),
+		})
+		if err != nil {
+			return fmt.Errorf("updating replica alias: %w", err)
+		}
+	}
+
+	// Only once the alias points at the new replica is it safe to remove the
+	// one it displaced.
+	return p.deleteSupersededReplica(ctx, req, region, replicaClient)
+}
+
+// deleteSupersededReplica schedules deletion of the replica that the alias in
+// this region no longer points at. It runs only after the alias has been
+// repointed, so a server starting in the replica region never finds its alias
+// targeting a key pending deletion, which would fail plugin configuration.
+//
+// AWS will also not finish deleting a multi-Region primary while any replica of
+// it remains, so without this the superseded primary lingers in PendingDeletion
+// indefinitely.
+func (p *Plugin) deleteSupersededReplica(ctx context.Context, req replicateRequest, region string, replicaClient kmsClient) error {
+	if req.supersededKeyArn == "" {
+		return nil
+	}
+
+	supersededKeyID, ok := parseKeyIDFromArn(req.supersededKeyArn)
+	if !ok {
+		p.log.Error("Unable to determine key id for replica deletion", keyArnTag, req.supersededKeyArn)
+		return nil
+	}
+
+	_, err := replicaClient.ScheduleKeyDeletion(ctx, &kms.ScheduleKeyDeletionInput{
+		KeyId:               aws.String(supersededKeyID),
+		PendingWindowInDays: aws.Int32(7),
+	})
+
+	var notFoundErr *types.NotFoundException
+	var invalidStateErr *types.KMSInvalidStateException
+	switch {
+	case err == nil:
+		p.log.Debug("Superseded replica key scheduled for deletion", keyArnTag, req.supersededKeyArn, replicaTag, region)
+		return nil
+	case errors.As(err, &notFoundErr):
+		// Never replicated into this region, or already gone.
+		return nil
+	case errors.As(err, &invalidStateErr):
+		// Already pending deletion.
+		return nil
+	default:
+		return fmt.Errorf("scheduling superseded replica for deletion: %w", err)
+	}
+}
+
+// parseKeyIDFromArn extracts the key id from a KMS key ARN. Related multi-Region
+// keys share a key id, so a replica can be addressed by the primary's key id
+// through the replica region's client.
+func parseKeyIDFromArn(keyArn string) (string, bool) {
+	_, keyID, found := strings.Cut(keyArn, ":key/")
+	return keyID, found
 }
 
 // scheduleDeleteTask ia a long-running task that deletes keys that were rotated
@@ -964,6 +1254,12 @@ func (p *Plugin) aliasPrefixForTrustDomain() string {
 func (p *Plugin) notifyDelete(err error) {
 	if p.hooks.scheduleDeleteSignal != nil {
 		p.hooks.scheduleDeleteSignal <- err
+	}
+}
+
+func (p *Plugin) notifyReplicate(err error) {
+	if p.hooks.replicateSignal != nil {
+		p.hooks.replicateSignal <- err
 	}
 }
 

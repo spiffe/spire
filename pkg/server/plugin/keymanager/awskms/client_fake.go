@@ -30,24 +30,31 @@ import (
 )
 
 type kmsClientFake struct {
-	t                        *testing.T
-	store                    fakeStore
-	mu                       sync.RWMutex
-	testKeys                 testkey.Keys
-	validAliasName           *regexp.Regexp
-	createKeyErr             error
-	describeKeyErr           error
-	describeKeyMalformed     bool
-	getPublicKeyErr          error
-	listAliasesErr           error
-	createAliasErr           error
-	updateAliasErr           error
-	scheduleKeyDeletionErr   error
-	signErr                  error
-	listKeysErr              error
-	deleteAliasErr           error
-	tagResourceErr           error
-	tagResourceCalls         []kms.TagResourceInput
+	t                      *testing.T
+	store                  fakeStore
+	mu                     sync.RWMutex
+	testKeys               testkey.Keys
+	validAliasName         *regexp.Regexp
+	createKeyErr           error
+	describeKeyErr         error
+	describeKeyMalformed   bool
+	getPublicKeyErr        error
+	listAliasesErr         error
+	createAliasErr         error
+	updateAliasErr         error
+	scheduleKeyDeletionErr error
+	signErr                error
+	listKeysErr            error
+	deleteAliasErr         error
+	tagResourceErr         error
+	replicateKeyErr        error
+	tagResourceCalls       []kms.TagResourceInput
+	replicateKeyCalls      []kms.ReplicateKeyInput
+
+	// peers maps a replica region to the fake client standing in for KMS in
+	// that region, so ReplicateKey can materialise the replica where the
+	// plugin will look for it.
+	peers                    map[string]*kmsClientFake
 	createKeyCalls           []kms.CreateKeyInput
 	scheduleKeyDeletionCalls []string
 
@@ -524,6 +531,72 @@ func (k *kmsClientFake) TagResource(_ context.Context, input *kms.TagResourceInp
 	call := *input
 	k.tagResourceCalls = append(k.tagResourceCalls, call)
 	return &kms.TagResourceOutput{}, nil
+}
+
+// ReplicateKey models AWS replication: the replica is a distinct key resource
+// in another region that shares the primary's key id and key material. It is
+// created in the peer fake standing in for that region.
+func (k *kmsClientFake) ReplicateKey(_ context.Context, input *kms.ReplicateKeyInput, _ ...func(*kms.Options)) (*kms.ReplicateKeyOutput, error) {
+	k.mu.Lock()
+	k.replicateKeyCalls = append(k.replicateKeyCalls, *input)
+	replicateKeyErr := k.replicateKeyErr
+	peer := k.peers[*input.ReplicaRegion]
+	k.mu.Unlock()
+
+	if replicateKeyErr != nil {
+		return nil, replicateKeyErr
+	}
+	if peer == nil {
+		return nil, fmt.Errorf("no fake KMS client registered for replica region %q", *input.ReplicaRegion)
+	}
+
+	primary, err := k.store.FetchKeyEntry(*input.KeyId)
+	if err != nil {
+		return nil, err
+	}
+
+	// Related multi-Region keys share a key id, so a second replication into
+	// the same region is a conflict rather than a second key.
+	if existing, err := peer.store.FetchKeyEntry(*primary.KeyID); err == nil && existing != nil {
+		return nil, &types.AlreadyExistsException{}
+	}
+
+	replica := &fakeKeyEntry{
+		KeyID:        primary.KeyID,
+		Description:  primary.Description,
+		CreationDate: primary.CreationDate,
+		PublicKey:    primary.PublicKey,
+		privateKey:   primary.privateKey,
+		KeySpec:      primary.KeySpec,
+		Enabled:      true,
+	}
+	peer.store.SaveKeyEntry(replica)
+
+	return &kms.ReplicateKeyOutput{
+		ReplicaKeyMetadata: &types.KeyMetadata{
+			KeyId:       replica.KeyID,
+			Arn:         replica.Arn,
+			KeySpec:     replica.KeySpec,
+			Enabled:     true,
+			MultiRegion: aws.Bool(true),
+		},
+	}, nil
+}
+
+func (k *kmsClientFake) setReplicateKeyErr(err error) {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	k.replicateKeyErr = err
+}
+
+// setPeer registers the fake standing in for KMS in the given replica region.
+func (k *kmsClientFake) setPeer(region string, peer *kmsClientFake) {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	if k.peers == nil {
+		k.peers = make(map[string]*kmsClientFake)
+	}
+	k.peers[region] = peer
 }
 
 func (k *kmsClientFake) setTagResourceErr(fakeError string) {
