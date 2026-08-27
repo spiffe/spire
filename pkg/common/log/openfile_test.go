@@ -13,7 +13,7 @@ import (
 func TestOpenLogFileAppends(t *testing.T) {
 	dir := spiretest.TempDir(t)
 	logPath := filepath.Join(dir, "test.log")
-	require.NoError(t, os.WriteFile(logPath, []byte("existing\n"), fileMode))
+	require.NoError(t, os.WriteFile(logPath, []byte("existing\n"), 0600))
 
 	f, err := openLogFile(logPath)
 	require.NoError(t, err)

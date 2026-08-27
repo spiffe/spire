@@ -7,11 +7,6 @@ import (
 	"sync"
 )
 
-const (
-	fileFlags = os.O_APPEND | os.O_CREATE | os.O_WRONLY
-	fileMode  = 0640
-)
-
 var _ ReopenableWriteCloser = (*ReopenableFile)(nil)
 
 type (
