@@ -86,6 +86,18 @@ func TestValidateAndNormalize(t *testing.T) {
 			dns:  "a-hello.com",
 		},
 		{
+			name: "uppercase",
+			dns:  "Example.COM",
+		},
+		{
+			name: "uppercase wildcard",
+			dns:  "*.Example.COM",
+		},
+		{
+			name: "uppercase single label",
+			dns:  "MY-HOST",
+		},
+		{
 			name:    "starting hyphen is not ok",
 			dns:     "-hello.com",
 			wantErr: x509util.ErrIDNAError,
@@ -131,6 +143,11 @@ func TestWildcardOverlap(t *testing.T) {
 		{
 			name: "no overlap if subdomain",
 			dns:  []string{"example.com", "*.example.com", "foo.bar.example.com"},
+		},
+		{
+			name:    "overlap with different case",
+			dns:     []string{"*.EXAMPLE.com", "Foo.example.COM"},
+			wantErr: x509util.ErrWildcardOverlap,
 		},
 	}
 

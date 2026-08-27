@@ -58,6 +58,9 @@ func validNonwildcardLabel(domain string) error {
 		return errNoWildcardAllowed
 	}
 
+	// DNS names are case insensitive (RFC 4343), IDNA validation is not.
+	domain = strings.ToLower(domain)
+
 	profile := idna.New(
 		idna.StrictDomainName(true),
 		idna.ValidateLabels(true),
@@ -83,18 +86,21 @@ func validNonwildcardLabel(domain string) error {
 func CheckForWildcardOverlap(names []string) error {
 	nm := map[string]struct{}{}
 
+	// DNS names are case insensitive (RFC 4343), compare them folded.
 	for _, name := range names {
-		nm[name] = struct{}{}
+		nm[strings.ToLower(name)] = struct{}{}
 	}
 
-	for name := range nm {
+	for _, name := range names {
+		folded := strings.ToLower(name)
+
 		// While we're checking, we don't need to care about wildcards
-		if strings.HasPrefix(name, "*") {
+		if strings.HasPrefix(folded, "*") {
 			continue
 		}
 
 		// Let's split this non-wildcard DNS name into its corresponding labels
-		labels := strings.Split(name, ".")
+		labels := strings.Split(folded, ".")
 		labels[0] = "*" // Let's now replace the first label with a wildcard
 		if _, ok := nm[strings.Join(labels, ".")]; ok {
 			return fmt.Errorf("name %q overlaps with an existing wildcard name in the list: %w", name, ErrWildcardOverlap)
