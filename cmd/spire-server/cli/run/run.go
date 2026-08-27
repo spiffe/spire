@@ -239,6 +239,16 @@ func Help(name string, writer io.Writer) string {
 }
 
 func LoadConfig(name string, args []string, logOptions []log.Option, output io.Writer, allowUnknownConfig bool) (*server.Config, error) {
+	return loadConfig(name, args, logOptions, output, allowUnknownConfig, false)
+}
+
+// LoadConfigForValidation loads the configuration without opening log_file, so
+// that validating the config of a running server does not touch its log.
+func LoadConfigForValidation(name string, args []string, logOptions []log.Option, output io.Writer) (*server.Config, error) {
+	return loadConfig(name, args, logOptions, output, false, true)
+}
+
+func loadConfig(name string, args []string, logOptions []log.Option, output io.Writer, allowUnknownConfig, skipLogFile bool) (*server.Config, error) {
 	// First parse the CLI flags so we can get the config
 	// file path, if set
 	cliInput, err := parseFlags(name, args, output)
@@ -263,7 +273,7 @@ func LoadConfig(name string, args []string, logOptions []log.Option, output io.W
 		return nil, fmt.Errorf("error loading feature flags: %w", err)
 	}
 
-	return NewServerConfig(input, logOptions, allowUnknownConfig)
+	return newServerConfig(input, logOptions, allowUnknownConfig, skipLogFile)
 }
 
 // Run the SPIFFE Server
@@ -385,6 +395,10 @@ func mergeInput(fileInput *Config, cliInput *serverConfig) (*Config, error) {
 }
 
 func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool) (*server.Config, error) {
+	return newServerConfig(c, logOptions, allowUnknownConfig, false)
+}
+
+func newServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig, skipLogFile bool) (*server.Config, error) {
 	sc := &server.Config{}
 
 	if err := validateConfig(c); err != nil {
@@ -399,7 +413,7 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 		logOptions = append(logOptions, log.WithSourceLocation())
 	}
 	var reopenableFile *log.ReopenableFile
-	if c.Server.LogFile != "" {
+	if c.Server.LogFile != "" && !skipLogFile {
 		var err error
 		reopenableFile, err = log.NewReopenableFile(c.Server.LogFile)
 		if err != nil {
