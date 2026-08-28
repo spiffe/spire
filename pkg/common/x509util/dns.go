@@ -61,8 +61,10 @@ func validNonwildcardLabel(domain string) error {
 	// DNS names are case insensitive (RFC 4343), IDNA validation is not.
 	domain = strings.ToLower(domain)
 
+	// STD3 rules would reject characters that are common in practice, e.g.
+	// underscores.
 	profile := idna.New(
-		idna.StrictDomainName(true),
+		idna.StrictDomainName(false),
 		idna.ValidateLabels(true),
 		idna.VerifyDNSLength(true),
 		idna.CheckJoiners(true),

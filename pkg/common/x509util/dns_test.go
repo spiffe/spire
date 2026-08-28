@@ -34,6 +34,10 @@ func TestValidateAndNormalize(t *testing.T) {
 			dns:  "example.com",
 		},
 		{
+			name: "test_example.com",
+			dns:  "test_example.com",
+		},
+		{
 			name: "*.example.com",
 			dns:  "*.example.com",
 		},
@@ -96,6 +100,14 @@ func TestValidateAndNormalize(t *testing.T) {
 		{
 			name: "uppercase single label",
 			dns:  "MY-HOST",
+		},
+		{
+			name: "underscore is ok",
+			dns:  "my_service.example.com",
+		},
+		{
+			name: "underscore in single label is ok",
+			dns:  "my_service",
 		},
 		{
 			name:    "starting hyphen is not ok",
