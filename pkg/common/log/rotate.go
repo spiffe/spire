@@ -192,7 +192,7 @@ func (r *RotatableFile) Name() string {
 // open opens the configured path and reseeds size from disk. It must be called
 // while holding the lock, except from the constructor.
 func (r *RotatableFile) open() error {
-	file, err := os.OpenFile(r.name, fileFlags, fileMode)
+	file, err := openLogFile(r.name)
 	if err != nil {
 		return err
 	}
