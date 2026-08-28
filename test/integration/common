@@ -232,16 +232,29 @@ check-synced-entry() {
   fail-now "timed out waiting for agent to sync down entry"
 }
 
-check-x509-svid-count() {
+check-svid-count() {
+  SVIDTYPE="$1"
   MAXCHECKS=50
   CHECKINTERVAL=1
 
+  case "$SVIDTYPE" in
+    x509)
+      JQFIELD=".cachedX509SvidsCount"
+      ;;
+    jwt)
+      JQFIELD=".cachedJwtSvidsCount"
+      ;;
+    *)
+      fail-now "unknown SVID type \"$SVIDTYPE\""
+      ;;
+  esac
+
   for ((i=1;i<=MAXCHECKS;i++)); do
-    log-info "check SVID count on agent debug endpoint ($((i)) of $MAXCHECKS max)..."
-    COUNT=$(docker compose exec -T "$1" /opt/spire/conf/agent/debugclient -testCase "printDebugPage" | jq '.cachedX509SvidsCount')
-    log-info "X509 SVID Count: ${COUNT}"
-    if [ "$COUNT" -eq "$2" ]; then
-      log-info "SVID count of $COUNT from cache matches the expected count of $2"
+    log-info "check ${SVIDTYPE} SVID count on agent debug endpoint ($((i)) of $MAXCHECKS max)..."
+    COUNT=$(docker compose exec -T "$2" /opt/spire/conf/agent/debugclient -testCase "printDebugPage" | jq "$JQFIELD")
+    log-info "${SVIDTYPE} SVID Count: ${COUNT}"
+    if [ "$COUNT" -eq "$3" ]; then
+      log-info "SVID count of $COUNT from cache matches the expected count of $3"
       break
     fi
     sleep "${CHECKINTERVAL}"
