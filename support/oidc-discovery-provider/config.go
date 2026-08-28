@@ -10,7 +10,8 @@ import (
 
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire/pkg/common/config"
-	"github.com/spiffe/spire/pkg/common/log"
+	spirelog "github.com/spiffe/spire/pkg/common/log"
+	"github.com/spiffe/spire/pkg/common/tlspolicy"
 )
 
 const (
@@ -32,7 +33,7 @@ type Config struct {
 	// LogFileRotation, when set, has the provider rotate LogPath itself. The
 	// provider does not handle SIGUSR2, so without it rotation is left to an
 	// external tool using logrotate's lossy copytruncate.
-	LogFileRotation *log.RotationConfig `hcl:"log_file_rotation"`
+	LogFileRotation *spirelog.RotationConfig `hcl:"log_file_rotation"`
 
 	// LogRequests is a debug option that logs all incoming requests
 	LogRequests bool `hcl:"log_requests"`
@@ -88,6 +89,10 @@ type Config struct {
 
 	// Experimental options that are subject to change or removal.
 	Experimental experimentalConfig `hcl:"experimental"`
+
+	// TLSConfig configures TLS settings for HTTPS listeners
+	// (disk certificate and ACME modes).
+	TLSConfig *tlspolicy.TLSConfig `hcl:"tls_config"`
 
 	// JWTIssuer specifies the issuer for the OIDC provider configuration request.
 	JWTIssuer string `hcl:"jwt_issuer"`
@@ -367,6 +372,7 @@ func ParseConfig(hclConfig string) (_ *Config, err error) {
 	if c.JWKSURI == "" && c.JWTIssuer != "" {
 		fmt.Printf("Warning: The jwt_issuer configuration will also affect the jwks_uri behavior when jwks_url is not set. This behaviour will be changed in 1.13.0.")
 	}
+
 	return c, nil
 }
 

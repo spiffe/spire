@@ -94,18 +94,28 @@ timestamped sibling of `log_file` (for example `agent-2026-08-18T22-43-01.123.lo
 and keeps writing to `log_file` itself. `max_files` and `max_age_days` are
 applied when a rotation happens, not on a timer.
 
-This is the supported way to bound log growth on Windows, where SPIRE Agent
-holds the log file open and no other process may rename or delete it. On POSIX,
-`SIGUSR2` also forces an immediate rotation; rotating an already-empty file is a
-no-op, so a scheduled signal on an idle service does not consume the `max_files`
-budget.
+This is the only way to bound log growth on Windows. An external tool can move
+the log file aside there, but nothing can tell SPIRE Agent to start a new one, so it
+keeps writing into the file that was moved. On POSIX, `SIGUSR2` also forces an
+immediate rotation; rotating an already-empty file is a no-op, so a scheduled
+signal on an idle service does not consume the `max_files` budget.
+
+| tls_config         | Description                                                                                                                                                                                           | Default                      |
+|--------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------------------|
+| `min_tls_version`  | Minimum TLS version for terminating agent listeners (e.g. `VersionTLS12`, `VersionTLS13`). Values below `VersionTLS12` are rejected at startup. When omitted, defaults to TLS 1.2.                    | TLS 1.2 when block is present|
+| `cipher_suites`    | Allowed TLS 1.2 cipher suites for terminating listeners. Ignored when `min_tls_version` is `VersionTLS13` or higher (Go negotiates TLS 1.3 ciphers). Insecure suite names are filtered with a warning.| Go defaults if all filtered  |
+| `curve_preferences`| Preferred key exchange curves (e.g. `X25519MLKEM768`, `X25519`, `secp256r1`). When minimum TLS is 1.2, at least one classical curve is required.                                                      |                              |
+
+`tls_config` is a top-level `agent { ... }` block (not experimental). It is parsed once at startup; invalid values prevent the agent from starting. Settings apply only to **inbound TLS listeners** — SPIFFE Broker API and Prometheus HTTPS (`ApplyPolicy` with `WithServerTLSConfig()`). They are **not** applied to the outbound mTLS gRPC client to the SPIRE server.
+
+When `experimental.require_pq_kem` is enabled, it overrides `min_tls_version` and `curve_preferences` on terminating listeners and also applies to the outbound server gRPC client.
 
 | experimental                  | Description                                                                                                                                                                         | Default                 |
-| :---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------- |
+|:-----------------------------:|:-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------:|:-----------------------:|
 | `named_pipe_name`             | Pipe name to bind the SPIRE Agent Workload API and SDS named pipe (Windows only). The named pipe is exposed unless both `disable_workload_api` and `disable_sds_api` are `true`.    | \spire-agent\public\api |
 | `sync_interval`               | Sync interval with SPIRE server with exponential backoff                                                                                                                            | 5 sec                   |
 | `use_sync_authorized_entries` | Use SyncAuthorizedEntries API for periodically synchronization of authorized entries                                                                                                | true                    |
-| `require_pq_kem`              | Require use of a post-quantum-safe key exchange method for TLS handshakes                                                                                                           | false                   |
+| `require_pq_kem`              | Require post-quantum-safe KEM on outbound gRPC and terminating listeners.                                                                                                           | false                   |
 | `jwt_svid_cache_hit_timeout`  | Custom gRPC timeout (between 5 and 30s) when retrieving a NewJWTSVID when a valid JWT-SVID in cache                                                                                 | 30s                     |
 | `ratelimit`                   | Optional per-caller rate limiting for Workload API and SDS methods, enforced after workload attestation. See [Workload API Rate Limiting](#workload-api-rate-limiting) for details. |                         |
 | `broker`                      | Optional SPIFFE Broker API endpoint configuration. See [SPIFFE Broker API](#spiffe-broker-api).                                                                                     |                         |
@@ -360,9 +370,9 @@ When starting the service, all the arguments to execute SPIRE Agent with the `ru
 
 ##### Rotating logs on Windows
 
-A Windows service has no console, so deployments generally set `log_file`. No
-external tool can rotate that file: SPIRE Agent holds it open, and Windows does
-not permit another process to rename or delete it. Configure
+A Windows service has no console, so deployments generally set `log_file`. An
+external tool can move that file aside but cannot make SPIRE Agent start a new
+one, since there is no way to trigger a reopen on Windows. Configure
 [`log_file_rotation`](#agent-configuration-file) so the agent rotates it. The file is opened for
 append, so restarting the service does not reset it.
 

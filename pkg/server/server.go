@@ -500,6 +500,7 @@ func (s *Server) newEndpointsServer(ctx context.Context, catalog catalog.Catalog
 		AdminIDs:                     s.config.AdminIDs,
 		MaxAttestedNodeInfoStaleness: s.config.MaxAttestedNodeInfoStaleness,
 		AgentSpiffeIdAsSelector:      s.config.Experimental.AgentSpiffeIdAsSelector,
+		TLSPolicy:                    s.config.TLSPolicy,
 	}
 	if s.config.Federation.BundleEndpoint != nil {
 		config.BundleEndpoint.Address = s.config.Federation.BundleEndpoint.Address

@@ -19,6 +19,7 @@ import (
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/go-spiffe/v2/svid/x509svid"
+	"github.com/spiffe/spire/pkg/common/tlspolicy"
 	"github.com/spiffe/spire/test/testca"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -114,6 +115,93 @@ func newTestPrometheusRunner(c *MetricsConfig) (sinkRunner, error) {
 	}
 
 	return runner, err
+}
+
+func TestPrometheusWithTLSPolicy(t *testing.T) {
+	certFile, keyFile := createTestCertAndKey(t)
+	config := testPrometheusConfig()
+	config.FileConfig.Prometheus.TLS = &TLSConfig{
+		CertFile: certFile,
+		KeyFile:  keyFile,
+	}
+	policy, err := tlspolicy.NewPolicy(false, &tlspolicy.TLSConfig{
+		MinTLSVersion: "VersionTLS13",
+		CipherSuites: []string{
+			"TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
+		},
+		CurvePreferences: []string{
+			"X25519MLKEM768",
+			"secp256r1",
+		},
+	}, nil)
+	require.NoError(t, err)
+	config.TLSPolicy = policy
+
+	runner, err := newTestPrometheusRunner(config)
+	require.NoError(t, err)
+	require.NotNil(t, runner)
+
+	pr := runner.(*prometheusRunner)
+	require.NotNil(t, pr.server.TLSConfig)
+	require.Equal(t, uint16(tls.VersionTLS13), pr.server.TLSConfig.MinVersion)
+	require.Nil(t, pr.server.TLSConfig.CipherSuites)
+	require.Equal(t, []tls.CurveID{tls.X25519MLKEM768, tls.CurveP256}, pr.server.TLSConfig.CurvePreferences)
+}
+
+func TestPrometheusWithEmptyTLSPolicy(t *testing.T) {
+	certFile, keyFile := createTestCertAndKey(t)
+	config := testPrometheusConfig()
+	config.FileConfig.Prometheus.TLS = &TLSConfig{
+		CertFile: certFile,
+		KeyFile:  keyFile,
+	}
+	policy, err := tlspolicy.NewPolicy(false, nil, nil)
+	require.NoError(t, err)
+	config.TLSPolicy = policy
+
+	runner, err := newTestPrometheusRunner(config)
+	require.NoError(t, err)
+
+	pr := runner.(*prometheusRunner)
+	require.NotNil(t, pr.server.TLSConfig)
+	require.Equal(t, uint16(tls.VersionTLS12), pr.server.TLSConfig.MinVersion)
+	require.Nil(t, pr.server.TLSConfig.CipherSuites)
+	require.Nil(t, pr.server.TLSConfig.CurvePreferences)
+}
+
+func TestPrometheusWithInvalidTLSPolicy(t *testing.T) {
+	_, err := tlspolicy.NewPolicy(false, &tlspolicy.TLSConfig{MinTLSVersion: "VersionTLS99"}, nil)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "invalid minTLSVersion")
+}
+
+func TestPrometheusWithTLSPolicyAndSPIFFESVID(t *testing.T) {
+	td := spiffeid.RequireTrustDomainFromString("example.org")
+	serverCA := testca.New(t, td)
+	serverSVID := serverCA.CreateX509SVID(spiffeid.RequireFromPath(td, "/spire/server"))
+
+	config := testPrometheusConfig()
+	config.FileConfig.Prometheus.TLS = &TLSConfig{
+		UseSPIRESVID: true,
+	}
+	config.GetX509SVID = func() (*x509svid.SVID, error) {
+		return serverSVID, nil
+	}
+	policy, err := tlspolicy.NewPolicy(false, &tlspolicy.TLSConfig{
+		MinTLSVersion:    "VersionTLS13",
+		CurvePreferences: []string{"X25519"},
+	}, nil)
+	require.NoError(t, err)
+	config.TLSPolicy = policy
+
+	runner, err := newTestPrometheusRunner(config)
+	require.NoError(t, err)
+
+	pr := runner.(*prometheusRunner)
+	require.NotNil(t, pr.server.TLSConfig)
+	require.Equal(t, uint16(tls.VersionTLS13), pr.server.TLSConfig.MinVersion)
+	require.Nil(t, pr.server.TLSConfig.CipherSuites)
+	require.Equal(t, []tls.CurveID{tls.X25519}, pr.server.TLSConfig.CurvePreferences)
 }
 
 func TestPrometheusTLSConfig(t *testing.T) {

@@ -4,7 +4,8 @@
 > The Notifier plugin type is deprecated and will be removed in a future
 > release. Use the [`k8s_configmap` BundlePublisher](/doc/plugin_server_bundlepublisher_k8s_configmap.md)
 > plugin instead. Note that the BundlePublisher plugin does not support
-> rotating the CA bundle in webhooks or API services.
+> rotating the CA bundle in webhooks or API services. See
+> [Migrating to the `k8s_configmap` BundlePublisher](#migrating-to-the-k8s_configmap-bundlepublisher).
 
 The `k8sbundle` plugin responds to bundle loaded/updated events by fetching and
 pushing the latest root CA certificates from the trust bundle to a Kubernetes
@@ -161,5 +162,53 @@ server to
         }
         ]
       }    
+    }
+```
+
+## Migrating to the `k8s_configmap` BundlePublisher
+
+The [`k8s_configmap` BundlePublisher](/doc/plugin_server_bundlepublisher_k8s_configmap.md)
+writes the trust bundle to a Kubernetes ConfigMap as well, but every cluster is
+configured under the `clusters` map, including the local one, and the settings
+that `k8sbundle` fills in by default have to be set explicitly.
+
+| `k8sbundle`             | `k8s_configmap`            | Notes                                                |
+|-------------------------|----------------------------|------------------------------------------------------|
+| `namespace`             | `clusters.namespace`       | Required. `k8sbundle` defaults it to `spire`.        |
+| `config_map`            | `clusters.configmap_name`  | Required. `k8sbundle` defaults it to `spire-bundle`. |
+| `config_map_key`        | `clusters.configmap_key`   | Required. `k8sbundle` defaults it to `bundle.crt`.   |
+| `kube_config_file_path` | `clusters.kubeconfig_path` | In-cluster credentials are used when unset.          |
+| `clusters`              | `clusters`                 | Holds every cluster, keyed by an arbitrary ID.       |
+| `webhook_label`         |                            | Rotating webhook CA bundles is not supported.        |
+| `api_service_label`     |                            | Rotating API service CA bundles is not supported.    |
+
+Set each cluster's `format` to `pem` to keep the ConfigMap contents unchanged,
+since `k8sbundle` writes the X.509 authorities PEM encoded. The `spiffe` and
+`jwks` formats include the JWT authorities as well, so switching to one of them
+changes what agents bootstrapping from the ConfigMap read.
+
+Two differences are worth reviewing before switching:
+
+- The bundle is written with a server-side apply, which creates the ConfigMap
+  when it does not exist, so the Service Account needs `create` on ConfigMaps in
+  addition to `get` and `patch`.
+- An empty `clusters` map is a valid configuration under which the bundle is
+  never published, so make sure the local cluster is listed.
+
+The following configuration is equivalent to a `k8sbundle` notifier running
+in-cluster with default settings:
+
+```hcl
+    BundlePublisher "k8s_configmap" {
+        plugin_data {
+            clusters = {
+                "local" = {
+                    namespace = "spire"
+                    configmap_name = "spire-bundle"
+                    configmap_key = "bundle.crt"
+                    format = "pem"
+                }
+            }
+        }
     }
 ```

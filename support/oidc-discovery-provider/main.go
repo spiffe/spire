@@ -19,8 +19,9 @@ import (
 	"golang.org/x/crypto/acme/autocert"
 
 	"github.com/spiffe/spire/pkg/common/diskcertmanager"
-	"github.com/spiffe/spire/pkg/common/log"
+	spirelog "github.com/spiffe/spire/pkg/common/log"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	"github.com/spiffe/spire/pkg/common/tlspolicy"
 	"github.com/spiffe/spire/pkg/common/version"
 )
 
@@ -57,19 +58,19 @@ func run(configPath string, expandEnv bool) error {
 		return err
 	}
 
-	logOptions := []log.Option{
-		log.WithLevel(config.LogLevel),
-		log.WithFormat(config.LogFormat),
+	logOptions := []spirelog.Option{
+		spirelog.WithLevel(config.LogLevel),
+		spirelog.WithFormat(config.LogFormat),
 	}
 	if config.LogPath != "" {
-		outputFile, err := log.NewOutputFile(config.LogPath, config.LogFileRotation)
+		outputFile, err := spirelog.NewOutputFile(config.LogPath, config.LogFileRotation)
 		if err != nil {
 			return err
 		}
-		logOptions = append(logOptions, log.WithReopenableOutputFile(outputFile))
+		logOptions = append(logOptions, spirelog.WithReopenableOutputFile(outputFile))
 	}
 
-	log, err := log.NewLogger(logOptions...)
+	log, err := spirelog.NewLogger(logOptions...)
 	if err != nil {
 		return err
 	}
@@ -78,6 +79,13 @@ func run(configPath string, expandEnv bool) error {
 	if config.AllowInsecureScheme {
 		log.Warn("allow_insecure_scheme is enabled. JWKS keys will be served over HTTP. Only enable this when the network path to the provider is trusted end-to-end (for example, when TLS is terminated at a trusted reverse proxy or load balancer on a private network)")
 	}
+
+	tlsPolicyLogger := spirelog.NewHCLogAdapter(log, "tlspolicy")
+	tlsPolicy, err := tlspolicy.NewPolicy(false, config.TLSConfig, tlsPolicyLogger)
+	if err != nil {
+		return fmt.Errorf("invalid TLS config: %w", err)
+	}
+	tlspolicy.LogPolicy(tlsPolicy, tlsPolicyLogger)
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
@@ -119,7 +127,7 @@ func run(configPath string, expandEnv bool) error {
 		handler = logHandler(log, handler)
 	}
 
-	listener, err := buildNetListener(ctx, config, log)
+	listener, err := buildNetListener(ctx, config, log, tlsPolicy)
 	if err != nil {
 		return err
 	}
@@ -155,7 +163,7 @@ func run(configPath string, expandEnv bool) error {
 	return server.Serve(listener)
 }
 
-func buildNetListener(ctx context.Context, config *Config, log *log.Logger) (listener net.Listener, err error) {
+func buildNetListener(ctx context.Context, config *Config, log *spirelog.Logger, tlsPolicy tlspolicy.Policy) (listener net.Listener, err error) {
 	switch {
 	case config.InsecureAddr != "":
 		listener, err = net.Listen("tcp", config.InsecureAddr)
@@ -173,7 +181,7 @@ func buildNetListener(ctx context.Context, config *Config, log *log.Logger) (lis
 			telemetry.Address: listener.Addr().String(),
 		}).Info("Serving HTTP")
 	case config.ServingCertFile != nil:
-		listener, err = newListenerWithServingCert(ctx, log, config)
+		listener, err = newListenerWithServingCert(ctx, log, config, tlsPolicy)
 		if err != nil {
 			return nil, err
 		}
@@ -183,7 +191,7 @@ func buildNetListener(ctx context.Context, config *Config, log *log.Logger) (lis
 				telemetry.Address:      config.ServingCertFile.KeyFilePath,
 			}).Info("Serving HTTPS using certificate loaded from disk")
 	default:
-		listener, err = newACMEListener(log, config)
+		listener, err = newACMEListener(log, config, tlsPolicy)
 		if err != nil {
 			return nil, err
 		}
@@ -223,12 +231,12 @@ func newSource(log logrus.FieldLogger, config *Config) (JWKSSource, error) {
 	}
 }
 
-func newListenerWithServingCert(ctx context.Context, log logrus.FieldLogger, config *Config) (net.Listener, error) {
+func newListenerWithServingCert(ctx context.Context, logger logrus.FieldLogger, config *Config, tlsPolicy tlspolicy.Policy) (net.Listener, error) {
 	certManager, err := diskcertmanager.New(&diskcertmanager.Config{
 		CertFilePath:     config.ServingCertFile.CertFilePath,
 		KeyFilePath:      config.ServingCertFile.KeyFilePath,
 		FileSyncInterval: config.ServingCertFile.FileSyncInterval,
-	}, nil, log)
+	}, nil, logger)
 	if err != nil {
 		return nil, err
 	}
@@ -237,6 +245,9 @@ func newListenerWithServingCert(ctx context.Context, log logrus.FieldLogger, con
 	}()
 
 	tlsConfig := certManager.GetTLSConfig()
+	if err := applyTLSPolicy(tlsConfig, tlsPolicy); err != nil {
+		return nil, err
+	}
 
 	tcpListener, err := net.ListenTCP("tcp", config.ServingCertFile.Addr)
 	if err != nil {
@@ -246,7 +257,7 @@ func newListenerWithServingCert(ctx context.Context, log logrus.FieldLogger, con
 	return &tlsListener{TCPListener: tcpListener, conf: tlsConfig}, nil
 }
 
-func newACMEListener(log logrus.FieldLogger, config *Config) (net.Listener, error) {
+func newACMEListener(logger logrus.FieldLogger, config *Config, tlsPolicy tlspolicy.Policy) (net.Listener, error) {
 	var cache autocert.Cache
 	if config.ACME.CacheDir != "" {
 		cache = autocert.DirCache(config.ACME.CacheDir)
@@ -261,13 +272,15 @@ func newACMEListener(log logrus.FieldLogger, config *Config) (net.Listener, erro
 		Email:      config.ACME.Email,
 		HostPolicy: autocert.HostWhitelist(config.Domains...),
 		Prompt: func(tosURL string) bool {
-			log.WithField("url", tosURL).Info("ACME Terms Of Service accepted")
+			logger.WithField("url", tosURL).Info("ACME Terms Of Service accepted")
 			return config.ACME.ToSAccepted
 		},
 	}
 
 	tlsConfig := m.TLSConfig()
-	tlsConfig.MinVersion = tls.VersionTLS12
+	if err := applyTLSPolicy(tlsConfig, tlsPolicy); err != nil {
+		return nil, err
+	}
 
 	tcpListener, err := net.ListenTCP("tcp", &net.TCPAddr{Port: 443})
 	if err != nil {
@@ -275,6 +288,11 @@ func newACMEListener(log logrus.FieldLogger, config *Config) (net.Listener, erro
 	}
 
 	return &tlsListener{TCPListener: tcpListener, conf: tlsConfig}, nil
+}
+
+func applyTLSPolicy(tlsConfig *tls.Config, policy tlspolicy.Policy) error {
+	tlsConfig.MinVersion = tls.VersionTLS12
+	return tlspolicy.ApplyPolicy(tlsConfig, policy, tlspolicy.WithServerTLSConfig())
 }
 
 func logHandler(log logrus.FieldLogger, handler http.Handler) http.Handler {

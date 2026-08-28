@@ -102,6 +102,8 @@ type agentConfig struct {
 
 	AuthorizedDelegates []string `hcl:"authorized_delegates"`
 
+	TLSConfig *tlspolicy.TLSConfig `hcl:"tls_config"`
+
 	ConfigPath string
 	ExpandEnv  bool
 
@@ -303,8 +305,7 @@ func LoadConfig(name string, args []string, logOptions []log.Option, output io.W
 }
 
 // LoadConfigForValidation loads the configuration without opening log_file, so
-// that validating the config of a running agent does not append to, or rotate,
-// that agent's live log.
+// that validating the config of a running agent does not touch its log.
 func LoadConfigForValidation(name string, args []string, logOptions []log.Option, output io.Writer) (*agent.Config, error) {
 	return loadConfig(name, args, logOptions, output, false, true)
 }
@@ -854,11 +855,14 @@ func newAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig, skip
 		ac.AvailabilityTarget = t
 	}
 
-	ac.TLSPolicy = tlspolicy.Policy{
-		RequirePQKEM: c.Agent.Experimental.RequirePQKEM,
+	tlsPolicyLogger := log.NewHCLogAdapter(logger, "tlspolicy")
+
+	ac.TLSPolicy, err = tlspolicy.NewPolicy(c.Agent.Experimental.RequirePQKEM, c.Agent.TLSConfig, tlsPolicyLogger)
+	if err != nil {
+		return nil, fmt.Errorf("unable to parse configured TLS configuration: %w", err)
 	}
 
-	tlspolicy.LogPolicy(ac.TLSPolicy, log.NewHCLogAdapter(logger, "tlspolicy"))
+	tlspolicy.LogPolicy(ac.TLSPolicy, tlsPolicyLogger)
 
 	intVal := func(p *int) int {
 		if p == nil {

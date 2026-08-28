@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"crypto/tls"
+
 	"github.com/hashicorp/hcl"
 	"github.com/hashicorp/hcl/hcl/ast"
 	"github.com/sirupsen/logrus"
@@ -17,6 +19,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/log"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	"github.com/spiffe/spire/pkg/common/tlspolicy"
 	"github.com/spiffe/spire/pkg/server"
 	bundleClient "github.com/spiffe/spire/pkg/server/bundle/client"
 	"github.com/spiffe/spire/pkg/server/credtemplate"
@@ -1426,6 +1429,32 @@ func TestNewServerConfig(t *testing.T) {
 				require.Equal(t, true, c.TLSPolicy.RequirePQKEM)
 			},
 		},
+		{
+			msg:   "TLS config is omitted by default",
+			input: func(c *Config) {},
+			test: func(t *testing.T, c *server.Config) {
+				require.Nil(t, c.TLSPolicy.TLSCfg)
+			},
+		},
+		{
+			msg: "TLS config is configured",
+			input: func(c *Config) {
+				c.Server.TLSConfig = &tlspolicy.TLSConfig{
+					MinTLSVersion:    "VersionTLS13",
+					CipherSuites:     []string{"TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"},
+					CurvePreferences: []string{"X25519", "secp256r1"},
+				}
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.NotNil(t, c.TLSPolicy.TLSCfg)
+				require.Equal(t, uint16(tls.VersionTLS13), c.TLSPolicy.TLSCfg.MinTLSVersion)
+				require.Nil(t, c.TLSPolicy.TLSCfg.CipherSuites)
+				require.Equal(t, []tls.CurveID{
+					tls.X25519,
+					tls.CurveP256,
+				}, c.TLSPolicy.TLSCfg.CurvePreferences)
+			},
+		},
 	}
 	cases = append(cases, newServerConfigCasesOS(t)...)
 
@@ -1450,6 +1479,53 @@ func TestNewServerConfig(t *testing.T) {
 			testCase.test(t, sc)
 		})
 	}
+}
+
+func TestParseTLSConfigFromHCL(t *testing.T) {
+	const configString = `
+server {
+    bind_address = "0.0.0.0"
+    bind_port = "8081"
+    trust_domain = "example.org"
+    data_dir = "."
+    log_level = "INFO"
+    tls_config {
+        min_tls_version = "VersionTLS13"
+        cipher_suites = [
+            "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
+            "TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384",
+        ]
+        curve_preferences = [
+            "X25519MLKEM768",
+            "X25519",
+            "secp256r1",
+        ]
+    }
+    experimental {
+        require_pq_kem = true
+    }
+}
+plugins {}
+`
+	c := &Config{}
+	require.NoError(t, hcl.Decode(c, configString))
+
+	require.NotNil(t, c.Server.TLSConfig)
+	require.Equal(t, "VersionTLS13", c.Server.TLSConfig.MinTLSVersion)
+	require.Equal(t, []string{
+		"TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
+		"TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384",
+	}, c.Server.TLSConfig.CipherSuites)
+	require.Equal(t, []string{"X25519MLKEM768", "X25519", "secp256r1"}, c.Server.TLSConfig.CurvePreferences)
+	require.True(t, c.Server.Experimental.RequirePQKEM)
+
+	sc, err := NewServerConfig(c, nil, false)
+	require.NoError(t, err)
+	require.True(t, sc.TLSPolicy.RequirePQKEM)
+	require.NotNil(t, sc.TLSPolicy.TLSCfg)
+	require.Equal(t, uint16(tls.VersionTLS13), sc.TLSPolicy.TLSCfg.MinTLSVersion)
+	require.Nil(t, sc.TLSPolicy.TLSCfg.CipherSuites)
+	require.Equal(t, []tls.CurveID{tls.X25519MLKEM768, tls.X25519, tls.CurveP256}, sc.TLSPolicy.TLSCfg.CurvePreferences)
 }
 
 // defaultValidConfig returns the bare minimum config required to

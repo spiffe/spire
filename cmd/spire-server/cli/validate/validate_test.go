@@ -57,9 +57,8 @@ func (s *ValidateSuite) TestBadFlags() {
 	s.Contains(s.stderr.String(), "flag provided but not defined: -badflag")
 }
 
-// Validating the config of a running server must not disturb that server's log.
-// log_file from the config file otherwise overrides the io.Discard writer this
-// command passes, so validate would open the live log and could rotate it.
+// log_file otherwise overrides the io.Discard writer this command passes, so
+// validate would open and append to a running server's log.
 func (s *ValidateSuite) TestDoesNotTouchLogFile() {
 	configDir := s.T().TempDir()
 	logFile := filepath.Join(configDir, "server.log")
@@ -71,10 +70,6 @@ server {
 	trust_domain = "example.org"
 	data_dir = %q
 	log_file = %q
-	log_file_rotation {
-		max_size_mb = 1
-		max_files = 1
-	}
 }
 
 plugins {

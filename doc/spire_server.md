@@ -93,6 +93,16 @@ This may be useful for templating configuration files, for example across differ
 | `trust_domain`                     | The trust domain that this server belongs to (should be no more than 255 characters)                                                                                                                                                                                                                                                                                                   |                                                                |
 | `max_attested_node_info_staleness` | How long to cache and use attested node information before requiring fetching up to date data from the datastore.                                                                                                                                                                                                                                                                      | 0s                                                             |
 
+| tls_config         | Description                                                                                                                                                                                           | Default                      |
+|--------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------------------|
+| `min_tls_version`  | Minimum TLS version for terminating server listeners (e.g. `VersionTLS12`, `VersionTLS13`). Values below `VersionTLS12` are rejected at startup. When omitted, defaults to TLS 1.2.                   | TLS 1.2 when block is present|
+| `cipher_suites`    | Allowed TLS 1.2 cipher suites for terminating listeners. Ignored when `min_tls_version` is `VersionTLS13` or higher (Go negotiates TLS 1.3 ciphers). Insecure suite names are filtered with a warning.| Go defaults if all filtered  |
+| `curve_preferences`| Preferred key exchange curves (e.g. `X25519MLKEM768`, `X25519`, `secp256r1`). When minimum TLS is 1.2, at least one classical curve is required.                                                      |                              |
+
+`tls_config` is a top-level `server { ... }` block (not experimental). It is parsed once at startup; invalid values prevent the server from starting. Settings apply only to **inbound TLS listeners** — gRPC TCP API, federation bundle HTTPS endpoint, and Prometheus HTTPS (`ApplyPolicy` with `WithServerTLSConfig()`). They are **not** applied to outbound TLS clients.
+
+When `experimental.require_pq_kem` is enabled, it overrides `min_tls_version` and `curve_preferences` on connections where the policy is applied.
+
 | ca_subject                  | Description                    | Default        |
 |:----------------------------|--------------------------------|----------------|
 | `country`                   | Array of `Country` values      |                |
@@ -110,14 +120,14 @@ timestamped sibling of `log_file` (for example `server-2026-08-18T22-43-01.123.l
 and keeps writing to `log_file` itself. `max_files` and `max_age_days` are
 applied when a rotation happens, not on a timer.
 
-This is the supported way to bound log growth on Windows, where SPIRE Server
-holds the log file open and no other process may rename or delete it. On POSIX,
-`SIGUSR2` also forces an immediate rotation; rotating an already-empty file is a
-no-op, so a scheduled signal on an idle service does not consume the `max_files`
-budget.
+This is the only way to bound log growth on Windows. An external tool can move
+the log file aside there, but nothing can tell SPIRE Server to start a new one, so it
+keeps writing into the file that was moved. On POSIX, `SIGUSR2` also forces an
+immediate rotation; rotating an already-empty file is a no-op, so a scheduled
+signal on an idle service does not consume the `max_files` budget.
 
 | experimental                  | Description                                                                                                                                                                                                            | Default                            |
-|:------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------------------------|
+|:-----------------------------:|:----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------:|:----------------------------------:|
 | `agent_spiffe_id_as_selector` | Enable adding the agent spiffe_id to the list of node selectors automatically.                                                                                                                                         | false                              |
 | `cache_reload_interval`       | The amount of time between two reloads of the in-memory entry cache. Increasing this will mitigate high database load for extra large deployments, but will also slow propagation of new or updated entries to agents. | 5s                                 |
 | `full_cache_reload_interval`  | How often to a full reload of the cache from the database when using the events based cache.                                                                                                                           | 24h                                |
@@ -126,7 +136,7 @@ budget.
 | `event_timeout`               | Maximum time to wait for an event to come in before giving up.                                                                                                                                                         | 15m                                |
 | `auth_opa_policy_engine`      | The [auth opa_policy engine](/doc/authorization_policy_engine.md) used for authorization decisions                                                                                                                     | default SPIRE authorization policy |
 | `named_pipe_name`             | Pipe name of the SPIRE Server API named pipe (Windows only)                                                                                                                                                            | \spire-server\private\api          |
-| `require_pq_kem`              | Require use of a post-quantum-safe key exchange method for TLS handshakes                                                                                                                                              | false                              |
+| `require_pq_kem`              | Require post-quantum-safe KEM on terminating server listeners.                                                                                                                                                         | false                              |
 | `wit_issuer`                  | The issuer claim used when minting WIT-SVIDs                                                                                                                                                                           |                                    |
 
 | ratelimit     | Description                                                                                                                                        | Default |
@@ -389,9 +399,9 @@ When starting the service, all the arguments to execute SPIRE Server with the `r
 
 ##### Rotating logs on Windows
 
-A Windows service has no console, so deployments generally set `log_file`. No
-external tool can rotate that file: SPIRE Server holds it open, and Windows does
-not permit another process to rename or delete it. Configure
+A Windows service has no console, so deployments generally set `log_file`. An
+external tool can move that file aside but cannot make SPIRE Server start a new
+one, since there is no way to trigger a reopen on Windows. Configure
 [`log_file_rotation`](#server-configuration-file) so the server rotates it. The file is opened for
 append, so restarting the service does not reset it.
 
