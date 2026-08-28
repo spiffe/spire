@@ -11,12 +11,13 @@ docker compose stop spire-agent spire-server
 docker compose rm -f spire-agent spire-server
 
 log-debug "replacing devid-ca.pem with a CA that did not sign the DevID..."
+# provision wrote this as root; Linux bind mounts keep that, so unlink first.
+rm -f conf/server/devid-ca.pem
 openssl req -x509 -newkey rsa:2048 -nodes \
     -keyout conf/server/untrusted-devid-ca.key \
     -out conf/server/devid-ca.pem \
     -days 1 \
     -subj "/CN=untrusted-devid-ca" \
-    >/dev/null 2>&1 \
     || fail-now "failed to generate untrusted DevID CA"
 rm -f conf/server/untrusted-devid-ca.key
 
