@@ -1,0 +1,58 @@
+#!/bin/bash
+
+# Recreate server and agent with a DevID CA that did not sign the provisioned
+# certificate. Keep swtpm and the agent DevID material as they are, so a pass
+# here is the chain check failing, not a missing TPM or a different credential.
+EXPECTED_ID="spiffe://domain.test/spire/agent/tpm_devid/$(fingerprint conf/agent/devid.crt.pem)"
+TRUSTED_CA_FP="$(fingerprint conf/server/devid-ca.pem)"
+
+log-debug "stopping attested agent and server..."
+docker compose stop spire-agent spire-server
+docker compose rm -f spire-agent spire-server
+
+log-debug "replacing devid-ca.pem with a CA that did not sign the DevID..."
+openssl req -x509 -newkey rsa:2048 -nodes \
+    -keyout conf/server/untrusted-devid-ca.key \
+    -out conf/server/devid-ca.pem \
+    -days 1 \
+    -subj "/CN=untrusted-devid-ca" \
+    >/dev/null 2>&1 \
+    || fail-now "failed to generate untrusted DevID CA"
+rm -f conf/server/untrusted-devid-ca.key
+
+UNTRUSTED_CA_FP="$(fingerprint conf/server/devid-ca.pem)"
+if [ "${TRUSTED_CA_FP}" = "${UNTRUSTED_CA_FP}" ]; then
+    fail-now "untrusted DevID CA has the same fingerprint as the provisioning CA"
+fi
+
+log-debug "starting server with untrusted DevID CA..."
+docker-spire-server-up spire-server
+
+log-debug "bootstrapping agent..."
+docker compose exec -T spire-server \
+    /opt/spire/bin/spire-server bundle show > conf/agent/bootstrap.crt
+
+log-debug "starting agent..."
+docker-up spire-agent
+
+MAXCHECKS=30
+CHECKINTERVAL=1
+for ((i=1;i<=MAXCHECKS;i++)); do
+    log-info "checking that untrusted DevID CA is rejected (${i} of ${MAXCHECKS})..."
+    AGENTS="$(docker compose exec -T spire-server /opt/spire/bin/spire-server agent list || true)"
+    if echo "${AGENTS}" | grep -q "${EXPECTED_ID}"; then
+        log-warn "agent list: ${AGENTS}"
+        fail-now "agent attested against a DevID CA that did not sign its certificate"
+    fi
+    if docker compose logs spire-server | grep -F "unable to verify DevID signature"; then
+        log-info "server rejected DevID signed by a different CA"
+        exit 0
+    fi
+    sleep "${CHECKINTERVAL}"
+done
+
+log-warn "server logs:"
+docker compose logs spire-server
+log-warn "agent logs:"
+docker compose logs spire-agent
+fail-now "timed out waiting for DevID signature verification to fail"
