@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/spiffe/go-spiffe/v2/bundle/x509bundle"
@@ -16,6 +17,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	_ "google.golang.org/grpc/xds" // registers the "xds" name resolver and load balancing policies
 )
 
 const (
@@ -66,10 +68,17 @@ func NewServerGRPCClient(config ServerClientConfig) (*grpc.ClientConn, error) {
 
 	dialOpts := config.dialOpts
 	if dialOpts == nil {
-		dialOpts = []grpc.DialOption{
-			grpc.WithDefaultServiceConfig(roundRobinServiceConfig),
-			grpc.WithDisableServiceConfig(),
-			grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
+		if IsXDSTarget(config.Address) {
+			dialOpts = []grpc.DialOption{
+				grpc.WithDefaultServiceConfig(roundRobinServiceConfig),
+				grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
+			}
+		} else {
+			dialOpts = []grpc.DialOption{
+				grpc.WithDefaultServiceConfig(roundRobinServiceConfig),
+				grpc.WithDisableServiceConfig(),
+				grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
+			}
 		}
 	}
 
@@ -79,6 +88,12 @@ func NewServerGRPCClient(config ServerClientConfig) (*grpc.ClientConn, error) {
 	}
 
 	return client, nil
+}
+
+// IsXDSTarget reports whether the gRPC target uses the xds name resolver
+// (e.g. "xds:///spire-server").
+func IsXDSTarget(target string) bool {
+	return strings.HasPrefix(target, "xds:")
 }
 
 type bundleSource struct {

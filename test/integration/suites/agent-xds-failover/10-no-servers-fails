@@ -1,0 +1,12 @@
+#!/bin/bash
+
+source ./_common.sh
+
+# Sanity check: with no server available, a JWT fetch with a fresh audience must
+# fail. This proves the earlier successes genuinely required a live server
+# rather than being served from the agent's JWT-SVID cache.
+docker-stop spire-server-1 spire-server-2
+
+expect-jwt-fetch-fails "$(unique-audience)"
+
+log-info "verified: JWT fetch fails when no server is available"

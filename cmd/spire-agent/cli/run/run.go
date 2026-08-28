@@ -255,6 +255,15 @@ type experimentalConfig struct {
 	UseSyncAuthorizedEntries *bool  `hcl:"use_sync_authorized_entries"`
 	RequirePQKEM             bool   `hcl:"require_pq_kem"`
 
+	// UseXDS resolves the SPIRE server through xDS instead of DNS.
+	// server_address becomes an xDS listener name (server_port is ignored) so
+	// an xDS management server can drive locality-aware routing and
+	// priority-based failover across the servers in the trust domain. The
+	// management server endpoint and this agent's node locality are configured
+	// out-of-band via the gRPC xDS bootstrap (GRPC_XDS_BOOTSTRAP /
+	// GRPC_XDS_BOOTSTRAP_CONFIG).
+	UseXDS bool `hcl:"use_xds"`
+
 	RateLimit workloadAPIRateLimitConfig `hcl:"ratelimit"`
 
 	// Broker holds the configuration for the SPIFFE Broker API endpoint
@@ -593,8 +602,14 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 		}
 	}
 
-	serverHostPort := net.JoinHostPort(c.Agent.ServerAddress, strconv.Itoa(c.Agent.ServerPort))
-	ac.ServerAddress = fmt.Sprintf("dns:///%s", serverHostPort)
+	if c.Agent.Experimental.UseXDS {
+		// With xDS the endpoint set (and port) is delivered by the management
+		// server via EDS, so server_address is used as the xDS listener name
+		// rather than a host:port. server_port is ignored in this mode.
+		ac.ServerAddress = fmt.Sprintf("xds:///%s", c.Agent.ServerAddress)
+	} else {
+		ac.ServerAddress = fmt.Sprintf("dns:///%s", net.JoinHostPort(c.Agent.ServerAddress, strconv.Itoa(c.Agent.ServerPort)))
+	}
 
 	logOptions = append(logOptions,
 		log.WithLevel(c.Agent.LogLevel),
@@ -620,6 +635,10 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 	ac.Log = logger
 	if reopenableFile != nil {
 		ac.LogReopener = log.ReopenOnSignal(logger, reopenableFile)
+	}
+
+	if c.Agent.Experimental.UseXDS {
+		logger.Warn("use_xds is experimental and may change or be removed in a future release")
 	}
 
 	if c.Agent.Experimental.JWTSVIDCacheHitTimeout != "" {

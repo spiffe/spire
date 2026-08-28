@@ -1,0 +1,7 @@
+#!/bin/bash
+
+docker-up xds-control-plane
+
+# The control plane resolves the two server hostnames and then serves the ADS
+# snapshot; wait for that before starting the agent.
+check-log-line xds-control-plane "serving ADS"
