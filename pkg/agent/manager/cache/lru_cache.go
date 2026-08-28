@@ -626,6 +626,8 @@ func (c *LRUCache[SVID, Update]) updateLastAccessTimestamp(selectors []*common.S
 func (c *LRUCache[SVID, Update]) syncSVIDsWithSubscribers() (map[string]struct{}, []recordAccessEvent) {
 	activeSubsByEntryID := make(map[string]struct{})
 	lastAccessTimestamps := make([]recordAccessEvent, 0, len(c.records))
+	entrySelectors, entrySelectorsDone := allocSelectorSet()
+	defer entrySelectorsDone()
 
 	// iterate over all selectors from cached entries and obtain:
 	// 1. entries that have active subscribers
@@ -633,16 +635,11 @@ func (c *LRUCache[SVID, Update]) syncSVIDsWithSubscribers() (map[string]struct{}
 	//       so that SVID will be cached in next sync
 	// 2. get lastAccessTimestamp of each entry
 	for id, record := range c.records {
-		for _, sel := range record.entry.Selectors {
-			if index, ok := c.selectors[makeSelector(sel)]; ok && index != nil {
-				if len(index.subs) > 0 {
-					if _, ok := c.svids[record.entry.EntryId]; !ok {
-						c.staleEntries[id] = true
-					}
-					activeSubsByEntryID[id] = struct{}{}
-					break
-				}
+		if c.hasMatchingSubscriber(record, entrySelectors) {
+			if _, ok := c.svids[record.entry.EntryId]; !ok {
+				c.staleEntries[id] = true
 			}
+			activeSubsByEntryID[id] = struct{}{}
 		}
 		lastAccessTimestamps = append(lastAccessTimestamps, newRecordAccessEvent(record.lastAccessTimestamp, id))
 	}
@@ -664,6 +661,32 @@ func (c *LRUCache[SVID, Update]) syncSVIDsWithSubscribers() (map[string]struct{}
 	}
 
 	return activeSubsByEntryID, lastAccessTimestamps
+}
+
+func (c *LRUCache[SVID, Update]) hasMatchingSubscriber(record *lruCacheRecord, set selectorSet) bool {
+	clearSelectorSet(set)
+	set.Merge(record.entry.Selectors...)
+
+	var candidates *selectorsMapIndex
+	for sel := range set {
+		index := c.getSelectorIndexForRead(sel)
+		if index == nil || len(index.subs) == 0 {
+			return false
+		}
+		if candidates == nil || len(index.subs) < len(candidates.subs) {
+			candidates = index
+		}
+	}
+	if candidates == nil {
+		return false
+	}
+
+	for sub := range candidates.subs {
+		if sub.superSetOf(set) {
+			return true
+		}
+	}
+	return false
 }
 
 func (c *LRUCache[SVID, Update]) updateOrCreateRecord(newEntry *common.RegistrationEntry) (*lruCacheRecord, *common.RegistrationEntry) {
