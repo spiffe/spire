@@ -760,6 +760,49 @@ func TestSyncSVIDsWithSubscribers(t *testing.T) {
 	assert.Equal(t, svidCacheMaxSize, cache.CountSVIDs())
 }
 
+func TestSyncSVIDsIgnoresPartialSelectorMatches(t *testing.T) {
+	cache := newTestLRUCacheWithConfig(1, clock.NewMock(t))
+	filler := makeRegistrationEntry("FILLER", "Z")
+	foo := makeRegistrationEntry("FOO", "A")
+	bar := makeRegistrationEntry("BAR", "A", "B")
+
+	cache.UpdateEntries(&UpdateEntries{
+		Bundles:             makeBundles(bundleV1),
+		RegistrationEntries: makeRegistrationEntries(filler),
+	}, nil)
+	cache.UpdateSVIDs(makeX509SVIDs(filler))
+	cache.UpdateEntries(&UpdateEntries{
+		Bundles:             makeBundles(bundleV1),
+		RegistrationEntries: makeRegistrationEntries(filler, foo, bar),
+	}, nil)
+
+	sub := cache.NewSubscriber(makeSelectors("A"))
+	defer sub.Finish()
+	cache.SyncSVIDsWithSubscribers()
+
+	require.Equal(t, []*StaleEntry{{Entry: foo}}, cache.GetStaleEntries())
+}
+
+func TestLRUCacheEvictsSVIDWithPartialSubscriberMatch(t *testing.T) {
+	cache := newTestLRUCacheWithConfig(1, clock.NewMock(t))
+	foo := makeRegistrationEntry("FOO", "A")
+	bar := makeRegistrationEntry("BAR", "A", "B")
+	update := &UpdateEntries{
+		Bundles:             makeBundles(bundleV1),
+		RegistrationEntries: makeRegistrationEntries(foo, bar),
+	}
+
+	cache.UpdateEntries(update, nil)
+	cache.UpdateSVIDs(makeX509SVIDs(foo, bar))
+	sub := cache.NewSubscriber(makeSelectors("A"))
+	defer sub.Finish()
+
+	cache.UpdateEntries(update, nil)
+
+	assert.Contains(t, cache.svids, foo.EntryId)
+	assert.NotContains(t, cache.svids, bar.EntryId)
+}
+
 func TestNotifySubscriberWhenSVIDIsAvailable(t *testing.T) {
 	cache := newTestLRUCache(t)
 
