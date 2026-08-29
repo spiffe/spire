@@ -1,0 +1,203 @@
+#!/bin/bash
+# Deploy a KMIP server (Eviden KMS) in the kind cluster with mTLS enabled.
+# Generates a self-signed CA, server cert, and client cert for the KMIP
+# binary TTLV socket (port 5696).
+
+set -e -o pipefail
+
+source init-kubectl
+
+KMS_IMAGE="ghcr.io/cosmian/kms:5.26.0"
+
+# ── Create namespace ──────────────────────────────────────────────────────────
+./bin/kubectl create namespace spire-test --dry-run=client -o yaml | ./bin/kubectl apply -f -
+
+# ── Generate TLS certificates for KMIP mTLS ───────────────────────────────────
+log-info "generating self-signed TLS certs for KMIP mTLS..."
+CERT_DIR=$(mktemp -d)
+trap 'rm -rf "${CERT_DIR}"' EXIT
+
+# CA
+openssl req -x509 -newkey rsa:2048 -keyout "${CERT_DIR}/ca.key" -out "${CERT_DIR}/ca.crt" \
+  -days 3650 -nodes -subj "/CN=kmip-test-ca" 2>/dev/null
+
+# Server cert signed by CA (SANs: kmip-server, kmip-server.spire-test.svc)
+openssl req -newkey rsa:2048 -keyout "${CERT_DIR}/server.key" -out "${CERT_DIR}/server.csr" \
+  -nodes -subj "/CN=kmip-server" 2>/dev/null
+openssl x509 -req -in "${CERT_DIR}/server.csr" -CA "${CERT_DIR}/ca.crt" -CAkey "${CERT_DIR}/ca.key" \
+  -CAcreateserial -out "${CERT_DIR}/server.crt" -days 3650 \
+  -extfile <(echo "subjectAltName=DNS:kmip-server,DNS:kmip-server.spire-test.svc,DNS:kmip-server.spire-test.svc.cluster.local,IP:127.0.0.1") 2>/dev/null
+
+# Client cert signed by CA (for SPIRE server to authenticate to KMS)
+openssl req -newkey rsa:2048 -keyout "${CERT_DIR}/client.key" -out "${CERT_DIR}/client.csr" \
+  -nodes -subj "/CN=spire-client" 2>/dev/null
+openssl x509 -req -in "${CERT_DIR}/client.csr" -CA "${CERT_DIR}/ca.crt" -CAkey "${CERT_DIR}/ca.key" \
+  -CAcreateserial -out "${CERT_DIR}/client.crt" -days 3650 2>/dev/null
+
+# ── Create Kubernetes Secrets ─────────────────────────────────────────────────
+./bin/kubectl -n spire-test create secret generic kmip-server-tls \
+  --from-file=server.crt="${CERT_DIR}/server.crt" \
+  --from-file=server.key="${CERT_DIR}/server.key" \
+  --from-file=ca.crt="${CERT_DIR}/ca.crt" \
+  --dry-run=client -o yaml | ./bin/kubectl apply -f -
+
+./bin/kubectl -n spire create secret generic kmip-tls \
+  --from-file=client.crt="${CERT_DIR}/client.crt" \
+  --from-file=client.key="${CERT_DIR}/client.key" \
+  --from-file=ca.crt="${CERT_DIR}/ca.crt" \
+  --dry-run=client -o yaml | ./bin/kubectl apply -f - 2>/dev/null || \
+  (./bin/kubectl create namespace spire --dry-run=client -o yaml | ./bin/kubectl apply -f - && \
+   ./bin/kubectl -n spire create secret generic kmip-tls \
+     --from-file=client.crt="${CERT_DIR}/client.crt" \
+     --from-file=client.key="${CERT_DIR}/client.key" \
+     --from-file=ca.crt="${CERT_DIR}/ca.crt" \
+     --dry-run=client -o yaml | ./bin/kubectl apply -f -)
+
+# ── Create KMS ConfigMap with mTLS socket server config ───────────────────────
+log-info "creating KMS config with mTLS + KMIP TCP socket on port 5696..."
+./bin/kubectl -n spire-test create configmap kms-config --from-literal=kms.toml='
+default_username = "admin"
+
+[db]
+database_type  = "sqlite"
+sqlite_path    = "/tmp/kms"
+clear_database = true
+
+[http]
+hostname = "0.0.0.0"
+port     = 9998
+
+[tls]
+tls_cert_file        = "/etc/kms/tls/server.crt"
+tls_key_file         = "/etc/kms/tls/server.key"
+clients_ca_cert_file = "/etc/kms/tls/ca.crt"
+
+[socket_server]
+socket_server_start    = true
+socket_server_port     = 5696
+socket_server_hostname = "0.0.0.0"
+
+[logging]
+rust_log    = "warn"
+ansi_colors = false
+' --dry-run=client -o yaml | ./bin/kubectl apply -f -
+
+# ── Deploy KMS with mTLS enabled ──────────────────────────────────────────────
+log-info "deploying KMS ${KMS_IMAGE} with mTLS + KMIP TCP socket..."
+cat <<YAML | ./bin/kubectl apply -f -
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kmip-server
+  namespace: spire-test
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kmip-server
+  template:
+    metadata:
+      labels:
+        app: kmip-server
+    spec:
+      containers:
+      - name: kmip-server
+        image: ${KMS_IMAGE}
+        imagePullPolicy: IfNotPresent
+        args: ["--config", "/etc/kms/kms.toml"]
+        ports:
+          - containerPort: 9998
+            name: https
+          - containerPort: 5696
+            name: kmip-tcp
+        volumeMounts:
+          - name: kms-config
+            mountPath: /etc/kms
+          - name: kms-tls
+            mountPath: /etc/kms/tls
+      volumes:
+        - name: kms-config
+          configMap:
+            name: kms-config
+        - name: kms-tls
+          secret:
+            secretName: kmip-server-tls
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kmip-server
+  namespace: spire-test
+spec:
+  selector:
+    app: kmip-server
+  ports:
+  - name: https
+    port: 9998
+    targetPort: 9998
+  - name: kmip-tcp
+    port: 5696
+    targetPort: 5696
+YAML
+
+log-info "waiting for KMS to be ready..."
+./bin/kubectl -n spire-test rollout status deployment/kmip-server --timeout=120s
+./bin/kubectl -n spire-test wait --for=condition=ready pod -l app=kmip-server --timeout=60s
+
+log-info "KMS (KMIP mTLS server) is ready"
+
+# ── Provision the CA key in KMS via kubectl exec ──────────────────────────────
+# The UpstreamAuthority plugin needs a CA key in KMS before SPIRE starts.
+# Use kubectl exec + curl inside the pod so we can reach the KMS HTTPS API
+# using the CA cert mounted inside the pod (avoiding mTLS client cert issues).
+log-info "provisioning CA key pair (uid=spire-upstream-ca-key) in KMS..."
+KMS_POD=$(./bin/kubectl -n spire-test get pod -l app=kmip-server -o jsonpath='{.items[0].metadata.name}')
+
+# Use the KMS pod as a bridge — curl from inside the pod to localhost.
+# The pod has curl or we can use the local port-forward with the client certs.
+# Since we have the client certs in the CERT_DIR, use port-forward + client certs.
+PF_PID=""
+cleanup_pf() { [[ -n "$PF_PID" ]] && kill "$PF_PID" 2>/dev/null || true; }
+
+./bin/kubectl -n spire-test port-forward pod/"${KMS_POD}" 19998:9998 >/dev/null 2>&1 &
+PF_PID=$!
+trap cleanup_pf EXIT
+
+# Wait up to 30s for the HTTPS port-forward with the client cert.
+TRIES=0
+until curl -sf --cacert "${CERT_DIR}/ca.crt" --cert "${CERT_DIR}/client.crt" --key "${CERT_DIR}/client.key" \
+    "https://127.0.0.1:19998/version" >/dev/null 2>&1; do
+  TRIES=$((TRIES+1))
+  if [[ "$TRIES" -ge 30 ]]; then
+    log-error "KMS port-forward not ready after 30s"
+    exit 1
+  fi
+  # Restart port-forward every 5s if it died
+  if [[ $((TRIES % 5)) -eq 0 ]]; then
+    cleanup_pf
+    ./bin/kubectl -n spire-test port-forward pod/"${KMS_POD}" 19998:9998 >/dev/null 2>&1 &
+    PF_PID=$!
+  fi
+  sleep 1
+done
+
+CURL_KMS=(curl -sf --cacert "${CERT_DIR}/ca.crt" --cert "${CERT_DIR}/client.crt" --key "${CERT_DIR}/client.key" \
+  -X POST "https://127.0.0.1:19998/kmip/2_1" -H "Content-Type: application/json")
+
+# Create EC P-384 key pair with fixed UID
+"${CURL_KMS[@]}" \
+  -d '{"tag":"CreateKeyPair","value":[{"tag":"CommonAttributes","value":[{"tag":"CryptographicAlgorithm","type":"Enumeration","value":"EC"},{"tag":"CryptographicDomainParameters","value":[{"tag":"RecommendedCurve","type":"Enumeration","value":"P384"}]},{"tag":"CryptographicUsageMask","type":"Integer","value":1063425}]},{"tag":"PrivateKeyAttributes","value":[{"tag":"UniqueIdentifier","type":"TextString","value":"spire-upstream-ca-key"}]},{"tag":"PublicKeyAttributes","value":[{"tag":"UniqueIdentifier","type":"TextString","value":"spire-upstream-ca-key_pk"}]}]}' \
+  >/dev/null
+
+"${CURL_KMS[@]}" -d '{"tag":"Activate","value":[{"tag":"UniqueIdentifier","type":"TextString","value":"spire-upstream-ca-key"}]}' >/dev/null
+"${CURL_KMS[@]}" -d '{"tag":"Activate","value":[{"tag":"UniqueIdentifier","type":"TextString","value":"spire-upstream-ca-key_pk"}]}' >/dev/null
+
+# Create a self-signed certificate to set the CertificateLink on the public key.
+# This is required by Eviden KMS Certify — it looks for the CertificateLink to
+# determine which certificate is the issuer for signing.
+"${CURL_KMS[@]}" \
+  -d '{"tag":"Certify","value":[{"tag":"UniqueIdentifier","type":"TextString","value":"spire-upstream-ca-key_pk"},{"tag":"Attributes","value":[{"tag":"CertificateType","type":"Enumeration","value":"X509"},{"tag":"CertificateAttributes","value":[{"tag":"CertificateSubjectCn","type":"TextString","value":"SPIRE Upstream CA"},{"tag":"CertificateSubjectO","type":"TextString","value":""},{"tag":"CertificateSubjectOu","type":"TextString","value":""},{"tag":"CertificateSubjectEmail","type":"TextString","value":""},{"tag":"CertificateSubjectC","type":"TextString","value":""},{"tag":"CertificateSubjectSt","type":"TextString","value":""},{"tag":"CertificateSubjectL","type":"TextString","value":""},{"tag":"CertificateSubjectUid","type":"TextString","value":""},{"tag":"CertificateSubjectSerialNumber","type":"TextString","value":""},{"tag":"CertificateSubjectTitle","type":"TextString","value":""},{"tag":"CertificateSubjectDc","type":"TextString","value":""},{"tag":"CertificateSubjectDnQualifier","type":"TextString","value":""},{"tag":"CertificateIssuerCn","type":"TextString","value":""},{"tag":"CertificateIssuerO","type":"TextString","value":""},{"tag":"CertificateIssuerOu","type":"TextString","value":""},{"tag":"CertificateIssuerEmail","type":"TextString","value":""},{"tag":"CertificateIssuerC","type":"TextString","value":""},{"tag":"CertificateIssuerSt","type":"TextString","value":""},{"tag":"CertificateIssuerL","type":"TextString","value":""},{"tag":"CertificateIssuerUid","type":"TextString","value":""},{"tag":"CertificateIssuerSerialNumber","type":"TextString","value":""},{"tag":"CertificateIssuerTitle","type":"TextString","value":""},{"tag":"CertificateIssuerDc","type":"TextString","value":""},{"tag":"CertificateIssuerDnQualifier","type":"TextString","value":""}]},{"tag":"Attribute","value":[{"tag":"VendorIdentification","type":"TextString","value":"cosmian"},{"tag":"AttributeName","type":"TextString","value":"x509-extension"},{"tag":"AttributeValue","type":"ByteString","value":"5B76335F63615D0A6261736963436F6E73747261696E74733D637269746963616C2C43413A545255452C706174686C656E3A300A6B657955736167653D637269746963616C2C6B6579436572745369676E2C6469676974616C5369676E61747572650A"}]}]}]}' \
+  >/dev/null
+
+cleanup_pf
+log-info "CA key pair provisioned (uid=spire-upstream-ca-key)"
