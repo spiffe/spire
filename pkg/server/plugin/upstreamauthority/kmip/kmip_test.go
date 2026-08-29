@@ -4,9 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/rsa"
-	"crypto/tls"
 	"crypto/x509"
-	"encoding/pem"
 	"fmt"
 	"math/big"
 	"os"
@@ -16,10 +14,9 @@ import (
 	ovh "github.com/ovh/kmip-go"
 	"github.com/ovh/kmip-go/kmipserver"
 	"github.com/ovh/kmip-go/kmiptest"
-	"github.com/ovh/kmip-go/kmipclient"
 	"github.com/ovh/kmip-go/payloads"
-	upstreamauthorityv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/upstreamauthority/v1"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	upstreamauthorityv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/upstreamauthority/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority"
 	"github.com/spiffe/spire/test/plugintest"
@@ -91,8 +88,7 @@ func TestMintX509CA(t *testing.T) {
 	v1 := loadUAPlugin(t, addr, caPEM, "")
 
 	csrDER := fakeCSRDER(t)
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	x509CAChain, x509Roots, stream, err := v1.MintX509CA(ctx, csrDER, 0)
 	require.NoError(t, err)
@@ -168,12 +164,12 @@ func writeTempPEM(t *testing.T, content string) string {
 
 // uaFakeStore holds a CA key+cert and handles Certify and Get requests.
 type uaFakeStore struct {
-	mu       sync.Mutex
-	caPriv   *rsa.PrivateKey
-	caCert   *x509.Certificate
+	mu        sync.Mutex
+	caPriv    *rsa.PrivateKey
+	caCert    *x509.Certificate
 	caCertDER []byte
-	certs    map[string][]byte // uid → DER cert
-	certUID  string
+	certs     map[string][]byte // uid → DER cert
+	certUID   string
 }
 
 func newUAFakeStore(t *testing.T) *uaFakeStore {
@@ -298,26 +294,4 @@ func (s *uaFakeStore) handler() kmipserver.RequestHandler {
 	}))
 
 	return exec
-}
-
-// uaFakeStore-specific dial helper without client certs.
-func buildTestClient(t *testing.T, addr, caPEM string) *kmipclient.Client {
-	t.Helper()
-	caFile := writeTempPEM(t, caPEM)
-	caPEMBytes, err := os.ReadFile(caFile)
-	require.NoError(t, err)
-	pool := x509.NewCertPool()
-	pool.AppendCertsFromPEM(caPEMBytes)
-
-	client, err := kmipclient.Dial(addr, kmipclient.WithTlsConfig(&tls.Config{
-		RootCAs:            pool,
-		InsecureSkipVerify: true,
-	}))
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = client.Close() })
-	return client
-}
-
-func pemEncode(b []byte, blockType string) string {
-	return string(pem.EncodeToMemory(&pem.Block{Type: blockType, Bytes: b}))
 }

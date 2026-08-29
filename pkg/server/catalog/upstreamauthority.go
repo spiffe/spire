@@ -7,9 +7,9 @@ import (
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/awssecret"
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/certmanager"
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/disk"
-	kmipua "github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/kmip"
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/ejbca"
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/gcpcas"
+	kmipua "github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/kmip"
 	spireplugin "github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/spire"
 	"github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/vault"
 )
@@ -48,5 +48,5 @@ func (repo *upstreamAuthorityRepository) BuiltIns() []catalog.BuiltIn {
 
 type upstreamAuthorityV1 struct{}
 
-func (upstreamAuthorityV1) New() catalog.Facade { return new(upstreamauthority.V1) }
+func (upstreamAuthorityV1) New() catalog.Facade        { return new(upstreamauthority.V1) }
 func (upstreamAuthorityV1) Deprecated() (bool, string) { return false, "" }

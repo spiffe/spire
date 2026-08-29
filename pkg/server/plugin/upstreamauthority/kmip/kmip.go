@@ -315,7 +315,7 @@ func certify(ctx context.Context, c *kmipclient.Client, csrDER []byte, caKeyUID 
 	}
 	resp, err := c.Request(ctx, payload)
 	if err != nil {
-		return nil, fmt.Errorf("Certify request: %w", err)
+		return nil, fmt.Errorf("certify request: %w", err)
 	}
 	certResp, ok := resp.(*CertifyResponsePayload)
 	if !ok {
