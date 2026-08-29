@@ -82,7 +82,7 @@ require (
 	github.com/spiffe/go-spiffe/v2 v2.8.1
 	github.com/spiffe/spire-api-sdk v1.2.5-0.20260428072036-00f73a61093a
 	github.com/spiffe/spire-plugin-sdk v1.4.4-0.20260617144146-5dcde407c4d1
-	github.com/stretchr/testify v1.12.1
+	github.com/stretchr/testify v1.12.0
 	github.com/uber-go/tally/v4 v4.1.17
 	github.com/valyala/fastjson v1.6.10
 	golang.org/x/crypto v0.57.0
