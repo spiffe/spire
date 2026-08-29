@@ -325,27 +325,6 @@ func (ds *Plugin) FetchAttestedNode(ctx context.Context, spiffeID string) (attes
 	return attestedNode, nil
 }
 
-// FetchAttestedNodes fetches existing attested nodes by SPIFFE IDs, including their selectors
-func (ds *Plugin) FetchAttestedNodes(ctx context.Context, spiffeIDs []string) (map[string]*common.AttestedNode, error) {
-	nodesMap := make(map[string]*common.AttestedNode)
-	if len(spiffeIDs) == 0 {
-		return nodesMap, nil
-	}
-
-	resp, err := listAttestedNodes(ctx, ds.db, ds.log, &datastore.ListAttestedNodesRequest{
-		BySpiffeIDs:    spiffeIDs,
-		FetchSelectors: true,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	for _, node := range resp.Nodes {
-		nodesMap[node.SpiffeId] = node
-	}
-	return nodesMap, nil
-}
-
 // CountAttestedNodes counts all attested nodes
 func (ds *Plugin) CountAttestedNodes(ctx context.Context, req *datastore.CountAttestedNodesRequest) (count int32, err error) {
 	if countAttestedNodesHasFilters(req) {
