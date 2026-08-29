@@ -272,6 +272,11 @@ func (s *Service) FetchJWTSVID(ctx context.Context, req *broker.FetchJWTSVIDRequ
 	entries := s.manager.MatchingRegistrationEntries(selectors)
 	entries = hintsfilter.FilterRegistrations(entries, log)
 	for _, entry := range entries {
+		// Do not send admin nor downstream SVIDs to the caller
+		if entry.Admin || entry.Downstream {
+			continue
+		}
+
 		spiffeID, err := spiffeid.FromString(entry.SpiffeId)
 		if err != nil {
 			log.WithField(telemetry.SPIFFEID, entry.SpiffeId).WithError(err).Error("Invalid requested SPIFFE ID")
