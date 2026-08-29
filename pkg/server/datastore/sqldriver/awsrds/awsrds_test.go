@@ -17,7 +17,7 @@ import (
 
 const (
 	fakeSQLDriverName  = "fake-sql-driver"
-	token              = "aws-rds-host:1234?Action=connect&DBUser=test_user&X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=TESTTESTTESTTESTTEST%2F20240116%2Fus-east-2%2Frds-db%2Faws4_request&X-Amz-Date=20240116T150146Z&X-Amz-Expires=900&X-Amz-SignedHeaders=host&X-Amz-Signature=cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc" //nolint: gosec // for testing
+	token              = "aws-rds-host:1234?Action=connect&DBUser=test_user&X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=TESTTESTTESTTESTTEST%2F20240116%2Fus-east-2%2Frds-db%2Faws4_request&X-Amz-Date=20240116T150146Z&X-Amz-Expires=900&X-Amz-SignedHeaders=host&X-Amz-Signature=cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
 	mysqlConnString    = "test_user:@tcp(aws-rds-host:1234)/spire?parseTime=true&allowCleartextPasswords=1&tls=true"
 	postgresConnString = "dbname=postgres user=postgres host=the-host sslmode=require"
 )

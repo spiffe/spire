@@ -7,6 +7,7 @@ import (
 	"github.com/sirupsen/logrus"
 	debugv1 "github.com/spiffe/spire/pkg/agent/api/debug/v1"
 	delegatedidentityv1 "github.com/spiffe/spire/pkg/agent/api/delegatedidentity/v1"
+	loggerv1 "github.com/spiffe/spire/pkg/agent/api/logger/v1"
 	"github.com/spiffe/spire/pkg/agent/endpoints"
 	"github.com/spiffe/spire/pkg/common/api/middleware"
 	"github.com/spiffe/spire/pkg/common/peertracker"
@@ -37,6 +38,7 @@ func (e *Endpoints) ListenAndServe(ctx context.Context) error {
 
 	e.registerDebugAPI(server)
 	e.registerDelegatedIdentityAPI(server)
+	e.registerLoggerAPI(server)
 
 	l, err := e.createListener()
 	if err != nil {
@@ -75,6 +77,14 @@ func (e *Endpoints) registerDebugAPI(server *grpc.Server) {
 	})
 
 	debugv1.RegisterService(server, service)
+}
+
+func (e *Endpoints) registerLoggerAPI(server *grpc.Server) {
+	service := loggerv1.New(loggerv1.Config{
+		Log: e.c.RootLog,
+	})
+
+	loggerv1.RegisterService(server, service)
 }
 
 func (e *Endpoints) registerDelegatedIdentityAPI(server *grpc.Server) {

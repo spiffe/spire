@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/api/types/image"
-	dockerclient "github.com/docker/docker/client"
 	"github.com/hashicorp/go-hclog"
+	"github.com/moby/moby/api/types/container"
+	"github.com/moby/moby/api/types/image"
+	dockerclient "github.com/moby/moby/client"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/agent/common/sigstore"
 	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor"
@@ -172,27 +172,25 @@ func TestDockerConfig(t *testing.T) {
 		{
 			name:        "success configuration",
 			trustDomain: "example.org",
-			config:      `docker_version = "/123/"`,
+			config:      `docker_version = "1.23"`,
 		},
 		{
 			name:        "sigstore configuration",
 			trustDomain: "example.org",
 			config: `
-					experimental {
-    					sigstore {
-        					allowed_identities = {
-            					"test-issuer-1" = ["*@example.com", "subject@otherdomain.com"]
-            					"test-issuer-2" = ["domain/ci.yaml@refs/tags/*"]
-        					}
-        					skipped_images = ["registry/image@sha256:examplehash"]
-        					rekor_url = "https://test.dev"
-        					ignore_sct = true
-        					ignore_tlog = true
-                            ignore_attestations = true
-        					registry_username = "user"
-        					registry_password = "pass"
-    					}
-			}`,
+					sigstore {
+						allowed_identities = {
+							"test-issuer-1" = ["*@example.com", "subject@otherdomain.com"]
+							"test-issuer-2" = ["domain/ci.yaml@refs/tags/*"]
+						}
+						skipped_images = ["registry/image@sha256:examplehash"]
+						rekor_url = "https://test.dev"
+						ignore_sct = true
+						ignore_tlog = true
+						ignore_attestations = true
+						registry_username = "user"
+						registry_password = "pass"
+					}`,
 			sigstoreConfigured: true,
 		},
 		{
@@ -212,6 +210,18 @@ invalid1 = "/oh/"
 invalid2 = "/no/"`,
 			expectCode: codes.InvalidArgument,
 			expectMsg:  "unknown configurations detected: invalid1,invalid2",
+		},
+		{
+			name:        "stale experimental block is rejected",
+			trustDomain: "example.org",
+			config: `
+					experimental {
+						sigstore {
+							rekor_url = "https://rekor.sigstore.dev"
+						}
+					}`,
+			expectCode: codes.InvalidArgument,
+			expectMsg:  "unknown configurations detected: experimental",
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -258,10 +268,10 @@ func TestNewConfigFromHCL(t *testing.T) {
 					"test-issuer-2": {"domain/ci.yaml@refs/tags/*"},
 				},
 				SkippedImages:      []string{"registry/image@sha256:examplehash"},
-				RekorURL:           strPtr("https://test.dev"),
-				IgnoreSCT:          boolPtr(true),
-				IgnoreTlog:         boolPtr(true),
-				IgnoreAttestations: boolPtr(true),
+				RekorURL:           new("https://test.dev"),
+				IgnoreSCT:          new(true),
+				IgnoreTlog:         new(true),
+				IgnoreAttestations: new(true),
 				RegistryCredentials: map[string]*sigstore.RegistryCredential{
 					"registry": {
 						Username: "user",
@@ -359,15 +369,17 @@ type dockerImageInspectError struct {
 	cfg container.Config
 }
 
-func (d dockerImageInspectError) ContainerInspect(_ context.Context, _ string) (container.InspectResponse, error) {
-	c := d.cfg
-	return container.InspectResponse{Config: &c}, nil
+func (d dockerImageInspectError) ContainerInspect(_ context.Context, _ string, _ dockerclient.ContainerInspectOptions) (dockerclient.ContainerInspectResult, error) {
+	return dockerclient.ContainerInspectResult{
+		Container: container.InspectResponse{
+			Config: &d.cfg,
+		},
+	}, nil
 }
 
-func (dockerImageInspectError) ImageInspectWithRaw(context.Context, string) (image.InspectResponse, []byte, error) {
-	return image.InspectResponse{}, nil, errors.New("boom")
+func (dockerImageInspectError) ImageInspect(_ context.Context, _ string, _ ...dockerclient.ImageInspectOption) (dockerclient.ImageInspectResult, error) {
+	return dockerclient.ImageInspectResult{}, errors.New("boom")
 }
-
 func TestImageInspectError_NoSigstore_SkipsDigest(t *testing.T) {
 	d := dockerImageInspectError{
 		cfg: container.Config{
@@ -410,17 +422,17 @@ type dockerNoRepoDigests struct {
 	cfg container.Config
 }
 
-func (d dockerNoRepoDigests) ContainerInspect(_ context.Context, _ string) (container.InspectResponse, error) {
-	c := d.cfg
-	return container.InspectResponse{Config: &c}, nil
+func (d dockerNoRepoDigests) ContainerInspect(_ context.Context, _ string, _ dockerclient.ContainerInspectOptions) (dockerclient.ContainerInspectResult, error) {
+	return dockerclient.ContainerInspectResult{
+		Container: container.InspectResponse{
+			Config: &d.cfg,
+		},
+	}, nil
 }
 
-func (dockerNoRepoDigests) ImageInspectWithRaw(_ context.Context, _ string) (image.InspectResponse, []byte, error) {
-	// ID is present so image_config_digest would be emitted if we reached that point;
-	// empty RepoDigests should cause sigstore path to fail.
-	return image.InspectResponse{ID: "sha256:abc"}, nil, nil
+func (dockerNoRepoDigests) ImageInspect(_ context.Context, _ string, _ ...dockerclient.ImageInspectOption) (dockerclient.ImageInspectResult, error) {
+	return dockerclient.ImageInspectResult{InspectResponse: image.InspectResponse{ID: "sha256:abc"}}, nil
 }
-
 func TestSigstore_NoRepoDigests_Fatal(t *testing.T) {
 	d := dockerNoRepoDigests{
 		cfg: container.Config{Image: testImageID},
@@ -508,28 +520,30 @@ func newTestPlugin(t *testing.T, opts ...testPluginOpt) *Plugin {
 
 type dockerError struct{}
 
-func (dockerError) ContainerInspect(context.Context, string) (container.InspectResponse, error) {
-	return container.InspectResponse{}, errors.New("docker error")
+func (dockerError) ContainerInspect(_ context.Context, _ string, _ dockerclient.ContainerInspectOptions) (dockerclient.ContainerInspectResult, error) {
+	return dockerclient.ContainerInspectResult{}, errors.New("docker error")
 }
 
-func (dockerError) ImageInspectWithRaw(context.Context, string) (image.InspectResponse, []byte, error) {
-	return image.InspectResponse{}, nil, errors.New("docker error")
+func (dockerError) ImageInspect(_ context.Context, _ string, _ ...dockerclient.ImageInspectOption) (dockerclient.ImageInspectResult, error) {
+	return dockerclient.ImageInspectResult{}, errors.New("docker error")
 }
 
 type fakeContainer container.Config
 
-func (f fakeContainer) ContainerInspect(_ context.Context, containerID string) (container.InspectResponse, error) {
+func (f fakeContainer) ContainerInspect(_ context.Context, containerID string, _ dockerclient.ContainerInspectOptions) (dockerclient.ContainerInspectResult, error) {
 	if containerID != testContainerID {
-		return container.InspectResponse{}, errors.New("expected test container ID")
+		return dockerclient.ContainerInspectResult{}, errors.New("expected test container ID")
 	}
-	config := container.Config(f)
-	return container.InspectResponse{
-		Config: &config,
+	return dockerclient.ContainerInspectResult{
+		Container: container.InspectResponse{
+			Config: new(container.Config(f)),
+		},
 	}, nil
 }
 
-func (f fakeContainer) ImageInspectWithRaw(_ context.Context, imageName string) (image.InspectResponse, []byte, error) {
-	return image.InspectResponse{ID: imageName, RepoDigests: []string{testImageID}}, nil, nil
+func (f fakeContainer) ImageInspect(_ context.Context, imageID string, _ ...dockerclient.ImageInspectOption) (dockerclient.ImageInspectResult, error) {
+	return dockerclient.ImageInspectResult{InspectResponse: image.InspectResponse{
+		ID: imageID, RepoDigests: []string{testImageID}}}, nil
 }
 
 type fakeSigstoreVerifier struct {
@@ -543,12 +557,4 @@ func (f *fakeSigstoreVerifier) Verify(_ context.Context, imageID string) ([]stri
 		return nil, fmt.Errorf("unexpected image ID: %s", imageID)
 	}
 	return f.selectors, f.err
-}
-
-func strPtr(s string) *string {
-	return &s
-}
-
-func boolPtr(b bool) *bool {
-	return &b
 }

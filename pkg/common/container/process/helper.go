@@ -74,8 +74,12 @@ func (h *helper) GetContainerIDByProcess(pID int32, log hclog.Logger) (string, e
 
 	var jobNames []string
 	for _, handle := range handles {
+		pidUint32, err := util.CheckedCast[uint32](handle.UniqueProcessID)
+		if err != nil {
+			return "", fmt.Errorf("invalid value for PID: %w", err)
+		}
 		// Filter all handles related with vmcompute processes
-		if !isVmcomputeProcess(uint32(handle.UniqueProcessID)) {
+		if !isVmcomputeProcess(pidUint32) {
 			continue
 		}
 
@@ -139,7 +143,11 @@ func (h *helper) searchProcessByExeFile(exeFile string, log hclog.Logger) ([]uin
 
 func (h *helper) getJobName(handle SystemHandleInformationExItem, currentProcess windows.Handle, childProcessHandle windows.Handle, log hclog.Logger) (string, error) {
 	// Open the handle associated with the process ID, with permissions to duplicate the handle
-	hProcess, err := h.wapi.OpenProcess(windows.PROCESS_DUP_HANDLE, false, uint32(handle.UniqueProcessID))
+	pidUint32, err := util.CheckedCast[uint32](handle.UniqueProcessID)
+	if err != nil {
+		return "", fmt.Errorf("invalid value for PID: %w", err)
+	}
+	hProcess, err := h.wapi.OpenProcess(windows.PROCESS_DUP_HANDLE, false, pidUint32)
 	if err != nil {
 		if errors.Is(err, windows.ERROR_ACCESS_DENIED) {
 			// This is expected when trying to open process as a non admin user

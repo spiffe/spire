@@ -8,6 +8,8 @@ var (
     	The format of the bundle data. Either "pem" or "spiffe". (default "pem")
   -id string
     	SPIFFE ID of the trust domain
+  -instance string
+    	Instance name to substitute into socket templates (env SPIRE_SERVER_PRIVATE_SOCKET_TEMPLATE).
   -output value
     	Desired output format (pretty, json); default: pretty.
   -path string
@@ -16,6 +18,8 @@ var (
     	Path to the SPIRE Server API socket (default "/tmp/spire-server/private/api.sock")
 `
 	countUsage = `Usage of bundle count:
+  -instance string
+    	Instance name to substitute into socket templates (env SPIRE_SERVER_PRIVATE_SOCKET_TEMPLATE).
   -output value
     	Desired output format (pretty, json); default: pretty.
   -socketPath string
@@ -24,6 +28,8 @@ var (
 	deleteUsage = `Usage of bundle delete:
   -id string
     	SPIFFE ID of the trust domain
+  -instance string
+    	Instance name to substitute into socket templates (env SPIRE_SERVER_PRIVATE_SOCKET_TEMPLATE).
   -mode string
     	Deletion mode: one of restrict, delete, or dissociate (default "restrict")
   -output value
@@ -36,6 +42,8 @@ var (
     	The format to list federated bundles (only pretty output format supports this flag). Either "pem" or "spiffe". (default "pem")
   -id string
     	SPIFFE ID of the trust domain
+  -instance string
+    	Instance name to substitute into socket templates (env SPIRE_SERVER_PRIVATE_SOCKET_TEMPLATE).
   -output value
     	Desired output format (pretty, json); default: pretty.
   -socketPath string
@@ -44,6 +52,8 @@ var (
 	showUsage = `Usage of bundle show:
   -format string
     	The format to show the bundle (only pretty output format supports this flag). Either "pem" or "spiffe". (default "pem")
+  -instance string
+    	Instance name to substitute into socket templates (env SPIRE_SERVER_PRIVATE_SOCKET_TEMPLATE).
   -output value
     	Desired output format (pretty, json); default: pretty.
   -socketPath string

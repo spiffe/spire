@@ -173,7 +173,8 @@ func TestHandlerHTTPS(t *testing.T) {
 			require.NoError(t, err)
 			w := httptest.NewRecorder()
 
-			h := NewHandler(log, domainAllowlist(t, "localhost", "domain.test"), source, false, testCase.setKeyUse, nil, nil, "")
+			h, err := NewHandler(log, domainAllowlist(t, "localhost", "domain.test"), source, false, testCase.setKeyUse, nil, nil, "")
+			require.NoError(t, err)
 			h.ServeHTTP(w, r)
 
 			t.Logf("HEADERS: %q", w.Header())
@@ -285,7 +286,8 @@ func TestHandlerHTTPInsecure(t *testing.T) {
 			require.NoError(t, err)
 			w := httptest.NewRecorder()
 
-			h := NewHandler(log, domainAllowlist(t, "localhost", "domain.test"), source, true, false, nil, nil, "")
+			h, err := NewHandler(log, domainAllowlist(t, "localhost", "domain.test"), source, true, false, nil, nil, "")
+			require.NoError(t, err)
 			h.ServeHTTP(w, r)
 
 			t.Logf("HEADERS: %q", w.Header())
@@ -458,7 +460,8 @@ func TestHandlerHTTP(t *testing.T) {
 			require.NoError(t, err)
 			w := httptest.NewRecorder()
 
-			h := NewHandler(log, domainAllowlist(t, "domain.test", "xn--n38h.test"), source, false, false, nil, nil, "")
+			h, err := NewHandler(log, domainAllowlist(t, "domain.test", "xn--n38h.test"), source, false, false, nil, nil, "")
+			require.NoError(t, err)
 			h.ServeHTTP(w, r)
 
 			t.Logf("HEADERS: %q", w.Header())
@@ -569,7 +572,8 @@ func TestHandlerProxied(t *testing.T) {
 			r.Header.Add("X-Forwarded-Scheme", "https")
 			r.Header.Add("X-Forwarded-Host", "domain.test")
 			w := httptest.NewRecorder()
-			h := NewHandler(log, domainAllowlist(t, "domain.test"), source, false, false, nil, nil, "")
+			h, err := NewHandler(log, domainAllowlist(t, "domain.test"), source, false, false, nil, nil, "")
+			require.NoError(t, err)
 			h.ServeHTTP(w, r)
 			t.Logf("HEADERS: %q", w.Header())
 			assert.Equal(t, testCase.code, w.Code)
@@ -719,7 +723,8 @@ func TestHandlerJWTIssuer(t *testing.T) {
 			w := httptest.NewRecorder()
 
 			u, _ := url.Parse(testCase.jwtIssuer)
-			h := NewHandler(log, domainAllowlist(t, "domain.test"), source, false, false, u, nil, "")
+			h, err := NewHandler(log, domainAllowlist(t, "domain.test"), source, false, false, u, nil, "")
+			require.NoError(t, err)
 			h.ServeHTTP(w, r)
 
 			t.Logf("HEADERS: %q", w.Header())
@@ -781,7 +786,8 @@ func TestHandlerJWTIssuerAndJWKSURI(t *testing.T) {
 
 			u, _ := url.Parse(testCase.jwtIssuer)
 			j, _ := url.Parse(testCase.jwksURI)
-			h := NewHandler(log, domainAllowlist(t, "domain.test"), source, false, false, u, j, "")
+			h, err := NewHandler(log, domainAllowlist(t, "domain.test"), source, false, false, u, j, "")
+			require.NoError(t, err)
 			h.ServeHTTP(w, r)
 
 			t.Logf("HEADERS: %q", w.Header())
@@ -932,7 +938,8 @@ func TestHandlerAdvertisedURL(t *testing.T) {
 			w := httptest.NewRecorder()
 
 			u, _ := url.Parse(testCase.jwksURI)
-			h := NewHandler(log, domainAllowlist(t, "domain.test"), source, false, false, nil, u, "")
+			h, err := NewHandler(log, domainAllowlist(t, "domain.test"), source, false, false, nil, u, "")
+			require.NoError(t, err)
 			h.ServeHTTP(w, r)
 
 			t.Logf("HEADERS: %q", w.Header())
@@ -1059,12 +1066,84 @@ func TestHandlerPrefix(t *testing.T) {
 			r.Header.Add("X-Forwarded-Host", "domain.test")
 			w := httptest.NewRecorder()
 
-			h := NewHandler(log, domainAllowlist(t, "domain.test"), source, false, false, nil, nil, testCase.serverPathPrefix)
+			h, err := NewHandler(log, domainAllowlist(t, "domain.test"), source, false, false, nil, nil, testCase.serverPathPrefix)
+			require.NoError(t, err)
 			h.ServeHTTP(w, r)
 
 			t.Logf("HEADERS: %q", w.Header())
 			assert.Equal(t, testCase.code, w.Code)
 			assert.Equal(t, testCase.body, w.Body.String())
+		})
+	}
+}
+
+func TestHandlerResponseHeaders(t *testing.T) {
+	log, _ := test.NewNullLogger()
+	log.Level = logrus.DebugLevel
+
+	jwks := &jose.JSONWebKeySet{
+		Keys: []jose.JSONWebKey{
+			{
+				Key:       ec256Pubkey,
+				KeyID:     "KEYID",
+				Algorithm: "ES256",
+			},
+		},
+	}
+
+	testCases := []struct {
+		name         string
+		method       string
+		path         string
+		code         int
+		headers      map[string]string
+		absentHeader []string
+	}{
+		{
+			name:   "GET well-known",
+			method: "GET",
+			path:   "/.well-known/openid-configuration",
+			headers: map[string]string{
+				"Content-Type":                "application/json",
+				"Access-Control-Allow-Origin": "*",
+			},
+			// The discovery document is static, so it is left cacheable.
+			absentHeader: []string{"Cache-Control", "Pragma", "Expires"},
+		},
+		{
+			name:   "GET keys",
+			method: "GET",
+			path:   "/keys",
+			headers: map[string]string{
+				"Content-Type":                "application/json",
+				"Access-Control-Allow-Origin": "*",
+				"Cache-Control":               "no-cache, no-store, must-revalidate",
+				"Pragma":                      "no-cache",
+				"Expires":                     "0",
+			},
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			source := new(FakeKeySetSource)
+			source.SetKeySet(jwks, time.Time{}, time.Time{})
+
+			r, err := http.NewRequest(testCase.method, "https://domain.test"+testCase.path, nil)
+			require.NoError(t, err)
+			w := httptest.NewRecorder()
+
+			h, err := NewHandler(log, domainAllowlist(t, "domain.test"), source, false, false, nil, nil, "")
+			require.NoError(t, err)
+			h.ServeHTTP(w, r)
+
+			assert.Equal(t, http.StatusOK, w.Code)
+			for name, value := range testCase.headers {
+				assert.Equal(t, value, w.Header().Get(name), "header %q", name)
+			}
+			for _, name := range testCase.absentHeader {
+				assert.Empty(t, w.Header().Values(name), "header %q should not be set", name)
+			}
 		})
 	}
 }

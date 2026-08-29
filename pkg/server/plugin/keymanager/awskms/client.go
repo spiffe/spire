@@ -7,6 +7,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/kms"
+	"github.com/aws/aws-sdk-go-v2/service/resourcegroupstaggingapi"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 )
 
@@ -21,6 +22,11 @@ type kmsClient interface {
 	Sign(context.Context, *kms.SignInput, ...func(*kms.Options)) (*kms.SignOutput, error)
 	ListKeys(context.Context, *kms.ListKeysInput, ...func(*kms.Options)) (*kms.ListKeysOutput, error)
 	DeleteAlias(context.Context, *kms.DeleteAliasInput, ...func(*kms.Options)) (*kms.DeleteAliasOutput, error)
+	TagResource(context.Context, *kms.TagResourceInput, ...func(*kms.Options)) (*kms.TagResourceOutput, error)
+}
+
+type taggingClient interface {
+	GetResources(context.Context, *resourcegroupstaggingapi.GetResourcesInput, ...func(*resourcegroupstaggingapi.Options)) (*resourcegroupstaggingapi.GetResourcesOutput, error)
 }
 
 type stsClient interface {
@@ -29,6 +35,10 @@ type stsClient interface {
 
 func newKMSClient(c aws.Config) (kmsClient, error) {
 	return kms.NewFromConfig(c), nil
+}
+
+func newTaggingClient(c aws.Config) (taggingClient, error) {
+	return resourcegroupstaggingapi.NewFromConfig(c), nil
 }
 
 func newSTSClient(c aws.Config) (stsClient, error) {

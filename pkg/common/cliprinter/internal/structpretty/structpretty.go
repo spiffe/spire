@@ -37,7 +37,7 @@ func printStruct(msg any, stdout, stderr io.Writer) error {
 	msgValue := reflect.ValueOf(msg)
 
 	// We also want to accept pointers to structs
-	if msgType.Kind() == reflect.Ptr {
+	if msgType.Kind() == reflect.Pointer {
 		if msgType.Elem().Kind() != reflect.Struct {
 			err := fmt.Errorf("cannot print unsupported type %q", msgType.Elem().Kind().String())
 			_ = errorpretty.Print(err, stdout, stderr)
@@ -120,7 +120,7 @@ func isCompositeTypePrintable(t reflect.Type) bool {
 func isUnprintableType(t reflect.Type) bool {
 	switch t.Kind() {
 	case reflect.Invalid, reflect.Chan, reflect.Func, reflect.Interface,
-		reflect.Ptr, reflect.Struct, reflect.UnsafePointer:
+		reflect.Pointer, reflect.Struct, reflect.UnsafePointer:
 
 		return true
 	default:

@@ -7,3 +7,6 @@ This suite sets up a Kubernetes cluster using [Kind](https://kind.sigs.k8s.io) a
 * SPIRE server attests SPIRE agents by verifying Kubernetes Projected Service
   Account Tokens (i.e. `k8s_psat`) via the Token Review API.
 * K8s Workload attestation is successful against a manually registered workload
+* The `k8s_configmap` BundlePublisher publishes the trust bundle to the
+  `spire:spire-bundle` ConfigMap that SPIRE agents mount to bootstrap trust
+  with the server.

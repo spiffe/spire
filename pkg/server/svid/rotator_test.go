@@ -9,10 +9,10 @@ import (
 	"testing"
 	"time"
 
-	observer "github.com/imkira/go-observer"
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire/pkg/common/observer"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/pkg/server/ca"
@@ -85,12 +85,10 @@ func (s *RotatorTestSuite) TestRotationSucceeds() {
 
 	// Run should rotate whenever the certificate is within half of its
 	// remaining lifetime.
-	wg.Add(1)
 	errCh := make(chan error, 1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		errCh <- s.r.Run(ctx)
-	}()
+	})
 
 	s.clock.WaitForTicker(time.Minute, "waiting for the Run() ticker")
 
@@ -145,12 +143,10 @@ func (s *RotatorTestSuite) TestForceRotation() {
 
 	// Run should rotate whenever the certificate is within half of its
 	// remaining lifetime.
-	wg.Add(1)
 	errCh := make(chan error, 1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		errCh <- s.r.Run(ctx)
-	}()
+	})
 
 	// Change X509CA
 	s.serverCA.SetX509CA(&ca.X509CA{
@@ -196,12 +192,10 @@ func (s *RotatorTestSuite) TestRotationFails() {
 	// Inject an error into the rotation flow.
 	s.serverCA.SetError(errors.New("oh no"))
 
-	wg.Add(1)
 	errCh := make(chan error, 1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		errCh <- s.r.Run(ctx)
-	}()
+	})
 
 	s.clock.WaitForTicker(time.Minute, "waiting for the Run() ticker")
 	s.clock.Add(DefaultRotatorInterval)

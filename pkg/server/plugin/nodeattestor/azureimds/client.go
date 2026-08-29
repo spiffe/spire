@@ -7,8 +7,7 @@ import (
 	"fmt"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v7"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resourcegraph/armresourcegraph"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -86,7 +85,7 @@ func (c *azureClient) GetVirtualMachine(ctx context.Context, vmId string, subscr
 	| where properties.vmId == '%s'
 	| project id, name, location, tags, vmId = properties.vmId, networkProfile = properties.networkProfile, resourceGroup`, vmId)
 	options := &armresourcegraph.QueryRequestOptions{
-		ResultFormat: to.Ptr(armresourcegraph.ResultFormatObjectArray),
+		ResultFormat: new(armresourcegraph.ResultFormatObjectArray),
 	}
 	req := armresourcegraph.QueryRequest{
 		Query:   &query,
@@ -128,13 +127,23 @@ func (c *azureClient) GetVMSSInstance(ctx context.Context, vmId, subscriptionID,
 		}
 
 		for _, instance := range page.Value {
-			if *instance.Properties.VMID == vmId {
-				vm, err := buildVirtualMachineFromVMSSInstance(instance, info.ResourceGroup)
-				if err != nil {
-					return nil, err
-				}
-				return vm, nil
+			if instance == nil {
+				continue
 			}
+			if instance.Properties == nil {
+				continue
+			}
+			if instance.Properties.VMID == nil {
+				continue
+			}
+			if *instance.Properties.VMID != vmId {
+				continue
+			}
+			vm, err := buildVirtualMachineFromVMSSInstance(instance, info.ResourceGroup)
+			if err != nil {
+				return nil, err
+			}
+			return vm, nil
 		}
 	}
 	return nil, status.Errorf(codes.Internal, "VMSS instance %q not found", vmId)
@@ -151,7 +160,7 @@ func (c *azureClient) getVMSSInfo(ctx context.Context, subscriptionIDs []*string
 	| where name == '%s'
 	| project id, name, location, resourceGroup, subscriptionId`, name)
 	options := &armresourcegraph.QueryRequestOptions{
-		ResultFormat: to.Ptr(armresourcegraph.ResultFormatObjectArray),
+		ResultFormat: new(armresourcegraph.ResultFormatObjectArray),
 	}
 	req := armresourcegraph.QueryRequest{
 		Query:         &query,
@@ -166,10 +175,16 @@ func (c *azureClient) getVMSSInfo(ctx context.Context, subscriptionIDs []*string
 }
 
 func (c *azureClient) getNetworkInterfaces(ctx context.Context, vmId string, subscriptionId *string) ([]*NetworkInterface, error) {
+	// Azure Resource Graph lowercases the resourceGroup segment of the id
+	// column on the resources table, but nested property values such as
+	// properties.virtualMachine.id keep their original casing. Compare with
+	// tolower on both sides so a standalone VM whose NIC records a
+	// differently-cased VM id still matches. See:
+	// https://learn.microsoft.com/en-us/azure/governance/resource-graph/concepts/explore-resources
 	query := fmt.Sprintf(`
 	Resources
 	| where type == "microsoft.network/networkinterfaces"
-	| where properties.virtualMachine.id == "%s"
+	| where tolower(properties.virtualMachine.id) == tolower("%s")
 	| mv-expand ipConfig = properties.ipConfigurations
 	| extend subnetId = tostring(ipConfig.properties.subnet.id)
 	| extend vnetName = extract(@"virtualNetworks/([^/]+)", 1, subnetId)
@@ -179,12 +194,12 @@ func (c *azureClient) getNetworkInterfaces(ctx context.Context, vmId string, sub
 	| extend nsgRg = extract(@"resourceGroups/([^/]+)",1,nsgId)
 	| extend nsgName = extract(@"networkSecurityGroups/([^/]+)",1,nsgId)
 	| extend securityGroup = bag_pack("resourceGroup", nsgRg, "name",nsgName)
-	| summarize 
+	| summarize
 		subnets = make_list(subnetObj)
-		by id, name, resourceGroup, tostring(securityGroup)
-	| project name, resourceGroup, subnets, securityGroup`, vmId)
+		by id, name, resourceGroup, securityGroup_str = tostring(securityGroup)
+	| project name, resourceGroup, subnets, securityGroup = todynamic(securityGroup_str)`, vmId)
 	options := &armresourcegraph.QueryRequestOptions{
-		ResultFormat: to.Ptr(armresourcegraph.ResultFormatObjectArray),
+		ResultFormat: new(armresourcegraph.ResultFormatObjectArray),
 	}
 	req := armresourcegraph.QueryRequest{
 		Query:   &query,
@@ -206,6 +221,21 @@ func buildVirtualMachineFromVMSSInstance(instance *armcompute.VirtualMachineScal
 	if instance == nil {
 		return nil, status.Error(codes.Internal, "vmss instance is nil")
 	}
+	if instance.ID == nil {
+		return nil, status.Error(codes.Internal, "vmss instance ID is nil")
+	}
+	if instance.Name == nil {
+		return nil, status.Error(codes.Internal, "vmss instance name is nil")
+	}
+	if instance.Location == nil {
+		return nil, status.Error(codes.Internal, "vmss instance location is nil")
+	}
+	if instance.Properties == nil {
+		return nil, status.Error(codes.Internal, "vmss instance properties are nil")
+	}
+	if instance.Properties.VMID == nil {
+		return nil, status.Error(codes.Internal, "vmss instance VM ID is nil")
+	}
 
 	v := &VirtualMachine{
 		ID:            *instance.ID,
@@ -221,6 +251,10 @@ func buildVirtualMachineFromVMSSInstance(instance *armcompute.VirtualMachineScal
 		for key, value := range instance.Tags {
 			v.Tags[key] = value
 		}
+	}
+
+	if instance.Properties.NetworkProfileConfiguration == nil {
+		return v, nil
 	}
 
 	for _, interfaceConfig := range instance.Properties.NetworkProfileConfiguration.NetworkInterfaceConfigurations {
@@ -240,21 +274,35 @@ func parseNetworkInterfaceConfig(interfaceConfig *armcompute.VirtualMachineScale
 	if interfaceConfig == nil {
 		return nil, status.Error(codes.Internal, "network interface configuration is nil")
 	}
-	nsgResourceGroup, nsgName, err := parseNetworkSecurityGroupID(*interfaceConfig.Properties.NetworkSecurityGroup.ID)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "unable to parse network security group ID: %v", err)
+	if interfaceConfig.Name == nil {
+		return nil, status.Error(codes.Internal, "network interface configuration name is nil")
 	}
 
 	ni := &NetworkInterface{
 		Name: *interfaceConfig.Name,
-		SecurityGroup: SecurityGroup{
-			ResourceGroup: nsgResourceGroup,
-			Name:          nsgName,
-		},
 	}
+
+	if interfaceConfig.Properties == nil {
+		return ni, nil
+	}
+
+	sg, err := parseSecurityGroup(interfaceConfig.Properties.NetworkSecurityGroup)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "unable to parse network security group ID: %v", err)
+	}
+	ni.SecurityGroup = sg
 
 	for _, ipconfig := range interfaceConfig.Properties.IPConfigurations {
 		if ipconfig == nil {
+			continue
+		}
+		if ipconfig.Properties == nil {
+			continue
+		}
+		if ipconfig.Properties.Subnet == nil {
+			continue
+		}
+		if ipconfig.Properties.Subnet.ID == nil {
 			continue
 		}
 
@@ -266,6 +314,23 @@ func parseNetworkInterfaceConfig(interfaceConfig *armcompute.VirtualMachineScale
 	}
 
 	return ni, nil
+}
+
+func parseSecurityGroup(nsg *armcompute.SubResource) (SecurityGroup, error) {
+	if nsg == nil {
+		return SecurityGroup{}, nil
+	}
+	if nsg.ID == nil {
+		return SecurityGroup{}, nil
+	}
+	resourceGroup, name, err := parseNetworkSecurityGroupID(*nsg.ID)
+	if err != nil {
+		return SecurityGroup{}, err
+	}
+	return SecurityGroup{
+		ResourceGroup: resourceGroup,
+		Name:          name,
+	}, nil
 }
 
 func extractArmResourceGraphItems[T any](resp armresourcegraph.ClientResourcesResponse) ([]*T, error) {

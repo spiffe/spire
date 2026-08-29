@@ -5,6 +5,7 @@ import (
 	"crypto"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"math/big"
@@ -14,6 +15,7 @@ import (
 	"github.com/andres-erbsen/clock"
 	"github.com/go-jose/go-jose/v4"
 	"github.com/go-jose/go-jose/v4/jwt"
+	"github.com/gofrs/uuid/v5"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/tlspolicy"
@@ -102,6 +104,9 @@ type WorkloadJWTSVIDParams struct {
 	Audience      []string
 	TTL           time.Duration
 	ExpirationCap time.Time
+	// IncludeJTI, when true, causes the issued JWT-SVID to include a unique "jti"
+	// (JWT ID) claim, making each token individually auditable.
+	IncludeJTI bool
 }
 
 type WorkloadWITSVIDParams struct {
@@ -121,6 +126,7 @@ type Config struct {
 	JWTSVIDTTL          time.Duration
 	JWTIssuer           string
 	WITSVIDTTL          time.Duration
+	WITIssuer           string
 	AgentSVIDTTL        time.Duration
 	CredentialComposers []credentialcomposer.CredentialComposer
 	NewSerialNumber     func() (*big.Int, error)
@@ -346,6 +352,14 @@ func (b *Builder) BuildWorkloadJWTSVIDClaims(ctx context.Context, params Workloa
 			"iat": jwt.NewNumericDate(now),
 		},
 	}
+
+	if params.IncludeJTI {
+		jtiBytes, err := uuid.NewV4()
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate jti: %w", err)
+		}
+		attributes.Claims["jti"] = base64.RawURLEncoding.EncodeToString(jtiBytes[:])
+	}
 	if b.config.JWTIssuer != "" {
 		attributes.Claims["iss"] = b.config.JWTIssuer
 	}
@@ -389,14 +403,19 @@ func (b *Builder) BuildWorkloadWITSVIDClaims(ctx context.Context, params Workloa
 	now := b.config.Clock.Now()
 	_, expiresAt := computeCappedLifetime(b.config.Clock, ttl, params.ExpirationCap)
 
-	return map[string]any{
+	claims := map[string]any{
 		"sub": params.SPIFFEID.String(),
 		"exp": jwt.NewNumericDate(expiresAt),
 		"iat": jwt.NewNumericDate(now),
 		"cnf": map[string]any{
 			"jwk": params.PublicKey,
 		},
-	}, nil
+	}
+	if b.config.WITIssuer != "" {
+		claims["iss"] = b.config.WITIssuer
+	}
+
+	return claims, nil
 }
 
 func (b *Builder) buildX509CATemplate(publicKey crypto.PublicKey, parentChain []*x509.Certificate, ttl time.Duration) (*x509.Certificate, error) {

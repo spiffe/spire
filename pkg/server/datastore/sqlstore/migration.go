@@ -10,6 +10,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/version"
+	"github.com/spiffe/spire/pkg/server/datastore/sqlcommon"
 )
 
 // Each time the database requires a migration, the "schema" version is
@@ -267,16 +268,26 @@ import (
 // | v1.13.2 |        |                                                                           |
 // | v1.13.3 |        |                                                                           |
 // | v1.13.4 |        |                                                                           |
+// | v1.13.5 |        |                                                                           |
 // |*********|********|***************************************************************************|
 // | v1.14.0 |        |                                                                           |
 // | v1.14.1 |        |                                                                           |
 // | v1.14.2 |        |                                                                           |
 // | v1.14.3 |        |                                                                           |
+// | v1.14.4 |        |                                                                           |
+// | v1.14.5 |        |                                                                           |
+// | v1.14.6 |        |                                                                           |
+// | v1.14.7 |        |                                                                           |
+// |*********|********|***************************************************************************|
+// | v1.15.0 |        |                                                                           |
+// | v1.15.1 |        |                                                                           |
+// | v1.15.2 |        |                                                                           |
+// | v1.15.3 |        |                                                                           |
 // ================================================================================================
 
 const (
 	// the latest schema version of the database in the code
-	latestSchemaVersion = 24
+	latestSchemaVersion = 25
 
 	// lastMinorReleaseSchemaVersion is the schema version supported by the
 	// last minor release. When the migrations are opportunistically pruned
@@ -293,12 +304,12 @@ func migrateDB(db *gorm.DB, dbType string, disableMigration bool, log logrus.Fie
 	// version before continuing, and fail if we're not.
 	if codeVersion.Major > 1 {
 		log.Error("Migration code needs updating for current release version")
-		return newSQLError("current migration code not compatible with current release version")
+		return sqlcommon.NewSQLError("current migration code not compatible with current release version")
 	}
 
 	isNew := !db.HasTable(&Migration{})
 	if err := db.Error; err != nil {
-		return newWrappedSQLError(err)
+		return sqlcommon.NewWrappedSQLError(err)
 	}
 
 	if isNew {
@@ -307,12 +318,12 @@ func migrateDB(db *gorm.DB, dbType string, disableMigration bool, log logrus.Fie
 
 	// ensure migrations table exists so we can check versioning in all cases
 	if err := db.AutoMigrate(&Migration{}).Error; err != nil {
-		return newWrappedSQLError(err)
+		return sqlcommon.NewWrappedSQLError(err)
 	}
 
 	migration := new(Migration)
 	if err := db.Assign(Migration{}).FirstOrCreate(migration).Error; err != nil {
-		return newWrappedSQLError(err)
+		return sqlcommon.NewWrappedSQLError(err)
 	}
 
 	schemaVersion := migration.Version
@@ -322,7 +333,7 @@ func migrateDB(db *gorm.DB, dbType string, disableMigration bool, log logrus.Fie
 	dbCodeVersion, err := getDBCodeVersion(*migration)
 	if err != nil {
 		log.WithError(err).Error("Error getting DB code version")
-		return newSQLError("error getting DB code version: %v", err)
+		return sqlcommon.NewSQLError("error getting DB code version: %v", err)
 	}
 
 	log = log.WithField(telemetry.VersionInfo, dbCodeVersion.String())
@@ -338,7 +349,7 @@ func migrateDB(db *gorm.DB, dbType string, disableMigration bool, log logrus.Fie
 			}
 
 			if err := db.Model(&Migration{}).Updates(newMigration).Error; err != nil {
-				return newWrappedSQLError(err)
+				return sqlcommon.NewWrappedSQLError(err)
 			}
 		}
 		return nil
@@ -347,7 +358,7 @@ func migrateDB(db *gorm.DB, dbType string, disableMigration bool, log logrus.Fie
 	if disableMigration {
 		if err = isDisabledMigrationAllowed(codeVersion, dbCodeVersion); err != nil {
 			log.WithError(err).Error("Auto-migrate must be enabled")
-			return newWrappedSQLError(err)
+			return sqlcommon.NewWrappedSQLError(err)
 		}
 		return nil
 	}
@@ -358,7 +369,7 @@ func migrateDB(db *gorm.DB, dbType string, disableMigration bool, log logrus.Fie
 	if schemaVersion > latestSchemaVersion {
 		if !isCompatibleCodeVersion(codeVersion, dbCodeVersion) {
 			log.Error("Incompatible DB schema is too new for code version, upgrade SPIRE Server")
-			return newSQLError("incompatible DB schema and code version")
+			return sqlcommon.NewSQLError("incompatible DB schema and code version")
 		}
 		log.Warn("DB schema is ahead of code version, upgrading SPIRE Server is recommended")
 		return nil
@@ -372,7 +383,7 @@ func migrateDB(db *gorm.DB, dbType string, disableMigration bool, log logrus.Fie
 	for schemaVersion < latestSchemaVersion {
 		tx := db.Begin()
 		if err := tx.Error; err != nil {
-			return newWrappedSQLError(err)
+			return sqlcommon.NewWrappedSQLError(err)
 		}
 		schemaVersion, err = migrateVersion(tx, schemaVersion, log)
 		if err != nil {
@@ -380,7 +391,7 @@ func migrateDB(db *gorm.DB, dbType string, disableMigration bool, log logrus.Fie
 			return err
 		}
 		if err := tx.Commit().Error; err != nil {
-			return newWrappedSQLError(err)
+			return sqlcommon.NewWrappedSQLError(err)
 		}
 	}
 
@@ -420,7 +431,7 @@ func initDB(db *gorm.DB, dbType string, log logrus.FieldLogger) (err error) {
 	log.Info("Initializing new database")
 	tx := db.Begin()
 	if err := tx.Error; err != nil {
-		return newWrappedSQLError(err)
+		return sqlcommon.NewWrappedSQLError(err)
 	}
 
 	tables := []any{
@@ -440,7 +451,7 @@ func initDB(db *gorm.DB, dbType string, log logrus.FieldLogger) (err error) {
 
 	if err := tableOptionsForDialect(tx, dbType).AutoMigrate(tables...).Error; err != nil {
 		tx.Rollback()
-		return newWrappedSQLError(err)
+		return sqlcommon.NewWrappedSQLError(err)
 	}
 
 	if err := tx.Assign(Migration{
@@ -448,7 +459,7 @@ func initDB(db *gorm.DB, dbType string, log logrus.FieldLogger) (err error) {
 		CodeVersion: codeVersion.String(),
 	}).FirstOrCreate(&Migration{}).Error; err != nil {
 		tx.Rollback()
-		return newWrappedSQLError(err)
+		return sqlcommon.NewWrappedSQLError(err)
 	}
 
 	if err := addFederatedRegistrationEntriesRegisteredEntryIDIndex(tx); err != nil {
@@ -456,7 +467,7 @@ func initDB(db *gorm.DB, dbType string, log logrus.FieldLogger) (err error) {
 	}
 
 	if err := tx.Commit().Error; err != nil {
-		return newWrappedSQLError(err)
+		return sqlcommon.NewWrappedSQLError(err)
 	}
 
 	return nil
@@ -480,11 +491,11 @@ func migrateVersion(tx *gorm.DB, currVersion int, log logrus.FieldLogger) (versi
 		Version:     nextVersion,
 		CodeVersion: version.Version(),
 	}).Error; err != nil {
-		return 0, newWrappedSQLError(err)
+		return 0, sqlcommon.NewWrappedSQLError(err)
 	}
 
 	if currVersion < lastMinorReleaseSchemaVersion {
-		return 0, newSQLError("migrating from schema version %d requires a previous SPIRE release; please follow the upgrade strategy at doc/upgrading.md", currVersion)
+		return 0, sqlcommon.NewSQLError("migrating from schema version %d requires a previous SPIRE release; please follow the upgrade strategy at doc/upgrading.md", currVersion)
 	}
 
 	// Place all migrations handled by the current minor release here. This
@@ -501,7 +512,7 @@ func migrateVersion(tx *gorm.DB, currVersion int, log logrus.FieldLogger) (versi
 	// And the migrateToVXX function will be like this:
 	// func migrateToVXX(tx *gorm.DB) error {
 	//   if err := tx.AutoMigrate(&Foo{}, &Bar{}).Error; err != nil {
-	//     return sqlError.Wrap(err)
+	//     return sqlcommon.NewWrappedSQLError(err)
 	//   }
 	//   return nil
 	// }
@@ -509,8 +520,10 @@ func migrateVersion(tx *gorm.DB, currVersion int, log logrus.FieldLogger) (versi
 	switch currVersion {
 	case 23:
 		err = migrateToV24(tx)
+	case 24:
+		err = migrateToV25(tx)
 	default:
-		err = newSQLError("no migration support for unknown schema version %d", currVersion)
+		err = sqlcommon.NewSQLError("no migration support for unknown schema version %d", currVersion)
 	}
 	if err != nil {
 		return 0, err
@@ -522,7 +535,15 @@ func migrateVersion(tx *gorm.DB, currVersion int, log logrus.FieldLogger) (versi
 func migrateToV24(tx *gorm.DB) error {
 	// Add agent_version column to attested_node_entries table
 	if err := tx.AutoMigrate(&AttestedNode{}).Error; err != nil {
-		return newWrappedSQLError(err)
+		return sqlcommon.NewWrappedSQLError(err)
+	}
+	return nil
+}
+
+func migrateToV25(tx *gorm.DB) error {
+	// Add additional_attributes column to registered_entries table
+	if err := tx.AutoMigrate(&RegisteredEntry{}).Error; err != nil {
+		return sqlcommon.NewWrappedSQLError(err)
 	}
 	return nil
 }
@@ -535,7 +556,7 @@ func addFederatedRegistrationEntriesRegisteredEntryIDIndex(tx *gorm.DB) error {
 	// to introduce the index since there is no explicit struct to add tags to
 	// so we have to manually create it.
 	if err := tx.Table("federated_registration_entries").AddIndex("idx_federated_registration_entries_registered_entry_id", "registered_entry_id").Error; err != nil {
-		return newWrappedSQLError(err)
+		return sqlcommon.NewWrappedSQLError(err)
 	}
 	return nil
 }

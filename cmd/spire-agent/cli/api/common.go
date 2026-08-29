@@ -10,6 +10,7 @@ import (
 	"github.com/spiffe/spire/cmd/spire-agent/cli/common"
 	"github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/util"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 )
 
@@ -17,7 +18,12 @@ const commandTimeout = 5 * time.Second
 
 type workloadClient struct {
 	workload.SpiffeWorkloadAPIClient
+	conn    *grpc.ClientConn
 	timeout time.Duration
+}
+
+func (c *workloadClient) release() {
+	c.conn.Close()
 }
 
 type workloadClientMaker func(ctx context.Context, addr net.Addr, timeout time.Duration) (*workloadClient, error)
@@ -34,6 +40,7 @@ func newWorkloadClient(ctx context.Context, addr net.Addr, timeout time.Duration
 	}
 	return &workloadClient{
 		SpiffeWorkloadAPIClient: workload.NewSpiffeWorkloadAPIClient(conn),
+		conn:                    conn,
 		timeout:                 timeout,
 	}, nil
 }
@@ -105,6 +112,7 @@ func (a *adapter) Run(args []string) int {
 		_ = a.env.ErrPrintln(err)
 		return 1
 	}
+	defer clients.release()
 
 	if err := a.cmd.run(ctx, a.env, clients); err != nil {
 		_ = a.env.ErrPrintln(err)

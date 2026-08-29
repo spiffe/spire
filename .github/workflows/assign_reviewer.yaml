@@ -1,0 +1,211 @@
+name: assign-reviewer
+
+# Rotating assignee ("ball in court") for pull requests.
+#
+# This workflow does not request reviewers. The repository's CODEOWNERS file
+# already requests the maintainers on every PR. Instead it designates a single
+# maintainer as the PR assignee to show who owns the next action ("ball in
+# court"), and keeps that up to date as the review progresses.
+#   - opened / ready_for_review -> a maintainer is chosen at random from the
+#     pool and set as the assignee.
+#   - a human re-requests a review while the ball is with the author -> the
+#     assignee flips to the requested maintainer.
+#   - the author pushes commits while holding the ball -> the assignee flips
+#     back to the pool member who reviewed most recently. Contributors rarely
+#     use the re-request button, so author activity is treated as the signal
+#     that the changes are ready to look at.
+#   - the author comments while holding the ball -> same flip as a push, so
+#     the maintainer sees that an author question awaits a response.
+#   - a pool member comments while holding the ball -> the assignee flips to
+#     the author, keeping the court with whoever must respond next.
+#
+# Activity-driven flips only happen when the acting user currently holds the
+# ball, so repeated pushes or comments by the same person are no-ops and
+# manual assignee changes are never overridden.
+#
+# Review submissions (the flip to the author on changes requested, the
+# reviewer staying assigned on approval, and the flip back when the author
+# replies on review threads) are handled by the companion
+# assign-reviewer-review-capture and assign-reviewer-review-apply workflows.
+# That split exists because review handling needs a write token on PRs from
+# forks, which the pull_request_review event does not provide. See those
+# files.
+#
+# The maintainer is picked at random from the pool, which evens out over
+# time. The selection is stateless, with no persisted index or external
+# state. The pool is defined in .github/reviewer-pool.json, separate from
+# CODEOWNERS, so it can be adjusted for availability (leave, inactivity)
+# without touching ownership.
+#
+# The pull_request_target events carry a write-scoped token even for PRs from
+# forks, and issue_comment also runs from the default branch with a
+# write-scoped token. This is safe because the job never checks out or
+# executes any code from the PR. The checkout below fetches only the shared
+# helper script from a trusted ref (the PR base branch, or the default branch
+# for issue_comment), the job otherwise only reads PR metadata and calls the
+# assignee API, and PR-controlled text is never interpolated into a shell.
+
+on:
+  pull_request_target:
+    types: [opened, ready_for_review, review_requested, synchronize]
+  issue_comment:
+    types: [created]
+
+# Serialize runs per PR and per event action so overlapping events don't race
+# on the assignee. The action is part of the group on purpose: when a PR
+# opens, GitHub fires the "opened" event together with a burst of CODEOWNERS
+# "review_requested" events, and a single group plus cancel-in-progress:
+# false makes GitHub cancel all but the latest pending run, which can drop
+# the "opened" run that assigns the reviewer. Keeping each action in its own
+# group lets "opened" run on its own while same-action bursts (rapid pushes,
+# comment streams) still collapse safely. issue_comment events carry an issue
+# payload instead of a pull_request one, hence the number fallback.
+concurrency:
+  group: assign-reviewer-${{ github.event.pull_request.number || github.event.issue.number }}-${{ github.event_name }}-${{ github.event.action }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  assign-reviewer:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read       # check out the helper script, read .github/reviewer-pool.json
+      issues: write        # add/remove assignees (the issues API endpoint)
+      pull-requests: write # add/remove assignees on the pull request
+    steps:
+      # Check out only the shared helper script, from a trusted ref. On
+      # pull_request_target the default checkout ref is the PR base branch,
+      # and on issue_comment it is the default branch, never the PR head.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: .github/workflows/scripts
+      - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const courtLib = require('./.github/workflows/scripts/assign_reviewer_lib.js');
+            const court = await courtLib({ github, context, core });
+            const { owner, repo } = context.repo;
+            const action = context.payload.action;
+
+            // issue_comment fires for plain issues too. Only PR comments take
+            // part in the ball-in-court flow.
+            if (context.eventName === 'issue_comment' &&
+                !context.payload.issue.pull_request) {
+              core.info(`Comment on #${context.payload.issue.number} is not on a pull request, skipping.`);
+              return;
+            }
+
+            // The pull_request payload snapshot can be stale during event
+            // bursts and issue_comment carries no pull_request payload at
+            // all, so always act on a fresh fetch.
+            const prNumber = context.payload.pull_request
+              ? context.payload.pull_request.number
+              : context.payload.issue.number;
+            const { data: pr } = await github.rest.pulls.get({
+              owner, repo, pull_number: prNumber,
+            });
+            const author = pr.user.login;
+
+            // Skip bot-authored PRs (for example Dependabot). These are handled
+            // by the auto-merge workflow and do not take part in the rotation.
+            if (court.isBot(pr.user)) {
+              core.info(`PR #${pr.number} authored by bot ${author}; skipping.`);
+              return;
+            }
+            // Comments can arrive on closed PRs.
+            if (pr.state !== 'open') {
+              core.info(`PR #${pr.number} is ${pr.state}, leaving court unchanged.`);
+              return;
+            }
+            // The rotation starts when a PR leaves draft (ready_for_review),
+            // so pushes and discussion on a draft move no assignee.
+            if (pr.draft) {
+              core.info(`PR #${pr.number} is a draft; skipping.`);
+              return;
+            }
+
+            const holder = court.courtHolder(pr);
+            const authorHoldsBall = holder !== null && court.eq(holder, author);
+
+            // 1) New PR (or draft promoted to ready): pick a random pool member.
+            if (action === 'opened' || action === 'ready_for_review') {
+              // Exclude the author so a maintainer who opens a PR is not made
+              // the assignee of their own PR.
+              const candidates = court.pool.filter(u => !court.eq(u, author));
+              if (candidates.length === 0) {
+                core.info('No eligible maintainers after excluding the author; skipping.');
+                return;
+              }
+              const reviewer = candidates[Math.floor(Math.random() * candidates.length)];
+              core.info(`Selected assignee for PR #${pr.number}: ${reviewer}.`);
+              await court.setCourt(pr, reviewer);
+              return;
+            }
+
+            // 2) A review was (re-)requested. Move the ball to that maintainer,
+            //    but only when the ball is currently in the author's court (the
+            //    author is the assignee). This keeps the CODEOWNERS auto-request
+            //    that fires on open from overriding the rotated assignee.
+            if (action === 'review_requested') {
+              const reviewer = context.payload.requested_reviewer;
+              if (!reviewer || reviewer.type === 'Bot' || !court.inPool(reviewer.login)) {
+                core.info('Review request is not for a pool member; skipping.');
+                return;
+              }
+              if (!authorHoldsBall) {
+                core.info(`Ball is not in the author's court on PR #${pr.number}; not overriding the rotation.`);
+                return;
+              }
+              await court.setCourt(pr, reviewer.login);
+              return;
+            }
+
+            // 3) The author pushed commits. A push while the author holds the
+            //    ball hands it back to the pool member who reviewed most
+            //    recently. If the reviewer looks too early the cost is one
+            //    glance, while a missed hand-back stalls the PR.
+            if (action === 'synchronize') {
+              if (!authorHoldsBall) {
+                core.info(`Ball is not in the author's court on PR #${pr.number}, nothing to flip.`);
+                return;
+              }
+              const reviewer = await court.lastPoolReviewer(pr);
+              if (reviewer === null) {
+                core.info(`No pool member has reviewed PR #${pr.number} yet, leaving court unchanged.`);
+                return;
+              }
+              await court.setCourt(pr, reviewer);
+              return;
+            }
+
+            // 4) A conversation comment. The ball moves to the counterpart of
+            //    whoever spoke, but only when the speaker holds it, so streams
+            //    of comments from one side produce a single flip.
+            if (context.eventName === 'issue_comment') {
+              const commenter = context.payload.comment.user;
+              if (court.isBot(commenter)) {
+                core.info('Comment by a bot, leaving court unchanged.');
+                return;
+              }
+              if (holder === null || !court.eq(holder, commenter.login)) {
+                core.info(`Commenter does not hold the ball on PR #${pr.number}, leaving court unchanged.`);
+                return;
+              }
+              if (court.eq(commenter.login, author)) {
+                const reviewer = await court.lastPoolReviewer(pr);
+                if (reviewer === null) {
+                  core.info(`No pool member has reviewed PR #${pr.number} yet, leaving court unchanged.`);
+                  return;
+                }
+                await court.setCourt(pr, reviewer);
+                return;
+              }
+              // The holder is either the author or a pool member, so this is
+              // a pool member speaking while holding the ball. Their comment
+              // (an answer, a request) puts the author on point to respond.
+              await court.setCourt(pr, author);
+              return;
+            }

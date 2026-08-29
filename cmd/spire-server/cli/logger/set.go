@@ -11,9 +11,9 @@ import (
 	"github.com/sirupsen/logrus"
 	api "github.com/spiffe/spire-api-sdk/proto/spire/api/server/logger/v1"
 	"github.com/spiffe/spire/cmd/spire-server/util"
+	commonlogger "github.com/spiffe/spire/pkg/common/api/logger"
 	commoncli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/cliprinter"
-	serverlogger "github.com/spiffe/spire/pkg/server/api/logger/v1"
 )
 
 type setCommand struct {
@@ -61,7 +61,7 @@ func (c *setCommand) Run(ctx context.Context, _ *commoncli.Env, serverClient uti
 		return fmt.Errorf("the value %q is not a valid setting", c.newLevel)
 	}
 
-	apiLevel, found := serverlogger.APILevel[logrusLevel]
+	apiLevel, found := commonlogger.APILevel[logrusLevel]
 	if !found {
 		return fmt.Errorf("the logrus level %q could not be transformed into an api log level", level)
 	}
@@ -76,5 +76,5 @@ func (c *setCommand) Run(ctx context.Context, _ *commoncli.Env, serverClient uti
 }
 
 func (c *setCommand) prettyPrintLogger(env *commoncli.Env, results ...any) error {
-	return PrettyPrintLogger(env, results...)
+	return commonlogger.PrettyPrintLogger(env, results...)
 }

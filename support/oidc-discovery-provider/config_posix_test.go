@@ -107,7 +107,7 @@ func parseConfigCasesOS() []parseConfigCase {
 					CacheDir:     "",
 					Email:        "admin@domain.test",
 					DirectoryURL: "https://directory.test",
-					RawCacheDir:  stringPtr(""),
+					RawCacheDir:  new(""),
 					ToSAccepted:  true,
 				},
 				ServerAPI: &ServerAPIConfig{

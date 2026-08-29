@@ -1,0 +1,25 @@
+# Minimal stand-in for the Flux source-controller Kustomization CRD.
+# The broker API doesn't need the Flux controller running — only the CRD has
+# to be registered so the agent's REST mapper can resolve
+# `kustomizations.kustomize.toolkit.fluxcd.io` and fetch PartialObjectMetadata.
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: kustomizations.kustomize.toolkit.fluxcd.io
+spec:
+  group: kustomize.toolkit.fluxcd.io
+  scope: Namespaced
+  names:
+    kind: Kustomization
+    plural: kustomizations
+    singular: kustomization
+    shortNames:
+      - ks
+  versions:
+    - name: v1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          x-kubernetes-preserve-unknown-fields: true

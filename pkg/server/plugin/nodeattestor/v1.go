@@ -6,11 +6,13 @@ import (
 	"io"
 	"net"
 
+	"github.com/hashicorp/go-hclog"
 	nodeattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/nodeattestor/v1"
 	"github.com/spiffe/spire/pkg/common/plugin"
 	"github.com/spiffe/spire/proto/spire/common"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
 )
 
@@ -20,7 +22,27 @@ const (
 	// It must not be used for security decisions (such as authentication, authorization, or trust domain selection) in attestor plugins without threat assessment.
 	// Valid uses include diagnostics, logging, or configuration side-loading
 	XForwardedHostKey = "X-Untrusted-Forwarded-Host"
+
+	// XForwardedClientIPKey is the metadata key for the client IP address observed by the server.
+	// Note: This reflects the immediate connecting peer, and may not represent the true client origin
+	// in scenarios including load balancers and other middlebox patterns
+	XForwardedClientIPKey = "X-Forwarded-Client-IP"
 )
+
+// ClientIPFromContext returns the client IP observed by the server, as
+// forwarded to the plugin under XForwardedClientIPKey. It returns an empty
+// string when the server could not determine the IP. Plugins that verify the
+// client IP share this so they read the metadata the same way.
+func ClientIPFromContext(ctx context.Context, log hclog.Logger) string {
+	ips := metadata.ValueFromIncomingContext(ctx, XForwardedClientIPKey)
+	if len(ips) == 0 {
+		return ""
+	}
+	if len(ips) > 1 && log != nil {
+		log.Warn("Multiple client IP values found in metadata, using first value")
+	}
+	return ips[0]
+}
 
 type V1 struct {
 	plugin.Facade
@@ -38,12 +60,17 @@ func (v1 *V1) Attest(ctx context.Context, payload []byte, challengeFn func(ctx c
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	// forward original request host to downstream plugins
+	// Forward original request host to downstream plugins
 	originalHost, err := getOriginalHost(ctx)
 	if err != nil {
 		v1.Log.WithError(err).Warn("Failed to extract ':authority' header from gRPC metadata")
 	}
 	ctx = metadata.AppendToOutgoingContext(ctx, XForwardedHostKey, originalHost)
+
+	// Forward observed client IP to downstream plugins
+	// Note: Empty string is provided if unavailable. Plugins that require it
+	// (e.g. x509pop with verify_client_ip enabled) handle the IP absence
+	ctx = metadata.AppendToOutgoingContext(ctx, XForwardedClientIPKey, getClientIP(ctx))
 
 	stream, err := v1.NodeAttestorPluginClient.Attest(ctx)
 	if err != nil {
@@ -117,6 +144,23 @@ func (v1 *V1) streamError(err error) error {
 		return v1.Error(codes.Internal, "plugin closed stream unexpectedly")
 	}
 	return v1.WrapErr(err)
+}
+
+// getClientIP returns the IP address of the connecting peer, or an empty string if unavailable
+func getClientIP(ctx context.Context) string {
+	p, ok := peer.FromContext(ctx)
+	if !ok || p.Addr == nil {
+		return ""
+	}
+	addr := p.Addr.String()
+	if host, _, err := net.SplitHostPort(addr); err == nil {
+		addr = host
+	}
+	ip := net.ParseIP(addr)
+	if ip == nil {
+		return ""
+	}
+	return ip.String()
 }
 
 func getOriginalHost(ctx context.Context) (string, error) {

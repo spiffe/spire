@@ -66,6 +66,9 @@ const (
 	// (server)
 	GetPublicKeys = "get_public_keys"
 
+	// JWTSVIDCacheSize is the gauge that holds the number of cached JWT-SVIDs
+	JWTSVIDCacheSize = "jwt_svid_cache_size"
+
 	// Keys related to keys used on HCL
 	Keys = "keys"
 
@@ -210,8 +213,17 @@ const (
 	// CertFilePath tags a certificate file path used for TLS connections.
 	CertFilePath = "cert_file_path"
 
+	// KeyID tags a key ID
+	KeyID = "key_id"
+
 	// KeyFilePath tags a key file path used for TLS connections.
 	KeyFilePath = "key_file_path"
+
+	// KeyName tags the key name
+	KeyName = "key_name"
+
+	// KeyType tags the key type
+	KeyType = "key_type"
 
 	// CGroupPath tags a linux CGroup path, most likely for use in attestation
 	CGroupPath = "cgroup_path"
@@ -250,6 +262,18 @@ const (
 
 	// DatabaseType labels a database type (MySQL, postgres...)
 	DatabaseType = "db_type"
+
+	// Alert tags log events that should be easy for operators to alert on.
+	Alert = "alert"
+
+	// AlertType tags the category of an alert log event.
+	AlertType = "alert_type"
+
+	// DeprecatedConfigAlertType tags alerts for deprecated configuration settings.
+	DeprecatedConfigAlertType = "deprecated_config"
+
+	// DeprecatedServiceAlertType tags alerts for deprecated plugin services.
+	DeprecatedServiceAlertType = "deprecated_service"
 
 	// DeprecatedServiceName tags the deprecated service name
 	DeprecatedServiceName = "deprecated_service_name"
@@ -381,6 +405,9 @@ const (
 	// LocalAuthorityID tags a local authority ID
 	LocalAuthorityID = "local_authority_id"
 
+	// LoggerAPI functionality related to logger endpoints
+	LoggerAPI = "logger_api"
+
 	// Mode tags a bundle deletion mode
 	Mode = "mode"
 
@@ -438,6 +465,9 @@ const (
 	// Pruned flagging something has been pruned
 	Pruned = "pruned"
 
+	// RateLimitExceeded tags a rate limit exceeded event
+	RateLimitExceeded = "rate_limit_exceeded"
+
 	// ReadOnly tags something read-only
 	ReadOnly = "read_only"
 
@@ -465,6 +495,9 @@ const (
 
 	// Reconfigurable tags whether something is reconfigurable.
 	Reconfigurable = "reconfigurable"
+
+	// ReferenceType tags a workload reference type URL
+	ReferenceType = "reference_type"
 
 	// RefreshHint tags a bundle refresh hint
 	RefreshHint = "refresh_hint"
@@ -824,6 +857,9 @@ const (
 
 	// AuthorizeCall functionality related to authorizing an incoming call
 	AuthorizeCall = "authorize_call"
+
+	// BrokerAPI functionality related to broker endpoints
+	BrokerAPI = "broker_api"
 
 	// CreateFederatedBundle functionality related to creating a federated bundle
 	CreateFederatedBundle = "create_federated_bundle"

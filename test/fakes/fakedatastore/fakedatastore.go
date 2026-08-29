@@ -25,11 +25,11 @@ var (
 )
 
 type DataStore struct {
-	ds   datastore.DataStore
+	ds   datastore.TestableDataStore
 	errs []error
 }
 
-var _ datastore.DataStore = (*DataStore)(nil)
+var _ datastore.TestableDataStore = (*DataStore)(nil)
 
 func New(tb testing.TB) *DataStore {
 	log, _ := test.NewNullLogger()
@@ -148,6 +148,13 @@ func (s *DataStore) FetchAttestedNode(ctx context.Context, spiffeID string) (*co
 	return s.ds.FetchAttestedNode(ctx, spiffeID)
 }
 
+func (s *DataStore) FetchAttestedNodes(ctx context.Context, spiffeIDs []string) (map[string]*common.AttestedNode, error) {
+	if err := s.getNextError(); err != nil {
+		return nil, err
+	}
+	return s.ds.FetchAttestedNodes(ctx, spiffeIDs)
+}
+
 func (s *DataStore) ListAttestedNodes(ctx context.Context, req *datastore.ListAttestedNodesRequest) (*datastore.ListAttestedNodesResponse, error) {
 	if err := s.getNextError(); err != nil {
 		return nil, err
@@ -169,11 +176,11 @@ func (s *DataStore) DeleteAttestedNode(ctx context.Context, spiffeID string) (*c
 	return s.ds.DeleteAttestedNode(ctx, spiffeID)
 }
 
-func (s *DataStore) PruneAttestedExpiredNodes(ctx context.Context, expiredBefore time.Time, includeNonReattestable bool) error {
+func (s *DataStore) PruneAttestedExpiredNodes(ctx context.Context, expiredBefore time.Time, includeNonReattestable bool, batchSize int) error {
 	if err := s.getNextError(); err != nil {
 		return err
 	}
-	return s.ds.PruneAttestedExpiredNodes(ctx, expiredBefore, includeNonReattestable)
+	return s.ds.PruneAttestedExpiredNodes(ctx, expiredBefore, includeNonReattestable, batchSize)
 }
 
 func (s *DataStore) ListAttestedNodeEvents(ctx context.Context, req *datastore.ListAttestedNodeEventsRequest) (*datastore.ListAttestedNodeEventsResponse, error) {

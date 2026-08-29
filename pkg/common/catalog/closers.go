@@ -3,6 +3,7 @@ package catalog
 import (
 	"errors"
 	"io"
+	"slices"
 	"time"
 
 	"google.golang.org/grpc"
@@ -13,8 +14,8 @@ type closerGroup []io.Closer
 func (cs closerGroup) Close() error {
 	// Close in reverse order.
 	var errs error
-	for i := len(cs) - 1; i >= 0; i-- {
-		errs = errors.Join(errs, cs[i].Close())
+	for _, c := range slices.Backward(cs) {
+		errs = errors.Join(errs, c.Close())
 	}
 
 	return errs

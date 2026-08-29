@@ -1,0 +1,186 @@
+name: assign-reviewer-review-apply
+
+# Privileged half of the review ball-in-court update.
+#
+# Triggered by the completion of assign-reviewer-review-capture via
+# workflow_run. A workflow_run run executes from the default branch with a
+# write-scoped token even when the originating review was on a PR from a fork,
+# which is what lets it move the assignee where the pull_request_review event
+# could not.
+#
+# Ball-in-court rules applied here
+#   - a pool member approves -> the reviewer stays assigned (a maintainer
+#     merges).
+#   - a pool member requests changes or comments -> the author is assigned
+#     (their court).
+#   - the author submits a review while holding the ball -> the ball returns
+#     to the pool member who reviewed most recently. Inline replies on review
+#     threads create an implicit "commented" review, so this mirrors the push
+#     and conversation-comment flips in assign_reviewer.yaml.
+#
+# Security. This never checks out or runs any PR code (the checkout below
+# fetches only the shared helper script from the default branch). The capture
+# artifact is treated as untrusted (a fork PR can run a modified capture,
+# since pull_request_review uses the PR's own workflow copy). It validates the
+# PR number is a positive integer and the review state is one of the known
+# values, binds the artifact to the triggering PR by requiring the re-fetched
+# PR head to equal the run's head SHA (so a forged pr_number cannot target a
+# victim PR), confirms via the API that the named reviewer actually submitted
+# a review in that state (so a forged artifact cannot fabricate one), skips
+# bot-authored PRs, only ever assigns a login that is in the pool or is the
+# PR author re-fetched from the API, and never interpolates artifact data
+# into a shell.
+
+on:
+  workflow_run:
+    workflows: [assign-reviewer-review-capture]
+    types: [completed]
+
+# Serialize applies for the same commit so close-together reviews don't race on
+# the assignee. The PR number is not in the workflow_run context for fork PRs,
+# so the head SHA is used as the grouping key.
+concurrency:
+  group: assign-reviewer-review-apply-${{ github.event.workflow_run.head_sha }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    # Only act when the capture run succeeded (so the artifact exists).
+    if: github.event.workflow_run.conclusion == 'success'
+    permissions:
+      contents: read       # check out the helper script, read .github/reviewer-pool.json
+      issues: write        # add/remove assignees (the issues API endpoint)
+      pull-requests: write # add/remove assignees on the pull request
+      actions: read        # download the artifact from the capture run
+    steps:
+      # Check out only the shared helper script. workflow_run always checks
+      # out the default branch, never PR code. This runs before the artifact
+      # download because checkout cleans the workspace.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: .github/workflows/scripts
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: assign-reviewer-review
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ github.token }}
+      - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const fs = require('fs');
+            const courtLib = require('./.github/workflows/scripts/assign_reviewer_lib.js');
+            const court = await courtLib({ github, context, core });
+            const { owner, repo } = context.repo;
+
+            // The artifact comes from a fork-triggered run; treat it as
+            // untrusted and validate every field before use.
+            let raw;
+            try {
+              raw = JSON.parse(fs.readFileSync('review.json', 'utf8'));
+            } catch (e) {
+              core.warning(`Could not read captured review data: ${e.message}`);
+              return;
+            }
+            const prNumber = Number(raw.pr_number);
+            const state = String(raw.review_state || '').toLowerCase();
+            const submitter = String(raw.submitter || '');
+            if (!Number.isInteger(prNumber) || prNumber <= 0) {
+              core.warning('Captured pr_number is not a positive integer; ignoring.');
+              return;
+            }
+            if (!['approved', 'changes_requested', 'commented'].includes(state)) {
+              core.info(`Review state "${state}" does not change the court; nothing to do.`);
+              return;
+            }
+
+            // Re-fetch the PR so we act on its current author and assignees.
+            const { data: pr } = await github.rest.pulls.get({
+              owner, repo, pull_number: prNumber,
+            });
+            const author = pr.user.login;
+
+            // Bind the artifact to the PR that actually triggered the capture
+            // run. pull_request_review runs the PR's own copy of the capture
+            // workflow, so a fork can ship a modified capture that uploads an
+            // arbitrary pr_number; the field validation above only checks it is
+            // a positive integer. Requiring the re-fetched PR's head to equal
+            // the triggering run's head SHA limits any forged artifact to the
+            // attacker's own PR (whose head is the only one that can match),
+            // rather than letting it act on a victim PR. A legitimate apply that
+            // races a fresh push is skipped and reconciles on the next event.
+            if (pr.head.sha !== context.payload.workflow_run.head_sha) {
+              core.info(`PR #${prNumber} head does not match the capture run head; ignoring (forged or stale artifact).`);
+              return;
+            }
+
+            // Skip bot-authored PRs (for example Dependabot); they are owned by
+            // the auto-merge workflow and do not take part in the rotation.
+            if (court.isBot(pr.user)) {
+              core.info(`PR #${prNumber} authored by bot ${author}; skipping.`);
+              return;
+            }
+
+            // The apply is asynchronous, so the PR may have closed in between.
+            if (pr.state !== 'open') {
+              core.info(`PR #${prNumber} is ${pr.state}; leaving court unchanged.`);
+              return;
+            }
+
+            // Reviews drive the court only when submitted by a pool member or
+            // by the PR author (inline replies create an implicit "commented"
+            // review).
+            if (!court.inPool(submitter) && !court.eq(submitter, author)) {
+              core.info(`Review by ${submitter} is not from a flow participant, leaving court unchanged.`);
+              return;
+            }
+
+            // Confirm the claimed review actually exists. The capture is
+            // fork-modifiable, so without this a forged artifact could fabricate
+            // a pool member's review on the attacker's own PR. Require a real
+            // review by `submitter` in `state` before acting on it.
+            const reviews = await github.paginate(github.rest.pulls.listReviews, {
+              owner, repo, pull_number: prNumber, per_page: 100,
+            });
+            const reviewExists = reviews.some(r =>
+              r.user && court.eq(r.user.login, submitter) &&
+              (r.state || '').toLowerCase() === state);
+            if (!reviewExists) {
+              core.info(`No ${state} review by ${submitter} on PR #${prNumber}; ignoring (forged or stale artifact).`);
+              return;
+            }
+
+            // The author reviewed their own PR. GitHub only allows "commented"
+            // self-reviews, and they mostly carry inline replies to review
+            // threads, so hand the ball back to the pool member who reviewed
+            // most recently, mirroring the push and conversation-comment
+            // handlers in assign_reviewer.yaml. Like there, the flip only
+            // happens while the author holds the ball, so manual assignee
+            // changes are never overridden.
+            if (court.eq(submitter, author)) {
+              if (state !== 'commented') {
+                core.info(`Unexpected ${state} self-review on PR #${prNumber}, leaving court unchanged.`);
+                return;
+              }
+              const holder = court.courtHolder(pr);
+              if (holder === null || !court.eq(holder, author)) {
+                core.info(`Author does not hold the ball on PR #${prNumber}, leaving court unchanged.`);
+                return;
+              }
+              const reviewer = await court.lastPoolReviewer(pr, reviews);
+              if (reviewer === null) {
+                core.info(`No pool member has reviewed PR #${prNumber} yet, leaving court unchanged.`);
+                return;
+              }
+              await court.setCourt(pr, reviewer);
+              return;
+            }
+
+            // A pool member reviewed. Approve keeps the reviewer assigned (a
+            // maintainer merges); otherwise the author owns it.
+            const target = state === 'approved' ? submitter : author;
+            await court.setCourt(pr, target);

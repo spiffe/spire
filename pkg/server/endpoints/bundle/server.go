@@ -11,6 +11,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
+	"github.com/spiffe/spire/pkg/common/tlspolicy"
 )
 
 type Getter interface {
@@ -33,6 +34,7 @@ type ServerConfig struct {
 	Getter      Getter
 	ServerAuth  ServerAuth
 	RefreshHint time.Duration
+	TLSPolicy   tlspolicy.Policy
 
 	// test hooks
 	listen func(network, address string) (net.Listener, error)
@@ -60,8 +62,10 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 	}
 
 	// Set up the TLS config, setting TLS 1.2 as the minimum.
-	tlsConfig := s.c.ServerAuth.GetTLSConfig()
-	tlsConfig.MinVersion = tls.VersionTLS12
+	tlsConfig, err := buildListenerTLSConfig(s)
+	if err != nil {
+		return err
+	}
 
 	server := &http.Server{
 		Handler:           http.HandlerFunc(s.serveHTTP),
@@ -129,4 +133,13 @@ func chainDER(chain []*x509.Certificate) [][]byte {
 		der = append(der, cert.Raw)
 	}
 	return der
+}
+
+func buildListenerTLSConfig(s *Server) (*tls.Config, error) {
+	tlsConfig := s.c.ServerAuth.GetTLSConfig()
+	tlsConfig.MinVersion = tls.VersionTLS12
+	if err := tlspolicy.ApplyPolicy(tlsConfig, s.c.TLSPolicy, tlspolicy.WithServerTLSConfig()); err != nil {
+		return nil, err
+	}
+	return tlsConfig, nil
 }

@@ -33,5 +33,5 @@ func (repo *keyManagerRepository) BuiltIns() []catalog.BuiltIn {
 
 type keyManagerV1 struct{}
 
-func (keyManagerV1) New() catalog.Facade { return new(keymanager.V1) }
-func (keyManagerV1) Deprecated() bool    { return false }
+func (keyManagerV1) New() catalog.Facade        { return new(keymanager.V1) }
+func (keyManagerV1) Deprecated() (bool, string) { return false, "" }

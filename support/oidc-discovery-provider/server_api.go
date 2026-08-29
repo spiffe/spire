@@ -60,7 +60,9 @@ func NewServerAPISource(config ServerAPISourceConfig) (*ServerAPISource, error) 
 		cancel: cancel,
 	}
 
-	go s.pollEvery(ctx, conn, config.PollInterval)
+	s.wg.Go(func() {
+		s.pollEvery(ctx, conn, config.PollInterval)
+	})
 	return s, nil
 }
 
@@ -86,9 +88,6 @@ func (s *ServerAPISource) LastSuccessfulPoll() time.Time {
 }
 
 func (s *ServerAPISource) pollEvery(ctx context.Context, conn *grpc.ClientConn, interval time.Duration) {
-	s.wg.Add(1)
-	defer s.wg.Done()
-
 	defer conn.Close()
 	client := bundlev1.NewBundleClient(conn)
 

@@ -96,7 +96,7 @@ type expiredAgent struct {
 }
 
 func (c *purgeCommand) prettyPrintPurgeResult(env *commoncli.Env, results ...any) error {
-	if expAgents, ok := results[0].([]any)[0].(*expiredAgents); ok {
+	if expAgents, ok := results[0].(*expiredAgents); ok {
 		if len(expAgents.Agents) == 0 {
 			env.Println("No agents to purge.")
 			return nil

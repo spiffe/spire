@@ -41,7 +41,23 @@
             "parent_id": "spiffe://example.org/spire/agent/join_token/TokenDatabase",
             "x509_svid_ttl": 200,
             "jwt_svid_ttl": 30,
-	    "store_svid": true
+	        "store_svid": true
+        },
+        {
+            "selectors": [
+                {
+                    "type": "unix",
+                    "value": "uid:1111"
+                }
+            ],
+            "spiffe_id": "spiffe://example.org/additionalattr",
+            "parent_id": "spiffe://example.org/spire/agent/join_token/TokenBlog",
+            "x509_svid_ttl": 200,
+            "jwt_svid_ttl": 30,
+            "admin": true,
+            "additional_attributes": {
+                "disable_x509_svid_prefetch": true
+            }
         }
     ]
 }

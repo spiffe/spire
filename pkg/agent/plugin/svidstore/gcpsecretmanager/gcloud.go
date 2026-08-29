@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"sort"
 	"strings"
 	"sync"
 
@@ -62,15 +61,7 @@ func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginco
 		return nil
 	}
 
-	if len(newConfig.UnusedKeyPositions) != 0 {
-		var keys []string
-		for k := range newConfig.UnusedKeyPositions {
-			keys = append(keys, k)
-		}
-
-		sort.Strings(keys)
-		status.ReportErrorf("unknown configurations detected: %s", strings.Join(keys, ","))
-	}
+	pluginconf.ReportUnusedKeys(status, newConfig.UnusedKeyPositions)
 
 	return newConfig
 }

@@ -2,6 +2,7 @@ package azureimds
 
 import (
 	"context"
+	"crypto/x509"
 	"encoding/json"
 	"os"
 	"sort"
@@ -19,6 +20,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/azure"
 	"github.com/spiffe/spire/pkg/common/pluginconf"
+	"github.com/spiffe/spire/pkg/common/util"
 	nodeattestorbase "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/base"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -58,8 +60,10 @@ type TenantConfig struct {
 }
 
 type IMDSAttestorConfig struct {
-	Tenants           map[string]*TenantConfig `hcl:"tenants" json:"tenants"`
-	AgentPathTemplate string                   `hcl:"agent_path_template" json:"agent_path_template"`
+	Tenants                map[string]*TenantConfig `hcl:"tenants" json:"tenants"`
+	AgentPathTemplate      string                   `hcl:"agent_path_template" json:"agent_path_template"`
+	AllowedMetadataDomains []string                 `hcl:"allowed_metadata_domains" json:"allowed_metadata_domains"`
+	TrustBundlePath        string                   `hcl:"trust_bundle_path" json:"trust_bundle_path"`
 }
 
 type tenantConfig struct {
@@ -69,9 +73,11 @@ type tenantConfig struct {
 }
 
 type imdsAttestorConfig struct {
-	td             spiffeid.TrustDomain
-	tenants        map[string]*tenantConfig
-	idPathTemplate *agentpathtemplate.Template
+	td                     spiffeid.TrustDomain
+	tenants                map[string]*tenantConfig
+	idPathTemplate         *agentpathtemplate.Template
+	allowedMetadataDomains []string
+	additionalRoots        []*x509.Certificate
 }
 
 func (t *tenantConfig) subscriptionAllowed(subscriptionID string) bool {
@@ -195,10 +201,31 @@ func (p *IMDSAttestorPlugin) buildConfig(coreConfig catalog.CoreConfig, hclText 
 		}
 	}
 
+	allowedMetadataDomains := newConfig.AllowedMetadataDomains
+	if len(allowedMetadataDomains) == 0 {
+		allowedMetadataDomains = []string{DefaultMetadataDomain}
+	}
+
+	var additionalRoots []*x509.Certificate
+	if newConfig.TrustBundlePath != "" {
+		certs, err := util.LoadCertificates(newConfig.TrustBundlePath)
+		if err != nil {
+			status.ReportErrorf("unable to load trust bundle %q: %v", newConfig.TrustBundlePath, err)
+		}
+		for _, cert := range certs {
+			if !cert.IsCA {
+				status.ReportErrorf("trust bundle %q contains a non-CA certificate (subject %q)", newConfig.TrustBundlePath, cert.Subject)
+			}
+		}
+		additionalRoots = certs
+	}
+
 	return &imdsAttestorConfig{
-		td:             coreConfig.TrustDomain,
-		tenants:        tenants,
-		idPathTemplate: tmpl,
+		td:                     coreConfig.TrustDomain,
+		tenants:                tenants,
+		idPathTemplate:         tmpl,
+		allowedMetadataDomains: allowedMetadataDomains,
+		additionalRoots:        additionalRoots,
 	}
 }
 
@@ -216,7 +243,7 @@ type IMDSAttestorPlugin struct {
 		tenantIdMap         map[string]string
 		newClient           func(azcore.TokenCredential) (apiClient, error)
 		fetchCredential     func(string) (azcore.TokenCredential, error)
-		validateAttestedDoc func(context.Context, *azure.AttestedDocument) (*azure.AttestedDocumentContent, error)
+		validateAttestedDoc func(context.Context, *azure.AttestedDocument, []string, []*x509.Certificate) (*azure.AttestedDocumentContent, error)
 		lookupTenantID      func(string) (string, error)
 	}
 }
@@ -288,7 +315,7 @@ func (p *IMDSAttestorPlugin) Attest(stream nodeattestorv1.NodeAttestor_AttestSer
 	}
 
 	// parse the document
-	docData, err := p.hooks.validateAttestedDoc(stream.Context(), &attestationData.Document)
+	docData, err := p.hooks.validateAttestedDoc(stream.Context(), &attestationData.Document, config.allowedMetadataDomains, config.additionalRoots)
 	if err != nil {
 		return status.Errorf(codes.InvalidArgument, "failed to validate attested document: %v", err)
 	}
@@ -427,7 +454,10 @@ func buildSelectors(ctx context.Context, tenant *tenantConfig, vmssName *string,
 
 	// add network interface selectors
 	for _, networkInterface := range vm.Interfaces {
-		selectorMap[selectorValue("network-security-group", networkInterface.SecurityGroup.ResourceGroup, networkInterface.SecurityGroup.Name)] = true
+		sg := networkInterface.SecurityGroup
+		if sg.ResourceGroup != "" || sg.Name != "" {
+			selectorMap[selectorValue("network-security-group", sg.ResourceGroup, sg.Name)] = true
+		}
 		for _, subnet := range networkInterface.Subnets {
 			selectorMap[selectorValue("virtual-network", subnet.VNet)] = true
 			selectorMap[selectorValue("virtual-network-subnet", subnet.VNet, subnet.SubnetName)] = true

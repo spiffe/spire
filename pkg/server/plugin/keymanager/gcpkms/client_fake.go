@@ -32,6 +32,7 @@ import (
 	"google.golang.org/api/option"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
@@ -486,7 +487,10 @@ func (k *fakeKMSClient) CreateCryptoKey(_ context.Context, req *kmspb.CreateCryp
 	}
 	k.store.putFakeCryptoKey(fck)
 
-	return cryptoKey, nil
+	// Return a clone to decouple the caller's copy from the fake
+	// store's copy, mimicking the behavior of a real KMS service
+	// where no memory is shared between client and server.
+	return proto.Clone(cryptoKey).(*kmspb.CryptoKey), nil
 }
 
 func (k *fakeKMSClient) CreateCryptoKeyVersion(_ context.Context, req *kmspb.CreateCryptoKeyVersionRequest, _ ...gax.CallOption) (*kmspb.CryptoKeyVersion, error) {
@@ -582,8 +586,11 @@ func (k *fakeKMSClient) GetPublicKey(_ context.Context, req *kmspb.GetPublicKeyR
 	}
 
 	if k.pemCrc32C != nil {
-		// Override pemCrc32C
-		fakeCryptoKeyVersion.publicKey.PemCrc32C = k.pemCrc32C
+		// Override pemCrc32C on a clone so the shared fixture public key is
+		// not mutated, which would corrupt it for other tests and reruns.
+		publicKey := proto.Clone(fakeCryptoKeyVersion.publicKey).(*kmspb.PublicKey)
+		publicKey.PemCrc32C = k.pemCrc32C
+		return publicKey, nil
 	}
 
 	return fakeCryptoKeyVersion.publicKey, nil
@@ -710,8 +717,10 @@ func (k *fakeKMSClient) UpdateCryptoKey(_ context.Context, req *kmspb.UpdateCryp
 	fck.mu.Lock()
 	defer fck.mu.Unlock()
 
-	fck.CryptoKey = req.CryptoKey
-	return fck.CryptoKey, nil
+	// Clone to decouple the fake store's copy from the caller's
+	// copy, preventing shared-memory data races.
+	fck.CryptoKey = proto.Clone(req.CryptoKey).(*kmspb.CryptoKey)
+	return proto.Clone(fck.CryptoKey).(*kmspb.CryptoKey), nil
 }
 
 func (k *fakeKMSClient) createFakeCryptoKeyVersion(cryptoKey *kmspb.CryptoKey, version string) (*fakeCryptoKeyVersion, error) {

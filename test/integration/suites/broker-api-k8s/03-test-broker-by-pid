@@ -1,0 +1,32 @@
+#!/bin/bash
+
+set -e
+
+source init-kubectl
+
+log-info "Test: broker fetches target-pod SVID via WorkloadPIDReference"
+
+# Resolve the target pod's PID from the node (hostPID exposes it). The target
+# container runs `spire-agent api watch` as PID 1 inside its namespace, but on
+# the host we need its real PID. Get the container's pid via crictl-like
+# path: read the pod-uid, look up the pid via /proc on the node.
+TARGET_POD_UID=$(./bin/kubectl -nspire get pod target-pod -o jsonpath='{.metadata.uid}')
+
+# Use the broker pod (which has hostPID) to scan /proc for the container.
+# The brokerclient's own PID inside the pod IS the host PID because hostPID
+# is true. Easiest: ps -ef on the broker pod and grep for the target command.
+TARGET_PID=$(./bin/kubectl -nspire exec -t broker -- sh -c \
+    "ps -ef | grep '[s]pire-agent api watch' | awk '{print \$1}' | head -n1")
+
+if [ -z "${TARGET_PID}" ]; then
+    fail-now "could not resolve target-pod PID from broker container"
+fi
+log-info "target-pod PID on host: ${TARGET_PID}"
+
+./bin/kubectl -nspire exec -t broker -- /brokerclient \
+    -ref-type pid \
+    -pid "${TARGET_PID}" \
+    -expected-spiffe spiffe://example.org/target-pod \
+    || fail-now "broker failed to fetch SVID via PID reference"
+
+log-success "broker fetched target-pod SVID via WorkloadPIDReference"

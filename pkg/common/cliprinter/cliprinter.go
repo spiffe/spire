@@ -60,7 +60,7 @@ func (p *printer) PrintProto(msg ...proto.Message) error {
 
 // PrintStruct prints a struct and applies the configured formatting.
 func (p *printer) PrintStruct(msg ...any) error {
-	return p.printStruct(msg)
+	return p.printStruct(msg...)
 }
 
 func (p *printer) printError(err error) error {

@@ -22,6 +22,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/catalog/testplugin"
 	"github.com/spiffe/spire/pkg/common/plugin"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -196,6 +197,46 @@ func testPlugin(t *testing.T, pluginPath string) {
 		testLoad(t, pluginPath, loadTest{
 			expectPluginClient:  true,
 			expectServiceClient: true,
+		})
+	})
+	t.Run("deprecated service logs alert", func(t *testing.T) {
+		testLoad(t, pluginPath, loadTest{
+			mutateServiceRepo: func(serviceRepo *ServiceRepo) {
+				serviceRepo.versions = []catalog.Version{SomeServiceVersion{deprecated: true}}
+			},
+			expectPluginClient:  true,
+			expectServiceClient: true,
+			expectLogEntries: []spiretest.LogEntry{
+				{
+					Level:   logrus.WarnLevel,
+					Message: "Service is deprecated and will be removed in a future release",
+					Data: logrus.Fields{
+						telemetry.Alert:                 "true",
+						telemetry.AlertType:             telemetry.DeprecatedServiceAlertType,
+						telemetry.DeprecatedServiceName: SomeServiceVersion{}.New().GRPCServiceName(),
+					},
+				},
+			},
+		})
+	})
+	t.Run("deprecated service with message logs alert", func(t *testing.T) {
+		testLoad(t, pluginPath, loadTest{
+			mutateServiceRepo: func(serviceRepo *ServiceRepo) {
+				serviceRepo.versions = []catalog.Version{SomeServiceVersion{deprecated: true, deprecatedMessage: "use SomeOtherService instead"}}
+			},
+			expectPluginClient:  true,
+			expectServiceClient: true,
+			expectLogEntries: []spiretest.LogEntry{
+				{
+					Level:   logrus.WarnLevel,
+					Message: "Service is deprecated and will be removed in a future release: use SomeOtherService instead",
+					Data: logrus.Fields{
+						telemetry.Alert:                 "true",
+						telemetry.AlertType:             telemetry.DeprecatedServiceAlertType,
+						telemetry.DeprecatedServiceName: SomeServiceVersion{}.New().GRPCServiceName(),
+					},
+				},
+			},
 		})
 	})
 	t.Run("unknown type", func(t *testing.T) {
@@ -588,12 +629,13 @@ func (f *SomePluginFacade) PluginEcho(_ context.Context, in string) (string, err
 }
 
 type SomePluginVersion struct {
-	deprecated bool
+	deprecated        bool
+	deprecatedMessage string
 }
 
 func (v SomePluginVersion) New() catalog.Facade { return new(SomePluginFacade) }
 
-func (v SomePluginVersion) Deprecated() bool { return v.deprecated }
+func (v SomePluginVersion) Deprecated() (bool, string) { return v.deprecated, v.deprecatedMessage }
 
 type SomeService interface {
 	catalog.PluginInfo
@@ -614,18 +656,19 @@ func (f *SomeServiceFacade) ServiceEcho(_ context.Context, in string) (string, e
 }
 
 type SomeServiceVersion struct {
-	deprecated bool
+	deprecated        bool
+	deprecatedMessage string
 }
 
 func (v SomeServiceVersion) New() catalog.Facade { return new(SomeServiceFacade) }
 
-func (v SomeServiceVersion) Deprecated() bool { return v.deprecated }
+func (v SomeServiceVersion) Deprecated() (bool, string) { return v.deprecated, v.deprecatedMessage }
 
 type badVersion struct{}
 
 func (v badVersion) New() catalog.Facade { return badFacade{} }
 
-func (v badVersion) Deprecated() bool { return false }
+func (v badVersion) Deprecated() (bool, string) { return false, "" }
 
 type badFacade struct{}
 

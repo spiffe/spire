@@ -193,13 +193,13 @@ func (c *Cache) UpdateEntries(update *cache.UpdateEntries, checkSVID func(*commo
 	}
 }
 
-// UpdateSVIDs updates cache with latest SVIDs
-func (c *Cache) UpdateSVIDs(update *cache.UpdateSVIDs) {
+// UpdateX509SVIDs updates cache with latest SVIDs
+func (c *Cache) UpdateX509SVIDs(svids map[string]*cache.X509SVID) {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
 	// Add/update records for registration entries in the update
-	for entryID, svid := range update.X509SVIDs {
+	for entryID, svid := range svids {
 		record, existingEntry := c.records[entryID]
 		if !existingEntry {
 			c.c.Log.WithField(telemetry.RegistrationID, entryID).Error("Entry not found")
@@ -254,10 +254,6 @@ func (c *Cache) TaintX509SVIDs(ctx context.Context, taintedX509Authorities []*x5
 
 	telemetry_agent.AddCacheManagerExpiredSVIDsSample(c.c.Metrics, telemetry_agent.CacheTypeSVIDStore, float32(taintedSVIDs))
 	c.c.Log.WithField(telemetry.TaintedX509SVIDs, taintedSVIDs).Info("Tainted X.509 SVIDs")
-}
-
-func (c *Cache) TaintJWTSVIDs(ctx context.Context, taintedJWTAuthorities map[string]struct{}) {
-	// Nothing to do here
 }
 
 // GetStaleEntries obtains a list of stale entries, that needs new SVIDs

@@ -31,6 +31,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/storage"
 	"github.com/spiffe/spire/pkg/agent/trustbundlesources"
 	"github.com/spiffe/spire/pkg/agent/workloadkey"
+	commonapi "github.com/spiffe/spire/pkg/common/api"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/rotationutil"
@@ -297,6 +298,51 @@ func TestHappyPathWithoutSyncNorRotation(t *testing.T) {
 	})
 }
 
+func TestX509PrefetchDisabled(t *testing.T) {
+	dir := spiretest.TempDir(t)
+	km := fakeagentkeymanager.New(t, dir)
+
+	clk := clock.NewMock(t)
+	api := newMockAPI(t, &mockAPIConfig{
+		km: km,
+		getAuthorizedEntries: func(*mockAPI, int32, *entryv1.GetAuthorizedEntriesRequest) (*entryv1.GetAuthorizedEntriesResponse, error) {
+			return makeGetAuthorizedEntriesResponse(t, "resp6"), nil
+		},
+		batchNewX509SVIDEntries: func(*mockAPI, int32) []*common.RegistrationEntry {
+			return makeBatchNewX509SVIDEntries("resp6")
+		},
+		svidTTL: 200,
+		clk:     clk,
+	})
+
+	baseSVID, baseSVIDKey := api.newSVID(joinTokenID, 1*time.Hour)
+
+	cat := fakeagentcatalog.New()
+	cat.SetKeyManager(km)
+
+	c := &Config{
+		ServerAddr:       api.addr,
+		SVID:             baseSVID,
+		SVIDKey:          baseSVIDKey,
+		Log:              testLogger,
+		TrustDomain:      trustDomain,
+		Storage:          openStorage(t, dir),
+		WorkloadKeyType:  workloadkey.ECP256,
+		Bundle:           api.bundle,
+		Metrics:          &telemetry.Blackhole{},
+		Clk:              clk,
+		Catalog:          cat,
+		SVIDStoreCache:   storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
+		RotationStrategy: rotationutil.NewRotationStrategy(0),
+	}
+
+	m, closer := initializeAndRunNewManager(t, c)
+	defer closer()
+
+	// Expect SVID not to be cached
+	require.Equal(t, 0, m.CountX509SVIDs())
+}
+
 func TestRotationWithRSAKey(t *testing.T) {
 	dir := spiretest.TempDir(t)
 	km := fakeagentkeymanager.New(t, dir)
@@ -557,7 +603,7 @@ func TestSynchronization(t *testing.T) {
 	require.Equal(t, version.Version(), api.lastAgentVersion)
 
 	// Before synchronization
-	identitiesBefore := identitiesByEntryID(m.cache.Identities())
+	identitiesBefore := identitiesByEntryID(m.x509Cache.Identities())
 	if len(identitiesBefore) != 3 {
 		t.Fatalf("3 cached identities were expected; got %d", len(identitiesBefore))
 	}
@@ -608,7 +654,7 @@ func TestSynchronization(t *testing.T) {
 
 	// Make sure the update contains the updated entries and that the cache
 	// has a consistent view.
-	identitiesAfter := identitiesByEntryID(m.cache.Identities())
+	identitiesAfter := identitiesByEntryID(m.x509Cache.Identities())
 	if len(identitiesAfter) != 3 {
 		t.Fatalf("expected 3 identities, got: %d", len(identitiesAfter))
 	}
@@ -705,7 +751,7 @@ func TestSynchronizationClearsStaleCacheEntries(t *testing.T) {
 	// entries.
 	compareRegistrationEntries(t,
 		append(regEntriesMap["resp1"], regEntriesMap["resp2"]...),
-		m.cache.Entries())
+		m.x509Cache.Entries())
 
 	// manually synchronize again
 	if err := m.synchronize(context.Background()); err != nil {
@@ -715,7 +761,7 @@ func TestSynchronizationClearsStaleCacheEntries(t *testing.T) {
 	// now the cache should have entries from resp2 removed
 	compareRegistrationEntries(t,
 		regEntriesMap["resp1"],
-		m.cache.Entries())
+		m.x509Cache.Entries())
 }
 
 func TestSynchronizationUpdatesRegistrationEntries(t *testing.T) {
@@ -778,7 +824,7 @@ func TestSynchronizationUpdatesRegistrationEntries(t *testing.T) {
 	// after initialization, the cache should contain resp2 entries
 	compareRegistrationEntries(t,
 		regEntriesMap["resp2"],
-		m.cache.Entries())
+		m.x509Cache.Entries())
 
 	// manually synchronize again
 	if err := m.synchronize(context.Background()); err != nil {
@@ -788,7 +834,7 @@ func TestSynchronizationUpdatesRegistrationEntries(t *testing.T) {
 	// now the cache should have the updated entries from resp3
 	compareRegistrationEntries(t,
 		regEntriesMap["resp3"],
-		m.cache.Entries())
+		m.x509Cache.Entries())
 }
 
 func TestForceRotation(t *testing.T) {
@@ -850,7 +896,7 @@ func TestForceRotation(t *testing.T) {
 	require.Equal(t, clk.Now(), m.GetLastSync())
 
 	// Before synchronization
-	identitiesBefore := identitiesByEntryID(m.cache.Identities())
+	identitiesBefore := identitiesByEntryID(m.x509Cache.Identities())
 	if len(identitiesBefore) != 3 {
 		t.Fatalf("3 cached identities were expected; got %d", len(identitiesBefore))
 	}
@@ -927,7 +973,7 @@ func TestForceRotation(t *testing.T) {
 
 	// Make sure the update contains the updated entries and that the cache
 	// has a consistent view.
-	identitiesAfter := identitiesByEntryID(m.cache.Identities())
+	identitiesAfter := identitiesByEntryID(m.x509Cache.Identities())
 	if len(identitiesAfter) != 3 {
 		t.Fatalf("expected 3 identities, got: %d", len(identitiesAfter))
 	}
@@ -1078,7 +1124,7 @@ func TestSynchronizationWithLRUCache(t *testing.T) {
 	defer sub.Finish()
 
 	// Before synchronization
-	identitiesBefore := identitiesByEntryID(m.cache.Identities())
+	identitiesBefore := identitiesByEntryID(m.x509Cache.Identities())
 	if len(identitiesBefore) != 3 {
 		t.Fatalf("3 cached identities were expected; got %d", len(identitiesBefore))
 	}
@@ -1129,7 +1175,7 @@ func TestSynchronizationWithLRUCache(t *testing.T) {
 
 	// Make sure the update contains the updated entries and that the cache
 	// has a consistent view.
-	identitiesAfter := identitiesByEntryID(m.cache.Identities())
+	identitiesAfter := identitiesByEntryID(m.x509Cache.Identities())
 	if len(identitiesAfter) != 3 {
 		t.Fatalf("expected 3 identities, got: %d", len(identitiesAfter))
 	}
@@ -1461,7 +1507,7 @@ func TestSyncSVIDsWithLRUCache(t *testing.T) {
 	assert.NoError(t, subErr, "subscriber error")
 
 	// ensure 2 SVIDs corresponding to selectors are cached.
-	assert.Equal(t, 2, m.cache.CountX509SVIDs())
+	assert.Equal(t, 2, m.x509Cache.CountSVIDs())
 
 	// cancel the ctx to stop Go routines
 	cancel()
@@ -1656,6 +1702,98 @@ func TestFetchJWTSVID(t *testing.T) {
 	require.Nil(t, svid)
 }
 
+func TestFetchJWTSVIDWithJTIBypassesCache(t *testing.T) {
+	dir := spiretest.TempDir(t)
+	km := fakeagentkeymanager.New(t, dir)
+
+	fetchResp := &svidv1.NewJWTSVIDResponse{}
+
+	clk := clock.NewMock(t)
+	api := newMockAPI(t, &mockAPIConfig{
+		km: km,
+		getAuthorizedEntries: func(*mockAPI, int32, *entryv1.GetAuthorizedEntriesRequest) (*entryv1.GetAuthorizedEntriesResponse, error) {
+			return makeGetAuthorizedEntriesResponse(t, "resp1", "resp2"), nil
+		},
+		batchNewX509SVIDEntries: func(*mockAPI, int32) []*common.RegistrationEntry {
+			return makeBatchNewX509SVIDEntries("resp1", "resp2")
+		},
+		newJWTSVID: func(*mockAPI, *svidv1.NewJWTSVIDRequest) (*svidv1.NewJWTSVIDResponse, error) {
+			return fetchResp, nil
+		},
+		clk:     clk,
+		svidTTL: 200,
+	})
+
+	cat := fakeagentcatalog.New()
+	cat.SetKeyManager(km)
+
+	baseSVID, baseSVIDKey := api.newSVID(joinTokenID, 1*time.Hour)
+
+	c := &Config{
+		ServerAddr:       api.addr,
+		SVID:             baseSVID,
+		SVIDKey:          baseSVIDKey,
+		Log:              testLogger,
+		TrustDomain:      trustDomain,
+		Storage:          openStorage(t, dir),
+		Bundle:           api.bundle,
+		Metrics:          &telemetry.Blackhole{},
+		Catalog:          cat,
+		Clk:              clk,
+		WorkloadKeyType:  workloadkey.ECP256,
+		SVIDStoreCache:   storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger}),
+		RotationStrategy: rotationutil.NewRotationStrategy(0),
+	}
+
+	m := newManager(c)
+	require.NoError(t, m.Initialize(context.Background()))
+
+	baseEntry := regEntriesMap["resp2"][0]
+	jtiEntry := &common.RegistrationEntry{
+		EntryId:  baseEntry.EntryId,
+		SpiffeId: baseEntry.SpiffeId,
+		AdditionalAttributes: &common.RegistrationEntry_AdditionalAttributes{
+			JwtSvidIncludeJti: true,
+		},
+	}
+	jtiEntrySPIFFEId, err := idutil.IDProtoFromString(jtiEntry.SpiffeId)
+	require.NoError(t, err)
+
+	audience := []string{"foo"}
+	now := clk.Now()
+
+	// First call: server returns token A and the cache is empty.
+	tokenA := "A"
+	fetchResp.Svid = &types.JWTSVID{
+		Token:     tokenA,
+		Id:        jtiEntrySPIFFEId,
+		IssuedAt:  now.Unix(),
+		ExpiresAt: now.Add(time.Minute).Unix(),
+	}
+	svid, err := m.FetchJWTSVID(context.Background(), jtiEntry, audience)
+	require.NoError(t, err)
+	require.Equal(t, tokenA, svid.Token)
+
+	// A non-JTI entry would have populated the JWT cache by now. Assert the
+	// cache stays empty, proving the fresh token was NOT written back.
+	require.Equal(t, 0, m.CountJWTSVIDs(), "JWT-SVID cache must remain empty when JwtSvidIncludeJti is true")
+
+	// Second call: server returns token B with a not-expiring-soon expiration.
+	// A cache-respecting fetch would return cached token A; a bypassing fetch
+	// must hit the server and return the fresh token B.
+	tokenB := "B"
+	fetchResp.Svid = &types.JWTSVID{
+		Token:     tokenB,
+		Id:        jtiEntrySPIFFEId,
+		IssuedAt:  now.Unix(),
+		ExpiresAt: now.Add(time.Minute).Unix(),
+	}
+	svid, err = m.FetchJWTSVID(context.Background(), jtiEntry, audience)
+	require.NoError(t, err)
+	require.Equal(t, tokenB, svid.Token, "JTI entry must bypass cache reads and return the freshly minted token")
+	require.Equal(t, 0, m.CountJWTSVIDs(), "JWT-SVID cache must remain empty after second JTI fetch")
+}
+
 func TestStorableSVIDsSync(t *testing.T) {
 	dir := spiretest.TempDir(t)
 	km := fakeagentkeymanager.New(t, dir)
@@ -1750,12 +1888,13 @@ func makeGetAuthorizedEntriesResponse(t *testing.T, respKeys ...string) *entryv1
 			spiffeID, err := spiffeid.FromString(regEntry.SpiffeId)
 			require.NoError(t, err)
 			entries = append(entries, &types.Entry{
-				Id:             regEntry.EntryId,
-				SpiffeId:       api.ProtoFromID(spiffeID),
-				FederatesWith:  regEntry.FederatesWith,
-				RevisionNumber: regEntry.RevisionNumber,
-				Selectors:      api.ProtoFromSelectors(regEntry.Selectors),
-				StoreSvid:      regEntry.StoreSvid,
+				Id:                   regEntry.EntryId,
+				SpiffeId:             api.ProtoFromID(spiffeID),
+				FederatesWith:        regEntry.FederatesWith,
+				RevisionNumber:       regEntry.RevisionNumber,
+				Selectors:            api.ProtoFromSelectors(regEntry.Selectors),
+				StoreSvid:            regEntry.StoreSvid,
+				AdditionalAttributes: api.ProtoFromAdditionalAttributes(regEntry.AdditionalAttributes),
 			})
 		}
 	}
@@ -1782,8 +1921,8 @@ func regEntriesAsMap(res []*common.RegistrationEntry) (result map[string]*common
 	return result
 }
 
-func identitiesByEntryID(ces []cache.Identity) (result map[string]cache.Identity) {
-	result = map[string]cache.Identity{}
+func identitiesByEntryID(ces []cache.X509Identity) (result map[string]cache.X509Identity) {
+	result = map[string]cache.X509Identity{}
 	for _, ce := range ces {
 		result[ce.Entry.EntryId] = ce
 	}
@@ -1833,8 +1972,8 @@ type mockAPI struct {
 	svid []*x509.Certificate
 
 	// Counts the number of requests received from clients
-	getAuthorizedEntriesCount int32
-	batchNewX509SVIDCount     int32
+	getAuthorizedEntriesCount atomic.Int32
+	batchNewX509SVIDCount     atomic.Int32
 
 	// Last agent version received via PostStatus
 	lastAgentVersion string
@@ -1918,7 +2057,7 @@ func (h *mockAPI) PostStatus(_ context.Context, req *agentv1.PostStatusRequest) 
 }
 
 func (h *mockAPI) GetAuthorizedEntries(_ context.Context, req *entryv1.GetAuthorizedEntriesRequest) (*entryv1.GetAuthorizedEntriesResponse, error) {
-	count := atomic.AddInt32(&h.getAuthorizedEntriesCount, 1)
+	count := h.getAuthorizedEntriesCount.Add(1)
 	if h.c.getAuthorizedEntries != nil {
 		return h.c.getAuthorizedEntries(h, count, req)
 	}
@@ -1926,7 +2065,7 @@ func (h *mockAPI) GetAuthorizedEntries(_ context.Context, req *entryv1.GetAuthor
 }
 
 func (h *mockAPI) BatchNewX509SVID(_ context.Context, req *svidv1.BatchNewX509SVIDRequest) (*svidv1.BatchNewX509SVIDResponse, error) {
-	count := atomic.AddInt32(&h.batchNewX509SVIDCount, 1)
+	count := h.batchNewX509SVIDCount.Add(1)
 
 	var entries map[string]*common.RegistrationEntry
 	if h.c.batchNewX509SVIDEntries != nil {
@@ -1937,7 +2076,7 @@ func (h *mockAPI) BatchNewX509SVID(_ context.Context, req *svidv1.BatchNewX509SV
 		entry, ok := entries[param.EntryId]
 		if !ok {
 			resp.Results = append(resp.Results, &svidv1.BatchNewX509SVIDResponse_Result{
-				Status: api.CreateStatusf(codes.NotFound, "entry %q not found", param.EntryId),
+				Status: commonapi.CreateStatusf(codes.NotFound, "entry %q not found", param.EntryId),
 			})
 			continue
 		}
@@ -1947,7 +2086,7 @@ func (h *mockAPI) BatchNewX509SVID(_ context.Context, req *svidv1.BatchNewX509SV
 		h.lastestSVIDs[entry.EntryId] = svid
 
 		resp.Results = append(resp.Results, &svidv1.BatchNewX509SVIDResponse_Result{
-			Status: api.OK(),
+			Status: commonapi.OK(),
 			Svid: &types.X509SVID{
 				CertChain: x509util.RawCertsFromCertificates(svid),
 				ExpiresAt: svid[0].NotAfter.Unix(),
@@ -2125,13 +2264,11 @@ func initializeAndRunManager(t *testing.T, m *manager) (closer func()) {
 func runManager(t *testing.T, m *manager) (closer func()) {
 	var wg sync.WaitGroup
 	ctx, cancel := context.WithCancel(context.Background())
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		if err := m.Run(ctx); err != nil {
 			t.Error(err)
 		}
-	}()
+	})
 	return func() {
 		cancel()
 		wg.Wait()

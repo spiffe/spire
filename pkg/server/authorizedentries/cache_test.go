@@ -340,10 +340,10 @@ func makeWorkload(parent spiffeid.ID) *types.Entry {
 	}
 }
 
-var nextEntryIDPrefix int32
+var nextEntryIDPrefix atomic.Int32
 
 func makeEntryIDPrefix() int32 {
-	return atomic.AddInt32(&nextEntryIDPrefix, 1)
+	return nextEntryIDPrefix.Add(1)
 }
 
 func buildCacheForBenchmark() *cacheTest {

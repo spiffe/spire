@@ -22,6 +22,7 @@ SPIFFE and SPIRE are being used by numerous other companies, both large and smal
 
 * AccuKnox
 * Amazon
+* Anthropic
 * Arm
 * Cisco
 * Decipher Technology Studios
@@ -72,6 +73,9 @@ SPIFFE and SPIRE have integrations available with a number of open-source projec
 
 * Anthem writes about developing a zero trust framework at Anthem Using SPIFFE and SPIRE:
 <https://upshotstories.com/stories/developing-a-zero-trust-framework-at-anthem-using-spiffe-and-spire>
+
+* Anthropic documents authenticating SPIRE-issued workloads to the Claude API using JWT-SVIDs and the SPIRE OIDC Discovery Provider:
+<https://platform.claude.com/docs/en/manage-claude/wif-providers/spiffe>
 
 * ARM and VMware showcase hardware backed security for multi-tenancy at the Edge with SPIFFE & PARSEC:
 <https://www.youtube.com/watch?v=-I_rCKMyY7Y>

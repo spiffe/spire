@@ -19,12 +19,12 @@ import (
 	"syscall"
 	"time"
 
+	"dario.cat/mergo"
 	"github.com/google/go-cmp/cmp"
 	"github.com/hashicorp/hcl"
 	"github.com/hashicorp/hcl/hcl/ast"
 	"github.com/hashicorp/hcl/hcl/printer"
 	"github.com/hashicorp/hcl/hcl/token"
-	"github.com/imdario/mergo"
 	"github.com/mitchellh/cli"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -66,35 +66,37 @@ type Config struct {
 }
 
 type serverConfig struct {
-	AdminIDs                     []string           `hcl:"admin_ids"`
-	AgentTTL                     string             `hcl:"agent_ttl"`
-	AuditLogEnabled              bool               `hcl:"audit_log_enabled"`
-	BindAddress                  string             `hcl:"bind_address"`
-	BindPort                     int                `hcl:"bind_port"`
-	CAKeyType                    string             `hcl:"ca_key_type"`
-	CASubject                    *caSubjectConfig   `hcl:"ca_subject"`
-	CATTL                        string             `hcl:"ca_ttl"`
-	DataDir                      string             `hcl:"data_dir"`
-	DefaultX509SVIDTTL           string             `hcl:"default_x509_svid_ttl"`
-	DefaultJWTSVIDTTL            string             `hcl:"default_jwt_svid_ttl"`
-	Experimental                 experimentalConfig `hcl:"experimental"`
-	Federation                   *federationConfig  `hcl:"federation"`
-	DisableJWTSVIDs              bool               `hcl:"disable_jwt_svids"`
-	JWTIssuer                    string             `hcl:"jwt_issuer"`
-	JWTKeyType                   string             `hcl:"jwt_key_type"`
-	LogFile                      string             `hcl:"log_file"`
-	LogLevel                     string             `hcl:"log_level"`
-	LogFormat                    string             `hcl:"log_format"`
-	LogSourceLocation            bool               `hcl:"log_source_location"`
-	PruneAttestedNodesExpiredFor string             `hcl:"prune_attested_nodes_expired_for"`
-	PruneNonReattestableNodes    bool               `hcl:"prune_tofu_nodes"`
-	RateLimit                    rateLimitConfig    `hcl:"ratelimit"`
-	SocketPath                   string             `hcl:"socket_path"`
-	TrustDomain                  string             `hcl:"trust_domain"`
-	MaxAttestedNodeInfoStaleness *string            `hcl:"max_attested_node_info_staleness"`
-
-	ConfigPath string
-	ExpandEnv  bool
+	AdminIDs                     []string             `hcl:"admin_ids"`
+	AgentTTL                     string               `hcl:"agent_ttl"`
+	AuditLogEnabled              bool                 `hcl:"audit_log_enabled"`
+	BindAddress                  string               `hcl:"bind_address"`
+	BindPort                     int                  `hcl:"bind_port"`
+	CAKeyType                    string               `hcl:"ca_key_type"`
+	CASubject                    *caSubjectConfig     `hcl:"ca_subject"`
+	CATTL                        string               `hcl:"ca_ttl"`
+	DataDir                      string               `hcl:"data_dir"`
+	DefaultX509SVIDTTL           string               `hcl:"default_x509_svid_ttl"`
+	DefaultJWTSVIDTTL            string               `hcl:"default_jwt_svid_ttl"`
+	Experimental                 experimentalConfig   `hcl:"experimental"`
+	Federation                   *federationConfig    `hcl:"federation"`
+	DisableJWTSVIDs              bool                 `hcl:"disable_jwt_svids"`
+	JWTIssuer                    string               `hcl:"jwt_issuer"`
+	JWTKeyType                   string               `hcl:"jwt_key_type"`
+	LogFile                      string               `hcl:"log_file"`
+	LogLevel                     string               `hcl:"log_level"`
+	LogFormat                    string               `hcl:"log_format"`
+	LogSourceLocation            bool                 `hcl:"log_source_location"`
+	PruneAttestedNodesExpiredFor string               `hcl:"prune_attested_nodes_expired_for"`
+	PruneAttestedNodesBatchSize  int                  `hcl:"prune_attested_nodes_batch_size"`
+	PruneNonReattestableNodes    bool                 `hcl:"prune_tofu_nodes"`
+	ProxyProtocolTrustedCIDRs    []string             `hcl:"proxy_protocol_trusted_cidrs"`
+	RateLimit                    rateLimitConfig      `hcl:"ratelimit"`
+	SocketPath                   string               `hcl:"socket_path"`
+	TrustDomain                  string               `hcl:"trust_domain"`
+	MaxAttestedNodeInfoStaleness *string              `hcl:"max_attested_node_info_staleness"`
+	TLSConfig                    *tlspolicy.TLSConfig `hcl:"tls_config"`
+	ConfigPath                   string
+	ExpandEnv                    bool
 
 	// Undocumented configurables
 	ProfilingEnabled bool     `hcl:"profiling_enabled"`
@@ -106,6 +108,7 @@ type serverConfig struct {
 }
 
 type experimentalConfig struct {
+	AgentSpiffeIdAsSelector bool                        `hcl:"agent_spiffe_id_as_selector"`
 	AuthOpaPolicyEngine     *authpolicy.OpaEngineConfig `hcl:"auth_opa_policy_engine"`
 	CacheReloadInterval     string                      `hcl:"cache_reload_interval"`
 	FullCacheReloadInterval string                      `hcl:"full_cache_reload_interval"`
@@ -115,6 +118,7 @@ type experimentalConfig struct {
 	SQLTransactionTimeout   string                      `hcl:"sql_transaction_timeout"`
 	RequirePQKEM            bool                        `hcl:"require_pq_kem"`
 	WITKeyType              string                      `hcl:"wit_key_type"`
+	WITIssuer               string                      `hcl:"wit_issuer"`
 
 	Flags fflag.RawConfig `hcl:"feature_flags"`
 
@@ -235,6 +239,16 @@ func Help(name string, writer io.Writer) string {
 }
 
 func LoadConfig(name string, args []string, logOptions []log.Option, output io.Writer, allowUnknownConfig bool) (*server.Config, error) {
+	return loadConfig(name, args, logOptions, output, allowUnknownConfig, false)
+}
+
+// LoadConfigForValidation loads the configuration without opening log_file, so
+// that validating the config of a running server does not touch its log.
+func LoadConfigForValidation(name string, args []string, logOptions []log.Option, output io.Writer) (*server.Config, error) {
+	return loadConfig(name, args, logOptions, output, false, true)
+}
+
+func loadConfig(name string, args []string, logOptions []log.Option, output io.Writer, allowUnknownConfig, skipLogFile bool) (*server.Config, error) {
 	// First parse the CLI flags so we can get the config
 	// file path, if set
 	cliInput, err := parseFlags(name, args, output)
@@ -259,7 +273,7 @@ func LoadConfig(name string, args []string, logOptions []log.Option, output io.W
 		return nil, fmt.Errorf("error loading feature flags: %w", err)
 	}
 
-	return NewServerConfig(input, logOptions, allowUnknownConfig)
+	return newServerConfig(input, logOptions, allowUnknownConfig, skipLogFile)
 }
 
 // Run the SPIFFE Server
@@ -283,7 +297,7 @@ func (cmd *Command) Run(args []string) int {
 	defer stop()
 
 	err = s.Run(ctx)
-	if err != nil {
+	if err != nil && !errors.Is(err, context.Canceled) {
 		c.Log.WithError(err).Error("Server crashed")
 		return 1
 	}
@@ -381,6 +395,10 @@ func mergeInput(fileInput *Config, cliInput *serverConfig) (*Config, error) {
 }
 
 func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool) (*server.Config, error) {
+	return newServerConfig(c, logOptions, allowUnknownConfig, false)
+}
+
+func newServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig, skipLogFile bool) (*server.Config, error) {
 	sc := &server.Config{}
 
 	if err := validateConfig(c); err != nil {
@@ -395,7 +413,7 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 		logOptions = append(logOptions, log.WithSourceLocation())
 	}
 	var reopenableFile *log.ReopenableFile
-	if c.Server.LogFile != "" {
+	if c.Server.LogFile != "" && !skipLogFile {
 		var err error
 		reopenableFile, err = log.NewReopenableFile(c.Server.LogFile)
 		if err != nil {
@@ -429,6 +447,7 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 
 	sc.DataDir = c.Server.DataDir
 	sc.AuditLogEnabled = c.Server.AuditLogEnabled
+	sc.ProxyProtocolTrustedCIDRs = c.Server.ProxyProtocolTrustedCIDRs
 
 	td, err := spiffeid.TrustDomainFromString(c.Server.TrustDomain)
 	if err != nil {
@@ -515,11 +534,14 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 	sc.ProfilingFreq = c.Server.ProfilingFreq
 	sc.ProfilingNames = c.Server.ProfilingNames
 
-	sc.TLSPolicy = tlspolicy.Policy{
-		RequirePQKEM: c.Server.Experimental.RequirePQKEM,
+	tlsPolicyLogger := log.NewHCLogAdapter(logger, "tlspolicy")
+
+	sc.TLSPolicy, err = tlspolicy.NewPolicy(c.Server.Experimental.RequirePQKEM, c.Server.TLSConfig, tlsPolicyLogger)
+	if err != nil {
+		return nil, fmt.Errorf("unable to parse configured TLS configuration: %w", err)
 	}
 
-	tlspolicy.LogPolicy(sc.TLSPolicy, log.NewHCLogAdapter(logger, "tlspolicy"))
+	tlspolicy.LogPolicy(sc.TLSPolicy, tlsPolicyLogger)
 
 	if c.Server.MaxAttestedNodeInfoStaleness != nil {
 		maxAttestedNodeInfoStaleness, err := time.ParseDuration(*c.Server.MaxAttestedNodeInfoStaleness)
@@ -578,6 +600,8 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 		}
 		sc.CATTL = ttl
 	}
+
+	sc.Experimental.AgentSpiffeIdAsSelector = c.Server.Experimental.AgentSpiffeIdAsSelector
 
 	// If the configured TTLs can lead to surprises, then do our best to log an
 	// accurate message and guide the user to resolution
@@ -671,6 +695,7 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 	}
 
 	sc.JWTIssuer = c.Server.JWTIssuer
+	sc.WITIssuer = c.Server.Experimental.WITIssuer
 
 	if subject := c.Server.CASubject; subject != nil {
 		sc.CASubject = pkix.Name{
@@ -703,6 +728,8 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 		if c.Server.PruneNonReattestableNodes {
 			sc.PruneNonReattestableNodes = c.Server.PruneNonReattestableNodes
 		}
+
+		sc.PruneAttestedNodesBatchSize = c.Server.PruneAttestedNodesBatchSize
 	}
 
 	if c.Server.DisableJWTSVIDs {
@@ -750,7 +777,10 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 	}
 
 	if c.Server.Experimental.SQLTransactionTimeout != "" {
-		sc.Log.Warn("experimental.sql_transaction_timeout is deprecated, use experimental.event_timeout instead")
+		sc.Log.WithFields(logrus.Fields{
+			telemetry.Alert:     true,
+			telemetry.AlertType: telemetry.DeprecatedConfigAlertType,
+		}).Warn("experimental.sql_transaction_timeout is deprecated, use experimental.event_timeout instead")
 		interval, err := time.ParseDuration(c.Server.Experimental.SQLTransactionTimeout)
 		if err != nil {
 			return nil, fmt.Errorf("could not parse SQL transaction timeout interval: %w", err)
@@ -786,12 +816,18 @@ func setBundleEndpointConfigProfile(config *bundleEndpointConfig, dataDir string
 		return errors.New("either bundle endpoint 'acme' or 'profile' can be set, but not both")
 
 	case config.ACME != nil:
-		log.Warn("ACME configuration within the bundle_endpoint is deprecated. Please use ACME configuration as part of the https_web profile instead.")
+		log.WithFields(logrus.Fields{
+			telemetry.Alert:     true,
+			telemetry.AlertType: telemetry.DeprecatedConfigAlertType,
+		}).Warn("ACME configuration within the bundle_endpoint is deprecated. Please use ACME configuration as part of the https_web profile instead.")
 		federationConfig.BundleEndpoint.ACME = configToACMEConfig(config.ACME, dataDir)
 		return nil
 
 	case config.Profile == nil:
-		log.Warn("Bundle endpoint is configured but has no profile set, using https_spiffe as default; please configure a profile explicitly. This will be fatal in a future release.")
+		log.WithFields(logrus.Fields{
+			telemetry.Alert:     true,
+			telemetry.AlertType: telemetry.DeprecatedConfigAlertType,
+		}).Warn("Bundle endpoint is configured but has no profile set, using https_spiffe as default; please configure a profile explicitly. This will be fatal in a future release.")
 		return nil
 	}
 
@@ -955,6 +991,12 @@ func validateConfig(c *Config) error {
 
 	if c.Server.Experimental.EventTimeout != "" && c.Server.Experimental.SQLTransactionTimeout != "" {
 		return errors.New("both experimental sql_transaction_timeout and event_timeout set, only set event_timeout")
+	}
+
+	for _, cidr := range c.Server.ProxyProtocolTrustedCIDRs {
+		if _, _, err := net.ParseCIDR(cidr); err != nil {
+			return fmt.Errorf("invalid proxy_protocol_trusted_cidrs value %q: %w", cidr, err)
+		}
 	}
 
 	return c.validateOS()

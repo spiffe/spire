@@ -27,7 +27,7 @@ func dialer(ctx context.Context, addr string) (net.Conn, error) {
 	return winio.DialPipeContext(ctx, npipeAddr)
 }
 
-func (a *Adapter) getGRPCAddr() string {
+func (a *Adapter) getGRPCAddr() (string, error) {
 	if a.namedPipeName == "" {
 		a.namedPipeName = DefaultNamedPipeName
 	}
@@ -37,5 +37,5 @@ func (a *Adapter) getGRPCAddr() string {
 	// This is problematic for clients that do not use DNS for address resolution and don't set a resolver in the address.
 	// As a workaround, use the passthrough resolver to prevent using the DNS resolver.
 	// More context can be found in this issue: https://github.com/grpc/grpc-go/issues/1786#issuecomment-2114124036
-	return "passthrough:" + namedpipe.AddrFromName(a.namedPipeName).String()
+	return "passthrough:" + namedpipe.AddrFromName(a.namedPipeName).String(), nil
 }

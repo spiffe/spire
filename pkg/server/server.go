@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"net/http"
@@ -13,6 +14,8 @@ import (
 
 	"github.com/andres-erbsen/clock"
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/go-spiffe/v2/svid/x509svid"
 	bundlev1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/bundle/v1"
 	server_util "github.com/spiffe/spire/cmd/spire-server/util"
 	"github.com/spiffe/spire/pkg/common/diskutil"
@@ -35,6 +38,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/credvalidator"
 	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/pkg/server/endpoints"
+	"github.com/spiffe/spire/pkg/server/endpoints/bundle"
 	"github.com/spiffe/spire/pkg/server/hostservice/agentstore"
 	"github.com/spiffe/spire/pkg/server/hostservice/identityprovider"
 	"github.com/spiffe/spire/pkg/server/node"
@@ -54,6 +58,8 @@ const (
 	invalidSpiffeIDAttestedNode      = "could not parse SPIFFE ID, from attested node"
 
 	pageSize = 1
+
+	profilingServerShutdownTimeout = 500 * time.Millisecond
 )
 
 type Server struct {
@@ -102,11 +108,50 @@ func (s *Server) run(ctx context.Context) (err error) {
 		defer stopProfiling()
 	}
 
+	var svidRotator *svid.Rotator
+	var bundleCache *bundle.Cache
 	metrics, err := telemetry.NewMetrics(&telemetry.MetricsConfig{
 		FileConfig:  s.config.Telemetry,
 		Logger:      s.config.Log.WithField(telemetry.SubsystemName, telemetry.Telemetry),
 		ServiceName: telemetry.SpireServer,
 		TrustDomain: s.config.TrustDomain.Name(),
+		TLSPolicy:   s.config.TLSPolicy,
+		GetX509SVID: func() (*x509svid.SVID, error) {
+			if svidRotator == nil {
+				return nil, errors.New("server SVID rotator is not initialized")
+			}
+
+			state := svidRotator.State()
+			if len(state.SVID) == 0 {
+				return nil, errors.New("no certificates found")
+			}
+
+			id, err := x509svid.IDFromCert(state.SVID[0])
+			if err != nil {
+				return nil, err
+			}
+
+			return &x509svid.SVID{
+				ID:           id,
+				Certificates: state.SVID,
+				PrivateKey:   state.Key,
+			}, nil
+		},
+		GetX509BundleAuthorities: func(td spiffeid.TrustDomain) ([]*x509.Certificate, error) {
+			if bundleCache == nil {
+				return nil, errors.New("server bundle cache is not initialized")
+			}
+
+			serverBundle, err := bundleCache.FetchBundleX509(ctx, td)
+			if err != nil {
+				return nil, fmt.Errorf("get bundle from datastore: %w", err)
+			}
+			if serverBundle == nil {
+				return nil, fmt.Errorf("no bundle found for trust domain %q", td)
+			}
+
+			return serverBundle.X509Authorities(), nil
+		},
 	})
 	if err != nil {
 		return err
@@ -135,6 +180,7 @@ func (s *Server) run(ctx context.Context) (err error) {
 		return err
 	}
 	defer cat.Close()
+	bundleCache = bundle.NewCache(cat.DataStore, clock.New())
 
 	bundlePublishingManager, err := s.newBundlePublishingManager(cat.BundlePublishers, cat.DataStore)
 	if err != nil {
@@ -172,7 +218,7 @@ func (s *Server) run(ctx context.Context) (err error) {
 		return err
 	}
 
-	svidRotator, err := s.newSVIDRotator(ctx, serverCA, metrics)
+	svidRotator, err = s.newSVIDRotator(ctx, serverCA, metrics)
 	if err != nil {
 		return err
 	}
@@ -272,21 +318,19 @@ func (s *Server) setupProfiling(ctx context.Context) (stop func()) {
 
 		// kick off a goroutine to serve the pprof endpoints and one to
 		// gracefully shut down the server when profiling is being torn down
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			if err := server.ListenAndServe(); err != nil {
+		wg.Go(func() {
+			if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 				s.config.Log.WithError(err).Warn("Unable to serve profiling server")
 			}
-		}()
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		})
+		wg.Go(func() {
 			<-ctx.Done()
-			if err := server.Shutdown(ctx); err != nil {
-				s.config.Log.WithError(err).Warn("Unable to shutdown the server cleanly")
+			shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), profilingServerShutdownTimeout)
+			defer shutdownCancel()
+			if err := server.Shutdown(shutdownCtx); err != nil {
+				s.config.Log.WithError(err).Warn("Unable to cleanly shut down profiling server")
 			}
-		}()
+		})
 	}
 	if s.config.ProfilingFreq > 0 {
 		c := &profiling.Config{
@@ -296,13 +340,11 @@ func (s *Server) setupProfiling(ctx context.Context) (stop func()) {
 			RunGCBeforeHeapProfile: true,
 			Profiles:               s.config.ProfilingNames,
 		}
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			if err := profiling.Run(ctx, c); err != nil {
 				s.config.Log.WithError(err).Warn("Failed to run profiling")
 			}
-		}()
+		})
 	}
 
 	return func() {
@@ -334,6 +376,7 @@ func (s *Server) newCredBuilder(cat catalog.Catalog) (*credtemplate.Builder, err
 		X509SVIDTTL:         s.config.X509SVIDTTL,
 		JWTSVIDTTL:          s.config.JWTSVIDTTL,
 		JWTIssuer:           s.config.JWTIssuer,
+		WITIssuer:           s.config.WITIssuer,
 		CredentialComposers: cat.GetCredentialComposers(),
 		TLSPolicy:           s.config.TLSPolicy,
 	})
@@ -408,6 +451,7 @@ func (s *Server) newNodeManager(cat catalog.Catalog, metrics telemetry.Metrics) 
 		DataStore: cat.GetDataStore(),
 		Log:       s.config.Log.WithField(telemetry.SubsystemName, telemetry.NodeManager),
 		Metrics:   metrics,
+		BatchSize: s.config.PruneAttestedNodesBatchSize,
 		PruneArgs: node.PruneArgs{
 			ExpiredFor:             s.config.PruneAttestedNodesExpiredFor,
 			IncludeNonReattestable: s.config.PruneNonReattestableNodes,
@@ -450,10 +494,13 @@ func (s *Server) newEndpointsServer(ctx context.Context, catalog catalog.Catalog
 		PruneEventsOlderThan:         s.config.PruneEventsOlderThan,
 		EventTimeout:                 s.config.EventTimeout,
 		AuditLogEnabled:              s.config.AuditLogEnabled,
+		ProxyProtocolTrustedCIDRs:    s.config.ProxyProtocolTrustedCIDRs,
 		AuthPolicyEngine:             authPolicyEngine,
 		BundleManager:                bundleManager,
 		AdminIDs:                     s.config.AdminIDs,
 		MaxAttestedNodeInfoStaleness: s.config.MaxAttestedNodeInfoStaleness,
+		AgentSpiffeIdAsSelector:      s.config.Experimental.AgentSpiffeIdAsSelector,
+		TLSPolicy:                    s.config.TLSPolicy,
 	}
 	if s.config.Federation.BundleEndpoint != nil {
 		config.BundleEndpoint.Address = s.config.Federation.BundleEndpoint.Address

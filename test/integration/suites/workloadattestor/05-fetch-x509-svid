@@ -1,0 +1,12 @@
+#!/bin/bash
+
+log-debug "fetching X.509 SVID using selector from external WorkloadAttestor..."
+SVIDCOUNT=$(docker compose exec -T spire-agent \
+    /opt/spire/bin/spire-agent api fetch x509 \
+    | grep -c "spiffe://domain.test/workload" || true)
+
+if [ "$SVIDCOUNT" -ne 1 ]; then
+    fail-now "expected 1 X.509-SVID for spiffe://domain.test/workload but received $SVIDCOUNT"
+fi
+
+log-info "successfully fetched X.509-SVID issued via external WorkloadAttestor selector"

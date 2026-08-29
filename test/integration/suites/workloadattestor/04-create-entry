@@ -1,0 +1,10 @@
+#!/bin/bash
+
+log-debug "creating registration entry with external WorkloadAttestor selector..."
+docker compose exec -T spire-server \
+    /opt/spire/bin/spire-server entry create \
+    -parentID "spiffe://domain.test/spire/agent/x509pop/$(fingerprint conf/agent/agent.crt.pem)" \
+    -spiffeID "spiffe://domain.test/workload" \
+    -selector "test-wa:attested"
+
+check-synced-entry "spire-agent" "spiffe://domain.test/workload"

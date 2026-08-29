@@ -78,7 +78,9 @@ func NewWorkloadAPISource(config WorkloadAPISourceConfig) (*WorkloadAPISource, e
 		trustDomain: trustDomain,
 	}
 
-	go s.pollEvery(ctx, client, config.PollInterval)
+	s.wg.Go(func() {
+		s.pollEvery(ctx, client, config.PollInterval)
+	})
 	return s, nil
 }
 
@@ -104,9 +106,6 @@ func (s *WorkloadAPISource) LastSuccessfulPoll() time.Time {
 }
 
 func (s *WorkloadAPISource) pollEvery(ctx context.Context, client *workloadapi.Client, interval time.Duration) {
-	s.wg.Add(1)
-	defer s.wg.Done()
-
 	defer client.Close()
 
 	s.log.WithField("interval", interval).Debug("Polling started")

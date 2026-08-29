@@ -378,6 +378,59 @@ Writing bundle #0 to file %s
 	}
 }
 
+func TestFetchX509CommandFederatedBundlesSortedByTrustDomain(t *testing.T) {
+	testDir := t.TempDir()
+	td := spiffeid.RequireTrustDomainFromString("example.org")
+	ca := testca.New(t, td)
+	svid := ca.CreateX509SVID(spiffeid.RequireFromString("spiffe://example.org/foo"))
+
+	caA := testca.New(t, spiffeid.RequireTrustDomainFromString("a.test"))
+	caM := testca.New(t, spiffeid.RequireTrustDomainFromString("m.test"))
+	caZ := testca.New(t, spiffeid.RequireTrustDomainFromString("z.test"))
+
+	test := setupTest(t, newFetchX509Command, &fakeworkloadapi.FakeRequest{
+		Req: &workload.X509SVIDRequest{},
+		Resp: &workload.X509SVIDResponse{
+			Svids: []*workload.X509SVID{
+				{
+					SpiffeId:    svid.ID.String(),
+					X509Svid:    x509util.DERFromCertificates(svid.Certificates),
+					X509SvidKey: pkcs8FromSigner(t, svid.PrivateKey),
+					Bundle:      x509util.DERFromCertificates(ca.Bundle().X509Authorities()),
+				},
+			},
+			Crl: [][]byte{},
+			// Supply trust domains in non-alphabetical order to assert
+			// the response returns a sorted collection as expected
+			FederatedBundles: map[string][]byte{
+				"spiffe://z.test": x509util.DERFromCertificates(caZ.Bundle().X509Authorities()),
+				"spiffe://a.test": x509util.DERFromCertificates(caA.Bundle().X509Authorities()),
+				"spiffe://m.test": x509util.DERFromCertificates(caM.Bundle().X509Authorities()),
+			},
+		},
+	})
+
+	rc := test.cmd.Run(test.args("-write", testDir, "-output", "pretty"))
+	require.Equal(t, 0, rc)
+	require.Empty(t, test.stderr.String())
+
+	// After sorting by trust domain string, the expected file order is:
+	// [spiffe://a.test, spiffe://m.test, spiffe://z.test]
+	sortedCAs := []*testca.CA{caA, caM, caZ}
+	for j, federatedCA := range sortedCAs {
+		bundlePath := filepath.Join(testDir, fmt.Sprintf("federated_bundle.0.%d.pem", j))
+		content, err := os.ReadFile(bundlePath)
+		require.NoErrorf(t, err, "federated bundle file index %d not found", j)
+
+		expected := pem.EncodeToMemory(&pem.Block{
+			Type:  "CERTIFICATE",
+			Bytes: federatedCA.Bundle().X509Authorities()[0].Raw,
+		})
+		assert.Equalf(t, expected, content,
+			"federated_bundle.0.%d.pem: expected cert for trust domain at sorted index %d", j, j)
+	}
+}
+
 func TestValidateJWTCommandHelp(t *testing.T) {
 	test := setupTest(t, newValidateJWTCommand)
 	test.cmd.Help()

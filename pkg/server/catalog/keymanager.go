@@ -2,6 +2,7 @@ package catalog
 
 import (
 	"github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/server/plugin/keymanager/hashicorpvault"
 
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager/awskms"
@@ -33,11 +34,12 @@ func (repo *keyManagerRepository) BuiltIns() []catalog.BuiltIn {
 		disk.BuiltIn(),
 		gcpkms.BuiltIn(),
 		azurekeyvault.BuiltIn(),
+		hashicorpvault.BuiltIn(),
 		memory.BuiltIn(),
 	}
 }
 
 type keyManagerV1 struct{}
 
-func (keyManagerV1) New() catalog.Facade { return new(keymanager.V1) }
-func (keyManagerV1) Deprecated() bool    { return false }
+func (keyManagerV1) New() catalog.Facade        { return new(keymanager.V1) }
+func (keyManagerV1) Deprecated() (bool, string) { return false, "" }

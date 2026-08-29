@@ -32,5 +32,5 @@ func (repo *svidStoreRepository) BuiltIns() []catalog.BuiltIn {
 
 type svidStoreV1 struct{}
 
-func (svidStoreV1) New() catalog.Facade { return new(svidstore.V1) }
-func (svidStoreV1) Deprecated() bool    { return false }
+func (svidStoreV1) New() catalog.Facade        { return new(svidstore.V1) }
+func (svidStoreV1) Deprecated() (bool, string) { return false, "" }

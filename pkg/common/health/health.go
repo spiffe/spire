@@ -114,24 +114,20 @@ func (c *checker) ListenAndServe(ctx context.Context) error {
 
 	var wg sync.WaitGroup
 	if c.config.ListenerEnabled {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			c.log.WithField("address", c.server.Addr).Info("Serving health checks")
 			if err := c.server.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
 				c.log.WithError(err).Warn("Error serving health checks")
 			}
-		}()
+		})
 	}
 
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		<-ctx.Done()
 		if c.server != nil {
 			_ = c.server.Close()
 		}
-	}()
+	})
 
 	wg.Wait()
 

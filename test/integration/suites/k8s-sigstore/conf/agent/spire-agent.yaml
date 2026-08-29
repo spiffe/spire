@@ -73,21 +73,19 @@ data:
           # can authenticate the kubelet cert, so skip validation.
           skip_kubelet_verification = true
 
-          experimental {
-            sigstore {
-              skipped_images = [
-                "UNSIGNED_DIGEST",
-                "AGENT_ID"
+          sigstore {
+            skipped_images = [
+              "UNSIGNED_DIGEST",
+              "AGENT_ID"
+            ]
+            allowed_identities = {
+              "https://token.actions.githubusercontent.com" = [
+                "https://github.com/spiffe/spire/.github/workflows/release_build.yaml@refs/tags/v1.14.0"
               ]
-              allowed_identities = {
-                "https://token.actions.githubusercontent.com" = [
-                  "https://github.com/spiffe/spire/.github/workflows/release_build.yaml@refs/tags/v1.14.0"
-                ]
-              }
-              rekor_url = "https://rekor.sigstore.dev/"
-              ignore_sct = true
-              ignore_attestations = true
             }
+            rekor_url = "https://rekor.sigstore.dev/"
+            ignore_sct = true
+            ignore_attestations = true
           }
         }
       }

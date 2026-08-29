@@ -69,3 +69,134 @@ func TestIsSignedByRoot(t *testing.T) {
 	testSignedByRoot(t, svid1.Certificates, nil, false, "")
 	testSignedByRoot(t, invalidCertificate, ca1.X509Authorities(), false, "failed to verify certificate chain: x509: certificate has expired or is not yet valid")
 }
+
+func TestRawCertsToCertificates(t *testing.T) {
+	td := spiffeid.RequireTrustDomainFromString("example.org")
+	ca := testca.New(t, td)
+	svid := ca.CreateX509SVID(spiffeid.RequireFromPath(td, "/w1"))
+	cert := svid.Certificates[0]
+
+	t.Run("valid certificates", func(t *testing.T) {
+		rawCerts := [][]byte{cert.Raw}
+		certs, err := x509util.RawCertsToCertificates(rawCerts)
+		require.NoError(t, err)
+		require.Len(t, certs, 1)
+		assert.Equal(t, cert.Raw, certs[0].Raw)
+	})
+
+	t.Run("invalid certificate", func(t *testing.T) {
+		rawCerts := [][]byte{cert.Raw, []byte("invalid")}
+		certs, err := x509util.RawCertsToCertificates(rawCerts)
+		require.Error(t, err)
+		assert.Nil(t, certs)
+	})
+
+	t.Run("empty input", func(t *testing.T) {
+		certs, err := x509util.RawCertsToCertificates([][]byte{})
+		require.NoError(t, err)
+		assert.Empty(t, certs)
+	})
+
+	t.Run("nil input", func(t *testing.T) {
+		certs, err := x509util.RawCertsToCertificates(nil)
+		require.NoError(t, err)
+		assert.Nil(t, certs)
+	})
+}
+
+func TestRawCertsFromCertificates(t *testing.T) {
+	td := spiffeid.RequireTrustDomainFromString("example.org")
+	ca := testca.New(t, td)
+	svid := ca.CreateX509SVID(spiffeid.RequireFromPath(td, "/w1"))
+	cert := svid.Certificates[0]
+
+	t.Run("valid certificates", func(t *testing.T) {
+		certs := []*x509.Certificate{cert}
+		rawCerts := x509util.RawCertsFromCertificates(certs)
+		require.Len(t, rawCerts, 1)
+		assert.Equal(t, cert.Raw, rawCerts[0])
+	})
+
+	t.Run("empty input", func(t *testing.T) {
+		rawCerts := x509util.RawCertsFromCertificates([]*x509.Certificate{})
+		assert.Empty(t, rawCerts)
+	})
+
+	t.Run("nil input", func(t *testing.T) {
+		rawCerts := x509util.RawCertsFromCertificates(nil)
+		assert.Nil(t, rawCerts)
+	})
+}
+
+func TestDedupeCertificates(t *testing.T) {
+	td := spiffeid.RequireTrustDomainFromString("example.org")
+	ca := testca.New(t, td)
+	cert1 := ca.CreateX509SVID(spiffeid.RequireFromPath(td, "/w1")).Certificates[0]
+	cert2 := ca.CreateX509SVID(spiffeid.RequireFromPath(td, "/w2")).Certificates[0]
+
+	t.Run("no duplicates", func(t *testing.T) {
+		deduped := x509util.DedupeCertificates([]*x509.Certificate{cert1}, []*x509.Certificate{cert2})
+		assert.Len(t, deduped, 2)
+		assert.Equal(t, cert1.Raw, deduped[0].Raw)
+		assert.Equal(t, cert2.Raw, deduped[1].Raw)
+	})
+
+	t.Run("with duplicates", func(t *testing.T) {
+		deduped := x509util.DedupeCertificates([]*x509.Certificate{cert1, cert2}, []*x509.Certificate{cert2, cert1})
+		assert.Len(t, deduped, 2)
+		assert.Equal(t, cert1.Raw, deduped[0].Raw)
+		assert.Equal(t, cert2.Raw, deduped[1].Raw)
+	})
+
+	t.Run("empty bundles", func(t *testing.T) {
+		deduped := x509util.DedupeCertificates([]*x509.Certificate{}, nil)
+		assert.Empty(t, deduped)
+	})
+}
+
+func TestDERFromCertificates(t *testing.T) {
+	td := spiffeid.RequireTrustDomainFromString("example.org")
+	ca := testca.New(t, td)
+	cert1 := ca.CreateX509SVID(spiffeid.RequireFromPath(td, "/w1")).Certificates[0]
+	cert2 := ca.CreateX509SVID(spiffeid.RequireFromPath(td, "/w2")).Certificates[0]
+
+	t.Run("multiple certificates", func(t *testing.T) {
+		der := x509util.DERFromCertificates([]*x509.Certificate{cert1, cert2})
+		expected := append([]byte{}, cert1.Raw...)
+		expected = append(expected, cert2.Raw...)
+		assert.Equal(t, expected, der)
+	})
+
+	t.Run("nil input", func(t *testing.T) {
+		der := x509util.DERFromCertificates(nil)
+		assert.Nil(t, der)
+	})
+}
+
+func TestCreateCertificate(t *testing.T) {
+	caCert, caKey := testca.CreateCACertificate(t, nil, nil)
+
+	template := &x509.Certificate{
+		SerialNumber: caCert.SerialNumber,
+	}
+
+	cert, err := x509util.CreateCertificate(template, caCert, caCert.PublicKey, caKey)
+	require.NoError(t, err)
+	require.NotNil(t, cert)
+	assert.Equal(t, caCert.RawSubject, cert.RawIssuer)
+}
+
+func TestCertificateMatchesPrivateKey(t *testing.T) {
+	td := spiffeid.RequireTrustDomainFromString("example.org")
+	ca := testca.New(t, td)
+	svid := ca.CreateX509SVID(spiffeid.RequireFromPath(td, "/w1"))
+	_, otherKey := ca.CreateX509Certificate()
+
+	matches, err := x509util.CertificateMatchesPrivateKey(svid.Certificates[0], svid.PrivateKey)
+	require.NoError(t, err)
+	assert.True(t, matches)
+
+	matches, err = x509util.CertificateMatchesPrivateKey(svid.Certificates[0], otherKey)
+	require.NoError(t, err)
+	assert.False(t, matches)
+}

@@ -34,27 +34,28 @@ The provider has the following command line flags:
 The configuration file is **required** by the provider. It contains
 [HCL](https://github.com/hashicorp/hcl) encoded configurables.
 
-| Key                     | Type    | Required?          | Description                                                            | Default  |
-|-------------------------|---------|--------------------|------------------------------------------------------------------------|----------|
-| `acme`                  | section | required[1]        | Provides the ACME configuration.                                       |          |
-| `serving_cert_file`     | section | required\[1\]\[4\] | Provides the serving certificate configuration.                        |          |
-| `allow_insecure_scheme` | bool    | optional\[3\]      | Serves OIDC configuration response with HTTP url.                      | `false`  |
-| `domains`               | strings | required           | One or more domains the provider is being served from.                 |          |
-| `experimental`          | section | optional           | The experimental options that are subject to change or removal.        |          |
-| `insecure_addr`         | string  | optional\[3\]      | Exposes the service on http.                                           |          |
-| `set_key_use`           | bool    | optional           | If true, the `use` parameter on JWKs will be set to `sig`.             | `false`  |
-| `listen_socket_path`    | string  | required\[1\]\[3\] | Path on disk to listen with a Unix Domain Socket. Unix platforms only. |          |
-| `log_format`            | string  | optional           | Format of the logs (either `"TEXT"` or `"JSON"`)                       | `""`     |
-| `log_level`             | string  | required           | Log level (one of `"error"`,`"warn"`,`"info"`,`"debug"`)               | `"info"` |
-| `log_path`              | string  | optional           | Path on disk to write the log.                                         |          |
-| `log_requests`          | bool    | optional           | If true, all HTTP requests are logged at the debug level               | `false`  |
-| `server_api`            | section | required\[2\]      | Provides SPIRE Server API details.                                     |          |
-| `workload_api`          | section | required\[2\]      | Provides Workload API details.                                         |          |
-| `file`                  | section | required\[2\]      | Provides File details.                                                 |          |
-| `health_checks`         | section | optional           | Enable and configure health check endpoints                            |          |
-| `jwt_issuer`            | string  | optional           | Specifies the issuer for the OIDC provider configuration request       |          |
-| `jwks_uri`              | string  | optional           | Specifies the JWKS URI returned in the discovery document              |          |
-| `server_path_prefix`    | string  | optional           | If specified, all endpoints listened to will be prefixed by this value | `"/"`    |
+| Key                     | Type    | Required?          | Description                                                                                    | Default  |
+| ----------------------- | ------- | ------------------ | ---------------------------------------------------------------------------------------------- | -------- |
+| `acme`                  | section | required[1]        | Provides the ACME configuration.                                                               |          |
+| `serving_cert_file`     | section | required\[1\]\[4\] | Provides the serving certificate configuration.                                                |          |
+| `allow_insecure_scheme` | bool    | optional\[3\]      | Serves OIDC configuration response with HTTP url. A warning is logged at startup when enabled. | `false`  |
+| `domains`               | strings | required           | One or more domains the provider is being served from.                                         |          |
+| `experimental`          | section | optional           | The experimental options that are subject to change or removal.                                |          |
+| `insecure_addr`         | string  | optional\[3\]      | Exposes the service on http.                                                                   |          |
+| `set_key_use`           | bool    | optional           | If true, the `use` parameter on JWKs will be set to `sig`.                                     | `false`  |
+| `listen_socket_path`    | string  | required\[1\]\[3\] | Path on disk to listen with a Unix Domain Socket. Unix platforms only.                         |          |
+| `log_format`            | string  | optional           | Format of the logs (either `"TEXT"` or `"JSON"`)                                               | `""`     |
+| `log_level`             | string  | required           | Log level (one of `"error"`,`"warn"`,`"info"`,`"debug"`)                                       | `"info"` |
+| `log_path`              | string  | optional           | Path on disk to write the log.                                                                 |          |
+| `log_requests`          | bool    | optional           | If true, all HTTP requests are logged at the debug level                                       | `false`  |
+| `server_api`            | section | required\[2\]      | Provides SPIRE Server API details.                                                             |          |
+| `workload_api`          | section | required\[2\]      | Provides Workload API details.                                                                 |          |
+| `file`                  | section | required\[2\]      | Provides File details.                                                                         |          |
+| `health_checks`         | section | optional           | Enable and configure health check endpoints                                                    |          |
+| `jwt_issuer`            | string  | optional           | Specifies the issuer for the OIDC provider configuration request                               |          |
+| `jwks_uri`              | string  | optional           | Specifies the JWKS URI returned in the discovery document                                      |          |
+| `server_path_prefix`    | string  | optional           | If specified, all endpoints listened to will be prefixed by this value                         | `"/"`    |
+| `tls_config`            | section | optional           | TLS config for terminating HTTPS listeners (disk certificate and ACME modes).                  |          |
 
 | experimental             | Type   | Required?          | Description                                          | Default |
 |--------------------------|--------|--------------------|------------------------------------------------------|---------|
@@ -66,13 +67,13 @@ The configuration file is **required** by the provider. It contains
 
 [1]: One of `acme`, `serving_cert_file` or `listen_socket_path` must be defined.
 
-[3]: The `allow_insecure_scheme` should only be used in a local development environment for testing purposes. It only works in conjunction with `insecure_addr` or `listen_socket_path`.
+[3]: The `allow_insecure_scheme` should only be enabled when the network path to the provider is trusted end-to-end (for example, when TLS is terminated at a trusted reverse proxy or load balancer on a private network). It only works in conjunction with `insecure_addr` or `listen_socket_path`.
 
 #### Considerations for Windows platforms
 
 [1]: One of `acme`, `serving_cert_file` or `listen_named_pipe_name` must be defined.
 
-[3]: The `allow_insecure_scheme` should only be used in a local development environment for testing purposes. It only works in conjunction with `insecure_addr` or `listen_named_pipe_name`.
+[3]: The `allow_insecure_scheme` should only be enabled when the network path to the provider is trusted end-to-end (for example, when TLS is terminated at a trusted reverse proxy or load balancer on a private network). It only works in conjunction with `insecure_addr` or `listen_named_pipe_name`.
 
 #### Considerations for all platforms
 
@@ -104,6 +105,19 @@ will terminate if another domain is requested.
 | `key_file_path`      | string   | required  | The private key file path, the file must contain PEM encoded data. |          |
 | `file_sync_interval` | duration | optional  | Controls how frequently the service polls the files for changes.   | 1 minute |
 | `addr`               | string   | optional  | Exposes the service on the given address.                          | :443     |
+
+#### TLS Config Section
+
+Applied to **terminating** HTTPS listeners when using `serving_cert_file` or `acme`.
+Not applied to `insecure_addr`, `listen_socket_path`, named pipe modes, or any
+outbound TLS client connections. Parsed once at startup; invalid values prevent
+the provider from starting.
+
+| Key                | Type   | Required?| Description                                                                                                                                 | Default                      |
+|--------------------|--------|----------|---------------------------------------------------------------------------------------------------------------------------------------------|------------------------------|
+| `min_tls_version`  | string | optional | Minimum TLS version (e.g. `VersionTLS12`, `VersionTLS13`). Values below `VersionTLS12` are rejected. When omitted, defaults to TLS 1.2.     | TLS 1.2 when block is present|
+| `cipher_suites`    | strings| optional | Allowed TLS 1.2 cipher suites. Ignored when `min_tls_version` is `VersionTLS13` or higher. Insecure suite names are filtered with a warning.| Go defaults if all filtered  |
+| `curve_preferences`| strings| optional | Preferred key exchange curves. When minimum TLS is 1.2, at least one classical curve is required.                                           |                              |
 
 #### Server API Section
 

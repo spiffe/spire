@@ -15,7 +15,7 @@ import (
 )
 
 var (
-	protoMessageType = reflect.TypeOf((*proto.Message)(nil)).Elem()
+	protoMessageType = reflect.TypeFor[proto.Message]()
 )
 
 func RequireErrorContains(tb testing.TB, err error, contains string) {

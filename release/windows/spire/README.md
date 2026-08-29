@@ -5,7 +5,7 @@
 The configuration files included in this release are intended for evaluation
 purposes only and are **NOT** production ready.
 
-You can find additional example configurations for SPIRE [here](https://github.com/spiffe/spire-examples).
+You can find additional example configurations for SPIRE in the [SPIRE examples repository](https://github.com/spiffe/spire-examples).
 
 ## Contents
 

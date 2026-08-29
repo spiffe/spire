@@ -1,0 +1,47 @@
+name: assign-reviewer-review-capture
+
+# Unprivileged half of the review ball-in-court update.
+#
+# The pull_request_review token is read-only for PRs from forks, so the
+# assignee write cannot happen here. This workflow only reads the review event
+# and writes a small artifact with the data the privileged
+# assign-reviewer-review-apply workflow (triggered via workflow_run) needs to
+# move the assignee with a write token.
+#
+# It never writes to the repository and never checks out or runs any PR code.
+# Note that pull_request_review runs the PR's own copy of this workflow, so a
+# fork PR can run a modified version of this file. That gains no privileges
+# (the token stays read-only), but it means the artifact contents are not
+# trusted: the apply workflow validates every field, binds the artifact to the
+# triggering PR's head SHA, and confirms via the API that the claimed review
+# exists before acting on it.
+
+on:
+  pull_request_review:
+    types: [submitted]
+
+permissions:
+  contents: read
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const fs = require('fs');
+            const review = context.payload.review;
+            const data = {
+              pr_number: context.payload.pull_request.number,
+              review_state: (review.state || '').toLowerCase(),
+              submitter: review.user.login,
+            };
+            fs.writeFileSync('review.json', JSON.stringify(data));
+            core.info(`Captured ${data.review_state} review by ${data.submitter} on PR #${data.pr_number}.`);
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: assign-reviewer-review
+          path: review.json
+          retention-days: 1
+          if-no-files-found: error # fail loudly rather than produce no artifact

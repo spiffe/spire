@@ -19,8 +19,11 @@ const (
 	EnvoySDSv3ServiceShortName         = "SDS.v3"
 	HealthServiceName                  = "grpc.health.v1.Health"
 	HealthServiceShortName             = "Health"
-	LoggerServiceName                  = "logger.v1.Logger"
+	ServerLoggerServiceName            = "logger.v1.Logger"
+	AgentLoggerServiceName             = "spire.api.agent.logger.v1.Logger"
 	LoggerServiceShortName             = "Logger"
+	DebugServiceName                   = "spire.agent.debug.v1.Debug"
+	DebugServiceShortName              = "Debug"
 	DelegatedIdentityServiceName       = "spire.api.agent.delegatedidentity.v1.DelegatedIdentity"
 	DelegatedIdentityServiceShortName  = "DelegatedIdentity"
 	ServerReflectionServiceName        = "grpc.reflection.v1.ServerReflection"
@@ -35,7 +38,9 @@ var (
 		WorkloadAPIServiceName, WorkloadAPIServiceShortName,
 		EnvoySDSv3ServiceName, EnvoySDSv3ServiceShortName,
 		HealthServiceName, HealthServiceShortName,
-		LoggerServiceName, LoggerServiceShortName,
+		ServerLoggerServiceName, LoggerServiceShortName,
+		AgentLoggerServiceName, LoggerServiceShortName,
+		DebugServiceName, DebugServiceShortName,
 		DelegatedIdentityServiceName, DelegatedIdentityServiceShortName,
 	)
 
@@ -85,9 +90,9 @@ func makeNames(fullMethod string) (names api.Names) {
 
 	// Parse the slash separated service and method name. The separating slash
 	// should always be present in practice.
-	if slashIndex := strings.Index(fullMethod, "/"); slashIndex != -1 {
-		names.RawService = fullMethod[0:slashIndex]
-		names.Method = fullMethod[slashIndex+1:]
+	if before, after, ok := strings.Cut(fullMethod, "/"); ok {
+		names.RawService = before
+		names.Method = after
 	}
 
 	names.Service = serviceReplacer.Replace(names.RawService)

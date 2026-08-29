@@ -50,6 +50,19 @@ const (
 	maxStaleDuration              = time.Hour * 24 * 14 // Two weeks.
 
 	cryptoKeyNamePrefix = "spire-key"
+
+	// maxCryptoKeyIDLength is the maximum length of a Cloud KMS CryptoKey ID,
+	// which must match the regular expression [a-zA-Z0-9_-]{1,63}.
+	// See https://cloud.google.com/kms/docs/reference/rest/v1/projects.locations.keyRings.cryptoKeys/create.
+	maxCryptoKeyIDLength = 63
+
+	// maxSPIREKeyIDLength is the length of the longest SPIRE key ID the server
+	// appends when building a CryptoKey ID (e.g. "JWT-Signer-A", "WIT-Signer-A").
+	// CryptoKey IDs have the form spire-key-<serverID>-<spireKeyID>, so the
+	// server ID must be short enough to leave room for the prefix and this
+	// suffix within maxCryptoKeyIDLength.
+	maxSPIREKeyIDLength = len("JWT-Signer-A")
+
 	labelNameServerID   = "spire-server-id"
 	labelNameLastUpdate = "spire-last-update"
 	labelNameServerTD   = "spire-server-td"
@@ -160,8 +173,12 @@ func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginco
 		if !validateCharacters(newConfig.KeyIdentifierValue) {
 			status.ReportError("Key identifier must contain only letters, numbers, underscores (_), and dashes (-)")
 		}
-		if len(newConfig.KeyIdentifierValue) > 63 {
-			status.ReportError("Key identifier must not be longer than 63 characters")
+		// The generated CryptoKey ID is spire-key-<serverID>-<spireKeyID>, and
+		// Cloud KMS caps CryptoKey IDs at maxCryptoKeyIDLength. Reserve room for
+		// the prefix, the two separators, and the longest SPIRE key ID suffix.
+		maxKeyIdentifierLength := maxCryptoKeyIDLength - len(cryptoKeyNamePrefix) - len("--") - maxSPIREKeyIDLength
+		if len(newConfig.KeyIdentifierValue) > maxKeyIdentifierLength {
+			status.ReportError(fmt.Sprintf("Key identifier must not be longer than %d characters", maxKeyIdentifierLength))
 		}
 	}
 
@@ -246,6 +263,7 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 		log:       p.log,
 		serverID:  serverID,
 		tdHash:    tdHashString,
+		clk:       p.hooks.clk,
 	}
 	p.log.Debug("Fetching keys from Cloud KMS", "key_ring", newConfig.KeyRing)
 	keyEntries, err := fetcher.fetchKeyEntries(ctx)
@@ -463,7 +481,7 @@ func (p *Plugin) createKey(ctx context.Context, spireKeyID string, keyType keyma
 	cryptoKeyVersionName := cryptoKey.Name + "/cryptoKeyVersions/1"
 	log.Debug("CryptoKeyVersion version added", cryptoKeyVersionNameTag, cryptoKeyVersionName)
 
-	pubKey, err := getPublicKeyFromCryptoKeyVersion(ctx, p.log, p.kmsClient, cryptoKeyVersionName)
+	pubKey, err := getPublicKeyFromCryptoKeyVersion(ctx, p.log, p.kmsClient, cryptoKeyVersionName, p.hooks.clk)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to get public key: %v", err)
 	}
@@ -517,7 +535,7 @@ func (p *Plugin) addCryptoKeyVersionToCachedEntry(ctx context.Context, entry key
 	}
 	log.Debug("CryptoKeyVersion added", cryptoKeyVersionNameTag, cryptoKeyVersion.Name)
 
-	pubKey, err := getPublicKeyFromCryptoKeyVersion(ctx, p.log, p.kmsClient, cryptoKeyVersion.Name)
+	pubKey, err := getPublicKeyFromCryptoKeyVersion(ctx, p.log, p.kmsClient, cryptoKeyVersion.Name, p.hooks.clk)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get public key: %w", err)
 	}
@@ -1027,9 +1045,10 @@ func cryptoKeyVersionAlgorithmFromKeyType(keyType keymanagerv1.KeyType) (kmspb.C
 }
 
 // generateCryptoKeyID returns a new identifier to be used as a CryptoKeyID.
-// The returned identifier has the form: spire-key-<UUID>-<SPIRE-KEY-ID>,
-// where UUID is a new randomly generated UUID and SPIRE-KEY-ID is provided
-// through the spireKeyID parameter.
+// The returned identifier has the form: spire-key-<serverID>-<SPIRE-KEY-ID>,
+// where serverID is the configured server ID (a UUID when key_identifier_file
+// is used, or an arbitrary value when key_identifier_value is used) and
+// SPIRE-KEY-ID is provided through the spireKeyID parameter.
 func (p *Plugin) generateCryptoKeyID(spireKeyID string) (cryptoKeyID string, err error) {
 	pd, err := p.getPluginData()
 	if err != nil {
@@ -1078,7 +1097,10 @@ func getOrCreateServerID(idPath string) (string, error) {
 
 // getPublicKeyFromCryptoKeyVersion requests Cloud KMS to get the public key
 // of the specified CryptoKeyVersion.
-func getPublicKeyFromCryptoKeyVersion(ctx context.Context, log hclog.Logger, kmsClient cloudKeyManagementService, cryptoKeyVersionName string) ([]byte, error) {
+func getPublicKeyFromCryptoKeyVersion(ctx context.Context, log hclog.Logger, kmsClient cloudKeyManagementService, cryptoKeyVersionName string, clk clock.Clock) ([]byte, error) {
+	backoffMin := 10 * time.Millisecond
+	backoffMax := time.Second
+	backoff := backoffMin
 	kmsPublicKey, errGetPublicKey := kmsClient.GetPublicKey(ctx, &kmspb.GetPublicKeyRequest{Name: cryptoKeyVersionName})
 	attempts := 1
 
@@ -1114,6 +1136,10 @@ func getPublicKeyFromCryptoKeyVersion(ctx context.Context, log hclog.Logger, kms
 		log.Warn("Could not get the public key because the CryptoKeyVersion is still being generated. Trying again.")
 		attempts++
 		kmsPublicKey, errGetPublicKey = kmsClient.GetPublicKey(ctx, &kmspb.GetPublicKeyRequest{Name: cryptoKeyVersionName})
+		if errGetPublicKey != nil {
+			backoff = min(backoff*2, backoffMax)
+			clk.Sleep(backoff)
+		}
 	}
 
 	// Perform integrity verification.

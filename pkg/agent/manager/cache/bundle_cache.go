@@ -1,14 +1,18 @@
 package cache
 
 import (
+	"fmt"
 	"maps"
 
-	"github.com/imkira/go-observer"
 	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
+	"github.com/spiffe/go-spiffe/v2/bundle/x509bundle"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire/pkg/common/observer"
 )
 
 type Bundle = spiffebundle.Bundle
+
+var _ x509bundle.Source = (*BundleCache)(nil)
 
 type BundleCache struct {
 	trustDomain spiffeid.TrustDomain
@@ -26,9 +30,41 @@ func NewBundleCache(trustDomain spiffeid.TrustDomain, bundle *Bundle) *BundleCac
 }
 
 func (c *BundleCache) Update(bundles map[spiffeid.TrustDomain]*Bundle) {
-	// the bundle map must be copied so that the source can be mutated
-	// afterward.
-	c.bundles.Update(copyBundleMap(bundles))
+	current := c.Bundles()
+
+	// Copy so we never mutate the caller's map (it is shared with the LRU
+	// cache and must not be modified).
+	next := copyBundleMap(bundles)
+
+	// The bundle for the agent's own trust domain must never be dropped even if
+	// it is absent from the update (which should only happen if there is a bug
+	// on the server), since it is required to authenticate the server.
+	if _, ok := next[c.trustDomain]; !ok {
+		if existing, ok := current[c.trustDomain]; ok {
+			if next == nil {
+				next = make(map[spiffeid.TrustDomain]*Bundle, 1)
+			}
+			next[c.trustDomain] = existing
+		}
+	}
+
+	if bundleMapsEqual(current, next) {
+		return
+	}
+	c.bundles.Update(next)
+}
+
+func bundleMapsEqual(a, b map[spiffeid.TrustDomain]*Bundle) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for td, bundleA := range a {
+		bundleB, ok := b[td]
+		if !ok || !bundleA.Equal(bundleB) {
+			return false
+		}
+	}
+	return true
 }
 
 func (c *BundleCache) Bundle() *Bundle {
@@ -41,6 +77,15 @@ func (c *BundleCache) Bundles() map[spiffeid.TrustDomain]*Bundle {
 
 func (c *BundleCache) SubscribeToBundleChanges() *BundleStream {
 	return NewBundleStream(c.bundles.Observe())
+}
+
+func (c *BundleCache) GetX509BundleForTrustDomain(trustDomain spiffeid.TrustDomain) (*x509bundle.Bundle, error) {
+	bundles := c.Bundles()
+	bundle, ok := bundles[trustDomain]
+	if !ok {
+		return nil, fmt.Errorf("bundle for trust domain %q not found", trustDomain)
+	}
+	return bundle.X509Bundle(), nil
 }
 
 // Wraps an observer stream to provide a type safe interface

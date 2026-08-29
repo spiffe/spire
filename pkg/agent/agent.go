@@ -13,10 +13,13 @@ import (
 
 	"github.com/andres-erbsen/clock"
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/go-spiffe/v2/svid/x509svid"
 	"github.com/spiffe/go-spiffe/v2/workloadapi"
 	admin_api "github.com/spiffe/spire/pkg/agent/api"
 	node_attestor "github.com/spiffe/spire/pkg/agent/attestor/node"
 	workload_attestor "github.com/spiffe/spire/pkg/agent/attestor/workload"
+	"github.com/spiffe/spire/pkg/agent/broker"
 	"github.com/spiffe/spire/pkg/agent/catalog"
 	"github.com/spiffe/spire/pkg/agent/endpoints"
 	"github.com/spiffe/spire/pkg/agent/manager"
@@ -47,6 +50,7 @@ const (
 	bootstrapBackoffMaxElapsedTime   = 1 * time.Minute
 	startHealthChecksTimeout         = 8 * time.Second
 	rebootstrapBackoffMaxElapsedTime = 24 * time.Hour
+	profilingServerShutdownTimeout   = 500 * time.Millisecond
 )
 
 type Agent struct {
@@ -79,11 +83,71 @@ func (a *Agent) Run(ctx context.Context) error {
 		defer stopProfiling()
 	}
 
+	// mgr is assigned by newManager well after the telemetry sinks are started, so
+	// the callbacks below can run on exporter goroutines before that write lands.
+	// An interface value is two words, making an unsynchronized read a data race
+	// rather than just a torn nil check, so all reads from other goroutines go
+	// through getManager.
+	var (
+		mgrMu sync.Mutex
+		mgr   manager.Manager
+	)
+	getManager := func() manager.Manager {
+		mgrMu.Lock()
+		defer mgrMu.Unlock()
+		return mgr
+	}
+	// Kept separate from newManager so the lock is only held for the assignment.
+	// newManager retries Initialize for up to bootstrapBackoffMaxElapsedTime, or
+	// rebootstrapBackoffMaxElapsedTime when rebootstrapping, and holding mgrMu
+	// across that would stall every scrape for the same period.
+	setManager := func(m manager.Manager) {
+		mgrMu.Lock()
+		defer mgrMu.Unlock()
+		mgr = m
+	}
+
 	metrics, err := telemetry.NewMetrics(&telemetry.MetricsConfig{
 		FileConfig:  a.c.Telemetry,
 		Logger:      a.c.Log.WithField(telemetry.SubsystemName, telemetry.Telemetry),
 		ServiceName: telemetry.SpireAgent,
 		TrustDomain: a.c.TrustDomain.Name(),
+		TLSPolicy:   a.c.TLSPolicy,
+		GetX509SVID: func() (*x509svid.SVID, error) {
+			mgr := getManager()
+			if mgr == nil {
+				return nil, errors.New("agent manager is not initialized")
+			}
+
+			credentials := mgr.GetCurrentCredentials()
+			if len(credentials.SVID) == 0 {
+				return nil, errors.New("no certificates found")
+			}
+
+			id, err := x509svid.IDFromCert(credentials.SVID[0])
+			if err != nil {
+				return nil, err
+			}
+
+			return &x509svid.SVID{
+				ID:           id,
+				Certificates: credentials.SVID,
+				PrivateKey:   credentials.Key,
+			}, nil
+		},
+		GetX509BundleAuthorities: func(td spiffeid.TrustDomain) ([]*x509.Certificate, error) {
+			mgr := getManager()
+			if mgr == nil {
+				return nil, errors.New("agent manager is not initialized")
+			}
+
+			bundle := mgr.GetBundles()[td]
+			if bundle == nil {
+				return nil, fmt.Errorf("no bundle found for trust domain %q", td)
+			}
+
+			return bundle.X509Authorities(), nil
+		},
 	})
 	if err != nil {
 		return err
@@ -108,6 +172,14 @@ func (a *Agent) Run(ctx context.Context) error {
 	}
 
 	taskRunner := util.NewTaskRunner(ctx, cancel)
+
+	// Start the telemetry sinks before node attestation. Attestation can retry for
+	// bootstrapBackoffMaxElapsedTime, or rebootstrapBackoffMaxElapsedTime when
+	// rebootstrapping, and every return before StartTasks(tasks...) below would
+	// otherwise leave the exporter unbound - so an agent that never attests
+	// successfully exposes no metrics at all, including spire_agent_started,
+	// spire_agent_uptime and the bootstrap gauges. This also gates the InMem sink's
+	// signal handler, since MetricsImpl.ListenAndServe drives every sink runner.
 	taskRunner.StartTasks(metrics.ListenAndServe)
 
 	nodeAttestor := nodeattestor.JoinToken(a.c.Log, a.c.JoinToken)
@@ -180,19 +252,19 @@ func (a *Agent) Run(ctx context.Context) error {
 
 			if x509util.IsUnknownAuthorityError(err) {
 				if a.c.TrustBundleSources.IsBootstrap() {
-					a.c.Log.Info("Trust Bundle and Server dont agree.... bootstrapping again")
+					a.c.Log.Info("Trust Bundle and Server don't agree, bootstrapping again")
 				} else if a.c.RebootstrapMode != RebootstrapNever {
 					startTime, err := a.c.TrustBundleSources.GetStartTime()
 					if err != nil {
-						return nil
+						return err
 					}
 					seconds := time.Since(startTime)
 					if seconds < a.c.RebootstrapDelay {
 						a.c.Log.WithFields(logrus.Fields{
-							"time left": a.c.RebootstrapDelay - seconds,
-						}).Info("Trust Bundle and Server dont agree.... Ignoring for now.")
+							"time_left": a.c.RebootstrapDelay - seconds,
+						}).Info("Trust Bundle and Server don't agree, ignoring for now")
 					} else {
-						a.c.Log.Warn("Trust Bundle and Server dont agree.... rebootstrapping")
+						a.c.Log.Warn("Trust Bundle and Server don't agree, rebootstrapping")
 						err = sto.StoreBundle(nil)
 						if err != nil {
 							return err
@@ -226,10 +298,14 @@ func (a *Agent) Run(ctx context.Context) error {
 
 	svidStoreCache := a.newSVIDStoreCache(metrics)
 
-	manager, err := a.newManager(ctx, sto, cat, metrics, as, svidStoreCache, nodeAttestor)
+	newMgr, err := a.newManager(ctx, sto, cat, metrics, as, svidStoreCache, nodeAttestor)
 	if err != nil {
 		return err
 	}
+	// Publish it; the telemetry callbacks may already be reading via getManager.
+	// Reads below are on this goroutine and need no locking, as nothing else
+	// writes mgr.
+	setManager(newMgr)
 
 	storeService := a.newSVIDStoreService(svidStoreCache, cat, metrics)
 	workloadAttestor := workload_attestor.New(&workload_attestor.Config{
@@ -238,23 +314,56 @@ func (a *Agent) Run(ctx context.Context) error {
 		Metrics: metrics,
 	})
 
-	agentEndpoints := a.newEndpoints(metrics, manager, workloadAttestor)
-	go func() {
-		agentEndpoints.WaitForListening(readyForHealthChecks)
-		a.started = true
-	}()
-
 	tasks := []func(context.Context) error{
-		manager.Run,
+		mgr.Run,
 		storeService.Run,
-		agentEndpoints.ListenAndServe,
 		catalog.ReconfigureTask(a.c.Log.WithField(telemetry.SubsystemName, "reconfigurer"), cat),
+	}
+	var apiReadyChannels []chan struct{}
+
+	if a.c.BindAddress != nil {
+		agentEndpoints := a.newEndpoints(metrics, mgr, workloadAttestor)
+		listening := make(chan struct{})
+		apiReadyChannels = append(apiReadyChannels, listening)
+		go agentEndpoints.WaitForListening(listening)
+		tasks = append(tasks, agentEndpoints.ListenAndServe)
+	} else {
+		a.c.Log.WithField("apis", "Workload and SDS APIs").Info("Skipping agent APIs because public endpoint is disabled")
 	}
 
 	if a.c.AdminBindAddress != nil {
-		adminEndpoints := a.newAdminEndpoints(metrics, manager, workloadAttestor, a.c.AuthorizedDelegates)
+		adminEndpoints := a.newAdminEndpoints(metrics, mgr, workloadAttestor, a.c.AuthorizedDelegates)
 		tasks = append(tasks, adminEndpoints.ListenAndServe)
 	}
+
+	if len(a.c.Broker.BindAddresses) != 0 {
+		brokerEndpoints, err := broker.New(&broker.Config{
+			BindAddrs:    a.c.Broker.BindAddresses,
+			Manager:      mgr,
+			Log:          a.c.Log,
+			Metrics:      metrics,
+			Attestor:     workloadAttestor,
+			Brokers:      a.c.Broker.Brokers,
+			SVIDSource:   liveAgentSVIDSource{m: mgr},
+			BundleSource: mgr.GetX509Bundle(),
+			TLSPolicy:    a.c.TLSPolicy,
+		})
+		if err != nil {
+			return fmt.Errorf("failed to create broker endpoints: %w", err)
+		}
+		listening := make(chan struct{})
+		apiReadyChannels = append(apiReadyChannels, listening)
+		go brokerEndpoints.WaitForListening(listening)
+		tasks = append(tasks, brokerEndpoints.ListenAndServe)
+	}
+
+	go func() {
+		for _, listening := range apiReadyChannels {
+			<-listening
+		}
+		a.started = true
+		close(readyForHealthChecks)
+	}()
 
 	if a.c.LogReopener != nil {
 		tasks = append(tasks, a.c.LogReopener)
@@ -286,21 +395,19 @@ func (a *Agent) setupProfiling(ctx context.Context) (stop func()) {
 
 		// kick off a goroutine to serve the pprof endpoints and one to
 		// gracefully shut down the server when profiling is being torn down
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			if err := server.ListenAndServe(); err != nil {
+		wg.Go(func() {
+			if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 				a.c.Log.WithError(err).Warn("Unable to serve profiling server")
 			}
-		}()
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		})
+		wg.Go(func() {
 			<-ctx.Done()
-			if err := server.Shutdown(ctx); err != nil {
-				a.c.Log.WithError(err).Warn("Unable to shut down cleanly")
+			shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), profilingServerShutdownTimeout)
+			defer shutdownCancel()
+			if err := server.Shutdown(shutdownCtx); err != nil {
+				a.c.Log.WithError(err).Warn("Unable to cleanly shut down profiling server")
 			}
-		}()
+		})
 	}
 	if a.c.ProfilingFreq > 0 {
 		c := &profiling.Config{
@@ -310,13 +417,11 @@ func (a *Agent) setupProfiling(ctx context.Context) (stop func()) {
 			RunGCBeforeHeapProfile: true,
 			Profiles:               a.c.ProfilingNames,
 		}
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			if err := profiling.Run(ctx, c); err != nil {
 				a.c.Log.WithError(err).Warn("Failed to run profiling")
 			}
-		}()
+		})
 	}
 
 	return func() {
@@ -343,6 +448,10 @@ func (a *Agent) attest(ctx context.Context, sto storage.Storage, cat catalog.Cat
 }
 
 func (a *Agent) newManager(ctx context.Context, sto storage.Storage, cat catalog.Catalog, metrics telemetry.Metrics, as *node_attestor.AttestationResult, cache *storecache.Cache, na nodeattestor.NodeAttestor) (manager.Manager, error) {
+	if !as.Reattestable && cat.GetKeyManager().Name() == "memory" {
+		a.c.Log.Warn("Node attestation is not reattestable and the 'memory' key manager is in use; if the agent process is restarted, it will be unable to obtain a new SVID and will need to be manually evicted to be able to re-attest.")
+	}
+
 	config := &manager.Config{
 		SVID:                     as.SVID,
 		SVIDKey:                  as.Key,
@@ -397,10 +506,10 @@ func (a *Agent) newManager(ctx context.Context, sto storage.Storage, cat catalog
 			seconds := time.Since(startTime)
 			if seconds < a.c.RebootstrapDelay {
 				a.c.Log.WithFields(logrus.Fields{
-					"time left": a.c.RebootstrapDelay - seconds,
-				}).Info("Trust Bundle and Server dont agree.... Ignoring for now.")
+					"time_left": a.c.RebootstrapDelay - seconds,
+				}).Info("Trust Bundle and Server don't agree, ignoring for now")
 			} else {
-				a.c.Log.Info("Trust Bundle and Server dont agree.... rebootstrapping")
+				a.c.Log.Info("Trust Bundle and Server don't agree, rebootstrapping")
 				err = a.c.TrustBundleSources.SetForceRebootstrap()
 				if err != nil {
 					return nil, err
@@ -467,7 +576,11 @@ func (a *Agent) newEndpoints(metrics telemetry.Metrics, mgr manager.Manager, att
 		DisableSPIFFECertValidation:   a.c.DisableSPIFFECertValidation,
 		AllowUnauthenticatedVerifiers: a.c.AllowUnauthenticatedVerifiers,
 		AllowedForeignJWTClaims:       a.c.AllowedForeignJWTClaims,
+		LogSelectors:                  a.c.LogSelectors,
 		TrustDomain:                   a.c.TrustDomain,
+		DisableWorkloadAPI:            a.c.DisableWorkloadAPI,
+		DisableSDSAPI:                 a.c.DisableSDSAPI,
+		WorkloadAPIRateLimit:          a.c.WorkloadAPIRateLimit,
 	})
 }
 
@@ -476,6 +589,7 @@ func (a *Agent) newAdminEndpoints(metrics telemetry.Metrics, mgr manager.Manager
 		BindAddr:            a.c.AdminBindAddress,
 		Manager:             mgr,
 		Log:                 a.c.Log,
+		RootLog:             a.c.Log,
 		Metrics:             metrics,
 		TrustDomain:         a.c.TrustDomain,
 		Uptime:              uptime.Uptime,
@@ -488,6 +602,14 @@ func (a *Agent) newAdminEndpoints(metrics telemetry.Metrics, mgr manager.Manager
 
 // CheckHealth is used as a top-level health check for the agent.
 func (a *Agent) CheckHealth() health.State {
+	if a.c.BindAddress == nil {
+		return health.State{
+			Started: &a.started,
+			Ready:   a.started,
+			Live:    true,
+		}
+	}
+
 	err := a.checkWorkloadAPI()
 
 	// Both liveness and readiness checks are done by
@@ -524,6 +646,27 @@ func (a *Agent) checkWorkloadAPI() error {
 
 type agentHealthDetails struct {
 	WorkloadAPIErr string `json:"make_new_x509_err,omitempty"`
+}
+
+// liveAgentSVIDSource adapts the agent manager into an x509svid.Source that
+// always reflects the manager's currently rotated agent SVID. Without this,
+// passing the bootstrap AttestationResult directly would freeze the listener
+// on the bootstrap cert until it expires.
+type liveAgentSVIDSource struct {
+	m manager.Manager
+}
+
+func (s liveAgentSVIDSource) GetX509SVID() (*x509svid.SVID, error) {
+	state := s.m.GetCurrentCredentials()
+	id, err := x509svid.IDFromCert(state.SVID[0])
+	if err != nil {
+		return nil, err
+	}
+	return &x509svid.SVID{
+		ID:           id,
+		Certificates: state.SVID,
+		PrivateKey:   state.Key,
+	}, nil
 }
 
 func errString(suppress bool, err error) string {

@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"crypto/tls"
+
 	"github.com/hashicorp/hcl"
 	"github.com/hashicorp/hcl/hcl/ast"
 	"github.com/sirupsen/logrus"
@@ -16,6 +18,8 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/log"
+	"github.com/spiffe/spire/pkg/common/telemetry"
+	"github.com/spiffe/spire/pkg/common/tlspolicy"
 	"github.com/spiffe/spire/pkg/server"
 	bundleClient "github.com/spiffe/spire/pkg/server/bundle/client"
 	"github.com/spiffe/spire/pkg/server/credtemplate"
@@ -64,6 +68,7 @@ func TestParseConfigGood(t *testing.T) {
 	_, ok := trustDomainConfig.EndpointProfile.(bundleClient.HTTPSWebProfile)
 	assert.True(t, ok)
 	assert.True(t, c.Server.AuditLogEnabled)
+	assert.Equal(t, []string{"10.0.0.0/8", "172.16.0.0/12"}, c.Server.ProxyProtocolTrustedCIDRs)
 	assert.True(t, c.Server.Experimental.RequirePQKEM)
 	testParseConfigGoodOS(t, c)
 
@@ -261,6 +266,16 @@ func TestMergeInput(t *testing.T) {
 			cliFlags: []string{},
 			test: func(t *testing.T, c *Config) {
 				require.Equal(t, "ISSUER", c.Server.JWTIssuer)
+			},
+		},
+		{
+			msg: "wit_issuer should be configurable by file",
+			fileInput: func(c *Config) {
+				c.Server.Experimental.WITIssuer = "WIT_ISSUER"
+			},
+			cliFlags: []string{},
+			test: func(t *testing.T, c *Config) {
+				require.Equal(t, "WIT_ISSUER", c.Server.Experimental.WITIssuer)
 			},
 		},
 		{
@@ -467,6 +482,16 @@ func TestMergeInput(t *testing.T) {
 			},
 		},
 		{
+			msg: "proxy_protocol_trusted_cidrs should be configurable by file",
+			fileInput: func(c *Config) {
+				c.Server.ProxyProtocolTrustedCIDRs = []string{"10.0.0.0/8"}
+			},
+			cliFlags: []string{},
+			test: func(t *testing.T, c *Config) {
+				require.Equal(t, []string{"10.0.0.0/8"}, c.Server.ProxyProtocolTrustedCIDRs)
+			},
+		},
+		{
 			msg: "require_pq_kem should be configurable by file",
 			fileInput: func(c *Config) {
 				c.Server.Experimental.RequirePQKEM = true
@@ -512,6 +537,25 @@ func TestNewServerConfig(t *testing.T) {
 	}
 
 	cases := []newServerConfigCase{
+		{
+			msg: "prune_attested_nodes_batch_size should be correctly parsed",
+			input: func(c *Config) {
+				c.Server.PruneAttestedNodesExpiredFor = "1h"
+				c.Server.PruneAttestedNodesBatchSize = 5000
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Equal(t, 5000, c.PruneAttestedNodesBatchSize)
+			},
+		},
+		{
+			msg: "prune_attested_nodes_batch_size is left unset for the datastore to default",
+			input: func(c *Config) {
+				c.Server.PruneAttestedNodesExpiredFor = "1h"
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Equal(t, 0, c.PruneAttestedNodesBatchSize)
+			},
+		},
 		{
 			msg: "bind_address and bind_port should be correctly parsed",
 			input: func(c *Config) {
@@ -623,6 +667,15 @@ func TestNewServerConfig(t *testing.T) {
 			},
 		},
 		{
+			msg: "wit_issuer is correctly configured",
+			input: func(c *Config) {
+				c.Server.Experimental.WITIssuer = "WIT_ISSUER"
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Equal(t, "WIT_ISSUER", c.WITIssuer)
+			},
+		},
+		{
 			msg: "logger gets set correctly",
 			input: func(c *Config) {
 				c.Server.LogLevel = "WARN"
@@ -681,6 +734,16 @@ func TestNewServerConfig(t *testing.T) {
 					},
 				}
 			},
+			logOptions: assertLogsContainEntries([]spiretest.LogEntry{
+				{
+					Level:   logrus.WarnLevel,
+					Message: "Bundle endpoint is configured but has no profile set, using https_spiffe as default; please configure a profile explicitly. This will be fatal in a future release.",
+					Data: logrus.Fields{
+						telemetry.Alert:     "true",
+						telemetry.AlertType: telemetry.DeprecatedConfigAlertType,
+					},
+				},
+			}),
 			test: func(t *testing.T, c *server.Config) {
 				require.Equal(t, "192.168.1.1", c.Federation.BundleEndpoint.Address.IP.String())
 				require.Equal(t, 1337, c.Federation.BundleEndpoint.Address.Port)
@@ -698,6 +761,27 @@ func TestNewServerConfig(t *testing.T) {
 							Email:        "mail@example.org",
 							ToSAccepted:  true,
 						},
+					},
+				}
+			},
+			logOptions: func(t *testing.T) []log.Option {
+				return []log.Option{
+					func(logger *log.Logger) error {
+						logger.SetOutput(io.Discard)
+						hook := test.NewLocal(logger.Logger)
+						t.Cleanup(func() {
+							spiretest.AssertLogsContainEntries(t, hook.AllEntries(), []spiretest.LogEntry{
+								{
+									Level:   logrus.WarnLevel,
+									Message: "ACME configuration within the bundle_endpoint is deprecated. Please use ACME configuration as part of the https_web profile instead.",
+									Data: logrus.Fields{
+										telemetry.Alert:     "true",
+										telemetry.AlertType: telemetry.DeprecatedConfigAlertType,
+									},
+								},
+							})
+						})
+						return nil
 					},
 				}
 			},
@@ -1187,6 +1271,27 @@ func TestNewServerConfig(t *testing.T) {
 			input: func(c *Config) {
 				c.Server.Experimental.SQLTransactionTimeout = "1m"
 			},
+			logOptions: func(t *testing.T) []log.Option {
+				return []log.Option{
+					func(logger *log.Logger) error {
+						logger.SetOutput(io.Discard)
+						hook := test.NewLocal(logger.Logger)
+						t.Cleanup(func() {
+							spiretest.AssertLogsContainEntries(t, hook.AllEntries(), []spiretest.LogEntry{
+								{
+									Level:   logrus.WarnLevel,
+									Message: "experimental.sql_transaction_timeout is deprecated, use experimental.event_timeout instead",
+									Data: logrus.Fields{
+										telemetry.Alert:     "true",
+										telemetry.AlertType: telemetry.DeprecatedConfigAlertType,
+									},
+								},
+							})
+						})
+						return nil
+					},
+				}
+			},
 			test: func(t *testing.T, c *server.Config) {
 				require.Equal(t, time.Minute, c.EventTimeout)
 			},
@@ -1216,6 +1321,24 @@ func TestNewServerConfig(t *testing.T) {
 			},
 			test: func(t *testing.T, c *server.Config) {
 				require.False(t, c.AuditLogEnabled)
+			},
+		},
+		{
+			msg: "proxy_protocol_trusted_cidrs is set",
+			input: func(c *Config) {
+				c.Server.ProxyProtocolTrustedCIDRs = []string{"10.0.0.0/8", "172.16.0.0/12"}
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Equal(t, []string{"10.0.0.0/8", "172.16.0.0/12"}, c.ProxyProtocolTrustedCIDRs)
+			},
+		},
+		{
+			msg: "proxy_protocol_trusted_cidrs is empty",
+			input: func(c *Config) {
+				c.Server.ProxyProtocolTrustedCIDRs = nil
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Empty(t, c.ProxyProtocolTrustedCIDRs)
 			},
 		},
 		{
@@ -1263,6 +1386,32 @@ func TestNewServerConfig(t *testing.T) {
 				require.Equal(t, true, c.TLSPolicy.RequirePQKEM)
 			},
 		},
+		{
+			msg:   "TLS config is omitted by default",
+			input: func(c *Config) {},
+			test: func(t *testing.T, c *server.Config) {
+				require.Nil(t, c.TLSPolicy.TLSCfg)
+			},
+		},
+		{
+			msg: "TLS config is configured",
+			input: func(c *Config) {
+				c.Server.TLSConfig = &tlspolicy.TLSConfig{
+					MinTLSVersion:    "VersionTLS13",
+					CipherSuites:     []string{"TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"},
+					CurvePreferences: []string{"X25519", "secp256r1"},
+				}
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.NotNil(t, c.TLSPolicy.TLSCfg)
+				require.Equal(t, uint16(tls.VersionTLS13), c.TLSPolicy.TLSCfg.MinTLSVersion)
+				require.Nil(t, c.TLSPolicy.TLSCfg.CipherSuites)
+				require.Equal(t, []tls.CurveID{
+					tls.X25519,
+					tls.CurveP256,
+				}, c.TLSPolicy.TLSCfg.CurvePreferences)
+			},
+		},
 	}
 	cases = append(cases, newServerConfigCasesOS(t)...)
 
@@ -1287,6 +1436,53 @@ func TestNewServerConfig(t *testing.T) {
 			testCase.test(t, sc)
 		})
 	}
+}
+
+func TestParseTLSConfigFromHCL(t *testing.T) {
+	const configString = `
+server {
+    bind_address = "0.0.0.0"
+    bind_port = "8081"
+    trust_domain = "example.org"
+    data_dir = "."
+    log_level = "INFO"
+    tls_config {
+        min_tls_version = "VersionTLS13"
+        cipher_suites = [
+            "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
+            "TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384",
+        ]
+        curve_preferences = [
+            "X25519MLKEM768",
+            "X25519",
+            "secp256r1",
+        ]
+    }
+    experimental {
+        require_pq_kem = true
+    }
+}
+plugins {}
+`
+	c := &Config{}
+	require.NoError(t, hcl.Decode(c, configString))
+
+	require.NotNil(t, c.Server.TLSConfig)
+	require.Equal(t, "VersionTLS13", c.Server.TLSConfig.MinTLSVersion)
+	require.Equal(t, []string{
+		"TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
+		"TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384",
+	}, c.Server.TLSConfig.CipherSuites)
+	require.Equal(t, []string{"X25519MLKEM768", "X25519", "secp256r1"}, c.Server.TLSConfig.CurvePreferences)
+	require.True(t, c.Server.Experimental.RequirePQKEM)
+
+	sc, err := NewServerConfig(c, nil, false)
+	require.NoError(t, err)
+	require.True(t, sc.TLSPolicy.RequirePQKEM)
+	require.NotNil(t, sc.TLSPolicy.TLSCfg)
+	require.Equal(t, uint16(tls.VersionTLS13), sc.TLSPolicy.TLSCfg.MinTLSVersion)
+	require.Nil(t, sc.TLSPolicy.TLSCfg.CipherSuites)
+	require.Equal(t, []tls.CurveID{tls.X25519MLKEM768, tls.X25519, tls.CurveP256}, sc.TLSPolicy.TLSCfg.CurvePreferences)
 }
 
 // defaultValidConfig returns the bare minimum config required to

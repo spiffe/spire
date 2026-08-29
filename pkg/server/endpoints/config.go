@@ -99,6 +99,11 @@ type Config struct {
 
 	AuditLogEnabled bool
 
+	// ProxyProtocolTrustedCIDRs is a list of trusted CIDRs for PROXY protocol.
+	// When non-empty, PROXY protocol is enabled and only connections from
+	// these CIDRs are allowed to send PROXY headers.
+	ProxyProtocolTrustedCIDRs []string
+
 	// AdminIDs are a list of fixed IDs that when presented by a caller in an
 	// X509-SVID, are granted admin rights.
 	AdminIDs []spiffeid.ID
@@ -110,6 +115,8 @@ type Config struct {
 	TLSPolicy tlspolicy.Policy
 
 	MaxAttestedNodeInfoStaleness time.Duration
+
+	AgentSpiffeIdAsSelector bool
 }
 
 func (c *Config) maybeMakeBundleEndpointServer() (Server, func(context.Context) error) {
@@ -153,6 +160,7 @@ func (c *Config) maybeMakeBundleEndpointServer() (Server, func(context.Context) 
 		}),
 		RefreshHint: c.BundleEndpoint.RefreshHint,
 		ServerAuth:  serverAuth,
+		TLSPolicy:   c.TLSPolicy,
 	}), certificateReloadTask
 }
 
@@ -162,11 +170,12 @@ func (c *Config) makeAPIServers(entryFetcher api.AuthorizedEntryFetcher) APIServ
 
 	return APIServers{
 		AgentServer: agentv1.New(agentv1.Config{
-			DataStore:   ds,
-			ServerCA:    c.ServerCA,
-			TrustDomain: c.TrustDomain,
-			Catalog:     c.Catalog,
-			Clock:       c.Clock,
+			DataStore:               ds,
+			ServerCA:                c.ServerCA,
+			TrustDomain:             c.TrustDomain,
+			Catalog:                 c.Catalog,
+			Clock:                   c.Clock,
+			AgentSpiffeIdAsSelector: c.AgentSpiffeIdAsSelector,
 		}),
 		BundleServer: bundlev1.New(bundlev1.Config{
 			TrustDomain:       c.TrustDomain,

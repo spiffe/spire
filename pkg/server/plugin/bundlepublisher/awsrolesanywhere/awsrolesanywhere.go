@@ -98,12 +98,10 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to create client: %v", err)
 	}
-	p.rolesAnywhereClient = rolesAnywhere
-
-	p.configMtx.Lock()
-	defer p.configMtx.Unlock()
-	p.config = newConfig
-
+	// Store the config and client together under one lock so that
+	// PublishBundle always observes a matching pair, even when Configure
+	// runs concurrently as a result of a dynamic reconfiguration.
+	p.setConfig(newConfig, rolesAnywhere)
 	p.setBundle(nil)
 	return &configv1.ConfigureResponse{}, nil
 }
@@ -120,7 +118,7 @@ func (p *Plugin) Validate(ctx context.Context, req *configv1.ValidateRequest) (*
 // PublishBundle puts the bundle in the Roles Anywhere trust anchor, with
 // the configured id.
 func (p *Plugin) PublishBundle(ctx context.Context, req *bundlepublisherv1.PublishBundleRequest) (*bundlepublisherv1.PublishBundleResponse, error) {
-	config, err := p.getConfig()
+	config, rolesAnywhereClient, err := p.getConfig()
 	if err != nil {
 		return nil, err
 	}
@@ -158,7 +156,7 @@ func (p *Plugin) PublishBundle(ctx context.Context, req *bundlepublisherv1.Publi
 			},
 		},
 	}
-	updateTrustAnchorOutput, err := p.rolesAnywhereClient.UpdateTrustAnchor(ctx, &updateTrustAnchorInput)
+	updateTrustAnchorOutput, err := rolesAnywhereClient.UpdateTrustAnchor(ctx, &updateTrustAnchorInput)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to update trust anchor: %v", err)
 	}
@@ -172,21 +170,33 @@ func (p *Plugin) PublishBundle(ctx context.Context, req *bundlepublisherv1.Publi
 
 // getBundle gets the latest bundle that the plugin has.
 func (p *Plugin) getBundle() *types.Bundle {
-	p.configMtx.RLock()
-	defer p.configMtx.RUnlock()
+	p.bundleMtx.RLock()
+	defer p.bundleMtx.RUnlock()
 
 	return p.bundle
 }
 
-// getConfig gets the configuration of the plugin.
-func (p *Plugin) getConfig() (*Config, error) {
+// getConfig gets the configuration of the plugin along with the client
+// created for it. Both are returned together so callers always observe a
+// matching pair.
+func (p *Plugin) getConfig() (*Config, rolesAnywhere, error) {
 	p.configMtx.RLock()
 	defer p.configMtx.RUnlock()
 
 	if p.config == nil {
-		return nil, status.Error(codes.FailedPrecondition, "not configured")
+		return nil, nil, status.Error(codes.FailedPrecondition, "not configured")
 	}
-	return p.config, nil
+	return p.config, p.rolesAnywhereClient, nil
+}
+
+// setConfig sets the configuration for the plugin along with the client
+// created for it, updating both atomically under one lock.
+func (p *Plugin) setConfig(config *Config, client rolesAnywhere) {
+	p.configMtx.Lock()
+	defer p.configMtx.Unlock()
+
+	p.config = config
+	p.rolesAnywhereClient = client
 }
 
 // setBundle updates the current bundle in the plugin with the provided bundle.

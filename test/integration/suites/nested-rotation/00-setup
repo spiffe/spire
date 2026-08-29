@@ -30,4 +30,4 @@ mkdir -p -m 777 shared/intermediateB/data
 # leafB certificates
 "${ROOTDIR}/setup/x509pop/setup.sh" leafB/server leafB/agent
 
-docker build --target nested-agent-alpine -t nested-agent-alpine .
+retry docker build --target nested-agent-alpine -t nested-agent-alpine .

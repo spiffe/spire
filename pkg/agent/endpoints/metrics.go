@@ -22,6 +22,8 @@ type connectionMetrics struct {
 	metrics                   telemetry.Metrics
 	workloadAPIConns          int32
 	sdsAPIConns               int32
+	debugAPIConns             int32
+	loggerAPIConns            int32
 	delegatedIdentityAPIConns int32
 }
 
@@ -37,6 +39,12 @@ func (m *connectionMetrics) Preprocess(ctx context.Context, _ string, _ any) (co
 		case middleware.DelegatedIdentityServiceName:
 			adminapi.IncrDelegatedIdentityAPIConnectionCounter(m.metrics)
 			adminapi.SetDelegatedIdentityAPIConnectionGauge(m.metrics, atomic.AddInt32(&m.delegatedIdentityAPIConns, 1))
+		case middleware.DebugServiceName:
+			adminapi.IncrDebugAPIConnectionCounter(m.metrics)
+			adminapi.SetDebugAPIConnectionGauge(m.metrics, atomic.AddInt32(&m.debugAPIConns, 1))
+		case middleware.AgentLoggerServiceName:
+			adminapi.IncrLoggerAPIConnectionCounter(m.metrics)
+			adminapi.SetLoggerAPIConnectionGauge(m.metrics, atomic.AddInt32(&m.loggerAPIConns, 1))
 		case middleware.HealthServiceName, middleware.ServerReflectionServiceName, middleware.ServerReflectionV1AlphaServiceName:
 			// Intentionally not emitting metrics for health and reflection services
 		default:
@@ -55,6 +63,10 @@ func (m *connectionMetrics) Postprocess(ctx context.Context, _ string, _ bool, _
 			sdsAPITelemetry.SetSDSAPIConnectionTotalGauge(m.metrics, atomic.AddInt32(&m.sdsAPIConns, -1))
 		case middleware.DelegatedIdentityServiceName:
 			adminapi.SetDelegatedIdentityAPIConnectionGauge(m.metrics, atomic.AddInt32(&m.delegatedIdentityAPIConns, -1))
+		case middleware.DebugServiceName:
+			adminapi.SetDebugAPIConnectionGauge(m.metrics, atomic.AddInt32(&m.debugAPIConns, -1))
+		case middleware.AgentLoggerServiceName:
+			adminapi.SetLoggerAPIConnectionGauge(m.metrics, atomic.AddInt32(&m.loggerAPIConns, -1))
 		case middleware.HealthServiceName, middleware.ServerReflectionServiceName, middleware.ServerReflectionV1AlphaServiceName:
 			// Intentionally not emitting metrics for health and reflection services
 		default:

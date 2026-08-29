@@ -4,6 +4,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor"
 	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor/docker"
 	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor/k8s"
+	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor/slurm"
 	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor/systemd"
 	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor/unix"
 	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor/windows"
@@ -30,6 +31,7 @@ func (repo *workloadAttestorRepository) BuiltIns() []catalog.BuiltIn {
 	return []catalog.BuiltIn{
 		docker.BuiltIn(),
 		k8s.BuiltIn(),
+		slurm.BuiltIn(),
 		systemd.BuiltIn(),
 		unix.BuiltIn(),
 		windows.BuiltIn(),
@@ -38,5 +40,5 @@ func (repo *workloadAttestorRepository) BuiltIns() []catalog.BuiltIn {
 
 type workloadAttestorV1 struct{}
 
-func (workloadAttestorV1) New() catalog.Facade { return new(workloadattestor.V1) }
-func (workloadAttestorV1) Deprecated() bool    { return false }
+func (workloadAttestorV1) New() catalog.Facade        { return new(workloadattestor.V1) }
+func (workloadAttestorV1) Deprecated() (bool, string) { return false, "" }

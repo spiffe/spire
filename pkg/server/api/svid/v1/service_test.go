@@ -1134,8 +1134,20 @@ func TestServiceNewJWTSVID(t *testing.T) {
 		ParentId: api.ProtoFromID(agentID),
 		SpiffeId: &types.SPIFFEID{},
 	}
+	entryJTIDisabled := &types.Entry{
+		Id:                   "agent-entry-jti-disabled",
+		ParentId:             api.ProtoFromID(agentID),
+		SpiffeId:             &types.SPIFFEID{TrustDomain: "example.org", Path: "/agent-jti-disabled"},
+		AdditionalAttributes: &types.Entry_AdditionalAttributes{JwtSvidIncludeJti: false},
+	}
+	entryJTIEnabled := &types.Entry{
+		Id:                   "agent-entry-jti-enabled",
+		ParentId:             api.ProtoFromID(agentID),
+		SpiffeId:             &types.SPIFFEID{TrustDomain: "example.org", Path: "/agent-jti-enabled"},
+		AdditionalAttributes: &types.Entry_AdditionalAttributes{JwtSvidIncludeJti: true},
+	}
 
-	test.ef.entries = []*types.Entry{entry, entryWithTTL, entryWithJWTTTL, invalidEntry}
+	test.ef.entries = []*types.Entry{entry, entryWithTTL, entryWithJWTTTL, invalidEntry, entryJTIDisabled, entryJTIEnabled}
 	now := test.ca.Clock().Now().UTC()
 
 	issuedAt := now
@@ -1153,6 +1165,7 @@ func TestServiceNewJWTSVID(t *testing.T) {
 		failCallerID    bool
 		audience        []string
 		rateLimiterErr  error
+		expectJTI       bool
 		expectLogs      []spiretest.LogEntry
 	}{
 		{
@@ -1408,6 +1421,69 @@ func TestServiceNewJWTSVID(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:      "success without additional attributes does not include jti",
+			audience:  []string{"AUDIENCE"},
+			entry:     entry,
+			expiresAt: expiresAt,
+			expectJTI: false,
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:         "success",
+						telemetry.Type:           "audit",
+						telemetry.Audience:       "AUDIENCE",
+						telemetry.RegistrationID: "agent-entry-id",
+						telemetry.SPIFFEID:       "spiffe://example.org/agent",
+						telemetry.TTL:            "0",
+					},
+				},
+			},
+		},
+		{
+			name:      "success with jwtSvidIncludeJti false does not include jti",
+			audience:  []string{"AUDIENCE"},
+			entry:     entryJTIDisabled,
+			expiresAt: expiresAt,
+			expectJTI: false,
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:         "success",
+						telemetry.Type:           "audit",
+						telemetry.Audience:       "AUDIENCE",
+						telemetry.RegistrationID: "agent-entry-jti-disabled",
+						telemetry.SPIFFEID:       "spiffe://example.org/agent-jti-disabled",
+						telemetry.TTL:            "0",
+					},
+				},
+			},
+		},
+		{
+			name:      "success with jwtSvidIncludeJti true includes jti",
+			audience:  []string{"AUDIENCE"},
+			entry:     entryJTIEnabled,
+			expiresAt: expiresAt,
+			expectJTI: true,
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:         "success",
+						telemetry.Type:           "audit",
+						telemetry.Audience:       "AUDIENCE",
+						telemetry.RegistrationID: "agent-entry-jti-enabled",
+						telemetry.SPIFFEID:       "spiffe://example.org/agent-jti-enabled",
+						telemetry.TTL:            "0",
+					},
+				},
+			},
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			test.logHook.Reset()
@@ -1415,6 +1491,8 @@ func TestServiceNewJWTSVID(t *testing.T) {
 			test.ca.SetDisableJWTSVIDs(tt.disableJWTSVIDs)
 			if tt.failMinting {
 				test.ca.SetError(errors.New("oh no"))
+			} else {
+				test.ca.SetError(nil)
 			}
 
 			test.rateLimiter.count = 1
@@ -1446,6 +1524,16 @@ func TestServiceNewJWTSVID(t *testing.T) {
 				tt.expiresAt,
 				expiresAt,
 				time.Duration(tt.entry.X509SvidTtl)*time.Second)
+
+			parsed, err := jwt.ParseSigned(resp.Svid.Token, jwtsvid.AllowedSignatureAlgorithms)
+			require.NoError(t, err)
+			var jtiClaims jwt.Claims
+			require.NoError(t, parsed.UnsafeClaimsWithoutVerification(&jtiClaims))
+			if tt.expectJTI {
+				require.NotEmpty(t, jtiClaims.ID, "expected jti claim to be present")
+			} else {
+				require.Empty(t, jtiClaims.ID, "expected no jti claim")
+			}
 		})
 	}
 }
@@ -2136,7 +2224,7 @@ func TestServiceBatchNewX509SVID(t *testing.T) {
 	}
 }
 
-func BatchNewWITSVID(t *testing.T) {
+func TestServiceBatchNewWITSVID(t *testing.T) {
 	test := setupServiceTest(t)
 	defer test.Cleanup()
 
@@ -2162,8 +2250,8 @@ func BatchNewWITSVID(t *testing.T) {
 	expiresAtFromCA := now.Add(test.ca.WITSVIDTTL()).Unix()
 	expiresAtFromCAStr := strconv.FormatInt(expiresAtFromCA, 10)
 
-	_, invalidCsrErr := x509.ParseCertificateRequest([]byte{1, 2, 3})
-	require.Error(t, invalidCsrErr)
+	_, invalidPublicKeyErr := x509.ParsePKIXPublicKey([]byte{1, 2, 3})
+	require.Error(t, invalidPublicKeyErr)
 
 	type expectResult struct {
 		entry  *types.Entry
@@ -2199,7 +2287,7 @@ func BatchNewWITSVID(t *testing.T) {
 					Data: logrus.Fields{
 						telemetry.Status:         "success",
 						telemetry.Type:           "audit",
-						telemetry.RegistrationID: "workload",
+						telemetry.RegistrationID: "workload1",
 						telemetry.ExpiresAt:      expiresAtFromCAStr,
 						telemetry.SPIFFEID:       "spiffe://example.org/workload1",
 					},
@@ -2248,7 +2336,7 @@ func BatchNewWITSVID(t *testing.T) {
 					Data: logrus.Fields{
 						telemetry.Status:         "error",
 						telemetry.Type:           "audit",
-						telemetry.RegistrationID: "",
+						telemetry.RegistrationID: "invalid",
 						telemetry.StatusCode:     "Internal",
 						telemetry.StatusMessage:  "entry has malformed SPIFFE ID: trust domain is missing",
 						telemetry.SPIFFEID:       "",
@@ -2272,19 +2360,31 @@ func BatchNewWITSVID(t *testing.T) {
 			signingAlgorithm: "ES123",
 			expectResults: []*expectResult{
 				{
-					entry: workloadEntry1,
+					status: &types.Status{
+						Code:    int32(codes.InvalidArgument),
+						Message: "invalid signing algorithm or key type: unsupported signing algorithm for ec-p256 key: ES123",
+					},
 				},
 			},
 			expectLogs: []spiretest.LogEntry{
 				{
+					Level:   logrus.ErrorLevel,
+					Message: "Invalid argument: invalid signing algorithm or key type",
+					Data: logrus.Fields{
+						telemetry.RegistrationID: "workload1",
+						logrus.ErrorKey:          "unsupported signing algorithm for ec-p256 key: ES123",
+					},
+				},
+				{
 					Level:   logrus.InfoLevel,
 					Message: "API accessed",
 					Data: logrus.Fields{
-						telemetry.Status:         "success",
+						telemetry.Status:         "error",
 						telemetry.Type:           "audit",
-						telemetry.RegistrationID: "workload",
-						telemetry.ExpiresAt:      expiresAtFromCAStr,
-						telemetry.SPIFFEID:       "spiffe://example.org/workload1",
+						telemetry.RegistrationID: "workload1",
+						telemetry.StatusCode:     "InvalidArgument",
+						telemetry.StatusMessage:  "invalid signing algorithm or key type: unsupported signing algorithm for ec-p256 key: ES123",
+						telemetry.SPIFFEID:       "",
 					},
 				},
 			},
@@ -2427,7 +2527,7 @@ func BatchNewWITSVID(t *testing.T) {
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Invalid argument: missing CSR",
+					Message: "Invalid argument: missing public key",
 				},
 				{
 					Level:   logrus.InfoLevel,
@@ -2435,9 +2535,9 @@ func BatchNewWITSVID(t *testing.T) {
 					Data: logrus.Fields{
 						telemetry.Status:         "error",
 						telemetry.Type:           "audit",
-						telemetry.RegistrationID: "workload",
+						telemetry.RegistrationID: "workload1",
 						telemetry.StatusCode:     "InvalidArgument",
-						telemetry.StatusMessage:  "missing CSR",
+						telemetry.StatusMessage:  "missing public key",
 						telemetry.SPIFFEID:       "",
 					},
 				},
@@ -2481,7 +2581,7 @@ func BatchNewWITSVID(t *testing.T) {
 				{
 					status: &types.Status{
 						Code:    int32(codes.InvalidArgument),
-						Message: "malformed CSR: asn1:",
+						Message: "malformed public key: asn1:",
 					},
 				},
 			},
@@ -2491,10 +2591,10 @@ func BatchNewWITSVID(t *testing.T) {
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Invalid argument: malformed CSR",
+					Message: "Invalid argument: malformed public key",
 					Data: logrus.Fields{
-						telemetry.RegistrationID: "workload",
-						logrus.ErrorKey:          invalidCsrErr.Error(),
+						telemetry.RegistrationID: "workload1",
+						logrus.ErrorKey:          invalidPublicKeyErr.Error(),
 					},
 				},
 				{
@@ -2503,9 +2603,9 @@ func BatchNewWITSVID(t *testing.T) {
 					Data: logrus.Fields{
 						telemetry.Status:         "error",
 						telemetry.Type:           "audit",
-						telemetry.RegistrationID: "workload",
+						telemetry.RegistrationID: "workload1",
 						telemetry.StatusCode:     "InvalidArgument",
-						telemetry.StatusMessage:  fmt.Sprintf("malformed CSR: %v", invalidCsrErr),
+						telemetry.StatusMessage:  fmt.Sprintf("malformed public key: %v", invalidPublicKeyErr),
 						telemetry.SPIFFEID:       "",
 					},
 				},
@@ -2560,7 +2660,7 @@ func BatchNewWITSVID(t *testing.T) {
 					Level:   logrus.ErrorLevel,
 					Message: "Failed to sign WIT-SVID",
 					Data: logrus.Fields{
-						telemetry.RegistrationID: "workload",
+						telemetry.RegistrationID: "workload1",
 						logrus.ErrorKey:          "oh no",
 						telemetry.SPIFFEID:       workloadID.String(),
 					},
@@ -2571,7 +2671,7 @@ func BatchNewWITSVID(t *testing.T) {
 					Data: logrus.Fields{
 						telemetry.Status:         "error",
 						telemetry.Type:           "audit",
-						telemetry.RegistrationID: "workload",
+						telemetry.RegistrationID: "workload1",
 						telemetry.StatusCode:     "Internal",
 						telemetry.StatusMessage:  "failed to sign WIT-SVID: oh no",
 						telemetry.SPIFFEID:       "",
@@ -2602,7 +2702,7 @@ func BatchNewWITSVID(t *testing.T) {
 			var params []*svidv1.NewWITSVIDParams
 			for _, entryID := range tt.reqs {
 				key := testkey.MustEC256()
-				keyDer, err := key.PublicKey.Bytes()
+				keyDer, err := x509.MarshalPKIXPublicKey(key.Public())
 				require.NoError(t, err)
 
 				params = append(params, &svidv1.NewWITSVIDParams{
@@ -2644,20 +2744,14 @@ func BatchNewWITSVID(t *testing.T) {
 
 				require.NotNil(t, result.Svid)
 
+				svid := result.Svid
 				entry := expect.entry
 
-				require.Equal(t, entry.SpiffeId.TrustDomain, result.Svid.Id.TrustDomain)
-				require.Equal(t, entry.SpiffeId.Path, result.Svid.Id.Path)
-
-				svid := result.Svid
-
-				entrySPIFFEID := idutil.RequireIDFromProto(entry.SpiffeId)
-				require.Equal(t, []*url.URL{entrySPIFFEID.URL()}, svid.Id)
-
-				expiresAt := now.Add(test.ca.WITSVIDTTL())
-
-				require.Equal(t, expiresAt, svid.ExpiresAt)
-				require.Equal(t, expiresAt.UTC().Unix(), result.Svid.ExpiresAt)
+				require.Equal(t, entry.SpiffeId.TrustDomain, svid.Id.TrustDomain)
+				require.Equal(t, entry.SpiffeId.Path, svid.Id.Path)
+				require.NotEmpty(t, svid.Token)
+				require.Equal(t, now.Unix(), svid.IssuedAt)
+				require.Equal(t, expiresAtFromCA, svid.ExpiresAt)
 			}
 		})
 	}

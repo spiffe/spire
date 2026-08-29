@@ -1,0 +1,33 @@
+#!/bin/bash
+
+set -e
+
+source init-kubectl
+
+log-info "Test: restricted-broker (PID-only allowlist) is denied for object reference"
+
+./bin/kubectl -nspire exec -t restricted-broker -- /brokerclient \
+    -ref-type object \
+    -plural pods -group core \
+    -namespace spire -name target-pod \
+    -expect-err PermissionDenied \
+    || fail-now "restricted-broker did not get PermissionDenied for object reference"
+
+log-success "restricted-broker rejected with PermissionDenied as expected"
+
+log-info "Test: restricted-broker IS still allowed to use PID reference"
+
+TARGET_PID=$(./bin/kubectl -nspire exec -t restricted-broker -- sh -c \
+    "ps -ef | grep '[s]pire-agent api watch' | awk '{print \$1}' | head -n1")
+
+if [ -z "${TARGET_PID}" ]; then
+    fail-now "could not resolve target-pod PID from restricted-broker"
+fi
+
+./bin/kubectl -nspire exec -t restricted-broker -- /brokerclient \
+    -ref-type pid \
+    -pid "${TARGET_PID}" \
+    -expected-spiffe spiffe://example.org/target-pod \
+    || fail-now "restricted-broker failed PID reference within its allowlist"
+
+log-success "restricted-broker successfully used the reference type within its allowlist"

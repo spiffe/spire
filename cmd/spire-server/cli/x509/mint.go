@@ -184,24 +184,20 @@ type mintResult struct {
 }
 
 func (c *mintCommand) prettyPrintMint(env *commoncli.Env, results ...any) error {
-	if resultInterface, ok := results[0].([]any); ok {
-		result, ok := resultInterface[0].(*mintResult)
-		if !ok {
-			return errors.New("unexpected type")
-		}
-
-		svidPEM, keyPEM, bundlePEM := convertSVIDResultToPEM(result.PrivateKey, result.X509SVID, result.RootCAs)
-
-		if err := env.Printf("X509-SVID:\n%s\n", svidPEM.String()); err != nil {
-			return err
-		}
-		if err := env.Printf("Private key:\n%s\n", keyPEM.String()); err != nil {
-			return err
-		}
-		return env.Printf("Root CAs:\n%s\n", bundlePEM.String())
+	result, ok := results[0].(*mintResult)
+	if !ok {
+		return errors.New("unexpected type")
 	}
 
-	return cliprinter.ErrInternalCustomPrettyFunc
+	svidPEM, keyPEM, bundlePEM := convertSVIDResultToPEM(result.PrivateKey, result.X509SVID, result.RootCAs)
+
+	if err := env.Printf("X509-SVID:\n%s\n", svidPEM.String()); err != nil {
+		return err
+	}
+	if err := env.Printf("Private key:\n%s\n", keyPEM.String()); err != nil {
+		return err
+	}
+	return env.Printf("Root CAs:\n%s\n", bundlePEM.String())
 }
 
 func convertSVIDResultToPEM(privateKey []byte, svidCertChain, rootCAs [][]byte) (*bytes.Buffer, *bytes.Buffer, *bytes.Buffer) {

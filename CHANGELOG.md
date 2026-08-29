@@ -1,5 +1,169 @@
 # Changelog
 
+## [1.15.3] - 2026-08-21
+
+### Added
+
+- Slurm workload attestor (#7160)
+- `azure_blob` BundlePublisher plugin for publishing the trust bundle to Azure Blob Storage (#7030)
+- `trust_bundle_spiffe_workload_api` agent configuration option to fetch the initial trust bundle from a Workload API endpoint, simplifying nested agent deployments (#7148)
+- `disable_workload_api` and `disable_sds_api` agent options to disable the Workload API and SDS APIs on the public endpoint (#7122)
+- `disable_kubelet_client` option for the `k8s` workload attestor (#7142)
+- `use_pod_uid_for_agent_id` option in the `k8s_psat` node attestor to derive agent IDs from pod UIDs instead of node UIDs (#7123)
+- Opt-in `enable_namespace_labels` option in the `k8s` workload attestor, producing `ns-label` selectors from namespace labels (#7094)
+- `account_list_file` option in the `aws_iid` node attestor to source the `verify_organization` account list from a file instead of the AWS Organizations API (#7092)
+- `debug getinfo` command in the `spire-server` and `spire-agent` CLIs to access the Debug APIs (#7133)
+- Incremental WIT-SVID work, including support for building WIT-SVIDs in the `svid.v1` API client and marshalling support for WIT-SVID keys (#7132, #7134)
+
+### Changed
+
+- The Broker API endpoint is now included in health checks when enabled (#7141)
+- Improved coordination of kubelet pod list fetching in the `k8s` workload attestor, reducing attestation latency and redundant kubelet requests (#7085)
+- The `gcp_kms` Key Manager plugin no longer requires `key_identifier_value` to be 36 characters long (#7140)
+- The agent now warns when the `memory` Key Manager is used with a node attestor that does not support re-attestation (#7139)
+- Reworded the OIDC Discovery Provider `allow_insecure_scheme` warning to describe the actual safety condition instead of implying development-only use (#7165)
+- Updated AWS CA certificates in the `aws_iid` node attestor (#7138)
+- Updated Go to 1.26.6 (#7188, #7212)
+
+### Fixed
+
+- The events-based cache now fetches events ordered by ID, preventing spurious skipped-event tracking and unnecessary event lookups at startup (#7189)
+- Agent telemetry sinks now start before node attestation, so metrics are served while the agent is still attesting (#7166)
+- The agent and server no longer log a crash message and exit with a non-zero status when shut down during startup (#7154)
+- The `hashicorp_vault` Key Manager plugin no longer triggers unrecognized parameter warnings in Vault and OpenBao audit logs (#7150)
+- The example Grafana dashboard no longer includes empty query targets that caused panel query errors (#7178)
+
+## [1.15.2] - 2026-07-09
+
+### Added
+
+- Support for configuring JTI claim inclusion in JWT-SVIDs at entry level (#6514)
+- Experimental per-caller rate limiting for the agent Workload API and Envoy SDS (#6724)
+- TLS support for the Prometheus metrics endpoint using a SPIRE SVID, with an optional SPIFFE ID allowlist (#6812)
+- Optional verification of client certificate IPs in the `x509pop` node attestor (#6911)
+- SPIFFE Broker endpoint, API, and documentation (#6915, #7112)
+- `disable_group_name_selectors` option for the Windows workload attestor (#6957)
+- `log_selectors` configuration item for the agent (#6981)
+- Support for two additional PQC curves (#6999)
+- Tag-based key discovery support in the `aws_kms` Key Manager plugin (#7006)
+- Logger service for `spire-agent` (#7017)
+- Configurable batch size for pruning attested nodes (#7100)
+
+### Security
+
+- Migrated `github.com/docker/docker` dependencies to their `github.com/moby/moby` equivalents to resolve CVEs (#7078)
+
+### Changed
+
+- Deprecation warnings now use dedicated log markers, making them easier to detect in logs (#6908)
+- The OIDC Discovery Provider now warns when `allow_insecure_scheme` is enabled (#6970)
+- The post-quantum cryptography policy is now applied to the bundle endpoint and Prometheus server (#6995)
+- Attested nodes are now fetched in bulk, reducing database load in large deployments (#7022)
+- Agent health check loopback calls no longer emit RPC metrics, reducing metrics noise (#6929)
+- Pod and container IDs are now preferably determined from the cgroup file (#7060)
+- Optimized the MySQL list entries query to reduce database CPU usage under load (#7113)
+- Added AWS CA certificates for new regions to the `aws_iid` node attestor (#6879)
+- Documented `URISanSelectors` for the agent SPIFFE ID template (#6872)
+- Datastore configuration documentation updates (#7023)
+
+### Fixed
+
+- `azure_imds` node attestation for standalone VMs (#6807)
+- `azure_imds` plugin signature validation (#6960)
+- The auto-created join-token alias entry is now cascade-deleted when its attested node is deleted, evicted, or pruned (#6946)
+- The CA journal now survives transient datastore save failures, preserving CA continuity (#6964)
+- The delegated API no longer serves JWT-SVIDs for admin or downstream entries (#6972)
+- The event cache now keeps previous first/last event information when reloading (#6994)
+- The structured logger is now used for rebootstrap messages, and typos were fixed (#7000)
+- The `spire` upstream authority plugin now validates a missing Workload API endpoint (#7008)
+- The `gcp_kms` plugin no longer intermittently fails to retrieve a newly created public key (#6924)
+- Tolerate `mountinfo` lines with an empty mount source (#7044)
+- The agent now treats failure of all attestation plugins as an overall failure and returns `Unavailable` (#7045)
+- Fixed the `http_challenge` agent name validation regex (#7066)
+- Corrected TTL logging in the delegated identity X.509-SVID subscriber (#7071)
+- `spire-agent` now attempts to enable `SE_DEBUG_PRIVILEGE` at startup on Windows (#7073)
+- Data races in the built-in BundlePublisher plugins on dynamic reconfiguration (#7082)
+
+## [1.15.1] - 2026-05-28
+
+### Security
+
+- Fixed an issue in the `azure_imds` server node attestor plugin where attested document validation anchored the first certificate in the PKCS7 certificate bag to the trusted Azure roots, while the signature was verified against a separate signer certificate resolved from the PKCS7 SignerInfo. An attacker could place a legitimate Azure metadata certificate in the bag alongside content signed by an unrelated certificate and have a forged attested document accepted, impersonating an arbitrary virtual machine during node attestation. Thank you Carlo Teubner for reporting this issue.
+
+### Changed
+
+- Updated `golang.org/x/net` to v0.55.0 and `golang.org/x/crypto` to v0.52.0.
+
+## [1.15.0] - 2026-05-19
+
+### Added
+
+- New `account_id` selector for `aws_iid` nodeattestor (#6697)
+- TLS support for the prometheus metrics sink (#6718)
+- Support for specifying that X509-SVIDs for a registration entry should not be prefetched (#6360)
+- The docker workload attestor now supports rootless Podman (#6798)
+- PROXY protocol support for rate limiting behind load balancers (#6819)
+- Support for the agent to fetch the X509-SVID for SPIFFE attestation mode from the Workload API socket (#6884)
+- `iss` claim support for WIT-SVIDs (#6857)
+- Instance flag support for `spire-server` and `spire-agent` CLI (#6789)
+- Experimental, optional `spiffe_id` node selector to help aliasing individual nodes (#6865)
+- HashiCorp Vault Key Manager plugin (#6889)
+
+### Changed
+
+- A metric label was renamed from 'bootstraped' to 'bootstrapped' (#6503)
+- Updated cosign to the v3 major release (#6493)
+- Authorized entry lookup with events based cache should now be as fast as without the events based cache (#6645)
+- `spire-agent api fetch x509` returns bundles in sorted alphabetic order by trust domain (#6784)
+- The `k8s_psat` node attestor includes the cluster in the attestation failure logs (#6785)
+- Azure sdk libraries have been updated to more recent major versions. (#6494)
+- The `sigstore` support in k8s and docker attestors was promoted out of experimental (#6901, #6906)
+- The `spire-agent` WorkloadAPI server now specifies a read buffer size which may improve memory usage with large number of connections (#6875)
+- Stop wrapping objects in slices when printing (#6655)
+  > :rotating_light: **_This is a potentially breaking change if you make use of the JSON output of the CLI_** :rotating_light:
+- Documented image selector limitations for k8s workload attestor (#6930)
+- `gcp_iit` node attestor will now use service account email from identity token so it no longer depends on `use_instance_metadata` being true (#6869)
+- Upgraded Go to 1.26.3 (#6947)
+- Various testing, linter errors and improvements (#6891, #6836, #6864, #6788, #6847, #6809, #6830, #6831, #6746, #6777, #6745, #6776, #6782, #6744, #6734, #6756, #6752, #6740, #6738)
+
+### Fixed
+
+- Potential nil panic in the `spire` upstream authority plugin (#6773)
+- Nil panic in the `azure_imds` plugin for instances without a Network Security Group attached (#6795)
+- `azure_key_vault` key manager plugin now supports Azure Managed HSM (#6751)
+- Connections to the agent Debug service would lead to "unrecognized service" errors in logs (#6878)
+- An issue in the `aws_kms` plugin which would revert rotated aliases (#6805)
+
+## [1.14.7] - 2026-05-28
+
+### Security
+
+- Fixed an issue in the `azure_imds` server node attestor plugin where attested document validation anchored the first certificate in the PKCS7 certificate bag to the trusted Azure roots, while the signature was verified against a separate signer certificate resolved from the PKCS7 SignerInfo. An attacker could place a legitimate Azure metadata certificate in the bag alongside content signed by an unrelated certificate and have a forged attested document accepted, impersonating an arbitrary virtual machine during node attestation. Thank you Carlo Teubner for reporting this issue.
+
+### Changed
+
+- Updated the Go toolchain to 1.26.3.
+- Updated `golang.org/x/net` to v0.55.0, `golang.org/x/crypto` to v0.52.0, and `github.com/go-jose/go-jose/v4` to v4.1.4.
+
+## [1.14.6] - 2026-04-27
+
+### Security
+
+- Fixed an issue in the `aws_iid` server node attestor plugin where the RSA-2048 PKCS7 attestation path verified the PKCS7 signature against its embedded content but returned the identity document parsed from a separate, attacker-controlled field of the attestation data. An attacker who controlled any EC2 instance could impersonate any other EC2 instance during node attestation, with all downstream attestation decisions operating on the forged identity. Thank you Tianshuo Han for reporting this issue.
+- Fixed a TOCTOU issue in the join token data store path where concurrent attestations using the same token could each succeed because `tx.Delete()` did not report when no row was deleted. The fix uses a read-modify-write transaction with row locking and verifies that exactly one row was deleted. Thank you Tianshuo Han for reporting this issue.
+
+## [1.14.5] - 2026-04-08
+
+### Security
+
+- Upgrade Go to 1.26.2 to address CVE-2026-32282, CVE-2026-32289, CVE-2026-33810, CVE-2026-27144, CVE-2026-27143, CVE-2026-32288, CVE-2026-32283, CVE-2026-27140, CVE-2026-32281
+
+## [1.14.4] - 2026-03-19
+
+### Fixed
+
+- The version that the agent was reporting at startup would get replaced by an empty string every time the agent re-attests or re-news it's SVID (#6763)
+
 ## [1.14.3] - 2026-03-18
 
 ### Added

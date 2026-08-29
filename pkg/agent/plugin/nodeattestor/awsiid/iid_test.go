@@ -30,8 +30,8 @@ import (
 )
 
 const (
-	apiTokenPath                 = "/latest/api/token"   //nolint: gosec // false positive
-	staticToken                  = "It's just some data" //nolint: gosec // false positive
+	apiTokenPath                 = "/latest/api/token"
+	staticToken                  = "It's just some data"
 	defaultIdentityDocumentPath  = "/latest/dynamic/instance-identity/document"
 	identitySignatureRSA1024Path = "/latest/dynamic/instance-identity/signature"
 	identitySignatureRSA2048Path = "/latest/dynamic/instance-identity/rsa2048"

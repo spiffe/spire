@@ -29,8 +29,8 @@ func TestWithMetrics(t *testing.T) {
 	methodNames := make(map[string]struct{})
 	wv := reflect.ValueOf(w)
 	wt := reflect.TypeOf(w)
-	for i := range wt.NumMethod() {
-		methodNames[wt.Method(i).Name] = struct{}{}
+	for method := range wt.Methods() {
+		methodNames[method.Name] = struct{}{}
 	}
 
 	for _, tt := range []struct {
@@ -58,10 +58,6 @@ func TestWithMetrics(t *testing.T) {
 			methodName: "CreateAttestedNode",
 		},
 		{
-			key:        "datastore.node_event.create",
-			methodName: "CreateAttestedNodeEventForTesting",
-		},
-		{
 			key:        "datastore.bundle.create",
 			methodName: "CreateBundle",
 		},
@@ -82,16 +78,8 @@ func TestWithMetrics(t *testing.T) {
 			methodName: "CreateOrReturnRegistrationEntry",
 		},
 		{
-			key:        "datastore.registration_entry_event.create",
-			methodName: "CreateRegistrationEntryEventForTesting",
-		},
-		{
 			key:        "datastore.node.delete",
 			methodName: "DeleteAttestedNode",
-		},
-		{
-			key:        "datastore.node_event.delete",
-			methodName: "DeleteAttestedNodeEventForTesting",
 		},
 		{
 			key:        "datastore.bundle.delete",
@@ -110,12 +98,12 @@ func TestWithMetrics(t *testing.T) {
 			methodName: "DeleteRegistrationEntry",
 		},
 		{
-			key:        "datastore.registration_entry_event.delete",
-			methodName: "DeleteRegistrationEntryEventForTesting",
+			key:        "datastore.node.fetch",
+			methodName: "FetchAttestedNode",
 		},
 		{
 			key:        "datastore.node.fetch",
-			methodName: "FetchAttestedNode",
+			methodName: "FetchAttestedNodes",
 		},
 		{
 			key:        "datastore.node_event.fetch",
@@ -253,10 +241,6 @@ func TestWithMetrics(t *testing.T) {
 			key:        "datastore.ca_journal.prune",
 			methodName: "PruneCAJournals",
 		},
-		{
-			key:        "datastore.ca_journal.list",
-			methodName: "ListCAJournalsForTesting",
-		},
 	} {
 		methodType, ok := wt.MethodByName(tt.methodName)
 		require.True(t, ok, "method %q does not exist on DataStore interface", tt.methodName)
@@ -356,10 +340,6 @@ func (ds *fakeDataStore) CreateAttestedNode(context.Context, *common.AttestedNod
 	return &common.AttestedNode{}, ds.err
 }
 
-func (ds *fakeDataStore) CreateAttestedNodeEventForTesting(context.Context, *datastore.AttestedNodeEvent) error {
-	return ds.err
-}
-
 func (ds *fakeDataStore) CreateBundle(context.Context, *common.Bundle) (*common.Bundle, error) {
 	return &common.Bundle{}, ds.err
 }
@@ -384,19 +364,11 @@ func (ds *fakeDataStore) CreateOrReturnRegistrationEntry(context.Context, *commo
 	return &common.RegistrationEntry{}, true, ds.err
 }
 
-func (ds *fakeDataStore) CreateRegistrationEntryEventForTesting(context.Context, *datastore.RegistrationEntryEvent) error {
-	return ds.err
-}
-
 func (ds *fakeDataStore) DeleteAttestedNode(context.Context, string) (*common.AttestedNode, error) {
 	return &common.AttestedNode{}, ds.err
 }
 
-func (ds *fakeDataStore) PruneAttestedExpiredNodes(context.Context, time.Time, bool) error {
-	return ds.err
-}
-
-func (ds *fakeDataStore) DeleteAttestedNodeEventForTesting(context.Context, uint) error {
+func (ds *fakeDataStore) PruneAttestedExpiredNodes(context.Context, time.Time, bool, int) error {
 	return ds.err
 }
 
@@ -416,12 +388,12 @@ func (ds *fakeDataStore) DeleteRegistrationEntry(context.Context, string) (*comm
 	return &common.RegistrationEntry{}, ds.err
 }
 
-func (ds *fakeDataStore) DeleteRegistrationEntryEventForTesting(context.Context, uint) error {
-	return ds.err
-}
-
 func (ds *fakeDataStore) FetchAttestedNode(context.Context, string) (*common.AttestedNode, error) {
 	return &common.AttestedNode{}, ds.err
+}
+
+func (ds *fakeDataStore) FetchAttestedNodes(context.Context, []string) (map[string]*common.AttestedNode, error) {
+	return map[string]*common.AttestedNode{}, ds.err
 }
 
 func (ds *fakeDataStore) FetchAttestedNodeEvent(context.Context, uint) (*datastore.AttestedNodeEvent, error) {
@@ -546,10 +518,6 @@ func (ds *fakeDataStore) SetCAJournal(context.Context, *datastore.CAJournal) (*d
 
 func (ds *fakeDataStore) FetchCAJournal(context.Context, string) (*datastore.CAJournal, error) {
 	return &datastore.CAJournal{}, ds.err
-}
-
-func (ds *fakeDataStore) ListCAJournalsForTesting(context.Context) ([]*datastore.CAJournal, error) {
-	return []*datastore.CAJournal{}, ds.err
 }
 
 func (ds *fakeDataStore) PruneCAJournals(context.Context, int64) error {

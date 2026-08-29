@@ -10,13 +10,13 @@ import (
 	"fmt"
 	"math/big"
 	"path"
+	"slices"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
-	"github.com/Azure/azure-sdk-for-go/sdk/keyvault/azkeys"
+	"github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azkeys"
 	"github.com/andres-erbsen/clock"
 	"github.com/spiffe/spire/test/testkey"
 	"google.golang.org/grpc/codes"
@@ -110,6 +110,7 @@ func (k *kmsClientFake) setCreateKeyErr(fakeError string) {
 		k.createKeyErr = errors.New(fakeError)
 	}
 }
+
 func (k *kmsClientFake) setGetKeyErr(fakeError string) {
 	k.mu.Lock()
 	defer k.mu.Unlock()
@@ -170,16 +171,16 @@ func (k *kmsClientFake) CreateKey(_ context.Context, keyName string, parameters 
 	keyOperations := getKeyOperations()
 	kmsKeyID := path.Join(k.vaultURI, keyName)
 	switch {
-	case *parameters.Kty == azkeys.JSONWebKeyTypeEC && *parameters.Curve == azkeys.JSONWebKeyCurveNameP256:
+	case *parameters.Kty == azkeys.KeyTypeEC && *parameters.Curve == azkeys.CurveNameP256:
 		privateKey = k.store.ec256Key
 		publicKey = toECKey(privateKey.Public(), kmsKeyID, *parameters.Curve, keyOperations)
-	case *parameters.Kty == azkeys.JSONWebKeyTypeEC && *parameters.Curve == azkeys.JSONWebKeyCurveNameP384:
+	case *parameters.Kty == azkeys.KeyTypeEC && *parameters.Curve == azkeys.CurveNameP384:
 		privateKey = k.store.ec384Key
 		publicKey = toECKey(privateKey.Public(), kmsKeyID, *parameters.Curve, keyOperations)
-	case *parameters.Kty == azkeys.JSONWebKeyTypeRSA && *parameters.KeySize == 2048:
+	case *parameters.Kty == azkeys.KeyTypeRSA && *parameters.KeySize == 2048:
 		privateKey = k.store.rsa2048Key
 		publicKey = toRSAKey(privateKey.Public(), kmsKeyID, keyOperations)
-	case *parameters.Kty == azkeys.JSONWebKeyTypeRSA && *parameters.KeySize == 4096:
+	case *parameters.Kty == azkeys.KeyTypeRSA && *parameters.KeySize == 4096:
 		privateKey = k.store.rsa4096Key
 		publicKey = toRSAKey(privateKey.Public(), kmsKeyID, keyOperations)
 	default:
@@ -187,14 +188,14 @@ func (k *kmsClientFake) CreateKey(_ context.Context, keyName string, parameters 
 	}
 
 	keyAttr := &azkeys.KeyAttributes{
-		Enabled: to.Ptr(true),
-		Created: to.Ptr(time.Now()),
-		Updated: to.Ptr(time.Now()),
+		Enabled: new(true),
+		Created: new(time.Now()),
+		Updated: new(time.Now()),
 	}
 
 	tags := make(map[string]*string)
-	tags[tagNameServerTrustDomain] = to.Ptr(k.trustDomain)
-	tags[tagNameServerID] = to.Ptr(k.serverID)
+	tags[tagNameServerTrustDomain] = new(k.trustDomain)
+	tags[tagNameServerID] = new(k.serverID)
 
 	keyBundle := &azkeys.KeyBundle{
 		Attributes: keyAttr,
@@ -224,12 +225,12 @@ func (k *kmsClientFake) DeleteKey(_ context.Context, name string, _ *azkeys.Dele
 
 	k.store.DeleteKeyEntry(keyEntry.KeyBundle.Key.KID.Name())
 
-	deletedKeyBundle := azkeys.DeletedKeyBundle{
+	deletedKey := azkeys.DeletedKey{
 		Attributes: keyEntry.KeyBundle.Attributes,
 		Key:        keyEntry.KeyBundle.Key,
 	}
 
-	return azkeys.DeleteKeyResponse{DeletedKeyBundle: deletedKeyBundle}, nil
+	return azkeys.DeleteKeyResponse{DeletedKey: deletedKey}, nil
 }
 
 func (k *kmsClientFake) UpdateKey(_ context.Context, name, _ string, _ azkeys.UpdateKeyParameters, _ *azkeys.UpdateKeyOptions) (azkeys.UpdateKeyResponse, error) {
@@ -243,7 +244,7 @@ func (k *kmsClientFake) UpdateKey(_ context.Context, name, _ string, _ azkeys.Up
 		return azkeys.UpdateKeyResponse{}, err
 	}
 
-	keyEntry.KeyBundle.Attributes.Updated = to.Ptr(k.store.clk.Now())
+	keyEntry.KeyBundle.Attributes.Updated = new(k.store.clk.Now())
 	k.store.SaveKeyEntry(keyEntry)
 
 	keyBundle := &azkeys.KeyBundle{
@@ -273,30 +274,30 @@ func (k *kmsClientFake) GetKey(_ context.Context, keyName, _ string, _ *azkeys.G
 	return azkeys.GetKeyResponse{KeyBundle: *keyBundle}, err
 }
 
-func (k *kmsClientFake) NewListKeysPager(_ *azkeys.ListKeysOptions) *runtime.Pager[azkeys.ListKeysResponse] {
+func (k *kmsClientFake) NewListKeyPropertiesPager(_ *azkeys.ListKeyPropertiesOptions) *runtime.Pager[azkeys.ListKeyPropertiesResponse] {
 	k.mu.RLock()
 	defer k.mu.RUnlock()
 
-	var listResp []*azkeys.KeyItem
+	var listResp []*azkeys.KeyProperties
 	for _, keyEntry := range k.store.fetchKeyEntries() {
-		listResp = append(listResp, &azkeys.KeyItem{
+		listResp = append(listResp, &azkeys.KeyProperties{
 			Attributes: keyEntry.KeyBundle.Attributes,
 			KID:        keyEntry.KeyBundle.Key.KID,
 			Tags:       keyEntry.KeyBundle.Tags,
 		})
 	}
 
-	return runtime.NewPager(runtime.PagingHandler[azkeys.ListKeysResponse]{
-		More: func(page azkeys.ListKeysResponse) bool {
+	return runtime.NewPager(runtime.PagingHandler[azkeys.ListKeyPropertiesResponse]{
+		More: func(page azkeys.ListKeyPropertiesResponse) bool {
 			return page.NextLink != nil && len(*page.NextLink) > 0
 		},
-		Fetcher: func(ctx context.Context, page *azkeys.ListKeysResponse) (azkeys.ListKeysResponse, error) {
+		Fetcher: func(ctx context.Context, page *azkeys.ListKeyPropertiesResponse) (azkeys.ListKeyPropertiesResponse, error) {
 			if k.listKeysErr != nil {
-				return azkeys.ListKeysResponse{}, k.listKeysErr
+				return azkeys.ListKeyPropertiesResponse{}, k.listKeysErr
 			}
 
-			return azkeys.ListKeysResponse{
-				KeyListResult: azkeys.KeyListResult{
+			return azkeys.ListKeyPropertiesResponse{
+				KeyPropertiesListResult: azkeys.KeyPropertiesListResult{
 					NextLink: nil,
 					Value:    listResp,
 				},
@@ -354,23 +355,23 @@ func (k *kmsClientFake) Sign(_ context.Context, keyName, _ string, parameters az
 
 	var signature []byte
 	switch *parameters.Algorithm {
-	case azkeys.JSONWebKeySignatureAlgorithmPS256:
+	case azkeys.SignatureAlgorithmPS256:
 		signature, err = signRSA(&rsa.PSSOptions{Hash: crypto.SHA256, SaltLength: rsa.PSSSaltLengthEqualsHash})
-	case azkeys.JSONWebKeySignatureAlgorithmPS384:
+	case azkeys.SignatureAlgorithmPS384:
 		signature, err = signRSA(&rsa.PSSOptions{Hash: crypto.SHA384, SaltLength: rsa.PSSSaltLengthEqualsHash})
-	case azkeys.JSONWebKeySignatureAlgorithmPS512:
+	case azkeys.SignatureAlgorithmPS512:
 		signature, err = signRSA(&rsa.PSSOptions{Hash: crypto.SHA512, SaltLength: rsa.PSSSaltLengthEqualsHash})
-	case azkeys.JSONWebKeySignatureAlgorithmRS256:
+	case azkeys.SignatureAlgorithmRS256:
 		signature, err = signRSA(crypto.SHA256)
-	case azkeys.JSONWebKeySignatureAlgorithmRS384:
+	case azkeys.SignatureAlgorithmRS384:
 		signature, err = signRSA(crypto.SHA384)
-	case azkeys.JSONWebKeySignatureAlgorithmRS512:
+	case azkeys.SignatureAlgorithmRS512:
 		signature, err = signRSA(crypto.SHA512)
-	case azkeys.JSONWebKeySignatureAlgorithmES256:
+	case azkeys.SignatureAlgorithmES256:
 		signature, err = signECDSA()
-	case azkeys.JSONWebKeySignatureAlgorithmES384:
+	case azkeys.SignatureAlgorithmES384:
 		signature, err = signECDSA()
-	case azkeys.JSONWebKeySignatureAlgorithmES512:
+	case azkeys.SignatureAlgorithmES512:
 		signature, err = signECDSA()
 	default:
 		return azkeys.SignResponse{}, status.Errorf(codes.InvalidArgument, "unsupported signing algorithm: %s", *parameters.Algorithm)
@@ -383,30 +384,46 @@ func (k *kmsClientFake) Sign(_ context.Context, keyName, _ string, parameters az
 	}}, nil
 }
 
-func toRSAKey(publicKey crypto.PublicKey, kmsKeyID string, keyOperations []*string) *azkeys.JSONWebKey {
+func toRSAKey(publicKey crypto.PublicKey, kmsKeyID string, keyOperations []*azkeys.KeyOperation) *azkeys.JSONWebKey {
 	rsaKey := publicKey.(*rsa.PublicKey)
-	var s = big.NewInt(int64(rsaKey.E))
-	var e = s.Bytes()
+	s := big.NewInt(int64(rsaKey.E))
+	e := s.Bytes()
 	key := &azkeys.JSONWebKey{
 		N:      rsaKey.N.Bytes(),
 		E:      e,
-		KID:    to.Ptr(azkeys.ID(kmsKeyID)),
+		KID:    new(azkeys.ID(kmsKeyID)),
 		KeyOps: keyOperations,
-		Kty:    to.Ptr(azkeys.JSONWebKeyTypeRSA),
+		Kty:    new(azkeys.KeyTypeRSA),
 	}
 	return key
 }
 
-func toECKey(publicKey crypto.PublicKey, keyName string, curveName azkeys.JSONWebKeyCurveName, keyOperations []*string) *azkeys.JSONWebKey {
+func toECKey(publicKey crypto.PublicKey, keyName string, curveName azkeys.CurveName, keyOperations []*azkeys.KeyOperation) *azkeys.JSONWebKey {
 	ecdsaKey := publicKey.(*ecdsa.PublicKey)
+	encodedPoint, err := ecdsaKey.Bytes()
+	if err != nil {
+		panic(fmt.Sprintf("invalid ECDSA public key: %v", err))
+	}
+	if encodedPoint[0] != 0x04 {
+		panic(fmt.Sprintf(
+			"invalid ECDSA public key: public key byte 0 = %#x != 0x04", encodedPoint[0]))
+	}
+	// ecdsa.PublicKey.Bytes returns an uncompressed point encoded per SEC 1
+	// v2.0 Section 2.3.3: 0x04 || X || Y.
+	// Here, X and Y are encoded as defined in Section 2.3.5 of SEC 1.
+	// JWK EC "x" and "y" are defined by RFC 7518 to use that same Section
+	// 2.3.5 encoding.
+	// Therefore, accessing encodedPoint sub-slices below is correct.
+	// Note that accessing ecdsaKey.X and ecdsaKey.Y would also work, but is
+	// deprecated.
+	coordinateLength := (len(encodedPoint) - 1) / 2
 	key := &azkeys.JSONWebKey{
-		Crv: to.Ptr(curveName),
-		//D:      ecdsaKey.D.Bytes(),
-		KID:    to.Ptr(azkeys.ID(keyName)),
+		Crv:    new(curveName),
+		KID:    new(azkeys.ID(keyName)),
 		KeyOps: keyOperations,
-		Kty:    to.Ptr(azkeys.JSONWebKeyTypeEC),
-		X:      ecdsaKey.X.Bytes(),
-		Y:      ecdsaKey.Y.Bytes(),
+		Kty:    new(azkeys.KeyTypeEC),
+		X:      slices.Clone(encodedPoint[1 : 1+coordinateLength]),
+		Y:      slices.Clone(encodedPoint[1+coordinateLength:]),
 	}
 	return key
 }
@@ -436,6 +453,6 @@ func (fs *fakeStore) fetchKeyEntries() []fakeKeyEntry {
 	return keyEntries
 }
 
-func getKeyOperations() []*string {
-	return []*string{to.Ptr("Sign"), to.Ptr("Verify")}
+func getKeyOperations() []*azkeys.KeyOperation {
+	return []*azkeys.KeyOperation{new(azkeys.KeyOperationSign), new(azkeys.KeyOperationVerify)}
 }

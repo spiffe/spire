@@ -14,6 +14,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/cliprinter"
 	"github.com/spiffe/spire/pkg/common/util"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/protobuf/proto"
 )
 
 // NewUpdateCommand creates a new "update" subcommand for "entry" command.
@@ -67,8 +68,23 @@ type updateCommand struct {
 	// storeSVID determines if the issued SVID must be stored through an SVIDStore plugin
 	storeSVID bool
 
+	// disableX509SVIDPrefetch tells the agent not to prefetch and cache X509 SVID for
+	// the given entry
+	disableX509SVIDPrefetch    bool
+	disableX509SVIDPrefetchSet bool
+
 	// Entry hint, used to disambiguate entries with the same SPIFFE ID
 	hint string
+
+	// jwtSVIDIncludeJTI, when true, causes JWT-SVIDs issued for this entry to
+	// include a unique "jti" claim and bypass the agent-side JWT-SVID cache.
+	jwtSVIDIncludeJTI    bool
+	jwtSVIDIncludeJTISet bool
+
+	// additionalAttributesSet is true when any AdditionalAttributes flag was
+	// supplied on the command line. It gates whether the existing entry must
+	// be fetched to preserve the attributes the user did not specify.
+	additionalAttributesSet bool
 
 	printer cliprinter.Printer
 
@@ -98,6 +114,20 @@ func (c *updateCommand) AppendFlags(f *flag.FlagSet) {
 	f.Int64Var(&c.entryExpiry, "entryExpiry", 0, "An expiry, from epoch in seconds, for the resulting registration entry to be pruned")
 	f.Var(&c.dnsNames, "dns", "A DNS name that will be included in SVIDs issued based on this entry, where appropriate. Can be used more than once")
 	f.StringVar(&c.hint, "hint", "", "The entry hint, used to disambiguate entries with the same SPIFFE ID")
+	f.BoolFunc("disableX509SVIDPrefetch", "A boolean value that, when set, disables prefetching X509 SVID for this entry",
+		func(_ string) error {
+			c.disableX509SVIDPrefetchSet = true
+			c.disableX509SVIDPrefetch = true
+			c.additionalAttributesSet = true
+			return nil
+		})
+	f.BoolFunc("jwtSVIDIncludeJTI", "A boolean value that, when set, includes a unique 'jti' claim in JWT-SVIDs issued for this entry and bypasses the agent JWT-SVID cache",
+		func(_ string) error {
+			c.jwtSVIDIncludeJTISet = true
+			c.jwtSVIDIncludeJTI = true
+			c.additionalAttributesSet = true
+			return nil
+		})
 	cliprinter.AppendFlagWithCustomPretty(&c.printer, f, c.env, prettyPrintUpdate)
 }
 
@@ -117,12 +147,48 @@ func (c *updateCommand) Run(ctx context.Context, _ *commoncli.Env, serverClient 
 		return err
 	}
 
-	resp, err := updateEntries(ctx, serverClient.NewEntryClient(), entries)
+	client := serverClient.NewEntryClient()
+
+	// When any AdditionalAttributes flag is supplied via command-line (i.e. not
+	// -data), fetch the existing entry to preserve the attributes the user did
+	// not specify. The protobuf AdditionalAttributes message has no per-field
+	// mask, so without this merge step a partial CLI update would clobber the
+	// unspecified attributes with their zero values.
+	if c.path == "" && c.additionalAttributesSet {
+		existing, err := client.GetEntry(ctx, &entryv1.GetEntryRequest{Id: c.entryID})
+		if err != nil {
+			return fmt.Errorf("failed to fetch existing entry to merge additional attributes: %w", err)
+		}
+		mergeAdditionalAttributes(entries[0], existing, c.disableX509SVIDPrefetchSet, c.jwtSVIDIncludeJTISet)
+	}
+
+	resp, err := updateEntries(ctx, client, entries)
 	if err != nil {
 		return err
 	}
 
 	return c.printer.PrintProto(resp)
+}
+
+// mergeAdditionalAttributes preserves existing AdditionalAttributes by cloning
+// them first and then overriding only the fields explicitly set on the command
+// line. A nil existing.AdditionalAttributes is treated as zero.
+func mergeAdditionalAttributes(e, existing *types.Entry, disablePrefetchSet, includeJTISet bool) {
+	requestedAttrs := e.GetAdditionalAttributes()
+	existingAttrs := existing.GetAdditionalAttributes()
+
+	if existingAttrs != nil {
+		e.AdditionalAttributes = proto.Clone(existingAttrs).(*types.Entry_AdditionalAttributes)
+	} else if e.AdditionalAttributes == nil {
+		e.AdditionalAttributes = &types.Entry_AdditionalAttributes{}
+	}
+
+	if disablePrefetchSet {
+		e.AdditionalAttributes.DisableX509SvidPrefetch = requestedAttrs.GetDisableX509SvidPrefetch()
+	}
+	if includeJTISet {
+		e.AdditionalAttributes.JwtSvidIncludeJti = requestedAttrs.GetJwtSvidIncludeJti()
+	}
 }
 
 // validate performs basic validation, even on fields that we
@@ -204,6 +270,14 @@ func (c *updateCommand) parseConfig() ([]*types.Entry, error) {
 	}
 
 	e.Selectors = selectors
+
+	if c.disableX509SVIDPrefetchSet || c.jwtSVIDIncludeJTISet {
+		e.AdditionalAttributes = &types.Entry_AdditionalAttributes{
+			DisableX509SvidPrefetch: c.disableX509SVIDPrefetch,
+			JwtSvidIncludeJti:       c.jwtSVIDIncludeJTI,
+		}
+	}
+
 	e.FederatesWith = c.federatesWith
 	e.Admin = c.admin
 	e.StoreSvid = c.storeSVID
