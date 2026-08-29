@@ -254,7 +254,13 @@ type CertifyVendorAttribute struct {
 }
 
 // caX509Extension is the OpenSSL-style extension string for a KMIP-signed CA certificate.
-// This is passed as the "x509-extension" vendor attribute on Eviden KMS Certify requests.
+//
+// KMIP's standard Certify request does not provide a portable way to set arbitrary
+// X.509 extensions such as basicConstraints: the KMIP CertificateAttributes cover
+// subject/issuer fields but not the critical extensions a CA certificate requires.
+// Eviden KMS therefore accepts these extensions via the "x509-extension" vendor
+// attribute (VendorIdentification="cosmian"), which is required to mark the signed
+// certificate as a CA (basicConstraints CA:TRUE).
 // Note: cRLSign is omitted — Eviden KMS FIPS mode does not support it.
 var caX509Extension = []byte("[v3_ca]\nbasicConstraints=critical,CA:TRUE,pathlen:0\n" +
 	"keyUsage=critical,keyCertSign,digitalSignature\n")

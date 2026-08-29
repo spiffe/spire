@@ -17,19 +17,26 @@ log-info "verifying SPIRE server health..."
 ./bin/kubectl -n spire exec deployment/spire-server -- \
   /opt/spire/bin/spire-server healthcheck
 
-# ── Verify the UpstreamAuthority signed the intermediate CA ──────────────────
-# If SPIRE is healthy with an UpstreamAuthority, the CA was signed by KMS.
-# Confirm by generating a join token which requires the CA to be active.
-log-info "generating join token (exercises kmip UpstreamAuthority)..."
-TOKEN=$(./bin/kubectl -n spire exec deployment/spire-server -- \
-  /opt/spire/bin/spire-server token generate \
-    -spiffeID "spiffe://example.org/test-agent" \
-  | awk '/Token:/{print $2}')
+# ── Verify the UpstreamAuthority signed the intermediate CA via KMS ───────────
+# Mint an X.509-SVID and verify its chain terminates at the pre-provisioned KMS
+# root CA. This exercises the full UpstreamAuthority path (CSR → KMS Certify →
+# returned chain), unlike a join token which only writes to the datastore.
+log-info "minting an X.509-SVID to verify the upstream trust chain..."
+MINT_OUT=$(./bin/kubectl -n spire exec deployment/spire-server -- \
+  /opt/spire/bin/spire-server x509 mint \
+    -spiffeID "spiffe://example.org/test-workload")
 
-if [ -z "${TOKEN}" ]; then
-  fail-now "Token generation failed — UpstreamAuthority did not sign the intermediate CA"
+# Extract the root CA from the bundle ("Root CAs:" section) and check its CN.
+ROOT_CN=$(printf '%s\n' "${MINT_OUT}" \
+  | sed -n '/Root CAs:/,/^$/p' \
+  | sed -n '/-----BEGIN CERTIFICATE-----/,/-----END CERTIFICATE-----/p' \
+  | openssl x509 -noout -subject \
+  | sed -n 's/.*CN *= *//p')
+
+if [[ "${ROOT_CN}" != *"SPIRE Upstream CA"* ]]; then
+  fail-now "upstream root CA is not the KMS-provisioned root (got CN='${ROOT_CN}')"
 fi
 
-log-info "join token generated: ${TOKEN:0:8}... — UpstreamAuthority signed the CA via KMS Certify"
-log-info "SUCCESS: SPIRE UpstreamAuthority 'kmip' is operational with KMIP server"
+log-info "SVID chain verified against the KMS root CA (CN='${ROOT_CN}')"
+log-info "SUCCESS: SPIRE UpstreamAuthority 'kmip' signed the CA via KMS Certify"
 export SUCCESS=1
