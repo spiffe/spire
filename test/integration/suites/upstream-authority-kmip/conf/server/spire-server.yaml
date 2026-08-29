@@ -78,7 +78,7 @@ metadata:
 
 ---
 
-# SPIRE server configuration: UpstreamAuthority "kmip" via plain HTTP + token auth.
+# SPIRE server configuration: UpstreamAuthority "kmip" via binary KMIP over mTLS.
 # The root CA key pair must be pre-provisioned in KMS (see 01-setup-kms).
 # ca_cert_uid is auto-discovered via CertificateLink; if absent the signed cert
 # is used as a self-anchored root.

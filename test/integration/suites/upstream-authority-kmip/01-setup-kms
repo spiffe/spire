@@ -110,6 +110,11 @@ spec:
             name: https
           - containerPort: 5696
             name: kmip-tcp
+        readinessProbe:
+          tcpSocket:
+            port: 5696
+          initialDelaySeconds: 5
+          periodSeconds: 5
         volumeMounts:
           - name: kms-config
             mountPath: /etc/kms
@@ -158,10 +163,16 @@ KMS_POD=$(./bin/kubectl -n spire-test get pod -l app=kmip-server -o jsonpath='{.
 # Since we have the client certs in the CERT_DIR, use port-forward + client certs.
 PF_PID=""
 cleanup_pf() { [[ -n "$PF_PID" ]] && kill "$PF_PID" 2>/dev/null || true; }
+# Combine the CERT_DIR trap (installed above) with the port-forward cleanup in a
+# single EXIT trap — a second `trap` would otherwise silently replace the first.
+cleanup() {
+  cleanup_pf
+  rm -rf "${CERT_DIR}"
+}
 
 ./bin/kubectl -n spire-test port-forward pod/"${KMS_POD}" 19998:9998 >/dev/null 2>&1 &
 PF_PID=$!
-trap cleanup_pf EXIT
+trap cleanup EXIT
 
 # Wait up to 30s for the HTTPS port-forward with the client cert.
 TRIES=0

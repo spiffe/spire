@@ -16,9 +16,11 @@ The SPIRE server is configured with:
 ```hcl
 UpstreamAuthority "kmip" {
     plugin_data {
-        kms_addr   = "https://kms.spire-test.svc:9998"
-        ca_key_uid = "<UID of the pre-provisioned root CA private key>"
-        token_auth { token = "test-api-token" }
+        kmip_addr        = "kmip-server.spire-test.svc:5696"
+        ca_cert_path     = "/run/spire/kmip-tls/ca.crt"
+        client_cert_path = "/run/spire/kmip-tls/client.crt"
+        client_key_path  = "/run/spire/kmip-tls/client.key"
+        ca_key_uid       = "spire-upstream-ca-key"
     }
 }
 ```
