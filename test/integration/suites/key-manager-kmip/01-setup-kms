@@ -1,0 +1,147 @@
+#!/bin/bash
+# Deploy a KMIP server (Eviden KMS) in the kind cluster with mTLS enabled.
+# Generates a self-signed CA, server cert, and client cert for the KMIP
+# binary TTLV socket (port 5696).
+
+set -e -o pipefail
+
+source init-kubectl
+
+KMS_IMAGE="ghcr.io/cosmian/kms:5.26.0"
+
+# ── Create namespace ──────────────────────────────────────────────────────────
+./bin/kubectl create namespace spire-test --dry-run=client -o yaml | ./bin/kubectl apply -f -
+
+# ── Generate TLS certificates for KMIP mTLS ───────────────────────────────────
+log-info "generating self-signed TLS certs for KMIP mTLS..."
+CERT_DIR=$(mktemp -d)
+trap 'rm -rf "${CERT_DIR}"' EXIT
+
+# CA
+openssl req -x509 -newkey rsa:2048 -keyout "${CERT_DIR}/ca.key" -out "${CERT_DIR}/ca.crt" \
+  -days 3650 -nodes -subj "/CN=kmip-test-ca" 2>/dev/null
+
+# Server cert signed by CA (SANs: kmip-server, kmip-server.spire-test.svc)
+openssl req -newkey rsa:2048 -keyout "${CERT_DIR}/server.key" -out "${CERT_DIR}/server.csr" \
+  -nodes -subj "/CN=kmip-server" 2>/dev/null
+openssl x509 -req -in "${CERT_DIR}/server.csr" -CA "${CERT_DIR}/ca.crt" -CAkey "${CERT_DIR}/ca.key" \
+  -CAcreateserial -out "${CERT_DIR}/server.crt" -days 3650 \
+  -extfile <(echo "subjectAltName=DNS:kmip-server,DNS:kmip-server.spire-test.svc,DNS:kmip-server.spire-test.svc.cluster.local,IP:127.0.0.1") 2>/dev/null
+
+# Client cert signed by CA (for SPIRE server to authenticate to KMS)
+openssl req -newkey rsa:2048 -keyout "${CERT_DIR}/client.key" -out "${CERT_DIR}/client.csr" \
+  -nodes -subj "/CN=spire-client" 2>/dev/null
+openssl x509 -req -in "${CERT_DIR}/client.csr" -CA "${CERT_DIR}/ca.crt" -CAkey "${CERT_DIR}/ca.key" \
+  -CAcreateserial -out "${CERT_DIR}/client.crt" -days 3650 2>/dev/null
+
+# ── Create Kubernetes Secrets ─────────────────────────────────────────────────
+./bin/kubectl -n spire-test create secret generic kmip-server-tls \
+  --from-file=server.crt="${CERT_DIR}/server.crt" \
+  --from-file=server.key="${CERT_DIR}/server.key" \
+  --from-file=ca.crt="${CERT_DIR}/ca.crt" \
+  --dry-run=client -o yaml | ./bin/kubectl apply -f -
+
+./bin/kubectl -n spire create secret generic kmip-tls \
+  --from-file=client.crt="${CERT_DIR}/client.crt" \
+  --from-file=client.key="${CERT_DIR}/client.key" \
+  --from-file=ca.crt="${CERT_DIR}/ca.crt" \
+  --dry-run=client -o yaml | ./bin/kubectl apply -f - 2>/dev/null || \
+  (./bin/kubectl create namespace spire --dry-run=client -o yaml | ./bin/kubectl apply -f - && \
+   ./bin/kubectl -n spire create secret generic kmip-tls \
+     --from-file=client.crt="${CERT_DIR}/client.crt" \
+     --from-file=client.key="${CERT_DIR}/client.key" \
+     --from-file=ca.crt="${CERT_DIR}/ca.crt" \
+     --dry-run=client -o yaml | ./bin/kubectl apply -f -)
+
+# ── Create KMS ConfigMap with mTLS socket server config ───────────────────────
+log-info "creating KMS config with mTLS + KMIP TCP socket on port 5696..."
+./bin/kubectl -n spire-test create configmap kms-config --from-literal=kms.toml='
+default_username = "admin"
+
+[db]
+database_type  = "sqlite"
+sqlite_path    = "/tmp/kms"
+clear_database = true
+
+[http]
+hostname = "0.0.0.0"
+port     = 9998
+
+[tls]
+tls_cert_file        = "/etc/kms/tls/server.crt"
+tls_key_file         = "/etc/kms/tls/server.key"
+clients_ca_cert_file = "/etc/kms/tls/ca.crt"
+
+[socket_server]
+socket_server_start    = true
+socket_server_port     = 5696
+socket_server_hostname = "0.0.0.0"
+
+[logging]
+rust_log    = "warn"
+ansi_colors = false
+' --dry-run=client -o yaml | ./bin/kubectl apply -f -
+
+# ── Deploy KMS with mTLS enabled ──────────────────────────────────────────────
+log-info "deploying KMS ${KMS_IMAGE} with mTLS + KMIP TCP socket..."
+cat <<YAML | ./bin/kubectl apply -f -
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kmip-server
+  namespace: spire-test
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kmip-server
+  template:
+    metadata:
+      labels:
+        app: kmip-server
+    spec:
+      containers:
+      - name: kmip-server
+        image: ${KMS_IMAGE}
+        imagePullPolicy: IfNotPresent
+        args: ["--config", "/etc/kms/kms.toml"]
+        ports:
+          - containerPort: 9998
+            name: https
+          - containerPort: 5696
+            name: kmip-tcp
+        volumeMounts:
+          - name: kms-config
+            mountPath: /etc/kms
+          - name: kms-tls
+            mountPath: /etc/kms/tls
+      volumes:
+        - name: kms-config
+          configMap:
+            name: kms-config
+        - name: kms-tls
+          secret:
+            secretName: kmip-server-tls
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kmip-server
+  namespace: spire-test
+spec:
+  selector:
+    app: kmip-server
+  ports:
+  - name: https
+    port: 9998
+    targetPort: 9998
+  - name: kmip-tcp
+    port: 5696
+    targetPort: 5696
+YAML
+
+log-info "waiting for KMS to be ready..."
+./bin/kubectl -n spire-test rollout status deployment/kmip-server --timeout=120s
+./bin/kubectl -n spire-test wait --for=condition=ready pod -l app=kmip-server --timeout=60s
+
+log-info "KMS (KMIP mTLS server) is ready"
