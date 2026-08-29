@@ -1,0 +1,209 @@
+# ServiceAccount used by the SPIRE server.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: spire-server
+  namespace: spire
+
+---
+
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: spire-server-cluster-role
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "nodes"]
+    verbs: ["get", "list", "watch"]
+
+---
+
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: spire-server-cluster-role-binding
+subjects:
+  - kind: ServiceAccount
+    name: spire-server
+    namespace: spire
+roleRef:
+  kind: ClusterRole
+  name: spire-server-cluster-role
+  apiGroup: rbac.authorization.k8s.io
+
+---
+
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  namespace: spire
+  name: spire-server-role
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    resourceNames: ["spire-bundle"]
+    verbs: ["get", "patch"]
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["create"]
+  - apiGroups: ["coordination.k8s.io"]
+    resources: ["leases"]
+    verbs: ["create", "update", "get"]
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["create"]
+
+---
+
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: spire-server-role-binding
+  namespace: spire
+subjects:
+  - kind: ServiceAccount
+    name: spire-server
+    namespace: spire
+roleRef:
+  kind: Role
+  name: spire-server-role
+  apiGroup: rbac.authorization.k8s.io
+
+---
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: spire-bundle
+  namespace: spire
+
+---
+
+# SPIRE server configuration: KeyManager "kmip" using plain HTTP + token auth.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: spire-server
+  namespace: spire
+data:
+  server.conf: |
+    server {
+      bind_address = "0.0.0.0"
+      bind_port    = "8081"
+      trust_domain = "example.org"
+      data_dir     = "/run/spire/data"
+      log_level    = "DEBUG"
+      default_x509_svid_ttl = "1h"
+      ca_ttl = "12h"
+      ca_subject {
+        country      = ["US"]
+        organization = ["SPIFFE"]
+        common_name  = ""
+      }
+    }
+
+    plugins {
+      DataStore "sql" {
+        plugin_data {
+          database_type     = "sqlite3"
+          connection_string = "/run/spire/data/datastore.sqlite3"
+        }
+      }
+
+      NodeAttestor "join_token" {
+        plugin_data {}
+      }
+
+      KeyManager "kmip" {
+        plugin_data {
+          kmip_addr        = "kmip-server.spire-test.svc:5696"
+          ca_cert_path     = "/run/spire/kmip-tls/ca.crt"
+          client_cert_path = "/run/spire/kmip-tls/client.crt"
+          client_key_path  = "/run/spire/kmip-tls/client.key"
+          server_id        = "spire-server-test"
+        }
+      }
+    }
+
+    health_checks {
+      listener_enabled = true
+      bind_address     = "0.0.0.0"
+      bind_port        = "8080"
+      live_path        = "/live"
+      ready_path       = "/ready"
+    }
+
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: spire-server
+  namespace: spire
+  labels:
+    app: spire-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: spire-server
+  template:
+    metadata:
+      labels:
+        app: spire-server
+    spec:
+      serviceAccountName: spire-server
+      containers:
+        - name: spire-server
+          image: spire-server:latest-local
+          imagePullPolicy: Never
+          args: ["run", "-config", "/run/spire/config/server.conf"]
+          ports:
+            - containerPort: 8081
+          livenessProbe:
+            httpGet:
+              path: /live
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          volumeMounts:
+            - name: spire-config
+              mountPath: /run/spire/config
+              readOnly: true
+            - name: spire-data
+              mountPath: /run/spire/data
+            - name: kmip-tls
+              mountPath: /run/spire/kmip-tls
+              readOnly: true
+      volumes:
+        - name: spire-config
+          configMap:
+            name: spire-server
+        - name: spire-data
+          emptyDir: {}
+        - name: kmip-tls
+          secret:
+            secretName: kmip-tls
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: spire-server
+  namespace: spire
+spec:
+  type: NodePort
+  ports:
+    - name: grpc
+      port: 8081
+      targetPort: 8081
+      protocol: TCP
+  selector:
+    app: spire-server

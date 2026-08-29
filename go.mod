@@ -17,7 +17,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources/v3 v3.0.1
 	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azkeys v1.5.0
 	github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v1.8.0
-	github.com/GoogleCloudPlatform/cloudsql-proxy v1.38.3
+	github.com/GoogleCloudPlatform/cloudsql-proxy v1.38.2
 	github.com/Keyfactor/ejbca-go-client-sdk v1.1.0
 	github.com/Masterminds/sprig/v3 v3.3.0
 	github.com/Microsoft/go-winio v0.6.2
@@ -65,11 +65,12 @@ require (
 	github.com/jackc/pgx/v5 v5.10.0
 	github.com/jinzhu/gorm v1.9.16
 	github.com/lib/pq v1.12.3
-	github.com/mattn/go-sqlite3 v1.14.50
+	github.com/mattn/go-sqlite3 v1.14.49
 	github.com/mitchellh/cli v1.1.5
 	github.com/moby/moby/api v1.55.0
 	github.com/moby/moby/client v0.5.1
 	github.com/open-policy-agent/opa v1.20.1
+	github.com/ovh/kmip-go v0.9.2
 	github.com/pires/go-proxyproto v0.15.0
 	github.com/prometheus/client_golang v1.24.1
 	github.com/shirou/gopsutil/v4 v4.26.8
@@ -81,7 +82,7 @@ require (
 	github.com/spiffe/go-spiffe/v2 v2.8.1
 	github.com/spiffe/spire-api-sdk v1.2.5-0.20260428072036-00f73a61093a
 	github.com/spiffe/spire-plugin-sdk v1.4.4-0.20260617144146-5dcde407c4d1
-	github.com/stretchr/testify v1.12.1
+	github.com/stretchr/testify v1.12.0
 	github.com/uber-go/tally/v4 v4.1.17
 	github.com/valyala/fastjson v1.6.10
 	golang.org/x/crypto v0.55.0
@@ -321,6 +322,7 @@ require (
 	google.golang.org/genproto/googleapis/api v0.0.0-20260727163830-6c54dddc4772 // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.13.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 	k8s.io/apiextensions-apiserver v0.36.0 // indirect
 	k8s.io/klog/v2 v2.140.0 // indirect
 	k8s.io/kube-openapi v0.0.0-20260721132016-d427ff9ee9ad // indirect
