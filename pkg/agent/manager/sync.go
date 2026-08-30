@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto"
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -52,15 +53,16 @@ type x509SVIDCache interface {
 
 func (m *manager) syncSVIDs(ctx context.Context) (err error) {
 	m.x509Cache.SyncSVIDsWithSubscribers()
-	if err := m.updateX509SVIDs(ctx, m.c.Log.WithField(telemetry.CacheType, telemetry_agent.CacheTypeWorkload), m.x509Cache); err != nil {
-		return err
-	}
+	x509Err := m.updateX509SVIDs(ctx, m.c.Log.WithField(telemetry.CacheType, telemetry_agent.CacheTypeWorkload), m.x509Cache)
 
 	if m.witCache == nil {
-		return nil
+		return x509Err
 	}
+
 	m.witCache.SyncSVIDsWithSubscribers()
-	return m.updateWITSVIDs(ctx, m.c.Log.WithField(telemetry.CacheType, telemetry_agent.CacheTypeWorkload).WithField(telemetry.SVIDType, telemetry_agent.SVIDTypeWIT))
+	witErr := m.updateWITSVIDs(ctx, m.c.Log.WithField(telemetry.CacheType, telemetry_agent.CacheTypeWorkload).WithField(telemetry.SVIDType, telemetry_agent.SVIDTypeWIT))
+
+	return errors.Join(x509Err, witErr)
 }
 
 // processTaintedAuthorities verifies if a new authority is tainted and forces rotation in all caches if required.
@@ -123,22 +125,16 @@ func (m *manager) synchronize(ctx context.Context) (err error) {
 	m.bundleCache.Update(cacheUpdate.Bundles)
 
 	// Process all tainted authorities. The bundle is shared between both caches using regular cache data.
-	if err := m.processTaintedAuthorities(ctx, cacheUpdate.Bundles[m.c.TrustDomain], tainted); err != nil {
-		return err
-	}
-
-	if err := m.updateX509SVIDCache(ctx, cacheUpdate, m.c.Log.WithField(telemetry.CacheType, telemetry_agent.CacheTypeWorkload), "", m.x509Cache); err != nil {
-		return err
-	}
-
-	if err := m.updateX509SVIDCache(ctx, storeUpdate, m.c.Log.WithField(telemetry.CacheType, telemetry_agent.CacheTypeSVIDStore), telemetry_agent.CacheTypeSVIDStore, m.svidStoreCache); err != nil {
-		return err
-	}
-
+	var errs []error
+	errs = append(errs, m.processTaintedAuthorities(ctx, cacheUpdate.Bundles[m.c.TrustDomain], tainted))
+	errs = append(errs, m.updateX509SVIDCache(ctx, cacheUpdate, m.c.Log.WithField(telemetry.CacheType, telemetry_agent.CacheTypeWorkload), "", m.x509Cache))
+	errs = append(errs, m.updateX509SVIDCache(ctx, storeUpdate, m.c.Log.WithField(telemetry.CacheType, telemetry_agent.CacheTypeSVIDStore), telemetry_agent.CacheTypeSVIDStore, m.svidStoreCache))
 	if m.witCache != nil {
-		if err := m.updateWITSVIDCache(ctx, cacheUpdate, m.c.Log.WithField(telemetry.CacheType, telemetry_agent.CacheTypeWorkload).WithField(telemetry.SVIDType, telemetry_agent.SVIDTypeWIT)); err != nil {
-			return err
-		}
+		errs = append(errs, m.updateWITSVIDCache(ctx, cacheUpdate, m.c.Log.WithField(telemetry.CacheType, telemetry_agent.CacheTypeWorkload).WithField(telemetry.SVIDType, telemetry_agent.SVIDTypeWIT)))
+	}
+
+	if err := errors.Join(errs...); err != nil {
+		return err
 	}
 
 	// Set last success sync
