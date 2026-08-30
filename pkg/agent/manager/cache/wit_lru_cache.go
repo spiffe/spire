@@ -32,6 +32,10 @@ type WITIdentity struct {
 	PrivateKey crypto.Signer
 }
 
+func (i WITIdentity) entryID() string {
+	return i.Entry.EntryId
+}
+
 // WITWorkloadUpdate is used to convey WIT workload information to cache subscribers.
 type WITWorkloadUpdate struct {
 	Identities       []WITIdentity
@@ -81,7 +85,6 @@ func buildWITWorkloadUpdate(cache *LRUCache[WITSVID, WITWorkloadUpdate], set sel
 	defer recordsDone()
 
 	identities := make([]WITIdentity, 0, len(records))
-	entries := make([]*common.RegistrationEntry, 0, len(records))
 	for record := range records {
 		if svid, ok := cache.svids[record.entry.EntryId]; ok {
 			identities = append(identities, WITIdentity{
@@ -89,8 +92,13 @@ func buildWITWorkloadUpdate(cache *LRUCache[WITSVID, WITWorkloadUpdate], set sel
 				Token:      svid.Token,
 				PrivateKey: svid.PrivateKey,
 			})
-			entries = append(entries, record.entry)
 		}
+	}
+	sortIdentities(identities)
+
+	entries := make([]*common.RegistrationEntry, 0, len(identities))
+	for _, identity := range identities {
+		entries = append(entries, identity.Entry)
 	}
 
 	return &WITWorkloadUpdate{
