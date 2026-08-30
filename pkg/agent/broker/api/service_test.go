@@ -571,7 +571,7 @@ func TestSubscribeToX509SVID(t *testing.T) {
 		assert.Equal(t, []fakemetrics.MetricItem{
 			{
 				Type:   fakemetrics.MeasureSinceWithLabelsType,
-				Key:    []string{telemetry.DelegatedIdentityAPI, telemetry.SubscribeX509SVIDs, telemetry.FirstUpdate, telemetry.ElapsedTime},
+				Key:    []string{telemetry.BrokerAPI, telemetry.SubscribeX509SVIDs, telemetry.FirstUpdate, telemetry.ElapsedTime},
 				Val:    0,
 				Labels: []telemetry.Label{},
 			},

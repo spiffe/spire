@@ -20,7 +20,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
-	"github.com/spiffe/spire/pkg/common/telemetry/agent/adminapi"
+	brokertelemetry "github.com/spiffe/spire/pkg/common/telemetry/agent/broker"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/proto/spire/common"
 	"google.golang.org/grpc"
@@ -148,7 +148,7 @@ func (s *Service) getCallerContext(ctx context.Context) (spiffeid.ID, error) {
 }
 
 func (s *Service) SubscribeToX509SVID(req *broker.SubscribeToX509SVIDRequest, stream broker.API_SubscribeToX509SVIDServer) error {
-	latency := adminapi.StartFirstX509SVIDUpdateLatency(s.metrics)
+	latency := brokertelemetry.StartFirstX509SVIDUpdateLatency(s.metrics)
 	ctx := stream.Context()
 	log := rpccontext.Logger(ctx)
 	var receivedFirstUpdate bool
