@@ -30,6 +30,17 @@ if [ -z "${TOKEN}" ]; then
   fail-now "Token generation failed — kmip KeyManager did not store keys in KMS"
 fi
 
+# ── Verify restart recovery: keys must survive a SPIRE server restart ─────────
+# Restarting forces the kmip KeyManager to re-Configure and recover keys from the
+# KMIP server via Locate; a failed recovery would prevent the server from starting.
+log-info "restarting SPIRE server to verify key recovery via KMIP Locate..."
+./bin/kubectl -n spire rollout restart deployment/spire-server
+./bin/kubectl -n spire rollout status deployment/spire-server --timeout=120s
+
+log-info "verifying SPIRE server health after restart..."
+./bin/kubectl -n spire exec deployment/spire-server -- \
+  /opt/spire/bin/spire-server healthcheck
+
 log-info "join token generated: ${TOKEN:0:8}... — kmip KeyManager verified"
 log-info "SUCCESS: SPIRE KeyManager 'kmip' is operational with KMIP server"
 export SUCCESS=1
