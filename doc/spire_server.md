@@ -257,6 +257,7 @@ server {
             bundle_endpoint_profile "https_spiffe" {
                 endpoint_spiffe_id = "spiffe://domain2.test/beserver"
             }
+            bootstrap_bundle_path = "/etc/spire/domain2.pem"
         }
     }
 }
@@ -314,12 +315,16 @@ The optional `federates_with` section is a map of bundle endpoint profile config
 |---------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------|---------|
 | bundle_endpoint_url                                           | URL of the SPIFFE bundle endpoint that provides the trust bundle to federate with. Must use the HTTPS protocol. |         |
 | bundle_endpoint_profile "&lt;https_web&vert;https_spiffe&gt;" | Configuration of the SPIFFE endpoint profile type.                                                              |         |
+| bootstrap_bundle_path                                         | Path to a bundle used to authenticate the first `https_spiffe` fetch if none is stored yet.                     |         |
+| bootstrap_bundle_format                                       | Format of `bootstrap_bundle_path`. Either `pem` or `spiffe`.                                                    | pem     |
 
 SPIRE supports the `https_web` and `https_spiffe` bundle endpoint profiles.
 
 The `https_web` profile does not require additional settings.
 
 Trust domains configured with the `https_spiffe` bundle endpoint profile must specify the expected SPIFFE ID of the remote SPIFFE bundle endpoint server using the `endpoint_spiffe_id` setting as part of the configuration.
+
+`bootstrap_bundle_path` replaces the need to run `spire-server bundle set` before the first `https_spiffe` poll. It authenticates that first connection only. The bundle returned by the endpoint is stored with a create, not an update. Subsequent refreshes use the stored bundle. The path is not watched.
 
 For more information about the different profiles defined in SPIFFE, along with the security considerations for setting up SPIFFE Federation, please refer to the [SPIFFE Federation standard](https://github.com/spiffe/spiffe/blob/main/standards/SPIFFE_Federation.md).
 

@@ -182,6 +182,8 @@ type bundleEndpointACMEConfig struct {
 type federatesWithConfig struct {
 	BundleEndpointURL     string                 `hcl:"bundle_endpoint_url"`
 	BundleEndpointProfile ast.Node               `hcl:"bundle_endpoint_profile"`
+	BootstrapBundlePath   string                 `hcl:"bootstrap_bundle_path"`
+	BootstrapBundleFormat string                 `hcl:"bootstrap_bundle_format"`
 	UnusedKeyPositions    map[string][]token.Pos `hcl:",unusedKeyPositions"`
 }
 
@@ -519,6 +521,9 @@ func newServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig, ski
 			case config.BundleEndpointProfile != nil:
 				trustDomainConfig, err = parseBundleEndpointProfile(config)
 				if err != nil {
+					return nil, fmt.Errorf("error parsing federation relationship for trust domain %q: %w", trustDomain, err)
+				}
+				if err := validateFederatesWithBootstrap(td, trustDomainConfig); err != nil {
 					return nil, fmt.Errorf("error parsing federation relationship for trust domain %q: %w", trustDomain, err)
 				}
 			default:
@@ -921,10 +926,45 @@ func parseBundleEndpointProfile(config federatesWithConfig) (trustDomainConfig *
 		return nil, errors.New(`no bundle endpoint profile defined; current supported profiles are "https_spiffe" and 'https_web"`)
 	}
 
+	format := strings.ToLower(strings.TrimSpace(config.BootstrapBundleFormat))
+	if config.BootstrapBundlePath != "" && format == "" {
+		format = bundleClient.BootstrapBundleFormatPEM
+	}
+
 	return &bundleClient.TrustDomainConfig{
-		EndpointURL:     config.BundleEndpointURL,
-		EndpointProfile: endpointProfile,
+		EndpointURL:           config.BundleEndpointURL,
+		EndpointProfile:       endpointProfile,
+		BootstrapBundlePath:   config.BootstrapBundlePath,
+		BootstrapBundleFormat: format,
 	}, nil
+}
+
+func validateFederatesWithBootstrap(td spiffeid.TrustDomain, cfg *bundleClient.TrustDomainConfig) error {
+	if cfg.BootstrapBundleFormat != "" && cfg.BootstrapBundlePath == "" {
+		return errors.New("bootstrap_bundle_format is set but bootstrap_bundle_path is empty")
+	}
+	if cfg.BootstrapBundlePath == "" {
+		return nil
+	}
+
+	switch cfg.BootstrapBundleFormat {
+	case bundleClient.BootstrapBundleFormatPEM, bundleClient.BootstrapBundleFormatSPIFFE:
+	default:
+		return fmt.Errorf("bootstrap_bundle_format must be %q or %q", bundleClient.BootstrapBundleFormatPEM, bundleClient.BootstrapBundleFormatSPIFFE)
+	}
+
+	if _, ok := cfg.EndpointProfile.(bundleClient.HTTPSWebProfile); ok {
+		return errors.New("bootstrap_bundle_path is only supported with the https_spiffe bundle endpoint profile")
+	}
+
+	spiffeProfile, ok := cfg.EndpointProfile.(bundleClient.HTTPSSPIFFEProfile)
+	if !ok {
+		return nil
+	}
+	if spiffeProfile.EndpointSPIFFEID.TrustDomain() != td {
+		return errors.New("bootstrap_bundle_path is only supported when the endpoint SPIFFE ID is in the federated trust domain")
+	}
+	return nil
 }
 
 func parseBundleEndpointProfileASTNode(node ast.Node) (string, error) {

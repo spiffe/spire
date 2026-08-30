@@ -6,12 +6,17 @@ import (
 	"crypto/x509/pkix"
 	"errors"
 	"math/big"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
+	"github.com/spiffe/spire/pkg/common/pemutil"
+	"github.com/spiffe/spire/pkg/server/datastore"
+	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/assert"
@@ -39,6 +44,8 @@ func TestBundleUpdaterUpdateBundle(t *testing.T) {
 		storedBundle *spiffebundle.Bundle
 		// the fake endpoint client
 		client fakeClient
+		// optional bootstrap bundle path
+		bootstrapPath string
 		// the expected error returned from Update()
 		err string
 	}{
@@ -46,6 +53,32 @@ func TestBundleUpdaterUpdateBundle(t *testing.T) {
 			name:        "providing no bundle",
 			trustDomain: trustDomain,
 			err:         "local copy of bundle not found",
+		},
+		{
+			name:           "bootstraps first fetch when local bundle is missing",
+			trustDomain:    trustDomain,
+			bootstrapPath:  writeBootstrapPEM(t, bundle1.X509Authorities()[0]),
+			endpointBundle: bundle2,
+			storedBundle:   bundle2,
+			client: fakeClient{
+				bundle: bundle2,
+			},
+		},
+		{
+			name:          "bootstrap path is ignored when local bundle exists",
+			trustDomain:   trustDomain,
+			localBundle:   bundle1,
+			bootstrapPath: filepath.Join(t.TempDir(), "missing.pem"),
+			storedBundle:  bundle1,
+			client: fakeClient{
+				bundle: bundle1,
+			},
+		},
+		{
+			name:          "missing bootstrap file",
+			trustDomain:   trustDomain,
+			bootstrapPath: filepath.Join(t.TempDir(), "missing.pem"),
+			err:           "failed to load bootstrap bundle",
 		},
 		{
 			name:           "bundle has no changes",
@@ -99,6 +132,7 @@ func TestBundleUpdaterUpdateBundle(t *testing.T) {
 					EndpointProfile: HTTPSSPIFFEProfile{
 						EndpointSPIFFEID: trustDomain.ID(),
 					},
+					BootstrapBundlePath: testCase.bootstrapPath,
 				},
 				newClientHook: func(client ClientConfig) (Client, error) {
 					return testCase.client, nil
@@ -147,6 +181,58 @@ func TestBundleUpdaterUpdateBundle(t *testing.T) {
 	}
 }
 
+func TestBundleUpdaterBootstrapCreateOnly(t *testing.T) {
+	bootstrapCA := createCACertificate(t, "bootstrap")
+	fetched := spiffebundle.FromX509Authorities(trustDomain, []*x509.Certificate{createCACertificate(t, "fetched")})
+	changed := spiffebundle.FromX509Authorities(trustDomain, []*x509.Certificate{createCACertificate(t, "changed")})
+	current := fetched
+
+	ds := &countingDataStore{DataStore: fakedatastore.New(t)}
+	updater := NewBundleUpdater(BundleUpdaterConfig{
+		DataStore:   ds,
+		TrustDomain: trustDomain,
+		TrustDomainConfig: TrustDomainConfig{
+			EndpointURL: "ENDPOINT_ADDRESS",
+			EndpointProfile: HTTPSSPIFFEProfile{
+				EndpointSPIFFEID: trustDomain.ID(),
+			},
+			BootstrapBundlePath: writeBootstrapPEM(t, bootstrapCA),
+		},
+		newClientHook: func(ClientConfig) (Client, error) {
+			return fakeClient{bundle: current}, nil
+		},
+	})
+
+	_, endpointBundle, err := updater.UpdateBundle(context.Background())
+	require.NoError(t, err)
+	require.NotNil(t, endpointBundle)
+	require.Equal(t, 1, ds.creates)
+	require.Equal(t, 0, ds.sets)
+
+	current = changed
+	_, endpointBundle, err = updater.UpdateBundle(context.Background())
+	require.NoError(t, err)
+	require.NotNil(t, endpointBundle)
+	require.Equal(t, 1, ds.creates)
+	require.Equal(t, 1, ds.sets)
+}
+
+type countingDataStore struct {
+	datastore.DataStore
+	creates int
+	sets    int
+}
+
+func (d *countingDataStore) CreateBundle(ctx context.Context, b *common.Bundle) (*common.Bundle, error) {
+	d.creates++
+	return d.DataStore.CreateBundle(ctx, b)
+}
+
+func (d *countingDataStore) SetBundle(ctx context.Context, b *common.Bundle) (*common.Bundle, error) {
+	d.sets++
+	return d.DataStore.SetBundle(ctx, b)
+}
+
 func TestBundleUpdaterConfiguration(t *testing.T) {
 	configs := []TrustDomainConfig{
 		{
@@ -186,6 +272,13 @@ type fakeClient struct {
 
 func (c fakeClient) FetchBundle(context.Context) (*spiffebundle.Bundle, error) {
 	return c.bundle, c.err
+}
+
+func writeBootstrapPEM(t *testing.T, cert *x509.Certificate) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "bootstrap.pem")
+	require.NoError(t, os.WriteFile(path, pemutil.EncodeCertificate(cert), 0600))
+	return path
 }
 
 func createCACertificate(t *testing.T, cn string) *x509.Certificate {

@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"sync"
@@ -10,6 +11,8 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/server/datastore"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type BundleUpdaterConfig struct {
@@ -87,9 +90,20 @@ func (u *bundleUpdater) UpdateBundle(ctx context.Context) (*spiffebundle.Bundle,
 	if err != nil {
 		return nil, nil, err
 	}
-	_, err = u.ds.SetBundle(ctx, bundle)
-	if err != nil {
-		return localFederatedBundleOrNil, nil, fmt.Errorf("failed to store fetched federated bundle: %w", err)
+	// First fetch is create-only so bootstrap auth cannot overwrite a stored bundle.
+	if localFederatedBundleOrNil == nil {
+		_, err = u.ds.CreateBundle(ctx, bundle)
+		if err != nil {
+			if status.Code(err) == codes.AlreadyExists {
+				return localFederatedBundleOrNil, fetchedFederatedBundle, nil
+			}
+			return localFederatedBundleOrNil, nil, fmt.Errorf("failed to store fetched federated bundle: %w", err)
+		}
+	} else {
+		_, err = u.ds.SetBundle(ctx, bundle)
+		if err != nil {
+			return localFederatedBundleOrNil, nil, fmt.Errorf("failed to store fetched federated bundle: %w", err)
+		}
 	}
 
 	return localFederatedBundleOrNil, fetchedFederatedBundle, nil
@@ -125,15 +139,30 @@ func (u *bundleUpdater) newClient(ctx context.Context, trustDomainConfig TrustDo
 			return nil, fmt.Errorf("failed to fetch local copy of bundle for %q: %w", trustDomain, err)
 		}
 
-		if localEndpointBundle == nil {
-			return nil, errors.New("can't perform SPIFFE Authentication: local copy of bundle not found")
+		rootCAs, err := rootCAsForSPIFFEAuth(localEndpointBundle, trustDomainConfig, trustDomain)
+		if err != nil {
+			return nil, err
 		}
 		clientConfig.SPIFFEAuth = &SPIFFEAuthConfig{
 			EndpointSpiffeID: spiffeAuth.EndpointSPIFFEID,
-			RootCAs:          localEndpointBundle.X509Authorities(),
+			RootCAs:          rootCAs,
 		}
 	}
 	return u.newClientHook(clientConfig)
+}
+
+func rootCAsForSPIFFEAuth(local *spiffebundle.Bundle, cfg TrustDomainConfig, td spiffeid.TrustDomain) ([]*x509.Certificate, error) {
+	if local != nil {
+		return local.X509Authorities(), nil
+	}
+	if cfg.BootstrapBundlePath == "" {
+		return nil, errors.New("can't perform SPIFFE Authentication: local copy of bundle not found")
+	}
+	certs, err := loadBootstrapX509Authorities(cfg.BootstrapBundlePath, cfg.BootstrapBundleFormat, td)
+	if err != nil {
+		return nil, fmt.Errorf("can't perform SPIFFE Authentication: %w", err)
+	}
+	return certs, nil
 }
 
 func fetchBundleIfExists(ctx context.Context, ds datastore.DataStore, trustDomain spiffeid.TrustDomain) (*spiffebundle.Bundle, error) {

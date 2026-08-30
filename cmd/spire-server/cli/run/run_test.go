@@ -925,6 +925,88 @@ func TestNewServerConfig(t *testing.T) {
 			},
 		},
 		{
+			msg: "federates_with bootstrap_bundle_path is parsed for https_spiffe",
+			input: func(c *Config) {
+				cfg := httpsSPIFFEConfigTest(t)
+				cfg.BootstrapBundlePath = "/etc/spire/domain1.pem"
+				c.Server.Federation = &federationConfig{
+					FederatesWith: map[string]federatesWithConfig{
+						"domain1.test": cfg,
+					},
+				}
+			},
+			test: func(t *testing.T, c *server.Config) {
+				got := c.Federation.FederatesWith[spiffeid.RequireTrustDomainFromString("domain1.test")]
+				require.Equal(t, "/etc/spire/domain1.pem", got.BootstrapBundlePath)
+				require.Equal(t, bundleClient.BootstrapBundleFormatPEM, got.BootstrapBundleFormat)
+			},
+		},
+		{
+			msg: "federates_with bootstrap_bundle_path is rejected for https_web",
+			input: func(c *Config) {
+				cfg := webPKIConfigTest(t)
+				cfg.BootstrapBundlePath = "/etc/spire/domain2.pem"
+				c.Server.Federation = &federationConfig{
+					FederatesWith: map[string]federatesWithConfig{
+						"domain2.test": cfg,
+					},
+				}
+			},
+			expectError: true,
+			test: func(t *testing.T, c *server.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
+			msg: "federates_with bootstrap_bundle_path is rejected for a non-self-serving endpoint",
+			input: func(c *Config) {
+				cfg := httpsSPIFFEConfigTest(t)
+				cfg.BootstrapBundlePath = "/etc/spire/domain1.pem"
+				c.Server.Federation = &federationConfig{
+					FederatesWith: map[string]federatesWithConfig{
+						"other.test": cfg,
+					},
+				}
+			},
+			expectError: true,
+			test: func(t *testing.T, c *server.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
+			msg: "federates_with bootstrap_bundle_format without path is rejected",
+			input: func(c *Config) {
+				cfg := httpsSPIFFEConfigTest(t)
+				cfg.BootstrapBundleFormat = bundleClient.BootstrapBundleFormatSPIFFE
+				c.Server.Federation = &federationConfig{
+					FederatesWith: map[string]federatesWithConfig{
+						"domain1.test": cfg,
+					},
+				}
+			},
+			expectError: true,
+			test: func(t *testing.T, c *server.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
+			msg: "federates_with bootstrap_bundle_format must be pem or spiffe",
+			input: func(c *Config) {
+				cfg := httpsSPIFFEConfigTest(t)
+				cfg.BootstrapBundlePath = "/etc/spire/domain1.pem"
+				cfg.BootstrapBundleFormat = "der"
+				c.Server.Federation = &federationConfig{
+					FederatesWith: map[string]federatesWithConfig{
+						"domain1.test": cfg,
+					},
+				}
+			},
+			expectError: true,
+			test: func(t *testing.T, c *server.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
 			msg: "default_x509_svid_ttl is correctly parsed",
 			input: func(c *Config) {
 				c.Server.DefaultX509SVIDTTL = "2m"
@@ -2282,6 +2364,58 @@ func bundleEndpointProfileUnknownTest(t *testing.T) *bundleEndpointConfig {
 	require.NoError(t, hcl.Decode(config, configString))
 
 	return config
+}
+
+func TestValidateFederatesWithBootstrap(t *testing.T) {
+	td := spiffeid.RequireTrustDomainFromString("domain1.test")
+	spiffeCfg := &bundleClient.TrustDomainConfig{
+		EndpointURL: "https://192.168.1.1:1337",
+		EndpointProfile: bundleClient.HTTPSSPIFFEProfile{
+			EndpointSPIFFEID: spiffeid.RequireFromString("spiffe://domain1.test/bundle/endpoint"),
+		},
+	}
+
+	t.Run("ok", func(t *testing.T) {
+		cfg := *spiffeCfg
+		cfg.BootstrapBundlePath = "/etc/spire/domain1.pem"
+		cfg.BootstrapBundleFormat = bundleClient.BootstrapBundleFormatPEM
+		require.NoError(t, validateFederatesWithBootstrap(td, &cfg))
+	})
+
+	t.Run("https_web", func(t *testing.T) {
+		cfg := &bundleClient.TrustDomainConfig{
+			EndpointURL:           "https://192.168.1.1:1337",
+			EndpointProfile:       bundleClient.HTTPSWebProfile{},
+			BootstrapBundlePath:   "/etc/spire/domain1.pem",
+			BootstrapBundleFormat: bundleClient.BootstrapBundleFormatPEM,
+		}
+		require.EqualError(t, validateFederatesWithBootstrap(td, cfg),
+			"bootstrap_bundle_path is only supported with the https_spiffe bundle endpoint profile")
+	})
+
+	t.Run("non-self-serving", func(t *testing.T) {
+		cfg := *spiffeCfg
+		cfg.BootstrapBundlePath = "/etc/spire/domain1.pem"
+		cfg.BootstrapBundleFormat = bundleClient.BootstrapBundleFormatPEM
+		other := spiffeid.RequireTrustDomainFromString("other.test")
+		require.EqualError(t, validateFederatesWithBootstrap(other, &cfg),
+			"bootstrap_bundle_path is only supported when the endpoint SPIFFE ID is in the federated trust domain")
+	})
+
+	t.Run("format without path", func(t *testing.T) {
+		cfg := *spiffeCfg
+		cfg.BootstrapBundleFormat = bundleClient.BootstrapBundleFormatSPIFFE
+		require.EqualError(t, validateFederatesWithBootstrap(td, &cfg),
+			"bootstrap_bundle_format is set but bootstrap_bundle_path is empty")
+	})
+
+	t.Run("bad format", func(t *testing.T) {
+		cfg := *spiffeCfg
+		cfg.BootstrapBundlePath = "/etc/spire/domain1.pem"
+		cfg.BootstrapBundleFormat = "der"
+		require.EqualError(t, validateFederatesWithBootstrap(td, &cfg),
+			`bootstrap_bundle_format must be "pem" or "spiffe"`)
+	})
 }
 
 func httpsSPIFFEConfigTest(t *testing.T) federatesWithConfig {
