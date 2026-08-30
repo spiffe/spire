@@ -161,10 +161,14 @@ func (p *Plugin) GenerateKey(ctx context.Context, req *keymanagerv1.GenerateKeyR
 	// KMIP keys start in PreActive state; Sign requires Active state.
 	for _, uid := range []string{createResp.PrivateKeyUniqueIdentifier, createResp.PublicKeyUniqueIdentifier} {
 		if _, actErr := client.Activate(uid).ExecContext(ctx); actErr != nil {
-			go func() {
-				_, _ = client.Destroy(createResp.PrivateKeyUniqueIdentifier).Exec()
-				_, _ = client.Destroy(createResp.PublicKeyUniqueIdentifier).Exec()
-			}()
+			// Synchronously destroy both keys on activation failure so orphaned keys
+			// are not leaked silently; log any destroy failure for visibility.
+			if _, err := client.Destroy(createResp.PrivateKeyUniqueIdentifier).Exec(); err != nil {
+				p.logger.Warn("Failed to destroy private key after activation failure", "uid", createResp.PrivateKeyUniqueIdentifier, "err", err)
+			}
+			if _, err := client.Destroy(createResp.PublicKeyUniqueIdentifier).Exec(); err != nil {
+				p.logger.Warn("Failed to destroy public key after activation failure", "uid", createResp.PublicKeyUniqueIdentifier, "err", err)
+			}
 			return nil, status.Errorf(codes.Internal, "failed to activate key %s: %v", uid, actErr)
 		}
 	}
@@ -175,11 +179,14 @@ func (p *Plugin) GenerateKey(ctx context.Context, req *keymanagerv1.GenerateKeyR
 	for _, uid := range []string{createResp.PrivateKeyUniqueIdentifier, createResp.PublicKeyUniqueIdentifier} {
 		for _, name := range nameAttrs {
 			if _, addErr := client.AddAttribute(uid, ovh.AttributeNameName, name).ExecContext(ctx); addErr != nil {
-				// Best-effort cleanup to avoid orphaned keys.
-				go func() {
-					_, _ = client.Destroy(createResp.PrivateKeyUniqueIdentifier).Exec()
-					_, _ = client.Destroy(createResp.PublicKeyUniqueIdentifier).Exec()
-				}()
+				// Synchronously destroy both keys on tag failure so orphaned keys are
+				// not leaked silently; log any destroy failure for visibility.
+				if _, err := client.Destroy(createResp.PrivateKeyUniqueIdentifier).Exec(); err != nil {
+					p.logger.Warn("Failed to destroy private key after tag failure", "uid", createResp.PrivateKeyUniqueIdentifier, "err", err)
+				}
+				if _, err := client.Destroy(createResp.PublicKeyUniqueIdentifier).Exec(); err != nil {
+					p.logger.Warn("Failed to destroy public key after tag failure", "uid", createResp.PublicKeyUniqueIdentifier, "err", err)
+				}
 				return nil, status.Errorf(codes.Internal, "failed to tag key %s: %v", uid, addErr)
 			}
 		}
