@@ -1,0 +1,8 @@
+#!/bin/bash
+
+docker-up spire-agent
+
+# Attestation goes through the xDS-resolved connection ("xds:///spire-server"),
+# so a successful attestation confirms the agent reached a server via the xDS
+# control plane.
+check-log-line spire-agent "Node attestation was successful"

@@ -654,6 +654,19 @@ func TestNewAgentConfig(t *testing.T) {
 			},
 		},
 		{
+			msg: "use_xds produces an xds target from server_address",
+			input: func(c *Config) {
+				c.Agent.ServerAddress = "spire-server"
+				c.Agent.ServerPort = 1337
+				c.Agent.Experimental.UseXDS = true
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				// server_port is intentionally ignored in xds mode; the port
+				// is delivered by the management server via EDS.
+				require.Equal(t, "xds:///spire-server", c.ServerAddress)
+			},
+		},
+		{
 			msg: "trust_domain should be correctly parsed",
 			input: func(c *Config) {
 				c.Agent.TrustDomain = "foo"

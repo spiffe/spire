@@ -1,0 +1,51 @@
+services:
+  postgres:
+    image: postgres:17
+    command: -c fsync=off
+    environment:
+      - POSTGRES_PASSWORD=password
+    tmpfs:
+      - /var/lib/postgresql
+
+  # Two SPIRE servers backed by the shared postgres datastore and a shared
+  # disk upstream root CA. Configs are identical apart from the hostname, so
+  # both mint SVIDs that chain to the same root and share registration entries
+  # and the aggregated trust bundle.
+  spire-server-1:
+    image: spire-server:latest-local
+    hostname: spire-server-1
+    depends_on: ["postgres"]
+    volumes:
+      - ./conf/server1:/opt/spire/conf/server
+      - ./conf/upstream:/opt/spire/conf/upstream
+    command: ["-config", "/opt/spire/conf/server/server.conf"]
+  spire-server-2:
+    image: spire-server:latest-local
+    hostname: spire-server-2
+    depends_on: ["postgres"]
+    volumes:
+      - ./conf/server2:/opt/spire/conf/server
+      - ./conf/upstream:/opt/spire/conf/upstream
+    command: ["-config", "/opt/spire/conf/server/server.conf"]
+
+  # Static xDS management server: prefer spire-server-1 (priority 0), fail over
+  # to spire-server-2 (priority 1).
+  xds-control-plane:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: xds-control-plane:latest-local
+    hostname: xds-control-plane
+    depends_on: ["spire-server-1", "spire-server-2"]
+
+  spire-agent:
+    image: spire-agent:latest-local
+    hostname: spire-agent
+    depends_on: ["xds-control-plane"]
+    environment:
+      # gRPC reads the xDS bootstrap (management server URI + node locality)
+      # from this file; it is not part of the SPIRE agent config.
+      - GRPC_XDS_BOOTSTRAP=/opt/spire/conf/agent/xds-bootstrap.json
+    volumes:
+      - ./conf/agent:/opt/spire/conf/agent
+    command: ["-config", "/opt/spire/conf/agent/agent.conf"]

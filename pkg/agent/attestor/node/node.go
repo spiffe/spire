@@ -290,11 +290,23 @@ func (a *attestor) serverConn(bundle *spiffebundle.Bundle) (*grpc.ClientConn, er
 		},
 	}
 
+	var dialOpts []grpc.DialOption
+	if client.IsXDSTarget(a.c.ServerAddress) {
+		dialOpts = []grpc.DialOption{
+			grpc.WithDefaultServiceConfig(roundRobinServiceConfig),
+			grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
+		}
+	} else {
+		dialOpts = []grpc.DialOption{
+			grpc.WithDefaultServiceConfig(roundRobinServiceConfig),
+			grpc.WithDisableServiceConfig(),
+			grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
+		}
+	}
+
 	return grpc.NewClient(
 		a.c.ServerAddress,
-		grpc.WithDefaultServiceConfig(roundRobinServiceConfig),
-		grpc.WithDisableServiceConfig(),
-		grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
+		dialOpts...,
 	)
 }
 
