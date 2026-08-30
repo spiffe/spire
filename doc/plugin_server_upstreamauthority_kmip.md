@@ -8,6 +8,12 @@ the KMIP server.
 
 The plugin uses the [ovh/kmip-go](https://github.com/ovh/kmip-go) client library.
 
+> **Compatibility note:** To mint a CA certificate, the plugin injects the
+> `basicConstraints CA:TRUE` extension via an Eviden KMS (Cosmian)-specific vendor
+> attribute (`x509-extension`, `vendor_identification="cosmian"`). KMIP servers that do
+> not support this vendor attribute may reject or ignore it, in which case the issued
+> certificate will lack the CA constraint and the plugin may not work with them as-is.
+
 ## Configuration
 
 The plugin accepts the following configuration options:
