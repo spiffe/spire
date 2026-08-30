@@ -391,6 +391,9 @@ func buildConfig(_ catalog.CoreConfig, hclText string, s *pluginconf.Status) *Co
 	if cfg.KMIPAddr == "" {
 		s.ReportError("kmip_addr is required")
 	}
+	if cfg.CAKeyUID == "" {
+		s.ReportError("ca_key_uid is required")
+	}
 	// mTLS is optional: if one field is set, both must be set.
 	if cfg.ClientCertPath != "" && cfg.ClientKeyPath == "" {
 		s.ReportError("client_key_path is required when client_cert_path is set")

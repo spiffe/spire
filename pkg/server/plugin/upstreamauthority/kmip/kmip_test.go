@@ -25,6 +25,8 @@ import (
 	"google.golang.org/grpc/codes"
 )
 
+const testCAKeyUID = "ca-key-001"
+
 // ─── Configure ───────────────────────────────────────────────────────────────
 
 func TestConfigure(t *testing.T) {
@@ -44,7 +46,8 @@ func TestConfigure(t *testing.T) {
 				kmip_addr            = %q
 				ca_cert_path         = %q
 				insecure_skip_verify = true
-			`, addr, caFile),
+				ca_key_uid           = %q
+			`, addr, caFile, testCAKeyUID),
 			expectCode: codes.OK,
 		},
 		{
@@ -54,12 +57,19 @@ func TestConfigure(t *testing.T) {
 			expectMsg:  "kmip_addr",
 		},
 		{
+			name:       "missing ca_key_uid",
+			config:     fmt.Sprintf(`kmip_addr = %q insecure_skip_verify = true`, addr),
+			expectCode: codes.InvalidArgument,
+			expectMsg:  "ca_key_uid",
+		},
+		{
 			name: "key path set but no cert path",
 			config: fmt.Sprintf(`
 				kmip_addr            = %q
+				ca_key_uid           = %q
 				client_key_path      = "some.key"
 				insecure_skip_verify = true
-			`, addr),
+			`, addr, testCAKeyUID),
 			expectCode: codes.InvalidArgument,
 			expectMsg:  "client_cert_path",
 		},
@@ -121,14 +131,16 @@ func loadUAPlugin(t *testing.T, addr, caPEM, caCertUID string) *upstreamauthorit
 			kmip_addr            = %q
 			ca_cert_path         = %q
 			insecure_skip_verify = true
+			ca_key_uid           = %q
 			ca_cert_uid          = %q
-		`, addr, caFile, caCertUID)
+		`, addr, caFile, testCAKeyUID, caCertUID)
 	} else {
 		config = fmt.Sprintf(`
 			kmip_addr            = %q
 			ca_cert_path         = %q
 			insecure_skip_verify = true
-		`, addr, caFile)
+			ca_key_uid           = %q
+		`, addr, caFile, testCAKeyUID)
 	}
 
 	plugintest.Load(t, builtin(p), v1,
