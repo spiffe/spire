@@ -110,6 +110,11 @@ spec:
             name: https
           - containerPort: 5696
             name: kmip-tcp
+        readinessProbe:
+          tcpSocket:
+            port: 5696
+          initialDelaySeconds: 5
+          periodSeconds: 5
         volumeMounts:
           - name: kms-config
             mountPath: /etc/kms

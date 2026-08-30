@@ -79,7 +79,7 @@ metadata:
 
 ---
 
-# SPIRE server configuration: KeyManager "kmip" using plain HTTP + token auth.
+# SPIRE server configuration: KeyManager "kmip" using binary KMIP over mTLS.
 apiVersion: v1
 kind: ConfigMap
 metadata:
