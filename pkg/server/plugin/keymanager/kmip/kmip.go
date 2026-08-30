@@ -48,7 +48,8 @@ func builtin(p *Plugin) catalog.BuiltIn {
 type Config struct {
 	// KMIPAddr is the TCP address of the KMIP server (e.g. "kmip.example.com:5696").
 	KMIPAddr string `hcl:"kmip_addr"`
-	// CACertPath is the PEM file used to verify the KMIP server TLS certificate.
+	// CACertPath is the PEM-encoded CA certificate(s) used to verify the KMIP server
+	// TLS certificate. Accepts either inline PEM content or a path to a PEM file.
 	// Optional; when empty the system certificate pool is used.
 	CACertPath string `hcl:"ca_cert_path"`
 	// ClientCertPath is the PEM file of the mTLS client certificate.
@@ -615,13 +616,9 @@ func buildClient(cfg *Config) (*kmipclient.Client, error) {
 			MinVersion:         tls.VersionTLS12,
 		}
 		if cfg.CACertPath != "" {
-			caPEM, err := os.ReadFile(cfg.CACertPath)
+			pool, err := loadCACertPool(cfg.CACertPath)
 			if err != nil {
-				return nil, fmt.Errorf("read CA cert %s: %w", cfg.CACertPath, err)
-			}
-			pool := x509.NewCertPool()
-			if !pool.AppendCertsFromPEM(caPEM) {
-				return nil, fmt.Errorf("no valid certificates found in %s", cfg.CACertPath)
+				return nil, err
 			}
 			tlsCfg.RootCAs = pool
 		}
@@ -633,4 +630,25 @@ func buildClient(cfg *Config) (*kmipclient.Client, error) {
 	}
 
 	return kmipclient.Dial(cfg.KMIPAddr, opts...)
+}
+
+// loadCACertPool loads one or more CA certificates from either a file path or
+// inline PEM content (detected by the presence of a PEM "BEGIN" block), matching
+// the value-or-file behaviour of other SPIRE plugins.
+func loadCACertPool(caCert string) (*x509.CertPool, error) {
+	var pemBytes []byte
+	if strings.Contains(caCert, "-----BEGIN") {
+		pemBytes = []byte(caCert)
+	} else {
+		var err error
+		pemBytes, err = os.ReadFile(caCert)
+		if err != nil {
+			return nil, fmt.Errorf("read CA cert %s: %w", caCert, err)
+		}
+	}
+	pool := x509.NewCertPool()
+	if !pool.AppendCertsFromPEM(pemBytes) {
+		return nil, fmt.Errorf("no valid certificates found in %s", caCert)
+	}
+	return pool, nil
 }

@@ -92,6 +92,26 @@ func TestConfigure(t *testing.T) {
 	}
 }
 
+func TestLoadCACertPool(t *testing.T) {
+	store := newFakeStore()
+	_, caPEM := kmiptest.NewServer(t, store.handler())
+	caFile := writeTempPEM(t, caPEM)
+
+	for _, tt := range []struct {
+		name   string
+		caCert string
+	}{
+		{name: "inline PEM", caCert: caPEM},
+		{name: "file path", caCert: caFile},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			pool, err := loadCACertPool(tt.caCert)
+			require.NoError(t, err)
+			require.NotNil(t, pool)
+		})
+	}
+}
+
 // ─── GenerateKey ─────────────────────────────────────────────────────────────
 
 func TestGenerateKey(t *testing.T) {
