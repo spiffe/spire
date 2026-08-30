@@ -12,11 +12,15 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
+	"time"
 
+	"github.com/andres-erbsen/clock"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
 	ovh "github.com/ovh/kmip-go"
@@ -31,6 +35,18 @@ import (
 )
 
 const pluginName = "kmip"
+
+const (
+	// keepActiveKeysFrequency is how often the keep-alive task refreshes the
+	// spire-last-update Name on keys currently managed by this server.
+	keepActiveKeysFrequency = time.Hour * 6
+	// disposeStaleKeysFrequency is how often the reclamation task scans for stale
+	// keys to destroy.
+	disposeStaleKeysFrequency = time.Hour * 48
+	// staleKeyThreshold is how old a key's spire-last-update Name must be before
+	// the reclamation task considers it orphaned and destroys it.
+	staleKeyThreshold = time.Hour * 24 * 14 // two weeks
+)
 
 // BuiltIn returns the catalog.BuiltIn for registering this plugin.
 func BuiltIn() catalog.BuiltIn {
@@ -75,17 +91,20 @@ type Plugin struct {
 	keymanagerv1.UnsafeKeyManagerServer
 	configv1.UnsafeConfigServer
 
-	logger   hclog.Logger
-	mu       sync.RWMutex
-	entries  map[string]keyEntry // spireKeyID → keyEntry
-	serverID string
-	client   *kmipclient.Client
+	logger      hclog.Logger
+	mu          sync.RWMutex
+	entries     map[string]keyEntry // spireKeyID → keyEntry
+	serverID    string
+	client      *kmipclient.Client
+	clk         clock.Clock
+	cancelTasks context.CancelFunc
 }
 
 // New returns a new Plugin instance.
 func New() *Plugin {
 	return &Plugin{
 		entries: make(map[string]keyEntry),
+		clk:     clock.New(),
 	}
 }
 
@@ -126,6 +145,17 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 		"server_id", p.serverID,
 		"keys_recovered", len(p.entries),
 	)
+
+	// Start background reclamation tasks. Cancel any tasks from a previous
+	// Configure call first.
+	if p.cancelTasks != nil {
+		p.cancelTasks()
+	}
+	taskCtx, cancel := context.WithCancel(context.Background())
+	p.cancelTasks = cancel
+	go p.keepKeysActiveTask(taskCtx)
+	go p.disposeStaleKeysTask(taskCtx)
+
 	return &configv1.ConfigureResponse{}, nil
 }
 
@@ -152,7 +182,11 @@ func (p *Plugin) GenerateKey(ctx context.Context, req *keymanagerv1.GenerateKeyR
 		return nil, status.Error(codes.FailedPrecondition, "plugin not configured")
 	}
 
-	createResp, err := createKeyPairForType(ctx, client, req.KeyType)
+	// Tag the keys with SPIRE metadata (including a last-update freshness marker)
+	// at creation time, so a key that is created but never fully set up is still
+	// discoverable and eventually reclaimed by the reclamation task.
+	nameAttrs := spireNameAttributes(serverID, req.KeyId, req.KeyType, p.clk.Now())
+	createResp, err := createKeyPairForType(ctx, client, req.KeyType, nameAttrs)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to create key pair: %v", err)
 	}
@@ -170,25 +204,6 @@ func (p *Plugin) GenerateKey(ctx context.Context, req *keymanagerv1.GenerateKeyR
 				p.logger.Warn("Failed to destroy public key after activation failure", "uid", createResp.PublicKeyUniqueIdentifier, "err", err)
 			}
 			return nil, status.Errorf(codes.Internal, "failed to activate key %s: %v", uid, actErr)
-		}
-	}
-
-	// Tag both key objects with SPIRE metadata using standard KMIP Name attributes.
-	// These names are used by recoverKeys on restart.
-	nameAttrs := spireNameAttributes(serverID, req.KeyId, req.KeyType)
-	for _, uid := range []string{createResp.PrivateKeyUniqueIdentifier, createResp.PublicKeyUniqueIdentifier} {
-		for _, name := range nameAttrs {
-			if _, addErr := client.AddAttribute(uid, ovh.AttributeNameName, name).ExecContext(ctx); addErr != nil {
-				// Synchronously destroy both keys on tag failure so orphaned keys are
-				// not leaked silently; log any destroy failure for visibility.
-				if _, err := client.Destroy(createResp.PrivateKeyUniqueIdentifier).Exec(); err != nil {
-					p.logger.Warn("Failed to destroy private key after tag failure", "uid", createResp.PrivateKeyUniqueIdentifier, "err", err)
-				}
-				if _, err := client.Destroy(createResp.PublicKeyUniqueIdentifier).Exec(); err != nil {
-					p.logger.Warn("Failed to destroy public key after tag failure", "uid", createResp.PublicKeyUniqueIdentifier, "err", err)
-				}
-				return nil, status.Errorf(codes.Internal, "failed to tag key %s: %v", uid, addErr)
-			}
 		}
 	}
 
@@ -348,24 +363,31 @@ func (p *Plugin) recoverKeys(ctx context.Context) error {
 	return nil
 }
 
-// createKeyPairForType creates a key pair for the given SPIRE key type.
-func createKeyPairForType(ctx context.Context, c *kmipclient.Client, kt keymanagerv1.KeyType) (*payloads.CreateKeyPairResponsePayload, error) {
+// createKeyPairForType creates a key pair for the given SPIRE key type, tagging
+// both keys with the provided Name attributes in the Create request so they are
+// discoverable and freshness-marked from the moment of creation.
+func createKeyPairForType(ctx context.Context, c *kmipclient.Client, kt keymanagerv1.KeyType, names []ovh.Name) (*payloads.CreateKeyPairResponsePayload, error) {
 	const (
 		privUsage = ovh.CryptographicUsageSign | ovh.CryptographicUsageCertificateSign | ovh.CryptographicUsageCRLSign
 		pubUsage  = ovh.CryptographicUsageVerify
 	)
+	var exec kmipclient.ExecCreateKeyPairAttr
 	switch kt {
 	case keymanagerv1.KeyType_EC_P256:
-		return c.CreateKeyPair().ECDSA(ovh.RecommendedCurveP_256, privUsage, pubUsage).ExecContext(ctx)
+		exec = c.CreateKeyPair().ECDSA(ovh.RecommendedCurveP_256, privUsage, pubUsage)
 	case keymanagerv1.KeyType_EC_P384:
-		return c.CreateKeyPair().ECDSA(ovh.RecommendedCurveP_384, privUsage, pubUsage).ExecContext(ctx)
+		exec = c.CreateKeyPair().ECDSA(ovh.RecommendedCurveP_384, privUsage, pubUsage)
 	case keymanagerv1.KeyType_RSA_2048:
-		return c.CreateKeyPair().RSA(2048, privUsage, pubUsage).ExecContext(ctx)
+		exec = c.CreateKeyPair().RSA(2048, privUsage, pubUsage)
 	case keymanagerv1.KeyType_RSA_4096:
-		return c.CreateKeyPair().RSA(4096, privUsage, pubUsage).ExecContext(ctx)
+		exec = c.CreateKeyPair().RSA(4096, privUsage, pubUsage)
 	default:
 		return nil, fmt.Errorf("unsupported key type: %v", kt)
 	}
+	for _, name := range names {
+		exec = exec.WithAttribute(ovh.AttributeNameName, name)
+	}
+	return exec.ExecContext(ctx)
 }
 
 // getPublicKeyPKIX fetches a public key from the KMIP server and returns
@@ -511,21 +533,27 @@ func isRSA(kt keymanagerv1.KeyType) bool {
 // ── SPIRE Name attribute helpers ─────────────────────────────────────────────
 
 const (
-	prefixServerID = "spire-server-id:"
-	prefixKeyID    = "spire-key-id:"
-	prefixKeyType  = "spire-key-type:"
+	prefixServerID   = "spire-server-id:"
+	prefixKeyID      = "spire-key-id:"
+	prefixKeyType    = "spire-key-type:"
+	prefixLastUpdate = "spire-last-update:"
 )
 
-// spireNameAttributes returns the three Name attributes to attach to each key.
-func spireNameAttributes(serverID, keyID string, kt keymanagerv1.KeyType) []ovh.Name {
+// spireNameAttributes returns the Name attributes to attach to each key. The
+// last-update name carries a Unix timestamp that the keep-alive task refreshes on
+// active keys and the reclamation task uses to identify orphaned keys.
+func spireNameAttributes(serverID, keyID string, kt keymanagerv1.KeyType, now time.Time) []ovh.Name {
 	return []ovh.Name{
 		{NameValue: serverIDNameValue(serverID), NameType: ovh.NameTypeUninterpretedTextString},
 		{NameValue: prefixKeyID + keyID, NameType: ovh.NameTypeUninterpretedTextString},
 		{NameValue: prefixKeyType + keyTypeName(kt), NameType: ovh.NameTypeUninterpretedTextString},
+		{NameValue: lastUpdateNameValue(now.Unix()), NameType: ovh.NameTypeUninterpretedTextString},
 	}
 }
 
 func serverIDNameValue(id string) string { return prefixServerID + id }
+
+func lastUpdateNameValue(ts int64) string { return prefixLastUpdate + strconv.FormatInt(ts, 10) }
 
 func keyTypeName(kt keymanagerv1.KeyType) string {
 	switch kt {
@@ -658,4 +686,168 @@ func loadCACertPool(caCert string) (*x509.CertPool, error) {
 		return nil, fmt.Errorf("no valid certificates found in %s", caCert)
 	}
 	return pool, nil
+}
+
+// ── Background key reclamation ───────────────────────────────────────────────
+
+// keepKeysActiveTask periodically refreshes the spire-last-update Name on the keys
+// managed by this server so the reclamation task does not mistake them for
+// orphaned keys.
+func (p *Plugin) keepKeysActiveTask(ctx context.Context) {
+	ticker := p.clk.Ticker(keepActiveKeysFrequency)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			if err := p.keepKeysActive(ctx); err != nil {
+				p.logger.Warn("Failed to refresh last-update on managed keys", "err", err)
+			}
+		}
+	}
+}
+
+// keepKeysActive updates the spire-last-update Name to now on every key currently
+// managed by this server.
+func (p *Plugin) keepKeysActive(ctx context.Context) error {
+	p.logger.Debug("Refreshing spire-last-update on managed keys")
+
+	p.mu.RLock()
+	client := p.client
+	uids := make([]string, 0, len(p.entries))
+	for _, e := range p.entries {
+		uids = append(uids, e.privateKeyUID)
+	}
+	p.mu.RUnlock()
+
+	if client == nil {
+		return nil
+	}
+
+	now := p.clk.Now().Unix()
+	var errs []string
+	for _, uid := range uids {
+		if err := refreshLastUpdate(ctx, client, uid, now); err != nil {
+			p.logger.Warn("Failed to refresh last-update", "uid", uid, "err", err)
+			errs = append(errs, err.Error())
+		}
+	}
+	if len(errs) > 0 {
+		return errors.New(strings.Join(errs, "; "))
+	}
+	return nil
+}
+
+// disposeStaleKeysTask periodically scans for keys whose spire-last-update Name is
+// older than the threshold and destroys them, reclaiming keys orphaned by a crash
+// or shutdown.
+func (p *Plugin) disposeStaleKeysTask(ctx context.Context) {
+	ticker := p.clk.Ticker(disposeStaleKeysFrequency)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			if err := p.disposeStaleKeys(ctx); err != nil {
+				p.logger.Warn("Failed to dispose stale keys", "err", err)
+			}
+		}
+	}
+}
+
+// disposeStaleKeys locates this server's keys and destroys those whose
+// spire-last-update Name is older than staleKeyThreshold.
+func (p *Plugin) disposeStaleKeys(ctx context.Context) error {
+	p.logger.Debug("Looking for stale keys to dispose")
+
+	p.mu.RLock()
+	client := p.client
+	serverID := p.serverID
+	p.mu.RUnlock()
+	if client == nil {
+		return nil
+	}
+
+	locResp, err := client.Locate().
+		WithAttribute(ovh.AttributeNameName, ovh.Name{
+			NameValue: serverIDNameValue(serverID),
+			NameType:  ovh.NameTypeUninterpretedTextString,
+		}).
+		ExecContext(ctx)
+	if err != nil {
+		return fmt.Errorf("locate keys for server %q: %w", serverID, err)
+	}
+
+	staleThreshold := p.clk.Now().Add(-staleKeyThreshold).Unix()
+
+	for _, privUID := range locResp.UniqueIdentifier {
+		lastUpdate, ok, err := getLastUpdate(ctx, client, privUID)
+		if err != nil {
+			p.logger.Warn("Failed to read last-update during disposal", "uid", privUID, "err", err)
+			continue
+		}
+		if !ok || lastUpdate >= staleThreshold {
+			continue
+		}
+		if _, err := client.Destroy(privUID).ExecContext(ctx); err != nil {
+			p.logger.Warn("Failed to destroy stale key", "uid", privUID, "err", err)
+			continue
+		}
+		p.logger.Info("Disposed stale key", "uid", privUID, "last_update", lastUpdate)
+	}
+	return nil
+}
+
+// refreshLastUpdate updates the spire-last-update Name on a key object to the given
+// Unix timestamp. It targets the existing spire-last-update Name value by its index
+// among the object's Name attributes; if none is present it adds one.
+func refreshLastUpdate(ctx context.Context, c *kmipclient.Client, uid string, ts int64) error {
+	attrResp, err := c.GetAttributes(uid, ovh.AttributeNameName).ExecContext(ctx)
+	if err != nil {
+		return fmt.Errorf("get Name attributes: %w", err)
+	}
+
+	newName := ovh.Name{NameValue: lastUpdateNameValue(ts), NameType: ovh.NameTypeUninterpretedTextString}
+
+	var nameIndex int32
+	for _, attr := range attrResp.Attribute {
+		if attr.AttributeName != ovh.AttributeNameName {
+			continue
+		}
+		if n, ok := attr.AttributeValue.(ovh.Name); ok && strings.HasPrefix(n.NameValue, prefixLastUpdate) {
+			if _, err := c.ModifyAttribute(uid, ovh.AttributeNameName, newName).WithIndex(nameIndex).ExecContext(ctx); err != nil {
+				return fmt.Errorf("modify last-update Name: %w", err)
+			}
+			return nil
+		}
+		nameIndex++
+	}
+
+	// No last-update Name present; add one.
+	if _, err := c.AddAttribute(uid, ovh.AttributeNameName, newName).ExecContext(ctx); err != nil {
+		return fmt.Errorf("add last-update Name: %w", err)
+	}
+	return nil
+}
+
+// getLastUpdate reads the spire-last-update Name from a key object and returns the
+// parsed Unix timestamp, or ok=false if the key has no such Name.
+func getLastUpdate(ctx context.Context, c *kmipclient.Client, uid string) (int64, bool, error) {
+	attrResp, err := c.GetAttributes(uid, ovh.AttributeNameName).ExecContext(ctx)
+	if err != nil {
+		return 0, false, err
+	}
+	v := prefixValue(collectNameValues(attrResp.Attribute), prefixLastUpdate)
+	if v == "" {
+		return 0, false, nil
+	}
+	ts, err := strconv.ParseInt(v, 10, 64)
+	if err != nil {
+		return 0, false, fmt.Errorf("invalid last-update %q: %w", v, err)
+	}
+	return ts, true, nil
 }
