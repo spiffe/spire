@@ -11,9 +11,12 @@ import (
 	"crypto/x509"
 	"fmt"
 	"os"
+	"strconv"
 	"sync"
 	"testing"
+	"time"
 
+	"github.com/andres-erbsen/clock"
 	ovh "github.com/ovh/kmip-go"
 	"github.com/ovh/kmip-go/kmipserver"
 	"github.com/ovh/kmip-go/kmiptest"
@@ -220,6 +223,71 @@ func TestKeyRecovery(t *testing.T) {
 	require.NotNil(t, key.Public())
 }
 
+// ─── Key reclamation ─────────────────────────────────────────────────────────
+
+func TestGenerateKeyTagsAtCreation(t *testing.T) {
+	store := newFakeStore()
+	addr, caPEM := kmiptest.NewServer(t, store.handler())
+	km := loadPlugin(t, addr, caPEM)
+
+	_, err := km.GenerateKey(context.Background(), "tagged-key", keymanager.ECP256)
+	require.NoError(t, err)
+
+	store.mu.Lock()
+	defer store.mu.Unlock()
+	require.Len(t, store.keys, 1)
+	for _, rec := range store.keys {
+		require.Contains(t, rec.nameAttrs, serverIDNameValue(testServerID))
+		require.Contains(t, rec.nameAttrs, prefixKeyID+"tagged-key")
+		require.Contains(t, rec.nameAttrs, prefixKeyType+"EC_P256")
+		require.NotEmpty(t, prefixValue(rec.nameAttrs, prefixLastUpdate))
+	}
+}
+
+func TestKeepKeysActive(t *testing.T) {
+	store := newFakeStore()
+	addr, caPEM := kmiptest.NewServer(t, store.handler())
+	p, clk := newTestPlugin(t, addr, caPEM)
+
+	_, err := p.GenerateKey(context.Background(), &keymanagerv1.GenerateKeyRequest{
+		KeyId:   "active-key",
+		KeyType: keymanagerv1.KeyType_EC_P256,
+	})
+	require.NoError(t, err)
+
+	oldTS := readLastUpdate(t, store)
+
+	clk.Add(time.Hour)
+	require.NoError(t, p.keepKeysActive(context.Background()))
+
+	newTS := readLastUpdate(t, store)
+	require.NotEqual(t, oldTS, newTS)
+	require.Equal(t, clk.Now().Unix(), newTS)
+}
+
+func TestDisposeStaleKeys(t *testing.T) {
+	store := newFakeStore()
+	addr, caPEM := kmiptest.NewServer(t, store.handler())
+	p, clk := newTestPlugin(t, addr, caPEM)
+
+	now := clk.Now()
+	store.seed("stale-priv", "stale-pub", []string{
+		serverIDNameValue(testServerID),
+		lastUpdateNameValue(now.Add(-30 * 24 * time.Hour).Unix()),
+	})
+	store.seed("fresh-priv", "fresh-pub", []string{
+		serverIDNameValue(testServerID),
+		lastUpdateNameValue(now.Unix()),
+	})
+
+	require.NoError(t, p.disposeStaleKeys(context.Background()))
+
+	store.mu.Lock()
+	defer store.mu.Unlock()
+	require.NotContains(t, store.keys, "stale-priv", "stale key should be disposed")
+	require.Contains(t, store.keys, "fresh-priv", "fresh key should be kept")
+}
+
 // ─── test helpers ─────────────────────────────────────────────────────────────
 
 func loadPlugin(t *testing.T, addr, caPEM string) *keymanager.V1 {
@@ -251,6 +319,48 @@ func writeTempPEM(t *testing.T, content string) string {
 	return f.Name()
 }
 
+// newTestPlugin configures a Plugin against the test KMIP server using a mock
+// clock, so tests can control the passage of time for the reclamation tasks.
+func newTestPlugin(t *testing.T, addr, caPEM string) (*Plugin, *clock.Mock) {
+	t.Helper()
+	caFile := writeTempPEM(t, caPEM)
+	p := New()
+	clk := clock.NewMock()
+	clk.Set(time.Unix(1_700_000_000, 0))
+	p.clk = clk
+
+	var configErr error
+	plugintest.Load(t, builtin(p), nil,
+		plugintest.CaptureConfigureError(&configErr),
+		plugintest.Configure(fmt.Sprintf(`
+			kmip_addr            = %q
+			ca_cert_path         = %q
+			insecure_skip_verify = true
+			server_id            = %q
+		`, addr, caFile, testServerID)),
+		plugintest.CoreConfig(catalog.CoreConfig{
+			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
+		}),
+	)
+	require.NoError(t, configErr)
+	return p, clk
+}
+
+// readLastUpdate returns the spire-last-update timestamp of the single key in the
+// store.
+func readLastUpdate(t *testing.T, store *fakeStore) int64 {
+	t.Helper()
+	store.mu.Lock()
+	defer store.mu.Unlock()
+	for _, rec := range store.keys {
+		ts, err := strconv.ParseInt(prefixValue(rec.nameAttrs, prefixLastUpdate), 10, 64)
+		require.NoError(t, err)
+		return ts
+	}
+	require.FailNow(t, "no keys in store")
+	return 0
+}
+
 // ─── fakeStore ── in-memory KMIP server ──────────────────────────────────────
 
 type keyRecord struct {
@@ -280,6 +390,13 @@ func (s *fakeStore) nextUID(prefix string) string {
 	return fmt.Sprintf("%s-%04d", prefix, s.counter)
 }
 
+// seed inserts a key record with the given name attributes directly into the store.
+func (s *fakeStore) seed(privUID, pubUID string, nameAttrs []string) {
+	rec := &keyRecord{privUID: privUID, pubUID: pubUID, nameAttrs: nameAttrs}
+	s.keys[privUID] = rec
+	s.pubKeys[pubUID] = rec
+}
+
 func (s *fakeStore) handler() kmipserver.RequestHandler {
 	exec := kmipserver.NewBatchExecutor()
 
@@ -299,6 +416,16 @@ func (s *fakeStore) handler() kmipserver.RequestHandler {
 			pubUID:  s.nextUID("pub"),
 			privKey: priv,
 			pubPKIX: pkix,
+		}
+		// Capture Name attributes applied at creation via the Template-Attribute.
+		if req.CommonTemplateAttribute != nil {
+			for _, attr := range req.CommonTemplateAttribute.Attribute {
+				if attr.AttributeName == ovh.AttributeNameName {
+					if n, ok := attr.AttributeValue.(ovh.Name); ok {
+						rec.nameAttrs = append(rec.nameAttrs, n.NameValue)
+					}
+				}
+			}
 		}
 		s.keys[rec.privUID] = rec
 		s.pubKeys[rec.pubUID] = rec
@@ -328,6 +455,28 @@ func (s *fakeStore) handler() kmipserver.RequestHandler {
 		}
 		// Echo the attribute back as required by the KMIP spec.
 		return &payloads.AddAttributeResponsePayload{
+			UniqueIdentifier: req.UniqueIdentifier,
+			Attribute:        req.Attribute,
+		}, nil
+	}))
+
+	exec.Route(ovh.OperationModifyAttribute, kmipserver.HandleFunc(func(_ context.Context, req *payloads.ModifyAttributeRequestPayload) (*payloads.ModifyAttributeResponsePayload, error) {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		if req.Attribute.AttributeName == ovh.AttributeNameName {
+			if n, ok := req.Attribute.AttributeValue.(ovh.Name); ok {
+				idx := 0
+				if req.Attribute.AttributeIndex != nil {
+					idx = int(*req.Attribute.AttributeIndex)
+				}
+				if rec, ok := s.keys[req.UniqueIdentifier]; ok {
+					if idx < len(rec.nameAttrs) {
+						rec.nameAttrs[idx] = n.NameValue
+					}
+				}
+			}
+		}
+		return &payloads.ModifyAttributeResponsePayload{
 			UniqueIdentifier: req.UniqueIdentifier,
 			Attribute:        req.Attribute,
 		}, nil
