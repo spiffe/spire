@@ -1127,3 +1127,167 @@ func loadCACertPool(caCert string) (*x509.CertPool, error) {
 	}
 	return pool, nil
 }
+
+// ── Background key reclamation ───────────────────────────────────────────────
+
+// keepKeysActiveTask periodically refreshes the spire-last-update Name on the keys
+// managed by this server so the reclamation task does not mistake them for
+// orphaned keys.
+func (p *Plugin) keepKeysActiveTask(ctx context.Context) {
+	ticker := p.clk.Ticker(keepActiveKeysFrequency)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			if err := p.keepKeysActive(ctx); err != nil {
+				p.logger.Warn("Failed to refresh last-update on managed keys", "err", err)
+			}
+		}
+	}
+}
+
+// keepKeysActive updates the spire-last-update Name to now on every key currently
+// managed by this server.
+func (p *Plugin) keepKeysActive(ctx context.Context) error {
+	p.logger.Debug("Refreshing spire-last-update on managed keys")
+
+	p.mu.RLock()
+	client := p.client
+	uids := make([]string, 0, len(p.entries))
+	for _, e := range p.entries {
+		uids = append(uids, e.privateKeyUID)
+	}
+	p.mu.RUnlock()
+
+	if client == nil {
+		return nil
+	}
+
+	now := p.clk.Now().Unix()
+	var errs []string
+	for _, uid := range uids {
+		if err := refreshLastUpdate(ctx, client, uid, now); err != nil {
+			p.logger.Warn("Failed to refresh last-update", "uid", uid, "err", err)
+			errs = append(errs, err.Error())
+		}
+	}
+	if len(errs) > 0 {
+		return errors.New(strings.Join(errs, "; "))
+	}
+	return nil
+}
+
+// disposeStaleKeysTask periodically scans for keys whose spire-last-update Name is
+// older than the threshold and destroys them, reclaiming keys orphaned by a crash
+// or shutdown.
+func (p *Plugin) disposeStaleKeysTask(ctx context.Context) {
+	ticker := p.clk.Ticker(disposeStaleKeysFrequency)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			if err := p.disposeStaleKeys(ctx); err != nil {
+				p.logger.Warn("Failed to dispose stale keys", "err", err)
+			}
+		}
+	}
+}
+
+// disposeStaleKeys locates this server's keys and destroys those whose
+// spire-last-update Name is older than staleKeyThreshold.
+func (p *Plugin) disposeStaleKeys(ctx context.Context) error {
+	p.logger.Debug("Looking for stale keys to dispose")
+
+	p.mu.RLock()
+	client := p.client
+	serverID := p.serverID
+	p.mu.RUnlock()
+	if client == nil {
+		return nil
+	}
+
+	locResp, err := client.Locate().
+		WithAttribute(ovh.AttributeNameName, ovh.Name{
+			NameValue: serverIDNameValue(serverID),
+			NameType:  ovh.NameTypeUninterpretedTextString,
+		}).
+		ExecContext(ctx)
+	if err != nil {
+		return fmt.Errorf("locate keys for server %q: %w", serverID, err)
+	}
+
+	staleThreshold := p.clk.Now().Add(-staleKeyThreshold).Unix()
+
+	for _, privUID := range locResp.UniqueIdentifier {
+		lastUpdate, ok, err := getLastUpdate(ctx, client, privUID)
+		if err != nil {
+			p.logger.Warn("Failed to read last-update during disposal", "uid", privUID, "err", err)
+			continue
+		}
+		if !ok || lastUpdate >= staleThreshold {
+			continue
+		}
+		if _, err := client.Destroy(privUID).ExecContext(ctx); err != nil {
+			p.logger.Warn("Failed to destroy stale key", "uid", privUID, "err", err)
+			continue
+		}
+		p.logger.Info("Disposed stale key", "uid", privUID, "last_update", lastUpdate)
+	}
+	return nil
+}
+
+// refreshLastUpdate updates the spire-last-update Name on a key object to the given
+// Unix timestamp. It targets the existing spire-last-update Name value by its index
+// among the object's Name attributes; if none is present it adds one.
+func refreshLastUpdate(ctx context.Context, c *kmipclient.Client, uid string, ts int64) error {
+	attrResp, err := c.GetAttributes(uid, ovh.AttributeNameName).ExecContext(ctx)
+	if err != nil {
+		return fmt.Errorf("get Name attributes: %w", err)
+	}
+
+	newName := ovh.Name{NameValue: lastUpdateNameValue(ts), NameType: ovh.NameTypeUninterpretedTextString}
+
+	var nameIndex int32
+	for _, attr := range attrResp.Attribute {
+		if attr.AttributeName != ovh.AttributeNameName {
+			continue
+		}
+		if n, ok := attr.AttributeValue.(ovh.Name); ok && strings.HasPrefix(n.NameValue, prefixLastUpdate) {
+			if _, err := c.ModifyAttribute(uid, ovh.AttributeNameName, newName).WithIndex(nameIndex).ExecContext(ctx); err != nil {
+				return fmt.Errorf("modify last-update Name: %w", err)
+			}
+			return nil
+		}
+		nameIndex++
+	}
+
+	// No last-update Name present; add one.
+	if _, err := c.AddAttribute(uid, ovh.AttributeNameName, newName).ExecContext(ctx); err != nil {
+		return fmt.Errorf("add last-update Name: %w", err)
+	}
+	return nil
+}
+
+// getLastUpdate reads the spire-last-update Name from a key object and returns the
+// parsed Unix timestamp, or ok=false if the key has no such Name.
+func getLastUpdate(ctx context.Context, c *kmipclient.Client, uid string) (int64, bool, error) {
+	attrResp, err := c.GetAttributes(uid, ovh.AttributeNameName).ExecContext(ctx)
+	if err != nil {
+		return 0, false, err
+	}
+	v := prefixValue(collectNameValues(attrResp.Attribute), prefixLastUpdate)
+	if v == "" {
+		return 0, false, nil
+	}
+	ts, err := strconv.ParseInt(v, 10, 64)
+	if err != nil {
+		return 0, false, fmt.Errorf("invalid last-update %q: %w", v, err)
+	}
+	return ts, true, nil
+}
