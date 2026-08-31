@@ -69,8 +69,7 @@ func builtin(p *Plugin) catalog.BuiltIn {
 type Config struct {
 	// KMIPAddr is the TCP address of the KMIP server (e.g. "kmip.example.com:5696").
 	KMIPAddr string `hcl:"kmip_addr"`
-	// CACertPath is the PEM-encoded CA certificate(s) used to verify the KMIP server
-	// TLS certificate. Accepts either inline PEM content or a path to a PEM file.
+	// CACertPath is the PEM file used to verify the KMIP server TLS certificate.
 	// Optional; when empty the system certificate pool is used.
 	CACertPath string `hcl:"ca_cert_path"`
 	// ClientCertPath is the PEM file of the mTLS client certificate.
@@ -833,9 +832,13 @@ func buildClient(ctx context.Context, cfg *Config) (*kmipclient.Client, error) {
 			MinVersion:         tls.VersionTLS12,
 		}
 		if cfg.CACertPath != "" {
-			pool, err := loadCACertPool(cfg.CACertPath)
+			caPEM, err := os.ReadFile(cfg.CACertPath)
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("read CA cert %s: %w", cfg.CACertPath, err)
+			}
+			pool := x509.NewCertPool()
+			if !pool.AppendCertsFromPEM(caPEM) {
+				return nil, fmt.Errorf("no valid certificates found in %s", cfg.CACertPath)
 			}
 			tlsCfg.RootCAs = pool
 		}
