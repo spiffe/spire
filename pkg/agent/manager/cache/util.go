@@ -14,8 +14,14 @@ func sortEntriesByID(entries []*common.RegistrationEntry) {
 	})
 }
 
-func sortIdentities(identities []X509Identity) {
+// identity is implemented by the per-SVID-type identities held in a workload
+// update.
+type identity interface {
+	entryID() string
+}
+
+func sortIdentities[T identity](identities []T) {
 	sort.Slice(identities, func(a, b int) bool {
-		return identities[a].Entry.EntryId < identities[b].Entry.EntryId
+		return identities[a].entryID() < identities[b].entryID()
 	})
 }

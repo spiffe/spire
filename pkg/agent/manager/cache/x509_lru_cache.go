@@ -37,6 +37,10 @@ type X509Identity struct {
 	PrivateKey crypto.Signer
 }
 
+func (i X509Identity) entryID() string {
+	return i.Entry.EntryId
+}
+
 // X509WorkloadUpdate is used to convey X509 workload information to cache subscribers.
 type X509WorkloadUpdate struct {
 	Identities       []X509Identity
@@ -97,7 +101,7 @@ func NewX509LRUCache(config X509LRUCacheConfig) *X509SVIDLRUCache {
 		Metrics:          config.Metrics,
 		SvidCacheMaxSize: config.SvidCacheMaxSize,
 		Clk:              config.Clk,
-		SVIDType:         "X509",
+		SVIDType:         agentmetrics.SVIDTypeX509,
 		BuildUpdate:      buildX509WorkloadUpdate,
 		ShouldPrefetch:   shouldPrefetch,
 	})

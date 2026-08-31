@@ -252,7 +252,7 @@ func (c *Cache) TaintX509SVIDs(ctx context.Context, taintedX509Authorities []*x5
 		}
 	}
 
-	telemetry_agent.AddCacheManagerExpiredSVIDsSample(c.c.Metrics, telemetry_agent.CacheTypeSVIDStore, float32(taintedSVIDs))
+	telemetry_agent.AddCacheManagerExpiredSVIDsSample(c.c.Metrics, telemetry_agent.CacheTypeSVIDStore, telemetry_agent.SVIDTypeX509, float32(taintedSVIDs))
 	c.c.Log.WithField(telemetry.TaintedX509SVIDs, taintedSVIDs).Info("Tainted X.509 SVIDs")
 }
 
