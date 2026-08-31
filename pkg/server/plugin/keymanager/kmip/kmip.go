@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/andres-erbsen/clock"
+	"github.com/gofrs/uuid/v5"
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
 	ovh "github.com/ovh/kmip-go"
@@ -29,6 +30,7 @@ import (
 	keymanagerv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/keymanager/v1"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/common/diskutil"
 	"github.com/spiffe/spire/pkg/common/pluginconf"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -64,8 +66,7 @@ func builtin(p *Plugin) catalog.BuiltIn {
 type Config struct {
 	// KMIPAddr is the TCP address of the KMIP server (e.g. "kmip.example.com:5696").
 	KMIPAddr string `hcl:"kmip_addr"`
-	// CACertPath is the PEM-encoded CA certificate(s) used to verify the KMIP server
-	// TLS certificate. Accepts either inline PEM content or a path to a PEM file.
+	// CACertPath is the PEM file used to verify the KMIP server TLS certificate.
 	// Optional; when empty the system certificate pool is used.
 	CACertPath string `hcl:"ca_cert_path"`
 	// ClientCertPath is the PEM file of the mTLS client certificate.
@@ -74,10 +75,13 @@ type Config struct {
 	ClientKeyPath string `hcl:"client_key_path"`
 	// InsecureSkipVerify disables TLS certificate verification (test environments only).
 	InsecureSkipVerify bool `hcl:"insecure_skip_verify"`
-	// ServerID is a stable identifier for this SPIRE server instance.
-	// All keys created by this plugin are tagged with a "spire-server-id:<ServerID>" Name
-	// attribute so they can be recovered on restart via Locate.
-	ServerID string `hcl:"server_id"`
+	// ServerIDValue is a stable identifier for this SPIRE server instance, provided
+	// directly. Mutually exclusive with ServerIDFile.
+	ServerIDValue string `hcl:"server_id_value"`
+	// ServerIDFile is a path to a file containing the stable server identifier. If the
+	// file does not exist, a new server ID is generated and persisted there. Mutually
+	// exclusive with ServerIDValue.
+	ServerIDFile string `hcl:"server_id_file"`
 }
 
 // keyEntry maps a SPIRE key ID to the KMIP private key UID and the cached public key.
@@ -130,11 +134,19 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 		return nil, status.Errorf(codes.InvalidArgument, "failed to connect to KMIP server: %v", err)
 	}
 
+	serverID := cfg.ServerIDValue
+	if cfg.ServerIDFile != "" {
+		serverID, err = getOrCreateServerID(cfg.ServerIDFile)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "failed to load server ID: %v", err)
+		}
+	}
+
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
 	p.client = client
-	p.serverID = cfg.ServerID
+	p.serverID = serverID
 	p.entries = make(map[string]keyEntry)
 
 	if err := p.recoverKeys(ctx); err != nil {
@@ -628,8 +640,11 @@ func buildConfig(_ catalog.CoreConfig, hclText string, s *pluginconf.Status) *Co
 	if cfg.KMIPAddr == "" {
 		s.ReportError("kmip_addr is required")
 	}
-	if cfg.ServerID == "" {
-		s.ReportError("server_id is required")
+	if cfg.ServerIDFile == "" && cfg.ServerIDValue == "" {
+		s.ReportError("server_id_value or server_id_file is required")
+	}
+	if cfg.ServerIDFile != "" && cfg.ServerIDValue != "" {
+		s.ReportError("server_id_value and server_id_file cannot both be set")
 	}
 	// mTLS is optional: if one field is set, both must be set.
 	if cfg.ClientCertPath != "" && cfg.ClientKeyPath == "" {
@@ -651,9 +666,13 @@ func buildClient(cfg *Config) (*kmipclient.Client, error) {
 			MinVersion:         tls.VersionTLS12,
 		}
 		if cfg.CACertPath != "" {
-			pool, err := loadCACertPool(cfg.CACertPath)
+			caPEM, err := os.ReadFile(cfg.CACertPath)
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("read CA cert %s: %w", cfg.CACertPath, err)
+			}
+			pool := x509.NewCertPool()
+			if !pool.AppendCertsFromPEM(caPEM) {
+				return nil, fmt.Errorf("no valid certificates found in %s", cfg.CACertPath)
 			}
 			tlsCfg.RootCAs = pool
 		}
@@ -667,25 +686,38 @@ func buildClient(cfg *Config) (*kmipclient.Client, error) {
 	return kmipclient.Dial(cfg.KMIPAddr, opts...)
 }
 
-// loadCACertPool loads one or more CA certificates from either a file path or
-// inline PEM content (detected by the presence of a PEM "BEGIN" block), matching
-// the value-or-file behaviour of other SPIRE plugins.
-func loadCACertPool(caCert string) (*x509.CertPool, error) {
-	var pemBytes []byte
-	if strings.Contains(caCert, "-----BEGIN") {
-		pemBytes = []byte(caCert)
-	} else {
-		var err error
-		pemBytes, err = os.ReadFile(caCert)
-		if err != nil {
-			return nil, fmt.Errorf("read CA cert %s: %w", caCert, err)
-		}
+// getOrCreateServerID reads the server identifier from idPath. If the file does
+// not exist, a new server ID is generated and persisted there. This keeps the
+// identifier stable across restarts so previously created keys can be recovered.
+func getOrCreateServerID(idPath string) (string, error) {
+	data, err := os.ReadFile(idPath)
+	switch {
+	case errors.Is(err, os.ErrNotExist):
+		return createServerID(idPath)
+	case err != nil:
+		return "", status.Errorf(codes.Internal, "failed to read server ID from path: %v", err)
 	}
-	pool := x509.NewCertPool()
-	if !pool.AppendCertsFromPEM(pemBytes) {
-		return nil, fmt.Errorf("no valid certificates found in %s", caCert)
+
+	serverID, err := uuid.FromString(string(data))
+	if err != nil {
+		return "", status.Errorf(codes.Internal, "failed to parse server ID from path: %v", err)
 	}
-	return pool, nil
+	return serverID.String(), nil
+}
+
+// createServerID generates a new random server ID and persists it at idPath with
+// owner-only permissions.
+func createServerID(idPath string) (string, error) {
+	u, err := uuid.NewV4()
+	if err != nil {
+		return "", status.Errorf(codes.Internal, "failed to generate ID for server: %v", err)
+	}
+	id := u.String()
+
+	if err := diskutil.WritePrivateFile(idPath, []byte(id)); err != nil {
+		return "", status.Errorf(codes.Internal, "failed to persist server ID on path: %v", err)
+	}
+	return id, nil
 }
 
 // ── Background key reclamation ───────────────────────────────────────────────
