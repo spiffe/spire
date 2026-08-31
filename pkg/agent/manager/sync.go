@@ -224,16 +224,12 @@ func (m *manager) updateX509SVIDs(ctx context.Context, log logrus.FieldLogger, c
 func (m *manager) updateWITSVIDCache(ctx context.Context, update *cache.UpdateEntries, log logrus.FieldLogger) error {
 	// the values in `update` now belong to the cache. DO NOT MODIFY.
 	var expiring int
-	var outdated int
-	m.witCache.UpdateEntries(update, func(existingEntry, newEntry *common.RegistrationEntry, svid *cache.WITSVID) bool {
+	m.witCache.UpdateEntries(update, func(_, newEntry *common.RegistrationEntry, svid *cache.WITSVID) bool {
 		switch {
 		case svid == nil:
 			// no SVID
 		case rotationutil.WITSVIDExpiresSoon(svid.IssuedAt, svid.ExpiresOn, m.c.Clk.Now()):
 			expiring++
-		case existingEntry != nil && existingEntry.RevisionNumber != newEntry.RevisionNumber:
-			// Registration entry has been updated
-			outdated++
 		default:
 			// SVID is good
 			return false
@@ -245,10 +241,6 @@ func (m *manager) updateWITSVIDCache(ctx context.Context, update *cache.UpdateEn
 	if expiring > 0 {
 		telemetry_agent.AddCacheManagerExpiredSVIDsSample(m.c.Metrics, telemetry_agent.CacheTypeWorkload, telemetry_agent.SVIDTypeWIT, float32(expiring))
 		log.WithField(telemetry.ExpiringSVIDs, expiring).Debug("Updating expiring SVIDs in cache")
-	}
-	if outdated > 0 {
-		telemetry_agent.AddCacheManagerOutdatedSVIDsSample(m.c.Metrics, telemetry_agent.CacheTypeWorkload, telemetry_agent.SVIDTypeWIT, float32(outdated))
-		log.WithField(telemetry.OutdatedSVIDs, outdated).Debug("Updating SVIDs with outdated attributes in cache")
 	}
 
 	return m.updateWITSVIDs(ctx, log)
