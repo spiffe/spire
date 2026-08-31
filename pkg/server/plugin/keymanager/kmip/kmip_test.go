@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"sync"
 	"testing"
@@ -393,6 +394,37 @@ func TestDisposeStaleKeysIgnoresStalePublicKey(t *testing.T) {
 	require.Contains(t, store.pubKeys, "active-pub", "stale public key must not be reaped")
 }
 
+func TestDisposeStaleKeysPaginates(t *testing.T) {
+	store := newFakeStore()
+	addr, caPEM := kmiptest.NewServer(t, store.handler())
+	p, clk := newTestPlugin(t, addr, caPEM)
+
+	now := clk.Now()
+	// Seed more keys than the page size so disposal must paginate through the
+	// Locate results.
+	const keyCount = 5
+	for i := range keyCount {
+		store.seed(
+			fmt.Sprintf("stale-priv-%d", i),
+			fmt.Sprintf("stale-pub-%d", i),
+			[]string{
+				serverIDNameValue(testServerID),
+				lastUpdateNameValue(now.Add(-30 * 24 * time.Hour).Unix()),
+			},
+		)
+	}
+
+	oldPageSize := locatePageSize
+	locatePageSize = 2
+	defer func() { locatePageSize = oldPageSize }()
+
+	require.NoError(t, p.disposeStaleKeys(context.Background()))
+
+	store.mu.Lock()
+	defer store.mu.Unlock()
+	require.Empty(t, store.keys, "all stale keys should be disposed across pages")
+}
+
 // ─── test helpers ─────────────────────────────────────────────────────────────
 
 func loadPlugin(t *testing.T, addr, caPEM string) *keymanager.V1 {
@@ -707,18 +739,27 @@ func (s *fakeStore) handler() kmipserver.RequestHandler {
 			}
 			return !hasObjectType || filterObjectType == objectType
 		}
-		var uids []string
+		var all []string
 		for uid, rec := range s.keys {
 			if matches(rec.nameAttrs, ovh.ObjectTypePrivateKey) {
-				uids = append(uids, uid)
+				all = append(all, uid)
 			}
 		}
 		for uid, rec := range s.pubKeys {
 			if matches(rec.pubNameAttrs, ovh.ObjectTypePublicKey) {
-				uids = append(uids, uid)
+				all = append(all, uid)
 			}
 		}
-		return &payloads.LocateResponsePayload{UniqueIdentifier: uids}, nil
+		// Sort for a deterministic order so offset-based pagination is stable.
+		sort.Strings(all)
+		// Apply pagination (OffsetItems + MaximumItems), mirroring a KMIP server
+		// that caps the number of items returned per response.
+		start := min(int(req.OffsetItems), len(all))
+		end := len(all)
+		if req.MaximumItems > 0 && start+int(req.MaximumItems) < end {
+			end = start + int(req.MaximumItems)
+		}
+		return &payloads.LocateResponsePayload{UniqueIdentifier: all[start:end]}, nil
 	}))
 
 	exec.Route(ovh.OperationDestroy, kmipserver.HandleFunc(func(_ context.Context, req *payloads.DestroyRequestPayload) (*payloads.DestroyResponsePayload, error) {
