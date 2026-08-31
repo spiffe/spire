@@ -78,6 +78,11 @@ func TestValidateLoadBalancingConfig(t *testing.T) {
 			expectErr:           "each load balancing policy must have exactly one name; got 2",
 		},
 		{
+			name:                "invalid configuration for a known policy",
+			loadBalancingConfig: `[ { "pick_first": { "shuffleAddressList": "yes" } } ]`,
+			expectErr:           `invalid configuration for load balancing policy "pick_first":`,
+		},
+		{
 			name:                "no known policy",
 			loadBalancingConfig: `[ { "not_a_real_policy": {} } ]`,
 			expectErr:           `no supported load balancing policy found in ["not_a_real_policy"]`,

@@ -36,15 +36,26 @@ func ValidateLoadBalancingConfig(loadBalancingConfig string) error {
 		if len(policy) != 1 {
 			return fmt.Errorf("each load balancing policy must have exactly one name; got %d", len(policy))
 		}
-		for name := range policy {
-			names = append(names, name)
-		}
-	}
 
-	for _, name := range names {
-		if balancer.Get(name) != nil {
+		var name string
+		var config json.RawMessage
+		for name, config = range policy {
+		}
+		names = append(names, name)
+
+		// gRPC uses the first registered policy and ignores the rest.
+		builder := balancer.Get(name)
+		if builder == nil {
+			continue
+		}
+		parser, ok := builder.(balancer.ConfigParser)
+		if !ok {
 			return nil
 		}
+		if _, err := parser.ParseConfig(config); err != nil {
+			return fmt.Errorf("invalid configuration for load balancing policy %q: %w", name, err)
+		}
+		return nil
 	}
 
 	return fmt.Errorf("no supported load balancing policy found in %q", names)
