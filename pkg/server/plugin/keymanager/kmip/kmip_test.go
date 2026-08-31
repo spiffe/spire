@@ -161,6 +161,63 @@ func TestConfigureClosesPreviousClient(t *testing.T) {
 	}, 5*time.Second, 10*time.Millisecond)
 }
 
+func TestConfigureReconfigures(t *testing.T) {
+	store1 := newFakeStore()
+	addr1, caPEM1 := kmiptest.NewServer(t, store1.handler())
+	store2 := newFakeStore()
+	addr2, caPEM2 := kmiptest.NewServer(t, store2.handler())
+	caFile1 := writeTempPEM(t, caPEM1)
+	caFile2 := writeTempPEM(t, caPEM2)
+
+	p := New()
+	p.SetLogger(hclog.NewNullLogger())
+	p.clk = clock.NewMock()
+	t.Cleanup(func() {
+		if p.cancelTasks != nil {
+			p.cancelTasks()
+		}
+	})
+
+	makeReq := func(addr, caFile, serverID string) *configv1.ConfigureRequest {
+		return &configv1.ConfigureRequest{
+			HclConfiguration: fmt.Sprintf(`
+				kmip_addr            = %q
+				ca_cert_path         = %q
+				insecure_skip_verify = true
+				server_id_value      = %q
+			`, addr, caFile, serverID),
+			CoreConfiguration: &configv1.CoreConfiguration{
+				TrustDomain: "example.org",
+			},
+		}
+	}
+
+	_, err := p.Configure(context.Background(), makeReq(addr1, caFile1, "server-a"))
+	require.NoError(t, err)
+	require.Equal(t, "server-a", p.serverID)
+
+	// Reconfigure against a different server and server ID.
+	_, err = p.Configure(context.Background(), makeReq(addr2, caFile2, "server-b"))
+	require.NoError(t, err)
+	require.Equal(t, "server-b", p.serverID)
+
+	// The plugin must now talk to the second server: a new key lands in store2.
+	resp, err := p.GenerateKey(context.Background(), &keymanagerv1.GenerateKeyRequest{
+		KeyId:   "k1",
+		KeyType: keymanagerv1.KeyType_EC_P256,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+
+	store1.mu.Lock()
+	require.Empty(t, store1.keys, "first server must not receive the key")
+	store1.mu.Unlock()
+
+	store2.mu.Lock()
+	require.NotEmpty(t, store2.keys, "second server must receive the key")
+	store2.mu.Unlock()
+}
+
 func TestGetOrCreateServerID(t *testing.T) {
 	t.Run("creates a new ID when the file does not exist", func(t *testing.T) {
 		path := filepath.Join(t.TempDir(), "server-id")
