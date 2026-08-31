@@ -362,6 +362,8 @@ func TestDisposeStaleKeys(t *testing.T) {
 	defer store.mu.Unlock()
 	require.NotContains(t, store.keys, "stale-priv", "stale key should be disposed")
 	require.Contains(t, store.keys, "fresh-priv", "fresh key should be kept")
+	require.True(t, store.revoked["stale-priv"], "stale key should be revoked before being destroyed")
+	require.False(t, store.revoked["fresh-priv"], "fresh key should not be revoked")
 }
 
 func TestDisposeStaleKeysIgnoresStalePublicKey(t *testing.T) {
@@ -479,6 +481,7 @@ type fakeStore struct {
 	mu      sync.Mutex
 	keys    map[string]*keyRecord // privUID → record
 	pubKeys map[string]*keyRecord // pubUID → record
+	revoked map[string]bool       // uid → revoked via the Revoke operation
 	counter int
 }
 
@@ -486,6 +489,7 @@ func newFakeStore() *fakeStore {
 	return &fakeStore{
 		keys:    make(map[string]*keyRecord),
 		pubKeys: make(map[string]*keyRecord),
+		revoked: make(map[string]bool),
 	}
 }
 
@@ -557,6 +561,15 @@ func (s *fakeStore) handler() kmipserver.RequestHandler {
 	// Activate — no-op in the fake; keys are always ready to sign.
 	exec.Route(ovh.OperationActivate, kmipserver.HandleFunc(func(_ context.Context, req *payloads.ActivateRequestPayload) (*payloads.ActivateResponsePayload, error) {
 		return &payloads.ActivateResponsePayload{UniqueIdentifier: req.UniqueIdentifier}, nil
+	}))
+
+	// Revoke — records the revocation so tests can assert the plugin deactivates
+	// a key before destroying it.
+	exec.Route(ovh.OperationRevoke, kmipserver.HandleFunc(func(_ context.Context, req *payloads.RevokeRequestPayload) (*payloads.RevokeResponsePayload, error) {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		s.revoked[req.UniqueIdentifier] = true
+		return &payloads.RevokeResponsePayload{UniqueIdentifier: req.UniqueIdentifier}, nil
 	}))
 
 	exec.Route(ovh.OperationAddAttribute, kmipserver.HandleFunc(func(_ context.Context, req *payloads.AddAttributeRequestPayload) (*payloads.AddAttributeResponsePayload, error) {
