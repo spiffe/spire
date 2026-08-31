@@ -244,8 +244,14 @@ func (c *LRUCache[SVID, Update]) NewSubscriber(selectors []*common.Selector) Sub
 	for s := range sub.set {
 		c.addSelectorIndexSub(s, sub)
 	}
-	// update lastAccessTimestamp of records containing provided selectors
-	c.updateLastAccessTimestamp(selectors)
+
+	records, recordsDone := c.getRecordsForSelectors(sub.set)
+	defer recordsDone()
+	now := c.clk.Now().UnixMilli()
+	for record := range records {
+		record.activeSubscriberCount++
+		record.lastAccessTimestamp = now
+	}
 	return sub
 }
 
@@ -297,6 +303,8 @@ func (c *LRUCache[SVID, Update]) UpdateEntries(update *UpdateEntries, checkSVID 
 	defer selAddDone()
 	selRem, selRemDone := allocSelectorSet()
 	defer selRemDone()
+	entrySelectors, entrySelectorsDone := allocSelectorSet()
+	defer entrySelectorsDone()
 	fedAdd, fedAddDone := allocStringSet()
 	defer fedAddDone()
 	fedRem, fedRemDone := allocStringSet()
@@ -347,6 +355,9 @@ func (c *LRUCache[SVID, Update]) UpdateEntries(update *UpdateEntries, checkSVID 
 		selectorsChanged := len(selAdd) > 0 || len(selRem) > 0
 		c.addSelectorIndicesRecord(selAdd, record)
 		c.delSelectorIndicesRecord(selRem, record)
+		if selectorsChanged {
+			record.activeSubscriberCount = c.countMatchingSubscribers(record.entry, entrySelectors)
+		}
 
 		// Determine if there were changes to FederatesWith declarations or
 		// if any federated bundles related to the entry were updated.
@@ -607,27 +618,11 @@ func (c *LRUCache[SVID, Update]) missingSVIDRecords(set selectorSet) bool {
 	return false
 }
 
-func (c *LRUCache[SVID, Update]) updateLastAccessTimestamp(selectors []*common.Selector) {
-	set, setFree := allocSelectorSet(selectors...)
-	defer setFree()
-
-	records, recordsDone := c.getRecordsForSelectors(set)
-	defer recordsDone()
-
-	now := c.clk.Now().UnixMilli()
-	for record := range records {
-		// Set lastAccessTimestamp so that svid LRU cache can be cleaned based on this timestamp
-		record.lastAccessTimestamp = now
-	}
-}
-
 // entries with active subscribers which are not cached will be put in staleEntries map
 // records which are not cached for remainder of max cache size will also be put in staleEntries map
 func (c *LRUCache[SVID, Update]) syncSVIDsWithSubscribers() (map[string]struct{}, []recordAccessEvent) {
 	activeSubsByEntryID := make(map[string]struct{})
 	lastAccessTimestamps := make([]recordAccessEvent, 0, len(c.records))
-	entrySelectors, entrySelectorsDone := allocSelectorSet()
-	defer entrySelectorsDone()
 
 	// iterate over all selectors from cached entries and obtain:
 	// 1. entries that have active subscribers
@@ -635,7 +630,7 @@ func (c *LRUCache[SVID, Update]) syncSVIDsWithSubscribers() (map[string]struct{}
 	//       so that SVID will be cached in next sync
 	// 2. get lastAccessTimestamp of each entry
 	for id, record := range c.records {
-		if c.hasMatchingSubscriber(record, entrySelectors) {
+		if record.activeSubscriberCount > 0 {
 			if _, ok := c.svids[record.entry.EntryId]; !ok {
 				c.staleEntries[id] = true
 			}
@@ -663,30 +658,31 @@ func (c *LRUCache[SVID, Update]) syncSVIDsWithSubscribers() (map[string]struct{}
 	return activeSubsByEntryID, lastAccessTimestamps
 }
 
-func (c *LRUCache[SVID, Update]) hasMatchingSubscriber(record *lruCacheRecord, set selectorSet) bool {
+func (c *LRUCache[SVID, Update]) countMatchingSubscribers(entry *common.RegistrationEntry, set selectorSet) int {
 	clearSelectorSet(set)
-	set.Merge(record.entry.Selectors...)
+	set.Merge(entry.Selectors...)
 
 	var candidates *selectorsMapIndex
 	for sel := range set {
 		index := c.getSelectorIndexForRead(sel)
 		if index == nil || len(index.subs) == 0 {
-			return false
+			return 0
 		}
 		if candidates == nil || len(index.subs) < len(candidates.subs) {
 			candidates = index
 		}
 	}
 	if candidates == nil {
-		return false
+		return 0
 	}
 
+	count := 0
 	for sub := range candidates.subs {
 		if sub.superSetOf(set) {
-			return true
+			count++
 		}
 	}
-	return false
+	return count
 }
 
 func (c *LRUCache[SVID, Update]) updateOrCreateRecord(newEntry *common.RegistrationEntry) (*lruCacheRecord, *common.RegistrationEntry) {
@@ -791,6 +787,12 @@ func (c *LRUCache[SVID, Update]) delSelectorIndexSub(s selector, sub baseSubscri
 func (c *LRUCache[SVID, Update]) unsubscribe(sub baseSubscriber) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+
+	records, recordsDone := c.getRecordsForSelectors(sub.getSet())
+	defer recordsDone()
+	for record := range records {
+		record.activeSubscriberCount--
+	}
 	for selector := range sub.getSet() {
 		c.delSelectorIndexSub(selector, sub)
 	}
@@ -935,15 +937,13 @@ func (c *LRUCache[SVID, Update]) GatherFederatedBundles(entries []*common.Regist
 }
 
 type lruCacheRecord struct {
-	entry               *common.RegistrationEntry
-	subs                map[baseSubscriber]struct{}
-	lastAccessTimestamp int64
+	entry                 *common.RegistrationEntry
+	activeSubscriberCount int
+	lastAccessTimestamp   int64
 }
 
 func newLRUCacheRecord() *lruCacheRecord {
-	return &lruCacheRecord{
-		subs: make(map[baseSubscriber]struct{}),
-	}
+	return &lruCacheRecord{}
 }
 
 type selectorsMapIndex struct {

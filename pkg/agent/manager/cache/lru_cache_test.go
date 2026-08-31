@@ -803,6 +803,41 @@ func TestLRUCacheEvictsSVIDWithPartialSubscriberMatch(t *testing.T) {
 	assert.NotContains(t, cache.svids, bar.EntryId)
 }
 
+func TestLRUCacheTracksSubscribersByRecord(t *testing.T) {
+	cache := newTestLRUCache(t)
+	subAB := cache.NewSubscriber(makeSelectors("A", "B"))
+	t.Cleanup(subAB.Finish)
+
+	foo := makeRegistrationEntry("FOO", "A")
+	bar := makeRegistrationEntry("BAR", "A", "B")
+	cache.UpdateEntries(&UpdateEntries{
+		Bundles:             makeBundles(bundleV1),
+		RegistrationEntries: makeRegistrationEntries(foo, bar),
+	}, nil)
+	assert.Equal(t, 1, cache.records[foo.EntryId].activeSubscriberCount)
+	assert.Equal(t, 1, cache.records[bar.EntryId].activeSubscriberCount)
+
+	subA := cache.NewSubscriber(makeSelectors("A"))
+	t.Cleanup(subA.Finish)
+	assert.Equal(t, 2, cache.records[foo.EntryId].activeSubscriberCount)
+	assert.Equal(t, 1, cache.records[bar.EntryId].activeSubscriberCount)
+
+	subAB.Finish()
+	assert.Equal(t, 1, cache.records[foo.EntryId].activeSubscriberCount)
+	assert.Zero(t, cache.records[bar.EntryId].activeSubscriberCount)
+
+	bar = makeRegistrationEntry("BAR", "A")
+	cache.UpdateEntries(&UpdateEntries{
+		Bundles:             makeBundles(bundleV1),
+		RegistrationEntries: makeRegistrationEntries(foo, bar),
+	}, nil)
+	assert.Equal(t, 1, cache.records[bar.EntryId].activeSubscriberCount)
+
+	subA.Finish()
+	assert.Zero(t, cache.records[foo.EntryId].activeSubscriberCount)
+	assert.Zero(t, cache.records[bar.EntryId].activeSubscriberCount)
+}
+
 func TestNotifySubscriberWhenSVIDIsAvailable(t *testing.T) {
 	cache := newTestLRUCache(t)
 
