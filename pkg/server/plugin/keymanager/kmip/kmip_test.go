@@ -18,12 +18,14 @@ import (
 	"time"
 
 	"github.com/andres-erbsen/clock"
+	"github.com/hashicorp/go-hclog"
 	ovh "github.com/ovh/kmip-go"
 	"github.com/ovh/kmip-go/kmipserver"
 	"github.com/ovh/kmip-go/kmiptest"
 	"github.com/ovh/kmip-go/payloads"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	keymanagerv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/keymanager/v1"
+	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
 	"github.com/spiffe/spire/test/plugintest"
@@ -105,6 +107,57 @@ func TestConfigure(t *testing.T) {
 			spiretest.RequireGRPCStatusHasPrefix(t, configErr, tt.expectCode, tt.expectMsg)
 		})
 	}
+}
+
+func TestConfigureClosesPreviousClient(t *testing.T) {
+	store := newFakeStore()
+	closed := make(chan struct{}, 1)
+	addr, caPEM, srv := kmiptest.NewServerWithHandle(t, store.handler())
+	srv.WithTerminateHook(func(context.Context) {
+		select {
+		case closed <- struct{}{}:
+		default:
+		}
+	})
+	caFile := writeTempPEM(t, caPEM)
+
+	p := New()
+	p.SetLogger(hclog.NewNullLogger())
+	p.clk = clock.NewMock()
+	t.Cleanup(func() {
+		if p.cancelTasks != nil {
+			p.cancelTasks()
+		}
+	})
+
+	req := &configv1.ConfigureRequest{
+		HclConfiguration: fmt.Sprintf(`
+			kmip_addr            = %q
+			ca_cert_path         = %q
+			insecure_skip_verify = true
+			server_id_value      = %q
+		`, addr, caFile, testServerID),
+		CoreConfiguration: &configv1.CoreConfiguration{
+			TrustDomain: "example.org",
+		},
+	}
+
+	_, err := p.Configure(context.Background(), req)
+	require.NoError(t, err)
+	require.Empty(t, closed, "initial configure must not close a connection")
+
+	_, err = p.Configure(context.Background(), req)
+	require.NoError(t, err)
+
+	// Reconfiguring must close the previous client's connection.
+	require.Eventually(t, func() bool {
+		select {
+		case <-closed:
+			return true
+		default:
+			return false
+		}
+	}, 5*time.Second, 10*time.Millisecond)
 }
 
 func TestGetOrCreateServerID(t *testing.T) {

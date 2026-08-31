@@ -145,6 +145,17 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
+	// Stop the background tasks from a previous Configure call and close the
+	// previous client so repeated reconfigurations don't leak connections.
+	if p.cancelTasks != nil {
+		p.cancelTasks()
+	}
+	if p.client != nil {
+		if err := p.client.Close(); err != nil {
+			p.logger.Warn("Failed to close previous KMIP client", "err", err)
+		}
+	}
+
 	p.client = client
 	p.serverID = serverID
 	p.entries = make(map[string]keyEntry)
@@ -158,11 +169,6 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 		"keys_recovered", len(p.entries),
 	)
 
-	// Start background reclamation tasks. Cancel any tasks from a previous
-	// Configure call first.
-	if p.cancelTasks != nil {
-		p.cancelTasks()
-	}
 	taskCtx, cancel := context.WithCancel(context.Background())
 	p.cancelTasks = cancel
 	go p.keepKeysActiveTask(taskCtx)
