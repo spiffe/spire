@@ -323,6 +323,7 @@ func (p *Plugin) GetPublicKeys(_ context.Context, _ *keymanagerv1.GetPublicKeysR
 // and rebuilds the in-memory entries map. Must be called while p.mu is held.
 func (p *Plugin) recoverKeys(ctx context.Context) error {
 	locResp, err := p.client.Locate().
+		WithAttribute(ovh.AttributeNameObjectType, ovh.ObjectTypePrivateKey).
 		WithAttribute(ovh.AttributeNameName, ovh.Name{
 			NameValue: serverIDNameValue(p.serverID),
 			NameType:  ovh.NameTypeUninterpretedTextString,
@@ -805,6 +806,7 @@ func (p *Plugin) disposeStaleKeys(ctx context.Context) error {
 	}
 
 	locResp, err := client.Locate().
+		WithAttribute(ovh.AttributeNameObjectType, ovh.ObjectTypePrivateKey).
 		WithAttribute(ovh.AttributeNameName, ovh.Name{
 			NameValue: serverIDNameValue(serverID),
 			NameType:  ovh.NameTypeUninterpretedTextString,
