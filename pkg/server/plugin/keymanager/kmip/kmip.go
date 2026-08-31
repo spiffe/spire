@@ -1215,20 +1215,17 @@ func (p *Plugin) disposeStaleKeys(ctx context.Context) error {
 		return nil
 	}
 
-	locResp, err := client.Locate().
-		WithAttribute(ovh.AttributeNameObjectType, ovh.ObjectTypePrivateKey).
-		WithAttribute(ovh.AttributeNameName, ovh.Name{
-			NameValue: serverIDNameValue(serverID),
-			NameType:  ovh.NameTypeUninterpretedTextString,
-		}).
-		ExecContext(ctx)
+	privUIDs, err := locatePrivateKeys(ctx, client, ovh.Name{
+		NameValue: serverIDNameValue(serverID),
+		NameType:  ovh.NameTypeUninterpretedTextString,
+	})
 	if err != nil {
 		return fmt.Errorf("locate keys for server %q: %w", serverID, err)
 	}
 
 	staleThreshold := p.clk.Now().Add(-staleKeyThreshold).Unix()
 
-	for _, privUID := range locResp.UniqueIdentifier {
+	for _, privUID := range privUIDs {
 		lastUpdate, ok, err := getLastUpdate(ctx, client, privUID)
 		if err != nil {
 			p.logger.Warn("Failed to read last-update during disposal", "uid", privUID, "err", err)
