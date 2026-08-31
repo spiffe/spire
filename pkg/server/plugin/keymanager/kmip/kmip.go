@@ -244,7 +244,7 @@ func (p *Plugin) GenerateKey(ctx context.Context, req *keymanagerv1.GenerateKeyR
 		oldUID := old.privateKeyUID
 		cleanupCtx := context.WithoutCancel(ctx)
 		go func() {
-			if err := revokeAndDestroy(cleanupCtx, client, oldUID); err != nil {
+			if err := revokeAndDestroyKeyPair(cleanupCtx, client, oldUID); err != nil {
 				p.logger.Warn("Failed to revoke and destroy old private key", "uid", oldUID, "err", err)
 			}
 		}()
@@ -858,7 +858,7 @@ func (p *Plugin) disposeStaleKeys(ctx context.Context) error {
 		if !ok || lastUpdate >= staleThreshold {
 			continue
 		}
-		if err := revokeAndDestroy(ctx, client, privUID); err != nil {
+		if err := revokeAndDestroyKeyPair(ctx, client, privUID); err != nil {
 			p.logger.Warn("Failed to revoke and destroy stale key", "uid", privUID, "err", err)
 			continue
 		}
@@ -878,6 +878,21 @@ func revokeAndDestroy(ctx context.Context, c *kmipclient.Client, uid string) err
 	}
 	if _, err := c.Destroy(uid).ExecContext(ctx); err != nil {
 		return fmt.Errorf("destroy key %s: %w", uid, err)
+	}
+	return nil
+}
+
+// revokeAndDestroyKeyPair revokes and destroys a key pair: the private key and its
+// linked public key. The public key is looked up via the private key's PublicKeyLink
+// before the private key is destroyed so the pair is never left half-destroyed.
+func revokeAndDestroyKeyPair(ctx context.Context, c *kmipclient.Client, privUID string) error {
+	if pubUID, err := getLinkedUID(ctx, c, privUID, ovh.LinkTypePublicKeyLink); err == nil && pubUID != "" {
+		if err := revokeAndDestroy(ctx, c, pubUID); err != nil {
+			return fmt.Errorf("revoke and destroy public key %s: %w", pubUID, err)
+		}
+	}
+	if err := revokeAndDestroy(ctx, c, privUID); err != nil {
+		return fmt.Errorf("revoke and destroy private key %s: %w", privUID, err)
 	}
 	return nil
 }
