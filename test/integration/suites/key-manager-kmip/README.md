@@ -28,7 +28,7 @@ KeyManager "kmip" {
         ca_cert_path     = "/run/spire/kmip-tls/ca.crt"
         client_cert_path = "/run/spire/kmip-tls/client.crt"
         client_key_path  = "/run/spire/kmip-tls/client.key"
-        server_id        = "spire-server-test"
+        server_id_value  = "spire-server-test"
     }
 }
 ```
