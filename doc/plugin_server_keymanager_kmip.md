@@ -39,6 +39,12 @@ Key pairs are created in the KMIP `Pre-Active` state and are activated (`Activat
 before being used for signing. The plugin exports the public key using the transparent
 key format and converts it to PKIX.
 
+When a key is retired — replaced by a new key for the same key ID, or reclaimed as stale
+after a crash or shutdown — the plugin first revokes it (`Revoke` with a non-compromise
+reason, moving it to the `Deactivated` state) and then destroys it (`Destroy`). This
+follows the KMIP lifecycle, which requires an object to be `Deactivated` before it can be
+`Destroyed`.
+
 A sample configuration:
 
 ```hcl
