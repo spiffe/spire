@@ -131,6 +131,17 @@ func TestNew(t *testing.T) {
 	assert.Equal(t, metrics, endpoints.Metrics)
 }
 
+func TestEndpointsListenerTLSConfigEmptyPolicy(t *testing.T) {
+	policy, err := tlspolicy.NewPolicy(false, nil, nil)
+	require.NoError(t, err)
+
+	spiffeTLSConfig := tlsconfig.MTLSServerConfig(nil, nil, nil)
+	spiffeTLSConfig.MinVersion = tls.VersionTLS12
+	require.NoError(t, tlspolicy.ApplyPolicy(spiffeTLSConfig, policy, tlspolicy.WithServerTLSConfig()))
+	require.Nil(t, spiffeTLSConfig.CipherSuites)
+	require.Nil(t, spiffeTLSConfig.CurvePreferences)
+}
+
 func TestNewErrorCreatingAuthorizedEntryFetcher(t *testing.T) {
 	ctx := context.Background()
 	tcpAddr := &net.TCPAddr{}

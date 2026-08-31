@@ -101,6 +101,8 @@ type agentConfig struct {
 
 	AuthorizedDelegates []string `hcl:"authorized_delegates"`
 
+	TLSConfig *tlspolicy.TLSConfig `hcl:"tls_config"`
+
 	ConfigPath string
 	ExpandEnv  bool
 
@@ -299,6 +301,16 @@ func Help(name string, writer io.Writer) string {
 }
 
 func LoadConfig(name string, args []string, logOptions []log.Option, output io.Writer, allowUnknownConfig bool) (*agent.Config, error) {
+	return loadConfig(name, args, logOptions, output, allowUnknownConfig, false)
+}
+
+// LoadConfigForValidation loads the configuration without opening log_file, so
+// that validating the config of a running agent does not touch its log.
+func LoadConfigForValidation(name string, args []string, logOptions []log.Option, output io.Writer) (*agent.Config, error) {
+	return loadConfig(name, args, logOptions, output, false, true)
+}
+
+func loadConfig(name string, args []string, logOptions []log.Option, output io.Writer, allowUnknownConfig, skipLogFile bool) (*agent.Config, error) {
 	// First parse the CLI flags so we can get the config
 	// file path, if set
 	cliInput, err := parseFlags(name, args, output)
@@ -323,7 +335,7 @@ func LoadConfig(name string, args []string, logOptions []log.Option, output io.W
 		return nil, fmt.Errorf("error loading feature flags: %w", err)
 	}
 
-	return NewAgentConfig(input, logOptions, allowUnknownConfig)
+	return newAgentConfig(input, logOptions, allowUnknownConfig, skipLogFile)
 }
 
 func (cmd *Command) Run(args []string) int {
@@ -555,6 +567,10 @@ func (c *agentConfig) endpointEnabled() bool {
 }
 
 func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool) (*agent.Config, error) {
+	return newAgentConfig(c, logOptions, allowUnknownConfig, false)
+}
+
+func newAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig, skipLogFile bool) (*agent.Config, error) {
 	ac := &agent.Config{}
 
 	if err := validateConfig(c); err != nil {
@@ -608,7 +624,7 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 		logOptions = append(logOptions, log.WithSourceLocation())
 	}
 	var reopenableFile *log.ReopenableFile
-	if c.Agent.LogFile != "" {
+	if c.Agent.LogFile != "" && !skipLogFile {
 		var err error
 		reopenableFile, err = log.NewReopenableFile(c.Agent.LogFile)
 		if err != nil {
@@ -835,11 +851,14 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 		ac.AvailabilityTarget = t
 	}
 
-	ac.TLSPolicy = tlspolicy.Policy{
-		RequirePQKEM: c.Agent.Experimental.RequirePQKEM,
+	tlsPolicyLogger := log.NewHCLogAdapter(logger, "tlspolicy")
+
+	ac.TLSPolicy, err = tlspolicy.NewPolicy(c.Agent.Experimental.RequirePQKEM, c.Agent.TLSConfig, tlsPolicyLogger)
+	if err != nil {
+		return nil, fmt.Errorf("unable to parse configured TLS configuration: %w", err)
 	}
 
-	tlspolicy.LogPolicy(ac.TLSPolicy, log.NewHCLogAdapter(logger, "tlspolicy"))
+	tlspolicy.LogPolicy(ac.TLSPolicy, tlsPolicyLogger)
 
 	intVal := func(p *int) int {
 		if p == nil {

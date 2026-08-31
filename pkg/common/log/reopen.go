@@ -7,11 +7,6 @@ import (
 	"sync"
 )
 
-const (
-	fileFlags = os.O_APPEND | os.O_CREATE | os.O_WRONLY
-	fileMode  = 0640
-)
-
 var _ ReopenableWriteCloser = (*ReopenableFile)(nil)
 
 type (
@@ -38,7 +33,7 @@ type (
 )
 
 func NewReopenableFile(name string) (*ReopenableFile, error) {
-	file, err := os.OpenFile(name, fileFlags, fileMode)
+	file, err := openLogFile(name)
 	if err != nil {
 		return nil, err
 	}
@@ -56,7 +51,7 @@ func (r *ReopenableFile) Reopen() error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	newFile, err := os.OpenFile(r.name, fileFlags, fileMode)
+	newFile, err := openLogFile(r.name)
 	if err != nil {
 		return fmt.Errorf("unable to reopen %s: %w", r.name, err)
 	}
