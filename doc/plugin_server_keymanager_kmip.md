@@ -76,6 +76,12 @@ a non-compromise reason, moving it to the `Deactivated` state) and then destroys
 it (`Destroy`), following the KMIP lifecycle requirement that an object be
 `Deactivated` before it can be `Destroyed`.
 
+When a key is retired — replaced by a new key for the same key ID, or reclaimed as stale
+after a crash or shutdown — the plugin first revokes it (`Revoke` with a non-compromise
+reason, moving it to the `Deactivated` state) and then destroys it (`Destroy`). This
+follows the KMIP lifecycle, which requires an object to be `Deactivated` before it can be
+`Destroyed`.
+
 A sample configuration:
 
 ```hcl

@@ -1237,11 +1237,26 @@ func (p *Plugin) disposeStaleKeys(ctx context.Context) error {
 		if !ok || lastUpdate >= staleThreshold {
 			continue
 		}
-		if _, err := client.Destroy(privUID).ExecContext(ctx); err != nil {
-			p.logger.Warn("Failed to destroy stale key", "uid", privUID, "err", err)
+		if err := revokeAndDestroy(ctx, client, privUID); err != nil {
+			p.logger.Warn("Failed to revoke and destroy stale key", "uid", privUID, "err", err)
 			continue
 		}
 		p.logger.Info("Disposed stale key", "uid", privUID, "last_update", lastUpdate)
+	}
+	return nil
+}
+
+// revokeAndDestroy deactivates the object via the KMIP Revoke operation with a
+// non-compromise reason (which places it in the Deactivated state) and then destroys
+// it. KMIP requires an Active object to be Deactivated before it can be Destroyed.
+func revokeAndDestroy(ctx context.Context, c *kmipclient.Client, uid string) error {
+	if _, err := c.Revoke(uid).
+		WithRevocationReasonCode(ovh.RevocationReasonCodeCessationOfOperation).
+		ExecContext(ctx); err != nil {
+		return fmt.Errorf("revoke key %s: %w", uid, err)
+	}
+	if _, err := c.Destroy(uid).ExecContext(ctx); err != nil {
+		return fmt.Errorf("destroy key %s: %w", uid, err)
 	}
 	return nil
 }
