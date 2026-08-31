@@ -129,7 +129,7 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 		p.logger.Warn("TLS certificate verification is disabled; for test environments only")
 	}
 
-	client, err := buildClient(cfg)
+	client, err := buildClient(ctx, cfg)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "failed to connect to KMIP server: %v", err)
 	}
@@ -665,8 +665,9 @@ func buildConfig(_ catalog.CoreConfig, hclText string, s *pluginconf.Status) *Co
 	return cfg
 }
 
-// buildClient constructs a kmipclient.Client from the parsed Config.
-func buildClient(cfg *Config) (*kmipclient.Client, error) {
+// buildClient constructs a kmipclient.Client from the parsed Config. The dial is
+// bound to ctx so a slow or unreachable KMIP server cannot block Configure forever.
+func buildClient(ctx context.Context, cfg *Config) (*kmipclient.Client, error) {
 	var opts []kmipclient.Option
 
 	if cfg.CACertPath != "" || cfg.InsecureSkipVerify {
@@ -692,7 +693,7 @@ func buildClient(cfg *Config) (*kmipclient.Client, error) {
 		opts = append(opts, kmipclient.WithClientCertFiles(cfg.ClientCertPath, cfg.ClientKeyPath))
 	}
 
-	return kmipclient.Dial(cfg.KMIPAddr, opts...)
+	return kmipclient.DialContext(ctx, cfg.KMIPAddr, opts...)
 }
 
 // getOrCreateServerID reads the server identifier from idPath. If the file does
