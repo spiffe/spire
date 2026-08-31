@@ -311,6 +311,33 @@ func TestDisposeStaleKeys(t *testing.T) {
 	require.Contains(t, store.keys, "fresh-priv", "fresh key should be kept")
 }
 
+func TestDisposeStaleKeysIgnoresStalePublicKey(t *testing.T) {
+	store := newFakeStore()
+	addr, caPEM := kmiptest.NewServer(t, store.handler())
+	p, clk := newTestPlugin(t, addr, caPEM)
+
+	now := clk.Now()
+	// The private key is still active (fresh last-update), but its public key's
+	// last-update has gone stale. The reclaimer must not reap the public key.
+	store.seedPair("active-priv", "active-pub",
+		[]string{
+			serverIDNameValue(testServerID),
+			lastUpdateNameValue(now.Unix()),
+		},
+		[]string{
+			serverIDNameValue(testServerID),
+			lastUpdateNameValue(now.Add(-30 * 24 * time.Hour).Unix()),
+		},
+	)
+
+	require.NoError(t, p.disposeStaleKeys(context.Background()))
+
+	store.mu.Lock()
+	defer store.mu.Unlock()
+	require.Contains(t, store.keys, "active-priv", "active private key should be kept")
+	require.Contains(t, store.pubKeys, "active-pub", "stale public key must not be reaped")
+}
+
 // ─── test helpers ─────────────────────────────────────────────────────────────
 
 func loadPlugin(t *testing.T, addr, caPEM string) *keymanager.V1 {
@@ -387,11 +414,12 @@ func readLastUpdate(t *testing.T, store *fakeStore) int64 {
 // ─── fakeStore ── in-memory KMIP server ──────────────────────────────────────
 
 type keyRecord struct {
-	privUID   string
-	pubUID    string
-	privKey   crypto.Signer
-	pubPKIX   []byte
-	nameAttrs []string
+	privUID      string
+	pubUID       string
+	privKey      crypto.Signer
+	pubPKIX      []byte
+	nameAttrs    []string // private-key Name attributes
+	pubNameAttrs []string // public-key Name attributes
 }
 
 type fakeStore struct {
@@ -413,9 +441,22 @@ func (s *fakeStore) nextUID(prefix string) string {
 	return fmt.Sprintf("%s-%04d", prefix, s.counter)
 }
 
-// seed inserts a key record with the given name attributes directly into the store.
+// seed inserts a key record with the given name attributes applied to both the
+// private and public key directly into the store.
 func (s *fakeStore) seed(privUID, pubUID string, nameAttrs []string) {
-	rec := &keyRecord{privUID: privUID, pubUID: pubUID, nameAttrs: nameAttrs}
+	s.seedPair(privUID, pubUID, nameAttrs, nameAttrs)
+}
+
+// seedPair inserts a key record whose private and public keys carry distinct
+// Name attributes, matching the real KMIP server where the two keys are separate
+// objects that can be tagged independently.
+func (s *fakeStore) seedPair(privUID, pubUID string, privNameAttrs, pubNameAttrs []string) {
+	rec := &keyRecord{
+		privUID:      privUID,
+		pubUID:       pubUID,
+		nameAttrs:    privNameAttrs,
+		pubNameAttrs: pubNameAttrs,
+	}
 	s.keys[privUID] = rec
 	s.pubKeys[pubUID] = rec
 }
@@ -441,11 +482,13 @@ func (s *fakeStore) handler() kmipserver.RequestHandler {
 			pubPKIX: pkix,
 		}
 		// Capture Name attributes applied at creation via the Template-Attribute.
+		// The Common template applies to both the private and public key.
 		if req.CommonTemplateAttribute != nil {
 			for _, attr := range req.CommonTemplateAttribute.Attribute {
 				if attr.AttributeName == ovh.AttributeNameName {
 					if n, ok := attr.AttributeValue.(ovh.Name); ok {
 						rec.nameAttrs = append(rec.nameAttrs, n.NameValue)
+						rec.pubNameAttrs = append(rec.pubNameAttrs, n.NameValue)
 					}
 				}
 			}
@@ -472,7 +515,7 @@ func (s *fakeStore) handler() kmipserver.RequestHandler {
 					rec.nameAttrs = append(rec.nameAttrs, n.NameValue)
 				}
 				if rec, ok := s.pubKeys[req.UniqueIdentifier]; ok {
-					rec.nameAttrs = append(rec.nameAttrs, n.NameValue)
+					rec.pubNameAttrs = append(rec.pubNameAttrs, n.NameValue)
 				}
 			}
 		}
@@ -495,6 +538,11 @@ func (s *fakeStore) handler() kmipserver.RequestHandler {
 				if rec, ok := s.keys[req.UniqueIdentifier]; ok {
 					if idx < len(rec.nameAttrs) {
 						rec.nameAttrs[idx] = n.NameValue
+					}
+				}
+				if rec, ok := s.pubKeys[req.UniqueIdentifier]; ok {
+					if idx < len(rec.pubNameAttrs) {
+						rec.pubNameAttrs[idx] = n.NameValue
 					}
 				}
 			}
@@ -550,6 +598,17 @@ func (s *fakeStore) handler() kmipserver.RequestHandler {
 					})
 				}
 			}
+		} else if rec, ok := s.pubKeys[req.UniqueIdentifier]; ok {
+			for _, want := range req.AttributeName {
+				if want == ovh.AttributeNameName {
+					for _, n := range rec.pubNameAttrs {
+						attrs = append(attrs, ovh.Attribute{
+							AttributeName:  ovh.AttributeNameName,
+							AttributeValue: ovh.Name{NameValue: n, NameType: ovh.NameTypeUninterpretedTextString},
+						})
+					}
+				}
+			}
 		}
 		return &payloads.GetAttributesResponsePayload{
 			UniqueIdentifier: req.UniqueIdentifier,
@@ -561,16 +620,35 @@ func (s *fakeStore) handler() kmipserver.RequestHandler {
 		s.mu.Lock()
 		defer s.mu.Unlock()
 		var filterNames []string
+		var filterObjectType ovh.ObjectType
+		hasObjectType := false
 		for _, a := range req.Attribute {
-			if a.AttributeName == ovh.AttributeNameName {
+			switch a.AttributeName {
+			case ovh.AttributeNameName:
 				if n, ok := a.AttributeValue.(ovh.Name); ok {
 					filterNames = append(filterNames, n.NameValue)
 				}
+			case ovh.AttributeNameObjectType:
+				if t, ok := a.AttributeValue.(ovh.ObjectType); ok {
+					filterObjectType = t
+					hasObjectType = true
+				}
 			}
+		}
+		matches := func(nameAttrs []string, objectType ovh.ObjectType) bool {
+			if !allNamesPresent(nameAttrs, filterNames) {
+				return false
+			}
+			return !hasObjectType || filterObjectType == objectType
 		}
 		var uids []string
 		for uid, rec := range s.keys {
-			if allNamesPresent(rec.nameAttrs, filterNames) {
+			if matches(rec.nameAttrs, ovh.ObjectTypePrivateKey) {
+				uids = append(uids, uid)
+			}
+		}
+		for uid, rec := range s.pubKeys {
+			if matches(rec.pubNameAttrs, ovh.ObjectTypePublicKey) {
 				uids = append(uids, uid)
 			}
 		}
@@ -583,6 +661,8 @@ func (s *fakeStore) handler() kmipserver.RequestHandler {
 		if rec, ok := s.keys[req.UniqueIdentifier]; ok {
 			delete(s.pubKeys, rec.pubUID)
 			delete(s.keys, req.UniqueIdentifier)
+		} else {
+			delete(s.pubKeys, req.UniqueIdentifier)
 		}
 		return &payloads.DestroyResponsePayload{UniqueIdentifier: req.UniqueIdentifier}, nil
 	}))
