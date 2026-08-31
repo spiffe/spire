@@ -2,10 +2,6 @@
 
 mkdir -p ./bin
 
-KINDVERSION=v0.24.0
-KUBECTLVERSION=v1.31.2
-K8SIMAGE=kindest/node:v1.31.0
-
 KIND_PATH=./bin/kind
 KUBECTL_PATH=./bin/kubectl
 
