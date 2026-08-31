@@ -451,6 +451,10 @@ func TestDisposeStaleKeys(t *testing.T) {
 	require.Contains(t, store.keys, "fresh-priv", "fresh key should be kept")
 	require.True(t, store.revoked["stale-priv"], "stale key should be revoked before being destroyed")
 	require.False(t, store.revoked["fresh-priv"], "fresh key should not be revoked")
+	// The stale key's public key must be destroyed too, and the fresh key's public
+	// key must be kept — the pair is never leaked or removed too soon.
+	require.NotContains(t, store.pubKeys, "stale-pub", "stale public key should be disposed with its private key")
+	require.Contains(t, store.pubKeys, "fresh-pub", "fresh public key should be kept")
 }
 
 func TestDisposeStaleKeysIgnoresStalePublicKey(t *testing.T) {
@@ -851,8 +855,9 @@ func (s *fakeStore) handler() kmipserver.RequestHandler {
 	exec.Route(ovh.OperationDestroy, kmipserver.HandleFunc(func(_ context.Context, req *payloads.DestroyRequestPayload) (*payloads.DestroyResponsePayload, error) {
 		s.mu.Lock()
 		defer s.mu.Unlock()
-		if rec, ok := s.keys[req.UniqueIdentifier]; ok {
-			delete(s.pubKeys, rec.pubUID)
+		// Destroy removes only the specified object (no implicit cascade), matching
+		// the KMIP spec where a client must destroy linked objects explicitly.
+		if _, ok := s.keys[req.UniqueIdentifier]; ok {
 			delete(s.keys, req.UniqueIdentifier)
 		} else {
 			delete(s.pubKeys, req.UniqueIdentifier)
