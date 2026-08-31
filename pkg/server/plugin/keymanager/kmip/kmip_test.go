@@ -322,22 +322,40 @@ func TestGenerateKeyMissingKeyID(t *testing.T) {
 // ─── SignData ─────────────────────────────────────────────────────────────────
 
 func TestSignData(t *testing.T) {
-	store := newFakeStore()
-	addr, caPEM := kmiptest.NewServer(t, store.handler())
-	km := loadPlugin(t, addr, caPEM)
+	for _, tt := range []struct {
+		name    string
+		keyType keymanager.KeyType
+	}{
+		{"EC_P256", keymanager.ECP256},
+		{"EC_P384", keymanager.ECP384},
+		{"RSA_2048", keymanager.RSA2048},
+		// RSA_4096 omitted to keep the test fast.
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			store := newFakeStore()
+			addr, caPEM := kmiptest.NewServer(t, store.handler())
+			km := loadPlugin(t, addr, caPEM)
 
-	key, err := km.GenerateKey(context.Background(), "sign-key", keymanager.ECP256)
-	require.NoError(t, err)
+			key, err := km.GenerateKey(context.Background(), "sign-key", tt.keyType)
+			require.NoError(t, err)
 
-	digest := sha256.Sum256([]byte("hello spire"))
-	sig, err := key.Sign(rand.Reader, digest[:], crypto.SHA256)
-	require.NoError(t, err)
-	require.NotEmpty(t, sig)
+			digest := sha256.Sum256([]byte("hello spire"))
+			sig, err := key.Sign(rand.Reader, digest[:], crypto.SHA256)
+			require.NoError(t, err)
+			require.NotEmpty(t, sig)
 
-	// Verify the signature is valid against the public key.
-	ecPub, ok := key.Public().(*ecdsa.PublicKey)
-	require.True(t, ok)
-	require.True(t, ecdsa.VerifyASN1(ecPub, digest[:], sig))
+			// Verify the signature against the public key, using the algorithm
+			// appropriate for the key type.
+			switch pub := key.Public().(type) {
+			case *ecdsa.PublicKey:
+				require.True(t, ecdsa.VerifyASN1(pub, digest[:], sig))
+			case *rsa.PublicKey:
+				require.NoError(t, rsa.VerifyPKCS1v15(pub, crypto.SHA256, digest[:], sig))
+			default:
+				t.Fatalf("unexpected public key type %T", key.Public())
+			}
+		})
+	}
 }
 
 func TestSignDataKeyNotFound(t *testing.T) {
