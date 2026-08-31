@@ -11,6 +11,7 @@ import (
 	"crypto/x509"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"sync"
 	"testing"
@@ -51,14 +52,14 @@ func TestConfigure(t *testing.T) {
 			config: fmt.Sprintf(`
 				kmip_addr            = %q
 				ca_cert_path         = %q
-				server_id            = %q
+				server_id_value      = %q
 				insecure_skip_verify = true
 			`, addr, caFile, testServerID),
 			expectCode: codes.OK,
 		},
 		{
 			name:       "missing kmip_addr",
-			config:     fmt.Sprintf(`server_id = %q insecure_skip_verify = true`, testServerID),
+			config:     fmt.Sprintf(`server_id_value = %q insecure_skip_verify = true`, testServerID),
 			expectCode: codes.InvalidArgument,
 			expectMsg:  "kmip_addr",
 		},
@@ -69,10 +70,21 @@ func TestConfigure(t *testing.T) {
 			expectMsg:  "server_id",
 		},
 		{
+			name: "server_id value and file both set",
+			config: fmt.Sprintf(`
+				kmip_addr            = %q
+				server_id_value      = %q
+				server_id_file       = "server-id-file"
+				insecure_skip_verify = true
+			`, addr, testServerID),
+			expectCode: codes.InvalidArgument,
+			expectMsg:  "server_id_value and server_id_file",
+		},
+		{
 			name: "key path set but no cert path",
 			config: fmt.Sprintf(`
 				kmip_addr            = %q
-				server_id            = %q
+				server_id_value      = %q
 				client_key_path      = "some.key"
 				insecure_skip_verify = true
 			`, addr, testServerID),
@@ -95,24 +107,35 @@ func TestConfigure(t *testing.T) {
 	}
 }
 
-func TestLoadCACertPool(t *testing.T) {
-	store := newFakeStore()
-	_, caPEM := kmiptest.NewServer(t, store.handler())
-	caFile := writeTempPEM(t, caPEM)
+func TestGetOrCreateServerID(t *testing.T) {
+	t.Run("creates a new ID when the file does not exist", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "server-id")
+		id, err := getOrCreateServerID(path)
+		require.NoError(t, err)
+		require.NotEmpty(t, id)
 
-	for _, tt := range []struct {
-		name   string
-		caCert string
-	}{
-		{name: "inline PEM", caCert: caPEM},
-		{name: "file path", caCert: caFile},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			pool, err := loadCACertPool(tt.caCert)
-			require.NoError(t, err)
-			require.NotNil(t, pool)
-		})
-	}
+		data, err := os.ReadFile(path)
+		require.NoError(t, err)
+		require.Equal(t, id, string(data))
+	})
+
+	t.Run("reuses the existing ID", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "server-id")
+		first, err := getOrCreateServerID(path)
+		require.NoError(t, err)
+
+		second, err := getOrCreateServerID(path)
+		require.NoError(t, err)
+		require.Equal(t, first, second)
+	})
+
+	t.Run("rejects an invalid ID", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "server-id")
+		require.NoError(t, os.WriteFile(path, []byte("not-a-uuid"), 0o600))
+
+		_, err := getOrCreateServerID(path)
+		require.Error(t, err)
+	})
 }
 
 // ─── GenerateKey ─────────────────────────────────────────────────────────────
@@ -300,7 +323,7 @@ func loadPlugin(t *testing.T, addr, caPEM string) *keymanager.V1 {
 			kmip_addr            = %q
 			ca_cert_path         = %q
 			insecure_skip_verify = true
-			server_id            = %q
+			server_id_value      = %q
 		`, addr, caFile, testServerID)),
 		plugintest.CoreConfig(catalog.CoreConfig{
 			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
@@ -336,7 +359,7 @@ func newTestPlugin(t *testing.T, addr, caPEM string) (*Plugin, *clock.Mock) {
 			kmip_addr            = %q
 			ca_cert_path         = %q
 			insecure_skip_verify = true
-			server_id            = %q
+			server_id_value      = %q
 		`, addr, caFile, testServerID)),
 		plugintest.CoreConfig(catalog.CoreConfig{
 			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
