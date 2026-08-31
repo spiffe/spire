@@ -1216,6 +1216,7 @@ func (p *Plugin) disposeStaleKeys(ctx context.Context) error {
 	}
 
 	locResp, err := client.Locate().
+		WithAttribute(ovh.AttributeNameObjectType, ovh.ObjectTypePrivateKey).
 		WithAttribute(ovh.AttributeNameName, ovh.Name{
 			NameValue: serverIDNameValue(serverID),
 			NameType:  ovh.NameTypeUninterpretedTextString,
