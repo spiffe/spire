@@ -327,21 +327,46 @@ func (p *Plugin) GetPublicKeys(_ context.Context, _ *keymanagerv1.GetPublicKeysR
 // Internal helpers
 // ────────────────────────────────────────────────────────────────────────────
 
+// locatePageSize is the number of private keys requested per Locate page. It is a
+// variable so tests can exercise pagination with a small page size.
+var locatePageSize int32 = 1000
+
+// locatePrivateKeys returns the unique identifiers of all private keys carrying the
+// given Name, paginating through the results to handle KMIP servers that limit the
+// number of items returned per response.
+func locatePrivateKeys(ctx context.Context, c *kmipclient.Client, name ovh.Name) ([]string, error) {
+	var uids []string
+	for offset := int32(0); ; {
+		resp, err := c.Locate().
+			WithAttribute(ovh.AttributeNameObjectType, ovh.ObjectTypePrivateKey).
+			WithAttribute(ovh.AttributeNameName, name).
+			WithMaxItems(locatePageSize).
+			WithOffset(offset).
+			ExecContext(ctx)
+		if err != nil {
+			return nil, err
+		}
+		if len(resp.UniqueIdentifier) == 0 {
+			break
+		}
+		uids = append(uids, resp.UniqueIdentifier...)
+		offset += int32(len(resp.UniqueIdentifier)) //nolint:gosec // bounded by locatePageSize
+	}
+	return uids, nil
+}
+
 // recoverKeys fetches all private keys tagged with this server's server-id Name
 // and rebuilds the in-memory entries map. Must be called while p.mu is held.
 func (p *Plugin) recoverKeys(ctx context.Context) error {
-	locResp, err := p.client.Locate().
-		WithAttribute(ovh.AttributeNameObjectType, ovh.ObjectTypePrivateKey).
-		WithAttribute(ovh.AttributeNameName, ovh.Name{
-			NameValue: serverIDNameValue(p.serverID),
-			NameType:  ovh.NameTypeUninterpretedTextString,
-		}).
-		ExecContext(ctx)
+	privUIDs, err := locatePrivateKeys(ctx, p.client, ovh.Name{
+		NameValue: serverIDNameValue(p.serverID),
+		NameType:  ovh.NameTypeUninterpretedTextString,
+	})
 	if err != nil {
 		return fmt.Errorf("locate keys for server %q: %w", p.serverID, err)
 	}
 
-	for _, privUID := range locResp.UniqueIdentifier {
+	for _, privUID := range privUIDs {
 		attrResp, err := p.client.GetAttributes(privUID, ovh.AttributeNameName).ExecContext(ctx)
 		if err != nil {
 			p.logger.Warn("Failed to get Name attributes during recovery", "uid", privUID, "err", err)
@@ -814,20 +839,17 @@ func (p *Plugin) disposeStaleKeys(ctx context.Context) error {
 		return nil
 	}
 
-	locResp, err := client.Locate().
-		WithAttribute(ovh.AttributeNameObjectType, ovh.ObjectTypePrivateKey).
-		WithAttribute(ovh.AttributeNameName, ovh.Name{
-			NameValue: serverIDNameValue(serverID),
-			NameType:  ovh.NameTypeUninterpretedTextString,
-		}).
-		ExecContext(ctx)
+	privUIDs, err := locatePrivateKeys(ctx, client, ovh.Name{
+		NameValue: serverIDNameValue(serverID),
+		NameType:  ovh.NameTypeUninterpretedTextString,
+	})
 	if err != nil {
 		return fmt.Errorf("locate keys for server %q: %w", serverID, err)
 	}
 
 	staleThreshold := p.clk.Now().Add(-staleKeyThreshold).Unix()
 
-	for _, privUID := range locResp.UniqueIdentifier {
+	for _, privUID := range privUIDs {
 		lastUpdate, ok, err := getLastUpdate(ctx, client, privUID)
 		if err != nil {
 			p.logger.Warn("Failed to read last-update during disposal", "uid", privUID, "err", err)
