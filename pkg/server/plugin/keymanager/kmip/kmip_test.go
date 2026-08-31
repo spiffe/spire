@@ -216,6 +216,35 @@ func TestGenerateKey(t *testing.T) {
 	}
 }
 
+func TestGenerateKeySameID(t *testing.T) {
+	store := newFakeStore()
+	addr, caPEM := kmiptest.NewServer(t, store.handler())
+	km := loadPlugin(t, addr, caPEM)
+
+	first, err := km.GenerateKey(context.Background(), "spire-key", keymanager.ECP256)
+	require.NoError(t, err)
+
+	// Generating a key with the same ID rotates it: the new key replaces the old
+	// one, and the previous key is deactivated and destroyed asynchronously.
+	second, err := km.GenerateKey(context.Background(), "spire-key", keymanager.ECP256)
+	require.NoError(t, err)
+
+	require.NotEqual(t, first.Public(), second.Public(), "rotation must produce a new key")
+
+	// The replacement key must be usable for signing.
+	digest := sha256.Sum256([]byte("rotate"))
+	sig, err := second.Sign(rand.Reader, digest[:], crypto.SHA256)
+	require.NoError(t, err)
+	require.NotEmpty(t, sig)
+
+	// The previous key must be revoked and destroyed.
+	require.Eventually(t, func() bool {
+		store.mu.Lock()
+		defer store.mu.Unlock()
+		return len(store.keys) == 1
+	}, 5*time.Second, 10*time.Millisecond)
+}
+
 func TestGenerateKeyNotConfigured(t *testing.T) {
 	p := New()
 	_, err := p.GenerateKey(context.Background(), &keymanagerv1.GenerateKeyRequest{
