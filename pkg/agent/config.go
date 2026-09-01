@@ -83,10 +83,6 @@ type Config struct {
 	// SyncInterval controls how often the agent sync synchronizer waits
 	SyncInterval time.Duration
 
-	// UseSyncAuthorizedEntries controls if the new SyncAuthorizedEntries RPC
-	// is used to sync entries from the server.
-	UseSyncAuthorizedEntries bool
-
 	// X509SVIDCacheMaxSize is a soft limit of max number of X509-SVIDs that would be stored in cache
 	X509SVIDCacheMaxSize int
 
