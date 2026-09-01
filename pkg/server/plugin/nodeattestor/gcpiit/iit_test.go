@@ -398,9 +398,7 @@ func buildClaims(projectID string, audience string) gcp.IdentityToken {
 				Zone:         testZone,
 			},
 		},
-		Claims: jwt.Claims{
-			Audience: []string{audience},
-		},
+		Audience: []string{audience},
 	}
 }
 

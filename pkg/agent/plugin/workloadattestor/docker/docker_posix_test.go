@@ -360,7 +360,7 @@ func TestPodmanClientIsClosed(t *testing.T) {
 		withDocker(dockerError{}),
 		withPodmanClientFactory(func(string) (podmanDocker, error) {
 			client = &closeableFakeContainer{
-				fakeContainer: fakeContainer{Image: "img"},
+				Image: "img",
 			}
 			return client, nil
 		}),

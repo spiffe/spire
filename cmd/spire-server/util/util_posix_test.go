@@ -64,10 +64,8 @@ func TestGetGRPCAddr(t *testing.T) {
 			}
 
 			a := &Adapter{
-				adapterOS: adapterOS{
-					socketPath: tt.socketPath,
-					instance:   tt.instance,
-				},
+				socketPath: tt.socketPath,
+				instance:   tt.instance,
 			}
 
 			got, err := a.getGRPCAddr()

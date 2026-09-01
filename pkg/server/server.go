@@ -448,14 +448,12 @@ func (s *Server) newRegistrationManager(cat catalog.Catalog, metrics telemetry.M
 
 func (s *Server) newNodeManager(cat catalog.Catalog, metrics telemetry.Metrics) *node.Manager {
 	nodeManager := node.NewManager(node.ManagerConfig{
-		DataStore: cat.GetDataStore(),
-		Log:       s.config.Log.WithField(telemetry.SubsystemName, telemetry.NodeManager),
-		Metrics:   metrics,
-		BatchSize: s.config.PruneAttestedNodesBatchSize,
-		PruneArgs: node.PruneArgs{
-			ExpiredFor:             s.config.PruneAttestedNodesExpiredFor,
-			IncludeNonReattestable: s.config.PruneNonReattestableNodes,
-		},
+		DataStore:              cat.GetDataStore(),
+		Log:                    s.config.Log.WithField(telemetry.SubsystemName, telemetry.NodeManager),
+		Metrics:                metrics,
+		BatchSize:              s.config.PruneAttestedNodesBatchSize,
+		ExpiredFor:             s.config.PruneAttestedNodesExpiredFor,
+		IncludeNonReattestable: s.config.PruneNonReattestableNodes,
 	})
 	return nodeManager
 }

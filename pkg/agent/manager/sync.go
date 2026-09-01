@@ -348,15 +348,15 @@ func (m *manager) fetchEntries(ctx context.Context) (_ *cache.UpdateEntries, _ *
 	}
 
 	return &cache.UpdateEntries{
-			Bundles:             bundles,
-			RegistrationEntries: cacheEntries,
-		}, &cache.UpdateEntries{
-			Bundles:             bundles,
-			RegistrationEntries: storeEntries,
-		}, &taintedAuthorities{
-			X509: taintedX509Authorities,
-			JWT:  taintedJWTAuthorities,
-		}, nil
+		Bundles:             bundles,
+		RegistrationEntries: cacheEntries,
+	}, &cache.UpdateEntries{
+		Bundles:             bundles,
+		RegistrationEntries: storeEntries,
+	}, &taintedAuthorities{
+		X509: taintedX509Authorities,
+		JWT:  taintedJWTAuthorities,
+	}, nil
 }
 
 func newCSR(spiffeID spiffeid.ID, keyType workloadkey.KeyType) (crypto.Signer, []byte, error) {

@@ -1522,8 +1522,6 @@ func (c FakeCreds) ServerHandshake(conn net.Conn) (net.Conn, credentials.AuthInf
 func (c FakeCreds) Info() credentials.ProtocolInfo {
 	return credentials.ProtocolInfo{
 		SecurityProtocol: "fixed",
-		SecurityVersion:  "0.1",
-		ServerName:       "sds-handler-test",
 	}
 }
 

@@ -72,12 +72,10 @@ func loadExternal(ctx context.Context, config externalConfig) (*pluginImpl, erro
 
 	// Start the external plugin.
 	pluginClient := goplugin.NewClient(&goplugin.ClientConfig{
-		HandshakeConfig: goplugin.HandshakeConfig{
-			ProtocolVersion:  1,
-			MagicCookieKey:   config.Type,
-			MagicCookieValue: config.Type,
-		},
-		Cmd: cmd,
+		ProtocolVersion:  1,
+		MagicCookieKey:   config.Type,
+		MagicCookieValue: config.Type,
+		Cmd:              cmd,
 		// TODO: Enable AutoMTLS if it is fixed to work with brokering.
 		// See https://github.com/hashicorp/go-plugin/issues/109
 		AutoMTLS:         false,
@@ -166,7 +164,7 @@ func (p *hcClientPlugin) GRPCClient(ctx context.Context, b *goplugin.GRPCBroker,
 		}
 	})
 
-	ctx, cancel := context.WithCancel(ctx) //nolint:gosec // G118: false complaint about cancel not being called
+	ctx, cancel := context.WithCancel(ctx)
 	wg.Go(func() {
 		<-ctx.Done()
 		if !gracefulStopWithTimeout(server) {
