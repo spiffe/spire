@@ -642,6 +642,10 @@ func newAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig, skip
 		return nil, fmt.Errorf("could not start logger: %w", err)
 	}
 	ac.Log = logger
+
+	if lr := c.Agent.LogFileRotation; lr != nil && lr.SizeRotationDisabled() && !log.ReopenOnSignalSupported {
+		logger.Warn("log_file_rotation is configured with max_size_mb = 0 and nothing can trigger a rotation on this platform, so the log file will not be rotated")
+	}
 	if reopenableFile != nil {
 		ac.LogReopener = log.ReopenOnSignal(logger, reopenableFile)
 	}

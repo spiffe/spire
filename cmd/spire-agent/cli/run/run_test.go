@@ -1026,11 +1026,7 @@ func TestNewAgentConfig(t *testing.T) {
 			msg: "log_file_rotation configures a self rotating log file",
 			input: func(c *Config) {
 				c.Agent.LogFile = filepath.Join(spiretest.TempDir(t), "agent.log")
-				c.Agent.LogFileRotation = &log.RotationConfig{
-					MaxSizeMB:  10,
-					MaxFiles:   3,
-					MaxAgeDays: 7,
-				}
+				c.Agent.LogFileRotation = &log.RotationConfig{MaxSizeMB: new(10), MaxFiles: new(3)}
 			},
 			test: func(t *testing.T, c *agent.Config) {
 				require.NotNil(t, c.Log)
@@ -1068,7 +1064,7 @@ func TestNewAgentConfig(t *testing.T) {
 			expectError:        true,
 			requireErrorPrefix: "log_file must be configured to use log_file_rotation",
 			input: func(c *Config) {
-				c.Agent.LogFileRotation = &log.RotationConfig{MaxSizeMB: 10}
+				c.Agent.LogFileRotation = &log.RotationConfig{MaxSizeMB: new(10)}
 			},
 			test: func(t *testing.T, c *agent.Config) {
 				require.Nil(t, c)
@@ -1080,7 +1076,7 @@ func TestNewAgentConfig(t *testing.T) {
 			requireErrorPrefix: "invalid log_file_rotation configuration: max_size_mb (-1) must not be negative",
 			input: func(c *Config) {
 				c.Agent.LogFile = "foo"
-				c.Agent.LogFileRotation = &log.RotationConfig{MaxSizeMB: -1}
+				c.Agent.LogFileRotation = &log.RotationConfig{MaxSizeMB: new(-1)}
 			},
 			test: func(t *testing.T, c *agent.Config) {
 				require.Nil(t, c)
@@ -1092,19 +1088,7 @@ func TestNewAgentConfig(t *testing.T) {
 			requireErrorPrefix: "invalid log_file_rotation configuration: max_files (-1) must not be negative",
 			input: func(c *Config) {
 				c.Agent.LogFile = "foo"
-				c.Agent.LogFileRotation = &log.RotationConfig{MaxFiles: -1}
-			},
-			test: func(t *testing.T, c *agent.Config) {
-				require.Nil(t, c)
-			},
-		},
-		{
-			msg:                "negative log_file_rotation max_age_days returns an error",
-			expectError:        true,
-			requireErrorPrefix: "invalid log_file_rotation configuration: max_age_days (-1) must not be negative",
-			input: func(c *Config) {
-				c.Agent.LogFile = "foo"
-				c.Agent.LogFileRotation = &log.RotationConfig{MaxAgeDays: -1}
+				c.Agent.LogFileRotation = &log.RotationConfig{MaxFiles: new(-1)}
 			},
 			test: func(t *testing.T, c *agent.Config) {
 				require.Nil(t, c)

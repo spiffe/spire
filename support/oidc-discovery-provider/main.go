@@ -76,6 +76,10 @@ func run(configPath string, expandEnv bool) error {
 	}
 	defer log.Close()
 
+	if cfg := config.LogFileRotation; cfg != nil && cfg.SizeRotationDisabled() {
+		log.Warn("log_file_rotation is configured with max_size_mb = 0 and the provider has no way to trigger a rotation, so the log file will not be rotated")
+	}
+
 	if config.AllowInsecureScheme {
 		log.Warn("allow_insecure_scheme is enabled. JWKS keys will be served over HTTP. Only enable this when the network path to the provider is trusted end-to-end (for example, when TLS is terminated at a trusted reverse proxy or load balancer on a private network)")
 	}

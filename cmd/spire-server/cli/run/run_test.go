@@ -729,11 +729,7 @@ func TestNewServerConfig(t *testing.T) {
 			msg: "log_file_rotation configures a self rotating log file",
 			input: func(c *Config) {
 				c.Server.LogFile = filepath.Join(spiretest.TempDir(t), "server.log")
-				c.Server.LogFileRotation = &log.RotationConfig{
-					MaxSizeMB:  10,
-					MaxFiles:   3,
-					MaxAgeDays: 7,
-				}
+				c.Server.LogFileRotation = &log.RotationConfig{MaxSizeMB: new(10), MaxFiles: new(3)}
 			},
 			test: func(t *testing.T, c *server.Config) {
 				require.NotNil(t, c.Log)
@@ -1580,7 +1576,7 @@ func TestValidateConfig(t *testing.T) {
 		{
 			name: "log_file_rotation requires log_file",
 			applyConf: func(c *Config) {
-				c.Server.LogFileRotation = &log.RotationConfig{MaxSizeMB: 10}
+				c.Server.LogFileRotation = &log.RotationConfig{MaxSizeMB: new(10)}
 			},
 			expectedErr: "log_file must be configured to use log_file_rotation",
 		},
@@ -1588,7 +1584,7 @@ func TestValidateConfig(t *testing.T) {
 			name: "log_file_rotation max_size_mb must not be negative",
 			applyConf: func(c *Config) {
 				c.Server.LogFile = "foo"
-				c.Server.LogFileRotation = &log.RotationConfig{MaxSizeMB: -1}
+				c.Server.LogFileRotation = &log.RotationConfig{MaxSizeMB: new(-1)}
 			},
 			expectedErr: "invalid log_file_rotation configuration: max_size_mb (-1) must not be negative",
 		},
@@ -1596,17 +1592,9 @@ func TestValidateConfig(t *testing.T) {
 			name: "log_file_rotation max_files must not be negative",
 			applyConf: func(c *Config) {
 				c.Server.LogFile = "foo"
-				c.Server.LogFileRotation = &log.RotationConfig{MaxFiles: -1}
+				c.Server.LogFileRotation = &log.RotationConfig{MaxFiles: new(-1)}
 			},
 			expectedErr: "invalid log_file_rotation configuration: max_files (-1) must not be negative",
-		},
-		{
-			name: "log_file_rotation max_age_days must not be negative",
-			applyConf: func(c *Config) {
-				c.Server.LogFile = "foo"
-				c.Server.LogFileRotation = &log.RotationConfig{MaxAgeDays: -1}
-			},
-			expectedErr: "invalid log_file_rotation configuration: max_age_days (-1) must not be negative",
 		},
 		{
 			name: "if ACME is used, federation.bundle_endpoint.acme.domain_name must be configured",

@@ -67,7 +67,7 @@ func TestRotatableFileRotatesOnSize(t *testing.T) {
 	dir := spiretest.TempDir(t)
 	logPath := filepath.Join(dir, "test.log")
 
-	rf, _ := newTestRotatableFile(t, logPath, RotationConfig{MaxSizeMB: 1})
+	rf, _ := newTestRotatableFile(t, logPath, RotationConfig{MaxSizeMB: new(1), MaxFiles: new(0)})
 
 	// fill the file to just under the limit
 	chunk := []byte(strings.Repeat("a", 1024))
@@ -96,7 +96,7 @@ func TestRotatableFileDoesNotRotateOnOpen(t *testing.T) {
 	// pre-existing content already past the limit
 	require.NoError(t, os.WriteFile(logPath, []byte(strings.Repeat("a", 2*mebibyte)), 0600))
 
-	rf, _ := newTestRotatableFile(t, logPath, RotationConfig{MaxSizeMB: 1})
+	rf, _ := newTestRotatableFile(t, logPath, RotationConfig{MaxSizeMB: new(1), MaxFiles: new(0)})
 
 	assert.Empty(t, backupNames(t, logPath), "opening must not rotate")
 
@@ -112,7 +112,7 @@ func TestRotatableFileKeepsWriteLargerThanMaxSize(t *testing.T) {
 	dir := spiretest.TempDir(t)
 	logPath := filepath.Join(dir, "test.log")
 
-	rf, _ := newTestRotatableFile(t, logPath, RotationConfig{MaxSizeMB: 1})
+	rf, _ := newTestRotatableFile(t, logPath, RotationConfig{MaxSizeMB: new(1), MaxFiles: new(0)})
 
 	// a single entry bigger than the limit is written intact rather than dropped
 	huge := []byte(strings.Repeat("a", 2*mebibyte))
@@ -133,7 +133,7 @@ func TestRotatableFileReopenForcesRotation(t *testing.T) {
 	dir := spiretest.TempDir(t)
 	logPath := filepath.Join(dir, "test.log")
 
-	rf, now := newTestRotatableFile(t, logPath, RotationConfig{})
+	rf, now := newTestRotatableFile(t, logPath, RotationConfig{MaxSizeMB: new(0), MaxFiles: new(0)})
 
 	_, err := rf.Write([]byte("before"))
 	require.NoError(t, err)
@@ -156,7 +156,7 @@ func TestRotatableFileReopenAfterExternalRename(t *testing.T) {
 	dir := spiretest.TempDir(t)
 	logPath := filepath.Join(dir, "test.log")
 
-	rf, _ := newTestRotatableFile(t, logPath, RotationConfig{})
+	rf, _ := newTestRotatableFile(t, logPath, RotationConfig{MaxSizeMB: new(0), MaxFiles: new(0)})
 
 	_, err := rf.Write([]byte("before"))
 	require.NoError(t, err)
@@ -182,7 +182,7 @@ func TestRotatableFilePrunesByCount(t *testing.T) {
 	dir := spiretest.TempDir(t)
 	logPath := filepath.Join(dir, "test.log")
 
-	rf, now := newTestRotatableFile(t, logPath, RotationConfig{MaxFiles: 2})
+	rf, now := newTestRotatableFile(t, logPath, RotationConfig{MaxSizeMB: new(0), MaxFiles: new(2)})
 
 	for i := range 5 {
 		_, err := rf.Write(fmt.Appendf(nil, "entry %d", i))
@@ -199,33 +199,6 @@ func TestRotatableFilePrunesByCount(t *testing.T) {
 	assert.Equal(t, "entry 3", readFile(t, filepath.Join(dir, backups[1])))
 }
 
-func TestRotatableFilePrunesByAge(t *testing.T) {
-	dir := spiretest.TempDir(t)
-	logPath := filepath.Join(dir, "test.log")
-
-	rf, now := newTestRotatableFile(t, logPath, RotationConfig{MaxAgeDays: 2})
-
-	// three rotations, a day apart
-	for i := range 3 {
-		_, err := rf.Write(fmt.Appendf(nil, "entry %d", i))
-		require.NoError(t, err)
-		require.NoError(t, rf.Reopen())
-		*now = now.Add(24 * time.Hour)
-	}
-	assert.Len(t, backupNames(t, logPath), 3, "nothing is old enough yet")
-
-	// move far enough forward that the two oldest fall outside the window
-	*now = now.Add(24 * time.Hour)
-	_, err := rf.Write([]byte("last"))
-	require.NoError(t, err)
-	require.NoError(t, rf.Reopen())
-
-	backups := backupNames(t, logPath)
-	require.Len(t, backups, 2)
-	assert.Equal(t, "last", readFile(t, filepath.Join(dir, backups[0])))
-	assert.Equal(t, "entry 2", readFile(t, filepath.Join(dir, backups[1])))
-}
-
 func TestRotatableFileLeavesUnrelatedFilesAlone(t *testing.T) {
 	dir := spiretest.TempDir(t)
 	logPath := filepath.Join(dir, "test.log")
@@ -240,7 +213,7 @@ func TestRotatableFileLeavesUnrelatedFilesAlone(t *testing.T) {
 		require.NoError(t, os.WriteFile(path, []byte("keep me"), 0600))
 	}
 
-	rf, now := newTestRotatableFile(t, logPath, RotationConfig{MaxFiles: 1, MaxAgeDays: 1})
+	rf, now := newTestRotatableFile(t, logPath, RotationConfig{MaxSizeMB: new(0), MaxFiles: new(1)})
 
 	for i := range 3 {
 		_, err := rf.Write(fmt.Appendf(nil, "entry %d", i))
@@ -260,7 +233,7 @@ func TestRotatableFileBackupNameCollision(t *testing.T) {
 	logPath := filepath.Join(dir, "test.log")
 
 	// the clock never advances, so every rotation asks for the same name
-	rf, _ := newTestRotatableFile(t, logPath, RotationConfig{})
+	rf, _ := newTestRotatableFile(t, logPath, RotationConfig{MaxSizeMB: new(0), MaxFiles: new(0)})
 
 	for i := range 3 {
 		_, err := rf.Write(fmt.Appendf(nil, "entry %d", i))
@@ -282,7 +255,7 @@ func TestRotatableFileRenameFailureKeepsWriting(t *testing.T) {
 	dir := spiretest.TempDir(t)
 	logPath := filepath.Join(dir, "test.log")
 
-	rf, _ := newTestRotatableFile(t, logPath, RotationConfig{MaxSizeMB: 1})
+	rf, _ := newTestRotatableFile(t, logPath, RotationConfig{MaxSizeMB: new(1), MaxFiles: new(0)})
 	renameErr := errors.New("rename boom")
 	rf.renameFunc = func(string, string) error { return renameErr }
 
@@ -308,7 +281,7 @@ func TestRotatableFileReopenIsNoOpWhenEmpty(t *testing.T) {
 	dir := spiretest.TempDir(t)
 	logPath := filepath.Join(dir, "test.log")
 
-	rf, now := newTestRotatableFile(t, logPath, RotationConfig{MaxFiles: 1})
+	rf, now := newTestRotatableFile(t, logPath, RotationConfig{MaxSizeMB: new(0), MaxFiles: new(1)})
 
 	_, err := rf.Write([]byte("real content"))
 	require.NoError(t, err)
@@ -335,7 +308,7 @@ func TestRotatableFileWriteRecoversAfterFailedRotation(t *testing.T) {
 	dir := spiretest.TempDir(t)
 	logPath := filepath.Join(dir, "test.log")
 
-	rf, _ := newTestRotatableFile(t, logPath, RotationConfig{})
+	rf, _ := newTestRotatableFile(t, logPath, RotationConfig{MaxSizeMB: new(0), MaxFiles: new(0)})
 
 	_, err := rf.Write([]byte("before"))
 	require.NoError(t, err)
@@ -357,7 +330,7 @@ func TestRotatableFileBacksOffAfterFailure(t *testing.T) {
 	dir := spiretest.TempDir(t)
 	logPath := filepath.Join(dir, "test.log")
 
-	rf, now := newTestRotatableFile(t, logPath, RotationConfig{MaxSizeMB: 1})
+	rf, now := newTestRotatableFile(t, logPath, RotationConfig{MaxSizeMB: new(1), MaxFiles: new(0)})
 
 	var attempts int
 	rf.renameFunc = func(string, string) error {
@@ -386,7 +359,7 @@ func TestRotatableFileIgnoresCloseFailure(t *testing.T) {
 	dir := spiretest.TempDir(t)
 	logPath := filepath.Join(dir, "test.log")
 
-	rf, _ := newTestRotatableFile(t, logPath, RotationConfig{})
+	rf, _ := newTestRotatableFile(t, logPath, RotationConfig{MaxSizeMB: new(0), MaxFiles: new(0)})
 	rf.closeFunc = func(f *os.File) error {
 		// still close it so the test does not leak a descriptor
 		_ = f.Close()
@@ -403,7 +376,7 @@ func TestRotatableFileWriteAfterUnusableRotation(t *testing.T) {
 	dir := spiretest.TempDir(t)
 	logPath := filepath.Join(dir, "test.log")
 
-	rf, _ := newTestRotatableFile(t, logPath, RotationConfig{})
+	rf, _ := newTestRotatableFile(t, logPath, RotationConfig{MaxSizeMB: new(0), MaxFiles: new(0)})
 
 	_, err := rf.Write([]byte("before"))
 	require.NoError(t, err)
@@ -423,7 +396,7 @@ func TestRotatableFileConcurrentWrites(t *testing.T) {
 	dir := spiretest.TempDir(t)
 	logPath := filepath.Join(dir, "test.log")
 
-	rf, err := NewRotatableFile(logPath, RotationConfig{MaxSizeMB: 1, MaxFiles: 10})
+	rf, err := NewRotatableFile(logPath, RotationConfig{MaxSizeMB: new(1), MaxFiles: new(10)})
 	require.NoError(t, err)
 	defer func() {
 		_ = rf.Close()
@@ -460,7 +433,7 @@ func TestRotatableFileName(t *testing.T) {
 	dir := spiretest.TempDir(t)
 	logPath := filepath.Join(dir, "test.log")
 
-	rf, _ := newTestRotatableFile(t, logPath, RotationConfig{})
+	rf, _ := newTestRotatableFile(t, logPath, RotationConfig{MaxSizeMB: new(0), MaxFiles: new(0)})
 	assert.Equal(t, logPath, rf.Name())
 }
 
@@ -468,7 +441,7 @@ func TestRotatableFileWithLogger(t *testing.T) {
 	dir := spiretest.TempDir(t)
 	logPath := filepath.Join(dir, "test.log")
 
-	rf, _ := newTestRotatableFile(t, logPath, RotationConfig{})
+	rf, _ := newTestRotatableFile(t, logPath, RotationConfig{MaxSizeMB: new(0), MaxFiles: new(0)})
 
 	logger, err := NewLogger(WithReopenableOutputFile(rf), WithFormat(TextFormat))
 	require.NoError(t, err)
@@ -492,46 +465,23 @@ func TestRotationConfigValidate(t *testing.T) {
 		cfg    RotationConfig
 		expect string
 	}{
-		{
-			desc: "empty is valid",
-			cfg:  RotationConfig{},
-		},
-		{
-			desc: "all set is valid",
-			cfg:  RotationConfig{MaxSizeMB: 1, MaxFiles: 2, MaxAgeDays: 3},
-		},
+		{desc: "empty is valid", cfg: RotationConfig{}},
+		{desc: "explicit zeroes are valid", cfg: RotationConfig{MaxSizeMB: new(0), MaxFiles: new(0)}},
+		{desc: "set values are valid", cfg: RotationConfig{MaxSizeMB: new(1), MaxFiles: new(2)}},
 		{
 			desc:   "negative max_size_mb",
-			cfg:    RotationConfig{MaxSizeMB: -1},
+			cfg:    RotationConfig{MaxSizeMB: new(-1)},
 			expect: "max_size_mb (-1) must not be negative",
 		},
 		{
 			desc:   "max_size_mb beyond the overflow guard",
-			cfg:    RotationConfig{MaxSizeMB: maxSizeMBLimit + 1},
+			cfg:    RotationConfig{MaxSizeMB: new(maxSizeMBLimit + 1)},
 			expect: "max_size_mb (1048577) must not be greater than 1048576",
 		},
 		{
-			desc: "max_size_mb at the limit is valid",
-			cfg:  RotationConfig{MaxSizeMB: maxSizeMBLimit},
-		},
-		{
 			desc:   "negative max_files",
-			cfg:    RotationConfig{MaxFiles: -1},
+			cfg:    RotationConfig{MaxFiles: new(-1)},
 			expect: "max_files (-1) must not be negative",
-		},
-		{
-			desc:   "negative max_age_days",
-			cfg:    RotationConfig{MaxAgeDays: -1},
-			expect: "max_age_days (-1) must not be negative",
-		},
-		{
-			desc:   "max_age_days beyond the overflow guard",
-			cfg:    RotationConfig{MaxAgeDays: maxAgeDaysLimit + 1},
-			expect: "max_age_days (36501) must not be greater than 36500",
-		},
-		{
-			desc: "max_age_days at the limit is valid",
-			cfg:  RotationConfig{MaxAgeDays: maxAgeDaysLimit},
 		},
 	} {
 		t.Run(tt.desc, func(t *testing.T) {
@@ -545,18 +495,25 @@ func TestRotationConfigValidate(t *testing.T) {
 	}
 }
 
-func TestRotationConfigIsZero(t *testing.T) {
-	assert.True(t, RotationConfig{}.IsZero())
-	assert.False(t, RotationConfig{MaxSizeMB: 1}.IsZero())
-	assert.False(t, RotationConfig{MaxFiles: 1}.IsZero())
-	assert.False(t, RotationConfig{MaxAgeDays: 1}.IsZero())
+// An unset key takes a default, so a bare block still rotates and still prunes.
+func TestRotationConfigDefaults(t *testing.T) {
+	var bare RotationConfig
+	assert.Equal(t, defaultMaxSizeMB, bare.maxSizeMB())
+	assert.Equal(t, defaultMaxFiles, bare.maxFiles())
+	assert.False(t, bare.SizeRotationDisabled())
+
+	// An explicit zero still means that bound is off.
+	off := RotationConfig{MaxSizeMB: new(0), MaxFiles: new(0)}
+	assert.Equal(t, 0, off.maxSizeMB())
+	assert.Equal(t, 0, off.maxFiles())
+	assert.True(t, off.SizeRotationDisabled())
 }
 
 func TestNewRotatableFileRejectsInvalidConfig(t *testing.T) {
 	dir := spiretest.TempDir(t)
 	logPath := filepath.Join(dir, "test.log")
 
-	_, err := NewRotatableFile(logPath, RotationConfig{MaxSizeMB: -1})
+	_, err := NewRotatableFile(logPath, RotationConfig{MaxSizeMB: new(-1)})
 	require.EqualError(t, err, "max_size_mb (-1) must not be negative")
 	assert.NoFileExists(t, logPath, "an invalid config must not create the log file")
 }

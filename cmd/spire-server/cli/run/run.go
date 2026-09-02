@@ -429,6 +429,10 @@ func newServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig, ski
 	}
 	sc.Log = logger
 
+	if lr := c.Server.LogFileRotation; lr != nil && lr.SizeRotationDisabled() && !log.ReopenOnSignalSupported {
+		logger.Warn("log_file_rotation is configured with max_size_mb = 0 and nothing can trigger a rotation on this platform, so the log file will not be rotated")
+	}
+
 	if reopenableFile != nil {
 		sc.LogReopener = log.ReopenOnSignal(logger, reopenableFile)
 	}

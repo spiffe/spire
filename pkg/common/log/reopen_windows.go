@@ -1,16 +1,15 @@
-//go:build windows
-
 package log
 
 import (
 	"context"
 )
 
-// ReopenOnSignal returns a noop function compatible with RunTasks since
-// windows does not have signals as on *nix.
-func ReopenOnSignal(*Logger, Reopener) func(context.Context) error {
+// ReopenOnSignal returns a function compatible with RunTasks. Windows has no
+// signal to reopen on, so it only reports rotation failures that a self
+// rotating file could not report itself.
+func ReopenOnSignal(logger *Logger, reopener Reopener) func(context.Context) error {
 	return func(ctx context.Context) error {
-		<-ctx.Done()
+		reportRotateErrors(ctx, logger, reopener, rotateErrorInterval)
 		return nil
 	}
 }

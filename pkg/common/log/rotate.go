@@ -19,10 +19,12 @@ const (
 
 	mebibyte = 1024 * 1024
 
-	// Upper bounds that keep the conversions to bytes and to a time.Duration
-	// clear of overflow.
-	maxSizeMBLimit  = 1024 * 1024
-	maxAgeDaysLimit = 36500
+	// Applied when a key is left unset, so that a bare block is bounded.
+	defaultMaxSizeMB = 100
+	defaultMaxFiles  = 7
+
+	// Upper bound that keeps the conversion to bytes clear of overflow.
+	maxSizeMBLimit = 1024 * 1024
 
 	// rotateRetryInterval throttles retries so a persistent failure does not
 	// attempt a rename for every line written.
@@ -32,43 +34,51 @@ const (
 var _ ReopenableWriteCloser = (*RotatableFile)(nil)
 
 // RotationConfig configures rotation and retention. It doubles as the HCL shape
-// of the log_file_rotation block.
+// of the log_file_rotation block. A key left unset takes a default, so a block
+// with no keys still rotates; an explicit 0 turns that bound off.
 type RotationConfig struct {
-	// MaxSizeMB is the size the log file may reach before it is rotated. Zero
-	// disables size based rotation, leaving it to Reopen.
-	MaxSizeMB int `hcl:"max_size_mb"`
+	// MaxSizeMB is the size the log file may reach before it is rotated.
+	// Explicitly 0 disables size based rotation, leaving it to Reopen.
+	MaxSizeMB *int `hcl:"max_size_mb"`
 
 	// MaxFiles is how many rotated files to retain, not counting the active
-	// one. Zero retains all of them.
-	MaxFiles int `hcl:"max_files"`
-
-	// MaxAgeDays is the age beyond which a rotated file is removed. Zero
-	// retains rotated files regardless of age.
-	MaxAgeDays int `hcl:"max_age_days"`
+	// one. Explicitly 0 retains all of them.
+	MaxFiles *int `hcl:"max_files"`
 
 	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions"`
 }
 
-// IsZero reports whether no rotation option has been set.
-func (c RotationConfig) IsZero() bool {
-	return c.MaxSizeMB == 0 && c.MaxFiles == 0 && c.MaxAgeDays == 0
+func (c RotationConfig) maxSizeMB() int {
+	if c.MaxSizeMB == nil {
+		return defaultMaxSizeMB
+	}
+	return *c.MaxSizeMB
+}
+
+func (c RotationConfig) maxFiles() int {
+	if c.MaxFiles == nil {
+		return defaultMaxFiles
+	}
+	return *c.MaxFiles
+}
+
+// SizeRotationDisabled reports whether nothing will rotate the file on its own,
+// leaving it to an explicit Reopen.
+func (c RotationConfig) SizeRotationDisabled() bool {
+	return c.maxSizeMB() == 0
 }
 
 func (c RotationConfig) Validate() error {
-	if c.MaxSizeMB < 0 {
-		return fmt.Errorf("max_size_mb (%d) must not be negative", c.MaxSizeMB)
+	if c.MaxSizeMB != nil {
+		switch {
+		case *c.MaxSizeMB < 0:
+			return fmt.Errorf("max_size_mb (%d) must not be negative", *c.MaxSizeMB)
+		case *c.MaxSizeMB > maxSizeMBLimit:
+			return fmt.Errorf("max_size_mb (%d) must not be greater than %d", *c.MaxSizeMB, maxSizeMBLimit)
+		}
 	}
-	if c.MaxSizeMB > maxSizeMBLimit {
-		return fmt.Errorf("max_size_mb (%d) must not be greater than %d", c.MaxSizeMB, maxSizeMBLimit)
-	}
-	if c.MaxFiles < 0 {
-		return fmt.Errorf("max_files (%d) must not be negative", c.MaxFiles)
-	}
-	if c.MaxAgeDays < 0 {
-		return fmt.Errorf("max_age_days (%d) must not be negative", c.MaxAgeDays)
-	}
-	if c.MaxAgeDays > maxAgeDaysLimit {
-		return fmt.Errorf("max_age_days (%d) must not be greater than %d", c.MaxAgeDays, maxAgeDaysLimit)
+	if c.MaxFiles != nil && *c.MaxFiles < 0 {
+		return fmt.Errorf("max_files (%d) must not be negative", *c.MaxFiles)
 	}
 	return nil
 }
@@ -78,7 +88,7 @@ func (c RotationConfig) Validate() error {
 func NewOutputFile(name string, cfg *RotationConfig) (ReopenableWriteCloser, error) {
 	// Returned explicitly rather than passed through, so that a failure yields
 	// a nil interface instead of one wrapping a nil pointer.
-	if cfg == nil || cfg.IsZero() {
+	if cfg == nil {
 		f, err := NewReopenableFile(name)
 		if err != nil {
 			return nil, err
@@ -93,8 +103,8 @@ func NewOutputFile(name string, cfg *RotationConfig) (ReopenableWriteCloser, err
 }
 
 // RotatableFile rotates the log file in process rather than relying on an
-// external tool to rename it. That is the only option on Windows, where the
-// file cannot be renamed or deleted while SPIRE holds it open.
+// external tool. An external tool can move the file aside on any platform, but
+// only POSIX has a way to then tell SPIRE to start a new one.
 //
 // The active file always stays at the configured path; rotation moves the
 // accumulated content aside to a timestamped sibling.
@@ -107,8 +117,10 @@ type RotatableFile struct {
 	// size is seeded from disk so content written before this process started,
 	// or removed by an external copytruncate, is accounted for.
 	size int64
-	// rotateFailedAt is zero unless the last rotation attempt failed.
+	// rotateFailedAt is zero unless the last rotation attempt failed, and
+	// rotateErr carries that failure until something reports it.
 	rotateFailedAt time.Time
+	rotateErr      error
 
 	// now, closeFunc and renameFunc are intended for injecting errors and a
 	// fake clock under test. closeFunc and renameFunc must be called while
@@ -211,15 +223,29 @@ func (r *RotatableFile) rotateAndRecord() error {
 	err := r.rotate()
 	if err != nil {
 		r.rotateFailedAt = r.now()
+		r.rotateErr = err
 	} else {
 		r.rotateFailedAt = time.Time{}
 	}
 	return err
 }
 
+// TakeRotateError returns the last rotation failure and clears it. Write cannot
+// report one itself, since logrus hands this writer to plugins as a bare
+// io.Writer and logging from inside it would re-enter logrus while it holds its
+// own lock. Something outside the writer has to drain this.
+func (r *RotatableFile) TakeRotateError() error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	err := r.rotateErr
+	r.rotateErr = nil
+	return err
+}
+
 // shouldRotate must be called while holding the lock.
 func (r *RotatableFile) shouldRotate(writeLen int64) bool {
-	maxSize := int64(r.cfg.MaxSizeMB) * mebibyte
+	maxSize := int64(r.cfg.maxSizeMB()) * mebibyte
 	if maxSize <= 0 {
 		return false
 	}
@@ -237,8 +263,8 @@ func (r *RotatableFile) shouldRotate(writeLen int64) bool {
 	return true
 }
 
-// rotate must be called while holding the lock. If the rename fails the
-// original file is reopened, so the writer stays usable.
+// rotate must be called while holding the lock. The rename happens before the
+// old descriptor is closed, so a failed rename leaves the writer untouched.
 func (r *RotatableFile) rotate() error {
 	// Rotating an empty file would spend the retention budget on a zero byte
 	// file and evict one holding real content. Reopen is driven by a signal
@@ -252,24 +278,25 @@ func (r *RotatableFile) rotate() error {
 		}
 	}
 
-	// Ignore errors closing old file descriptor since the alternative is to
-	// keep writing to a descriptor we already decided to abandon.
-	if r.f != nil {
-		_ = r.closeFunc(r.f)
-		r.f = nil
+	if err := r.renameCurrent(); err != nil {
+		return err
 	}
 
-	renameErr := r.renameCurrent()
-
+	old := r.f
 	if err := r.open(); err != nil {
-		return fmt.Errorf("unable to reopen %s after rotating: %w", r.name, err)
+		// The old descriptor still works, it just writes into the file that was
+		// moved aside. Keeping it loses less than dropping it.
+		r.f = old
+		return fmt.Errorf("unable to open %s after rotating: %w", r.name, err)
 	}
 
-	// Best effort, and worth doing even when the rename failed since it only
-	// touches siblings rotated earlier.
-	r.prune()
+	// Ignore errors closing the old descriptor since it has been replaced.
+	if old != nil {
+		_ = r.closeFunc(old)
+	}
 
-	return renameErr
+	r.prune()
+	return nil
 }
 
 // renameCurrent moves the active file aside. A file that no longer exists is
@@ -323,30 +350,17 @@ func (r *RotatableFile) prefixAndExt() (prefix, ext string) {
 // while holding the lock. Errors are ignored since retention must not interfere
 // with logging.
 func (r *RotatableFile) prune() {
-	if r.cfg.MaxFiles <= 0 && r.cfg.MaxAgeDays <= 0 {
+	maxFiles := r.cfg.maxFiles()
+	if maxFiles <= 0 {
 		return
 	}
 
 	backups := r.oldLogFiles()
-
-	var remove []string
-	if r.cfg.MaxFiles > 0 && len(backups) > r.cfg.MaxFiles {
-		for _, b := range backups[r.cfg.MaxFiles:] {
-			remove = append(remove, b.path)
-		}
-		backups = backups[:r.cfg.MaxFiles]
+	if len(backups) <= maxFiles {
+		return
 	}
-	if r.cfg.MaxAgeDays > 0 {
-		cutoff := r.now().Add(-time.Duration(r.cfg.MaxAgeDays) * 24 * time.Hour)
-		for _, b := range backups {
-			if b.timestamp.Before(cutoff) {
-				remove = append(remove, b.path)
-			}
-		}
-	}
-
-	for _, path := range remove {
-		_ = os.Remove(path)
+	for _, b := range backups[maxFiles:] {
+		_ = os.Remove(b.path)
 	}
 }
 

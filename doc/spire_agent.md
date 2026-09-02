@@ -85,14 +85,14 @@ This may be useful for templating configuration files, for example across differ
 
 | log_file_rotation | Description                                                                                                                                                                               | Default |
 |:------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------|
-| `max_size_mb`     | Size in MiB that `log_file` may reach before it is rotated. `0` disables size based rotation; on POSIX, `SIGUSR2` can still rotate on demand, but on Windows nothing will rotate the file | 0       |
-| `max_files`       | Number of rotated files to retain, not counting the file currently being written. `0` retains every rotated file                                                                          | 0       |
-| `max_age_days`    | Age in days beyond which a rotated file is removed. `0` retains rotated files regardless of age                                                                                           | 0       |
+| `max_size_mb`     | Size in MiB that `log_file` may reach before it is rotated. An explicit `0` disables size based rotation, leaving it to `SIGUSR2` on POSIX                                                | 100     |
+| `max_files`       | Number of rotated files to retain, not counting the file currently being written. An explicit `0` retains every rotated file                                                              | 7       |
 
 Requires `log_file` to be set. Rotation moves the accumulated content aside to a
 timestamped sibling of `log_file` (for example `agent-2026-08-18T22-43-01.123.log`)
-and keeps writing to `log_file` itself. `max_files` and `max_age_days` are
-applied when a rotation happens, not on a timer.
+and keeps writing to `log_file` itself. `max_files` is applied when a rotation
+happens, not on a timer. A key left unset takes its default, so a block with no
+keys still rotates and still prunes.
 
 This is the only way to bound log growth on Windows. An external tool can move
 the log file aside there, but nothing can tell SPIRE Agent to start a new one, so it
