@@ -21,7 +21,6 @@ import (
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	nodeattestorbase "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/base"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 )
 
@@ -41,13 +40,9 @@ func disableHTTPRedirects(req *http.Request, via []*http.Request) error {
 	return errors.New("http redirects are disabled")
 }
 
-func BuiltInTesting(client *http.Client, forceNonce string) catalog.BuiltIn {
-	return BuiltInTestingWithLookup(client, forceNonce, nil)
-}
-
-// BuiltInTestingWithLookup is BuiltInTesting with a DNS lookup hook.
-// A nil lookupIPs uses the system resolver.
-func BuiltInTestingWithLookup(client *http.Client, forceNonce string, lookupIPs func(context.Context, string) ([]net.IP, error)) catalog.BuiltIn {
+// BuiltInTesting builds the plugin for tests. A nil lookupIPs keeps the
+// system resolver.
+func BuiltInTesting(client *http.Client, forceNonce string, lookupIPs func(context.Context, string) ([]net.IP, error)) catalog.BuiltIn {
 	plugin := New()
 	plugin.client = client
 	plugin.client.CheckRedirect = disableHTTPRedirects
@@ -155,6 +150,9 @@ func New() *Plugin {
 	return &Plugin{
 		client: &http.Client{
 			CheckRedirect: disableHTTPRedirects,
+		},
+		lookupIPs: func(ctx context.Context, host string) ([]net.IP, error) {
+			return net.DefaultResolver.LookupIP(ctx, "ip", host)
 		},
 	}
 }
@@ -293,23 +291,19 @@ func (p *Plugin) getConfig() (*configuration, error) {
 }
 
 func (p *Plugin) verifyConnectingClientIP(ctx context.Context, hostName string) error {
-	ips := metadata.ValueFromIncomingContext(ctx, nodeattestor.XForwardedClientIPKey)
-	if len(ips) == 0 || ips[0] == "" {
+	ip := nodeattestor.ClientIPFromContext(ctx, p.log)
+	if ip == "" {
 		return status.Error(codes.Internal, "client IP not available for verification")
 	}
-	if len(ips) > 1 && p.log != nil {
-		p.log.Warn("Multiple client IP values found in metadata, using first value")
-	}
-	clientIP := net.ParseIP(ips[0])
+	clientIP := net.ParseIP(ip)
 	if clientIP == nil {
-		return status.Errorf(codes.Internal, "invalid client IP %q", ips[0])
+		return status.Errorf(codes.Internal, "invalid client IP %q", ip)
 	}
 
-	lookup := p.lookupIPs
-	if lookup == nil {
-		lookup = defaultLookupIPs
-	}
-	resolved, err := lookup(ctx, hostName)
+	lookupCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	resolved, err := p.lookupIPs(lookupCtx, hostName)
 	if err != nil {
 		return status.Errorf(codes.Internal, "failed to resolve hostname %q: %v", hostName, err)
 	}
@@ -319,20 +313,6 @@ func (p *Plugin) verifyConnectingClientIP(ctx context.Context, hostName string) 
 		}
 	}
 	return status.Errorf(codes.PermissionDenied, "client IP %s does not match any address for hostname %q", clientIP, hostName)
-}
-
-func defaultLookupIPs(ctx context.Context, host string) ([]net.IP, error) {
-	addrs, err := net.DefaultResolver.LookupIPAddr(ctx, host)
-	if err != nil {
-		return nil, err
-	}
-	ips := make([]net.IP, 0, len(addrs))
-	for _, addr := range addrs {
-		if addr.IP != nil {
-			ips = append(ips, addr.IP)
-		}
-	}
-	return ips, nil
 }
 
 func buildSelectorValues(hostName string) []string {

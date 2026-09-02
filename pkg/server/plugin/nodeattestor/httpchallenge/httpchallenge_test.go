@@ -519,8 +519,8 @@ func TestVerifyClientIP(t *testing.T) {
 	}
 	failingTransport := &http.Client{
 		Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
-			t.Fatal("http challenge must not run when client IP verification fails")
-			return nil, errors.New("unreachable")
+			t.Error("http challenge must not run when client IP verification fails")
+			return nil, errors.New("http challenge must not run when client IP verification fails")
 		}),
 	}
 
@@ -541,8 +541,8 @@ func TestVerifyClientIP(t *testing.T) {
 	t.Run("client IP not available", func(t *testing.T) {
 		plugin := loadPluginWithLookup(t, "verify_client_ip = true", false, failingTransport, "123456789abcdefghijklmnopqrstuvwxyz",
 			func(context.Context, string) ([]net.IP, error) {
-				t.Fatal("lookup should not run when client IP is missing")
-				return nil, errors.New("unreachable")
+				t.Error("lookup should not run when client IP is missing")
+				return nil, errors.New("lookup should not run when client IP is missing")
 			})
 		result, err := plugin.Attest(context.Background(), payload, challengeFn)
 		spiretest.RequireGRPCStatusContains(t, err, codes.Internal, "client IP not available for verification")
@@ -550,13 +550,15 @@ func TestVerifyClientIP(t *testing.T) {
 	})
 
 	t.Run("client IP does not match DNS", func(t *testing.T) {
+		lookedUp := ""
 		plugin := loadPluginWithLookup(t, "verify_client_ip = true", false, failingTransport, "123456789abcdefghijklmnopqrstuvwxyz",
 			func(_ context.Context, host string) ([]net.IP, error) {
-				require.Equal(t, "foo", host)
+				lookedUp = host
 				return []net.IP{net.ParseIP("192.0.2.99")}, nil
 			})
 		ctx := peerContext(net.ParseIP("192.0.2.1"))
 		result, err := plugin.Attest(ctx, payload, challengeFn)
+		require.Equal(t, "foo", lookedUp)
 		spiretest.RequireGRPCStatusContains(t, err, codes.PermissionDenied, "does not match any address for hostname")
 		require.Nil(t, result)
 	})
@@ -649,7 +651,7 @@ func loadPluginWithLookup(t *testing.T, config string, testTOFU bool, client *ht
 			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
 		}),
 	}
-	plugintest.Load(t, httpchallenge.BuiltInTestingWithLookup(client, testNonce, lookupIPs), v1, opts...)
+	plugintest.Load(t, httpchallenge.BuiltInTesting(client, testNonce, lookupIPs), v1, opts...)
 	return v1
 }
 
