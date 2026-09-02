@@ -668,14 +668,25 @@ reference type is safe over the network; it defaults to false, so UDS is
 allowed but TCP is denied. Use a single object with `type_url = "*"` to
 allow any reference type the agent's attestor stack understands.
 
+`keepalive_min_time` sets the shortest interval a broker may send gRPC
+keepalive pings without being disconnected. It accepts a Go duration
+string (e.g. `"10s"`) and defaults to gRPC's built-in 5 minutes when
+unset. Lower it when a broker needs to ping more frequently than every
+5 minutes to detect an unresponsive agent in a timely manner. Per gRPC's
+own enforcement semantics, this only applies while the broker holds an
+open subscription stream (e.g. `SubscribeToX509SVID`); pings sent with
+no active stream are governed by gRPC's separate, much longer idle-ping
+timeout regardless of this setting.
+
 ```hcl
 agent {
     trust_domain = "example.org"
     ...
     experimental {
         broker {
-            socket_path  = "/run/spire/broker-sockets/broker.sock"  # POSIX UDS
-            bind_address = "0.0.0.0:8443"                           # optional TCP
+            socket_path        = "/run/spire/broker-sockets/broker.sock"  # POSIX UDS
+            bind_address       = "0.0.0.0:8443"                           # optional TCP
+            keepalive_min_time = "10s"                                    # optional, defaults to 5m
 
             brokers = [
                 {

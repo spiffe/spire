@@ -1261,6 +1261,48 @@ func TestNewAgentConfig(t *testing.T) {
 			},
 		},
 		{
+			msg: "broker keepalive_min_time parses a duration",
+			input: func(c *Config) {
+				c.Agent.Experimental.Broker = &brokerHCLConfig{
+					BindAddress:      "127.0.0.1:8443",
+					KeepaliveMinTime: "10s",
+					Brokers: []brokerHCLEntry{
+						{
+							ID: "spiffe://example.org/broker",
+							AllowedReferenceTypes: []brokerAllowedReferenceTypeHCLEntry{
+								{TypeURL: "*"},
+							},
+						},
+					},
+				}
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Equal(t, 10*time.Second, c.Broker.KeepaliveMinTime)
+			},
+		},
+		{
+			msg:                "broker keepalive_min_time rejects an invalid duration",
+			expectError:        true,
+			requireErrorPrefix: `invalid experimental.broker.keepalive_min_time "not-a-duration"`,
+			input: func(c *Config) {
+				c.Agent.Experimental.Broker = &brokerHCLConfig{
+					BindAddress:      "127.0.0.1:8443",
+					KeepaliveMinTime: "not-a-duration",
+					Brokers: []brokerHCLEntry{
+						{
+							ID: "spiffe://example.org/broker",
+							AllowedReferenceTypes: []brokerAllowedReferenceTypeHCLEntry{
+								{TypeURL: "*"},
+							},
+						},
+					},
+				}
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
 			msg: "availability_target parses a duration",
 			input: func(c *Config) {
 				c.Agent.AvailabilityTarget = "24h"

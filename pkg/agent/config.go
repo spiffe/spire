@@ -147,6 +147,11 @@ type BrokerConfig struct {
 	// Brokers enumerates the brokers authorized to talk to this agent's
 	// broker endpoint.
 	Brokers []broker.Broker
+
+	// KeepaliveMinTime is the shortest interval a broker is allowed to send
+	// keepalive pings without being sent GOAWAY. Zero defers to gRPC's
+	// built-in default of 5 minutes.
+	KeepaliveMinTime time.Duration
 }
 
 func New(c *Config) *Agent {

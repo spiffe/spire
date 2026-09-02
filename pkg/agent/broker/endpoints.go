@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"strings"
+	"time"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -21,6 +22,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/reflection"
@@ -56,6 +58,11 @@ type Config struct {
 	// TLSPolicy controls the post-quantum-safe TLS policy applied to the
 	// inbound mTLS listener.
 	TLSPolicy tlspolicy.Policy
+
+	// KeepaliveMinTime is the shortest interval a broker is allowed to send
+	// keepalive pings without being sent GOAWAY. Zero defers to gRPC's
+	// built-in default of 5 minutes.
+	KeepaliveMinTime time.Duration
 }
 
 // Broker identifies a broker authorized to talk to the SPIFFE Broker API
@@ -154,6 +161,7 @@ func (e *Endpoints) ListenAndServe(ctx context.Context) error {
 		grpc.Creds(credentials.NewTLS(tlsConfig)),
 		grpc.UnaryInterceptor(unaryInterceptor),
 		grpc.StreamInterceptor(streamInterceptor),
+		grpc.KeepaliveEnforcementPolicy(keepalive.EnforcementPolicy{MinTime: e.c.KeepaliveMinTime}),
 	)
 
 	e.registerBrokerAPI(server)
