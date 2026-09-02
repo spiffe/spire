@@ -279,27 +279,6 @@ The `tpm_devid` attestor produces `subject:cn:`, `issuer:cn:`, and
 
 ## Scaling and Recovery
 
-### Adding a SPIRE Server
-
-1. Deploy the new server instance with the same `server.conf`, pointing at the
-   shared datastore (`connection_string`).
-2. Copy the trust bundle from an existing server:
-
-   ```shell
-   spire-server bundle show > bundle.pem
-   ```
-
-3. Import it on the new instance if federation is used, or let the shared
-   datastore sync it automatically.
-4. Update your load balancer or DNS record to include the new server address.
-
-### Adding an Agent Node
-
-1. Provision the new node's TPM with an LDevID following [Section 1](#1-provisioning).
-2. Deploy the SPIRE Agent with the same `agent.conf`.
-3. Optionally add the node to a node alias scoped to its identity
-   (see [Section 4](#4-node-aliases)).
-
 ### Certificate Expiry or Node Re-imaging
 
 If an agent's LDevID certificate expires or the node is wiped:
