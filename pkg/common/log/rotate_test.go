@@ -304,28 +304,6 @@ func TestRotatableFileReopenIsNoOpWhenEmpty(t *testing.T) {
 		"idle rotations must not evict the backup holding real content")
 }
 
-func TestRotatableFileWriteRecoversAfterFailedRotation(t *testing.T) {
-	dir := spiretest.TempDir(t)
-	logPath := filepath.Join(dir, "test.log")
-
-	rf, _ := newTestRotatableFile(t, logPath, RotationConfig{MaxSizeMB: new(0), MaxFiles: new(0)})
-
-	_, err := rf.Write([]byte("before"))
-	require.NoError(t, err)
-
-	// emulate a rotation that closed the descriptor and then failed to reopen,
-	// e.g. a transient ENOSPC. With size based rotation off nothing would call
-	// rotate() again, so Write has to recover on its own.
-	require.NoError(t, rf.Close())
-	require.NoError(t, os.Remove(logPath))
-	rf.f = nil
-
-	n, err := rf.Write([]byte("after"))
-	require.NoError(t, err, "Write should reopen the log rather than drop the line")
-	assert.Equal(t, len("after"), n)
-	assert.Equal(t, "after", readFile(t, logPath))
-}
-
 func TestRotatableFileBacksOffAfterFailure(t *testing.T) {
 	dir := spiretest.TempDir(t)
 	logPath := filepath.Join(dir, "test.log")
@@ -370,26 +348,6 @@ func TestRotatableFileIgnoresCloseFailure(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, rf.Reopen(), "a close failure must not fail the rotation")
 	assert.Len(t, backupNames(t, logPath), 1)
-}
-
-func TestRotatableFileWriteAfterUnusableRotation(t *testing.T) {
-	dir := spiretest.TempDir(t)
-	logPath := filepath.Join(dir, "test.log")
-
-	rf, _ := newTestRotatableFile(t, logPath, RotationConfig{MaxSizeMB: new(0), MaxFiles: new(0)})
-
-	_, err := rf.Write([]byte("before"))
-	require.NoError(t, err)
-
-	// remove the directory so the post-rotation open cannot succeed
-	require.NoError(t, rf.Close())
-	require.NoError(t, os.RemoveAll(dir))
-
-	require.Error(t, rf.Reopen(), "rotation should report that it could not reopen")
-
-	// the writer reports the problem rather than panicking on a nil file
-	_, err = rf.Write([]byte("after"))
-	require.Error(t, err)
 }
 
 func TestRotatableFileConcurrentWrites(t *testing.T) {

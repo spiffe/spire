@@ -2,6 +2,7 @@ package log
 
 import (
 	"context"
+	"os"
 	"time"
 )
 
@@ -10,7 +11,10 @@ import (
 // to and polling is enough.
 const rotateErrorInterval = time.Minute
 
-const failedToRotateMsg = "failed to rotate log"
+const (
+	failedToReopenMsg = "failed to rotate log after signal"
+	failedToRotateMsg = "failed to rotate log"
+)
 
 // rotateErrorSource is implemented by writers that rotate themselves and cannot
 // report a failure from inside Write.
@@ -18,16 +22,13 @@ type rotateErrorSource interface {
 	TakeRotateError() error
 }
 
-// reportRotateErrors logs rotation failures until ctx is done. Without it a
-// self rotating file that keeps failing would grow silently, since Reopen is
-// the only other path that surfaces the error and nothing triggers it on
-// Windows.
-func reportRotateErrors(ctx context.Context, logger *Logger, reopener Reopener, interval time.Duration) {
-	source, ok := reopener.(rotateErrorSource)
-	if !ok {
-		<-ctx.Done()
-		return
-	}
+// watchLog reopens the log on every value from signalCh and reports rotation
+// failures that the writer could not report itself. signalCh is nil on
+// platforms without a reopen signal, and a receive on a nil channel blocks
+// forever, so both platforms run the same loop.
+func watchLog(ctx context.Context, logger *Logger, reopener Reopener, signalCh <-chan os.Signal, interval time.Duration) {
+	// Only a self rotating file has failures to drain.
+	source, _ := reopener.(rotateErrorSource)
 
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
@@ -36,7 +37,15 @@ func reportRotateErrors(ctx context.Context, logger *Logger, reopener Reopener, 
 		select {
 		case <-ctx.Done():
 			return
+		case <-signalCh:
+			if err := reopener.Reopen(); err != nil {
+				// never fail; best effort to log to old file descriptor
+				logger.WithError(err).Error(failedToReopenMsg)
+			}
 		case <-ticker.C:
+			if source == nil {
+				continue
+			}
 			if err := source.TakeRotateError(); err != nil {
 				logger.WithError(err).Error(failedToRotateMsg)
 			}

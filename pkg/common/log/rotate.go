@@ -154,22 +154,14 @@ func NewRotatableFile(name string, cfg RotationConfig) (*RotatableFile, error) {
 // failed rotation is not returned: logrus hands this writer to plugins as a
 // bare io.Writer, and reporting through the logger would re-enter logrus while
 // it holds its own lock. The write is attempted regardless, so a failure costs
-// an oversized file rather than a lost line. Reopen surfaces the error.
+// an oversized file rather than a lost line. Reopen returns it, and
+// TakeRotateError drains it for the size triggered case.
 func (r *RotatableFile) Write(b []byte) (n int, err error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	if r.shouldRotate(int64(len(b))) {
 		_ = r.rotateAndRecord()
-	}
-
-	// An earlier rotation failed after closing the descriptor. Reopen rather
-	// than drop this line and every line after it, ignoring the backoff since
-	// the point is to restore logging, not to rotate.
-	if r.f == nil {
-		if err := r.open(); err != nil {
-			return 0, err
-		}
 	}
 
 	n, err = r.f.Write(b)
