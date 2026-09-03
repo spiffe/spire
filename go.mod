@@ -1,6 +1,6 @@
 module github.com/spiffe/spire
 
-go 1.27.0
+go 1.27.1
 
 require (
 	cloud.google.com/go/iam v1.13.0
