@@ -165,8 +165,18 @@ func (p *Plugin) MintX509CAAndSubscribe(req *upstreamauthorityv1.MintX509CAReque
 	var upstreamRoots []*x509.Certificate
 
 	if caCertUID == "" {
-		// Attempt to discover the CA cert UID via the CertificateLink on the signed cert object.
-		discovered, discoverErr := getLinkedUID(stream.Context(), client, certifyResp.UniqueIdentifier, ovh.LinkTypeCertificateLink)
+		// Attempt to discover the CA root certificate UID.
+		//
+		// Per the KMIP Certify operation semantics, the server sets the
+		// CertificateLink on the *public key* object that was certified, not
+		// on the resulting certificate itself (see the KMIP spec: "For the
+		// public key, the server SHALL create a Link attribute of Link Type
+		// Certificate pointing to the generated certificate"). Since
+		// caKeyUID identifies the CA *private* key, first follow its
+		// PublicKeyLink to reach the paired public key, then read the
+		// CertificateLink from there to find the self-signed root cert that
+		// was generated when the CA key pair was provisioned.
+		discovered, discoverErr := discoverCACertUID(stream.Context(), client, caKeyUID)
 		if discoverErr == nil {
 			caCertUID = discovered
 			p.logger.Info("Auto-discovered CA certificate UID", "ca_cert_uid", caCertUID)
@@ -346,6 +356,31 @@ func getCertificateBytes(ctx context.Context, c *kmipclient.Client, uid string) 
 		return nil, fmt.Errorf("object %s is %T, expected Certificate", uid, getResp.Object)
 	}
 	return cert.CertificateValue, nil
+}
+
+// discoverCACertUID discovers the UID of the self-signed root certificate
+// associated with the CA private key identified by caKeyUID.
+//
+// The KMIP Certify operation sets the CertificateLink on the *public key*
+// object being certified, not on the private key or the resulting
+// certificate. So this first follows the CA private key's PublicKeyLink to
+// its paired public key, then reads that public key's CertificateLink.
+// As a fallback (in case a server mirrors the CertificateLink onto the
+// private key directly), it also checks caKeyUID itself.
+func discoverCACertUID(ctx context.Context, c *kmipclient.Client, caKeyUID string) (string, error) {
+	if certUID, err := getLinkedUID(ctx, c, caKeyUID, ovh.LinkTypeCertificateLink); err == nil {
+		return certUID, nil
+	}
+
+	pubKeyUID, err := getLinkedUID(ctx, c, caKeyUID, ovh.LinkTypePublicKeyLink)
+	if err != nil {
+		return "", fmt.Errorf("resolve public key for CA key %s: %w", caKeyUID, err)
+	}
+	certUID, err := getLinkedUID(ctx, c, pubKeyUID, ovh.LinkTypeCertificateLink)
+	if err != nil {
+		return "", fmt.Errorf("resolve certificate for CA public key %s: %w", pubKeyUID, err)
+	}
+	return certUID, nil
 }
 
 // getLinkedUID returns the LinkedObjectIdentifier for a Link of the given type

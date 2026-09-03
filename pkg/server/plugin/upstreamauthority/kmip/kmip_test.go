@@ -247,7 +247,6 @@ func (s *uaFakeStore) handler() kmipserver.RequestHandler {
 
 		uid := fmt.Sprintf("cert-%d", len(s.certs)+1)
 		s.certs[uid] = signed
-		// Add a CertificateLink back to the CA cert.
 		return &CertifyResponsePayload{UniqueIdentifier: uid}, nil
 	}))
 
@@ -282,11 +281,30 @@ func (s *uaFakeStore) handler() kmipserver.RequestHandler {
 	}))
 
 	// GetAttributes — return CertificateLink.
+	//
+	// Simulates the real KMIP/Eviden Certify semantics: the CertificateLink is
+	// set on the CA's *public key* object, not on the private key or on
+	// freshly-issued certificates. The CA private key (testCAKeyUID) links to
+	// its public key via PublicKeyLink; the public key links to the
+	// self-signed root cert via CertificateLink.
 	exec.Route(ovh.OperationGetAttributes, kmipserver.HandleFunc(func(_ context.Context, req *payloads.GetAttributesRequestPayload) (*payloads.GetAttributesResponsePayload, error) {
 		s.mu.Lock()
 		defer s.mu.Unlock()
 		var attrs []ovh.Attribute
-		if _, ok := s.certs[req.UniqueIdentifier]; ok {
+		switch req.UniqueIdentifier {
+		case testCAKeyUID:
+			for _, want := range req.AttributeName {
+				if want == ovh.AttributeNameLink {
+					attrs = append(attrs, ovh.Attribute{
+						AttributeName: ovh.AttributeNameLink,
+						AttributeValue: ovh.Link{
+							LinkType:               ovh.LinkTypePublicKeyLink,
+							LinkedObjectIdentifier: testCAKeyUID + "-pub",
+						},
+					})
+				}
+			}
+		case testCAKeyUID + "-pub":
 			for _, want := range req.AttributeName {
 				if want == ovh.AttributeNameLink {
 					attrs = append(attrs, ovh.Attribute{
