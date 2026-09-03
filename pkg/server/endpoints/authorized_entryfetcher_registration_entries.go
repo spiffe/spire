@@ -32,9 +32,10 @@ type registrationEntries struct {
 	firstEventTime time.Time
 	lastEvent      uint
 
-	eventTracker *eventTracker
-	eventTimeout time.Duration
-	pageSize     int32
+	eventTracker  *eventTracker
+	eventTimeout  time.Duration
+	pageSize      int32
+	fetchPageSize int32
 
 	fetchEntries map[string]struct{}
 
@@ -169,17 +170,18 @@ func (a *registrationEntries) loadCache(ctx context.Context, cache *authorizeden
 }
 
 // buildRegistrationEntriesCache Fetches all registration entries and adds them to the cache
-func buildRegistrationEntriesCache(ctx context.Context, log logrus.FieldLogger, metrics telemetry.Metrics, ds datastore.DataStore, clk clock.Clock, cache *authorizedentries.Cache, pageSize int32, cacheReloadInterval, eventTimeout time.Duration) (*registrationEntries, error) {
+func buildRegistrationEntriesCache(ctx context.Context, log logrus.FieldLogger, metrics telemetry.Metrics, ds datastore.DataStore, clk clock.Clock, cache *authorizedentries.Cache, pageSize, fetchPageSize int32, cacheReloadInterval, eventTimeout time.Duration) (*registrationEntries, error) {
 	pollPeriods := PollPeriods(cacheReloadInterval, eventTimeout)
 
 	registrationEntries := &registrationEntries{
-		cache:        cache,
-		clk:          clk,
-		ds:           ds,
-		log:          log,
-		metrics:      metrics,
-		eventTimeout: eventTimeout,
-		pageSize:     pageSize,
+		cache:         cache,
+		clk:           clk,
+		ds:            ds,
+		log:           log,
+		metrics:       metrics,
+		eventTimeout:  eventTimeout,
+		pageSize:      pageSize,
+		fetchPageSize: fetchPageSize,
 
 		eventsBeforeFirst: make(map[uint]struct{}),
 		fetchEntries:      make(map[string]struct{}),
@@ -224,7 +226,7 @@ func (a *registrationEntries) updateCache(ctx context.Context) error {
 // updateCacheEntry update/deletes/creates an individual registration entry in the cache.
 func (a *registrationEntries) updateCachedEntries(ctx context.Context) error {
 	entryIds := slices.Collect(maps.Keys(a.fetchEntries))
-	for pageStart := 0; pageStart < len(entryIds); pageStart += int(a.pageSize) {
+	for pageStart := 0; pageStart < len(entryIds); pageStart += int(a.fetchPageSize) {
 		fetchEntries := a.fetchEntriesPage(entryIds, pageStart)
 		commonEntries, err := a.ds.FetchRegistrationEntries(ctx, fetchEntries)
 		if err != nil {
@@ -257,7 +259,7 @@ func (a *registrationEntries) updateCachedEntries(ctx context.Context) error {
 
 // fetchEntriesPage gets the range for the page starting at pageStart
 func (a *registrationEntries) fetchEntriesPage(entryIds []string, pageStart int) []string {
-	pageEnd := min(len(entryIds), pageStart+int(a.pageSize))
+	pageEnd := min(len(entryIds), pageStart+int(a.fetchPageSize))
 	return entryIds[pageStart:pageEnd]
 }
 
