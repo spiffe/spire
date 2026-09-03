@@ -395,7 +395,7 @@ func TestAidAttestationFailures(t *testing.T) {
 	}{
 		{
 			name:         "AidAttestation fails if a new session cannot be started",
-			expErr:       `rpc error: code = Internal desc = nodeattestor(tpm_devid): unable to start a new TPM session: cannot load DevID key on TPM`,
+			expErr:       `rpc error: code = Internal desc = nodeattestor(tpm_devid): unable to start a new TPM session: cannot create owner SRK`,
 			openTPMFail:  true,
 			serverStream: streamBuilder.Build(),
 		},
@@ -461,7 +461,7 @@ func TestAidAttestationFailures(t *testing.T) {
 		},
 		{
 			name:                        "AidAttestation fails if a wrong owner hierarchy password is provided",
-			expErr:                      `rpc error: code = Internal desc = nodeattestor(tpm_devid): unable to start a new TPM session: cannot load DevID key on TPM`,
+			expErr:                      `rpc error: code = Internal desc = nodeattestor(tpm_devid): unable to start a new TPM session: cannot create owner SRK`,
 			wrongOwnerHierarchyPassword: true,
 			serverStream:                streamBuilder.Build(),
 		},
