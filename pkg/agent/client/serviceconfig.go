@@ -39,6 +39,8 @@ func ValidateLoadBalancingConfig(loadBalancingConfig string) error {
 
 		var name string
 		var config json.RawMessage
+
+		// Extract the only key/value pair from the map.
 		for name, config = range policy {
 		}
 		names = append(names, name)
