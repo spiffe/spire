@@ -4,6 +4,17 @@ set -e -o pipefail
 
 source init-kubectl
 
+# ── Configure the KMS-provisioned root CA cert UID ─────────────────────
+# Not all KMIP servers auto-populate the Link attributes the plugin's CA-cert
+# auto-discovery relies on (e.g. PublicKeyLink/CertificateLink from
+# CreateKeyPair/Certify), so explicitly configure ca_cert_uid with the real
+# UID captured by 01-setup-kms instead of depending on auto-discovery here.
+[ -f "${RUNDIR}/ca-cert-uid" ] || fail-now "missing ca-cert-uid file written by 01-setup-kms"
+CA_CERT_UID="$(cat "${RUNDIR}/ca-cert-uid")"
+sed -i.bak "s/ca_key_uid       = \"spire-upstream-ca-key\"/&\n          ca_cert_uid      = \"${CA_CERT_UID}\"/" \
+  conf/server/spire-server.yaml
+rm -f conf/server/spire-server.yaml.bak
+
 # ── Deploy SPIRE Server with kmip UpstreamAuthority ────────────────────
 log-info "deploying SPIRE server..."
 ./bin/kubectl create namespace spire --dry-run=client -o yaml | ./bin/kubectl apply -f -
