@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -35,7 +36,10 @@ import (
 	"google.golang.org/grpc/codes"
 )
 
-const testServerID = "test-server-0001"
+const (
+	testServerID    = "test-server-0001"
+	testTrustDomain = "example.org"
+)
 
 // ─── Configure ───────────────────────────────────────────────────────────────
 
@@ -94,6 +98,17 @@ func TestConfigure(t *testing.T) {
 			expectCode: codes.InvalidArgument,
 			expectMsg:  "client_cert_path",
 		},
+		{
+			name: "invalid stale key threshold",
+			config: fmt.Sprintf(`
+				kmip_addr            = %q
+				server_id_value      = %q
+				insecure_skip_verify = true
+				stale_key_threshold  = "not-a-duration"
+			`, addr, testServerID),
+			expectCode: codes.InvalidArgument,
+			expectMsg:  "unable to parse stale_key_threshold",
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			p := New()
@@ -102,7 +117,7 @@ func TestConfigure(t *testing.T) {
 				plugintest.CaptureConfigureError(&configErr),
 				plugintest.Configure(tt.config),
 				plugintest.CoreConfig(catalog.CoreConfig{
-					TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
+					TrustDomain: spiffeid.RequireTrustDomainFromString(testTrustDomain),
 				}),
 			)
 			spiretest.RequireGRPCStatusHasPrefix(t, configErr, tt.expectCode, tt.expectMsg)
@@ -139,7 +154,7 @@ func TestConfigureClosesPreviousClient(t *testing.T) {
 			server_id_value      = %q
 		`, addr, caFile, testServerID),
 		CoreConfiguration: &configv1.CoreConfiguration{
-			TrustDomain: "example.org",
+			TrustDomain: testTrustDomain,
 		},
 	}
 
@@ -187,7 +202,7 @@ func TestConfigureReconfigures(t *testing.T) {
 				server_id_value      = %q
 			`, addr, caFile, serverID),
 			CoreConfiguration: &configv1.CoreConfiguration{
-				TrustDomain: "example.org",
+				TrustDomain: testTrustDomain,
 			},
 		}
 	}
@@ -276,30 +291,54 @@ func TestGenerateKey(t *testing.T) {
 func TestGenerateKeySameID(t *testing.T) {
 	store := newFakeStore()
 	addr, caPEM := kmiptest.NewServer(t, store.handler())
-	km := loadPlugin(t, addr, caPEM)
+	p, clk := newTestPlugin(t, addr, caPEM)
 
-	first, err := km.GenerateKey(context.Background(), "spire-key", keymanager.ECP256)
+	first, err := p.GenerateKey(context.Background(), &keymanagerv1.GenerateKeyRequest{
+		KeyId:   "spire-key",
+		KeyType: keymanagerv1.KeyType_EC_P256,
+	})
 	require.NoError(t, err)
+	oldUID := entryPrivateKeyUID(t, p, "spire-key")
 
-	// Generating a key with the same ID rotates it: the new key replaces the old
-	// one, and the previous key is deactivated and destroyed asynchronously.
-	second, err := km.GenerateKey(context.Background(), "spire-key", keymanager.ECP256)
+	second, err := p.GenerateKey(context.Background(), &keymanagerv1.GenerateKeyRequest{
+		KeyId:   "spire-key",
+		KeyType: keymanagerv1.KeyType_EC_P256,
+	})
 	require.NoError(t, err)
+	newUID := entryPrivateKeyUID(t, p, "spire-key")
 
-	require.NotEqual(t, first.Public(), second.Public(), "rotation must produce a new key")
+	require.NotEqual(t, first.PublicKey.Fingerprint, second.PublicKey.Fingerprint, "rotation must produce a new key")
+	require.NotEqual(t, oldUID, newUID, "rotation must replace the tracked private key")
 
 	// The replacement key must be usable for signing.
 	digest := sha256.Sum256([]byte("rotate"))
-	sig, err := second.Sign(rand.Reader, digest[:], crypto.SHA256)
+	signResp, err := p.SignData(context.Background(), &keymanagerv1.SignDataRequest{
+		KeyId: "spire-key",
+		Data:  digest[:],
+		SignerOpts: &keymanagerv1.SignDataRequest_HashAlgorithm{
+			HashAlgorithm: keymanagerv1.HashAlgorithm_SHA256,
+		},
+	})
 	require.NoError(t, err)
-	require.NotEmpty(t, sig)
+	require.NotEmpty(t, signResp.Signature)
 
-	// The previous key must be revoked and destroyed.
-	require.Eventually(t, func() bool {
-		store.mu.Lock()
-		defer store.mu.Unlock()
-		return len(store.keys) == 1
-	}, 5*time.Second, 10*time.Millisecond)
+	// Rotation intentionally leaves the old key in KMIP until the stale-key
+	// reclamation task reaps it later.
+	store.mu.Lock()
+	require.Contains(t, store.keys, oldUID, "old key should still exist immediately after rotation")
+	require.Contains(t, store.keys, newUID, "replacement key should exist immediately after rotation")
+	require.False(t, store.revoked[oldUID], "old key should not be revoked immediately on rotation")
+	store.mu.Unlock()
+
+	setPrivateKeyLastUpdate(t, store, oldUID, clk.Now().Add(-p.staleKeyThreshold-time.Second).Unix())
+	require.NoError(t, p.disposeStaleKeys(context.Background()))
+
+	store.mu.Lock()
+	require.NotContains(t, store.keys, oldUID, "old key should be reclaimed once it becomes stale")
+	require.Contains(t, store.keys, newUID, "replacement key should remain after stale-key reclamation")
+	require.True(t, store.revoked[oldUID], "stale rotated key should be revoked before destruction")
+	store.mu.Unlock()
+	require.Equal(t, newUID, entryPrivateKeyUID(t, p, "spire-key"))
 }
 
 func TestGenerateKeyNotConfigured(t *testing.T) {
@@ -419,6 +458,7 @@ func TestGenerateKeyTagsAtCreation(t *testing.T) {
 	require.Len(t, store.keys, 1)
 	for _, rec := range store.keys {
 		require.Contains(t, rec.nameAttrs, serverIDNameValue(testServerID))
+		require.Contains(t, rec.nameAttrs, trustDomainNameValue(testTrustDomain))
 		require.Contains(t, rec.nameAttrs, prefixKeyID+"tagged-key")
 		require.Contains(t, rec.nameAttrs, prefixKeyType+"EC_P256")
 		require.NotEmpty(t, prefixValue(rec.nameAttrs, prefixLastUpdate))
@@ -460,11 +500,20 @@ func TestDisposeStaleKeys(t *testing.T) {
 		serverIDNameValue(testServerID),
 		lastUpdateNameValue(now.Unix()),
 	})
+	p.mu.Lock()
+	p.entries["stale-key"] = keyEntry{
+		privateKeyUID: "stale-priv",
+		publicKey:     &keymanagerv1.PublicKey{Id: "stale-key", Type: keymanagerv1.KeyType_EC_P256},
+	}
+	p.entries["fresh-key"] = keyEntry{
+		privateKeyUID: "fresh-priv",
+		publicKey:     &keymanagerv1.PublicKey{Id: "fresh-key", Type: keymanagerv1.KeyType_EC_P256},
+	}
+	p.mu.Unlock()
 
 	require.NoError(t, p.disposeStaleKeys(context.Background()))
 
 	store.mu.Lock()
-	defer store.mu.Unlock()
 	require.NotContains(t, store.keys, "stale-priv", "stale key should be disposed")
 	require.Contains(t, store.keys, "fresh-priv", "fresh key should be kept")
 	require.True(t, store.revoked["stale-priv"], "stale key should be revoked before being destroyed")
@@ -473,6 +522,12 @@ func TestDisposeStaleKeys(t *testing.T) {
 	// key must be kept — the pair is never leaked or removed too soon.
 	require.NotContains(t, store.pubKeys, "stale-pub", "stale public key should be disposed with its private key")
 	require.Contains(t, store.pubKeys, "fresh-pub", "fresh public key should be kept")
+	store.mu.Unlock()
+
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	require.NotContains(t, p.entries, "stale-key", "disposed stale key should be removed from the in-memory index")
+	require.Contains(t, p.entries, "fresh-key", "entries for non-disposed keys should be kept")
 }
 
 func TestDisposeStaleKeysIgnoresStalePublicKey(t *testing.T) {
@@ -533,6 +588,54 @@ func TestDisposeStaleKeysPaginates(t *testing.T) {
 	require.Empty(t, store.keys, "all stale keys should be disposed across pages")
 }
 
+func TestDisposeStaleKeysUsesConfiguredStaleKeyThreshold(t *testing.T) {
+	for _, tt := range []struct {
+		name        string
+		extraConfig string
+		threshold   time.Duration
+		staleAge    time.Duration
+		freshAge    time.Duration
+	}{
+		{
+			name:      "defaults to two weeks when omitted",
+			threshold: staleKeyThreshold,
+			staleAge:  staleKeyThreshold + time.Hour,
+			freshAge:  staleKeyThreshold - time.Hour,
+		},
+		{
+			name:        "uses configured threshold",
+			extraConfig: `stale_key_threshold = "1h"`,
+			threshold:   time.Hour,
+			staleAge:    time.Hour + time.Minute,
+			freshAge:    time.Hour - time.Minute,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			store := newFakeStore()
+			addr, caPEM := kmiptest.NewServer(t, store.handler())
+			p, clk := newTestPluginWithConfig(t, addr, caPEM, tt.extraConfig)
+
+			now := clk.Now()
+			store.seed("stale-priv", "stale-pub", []string{
+				serverIDNameValue(testServerID),
+				lastUpdateNameValue(now.Add(-tt.staleAge).Unix()),
+			})
+			store.seed("fresh-priv", "fresh-pub", []string{
+				serverIDNameValue(testServerID),
+				lastUpdateNameValue(now.Add(-tt.freshAge).Unix()),
+			})
+
+			require.Equal(t, tt.threshold, p.staleKeyThreshold)
+			require.NoError(t, p.disposeStaleKeys(context.Background()))
+
+			store.mu.Lock()
+			defer store.mu.Unlock()
+			require.NotContains(t, store.keys, "stale-priv", "key older than the threshold should be disposed")
+			require.Contains(t, store.keys, "fresh-priv", "key newer than the threshold should be kept")
+		})
+	}
+}
+
 // ─── test helpers ─────────────────────────────────────────────────────────────
 
 func loadPlugin(t *testing.T, addr, caPEM string) *keymanager.V1 {
@@ -548,7 +651,7 @@ func loadPlugin(t *testing.T, addr, caPEM string) *keymanager.V1 {
 			server_id_value      = %q
 		`, addr, caFile, testServerID)),
 		plugintest.CoreConfig(catalog.CoreConfig{
-			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
+			TrustDomain: spiffeid.RequireTrustDomainFromString(testTrustDomain),
 		}),
 	)
 	return v1
@@ -568,6 +671,11 @@ func writeTempPEM(t *testing.T, content string) string {
 // clock, so tests can control the passage of time for the reclamation tasks.
 func newTestPlugin(t *testing.T, addr, caPEM string) (*Plugin, *clock.Mock) {
 	t.Helper()
+	return newTestPluginWithConfig(t, addr, caPEM, "")
+}
+
+func newTestPluginWithConfig(t *testing.T, addr, caPEM, extraConfig string) (*Plugin, *clock.Mock) {
+	t.Helper()
 	caFile := writeTempPEM(t, caPEM)
 	p := New()
 	clk := clock.NewMock()
@@ -582,13 +690,38 @@ func newTestPlugin(t *testing.T, addr, caPEM string) (*Plugin, *clock.Mock) {
 			ca_cert_path         = %q
 			insecure_skip_verify = true
 			server_id_value      = %q
-		`, addr, caFile, testServerID)),
+			%s
+		`, addr, caFile, testServerID, extraConfig)),
 		plugintest.CoreConfig(catalog.CoreConfig{
-			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
+			TrustDomain: spiffeid.RequireTrustDomainFromString(testTrustDomain),
 		}),
 	)
 	require.NoError(t, configErr)
 	return p, clk
+}
+
+func entryPrivateKeyUID(t *testing.T, p *Plugin, keyID string) string {
+	t.Helper()
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	entry, ok := p.entries[keyID]
+	require.True(t, ok, "expected entry %q to exist", keyID)
+	return entry.privateKeyUID
+}
+
+func setPrivateKeyLastUpdate(t *testing.T, store *fakeStore, privUID string, ts int64) {
+	t.Helper()
+	store.mu.Lock()
+	defer store.mu.Unlock()
+	rec, ok := store.keys[privUID]
+	require.True(t, ok, "expected private key %q to exist", privUID)
+	for i, nameAttr := range rec.nameAttrs {
+		if strings.HasPrefix(nameAttr, prefixLastUpdate) {
+			rec.nameAttrs[i] = lastUpdateNameValue(ts)
+			return
+		}
+	}
+	rec.nameAttrs = append(rec.nameAttrs, lastUpdateNameValue(ts))
 }
 
 // readLastUpdate returns the spire-last-update timestamp of the single key in the
