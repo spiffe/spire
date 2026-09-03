@@ -15,6 +15,6 @@ func TestUniqueIDAttribute(t *testing.T) {
 		},
 	}
 	require.Equal(t,
-		"2.5.4.45=#13206333343036663962313263656234663963393438333138633537396239303562",
+		"2.5.4.45=c3406f9b12ceb4f9c948318c579b905b",
 		name.String())
 }

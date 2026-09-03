@@ -514,7 +514,7 @@ func BenchmarkGetAuthorizedEntriesInMemory(b *testing.B) {
 	b.ResetTimer()
 
 	for b.Loop() {
-		entries := cache.GetAuthorizedEntries(agents[rand.Intn(len(agents))].ID) //nolint:gosec
+		entries := cache.GetAuthorizedEntries(agents[rand.Intn(len(agents))].ID)
 		require.NotEmpty(b, entries)
 	}
 }

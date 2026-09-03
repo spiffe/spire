@@ -191,7 +191,9 @@ func (c *agentConfig) brokerBindAddrs() ([]net.Addr, error) {
 	}
 	var addrs []net.Addr
 	if sp != "" {
+		//nolint: staticcheck,nolintlint // staticcheck because brokerSocketAddr always returns an error on Windows, nolintlint because this lint does nothing on linux
 		uds, err := c.brokerSocketAddr()
+		//nolint: staticcheck,nolintlint // same here because the linter complains about both of these lines
 		if err != nil {
 			return nil, err
 		}
@@ -246,14 +248,13 @@ type workloadAPIRateLimitConfig struct {
 }
 
 type experimentalConfig struct {
-	SyncInterval             string `hcl:"sync_interval"`
-	JWTSVIDCacheHitTimeout   string `hcl:"jwt_svid_cache_hit_timeout"`
-	RPCTimeout               string `hcl:"rpc_timeout"`
-	MaxBundleWorkers         int    `hcl:"max_bundle_workers"`
-	NamedPipeName            string `hcl:"named_pipe_name"`
-	AdminNamedPipeName       string `hcl:"admin_named_pipe_name"`
-	UseSyncAuthorizedEntries *bool  `hcl:"use_sync_authorized_entries"`
-	RequirePQKEM             bool   `hcl:"require_pq_kem"`
+	SyncInterval           string `hcl:"sync_interval"`
+	JWTSVIDCacheHitTimeout string `hcl:"jwt_svid_cache_hit_timeout"`
+	RPCTimeout             string `hcl:"rpc_timeout"`
+	MaxBundleWorkers       int    `hcl:"max_bundle_workers"`
+	NamedPipeName          string `hcl:"named_pipe_name"`
+	AdminNamedPipeName     string `hcl:"admin_named_pipe_name"`
+	RequirePQKEM           bool   `hcl:"require_pq_kem"`
 
 	RateLimit workloadAPIRateLimitConfig `hcl:"ratelimit"`
 
@@ -670,15 +671,6 @@ func newAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig, skip
 		}
 		client.SetMaxBundleWorkers(c.Agent.Experimental.MaxBundleWorkers)
 		logger.Warn("The use of 'max_bundle_workers' is experimental")
-	}
-
-	ac.UseSyncAuthorizedEntries = true
-	if c.Agent.Experimental.UseSyncAuthorizedEntries != nil {
-		ac.Log.WithFields(logrus.Fields{
-			telemetry.Alert:     true,
-			telemetry.AlertType: telemetry.DeprecatedConfigAlertType,
-		}).Warn("The 'use_sync_authorized_entries' configuration is deprecated. The option to disable it will be removed in SPIRE 1.13.")
-		ac.UseSyncAuthorizedEntries = *c.Agent.Experimental.UseSyncAuthorizedEntries
 	}
 
 	if c.Agent.X509SVIDCacheMaxSize < 0 {

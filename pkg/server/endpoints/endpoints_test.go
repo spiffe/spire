@@ -1106,7 +1106,7 @@ func testAuthorization(ctx context.Context, t *testing.T, client any, expectedAu
 
 			var st *status.Status
 			if !out[1].IsNil() {
-				err, ok := out[1].Interface().(error)
+				err, ok := reflect.TypeAssert[error](out[1])
 				require.True(t, ok, "2nd output should have been nil or an error")
 				st = status.Convert(err)
 			}
@@ -1149,7 +1149,7 @@ func assertServiceUnavailable(ctx context.Context, t *testing.T, client any) {
 
 			var st *status.Status
 			if !out[1].IsNil() {
-				err, ok := out[1].Interface().(error)
+				err, ok := reflect.TypeAssert[error](out[1])
 				require.True(t, ok, "2nd output should have been nil or an error")
 				st = status.Convert(err)
 			}
