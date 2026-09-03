@@ -838,6 +838,31 @@ func TestLRUCacheTracksSubscribersByRecord(t *testing.T) {
 	assert.Zero(t, cache.records[bar.EntryId].activeSubscriberCount)
 }
 
+func TestLRUCacheSubscriberCountAfterSelectorAdded(t *testing.T) {
+	cache := newTestLRUCache(t)
+	foo := makeRegistrationEntry("FOO", "A")
+	bar := makeRegistrationEntry("BAR", "B")
+	update := &UpdateEntries{
+		Bundles:             makeBundles(bundleV1),
+		RegistrationEntries: makeRegistrationEntries(foo, bar),
+	}
+	cache.UpdateEntries(update, nil)
+
+	sub := cache.NewSubscriber(makeSelectors("A", "B"))
+	assert.Equal(t, 1, cache.records[foo.EntryId].activeSubscriberCount)
+	assert.Equal(t, 1, cache.records[bar.EntryId].activeSubscriberCount)
+
+	foo = makeRegistrationEntry("FOO", "A", "B")
+	update.RegistrationEntries[foo.EntryId] = foo
+	cache.UpdateEntries(update, nil)
+	assert.Equal(t, 1, cache.records[foo.EntryId].activeSubscriberCount)
+	assert.Equal(t, 1, cache.records[bar.EntryId].activeSubscriberCount)
+
+	sub.Finish()
+	assert.Zero(t, cache.records[foo.EntryId].activeSubscriberCount)
+	assert.Zero(t, cache.records[bar.EntryId].activeSubscriberCount)
+}
+
 func TestNotifySubscriberWhenSVIDIsAvailable(t *testing.T) {
 	cache := newTestLRUCache(t)
 
