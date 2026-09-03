@@ -70,6 +70,15 @@ func (s *FileSource) FetchKeySet() (*jose.JSONWebKeySet, time.Time, bool) {
 	return s.jwks, s.modTime, true
 }
 
+func (s *FileSource) FetchBundle() (*spiffebundle.Bundle, time.Time, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.bundle == nil {
+		return nil, time.Time{}, false
+	}
+	return s.bundle, s.modTime, true
+}
+
 func (s *FileSource) LastSuccessfulPoll() time.Time {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

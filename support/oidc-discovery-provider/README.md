@@ -10,6 +10,7 @@ It provides the following endpoints:
 |-------|-------------------------------------|-------------------------------------------------------------------------------------------------------------------------|
 | `GET` | `/.well-known/openid-configuration` | Returns the OIDC discovery document                                                                                     |
 | `GET` | `/keys`                             | Returns the JWKS for JWT validation                                                                                     |
+| `GET` | `/all-keys`                         | Returns the full trust bundle in the SPIFFE bundle format                                                               |
 | `GET` | `/ready`                            | Returns http.OK (200) as soon as requests can be served. (disabled by default)                                          |
 | `GET` | `/live`                             | Returns http.OK (200) as soon as a keyset is available, otherwise http.InternalServerError (500). (disabled by default) |
 
@@ -18,6 +19,37 @@ the OIDC discovery document served at `/instance/1/.well-known/openid-configurat
 
 The provider by default relies on ACME to obtain TLS certificates that it uses to
 serve the documents securely.
+
+## The `/all-keys` endpoint
+
+Where `/keys` returns a plain JWKS containing only the JWT authorities, `/all-keys`
+returns the complete trust bundle in the [SPIFFE bundle format](https://github.com/spiffe/spiffe/blob/main/standards/SPIFFE_Trust_Domain_and_Bundle.md#4-spiffe-bundle-format):
+both the X.509 and the JWT authorities, each tagged with its SPIFFE `use`, along with
+`spiffe_refresh_hint` and `spiffe_sequence`. This is the same document a SPIRE Server
+serves from its own federation bundle endpoint, so the endpoint can be used directly
+as a `bundle_endpoint_url` by a SPIRE Server federating with this trust domain:
+
+```hcl
+federation {
+    federates_with "domain.test" {
+        bundle_endpoint_url = "https://mypublicdomain.test/all-keys"
+        bundle_endpoint_profile "https_web" {}
+    }
+}
+```
+
+The endpoint is always exposed and, like the others, honors `server_path_prefix`. The
+`set_key_use` option does not apply to it, since the `use` parameter carries SPIFFE
+meaning here.
+
+The refresh hint served is the one provided by the configured source, if any. The
+`server_api` and `file` sources convey a refresh hint and a sequence number; the
+`workload_api` source conveys neither, in which case the refresh hint is derived from
+the lifetime of the X.509 authorities.
+
+The endpoint returns http.NotImplemented (501) when the trust bundle contains no
+authorities at all, and http.InternalServerError (500) when the source has not yet
+made a trust bundle available.
 
 ## Configuration
 

@@ -1,6 +1,10 @@
 package main
 
 import (
+	"bytes"
+	"crypto"
+	"crypto/x509"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -10,6 +14,10 @@ import (
 	"github.com/go-jose/go-jose/v4"
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
+	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire/pkg/common/bundleutil"
+	"github.com/spiffe/spire/test/testca"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -1073,6 +1081,179 @@ func TestHandlerPrefix(t *testing.T) {
 			t.Logf("HEADERS: %q", w.Header())
 			assert.Equal(t, testCase.code, w.Code)
 			assert.Equal(t, testCase.body, w.Body.String())
+		})
+	}
+}
+
+func TestHandlerAllKeys(t *testing.T) {
+	log, _ := test.NewNullLogger()
+	log.Level = logrus.DebugLevel
+
+	td := spiffeid.RequireTrustDomainFromString("domain.test")
+	ca := testca.New(t, td)
+
+	// testca issues authorities with a one hour lifetime, so a derived refresh
+	// hint is a tenth of that.
+	const derivedRefreshHint = 360
+
+	fullBundle := spiffebundle.New(td)
+	fullBundle.SetX509Authorities(ca.X509Authorities())
+	require.NoError(t, fullBundle.AddJWTAuthority("KID", ec256Pubkey))
+	fullBundle.SetRefreshHint(10 * time.Minute)
+	fullBundle.SetSequenceNumber(42)
+
+	x509OnlyBundle := spiffebundle.New(td)
+	x509OnlyBundle.SetX509Authorities(ca.X509Authorities())
+
+	jwtOnlyBundle := spiffebundle.New(td)
+	require.NoError(t, jwtOnlyBundle.AddJWTAuthority("KID", ec256Pubkey))
+
+	testCases := []struct {
+		name             string
+		method           string
+		path             string
+		serverPathPrefix string
+		bundle           *spiffebundle.Bundle
+		setKeyUse        bool
+		code             int
+		body             string
+		x509Authorities  []*x509.Certificate
+		jwtAuthorities   map[string]crypto.PublicKey
+		refreshHint      int
+		sequenceNumber   uint64
+	}{
+		{
+			name:   "POST not allowed",
+			method: "POST",
+			path:   "/all-keys",
+			bundle: fullBundle,
+			code:   http.StatusMethodNotAllowed,
+			body:   "method not allowed\n",
+		},
+		{
+			name:   "no bundle available",
+			method: "GET",
+			path:   "/all-keys",
+			code:   http.StatusInternalServerError,
+			body:   "document not available\n",
+		},
+		{
+			name:   "empty bundle",
+			method: "GET",
+			path:   "/all-keys",
+			bundle: spiffebundle.New(td),
+			code:   http.StatusNotImplemented,
+			body:   "no keys available in this service\n",
+		},
+		{
+			name:            "X.509 and JWT authorities",
+			method:          "GET",
+			path:            "/all-keys",
+			bundle:          fullBundle,
+			code:            http.StatusOK,
+			x509Authorities: ca.X509Authorities(),
+			jwtAuthorities:  map[string]crypto.PublicKey{"KID": ec256Pubkey},
+			refreshHint:     600,
+			sequenceNumber:  42,
+		},
+		{
+			name:            "X.509 authorities only, refresh hint derived",
+			method:          "GET",
+			path:            "/all-keys",
+			bundle:          x509OnlyBundle,
+			code:            http.StatusOK,
+			x509Authorities: ca.X509Authorities(),
+			jwtAuthorities:  map[string]crypto.PublicKey{},
+			refreshHint:     derivedRefreshHint,
+		},
+		{
+			name:            "JWT authorities only, refresh hint floored",
+			method:          "GET",
+			path:            "/all-keys",
+			bundle:          jwtOnlyBundle,
+			code:            http.StatusOK,
+			x509Authorities: []*x509.Certificate{},
+			jwtAuthorities:  map[string]crypto.PublicKey{"KID": ec256Pubkey},
+			refreshHint:     int(bundleutil.MinimumRefreshHint / time.Second),
+		},
+		{
+			// set_key_use only applies to the keys endpoint. Overwriting the
+			// use here would render the document unparseable.
+			name:            "set_key_use does not affect the SPIFFE use",
+			method:          "GET",
+			path:            "/all-keys",
+			bundle:          fullBundle,
+			setKeyUse:       true,
+			code:            http.StatusOK,
+			x509Authorities: ca.X509Authorities(),
+			jwtAuthorities:  map[string]crypto.PublicKey{"KID": ec256Pubkey},
+			refreshHint:     600,
+			sequenceNumber:  42,
+		},
+		{
+			name:             "honors the server path prefix",
+			method:           "GET",
+			path:             "/some/issuer/path/issuer1/all-keys",
+			serverPathPrefix: "/some/issuer/path/issuer1",
+			bundle:           fullBundle,
+			code:             http.StatusOK,
+			x509Authorities:  ca.X509Authorities(),
+			jwtAuthorities:   map[string]crypto.PublicKey{"KID": ec256Pubkey},
+			refreshHint:      600,
+			sequenceNumber:   42,
+		},
+		{
+			name:             "not served off the prefix once one is set",
+			method:           "GET",
+			path:             "/all-keys",
+			serverPathPrefix: "/some/issuer/path/issuer1",
+			bundle:           fullBundle,
+			code:             http.StatusNotFound,
+			body:             "404 page not found\n",
+		},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			source := new(FakeKeySetSource)
+			source.SetBundle(testCase.bundle, time.Now(), time.Now())
+
+			r, err := http.NewRequest(testCase.method, "https://localhost"+testCase.path, nil)
+			require.NoError(t, err)
+			w := httptest.NewRecorder()
+
+			h, err := NewHandler(log, domainAllowlist(t, "localhost"), source, false, testCase.setKeyUse, nil, nil, testCase.serverPathPrefix)
+			require.NoError(t, err)
+			h.ServeHTTP(w, r)
+
+			require.Equal(t, testCase.code, w.Code)
+			if testCase.code != http.StatusOK {
+				assert.Equal(t, testCase.body, w.Body.String())
+				return
+			}
+
+			assert.Equal(t, "application/json", w.Header().Get("Content-Type"))
+			assert.Equal(t, "no-cache, no-store, must-revalidate", w.Header().Get("Cache-Control"))
+
+			body := w.Body.Bytes()
+
+			// Decode the document the same way a federating SPIRE Server
+			// would, to prove the two are compatible.
+			actual, err := bundleutil.Decode(td, bytes.NewReader(body))
+			require.NoError(t, err)
+			assert.Equal(t, testCase.x509Authorities, actual.X509Authorities())
+			assert.Equal(t, testCase.jwtAuthorities, actual.JWTAuthorities())
+
+			refreshHint, ok := actual.RefreshHint()
+			assert.True(t, ok)
+			assert.Equal(t, time.Duration(testCase.refreshHint)*time.Second, refreshHint)
+
+			// The sequence number is dropped by bundleutil.Decode, so read it
+			// straight out of the document.
+			var doc struct {
+				Sequence uint64 `json:"spiffe_sequence"`
+			}
+			require.NoError(t, json.Unmarshal(body, &doc))
+			assert.Equal(t, testCase.sequenceNumber, doc.Sequence)
 		})
 	}
 }

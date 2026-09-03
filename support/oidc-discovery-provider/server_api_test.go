@@ -2,16 +2,20 @@ package main
 
 import (
 	"context"
+	"crypto"
+	"crypto/x509"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/sirupsen/logrus/hooks/test"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	bundlev1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/bundle/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/spiretest"
+	"github.com/spiffe/spire/test/testca"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -100,12 +104,97 @@ func TestServerAPISource(t *testing.T) {
 	require.Equal(t, ec256Pubkey, keySet3.Keys[0].Key)
 }
 
+func TestServerAPISourceBundle(t *testing.T) {
+	const pollInterval = time.Second
+
+	td := spiffeid.RequireTrustDomainFromString("domain.test")
+	ca := testca.New(t, td)
+
+	api := &fakeServerAPIServer{}
+
+	addr := spiretest.StartGRPCServer(t, func(s *grpc.Server) {
+		bundlev1.RegisterBundleServer(s, api)
+	})
+
+	log, _ := test.NewNullLogger()
+	clock := clock.NewMock(t)
+
+	target, err := util.GetTargetName(addr)
+	require.NoError(t, err)
+	source, err := NewServerAPISource(ServerAPISourceConfig{
+		Log:          log,
+		GRPCTarget:   target,
+		PollInterval: pollInterval,
+		Clock:        clock,
+	})
+	require.NoError(t, err)
+	defer source.Close()
+
+	// Wait for the poll to happen and assert there is no bundle available
+	clock.WaitForAfter(time.Minute, "failed to wait for the poll timer")
+	_, _, ok := source.FetchBundle()
+	require.False(t, ok, "No bundle was available but we have one somehow")
+
+	// The source asks for the X.509 authorities, the refresh hint, and the
+	// sequence number in addition to the JWT authorities.
+	require.Equal(t, &types.BundleMask{
+		X509Authorities: true,
+		JwtAuthorities:  true,
+		RefreshHint:     true,
+		SequenceNumber:  true,
+	}, api.GetLastOutputMask())
+
+	api.SetBundle(&types.Bundle{
+		TrustDomain:     td.Name(),
+		X509Authorities: x509AuthoritiesProto(ca.X509Authorities()),
+		JwtAuthorities: []*types.JWTKey{
+			{
+				KeyId:     "KID",
+				PublicKey: ec256PubkeyPKIX,
+			},
+		},
+		RefreshHint:    600,
+		SequenceNumber: 42,
+	})
+	clock.Add(pollInterval)
+	clock.WaitForAfter(time.Minute, "failed to wait for the poll timer")
+
+	bundle, modTime, ok := source.FetchBundle()
+	require.True(t, ok)
+	require.Equal(t, clock.Now(), modTime)
+	require.Equal(t, ca.X509Authorities(), bundle.X509Authorities())
+	require.Equal(t, map[string]crypto.PublicKey{"KID": ec256Pubkey}, bundle.JWTAuthorities())
+
+	refreshHint, ok := bundle.RefreshHint()
+	require.True(t, ok)
+	require.Equal(t, 10*time.Minute, refreshHint)
+
+	sequenceNumber, ok := bundle.SequenceNumber()
+	require.True(t, ok)
+	require.Equal(t, uint64(42), sequenceNumber)
+}
+
+func x509AuthoritiesProto(authorities []*x509.Certificate) []*types.X509Certificate {
+	var out []*types.X509Certificate
+	for _, authority := range authorities {
+		out = append(out, &types.X509Certificate{Asn1: authority.Raw})
+	}
+	return out
+}
+
 type fakeServerAPIServer struct {
 	bundlev1.BundleServer
 
 	mu             sync.Mutex
 	bundle         *types.Bundle
+	lastOutputMask *types.BundleMask
 	getBundleCount int
+}
+
+func (s *fakeServerAPIServer) GetLastOutputMask() *types.BundleMask {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.lastOutputMask
 }
 
 func (s *fakeServerAPIServer) SetBundle(bundle *types.Bundle) {
@@ -121,10 +210,11 @@ func (s *fakeServerAPIServer) GetBundleCount() int {
 	return count
 }
 
-func (s *fakeServerAPIServer) GetBundle(context.Context, *bundlev1.GetBundleRequest) (*types.Bundle, error) {
+func (s *fakeServerAPIServer) GetBundle(_ context.Context, req *bundlev1.GetBundleRequest) (*types.Bundle, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.getBundleCount++
+	s.lastOutputMask = req.OutputMask
 	if s.bundle == nil {
 		return nil, status.Error(codes.NotFound, "no bundle")
 	}
