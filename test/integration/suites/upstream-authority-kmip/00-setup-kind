@@ -14,7 +14,12 @@ download-kubectl "${KUBECTL_PATH}"
 
 start-kind-cluster "${KIND_PATH}" kmip-ua
 
-container_images=("spire-server:latest-local" "ghcr.io/cosmian/kms:5.26.0")
+# Only the locally-built SPIRE image is loaded here. The KMS image is pulled
+# directly by the kind node from its registry at deploy time (see
+# imagePullPolicy: IfNotPresent on the KMS Deployment in 01-setup-kms), since
+# it isn't built locally and "kind load docker-image" requires the image to
+# already be present in the host Docker daemon.
+container_images=("spire-server:latest-local")
 load-images "${KIND_PATH}" kmip-ua "${container_images[@]}"
 
-log-info "kind cluster 'kmip-ua' ready with SPIRE and KMS images loaded"
+log-info "kind cluster 'kmip-ua' ready with SPIRE image loaded"
