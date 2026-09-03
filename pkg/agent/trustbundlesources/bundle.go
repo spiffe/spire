@@ -20,6 +20,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	"k8s.io/client-go/kubernetes"
 )
 
 // spiffeWorkloadAPIFetchTimeout bounds each trust bundle fetch from the
@@ -35,12 +36,16 @@ type Bundle struct {
 	metrics            telemetry.Metrics
 	storage            storage.Storage
 	lastBundle         []*x509.Certificate
+
+	// newKubeClient is overridden by tests
+	newKubeClient func(kubeConfigPath string) (kubernetes.Interface, error)
 }
 
 func New(config *Config, log logrus.FieldLogger) Bundle {
 	return Bundle{
-		config: config,
-		log:    log,
+		config:        config,
+		log:           log,
+		newKubeClient: newKubeClient,
 	}
 }
 
@@ -161,11 +166,7 @@ func (b *Bundle) GetBundle() ([]*x509.Certificate, bool, error) {
 
 	switch {
 	case b.config.TrustBundleSpiffeWorkloadAPI != "":
-		if b.use == UseRebootstrap {
-			b.log.Info(fmt.Sprintf("Server reattestation attempt %d. Started %s.", b.connectionAttempts, b.startTime.Format(time.RFC3339)))
-		} else {
-			b.log.Info(fmt.Sprintf("Server attestation attempt %d. Started %s.", b.connectionAttempts, b.startTime.Format(time.RFC3339)))
-		}
+		b.logAttestationAttempt()
 		b.log.Debug(fmt.Sprintf("Fetching trust bundle from SPIFFE Workload API: %s", b.config.TrustBundleSpiffeWorkloadAPI))
 		bundle, err = fetchTrustBundleFromWorkloadAPI(b.config.TrustBundleSpiffeWorkloadAPI, b.config.TrustDomain)
 		if err != nil {
@@ -190,13 +191,15 @@ func (b *Bundle) GetBundle() ([]*x509.Certificate, bool, error) {
 			params.Set("spiffe-trust-domain", b.config.TrustDomain)
 			u.RawQuery = params.Encode()
 		}
-		if b.use == UseRebootstrap {
-			b.log.Info(fmt.Sprintf("Server reattestation attempt %d. Started %s.", b.connectionAttempts, b.startTime.Format(time.RFC3339)))
-		} else {
-			b.log.Info(fmt.Sprintf("Server attestation attempt %d. Started %s.", b.connectionAttempts, b.startTime.Format(time.RFC3339)))
-		}
+		b.logAttestationAttempt()
 		b.log.Debug(fmt.Sprintf("Server attestation url: %s from: ", u.String()), b.config.TrustBundleUnixSocket)
 		bundleBytes, err = downloadTrustBundle(u.String(), b.config.TrustBundleUnixSocket)
+		if err != nil {
+			return nil, false, err
+		}
+	case b.config.TrustBundleConfigMap != nil:
+		b.logAttestationAttempt()
+		bundleBytes, err = b.fetchTrustBundleFromConfigMap(b.config.TrustBundleConfigMap)
 		if err != nil {
 			return nil, false, err
 		}
@@ -230,6 +233,14 @@ func (b *Bundle) GetBundle() ([]*x509.Certificate, bool, error) {
 
 func (b *Bundle) GetInsecureBootstrap() bool {
 	return b.config.InsecureBootstrap
+}
+
+func (b *Bundle) logAttestationAttempt() {
+	if b.use == UseRebootstrap {
+		b.log.Info(fmt.Sprintf("Server reattestation attempt %d. Started %s.", b.connectionAttempts, b.startTime.Format(time.RFC3339)))
+	} else {
+		b.log.Info(fmt.Sprintf("Server attestation attempt %d. Started %s.", b.connectionAttempts, b.startTime.Format(time.RFC3339)))
+	}
 }
 
 func (b *Bundle) updateMetrics() {
