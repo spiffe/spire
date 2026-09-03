@@ -1203,13 +1203,14 @@ func (p *Plugin) disposeStaleKeysTask(ctx context.Context) {
 }
 
 // disposeStaleKeys locates this server's keys and destroys those whose
-// spire-last-update Name is older than staleKeyThreshold.
+// spire-last-update Name is older than the configured stale-key threshold.
 func (p *Plugin) disposeStaleKeys(ctx context.Context) error {
 	p.logger.Debug("Looking for stale keys to dispose")
 
 	p.mu.RLock()
 	client := p.client
 	serverID := p.serverID
+	threshold := p.staleKeyThreshold
 	p.mu.RUnlock()
 	if client == nil {
 		return nil
@@ -1223,7 +1224,7 @@ func (p *Plugin) disposeStaleKeys(ctx context.Context) error {
 		return fmt.Errorf("locate keys for server %q: %w", serverID, err)
 	}
 
-	staleThreshold := p.clk.Now().Add(-staleKeyThreshold).Unix()
+	staleThreshold := p.clk.Now().Add(-threshold).Unix()
 
 	for _, privUID := range privUIDs {
 		lastUpdate, ok, err := getLastUpdate(ctx, client, privUID)
@@ -1238,6 +1239,13 @@ func (p *Plugin) disposeStaleKeys(ctx context.Context) error {
 			p.logger.Warn("Failed to revoke and destroy stale key", "uid", privUID, "err", err)
 			continue
 		}
+		p.mu.Lock()
+		for keyID, entry := range p.entries {
+			if entry.privateKeyUID == privUID {
+				delete(p.entries, keyID)
+			}
+		}
+		p.mu.Unlock()
 		p.logger.Info("Disposed stale key", "uid", privUID, "last_update", lastUpdate)
 	}
 	return nil
