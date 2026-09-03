@@ -1,7 +1,7 @@
 // Package kmip implements a SPIRE KeyManager plugin that stores and uses signing
 // keys via a generic KMIP 2.1-compliant server (binary TTLV over TCP/TLS).
 //
-// Key metadata (server ID, SPIRE key ID, key type) is stored as standard KMIP
+// Key metadata (server ID, trust domain, SPIRE key ID, key type) is stored as standard KMIP
 // Name attributes on each key object, so the plugin works with any spec-compliant
 // KMIP server — no vendor extensions required.
 package kmip
@@ -82,6 +82,11 @@ type Config struct {
 	// file does not exist, a new server ID is generated and persisted there. Mutually
 	// exclusive with ServerIDValue.
 	ServerIDFile string `hcl:"server_id_file"`
+	// StaleKeyThreshold is how old a key's spire-last-update Name must be before the
+	// reclamation task considers it orphaned and destroys it.
+	StaleKeyThreshold string `hcl:"stale_key_threshold"`
+
+	parsedStaleKeyThreshold time.Duration
 }
 
 // keyEntry maps a SPIRE key ID to the KMIP private key UID and the cached public key.
@@ -95,20 +100,23 @@ type Plugin struct {
 	keymanagerv1.UnsafeKeyManagerServer
 	configv1.UnsafeConfigServer
 
-	logger      hclog.Logger
-	mu          sync.RWMutex
-	entries     map[string]keyEntry // spireKeyID → keyEntry
-	serverID    string
-	client      *kmipclient.Client
-	clk         clock.Clock
-	cancelTasks context.CancelFunc
+	logger            hclog.Logger
+	mu                sync.RWMutex
+	entries           map[string]keyEntry // spireKeyID → keyEntry
+	trustDomain       string
+	serverID          string
+	client            *kmipclient.Client
+	clk               clock.Clock
+	staleKeyThreshold time.Duration
+	cancelTasks       context.CancelFunc
 }
 
 // New returns a new Plugin instance.
 func New() *Plugin {
 	return &Plugin{
-		entries: make(map[string]keyEntry),
-		clk:     clock.New(),
+		entries:           make(map[string]keyEntry),
+		clk:               clock.New(),
+		staleKeyThreshold: staleKeyThreshold,
 	}
 }
 
@@ -157,8 +165,10 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 	}
 
 	p.client = client
+	p.trustDomain = req.CoreConfiguration.TrustDomain
 	p.serverID = serverID
 	p.entries = make(map[string]keyEntry)
+	p.staleKeyThreshold = cfg.parsedStaleKeyThreshold
 
 	if err := p.recoverKeys(ctx); err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to recover keys from KMIP server: %v", err)
@@ -194,6 +204,7 @@ func (p *Plugin) GenerateKey(ctx context.Context, req *keymanagerv1.GenerateKeyR
 
 	p.mu.RLock()
 	client := p.client
+	trustDomain := p.trustDomain
 	serverID := p.serverID
 	p.mu.RUnlock()
 	if client == nil {
@@ -203,7 +214,7 @@ func (p *Plugin) GenerateKey(ctx context.Context, req *keymanagerv1.GenerateKeyR
 	// Tag the keys with SPIRE metadata (including a last-update freshness marker)
 	// at creation time, so a key that is created but never fully set up is still
 	// discoverable and eventually reclaimed by the reclamation task.
-	nameAttrs := spireNameAttributes(serverID, req.KeyId, req.KeyType, p.clk.Now())
+	nameAttrs := spireNameAttributes(trustDomain, serverID, req.KeyId, req.KeyType, p.clk.Now())
 	createResp, err := createKeyPairForType(ctx, client, req.KeyType, nameAttrs)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to create key pair: %v", err)
@@ -238,17 +249,9 @@ func (p *Plugin) GenerateKey(ctx context.Context, req *keymanagerv1.GenerateKeyR
 	}
 
 	p.mu.Lock()
-	// Schedule async deactivation and destruction of the previous key for this key ID
-	// if it exists.
-	if old, ok := p.entries[req.KeyId]; ok {
-		oldUID := old.privateKeyUID
-		cleanupCtx := context.WithoutCancel(ctx)
-		go func() {
-			if err := revokeAndDestroyKeyPair(cleanupCtx, client, oldUID); err != nil {
-				p.logger.Warn("Failed to revoke and destroy old private key", "uid", oldUID, "err", err)
-			}
-		}()
-	}
+	// Replacing the entry stops refreshing the previous key's last-update marker.
+	// The periodic reclamation task intentionally reaps the old key later, after it
+	// becomes stale, which centralizes cleanup and leaves a recovery window.
 	p.entries[req.KeyId] = keyEntry{privateKeyUID: createResp.PrivateKeyUniqueIdentifier, publicKey: pk}
 	p.mu.Unlock()
 
@@ -579,18 +582,20 @@ func isRSA(kt keymanagerv1.KeyType) bool {
 // ── SPIRE Name attribute helpers ─────────────────────────────────────────────
 
 const (
-	prefixServerID   = "spire-server-id:"
-	prefixKeyID      = "spire-key-id:"
-	prefixKeyType    = "spire-key-type:"
-	prefixLastUpdate = "spire-last-update:"
+	prefixServerID    = "spire-server-id:"
+	prefixTrustDomain = "spire-trust-domain:"
+	prefixKeyID       = "spire-key-id:"
+	prefixKeyType     = "spire-key-type:"
+	prefixLastUpdate  = "spire-last-update:"
 )
 
 // spireNameAttributes returns the Name attributes to attach to each key. The
 // last-update name carries a Unix timestamp that the keep-alive task refreshes on
 // active keys and the reclamation task uses to identify orphaned keys.
-func spireNameAttributes(serverID, keyID string, kt keymanagerv1.KeyType, now time.Time) []ovh.Name {
+func spireNameAttributes(trustDomain, serverID, keyID string, kt keymanagerv1.KeyType, now time.Time) []ovh.Name {
 	return []ovh.Name{
 		{NameValue: serverIDNameValue(serverID), NameType: ovh.NameTypeUninterpretedTextString},
+		{NameValue: trustDomainNameValue(trustDomain), NameType: ovh.NameTypeUninterpretedTextString},
 		{NameValue: prefixKeyID + keyID, NameType: ovh.NameTypeUninterpretedTextString},
 		{NameValue: prefixKeyType + keyTypeName(kt), NameType: ovh.NameTypeUninterpretedTextString},
 		{NameValue: lastUpdateNameValue(now.Unix()), NameType: ovh.NameTypeUninterpretedTextString},
@@ -598,6 +603,8 @@ func spireNameAttributes(serverID, keyID string, kt keymanagerv1.KeyType, now ti
 }
 
 func serverIDNameValue(id string) string { return prefixServerID + id }
+
+func trustDomainNameValue(trustDomain string) string { return prefixTrustDomain + trustDomain }
 
 func lastUpdateNameValue(ts int64) string { return prefixLastUpdate + strconv.FormatInt(ts, 10) }
 
@@ -671,6 +678,7 @@ func buildConfig(_ catalog.CoreConfig, hclText string, s *pluginconf.Status) *Co
 		s.ReportErrorf("unable to decode configuration: %v", err)
 		return nil
 	}
+	cfg.parsedStaleKeyThreshold = staleKeyThreshold
 	if cfg.KMIPAddr == "" {
 		s.ReportError("kmip_addr is required")
 	}
@@ -686,6 +694,17 @@ func buildConfig(_ catalog.CoreConfig, hclText string, s *pluginconf.Status) *Co
 	}
 	if cfg.ClientKeyPath != "" && cfg.ClientCertPath == "" {
 		s.ReportError("client_cert_path is required when client_key_path is set")
+	}
+	if cfg.StaleKeyThreshold != "" {
+		threshold, err := time.ParseDuration(cfg.StaleKeyThreshold)
+		switch {
+		case err != nil:
+			s.ReportErrorf("unable to parse stale_key_threshold: %v", err)
+		case threshold <= 0:
+			s.ReportError("stale_key_threshold must be greater than zero")
+		default:
+			cfg.parsedStaleKeyThreshold = threshold
+		}
 	}
 	return cfg
 }
@@ -827,13 +846,14 @@ func (p *Plugin) disposeStaleKeysTask(ctx context.Context) {
 }
 
 // disposeStaleKeys locates this server's keys and destroys those whose
-// spire-last-update Name is older than staleKeyThreshold.
+// spire-last-update Name is older than the configured stale-key threshold.
 func (p *Plugin) disposeStaleKeys(ctx context.Context) error {
 	p.logger.Debug("Looking for stale keys to dispose")
 
 	p.mu.RLock()
 	client := p.client
 	serverID := p.serverID
+	threshold := p.staleKeyThreshold
 	p.mu.RUnlock()
 	if client == nil {
 		return nil
@@ -847,7 +867,7 @@ func (p *Plugin) disposeStaleKeys(ctx context.Context) error {
 		return fmt.Errorf("locate keys for server %q: %w", serverID, err)
 	}
 
-	staleThreshold := p.clk.Now().Add(-staleKeyThreshold).Unix()
+	staleThreshold := p.clk.Now().Add(-threshold).Unix()
 
 	for _, privUID := range privUIDs {
 		lastUpdate, ok, err := getLastUpdate(ctx, client, privUID)
@@ -862,6 +882,13 @@ func (p *Plugin) disposeStaleKeys(ctx context.Context) error {
 			p.logger.Warn("Failed to revoke and destroy stale key", "uid", privUID, "err", err)
 			continue
 		}
+		p.mu.Lock()
+		for keyID, entry := range p.entries {
+			if entry.privateKeyUID == privUID {
+				delete(p.entries, keyID)
+			}
+		}
+		p.mu.Unlock()
 		p.logger.Info("Disposed stale key", "uid", privUID, "last_update", lastUpdate)
 	}
 	return nil
