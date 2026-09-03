@@ -83,9 +83,11 @@ func builtin(p *Plugin) catalog.BuiltIn {
 }
 
 type keyEntry struct {
-	Arn       string
-	AliasName string
-	PublicKey *keymanagerv1.PublicKey
+	Arn                string
+	AliasName          string
+	PublicKey          *keymanagerv1.PublicKey
+	MultiRegion        bool
+	MultiRegionKeyType types.MultiRegionKeyType
 }
 
 type pluginHooks struct {
@@ -133,21 +135,16 @@ type Plugin struct {
 	replicate map[string]chan replicateRequest
 }
 
-// replicateRequest describes a newly created multi-Region primary key that
-// must be replicated into every configured replica region, along with the
-// metadata each replica needs in order to be discoverable in its own region.
-// Aliases and tags are independent properties of multi-Region keys, so AWS
-// does not copy them and the plugin must recreate them per region.
+// replicateRequest holds the desired replica state, including metadata that
+// AWS does not copy from the primary.
 type replicateRequest struct {
-	spireKeyID string
-	keyArn     string
-	aliasName  string
-	tags       []types.Tag
-
-	// supersededKeyArn is the key this one replaces, empty on first creation.
-	// Its replicas are deleted only after the alias in each replica region has
-	// been repointed, so the alias never targets a key pending deletion.
-	supersededKeyArn string
+	spireKeyID        string
+	keyArn            string
+	aliasName         string
+	description       string
+	policy            *string
+	tags              []types.Tag
+	supersededKeyArns []string
 }
 
 // Config provides configuration context for the plugin
@@ -289,13 +286,14 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 		return nil, err
 	}
 
+	var keyPolicy *string
 	if newConfig.KeyPolicyFile != "" {
 		policyBytes, err := os.ReadFile(newConfig.KeyPolicyFile)
 		if err != nil {
 			return nil, status.Errorf(codes.Internal, "failed to read file configured in 'key_policy_file': %v", err)
 		}
 		policyStr := string(policyBytes)
-		p.keyPolicy = &policyStr
+		keyPolicy = &policyStr
 	}
 
 	serverID := newConfig.KeyIdentifierValue
@@ -393,6 +391,18 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 		}
 	}
 
+	if keyPolicy == nil && len(newConfig.ReplicaRegions) > 0 {
+		for _, entry := range keyEntries {
+			if entry.MultiRegion && entry.MultiRegionKeyType == types.MultiRegionKeyTypePrimary {
+				keyPolicy, err = p.createDefaultPolicy(ctx, sc)
+				if err != nil {
+					return nil, status.Errorf(codes.Internal, "unable to create policy: %v", err)
+				}
+				break
+			}
+		}
+	}
+
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -404,6 +414,7 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 	p.useTagBasedDiscovery = useTagBasedDiscovery
 	p.multiRegion = newConfig.MultiRegion
 	p.replicate = replicateQueues
+	p.keyPolicy = keyPolicy
 
 	// Build the tag list applied to every new key. SPIRE-specific tags are
 	// only included when tag-based discovery is enabled, so that the legacy
@@ -421,6 +432,10 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 		p.keyTags = buildKeyTags(newConfig.KeyTags)
 	default:
 		p.keyTags = nil
+	}
+
+	for spireKeyID, entry := range p.entries {
+		p.enqueueReplication(spireKeyID, &entry, "")
 	}
 
 	// cancels previous tasks in case of re-configure
@@ -609,7 +624,7 @@ func (p *Plugin) createKey(ctx context.Context, spireKeyID string, keyType keyma
 	}
 
 	if p.keyPolicy == nil {
-		defaultPolicy, err := p.createDefaultPolicy(ctx)
+		defaultPolicy, err := p.createDefaultPolicy(ctx, p.stsClient)
 		if err != nil {
 			return nil, status.Errorf(codes.Internal, "unable to create policy: %v", err)
 		}
@@ -643,16 +658,21 @@ func (p *Plugin) createKey(ctx context.Context, spireKeyID string, keyType keyma
 		return nil, status.Error(codes.Internal, "malformed get public key response")
 	}
 
-	return &keyEntry{
-		Arn:       *key.KeyMetadata.Arn,
-		AliasName: p.aliasFromSpireKeyID(spireKeyID),
+	entry := &keyEntry{
+		Arn:         *key.KeyMetadata.Arn,
+		AliasName:   p.aliasFromSpireKeyID(spireKeyID),
+		MultiRegion: p.multiRegion,
 		PublicKey: &keymanagerv1.PublicKey{
 			Id:          spireKeyID,
 			Type:        keyType,
 			PkixData:    pub.PublicKey,
 			Fingerprint: makeFingerprint(pub.PublicKey),
 		},
-	}, nil
+	}
+	if p.multiRegion {
+		entry.MultiRegionKeyType = types.MultiRegionKeyTypePrimary
+	}
+	return entry, nil
 }
 
 func (p *Plugin) assignAlias(ctx context.Context, entry *keyEntry) error {
@@ -700,21 +720,23 @@ func (p *Plugin) setCache(keyEntries []*keyEntry) {
 	}
 }
 
-// enqueueReplication schedules replication of a newly created key into the
-// configured replica regions. It never blocks: key generation is on the CA
-// rotation path, and a key missed here is replicated again on the next
-// rotation. The caller must hold p.mu.
+// enqueueReplication never blocks the CA rotation path. The caller must hold
+// p.mu.
 func (p *Plugin) enqueueReplication(spireKeyID string, entry *keyEntry, supersededKeyArn string) {
-	if len(p.replicate) == 0 {
+	if len(p.replicate) == 0 || !entry.MultiRegion || entry.MultiRegionKeyType != types.MultiRegionKeyTypePrimary {
 		return
 	}
 
 	req := replicateRequest{
-		spireKeyID:       spireKeyID,
-		keyArn:           entry.Arn,
-		aliasName:        entry.AliasName,
-		tags:             p.tagsForKey(spireKeyID),
-		supersededKeyArn: supersededKeyArn,
+		spireKeyID:  spireKeyID,
+		keyArn:      entry.Arn,
+		aliasName:   entry.AliasName,
+		description: p.descriptionFromSpireKeyID(spireKeyID),
+		policy:      p.keyPolicy,
+		tags:        p.tagsForKey(spireKeyID),
+	}
+	if supersededKeyArn != "" {
+		req.supersededKeyArns = []string{supersededKeyArn}
 	}
 
 	for region, queue := range p.replicate {
@@ -769,7 +791,7 @@ func (p *Plugin) replicateTask(ctx context.Context, region string, replicaClient
 				continue
 			}
 
-			err := p.replicateKeyToRegion(ctx, req, keyID, region, replicaClient)
+			err := p.replicateKeyToRegion(ctx, &req, keyID, region, replicaClient)
 			if err == nil {
 				log.Debug("Key replicated")
 				backoff = backoffMin
@@ -786,55 +808,90 @@ func (p *Plugin) replicateTask(ctx context.Context, region string, replicaClient
 			}
 			p.notifyReplicate(err)
 			backoff = min(backoff*2, backoffMax)
-			p.hooks.clk.Sleep(backoff)
+			select {
+			case <-ctx.Done():
+				return
+			case <-p.hooks.clk.After(backoff):
+			}
 		}
 	}
 }
 
-func (p *Plugin) replicateKeyToRegion(ctx context.Context, req replicateRequest, keyID, region string, replicaClient kmsClient) error {
+func (p *Plugin) replicateKeyToRegion(ctx context.Context, req *replicateRequest, keyID, region string, replicaClient kmsClient) error {
 	log := p.log.With(keyArnTag, req.keyArn, replicaTag, region)
 
-	var replicaArn string
+	var replicaMetadata *types.KeyMetadata
+	var replicaAlreadyExists bool
 	replicaResp, err := p.kmsClient.ReplicateKey(ctx, &kms.ReplicateKeyInput{
 		KeyId:         aws.String(req.keyArn),
 		ReplicaRegion: aws.String(region),
+		Description:   aws.String(req.description),
+		Policy:        req.policy,
 		Tags:          req.tags,
 	})
 
 	var alreadyExistsErr *types.AlreadyExistsException
 	switch {
 	case err == nil:
-		if replicaResp.ReplicaKeyMetadata == nil || replicaResp.ReplicaKeyMetadata.Arn == nil {
-			return errors.New("malformed replicate key response: missing replica key arn")
+		if replicaResp == nil || replicaResp.ReplicaKeyMetadata == nil {
+			return errors.New("malformed replicate key response: missing replica key metadata")
 		}
-		replicaArn = *replicaResp.ReplicaKeyMetadata.Arn
+		replicaMetadata = replicaResp.ReplicaKeyMetadata
 		log.Debug("Replica key created")
 	case errors.As(err, &alreadyExistsErr):
-		// A replica is already present, which is the normal case when an
-		// earlier attempt created the key but failed before the alias.
+		replicaAlreadyExists = true
 		describeResp, describeErr := replicaClient.DescribeKey(ctx, &kms.DescribeKeyInput{KeyId: aws.String(keyID)})
 		if describeErr != nil {
 			return fmt.Errorf("describing existing replica: %w", describeErr)
 		}
-		if describeResp.KeyMetadata == nil || describeResp.KeyMetadata.Arn == nil {
-			return errors.New("malformed describe key response: missing replica key arn")
+		if describeResp == nil || describeResp.KeyMetadata == nil {
+			return errors.New("malformed describe key response: missing replica key metadata")
 		}
-		replicaArn = *describeResp.KeyMetadata.Arn
+		replicaMetadata = describeResp.KeyMetadata
 	default:
 		return fmt.Errorf("replicating key: %w", err)
 	}
 
-	// Aliases are an independent property of multi-Region keys, so AWS does
-	// not copy them. Without one the replica is invisible to a plugin running
-	// in the replica region.
-	_, err = replicaClient.CreateAlias(ctx, &kms.CreateAliasInput{
-		AliasName:   aws.String(req.aliasName),
-		TargetKeyId: aws.String(replicaArn),
-	})
+	replicaArn, err := enabledReplicaArn(replicaMetadata)
 	if err != nil {
-		if !errors.As(err, &alreadyExistsErr) {
+		return err
+	}
+
+	if replicaAlreadyExists && len(req.tags) > 0 {
+		_, err = replicaClient.TagResource(ctx, &kms.TagResourceInput{
+			KeyId: aws.String(replicaArn),
+			Tags:  req.tags,
+		})
+		if err != nil {
+			return fmt.Errorf("tagging existing replica: %w", err)
+		}
+	}
+
+	aliasTargetArn, aliasExists, err := replicaAliasTarget(ctx, replicaClient, req.aliasName)
+	if err != nil {
+		return err
+	}
+	if !aliasExists {
+		_, err = replicaClient.CreateAlias(ctx, &kms.CreateAliasInput{
+			AliasName:   aws.String(req.aliasName),
+			TargetKeyId: aws.String(replicaArn),
+		})
+		switch {
+		case err == nil:
+		case errors.As(err, &alreadyExistsErr):
+			aliasTargetArn, aliasExists, err = replicaAliasTarget(ctx, replicaClient, req.aliasName)
+			if err != nil {
+				return err
+			}
+			if !aliasExists {
+				return errors.New("replica alias exists but its target cannot be found")
+			}
+		default:
 			return fmt.Errorf("creating replica alias: %w", err)
 		}
+	}
+
+	if aliasExists && aliasTargetArn != replicaArn {
 		_, err = replicaClient.UpdateAlias(ctx, &kms.UpdateAliasInput{
 			AliasName:   aws.String(req.aliasName),
 			TargetKeyId: aws.String(replicaArn),
@@ -842,34 +899,66 @@ func (p *Plugin) replicateKeyToRegion(ctx context.Context, req replicateRequest,
 		if err != nil {
 			return fmt.Errorf("updating replica alias: %w", err)
 		}
+		req.supersededKeyArns = append(req.supersededKeyArns, aliasTargetArn)
 	}
 
-	// Only once the alias points at the new replica is it safe to remove the
-	// one it displaced.
-	return p.deleteSupersededReplica(ctx, req, region, replicaClient)
+	return p.deleteSupersededReplicas(ctx, req, replicaArn, region, replicaClient)
 }
 
-// deleteSupersededReplica schedules deletion of the replica that the alias in
-// this region no longer points at. It runs only after the alias has been
-// repointed, so a server starting in the replica region never finds its alias
-// targeting a key pending deletion, which would fail plugin configuration.
-//
-// AWS will also not finish deleting a multi-Region primary while any replica of
-// it remains, so without this the superseded primary lingers in PendingDeletion
-// indefinitely.
-func (p *Plugin) deleteSupersededReplica(ctx context.Context, req replicateRequest, region string, replicaClient kmsClient) error {
-	if req.supersededKeyArn == "" {
-		return nil
+func enabledReplicaArn(metadata *types.KeyMetadata) (string, error) {
+	if metadata == nil || metadata.Arn == nil {
+		return "", errors.New("malformed replica key metadata: missing arn")
 	}
+	if metadata.KeyState != types.KeyStateEnabled {
+		return "", fmt.Errorf("replica key is not enabled: state=%q", metadata.KeyState)
+	}
+	return *metadata.Arn, nil
+}
 
-	supersededKeyID, ok := parseKeyIDFromArn(req.supersededKeyArn)
+func replicaAliasTarget(ctx context.Context, replicaClient kmsClient, aliasName string) (string, bool, error) {
+	describeResp, err := replicaClient.DescribeKey(ctx, &kms.DescribeKeyInput{KeyId: aws.String(aliasName)})
+	var notFoundErr *types.NotFoundException
+	switch {
+	case errors.As(err, &notFoundErr):
+		return "", false, nil
+	case err != nil:
+		return "", false, fmt.Errorf("describing replica alias target: %w", err)
+	case describeResp == nil || describeResp.KeyMetadata == nil || describeResp.KeyMetadata.Arn == nil:
+		return "", false, errors.New("malformed describe key response for replica alias")
+	default:
+		return *describeResp.KeyMetadata.Arn, true, nil
+	}
+}
+
+func (p *Plugin) deleteSupersededReplicas(ctx context.Context, req *replicateRequest, replicaArn, region string, replicaClient kmsClient) error {
+	currentKeyID, ok := parseKeyIDFromArn(replicaArn)
 	if !ok {
-		p.log.Error("Unable to determine key id for replica deletion", keyArnTag, req.supersededKeyArn)
-		return nil
+		return errors.New("unable to determine current replica key id")
 	}
+	seen := make(map[string]struct{}, len(req.supersededKeyArns))
+	for _, keyArn := range req.supersededKeyArns {
+		keyID, ok := parseKeyIDFromArn(keyArn)
+		if !ok {
+			p.log.Error("Unable to determine key id for replica deletion", keyArnTag, keyArn)
+			continue
+		}
+		if keyID == currentKeyID {
+			continue
+		}
+		if _, ok := seen[keyID]; ok {
+			continue
+		}
+		seen[keyID] = struct{}{}
+		if err := p.deleteSupersededReplica(ctx, keyArn, keyID, region, replicaClient); err != nil {
+			return err
+		}
+	}
+	return nil
+}
 
+func (p *Plugin) deleteSupersededReplica(ctx context.Context, keyArn, keyID, region string, replicaClient kmsClient) error {
 	_, err := replicaClient.ScheduleKeyDeletion(ctx, &kms.ScheduleKeyDeletionInput{
-		KeyId:               aws.String(supersededKeyID),
+		KeyId:               aws.String(keyID),
 		PendingWindowInDays: aws.Int32(7),
 	})
 
@@ -877,7 +966,7 @@ func (p *Plugin) deleteSupersededReplica(ctx context.Context, req replicateReque
 	var invalidStateErr *types.KMSInvalidStateException
 	switch {
 	case err == nil:
-		p.log.Debug("Superseded replica key scheduled for deletion", keyArnTag, req.supersededKeyArn, replicaTag, region)
+		p.log.Debug("Superseded replica key scheduled for deletion", keyArnTag, keyArn, replicaTag, region)
 		return nil
 	case errors.As(err, &notFoundErr):
 		// Never replicated into this region, or already gone.
@@ -1281,8 +1370,8 @@ func (p *Plugin) notifyDisposeKeys(err error) {
 	}
 }
 
-func (p *Plugin) createDefaultPolicy(ctx context.Context) (*string, error) {
-	result, err := p.stsClient.GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
+func (p *Plugin) createDefaultPolicy(ctx context.Context, client stsClient) (*string, error) {
+	result, err := client.GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
 	if err != nil {
 		return nil, fmt.Errorf("cannot get caller identity: %w", err)
 	}

@@ -93,7 +93,11 @@ When using key tagging, you must add the `kms:TagResource` permission to the IAM
 The plugin validates all user-defined tags during configuration. If any tag violates AWS KMS tagging constraints, the plugin will fail to configure and report a detailed error message indicating the specific validation failure.
 
 **Tag lifecycle**
-When the `key_tags` configuration block is updated, only newly created keys will be tagged with the new configuration. Existing keys will not have their tags updated.
+When the `key_tags` configuration block is updated, newly-created primary keys
+use the new configuration, but existing primary keys are not updated. Current
+replicas in `replica_regions` are reconciled during configuration, so the plugin
+applies the configured tag values to them again; tags that were removed from
+the configuration are not removed from existing replicas.
 
 ### Multi-Region Keys
 
@@ -105,18 +109,27 @@ material and can therefore produce interchangeable signatures.
 
 `multi_region` on its own only makes keys eligible; AWS never replicates a key
 by itself. Listing regions in `replica_regions` additionally makes the plugin
-replicate each new key into those regions and create the alias — and, under
-tag-based discovery, the tags — that a SPIRE server running there needs in
-order to find it. Aliases and tags are _independent_ properties of multi-Region
-keys, so AWS does not copy them and the plugin must create them per region.
+replicate each current and newly-created multi-Region primary key into those
+regions, then apply the description, policy, alias, and tags that the replica
+needs. These properties are _independent_ properties of multi-Region keys, so
+AWS does not copy or synchronize them between regions.
 
 Replication happens asynchronously on a retrying queue per replica region. Key
 generation is on the CA rotation path, so it never blocks on a replica region: a
 region that is temporarily unreachable is retried with a backoff while the SPIRE
 server continues to operate normally, and because each region has its own queue,
-one unreachable region does not delay replication into the others. When a key is rotated, the
-replica it displaced is deleted only after the alias in that region has been
-repointed, so the alias never targets a key that is pending deletion.
+one unreachable region does not delay replication into the others. The plugin
+also queues existing multi-Region primary keys during configuration, so a
+restart, reconfiguration, or newly-added replica region does not need to wait
+for the next key rotation. Existing single-Region keys and keys that are already
+replicas are not queued.
+
+AWS initially creates a replica in the `Creating` state, during which KMS allows
+its alias to be assigned even though the key cannot sign. The plugin waits for
+the replica to become `Enabled` before moving the alias. When a key is rotated,
+the replica that the destination alias actually displaced is deleted only after
+the alias has been repointed, so the alias never targets a key that is pending
+deletion.
 
 #### Limitations
 
@@ -144,10 +157,10 @@ is not active-active, and the following constraints apply.
   earlier are never replicated. The server replaces them as it rotates, so a
   deployment converges within roughly a day, during which the replica regions
   have partial coverage.
-- **Key policies are not replicated.** `ReplicateKey` attaches the AWS default
-  key policy unless one is supplied, so the policy this plugin applies — whether
-  from `key_policy_file` or the generated default described under
-  [Key policy](#key-policy) — does not carry over to a replica.
+- **Key policy changes are not synchronized after creation.** The plugin supplies
+  the policy configured by `key_policy_file`, or its generated default policy,
+  when it creates each replica. However, AWS still treats each replica policy as
+  independent, so an out-of-band policy change must be applied in every region.
 - **Cost and quota scale with the number of regions**, since each rotation
   creates a key in the primary region and one in every replica region.
 

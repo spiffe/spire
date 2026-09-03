@@ -19,6 +19,7 @@ import (
 
 	"github.com/andres-erbsen/clock"
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/kms"
 	"github.com/aws/aws-sdk-go-v2/service/kms/types"
 	rgtatypes "github.com/aws/aws-sdk-go-v2/service/resourcegroupstaggingapi/types"
 	"github.com/aws/smithy-go"
@@ -2907,6 +2908,10 @@ func advanceUntilSignal(t *testing.T, c *clock.Mock, ch chan error) error {
 }
 
 func configureReplicaRequest(t *testing.T, replicaRegions ...string) *configv1.ConfigureRequest {
+	return configureReplicaRequestWithKeyPolicy(t, "", replicaRegions...)
+}
+
+func configureReplicaRequestWithKeyPolicy(t *testing.T, keyPolicyFile string, replicaRegions ...string) *configv1.ConfigureRequest {
 	regions, err := json.Marshal(replicaRegions)
 	require.NoError(t, err)
 
@@ -2917,10 +2922,11 @@ func configureReplicaRequest(t *testing.T, replicaRegions ...string) *configv1.C
 			"secret_access_key": %q,
 			"region": %q,
 			"key_identifier_file": %q,
+			"key_policy_file": %q,
 			"enable_tag_based_key_discovery": true,
 			"multi_region": true,
 			"replica_regions": %s
-		}`, validAccessKeyID, validSecretAccessKey, validRegion, getKeyIdentifierFile(t), regions),
+		}`, validAccessKeyID, validSecretAccessKey, validRegion, getKeyIdentifierFile(t), keyPolicyFile, regions),
 	}
 }
 
@@ -2998,6 +3004,218 @@ func TestReplicateKeyDeletesSupersededReplica(t *testing.T) {
 	replicaAliases := replica.store.ListAliases()
 	require.Len(t, replicaAliases, 1)
 	require.NotEqual(t, deletions[0], *replicaAliases[0].KeyEntry.KeyID)
+}
+
+func TestReplicateKeyDeletesReplicaSkippedByRotation(t *testing.T) {
+	const replicaRegion = "ap-northeast-1"
+	ts, replicas := setupReplicaTest(t, replicaRegion)
+
+	_, err := ts.plugin.Configure(ctx, configureReplicaRequest(t, replicaRegion))
+	require.NoError(t, err)
+
+	generate := func() string {
+		_, err := ts.plugin.GenerateKey(ctx, &keymanagerv1.GenerateKeyRequest{
+			KeyId:   spireKeyID,
+			KeyType: keymanagerv1.KeyType_EC_P256,
+		})
+		require.NoError(t, err)
+
+		ts.plugin.mu.RLock()
+		keyArn := ts.plugin.entries[spireKeyID].Arn
+		ts.plugin.mu.RUnlock()
+		keyID, ok := parseKeyIDFromArn(keyArn)
+		require.True(t, ok)
+		return keyID
+	}
+
+	firstKeyID := generate()
+	require.NoError(t, waitForSignal(t, ts.plugin.hooks.replicateSignal))
+
+	ts.fakeKMSClient.setReplicateKeyErr(errors.New("replica region unreachable"))
+	secondKeyID := generate()
+	require.Error(t, waitForSignal(t, ts.plugin.hooks.replicateSignal))
+
+	thirdKeyID := generate()
+	ts.fakeKMSClient.setReplicateKeyErr(nil)
+	require.NoError(t, advanceUntilSignal(t, ts.clockHook, ts.plugin.hooks.replicateSignal))
+	require.NoError(t, waitForSignal(t, ts.plugin.hooks.replicateSignal))
+
+	replicaAliases := replicas[replicaRegion].store.ListAliases()
+	require.Len(t, replicaAliases, 1)
+	require.Equal(t, thirdKeyID, *replicaAliases[0].KeyEntry.KeyID)
+
+	replicas[replicaRegion].mu.RLock()
+	deletions := append([]string(nil), replicas[replicaRegion].scheduleKeyDeletionCalls...)
+	replicas[replicaRegion].mu.RUnlock()
+	require.ElementsMatch(t, []string{firstKeyID, secondKeyID}, deletions)
+}
+
+func TestConfigureReconcilesExistingMultiRegionKeys(t *testing.T) {
+	const replicaRegion = "ap-northeast-1"
+	ts, replicas := setupReplicaTest(t, replicaRegion)
+
+	_, err := ts.plugin.Configure(ctx, configureRequestWithMultiRegion(t, true))
+	require.NoError(t, err)
+	_, err = ts.plugin.GenerateKey(ctx, &keymanagerv1.GenerateKeyRequest{
+		KeyId:   spireKeyID,
+		KeyType: keymanagerv1.KeyType_EC_P256,
+	})
+	require.NoError(t, err)
+
+	_, err = ts.plugin.Configure(ctx, configureReplicaRequest(t, replicaRegion))
+	require.NoError(t, err)
+
+	require.Eventually(t, func() bool {
+		return len(replicas[replicaRegion].store.ListAliases()) == 1
+	}, time.Second, time.Millisecond)
+	ts.fakeKMSClient.mu.RLock()
+	replicateCallCount := len(ts.fakeKMSClient.replicateKeyCalls)
+	ts.fakeKMSClient.mu.RUnlock()
+	require.Equal(t, 1, replicateCallCount)
+}
+
+func TestConfigureDoesNotReconcileSingleRegionKeys(t *testing.T) {
+	const replicaRegion = "ap-northeast-1"
+	ts, _ := setupReplicaTest(t, replicaRegion)
+
+	_, err := ts.plugin.Configure(ctx, configureRequestWithDefaults(t))
+	require.NoError(t, err)
+	_, err = ts.plugin.GenerateKey(ctx, &keymanagerv1.GenerateKeyRequest{
+		KeyId:   spireKeyID,
+		KeyType: keymanagerv1.KeyType_EC_P256,
+	})
+	require.NoError(t, err)
+
+	_, err = ts.plugin.Configure(ctx, configureReplicaRequest(t, replicaRegion))
+	require.NoError(t, err)
+
+	require.Never(t, func() bool {
+		ts.fakeKMSClient.mu.RLock()
+		defer ts.fakeKMSClient.mu.RUnlock()
+		return len(ts.fakeKMSClient.replicateKeyCalls) > 0
+	}, 100*time.Millisecond, time.Millisecond)
+}
+
+func TestConfigureDoesNotReconcileReplicaKeys(t *testing.T) {
+	const replicaRegion = "ap-northeast-1"
+	ts, _ := setupReplicaTest(t, replicaRegion)
+	ts.fakeKMSClient.setEntries([]fakeKeyEntry{
+		{
+			AliasName:          aws.String(aliasName),
+			KeyID:              aws.String(keyID),
+			KeySpec:            types.KeySpecEccNistP256,
+			Enabled:            true,
+			PublicKey:          []byte("public key"),
+			MultiRegion:        true,
+			MultiRegionKeyType: types.MultiRegionKeyTypeReplica,
+		},
+	})
+
+	_, err := ts.plugin.Configure(ctx, configureReplicaRequest(t, replicaRegion))
+	require.NoError(t, err)
+
+	require.Never(t, func() bool {
+		ts.fakeKMSClient.mu.RLock()
+		defer ts.fakeKMSClient.mu.RUnlock()
+		return len(ts.fakeKMSClient.replicateKeyCalls) > 0
+	}, 100*time.Millisecond, time.Millisecond)
+}
+
+func TestReplicateKeyPreservesPolicyAndDescription(t *testing.T) {
+	const replicaRegion = "ap-northeast-1"
+	for _, tt := range []struct {
+		name             string
+		configureRequest func(*testing.T) *configv1.ConfigureRequest
+		account          string
+		roleARN          string
+		policy           string
+	}{
+		{
+			name: "generated policy",
+			configureRequest: func(t *testing.T) *configv1.ConfigureRequest {
+				return configureReplicaRequest(t, replicaRegion)
+			},
+			account: "example-account-id",
+			roleARN: "arn:aws:sts::example-account-id:assumed-role/example-assumed-role-name/example-instance-id",
+			policy:  roleBasedPolicy,
+		},
+		{
+			name: "configured policy",
+			configureRequest: func(t *testing.T) *configv1.ConfigureRequest {
+				return configureReplicaRequestWithKeyPolicy(t, getCustomPolicyFile(t), replicaRegion)
+			},
+			policy: customPolicy,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			ts, _ := setupReplicaTest(t, replicaRegion)
+			ts.fakeSTSClient.setGetCallerIdentityAccount(tt.account)
+			ts.fakeSTSClient.setGetCallerIdentityArn(tt.roleARN)
+			ts.fakeKMSClient.setExpectedKeyPolicy(aws.String(tt.policy))
+
+			_, err := ts.plugin.Configure(ctx, tt.configureRequest(t))
+			require.NoError(t, err)
+			_, err = ts.plugin.GenerateKey(ctx, &keymanagerv1.GenerateKeyRequest{
+				KeyId:   spireKeyID,
+				KeyType: keymanagerv1.KeyType_EC_P256,
+			})
+			require.NoError(t, err)
+			require.NoError(t, waitForSignal(t, ts.plugin.hooks.replicateSignal))
+
+			ts.fakeKMSClient.mu.RLock()
+			replicateCalls := append([]kms.ReplicateKeyInput(nil), ts.fakeKMSClient.replicateKeyCalls...)
+			ts.fakeKMSClient.mu.RUnlock()
+			require.Len(t, replicateCalls, 1)
+			replicateCall := replicateCalls[0]
+			require.Equal(t, tt.policy, aws.ToString(replicateCall.Policy))
+			require.Equal(t, ts.plugin.descriptionFromSpireKeyID(spireKeyID), aws.ToString(replicateCall.Description))
+		})
+	}
+}
+
+func TestReplicateKeyWaitsUntilReplicaIsEnabled(t *testing.T) {
+	const replicaRegion = "ap-northeast-1"
+	ts, replicas := setupReplicaTest(t, replicaRegion)
+
+	_, err := ts.plugin.Configure(ctx, configureReplicaRequest(t, replicaRegion))
+	require.NoError(t, err)
+	_, err = ts.plugin.GenerateKey(ctx, &keymanagerv1.GenerateKeyRequest{
+		KeyId:   spireKeyID,
+		KeyType: keymanagerv1.KeyType_EC_P256,
+	})
+	require.NoError(t, err)
+	require.NoError(t, waitForSignal(t, ts.plugin.hooks.replicateSignal))
+
+	firstAliases := replicas[replicaRegion].store.ListAliases()
+	require.Len(t, firstAliases, 1)
+	firstKeyID := *firstAliases[0].KeyEntry.KeyID
+
+	ts.fakeKMSClient.setReplicateKeyState(types.KeyStateCreating)
+	_, err = ts.plugin.GenerateKey(ctx, &keymanagerv1.GenerateKeyRequest{
+		KeyId:   spireKeyID,
+		KeyType: keymanagerv1.KeyType_EC_P256,
+	})
+	require.NoError(t, err)
+	require.Error(t, waitForSignal(t, ts.plugin.hooks.replicateSignal))
+
+	ts.plugin.mu.RLock()
+	secondKeyArn := ts.plugin.entries[spireKeyID].Arn
+	ts.plugin.mu.RUnlock()
+	secondKeyID, ok := parseKeyIDFromArn(secondKeyArn)
+	require.True(t, ok)
+
+	aliasesWhileCreating := replicas[replicaRegion].store.ListAliases()
+	require.Len(t, aliasesWhileCreating, 1)
+	require.Equal(t, firstKeyID, *aliasesWhileCreating[0].KeyEntry.KeyID)
+	require.Empty(t, replicas[replicaRegion].scheduleKeyDeletionCalls)
+
+	replicas[replicaRegion].setKeyState(secondKeyID, types.KeyStateEnabled)
+	require.NoError(t, advanceUntilSignal(t, ts.clockHook, ts.plugin.hooks.replicateSignal))
+
+	enabledAliases := replicas[replicaRegion].store.ListAliases()
+	require.Len(t, enabledAliases, 1)
+	require.Equal(t, secondKeyID, *enabledAliases[0].KeyEntry.KeyID)
+	require.Equal(t, []string{firstKeyID}, replicas[replicaRegion].scheduleKeyDeletionCalls)
 }
 
 // TestReplicateKeyRetries verifies that a failing region is retried rather than
