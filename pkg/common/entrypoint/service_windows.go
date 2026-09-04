@@ -19,7 +19,7 @@ const supportedCommand = "run"
 // the service to define, and the SCM delivers them without the service having
 // to accept them first, so no change to the accepted set is needed.
 //
-//	sc.exe control spire-agent 128
+//	sc.exe control <service name> 128
 const reopenLogControlCode = svc.Cmd(128)
 
 type service struct {
