@@ -109,10 +109,10 @@ When `experimental.require_pq_kem` is enabled, it overrides `min_tls_version` an
 | `organization`              | Array of `Organization` values |                |
 | `common_name`               | The `CommonName` value         |                |
 
-| log_file_rotation | Description                                                                                                                                                                               | Default |
-|:------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------|
-| `max_size_mb`     | Size in MiB that `log_file` may reach before it is rotated. An explicit `0` disables size based rotation, leaving it to `SIGUSR2` on POSIX or the reopen control code on Windows                                                | 100     |
-| `max_files`       | Number of rotated files to retain, not counting the file currently being written. An explicit `0` retains every rotated file                                                              | 7       |
+| log_file_rotation | Description                                                                                                                                                                      | Default |
+|:------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------|
+| `max_size_mb`     | Size in MiB that `log_file` may reach before it is rotated. An explicit `0` disables size based rotation, leaving it to `SIGUSR2` on POSIX or the reopen control code on Windows | 100     |
+| `max_files`       | Number of rotated files to retain, not counting the file currently being written. An explicit `0` retains every rotated file                                                     | 7       |
 
 Requires `log_file` to be set. Rotation moves the accumulated content aside to a
 timestamped sibling of `log_file` (for example `server-2026-08-18T22-43-01.123.log`)

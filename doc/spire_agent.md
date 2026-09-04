@@ -83,10 +83,10 @@ This may be useful for templating configuration files, for example across differ
 | `x509_svid_cache_max_size`        | Soft limit of max number of X509-SVIDs that would be stored in LRU cache                                                                                                                                                                          | 1000                             |
 | `jwt_svid_cache_max_size`         | Hard limit of max number of JWT-SVIDs that would be stored in LRU cache                                                                                                                                                                           | 1000                             |
 
-| log_file_rotation | Description                                                                                                                                                                               | Default |
-|:------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------|
-| `max_size_mb`     | Size in MiB that `log_file` may reach before it is rotated. An explicit `0` disables size based rotation, leaving it to `SIGUSR2` on POSIX or the reopen control code on Windows                                                | 100     |
-| `max_files`       | Number of rotated files to retain, not counting the file currently being written. An explicit `0` retains every rotated file                                                              | 7       |
+| log_file_rotation | Description                                                                                                                                                                      | Default |
+|:------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------|
+| `max_size_mb`     | Size in MiB that `log_file` may reach before it is rotated. An explicit `0` disables size based rotation, leaving it to `SIGUSR2` on POSIX or the reopen control code on Windows | 100     |
+| `max_files`       | Number of rotated files to retain, not counting the file currently being written. An explicit `0` retains every rotated file                                                     | 7       |
 
 Requires `log_file` to be set. Rotation moves the accumulated content aside to a
 timestamped sibling of `log_file` (for example `agent-2026-08-18T22-43-01.123.log`)
