@@ -150,10 +150,9 @@ func ParseJWTAuthorities(keys []*types.JWTKey) ([]*common.PublicKey, error) {
 		}
 
 		jwtKeys = append(jwtKeys, &common.PublicKey{
-			PkixBytes:  key.PublicKey,
-			Kid:        key.KeyId,
-			NotAfter:   key.ExpiresAt,
-			TaintedKey: key.Tainted,
+			PkixBytes: key.PublicKey,
+			Kid:       key.KeyId,
+			NotAfter:  key.ExpiresAt,
 		})
 	}
 
@@ -172,10 +171,9 @@ func ParseWITAuthorities(keys []*types.WITKey) ([]*common.PublicKey, error) {
 		}
 
 		witKeys = append(witKeys, &common.PublicKey{
-			PkixBytes:  key.PublicKey,
-			Kid:        key.KeyId,
-			NotAfter:   key.ExpiresAt,
-			TaintedKey: key.Tainted,
+			PkixBytes: key.PublicKey,
+			Kid:       key.KeyId,
+			NotAfter:  key.ExpiresAt,
 		})
 	}
 

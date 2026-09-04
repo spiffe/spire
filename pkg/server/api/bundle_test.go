@@ -165,7 +165,6 @@ func TestProtoToBundle(t *testing.T) {
 						PublicKey: pkixBytes,
 						KeyId:     "key-id-1",
 						ExpiresAt: 1590514224,
-						Tainted:   true,
 					},
 				},
 				WitAuthorities: []*types.WITKey{
@@ -173,7 +172,6 @@ func TestProtoToBundle(t *testing.T) {
 						PublicKey: pkixBytes,
 						KeyId:     "wit-key-id-1",
 						ExpiresAt: 1590514224,
-						Tainted:   true,
 					},
 				},
 			},
@@ -184,18 +182,16 @@ func TestProtoToBundle(t *testing.T) {
 				RootCas:        []*common.Certificate{{DerBytes: rootCA.Raw}},
 				JwtSigningKeys: []*common.PublicKey{
 					{
-						PkixBytes:  pkixBytes,
-						Kid:        "key-id-1",
-						NotAfter:   1590514224,
-						TaintedKey: true,
+						PkixBytes: pkixBytes,
+						Kid:       "key-id-1",
+						NotAfter:  1590514224,
 					},
 				},
 				WitSigningKeys: []*common.PublicKey{
 					{
-						PkixBytes:  pkixBytes,
-						Kid:        "wit-key-id-1",
-						NotAfter:   1590514224,
-						TaintedKey: true,
+						PkixBytes: pkixBytes,
+						Kid:       "wit-key-id-1",
+						NotAfter:  1590514224,
 					},
 				},
 			},
