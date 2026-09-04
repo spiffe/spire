@@ -47,6 +47,7 @@ The configuration file is **required** by the provider. It contains
 | `log_format`            | string  | optional           | Format of the logs (either `"TEXT"` or `"JSON"`)                                               | `""`     |
 | `log_level`             | string  | required           | Log level (one of `"error"`,`"warn"`,`"info"`,`"debug"`)                                       | `"info"` |
 | `log_path`              | string  | optional           | Path on disk to write the log.                                                                 |          |
+| `log_file_rotation`     | section | optional           | Rotates `log_path` in process. Requires `log_path`. Disabled unless configured.                |          |
 | `log_requests`          | bool    | optional           | If true, all HTTP requests are logged at the debug level                                       | `false`  |
 | `server_api`            | section | required\[2\]      | Provides SPIRE Server API details.                                                             |          |
 | `workload_api`          | section | required\[2\]      | Provides Workload API details.                                                                 |          |
@@ -60,6 +61,20 @@ The configuration file is **required** by the provider. It contains
 | experimental             | Type   | Required?          | Description                                          | Default |
 |--------------------------|--------|--------------------|------------------------------------------------------|---------|
 | `listen_named_pipe_name` | string | required\[1\]\[3\] | Pipe name to listen with a named pipe. Windows only. |         |
+
+| log_file_rotation | Type | Required? | Description                                                                                           | Default |
+|-------------------|------|-----------|-------------------------------------------------------------------------------------------------------|---------|
+| `max_size_mb`     | int  | optional  | Size in MiB `log_path` may reach before it is rotated. An explicit `0` disables size based rotation.  | `100`   |
+| `max_files`       | int  | optional  | Rotated files to retain, not counting the active file. An explicit `0` retains every rotated file.    | `7`     |
+
+Rotation moves the accumulated content aside to a timestamped sibling of
+`log_path` (for example `oidc-2026-08-18T22-43-01.123.log`) and continues writing
+to `log_path` itself. Retention is applied when a rotation happens, not on a
+timer.
+
+The provider does not respond to `SIGUSR2`, so an external rotator can move the
+file aside but cannot make the provider start a new one. That makes this section
+the only way to bound growth of `log_path`.
 
 <!-- markdownlint-configure-file { "MD053": false } -->
 

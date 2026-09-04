@@ -83,6 +83,7 @@ type serverConfig struct {
 	JWTIssuer                    string               `hcl:"jwt_issuer"`
 	JWTKeyType                   string               `hcl:"jwt_key_type"`
 	LogFile                      string               `hcl:"log_file"`
+	LogFileRotation              *log.RotationConfig  `hcl:"log_file_rotation"`
 	LogLevel                     string               `hcl:"log_level"`
 	LogFormat                    string               `hcl:"log_format"`
 	LogSourceLocation            bool                 `hcl:"log_source_location"`
@@ -412,10 +413,10 @@ func newServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig, ski
 	if c.Server.LogSourceLocation {
 		logOptions = append(logOptions, log.WithSourceLocation())
 	}
-	var reopenableFile *log.ReopenableFile
+	var reopenableFile log.ReopenableWriteCloser
 	if c.Server.LogFile != "" && !skipLogFile {
 		var err error
-		reopenableFile, err = log.NewReopenableFile(c.Server.LogFile)
+		reopenableFile, err = log.NewOutputFile(c.Server.LogFile, c.Server.LogFileRotation)
 		if err != nil {
 			return nil, err
 		}
@@ -427,6 +428,10 @@ func newServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig, ski
 		return nil, fmt.Errorf("could not start logger: %w", err)
 	}
 	sc.Log = logger
+
+	if lr := c.Server.LogFileRotation; lr != nil && lr.SizeRotationDisabled() && !log.ReopenOnSignalSupported {
+		logger.Warn("log_file_rotation is configured with max_size_mb = 0 and nothing can trigger a rotation on this platform, so the log file will not be rotated")
+	}
 
 	if reopenableFile != nil {
 		sc.LogReopener = log.ReopenOnSignal(logger, reopenableFile)
@@ -965,6 +970,15 @@ func validateConfig(c *Config) error {
 		return errors.New("plugins section must be configured")
 	}
 
+	if c.Server.LogFileRotation != nil {
+		if c.Server.LogFile == "" {
+			return errors.New("log_file must be configured to use log_file_rotation")
+		}
+		if err := c.Server.LogFileRotation.Validate(); err != nil {
+			return fmt.Errorf("invalid log_file_rotation configuration: %w", err)
+		}
+	}
+
 	if c.Server.Federation != nil {
 		if c.Server.Federation.BundleEndpoint != nil &&
 			c.Server.Federation.BundleEndpoint.ACME != nil {
@@ -1028,6 +1042,10 @@ func checkForUnknownConfig(c *Config, l logrus.FieldLogger) (err error) {
 
 		if cs := c.Server.CASubject; cs != nil && len(cs.UnusedKeyPositions) != 0 {
 			detectedUnknown("ca_subject", cs.UnusedKeyPositions)
+		}
+
+		if lr := c.Server.LogFileRotation; lr != nil && len(lr.UnusedKeyPositions) != 0 {
+			detectedUnknown("log_file_rotation", lr.UnusedKeyPositions)
 		}
 
 		if rl := c.Server.RateLimit; len(rl.UnusedKeyPositions) != 0 {

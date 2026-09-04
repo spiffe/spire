@@ -1020,6 +1020,80 @@ func TestNewAgentConfig(t *testing.T) {
 			},
 		},
 		{
+			// not an OS specific case: unlike the signal based reopen, in
+			// process rotation works on every platform
+			msg: "log_file_rotation configures a self rotating log file",
+			input: func(c *Config) {
+				c.Agent.LogFile = filepath.Join(spiretest.TempDir(t), "agent.log")
+				c.Agent.LogFileRotation = &log.RotationConfig{MaxSizeMB: new(10), MaxFiles: new(3)}
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.NotNil(t, c.Log)
+				require.NotNil(t, c.LogReopener)
+
+				l := c.Log.(*log.Logger)
+				// the temp dir cannot be removed on Windows while the log
+				// file is still open
+				t.Cleanup(func() { _ = l.Close() })
+
+				rotatable, ok := l.Out.(*log.RotatableFile)
+				require.True(t, ok, "expected a RotatableFile, got %T", l.Out)
+				require.FileExists(t, rotatable.Name())
+			},
+		},
+		{
+			msg: "log_file without log_file_rotation stays reopenable",
+			input: func(c *Config) {
+				c.Agent.LogFile = filepath.Join(spiretest.TempDir(t), "agent.log")
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.NotNil(t, c.Log)
+				require.NotNil(t, c.LogReopener)
+
+				l := c.Log.(*log.Logger)
+				// the temp dir cannot be removed on Windows while the log
+				// file is still open
+				t.Cleanup(func() { _ = l.Close() })
+
+				require.IsType(t, &log.ReopenableFile{}, l.Out)
+			},
+		},
+		{
+			msg:                "log_file_rotation without log_file returns an error",
+			expectError:        true,
+			requireErrorPrefix: "log_file must be configured to use log_file_rotation",
+			input: func(c *Config) {
+				c.Agent.LogFileRotation = &log.RotationConfig{MaxSizeMB: new(10)}
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
+			msg:                "negative log_file_rotation max_size_mb returns an error",
+			expectError:        true,
+			requireErrorPrefix: "invalid log_file_rotation configuration: max_size_mb (-1) must not be negative",
+			input: func(c *Config) {
+				c.Agent.LogFile = "foo"
+				c.Agent.LogFileRotation = &log.RotationConfig{MaxSizeMB: new(-1)}
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
+			msg:                "negative log_file_rotation max_files returns an error",
+			expectError:        true,
+			requireErrorPrefix: "invalid log_file_rotation configuration: max_files (-1) must not be negative",
+			input: func(c *Config) {
+				c.Agent.LogFile = "foo"
+				c.Agent.LogFileRotation = &log.RotationConfig{MaxFiles: new(-1)}
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
 			msg: "sync_interval parses a duration",
 			input: func(c *Config) {
 				c.Agent.Experimental.SyncInterval = "2s45ms"
@@ -1833,6 +1907,16 @@ func TestWarnOnUnknownConfig(t *testing.T) {
 			expectedLogEntries: []logEntry{
 				{
 					section: "ratelimit",
+					keys:    "unknown_option1,unknown_option2",
+				},
+			},
+		},
+		{
+			msg:      "in nested log_file_rotation block",
+			confFile: "agent_bad_nested_log_file_rotation_block.conf",
+			expectedLogEntries: []logEntry{
+				{
+					section: "log_file_rotation",
 					keys:    "unknown_option1,unknown_option2",
 				},
 			},
