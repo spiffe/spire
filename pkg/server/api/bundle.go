@@ -208,6 +208,10 @@ func FieldsFromBundleProto(proto *types.Bundle, inputMask *types.BundleMask) log
 		maps.Copy(fields, FieldsFromJwtAuthoritiesProto(proto.JwtAuthorities))
 	}
 
+	if inputMask == nil || inputMask.WitAuthorities {
+		maps.Copy(fields, FieldsFromWITAuthoritiesProto(proto.WitAuthorities))
+	}
+
 	if inputMask == nil || inputMask.X509Authorities {
 		maps.Copy(fields, FieldsFromX509AuthoritiesProto(proto.X509Authorities))
 	}
@@ -220,6 +224,17 @@ func FieldsFromJwtAuthoritiesProto(jwtAuthorities []*types.JWTKey) logrus.Fields
 		fields[fmt.Sprintf("%s.%d", telemetry.JWTAuthorityExpiresAt, i)] = jwtAuthority.ExpiresAt
 		fields[fmt.Sprintf("%s.%d", telemetry.JWTAuthorityKeyID, i)] = jwtAuthority.KeyId
 		fields[fmt.Sprintf("%s.%d", telemetry.JWTAuthorityPublicKeySHA256, i)] = HashByte(jwtAuthority.PublicKey)
+	}
+
+	return fields
+}
+
+func FieldsFromWITAuthoritiesProto(witAuthorities []*types.WITKey) logrus.Fields {
+	fields := make(logrus.Fields, 3*len(witAuthorities))
+	for i, witAuthority := range witAuthorities {
+		fields[fmt.Sprintf("%s.%d", telemetry.WITAuthorityExpiresAt, i)] = witAuthority.ExpiresAt
+		fields[fmt.Sprintf("%s.%d", telemetry.WITAuthorityKeyID, i)] = witAuthority.KeyId
+		fields[fmt.Sprintf("%s.%d", telemetry.WITAuthorityPublicKeySHA256, i)] = HashByte(witAuthority.PublicKey)
 	}
 
 	return fields

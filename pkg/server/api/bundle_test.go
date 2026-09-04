@@ -337,6 +337,13 @@ func TestFieldsFromBundleProto(t *testing.T) {
 				ExpiresAt: 1590514224,
 			},
 		},
+		WitAuthorities: []*types.WITKey{
+			{
+				PublicKey: pkixBytes,
+				KeyId:     "wit-key-id-1",
+				ExpiresAt: 1590514225,
+			},
+		},
 	}
 
 	for _, tt := range []struct {
@@ -356,7 +363,21 @@ func TestFieldsFromBundleProto(t *testing.T) {
 				telemetry.RefreshHint:               int64(10),
 				telemetry.SequenceNumber:            uint64(42),
 				telemetry.TrustDomainID:             "example.org",
+				"wit_authority_expires_at.0":        int64(1590514225),
+				"wit_authority_key_id.0":            "wit-key-id-1",
+				"wit_authority_public_key_sha256.0": pkixHashed,
 				"x509_authorities_asn1_sha256.0":    rootCAHashed,
+			},
+		},
+		{
+			name:  "WIT authorities mask",
+			proto: bundle,
+			mask:  &types.BundleMask{WitAuthorities: true},
+			expectFields: logrus.Fields{
+				telemetry.TrustDomainID:             "example.org",
+				"wit_authority_expires_at.0":        int64(1590514225),
+				"wit_authority_key_id.0":            "wit-key-id-1",
+				"wit_authority_public_key_sha256.0": pkixHashed,
 			},
 		},
 		{
