@@ -9,7 +9,10 @@ import (
 // rotating file could not report itself.
 func ReopenOnSignal(logger *Logger, reopener Reopener) func(context.Context) error {
 	return func(ctx context.Context) error {
-		watchLog(ctx, logger, reopener, nil, rotateErrorInterval)
+		tickCh, stopTicker := rotateErrorTicker(reopener)
+		defer stopTicker()
+
+		watchLog(ctx, logger, reopener, nil, tickCh)
 		return nil
 	}
 }

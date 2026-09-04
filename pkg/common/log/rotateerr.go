@@ -22,17 +22,22 @@ type rotateErrorSource interface {
 	TakeRotateError() error
 }
 
-// watchLog reopens the log on every value from signalCh and reports rotation
-// failures that the writer could not report itself. signalCh is nil on
-// platforms without a reopen signal, and a receive on a nil channel blocks
-// forever, so both platforms run the same loop.
-func watchLog(ctx context.Context, logger *Logger, reopener Reopener, signalCh <-chan os.Signal, interval time.Duration) {
-	// Only a self rotating file has failures to drain.
-	source, _ := reopener.(rotateErrorSource)
+// rotateErrorTicker returns the channel that paces draining of rotation
+// failures, or nil when the writer has none to report. A receive on a nil
+// channel blocks forever, so the caller needs no special case.
+func rotateErrorTicker(reopener Reopener) (<-chan time.Time, func()) {
+	if _, ok := reopener.(rotateErrorSource); !ok {
+		return nil, func() {}
+	}
+	ticker := time.NewTicker(rotateErrorInterval)
+	return ticker.C, ticker.Stop
+}
 
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
-
+// watchLog reopens the log on every value from signalCh and drains rotation
+// failures on every value from tickCh. Either channel is nil where that source
+// does not apply, signalCh on Windows and tickCh for a writer that does not
+// rotate itself, so both platforms run the same loop.
+func watchLog(ctx context.Context, logger *Logger, reopener Reopener, signalCh <-chan os.Signal, tickCh <-chan time.Time) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -42,8 +47,9 @@ func watchLog(ctx context.Context, logger *Logger, reopener Reopener, signalCh <
 				// never fail; best effort to log to old file descriptor
 				logger.WithError(err).Error(failedToReopenMsg)
 			}
-		case <-ticker.C:
-			if source == nil {
+		case <-tickCh:
+			source, ok := reopener.(rotateErrorSource)
+			if !ok {
 				continue
 			}
 			if err := source.TakeRotateError(); err != nil {

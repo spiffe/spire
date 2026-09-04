@@ -38,16 +38,18 @@ func TestWatchLogReportsRotationFailure(t *testing.T) {
 
 	logger, hook := newNullLogger()
 
+	tickCh := make(chan time.Time)
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		watchLog(ctx, logger, rf, nil, time.Millisecond)
+		watchLog(ctx, logger, rf, nil, tickCh)
 	}()
 
+	tickCh <- time.Now()
 	require.Eventually(t, func() bool {
 		return len(hook.AllEntries()) > 0
-	}, time.Second, 5*time.Millisecond, "the failure should be reported")
+	}, time.Second, time.Millisecond, "the failure should be reported")
 
 	cancel()
 	<-done
@@ -61,10 +63,36 @@ func TestWatchLogReportsRotationFailure(t *testing.T) {
 	assert.NoError(t, rf.TakeRotateError())
 }
 
-// A ReopenableFile has no rotation of its own, so there is nothing to drain.
-func TestWatchLogIgnoresWritersWithoutRotation(t *testing.T) {
+// A ReopenableFile has no rotation of its own, so it gets no ticker at all and
+// there is nothing to drain.
+func TestRotateErrorTickerOnlyForSelfRotatingFiles(t *testing.T) {
 	dir := spiretest.TempDir(t)
-	rf, err := NewReopenableFile(filepath.Join(dir, "test.log"))
+
+	reopenable, err := NewReopenableFile(filepath.Join(dir, "reopenable.log"))
+	require.NoError(t, err)
+	defer func() {
+		_ = reopenable.Close()
+	}()
+
+	tickCh, stop := rotateErrorTicker(reopenable)
+	stop()
+	assert.Nil(t, tickCh, "a writer with nothing to drain gets no ticker")
+
+	rotatable, err := NewRotatableFile(filepath.Join(dir, "rotatable.log"), RotationConfig{})
+	require.NoError(t, err)
+	defer func() {
+		_ = rotatable.Close()
+	}()
+
+	tickCh, stop = rotateErrorTicker(rotatable)
+	defer stop()
+	assert.NotNil(t, tickCh, "a self rotating writer is drained")
+}
+
+// A tick with nothing recorded must stay quiet.
+func TestWatchLogQuietWithoutFailure(t *testing.T) {
+	dir := spiretest.TempDir(t)
+	rf, err := NewRotatableFile(filepath.Join(dir, "test.log"), RotationConfig{})
 	require.NoError(t, err)
 	defer func() {
 		_ = rf.Close()
@@ -72,14 +100,18 @@ func TestWatchLogIgnoresWritersWithoutRotation(t *testing.T) {
 
 	logger, hook := newNullLogger()
 
+	tickCh := make(chan time.Time)
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		watchLog(ctx, logger, rf, nil, time.Millisecond)
+		watchLog(ctx, logger, rf, nil, tickCh)
 	}()
 
-	time.Sleep(20 * time.Millisecond)
+	// Two ticks, so the second only returns once the first was handled.
+	tickCh <- time.Now()
+	tickCh <- time.Now()
+
 	cancel()
 	<-done
 

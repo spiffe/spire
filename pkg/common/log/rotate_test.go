@@ -350,6 +350,40 @@ func TestRotatableFileIgnoresCloseFailure(t *testing.T) {
 	assert.Len(t, backupNames(t, logPath), 1)
 }
 
+// The rename succeeds but the fresh open fails, so the writer keeps the old
+// descriptor and carries on writing into the file that was moved aside. That
+// restore is why Write needs no nil handling.
+func TestRotatableFileKeepsOldDescriptorWhenOpenFails(t *testing.T) {
+	dir := spiretest.TempDir(t)
+	logPath := filepath.Join(dir, "test.log")
+
+	rf, _ := newTestRotatableFile(t, logPath, RotationConfig{MaxSizeMB: new(0), MaxFiles: new(0)})
+
+	_, err := rf.Write([]byte("before"))
+	require.NoError(t, err)
+
+	openErr := errors.New("open boom")
+	rf.openFunc = func(string) (*os.File, error) { return nil, openErr }
+
+	require.ErrorIs(t, rf.Reopen(), openErr)
+
+	// The line still lands, in the rotated file rather than at the configured
+	// path, which beats dropping it.
+	_, err = rf.Write([]byte(" after"))
+	require.NoError(t, err)
+
+	backups := backupNames(t, logPath)
+	require.Len(t, backups, 1)
+	assert.Equal(t, "before after", readFile(t, filepath.Join(dir, backups[0])))
+
+	// Once opening works again the writer returns to the configured path.
+	rf.openFunc = openLogFile
+	require.NoError(t, rf.Reopen())
+	_, err = rf.Write([]byte("recovered"))
+	require.NoError(t, err)
+	assert.Equal(t, "recovered", readFile(t, logPath))
+}
+
 func TestRotatableFileConcurrentWrites(t *testing.T) {
 	dir := spiretest.TempDir(t)
 	logPath := filepath.Join(dir, "test.log")

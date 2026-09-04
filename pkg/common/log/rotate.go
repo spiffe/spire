@@ -127,6 +127,7 @@ type RotatableFile struct {
 	// holding the lock.
 	now        func() time.Time
 	closeFunc  closeFunc
+	openFunc   func(name string) (*os.File, error)
 	renameFunc func(oldpath, newpath string) error
 }
 
@@ -142,6 +143,7 @@ func NewRotatableFile(name string, cfg RotationConfig) (*RotatableFile, error) {
 		cfg:        cfg,
 		now:        time.Now,
 		closeFunc:  func(f *os.File) error { return f.Close() },
+		openFunc:   openLogFile,
 		renameFunc: os.Rename,
 	}
 	if err := r.open(); err != nil {
@@ -196,7 +198,7 @@ func (r *RotatableFile) Name() string {
 // open opens the configured path and reseeds size from disk. It must be called
 // while holding the lock, except from the constructor.
 func (r *RotatableFile) open() error {
-	file, err := openLogFile(r.name)
+	file, err := r.openFunc(r.name)
 	if err != nil {
 		return err
 	}

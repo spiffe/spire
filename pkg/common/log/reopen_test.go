@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
@@ -60,7 +59,7 @@ func TestReopenOnSignalWithReopenableOutputFileSuccess(t *testing.T) {
 		signalCh <- reopenSignal
 		close(renamedCh)
 	}()
-	watchLog(ctx, logger, frf, signalCh, time.Hour)
+	watchLog(ctx, logger, frf, signalCh, nil)
 
 	<-renamedCh
 	fsInfo, err = rf.f.Stat()
@@ -142,7 +141,7 @@ func TestReopenOnSignalError(t *testing.T) {
 				// trigger close error
 				signalCh <- reopenSignal
 			}()
-			watchLog(ctx, logger, frf, signalCh, time.Hour)
+			watchLog(ctx, logger, frf, signalCh, nil)
 			spiretest.AssertLogs(t, logHook.AllEntries(), tt.wantLogEntries)
 			logHook.Reset()
 		})

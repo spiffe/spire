@@ -19,7 +19,10 @@ func ReopenOnSignal(logger *Logger, reopener Reopener) func(context.Context) err
 		signal.Notify(signalCh, reopenSignal)
 		defer signal.Stop(signalCh)
 
-		watchLog(ctx, logger, reopener, signalCh, rotateErrorInterval)
+		tickCh, stopTicker := rotateErrorTicker(reopener)
+		defer stopTicker()
+
+		watchLog(ctx, logger, reopener, signalCh, tickCh)
 		return nil
 	}
 }
