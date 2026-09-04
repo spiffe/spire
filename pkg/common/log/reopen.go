@@ -52,16 +52,34 @@ func (r *ReopenableFile) Reopen() error {
 	defer r.mu.Unlock()
 
 	newFile, err := openLogFile(r.name)
+	if err != nil && fileDeleted(r.f) {
+		// An external tool deleted the file while we held it open. Windows
+		// keeps the name until the last handle closes, so letting go of ours is
+		// the only way to get a new file at that path. Should the retry fail
+		// too, there is no descriptor left until the next reopen, and the
+		// error returned here has nowhere to be written on a Windows service.
+		r.releaseFile()
+		newFile, err = openLogFile(r.name)
+	}
 	if err != nil {
 		return fmt.Errorf("unable to reopen %s: %w", r.name, err)
 	}
 
-	// Ignore errors closing old file descriptor since logger would be using
-	// file descriptor we fail to close. This could leak file descriptors.
-	_ = r.closeFunc(r.f)
-
+	r.releaseFile()
 	r.f = newFile
 	return nil
+}
+
+// releaseFile closes the current file, if any, and forgets it. It must be
+// called while holding the lock. Errors are ignored since the logger would
+// otherwise keep using a descriptor we failed to close, which could leak file
+// descriptors.
+func (r *ReopenableFile) releaseFile() {
+	if r.f == nil {
+		return
+	}
+	_ = r.closeFunc(r.f)
+	r.f = nil
 }
 
 func (r *ReopenableFile) Write(b []byte) (n int, err error) {

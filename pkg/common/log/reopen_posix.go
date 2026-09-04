@@ -22,7 +22,7 @@ func ReopenOnSignal(logger *Logger, reopener Reopener) func(context.Context) err
 		tickCh, stopTicker := rotateErrorTicker(reopener)
 		defer stopTicker()
 
-		watchLog(ctx, logger, reopener, signalCh, tickCh)
+		watchLog(ctx, logger, reopener, signalCh, nil, tickCh)
 		return nil
 	}
 }

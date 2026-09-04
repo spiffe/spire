@@ -122,9 +122,9 @@ type RotatableFile struct {
 	rotateFailedAt time.Time
 	rotateErr      error
 
-	// now, closeFunc and renameFunc are intended for injecting errors and a
-	// fake clock under test. closeFunc and renameFunc must be called while
-	// holding the lock.
+	// now, closeFunc, openFunc and renameFunc are intended for injecting
+	// errors and a fake clock under test. closeFunc, openFunc and renameFunc
+	// must be called while holding the lock.
 	now        func() time.Time
 	closeFunc  closeFunc
 	openFunc   func(name string) (*os.File, error)

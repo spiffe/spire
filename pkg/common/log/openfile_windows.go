@@ -38,3 +38,23 @@ func openLogFile(name string) (*os.File, error) {
 
 	return os.NewFile(uintptr(handle), name), nil
 }
+
+// fileDeleted reports whether the file behind f has been deleted. Windows keeps
+// a deleted file in its directory until the last handle to it closes, and
+// refuses to create another at that path meanwhile, so a reopen has to release
+// its own handle before it can succeed.
+//
+// The link count is what distinguishes that state. It drops to zero once the
+// file is marked for deletion, where an ordinary permission failure leaves the
+// file linked, so this does not have to interpret the open error. Windows
+// reports both as ERROR_ACCESS_DENIED.
+func fileDeleted(f *os.File) bool {
+	if f == nil {
+		return false
+	}
+	var info windows.ByHandleFileInformation
+	if err := windows.GetFileInformationByHandle(windows.Handle(f.Fd()), &info); err != nil {
+		return false
+	}
+	return info.NumberOfLinks == 0
+}

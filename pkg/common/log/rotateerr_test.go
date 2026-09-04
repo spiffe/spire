@@ -43,7 +43,7 @@ func TestWatchLogReportsRotationFailure(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		watchLog(ctx, logger, rf, nil, tickCh)
+		watchLog(ctx, logger, rf, nil, nil, tickCh)
 	}()
 
 	tickCh <- time.Now()
@@ -105,7 +105,7 @@ func TestWatchLogQuietWithoutFailure(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		watchLog(ctx, logger, rf, nil, tickCh)
+		watchLog(ctx, logger, rf, nil, nil, tickCh)
 	}()
 
 	// Two ticks, so the second only returns once the first was handled.
