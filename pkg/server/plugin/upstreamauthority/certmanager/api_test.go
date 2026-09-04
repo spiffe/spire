@@ -7,7 +7,6 @@ import (
 
 	"github.com/hashicorp/go-hclog"
 	cmapi "github.com/spiffe/spire/pkg/server/plugin/upstreamauthority/certmanager/internal/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	fakeclient "sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
@@ -29,12 +28,10 @@ func Test_cleanupStaleCertificateRequests(t *testing.T) {
 		"if CertificateRequests exist with the correct label, but not in a terminal state, should not delete any": {
 			existingCRs: []runtime.Object{
 				&cmapi.CertificateRequest{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "cr-1",
-						Namespace: namespace,
-						Labels: map[string]string{
-							"cert-manager.spiffe.io/trust-domain": trustDomain,
-						},
+					Name:      "cr-1",
+					Namespace: namespace,
+					Labels: map[string]string{
+						"cert-manager.spiffe.io/trust-domain": trustDomain,
 					},
 					Status: cmapi.CertificateRequestStatus{
 						Conditions: []cmapi.CertificateRequestCondition{
@@ -43,12 +40,10 @@ func Test_cleanupStaleCertificateRequests(t *testing.T) {
 					},
 				},
 				&cmapi.CertificateRequest{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "cr-2",
-						Namespace: namespace,
-						Labels: map[string]string{
-							"cert-manager.spiffe.io/trust-domain": trustDomain,
-						},
+					Name:      "cr-2",
+					Namespace: namespace,
+					Labels: map[string]string{
+						"cert-manager.spiffe.io/trust-domain": trustDomain,
 					},
 				},
 			},
@@ -57,12 +52,10 @@ func Test_cleanupStaleCertificateRequests(t *testing.T) {
 		"if CertificateRequests exist with the incorrect label and in a terminal state, should not delete any": {
 			existingCRs: []runtime.Object{
 				&cmapi.CertificateRequest{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "cr-1",
-						Namespace: namespace,
-						Labels: map[string]string{
-							"cert-manager.spiffe.io/trust-domain": "not-trust-domain",
-						},
+					Name:      "cr-1",
+					Namespace: namespace,
+					Labels: map[string]string{
+						"cert-manager.spiffe.io/trust-domain": "not-trust-domain",
 					},
 					Status: cmapi.CertificateRequestStatus{
 						Conditions: []cmapi.CertificateRequestCondition{
@@ -71,12 +64,10 @@ func Test_cleanupStaleCertificateRequests(t *testing.T) {
 					},
 				},
 				&cmapi.CertificateRequest{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "cr-2",
-						Namespace: namespace,
-						Labels: map[string]string{
-							"cert-manager.spiffe.io/trust-domain": "not-trust-domain",
-						},
+					Name:      "cr-2",
+					Namespace: namespace,
+					Labels: map[string]string{
+						"cert-manager.spiffe.io/trust-domain": "not-trust-domain",
 					},
 					Status: cmapi.CertificateRequestStatus{
 						Conditions: []cmapi.CertificateRequestCondition{
@@ -90,12 +81,10 @@ func Test_cleanupStaleCertificateRequests(t *testing.T) {
 		"if some CertificateRequests exist with the correct label and in a terminal state, should delete them": {
 			existingCRs: []runtime.Object{
 				&cmapi.CertificateRequest{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "cr-1",
-						Namespace: namespace,
-						Labels: map[string]string{
-							"cert-manager.spiffe.io/trust-domain": trustDomain,
-						},
+					Name:      "cr-1",
+					Namespace: namespace,
+					Labels: map[string]string{
+						"cert-manager.spiffe.io/trust-domain": trustDomain,
 					},
 					Status: cmapi.CertificateRequestStatus{
 						Conditions: []cmapi.CertificateRequestCondition{
@@ -104,12 +93,10 @@ func Test_cleanupStaleCertificateRequests(t *testing.T) {
 					},
 				},
 				&cmapi.CertificateRequest{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "cr-2",
-						Namespace: namespace,
-						Labels: map[string]string{
-							"cert-manager.spiffe.io/trust-domain": "not-trust-domain",
-						},
+					Name:      "cr-2",
+					Namespace: namespace,
+					Labels: map[string]string{
+						"cert-manager.spiffe.io/trust-domain": "not-trust-domain",
 					},
 					Status: cmapi.CertificateRequestStatus{
 						Conditions: []cmapi.CertificateRequestCondition{
@@ -118,12 +105,10 @@ func Test_cleanupStaleCertificateRequests(t *testing.T) {
 					},
 				},
 				&cmapi.CertificateRequest{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "cr-3",
-						Namespace: namespace,
-						Labels: map[string]string{
-							"cert-manager.spiffe.io/trust-domain": trustDomain,
-						},
+					Name:      "cr-3",
+					Namespace: namespace,
+					Labels: map[string]string{
+						"cert-manager.spiffe.io/trust-domain": trustDomain,
 					},
 					Status: cmapi.CertificateRequestStatus{
 						Conditions: []cmapi.CertificateRequestCondition{
@@ -132,12 +117,10 @@ func Test_cleanupStaleCertificateRequests(t *testing.T) {
 					},
 				},
 				&cmapi.CertificateRequest{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "cr-4",
-						Namespace: namespace,
-						Labels: map[string]string{
-							"cert-manager.spiffe.io/trust-domain": trustDomain,
-						},
+					Name:      "cr-4",
+					Namespace: namespace,
+					Labels: map[string]string{
+						"cert-manager.spiffe.io/trust-domain": trustDomain,
 					},
 					Status: cmapi.CertificateRequestStatus{
 						Conditions: []cmapi.CertificateRequestCondition{
@@ -146,12 +129,10 @@ func Test_cleanupStaleCertificateRequests(t *testing.T) {
 					},
 				},
 				&cmapi.CertificateRequest{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "cr-5",
-						Namespace: namespace,
-						Labels: map[string]string{
-							"cert-manager.spiffe.io/trust-domain": trustDomain,
-						},
+					Name:      "cr-5",
+					Namespace: namespace,
+					Labels: map[string]string{
+						"cert-manager.spiffe.io/trust-domain": trustDomain,
 					},
 					Status: cmapi.CertificateRequestStatus{
 						Conditions: []cmapi.CertificateRequestCondition{
@@ -160,12 +141,10 @@ func Test_cleanupStaleCertificateRequests(t *testing.T) {
 					},
 				},
 				&cmapi.CertificateRequest{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "cr-6",
-						Namespace: namespace,
-						Labels: map[string]string{
-							"cert-manager.spiffe.io/trust-domain": trustDomain,
-						},
+					Name:      "cr-6",
+					Namespace: namespace,
+					Labels: map[string]string{
+						"cert-manager.spiffe.io/trust-domain": trustDomain,
 					},
 					Status: cmapi.CertificateRequestStatus{
 						Conditions: []cmapi.CertificateRequestCondition{
@@ -174,12 +153,10 @@ func Test_cleanupStaleCertificateRequests(t *testing.T) {
 					},
 				},
 				&cmapi.CertificateRequest{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "cr-7",
-						Namespace: "wrong-namespace",
-						Labels: map[string]string{
-							"cert-manager.spiffe.io/trust-domain": trustDomain,
-						},
+					Name:      "cr-7",
+					Namespace: "wrong-namespace",
+					Labels: map[string]string{
+						"cert-manager.spiffe.io/trust-domain": trustDomain,
 					},
 					Status: cmapi.CertificateRequestStatus{
 						Conditions: []cmapi.CertificateRequestCondition{

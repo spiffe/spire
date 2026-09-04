@@ -10,7 +10,6 @@ import (
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/moby/moby/api/types/container"
-	"github.com/moby/moby/api/types/image"
 	dockerclient "github.com/moby/moby/client"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/agent/common/sigstore"
@@ -431,7 +430,7 @@ func (d dockerNoRepoDigests) ContainerInspect(_ context.Context, _ string, _ doc
 }
 
 func (dockerNoRepoDigests) ImageInspect(_ context.Context, _ string, _ ...dockerclient.ImageInspectOption) (dockerclient.ImageInspectResult, error) {
-	return dockerclient.ImageInspectResult{InspectResponse: image.InspectResponse{ID: "sha256:abc"}}, nil
+	return dockerclient.ImageInspectResult{ID: "sha256:abc"}, nil
 }
 func TestSigstore_NoRepoDigests_Fatal(t *testing.T) {
 	d := dockerNoRepoDigests{
@@ -542,8 +541,8 @@ func (f fakeContainer) ContainerInspect(_ context.Context, containerID string, _
 }
 
 func (f fakeContainer) ImageInspect(_ context.Context, imageID string, _ ...dockerclient.ImageInspectOption) (dockerclient.ImageInspectResult, error) {
-	return dockerclient.ImageInspectResult{InspectResponse: image.InspectResponse{
-		ID: imageID, RepoDigests: []string{testImageID}}}, nil
+	return dockerclient.ImageInspectResult{
+		ID: imageID, RepoDigests: []string{testImageID}}, nil
 }
 
 type fakeSigstoreVerifier struct {

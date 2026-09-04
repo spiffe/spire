@@ -116,7 +116,7 @@ func (s *Service) GetInfo(context.Context, *debugv1.GetInfoRequest) (*debugv1.Ge
 		s.getInfoResp.resp = &debugv1.GetInfoResponse{
 			SvidChain:                     svidChain,
 			Uptime:                        uptime,
-			SvidsCount:                    x509SvidsCount,
+			SvidsCount:                    x509SvidsCount, //nolint:staticcheck // kept for backwards compatibility with old clients
 			CachedX509SvidsCount:          x509SvidsCount,
 			CachedJwtSvidsCount:           jwtSvidsCount,
 			CachedSvidstoreX509SvidsCount: svidstoreX509SvidsCount,

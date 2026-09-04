@@ -39,6 +39,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/version"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/pkg/server/api"
+	serverentryv1 "github.com/spiffe/spire/pkg/server/api/entry/v1"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/fakes/fakeagentcatalog"
@@ -2062,6 +2063,25 @@ func (h *mockAPI) GetAuthorizedEntries(_ context.Context, req *entryv1.GetAuthor
 		return h.c.getAuthorizedEntries(h, count, req)
 	}
 	return nil, errors.New("no GetAuthorizedEntries implementation for test")
+}
+
+func (h *mockAPI) SyncAuthorizedEntries(stream entryv1.Entry_SyncAuthorizedEntriesServer) error {
+	count := h.getAuthorizedEntriesCount.Add(1)
+	if h.c.getAuthorizedEntries == nil {
+		return errors.New("no GetAuthorizedEntries implementation for test")
+	}
+	resp, err := h.c.getAuthorizedEntries(h, count, &entryv1.GetAuthorizedEntriesRequest{})
+	if err != nil {
+		return err
+	}
+
+	entries := make([]api.ReadOnlyEntry, 0, len(resp.Entries))
+	for _, e := range resp.Entries {
+		entries = append(entries, api.NewReadOnlyEntry(e))
+	}
+
+	const entryPageSize = 50
+	return serverentryv1.SyncAuthorizedEntries(stream, entries, entryPageSize)
 }
 
 func (h *mockAPI) BatchNewX509SVID(_ context.Context, req *svidv1.BatchNewX509SVIDRequest) (*svidv1.BatchNewX509SVIDResponse, error) {

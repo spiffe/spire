@@ -646,8 +646,7 @@ func (p *Plugin) scheduleDeleteTask(ctx context.Context) {
 				continue
 			}
 
-			var respErr *azcore.ResponseError
-			if errors.As(err, &respErr) {
+			if respErr, ok := errors.AsType[*azcore.ResponseError](err); ok {
 				if respErr.StatusCode == http.StatusNotFound {
 					log.Error("Failed to schedule key deletion", reasonTag, "No such key")
 					p.notifyDelete(err)

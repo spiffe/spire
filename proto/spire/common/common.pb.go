@@ -61,9 +61,9 @@ func (*Empty) Descriptor() ([]byte, []int) {
 // * A type which contains attestation data for specific platform.
 type AttestationData struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// * Type of attestation to perform.
+	//* Type of attestation to perform.
 	Type string `protobuf:"bytes,1,opt,name=type,proto3" json:"type,omitempty"`
-	// * The attestation data.
+	//* The attestation data.
 	Data          []byte `protobuf:"bytes,2,opt,name=data,proto3" json:"data,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -117,10 +117,10 @@ func (x *AttestationData) GetData() []byte {
 // entry is matched.
 type Selector struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// * A selector type represents the type of attestation used in attesting
-	// the entity (Eg: AWS, K8).
+	//* A selector type represents the type of attestation used in attesting
+	//the entity (Eg: AWS, K8).
 	Type string `protobuf:"bytes,1,opt,name=type,proto3" json:"type,omitempty"`
-	// * The value to be attested.
+	//* The value to be attested.
 	Value         string `protobuf:"bytes,2,opt,name=value,proto3" json:"value,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -173,7 +173,7 @@ func (x *Selector) GetValue() string {
 // * Represents a type with a list of Selector.
 type Selectors struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// * A list of Selector.
+	//* A list of Selector.
 	Entries       []*Selector `protobuf:"bytes,1,rep,name=entries,proto3" json:"entries,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -338,41 +338,41 @@ func (x *AttestedNode) GetAgentVersion() string {
 // manage the various registered nodes and workloads that are controlled by it.
 type RegistrationEntry struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// * A list of selectors.
+	//* A list of selectors.
 	Selectors []*Selector `protobuf:"bytes,1,rep,name=selectors,proto3" json:"selectors,omitempty"`
-	// * The SPIFFE ID of an entity that is authorized to attest the validity
-	// of a selector
+	//* The SPIFFE ID of an entity that is authorized to attest the validity
+	//of a selector
 	ParentId string `protobuf:"bytes,2,opt,name=parent_id,json=parentId,proto3" json:"parent_id,omitempty"`
-	// * The SPIFFE ID is a structured string used to identify a resource or
-	// caller. It is defined as a URI comprising a “trust domain” and an
-	// associated path.
+	//* The SPIFFE ID is a structured string used to identify a resource or
+	//caller. It is defined as a URI comprising a “trust domain” and an
+	//associated path.
 	SpiffeId string `protobuf:"bytes,3,opt,name=spiffe_id,json=spiffeId,proto3" json:"spiffe_id,omitempty"`
-	// * Time to live for X509-SVIDs generated from this entry. Was previously called 'ttl'.
+	//* Time to live for X509-SVIDs generated from this entry. Was previously called 'ttl'.
 	X509SvidTtl int32 `protobuf:"varint,4,opt,name=x509_svid_ttl,json=x509SvidTtl,proto3" json:"x509_svid_ttl,omitempty"`
-	// * A list of federated trust domain SPIFFE IDs.
+	//* A list of federated trust domain SPIFFE IDs.
 	FederatesWith []string `protobuf:"bytes,5,rep,name=federates_with,json=federatesWith,proto3" json:"federates_with,omitempty"`
-	// * Entry ID
+	//* Entry ID
 	EntryId string `protobuf:"bytes,6,opt,name=entry_id,json=entryId,proto3" json:"entry_id,omitempty"`
-	// * whether the workload is an admin workload. Admin workloads
-	// can use their SVID's to authenticate with the Server APIs, for
-	// example.
+	//* whether the workload is an admin workload. Admin workloads
+	//can use their SVID's to authenticate with the Server APIs, for
+	//example.
 	Admin bool `protobuf:"varint,7,opt,name=admin,proto3" json:"admin,omitempty"`
-	// * To enable signing CA CSR in upstream spire server
+	//* To enable signing CA CSR in upstream spire server
 	Downstream bool `protobuf:"varint,8,opt,name=downstream,proto3" json:"downstream,omitempty"`
-	// * Expiration of this entry, in seconds from epoch
+	//* Expiration of this entry, in seconds from epoch
 	EntryExpiry int64 `protobuf:"varint,9,opt,name=entryExpiry,proto3" json:"entryExpiry,omitempty"`
-	// * DNS entries
+	//* DNS entries
 	DnsNames []string `protobuf:"bytes,10,rep,name=dns_names,json=dnsNames,proto3" json:"dns_names,omitempty"`
-	// * Revision number is bumped every time the entry is updated
+	//* Revision number is bumped every time the entry is updated
 	RevisionNumber int64 `protobuf:"varint,11,opt,name=revision_number,json=revisionNumber,proto3" json:"revision_number,omitempty"`
-	// * Determines if the issued SVID must be stored through an SVIDStore plugin
+	//* Determines if the issued SVID must be stored through an SVIDStore plugin
 	StoreSvid bool `protobuf:"varint,12,opt,name=store_svid,json=storeSvid,proto3" json:"store_svid,omitempty"`
-	// * Time to live for JWT-SVIDs generated from this entry, if set will override ttl field.
+	//* Time to live for JWT-SVIDs generated from this entry, if set will override ttl field.
 	JwtSvidTtl int32 `protobuf:"varint,13,opt,name=jwt_svid_ttl,json=jwtSvidTtl,proto3" json:"jwt_svid_ttl,omitempty"`
-	// * An operator-specified string used to provide guidance on how this
-	// identity should be used by a workload when more than one SVID is returned.
+	//* An operator-specified string used to provide guidance on how this
+	//identity should be used by a workload when more than one SVID is returned.
 	Hint string `protobuf:"bytes,14,opt,name=hint,proto3" json:"hint,omitempty"`
-	// * Time of creation, in seconds from epoch
+	//* Time of creation, in seconds from epoch
 	CreatedAt            int64                                   `protobuf:"varint,15,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
 	AdditionalAttributes *RegistrationEntry_AdditionalAttributes `protobuf:"bytes,16,opt,name=additional_attributes,json=additionalAttributes,proto3,oneof" json:"additional_attributes,omitempty"`
 	unknownFields        protoimpl.UnknownFields
@@ -673,7 +673,7 @@ func (x *RegistrationEntryMask) GetAdditionalAttributes() bool {
 // * A list of registration entries.
 type RegistrationEntries struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// * A list of RegistrationEntry.
+	//* A list of RegistrationEntry.
 	Entries       []*RegistrationEntry `protobuf:"bytes,1,rep,name=entries,proto3" json:"entries,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -772,13 +772,13 @@ func (x *Certificate) GetTaintedKey() bool {
 // * PublicKey represents a PKIX encoded public key
 type PublicKey struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// * PKIX encoded key data
+	//* PKIX encoded key data
 	PkixBytes []byte `protobuf:"bytes,1,opt,name=pkix_bytes,json=pkixBytes,proto3" json:"pkix_bytes,omitempty"`
-	// * key identifier
+	//* key identifier
 	Kid string `protobuf:"bytes,2,opt,name=kid,proto3" json:"kid,omitempty"`
-	// * not after (seconds since unix epoch, 0 means "never expires")
+	//* not after (seconds since unix epoch, 0 means "never expires")
 	NotAfter int64 `protobuf:"varint,3,opt,name=not_after,json=notAfter,proto3" json:"not_after,omitempty"`
-	// * whether the key is tainted
+	//* whether the key is tainted
 	TaintedKey    bool `protobuf:"varint,4,opt,name=tainted_key,json=taintedKey,proto3" json:"tainted_key,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -844,19 +844,19 @@ func (x *PublicKey) GetTaintedKey() bool {
 
 type Bundle struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// * the SPIFFE ID of the trust domain the bundle belongs to
+	//* the SPIFFE ID of the trust domain the bundle belongs to
 	TrustDomainId string `protobuf:"bytes,1,opt,name=trust_domain_id,json=trustDomainId,proto3" json:"trust_domain_id,omitempty"`
-	// * list of root CA certificates
+	//* list of root CA certificates
 	RootCas []*Certificate `protobuf:"bytes,2,rep,name=root_cas,json=rootCas,proto3" json:"root_cas,omitempty"`
-	// * list of JWT signing keys
+	//* list of JWT signing keys
 	JwtSigningKeys []*PublicKey `protobuf:"bytes,3,rep,name=jwt_signing_keys,json=jwtSigningKeys,proto3" json:"jwt_signing_keys,omitempty"`
-	// * refresh hint is a hint, in seconds, on how often a bundle consumer
+	//* refresh hint is a hint, in seconds, on how often a bundle consumer
 	// should poll for bundle updates
 	RefreshHint int64 `protobuf:"varint,4,opt,name=refresh_hint,json=refreshHint,proto3" json:"refresh_hint,omitempty"`
-	// * sequence number is a monotonically increasing number that is
+	//* sequence number is a monotonically increasing number that is
 	// incremented every time the bundle is updated
 	SequenceNumber uint64 `protobuf:"varint,5,opt,name=sequence_number,json=sequenceNumber,proto3" json:"sequence_number,omitempty"`
-	// * list of WIT signing keys
+	//* list of WIT signing keys
 	WitSigningKeys []*PublicKey `protobuf:"bytes,6,rep,name=wit_signing_keys,json=witSigningKeys,proto3" json:"wit_signing_keys,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
@@ -1118,16 +1118,16 @@ func (x *AttestedNodeMask) GetAgentVersion() bool {
 // attributes in the datastore.
 type RegistrationEntry_AdditionalAttributes struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// * Flag indicating whether the agent should prefetch and cache X509 SVID.
-	// Can be set to `true` if the workload is unlikely to request an X509 SVID.
-	// This is meant to prevent unnecessary effort spent on generating SVIDs of types,
-	// which are unlikely to be needed.
+	//* Flag indicating whether the agent should prefetch and cache X509 SVID.
+	//Can be set to `true` if the workload is unlikely to request an X509 SVID.
+	//This is meant to prevent unnecessary effort spent on generating SVIDs of types,
+	//which are unlikely to be needed.
 	DisableX509SvidPrefetch bool `protobuf:"varint,1,opt,name=disable_x509_svid_prefetch,json=disableX509SvidPrefetch,proto3" json:"disable_x509_svid_prefetch,omitempty"`
-	// * Flag indicating whether JWT-SVIDs issued for this entry should include
-	// a "jti" (JWT ID) claim. When true, the agent bypasses the JWT-SVID cache so
-	// each request yields a fresh token with a unique JTI — useful for audit trails
-	// and replay protection. When false (default), behavior is backwards compatible:
-	// no JTI claim, caching enabled.
+	//* Flag indicating whether JWT-SVIDs issued for this entry should include
+	//a "jti" (JWT ID) claim. When true, the agent bypasses the JWT-SVID cache so
+	//each request yields a fresh token with a unique JTI — useful for audit trails
+	//and replay protection. When false (default), behavior is backwards compatible:
+	//no JTI claim, caching enabled.
 	JwtSvidIncludeJti bool `protobuf:"varint,2,opt,name=jwt_svid_include_jti,json=jwtSvidIncludeJti,proto3" json:"jwt_svid_include_jti,omitempty"`
 	unknownFields     protoimpl.UnknownFields
 	sizeCache         protoimpl.SizeCache
