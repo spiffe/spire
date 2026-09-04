@@ -43,7 +43,7 @@ func TestWatchLogReportsRotationFailure(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		watchLog(ctx, logger, rf, nil, nil, tickCh)
+		watchLog(ctx, logger, rf, nil, nil, rotateErrorDrain{source: rf, tickCh: tickCh})
 	}()
 
 	tickCh <- time.Now()
@@ -65,7 +65,7 @@ func TestWatchLogReportsRotationFailure(t *testing.T) {
 
 // A ReopenableFile has no rotation of its own, so it gets no ticker at all and
 // there is nothing to drain.
-func TestRotateErrorTickerOnlyForSelfRotatingFiles(t *testing.T) {
+func TestRotateErrorDrainOnlyForSelfRotatingFiles(t *testing.T) {
 	dir := spiretest.TempDir(t)
 
 	reopenable, err := NewReopenableFile(filepath.Join(dir, "reopenable.log"))
@@ -74,9 +74,9 @@ func TestRotateErrorTickerOnlyForSelfRotatingFiles(t *testing.T) {
 		_ = reopenable.Close()
 	}()
 
-	tickCh, stop := rotateErrorTicker(reopenable)
+	drain, stop := newRotateErrorDrain(reopenable)
 	stop()
-	assert.Nil(t, tickCh, "a writer with nothing to drain gets no ticker")
+	assert.Zero(t, drain, "a writer with nothing to drain gets no drain")
 
 	rotatable, err := NewRotatableFile(filepath.Join(dir, "rotatable.log"), RotationConfig{})
 	require.NoError(t, err)
@@ -84,9 +84,10 @@ func TestRotateErrorTickerOnlyForSelfRotatingFiles(t *testing.T) {
 		_ = rotatable.Close()
 	}()
 
-	tickCh, stop = rotateErrorTicker(rotatable)
+	drain, stop = newRotateErrorDrain(rotatable)
 	defer stop()
-	assert.NotNil(t, tickCh, "a self rotating writer is drained")
+	assert.NotNil(t, drain.source, "a self rotating writer is drained")
+	assert.NotNil(t, drain.tickCh, "and gets a ticker to pace it")
 }
 
 // A tick with nothing recorded must stay quiet.
@@ -105,7 +106,7 @@ func TestWatchLogQuietWithoutFailure(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		watchLog(ctx, logger, rf, nil, nil, tickCh)
+		watchLog(ctx, logger, rf, nil, nil, rotateErrorDrain{source: rf, tickCh: tickCh})
 	}()
 
 	// Two ticks, so the second only returns once the first was handled.

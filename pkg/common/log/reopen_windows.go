@@ -11,10 +11,10 @@ import (
 // by way of RequestReopen.
 func ReopenOnSignal(logger *Logger, reopener Reopener) func(context.Context) error {
 	return func(ctx context.Context) error {
-		tickCh, stopTicker := rotateErrorTicker(reopener)
-		defer stopTicker()
+		drain, stopDrain := newRotateErrorDrain(reopener)
+		defer stopDrain()
 
-		watchLog(ctx, logger, reopener, nil, reopenRequests, tickCh)
+		watchLog(ctx, logger, reopener, nil, reopenRequests, drain)
 		return nil
 	}
 }

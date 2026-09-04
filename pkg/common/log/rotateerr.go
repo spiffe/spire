@@ -22,23 +22,39 @@ type rotateErrorSource interface {
 	TakeRotateError() error
 }
 
-// rotateErrorTicker returns the channel that paces draining of rotation
-// failures, or nil when the writer has none to report. A receive on a nil
-// channel blocks forever, so the caller needs no special case.
-func rotateErrorTicker(reopener Reopener) (<-chan time.Time, func()) {
-	if _, ok := reopener.(rotateErrorSource); !ok {
-		return nil, func() {}
+// rotateErrorDrain reports the rotation failures a self rotating writer could
+// not report itself, paced by tickCh. The zero value is what a writer with
+// nothing to drain gets, and its nil tickCh never fires, so report is only ever
+// reached when there is a source behind it.
+type rotateErrorDrain struct {
+	source rotateErrorSource
+	tickCh <-chan time.Time
+}
+
+// newRotateErrorDrain returns the drain for reopener along with a stop for the
+// ticker behind it.
+func newRotateErrorDrain(reopener Reopener) (rotateErrorDrain, func()) {
+	source, ok := reopener.(rotateErrorSource)
+	if !ok {
+		return rotateErrorDrain{}, func() {}
 	}
 	ticker := time.NewTicker(rotateErrorInterval)
-	return ticker.C, ticker.Stop
+	return rotateErrorDrain{source: source, tickCh: ticker.C}, ticker.Stop
+}
+
+func (d rotateErrorDrain) report(logger *Logger) {
+	if err := d.source.TakeRotateError(); err != nil {
+		logger.WithError(err).Error(failedToRotateMsg)
+	}
 }
 
 // watchLog reopens the log on every value from signalCh or requestCh, and
-// drains rotation failures on every value from tickCh. A channel is nil where
-// that source does not apply, signalCh on Windows, requestCh on POSIX, and
-// tickCh for a writer that does not rotate itself, so both platforms run the
-// same loop.
-func watchLog(ctx context.Context, logger *Logger, reopener Reopener, signalCh <-chan os.Signal, requestCh <-chan struct{}, tickCh <-chan time.Time) {
+// drains rotation failures as the drain paces them. A trigger channel is nil on
+// the platform that lacks it, signalCh on Windows and requestCh on POSIX, so
+// both platforms run the same loop.
+//
+//nolint:unparam // the caller passing the other trigger is behind the opposite build tag
+func watchLog(ctx context.Context, logger *Logger, reopener Reopener, signalCh <-chan os.Signal, requestCh <-chan struct{}, drain rotateErrorDrain) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -47,14 +63,8 @@ func watchLog(ctx context.Context, logger *Logger, reopener Reopener, signalCh <
 			reopenLog(logger, reopener)
 		case <-requestCh:
 			reopenLog(logger, reopener)
-		case <-tickCh:
-			source, ok := reopener.(rotateErrorSource)
-			if !ok {
-				continue
-			}
-			if err := source.TakeRotateError(); err != nil {
-				logger.WithError(err).Error(failedToRotateMsg)
-			}
+		case <-drain.tickCh:
+			drain.report(logger)
 		}
 	}
 }

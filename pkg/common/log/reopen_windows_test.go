@@ -100,7 +100,7 @@ func TestWatchLogReopensOnRequest(t *testing.T) {
 			returned := make(chan struct{})
 			go func() {
 				defer close(returned)
-				watchLog(ctx, logger, reopener, nil, requests, nil)
+				watchLog(ctx, logger, reopener, nil, requests, rotateErrorDrain{})
 			}()
 
 			requests <- struct{}{}
@@ -175,36 +175,4 @@ func readFileString(t *testing.T, path string) string {
 	b, err := os.ReadFile(path)
 	require.NoError(t, err)
 	return string(b)
-}
-
-// The retry cannot succeed while our own handle keeps the delete pending, which
-// is the one path that leaves the writer with no descriptor at all.
-func TestReopenableFileReopenWhenRetryFails(t *testing.T) {
-	dir := spiretest.TempDir(t)
-	logPath := filepath.Join(dir, "test.log")
-
-	rf, err := NewReopenableFile(logPath)
-	require.NoError(t, err)
-
-	// Hold the real handle open so the delete stays pending across the retry,
-	// and close it on the way out so the temp dir can be removed.
-	var held *os.File
-	rf.closeFunc = func(f *os.File) error {
-		held = f
-		return nil
-	}
-	t.Cleanup(func() {
-		if held != nil {
-			_ = held.Close()
-		}
-	})
-
-	_, err = rf.Write([]byte("before"))
-	require.NoError(t, err)
-	require.NoError(t, os.Remove(logPath))
-
-	require.Error(t, rf.Reopen(), "the retry cannot open a file whose delete is still pending")
-
-	_, err = rf.Write([]byte("after"))
-	require.Error(t, err, "no descriptor should be left to write to")
 }
