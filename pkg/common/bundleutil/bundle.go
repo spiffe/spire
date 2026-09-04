@@ -91,7 +91,7 @@ func SPIFFEBundleToProto(b *spiffebundle.Bundle) (*common.Bundle, error) {
 	for kid, key := range b.JWTAuthorities() {
 		pkixBytes, err := x509.MarshalPKIXPublicKey(key)
 		if err != nil {
-			return nil, fmt.Errorf("failed to marshal public key: %w", err)
+			return nil, fmt.Errorf("failed to marshal JWT public key: %w", err)
 		}
 		bundle.JwtSigningKeys = append(bundle.JwtSigningKeys, &common.PublicKey{
 			PkixBytes: pkixBytes,
@@ -102,7 +102,7 @@ func SPIFFEBundleToProto(b *spiffebundle.Bundle) (*common.Bundle, error) {
 	for kid, key := range b.WITAuthorities() {
 		pkixBytes, err := x509.MarshalPKIXPublicKey(key)
 		if err != nil {
-			return nil, fmt.Errorf("failed to marshal public key: %w", err)
+			return nil, fmt.Errorf("failed to marshal WIT public key: %w", err)
 		}
 		bundle.WitSigningKeys = append(bundle.WitSigningKeys, &common.PublicKey{
 			PkixBytes: pkixBytes,

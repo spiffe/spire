@@ -336,12 +336,12 @@ func TestSPIFFEBundleToProto(t *testing.T) {
 		{
 			name:   "fail with error marshalling jwt public key",
 			bundle: bundleInvalidKey,
-			expErr: errors.New("failed to marshal public key: x509: unsupported public key type: string"),
+			expErr: errors.New("failed to marshal JWT public key: x509: unsupported public key type: string"),
 		},
 		{
 			name:   "fail with error marshalling wit public key",
 			bundle: bundleInvalidWITKey,
-			expErr: errors.New("failed to marshal public key: x509: unsupported public key type: string"),
+			expErr: errors.New("failed to marshal WIT public key: x509: unsupported public key type: string"),
 		},
 	}
 	for _, tt := range tests {
