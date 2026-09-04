@@ -435,7 +435,7 @@ func (s *Service) SubscribeToJWTBundles(_ *delegatedidentityv1.SubscribeToJWTBun
 	// send initial update....
 	jwtbundles := make(map[string][]byte)
 	for td, bundle := range subscriber.Value() {
-		jwksBytes, err := bundleutil.Marshal(bundle, bundleutil.NoX509SVIDKeys(), bundleutil.StandardJWKS())
+		jwksBytes, err := bundleutil.MarshalJWTSVIDBundle(bundle, bundleutil.StandardJWKS())
 		if err != nil {
 			return err
 		}
@@ -456,7 +456,7 @@ func (s *Service) SubscribeToJWTBundles(_ *delegatedidentityv1.SubscribeToJWTBun
 				return err
 			}
 			for td, bundle := range subscriber.Next() {
-				jwksBytes, err := bundleutil.Marshal(bundle, bundleutil.NoX509SVIDKeys(), bundleutil.StandardJWKS())
+				jwksBytes, err := bundleutil.MarshalJWTSVIDBundle(bundle, bundleutil.StandardJWKS())
 				if err != nil {
 					return err
 				}

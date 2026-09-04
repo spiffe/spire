@@ -333,7 +333,7 @@ func (s *Service) SubscribeToJWTBundles(req *broker.SubscribeToJWTBundlesRequest
 		// trust domains that have since been removed.
 		jwtbundles := make(map[string][]byte, len(bundles))
 		for td, bundle := range bundles {
-			jwksBytes, err := bundleutil.Marshal(bundle, bundleutil.NoX509SVIDKeys(), bundleutil.StandardJWKS())
+			jwksBytes, err := bundleutil.MarshalJWTSVIDBundle(bundle, bundleutil.StandardJWKS())
 			if err != nil {
 				return err
 			}
