@@ -656,6 +656,15 @@ const (
 	// VersionInfo tags some version information
 	VersionInfo = "version_info"
 
+	// WITAuthorityExpiresAt tags a WIT Authority expiration
+	WITAuthorityExpiresAt = "wit_authority_expires_at"
+
+	// WITAuthorityKeyID tags a WIT authority key ID
+	WITAuthorityKeyID = "wit_authority_key_id"
+
+	// WITAuthorityPublicKeySHA256 tags a WIT Authority public key
+	WITAuthorityPublicKeySHA256 = "wit_authority_public_key_sha256"
+
 	// WITKeys tags some count or list of WIT Keys. Should NEVER provide the actual keys, use
 	// Key IDs instead.
 	WITKeys = "wit_keys"
