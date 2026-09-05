@@ -110,14 +110,29 @@ signal on an idle service does not consume the `max_files` budget.
 
 When `experimental.require_pq_kem` is enabled, it overrides `min_tls_version` and `curve_preferences` on terminating listeners and also applies to the outbound server gRPC client.
 
-| experimental                  | Description                                                                                                                                                                         | Default                 |
-|:-----------------------------:|:-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------:|:-----------------------:|
-| `named_pipe_name`             | Pipe name to bind the SPIRE Agent Workload API and SDS named pipe (Windows only). The named pipe is exposed unless both `disable_workload_api` and `disable_sds_api` are `true`.    | \spire-agent\public\api |
-| `sync_interval`               | Sync interval with SPIRE server with exponential backoff                                                                                                                            | 5 sec                   |
-| `require_pq_kem`              | Require use of a post-quantum-safe key exchange method for TLS handshakes                                                                                                           | false                   |
-| `jwt_svid_cache_hit_timeout`  | Custom gRPC timeout (between 5 and 30s) when retrieving a NewJWTSVID when a valid JWT-SVID in cache                                                                                 | 30s                     |
-| `ratelimit`                   | Optional per-caller rate limiting for Workload API and SDS methods, enforced after workload attestation. See [Workload API Rate Limiting](#workload-api-rate-limiting) for details. |                         |
-| `broker`                      | Optional SPIFFE Broker API endpoint configuration. See [SPIFFE Broker API](#spiffe-broker-api).                                                                                     |                         |
+| experimental                   | Description                                                                                                                                                                         | Default                 |
+|:------------------------------:|:-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------:|:-----------------------:|
+| `named_pipe_name`              | Pipe name to bind the SPIRE Agent Workload API and SDS named pipe (Windows only). The named pipe is exposed unless both `disable_workload_api` and `disable_sds_api` are `true`.    | \spire-agent\public\api |
+| `sync_interval`                | Sync interval with SPIRE server with exponential backoff                                                                                                                            | 5 sec                   |
+| `require_pq_kem`               | Require post-quantum-safe KEM on outbound gRPC and terminating listeners.                                                                                                           | false                   |
+| `jwt_svid_cache_hit_timeout`   | Custom gRPC timeout (between 5 and 30s) when retrieving a NewJWTSVID when a valid JWT-SVID in cache                                                                                 | 30s                     |
+| `ratelimit`                    | Optional per-caller rate limiting for Workload API and SDS methods, enforced after workload attestation. See [Workload API Rate Limiting](#workload-api-rate-limiting) for details. |                         |
+| `broker`                       | Optional SPIFFE Broker API endpoint configuration. See [SPIFFE Broker API](#spiffe-broker-api).                                                                                     |                         |
+| `server_load_balancing_config` | The load balancing policies used for connections to the SPIRE server. See [Server Load Balancing](#server-load-balancing).                                                          | round robin             |
+
+### Server Load Balancing
+
+By default, the agent round robins requests across every SPIRE server address returned by DNS resolution, which assures that load is evenly distributed across multiple instances of spire-server. The `server_load_balancing_config` configurable replaces that policy with an opaque payload that the agent passes through as the [`loadBalancingConfig`](https://github.com/grpc/grpc/blob/master/doc/service_config.md) field of the gRPC service config. It is a JSON array of load balancing policies, in descending order of preference; gRPC applies the first policy it supports.
+
+For example, to have the agent hold a single connection to one server instead of connecting to all of them:
+
+```hcl
+agent {
+    experimental {
+        server_load_balancing_config = "[ { \"pick_first\": { \"shuffleAddressList\": true } } ]"
+    }
+}
+```
 
 ### Workload API Rate Limiting
 

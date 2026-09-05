@@ -5,7 +5,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
-	"time"
 
 	"github.com/spiffe/go-spiffe/v2/bundle/x509bundle"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -16,11 +15,6 @@ import (
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
-)
-
-const (
-	defaultDialTimeout      = 30 * time.Second
-	roundRobinServiceConfig = `{ "loadBalancingConfig": [ { "round_robin": {} } ] }`
 )
 
 type ServerClientConfig struct {
@@ -39,6 +33,11 @@ type ServerClientConfig struct {
 
 	// TLSPolicy determines the post-quantum-safe policy to apply to all TLS connections.
 	TLSPolicy tlspolicy.Policy
+
+	// LoadBalancingConfig is an optional, opaque payload used as the
+	// loadBalancingConfig field of the gRPC service config. If empty, the
+	// default load balancing configuration is used.
+	LoadBalancingConfig string
 
 	// dialOpts are optional gRPC dial options
 	dialOpts []grpc.DialOption
@@ -67,7 +66,7 @@ func NewServerGRPCClient(config ServerClientConfig) (*grpc.ClientConn, error) {
 	dialOpts := config.dialOpts
 	if dialOpts == nil {
 		dialOpts = []grpc.DialOption{
-			grpc.WithDefaultServiceConfig(roundRobinServiceConfig),
+			grpc.WithDefaultServiceConfig(MakeServiceConfigJSON(config.LoadBalancingConfig)),
 			grpc.WithDisableServiceConfig(),
 			grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
 		}

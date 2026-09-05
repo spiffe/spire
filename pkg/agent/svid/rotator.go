@@ -364,10 +364,11 @@ func (r *rotator) generateKey(ctx context.Context) (keymanager.Key, error) {
 
 func (r *rotator) serverConn(bundle *spiffebundle.Bundle) (*grpc.ClientConn, error) {
 	return client.NewServerGRPCClient(client.ServerClientConfig{
-		Address:     r.c.ServerAddr,
-		TrustDomain: r.c.TrustDomain,
-		GetBundle:   bundle.X509Authorities,
-		TLSPolicy:   r.c.TLSPolicy,
+		Address:             r.c.ServerAddr,
+		TrustDomain:         r.c.TrustDomain,
+		GetBundle:           bundle.X509Authorities,
+		TLSPolicy:           r.c.TLSPolicy,
+		LoadBalancingConfig: r.c.LoadBalancingConfig,
 	})
 }
 

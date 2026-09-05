@@ -249,13 +249,14 @@ type workloadAPIRateLimitConfig struct {
 }
 
 type experimentalConfig struct {
-	SyncInterval           string `hcl:"sync_interval"`
-	JWTSVIDCacheHitTimeout string `hcl:"jwt_svid_cache_hit_timeout"`
-	RPCTimeout             string `hcl:"rpc_timeout"`
-	MaxBundleWorkers       int    `hcl:"max_bundle_workers"`
-	NamedPipeName          string `hcl:"named_pipe_name"`
-	AdminNamedPipeName     string `hcl:"admin_named_pipe_name"`
-	RequirePQKEM           bool   `hcl:"require_pq_kem"`
+	SyncInterval              string `hcl:"sync_interval"`
+	JWTSVIDCacheHitTimeout    string `hcl:"jwt_svid_cache_hit_timeout"`
+	RPCTimeout                string `hcl:"rpc_timeout"`
+	MaxBundleWorkers          int    `hcl:"max_bundle_workers"`
+	NamedPipeName             string `hcl:"named_pipe_name"`
+	AdminNamedPipeName        string `hcl:"admin_named_pipe_name"`
+	RequirePQKEM              bool   `hcl:"require_pq_kem"`
+	ServerLoadBalancingConfig string `hcl:"server_load_balancing_config"`
 
 	RateLimit workloadAPIRateLimitConfig `hcl:"ratelimit"`
 
@@ -620,6 +621,11 @@ func newAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig, skip
 
 	serverHostPort := net.JoinHostPort(c.Agent.ServerAddress, strconv.Itoa(c.Agent.ServerPort))
 	ac.ServerAddress = fmt.Sprintf("dns:///%s", serverHostPort)
+
+	if err := client.ValidateLoadBalancingConfig(c.Agent.Experimental.ServerLoadBalancingConfig); err != nil {
+		return nil, fmt.Errorf("invalid server_load_balancing_config: %w", err)
+	}
+	ac.ServerLoadBalancingConfig = c.Agent.Experimental.ServerLoadBalancingConfig
 
 	logOptions = append(logOptions,
 		log.WithLevel(c.Agent.LogLevel),
