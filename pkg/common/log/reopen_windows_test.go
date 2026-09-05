@@ -1,3 +1,5 @@
+//go:build windows
+
 package log
 
 import (
@@ -149,8 +151,8 @@ func TestReopenableFileReopenAfterExternalRename(t *testing.T) {
 	assert.Equal(t, "after", readFileString(t, logPath))
 }
 
-// Deleting rather than renaming leaves the name claimed until every handle to
-// it is closed, so reopening has to let go of the old descriptor first.
+// Deleting the log rather than moving it aside must also leave SPIRE writing to
+// a fresh file at the configured path.
 func TestReopenableFileReopenAfterExternalDelete(t *testing.T) {
 	dir := spiretest.TempDir(t)
 	logPath := filepath.Join(dir, "test.log")

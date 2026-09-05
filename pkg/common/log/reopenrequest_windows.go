@@ -1,3 +1,5 @@
+//go:build windows
+
 package log
 
 // reopenRequests carries reopen requests to ReopenOnSignal. POSIX has the
