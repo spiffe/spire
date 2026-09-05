@@ -23,6 +23,7 @@ type kmsClient interface {
 	ListKeys(context.Context, *kms.ListKeysInput, ...func(*kms.Options)) (*kms.ListKeysOutput, error)
 	DeleteAlias(context.Context, *kms.DeleteAliasInput, ...func(*kms.Options)) (*kms.DeleteAliasOutput, error)
 	TagResource(context.Context, *kms.TagResourceInput, ...func(*kms.Options)) (*kms.TagResourceOutput, error)
+	ReplicateKey(context.Context, *kms.ReplicateKeyInput, ...func(*kms.Options)) (*kms.ReplicateKeyOutput, error)
 }
 
 type taggingClient interface {
@@ -45,9 +46,12 @@ func newSTSClient(c aws.Config) (stsClient, error) {
 	return sts.NewFromConfig(c), nil
 }
 
-func newAWSConfig(ctx context.Context, c *Config) (aws.Config, error) {
+// newAWSConfig builds a configuration for the given region. The region is
+// passed explicitly rather than read from c.Region so that clients can also be
+// built for the replica regions.
+func newAWSConfig(ctx context.Context, c *Config, region string) (aws.Config, error) {
 	cfg, err := config.LoadDefaultConfig(ctx,
-		config.WithRegion(c.Region),
+		config.WithRegion(region),
 	)
 	if err != nil {
 		return aws.Config{}, err
