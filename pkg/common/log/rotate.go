@@ -122,9 +122,9 @@ type RotatableFile struct {
 	rotateFailedAt time.Time
 	rotateErr      error
 
-	// now, closeFunc and renameFunc are intended for injecting errors and a
-	// fake clock under test. closeFunc and renameFunc must be called while
-	// holding the lock.
+	// now, closeFunc, openFunc and renameFunc are intended for injecting
+	// errors and a fake clock under test. closeFunc, openFunc and renameFunc
+	// must be called while holding the lock.
 	now        func() time.Time
 	closeFunc  closeFunc
 	openFunc   func(name string) (*os.File, error)
@@ -171,7 +171,8 @@ func (r *RotatableFile) Write(b []byte) (n int, err error) {
 	return n, err
 }
 
-// Reopen forces an immediate rotation. It is what the signal handler calls.
+// Reopen forces an immediate rotation. It is what watchLog calls when a reopen
+// is requested.
 func (r *RotatableFile) Reopen() error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -261,8 +262,8 @@ func (r *RotatableFile) shouldRotate(writeLen int64) bool {
 // old descriptor is closed, so a failed rename leaves the writer untouched.
 func (r *RotatableFile) rotate() error {
 	// Rotating an empty file would spend the retention budget on a zero byte
-	// file and evict one holding real content. Reopen is driven by a signal
-	// SPIRE does not control, so a nightly rotation of an idle log is a no-op.
+	// file and evict one holding real content. Reopen is driven from outside
+	// SPIRE, so a nightly rotation of an idle log is a no-op.
 	// The size comes from disk so an external truncation is honored too.
 	if r.f != nil {
 		if info, err := os.Stat(r.name); err == nil && info.Size() == 0 {
