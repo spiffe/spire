@@ -137,6 +137,10 @@ type agentConfig struct {
 //	            ]
 //	        },
 //	    ]
+//
+//	    # Shortest interval a broker may send keepalive pings without being
+//	    # sent GOAWAY. Defaults to gRPC's built-in 5 minutes.
+//	    keepalive_min_time = "10s"
 //	}
 type brokerHCLConfig struct {
 	// SocketPath binds the broker endpoint to a Unix domain socket at the
@@ -151,6 +155,11 @@ type brokerHCLConfig struct {
 	// broker endpoint. Each entry's `id` is any valid SPIFFE ID; cross-
 	// trust-domain broker identities are allowed.
 	Brokers []brokerHCLEntry `hcl:"brokers"`
+
+	// KeepaliveMinTime is the shortest interval a broker is allowed to send
+	// keepalive pings without being sent GOAWAY. Defaults to gRPC's
+	// built-in 5 minutes when unset.
+	KeepaliveMinTime string `hcl:"keepalive_min_time"`
 
 	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions"`
 }
@@ -834,9 +843,19 @@ func newAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig, skip
 				AllowedReferenceTypes: allowedReferenceTypes,
 			})
 		}
+
+		var keepaliveMinTime time.Duration
+		if kmt := c.Agent.Experimental.Broker.KeepaliveMinTime; kmt != "" {
+			keepaliveMinTime, err = time.ParseDuration(kmt)
+			if err != nil {
+				return nil, fmt.Errorf("invalid experimental.broker.keepalive_min_time %q: %w", kmt, err)
+			}
+		}
+
 		ac.Broker = agent.BrokerConfig{
-			BindAddresses: bindAddrs,
-			Brokers:       brokers,
+			BindAddresses:    bindAddrs,
+			Brokers:          brokers,
+			KeepaliveMinTime: keepaliveMinTime,
 		}
 	}
 

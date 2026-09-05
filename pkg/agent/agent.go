@@ -338,15 +338,16 @@ func (a *Agent) Run(ctx context.Context) error {
 
 	if len(a.c.Broker.BindAddresses) != 0 {
 		brokerEndpoints, err := broker.New(&broker.Config{
-			BindAddrs:    a.c.Broker.BindAddresses,
-			Manager:      mgr,
-			Log:          a.c.Log,
-			Metrics:      metrics,
-			Attestor:     workloadAttestor,
-			Brokers:      a.c.Broker.Brokers,
-			SVIDSource:   liveAgentSVIDSource{m: mgr},
-			BundleSource: mgr.GetX509Bundle(),
-			TLSPolicy:    a.c.TLSPolicy,
+			BindAddrs:        a.c.Broker.BindAddresses,
+			Manager:          mgr,
+			Log:              a.c.Log,
+			Metrics:          metrics,
+			Attestor:         workloadAttestor,
+			Brokers:          a.c.Broker.Brokers,
+			SVIDSource:       liveAgentSVIDSource{m: mgr},
+			BundleSource:     mgr.GetX509Bundle(),
+			TLSPolicy:        a.c.TLSPolicy,
+			KeepaliveMinTime: a.c.Broker.KeepaliveMinTime,
 		})
 		if err != nil {
 			return fmt.Errorf("failed to create broker endpoints: %w", err)
