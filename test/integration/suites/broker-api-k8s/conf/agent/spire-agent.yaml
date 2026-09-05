@@ -57,6 +57,8 @@ subjects:
     name: spiffe://example.org/local-only-object-broker
   - kind: User
     name: spiffe://example.org/restricted-broker
+  - kind: User
+    name: spiffe://example.org/wildcard-broker
 roleRef:
   kind: ClusterRole
   name: spire-broker-impersonation-role
@@ -162,6 +164,32 @@ data:
                 },
               ]
             },
+            {
+              # Asserts its own selectors instead of naming a workload the
+              # agent attests. Scoped to the k8s_psat selector type, and
+              # UDS-only since the entry below does not set allow_over_tcp.
+              id = "spiffe://example.org/selector-broker"
+              allowed_reference_types = [
+                {
+                  type_url = "type.googleapis.com/spire.api.types.SelectorReference"
+                },
+              ]
+              selector_assertion {
+                allowed_selector_types = ["k8s_psat"]
+                max_selectors          = 16
+              }
+            },
+            {
+              # Holds the wildcard, which deliberately does NOT grant
+              # SelectorReference. Proves an existing wildcard broker gains
+              # nothing on upgrade.
+              id = "spiffe://example.org/wildcard-broker"
+              allowed_reference_types = [
+                {
+                  type_url = "*"
+                },
+              ]
+            },
           ]
         }
       }
@@ -217,6 +245,13 @@ data:
                 },
                 {
                   id = "spiffe://example.org/rbac-denied-broker"
+                },
+                {
+                  # Holds the "*" wildcard at the endpoint. It is denied
+                  # SelectorReference there, but must still be able to use the
+                  # reference types the agent attests, so the plugin has to know
+                  # about it too.
+                  id = "spiffe://example.org/wildcard-broker"
                 },
               ]
             }

@@ -1,0 +1,37 @@
+#!/bin/bash
+
+set -e
+
+source init-kubectl
+
+log-info "Test: a wildcard broker is NOT granted SelectorReference"
+
+# wildcard-broker is configured with `type_url = "*"`, which grants every
+# reference type the agent can attest for itself. SelectorReference is not one
+# of those — it is resolved by nothing — so the wildcard must not cover it.
+# This is what keeps an agent upgrade from silently handing selector assertion
+# to brokers that already hold the wildcard.
+./bin/kubectl -nspire exec -t wildcard-broker -- /brokerclient \
+    -ref-type selectors \
+    -selectors "k8s_psat:namespace:spire,k8s_psat:service_account_name:default" \
+    -expect-err PermissionDenied \
+    || fail-now "wildcard broker was allowed to assert selectors"
+
+log-success "wildcard broker denied SelectorReference with PermissionDenied"
+
+log-info "Test: the wildcard broker CAN still use an attestable reference type"
+
+TARGET_PID=$(./bin/kubectl -nspire exec -t wildcard-broker -- sh -c \
+    "ps -ef | grep '[s]pire-agent api watch' | awk '{print \$1}' | head -n1")
+
+if [ -z "${TARGET_PID}" ]; then
+    fail-now "could not resolve target-pod PID from wildcard-broker"
+fi
+
+./bin/kubectl -nspire exec -t wildcard-broker -- /brokerclient \
+    -ref-type pid \
+    -pid "${TARGET_PID}" \
+    -expected-spiffe spiffe://example.org/target-pod \
+    || fail-now "wildcard broker lost access to attestable reference types"
+
+log-success "wildcard broker retains access to attestable reference types"

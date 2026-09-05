@@ -61,3 +61,5 @@ wait-for-pod-ready spire agent-node-broker
 wait-for-pod-ready spire restricted-broker
 wait-for-pod-ready spire rbac-denied-broker
 wait-for-pod-ready spire unauthorized-workload
+wait-for-pod-ready spire selector-broker
+wait-for-pod-ready spire wildcard-broker

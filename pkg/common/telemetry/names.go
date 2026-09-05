@@ -499,6 +499,21 @@ const (
 	// ReferenceType tags a workload reference type URL
 	ReferenceType = "reference_type"
 
+	// ReferenceResolution tags the resolution of a workload reference into selectors
+	ReferenceResolution = "reference_resolution"
+
+	// ResolutionMode tags how a workload reference was resolved into selectors,
+	// either ResolutionModeAttested or ResolutionModeAsserted
+	ResolutionMode = "resolution_mode"
+
+	// ResolutionModeAttested indicates selectors produced by the agent's own
+	// workload attestor from a reference it resolved itself
+	ResolutionModeAttested = "attested"
+
+	// ResolutionModeAsserted indicates selectors asserted by the broker and
+	// accepted without attestation
+	ResolutionModeAsserted = "asserted"
+
 	// RefreshHint tags a bundle refresh hint
 	RefreshHint = "refresh_hint"
 
