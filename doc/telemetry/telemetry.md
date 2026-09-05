@@ -111,6 +111,7 @@ The following metrics are emitted:
 | Counter      | `delegated_identity_api`, `connection`                                   |                              | The Delegated Identity API has successfully established a connection.                 |
 | Gauge        | `delegated_identity_api`, `connections`                                  |                              | The number of active connection that the Delegated Identity API has.                  |
 | Latency      | `delegated_identity_api`, `subscribe_x509_svid` `first_x509_svid_update` |                              | The latency fetching first X.509-SVID in Delegated Identity API.                      |
+| Latency      | `broker_api`, `subscribe_x509_svids`, `first_update`                     |                              | The latency fetching first X.509-SVID in the SPIFFE Broker API.                       |
 
 Note: These are the keys and labels that SPIRE emits, but the format of the
 metric once ingested could vary depending on the metric collector. For example,
