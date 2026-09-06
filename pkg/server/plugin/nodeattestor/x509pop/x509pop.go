@@ -58,6 +58,8 @@ type Config struct {
 	MaxIntermediates  *int     `hcl:"max_intermediates"`
 	MaxRSAKeySize     *int     `hcl:"max_rsa_key_size"`
 	VerifyClientIP    bool     `hcl:"verify_client_ip"`
+	GroupTemplate     string   `hcl:"group_template"`
+	AllowedGroups     []string `hcl:"allowed_groups"`
 }
 
 type configuration struct {
@@ -69,6 +71,8 @@ type configuration struct {
 	maxIntermediates int
 	maxRSAKeySize    int
 	verifyClientIP   bool
+	groupTemplate    *agentpathtemplate.Template
+	allowedGroups    map[string]struct{}
 }
 
 func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *configuration {
@@ -124,6 +128,26 @@ func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginco
 		pathTemplate = tmpl
 	}
 
+	var groupTemplate *agentpathtemplate.Template
+	if len(hclConfig.GroupTemplate) > 0 {
+		tmpl, err := agentpathtemplate.Parse(hclConfig.GroupTemplate)
+		if err != nil {
+			status.ReportErrorf("failed to parse group template %q: %v", hclConfig.GroupTemplate, err)
+		} else {
+			groupTemplate = tmpl
+		}
+		if len(hclConfig.AllowedGroups) == 0 {
+			status.ReportError("allowed_groups must be set when group_template is configured")
+		}
+	} else if len(hclConfig.AllowedGroups) > 0 {
+		status.ReportError("group_template must be set when allowed_groups is configured")
+	}
+
+	allowedGroups := make(map[string]struct{}, len(hclConfig.AllowedGroups))
+	for _, group := range hclConfig.AllowedGroups {
+		allowedGroups[group] = struct{}{}
+	}
+
 	svidPrefix := "/spire-exchange/"
 	if hclConfig.SVIDPrefix != nil {
 		svidPrefix = *hclConfig.SVIDPrefix
@@ -157,6 +181,8 @@ func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginco
 		maxIntermediates: maxIntermediates,
 		maxRSAKeySize:    maxRSAKeySize,
 		verifyClientIP:   hclConfig.VerifyClientIP,
+		groupTemplate:    groupTemplate,
+		allowedGroups:    allowedGroups,
 	}
 
 	return newConfig
@@ -343,11 +369,33 @@ func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 		return status.Errorf(codes.Internal, "failed to make spiffe id: %v", err)
 	}
 
+	selectors := buildSelectorValues(leaf, chains, sanSelectors)
+
+	if config.groupTemplate != nil {
+		templateData := x509pop.NewTemplateData(config.trustDomain, leaf, svidPath, sanSelectors)
+		rendered, err := config.groupTemplate.Execute(templateData)
+		group := strings.TrimSpace(rendered)
+		switch {
+		case err != nil:
+			// The template may legitimately not apply to every certificate, so
+			// this is not fatal. No group selector is produced.
+			p.log.Debug("Failed to execute group template", "error", err)
+		case group == "":
+			p.log.Debug("Group template produced no group")
+		default:
+			if _, ok := config.allowedGroups[group]; ok {
+				selectors = append(selectors, "group:"+group)
+			} else {
+				p.log.Debug("Group not in allowed_groups", "group", group)
+			}
+		}
+	}
+
 	return stream.Send(&nodeattestorv1.AttestResponse{
 		Response: &nodeattestorv1.AttestResponse_AgentAttributes{
 			AgentAttributes: &nodeattestorv1.AgentAttributes{
 				SpiffeId:       spiffeid.String(),
-				SelectorValues: buildSelectorValues(leaf, chains, sanSelectors),
+				SelectorValues: selectors,
 				CanReattest:    true,
 			},
 		},

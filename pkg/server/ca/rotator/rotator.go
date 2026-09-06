@@ -60,7 +60,8 @@ type Config struct {
 type Rotator struct {
 	c Config
 
-	// For keeping track of number of failed rotations.
+	// For keeping track of number of failed rotations since the last fully
+	// successful rotation cycle.
 	failedRotationNum uint64
 }
 
@@ -156,7 +157,14 @@ func (r *Rotator) rotate(ctx context.Context) error {
 		r.c.Log.WithError(witKeyErr).Error("Unable to rotate WIT key")
 	}
 
-	return errors.Join(x509CAErr, jwtKeyErr, witKeyErr)
+	err := errors.Join(x509CAErr, jwtKeyErr, witKeyErr)
+	if err == nil {
+		// All keys are rotated at this time, so we can reset any failed
+		// rotation count.
+		atomic.StoreUint64(&r.failedRotationNum, 0)
+	}
+
+	return err
 }
 
 func (r *Rotator) rotateJWTKey(ctx context.Context) error {

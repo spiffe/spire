@@ -1,6 +1,7 @@
 package run
 
 import (
+	"crypto/tls"
 	"io"
 	"os"
 	"path"
@@ -9,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hashicorp/hcl"
 	"github.com/hashicorp/hcl/hcl/ast"
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
@@ -17,7 +19,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/agent/workloadkey"
 	"github.com/spiffe/spire/pkg/common/log"
-	"github.com/spiffe/spire/pkg/common/telemetry"
+	"github.com/spiffe/spire/pkg/common/tlspolicy"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/assert"
@@ -1018,12 +1020,113 @@ func TestNewAgentConfig(t *testing.T) {
 			},
 		},
 		{
+			// not an OS specific case: unlike the signal based reopen, in
+			// process rotation works on every platform
+			msg: "log_file_rotation configures a self rotating log file",
+			input: func(c *Config) {
+				c.Agent.LogFile = filepath.Join(spiretest.TempDir(t), "agent.log")
+				c.Agent.LogFileRotation = &log.RotationConfig{MaxSizeMB: new(10), MaxFiles: new(3)}
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.NotNil(t, c.Log)
+				require.NotNil(t, c.LogReopener)
+
+				l := c.Log.(*log.Logger)
+				// the temp dir cannot be removed on Windows while the log
+				// file is still open
+				t.Cleanup(func() { _ = l.Close() })
+
+				rotatable, ok := l.Out.(*log.RotatableFile)
+				require.True(t, ok, "expected a RotatableFile, got %T", l.Out)
+				require.FileExists(t, rotatable.Name())
+			},
+		},
+		{
+			msg: "log_file without log_file_rotation stays reopenable",
+			input: func(c *Config) {
+				c.Agent.LogFile = filepath.Join(spiretest.TempDir(t), "agent.log")
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.NotNil(t, c.Log)
+				require.NotNil(t, c.LogReopener)
+
+				l := c.Log.(*log.Logger)
+				// the temp dir cannot be removed on Windows while the log
+				// file is still open
+				t.Cleanup(func() { _ = l.Close() })
+
+				require.IsType(t, &log.ReopenableFile{}, l.Out)
+			},
+		},
+		{
+			msg:                "log_file_rotation without log_file returns an error",
+			expectError:        true,
+			requireErrorPrefix: "log_file must be configured to use log_file_rotation",
+			input: func(c *Config) {
+				c.Agent.LogFileRotation = &log.RotationConfig{MaxSizeMB: new(10)}
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
+			msg:                "negative log_file_rotation max_size_mb returns an error",
+			expectError:        true,
+			requireErrorPrefix: "invalid log_file_rotation configuration: max_size_mb (-1) must not be negative",
+			input: func(c *Config) {
+				c.Agent.LogFile = "foo"
+				c.Agent.LogFileRotation = &log.RotationConfig{MaxSizeMB: new(-1)}
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
+			msg:                "negative log_file_rotation max_files returns an error",
+			expectError:        true,
+			requireErrorPrefix: "invalid log_file_rotation configuration: max_files (-1) must not be negative",
+			input: func(c *Config) {
+				c.Agent.LogFile = "foo"
+				c.Agent.LogFileRotation = &log.RotationConfig{MaxFiles: new(-1)}
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
 			msg: "sync_interval parses a duration",
 			input: func(c *Config) {
 				c.Agent.Experimental.SyncInterval = "2s45ms"
 			},
 			test: func(t *testing.T, c *agent.Config) {
 				require.EqualValues(t, 2045000000, c.SyncInterval)
+			},
+		},
+		{
+			msg: "server_load_balancing_config defaults to empty",
+			input: func(_ *Config) {
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Empty(t, c.ServerLoadBalancingConfig)
+			},
+		},
+		{
+			msg: "server_load_balancing_config is passed through",
+			input: func(c *Config) {
+				c.Agent.Experimental.ServerLoadBalancingConfig = `[ { "pick_first": {} } ]`
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Equal(t, `[ { "pick_first": {} } ]`, c.ServerLoadBalancingConfig)
+			},
+		},
+		{
+			msg:         "invalid server_load_balancing_config returns an error",
+			expectError: true,
+			input: func(c *Config) {
+				c.Agent.Experimental.ServerLoadBalancingConfig = `pick_first`
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
 			},
 		},
 		{
@@ -1034,37 +1137,6 @@ func TestNewAgentConfig(t *testing.T) {
 			},
 			test: func(t *testing.T, c *agent.Config) {
 				require.Nil(t, c)
-			},
-		},
-		{
-			msg: "use_sync_authorized_entries logs deprecation alert",
-			input: func(c *Config) {
-				useSyncAuthorizedEntries := false
-				c.Agent.Experimental.UseSyncAuthorizedEntries = &useSyncAuthorizedEntries
-			},
-			logOptions: func(t *testing.T) []log.Option {
-				return []log.Option{
-					func(logger *log.Logger) error {
-						logger.SetOutput(io.Discard)
-						hook := test.NewLocal(logger.Logger)
-						t.Cleanup(func() {
-							spiretest.AssertLogsContainEntries(t, hook.AllEntries(), []spiretest.LogEntry{
-								{
-									Level:   logrus.WarnLevel,
-									Message: "The 'use_sync_authorized_entries' configuration is deprecated. The option to disable it will be removed in SPIRE 1.13.",
-									Data: logrus.Fields{
-										telemetry.Alert:     "true",
-										telemetry.AlertType: telemetry.DeprecatedConfigAlertType,
-									},
-								},
-							})
-						})
-						return nil
-					},
-				}
-			},
-			test: func(t *testing.T, c *agent.Config) {
-				require.False(t, c.UseSyncAuthorizedEntries)
 			},
 		},
 		{
@@ -1323,6 +1395,29 @@ func TestNewAgentConfig(t *testing.T) {
 			},
 			test: func(t *testing.T, c *agent.Config) {
 				require.Equal(t, true, c.TLSPolicy.RequirePQKEM)
+			},
+		},
+		{
+			msg:   "TLS config is omitted by default",
+			input: func(c *Config) {},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c.TLSPolicy.TLSCfg)
+			},
+		},
+		{
+			msg: "TLS config is configured",
+			input: func(c *Config) {
+				c.Agent.TLSConfig = &tlspolicy.TLSConfig{
+					MinTLSVersion:    "VersionTLS13",
+					CipherSuites:     []string{"TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"},
+					CurvePreferences: []string{"X25519", "secp256r1"},
+				}
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.NotNil(t, c.TLSPolicy.TLSCfg)
+				require.Equal(t, uint16(tls.VersionTLS13), c.TLSPolicy.TLSCfg.MinTLSVersion)
+				require.Nil(t, c.TLSPolicy.TLSCfg.CipherSuites)
+				require.Equal(t, []tls.CurveID{tls.X25519, tls.CurveP256}, c.TLSPolicy.TLSCfg.CurvePreferences)
 			},
 		},
 		{
@@ -1609,6 +1704,56 @@ func TestNewAgentConfig(t *testing.T) {
 	}
 }
 
+func TestParseTLSConfigFromHCL(t *testing.T) {
+	const configString = `
+agent {
+    data_dir = "."
+    log_level = "INFO"
+    server_address = "127.0.0.1"
+    server_port = "8081"
+    trust_domain = "example.org"
+    insecure_bootstrap = true
+    tls_config {
+        min_tls_version = "VersionTLS13"
+        cipher_suites = [
+            "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
+        ]
+        curve_preferences = [
+            "X25519MLKEM768",
+            "X25519",
+            "secp256r1",
+        ]
+    }
+    experimental {
+        require_pq_kem = true
+    }
+}
+plugins {}
+`
+	c := &Config{}
+	require.NoError(t, hcl.Decode(c, configString))
+
+	require.NotNil(t, c.Agent.TLSConfig)
+	require.Equal(t, "VersionTLS13", c.Agent.TLSConfig.MinTLSVersion)
+	require.Equal(t, []string{"TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"}, c.Agent.TLSConfig.CipherSuites)
+	require.Equal(t, []string{"X25519MLKEM768", "X25519", "secp256r1"}, c.Agent.TLSConfig.CurvePreferences)
+	require.True(t, c.Agent.Experimental.RequirePQKEM)
+
+	valid := defaultValidConfig()
+	valid.Agent.InsecureBootstrap = true
+	valid.Agent.TrustBundlePath = ""
+	valid.Agent.TLSConfig = c.Agent.TLSConfig
+	valid.Agent.Experimental.RequirePQKEM = c.Agent.Experimental.RequirePQKEM
+
+	ac, err := NewAgentConfig(valid, nil, false)
+	require.NoError(t, err)
+	require.True(t, ac.TLSPolicy.RequirePQKEM)
+	require.NotNil(t, ac.TLSPolicy.TLSCfg)
+	require.Equal(t, uint16(tls.VersionTLS13), ac.TLSPolicy.TLSCfg.MinTLSVersion)
+	require.Nil(t, ac.TLSPolicy.TLSCfg.CipherSuites)
+	require.Equal(t, []tls.CurveID{tls.X25519MLKEM768, tls.X25519, tls.CurveP256}, ac.TLSPolicy.TLSCfg.CurvePreferences)
+}
+
 func TestParseBrokerAllowedReferenceTypes(t *testing.T) {
 	file, err := os.CreateTemp("", "spire-agent-broker-*.conf")
 	require.NoError(t, err)
@@ -1789,6 +1934,16 @@ func TestWarnOnUnknownConfig(t *testing.T) {
 			expectedLogEntries: []logEntry{
 				{
 					section: "ratelimit",
+					keys:    "unknown_option1,unknown_option2",
+				},
+			},
+		},
+		{
+			msg:      "in nested log_file_rotation block",
+			confFile: "agent_bad_nested_log_file_rotation_block.conf",
+			expectedLogEntries: []logEntry{
+				{
+					section: "log_file_rotation",
 					keys:    "unknown_option1,unknown_option2",
 				},
 			},

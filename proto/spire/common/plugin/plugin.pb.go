@@ -24,9 +24,9 @@ const (
 // * Represents the plugin-specific configuration string.
 type ConfigureRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// * The configuration for the plugin.
+	//* The configuration for the plugin.
 	Configuration string `protobuf:"bytes,1,opt,name=configuration,proto3" json:"configuration,omitempty"`
-	// * Global configurations.
+	//* Global configurations.
 	GlobalConfig  *ConfigureRequest_GlobalConfig `protobuf:"bytes,2,opt,name=globalConfig,proto3" json:"globalConfig,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -80,7 +80,7 @@ func (x *ConfigureRequest) GetGlobalConfig() *ConfigureRequest_GlobalConfig {
 // found in the configuration string.
 type ConfigureResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// * A list of errors
+	//* A list of errors
 	ErrorList     []string `protobuf:"bytes,1,rep,name=errorList,proto3" json:"errorList,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache

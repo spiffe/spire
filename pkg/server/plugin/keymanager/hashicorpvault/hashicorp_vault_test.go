@@ -325,11 +325,9 @@ func TestValidate(t *testing.T) {
 func TestPluginGenerateKey(t *testing.T) {
 	successfulConfig := &Config{
 		TransitEnginePath: "test-transit",
-		BaseConfiguration: vault.BaseConfiguration{
-			CACertPath: "testdata/root-cert.pem",
-			TokenAuth: &vault.TokenAuthConfig{
-				Token: "test-token",
-			},
+		CACertPath:        "testdata/root-cert.pem",
+		TokenAuth: &vault.TokenAuthConfig{
+			Token: "test-token",
 		},
 	}
 

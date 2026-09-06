@@ -32,8 +32,6 @@ func (c *grpcCredentials) ServerHandshake(conn net.Conn) (net.Conn, credentials.
 func (c *grpcCredentials) Info() credentials.ProtocolInfo {
 	return credentials.ProtocolInfo{
 		SecurityProtocol: authType,
-		SecurityVersion:  "0.2",
-		ServerName:       "spire-agent",
 	}
 }
 

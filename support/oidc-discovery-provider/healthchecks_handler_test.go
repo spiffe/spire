@@ -112,9 +112,9 @@ func TestHealthCheckHandler(t *testing.T) {
 			r, err := http.NewRequest(testCase.method, "http://localhost"+testCase.path, nil)
 			require.NoError(t, err)
 			w := httptest.NewRecorder()
-			c := Config{}
-			c.ServerAPI = &ServerAPIConfig{}
-			c.HealthChecks = &HealthChecksConfig{BindPort: 8008, ReadyPath: "/ready", LivePath: "/live"}
+			c := Config{
+				ServerAPI:    &ServerAPIConfig{},
+				HealthChecks: &HealthChecksConfig{BindPort: 8008, ReadyPath: "/ready", LivePath: "/live"}}
 			h := NewHealthChecksHandler(source, &c)
 			h.ServeHTTP(w, r)
 

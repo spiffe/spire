@@ -25,32 +25,35 @@ import (
 // Config holds a cache manager configuration
 type Config struct {
 	// Agent SVID and key resulting from successful attestation.
-	SVID                     []*x509.Certificate
-	SVIDKey                  keymanager.Key
-	Bundle                   *managerCache.Bundle
-	Reattestable             bool
-	Catalog                  catalog.Catalog
-	TrustDomain              spiffeid.TrustDomain
-	Log                      logrus.FieldLogger
-	Metrics                  telemetry.Metrics
-	ServerAddr               string
-	Storage                  storage.Storage
-	TrustBundleSources       trustbundlesources.Bundle
-	RebootstrapMode          string
-	RebootstrapDelay         time.Duration
-	WorkloadKeyType          workloadkey.KeyType
-	SyncInterval             time.Duration
-	UseSyncAuthorizedEntries bool
-	RotationInterval         time.Duration
-	SVIDStoreCache           *storecache.Cache
-	X509SVIDCacheMaxSize     int
-	JWTSVIDCacheMaxSize      int
-	WITSVIDCacheMaxSize      int
-	EnableWITSVIDs           bool
-	DisableLRUCache          bool
-	NodeAttestor             nodeattestor.NodeAttestor
-	RotationStrategy         *rotationutil.RotationStrategy
-	TLSPolicy                tlspolicy.Policy
+	SVID                 []*x509.Certificate
+	SVIDKey              keymanager.Key
+	Bundle               *managerCache.Bundle
+	Reattestable         bool
+	Catalog              catalog.Catalog
+	TrustDomain          spiffeid.TrustDomain
+	Log                  logrus.FieldLogger
+	Metrics              telemetry.Metrics
+	ServerAddr           string
+	Storage              storage.Storage
+	TrustBundleSources   trustbundlesources.Bundle
+	RebootstrapMode      string
+	RebootstrapDelay     time.Duration
+	WorkloadKeyType      workloadkey.KeyType
+	SyncInterval         time.Duration
+	RotationInterval     time.Duration
+	SVIDStoreCache       *storecache.Cache
+	X509SVIDCacheMaxSize int
+	JWTSVIDCacheMaxSize  int
+	WITSVIDCacheMaxSize  int
+	EnableWITSVIDs       bool
+	DisableLRUCache      bool
+	NodeAttestor         nodeattestor.NodeAttestor
+	RotationStrategy     *rotationutil.RotationStrategy
+	TLSPolicy            tlspolicy.Policy
+
+	// LoadBalancingConfig is an optional, opaque payload used as the
+	// loadBalancingConfig field of the gRPC service config.
+	LoadBalancingConfig string
 
 	// Clk is the clock the manager will use to get time
 	Clk clock.Clock
@@ -115,6 +118,8 @@ func newManager(c *Config) *manager {
 		Reattestable:     c.Reattestable,
 		RotationStrategy: c.RotationStrategy,
 		TLSPolicy:        c.TLSPolicy,
+
+		LoadBalancingConfig: c.LoadBalancingConfig,
 	}
 	svidRotator, client := svid.NewRotator(rotCfg)
 

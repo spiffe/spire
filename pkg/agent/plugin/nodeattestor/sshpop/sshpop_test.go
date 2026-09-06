@@ -75,7 +75,7 @@ func (s *Suite) TestFetchAttestationDataSuccess() {
 	err := s.na.Attest(context.Background(),
 		streamBuilder.Handle(func(payloadOrChallengeResponse []byte) (challenge []byte, err error) {
 			// send challenge
-			if err := server.VerifyAttestationData(payloadOrChallengeResponse); err != nil {
+			if err := server.VerifyAttestationData(payloadOrChallengeResponse, ""); err != nil {
 				return nil, err
 			}
 			return server.IssueChallenge()

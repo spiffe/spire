@@ -6,6 +6,7 @@ import (
 	"io"
 	"net"
 
+	"github.com/hashicorp/go-hclog"
 	nodeattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/nodeattestor/v1"
 	"github.com/spiffe/spire/pkg/common/plugin"
 	"github.com/spiffe/spire/proto/spire/common"
@@ -27,6 +28,21 @@ const (
 	// in scenarios including load balancers and other middlebox patterns
 	XForwardedClientIPKey = "X-Forwarded-Client-IP"
 )
+
+// ClientIPFromContext returns the client IP observed by the server, as
+// forwarded to the plugin under XForwardedClientIPKey. It returns an empty
+// string when the server could not determine the IP. Plugins that verify the
+// client IP share this so they read the metadata the same way.
+func ClientIPFromContext(ctx context.Context, log hclog.Logger) string {
+	ips := metadata.ValueFromIncomingContext(ctx, XForwardedClientIPKey)
+	if len(ips) == 0 {
+		return ""
+	}
+	if len(ips) > 1 && log != nil {
+		log.Warn("Multiple client IP values found in metadata, using first value")
+	}
+	return ips[0]
+}
 
 type V1 struct {
 	plugin.Facade

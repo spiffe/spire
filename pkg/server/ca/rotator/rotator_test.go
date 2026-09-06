@@ -58,6 +58,51 @@ func TestHealthChecks(t *testing.T) {
 	require.Equal(t, expectStateMap, test.healthChecker.RunChecks())
 }
 
+func TestHealthCheckRecoversAfterSuccessfulRotation(t *testing.T) {
+	ctx := context.Background()
+	test := setupTest(t)
+
+	healthy := map[string]health.State{
+		"server.ca.rotator": {
+			Live:         true,
+			Ready:        true,
+			ReadyDetails: managerHealthDetails{},
+			LiveDetails:  managerHealthDetails{},
+		},
+	}
+	unhealthy := map[string]health.State{
+		"server.ca.rotator": {
+			Live:  false,
+			Ready: false,
+			ReadyDetails: managerHealthDetails{
+				RotationErr: "rotations exceed the threshold number of failures",
+			},
+			LiveDetails: managerHealthDetails{
+				RotationErr: "rotations exceed the threshold number of failures",
+			},
+		},
+	}
+
+	// Move past the preparation mark so every authority attempts to prepare
+	// its next slot.
+	test.clock.Add(time.Minute + time.Second)
+
+	// Only the JWT key fails to rotate. The X509 CA and WIT key keep
+	// succeeding, which must not clear the failure count.
+	test.fakeCAManager.prepareJWTKeyErr = errors.New("oh no")
+	for range failedRotationThreshold + 1 {
+		require.EqualError(t, test.rotator.rotate(ctx), "oh no")
+	}
+	require.Equal(t, uint64(failedRotationThreshold+1), test.rotator.failedRotationResult())
+	require.Equal(t, unhealthy, test.healthChecker.RunChecks())
+
+	test.fakeCAManager.prepareJWTKeyErr = nil
+	require.NoError(t, test.rotator.rotate(ctx))
+
+	require.Zero(t, test.rotator.failedRotationResult())
+	require.Equal(t, healthy, test.healthChecker.RunChecks())
+}
+
 func TestInitialize(t *testing.T) {
 	for _, tt := range []struct {
 		name             string

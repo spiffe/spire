@@ -222,25 +222,27 @@ func (a *attestedNodes) updateCachedNodes(ctx context.Context) error {
 	spiffeIds := slices.Collect(maps.Keys(a.fetchNodes))
 	for pageStart := 0; pageStart < len(spiffeIds); pageStart += int(a.pageSize) {
 		fetchNodes := a.fetchNodesPage(spiffeIds, pageStart)
-		nodes, err := a.ds.FetchAttestedNodes(ctx, fetchNodes)
+		nodes, err := a.ds.ListAttestedNodes(ctx, &datastore.ListAttestedNodesRequest{BySpiffeIDs: fetchNodes, FetchSelectors: true})
 		if err != nil {
 			return err
 		}
-
+		seen := make(map[string]struct{}, len(nodes.Nodes))
+		for _, node := range nodes.Nodes {
+			agentExpiresAt := time.Unix(node.CertNotAfter, 0)
+			a.cache.UpdateAgent(node.SpiffeId, agentExpiresAt, api.ProtoFromSelectors(node.Selectors))
+			a.nodeCache.UpdateAttestedNode(node)
+			delete(a.fetchNodes, node.SpiffeId)
+			seen[node.SpiffeId] = struct{}{}
+		}
 		for _, spiffeId := range fetchNodes {
-			node, ok := nodes[spiffeId]
-			// Node was deleted (absent from the response, or explicitly nil)
-			if !ok || node == nil {
+			_, ok := seen[spiffeId]
+			if !ok {
+				// Node was deleted (absent from the response)
 				a.nodeCache.RemoveAttestedNode(spiffeId)
 				a.cache.RemoveAgent(spiffeId)
 				delete(a.fetchNodes, spiffeId)
 				continue
 			}
-
-			agentExpiresAt := time.Unix(node.CertNotAfter, 0)
-			a.cache.UpdateAgent(node.SpiffeId, agentExpiresAt, api.ProtoFromSelectors(node.Selectors))
-			a.nodeCache.UpdateAttestedNode(node)
-			delete(a.fetchNodes, spiffeId)
 		}
 	}
 	return nil

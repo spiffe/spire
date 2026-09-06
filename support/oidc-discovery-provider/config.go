@@ -10,6 +10,8 @@ import (
 
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire/pkg/common/config"
+	spirelog "github.com/spiffe/spire/pkg/common/log"
+	"github.com/spiffe/spire/pkg/common/tlspolicy"
 )
 
 const (
@@ -27,6 +29,11 @@ type Config struct {
 	LogFormat string `hcl:"log_format"`
 	LogLevel  string `hcl:"log_level"`
 	LogPath   string `hcl:"log_path"`
+
+	// LogFileRotation, when set, has the provider rotate LogPath itself. The
+	// provider does not handle SIGUSR2, so without it rotation is left to an
+	// external tool using logrotate's lossy copytruncate.
+	LogFileRotation *spirelog.RotationConfig `hcl:"log_file_rotation"`
 
 	// LogRequests is a debug option that logs all incoming requests
 	LogRequests bool `hcl:"log_requests"`
@@ -82,6 +89,10 @@ type Config struct {
 
 	// Experimental options that are subject to change or removal.
 	Experimental experimentalConfig `hcl:"experimental"`
+
+	// TLSConfig configures TLS settings for HTTPS listeners
+	// (disk certificate and ACME modes).
+	TLSConfig *tlspolicy.TLSConfig `hcl:"tls_config"`
 
 	// JWTIssuer specifies the issuer for the OIDC provider configuration request.
 	JWTIssuer string `hcl:"jwt_issuer"`
@@ -236,6 +247,15 @@ func ParseConfig(hclConfig string) (_ *Config, err error) {
 		c.LogLevel = defaultLogLevel
 	}
 
+	if c.LogFileRotation != nil {
+		if c.LogPath == "" {
+			return nil, errors.New("log_path must be configured to use the log_file_rotation configuration section")
+		}
+		if err := c.LogFileRotation.Validate(); err != nil {
+			return nil, fmt.Errorf("invalid log_file_rotation configuration section: %w", err)
+		}
+	}
+
 	if len(c.Domains) == 0 {
 		return nil, errors.New("at least one domain must be configured")
 	}
@@ -352,6 +372,7 @@ func ParseConfig(hclConfig string) (_ *Config, err error) {
 	if c.JWKSURI == "" && c.JWTIssuer != "" {
 		fmt.Printf("Warning: The jwt_issuer configuration will also affect the jwks_uri behavior when jwks_url is not set. This behaviour will be changed in 1.13.0.")
 	}
+
 	return c, nil
 }
 

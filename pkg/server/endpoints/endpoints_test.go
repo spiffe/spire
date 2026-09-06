@@ -131,6 +131,17 @@ func TestNew(t *testing.T) {
 	assert.Equal(t, metrics, endpoints.Metrics)
 }
 
+func TestEndpointsListenerTLSConfigEmptyPolicy(t *testing.T) {
+	policy, err := tlspolicy.NewPolicy(false, nil, nil)
+	require.NoError(t, err)
+
+	spiffeTLSConfig := tlsconfig.MTLSServerConfig(nil, nil, nil)
+	spiffeTLSConfig.MinVersion = tls.VersionTLS12
+	require.NoError(t, tlspolicy.ApplyPolicy(spiffeTLSConfig, policy, tlspolicy.WithServerTLSConfig()))
+	require.Nil(t, spiffeTLSConfig.CipherSuites)
+	require.Nil(t, spiffeTLSConfig.CurvePreferences)
+}
+
 func TestNewErrorCreatingAuthorizedEntryFetcher(t *testing.T) {
 	ctx := context.Background()
 	tcpAddr := &net.TCPAddr{}
@@ -1095,7 +1106,7 @@ func testAuthorization(ctx context.Context, t *testing.T, client any, expectedAu
 
 			var st *status.Status
 			if !out[1].IsNil() {
-				err, ok := out[1].Interface().(error)
+				err, ok := reflect.TypeAssert[error](out[1])
 				require.True(t, ok, "2nd output should have been nil or an error")
 				st = status.Convert(err)
 			}
@@ -1138,7 +1149,7 @@ func assertServiceUnavailable(ctx context.Context, t *testing.T, client any) {
 
 			var st *status.Status
 			if !out[1].IsNil() {
-				err, ok := out[1].Interface().(error)
+				err, ok := reflect.TypeAssert[error](out[1])
 				require.True(t, ok, "2nd output should have been nil or an error")
 				st = status.Convert(err)
 			}

@@ -102,10 +102,6 @@ func TestWithMetrics(t *testing.T) {
 			methodName: "FetchAttestedNode",
 		},
 		{
-			key:        "datastore.node.fetch",
-			methodName: "FetchAttestedNodes",
-		},
-		{
 			key:        "datastore.node_event.fetch",
 			methodName: "FetchAttestedNodeEvent",
 		},
@@ -390,10 +386,6 @@ func (ds *fakeDataStore) DeleteRegistrationEntry(context.Context, string) (*comm
 
 func (ds *fakeDataStore) FetchAttestedNode(context.Context, string) (*common.AttestedNode, error) {
 	return &common.AttestedNode{}, ds.err
-}
-
-func (ds *fakeDataStore) FetchAttestedNodes(context.Context, []string) (map[string]*common.AttestedNode, error) {
-	return map[string]*common.AttestedNode{}, ds.err
 }
 
 func (ds *fakeDataStore) FetchAttestedNodeEvent(context.Context, uint) (*datastore.AttestedNodeEvent, error) {

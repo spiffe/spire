@@ -2224,7 +2224,7 @@ func TestServiceBatchNewX509SVID(t *testing.T) {
 	}
 }
 
-func BatchNewWITSVID(t *testing.T) {
+func TestServiceBatchNewWITSVID(t *testing.T) {
 	test := setupServiceTest(t)
 	defer test.Cleanup()
 
@@ -2250,8 +2250,8 @@ func BatchNewWITSVID(t *testing.T) {
 	expiresAtFromCA := now.Add(test.ca.WITSVIDTTL()).Unix()
 	expiresAtFromCAStr := strconv.FormatInt(expiresAtFromCA, 10)
 
-	_, invalidCsrErr := x509.ParseCertificateRequest([]byte{1, 2, 3})
-	require.Error(t, invalidCsrErr)
+	_, invalidPublicKeyErr := x509.ParsePKIXPublicKey([]byte{1, 2, 3})
+	require.Error(t, invalidPublicKeyErr)
 
 	type expectResult struct {
 		entry  *types.Entry
@@ -2287,7 +2287,7 @@ func BatchNewWITSVID(t *testing.T) {
 					Data: logrus.Fields{
 						telemetry.Status:         "success",
 						telemetry.Type:           "audit",
-						telemetry.RegistrationID: "workload",
+						telemetry.RegistrationID: "workload1",
 						telemetry.ExpiresAt:      expiresAtFromCAStr,
 						telemetry.SPIFFEID:       "spiffe://example.org/workload1",
 					},
@@ -2336,7 +2336,7 @@ func BatchNewWITSVID(t *testing.T) {
 					Data: logrus.Fields{
 						telemetry.Status:         "error",
 						telemetry.Type:           "audit",
-						telemetry.RegistrationID: "",
+						telemetry.RegistrationID: "invalid",
 						telemetry.StatusCode:     "Internal",
 						telemetry.StatusMessage:  "entry has malformed SPIFFE ID: trust domain is missing",
 						telemetry.SPIFFEID:       "",
@@ -2360,19 +2360,31 @@ func BatchNewWITSVID(t *testing.T) {
 			signingAlgorithm: "ES123",
 			expectResults: []*expectResult{
 				{
-					entry: workloadEntry1,
+					status: &types.Status{
+						Code:    int32(codes.InvalidArgument),
+						Message: "invalid signing algorithm or key type: unsupported signing algorithm for ec-p256 key: ES123",
+					},
 				},
 			},
 			expectLogs: []spiretest.LogEntry{
 				{
+					Level:   logrus.ErrorLevel,
+					Message: "Invalid argument: invalid signing algorithm or key type",
+					Data: logrus.Fields{
+						telemetry.RegistrationID: "workload1",
+						logrus.ErrorKey:          "unsupported signing algorithm for ec-p256 key: ES123",
+					},
+				},
+				{
 					Level:   logrus.InfoLevel,
 					Message: "API accessed",
 					Data: logrus.Fields{
-						telemetry.Status:         "success",
+						telemetry.Status:         "error",
 						telemetry.Type:           "audit",
-						telemetry.RegistrationID: "workload",
-						telemetry.ExpiresAt:      expiresAtFromCAStr,
-						telemetry.SPIFFEID:       "spiffe://example.org/workload1",
+						telemetry.RegistrationID: "workload1",
+						telemetry.StatusCode:     "InvalidArgument",
+						telemetry.StatusMessage:  "invalid signing algorithm or key type: unsupported signing algorithm for ec-p256 key: ES123",
+						telemetry.SPIFFEID:       "",
 					},
 				},
 			},
@@ -2515,7 +2527,7 @@ func BatchNewWITSVID(t *testing.T) {
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Invalid argument: missing CSR",
+					Message: "Invalid argument: missing public key",
 				},
 				{
 					Level:   logrus.InfoLevel,
@@ -2523,9 +2535,9 @@ func BatchNewWITSVID(t *testing.T) {
 					Data: logrus.Fields{
 						telemetry.Status:         "error",
 						telemetry.Type:           "audit",
-						telemetry.RegistrationID: "workload",
+						telemetry.RegistrationID: "workload1",
 						telemetry.StatusCode:     "InvalidArgument",
-						telemetry.StatusMessage:  "missing CSR",
+						telemetry.StatusMessage:  "missing public key",
 						telemetry.SPIFFEID:       "",
 					},
 				},
@@ -2569,7 +2581,7 @@ func BatchNewWITSVID(t *testing.T) {
 				{
 					status: &types.Status{
 						Code:    int32(codes.InvalidArgument),
-						Message: "malformed CSR: asn1:",
+						Message: "malformed public key: asn1:",
 					},
 				},
 			},
@@ -2579,10 +2591,10 @@ func BatchNewWITSVID(t *testing.T) {
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Invalid argument: malformed CSR",
+					Message: "Invalid argument: malformed public key",
 					Data: logrus.Fields{
-						telemetry.RegistrationID: "workload",
-						logrus.ErrorKey:          invalidCsrErr.Error(),
+						telemetry.RegistrationID: "workload1",
+						logrus.ErrorKey:          invalidPublicKeyErr.Error(),
 					},
 				},
 				{
@@ -2591,9 +2603,9 @@ func BatchNewWITSVID(t *testing.T) {
 					Data: logrus.Fields{
 						telemetry.Status:         "error",
 						telemetry.Type:           "audit",
-						telemetry.RegistrationID: "workload",
+						telemetry.RegistrationID: "workload1",
 						telemetry.StatusCode:     "InvalidArgument",
-						telemetry.StatusMessage:  fmt.Sprintf("malformed CSR: %v", invalidCsrErr),
+						telemetry.StatusMessage:  fmt.Sprintf("malformed public key: %v", invalidPublicKeyErr),
 						telemetry.SPIFFEID:       "",
 					},
 				},
@@ -2648,7 +2660,7 @@ func BatchNewWITSVID(t *testing.T) {
 					Level:   logrus.ErrorLevel,
 					Message: "Failed to sign WIT-SVID",
 					Data: logrus.Fields{
-						telemetry.RegistrationID: "workload",
+						telemetry.RegistrationID: "workload1",
 						logrus.ErrorKey:          "oh no",
 						telemetry.SPIFFEID:       workloadID.String(),
 					},
@@ -2659,7 +2671,7 @@ func BatchNewWITSVID(t *testing.T) {
 					Data: logrus.Fields{
 						telemetry.Status:         "error",
 						telemetry.Type:           "audit",
-						telemetry.RegistrationID: "workload",
+						telemetry.RegistrationID: "workload1",
 						telemetry.StatusCode:     "Internal",
 						telemetry.StatusMessage:  "failed to sign WIT-SVID: oh no",
 						telemetry.SPIFFEID:       "",
@@ -2690,7 +2702,7 @@ func BatchNewWITSVID(t *testing.T) {
 			var params []*svidv1.NewWITSVIDParams
 			for _, entryID := range tt.reqs {
 				key := testkey.MustEC256()
-				keyDer, err := key.PublicKey.Bytes()
+				keyDer, err := x509.MarshalPKIXPublicKey(key.Public())
 				require.NoError(t, err)
 
 				params = append(params, &svidv1.NewWITSVIDParams{
@@ -2732,20 +2744,14 @@ func BatchNewWITSVID(t *testing.T) {
 
 				require.NotNil(t, result.Svid)
 
+				svid := result.Svid
 				entry := expect.entry
 
-				require.Equal(t, entry.SpiffeId.TrustDomain, result.Svid.Id.TrustDomain)
-				require.Equal(t, entry.SpiffeId.Path, result.Svid.Id.Path)
-
-				svid := result.Svid
-
-				entrySPIFFEID := idutil.RequireIDFromProto(entry.SpiffeId)
-				require.Equal(t, []*url.URL{entrySPIFFEID.URL()}, svid.Id)
-
-				expiresAt := now.Add(test.ca.WITSVIDTTL())
-
-				require.Equal(t, expiresAt, svid.ExpiresAt)
-				require.Equal(t, expiresAt.UTC().Unix(), result.Svid.ExpiresAt)
+				require.Equal(t, entry.SpiffeId.TrustDomain, svid.Id.TrustDomain)
+				require.Equal(t, entry.SpiffeId.Path, svid.Id.Path)
+				require.NotEmpty(t, svid.Token)
+				require.Equal(t, now.Unix(), svid.IssuedAt)
+				require.Equal(t, expiresAtFromCA, svid.ExpiresAt)
 			}
 		})
 	}

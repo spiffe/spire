@@ -507,14 +507,14 @@ func TestPodListFetcherDoesNotInstallClientFromStaleFetchResult(t *testing.T) {
 	}
 
 	fetcher.completeFetch(podListFetchResult{
-		versionedPodList: versionedPodList{pods: map[string]*fastjson.Value{}, version: 1},
+		pods: map[string]*fastjson.Value{}, version: 1,
 	}, newClient("old-token"), newClient("old-token"))
 	require.Equal(t, "https://127.0.0.1:2", fetcher.client.endpoint.String())
 	require.Equal(t, "new-token", fetcher.client.token)
 	require.EqualValues(t, 1, fetcher.cachedPodList.version)
 
 	fetcher.completeFetch(podListFetchResult{
-		versionedPodList: versionedPodList{pods: map[string]*fastjson.Value{}, version: 2},
+		pods: map[string]*fastjson.Value{}, version: 2,
 	}, fetcher.client, newClient("newest-token"))
 	require.Equal(t, "newest-token", fetcher.client.token)
 	require.EqualValues(t, 2, fetcher.cachedPodList.version)
