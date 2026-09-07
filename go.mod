@@ -70,6 +70,7 @@ require (
 	github.com/moby/moby/api v1.55.0
 	github.com/moby/moby/client v0.5.1
 	github.com/open-policy-agent/opa v1.19.1
+	github.com/ovh/kmip-go v0.9.2
 	github.com/pires/go-proxyproto v0.15.0
 	github.com/prometheus/client_golang v1.24.1
 	github.com/shirou/gopsutil/v4 v4.26.7
