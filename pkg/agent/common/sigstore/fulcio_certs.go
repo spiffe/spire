@@ -3,9 +3,20 @@ package sigstore
 import (
 	"crypto/x509"
 	"fmt"
+	"os"
+	"strconv"
 	"sync"
 
 	sigstoreroot "github.com/sigstore/sigstore-go/pkg/root"
+	"github.com/sigstore/sigstore-go/pkg/tuf"
+)
+
+const (
+	// tufRootEnv locates an alternate local TUF root location.
+	tufRootEnv = "TUF_ROOT"
+
+	// sigstoreNoCacheEnv, when set, keeps TUF root data in memory only.
+	sigstoreNoCacheEnv = "SIGSTORE_NO_CACHE"
 )
 
 var (
@@ -27,7 +38,7 @@ func getFulcioIntermediates() (*x509.CertPool, error) {
 
 func loadFulcioCertPools() (*x509.CertPool, *x509.CertPool, error) {
 	fulcioPoolsOnce.Do(func() {
-		trustedRoot, err := sigstoreroot.FetchTrustedRoot()
+		trustedRoot, err := sigstoreroot.FetchTrustedRootWithOptions(tufOptions())
 		if err != nil {
 			fulcioPoolsErr = fmt.Errorf("failed to fetch sigstore trusted root: %w", err)
 			return
@@ -60,4 +71,17 @@ func certPoolsFromCertificateAuthorities(cas []sigstoreroot.CertificateAuthority
 	}
 
 	return roots, intermediates, nil
+}
+
+// tufOptions returns TUF client options honoring TUF_ROOT and SIGSTORE_NO_CACHE,
+// matching the behavior of the deprecated sigstore/pkg/tuf.NewFromEnv path.
+func tufOptions() *tuf.Options {
+	opts := tuf.DefaultOptions()
+	if rootDir := os.Getenv(tufRootEnv); rootDir != "" {
+		opts.CachePath = rootDir
+	}
+	if noCache, err := strconv.ParseBool(os.Getenv(sigstoreNoCacheEnv)); err == nil {
+		opts.DisableLocalCache = noCache
+	}
+	return opts
 }

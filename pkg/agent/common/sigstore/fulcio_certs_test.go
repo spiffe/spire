@@ -7,6 +7,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"math/big"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -18,6 +19,41 @@ type fakeCertificateAuthority struct{}
 
 func (fakeCertificateAuthority) Verify(*x509.Certificate, time.Time) ([][]*x509.Certificate, error) {
 	return nil, nil
+}
+
+func TestTufOptions(t *testing.T) {
+	t.Run("defaults", func(t *testing.T) {
+		t.Setenv(tufRootEnv, "")
+		t.Setenv(sigstoreNoCacheEnv, "")
+
+		opts := tufOptions()
+		require.False(t, opts.DisableLocalCache)
+		require.True(t, filepath.IsAbs(opts.CachePath))
+		require.Contains(t, opts.CachePath, filepath.Join(".sigstore", "root"))
+	})
+
+	t.Run("custom TUF root", func(t *testing.T) {
+		t.Setenv(tufRootEnv, "/var/lib/spire/tuf")
+		t.Setenv(sigstoreNoCacheEnv, "")
+
+		opts := tufOptions()
+		require.Equal(t, "/var/lib/spire/tuf", opts.CachePath)
+	})
+
+	t.Run("disable local cache", func(t *testing.T) {
+		t.Setenv(tufRootEnv, "")
+		t.Setenv(sigstoreNoCacheEnv, "true")
+
+		opts := tufOptions()
+		require.True(t, opts.DisableLocalCache)
+	})
+
+	t.Run("invalid no cache value", func(t *testing.T) {
+		t.Setenv(sigstoreNoCacheEnv, "not-a-bool")
+
+		opts := tufOptions()
+		require.False(t, opts.DisableLocalCache)
+	})
 }
 
 func TestCertPoolsFromCertificateAuthorities(t *testing.T) {
