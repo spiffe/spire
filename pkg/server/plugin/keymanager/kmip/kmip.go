@@ -350,18 +350,14 @@ func (p *Plugin) GetPublicKeys(_ context.Context, _ *keymanagerv1.GetPublicKeysR
 // variable so tests can exercise pagination with a small page size.
 var locatePageSize int32 = 1000
 
-// locatePrivateKeys returns the unique identifiers of all private keys carrying the
-// given Name, paginating through the results to handle KMIP servers that limit the
-// number of items returned per response.
-func locatePrivateKeys(ctx context.Context, c *kmipclient.Client, name ovh.Name) ([]string, error) {
+func locatePrivateKeysWithAttributes(ctx context.Context, c *kmipclient.Client, attrs ...ovh.Attribute) ([]string, error) {
 	var uids []string
 	for offset := int32(0); ; {
-		resp, err := c.Locate().
-			WithAttribute(ovh.AttributeNameObjectType, ovh.ObjectTypePrivateKey).
-			WithAttribute(ovh.AttributeNameName, name).
-			WithMaxItems(locatePageSize).
-			WithOffset(offset).
-			ExecContext(ctx)
+		locate := c.Locate().WithAttribute(ovh.AttributeNameObjectType, ovh.ObjectTypePrivateKey)
+		for _, attr := range attrs {
+			locate = locate.WithAttribute(attr.AttributeName, attr.AttributeValue)
+		}
+		resp, err := locate.WithMaxItems(locatePageSize).WithOffset(offset).ExecContext(ctx)
 		if err != nil {
 			return nil, err
 		}
@@ -372,6 +368,23 @@ func locatePrivateKeys(ctx context.Context, c *kmipclient.Client, name ovh.Name)
 		offset += int32(len(resp.UniqueIdentifier)) //nolint:gosec // bounded by locatePageSize
 	}
 	return uids, nil
+}
+
+// locatePrivateKeys returns the unique identifiers of all private keys carrying the
+// given Name, paginating through the results to handle KMIP servers that limit the
+// number of items returned per response.
+func locatePrivateKeys(ctx context.Context, c *kmipclient.Client, name ovh.Name) ([]string, error) {
+	return locatePrivateKeysWithAttributes(ctx, c, ovh.Attribute{
+		AttributeName:  ovh.AttributeNameName,
+		AttributeValue: name,
+	})
+}
+
+// locateAllPrivateKeys returns the unique identifiers of all private keys on the
+// KMIP server, paginating through the results to handle servers that limit the
+// number of items returned per response.
+func locateAllPrivateKeys(ctx context.Context, c *kmipclient.Client) ([]string, error) {
+	return locatePrivateKeysWithAttributes(ctx, c)
 }
 
 // recoveredKey is a single key object discovered on the KMIP server during
@@ -944,26 +957,24 @@ func (p *Plugin) disposeStaleKeysTask(ctx context.Context) {
 	}
 }
 
-// disposeStaleKeys locates this server's keys and destroys those whose
-// spire-last-update Name is older than the configured stale-key threshold.
+// disposeStaleKeys locates private keys across all server instances using this
+// KMIP tenant and destroys those whose spire-last-update Name is older than the
+// configured stale-key threshold. This is safe because keys without that
+// SPIRE-managed marker, or with a fresh value, are skipped.
 func (p *Plugin) disposeStaleKeys(ctx context.Context) error {
 	p.logger.Debug("Looking for stale keys to dispose")
 
 	p.mu.RLock()
 	client := p.client
-	serverID := p.serverID
 	threshold := p.staleKeyThreshold
 	p.mu.RUnlock()
 	if client == nil {
 		return nil
 	}
 
-	privUIDs, err := locatePrivateKeys(ctx, client, ovh.Name{
-		NameValue: serverIDNameValue(serverID),
-		NameType:  ovh.NameTypeUninterpretedTextString,
-	})
+	privUIDs, err := locateAllPrivateKeys(ctx, client)
 	if err != nil {
-		return fmt.Errorf("locate keys for server %q: %w", serverID, err)
+		return fmt.Errorf("locate private keys: %w", err)
 	}
 
 	staleThreshold := p.clk.Now().Add(-threshold).Unix()

@@ -700,6 +700,33 @@ func TestDisposeStaleKeysIgnoresStalePublicKey(t *testing.T) {
 	require.Contains(t, store.pubKeys, "active-pub", "stale public key must not be reaped")
 }
 
+func TestDisposeStaleKeysReclaimsKeysAcrossServerIDs(t *testing.T) {
+	store := newFakeStore()
+	addr, caPEM := kmiptest.NewServer(t, store.handler())
+	p, clk := newTestPluginWithServerIDAndConfig(t, addr, caPEM, "server-a", "")
+
+	staleLastUpdate := clk.Now().Add(-30 * 24 * time.Hour).Unix()
+	store.seed("server-a-stale-priv", "server-a-stale-pub", []string{
+		serverIDNameValue("server-a"),
+		lastUpdateNameValue(staleLastUpdate),
+	})
+	store.seed("server-b-stale-priv", "server-b-stale-pub", []string{
+		serverIDNameValue("server-b"),
+		lastUpdateNameValue(staleLastUpdate),
+	})
+
+	require.NoError(t, p.disposeStaleKeys(context.Background()))
+
+	store.mu.Lock()
+	defer store.mu.Unlock()
+	require.NotContains(t, store.keys, "server-a-stale-priv", "stale key for configured server should be disposed")
+	require.NotContains(t, store.keys, "server-b-stale-priv", "stale key for another server should be disposed too")
+	require.NotContains(t, store.pubKeys, "server-a-stale-pub", "stale public key for configured server should be disposed")
+	require.NotContains(t, store.pubKeys, "server-b-stale-pub", "stale public key for another server should be disposed too")
+	require.True(t, store.revoked["server-a-stale-priv"], "configured server's stale key should be revoked before being destroyed")
+	require.True(t, store.revoked["server-b-stale-priv"], "other server's stale key should be revoked before being destroyed")
+}
+
 func TestDisposeStaleKeysPaginates(t *testing.T) {
 	store := newFakeStore()
 	addr, caPEM := kmiptest.NewServer(t, store.handler())
@@ -814,10 +841,15 @@ func writeTempPEM(t *testing.T, content string) string {
 // clock, so tests can control the passage of time for the reclamation tasks.
 func newTestPlugin(t *testing.T, addr, caPEM string) (*Plugin, *clock.Mock) {
 	t.Helper()
-	return newTestPluginWithConfig(t, addr, caPEM, "")
+	return newTestPluginWithServerIDAndConfig(t, addr, caPEM, testServerID, "")
 }
 
 func newTestPluginWithConfig(t *testing.T, addr, caPEM, extraConfig string) (*Plugin, *clock.Mock) {
+	t.Helper()
+	return newTestPluginWithServerIDAndConfig(t, addr, caPEM, testServerID, extraConfig)
+}
+
+func newTestPluginWithServerIDAndConfig(t *testing.T, addr, caPEM, serverID, extraConfig string) (*Plugin, *clock.Mock) {
 	t.Helper()
 	caFile := writeTempPEM(t, caPEM)
 	p := New()
@@ -834,7 +866,7 @@ func newTestPluginWithConfig(t *testing.T, addr, caPEM, extraConfig string) (*Pl
 			insecure_skip_verify = true
 			server_id_value      = %q
 			%s
-		`, addr, caFile, testServerID, extraConfig)),
+		`, addr, caFile, serverID, extraConfig)),
 		plugintest.CoreConfig(catalog.CoreConfig{
 			TrustDomain: spiffeid.RequireTrustDomainFromString(testTrustDomain),
 		}),

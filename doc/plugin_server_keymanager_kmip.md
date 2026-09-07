@@ -52,13 +52,14 @@ attributes, including `spire-last-update:<unix_timestamp>`.
 
 The plugin runs a keep-alive task every six hours that refreshes the
 `spire-last-update` value on keys it is actively managing. A separate reclamation
-task runs every 48 hours, locates keys tagged for this SPIRE server instance, and
+task runs every 48 hours, scans private keys across the KMIP tenant, and
 destroys any key pair whose `spire-last-update` value is older than
 `stale_key_threshold`, which defaults to two weeks and must be at least 24
 hours. The minimum protects against reclaiming a key that is still in use but
 has not yet gone through a keep-alive refresh cycle. This reclaims keys left
-behind after a crash, after a server instance stops refreshing them, or after a
-key rotation leaves an older replacement candidate no longer tracked.
+behind after a crash, after a server instance stops refreshing them, after a
+server instance is permanently removed, or after a key rotation leaves an older
+replacement candidate no longer tracked.
 
 Operators should account for the configured staleness window during long
 maintenance periods: if a SPIRE server instance is offline long enough that its
