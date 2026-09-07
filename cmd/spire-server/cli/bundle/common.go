@@ -2,7 +2,6 @@ package bundle
 
 import (
 	"bytes"
-	"crypto"
 	"crypto/x509"
 	"encoding/json"
 	"encoding/pem"
@@ -18,6 +17,7 @@ import (
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/cmd/spire-server/util"
 	"github.com/spiffe/spire/pkg/common/jwtutil"
+	"github.com/spiffe/spire/pkg/common/witutil"
 )
 
 const (
@@ -104,7 +104,7 @@ func bundleFromProto(bundleProto *types.Bundle) (*spiffebundle.Bundle, error) {
 	if err != nil {
 		return nil, err
 	}
-	witAuthorities, err := witKeysFromProto(bundleProto.WitAuthorities)
+	witAuthorities, err := witutil.WITKeysFromProto(bundleProto.WitAuthorities)
 	if err != nil {
 		return nil, err
 	}
@@ -119,19 +119,6 @@ func bundleFromProto(bundleProto *types.Bundle) (*spiffebundle.Bundle, error) {
 		bundle.SetSequenceNumber(bundleProto.SequenceNumber)
 	}
 	return bundle, nil
-}
-
-// witKeysFromProto converts WIT keys from the given []*types.WITKey to map[string]crypto.PublicKey.
-func witKeysFromProto(proto []*types.WITKey) (map[string]crypto.PublicKey, error) {
-	keys := make(map[string]crypto.PublicKey)
-	for i, publicKey := range proto {
-		witSigningKey, err := x509.ParsePKIXPublicKey(publicKey.PublicKey)
-		if err != nil {
-			return nil, fmt.Errorf("unable to parse WIT signing key %d: %w", i, err)
-		}
-		keys[publicKey.KeyId] = witSigningKey
-	}
-	return keys, nil
 }
 
 // x509CertificatesFromProto converts X.509 certificates from the given []*types.X509Certificate to []*x509.Certificate
