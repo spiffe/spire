@@ -683,9 +683,9 @@ func TestDisposeStaleKeysUsesConfiguredStaleKeyThreshold(t *testing.T) {
 	}{
 		{
 			name:      "defaults to two weeks when omitted",
-			threshold: staleKeyThreshold,
-			staleAge:  staleKeyThreshold + time.Hour,
-			freshAge:  staleKeyThreshold - time.Hour,
+			threshold: defaultStaleKeyThreshold,
+			staleAge:  defaultStaleKeyThreshold + time.Hour,
+			freshAge:  defaultStaleKeyThreshold - time.Hour,
 		},
 		{
 			name:        "uses configured threshold",
