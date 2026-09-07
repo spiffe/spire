@@ -137,6 +137,10 @@ type Config struct {
 
 	// TLSPolicy determines the post-quantum-safe policy to apply to all TLS connections.
 	TLSPolicy tlspolicy.Policy
+
+	// LoadBalancingConfig is an optional, opaque payload used as the
+	// loadBalancingConfig field of the gRPC service config.
+	LoadBalancingConfig string
 }
 
 type client struct {
@@ -477,8 +481,9 @@ func (c *client) newServerGRPCClient() (*grpc.ClientConn, error) {
 			}
 			return agentCert
 		},
-		TLSPolicy: c.c.TLSPolicy,
-		dialOpts:  c.dialOpts,
+		TLSPolicy:           c.c.TLSPolicy,
+		LoadBalancingConfig: c.c.LoadBalancingConfig,
+		dialOpts:            c.dialOpts,
 	})
 }
 

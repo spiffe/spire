@@ -58,8 +58,7 @@ jobs:
       actions: read        # download the artifact from the capture run
     steps:
       # Check out only the shared helper script. workflow_run always checks
-      # out the default branch, never PR code. This runs before the artifact
-      # download because checkout cleans the workspace.
+      # out the default branch, never PR code.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -69,19 +68,25 @@ jobs:
           name: assign-reviewer-review
           run-id: ${{ github.event.workflow_run.id }}
           github-token: ${{ github.token }}
+          path: ${{ runner.temp }}/assign-reviewer-review
       - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |
             const fs = require('fs');
+            const path = require('path');
             const courtLib = require('./.github/workflows/scripts/assign_reviewer_lib.js');
             const court = await courtLib({ github, context, core });
             const { owner, repo } = context.repo;
 
             // The artifact comes from a fork-triggered run; treat it as
             // untrusted and validate every field before use.
+            const reviewFile = path.join(process.env.RUNNER_TEMP, 'assign-reviewer-review', 'review.json');
             let raw;
             try {
-              raw = JSON.parse(fs.readFileSync('review.json', 'utf8'));
+              if (!fs.lstatSync(reviewFile).isFile()) {
+                throw new Error(`${reviewFile} is not a regular file`);
+              }
+              raw = JSON.parse(fs.readFileSync(reviewFile, 'utf8'));
             } catch (e) {
               core.warning(`Could not read captured review data: ${e.message}`);
               return;

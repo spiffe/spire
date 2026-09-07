@@ -59,8 +59,7 @@ func TestReopenOnSignalWithReopenableOutputFileSuccess(t *testing.T) {
 		signalCh <- reopenSignal
 		close(renamedCh)
 	}()
-	err = reopenOnSignal(ctx, logger, frf, signalCh)
-	require.NoError(t, err, "reopen should succeed")
+	watchLog(ctx, logger, frf, signalCh, nil)
 
 	<-renamedCh
 	fsInfo, err = rf.f.Stat()
@@ -142,8 +141,7 @@ func TestReopenOnSignalError(t *testing.T) {
 				// trigger close error
 				signalCh <- reopenSignal
 			}()
-			err = reopenOnSignal(ctx, logger, frf, signalCh)
-			require.NoError(t, err, "reopenOnSignal should never fail")
+			watchLog(ctx, logger, frf, signalCh, nil)
 			spiretest.AssertLogs(t, logHook.AllEntries(), tt.wantLogEntries)
 			logHook.Reset()
 		})

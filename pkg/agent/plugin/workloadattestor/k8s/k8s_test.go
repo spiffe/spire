@@ -1097,7 +1097,7 @@ func (s *Suite) TestConfigureBroker() {
 			expectedErr: `experimental.broker.access_policy: unsupported value "disabled"; must be one of [permissive, enforced]`,
 		},
 		{
-			name: "empty brokers",
+			name: "empty brokers is allowed",
 			hcl: `
 				kubelet_read_only_port = 12345
 				experimental {
@@ -1107,7 +1107,28 @@ func (s *Suite) TestConfigureBroker() {
 					}
 				}
 			`,
-			expectedErr: "experimental.broker.brokers: at least one broker is required",
+		},
+		{
+			name: "omitted brokers is allowed",
+			hcl: `
+				kubelet_read_only_port = 12345
+				experimental {
+					broker {
+						access_policy = "permissive"
+					}
+				}
+			`,
+		},
+		{
+			name: "empty brokers with kubelet client disabled is allowed",
+			hcl: `
+				disable_kubelet_client = true
+				experimental {
+					broker {
+						access_policy = "permissive"
+					}
+				}
+			`,
 		},
 		{
 			name: "missing id",
@@ -2182,6 +2203,57 @@ func (s *Suite) TestAttestReferenceWithPodName_FallsBackToAPIServerWhenKubeletCl
 	s.requireSelectorsEqual(testPodSelectors, selectors)
 }
 
+func (s *Suite) TestAttestReferenceDefaultBrokerUsesClusterScopeWhenKubeletClientDisabled() {
+	liveClient := fakeKubeClientWithSubjectAccessReview(true, nil, testAPIServerBlogPod())
+	metadataClient := fakeKubeMetadataClient(testAPIServerBlogPodMetadata())
+	// The broker is not listed, so it gets the default entry, which falls back
+	// to cluster scope because node scope is unavailable when the kubelet
+	// client is disabled, so the pod resolves via the API server.
+	wa := s.loadPluginWithKubeClients(`
+		disable_kubelet_client = true
+		experimental {
+			broker {
+				access_policy = "permissive"
+			}
+		}
+	`, liveClient, metadataClient)
+
+	anyRef, err := anypb.New(&broker.KubernetesObjectReference{Type: &broker.KubernetesObjectType{Plural: "pods", Group: "core"}, Uid: testPodUID})
+	s.Require().NoError(err)
+
+	selectors, err := wa.AttestReference(testBrokerContext(), anyRef)
+	s.Require().NoError(err)
+	s.requireSelectorsEqual(testPodSelectors, selectors)
+}
+
+func (s *Suite) TestAttestReferenceEnforcedDefaultBrokerRunsRBAC() {
+	s.startInsecureKubelet()
+	var reviews []authv1.SubjectAccessReview
+	cfg := fmt.Sprintf(`
+		kubelet_read_only_port = %d
+		max_poll_attempts = 5
+		poll_retry_interval = "1s"
+		experimental {
+			broker {
+				access_policy = "enforced"
+			}
+		}
+`, s.kubeletPort())
+	wa := s.loadPluginWithKubeClient(cfg, fakeKubeClientWithSubjectAccessReview(true, &reviews))
+	s.addPodListResponse(podListFilePath)
+
+	// A broker with no explicit entry still runs the SubjectAccessReview under
+	// enforced access policy, using the caller's SPIFFE ID as the SAR user.
+	anyRef, err := anypb.New(&broker.KubernetesObjectReference{Type: &broker.KubernetesObjectType{Plural: "pods", Group: "core"}, Uid: testPodUID})
+	s.Require().NoError(err)
+
+	selectors, err := wa.AttestReference(testBrokerContext(), anyRef)
+	s.Require().NoError(err)
+	s.requireSelectorsEqual(testPodSelectors, selectors)
+	s.Require().Len(reviews, 1)
+	assert.Equal(s.T(), testBrokerID, reviews[0].Spec.User)
+}
+
 func (s *Suite) TestAttestReferenceWithPID_FailsWhenKubeletClientDisabled() {
 	wa := s.loadPluginWithKubeClient(`disable_kubelet_client = true`, fakeKubeClientWithSubjectAccessReview(true, nil))
 
@@ -2351,6 +2423,30 @@ func (s *Suite) TestAttestReferenceRequiresBrokerConfig() {
 	s.Require().Nil(selectors)
 }
 
+func (s *Suite) TestAttestReferenceUnlistedBrokerUsesDefaultEntry() {
+	s.startInsecureKubelet()
+	p := s.loadPluginWithKubeClient(fmt.Sprintf(`
+		kubelet_read_only_port = %d
+		max_poll_attempts = 5
+		poll_retry_interval = "1s"
+		experimental {
+			broker {
+				access_policy = "permissive"
+			}
+		}
+	`, s.kubeletPort()), fakeKubeClientWithSubjectAccessReview(true, nil))
+	s.addPodListResponse(podListFilePath)
+
+	// A broker caller with no entry in the brokers list resolves via the
+	// default (node-scoped) entry; brokers do not have to be enumerated.
+	anyRef, err := anypb.New(&broker.KubernetesObjectReference{Type: &broker.KubernetesObjectType{Plural: "pods", Group: "core"}, Uid: testPodUID})
+	s.Require().NoError(err)
+
+	selectors, err := p.AttestReference(testBrokerContext(), anyRef)
+	s.Require().NoError(err)
+	s.requireSelectorsEqual(testPodSelectors, selectors)
+}
+
 func (s *Suite) TestAttestReferenceWithoutBrokerCallerDoesNotRequireBrokerConfig() {
 	s.startInsecureKubelet()
 	p := s.loadInsecurePlugin()
@@ -2458,7 +2554,7 @@ func (s *Suite) TestAttestReferenceGenericObject_NamespaceLabels() {
 		poll_retry_interval = "1s"
 		enable_namespace_labels = true
 		%s
-	`, s.kubeletPort(), testBrokerConfig()), kubeClient)
+	`, s.kubeletPort(), testBrokerConfigWithClusterPodReferenceScope()), kubeClient)
 
 	anyRef, err := anypb.New(&broker.KubernetesObjectReference{
 		Type: &broker.KubernetesObjectType{
@@ -2509,7 +2605,14 @@ func (s *Suite) TestAttestReferenceBrokerRBACUsesResolvedGenericObject() {
 	obj.SetGroupVersionKind(gvk)
 
 	var reviews []authv1.SubjectAccessReview
-	p := s.loadInsecurePluginWithEnforcedAccessPolicyAndKubeClient(fakeKubeClientWithSubjectAccessReviewAndRESTMapper(true, &reviews, mapper, obj))
+	// Non-pod objects require cluster scope, so this broker is listed with it.
+	cfg := fmt.Sprintf(`
+		kubelet_read_only_port = %d
+		max_poll_attempts = 5
+		poll_retry_interval = "1s"
+		%s
+`, s.kubeletPort(), testBrokerConfigWithAccessPolicy(string(podReferenceScopeCluster), string(brokerAccessPolicyEnforced)))
+	p := s.loadPluginWithKubeClient(cfg, fakeKubeClientWithSubjectAccessReviewAndRESTMapper(true, &reviews, mapper, obj))
 
 	anyRef, err := anypb.New(&broker.KubernetesObjectReference{
 		Type: &broker.KubernetesObjectType{
