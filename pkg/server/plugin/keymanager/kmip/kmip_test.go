@@ -8,6 +8,7 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
+	"crypto/sha512"
 	"crypto/x509"
 	"fmt"
 	"os"
@@ -417,6 +418,41 @@ func TestSignData(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestSignDataPSSCryptographicParameters(t *testing.T) {
+	store := newFakeStore()
+	addr, caPEM := kmiptest.NewServer(t, store.handler())
+	km := loadPlugin(t, addr, caPEM)
+
+	key, err := km.GenerateKey(context.Background(), "sign-key", keymanager.RSA2048)
+	require.NoError(t, err)
+
+	digest := sha512.Sum384([]byte("hello spire"))
+	opts := &rsa.PSSOptions{
+		SaltLength: 48,
+		Hash:       crypto.SHA384,
+	}
+
+	sig, err := key.Sign(rand.Reader, digest[:], opts)
+	require.NoError(t, err)
+	require.NotEmpty(t, sig)
+
+	pub, ok := key.Public().(*rsa.PublicKey)
+	require.True(t, ok)
+	require.NoError(t, rsa.VerifyPSS(pub, crypto.SHA384, digest[:], sig, opts))
+
+	store.mu.Lock()
+	signReq := store.lastSignRequest
+	store.mu.Unlock()
+	require.NotNil(t, signReq)
+	require.NotNil(t, signReq.CryptographicParameters)
+	require.Equal(t, ovh.DigitalSignatureAlgorithmRSASSA_PSS, signReq.CryptographicParameters.DigitalSignatureAlgorithm)
+	require.Equal(t, ovh.HashingAlgorithmSHA_384, signReq.CryptographicParameters.HashingAlgorithm)
+	require.Equal(t, ovh.MaskGeneratorMGF1, signReq.CryptographicParameters.MaskGenerator)
+	require.Equal(t, ovh.HashingAlgorithmSHA_384, signReq.CryptographicParameters.MaskGeneratorHashingAlgorithm)
+	require.NotNil(t, signReq.CryptographicParameters.SaltLength)
+	require.EqualValues(t, opts.SaltLength, *signReq.CryptographicParameters.SaltLength)
 }
 
 func TestSignDataKeyNotFound(t *testing.T) {
@@ -877,11 +913,12 @@ type keyRecord struct {
 }
 
 type fakeStore struct {
-	mu      sync.Mutex
-	keys    map[string]*keyRecord // privUID → record
-	pubKeys map[string]*keyRecord // pubUID → record
-	revoked map[string]bool       // uid → revoked via the Revoke operation
-	counter int
+	mu              sync.Mutex
+	keys            map[string]*keyRecord // privUID → record
+	pubKeys         map[string]*keyRecord // pubUID → record
+	revoked         map[string]bool       // uid → revoked via the Revoke operation
+	lastSignRequest *payloads.SignRequestPayload
+	counter         int
 }
 
 func newFakeStore() *fakeStore {
@@ -1165,6 +1202,7 @@ func (s *fakeStore) handler() kmipserver.RequestHandler {
 
 	exec.Route(ovh.OperationSign, kmipserver.HandleFunc(func(_ context.Context, req *payloads.SignRequestPayload) (*payloads.SignResponsePayload, error) {
 		s.mu.Lock()
+		s.lastSignRequest = cloneSignRequest(req)
 		rec, ok := s.keys[req.UniqueIdentifier]
 		s.mu.Unlock()
 		if !ok {
@@ -1175,7 +1213,7 @@ func (s *fakeStore) handler() kmipserver.RequestHandler {
 		if data == nil {
 			data = req.Data
 		}
-		sig, err := rec.privKey.Sign(rand.Reader, data, crypto.SHA256)
+		sig, err := rec.privKey.Sign(rand.Reader, data, signerOptsFromRequest(req))
 		if err != nil {
 			return nil, fmt.Errorf("sign: %w", err)
 		}
@@ -1186,6 +1224,46 @@ func (s *fakeStore) handler() kmipserver.RequestHandler {
 	}))
 
 	return exec
+}
+
+func cloneSignRequest(req *payloads.SignRequestPayload) *payloads.SignRequestPayload {
+	if req == nil {
+		return nil
+	}
+	reqCopy := *req
+	if req.CryptographicParameters != nil {
+		paramsCopy := *req.CryptographicParameters
+		reqCopy.CryptographicParameters = &paramsCopy
+	}
+	return &reqCopy
+}
+
+func signerOptsFromRequest(req *payloads.SignRequestPayload) crypto.SignerOpts {
+	hash := cryptoHashFromKMIP(req.CryptographicParameters)
+	if req.CryptographicParameters != nil && req.CryptographicParameters.DigitalSignatureAlgorithm == ovh.DigitalSignatureAlgorithmRSASSA_PSS {
+		opts := &rsa.PSSOptions{Hash: hash}
+		if req.CryptographicParameters.SaltLength != nil {
+			opts.SaltLength = int(*req.CryptographicParameters.SaltLength)
+		}
+		return opts
+	}
+	return hash
+}
+
+func cryptoHashFromKMIP(params *ovh.CryptographicParameters) crypto.Hash {
+	if params == nil {
+		return crypto.SHA256
+	}
+	switch params.HashingAlgorithm {
+	case ovh.HashingAlgorithmSHA_256:
+		return crypto.SHA256
+	case ovh.HashingAlgorithmSHA_384:
+		return crypto.SHA384
+	case ovh.HashingAlgorithmSHA_512:
+		return crypto.SHA512
+	default:
+		return crypto.SHA256
+	}
 }
 
 func generateKeyFromRequest(req *payloads.CreateKeyPairRequestPayload) (crypto.Signer, error) {

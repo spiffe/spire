@@ -632,9 +632,13 @@ func toCryptographicParameters(kt keymanagerv1.KeyType, opts any) (ovh.Cryptogra
 		if err != nil {
 			return ovh.CryptographicParameters{}, err
 		}
+		saltLength := o.PssOptions.GetSaltLength()
 		return ovh.CryptographicParameters{
-			HashingAlgorithm:          hashAlgo,
-			DigitalSignatureAlgorithm: ovh.DigitalSignatureAlgorithmRSASSA_PSS,
+			HashingAlgorithm:              hashAlgo,
+			DigitalSignatureAlgorithm:     ovh.DigitalSignatureAlgorithmRSASSA_PSS,
+			SaltLength:                    &saltLength,
+			MaskGenerator:                 ovh.MaskGeneratorMGF1,
+			MaskGeneratorHashingAlgorithm: hashAlgo,
 		}, nil
 	default:
 		return ovh.CryptographicParameters{}, fmt.Errorf("unsupported signer opts type %T", opts)
