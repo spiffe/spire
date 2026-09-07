@@ -45,9 +45,9 @@ const (
 	// disposeStaleKeysFrequency is how often the reclamation task scans for stale
 	// keys to destroy.
 	disposeStaleKeysFrequency = time.Hour * 48
-	// staleKeyThreshold is how old a key's spire-last-update Name must be before
-	// the reclamation task considers it orphaned and destroys it.
-	staleKeyThreshold = time.Hour * 24 * 14 // two weeks
+	// defaultStaleKeyThreshold is the default age a key's spire-last-update Name
+	// must reach before the reclamation task considers it orphaned and destroys it.
+	defaultStaleKeyThreshold = time.Hour * 24 * 14 // two weeks
 )
 
 // BuiltIn returns the catalog.BuiltIn for registering this plugin.
@@ -116,7 +116,7 @@ func New() *Plugin {
 	return &Plugin{
 		entries:           make(map[string]keyEntry),
 		clk:               clock.New(),
-		staleKeyThreshold: staleKeyThreshold,
+		staleKeyThreshold: defaultStaleKeyThreshold,
 	}
 }
 
@@ -768,7 +768,7 @@ func buildConfig(_ catalog.CoreConfig, hclText string, s *pluginconf.Status) *Co
 		s.ReportErrorf("unable to decode configuration: %v", err)
 		return nil
 	}
-	cfg.parsedStaleKeyThreshold = staleKeyThreshold
+	cfg.parsedStaleKeyThreshold = defaultStaleKeyThreshold
 	if cfg.KMIPAddr == "" {
 		s.ReportError("kmip_addr is required")
 	}
