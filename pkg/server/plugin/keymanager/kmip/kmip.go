@@ -1313,6 +1313,32 @@ func refreshLastUpdate(ctx context.Context, c *kmipclient.Client, uid string, ts
 	return nil
 }
 
+// clearActiveMarker removes the spire-active Name from a key object, if present.
+// It is called on the key a rotation supersedes so that at most one key object per
+// spire-key-id is marked active going forward. It is a no-op (not an error) if the
+// key has no spire-active Name, which keeps it safe to call defensively.
+func clearActiveMarker(ctx context.Context, c *kmipclient.Client, uid string) error {
+	attrResp, err := c.GetAttributes(uid, ovh.AttributeNameName).ExecContext(ctx)
+	if err != nil {
+		return fmt.Errorf("get Name attributes: %w", err)
+	}
+
+	var nameIndex int32
+	for _, attr := range attrResp.Attribute {
+		if attr.AttributeName != ovh.AttributeNameName {
+			continue
+		}
+		if n, ok := attr.AttributeValue.(ovh.Name); ok && strings.HasPrefix(n.NameValue, prefixActive) {
+			if _, err := c.DeleteAttribute(uid, ovh.AttributeNameName).WithIndex(nameIndex).ExecContext(ctx); err != nil {
+				return fmt.Errorf("delete active Name: %w", err)
+			}
+			return nil
+		}
+		nameIndex++
+	}
+	return nil
+}
+
 // getLastUpdate reads the spire-last-update Name from a key object and returns the
 // parsed Unix timestamp, or ok=false if the key has no such Name.
 func getLastUpdate(ctx context.Context, c *kmipclient.Client, uid string) (int64, bool, error) {
