@@ -326,3 +326,77 @@ spec:
       hostPath:
         path: /run/spire/broker-sockets
         type: Directory
+
+---
+# The "selector broker" asserts its own selectors rather than naming a
+# workload the agent attests. It stands in for a service like
+# spire-identity-exchange, which validates a platform-native token and maps
+# the claims onto selectors. Its allowlist is scoped to the k8s_psat
+# selector type and it may only use the UDS listener.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: selector-broker
+  namespace: spire
+  labels:
+    app: selector-broker
+spec:
+  hostPID: true
+  nodeName: broker-api-k8s-worker
+  containers:
+    - name: selector-broker
+      image: broker-client:latest-local
+      imagePullPolicy: Never
+      command: ["/bin/sleep", "infinity"]
+      volumeMounts:
+        - name: spire-agent-socket
+          mountPath: /run/spire/agent-sockets
+          readOnly: false
+        - name: spire-broker-socket
+          mountPath: /run/spire/broker-sockets
+          readOnly: false
+  volumes:
+    - name: spire-agent-socket
+      hostPath:
+        path: /run/spire/agent-sockets
+        type: Directory
+    - name: spire-broker-socket
+      hostPath:
+        path: /run/spire/broker-sockets
+        type: Directory
+
+---
+# The "wildcard broker" is allowed any reference type the agent can attest
+# for itself (`type_url = "*"`), but that wildcard deliberately does not
+# grant SelectorReference.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: wildcard-broker
+  namespace: spire
+  labels:
+    app: wildcard-broker
+spec:
+  hostPID: true
+  nodeName: broker-api-k8s-worker
+  containers:
+    - name: wildcard-broker
+      image: broker-client:latest-local
+      imagePullPolicy: Never
+      command: ["/bin/sleep", "infinity"]
+      volumeMounts:
+        - name: spire-agent-socket
+          mountPath: /run/spire/agent-sockets
+          readOnly: false
+        - name: spire-broker-socket
+          mountPath: /run/spire/broker-sockets
+          readOnly: false
+  volumes:
+    - name: spire-agent-socket
+      hostPath:
+        path: /run/spire/agent-sockets
+        type: Directory
+    - name: spire-broker-socket
+      hostPath:
+        path: /run/spire/broker-sockets
+        type: Directory

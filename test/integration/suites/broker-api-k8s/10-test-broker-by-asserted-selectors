@@ -1,0 +1,19 @@
+#!/bin/bash
+
+set -e
+
+source init-kubectl
+
+log-info "Test: selector-broker asserts its own selectors and gets an SVID"
+
+# The asserted set is a superset of the asserted-target entry's two selectors,
+# so subset matching selects it. Nothing attested any of this — the agent
+# accepts the selectors on the broker's word, which is exactly what the
+# selector_assertion policy exists to bound.
+./bin/kubectl -nspire exec -t selector-broker -- /brokerclient \
+    -ref-type selectors \
+    -selectors "k8s_psat:namespace:spire,k8s_psat:service_account_name:default,k8s_psat:pod_name:anything" \
+    -expected-spiffe spiffe://example.org/asserted-target \
+    || fail-now "selector-broker failed to fetch SVID via asserted selectors"
+
+log-success "selector-broker fetched an SVID via asserted selectors"
