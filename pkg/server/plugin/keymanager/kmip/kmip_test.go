@@ -443,6 +443,91 @@ func TestKeyRecovery(t *testing.T) {
 	require.NotNil(t, key.Public())
 }
 
+// TestGenerateKeyRotationMarksExactlyOneActiveKey reproduces the scenario flagged
+// in review: SPIRE reuses key IDs across rotations, so after GenerateKey is called
+// twice with the same KeyId, two key objects sharing that spire-key-id exist on the
+// KMIP server simultaneously (the old one isn't destroyed until the reclamation
+// task's stale-key threshold elapses). Exactly one of them must be marked
+// spire-active:true at all times so recovery is unambiguous.
+func TestGenerateKeyRotationMarksExactlyOneActiveKey(t *testing.T) {
+	store := newFakeStore()
+	addr, caPEM := kmiptest.NewServer(t, store.handler())
+	p, _ := newTestPlugin(t, addr, caPEM)
+
+	ctx := context.Background()
+	_, err := p.GenerateKey(ctx, &keymanagerv1.GenerateKeyRequest{KeyId: "rotate-key", KeyType: keymanagerv1.KeyType_EC_P256})
+	require.NoError(t, err)
+	oldUID := entryPrivateKeyUID(t, p, "rotate-key")
+
+	_, err = p.GenerateKey(ctx, &keymanagerv1.GenerateKeyRequest{KeyId: "rotate-key", KeyType: keymanagerv1.KeyType_EC_P256})
+	require.NoError(t, err)
+	newUID := entryPrivateKeyUID(t, p, "rotate-key")
+	require.NotEqual(t, oldUID, newUID, "rotation must create a new key object")
+
+	store.mu.Lock()
+	defer store.mu.Unlock()
+	require.NotContains(t, store.keys[oldUID].nameAttrs, activeNameValue(), "superseded key must have its active marker cleared")
+	require.Contains(t, store.keys[newUID].nameAttrs, activeNameValue(), "the newly generated key must be marked active")
+}
+
+// TestKeyRecoveryAfterRotationPicksActiveKey reproduces the ambiguity flagged in
+// review end-to-end: after a rotation, both the old and new key objects for
+// "rotate-key" still exist on the KMIP server (the old one is only reclaimed later
+// by the stale-key disposal task). A fresh plugin instance recovering keys via
+// Locate must pick the new, active key rather than whichever object Locate happens
+// to return.
+func TestKeyRecoveryAfterRotationPicksActiveKey(t *testing.T) {
+	store := newFakeStore()
+	addr, caPEM := kmiptest.NewServer(t, store.handler())
+	p1, _ := newTestPlugin(t, addr, caPEM)
+
+	ctx := context.Background()
+	_, err := p1.GenerateKey(ctx, &keymanagerv1.GenerateKeyRequest{KeyId: "rotate-key", KeyType: keymanagerv1.KeyType_EC_P256})
+	require.NoError(t, err)
+	rotatedPK, err := p1.GenerateKey(ctx, &keymanagerv1.GenerateKeyRequest{KeyId: "rotate-key", KeyType: keymanagerv1.KeyType_EC_P256})
+	require.NoError(t, err)
+
+	// A new plugin instance recovers keys from scratch via Locate.
+	p2, _ := newTestPlugin(t, addr, caPEM)
+	recovered, err := p2.GetPublicKey(ctx, &keymanagerv1.GetPublicKeyRequest{KeyId: "rotate-key"})
+	require.NoError(t, err)
+	require.Equal(t, rotatedPK.PublicKey.Fingerprint, recovered.PublicKey.Fingerprint,
+		"recovery must pick the active (post-rotation) key, not an arbitrary one sharing the same spire-key-id")
+}
+
+// TestKeyRecoveryFallsBackToFreshestWhenActiveMarkerAmbiguous covers the narrow
+// crash window where a rotation created a new active key but a crash prevented
+// clearing the marker on the key it supersedes, leaving two key objects for the
+// same spire-key-id both marked active. Recovery must not error out; it falls back
+// to the one with the newest spire-last-update timestamp.
+func TestKeyRecoveryFallsBackToFreshestWhenActiveMarkerAmbiguous(t *testing.T) {
+	store := newFakeStore()
+	addr, caPEM := kmiptest.NewServer(t, store.handler())
+
+	now := time.Unix(1_700_000_000, 0)
+	store.seed("old-priv", "old-pub", []string{
+		serverIDNameValue(testServerID),
+		trustDomainNameValue(testTrustDomain),
+		prefixKeyID + "ambiguous-key",
+		prefixKeyType + "EC_P256",
+		lastUpdateNameValue(now.Add(-time.Hour).Unix()),
+		activeNameValue(),
+	})
+	store.seed("new-priv", "new-pub", []string{
+		serverIDNameValue(testServerID),
+		trustDomainNameValue(testTrustDomain),
+		prefixKeyID + "ambiguous-key",
+		prefixKeyType + "EC_P256",
+		lastUpdateNameValue(now.Unix()),
+		activeNameValue(),
+	})
+	seedECKeyMaterial(t, store, "old-priv", "old-pub")
+	seedECKeyMaterial(t, store, "new-priv", "new-pub")
+
+	p, _ := newTestPlugin(t, addr, caPEM)
+	require.Equal(t, "new-priv", entryPrivateKeyUID(t, p, "ambiguous-key"))
+}
+
 // ─── Key reclamation ─────────────────────────────────────────────────────────
 
 func TestGenerateKeyTagsAtCreation(t *testing.T) {
@@ -700,6 +785,25 @@ func newTestPluginWithConfig(t *testing.T, addr, caPEM, extraConfig string) (*Pl
 	return p, clk
 }
 
+// seedECKeyMaterial attaches real EC P-256 key material to a key record
+// previously inserted with fakeStore.seed/seedPair, so recovery's Get() call for
+// the public key succeeds.
+func seedECKeyMaterial(t *testing.T, store *fakeStore, privUID, pubUID string) {
+	t.Helper()
+	priv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+	pkix, err := x509.MarshalPKIXPublicKey(&priv.PublicKey)
+	require.NoError(t, err)
+
+	store.mu.Lock()
+	defer store.mu.Unlock()
+	rec, ok := store.keys[privUID]
+	require.True(t, ok, "expected private key %q to exist", privUID)
+	rec.privKey = priv
+	rec.pubPKIX = pkix
+	_ = pubUID
+}
+
 func entryPrivateKeyUID(t *testing.T, p *Plugin, keyID string) string {
 	t.Helper()
 	p.mu.RLock()
@@ -890,6 +994,27 @@ func (s *fakeStore) handler() kmipserver.RequestHandler {
 			UniqueIdentifier: req.UniqueIdentifier,
 			Attribute:        req.Attribute,
 		}, nil
+	}))
+
+	exec.Route(ovh.OperationDeleteAttribute, kmipserver.HandleFunc(func(_ context.Context, req *payloads.DeleteAttributeRequestPayload) (*payloads.DeleteAttributeResponsePayload, error) {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		resp := &payloads.DeleteAttributeResponsePayload{UniqueIdentifier: req.UniqueIdentifier}
+		if req.AttributeName == ovh.AttributeNameName && req.AttributeIndex != nil {
+			idx := int(*req.AttributeIndex)
+			if rec, ok := s.keys[req.UniqueIdentifier]; ok && idx < len(rec.nameAttrs) {
+				// The KMIP spec requires echoing back the deleted attribute value.
+				resp.Attribute = ovh.Attribute{
+					AttributeName:  ovh.AttributeNameName,
+					AttributeValue: ovh.Name{NameValue: rec.nameAttrs[idx], NameType: ovh.NameTypeUninterpretedTextString},
+				}
+				rec.nameAttrs = append(rec.nameAttrs[:idx], rec.nameAttrs[idx+1:]...)
+			}
+			if rec, ok := s.pubKeys[req.UniqueIdentifier]; ok && idx < len(rec.pubNameAttrs) {
+				rec.pubNameAttrs = append(rec.pubNameAttrs[:idx], rec.pubNameAttrs[idx+1:]...)
+			}
+		}
+		return resp, nil
 	}))
 
 	exec.Route(ovh.OperationGet, kmipserver.HandleFunc(func(_ context.Context, req *payloads.GetRequestPayload) (*payloads.GetResponsePayload, error) {

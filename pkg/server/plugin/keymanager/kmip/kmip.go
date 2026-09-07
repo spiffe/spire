@@ -206,6 +206,7 @@ func (p *Plugin) GenerateKey(ctx context.Context, req *keymanagerv1.GenerateKeyR
 	client := p.client
 	trustDomain := p.trustDomain
 	serverID := p.serverID
+	prevEntry, hadPrevEntry := p.entries[req.KeyId]
 	p.mu.RUnlock()
 	if client == nil {
 		return nil, status.Error(codes.FailedPrecondition, "plugin not configured")
@@ -254,6 +255,18 @@ func (p *Plugin) GenerateKey(ctx context.Context, req *keymanagerv1.GenerateKeyR
 	// becomes stale, which centralizes cleanup and leaves a recovery window.
 	p.entries[req.KeyId] = keyEntry{privateKeyUID: createResp.PrivateKeyUniqueIdentifier, publicKey: pk}
 	p.mu.Unlock()
+
+	// The new key was created with spire-active:true (see spireNameAttributes), so
+	// SPIRE key ID reuse across rotations never leaves two active keys: clear the
+	// marker from the key this one supersedes now that the new one is active. This
+	// runs after the new key is live, so a crash between the two only leaves both
+	// keys marked active momentarily (recoverKeys falls back to the freshest one in
+	// that case) rather than leaving none marked active.
+	if hadPrevEntry {
+		if err := clearActiveMarker(ctx, client, prevEntry.privateKeyUID); err != nil {
+			p.logger.Warn("Failed to clear active marker on superseded key", "uid", prevEntry.privateKeyUID, "err", err)
+		}
+	}
 
 	return &keymanagerv1.GenerateKeyResponse{PublicKey: pk}, nil
 }
@@ -358,8 +371,24 @@ func locatePrivateKeys(ctx context.Context, c *kmipclient.Client, name ovh.Name)
 	return uids, nil
 }
 
+// recoveredKey is a single key object discovered on the KMIP server during
+// recovery, before disambiguation between key objects sharing a spire-key-id.
+type recoveredKey struct {
+	privateKeyUID string
+	publicKey     *keymanagerv1.PublicKey
+	active        bool
+	lastUpdate    int64
+}
+
 // recoverKeys fetches all private keys tagged with this server's server-id Name
 // and rebuilds the in-memory entries map. Must be called while p.mu is held.
+//
+// SPIRE reuses key IDs across rotations, so more than one key object on the KMIP
+// server can carry the same spire-key-id Name at once: the key currently in use,
+// and older keys not yet reclaimed by the stale-key disposal task (which defers
+// destruction for staleKeyThreshold to leave a recovery window). Candidates are
+// grouped by spire-key-id and disambiguated below rather than letting the last one
+// seen silently win, which could recover a stale, superseded key as active.
 func (p *Plugin) recoverKeys(ctx context.Context) error {
 	privUIDs, err := locatePrivateKeys(ctx, p.client, ovh.Name{
 		NameValue: serverIDNameValue(p.serverID),
@@ -369,6 +398,7 @@ func (p *Plugin) recoverKeys(ctx context.Context) error {
 		return fmt.Errorf("locate keys for server %q: %w", p.serverID, err)
 	}
 
+	candidates := make(map[string][]recoveredKey)
 	for _, privUID := range privUIDs {
 		attrResp, err := p.client.GetAttributes(privUID, ovh.AttributeNameName).ExecContext(ctx)
 		if err != nil {
@@ -377,12 +407,12 @@ func (p *Plugin) recoverKeys(ctx context.Context) error {
 		}
 
 		names := collectNameValues(attrResp.Attribute)
-		spireKeyID := prefixValue(names, "spire-key-id:")
+		spireKeyID := prefixValue(names, prefixKeyID)
 		if spireKeyID == "" {
 			p.logger.Warn("Key missing spire-key-id name; skipping", "uid", privUID)
 			continue
 		}
-		keyType, err := parseKeyTypeName(prefixValue(names, "spire-key-type:"))
+		keyType, err := parseKeyTypeName(prefixValue(names, prefixKeyType))
 		if err != nil {
 			p.logger.Warn("Key has unrecognised spire-key-type; skipping", "uid", privUID, "err", err)
 			continue
@@ -400,16 +430,62 @@ func (p *Plugin) recoverKeys(ctx context.Context) error {
 			continue
 		}
 
+		var lastUpdate int64
+		if v := prefixValue(names, prefixLastUpdate); v != "" {
+			lastUpdate, _ = strconv.ParseInt(v, 10, 64) // zero on parse error is a safe, conservative fallback
+		}
+
 		pk := &keymanagerv1.PublicKey{
 			Id:          spireKeyID,
 			Type:        keyType,
 			PkixData:    pkixData,
 			Fingerprint: fingerprint(pkixData),
 		}
-		p.entries[spireKeyID] = keyEntry{privateKeyUID: privUID, publicKey: pk}
-		p.logger.Debug("Recovered key", "spire_key_id", spireKeyID, "priv_uid", privUID)
+		candidates[spireKeyID] = append(candidates[spireKeyID], recoveredKey{
+			privateKeyUID: privUID,
+			publicKey:     pk,
+			active:        prefixValue(names, prefixActive) == activeValue,
+			lastUpdate:    lastUpdate,
+		})
+	}
+
+	for spireKeyID, keys := range candidates {
+		winner := pickActiveKey(keys)
+		if len(keys) > 1 {
+			p.logger.Warn("Multiple keys found for spire-key-id during recovery; disambiguated",
+				"spire_key_id", spireKeyID, "count", len(keys), "chosen_uid", winner.privateKeyUID)
+		}
+		p.entries[spireKeyID] = keyEntry{privateKeyUID: winner.privateKeyUID, publicKey: winner.publicKey}
+		p.logger.Debug("Recovered key", "spire_key_id", spireKeyID, "priv_uid", winner.privateKeyUID)
 	}
 	return nil
+}
+
+// pickActiveKey selects the key that should be treated as the current version of a
+// spire-key-id out of one or more candidates found on the KMIP server. It prefers
+// the single key marked spire-active:true. If none or more than one candidate is
+// marked active (e.g. after a crash between generating a new key and clearing the
+// marker on the one it supersedes), it falls back to the candidate with the newest
+// spire-last-update timestamp, which is refreshed periodically only on keys
+// actually in use. keys must be non-empty.
+func pickActiveKey(keys []recoveredKey) recoveredKey {
+	var active []recoveredKey
+	for _, k := range keys {
+		if k.active {
+			active = append(active, k)
+		}
+	}
+	if len(active) == 1 {
+		return active[0]
+	}
+
+	winner := keys[0]
+	for _, k := range keys[1:] {
+		if k.lastUpdate > winner.lastUpdate {
+			winner = k
+		}
+	}
+	return winner
 }
 
 // createKeyPairForType creates a key pair for the given SPIRE key type, tagging
@@ -587,11 +663,22 @@ const (
 	prefixKeyID       = "spire-key-id:"
 	prefixKeyType     = "spire-key-type:"
 	prefixLastUpdate  = "spire-last-update:"
+	// prefixActive marks the single key object that is the current, in-use
+	// version of a given spire-key-id. SPIRE reuses key IDs across rotations, so
+	// at any time there may be more than one key object on the KMIP server
+	// carrying the same spire-key-id Name (the new one and one or more not yet
+	// reclaimed by the stale-key disposal task). This Name disambiguates which
+	// one is active without relying on Locate returning them in a useful order.
+	prefixActive = "spire-active:"
+	activeValue  = "true"
 )
 
 // spireNameAttributes returns the Name attributes to attach to each key. The
 // last-update name carries a Unix timestamp that the keep-alive task refreshes on
-// active keys and the reclamation task uses to identify orphaned keys.
+// active keys and the reclamation task uses to identify orphaned keys. Every newly
+// generated key is, by definition, the active version of its spire-key-id, so it
+// is always tagged spire-active:true at creation time; GenerateKey is responsible
+// for clearing that Name from the key it supersedes.
 func spireNameAttributes(trustDomain, serverID, keyID string, kt keymanagerv1.KeyType, now time.Time) []ovh.Name {
 	return []ovh.Name{
 		{NameValue: serverIDNameValue(serverID), NameType: ovh.NameTypeUninterpretedTextString},
@@ -599,8 +686,11 @@ func spireNameAttributes(trustDomain, serverID, keyID string, kt keymanagerv1.Ke
 		{NameValue: prefixKeyID + keyID, NameType: ovh.NameTypeUninterpretedTextString},
 		{NameValue: prefixKeyType + keyTypeName(kt), NameType: ovh.NameTypeUninterpretedTextString},
 		{NameValue: lastUpdateNameValue(now.Unix()), NameType: ovh.NameTypeUninterpretedTextString},
+		{NameValue: activeNameValue(), NameType: ovh.NameTypeUninterpretedTextString},
 	}
 }
+
+func activeNameValue() string { return prefixActive + activeValue }
 
 func serverIDNameValue(id string) string { return prefixServerID + id }
 
@@ -952,6 +1042,32 @@ func refreshLastUpdate(ctx context.Context, c *kmipclient.Client, uid string, ts
 	// No last-update Name present; add one.
 	if _, err := c.AddAttribute(uid, ovh.AttributeNameName, newName).ExecContext(ctx); err != nil {
 		return fmt.Errorf("add last-update Name: %w", err)
+	}
+	return nil
+}
+
+// clearActiveMarker removes the spire-active Name from a key object, if present.
+// It is called on the key a rotation supersedes so that at most one key object per
+// spire-key-id is marked active going forward. It is a no-op (not an error) if the
+// key has no spire-active Name, which keeps it safe to call defensively.
+func clearActiveMarker(ctx context.Context, c *kmipclient.Client, uid string) error {
+	attrResp, err := c.GetAttributes(uid, ovh.AttributeNameName).ExecContext(ctx)
+	if err != nil {
+		return fmt.Errorf("get Name attributes: %w", err)
+	}
+
+	var nameIndex int32
+	for _, attr := range attrResp.Attribute {
+		if attr.AttributeName != ovh.AttributeNameName {
+			continue
+		}
+		if n, ok := attr.AttributeValue.(ovh.Name); ok && strings.HasPrefix(n.NameValue, prefixActive) {
+			if _, err := c.DeleteAttribute(uid, ovh.AttributeNameName).WithIndex(nameIndex).ExecContext(ctx); err != nil {
+				return fmt.Errorf("delete active Name: %w", err)
+			}
+			return nil
+		}
+		nameIndex++
 	}
 	return nil
 }
