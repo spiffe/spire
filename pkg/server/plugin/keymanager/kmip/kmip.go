@@ -45,6 +45,9 @@ const (
 	// disposeStaleKeysFrequency is how often the reclamation task scans for stale
 	// keys to destroy.
 	disposeStaleKeysFrequency = time.Hour * 48
+	// minStaleKeyThreshold protects against the reclamation task destroying a key
+	// that is still in use but has not yet gone through a keep-alive refresh cycle.
+	minStaleKeyThreshold = time.Hour * 24
 	// defaultStaleKeyThreshold is the default age a key's spire-last-update Name
 	// must reach before the reclamation task considers it orphaned and destroys it.
 	defaultStaleKeyThreshold = time.Hour * 24 * 14 // two weeks
@@ -792,6 +795,8 @@ func buildConfig(_ catalog.CoreConfig, hclText string, s *pluginconf.Status) *Co
 			s.ReportErrorf("unable to parse stale_key_threshold: %v", err)
 		case threshold <= 0:
 			s.ReportError("stale_key_threshold must be greater than zero")
+		case threshold < minStaleKeyThreshold:
+			s.ReportErrorf("stale_key_threshold must be at least %s", minStaleKeyThreshold)
 		default:
 			cfg.parsedStaleKeyThreshold = threshold
 		}

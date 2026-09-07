@@ -65,6 +65,17 @@ func TestConfigure(t *testing.T) {
 			expectCode: codes.OK,
 		},
 		{
+			name: "valid config with minimum stale key threshold",
+			config: fmt.Sprintf(`
+				kmip_addr            = %q
+				ca_cert_path         = %q
+				server_id_value      = %q
+				insecure_skip_verify = true
+				stale_key_threshold  = "24h"
+			`, addr, caFile, testServerID),
+			expectCode: codes.OK,
+		},
+		{
 			name:       "missing kmip_addr",
 			config:     fmt.Sprintf(`server_id_value = %q insecure_skip_verify = true`, testServerID),
 			expectCode: codes.InvalidArgument,
@@ -108,6 +119,17 @@ func TestConfigure(t *testing.T) {
 			`, addr, testServerID),
 			expectCode: codes.InvalidArgument,
 			expectMsg:  "unable to parse stale_key_threshold",
+		},
+		{
+			name: "stale key threshold below minimum",
+			config: fmt.Sprintf(`
+				kmip_addr            = %q
+				server_id_value      = %q
+				insecure_skip_verify = true
+				stale_key_threshold  = "23h"
+			`, addr, testServerID),
+			expectCode: codes.InvalidArgument,
+			expectMsg:  "stale_key_threshold must be at least 24h0m0s",
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -689,10 +711,10 @@ func TestDisposeStaleKeysUsesConfiguredStaleKeyThreshold(t *testing.T) {
 		},
 		{
 			name:        "uses configured threshold",
-			extraConfig: `stale_key_threshold = "1h"`,
-			threshold:   time.Hour,
-			staleAge:    time.Hour + time.Minute,
-			freshAge:    time.Hour - time.Minute,
+			extraConfig: `stale_key_threshold = "24h"`,
+			threshold:   minStaleKeyThreshold,
+			staleAge:    minStaleKeyThreshold + time.Hour,
+			freshAge:    minStaleKeyThreshold - time.Hour,
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {

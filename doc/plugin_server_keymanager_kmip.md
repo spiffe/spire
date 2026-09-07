@@ -20,7 +20,7 @@ The plugin accepts the following configuration options:
 | client_cert_path     | string |           | mTLS client certificate file; must be set together with `client_key_path`.      |                         |
 | client_key_path      | string |           | mTLS client private key file; must be set together with `client_cert_path`.     |                         |
 | insecure_skip_verify | bool   |           | Accept any KMIP server certificate (test environments only).                    | false                   |
-| stale_key_threshold  | string |           | Go duration before an unrefreshed key is treated as stale and reclaimed.        | `336h` (2 weeks)        |
+| stale_key_threshold  | string |           | Go duration before an unrefreshed key is treated as stale and reclaimed; must be at least `24h`. | `336h` (2 weeks)        |
 
 ¹ Exactly one of `server_id_value` or `server_id_file` must be set.
 
@@ -54,7 +54,9 @@ The plugin runs a keep-alive task every six hours that refreshes the
 `spire-last-update` value on keys it is actively managing. A separate reclamation
 task runs every 48 hours, locates keys tagged for this SPIRE server instance, and
 destroys any key pair whose `spire-last-update` value is older than
-`stale_key_threshold`, which defaults to two weeks. This reclaims keys left
+`stale_key_threshold`, which defaults to two weeks and must be at least 24
+hours. The minimum protects against reclaiming a key that is still in use but
+has not yet gone through a keep-alive refresh cycle. This reclaims keys left
 behind after a crash, after a server instance stops refreshing them, or after a
 key rotation leaves an older replacement candidate no longer tracked.
 
