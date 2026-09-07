@@ -75,7 +75,7 @@ This may be useful for templating configuration files, for example across differ
 | `disable_jwt_svids`                | If true, completely disables JWT-SVID functionality. The server will not generate JWT keys, sign JWT-SVIDs, or implement JWT-related API calls. This is useful for deployments that don't need JWT-SVIDs support.                                                                                                                                                                      | false                                                          |
 | `jwt_key_type`                     | The key type used for the server CA (JWT), &lt;rsa-2048&vert;rsa-4096&vert;ec-p256&vert;ec-p384&gt;                                                                                                                                                                                                                                                                                    | The value of `ca_key_type` or ec-p256 if not defined           |
 | `jwt_issuer`                       | The issuer claim used when minting JWT-SVIDs                                                                                                                                                                                                                                                                                                                                           |                                                                |
-| `log_file`                         | File to write logs to. An external tool can move it aside on any platform, but only POSIX can then tell SPIRE Server to start a new one, on receipt of `SIGUSR2`. Use `log_file_rotation` on Windows (see below)                                                                                                                                                                       |                                                                |
+| `log_file`                         | File to write logs to. An external tool can move it aside on any platform, and SPIRE Server then starts a new one on receipt of `SIGUSR2` on POSIX, or of the reopen control code on Windows (see below)                                                                                                                                                                               |                                                                |
 | `log_file_rotation`                | Rotates `log_file` in process rather than relying on an external tool (below). Works on all platforms. Disabled unless configured                                                                                                                                                                                                                                                      |                                                                |
 | `log_level`                        | Sets the logging level &lt;DEBUG&vert;INFO&vert;WARN&vert;ERROR&gt;                                                                                                                                                                                                                                                                                                                    | INFO                                                           |
 | `log_format`                       | Format of logs, &lt;text&vert;json&gt;                                                                                                                                                                                                                                                                                                                                                 | text                                                           |
@@ -109,10 +109,10 @@ When `experimental.require_pq_kem` is enabled, it overrides `min_tls_version` an
 | `organization`              | Array of `Organization` values |                |
 | `common_name`               | The `CommonName` value         |                |
 
-| log_file_rotation | Description                                                                                                                                                                               | Default |
-|:------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------|
-| `max_size_mb`     | Size in MiB that `log_file` may reach before it is rotated. An explicit `0` disables size based rotation, leaving it to `SIGUSR2` on POSIX                                                | 100     |
-| `max_files`       | Number of rotated files to retain, not counting the file currently being written. An explicit `0` retains every rotated file                                                              | 7       |
+| log_file_rotation | Description                                                                                                                                                                      | Default |
+|:------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------|
+| `max_size_mb`     | Size in MiB that `log_file` may reach before it is rotated. An explicit `0` disables size based rotation, leaving it to `SIGUSR2` on POSIX or the reopen control code on Windows | 100     |
+| `max_files`       | Number of rotated files to retain, not counting the file currently being written. An explicit `0` retains every rotated file                                                     | 7       |
 
 Requires `log_file` to be set. Rotation moves the accumulated content aside to a
 timestamped sibling of `log_file` (for example `server-2026-08-18T22-43-01.123.log`)
@@ -120,11 +120,10 @@ and keeps writing to `log_file` itself. `max_files` is applied when a rotation
 happens, not on a timer. A key left unset takes its default, so a block with no
 keys still rotates and still prunes.
 
-This is the only way to bound log growth on Windows. An external tool can move
-the log file aside there, but nothing can tell SPIRE Server to start a new one, so it
-keeps writing into the file that was moved. On POSIX, `SIGUSR2` also forces an
-immediate rotation; rotating an already-empty file is a no-op, so a scheduled
-signal on an idle service does not consume the `max_files` budget.
+A reopen also forces an immediate rotation, whether it arrives as `SIGUSR2` on
+POSIX or as the reopen control code on Windows. Rotating an already-empty file is
+a no-op, so a scheduled reopen on an idle service does not consume the
+`max_files` budget.
 
 | experimental                  | Description                                                                                                                                                                                                            | Default                            |
 |:-----------------------------:|:----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------:|:----------------------------------:|
@@ -400,10 +399,17 @@ When starting the service, all the arguments to execute SPIRE Server with the `r
 ##### Rotating logs on Windows
 
 A Windows service has no console, so deployments generally set `log_file`. An
-external tool can move that file aside but cannot make SPIRE Server start a new
-one, since there is no way to trigger a reopen on Windows. Configure
-[`log_file_rotation`](#server-configuration-file) so the server rotates it. The file is opened for
-append, so restarting the service does not reset it.
+external tool can move that file aside, and the reopen is then requested with a
+user defined service control code, since Windows has no `SIGUSR2`.
+
+```bash
+> sc.exe control spire-server 128
+```
+
+Configure [`log_file_rotation`](#server-configuration-file) instead to have
+SPIRE Server rotate the file itself, with no external tool involved. Either way the
+file is opened for append, so restarting the service does not reset it. Running
+from a console has no trigger, since control codes only reach a service.
 
 ### `spire-server token generate`
 
