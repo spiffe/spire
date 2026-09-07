@@ -2438,6 +2438,10 @@ func bundleEndpointProfileUnknownTest(t *testing.T) *bundleEndpointConfig {
 	return config
 }
 
+type unknownEndpointProfile struct{}
+
+func (unknownEndpointProfile) Name() string { return "unknown" }
+
 func TestValidateFederatesWithBootstrap(t *testing.T) {
 	td := spiffeid.RequireTrustDomainFromString("domain1.test")
 	spiffeCfg := &bundleClient.TrustDomainConfig{
@@ -2458,6 +2462,17 @@ func TestValidateFederatesWithBootstrap(t *testing.T) {
 		cfg := &bundleClient.TrustDomainConfig{
 			EndpointURL:           "https://192.168.1.1:1337",
 			EndpointProfile:       bundleClient.HTTPSWebProfile{},
+			BootstrapBundlePath:   "/etc/spire/domain1.pem",
+			BootstrapBundleFormat: bundleClient.BootstrapBundleFormatPEM,
+		}
+		require.EqualError(t, validateFederatesWithBootstrap(td, cfg),
+			"bootstrap_bundle_path is only supported with the https_spiffe bundle endpoint profile")
+	})
+
+	t.Run("unknown profile", func(t *testing.T) {
+		cfg := &bundleClient.TrustDomainConfig{
+			EndpointURL:           "https://192.168.1.1:1337",
+			EndpointProfile:       unknownEndpointProfile{},
 			BootstrapBundlePath:   "/etc/spire/domain1.pem",
 			BootstrapBundleFormat: bundleClient.BootstrapBundleFormatPEM,
 		}

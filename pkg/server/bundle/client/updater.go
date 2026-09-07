@@ -67,7 +67,7 @@ func NewBundleUpdater(config BundleUpdaterConfig) BundleUpdater {
 func (u *bundleUpdater) UpdateBundle(ctx context.Context) (*spiffebundle.Bundle, *spiffebundle.Bundle, error) {
 	trustDomainConfig := u.GetTrustDomainConfig()
 
-	client, err := u.newClient(ctx, trustDomainConfig)
+	client, usedBootstrap, err := u.newClient(ctx, trustDomainConfig)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -90,12 +90,12 @@ func (u *bundleUpdater) UpdateBundle(ctx context.Context) (*spiffebundle.Bundle,
 	if err != nil {
 		return nil, nil, err
 	}
-	// First fetch is create-only so bootstrap auth cannot overwrite a stored bundle.
-	if localFederatedBundleOrNil == nil {
+	// Create if the store was empty at auth time so bootstrap roots cannot overwrite a bundle that appears before persist.
+	if localFederatedBundleOrNil == nil || usedBootstrap {
 		_, err = u.ds.CreateBundle(ctx, bundle)
 		if err != nil {
 			if status.Code(err) == codes.AlreadyExists {
-				return localFederatedBundleOrNil, fetchedFederatedBundle, nil
+				return localFederatedBundleOrNil, nil, nil
 			}
 			return localFederatedBundleOrNil, nil, fmt.Errorf("failed to store fetched federated bundle: %w", err)
 		}
@@ -126,43 +126,46 @@ func (u *bundleUpdater) SetTrustDomainConfig(trustDomainConfig TrustDomainConfig
 	return false
 }
 
-func (u *bundleUpdater) newClient(ctx context.Context, trustDomainConfig TrustDomainConfig) (Client, error) {
+func (u *bundleUpdater) newClient(ctx context.Context, trustDomainConfig TrustDomainConfig) (Client, bool, error) {
 	clientConfig := ClientConfig{
 		TrustDomain: u.td,
 		EndpointURL: trustDomainConfig.EndpointURL,
 	}
 
+	usedBootstrap := false
 	if spiffeAuth, ok := trustDomainConfig.EndpointProfile.(HTTPSSPIFFEProfile); ok {
-		trustDomain := spiffeAuth.EndpointSPIFFEID.TrustDomain()
-		localEndpointBundle, err := fetchBundleIfExists(ctx, u.ds, trustDomain)
+		endpointTD := spiffeAuth.EndpointSPIFFEID.TrustDomain()
+		localEndpointBundle, err := fetchBundleIfExists(ctx, u.ds, endpointTD)
 		if err != nil {
-			return nil, fmt.Errorf("failed to fetch local copy of bundle for %q: %w", trustDomain, err)
+			return nil, false, fmt.Errorf("failed to fetch local copy of bundle for %q: %w", endpointTD, err)
 		}
 
-		rootCAs, err := rootCAsForSPIFFEAuth(localEndpointBundle, trustDomainConfig, trustDomain)
+		var rootCAs []*x509.Certificate
+		rootCAs, usedBootstrap, err = rootCAsForSPIFFEAuth(localEndpointBundle, trustDomainConfig, endpointTD, u.td)
 		if err != nil {
-			return nil, err
+			return nil, false, err
 		}
 		clientConfig.SPIFFEAuth = &SPIFFEAuthConfig{
 			EndpointSpiffeID: spiffeAuth.EndpointSPIFFEID,
 			RootCAs:          rootCAs,
 		}
 	}
-	return u.newClientHook(clientConfig)
+	client, err := u.newClientHook(clientConfig)
+	return client, usedBootstrap, err
 }
 
-func rootCAsForSPIFFEAuth(local *spiffebundle.Bundle, cfg TrustDomainConfig, td spiffeid.TrustDomain) ([]*x509.Certificate, error) {
+func rootCAsForSPIFFEAuth(local *spiffebundle.Bundle, cfg TrustDomainConfig, endpointTD, federatedTD spiffeid.TrustDomain) ([]*x509.Certificate, bool, error) {
 	if local != nil {
-		return local.X509Authorities(), nil
+		return local.X509Authorities(), false, nil
 	}
-	if cfg.BootstrapBundlePath == "" {
-		return nil, errors.New("can't perform SPIFFE Authentication: local copy of bundle not found")
+	if cfg.BootstrapBundlePath == "" || endpointTD != federatedTD {
+		return nil, false, errors.New("can't perform SPIFFE Authentication: local copy of bundle not found")
 	}
-	certs, err := loadBootstrapX509Authorities(cfg.BootstrapBundlePath, cfg.BootstrapBundleFormat, td)
+	certs, err := loadBootstrapX509Authorities(cfg.BootstrapBundlePath, cfg.BootstrapBundleFormat, endpointTD)
 	if err != nil {
-		return nil, fmt.Errorf("can't perform SPIFFE Authentication: %w", err)
+		return nil, false, fmt.Errorf("can't perform SPIFFE Authentication: %w", err)
 	}
-	return certs, nil
+	return certs, true, nil
 }
 
 func fetchBundleIfExists(ctx context.Context, ds datastore.DataStore, trustDomain spiffeid.TrustDomain) (*spiffebundle.Bundle, error) {

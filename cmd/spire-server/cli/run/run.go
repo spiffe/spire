@@ -958,13 +958,9 @@ func validateFederatesWithBootstrap(td spiffeid.TrustDomain, cfg *bundleClient.T
 		return fmt.Errorf("bootstrap_bundle_format must be %q or %q", bundleClient.BootstrapBundleFormatPEM, bundleClient.BootstrapBundleFormatSPIFFE)
 	}
 
-	if _, ok := cfg.EndpointProfile.(bundleClient.HTTPSWebProfile); ok {
-		return errors.New("bootstrap_bundle_path is only supported with the https_spiffe bundle endpoint profile")
-	}
-
 	spiffeProfile, ok := cfg.EndpointProfile.(bundleClient.HTTPSSPIFFEProfile)
 	if !ok {
-		return nil
+		return errors.New("bootstrap_bundle_path is only supported with the https_spiffe bundle endpoint profile")
 	}
 	if spiffeProfile.EndpointSPIFFEID.TrustDomain() != td {
 		return errors.New("bootstrap_bundle_path is only supported when the endpoint SPIFFE ID is in the federated trust domain")
