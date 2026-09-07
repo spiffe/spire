@@ -518,7 +518,7 @@ func composeJWTBundlesResponse(update *cache.X509WorkloadUpdate) (*workload.JWTB
 	}
 
 	bundles := make(map[string][]byte)
-	jwksBytes, err := bundleutil.Marshal(update.Bundle, bundleutil.NoX509SVIDKeys(), bundleutil.StandardJWKS())
+	jwksBytes, err := bundleutil.MarshalJWTSVIDBundle(update.Bundle, bundleutil.StandardJWKS())
 	if err != nil {
 		return nil, err
 	}
@@ -526,7 +526,7 @@ func composeJWTBundlesResponse(update *cache.X509WorkloadUpdate) (*workload.JWTB
 
 	if update.HasIdentity() {
 		for _, federatedBundle := range update.FederatedBundles {
-			jwksBytes, err := bundleutil.Marshal(federatedBundle, bundleutil.NoX509SVIDKeys(), bundleutil.StandardJWKS())
+			jwksBytes, err := bundleutil.MarshalJWTSVIDBundle(federatedBundle, bundleutil.StandardJWKS())
 			if err != nil {
 				return nil, err
 			}

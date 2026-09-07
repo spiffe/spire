@@ -1153,13 +1153,18 @@ func TestFetchJWTBundles(t *testing.T) {
 	bundleJWKS, err := bundle.JWTBundle().Marshal()
 	require.NoError(t, err)
 	bundleJWKS = indent(bundleJWKS)
+	bundleWithWIT := ca.Bundle()
+	require.NoError(t, bundleWithWIT.AddWITAuthority("local-wit", bundleWithWIT.X509Authorities()[0].PublicKey))
 
 	emptyJWKSBytes := indent([]byte(`{"keys": []}`))
 
-	federatedBundle := testca.New(t, spiffeid.RequireTrustDomainFromString("domain2.test")).Bundle()
+	federatedCA := testca.New(t, spiffeid.RequireTrustDomainFromString("domain2.test"))
+	federatedBundle := federatedCA.Bundle()
 	federatedBundleJWKS, err := federatedBundle.JWTBundle().Marshal()
 	require.NoError(t, err)
 	federatedBundleJWKS = indent(federatedBundleJWKS)
+	federatedBundleWithWIT := federatedCA.Bundle()
+	require.NoError(t, federatedBundleWithWIT.AddWITAuthority("federated-wit", federatedBundleWithWIT.X509Authorities()[0].PublicKey))
 
 	for _, tt := range []struct {
 		name                          string
@@ -1286,6 +1291,27 @@ func TestFetchJWTBundles(t *testing.T) {
 				Bundles: map[string][]byte{
 					bundle.TrustDomain().IDString():          bundleJWKS,
 					federatedBundle.TrustDomain().IDString(): federatedBundleJWKS,
+				},
+			},
+		},
+		{
+			name: "WIT authorities excluded",
+			updates: []*cache.X509WorkloadUpdate{
+				{
+					Identities: []cache.X509Identity{
+						identityFromX509SVID(x509SVID, "id1"),
+					},
+					Bundle: bundleWithWIT,
+					FederatedBundles: map[spiffeid.TrustDomain]*spiffebundle.Bundle{
+						federatedBundleWithWIT.TrustDomain(): federatedBundleWithWIT,
+					},
+				},
+			},
+			expectCode: codes.OK,
+			expectResp: &workloadPB.JWTBundlesResponse{
+				Bundles: map[string][]byte{
+					bundleWithWIT.TrustDomain().IDString():          bundleJWKS,
+					federatedBundleWithWIT.TrustDomain().IDString(): federatedBundleJWKS,
 				},
 			},
 		},
