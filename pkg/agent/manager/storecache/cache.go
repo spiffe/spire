@@ -81,9 +81,11 @@ func New(config *Config) *Cache {
 // - Knowledge or when the SVID for that entry changes
 // - Knowledge when the bundle changes
 // - Knowledge when a federated bundle related to a storable entry changes
-func (c *Cache) UpdateEntries(update *cache.UpdateEntries, checkSVID func(*common.RegistrationEntry, *common.RegistrationEntry, *cache.X509SVID) bool) {
+func (c *Cache) UpdateEntries(update *cache.UpdateEntries, checkSVID func(*common.RegistrationEntry, *common.RegistrationEntry, *cache.X509SVID) bool) cache.UpdateEntriesResult {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
+
+	result := cache.UpdateEntriesResult{}
 
 	// Remove bundles that no longer exist. The bundle for the agent trust
 	// domain should NOT be removed even if not present (which should only be
@@ -156,26 +158,41 @@ func (c *Cache) UpdateEntries(update *cache.UpdateEntries, checkSVID func(*commo
 	for _, newEntry := range update.RegistrationEntries {
 		record, existingEntry := c.updateOrCreateRecord(newEntry)
 
-		entryUpdated := existingEntry == nil || record.entry.RevisionNumber != existingEntry.RevisionNumber
+		registrationEntryOutdated := existingEntry != nil && record.entry.RevisionNumber != existingEntry.RevisionNumber
+		entryUpdated := existingEntry == nil || registrationEntryOutdated
+
+		bundleUpdated := trustDomainBundleChanged ||
+			isBundleChanged(record.entry.FederatesWith, bundleChanged) ||
+			isBundleRemoved(record.entry.FederatesWith, bundlesRemoved)
 
 		// TODO: may we separate cases to add more details about why we increment revision?
 		switch {
 		// Entry revision changed that means entry changed
 		case entryUpdated,
 			// Increase the revision when the TD bundle changed
-			trustDomainBundleChanged,
-			// Mark record as stale when a federated bundle changed
-			isBundleChanged(record.entry.FederatesWith, bundleChanged),
-			// Increase the revision when the federated bundle related with the entry is removed
-			isBundleRemoved(record.entry.FederatesWith, bundlesRemoved):
+			bundleUpdated:
 			// Related bundles or entry changed, mark this record as outdated
 			record.revision++
 		}
 
 		// TODO: in case where entry is updated may we not increment revision and just add it to stale?
 		// Then stale will be taken by sync and it will increment revision.
-		if checkSVID != nil && checkSVID(existingEntry, newEntry, record.svid) {
+		expiring := checkSVID != nil && checkSVID(existingEntry, newEntry, record.svid)
+		hasSVID := record.svid != nil && len(record.svid.Chain) > 0
+		if expiring || (hasSVID && registrationEntryOutdated) {
 			c.staleEntries[newEntry.EntryId] = true
+		}
+
+		// A cached SVID whose registration entry revision or related bundle
+		// changed is reported as outdated, even if it wasn't marked stale for
+		// renewal purposes (e.g. a federated bundle rotation doesn't by
+		// itself require a new SVID, but the cached SVID's context is stale).
+		outdatedForMetric := !expiring && hasSVID && (registrationEntryOutdated || bundleUpdated)
+		switch {
+		case expiring:
+			result.ExpiringSVIDs++
+		case outdatedForMetric:
+			result.OutdatedSVIDs++
 		}
 
 		// Log when entry is updated or created.
@@ -191,6 +208,8 @@ func (c *Cache) UpdateEntries(update *cache.UpdateEntries, checkSVID func(*commo
 			}
 		}
 	}
+
+	return result
 }
 
 // UpdateX509SVIDs updates cache with latest SVIDs

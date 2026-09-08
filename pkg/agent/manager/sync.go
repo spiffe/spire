@@ -40,7 +40,7 @@ type taintedAuthorities struct {
 // interface for updating cached X509-SVIDs.
 type x509SVIDCache interface {
 	// UpdateEntries updates entries on cache
-	UpdateEntries(update *cache.UpdateEntries, checkSVID func(*common.RegistrationEntry, *common.RegistrationEntry, *cache.X509SVID) bool)
+	UpdateEntries(update *cache.UpdateEntries, checkSVID func(*common.RegistrationEntry, *common.RegistrationEntry, *cache.X509SVID) bool) cache.UpdateEntriesResult
 
 	// UpdateX509SVIDs updates SVIDs on provided records
 	UpdateX509SVIDs(update map[string]*cache.X509SVID)
@@ -136,9 +136,7 @@ func (m *manager) updateX509SVIDCache(ctx context.Context, update *cache.UpdateE
 	// in this interval.
 	//
 	// the values in `update` now belong to the cache. DO NOT MODIFY.
-	var expiring int
-	var outdated int
-	c.UpdateEntries(update, func(existingEntry, newEntry *common.RegistrationEntry, svid *cache.X509SVID) bool {
+	result := c.UpdateEntries(update, func(_ *common.RegistrationEntry, newEntry *common.RegistrationEntry, svid *cache.X509SVID) bool {
 		switch {
 		case svid == nil:
 			// no SVID
@@ -149,10 +147,6 @@ func (m *manager) updateX509SVIDCache(ctx context.Context, update *cache.UpdateE
 				telemetry.SPIFFEID:       newEntry.SpiffeId,
 			}).Warn("cached X509 SVID is empty")
 		case m.c.RotationStrategy.ShouldRotateX509(m.c.Clk.Now(), svid.Chain[0]):
-			expiring++
-		case existingEntry != nil && existingEntry.RevisionNumber != newEntry.RevisionNumber:
-			// Registration entry has been updated
-			outdated++
 		default:
 			// SVID is good
 			return false
@@ -161,14 +155,13 @@ func (m *manager) updateX509SVIDCache(ctx context.Context, update *cache.UpdateE
 		return true
 	})
 
-	// TODO: this values are not real, we may remove
-	if expiring > 0 {
-		telemetry_agent.AddCacheManagerExpiredSVIDsSample(m.c.Metrics, cacheType, float32(expiring))
-		log.WithField(telemetry.ExpiringSVIDs, expiring).Debug("Updating expiring SVIDs in cache")
+	if result.ExpiringSVIDs > 0 {
+		telemetry_agent.AddCacheManagerExpiredSVIDsSample(m.c.Metrics, cacheType, float32(result.ExpiringSVIDs))
+		log.WithField(telemetry.ExpiringSVIDs, result.ExpiringSVIDs).Debug("Updating expiring SVIDs in cache")
 	}
-	if outdated > 0 {
-		telemetry_agent.AddCacheManagerOutdatedSVIDsSample(m.c.Metrics, cacheType, float32(outdated))
-		log.WithField(telemetry.OutdatedSVIDs, outdated).Debug("Updating SVIDs with outdated attributes in cache")
+	if result.OutdatedSVIDs > 0 {
+		telemetry_agent.AddCacheManagerOutdatedSVIDsSample(m.c.Metrics, cacheType, float32(result.OutdatedSVIDs))
+		log.WithField(telemetry.OutdatedSVIDs, result.OutdatedSVIDs).Debug("Updating SVIDs with outdated attributes in cache")
 	}
 
 	return m.updateX509SVIDs(ctx, log, c)
