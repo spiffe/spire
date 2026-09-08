@@ -1728,9 +1728,9 @@ func (s *Suite) TestDeleteAttestedNodeCascadesEntries() {
 	s.Require().NoError(err)
 	s.Nil(attestedNode)
 
-	fetched, err := s.ds.FetchRegistrationEntry(ctx, childEntry.EntryId)
+	entries, err := s.ds.FetchRegistrationEntries(ctx, []string{childEntry.EntryId})
 	s.Require().NoError(err)
-	s.Nil(fetched)
+	s.Nil(entries[childEntry.EntryId])
 
 	// A new registration entry event was emitted for the cascaded delete.
 	resp, err := s.ds.ListRegistrationEntryEvents(ctx, &datastore.ListRegistrationEntryEventsRequest{
@@ -1785,12 +1785,11 @@ func (s *Suite) TestDeleteAttestedNodeJoinTokenPreservesNonAliasChildEntries() {
 	s.Require().NoError(err)
 
 	// Alias child is gone; user-managed workload child survives.
-	fetchedAlias, err := s.ds.FetchRegistrationEntry(ctx, aliasChild.EntryId)
+	entries, err := s.ds.FetchRegistrationEntries(ctx, []string{aliasChild.EntryId, workloadChild.EntryId})
 	s.Require().NoError(err)
-	s.Nil(fetchedAlias)
+	s.Nil(entries[aliasChild.EntryId])
 
-	fetchedWorkload, err := s.ds.FetchRegistrationEntry(ctx, workloadChild.EntryId)
-	s.Require().NoError(err)
+	fetchedWorkload := entries[workloadChild.EntryId]
 	s.Require().NotNil(fetchedWorkload)
 	s.Equal(workloadChild.EntryId, fetchedWorkload.EntryId)
 
@@ -1857,17 +1856,15 @@ func (s *Suite) TestPruneAttestedExpiredNodesCascadesEntries() {
 	expiredNode, err := s.ds.FetchAttestedNode(ctx, expiredNodeID)
 	s.Require().NoError(err)
 	s.Nil(expiredNode)
-	fetchedExpiredChild, err := s.ds.FetchRegistrationEntry(ctx, expiredChild.EntryId)
+	entries, err := s.ds.FetchRegistrationEntries(ctx, []string{expiredChild.EntryId, validChild.EntryId})
 	s.Require().NoError(err)
-	s.Nil(fetchedExpiredChild)
+	s.Nil(entries[expiredChild.EntryId])
 
 	// Valid node and its child entry are preserved.
 	valid, err := s.ds.FetchAttestedNode(ctx, validNodeID)
 	s.Require().NoError(err)
 	s.NotNil(valid)
-	fetchedValidChild, err := s.ds.FetchRegistrationEntry(ctx, validChild.EntryId)
-	s.Require().NoError(err)
-	s.NotNil(fetchedValidChild)
+	s.NotNil(entries[validChild.EntryId])
 
 	// Exactly one new registration entry event was emitted, for the cascaded delete.
 	resp, err := s.ds.ListRegistrationEntryEvents(ctx, &datastore.ListRegistrationEntryEventsRequest{
@@ -1910,8 +1907,9 @@ func (s *Suite) TestDeleteAttestedNodeNonJoinTokenDoesNotCascade() {
 	s.Require().NoError(err)
 	s.Nil(attestedNode)
 
-	fetched, err := s.ds.FetchRegistrationEntry(ctx, childEntry.EntryId)
+	entries, err := s.ds.FetchRegistrationEntries(ctx, []string{childEntry.EntryId})
 	s.Require().NoError(err)
+	fetched := entries[childEntry.EntryId]
 	s.Require().NotNil(fetched)
 	s.Equal(childEntry.EntryId, fetched.EntryId)
 
@@ -2469,7 +2467,7 @@ func (s *Suite) TestCreateInvalidRegistrationEntry() {
 	// TODO: Check that no entries have been created
 }
 
-func (s *Suite) TestFetchRegistrationEntry() {
+func (s *Suite) TestFetchRegistrationEntriesWithOptionalFields() {
 	for _, tt := range []struct {
 		name  string
 		entry *common.RegistrationEntry
@@ -2521,17 +2519,17 @@ func (s *Suite) TestFetchRegistrationEntry() {
 			s.Require().NoError(err)
 			s.Require().NotNil(createdEntry)
 
-			fetchRegistrationEntry, err := s.ds.FetchRegistrationEntry(ctx, createdEntry.EntryId)
+			registrationEntries, err := s.ds.FetchRegistrationEntries(ctx, []string{createdEntry.EntryId})
 			s.Require().NoError(err)
-			s.RequireProtoEqual(createdEntry, fetchRegistrationEntry)
+			s.RequireProtoEqual(createdEntry, registrationEntries[createdEntry.EntryId])
 		})
 	}
 }
 
-func (s *Suite) TestFetchRegistrationEntryDoesNotExist() {
-	fetchRegistrationEntry, err := s.ds.FetchRegistrationEntry(ctx, "does-not-exist")
+func (s *Suite) TestFetchRegistrationEntriesDoesNotExist() {
+	registrationEntries, err := s.ds.FetchRegistrationEntries(ctx, []string{"does-not-exist"})
 	s.Require().NoError(err)
-	s.Require().Nil(fetchRegistrationEntry)
+	s.Require().Empty(registrationEntries)
 }
 
 func (s *Suite) TestFetchRegistrationEntries() {
@@ -2696,8 +2694,9 @@ func (s *Suite) TestPruneRegistrationEntries() {
 			// Prune events
 			err = s.ds.PruneRegistrationEntries(ctx, tt.time)
 			require.NoError(t, err)
-			fetchedRegistrationEntry, err = s.ds.FetchRegistrationEntry(ctx, createdRegistrationEntry.EntryId)
+			registrationEntries, err := s.ds.FetchRegistrationEntries(ctx, []string{createdRegistrationEntry.EntryId})
 			require.NoError(t, err)
+			fetchedRegistrationEntry = registrationEntries[createdRegistrationEntry.EntryId]
 			assert.Equal(t, tt.expectedRegistrationEntry, fetchedRegistrationEntry)
 
 			// Verify pruning triggers event creation
@@ -2722,9 +2721,9 @@ func (s *Suite) TestPruneRegistrationEntries() {
 }
 
 func (s *Suite) TestFetchInexistentRegistrationEntry() {
-	fetchedRegistrationEntry, err := s.ds.FetchRegistrationEntry(ctx, "INEXISTENT")
+	registrationEntries, err := s.ds.FetchRegistrationEntries(ctx, []string{"INEXISTENT"})
 	s.Require().NoError(err)
-	s.Require().Nil(fetchedRegistrationEntry)
+	s.Require().Empty(registrationEntries)
 }
 
 func (s *Suite) TestListRegistrationEntries() {
@@ -3524,8 +3523,9 @@ func (s *Suite) TestUpdateRegistrationEntry() {
 	s.Require().Equal("internal", updatedRegistrationEntry.Hint)
 	s.Require().Equal(entry.CreatedAt, updatedRegistrationEntry.CreatedAt)
 
-	registrationEntry, err := s.ds.FetchRegistrationEntry(ctx, entry.EntryId)
+	registrationEntries, err := s.ds.FetchRegistrationEntries(ctx, []string{entry.EntryId})
 	s.Require().NoError(err)
+	registrationEntry := registrationEntries[entry.EntryId]
 	s.Require().NotNil(registrationEntry)
 	s.RequireProtoEqual(updatedRegistrationEntry, registrationEntry)
 
@@ -3554,9 +3554,9 @@ func (s *Suite) TestUpdateRegistrationEntryWithStoreSvid() {
 	// Verify output has expected values
 	s.Require().True(entry.StoreSvid)
 
-	fetchRegistrationEntry, err := s.ds.FetchRegistrationEntry(ctx, entry.EntryId)
+	registrationEntries, err := s.ds.FetchRegistrationEntries(ctx, []string{entry.EntryId})
 	s.Require().NoError(err)
-	s.RequireProtoEqual(updateRegistrationEntry, fetchRegistrationEntry)
+	s.RequireProtoEqual(updateRegistrationEntry, registrationEntries[entry.EntryId])
 
 	// Update with invalid selectors
 	entry.Selectors = []*common.Selector{
@@ -3880,8 +3880,9 @@ func (s *Suite) TestUpdateRegistrationEntryWithMask() {
 			s.RequireProtoEqual(expectedResult, updatedRegistrationEntry)
 
 			// Fetch and check the results match expectations
-			registrationEntry, err = s.ds.FetchRegistrationEntry(ctx, id)
+			registrationEntries, err := s.ds.FetchRegistrationEntries(ctx, []string{id})
 			s.Require().NoError(err)
+			registrationEntry = registrationEntries[id]
 			s.Require().NotNil(registrationEntry)
 
 			s.assertCreatedAtField(registrationEntry, now)
@@ -4604,9 +4605,9 @@ func (s *Suite) TestDeleteBundleDeleteRegistrationEntries() {
 	s.Require().NoError(err)
 
 	// verify that the registration entry has been deleted
-	registrationEntry, err := s.ds.FetchRegistrationEntry(context.Background(), entry.EntryId)
+	registrationEntries, err := s.ds.FetchRegistrationEntries(context.Background(), []string{entry.EntryId})
 	s.Require().NoError(err)
-	s.Require().Nil(registrationEntry)
+	s.Require().Nil(registrationEntries[entry.EntryId])
 
 	// make sure the unrelated entry still exists
 	s.fetchRegistrationEntry(unrelated.EntryId)
@@ -5766,8 +5767,9 @@ func (s *Suite) deleteRegistrationEntry(entryID string) {
 }
 
 func (s *Suite) fetchRegistrationEntry(entryID string) *common.RegistrationEntry {
-	registrationEntry, err := s.ds.FetchRegistrationEntry(ctx, entryID)
+	registrationEntries, err := s.ds.FetchRegistrationEntries(ctx, []string{entryID})
 	s.Require().NoError(err)
+	registrationEntry := registrationEntries[entryID]
 	s.Require().NotNil(registrationEntry)
 	return registrationEntry
 }
