@@ -33,7 +33,6 @@ import (
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/config"
 	"github.com/spiffe/spire/pkg/common/diskcertmanager"
-	"github.com/spiffe/spire/pkg/common/errorutil"
 	"github.com/spiffe/spire/pkg/common/fflag"
 	"github.com/spiffe/spire/pkg/common/health"
 	"github.com/spiffe/spire/pkg/common/log"
@@ -84,7 +83,6 @@ type serverConfig struct {
 	JWTIssuer                    string               `hcl:"jwt_issuer"`
 	JWTKeyType                   string               `hcl:"jwt_key_type"`
 	LogFile                      string               `hcl:"log_file"`
-	LogFileRotation              *log.RotationConfig  `hcl:"log_file_rotation"`
 	LogLevel                     string               `hcl:"log_level"`
 	LogFormat                    string               `hcl:"log_format"`
 	LogSourceLocation            bool                 `hcl:"log_source_location"`
@@ -120,6 +118,7 @@ type experimentalConfig struct {
 	SQLTransactionTimeout   string                      `hcl:"sql_transaction_timeout"`
 	RequirePQKEM            bool                        `hcl:"require_pq_kem"`
 	WITKeyType              string                      `hcl:"wit_key_type"`
+	AllowPluggableDatastore bool                        `hcl:"allow_pluggable_datastore"`
 	WITIssuer               string                      `hcl:"wit_issuer"`
 
 	Flags fflag.RawConfig `hcl:"feature_flags"`
@@ -299,7 +298,7 @@ func (cmd *Command) Run(args []string) int {
 	defer stop()
 
 	err = s.Run(ctx)
-	if err != nil && !errorutil.IsCanceled(err) {
+	if err != nil && !errors.Is(err, context.Canceled) {
 		c.Log.WithError(err).Error("Server crashed")
 		return 1
 	}
@@ -414,10 +413,10 @@ func newServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig, ski
 	if c.Server.LogSourceLocation {
 		logOptions = append(logOptions, log.WithSourceLocation())
 	}
-	var reopenableFile log.ReopenableWriteCloser
+	var reopenableFile *log.ReopenableFile
 	if c.Server.LogFile != "" && !skipLogFile {
 		var err error
-		reopenableFile, err = log.NewOutputFile(c.Server.LogFile, c.Server.LogFileRotation)
+		reopenableFile, err = log.NewReopenableFile(c.Server.LogFile)
 		if err != nil {
 			return nil, err
 		}
@@ -805,6 +804,8 @@ func newServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig, ski
 	sc.EventsBasedCache = c.Server.Experimental.EventsBasedCache
 	sc.AuthOpaPolicyEngineConfig = c.Server.Experimental.AuthOpaPolicyEngine
 
+	sc.ExperimentalAllowPluggableDatastore = c.Server.Experimental.AllowPluggableDatastore
+
 	for _, f := range c.Server.Experimental.Flags {
 		sc.Log.Warnf("Developer feature flag %q has been enabled", f)
 	}
@@ -967,15 +968,6 @@ func validateConfig(c *Config) error {
 		return errors.New("plugins section must be configured")
 	}
 
-	if c.Server.LogFileRotation != nil {
-		if c.Server.LogFile == "" {
-			return errors.New("log_file must be configured to use log_file_rotation")
-		}
-		if err := c.Server.LogFileRotation.Validate(); err != nil {
-			return fmt.Errorf("invalid log_file_rotation configuration: %w", err)
-		}
-	}
-
 	if c.Server.Federation != nil {
 		if c.Server.Federation.BundleEndpoint != nil &&
 			c.Server.Federation.BundleEndpoint.ACME != nil {
@@ -1039,10 +1031,6 @@ func checkForUnknownConfig(c *Config, l logrus.FieldLogger) (err error) {
 
 		if cs := c.Server.CASubject; cs != nil && len(cs.UnusedKeyPositions) != 0 {
 			detectedUnknown("ca_subject", cs.UnusedKeyPositions)
-		}
-
-		if lr := c.Server.LogFileRotation; lr != nil && len(lr.UnusedKeyPositions) != 0 {
-			detectedUnknown("log_file_rotation", lr.UnusedKeyPositions)
 		}
 
 		if rl := c.Server.RateLimit; len(rl.UnusedKeyPositions) != 0 {

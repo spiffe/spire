@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/sirupsen/logrus"
+	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/test/spiretest"
 )
@@ -18,7 +19,7 @@ type DataStoreUnderTest interface {
 	datastore.DataStore
 	io.Closer
 	RawQuerier
-	Configure(ctx context.Context, hclConfiguration string) error
+	Configure(ctx context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error)
 }
 
 // Config parameterizes the shared suite over a concrete implementation.

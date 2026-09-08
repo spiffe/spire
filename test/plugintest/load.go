@@ -3,6 +3,7 @@ package plugintest
 import (
 	"context"
 	"io"
+	"strings"
 	"testing"
 
 	"github.com/sirupsen/logrus"
@@ -25,7 +26,8 @@ type Plugin interface {
 func Load(t *testing.T, builtIn catalog.BuiltIn, pluginFacade catalog.Facade, options ...Option) Plugin {
 	conf := &config{
 		builtInConfig: catalog.BuiltInConfig{
-			Log: testLogger(t),
+			Log:                testLogger(t),
+			MaxGrpcMessageSize: catalog.DefaultMaxGrpcMessageSize,
 		},
 	}
 	for _, opt := range options {
@@ -40,7 +42,13 @@ func Load(t *testing.T, builtIn catalog.BuiltIn, pluginFacade catalog.Facade, op
 		}
 	}
 	require.NoError(t, err)
-	t.Cleanup(func() { assert.NoError(t, conn.Close()) })
+	t.Cleanup(func() {
+		err := conn.Close()
+		if err != nil && strings.Contains(err.Error(), "the client connection is closing") {
+			return
+		}
+		assert.NoError(t, err)
+	})
 
 	var facades []catalog.Facade
 	if pluginFacade != nil {
