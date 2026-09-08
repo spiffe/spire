@@ -33,6 +33,7 @@ import (
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/config"
 	"github.com/spiffe/spire/pkg/common/diskcertmanager"
+	"github.com/spiffe/spire/pkg/common/errorutil"
 	"github.com/spiffe/spire/pkg/common/fflag"
 	"github.com/spiffe/spire/pkg/common/health"
 	"github.com/spiffe/spire/pkg/common/log"
@@ -298,7 +299,7 @@ func (cmd *Command) Run(args []string) int {
 	defer stop()
 
 	err = s.Run(ctx)
-	if err != nil && !errors.Is(err, context.Canceled) {
+	if err != nil && !errorutil.IsCanceled(err) {
 		c.Log.WithError(err).Error("Server crashed")
 		return 1
 	}
