@@ -1,3 +1,5 @@
+//go:build windows
+
 package log
 
 import (
@@ -5,14 +7,14 @@ import (
 )
 
 // ReopenOnSignal returns a function compatible with RunTasks. Windows has no
-// signal to reopen on, so the loop only reports rotation failures that a self
-// rotating file could not report itself.
+// signal to reopen on, so the request arrives from the service control handler
+// by way of RequestReopen.
 func ReopenOnSignal(logger *Logger, reopener Reopener) func(context.Context) error {
 	return func(ctx context.Context) error {
-		tickCh, stopTicker := rotateErrorTicker(reopener)
-		defer stopTicker()
+		drain, stopDrain := newRotateErrorDrain(reopener)
+		defer stopDrain()
 
-		watchLog(ctx, logger, reopener, nil, tickCh)
+		watchLog(ctx, logger, reopener, nil, reopenRequests, drain)
 		return nil
 	}
 }

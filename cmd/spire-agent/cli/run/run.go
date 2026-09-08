@@ -34,6 +34,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/config"
+	"github.com/spiffe/spire/pkg/common/errorutil"
 	"github.com/spiffe/spire/pkg/common/fflag"
 	"github.com/spiffe/spire/pkg/common/health"
 	"github.com/spiffe/spire/pkg/common/idutil"
@@ -362,7 +363,7 @@ func (cmd *Command) Run(args []string) int {
 	defer stop()
 
 	err = a.Run(ctx)
-	if err != nil && !errors.Is(err, context.Canceled) {
+	if err != nil && !errorutil.IsCanceled(err) {
 		c.Log.WithError(err).Error("Agent crashed")
 		return 1
 	}
@@ -650,9 +651,6 @@ func newAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig, skip
 	}
 	ac.Log = logger
 
-	if lr := c.Agent.LogFileRotation; lr != nil && lr.SizeRotationDisabled() && !log.ReopenOnSignalSupported {
-		logger.Warn("log_file_rotation is configured with max_size_mb = 0 and nothing can trigger a rotation on this platform, so the log file will not be rotated")
-	}
 	if reopenableFile != nil {
 		ac.LogReopener = log.ReopenOnSignal(logger, reopenableFile)
 	}

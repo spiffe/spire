@@ -7,11 +7,20 @@ import (
 	"os"
 	"sync"
 
+	"github.com/spiffe/spire/pkg/common/log"
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/svc"
 )
 
 const supportedCommand = "run"
+
+// reopenLogControlCode asks SPIRE to start writing to a new log file, standing
+// in for SIGUSR2 on POSIX. Windows reserves control codes 128 through 255 for
+// the service to define, and the SCM delivers them without the service having
+// to accept them first, so no change to the accepted set is needed.
+//
+//	sc.exe control <service name> 128
+const reopenLogControlCode = svc.Cmd(128)
 
 type service struct {
 	mtx              sync.RWMutex
@@ -59,6 +68,8 @@ loop:
 			switch c.Cmd {
 			case svc.Interrogate:
 				status <- c.CurrentStatus
+			case reopenLogControlCode:
+				log.RequestReopen()
 			case svc.Stop, svc.Shutdown:
 				break loop
 			}

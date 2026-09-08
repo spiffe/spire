@@ -33,6 +33,7 @@ import (
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/config"
 	"github.com/spiffe/spire/pkg/common/diskcertmanager"
+	"github.com/spiffe/spire/pkg/common/errorutil"
 	"github.com/spiffe/spire/pkg/common/fflag"
 	"github.com/spiffe/spire/pkg/common/health"
 	"github.com/spiffe/spire/pkg/common/log"
@@ -298,7 +299,7 @@ func (cmd *Command) Run(args []string) int {
 	defer stop()
 
 	err = s.Run(ctx)
-	if err != nil && !errors.Is(err, context.Canceled) {
+	if err != nil && !errorutil.IsCanceled(err) {
 		c.Log.WithError(err).Error("Server crashed")
 		return 1
 	}
@@ -428,10 +429,6 @@ func newServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig, ski
 		return nil, fmt.Errorf("could not start logger: %w", err)
 	}
 	sc.Log = logger
-
-	if lr := c.Server.LogFileRotation; lr != nil && lr.SizeRotationDisabled() && !log.ReopenOnSignalSupported {
-		logger.Warn("log_file_rotation is configured with max_size_mb = 0 and nothing can trigger a rotation on this platform, so the log file will not be rotated")
-	}
 
 	if reopenableFile != nil {
 		sc.LogReopener = log.ReopenOnSignal(logger, reopenableFile)

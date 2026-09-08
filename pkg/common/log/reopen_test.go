@@ -59,7 +59,7 @@ func TestReopenOnSignalWithReopenableOutputFileSuccess(t *testing.T) {
 		signalCh <- reopenSignal
 		close(renamedCh)
 	}()
-	watchLog(ctx, logger, frf, signalCh, nil)
+	watchLog(ctx, logger, frf, signalCh, nil, rotateErrorDrain{})
 
 	<-renamedCh
 	fsInfo, err = rf.f.Stat()
@@ -141,7 +141,7 @@ func TestReopenOnSignalError(t *testing.T) {
 				// trigger close error
 				signalCh <- reopenSignal
 			}()
-			watchLog(ctx, logger, frf, signalCh, nil)
+			watchLog(ctx, logger, frf, signalCh, nil, rotateErrorDrain{})
 			spiretest.AssertLogs(t, logHook.AllEntries(), tt.wantLogEntries)
 			logHook.Reset()
 		})

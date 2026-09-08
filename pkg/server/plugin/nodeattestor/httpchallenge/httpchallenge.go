@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net"
 	"net/http"
 	"regexp"
 	"sync"
@@ -17,6 +18,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/httpchallenge"
 	"github.com/spiffe/spire/pkg/common/pluginconf"
+	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	nodeattestorbase "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/base"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -38,11 +40,16 @@ func disableHTTPRedirects(req *http.Request, via []*http.Request) error {
 	return errors.New("http redirects are disabled")
 }
 
-func BuiltInTesting(client *http.Client, forceNonce string) catalog.BuiltIn {
+// BuiltInTesting builds the plugin for tests. A nil lookupIPs keeps the
+// system resolver.
+func BuiltInTesting(client *http.Client, forceNonce string, lookupIPs func(context.Context, string) ([]net.IP, error)) catalog.BuiltIn {
 	plugin := New()
 	plugin.client = client
 	plugin.client.CheckRedirect = disableHTTPRedirects
 	plugin.forceNonce = forceNonce
+	if lookupIPs != nil {
+		plugin.lookupIPs = lookupIPs
+	}
 	return builtin(plugin)
 }
 
@@ -59,6 +66,7 @@ type configuration struct {
 	allowNonRootPorts bool
 	dnsPatterns       []*regexp.Regexp
 	tofu              bool
+	verifyClientIP    bool
 }
 
 func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *configuration {
@@ -111,6 +119,7 @@ func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginco
 		requiredPort:      hclConfig.RequiredPort,
 		allowNonRootPorts: allowNonRootPorts,
 		tofu:              tofu,
+		verifyClientIP:    hclConfig.VerifyClientIP,
 	}
 }
 
@@ -119,6 +128,7 @@ type Config struct {
 	RequiredPort       *int     `hcl:"required_port"`
 	AllowNonRootPorts  *bool    `hcl:"allow_non_root_ports"`
 	TOFU               *bool    `hcl:"tofu"`
+	VerifyClientIP     bool     `hcl:"verify_client_ip"`
 }
 
 type Plugin struct {
@@ -133,12 +143,16 @@ type Plugin struct {
 
 	client     *http.Client
 	forceNonce string
+	lookupIPs  func(context.Context, string) ([]net.IP, error)
 }
 
 func New() *Plugin {
 	return &Plugin{
 		client: &http.Client{
 			CheckRedirect: disableHTTPRedirects,
+		},
+		lookupIPs: func(ctx context.Context, host string) ([]net.IP, error) {
+			return net.DefaultResolver.LookupIP(ctx, "ip", host)
 		},
 	}
 }
@@ -177,6 +191,12 @@ func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 
 	if err = validateHostName(attestationData.HostName, config.dnsPatterns); err != nil {
 		return err
+	}
+
+	if config.verifyClientIP {
+		if err := p.verifyConnectingClientIP(stream.Context(), attestationData.HostName); err != nil {
+			return err
+		}
 	}
 
 	challenge, err := httpchallenge.GenerateChallenge(p.forceNonce)
@@ -268,6 +288,31 @@ func (p *Plugin) getConfig() (*configuration, error) {
 		return nil, status.Errorf(codes.FailedPrecondition, "not configured")
 	}
 	return p.config, nil
+}
+
+func (p *Plugin) verifyConnectingClientIP(ctx context.Context, hostName string) error {
+	ip := nodeattestor.ClientIPFromContext(ctx, p.log)
+	if ip == "" {
+		return status.Error(codes.Internal, "client IP not available for verification")
+	}
+	clientIP := net.ParseIP(ip)
+	if clientIP == nil {
+		return status.Errorf(codes.Internal, "invalid client IP %q", ip)
+	}
+
+	lookupCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	resolved, err := p.lookupIPs(lookupCtx, hostName)
+	if err != nil {
+		return status.Errorf(codes.Internal, "failed to resolve hostname %q: %v", hostName, err)
+	}
+	for _, resolvedIP := range resolved {
+		if resolvedIP.Equal(clientIP) {
+			return nil
+		}
+	}
+	return status.Errorf(codes.PermissionDenied, "client IP %s does not match any address for hostname %q", clientIP, hostName)
 }
 
 func buildSelectorValues(hostName string) []string {
