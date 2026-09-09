@@ -21,6 +21,7 @@ import (
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/jwtutil"
 	"github.com/spiffe/spire/pkg/common/pemutil"
+	"github.com/spiffe/spire/pkg/common/witutil"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/health/grpc_health_v1"
@@ -260,6 +261,12 @@ func protoFromSpiffeBundle(bundle *spiffebundle.Bundle) (*api_types.Bundle, erro
 		return nil, err
 	}
 	resp.JwtAuthorities = jwtAuthorities
+
+	witAuthorities, err := witutil.ProtoFromWITKeys(bundle.WITAuthorities())
+	if err != nil {
+		return nil, err
+	}
+	resp.WitAuthorities = witAuthorities
 
 	if r, ok := bundle.RefreshHint(); ok {
 		resp.RefreshHint = int64(r.Seconds())

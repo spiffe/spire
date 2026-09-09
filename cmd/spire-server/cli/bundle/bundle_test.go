@@ -284,6 +284,12 @@ func TestSet(t *testing.T) {
 						PublicKey: key1Pkix,
 					},
 				},
+				WitAuthorities: []*types.WITKey{
+					{
+						KeyId:     "WIT-KID",
+						PublicKey: key1Pkix,
+					},
+				},
 			},
 			setResponse: &bundlev1.BatchSetFederatedBundleResponse{
 				Results: []*bundlev1.BatchSetFederatedBundleResponse_Result{
@@ -368,6 +374,12 @@ func TestSet(t *testing.T) {
 				JwtAuthorities: []*types.JWTKey{
 					{
 						KeyId:     "KID",
+						PublicKey: key1Pkix,
+					},
+				},
+				WitAuthorities: []*types.WITKey{
+					{
+						KeyId:     "WIT-KID",
 						PublicKey: key1Pkix,
 					},
 				},

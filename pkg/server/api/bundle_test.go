@@ -197,6 +197,48 @@ func TestProtoToBundle(t *testing.T) {
 			},
 		},
 		{
+			name: "tainted flag is not propagated",
+			bundle: &types.Bundle{
+				TrustDomain: td.Name(),
+				X509Authorities: []*types.X509Certificate{
+					{
+						Asn1:    rootCA.Raw,
+						Tainted: true,
+					},
+				},
+				JwtAuthorities: []*types.JWTKey{
+					{
+						PublicKey: pkixBytes,
+						KeyId:     "key-id-1",
+						Tainted:   true,
+					},
+				},
+				WitAuthorities: []*types.WITKey{
+					{
+						PublicKey: pkixBytes,
+						KeyId:     "wit-key-id-1",
+						Tainted:   true,
+					},
+				},
+			},
+			expectBundle: &common.Bundle{
+				TrustDomainId: td.IDString(),
+				RootCas:       []*common.Certificate{{DerBytes: rootCA.Raw}},
+				JwtSigningKeys: []*common.PublicKey{
+					{
+						PkixBytes: pkixBytes,
+						Kid:       "key-id-1",
+					},
+				},
+				WitSigningKeys: []*common.PublicKey{
+					{
+						PkixBytes: pkixBytes,
+						Kid:       "wit-key-id-1",
+					},
+				},
+			},
+		},
+		{
 			name: "Invalid X.509 certificate bytes",
 			bundle: &types.Bundle{
 				TrustDomain:    td.Name(),

@@ -29,7 +29,7 @@ func ProtoFromJWTKeys(keys map[string]crypto.PublicKey) ([]*types.JWTKey, error)
 	for kid, key := range keys {
 		pkixBytes, err := x509.MarshalPKIXPublicKey(key)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to marshal JWT public key: %w", err)
 		}
 		resp = append(resp, &types.JWTKey{
 			PublicKey: pkixBytes,
