@@ -242,7 +242,7 @@ func (m *fakeManager) FetchJWTSVID(_ context.Context, entry *common.Registration
 	return svid, nil
 }
 
-func (m *fakeManager) SubscribeToCacheChanges(context.Context, cache.Selectors) (cache.Subscriber[cache.X509WorkloadUpdate], error) {
+func (m *fakeManager) SubscribeToX509CacheChanges(context.Context, cache.Selectors) (cache.Subscriber[cache.X509WorkloadUpdate], error) {
 	if m.subscribeErr != nil {
 		return nil, m.subscribeErr
 	}
