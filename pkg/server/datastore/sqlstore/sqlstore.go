@@ -71,6 +71,10 @@ const (
 	// using Microsoft Entra ID (Azure AD)
 	AzurePostgreSQL = "azure_postgres"
 
+	// MySQL database type provided by an Azure service, authenticated using
+	// Microsoft Entra ID (Azure AD)
+	AzureMySQL = "azure_mysql"
+
 	// Maximum size for preallocation in a paginated request
 	maxResultPreallocation = 1000
 
@@ -4937,6 +4941,12 @@ func configValidate(cfg *sqlcommon.Configuration) error {
 		}
 	}
 
+	if cfg.DBTypeConfig.AzureMySQL != nil {
+		if err := cfg.DBTypeConfig.AzureMySQL.Validate(); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -5144,6 +5154,7 @@ func parseDatabaseTypeASTNode(node ast.Node) (*sqlcommon.DBTypeConfig, error) {
 	case AWSMySQL:
 	case AWSPostgreSQL:
 	case AzurePostgreSQL:
+	case AzureMySQL:
 	default:
 		return nil, fmt.Errorf("unknown database type: %s", databaseType)
 	}
@@ -5153,7 +5164,7 @@ func parseDatabaseTypeASTNode(node ast.Node) (*sqlcommon.DBTypeConfig, error) {
 }
 
 func isMySQLDbType(dbType string) bool {
-	return dbType == MySQL || dbType == AWSMySQL
+	return dbType == MySQL || dbType == AWSMySQL || dbType == AzureMySQL
 }
 
 func isPostgresDbType(dbType string) bool {

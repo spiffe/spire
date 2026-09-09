@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/go-sql-driver/mysql"
 	"github.com/jackc/pgx/v5"
 	"github.com/jinzhu/gorm"
 	"github.com/stretchr/testify/require"
@@ -26,6 +27,7 @@ const (
 	fakeSQLDriverName  = "fake-azure-sql-driver"
 	token              = "fake-entra-id-access-token"
 	postgresConnString = "dbname=postgres user=postgres host=the-host sslmode=require"
+	mysqlConnString    = "the-user@tcp(the-host:3306)/spire?parseTime=true&allowCleartextPasswords=1&tls=true"
 )
 
 var fakeSQLDriverWrapper = &sqlDriverWrapper{
@@ -88,6 +90,38 @@ func TestAzureRDS(t *testing.T) {
 				err:       errors.New("ohno"),
 			},
 			expectedError: "could not get authentication token: failed to build authentication token: ohno",
+		},
+		{
+			name: "mysql - success",
+			config: &Config{
+				DriverName: MySQLDriverName,
+				ConnString: mysqlConnString,
+			},
+			tokenProvider: &fakeTokenBuilder{
+				authToken: token,
+			},
+		},
+		{
+			name: "mysql - password already present",
+			config: &Config{
+				DriverName: MySQLDriverName,
+				ConnString: "the-user:the-password@tcp(the-host:3306)/spire?parseTime=true",
+			},
+			tokenProvider: &fakeTokenBuilder{
+				authToken: token,
+			},
+			expectedError: "unexpected password in connection string for Microsoft Entra ID authentication",
+		},
+		{
+			name: "mysql - invalid connection string",
+			config: &Config{
+				DriverName: MySQLDriverName,
+				ConnString: "not-valid!",
+			},
+			tokenProvider: &fakeTokenBuilder{
+				authToken: token,
+			},
+			expectedError: "could not parse connection string: invalid DSN: missing the slash separating the database name",
 		},
 		{
 			name: "unknown driver",
@@ -252,6 +286,38 @@ func TestAddPasswordToPostgresConnString(t *testing.T) {
 			parsed, err := pgx.ParseConfig(connStringWithPassword)
 			require.NoError(t, err)
 			require.Equal(t, tc.password, parsed.Password)
+		})
+	}
+}
+
+func TestAddPasswordToMySQLConnString(t *testing.T) {
+	t.Run("password already present is rejected", func(t *testing.T) {
+		_, err := addPasswordToMySQLConnString("the-user:already-set@tcp(the-host:3306)/spire", "new-password")
+		require.EqualError(t, err, "unexpected password in connection string for Microsoft Entra ID authentication")
+	})
+
+	t.Run("invalid connection string is rejected", func(t *testing.T) {
+		_, err := addPasswordToMySQLConnString("not-valid!", "the-password")
+		require.ErrorContains(t, err, "could not parse connection string")
+	})
+
+	testCases := []struct {
+		name     string
+		password string
+	}{
+		{name: "plain token", password: "plain-token-value"},
+		{name: "password with special characters", password: `p@ss'w\ord&?#`},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			connStringWithPassword, err := addPasswordToMySQLConnString(mysqlConnString, tc.password)
+			require.NoError(t, err)
+
+			// Confirm the password round-trips correctly when parsed back by
+			// the mysql driver, rather than just checking the raw string form.
+			parsed, err := mysql.ParseDSN(connStringWithPassword)
+			require.NoError(t, err)
+			require.Equal(t, tc.password, parsed.Passwd)
 		})
 	}
 }

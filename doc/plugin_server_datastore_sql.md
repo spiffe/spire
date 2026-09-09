@@ -340,6 +340,72 @@ Using an explicit service principal with a client certificate:
     }
 ```
 
+#### "azure_mysql"
+
+For MySQL databases on Azure Database for MySQL using Microsoft Entra ID (Azure AD) authentication. An access token is obtained from Microsoft Entra ID and used as the password, so `connection_string` must not include a password, and its username should be the name of the Microsoft Entra ID user, group, or service principal to authenticate as (for a managed identity or service principal, this is typically its display name or client ID, depending on how it was added as an Azure AD administrator/user on the server).
+
+The `auth_type` setting is mandatory and selects the authentication mechanism, exactly as described for [`azure_postgres`](#azure_postgres) above; the same configuration options, environment variable fallbacks, and per-`auth_type` required settings apply here.
+
+This is the complete list of configuration options under the `database_type` setting when `azure_mysql` is set:
+
+| Configuration                  | Description                                                                                             | Environment variable fallback         |
+|---------------------------------|-----------------------------------------------------------------------------------------------------------|-----------------------------------------|
+| auth_type                       | One of `client_secret`, `client_certificate`, `workload_identity`, `system_managed_identity`, or `user_managed_identity`. | None; must be set in configuration.     |
+| tenant_id                       | Microsoft Entra ID tenant ID.                                                                              | `AZURE_TENANT_ID`                       |
+| client_id                       | Client (application) ID of the service principal or user-assigned managed identity.                       | `AZURE_CLIENT_ID`                       |
+| client_secret                   | Client secret of the service principal.                                                                   | `AZURE_CLIENT_SECRET`                   |
+| client_certificate_path         | Path to a PEM or PKCS#12 file containing the service principal's client certificate and private key.      | `AZURE_CLIENT_CERTIFICATE_PATH`         |
+| client_certificate_password     | Decrypts `client_certificate_path`, if needed. Optional; only set this if the private key is encrypted.   | `AZURE_CLIENT_CERTIFICATE_PASSWORD`     |
+| send_certificate_chain          | Optional. When `true`, sends the certificate chain from `client_certificate_path` with each token request, as required for Subject Name/Issuer (SNI) authentication. Defaults to `false`. | `AZURE_CLIENT_SEND_CERTIFICATE_CHAIN` (`"1"` or `"true"`, case-insensitive) |
+| federated_token_file            | Path to the Kubernetes service account token file mounted by the AKS workload identity webhook.           | `AZURE_FEDERATED_TOKEN_FILE`            |
+| managed_identity_resource_id    | Resource ID of a user-assigned managed identity; an alternative to `client_id`.                            | None.                                    |
+
+Settings of the [`mysql`](#database_type--mysql) database type also apply here, including the requirement that `connection_string` include `parseTime=true`.
+
+##### Sample configuration
+
+Using a system-assigned managed identity:
+
+```hcl
+    DataStore "sql" {
+        plugin_data {
+            database_type "azure_mysql" {
+                auth_type = "system_managed_identity"
+            }
+            connection_string = "spire-server-identity@tcp(spire-test.mysql.database.azure.com:3306)/spire?parseTime=true&allowCleartextPasswords=1&tls=true"
+        }
+    }
+```
+
+Using AKS workload identity:
+
+```hcl
+    DataStore "sql" {
+        plugin_data {
+            database_type "azure_mysql" {
+                auth_type = "workload_identity"
+            }
+            connection_string = "spire-server-app@tcp(spire-test.mysql.database.azure.com:3306)/spire?parseTime=true&allowCleartextPasswords=1&tls=true"
+        }
+    }
+```
+
+Using an explicit service principal with a client secret:
+
+```hcl
+    DataStore "sql" {
+        plugin_data {
+            database_type "azure_mysql" {
+                auth_type     = "client_secret"
+                tenant_id     = "00000000-0000-0000-0000-000000000000"
+                client_id     = "11111111-1111-1111-1111-111111111111"
+                client_secret = "the-client-secret"
+            }
+            connection_string = "spire-server-app@tcp(spire-test.mysql.database.azure.com:3306)/spire?parseTime=true&allowCleartextPasswords=1&tls=true"
+        }
+    }
+```
+
 #### Read Only connection
 
 Read Only connection will be used when the optional `ro_connection_string` is set. The formatted string takes the same form as connection_string. This option is not applicable for SQLite3.

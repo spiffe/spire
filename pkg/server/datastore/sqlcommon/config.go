@@ -29,6 +29,7 @@ type Configuration struct {
 type DBTypeConfig struct {
 	AWSMySQL      *AWSConfig   `hcl:"aws_mysql" json:"aws_mysql"`
 	AWSPostgres   *AWSConfig   `hcl:"aws_postgres" json:"aws_postgres"`
+	AzureMySQL    *AzureConfig `hcl:"azure_mysql" json:"azure_mysql"`
 	AzurePostgres *AzureConfig `hcl:"azure_postgres" json:"azure_postgres"`
 	DatabaseType  string
 }
@@ -47,7 +48,7 @@ func (a *AWSConfig) Validate() error {
 }
 
 // Microsoft Entra ID (Azure AD) authentication mechanisms supported by the
-// azure_postgres database type.
+// azure_postgres and azure_mysql database types.
 const (
 	AzureAuthTypeClientSecret          = "client_secret"
 	AzureAuthTypeClientCertificate     = "client_certificate"

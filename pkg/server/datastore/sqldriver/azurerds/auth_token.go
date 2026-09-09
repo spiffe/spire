@@ -17,9 +17,10 @@ const (
 	// more minute.
 	clockSkew = time.Minute
 
-	// postgresScope is the OAuth2 scope used to request a Microsoft Entra ID
-	// access token that Azure Database for PostgreSQL accepts as a password.
-	postgresScope = "https://ossrdbms-aad.database.windows.net/.default"
+	// ossRDBMSScope is the OAuth2 scope used to request a Microsoft Entra ID
+	// access token that both Azure Database for PostgreSQL and Azure
+	// Database for MySQL accept as a password.
+	ossRDBMSScope = "https://ossrdbms-aad.database.windows.net/.default"
 )
 
 // nowFunc returns the current time and can be overridden in tests.
@@ -75,7 +76,7 @@ func (a *azureTokenBuilder) buildAuthToken(ctx context.Context, config *Config) 
 	}
 
 	return cred.GetToken(ctx, policy.TokenRequestOptions{
-		Scopes: []string{postgresScope},
+		Scopes: []string{ossRDBMSScope},
 	})
 }
 

@@ -323,6 +323,32 @@ func (s *Suite) TestInvalidAzureConfiguration() {
 			connection_string = "dbname=postgres user=postgres host=the-host sslmode=require password=should-not-be-here"`,
 			expectedErr: "invalid postgres configuration: password should not be set when using Microsoft Entra ID authentication",
 		},
+		{
+			name: "azure_mysql - no auth_type",
+			config: `
+			database_type "azure_mysql" {}
+			connection_string = "test_user@tcp(the-host:3306)/spire?parseTime=true"`,
+			expectedErr: "auth_type must be set to one of",
+		},
+		{
+			name: "azure_mysql - client_secret missing client_id and client_secret",
+			config: `
+			database_type "azure_mysql" {
+				auth_type = "client_secret"
+				tenant_id = "tenant-id"
+			}
+			connection_string = "test_user@tcp(the-host:3306)/spire?parseTime=true"`,
+			expectedErr: "client_id must be set (or the AZURE_CLIENT_ID environment variable) when auth_type is \"client_secret\"",
+		},
+		{
+			name: "azure_mysql - password already present in connection_string",
+			config: `
+			database_type "azure_mysql" {
+				auth_type = "system_managed_identity"
+			}
+			connection_string = "test_user:should-not-be-here@tcp(the-host:3306)/spire?parseTime=true"`,
+			expectedErr: "invalid mysql configuration: password should not be set when using Microsoft Entra ID authentication",
+		},
 	}
 	for _, testCase := range testCases {
 		s.T().Run(testCase.name, func(t *testing.T) {

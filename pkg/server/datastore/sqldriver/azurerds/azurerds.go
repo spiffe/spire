@@ -1,6 +1,6 @@
 // Package azurerds implements a SQL driver wrapper that authenticates to
-// Azure Database for PostgreSQL using a Microsoft Entra ID (Azure AD) access
-// token instead of a static password.
+// Azure Database for PostgreSQL and Azure Database for MySQL using a
+// Microsoft Entra ID (Azure AD) access token instead of a static password.
 package azurerds
 
 import (
@@ -14,12 +14,14 @@ import (
 	"sync"
 	"time"
 
+	"github.com/go-sql-driver/mysql"
 	"github.com/jackc/pgx/v5"
 	"github.com/jinzhu/gorm"
 	"github.com/lib/pq"
 )
 
 const (
+	MySQLDriverName    = "azure-rds-mysql"
 	PostgresDriverName = "azure-rds-postgres"
 
 	getAuthTokenTimeout = time.Second * 30
@@ -35,9 +37,10 @@ const (
 )
 
 // Config holds the configuration settings needed to authenticate to Azure
-// Database for PostgreSQL using a Microsoft Entra ID access token. It is
-// expected to already be fully resolved (e.g. via sqlcommon.AzureConfig.Resolve)
-// so every field required by AuthType is populated.
+// Database for PostgreSQL or Azure Database for MySQL using a Microsoft
+// Entra ID access token. It is expected to already be fully resolved (e.g.
+// via sqlcommon.AzureConfig.Resolve) so every field required by AuthType is
+// populated.
 type Config struct {
 	AuthType string `json:"auth_type"`
 
@@ -59,6 +62,7 @@ type Config struct {
 
 func init() {
 	registerPostgres()
+	registerMySQL()
 }
 
 // FormatDSN returns a DSN string based on the configuration.
@@ -73,6 +77,8 @@ func (c *Config) FormatDSN() (string, error) {
 
 func (c *Config) getConnStringWithPassword(password string) (string, error) {
 	switch c.DriverName {
+	case MySQLDriverName:
+		return addPasswordToMySQLConnString(c.ConnString, password)
 	case PostgresDriverName:
 		return addPasswordToPostgresConnString(c.ConnString, password)
 	case "":
@@ -155,6 +161,20 @@ func escapeSpecialCharsPostgres(s string) string {
 	return strings.ReplaceAll(strings.ReplaceAll(s, `\`, `\\`), `'`, `\'`)
 }
 
+func addPasswordToMySQLConnString(connString, password string) (string, error) {
+	cfg, err := mysql.ParseDSN(connString)
+	if err != nil {
+		return "", fmt.Errorf("could not parse connection string: %w", err)
+	}
+
+	if cfg.Passwd != "" {
+		return "", errors.New("unexpected password in connection string for Microsoft Entra ID authentication")
+	}
+
+	cfg.Passwd = password
+	return cfg.FormatDSN(), nil
+}
+
 func registerPostgres() {
 	d, ok := gorm.GetDialect("postgres")
 	if !ok {
@@ -164,6 +184,20 @@ func registerPostgres() {
 	gorm.RegisterDialect(PostgresDriverName, d)
 	sql.Register(PostgresDriverName, &sqlDriverWrapper{
 		sqlDriver:    &pq.Driver{},
+		tokenBuilder: &azureTokenBuilder{},
+		tokensMap:    make(tokens),
+	})
+}
+
+func registerMySQL() {
+	d, ok := gorm.GetDialect("mysql")
+	if !ok {
+		panic("could not find mysql dialect")
+	}
+
+	gorm.RegisterDialect(MySQLDriverName, d)
+	sql.Register(MySQLDriverName, &sqlDriverWrapper{
+		sqlDriver:    &mysql.MySQLDriver{},
 		tokenBuilder: &azureTokenBuilder{},
 		tokensMap:    make(tokens),
 	})
