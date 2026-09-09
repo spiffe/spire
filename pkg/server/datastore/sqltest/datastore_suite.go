@@ -207,6 +207,131 @@ func (s *Suite) TestInvalidAWSConfiguration() {
 	}
 }
 
+func (s *Suite) TestInvalidAzureConfiguration() {
+	testCases := []struct {
+		name        string
+		config      string
+		expectedErr string
+	}{
+		{
+			name: "azure_postgres - no auth_type",
+			config: `
+			database_type "azure_postgres" {}
+			connection_string = "dbname=postgres user=postgres host=the-host sslmode=require"`,
+			expectedErr: "auth_type must be set to one of",
+		},
+		{
+			name: "azure_postgres - unknown auth_type",
+			config: `
+			database_type "azure_postgres" {
+				auth_type = "bogus"
+			}
+			connection_string = "dbname=postgres user=postgres host=the-host sslmode=require"`,
+			expectedErr: `invalid auth_type "bogus"`,
+		},
+		{
+			name: "azure_postgres - client_secret missing tenant_id",
+			config: `
+			database_type "azure_postgres" {
+				auth_type = "client_secret"
+				client_id = "client-id"
+				client_secret = "client-secret"
+			}
+			connection_string = "dbname=postgres user=postgres host=the-host sslmode=require"`,
+			expectedErr: "tenant_id must be set (or the AZURE_TENANT_ID environment variable) when auth_type is \"client_secret\"",
+		},
+		{
+			name: "azure_postgres - client_secret missing client_id and client_secret",
+			config: `
+			database_type "azure_postgres" {
+				auth_type = "client_secret"
+				tenant_id = "tenant-id"
+			}
+			connection_string = "dbname=postgres user=postgres host=the-host sslmode=require"`,
+			expectedErr: "client_id must be set (or the AZURE_CLIENT_ID environment variable) when auth_type is \"client_secret\"",
+		},
+		{
+			name: "azure_postgres - client_secret missing client_secret",
+			config: `
+			database_type "azure_postgres" {
+				auth_type = "client_secret"
+				tenant_id = "tenant-id"
+				client_id = "client-id"
+			}
+			connection_string = "dbname=postgres user=postgres host=the-host sslmode=require"`,
+			expectedErr: "client_secret must be set (or the AZURE_CLIENT_SECRET environment variable) when auth_type is \"client_secret\"",
+		},
+		{
+			name: "azure_postgres - client_certificate missing tenant_id",
+			config: `
+			database_type "azure_postgres" {
+				auth_type = "client_certificate"
+				client_id = "client-id"
+				client_certificate_path = "/some/path.pem"
+			}
+			connection_string = "dbname=postgres user=postgres host=the-host sslmode=require"`,
+			expectedErr: "tenant_id must be set (or the AZURE_TENANT_ID environment variable) when auth_type is \"client_certificate\"",
+		},
+		{
+			name: "azure_postgres - client_certificate missing client_certificate_path",
+			config: `
+			database_type "azure_postgres" {
+				auth_type = "client_certificate"
+				tenant_id = "tenant-id"
+				client_id = "client-id"
+			}
+			connection_string = "dbname=postgres user=postgres host=the-host sslmode=require"`,
+			expectedErr: "client_certificate_path must be set (or the AZURE_CLIENT_CERTIFICATE_PATH environment variable) when auth_type is \"client_certificate\"",
+		},
+		{
+			name: "azure_postgres - workload_identity missing tenant_id",
+			config: `
+			database_type "azure_postgres" {
+				auth_type = "workload_identity"
+				client_id = "client-id"
+				federated_token_file = "/some/path"
+			}
+			connection_string = "dbname=postgres user=postgres host=the-host sslmode=require"`,
+			expectedErr: "tenant_id must be set (or the AZURE_TENANT_ID environment variable) when auth_type is \"workload_identity\"",
+		},
+		{
+			name: "azure_postgres - workload_identity missing federated_token_file",
+			config: `
+			database_type "azure_postgres" {
+				auth_type = "workload_identity"
+				tenant_id = "tenant-id"
+				client_id = "client-id"
+			}
+			connection_string = "dbname=postgres user=postgres host=the-host sslmode=require"`,
+			expectedErr: "federated_token_file must be set (or the AZURE_FEDERATED_TOKEN_FILE environment variable) when auth_type is \"workload_identity\"",
+		},
+		{
+			name: "azure_postgres - user_managed_identity missing client_id and resource id",
+			config: `
+			database_type "azure_postgres" {
+				auth_type = "user_managed_identity"
+			}
+			connection_string = "dbname=postgres user=postgres host=the-host sslmode=require"`,
+			expectedErr: "client_id (or the AZURE_CLIENT_ID environment variable) or managed_identity_resource_id must be set",
+		},
+		{
+			name: "azure_postgres - password already present in connection_string",
+			config: `
+			database_type "azure_postgres" {
+				auth_type = "system_managed_identity"
+			}
+			connection_string = "dbname=postgres user=postgres host=the-host sslmode=require password=should-not-be-here"`,
+			expectedErr: "invalid postgres configuration: password should not be set when using Microsoft Entra ID authentication",
+		},
+	}
+	for _, testCase := range testCases {
+		s.T().Run(testCase.name, func(t *testing.T) {
+			err := s.ds.Configure(ctx, testCase.config)
+			s.RequireErrorContains(err, testCase.expectedErr)
+		})
+	}
+}
+
 func (s *Suite) TestInvalidMySQLConfiguration() {
 	err := s.ds.Configure(ctx, `
 		database_type = "mysql"
