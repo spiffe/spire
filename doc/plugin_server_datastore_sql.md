@@ -377,6 +377,20 @@ Using a system-assigned managed identity:
     }
 ```
 
+Using a user-assigned managed identity:
+
+```hcl
+    DataStore "sql" {
+        plugin_data {
+            database_type "azure_mysql" {
+                auth_type = "user_managed_identity"
+                client_id = "11111111-1111-1111-1111-111111111111"
+            }
+            connection_string = "spire-server-identity@tcp(spire-test.mysql.database.azure.com:3306)/spire?parseTime=true&allowCleartextPasswords=1&tls=true"
+        }
+    }
+```
+
 Using AKS workload identity:
 
 ```hcl
@@ -400,6 +414,24 @@ Using an explicit service principal with a client secret:
                 tenant_id     = "00000000-0000-0000-0000-000000000000"
                 client_id     = "11111111-1111-1111-1111-111111111111"
                 client_secret = "the-client-secret"
+            }
+            connection_string = "spire-server-app@tcp(spire-test.mysql.database.azure.com:3306)/spire?parseTime=true&allowCleartextPasswords=1&tls=true"
+        }
+    }
+```
+
+Using an explicit service principal with a client certificate:
+
+```hcl
+    DataStore "sql" {
+        plugin_data {
+            database_type "azure_mysql" {
+                auth_type                   = "client_certificate"
+                tenant_id                   = "00000000-0000-0000-0000-000000000000"
+                client_id                   = "11111111-1111-1111-1111-111111111111"
+                client_certificate_path     = "/run/secrets/spire-server-app.pem"
+                client_certificate_password = "the-private-key-password" # only needed if the private key is encrypted
+                # send_certificate_chain = true # only needed for SNI authentication
             }
             connection_string = "spire-server-app@tcp(spire-test.mysql.database.azure.com:3306)/spire?parseTime=true&allowCleartextPasswords=1&tls=true"
         }
