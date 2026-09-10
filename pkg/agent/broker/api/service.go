@@ -170,7 +170,7 @@ func (s *Service) SubscribeToX509SVID(req *broker.SubscribeToX509SVIDRequest, st
 
 	log.WithField(telemetry.Selectors, selectors).Debug("Subscribing to cache changes")
 
-	subscriber, err := s.manager.SubscribeToCacheChanges(ctx, selectors)
+	subscriber, err := s.manager.SubscribeToX509CacheChanges(ctx, selectors)
 	if err != nil {
 		log.WithError(err).Error("Subscribe to cache changes failed")
 		return err

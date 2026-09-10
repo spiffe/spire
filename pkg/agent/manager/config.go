@@ -44,6 +44,8 @@ type Config struct {
 	SVIDStoreCache       *storecache.Cache
 	X509SVIDCacheMaxSize int
 	JWTSVIDCacheMaxSize  int
+	WITSVIDCacheMaxSize  int
+	EnableWITSVIDs       bool
 	DisableLRUCache      bool
 	NodeAttestor         nodeattestor.NodeAttestor
 	RotationStrategy     *rotationutil.RotationStrategy
@@ -85,6 +87,18 @@ func newManager(c *Config) *manager {
 		Clk:              c.Clk,
 	})
 
+	var witCache *managerCache.WITLRUCache
+	if c.EnableWITSVIDs {
+		witCache = managerCache.NewWITLRUCache(managerCache.WITLRUCacheConfig{
+			Log:              logger,
+			TrustDomain:      c.TrustDomain,
+			Bundle:           c.Bundle,
+			Metrics:          c.Metrics,
+			SvidCacheMaxSize: c.WITSVIDCacheMaxSize,
+			Clk:              c.Clk,
+		})
+	}
+
 	jwtCache := managerCache.NewJWTSVIDCache(logger, c.Metrics, c.JWTSVIDCacheMaxSize)
 
 	bundleCache := managerCache.NewBundleCache(c.TrustDomain, c.Bundle)
@@ -112,6 +126,7 @@ func newManager(c *Config) *manager {
 	m := &manager{
 		bundleCache:    bundleCache,
 		x509Cache:      x509Cache,
+		witCache:       witCache,
 		jwtCache:       jwtCache,
 		c:              c,
 		mtx:            new(sync.RWMutex),

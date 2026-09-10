@@ -8,6 +8,9 @@ import (
 const (
 	CacheTypeWorkload  = "workload"
 	CacheTypeSVIDStore = "svid_store"
+
+	SVIDTypeX509 = "X509"
+	SVIDTypeWIT  = "WIT"
 )
 
 // Call Counters (timing and success metrics)
@@ -33,22 +36,26 @@ func StartManagerFetchSVIDsUpdatesCall(m telemetry.Metrics) *telemetry.CallCount
 
 // AddCacheManagerExpiredSVIDsSample count of expiring SVIDs according to
 // agent cache manager
-func AddCacheManagerExpiredSVIDsSample(m telemetry.Metrics, cacheType string, count float32) {
+func AddCacheManagerExpiredSVIDsSample(m telemetry.Metrics, cacheType, svidType string, count float32) {
 	key := []string{telemetry.CacheManager, telemetry.ExpiringSVIDs}
 	if cacheType != "" {
 		key = append(key, cacheType)
 	}
-	m.AddSample(key, count)
+	m.AddSampleWithLabels(key, count, []telemetry.Label{
+		{Name: telemetry.SVIDType, Value: svidType},
+	})
 }
 
 // AddCacheManagerOutdatedSVIDsSample count of SVIDs with outdated attributes
 // according to agent cache manager
-func AddCacheManagerOutdatedSVIDsSample(m telemetry.Metrics, cacheType string, count float32) {
+func AddCacheManagerOutdatedSVIDsSample(m telemetry.Metrics, cacheType, svidType string, count float32) {
 	key := []string{telemetry.CacheManager, telemetry.OutdatedSVIDs}
 	if cacheType != "" {
 		key = append(key, cacheType)
 	}
-	m.AddSample(key, count)
+	m.AddSampleWithLabels(key, count, []telemetry.Label{
+		{Name: telemetry.SVIDType, Value: svidType},
+	})
 }
 
 // AddCacheManagerTaintedX509SVIDsSample count of tainted X509-SVIDs according to

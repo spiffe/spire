@@ -79,8 +79,8 @@ The following metrics are emitted:
 | Call Counter | `agent_key_manager`, `fetch_private_key`                                 |                              | The KeyManager is fetching a private key.                                             |
 | Call Counter | `agent_key_manager`, `store_private_key`                                 |                              | The KeyManager is storing a private key.                                              |
 | Call Counter | `agent_svid`, `rotate`                                                   |                              | The Agent's SVID is being rotated.                                                    |
-| Sample       | `cache_manager`, `expiring_svids`                                        |                              | The number of expiring SVIDs that the Cache Manager has.                              |
-| Sample       | `cache_manager`, `outdated_svids`                                        |                              | The number of outdated SVIDs that the Cache Manager has.                              |
+| Sample       | `cache_manager`, `expiring_svids`                                        | `svid_type`                  | The number of expiring SVIDs that the Cache Manager has.                              |
+| Sample       | `cache_manager`, `outdated_svids`                                        | `svid_type`                  | The number of outdated SVIDs that the Cache Manager has.                              |
 | Sample       | `cache_manager`, `tainted_jwt_svids`, `workload`                         |                              | The number of tainted JWT-SVIDs according to the agent cache manager.                 |
 | Sample       | `cache_manager`, `tainted_x509_svids`, `workload`                        |                              | The number of tainted X509-SVIDs according to the agent cache manager.                |
 | Counter      | `lru_cache_entry_add`                                                    |                              | The number of entries added to the LRU cache.                                         |

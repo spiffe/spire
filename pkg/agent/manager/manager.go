@@ -40,6 +40,10 @@ const (
 	defaultSyncInterval = 5 * time.Second
 )
 
+// ErrWITSVIDsDisabled is returned by WIT-SVID related operations when the
+// manager was not configured to enable WIT-SVIDs.
+var ErrWITSVIDsDisabled = errors.New("WIT-SVIDs are not enabled")
+
 // Manager provides cache management functionalities for agents.
 type Manager interface {
 	// Initialize initializes the manager.
@@ -48,9 +52,14 @@ type Manager interface {
 	// Run runs the manager. It will block until the context is cancelled.
 	Run(ctx context.Context) error
 
-	// SubscribeToCacheChanges returns a Subscriber on which cache entry updates are sent
+	// SubscribeToX509CacheChanges returns a Subscriber on which cache entry updates are sent
 	// for a particular set of selectors.
-	SubscribeToCacheChanges(ctx context.Context, key cache.Selectors) (cache.Subscriber[cache.X509WorkloadUpdate], error)
+	SubscribeToX509CacheChanges(ctx context.Context, key cache.Selectors) (cache.Subscriber[cache.X509WorkloadUpdate], error)
+
+	// SubscribeToWITCacheChanges returns a Subscriber on which cache entry updates are sent
+	// for a particular set of selectors. It fails with ErrWITSVIDsDisabled if WIT-SVIDs are
+	// not enabled.
+	SubscribeToWITCacheChanges(ctx context.Context, key cache.Selectors) (cache.Subscriber[cache.WITWorkloadUpdate], error)
 
 	// SubscribeToSVIDChanges returns a new observer.Stream on which svid.State instances are received
 	// each time an SVID rotation finishes.
@@ -113,8 +122,10 @@ type manager struct {
 
 	bundleCache *cache.BundleCache
 	x509Cache   *cache.X509SVIDLRUCache
-	jwtCache    *cache.JWTSVIDCache
-	svid        svid.Rotator
+	// witCache is nil unless WIT-SVIDs are enabled
+	witCache *cache.WITLRUCache
+	jwtCache *cache.JWTSVIDCache
+	svid     svid.Rotator
 
 	storage storage.Storage
 
@@ -124,6 +135,9 @@ type manager struct {
 	svidSyncBackoff    backoff.BackOff
 	// csrSizeLimitedBackoff backs off the number of csrs if error is returned on fetch svid attempt
 	csrSizeLimitedBackoff backoff.SizeLimitedBackOff
+	// witSizeLimitedBackoff backs off the number of WIT-SVIDs requested at once if an error
+	// is returned on a fetch attempt
+	witSizeLimitedBackoff backoff.SizeLimitedBackOff
 
 	client client.Client
 
@@ -161,6 +175,7 @@ func (m *manager) Initialize(ctx context.Context) error {
 	m.synchronizeBackoff = backoff.NewBackoff(m.clk, m.c.SyncInterval, backoff.WithMaxInterval(synchronizeBackoffMaxInterval))
 	m.svidSyncBackoff = backoff.NewBackoff(m.clk, cache.SVIDSyncInterval, backoff.WithMaxInterval(maxSVIDSyncInterval))
 	m.csrSizeLimitedBackoff = backoff.NewSizeLimitedBackOff(limits.SignLimitPerIP)
+	m.witSizeLimitedBackoff = backoff.NewSizeLimitedBackOff(limits.SignLimitPerIP)
 	m.syncedEntries = make(map[string]*common.RegistrationEntry)
 	m.syncedBundles = make(map[string]*common.Bundle)
 
@@ -216,8 +231,15 @@ func (m *manager) Run(ctx context.Context) error {
 	}
 }
 
-func (m *manager) SubscribeToCacheChanges(ctx context.Context, selectors cache.Selectors) (cache.Subscriber[cache.X509WorkloadUpdate], error) {
+func (m *manager) SubscribeToX509CacheChanges(ctx context.Context, selectors cache.Selectors) (cache.Subscriber[cache.X509WorkloadUpdate], error) {
 	return m.x509Cache.SubscribeToWorkloadUpdates(ctx, selectors)
+}
+
+func (m *manager) SubscribeToWITCacheChanges(ctx context.Context, selectors cache.Selectors) (cache.Subscriber[cache.WITWorkloadUpdate], error) {
+	if m.witCache == nil {
+		return nil, ErrWITSVIDsDisabled
+	}
+	return m.witCache.SubscribeToWorkloadUpdates(ctx, selectors)
 }
 
 func (m *manager) SubscribeToSVIDChanges() observer.Stream {
