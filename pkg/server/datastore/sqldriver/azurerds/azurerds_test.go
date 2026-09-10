@@ -43,6 +43,10 @@ func init() {
 }
 
 func TestAzureRDS(t *testing.T) {
+	// Some GitHub runners may have populated the PGPASSWORD environment
+	// variable. Have an empty value during the test.
+	t.Setenv("PGPASSWORD", "")
+
 	testCases := []struct {
 		name          string
 		config        *Config
@@ -165,6 +169,10 @@ func TestAzureRDS(t *testing.T) {
 }
 
 func TestCacheToken(t *testing.T) {
+	// Some GitHub runners may have populated the PGPASSWORD environment
+	// variable. Have an empty value during the test.
+	t.Setenv("PGPASSWORD", "")
+
 	config := &Config{
 		DriverName: PostgresDriverName,
 		ConnString: postgresConnString,
@@ -286,6 +294,10 @@ func TestFormatDSN(t *testing.T) {
 }
 
 func TestAddPasswordToPostgresConnString(t *testing.T) {
+	// Some GitHub runners may have populated the PGPASSWORD environment
+	// variable. Have an empty value during the test.
+	t.Setenv("PGPASSWORD", "")
+
 	t.Run("password already present is rejected", func(t *testing.T) {
 		_, err := addPasswordToPostgresConnString("password=already-set", "new-password")
 		require.EqualError(t, err, "unexpected password in connection string for Microsoft Entra ID authentication")
