@@ -19,6 +19,7 @@ It does so by opening an access token associated with the workload process. The 
 | `windows:group_sid:se_group_enabled:false`  | The security identifier (SID) that identifies a not enabled group associated with the access token from the workload process (e.g. `windows:group_sid:se_group_enabled:false:S-1-5-32-544`)                             |
 | `windows:group_name:se_group_enabled:true`  | The group name of an enabled group associated with the access token from the workload process (e.g. `windows:group_name:se_group_enabled:true:computer-or-domain\mygroup`)                                              |
 | `windows:group_name:se_group_enabled:false` | The group name of a not enabled group associated with the access token from the workload process (e.g. `windows:group_name:se_group_enabled:false:computer-or-domain\mygroup`)                                          |
+| `windows:service_name`                      | The name of the service associated with the workload if it is running as a service (e.g. `windows:service_name:MyService`)                                                                                              |
 
 Workload path enabled selectors (available when configured with `discover_workload_path = true`):
 
@@ -49,6 +50,8 @@ Defenses against this are:
 - User and group account names are expressed using the [down-level logon name format](https://docs.microsoft.com/en-us/windows/win32/secauthn/user-name-formats#down-level-logon-name).
 
 - Enabling `disable_group_name_selectors` will cause existing workload registration entries that use `group_name` selectors to stop matching. Operators should audit those entries and switch them to `group_sid` selectors before enabling this flag.
+
+- The `service_name` selector requires a one-time admin action on the service to opt-in with an unrestricted SID Type. In order to do this for a custom service run `sc.exe sidtype <ServiceName> unrestricted` as admin. Read more about [SERVICE_SID_INFO](https://learn.microsoft.com/en-us/windows/win32/api/winsvc/ns-winsvc-service_sid_info).
 
 ## Configuration
 
