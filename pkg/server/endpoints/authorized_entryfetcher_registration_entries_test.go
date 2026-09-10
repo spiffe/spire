@@ -2020,7 +2020,8 @@ func NewEntryScenario(t *testing.T, setup *entryScenarioSetup) *entryScenario {
 }
 
 func (s *entryScenario) buildRegistrationEntriesCache() (*registrationEntries, error) {
-	registrationEntries, err := buildRegistrationEntriesCache(s.ctx, s.log, s.metrics, s.ds, s.clk, s.cache, s.pageSize, defaultCacheReloadInterval, defaultEventTimeout)
+	// Drive both the loadCache page size and the fetch batch size from one knob.
+	registrationEntries, err := buildRegistrationEntriesCache(s.ctx, s.log, s.metrics, s.ds, s.clk, s.cache, s.pageSize, s.pageSize, defaultCacheReloadInterval, defaultEventTimeout)
 	if registrationEntries != nil {
 		// clear out the fetches
 		for entry := range registrationEntries.fetchEntries {
