@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -30,7 +31,13 @@ type authTokenBuilder interface {
 	buildAuthToken(ctx context.Context, config *Config) (azcore.AccessToken, error)
 }
 
+// authToken is shared by every connection opened for a given DSN (see
+// sqlDriverWrapper.tokensMap), so getAuthToken can be called concurrently by
+// multiple goroutines as database/sql grows the connection pool. mu
+// serializes access to the cached token, which also has the effect of
+// coalescing concurrent refreshes into a single token request.
 type authToken struct {
+	mu          sync.Mutex
 	cachedToken string
 	expiresAt   time.Time
 }
@@ -43,6 +50,9 @@ func (a *authToken) getAuthToken(ctx context.Context, config *Config, tokenBuild
 	if tokenBuilder == nil {
 		return "", errors.New("missing token builder")
 	}
+
+	a.mu.Lock()
+	defer a.mu.Unlock()
 
 	if !a.shouldRotate() {
 		return a.cachedToken, nil

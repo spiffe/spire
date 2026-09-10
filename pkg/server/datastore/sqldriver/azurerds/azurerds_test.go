@@ -13,6 +13,7 @@ import (
 	"math/big"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -20,6 +21,7 @@ import (
 	"github.com/go-sql-driver/mysql"
 	"github.com/jackc/pgx/v5"
 	"github.com/jinzhu/gorm"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -221,6 +223,34 @@ func TestCacheToken(t *testing.T) {
 	token, err = fakeSQLDriverWrapper.tokensMap[dsn].getAuthToken(context.Background(), config, fakeSQLDriverWrapper.tokenBuilder)
 	require.NoError(t, err)
 	require.Equal(t, "second-token", token)
+}
+
+// TestAuthTokenConcurrentAccess exercises the same *authToken from many
+// goroutines at once, the way database/sql does when it grows a connection
+// pool for a single DSN (sqlDriverWrapper.tokensMap hands out one *authToken
+// per DSN, shared by every connection to it). Run with -race: without the
+// mutex in authToken, this reliably trips the race detector on cachedToken
+// and expiresAt.
+func TestAuthTokenConcurrentAccess(t *testing.T) {
+	config := &Config{
+		DriverName: PostgresDriverName,
+		ConnString: postgresConnString,
+	}
+	token := &authToken{}
+	builder := &fakeTokenBuilder{authToken: "the-token", expiresOn: time.Now().Add(time.Hour)}
+
+	const goroutines = 50
+	var wg sync.WaitGroup
+	wg.Add(goroutines)
+	for range goroutines {
+		go func() {
+			defer wg.Done()
+			got, err := token.getAuthToken(context.Background(), config, builder)
+			assert.NoError(t, err)
+			assert.Equal(t, "the-token", got)
+		}()
+	}
+	wg.Wait()
 }
 
 func TestFormatDSN(t *testing.T) {
