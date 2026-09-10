@@ -134,6 +134,57 @@ func AssertProtoListEqual(tb testing.TB, expected, actual any) bool {
 	return true
 }
 
+func RequireProtoListsSameEls(tb testing.TB, expected, actual any) {
+	tb.Helper()
+	if !AssertProtoListsSameEls(tb, expected, actual) {
+		tb.FailNow()
+	}
+}
+
+func AssertProtoListsSameEls(tb testing.TB, expected, actual any) bool {
+	tb.Helper()
+	ev := reflect.ValueOf(expected)
+	et := ev.Type()
+	av := reflect.ValueOf(actual)
+	at := av.Type()
+
+	if et.Kind() != reflect.Slice {
+		return assert.Fail(tb, "expected value is not a slice")
+	}
+	if !et.Elem().Implements(protoMessageType) {
+		return assert.Fail(tb, "expected value is not a slice of elements that implement proto.Message")
+	}
+
+	if at.Kind() != reflect.Slice {
+		return assert.Fail(tb, "actual value is not a slice")
+	}
+	if !at.Elem().Implements(protoMessageType) {
+		return assert.Fail(tb, "actual value is not a slice of elements that implement proto.Message")
+	}
+
+	if !assert.Equal(tb, ev.Len(), av.Len(), "expected %d elements in list; got %d", ev.Len(), av.Len()) {
+		return false
+	}
+
+	for i := range ev.Len() {
+		e := ev.Index(i).Interface().(proto.Message)
+
+		found := false
+		for j := range av.Len() {
+			a := av.Index(j).Interface().(proto.Message)
+			if CheckProtoEqual(tb, e, a) {
+				found = true
+				break
+			}
+		}
+		if !assert.True(tb, found, "expected proto %d in expected list not found in actual list", i) {
+			return false
+		}
+	}
+
+	return true
+}
+
 func CheckProtoListEqual(tb testing.TB, expected, actual any) bool {
 	tb.Helper()
 	ev := reflect.ValueOf(expected)
