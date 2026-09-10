@@ -90,7 +90,7 @@ func TestNewSession(t *testing.T) {
 		},
 		{
 			name:   "NewSesion fails if DevID blobs cannot be loaded",
-			expErr: "cannot load DevID key on TPM: tpm2.DecodePublic failed: decoding TPMT_PUBLIC: unexpected EOF",
+			expErr: "cannot decode DevID public key: decoding TPMT_PUBLIC: unexpected EOF",
 			scfg: &tpmutil.SessionConfig{
 				DevicePath: "/dev/tpmrm0",
 				DevIDPriv:  []byte("not a private key blob"),
@@ -112,7 +112,7 @@ func TestNewSession(t *testing.T) {
 		},
 		{
 			name:   "NewSesion fails if owner hierarchy password is not correct",
-			expErr: "cannot load DevID key on TPM: tpm2.CreatePrimaryEx failed: session 1, error code 0x22 : authorization failure without DA implications",
+			expErr: "cannot create owner SRK: session 1, error code 0x22 : authorization failure without DA implications",
 			scfg: &tpmutil.SessionConfig{
 				DevicePath: "/dev/tpmrm0",
 				DevIDPriv:  devIDRSA.PrivateBlob,
