@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-jose/go-jose/v4"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
 	"github.com/spiffe/go-spiffe/v2/proto/spiffe/workload"
@@ -19,6 +20,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/api/rpccontext"
 	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/agent/common/hintsfilter"
+	"github.com/spiffe/spire/pkg/agent/manager"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/jwtsvid"
@@ -34,6 +36,7 @@ import (
 
 type Manager interface {
 	SubscribeToX509CacheChanges(ctx context.Context, key cache.Selectors) (cache.Subscriber[cache.X509WorkloadUpdate], error)
+	SubscribeToWITCacheChanges(ctx context.Context, key cache.Selectors) (cache.Subscriber[cache.WITWorkloadUpdate], error)
 	MatchingRegistrationEntries(selectors []*common.Selector) []*common.RegistrationEntry
 	FetchJWTSVID(ctx context.Context, entry *common.RegistrationEntry, audience []string) (*client.JWTSVID, error)
 	FetchWorkloadUpdate([]*common.Selector) *cache.X509WorkloadUpdate
@@ -53,6 +56,8 @@ const (
 	MethodFetchJWTSVID     = "/SpiffeWorkloadAPI/FetchJWTSVID"
 	MethodFetchX509Bundles = "/SpiffeWorkloadAPI/FetchX509Bundles"
 	MethodFetchJWTBundles  = "/SpiffeWorkloadAPI/FetchJWTBundles"
+	MethodFetchWITSVID     = "/SpiffeWorkloadAPI/FetchWITSVID"
+	MethodFetchWITBundles  = "/SpiffeWorkloadAPI/FetchWITBundles"
 )
 
 type Config struct {
@@ -321,12 +326,102 @@ func (h *Handler) FetchX509Bundles(_ *workload.X509BundlesRequest, stream worklo
 	}
 }
 
-func (h *Handler) FetchWITSVID(_ *workload.WITSVIDRequest, stream workload.SpiffeWorkloadAPI_FetchWITSVIDServer) error {
-	return status.Error(codes.Unimplemented, "fetching WIT-SVIDs is not implemented")
+func (h *Handler) FetchWITSVID(req *workload.WITSVIDRequest, stream workload.SpiffeWorkloadAPI_FetchWITSVIDServer) error {
+	ctx := stream.Context()
+	start := time.Now()
+	log := rpccontext.Logger(ctx)
+
+	if req.SpiffeId != "" {
+		if _, err := spiffeid.FromString(req.SpiffeId); err != nil {
+			log.WithField(telemetry.SPIFFEID, req.SpiffeId).WithError(err).Error("Invalid requested SPIFFE ID")
+			return status.Errorf(codes.InvalidArgument, "invalid requested SPIFFE ID: %v", err)
+		}
+	}
+
+	selectors, err := h.c.Attestor.Attest(ctx)
+	if err != nil {
+		loggerWithContextInfo(ctx, log, start, err).Error("Workload attestation failed")
+		return workloadAttestationFailedError(ctx)
+	}
+
+	if err := h.rateLimit(ctx, MethodFetchWITSVID, selectors); err != nil {
+		return err
+	}
+
+	subscriber, err := h.c.Manager.SubscribeToWITCacheChanges(ctx, selectors)
+	if err != nil {
+		if errors.Is(err, manager.ErrWITSVIDsDisabled) {
+			return status.Error(codes.Unimplemented, "fetching WIT-SVIDs is not implemented")
+		}
+		loggerWithContextInfo(ctx, log, start, err).Error("Subscribe to cache changes failed")
+		return err
+	}
+	defer subscriber.Finish()
+
+	for {
+		select {
+		case update := <-subscriber.Updates():
+			update.Identities = filterWITIdentities(update.Identities, req.SpiffeId, log)
+			if err := h.sendWITSVIDResponse(update, stream, selectors, log, start); err != nil {
+				return err
+			}
+		case <-ctx.Done():
+			return nil
+		}
+	}
 }
 
 func (h *Handler) FetchWITBundles(_ *workload.WITBundlesRequest, stream workload.SpiffeWorkloadAPI_FetchWITBundlesServer) error {
-	return status.Error(codes.Unimplemented, "fetching WIT bundles is not implemented")
+	ctx := stream.Context()
+	start := time.Now()
+	log := rpccontext.Logger(ctx)
+
+	selectors, err := h.c.Attestor.Attest(ctx)
+	if err != nil {
+		loggerWithContextInfo(ctx, log, start, err).Error("Workload attestation failed")
+		return workloadAttestationFailedError(ctx)
+	}
+
+	if err := h.rateLimit(ctx, MethodFetchWITBundles, selectors); err != nil {
+		return err
+	}
+
+	subscriber, err := h.c.Manager.SubscribeToWITCacheChanges(ctx, selectors)
+	if err != nil {
+		if errors.Is(err, manager.ErrWITSVIDsDisabled) {
+			return status.Error(codes.Unimplemented, "fetching WIT bundles is not implemented")
+		}
+		loggerWithContextInfo(ctx, log, start, err).Error("Subscribe to cache changes failed")
+		return err
+	}
+	defer subscriber.Finish()
+
+	var previousResp *workload.WITBundlesResponse
+	for {
+		select {
+		case update := <-subscriber.Updates():
+			if previousResp, err = h.sendWITBundlesResponse(update, stream, selectors, log, previousResp, start); err != nil {
+				return err
+			}
+		case <-ctx.Done():
+			return nil
+		}
+	}
+}
+
+// filterWITIdentities drops identities that don't match the requested SPIFFE ID
+// (when one was requested) and then deduplicates the remainder by hint.
+func filterWITIdentities(identities []cache.WITIdentity, spiffeID string, log logrus.FieldLogger) []cache.WITIdentity {
+	if spiffeID != "" {
+		matching := make([]cache.WITIdentity, 0, len(identities))
+		for _, identity := range identities {
+			if identity.Entry.SpiffeId == spiffeID {
+				matching = append(matching, identity)
+			}
+		}
+		identities = matching
+	}
+	return hintsfilter.FilterIdentities(identities, log)
 }
 
 func workloadAttestationFailedError(ctx context.Context) error {
@@ -483,6 +578,107 @@ func composeX509SVIDResponse(update *cache.X509WorkloadUpdate) (*workload.X509SV
 	}
 
 	return resp, nil
+}
+
+func (h *Handler) sendWITSVIDResponse(update *cache.WITWorkloadUpdate, stream workload.SpiffeWorkloadAPI_FetchWITSVIDServer, selectors []*common.Selector, log logrus.FieldLogger, start time.Time) error {
+	ctx := stream.Context()
+	if len(update.Identities) == 0 {
+		h.logNoIdentityIssued(ctx, log, selectors, start)
+		return status.Error(codes.PermissionDenied, "no identity issued")
+	}
+
+	log = log.WithField(telemetry.Registered, true)
+
+	resp, err := composeWITSVIDResponse(update)
+	if err != nil {
+		log.WithError(err).Error("Could not serialize WIT-SVID response")
+		return status.Errorf(codes.Unavailable, "could not serialize response: %v", err)
+	}
+
+	if err := stream.Send(resp); err != nil {
+		loggerWithContextInfo(ctx, log, start, err).Error("Failed to send WIT-SVID response")
+		return err
+	}
+
+	log.WithField(telemetry.Count, len(resp.Svids)).Debug("Fetched WIT-SVIDs")
+	return nil
+}
+
+func composeWITSVIDResponse(update *cache.WITWorkloadUpdate) (*workload.WITSVIDResponse, error) {
+	resp := new(workload.WITSVIDResponse)
+	resp.Svids = make([]*workload.WITSVID, 0, len(update.Identities))
+
+	for _, identity := range update.Identities {
+		id := identity.Entry.SpiffeId
+
+		keyJWK, err := (&jose.JSONWebKey{Key: identity.PrivateKey}).MarshalJSON()
+		if err != nil {
+			return nil, fmt.Errorf("marshal key for %v: %w", id, err)
+		}
+
+		resp.Svids = append(resp.Svids, &workload.WITSVID{
+			SpiffeId:   id,
+			WitSvid:    identity.Token,
+			WitSvidKey: string(keyJWK),
+			Hint:       identity.Entry.Hint,
+		})
+	}
+
+	return resp, nil
+}
+
+func (h *Handler) sendWITBundlesResponse(update *cache.WITWorkloadUpdate, stream workload.SpiffeWorkloadAPI_FetchWITBundlesServer, selectors []*common.Selector, log logrus.FieldLogger, previousResponse *workload.WITBundlesResponse, start time.Time) (*workload.WITBundlesResponse, error) {
+	ctx := stream.Context()
+	if !h.c.AllowUnauthenticatedVerifiers && !update.HasIdentity() {
+		h.logNoIdentityIssued(ctx, log, selectors, start)
+		return nil, status.Error(codes.PermissionDenied, "no identity issued")
+	}
+
+	resp, err := composeWITBundlesResponse(update)
+	if err != nil {
+		log.WithError(err).Error("Could not serialize WIT bundle response")
+		return nil, status.Errorf(codes.Unavailable, "could not serialize response: %v", err)
+	}
+
+	if proto.Equal(resp, previousResponse) {
+		return previousResponse, nil
+	}
+
+	if err := stream.Send(resp); err != nil {
+		loggerWithContextInfo(ctx, log, start, err).Error("Failed to send WIT bundle response")
+		return nil, err
+	}
+
+	return resp, nil
+}
+
+func composeWITBundlesResponse(update *cache.WITWorkloadUpdate) (*workload.WITBundlesResponse, error) {
+	if update.Bundle == nil {
+		// This should be purely defensive since the cache should always supply
+		// a bundle.
+		return nil, errors.New("bundle not available")
+	}
+
+	bundles := make(map[string]string)
+	jwks, err := bundleutil.MarshalWITSVIDBundle(update.Bundle, bundleutil.StandardJWKS())
+	if err != nil {
+		return nil, err
+	}
+	bundles[update.Bundle.TrustDomain().IDString()] = jwks
+
+	if update.HasIdentity() {
+		for _, federatedBundle := range update.FederatedBundles {
+			jwks, err := bundleutil.MarshalWITSVIDBundle(federatedBundle, bundleutil.StandardJWKS())
+			if err != nil {
+				return nil, err
+			}
+			bundles[federatedBundle.TrustDomain().IDString()] = jwks
+		}
+	}
+
+	return &workload.WITBundlesResponse{
+		Bundles: bundles,
+	}, nil
 }
 
 func (h *Handler) sendJWTBundlesResponse(update *cache.X509WorkloadUpdate, stream workload.SpiffeWorkloadAPI_FetchJWTBundlesServer, selectors []*common.Selector, log logrus.FieldLogger, previousResponse *workload.JWTBundlesResponse, start time.Time) (*workload.JWTBundlesResponse, error) {

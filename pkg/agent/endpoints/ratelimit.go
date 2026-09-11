@@ -107,6 +107,8 @@ func NewWorkloadRateLimiter(cfg WorkloadAPIRateLimitConfig, log logrus.FieldLogg
 		{workload.MethodFetchJWTSVID, cfg.FetchJWTSVID},
 		{workload.MethodFetchX509Bundles, cfg.FetchX509Bundles},
 		{workload.MethodFetchJWTBundles, cfg.FetchJWTBundles},
+		{workload.MethodFetchWITSVID, cfg.FetchWITSVID},
+		{workload.MethodFetchWITBundles, cfg.FetchWITBundles},
 		{sdsv3.MethodStreamSecrets, cfg.StreamSecrets},
 		{sdsv3.MethodFetchSecrets, cfg.FetchSecrets},
 	}

@@ -1,0 +1,61 @@
+#!/bin/bash
+
+log-info "testing disabled WIT functionality..."
+
+# Retry to ride out the brief window right after a restart where the service is
+# not ready yet and the command fails with a transient transport error instead
+# of the expected WIT disabled error.
+test-wit-disabled-command() {
+    local test_name="$1"
+    local expected="$2"
+    shift 2
+    local command=("$@")
+
+    local MAXCHECKS=15
+    local CHECKINTERVAL=1
+    for ((i=1;i<=MAXCHECKS;i++)); do
+        if ERROR_OUTPUT=$("${command[@]}" 2>&1); then
+            fail-now "$test_name should have failed when WIT is disabled"
+        fi
+        if echo "$ERROR_OUTPUT" | grep -q "$expected"; then
+            log-info "✓ $test_name correctly failed with WIT disabled error"
+            return 0
+        fi
+        log-info "$test_name not ready yet (attempt $i of $MAXCHECKS): $ERROR_OUTPUT"
+        sleep "${CHECKINTERVAL}"
+    done
+
+    fail-now "$test_name expected WIT disabled error, but got: $ERROR_OUTPUT"
+}
+
+##########################################################################
+# The agent requires the wit-svid feature flag on top of enable_wit_svids
+##########################################################################
+
+sed -i.bak 's#feature_flags = \["wit-svid"\]##g' conf/agent/agent.conf
+docker compose restart spire-agent || fail-now "failed to restart the agent"
+
+check-log-line "spire-agent" "WIT-SVIDs remain disabled"
+
+test-wit-disabled-command "WIT fetch without the feature flag" "not implemented" \
+    docker compose exec -u 1001 -T spire-agent /opt/spire/bin/spire-agent api fetch wit -socketPath /opt/spire/sockets/workload_api.sock
+
+##########################################################################
+# The agent serves no WIT-SVIDs when the profile is turned off
+##########################################################################
+
+sed -i.bak 's#enable_wit_svids = true#enable_wit_svids = false#g' conf/agent/agent.conf
+docker compose restart spire-agent || fail-now "failed to restart the agent"
+
+test-wit-disabled-command "WIT fetch" "not implemented" \
+    docker compose exec -u 1001 -T spire-agent /opt/spire/bin/spire-agent api fetch wit -socketPath /opt/spire/sockets/workload_api.sock
+
+##########################################################################
+# The server rejects WIT operations without the wit-svid feature flag
+##########################################################################
+
+sed -i.bak 's#feature_flags = \["wit-svid"\]##g' conf/server/server.conf
+docker-spire-server-restart spire-server
+
+test-wit-disabled-command "WIT mint" "WIT functionality is disabled" \
+    docker compose exec -T -e SPIRE_SERVER_FFLAGS="wit-svid" spire-server /opt/spire/bin/spire-server wit mint -spiffeID spiffe://domain.test/workload

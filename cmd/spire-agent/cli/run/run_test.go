@@ -18,6 +18,7 @@ import (
 	agentbroker "github.com/spiffe/spire/pkg/agent/broker"
 	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/agent/workloadkey"
+	"github.com/spiffe/spire/pkg/common/fflag"
 	"github.com/spiffe/spire/pkg/common/log"
 	"github.com/spiffe/spire/pkg/common/tlspolicy"
 	"github.com/spiffe/spire/test/spiretest"
@@ -1676,6 +1677,35 @@ func TestNewAgentConfig(t *testing.T) {
 				require.Nil(t, ac)
 			},
 		},
+		{
+			msg: "wit_svid_cache_max_size is configurable",
+			input: func(c *Config) {
+				c.Agent.Experimental.WITSVIDCacheMaxSize = 100
+			},
+			test: func(t *testing.T, ac *agent.Config) {
+				require.Equal(t, 100, ac.WITSVIDCacheMaxSize)
+			},
+		},
+		{
+			msg:                "wit_svid_cache_max_size negative value returns an error",
+			expectError:        true,
+			requireErrorPrefix: "experimental.wit_svid_cache_max_size should not be negative",
+			input: func(c *Config) {
+				c.Agent.Experimental.WITSVIDCacheMaxSize = -1
+			},
+			test: func(t *testing.T, ac *agent.Config) {
+				require.Nil(t, ac)
+			},
+		},
+		{
+			msg: "enable_wit_svids without the feature flag is ignored",
+			input: func(c *Config) {
+				c.Agent.Experimental.EnableWITSVIDs = true
+			},
+			test: func(t *testing.T, ac *agent.Config) {
+				require.False(t, ac.EnableWITSVIDs)
+			},
+		},
 	}
 	cases = append(cases, newAgentConfigCasesOS(t)...)
 	for _, testCase := range cases {
@@ -1792,6 +1822,22 @@ agent {
 		{TypeURL: "type.googleapis.com/spiffe.broker.KubernetesObjectReference", AllowOverTCP: true},
 		{TypeURL: "type.googleapis.com/spiffe.broker.WorkloadPIDReference"},
 	}, c.Agent.Experimental.Broker.Brokers[0].AllowedReferenceTypes)
+}
+
+func TestNewAgentConfigEnableWITSVIDsWithFeatureFlag(t *testing.T) {
+	// Other tests in this package may have already loaded the flags.
+	_ = fflag.Unload()
+	require.NoError(t, fflag.Load(fflag.RawConfig{string(fflag.FlagWITSVID)}))
+	t.Cleanup(func() {
+		_ = fflag.Unload()
+	})
+
+	input := defaultValidConfig()
+	input.Agent.Experimental.EnableWITSVIDs = true
+
+	ac, err := NewAgentConfig(input, nil, false)
+	require.NoError(t, err)
+	require.True(t, ac.EnableWITSVIDs)
 }
 
 // defaultValidConfig returns the bare minimum config required to

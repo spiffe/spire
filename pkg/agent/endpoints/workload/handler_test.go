@@ -4,6 +4,9 @@ import (
 	"bytes"
 	"context"
 	"crypto"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
 	"crypto/x509"
 	"encoding/json"
 	"errors"
@@ -12,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-jose/go-jose/v4"
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
@@ -22,6 +26,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/api/rpccontext"
 	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/agent/endpoints/workload"
+	"github.com/spiffe/spire/pkg/agent/manager"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/common/api/middleware"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -1535,6 +1540,379 @@ func TestFetchJWTBundles_SpuriousUpdates(t *testing.T) {
 		})
 }
 
+func TestFetchWITSVID(t *testing.T) {
+	ca := testca.New(t, td)
+
+	witSVID0 := newWITIdentity(t, spiffeid.RequireFromPath(td, "/aaa"), "id0", "internal")
+	witSVID0.Entry.CreatedAt = 1
+	witSVID1 := newWITIdentity(t, spiffeid.RequireFromPath(td, "/one"), "id1", "internal")
+	witSVID1.Entry.CreatedAt = 2
+	witSVID2 := newWITIdentity(t, spiffeid.RequireFromPath(td, "/two"), "id2", "")
+
+	for _, tt := range []struct {
+		name         string
+		updates      []*cache.WITWorkloadUpdate
+		spiffeID     string
+		selectors    []*common.Selector
+		logSelectors []string
+		attestErr    error
+		managerErr   error
+		expectCode   codes.Code
+		expectMsg    string
+		expectResp   *workloadPB.WITSVIDResponse
+		expectLogs   []spiretest.LogEntry
+	}{
+		{
+			name:       "no identity issued",
+			updates:    []*cache.WITWorkloadUpdate{{}},
+			expectCode: codes.PermissionDenied,
+			expectMsg:  "no identity issued",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "No identity issued",
+					Data: logrus.Fields{
+						"registered": "false",
+						"service":    "WorkloadAPI",
+						"method":     "FetchWITSVID",
+					},
+				},
+			},
+		},
+		{
+			name:       "attest error",
+			attestErr:  errors.New("ohno"),
+			expectCode: codes.Unavailable,
+			expectMsg:  "workload attestation failed",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Workload attestation failed",
+					Data: logrus.Fields{
+						"service":       "WorkloadAPI",
+						"method":        "FetchWITSVID",
+						logrus.ErrorKey: "ohno",
+					},
+				},
+			},
+		},
+		{
+			name:       "subscribe to cache changes error",
+			managerErr: errors.New("err"),
+			expectCode: codes.Unknown,
+			expectMsg:  "err",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Subscribe to cache changes failed",
+					Data: logrus.Fields{
+						"service":       "WorkloadAPI",
+						"method":        "FetchWITSVID",
+						logrus.ErrorKey: "err",
+					},
+				},
+			},
+		},
+		{
+			name:       "WIT-SVIDs disabled",
+			managerErr: manager.ErrWITSVIDsDisabled,
+			expectCode: codes.Unimplemented,
+			expectMsg:  "fetching WIT-SVIDs is not implemented",
+		},
+		{
+			name:       "invalid requested SPIFFE ID",
+			spiffeID:   "not-a-spiffe-id",
+			expectCode: codes.InvalidArgument,
+			expectMsg:  "invalid requested SPIFFE ID: scheme is missing or invalid",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Invalid requested SPIFFE ID",
+					Data: logrus.Fields{
+						"service":          "WorkloadAPI",
+						"method":           "FetchWITSVID",
+						telemetry.SPIFFEID: "not-a-spiffe-id",
+						logrus.ErrorKey:    "scheme is missing or invalid",
+					},
+				},
+			},
+		},
+		{
+			name: "success",
+			updates: []*cache.WITWorkloadUpdate{
+				{Identities: []cache.WITIdentity{witSVID0, witSVID2}},
+			},
+			expectCode: codes.OK,
+			expectResp: &workloadPB.WITSVIDResponse{
+				Svids: []*workloadPB.WITSVID{
+					expectWITSVID(t, witSVID0),
+					expectWITSVID(t, witSVID2),
+				},
+			},
+		},
+		{
+			name: "filtered by requested SPIFFE ID",
+			updates: []*cache.WITWorkloadUpdate{
+				{Identities: []cache.WITIdentity{witSVID0, witSVID2}},
+			},
+			spiffeID:   witSVID2.Entry.SpiffeId,
+			expectCode: codes.OK,
+			expectResp: &workloadPB.WITSVIDResponse{
+				Svids: []*workloadPB.WITSVID{
+					expectWITSVID(t, witSVID2),
+				},
+			},
+		},
+		{
+			name: "requested SPIFFE ID matches no identity",
+			updates: []*cache.WITWorkloadUpdate{
+				{Identities: []cache.WITIdentity{witSVID0}},
+			},
+			spiffeID:   witSVID2.Entry.SpiffeId,
+			expectCode: codes.PermissionDenied,
+			expectMsg:  "no identity issued",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "No identity issued",
+					Data: logrus.Fields{
+						"registered": "false",
+						"service":    "WorkloadAPI",
+						"method":     "FetchWITSVID",
+					},
+				},
+			},
+		},
+		{
+			name: "duplicate hints are deduplicated",
+			updates: []*cache.WITWorkloadUpdate{
+				{Identities: []cache.WITIdentity{witSVID0, witSVID1, witSVID2}},
+			},
+			expectCode: codes.OK,
+			expectResp: &workloadPB.WITSVIDResponse{
+				Svids: []*workloadPB.WITSVID{
+					expectWITSVID(t, witSVID0),
+					expectWITSVID(t, witSVID2),
+				},
+			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.WarnLevel,
+					Message: "Ignoring entry with duplicate hint",
+					Data: logrus.Fields{
+						"service":                "WorkloadAPI",
+						"method":                 "FetchWITSVID",
+						telemetry.Hint:           "internal",
+						telemetry.RegistrationID: "id1",
+					},
+				},
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			params := testParams{
+				CA:           ca,
+				WITUpdates:   tt.updates,
+				Selectors:    tt.selectors,
+				LogSelectors: tt.logSelectors,
+				AttestErr:    tt.attestErr,
+				ManagerErr:   tt.managerErr,
+				ExpectLogs:   tt.expectLogs,
+			}
+			runTest(t, params,
+				func(ctx context.Context, client workloadPB.SpiffeWorkloadAPIClient) {
+					stream, err := client.FetchWITSVID(ctx, &workloadPB.WITSVIDRequest{SpiffeId: tt.spiffeID})
+					require.NoError(t, err)
+
+					resp, err := stream.Recv()
+					spiretest.RequireGRPCStatus(t, err, tt.expectCode, tt.expectMsg)
+					spiretest.RequireProtoEqual(t, tt.expectResp, resp)
+				})
+		})
+	}
+}
+
+func TestFetchWITBundles(t *testing.T) {
+	ca := testca.New(t, td)
+
+	identity := newWITIdentity(t, workloadID, "id1", "")
+
+	bundle := witBundle(t, td)
+	federatedBundle := witBundle(t, td2)
+
+	for _, tt := range []struct {
+		name                          string
+		updates                       []*cache.WITWorkloadUpdate
+		attestErr                     error
+		managerErr                    error
+		expectCode                    codes.Code
+		expectMsg                     string
+		expectResp                    *workloadPB.WITBundlesResponse
+		expectLogs                    []spiretest.LogEntry
+		allowUnauthenticatedVerifiers bool
+	}{
+		{
+			name:       "no identity issued",
+			updates:    []*cache.WITWorkloadUpdate{{}},
+			expectCode: codes.PermissionDenied,
+			expectMsg:  "no identity issued",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "No identity issued",
+					Data: logrus.Fields{
+						"registered": "false",
+						"service":    "WorkloadAPI",
+						"method":     "FetchWITBundles",
+					},
+				},
+			},
+		},
+		{
+			name:       "attest error",
+			attestErr:  errors.New("ohno"),
+			expectCode: codes.Unavailable,
+			expectMsg:  "workload attestation failed",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Workload attestation failed",
+					Data: logrus.Fields{
+						"service":       "WorkloadAPI",
+						"method":        "FetchWITBundles",
+						logrus.ErrorKey: "ohno",
+					},
+				},
+			},
+		},
+		{
+			name:       "WIT-SVIDs disabled",
+			managerErr: manager.ErrWITSVIDsDisabled,
+			expectCode: codes.Unimplemented,
+			expectMsg:  "fetching WIT bundles is not implemented",
+		},
+		{
+			name: "cache update unexpectedly missing bundle",
+			updates: []*cache.WITWorkloadUpdate{
+				{Identities: []cache.WITIdentity{identity}},
+			},
+			expectCode: codes.Unavailable,
+			expectMsg:  "could not serialize response: bundle not available",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Could not serialize WIT bundle response",
+					Data: logrus.Fields{
+						"service":       "WorkloadAPI",
+						"method":        "FetchWITBundles",
+						logrus.ErrorKey: "bundle not available",
+					},
+				},
+			},
+		},
+		{
+			name: "success",
+			updates: []*cache.WITWorkloadUpdate{
+				{
+					Identities: []cache.WITIdentity{identity},
+					Bundle:     bundle,
+					FederatedBundles: map[spiffeid.TrustDomain]*spiffebundle.Bundle{
+						federatedBundle.TrustDomain(): federatedBundle,
+					},
+				},
+			},
+			expectCode: codes.OK,
+			expectResp: &workloadPB.WITBundlesResponse{
+				Bundles: map[string]string{
+					bundle.TrustDomain().IDString():          expectWITJWKS(t, bundle),
+					federatedBundle.TrustDomain().IDString(): expectWITJWKS(t, federatedBundle),
+				},
+			},
+		},
+		{
+			name:                          "when allowed to fetch without identity",
+			allowUnauthenticatedVerifiers: true,
+			updates: []*cache.WITWorkloadUpdate{
+				{
+					Bundle: bundle,
+					FederatedBundles: map[spiffeid.TrustDomain]*spiffebundle.Bundle{
+						federatedBundle.TrustDomain(): federatedBundle,
+					},
+				},
+			},
+			expectCode: codes.OK,
+			expectResp: &workloadPB.WITBundlesResponse{
+				Bundles: map[string]string{
+					bundle.TrustDomain().IDString(): expectWITJWKS(t, bundle),
+				},
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			params := testParams{
+				CA:                            ca,
+				WITUpdates:                    tt.updates,
+				AttestErr:                     tt.attestErr,
+				ManagerErr:                    tt.managerErr,
+				ExpectLogs:                    tt.expectLogs,
+				AllowUnauthenticatedVerifiers: tt.allowUnauthenticatedVerifiers,
+			}
+			runTest(t, params,
+				func(ctx context.Context, client workloadPB.SpiffeWorkloadAPIClient) {
+					stream, err := client.FetchWITBundles(ctx, &workloadPB.WITBundlesRequest{})
+					require.NoError(t, err)
+
+					resp, err := stream.Recv()
+					spiretest.RequireGRPCStatus(t, err, tt.expectCode, tt.expectMsg)
+					spiretest.RequireProtoEqual(t, tt.expectResp, resp)
+				})
+		})
+	}
+}
+
+func newWITIdentity(t *testing.T, id spiffeid.ID, entryID, hint string) cache.WITIdentity {
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+	return cache.WITIdentity{
+		Entry: &common.RegistrationEntry{
+			SpiffeId: id.String(),
+			EntryId:  entryID,
+			Hint:     hint,
+		},
+		Token:      "token-for-" + entryID,
+		PrivateKey: key,
+	}
+}
+
+func expectWITSVID(t *testing.T, identity cache.WITIdentity) *workloadPB.WITSVID {
+	keyJWK, err := (&jose.JSONWebKey{Key: identity.PrivateKey}).MarshalJSON()
+	require.NoError(t, err)
+	return &workloadPB.WITSVID{
+		SpiffeId:   identity.Entry.SpiffeId,
+		WitSvid:    identity.Token,
+		WitSvidKey: string(keyJWK),
+		Hint:       identity.Entry.Hint,
+	}
+}
+
+func witBundle(t *testing.T, trustDomain spiffeid.TrustDomain) *spiffebundle.Bundle {
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+	bundle := spiffebundle.New(trustDomain)
+	require.NoError(t, bundle.AddWITAuthority("kid-"+trustDomain.Name(), key.Public()))
+	return bundle
+}
+
+func expectWITJWKS(t *testing.T, bundle *spiffebundle.Bundle) string {
+	jwks := jose.JSONWebKeySet{Keys: []jose.JSONWebKey{}}
+	for keyID, key := range bundle.WITAuthorities() {
+		jwks.Keys = append(jwks.Keys, jose.JSONWebKey{Key: key, KeyID: keyID})
+	}
+	out, err := json.MarshalIndent(jwks, "", "    ")
+	require.NoError(t, err)
+	return string(out)
+}
+
 func TestValidateJWTSVID(t *testing.T) {
 	ca := testca.New(t, td)
 	ca2 := testca.New(t, td2)
@@ -1819,6 +2197,7 @@ type testParams struct {
 	CA                            *testca.CA
 	Identities                    []cache.X509Identity
 	Updates                       []*cache.X509WorkloadUpdate
+	WITUpdates                    []*cache.WITWorkloadUpdate
 	Selectors                     []*common.Selector
 	LogSelectors                  []string
 	AttestErr                     error
@@ -1837,6 +2216,7 @@ func runTest(t *testing.T, params testParams, fn func(ctx context.Context, clien
 		ca:         params.CA,
 		identities: params.Identities,
 		updates:    params.Updates,
+		witUpdates: params.WITUpdates,
 		err:        params.ManagerErr,
 	}
 
@@ -1882,6 +2262,7 @@ type FakeManager struct {
 	ca          *testca.CA
 	identities  []cache.X509Identity
 	updates     []*cache.X509WorkloadUpdate
+	witUpdates  []*cache.WITWorkloadUpdate
 	subscribers atomic.Int32
 	err         error
 }
@@ -1917,6 +2298,14 @@ func (m *FakeManager) SubscribeToX509CacheChanges(context.Context, cache.Selecto
 	return newFakeSubscriber(m, m.updates), nil
 }
 
+func (m *FakeManager) SubscribeToWITCacheChanges(context.Context, cache.Selectors) (cache.Subscriber[cache.WITWorkloadUpdate], error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	m.subscribers.Add(1)
+	return newFakeSubscriber(m, m.witUpdates), nil
+}
+
 func (m *FakeManager) FetchWorkloadUpdate([]*common.Selector) *cache.X509WorkloadUpdate {
 	if len(m.updates) == 0 {
 		return &cache.X509WorkloadUpdate{}
@@ -1932,15 +2321,15 @@ func (m *FakeManager) subscriberDone() {
 	m.subscribers.Add(-1)
 }
 
-type fakeSubscriber struct {
+type fakeSubscriber[T any] struct {
 	m      *FakeManager
-	ch     chan *cache.X509WorkloadUpdate
+	ch     chan *T
 	cancel context.CancelFunc
 }
 
-func newFakeSubscriber(m *FakeManager, updates []*cache.X509WorkloadUpdate) *fakeSubscriber {
-	ch := make(chan *cache.X509WorkloadUpdate)
-	ctx, cancel := context.WithCancel(context.Background())
+func newFakeSubscriber[T any](m *FakeManager, updates []*T) *fakeSubscriber[T] {
+	ch := make(chan *T)
+	ctx, cancel := context.WithCancel(context.Background()) //nolint:gosec // cancel is held by the subscriber and called by Finish
 	go func() {
 		for _, update := range updates {
 			select {
@@ -1951,18 +2340,18 @@ func newFakeSubscriber(m *FakeManager, updates []*cache.X509WorkloadUpdate) *fak
 		}
 		<-ctx.Done()
 	}()
-	return &fakeSubscriber{
+	return &fakeSubscriber[T]{
 		m:      m,
 		ch:     ch,
 		cancel: cancel,
 	}
 }
 
-func (s *fakeSubscriber) Updates() <-chan *cache.X509WorkloadUpdate {
+func (s *fakeSubscriber[T]) Updates() <-chan *T {
 	return s.ch
 }
 
-func (s *fakeSubscriber) Finish() {
+func (s *fakeSubscriber[T]) Finish() {
 	s.cancel()
 	s.m.subscriberDone()
 }
