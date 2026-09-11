@@ -371,20 +371,17 @@ func locatePrivateKeysWithAttributes(ctx context.Context, c *kmipclient.Client, 
 }
 
 // locatePrivateKeys returns the unique identifiers of all private keys carrying the
-// given Name, paginating through the results to handle KMIP servers that limit the
-// number of items returned per response.
-func locatePrivateKeys(ctx context.Context, c *kmipclient.Client, name ovh.Name) ([]string, error) {
-	return locatePrivateKeysWithAttributes(ctx, c, ovh.Attribute{
-		AttributeName:  ovh.AttributeNameName,
-		AttributeValue: name,
-	})
-}
-
-// locateAllPrivateKeys returns the unique identifiers of all private keys on the
-// KMIP server, paginating through the results to handle servers that limit the
-// number of items returned per response.
-func locateAllPrivateKeys(ctx context.Context, c *kmipclient.Client) ([]string, error) {
-	return locatePrivateKeysWithAttributes(ctx, c)
+// given Name attributes, paginating through the results to handle KMIP servers that
+// limit the number of items returned per response.
+func locatePrivateKeys(ctx context.Context, c *kmipclient.Client, names ...ovh.Name) ([]string, error) {
+	attrs := make([]ovh.Attribute, 0, len(names))
+	for _, name := range names {
+		attrs = append(attrs, ovh.Attribute{
+			AttributeName:  ovh.AttributeNameName,
+			AttributeValue: name,
+		})
+	}
+	return locatePrivateKeysWithAttributes(ctx, c, attrs...)
 }
 
 // recoveredKey is a single key object discovered on the KMIP server during
@@ -397,7 +394,8 @@ type recoveredKey struct {
 }
 
 // recoverKeys fetches all private keys tagged with this server's server-id Name
-// and rebuilds the in-memory entries map. Must be called while p.mu is held.
+// and this plugin's trust-domain Name and rebuilds the in-memory entries map.
+// Must be called while p.mu is held.
 //
 // SPIRE reuses key IDs across rotations, so more than one key object on the KMIP
 // server can carry the same spire-key-id Name at once: the key currently in use,
@@ -408,6 +406,9 @@ type recoveredKey struct {
 func (p *Plugin) recoverKeys(ctx context.Context) error {
 	privUIDs, err := locatePrivateKeys(ctx, p.client, ovh.Name{
 		NameValue: serverIDNameValue(p.serverID),
+		NameType:  ovh.NameTypeUninterpretedTextString,
+	}, ovh.Name{
+		NameValue: trustDomainNameValue(p.trustDomain),
 		NameType:  ovh.NameTypeUninterpretedTextString,
 	})
 	if err != nil {
@@ -957,10 +958,11 @@ func (p *Plugin) disposeStaleKeysTask(ctx context.Context) {
 	}
 }
 
-// disposeStaleKeys locates private keys across all server instances using this
-// KMIP tenant and destroys those whose spire-last-update Name is older than the
-// configured stale-key threshold. This is safe because keys without that
-// SPIRE-managed marker, or with a fresh value, are skipped.
+// disposeStaleKeys locates private keys across all server instances sharing this
+// plugin's trust domain on the KMIP tenant and destroys those whose
+// spire-last-update Name is older than the configured stale-key threshold. This
+// is safe because keys without that SPIRE-managed marker, or with a fresh value,
+// are skipped.
 func (p *Plugin) disposeStaleKeys(ctx context.Context) error {
 	p.logger.Debug("Looking for stale keys to dispose")
 
@@ -972,7 +974,10 @@ func (p *Plugin) disposeStaleKeys(ctx context.Context) error {
 		return nil
 	}
 
-	privUIDs, err := locateAllPrivateKeys(ctx, client)
+	privUIDs, err := locatePrivateKeys(ctx, client, ovh.Name{
+		NameValue: trustDomainNameValue(p.trustDomain),
+		NameType:  ovh.NameTypeUninterpretedTextString,
+	})
 	if err != nil {
 		return fmt.Errorf("locate private keys: %w", err)
 	}
