@@ -125,12 +125,6 @@ func (w metricsWrapper) FetchJoinToken(ctx context.Context, token string) (_ *da
 	return w.ds.FetchJoinToken(ctx, token)
 }
 
-func (w metricsWrapper) FetchRegistrationEntry(ctx context.Context, entryID string) (_ *common.RegistrationEntry, err error) {
-	callCounter := StartFetchRegistrationCall(w.m)
-	defer callCounter.Done(&err)
-	return w.ds.FetchRegistrationEntry(ctx, entryID)
-}
-
 func (w metricsWrapper) FetchRegistrationEntries(ctx context.Context, entryIDs []string) (_ map[string]*common.RegistrationEntry, err error) {
 	callCounter := StartFetchRegistrationCall(w.m)
 	defer callCounter.Done(&err)

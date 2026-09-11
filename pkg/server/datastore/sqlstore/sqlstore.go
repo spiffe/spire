@@ -517,19 +517,6 @@ func (ds *Plugin) createOrReturnRegistrationEntry(ctx context.Context,
 	return registrationEntry, existing, nil
 }
 
-// FetchRegistrationEntry fetches an existing registration by entry ID
-func (ds *Plugin) FetchRegistrationEntry(ctx context.Context,
-	entryID string,
-) (*common.RegistrationEntry, error) {
-	entries, err := fetchRegistrationEntries(ctx, ds.db, []string{entryID})
-	if err != nil {
-		return nil, err
-	}
-
-	// Return the last element in the list
-	return entries[entryID], nil
-}
-
 // FetchRegistrationEntries fetches existing registrations by entry IDs
 func (ds *Plugin) FetchRegistrationEntries(ctx context.Context,
 	entryIDs []string,
