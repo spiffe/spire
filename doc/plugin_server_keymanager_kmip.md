@@ -11,15 +11,15 @@ The plugin uses the [ovh/kmip-go](https://github.com/ovh/kmip-go) client library
 
 The plugin accepts the following configuration options:
 
-| Key                  | Type   | Required  | Description                                                                     | Default                 |
-|----------------------|--------|-----------|---------------------------------------------------------------------------------|-------------------------|
-| kmip_addr            | string | required  | The TCP address of the KMIP server (e.g. `kmip.example.com:5696`).              |                         |
-| server_id_value      | string | required¹ | Stable identifier for this SPIRE server instance, used to tag and recover keys. |                         |
-| server_id_file       | string | required¹ | Path to a file containing the server identifier; created if it does not exist.  |                         |
-| ca_cert_path         | string |           | CA certificate file used to verify the KMIP server TLS certificate.             | System certificate pool |
-| client_cert_path     | string |           | mTLS client certificate file; must be set together with `client_key_path`.      |                         |
-| client_key_path      | string |           | mTLS client private key file; must be set together with `client_cert_path`.     |                         |
-| insecure_skip_verify | bool   |           | Accept any KMIP server certificate (test environments only).                    | false                   |
+| Key                  | Type   | Required  | Description                                                                                      | Default                 |
+|----------------------|--------|-----------|--------------------------------------------------------------------------------------------------|-------------------------|
+| kmip_addr            | string | required  | The TCP address of the KMIP server (e.g. `kmip.example.com:5696`).                               |                         |
+| server_id_value      | string | required¹ | Stable identifier for this SPIRE server instance, used to tag and recover keys.                  |                         |
+| server_id_file       | string | required¹ | Path to a file containing the server identifier; created if it does not exist.                   |                         |
+| ca_cert_path         | string |           | CA certificate file used to verify the KMIP server TLS certificate.                              | System certificate pool |
+| client_cert_path     | string |           | mTLS client certificate file; must be set together with `client_key_path`.                       |                         |
+| client_key_path      | string |           | mTLS client private key file; must be set together with `client_cert_path`.                      |                         |
+| insecure_skip_verify | bool   |           | Accept any KMIP server certificate (test environments only).                                     | false                   |
 | stale_key_threshold  | string |           | Go duration before an unrefreshed key is treated as stale and reclaimed; must be at least `24h`. | `336h` (2 weeks)        |
 
 ¹ Exactly one of `server_id_value` or `server_id_file` must be set.
