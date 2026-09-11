@@ -637,10 +637,12 @@ func TestDisposeStaleKeys(t *testing.T) {
 	now := clk.Now()
 	store.seed("stale-priv", "stale-pub", []string{
 		serverIDNameValue(testServerID),
+		trustDomainNameValue(testTrustDomain),
 		lastUpdateNameValue(now.Add(-30 * 24 * time.Hour).Unix()),
 	})
 	store.seed("fresh-priv", "fresh-pub", []string{
 		serverIDNameValue(testServerID),
+		trustDomainNameValue(testTrustDomain),
 		lastUpdateNameValue(now.Unix()),
 	})
 	p.mu.Lock()
@@ -684,10 +686,12 @@ func TestDisposeStaleKeysIgnoresStalePublicKey(t *testing.T) {
 	store.seedPair("active-priv", "active-pub",
 		[]string{
 			serverIDNameValue(testServerID),
+			trustDomainNameValue(testTrustDomain),
 			lastUpdateNameValue(now.Unix()),
 		},
 		[]string{
 			serverIDNameValue(testServerID),
+			trustDomainNameValue(testTrustDomain),
 			lastUpdateNameValue(now.Add(-30 * 24 * time.Hour).Unix()),
 		},
 	)
@@ -708,10 +712,12 @@ func TestDisposeStaleKeysReclaimsKeysAcrossServerIDs(t *testing.T) {
 	staleLastUpdate := clk.Now().Add(-30 * 24 * time.Hour).Unix()
 	store.seed("server-a-stale-priv", "server-a-stale-pub", []string{
 		serverIDNameValue("server-a"),
+		trustDomainNameValue(testTrustDomain),
 		lastUpdateNameValue(staleLastUpdate),
 	})
 	store.seed("server-b-stale-priv", "server-b-stale-pub", []string{
 		serverIDNameValue("server-b"),
+		trustDomainNameValue(testTrustDomain),
 		lastUpdateNameValue(staleLastUpdate),
 	})
 
@@ -725,6 +731,35 @@ func TestDisposeStaleKeysReclaimsKeysAcrossServerIDs(t *testing.T) {
 	require.NotContains(t, store.pubKeys, "server-b-stale-pub", "stale public key for another server should be disposed too")
 	require.True(t, store.revoked["server-a-stale-priv"], "configured server's stale key should be revoked before being destroyed")
 	require.True(t, store.revoked["server-b-stale-priv"], "other server's stale key should be revoked before being destroyed")
+}
+
+func TestDisposeStaleKeysDoesNotReclaimKeysFromOtherTrustDomains(t *testing.T) {
+	store := newFakeStore()
+	addr, caPEM := kmiptest.NewServer(t, store.handler())
+	p, clk := newTestPluginWithServerIDAndConfig(t, addr, caPEM, "server-a", "")
+
+	staleLastUpdate := clk.Now().Add(-30 * 24 * time.Hour).Unix()
+	store.seed("same-td-stale-priv", "same-td-stale-pub", []string{
+		serverIDNameValue("server-a"),
+		trustDomainNameValue(testTrustDomain),
+		lastUpdateNameValue(staleLastUpdate),
+	})
+	store.seed("other-td-stale-priv", "other-td-stale-pub", []string{
+		serverIDNameValue("server-b"),
+		trustDomainNameValue("other.example.org"),
+		lastUpdateNameValue(staleLastUpdate),
+	})
+
+	require.NoError(t, p.disposeStaleKeys(context.Background()))
+
+	store.mu.Lock()
+	defer store.mu.Unlock()
+	require.NotContains(t, store.keys, "same-td-stale-priv", "stale key in the configured trust domain should be disposed")
+	require.NotContains(t, store.pubKeys, "same-td-stale-pub", "stale public key in the configured trust domain should be disposed")
+	require.Contains(t, store.keys, "other-td-stale-priv", "stale key in another trust domain should not be disposed")
+	require.Contains(t, store.pubKeys, "other-td-stale-pub", "stale public key in another trust domain should not be disposed")
+	require.True(t, store.revoked["same-td-stale-priv"], "configured trust domain's stale key should be revoked before being destroyed")
+	require.False(t, store.revoked["other-td-stale-priv"], "other trust domain's stale key should not be revoked")
 }
 
 func TestDisposeStaleKeysPaginates(t *testing.T) {
@@ -742,6 +777,7 @@ func TestDisposeStaleKeysPaginates(t *testing.T) {
 			fmt.Sprintf("stale-pub-%d", i),
 			[]string{
 				serverIDNameValue(testServerID),
+				trustDomainNameValue(testTrustDomain),
 				lastUpdateNameValue(now.Add(-30 * 24 * time.Hour).Unix()),
 			},
 		)
@@ -788,10 +824,12 @@ func TestDisposeStaleKeysUsesConfiguredStaleKeyThreshold(t *testing.T) {
 			now := clk.Now()
 			store.seed("stale-priv", "stale-pub", []string{
 				serverIDNameValue(testServerID),
+				trustDomainNameValue(testTrustDomain),
 				lastUpdateNameValue(now.Add(-tt.staleAge).Unix()),
 			})
 			store.seed("fresh-priv", "fresh-pub", []string{
 				serverIDNameValue(testServerID),
+				trustDomainNameValue(testTrustDomain),
 				lastUpdateNameValue(now.Add(-tt.freshAge).Unix()),
 			})
 
