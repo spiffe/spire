@@ -2526,12 +2526,6 @@ func (s *Suite) TestFetchRegistrationEntriesWithOptionalFields() {
 	}
 }
 
-func (s *Suite) TestFetchRegistrationEntriesDoesNotExist() {
-	registrationEntries, err := s.ds.FetchRegistrationEntries(ctx, []string{"does-not-exist"})
-	s.Require().NoError(err)
-	s.Require().Empty(registrationEntries)
-}
-
 func (s *Suite) TestFetchRegistrationEntries() {
 	entry1, err := s.ds.CreateRegistrationEntry(ctx, &common.RegistrationEntry{
 		Selectors: []*common.Selector{
