@@ -6,16 +6,23 @@ import (
 	"crypto/x509/pkix"
 	"errors"
 	"math/big"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
+	"github.com/spiffe/spire/pkg/common/pemutil"
+	"github.com/spiffe/spire/pkg/server/datastore"
+	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 func TestBundleUpdaterUpdateBundle(t *testing.T) {
@@ -39,6 +46,10 @@ func TestBundleUpdaterUpdateBundle(t *testing.T) {
 		storedBundle *spiffebundle.Bundle
 		// the fake endpoint client
 		client fakeClient
+		// optional bootstrap bundle path
+		bootstrapPath string
+		// if set, the SPIFFE auth roots passed to the client must be this cert
+		wantRootCA *x509.Certificate
 		// the expected error returned from Update()
 		err string
 	}{
@@ -46,6 +57,33 @@ func TestBundleUpdaterUpdateBundle(t *testing.T) {
 			name:        "providing no bundle",
 			trustDomain: trustDomain,
 			err:         "local copy of bundle not found",
+		},
+		{
+			name:           "bootstraps first fetch when local bundle is missing",
+			trustDomain:    trustDomain,
+			bootstrapPath:  writeBootstrapPEM(t, bundle1.X509Authorities()[0]),
+			wantRootCA:     bundle1.X509Authorities()[0],
+			endpointBundle: bundle2,
+			storedBundle:   bundle2,
+			client: fakeClient{
+				bundle: bundle2,
+			},
+		},
+		{
+			name:          "bootstrap path is ignored when local bundle exists",
+			trustDomain:   trustDomain,
+			localBundle:   bundle1,
+			bootstrapPath: filepath.Join(t.TempDir(), "missing.pem"),
+			storedBundle:  bundle1,
+			client: fakeClient{
+				bundle: bundle1,
+			},
+		},
+		{
+			name:          "missing bootstrap file",
+			trustDomain:   trustDomain,
+			bootstrapPath: filepath.Join(t.TempDir(), "missing.pem"),
+			err:           "failed to load bootstrap bundle",
 		},
 		{
 			name:           "bundle has no changes",
@@ -99,8 +137,14 @@ func TestBundleUpdaterUpdateBundle(t *testing.T) {
 					EndpointProfile: HTTPSSPIFFEProfile{
 						EndpointSPIFFEID: trustDomain.ID(),
 					},
+					BootstrapBundlePath: testCase.bootstrapPath,
 				},
 				newClientHook: func(client ClientConfig) (Client, error) {
+					if testCase.wantRootCA != nil {
+						require.NotNil(t, client.SPIFFEAuth)
+						require.Len(t, client.SPIFFEAuth.RootCAs, 1)
+						require.Equal(t, testCase.wantRootCA.Raw, client.SPIFFEAuth.RootCAs[0].Raw)
+					}
 					return testCase.client, nil
 				},
 			})
@@ -147,6 +191,184 @@ func TestBundleUpdaterUpdateBundle(t *testing.T) {
 	}
 }
 
+func TestBundleUpdaterBootstrapCreateOnly(t *testing.T) {
+	bootstrapCA := createCACertificate(t, "bootstrap")
+	fetched := spiffebundle.FromX509Authorities(trustDomain, []*x509.Certificate{createCACertificate(t, "fetched")})
+	changed := spiffebundle.FromX509Authorities(trustDomain, []*x509.Certificate{createCACertificate(t, "changed")})
+	current := fetched
+
+	ds := &countingDataStore{DataStore: fakedatastore.New(t)}
+	updater := NewBundleUpdater(BundleUpdaterConfig{
+		DataStore:   ds,
+		TrustDomain: trustDomain,
+		TrustDomainConfig: TrustDomainConfig{
+			EndpointURL: "ENDPOINT_ADDRESS",
+			EndpointProfile: HTTPSSPIFFEProfile{
+				EndpointSPIFFEID: trustDomain.ID(),
+			},
+			BootstrapBundlePath: writeBootstrapPEM(t, bootstrapCA),
+		},
+		newClientHook: func(ClientConfig) (Client, error) {
+			return fakeClient{bundle: current}, nil
+		},
+	})
+
+	_, endpointBundle, err := updater.UpdateBundle(context.Background())
+	require.NoError(t, err)
+	require.NotNil(t, endpointBundle)
+	require.Equal(t, 1, ds.creates)
+	require.Equal(t, 0, ds.sets)
+
+	current = changed
+	_, endpointBundle, err = updater.UpdateBundle(context.Background())
+	require.NoError(t, err)
+	require.NotNil(t, endpointBundle)
+	require.Equal(t, 1, ds.creates)
+	require.Equal(t, 1, ds.sets)
+}
+
+type countingDataStore struct {
+	datastore.DataStore
+	creates int
+	sets    int
+}
+
+func (d *countingDataStore) CreateBundle(ctx context.Context, b *common.Bundle) (*common.Bundle, error) {
+	d.creates++
+	return d.DataStore.CreateBundle(ctx, b)
+}
+
+func (d *countingDataStore) SetBundle(ctx context.Context, b *common.Bundle) (*common.Bundle, error) {
+	d.sets++
+	return d.DataStore.SetBundle(ctx, b)
+}
+
+func TestBundleUpdaterBootstrapCreateAlreadyExists(t *testing.T) {
+	fetched := spiffebundle.FromX509Authorities(trustDomain, []*x509.Certificate{createCACertificate(t, "fetched")})
+	ds := &alreadyExistsDataStore{}
+	updater := NewBundleUpdater(BundleUpdaterConfig{
+		DataStore:   ds,
+		TrustDomain: trustDomain,
+		TrustDomainConfig: TrustDomainConfig{
+			EndpointURL: "ENDPOINT_ADDRESS",
+			EndpointProfile: HTTPSSPIFFEProfile{
+				EndpointSPIFFEID: trustDomain.ID(),
+			},
+			BootstrapBundlePath: writeBootstrapPEM(t, createCACertificate(t, "bootstrap")),
+		},
+		newClientHook: func(ClientConfig) (Client, error) {
+			return fakeClient{bundle: fetched}, nil
+		},
+	})
+
+	localBundle, endpointBundle, err := updater.UpdateBundle(context.Background())
+	require.NoError(t, err)
+	require.Nil(t, localBundle)
+	require.Nil(t, endpointBundle)
+	require.Equal(t, 1, ds.creates)
+	require.Equal(t, 0, ds.sets)
+}
+
+func TestBundleUpdaterBootstrapDoesNotOverwriteIfBundleAppears(t *testing.T) {
+	stored := spiffebundle.FromX509Authorities(trustDomain, []*x509.Certificate{createCACertificate(t, "stored")})
+	storedProto, err := bundleutil.SPIFFEBundleToProto(stored)
+	require.NoError(t, err)
+	fetched := spiffebundle.FromX509Authorities(trustDomain, []*x509.Certificate{createCACertificate(t, "fetched")})
+
+	ds := &authMissThenPresentDataStore{present: storedProto}
+	updater := NewBundleUpdater(BundleUpdaterConfig{
+		DataStore:   ds,
+		TrustDomain: trustDomain,
+		TrustDomainConfig: TrustDomainConfig{
+			EndpointURL: "ENDPOINT_ADDRESS",
+			EndpointProfile: HTTPSSPIFFEProfile{
+				EndpointSPIFFEID: trustDomain.ID(),
+			},
+			BootstrapBundlePath: writeBootstrapPEM(t, createCACertificate(t, "bootstrap")),
+		},
+		newClientHook: func(ClientConfig) (Client, error) {
+			return fakeClient{bundle: fetched}, nil
+		},
+	})
+
+	localBundle, endpointBundle, err := updater.UpdateBundle(context.Background())
+	require.NoError(t, err)
+	require.NotNil(t, localBundle)
+	require.Nil(t, endpointBundle)
+	require.Equal(t, 1, ds.creates)
+	require.Equal(t, 0, ds.sets)
+	require.Equal(t, storedProto, ds.present)
+}
+
+func TestBundleUpdaterBootstrapRequiresSelfServingEndpoint(t *testing.T) {
+	other := spiffeid.RequireTrustDomainFromString("other.test")
+	ds := fakedatastore.New(t)
+	updater := NewBundleUpdater(BundleUpdaterConfig{
+		DataStore:   ds,
+		TrustDomain: trustDomain,
+		TrustDomainConfig: TrustDomainConfig{
+			EndpointURL: "ENDPOINT_ADDRESS",
+			EndpointProfile: HTTPSSPIFFEProfile{
+				EndpointSPIFFEID: other.ID(),
+			},
+			BootstrapBundlePath: writeBootstrapPEM(t, createCACertificate(t, "bootstrap")),
+		},
+		newClientHook: func(ClientConfig) (Client, error) {
+			t.Fatal("client must not be created when bootstrap is not self-serving")
+			return nil, errors.New("unreachable")
+		},
+	})
+
+	_, _, err := updater.UpdateBundle(context.Background())
+	spiretest.RequireErrorContains(t, err, "local copy of bundle not found")
+}
+
+type alreadyExistsDataStore struct {
+	datastore.DataStore
+	creates int
+	sets    int
+}
+
+func (d *alreadyExistsDataStore) FetchBundle(context.Context, string) (*common.Bundle, error) {
+	return nil, nil
+}
+
+func (d *alreadyExistsDataStore) CreateBundle(context.Context, *common.Bundle) (*common.Bundle, error) {
+	d.creates++
+	return nil, status.Error(codes.AlreadyExists, "already exists")
+}
+
+func (d *alreadyExistsDataStore) SetBundle(context.Context, *common.Bundle) (*common.Bundle, error) {
+	d.sets++
+	return nil, errors.New("SetBundle must not run")
+}
+
+type authMissThenPresentDataStore struct {
+	datastore.DataStore
+	present *common.Bundle
+	fetches int
+	creates int
+	sets    int
+}
+
+func (d *authMissThenPresentDataStore) FetchBundle(context.Context, string) (*common.Bundle, error) {
+	d.fetches++
+	if d.fetches == 1 {
+		return nil, nil
+	}
+	return d.present, nil
+}
+
+func (d *authMissThenPresentDataStore) CreateBundle(context.Context, *common.Bundle) (*common.Bundle, error) {
+	d.creates++
+	return nil, status.Error(codes.AlreadyExists, "already exists")
+}
+
+func (d *authMissThenPresentDataStore) SetBundle(context.Context, *common.Bundle) (*common.Bundle, error) {
+	d.sets++
+	return nil, errors.New("SetBundle must not run")
+}
+
 func TestBundleUpdaterConfiguration(t *testing.T) {
 	configs := []TrustDomainConfig{
 		{
@@ -186,6 +408,13 @@ type fakeClient struct {
 
 func (c fakeClient) FetchBundle(context.Context) (*spiffebundle.Bundle, error) {
 	return c.bundle, c.err
+}
+
+func writeBootstrapPEM(t *testing.T, cert *x509.Certificate) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "bootstrap.pem")
+	require.NoError(t, os.WriteFile(path, pemutil.EncodeCertificate(cert), 0600))
+	return path
 }
 
 func createCACertificate(t *testing.T, cn string) *x509.Certificate {
