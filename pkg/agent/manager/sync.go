@@ -51,18 +51,17 @@ type x509SVIDCache interface {
 	GetStaleEntries() []*cache.StaleEntry
 }
 
-func (m *manager) syncSVIDs(ctx context.Context) (err error) {
+func (m *manager) syncX509SVIDs(ctx context.Context) error {
 	m.x509Cache.SyncSVIDsWithSubscribers()
-	x509Err := m.updateX509SVIDs(ctx, m.c.Log.WithField(telemetry.CacheType, telemetry_agent.CacheTypeWorkload), m.x509Cache)
+	return m.updateX509SVIDs(ctx, m.c.Log.WithField(telemetry.CacheType, telemetry_agent.CacheTypeWorkload), m.x509Cache)
+}
 
+func (m *manager) syncWITSVIDs(ctx context.Context) error {
 	if m.witCache == nil {
-		return x509Err
+		return ErrWITSVIDsDisabled
 	}
-
 	m.witCache.SyncSVIDsWithSubscribers()
-	witErr := m.updateWITSVIDs(ctx, m.c.Log.WithField(telemetry.CacheType, telemetry_agent.CacheTypeWorkload).WithField(telemetry.SVIDType, telemetry_agent.SVIDTypeWIT))
-
-	return errors.Join(x509Err, witErr)
+	return m.updateWITSVIDs(ctx, m.c.Log.WithField(telemetry.CacheType, telemetry_agent.CacheTypeWorkload).WithField(telemetry.SVIDType, telemetry_agent.SVIDTypeWIT))
 }
 
 // processTaintedAuthorities verifies if a new authority is tainted and forces rotation in all caches if required.
@@ -110,7 +109,7 @@ func (m *manager) processTaintedAuthorities(ctx context.Context, bundle *spiffeb
 }
 
 // synchronize fetches the authorized entries from the server, updates the
-// cache, and fetches missing/expiring SVIDs.
+// caches, and fetches missing/expiring X509-SVIDs.
 func (m *manager) synchronize(ctx context.Context) (err error) {
 	cacheUpdate, storeUpdate, tainted, err := m.fetchEntries(ctx)
 	if err != nil {
@@ -130,7 +129,7 @@ func (m *manager) synchronize(ctx context.Context) (err error) {
 	errs = append(errs, m.updateX509SVIDCache(ctx, cacheUpdate, m.c.Log.WithField(telemetry.CacheType, telemetry_agent.CacheTypeWorkload), "", m.x509Cache))
 	errs = append(errs, m.updateX509SVIDCache(ctx, storeUpdate, m.c.Log.WithField(telemetry.CacheType, telemetry_agent.CacheTypeSVIDStore), telemetry_agent.CacheTypeSVIDStore, m.svidStoreCache))
 	if m.witCache != nil {
-		errs = append(errs, m.updateWITSVIDCache(ctx, cacheUpdate, m.c.Log.WithField(telemetry.CacheType, telemetry_agent.CacheTypeWorkload).WithField(telemetry.SVIDType, telemetry_agent.SVIDTypeWIT)))
+		m.updateWITSVIDCacheEntries(cacheUpdate, m.c.Log.WithField(telemetry.CacheType, telemetry_agent.CacheTypeWorkload).WithField(telemetry.SVIDType, telemetry_agent.SVIDTypeWIT))
 	}
 
 	if err := errors.Join(errs...); err != nil {
@@ -221,7 +220,7 @@ func (m *manager) updateX509SVIDs(ctx context.Context, log logrus.FieldLogger, c
 	return nil
 }
 
-func (m *manager) updateWITSVIDCache(ctx context.Context, update *cache.UpdateEntries, log logrus.FieldLogger) error {
+func (m *manager) updateWITSVIDCacheEntries(update *cache.UpdateEntries, log logrus.FieldLogger) {
 	// the values in `update` now belong to the cache. DO NOT MODIFY.
 	var expiring int
 	m.witCache.UpdateEntries(update, func(_, newEntry *common.RegistrationEntry, svid *cache.WITSVID) bool {
@@ -242,8 +241,6 @@ func (m *manager) updateWITSVIDCache(ctx context.Context, update *cache.UpdateEn
 		telemetry_agent.AddCacheManagerExpiredSVIDsSample(m.c.Metrics, telemetry_agent.CacheTypeWorkload, telemetry_agent.SVIDTypeWIT, float32(expiring))
 		log.WithField(telemetry.ExpiringSVIDs, expiring).Debug("Updating expiring SVIDs in cache")
 	}
-
-	return m.updateWITSVIDs(ctx, log)
 }
 
 func (m *manager) updateWITSVIDs(ctx context.Context, log logrus.FieldLogger) error {
