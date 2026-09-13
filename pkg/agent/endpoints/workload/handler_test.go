@@ -1616,8 +1616,8 @@ func TestFetchWITSVID(t *testing.T) {
 		{
 			name:       "WIT-SVIDs disabled",
 			managerErr: manager.ErrWITSVIDsDisabled,
-			expectCode: codes.Unimplemented,
-			expectMsg:  "fetching WIT-SVIDs is not implemented",
+			expectCode: codes.FailedPrecondition,
+			expectMsg:  "WIT-SVIDs are not enabled",
 		},
 		{
 			name:       "invalid requested SPIFFE ID",
@@ -1818,8 +1818,8 @@ func TestFetchWITBundles(t *testing.T) {
 		{
 			name:       "WIT-SVIDs disabled",
 			managerErr: manager.ErrWITSVIDsDisabled,
-			expectCode: codes.Unimplemented,
-			expectMsg:  "fetching WIT bundles is not implemented",
+			expectCode: codes.FailedPrecondition,
+			expectMsg:  "WIT-SVIDs are not enabled",
 		},
 		{
 			name: "cache update unexpectedly missing bundle",
