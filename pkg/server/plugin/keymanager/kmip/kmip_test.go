@@ -629,6 +629,28 @@ func TestKeepKeysActive(t *testing.T) {
 	require.Equal(t, clk.Now().Unix(), newTS)
 }
 
+func TestConfigureRunsInitialKeepKeysActiveSweep(t *testing.T) {
+	store := newFakeStore()
+	addr, caPEM := kmiptest.NewServer(t, store.handler())
+
+	initialTS := time.Unix(1_700_000_000, 0).Add(-48 * time.Hour).Unix()
+	store.seed("recovered-priv", "recovered-pub", []string{
+		serverIDNameValue(testServerID),
+		trustDomainNameValue(testTrustDomain),
+		prefixKeyID + "recovered-key",
+		prefixKeyType + "EC_P256",
+		lastUpdateNameValue(initialTS),
+		activeNameValue(),
+	})
+	seedECKeyMaterial(t, store, "recovered-priv", "recovered-pub")
+
+	p, clk := newTestPlugin(t, addr, caPEM)
+
+	require.Equal(t, "recovered-priv", entryPrivateKeyUID(t, p, "recovered-key"))
+	require.Equal(t, clk.Now().Unix(), readLastUpdate(t, store),
+		"Configure should refresh recovered keys immediately without waiting for the keep-alive ticker")
+}
+
 func TestDisposeStaleKeys(t *testing.T) {
 	store := newFakeStore()
 	addr, caPEM := kmiptest.NewServer(t, store.handler())

@@ -128,8 +128,10 @@ func (p *Plugin) SetLogger(log hclog.Logger) {
 	p.logger = log
 }
 
-// Configure parses HCL config, dials the KMIP server, and recovers existing
-// keys via Locate.
+// Configure parses HCL config, dials the KMIP server, recovers existing keys via
+// Locate, and performs an immediate keep-alive sweep before starting the periodic
+// refresh task. The startup sweep closes the gap where a server that restarts more
+// often than keepActiveKeysFrequency would otherwise never refresh recovered keys.
 func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
 	cfg, _, err := pluginconf.Build(req, buildConfig)
 	if err != nil {
@@ -175,6 +177,14 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 
 	if err := p.recoverKeys(ctx); err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to recover keys from KMIP server: %v", err)
+	}
+
+	// Refresh recovered keys immediately so a server that restarts more often than
+	// the keep-alive ticker period still marks them fresh at startup. Like the
+	// periodic task, failures are logged but do not make Configure fail; ctx still
+	// bounds the KMIP calls so startup cannot block indefinitely.
+	if err := p.keepKeysActiveWithClient(ctx, p.client, managedKeyUIDs(p.entries)); err != nil {
+		p.logger.Warn("Failed to refresh last-update on managed keys during startup", "err", err)
 	}
 
 	p.logger.Info("KMIP KeyManager configured",
@@ -891,7 +901,8 @@ func createServerID(idPath string) (string, error) {
 
 // keepKeysActiveTask periodically refreshes the spire-last-update Name on the keys
 // managed by this server so the reclamation task does not mistake them for
-// orphaned keys.
+// orphaned keys. Configure runs the same sweep once at startup so recovered keys
+// are refreshed even if the server restarts more often than this ticker fires.
 func (p *Plugin) keepKeysActiveTask(ctx context.Context) {
 	ticker := p.clk.Ticker(keepActiveKeysFrequency)
 	defer ticker.Stop()
@@ -911,19 +922,20 @@ func (p *Plugin) keepKeysActiveTask(ctx context.Context) {
 // keepKeysActive updates the spire-last-update Name to now on every key currently
 // managed by this server.
 func (p *Plugin) keepKeysActive(ctx context.Context) error {
-	p.logger.Debug("Refreshing spire-last-update on managed keys")
-
 	p.mu.RLock()
 	client := p.client
-	uids := make([]string, 0, len(p.entries))
-	for _, e := range p.entries {
-		uids = append(uids, e.privateKeyUID)
-	}
+	uids := managedKeyUIDs(p.entries)
 	p.mu.RUnlock()
 
+	return p.keepKeysActiveWithClient(ctx, client, uids)
+}
+
+func (p *Plugin) keepKeysActiveWithClient(ctx context.Context, client *kmipclient.Client, uids []string) error {
 	if client == nil {
 		return nil
 	}
+
+	p.logger.Debug("Refreshing spire-last-update on managed keys")
 
 	now := p.clk.Now().Unix()
 	var errs []string
@@ -937,6 +949,14 @@ func (p *Plugin) keepKeysActive(ctx context.Context) error {
 		return errors.New(strings.Join(errs, "; "))
 	}
 	return nil
+}
+
+func managedKeyUIDs(entries map[string]keyEntry) []string {
+	uids := make([]string, 0, len(entries))
+	for _, e := range entries {
+		uids = append(uids, e.privateKeyUID)
+	}
+	return uids
 }
 
 // disposeStaleKeysTask periodically scans for keys whose spire-last-update Name is
