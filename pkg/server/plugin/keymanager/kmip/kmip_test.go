@@ -479,18 +479,24 @@ func TestSignDataPSSCryptographicParameters(t *testing.T) {
 	require.NoError(t, err)
 
 	digest := sha512.Sum384([]byte("hello spire"))
-	opts := &rsa.PSSOptions{
+	signOpts := &rsa.PSSOptions{
 		SaltLength: 48,
 		Hash:       crypto.SHA384,
 	}
 
-	sig, err := key.Sign(rand.Reader, digest[:], opts)
+	sig, err := key.Sign(rand.Reader, digest[:], signOpts)
 	require.NoError(t, err)
 	require.NotEmpty(t, sig)
 
 	pub, ok := key.Public().(*rsa.PublicKey)
 	require.True(t, ok)
-	require.NoError(t, rsa.VerifyPSS(pub, crypto.SHA384, digest[:], sig, opts))
+	// The plugin intentionally omits SaltLength from the KMIP request so the
+	// KMIP server selects its default salt size instead of receiving a Go-local
+	// sentinel or caller-specific byte count on the wire.
+	require.NoError(t, rsa.VerifyPSS(pub, crypto.SHA384, digest[:], sig, &rsa.PSSOptions{
+		SaltLength: rsa.PSSSaltLengthAuto,
+		Hash:       crypto.SHA384,
+	}))
 
 	store.mu.Lock()
 	signReq := store.lastSignRequest
@@ -501,8 +507,7 @@ func TestSignDataPSSCryptographicParameters(t *testing.T) {
 	require.Equal(t, ovh.HashingAlgorithmSHA_384, signReq.CryptographicParameters.HashingAlgorithm)
 	require.Equal(t, ovh.MaskGeneratorMGF1, signReq.CryptographicParameters.MaskGenerator)
 	require.Equal(t, ovh.HashingAlgorithmSHA_384, signReq.CryptographicParameters.MaskGeneratorHashingAlgorithm)
-	require.NotNil(t, signReq.CryptographicParameters.SaltLength)
-	require.EqualValues(t, opts.SaltLength, *signReq.CryptographicParameters.SaltLength)
+	require.Nil(t, signReq.CryptographicParameters.SaltLength)
 }
 
 func TestSignDataKeyNotFound(t *testing.T) {

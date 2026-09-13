@@ -685,11 +685,15 @@ func toCryptographicParameters(kt keymanagerv1.KeyType, opts any) (ovh.Cryptogra
 		if err != nil {
 			return ovh.CryptographicParameters{}, err
 		}
-		saltLength := o.PssOptions.GetSaltLength()
+		// o.PssOptions.SaltLength may carry Go-specific sentinel values such as
+		// rsa.PSSSaltLengthAuto (0) or rsa.PSSSaltLengthEqualsHash (-1), which
+		// are not valid literal byte lengths for the KMIP Salt Length attribute.
+		// Omit SaltLength so the KMIP server can apply its default for the MGF1
+		// hash, matching the behaviour of the AWS KMS, Azure Key Vault, and
+		// HashiCorp Vault key manager plugins.
 		return ovh.CryptographicParameters{
 			HashingAlgorithm:              hashAlgo,
 			DigitalSignatureAlgorithm:     ovh.DigitalSignatureAlgorithmRSASSA_PSS,
-			SaltLength:                    &saltLength,
 			MaskGenerator:                 ovh.MaskGeneratorMGF1,
 			MaskGeneratorHashingAlgorithm: hashAlgo,
 		}, nil
