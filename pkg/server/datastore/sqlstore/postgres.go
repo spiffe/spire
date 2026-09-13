@@ -9,6 +9,7 @@ import (
 	"github.com/jinzhu/gorm"
 	"github.com/spiffe/spire/pkg/server/datastore/sqlcommon"
 	"github.com/spiffe/spire/pkg/server/datastore/sqldriver/awsrds"
+	"github.com/spiffe/spire/pkg/server/datastore/sqldriver/azurerds"
 
 	// gorm postgres `cloudsql` dialect, for GCP Cloud SQL Proxy
 	_ "github.com/GoogleCloudPlatform/cloudsql-proxy/proxy/dialers/postgres"
@@ -49,6 +50,38 @@ func (p postgresDB) connect(ctx context.Context, cfg *sqlcommon.Configuration, i
 			return nil, "", false, err
 		}
 		db, errOpen = gorm.Open(awsrds.PostgresDriverName, dsn)
+	case cfg.DBTypeConfig.AzurePostgres != nil:
+		c, err := pgx.ParseConfig(connString)
+		if err != nil {
+			return nil, "", false, err
+		}
+		if c.Password != "" {
+			return nil, "", false, errors.New("invalid postgres configuration: password should not be set when using Microsoft Entra ID authentication")
+		}
+
+		resolved, err := cfg.DBTypeConfig.AzurePostgres.Resolve()
+		if err != nil {
+			return nil, "", false, err
+		}
+
+		azurerdsConfig := &azurerds.Config{
+			AuthType:                  resolved.AuthType,
+			TenantID:                  resolved.TenantID,
+			ClientID:                  resolved.ClientID,
+			ClientSecret:              resolved.ClientSecret,
+			ClientCertificatePath:     resolved.ClientCertificatePath,
+			ClientCertificatePassword: resolved.ClientCertificatePassword,
+			SendCertificateChain:      resolved.SendCertificateChain,
+			FederatedTokenFile:        resolved.FederatedTokenFile,
+			ManagedIdentityResourceID: resolved.ManagedIdentityResourceID,
+			DriverName:                azurerds.PostgresDriverName,
+			ConnString:                connString,
+		}
+		dsn, err := azurerdsConfig.FormatDSN()
+		if err != nil {
+			return nil, "", false, err
+		}
+		db, errOpen = gorm.Open(azurerds.PostgresDriverName, dsn)
 	default:
 		db, errOpen = gorm.Open("postgres", connString)
 	}
