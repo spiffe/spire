@@ -17,6 +17,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent"
 	agentbroker "github.com/spiffe/spire/pkg/agent/broker"
 	"github.com/spiffe/spire/pkg/agent/client"
+	"github.com/spiffe/spire/pkg/agent/manager"
 	"github.com/spiffe/spire/pkg/agent/workloadkey"
 	"github.com/spiffe/spire/pkg/common/fflag"
 	"github.com/spiffe/spire/pkg/common/log"
@@ -1125,6 +1126,88 @@ func TestNewAgentConfig(t *testing.T) {
 			expectError: true,
 			input: func(c *Config) {
 				c.Agent.Experimental.ServerLoadBalancingConfig = `pick_first`
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
+			msg: "sync_retry_backoff defaults to nil",
+			input: func(_ *Config) {
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c.SyncRetryBackoff)
+			},
+		},
+		{
+			msg: "sync_retry_backoff is passed through",
+			input: func(c *Config) {
+				c.Agent.Experimental.SyncRetryBackoff = &syncRetryBackoffConfig{
+					InitialInterval:   "1s",
+					MaxInterval:       "30s",
+					BackoffMultiplier: new(1.5),
+					Jitter:            new(0.0),
+				}
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Equal(t, &manager.SyncRetryBackoffConfig{
+					InitialInterval: time.Second,
+					MaxInterval:     30 * time.Second,
+					Multiplier:      new(1.5),
+					Jitter:          new(0.0),
+				}, c.SyncRetryBackoff)
+			},
+		},
+		{
+			msg:                "invalid sync_retry_backoff initial_interval returns an error",
+			expectError:        true,
+			requireErrorPrefix: "could not parse sync_retry_backoff.initial_interval",
+			input: func(c *Config) {
+				c.Agent.Experimental.SyncRetryBackoff = &syncRetryBackoffConfig{InitialInterval: "moo"}
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
+			msg:                "non positive sync_retry_backoff initial_interval returns an error",
+			expectError:        true,
+			requireErrorPrefix: "sync_retry_backoff.initial_interval (0s) must be greater than 0",
+			input: func(c *Config) {
+				c.Agent.Experimental.SyncRetryBackoff = &syncRetryBackoffConfig{InitialInterval: "0s"}
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
+			msg:                "sync_retry_backoff max_interval lower than initial_interval returns an error",
+			expectError:        true,
+			requireErrorPrefix: "sync_retry_backoff.max_interval (1s) must not be less than sync_retry_backoff.initial_interval (2s)",
+			input: func(c *Config) {
+				c.Agent.Experimental.SyncRetryBackoff = &syncRetryBackoffConfig{InitialInterval: "2s", MaxInterval: "1s"}
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
+			msg:                "sync_retry_backoff backoff_multiplier lower than one returns an error",
+			expectError:        true,
+			requireErrorPrefix: "sync_retry_backoff.backoff_multiplier (0.50) must not be less than 1",
+			input: func(c *Config) {
+				c.Agent.Experimental.SyncRetryBackoff = &syncRetryBackoffConfig{BackoffMultiplier: new(0.5)}
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
+			msg:                "sync_retry_backoff jitter out of range returns an error",
+			expectError:        true,
+			requireErrorPrefix: "sync_retry_backoff.jitter (1.00) must be in the [0, 1) range",
+			input: func(c *Config) {
+				c.Agent.Experimental.SyncRetryBackoff = &syncRetryBackoffConfig{Jitter: new(1.0)}
 			},
 			test: func(t *testing.T, c *agent.Config) {
 				require.Nil(t, c)

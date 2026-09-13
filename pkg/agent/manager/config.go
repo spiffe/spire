@@ -22,6 +22,27 @@ import (
 	"github.com/spiffe/spire/pkg/common/tlspolicy"
 )
 
+// SyncRetryBackoffConfig configures the exponential backoff applied between
+// failed synchronizations with the server. Unset fields fall back to values
+// derived from the sync interval.
+type SyncRetryBackoffConfig struct {
+	// InitialInterval is the interval waited after the first failure.
+	// Defaults to the sync interval.
+	InitialInterval time.Duration
+
+	// MaxInterval is the upper limit of the interval between retries.
+	// Defaults to 48 times the sync interval, capped at 8 minutes.
+	MaxInterval time.Duration
+
+	// Multiplier is the factor the interval is multiplied by after each
+	// failure. Defaults to 1.5.
+	Multiplier *float64
+
+	// Jitter is the fraction of the interval the interval is randomized by.
+	// Defaults to 0.10.
+	Jitter *float64
+}
+
 // Config holds a cache manager configuration
 type Config struct {
 	// Agent SVID and key resulting from successful attestation.
@@ -40,6 +61,7 @@ type Config struct {
 	RebootstrapDelay     time.Duration
 	WorkloadKeyType      workloadkey.KeyType
 	SyncInterval         time.Duration
+	SyncRetryBackoff     *SyncRetryBackoffConfig
 	RotationInterval     time.Duration
 	SVIDStoreCache       *storecache.Cache
 	X509SVIDCacheMaxSize int

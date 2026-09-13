@@ -168,14 +168,35 @@ type manager struct {
 	processedTaintedJWTAuthorities map[string]struct{}
 }
 
+func newSynchronizeBackoff(clk clock.Clock, syncInterval time.Duration, c *SyncRetryBackoffConfig) backoff.BackOff {
+	initialInterval := syncInterval
+	// upper limit of backoff is 8 mins
+	maxInterval := min(synchronizeMaxInterval, synchronizeMaxIntervalMultiple*syncInterval)
+
+	var opts []backoff.Options
+	if c != nil {
+		if c.InitialInterval > 0 {
+			initialInterval = c.InitialInterval
+		}
+		if c.MaxInterval > 0 {
+			maxInterval = c.MaxInterval
+		}
+		if c.Multiplier != nil {
+			opts = append(opts, backoff.WithMultiplier(*c.Multiplier))
+		}
+		if c.Jitter != nil {
+			opts = append(opts, backoff.WithRandomizationFactor(*c.Jitter))
+		}
+	}
+
+	return backoff.NewBackoff(clk, initialInterval, append(opts, backoff.WithMaxInterval(maxInterval))...)
+}
+
 func (m *manager) Initialize(ctx context.Context) error {
 	m.storeSVID(m.svid.State().SVID, m.svid.State().Reattestable)
 	m.storeBundle(m.bundleCache.Bundle())
 
-	// upper limit of backoff is 8 mins
-	synchronizeBackoffMaxInterval := min(synchronizeMaxInterval, synchronizeMaxIntervalMultiple*m.c.SyncInterval)
-
-	m.synchronizeBackoff = backoff.NewBackoff(m.clk, m.c.SyncInterval, backoff.WithMaxInterval(synchronizeBackoffMaxInterval))
+	m.synchronizeBackoff = newSynchronizeBackoff(m.clk, m.c.SyncInterval, m.c.SyncRetryBackoff)
 	m.x509SVIDSyncBackoff = backoff.NewBackoff(m.clk, cache.SVIDSyncInterval, backoff.WithMaxInterval(maxSVIDSyncInterval))
 	if m.witCache != nil {
 		m.witSVIDSyncBackoff = backoff.NewBackoff(m.clk, cache.SVIDSyncInterval, backoff.WithMaxInterval(maxSVIDSyncInterval))
