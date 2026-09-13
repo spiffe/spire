@@ -235,19 +235,48 @@ func (p *Plugin) GenerateKey(ctx context.Context, req *keymanagerv1.GenerateKeyR
 	}
 
 	// Activate both keys so they can be used for Sign operations.
-	// KMIP keys start in PreActive state; Sign requires Active state.
-	for _, uid := range []string{createResp.PrivateKeyUniqueIdentifier, createResp.PublicKeyUniqueIdentifier} {
+	// KMIP keys start in PreActive state and Sign requires Active state, but
+	// Revoke is only valid once a given object actually reached Active. Track
+	// activation per UID so a failure cleans up each sibling according to the
+	// state it individually reached: activated keys are revoked then destroyed,
+	// while keys still in PreActive are destroyed directly without Revoke.
+	keyUIDs := []struct {
+		uid  string
+		kind string
+	}{
+		{uid: createResp.PrivateKeyUniqueIdentifier, kind: "private"},
+		{uid: createResp.PublicKeyUniqueIdentifier, kind: "public"},
+	}
+	activated := make(map[string]bool, len(keyUIDs))
+	for _, keyUID := range keyUIDs {
+		uid := keyUID.uid
 		if _, actErr := client.Activate(uid).ExecContext(ctx); actErr != nil {
-			// Synchronously deactivate and destroy both keys on activation failure so
-			// orphaned keys are not leaked silently; log any failure for visibility.
-			if err := revokeAndDestroy(context.WithoutCancel(ctx), client, createResp.PrivateKeyUniqueIdentifier); err != nil {
-				p.logger.Warn("Failed to revoke and destroy private key after activation failure", "uid", createResp.PrivateKeyUniqueIdentifier, "err", err)
-			}
-			if err := revokeAndDestroy(context.WithoutCancel(ctx), client, createResp.PublicKeyUniqueIdentifier); err != nil {
-				p.logger.Warn("Failed to revoke and destroy public key after activation failure", "uid", createResp.PublicKeyUniqueIdentifier, "err", err)
+			// Synchronously destroy both objects on activation failure so orphaned
+			// keys are not leaked silently. A sibling that never left PreActive
+			// must skip Revoke and be destroyed directly because KMIP requires the
+			// target of Revoke to be in Active state.
+			cleanupCtx := context.WithoutCancel(ctx)
+			for _, cleanupKey := range keyUIDs {
+				var cleanupErr error
+				action := "destroy"
+				if activated[cleanupKey.uid] {
+					action = "revoke and destroy"
+					cleanupErr = revokeAndDestroy(cleanupCtx, client, cleanupKey.uid)
+				} else {
+					cleanupErr = destroyPreActive(cleanupCtx, client, cleanupKey.uid)
+				}
+				if cleanupErr != nil {
+					p.logger.Warn("Failed to clean up key after activation failure",
+						"uid", cleanupKey.uid,
+						"key_kind", cleanupKey.kind,
+						"cleanup_action", action,
+						"err", cleanupErr,
+					)
+				}
 			}
 			return nil, status.Errorf(codes.Internal, "failed to activate key %s: %v", uid, actErr)
 		}
+		activated[uid] = true
 	}
 
 	pkixData, err := getPublicKeyPKIX(ctx, client, createResp.PublicKeyUniqueIdentifier, req.KeyType)
@@ -1038,6 +1067,16 @@ func revokeAndDestroy(ctx context.Context, c *kmipclient.Client, uid string) err
 		ExecContext(ctx); err != nil {
 		return fmt.Errorf("revoke key %s: %w", uid, err)
 	}
+	if _, err := c.Destroy(uid).ExecContext(ctx); err != nil {
+		return fmt.Errorf("destroy key %s: %w", uid, err)
+	}
+	return nil
+}
+
+// destroyPreActive destroys an object that never left the PreActive state.
+// Callers must use this direct path when activation failed because KMIP Revoke
+// is only valid for Active objects.
+func destroyPreActive(ctx context.Context, c *kmipclient.Client, uid string) error {
 	if _, err := c.Destroy(uid).ExecContext(ctx); err != nil {
 		return fmt.Errorf("destroy key %s: %w", uid, err)
 	}

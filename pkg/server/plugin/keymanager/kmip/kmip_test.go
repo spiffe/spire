@@ -10,6 +10,7 @@ import (
 	"crypto/sha256"
 	"crypto/sha512"
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -379,6 +380,55 @@ func TestGenerateKeyMissingKeyID(t *testing.T) {
 		KeyType: keymanagerv1.KeyType_EC_P256,
 	})
 	spiretest.RequireGRPCStatus(t, err, codes.InvalidArgument, "key id is required")
+}
+
+func TestGenerateKeyActivationFailureCleanup(t *testing.T) {
+	for _, tt := range []struct {
+		name             string
+		failActivateCall int
+		wantRevoked      []string
+		wantNotRevoked   []string
+	}{
+		{
+			name:             "first activation fails destroys both preactive keys directly",
+			failActivateCall: 1,
+			wantNotRevoked:   []string{"priv-0001", "pub-0002"},
+		},
+		{
+			name:             "second activation fails revokes only the key that reached active",
+			failActivateCall: 2,
+			wantRevoked:      []string{"priv-0001"},
+			wantNotRevoked:   []string{"pub-0002"},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			store := newFakeStore()
+			store.failActivateOnCall(tt.failActivateCall, errors.New("boom"))
+			addr, caPEM := kmiptest.NewServer(t, store.handler())
+			p, _ := newTestPlugin(t, addr, caPEM)
+
+			_, err := p.GenerateKey(context.Background(), &keymanagerv1.GenerateKeyRequest{
+				KeyId:   "cleanup-key",
+				KeyType: keymanagerv1.KeyType_EC_P256,
+			})
+			spiretest.RequireGRPCStatusHasPrefix(t, err, codes.Internal, "failed to activate key")
+
+			store.mu.Lock()
+			defer store.mu.Unlock()
+			require.Empty(t, store.keys, "failed activation should not leak a private key")
+			require.Empty(t, store.pubKeys, "failed activation should not leak a public key")
+			for _, uid := range tt.wantRevoked {
+				require.True(t, store.revoked[uid], "expected key %q to be revoked before destruction", uid)
+			}
+			for _, uid := range tt.wantNotRevoked {
+				require.False(t, store.revoked[uid], "expected key %q to be destroyed without revoke", uid)
+			}
+
+			p.mu.RLock()
+			defer p.mu.RUnlock()
+			require.NotContains(t, p.entries, "cleanup-key", "failed activation should not populate the in-memory index")
+		})
+	}
 }
 
 // ─── SignData ─────────────────────────────────────────────────────────────────
@@ -1009,16 +1059,27 @@ type fakeStore struct {
 	keys            map[string]*keyRecord // privUID → record
 	pubKeys         map[string]*keyRecord // pubUID → record
 	revoked         map[string]bool       // uid → revoked via the Revoke operation
+	activated       map[string]bool       // uid → successfully activated
+	activateFails   map[int]error         // 1-based Activate call number → error
+	activateCalls   int
 	lastSignRequest *payloads.SignRequestPayload
 	counter         int
 }
 
 func newFakeStore() *fakeStore {
 	return &fakeStore{
-		keys:    make(map[string]*keyRecord),
-		pubKeys: make(map[string]*keyRecord),
-		revoked: make(map[string]bool),
+		keys:          make(map[string]*keyRecord),
+		pubKeys:       make(map[string]*keyRecord),
+		revoked:       make(map[string]bool),
+		activated:     make(map[string]bool),
+		activateFails: make(map[int]error),
 	}
+}
+
+func (s *fakeStore) failActivateOnCall(call int, err error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.activateFails[call] = err
 }
 
 func (s *fakeStore) nextUID(prefix string) string {
@@ -1044,6 +1105,10 @@ func (s *fakeStore) seedPair(privUID, pubUID string, privNameAttrs, pubNameAttrs
 	}
 	s.keys[privUID] = rec
 	s.pubKeys[pubUID] = rec
+	// Seeded objects model keys that already exist on the KMIP server outside the
+	// current GenerateKey flow, so treat them as having already reached Active.
+	s.activated[privUID] = true
+	s.activated[pubUID] = true
 }
 
 func (s *fakeStore) handler() kmipserver.RequestHandler {
@@ -1080,22 +1145,36 @@ func (s *fakeStore) handler() kmipserver.RequestHandler {
 		}
 		s.keys[rec.privUID] = rec
 		s.pubKeys[rec.pubUID] = rec
+		s.activated[rec.privUID] = false
+		s.activated[rec.pubUID] = false
 		return &payloads.CreateKeyPairResponsePayload{
 			PrivateKeyUniqueIdentifier: rec.privUID,
 			PublicKeyUniqueIdentifier:  rec.pubUID,
 		}, nil
 	}))
 
-	// Activate — no-op in the fake; keys are always ready to sign.
+	// Activate records which objects reached Active state so tests can distinguish
+	// cleanup of keys that never left PreActive.
 	exec.Route(ovh.OperationActivate, kmipserver.HandleFunc(func(_ context.Context, req *payloads.ActivateRequestPayload) (*payloads.ActivateResponsePayload, error) {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		s.activateCalls++
+		if err := s.activateFails[s.activateCalls]; err != nil {
+			return nil, err
+		}
+		s.activated[req.UniqueIdentifier] = true
 		return &payloads.ActivateResponsePayload{UniqueIdentifier: req.UniqueIdentifier}, nil
 	}))
 
-	// Revoke — records the revocation so tests can assert the plugin deactivates
-	// a key before destroying it.
+	// Revoke records the revocation so tests can assert the plugin deactivates
+	// a key before destroying it. It rejects requests for objects that never
+	// reached Active, matching the KMIP rule that Revoke is invalid for PreActive.
 	exec.Route(ovh.OperationRevoke, kmipserver.HandleFunc(func(_ context.Context, req *payloads.RevokeRequestPayload) (*payloads.RevokeResponsePayload, error) {
 		s.mu.Lock()
 		defer s.mu.Unlock()
+		if !s.activated[req.UniqueIdentifier] {
+			return nil, fmt.Errorf("object %s is not active", req.UniqueIdentifier)
+		}
 		s.revoked[req.UniqueIdentifier] = true
 		return &payloads.RevokeResponsePayload{UniqueIdentifier: req.UniqueIdentifier}, nil
 	}))
@@ -1289,6 +1368,7 @@ func (s *fakeStore) handler() kmipserver.RequestHandler {
 		} else {
 			delete(s.pubKeys, req.UniqueIdentifier)
 		}
+		delete(s.activated, req.UniqueIdentifier)
 		return &payloads.DestroyResponsePayload{UniqueIdentifier: req.UniqueIdentifier}, nil
 	}))
 
