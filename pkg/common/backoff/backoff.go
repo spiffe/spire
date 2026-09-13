@@ -55,6 +55,29 @@ func WithMaxElapsedTime(maxElapsedTime time.Duration) Options {
 	return backoffOptions{maxElapsedTime: maxElapsedTime}
 }
 
+// WithMultiplier returns a backoff option to override the Multiplier
+func WithMultiplier(multiplier float64) Options {
+	return multiplierOption(multiplier)
+}
+
+// WithRandomizationFactor returns a backoff option to override the
+// RandomizationFactor, i.e. the amount of jitter applied to each interval
+func WithRandomizationFactor(randomizationFactor float64) Options {
+	return randomizationFactorOption(randomizationFactor)
+}
+
+type multiplierOption float64
+
+func (o multiplierOption) applyOptions(bo *backoff.ExponentialBackOff) {
+	bo.Multiplier = float64(o)
+}
+
+type randomizationFactorOption float64
+
+func (o randomizationFactorOption) applyOptions(bo *backoff.ExponentialBackOff) {
+	bo.RandomizationFactor = float64(o)
+}
+
 type backoffOptions struct {
 	maxInterval    time.Duration
 	maxElapsedTime time.Duration
