@@ -1612,15 +1612,17 @@ func TestNewAgentConfig(t *testing.T) {
 			},
 		},
 		{
-			msg: "ratelimit all six knobs are configurable",
+			msg: "ratelimit all eight knobs are configurable",
 			input: func(c *Config) {
-				a, b, d, e, f, g := 10, 20, 30, 40, 50, 60
+				a, b, d, e, f, g, h, i := 10, 20, 30, 40, 50, 60, 70, 80
 				c.Agent.Experimental.RateLimit.FetchX509SVID = &a
 				c.Agent.Experimental.RateLimit.FetchJWTSVID = &b
 				c.Agent.Experimental.RateLimit.FetchX509Bundles = &d
 				c.Agent.Experimental.RateLimit.FetchJWTBundles = &e
-				c.Agent.Experimental.RateLimit.StreamSecrets = &f
-				c.Agent.Experimental.RateLimit.FetchSecrets = &g
+				c.Agent.Experimental.RateLimit.FetchWITSVID = &f
+				c.Agent.Experimental.RateLimit.FetchWITBundles = &g
+				c.Agent.Experimental.RateLimit.StreamSecrets = &h
+				c.Agent.Experimental.RateLimit.FetchSecrets = &i
 			},
 			test: func(t *testing.T, ac *agent.Config) {
 				require.Equal(t, agent.WorkloadAPIRateLimitConfig{
@@ -1628,8 +1630,10 @@ func TestNewAgentConfig(t *testing.T) {
 					FetchJWTSVID:     20,
 					FetchX509Bundles: 30,
 					FetchJWTBundles:  40,
-					StreamSecrets:    50,
-					FetchSecrets:     60,
+					FetchWITSVID:     50,
+					FetchWITBundles:  60,
+					StreamSecrets:    70,
+					FetchSecrets:     80,
 				}, ac.WorkloadAPIRateLimit)
 			},
 		},
@@ -1650,6 +1654,28 @@ func TestNewAgentConfig(t *testing.T) {
 			input: func(c *Config) {
 				v := -1
 				c.Agent.Experimental.RateLimit.FetchJWTBundles = &v
+			},
+			test: func(t *testing.T, ac *agent.Config) {
+				require.Nil(t, ac)
+			},
+		},
+		{
+			msg:         "ratelimit fetch_wit_svid negative value returns an error",
+			expectError: true,
+			input: func(c *Config) {
+				v := -1
+				c.Agent.Experimental.RateLimit.FetchWITSVID = &v
+			},
+			test: func(t *testing.T, ac *agent.Config) {
+				require.Nil(t, ac)
+			},
+		},
+		{
+			msg:         "ratelimit fetch_wit_bundles negative value returns an error",
+			expectError: true,
+			input: func(c *Config) {
+				v := -1
+				c.Agent.Experimental.RateLimit.FetchWITBundles = &v
 			},
 			test: func(t *testing.T, ac *agent.Config) {
 				require.Nil(t, ac)
