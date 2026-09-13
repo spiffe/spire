@@ -38,7 +38,7 @@ The configuration file is **required** by the provider. It contains
 | ----------------------- | ------- | ------------------ | ---------------------------------------------------------------------------------------------- | -------- |
 | `serving_cert_source`   | section | required\[1\]      | Provides the [serving certificate source](#serving-certificate-source-section) configuration.  |          |
 | `acme`                  | section | required[1]        | Provides the ACME configuration. Deprecated, use `serving_cert_source "acme"` instead.         |          |
-| `serving_cert_file`     | section | required\[1\]\[4\] | Provides the serving certificate configuration. Deprecated, use `serving_cert_source "cert_file"` instead. |          |
+| `serving_cert_file`     | section | required\[1\]\[4\] | Serving certificate configuration. Deprecated, use `serving_cert_source "cert_file"` instead.  |          |
 | `allow_insecure_scheme` | bool    | optional\[3\]      | Serves OIDC configuration response with HTTP url. A warning is logged at startup when enabled. | `false`  |
 | `domains`               | strings | required           | One or more domains the provider is being served from.                                         |          |
 | `experimental`          | section | optional           | The experimental options that are subject to change or removal.                                |          |
