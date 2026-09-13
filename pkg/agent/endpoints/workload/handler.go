@@ -409,9 +409,10 @@ func (h *Handler) FetchWITBundles(_ *workload.WITBundlesRequest, stream workload
 	}
 }
 
-// filterWITIdentities drops identities that don't match the requested SPIFFE ID
-// (when one was requested) and then deduplicates the remainder by hint.
+// filterWITIdentities deduplicates identities by hint and then drops identities
+// that don't match the requested SPIFFE ID (when one was requested).
 func filterWITIdentities(identities []cache.WITIdentity, spiffeID string, log logrus.FieldLogger) []cache.WITIdentity {
+	identities = hintsfilter.FilterIdentities(identities, log)
 	if spiffeID != "" {
 		matching := make([]cache.WITIdentity, 0, len(identities))
 		for _, identity := range identities {
@@ -421,7 +422,7 @@ func filterWITIdentities(identities []cache.WITIdentity, spiffeID string, log lo
 		}
 		identities = matching
 	}
-	return hintsfilter.FilterIdentities(identities, log)
+	return identities
 }
 
 func workloadAttestationFailedError(ctx context.Context) error {

@@ -1708,6 +1708,36 @@ func TestFetchWITSVID(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "requested SPIFFE ID is hidden by duplicate hint",
+			updates: []*cache.WITWorkloadUpdate{
+				{Identities: []cache.WITIdentity{witSVID0, witSVID1}},
+			},
+			spiffeID:   witSVID1.Entry.SpiffeId,
+			expectCode: codes.PermissionDenied,
+			expectMsg:  "no identity issued",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.WarnLevel,
+					Message: "Ignoring entry with duplicate hint",
+					Data: logrus.Fields{
+						"service":                "WorkloadAPI",
+						"method":                 "FetchWITSVID",
+						telemetry.Hint:           "internal",
+						telemetry.RegistrationID: "id1",
+					},
+				},
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "No identity issued",
+					Data: logrus.Fields{
+						"registered": "false",
+						"service":    "WorkloadAPI",
+						"method":     "FetchWITSVID",
+					},
+				},
+			},
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			params := testParams{
