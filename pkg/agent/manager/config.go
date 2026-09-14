@@ -43,6 +43,26 @@ type SyncRetryBackoffConfig struct {
 	Jitter *float64
 }
 
+// EffectiveSyncRetryIntervals returns the initial and maximum intervals the
+// synchronization retry backoff uses for the given sync interval and
+// configuration, after the defaults of the unset fields are applied.
+func EffectiveSyncRetryIntervals(syncInterval time.Duration, c *SyncRetryBackoffConfig) (initialInterval, maxInterval time.Duration) {
+	initialInterval = syncInterval
+	// upper limit of backoff is 8 mins
+	maxInterval = min(synchronizeMaxInterval, synchronizeMaxIntervalMultiple*syncInterval)
+
+	if c != nil {
+		if c.InitialInterval > 0 {
+			initialInterval = c.InitialInterval
+		}
+		if c.MaxInterval > 0 {
+			maxInterval = c.MaxInterval
+		}
+	}
+
+	return initialInterval, maxInterval
+}
+
 // Config holds a cache manager configuration
 type Config struct {
 	// Agent SVID and key resulting from successful attestation.
@@ -88,7 +108,7 @@ func New(c *Config) Manager {
 
 func newManager(c *Config) *manager {
 	if c.SyncInterval == 0 {
-		c.SyncInterval = 5 * time.Second
+		c.SyncInterval = DefaultSyncInterval
 	}
 
 	if c.RotationInterval == 0 {

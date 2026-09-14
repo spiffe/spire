@@ -145,7 +145,7 @@ The `sync_retry_backoff` block configures that backoff independently of `sync_in
 | sync_retry_backoff   | Description                                                                                        | Default                                        |
 |:--------------------:|:--------------------------------------------------------------------------------------------------:|:----------------------------------------------:|
 | `initial_interval`   | Interval waited after the first failed synchronization. Must be greater than zero.                  | `sync_interval`                                |
-| `max_interval`       | Upper limit of the interval between retries. Must not be less than `initial_interval`.              | 48 times `sync_interval`, capped at 8 minutes  |
+| `max_interval`       | Upper limit of the interval between retries. Must not be less than the effective `initial_interval`. | 48 times `sync_interval`, capped at 8 minutes |
 | `backoff_multiplier` | Factor the interval is multiplied by after each failure. Must not be less than 1.                   | 1.5                                            |
 | `jitter`             | Fraction of the interval the interval is randomized by. Must be in the `[0, 1)` range.              | 0.10                                           |
 
