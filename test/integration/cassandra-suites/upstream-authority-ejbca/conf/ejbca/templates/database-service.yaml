@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.database.service.name }}
+  labels:
+    {{- include "ejbca.databaseLabels" . | nindent 4 }}
+spec:
+  type: {{ .Values.database.service.type }}
+  ports:
+  - name: tcp-db-port
+    port: {{ .Values.database.service.port }}
+    targetPort: {{ .Values.database.service.port }}
+  selector:
+    {{- include "ejbca.databaseSelectorLabels" . | nindent 4 }}

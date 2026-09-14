@@ -22,12 +22,13 @@ import (
 	ds_telemetry "github.com/spiffe/spire/pkg/common/telemetry/server/datastore"
 	km_telemetry "github.com/spiffe/spire/pkg/common/telemetry/server/keymanager"
 	"github.com/spiffe/spire/pkg/server/cache/dscache"
-	"github.com/spiffe/spire/pkg/server/datastore"
+	ds_core "github.com/spiffe/spire/pkg/server/datastore"
 	ds_sql "github.com/spiffe/spire/pkg/server/datastore/sqlstore"
 	"github.com/spiffe/spire/pkg/server/hostservice/agentstore"
 	"github.com/spiffe/spire/pkg/server/hostservice/identityprovider"
 	"github.com/spiffe/spire/pkg/server/plugin/bundlepublisher"
 	"github.com/spiffe/spire/pkg/server/plugin/credentialcomposer"
+	"github.com/spiffe/spire/pkg/server/plugin/datastore"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor/jointoken"
@@ -68,14 +69,18 @@ type Config struct {
 	IdentityProvider *identityprovider.IdentityProvider
 	AgentStore       *agentstore.AgentStore
 	HealthChecker    health.Checker
+
+	Experimental ExperimentalConfig
 }
 
-type datastoreRepository struct{ datastore.Repository }
+type ExperimentalConfig struct {
+	AllowPluggableDatastore bool
+}
 
 type Repository struct {
 	bundlePublisherRepository
 	credentialComposerRepository
-	datastoreRepository
+	dataStoreRepository
 	keyManagerRepository
 	nodeAttestorRepository
 	notifierRepository
@@ -84,6 +89,8 @@ type Repository struct {
 	log      logrus.FieldLogger
 	dsCloser io.Closer
 	catalog  *catalog.Catalog
+
+	experimentalPluggableDatastore bool
 }
 
 type dsConfigurer struct {
@@ -91,15 +98,23 @@ type dsConfigurer struct {
 }
 
 func (c *dsConfigurer) Configure(ctx context.Context, _ catalog.CoreConfig, configuration string) error {
-	return c.ds.Configure(ctx, configuration)
+	_, err := c.ds.Configure(ctx, &configv1.ConfigureRequest{
+		HclConfiguration: configuration,
+	})
+	return err
 }
 
 func (c *dsConfigurer) Validate(ctx context.Context, coreConfig catalog.CoreConfig, configuration string) (*configv1.ValidateResponse, error) {
-	return c.ds.Validate(ctx, coreConfig, configuration)
+	return c.ds.Validate(ctx, &configv1.ValidateRequest{
+		HclConfiguration: configuration,
+		CoreConfiguration: &configv1.CoreConfiguration{
+			TrustDomain: coreConfig.TrustDomain.String(),
+		},
+	})
 }
 
 func (repo *Repository) Plugins() map[string]catalog.PluginRepo {
-	return map[string]catalog.PluginRepo{
+	repos := map[string]catalog.PluginRepo{
 		bundlePublisherType:    &repo.bundlePublisherRepository,
 		credentialComposerType: &repo.credentialComposerRepository,
 		keyManagerType:         &repo.keyManagerRepository,
@@ -107,6 +122,12 @@ func (repo *Repository) Plugins() map[string]catalog.PluginRepo {
 		notifierType:           &repo.notifierRepository,
 		upstreamAuthorityType:  &repo.upstreamAuthorityRepository,
 	}
+
+	if repo.experimentalPluggableDatastore {
+		repos[dataStoreType] = &repo.dataStoreRepository
+	}
+
+	return repos
 }
 
 func (repo *Repository) Services() []catalog.ServiceRepo {
@@ -145,7 +166,8 @@ func Load(ctx context.Context, config Config) (_ *Repository, err error) {
 	}
 
 	repo := &Repository{
-		log: config.Log,
+		log:                                 config.Log,
+		experimentalPluggableDatastore: config.Experimental.AllowPluggableDatastore,
 	}
 	defer func() {
 		if err != nil {
@@ -159,33 +181,52 @@ func Load(ctx context.Context, config Config) (_ *Repository, err error) {
 
 	// Strip out the Datastore plugin configuration and load the SQL plugin
 	// directly. This allows us to bypass gRPC and get rid of response limits.
-	dataStoreConfigs, pluginConfigs := config.PluginConfigs.FilterByType(dataStoreType)
-	sqlDataStore, err := loadSQLDataStore(ctx, config, coreConfig, dataStoreConfigs)
-	if err != nil {
-		return nil, err
-	}
-	repo.dsCloser = sqlDataStore
+	dataStoreConfigs, otherConfigs := config.PluginConfigs.FilterByType(dataStoreType)
 
-	repo.catalog, err = catalog.Load(ctx, catalog.Config{
-		Log:           config.Log,
-		CoreConfig:    coreConfig,
-		PluginConfigs: pluginConfigs,
+	catalogConfig := catalog.Config{
+		Log:        config.Log,
+		CoreConfig: coreConfig,
 		HostServices: []pluginsdk.ServiceServer{
 			identityproviderv1.IdentityProviderServiceServer(config.IdentityProvider.V1()),
 			agentstorev1.AgentStoreServiceServer(config.AgentStore.V1()),
 			metricsv1.MetricsServiceServer(metricsservice.V1(config.Metrics)),
 		},
-	}, repo)
+	}
+
+	// When using the pluggable datastore, we need to pass all the plugin configs to the catalog so
+	// it can load the datastore plugin. When not using the pluggable datastore, we skip passing the
+	// datastore plugin configs because the SQL plugin is loaded directly.
+	if repo.experimentalPluggableDatastore {
+		catalogConfig.PluginConfigs = config.PluginConfigs
+	} else {
+		catalogConfig.PluginConfigs = otherConfigs
+	}
+
+	if !repo.experimentalPluggableDatastore {
+		sqlStore, err := loadSQLDataStore(ctx, config, coreConfig, dataStoreConfigs)
+		if err != nil {
+			return nil, err
+		}
+
+		repo.SetDataStore(sqlStore)
+		repo.dsCloser = sqlStore
+	}
+
+	repo.catalog, err = catalog.Load(ctx, catalogConfig, repo)
 	if err != nil {
 		return nil, err
 	}
 
-	var dataStore datastore.DataStore = sqlDataStore
-	_ = config.HealthChecker.AddCheck("catalog.datastore", &datastore.Health{
-		DataStore: dataStore,
+	if config.Experimental.AllowPluggableDatastore {
+		config.Log.WithField(telemetry.Reconfigurable, false).Info("Configured Pluggable DataStore; expect unstable behavior")
+		repo.dsCloser = repo.DataStore
+	}
+
+	_ = config.HealthChecker.AddCheck("catalog.datastore", &ds_core.Health{
+		DataStore: repo.GetDataStore(),
 	})
 
-	dataStore = ds_telemetry.WithMetrics(dataStore, config.Metrics)
+	dataStore := ds_telemetry.WithMetrics(repo.GetDataStore(), config.Metrics)
 	dataStore = dscache.New(dataStore, clock.New())
 
 	repo.SetDataStore(dataStore)
@@ -215,14 +256,19 @@ func ValidateConfig(ctx context.Context, config Config) (pluginNotes map[string]
 	datastorePluginId := fmt.Sprintf("%s \"%s\"", dataStoreType, "sql")
 	if len(dataStoreConfigs) == 0 {
 		pluginNotes[datastorePluginId] = append(pluginNotes[datastorePluginId], "'datastore' must be configured")
-	} else {
+	} else if !config.Experimental.AllowPluggableDatastore {
 		dsConfigString, err := catalog.GetPluginConfigString(dataStoreConfigs[0])
 		if err != nil {
 			return nil, fmt.Errorf("failed to get DataStore configuration: %w", err)
 		}
 
 		ds := ds_sql.New(config.Log)
-		resp, err := ds.Validate(ctx, coreConfig, dsConfigString)
+		resp, err := ds.Validate(ctx, &configv1.ValidateRequest{
+			HclConfiguration: dsConfigString,
+			CoreConfiguration: &configv1.CoreConfiguration{
+				TrustDomain: coreConfig.TrustDomain.String(),
+			},
+		})
 		if err != nil {
 			pluginNotes[datastorePluginId] = append(pluginNotes[datastorePluginId], err.Error())
 		}

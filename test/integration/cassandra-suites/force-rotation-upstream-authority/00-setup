@@ -1,0 +1,41 @@
+#!/bin/bash
+
+set -e
+
+# Function to generate a new EC key and self-signed certificate
+generate_cert() {
+    local key_path=$1
+    local crt_path=$2
+
+    openssl ecparam -name secp384r1 -genkey -noout -out "${key_path}"
+    openssl req -new -x509 -key "${key_path}" -out "${crt_path}" -days 1825 -subj "/C=US/ST=/L=/O=SPIFFE/OU=/CN=/" -config <(
+cat <<-EOF
+[req]
+default_bits = 2048
+default_md = sha512
+distinguished_name = dn
+[ dn ]
+[alt_names]
+URI.1 = spiffe://local
+[v3_req]
+subjectKeyIdentifier=hash
+basicConstraints=critical,CA:TRUE
+keyUsage=critical,keyCertSign,cRLSign
+subjectAltName = @alt_names
+EOF
+    ) -extensions 'v3_req'
+
+    chmod 644 "${key_path}" "${crt_path}"
+}
+
+"${ROOTDIR}/setup/x509pop/setup.sh" conf/server conf/agent
+
+# Generate dummy upstream CA
+generate_cert "conf/server/old_upstream_ca.key" "conf/server/old_upstream_ca.crt"
+
+# Generate new upstream CA
+generate_cert "conf/server/new_upstream_ca.key" "conf/server/new_upstream_ca.crt"
+
+cp conf/server/old_upstream_ca.crt conf/server/dummy_upstream_ca.crt
+cp conf/server/old_upstream_ca.key conf/server/dummy_upstream_ca.key
+

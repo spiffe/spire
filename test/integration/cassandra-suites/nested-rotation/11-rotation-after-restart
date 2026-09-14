@@ -1,0 +1,43 @@
+#!/bin/bash
+
+check-key-present() {
+  keyID=${2}
+  # Check at most 20 times (with one second in between) that the server has
+  # successfully started.
+  MAXCHECKS=20
+  CHECKINTERVAL=1
+  for ((i=1;i<=MAXCHECKS;i++)); do
+      log-info "checking for bundle to contain key id ${keyID} ($i of $MAXCHECKS max)..."
+      if docker compose exec -T $1 /opt/spire/bin/spire-server bundle show --format spiffe | grep -q ${keyID}; then
+        return 0
+      fi
+      sleep "${CHECKINTERVAL}"
+  done
+
+  fail-now "timed out waiting for key to be present in server bundle"
+}
+
+# Stop leaf servers and agents. This prevents them from publishing keys
+# and affecting the test. They rotate CAs/keys much more often so it's
+# possible for them to rotate during the test causing the intermediate server
+# to also start listening for updates from the upstream server.
+docker compose stop leafA-agent leafB-agent leafA-server leafB-server
+
+log-debug "restarting intermediateB server..."
+
+# Restart intermediateB server to make sure that it sees updates
+# even after restart. The intermediate servers have a longer CA TTL
+# so it should allow us to see if upstream authorities fail to propagate
+# after restart.
+docker compose restart intermediateB-server
+check-server-started intermediateB-server
+
+log-debug "rotating intermediateA JWT authority..."
+new_authority_id=$(docker compose exec -T intermediateA-server \
+  /opt/spire/bin/spire-server localauthority jwt prepare -output json | jq -r .prepared_authority.authority_id) || fail-now "could not prepare new JWT authority"
+
+log-debug "activating intermediateA JWT authority..."
+docker compose exec -T intermediateA-server \
+  /opt/spire/bin/spire-server localauthority jwt activate -authorityID ${new_authority_id} || fail-now "Could not activate new JWT authority"
+
+check-key-present intermediateB-server ${new_authority_id}
