@@ -2,6 +2,7 @@ package sigstore
 
 import (
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"os"
 	"strconv"
@@ -50,7 +51,7 @@ func loadFulcioCertPools() (*x509.CertPool, *x509.CertPool, error) {
 
 func certPoolsFromCertificateAuthorities(cas []sigstoreroot.CertificateAuthority) (*x509.CertPool, *x509.CertPool, error) {
 	if len(cas) == 0 {
-		return nil, nil, fmt.Errorf("no fulcio certificate authorities found in trusted root")
+		return nil, nil, errors.New("no fulcio certificate authorities found in trusted root")
 	}
 
 	roots := x509.NewCertPool()
@@ -62,7 +63,7 @@ func certPoolsFromCertificateAuthorities(cas []sigstoreroot.CertificateAuthority
 			return nil, nil, fmt.Errorf("unexpected certificate authority type: %T", ca)
 		}
 		if fulcioCA.Root == nil {
-			return nil, nil, fmt.Errorf("fulcio certificate authority missing root certificate")
+			return nil, nil, errors.New("fulcio certificate authority missing root certificate")
 		}
 		roots.AddCert(fulcioCA.Root)
 		for _, cert := range fulcioCA.Intermediates {
