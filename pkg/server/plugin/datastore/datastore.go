@@ -55,8 +55,6 @@ type DataStore interface {
 	ListRegistrationEntryEvents(ctx context.Context, req *ds_types.ListRegistrationEntryEventsRequest) (*ds_types.ListRegistrationEntryEventsResponse, error)
 	PruneRegistrationEntryEvents(ctx context.Context, olderThan time.Duration) error
 	FetchRegistrationEntryEvent(ctx context.Context, eventID uint) (*ds_types.RegistrationEntryEvent, error)
-	CreateRegistrationEntryEventForTesting(ctx context.Context, event *ds_types.RegistrationEntryEvent) error
-	DeleteRegistrationEntryEventForTesting(ctx context.Context, eventID uint) error
 
 	// Nodes
 	CountAttestedNodes(context.Context, *ds_types.CountAttestedNodesRequest) (int32, error)
@@ -65,14 +63,12 @@ type DataStore interface {
 	FetchAttestedNode(ctx context.Context, spiffeID string) (*common.AttestedNode, error)
 	ListAttestedNodes(context.Context, *ds_types.ListAttestedNodesRequest) (*ds_types.ListAttestedNodesResponse, error)
 	UpdateAttestedNode(context.Context, *common.AttestedNode, *common.AttestedNodeMask) (*common.AttestedNode, error)
-	PruneAttestedExpiredNodes(ctx context.Context, expiredBefore time.Time, includeNonReattestable bool) error
+	PruneAttestedExpiredNodes(ctx context.Context, expiredBefore time.Time, includeNonReattestable bool, count int) error
 
 	// Nodes Events
 	ListAttestedNodeEvents(ctx context.Context, req *ds_types.ListAttestedNodeEventsRequest) (*ds_types.ListAttestedNodeEventsResponse, error)
 	PruneAttestedNodeEvents(ctx context.Context, olderThan time.Duration) error
 	FetchAttestedNodeEvent(ctx context.Context, eventID uint) (*ds_types.AttestedNodeEvent, error)
-	CreateAttestedNodeEventForTesting(ctx context.Context, event *ds_types.AttestedNodeEvent) error
-	DeleteAttestedNodeEventForTesting(ctx context.Context, eventID uint) error
 
 	// Node selectors
 	GetNodeSelectors(ctx context.Context, spiffeID string, dataConsistency ds_types.DataConsistency) ([]*common.Selector, error)
@@ -96,7 +92,6 @@ type DataStore interface {
 	SetCAJournal(ctx context.Context, caJournal *ds_types.CAJournal) (*ds_types.CAJournal, error)
 	FetchCAJournal(ctx context.Context, activeX509AuthorityID string) (*ds_types.CAJournal, error)
 	PruneCAJournals(ctx context.Context, allCAsExpireBefore int64) error
-	ListCAJournalsForTesting(ctx context.Context) ([]*ds_types.CAJournal, error)
 
 	Close() error
 }

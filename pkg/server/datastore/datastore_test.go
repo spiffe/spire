@@ -18,26 +18,20 @@ import (
 	"testing"
 	"time"
 
-	gocql "github.com/apache/cassandra-gocql-driver/v2"
-	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
-	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/protoutil"
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/pkg/server/datastore/sqlstore"
 	"github.com/spiffe/spire/pkg/server/datastore/testdata"
-	ds_plugin "github.com/spiffe/spire/pkg/server/plugin/datastore"
-	cassandra_plugin "github.com/spiffe/spire/pkg/server/plugin/datastore/cassandra"
 	"github.com/spiffe/spire/proto/private/server/journal"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/clock"
-	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/testkey"
 	testutil "github.com/spiffe/spire/test/util"
@@ -59,19 +53,14 @@ var (
 )
 
 const (
-	_ttl                                   = time.Hour
-	_expiredNotAfterString                 = "2018-01-10T01:34:00+00:00"
-	_validNotAfterString                   = "2018-01-10T01:36:00+00:00"
-	_middleTimeString                      = "2018-01-10T01:35:00+00:00"
-	datastoreSQLNotFoundErrorMessage       = "datastore-sql: record not found"
-	datastoreCassandraNotFoundErrorMessage = "datastore(cassandra): record not found"
+	_ttl                             = time.Hour
+	_expiredNotAfterString           = "2018-01-10T01:34:00+00:00"
+	_validNotAfterString             = "2018-01-10T01:36:00+00:00"
+	_middleTimeString                = "2018-01-10T01:35:00+00:00"
+	datastoreSQLNotFoundErrorMessage = "datastore-sql: record not found"
 )
 
 var _notFoundErrMsg = func() string {
-	if TestDialect == "cassandra" {
-		return datastoreCassandraNotFoundErrorMessage
-	}
-
 	return datastoreSQLNotFoundErrorMessage
 }()
 
@@ -145,51 +134,6 @@ func (s *PluginSuite) TearDownTest() {
 	// if s.dsCloser != nil {
 	// 	s.dsCloser()
 	// }
-}
-
-func (s *PluginSuite) loadCassandraAsBuiltin(t *testing.T, log *logrus.Logger) datastore.DataStore {
-	v1 := new(ds_plugin.V1Alpha1)
-
-	parts := strings.Split(TestConnString, ";")
-	s.Require().Len(parts, 2, "addresses and keyspace must both be provided for cassandra tests")
-	keyspace := parts[1]
-	var addresses []string
-	err := json.Unmarshal([]byte(parts[0]), &addresses)
-	s.Require().NoError(err, "addresses should be a valid json string containing an array of strings")
-
-	datastoreConfig := fmt.Sprintf(`
-		hosts = ["%s"]
-		keyspace = "%s"
-		num_conns = 2
-		connect_timeout_ms = "10000"
-		read_timeout_ms = "10000"
-		write_timeout_ms = "11000"
-		driver_log_level = "ERROR"
-		write_consistency = "QUORUM"
-		read_consistency = "QUORUM"
-		`, strings.Join(addresses, `", "`), keyspace)
-
-	p := plugintest.Load(s.T(), cassandra_plugin.BuiltIn(), v1,
-		plugintest.CoreConfig(catalog.CoreConfig{
-			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
-		}),
-		// This should be sufficent for tests but we may want to change it in the future
-		plugintest.MaxGrpcMessageSize(1_000_000_000),
-		plugintest.Configure(datastoreConfig),
-		// plugintest.Log(log), // TODO(tjons): this doesn't actually work
-	)
-
-	wipeCassandra(t, addresses, keyspace) // This is fine here as long as we are using the DROP KEYSPACE approach
-	s.dsCloser = func() error {
-		err := p.Close()
-		if err != nil {
-			log.Errorf("Error closing datastore plugin: %s", err.Error())
-		}
-
-		return nil
-	}
-
-	return v1
 }
 
 func (s *PluginSuite) newPlugin() datastore.DataStore {
@@ -267,83 +211,11 @@ func (s *PluginSuite) newPlugin() datastore.DataStore {
 
 		s.configurableDs = postgresStore
 		ds = postgresStore
-	case "cassandra":
-		s.T().Logf("CONN STRING: %q", TestConnString)
-		ds = s.loadCassandraAsBuiltin(s.T(), log)
 	default:
 		s.Require().FailNowf("Unsupported external test dialect %q", TestDialect)
 	}
 
 	return ds
-}
-
-func wipeCassandra(t *testing.T, addresses []string, keyspace string) {
-	cluster := gocql.NewCluster(addresses...)
-	cluster.NumConns = 2
-	cluster.ConnectTimeout = 10 * time.Second
-	cluster.WriteTimeout = 11 * time.Second
-	cluster.Timeout = 10 * time.Second
-	cluster.Consistency = gocql.All
-	var errCount int
-
-sess:
-	sess, err := cluster.CreateSession()
-	if err != nil {
-		errCount++
-		if errCount > 5 {
-			t.Fatalf("could not create cassandra session for wiping: %v", err)
-		}
-		time.Sleep(2 * time.Second)
-		goto sess
-	}
-
-	// This approach of dropping the keyspace is easier than cleaning up the tables
-	// iteratively, but due to resource issues with connection pooling in the test suite,
-	// it's safer to truncate the tables one by one for now.
-	/*
-		dropKeyspaceCQL := fmt.Sprintf("DROP KEYSPACE IF EXISTS %s", keyspace)
-		if err := sess.Query(dropKeyspaceCQL).Exec(); err != nil {
-			if !strings.Contains(err.Error(), "does not exist") {
-				t.Fatalf("could not drop cassandra keyspace %q: %v", keyspace, err)
-			}
-		}
-	*/
-
-	tables := []string{
-		"registered_entries",
-		"registration_entry_events",
-		"attested_node_entries",
-		"attested_node_entries_events",
-		"bundles",
-		"ca_journals",
-		"federated_trust_domains",
-		"join_tokens",
-	}
-
-	for _, table := range tables {
-		for attempt := 1; attempt <= 5; attempt++ {
-			truncateCQL := fmt.Sprintf("TRUNCATE %s.%s", keyspace, table)
-			if err := sess.Query(truncateCQL).Consistency(gocql.All).Exec(); err != nil {
-				t.Fatalf("could not truncate cassandra table %q: %v", table, err)
-			}
-
-			var count int
-			countCQL := fmt.Sprintf("SELECT COUNT(*) FROM %s.%s", keyspace, table)
-			if err := sess.Query(countCQL).Consistency(gocql.All).Scan(&count); err != nil {
-				t.Logf("attempt %d: could not verify truncation of table %q: %v", attempt, table, err)
-				continue
-			}
-			if count != 0 {
-				t.Logf("attempt %d: table %q is not empty after truncation, count is %d", attempt, table, count)
-				time.Sleep(1 * time.Second)
-				continue
-			}
-
-			break
-		}
-	}
-
-	sess.Close()
 }
 
 func (s *PluginSuite) TestInvalidPluginConfiguration() {

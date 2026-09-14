@@ -3,7 +3,6 @@ package catalog
 import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/server/plugin/datastore"
-	"github.com/spiffe/spire/pkg/server/plugin/datastore/cassandra"
 )
 
 type dataStoreRepository struct {
@@ -25,12 +24,10 @@ func (repo *dataStoreRepository) Versions() []catalog.Version {
 }
 
 func (repo *dataStoreRepository) BuiltIns() []catalog.BuiltIn {
-	return []catalog.BuiltIn{
-		cassandra.BuiltIn(),
-	}
+	return []catalog.BuiltIn{}
 }
 
 type datastoreV1Alpha1 struct{}
 
-func (datastoreV1Alpha1) New() catalog.Facade { return new(datastore.V1Alpha1) }
-func (datastoreV1Alpha1) Deprecated() bool    { return false }
+func (datastoreV1Alpha1) New() catalog.Facade        { return new(datastore.V1Alpha1) }
+func (datastoreV1Alpha1) Deprecated() (bool, string) { return false, "" }
