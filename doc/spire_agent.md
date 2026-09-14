@@ -136,24 +136,22 @@ agent {
 
 ### Sync Retry Backoff
 
-When a synchronization with the SPIRE server fails, the agent retries it with an exponential backoff. By default the backoff starts at `sync_interval`, is multiplied by 1.5 after each failure, is randomized by 10%, and is capped at 48 times `sync_interval` (at most 8 minutes). With the default `sync_interval` of 5 seconds that means the agent can wait up to 4 minutes between retries, which is longer than some deployments can tolerate for a transient failure.
+When a synchronization with the SPIRE server fails, the agent retries it with an exponential backoff. The backoff starts at `sync_interval` and, by default, is multiplied by 1.5 after each failure, is randomized by 10%, and is capped at 48 times `sync_interval` (at most 8 minutes). With the default `sync_interval` of 5 seconds that means the agent can wait up to 4 minutes between retries, which is longer than some deployments can tolerate for a transient failure.
 
-The `sync_retry_backoff` block configures that backoff independently of `sync_interval`. Every field is optional; omitted fields keep the default described above.
+The `sync_retry_backoff` block configures how that backoff grows and how far it goes. Every field is optional; omitted fields keep the default described above.
 
-| sync_retry_backoff   | Description                                                                                        | Default                                        |
-|:--------------------:|:--------------------------------------------------------------------------------------------------:|:----------------------------------------------:|
-| `initial_interval`   | Interval waited after the first failed synchronization. Must be greater than zero.                  | `sync_interval`                                |
-| `max_interval`       | Upper limit of the interval between retries. Must not be less than the effective `initial_interval`. | 48 times `sync_interval`, capped at 8 minutes |
-| `backoff_multiplier` | Factor the interval is multiplied by after each failure. Must not be less than 1.                   | 1.5                                            |
-| `jitter`             | Fraction of the interval the interval is randomized by. Must be in the `[0, 1)` range.              | 0.10                                           |
+| sync_retry_backoff   | Description                                                                            | Default                                       |
+|:--------------------:|:--------------------------------------------------------------------------------------:|:---------------------------------------------:|
+| `max_interval`       | Upper limit of the interval between retries. Must not be less than `sync_interval`.     | 48 times `sync_interval`, capped at 8 minutes |
+| `backoff_multiplier` | Factor the interval is multiplied by after each failure. Must not be less than 1.       | 1.5                                           |
+| `jitter`             | Fraction of the interval the interval is randomized by. Must be in the `[0, 1)` range.  | 0.10                                          |
 
-For example, to retry more aggressively without changing how often the agent synchronizes:
+For example, to cap how long the agent waits between retries:
 
 ```hcl
 agent {
     experimental {
         sync_retry_backoff {
-            initial_interval = "1s"
             max_interval = "30s"
             backoff_multiplier = 2
             jitter = 0.1

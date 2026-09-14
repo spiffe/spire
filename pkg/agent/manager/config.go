@@ -23,13 +23,9 @@ import (
 )
 
 // SyncRetryBackoffConfig configures the exponential backoff applied between
-// failed synchronizations with the server. Unset fields fall back to values
-// derived from the sync interval.
+// failed synchronizations with the server. The backoff always starts at the
+// sync interval; unset fields fall back to values derived from it.
 type SyncRetryBackoffConfig struct {
-	// InitialInterval is the interval waited after the first failure.
-	// Defaults to the sync interval.
-	InitialInterval time.Duration
-
 	// MaxInterval is the upper limit of the interval between retries.
 	// Defaults to 48 times the sync interval, capped at 8 minutes.
 	MaxInterval time.Duration
@@ -43,24 +39,15 @@ type SyncRetryBackoffConfig struct {
 	Jitter *float64
 }
 
-// EffectiveSyncRetryIntervals returns the initial and maximum intervals the
+// EffectiveSyncRetryMaxInterval returns the maximum interval the
 // synchronization retry backoff uses for the given sync interval and
-// configuration, after the defaults of the unset fields are applied.
-func EffectiveSyncRetryIntervals(syncInterval time.Duration, c *SyncRetryBackoffConfig) (initialInterval, maxInterval time.Duration) {
-	initialInterval = syncInterval
-	// upper limit of backoff is 8 mins
-	maxInterval = min(synchronizeMaxInterval, synchronizeMaxIntervalMultiple*syncInterval)
-
-	if c != nil {
-		if c.InitialInterval > 0 {
-			initialInterval = c.InitialInterval
-		}
-		if c.MaxInterval > 0 {
-			maxInterval = c.MaxInterval
-		}
+// configuration, after the default of the unset field is applied.
+func EffectiveSyncRetryMaxInterval(syncInterval time.Duration, c *SyncRetryBackoffConfig) time.Duration {
+	if c != nil && c.MaxInterval > 0 {
+		return c.MaxInterval
 	}
-
-	return initialInterval, maxInterval
+	// upper limit of backoff is 8 mins
+	return min(synchronizeMaxInterval, synchronizeMaxIntervalMultiple*syncInterval)
 }
 
 // Config holds a cache manager configuration

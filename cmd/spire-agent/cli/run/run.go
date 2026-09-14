@@ -251,10 +251,6 @@ type workloadAPIRateLimitConfig struct {
 }
 
 type syncRetryBackoffConfig struct {
-	// InitialInterval is the interval waited after the first failed
-	// synchronization. Defaults to the sync interval.
-	InitialInterval string `hcl:"initial_interval"`
-
 	// MaxInterval is the upper limit of the interval between retries.
 	// Defaults to 48 times the sync interval, capped at 8 minutes.
 	MaxInterval string `hcl:"max_interval"`
@@ -613,17 +609,6 @@ func parseSyncRetryBackoffConfig(c *syncRetryBackoffConfig, syncInterval time.Du
 		Jitter:     c.Jitter,
 	}
 
-	if c.InitialInterval != "" {
-		initialInterval, err := time.ParseDuration(c.InitialInterval)
-		if err != nil {
-			return nil, fmt.Errorf("could not parse sync_retry_backoff.initial_interval: %w", err)
-		}
-		if initialInterval <= 0 {
-			return nil, fmt.Errorf("sync_retry_backoff.initial_interval (%s) must be greater than 0", initialInterval)
-		}
-		out.InitialInterval = initialInterval
-	}
-
 	if c.MaxInterval != "" {
 		maxInterval, err := time.ParseDuration(c.MaxInterval)
 		if err != nil {
@@ -635,9 +620,8 @@ func parseSyncRetryBackoffConfig(c *syncRetryBackoffConfig, syncInterval time.Du
 		out.MaxInterval = maxInterval
 	}
 
-	initialInterval, maxInterval := manager.EffectiveSyncRetryIntervals(syncInterval, out)
-	if maxInterval < initialInterval {
-		return nil, fmt.Errorf("effective sync_retry_backoff.max_interval (%s) must not be less than effective sync_retry_backoff.initial_interval (%s)", maxInterval, initialInterval)
+	if maxInterval := manager.EffectiveSyncRetryMaxInterval(syncInterval, out); maxInterval < syncInterval {
+		return nil, fmt.Errorf("effective sync_retry_backoff.max_interval (%s) must not be less than the sync interval (%s)", maxInterval, syncInterval)
 	}
 
 	if c.BackoffMultiplier != nil && *c.BackoffMultiplier < 1 {
