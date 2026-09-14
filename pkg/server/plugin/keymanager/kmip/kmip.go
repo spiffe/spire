@@ -475,14 +475,12 @@ func recoverKeys(ctx context.Context, client *kmipclient.Client, logger hclog.Lo
 
 		pubUID, err := getLinkedUID(ctx, client, privUID, ovh.LinkTypePublicKeyLink)
 		if err != nil {
-			logger.Warn("Failed to find linked public key during recovery", "uid", privUID, "err", err)
-			continue
+			return nil, fmt.Errorf("get linked public key for private key uid %s: %w", privUID, err)
 		}
 
 		pkixData, err := getPublicKeyPKIX(ctx, client, pubUID, keyType)
 		if err != nil {
-			logger.Warn("Failed to retrieve public key during recovery", "pub_uid", pubUID, "err", err)
-			continue
+			return nil, fmt.Errorf("get PKIX public key for private key uid %s (public key uid %s): %w", privUID, pubUID, err)
 		}
 
 		var lastUpdate int64
