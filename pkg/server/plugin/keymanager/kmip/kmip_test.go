@@ -556,6 +556,41 @@ func TestKeyRecovery(t *testing.T) {
 	require.NotNil(t, key.Public())
 }
 
+func TestRecoverKeysFunction(t *testing.T) {
+	store := newFakeStore()
+	addr, caPEM := kmiptest.NewServer(t, store.handler())
+	store.seed("recovered-priv", "recovered-pub", []string{
+		serverIDNameValue(testServerID),
+		trustDomainNameValue(testTrustDomain),
+		prefixKeyID + "recovered-key",
+		prefixKeyType + "EC_P256",
+		lastUpdateNameValue(time.Unix(1_700_000_000, 0).Unix()),
+		activeNameValue(),
+	})
+	seedECKeyMaterial(t, store, "recovered-priv", "recovered-pub")
+
+	caFile := writeTempPEM(t, caPEM)
+	client, err := buildClient(context.Background(), &Config{
+		KMIPAddr:                addr,
+		CACertPath:              caFile,
+		InsecureSkipVerify:      true,
+		parsedStaleKeyThreshold: defaultStaleKeyThreshold,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, client.Close())
+	})
+
+	entries, err := recoverKeys(context.Background(), client, hclog.NewNullLogger(), testServerID, testTrustDomain)
+	require.NoError(t, err)
+	require.Len(t, entries, 1)
+	entry, ok := entries["recovered-key"]
+	require.True(t, ok)
+	require.Equal(t, "recovered-priv", entry.privateKeyUID)
+	require.Equal(t, keymanagerv1.KeyType_EC_P256, entry.publicKey.Type)
+	require.NotEmpty(t, entry.publicKey.Fingerprint)
+}
+
 // TestGenerateKeyRotationMarksExactlyOneActiveKey reproduces the scenario flagged
 // in review: SPIRE reuses key IDs across rotations, so after GenerateKey is called
 // twice with the same KeyId, two key objects sharing that spire-key-id exist on the
