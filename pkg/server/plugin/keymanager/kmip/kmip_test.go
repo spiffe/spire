@@ -971,6 +971,80 @@ func TestDisposeStaleKeysPaginates(t *testing.T) {
 	require.Empty(t, store.keys, "all stale keys should be disposed across pages")
 }
 
+func TestRevokeAndDestroyKeyPair(t *testing.T) {
+	for _, tt := range []struct {
+		name        string
+		setup       func(*fakeStore)
+		assertError func(*testing.T, error)
+		assertStore func(*testing.T, *fakeStore)
+	}{
+		{
+			name: "linked public key lookup failure keeps the pair intact",
+			setup: func(store *fakeStore) {
+				store.seed("stale-priv", "stale-pub", []string{
+					serverIDNameValue(testServerID),
+					trustDomainNameValue(testTrustDomain),
+					lastUpdateNameValue(time.Unix(1_700_000_000, 0).Unix()),
+				})
+				store.failGetAttributes("stale-priv", ovh.AttributeNameLink, errors.New("kmip unavailable"))
+			},
+			assertError: func(t *testing.T, err error) {
+				require.ErrorContains(t, err, "get linked public key for private key stale-priv")
+				require.ErrorContains(t, err, "kmip unavailable")
+			},
+			assertStore: func(t *testing.T, store *fakeStore) {
+				store.mu.Lock()
+				defer store.mu.Unlock()
+				require.Contains(t, store.keys, "stale-priv", "private key should be retained for retry after lookup failure")
+				require.Contains(t, store.pubKeys, "stale-pub", "public key should be retained for retry after lookup failure")
+				require.False(t, store.revoked["stale-priv"], "private key should not be revoked when linked lookup fails")
+				require.False(t, store.revoked["stale-pub"], "public key should not be revoked when linked lookup fails")
+			},
+		},
+		{
+			name: "preactive keys are destroyed without revoke",
+			setup: func(store *fakeStore) {
+				store.seed("stale-priv", "stale-pub", []string{
+					serverIDNameValue(testServerID),
+					trustDomainNameValue(testTrustDomain),
+					lastUpdateNameValue(time.Unix(1_700_000_000, 0).Unix()),
+				})
+				store.mu.Lock()
+				store.activated["stale-priv"] = false
+				store.activated["stale-pub"] = false
+				store.mu.Unlock()
+			},
+			assertError: func(t *testing.T, err error) {
+				require.NoError(t, err)
+			},
+			assertStore: func(t *testing.T, store *fakeStore) {
+				store.mu.Lock()
+				defer store.mu.Unlock()
+				require.NotContains(t, store.keys, "stale-priv", "preactive private key should be destroyed")
+				require.NotContains(t, store.pubKeys, "stale-pub", "preactive public key should be destroyed")
+				require.False(t, store.revoked["stale-priv"], "preactive private key should not be revoked")
+				require.False(t, store.revoked["stale-pub"], "preactive public key should not be revoked")
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			store := newFakeStore()
+			tt.setup(store)
+			addr, caPEM := kmiptest.NewServer(t, store.handler())
+			p, _ := newTestPlugin(t, addr, caPEM)
+
+			p.mu.RLock()
+			client := p.client
+			p.mu.RUnlock()
+			require.NotNil(t, client)
+
+			err := revokeAndDestroyKeyPair(context.Background(), client, "stale-priv")
+			tt.assertError(t, err)
+			tt.assertStore(t, store)
+		})
+	}
+}
+
 func TestDisposeStaleKeysUsesConfiguredStaleKeyThreshold(t *testing.T) {
 	for _, tt := range []struct {
 		name        string
@@ -1424,17 +1498,28 @@ func (s *fakeStore) handler() kmipserver.RequestHandler {
 							LinkedObjectIdentifier: rec.pubUID,
 						},
 					})
+				case ovh.AttributeNameState:
+					attrs = append(attrs, ovh.Attribute{
+						AttributeName:  ovh.AttributeNameState,
+						AttributeValue: objectState(s.activated[req.UniqueIdentifier], s.revoked[req.UniqueIdentifier]),
+					})
 				}
 			}
 		} else if rec, ok := s.pubKeys[req.UniqueIdentifier]; ok {
 			for _, want := range req.AttributeName {
-				if want == ovh.AttributeNameName {
+				switch want {
+				case ovh.AttributeNameName:
 					for _, n := range rec.pubNameAttrs {
 						attrs = append(attrs, ovh.Attribute{
 							AttributeName:  ovh.AttributeNameName,
 							AttributeValue: ovh.Name{NameValue: n, NameType: ovh.NameTypeUninterpretedTextString},
 						})
 					}
+				case ovh.AttributeNameState:
+					attrs = append(attrs, ovh.Attribute{
+						AttributeName:  ovh.AttributeNameState,
+						AttributeValue: objectState(s.activated[req.UniqueIdentifier], s.revoked[req.UniqueIdentifier]),
+					})
 				}
 			}
 		}
@@ -1622,4 +1707,15 @@ func allNamesPresent(have, required []string) bool {
 		}
 	}
 	return true
+}
+
+func objectState(activated, revoked bool) ovh.State {
+	switch {
+	case revoked:
+		return ovh.StateDeactivated
+	case activated:
+		return ovh.StateActive
+	default:
+		return ovh.StatePreActive
+	}
 }

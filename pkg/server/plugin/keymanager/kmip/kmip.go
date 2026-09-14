@@ -38,6 +38,8 @@ import (
 
 const pluginName = "kmip"
 
+var errLinkNotFound = errors.New("linked object not found")
+
 const (
 	// keepActiveKeysFrequency is how often the keep-alive task refreshes the
 	// spire-last-update Name on keys currently managed by this server.
@@ -651,7 +653,7 @@ func getLinkedUID(ctx context.Context, c *kmipclient.Client, uid string, linkTyp
 			return link.LinkedObjectIdentifier, nil
 		}
 	}
-	return "", fmt.Errorf("no Link of type %v found on object %s", linkType, uid)
+	return "", fmt.Errorf("%w: no Link of type %v found on object %s", errLinkNotFound, linkType, uid)
 }
 
 // toCryptographicParameters maps a SPIRE SignerOpts to OVH CryptographicParameters.
@@ -1086,27 +1088,76 @@ func revokeAndDestroy(ctx context.Context, c *kmipclient.Client, uid string) err
 	return nil
 }
 
-// destroyPreActive destroys an object that never left the PreActive state.
-// Callers must use this direct path when activation failed because KMIP Revoke
-// is only valid for Active objects.
-func destroyPreActive(ctx context.Context, c *kmipclient.Client, uid string) error {
+// destroyByState chooses the correct KMIP disposal path for the object's current
+// lifecycle state. Active objects must be revoked before they can be destroyed,
+// while non-active objects can be destroyed directly.
+func destroyByState(ctx context.Context, c *kmipclient.Client, uid string) error {
+	state, err := getState(ctx, c, uid)
+	if err != nil {
+		return fmt.Errorf("get state for key %s: %w", uid, err)
+	}
+
+	switch state {
+	case ovh.StateActive:
+		return revokeAndDestroy(ctx, c, uid)
+	case ovh.StatePreActive:
+		return destroyPreActive(ctx, c, uid)
+	case ovh.StateDeactivated, ovh.StateCompromised, ovh.StateDestroyed, ovh.StateDestroyedCompromised:
+		return destroyWithoutRevoke(ctx, c, uid)
+	default:
+		return fmt.Errorf("unsupported state %v for key %s", state, uid)
+	}
+}
+
+func getState(ctx context.Context, c *kmipclient.Client, uid string) (ovh.State, error) {
+	attrResp, err := c.GetAttributes(uid, ovh.AttributeNameState).ExecContext(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("GetAttributes(State) for %s: %w", uid, err)
+	}
+	for _, attr := range attrResp.Attribute {
+		if attr.AttributeName != ovh.AttributeNameState {
+			continue
+		}
+		state, ok := attr.AttributeValue.(ovh.State)
+		if !ok {
+			return 0, fmt.Errorf("unexpected State attribute type %T for key %s", attr.AttributeValue, uid)
+		}
+		return state, nil
+	}
+	return 0, fmt.Errorf("no State attribute found on object %s", uid)
+}
+
+// destroyWithoutRevoke destroys an object directly when its current state does
+// not require a preceding Revoke transition.
+func destroyWithoutRevoke(ctx context.Context, c *kmipclient.Client, uid string) error {
 	if _, err := c.Destroy(uid).ExecContext(ctx); err != nil {
 		return fmt.Errorf("destroy key %s: %w", uid, err)
 	}
 	return nil
 }
 
+// destroyPreActive destroys an object that never left the PreActive state.
+// Callers must use this direct path when activation failed because KMIP Revoke
+// is only valid for Active objects.
+func destroyPreActive(ctx context.Context, c *kmipclient.Client, uid string) error {
+	return destroyWithoutRevoke(ctx, c, uid)
+}
+
 // revokeAndDestroyKeyPair revokes and destroys a key pair: the private key and its
 // linked public key. The public key is looked up via the private key's PublicKeyLink
 // before the private key is destroyed so the pair is never left half-destroyed.
 func revokeAndDestroyKeyPair(ctx context.Context, c *kmipclient.Client, privUID string) error {
-	if pubUID, err := getLinkedUID(ctx, c, privUID, ovh.LinkTypePublicKeyLink); err == nil && pubUID != "" {
-		if err := revokeAndDestroy(ctx, c, pubUID); err != nil {
-			return fmt.Errorf("revoke and destroy public key %s: %w", pubUID, err)
+	pubUID, err := getLinkedUID(ctx, c, privUID, ovh.LinkTypePublicKeyLink)
+	switch {
+	case err == nil && pubUID != "":
+		if err := destroyByState(ctx, c, pubUID); err != nil {
+			return fmt.Errorf("destroy public key %s: %w", pubUID, err)
 		}
+	case err != nil && !errors.Is(err, errLinkNotFound):
+		return fmt.Errorf("get linked public key for private key %s: %w", privUID, err)
 	}
-	if err := revokeAndDestroy(ctx, c, privUID); err != nil {
-		return fmt.Errorf("revoke and destroy private key %s: %w", privUID, err)
+	if err := destroyByState(ctx, c, privUID); err != nil {
+		return fmt.Errorf("destroy private key %s: %w", privUID, err)
 	}
 	return nil
 }
