@@ -432,9 +432,8 @@ type recoveredKey struct {
 	lastUpdate    int64
 }
 
-// recoverKeys fetches all private keys tagged with this server's server-id Name
-// and this plugin's trust-domain Name and rebuilds the in-memory entries map.
-// Must be called while p.mu is held.
+// recoverKeys fetches all private keys tagged with serverID and trustDomain and
+// rebuilds the in-memory entries map.
 //
 // SPIRE reuses key IDs across rotations, so more than one key object on the KMIP
 // server can carry the same spire-key-id Name at once: the key currently in use,
@@ -442,47 +441,47 @@ type recoveredKey struct {
 // destruction for staleKeyThreshold to leave a recovery window). Candidates are
 // grouped by spire-key-id and disambiguated below rather than letting the last one
 // seen silently win, which could recover a stale, superseded key as active.
-func (p *Plugin) recoverKeys(ctx context.Context) error {
-	privUIDs, err := locatePrivateKeys(ctx, p.client, ovh.Name{
-		NameValue: serverIDNameValue(p.serverID),
+func recoverKeys(ctx context.Context, client *kmipclient.Client, logger hclog.Logger, serverID, trustDomain string) (map[string]keyEntry, error) {
+	privUIDs, err := locatePrivateKeys(ctx, client, ovh.Name{
+		NameValue: serverIDNameValue(serverID),
 		NameType:  ovh.NameTypeUninterpretedTextString,
 	}, ovh.Name{
-		NameValue: trustDomainNameValue(p.trustDomain),
+		NameValue: trustDomainNameValue(trustDomain),
 		NameType:  ovh.NameTypeUninterpretedTextString,
 	})
 	if err != nil {
-		return fmt.Errorf("locate keys for server %q: %w", p.serverID, err)
+		return nil, fmt.Errorf("locate keys for server %q: %w", serverID, err)
 	}
 
 	candidates := make(map[string][]recoveredKey)
 	for _, privUID := range privUIDs {
-		attrResp, err := p.client.GetAttributes(privUID, ovh.AttributeNameName).ExecContext(ctx)
+		attrResp, err := client.GetAttributes(privUID, ovh.AttributeNameName).ExecContext(ctx)
 		if err != nil {
-			p.logger.Warn("Failed to get Name attributes during recovery", "uid", privUID, "err", err)
+			logger.Warn("Failed to get Name attributes during recovery", "uid", privUID, "err", err)
 			continue
 		}
 
 		names := collectNameValues(attrResp.Attribute)
 		spireKeyID := prefixValue(names, prefixKeyID)
 		if spireKeyID == "" {
-			p.logger.Warn("Key missing spire-key-id name; skipping", "uid", privUID)
+			logger.Warn("Key missing spire-key-id name; skipping", "uid", privUID)
 			continue
 		}
 		keyType, err := parseKeyTypeName(prefixValue(names, prefixKeyType))
 		if err != nil {
-			p.logger.Warn("Key has unrecognised spire-key-type; skipping", "uid", privUID, "err", err)
+			logger.Warn("Key has unrecognised spire-key-type; skipping", "uid", privUID, "err", err)
 			continue
 		}
 
-		pubUID, err := getLinkedUID(ctx, p.client, privUID, ovh.LinkTypePublicKeyLink)
+		pubUID, err := getLinkedUID(ctx, client, privUID, ovh.LinkTypePublicKeyLink)
 		if err != nil {
-			p.logger.Warn("Failed to find linked public key during recovery", "uid", privUID, "err", err)
+			logger.Warn("Failed to find linked public key during recovery", "uid", privUID, "err", err)
 			continue
 		}
 
-		pkixData, err := getPublicKeyPKIX(ctx, p.client, pubUID, keyType)
+		pkixData, err := getPublicKeyPKIX(ctx, client, pubUID, keyType)
 		if err != nil {
-			p.logger.Warn("Failed to retrieve public key during recovery", "pub_uid", pubUID, "err", err)
+			logger.Warn("Failed to retrieve public key during recovery", "pub_uid", pubUID, "err", err)
 			continue
 		}
 
@@ -505,15 +504,27 @@ func (p *Plugin) recoverKeys(ctx context.Context) error {
 		})
 	}
 
+	entries := make(map[string]keyEntry, len(candidates))
 	for spireKeyID, keys := range candidates {
 		winner := pickActiveKey(keys)
 		if len(keys) > 1 {
-			p.logger.Warn("Multiple keys found for spire-key-id during recovery; disambiguated",
+			logger.Warn("Multiple keys found for spire-key-id during recovery; disambiguated",
 				"spire_key_id", spireKeyID, "count", len(keys), "chosen_uid", winner.privateKeyUID)
 		}
-		p.entries[spireKeyID] = keyEntry{privateKeyUID: winner.privateKeyUID, publicKey: winner.publicKey}
-		p.logger.Debug("Recovered key", "spire_key_id", spireKeyID, "priv_uid", winner.privateKeyUID)
+		entries[spireKeyID] = keyEntry{privateKeyUID: winner.privateKeyUID, publicKey: winner.publicKey}
+		logger.Debug("Recovered key", "spire_key_id", spireKeyID, "priv_uid", winner.privateKeyUID)
 	}
+	return entries, nil
+}
+
+// recoverKeys rebuilds p.entries from the KMIP server.
+// Must be called while p.mu is held.
+func (p *Plugin) recoverKeys(ctx context.Context) error {
+	entries, err := recoverKeys(ctx, p.client, p.logger, p.serverID, p.trustDomain)
+	if err != nil {
+		return err
+	}
+	p.entries = entries
 	return nil
 }
 
