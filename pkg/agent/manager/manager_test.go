@@ -2496,12 +2496,11 @@ func TestNewSynchronizeBackoff(t *testing.T) {
 			},
 		},
 		{
-			name:         "configured initial interval, max interval and multiplier are used",
-			syncInterval: 5 * time.Second,
+			name:         "configured max interval and multiplier are used",
+			syncInterval: time.Second,
 			config: &SyncRetryBackoffConfig{
-				InitialInterval: time.Second,
-				MaxInterval:     4 * time.Second,
-				Multiplier:      new(3.0),
+				MaxInterval: 4 * time.Second,
+				Multiplier:  new(3.0),
 			},
 			expect: []time.Duration{
 				time.Second,

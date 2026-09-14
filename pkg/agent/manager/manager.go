@@ -172,7 +172,7 @@ type manager struct {
 }
 
 func newSynchronizeBackoff(clk clock.Clock, syncInterval time.Duration, c *SyncRetryBackoffConfig) backoff.BackOff {
-	initialInterval, maxInterval := EffectiveSyncRetryIntervals(syncInterval, c)
+	maxInterval := EffectiveSyncRetryMaxInterval(syncInterval, c)
 
 	var opts []backoff.Options
 	if c != nil {
@@ -184,7 +184,7 @@ func newSynchronizeBackoff(clk clock.Clock, syncInterval time.Duration, c *SyncR
 		}
 	}
 
-	return backoff.NewBackoff(clk, initialInterval, append(opts, backoff.WithMaxInterval(maxInterval))...)
+	return backoff.NewBackoff(clk, syncInterval, append(opts, backoff.WithMaxInterval(maxInterval))...)
 }
 
 func (m *manager) Initialize(ctx context.Context) error {
