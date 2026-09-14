@@ -607,7 +607,7 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 	return newAgentConfig(c, logOptions, allowUnknownConfig, false)
 }
 
-func parseSyncRetryBackoffConfig(c *syncRetryBackoffConfig) (*manager.SyncRetryBackoffConfig, error) {
+func parseSyncRetryBackoffConfig(c *syncRetryBackoffConfig, syncInterval time.Duration) (*manager.SyncRetryBackoffConfig, error) {
 	out := &manager.SyncRetryBackoffConfig{
 		Multiplier: c.BackoffMultiplier,
 		Jitter:     c.Jitter,
@@ -632,10 +632,12 @@ func parseSyncRetryBackoffConfig(c *syncRetryBackoffConfig) (*manager.SyncRetryB
 		if maxInterval <= 0 {
 			return nil, fmt.Errorf("sync_retry_backoff.max_interval (%s) must be greater than 0", maxInterval)
 		}
-		if out.InitialInterval > 0 && maxInterval < out.InitialInterval {
-			return nil, fmt.Errorf("sync_retry_backoff.max_interval (%s) must not be less than sync_retry_backoff.initial_interval (%s)", maxInterval, out.InitialInterval)
-		}
 		out.MaxInterval = maxInterval
+	}
+
+	initialInterval, maxInterval := manager.EffectiveSyncRetryIntervals(syncInterval, out)
+	if maxInterval < initialInterval {
+		return nil, fmt.Errorf("effective sync_retry_backoff.max_interval (%s) must not be less than effective sync_retry_backoff.initial_interval (%s)", maxInterval, initialInterval)
 	}
 
 	if c.BackoffMultiplier != nil && *c.BackoffMultiplier < 1 {
@@ -739,7 +741,11 @@ func newAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig, skip
 	}
 
 	if c.Agent.Experimental.SyncRetryBackoff != nil {
-		syncRetryBackoff, err := parseSyncRetryBackoffConfig(c.Agent.Experimental.SyncRetryBackoff)
+		syncInterval := ac.SyncInterval
+		if syncInterval == 0 {
+			syncInterval = manager.DefaultSyncInterval
+		}
+		syncRetryBackoff, err := parseSyncRetryBackoffConfig(c.Agent.Experimental.SyncRetryBackoff, syncInterval)
 		if err != nil {
 			return nil, err
 		}

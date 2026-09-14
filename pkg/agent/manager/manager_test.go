@@ -1395,8 +1395,8 @@ func TestSyncRetriesWithDefaultIntervalOnZeroSVIDSReturned(t *testing.T) {
 		t.Fatalf("did not attempt to fetch entries 3 times; attempts: %d", getAuthorizedEntriesAttempts)
 	}
 
-	// m.runSynchronizer should sync 2 times with the faster "defaultSyncInterval" after no entries are returned
-	if (actualSyncIntervals[0] != defaultSyncInterval) || (actualSyncIntervals[1] != defaultSyncInterval) {
+	// m.runSynchronizer should sync 2 times with the faster "DefaultSyncInterval" after no entries are returned
+	if (actualSyncIntervals[0] != DefaultSyncInterval) || (actualSyncIntervals[1] != DefaultSyncInterval) {
 		t.Fatalf("did not do a fast sync retry after 0 SVIDs were returned; sync intervals: %v", actualSyncIntervals)
 	}
 }

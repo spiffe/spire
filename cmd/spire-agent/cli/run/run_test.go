@@ -1180,14 +1180,79 @@ func TestNewAgentConfig(t *testing.T) {
 			},
 		},
 		{
+			msg:                "invalid sync_retry_backoff max_interval returns an error",
+			expectError:        true,
+			requireErrorPrefix: "could not parse sync_retry_backoff.max_interval",
+			input: func(c *Config) {
+				c.Agent.Experimental.SyncRetryBackoff = &syncRetryBackoffConfig{MaxInterval: "moo"}
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
+			msg:                "zero sync_retry_backoff max_interval returns an error",
+			expectError:        true,
+			requireErrorPrefix: "sync_retry_backoff.max_interval (0s) must be greater than 0",
+			input: func(c *Config) {
+				c.Agent.Experimental.SyncRetryBackoff = &syncRetryBackoffConfig{MaxInterval: "0s"}
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
+			msg:                "negative sync_retry_backoff max_interval returns an error",
+			expectError:        true,
+			requireErrorPrefix: "sync_retry_backoff.max_interval (-1s) must be greater than 0",
+			input: func(c *Config) {
+				c.Agent.Experimental.SyncRetryBackoff = &syncRetryBackoffConfig{MaxInterval: "-1s"}
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
 			msg:                "sync_retry_backoff max_interval lower than initial_interval returns an error",
 			expectError:        true,
-			requireErrorPrefix: "sync_retry_backoff.max_interval (1s) must not be less than sync_retry_backoff.initial_interval (2s)",
+			requireErrorPrefix: "effective sync_retry_backoff.max_interval (1s) must not be less than effective sync_retry_backoff.initial_interval (2s)",
 			input: func(c *Config) {
 				c.Agent.Experimental.SyncRetryBackoff = &syncRetryBackoffConfig{InitialInterval: "2s", MaxInterval: "1s"}
 			},
 			test: func(t *testing.T, c *agent.Config) {
 				require.Nil(t, c)
+			},
+		},
+		{
+			msg:                "sync_retry_backoff max_interval lower than the sync interval it defaults to returns an error",
+			expectError:        true,
+			requireErrorPrefix: "effective sync_retry_backoff.max_interval (1s) must not be less than effective sync_retry_backoff.initial_interval (5s)",
+			input: func(c *Config) {
+				c.Agent.Experimental.SyncRetryBackoff = &syncRetryBackoffConfig{MaxInterval: "1s"}
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
+			msg:                "sync_retry_backoff initial_interval higher than the max interval it defaults to returns an error",
+			expectError:        true,
+			requireErrorPrefix: "effective sync_retry_backoff.max_interval (4m0s) must not be less than effective sync_retry_backoff.initial_interval (10m0s)",
+			input: func(c *Config) {
+				c.Agent.Experimental.SyncRetryBackoff = &syncRetryBackoffConfig{InitialInterval: "10m"}
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
+			msg: "sync_retry_backoff max_interval is compared against the configured sync interval",
+			input: func(c *Config) {
+				c.Agent.Experimental.SyncInterval = "500ms"
+				c.Agent.Experimental.SyncRetryBackoff = &syncRetryBackoffConfig{MaxInterval: "1s"}
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Equal(t, &manager.SyncRetryBackoffConfig{MaxInterval: time.Second}, c.SyncRetryBackoff)
 			},
 		},
 		{

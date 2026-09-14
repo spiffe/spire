@@ -36,9 +36,12 @@ const (
 	synchronizeMaxIntervalMultiple = 48
 	// for larger sync interval set max interval as 8 mins
 	synchronizeMaxInterval = 8 * time.Minute
-	// default sync interval is used between retries of initial sync
-	defaultSyncInterval = 5 * time.Second
 )
+
+// DefaultSyncInterval is the interval between synchronizations with the server
+// used when none is configured. It is also the interval used between retries of
+// the initial sync.
+const DefaultSyncInterval = 5 * time.Second
 
 // ErrWITSVIDsDisabled is returned by WIT-SVID related operations when the
 // manager was not configured to enable WIT-SVIDs.
@@ -166,18 +169,10 @@ type manager struct {
 }
 
 func newSynchronizeBackoff(clk clock.Clock, syncInterval time.Duration, c *SyncRetryBackoffConfig) backoff.BackOff {
-	initialInterval := syncInterval
-	// upper limit of backoff is 8 mins
-	maxInterval := min(synchronizeMaxInterval, synchronizeMaxIntervalMultiple*syncInterval)
+	initialInterval, maxInterval := EffectiveSyncRetryIntervals(syncInterval, c)
 
 	var opts []backoff.Options
 	if c != nil {
-		if c.InitialInterval > 0 {
-			initialInterval = c.InitialInterval
-		}
-		if c.MaxInterval > 0 {
-			maxInterval = c.MaxInterval
-		}
 		if c.Multiplier != nil {
 			opts = append(opts, backoff.WithMultiplier(*c.Multiplier))
 		}
@@ -348,7 +343,7 @@ func (m *manager) FetchJWTSVID(ctx context.Context, entry *common.RegistrationEn
 }
 
 func (m *manager) runSynchronizer(ctx context.Context) error {
-	syncInterval := min(m.synchronizeBackoff.NextBackOff(), defaultSyncInterval)
+	syncInterval := min(m.synchronizeBackoff.NextBackOff(), DefaultSyncInterval)
 	for {
 		select {
 		case <-m.clk.After(syncInterval):
@@ -386,7 +381,7 @@ func (m *manager) runSynchronizer(ctx context.Context) error {
 			}
 			m.synchronizeBackoff.Reset()
 			syncInterval = m.synchronizeBackoff.NextBackOff()
-			syncInterval = min(syncInterval, defaultSyncInterval)
+			syncInterval = min(syncInterval, DefaultSyncInterval)
 			continue
 		case err != nil && nodeutil.ShouldAgentReattest(err):
 			fallthrough
@@ -404,7 +399,7 @@ func (m *manager) runSynchronizer(ctx context.Context) error {
 			// Clamp the sync interval to the default value when the agent doesn't have any SVIDs cached
 			// AND the previous sync request succeeded
 			if m.x509Cache.CountSVIDs() == 0 {
-				syncInterval = min(syncInterval, defaultSyncInterval)
+				syncInterval = min(syncInterval, DefaultSyncInterval)
 			}
 		}
 	}
