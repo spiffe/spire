@@ -591,6 +591,71 @@ func TestRecoverKeysFunction(t *testing.T) {
 	require.NotEmpty(t, entry.publicKey.Fingerprint)
 }
 
+func TestRecoverKeysFailsOnPublicKeyLookupErrors(t *testing.T) {
+	for _, tt := range []struct {
+		name        string
+		injectError func(*fakeStore)
+		expectErr   string
+	}{
+		{
+			name: "linked public key lookup",
+			injectError: func(store *fakeStore) {
+				store.failGetAttributes("broken-priv", ovh.AttributeNameLink, errors.New("kmip unavailable"))
+			},
+			expectErr: "get linked public key for private key uid broken-priv",
+		},
+		{
+			name: "public key PKIX retrieval",
+			injectError: func(store *fakeStore) {
+				store.failGet("broken-pub", errors.New("kmip unavailable"))
+			},
+			expectErr: "get PKIX public key for private key uid broken-priv (public key uid broken-pub)",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			store := newFakeStore()
+			addr, caPEM := kmiptest.NewServer(t, store.handler())
+			store.seed("good-priv", "good-pub", []string{
+				serverIDNameValue(testServerID),
+				trustDomainNameValue(testTrustDomain),
+				prefixKeyID + "good-key",
+				prefixKeyType + "EC_P256",
+				lastUpdateNameValue(time.Unix(1_700_000_000, 0).Unix()),
+				activeNameValue(),
+			})
+			store.seed("broken-priv", "broken-pub", []string{
+				serverIDNameValue(testServerID),
+				trustDomainNameValue(testTrustDomain),
+				prefixKeyID + "broken-key",
+				prefixKeyType + "EC_P256",
+				lastUpdateNameValue(time.Unix(1_700_000_001, 0).Unix()),
+				activeNameValue(),
+			})
+			seedECKeyMaterial(t, store, "good-priv", "good-pub")
+			seedECKeyMaterial(t, store, "broken-priv", "broken-pub")
+			tt.injectError(store)
+
+			caFile := writeTempPEM(t, caPEM)
+			client, err := buildClient(context.Background(), &Config{
+				KMIPAddr:                addr,
+				CACertPath:              caFile,
+				InsecureSkipVerify:      true,
+				parsedStaleKeyThreshold: defaultStaleKeyThreshold,
+			})
+			require.NoError(t, err)
+			t.Cleanup(func() {
+				require.NoError(t, client.Close())
+			})
+
+			entries, err := recoverKeys(context.Background(), client, hclog.NewNullLogger(), testServerID, testTrustDomain)
+			require.Nil(t, entries)
+			require.Error(t, err)
+			require.ErrorContains(t, err, tt.expectErr)
+			require.ErrorContains(t, err, "kmip unavailable")
+		})
+	}
+}
+
 // TestGenerateKeyRotationMarksExactlyOneActiveKey reproduces the scenario flagged
 // in review: SPIRE reuses key IDs across rotations, so after GenerateKey is called
 // twice with the same KeyId, two key objects sharing that spire-key-id exist on the
@@ -1095,24 +1160,33 @@ type keyRecord struct {
 }
 
 type fakeStore struct {
-	mu              sync.Mutex
-	keys            map[string]*keyRecord // privUID → record
-	pubKeys         map[string]*keyRecord // pubUID → record
-	revoked         map[string]bool       // uid → revoked via the Revoke operation
-	activated       map[string]bool       // uid → successfully activated
-	activateFails   map[int]error         // 1-based Activate call number → error
-	activateCalls   int
-	lastSignRequest *payloads.SignRequestPayload
-	counter         int
+	mu                 sync.Mutex
+	keys               map[string]*keyRecord // privUID → record
+	pubKeys            map[string]*keyRecord // pubUID → record
+	revoked            map[string]bool       // uid → revoked via the Revoke operation
+	activated          map[string]bool       // uid → successfully activated
+	activateFails      map[int]error         // 1-based Activate call number → error
+	getAttributesFails map[getAttributesFailureKey]error
+	getFails           map[string]error
+	activateCalls      int
+	lastSignRequest    *payloads.SignRequestPayload
+	counter            int
+}
+
+type getAttributesFailureKey struct {
+	uid           string
+	attributeName ovh.AttributeName
 }
 
 func newFakeStore() *fakeStore {
 	return &fakeStore{
-		keys:          make(map[string]*keyRecord),
-		pubKeys:       make(map[string]*keyRecord),
-		revoked:       make(map[string]bool),
-		activated:     make(map[string]bool),
-		activateFails: make(map[int]error),
+		keys:               make(map[string]*keyRecord),
+		pubKeys:            make(map[string]*keyRecord),
+		revoked:            make(map[string]bool),
+		activated:          make(map[string]bool),
+		activateFails:      make(map[int]error),
+		getAttributesFails: make(map[getAttributesFailureKey]error),
+		getFails:           make(map[string]error),
 	}
 }
 
@@ -1120,6 +1194,18 @@ func (s *fakeStore) failActivateOnCall(call int, err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.activateFails[call] = err
+}
+
+func (s *fakeStore) failGetAttributes(uid string, attributeName ovh.AttributeName, err error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.getAttributesFails[getAttributesFailureKey{uid: uid, attributeName: attributeName}] = err
+}
+
+func (s *fakeStore) failGet(uid string, err error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.getFails[uid] = err
 }
 
 func (s *fakeStore) nextUID(prefix string) string {
@@ -1290,6 +1376,9 @@ func (s *fakeStore) handler() kmipserver.RequestHandler {
 	exec.Route(ovh.OperationGet, kmipserver.HandleFunc(func(_ context.Context, req *payloads.GetRequestPayload) (*payloads.GetResponsePayload, error) {
 		s.mu.Lock()
 		defer s.mu.Unlock()
+		if err := s.getFails[req.UniqueIdentifier]; err != nil {
+			return nil, err
+		}
 		rec, ok := s.pubKeys[req.UniqueIdentifier]
 		if !ok {
 			return nil, fmt.Errorf("object %s not found", req.UniqueIdentifier)
@@ -1311,6 +1400,11 @@ func (s *fakeStore) handler() kmipserver.RequestHandler {
 	exec.Route(ovh.OperationGetAttributes, kmipserver.HandleFunc(func(_ context.Context, req *payloads.GetAttributesRequestPayload) (*payloads.GetAttributesResponsePayload, error) {
 		s.mu.Lock()
 		defer s.mu.Unlock()
+		for _, attributeName := range req.AttributeName {
+			if err := s.getAttributesFails[getAttributesFailureKey{uid: req.UniqueIdentifier, attributeName: attributeName}]; err != nil {
+				return nil, err
+			}
+		}
 		var attrs []ovh.Attribute
 		if rec, ok := s.keys[req.UniqueIdentifier]; ok {
 			for _, want := range req.AttributeName {
