@@ -90,12 +90,18 @@ func (u *bundleUpdater) UpdateBundle(ctx context.Context) (*spiffebundle.Bundle,
 	if err != nil {
 		return nil, nil, err
 	}
-	// Create if the store was empty at auth time so bootstrap roots cannot overwrite a bundle that appears before persist.
-	if localFederatedBundleOrNil == nil || usedBootstrap {
+	if usedBootstrap {
 		_, err = u.ds.CreateBundle(ctx, bundle)
 		if err != nil {
 			if status.Code(err) == codes.AlreadyExists {
-				return localFederatedBundleOrNil, nil, nil
+				// sqlstore maps any constraint violation to AlreadyExists.
+				existing, fetchErr := fetchBundleIfExists(ctx, u.ds, u.td)
+				if fetchErr != nil {
+					return localFederatedBundleOrNil, nil, fmt.Errorf("failed to store fetched federated bundle: %w", fetchErr)
+				}
+				if existing != nil {
+					return existing, nil, nil
+				}
 			}
 			return localFederatedBundleOrNil, nil, fmt.Errorf("failed to store fetched federated bundle: %w", err)
 		}
@@ -158,8 +164,11 @@ func rootCAsForSPIFFEAuth(local *spiffebundle.Bundle, cfg TrustDomainConfig, end
 	if local != nil {
 		return local.X509Authorities(), false, nil
 	}
-	if cfg.BootstrapBundlePath == "" || endpointTD != federatedTD {
+	if cfg.BootstrapBundlePath == "" {
 		return nil, false, errors.New("can't perform SPIFFE Authentication: local copy of bundle not found")
+	}
+	if endpointTD != federatedTD {
+		return nil, false, errors.New("can't perform SPIFFE Authentication: bootstrap bundle cannot be used because the endpoint SPIFFE ID is in a different trust domain")
 	}
 	certs, err := loadBootstrapX509Authorities(cfg.BootstrapBundlePath, cfg.BootstrapBundleFormat, endpointTD)
 	if err != nil {

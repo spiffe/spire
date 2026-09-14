@@ -262,7 +262,7 @@ func TestBundleUpdaterBootstrapCreateAlreadyExists(t *testing.T) {
 	})
 
 	localBundle, endpointBundle, err := updater.UpdateBundle(context.Background())
-	require.NoError(t, err)
+	spiretest.RequireErrorContains(t, err, "failed to store fetched federated bundle")
 	require.Nil(t, localBundle)
 	require.Nil(t, endpointBundle)
 	require.Equal(t, 1, ds.creates)
@@ -320,7 +320,29 @@ func TestBundleUpdaterBootstrapRequiresSelfServingEndpoint(t *testing.T) {
 	})
 
 	_, _, err := updater.UpdateBundle(context.Background())
-	spiretest.RequireErrorContains(t, err, "local copy of bundle not found")
+	spiretest.RequireErrorContains(t, err, "bootstrap bundle cannot be used because the endpoint SPIFFE ID is in a different trust domain")
+}
+
+func TestBundleUpdaterHTTPSWebFirstStoreUsesSet(t *testing.T) {
+	fetched := spiffebundle.FromX509Authorities(trustDomain, []*x509.Certificate{createCACertificate(t, "fetched")})
+	ds := &countingDataStore{DataStore: fakedatastore.New(t)}
+	updater := NewBundleUpdater(BundleUpdaterConfig{
+		DataStore:   ds,
+		TrustDomain: trustDomain,
+		TrustDomainConfig: TrustDomainConfig{
+			EndpointURL:     "ENDPOINT_ADDRESS",
+			EndpointProfile: HTTPSWebProfile{},
+		},
+		newClientHook: func(ClientConfig) (Client, error) {
+			return fakeClient{bundle: fetched}, nil
+		},
+	})
+
+	_, endpointBundle, err := updater.UpdateBundle(context.Background())
+	require.NoError(t, err)
+	require.NotNil(t, endpointBundle)
+	require.Equal(t, 0, ds.creates)
+	require.Equal(t, 1, ds.sets)
 }
 
 type alreadyExistsDataStore struct {
