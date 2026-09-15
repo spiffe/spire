@@ -1,0 +1,18 @@
+#!/bin/bash
+
+mkdir -p ./bin
+
+KIND_PATH=./bin/kind
+KUBECTL_PATH=./bin/kubectl
+
+download-kind "${KIND_PATH}"
+download-kubectl "${KUBECTL_PATH}"
+
+start-kind-cluster "${KIND_PATH}" kmip-km
+
+# Only the locally-built SPIRE image is loaded here. The KMS image is pulled
+# directly from ghcr.io by the KMS Deployment in 01-setup-kms.
+container_images=("spire-server:latest-local")
+load-images "${KIND_PATH}" kmip-km "${container_images[@]}"
+
+log-info "kind cluster 'kmip-km' ready with SPIRE and KMS images loaded"
