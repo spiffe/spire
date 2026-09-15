@@ -372,6 +372,7 @@ func (f *podListFetcher) parsePodList(podListBytes []byte, excludeCompletedPods 
 		return nil, errors.New("invalid kubelet response: expected an items array")
 	}
 	result := make(map[string]*fastjson.Value, len(items))
+	var scratch []byte
 
 	for _, podValue := range items {
 		uid := string(podValue.Get("metadata", "uid").GetStringBytes())
@@ -380,23 +381,54 @@ func (f *podListFetcher) parsePodList(podListBytes []byte, excludeCompletedPods 
 			continue
 		}
 
-		// Pods in a terminal phase (Failed or Succeeded) have no running
-		// containers and can never host a workload being attested. Failed pods
-		// include evicted pods and pods left in ContainerStatusUnknown after a
-		// node problem; Succeeded pods include completed jobs. Optionally drop
-		// them so they do not balloon the cache on nodes with many terminated
-		// pods.
-		if excludeCompletedPods {
-			phase := string(podValue.Get("status", "phase").GetStringBytes())
-			if phase == string(corev1.PodFailed) || phase == string(corev1.PodSucceeded) {
-				continue
-			}
+		if excludeCompletedPods && podIsUnattestable(podValue) {
+			continue
 		}
 
-		result[uid] = podValue
+		// Values from a single parser all alias that parser's working copy of
+		// the response and its shared value slice, so retaining any pod keeps
+		// the whole response alive. Re-parse each pod into its own parser so a
+		// cached pod costs only its own JSON.
+		scratch = podValue.MarshalTo(scratch[:0])
+		podParser := new(fastjson.Parser)
+		pod, err := podParser.ParseBytes(scratch)
+		if err != nil {
+			f.log.Warn("Unable to re-parse pod from kubelet response", "pod_uid", uid, "error", err)
+			continue
+		}
+
+		result[uid] = pod
 	}
 
 	return result, nil
+}
+
+// podIsUnattestable reports whether a pod can never again be the target of
+// workload attestation and is therefore safe to drop from the cache.
+//
+// A terminal status.phase is not sufficient on its own: an evicted pod, or one
+// left in ContainerStatusUnknown after a node problem, can sit in Failed while
+// its containers are still running. Attestation never consults the phase, it
+// matches on container ID alone (see lookUpContainerInPod), so a pod is only
+// droppable once no container status carries an ID left to match against.
+func podIsUnattestable(podValue *fastjson.Value) bool {
+	phase := string(podValue.Get("status", "phase").GetStringBytes())
+	if phase != string(corev1.PodFailed) && phase != string(corev1.PodSucceeded) {
+		return false
+	}
+
+	// Mirror the status lists lookUpContainerInPod searches. Ephemeral
+	// container statuses are deliberately excluded, since attestation never
+	// matches against them.
+	for _, statusField := range [...]string{"containerStatuses", "initContainerStatuses"} {
+		for _, containerStatus := range podValue.GetArray("status", statusField) {
+			if len(containerStatus.GetStringBytes("containerID")) > 0 {
+				return false
+			}
+		}
+	}
+
+	return true
 }
 
 func (f *podListFetcher) buildKubeletClient(config podListFetcherConfig, previousClient *kubeletClient) (*kubeletClient, error) {
