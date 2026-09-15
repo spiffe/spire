@@ -148,6 +148,14 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "failed to connect to KMIP server: %v", err)
 	}
+	closeClient := true
+	defer func() {
+		if closeClient {
+			if err := client.Close(); err != nil {
+				p.logger.Warn("Failed to close KMIP client after unsuccessful configuration", "err", err)
+			}
+		}
+	}()
 
 	serverID := cfg.ServerIDValue
 	if cfg.ServerIDFile != "" {
@@ -155,6 +163,11 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 		if err != nil {
 			return nil, status.Errorf(codes.Internal, "failed to load server ID: %v", err)
 		}
+	}
+
+	entries, err := recoverKeys(ctx, client, p.logger, serverID, req.CoreConfiguration.TrustDomain)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to recover keys from KMIP server: %v", err)
 	}
 
 	p.mu.Lock()
@@ -174,12 +187,9 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 	p.client = client
 	p.trustDomain = req.CoreConfiguration.TrustDomain
 	p.serverID = serverID
-	p.entries = make(map[string]keyEntry)
+	p.entries = entries
 	p.staleKeyThreshold = cfg.parsedStaleKeyThreshold
-
-	if err := p.recoverKeys(ctx); err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to recover keys from KMIP server: %v", err)
-	}
+	closeClient = false
 
 	// Refresh recovered keys immediately so a server that restarts more often than
 	// the keep-alive ticker period still marks them fresh at startup. Like the
@@ -515,17 +525,6 @@ func recoverKeys(ctx context.Context, client *kmipclient.Client, logger hclog.Lo
 		logger.Debug("Recovered key", "spire_key_id", spireKeyID, "priv_uid", winner.privateKeyUID)
 	}
 	return entries, nil
-}
-
-// recoverKeys rebuilds p.entries from the KMIP server.
-// Must be called while p.mu is held.
-func (p *Plugin) recoverKeys(ctx context.Context) error {
-	entries, err := recoverKeys(ctx, p.client, p.logger, p.serverID, p.trustDomain)
-	if err != nil {
-		return err
-	}
-	p.entries = entries
-	return nil
 }
 
 // pickActiveKey selects the key that should be treated as the current version of a
