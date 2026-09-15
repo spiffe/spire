@@ -4,11 +4,9 @@ package containerinfo
 
 import (
 	"errors"
-	"fmt"
 	"io/fs"
 	"os"
 	"path"
-	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -48,93 +46,15 @@ func (e *Extractor) GetPodUIDAndContainerID(pid int32, log hclog.Logger) (types.
 }
 
 func (e *Extractor) extractInfo(pid int32, log hclog.Logger, extractPodUID bool) (types.UID, string, error) {
-	// Try to get the information from /proc/pid/cgroup first. The kernel
+	// The pod UID and container ID are read from /proc/<pid>/cgroup. The kernel
 	// controls this file and a workload cannot forge it, so it is the
 	// authoritative source of identity.
 	//
-	// Only fall back to /proc/pid/mountinfo when cgroup yields nothing (e.g.
-	// same-pod attestation where the cgroup path lacks container identifiers).
-	// mountinfo is controlled by the workload's mount namespace and can be
-	// crafted to impersonate another workload by bind-mounting a foreign
-	// cgroup, so it must not take precedence over the cgroup file.
-	//
-	// It may not be possible to attest a process running in the same container
-	// as the agent because, depending on how cgroups are being used,
-	// /proc/<pid>/mountinfo or /proc/<pid>/cgroup may not contain any
-	// information on the container ID or pod.
-
-	podUID, containerID, err := e.extractPodUIDAndContainerIDFromCGroups(pid, log, extractPodUID)
-	if err != nil {
-		return "", "", err
-	}
-
-	if containerID == "" {
-		podUID, containerID, err = e.extractPodUIDAndContainerIDFromMountInfo(pid, log, extractPodUID)
-		if err != nil {
-			return "", "", err
-		}
-	}
-
-	return podUID, containerID, nil
-}
-
-func (e *Extractor) extractPodUIDAndContainerIDFromMountInfo(pid int32, log hclog.Logger, extractPodUID bool) (types.UID, string, error) {
-	mountInfoPath := filepath.Join(e.RootDir, "/proc", fmt.Sprint(pid), "mountinfo")
-
-	mountInfos, err := parseMountInfo(mountInfoPath)
-	if err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
-			return "", "", nil
-		}
-		return "", "", status.Errorf(codes.Internal, "failed to parse mount info at %q: %v", mountInfoPath, err)
-	}
-
-	if e.VerboseLogging {
-		for i, mountInfo := range mountInfos {
-			log.Debug("PID mount enumerated",
-				"index", i+1,
-				"total", len(mountInfos),
-				"type", mountInfo.FsType,
-				"root", mountInfo.Root,
-			)
-		}
-	}
-
-	// Scan the cgroup mounts for the pod UID and container ID. The container
-	// ID is in the last segment, and the pod UID will be in the second to last
-	// segment, but only when we are attesting a different pod than the agent
-	// (otherwise, the second to last segment will be "..", since the agent
-	// exists in the same pod). In the case of cgroup v1 (or a unified
-	// hierarchy), there may exist multiple cgroup mounts. Out of an abundance
-	// of caution, all cgroup mounts will be scanned. If a containerID and/or
-	// pod UID are picked out of a mount, then those extracted from any of the
-	// remaining mounts will be checked to ensure they match. If not, we'll log
-	// and fail.
-	ex := &extractor{extractPodUID: extractPodUID}
-	for _, mountInfo := range mountInfos {
-		switch mountInfo.FsType {
-		case "cgroup", "cgroup2":
-			// In addition to cgroup mountInfo with roots at cgroup paths
-			// containing identifiers, some containers mount the entire
-			// "/sys/fs/cgroup" with mountInfo.Root = "/" which will not yield
-			// any pod UID or container ID. Skip to avoid FailedPrecondition
-			// errors with empty string for container ID and pod UID.
-			if mountInfo.Root == "/" {
-				continue
-			}
-		default:
-			continue
-		}
-
-		log := log.With("mount_info_root", mountInfo.Root)
-		if err := ex.Extract(mountInfo.Root, log); err != nil {
-			return "", "", err
-		}
-	}
-	return ex.PodUID(), ex.ContainerID(), nil
-}
-
-func (e *Extractor) extractPodUIDAndContainerIDFromCGroups(pid int32, log hclog.Logger, extractPodUID bool) (types.UID, string, error) {
+	// /proc/<pid>/mountinfo is deliberately not consulted. It is controlled by
+	// the workload's mount namespace and can be crafted to impersonate another
+	// workload by bind-mounting a foreign cgroup, and on current container
+	// runtimes it carries no identifier that the cgroup file does not already
+	// provide.
 	cgroups, err := cgroups.GetCgroups(pid, os.DirFS(e.RootDir))
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
