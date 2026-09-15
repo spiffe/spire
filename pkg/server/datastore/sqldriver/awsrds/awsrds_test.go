@@ -6,6 +6,9 @@ import (
 	"database/sql/driver"
 	"errors"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -20,6 +23,11 @@ const (
 	token              = "aws-rds-host:1234?Action=connect&DBUser=test_user&X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=TESTTESTTESTTESTTEST%2F20240116%2Fus-east-2%2Frds-db%2Faws4_request&X-Amz-Date=20240116T150146Z&X-Amz-Expires=900&X-Amz-SignedHeaders=host&X-Amz-Signature=cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
 	mysqlConnString    = "test_user:@tcp(aws-rds-host:1234)/spire?parseTime=true&allowCleartextPasswords=1&tls=true"
 	postgresConnString = "dbname=postgres user=postgres host=the-host sslmode=require"
+
+	imdsToken          = "imds-session-token"
+	imdsTokenHeader    = "X-aws-ec2-metadata-token"
+	imdsTokenTTLHeader = "X-aws-ec2-metadata-token-ttl-seconds"
+	imdsRole           = "spire-server-role"
 )
 
 var (
@@ -343,6 +351,65 @@ func TestCacheToken(t *testing.T) {
 
 	// The token retrieved should be the new token.
 	require.Equal(t, newToken, token)
+}
+
+func TestNewAWSClientConfigUsesIMDSv2(t *testing.T) {
+	// Instance metadata must be the only credential source that the default
+	// chain can resolve for this test to exercise IMDS.
+	for _, name := range []string{
+		"AWS_ACCESS_KEY_ID",
+		"AWS_SECRET_ACCESS_KEY",
+		"AWS_SESSION_TOKEN",
+		"AWS_PROFILE",
+		"AWS_ROLE_ARN",
+		"AWS_WEB_IDENTITY_TOKEN_FILE",
+		"AWS_CONTAINER_CREDENTIALS_FULL_URI",
+		"AWS_CONTAINER_CREDENTIALS_RELATIVE_URI",
+	} {
+		t.Setenv(name, "")
+	}
+	missingFile := filepath.Join(t.TempDir(), "missing")
+	t.Setenv("AWS_SHARED_CREDENTIALS_FILE", missingFile)
+	t.Setenv("AWS_CONFIG_FILE", missingFile)
+
+	// Fake instance metadata service that requires IMDSv2, rejecting any
+	// request that does not carry a session token.
+	var unauthenticatedRequests int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPut && r.URL.Path == "/latest/api/token" {
+			w.Header().Set(imdsTokenTTLHeader, r.Header.Get(imdsTokenTTLHeader))
+			_, _ = w.Write([]byte(imdsToken))
+			return
+		}
+
+		if r.Header.Get(imdsTokenHeader) != imdsToken {
+			unauthenticatedRequests++
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+
+		switch r.URL.Path {
+		case "/latest/meta-data/iam/security-credentials/":
+			_, _ = w.Write([]byte(imdsRole))
+		case "/latest/meta-data/iam/security-credentials/" + imdsRole:
+			_, _ = w.Write([]byte(`{"Code":"Success","Type":"AWS-HMAC","AccessKeyId":"ACCESSKEYID","SecretAccessKey":"secretaccesskey","Token":"sessiontoken","Expiration":"2100-01-01T00:00:00Z"}`))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+	t.Setenv("AWS_EC2_METADATA_SERVICE_ENDPOINT", server.URL)
+
+	ctx := context.Background()
+	awsClientConfig, err := newAWSClientConfig(ctx, &Config{Region: "us-east-2"})
+	require.NoError(t, err)
+
+	credentials, err := awsClientConfig.Credentials.Retrieve(ctx)
+	require.NoError(t, err)
+	require.Equal(t, "ACCESSKEYID", credentials.AccessKeyID)
+	require.Equal(t, "secretaccesskey", credentials.SecretAccessKey)
+	require.Equal(t, "sessiontoken", credentials.SessionToken)
+	require.Zero(t, unauthenticatedRequests)
 }
 
 func TestFormatDSN(t *testing.T) {
