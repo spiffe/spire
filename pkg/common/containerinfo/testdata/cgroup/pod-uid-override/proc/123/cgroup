@@ -1,0 +1,2 @@
+0::/kubelet.slice/kubelet-kubepods.slice/kubelet-kubepods-pod00000000_1111_2222_3333_444444444444.slice/cri-containerd-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef.scope
+1:name=systemd:/fake/just/to/test/condition/cri-containerd-fedcba98765432100123456789abcdef0123456789abcdef0123456789abcdef.scope
