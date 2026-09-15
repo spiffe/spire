@@ -351,7 +351,7 @@ func (h *Handler) FetchWITSVID(req *workload.WITSVIDRequest, stream workload.Spi
 	subscriber, err := h.c.Manager.SubscribeToWITCacheChanges(ctx, selectors)
 	if err != nil {
 		if errors.Is(err, manager.ErrWITSVIDsDisabled) {
-			return status.Error(codes.FailedPrecondition, "WIT-SVIDs are not enabled")
+			return status.Error(codes.Unimplemented, "WIT-SVIDs are not enabled")
 		}
 		loggerWithContextInfo(ctx, log, start, err).Error("Subscribe to cache changes failed")
 		return err
@@ -389,7 +389,7 @@ func (h *Handler) FetchWITBundles(_ *workload.WITBundlesRequest, stream workload
 	subscriber, err := h.c.Manager.SubscribeToWITCacheChanges(ctx, selectors)
 	if err != nil {
 		if errors.Is(err, manager.ErrWITSVIDsDisabled) {
-			return status.Error(codes.FailedPrecondition, "WIT-SVIDs are not enabled")
+			return status.Error(codes.Unimplemented, "WIT-SVIDs are not enabled")
 		}
 		loggerWithContextInfo(ctx, log, start, err).Error("Subscribe to cache changes failed")
 		return err

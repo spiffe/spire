@@ -1616,7 +1616,7 @@ func TestFetchWITSVID(t *testing.T) {
 		{
 			name:       "WIT-SVIDs disabled",
 			managerErr: manager.ErrWITSVIDsDisabled,
-			expectCode: codes.FailedPrecondition,
+			expectCode: codes.Unimplemented,
 			expectMsg:  "WIT-SVIDs are not enabled",
 		},
 		{
@@ -1818,7 +1818,7 @@ func TestFetchWITBundles(t *testing.T) {
 		{
 			name:       "WIT-SVIDs disabled",
 			managerErr: manager.ErrWITSVIDsDisabled,
-			expectCode: codes.FailedPrecondition,
+			expectCode: codes.Unimplemented,
 			expectMsg:  "WIT-SVIDs are not enabled",
 		},
 		{
