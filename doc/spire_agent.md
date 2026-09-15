@@ -142,9 +142,9 @@ The `sync_retry_backoff` block configures how that backoff grows and how far it 
 
 | sync_retry_backoff   | Description                                                                            | Default                                       |
 |:--------------------:|:--------------------------------------------------------------------------------------:|:---------------------------------------------:|
-| `max_interval`       | Upper limit of the interval between retries. Must not be less than `sync_interval`.     | 48 times `sync_interval`, capped at 8 minutes |
-| `backoff_multiplier` | Factor the interval is multiplied by after each failure. Must not be less than 1.       | 1.5                                           |
-| `jitter`             | Fraction of the interval the interval is randomized by. Must be in the `[0, 1)` range.  | 0.10                                          |
+| `max_interval`       | Upper limit of the interval between retries. Must not be less than `sync_interval`.    | 48 times `sync_interval`, capped at 8 minutes |
+| `backoff_multiplier` | Factor the interval is multiplied by after each failure. Must not be less than 1.      | 1.5                                           |
+| `jitter`             | Fraction of the interval the interval is randomized by. Must be in the `[0, 1)` range. | 0.10                                          |
 
 For example, to cap how long the agent waits between retries:
 
