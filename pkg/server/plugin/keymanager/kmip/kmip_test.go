@@ -257,6 +257,79 @@ func TestConfigureReconfigures(t *testing.T) {
 	store2.mu.Unlock()
 }
 
+func TestConfigureFailedReconfigureLeavesPreviousStateIntact(t *testing.T) {
+	store := newFakeStore()
+	addr, caPEM := kmiptest.NewServer(t, store.handler())
+	p, _ := newTestPlugin(t, addr, caPEM)
+
+	generated, err := p.GenerateKey(context.Background(), &keymanagerv1.GenerateKeyRequest{
+		KeyId:   "existing-key",
+		KeyType: keymanagerv1.KeyType_EC_P256,
+	})
+	require.NoError(t, err)
+
+	oldEntryUID := entryPrivateKeyUID(t, p, "existing-key")
+
+	p.mu.RLock()
+	oldClient := p.client
+	oldServerID := p.serverID
+	oldTrustDomain := p.trustDomain
+	oldStaleKeyThreshold := p.staleKeyThreshold
+	p.mu.RUnlock()
+
+	store.seed("broken-priv", "broken-pub", []string{
+		serverIDNameValue("server-b"),
+		trustDomainNameValue("other.example.org"),
+		prefixKeyID + "broken-key",
+		prefixKeyType + "EC_P256",
+		lastUpdateNameValue(time.Unix(1_700_000_001, 0).Unix()),
+		activeNameValue(),
+	})
+	seedECKeyMaterial(t, store, "broken-priv", "broken-pub")
+	store.failGet("broken-pub", errors.New("kmip unavailable"))
+
+	caFile := writeTempPEM(t, caPEM)
+	_, err = p.Configure(context.Background(), &configv1.ConfigureRequest{
+		HclConfiguration: fmt.Sprintf(`
+			kmip_addr            = %q
+			ca_cert_path         = %q
+			insecure_skip_verify = true
+			server_id_value      = %q
+			stale_key_threshold  = "24h"
+		`, addr, caFile, "server-b"),
+		CoreConfiguration: &configv1.CoreConfiguration{
+			TrustDomain: "other.example.org",
+		},
+	})
+	spiretest.RequireGRPCStatusHasPrefix(t, err, codes.Internal, "failed to recover keys from KMIP server")
+
+	p.mu.RLock()
+	require.Same(t, oldClient, p.client, "failed reconfigure must keep the previous client")
+	require.Equal(t, oldServerID, p.serverID, "failed reconfigure must keep the previous server ID")
+	require.Equal(t, oldTrustDomain, p.trustDomain, "failed reconfigure must keep the previous trust domain")
+	require.Equal(t, oldStaleKeyThreshold, p.staleKeyThreshold, "failed reconfigure must keep the previous stale key threshold")
+	entry, ok := p.entries["existing-key"]
+	p.mu.RUnlock()
+	require.True(t, ok, "failed reconfigure must keep existing entries")
+	require.Equal(t, oldEntryUID, entry.privateKeyUID, "failed reconfigure must keep the existing key mapping")
+
+	gotPublicKey, err := p.GetPublicKey(context.Background(), &keymanagerv1.GetPublicKeyRequest{KeyId: "existing-key"})
+	require.NoError(t, err)
+	require.Equal(t, generated.PublicKey.Fingerprint, gotPublicKey.PublicKey.Fingerprint)
+
+	digest := sha256.Sum256([]byte("still works"))
+	signResp, err := p.SignData(context.Background(), &keymanagerv1.SignDataRequest{
+		KeyId: "existing-key",
+		Data:  digest[:],
+		SignerOpts: &keymanagerv1.SignDataRequest_HashAlgorithm{
+			HashAlgorithm: keymanagerv1.HashAlgorithm_SHA256,
+		},
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, signResp.Signature, "failed reconfigure must leave the previous client usable")
+	require.Equal(t, generated.PublicKey.Fingerprint, signResp.KeyFingerprint)
+}
+
 func TestGetOrCreateServerID(t *testing.T) {
 	t.Run("creates a new ID when the file does not exist", func(t *testing.T) {
 		path := filepath.Join(t.TempDir(), "server-id")
