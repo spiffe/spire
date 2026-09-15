@@ -6,7 +6,6 @@ package hintsfilter
 
 import (
 	"github.com/sirupsen/logrus"
-	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/proto/spire/common"
 )
@@ -26,18 +25,24 @@ func FilterRegistrations(entries []*common.RegistrationEntry, log logrus.FieldLo
 	return filteredEntries
 }
 
+// Identity is any cached workload identity that can be traced back to the
+// registration entry it was issued for.
+type Identity interface {
+	GetEntry() *common.RegistrationEntry
+}
+
 // FilterIdentities returns identities whose underlying registration entries
 // survive hint deduplication. Same tie-breaking rules as FilterRegistrations.
-func FilterIdentities(identities []cache.X509Identity, log logrus.FieldLogger) []cache.X509Identity {
+func FilterIdentities[T Identity](identities []T, log logrus.FieldLogger) []T {
 	entries := make([]*common.RegistrationEntry, 0, len(identities))
 	for _, identity := range identities {
-		entries = append(entries, identity.Entry)
+		entries = append(entries, identity.GetEntry())
 	}
 	entriesToRemove := getEntriesToRemove(entries, log)
 
-	var filteredIdentities []cache.X509Identity
+	var filteredIdentities []T
 	for _, identity := range identities {
-		if _, ok := entriesToRemove[identity.Entry.EntryId]; !ok {
+		if _, ok := entriesToRemove[identity.GetEntry().EntryId]; !ok {
 			filteredIdentities = append(filteredIdentities, identity)
 		}
 	}

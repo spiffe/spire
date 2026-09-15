@@ -55,6 +55,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/peer"
+	"google.golang.org/grpc/status"
 )
 
 var (
@@ -1106,7 +1107,7 @@ func TestWITSVIDSynchronization(t *testing.T) {
 	m := newManager(newWITTestConfig(t, dir, api, km, clk, true))
 	require.NoError(t, m.Initialize(context.Background()))
 
-	// The WIT-SVIDs are synchronized alongside the X509-SVIDs
+	// The initial WIT-SVID sync succeeds during initialization.
 	require.Equal(t, m.x509Cache.CountSVIDs(), m.witCache.CountSVIDs())
 	require.Positive(t, m.witCache.CountSVIDs())
 
@@ -1126,6 +1127,43 @@ func TestWITSVIDSynchronization(t *testing.T) {
 			require.NotNil(t, identity.PrivateKey)
 		}
 	})
+}
+
+func TestWITSVIDSyncFailureIsIsolated(t *testing.T) {
+	dir := spiretest.TempDir(t)
+	km := fakeagentkeymanager.New(t, dir)
+
+	clk := clock.NewMock(t)
+	api := newMockAPI(t, &mockAPIConfig{
+		km: km,
+		getAuthorizedEntries: func(*mockAPI, int32, *entryv1.GetAuthorizedEntriesRequest) (*entryv1.GetAuthorizedEntriesResponse, error) {
+			return makeGetAuthorizedEntriesResponse(t, "resp1", "resp2"), nil
+		},
+		batchNewX509SVIDEntries: func(*mockAPI, int32) []*common.RegistrationEntry {
+			return makeBatchNewX509SVIDEntries("resp1", "resp2")
+		},
+		batchNewWITSVID: func(*mockAPI, int32, *svidv1.BatchNewWITSVIDRequest) (*svidv1.BatchNewWITSVIDResponse, error) {
+			return nil, status.Error(codes.Unimplemented, "WIT functionality is disabled")
+		},
+		svidTTL: 200,
+		clk:     clk,
+	})
+
+	m := newManager(newWITTestConfig(t, dir, api, km, clk, true))
+	require.NoError(t, m.Initialize(context.Background()))
+	require.Positive(t, m.x509Cache.CountSVIDs())
+	require.Zero(t, m.witCache.CountSVIDs())
+	require.Equal(t, int32(1), api.batchNewWITSVIDCount.Load())
+
+	// WIT-SVID failures do not fail entry synchronization or X509-SVID sync,
+	// and neither path retries WIT-SVID minting.
+	require.NoError(t, m.synchronize(context.Background()))
+	require.NoError(t, m.syncX509SVIDs(context.Background()))
+	require.Equal(t, int32(1), api.batchNewWITSVIDCount.Load())
+
+	// WIT-SVID sync reports the error to its independent retry loop.
+	require.Error(t, m.syncWITSVIDs(context.Background()))
+	require.Equal(t, int32(2), api.batchNewWITSVIDCount.Load())
 }
 
 func newWITTestConfig(t *testing.T, dir string, api *mockAPI, km keymanager.KeyManager, clk clock.Clock, enableWITSVIDs bool) *Config {
@@ -1576,7 +1614,7 @@ func TestSyncSVIDsWithLRUCache(t *testing.T) {
 	syncErrCh := make(chan error, 1)
 	// run svid sync
 	go func(ctx context.Context) {
-		syncErrCh <- m.runSyncSVIDs(ctx)
+		syncErrCh <- m.runSyncX509SVIDs(ctx)
 	}(ctx)
 
 	// keep clk moving so that subscriber keeps looking for svid
@@ -2039,6 +2077,7 @@ type mockAPIConfig struct {
 	km                      keymanager.KeyManager
 	getAuthorizedEntries    func(api *mockAPI, count int32, req *entryv1.GetAuthorizedEntriesRequest) (*entryv1.GetAuthorizedEntriesResponse, error)
 	batchNewX509SVIDEntries func(api *mockAPI, count int32) []*common.RegistrationEntry
+	batchNewWITSVID         func(api *mockAPI, count int32, req *svidv1.BatchNewWITSVIDRequest) (*svidv1.BatchNewWITSVIDResponse, error)
 	newJWTSVID              func(api *mockAPI, req *svidv1.NewJWTSVIDRequest) (*svidv1.NewJWTSVIDResponse, error)
 
 	svidTTL int
@@ -2203,7 +2242,10 @@ func (h *mockAPI) BatchNewX509SVID(_ context.Context, req *svidv1.BatchNewX509SV
 }
 
 func (h *mockAPI) BatchNewWITSVID(_ context.Context, req *svidv1.BatchNewWITSVIDRequest) (*svidv1.BatchNewWITSVIDResponse, error) {
-	h.batchNewWITSVIDCount.Add(1)
+	count := h.batchNewWITSVIDCount.Add(1)
+	if h.c.batchNewWITSVID != nil {
+		return h.c.batchNewWITSVID(h, count, req)
+	}
 
 	now := h.clk.Now()
 	resp := new(svidv1.BatchNewWITSVIDResponse)

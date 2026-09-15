@@ -37,8 +37,9 @@ type X509Identity struct {
 	PrivateKey crypto.Signer
 }
 
-func (i X509Identity) entryID() string {
-	return i.Entry.EntryId
+// GetEntry returns the registration entry the identity was issued for.
+func (i X509Identity) GetEntry() *common.RegistrationEntry {
+	return i.Entry
 }
 
 // X509WorkloadUpdate is used to convey X509 workload information to cache subscribers.
