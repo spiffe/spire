@@ -9,6 +9,7 @@ import (
 	loggerv1 "github.com/spiffe/spire/pkg/agent/api/logger/v1"
 	"github.com/spiffe/spire/pkg/agent/broker"
 	"github.com/spiffe/spire/pkg/agent/endpoints"
+	"github.com/spiffe/spire/pkg/agent/manager"
 	"github.com/spiffe/spire/pkg/agent/trustbundlesources"
 	"github.com/spiffe/spire/pkg/agent/workloadkey"
 	"github.com/spiffe/spire/pkg/common/catalog"
@@ -87,6 +88,11 @@ type Config struct {
 
 	// SyncInterval controls how often the agent sync synchronizer waits
 	SyncInterval time.Duration
+
+	// SyncRetryBackoff overrides the exponential backoff applied between
+	// failed synchronizations with the server. Unset fields are derived from
+	// SyncInterval.
+	SyncRetryBackoff *manager.SyncRetryBackoffConfig
 
 	// X509SVIDCacheMaxSize is a soft limit of max number of X509-SVIDs that would be stored in cache
 	X509SVIDCacheMaxSize int

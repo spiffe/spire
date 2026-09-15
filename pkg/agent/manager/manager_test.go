@@ -1395,8 +1395,8 @@ func TestSyncRetriesWithDefaultIntervalOnZeroSVIDSReturned(t *testing.T) {
 		t.Fatalf("did not attempt to fetch entries 3 times; attempts: %d", getAuthorizedEntriesAttempts)
 	}
 
-	// m.runSynchronizer should sync 2 times with the faster "defaultSyncInterval" after no entries are returned
-	if (actualSyncIntervals[0] != defaultSyncInterval) || (actualSyncIntervals[1] != defaultSyncInterval) {
+	// m.runSynchronizer should sync 2 times with the faster "DefaultSyncInterval" after no entries are returned
+	if (actualSyncIntervals[0] != DefaultSyncInterval) || (actualSyncIntervals[1] != DefaultSyncInterval) {
 		t.Fatalf("did not do a fast sync retry after 0 SVIDs were returned; sync intervals: %v", actualSyncIntervals)
 	}
 }
@@ -2422,4 +2422,89 @@ func openStorage(t *testing.T, dir string) storage.Storage {
 	sto, err := storage.Open(dir)
 	require.NoError(t, err)
 	return sto
+}
+
+func TestNewSynchronizeBackoff(t *testing.T) {
+	for _, tt := range []struct {
+		name         string
+		syncInterval time.Duration
+		config       *SyncRetryBackoffConfig
+		expect       []time.Duration
+	}{
+		{
+			name:         "defaults to the sync interval capped at 48 times the sync interval",
+			syncInterval: 5 * time.Second,
+			expect: []time.Duration{
+				5000 * time.Millisecond,
+				7500 * time.Millisecond,
+				11250 * time.Millisecond,
+				16875 * time.Millisecond,
+				25312 * time.Millisecond,
+				37968 * time.Millisecond,
+			},
+		},
+		{
+			name:         "defaults are capped at eight minutes for large sync intervals",
+			syncInterval: 5 * time.Minute,
+			expect: []time.Duration{
+				5 * time.Minute,
+				450 * time.Second,
+				8 * time.Minute,
+				8 * time.Minute,
+			},
+		},
+		{
+			name:         "configured max interval and multiplier are used",
+			syncInterval: time.Second,
+			config: &SyncRetryBackoffConfig{
+				MaxInterval: 4 * time.Second,
+				Multiplier:  new(3.0),
+			},
+			expect: []time.Duration{
+				time.Second,
+				3 * time.Second,
+				4 * time.Second,
+				4 * time.Second,
+			},
+		},
+		{
+			name:         "unset fields fall back to the defaults",
+			syncInterval: 5 * time.Second,
+			config: &SyncRetryBackoffConfig{
+				MaxInterval: 15 * time.Second,
+			},
+			expect: []time.Duration{
+				5000 * time.Millisecond,
+				7500 * time.Millisecond,
+				11250 * time.Millisecond,
+				15 * time.Second,
+				15 * time.Second,
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			clk := clock.NewMock(t)
+			jitter := 0.10
+			if tt.config != nil {
+				tt.config.Jitter = &jitter
+			}
+
+			b := newSynchronizeBackoff(clk, tt.syncInterval, tt.config)
+			for _, expect := range tt.expect {
+				actual := b.NextBackOff()
+				require.GreaterOrEqual(t, actual, expect-time.Duration(jitter*float64(expect)))
+				require.LessOrEqual(t, actual, expect+time.Duration(jitter*float64(expect)))
+				clk.Add(expect)
+			}
+		})
+	}
+}
+
+func TestNewSynchronizeBackoffJitter(t *testing.T) {
+	clk := clock.NewMock(t)
+	b := newSynchronizeBackoff(clk, 5*time.Second, &SyncRetryBackoffConfig{Jitter: new(0.0)})
+
+	require.Equal(t, 5*time.Second, b.NextBackOff())
+	clk.Add(5 * time.Second)
+	require.Equal(t, 7500*time.Millisecond, b.NextBackOff())
 }

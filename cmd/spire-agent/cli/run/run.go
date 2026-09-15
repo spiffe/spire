@@ -29,6 +29,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent"
 	"github.com/spiffe/spire/pkg/agent/broker"
 	"github.com/spiffe/spire/pkg/agent/client"
+	"github.com/spiffe/spire/pkg/agent/manager"
 	"github.com/spiffe/spire/pkg/agent/trustbundlesources"
 	"github.com/spiffe/spire/pkg/agent/workloadkey"
 	"github.com/spiffe/spire/pkg/common/catalog"
@@ -249,6 +250,22 @@ type workloadAPIRateLimitConfig struct {
 	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions"`
 }
 
+type syncRetryBackoffConfig struct {
+	// MaxInterval is the upper limit of the interval between retries.
+	// Defaults to 48 times the sync interval, capped at 8 minutes.
+	MaxInterval string `hcl:"max_interval"`
+
+	// BackoffMultiplier is the factor the interval is multiplied by after
+	// each failed synchronization. Defaults to 1.5.
+	BackoffMultiplier *float64 `hcl:"backoff_multiplier"`
+
+	// Jitter is the fraction of the interval the interval is randomized by.
+	// Defaults to 0.10.
+	Jitter *float64 `hcl:"jitter"`
+
+	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions"`
+}
+
 type experimentalConfig struct {
 	SyncInterval              string `hcl:"sync_interval"`
 	JWTSVIDCacheHitTimeout    string `hcl:"jwt_svid_cache_hit_timeout"`
@@ -258,6 +275,10 @@ type experimentalConfig struct {
 	AdminNamedPipeName        string `hcl:"admin_named_pipe_name"`
 	RequirePQKEM              bool   `hcl:"require_pq_kem"`
 	ServerLoadBalancingConfig string `hcl:"server_load_balancing_config"`
+
+	// SyncRetryBackoff holds the configuration of the exponential backoff
+	// applied between failed synchronizations with the server.
+	SyncRetryBackoff *syncRetryBackoffConfig `hcl:"sync_retry_backoff"`
 
 	RateLimit workloadAPIRateLimitConfig `hcl:"ratelimit"`
 
@@ -582,6 +603,38 @@ func NewAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool)
 	return newAgentConfig(c, logOptions, allowUnknownConfig, false)
 }
 
+func parseSyncRetryBackoffConfig(c *syncRetryBackoffConfig, syncInterval time.Duration) (*manager.SyncRetryBackoffConfig, error) {
+	out := &manager.SyncRetryBackoffConfig{
+		Multiplier: c.BackoffMultiplier,
+		Jitter:     c.Jitter,
+	}
+
+	if c.MaxInterval != "" {
+		maxInterval, err := time.ParseDuration(c.MaxInterval)
+		if err != nil {
+			return nil, fmt.Errorf("could not parse sync_retry_backoff.max_interval: %w", err)
+		}
+		if maxInterval <= 0 {
+			return nil, fmt.Errorf("sync_retry_backoff.max_interval (%s) must be greater than 0", maxInterval)
+		}
+		out.MaxInterval = maxInterval
+	}
+
+	if maxInterval := manager.EffectiveSyncRetryMaxInterval(syncInterval, out); maxInterval < syncInterval {
+		return nil, fmt.Errorf("effective sync_retry_backoff.max_interval (%s) must not be less than the sync interval (%s)", maxInterval, syncInterval)
+	}
+
+	if c.BackoffMultiplier != nil && *c.BackoffMultiplier < 1 {
+		return nil, fmt.Errorf("sync_retry_backoff.backoff_multiplier (%.2f) must not be less than 1", *c.BackoffMultiplier)
+	}
+
+	if c.Jitter != nil && (*c.Jitter < 0 || *c.Jitter >= 1) {
+		return nil, fmt.Errorf("sync_retry_backoff.jitter (%.2f) must be in the [0, 1) range", *c.Jitter)
+	}
+
+	return out, nil
+}
+
 func newAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig, skipLogFile bool) (*agent.Config, error) {
 	ac := &agent.Config{}
 
@@ -669,6 +722,19 @@ func newAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig, skip
 		}
 		client.SetJWTSVIDCacheHitTimeout(timeout)
 		logger.Warn("The use of 'jwt_svid_cache_hit_timeout' is experimental")
+	}
+
+	if c.Agent.Experimental.SyncRetryBackoff != nil {
+		syncInterval := ac.SyncInterval
+		if syncInterval == 0 {
+			syncInterval = manager.DefaultSyncInterval
+		}
+		syncRetryBackoff, err := parseSyncRetryBackoffConfig(c.Agent.Experimental.SyncRetryBackoff, syncInterval)
+		if err != nil {
+			return nil, err
+		}
+		ac.SyncRetryBackoff = syncRetryBackoff
+		logger.Warn("The use of 'sync_retry_backoff' is experimental")
 	}
 
 	if c.Agent.Experimental.RPCTimeout != "" {
@@ -941,6 +1007,10 @@ func checkForUnknownConfig(c *Config, l logrus.FieldLogger) (err error) {
 
 	if a := c.Agent; a != nil && a.LogFileRotation != nil && len(a.LogFileRotation.UnusedKeyPositions) != 0 {
 		detectedUnknown("log_file_rotation", a.LogFileRotation.UnusedKeyPositions)
+	}
+
+	if a := c.Agent; a != nil && a.Experimental.SyncRetryBackoff != nil && len(a.Experimental.SyncRetryBackoff.UnusedKeyPositions) != 0 {
+		detectedUnknown("experimental.sync_retry_backoff", a.Experimental.SyncRetryBackoff.UnusedKeyPositions)
 	}
 
 	if a := c.Agent; a != nil && a.Experimental.Broker != nil {

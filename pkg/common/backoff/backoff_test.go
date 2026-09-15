@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/spiffe/spire/test/clock"
+	"github.com/stretchr/testify/require"
 )
 
 // modified from `TestBackoff` in "github.com/cenkalti/backoff/v4", narrowed down to specific usage
@@ -58,5 +59,40 @@ func inRange(t *testing.T, expected time.Duration, b BackOff) {
 	actualInterval := b.NextBackOff()
 	if !(minInterval <= actualInterval && actualInterval <= maxInterval) {
 		t.Error("error")
+	}
+}
+
+func TestBackOffWithMultiplier(t *testing.T) {
+	testInitialInterval := 1000 * time.Millisecond
+
+	mockClk := clock.NewMock(t)
+	b := NewBackoff(mockClk, testInitialInterval, WithMultiplier(3))
+
+	expectedResults := []time.Duration{}
+	for _, d := range []int{1000, 3000, 9000, 24000, 24000} {
+		expectedResults = append(expectedResults, time.Duration(d)*time.Millisecond)
+	}
+
+	for _, expected := range expectedResults {
+		// Assert that the next backoff falls in the expected range.
+		inRange(t, expected, b)
+		mockClk.Add(expected)
+	}
+}
+
+func TestBackOffWithRandomizationFactor(t *testing.T) {
+	testInitialInterval := 1000 * time.Millisecond
+
+	mockClk := clock.NewMock(t)
+	b := NewBackoff(mockClk, testInitialInterval, WithRandomizationFactor(0))
+
+	expectedResults := []time.Duration{}
+	for _, d := range []int{1000, 1500, 2250, 3375} {
+		expectedResults = append(expectedResults, time.Duration(d)*time.Millisecond)
+	}
+
+	for _, expected := range expectedResults {
+		require.Equal(t, expected, b.NextBackOff())
+		mockClk.Add(expected)
 	}
 }
