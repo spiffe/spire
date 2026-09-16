@@ -54,12 +54,15 @@ func TestBackOffWithMaxInterval(t *testing.T) {
 }
 
 func inRange(t *testing.T, expected time.Duration, b BackOff) {
-	minInterval := expected - time.Duration(_jitter*float64(expected))
-	maxInterval := expected + time.Duration(_jitter*float64(expected))
+	inRangeWithFactor(t, expected, _jitter, b)
+}
+
+func inRangeWithFactor(t *testing.T, expected time.Duration, factor float64, b BackOff) {
+	minInterval := expected - time.Duration(factor*float64(expected))
+	maxInterval := expected + time.Duration(factor*float64(expected))
 	actualInterval := b.NextBackOff()
-	if !(minInterval <= actualInterval && actualInterval <= maxInterval) {
-		t.Error("error")
-	}
+	require.GreaterOrEqual(t, actualInterval, minInterval)
+	require.LessOrEqual(t, actualInterval, maxInterval)
 }
 
 func TestBackOffWithMultiplier(t *testing.T) {
@@ -82,9 +85,10 @@ func TestBackOffWithMultiplier(t *testing.T) {
 
 func TestBackOffWithRandomizationFactor(t *testing.T) {
 	testInitialInterval := 1000 * time.Millisecond
+	testRandomizationFactor := 0.5
 
 	mockClk := clock.NewMock(t)
-	b := NewBackoff(mockClk, testInitialInterval, WithRandomizationFactor(0))
+	b := NewBackoff(mockClk, testInitialInterval, WithRandomizationFactor(testRandomizationFactor))
 
 	expectedResults := []time.Duration{}
 	for _, d := range []int{1000, 1500, 2250, 3375} {
@@ -92,7 +96,18 @@ func TestBackOffWithRandomizationFactor(t *testing.T) {
 	}
 
 	for _, expected := range expectedResults {
-		require.Equal(t, expected, b.NextBackOff())
+		inRangeWithFactor(t, expected, testRandomizationFactor, b)
 		mockClk.Add(expected)
 	}
+
+	// The configured factor is wider than the default jitter, so over enough
+	// draws at least one interval must land outside the default band.
+	outsideDefaultBand := false
+	for i := 0; i < 200 && !outsideDefaultBand; i++ {
+		b.Reset()
+		actual := b.NextBackOff()
+		deviation := (actual - testInitialInterval).Abs()
+		outsideDefaultBand = deviation > time.Duration(_jitter*float64(testInitialInterval))
+	}
+	require.True(t, outsideDefaultBand, "randomization factor %v was not applied; every interval fell within the default jitter of %v", testRandomizationFactor, _jitter)
 }
