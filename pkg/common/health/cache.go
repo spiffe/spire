@@ -186,7 +186,7 @@ func (c *cache) startRunner(ctx context.Context) {
 		<-startSteadyStateHealthCheckCh
 		for {
 			select {
-			case <-c.clk.After(readyCheckInterval):
+			case <-c.clk.After(c.nextCheckInterval()):
 			case <-ctx.Done():
 				return
 			}
@@ -194,6 +194,18 @@ func (c *cache) startRunner(ctx context.Context) {
 			checkFunc()
 		}
 	}()
+}
+
+// nextCheckInterval returns a shorter interval while any check is failing so
+// that a recovery is detected quickly.
+func (c *cache) nextCheckInterval() time.Duration {
+	for _, status := range c.getStatuses() {
+		if status.err != nil {
+			return readyCheckFailureInterval
+		}
+	}
+
+	return readyCheckInterval
 }
 
 func (c *cache) setStatus(name string, prevState checkState, state checkState) {

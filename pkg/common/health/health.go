@@ -15,7 +15,8 @@ import (
 
 const (
 	readyCheckInitialInterval = time.Second
-	readyCheckInterval        = time.Minute
+	readyCheckInterval        = 5 * time.Second
+	readyCheckFailureInterval = time.Second
 )
 
 // State is the health state of a subsystem.
