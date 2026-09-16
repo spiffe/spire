@@ -2,7 +2,6 @@ package endpoints
 
 import (
 	"context"
-	"errors"
 	"sync"
 	"time"
 
@@ -101,8 +100,5 @@ func (a *AuthorizedEntryFetcherWithFullCache) PruneEventsTask(ctx context.Contex
 }
 
 func (a *AuthorizedEntryFetcherWithFullCache) pruneEvents(ctx context.Context, olderThan time.Duration) error {
-	pruneRegistrationEntryEventsErr := a.ds.PruneRegistrationEntryEvents(ctx, olderThan)
-	pruneAttestedNodeEventsErr := a.ds.PruneAttestedNodeEvents(ctx, olderThan)
-
-	return errors.Join(pruneRegistrationEntryEventsErr, pruneAttestedNodeEventsErr)
+	return a.ds.PruneEvents(ctx, &datastore.PruneEventsRequest{OlderThan: olderThan})
 }

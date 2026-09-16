@@ -117,6 +117,10 @@ type Plugin struct {
 	roDb                *sqlDB
 	log                 logrus.FieldLogger
 	useServerTimestamps bool
+	now                 func() time.Time
+
+	registrationEntryChanges changeTracker
+	attestedNodeChanges      changeTracker
 }
 
 // New creates a new sql plugin struct. Configure must be called
@@ -124,6 +128,7 @@ type Plugin struct {
 func New(log logrus.FieldLogger) *Plugin {
 	return &Plugin{
 		log: log,
+		now: time.Now,
 	}
 }
 
@@ -404,23 +409,7 @@ func (ds *Plugin) PruneAttestedExpiredNodes(ctx context.Context, expiredBefore t
 	})
 }
 
-// ListAttestedNodeEvents lists all attested node events
-func (ds *Plugin) ListAttestedNodeEvents(ctx context.Context, req *datastore.ListAttestedNodeEventsRequest) (resp *datastore.ListAttestedNodeEventsResponse, err error) {
-	if req.DataConsistency == datastore.TolerateStale && ds.roDb != nil {
-		return listAttestedNodeEvents(ds.roDb, req)
-	}
-	return listAttestedNodeEvents(ds.db, req)
-}
-
-// PruneAttestedNodeEvents deletes all attested node events older than a specified duration (i.e. more than 24 hours old)
-func (ds *Plugin) PruneAttestedNodeEvents(ctx context.Context, olderThan time.Duration) (err error) {
-	return ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
-		err = pruneAttestedNodeEvents(tx, olderThan)
-		return err
-	})
-}
-
-// CreateRegistrationEntryEventForTestingForTesting creates an attested node event. Used for unit testing.
+// CreateAttestedNodeEventForTesting creates an attested node event. Used for unit testing.
 func (ds *Plugin) CreateAttestedNodeEventForTesting(ctx context.Context, event *datastore.AttestedNodeEvent) error {
 	return ds.withWriteTx(ctx, func(tx *gorm.DB) error {
 		return createAttestedNodeEvent(tx, event)
@@ -432,18 +421,6 @@ func (ds *Plugin) DeleteAttestedNodeEventForTesting(ctx context.Context, eventID
 	return ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
 		return deleteAttestedNodeEvent(tx, eventID)
 	})
-}
-
-// FetchAttestedNodeEvent fetches an existing attested node event by event ID
-func (ds *Plugin) FetchAttestedNodeEvent(ctx context.Context, eventID uint) (event *datastore.AttestedNodeEvent, err error) {
-	if err = ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
-		event, err = fetchAttestedNodeEvent(ds.db, eventID)
-		return err
-	}); err != nil {
-		return nil, err
-	}
-
-	return event, nil
 }
 
 // SetNodeSelectors sets node (agent) selectors by SPIFFE ID, deleting old selectors first
@@ -598,22 +575,6 @@ func (ds *Plugin) PruneRegistrationEntries(ctx context.Context, expiresBefore ti
 	})
 }
 
-// ListRegistrationEntryEvents lists all registration entry events
-func (ds *Plugin) ListRegistrationEntryEvents(ctx context.Context, req *datastore.ListRegistrationEntryEventsRequest) (resp *datastore.ListRegistrationEntryEventsResponse, err error) {
-	if req.DataConsistency == datastore.TolerateStale && ds.roDb != nil {
-		return listRegistrationEntryEvents(ds.roDb, req)
-	}
-	return listRegistrationEntryEvents(ds.db, req)
-}
-
-// PruneRegistrationEntryEvents deletes all registration entry events older than a specified duration (i.e. more than 24 hours old)
-func (ds *Plugin) PruneRegistrationEntryEvents(ctx context.Context, olderThan time.Duration) (err error) {
-	return ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
-		err = pruneRegistrationEntryEvents(tx, olderThan)
-		return err
-	})
-}
-
 // CreateRegistrationEntryEventForTesting creates a registration entry event. Used for unit testing.
 func (ds *Plugin) CreateRegistrationEntryEventForTesting(ctx context.Context, event *datastore.RegistrationEntryEvent) error {
 	return ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
@@ -626,18 +587,6 @@ func (ds *Plugin) DeleteRegistrationEntryEventForTesting(ctx context.Context, ev
 	return ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
 		return deleteRegistrationEntryEvent(tx, eventID)
 	})
-}
-
-// FetchRegistrationEntryEvent fetches an existing registration entry event by event ID
-func (ds *Plugin) FetchRegistrationEntryEvent(ctx context.Context, eventID uint) (event *datastore.RegistrationEntryEvent, err error) {
-	if err = ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
-		event, err = fetchRegistrationEntryEvent(ds.db, eventID)
-		return err
-	}); err != nil {
-		return nil, err
-	}
-
-	return event, nil
 }
 
 // CreateJoinToken takes a Token message and stores it
@@ -872,7 +821,17 @@ func (ds *Plugin) Configure(ctx context.Context, hclConfiguration string) error 
 		return err
 	}
 
-	return ds.openConnections(ctx, config)
+	ds.registrationEntryChanges.mu.Lock()
+	defer ds.registrationEntryChanges.mu.Unlock()
+	ds.attestedNodeChanges.mu.Lock()
+	defer ds.attestedNodeChanges.mu.Unlock()
+
+	if err := ds.openConnections(ctx, config); err != nil {
+		return err
+	}
+	ds.registrationEntryChanges.reset()
+	ds.attestedNodeChanges.reset()
+	return nil
 }
 
 func (ds *Plugin) Validate(ctx context.Context, coreConfig catalog.CoreConfig, configuration string) (*configv1.ValidateResponse, error) {
@@ -913,64 +872,71 @@ func (ds *Plugin) openConnections(ctx context.Context, config *sqlcommon.Configu
 	ds.mu.Lock()
 	defer ds.mu.Unlock()
 
-	if err := ds.openConnection(ctx, config, false); err != nil {
+	db, dbChanged, err := ds.prepareConnection(ctx, config, false, ds.db)
+	if err != nil {
 		return err
 	}
 
-	if config.RoConnectionString == "" {
-		return nil
-	}
-
-	return ds.openConnection(ctx, config, true)
-}
-
-func (ds *Plugin) openConnection(ctx context.Context, config *sqlcommon.Configuration, isReadOnly bool) error {
-	connectionString := sqlcommon.GetConnectionString(config, isReadOnly)
-	sqlDb := ds.db
-	if isReadOnly {
-		sqlDb = ds.roDb
-	}
-
-	if sqlDb == nil || connectionString != sqlDb.connectionString || config.DBTypeConfig.DatabaseType != ds.db.databaseType {
-		db, version, supportsCTE, dialect, err := ds.openDB(ctx, config, isReadOnly)
+	var roDb *sqlDB
+	roDbChanged := ds.roDb != nil
+	if config.RoConnectionString != "" {
+		roDb, roDbChanged, err = ds.prepareConnection(ctx, config, true, ds.roDb)
 		if err != nil {
+			if dbChanged {
+				db.Close()
+			}
 			return err
 		}
-
-		raw := db.DB()
-		if raw == nil {
-			return sqlcommon.NewSQLError("unable to get raw database object")
-		}
-
-		if sqlDb != nil {
-			sqlDb.Close()
-		}
-
-		ds.log.WithFields(logrus.Fields{
-			telemetry.Type:     config.DBTypeConfig.DatabaseType,
-			telemetry.Version:  version,
-			telemetry.ReadOnly: isReadOnly,
-		}).Info("Connected to SQL database")
-
-		sqlDb = &sqlDB{
-			DB:               db,
-			raw:              raw,
-			databaseType:     config.DBTypeConfig.DatabaseType,
-			dialect:          dialect,
-			connectionString: connectionString,
-			stmtCache:        newStmtCache(raw),
-			supportsCTE:      supportsCTE,
-		}
 	}
 
-	if isReadOnly {
-		ds.roDb = sqlDb
-	} else {
-		ds.db = sqlDb
+	oldDB, oldRoDb := ds.db, ds.roDb
+	ds.db, ds.roDb = db, roDb
+	ds.db.LogMode(config.LogSQL)
+	if ds.roDb != nil {
+		ds.roDb.LogMode(config.LogSQL)
 	}
-
-	sqlDb.LogMode(config.LogSQL)
+	if dbChanged && oldDB != nil {
+		oldDB.Close()
+	}
+	if roDbChanged && oldRoDb != nil {
+		oldRoDb.Close()
+	}
 	return nil
+}
+
+func (ds *Plugin) prepareConnection(ctx context.Context, config *sqlcommon.Configuration, isReadOnly bool, current *sqlDB) (*sqlDB, bool, error) {
+	connectionString := sqlcommon.GetConnectionString(config, isReadOnly)
+	if current != nil && connectionString == current.connectionString && config.DBTypeConfig.DatabaseType == current.databaseType {
+		return current, false, nil
+	}
+
+	db, version, supportsCTE, dialect, err := ds.openDB(ctx, config, isReadOnly)
+	if err != nil {
+		return nil, false, err
+	}
+	raw := db.DB()
+	if raw == nil {
+		db.Close()
+		return nil, false, sqlcommon.NewSQLError("unable to get raw database object")
+	}
+
+	ds.log.WithFields(logrus.Fields{
+		telemetry.Type:     config.DBTypeConfig.DatabaseType,
+		telemetry.Version:  version,
+		telemetry.ReadOnly: isReadOnly,
+	}).Info("Connected to SQL database")
+
+	sqlDb := &sqlDB{
+		DB:               db,
+		raw:              raw,
+		databaseType:     config.DBTypeConfig.DatabaseType,
+		dialect:          dialect,
+		connectionString: connectionString,
+		stmtCache:        newStmtCache(raw),
+		supportsCTE:      supportsCTE,
+	}
+	sqlDb.LogMode(config.LogSQL)
+	return sqlDb, true, nil
 }
 
 func (ds *Plugin) Close() error {
@@ -1769,37 +1735,8 @@ func createAttestedNodeEvent(tx *gorm.DB, event *datastore.AttestedNodeEvent) er
 	return nil
 }
 
-func listAttestedNodeEvents(db *sqlDB, req *datastore.ListAttestedNodeEventsRequest) (*datastore.ListAttestedNodeEventsResponse, error) {
-	var events []AttestedNodeEvent
-
-	if req.GreaterThanEventID != 0 || req.LessThanEventID != 0 {
-		query, id, err := buildListEventsQueryString(req.GreaterThanEventID, req.LessThanEventID)
-		if err != nil {
-			return nil, sqlcommon.NewWrappedSQLError(err)
-		}
-
-		if err := db.Order("id asc").Find(&events, query.String(), id).Error; err != nil {
-			return nil, sqlcommon.NewWrappedSQLError(err)
-		}
-	} else {
-		if err := db.Order("id asc").Find(&events).Error; err != nil {
-			return nil, sqlcommon.NewWrappedSQLError(err)
-		}
-	}
-
-	resp := &datastore.ListAttestedNodeEventsResponse{
-		Events: make([]datastore.AttestedNodeEvent, len(events)),
-	}
-	for i, event := range events {
-		resp.Events[i].EventID = event.ID
-		resp.Events[i].SpiffeID = event.SpiffeID
-	}
-
-	return resp, nil
-}
-
-func pruneAttestedNodeEvents(tx *gorm.DB, olderThan time.Duration) error {
-	if err := tx.Where("created_at < ?", time.Now().Add(-olderThan)).Delete(&AttestedNodeEvent{}).Error; err != nil {
+func pruneAttestedNodeEvents(tx *gorm.DB, cutoff time.Time) error {
+	if err := tx.Where("created_at < ?", cutoff).Delete(&AttestedNodeEvent{}).Error; err != nil {
 		return sqlcommon.NewWrappedSQLError(err)
 	}
 
@@ -1854,18 +1791,6 @@ func pruneAttestedExpiredNodes(tx *gorm.DB, expiredBefore time.Time, include boo
 	}
 
 	return nil
-}
-
-func fetchAttestedNodeEvent(db *sqlDB, eventID uint) (*datastore.AttestedNodeEvent, error) {
-	event := AttestedNodeEvent{}
-	if err := db.Find(&event, "id = ?", eventID).Error; err != nil {
-		return nil, sqlcommon.NewWrappedSQLError(err)
-	}
-
-	return &datastore.AttestedNodeEvent{
-		EventID:  event.ID,
-		SpiffeID: event.SpiffeID,
-	}, nil
 }
 
 func deleteAttestedNodeEvent(tx *gorm.DB, eventID uint) error {
@@ -4252,18 +4177,6 @@ func createRegistrationEntryEvent(tx *gorm.DB, event *datastore.RegistrationEntr
 	return nil
 }
 
-func fetchRegistrationEntryEvent(db *sqlDB, eventID uint) (*datastore.RegistrationEntryEvent, error) {
-	event := RegisteredEntryEvent{}
-	if err := db.Find(&event, "id = ?", eventID).Error; err != nil {
-		return nil, sqlcommon.NewWrappedSQLError(err)
-	}
-
-	return &datastore.RegistrationEntryEvent{
-		EventID: event.ID,
-		EntryID: event.EntryID,
-	}, nil
-}
-
 func deleteRegistrationEntryEvent(tx *gorm.DB, eventID uint) error {
 	if err := tx.Delete(&RegisteredEntryEvent{
 		ID: eventID,
@@ -4274,61 +4187,12 @@ func deleteRegistrationEntryEvent(tx *gorm.DB, eventID uint) error {
 	return nil
 }
 
-func listRegistrationEntryEvents(db *sqlDB, req *datastore.ListRegistrationEntryEventsRequest) (*datastore.ListRegistrationEntryEventsResponse, error) {
-	var events []RegisteredEntryEvent
-
-	if req.GreaterThanEventID != 0 || req.LessThanEventID != 0 {
-		query, id, err := buildListEventsQueryString(req.GreaterThanEventID, req.LessThanEventID)
-		if err != nil {
-			return nil, sqlcommon.NewWrappedSQLError(err)
-		}
-
-		if err := db.Order("id asc").Find(&events, query.String(), id).Error; err != nil {
-			return nil, sqlcommon.NewWrappedSQLError(err)
-		}
-	} else {
-		if err := db.Order("id asc").Find(&events).Error; err != nil {
-			return nil, sqlcommon.NewWrappedSQLError(err)
-		}
-	}
-
-	resp := &datastore.ListRegistrationEntryEventsResponse{
-		Events: make([]datastore.RegistrationEntryEvent, len(events)),
-	}
-	for i, event := range events {
-		resp.Events[i].EventID = event.ID
-		resp.Events[i].EntryID = event.EntryID
-	}
-
-	return resp, nil
-}
-
-func pruneRegistrationEntryEvents(tx *gorm.DB, olderThan time.Duration) error {
-	if err := tx.Where("created_at < ?", time.Now().Add(-olderThan)).Delete(&RegisteredEntryEvent{}).Error; err != nil {
+func pruneRegistrationEntryEvents(tx *gorm.DB, cutoff time.Time) error {
+	if err := tx.Where("created_at < ?", cutoff).Delete(&RegisteredEntryEvent{}).Error; err != nil {
 		return sqlcommon.NewWrappedSQLError(err)
 	}
 
 	return nil
-}
-
-func buildListEventsQueryString(greaterThanEventID, lessThanEventID uint) (*strings.Builder, uint, error) {
-	if greaterThanEventID != 0 && lessThanEventID != 0 {
-		return nil, 0, errors.New("can't set both greater and less than event id")
-	}
-
-	var id uint
-	query := new(strings.Builder)
-	query.WriteString("id ")
-	if greaterThanEventID != 0 {
-		query.WriteString("> ?")
-		id = greaterThanEventID
-	}
-	if lessThanEventID != 0 {
-		query.WriteString("< ?")
-		id = lessThanEventID
-	}
-
-	return query, id, nil
 }
 
 func createJoinToken(tx *gorm.DB, token *datastore.JoinToken) error {
