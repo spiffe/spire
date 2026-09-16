@@ -14,7 +14,7 @@ then querying the container runtime API (Docker by default, or Podman when detec
 | docker_host                    | The location of the Docker Engine API endpoint (Windows only)                                                                               | "npipe:////./pipe/docker_engine"         |
 | sigstore                       | Sigstore options. See [Sigstore options](#sigstore-options). When set, enables verification of container image signatures and attestations. |                                          |
 | use_new_container_locator      | If true, enables the new container locator algorithm that has support for cgroups v2                                                        | true                                     |
-| verbose_container_locator_logs | If true, enables verbose logging of mountinfo and cgroup information used to locate containers                                              | false                                    |
+| verbose_container_locator_logs | If true, enables verbose logging of cgroup information used to locate containers                                              | false                                    |
 
 A sample configuration:
 
