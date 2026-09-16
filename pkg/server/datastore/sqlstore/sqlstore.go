@@ -21,13 +21,12 @@ import (
 	"github.com/hashicorp/hcl/hcl/printer"
 	"github.com/jinzhu/gorm"
 	"github.com/sirupsen/logrus"
+	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/util"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
-	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
-	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/protoutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/x509util"
@@ -164,6 +163,18 @@ func (ds *Plugin) Rebind(query string) string {
 		return ""
 	}
 	return maybeRebind(ds.db.databaseType, query)
+}
+
+func (ds *Plugin) Name() string {
+	return PluginName
+}
+
+func (ds *Plugin) Type() string {
+	return PluginName
+}
+
+func (ds *Plugin) GetUnderlyingDBForTesting() *sqlDB {
+	return ds.db
 }
 
 // CreateBundle stores the given bundle
@@ -573,7 +584,7 @@ func (ds *Plugin) UpdateRegistrationEntry(ctx context.Context, e *common.Registr
 // DeleteRegistrationEntry deletes the given registration
 func (ds *Plugin) DeleteRegistrationEntry(ctx context.Context,
 	entryID string,
-) (registrationEntry *common.RegistrationEntry, err error) {
+) (registrationEntry *common.RegistrationEntry, err error) { // consider removing the return, there is no need to return it as it is not used anywhere
 	if err = ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
 		registrationEntry, err = deleteRegistrationEntry(tx, entryID)
 		if err != nil {
@@ -589,6 +600,7 @@ func (ds *Plugin) DeleteRegistrationEntry(ctx context.Context,
 	return registrationEntry, nil
 }
 
+// TODO(tjons): this is not correct
 // PruneRegistrationEntries takes a registration entry message, and deletes all entries which have expired
 // before the date in the message
 func (ds *Plugin) PruneRegistrationEntries(ctx context.Context, expiresBefore time.Time) (err error) {
@@ -641,7 +653,7 @@ func (ds *Plugin) FetchRegistrationEntryEvent(ctx context.Context, eventID uint)
 }
 
 // CreateJoinToken takes a Token message and stores it
-func (ds *Plugin) CreateJoinToken(ctx context.Context, token *datastore.JoinToken) (err error) {
+func (ds *Plugin) CreateJoinToken(ctx context.Context, token *datastore.JoinToken) error { // (tjons): updated these bc no need to name retval
 	if token == nil || token.Token == "" || token.Expiry.IsZero() {
 		return errors.New("token and expiry are required")
 	}
@@ -675,7 +687,7 @@ func (ds *Plugin) DeleteJoinToken(ctx context.Context, token string) (err error)
 
 // PruneJoinTokens takes a Token message, and deletes all tokens which have expired
 // before the date in the message
-func (ds *Plugin) PruneJoinTokens(ctx context.Context, expiry time.Time) (err error) {
+func (ds *Plugin) PruneJoinTokens(ctx context.Context, expiry time.Time) error {
 	return ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
 		err = pruneJoinTokens(tx, expiry)
 		return err
@@ -855,28 +867,28 @@ checkAuthorities:
 
 // Configure parses HCL config payload into config struct, opens new DB based on the result, and
 // prunes all orphaned records
-func (ds *Plugin) Configure(ctx context.Context, hclConfiguration string) error {
+func (ds *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
 	config := &sqlcommon.Configuration{}
-	if err := hcl.Decode(config, hclConfiguration); err != nil {
-		return err
+	if err := hcl.Decode(config, req.HclConfiguration); err != nil {
+		return nil, err
 	}
 
 	dbTypeConfig, err := parseDatabaseTypeASTNode(config.DatabaseTypeNode)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	config.DBTypeConfig = dbTypeConfig
 
-	if err := configValidate(config); err != nil {
-		return err
+	if err := config.Validate(); err != nil {
+		return nil, err
 	}
 
-	return ds.openConnections(ctx, config)
+	return &configv1.ConfigureResponse{}, ds.openConnections(ctx, config)
 }
 
-func (ds *Plugin) Validate(ctx context.Context, coreConfig catalog.CoreConfig, configuration string) (*configv1.ValidateResponse, error) {
-	config, err := buildConfig(configuration)
+func (ds *Plugin) Validate(ctx context.Context, req *configv1.ValidateRequest) (*configv1.ValidateResponse, error) {
+	config, err := buildConfig(req.HclConfiguration)
 	if err != nil {
 		return &configv1.ValidateResponse{
 			Notes: []string{err.Error()},
@@ -1184,6 +1196,8 @@ func updateBundle(tx *gorm.DB, newBundle *common.Bundle, mask *common.BundleMask
 		return nil, sqlcommon.NewWrappedSQLError(err)
 	}
 
+	// TODO(tjons): I think there is a correctness bug here.
+	// If the mask is set,
 	model.Data, newBundle, err = applyBundleMask(model, newBundle, mask)
 	if err != nil {
 		return nil, sqlcommon.NewWrappedSQLError(err)
@@ -1412,6 +1426,7 @@ func listBundles(tx *gorm.DB, req *datastore.ListBundlesRequest, dbType string) 
 			return nil, err
 		}
 
+		// TODO(tjons): we can improve the performance of this by pre-allocating the length of Bundles
 		resp.Bundles = append(resp.Bundles, bundle)
 	}
 
@@ -4819,7 +4834,7 @@ func modelToJoinToken(model JoinToken) *datastore.JoinToken {
 func modelToCAJournal(model CAJournal) *datastore.CAJournal {
 	return &datastore.CAJournal{
 		ID:                    model.ID,
-		Data:                  model.Data,
+		Data:                  model.Data, // TODO(tjons): why is this not unmarshalled here?
 		ActiveX509AuthorityID: model.ActiveX509AuthorityID,
 	}
 }
@@ -4844,7 +4859,7 @@ func makeFederatesWith(tx *gorm.DB, ids []string) ([]*Bundle, error) {
 
 	for _, id := range ids {
 		if !idset[id] {
-			return nil, fmt.Errorf("unable to find federated bundle %q", id)
+			return nil, fmt.Errorf("unable to find federated bundle %q", id) // Should be codes.NotFound?
 		}
 	}
 

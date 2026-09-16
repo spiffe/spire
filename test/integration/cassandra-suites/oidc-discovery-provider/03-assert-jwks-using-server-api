@@ -1,0 +1,9 @@
+#!/bin/bash
+
+source common
+
+docker-up oidc-discovery-provider-server
+
+check-provider-start ${RUNDIR}/conf/oidc-discovery-provider/provider-server.sock
+
+check-equal-keys ${RUNDIR}/conf/oidc-discovery-provider/provider-server.sock

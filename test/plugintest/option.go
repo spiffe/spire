@@ -49,6 +49,13 @@ func CoreConfig(coreConfig catalog.CoreConfig) Option {
 	})
 }
 
+// MaxGrpcMessageSize sets the maximum gRPC message size for the plugin connection.
+func MaxGrpcMessageSize(size int) Option {
+	return optionFunc(func(conf *config) {
+		conf.builtInConfig.MaxGrpcMessageSize = size
+	})
+}
+
 // Configure provides raw configuration to the plugin for configuration.
 func Configure(plainConfig string) Option {
 	return optionFunc(func(conf *config) {

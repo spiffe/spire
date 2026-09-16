@@ -1,0 +1,15 @@
+#!/bin/bash
+
+# Check at most 30 times (with one second in between) that the agent has re-attested
+MAXCHECKS=30
+CHECKINTERVAL=1
+for ((i=1;i<=MAXCHECKS;i++)); do
+    log-info "checking for agent to get notification that it re-attested ($i of $MAXCHECKS max)..."
+    docker compose logs spire-agent
+    if docker compose logs spire-agent | grep "Node attestation was successful"; then
+	    exit 0
+    fi
+    sleep "${CHECKINTERVAL}"
+done
+
+fail-now "timed out waiting for agent to re-attest"

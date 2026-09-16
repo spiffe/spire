@@ -1,0 +1,5 @@
+server
+--use-workload-api-addr=unix:///opt/shared/agent.sock
+--listen=0.0.0.0:8001
+--target=localhost:8000
+--allow-uri=spiffe://downstream-domain.test/downstream-workload

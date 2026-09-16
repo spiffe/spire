@@ -7,6 +7,7 @@ import (
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
+	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/proto/spire/common"
 )
 
@@ -94,6 +95,20 @@ type TestableDataStore interface {
 	CreateAttestedNodeEventForTesting(ctx context.Context, event *AttestedNodeEvent) error
 	DeleteAttestedNodeEventForTesting(ctx context.Context, eventID uint) error
 	ListCAJournalsForTesting(ctx context.Context) ([]*CAJournal, error)
+
+	// Methods for use when loading the datastore as a plugin via the plugin catalog.
+	Close() error
+	Name() string
+	Type() string
+}
+
+// ConfigurableDatastore is an optional interface that a datastore plugin can implement
+// to allow dynamic configuration and validation of that configuration.
+type ConfigurableDataStore interface {
+	DataStore
+
+	Configure(context.Context, *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error)
+	Validate(context.Context, *configv1.ValidateRequest) (*configv1.ValidateResponse, error)
 }
 
 // DataConsistency indicates the required data consistency for a read operation.
