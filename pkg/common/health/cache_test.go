@@ -270,7 +270,7 @@ func TestHealthFailsAndRecover(t *testing.T) {
 		previousFailureDate := clockMock.Now()
 		clockMock.WaitForAfter(testTimeout, "timed out waiting for worker to call After")
 		// Move to next interval
-		clockMock.Add(readyCheckInterval)
+		clockMock.Add(readyCheckFailureInterval)
 
 		// Wait for new call
 		<-waitFor
@@ -326,7 +326,7 @@ func TestHealthFailsAndRecover(t *testing.T) {
 		hook.Reset()
 		clockMock.WaitForAfter(testTimeout, "timed out waiting for worker to call After")
 		// Move to next interval
-		clockMock.Add(readyCheckInterval)
+		clockMock.Add(readyCheckFailureInterval)
 
 		// Wait for new call
 		<-waitFor
@@ -359,7 +359,7 @@ func TestHealthFailsAndRecover(t *testing.T) {
 				Data: logrus.Fields{
 					telemetry.Check:    "foo",
 					telemetry.Details:  "{<nil> true true {} {}}",
-					telemetry.Duration: "120",
+					telemetry.Duration: "2",
 					telemetry.Error:    "subsystem is not live or ready",
 					telemetry.Failures: "2",
 				},
@@ -369,6 +369,57 @@ func TestHealthFailsAndRecover(t *testing.T) {
 		spiretest.AssertLogs(t, hook.AllEntries(), expectLogs)
 		require.Equal(t, expectStatus, c.getStatuses())
 	})
+}
+
+func TestCheckIntervalShortensWhileFailing(t *testing.T) {
+	const testTimeout = 3 * time.Second
+	log, _ := test.NewNullLogger()
+	waitFor := make(chan struct{}, 1)
+	clockMock := clock.NewMock(t)
+
+	c := newCache(log, clockMock)
+	c.hooks.statusUpdated = waitFor
+
+	checker := &fakeCheckable{
+		state: State{
+			Live:  true,
+			Ready: true,
+		},
+	}
+
+	err := c.addCheck("foo", checker)
+	require.NoError(t, err)
+
+	err = c.start(context.Background())
+	require.NoError(t, err)
+
+	<-waitFor
+	require.Equal(t, readyCheckInterval, waitForAfter(t, clockMock, testTimeout))
+
+	checker.state = State{}
+
+	clockMock.Add(readyCheckInterval)
+	<-waitFor
+	require.Equal(t, readyCheckFailureInterval, waitForAfter(t, clockMock, testTimeout))
+
+	checker.state = State{
+		Live:  true,
+		Ready: true,
+	}
+
+	clockMock.Add(readyCheckFailureInterval)
+	<-waitFor
+	require.Equal(t, readyCheckInterval, waitForAfter(t, clockMock, testTimeout))
+}
+
+func waitForAfter(t *testing.T, clockMock *clock.Mock, timeout time.Duration) time.Duration {
+	select {
+	case d := <-clockMock.WaitForAfterCh():
+		return d
+	case <-time.After(timeout):
+		t.Fatal("timed out waiting for worker to call After")
+		return 0
+	}
 }
 
 type fakeCheckable struct {
