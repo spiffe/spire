@@ -185,6 +185,10 @@ func (FederatedTrustDomain) TableName() string {
 type CAJournal struct {
 	Model
 
+	// JournalID is reserved for a future externally exposed journal identifier.
+	// It is not used by the current datastore implementation.
+	JournalID string `gorm:"unique_index"`
+
 	// Information about X509 and JWT authorities of a single server.
 	Data []byte `gorm:"size:16777215"` // Make MySQL to use MEDIUMBLOB(max 16MB) - doesn't affect PostgreSQL/SQLite
 

@@ -5776,8 +5776,74 @@ func (s *Suite) TestSetCAJournal() {
 			}
 
 			assertCAJournal(t, tt.caJournal, caJournal)
+			require.NotZero(t, caJournal.ID)
+			s.requireCAJournalIDUnset(caJournal.ID)
 		})
 	}
+}
+
+func (s *Suite) TestSetCAJournalUpdatesInPlace() {
+	created, err := s.ds.SetCAJournal(ctx, &datastore.CAJournal{
+		Data:                  []byte("first"),
+		ActiveX509AuthorityID: "x509-authority-1",
+	})
+	s.Require().NoError(err)
+	s.Require().NotZero(created.ID)
+	s.requireCAJournalIDUnset(created.ID)
+
+	updated, err := s.ds.SetCAJournal(ctx, &datastore.CAJournal{
+		ID:                    created.ID,
+		Data:                  []byte("second"),
+		ActiveX509AuthorityID: "x509-authority-2",
+	})
+	s.Require().NoError(err)
+	s.Require().Equal(created.ID, updated.ID)
+	s.requireCAJournalIDUnset(updated.ID)
+	s.Require().Equal([]byte("second"), updated.Data)
+	s.Require().Equal(1, s.countCAJournals())
+}
+
+func (s *Suite) TestCAJournalWithoutJournalID() {
+	query := s.ds.Rebind("INSERT INTO ca_journals(data, active_x509_authority_id) VALUES (?, ?)")
+	s.Require().NoError(s.ds.RawExec(query, []byte("first"), "x509-authority-1"))
+
+	var row struct{ ID uint }
+	s.Require().NoError(s.ds.RawScan(&row, "SELECT id FROM ca_journals"))
+
+	caJournal, err := s.ds.FetchCAJournal(ctx, "x509-authority-1")
+	s.Require().NoError(err)
+	s.Require().Equal(row.ID, caJournal.ID)
+
+	updated, err := s.ds.SetCAJournal(ctx, &datastore.CAJournal{
+		ID:                    caJournal.ID,
+		Data:                  []byte("second"),
+		ActiveX509AuthorityID: "x509-authority-2",
+	})
+	s.Require().NoError(err)
+	s.Require().Equal(row.ID, updated.ID)
+	s.requireCAJournalIDUnset(updated.ID)
+	s.Require().Equal([]byte("second"), updated.Data)
+	s.Require().Equal(1, s.countCAJournals())
+
+	fetched, err := s.ds.FetchCAJournal(ctx, "x509-authority-2")
+	s.Require().NoError(err)
+	s.Require().Equal(row.ID, fetched.ID)
+}
+
+func (s *Suite) requireCAJournalIDUnset(id uint) {
+	var row struct {
+		JournalID sql.NullString `gorm:"column:journal_id"`
+	}
+	s.Require().NoError(s.ds.RawScan(&row, fmt.Sprintf("SELECT journal_id FROM ca_journals WHERE id = %d", id)))
+	s.Require().False(row.JournalID.Valid)
+}
+
+func (s *Suite) countCAJournals() int {
+	var row struct {
+		Count int `gorm:"column:count"`
+	}
+	s.Require().NoError(s.ds.RawScan(&row, "SELECT COUNT(*) AS count FROM ca_journals"))
+	return row.Count
 }
 
 func (s *Suite) TestFetchCAJournal() {
@@ -5872,6 +5938,22 @@ func (s *Suite) TestPruneCAJournal() {
 	caj, err = s.ds.FetchCAJournal(ctx, "x509-authority-1")
 	s.Require().NoError(err)
 	s.Require().Nil(caj)
+}
+
+func (s *Suite) TestPruneCAJournalWithoutJournalID() {
+	now := time.Now()
+	entriesBytes, err := proto.Marshal(&journal.Entries{
+		X509CAs: []*journal.X509CAEntry{
+			{NotAfter: now.Add(-time.Hour).Unix()},
+		},
+	})
+	s.Require().NoError(err)
+
+	query := s.ds.Rebind("INSERT INTO ca_journals(data, active_x509_authority_id) VALUES (?, ?)")
+	s.Require().NoError(s.ds.RawExec(query, entriesBytes, "x509-authority-1"))
+
+	s.Require().NoError(s.ds.PruneCAJournals(ctx, now.Unix()))
+	s.Require().Zero(s.countCAJournals())
 }
 
 // getTestDataFromJSONFile reads a JSON fixture using a path relative to the
@@ -6133,6 +6215,9 @@ func assertCAJournal(t *testing.T, exp, actual *datastore.CAJournal) {
 	if exp == nil {
 		assert.Nil(t, actual)
 		return
+	}
+	if exp.ID != 0 {
+		assert.Equal(t, exp.ID, actual.ID)
 	}
 	assert.Equal(t, exp.ActiveX509AuthorityID, actual.ActiveX509AuthorityID)
 	assert.Equal(t, exp.Data, actual.Data)
