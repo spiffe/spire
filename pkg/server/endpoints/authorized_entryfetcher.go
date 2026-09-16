@@ -134,10 +134,7 @@ func (a *AuthorizedEntryFetcherEvents) PruneEventsTask(ctx context.Context) erro
 }
 
 func (a *AuthorizedEntryFetcherEvents) pruneEvents(ctx context.Context, olderThan time.Duration) error {
-	pruneRegistrationEntryEventsErr := a.c.ds.PruneRegistrationEntryEvents(ctx, olderThan)
-	pruneAttestedNodeEventsErr := a.c.ds.PruneAttestedNodeEvents(ctx, olderThan)
-
-	return errors.Join(pruneRegistrationEntryEventsErr, pruneAttestedNodeEventsErr)
+	return a.c.ds.PruneEvents(ctx, &datastore.PruneEventsRequest{OlderThan: olderThan})
 }
 
 func (a *AuthorizedEntryFetcherEvents) updateCache(ctx context.Context) error {
@@ -171,12 +168,12 @@ func (a *AuthorizedEntryFetcherEvents) reloadCache(ctx context.Context) error {
 func (a *AuthorizedEntryFetcherEvents) buildCache(ctx context.Context) error {
 	cache := authorizedentries.NewCache(a.c.clk, a.trustDomain)
 
-	registrationEntries, err := buildRegistrationEntriesCache(ctx, a.c.log, a.c.metrics, a.c.ds, a.c.clk, cache, pageSize, fetchPageSize, a.c.cacheReloadInterval, a.c.eventTimeout)
+	registrationEntries, err := buildRegistrationEntriesCache(ctx, a.c.log, a.c.metrics, a.c.ds, a.c.clk, cache, pageSize, fetchPageSize, a.c.eventTimeout)
 	if err != nil {
 		return err
 	}
 
-	attestedNodes, err := buildAttestedNodesCache(ctx, a.c.log, a.c.metrics, a.c.ds, a.c.clk, cache, a.c.nodeCache, fetchPageSize, a.c.cacheReloadInterval, a.c.eventTimeout)
+	attestedNodes, err := buildAttestedNodesCache(ctx, a.c.log, a.c.metrics, a.c.ds, a.c.clk, cache, a.c.nodeCache, fetchPageSize, a.c.eventTimeout)
 	if err != nil {
 		return err
 	}
