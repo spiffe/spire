@@ -226,7 +226,8 @@ type ListRegistrationEntriesRequest struct {
 }
 
 type CAJournal struct {
-	ID                    uint
+	// JournalID is assigned by the datastore and must be treated as opaque.
+	JournalID             string
 	Data                  []byte
 	ActiveX509AuthorityID string
 }

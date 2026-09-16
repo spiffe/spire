@@ -318,6 +318,20 @@ func TestMigration(t *testing.T) {
 			case 24:
 				// Migration from v24 to v25 adds additional_attributes column
 				prepareDB(true)
+			case 25:
+				// Migration from v25 to v26 adds journal_id column
+				prepareDB(true)
+
+				var row struct {
+					JournalID sql.NullString `gorm:"column:journal_id"`
+				}
+				require.NoError(ds.RawScan(&row, "SELECT journal_id FROM ca_journals WHERE id = 1"))
+				require.False(row.JournalID.Valid)
+
+				caJournals, err := ds.ListCAJournalsForTesting(ctx)
+				require.NoError(err)
+				require.Len(caJournals, 1)
+				require.Equal("1", caJournals[0].JournalID)
 			default:
 				t.Fatalf("no migration test added for schema version %d", schemaVersion)
 			}
