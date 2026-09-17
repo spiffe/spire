@@ -14,6 +14,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor/docker/cgroup"
 	"github.com/spiffe/spire/pkg/common/containerinfo"
 	"github.com/spiffe/spire/pkg/common/pluginconf"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 )
 
 const (
@@ -172,13 +173,13 @@ func (h *containerHelper) detectPodmanSocket(cgroupList []cgroups.Cgroup, log hc
 		}
 		if m := reUserSliceUID.FindStringSubmatch(cg.GroupPath); m != nil {
 			if !h.useRootlessPodman {
-				log.Warn("Rootless Podman workload detected but rootless Podman support is disabled; not attesting it. Set use_rootless_podman to true to enable it, and pair it with unix:uid or unix:user selectors", "cgroup_path", cg.GroupPath)
+				log.Warn("Rootless Podman workload detected but rootless Podman support is disabled; not attesting it. Set use_rootless_podman to true to enable it, and pair it with unix:uid or unix:user selectors", telemetry.CGroupPath, cg.GroupPath)
 				return "", false
 			}
 			if uid, err := strconv.ParseUint(m[1], 10, 32); err == nil {
 				return fmt.Sprintf(h.podmanSocketPathTemplate, uid), true
 			}
-			log.Warn("Failed to parse rootless Podman UID from cgroup path, falling back to rootful Podman socket", "uid", m[1], "cgroup_path", cg.GroupPath)
+			log.Warn("Failed to parse rootless Podman UID from cgroup path, falling back to rootful Podman socket", "uid", m[1], telemetry.CGroupPath, cg.GroupPath)
 		}
 		return h.podmanSocketPath, true
 	}
