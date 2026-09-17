@@ -114,6 +114,8 @@ When `experimental.require_pq_kem` is enabled, it overrides `min_tls_version` an
 | `named_pipe_name`              | Pipe name to bind the SPIRE Agent Workload API and SDS named pipe (Windows only). The named pipe is exposed unless both `disable_workload_api` and `disable_sds_api` are `true`.    | \spire-agent\public\api |
 | `sync_interval`                | Sync interval with SPIRE server with exponential backoff                                                                                                                            | 5 sec                   |
 | `require_pq_kem`               | Require post-quantum-safe KEM on outbound gRPC and terminating listeners.                                                                                                           | false                   |
+| `enable_wit_svids`             | Mint WIT-SVIDs and serve them over the Workload API. Also requires the `wit-svid` feature flag; without it the option is ignored and a warning is logged                            | false                   |
+| `wit_svid_cache_max_size`      | Soft limit of max number of WIT-SVIDs that would be stored in LRU cache. Only used when WIT-SVIDs are enabled                                                                       | 1000                    |
 | `jwt_svid_cache_hit_timeout`   | Custom gRPC timeout (between 5 and 30s) when retrieving a NewJWTSVID when a valid JWT-SVID in cache                                                                                 | 30s                     |
 | `ratelimit`                    | Optional per-caller rate limiting for Workload API and SDS methods, enforced after workload attestation. See [Workload API Rate Limiting](#workload-api-rate-limiting) for details. |                         |
 | `broker`                       | Optional SPIFFE Broker API endpoint configuration. See [SPIFFE Broker API](#spiffe-broker-api).                                                                                     |                         |
@@ -147,10 +149,12 @@ This feature is **experimental** and lives under the `experimental` block. Its c
 | `fetch_jwt_svid`     | Max calls per second per selector set for `FetchJWTSVID`. 0 disables rate limiting.         | 0 (disabled) |
 | `fetch_x509_bundles` | Max stream opens per second per selector set for `FetchX509Bundles`. 0 disables.            | 0 (disabled) |
 | `fetch_jwt_bundles`  | Max stream opens per second per selector set for `FetchJWTBundles`. 0 disables.             | 0 (disabled) |
+| `fetch_wit_svid`     | Max stream opens per second per selector set for `FetchWITSVID`. 0 disables.                | 0 (disabled) |
+| `fetch_wit_bundles`  | Max stream opens per second per selector set for `FetchWITBundles`. 0 disables.             | 0 (disabled) |
 | `stream_secrets`     | Max stream opens per second per selector set for SDS `StreamSecrets`. 0 disables.           | 0 (disabled) |
 | `fetch_secrets`      | Max calls per second per selector set for SDS `FetchSecrets`. 0 disables.                   | 0 (disabled) |
 
-For streaming RPCs (`FetchX509SVID`, `FetchX509Bundles`, `FetchJWTBundles`, `StreamSecrets`), the rate limit is enforced at stream establishment (i.e., per reconnect), not per message.
+For streaming RPCs (`FetchX509SVID`, `FetchX509Bundles`, `FetchJWTBundles`, `FetchWITSVID`, `FetchWITBundles`, `StreamSecrets`), the rate limit is enforced at stream establishment (i.e., per reconnect), not per message.
 
 Example configuration:
 
@@ -428,6 +432,16 @@ Calls the workload API to fetch a x.509-SVID.
 | `-socketPath` | Path to the SPIRE Agent API socket    | /tmp/spire-agent/public/api.sock |
 | `-timeout`    | Time to wait for a response           | 1s                               |
 | `-write`      | Write SVID data to the specified path |                                  |
+
+### `spire-agent api fetch wit`
+
+Calls the workload API to fetch a WIT-SVID. Requires the agent to be running with WIT-SVIDs enabled (see the `enable_wit_svids` experimental option); otherwise the call fails with `Unimplemented`.
+
+| Command       | Action                                              | Default                          |
+|---------------|-----------------------------------------------------|----------------------------------|
+| `-socketPath` | Path to the SPIRE Agent API socket                  | /tmp/spire-agent/public/api.sock |
+| `-spiffeID`   | The SPIFFE ID of the WIT being requested (optional) |                                  |
+| `-timeout`    | Time to wait for a response                         | 1s                               |
 
 ### `spire-agent api validate jwt`
 

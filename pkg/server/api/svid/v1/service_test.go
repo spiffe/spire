@@ -2263,6 +2263,7 @@ func TestServiceBatchNewWITSVID(t *testing.T) {
 		code             codes.Code
 		reqs             []string
 		err              string
+		disableWITSVIDs  bool
 		expectLogs       []spiretest.LogEntry
 		expectResults    []*expectResult
 		failSigning      bool
@@ -2290,6 +2291,28 @@ func TestServiceBatchNewWITSVID(t *testing.T) {
 						telemetry.RegistrationID: "workload1",
 						telemetry.ExpiresAt:      expiresAtFromCAStr,
 						telemetry.SPIFFEID:       "spiffe://example.org/workload1",
+					},
+				},
+			},
+		}, {
+			name:            "WIT is disabled",
+			disableWITSVIDs: true,
+			reqs:            []string{workloadEntry1.Id},
+			code:            codes.Unimplemented,
+			err:             "WIT functionality is disabled",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "WIT functionality is disabled",
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:        "error",
+						telemetry.Type:          "audit",
+						telemetry.StatusCode:    "Unimplemented",
+						telemetry.StatusMessage: "WIT functionality is disabled",
 					},
 				},
 			},
@@ -2682,6 +2705,7 @@ func TestServiceBatchNewWITSVID(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			test.logHook.Reset()
+			test.ca.SetDisableWITSVIDs(tt.disableWITSVIDs)
 
 			if tt.failSigning {
 				test.ca.SetError(errors.New("oh no"))
