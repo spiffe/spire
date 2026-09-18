@@ -478,8 +478,7 @@ func recoverKeys(ctx context.Context, client *kmipclient.Client, logger hclog.Lo
 	for _, privUID := range privUIDs {
 		attrResp, err := client.GetAttributes(privUID, ovh.AttributeNameName).ExecContext(ctx)
 		if err != nil {
-			logger.Warn("Failed to get Name attributes during recovery", "uid", privUID, "err", err)
-			continue
+			return nil, fmt.Errorf("get Name attributes for private key uid %s: %w", privUID, err)
 		}
 
 		names := collectNameValues(attrResp.Attribute)

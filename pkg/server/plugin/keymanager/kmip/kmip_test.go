@@ -671,6 +671,13 @@ func TestRecoverKeysFailsOnPublicKeyLookupErrors(t *testing.T) {
 		expectErr   string
 	}{
 		{
+			name: "private key Name attributes lookup",
+			injectError: func(store *fakeStore) {
+				store.failGetAttributes("broken-priv", ovh.AttributeNameName, errors.New("kmip unavailable"))
+			},
+			expectErr: "get Name attributes for private key uid broken-priv",
+		},
+		{
 			name: "linked public key lookup",
 			injectError: func(store *fakeStore) {
 				store.failGetAttributes("broken-priv", ovh.AttributeNameLink, errors.New("kmip unavailable"))
