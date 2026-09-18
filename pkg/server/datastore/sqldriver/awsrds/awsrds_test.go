@@ -8,7 +8,9 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -355,18 +357,13 @@ func TestCacheToken(t *testing.T) {
 
 func TestNewAWSClientConfigUsesIMDSv2(t *testing.T) {
 	// Instance metadata must be the only credential source that the default
-	// chain can resolve for this test to exercise IMDS.
-	for _, name := range []string{
-		"AWS_ACCESS_KEY_ID",
-		"AWS_SECRET_ACCESS_KEY",
-		"AWS_SESSION_TOKEN",
-		"AWS_PROFILE",
-		"AWS_ROLE_ARN",
-		"AWS_WEB_IDENTITY_TOKEN_FILE",
-		"AWS_CONTAINER_CREDENTIALS_FULL_URI",
-		"AWS_CONTAINER_CREDENTIALS_RELATIVE_URI",
-	} {
-		t.Setenv(name, "")
+	// chain can resolve for this test to exercise IMDS, so every AWS_ variable
+	// the SDK might read is cleared before the ones this test needs are set.
+	for _, entry := range os.Environ() {
+		name, _, _ := strings.Cut(entry, "=")
+		if strings.HasPrefix(name, "AWS_") {
+			t.Setenv(name, "")
+		}
 	}
 	missingFile := filepath.Join(t.TempDir(), "missing")
 	t.Setenv("AWS_SHARED_CREDENTIALS_FILE", missingFile)
