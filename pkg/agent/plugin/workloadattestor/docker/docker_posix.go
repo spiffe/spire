@@ -14,6 +14,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/plugin/workloadattestor/docker/cgroup"
 	"github.com/spiffe/spire/pkg/common/containerinfo"
 	"github.com/spiffe/spire/pkg/common/pluginconf"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 )
 
 const (
@@ -51,6 +52,15 @@ type OSConfig struct {
 	// The placeholder %d is replaced with the container owner's host UID extracted
 	// from the cgroup path. Defaults to "unix:///run/user/%d/podman/podman.sock".
 	PodmanSocketPathTemplate string `hcl:"podman_socket_path_template" json:"podman_socket_path_template"`
+
+	// UseRootlessPodman enables attestation of rootless Podman workloads by
+	// deriving the per-user Podman socket from the workload's cgroup UID and
+	// substituting it into PodmanSocketPathTemplate. That socket lives in the
+	// caller's own runtime directory, which the caller controls, so a workload
+	// can present arbitrary container labels; it should be paired with unix:uid
+	// or unix:user selectors so a workload cannot obtain selectors scoped to a
+	// different user. Defaults to false. (Unix)
+	UseRootlessPodman bool `hcl:"use_rootless_podman" json:"use_rootless_podman"`
 
 	// Used by tests to use a fake /proc directory instead of the real one
 	rootDir string
@@ -101,6 +111,7 @@ func (p *Plugin) createHelper(c *dockerPluginConfig, status *pluginconf.Status) 
 		verboseContainerLocatorLogs: c.VerboseContainerLocatorLogs,
 		podmanSocketPath:            podmanSocketPath,
 		podmanSocketPathTemplate:    podmanSocketPathTemplate,
+		useRootlessPodman:           c.UseRootlessPodman,
 	}
 }
 
@@ -110,6 +121,7 @@ type containerHelper struct {
 	verboseContainerLocatorLogs bool
 	podmanSocketPath            string
 	podmanSocketPathTemplate    string
+	useRootlessPodman           bool
 }
 
 func (h *containerHelper) getContainerIDAndSocket(pID int32, log hclog.Logger) (string, string, error) {
@@ -122,7 +134,11 @@ func (h *containerHelper) getContainerIDAndSocket(pID int32, log hclog.Logger) (
 		if err != nil || containerID == "" {
 			return "", "", err
 		}
-		return containerID, h.detectPodmanSocket(cgroupList, log), nil
+		socket, attestable := h.detectPodmanSocket(cgroupList, log)
+		if !attestable {
+			return "", "", nil
+		}
+		return containerID, socket, nil
 	}
 
 	extractor := containerinfo.Extractor{RootDir: h.rootDir, VerboseLogging: h.verboseContainerLocatorLogs}
@@ -136,23 +152,38 @@ func (h *containerHelper) getContainerIDAndSocket(pID int32, log hclog.Logger) (
 		log.Warn("Failed to read cgroups for Podman detection, falling back to Docker client", "pid", pID, "err", err)
 		return containerID, "", nil
 	}
-	return containerID, h.detectPodmanSocket(cgroupList, log), nil
+	socket, attestable := h.detectPodmanSocket(cgroupList, log)
+	if !attestable {
+		return "", "", nil
+	}
+	return containerID, socket, nil
 }
 
-func (h *containerHelper) detectPodmanSocket(cgroupList []cgroups.Cgroup, log hclog.Logger) string {
+// detectPodmanSocket returns the Podman API socket to use for the workload and
+// whether the workload can be attested. The socket is empty when the workload
+// is not a Podman container, in which case the Docker socket is used instead.
+// attestable is false when the workload is a rootless Podman container but
+// rootless Podman support is disabled: the workload is then not attested by
+// this plugin, since the per-user socket it would require lives in the caller's
+// own runtime directory and cannot be trusted.
+func (h *containerHelper) detectPodmanSocket(cgroupList []cgroups.Cgroup, log hclog.Logger) (string, bool) {
 	for _, cg := range cgroupList {
 		if !rePodmanCgroup.MatchString(cg.GroupPath) {
 			continue
 		}
 		if m := reUserSliceUID.FindStringSubmatch(cg.GroupPath); m != nil {
-			if uid, err := strconv.ParseUint(m[1], 10, 32); err == nil {
-				return fmt.Sprintf(h.podmanSocketPathTemplate, uid)
+			if !h.useRootlessPodman {
+				log.Warn("Rootless Podman workload detected but rootless Podman support is disabled; not attesting it. Set use_rootless_podman to true to enable it, and pair it with unix:uid or unix:user selectors", telemetry.CGroupPath, cg.GroupPath)
+				return "", false
 			}
-			log.Warn("Failed to parse rootless Podman UID from cgroup path, falling back to rootful Podman socket", "uid", m[1], "cgroup_path", cg.GroupPath)
+			if uid, err := strconv.ParseUint(m[1], 10, 32); err == nil {
+				return fmt.Sprintf(h.podmanSocketPathTemplate, uid), true
+			}
+			log.Warn("Failed to parse rootless Podman UID from cgroup path, falling back to rootful Podman socket", "uid", m[1], telemetry.CGroupPath, cg.GroupPath)
 		}
-		return h.podmanSocketPath
+		return h.podmanSocketPath, true
 	}
-	return ""
+	return "", true
 }
 
 func validatePodmanSocketPathTemplate(template string) error {
