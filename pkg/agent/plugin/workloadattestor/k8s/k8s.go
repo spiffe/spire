@@ -171,7 +171,7 @@ type HCLConfig struct {
 	UseNewContainerLocator *bool `hcl:"use_new_container_locator"`
 
 	// VerboseContainerLocatorLogs, if true, dumps extra information to the log
-	// about mountinfo and cgroup information used to locate the container.
+	// about the cgroup information used to locate the container.
 	VerboseContainerLocatorLogs bool `hcl:"verbose_container_locator_logs"`
 
 	// EnableNamespaceLabels enables fetching namespace labels from the

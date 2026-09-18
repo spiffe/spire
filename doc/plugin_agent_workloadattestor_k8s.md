@@ -69,7 +69,7 @@ since [hostprocess](https://kubernetes.io/docs/tasks/configure-pod-container/cre
 | `experimental`                          | The experimental options that are subject to change or removal (see below).                                                                                                                                                                 |
 | `sigstore`                              | Sigstore options. Options described below. See [Sigstore options](#sigstore-options). When set, enables verification of container image signatures and attestations.                                                                        |
 | `use_new_container_locator`             | If true, enables the new container locator algorithm that has support for cgroups v2. Defaults to true.                                                                                                                                     |
-| `verbose_container_locator_logs`        | If true, enables verbose logging of mountinfo and cgroup information used to locate containers. Defaults to false.                                                                                                                          |
+| `verbose_container_locator_logs`        | If true, enables verbose logging of cgroup information used to locate containers. Defaults to false.                                                                                                                                        |
 
 These are the current experimental configurations.
 
