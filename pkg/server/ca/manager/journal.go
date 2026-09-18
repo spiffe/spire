@@ -36,7 +36,7 @@ type Journal struct {
 
 	mu                    sync.RWMutex
 	activeX509AuthorityID string
-	caJournalID           uint
+	caJournalID           string
 	entries               *journal.Entries
 }
 
@@ -209,38 +209,38 @@ func (j *Journal) setEntries(entries *journal.Entries) {
 }
 
 // saveInDatastore saves the provided marshaled entries in the datastore.
-// If caJournalID has not been defined yet (its value is 0), it first finds
+// If caJournalID has not been defined yet (its value is empty), it first finds
 // the CA journal record that corresponds to this server. In case there is no
 // CA record for this server, it creates one.
 // The ID of the CA journal record that was saved is returned, in addition to
 // the error (if any) of the operation.
-func (j *Journal) saveInDatastore(ctx context.Context, entriesBytes []byte) (caJournalID uint, err error) {
+func (j *Journal) saveInDatastore(ctx context.Context, entriesBytes []byte) (caJournalID string, err error) {
 	// Check if we already identified what's the CA journal for this server in
 	// the datastore. If not, log that we are creating a new CA journal entry.
-	if j.caJournalID == 0 {
+	if j.caJournalID == "" {
 		if j.activeX509AuthorityID == "" {
 			j.config.log.Debug("There is no active X.509 authority yet. Can't save CA journal in the datastore")
-			return 0, nil
+			return "", nil
 		}
 		j.config.log.Info("Creating a new CA journal entry")
 	}
 
 	ds := j.config.cat.GetDataStore()
 	caJournal, err := ds.SetCAJournal(ctx, &datastore.CAJournal{
-		ID:                    j.caJournalID,
+		JournalID:             j.caJournalID,
 		Data:                  entriesBytes,
 		ActiveX509AuthorityID: j.activeX509AuthorityID,
 	})
 	if err != nil {
-		return 0, err
+		return "", err
 	}
 
 	j.config.log.WithFields(logrus.Fields{
-		telemetry.CAJournalID:      caJournal.ID,
+		telemetry.CAJournalID:      caJournal.JournalID,
 		telemetry.LocalAuthorityID: j.activeX509AuthorityID,
 	}).Debug("Successfully stored CA journal entry in datastore")
 
-	return caJournal.ID, nil
+	return caJournal.JournalID, nil
 }
 
 // findCAJournal finds the corresponding CA journal record in the datastore for
@@ -273,7 +273,7 @@ func (j *Journal) findCAJournal(ctx context.Context) (*datastore.CAJournal, erro
 			// ID that matches with one of the public keys of this server. This
 			// means that this record belongs to this server.
 			j.config.log.WithFields(logrus.Fields{
-				telemetry.CAJournalID:      caJournal.ID,
+				telemetry.CAJournalID:      caJournal.JournalID,
 				telemetry.LocalAuthorityID: authorityID,
 			}).Debug("Found a CA journal record that matches with a local X509 authority ID")
 
@@ -328,7 +328,7 @@ func loadJournalFromDS(ctx context.Context, config *journalConfig) (*Journal, er
 		return j, nil
 	}
 
-	j.caJournalID = caJournal.ID
+	j.caJournalID = caJournal.JournalID
 	if err := proto.Unmarshal(caJournal.Data, j.entries); err != nil {
 		return nil, fmt.Errorf("unable to unmarshal entries from CA journal record: %w", err)
 	}

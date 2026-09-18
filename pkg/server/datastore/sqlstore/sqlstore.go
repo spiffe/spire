@@ -796,7 +796,7 @@ func (ds *Plugin) SetCAJournal(ctx context.Context, caJournal *datastore.CAJourn
 	}
 
 	if err = ds.withReadModifyWriteTx(ctx, func(tx *gorm.DB) (err error) {
-		if caJournal.ID == 0 {
+		if caJournal.JournalID == "" {
 			caj, err = createCAJournal(tx, caJournal)
 			return err
 		}
@@ -842,11 +842,11 @@ checkAuthorities:
 				continue checkAuthorities
 			}
 		}
-		if err := deleteCAJournal(tx, model.ID); err != nil {
+		if err := deleteCAJournal(tx, model); err != nil {
 			return status.Errorf(codes.Internal, "failed to delete CA journal: %v", err)
 		}
 		ds.log.WithFields(logrus.Fields{
-			telemetry.CAJournalID: model.ID,
+			telemetry.CAJournalID: journalIDFromModel(model),
 		}).Info("Pruned stale CA journal record")
 	}
 
@@ -4818,7 +4818,7 @@ func modelToJoinToken(model JoinToken) *datastore.JoinToken {
 
 func modelToCAJournal(model CAJournal) *datastore.CAJournal {
 	return &datastore.CAJournal{
-		ID:                    model.ID,
+		JournalID:             journalIDFromModel(model),
 		Data:                  model.Data,
 		ActiveX509AuthorityID: model.ActiveX509AuthorityID,
 	}
@@ -5034,7 +5034,27 @@ func roundedInSecondsUnix(t time.Time) int64 {
 }
 
 func createCAJournal(tx *gorm.DB, caJournal *datastore.CAJournal) (*datastore.CAJournal, error) {
+	// A server running a previous release can create a record without a journal
+	// ID. Adopt that record instead of creating a duplicate for the same X509
+	// authority during a rolling upgrade.
+	if caJournal.ActiveX509AuthorityID != "" {
+		var model CAJournal
+		err := tx.Find(&model, "active_x509_authority_id = ?", caJournal.ActiveX509AuthorityID).Error
+		switch {
+		case err == nil:
+			return adoptCAJournal(tx, model, caJournal)
+		case !errors.Is(err, gorm.ErrRecordNotFound):
+			return nil, sqlcommon.NewWrappedSQLError(err)
+		}
+	}
+
+	journalID, err := newCAJournalID()
+	if err != nil {
+		return nil, err
+	}
+
 	model := CAJournal{
+		JournalID:             journalID,
 		Data:                  caJournal.Data,
 		ActiveX509AuthorityID: caJournal.ActiveX509AuthorityID,
 	}
@@ -5044,6 +5064,40 @@ func createCAJournal(tx *gorm.DB, caJournal *datastore.CAJournal) (*datastore.CA
 	}
 
 	return modelToCAJournal(model), nil
+}
+
+// adoptCAJournal updates an existing record, assigning the string form of its
+// SQL primary key when it predates journal IDs.
+func adoptCAJournal(tx *gorm.DB, model CAJournal, caJournal *datastore.CAJournal) (*datastore.CAJournal, error) {
+	if model.JournalID == "" {
+		model.JournalID = legacyCAJournalID(model.ID)
+	}
+	model.Data = caJournal.Data
+
+	if err := tx.Save(&model).Error; err != nil {
+		return nil, sqlcommon.NewWrappedSQLError(err)
+	}
+
+	return modelToCAJournal(model), nil
+}
+
+func newCAJournalID() (string, error) {
+	u, err := uuid.NewV4()
+	if err != nil {
+		return "", status.Errorf(codes.Internal, "failed to generate CA journal ID: %v", err)
+	}
+	return u.String(), nil
+}
+
+func journalIDFromModel(model CAJournal) string {
+	if model.JournalID != "" {
+		return model.JournalID
+	}
+	return legacyCAJournalID(model.ID)
+}
+
+func legacyCAJournalID(id uint) string {
+	return strconv.FormatUint(uint64(id), 10)
 }
 
 func fetchCAJournal(tx *gorm.DB, activeX509AuthorityID string) (*datastore.CAJournal, error) {
@@ -5072,11 +5126,14 @@ func listCAJournalsForTesting(tx *gorm.DB) (caJournals []*datastore.CAJournal, e
 }
 
 func updateCAJournal(tx *gorm.DB, caJournal *datastore.CAJournal) (*datastore.CAJournal, error) {
-	var model CAJournal
-	if err := tx.Find(&model, "id = ?", caJournal.ID).Error; err != nil {
+	model, err := findCAJournalByJournalID(tx, caJournal.JournalID)
+	if err != nil {
 		return nil, sqlcommon.NewWrappedSQLError(err)
 	}
 
+	// Persist the fallback identifier if this record was created by an older
+	// server after the journal ID column was introduced.
+	model.JournalID = caJournal.JournalID
 	model.ActiveX509AuthorityID = caJournal.ActiveX509AuthorityID
 	model.Data = caJournal.Data
 
@@ -5087,6 +5144,24 @@ func updateCAJournal(tx *gorm.DB, caJournal *datastore.CAJournal) (*datastore.CA
 	return modelToCAJournal(model), nil
 }
 
+func findCAJournalByJournalID(tx *gorm.DB, journalID string) (CAJournal, error) {
+	var model CAJournal
+	err := tx.Find(&model, "journal_id = ?", journalID).Error
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return model, err
+	}
+
+	// Rows created by older servers have no journal_id. Their caller-visible
+	// identifier is the string form of the SQL primary key.
+	legacyID, parseErr := strconv.ParseUint(journalID, 10, strconv.IntSize)
+	if parseErr != nil {
+		return CAJournal{}, err
+	}
+
+	err = tx.Find(&model, "id = ? AND (journal_id IS NULL OR journal_id = '')", uint(legacyID)).Error
+	return model, err
+}
+
 func validateCAJournal(caJournal *datastore.CAJournal) error {
 	if caJournal == nil {
 		return status.Error(codes.InvalidArgument, "ca journal is required")
@@ -5095,12 +5170,8 @@ func validateCAJournal(caJournal *datastore.CAJournal) error {
 	return nil
 }
 
-func deleteCAJournal(tx *gorm.DB, caJournalID uint) error {
-	model := new(CAJournal)
-	if err := tx.Find(model, "id = ?", caJournalID).Error; err != nil {
-		return sqlcommon.NewWrappedSQLError(err)
-	}
-	if err := tx.Delete(model).Error; err != nil {
+func deleteCAJournal(tx *gorm.DB, model CAJournal) error {
+	if err := tx.Delete(&model).Error; err != nil {
 		return sqlcommon.NewWrappedSQLError(err)
 	}
 	return nil

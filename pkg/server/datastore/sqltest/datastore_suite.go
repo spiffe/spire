@@ -18,6 +18,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gofrs/uuid/v5"
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -5759,7 +5760,7 @@ func (s *Suite) TestSetCAJournal() {
 			code: codes.NotFound,
 			msg:  "datastore-sql: record not found",
 			caJournal: &datastore.CAJournal{
-				ID:                    999,
+				JournalID:             "6e9b5e0d-9d1a-4c1e-8b2f-2f0f0a3b7c11",
 				Data:                  []byte("test data"),
 				ActiveX509AuthorityID: "x509-authority-id",
 			},
@@ -5776,8 +5777,81 @@ func (s *Suite) TestSetCAJournal() {
 			}
 
 			assertCAJournal(t, tt.caJournal, caJournal)
+			require.NotEmpty(t, caJournal.JournalID)
+			_, err = uuid.FromString(caJournal.JournalID)
+			require.NoError(t, err)
 		})
 	}
+}
+
+func (s *Suite) TestSetCAJournalUpdatesInPlace() {
+	created, err := s.ds.SetCAJournal(ctx, &datastore.CAJournal{
+		Data:                  []byte("first"),
+		ActiveX509AuthorityID: "x509-authority-1",
+	})
+	s.Require().NoError(err)
+	s.Require().NotEmpty(created.JournalID)
+
+	updated, err := s.ds.SetCAJournal(ctx, &datastore.CAJournal{
+		JournalID:             created.JournalID,
+		Data:                  []byte("second"),
+		ActiveX509AuthorityID: "x509-authority-2",
+	})
+	s.Require().NoError(err)
+	s.Require().Equal(created.JournalID, updated.JournalID)
+	s.Require().Equal([]byte("second"), updated.Data)
+	s.Require().Equal(1, s.countCAJournals())
+}
+
+func (s *Suite) TestCAJournalWithoutJournalID() {
+	query := s.ds.Rebind("INSERT INTO ca_journals(data, active_x509_authority_id) VALUES (?, ?)")
+	s.Require().NoError(s.ds.RawExec(query, []byte("first"), "x509-authority-1"))
+
+	var row struct {
+		ID uint `gorm:"column:id"`
+	}
+	s.Require().NoError(s.ds.RawScan(&row, "SELECT id FROM ca_journals"))
+	expectedJournalID := strconv.FormatUint(uint64(row.ID), 10)
+
+	caJournal, err := s.ds.FetchCAJournal(ctx, "x509-authority-1")
+	s.Require().NoError(err)
+	s.Require().Equal(expectedJournalID, caJournal.JournalID)
+
+	updated, err := s.ds.SetCAJournal(ctx, &datastore.CAJournal{
+		JournalID:             caJournal.JournalID,
+		Data:                  []byte("second"),
+		ActiveX509AuthorityID: "x509-authority-2",
+	})
+	s.Require().NoError(err)
+	s.Require().Equal(expectedJournalID, updated.JournalID)
+	s.Require().Equal([]byte("second"), updated.Data)
+	s.Require().Equal(1, s.countCAJournals())
+
+	fetched, err := s.ds.FetchCAJournal(ctx, "x509-authority-2")
+	s.Require().NoError(err)
+	s.Require().Equal(expectedJournalID, fetched.JournalID)
+}
+
+func (s *Suite) TestSetCAJournalAdoptsRecordWithoutJournalID() {
+	query := s.ds.Rebind("INSERT INTO ca_journals(data, active_x509_authority_id) VALUES (?, ?)")
+	s.Require().NoError(s.ds.RawExec(query, []byte("first"), "x509-authority-1"))
+
+	updated, err := s.ds.SetCAJournal(ctx, &datastore.CAJournal{
+		Data:                  []byte("second"),
+		ActiveX509AuthorityID: "x509-authority-1",
+	})
+	s.Require().NoError(err)
+	s.Require().NotEmpty(updated.JournalID)
+	s.Require().Equal([]byte("second"), updated.Data)
+	s.Require().Equal(1, s.countCAJournals())
+}
+
+func (s *Suite) countCAJournals() int {
+	var row struct {
+		Count int `gorm:"column:count"`
+	}
+	s.Require().NoError(s.ds.RawScan(&row, "SELECT COUNT(*) AS count FROM ca_journals"))
+	return row.Count
 }
 
 func (s *Suite) TestFetchCAJournal() {
@@ -5872,6 +5946,22 @@ func (s *Suite) TestPruneCAJournal() {
 	caj, err = s.ds.FetchCAJournal(ctx, "x509-authority-1")
 	s.Require().NoError(err)
 	s.Require().Nil(caj)
+}
+
+func (s *Suite) TestPruneCAJournalWithoutJournalID() {
+	now := time.Now()
+	entriesBytes, err := proto.Marshal(&journal.Entries{
+		X509CAs: []*journal.X509CAEntry{
+			{NotAfter: now.Add(-time.Hour).Unix()},
+		},
+	})
+	s.Require().NoError(err)
+
+	query := s.ds.Rebind("INSERT INTO ca_journals(data, active_x509_authority_id) VALUES (?, ?)")
+	s.Require().NoError(s.ds.RawExec(query, entriesBytes, "x509-authority-1"))
+
+	s.Require().NoError(s.ds.PruneCAJournals(ctx, now.Unix()))
+	s.Require().Zero(s.countCAJournals())
 }
 
 // getTestDataFromJSONFile reads a JSON fixture using a path relative to the
@@ -6133,6 +6223,9 @@ func assertCAJournal(t *testing.T, exp, actual *datastore.CAJournal) {
 	if exp == nil {
 		assert.Nil(t, actual)
 		return
+	}
+	if exp.JournalID != "" {
+		assert.Equal(t, exp.JournalID, actual.JournalID)
 	}
 	assert.Equal(t, exp.ActiveX509AuthorityID, actual.ActiveX509AuthorityID)
 	assert.Equal(t, exp.Data, actual.Data)
