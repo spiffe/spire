@@ -435,11 +435,14 @@ func locatePrivateKeys(ctx context.Context, c *kmipclient.Client, names ...ovh.N
 	return locatePrivateKeysWithAttributes(ctx, c, attrs...)
 }
 
-// recoveredKey is a single key object discovered on the KMIP server during
-// recovery, before disambiguation between key objects sharing a spire-key-id.
+// recoveredKey is a single private key object discovered on the KMIP server
+// during recovery, before disambiguation between key objects sharing a
+// spire-key-id. It only carries the cheap Name-attribute data needed to pick a
+// winner per spire-key-id; the linked public key is fetched afterwards, only
+// for the winning candidate (see recoverKeys).
 type recoveredKey struct {
 	privateKeyUID string
-	publicKey     *keymanagerv1.PublicKey
+	keyType       keymanagerv1.KeyType
 	active        bool
 	lastUpdate    int64
 }
@@ -453,6 +456,12 @@ type recoveredKey struct {
 // destruction for staleKeyThreshold to leave a recovery window). Candidates are
 // grouped by spire-key-id and disambiguated below rather than letting the last one
 // seen silently win, which could recover a stale, superseded key as active.
+//
+// Disambiguation happens using only the cheap Name attributes of each private
+// key, before any linked-public-key or PKIX lookups are performed. This way, a
+// stale, non-winning candidate whose linked public key is missing or broken
+// (e.g. because a prior stale-key disposal partially completed) never causes
+// the whole recovery to fail: its public key is simply never looked up.
 func recoverKeys(ctx context.Context, client *kmipclient.Client, logger hclog.Logger, serverID, trustDomain string) (map[string]keyEntry, error) {
 	privUIDs, err := locatePrivateKeys(ctx, client, ovh.Name{
 		NameValue: serverIDNameValue(serverID),
@@ -485,30 +494,14 @@ func recoverKeys(ctx context.Context, client *kmipclient.Client, logger hclog.Lo
 			continue
 		}
 
-		pubUID, err := getLinkedUID(ctx, client, privUID, ovh.LinkTypePublicKeyLink)
-		if err != nil {
-			return nil, fmt.Errorf("get linked public key for private key uid %s: %w", privUID, err)
-		}
-
-		pkixData, err := getPublicKeyPKIX(ctx, client, pubUID, keyType)
-		if err != nil {
-			return nil, fmt.Errorf("get PKIX public key for private key uid %s (public key uid %s): %w", privUID, pubUID, err)
-		}
-
 		var lastUpdate int64
 		if v := prefixValue(names, prefixLastUpdate); v != "" {
 			lastUpdate, _ = strconv.ParseInt(v, 10, 64) // zero on parse error is a safe, conservative fallback
 		}
 
-		pk := &keymanagerv1.PublicKey{
-			Id:          spireKeyID,
-			Type:        keyType,
-			PkixData:    pkixData,
-			Fingerprint: fingerprint(pkixData),
-		}
 		candidates[spireKeyID] = append(candidates[spireKeyID], recoveredKey{
 			privateKeyUID: privUID,
-			publicKey:     pk,
+			keyType:       keyType,
 			active:        prefixValue(names, prefixActive) == activeValue,
 			lastUpdate:    lastUpdate,
 		})
@@ -521,7 +514,24 @@ func recoverKeys(ctx context.Context, client *kmipclient.Client, logger hclog.Lo
 			logger.Warn("Multiple keys found for spire-key-id during recovery; disambiguated",
 				"spire_key_id", spireKeyID, "count", len(keys), "chosen_uid", winner.privateKeyUID)
 		}
-		entries[spireKeyID] = keyEntry{privateKeyUID: winner.privateKeyUID, publicKey: winner.publicKey}
+
+		pubUID, err := getLinkedUID(ctx, client, winner.privateKeyUID, ovh.LinkTypePublicKeyLink)
+		if err != nil {
+			return nil, fmt.Errorf("get linked public key for private key uid %s: %w", winner.privateKeyUID, err)
+		}
+
+		pkixData, err := getPublicKeyPKIX(ctx, client, pubUID, winner.keyType)
+		if err != nil {
+			return nil, fmt.Errorf("get PKIX public key for private key uid %s (public key uid %s): %w", winner.privateKeyUID, pubUID, err)
+		}
+
+		pk := &keymanagerv1.PublicKey{
+			Id:          spireKeyID,
+			Type:        winner.keyType,
+			PkixData:    pkixData,
+			Fingerprint: fingerprint(pkixData),
+		}
+		entries[spireKeyID] = keyEntry{privateKeyUID: winner.privateKeyUID, publicKey: pk}
 		logger.Debug("Recovered key", "spire_key_id", spireKeyID, "priv_uid", winner.privateKeyUID)
 	}
 	return entries, nil
