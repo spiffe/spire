@@ -1065,7 +1065,7 @@ func (p *Plugin) disposeStaleKeys(ctx context.Context) error {
 		if !ok || lastUpdate >= staleThreshold {
 			continue
 		}
-		if err := revokeAndDestroyKeyPair(ctx, client, privUID); err != nil {
+		if err := revokeAndDestroyKeyPair(ctx, client, p.logger, privUID); err != nil {
 			p.logger.Warn("Failed to revoke and destroy stale key", "uid", privUID, "err", err)
 			continue
 		}
@@ -1153,16 +1153,19 @@ func destroyPreActive(ctx context.Context, c *kmipclient.Client, uid string) err
 
 // revokeAndDestroyKeyPair revokes and destroys a key pair: the private key and its
 // linked public key. The public key is looked up via the private key's PublicKeyLink
-// before the private key is destroyed so the pair is never left half-destroyed.
-func revokeAndDestroyKeyPair(ctx context.Context, c *kmipclient.Client, privUID string) error {
+// so it can be cleaned up alongside the private key, but a failure to locate or
+// destroy the public key does not prevent the private key from being destroyed;
+// it is only logged. Leaving the private key behind is worse than an orphaned
+// public key, since the private key is what disposeStaleKeys is trying to reclaim.
+func revokeAndDestroyKeyPair(ctx context.Context, c *kmipclient.Client, logger hclog.Logger, privUID string) error {
 	pubUID, err := getLinkedUID(ctx, c, privUID, ovh.LinkTypePublicKeyLink)
 	switch {
 	case err == nil && pubUID != "":
 		if err := destroyByState(ctx, c, pubUID); err != nil {
-			return fmt.Errorf("destroy public key %s: %w", pubUID, err)
+			logger.Warn("Failed to destroy linked public key", "uid", pubUID, "private_key_uid", privUID, "err", err)
 		}
 	case err != nil && !errors.Is(err, errLinkNotFound):
-		return fmt.Errorf("get linked public key for private key %s: %w", privUID, err)
+		logger.Warn("Failed to find linked public key", "private_key_uid", privUID, "err", err)
 	}
 	if err := destroyByState(ctx, c, privUID); err != nil {
 		return fmt.Errorf("destroy private key %s: %w", privUID, err)

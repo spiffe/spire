@@ -1059,7 +1059,7 @@ func TestRevokeAndDestroyKeyPair(t *testing.T) {
 		assertStore func(*testing.T, *fakeStore)
 	}{
 		{
-			name: "linked public key lookup failure keeps the pair intact",
+			name: "linked public key lookup failure still destroys the private key",
 			setup: func(store *fakeStore) {
 				store.seed("stale-priv", "stale-pub", []string{
 					serverIDNameValue(testServerID),
@@ -1069,16 +1069,13 @@ func TestRevokeAndDestroyKeyPair(t *testing.T) {
 				store.failGetAttributes("stale-priv", ovh.AttributeNameLink, errors.New("kmip unavailable"))
 			},
 			assertError: func(t *testing.T, err error) {
-				require.ErrorContains(t, err, "get linked public key for private key stale-priv")
-				require.ErrorContains(t, err, "kmip unavailable")
+				require.NoError(t, err)
 			},
 			assertStore: func(t *testing.T, store *fakeStore) {
 				store.mu.Lock()
 				defer store.mu.Unlock()
-				require.Contains(t, store.keys, "stale-priv", "private key should be retained for retry after lookup failure")
-				require.Contains(t, store.pubKeys, "stale-pub", "public key should be retained for retry after lookup failure")
-				require.False(t, store.revoked["stale-priv"], "private key should not be revoked when linked lookup fails")
-				require.False(t, store.revoked["stale-pub"], "public key should not be revoked when linked lookup fails")
+				require.NotContains(t, store.keys, "stale-priv", "private key should still be destroyed even when the linked lookup fails")
+				require.Contains(t, store.pubKeys, "stale-pub", "public key UID was never learned, so it cannot be destroyed and remains orphaned")
 			},
 		},
 		{
@@ -1118,7 +1115,7 @@ func TestRevokeAndDestroyKeyPair(t *testing.T) {
 			p.mu.RUnlock()
 			require.NotNil(t, client)
 
-			err := revokeAndDestroyKeyPair(context.Background(), client, "stale-priv")
+			err := revokeAndDestroyKeyPair(context.Background(), client, hclog.NewNullLogger(), "stale-priv")
 			tt.assertError(t, err)
 			tt.assertStore(t, store)
 		})
