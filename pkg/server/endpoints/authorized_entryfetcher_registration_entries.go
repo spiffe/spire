@@ -2,7 +2,6 @@ package endpoints
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"maps"
 	"slices"
@@ -15,8 +14,6 @@ import (
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/authorizedentries"
 	"github.com/spiffe/spire/pkg/server/datastore"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 type registrationEntries struct {
@@ -26,113 +23,29 @@ type registrationEntries struct {
 	log     logrus.FieldLogger
 	metrics telemetry.Metrics
 
-	eventsBeforeFirst map[uint]struct{}
-
-	firstEvent     uint
-	firstEventTime time.Time
-	lastEvent      uint
-
-	eventTracker *eventTracker
 	eventTimeout time.Duration
 	pageSize     int32
 
 	fetchEntries map[string]struct{}
 
 	// metrics change detection
+	pendingEntryEvents int
 	skippedEntryEvents int
 	lastCacheStats     authorizedentries.CacheStats
 }
 
 func (a *registrationEntries) captureChangedEntries(ctx context.Context) error {
-	if err := a.searchBeforeFirstEvent(ctx); err != nil {
-		return err
-	}
-	a.selectPolledEvents(ctx)
-	return a.scanForNewEvents(ctx)
-}
-
-func (a *registrationEntries) searchBeforeFirstEvent(ctx context.Context) error {
-	// First event detected, and startup was less than a transaction timout away.
-	if !a.firstEventTime.IsZero() && a.clk.Now().Sub(a.firstEventTime) <= a.eventTimeout {
-		resp, err := a.ds.ListRegistrationEntryEvents(ctx, &datastore.ListRegistrationEntryEventsRequest{
-			LessThanEventID: a.firstEvent,
-		})
-		if err != nil {
-			return err
-		}
-		for _, event := range resp.Events {
-			// if we have seen it before, don't reload it.
-			if _, seen := a.eventsBeforeFirst[event.EventID]; !seen {
-				a.fetchEntries[event.EntryID] = struct{}{}
-				a.eventsBeforeFirst[event.EventID] = struct{}{}
-			}
-		}
-		return nil
-	}
-
-	// zero out unused event tracker
-	if len(a.eventsBeforeFirst) != 0 {
-		a.eventsBeforeFirst = make(map[uint]struct{})
-	}
-
-	return nil
-}
-
-func (a *registrationEntries) selectPolledEvents(ctx context.Context) {
-	// check if the polled events have appeared out-of-order
-	selectedEvents := a.eventTracker.SelectEvents()
-	defer a.eventTracker.FreeEvents(selectedEvents)
-
-	for _, eventID := range selectedEvents {
-		log := a.log.WithField(telemetry.EventID, eventID)
-		event, err := a.ds.FetchRegistrationEntryEvent(ctx, eventID)
-
-		if errors.Is(err, context.Canceled) {
-			return
-		}
-
-		switch status.Code(err) {
-		case codes.OK:
-		case codes.NotFound:
-			continue
-		default:
-			log.WithError(err).Errorf("Failed to fetch info about skipped event %d", eventID)
-			continue
-		}
-
-		a.fetchEntries[event.EntryID] = struct{}{}
-		a.eventTracker.StopTracking(eventID)
-	}
-}
-
-func (a *registrationEntries) scanForNewEvents(ctx context.Context) error {
-	resp, err := a.ds.ListRegistrationEntryEvents(ctx, &datastore.ListRegistrationEntryEventsRequest{
-		DataConsistency:    datastore.TolerateStale,
-		GreaterThanEventID: a.lastEvent,
+	resp, err := a.ds.FetchRegistrationEntryChanges(ctx, &datastore.FetchRegistrationEntryChangesRequest{
+		EventTimeout: a.eventTimeout,
 	})
 	if err != nil {
 		return err
 	}
 
-	for _, event := range resp.Events {
-		// event time determines if we have seen the first event.
-		if a.firstEventTime.IsZero() {
-			a.firstEvent = event.EventID
-			a.lastEvent = event.EventID
-			a.fetchEntries[event.EntryID] = struct{}{}
-			a.firstEventTime = a.clk.Now()
-			continue
-		}
-
-		// track any skipped event ids, should they appear later.
-		for skipped := a.lastEvent + 1; skipped < event.EventID; skipped++ {
-			a.eventTracker.StartTracking(skipped)
-		}
-
-		// every event adds its entry to the entry fetch list.
-		a.fetchEntries[event.EntryID] = struct{}{}
-		a.lastEvent = event.EventID
+	for _, entryID := range resp.EntryIDs {
+		a.fetchEntries[entryID] = struct{}{}
 	}
+	a.pendingEntryEvents = int(resp.PendingEvents)
 	return nil
 }
 
@@ -169,9 +82,7 @@ func (a *registrationEntries) loadCache(ctx context.Context, cache *authorizeden
 }
 
 // buildRegistrationEntriesCache Fetches all registration entries and adds them to the cache
-func buildRegistrationEntriesCache(ctx context.Context, log logrus.FieldLogger, metrics telemetry.Metrics, ds datastore.DataStore, clk clock.Clock, cache *authorizedentries.Cache, pageSize int32, cacheReloadInterval, eventTimeout time.Duration) (*registrationEntries, error) {
-	pollPeriods := PollPeriods(cacheReloadInterval, eventTimeout)
-
+func buildRegistrationEntriesCache(ctx context.Context, log logrus.FieldLogger, metrics telemetry.Metrics, ds datastore.DataStore, clk clock.Clock, cache *authorizedentries.Cache, pageSize int32, eventTimeout time.Duration) (*registrationEntries, error) {
 	registrationEntries := &registrationEntries{
 		cache:        cache,
 		clk:          clk,
@@ -181,10 +92,7 @@ func buildRegistrationEntriesCache(ctx context.Context, log logrus.FieldLogger, 
 		eventTimeout: eventTimeout,
 		pageSize:     pageSize,
 
-		eventsBeforeFirst: make(map[uint]struct{}),
-		fetchEntries:      make(map[string]struct{}),
-
-		eventTracker: NewEventTracker(pollPeriods),
+		fetchEntries: make(map[string]struct{}),
 
 		skippedEntryEvents: -1,
 		lastCacheStats: authorizedentries.CacheStats{
@@ -263,12 +171,11 @@ func (a *registrationEntries) fetchEntriesPage(entryIds []string, pageStart int)
 
 func (a *registrationEntries) swapCache(cache *authorizedentries.Cache) {
 	a.cache = cache
-	a.fetchEntries = make(map[string]struct{})
 }
 
 func (a *registrationEntries) emitMetrics() {
-	if a.skippedEntryEvents != a.eventTracker.EventCount() {
-		a.skippedEntryEvents = a.eventTracker.EventCount()
+	if a.skippedEntryEvents != a.pendingEntryEvents {
+		a.skippedEntryEvents = a.pendingEntryEvents
 		server_telemetry.SetSkippedEntryEventIDsCacheCountGauge(a.metrics, a.skippedEntryEvents)
 	}
 
