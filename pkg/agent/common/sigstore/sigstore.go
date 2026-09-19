@@ -21,7 +21,6 @@ import (
 	"github.com/sigstore/rekor/pkg/client"
 	rekorclient "github.com/sigstore/rekor/pkg/generated/client"
 	"github.com/sigstore/sigstore/pkg/cryptoutils"
-	"github.com/sigstore/sigstore/pkg/fulcioroots" //nolint:staticcheck // deprecated in favor of sigstore-go TUF, tracked in https://github.com/spiffe/spire/issues/7214
 	"github.com/spiffe/spire/pkg/common/telemetry"
 )
 
@@ -81,8 +80,8 @@ func NewVerifier(config *Config) *ImageVerifier {
 			verifyImageSignatures:   cosign.VerifyImageSignatures,
 			verifyImageAttestations: cosign.VerifyImageAttestations,
 			getRekorClient:          client.GetRekorClient,
-			getFulcioRoots:          fulcioroots.Get,
-			getFulcioIntermediates:  fulcioroots.GetIntermediates,
+			getFulcioRoots:          getFulcioRoots,
+			getFulcioIntermediates:  getFulcioIntermediates,
 			getRekorPublicKeys:      cosign.GetRekorPubs,
 			getCTLogPublicKeys:      cosign.GetCTLogPubs,
 		},
