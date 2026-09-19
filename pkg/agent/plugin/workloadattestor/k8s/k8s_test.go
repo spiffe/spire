@@ -60,6 +60,8 @@ const (
 
 	podListFilePath           = "testdata/pod_list.json"
 	podListNotRunningFilePath = "testdata/pod_list_not_running.json"
+	podListFailedFilePath     = "testdata/pod_list_failed.json"
+	podListSucceededFilePath  = "testdata/pod_list_succeeded.json"
 
 	certPath = "cert.pem"
 	keyPath  = "key.pem"
@@ -333,6 +335,50 @@ func (s *Suite) TestAttestPodListCache() {
 	s.clock.Add(testPollRetryInterval)
 	s.requireAttestSuccess(p, testPodAndContainerSelectors)
 	s.Require().Equal(0, s.podListResponseCount())
+}
+
+func (s *Suite) TestAttestFailedPodWithRunningContainersWhenExcludeEnabled() {
+	// A pod can sit in Failed (e.g. after eviction or a node problem) while
+	// its containers are still running. Attestation matches on container ID
+	// and never consults the phase, so such a pod must survive the filter even
+	// with exclude_completed_pods = true.
+	s.startInsecureKubelet()
+	p := s.loadInsecurePluginWithExtra("exclude_completed_pods = true")
+	s.addPodListResponse(podListFailedFilePath)
+	s.addGetContainerResponsePidInPod()
+	s.requireAttestSuccess(p, testPodAndContainerSelectors)
+}
+
+func (s *Suite) TestAttestSucceededPodWithRunningContainersWhenExcludeEnabled() {
+	// As above, for a pod reporting Succeeded while its containers are still
+	// running.
+	s.startInsecureKubelet()
+	p := s.loadInsecurePluginWithExtra("exclude_completed_pods = true")
+	s.addPodListResponse(podListSucceededFilePath)
+	s.addGetContainerResponsePidInPod()
+	s.requireAttestSuccess(p, testPodAndContainerSelectors)
+}
+
+func (s *Suite) TestAttestTrackFailedPodByDefault() {
+	// exclude_completed_pods defaults to false, so a Failed pod is still
+	// tracked and a workload whose container is present in that pod continues
+	// to attest normally.
+	s.startInsecureKubelet()
+	p := s.loadInsecurePlugin()
+	s.addPodListResponse(podListFailedFilePath)
+	s.addGetContainerResponsePidInPod()
+	s.requireAttestSuccess(p, testPodAndContainerSelectors)
+}
+
+func (s *Suite) TestAttestTrackSucceededPodByDefault() {
+	// exclude_completed_pods defaults to false, so a Succeeded pod is still
+	// tracked and a workload whose container is present in that pod continues
+	// to attest normally.
+	s.startInsecureKubelet()
+	p := s.loadInsecurePlugin()
+	s.addPodListResponse(podListSucceededFilePath)
+	s.addGetContainerResponsePidInPod()
+	s.requireAttestSuccess(p, testPodAndContainerSelectors)
 }
 
 func (s *Suite) TestAttestWithPidNotInPodAfterRetry() {
