@@ -32,6 +32,7 @@ import (
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
+	keymanagertest "github.com/spiffe/spire/pkg/server/plugin/keymanager/test"
 	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/require"
@@ -42,6 +43,16 @@ const (
 	testServerID    = "test-server-0001"
 	testTrustDomain = "example.org"
 )
+
+func TestKeyManagerContract(t *testing.T) {
+	keymanagertest.Test(t, keymanagertest.Config{
+		Create: func(t *testing.T) keymanager.KeyManager {
+			store := newFakeStore()
+			addr, caPEM := kmiptest.NewServer(t, store.handler())
+			return loadPlugin(t, addr, caPEM)
+		},
+	})
+}
 
 // ─── Configure ───────────────────────────────────────────────────────────────
 
@@ -563,14 +574,10 @@ func TestSignDataPSSCryptographicParameters(t *testing.T) {
 
 	pub, ok := key.Public().(*rsa.PublicKey)
 	require.True(t, ok)
-	// The plugin intentionally omits SaltLength from the KMIP request so the
-	// KMIP server selects its default salt size instead of receiving a Go-local
-	// sentinel or caller-specific byte count on the wire.
 	require.NoError(t, rsa.VerifyPSS(pub, crypto.SHA384, digest[:], sig, &rsa.PSSOptions{
-		SaltLength: rsa.PSSSaltLengthAuto,
+		SaltLength: 48,
 		Hash:       crypto.SHA384,
 	}))
-
 	store.mu.Lock()
 	signReq := store.lastSignRequest
 	store.mu.Unlock()
@@ -580,7 +587,8 @@ func TestSignDataPSSCryptographicParameters(t *testing.T) {
 	require.Equal(t, ovh.HashingAlgorithmSHA_384, signReq.CryptographicParameters.HashingAlgorithm)
 	require.Equal(t, ovh.MaskGeneratorMGF1, signReq.CryptographicParameters.MaskGenerator)
 	require.Equal(t, ovh.HashingAlgorithmSHA_384, signReq.CryptographicParameters.MaskGeneratorHashingAlgorithm)
-	require.Nil(t, signReq.CryptographicParameters.SaltLength)
+	require.NotNil(t, signReq.CryptographicParameters.SaltLength)
+	require.Equal(t, int32(48), *signReq.CryptographicParameters.SaltLength)
 }
 
 func TestSignDataKeyNotFound(t *testing.T) {
@@ -759,8 +767,14 @@ func TestGenerateKeyRotationMarksExactlyOneActiveKey(t *testing.T) {
 
 	store.mu.Lock()
 	defer store.mu.Unlock()
-	require.NotContains(t, store.keys[oldUID].nameAttrs, activeNameValue(), "superseded key must have its active marker cleared")
-	require.Contains(t, store.keys[newUID].nameAttrs, activeNameValue(), "the newly generated key must be marked active")
+	oldName := store.keys[oldUID].nameAttrs[0]
+	newName := store.keys[newUID].nameAttrs[0]
+	_, _, _, _, _, oldActive, err := parseKeyMetadata(oldName)
+	require.NoError(t, err)
+	require.False(t, oldActive, "superseded key must have its active marker cleared")
+	_, _, _, _, _, newActive, err := parseKeyMetadata(newName)
+	require.NoError(t, err)
+	require.True(t, newActive, "the newly generated key must be marked active")
 }
 
 // TestKeyRecoveryAfterRotationPicksActiveKey reproduces the ambiguity flagged in
@@ -835,11 +849,15 @@ func TestGenerateKeyTagsAtCreation(t *testing.T) {
 	defer store.mu.Unlock()
 	require.Len(t, store.keys, 1)
 	for _, rec := range store.keys {
-		require.Contains(t, rec.nameAttrs, serverIDNameValue(testServerID))
-		require.Contains(t, rec.nameAttrs, trustDomainNameValue(testTrustDomain))
-		require.Contains(t, rec.nameAttrs, prefixKeyID+"tagged-key")
-		require.Contains(t, rec.nameAttrs, prefixKeyType+"EC_P256")
-		require.NotEmpty(t, prefixValue(rec.nameAttrs, prefixLastUpdate))
+		require.Len(t, rec.nameAttrs, 1)
+		serverID, td, keyID, kt, lu, active, err := parseKeyMetadata(rec.nameAttrs[0])
+		require.NoError(t, err)
+		require.Equal(t, testServerID, serverID)
+		require.Equal(t, testTrustDomain, td)
+		require.Equal(t, "tagged-key", keyID)
+		require.Equal(t, keymanagerv1.KeyType_EC_P256, kt)
+		require.NotZero(t, lu)
+		require.True(t, active)
 	}
 }
 
@@ -1276,6 +1294,13 @@ func setPrivateKeyLastUpdate(t *testing.T, store *fakeStore, privUID string, ts 
 	rec, ok := store.keys[privUID]
 	require.True(t, ok, "expected private key %q to exist", privUID)
 	for i, nameAttr := range rec.nameAttrs {
+		if strings.HasPrefix(nameAttr, prefixSpireTag) {
+			serverID, td, keyID, kt, _, active, err := parseKeyMetadata(nameAttr)
+			if err == nil {
+				rec.nameAttrs[i] = encodeKeyMetadata(serverID, td, keyID, kt, ts, active)
+				return
+			}
+		}
 		if strings.HasPrefix(nameAttr, prefixLastUpdate) {
 			rec.nameAttrs[i] = lastUpdateNameValue(ts)
 			return
@@ -1291,6 +1316,13 @@ func readLastUpdate(t *testing.T, store *fakeStore) int64 {
 	store.mu.Lock()
 	defer store.mu.Unlock()
 	for _, rec := range store.keys {
+		for _, nameAttr := range rec.nameAttrs {
+			if strings.HasPrefix(nameAttr, prefixSpireTag) {
+				_, _, _, _, lu, _, err := parseKeyMetadata(nameAttr)
+				require.NoError(t, err)
+				return lu
+			}
+		}
 		ts, err := strconv.ParseInt(prefixValue(rec.nameAttrs, prefixLastUpdate), 10, 64)
 		require.NoError(t, err)
 		return ts
@@ -1709,7 +1741,10 @@ func cloneSignRequest(req *payloads.SignRequestPayload) *payloads.SignRequestPay
 func signerOptsFromRequest(req *payloads.SignRequestPayload) crypto.SignerOpts {
 	hash := cryptoHashFromKMIP(req.CryptographicParameters)
 	if req.CryptographicParameters != nil && req.CryptographicParameters.DigitalSignatureAlgorithm == ovh.DigitalSignatureAlgorithmRSASSA_PSS {
-		opts := &rsa.PSSOptions{Hash: hash}
+		opts := &rsa.PSSOptions{
+			Hash:       hash,
+			SaltLength: rsa.PSSSaltLengthAuto,
+		}
 		if req.CryptographicParameters.SaltLength != nil {
 			opts.SaltLength = int(*req.CryptographicParameters.SaltLength)
 		}

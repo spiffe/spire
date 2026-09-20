@@ -3,7 +3,10 @@
 source init-kubectl
 
 if [ -z "$SUCCESS" ]; then
-    ./bin/kubectl -n spire logs deployment/spire-server --all-containers || true
+    for pod in $(./bin/kubectl -n spire get pods -o jsonpath='{.items[*].metadata.name}'); do
+        echo "=== Logs for pod $pod ==="
+        ./bin/kubectl -n spire logs "$pod" || true
+    done
     ./bin/kubectl -n spire-test logs deployment/kmip-server --all-containers || true
 fi
 

@@ -1,3 +1,17 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: spire-data
+  namespace: spire
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+
+---
+
 # ServiceAccount used by the SPIRE server.
 apiVersion: v1
 kind: ServiceAccount
@@ -144,6 +158,8 @@ metadata:
     app: spire-server
 spec:
   replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: spire-server
@@ -186,7 +202,8 @@ spec:
           configMap:
             name: spire-server
         - name: spire-data
-          emptyDir: {}
+          persistentVolumeClaim:
+            claimName: spire-data
         - name: kmip-tls
           secret:
             secretName: kmip-tls
