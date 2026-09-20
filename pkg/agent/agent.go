@@ -469,6 +469,7 @@ func (a *Agent) newManager(ctx context.Context, sto storage.Storage, cat catalog
 		RebootstrapMode:      a.c.RebootstrapMode,
 		RebootstrapDelay:     a.c.RebootstrapDelay,
 		SyncInterval:         a.c.SyncInterval,
+		SyncRetryBackoff:     a.c.SyncRetryBackoff,
 		X509SVIDCacheMaxSize: a.c.X509SVIDCacheMaxSize,
 		JWTSVIDCacheMaxSize:  a.c.JWTSVIDCacheMaxSize,
 		WITSVIDCacheMaxSize:  a.c.WITSVIDCacheMaxSize,

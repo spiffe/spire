@@ -22,6 +22,34 @@ import (
 	"github.com/spiffe/spire/pkg/common/tlspolicy"
 )
 
+// SyncRetryBackoffConfig configures the exponential backoff applied between
+// failed synchronizations with the server. The backoff always starts at the
+// sync interval; unset fields fall back to values derived from it.
+type SyncRetryBackoffConfig struct {
+	// MaxInterval is the upper limit of the interval between retries.
+	// Defaults to 48 times the sync interval, capped at 8 minutes.
+	MaxInterval time.Duration
+
+	// Multiplier is the factor the interval is multiplied by after each
+	// failure. Defaults to 1.5.
+	Multiplier *float64
+
+	// Jitter is the fraction of the interval the interval is randomized by.
+	// Defaults to 0.10.
+	Jitter *float64
+}
+
+// EffectiveSyncRetryMaxInterval returns the maximum interval the
+// synchronization retry backoff uses for the given sync interval and
+// configuration, after the default of the unset field is applied.
+func EffectiveSyncRetryMaxInterval(syncInterval time.Duration, c *SyncRetryBackoffConfig) time.Duration {
+	if c != nil && c.MaxInterval > 0 {
+		return c.MaxInterval
+	}
+	// upper limit of backoff is 8 mins
+	return min(synchronizeMaxInterval, synchronizeMaxIntervalMultiple*syncInterval)
+}
+
 // Config holds a cache manager configuration
 type Config struct {
 	// Agent SVID and key resulting from successful attestation.
@@ -40,6 +68,7 @@ type Config struct {
 	RebootstrapDelay     time.Duration
 	WorkloadKeyType      workloadkey.KeyType
 	SyncInterval         time.Duration
+	SyncRetryBackoff     *SyncRetryBackoffConfig
 	RotationInterval     time.Duration
 	SVIDStoreCache       *storecache.Cache
 	X509SVIDCacheMaxSize int
@@ -66,7 +95,7 @@ func New(c *Config) Manager {
 
 func newManager(c *Config) *manager {
 	if c.SyncInterval == 0 {
-		c.SyncInterval = 5 * time.Second
+		c.SyncInterval = DefaultSyncInterval
 	}
 
 	if c.RotationInterval == 0 {
