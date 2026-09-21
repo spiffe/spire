@@ -28,7 +28,9 @@ tools/spire-plugingen/spire-plugingen
 
 # Editor specific configuration
 .idea
-.vscode
+.vscode/*
+!.vscode/launch.json
+!.vscode/tasks.json
 
 # Runtime version manager specific configuration
 # asdf config file
@@ -41,3 +43,12 @@ oci/
 # Go workspace files
 go.work
 go.work.sum
+
+# VSCode debug artifacts
+__debug_bin*
+
+.agent-data/
+.loadtest-data/*
+cmd/cassandraplugin/cassandraplugin
+
+import

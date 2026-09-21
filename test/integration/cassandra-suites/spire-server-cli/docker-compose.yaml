@@ -1,0 +1,33 @@
+services:
+  spire-server:
+    image: spire-server-alpine
+    env_file:
+      - ../.env
+    hostname: spire-server
+    volumes:
+      - ./conf/server:/opt/spire/conf/server
+      - ./conf/fixture:/opt/spire/conf/fixture
+    command: ["-config", "/opt/spire/conf/server/server.conf"]
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+  spire-agent-1:
+    image: spire-agent:latest-local
+    env_file:
+      - ../.env
+    volumes:
+      - ./conf/agent-1:/opt/spire/conf/agent
+    command: ["-config", "/opt/spire/conf/agent/agent.conf"]
+  spire-agent-2:
+    image: spire-agent:latest-local
+    env_file:
+      - ../.env
+    volumes:
+      - ./conf/agent-2:/opt/spire/conf/agent
+    command: ["-config", "/opt/spire/conf/agent/agent.conf"]
+  spire-agent-3:
+    image: spire-agent:latest-local
+    env_file:
+      - ../.env
+    volumes:
+      - ./conf/agent-3:/opt/spire/conf/agent
+    command: ["-config", "/opt/spire/conf/agent/agent.conf"]

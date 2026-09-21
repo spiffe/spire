@@ -1,0 +1,32 @@
+#!/bin/bash
+
+# We need at least 500 entries to make sure we test the SyncAuthorizedEntries API,
+# otherwise the agent falls back to a full sync.
+ENTRIES=$(jq -n '{
+    entries: [
+        (
+            range(1; 512) | {
+                parent_id: "spiffe://domain.test/node",
+                spiffe_id: ("spiffe://domain.test/workload" + (. | tostring)),
+                selectors: [
+                    {
+                        type: "unix",
+                        value: ("uid:" + (. | tostring))
+                    }
+                ]
+            }
+        )
+    ]
+}')
+
+
+docker compose exec -T spire-server /opt/spire/bin/spire-server entry create -data - <<< ${ENTRIES}
+
+log-debug "creating registration entry..."
+docker compose exec -T spire-server \
+    /opt/spire/bin/spire-server entry create \
+    -parentID "spiffe://domain.test/node" \
+    -spiffeID "spiffe://domain.test/theworkload" \
+    -selector "unix:uid:0"
+
+check-synced-entry "spire-agent" "spiffe://domain.test/theworkload"

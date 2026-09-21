@@ -1,0 +1,8 @@
+#!/bin/bash
+
+set -e
+
+"${ROOTDIR}/setup/x509pop/setup.sh" conf/downstream/server conf/downstream/agent
+"${ROOTDIR}/setup/x509pop/setup.sh" conf/upstream/server conf/upstream/agent
+
+docker build --target socat-ghostunnel-agent-mashup -t socat-ghostunnel-agent-mashup .

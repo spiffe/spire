@@ -1,0 +1,14 @@
+#!/bin/bash
+
+log-debug "creating registration entry..."
+docker compose exec -T spire-server \
+    /opt/spire/bin/spire-server entry create \
+    -parentID "spiffe://domain.test/spire/agent/x509pop/$(fingerprint conf/agent/agent.crt.pem)" \
+    -spiffeID "spiffe://domain.test/workload" \
+    -selector "unix:uid:0" \
+    -x509SVIDTTL 0
+check-synced-entry "spire-agent" "spiffe://domain.test/workload"
+
+log-info "checking X509-SVID"
+docker compose exec -T spire-agent \
+    /opt/spire/bin/spire-agent api fetch x509 || fail-now "SVID check failed"

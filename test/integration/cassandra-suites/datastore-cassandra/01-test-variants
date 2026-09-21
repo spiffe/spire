@@ -1,0 +1,31 @@
+#!/bin/bash
+
+test-cassandra() {
+    SERVICE=$1
+
+    docker-up "${SERVICE}"
+
+    # Wait up to two minutes for postgres to be available. It should come up
+    # pretty quick on developer machines but CI/CD is slow.
+    MAXCHECKS=40
+    CHECKINTERVAL=3
+    READY=
+    for ((i=1;i<=MAXCHECKS;i++)); do
+        log-info "waiting for ${SERVICE} ($i of $MAXCHECKS max)..."
+        if docker compose exec -T "${SERVICE}" nodetool status >/dev/null; then
+            READY=1
+            break
+        fi
+        sleep "${CHECKINTERVAL}"
+    done
+
+    if [ -z ${READY} ]; then
+        fail-now "timed out waiting for ${SERVICE} to be ready"
+    fi
+
+    log-info "running tests against ${SERVICE}..."
+    ./cassandra.test || fail-now "tests failed"
+    docker-stop "${SERVICE}"
+}
+
+test-cassandra cassandra-5 || exit 1

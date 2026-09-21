@@ -1,0 +1,39 @@
+networks:
+  spire-cassandra-network-single:
+    ipam:
+      config:
+        - subnet: 172.21.1.0/24
+
+services:    
+  cassandra-node-single:
+    container_name: cassandra-node-single
+    image: cassandra:5
+    command:
+      - "-Dcassandra.config=/cassandra.yaml"
+    ports:
+      - "9044:9044"
+    env_file:
+      - ../.env
+    environment:
+      - HEAP_NEWSIZE=512M
+      - MAX_HEAP_SIZE=1024M
+    volumes:
+      - cassandra-node-single:/var/lib/cassandra:rw
+      - ./agent-pki/cassandra.cert.pem:/cassandra.crt:ro
+      - ./agent-pki/cassandra.key.pem:/cassandra.key:ro
+      - ./cassandra/1-node-1-dc/node-1.yml:/cassandra.yaml:rw
+      - ./cassandra/1-node-1-dc/rackdc.node1.properties:/etc/cassandra/cassandra-rackdc.properties:rw
+    restart:
+      on-failure
+    healthcheck:
+      test: ["CMD-SHELL", "nodetool status"]
+      interval: 2m
+      start_period: 2m
+      timeout: 10s
+      retries: 3
+    networks:
+      spire-cassandra-network-single:
+        ipv4_address: 172.21.1.3
+
+volumes:
+  cassandra-node-single:

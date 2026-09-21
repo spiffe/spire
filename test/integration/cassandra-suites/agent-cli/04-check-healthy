@@ -1,0 +1,22 @@
+#!/bin/bash
+
+RETRIES=20
+for ((m=1;m<=$RETRIES;m++)); do
+    AGENTS=$(docker compose exec -T spire-server /opt/spire/bin/spire-server agent list)
+    if [ "$AGENTS" == "No attested agents found" ]; then
+        continue
+    fi
+
+    if ! docker compose exec -T spire-agent /opt/spire/bin/spire-agent healthcheck; then
+        continue
+    fi
+
+    log-info "Checking for healthcheck failure with invalid path."
+    if docker compose exec -T spire-agent /opt/spire/bin/spire-agent healthcheck -socketPath invalid/path 2>&1; then
+        continue
+    fi
+
+    exit 0
+done
+
+fail-now "Agent not found or healthcheck failed."

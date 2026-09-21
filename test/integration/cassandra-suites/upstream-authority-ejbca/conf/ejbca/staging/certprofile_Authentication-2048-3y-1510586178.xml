@@ -1,0 +1,552 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<java version="11.0.15" class="java.beans.XMLDecoder">
+ <object class="java.util.LinkedHashMap">
+  <void method="put">
+   <string>version</string>
+   <float>51.0</float>
+  </void>
+  <void method="put">
+   <string>type</string>
+   <int>1</int>
+  </void>
+  <void method="put">
+   <string>certversion</string>
+   <string>X509v3</string>
+  </void>
+  <void method="put">
+   <string>encodedvalidity</string>
+   <string>3y</string>
+  </void>
+  <void method="put">
+   <string>usecertificatevalidityoffset</string>
+   <boolean>false</boolean>
+  </void>
+  <void method="put">
+   <string>certificatevalidityoffset</string>
+   <string>-10m</string>
+  </void>
+  <void method="put">
+   <string>useexpirationrestrictionforweekdays</string>
+   <boolean>false</boolean>
+  </void>
+  <void method="put">
+   <string>expirationrestrictionforweekdaysbefore</string>
+   <boolean>true</boolean>
+  </void>
+  <void method="put">
+   <string>expirationrestrictionweekdays</string>
+   <object class="java.util.ArrayList">
+    <void method="add">
+     <boolean>true</boolean>
+    </void>
+    <void method="add">
+     <boolean>true</boolean>
+    </void>
+    <void method="add">
+     <boolean>false</boolean>
+    </void>
+    <void method="add">
+     <boolean>false</boolean>
+    </void>
+    <void method="add">
+     <boolean>false</boolean>
+    </void>
+    <void method="add">
+     <boolean>true</boolean>
+    </void>
+    <void method="add">
+     <boolean>true</boolean>
+    </void>
+   </object>
+  </void>
+  <void method="put">
+   <string>allowvalidityoverride</string>
+   <boolean>false</boolean>
+  </void>
+  <void method="put">
+   <string>description</string>
+   <string></string>
+  </void>
+  <void method="put">
+   <string>allowextensionoverride</string>
+   <boolean>false</boolean>
+  </void>
+  <void method="put">
+   <string>allowdnoverride</string>
+   <boolean>false</boolean>
+  </void>
+  <void method="put">
+   <string>allowdnoverridebyeei</string>
+   <boolean>false</boolean>
+  </void>
+  <void method="put">
+   <string>allowbackdatedrevokation</string>
+   <boolean>false</boolean>
+  </void>
+  <void method="put">
+   <string>usecertificatestorage</string>
+   <boolean>true</boolean>
+  </void>
+  <void method="put">
+   <string>storecertificatedata</string>
+   <boolean>true</boolean>
+  </void>
+  <void method="put">
+   <string>storesubjectaltname</string>
+   <boolean>true</boolean>
+  </void>
+  <void method="put">
+   <string>usebasicconstrants</string>
+   <boolean>false</boolean>
+  </void>
+  <void method="put">
+   <string>basicconstraintscritical</string>
+   <boolean>true</boolean>
+  </void>
+  <void method="put">
+   <string>usesubjectkeyidentifier</string>
+   <boolean>true</boolean>
+  </void>
+  <void method="put">
+   <string>subjectkeyidentifiercritical</string>
+   <boolean>false</boolean>
+  </void>
+  <void method="put">
+   <string>useauthoritykeyidentifier</string>
+   <boolean>true</boolean>
+  </void>
+  <void method="put">
+   <string>authoritykeyidentifiercritical</string>
+   <boolean>false</boolean>
+  </void>
+  <void method="put">
+   <string>usesubjectalternativename</string>
+   <boolean>true</boolean>
+  </void>
+  <void method="put">
+   <string>subjectalternativenamecritical</string>
+   <boolean>false</boolean>
+  </void>
+  <void method="put">
+   <string>useissueralternativename</string>
+   <boolean>false</boolean>
+  </void>
+  <void method="put">
+   <string>issueralternativenamecritical</string>
+   <boolean>false</boolean>
+  </void>
+  <void method="put">
+   <string>usecrldistributionpoint</string>
+   <boolean>true</boolean>
+  </void>
+  <void method="put">
+   <string>usedefaultcrldistributionpoint</string>
+   <boolean>true</boolean>
+  </void>
+  <void method="put">
+   <string>crldistributionpointcritical</string>
+   <boolean>false</boolean>
+  </void>
+  <void method="put">
+   <string>crldistributionpointuri</string>
+   <string></string>
+  </void>
+  <void method="put">
+   <string>usefreshestcrl</string>
+   <boolean>false</boolean>
+  </void>
+  <void method="put">
+   <string>usecadefinedfreshestcrl</string>
+   <boolean>false</boolean>
+  </void>
+  <void method="put">
+   <string>freshestcrluri</string>
+   <string></string>
+  </void>
+  <void method="put">
+   <string>crlissuer</string>
+   <string></string>
+  </void>
+  <void method="put">
+   <string>usecertificatepolicies</string>
+   <boolean>false</boolean>
+  </void>
+  <void method="put">
+   <string>certificatepoliciescritical</string>
+   <boolean>false</boolean>
+  </void>
+  <void method="put">
+   <string>certificatepolicies</string>
+   <object class="java.util.ArrayList"/>
+  </void>
+  <void method="put">
+   <string>availablekeyalgorithms</string>
+   <object class="java.util.ArrayList">
+    <void method="add">
+     <string>RSA</string>
+    </void>
+   </object>
+  </void>
+  <void method="put">
+   <string>availableeccurves</string>
+   <object class="java.util.ArrayList">
+    <void method="add">
+     <string>ANY_EC_CURVE</string>
+    </void>
+   </object>
+  </void>
+  <void method="put">
+   <string>availablebitlengths</string>
+   <object class="java.util.ArrayList">
+    <void method="add">
+     <int>2048</int>
+    </void>
+   </object>
+  </void>
+  <void method="put">
+   <string>minimumavailablebitlength</string>
+   <int>2048</int>
+  </void>
+  <void method="put">
+   <string>maximumavailablebitlength</string>
+   <int>2048</int>
+  </void>
+  <void method="put">
+   <string>signaturealgorithm</string>
+   <string>SHA256WithRSA</string>
+  </void>
+  <void method="put">
+   <string>usekeyusage</string>
+   <boolean>true</boolean>
+  </void>
+  <void method="put">
+   <string>keyusage</string>
+   <object class="java.util.ArrayList">
+    <void method="add">
+     <boolean>true</boolean>
+    </void>
+    <void method="add">
+     <boolean>false</boolean>
+    </void>
+    <void method="add">
+     <boolean>false</boolean>
+    </void>
+    <void method="add">
+     <boolean>false</boolean>
+    </void>
+    <void method="add">
+     <boolean>false</boolean>
+    </void>
+    <void method="add">
+     <boolean>false</boolean>
+    </void>
+    <void method="add">
+     <boolean>false</boolean>
+    </void>
+    <void method="add">
+     <boolean>false</boolean>
+    </void>
+    <void method="add">
+     <boolean>false</boolean>
+    </void>
+   </object>
+  </void>
+  <void method="put">
+   <string>allowkeyusageoverride</string>
+   <boolean>false</boolean>
+  </void>
+  <void method="put">
+   <string>keyusagecritical</string>
+   <boolean>true</boolean>
+  </void>
+  <void method="put">
+   <string>useextendedkeyusage</string>
+   <boolean>true</boolean>
+  </void>
+  <void method="put">
+   <string>extendedkeyusage</string>
+   <object class="java.util.ArrayList">
+    <void method="add">
+     <string>1.3.6.1.5.5.7.3.2</string>
+    </void>
+    <void method="add">
+     <string>1.3.6.1.5.2.3.4</string>
+    </void>
+    <void method="add">
+     <string>1.3.6.1.4.1.311.20.2.2</string>
+    </void>
+    <void method="add">
+     <string>1.3.6.1.5.5.7.3.21</string>
+    </void>
+   </object>
+  </void>
+  <void method="put">
+   <string>extendedkeyusagecritical</string>
+   <boolean>false</boolean>
+  </void>
+  <void method="put">
+   <string>usedocumenttypelist</string>
+   <boolean>false</boolean>
+  </void>
+  <void method="put">
+   <string>documenttypelistcritical</string>
+   <boolean>false</boolean>
+  </void>
+  <void method="put">
+   <string>documenttypelist</string>
+   <object class="java.util.ArrayList"/>
+  </void>
+  <void method="put">
+   <string>availablecas</string>
+   <object class="java.util.ArrayList">
+    <void method="add">
+     <int>-1</int>
+    </void>
+   </object>
+  </void>
+  <void method="put">
+   <string>usedpublishers</string>
+   <object class="java.util.ArrayList"/>
+  </void>
+  <void method="put">
+   <string>useocspnocheck</string>
+   <boolean>false</boolean>
+  </void>
+  <void method="put">
+   <string>useldapdnorder</string>
+   <boolean>false</boolean>
+  </void>
+  <void method="put">
+   <string>usecustomdnorder</string>
+   <boolean>false</boolean>
+  </void>
+  <void method="put">
+   <string>usemicrosofttemplate</string>
+   <boolean>false</boolean>
+  </void>
+  <void method="put">
+   <string>microsofttemplate</string>
+   <string></string>
+  </void>
+  <void method="put">
+   <string>usecardnumber</string>
+   <boolean>false</boolean>
+  </void>
+  <void method="put">
+   <string>usecnpostfix</string>
+   <boolean>false</boolean>
+  </void>
+  <void method="put">
+   <string>cnpostfix</string>
+   <string></string>
+  </void>
+  <void method="put">
+   <string>usesubjectdnsubset</string>
+   <boolean>false</boolean>
+  </void>
+  <void method="put">
+   <string>subjectdnsubset</string>
+   <object class="java.util.ArrayList"/>
+  </void>
+  <void method="put">
+   <string>usesubjectaltnamesubset</string>
+   <boolean>false</boolean>
+  </void>
+  <void method="put">
+   <string>subjectaltnamesubset</string>
+   <object class="java.util.ArrayList"/>
+  </void>
+  <void method="put">
+   <string>usepathlengthconstraint</string>
+   <boolean>false</boolean>
+  </void>
+  <void method="put">
+   <string>pathlengthconstraint</string>
+   <int>0</int>
+  </void>
+  <void method="put">
+   <string>useqcstatement</string>
+   <boolean>false</boolean>
+  </void>
+  <void method="put">
+   <string>usepkixqcsyntaxv2</string>
+   <boolean>false</boolean>
+  </void>
+  <void method="put">
+   <string>useqcstatementcritical</string>
+   <boolean>false</boolean>
+  </void>
+  <void method="put">
+   <string>useqcstatementraname</string>
+   <string></string>
+  </void>
+  <void method="put">
+   <string>useqcsematicsid</string>
+   <string></string>
+  </void>
+  <void method="put">
+   <string>useqcetsiqccompliance</string>
+   <boolean>false</boolean>
+  </void>
+  <void method="put">
+   <string>useqcetsisignaturedevice</string>
+   <boolean>false</boolean>
+  </void>
+  <void method="put">
+   <string>useqcetsivaluelimit</string>
+   <boolean>false</boolean>
+  </void>
+  <void method="put">
+   <string>qcetsivaluelimit</string>
+   <int>0</int>
+  </void>
+  <void method="put">
+   <string>qcetsivaluelimitexp</string>
+   <int>0</int>
+  </void>
+  <void method="put">
+   <string>qcetsivaluelimitcurrency</string>
+   <string></string>
+  </void>
+  <void method="put">
+   <string>useqcetsiretentionperiod</string>
+   <boolean>false</boolean>
+  </void>
+  <void method="put">
+   <string>qcetsiretentionperiod</string>
+   <int>0</int>
+  </void>
+  <void method="put">
+   <string>useqccustomstring</string>
+   <boolean>false</boolean>
+  </void>
+  <void method="put">
+   <string>qccustomstringoid</string>
+   <string></string>
+  </void>
+  <void method="put">
+   <string>qccustomstringtext</string>
+   <string></string>
+  </void>
+  <void method="put">
+   <string>qcetsipds</string>
+   <null/>
+  </void>
+  <void method="put">
+   <string>qcetsitype</string>
+   <null/>
+  </void>
+  <void method="put">
+   <string>usecertificatetransparencyincerts</string>
+   <boolean>false</boolean>
+  </void>
+  <void method="put">
+   <string>usecertificatetransparencyinocsp</string>
+   <boolean>false</boolean>
+  </void>
+  <void method="put">
+   <string>usecertificatetransparencyinpublisher</string>
+   <boolean>false</boolean>
+  </void>
+  <void method="put">
+   <string>usesubjectdirattributes</string>
+   <boolean>false</boolean>
+  </void>
+  <void method="put">
+   <string>usenameconstraints</string>
+   <boolean>false</boolean>
+  </void>
+  <void method="put">
+   <string>useauthorityinformationaccess</string>
+   <boolean>true</boolean>
+  </void>
+  <void method="put">
+   <string>caissuers</string>
+   <object class="java.util.ArrayList"/>
+  </void>
+  <void method="put">
+   <string>usedefaultcaissuer</string>
+   <boolean>true</boolean>
+  </void>
+  <void method="put">
+   <string>usedefaultocspservicelocator</string>
+   <boolean>true</boolean>
+  </void>
+  <void method="put">
+   <string>ocspservicelocatoruri</string>
+   <string></string>
+  </void>
+  <void method="put">
+   <string>cvcaccessrights</string>
+   <int>0</int>
+  </void>
+  <void method="put">
+   <string>usedcertificateextensions</string>
+   <object class="java.util.ArrayList"/>
+  </void>
+  <void method="put">
+   <string>approvals</string>
+   <object class="java.util.LinkedHashMap"/>
+  </void>
+  <void method="put">
+   <string>useprivkeyusageperiodnotbefore</string>
+   <boolean>false</boolean>
+  </void>
+  <void method="put">
+   <string>useprivkeyusageperiod</string>
+   <boolean>false</boolean>
+  </void>
+  <void method="put">
+   <string>useprivkeyusageperiodnotafter</string>
+   <boolean>false</boolean>
+  </void>
+  <void method="put">
+   <string>privkeyusageperiodstartoffset</string>
+   <long>0</long>
+  </void>
+  <void method="put">
+   <string>privkeyusageperiodlength</string>
+   <long>63072000</long>
+  </void>
+  <void method="put">
+   <string>usesingleactivecertificateconstraint</string>
+   <boolean>false</boolean>
+  </void>
+  <void method="put">
+   <string>overridableextensionoids</string>
+   <object class="java.util.LinkedHashSet"/>
+  </void>
+  <void method="put">
+   <string>nonoverridableextensionoids</string>
+   <object class="java.util.LinkedHashSet"/>
+  </void>
+  <void method="put">
+   <string>numofreqapprovals</string>
+   <int>1</int>
+  </void>
+  <void method="put">
+   <string>approvalsettings</string>
+   <object class="java.util.ArrayList"/>
+  </void>
+  <void method="put">
+   <string>approvalProfile</string>
+   <int>-1</int>
+  </void>
+  <void method="put">
+   <string>useqccountries</string>
+   <boolean>false</boolean>
+  </void>
+  <void method="put">
+   <string>qccountriestring</string>
+   <string></string>
+  </void>
+  <void method="put">
+   <string>usemsobjectsidextension</string>
+   <boolean>true</boolean>
+  </void>
+  <void method="put">
+   <string>usetruncatedsubjectkeyidentifier</string>
+   <boolean>false</boolean>
+  </void>
+ </object>
+</java>

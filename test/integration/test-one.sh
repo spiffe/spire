@@ -30,13 +30,16 @@ log-info "running \"${TESTNAME}\" test suite..."
 # Docker for MacOS (but /tmp is). We need a directory we can mount into the
 # running containers for various tests (e.g. to provide webhook configuration
 # to the kind node).
-RUNDIR=$(_CS_DARWIN_USER_TEMP_DIR='' TMPDIR='' mktemp -d /tmp/spire-integration-XXXXXX)
+# RUNDIR=$(_CS_DARWIN_USER_TEMP_DIR='' TMPDIR='' mktemp -d /tmp/spire-integration-XXXXXX)
+RUNDIR="${ROOTDIR}/run-${TESTNAME}-XXXXXX"
+mkdir -p "${RUNDIR}"    
 
 # The following variables are intended to be usable to step scripts
 export ROOTDIR
 export REPODIR
 export RUNDIR
 export TESTNAME
+export TESTFILTER=$2
 
 export SUCCESS=
 
@@ -58,6 +61,7 @@ cleanup() {
     fi
 
     rm -rf "${RUNDIR}"
+    
     if [ -n "$SUCCESS" ]; then
         log-success "\"${TESTNAME}\" test suite succeeded."
     else
@@ -77,6 +81,7 @@ mkdir -p -m 777 "${RUNDIR}/conf/agent"
 mkdir -p -m 777 "${RUNDIR}/conf/server"
 
 cp -R "${TESTDIR}"/* "${RUNDIR}/"
+cp -R "${TESTDIR}/../.env" "${RUNDIR}/" 2>/dev/null || true
 
 #################################################
 # Execute the test suite
