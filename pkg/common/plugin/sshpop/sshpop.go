@@ -283,6 +283,7 @@ func certCheckerFromPubkeys(certAuthorities []string) (*ssh.CertChecker, error) 
 		authorities[ssh.FingerprintSHA256(authority)] = true
 	}
 	return &ssh.CertChecker{
+		SupportedCriticalOptions: []string{sourceAddressCriticalOption},
 		IsHostAuthority: func(auth ssh.PublicKey, _ string) bool {
 			return authorities[ssh.FingerprintSHA256(auth)]
 		},

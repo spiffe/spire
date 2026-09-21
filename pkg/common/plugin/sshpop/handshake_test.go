@@ -47,6 +47,7 @@ func newTest(t *testing.T, opts ...func(*ssh.Certificate)) *testParams {
 	err = certificate.SignCert(rand.Reader, signer)
 	require.NoError(t, err)
 	certChecker := &ssh.CertChecker{
+		SupportedCriticalOptions: []string{sourceAddressCriticalOption},
 		IsHostAuthority: func(auth ssh.PublicKey, _ string) bool {
 			return reflect.DeepEqual(auth, signer.PublicKey())
 		},
