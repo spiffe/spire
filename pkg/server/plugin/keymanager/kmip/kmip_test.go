@@ -12,11 +12,10 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"sort"
-	"strconv"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -27,6 +26,7 @@ import (
 	"github.com/ovh/kmip-go/kmipserver"
 	"github.com/ovh/kmip-go/kmiptest"
 	"github.com/ovh/kmip-go/payloads"
+	"github.com/ovh/kmip-go/ttlv"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	keymanagerv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/keymanager/v1"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
@@ -287,15 +287,7 @@ func TestConfigureFailedReconfigureLeavesPreviousStateIntact(t *testing.T) {
 	oldTrustDomain := p.trustDomain
 	oldStaleKeyThreshold := p.staleKeyThreshold
 	p.mu.RUnlock()
-
-	store.seed("broken-priv", "broken-pub", []string{
-		serverIDNameValue("server-b"),
-		trustDomainNameValue("other.example.org"),
-		prefixKeyID + "broken-key",
-		prefixKeyType + "EC_P256",
-		lastUpdateNameValue(time.Unix(1_700_000_001, 0).Unix()),
-		activeNameValue(),
-	})
+	store.seed("broken-priv", "broken-pub", spireAttrs("server-b", "other.example.org", "broken-key", time.Unix(1_700_000_001, 0).Unix()))
 	seedECKeyMaterial(t, store, "broken-priv", "broken-pub")
 	store.failGet("broken-pub", errors.New("kmip unavailable"))
 
@@ -640,14 +632,7 @@ func TestKeyRecovery(t *testing.T) {
 func TestRecoverKeysFunction(t *testing.T) {
 	store := newFakeStore()
 	addr, caPEM := kmiptest.NewServer(t, store.handler())
-	store.seed("recovered-priv", "recovered-pub", []string{
-		serverIDNameValue(testServerID),
-		trustDomainNameValue(testTrustDomain),
-		prefixKeyID + "recovered-key",
-		prefixKeyType + "EC_P256",
-		lastUpdateNameValue(time.Unix(1_700_000_000, 0).Unix()),
-		activeNameValue(),
-	})
+	store.seed("recovered-priv", "recovered-pub", spireAttrs(testServerID, testTrustDomain, "recovered-key", time.Unix(1_700_000_000, 0).Unix()))
 	seedECKeyMaterial(t, store, "recovered-priv", "recovered-pub")
 
 	caFile := writeTempPEM(t, caPEM)
@@ -672,6 +657,59 @@ func TestRecoverKeysFunction(t *testing.T) {
 	require.NotEmpty(t, entry.publicKey.Fingerprint)
 }
 
+// TestRecoverKeysCustomAttributesWrittenSeparately proves that keys whose metadata
+// attributes are written across separate AddAttribute calls in arbitrary order
+// (each under its own distinctly-named x-spire-* attribute) are correctly and
+// completely recovered. Because each metadata field has its own attribute name,
+// a server cannot collapse distinct fields together.
+func TestRecoverKeysCustomAttributesWrittenSeparately(t *testing.T) {
+	store := newFakeStore()
+	addr, caPEM := kmiptest.NewServer(t, store.handler())
+
+	// Seed the key pair with no initial attributes.
+	store.seed("sep-priv", "sep-pub", nil)
+	seedECKeyMaterial(t, store, "sep-priv", "sep-pub")
+
+	caFile := writeTempPEM(t, caPEM)
+	client, err := buildClient(context.Background(), &Config{
+		KMIPAddr:                addr,
+		CACertPath:              caFile,
+		InsecureSkipVerify:      true,
+		parsedStaleKeyThreshold: defaultStaleKeyThreshold,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, client.Close())
+	})
+
+	ctx := context.Background()
+	// Write each attribute individually via separate AddAttribute calls in non-standard order.
+	attrs := []struct {
+		name  ovh.AttributeName
+		value any
+	}{
+		{name: attrActive, value: true},
+		{name: attrKeyType, value: "EC_P256"},
+		{name: attrServerID, value: testServerID},
+		{name: attrLastUpdate, value: time.Unix(1_700_000_000, 0).Unix()},
+		{name: attrKeyID, value: "sep-key"},
+		{name: attrTrustDomain, value: testTrustDomain},
+	}
+	for _, a := range attrs {
+		_, err := client.AddAttribute("sep-priv", a.name, a.value).ExecContext(ctx)
+		require.NoError(t, err)
+	}
+
+	entries, err := recoverKeys(ctx, client, hclog.NewNullLogger(), testServerID, testTrustDomain)
+	require.NoError(t, err)
+	require.Len(t, entries, 1)
+	entry, ok := entries["sep-key"]
+	require.True(t, ok)
+	require.Equal(t, "sep-priv", entry.privateKeyUID)
+	require.Equal(t, keymanagerv1.KeyType_EC_P256, entry.publicKey.Type)
+	require.NotEmpty(t, entry.publicKey.Fingerprint)
+}
+
 func TestRecoverKeysFailsOnPublicKeyLookupErrors(t *testing.T) {
 	for _, tt := range []struct {
 		name        string
@@ -679,11 +717,11 @@ func TestRecoverKeysFailsOnPublicKeyLookupErrors(t *testing.T) {
 		expectErr   string
 	}{
 		{
-			name: "private key Name attributes lookup",
+			name: "private key custom attributes lookup",
 			injectError: func(store *fakeStore) {
-				store.failGetAttributes("broken-priv", ovh.AttributeNameName, errors.New("kmip unavailable"))
+				store.failGetAttributes("broken-priv", attrServerID, errors.New("kmip unavailable"))
 			},
-			expectErr: "get Name attributes for private key uid broken-priv",
+			expectErr: "get custom attributes for private key uid broken-priv",
 		},
 		{
 			name: "linked public key lookup",
@@ -703,22 +741,8 @@ func TestRecoverKeysFailsOnPublicKeyLookupErrors(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			store := newFakeStore()
 			addr, caPEM := kmiptest.NewServer(t, store.handler())
-			store.seed("good-priv", "good-pub", []string{
-				serverIDNameValue(testServerID),
-				trustDomainNameValue(testTrustDomain),
-				prefixKeyID + "good-key",
-				prefixKeyType + "EC_P256",
-				lastUpdateNameValue(time.Unix(1_700_000_000, 0).Unix()),
-				activeNameValue(),
-			})
-			store.seed("broken-priv", "broken-pub", []string{
-				serverIDNameValue(testServerID),
-				trustDomainNameValue(testTrustDomain),
-				prefixKeyID + "broken-key",
-				prefixKeyType + "EC_P256",
-				lastUpdateNameValue(time.Unix(1_700_000_001, 0).Unix()),
-				activeNameValue(),
-			})
+			store.seed("good-priv", "good-pub", spireAttrs(testServerID, testTrustDomain, "good-key", time.Unix(1_700_000_000, 0).Unix()))
+			store.seed("broken-priv", "broken-pub", spireAttrs(testServerID, testTrustDomain, "broken-key", time.Unix(1_700_000_001, 0).Unix()))
 			seedECKeyMaterial(t, store, "good-priv", "good-pub")
 			seedECKeyMaterial(t, store, "broken-priv", "broken-pub")
 			tt.injectError(store)
@@ -767,13 +791,11 @@ func TestGenerateKeyRotationMarksExactlyOneActiveKey(t *testing.T) {
 
 	store.mu.Lock()
 	defer store.mu.Unlock()
-	oldName := store.keys[oldUID].nameAttrs[0]
-	newName := store.keys[newUID].nameAttrs[0]
-	_, _, _, _, _, oldActive, err := parseKeyMetadata(oldName)
-	require.NoError(t, err)
+	oldActive, ok := store.keys[oldUID].attrs[attrActive].(bool)
+	require.True(t, ok)
 	require.False(t, oldActive, "superseded key must have its active marker cleared")
-	_, _, _, _, _, newActive, err := parseKeyMetadata(newName)
-	require.NoError(t, err)
+	newActive, ok := store.keys[newUID].attrs[attrActive].(bool)
+	require.True(t, ok)
 	require.True(t, newActive, "the newly generated key must be marked active")
 }
 
@@ -812,22 +834,8 @@ func TestKeyRecoveryFallsBackToFreshestWhenActiveMarkerAmbiguous(t *testing.T) {
 	addr, caPEM := kmiptest.NewServer(t, store.handler())
 
 	now := time.Unix(1_700_000_000, 0)
-	store.seed("old-priv", "old-pub", []string{
-		serverIDNameValue(testServerID),
-		trustDomainNameValue(testTrustDomain),
-		prefixKeyID + "ambiguous-key",
-		prefixKeyType + "EC_P256",
-		lastUpdateNameValue(now.Add(-time.Hour).Unix()),
-		activeNameValue(),
-	})
-	store.seed("new-priv", "new-pub", []string{
-		serverIDNameValue(testServerID),
-		trustDomainNameValue(testTrustDomain),
-		prefixKeyID + "ambiguous-key",
-		prefixKeyType + "EC_P256",
-		lastUpdateNameValue(now.Unix()),
-		activeNameValue(),
-	})
+	store.seed("old-priv", "old-pub", spireAttrs(testServerID, testTrustDomain, "ambiguous-key", now.Add(-time.Hour).Unix()))
+	store.seed("new-priv", "new-pub", spireAttrs(testServerID, testTrustDomain, "ambiguous-key", now.Unix()))
 	seedECKeyMaterial(t, store, "old-priv", "old-pub")
 	seedECKeyMaterial(t, store, "new-priv", "new-pub")
 
@@ -849,15 +857,12 @@ func TestGenerateKeyTagsAtCreation(t *testing.T) {
 	defer store.mu.Unlock()
 	require.Len(t, store.keys, 1)
 	for _, rec := range store.keys {
-		require.Len(t, rec.nameAttrs, 1)
-		serverID, td, keyID, kt, lu, active, err := parseKeyMetadata(rec.nameAttrs[0])
-		require.NoError(t, err)
-		require.Equal(t, testServerID, serverID)
-		require.Equal(t, testTrustDomain, td)
-		require.Equal(t, "tagged-key", keyID)
-		require.Equal(t, keymanagerv1.KeyType_EC_P256, kt)
-		require.NotZero(t, lu)
-		require.True(t, active)
+		require.Equal(t, testServerID, rec.attrs[attrServerID])
+		require.Equal(t, testTrustDomain, rec.attrs[attrTrustDomain])
+		require.Equal(t, "tagged-key", rec.attrs[attrKeyID])
+		require.Equal(t, "EC_P256", rec.attrs[attrKeyType])
+		require.NotZero(t, rec.attrs[attrLastUpdate])
+		require.True(t, rec.attrs[attrActive].(bool))
 	}
 }
 
@@ -887,14 +892,7 @@ func TestConfigureRunsInitialKeepKeysActiveSweep(t *testing.T) {
 	addr, caPEM := kmiptest.NewServer(t, store.handler())
 
 	initialTS := time.Unix(1_700_000_000, 0).Add(-48 * time.Hour).Unix()
-	store.seed("recovered-priv", "recovered-pub", []string{
-		serverIDNameValue(testServerID),
-		trustDomainNameValue(testTrustDomain),
-		prefixKeyID + "recovered-key",
-		prefixKeyType + "EC_P256",
-		lastUpdateNameValue(initialTS),
-		activeNameValue(),
-	})
+	store.seed("recovered-priv", "recovered-pub", spireAttrs(testServerID, testTrustDomain, "recovered-key", initialTS))
 	seedECKeyMaterial(t, store, "recovered-priv", "recovered-pub")
 
 	p, clk := newTestPlugin(t, addr, caPEM)
@@ -910,15 +908,15 @@ func TestDisposeStaleKeys(t *testing.T) {
 	p, clk := newTestPlugin(t, addr, caPEM)
 
 	now := clk.Now()
-	store.seed("stale-priv", "stale-pub", []string{
-		serverIDNameValue(testServerID),
-		trustDomainNameValue(testTrustDomain),
-		lastUpdateNameValue(now.Add(-30 * 24 * time.Hour).Unix()),
+	store.seed("stale-priv", "stale-pub", map[ovh.AttributeName]any{
+		attrServerID:    testServerID,
+		attrTrustDomain: testTrustDomain,
+		attrLastUpdate:  now.Add(-30 * 24 * time.Hour).Unix(),
 	})
-	store.seed("fresh-priv", "fresh-pub", []string{
-		serverIDNameValue(testServerID),
-		trustDomainNameValue(testTrustDomain),
-		lastUpdateNameValue(now.Unix()),
+	store.seed("fresh-priv", "fresh-pub", map[ovh.AttributeName]any{
+		attrServerID:    testServerID,
+		attrTrustDomain: testTrustDomain,
+		attrLastUpdate:  now.Unix(),
 	})
 	p.mu.Lock()
 	p.entries["stale-key"] = keyEntry{
@@ -959,15 +957,15 @@ func TestDisposeStaleKeysIgnoresStalePublicKey(t *testing.T) {
 	// The private key is still active (fresh last-update), but its public key's
 	// last-update has gone stale. The reclaimer must not reap the public key.
 	store.seedPair("active-priv", "active-pub",
-		[]string{
-			serverIDNameValue(testServerID),
-			trustDomainNameValue(testTrustDomain),
-			lastUpdateNameValue(now.Unix()),
+		map[ovh.AttributeName]any{
+			attrServerID:    testServerID,
+			attrTrustDomain: testTrustDomain,
+			attrLastUpdate:  now.Unix(),
 		},
-		[]string{
-			serverIDNameValue(testServerID),
-			trustDomainNameValue(testTrustDomain),
-			lastUpdateNameValue(now.Add(-30 * 24 * time.Hour).Unix()),
+		map[ovh.AttributeName]any{
+			attrServerID:    testServerID,
+			attrTrustDomain: testTrustDomain,
+			attrLastUpdate:  now.Add(-30 * 24 * time.Hour).Unix(),
 		},
 	)
 
@@ -985,15 +983,15 @@ func TestDisposeStaleKeysReclaimsKeysAcrossServerIDs(t *testing.T) {
 	p, clk := newTestPluginWithServerIDAndConfig(t, addr, caPEM, "server-a", "")
 
 	staleLastUpdate := clk.Now().Add(-30 * 24 * time.Hour).Unix()
-	store.seed("server-a-stale-priv", "server-a-stale-pub", []string{
-		serverIDNameValue("server-a"),
-		trustDomainNameValue(testTrustDomain),
-		lastUpdateNameValue(staleLastUpdate),
+	store.seed("server-a-stale-priv", "server-a-stale-pub", map[ovh.AttributeName]any{
+		attrServerID:    "server-a",
+		attrTrustDomain: testTrustDomain,
+		attrLastUpdate:  staleLastUpdate,
 	})
-	store.seed("server-b-stale-priv", "server-b-stale-pub", []string{
-		serverIDNameValue("server-b"),
-		trustDomainNameValue(testTrustDomain),
-		lastUpdateNameValue(staleLastUpdate),
+	store.seed("server-b-stale-priv", "server-b-stale-pub", map[ovh.AttributeName]any{
+		attrServerID:    "server-b",
+		attrTrustDomain: testTrustDomain,
+		attrLastUpdate:  staleLastUpdate,
 	})
 
 	require.NoError(t, p.disposeStaleKeys(context.Background()))
@@ -1014,15 +1012,15 @@ func TestDisposeStaleKeysDoesNotReclaimKeysFromOtherTrustDomains(t *testing.T) {
 	p, clk := newTestPluginWithServerIDAndConfig(t, addr, caPEM, "server-a", "")
 
 	staleLastUpdate := clk.Now().Add(-30 * 24 * time.Hour).Unix()
-	store.seed("same-td-stale-priv", "same-td-stale-pub", []string{
-		serverIDNameValue("server-a"),
-		trustDomainNameValue(testTrustDomain),
-		lastUpdateNameValue(staleLastUpdate),
+	store.seed("same-td-stale-priv", "same-td-stale-pub", map[ovh.AttributeName]any{
+		attrServerID:    "server-a",
+		attrTrustDomain: testTrustDomain,
+		attrLastUpdate:  staleLastUpdate,
 	})
-	store.seed("other-td-stale-priv", "other-td-stale-pub", []string{
-		serverIDNameValue("server-b"),
-		trustDomainNameValue("other.example.org"),
-		lastUpdateNameValue(staleLastUpdate),
+	store.seed("other-td-stale-priv", "other-td-stale-pub", map[ovh.AttributeName]any{
+		attrServerID:    "server-b",
+		attrTrustDomain: "other.example.org",
+		attrLastUpdate:  staleLastUpdate,
 	})
 
 	require.NoError(t, p.disposeStaleKeys(context.Background()))
@@ -1050,10 +1048,10 @@ func TestDisposeStaleKeysPaginates(t *testing.T) {
 		store.seed(
 			fmt.Sprintf("stale-priv-%d", i),
 			fmt.Sprintf("stale-pub-%d", i),
-			[]string{
-				serverIDNameValue(testServerID),
-				trustDomainNameValue(testTrustDomain),
-				lastUpdateNameValue(now.Add(-30 * 24 * time.Hour).Unix()),
+			map[ovh.AttributeName]any{
+				attrServerID:    testServerID,
+				attrTrustDomain: testTrustDomain,
+				attrLastUpdate:  now.Add(-30 * 24 * time.Hour).Unix(),
 			},
 		)
 	}
@@ -1079,10 +1077,10 @@ func TestRevokeAndDestroyKeyPair(t *testing.T) {
 		{
 			name: "linked public key lookup failure still destroys the private key",
 			setup: func(store *fakeStore) {
-				store.seed("stale-priv", "stale-pub", []string{
-					serverIDNameValue(testServerID),
-					trustDomainNameValue(testTrustDomain),
-					lastUpdateNameValue(time.Unix(1_700_000_000, 0).Unix()),
+				store.seed("stale-priv", "stale-pub", map[ovh.AttributeName]any{
+					attrServerID:    testServerID,
+					attrTrustDomain: testTrustDomain,
+					attrLastUpdate:  time.Unix(1_700_000_000, 0).Unix(),
 				})
 				store.failGetAttributes("stale-priv", ovh.AttributeNameLink, errors.New("kmip unavailable"))
 			},
@@ -1099,10 +1097,10 @@ func TestRevokeAndDestroyKeyPair(t *testing.T) {
 		{
 			name: "preactive keys are destroyed without revoke",
 			setup: func(store *fakeStore) {
-				store.seed("stale-priv", "stale-pub", []string{
-					serverIDNameValue(testServerID),
-					trustDomainNameValue(testTrustDomain),
-					lastUpdateNameValue(time.Unix(1_700_000_000, 0).Unix()),
+				store.seed("stale-priv", "stale-pub", map[ovh.AttributeName]any{
+					attrServerID:    testServerID,
+					attrTrustDomain: testTrustDomain,
+					attrLastUpdate:  time.Unix(1_700_000_000, 0).Unix(),
 				})
 				store.mu.Lock()
 				store.activated["stale-priv"] = false
@@ -1168,15 +1166,15 @@ func TestDisposeStaleKeysUsesConfiguredStaleKeyThreshold(t *testing.T) {
 			p, clk := newTestPluginWithConfig(t, addr, caPEM, tt.extraConfig)
 
 			now := clk.Now()
-			store.seed("stale-priv", "stale-pub", []string{
-				serverIDNameValue(testServerID),
-				trustDomainNameValue(testTrustDomain),
-				lastUpdateNameValue(now.Add(-tt.staleAge).Unix()),
+			store.seed("stale-priv", "stale-pub", map[ovh.AttributeName]any{
+				attrServerID:    testServerID,
+				attrTrustDomain: testTrustDomain,
+				attrLastUpdate:  now.Add(-tt.staleAge).Unix(),
 			})
-			store.seed("fresh-priv", "fresh-pub", []string{
-				serverIDNameValue(testServerID),
-				trustDomainNameValue(testTrustDomain),
-				lastUpdateNameValue(now.Add(-tt.freshAge).Unix()),
+			store.seed("fresh-priv", "fresh-pub", map[ovh.AttributeName]any{
+				attrServerID:    testServerID,
+				attrTrustDomain: testTrustDomain,
+				attrLastUpdate:  now.Add(-tt.freshAge).Unix(),
 			})
 
 			require.Equal(t, tt.threshold, p.staleKeyThreshold)
@@ -1293,20 +1291,7 @@ func setPrivateKeyLastUpdate(t *testing.T, store *fakeStore, privUID string, ts 
 	defer store.mu.Unlock()
 	rec, ok := store.keys[privUID]
 	require.True(t, ok, "expected private key %q to exist", privUID)
-	for i, nameAttr := range rec.nameAttrs {
-		if strings.HasPrefix(nameAttr, prefixSpireTag) {
-			serverID, td, keyID, kt, _, active, err := parseKeyMetadata(nameAttr)
-			if err == nil {
-				rec.nameAttrs[i] = encodeKeyMetadata(serverID, td, keyID, kt, ts, active)
-				return
-			}
-		}
-		if strings.HasPrefix(nameAttr, prefixLastUpdate) {
-			rec.nameAttrs[i] = lastUpdateNameValue(ts)
-			return
-		}
-	}
-	rec.nameAttrs = append(rec.nameAttrs, lastUpdateNameValue(ts))
+	rec.attrs[attrLastUpdate] = ts
 }
 
 // readLastUpdate returns the spire-last-update timestamp of the single key in the
@@ -1316,30 +1301,34 @@ func readLastUpdate(t *testing.T, store *fakeStore) int64 {
 	store.mu.Lock()
 	defer store.mu.Unlock()
 	for _, rec := range store.keys {
-		for _, nameAttr := range rec.nameAttrs {
-			if strings.HasPrefix(nameAttr, prefixSpireTag) {
-				_, _, _, _, lu, _, err := parseKeyMetadata(nameAttr)
-				require.NoError(t, err)
-				return lu
-			}
+		if val, ok := rec.attrs[attrLastUpdate]; ok {
+			return val.(int64)
 		}
-		ts, err := strconv.ParseInt(prefixValue(rec.nameAttrs, prefixLastUpdate), 10, 64)
-		require.NoError(t, err)
-		return ts
 	}
 	require.FailNow(t, "no keys in store")
 	return 0
 }
 
+func spireAttrs(serverID, trustDomain, keyID string, lastUpdate int64) map[ovh.AttributeName]any {
+	return map[ovh.AttributeName]any{
+		attrServerID:    serverID,
+		attrTrustDomain: trustDomain,
+		attrKeyID:       keyID,
+		attrKeyType:     keyTypeName(keymanagerv1.KeyType_EC_P256),
+		attrLastUpdate:  lastUpdate,
+		attrActive:      true,
+	}
+}
+
 // ─── fakeStore ── in-memory KMIP server ──────────────────────────────────────
 
 type keyRecord struct {
-	privUID      string
-	pubUID       string
-	privKey      crypto.Signer
-	pubPKIX      []byte
-	nameAttrs    []string // private-key Name attributes
-	pubNameAttrs []string // public-key Name attributes
+	privUID  string
+	pubUID   string
+	privKey  crypto.Signer
+	pubPKIX  []byte
+	attrs    map[ovh.AttributeName]any // private-key attributes
+	pubAttrs map[ovh.AttributeName]any // public-key attributes
 }
 
 type fakeStore struct {
@@ -1398,20 +1387,22 @@ func (s *fakeStore) nextUID(prefix string) string {
 
 // seed inserts a key record with the given name attributes applied to both the
 // private and public key directly into the store.
-func (s *fakeStore) seed(privUID, pubUID string, nameAttrs []string) {
-	s.seedPair(privUID, pubUID, nameAttrs, nameAttrs)
+func (s *fakeStore) seed(privUID, pubUID string, attrs map[ovh.AttributeName]any) {
+	s.seedPair(privUID, pubUID, attrs, attrs)
 }
 
 // seedPair inserts a key record whose private and public keys carry distinct
-// Name attributes, matching the real KMIP server where the two keys are separate
+// attributes, matching the real KMIP server where the two keys are separate
 // objects that can be tagged independently.
-func (s *fakeStore) seedPair(privUID, pubUID string, privNameAttrs, pubNameAttrs []string) {
+func (s *fakeStore) seedPair(privUID, pubUID string, privAttrs, pubAttrs map[ovh.AttributeName]any) {
 	rec := &keyRecord{
-		privUID:      privUID,
-		pubUID:       pubUID,
-		nameAttrs:    privNameAttrs,
-		pubNameAttrs: pubNameAttrs,
+		privUID:  privUID,
+		pubUID:   pubUID,
+		attrs:    make(map[ovh.AttributeName]any),
+		pubAttrs: make(map[ovh.AttributeName]any),
 	}
+	maps.Copy(rec.attrs, privAttrs)
+	maps.Copy(rec.pubAttrs, pubAttrs)
 	s.keys[privUID] = rec
 	s.pubKeys[pubUID] = rec
 	// Seeded objects model keys that already exist on the KMIP server outside the
@@ -1440,16 +1431,18 @@ func (s *fakeStore) handler() kmipserver.RequestHandler {
 			privKey: priv,
 			pubPKIX: pkix,
 		}
-		// Capture Name attributes applied at creation via the Template-Attribute.
+		rec.attrs = make(map[ovh.AttributeName]any)
+		rec.pubAttrs = make(map[ovh.AttributeName]any)
+		// Capture attributes applied at creation via the Template-Attribute.
 		// The Common template applies to both the private and public key.
 		if req.CommonTemplateAttribute != nil {
 			for _, attr := range req.CommonTemplateAttribute.Attribute {
-				if attr.AttributeName == ovh.AttributeNameName {
-					if n, ok := attr.AttributeValue.(ovh.Name); ok {
-						rec.nameAttrs = append(rec.nameAttrs, n.NameValue)
-						rec.pubNameAttrs = append(rec.pubNameAttrs, n.NameValue)
-					}
+				val := attr.AttributeValue
+				if wrapped, ok := val.(ttlv.Value); ok {
+					val = wrapped.Value
 				}
+				rec.attrs[attr.AttributeName] = val
+				rec.pubAttrs[attr.AttributeName] = val
 			}
 		}
 		s.keys[rec.privUID] = rec
@@ -1491,15 +1484,15 @@ func (s *fakeStore) handler() kmipserver.RequestHandler {
 	exec.Route(ovh.OperationAddAttribute, kmipserver.HandleFunc(func(_ context.Context, req *payloads.AddAttributeRequestPayload) (*payloads.AddAttributeResponsePayload, error) {
 		s.mu.Lock()
 		defer s.mu.Unlock()
-		if req.Attribute.AttributeName == ovh.AttributeNameName {
-			if n, ok := req.Attribute.AttributeValue.(ovh.Name); ok {
-				if rec, ok := s.keys[req.UniqueIdentifier]; ok {
-					rec.nameAttrs = append(rec.nameAttrs, n.NameValue)
-				}
-				if rec, ok := s.pubKeys[req.UniqueIdentifier]; ok {
-					rec.pubNameAttrs = append(rec.pubNameAttrs, n.NameValue)
-				}
-			}
+		val := req.Attribute.AttributeValue
+		if wrapped, ok := val.(ttlv.Value); ok {
+			val = wrapped.Value
+		}
+		if rec, ok := s.keys[req.UniqueIdentifier]; ok {
+			rec.attrs[req.Attribute.AttributeName] = val
+		}
+		if rec, ok := s.pubKeys[req.UniqueIdentifier]; ok {
+			rec.pubAttrs[req.Attribute.AttributeName] = val
 		}
 		// Echo the attribute back as required by the KMIP spec.
 		return &payloads.AddAttributeResponsePayload{
@@ -1511,49 +1504,20 @@ func (s *fakeStore) handler() kmipserver.RequestHandler {
 	exec.Route(ovh.OperationModifyAttribute, kmipserver.HandleFunc(func(_ context.Context, req *payloads.ModifyAttributeRequestPayload) (*payloads.ModifyAttributeResponsePayload, error) {
 		s.mu.Lock()
 		defer s.mu.Unlock()
-		if req.Attribute.AttributeName == ovh.AttributeNameName {
-			if n, ok := req.Attribute.AttributeValue.(ovh.Name); ok {
-				idx := 0
-				if req.Attribute.AttributeIndex != nil {
-					idx = int(*req.Attribute.AttributeIndex)
-				}
-				if rec, ok := s.keys[req.UniqueIdentifier]; ok {
-					if idx < len(rec.nameAttrs) {
-						rec.nameAttrs[idx] = n.NameValue
-					}
-				}
-				if rec, ok := s.pubKeys[req.UniqueIdentifier]; ok {
-					if idx < len(rec.pubNameAttrs) {
-						rec.pubNameAttrs[idx] = n.NameValue
-					}
-				}
-			}
+		val := req.Attribute.AttributeValue
+		if wrapped, ok := val.(ttlv.Value); ok {
+			val = wrapped.Value
+		}
+		if rec, ok := s.keys[req.UniqueIdentifier]; ok {
+			rec.attrs[req.Attribute.AttributeName] = val
+		}
+		if rec, ok := s.pubKeys[req.UniqueIdentifier]; ok {
+			rec.pubAttrs[req.Attribute.AttributeName] = val
 		}
 		return &payloads.ModifyAttributeResponsePayload{
 			UniqueIdentifier: req.UniqueIdentifier,
 			Attribute:        req.Attribute,
 		}, nil
-	}))
-
-	exec.Route(ovh.OperationDeleteAttribute, kmipserver.HandleFunc(func(_ context.Context, req *payloads.DeleteAttributeRequestPayload) (*payloads.DeleteAttributeResponsePayload, error) {
-		s.mu.Lock()
-		defer s.mu.Unlock()
-		resp := &payloads.DeleteAttributeResponsePayload{UniqueIdentifier: req.UniqueIdentifier}
-		if req.AttributeName == ovh.AttributeNameName && req.AttributeIndex != nil {
-			idx := int(*req.AttributeIndex)
-			if rec, ok := s.keys[req.UniqueIdentifier]; ok && idx < len(rec.nameAttrs) {
-				// The KMIP spec requires echoing back the deleted attribute value.
-				resp.Attribute = ovh.Attribute{
-					AttributeName:  ovh.AttributeNameName,
-					AttributeValue: ovh.Name{NameValue: rec.nameAttrs[idx], NameType: ovh.NameTypeUninterpretedTextString},
-				}
-				rec.nameAttrs = append(rec.nameAttrs[:idx], rec.nameAttrs[idx+1:]...)
-			}
-			if rec, ok := s.pubKeys[req.UniqueIdentifier]; ok && idx < len(rec.pubNameAttrs) {
-				rec.pubNameAttrs = append(rec.pubNameAttrs[:idx], rec.pubNameAttrs[idx+1:]...)
-			}
-		}
-		return resp, nil
 	}))
 
 	exec.Route(ovh.OperationGet, kmipserver.HandleFunc(func(_ context.Context, req *payloads.GetRequestPayload) (*payloads.GetResponsePayload, error) {
@@ -1592,13 +1556,6 @@ func (s *fakeStore) handler() kmipserver.RequestHandler {
 		if rec, ok := s.keys[req.UniqueIdentifier]; ok {
 			for _, want := range req.AttributeName {
 				switch want {
-				case ovh.AttributeNameName:
-					for _, n := range rec.nameAttrs {
-						attrs = append(attrs, ovh.Attribute{
-							AttributeName:  ovh.AttributeNameName,
-							AttributeValue: ovh.Name{NameValue: n, NameType: ovh.NameTypeUninterpretedTextString},
-						})
-					}
 				case ovh.AttributeNameLink:
 					attrs = append(attrs, ovh.Attribute{
 						AttributeName: ovh.AttributeNameLink,
@@ -1612,23 +1569,30 @@ func (s *fakeStore) handler() kmipserver.RequestHandler {
 						AttributeName:  ovh.AttributeNameState,
 						AttributeValue: objectState(s.activated[req.UniqueIdentifier], s.revoked[req.UniqueIdentifier]),
 					})
+				default:
+					if val, ok := rec.attrs[want]; ok {
+						attrs = append(attrs, ovh.Attribute{
+							AttributeName:  want,
+							AttributeValue: val,
+						})
+					}
 				}
 			}
 		} else if rec, ok := s.pubKeys[req.UniqueIdentifier]; ok {
 			for _, want := range req.AttributeName {
 				switch want {
-				case ovh.AttributeNameName:
-					for _, n := range rec.pubNameAttrs {
-						attrs = append(attrs, ovh.Attribute{
-							AttributeName:  ovh.AttributeNameName,
-							AttributeValue: ovh.Name{NameValue: n, NameType: ovh.NameTypeUninterpretedTextString},
-						})
-					}
 				case ovh.AttributeNameState:
 					attrs = append(attrs, ovh.Attribute{
 						AttributeName:  ovh.AttributeNameState,
 						AttributeValue: objectState(s.activated[req.UniqueIdentifier], s.revoked[req.UniqueIdentifier]),
 					})
+				default:
+					if val, ok := rec.pubAttrs[want]; ok {
+						attrs = append(attrs, ovh.Attribute{
+							AttributeName:  want,
+							AttributeValue: val,
+						})
+					}
 				}
 			}
 		}
@@ -1641,36 +1605,27 @@ func (s *fakeStore) handler() kmipserver.RequestHandler {
 	exec.Route(ovh.OperationLocate, kmipserver.HandleFunc(func(_ context.Context, req *payloads.LocateRequestPayload) (*payloads.LocateResponsePayload, error) {
 		s.mu.Lock()
 		defer s.mu.Unlock()
-		var filterNames []string
 		var filterObjectType ovh.ObjectType
 		hasObjectType := false
 		for _, a := range req.Attribute {
-			switch a.AttributeName {
-			case ovh.AttributeNameName:
-				if n, ok := a.AttributeValue.(ovh.Name); ok {
-					filterNames = append(filterNames, n.NameValue)
-				}
-			case ovh.AttributeNameObjectType:
+			if a.AttributeName == ovh.AttributeNameObjectType {
 				if t, ok := a.AttributeValue.(ovh.ObjectType); ok {
 					filterObjectType = t
 					hasObjectType = true
 				}
 			}
 		}
-		matches := func(nameAttrs []string, objectType ovh.ObjectType) bool {
-			if !allNamesPresent(nameAttrs, filterNames) {
-				return false
-			}
+		matches := func(objectType ovh.ObjectType) bool {
 			return !hasObjectType || filterObjectType == objectType
 		}
 		var all []string
-		for uid, rec := range s.keys {
-			if matches(rec.nameAttrs, ovh.ObjectTypePrivateKey) {
+		for uid := range s.keys {
+			if matches(ovh.ObjectTypePrivateKey) {
 				all = append(all, uid)
 			}
 		}
-		for uid, rec := range s.pubKeys {
-			if matches(rec.pubNameAttrs, ovh.ObjectTypePublicKey) {
+		for uid := range s.pubKeys {
+			if matches(ovh.ObjectTypePublicKey) {
 				all = append(all, uid)
 			}
 		}
@@ -1806,19 +1761,6 @@ func generateKeyFromRequest(req *payloads.CreateKeyPairRequestPayload) (crypto.S
 		}
 		return ecdsa.GenerateKey(c, rand.Reader)
 	}
-}
-
-func allNamesPresent(have, required []string) bool {
-	set := make(map[string]struct{}, len(have))
-	for _, n := range have {
-		set[n] = struct{}{}
-	}
-	for _, r := range required {
-		if _, ok := set[r]; !ok {
-			return false
-		}
-	}
-	return true
 }
 
 func objectState(activated, revoked bool) ovh.State {

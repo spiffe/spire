@@ -1,9 +1,9 @@
 // Package kmip implements a SPIRE KeyManager plugin that stores and uses signing
 // keys via a generic KMIP 2.1-compliant server (binary TTLV over TCP/TLS).
 //
-// Key metadata (server ID, trust domain, SPIRE key ID, key type) is stored as standard KMIP
-// Name attributes on each key object, so the plugin works with any spec-compliant
-// KMIP server — no vendor extensions required.
+// Key metadata (server ID, trust domain, SPIRE key ID, key type, last-update, active)
+// is stored as custom attributes (x-spire-*) on each key object per KMIP §3.39,
+// so the plugin works with any spec-compliant KMIP server — no vendor extensions required.
 package kmip
 
 import (
@@ -16,7 +16,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -28,6 +27,7 @@ import (
 	ovh "github.com/ovh/kmip-go"
 	"github.com/ovh/kmip-go/kmipclient"
 	"github.com/ovh/kmip-go/payloads"
+	"github.com/ovh/kmip-go/ttlv"
 	keymanagerv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/keymanager/v1"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
@@ -43,7 +43,7 @@ var errLinkNotFound = errors.New("linked object not found")
 
 const (
 	// keepActiveKeysFrequency is how often the keep-alive task refreshes the
-	// spire-last-update Name on keys currently managed by this server.
+	// x-spire-last-update attribute on keys currently managed by this server.
 	keepActiveKeysFrequency = time.Hour * 6
 	// disposeStaleKeysFrequency is how often the reclamation task scans for stale
 	// keys to destroy.
@@ -51,7 +51,7 @@ const (
 	// minStaleKeyThreshold protects against the reclamation task destroying a key
 	// that is still in use but has not yet gone through a keep-alive refresh cycle.
 	minStaleKeyThreshold = time.Hour * 24
-	// defaultStaleKeyThreshold is the default age a key's spire-last-update Name
+	// defaultStaleKeyThreshold is the default age a key's x-spire-last-update attribute
 	// must reach before the reclamation task considers it orphaned and destroys it.
 	defaultStaleKeyThreshold = time.Hour * 24 * 14 // two weeks
 )
@@ -88,7 +88,7 @@ type Config struct {
 	// file does not exist, a new server ID is generated and persisted there. Mutually
 	// exclusive with ServerIDValue.
 	ServerIDFile string `hcl:"server_id_file"`
-	// StaleKeyThreshold is how old a key's spire-last-update Name must be before the
+	// StaleKeyThreshold is how old a key's x-spire-last-update attribute must be before the
 	// reclamation task considers it orphaned and destroys it.
 	StaleKeyThreshold string `hcl:"stale_key_threshold"`
 
@@ -241,8 +241,7 @@ func (p *Plugin) GenerateKey(ctx context.Context, req *keymanagerv1.GenerateKeyR
 	// Tag the keys with SPIRE metadata (including a last-update freshness marker)
 	// at creation time, so a key that is created but never fully set up is still
 	// discoverable and eventually reclaimed by the reclamation task.
-	nameAttrs := spireNameAttributes(trustDomain, serverID, req.KeyId, req.KeyType, p.clk.Now())
-	createResp, err := createKeyPairForType(ctx, client, req.KeyType, nameAttrs)
+	createResp, err := createKeyPairForType(ctx, client, req.KeyType, serverID, trustDomain, req.KeyId, p.clk.Now().Unix(), true)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to create key pair: %v", err)
 	}
@@ -311,7 +310,7 @@ func (p *Plugin) GenerateKey(ctx context.Context, req *keymanagerv1.GenerateKeyR
 	p.entries[req.KeyId] = keyEntry{privateKeyUID: createResp.PrivateKeyUniqueIdentifier, publicKey: pk}
 	p.mu.Unlock()
 
-	// The new key was created with spire-active:true (see spireNameAttributes), so
+	// The new key was created with x-spire-active:true, so
 	// SPIRE key ID reuse across rotations never leaves two active keys: clear the
 	// marker from the key this one supersedes now that the new one is active. This
 	// runs after the new key is live, so a crash between the two only leaves both
@@ -424,7 +423,7 @@ func locatePrivateKeysWithAttributes(ctx context.Context, c *kmipclient.Client, 
 
 // recoveredKey is a single private key object discovered on the KMIP server
 // during recovery, before disambiguation between key objects sharing a
-// spire-key-id. It only carries the cheap Name-attribute data needed to pick a
+// spire-key-id. It only carries the cheap custom-attribute data needed to pick a
 // winner per spire-key-id; the linked public key is fetched afterwards, only
 // for the winning candidate (see recoverKeys).
 type recoveredKey struct {
@@ -444,7 +443,7 @@ type recoveredKey struct {
 // grouped by spire-key-id and disambiguated below rather than letting the last one
 // seen silently win, which could recover a stale, superseded key as active.
 //
-// Disambiguation happens using only the cheap Name attributes of each private
+// Disambiguation happens using only the cheap custom attributes of each private
 // key, before any linked-public-key or PKIX lookups are performed. This way, a
 // stale, non-winning candidate whose linked public key is missing or broken
 // (e.g. because a prior stale-key disposal partially completed) never causes
@@ -457,13 +456,22 @@ func recoverKeys(ctx context.Context, client *kmipclient.Client, logger hclog.Lo
 
 	candidates := make(map[string][]recoveredKey)
 	for _, privUID := range privUIDs {
-		attrResp, err := client.GetAttributes(privUID, ovh.AttributeNameName).ExecContext(ctx)
+		attrResp, err := client.GetAttributes(privUID, spireCustomAttrNames...).ExecContext(ctx)
 		if err != nil {
-			return nil, fmt.Errorf("get Name attributes for private key uid %s: %w", privUID, err)
+			return nil, fmt.Errorf("get custom attributes for private key uid %s: %w", privUID, err)
 		}
 
-		names := collectNameValues(attrResp.Attribute)
-		keyServerID, keyTrustDomain, spireKeyID, keyType, lastUpdate, active, err := parseNamesMetadata(names)
+		keyServerID, hasServerID := customAttrValue[string](attrResp.Attribute, attrServerID)
+		keyTrustDomain, hasTrustDomain := customAttrValue[string](attrResp.Attribute, attrTrustDomain)
+		spireKeyID, hasKeyID := customAttrValue[string](attrResp.Attribute, attrKeyID)
+		keyTypeStr, hasKeyType := customAttrValue[string](attrResp.Attribute, attrKeyType)
+		lastUpdate, _ := customAttrValue[int64](attrResp.Attribute, attrLastUpdate)
+		active, _ := customAttrValue[bool](attrResp.Attribute, attrActive)
+		if !hasServerID || !hasTrustDomain || !hasKeyID || !hasKeyType {
+			logger.Warn("Key metadata incomplete; skipping", "uid", privUID)
+			continue
+		}
+		keyType, err := parseKeyTypeName(keyTypeStr)
 		if err != nil {
 			logger.Warn("Key metadata unparseable; skipping", "uid", privUID, "err", err)
 			continue
@@ -471,7 +479,6 @@ func recoverKeys(ctx context.Context, client *kmipclient.Client, logger hclog.Lo
 		if keyServerID != serverID || keyTrustDomain != trustDomain {
 			continue
 		}
-
 		candidates[spireKeyID] = append(candidates[spireKeyID], recoveredKey{
 			privateKeyUID: privUID,
 			keyType:       keyType,
@@ -537,9 +544,9 @@ func pickActiveKey(keys []recoveredKey) recoveredKey {
 }
 
 // createKeyPairForType creates a key pair for the given SPIRE key type, tagging
-// both keys with the provided Name attributes in the Create request so they are
+// both keys with custom attributes in the Create request so they are
 // discoverable and freshness-marked from the moment of creation.
-func createKeyPairForType(ctx context.Context, c *kmipclient.Client, kt keymanagerv1.KeyType, names []ovh.Name) (*payloads.CreateKeyPairResponsePayload, error) {
+func createKeyPairForType(ctx context.Context, c *kmipclient.Client, kt keymanagerv1.KeyType, serverID, trustDomain, keyID string, lastUpdate int64, active bool) (*payloads.CreateKeyPairResponsePayload, error) {
 	const (
 		privUsage = ovh.CryptographicUsageSign | ovh.CryptographicUsageCertificateSign | ovh.CryptographicUsageCRLSign
 		pubUsage  = ovh.CryptographicUsageVerify
@@ -557,8 +564,15 @@ func createKeyPairForType(ctx context.Context, c *kmipclient.Client, kt keymanag
 	default:
 		return nil, fmt.Errorf("unsupported key type: %v", kt)
 	}
-	for _, name := range names {
-		exec = exec.WithAttribute(ovh.AttributeNameName, name)
+	for name, value := range map[ovh.AttributeName]any{
+		attrServerID:    serverID,
+		attrTrustDomain: trustDomain,
+		attrKeyID:       keyID,
+		attrKeyType:     keyTypeName(kt),
+		attrLastUpdate:  lastUpdate,
+		attrActive:      active,
+	} {
+		exec = exec.WithAttribute(name, value)
 	}
 	return exec.ExecContext(ctx)
 }
@@ -731,102 +745,36 @@ func isRSA(kt keymanagerv1.KeyType) bool {
 	return kt == keymanagerv1.KeyType_RSA_2048 || kt == keymanagerv1.KeyType_RSA_4096
 }
 
-// ── SPIRE Name attribute helpers ─────────────────────────────────────────────
+// ── SPIRE Custom Attribute helpers ──────────────────────────────────────────
 
 const (
-	prefixSpireTag    = "spire-key:"
-	prefixServerID    = "spire-server-id:"
-	prefixTrustDomain = "spire-trust-domain:"
-	prefixKeyID       = "spire-key-id:"
-	prefixKeyType     = "spire-key-type:"
-	prefixLastUpdate  = "spire-last-update:"
-	prefixActive      = "spire-active:"
-	activeValue       = "true"
+	attrServerID    ovh.AttributeName = "x-spire-server-id"
+	attrTrustDomain ovh.AttributeName = "x-spire-trust-domain"
+	attrKeyID       ovh.AttributeName = "x-spire-key-id"
+	attrKeyType     ovh.AttributeName = "x-spire-key-type"
+	attrLastUpdate  ovh.AttributeName = "x-spire-last-update"
+	attrActive      ovh.AttributeName = "x-spire-active"
 )
 
-// encodeKeyMetadata formats SPIRE metadata into a single Name string so that KMIP
-// servers that support only a single Name attribute per object (such as Cosmian KMS)
-// retain all metadata intact.
-func encodeKeyMetadata(serverID, trustDomain, keyID string, kt keymanagerv1.KeyType, lastUpdate int64, active bool) string {
-	actStr := "false"
-	if active {
-		actStr = "true"
-	}
-	return fmt.Sprintf("%s%s|%s|%s|%s|%d|%s",
-		prefixSpireTag,
-		serverID,
-		trustDomain,
-		keyID,
-		keyTypeName(kt),
-		lastUpdate,
-		actStr,
-	)
-}
+var spireCustomAttrNames = []ovh.AttributeName{attrServerID, attrTrustDomain, attrKeyID, attrKeyType, attrLastUpdate, attrActive}
 
-func parseKeyMetadata(s string) (serverID, trustDomain, keyID string, kt keymanagerv1.KeyType, lastUpdate int64, active bool, err error) {
-	if !strings.HasPrefix(s, prefixSpireTag) {
-		return "", "", "", 0, 0, false, fmt.Errorf("missing prefix %s", prefixSpireTag)
-	}
-	parts := strings.Split(s[len(prefixSpireTag):], "|")
-	if len(parts) != 6 {
-		return "", "", "", 0, 0, false, fmt.Errorf("invalid metadata parts count: %d", len(parts))
-	}
-	serverID = parts[0]
-	trustDomain = parts[1]
-	keyID = parts[2]
-	kt, err = parseKeyTypeName(parts[3])
-	if err != nil {
-		return "", "", "", 0, 0, false, fmt.Errorf("parse key type: %w", err)
-	}
-	lastUpdate, err = strconv.ParseInt(parts[4], 10, 64)
-	if err != nil {
-		return "", "", "", 0, 0, false, fmt.Errorf("parse last update: %w", err)
-	}
-	active = parts[5] == "true"
-	return serverID, trustDomain, keyID, kt, lastUpdate, active, nil
-}
-
-// parseNamesMetadata extracts SPIRE metadata from either a unified spire-key:
-// Name attribute or legacy separate Name attributes.
-func parseNamesMetadata(names []string) (serverID, trustDomain, keyID string, kt keymanagerv1.KeyType, lastUpdate int64, active bool, err error) {
-	for _, n := range names {
-		if strings.HasPrefix(n, prefixSpireTag) {
-			return parseKeyMetadata(n)
+// customAttrValue returns the decoded value of the named custom attribute from a GetAttributes
+// response, unwrapping the generic ttlv.Value the client library decodes unregistered attribute
+// names into. ok is false if the attribute is absent or its wire type doesn't match T.
+func customAttrValue[T any](attrs []ovh.Attribute, name ovh.AttributeName) (val T, ok bool) {
+	for _, a := range attrs {
+		if a.AttributeName != name {
+			continue
 		}
+		raw := a.AttributeValue
+		if wrapped, isWrapped := raw.(ttlv.Value); isWrapped {
+			raw = wrapped.Value
+		}
+		val, ok = raw.(T)
+		return val, ok
 	}
-	// Fallback to legacy separate Name attributes.
-	spireKeyID := prefixValue(names, prefixKeyID)
-	if spireKeyID == "" {
-		return "", "", "", 0, 0, false, errors.New("missing key id")
-	}
-	keyType, err := parseKeyTypeName(prefixValue(names, prefixKeyType))
-	if err != nil {
-		return "", "", "", 0, 0, false, err
-	}
-	var lu int64
-	if v := prefixValue(names, prefixLastUpdate); v != "" {
-		lu, _ = strconv.ParseInt(v, 10, 64)
-	}
-	return prefixValue(names, prefixServerID), prefixValue(names, prefixTrustDomain), spireKeyID, keyType, lu, prefixValue(names, prefixActive) == activeValue, nil
+	return val, false
 }
-
-// spireNameAttributes returns the Name attributes to attach to each key.
-func spireNameAttributes(trustDomain, serverID, keyID string, kt keymanagerv1.KeyType, now time.Time) []ovh.Name {
-	return []ovh.Name{
-		{
-			NameValue: encodeKeyMetadata(serverID, trustDomain, keyID, kt, now.Unix(), true),
-			NameType:  ovh.NameTypeUninterpretedTextString,
-		},
-	}
-}
-
-func activeNameValue() string { return prefixActive + activeValue }
-
-func serverIDNameValue(id string) string { return prefixServerID + id }
-
-func trustDomainNameValue(trustDomain string) string { return prefixTrustDomain + trustDomain }
-
-func lastUpdateNameValue(ts int64) string { return prefixLastUpdate + strconv.FormatInt(ts, 10) }
 
 func keyTypeName(kt keymanagerv1.KeyType) string {
 	switch kt {
@@ -842,32 +790,6 @@ func keyTypeName(kt keymanagerv1.KeyType) string {
 		return "unknown"
 	}
 }
-
-// collectNameValues extracts all NameValue strings from a slice of KMIP Attributes.
-func collectNameValues(attrs []ovh.Attribute) []string {
-	out := make([]string, 0, len(attrs))
-	for _, a := range attrs {
-		if a.AttributeName != ovh.AttributeNameName {
-			continue
-		}
-		if n, ok := a.AttributeValue.(ovh.Name); ok {
-			out = append(out, n.NameValue)
-		}
-	}
-	return out
-}
-
-// prefixValue finds the first name value that starts with the given prefix
-// and returns the part after the prefix.
-func prefixValue(names []string, prefix string) string {
-	for _, n := range names {
-		if strings.HasPrefix(n, prefix) {
-			return n[len(prefix):]
-		}
-	}
-	return ""
-}
-
 func parseKeyTypeName(s string) (keymanagerv1.KeyType, error) {
 	switch s {
 	case "EC_P256":
@@ -1218,107 +1140,29 @@ func revokeAndDestroyKeyPair(ctx context.Context, c *kmipclient.Client, logger h
 }
 
 // refreshLastUpdate updates the last-update timestamp on a key object.
-// If the key carries the unified spire-key: Name, it decodes, updates lastUpdate,
-// and modifies the Name attribute in place. Otherwise, it falls back to legacy Name behavior.
 func refreshLastUpdate(ctx context.Context, c *kmipclient.Client, uid string, ts int64) error {
-	attrResp, err := c.GetAttributes(uid, ovh.AttributeNameName).ExecContext(ctx)
-	if err != nil {
-		return fmt.Errorf("get Name attributes: %w", err)
-	}
-
-	var nameIndex int32
-	for _, attr := range attrResp.Attribute {
-		if attr.AttributeName != ovh.AttributeNameName {
-			continue
-		}
-		if n, ok := attr.AttributeValue.(ovh.Name); ok {
-			if strings.HasPrefix(n.NameValue, prefixSpireTag) {
-				serverID, trustDomain, keyID, kt, _, active, parseErr := parseKeyMetadata(n.NameValue)
-				if parseErr == nil {
-					updated := encodeKeyMetadata(serverID, trustDomain, keyID, kt, ts, active)
-					newName := ovh.Name{NameValue: updated, NameType: ovh.NameTypeUninterpretedTextString}
-					if _, err := c.ModifyAttribute(uid, ovh.AttributeNameName, newName).WithIndex(nameIndex).ExecContext(ctx); err != nil {
-						return fmt.Errorf("modify spire-key Name: %w", err)
-					}
-					return nil
-				}
-			} else if strings.HasPrefix(n.NameValue, prefixLastUpdate) {
-				newName := ovh.Name{NameValue: lastUpdateNameValue(ts), NameType: ovh.NameTypeUninterpretedTextString}
-				if _, err := c.ModifyAttribute(uid, ovh.AttributeNameName, newName).WithIndex(nameIndex).ExecContext(ctx); err != nil {
-					return fmt.Errorf("modify legacy last-update Name: %w", err)
-				}
-				return nil
-			}
-		}
-		nameIndex++
+	if _, err := c.ModifyAttribute(uid, attrLastUpdate, ts).ExecContext(ctx); err != nil {
+		return fmt.Errorf("modify %s: %w", attrLastUpdate, err)
 	}
 	return nil
 }
 
 // clearActiveMarker sets the active flag to false on a key object.
-// If the key carries the unified spire-key: Name, it decodes, sets active=false,
-// and modifies the Name attribute in place. Otherwise, it deletes legacy spire-active: Name.
 func clearActiveMarker(ctx context.Context, c *kmipclient.Client, uid string) error {
-	attrResp, err := c.GetAttributes(uid, ovh.AttributeNameName).ExecContext(ctx)
-	if err != nil {
-		return fmt.Errorf("get Name attributes: %w", err)
-	}
-
-	var nameIndex int32
-	for _, attr := range attrResp.Attribute {
-		if attr.AttributeName != ovh.AttributeNameName {
-			continue
-		}
-		if n, ok := attr.AttributeValue.(ovh.Name); ok {
-			if strings.HasPrefix(n.NameValue, prefixSpireTag) {
-				serverID, trustDomain, keyID, kt, lastUpdate, _, parseErr := parseKeyMetadata(n.NameValue)
-				if parseErr == nil {
-					updated := encodeKeyMetadata(serverID, trustDomain, keyID, kt, lastUpdate, false)
-					newName := ovh.Name{NameValue: updated, NameType: ovh.NameTypeUninterpretedTextString}
-					if _, err := c.ModifyAttribute(uid, ovh.AttributeNameName, newName).WithIndex(nameIndex).ExecContext(ctx); err != nil {
-						return fmt.Errorf("modify spire-key Name active marker: %w", err)
-					}
-					return nil
-				}
-			} else if strings.HasPrefix(n.NameValue, prefixActive) {
-				if _, err := c.DeleteAttribute(uid, ovh.AttributeNameName).WithIndex(nameIndex).ExecContext(ctx); err != nil {
-					return fmt.Errorf("delete legacy active Name: %w", err)
-				}
-				return nil
-			}
-		}
-		nameIndex++
+	if _, err := c.ModifyAttribute(uid, attrActive, false).ExecContext(ctx); err != nil {
+		return fmt.Errorf("modify %s: %w", attrActive, err)
 	}
 	return nil
 }
 
-// getKeyMetadataAndFreshness reads Name attributes from a key object and returns its trust domain,
+// getKeyMetadataAndFreshness reads custom attributes from a key object and returns its trust domain,
 // last-update timestamp, and whether it was found.
 func getKeyMetadataAndFreshness(ctx context.Context, c *kmipclient.Client, uid string) (trustDomain string, lastUpdate int64, ok bool, err error) {
-	attrResp, err := c.GetAttributes(uid, ovh.AttributeNameName).ExecContext(ctx)
+	attrResp, err := c.GetAttributes(uid, attrTrustDomain, attrLastUpdate).ExecContext(ctx)
 	if err != nil {
 		return "", 0, false, err
 	}
-	names := collectNameValues(attrResp.Attribute)
-	for _, n := range names {
-		if strings.HasPrefix(n, prefixSpireTag) {
-			_, td, _, _, lu, _, err := parseKeyMetadata(n)
-			if err != nil {
-				return "", 0, false, err
-			}
-			return td, lu, true, nil
-		}
-	}
-	// Fallback to legacy separate Name attributes.
-	// For disposal/freshness, key ID is not required; only trust domain and last-update matter.
-	td := prefixValue(names, prefixTrustDomain)
-	v := prefixValue(names, prefixLastUpdate)
-	if v == "" && td == "" {
-		return "", 0, false, nil
-	}
-	var lu int64
-	if v != "" {
-		lu, _ = strconv.ParseInt(v, 10, 64)
-	}
-	return td, lu, true, nil
+	trustDomain, hasTD := customAttrValue[string](attrResp.Attribute, attrTrustDomain)
+	lastUpdate, hasLU := customAttrValue[int64](attrResp.Attribute, attrLastUpdate)
+	return trustDomain, lastUpdate, hasTD && hasLU, nil
 }
