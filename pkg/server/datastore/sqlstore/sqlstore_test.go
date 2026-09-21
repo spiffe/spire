@@ -48,13 +48,17 @@ func TestPlugin(t *testing.T) {
 // migration state, raw query builders) and therefore cannot run through the
 // sqltest.DataStoreUnderTest interface.
 func newTestPlugin(t *testing.T) *Plugin {
+	// Register the temporary directory cleanup before the datastore cleanup.
+	// Cleanups run in LIFO order, so this ensures SQLite is closed before the
+	// directory is removed on Windows.
+	tempDir := t.TempDir()
 	log, _ := test.NewNullLogger()
 	ds := New(log)
 	t.Cleanup(func() {
 		ds.Close()
 	})
 
-	dbPath := filepath.ToSlash(filepath.Join(t.TempDir(), "db.sqlite3"))
+	dbPath := filepath.ToSlash(filepath.Join(tempDir, "db.sqlite3"))
 	err := ds.Configure(ctx, fmt.Sprintf(`
 		database_type = "sqlite3"
 		log_sql = true

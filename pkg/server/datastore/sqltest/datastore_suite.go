@@ -10,7 +10,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"reflect"
 	"sort"
 	"strconv"
 	"strings"
@@ -1834,16 +1833,11 @@ func (s *Suite) TestDeleteAttestedNode() {
 	})
 }
 
-// lastRegistrationEntryEventID returns the highest existing entry event ID, or 0
-// if none exist. Used by cascade tests to scope GreaterThanEventID assertions to
-// events created during the test.
-func (s *Suite) lastRegistrationEntryEventID() uint {
-	resp, err := s.ds.ListRegistrationEntryEvents(ctx, &datastore.ListRegistrationEntryEventsRequest{})
+// consumeRegistrationEntryChanges advances the stream so a test can assert
+// only the changes caused by the operation under test.
+func (s *Suite) consumeRegistrationEntryChanges() {
+	_, err := s.ds.FetchRegistrationEntryChanges(ctx, &datastore.FetchRegistrationEntryChangesRequest{EventTimeout: time.Minute})
 	s.Require().NoError(err)
-	if len(resp.Events) == 0 {
-		return 0
-	}
-	return resp.Events[len(resp.Events)-1].EventID
 }
 
 func (s *Suite) TestDeleteAttestedNodeCascadesEntries() {
@@ -1869,7 +1863,7 @@ func (s *Suite) TestDeleteAttestedNodeCascadesEntries() {
 	})
 	s.Require().NoError(err)
 
-	lastEventID := s.lastRegistrationEntryEventID()
+	s.consumeRegistrationEntryChanges()
 
 	// Deleting the attested node cascades to the child entry.
 	_, err = s.ds.DeleteAttestedNode(ctx, nodeSpiffeID)
@@ -1884,12 +1878,9 @@ func (s *Suite) TestDeleteAttestedNodeCascadesEntries() {
 	s.Nil(entries[childEntry.EntryId])
 
 	// A new registration entry event was emitted for the cascaded delete.
-	resp, err := s.ds.ListRegistrationEntryEvents(ctx, &datastore.ListRegistrationEntryEventsRequest{
-		GreaterThanEventID: lastEventID,
-	})
+	resp, err := s.ds.FetchRegistrationEntryChanges(ctx, &datastore.FetchRegistrationEntryChangesRequest{EventTimeout: time.Minute})
 	s.Require().NoError(err)
-	s.Require().Len(resp.Events, 1)
-	s.Equal(childEntry.EntryId, resp.Events[0].EntryID)
+	s.Equal([]string{childEntry.EntryId}, resp.EntryIDs)
 }
 
 func (s *Suite) TestDeleteAttestedNodeJoinTokenPreservesNonAliasChildEntries() {
@@ -1930,7 +1921,7 @@ func (s *Suite) TestDeleteAttestedNodeJoinTokenPreservesNonAliasChildEntries() {
 	})
 	s.Require().NoError(err)
 
-	lastEventID := s.lastRegistrationEntryEventID()
+	s.consumeRegistrationEntryChanges()
 
 	_, err = s.ds.DeleteAttestedNode(ctx, nodeSpiffeID)
 	s.Require().NoError(err)
@@ -1950,12 +1941,9 @@ func (s *Suite) TestDeleteAttestedNodeJoinTokenPreservesNonAliasChildEntries() {
 	s.Nil(nodeSelectors)
 
 	// Exactly one cascade event was emitted, for the alias child only.
-	resp, err := s.ds.ListRegistrationEntryEvents(ctx, &datastore.ListRegistrationEntryEventsRequest{
-		GreaterThanEventID: lastEventID,
-	})
+	resp, err := s.ds.FetchRegistrationEntryChanges(ctx, &datastore.FetchRegistrationEntryChangesRequest{EventTimeout: time.Minute})
 	s.Require().NoError(err)
-	s.Require().Len(resp.Events, 1)
-	s.Equal(aliasChild.EntryId, resp.Events[0].EntryID)
+	s.Equal([]string{aliasChild.EntryId}, resp.EntryIDs)
 }
 
 func (s *Suite) TestPruneAttestedExpiredNodesCascadesEntries() {
@@ -1998,7 +1986,7 @@ func (s *Suite) TestPruneAttestedExpiredNodesCascadesEntries() {
 	})
 	s.Require().NoError(err)
 
-	lastEventID := s.lastRegistrationEntryEventID()
+	s.consumeRegistrationEntryChanges()
 
 	err = s.ds.PruneAttestedExpiredNodes(ctx, now.Add(-time.Minute), false, 0)
 	s.Require().NoError(err)
@@ -2018,12 +2006,9 @@ func (s *Suite) TestPruneAttestedExpiredNodesCascadesEntries() {
 	s.NotNil(entries[validChild.EntryId])
 
 	// Exactly one new registration entry event was emitted, for the cascaded delete.
-	resp, err := s.ds.ListRegistrationEntryEvents(ctx, &datastore.ListRegistrationEntryEventsRequest{
-		GreaterThanEventID: lastEventID,
-	})
+	resp, err := s.ds.FetchRegistrationEntryChanges(ctx, &datastore.FetchRegistrationEntryChangesRequest{EventTimeout: time.Minute})
 	s.Require().NoError(err)
-	s.Require().Len(resp.Events, 1)
-	s.Equal(expiredChild.EntryId, resp.Events[0].EntryID)
+	s.Equal([]string{expiredChild.EntryId}, resp.EntryIDs)
 }
 
 func (s *Suite) TestDeleteAttestedNodeNonJoinTokenDoesNotCascade() {
@@ -2049,7 +2034,7 @@ func (s *Suite) TestDeleteAttestedNodeNonJoinTokenDoesNotCascade() {
 	})
 	s.Require().NoError(err)
 
-	lastEventID := s.lastRegistrationEntryEventID()
+	s.consumeRegistrationEntryChanges()
 
 	_, err = s.ds.DeleteAttestedNode(ctx, nodeSpiffeID)
 	s.Require().NoError(err)
@@ -2064,17 +2049,12 @@ func (s *Suite) TestDeleteAttestedNodeNonJoinTokenDoesNotCascade() {
 	s.Require().NotNil(fetched)
 	s.Equal(childEntry.EntryId, fetched.EntryId)
 
-	resp, err := s.ds.ListRegistrationEntryEvents(ctx, &datastore.ListRegistrationEntryEventsRequest{
-		GreaterThanEventID: lastEventID,
-	})
+	resp, err := s.ds.FetchRegistrationEntryChanges(ctx, &datastore.FetchRegistrationEntryChangesRequest{EventTimeout: time.Minute})
 	s.Require().NoError(err)
-	s.Empty(resp.Events)
+	s.Empty(resp.EntryIDs)
 }
 
-func (s *Suite) TestListAttestedNodeEvents() {
-	var expectedEvents []datastore.AttestedNodeEvent
-
-	// Create an attested node
+func (s *Suite) TestFetchAttestedNodeChanges() {
 	node1, err := s.ds.CreateAttestedNode(ctx, &common.AttestedNode{
 		SpiffeId:            "foo",
 		AttestationDataType: "aws-tag",
@@ -2082,16 +2062,8 @@ func (s *Suite) TestListAttestedNodeEvents() {
 		CertNotAfter:        time.Now().Add(time.Hour).Unix(),
 	})
 	s.Require().NoError(err)
-	expectedEvents = s.checkAttestedNodeEvents(expectedEvents, node1.SpiffeId)
+	s.setNodeSelectors(node1.SpiffeId, []*common.Selector{{Type: "FOO", Value: "1"}})
 
-	// Create selectors for attested node
-	selectors1 := []*common.Selector{
-		{Type: "FOO1", Value: "1"},
-	}
-	s.setNodeSelectors(node1.SpiffeId, selectors1)
-	expectedEvents = s.checkAttestedNodeEvents(expectedEvents, node1.SpiffeId)
-
-	// Create second attested node
 	node2, err := s.ds.CreateAttestedNode(ctx, &common.AttestedNode{
 		SpiffeId:            "bar",
 		AttestationDataType: "aws-tag",
@@ -2099,146 +2071,47 @@ func (s *Suite) TestListAttestedNodeEvents() {
 		CertNotAfter:        time.Now().Add(time.Hour).Unix(),
 	})
 	s.Require().NoError(err)
-	expectedEvents = s.checkAttestedNodeEvents(expectedEvents, node2.SpiffeId)
-
-	// Create selectors for second attested node
-	selectors2 := []*common.Selector{
-		{Type: "BAR1", Value: "1"},
-	}
-	s.setNodeSelectors(node2.SpiffeId, selectors2)
-	expectedEvents = s.checkAttestedNodeEvents(expectedEvents, node2.SpiffeId)
-
-	// Update first attested node
-	updatedNode, err := s.ds.UpdateAttestedNode(ctx, node1, nil)
+	_, err = s.ds.DeleteAttestedNode(ctx, node2.SpiffeId)
 	s.Require().NoError(err)
-	expectedEvents = s.checkAttestedNodeEvents(expectedEvents, updatedNode.SpiffeId)
 
-	// Update selectors for first attested node
-	updatedSelectors := []*common.Selector{
-		{Type: "FOO2", Value: "2"},
-	}
-	s.setNodeSelectors(updatedNode.SpiffeId, updatedSelectors)
-	expectedEvents = s.checkAttestedNodeEvents(expectedEvents, updatedNode.SpiffeId)
-
-	// Delete second atttested node
-	deletedNode, err := s.ds.DeleteAttestedNode(ctx, node2.SpiffeId)
+	resp, err := s.ds.FetchAttestedNodeChanges(ctx, &datastore.FetchAttestedNodeChangesRequest{EventTimeout: time.Minute})
 	s.Require().NoError(err)
-	expectedEvents = s.checkAttestedNodeEvents(expectedEvents, deletedNode.SpiffeId)
+	s.ElementsMatch([]string{node1.SpiffeId, node2.SpiffeId}, resp.SpiffeIDs)
+	s.Zero(resp.PendingEvents)
 
-	// Delete selectors for second attested node
-	s.setNodeSelectors(deletedNode.SpiffeId, nil)
-	expectedEvents = s.checkAttestedNodeEvents(expectedEvents, deletedNode.SpiffeId)
-
-	// Check filtering events by id
-	tests := []struct {
-		name                 string
-		greaterThanEventID   uint
-		lessThanEventID      uint
-		expectedEvents       []datastore.AttestedNodeEvent
-		expectedFirstEventID uint
-		expectedLastEventID  uint
-		expectedErr          string
-	}{
-		{
-			name:                 "All Events",
-			greaterThanEventID:   0,
-			expectedFirstEventID: 1,
-			expectedLastEventID:  uint(len(expectedEvents)),
-			expectedEvents:       expectedEvents,
-		},
-		{
-			name:                 "Greater than half of the Events",
-			greaterThanEventID:   uint(len(expectedEvents) / 2),
-			expectedFirstEventID: uint(len(expectedEvents)/2) + 1,
-			expectedLastEventID:  uint(len(expectedEvents)),
-			expectedEvents:       expectedEvents[len(expectedEvents)/2:],
-		},
-		{
-			name:                 "Less than half of the Events",
-			lessThanEventID:      uint(len(expectedEvents) / 2),
-			expectedFirstEventID: 1,
-			expectedLastEventID:  uint(len(expectedEvents)/2) - 1,
-			expectedEvents:       expectedEvents[:len(expectedEvents)/2-1],
-		},
-		{
-			name:               "Greater than largest Event ID",
-			greaterThanEventID: uint(len(expectedEvents)),
-			expectedEvents:     []datastore.AttestedNodeEvent{},
-		},
-		{
-			name:               "Setting both greater and less than",
-			greaterThanEventID: 1,
-			lessThanEventID:    1,
-			expectedErr:        "datastore-sql: can't set both greater and less than event id",
-		},
-	}
-	for _, test := range tests {
-		s.T().Run(test.name, func(t *testing.T) {
-			resp, err := s.ds.ListAttestedNodeEvents(ctx, &datastore.ListAttestedNodeEventsRequest{
-				GreaterThanEventID: test.greaterThanEventID,
-				LessThanEventID:    test.lessThanEventID,
-			})
-			if test.expectedErr != "" {
-				require.EqualError(t, err, test.expectedErr)
-				return
-			}
-			s.Require().NoError(err)
-
-			s.Require().Equal(test.expectedEvents, resp.Events)
-			if len(resp.Events) > 0 {
-				s.Require().Equal(test.expectedFirstEventID, resp.Events[0].EventID)
-				s.Require().Equal(test.expectedLastEventID, resp.Events[len(resp.Events)-1].EventID)
-			}
-		})
-	}
+	resp, err = s.ds.FetchAttestedNodeChanges(ctx, &datastore.FetchAttestedNodeChangesRequest{EventTimeout: time.Minute})
+	s.Require().NoError(err)
+	s.Empty(resp.SpiffeIDs)
 }
 
-func (s *Suite) TestPruneAttestedNodeEvents() {
-	node, err := s.ds.CreateAttestedNode(ctx, &common.AttestedNode{
-		SpiffeId:            "foo",
-		AttestationDataType: "aws-tag",
+func (s *Suite) TestPruneEvents() {
+	entry := s.createRegistrationEntry(&common.RegistrationEntry{
+		SpiffeId:  "spiffe://example.org/workload",
+		ParentId:  "spiffe://example.org/agent",
+		Selectors: []*common.Selector{{Type: "unix", Value: "uid:1000"}},
+	})
+	_, err := s.ds.CreateAttestedNode(ctx, &common.AttestedNode{
+		SpiffeId:            "spiffe://example.org/agent",
+		AttestationDataType: "join_token",
 		CertSerialNumber:    "badcafe",
 		CertNotAfter:        time.Now().Add(time.Hour).Unix(),
 	})
 	s.Require().NoError(err)
 
-	resp, err := s.ds.ListAttestedNodeEvents(ctx, &datastore.ListAttestedNodeEventsRequest{})
+	s.Require().NoError(s.ds.PruneEvents(ctx, &datastore.PruneEventsRequest{OlderThan: time.Hour}))
+	entryChanges, err := s.ds.FetchRegistrationEntryChanges(ctx, &datastore.FetchRegistrationEntryChangesRequest{EventTimeout: time.Minute})
 	s.Require().NoError(err)
-	s.Require().Equal(node.SpiffeId, resp.Events[0].SpiffeID)
+	s.Equal([]string{entry.EntryId}, entryChanges.EntryIDs)
+	nodeChanges, err := s.ds.FetchAttestedNodeChanges(ctx, &datastore.FetchAttestedNodeChangesRequest{EventTimeout: time.Minute})
+	s.Require().NoError(err)
+	s.Equal([]string{"spiffe://example.org/agent"}, nodeChanges.SpiffeIDs)
 
-	for _, tt := range []struct {
-		name           string
-		olderThan      time.Duration
-		expectedEvents []datastore.AttestedNodeEvent
-	}{
-		{
-			name:      "Don't prune valid events",
-			olderThan: 1 * time.Hour,
-			expectedEvents: []datastore.AttestedNodeEvent{
-				{
-					EventID:  1,
-					SpiffeID: node.SpiffeId,
-				},
-			},
-		},
-		{
-			name:           "Prune old events",
-			olderThan:      0 * time.Second,
-			expectedEvents: []datastore.AttestedNodeEvent{},
-		},
-	} {
-		s.T().Run(tt.name, func(t *testing.T) {
-			s.Require().EventuallyWithTf(func(collect *assert.CollectT) {
-				err = s.ds.PruneAttestedNodeEvents(ctx, tt.olderThan)
-				require.NoError(t, err)
-
-				resp, err := s.ds.ListAttestedNodeEvents(ctx, &datastore.ListAttestedNodeEventsRequest{})
-				require.NoError(t, err)
-
-				assert.True(collect, reflect.DeepEqual(tt.expectedEvents, resp.Events))
-			}, 10*time.Second, 50*time.Millisecond, "Failed to prune entries correctly")
-		})
-	}
+	s.Require().NoError(s.ds.PruneEvents(ctx, &datastore.PruneEventsRequest{OlderThan: -time.Hour}))
+	counts := struct{ Count int }{}
+	s.Require().NoError(s.ds.RawScan(&counts, "SELECT COUNT(*) AS count FROM registered_entries_events"))
+	s.Zero(counts.Count)
+	s.Require().NoError(s.ds.RawScan(&counts, "SELECT COUNT(*) AS count FROM attested_node_entries_events"))
+	s.Zero(counts.Count)
 }
 
 func (s *Suite) TestNodeSelectors() {
@@ -2791,10 +2664,9 @@ func (s *Suite) TestPruneRegistrationEntries() {
 	}
 	prunedLogMessage := "Pruned an expired registration"
 
-	resp, err := s.ds.ListRegistrationEntryEvents(ctx, &datastore.ListRegistrationEntryEventsRequest{})
+	resp, err := s.ds.FetchRegistrationEntryChanges(ctx, &datastore.FetchRegistrationEntryChangesRequest{EventTimeout: time.Minute})
 	s.Require().NoError(err)
-	s.Require().Equal(1, len(resp.Events))
-	s.Require().Equal(createdRegistrationEntry.EntryId, resp.Events[0].EntryID)
+	s.Require().Equal([]string{createdRegistrationEntry.EntryId}, resp.EntryIDs)
 
 	for _, tt := range []struct {
 		name                      string
@@ -2830,14 +2702,8 @@ func (s *Suite) TestPruneRegistrationEntries() {
 		},
 	} {
 		s.T().Run(tt.name, func(t *testing.T) {
-			// Get latest event id
-			resp, err := s.ds.ListRegistrationEntryEvents(ctx, &datastore.ListRegistrationEntryEventsRequest{})
-			require.NoError(t, err)
-			require.Greater(t, len(resp.Events), 0)
-			lastEventID := resp.Events[len(resp.Events)-1].EventID
-
 			// Prune events
-			err = s.ds.PruneRegistrationEntries(ctx, tt.time)
+			err := s.ds.PruneRegistrationEntries(ctx, tt.time)
 			require.NoError(t, err)
 			registrationEntries, err := s.ds.FetchRegistrationEntries(ctx, []string{createdRegistrationEntry.EntryId})
 			require.NoError(t, err)
@@ -2845,15 +2711,12 @@ func (s *Suite) TestPruneRegistrationEntries() {
 			assert.Equal(t, tt.expectedRegistrationEntry, fetchedRegistrationEntry)
 
 			// Verify pruning triggers event creation
-			resp, err = s.ds.ListRegistrationEntryEvents(ctx, &datastore.ListRegistrationEntryEventsRequest{
-				GreaterThanEventID: lastEventID,
-			})
+			resp, err = s.ds.FetchRegistrationEntryChanges(ctx, &datastore.FetchRegistrationEntryChangesRequest{EventTimeout: time.Minute})
 			require.NoError(t, err)
 			if tt.expectedRegistrationEntry != nil {
-				require.Equal(t, 0, len(resp.Events))
+				require.Empty(t, resp.EntryIDs)
 			} else {
-				require.Equal(t, 1, len(resp.Events))
-				require.Equal(t, createdRegistrationEntry.EntryId, resp.Events[0].EntryID)
+				require.Equal(t, []string{createdRegistrationEntry.EntryId}, resp.EntryIDs)
 			}
 
 			if tt.expectedLastLog.Message == prunedLogMessage {
@@ -4772,181 +4635,61 @@ func (s *Suite) TestDeleteBundleDissociateRegistrationEntries() {
 	s.Require().Empty(entry.FederatesWith)
 }
 
-func (s *Suite) TestListRegistrationEntryEvents() {
-	var expectedEvents []datastore.RegistrationEntryEvent
-	var expectedEventID uint = 1
-
-	// Create an entry
+func (s *Suite) TestFetchRegistrationEntryChanges() {
 	entry1 := s.createRegistrationEntry(&common.RegistrationEntry{
-		Selectors: []*common.Selector{
-			{Type: "Type1", Value: "Value1"},
-		},
-		SpiffeId: "spiffe://example.org/foo1",
-		ParentId: "spiffe://example.org/bar",
+		Selectors: []*common.Selector{{Type: "Type1", Value: "Value1"}},
+		SpiffeId:  "spiffe://example.org/foo1",
+		ParentId:  "spiffe://example.org/bar",
 	})
-	expectedEvents = append(expectedEvents, datastore.RegistrationEntryEvent{
-		EventID: expectedEventID,
-		EntryID: entry1.EntryId,
-	})
-	expectedEventID++
-
-	resp, err := s.ds.ListRegistrationEntryEvents(ctx, &datastore.ListRegistrationEntryEventsRequest{})
+	_, err := s.ds.UpdateRegistrationEntry(ctx, entry1, nil)
 	s.Require().NoError(err)
-	s.Require().Equal(expectedEvents, resp.Events)
-
-	// Create second entry
 	entry2 := s.createRegistrationEntry(&common.RegistrationEntry{
-		Selectors: []*common.Selector{
-			{Type: "Type2", Value: "Value2"},
-		},
-		SpiffeId: "spiffe://example.org/foo2",
-		ParentId: "spiffe://example.org/bar",
+		Selectors: []*common.Selector{{Type: "Type2", Value: "Value2"}},
+		SpiffeId:  "spiffe://example.org/foo2",
+		ParentId:  "spiffe://example.org/bar",
 	})
-	expectedEvents = append(expectedEvents, datastore.RegistrationEntryEvent{
-		EventID: expectedEventID,
-		EntryID: entry2.EntryId,
-	})
-	expectedEventID++
-
-	resp, err = s.ds.ListRegistrationEntryEvents(ctx, &datastore.ListRegistrationEntryEventsRequest{})
-	s.Require().NoError(err)
-	s.Require().Equal(expectedEvents, resp.Events)
-
-	// Update first entry
-	updatedRegistrationEntry, err := s.ds.UpdateRegistrationEntry(ctx, entry1, nil)
-	s.Require().NoError(err)
-	expectedEvents = append(expectedEvents, datastore.RegistrationEntryEvent{
-		EventID: expectedEventID,
-		EntryID: updatedRegistrationEntry.EntryId,
-	})
-	expectedEventID++
-
-	resp, err = s.ds.ListRegistrationEntryEvents(ctx, &datastore.ListRegistrationEntryEventsRequest{})
-	s.Require().NoError(err)
-	s.Require().Equal(expectedEvents, resp.Events)
-
-	// Delete second entry
 	s.deleteRegistrationEntry(entry2.EntryId)
-	expectedEvents = append(expectedEvents, datastore.RegistrationEntryEvent{
-		EventID: expectedEventID,
-		EntryID: entry2.EntryId,
-	})
 
-	resp, err = s.ds.ListRegistrationEntryEvents(ctx, &datastore.ListRegistrationEntryEventsRequest{})
+	resp, err := s.ds.FetchRegistrationEntryChanges(ctx, &datastore.FetchRegistrationEntryChangesRequest{EventTimeout: time.Minute})
 	s.Require().NoError(err)
-	s.Require().Equal(expectedEvents, resp.Events)
+	s.ElementsMatch([]string{entry1.EntryId, entry2.EntryId}, resp.EntryIDs)
+	s.Zero(resp.PendingEvents)
 
-	// Check filtering events by id
-	tests := []struct {
-		name                 string
-		greaterThanEventID   uint
-		lessThanEventID      uint
-		expectedEvents       []datastore.RegistrationEntryEvent
-		expectedFirstEventID uint
-		expectedLastEventID  uint
-		expectedErr          string
-	}{
-		{
-			name:                 "All Events",
-			greaterThanEventID:   0,
-			expectedFirstEventID: 1,
-			expectedLastEventID:  uint(len(expectedEvents)),
-			expectedEvents:       expectedEvents,
-		},
-		{
-			name:                 "Greater than half of the Events",
-			greaterThanEventID:   uint(len(expectedEvents) / 2),
-			expectedFirstEventID: uint(len(expectedEvents)/2) + 1,
-			expectedLastEventID:  uint(len(expectedEvents)),
-			expectedEvents:       expectedEvents[len(expectedEvents)/2:],
-		},
-		{
-			name:                 "Less than half of the Events",
-			lessThanEventID:      uint(len(expectedEvents) / 2),
-			expectedFirstEventID: 1,
-			expectedLastEventID:  uint(len(expectedEvents)/2) - 1,
-			expectedEvents:       expectedEvents[:len(expectedEvents)/2-1],
-		},
-		{
-			name:               "Greater than largest Event ID",
-			greaterThanEventID: 4,
-			expectedEvents:     []datastore.RegistrationEntryEvent{},
-		},
-		{
-			name:               "Setting both greater and less than",
-			greaterThanEventID: 1,
-			lessThanEventID:    1,
-			expectedErr:        "datastore-sql: can't set both greater and less than event id",
-		},
-	}
-	for _, test := range tests {
-		s.T().Run(test.name, func(t *testing.T) {
-			resp, err = s.ds.ListRegistrationEntryEvents(ctx, &datastore.ListRegistrationEntryEventsRequest{
-				GreaterThanEventID: test.greaterThanEventID,
-				LessThanEventID:    test.lessThanEventID,
-			})
-			if test.expectedErr != "" {
-				require.EqualError(t, err, test.expectedErr)
-				return
-			}
-			s.Require().NoError(err)
-
-			s.Require().Equal(test.expectedEvents, resp.Events)
-			if len(resp.Events) > 0 {
-				s.Require().Equal(test.expectedFirstEventID, resp.Events[0].EventID)
-				s.Require().Equal(test.expectedLastEventID, resp.Events[len(resp.Events)-1].EventID)
-			}
-		})
-	}
+	resp, err = s.ds.FetchRegistrationEntryChanges(ctx, &datastore.FetchRegistrationEntryChangesRequest{EventTimeout: time.Minute})
+	s.Require().NoError(err)
+	s.Empty(resp.EntryIDs)
 }
 
-func (s *Suite) TestPruneRegistrationEntryEvents() {
-	entry := &common.RegistrationEntry{
-		Selectors: []*common.Selector{
-			{Type: "Type1", Value: "Value1"},
-		},
-		SpiffeId: "SpiffeId",
-		ParentId: "ParentId",
-	}
-
-	createdRegistrationEntry := s.createRegistrationEntry(entry)
-	resp, err := s.ds.ListRegistrationEntryEvents(ctx, &datastore.ListRegistrationEntryEventsRequest{})
+func (s *Suite) TestRegistrationEntryChangeGap() {
+	s.Require().NoError(s.ds.CreateRegistrationEntryEventForTesting(ctx, &datastore.RegistrationEntryEvent{EventID: 1, EntryID: "one"}))
+	resp, err := s.ds.FetchRegistrationEntryChanges(ctx, &datastore.FetchRegistrationEntryChangesRequest{EventTimeout: time.Minute})
 	s.Require().NoError(err)
-	s.Require().Equal(createdRegistrationEntry.EntryId, resp.Events[0].EntryID)
+	s.Equal([]string{"one"}, resp.EntryIDs)
 
-	for _, tt := range []struct {
-		name           string
-		olderThan      time.Duration
-		expectedEvents []datastore.RegistrationEntryEvent
-	}{
-		{
-			name:      "Don't prune valid events",
-			olderThan: 1 * time.Hour,
-			expectedEvents: []datastore.RegistrationEntryEvent{
-				{
-					EventID: 1,
-					EntryID: createdRegistrationEntry.EntryId,
-				},
-			},
-		},
-		{
-			name:           "Prune old events",
-			olderThan:      0 * time.Second,
-			expectedEvents: []datastore.RegistrationEntryEvent{},
-		},
-	} {
-		s.T().Run(tt.name, func(t *testing.T) {
-			s.Require().EventuallyWithTf(func(collect *assert.CollectT) {
-				err := s.ds.PruneRegistrationEntryEvents(ctx, tt.olderThan)
-				require.NoError(collect, err)
+	s.Require().NoError(s.ds.CreateRegistrationEntryEventForTesting(ctx, &datastore.RegistrationEntryEvent{EventID: 3, EntryID: "three"}))
+	resp, err = s.ds.FetchRegistrationEntryChanges(ctx, &datastore.FetchRegistrationEntryChangesRequest{EventTimeout: time.Minute})
+	s.Require().NoError(err)
+	s.Equal([]string{"three"}, resp.EntryIDs)
+	s.Equal(int32(1), resp.PendingEvents)
 
-				resp, err := s.ds.ListRegistrationEntryEvents(ctx, &datastore.ListRegistrationEntryEventsRequest{})
-				require.NoError(collect, err)
+	s.Require().NoError(s.ds.CreateRegistrationEntryEventForTesting(ctx, &datastore.RegistrationEntryEvent{EventID: 2, EntryID: "two"}))
+	resp, err = s.ds.FetchRegistrationEntryChanges(ctx, &datastore.FetchRegistrationEntryChangesRequest{EventTimeout: time.Minute})
+	s.Require().NoError(err)
+	s.Equal([]string{"two"}, resp.EntryIDs)
+	s.Zero(resp.PendingEvents)
+}
 
-				assert.True(collect, reflect.DeepEqual(tt.expectedEvents, resp.Events))
-			}, 10*time.Second, 50*time.Millisecond, "Failed to prune entries correctly")
-		})
-	}
+func (s *Suite) TestRegistrationEntryChangeStartupBackfill() {
+	s.Require().NoError(s.ds.CreateRegistrationEntryEventForTesting(ctx, &datastore.RegistrationEntryEvent{EventID: 2, EntryID: "two"}))
+	resp, err := s.ds.FetchRegistrationEntryChanges(ctx, &datastore.FetchRegistrationEntryChangesRequest{EventTimeout: time.Minute})
+	s.Require().NoError(err)
+	s.Equal([]string{"two"}, resp.EntryIDs)
+
+	s.Require().NoError(s.ds.CreateRegistrationEntryEventForTesting(ctx, &datastore.RegistrationEntryEvent{EventID: 1, EntryID: "one"}))
+	resp, err = s.ds.FetchRegistrationEntryChanges(ctx, &datastore.FetchRegistrationEntryChangesRequest{EventTimeout: time.Minute})
+	s.Require().NoError(err)
+	s.Equal([]string{"one"}, resp.EntryIDs)
+	s.Zero(resp.PendingEvents)
 }
 
 func (s *Suite) TestCreateJoinToken() {
@@ -5966,19 +5709,6 @@ func (s *Suite) assertCreatedAtField(entry *common.RegistrationEntry, now int64)
 	// We can't compare the exact time because we don't have control over the clock used by the database.
 	s.Assert().GreaterOrEqual(entry.CreatedAt, now)
 	entry.CreatedAt = 0
-}
-
-func (s *Suite) checkAttestedNodeEvents(expectedEvents []datastore.AttestedNodeEvent, spiffeID string) []datastore.AttestedNodeEvent {
-	expectedEvents = append(expectedEvents, datastore.AttestedNodeEvent{
-		EventID:  uint(len(expectedEvents) + 1),
-		SpiffeID: spiffeID,
-	})
-
-	resp, err := s.ds.ListAttestedNodeEvents(ctx, &datastore.ListAttestedNodeEventsRequest{})
-	s.Require().NoError(err)
-	s.Require().Equal(expectedEvents, resp.Events)
-
-	return expectedEvents
 }
 
 // assertBundlesEqual asserts that the two bundle lists are equal independent

@@ -39,11 +39,6 @@ type DataStore interface {
 	PruneRegistrationEntries(ctx context.Context, expiresBefore time.Time) error
 	UpdateRegistrationEntry(context.Context, *common.RegistrationEntry, *common.RegistrationEntryMask) (*common.RegistrationEntry, error)
 
-	// Entries Events
-	ListRegistrationEntryEvents(ctx context.Context, req *ListRegistrationEntryEventsRequest) (*ListRegistrationEntryEventsResponse, error)
-	PruneRegistrationEntryEvents(ctx context.Context, olderThan time.Duration) error
-	FetchRegistrationEntryEvent(ctx context.Context, eventID uint) (*RegistrationEntryEvent, error)
-
 	// Nodes
 	CountAttestedNodes(context.Context, *CountAttestedNodesRequest) (int32, error)
 	CreateAttestedNode(context.Context, *common.AttestedNode) (*common.AttestedNode, error)
@@ -53,10 +48,10 @@ type DataStore interface {
 	UpdateAttestedNode(context.Context, *common.AttestedNode, *common.AttestedNodeMask) (*common.AttestedNode, error)
 	PruneAttestedExpiredNodes(ctx context.Context, expiredBefore time.Time, includeNonReattestable bool, batchSize int) error
 
-	// Nodes Events
-	ListAttestedNodeEvents(ctx context.Context, req *ListAttestedNodeEventsRequest) (*ListAttestedNodeEventsResponse, error)
-	PruneAttestedNodeEvents(ctx context.Context, olderThan time.Duration) error
-	FetchAttestedNodeEvent(ctx context.Context, eventID uint) (*AttestedNodeEvent, error)
+	// Events
+	FetchAttestedNodeChanges(ctx context.Context, req *FetchAttestedNodeChangesRequest) (*FetchAttestedNodeChangesResponse, error)
+	FetchRegistrationEntryChanges(ctx context.Context, req *FetchRegistrationEntryChangesRequest) (*FetchRegistrationEntryChangesResponse, error)
+	PruneEvents(ctx context.Context, req *PruneEventsRequest) error
 
 	// Node selectors
 	GetNodeSelectors(ctx context.Context, spiffeID string, dataConsistency DataConsistency) ([]*common.Selector, error)
@@ -80,6 +75,16 @@ type DataStore interface {
 	SetCAJournal(ctx context.Context, caJournal *CAJournal) (*CAJournal, error)
 	FetchCAJournal(ctx context.Context, activeX509AuthorityID string) (*CAJournal, error)
 	PruneCAJournals(ctx context.Context, allCAsExpireBefore int64) error
+}
+
+type RegistrationEntryEvent struct {
+	EventID uint
+	EntryID string
+}
+
+type AttestedNodeEvent struct {
+	EventID  uint
+	SpiffeID string
 }
 
 // TestableDataStore extends DataStore with helper methods that are only meant
@@ -181,19 +186,13 @@ type ListAttestedNodesResponse struct {
 	Pagination *Pagination
 }
 
-type ListAttestedNodeEventsRequest struct {
-	DataConsistency    DataConsistency
-	GreaterThanEventID uint
-	LessThanEventID    uint
+type FetchAttestedNodeChangesRequest struct {
+	EventTimeout time.Duration
 }
 
-type AttestedNodeEvent struct {
-	EventID  uint
-	SpiffeID string
-}
-
-type ListAttestedNodeEventsResponse struct {
-	Events []AttestedNodeEvent
+type FetchAttestedNodeChangesResponse struct {
+	SpiffeIDs     []string
+	PendingEvents int32
 }
 
 type ListBundlesRequest struct {
@@ -236,19 +235,17 @@ type ListRegistrationEntriesResponse struct {
 	Pagination *Pagination
 }
 
-type ListRegistrationEntryEventsRequest struct {
-	DataConsistency    DataConsistency
-	GreaterThanEventID uint
-	LessThanEventID    uint
+type FetchRegistrationEntryChangesRequest struct {
+	EventTimeout time.Duration
 }
 
-type RegistrationEntryEvent struct {
-	EventID uint
-	EntryID string
+type FetchRegistrationEntryChangesResponse struct {
+	EntryIDs      []string
+	PendingEvents int32
 }
 
-type ListRegistrationEntryEventsResponse struct {
-	Events []RegistrationEntryEvent
+type PruneEventsRequest struct {
+	OlderThan time.Duration
 }
 
 type ListFederationRelationshipsRequest struct {

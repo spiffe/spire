@@ -15,7 +15,7 @@ import (
 // an implementation missing or mis-typing any RawQuerier method fails to build
 // rather than panicking mid-run on a failed type assertion.
 type DataStoreUnderTest interface {
-	datastore.DataStore
+	datastore.TestableDataStore
 	io.Closer
 	RawQuerier
 	Configure(ctx context.Context, hclConfiguration string) error

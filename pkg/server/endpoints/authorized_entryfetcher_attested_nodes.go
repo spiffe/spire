@@ -2,7 +2,6 @@ package endpoints
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"maps"
 	"slices"
@@ -17,8 +16,6 @@ import (
 	"github.com/spiffe/spire/pkg/server/authorizedentries"
 	"github.com/spiffe/spire/pkg/server/cache/nodecache"
 	"github.com/spiffe/spire/pkg/server/datastore"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 type attestedNodes struct {
@@ -29,112 +26,29 @@ type attestedNodes struct {
 	log       logrus.FieldLogger
 	metrics   telemetry.Metrics
 
-	eventsBeforeFirst map[uint]struct{}
-
-	firstEvent     uint
-	firstEventTime time.Time
-	lastEvent      uint
-
-	eventTracker *eventTracker
 	eventTimeout time.Duration
 	pageSize     int32
 
 	fetchNodes map[string]struct{}
 
 	// metrics change detection
+	pendingNodeEvents int
 	skippedNodeEvents int
 	lastCacheStats    authorizedentries.CacheStats
 }
 
 func (a *attestedNodes) captureChangedNodes(ctx context.Context) error {
-	if err := a.searchBeforeFirstEvent(ctx); err != nil {
-		return err
-	}
-	a.selectPolledEvents(ctx)
-	return a.scanForNewEvents(ctx)
-}
-
-func (a *attestedNodes) searchBeforeFirstEvent(ctx context.Context) error {
-	// First event detected, and startup was less than a transaction timout away.
-	if !a.firstEventTime.IsZero() && a.clk.Now().Sub(a.firstEventTime) <= a.eventTimeout {
-		resp, err := a.ds.ListAttestedNodeEvents(ctx, &datastore.ListAttestedNodeEventsRequest{
-			LessThanEventID: a.firstEvent,
-		})
-		if err != nil {
-			return err
-		}
-		for _, event := range resp.Events {
-			// if we have seen it before, don't reload it.
-			if _, seen := a.eventsBeforeFirst[event.EventID]; !seen {
-				a.fetchNodes[event.SpiffeID] = struct{}{}
-				a.eventsBeforeFirst[event.EventID] = struct{}{}
-			}
-		}
-		return nil
-	}
-
-	// zero out unused event tracker
-	if len(a.eventsBeforeFirst) != 0 {
-		a.eventsBeforeFirst = make(map[uint]struct{})
-	}
-
-	return nil
-}
-
-func (a *attestedNodes) selectPolledEvents(ctx context.Context) {
-	// check if the polled events have appeared out-of-order
-	selectedEvents := a.eventTracker.SelectEvents()
-	defer a.eventTracker.FreeEvents(selectedEvents)
-
-	for _, eventID := range selectedEvents {
-		log := a.log.WithField(telemetry.EventID, eventID)
-		event, err := a.ds.FetchAttestedNodeEvent(ctx, eventID)
-		if errors.Is(err, context.Canceled) {
-			return
-		}
-
-		switch status.Code(err) {
-		case codes.OK:
-		case codes.NotFound:
-			continue
-		default:
-			log.WithError(err).Errorf("Failed to fetch info about skipped node event %d", eventID)
-			continue
-		}
-
-		a.fetchNodes[event.SpiffeID] = struct{}{}
-		a.eventTracker.StopTracking(eventID)
-	}
-}
-
-func (a *attestedNodes) scanForNewEvents(ctx context.Context) error {
-	resp, err := a.ds.ListAttestedNodeEvents(ctx, &datastore.ListAttestedNodeEventsRequest{
-		DataConsistency:    datastore.TolerateStale,
-		GreaterThanEventID: a.lastEvent,
+	resp, err := a.ds.FetchAttestedNodeChanges(ctx, &datastore.FetchAttestedNodeChangesRequest{
+		EventTimeout: a.eventTimeout,
 	})
 	if err != nil {
 		return err
 	}
 
-	for _, event := range resp.Events {
-		// event time determines if we have seen the first event.
-		if a.firstEventTime.IsZero() {
-			a.firstEvent = event.EventID
-			a.lastEvent = event.EventID
-			a.fetchNodes[event.SpiffeID] = struct{}{}
-			a.firstEventTime = a.clk.Now()
-			continue
-		}
-
-		// track any skipped event ids, should they appear later.
-		for skipped := a.lastEvent + 1; skipped < event.EventID; skipped++ {
-			a.eventTracker.StartTracking(skipped)
-		}
-
-		// every event adds its entry to the entry fetch list.
-		a.fetchNodes[event.SpiffeID] = struct{}{}
-		a.lastEvent = event.EventID
+	for _, spiffeID := range resp.SpiffeIDs {
+		a.fetchNodes[spiffeID] = struct{}{}
 	}
+	a.pendingNodeEvents = int(resp.PendingEvents)
 	return nil
 }
 
@@ -161,12 +75,10 @@ func (a *attestedNodes) loadCache(ctx context.Context, cache *authorizedentries.
 
 // buildAttestedNodesCache fetches all attested nodes and adds the unexpired ones to the cache.
 // It runs once at startup.
-func buildAttestedNodesCache(ctx context.Context, log logrus.FieldLogger, metrics telemetry.Metrics, ds datastore.DataStore, clk clock.Clock, cache *authorizedentries.Cache, nodeCache *nodecache.Cache, pageSize int32, cacheReloadInterval, eventTimeout time.Duration) (*attestedNodes, error) {
+func buildAttestedNodesCache(ctx context.Context, log logrus.FieldLogger, metrics telemetry.Metrics, ds datastore.DataStore, clk clock.Clock, cache *authorizedentries.Cache, nodeCache *nodecache.Cache, pageSize int32, eventTimeout time.Duration) (*attestedNodes, error) {
 	if pageSize <= 0 {
 		return nil, fmt.Errorf("page size must be positive, got %d", pageSize)
 	}
-
-	pollPeriods := PollPeriods(cacheReloadInterval, eventTimeout)
 
 	attestedNodes := &attestedNodes{
 		cache:        cache,
@@ -178,10 +90,7 @@ func buildAttestedNodesCache(ctx context.Context, log logrus.FieldLogger, metric
 		eventTimeout: eventTimeout,
 		pageSize:     pageSize,
 
-		eventsBeforeFirst: make(map[uint]struct{}),
-		fetchNodes:        make(map[string]struct{}),
-
-		eventTracker: NewEventTracker(pollPeriods),
+		fetchNodes: make(map[string]struct{}),
 
 		// initialize gauges to nonsense values to force a change.
 		skippedNodeEvents: -1,
@@ -256,12 +165,11 @@ func (a *attestedNodes) fetchNodesPage(spiffeIds []string, pageStart int) []stri
 
 func (a *attestedNodes) swapCache(cache *authorizedentries.Cache) {
 	a.cache = cache
-	a.fetchNodes = make(map[string]struct{})
 }
 
 func (a *attestedNodes) emitMetrics() {
-	if a.skippedNodeEvents != a.eventTracker.EventCount() {
-		a.skippedNodeEvents = a.eventTracker.EventCount()
+	if a.skippedNodeEvents != a.pendingNodeEvents {
+		a.skippedNodeEvents = a.pendingNodeEvents
 		server_telemetry.SetSkippedNodeEventIDsCacheCountGauge(a.metrics, a.skippedNodeEvents)
 	}
 
