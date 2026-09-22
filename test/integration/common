@@ -92,6 +92,26 @@ docker-wait-for-healthy() {
     fail-now "timed out waiting for ${ctr_name} to start"
 }
 
+fetch-spire-bundle() {
+    local namespace=$1
+    local deployment=$2
+    ./bin/kubectl -n "${namespace}" exec "deployment/${deployment}" -- \
+        /opt/spire/bin/spire-server bundle show -format spiffe \
+        | jq -S '.keys |= sort_by(tostring)'
+}
+
+assert-spire-bundle-unchanged() {
+    local before=$1
+    local after=$2
+    local context=$3
+    if [ -z "${before}" ] || [ -z "${after}" ]; then
+        fail-now "Failed to fetch trust bundle ${context}"
+    fi
+    if [ "${before}" != "${after}" ]; then
+        fail-now "Trust bundle changed ${context} <E2><80><94> KeyManager did not recover the persisted keys"
+    fi
+}
+
 docker-stop() {
     if [ $# -eq 0 ]; then
         log-debug "stopping services..."
