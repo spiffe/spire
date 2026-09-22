@@ -80,6 +80,11 @@ type ManagerConfig struct {
 	Clock     clock.Clock
 	Source    TrustDomainConfigSource
 
+	// BundleCacheTTL is how long the bundle API caches federated bundle
+	// reads. It is only used to warn when the cache holds a bundle for longer
+	// than its trust domain asks consumers to check back.
+	BundleCacheTTL time.Duration
+
 	// newBundleUpdater is a test hook to inject updater behavior
 	newBundleUpdater func(BundleUpdaterConfig) BundleUpdater
 
@@ -98,6 +103,7 @@ type Manager struct {
 	clock            clock.Clock
 	ds               datastore.DataStore
 	source           TrustDomainConfigSource
+	bundleCacheTTL   time.Duration
 	configRefreshCh  chan struct{}
 	configRefreshMtx sync.Mutex
 	updatersMtx      sync.RWMutex
@@ -136,6 +142,7 @@ func NewManager(config ManagerConfig) *Manager {
 		clock:             config.Clock,
 		ds:                config.DataStore,
 		source:            config.Source,
+		bundleCacheTTL:    config.BundleCacheTTL,
 		newBundleUpdater:  config.newBundleUpdater,
 		configRefreshCh:   make(chan struct{}, 1),
 		configRefreshedCh: config.configRefreshedCh,
@@ -276,8 +283,16 @@ func (m *Manager) runUpdater(ctx context.Context, trustDomain spiffeid.TrustDoma
 	defer timer.Stop()
 
 	log := m.log.WithField("trust_domain", trustDomain.Name())
+
+	// warnedHint is the refresh hint already warned about, so the warning is
+	// logged once rather than on every refresh. This loop owns one trust
+	// domain, so no synchronization is needed.
+	var warnedHint time.Duration
+
 	for {
-		nextRefresh := m.runUpdateOnce(ctx, log, trustDomain, updater)
+		nextRefresh, refreshHint := m.runUpdateOnce(ctx, log, trustDomain, updater)
+
+		warnedHint = m.warnIfCachedLongerThanRefreshHint(log, refreshHint, warnedHint)
 
 		log.WithFields(logrus.Fields{
 			"at": m.clock.Now().Add(nextRefresh).UTC().Format(time.RFC3339),
@@ -297,7 +312,37 @@ func (m *Manager) runUpdater(ctx context.Context, trustDomain spiffeid.TrustDoma
 	}
 }
 
-func (m *Manager) runUpdateOnce(ctx context.Context, log *logrus.Entry, trustDomain spiffeid.TrustDomain, updater BundleUpdater) time.Duration {
+// warnIfCachedLongerThanRefreshHint warns when this server can serve a
+// federated bundle staler than its trust domain asks consumers to check back.
+// The cache holds the bundle on top of however long this manager waits before
+// polling for it, so what the cache may spend is whatever the poll interval
+// leaves of the refresh hint. warnedHint is the hint already warned about; the
+// returned value must be passed back on the next call so the warning is logged
+// once per hint.
+func (m *Manager) warnIfCachedLongerThanRefreshHint(log logrus.FieldLogger, refreshHint, warnedHint time.Duration) time.Duration {
+	if refreshHint <= 0 {
+		return 0
+	}
+	budget := refreshHint - refreshHint/attemptsPerRefreshHint
+	if m.bundleCacheTTL <= budget {
+		return 0
+	}
+	if warnedHint == refreshHint {
+		return warnedHint
+	}
+
+	log.WithFields(logrus.Fields{
+		telemetry.RefreshHint: refreshHint,
+		"bundle_cache_ttl":    m.bundleCacheTTL,
+		"cache_ttl_budget":    budget,
+	}).Warn("Federated bundle may be served to agents staler than its trust domain requests; bundle_cache_ttl leaves no room under the refresh hint once the bundle refresh interval is accounted for")
+	return refreshHint
+}
+
+// runUpdateOnce polls for a bundle update and returns when the next poll is
+// due, along with the refresh hint it was derived from. The hint is zero when
+// there is no bundle to derive one from.
+func (m *Manager) runUpdateOnce(ctx context.Context, log *logrus.Entry, trustDomain spiffeid.TrustDomain, updater BundleUpdater) (time.Duration, time.Duration) {
 	log.Debug("Polling for bundle update")
 
 	counter := telemetry_server.StartBundleManagerFetchFederatedBundleCall(m.metrics)
@@ -315,11 +360,11 @@ func (m *Manager) runUpdateOnce(ctx context.Context, log *logrus.Entry, trustDom
 		telemetry_server.IncrBundleManagerUpdateFederatedBundleCounter(m.metrics, trustDomain.Name())
 		log.Info("Bundle refreshed")
 
-		return calculateNextUpdate(endpointBundle)
+		return calculateNextUpdate(endpointBundle), bundleutil.CalculateRefreshHint(endpointBundle)
 	}
 
 	if localBundle != nil {
-		return calculateNextUpdate(localBundle)
+		return calculateNextUpdate(localBundle), bundleutil.CalculateRefreshHint(localBundle)
 	}
 
 	// We have no bundle to use to calculate the refresh hint. Since
@@ -328,7 +373,7 @@ func (m *Manager) runUpdateOnce(ctx context.Context, log *logrus.Entry, trustDom
 	// refresh period determines how fast we'll respond to the local
 	// bundle being bootstrapped.
 	// TODO: reevaluate once we support web auth
-	return bundleutil.MinimumRefreshHint
+	return bundleutil.MinimumRefreshHint, 0
 }
 
 func (m *Manager) notifyConfigRefreshed(ctx context.Context, nextRefresh time.Duration) {

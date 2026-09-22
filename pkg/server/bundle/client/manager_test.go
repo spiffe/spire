@@ -20,6 +20,79 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestWarnIfCachedLongerThanRefreshHint(t *testing.T) {
+	const warning = "Federated bundle may be served to agents staler than its trust domain requests; bundle_cache_ttl leaves no room under the refresh hint once the bundle refresh interval is accounted for"
+
+	newManager := func(ttl time.Duration) (*Manager, *test.Hook) {
+		log, hook := test.NewNullLogger()
+		return NewManager(ManagerConfig{
+			Log:            log,
+			Metrics:        telemetry.Blackhole{},
+			DataStore:      fakedatastore.New(t),
+			BundleCacheTTL: ttl,
+			Source:         NewTrustDomainConfigSet(nil),
+		}), hook
+	}
+
+	messages := func(hook *test.Hook) []string {
+		var out []string
+		for _, e := range hook.AllEntries() {
+			out = append(out, e.Message)
+		}
+		return out
+	}
+
+	t.Run("silent when the cache TTL is within the refresh hint", func(t *testing.T) {
+		m, hook := newManager(time.Minute)
+		require.Zero(t, m.warnIfCachedLongerThanRefreshHint(m.log, time.Hour, 0))
+		assert.Empty(t, messages(hook))
+	})
+
+	t.Run("warns when the refresh interval leaves too little room", func(t *testing.T) {
+		// The manager polls at a quarter of the hint, so a 1h hint leaves the
+		// cache 45m. A 50m TTL fits under the hint but not under the budget.
+		m, hook := newManager(50 * time.Minute)
+		require.Equal(t, time.Hour, m.warnIfCachedLongerThanRefreshHint(m.log, time.Hour, 0))
+		assert.Equal(t, []string{warning}, messages(hook))
+	})
+
+	t.Run("silent when there is no refresh hint to compare against", func(t *testing.T) {
+		m, hook := newManager(time.Hour)
+		require.Zero(t, m.warnIfCachedLongerThanRefreshHint(m.log, 0, 0))
+		assert.Empty(t, messages(hook))
+	})
+
+	t.Run("warns once per refresh hint", func(t *testing.T) {
+		m, hook := newManager(time.Hour)
+
+		warned := m.warnIfCachedLongerThanRefreshHint(m.log, time.Minute, 0)
+		require.Equal(t, time.Minute, warned)
+		require.Equal(t, []string{warning}, messages(hook))
+
+		warned = m.warnIfCachedLongerThanRefreshHint(m.log, time.Minute, warned)
+		assert.Equal(t, time.Minute, warned)
+		assert.Len(t, messages(hook), 1, "should not repeat the warning for the same refresh hint")
+
+		warned = m.warnIfCachedLongerThanRefreshHint(m.log, 2*time.Minute, warned)
+		assert.Equal(t, 2*time.Minute, warned)
+		assert.Len(t, messages(hook), 2, "should warn again when the refresh hint changes")
+	})
+
+	t.Run("re-warns after the condition clears", func(t *testing.T) {
+		m, hook := newManager(time.Hour)
+
+		warned := m.warnIfCachedLongerThanRefreshHint(m.log, time.Minute, 0)
+		require.Equal(t, time.Minute, warned)
+
+		warned = m.warnIfCachedLongerThanRefreshHint(m.log, 2*time.Hour, warned)
+		require.Zero(t, warned, "state should be cleared while the hint exceeds the TTL")
+
+		warned = m.warnIfCachedLongerThanRefreshHint(m.log, time.Minute, warned)
+		assert.Equal(t, time.Minute, warned)
+		assert.Len(t, messages(hook), 2)
+	})
+}
+
 func TestManagerPeriodicBundleRefresh(t *testing.T) {
 	// create a pair of bundles with distinct refresh hints so we can assert
 	// that the manager selected the correct refresh hint.

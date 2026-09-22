@@ -114,6 +114,7 @@ type experimentalConfig struct {
 	AuthOpaPolicyEngine     *authpolicy.OpaEngineConfig `hcl:"auth_opa_policy_engine"`
 	CacheReloadInterval     string                      `hcl:"cache_reload_interval"`
 	FullCacheReloadInterval string                      `hcl:"full_cache_reload_interval"`
+	BundleCacheTTL          string                      `hcl:"bundle_cache_ttl"`
 	EventsBasedCache        bool                        `hcl:"events_based_cache"`
 	PruneEventsOlderThan    string                      `hcl:"prune_events_older_than"`
 	EventTimeout            string                      `hcl:"event_timeout"`
@@ -773,6 +774,17 @@ func newServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig, ski
 			return nil, fmt.Errorf("could not parse full cache reload interval: %w", err)
 		}
 		sc.FullCacheReloadInterval = interval
+	}
+
+	if c.Server.Experimental.BundleCacheTTL != "" {
+		ttl, err := time.ParseDuration(c.Server.Experimental.BundleCacheTTL)
+		if err != nil {
+			return nil, fmt.Errorf("could not parse bundle cache TTL: %w", err)
+		}
+		if ttl <= 0 {
+			return nil, errors.New("bundle cache TTL must be greater than zero")
+		}
+		sc.BundleCacheTTL = ttl
 	}
 
 	if c.Server.Experimental.PruneEventsOlderThan != "" {

@@ -115,6 +115,10 @@ type Config struct {
 	// FullCacheReloadInterval controls how often the in-memory entry goes through a full reload
 	FullCacheReloadInterval time.Duration
 
+	// BundleCacheTTL controls how long federated bundle datastore reads are
+	// cached. Caching is disabled when zero.
+	BundleCacheTTL time.Duration
+
 	// EventsBasedCache enabled event driven cache reloads
 	EventsBasedCache bool
 

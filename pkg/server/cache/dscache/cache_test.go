@@ -53,7 +53,7 @@ func TestFetchBundleCache(t *testing.T) {
 	spiretest.RequireProtoEqual(t, bundle1, bundle)
 
 	// If caches expires by time, FetchBundle must fetch a fresh bundle
-	clock.Add(datastoreCacheExpiry)
+	clock.Add(DefaultDatastoreCacheExpiry)
 	bundle, err = cache.FetchBundle(ctxWithCache, td)
 	require.NoError(t, err)
 	spiretest.RequireProtoEqual(t, bundle2, bundle)
