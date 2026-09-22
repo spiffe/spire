@@ -44,36 +44,46 @@ func TestWarnIfCachedLongerThanRefreshHint(t *testing.T) {
 
 	t.Run("silent when the cache TTL is within the refresh hint", func(t *testing.T) {
 		m, hook := newManager(time.Minute)
-		require.Zero(t, m.warnIfCachedLongerThanRefreshHint(m.log, time.Hour, 0))
+		require.Zero(t, m.warnIfCachedLongerThanRefreshHint(m.log, 15*time.Minute, time.Hour, 0))
 		assert.Empty(t, messages(hook))
 	})
 
 	t.Run("warns when the refresh interval leaves too little room", func(t *testing.T) {
-		// The manager polls at a quarter of the hint, so a 1h hint leaves the
-		// cache 45m. A 50m TTL fits under the hint but not under the budget.
+		// A 1h hint polled every 15m leaves the cache 45m. A 50m TTL fits under
+		// the hint but not under the budget.
 		m, hook := newManager(50 * time.Minute)
-		require.Equal(t, time.Hour, m.warnIfCachedLongerThanRefreshHint(m.log, time.Hour, 0))
+		require.Equal(t, time.Hour, m.warnIfCachedLongerThanRefreshHint(m.log, 15*time.Minute, time.Hour, 0))
+		assert.Equal(t, []string{warning}, messages(hook))
+	})
+
+	t.Run("uses the actual poll interval rather than a quarter of the hint", func(t *testing.T) {
+		// A bundle with no published refresh hint is polled at
+		// defaultRefreshInterval, not at a quarter of its derived hint. A 5m
+		// hint polled every 5m leaves the cache nothing, so any TTL warns even
+		// though it is well under both the hint and a quarter of it.
+		m, hook := newManager(time.Minute)
+		require.Equal(t, 5*time.Minute, m.warnIfCachedLongerThanRefreshHint(m.log, defaultRefreshInterval, 5*time.Minute, 0))
 		assert.Equal(t, []string{warning}, messages(hook))
 	})
 
 	t.Run("silent when there is no refresh hint to compare against", func(t *testing.T) {
 		m, hook := newManager(time.Hour)
-		require.Zero(t, m.warnIfCachedLongerThanRefreshHint(m.log, 0, 0))
+		require.Zero(t, m.warnIfCachedLongerThanRefreshHint(m.log, bundleutil.MinimumRefreshHint, 0, 0))
 		assert.Empty(t, messages(hook))
 	})
 
 	t.Run("warns once per refresh hint", func(t *testing.T) {
 		m, hook := newManager(time.Hour)
 
-		warned := m.warnIfCachedLongerThanRefreshHint(m.log, time.Minute, 0)
+		warned := m.warnIfCachedLongerThanRefreshHint(m.log, 15*time.Second, time.Minute, 0)
 		require.Equal(t, time.Minute, warned)
 		require.Equal(t, []string{warning}, messages(hook))
 
-		warned = m.warnIfCachedLongerThanRefreshHint(m.log, time.Minute, warned)
+		warned = m.warnIfCachedLongerThanRefreshHint(m.log, 15*time.Second, time.Minute, warned)
 		assert.Equal(t, time.Minute, warned)
 		assert.Len(t, messages(hook), 1, "should not repeat the warning for the same refresh hint")
 
-		warned = m.warnIfCachedLongerThanRefreshHint(m.log, 2*time.Minute, warned)
+		warned = m.warnIfCachedLongerThanRefreshHint(m.log, 30*time.Second, 2*time.Minute, warned)
 		assert.Equal(t, 2*time.Minute, warned)
 		assert.Len(t, messages(hook), 2, "should warn again when the refresh hint changes")
 	})
@@ -81,13 +91,13 @@ func TestWarnIfCachedLongerThanRefreshHint(t *testing.T) {
 	t.Run("re-warns after the condition clears", func(t *testing.T) {
 		m, hook := newManager(time.Hour)
 
-		warned := m.warnIfCachedLongerThanRefreshHint(m.log, time.Minute, 0)
+		warned := m.warnIfCachedLongerThanRefreshHint(m.log, 15*time.Second, time.Minute, 0)
 		require.Equal(t, time.Minute, warned)
 
-		warned = m.warnIfCachedLongerThanRefreshHint(m.log, 2*time.Hour, warned)
+		warned = m.warnIfCachedLongerThanRefreshHint(m.log, 30*time.Minute, 2*time.Hour, warned)
 		require.Zero(t, warned, "state should be cleared while the hint exceeds the TTL")
 
-		warned = m.warnIfCachedLongerThanRefreshHint(m.log, time.Minute, warned)
+		warned = m.warnIfCachedLongerThanRefreshHint(m.log, 15*time.Second, time.Minute, warned)
 		assert.Equal(t, time.Minute, warned)
 		assert.Len(t, messages(hook), 2)
 	})

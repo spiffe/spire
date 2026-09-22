@@ -292,7 +292,7 @@ func (m *Manager) runUpdater(ctx context.Context, trustDomain spiffeid.TrustDoma
 	for {
 		nextRefresh, refreshHint := m.runUpdateOnce(ctx, log, trustDomain, updater)
 
-		warnedHint = m.warnIfCachedLongerThanRefreshHint(log, refreshHint, warnedHint)
+		warnedHint = m.warnIfCachedLongerThanRefreshHint(log, nextRefresh, refreshHint, warnedHint)
 
 		log.WithFields(logrus.Fields{
 			"at": m.clock.Now().Add(nextRefresh).UTC().Format(time.RFC3339),
@@ -314,16 +314,16 @@ func (m *Manager) runUpdater(ctx context.Context, trustDomain spiffeid.TrustDoma
 
 // warnIfCachedLongerThanRefreshHint warns when this server can serve a
 // federated bundle staler than its trust domain asks consumers to check back.
-// The cache holds the bundle on top of however long this manager waits before
-// polling for it, so what the cache may spend is whatever the poll interval
-// leaves of the refresh hint. warnedHint is the hint already warned about; the
-// returned value must be passed back on the next call so the warning is logged
-// once per hint.
-func (m *Manager) warnIfCachedLongerThanRefreshHint(log logrus.FieldLogger, refreshHint, warnedHint time.Duration) time.Duration {
+// The cache holds the bundle on top of nextRefresh, the interval this manager
+// actually waits before polling for it, so what the cache may spend is whatever
+// that interval leaves of the refresh hint. warnedHint is the hint already
+// warned about; the returned value must be passed back on the next call so the
+// warning is logged once per hint.
+func (m *Manager) warnIfCachedLongerThanRefreshHint(log logrus.FieldLogger, nextRefresh, refreshHint, warnedHint time.Duration) time.Duration {
 	if refreshHint <= 0 {
 		return 0
 	}
-	budget := refreshHint - refreshHint/attemptsPerRefreshHint
+	budget := refreshHint - nextRefresh
 	if m.bundleCacheTTL <= budget {
 		return 0
 	}
@@ -332,9 +332,9 @@ func (m *Manager) warnIfCachedLongerThanRefreshHint(log logrus.FieldLogger, refr
 	}
 
 	log.WithFields(logrus.Fields{
-		telemetry.RefreshHint: refreshHint,
-		"bundle_cache_ttl":    m.bundleCacheTTL,
-		"cache_ttl_budget":    budget,
+		telemetry.RefreshHint:          refreshHint,
+		telemetry.BundleCacheTTL:       m.bundleCacheTTL,
+		telemetry.BundleCacheTTLBudget: budget,
 	}).Warn("Federated bundle may be served to agents staler than its trust domain requests; bundle_cache_ttl leaves no room under the refresh hint once the bundle refresh interval is accounted for")
 	return refreshHint
 }
