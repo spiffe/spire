@@ -1255,6 +1255,43 @@ func TestNewAgentConfig(t *testing.T) {
 			},
 		},
 		{
+			msg: "min_federated_bundle_sync_interval is not set by default",
+			input: func(_ *Config) {
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Zero(t, c.MinFederatedBundleSyncInterval)
+			},
+		},
+		{
+			msg: "min_federated_bundle_sync_interval parses a duration",
+			input: func(c *Config) {
+				c.Agent.Experimental.MinFederatedBundleSyncInterval = "1m30s"
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Equal(t, 90*time.Second, c.MinFederatedBundleSyncInterval)
+			},
+		},
+		{
+			msg:         "invalid min_federated_bundle_sync_interval returns an error",
+			expectError: true,
+			input: func(c *Config) {
+				c.Agent.Experimental.MinFederatedBundleSyncInterval = "moo"
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
+			msg:         "non-positive min_federated_bundle_sync_interval returns an error",
+			expectError: true,
+			input: func(c *Config) {
+				c.Agent.Experimental.MinFederatedBundleSyncInterval = "0s"
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
 			msg: "x509_svid_cache_max_size is set",
 			input: func(c *Config) {
 				c.Agent.X509SVIDCacheMaxSize = 100

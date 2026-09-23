@@ -84,6 +84,10 @@ type Config struct {
 	// loadBalancingConfig field of the gRPC service config.
 	LoadBalancingConfig string
 
+	// MinFederatedBundleSyncInterval limits how often already-cached federated
+	// bundles are refreshed from the server.
+	MinFederatedBundleSyncInterval time.Duration
+
 	// Clk is the clock the manager will use to get time
 	Clk clock.Clock
 }
@@ -149,6 +153,8 @@ func newManager(c *Config) *manager {
 		TLSPolicy:        c.TLSPolicy,
 
 		LoadBalancingConfig: c.LoadBalancingConfig,
+
+		MinFederatedBundleSyncInterval: c.MinFederatedBundleSyncInterval,
 	}
 	svidRotator, client := svid.NewRotator(rotCfg)
 

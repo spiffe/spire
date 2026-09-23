@@ -479,6 +479,8 @@ func (a *Agent) newManager(ctx context.Context, sto storage.Storage, cat catalog
 		RotationStrategy:     rotationutil.NewRotationStrategy(a.c.AvailabilityTarget),
 		TLSPolicy:            a.c.TLSPolicy,
 		LoadBalancingConfig:  a.c.ServerLoadBalancingConfig,
+
+		MinFederatedBundleSyncInterval: a.c.MinFederatedBundleSyncInterval,
 	}
 
 	mgr := manager.New(config)

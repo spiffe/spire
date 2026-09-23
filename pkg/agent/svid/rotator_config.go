@@ -51,6 +51,10 @@ type RotatorConfig struct {
 	// LoadBalancingConfig is an optional, opaque payload used as the
 	// loadBalancingConfig field of the gRPC service config.
 	LoadBalancingConfig string
+
+	// MinFederatedBundleSyncInterval limits how often already-cached federated
+	// bundles are refreshed from the server.
+	MinFederatedBundleSyncInterval time.Duration
 }
 
 func NewRotator(c *RotatorConfig) (Rotator, client.Client) {
@@ -95,6 +99,8 @@ func newRotator(c *RotatorConfig) (*rotator, client.Client) {
 		},
 		TLSPolicy:           c.TLSPolicy,
 		LoadBalancingConfig: c.LoadBalancingConfig,
+
+		MinFederatedBundleSyncInterval: c.MinFederatedBundleSyncInterval,
 	}
 	client := client.New(cfg)
 
