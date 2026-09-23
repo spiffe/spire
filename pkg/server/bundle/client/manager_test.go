@@ -21,7 +21,7 @@ import (
 )
 
 func TestWarnIfCachedLongerThanRefreshHint(t *testing.T) {
-	const warning = "Federated bundle may be served to agents staler than its trust domain requests; bundle_cache_ttl leaves no room under the refresh hint once the bundle refresh interval is accounted for"
+	const warning = "Federated bundle may be served to agents staler than this server refreshes it; bundle_cache_ttl exceeds what the bundle refresh interval leaves of the refresh hint"
 
 	newManager := func(ttl time.Duration) (*Manager, *test.Hook) {
 		log, hook := test.NewNullLogger()
@@ -73,10 +73,24 @@ func TestWarnIfCachedLongerThanRefreshHint(t *testing.T) {
 		assert.Empty(t, messages(hook))
 	})
 
-	t.Run("silent when there is no refresh hint to compare against", func(t *testing.T) {
+	t.Run("silent when there is no bundle to derive a refresh hint from", func(t *testing.T) {
 		m, hook := newManager(time.Hour)
 		require.Zero(t, m.warnIfCachedLongerThanRefreshHint(m.log, bundleutil.MinimumRefreshHint, 0, 0))
 		assert.Empty(t, messages(hook))
+	})
+
+	t.Run("warns on a hint derived from certificate lifetimes", func(t *testing.T) {
+		// A trust domain that publishes no hint still gets one synthesized from
+		// its certificate lifetimes, and that is the bound this server schedules
+		// against, so the cache is held to it too. A 1h certificate yields a 6m
+		// hint polled every 90s, leaving the cache 4m30s.
+		bundle := spiffebundle.FromX509Authorities(trustDomain, []*x509.Certificate{createCACertificate(t, "no-hint")})
+		hint := bundleutil.CalculateRefreshHint(bundle)
+		require.Equal(t, 6*time.Minute, hint)
+
+		m, hook := newManager(5 * time.Minute)
+		require.Equal(t, hint, m.warnIfCachedLongerThanRefreshHint(m.log, calculateNextUpdate(bundle), hint, 0))
+		assert.Equal(t, []string{warning}, messages(hook))
 	})
 
 	t.Run("warns once per refresh hint", func(t *testing.T) {
