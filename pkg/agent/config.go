@@ -94,9 +94,9 @@ type Config struct {
 	// SyncInterval.
 	SyncRetryBackoff *manager.SyncRetryBackoffConfig
 
-	// MinFederatedBundleSyncInterval limits how often already-cached federated
-	// bundles are refreshed from the server. When zero, they are refreshed on
-	// every sync.
+	// MinFederatedBundleSyncInterval is a lower bound on how often a federated
+	// bundle is refreshed from the server. When zero, each bundle is refreshed
+	// on the schedule its own refresh hint implies.
 	MinFederatedBundleSyncInterval time.Duration
 
 	// X509SVIDCacheMaxSize is a soft limit of max number of X509-SVIDs that would be stored in cache

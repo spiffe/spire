@@ -52,8 +52,8 @@ type RotatorConfig struct {
 	// loadBalancingConfig field of the gRPC service config.
 	LoadBalancingConfig string
 
-	// MinFederatedBundleSyncInterval limits how often already-cached federated
-	// bundles are refreshed from the server.
+	// MinFederatedBundleSyncInterval is a lower bound on how often a federated
+	// bundle is refreshed from the server.
 	MinFederatedBundleSyncInterval time.Duration
 }
 
