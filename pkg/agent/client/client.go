@@ -39,11 +39,6 @@ const (
 	// refresh a federated bundle within its refresh hint, matching how the
 	// server schedules updates from federated bundle endpoints.
 	federatedBundleRefreshAttempts = 4
-
-	// defaultFederatedBundleRefreshInterval is how long to wait before
-	// refreshing a federated bundle that publishes no refresh hint, matching the
-	// interval the server uses for the same case.
-	defaultFederatedBundleRefreshInterval = 5 * time.Minute
 )
 
 var (
@@ -154,9 +149,10 @@ type Config struct {
 	LoadBalancingConfig string
 
 	// MinFederatedBundleSyncInterval is a lower bound on how often a
-	// federated bundle is refreshed from the server. It only applies when a
-	// bundle's refresh hint asks to be polled more often than this; a longer
-	// refresh hint is always honored.
+	// federated bundle is refreshed from the server. It only applies to a
+	// bundle whose trust domain published a refresh hint, and only when that
+	// hint asks to be polled more often than this; a longer hint is always
+	// honored. When zero, federated bundles are refreshed on every sync.
 	MinFederatedBundleSyncInterval time.Duration
 }
 
@@ -761,9 +757,6 @@ func (c *client) scheduleFederatedBundleRefresh(fetched []string, federatedTrust
 
 	now := c.clk.Now()
 	for _, td := range fetched {
-		// A trust domain the server has no bundle for is absent from
-		// cachedBundles and falls back to the default interval, rather than
-		// being retried on every sync.
 		c.nextFederatedBundleSync[td] = now.Add(c.federatedBundleRefreshInterval(td, cachedBundles[td]))
 	}
 
@@ -777,31 +770,20 @@ func (c *client) scheduleFederatedBundleRefresh(fetched []string, federatedTrust
 
 // federatedBundleRefreshInterval returns how long to wait before refreshing the
 // given bundle, from its refresh hint, bounded below by the configured minimum.
-// It mirrors how the server schedules its own federated bundle updates: a
-// published hint is polled a few times within it, a bundle without one is polled
-// at a fixed interval, and having no bundle at all is retried sooner since that
-// is what a newly federated trust domain looks like.
+// A zero interval leaves the trust domain due on the next sync.
+//
+// Throttling only applies to a bundle whose trust domain published a refresh
+// hint, and only when a minimum is configured. Without either, there is nothing
+// asking for a slower schedule, so the bundle is refreshed on every sync.
 //
 // Must be called with federatedSyncMu held.
 func (c *client) federatedBundleRefreshInterval(trustDomain string, b *common.Bundle) time.Duration {
-	var hint, interval time.Duration
-	switch {
-	case b == nil:
-		hint, interval = 0, bundleutil.MinimumRefreshHint
-	case b.RefreshHint > 0:
-		hint = max(time.Duration(b.RefreshHint)*time.Second, bundleutil.MinimumRefreshHint)
-		interval = hint / federatedBundleRefreshAttempts
-	default:
-		// No hint published. The server polls these at a fixed interval, but
-		// still derives a hint from the bundle contents, which is what its
-		// consumers are told to check back within.
-		if spiffeBundle, err := bundleutil.SPIFFEBundleFromProto(b); err == nil {
-			hint = bundleutil.CalculateRefreshHint(spiffeBundle)
-		}
-		interval = defaultFederatedBundleRefreshInterval
+	if c.c.MinFederatedBundleSyncInterval <= 0 || b == nil || b.RefreshHint <= 0 {
+		return 0
 	}
 
-	interval = max(interval, c.c.MinFederatedBundleSyncInterval)
+	hint := max(time.Duration(b.RefreshHint)*time.Second, bundleutil.MinimumRefreshHint)
+	interval := max(hint/federatedBundleRefreshAttempts, c.c.MinFederatedBundleSyncInterval)
 	c.warnIfRefreshHintExceeded(trustDomain, hint, interval)
 	return interval
 }

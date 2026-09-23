@@ -176,9 +176,14 @@ func TestSyncUpdatesBundles(t *testing.T) {
 }
 
 func TestSyncUpdatesFederatedBundleRefresh(t *testing.T) {
-	// A bundle that publishes no refresh hint is polled at the fixed interval,
-	// as the server does for the same case.
-	const defaultRefresh = defaultFederatedBundleRefreshInterval
+	// Throttling needs both a configured minimum and a published refresh hint.
+	// These are the values the behavioral subtests below configure: a 20m hint
+	// asks to be polled every 5m, which is longer than the 1m floor.
+	const (
+		hint    = 20 * time.Minute
+		minimum = time.Minute
+		refresh = 5 * time.Minute
+	)
 
 	type harness struct {
 		client        *client
@@ -246,17 +251,40 @@ func TestSyncUpdatesFederatedBundleRefresh(t *testing.T) {
 			"should refresh once the interval elapses")
 	}
 
-	t.Run("uses the minimum refresh hint when none is published", func(t *testing.T) {
-		assertRefreshedAfter(t, setup(t, 0, 0), defaultRefresh)
+	// assertRefreshedEverySync checks that domain1 is refetched on every sync,
+	// which is what an unthrottled agent does.
+	assertRefreshedEverySync := func(t *testing.T, h *harness) {
+		t.Helper()
+		sync(t, h)
+		require.Equal(t, 1, h.tc.bundleServer.federatedBundleCallCount("domain1.test"))
+
+		for i := 2; i < 5; i++ {
+			h.clk.Add(time.Second)
+			sync(t, h)
+			assert.Equal(t, i, h.tc.bundleServer.federatedBundleCallCount("domain1.test"),
+				"should refresh on every sync")
+		}
+	}
+
+	t.Run("refreshes on every sync when no minimum is configured", func(t *testing.T) {
+		// The default, and what an agent does without this setting.
+		assertRefreshedEverySync(t, setup(t, 0, int64(hint.Seconds())))
+	})
+
+	t.Run("refreshes on every sync when no refresh hint is published", func(t *testing.T) {
+		// There is nothing asking for a slower schedule, so the minimum does
+		// not apply even though it is configured.
+		assertRefreshedEverySync(t, setup(t, minimum, 0))
 	})
 
 	t.Run("honors the published refresh hint", func(t *testing.T) {
-		assertRefreshedAfter(t, setup(t, 0, int64((20*time.Minute).Seconds())), 5*time.Minute)
+		assertRefreshedAfter(t, setup(t, minimum, int64(hint.Seconds())), refresh)
 	})
 
-	t.Run("clamps a refresh hint below the minimum", func(t *testing.T) {
-		// A hint under MinimumRefreshHint is raised to it before being divided.
-		assertRefreshedAfter(t, setup(t, 0, 1),
+	t.Run("clamps a refresh hint below the minimum refresh hint", func(t *testing.T) {
+		// A hint under MinimumRefreshHint is raised to it before being divided,
+		// then floored by the configured minimum.
+		assertRefreshedAfter(t, setup(t, time.Second, 1),
 			bundleutil.MinimumRefreshHint/federatedBundleRefreshAttempts)
 	})
 
@@ -270,7 +298,7 @@ func TestSyncUpdatesFederatedBundleRefresh(t *testing.T) {
 	})
 
 	t.Run("fetches new federations immediately", func(t *testing.T) {
-		h := setup(t, 0, 0)
+		h := setup(t, minimum, int64(hint.Seconds()))
 
 		sync(t, h)
 		require.Equal(t, 1, h.tc.bundleServer.federatedBundleCallCount("domain1.test"))
@@ -288,7 +316,7 @@ func TestSyncUpdatesFederatedBundleRefresh(t *testing.T) {
 	})
 
 	t.Run("drops bundles that are no longer federated", func(t *testing.T) {
-		h := setup(t, 0, 0)
+		h := setup(t, minimum, int64(hint.Seconds()))
 
 		sync(t, h)
 		require.Contains(t, h.cachedBundles, "spiffe://domain1.test")
@@ -306,7 +334,7 @@ func TestSyncUpdatesFederatedBundleRefresh(t *testing.T) {
 	})
 
 	t.Run("evicts a bundle the server no longer has", func(t *testing.T) {
-		h := setup(t, 0, 0)
+		h := setup(t, minimum, int64(hint.Seconds()))
 
 		sync(t, h)
 		require.Contains(t, h.cachedBundles, "spiffe://domain1.test")
@@ -316,7 +344,7 @@ func TestSyncUpdatesFederatedBundleRefresh(t *testing.T) {
 		delete(h.tc.bundleServer.federatedBundles, "domain1.test")
 		h.tc.bundleServer.notFoundFederatedBundles = map[string]bool{"domain1.test": true}
 
-		h.clk.Add(defaultRefresh)
+		h.clk.Add(refresh)
 		sync(t, h)
 		assert.Equal(t, 2, h.tc.bundleServer.federatedBundleCallCount("domain1.test"))
 		assert.NotContains(t, h.cachedBundles, "spiffe://domain1.test",
@@ -324,23 +352,25 @@ func TestSyncUpdatesFederatedBundleRefresh(t *testing.T) {
 	})
 
 	t.Run("retains bundles that are not due for a refresh", func(t *testing.T) {
-		h := setup(t, 0, 0)
+		h := setup(t, minimum, int64(hint.Seconds()))
 
 		sync(t, h)
 		require.Contains(t, h.cachedBundles, "spiffe://domain1.test")
 
 		// Not due yet, so it is not refetched and must survive the eviction pass.
-		h.clk.Add(defaultRefresh - time.Second)
+		h.clk.Add(refresh - time.Second)
 		sync(t, h)
 		assert.Equal(t, 1, h.tc.bundleServer.federatedBundleCallCount("domain1.test"))
-		assert.Equal(t, makeCommonBundle("domain1.test"), h.cachedBundles["spiffe://domain1.test"])
+		want := makeCommonBundle("domain1.test")
+		want.RefreshHint = int64(hint.Seconds())
+		assert.Equal(t, want, h.cachedBundles["spiffe://domain1.test"])
 	})
 
-	t.Run("schedules a trust domain the server has no bundle for", func(t *testing.T) {
-		h := setup(t, 0, 0)
+	t.Run("retries a trust domain the server has no bundle for", func(t *testing.T) {
+		h := setup(t, minimum, int64(hint.Seconds()))
 		// NotFound is not a sync failure, so the bundle never lands in the
-		// cache. With no bundle to derive an interval from, it is retried at the
-		// minimum refresh hint, as the server does when it has no bundle either.
+		// cache. There is no hint to throttle against, so it stays due, which is
+		// what makes a newly federated trust domain take effect promptly.
 		delete(h.tc.bundleServer.federatedBundles, "domain1.test")
 		h.tc.bundleServer.notFoundFederatedBundles = map[string]bool{"domain1.test": true}
 
@@ -348,23 +378,18 @@ func TestSyncUpdatesFederatedBundleRefresh(t *testing.T) {
 		require.Equal(t, 1, h.tc.bundleServer.federatedBundleCallCount("domain1.test"))
 		require.NotContains(t, h.cachedBundles, "spiffe://domain1.test")
 
-		h.clk.Add(bundleutil.MinimumRefreshHint - time.Second)
-		sync(t, h)
-		assert.Equal(t, 1, h.tc.bundleServer.federatedBundleCallCount("domain1.test"),
-			"a trust domain with no bundle should not be retried on every sync")
-
 		h.clk.Add(time.Second)
 		sync(t, h)
 		assert.Equal(t, 2, h.tc.bundleServer.federatedBundleCallCount("domain1.test"))
 	})
 
 	t.Run("failed sync leaves the trust domain due", func(t *testing.T) {
-		h := setup(t, 0, 0)
+		h := setup(t, minimum, int64(hint.Seconds()))
 
 		sync(t, h)
 		require.Equal(t, 1, h.tc.bundleServer.federatedBundleCallCount("domain1.test"))
 
-		h.clk.Add(defaultRefresh)
+		h.clk.Add(refresh)
 		h.tc.bundleServer.federatedBundleErr = errors.New("oh no")
 		_, err := h.client.SyncUpdates(ctx, h.cachedEntries, h.cachedBundles)
 		require.Error(t, err)
