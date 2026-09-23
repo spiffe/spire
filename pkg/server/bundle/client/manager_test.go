@@ -56,14 +56,21 @@ func TestWarnIfCachedLongerThanRefreshHint(t *testing.T) {
 		assert.Equal(t, []string{warning}, messages(hook))
 	})
 
-	t.Run("uses the actual poll interval rather than a quarter of the hint", func(t *testing.T) {
-		// A bundle with no published refresh hint is polled at
-		// defaultRefreshInterval, not at a quarter of its derived hint. A 5m
-		// hint polled every 5m leaves the cache nothing, so any TTL warns even
-		// though it is well under both the hint and a quarter of it.
-		m, hook := newManager(time.Minute)
-		require.Equal(t, 5*time.Minute, m.warnIfCachedLongerThanRefreshHint(m.log, defaultRefreshInterval, 5*time.Minute, 0))
+	t.Run("budget comes from the given interval, not from the hint", func(t *testing.T) {
+		// The budget is whatever the interval actually scheduled leaves of the
+		// hint, so an interval longer than a quarter of the hint warns at a TTL
+		// that a quarter would have left room for.
+		m, hook := newManager(50 * time.Minute)
+		require.Equal(t, time.Hour, m.warnIfCachedLongerThanRefreshHint(m.log, 30*time.Minute, time.Hour, 0))
 		assert.Equal(t, []string{warning}, messages(hook))
+	})
+
+	t.Run("silent when the cache is disabled", func(t *testing.T) {
+		// The default. A cache holding nothing adds no staleness of its own, so
+		// there is nothing to warn about however little the interval leaves.
+		m, hook := newManager(0)
+		require.Zero(t, m.warnIfCachedLongerThanRefreshHint(m.log, 2*time.Hour, time.Hour, 0))
+		assert.Empty(t, messages(hook))
 	})
 
 	t.Run("silent when there is no refresh hint to compare against", func(t *testing.T) {

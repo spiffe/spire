@@ -316,11 +316,12 @@ func (m *Manager) runUpdater(ctx context.Context, trustDomain spiffeid.TrustDoma
 // federated bundle staler than its trust domain asks consumers to check back.
 // The cache holds the bundle on top of nextRefresh, the interval this manager
 // actually waits before polling for it, so what the cache may spend is whatever
-// that interval leaves of the refresh hint. warnedHint is the hint already
-// warned about; the returned value must be passed back on the next call so the
-// warning is logged once per hint.
+// that interval leaves of the refresh hint. A disabled cache adds nothing and
+// never warns, however little the interval leaves. warnedHint is the hint
+// already warned about; the returned value must be passed back on the next call
+// so the warning is logged once per hint.
 func (m *Manager) warnIfCachedLongerThanRefreshHint(log logrus.FieldLogger, nextRefresh, refreshHint, warnedHint time.Duration) time.Duration {
-	if refreshHint <= 0 {
+	if m.bundleCacheTTL <= 0 || refreshHint <= 0 {
 		return 0
 	}
 	budget := refreshHint - nextRefresh
