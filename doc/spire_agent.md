@@ -113,7 +113,7 @@ When `experimental.require_pq_kem` is enabled, it overrides `min_tls_version` an
 |:------------------------------:|:-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------:|:-----------------------:|
 | `named_pipe_name`              | Pipe name to bind the SPIRE Agent Workload API and SDS named pipe (Windows only). The named pipe is exposed unless both `disable_workload_api` and `disable_sds_api` are `true`.    | \spire-agent\public\api |
 | `sync_interval`                | Sync interval with SPIRE server with exponential backoff                                                                                                                            | 5 sec                   |
-| `min_federated_bundle_sync_interval` | Lower bound on how often a federated bundle is refreshed from the SPIRE server. Setting this will mitigate server and database load for deployments with many federations, but refreshes less often than `sync_interval`. Only applies to bundles whose trust domain publishes a refresh hint. | unset, refreshed on every sync |
+| `min_federated_bundle_sync_interval` | Lower bound on how often a federated bundle is refreshed from the SPIRE server. See [Federated Bundle Sync](#federated-bundle-sync).                                                | unset, refreshed on every sync |
 | `require_pq_kem`               | Require post-quantum-safe KEM on outbound gRPC and terminating listeners.                                                                                                           | false                   |
 | `enable_wit_svids`             | Mint WIT-SVIDs and serve them over the Workload API. Also requires the `wit-svid` feature flag; without it the option is ignored and a warning is logged                            | false                   |
 | `wit_svid_cache_max_size`      | Soft limit of max number of WIT-SVIDs that would be stored in LRU cache. Only used when WIT-SVIDs are enabled                                                                       | 1000                    |
@@ -162,6 +162,32 @@ agent {
     }
 }
 ```
+
+### Federated Bundle Sync
+
+By default, every synchronization with the SPIRE server refetches the trust bundle of each trust domain the agent's entries federate with. With the default `sync_interval` of 5 seconds, an agent federating with many trust domains asks the server for all of their bundles every 5 seconds, and each of those requests reads from the server's datastore.
+
+`min_federated_bundle_sync_interval` places a lower bound on how often a federated bundle is refreshed, which reduces that load at the cost of taking longer to pick up a federated bundle update. It applies only to a bundle whose trust domain publishes a [refresh hint](https://github.com/spiffe/spiffe/blob/main/standards/SPIFFE_Trust_Domain_and_Bundle.md#412-refresh-hint), and the effective interval for such a bundle is:
+
+```text
+max(min_federated_bundle_sync_interval, refresh_hint / 4)
+```
+
+The hint is quartered so that a transient failure does not keep the agent from refreshing within the period the publishing trust domain asked for. A hint below one minute is raised to one minute before being quartered. A hint long enough to ask for a slower schedule than this setting is always honored, so raising this setting never makes a bundle refresh more often; if it asks for a slower schedule than the hint, the agent logs a warning and refreshes at this setting.
+
+The interval is a floor, not a schedule of its own: a bundle is refetched on the first synchronization at or after it elapses, so the actual refresh follows the `sync_interval` cadence. A newly federated trust domain, or one the server has no bundle for yet, is always due on the next synchronization, and a failed synchronization leaves every trust domain due rather than pushing it out.
+
+For example, with a 20 minute refresh hint and the setting below, the agent refreshes that bundle every 5 minutes rather than every 5 seconds:
+
+```hcl
+agent {
+    experimental {
+        min_federated_bundle_sync_interval = "1m"
+    }
+}
+```
+
+When this setting is unset, federated bundles are refreshed on every synchronization regardless of any refresh hint.
 
 ### Workload API Rate Limiting
 
