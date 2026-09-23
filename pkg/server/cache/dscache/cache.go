@@ -23,17 +23,15 @@ func WithCache(ctx context.Context) context.Context {
 }
 
 // WithCacheTTL is like WithCache but overrides how long a cached bundle is
-// served before it is refreshed. A non-positive ttl leaves caching disabled.
+// served before it is refreshed. A non-positive ttl disables caching, including
+// any already requested by a caller further up.
 func WithCacheTTL(ctx context.Context, ttl time.Duration) context.Context {
-	if ttl <= 0 {
-		return ctx
-	}
 	return context.WithValue(ctx, useCache{}, ttl)
 }
 
 func cacheTTL(ctx context.Context) (time.Duration, bool) {
 	ttl, ok := ctx.Value(useCache{}).(time.Duration)
-	return ttl, ok
+	return ttl, ok && ttl > 0
 }
 
 type bundleEntry struct {

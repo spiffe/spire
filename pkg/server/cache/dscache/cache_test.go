@@ -72,6 +72,58 @@ func TestFetchBundleCache(t *testing.T) {
 	spiretest.RequireProtoEqual(t, bundle1, bundle)
 }
 
+func TestCacheTTLOverride(t *testing.T) {
+	td := "spiffe://domain.test"
+	bundle1 := &common.Bundle{TrustDomainId: td, RefreshHint: 1}
+	bundle2 := &common.Bundle{TrustDomainId: td, RefreshHint: 2}
+
+	t.Run("a longer TTL serves the cached bundle past the default expiry", func(t *testing.T) {
+		ds := fakedatastore.New(t)
+		clock := clock.NewMock(t)
+		cache := New(ds, clock)
+		ctx := WithCacheTTL(context.Background(), time.Minute)
+
+		_, err := ds.SetBundle(ctx, bundle1)
+		require.NoError(t, err)
+		bundle, err := cache.FetchBundle(ctx, td)
+		require.NoError(t, err)
+		spiretest.RequireProtoEqual(t, bundle1, bundle)
+
+		_, err = ds.SetBundle(context.Background(), bundle2)
+		require.NoError(t, err)
+
+		clock.Add(DefaultDatastoreCacheExpiry)
+		bundle, err = cache.FetchBundle(ctx, td)
+		require.NoError(t, err)
+		spiretest.RequireProtoEqual(t, bundle1, bundle)
+
+		clock.Add(time.Minute)
+		bundle, err = cache.FetchBundle(ctx, td)
+		require.NoError(t, err)
+		spiretest.RequireProtoEqual(t, bundle2, bundle)
+	})
+
+	t.Run("a non-positive TTL disables caching a caller further up requested", func(t *testing.T) {
+		ds := fakedatastore.New(t)
+		clock := clock.NewMock(t)
+		cache := New(ds, clock)
+		ctx := WithCacheTTL(WithCache(context.Background()), 0)
+
+		_, err := ds.SetBundle(ctx, bundle1)
+		require.NoError(t, err)
+		bundle, err := cache.FetchBundle(ctx, td)
+		require.NoError(t, err)
+		spiretest.RequireProtoEqual(t, bundle1, bundle)
+
+		_, err = ds.SetBundle(context.Background(), bundle2)
+		require.NoError(t, err)
+
+		bundle, err = cache.FetchBundle(ctx, td)
+		require.NoError(t, err)
+		spiretest.RequireProtoEqual(t, bundle2, bundle)
+	})
+}
+
 func TestBundleInvalidations(t *testing.T) {
 	td := "spiffe://domain.test"
 	bundle1, bundle2 := getBundles(t, "spiffe://domain.test")
