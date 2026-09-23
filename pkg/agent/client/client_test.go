@@ -400,6 +400,96 @@ func TestSyncUpdatesFederatedBundleRefresh(t *testing.T) {
 		assert.Equal(t, 3, h.tc.bundleServer.federatedBundleCallCount("domain1.test"),
 			"a failed refresh should not push out the next refresh")
 	})
+
+	t.Run("warns when the minimum exceeds the refresh hint", func(t *testing.T) {
+		const warning = "Federated bundle is refreshed less often than its trust domain requests; min_federated_bundle_sync_interval exceeds the bundle refresh hint"
+
+		// warnings returns the refresh hint reported by each warning logged so
+		// far, so the assertions below are not perturbed by other sync logs.
+		warnings := func() []time.Duration {
+			var out []time.Duration
+			for _, e := range logHook.AllEntries() {
+				if e.Message == warning {
+					hint, ok := e.Data[telemetry.RefreshHint].(time.Duration)
+					require.True(t, ok, "refresh hint should be logged as a duration")
+					out = append(out, hint)
+				}
+			}
+			return out
+		}
+
+		t.Run("silent when the hint is not exceeded", func(t *testing.T) {
+			logHook.Reset()
+			// A 20m hint asks for a 5m refresh, which the 1m minimum is under.
+			h := setup(t, minimum, int64(hint.Seconds()))
+
+			sync(t, h)
+			h.clk.Add(refresh)
+			sync(t, h)
+			assert.Empty(t, warnings())
+		})
+
+		t.Run("warns once while the hint is unchanged", func(t *testing.T) {
+			logHook.Reset()
+			// A 4m hint asks for a 1m refresh, but the minimum is 10m.
+			h := setup(t, 10*time.Minute, int64((4 * time.Minute).Seconds()))
+
+			sync(t, h)
+			spiretest.AssertLogsContainEntries(t, logHook.AllEntries(), []spiretest.LogEntry{
+				{
+					Level:   logrus.WarnLevel,
+					Message: warning,
+					Data: logrus.Fields{
+						telemetry.FederatedBundle:                "spiffe://domain1.test",
+						telemetry.RefreshHint:                    "4m0s",
+						telemetry.MinFederatedBundleSyncInterval: "10m0s",
+					},
+				},
+			})
+			require.Len(t, warnings(), 1)
+
+			h.clk.Add(10 * time.Minute)
+			sync(t, h)
+			require.Equal(t, 2, h.tc.bundleServer.federatedBundleCallCount("domain1.test"))
+			assert.Len(t, warnings(), 1, "should not repeat the warning for the same refresh hint")
+		})
+
+		t.Run("warns again when the published hint changes", func(t *testing.T) {
+			logHook.Reset()
+			h := setup(t, 10*time.Minute, int64((4 * time.Minute).Seconds()))
+
+			sync(t, h)
+			require.Equal(t, []time.Duration{4 * time.Minute}, warnings())
+
+			// Still short enough to be exceeded by the minimum, but a hint the
+			// warning has not reported yet.
+			h.tc.bundleServer.federatedBundles["domain1.test"].RefreshHint = int64((8 * time.Minute).Seconds())
+			h.clk.Add(10 * time.Minute)
+			sync(t, h)
+			require.Equal(t, 2, h.tc.bundleServer.federatedBundleCallCount("domain1.test"))
+			assert.Equal(t, []time.Duration{4 * time.Minute, 8 * time.Minute}, warnings())
+		})
+
+		t.Run("warns again after the condition clears", func(t *testing.T) {
+			logHook.Reset()
+			h := setup(t, 10*time.Minute, int64((4 * time.Minute).Seconds()))
+
+			sync(t, h)
+			require.Len(t, warnings(), 1)
+
+			// A hint long enough to outrank the minimum clears the warned state.
+			h.tc.bundleServer.federatedBundles["domain1.test"].RefreshHint = int64(time.Hour.Seconds())
+			h.clk.Add(10 * time.Minute)
+			sync(t, h)
+			require.Len(t, warnings(), 1)
+
+			h.tc.bundleServer.federatedBundles["domain1.test"].RefreshHint = int64((4 * time.Minute).Seconds())
+			h.clk.Add(15 * time.Minute)
+			sync(t, h)
+			require.Equal(t, 3, h.tc.bundleServer.federatedBundleCallCount("domain1.test"))
+			assert.Equal(t, []time.Duration{4 * time.Minute, 4 * time.Minute}, warnings())
+		})
+	})
 }
 
 func TestSyncUpdatesEntries(t *testing.T) {
