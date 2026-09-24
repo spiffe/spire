@@ -17,7 +17,7 @@ import (
 // needs to do its job.
 type apiClient interface {
 	GetVirtualMachine(ctx context.Context, vmId string, subscriptionId *string) (*VirtualMachine, error)
-	GetVMSSInstance(ctx context.Context, vmId, subscriptionID, ssName string) (*VirtualMachine, error)
+	GetVMSSInstance(ctx context.Context, vmId, subscriptionID, ssName string, resourceGroup *string) (*VirtualMachine, error)
 }
 
 // VirtualMachine is a subset of the fields returned by the Resource Graph API
@@ -109,8 +109,8 @@ func (c *azureClient) GetVirtualMachine(ctx context.Context, vmId string, subscr
 	return vm, nil
 }
 
-func (c *azureClient) GetVMSSInstance(ctx context.Context, vmId, subscriptionID, ssName string) (*VirtualMachine, error) {
-	info, err := c.getVMSSInfo(ctx, []*string{&subscriptionID}, ssName)
+func (c *azureClient) GetVMSSInstance(ctx context.Context, vmId, subscriptionID, ssName string, resourceGroup *string) (*VirtualMachine, error) {
+	info, err := c.getVMSSInfo(ctx, []*string{&subscriptionID}, ssName, resourceGroup)
 	if err != nil {
 		return nil, err
 	}
@@ -149,7 +149,7 @@ func (c *azureClient) GetVMSSInstance(ctx context.Context, vmId, subscriptionID,
 	return nil, status.Errorf(codes.Internal, "VMSS instance %q not found", vmId)
 }
 
-func (c *azureClient) getVMSSInfo(ctx context.Context, subscriptionIDs []*string, name string) (*VMSSInfo, error) {
+func (c *azureClient) getVMSSInfo(ctx context.Context, subscriptionIDs []*string, name string, resourceGroup *string) (*VMSSInfo, error) {
 	if err := validateVMSSName(name); err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid VMSS name: %v", err)
 	}
@@ -157,8 +157,13 @@ func (c *azureClient) getVMSSInfo(ctx context.Context, subscriptionIDs []*string
 	query := fmt.Sprintf(`
 	resources 
 	| where type =~ 'microsoft.compute/virtualmachinescalesets'
-	| where name == '%s'
-	| project id, name, location, resourceGroup, subscriptionId`, name)
+	| where name == '%s'`, name)
+	if resourceGroup != nil && *resourceGroup != "" {
+		query += fmt.Sprintf(`
+	| where resourceGroup =~ '%s'`, *resourceGroup)
+	}
+	query += `
+	| project id, name, location, resourceGroup, subscriptionId`
 	options := &armresourcegraph.QueryRequestOptions{
 		ResultFormat: new(armresourcegraph.ResultFormatObjectArray),
 	}
