@@ -50,5 +50,5 @@ func (repo *nodeAttestorRepository) BuiltIns() []catalog.BuiltIn {
 
 type nodeAttestorV1 struct{}
 
-func (nodeAttestorV1) New() catalog.Facade { return new(nodeattestor.V1) }
-func (nodeAttestorV1) Deprecated() bool    { return false }
+func (nodeAttestorV1) New() catalog.Facade        { return new(nodeattestor.V1) }
+func (nodeAttestorV1) Deprecated() (bool, string) { return false, "" }

@@ -133,7 +133,7 @@ func clearLRUCacheRecordSet(set lruCacheRecordSet) {
 }
 
 // unique set of LRU cache subscribers, allocated from a pool
-type lruCacheSubscriberSet map[*lruCacheSubscriber]struct{}
+type lruCacheSubscriberSet map[baseSubscriber]struct{}
 
 func allocLRUCacheSubscriberSet() (lruCacheSubscriberSet, func()) {
 	set := lruCacheSubscriberSetPool.Get().(lruCacheSubscriberSet)

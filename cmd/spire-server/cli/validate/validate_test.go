@@ -2,6 +2,9 @@ package validate
 
 import (
 	"bytes"
+	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/mitchellh/cli"
@@ -52,4 +55,40 @@ func (s *ValidateSuite) TestBadFlags() {
 	s.NotEqual(0, code, "exit code")
 	s.Equal("", s.stdout.String(), "stdout")
 	s.Contains(s.stderr.String(), "flag provided but not defined: -badflag")
+}
+
+// log_file otherwise overrides the io.Discard writer this command passes, so
+// validate would open and append to a running server's log.
+func (s *ValidateSuite) TestDoesNotTouchLogFile() {
+	configDir := s.T().TempDir()
+	logFile := filepath.Join(configDir, "server.log")
+
+	config := fmt.Sprintf(`
+server {
+	bind_address = "127.0.0.1"
+	bind_port = "8081"
+	trust_domain = "example.org"
+	data_dir = %q
+	log_file = %q
+}
+
+plugins {
+	DataStore "sql" {
+		plugin_data {
+			database_type = "sqlite3"
+			connection_string = %q
+		}
+	}
+	KeyManager "memory" {
+		plugin_data = {}
+	}
+}
+`, configDir, logFile, filepath.Join(configDir, "datastore.sqlite3"))
+
+	confPath := filepath.Join(configDir, "server.conf")
+	s.Require().NoError(os.WriteFile(confPath, []byte(config), 0600))
+
+	s.cmd.Run([]string{"-config", confPath})
+
+	s.NoFileExists(logFile, "validate must not create or write the configured log file")
 }

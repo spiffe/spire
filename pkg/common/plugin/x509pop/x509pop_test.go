@@ -130,7 +130,7 @@ func TestMakeAgentID(t *testing.T) {
 		{
 			desc:      "custom template with nonexistent fields",
 			template:  agentpathtemplate.MustParse("/{{ .Foo }}"),
-			expectErr: `template: agent-path:1:4: executing "agent-path" at <.Foo>: can't evaluate field Foo in type x509pop.agentPathTemplateData`,
+			expectErr: `template: agent-path:1:4: executing "agent-path" at <.Foo>: can't evaluate field Foo in type x509pop.TemplateData`,
 		},
 	}
 

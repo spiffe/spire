@@ -1156,8 +1156,9 @@ func TestBatchDeleteFederatedBundle(t *testing.T) {
 			require.Equal(t, tt.expectDSBundles, dsBundles)
 
 			if entryID != "" {
-				registrationEntry, err := test.ds.FetchRegistrationEntry(ctx, entryID)
+				registrationEntries, err := test.ds.FetchRegistrationEntries(ctx, []string{entryID})
 				require.NoError(t, err)
+				registrationEntry := registrationEntries[entryID]
 
 				switch tt.mode {
 				case bundlev1.BatchDeleteFederatedBundleRequest_RESTRICT:

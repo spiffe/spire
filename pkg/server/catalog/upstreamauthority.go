@@ -46,5 +46,5 @@ func (repo *upstreamAuthorityRepository) BuiltIns() []catalog.BuiltIn {
 
 type upstreamAuthorityV1 struct{}
 
-func (upstreamAuthorityV1) New() catalog.Facade { return new(upstreamauthority.V1) }
-func (upstreamAuthorityV1) Deprecated() bool    { return false }
+func (upstreamAuthorityV1) New() catalog.Facade        { return new(upstreamauthority.V1) }
+func (upstreamAuthorityV1) Deprecated() (bool, string) { return false, "" }

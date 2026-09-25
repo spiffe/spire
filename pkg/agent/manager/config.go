@@ -22,33 +22,67 @@ import (
 	"github.com/spiffe/spire/pkg/common/tlspolicy"
 )
 
+// SyncRetryBackoffConfig configures the exponential backoff applied between
+// failed synchronizations with the server. The backoff always starts at the
+// sync interval; unset fields fall back to values derived from it.
+type SyncRetryBackoffConfig struct {
+	// MaxInterval is the upper limit of the interval between retries.
+	// Defaults to 48 times the sync interval, capped at 8 minutes.
+	MaxInterval time.Duration
+
+	// Multiplier is the factor the interval is multiplied by after each
+	// failure. Defaults to 1.5.
+	Multiplier *float64
+
+	// Jitter is the fraction of the interval the interval is randomized by.
+	// Defaults to 0.10.
+	Jitter *float64
+}
+
+// EffectiveSyncRetryMaxInterval returns the maximum interval the
+// synchronization retry backoff uses for the given sync interval and
+// configuration, after the default of the unset field is applied.
+func EffectiveSyncRetryMaxInterval(syncInterval time.Duration, c *SyncRetryBackoffConfig) time.Duration {
+	if c != nil && c.MaxInterval > 0 {
+		return c.MaxInterval
+	}
+	// upper limit of backoff is 8 mins
+	return min(synchronizeMaxInterval, synchronizeMaxIntervalMultiple*syncInterval)
+}
+
 // Config holds a cache manager configuration
 type Config struct {
 	// Agent SVID and key resulting from successful attestation.
-	SVID                     []*x509.Certificate
-	SVIDKey                  keymanager.Key
-	Bundle                   *managerCache.Bundle
-	Reattestable             bool
-	Catalog                  catalog.Catalog
-	TrustDomain              spiffeid.TrustDomain
-	Log                      logrus.FieldLogger
-	Metrics                  telemetry.Metrics
-	ServerAddr               string
-	Storage                  storage.Storage
-	TrustBundleSources       trustbundlesources.Bundle
-	RebootstrapMode          string
-	RebootstrapDelay         time.Duration
-	WorkloadKeyType          workloadkey.KeyType
-	SyncInterval             time.Duration
-	UseSyncAuthorizedEntries bool
-	RotationInterval         time.Duration
-	SVIDStoreCache           *storecache.Cache
-	X509SVIDCacheMaxSize     int
-	JWTSVIDCacheMaxSize      int
-	DisableLRUCache          bool
-	NodeAttestor             nodeattestor.NodeAttestor
-	RotationStrategy         *rotationutil.RotationStrategy
-	TLSPolicy                tlspolicy.Policy
+	SVID                 []*x509.Certificate
+	SVIDKey              keymanager.Key
+	Bundle               *managerCache.Bundle
+	Reattestable         bool
+	Catalog              catalog.Catalog
+	TrustDomain          spiffeid.TrustDomain
+	Log                  logrus.FieldLogger
+	Metrics              telemetry.Metrics
+	ServerAddr           string
+	Storage              storage.Storage
+	TrustBundleSources   trustbundlesources.Bundle
+	RebootstrapMode      string
+	RebootstrapDelay     time.Duration
+	WorkloadKeyType      workloadkey.KeyType
+	SyncInterval         time.Duration
+	SyncRetryBackoff     *SyncRetryBackoffConfig
+	RotationInterval     time.Duration
+	SVIDStoreCache       *storecache.Cache
+	X509SVIDCacheMaxSize int
+	JWTSVIDCacheMaxSize  int
+	WITSVIDCacheMaxSize  int
+	EnableWITSVIDs       bool
+	DisableLRUCache      bool
+	NodeAttestor         nodeattestor.NodeAttestor
+	RotationStrategy     *rotationutil.RotationStrategy
+	TLSPolicy            tlspolicy.Policy
+
+	// LoadBalancingConfig is an optional, opaque payload used as the
+	// loadBalancingConfig field of the gRPC service config.
+	LoadBalancingConfig string
 
 	// Clk is the clock the manager will use to get time
 	Clk clock.Clock
@@ -61,7 +95,7 @@ func New(c *Config) Manager {
 
 func newManager(c *Config) *manager {
 	if c.SyncInterval == 0 {
-		c.SyncInterval = 5 * time.Second
+		c.SyncInterval = DefaultSyncInterval
 	}
 
 	if c.RotationInterval == 0 {
@@ -73,8 +107,26 @@ func newManager(c *Config) *manager {
 	}
 
 	logger := c.Log.WithField(telemetry.SubsystemName, telemetry.CacheManager)
-	cache := managerCache.NewLRUCache(logger, c.TrustDomain, c.Bundle,
-		c.Metrics, c.X509SVIDCacheMaxSize, c.Clk)
+	x509Cache := managerCache.NewX509LRUCache(managerCache.X509LRUCacheConfig{
+		Log:              logger,
+		TrustDomain:      c.TrustDomain,
+		Bundle:           c.Bundle,
+		Metrics:          c.Metrics,
+		SvidCacheMaxSize: c.X509SVIDCacheMaxSize,
+		Clk:              c.Clk,
+	})
+
+	var witCache *managerCache.WITLRUCache
+	if c.EnableWITSVIDs {
+		witCache = managerCache.NewWITLRUCache(managerCache.WITLRUCacheConfig{
+			Log:              logger,
+			TrustDomain:      c.TrustDomain,
+			Bundle:           c.Bundle,
+			Metrics:          c.Metrics,
+			SvidCacheMaxSize: c.WITSVIDCacheMaxSize,
+			Clk:              c.Clk,
+		})
+	}
 
 	jwtCache := managerCache.NewJWTSVIDCache(logger, c.Metrics, c.JWTSVIDCacheMaxSize)
 
@@ -95,12 +147,15 @@ func newManager(c *Config) *manager {
 		Reattestable:     c.Reattestable,
 		RotationStrategy: c.RotationStrategy,
 		TLSPolicy:        c.TLSPolicy,
+
+		LoadBalancingConfig: c.LoadBalancingConfig,
 	}
 	svidRotator, client := svid.NewRotator(rotCfg)
 
 	m := &manager{
 		bundleCache:    bundleCache,
-		cache:          cache,
+		x509Cache:      x509Cache,
+		witCache:       witCache,
 		jwtCache:       jwtCache,
 		c:              c,
 		mtx:            new(sync.RWMutex),

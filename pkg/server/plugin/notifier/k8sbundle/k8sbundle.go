@@ -479,9 +479,7 @@ func (c configMapClient) CreatePatch(_ context.Context, obj runtime.Object, resp
 		return nil, status.Errorf(codes.InvalidArgument, "wrong type, expecting ConfigMap")
 	}
 	return &corev1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{
-			ResourceVersion: configMap.ResourceVersion,
-		},
+		ResourceVersion: configMap.ResourceVersion,
 		Data: map[string]string{
 			c.configMapKey: bundleData(resp.Bundle),
 		},
@@ -526,9 +524,7 @@ func (c apiServiceClient) CreatePatch(_ context.Context, obj runtime.Object, res
 	}
 
 	patch := &apiregistrationv1.APIService{
-		ObjectMeta: metav1.ObjectMeta{
-			ResourceVersion: apiService.ResourceVersion,
-		},
+		ResourceVersion: apiService.ResourceVersion,
 		Spec: apiregistrationv1.APIServiceSpec{
 			CABundle:             []byte(bundleData(resp.Bundle)),
 			GroupPriorityMinimum: apiService.Spec.GroupPriorityMinimum,
@@ -598,9 +594,7 @@ func (c mutatingWebhookClient) CreatePatch(_ context.Context, obj runtime.Object
 	}
 
 	patch := &admissionv1.MutatingWebhookConfiguration{
-		ObjectMeta: metav1.ObjectMeta{
-			ResourceVersion: mutatingWebhook.ResourceVersion,
-		},
+		ResourceVersion: mutatingWebhook.ResourceVersion,
 	}
 	patch.Webhooks = make([]admissionv1.MutatingWebhook, len(mutatingWebhook.Webhooks))
 
@@ -672,9 +666,7 @@ func (c validatingWebhookClient) CreatePatch(_ context.Context, obj runtime.Obje
 	}
 
 	patch := &admissionv1.ValidatingWebhookConfiguration{
-		ObjectMeta: metav1.ObjectMeta{
-			ResourceVersion: validatingWebhook.ResourceVersion,
-		},
+		ResourceVersion: validatingWebhook.ResourceVersion,
 	}
 	patch.Webhooks = make([]admissionv1.ValidatingWebhook, len(validatingWebhook.Webhooks))
 

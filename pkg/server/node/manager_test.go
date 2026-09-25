@@ -152,14 +152,12 @@ func (s *ManagerSuite) TestPruning() {
 
 func (s *ManagerSuite) setupAndRunManager(ctx context.Context, expiredFor time.Duration) func() {
 	s.m = NewManager(ManagerConfig{
-		Clock:     s.clock,
-		DataStore: s.ds,
-		Log:       s.log,
-		Metrics:   s.metrics,
-		PruneArgs: PruneArgs{
-			ExpiredFor:             expiredFor,
-			IncludeNonReattestable: false,
-		},
+		Clock:                  s.clock,
+		DataStore:              s.ds,
+		Log:                    s.log,
+		Metrics:                s.metrics,
+		ExpiredFor:             expiredFor,
+		IncludeNonReattestable: false,
 	})
 
 	// override without jitter

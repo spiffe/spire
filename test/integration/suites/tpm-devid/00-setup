@@ -1,0 +1,37 @@
+#!/bin/bash
+
+# The provisioner runs inside the swtpm container rather than on the host: the
+# TPM is reachable only over a unix socket on a shared volume, and bind-mounted
+# sockets are not connectable from the host on every platform.
+"${ROOTDIR}/setup/tpmdevid/build.sh" "${RUNDIR}/conf/provision"
+
+retry docker build --target swtpm -t swtpm:latest-local .
+
+docker-up swtpm
+
+log-debug "waiting for the software TPM..."
+MAXCHECKS=30
+CHECKINTERVAL=1
+for ((i=1;i<=MAXCHECKS;i++)); do
+    if docker compose exec -T swtpm sh -c 'test -S /tpm/swtpm.sock'; then
+        break
+    fi
+    if [ "${i}" -eq "${MAXCHECKS}" ]; then
+        fail-now "software TPM socket did not appear after ${MAXCHECKS} checks"
+    fi
+    sleep "${CHECKINTERVAL}"
+done
+
+log-debug "provisioning DevID credentials..."
+docker compose exec -T swtpm /suite/conf/provision \
+    -tpm-socket /tpm/swtpm.sock \
+    -agent-dir /suite/conf/agent \
+    -server-dir /suite/conf/server \
+    || fail-now "failed to provision DevID credentials"
+
+for file in conf/agent/devid.crt.pem conf/agent/devid.priv.blob conf/agent/devid.pub.blob \
+            conf/server/devid-ca.pem conf/server/endorsement-ca.pem; do
+    if [ ! -s "${file}" ]; then
+        fail-now "provisioning did not produce ${file}"
+    fi
+done

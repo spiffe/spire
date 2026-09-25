@@ -696,17 +696,15 @@ func TestUpdateEntriesRemoveEntry(t *testing.T) {
 	require.Equal(t, expectedRecords, c.Records())
 
 	// Update SVIDs does not update records that are in remove state
-	c.UpdateSVIDs(&cache.UpdateSVIDs{
-		X509SVIDs: map[string]*cache.X509SVID{
-			"bar": {
-				Chain: []*x509.Certificate{
-					{Raw: []byte{1}},
-				},
+	c.UpdateX509SVIDs(map[string]*cache.X509SVID{
+		"bar": {
+			Chain: []*x509.Certificate{
+				{Raw: []byte{1}},
 			},
-			"foh": {
-				Chain: []*x509.Certificate{
-					{Raw: []byte{2}},
-				},
+		},
+		"foh": {
+			Chain: []*x509.Certificate{
+				{Raw: []byte{2}},
 			},
 		},
 	})
@@ -938,15 +936,12 @@ func TestTaintX509SVIDs(t *testing.T) {
 	c.UpdateEntries(updateEntries, nil)
 
 	noTaintedSVID := createX509SVID(td, "e3", newAuthority)
-	updateSVIDs := &cache.UpdateSVIDs{
-		X509SVIDs: map[string]*cache.X509SVID{
-			"e1": createX509SVID(td, "e1", taintedAuthority),
-			"e2": createX509SVID(td, "e2", taintedAuthority),
-			"e3": noTaintedSVID,
-			"e5": createX509SVID(td, "e5", taintedAuthority),
-		},
-	}
-	c.UpdateSVIDs(updateSVIDs)
+	c.UpdateX509SVIDs(map[string]*cache.X509SVID{
+		"e1": createX509SVID(td, "e1", taintedAuthority),
+		"e2": createX509SVID(td, "e2", taintedAuthority),
+		"e3": noTaintedSVID,
+		"e5": createX509SVID(td, "e5", taintedAuthority),
+	})
 
 	for _, tt := range []struct {
 		name               string
@@ -976,9 +971,10 @@ func TestTaintX509SVIDs(t *testing.T) {
 			},
 			expectMetrics: []fakemetrics.MetricItem{
 				{
-					Type: fakemetrics.AddSampleType,
-					Key:  []string{telemetry.CacheManager, telemetry.ExpiringSVIDs, agent.CacheTypeSVIDStore},
-					Val:  3,
+					Type:   fakemetrics.AddSampleWithLabelsType,
+					Key:    []string{telemetry.CacheManager, telemetry.ExpiringSVIDs, agent.CacheTypeSVIDStore},
+					Val:    3,
+					Labels: []metrics.Label{{Name: telemetry.SVIDType, Value: agent.SVIDTypeX509}},
 				},
 				{
 					Type:   fakemetrics.IncrCounterWithLabelsType,
@@ -1015,9 +1011,10 @@ func TestTaintX509SVIDs(t *testing.T) {
 			},
 			expectMetrics: []fakemetrics.MetricItem{
 				{
-					Type: fakemetrics.AddSampleType,
-					Key:  []string{telemetry.CacheManager, telemetry.ExpiringSVIDs, agent.CacheTypeSVIDStore},
-					Val:  0,
+					Type:   fakemetrics.AddSampleWithLabelsType,
+					Key:    []string{telemetry.CacheManager, telemetry.ExpiringSVIDs, agent.CacheTypeSVIDStore},
+					Val:    0,
+					Labels: []metrics.Label{{Name: telemetry.SVIDType, Value: agent.SVIDTypeX509}},
 				},
 				{
 					Type:   fakemetrics.IncrCounterWithLabelsType,
@@ -1060,21 +1057,17 @@ func TestUpdateSVIDs(t *testing.T) {
 	c.UpdateEntries(update, nil)
 	hook.Reset()
 
-	updateSVIDs := &cache.UpdateSVIDs{
-		X509SVIDs: map[string]*cache.X509SVID{
-			"baz": {
-				Chain:      []*x509.Certificate{{URIs: []*url.URL{bazID.URL()}}},
-				PrivateKey: key,
-			},
-			"foh": {
-				Chain:      []*x509.Certificate{{URIs: []*url.URL{fohID.URL()}}},
-				PrivateKey: key,
-			},
-		},
-	}
-
 	// Run update SVIDs to set new SVIDs on cache
-	c.UpdateSVIDs(updateSVIDs)
+	c.UpdateX509SVIDs(map[string]*cache.X509SVID{
+		"baz": {
+			Chain:      []*x509.Certificate{{URIs: []*url.URL{bazID.URL()}}},
+			PrivateKey: key,
+		},
+		"foh": {
+			Chain:      []*x509.Certificate{{URIs: []*url.URL{fohID.URL()}}},
+			PrivateKey: key,
+		},
+	})
 
 	expectedRecords := []*storecache.Record{
 		{
@@ -1163,14 +1156,12 @@ func TestGetStaleEntries(t *testing.T) {
 	expiresAt := time.Now().Add(time.Minute)
 
 	// Call UpdateSVID to remove 'foh' from stale entries
-	c.UpdateSVIDs(&cache.UpdateSVIDs{
-		X509SVIDs: map[string]*cache.X509SVID{
-			"foh": {
-				Chain: []*x509.Certificate{
-					{
-						URIs:     []*url.URL{fohID.URL()},
-						NotAfter: expiresAt,
-					},
+	c.UpdateX509SVIDs(map[string]*cache.X509SVID{
+		"foh": {
+			Chain: []*x509.Certificate{
+				{
+					URIs:     []*url.URL{fohID.URL()},
+					NotAfter: expiresAt,
 				},
 			},
 		},
@@ -1226,10 +1217,8 @@ func TestCheckSVID(t *testing.T) {
 		Chain: []*x509.Certificate{{URIs: []*url.URL{fohID.URL()}}},
 	}
 	// Set an SVID to record
-	c.UpdateSVIDs(&cache.UpdateSVIDs{
-		X509SVIDs: map[string]*cache.X509SVID{
-			"foh": x509SVID,
-		},
+	c.UpdateX509SVIDs(map[string]*cache.X509SVID{
+		"foh": x509SVID,
 	})
 
 	// Creating new entry with same information instead of cloning and change revision

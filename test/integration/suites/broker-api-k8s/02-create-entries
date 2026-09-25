@@ -4,7 +4,10 @@ set -e
 
 source init-kubectl
 
-readarray -t NODEUIDS < <(./bin/kubectl get nodes -o jsonpath='{range .items[*]}{.metadata.uid}{"\n"}{end}')
+NODEUIDS=()
+while IFS= read -r nodeUID; do
+    NODEUIDS+=("${nodeUID}")
+done < <(./bin/kubectl get nodes -o jsonpath='{range .items[*]}{.metadata.uid}{"\n"}{end}')
 PARENTS=()
 for nodeUID in "${NODEUIDS[@]}"; do
     if [ -n "${nodeUID}" ]; then

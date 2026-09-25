@@ -17,6 +17,7 @@ import (
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/cmd/spire-server/util"
 	"github.com/spiffe/spire/pkg/common/jwtutil"
+	"github.com/spiffe/spire/pkg/common/witutil"
 )
 
 const (
@@ -103,9 +104,14 @@ func bundleFromProto(bundleProto *types.Bundle) (*spiffebundle.Bundle, error) {
 	if err != nil {
 		return nil, err
 	}
+	witAuthorities, err := witutil.WITKeysFromProto(bundleProto.WitAuthorities)
+	if err != nil {
+		return nil, err
+	}
 	bundle := spiffebundle.New(td)
 	bundle.SetX509Authorities(x509Authorities)
 	bundle.SetJWTAuthorities(jwtAuthorities)
+	bundle.SetWITAuthorities(witAuthorities)
 	if bundleProto.RefreshHint > 0 {
 		bundle.SetRefreshHint(time.Duration(bundleProto.RefreshHint) * time.Second)
 	}

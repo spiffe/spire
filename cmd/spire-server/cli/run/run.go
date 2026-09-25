@@ -33,6 +33,7 @@ import (
 	common_cli "github.com/spiffe/spire/pkg/common/cli"
 	"github.com/spiffe/spire/pkg/common/config"
 	"github.com/spiffe/spire/pkg/common/diskcertmanager"
+	"github.com/spiffe/spire/pkg/common/errorutil"
 	"github.com/spiffe/spire/pkg/common/fflag"
 	"github.com/spiffe/spire/pkg/common/health"
 	"github.com/spiffe/spire/pkg/common/log"
@@ -66,37 +67,38 @@ type Config struct {
 }
 
 type serverConfig struct {
-	AdminIDs                     []string           `hcl:"admin_ids"`
-	AgentTTL                     string             `hcl:"agent_ttl"`
-	AuditLogEnabled              bool               `hcl:"audit_log_enabled"`
-	BindAddress                  string             `hcl:"bind_address"`
-	BindPort                     int                `hcl:"bind_port"`
-	CAKeyType                    string             `hcl:"ca_key_type"`
-	CASubject                    *caSubjectConfig   `hcl:"ca_subject"`
-	CATTL                        string             `hcl:"ca_ttl"`
-	DataDir                      string             `hcl:"data_dir"`
-	DefaultX509SVIDTTL           string             `hcl:"default_x509_svid_ttl"`
-	DefaultJWTSVIDTTL            string             `hcl:"default_jwt_svid_ttl"`
-	Experimental                 experimentalConfig `hcl:"experimental"`
-	Federation                   *federationConfig  `hcl:"federation"`
-	DisableJWTSVIDs              bool               `hcl:"disable_jwt_svids"`
-	JWTIssuer                    string             `hcl:"jwt_issuer"`
-	JWTKeyType                   string             `hcl:"jwt_key_type"`
-	LogFile                      string             `hcl:"log_file"`
-	LogLevel                     string             `hcl:"log_level"`
-	LogFormat                    string             `hcl:"log_format"`
-	LogSourceLocation            bool               `hcl:"log_source_location"`
-	PruneAttestedNodesExpiredFor string             `hcl:"prune_attested_nodes_expired_for"`
-	PruneAttestedNodesBatchSize  int                `hcl:"prune_attested_nodes_batch_size"`
-	PruneNonReattestableNodes    bool               `hcl:"prune_tofu_nodes"`
-	ProxyProtocolTrustedCIDRs    []string           `hcl:"proxy_protocol_trusted_cidrs"`
-	RateLimit                    rateLimitConfig    `hcl:"ratelimit"`
-	SocketPath                   string             `hcl:"socket_path"`
-	TrustDomain                  string             `hcl:"trust_domain"`
-	MaxAttestedNodeInfoStaleness *string            `hcl:"max_attested_node_info_staleness"`
-
-	ConfigPath string
-	ExpandEnv  bool
+	AdminIDs                     []string             `hcl:"admin_ids"`
+	AgentTTL                     string               `hcl:"agent_ttl"`
+	AuditLogEnabled              bool                 `hcl:"audit_log_enabled"`
+	BindAddress                  string               `hcl:"bind_address"`
+	BindPort                     int                  `hcl:"bind_port"`
+	CAKeyType                    string               `hcl:"ca_key_type"`
+	CASubject                    *caSubjectConfig     `hcl:"ca_subject"`
+	CATTL                        string               `hcl:"ca_ttl"`
+	DataDir                      string               `hcl:"data_dir"`
+	DefaultX509SVIDTTL           string               `hcl:"default_x509_svid_ttl"`
+	DefaultJWTSVIDTTL            string               `hcl:"default_jwt_svid_ttl"`
+	Experimental                 experimentalConfig   `hcl:"experimental"`
+	Federation                   *federationConfig    `hcl:"federation"`
+	DisableJWTSVIDs              bool                 `hcl:"disable_jwt_svids"`
+	JWTIssuer                    string               `hcl:"jwt_issuer"`
+	JWTKeyType                   string               `hcl:"jwt_key_type"`
+	LogFile                      string               `hcl:"log_file"`
+	LogFileRotation              *log.RotationConfig  `hcl:"log_file_rotation"`
+	LogLevel                     string               `hcl:"log_level"`
+	LogFormat                    string               `hcl:"log_format"`
+	LogSourceLocation            bool                 `hcl:"log_source_location"`
+	PruneAttestedNodesExpiredFor string               `hcl:"prune_attested_nodes_expired_for"`
+	PruneAttestedNodesBatchSize  int                  `hcl:"prune_attested_nodes_batch_size"`
+	PruneNonReattestableNodes    bool                 `hcl:"prune_tofu_nodes"`
+	ProxyProtocolTrustedCIDRs    []string             `hcl:"proxy_protocol_trusted_cidrs"`
+	RateLimit                    rateLimitConfig      `hcl:"ratelimit"`
+	SocketPath                   string               `hcl:"socket_path"`
+	TrustDomain                  string               `hcl:"trust_domain"`
+	MaxAttestedNodeInfoStaleness *string              `hcl:"max_attested_node_info_staleness"`
+	TLSConfig                    *tlspolicy.TLSConfig `hcl:"tls_config"`
+	ConfigPath                   string
+	ExpandEnv                    bool
 
 	// Undocumented configurables
 	ProfilingEnabled bool     `hcl:"profiling_enabled"`
@@ -182,6 +184,8 @@ type bundleEndpointACMEConfig struct {
 type federatesWithConfig struct {
 	BundleEndpointURL     string                 `hcl:"bundle_endpoint_url"`
 	BundleEndpointProfile ast.Node               `hcl:"bundle_endpoint_profile"`
+	BootstrapBundlePath   string                 `hcl:"bootstrap_bundle_path"`
+	BootstrapBundleFormat string                 `hcl:"bootstrap_bundle_format"`
 	UnusedKeyPositions    map[string][]token.Pos `hcl:",unusedKeyPositions"`
 }
 
@@ -239,6 +243,16 @@ func Help(name string, writer io.Writer) string {
 }
 
 func LoadConfig(name string, args []string, logOptions []log.Option, output io.Writer, allowUnknownConfig bool) (*server.Config, error) {
+	return loadConfig(name, args, logOptions, output, allowUnknownConfig, false)
+}
+
+// LoadConfigForValidation loads the configuration without opening log_file, so
+// that validating the config of a running server does not touch its log.
+func LoadConfigForValidation(name string, args []string, logOptions []log.Option, output io.Writer) (*server.Config, error) {
+	return loadConfig(name, args, logOptions, output, false, true)
+}
+
+func loadConfig(name string, args []string, logOptions []log.Option, output io.Writer, allowUnknownConfig, skipLogFile bool) (*server.Config, error) {
 	// First parse the CLI flags so we can get the config
 	// file path, if set
 	cliInput, err := parseFlags(name, args, output)
@@ -263,7 +277,7 @@ func LoadConfig(name string, args []string, logOptions []log.Option, output io.W
 		return nil, fmt.Errorf("error loading feature flags: %w", err)
 	}
 
-	return NewServerConfig(input, logOptions, allowUnknownConfig)
+	return newServerConfig(input, logOptions, allowUnknownConfig, skipLogFile)
 }
 
 // Run the SPIFFE Server
@@ -287,7 +301,7 @@ func (cmd *Command) Run(args []string) int {
 	defer stop()
 
 	err = s.Run(ctx)
-	if err != nil && !errors.Is(err, context.Canceled) {
+	if err != nil && !errorutil.IsCanceled(err) {
 		c.Log.WithError(err).Error("Server crashed")
 		return 1
 	}
@@ -385,6 +399,10 @@ func mergeInput(fileInput *Config, cliInput *serverConfig) (*Config, error) {
 }
 
 func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool) (*server.Config, error) {
+	return newServerConfig(c, logOptions, allowUnknownConfig, false)
+}
+
+func newServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig, skipLogFile bool) (*server.Config, error) {
 	sc := &server.Config{}
 
 	if err := validateConfig(c); err != nil {
@@ -398,10 +416,10 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 	if c.Server.LogSourceLocation {
 		logOptions = append(logOptions, log.WithSourceLocation())
 	}
-	var reopenableFile *log.ReopenableFile
-	if c.Server.LogFile != "" {
+	var reopenableFile log.ReopenableWriteCloser
+	if c.Server.LogFile != "" && !skipLogFile {
 		var err error
-		reopenableFile, err = log.NewReopenableFile(c.Server.LogFile)
+		reopenableFile, err = log.NewOutputFile(c.Server.LogFile, c.Server.LogFileRotation)
 		if err != nil {
 			return nil, err
 		}
@@ -507,6 +525,9 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 				if err != nil {
 					return nil, fmt.Errorf("error parsing federation relationship for trust domain %q: %w", trustDomain, err)
 				}
+				if err := validateFederatesWithBootstrap(td, trustDomainConfig); err != nil {
+					return nil, fmt.Errorf("error parsing federation relationship for trust domain %q: %w", trustDomain, err)
+				}
 			default:
 				return nil, fmt.Errorf("federation configuration for trust domain %q: missing bundle endpoint configuration", trustDomain)
 			}
@@ -520,11 +541,14 @@ func NewServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig bool
 	sc.ProfilingFreq = c.Server.ProfilingFreq
 	sc.ProfilingNames = c.Server.ProfilingNames
 
-	sc.TLSPolicy = tlspolicy.Policy{
-		RequirePQKEM: c.Server.Experimental.RequirePQKEM,
+	tlsPolicyLogger := log.NewHCLogAdapter(logger, "tlspolicy")
+
+	sc.TLSPolicy, err = tlspolicy.NewPolicy(c.Server.Experimental.RequirePQKEM, c.Server.TLSConfig, tlsPolicyLogger)
+	if err != nil {
+		return nil, fmt.Errorf("unable to parse configured TLS configuration: %w", err)
 	}
 
-	tlspolicy.LogPolicy(sc.TLSPolicy, log.NewHCLogAdapter(logger, "tlspolicy"))
+	tlspolicy.LogPolicy(sc.TLSPolicy, tlsPolicyLogger)
 
 	if c.Server.MaxAttestedNodeInfoStaleness != nil {
 		maxAttestedNodeInfoStaleness, err := time.ParseDuration(*c.Server.MaxAttestedNodeInfoStaleness)
@@ -904,10 +928,41 @@ func parseBundleEndpointProfile(config federatesWithConfig) (trustDomainConfig *
 		return nil, errors.New(`no bundle endpoint profile defined; current supported profiles are "https_spiffe" and 'https_web"`)
 	}
 
+	format := strings.ToLower(strings.TrimSpace(config.BootstrapBundleFormat))
+	if config.BootstrapBundlePath != "" && format == "" {
+		format = bundleClient.BootstrapBundleFormatPEM
+	}
+
 	return &bundleClient.TrustDomainConfig{
-		EndpointURL:     config.BundleEndpointURL,
-		EndpointProfile: endpointProfile,
+		EndpointURL:           config.BundleEndpointURL,
+		EndpointProfile:       endpointProfile,
+		BootstrapBundlePath:   config.BootstrapBundlePath,
+		BootstrapBundleFormat: format,
 	}, nil
+}
+
+func validateFederatesWithBootstrap(td spiffeid.TrustDomain, cfg *bundleClient.TrustDomainConfig) error {
+	if cfg.BootstrapBundleFormat != "" && cfg.BootstrapBundlePath == "" {
+		return errors.New("bootstrap_bundle_format is set but bootstrap_bundle_path is empty")
+	}
+	if cfg.BootstrapBundlePath == "" {
+		return nil
+	}
+
+	switch cfg.BootstrapBundleFormat {
+	case bundleClient.BootstrapBundleFormatPEM, bundleClient.BootstrapBundleFormatSPIFFE:
+	default:
+		return fmt.Errorf("bootstrap_bundle_format must be %q or %q", bundleClient.BootstrapBundleFormatPEM, bundleClient.BootstrapBundleFormatSPIFFE)
+	}
+
+	spiffeProfile, ok := cfg.EndpointProfile.(bundleClient.HTTPSSPIFFEProfile)
+	if !ok {
+		return errors.New("bootstrap_bundle_path is only supported with the https_spiffe bundle endpoint profile")
+	}
+	if spiffeProfile.EndpointSPIFFEID.TrustDomain() != td {
+		return errors.New("bootstrap_bundle_path is only supported when the endpoint SPIFFE ID is in the federated trust domain")
+	}
+	return nil
 }
 
 func parseBundleEndpointProfileASTNode(node ast.Node) (string, error) {
@@ -946,6 +1001,15 @@ func validateConfig(c *Config) error {
 
 	if c.Plugins == nil {
 		return errors.New("plugins section must be configured")
+	}
+
+	if c.Server.LogFileRotation != nil {
+		if c.Server.LogFile == "" {
+			return errors.New("log_file must be configured to use log_file_rotation")
+		}
+		if err := c.Server.LogFileRotation.Validate(); err != nil {
+			return fmt.Errorf("invalid log_file_rotation configuration: %w", err)
+		}
 	}
 
 	if c.Server.Federation != nil {
@@ -1011,6 +1075,10 @@ func checkForUnknownConfig(c *Config, l logrus.FieldLogger) (err error) {
 
 		if cs := c.Server.CASubject; cs != nil && len(cs.UnusedKeyPositions) != 0 {
 			detectedUnknown("ca_subject", cs.UnusedKeyPositions)
+		}
+
+		if lr := c.Server.LogFileRotation; lr != nil && len(lr.UnusedKeyPositions) != 0 {
+			detectedUnknown("log_file_rotation", lr.UnusedKeyPositions)
 		}
 
 		if rl := c.Server.RateLimit; len(rl.UnusedKeyPositions) != 0 {

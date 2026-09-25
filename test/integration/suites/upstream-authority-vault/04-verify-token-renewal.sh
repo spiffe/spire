@@ -4,7 +4,7 @@ set -eo pipefail
 
 log-debug "verifying token renewal..."
 
-timeout=$(date -ud "1 minute 30 second" +%s)
+timeout=$(( $(date -u +%s) + 90 ))
 count=0
 
 while [ $(date -u +%s) -lt $timeout ]; do

@@ -42,6 +42,15 @@ type TrustDomainConfig struct {
 	// EndpointProfile is the bundle endpoint profile used by the
 	// SPIFFE bundle endpoint server.
 	EndpointProfile EndpointProfileInfo
+
+	// BootstrapBundlePath is an optional path to a bundle used to authenticate
+	// the first https_spiffe fetch when the datastore has no copy of the
+	// federated bundle. It is not used after that fetch succeeds.
+	BootstrapBundlePath string
+
+	// BootstrapBundleFormat is the format of the file at BootstrapBundlePath.
+	// "pem" (default) or "spiffe".
+	BootstrapBundleFormat string
 }
 
 type EndpointProfileInfo interface {

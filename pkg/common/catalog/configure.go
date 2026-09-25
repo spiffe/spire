@@ -153,8 +153,8 @@ func (repo *configurerRepo) Clear() {
 
 type configurerV1Version struct{}
 
-func (configurerV1Version) New() Facade      { return new(configurerV1) }
-func (configurerV1Version) Deprecated() bool { return false }
+func (configurerV1Version) New() Facade                { return new(configurerV1) }
+func (configurerV1Version) Deprecated() (bool, string) { return false, "" }
 
 type configurerV1 struct {
 	configv1.ConfigServiceClient

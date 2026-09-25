@@ -47,7 +47,7 @@ The following configuration uploads the local trust bundle contents to the `exam
 ```hcl
     BundlePublisher "gcp_cloudstorage" {
         plugin_data {
-            bucket = "spire-bundle"
+            bucket_name = "spire-bundle"
             object_name = "example.org"
             format = "spiffe"
         }
@@ -62,7 +62,7 @@ The following configuration uploads the local trust bundle contents to the `exam
     BundlePublisher "gcp_cloudstorage" {
         plugin_data {
             service_account_file = "/path/to/service/account/file"
-            bucket = "spire-bundle"
+            bucket_name = "spire-bundle"
             object_name = "example.org"
             format = "spiffe"
         }

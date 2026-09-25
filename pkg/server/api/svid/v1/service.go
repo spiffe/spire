@@ -423,6 +423,9 @@ func (s *Service) NewJWTSVID(ctx context.Context, req *svidv1.NewJWTSVIDRequest)
 
 func (s *Service) BatchNewWITSVID(ctx context.Context, req *svidv1.BatchNewWITSVIDRequest) (*svidv1.BatchNewWITSVIDResponse, error) {
 	log := rpccontext.Logger(ctx)
+	if s.isWITSVIDsDisabled() {
+		return nil, commonapi.MakeErr(log, codes.Unimplemented, "WIT functionality is disabled", nil)
+	}
 
 	if len(req.Params) == 0 {
 		return nil, commonapi.MakeErr(log, codes.InvalidArgument, "missing parameters", nil)
@@ -597,6 +600,7 @@ func (s *Service) newWITSVID(ctx context.Context, param *svidv1.NewWITSVIDParams
 			ExpiresAt: expiresAt.Unix(),
 			IssuedAt:  issuedAt.Unix(),
 		},
+		Status: commonapi.OK(),
 	}
 }
 

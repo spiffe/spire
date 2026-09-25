@@ -50,6 +50,7 @@ const (
 	bootstrapBackoffMaxElapsedTime   = 1 * time.Minute
 	startHealthChecksTimeout         = 8 * time.Second
 	rebootstrapBackoffMaxElapsedTime = 24 * time.Hour
+	profilingServerShutdownTimeout   = 500 * time.Millisecond
 )
 
 type Agent struct {
@@ -395,14 +396,16 @@ func (a *Agent) setupProfiling(ctx context.Context) (stop func()) {
 		// kick off a goroutine to serve the pprof endpoints and one to
 		// gracefully shut down the server when profiling is being torn down
 		wg.Go(func() {
-			if err := server.ListenAndServe(); err != nil {
+			if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 				a.c.Log.WithError(err).Warn("Unable to serve profiling server")
 			}
 		})
 		wg.Go(func() {
 			<-ctx.Done()
-			if err := server.Shutdown(ctx); err != nil {
-				a.c.Log.WithError(err).Warn("Unable to shut down cleanly")
+			shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), profilingServerShutdownTimeout)
+			defer shutdownCancel()
+			if err := server.Shutdown(shutdownCtx); err != nil {
+				a.c.Log.WithError(err).Warn("Unable to cleanly shut down profiling server")
 			}
 		})
 	}
@@ -440,6 +443,7 @@ func (a *Agent) attest(ctx context.Context, sto storage.Storage, cat catalog.Cat
 		ServerAddress:        a.c.ServerAddress,
 		NodeAttestor:         na,
 		TLSPolicy:            a.c.TLSPolicy,
+		LoadBalancingConfig:  a.c.ServerLoadBalancingConfig,
 	}
 	return node_attestor.New(&config).Attest(ctx)
 }
@@ -450,28 +454,31 @@ func (a *Agent) newManager(ctx context.Context, sto storage.Storage, cat catalog
 	}
 
 	config := &manager.Config{
-		SVID:                     as.SVID,
-		SVIDKey:                  as.Key,
-		Bundle:                   as.Bundle,
-		Reattestable:             as.Reattestable,
-		Catalog:                  cat,
-		TrustDomain:              a.c.TrustDomain,
-		ServerAddr:               a.c.ServerAddress,
-		Log:                      a.c.Log.WithField(telemetry.SubsystemName, telemetry.Manager),
-		Metrics:                  metrics,
-		WorkloadKeyType:          a.c.WorkloadKeyType,
-		Storage:                  sto,
-		TrustBundleSources:       a.c.TrustBundleSources,
-		RebootstrapMode:          a.c.RebootstrapMode,
-		RebootstrapDelay:         a.c.RebootstrapDelay,
-		SyncInterval:             a.c.SyncInterval,
-		UseSyncAuthorizedEntries: a.c.UseSyncAuthorizedEntries,
-		X509SVIDCacheMaxSize:     a.c.X509SVIDCacheMaxSize,
-		JWTSVIDCacheMaxSize:      a.c.JWTSVIDCacheMaxSize,
-		SVIDStoreCache:           cache,
-		NodeAttestor:             na,
-		RotationStrategy:         rotationutil.NewRotationStrategy(a.c.AvailabilityTarget),
-		TLSPolicy:                a.c.TLSPolicy,
+		SVID:                 as.SVID,
+		SVIDKey:              as.Key,
+		Bundle:               as.Bundle,
+		Reattestable:         as.Reattestable,
+		Catalog:              cat,
+		TrustDomain:          a.c.TrustDomain,
+		ServerAddr:           a.c.ServerAddress,
+		Log:                  a.c.Log.WithField(telemetry.SubsystemName, telemetry.Manager),
+		Metrics:              metrics,
+		WorkloadKeyType:      a.c.WorkloadKeyType,
+		Storage:              sto,
+		TrustBundleSources:   a.c.TrustBundleSources,
+		RebootstrapMode:      a.c.RebootstrapMode,
+		RebootstrapDelay:     a.c.RebootstrapDelay,
+		SyncInterval:         a.c.SyncInterval,
+		SyncRetryBackoff:     a.c.SyncRetryBackoff,
+		X509SVIDCacheMaxSize: a.c.X509SVIDCacheMaxSize,
+		JWTSVIDCacheMaxSize:  a.c.JWTSVIDCacheMaxSize,
+		WITSVIDCacheMaxSize:  a.c.WITSVIDCacheMaxSize,
+		EnableWITSVIDs:       a.c.EnableWITSVIDs,
+		SVIDStoreCache:       cache,
+		NodeAttestor:         na,
+		RotationStrategy:     rotationutil.NewRotationStrategy(a.c.AvailabilityTarget),
+		TLSPolicy:            a.c.TLSPolicy,
+		LoadBalancingConfig:  a.c.ServerLoadBalancingConfig,
 	}
 
 	mgr := manager.New(config)

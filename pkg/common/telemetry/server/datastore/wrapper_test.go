@@ -102,10 +102,6 @@ func TestWithMetrics(t *testing.T) {
 			methodName: "FetchAttestedNode",
 		},
 		{
-			key:        "datastore.node.fetch",
-			methodName: "FetchAttestedNodes",
-		},
-		{
 			key:        "datastore.node_event.fetch",
 			methodName: "FetchAttestedNodeEvent",
 		},
@@ -116,10 +112,6 @@ func TestWithMetrics(t *testing.T) {
 		{
 			key:        "datastore.join_token.fetch",
 			methodName: "FetchJoinToken",
-		},
-		{
-			key:        "datastore.registration_entry.fetch",
-			methodName: "FetchRegistrationEntry",
 		},
 		{
 			key:        "datastore.registration_entry.fetch",
@@ -392,10 +384,6 @@ func (ds *fakeDataStore) FetchAttestedNode(context.Context, string) (*common.Att
 	return &common.AttestedNode{}, ds.err
 }
 
-func (ds *fakeDataStore) FetchAttestedNodes(context.Context, []string) (map[string]*common.AttestedNode, error) {
-	return map[string]*common.AttestedNode{}, ds.err
-}
-
 func (ds *fakeDataStore) FetchAttestedNodeEvent(context.Context, uint) (*datastore.AttestedNodeEvent, error) {
 	return &datastore.AttestedNodeEvent{}, ds.err
 }
@@ -410,10 +398,6 @@ func (ds *fakeDataStore) FetchFederationRelationship(context.Context, spiffeid.T
 
 func (ds *fakeDataStore) FetchJoinToken(context.Context, string) (*datastore.JoinToken, error) {
 	return &datastore.JoinToken{}, ds.err
-}
-
-func (ds *fakeDataStore) FetchRegistrationEntry(context.Context, string) (*common.RegistrationEntry, error) {
-	return &common.RegistrationEntry{}, ds.err
 }
 
 func (ds *fakeDataStore) FetchRegistrationEntries(context.Context, []string) (map[string]*common.RegistrationEntry, error) {

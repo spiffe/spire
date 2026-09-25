@@ -3,6 +3,9 @@ package client
 import (
 	"context"
 	"crypto"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
 	"crypto/x509"
 	"errors"
 	"fmt"
@@ -12,7 +15,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/go-cmp/cmp"
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -33,7 +35,6 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
 	"google.golang.org/grpc/test/bufconn"
-	"google.golang.org/protobuf/testing/protocmp"
 )
 
 var (
@@ -80,9 +81,17 @@ var (
 		},
 	}
 
-	testSvids = map[string]*X509SVID{
+	testX509SVIDs = map[string]*X509SVID{
 		"entry-id": {
 			CertChain: []byte{11, 22, 33},
+		},
+	}
+
+	testWITSVIDs = map[string]*WITSVID{
+		"entry-id": {
+			Token:     "SOME TOKEN",
+			IssuedAt:  time.Unix(12345, 0).UTC(),
+			ExpiresAt: time.Unix(54321, 0).UTC(),
 		},
 	}
 
@@ -101,99 +110,6 @@ var (
 		},
 	}
 )
-
-func TestFetchUpdates(t *testing.T) {
-	client, tc := createClient(t)
-
-	tc.entryServer.entries = []*types.Entry{
-		{
-			Id:       "ENTRYID1",
-			ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/host"},
-			SpiffeId: &types.SPIFFEID{
-				TrustDomain: "example.org",
-				Path:        "/id1",
-			},
-			Selectors: []*types.Selector{
-				{Type: "S", Value: "1"},
-			},
-			FederatesWith:  []string{"domain1.test"},
-			RevisionNumber: 1234,
-			Hint:           "external",
-		},
-		// This entry should be ignored since it is missing an entry ID
-		{
-			ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/host"},
-			SpiffeId: &types.SPIFFEID{
-				TrustDomain: "example.org",
-				Path:        "/id2",
-			},
-			Selectors: []*types.Selector{
-				{Type: "S", Value: "2"},
-			},
-			FederatesWith: []string{"domain2.test"},
-		},
-		// This entry should be ignored since it is missing a SPIFFE ID
-		{
-			Id:       "ENTRYID3",
-			ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/host"},
-			Selectors: []*types.Selector{
-				{Type: "S", Value: "3"},
-			},
-		},
-		// This entry should be ignored since it is missing selectors
-		{
-			Id:       "ENTRYID4",
-			ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/host"},
-			SpiffeId: &types.SPIFFEID{
-				TrustDomain: "example.org",
-				Path:        "/id4",
-			},
-		},
-	}
-
-	tc.svidServer.x509SVIDs = map[string]*types.X509SVID{
-		"entry-id": {
-			Id:        &types.SPIFFEID{TrustDomain: "example.org", Path: "/path"},
-			CertChain: [][]byte{{11, 22, 33}},
-		},
-	}
-
-	tc.bundleServer.serverBundle = makeAPIBundle("example.org")
-	tc.bundleServer.federatedBundles = map[string]*types.Bundle{
-		"domain1.test": makeAPIBundle("domain1.test"),
-		"domain2.test": makeAPIBundle("domain2.test"),
-	}
-
-	// Simulate an ongoing SVID rotation (request should not be made in the middle of a rotation)
-	client.c.RotMtx.Lock()
-
-	// Do the request in a different go routine
-	var wg sync.WaitGroup
-	var update *Update
-	err := errors.New("a not nil error")
-	wg.Go(func() {
-		update, err = client.FetchUpdates(ctx)
-	})
-
-	// The request should wait until the SVID rotation finishes
-	require.Contains(t, "a not nil error", err.Error())
-	require.Nil(t, update)
-
-	// Simulate the end of the SVID rotation
-	client.c.RotMtx.Unlock()
-	wg.Wait()
-
-	// Assert results
-	require.Nil(t, err)
-	assert.Equal(t, testBundles, update.Bundles)
-	// Only the first registration entry should be returned since the rest are
-	// invalid for one reason or another
-	if assert.Len(t, update.Entries, 1) {
-		entry := testEntries[0]
-		assert.Equal(t, entry, update.Entries[entry.EntryId])
-	}
-	assertConnectionIsNotNil(t, client)
-}
 
 func TestSyncUpdatesBundles(t *testing.T) {
 	client, tc := createClient(t)
@@ -505,7 +421,7 @@ func TestNewX509SVIDs(t *testing.T) {
 			batchSVIDErr:   nil,
 			wantError:      assert.NoError,
 			assertFuncConn: assertConnectionIsNotNil,
-			testSvids:      testSvids,
+			testSvids:      testX509SVIDs,
 		},
 		{
 			name:           "failed",
@@ -570,7 +486,16 @@ func newTestCSRs() map[string][]byte {
 	}
 }
 
-func TestFetchReleaseWaitsForFetchUpdatesToFinish(t *testing.T) {
+func newTestPublicKeys(t *testing.T) map[string]crypto.PublicKey {
+	signer, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+
+	return map[string]crypto.PublicKey{
+		"entry-id": signer.Public(),
+	}
+}
+
+func TestFetchReleaseWaitsForSyncUpdatesToFinish(t *testing.T) {
 	client, tc := createClient(t)
 
 	tc.entryServer.entries = []*types.Entry{
@@ -587,35 +512,6 @@ func TestFetchReleaseWaitsForFetchUpdatesToFinish(t *testing.T) {
 			FederatesWith:  []string{"domain1.test"},
 			RevisionNumber: 1234,
 			Hint:           "external",
-		},
-		// This entry should be ignored since it is missing an entry ID
-		{
-			ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/host"},
-			SpiffeId: &types.SPIFFEID{
-				TrustDomain: "example.org",
-				Path:        "/id2",
-			},
-			Selectors: []*types.Selector{
-				{Type: "S", Value: "2"},
-			},
-			FederatesWith: []string{"domain2.test"},
-		},
-		// This entry should be ignored since it is missing a SPIFFE ID
-		{
-			Id:       "ENTRYID3",
-			ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/host"},
-			Selectors: []*types.Selector{
-				{Type: "S", Value: "3"},
-			},
-		},
-		// This entry should be ignored since it is missing selectors
-		{
-			Id:       "ENTRYID4",
-			ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/host"},
-			SpiffeId: &types.SPIFFEID{
-				TrustDomain: "example.org",
-				Path:        "/id4",
-			},
 		},
 	}
 
@@ -647,16 +543,14 @@ func TestFetchReleaseWaitsForFetchUpdatesToFinish(t *testing.T) {
 		},
 	}
 
-	update, err := client.FetchUpdates(ctx)
+	cachedEntries := make(map[string]*common.RegistrationEntry)
+	cachedBundles := make(map[string]*common.Bundle)
+	_, err := client.SyncUpdates(ctx, cachedEntries, cachedBundles)
 	require.NoError(t, err)
 
-	assert.Equal(t, testBundles, update.Bundles)
-	// Only the first registration entry should be returned since the rest are
-	// invalid for one reason or another
-	if assert.Len(t, update.Entries, 1) {
-		entry := testEntries[0]
-		assert.Equal(t, entry, update.Entries[entry.EntryId])
-	}
+	assert.Equal(t, testBundles, cachedBundles)
+	entry := testEntries[0]
+	assert.Equal(t, entry, cachedEntries[entry.EntryId])
 	select {
 	case <-waitForRelease:
 	case <-time.After(time.Second * 5):
@@ -744,81 +638,27 @@ func TestNewNodeInternalClientRelease(t *testing.T) {
 	}
 }
 
-func TestFetchUpdatesReleaseConnectionIfItFailsToFetch(t *testing.T) {
-	for _, tt := range []struct {
-		name      string
-		err       string
-		setupTest func(tc *testServer)
-	}{
-		{
-			name: "Entries",
-			setupTest: func(tc *testServer) {
-				tc.entryServer.err = errors.New("an error")
-			},
-			err: "failed to fetch authorized entries: rpc error: code = Unknown desc = an error",
-		},
-		{
-			name: "Agent bundle",
-			setupTest: func(tc *testServer) {
-				tc.bundleServer.bundleErr = errors.New("an error")
-			},
-			err: "failed to fetch bundle: rpc error: code = Unknown desc = an error",
-		},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			client, tc := createClient(t)
-			tt.setupTest(tc)
-
-			update, err := client.FetchUpdates(ctx)
-			assert.Nil(t, update)
-			assert.EqualError(t, err, tt.err)
-			assertConnectionIsNil(t, client)
-		})
-	}
-}
-
-func TestFetchUpdatesReleaseConnectionIfItFails(t *testing.T) {
+func TestSyncUpdatesReleaseConnectionIfItFailsToFetch(t *testing.T) {
 	client, tc := createClient(t)
+	tc.bundleServer.bundleErr = errors.New("an error")
 
-	tc.entryServer.err = errors.New("an error")
-
-	update, err := client.FetchUpdates(ctx)
-	assert.Nil(t, update)
-	assert.Error(t, err)
+	cachedEntries := make(map[string]*common.RegistrationEntry)
+	cachedBundles := make(map[string]*common.Bundle)
+	stats, err := client.SyncUpdates(ctx, cachedEntries, cachedBundles)
+	assert.Zero(t, stats)
+	assert.EqualError(t, err, "failed to fetch bundle: rpc error: code = Unknown desc = an error")
 	assertConnectionIsNil(t, client)
 }
 
-func TestFetchUpdatesAddStructuredLoggingIfCallToFetchEntriesFails(t *testing.T) {
-	logHook.Reset()
-	client, tc := createClient(t)
-
-	tc.entryServer.err = status.Error(codes.Internal, "call to grpc method fetchEntries has failed")
-	update, err := client.FetchUpdates(ctx)
-	assert.Nil(t, update)
-	assert.Error(t, err)
-	assertConnectionIsNil(t, client)
-
-	var entries []spiretest.LogEntry
-	entries = append(entries, spiretest.LogEntry{
-		Level:   logrus.ErrorLevel,
-		Message: "Failed to fetch authorized entries",
-		Data: logrus.Fields{
-			telemetry.StatusCode:    "Internal",
-			telemetry.StatusMessage: "call to grpc method fetchEntries has failed",
-			telemetry.Error:         tc.entryServer.err.Error(),
-		},
-	})
-
-	spiretest.AssertLogs(t, logHook.AllEntries(), entries)
-}
-
-func TestFetchUpdatesAddStructuredLoggingIfCallToFetchBundlesFails(t *testing.T) {
+func TestSyncUpdatesAddStructuredLoggingIfCallToFetchBundlesFails(t *testing.T) {
 	logHook.Reset()
 	client, tc := createClient(t)
 
 	tc.bundleServer.bundleErr = status.Error(codes.Internal, "call to grpc method fetchBundles has failed")
-	update, err := client.FetchUpdates(ctx)
-	assert.Nil(t, update)
+	cachedEntries := make(map[string]*common.RegistrationEntry)
+	cachedBundles := make(map[string]*common.Bundle)
+	stats, err := client.SyncUpdates(ctx, cachedEntries, cachedBundles)
+	assert.Zero(t, stats)
 	assert.Error(t, err)
 	assertConnectionIsNil(t, client)
 
@@ -836,12 +676,12 @@ func TestFetchUpdatesAddStructuredLoggingIfCallToFetchBundlesFails(t *testing.T)
 	spiretest.AssertLogs(t, logHook.AllEntries(), entries)
 }
 
-func TestFetchUpdatesWithManyFederations(t *testing.T) {
+func TestSyncUpdatesWithManyFederations(t *testing.T) {
 	client, tc := createClient(t)
 
 	// Create more federations than the number of workers in fetchFederatedBundlesConcurrently, to
 	// test that they can each consume multiple jobs.
-	const federationCount = 3 * maxBundleWorkers
+	const federationCount = 3 * defaultMaxBundleWorkers
 	federatesWith := make([]string, federationCount)
 	for i := range federationCount {
 		federatesWith[i] = fmt.Sprintf("domain%d.test", i)
@@ -857,7 +697,9 @@ func TestFetchUpdatesWithManyFederations(t *testing.T) {
 		tc.bundleServer.federatedBundles[domain] = makeAPIBundle(domain)
 	}
 
-	update, err := client.FetchUpdates(ctx)
+	cachedEntries := make(map[string]*common.RegistrationEntry)
+	cachedBundles := make(map[string]*common.Bundle)
+	_, err := client.SyncUpdates(ctx, cachedEntries, cachedBundles)
 
 	// Assert results
 	require.Nil(t, err)
@@ -867,16 +709,19 @@ func TestFetchUpdatesWithManyFederations(t *testing.T) {
 	for _, domain := range federatesWith {
 		wantBundles["spiffe://"+domain] = makeCommonBundle(domain)
 	}
-	assert.Equal(t, wantBundles, update.Bundles)
+	assert.Equal(t, wantBundles, cachedBundles)
 	wantEntries := map[string]*common.RegistrationEntry{
 		"ENTRYID1": makeCommonEntry("ENTRYID1", 1234, createdAt, federatesWith),
 	}
-	assert.Equal(t, wantEntries, update.Entries)
+	assert.Equal(t, wantEntries, cachedEntries)
 	assertConnectionIsNotNil(t, client)
 }
 
 func TestFetchJWTSVID(t *testing.T) {
 	client, tc := createClient(t)
+
+	// Keep retries fast so the transient-error cases don't wait on real backoff.
+	defer setJWTSVIDRetryInterval(time.Millisecond)()
 
 	issuedAt := time.Now().Unix()
 	expiresAt := time.Now().Add(time.Minute).Unix()
@@ -884,6 +729,8 @@ func TestFetchJWTSVID(t *testing.T) {
 		name           string
 		setupTest      func(err error)
 		err            string
+		errIsPrefix    bool
+		ctxTimeout     time.Duration
 		expectSVID     *JWTSVID
 		expectSPIFFEID spiffeid.ID
 		fetchErr       error
@@ -910,12 +757,25 @@ func TestFetchJWTSVID(t *testing.T) {
 			expectSPIFFEID: spiffeid.RequireFromString("spiffe://example.org/workload"),
 		},
 		{
-			name: "client fails",
+			name: "transient error gives up when context expires",
 			setupTest: func(err error) {
 				tc.svidServer.newJWTSVID = err
 			},
-			err:      "failed to fetch JWT SVID: rpc error: code = Unknown desc = client fails",
-			fetchErr: errors.New("client fails"),
+			// A transient error is retried until the context deadline, so only
+			// the stable wrapper is asserted (the final error may be the injected
+			// error or a context error, depending on timing).
+			err:         "failed to fetch JWT SVID",
+			errIsPrefix: true,
+			ctxTimeout:  100 * time.Millisecond,
+			fetchErr:    status.Error(codes.Unavailable, "server unavailable"),
+		},
+		{
+			name: "permanent error returns immediately",
+			setupTest: func(err error) {
+				tc.svidServer.newJWTSVID = err
+			},
+			err:      "failed to fetch JWT SVID: rpc error: code = Unimplemented desc = unimplemented",
+			fetchErr: status.Error(codes.Unimplemented, "unimplemented"),
 		},
 		{
 			name: "empty response",
@@ -959,26 +819,27 @@ func TestFetchJWTSVID(t *testing.T) {
 			},
 			err: "JWTSVID issued after it has expired",
 		},
-		{
-			name: "grpc call to NewJWTSVID fails",
-			setupTest: func(err error) {
-				tc.svidServer.jwtSVID = &types.JWTSVID{
-					Token:     "token",
-					ExpiresAt: expiresAt,
-					IssuedAt:  issuedAt,
-				}
-				tc.svidServer.newJWTSVID = err
-			},
-			err:      "failed to fetch JWT SVID: rpc error: code = Internal desc = NewJWTSVID fails",
-			fetchErr: status.Error(codes.Internal, "NewJWTSVID fails"),
-		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
+			// Reset any injected error from a previous case.
+			tc.svidServer.newJWTSVID = nil
 			tt.setupTest(tt.fetchErr)
-			resp, spiffeId, err := client.NewJWTSVID(ctx, "entry-id", []string{"myAud"}, false)
+
+			callCtx := ctx
+			if tt.ctxTimeout > 0 {
+				var cancel context.CancelFunc
+				callCtx, cancel = context.WithTimeout(ctx, tt.ctxTimeout)
+				defer cancel()
+			}
+
+			resp, spiffeId, err := client.NewJWTSVID(callCtx, "entry-id", []string{"myAud"}, false)
 			if tt.err != "" {
 				require.Nil(t, resp)
-				require.EqualError(t, err, tt.err)
+				if tt.errIsPrefix {
+					require.ErrorContains(t, err, tt.err)
+				} else {
+					require.EqualError(t, err, tt.err)
+				}
 				return
 			}
 
@@ -986,6 +847,292 @@ func TestFetchJWTSVID(t *testing.T) {
 			require.NotNil(t, resp)
 			require.Equal(t, tt.expectSVID, resp)
 			require.Equal(t, tt.expectSPIFFEID, spiffeId)
+		})
+	}
+}
+
+func TestNewJWTSVIDRetry(t *testing.T) {
+	defer setJWTSVIDRetryInterval(time.Millisecond)()
+
+	issuedAt := time.Now().Unix()
+	expiresAt := time.Now().Add(time.Minute).Unix()
+	goodSVID := &types.JWTSVID{
+		Token: "token",
+		Id: &types.SPIFFEID{
+			TrustDomain: "example.org",
+			Path:        "/workload",
+		},
+		ExpiresAt: expiresAt,
+		IssuedAt:  issuedAt,
+	}
+
+	t.Run("retries transient errors until success", func(t *testing.T) {
+		client, tc := createClient(t)
+		tc.svidServer.jwtSVID = goodSVID
+		tc.svidServer.newJWTSVID = status.Error(codes.Unavailable, "server unavailable")
+		tc.svidServer.newJWTSVIDFailN = 2
+
+		resp, spiffeID, err := client.NewJWTSVID(ctx, "entry-id", []string{"myAud"}, false)
+		require.NoError(t, err)
+		require.NotNil(t, resp)
+		require.Equal(t, spiffeid.RequireFromString("spiffe://example.org/workload"), spiffeID)
+		require.Equal(t, 3, tc.svidServer.newJWTSVIDCallCount(), "should retry twice before succeeding")
+	})
+
+	t.Run("does not retry permanent errors", func(t *testing.T) {
+		client, tc := createClient(t)
+		tc.svidServer.newJWTSVID = status.Error(codes.Unimplemented, "unimplemented")
+
+		resp, _, err := client.NewJWTSVID(ctx, "entry-id", []string{"myAud"}, false)
+		require.Nil(t, resp)
+		require.EqualError(t, err, "failed to fetch JWT SVID: rpc error: code = Unimplemented desc = unimplemented")
+		require.Equal(t, 1, tc.svidServer.newJWTSVIDCallCount(), "permanent errors must not be retried")
+	})
+
+	t.Run("gives up when the context expires", func(t *testing.T) {
+		client, tc := createClient(t)
+		tc.svidServer.newJWTSVID = status.Error(codes.Unavailable, "server unavailable")
+
+		callCtx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
+		defer cancel()
+
+		resp, _, err := client.NewJWTSVID(callCtx, "entry-id", []string{"myAud"}, false)
+		require.Nil(t, resp)
+		require.ErrorContains(t, err, "failed to fetch JWT SVID")
+		require.Greater(t, tc.svidServer.newJWTSVIDCallCount(), 1, "should have retried more than once")
+	})
+}
+
+// setJWTSVIDRetryInterval overrides the NewJWTSVID retry backoff interval and
+// returns a function that restores the previous value.
+func setJWTSVIDRetryInterval(d time.Duration) func() {
+	prev := jwtSVIDRetryInterval
+	jwtSVIDRetryInterval = d
+	return func() { jwtSVIDRetryInterval = prev }
+}
+
+func TestNewWITSVIDs(t *testing.T) {
+	logHook.Reset()
+
+	sClient, tc := createClient(t)
+	entries := []*types.Entry{
+		{
+			Id:       "ENTRYID1",
+			ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/host"},
+			SpiffeId: &types.SPIFFEID{
+				TrustDomain: "example.org",
+				Path:        "/id1",
+			},
+			Selectors: []*types.Selector{
+				{Type: "S", Value: "1"},
+			},
+			FederatesWith:  []string{"domain1.test"},
+			RevisionNumber: 1234,
+		},
+		// This entry should be ignored since it is missing an entry ID
+		{
+			ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/host"},
+			SpiffeId: &types.SPIFFEID{
+				TrustDomain: "example.org",
+				Path:        "/id2",
+			},
+			Selectors: []*types.Selector{
+				{Type: "S", Value: "2"},
+			},
+			FederatesWith: []string{"domain2.test"},
+		},
+		// This entry should be ignored since it is missing a SPIFFE ID
+		{
+			Id:       "ENTRYID3",
+			ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/host"},
+			Selectors: []*types.Selector{
+				{Type: "S", Value: "3"},
+			},
+		},
+		// This entry should be ignored since it is missing selectors
+		{
+			Id:       "ENTRYID4",
+			ParentId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/host"},
+			SpiffeId: &types.SPIFFEID{
+				TrustDomain: "example.org",
+				Path:        "/id4",
+			},
+		},
+	}
+	witSVIDs := map[string]*types.WITSVID{
+		"entry-id": {
+			Id:        &types.SPIFFEID{TrustDomain: "example.org", Path: "/path"},
+			Token:     "SOME TOKEN",
+			IssuedAt:  12345,
+			ExpiresAt: 54321,
+		},
+	}
+
+	tests := []struct {
+		name           string
+		entries        []*types.Entry
+		witSVIDs       map[string]*types.WITSVID
+		batchSVIDErr   error
+		wantError      assert.ErrorAssertionFunc
+		assertFuncConn func(t *testing.T, client *client)
+		testSvids      map[string]*WITSVID
+		expectedLogs   []spiretest.LogEntry
+	}{
+		{
+			name:           "success",
+			entries:        entries,
+			witSVIDs:       witSVIDs,
+			batchSVIDErr:   nil,
+			wantError:      assert.NoError,
+			assertFuncConn: assertConnectionIsNotNil,
+			testSvids:      testWITSVIDs,
+		},
+		{
+			name:           "failed",
+			entries:        entries,
+			witSVIDs:       witSVIDs,
+			batchSVIDErr:   status.Error(codes.NotFound, "not found when executing BatchNewWITSVID"),
+			wantError:      assert.Error,
+			assertFuncConn: assertConnectionIsNil,
+			testSvids:      nil,
+			expectedLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Failed to batch new WIT-SVID(s)",
+					Data: logrus.Fields{
+						telemetry.StatusCode:    "NotFound",
+						telemetry.StatusMessage: "not found when executing BatchNewWITSVID",
+						logrus.ErrorKey:         "rpc error: code = NotFound desc = not found when executing BatchNewWITSVID",
+					},
+				},
+			},
+		},
+		{
+			name:    "missing SVID",
+			entries: entries,
+			witSVIDs: map[string]*types.WITSVID{
+				"entry-id": nil,
+			},
+			wantError:      assert.NoError,
+			assertFuncConn: assertConnectionIsNotNil,
+			testSvids:      map[string]*WITSVID{},
+			expectedLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Invalid WIT-SVID",
+					Data: logrus.Fields{
+						telemetry.RegistrationID: "entry-id",
+						logrus.ErrorKey:          "WITSVID response missing SVID",
+					},
+				},
+			},
+		},
+		{
+			name:    "missing issued at",
+			entries: entries,
+			witSVIDs: map[string]*types.WITSVID{
+				"entry-id": {
+					Id:        &types.SPIFFEID{TrustDomain: "example.org", Path: "/path"},
+					Token:     "SOME TOKEN",
+					ExpiresAt: 54321,
+				},
+			},
+			wantError:      assert.NoError,
+			assertFuncConn: assertConnectionIsNotNil,
+			testSvids:      map[string]*WITSVID{},
+			expectedLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Invalid WIT-SVID",
+					Data: logrus.Fields{
+						telemetry.RegistrationID: "entry-id",
+						logrus.ErrorKey:          "WITSVID missing issued at",
+					},
+				},
+			},
+		},
+		{
+			name:    "missing expires at",
+			entries: entries,
+			witSVIDs: map[string]*types.WITSVID{
+				"entry-id": {
+					Id:       &types.SPIFFEID{TrustDomain: "example.org", Path: "/path"},
+					Token:    "SOME TOKEN",
+					IssuedAt: 12345,
+				},
+			},
+			wantError:      assert.NoError,
+			assertFuncConn: assertConnectionIsNotNil,
+			testSvids:      map[string]*WITSVID{},
+			expectedLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Invalid WIT-SVID",
+					Data: logrus.Fields{
+						telemetry.RegistrationID: "entry-id",
+						logrus.ErrorKey:          "WITSVID missing expires at",
+					},
+				},
+			},
+		},
+		{
+			name:    "issued after expired",
+			entries: entries,
+			witSVIDs: map[string]*types.WITSVID{
+				"entry-id": {
+					Id:        &types.SPIFFEID{TrustDomain: "example.org", Path: "/path"},
+					Token:     "SOME TOKEN",
+					IssuedAt:  54321,
+					ExpiresAt: 12345,
+				},
+			},
+			wantError:      assert.NoError,
+			assertFuncConn: assertConnectionIsNotNil,
+			testSvids:      map[string]*WITSVID{},
+			expectedLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Invalid WIT-SVID",
+					Data: logrus.Fields{
+						telemetry.RegistrationID: "entry-id",
+						logrus.ErrorKey:          "WITSVID issued after it has expired",
+					},
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tc.entryServer.entries = tt.entries
+			tc.svidServer.witSVIDs = tt.witSVIDs
+			tc.svidServer.batchSVIDErr = tt.batchSVIDErr
+
+			// Simulate an ongoing SVID rotation (request should not be made in the middle of a rotation)
+			sClient.c.RotMtx.Lock()
+
+			// Do the request in a different go routine
+			var wg sync.WaitGroup
+			var svids map[string]*WITSVID
+			err := errors.New("a not nil error")
+			wg.Go(func() {
+				svids, err = sClient.NewWITSVIDs(ctx, newTestPublicKeys(t), "ES256")
+			})
+
+			// The request should wait until the SVID rotation finishes
+			require.Contains(t, "a not nil error", err.Error())
+			require.Nil(t, svids)
+
+			// Simulate the end of the SVID rotation
+			sClient.c.RotMtx.Unlock()
+			wg.Wait()
+
+			// Assert results
+			spiretest.AssertLogsContainEntries(t, logHook.AllEntries(), tt.expectedLogs)
+			tt.assertFuncConn(t, sClient)
+			if !tt.wantError(t, err, fmt.Sprintf("error was not expected for test case %s", tt.name)) {
+				return
+			}
+			assert.Equal(t, tt.testSvids, svids)
 		})
 	}
 }
@@ -1044,25 +1191,10 @@ type fakeEntryServer struct {
 	entryv1.UnimplementedEntryServer
 
 	entries []*types.Entry
-	err     error
 }
 
 func (c *fakeEntryServer) SetEntries(entries ...*types.Entry) {
 	c.entries = entries
-}
-
-func (c *fakeEntryServer) GetAuthorizedEntries(_ context.Context, in *entryv1.GetAuthorizedEntriesRequest) (*entryv1.GetAuthorizedEntriesResponse, error) {
-	if c.err != nil {
-		return nil, c.err
-	}
-
-	if err := checkAuthorizedEntryOutputMask(in.OutputMask); err != nil {
-		return nil, err
-	}
-
-	return &entryv1.GetAuthorizedEntriesResponse{
-		Entries: c.entries,
-	}, nil
 }
 
 func (c *fakeEntryServer) SyncAuthorizedEntries(stream entryv1.Entry_SyncAuthorizedEntriesServer) error {
@@ -1114,11 +1246,21 @@ func (c *fakeBundleServer) GetFederatedBundle(_ context.Context, in *bundlev1.Ge
 type fakeSVIDServer struct {
 	svidv1.UnimplementedSVIDServer
 
+	mu              sync.Mutex
 	batchSVIDErr    error
 	newJWTSVID      error
+	newJWTSVIDFailN int // number of initial NewJWTSVID calls that fail; 0 means every call fails while newJWTSVID is set
+	newJWTSVIDCalls int
 	x509SVIDs       map[string]*types.X509SVID
 	jwtSVID         *types.JWTSVID
+	witSVIDs        map[string]*types.WITSVID
 	simulateRelease func()
+}
+
+func (c *fakeSVIDServer) newJWTSVIDCallCount() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.newJWTSVIDCalls
 }
 
 func (c *fakeSVIDServer) BatchNewX509SVID(_ context.Context, in *svidv1.BatchNewX509SVIDRequest) (*svidv1.BatchNewX509SVIDResponse, error) {
@@ -1158,11 +1300,52 @@ func (c *fakeSVIDServer) BatchNewX509SVID(_ context.Context, in *svidv1.BatchNew
 }
 
 func (c *fakeSVIDServer) NewJWTSVID(context.Context, *svidv1.NewJWTSVIDRequest) (*svidv1.NewJWTSVIDResponse, error) {
-	if c.newJWTSVID != nil {
+	c.mu.Lock()
+	c.newJWTSVIDCalls++
+	call := c.newJWTSVIDCalls
+	c.mu.Unlock()
+
+	if c.newJWTSVID != nil && (c.newJWTSVIDFailN == 0 || call <= c.newJWTSVIDFailN) {
 		return nil, c.newJWTSVID
 	}
 	return &svidv1.NewJWTSVIDResponse{
 		Svid: c.jwtSVID,
+	}, nil
+}
+
+func (c *fakeSVIDServer) BatchNewWITSVID(_ context.Context, in *svidv1.BatchNewWITSVIDRequest) (*svidv1.BatchNewWITSVIDResponse, error) {
+	if c.batchSVIDErr != nil {
+		return nil, c.batchSVIDErr
+	}
+
+	// Simulate async calls
+	if c.simulateRelease != nil {
+		go c.simulateRelease()
+	}
+
+	var results []*svidv1.BatchNewWITSVIDResponse_Result
+	for _, param := range in.Params {
+		svid, ok := c.witSVIDs[param.EntryId]
+		switch {
+		case ok:
+			results = append(results, &svidv1.BatchNewWITSVIDResponse_Result{
+				Status: &types.Status{
+					Code: int32(codes.OK),
+				},
+				Svid: svid,
+			})
+		default:
+			results = append(results, &svidv1.BatchNewWITSVIDResponse_Result{
+				Status: &types.Status{
+					Code:    int32(codes.NotFound),
+					Message: "svid not found",
+				},
+			})
+		}
+	}
+
+	return &svidv1.BatchNewWITSVIDResponse{
+		Results: results,
 	}, nil
 }
 
@@ -1191,24 +1374,6 @@ type testServer struct {
 	bundleServer *fakeBundleServer
 	entryServer  *fakeEntryServer
 	svidServer   *fakeSVIDServer
-}
-
-func checkAuthorizedEntryOutputMask(outputMask *types.EntryMask) error {
-	if diff := cmp.Diff(outputMask, &types.EntryMask{
-		SpiffeId:             true,
-		Selectors:            true,
-		FederatesWith:        true,
-		Admin:                true,
-		Downstream:           true,
-		RevisionNumber:       true,
-		StoreSvid:            true,
-		Hint:                 true,
-		AdditionalAttributes: true,
-		CreatedAt:            true,
-	}, protocmp.Transform()); diff != "" {
-		return status.Errorf(codes.InvalidArgument, "invalid output mask requested: %s", diff)
-	}
-	return nil
 }
 
 func makeAPIBundle(trustDomainName string) *types.Bundle {

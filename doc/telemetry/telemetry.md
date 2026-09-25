@@ -79,8 +79,8 @@ The following metrics are emitted:
 | Call Counter | `agent_key_manager`, `fetch_private_key`                                 |                              | The KeyManager is fetching a private key.                                             |
 | Call Counter | `agent_key_manager`, `store_private_key`                                 |                              | The KeyManager is storing a private key.                                              |
 | Call Counter | `agent_svid`, `rotate`                                                   |                              | The Agent's SVID is being rotated.                                                    |
-| Sample       | `cache_manager`, `expiring_svids`                                        |                              | The number of expiring SVIDs that the Cache Manager has.                              |
-| Sample       | `cache_manager`, `outdated_svids`                                        |                              | The number of outdated SVIDs that the Cache Manager has.                              |
+| Sample       | `cache_manager`, `expiring_svids`                                        | `svid_type`                  | The number of expiring SVIDs that the Cache Manager has.                              |
+| Sample       | `cache_manager`, `outdated_svids`                                        | `svid_type`                  | The number of outdated SVIDs that the Cache Manager has.                              |
 | Sample       | `cache_manager`, `tainted_jwt_svids`, `workload`                         |                              | The number of tainted JWT-SVIDs according to the agent cache manager.                 |
 | Sample       | `cache_manager`, `tainted_x509_svids`, `workload`                        |                              | The number of tainted X509-SVIDs according to the agent cache manager.                |
 | Counter      | `lru_cache_entry_add`                                                    |                              | The number of entries added to the LRU cache.                                         |
@@ -92,10 +92,10 @@ The following metrics are emitted:
 | Call Counter | `cache_manager`, `workload`, `process_tainted_jwt_svids`                 |                              | The Sync Manager is processing tainted JWTSVIDs.                                      |
 | Call Counter | `cache_manager`, `workload`, `process_tainted_x509_svids`                |                              | The Sync Manager is processing tainted X.509 SVIDs.                                   |
 | Call Counter | `cache_manager`, `svid_store`, `process_tainted_x509_svids`              |                              | The Sync Manager is processing tainted X.509 SVIDs in the SVID store cache.           |
-| Gauge        | `lru_cache_record_map_size`                                              |                              | The total number of entries in the LRU cache records map.                             |
+| Gauge        | `lru_cache_record_map_size`                                              | `svid_type`                  | The total number of entries in the LRU cache records map.                             |
 | Counter      | `sds_api`, `connections`                                                 |                              | The SDS API has successfully established a connection.                                |
 | Gauge        | `sds_api`, `connections`                                                 |                              | The number of active connection that the SDS API has.                                 |
-| Gauge        | `lru_cache_svid_map_size`                                                |                              | The total number of SVIDs in the LRU cache SVID map.                                  |
+| Gauge        | `lru_cache_svid_map_size`                                                | `svid_type`                  | The total number of SVIDs in the LRU cache SVID map.                                  |
 | Gauge        | `jwt_svid_cache_size`                                                    |                              | The total number of JWT-SVIDs in the JWT-SVID cache.                                  |
 | Counter      | `workload_api`, `bundles_update`, `jwt`                                  |                              | The Workload API has successfully updated a JWT bundle.                               |
 | Counter      | `workload_api`, `connection`                                             |                              | The Workload API has successfully established a new connection.                       |
@@ -111,6 +111,7 @@ The following metrics are emitted:
 | Counter      | `delegated_identity_api`, `connection`                                   |                              | The Delegated Identity API has successfully established a connection.                 |
 | Gauge        | `delegated_identity_api`, `connections`                                  |                              | The number of active connection that the Delegated Identity API has.                  |
 | Latency      | `delegated_identity_api`, `subscribe_x509_svid` `first_x509_svid_update` |                              | The latency fetching first X.509-SVID in Delegated Identity API.                      |
+| Latency      | `broker_api`, `subscribe_x509_svids`, `first_update`                     |                              | The latency fetching first X.509-SVID in the SPIFFE Broker API.                       |
 
 Note: These are the keys and labels that SPIRE emits, but the format of the
 metric once ingested could vary depending on the metric collector. For example,

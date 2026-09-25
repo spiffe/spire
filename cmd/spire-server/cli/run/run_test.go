@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"crypto/tls"
+
 	"github.com/hashicorp/hcl"
 	"github.com/hashicorp/hcl/hcl/ast"
 	"github.com/sirupsen/logrus"
@@ -17,6 +19,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/log"
 	"github.com/spiffe/spire/pkg/common/telemetry"
+	"github.com/spiffe/spire/pkg/common/tlspolicy"
 	"github.com/spiffe/spire/pkg/server"
 	bundleClient "github.com/spiffe/spire/pkg/server/bundle/client"
 	"github.com/spiffe/spire/pkg/server/credtemplate"
@@ -721,6 +724,45 @@ func TestNewServerConfig(t *testing.T) {
 			},
 		},
 		{
+			// not an OS specific case: unlike the signal based reopen, in
+			// process rotation works on every platform
+			msg: "log_file_rotation configures a self rotating log file",
+			input: func(c *Config) {
+				c.Server.LogFile = filepath.Join(spiretest.TempDir(t), "server.log")
+				c.Server.LogFileRotation = &log.RotationConfig{MaxSizeMB: new(10), MaxFiles: new(3)}
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.NotNil(t, c.Log)
+				require.NotNil(t, c.LogReopener)
+
+				l := c.Log.(*log.Logger)
+				// the temp dir cannot be removed on Windows while the log
+				// file is still open
+				t.Cleanup(func() { _ = l.Close() })
+
+				rotatable, ok := l.Out.(*log.RotatableFile)
+				require.True(t, ok, "expected a RotatableFile, got %T", l.Out)
+				require.FileExists(t, rotatable.Name())
+			},
+		},
+		{
+			msg: "log_file without log_file_rotation stays reopenable",
+			input: func(c *Config) {
+				c.Server.LogFile = filepath.Join(spiretest.TempDir(t), "server.log")
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.NotNil(t, c.Log)
+				require.NotNil(t, c.LogReopener)
+
+				l := c.Log.(*log.Logger)
+				// the temp dir cannot be removed on Windows while the log
+				// file is still open
+				t.Cleanup(func() { _ = l.Close() })
+
+				require.IsType(t, &log.ReopenableFile{}, l.Out)
+			},
+		},
+		{
 			msg: "bundle endpoint is parsed and configured correctly",
 			input: func(c *Config) {
 				c.Server.Federation = &federationConfig{
@@ -919,6 +961,88 @@ func TestNewServerConfig(t *testing.T) {
 						EndpointProfile: bundleClient.HTTPSWebProfile{},
 					},
 				}, c.Federation.FederatesWith)
+			},
+		},
+		{
+			msg: "federates_with bootstrap_bundle_path is parsed for https_spiffe",
+			input: func(c *Config) {
+				cfg := httpsSPIFFEConfigTest(t)
+				cfg.BootstrapBundlePath = "/etc/spire/domain1.pem"
+				c.Server.Federation = &federationConfig{
+					FederatesWith: map[string]federatesWithConfig{
+						"domain1.test": cfg,
+					},
+				}
+			},
+			test: func(t *testing.T, c *server.Config) {
+				got := c.Federation.FederatesWith[spiffeid.RequireTrustDomainFromString("domain1.test")]
+				require.Equal(t, "/etc/spire/domain1.pem", got.BootstrapBundlePath)
+				require.Equal(t, bundleClient.BootstrapBundleFormatPEM, got.BootstrapBundleFormat)
+			},
+		},
+		{
+			msg: "federates_with bootstrap_bundle_path is rejected for https_web",
+			input: func(c *Config) {
+				cfg := webPKIConfigTest(t)
+				cfg.BootstrapBundlePath = "/etc/spire/domain2.pem"
+				c.Server.Federation = &federationConfig{
+					FederatesWith: map[string]federatesWithConfig{
+						"domain2.test": cfg,
+					},
+				}
+			},
+			expectError: true,
+			test: func(t *testing.T, c *server.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
+			msg: "federates_with bootstrap_bundle_path is rejected for a non-self-serving endpoint",
+			input: func(c *Config) {
+				cfg := httpsSPIFFEConfigTest(t)
+				cfg.BootstrapBundlePath = "/etc/spire/domain1.pem"
+				c.Server.Federation = &federationConfig{
+					FederatesWith: map[string]federatesWithConfig{
+						"other.test": cfg,
+					},
+				}
+			},
+			expectError: true,
+			test: func(t *testing.T, c *server.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
+			msg: "federates_with bootstrap_bundle_format without path is rejected",
+			input: func(c *Config) {
+				cfg := httpsSPIFFEConfigTest(t)
+				cfg.BootstrapBundleFormat = bundleClient.BootstrapBundleFormatSPIFFE
+				c.Server.Federation = &federationConfig{
+					FederatesWith: map[string]federatesWithConfig{
+						"domain1.test": cfg,
+					},
+				}
+			},
+			expectError: true,
+			test: func(t *testing.T, c *server.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
+			msg: "federates_with bootstrap_bundle_format must be pem or spiffe",
+			input: func(c *Config) {
+				cfg := httpsSPIFFEConfigTest(t)
+				cfg.BootstrapBundlePath = "/etc/spire/domain1.pem"
+				cfg.BootstrapBundleFormat = "der"
+				c.Server.Federation = &federationConfig{
+					FederatesWith: map[string]federatesWithConfig{
+						"domain1.test": cfg,
+					},
+				}
+			},
+			expectError: true,
+			test: func(t *testing.T, c *server.Config) {
+				require.Nil(t, c)
 			},
 		},
 		{
@@ -1383,6 +1507,32 @@ func TestNewServerConfig(t *testing.T) {
 				require.Equal(t, true, c.TLSPolicy.RequirePQKEM)
 			},
 		},
+		{
+			msg:   "TLS config is omitted by default",
+			input: func(c *Config) {},
+			test: func(t *testing.T, c *server.Config) {
+				require.Nil(t, c.TLSPolicy.TLSCfg)
+			},
+		},
+		{
+			msg: "TLS config is configured",
+			input: func(c *Config) {
+				c.Server.TLSConfig = &tlspolicy.TLSConfig{
+					MinTLSVersion:    "VersionTLS13",
+					CipherSuites:     []string{"TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"},
+					CurvePreferences: []string{"X25519", "secp256r1"},
+				}
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.NotNil(t, c.TLSPolicy.TLSCfg)
+				require.Equal(t, uint16(tls.VersionTLS13), c.TLSPolicy.TLSCfg.MinTLSVersion)
+				require.Nil(t, c.TLSPolicy.TLSCfg.CipherSuites)
+				require.Equal(t, []tls.CurveID{
+					tls.X25519,
+					tls.CurveP256,
+				}, c.TLSPolicy.TLSCfg.CurvePreferences)
+			},
+		},
 	}
 	cases = append(cases, newServerConfigCasesOS(t)...)
 
@@ -1407,6 +1557,53 @@ func TestNewServerConfig(t *testing.T) {
 			testCase.test(t, sc)
 		})
 	}
+}
+
+func TestParseTLSConfigFromHCL(t *testing.T) {
+	const configString = `
+server {
+    bind_address = "0.0.0.0"
+    bind_port = "8081"
+    trust_domain = "example.org"
+    data_dir = "."
+    log_level = "INFO"
+    tls_config {
+        min_tls_version = "VersionTLS13"
+        cipher_suites = [
+            "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
+            "TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384",
+        ]
+        curve_preferences = [
+            "X25519MLKEM768",
+            "X25519",
+            "secp256r1",
+        ]
+    }
+    experimental {
+        require_pq_kem = true
+    }
+}
+plugins {}
+`
+	c := &Config{}
+	require.NoError(t, hcl.Decode(c, configString))
+
+	require.NotNil(t, c.Server.TLSConfig)
+	require.Equal(t, "VersionTLS13", c.Server.TLSConfig.MinTLSVersion)
+	require.Equal(t, []string{
+		"TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
+		"TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384",
+	}, c.Server.TLSConfig.CipherSuites)
+	require.Equal(t, []string{"X25519MLKEM768", "X25519", "secp256r1"}, c.Server.TLSConfig.CurvePreferences)
+	require.True(t, c.Server.Experimental.RequirePQKEM)
+
+	sc, err := NewServerConfig(c, nil, false)
+	require.NoError(t, err)
+	require.True(t, sc.TLSPolicy.RequirePQKEM)
+	require.NotNil(t, sc.TLSPolicy.TLSCfg)
+	require.Equal(t, uint16(tls.VersionTLS13), sc.TLSPolicy.TLSCfg.MinTLSVersion)
+	require.Nil(t, sc.TLSPolicy.TLSCfg.CipherSuites)
+	require.Equal(t, []tls.CurveID{tls.X25519MLKEM768, tls.X25519, tls.CurveP256}, sc.TLSPolicy.TLSCfg.CurvePreferences)
 }
 
 // defaultValidConfig returns the bare minimum config required to
@@ -1457,6 +1654,29 @@ func TestValidateConfig(t *testing.T) {
 			name:        "plugins section must be configured",
 			applyConf:   func(c *Config) { c.Plugins = nil },
 			expectedErr: "plugins section must be configured",
+		},
+		{
+			name: "log_file_rotation requires log_file",
+			applyConf: func(c *Config) {
+				c.Server.LogFileRotation = &log.RotationConfig{MaxSizeMB: new(10)}
+			},
+			expectedErr: "log_file must be configured to use log_file_rotation",
+		},
+		{
+			name: "log_file_rotation max_size_mb must not be negative",
+			applyConf: func(c *Config) {
+				c.Server.LogFile = "foo"
+				c.Server.LogFileRotation = &log.RotationConfig{MaxSizeMB: new(-1)}
+			},
+			expectedErr: "invalid log_file_rotation configuration: max_size_mb (-1) must not be negative",
+		},
+		{
+			name: "log_file_rotation max_files must not be negative",
+			applyConf: func(c *Config) {
+				c.Server.LogFile = "foo"
+				c.Server.LogFileRotation = &log.RotationConfig{MaxFiles: new(-1)}
+			},
+			expectedErr: "invalid log_file_rotation configuration: max_files (-1) must not be negative",
 		},
 		{
 			name: "if ACME is used, federation.bundle_endpoint.acme.domain_name must be configured",
@@ -1560,6 +1780,16 @@ func TestWarnOnUnknownConfig(t *testing.T) {
 			expectedLogEntries: []logEntry{
 				{
 					section: "server",
+					keys:    "unknown_option1,unknown_option2",
+				},
+			},
+		},
+		{
+			msg:      "in nested log_file_rotation block",
+			confFile: "server_bad_nested_log_file_rotation_block.conf",
+			expectedLogEntries: []logEntry{
+				{
+					section: "log_file_rotation",
 					keys:    "unknown_option1,unknown_option2",
 				},
 			},
@@ -2206,6 +2436,73 @@ func bundleEndpointProfileUnknownTest(t *testing.T) *bundleEndpointConfig {
 	require.NoError(t, hcl.Decode(config, configString))
 
 	return config
+}
+
+type unknownEndpointProfile struct{}
+
+func (unknownEndpointProfile) Name() string { return "unknown" }
+
+func TestValidateFederatesWithBootstrap(t *testing.T) {
+	td := spiffeid.RequireTrustDomainFromString("domain1.test")
+	spiffeCfg := &bundleClient.TrustDomainConfig{
+		EndpointURL: "https://192.168.1.1:1337",
+		EndpointProfile: bundleClient.HTTPSSPIFFEProfile{
+			EndpointSPIFFEID: spiffeid.RequireFromString("spiffe://domain1.test/bundle/endpoint"),
+		},
+	}
+
+	t.Run("ok", func(t *testing.T) {
+		cfg := *spiffeCfg
+		cfg.BootstrapBundlePath = "/etc/spire/domain1.pem"
+		cfg.BootstrapBundleFormat = bundleClient.BootstrapBundleFormatPEM
+		require.NoError(t, validateFederatesWithBootstrap(td, &cfg))
+	})
+
+	t.Run("https_web", func(t *testing.T) {
+		cfg := &bundleClient.TrustDomainConfig{
+			EndpointURL:           "https://192.168.1.1:1337",
+			EndpointProfile:       bundleClient.HTTPSWebProfile{},
+			BootstrapBundlePath:   "/etc/spire/domain1.pem",
+			BootstrapBundleFormat: bundleClient.BootstrapBundleFormatPEM,
+		}
+		require.EqualError(t, validateFederatesWithBootstrap(td, cfg),
+			"bootstrap_bundle_path is only supported with the https_spiffe bundle endpoint profile")
+	})
+
+	t.Run("unknown profile", func(t *testing.T) {
+		cfg := &bundleClient.TrustDomainConfig{
+			EndpointURL:           "https://192.168.1.1:1337",
+			EndpointProfile:       unknownEndpointProfile{},
+			BootstrapBundlePath:   "/etc/spire/domain1.pem",
+			BootstrapBundleFormat: bundleClient.BootstrapBundleFormatPEM,
+		}
+		require.EqualError(t, validateFederatesWithBootstrap(td, cfg),
+			"bootstrap_bundle_path is only supported with the https_spiffe bundle endpoint profile")
+	})
+
+	t.Run("non-self-serving", func(t *testing.T) {
+		cfg := *spiffeCfg
+		cfg.BootstrapBundlePath = "/etc/spire/domain1.pem"
+		cfg.BootstrapBundleFormat = bundleClient.BootstrapBundleFormatPEM
+		other := spiffeid.RequireTrustDomainFromString("other.test")
+		require.EqualError(t, validateFederatesWithBootstrap(other, &cfg),
+			"bootstrap_bundle_path is only supported when the endpoint SPIFFE ID is in the federated trust domain")
+	})
+
+	t.Run("format without path", func(t *testing.T) {
+		cfg := *spiffeCfg
+		cfg.BootstrapBundleFormat = bundleClient.BootstrapBundleFormatSPIFFE
+		require.EqualError(t, validateFederatesWithBootstrap(td, &cfg),
+			"bootstrap_bundle_format is set but bootstrap_bundle_path is empty")
+	})
+
+	t.Run("bad format", func(t *testing.T) {
+		cfg := *spiffeCfg
+		cfg.BootstrapBundlePath = "/etc/spire/domain1.pem"
+		cfg.BootstrapBundleFormat = "der"
+		require.EqualError(t, validateFederatesWithBootstrap(td, &cfg),
+			`bootstrap_bundle_format must be "pem" or "spiffe"`)
+	})
 }
 
 func httpsSPIFFEConfigTest(t *testing.T) federatesWithConfig {

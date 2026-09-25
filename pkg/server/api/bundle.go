@@ -92,12 +92,18 @@ func ProtoToBundle(b *types.Bundle) (*common.Bundle, error) {
 		return nil, fmt.Errorf("unable to parse JWT authority: %w", err)
 	}
 
+	witSigningKeys, err := ParseWITAuthorities(b.WitAuthorities)
+	if err != nil {
+		return nil, fmt.Errorf("unable to parse WIT authority: %w", err)
+	}
+
 	commonBundle := &common.Bundle{
 		TrustDomainId:  td.IDString(),
 		RefreshHint:    b.RefreshHint,
 		SequenceNumber: b.SequenceNumber,
 		RootCas:        rootCas,
 		JwtSigningKeys: jwtSigningKeys,
+		WitSigningKeys: witSigningKeys,
 	}
 
 	return commonBundle, nil
@@ -110,6 +116,7 @@ func ProtoToBundleMask(mask *types.BundleMask) *common.BundleMask {
 
 	return &common.BundleMask{
 		JwtSigningKeys: mask.JwtAuthorities,
+		WitSigningKeys: mask.WitAuthorities,
 		RootCas:        mask.X509Authorities,
 		RefreshHint:    mask.RefreshHint,
 		SequenceNumber: mask.SequenceNumber,
@@ -152,6 +159,27 @@ func ParseJWTAuthorities(keys []*types.JWTKey) ([]*common.PublicKey, error) {
 	return jwtKeys, nil
 }
 
+func ParseWITAuthorities(keys []*types.WITKey) ([]*common.PublicKey, error) {
+	var witKeys []*common.PublicKey
+	for _, key := range keys {
+		if _, err := x509.ParsePKIXPublicKey(key.PublicKey); err != nil {
+			return nil, err
+		}
+
+		if key.KeyId == "" {
+			return nil, errors.New("missing key ID")
+		}
+
+		witKeys = append(witKeys, &common.PublicKey{
+			PkixBytes: key.PublicKey,
+			Kid:       key.KeyId,
+			NotAfter:  key.ExpiresAt,
+		})
+	}
+
+	return witKeys, nil
+}
+
 func HashByte(b []byte) string {
 	if len(b) == 0 {
 		return ""
@@ -178,6 +206,10 @@ func FieldsFromBundleProto(proto *types.Bundle, inputMask *types.BundleMask) log
 		maps.Copy(fields, FieldsFromJwtAuthoritiesProto(proto.JwtAuthorities))
 	}
 
+	if inputMask == nil || inputMask.WitAuthorities {
+		maps.Copy(fields, FieldsFromWITAuthoritiesProto(proto.WitAuthorities))
+	}
+
 	if inputMask == nil || inputMask.X509Authorities {
 		maps.Copy(fields, FieldsFromX509AuthoritiesProto(proto.X509Authorities))
 	}
@@ -190,6 +222,17 @@ func FieldsFromJwtAuthoritiesProto(jwtAuthorities []*types.JWTKey) logrus.Fields
 		fields[fmt.Sprintf("%s.%d", telemetry.JWTAuthorityExpiresAt, i)] = jwtAuthority.ExpiresAt
 		fields[fmt.Sprintf("%s.%d", telemetry.JWTAuthorityKeyID, i)] = jwtAuthority.KeyId
 		fields[fmt.Sprintf("%s.%d", telemetry.JWTAuthorityPublicKeySHA256, i)] = HashByte(jwtAuthority.PublicKey)
+	}
+
+	return fields
+}
+
+func FieldsFromWITAuthoritiesProto(witAuthorities []*types.WITKey) logrus.Fields {
+	fields := make(logrus.Fields, 3*len(witAuthorities))
+	for i, witAuthority := range witAuthorities {
+		fields[fmt.Sprintf("%s.%d", telemetry.WITAuthorityExpiresAt, i)] = witAuthority.ExpiresAt
+		fields[fmt.Sprintf("%s.%d", telemetry.WITAuthorityKeyID, i)] = witAuthority.KeyId
+		fields[fmt.Sprintf("%s.%d", telemetry.WITAuthorityPublicKeySHA256, i)] = HashByte(witAuthority.PublicKey)
 	}
 
 	return fields

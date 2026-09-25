@@ -68,7 +68,7 @@ type Version interface {
 	New() Facade
 
 	// Deprecated returns whether the version is deprecated.
-	Deprecated() bool
+	Deprecated() (bool, string)
 }
 
 // Facade is a facade for a specific plugin or service version.

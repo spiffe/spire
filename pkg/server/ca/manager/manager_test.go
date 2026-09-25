@@ -1067,23 +1067,19 @@ func TestPruneCAJournals(t *testing.T) {
 			name: "no journals with CAs expired before the threshold - no journals to be pruned",
 			testJournals: []*testJournal{
 				{
-					Journal: Journal{
-						config: jc,
-						entries: &journal.Entries{
-							X509CAs: []*journal.X509CAEntry{{NotAfter: now}, {NotAfter: tomorrow}},
-							JwtKeys: []*journal.JWTKeyEntry{{NotAfter: now}, {NotAfter: tomorrow}},
-							WitKeys: []*journal.WITKeyEntry{{NotAfter: now}, {NotAfter: tomorrow}},
-						},
+					config: jc,
+					entries: &journal.Entries{
+						X509CAs: []*journal.X509CAEntry{{NotAfter: now}, {NotAfter: tomorrow}},
+						JwtKeys: []*journal.JWTKeyEntry{{NotAfter: now}, {NotAfter: tomorrow}},
+						WitKeys: []*journal.WITKeyEntry{{NotAfter: now}, {NotAfter: tomorrow}},
 					},
 				},
 				{
-					Journal: Journal{
-						config: jc,
-						entries: &journal.Entries{
-							X509CAs: []*journal.X509CAEntry{{NotAfter: now}, {NotAfter: tomorrow}},
-							JwtKeys: []*journal.JWTKeyEntry{{NotAfter: now}, {NotAfter: tomorrow}},
-							WitKeys: []*journal.WITKeyEntry{{NotAfter: now}, {NotAfter: tomorrow}},
-						},
+					config: jc,
+					entries: &journal.Entries{
+						X509CAs: []*journal.X509CAEntry{{NotAfter: now}, {NotAfter: tomorrow}},
+						JwtKeys: []*journal.JWTKeyEntry{{NotAfter: now}, {NotAfter: tomorrow}},
+						WitKeys: []*journal.WITKeyEntry{{NotAfter: now}, {NotAfter: tomorrow}},
 					},
 				},
 			},
@@ -1092,23 +1088,19 @@ func TestPruneCAJournals(t *testing.T) {
 			name: "some journals with CAs expired before the threshold, but not all - no journals to be pruned",
 			testJournals: []*testJournal{
 				{
-					Journal: Journal{
-						config: jc,
-						entries: &journal.Entries{
-							X509CAs: []*journal.X509CAEntry{{NotAfter: tomorrow}, {NotAfter: beforeThreshold}},
-							JwtKeys: []*journal.JWTKeyEntry{{NotAfter: beforeThreshold}, {NotAfter: tomorrow}},
-							WitKeys: []*journal.WITKeyEntry{{NotAfter: beforeThreshold}, {NotAfter: tomorrow}},
-						},
+					config: jc,
+					entries: &journal.Entries{
+						X509CAs: []*journal.X509CAEntry{{NotAfter: tomorrow}, {NotAfter: beforeThreshold}},
+						JwtKeys: []*journal.JWTKeyEntry{{NotAfter: beforeThreshold}, {NotAfter: tomorrow}},
+						WitKeys: []*journal.WITKeyEntry{{NotAfter: beforeThreshold}, {NotAfter: tomorrow}},
 					},
 				},
 				{
-					Journal: Journal{
-						config: jc,
-						entries: &journal.Entries{
-							X509CAs: []*journal.X509CAEntry{{NotAfter: tomorrow}, {NotAfter: beforeThreshold}},
-							JwtKeys: []*journal.JWTKeyEntry{{NotAfter: beforeThreshold}, {NotAfter: tomorrow}},
-							WitKeys: []*journal.WITKeyEntry{{NotAfter: beforeThreshold}, {NotAfter: tomorrow}},
-						},
+					config: jc,
+					entries: &journal.Entries{
+						X509CAs: []*journal.X509CAEntry{{NotAfter: tomorrow}, {NotAfter: beforeThreshold}},
+						JwtKeys: []*journal.JWTKeyEntry{{NotAfter: beforeThreshold}, {NotAfter: tomorrow}},
+						WitKeys: []*journal.WITKeyEntry{{NotAfter: beforeThreshold}, {NotAfter: tomorrow}},
 					},
 				},
 			},
@@ -1118,23 +1110,19 @@ func TestPruneCAJournals(t *testing.T) {
 			testJournals: []*testJournal{
 				{
 					shouldBePruned: true,
-					Journal: Journal{
-						config: jc,
-						entries: &journal.Entries{
-							X509CAs: []*journal.X509CAEntry{{NotAfter: beforeThreshold}, {NotAfter: beforeThreshold}},
-							JwtKeys: []*journal.JWTKeyEntry{{NotAfter: beforeThreshold}, {NotAfter: beforeThreshold}},
-							WitKeys: []*journal.WITKeyEntry{{NotAfter: beforeThreshold}, {NotAfter: tomorrow}},
-						},
+					config:         jc,
+					entries: &journal.Entries{
+						X509CAs: []*journal.X509CAEntry{{NotAfter: beforeThreshold}, {NotAfter: beforeThreshold}},
+						JwtKeys: []*journal.JWTKeyEntry{{NotAfter: beforeThreshold}, {NotAfter: beforeThreshold}},
+						WitKeys: []*journal.WITKeyEntry{{NotAfter: beforeThreshold}, {NotAfter: tomorrow}},
 					},
 				},
 				{
-					Journal: Journal{
-						config: jc,
-						entries: &journal.Entries{
-							X509CAs: []*journal.X509CAEntry{{NotAfter: tomorrow}, {NotAfter: beforeThreshold}},
-							JwtKeys: []*journal.JWTKeyEntry{{NotAfter: beforeThreshold}, {NotAfter: tomorrow}},
-							WitKeys: []*journal.WITKeyEntry{{NotAfter: beforeThreshold}, {NotAfter: tomorrow}},
-						},
+					config: jc,
+					entries: &journal.Entries{
+						X509CAs: []*journal.X509CAEntry{{NotAfter: tomorrow}, {NotAfter: beforeThreshold}},
+						JwtKeys: []*journal.JWTKeyEntry{{NotAfter: beforeThreshold}, {NotAfter: tomorrow}},
+						WitKeys: []*journal.WITKeyEntry{{NotAfter: beforeThreshold}, {NotAfter: tomorrow}},
 					},
 				},
 			},

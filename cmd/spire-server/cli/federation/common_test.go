@@ -71,6 +71,14 @@ const (
                         "crv": "P-256",
                         "x": "fK-wKTnKL7KFLM27lqq5DC-bxrVaH6rDV-IcCSEOeL4",
                         "y": "wq-g3TQWxYlV51TCPH030yXsRxvujD4hUUaIQrXk4KI"
+                    },
+                    {
+                        "use": "wit-svid",
+                        "kty": "EC",
+                        "kid": "WIT-KID",
+                        "crv": "P-256",
+                        "x": "HxVuaUnxgi431G5D3g9hqeaQhEbsyQZXmaas7qsUC_c",
+                        "y": "SFd_uVlwYNkXrh0219eHUSD4o-4RGXoiMFJKysw5GK4"
                     }
                 ]
             }
@@ -98,6 +106,14 @@ const (
             "crv": "P-256",
             "x": "fK-wKTnKL7KFLM27lqq5DC-bxrVaH6rDV-IcCSEOeL4",
             "y": "wq-g3TQWxYlV51TCPH030yXsRxvujD4hUUaIQrXk4KI"
+        },
+        {
+            "use": "wit-svid",
+            "kty": "EC",
+            "kid": "WIT-KID",
+            "crv": "P-256",
+            "x": "HxVuaUnxgi431G5D3g9hqeaQhEbsyQZXmaas7qsUC_c",
+            "y": "SFd_uVlwYNkXrh0219eHUSD4o-4RGXoiMFJKysw5GK4"
         }
     ]
 }`

@@ -207,6 +207,157 @@ func (s *Suite) TestInvalidAWSConfiguration() {
 	}
 }
 
+func (s *Suite) TestInvalidAzureConfiguration() {
+	testCases := []struct {
+		name        string
+		config      string
+		expectedErr string
+	}{
+		{
+			name: "azure_postgres - no auth_type",
+			config: `
+			database_type "azure_postgres" {}
+			connection_string = "dbname=postgres user=postgres host=the-host sslmode=require"`,
+			expectedErr: "auth_type must be set to one of",
+		},
+		{
+			name: "azure_postgres - unknown auth_type",
+			config: `
+			database_type "azure_postgres" {
+				auth_type = "bogus"
+			}
+			connection_string = "dbname=postgres user=postgres host=the-host sslmode=require"`,
+			expectedErr: `invalid auth_type "bogus"`,
+		},
+		{
+			name: "azure_postgres - client_secret missing tenant_id",
+			config: `
+			database_type "azure_postgres" {
+				auth_type = "client_secret"
+				client_id = "client-id"
+				client_secret = "client-secret"
+			}
+			connection_string = "dbname=postgres user=postgres host=the-host sslmode=require"`,
+			expectedErr: "tenant_id must be set (or the AZURE_TENANT_ID environment variable) when auth_type is \"client_secret\"",
+		},
+		{
+			name: "azure_postgres - client_secret missing client_id and client_secret",
+			config: `
+			database_type "azure_postgres" {
+				auth_type = "client_secret"
+				tenant_id = "tenant-id"
+			}
+			connection_string = "dbname=postgres user=postgres host=the-host sslmode=require"`,
+			expectedErr: "client_id must be set (or the AZURE_CLIENT_ID environment variable) when auth_type is \"client_secret\"",
+		},
+		{
+			name: "azure_postgres - client_secret missing client_secret",
+			config: `
+			database_type "azure_postgres" {
+				auth_type = "client_secret"
+				tenant_id = "tenant-id"
+				client_id = "client-id"
+			}
+			connection_string = "dbname=postgres user=postgres host=the-host sslmode=require"`,
+			expectedErr: "client_secret must be set (or the AZURE_CLIENT_SECRET environment variable) when auth_type is \"client_secret\"",
+		},
+		{
+			name: "azure_postgres - client_certificate missing tenant_id",
+			config: `
+			database_type "azure_postgres" {
+				auth_type = "client_certificate"
+				client_id = "client-id"
+				client_certificate_path = "/some/path.pem"
+			}
+			connection_string = "dbname=postgres user=postgres host=the-host sslmode=require"`,
+			expectedErr: "tenant_id must be set (or the AZURE_TENANT_ID environment variable) when auth_type is \"client_certificate\"",
+		},
+		{
+			name: "azure_postgres - client_certificate missing client_certificate_path",
+			config: `
+			database_type "azure_postgres" {
+				auth_type = "client_certificate"
+				tenant_id = "tenant-id"
+				client_id = "client-id"
+			}
+			connection_string = "dbname=postgres user=postgres host=the-host sslmode=require"`,
+			expectedErr: "client_certificate_path must be set (or the AZURE_CLIENT_CERTIFICATE_PATH environment variable) when auth_type is \"client_certificate\"",
+		},
+		{
+			name: "azure_postgres - workload_identity missing tenant_id",
+			config: `
+			database_type "azure_postgres" {
+				auth_type = "workload_identity"
+				client_id = "client-id"
+				federated_token_file = "/some/path"
+			}
+			connection_string = "dbname=postgres user=postgres host=the-host sslmode=require"`,
+			expectedErr: "tenant_id must be set (or the AZURE_TENANT_ID environment variable) when auth_type is \"workload_identity\"",
+		},
+		{
+			name: "azure_postgres - workload_identity missing federated_token_file",
+			config: `
+			database_type "azure_postgres" {
+				auth_type = "workload_identity"
+				tenant_id = "tenant-id"
+				client_id = "client-id"
+			}
+			connection_string = "dbname=postgres user=postgres host=the-host sslmode=require"`,
+			expectedErr: "federated_token_file must be set (or the AZURE_FEDERATED_TOKEN_FILE environment variable) when auth_type is \"workload_identity\"",
+		},
+		{
+			name: "azure_postgres - user_managed_identity missing client_id and resource id",
+			config: `
+			database_type "azure_postgres" {
+				auth_type = "user_managed_identity"
+			}
+			connection_string = "dbname=postgres user=postgres host=the-host sslmode=require"`,
+			expectedErr: "client_id (or the AZURE_CLIENT_ID environment variable) or managed_identity_resource_id must be set",
+		},
+		{
+			name: "azure_postgres - password already present in connection_string",
+			config: `
+			database_type "azure_postgres" {
+				auth_type = "system_managed_identity"
+			}
+			connection_string = "dbname=postgres user=postgres host=the-host sslmode=require password=should-not-be-here"`,
+			expectedErr: "invalid postgres configuration: password should not be set when using Microsoft Entra ID authentication",
+		},
+		{
+			name: "azure_mysql - no auth_type",
+			config: `
+			database_type "azure_mysql" {}
+			connection_string = "test_user@tcp(the-host:3306)/spire?parseTime=true"`,
+			expectedErr: "auth_type must be set to one of",
+		},
+		{
+			name: "azure_mysql - client_secret missing client_id and client_secret",
+			config: `
+			database_type "azure_mysql" {
+				auth_type = "client_secret"
+				tenant_id = "tenant-id"
+			}
+			connection_string = "test_user@tcp(the-host:3306)/spire?parseTime=true"`,
+			expectedErr: "client_id must be set (or the AZURE_CLIENT_ID environment variable) when auth_type is \"client_secret\"",
+		},
+		{
+			name: "azure_mysql - password already present in connection_string",
+			config: `
+			database_type "azure_mysql" {
+				auth_type = "system_managed_identity"
+			}
+			connection_string = "test_user:should-not-be-here@tcp(the-host:3306)/spire?parseTime=true"`,
+			expectedErr: "invalid mysql configuration: password should not be set when using Microsoft Entra ID authentication",
+		},
+	}
+	for _, testCase := range testCases {
+		s.T().Run(testCase.name, func(t *testing.T) {
+			err := s.ds.Configure(ctx, testCase.config)
+			s.RequireErrorContains(err, testCase.expectedErr)
+		})
+	}
+}
+
 func (s *Suite) TestInvalidMySQLConfiguration() {
 	err := s.ds.Configure(ctx, `
 		database_type = "mysql"
@@ -440,6 +591,24 @@ func (s *Suite) TestListBundlesWithPagination() {
 				PageSize: 2,
 			},
 			expectedPagination: &datastore.Pagination{
+				PageSize: 2,
+			},
+		},
+		{
+			// Regression test: tokens beyond 32 bits must parse successfully,
+			// since the underlying ID column is not limited to 32 bits on
+			// every dialect (e.g. CockroachDB's bigint unique_rowid()). On
+			// dialects where the ID column IS 32-bit (postgres, mysql), the
+			// token is clamped to the column's max representable value,
+			// which still selects no rows since no such ID can exist.
+			name:         "token larger than 32 bits",
+			expectedList: []*common.Bundle{},
+			pagination: &datastore.Pagination{
+				Token:    "5000000000",
+				PageSize: 2,
+			},
+			expectedPagination: &datastore.Pagination{
+				Token:    "",
 				PageSize: 2,
 			},
 		},
@@ -920,80 +1089,6 @@ func (s *Suite) TestFetchAttestedNodeMissing() {
 	attestedNode, err := s.ds.FetchAttestedNode(ctx, "missing")
 	s.Require().NoError(err)
 	s.Require().Nil(attestedNode)
-}
-
-func (s *Suite) TestFetchAttestedNodes() {
-	createNode := func(spiffeID string, selectors []*common.Selector) *common.AttestedNode {
-		node, err := s.ds.CreateAttestedNode(ctx, &common.AttestedNode{
-			SpiffeId:            spiffeID,
-			AttestationDataType: "aws-tag",
-			CertSerialNumber:    "badcafe",
-			CertNotAfter:        time.Now().Add(time.Hour).Unix(),
-		})
-		s.Require().NoError(err)
-		s.setNodeSelectors(spiffeID, selectors)
-		node.Selectors = selectors
-		return node
-	}
-
-	node1 := createNode("spiffe://example.org/node1", []*common.Selector{{Type: "a", Value: "1"}})
-	node2 := createNode("spiffe://example.org/node2", []*common.Selector{{Type: "b", Value: "2"}})
-	node3 := createNode("spiffe://example.org/node3", []*common.Selector{{Type: "c", Value: "3"}})
-
-	// Create a node and then delete it so we can test it doesn't get returned with the fetch
-	node4 := createNode("spiffe://example.org/node4", []*common.Selector{{Type: "d", Value: "4"}})
-	deletedNode, err := s.ds.DeleteAttestedNode(ctx, node4.SpiffeId)
-	s.Require().NoError(err)
-	s.Require().NotNil(deletedNode)
-
-	for _, tt := range []struct {
-		name            string
-		nodes           []*common.AttestedNode
-		deletedSpiffeID string
-	}{
-		{
-			name: "No nodes",
-		},
-		{
-			name:  "Nodes 1 and 2",
-			nodes: []*common.AttestedNode{node1, node2},
-		},
-		{
-			name:  "Nodes 1, 2, and 3",
-			nodes: []*common.AttestedNode{node1, node2, node3},
-		},
-		{
-			name:            "Deleted node",
-			nodes:           []*common.AttestedNode{node2, node3},
-			deletedSpiffeID: deletedNode.SpiffeId,
-		},
-	} {
-		s.T().Run(tt.name, func(t *testing.T) {
-			spiffeIDs := make([]string, 0, len(tt.nodes))
-			for _, node := range tt.nodes {
-				spiffeIDs = append(spiffeIDs, node.SpiffeId)
-			}
-			fetchedNodes, err := s.ds.FetchAttestedNodes(ctx, append(spiffeIDs, tt.deletedSpiffeID))
-			s.Require().NoError(err)
-
-			// Make sure all nodes we want to fetch are present, including selectors.
-			s.Require().Equal(len(tt.nodes), len(fetchedNodes))
-			for _, node := range tt.nodes {
-				fetchedNode, ok := fetchedNodes[node.SpiffeId]
-				s.Require().True(ok)
-				s.RequireProtoEqual(node, fetchedNode)
-			}
-
-			// Make sure any deleted nodes are not present.
-			_, ok := fetchedNodes[tt.deletedSpiffeID]
-			s.Require().False(ok)
-		})
-	}
-
-	// An empty request returns an empty map.
-	fetchedNodes, err := s.ds.FetchAttestedNodes(ctx, nil)
-	s.Require().NoError(err)
-	s.Require().Empty(fetchedNodes)
 }
 
 func (s *Suite) TestListAttestedNodes() {
@@ -1784,9 +1879,9 @@ func (s *Suite) TestDeleteAttestedNodeCascadesEntries() {
 	s.Require().NoError(err)
 	s.Nil(attestedNode)
 
-	fetched, err := s.ds.FetchRegistrationEntry(ctx, childEntry.EntryId)
+	entries, err := s.ds.FetchRegistrationEntries(ctx, []string{childEntry.EntryId})
 	s.Require().NoError(err)
-	s.Nil(fetched)
+	s.Nil(entries[childEntry.EntryId])
 
 	// A new registration entry event was emitted for the cascaded delete.
 	resp, err := s.ds.ListRegistrationEntryEvents(ctx, &datastore.ListRegistrationEntryEventsRequest{
@@ -1841,12 +1936,11 @@ func (s *Suite) TestDeleteAttestedNodeJoinTokenPreservesNonAliasChildEntries() {
 	s.Require().NoError(err)
 
 	// Alias child is gone; user-managed workload child survives.
-	fetchedAlias, err := s.ds.FetchRegistrationEntry(ctx, aliasChild.EntryId)
+	entries, err := s.ds.FetchRegistrationEntries(ctx, []string{aliasChild.EntryId, workloadChild.EntryId})
 	s.Require().NoError(err)
-	s.Nil(fetchedAlias)
+	s.Nil(entries[aliasChild.EntryId])
 
-	fetchedWorkload, err := s.ds.FetchRegistrationEntry(ctx, workloadChild.EntryId)
-	s.Require().NoError(err)
+	fetchedWorkload := entries[workloadChild.EntryId]
 	s.Require().NotNil(fetchedWorkload)
 	s.Equal(workloadChild.EntryId, fetchedWorkload.EntryId)
 
@@ -1913,17 +2007,15 @@ func (s *Suite) TestPruneAttestedExpiredNodesCascadesEntries() {
 	expiredNode, err := s.ds.FetchAttestedNode(ctx, expiredNodeID)
 	s.Require().NoError(err)
 	s.Nil(expiredNode)
-	fetchedExpiredChild, err := s.ds.FetchRegistrationEntry(ctx, expiredChild.EntryId)
+	entries, err := s.ds.FetchRegistrationEntries(ctx, []string{expiredChild.EntryId, validChild.EntryId})
 	s.Require().NoError(err)
-	s.Nil(fetchedExpiredChild)
+	s.Nil(entries[expiredChild.EntryId])
 
 	// Valid node and its child entry are preserved.
 	valid, err := s.ds.FetchAttestedNode(ctx, validNodeID)
 	s.Require().NoError(err)
 	s.NotNil(valid)
-	fetchedValidChild, err := s.ds.FetchRegistrationEntry(ctx, validChild.EntryId)
-	s.Require().NoError(err)
-	s.NotNil(fetchedValidChild)
+	s.NotNil(entries[validChild.EntryId])
 
 	// Exactly one new registration entry event was emitted, for the cascaded delete.
 	resp, err := s.ds.ListRegistrationEntryEvents(ctx, &datastore.ListRegistrationEntryEventsRequest{
@@ -1966,8 +2058,9 @@ func (s *Suite) TestDeleteAttestedNodeNonJoinTokenDoesNotCascade() {
 	s.Require().NoError(err)
 	s.Nil(attestedNode)
 
-	fetched, err := s.ds.FetchRegistrationEntry(ctx, childEntry.EntryId)
+	entries, err := s.ds.FetchRegistrationEntries(ctx, []string{childEntry.EntryId})
 	s.Require().NoError(err)
+	fetched := entries[childEntry.EntryId]
 	s.Require().NotNil(fetched)
 	s.Equal(childEntry.EntryId, fetched.EntryId)
 
@@ -2525,7 +2618,7 @@ func (s *Suite) TestCreateInvalidRegistrationEntry() {
 	// TODO: Check that no entries have been created
 }
 
-func (s *Suite) TestFetchRegistrationEntry() {
+func (s *Suite) TestFetchRegistrationEntriesWithOptionalFields() {
 	for _, tt := range []struct {
 		name  string
 		entry *common.RegistrationEntry
@@ -2577,17 +2670,11 @@ func (s *Suite) TestFetchRegistrationEntry() {
 			s.Require().NoError(err)
 			s.Require().NotNil(createdEntry)
 
-			fetchRegistrationEntry, err := s.ds.FetchRegistrationEntry(ctx, createdEntry.EntryId)
+			registrationEntries, err := s.ds.FetchRegistrationEntries(ctx, []string{createdEntry.EntryId})
 			s.Require().NoError(err)
-			s.RequireProtoEqual(createdEntry, fetchRegistrationEntry)
+			s.RequireProtoEqual(createdEntry, registrationEntries[createdEntry.EntryId])
 		})
 	}
-}
-
-func (s *Suite) TestFetchRegistrationEntryDoesNotExist() {
-	fetchRegistrationEntry, err := s.ds.FetchRegistrationEntry(ctx, "does-not-exist")
-	s.Require().NoError(err)
-	s.Require().Nil(fetchRegistrationEntry)
 }
 
 func (s *Suite) TestFetchRegistrationEntries() {
@@ -2752,8 +2839,9 @@ func (s *Suite) TestPruneRegistrationEntries() {
 			// Prune events
 			err = s.ds.PruneRegistrationEntries(ctx, tt.time)
 			require.NoError(t, err)
-			fetchedRegistrationEntry, err = s.ds.FetchRegistrationEntry(ctx, createdRegistrationEntry.EntryId)
+			registrationEntries, err := s.ds.FetchRegistrationEntries(ctx, []string{createdRegistrationEntry.EntryId})
 			require.NoError(t, err)
+			fetchedRegistrationEntry = registrationEntries[createdRegistrationEntry.EntryId]
 			assert.Equal(t, tt.expectedRegistrationEntry, fetchedRegistrationEntry)
 
 			// Verify pruning triggers event creation
@@ -2778,9 +2866,9 @@ func (s *Suite) TestPruneRegistrationEntries() {
 }
 
 func (s *Suite) TestFetchInexistentRegistrationEntry() {
-	fetchedRegistrationEntry, err := s.ds.FetchRegistrationEntry(ctx, "INEXISTENT")
+	registrationEntries, err := s.ds.FetchRegistrationEntries(ctx, []string{"INEXISTENT"})
 	s.Require().NoError(err)
-	s.Require().Nil(fetchedRegistrationEntry)
+	s.Require().Empty(registrationEntries)
 }
 
 func (s *Suite) TestListRegistrationEntries() {
@@ -3580,8 +3668,9 @@ func (s *Suite) TestUpdateRegistrationEntry() {
 	s.Require().Equal("internal", updatedRegistrationEntry.Hint)
 	s.Require().Equal(entry.CreatedAt, updatedRegistrationEntry.CreatedAt)
 
-	registrationEntry, err := s.ds.FetchRegistrationEntry(ctx, entry.EntryId)
+	registrationEntries, err := s.ds.FetchRegistrationEntries(ctx, []string{entry.EntryId})
 	s.Require().NoError(err)
+	registrationEntry := registrationEntries[entry.EntryId]
 	s.Require().NotNil(registrationEntry)
 	s.RequireProtoEqual(updatedRegistrationEntry, registrationEntry)
 
@@ -3610,9 +3699,9 @@ func (s *Suite) TestUpdateRegistrationEntryWithStoreSvid() {
 	// Verify output has expected values
 	s.Require().True(entry.StoreSvid)
 
-	fetchRegistrationEntry, err := s.ds.FetchRegistrationEntry(ctx, entry.EntryId)
+	registrationEntries, err := s.ds.FetchRegistrationEntries(ctx, []string{entry.EntryId})
 	s.Require().NoError(err)
-	s.RequireProtoEqual(updateRegistrationEntry, fetchRegistrationEntry)
+	s.RequireProtoEqual(updateRegistrationEntry, registrationEntries[entry.EntryId])
 
 	// Update with invalid selectors
 	entry.Selectors = []*common.Selector{
@@ -3936,8 +4025,9 @@ func (s *Suite) TestUpdateRegistrationEntryWithMask() {
 			s.RequireProtoEqual(expectedResult, updatedRegistrationEntry)
 
 			// Fetch and check the results match expectations
-			registrationEntry, err = s.ds.FetchRegistrationEntry(ctx, id)
+			registrationEntries, err := s.ds.FetchRegistrationEntries(ctx, []string{id})
 			s.Require().NoError(err)
+			registrationEntry = registrationEntries[id]
 			s.Require().NotNil(registrationEntry)
 
 			s.assertCreatedAtField(registrationEntry, now)
@@ -4574,6 +4664,65 @@ func (s *Suite) TestRegistrationEntriesFederatesWithSuccess() {
 	s.RequireProtoEqual(expected, actual)
 }
 
+func (s *Suite) TestRegistrationEntriesFederatesWithMultipleBundles() {
+	// create three bundles but only federate with two, so that the entry is
+	// associated with the exact bundles referenced and no others
+	s.createBundle("spiffe://otherdomain.org")
+	s.createBundle("spiffe://otherdomain2.org")
+	s.createBundle("spiffe://otherdomain3.org")
+
+	entry := makeFederatedRegistrationEntry()
+	entry.FederatesWith = []string{"spiffe://otherdomain.org", "spiffe://otherdomain2.org"}
+
+	// no ordering is defined for the federated trust domains, so compare them as
+	// sets rather than asserting an order the queries do not guarantee
+	created := s.createRegistrationEntry(entry)
+	expected := []string{"spiffe://otherdomain.org", "spiffe://otherdomain2.org"}
+	s.Require().ElementsMatch(expected, created.FederatesWith)
+	s.Require().ElementsMatch(expected, s.fetchRegistrationEntry(created.EntryId).FederatesWith)
+
+	// updating the federated bundles is reflected in the returned entry
+	created.FederatesWith = []string{"spiffe://otherdomain3.org"}
+	updated, err := s.ds.UpdateRegistrationEntry(ctx, created, nil)
+	s.Require().NoError(err)
+	s.Require().Equal([]string{"spiffe://otherdomain3.org"}, updated.FederatesWith)
+	s.RequireProtoEqual(updated, s.fetchRegistrationEntry(updated.EntryId))
+}
+
+func (s *Suite) TestRegistrationEntriesFederatesWithDuplicateTrustDomain() {
+	s.createBundle("spiffe://otherdomain.org")
+
+	entry := makeFederatedRegistrationEntry()
+	entry.FederatesWith = []string{"spiffe://otherdomain.org", "spiffe://otherdomain.org"}
+
+	// a trust domain named more than once is associated with the entry once
+	created := s.createRegistrationEntry(entry)
+	s.Require().Equal([]string{"spiffe://otherdomain.org"}, created.FederatesWith)
+	s.RequireProtoEqual(created, s.fetchRegistrationEntry(created.EntryId))
+}
+
+func (s *Suite) TestRegistrationEntriesWithoutFederatesWith() {
+	entry := makeFederatedRegistrationEntry()
+	entry.FederatesWith = nil
+
+	// an entry that federates with nothing round trips with no federated ids
+	created := s.createRegistrationEntry(entry)
+	s.Require().Empty(created.FederatesWith)
+	s.RequireProtoEqual(created, s.fetchRegistrationEntry(created.EntryId))
+
+	// the same holds after an update that leaves the entry unfederated
+	created.Admin = true
+	updated, err := s.ds.UpdateRegistrationEntry(ctx, created, nil)
+	s.Require().NoError(err)
+	s.Require().Empty(updated.FederatesWith)
+	s.RequireProtoEqual(updated, s.fetchRegistrationEntry(updated.EntryId))
+
+	// and the entry can still be deleted
+	deleted, err := s.ds.DeleteRegistrationEntry(ctx, updated.EntryId)
+	s.Require().NoError(err)
+	s.Require().Empty(deleted.FederatesWith)
+}
+
 func (s *Suite) TestDeleteBundleRestrictedByRegistrationEntries() {
 	// create the bundle and associated entry
 	s.createBundle("spiffe://otherdomain.org")
@@ -4601,9 +4750,9 @@ func (s *Suite) TestDeleteBundleDeleteRegistrationEntries() {
 	s.Require().NoError(err)
 
 	// verify that the registration entry has been deleted
-	registrationEntry, err := s.ds.FetchRegistrationEntry(context.Background(), entry.EntryId)
+	registrationEntries, err := s.ds.FetchRegistrationEntries(context.Background(), []string{entry.EntryId})
 	s.Require().NoError(err)
-	s.Require().Nil(registrationEntry)
+	s.Require().Nil(registrationEntries[entry.EntryId])
 
 	// make sure the unrelated entry still exists
 	s.fetchRegistrationEntry(unrelated.EntryId)
@@ -5763,8 +5912,9 @@ func (s *Suite) deleteRegistrationEntry(entryID string) {
 }
 
 func (s *Suite) fetchRegistrationEntry(entryID string) *common.RegistrationEntry {
-	registrationEntry, err := s.ds.FetchRegistrationEntry(ctx, entryID)
+	registrationEntries, err := s.ds.FetchRegistrationEntries(ctx, []string{entryID})
 	s.Require().NoError(err)
+	registrationEntry := registrationEntries[entryID]
 	s.Require().NotNil(registrationEntry)
 	return registrationEntry
 }

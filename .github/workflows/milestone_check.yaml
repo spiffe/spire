@@ -1,0 +1,50 @@
+name: Milestone Check
+on:
+  pull_request:
+    # milestoned and demilestoned are not part of the default activity types.
+    # They re-run this check when the milestone changes, so a red check turns
+    # green as soon as a milestone is assigned without pushing a new commit.
+    types: [opened, reopened, synchronize, milestoned, demilestoned]
+  merge_group:
+    types:
+      - checks_requested
+
+permissions:
+  contents: read
+
+jobs:
+  milestone-check:
+    name: milestone-check
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Check milestone
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          EVENT_NAME: ${{ github.event_name }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          MERGE_GROUP_HEAD_REF: ${{ github.event.merge_group.head_ref }}
+        run: |
+          if [ "$EVENT_NAME" = "merge_group" ]; then
+            # The merge group head ref has the format
+            # refs/heads/gh-readonly-queue/<base>/pr-<number>-<sha>
+            PR_NUMBER=$(echo "$MERGE_GROUP_HEAD_REF" | grep -oP 'pr-\K[0-9]+' || true)
+            if [ -z "$PR_NUMBER" ]; then
+              echo "Error: Could not extract PR number from head_ref: $MERGE_GROUP_HEAD_REF"
+              exit 1
+            fi
+          fi
+
+          MILESTONE=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json milestone --jq '.milestone.title // empty')
+
+          if [ -z "$MILESTONE" ]; then
+            echo "Error: PR #$PR_NUMBER does not have a milestone assigned."
+            echo "Please assign a milestone before merging."
+            exit 1
+          fi
+
+          echo "PR #$PR_NUMBER has milestone: $MILESTONE"

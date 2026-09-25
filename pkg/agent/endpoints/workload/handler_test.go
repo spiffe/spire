@@ -4,6 +4,9 @@ import (
 	"bytes"
 	"context"
 	"crypto"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
 	"crypto/x509"
 	"encoding/json"
 	"errors"
@@ -12,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-jose/go-jose/v4"
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
@@ -22,6 +26,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/api/rpccontext"
 	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/agent/endpoints/workload"
+	"github.com/spiffe/spire/pkg/agent/manager"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/common/api/middleware"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -75,7 +80,7 @@ func TestFetchX509SVID(t *testing.T) {
 	bundle := ca.Bundle()
 	federatedBundle := testca.New(t, td2).Bundle()
 
-	identities := []cache.Identity{
+	identities := []cache.X509Identity{
 		identityFromX509SVID(x509SVID0, "id0"),
 		identityFromX509SVID(x509SVID1, "id1"),
 		identityFromX509SVID(x509SVID2, "id2"),
@@ -90,7 +95,7 @@ func TestFetchX509SVID(t *testing.T) {
 
 	for _, tt := range []struct {
 		name         string
-		updates      []*cache.WorkloadUpdate
+		updates      []*cache.X509WorkloadUpdate
 		selectors    []*common.Selector
 		logSelectors []string
 		attestErr    error
@@ -103,7 +108,7 @@ func TestFetchX509SVID(t *testing.T) {
 	}{
 		{
 			name:       "no identity issued",
-			updates:    []*cache.WorkloadUpdate{{}},
+			updates:    []*cache.X509WorkloadUpdate{{}},
 			expectCode: codes.PermissionDenied,
 			expectMsg:  "no identity issued",
 			expectLogs: []spiretest.LogEntry{
@@ -120,7 +125,7 @@ func TestFetchX509SVID(t *testing.T) {
 		},
 		{
 			name:         "no identity issued with loggable selectors",
-			updates:      []*cache.WorkloadUpdate{{}},
+			updates:      []*cache.X509WorkloadUpdate{{}},
 			selectors:    []*common.Selector{unixUserSelector, k8sPodLabelSelector, k8sNamespaceSelector},
 			logSelectors: []string{"k8s:ns", "unix:user"},
 			expectCode:   codes.PermissionDenied,
@@ -140,7 +145,7 @@ func TestFetchX509SVID(t *testing.T) {
 		},
 		{
 			name:         "no identity issued with selectors but no allowlist match",
-			updates:      []*cache.WorkloadUpdate{{}},
+			updates:      []*cache.X509WorkloadUpdate{{}},
 			selectors:    []*common.Selector{k8sNamespaceSelector},
 			logSelectors: []string{"k8s:n"},
 			expectCode:   codes.PermissionDenied,
@@ -159,7 +164,7 @@ func TestFetchX509SVID(t *testing.T) {
 		},
 		{
 			name:       "no identity issued (healthcheck)",
-			updates:    []*cache.WorkloadUpdate{{}},
+			updates:    []*cache.X509WorkloadUpdate{{}},
 			asPID:      os.Getpid(),
 			expectCode: codes.PermissionDenied,
 			expectMsg:  "no identity issued",
@@ -200,8 +205,8 @@ func TestFetchX509SVID(t *testing.T) {
 		},
 		{
 			name: "with identity and federated bundles",
-			updates: []*cache.WorkloadUpdate{{
-				Identities: []cache.Identity{
+			updates: []*cache.X509WorkloadUpdate{{
+				Identities: []cache.X509Identity{
 					identities[1],
 				},
 				Bundle: bundle,
@@ -227,9 +232,9 @@ func TestFetchX509SVID(t *testing.T) {
 		},
 		{
 			name: "with two identities",
-			updates: []*cache.WorkloadUpdate{
+			updates: []*cache.X509WorkloadUpdate{
 				{
-					Identities: []cache.Identity{
+					Identities: []cache.X509Identity{
 						identities[1],
 						identities[2],
 					},
@@ -257,7 +262,7 @@ func TestFetchX509SVID(t *testing.T) {
 		},
 		{
 			name: "identities with duplicated hints",
-			updates: []*cache.WorkloadUpdate{
+			updates: []*cache.X509WorkloadUpdate{
 				{
 					Identities: identities,
 					Bundle:     bundle,
@@ -357,7 +362,7 @@ func TestFetchX509Bundles(t *testing.T) {
 
 	for _, tt := range []struct {
 		testName                      string
-		updates                       []*cache.WorkloadUpdate
+		updates                       []*cache.X509WorkloadUpdate
 		selectors                     []*common.Selector
 		logSelectors                  []string
 		attestErr                     error
@@ -370,7 +375,7 @@ func TestFetchX509Bundles(t *testing.T) {
 	}{
 		{
 			testName:   "no identity issued",
-			updates:    []*cache.WorkloadUpdate{{}},
+			updates:    []*cache.X509WorkloadUpdate{{}},
 			expectCode: codes.PermissionDenied,
 			expectMsg:  "no identity issued",
 			expectLogs: []spiretest.LogEntry{
@@ -387,7 +392,7 @@ func TestFetchX509Bundles(t *testing.T) {
 		},
 		{
 			testName:     "no identity issued with loggable selectors",
-			updates:      []*cache.WorkloadUpdate{{}},
+			updates:      []*cache.X509WorkloadUpdate{{}},
 			selectors:    []*common.Selector{k8sNamespaceSelector, k8sPodLabelSelector},
 			logSelectors: []string{"k8s:ns"},
 			expectCode:   codes.PermissionDenied,
@@ -441,9 +446,9 @@ func TestFetchX509Bundles(t *testing.T) {
 		},
 		{
 			testName: "cache update unexpectedly missing bundle",
-			updates: []*cache.WorkloadUpdate{
+			updates: []*cache.X509WorkloadUpdate{
 				{
-					Identities: []cache.Identity{
+					Identities: []cache.X509Identity{
 						identityFromX509SVID(x509SVID, "id1"),
 					},
 				},
@@ -464,9 +469,9 @@ func TestFetchX509Bundles(t *testing.T) {
 		},
 		{
 			testName: "success",
-			updates: []*cache.WorkloadUpdate{
+			updates: []*cache.X509WorkloadUpdate{
 				{
-					Identities: []cache.Identity{
+					Identities: []cache.X509Identity{
 						identityFromX509SVID(x509SVID, "id1"),
 					},
 					Bundle: bundle,
@@ -486,9 +491,9 @@ func TestFetchX509Bundles(t *testing.T) {
 		{
 			testName:                      "when allowed to fetch without identity",
 			allowUnauthenticatedVerifiers: true,
-			updates: []*cache.WorkloadUpdate{
+			updates: []*cache.X509WorkloadUpdate{
 				{
-					Identities: []cache.Identity{},
+					Identities: []cache.X509Identity{},
 					Bundle:     bundle,
 					FederatedBundles: map[spiffeid.TrustDomain]*spiffebundle.Bundle{
 						federatedBundle.TrustDomain(): federatedBundle,
@@ -537,15 +542,15 @@ func TestFetchX509Bundles_MultipleUpdates(t *testing.T) {
 	otherBundle := testca.New(t, td).Bundle()
 	otherBundleX509 := x509util.DERFromCertificates(otherBundle.X509Authorities())
 
-	updates := []*cache.WorkloadUpdate{
+	updates := []*cache.X509WorkloadUpdate{
 		{
-			Identities: []cache.Identity{
+			Identities: []cache.X509Identity{
 				identityFromX509SVID(x509SVID, "id1"),
 			},
 			Bundle: bundle,
 		},
 		{
-			Identities: []cache.Identity{
+			Identities: []cache.X509Identity{
 				identityFromX509SVID(x509SVID, "id1"),
 			},
 			Bundle: otherBundle,
@@ -598,21 +603,21 @@ func TestFetchX509Bundles_SpuriousUpdates(t *testing.T) {
 	otherBundle := testca.New(t, td).Bundle()
 	otherBundleX509 := x509util.DERFromCertificates(otherBundle.X509Authorities())
 
-	updates := []*cache.WorkloadUpdate{
+	updates := []*cache.X509WorkloadUpdate{
 		{
-			Identities: []cache.Identity{
+			Identities: []cache.X509Identity{
 				identityFromX509SVID(x509SVID, "id1"),
 			},
 			Bundle: bundle,
 		},
 		{
-			Identities: []cache.Identity{
+			Identities: []cache.X509Identity{
 				identityFromX509SVID(x509SVID, "id1"),
 			},
 			Bundle: bundle,
 		},
 		{
-			Identities: []cache.Identity{
+			Identities: []cache.X509Identity{
 				identityFromX509SVID(x509SVID, "id1"),
 			},
 			Bundle: otherBundle,
@@ -675,7 +680,7 @@ func TestFetchJWTSVID(t *testing.T) {
 	x509SVID4.Hint = "internal"
 	x509SVID5 := ca.CreateX509SVID(spiffeid.RequireFromPath(td, "/five"))
 
-	identities := []cache.Identity{
+	identities := []cache.X509Identity{
 		identityFromX509SVID(x509SVID0, "id0"),
 		identityFromX509SVID(x509SVID1, "id1"),
 		identityFromX509SVID(x509SVID2, "id2"),
@@ -696,7 +701,7 @@ func TestFetchJWTSVID(t *testing.T) {
 
 	for _, tt := range []struct {
 		name         string
-		identities   []cache.Identity
+		identities   []cache.X509Identity
 		spiffeID     string
 		audience     []string
 		selectors    []*common.Selector
@@ -781,7 +786,7 @@ func TestFetchJWTSVID(t *testing.T) {
 		},
 		{
 			name: "identity found but unexpected SPIFFE ID",
-			identities: []cache.Identity{
+			identities: []cache.X509Identity{
 				identities[1],
 				identities[2],
 			},
@@ -822,7 +827,7 @@ func TestFetchJWTSVID(t *testing.T) {
 		{
 			name:     "fetch error",
 			audience: []string{"AUDIENCE"},
-			identities: []cache.Identity{
+			identities: []cache.X509Identity{
 				identities[1],
 			},
 			managerErr: errors.New("ohno"),
@@ -844,7 +849,7 @@ func TestFetchJWTSVID(t *testing.T) {
 		},
 		{
 			name: "success all",
-			identities: []cache.Identity{
+			identities: []cache.X509Identity{
 				identities[6],
 				identities[1],
 				identities[2],
@@ -867,7 +872,7 @@ func TestFetchJWTSVID(t *testing.T) {
 		},
 		{
 			name: "success specific",
-			identities: []cache.Identity{
+			identities: []cache.X509Identity{
 				identities[1],
 				identities[2],
 			},
@@ -994,8 +999,8 @@ func (r *rejectAllRateLimiter) RateLimit(string, []*common.Selector) error {
 func TestRateLimitAgentExemption(t *testing.T) {
 	ca := testca.New(t, td)
 	x509SVID := ca.CreateX509SVID(workloadID)
-	identities := []cache.Identity{identityFromX509SVID(x509SVID, "id0")}
-	updates := []*cache.WorkloadUpdate{
+	identities := []cache.X509Identity{identityFromX509SVID(x509SVID, "id0")}
+	updates := []*cache.X509WorkloadUpdate{
 		{
 			Identities: identities,
 			Bundle:     ca.Bundle(),
@@ -1072,8 +1077,8 @@ func TestRateLimitAgentExemption(t *testing.T) {
 func TestRateLimitEnforced(t *testing.T) {
 	ca := testca.New(t, td)
 	x509SVID := ca.CreateX509SVID(workloadID)
-	identities := []cache.Identity{identityFromX509SVID(x509SVID, "id0")}
-	updates := []*cache.WorkloadUpdate{
+	identities := []cache.X509Identity{identityFromX509SVID(x509SVID, "id0")}
+	updates := []*cache.X509WorkloadUpdate{
 		{
 			Identities: identities,
 			Bundle:     ca.Bundle(),
@@ -1153,17 +1158,22 @@ func TestFetchJWTBundles(t *testing.T) {
 	bundleJWKS, err := bundle.JWTBundle().Marshal()
 	require.NoError(t, err)
 	bundleJWKS = indent(bundleJWKS)
+	bundleWithWIT := ca.Bundle()
+	require.NoError(t, bundleWithWIT.AddWITAuthority("local-wit", bundleWithWIT.X509Authorities()[0].PublicKey))
 
 	emptyJWKSBytes := indent([]byte(`{"keys": []}`))
 
-	federatedBundle := testca.New(t, spiffeid.RequireTrustDomainFromString("domain2.test")).Bundle()
+	federatedCA := testca.New(t, spiffeid.RequireTrustDomainFromString("domain2.test"))
+	federatedBundle := federatedCA.Bundle()
 	federatedBundleJWKS, err := federatedBundle.JWTBundle().Marshal()
 	require.NoError(t, err)
 	federatedBundleJWKS = indent(federatedBundleJWKS)
+	federatedBundleWithWIT := federatedCA.Bundle()
+	require.NoError(t, federatedBundleWithWIT.AddWITAuthority("federated-wit", federatedBundleWithWIT.X509Authorities()[0].PublicKey))
 
 	for _, tt := range []struct {
 		name                          string
-		updates                       []*cache.WorkloadUpdate
+		updates                       []*cache.X509WorkloadUpdate
 		selectors                     []*common.Selector
 		logSelectors                  []string
 		attestErr                     error
@@ -1176,7 +1186,7 @@ func TestFetchJWTBundles(t *testing.T) {
 	}{
 		{
 			name:       "no identity issued",
-			updates:    []*cache.WorkloadUpdate{{}},
+			updates:    []*cache.X509WorkloadUpdate{{}},
 			expectCode: codes.PermissionDenied,
 			expectMsg:  "no identity issued",
 			expectLogs: []spiretest.LogEntry{
@@ -1193,7 +1203,7 @@ func TestFetchJWTBundles(t *testing.T) {
 		},
 		{
 			name:         "no identity issued with loggable selectors",
-			updates:      []*cache.WorkloadUpdate{{}},
+			updates:      []*cache.X509WorkloadUpdate{{}},
 			selectors:    []*common.Selector{k8sNamespaceSelector, k8sPodLabelSelector},
 			logSelectors: []string{"k8s:ns"},
 			expectCode:   codes.PermissionDenied,
@@ -1247,9 +1257,9 @@ func TestFetchJWTBundles(t *testing.T) {
 		},
 		{
 			name: "cache update unexpectedly missing bundle",
-			updates: []*cache.WorkloadUpdate{
+			updates: []*cache.X509WorkloadUpdate{
 				{
-					Identities: []cache.Identity{
+					Identities: []cache.X509Identity{
 						identityFromX509SVID(x509SVID, "id1"),
 					},
 				},
@@ -1270,9 +1280,9 @@ func TestFetchJWTBundles(t *testing.T) {
 		},
 		{
 			name: "success",
-			updates: []*cache.WorkloadUpdate{
+			updates: []*cache.X509WorkloadUpdate{
 				{
-					Identities: []cache.Identity{
+					Identities: []cache.X509Identity{
 						identityFromX509SVID(x509SVID, "id1"),
 					},
 					Bundle: bundle,
@@ -1290,11 +1300,32 @@ func TestFetchJWTBundles(t *testing.T) {
 			},
 		},
 		{
+			name: "WIT authorities excluded",
+			updates: []*cache.X509WorkloadUpdate{
+				{
+					Identities: []cache.X509Identity{
+						identityFromX509SVID(x509SVID, "id1"),
+					},
+					Bundle: bundleWithWIT,
+					FederatedBundles: map[spiffeid.TrustDomain]*spiffebundle.Bundle{
+						federatedBundleWithWIT.TrustDomain(): federatedBundleWithWIT,
+					},
+				},
+			},
+			expectCode: codes.OK,
+			expectResp: &workloadPB.JWTBundlesResponse{
+				Bundles: map[string][]byte{
+					bundleWithWIT.TrustDomain().IDString():          bundleJWKS,
+					federatedBundleWithWIT.TrustDomain().IDString(): federatedBundleJWKS,
+				},
+			},
+		},
+		{
 			name:                          "when allowed to fetch without identity",
 			allowUnauthenticatedVerifiers: true,
-			updates: []*cache.WorkloadUpdate{
+			updates: []*cache.X509WorkloadUpdate{
 				{
-					Identities: []cache.Identity{},
+					Identities: []cache.X509Identity{},
 					Bundle:     bundle,
 					FederatedBundles: map[spiffeid.TrustDomain]*spiffebundle.Bundle{
 						federatedBundle.TrustDomain(): federatedBundle,
@@ -1310,9 +1341,9 @@ func TestFetchJWTBundles(t *testing.T) {
 		},
 		{
 			name: "federated bundle with JWKS empty keys array",
-			updates: []*cache.WorkloadUpdate{
+			updates: []*cache.X509WorkloadUpdate{
 				{
-					Identities: []cache.Identity{
+					Identities: []cache.X509Identity{
 						identityFromX509SVID(x509SVID, "id1"),
 					},
 					Bundle: bundle,
@@ -1376,15 +1407,15 @@ func TestFetchJWTBundles_MultipleUpdates(t *testing.T) {
 	require.NoError(t, err)
 	otherBundleJWKS = indent(otherBundleJWKS)
 
-	updates := []*cache.WorkloadUpdate{
+	updates := []*cache.X509WorkloadUpdate{
 		{
-			Identities: []cache.Identity{
+			Identities: []cache.X509Identity{
 				identityFromX509SVID(x509SVID, "id1"),
 			},
 			Bundle: bundle,
 		},
 		{
-			Identities: []cache.Identity{
+			Identities: []cache.X509Identity{
 				identityFromX509SVID(x509SVID, "id1"),
 			},
 			Bundle: otherBundle,
@@ -1449,21 +1480,21 @@ func TestFetchJWTBundles_SpuriousUpdates(t *testing.T) {
 	require.NoError(t, err)
 	otherBundleJWKS = indent(otherBundleJWKS)
 
-	updates := []*cache.WorkloadUpdate{
+	updates := []*cache.X509WorkloadUpdate{
 		{
-			Identities: []cache.Identity{
+			Identities: []cache.X509Identity{
 				identityFromX509SVID(x509SVID, "id1"),
 			},
 			Bundle: bundle,
 		},
 		{
-			Identities: []cache.Identity{
+			Identities: []cache.X509Identity{
 				identityFromX509SVID(x509SVID, "id1"),
 			},
 			Bundle: bundle,
 		},
 		{
-			Identities: []cache.Identity{
+			Identities: []cache.X509Identity{
 				identityFromX509SVID(x509SVID, "id1"),
 			},
 			Bundle: otherBundle,
@@ -1509,6 +1540,409 @@ func TestFetchJWTBundles_SpuriousUpdates(t *testing.T) {
 		})
 }
 
+func TestFetchWITSVID(t *testing.T) {
+	ca := testca.New(t, td)
+
+	witSVID0 := newWITIdentity(t, spiffeid.RequireFromPath(td, "/aaa"), "id0", "internal")
+	witSVID0.Entry.CreatedAt = 1
+	witSVID1 := newWITIdentity(t, spiffeid.RequireFromPath(td, "/one"), "id1", "internal")
+	witSVID1.Entry.CreatedAt = 2
+	witSVID2 := newWITIdentity(t, spiffeid.RequireFromPath(td, "/two"), "id2", "")
+
+	for _, tt := range []struct {
+		name         string
+		updates      []*cache.WITWorkloadUpdate
+		spiffeID     string
+		selectors    []*common.Selector
+		logSelectors []string
+		attestErr    error
+		managerErr   error
+		expectCode   codes.Code
+		expectMsg    string
+		expectResp   *workloadPB.WITSVIDResponse
+		expectLogs   []spiretest.LogEntry
+	}{
+		{
+			name:       "no identity issued",
+			updates:    []*cache.WITWorkloadUpdate{{}},
+			expectCode: codes.PermissionDenied,
+			expectMsg:  "no identity issued",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "No identity issued",
+					Data: logrus.Fields{
+						"registered": "false",
+						"service":    "WorkloadAPI",
+						"method":     "FetchWITSVID",
+					},
+				},
+			},
+		},
+		{
+			name:       "attest error",
+			attestErr:  errors.New("ohno"),
+			expectCode: codes.Unavailable,
+			expectMsg:  "workload attestation failed",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Workload attestation failed",
+					Data: logrus.Fields{
+						"service":       "WorkloadAPI",
+						"method":        "FetchWITSVID",
+						logrus.ErrorKey: "ohno",
+					},
+				},
+			},
+		},
+		{
+			name:       "subscribe to cache changes error",
+			managerErr: errors.New("err"),
+			expectCode: codes.Unknown,
+			expectMsg:  "err",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Subscribe to cache changes failed",
+					Data: logrus.Fields{
+						"service":       "WorkloadAPI",
+						"method":        "FetchWITSVID",
+						logrus.ErrorKey: "err",
+					},
+				},
+			},
+		},
+		{
+			name:       "WIT-SVIDs disabled",
+			managerErr: manager.ErrWITSVIDsDisabled,
+			expectCode: codes.Unimplemented,
+			expectMsg:  "WIT-SVIDs are not enabled",
+		},
+		{
+			name:       "invalid requested SPIFFE ID",
+			spiffeID:   "not-a-spiffe-id",
+			expectCode: codes.InvalidArgument,
+			expectMsg:  "invalid requested SPIFFE ID: scheme is missing or invalid",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Invalid requested SPIFFE ID",
+					Data: logrus.Fields{
+						"service":          "WorkloadAPI",
+						"method":           "FetchWITSVID",
+						telemetry.SPIFFEID: "not-a-spiffe-id",
+						logrus.ErrorKey:    "scheme is missing or invalid",
+					},
+				},
+			},
+		},
+		{
+			name: "success",
+			updates: []*cache.WITWorkloadUpdate{
+				{Identities: []cache.WITIdentity{witSVID0, witSVID2}},
+			},
+			expectCode: codes.OK,
+			expectResp: &workloadPB.WITSVIDResponse{
+				Svids: []*workloadPB.WITSVID{
+					expectWITSVID(t, witSVID0),
+					expectWITSVID(t, witSVID2),
+				},
+			},
+		},
+		{
+			name: "filtered by requested SPIFFE ID",
+			updates: []*cache.WITWorkloadUpdate{
+				{Identities: []cache.WITIdentity{witSVID0, witSVID2}},
+			},
+			spiffeID:   witSVID2.Entry.SpiffeId,
+			expectCode: codes.OK,
+			expectResp: &workloadPB.WITSVIDResponse{
+				Svids: []*workloadPB.WITSVID{
+					expectWITSVID(t, witSVID2),
+				},
+			},
+		},
+		{
+			name: "requested SPIFFE ID matches no identity",
+			updates: []*cache.WITWorkloadUpdate{
+				{Identities: []cache.WITIdentity{witSVID0}},
+			},
+			spiffeID:   witSVID2.Entry.SpiffeId,
+			expectCode: codes.PermissionDenied,
+			expectMsg:  "no identity issued",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "No identity issued",
+					Data: logrus.Fields{
+						"registered": "false",
+						"service":    "WorkloadAPI",
+						"method":     "FetchWITSVID",
+					},
+				},
+			},
+		},
+		{
+			name: "duplicate hints are deduplicated",
+			updates: []*cache.WITWorkloadUpdate{
+				{Identities: []cache.WITIdentity{witSVID0, witSVID1, witSVID2}},
+			},
+			expectCode: codes.OK,
+			expectResp: &workloadPB.WITSVIDResponse{
+				Svids: []*workloadPB.WITSVID{
+					expectWITSVID(t, witSVID0),
+					expectWITSVID(t, witSVID2),
+				},
+			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.WarnLevel,
+					Message: "Ignoring entry with duplicate hint",
+					Data: logrus.Fields{
+						"service":                "WorkloadAPI",
+						"method":                 "FetchWITSVID",
+						telemetry.Hint:           "internal",
+						telemetry.RegistrationID: "id1",
+					},
+				},
+			},
+		},
+		{
+			name: "requested SPIFFE ID is hidden by duplicate hint",
+			updates: []*cache.WITWorkloadUpdate{
+				{Identities: []cache.WITIdentity{witSVID0, witSVID1}},
+			},
+			spiffeID:   witSVID1.Entry.SpiffeId,
+			expectCode: codes.PermissionDenied,
+			expectMsg:  "no identity issued",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.WarnLevel,
+					Message: "Ignoring entry with duplicate hint",
+					Data: logrus.Fields{
+						"service":                "WorkloadAPI",
+						"method":                 "FetchWITSVID",
+						telemetry.Hint:           "internal",
+						telemetry.RegistrationID: "id1",
+					},
+				},
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "No identity issued",
+					Data: logrus.Fields{
+						"registered": "false",
+						"service":    "WorkloadAPI",
+						"method":     "FetchWITSVID",
+					},
+				},
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			params := testParams{
+				CA:           ca,
+				WITUpdates:   tt.updates,
+				Selectors:    tt.selectors,
+				LogSelectors: tt.logSelectors,
+				AttestErr:    tt.attestErr,
+				ManagerErr:   tt.managerErr,
+				ExpectLogs:   tt.expectLogs,
+			}
+			runTest(t, params,
+				func(ctx context.Context, client workloadPB.SpiffeWorkloadAPIClient) {
+					stream, err := client.FetchWITSVID(ctx, &workloadPB.WITSVIDRequest{SpiffeId: tt.spiffeID})
+					require.NoError(t, err)
+
+					resp, err := stream.Recv()
+					spiretest.RequireGRPCStatus(t, err, tt.expectCode, tt.expectMsg)
+					spiretest.RequireProtoEqual(t, tt.expectResp, resp)
+				})
+		})
+	}
+}
+
+func TestFetchWITBundles(t *testing.T) {
+	ca := testca.New(t, td)
+
+	identity := newWITIdentity(t, workloadID, "id1", "")
+
+	bundle := witBundle(t, td)
+	federatedBundle := witBundle(t, td2)
+
+	for _, tt := range []struct {
+		name                          string
+		updates                       []*cache.WITWorkloadUpdate
+		attestErr                     error
+		managerErr                    error
+		expectCode                    codes.Code
+		expectMsg                     string
+		expectResp                    *workloadPB.WITBundlesResponse
+		expectLogs                    []spiretest.LogEntry
+		allowUnauthenticatedVerifiers bool
+	}{
+		{
+			name:       "no identity issued",
+			updates:    []*cache.WITWorkloadUpdate{{}},
+			expectCode: codes.PermissionDenied,
+			expectMsg:  "no identity issued",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "No identity issued",
+					Data: logrus.Fields{
+						"registered": "false",
+						"service":    "WorkloadAPI",
+						"method":     "FetchWITBundles",
+					},
+				},
+			},
+		},
+		{
+			name:       "attest error",
+			attestErr:  errors.New("ohno"),
+			expectCode: codes.Unavailable,
+			expectMsg:  "workload attestation failed",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Workload attestation failed",
+					Data: logrus.Fields{
+						"service":       "WorkloadAPI",
+						"method":        "FetchWITBundles",
+						logrus.ErrorKey: "ohno",
+					},
+				},
+			},
+		},
+		{
+			name:       "WIT-SVIDs disabled",
+			managerErr: manager.ErrWITSVIDsDisabled,
+			expectCode: codes.Unimplemented,
+			expectMsg:  "WIT-SVIDs are not enabled",
+		},
+		{
+			name: "cache update unexpectedly missing bundle",
+			updates: []*cache.WITWorkloadUpdate{
+				{Identities: []cache.WITIdentity{identity}},
+			},
+			expectCode: codes.Unavailable,
+			expectMsg:  "could not serialize response: bundle not available",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Could not serialize WIT bundle response",
+					Data: logrus.Fields{
+						"service":       "WorkloadAPI",
+						"method":        "FetchWITBundles",
+						logrus.ErrorKey: "bundle not available",
+					},
+				},
+			},
+		},
+		{
+			name: "success",
+			updates: []*cache.WITWorkloadUpdate{
+				{
+					Identities: []cache.WITIdentity{identity},
+					Bundle:     bundle,
+					FederatedBundles: map[spiffeid.TrustDomain]*spiffebundle.Bundle{
+						federatedBundle.TrustDomain(): federatedBundle,
+					},
+				},
+			},
+			expectCode: codes.OK,
+			expectResp: &workloadPB.WITBundlesResponse{
+				Bundles: map[string]string{
+					bundle.TrustDomain().IDString():          expectWITJWKS(t, bundle),
+					federatedBundle.TrustDomain().IDString(): expectWITJWKS(t, federatedBundle),
+				},
+			},
+		},
+		{
+			name:                          "when allowed to fetch without identity",
+			allowUnauthenticatedVerifiers: true,
+			updates: []*cache.WITWorkloadUpdate{
+				{
+					Bundle: bundle,
+					FederatedBundles: map[spiffeid.TrustDomain]*spiffebundle.Bundle{
+						federatedBundle.TrustDomain(): federatedBundle,
+					},
+				},
+			},
+			expectCode: codes.OK,
+			expectResp: &workloadPB.WITBundlesResponse{
+				Bundles: map[string]string{
+					bundle.TrustDomain().IDString(): expectWITJWKS(t, bundle),
+				},
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			params := testParams{
+				CA:                            ca,
+				WITUpdates:                    tt.updates,
+				AttestErr:                     tt.attestErr,
+				ManagerErr:                    tt.managerErr,
+				ExpectLogs:                    tt.expectLogs,
+				AllowUnauthenticatedVerifiers: tt.allowUnauthenticatedVerifiers,
+			}
+			runTest(t, params,
+				func(ctx context.Context, client workloadPB.SpiffeWorkloadAPIClient) {
+					stream, err := client.FetchWITBundles(ctx, &workloadPB.WITBundlesRequest{})
+					require.NoError(t, err)
+
+					resp, err := stream.Recv()
+					spiretest.RequireGRPCStatus(t, err, tt.expectCode, tt.expectMsg)
+					spiretest.RequireProtoEqual(t, tt.expectResp, resp)
+				})
+		})
+	}
+}
+
+func newWITIdentity(t *testing.T, id spiffeid.ID, entryID, hint string) cache.WITIdentity {
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+	return cache.WITIdentity{
+		Entry: &common.RegistrationEntry{
+			SpiffeId: id.String(),
+			EntryId:  entryID,
+			Hint:     hint,
+		},
+		Token:      "token-for-" + entryID,
+		PrivateKey: key,
+	}
+}
+
+func expectWITSVID(t *testing.T, identity cache.WITIdentity) *workloadPB.WITSVID {
+	keyJWK, err := (&jose.JSONWebKey{Key: identity.PrivateKey}).MarshalJSON()
+	require.NoError(t, err)
+	return &workloadPB.WITSVID{
+		SpiffeId:   identity.Entry.SpiffeId,
+		WitSvid:    identity.Token,
+		WitSvidKey: string(keyJWK),
+		Hint:       identity.Entry.Hint,
+	}
+}
+
+func witBundle(t *testing.T, trustDomain spiffeid.TrustDomain) *spiffebundle.Bundle {
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+	bundle := spiffebundle.New(trustDomain)
+	require.NoError(t, bundle.AddWITAuthority("kid-"+trustDomain.Name(), key.Public()))
+	return bundle
+}
+
+func expectWITJWKS(t *testing.T, bundle *spiffebundle.Bundle) string {
+	jwks := jose.JSONWebKeySet{Keys: []jose.JSONWebKey{}}
+	for keyID, key := range bundle.WITAuthorities() {
+		jwks.Keys = append(jwks.Keys, jose.JSONWebKey{Key: key, KeyID: keyID})
+	}
+	out, err := json.MarshalIndent(jwks, "", "    ")
+	require.NoError(t, err)
+	return string(out)
+}
+
 func TestValidateJWTSVID(t *testing.T) {
 	ca := testca.New(t, td)
 	ca2 := testca.New(t, td2)
@@ -1519,11 +1953,11 @@ func TestValidateJWTSVID(t *testing.T) {
 	svid := ca.CreateJWTSVID(workloadID, []string{"AUDIENCE"})
 	federatedSVID := ca2.CreateJWTSVID(spiffeid.RequireFromPath(td2, "/federated-workload"), []string{"AUDIENCE"})
 
-	updatesWithBundleOnly := []*cache.WorkloadUpdate{{
+	updatesWithBundleOnly := []*cache.X509WorkloadUpdate{{
 		Bundle: bundle,
 	}}
 
-	updatesWithFederatedBundle := []*cache.WorkloadUpdate{{
+	updatesWithFederatedBundle := []*cache.X509WorkloadUpdate{{
 		Bundle: bundle,
 		FederatedBundles: map[spiffeid.TrustDomain]*spiffebundle.Bundle{
 			federatedBundle.TrustDomain(): federatedBundle,
@@ -1534,7 +1968,7 @@ func TestValidateJWTSVID(t *testing.T) {
 		name                    string
 		svid                    string
 		audience                string
-		updates                 []*cache.WorkloadUpdate
+		updates                 []*cache.X509WorkloadUpdate
 		attestErr               error
 		expectCode              codes.Code
 		expectMsg               string
@@ -1791,8 +2225,9 @@ func TestValidateJWTSVID(t *testing.T) {
 
 type testParams struct {
 	CA                            *testca.CA
-	Identities                    []cache.Identity
-	Updates                       []*cache.WorkloadUpdate
+	Identities                    []cache.X509Identity
+	Updates                       []*cache.X509WorkloadUpdate
+	WITUpdates                    []*cache.WITWorkloadUpdate
 	Selectors                     []*common.Selector
 	LogSelectors                  []string
 	AttestErr                     error
@@ -1811,6 +2246,7 @@ func runTest(t *testing.T, params testParams, fn func(ctx context.Context, clien
 		ca:         params.CA,
 		identities: params.Identities,
 		updates:    params.Updates,
+		witUpdates: params.WITUpdates,
 		err:        params.ManagerErr,
 	}
 
@@ -1854,8 +2290,9 @@ func runTest(t *testing.T, params testParams, fn func(ctx context.Context, clien
 
 type FakeManager struct {
 	ca          *testca.CA
-	identities  []cache.Identity
-	updates     []*cache.WorkloadUpdate
+	identities  []cache.X509Identity
+	updates     []*cache.X509WorkloadUpdate
+	witUpdates  []*cache.WITWorkloadUpdate
 	subscribers atomic.Int32
 	err         error
 }
@@ -1883,7 +2320,7 @@ func (m *FakeManager) FetchJWTSVID(_ context.Context, entry *common.Registration
 	}, nil
 }
 
-func (m *FakeManager) SubscribeToCacheChanges(context.Context, cache.Selectors) (cache.Subscriber, error) {
+func (m *FakeManager) SubscribeToX509CacheChanges(context.Context, cache.Selectors) (cache.Subscriber[cache.X509WorkloadUpdate], error) {
 	if m.err != nil {
 		return nil, m.err
 	}
@@ -1891,9 +2328,17 @@ func (m *FakeManager) SubscribeToCacheChanges(context.Context, cache.Selectors) 
 	return newFakeSubscriber(m, m.updates), nil
 }
 
-func (m *FakeManager) FetchWorkloadUpdate([]*common.Selector) *cache.WorkloadUpdate {
+func (m *FakeManager) SubscribeToWITCacheChanges(context.Context, cache.Selectors) (cache.Subscriber[cache.WITWorkloadUpdate], error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	m.subscribers.Add(1)
+	return newFakeSubscriber(m, m.witUpdates), nil
+}
+
+func (m *FakeManager) FetchWorkloadUpdate([]*common.Selector) *cache.X509WorkloadUpdate {
 	if len(m.updates) == 0 {
-		return &cache.WorkloadUpdate{}
+		return &cache.X509WorkloadUpdate{}
 	}
 	return m.updates[0]
 }
@@ -1906,15 +2351,15 @@ func (m *FakeManager) subscriberDone() {
 	m.subscribers.Add(-1)
 }
 
-type fakeSubscriber struct {
+type fakeSubscriber[T any] struct {
 	m      *FakeManager
-	ch     chan *cache.WorkloadUpdate
+	ch     chan *T
 	cancel context.CancelFunc
 }
 
-func newFakeSubscriber(m *FakeManager, updates []*cache.WorkloadUpdate) *fakeSubscriber {
-	ch := make(chan *cache.WorkloadUpdate)
-	ctx, cancel := context.WithCancel(context.Background())
+func newFakeSubscriber[T any](m *FakeManager, updates []*T) *fakeSubscriber[T] {
+	ch := make(chan *T)
+	ctx, cancel := context.WithCancel(context.Background()) //nolint:gosec // cancel is held by the subscriber and called by Finish
 	go func() {
 		for _, update := range updates {
 			select {
@@ -1925,18 +2370,18 @@ func newFakeSubscriber(m *FakeManager, updates []*cache.WorkloadUpdate) *fakeSub
 		}
 		<-ctx.Done()
 	}()
-	return &fakeSubscriber{
+	return &fakeSubscriber[T]{
 		m:      m,
 		ch:     ch,
 		cancel: cancel,
 	}
 }
 
-func (s *fakeSubscriber) Updates() <-chan *cache.WorkloadUpdate {
+func (s *fakeSubscriber[T]) Updates() <-chan *T {
 	return s.ch
 }
 
-func (s *fakeSubscriber) Finish() {
+func (s *fakeSubscriber[T]) Finish() {
 	s.cancel()
 	s.m.subscriberDone()
 }
@@ -1950,8 +2395,8 @@ func (a *FakeAttestor) Attest(context.Context) ([]*common.Selector, error) {
 	return a.selectors, a.err
 }
 
-func identityFromX509SVID(svid *x509svid.SVID, entryID string) cache.Identity {
-	return cache.Identity{
+func identityFromX509SVID(svid *x509svid.SVID, entryID string) cache.X509Identity {
+	return cache.X509Identity{
 		Entry:      &common.RegistrationEntry{SpiffeId: svid.ID.String(), Hint: svid.Hint, EntryId: entryID},
 		PrivateKey: svid.PrivateKey,
 		SVID:       svid.Certificates,

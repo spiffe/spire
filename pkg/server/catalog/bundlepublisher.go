@@ -38,5 +38,5 @@ func (repo *bundlePublisherRepository) BuiltIns() []catalog.BuiltIn {
 
 type bundlePublisherV1 struct{}
 
-func (bundlePublisherV1) New() catalog.Facade { return new(bundlepublisher.V1) }
-func (bundlePublisherV1) Deprecated() bool    { return false }
+func (bundlePublisherV1) New() catalog.Facade        { return new(bundlepublisher.V1) }
+func (bundlePublisherV1) Deprecated() (bool, string) { return false, "" }

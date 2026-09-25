@@ -146,6 +146,7 @@ func (h *Handler) serveWellKnown(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
 	_, _ = w.Write(docBytes)
 }
 
@@ -180,6 +181,7 @@ func (h *Handler) serveKeys(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Expires", "0")
 
 	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
 	http.ServeContent(w, r, "keys", modTime, bytes.NewReader(jwksBytes))
 }
 

@@ -4,49 +4,49 @@ This document is a configuration reference for SPIRE Server. It includes informa
 
 ## Plugin types
 
-| Type               | Description                                                                                                                                                          |
-|:-------------------|:---------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| DataStore          | Provides persistent storage and HA features. **Note:** Pluggability for the DataStore is no longer supported. Only the built-in SQL plugin can be used.              |
-| KeyManager         | Implements both signing and key storage logic for the server's signing operations. Useful for leveraging hardware-based key operations.                              |
-| CredentialComposer | Allows customization of SVID and CA attributes.                                                                                                                      |
-| NodeAttestor       | Implements validation logic for nodes attempting to assert their identity. Generally paired with an agent plugin of the same type.                                   |
-| UpstreamAuthority  | Allows SPIRE server to integrate with existing PKI systems.                                                                                                          |
-| Notifier           | Notified by SPIRE server for certain events that are happening or have happened. For events that are happening, the notifier can advise SPIRE server on the outcome. |
-| BundlePublisher    | Publishes the local trust bundle to a store.                                                                                                                         |
+| Type               | Description                                                                                                                                                                                                       |
+|:-------------------|:------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| DataStore          | Provides persistent storage and HA features. **Note:** Pluggability for the DataStore is no longer supported. Only the built-in SQL plugin can be used.                                                           |
+| KeyManager         | Implements both signing and key storage logic for the server's signing operations. Useful for leveraging hardware-based key operations.                                                                           |
+| CredentialComposer | Allows customization of SVID and CA attributes.                                                                                                                                                                   |
+| NodeAttestor       | Implements validation logic for nodes attempting to assert their identity. Generally paired with an agent plugin of the same type.                                                                                |
+| UpstreamAuthority  | Allows SPIRE server to integrate with existing PKI systems.                                                                                                                                                       |
+| Notifier           | **Deprecated:** use BundlePublisher instead. Notified by SPIRE server for certain events that are happening or have happened. For events that are happening, the notifier can advise SPIRE server on the outcome. |
+| BundlePublisher    | Publishes the local trust bundle to a store.                                                                                                                                                                      |
 
 ## Built-in plugins
 
-| Type               | Name                                                                                                 | Description                                                                                                                 |
-|--------------------|------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------|
-| DataStore          | [sql](/doc/plugin_server_datastore_sql.md)                                                           | An SQL database storage for SQLite, PostgreSQL and MySQL databases for the SPIRE datastore                                  |
-| KeyManager         | [aws_kms](/doc/plugin_server_keymanager_aws_kms.md)                                                  | A key manager which manages keys in AWS KMS                                                                                 |
-| KeyManager         | [disk](/doc/plugin_server_keymanager_disk.md)                                                        | A key manager which manages keys persisted on disk                                                                          |
-| KeyManager         | [hashicorp_vault](/doc/plugin_server_keymanager_hashicorp_vault.md)                                  | A key manager which manages keys in HashiCorp Vault's Transit Secret Engine                                                 |
-| KeyManager         | [memory](/doc/plugin_server_keymanager_memory.md)                                                    | A key manager which manages unpersisted keys in memory                                                                      |
-| CredentialComposer | [uniqueid](/doc/plugin_server_credentialcomposer_uniqueid.md)                                        | Adds the x509UniqueIdentifier attribute to workload X509-SVIDs.                                                             |
-| NodeAttestor       | [aws_iid](/doc/plugin_server_nodeattestor_aws_iid.md)                                                | A node attestor which attests agent identity using an AWS Instance Identity Document                                        |
-| NodeAttestor       | [azure_imds](/doc/plugin_server_nodeattestor_azure_imds.md)                                          | A node attestor which attests agent identity using the Azure Instance Metadata Service                                      |
-| NodeAttestor       | [azure_msi](/doc/plugin_server_nodeattestor_azure_msi.md)                                            | A node attestor which attests agent identity using an Azure MSI token                                                       |
-| NodeAttestor       | [gcp_iit](/doc/plugin_server_nodeattestor_gcp_iit.md)                                                | A node attestor which attests agent identity using a GCP Instance Identity Token                                            |
-| NodeAttestor       | [join_token](/doc/plugin_server_nodeattestor_jointoken.md)                                           | A node attestor which validates agents attesting with server-generated join tokens                                          |
-| NodeAttestor       | [k8s_psat](/doc/plugin_server_nodeattestor_k8s_psat.md)                                              | A node attestor which attests agent identity using a Kubernetes Projected Service Account token                             |
-| NodeAttestor       | [sshpop](/doc/plugin_server_nodeattestor_sshpop.md)                                                  | A node attestor which attests agent identity using an existing ssh certificate                                              |
-| NodeAttestor       | [tpm_devid](/doc/plugin_server_nodeattestor_tpm_devid.md)                                            | A node attestor which attests agent identity using a TPM that has been provisioned with a DevID certificate                 |
-| NodeAttestor       | [x509pop](/doc/plugin_server_nodeattestor_x509pop.md)                                                | A node attestor which attests agent identity using an existing X.509 certificate                                            |
-| UpstreamAuthority  | [disk](/doc/plugin_server_upstreamauthority_disk.md)                                                 | Uses a CA loaded from disk to sign SPIRE server intermediate certificates.                                                  |
-| UpstreamAuthority  | [aws_pca](/doc/plugin_server_upstreamauthority_aws_pca.md)                                           | Uses a Private Certificate Authority from AWS Certificate Manager to sign SPIRE server intermediate certificates.           |
-| UpstreamAuthority  | [awssecret](/doc/plugin_server_upstreamauthority_awssecret.md)                                       | Uses a CA loaded from AWS SecretsManager to sign SPIRE server intermediate certificates.                                    |
-| UpstreamAuthority  | [gcp_cas](/doc/plugin_server_upstreamauthority_gcp_cas.md)                                           | Uses a Private Certificate Authority from GCP Certificate Authority Service to sign SPIRE Server intermediate certificates. |
-| UpstreamAuthority  | [vault](/doc/plugin_server_upstreamauthority_vault.md)                                               | Uses a PKI Secret Engine from HashiCorp Vault to sign SPIRE server intermediate certificates.                               |
-| UpstreamAuthority  | [spire](/doc/plugin_server_upstreamauthority_spire.md)                                               | Uses an upstream SPIRE server in the same trust domain to obtain intermediate signing certificates for SPIRE server.        |
-| UpstreamAuthority  | [cert-manager](/doc/plugin_server_upstreamauthority_cert_manager.md)                                 | Uses a referenced cert-manager Issuer to request intermediate signing certificates.                                         |
-| Notifier           | [gcs_bundle](/doc/plugin_server_notifier_gcs_bundle.md)                                              | A notifier that pushes the latest trust bundle contents into an object in Google Cloud Storage.                             |
-| Notifier           | [k8sbundle](/doc/plugin_server_notifier_k8sbundle.md)                                                | A notifier that pushes the latest trust bundle contents into a Kubernetes ConfigMap.                                        |
-| BundlePublisher    | [aws_s3](/doc/plugin_server_bundlepublisher_aws_s3.md)                                               | Publishes the trust bundle to an Amazon S3 bucket.                                                                          |
-| BundlePublisher    | [gcp_cloudstorage](/doc/plugin_server_bundlepublisher_gcp_cloudstorage.md)                           | Publishes the trust bundle to a Google Cloud Storage bucket.                                                                |
-| BundlePublisher    | [aws_rolesanywhere_trustanchor](/doc/plugin_server_bundlepublisher_aws_rolesanywhere_trustanchor.md) | Publishes the trust bundle to an AWS IAM Roles Anywhere trust anchor.                                                       |
-| BundlePublisher    | [azure_blob](/doc/plugin_server_bundlepublisher_azure_blob.md)                                       | Publishes the trust bundle to an Azure Blob Storage account.                                                                |
-| BundlePublisher    | [k8s_configmap](/doc/plugin_server_bundlepublisher_k8s_configmap.md)                                 | Publishes the trust bundle to a Kubernetes ConfigMap.                                                                       |
+| Type               | Name                                                                                                 | Description                                                                                                                                                         |
+|--------------------|------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| DataStore          | [sql](/doc/plugin_server_datastore_sql.md)                                                           | An SQL database storage for SQLite, PostgreSQL and MySQL databases for the SPIRE datastore                                                                          |
+| KeyManager         | [aws_kms](/doc/plugin_server_keymanager_aws_kms.md)                                                  | A key manager which manages keys in AWS KMS                                                                                                                         |
+| KeyManager         | [disk](/doc/plugin_server_keymanager_disk.md)                                                        | A key manager which manages keys persisted on disk                                                                                                                  |
+| KeyManager         | [hashicorp_vault](/doc/plugin_server_keymanager_hashicorp_vault.md)                                  | A key manager which manages keys in HashiCorp Vault's Transit Secret Engine                                                                                         |
+| KeyManager         | [memory](/doc/plugin_server_keymanager_memory.md)                                                    | A key manager which manages unpersisted keys in memory                                                                                                              |
+| CredentialComposer | [uniqueid](/doc/plugin_server_credentialcomposer_uniqueid.md)                                        | Adds the x509UniqueIdentifier attribute to workload X509-SVIDs.                                                                                                     |
+| NodeAttestor       | [aws_iid](/doc/plugin_server_nodeattestor_aws_iid.md)                                                | A node attestor which attests agent identity using an AWS Instance Identity Document                                                                                |
+| NodeAttestor       | [azure_imds](/doc/plugin_server_nodeattestor_azure_imds.md)                                          | A node attestor which attests agent identity using the Azure Instance Metadata Service                                                                              |
+| NodeAttestor       | [azure_msi](/doc/plugin_server_nodeattestor_azure_msi.md)                                            | A node attestor which attests agent identity using an Azure MSI token                                                                                               |
+| NodeAttestor       | [gcp_iit](/doc/plugin_server_nodeattestor_gcp_iit.md)                                                | A node attestor which attests agent identity using a GCP Instance Identity Token                                                                                    |
+| NodeAttestor       | [join_token](/doc/plugin_server_nodeattestor_jointoken.md)                                           | A node attestor which validates agents attesting with server-generated join tokens                                                                                  |
+| NodeAttestor       | [k8s_psat](/doc/plugin_server_nodeattestor_k8s_psat.md)                                              | A node attestor which attests agent identity using a Kubernetes Projected Service Account token                                                                     |
+| NodeAttestor       | [sshpop](/doc/plugin_server_nodeattestor_sshpop.md)                                                  | A node attestor which attests agent identity using an existing ssh certificate                                                                                      |
+| NodeAttestor       | [tpm_devid](/doc/plugin_server_nodeattestor_tpm_devid.md)                                            | A node attestor which attests agent identity using a TPM that has been provisioned with a DevID certificate                                                         |
+| NodeAttestor       | [x509pop](/doc/plugin_server_nodeattestor_x509pop.md)                                                | A node attestor which attests agent identity using an existing X.509 certificate                                                                                    |
+| UpstreamAuthority  | [disk](/doc/plugin_server_upstreamauthority_disk.md)                                                 | Uses a CA loaded from disk to sign SPIRE server intermediate certificates.                                                                                          |
+| UpstreamAuthority  | [aws_pca](/doc/plugin_server_upstreamauthority_aws_pca.md)                                           | Uses a Private Certificate Authority from AWS Certificate Manager to sign SPIRE server intermediate certificates.                                                   |
+| UpstreamAuthority  | [awssecret](/doc/plugin_server_upstreamauthority_awssecret.md)                                       | Uses a CA loaded from AWS SecretsManager to sign SPIRE server intermediate certificates.                                                                            |
+| UpstreamAuthority  | [gcp_cas](/doc/plugin_server_upstreamauthority_gcp_cas.md)                                           | Uses a Private Certificate Authority from GCP Certificate Authority Service to sign SPIRE Server intermediate certificates.                                         |
+| UpstreamAuthority  | [vault](/doc/plugin_server_upstreamauthority_vault.md)                                               | Uses a PKI Secret Engine from HashiCorp Vault to sign SPIRE server intermediate certificates.                                                                       |
+| UpstreamAuthority  | [spire](/doc/plugin_server_upstreamauthority_spire.md)                                               | Uses an upstream SPIRE server in the same trust domain to obtain intermediate signing certificates for SPIRE server.                                                |
+| UpstreamAuthority  | [cert-manager](/doc/plugin_server_upstreamauthority_cert_manager.md)                                 | Uses a referenced cert-manager Issuer to request intermediate signing certificates.                                                                                 |
+| Notifier           | [gcs_bundle](/doc/plugin_server_notifier_gcs_bundle.md)                                              | **Deprecated:** use the `gcp_cloudstorage` BundlePublisher instead. A notifier that pushes the latest trust bundle contents into an object in Google Cloud Storage. |
+| Notifier           | [k8sbundle](/doc/plugin_server_notifier_k8sbundle.md)                                                | **Deprecated:** use the `k8s_configmap` BundlePublisher instead. A notifier that pushes the latest trust bundle contents into a Kubernetes ConfigMap.               |
+| BundlePublisher    | [aws_s3](/doc/plugin_server_bundlepublisher_aws_s3.md)                                               | Publishes the trust bundle to an Amazon S3 bucket.                                                                                                                  |
+| BundlePublisher    | [gcp_cloudstorage](/doc/plugin_server_bundlepublisher_gcp_cloudstorage.md)                           | Publishes the trust bundle to a Google Cloud Storage bucket.                                                                                                        |
+| BundlePublisher    | [aws_rolesanywhere_trustanchor](/doc/plugin_server_bundlepublisher_aws_rolesanywhere_trustanchor.md) | Publishes the trust bundle to an AWS IAM Roles Anywhere trust anchor.                                                                                               |
+| BundlePublisher    | [azure_blob](/doc/plugin_server_bundlepublisher_azure_blob.md)                                       | Publishes the trust bundle to an Azure Blob Storage account.                                                                                                        |
+| BundlePublisher    | [k8s_configmap](/doc/plugin_server_bundlepublisher_k8s_configmap.md)                                 | Publishes the trust bundle to a Kubernetes ConfigMap.                                                                                                               |
 
 ## Server configuration file
 
@@ -75,7 +75,8 @@ This may be useful for templating configuration files, for example across differ
 | `disable_jwt_svids`                | If true, completely disables JWT-SVID functionality. The server will not generate JWT keys, sign JWT-SVIDs, or implement JWT-related API calls. This is useful for deployments that don't need JWT-SVIDs support.                                                                                                                                                                      | false                                                          |
 | `jwt_key_type`                     | The key type used for the server CA (JWT), &lt;rsa-2048&vert;rsa-4096&vert;ec-p256&vert;ec-p384&gt;                                                                                                                                                                                                                                                                                    | The value of `ca_key_type` or ec-p256 if not defined           |
 | `jwt_issuer`                       | The issuer claim used when minting JWT-SVIDs                                                                                                                                                                                                                                                                                                                                           |                                                                |
-| `log_file`                         | File to write logs to                                                                                                                                                                                                                                                                                                                                                                  |                                                                |
+| `log_file`                         | File to write logs to. An external tool can move it aside on any platform, and SPIRE Server then starts a new one on receipt of `SIGUSR2` on POSIX, or of the reopen control code on Windows (see below)                                                                                                                                                                               |                                                                |
+| `log_file_rotation`                | Rotates `log_file` in process rather than relying on an external tool (below). Works on all platforms. Disabled unless configured                                                                                                                                                                                                                                                      |                                                                |
 | `log_level`                        | Sets the logging level &lt;DEBUG&vert;INFO&vert;WARN&vert;ERROR&gt;                                                                                                                                                                                                                                                                                                                    | INFO                                                           |
 | `log_format`                       | Format of logs, &lt;text&vert;json&gt;                                                                                                                                                                                                                                                                                                                                                 | text                                                           |
 | `log_source_location`              | If true, logs include source file, line number, and method name fields (adds a bit of runtime cost)                                                                                                                                                                                                                                                                                    | false                                                          |
@@ -92,14 +93,40 @@ This may be useful for templating configuration files, for example across differ
 | `trust_domain`                     | The trust domain that this server belongs to (should be no more than 255 characters)                                                                                                                                                                                                                                                                                                   |                                                                |
 | `max_attested_node_info_staleness` | How long to cache and use attested node information before requiring fetching up to date data from the datastore.                                                                                                                                                                                                                                                                      | 0s                                                             |
 
+| tls_config         | Description                                                                                                                                                                                           | Default                      |
+|--------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------------------|
+| `min_tls_version`  | Minimum TLS version for terminating server listeners (e.g. `VersionTLS12`, `VersionTLS13`). Values below `VersionTLS12` are rejected at startup. When omitted, defaults to TLS 1.2.                   | TLS 1.2 when block is present|
+| `cipher_suites`    | Allowed TLS 1.2 cipher suites for terminating listeners. Ignored when `min_tls_version` is `VersionTLS13` or higher (Go negotiates TLS 1.3 ciphers). Insecure suite names are filtered with a warning.| Go defaults if all filtered  |
+| `curve_preferences`| Preferred key exchange curves (e.g. `X25519MLKEM768`, `X25519`, `secp256r1`). When minimum TLS is 1.2, at least one classical curve is required.                                                      |                              |
+
+`tls_config` is a top-level `server { ... }` block (not experimental). It is parsed once at startup; invalid values prevent the server from starting. Settings apply only to **inbound TLS listeners** — gRPC TCP API, federation bundle HTTPS endpoint, and Prometheus HTTPS (`ApplyPolicy` with `WithServerTLSConfig()`). They are **not** applied to outbound TLS clients.
+
+When `experimental.require_pq_kem` is enabled, it overrides `min_tls_version` and `curve_preferences` on connections where the policy is applied.
+
 | ca_subject                  | Description                    | Default        |
 |:----------------------------|--------------------------------|----------------|
 | `country`                   | Array of `Country` values      |                |
 | `organization`              | Array of `Organization` values |                |
 | `common_name`               | The `CommonName` value         |                |
 
+| log_file_rotation | Description                                                                                                                                                                      | Default |
+|:------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------|
+| `max_size_mb`     | Size in MiB that `log_file` may reach before it is rotated. An explicit `0` disables size based rotation, leaving it to `SIGUSR2` on POSIX or the reopen control code on Windows | 100     |
+| `max_files`       | Number of rotated files to retain, not counting the file currently being written. An explicit `0` retains every rotated file                                                     | 7       |
+
+Requires `log_file` to be set. Rotation moves the accumulated content aside to a
+timestamped sibling of `log_file` (for example `server-2026-08-18T22-43-01.123.log`)
+and keeps writing to `log_file` itself. `max_files` is applied when a rotation
+happens, not on a timer. A key left unset takes its default, so a block with no
+keys still rotates and still prunes.
+
+A reopen also forces an immediate rotation, whether it arrives as `SIGUSR2` on
+POSIX or as the reopen control code on Windows. Rotating an already-empty file is
+a no-op, so a scheduled reopen on an idle service does not consume the
+`max_files` budget.
+
 | experimental                  | Description                                                                                                                                                                                                            | Default                            |
-|:------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------------------------|
+|:-----------------------------:|:----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------:|:----------------------------------:|
 | `agent_spiffe_id_as_selector` | Enable adding the agent spiffe_id to the list of node selectors automatically.                                                                                                                                         | false                              |
 | `cache_reload_interval`       | The amount of time between two reloads of the in-memory entry cache. Increasing this will mitigate high database load for extra large deployments, but will also slow propagation of new or updated entries to agents. | 5s                                 |
 | `full_cache_reload_interval`  | How often to a full reload of the cache from the database when using the events based cache.                                                                                                                           | 24h                                |
@@ -108,7 +135,7 @@ This may be useful for templating configuration files, for example across differ
 | `event_timeout`               | Maximum time to wait for an event to come in before giving up.                                                                                                                                                         | 15m                                |
 | `auth_opa_policy_engine`      | The [auth opa_policy engine](/doc/authorization_policy_engine.md) used for authorization decisions                                                                                                                     | default SPIRE authorization policy |
 | `named_pipe_name`             | Pipe name of the SPIRE Server API named pipe (Windows only)                                                                                                                                                            | \spire-server\private\api          |
-| `require_pq_kem`              | Require use of a post-quantum-safe key exchange method for TLS handshakes                                                                                                                                              | false                              |
+| `require_pq_kem`              | Require post-quantum-safe KEM on terminating server listeners.                                                                                                                                                         | false                              |
 | `wit_issuer`                  | The issuer claim used when minting WIT-SVIDs                                                                                                                                                                           |                                    |
 
 | ratelimit     | Description                                                                                                                                        | Default |
@@ -247,6 +274,7 @@ server {
             bundle_endpoint_profile "https_spiffe" {
                 endpoint_spiffe_id = "spiffe://domain2.test/beserver"
             }
+            bootstrap_bundle_path = "/etc/spire/domain2.pem"
         }
     }
 }
@@ -304,12 +332,16 @@ The optional `federates_with` section is a map of bundle endpoint profile config
 |---------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------|---------|
 | bundle_endpoint_url                                           | URL of the SPIFFE bundle endpoint that provides the trust bundle to federate with. Must use the HTTPS protocol. |         |
 | bundle_endpoint_profile "&lt;https_web&vert;https_spiffe&gt;" | Configuration of the SPIFFE endpoint profile type.                                                              |         |
+| bootstrap_bundle_path                                         | Path to a bundle used to authenticate the first `https_spiffe` fetch if none is stored yet.                     |         |
+| bootstrap_bundle_format                                       | Format of `bootstrap_bundle_path`. Either `pem` or `spiffe`.                                                    | pem     |
 
 SPIRE supports the `https_web` and `https_spiffe` bundle endpoint profiles.
 
 The `https_web` profile does not require additional settings.
 
 Trust domains configured with the `https_spiffe` bundle endpoint profile must specify the expected SPIFFE ID of the remote SPIFFE bundle endpoint server using the `endpoint_spiffe_id` setting as part of the configuration.
+
+`bootstrap_bundle_path` replaces the need to run `spire-server bundle set` before the first `https_spiffe` poll. It authenticates that first connection only. The bundle returned by the endpoint is stored with a create, not an update. Subsequent refreshes use the stored bundle. The path is not watched.
 
 For more information about the different profiles defined in SPIFFE, along with the security considerations for setting up SPIFFE Federation, please refer to the [SPIFFE Federation standard](https://github.com/spiffe/spiffe/blob/main/standards/SPIFFE_Federation.md).
 
@@ -368,6 +400,21 @@ When starting the service, all the arguments to execute SPIRE Server with the `r
 ```bash
 > sc.exe start spire-server run -config c:\spire\conf\server\server.conf
 ```
+
+##### Rotating logs on Windows
+
+A Windows service has no console, so deployments generally set `log_file`. An
+external tool can move that file aside, and the reopen is then requested with a
+user defined service control code, since Windows has no `SIGUSR2`.
+
+```bash
+> sc.exe control spire-server 128
+```
+
+Configure [`log_file_rotation`](#server-configuration-file) instead to have
+SPIRE Server rotate the file itself, with no external tool involved. Either way the
+file is opened for append, so restarting the service does not reset it. Running
+from a console has no trigger, since control codes only reach a service.
 
 ### `spire-server token generate`
 
@@ -628,6 +675,16 @@ Displays the details (including node selectors) of an attested node given its sp
 |:--------------|:----------------------------------------------------|:-----------------------------------|
 | `-socketPath` | Path to the SPIRE Server API socket                 | /tmp/spire-server/private/api.sock |
 | `-spiffeID`   | The SPIFFE ID of the agent to show (agent identity) |                                    |
+
+### `spire-server debug getinfo`
+
+Prints debug information about the server, including uptime, registered
+agent/entry/federated bundle counts, and the server's own SVID chain.
+
+| Command       | Action                                   | Default                            |
+|:--------------|:-----------------------------------------|:-----------------------------------|
+| `-output`     | Desired output format (`pretty`, `json`) | `pretty`                           |
+| `-socketPath` | Path to the SPIRE Server API socket      | /tmp/spire-server/private/api.sock |
 
 ### `spire-server healthcheck`
 

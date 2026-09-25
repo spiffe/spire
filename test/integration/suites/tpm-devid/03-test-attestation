@@ -1,0 +1,38 @@
+#!/bin/bash
+
+# The server derives the agent ID from the SHA-1 digest of the DevID
+# certificate, so deriving it here from the certificate we provisioned proves
+# the agent attested with that credential rather than merely that some agent
+# attested.
+EXPECTED_ID="spiffe://domain.test/spire/agent/tpm_devid/$(fingerprint conf/agent/devid.crt.pem)"
+log-debug "expecting agent ${EXPECTED_ID}"
+
+MAXCHECKS=30
+CHECKINTERVAL=1
+for ((i=1;i<=MAXCHECKS;i++)); do
+    log-info "checking for attested agent (${i} of ${MAXCHECKS})..."
+    AGENTS="$(docker compose exec -T spire-server /opt/spire/bin/spire-server agent list || true)"
+    if echo "${AGENTS}" | grep -q "${EXPECTED_ID}"; then
+        log-info "agent attested via tpm_devid"
+        break
+    fi
+    if [ "${i}" -eq "${MAXCHECKS}" ]; then
+        log-warn "last agent list output: ${AGENTS}"
+        fail-now "agent did not attest as ${EXPECTED_ID} after ${MAXCHECKS} checks"
+    fi
+    sleep "${CHECKINTERVAL}"
+done
+
+EXPECTED_SUBJECT="tpm_devid:subject:cn:devid-leaf"
+EXPECTED_ISSUER="tpm_devid:issuer:cn:devid-root"
+EXPECTED_CA="tpm_devid:ca:fingerprint:$(fingerprint conf/server/devid-ca.pem)"
+
+log-debug "checking selectors on ${EXPECTED_ID}"
+SHOW="$(docker compose exec -T spire-server \
+    /opt/spire/bin/spire-server agent show -spiffeID "${EXPECTED_ID}")"
+echo "${SHOW}"
+
+echo "${SHOW}" | grep -F "${EXPECTED_SUBJECT}" || fail-now "missing selector ${EXPECTED_SUBJECT}"
+echo "${SHOW}" | grep -F "${EXPECTED_ISSUER}" || fail-now "missing selector ${EXPECTED_ISSUER}"
+echo "${SHOW}" | grep -F "${EXPECTED_CA}" || fail-now "missing selector ${EXPECTED_CA}"
+log-info "tpm_devid selectors match the provisioned DevID certificate"

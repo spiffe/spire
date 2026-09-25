@@ -124,10 +124,8 @@ func Build(ctx context.Context, trustDomain string, entryIter EntryIterator, age
 		parentID := entry.ParentId.Path
 		if entry.ParentId.Path == "/spire/server" {
 			alias := aliasInfo{
-				aliasEntry: aliasEntry{
-					id:    entry.SpiffeId.Path,
-					entry: entry,
-				},
+				id:        entry.SpiffeId.Path,
+				entry:     entry,
 				selectors: selectorSetFromProto(entry.Selectors),
 			}
 			for selector := range alias.selectors {

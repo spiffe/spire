@@ -47,8 +47,8 @@ type Attestor interface {
 }
 
 type Manager interface {
-	SubscribeToCacheChanges(ctx context.Context, key cache.Selectors) (cache.Subscriber, error)
-	FetchWorkloadUpdate(selectors []*common.Selector) *cache.WorkloadUpdate
+	SubscribeToX509CacheChanges(ctx context.Context, key cache.Selectors) (cache.Subscriber[cache.X509WorkloadUpdate], error)
+	FetchWorkloadUpdate(selectors []*common.Selector) *cache.X509WorkloadUpdate
 }
 
 type Config struct {
@@ -106,7 +106,7 @@ func (h *Handler) StreamSecrets(stream secret_v3.SecretDiscoveryService_StreamSe
 		return err
 	}
 
-	sub, err := h.c.Manager.SubscribeToCacheChanges(stream.Context(), selectors)
+	sub, err := h.c.Manager.SubscribeToX509CacheChanges(stream.Context(), selectors)
 	if err != nil {
 		log.WithError(err).Error("Subscribe to cache changes failed")
 		return err
@@ -135,7 +135,7 @@ func (h *Handler) StreamSecrets(stream secret_v3.SecretDiscoveryService_StreamSe
 	versionInfo := strconv.FormatInt(versionCounter, 10)
 	var lastNonce string
 	var lastNode *core_v3.Node
-	var upd *cache.WorkloadUpdate
+	var upd *cache.X509WorkloadUpdate
 	var lastReq *discovery_v3.DiscoveryRequest
 	for {
 		select {
@@ -292,7 +292,7 @@ func (h *Handler) FetchSecrets(ctx context.Context, req *discovery_v3.DiscoveryR
 	return resp, nil
 }
 
-func (h *Handler) buildResponse(versionInfo string, req *discovery_v3.DiscoveryRequest, upd *cache.WorkloadUpdate) (resp *discovery_v3.DiscoveryResponse, err error) {
+func (h *Handler) buildResponse(versionInfo string, req *discovery_v3.DiscoveryRequest, upd *cache.X509WorkloadUpdate) (resp *discovery_v3.DiscoveryResponse, err error) {
 	resp = &discovery_v3.DiscoveryResponse{
 		TypeUrl:     req.TypeUrl,
 		VersionInfo: versionInfo,
@@ -399,7 +399,7 @@ type validationContextBuilder interface {
 	buildAll(resourceName string) (*anypb.Any, error)
 }
 
-func (h *Handler) getValidationContextBuilder(req *discovery_v3.DiscoveryRequest, upd *cache.WorkloadUpdate) (validationContextBuilder, error) {
+func (h *Handler) getValidationContextBuilder(req *discovery_v3.DiscoveryRequest, upd *cache.X509WorkloadUpdate) (validationContextBuilder, error) {
 	federatedBundles := make(map[spiffeid.TrustDomain]*spiffebundle.Bundle)
 	maps.Copy(federatedBundles, upd.FederatedBundles)
 	if !h.isSPIFFECertValidationDisabled(req) && supportsSPIFFEAuthExtension(req) {
@@ -588,7 +588,7 @@ func parseBool(v *structpb.Value) (bool, error) {
 	return false, fmt.Errorf("unsupported value type %T", v)
 }
 
-func buildTLSCertificate(identity cache.Identity, defaultSVIDName string) (*anypb.Any, error) {
+func buildTLSCertificate(identity cache.X509Identity, defaultSVIDName string) (*anypb.Any, error) {
 	name := identity.Entry.SpiffeId
 	if defaultSVIDName != "" {
 		name = defaultSVIDName

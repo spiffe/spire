@@ -129,9 +129,7 @@ func (s *MSIAttestorSuite) loadAttestor(options ...plugintest.Option) nodeattest
 
 func (s *MSIAttestorSuite) makeAccessToken(principalID, tenantID string) string {
 	claims := azure.MSITokenClaims{
-		Claims: jwt.Claims{
-			Subject: principalID,
-		},
+		Subject:  principalID,
 		TenantID: tenantID,
 	}
 

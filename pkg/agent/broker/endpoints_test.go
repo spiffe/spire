@@ -2,18 +2,91 @@ package broker
 
 import (
 	"context"
+	"crypto/tls"
 	"net"
 	"testing"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/go-spiffe/v2/svid/x509svid"
 	brokerapi "github.com/spiffe/spire/pkg/agent/broker/api"
 	"github.com/spiffe/spire/pkg/common/api/middleware"
+	"github.com/spiffe/spire/pkg/common/tlspolicy"
+	"github.com/spiffe/spire/test/testca"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
 )
+
+type staticSVIDSource struct {
+	svid *x509svid.SVID
+}
+
+func (s staticSVIDSource) GetX509SVID() (*x509svid.SVID, error) {
+	return s.svid, nil
+}
+
+func TestBrokerListenerWithTLSPolicy(t *testing.T) {
+	td := spiffeid.RequireTrustDomainFromString("example.org")
+	ca := testca.New(t, td)
+	agentSVID := ca.CreateX509SVID(spiffeid.RequireFromPath(td, "/agent"))
+	brokerID := spiffeid.RequireFromPath(td, "/broker")
+
+	policy, err := tlspolicy.NewPolicy(false, &tlspolicy.TLSConfig{
+		MinTLSVersion: "VersionTLS13",
+		CipherSuites:  []string{"TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"},
+		CurvePreferences: []string{
+			"X25519MLKEM768",
+			"secp256r1",
+		},
+	}, nil)
+	require.NoError(t, err)
+
+	tlsConfig, err := buildListenerTLSConfig(&Config{
+		SVIDSource:   staticSVIDSource{svid: agentSVID},
+		BundleSource: ca.X509Bundle(),
+		Brokers: []Broker{
+			{ID: brokerID.String()},
+		},
+		TLSPolicy: policy,
+	})
+	require.NoError(t, err)
+	require.Equal(t, uint16(tls.VersionTLS13), tlsConfig.MinVersion)
+	require.Nil(t, tlsConfig.CipherSuites)
+	require.Equal(t, []tls.CurveID{tls.X25519MLKEM768, tls.CurveP256}, tlsConfig.CurvePreferences)
+}
+
+func TestBrokerListenerWithEmptyTLSPolicy(t *testing.T) {
+	td := spiffeid.RequireTrustDomainFromString("example.org")
+	ca := testca.New(t, td)
+	agentSVID := ca.CreateX509SVID(spiffeid.RequireFromPath(td, "/agent"))
+	brokerID := spiffeid.RequireFromPath(td, "/broker")
+
+	policy, err := tlspolicy.NewPolicy(false, nil, nil)
+	require.NoError(t, err)
+
+	tlsConfig, err := buildListenerTLSConfig(&Config{
+		SVIDSource:   staticSVIDSource{svid: agentSVID},
+		BundleSource: ca.X509Bundle(),
+		Brokers: []Broker{
+			{ID: brokerID.String()},
+		},
+		TLSPolicy: policy,
+	})
+	require.NoError(t, err)
+	require.Equal(t, uint16(tls.VersionTLS12), tlsConfig.MinVersion)
+	require.Nil(t, tlsConfig.CipherSuites)
+	require.Nil(t, tlsConfig.CurvePreferences)
+}
+
+func TestBrokerListenerWithInvalidTLSPolicy(t *testing.T) {
+	_, err := tlspolicy.NewPolicy(false, &tlspolicy.TLSConfig{
+		MinTLSVersion: "not-a-version",
+	}, nil)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "invalid minTLSVersion")
+}
 
 func TestRestrictReflectionToUDS(t *testing.T) {
 	for _, tt := range []struct {

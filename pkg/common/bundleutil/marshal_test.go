@@ -14,10 +14,11 @@ func TestMarshal(t *testing.T) {
 	rootCA := createCACertificate(t)
 
 	testCases := []struct {
-		name  string
-		empty bool
-		opts  []MarshalOption
-		out   string
+		name       string
+		empty      bool
+		withWITKey bool
+		opts       []MarshalOption
+		out        string
 	}{
 		{
 			name:  "empty bundle",
@@ -136,6 +137,73 @@ func TestMarshal(t *testing.T) {
 				]
 			}`, x5c(rootCA)),
 		},
+		{
+			name:       "without WIT SVID keys",
+			withWITKey: true,
+			opts: []MarshalOption{
+				NoWITSVIDKeys(),
+			},
+			out: fmt.Sprintf(`{
+				"keys": [
+					{
+						"use": "x509-svid",
+						"kty": "EC",
+						"crv": "P-256",
+						"x": "kkEn5E2Hd_rvCRDCVMNj3deN0ADij9uJVmN-El0CJz0",
+						"y": "qNrnjhtzrtTR0bRgI2jPIC1nEgcWNX63YcZOEzyo1iA",
+						"x5c": [
+							"%s"
+						]
+					},
+					{
+						"use": "jwt-svid",
+						"kid": "FOO",
+						"kty": "EC",
+						"crv": "P-256",
+						"x": "kkEn5E2Hd_rvCRDCVMNj3deN0ADij9uJVmN-El0CJz0",
+						"y": "qNrnjhtzrtTR0bRgI2jPIC1nEgcWNX63YcZOEzyo1iA"
+					}
+				],
+				"spiffe_refresh_hint": 60,
+				"spiffe_sequence": 42
+			}`, x5c(rootCA)),
+		},
+		{
+			name:       "with all SVID keys",
+			withWITKey: true,
+			out: fmt.Sprintf(`{
+				"keys": [
+					{
+						"use": "x509-svid",
+						"kty": "EC",
+						"crv": "P-256",
+						"x": "kkEn5E2Hd_rvCRDCVMNj3deN0ADij9uJVmN-El0CJz0",
+						"y": "qNrnjhtzrtTR0bRgI2jPIC1nEgcWNX63YcZOEzyo1iA",
+						"x5c": [
+							"%s"
+						]
+					},
+					{
+						"use": "jwt-svid",
+						"kid": "FOO",
+						"kty": "EC",
+						"crv": "P-256",
+						"x": "kkEn5E2Hd_rvCRDCVMNj3deN0ADij9uJVmN-El0CJz0",
+						"y": "qNrnjhtzrtTR0bRgI2jPIC1nEgcWNX63YcZOEzyo1iA"
+					},
+					{
+						"use": "wit-svid",
+						"kid": "BAR",
+						"kty": "EC",
+						"crv": "P-256",
+						"x": "kkEn5E2Hd_rvCRDCVMNj3deN0ADij9uJVmN-El0CJz0",
+						"y": "qNrnjhtzrtTR0bRgI2jPIC1nEgcWNX63YcZOEzyo1iA"
+					}
+				],
+				"spiffe_refresh_hint": 60,
+				"spiffe_sequence": 42
+			}`, x5c(rootCA)),
+		},
 	}
 
 	trustDomain := spiffeid.RequireTrustDomainFromString("domain.test")
@@ -149,9 +217,99 @@ func TestMarshal(t *testing.T) {
 				bundle.AddX509Authority(rootCA)
 				require.NoError(t, bundle.AddJWTAuthority("FOO", testKey.Public()))
 			}
+			if testCase.withWITKey {
+				require.NoError(t, bundle.AddWITAuthority("BAR", testKey.Public()))
+			}
 			bundleBytes, err := Marshal(bundle, testCase.opts...)
 			require.NoError(t, err)
 			require.JSONEq(t, testCase.out, string(bundleBytes))
 		})
 	}
+}
+
+func TestMarshalX509SVIDBundle(t *testing.T) {
+	rootCA := createCACertificate(t)
+	trustDomain := spiffeid.RequireTrustDomainFromString("domain.test")
+
+	bundle := spiffebundle.New(trustDomain)
+	bundle.SetRefreshHint(time.Minute)
+	bundle.SetSequenceNumber(42)
+	bundle.AddX509Authority(rootCA)
+	require.NoError(t, bundle.AddJWTAuthority("FOO", testKey.Public()))
+	require.NoError(t, bundle.AddWITAuthority("BAR", testKey.Public()))
+
+	bundleBytes, err := MarshalX509SVIDBundle(bundle)
+	require.NoError(t, err)
+	require.JSONEq(t, fmt.Sprintf(`{
+		"keys": [
+			{
+				"use": "x509-svid",
+				"kty": "EC",
+				"crv": "P-256",
+				"x": "kkEn5E2Hd_rvCRDCVMNj3deN0ADij9uJVmN-El0CJz0",
+				"y": "qNrnjhtzrtTR0bRgI2jPIC1nEgcWNX63YcZOEzyo1iA",
+				"x5c": ["%s"]
+			}
+		],
+		"spiffe_refresh_hint": 60,
+		"spiffe_sequence": 42
+	}`, x5c(rootCA)), string(bundleBytes))
+}
+
+func TestMarshalJWTSVIDBundle(t *testing.T) {
+	rootCA := createCACertificate(t)
+	trustDomain := spiffeid.RequireTrustDomainFromString("domain.test")
+
+	bundle := spiffebundle.New(trustDomain)
+	bundle.SetRefreshHint(time.Minute)
+	bundle.SetSequenceNumber(42)
+	bundle.AddX509Authority(rootCA)
+	require.NoError(t, bundle.AddJWTAuthority("FOO", testKey.Public()))
+	require.NoError(t, bundle.AddWITAuthority("BAR", testKey.Public()))
+
+	bundleBytes, err := MarshalJWTSVIDBundle(bundle)
+	require.NoError(t, err)
+	require.JSONEq(t, `{
+		"keys": [
+			{
+				"use": "jwt-svid",
+				"kid": "FOO",
+				"kty": "EC",
+				"crv": "P-256",
+				"x": "kkEn5E2Hd_rvCRDCVMNj3deN0ADij9uJVmN-El0CJz0",
+				"y": "qNrnjhtzrtTR0bRgI2jPIC1nEgcWNX63YcZOEzyo1iA"
+			}
+		],
+		"spiffe_refresh_hint": 60,
+		"spiffe_sequence": 42
+	}`, string(bundleBytes))
+}
+
+func TestMarshalWITSVIDBundle(t *testing.T) {
+	rootCA := createCACertificate(t)
+	trustDomain := spiffeid.RequireTrustDomainFromString("domain.test")
+
+	bundle := spiffebundle.New(trustDomain)
+	bundle.SetRefreshHint(time.Minute)
+	bundle.SetSequenceNumber(42)
+	bundle.AddX509Authority(rootCA)
+	require.NoError(t, bundle.AddJWTAuthority("FOO", testKey.Public()))
+	require.NoError(t, bundle.AddWITAuthority("BAR", testKey.Public()))
+
+	bundleBytes, err := MarshalWITSVIDBundle(bundle)
+	require.NoError(t, err)
+	require.JSONEq(t, `{
+		"keys": [
+			{
+				"use": "wit-svid",
+				"kid": "BAR",
+				"kty": "EC",
+				"crv": "P-256",
+				"x": "kkEn5E2Hd_rvCRDCVMNj3deN0ADij9uJVmN-El0CJz0",
+				"y": "qNrnjhtzrtTR0bRgI2jPIC1nEgcWNX63YcZOEzyo1iA"
+			}
+		],
+		"spiffe_refresh_hint": 60,
+		"spiffe_sequence": 42
+	}`, bundleBytes)
 }

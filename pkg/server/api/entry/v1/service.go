@@ -241,11 +241,12 @@ func (s *Service) GetEntry(ctx context.Context, req *entryv1.GetEntryRequest) (*
 	}
 	rpccontext.AddRPCAuditFields(ctx, logrus.Fields{telemetry.RegistrationID: req.Id})
 	log = log.WithField(telemetry.RegistrationID, req.Id)
-	registrationEntry, err := s.ds.FetchRegistrationEntry(ctx, req.Id)
+	registrationEntries, err := s.ds.FetchRegistrationEntries(ctx, []string{req.Id})
 	if err != nil {
 		return nil, commonapi.MakeErr(log, codes.Internal, "failed to fetch entry", err)
 	}
 
+	registrationEntry := registrationEntries[req.Id]
 	if registrationEntry == nil {
 		return nil, commonapi.MakeErr(log, codes.NotFound, "entry not found", nil)
 	}
