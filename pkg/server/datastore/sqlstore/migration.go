@@ -283,11 +283,13 @@ import (
 // | v1.15.1 |        |                                                                           |
 // | v1.15.2 |        |                                                                           |
 // | v1.15.3 |        |                                                                           |
+// |*********|********|***************************************************************************|
+// | v1.16.0 | 26     | Added wit_svid_ttl column to registered_entries                           |
 // ================================================================================================
 
 const (
 	// the latest schema version of the database in the code
-	latestSchemaVersion = 25
+	latestSchemaVersion = 26
 
 	// lastMinorReleaseSchemaVersion is the schema version supported by the
 	// last minor release. When the migrations are opportunistically pruned
@@ -522,6 +524,8 @@ func migrateVersion(tx *gorm.DB, currVersion int, log logrus.FieldLogger) (versi
 		err = migrateToV24(tx)
 	case 24:
 		err = migrateToV25(tx)
+	case 25:
+		err = migrateToV26(tx)
 	default:
 		err = sqlcommon.NewSQLError("no migration support for unknown schema version %d", currVersion)
 	}
@@ -542,6 +546,14 @@ func migrateToV24(tx *gorm.DB) error {
 
 func migrateToV25(tx *gorm.DB) error {
 	// Add additional_attributes column to registered_entries table
+	if err := tx.AutoMigrate(&RegisteredEntry{}).Error; err != nil {
+		return sqlcommon.NewWrappedSQLError(err)
+	}
+	return nil
+}
+
+func migrateToV26(tx *gorm.DB) error {
+	// Add wit_svid_ttl column to registered_entries table
 	if err := tx.AutoMigrate(&RegisteredEntry{}).Error; err != nil {
 		return sqlcommon.NewWrappedSQLError(err)
 	}

@@ -2494,6 +2494,14 @@ func (s *Suite) TestCreateOrReturnRegistrationEntry() {
 			expectError: "rpc error: code = InvalidArgument desc = datastore-validation: invalid registration entry: JwtSvidTtl is not set",
 		},
 		{
+			name: "negative WIT ttl",
+			modifyEntry: func(e *common.RegistrationEntry) *common.RegistrationEntry {
+				e.WitSvidTtl = -1
+				return e
+			},
+			expectError: "rpc error: code = InvalidArgument desc = datastore-validation: invalid registration entry: WitSvidTtl is not set",
+		},
+		{
 			name: "create entry successfully",
 			modifyEntry: func(e *common.RegistrationEntry) *common.RegistrationEntry {
 				return e
@@ -2578,6 +2586,7 @@ func (s *Suite) TestCreateOrReturnRegistrationEntry() {
 				},
 				X509SvidTtl: 1,
 				JwtSvidTtl:  1,
+				WitSvidTtl:  1,
 				DnsNames: []string{
 					"abcd.efg",
 					"somehost",
@@ -3650,10 +3659,12 @@ func (s *Suite) TestUpdateRegistrationEntry() {
 		ParentId:    "spiffe://example.org/bar",
 		X509SvidTtl: 1,
 		JwtSvidTtl:  20,
+		WitSvidTtl:  30,
 	})
 
 	entry.X509SvidTtl = 11
 	entry.JwtSvidTtl = 21
+	entry.WitSvidTtl = 31
 	entry.Admin = true
 	entry.Downstream = true
 	entry.Hint = "internal"
@@ -3663,6 +3674,7 @@ func (s *Suite) TestUpdateRegistrationEntry() {
 	// Verify output has expected values
 	s.Require().Equal(int32(11), updatedRegistrationEntry.X509SvidTtl)
 	s.Require().Equal(int32(21), updatedRegistrationEntry.JwtSvidTtl)
+	s.Require().Equal(int32(31), updatedRegistrationEntry.WitSvidTtl)
 	s.Require().True(updatedRegistrationEntry.Admin)
 	s.Require().True(updatedRegistrationEntry.Downstream)
 	s.Require().Equal("internal", updatedRegistrationEntry.Hint)
@@ -3727,6 +3739,7 @@ func (s *Suite) TestUpdateRegistrationEntryWithMask() {
 		SpiffeId:      "spiffe://example.org/oldSpiffeId",
 		X509SvidTtl:   1000,
 		JwtSvidTtl:    3000,
+		WitSvidTtl:    5000,
 		Selectors:     []*common.Selector{{Type: "Type1", Value: "Value1"}},
 		FederatesWith: []string{"spiffe://dom1.org"},
 		Admin:         false,
@@ -3740,6 +3753,7 @@ func (s *Suite) TestUpdateRegistrationEntryWithMask() {
 		SpiffeId:      "spiffe://example.org/newSpiffeId",
 		X509SvidTtl:   4000,
 		JwtSvidTtl:    6000,
+		WitSvidTtl:    8000,
 		Selectors:     []*common.Selector{{Type: "Type2", Value: "Value2"}},
 		FederatesWith: []string{"spiffe://dom2.org"},
 		Admin:         false,
@@ -3754,6 +3768,7 @@ func (s *Suite) TestUpdateRegistrationEntryWithMask() {
 		SpiffeId:      "",
 		X509SvidTtl:   -1000,
 		JwtSvidTtl:    -3000,
+		WitSvidTtl:    -5000,
 		Selectors:     []*common.Selector{},
 		FederatesWith: []string{"invalid federated bundle"},
 		Admin:         false,
@@ -3858,6 +3873,31 @@ func (s *Suite) TestUpdateRegistrationEntryWithMask() {
 			name:   "Update JWT SVID TTL, Bad Data, Mask False",
 			mask:   &common.RegistrationEntryMask{JwtSvidTtl: false},
 			update: func(e *common.RegistrationEntry) { e.JwtSvidTtl = badEntry.JwtSvidTtl },
+			result: func(e *common.RegistrationEntry) {},
+		},
+		// WIT SVID TTL FIELD -- This field is validated so we check with good and bad data
+		{
+			name:   "Update WIT SVID TTL, Good Data, Mask True",
+			mask:   &common.RegistrationEntryMask{WitSvidTtl: true},
+			update: func(e *common.RegistrationEntry) { e.WitSvidTtl = newEntry.WitSvidTtl },
+			result: func(e *common.RegistrationEntry) { e.WitSvidTtl = newEntry.WitSvidTtl },
+		},
+		{
+			name:   "Update WIT SVID TTL, Good Data, Mask False",
+			mask:   &common.RegistrationEntryMask{WitSvidTtl: false},
+			update: func(e *common.RegistrationEntry) { e.WitSvidTtl = badEntry.WitSvidTtl },
+			result: func(e *common.RegistrationEntry) {},
+		},
+		{
+			name:   "Update WIT SVID TTL, Bad Data, Mask True",
+			mask:   &common.RegistrationEntryMask{WitSvidTtl: true},
+			update: func(e *common.RegistrationEntry) { e.WitSvidTtl = badEntry.WitSvidTtl },
+			err:    errors.New("invalid registration entry: WitSvidTtl is not set"),
+		},
+		{
+			name:   "Update WIT SVID TTL, Bad Data, Mask False",
+			mask:   &common.RegistrationEntryMask{WitSvidTtl: false},
+			update: func(e *common.RegistrationEntry) { e.WitSvidTtl = badEntry.WitSvidTtl },
 			result: func(e *common.RegistrationEntry) {},
 		},
 		// SELECTORS FIELD -- This field is validated so we check with good and bad data
