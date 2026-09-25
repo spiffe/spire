@@ -35,6 +35,12 @@ func printEntry(e *types.Entry, printf func(string, ...any) error) {
 		_ = printf("JWT-SVID TTL            : %d\n", e.JwtSvidTtl)
 	}
 
+	if e.WitSvidTtl == 0 {
+		_ = printf("WIT-SVID TTL            : default\n")
+	} else {
+		_ = printf("WIT-SVID TTL            : %d\n", e.WitSvidTtl)
+	}
+
 	if e.ExpiresAt != 0 {
 		_ = printf("Expiration time         : %s\n", time.Unix(e.ExpiresAt, 0).UTC())
 	}
