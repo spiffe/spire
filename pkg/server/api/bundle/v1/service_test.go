@@ -25,8 +25,10 @@ import (
 	"github.com/spiffe/spire/pkg/server/api/bundle/v1"
 	"github.com/spiffe/spire/pkg/server/api/middleware"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
+	"github.com/spiffe/spire/pkg/server/cache/dscache"
 	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/proto/spire/common"
+	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
 	"github.com/spiffe/spire/test/grpctest"
 	"github.com/spiffe/spire/test/spiretest"
@@ -291,6 +293,79 @@ func TestGetFederatedBundle(t *testing.T) {
 			assertCommonBundleWithMask(t, bundle, b, tt.outputMask)
 		})
 	}
+}
+
+// countingDataStore counts FetchBundle calls that reach the datastore, so
+// tests can distinguish cache hits from datastore reads.
+type countingDataStore struct {
+	datastore.DataStore
+
+	fetchBundleCount int
+}
+
+func (ds *countingDataStore) FetchBundle(ctx context.Context, trustDomainID string) (*common.Bundle, error) {
+	ds.fetchBundleCount++
+	return ds.DataStore.FetchBundle(ctx, trustDomainID)
+}
+
+func TestGetFederatedBundleCachesDatastoreReads(t *testing.T) {
+	const cacheTTL = 30 * time.Second
+
+	newService := func(t *testing.T, ttl time.Duration) (*bundle.Service, *countingDataStore, *clock.Mock) {
+		ds := fakedatastore.New(t)
+		counter := &countingDataStore{DataStore: ds}
+		clk := clock.NewMock(t)
+
+		_, err := ds.SetBundle(context.Background(), &common.Bundle{
+			TrustDomainId: federatedTrustDomain.IDString(),
+			RefreshHint:   60,
+		})
+		require.NoError(t, err)
+
+		return bundle.New(bundle.Config{
+			DataStore:      dscache.New(counter, clk),
+			TrustDomain:    serverTrustDomain,
+			BundleCacheTTL: ttl,
+		}), counter, clk
+	}
+
+	log, _ := test.NewNullLogger()
+	ctx := rpccontext.WithLogger(context.Background(), log)
+	req := &bundlev1.GetFederatedBundleRequest{TrustDomain: federatedTrustDomain.Name()}
+
+	t.Run("disabled by default", func(t *testing.T) {
+		service, counter, _ := newService(t, 0)
+
+		for i := 1; i <= 3; i++ {
+			b, err := service.GetFederatedBundle(ctx, req)
+			require.NoError(t, err)
+			require.NotNil(t, b)
+			require.Equal(t, i, counter.fetchBundleCount, "every call should reach the datastore")
+		}
+	})
+
+	t.Run("cached when a TTL is configured", func(t *testing.T) {
+		service, counter, clk := newService(t, cacheTTL)
+
+		b, err := service.GetFederatedBundle(ctx, req)
+		require.NoError(t, err)
+		require.NotNil(t, b)
+		require.Equal(t, 1, counter.fetchBundleCount)
+
+		clk.Add(cacheTTL - time.Second)
+
+		b, err = service.GetFederatedBundle(ctx, req)
+		require.NoError(t, err)
+		require.NotNil(t, b)
+		require.Equal(t, 1, counter.fetchBundleCount, "call within the TTL should be served from the cache")
+
+		clk.Add(time.Second)
+
+		b, err = service.GetFederatedBundle(ctx, req)
+		require.NoError(t, err)
+		require.NotNil(t, b)
+		require.Equal(t, 2, counter.fetchBundleCount, "datastore should be consulted again once the TTL elapses")
+	})
 }
 
 func TestGetBundle(t *testing.T) {

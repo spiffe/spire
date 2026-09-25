@@ -11,13 +11,27 @@ import (
 )
 
 const (
-	datastoreCacheExpiry = time.Second
+	// DefaultDatastoreCacheExpiry is how long a cached bundle is served
+	// before it is refreshed from the datastore.
+	DefaultDatastoreCacheExpiry = time.Second
 )
 
 type useCache struct{}
 
 func WithCache(ctx context.Context) context.Context {
-	return context.WithValue(ctx, useCache{}, struct{}{})
+	return WithCacheTTL(ctx, DefaultDatastoreCacheExpiry)
+}
+
+// WithCacheTTL is like WithCache but overrides how long a cached bundle is
+// served before it is refreshed. A non-positive ttl disables caching, including
+// any already requested by a caller further up.
+func WithCacheTTL(ctx context.Context, ttl time.Duration) context.Context {
+	return context.WithValue(ctx, useCache{}, ttl)
+}
+
+func cacheTTL(ctx context.Context) (time.Duration, bool) {
+	ttl, ok := ctx.Value(useCache{}).(time.Duration)
+	return ttl, ok && ttl > 0
 }
 
 type bundleEntry struct {
@@ -51,9 +65,11 @@ func (ds *DatastoreCache) FetchBundle(ctx context.Context, trustDomain string) (
 	}
 	ds.bundlesMu.Unlock()
 
+	ttl, cacheable := cacheTTL(ctx)
+
 	entry.mu.Lock()
 	defer entry.mu.Unlock()
-	if entry.ts.IsZero() || ds.clock.Now().Sub(entry.ts) >= datastoreCacheExpiry || ctx.Value(useCache{}) == nil {
+	if entry.ts.IsZero() || !cacheable || ds.clock.Now().Sub(entry.ts) >= ttl {
 		bundle, err := ds.DataStore.FetchBundle(ctx, trustDomain)
 		if err != nil {
 			return nil, err

@@ -1369,6 +1369,43 @@ func TestNewServerConfig(t *testing.T) {
 			},
 		},
 		{
+			msg: "bundle_cache_ttl is not set by default",
+			input: func(c *Config) {
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Zero(t, c.BundleCacheTTL)
+			},
+		},
+		{
+			msg: "bundle_cache_ttl is correctly parsed",
+			input: func(c *Config) {
+				c.Server.Experimental.BundleCacheTTL = "30s"
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Equal(t, 30*time.Second, c.BundleCacheTTL)
+			},
+		},
+		{
+			msg:         "invalid bundle_cache_ttl returns an error",
+			expectError: true,
+			input: func(c *Config) {
+				c.Server.Experimental.BundleCacheTTL = "d"
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
+			msg:         "non-positive bundle_cache_ttl returns an error",
+			expectError: true,
+			input: func(c *Config) {
+				c.Server.Experimental.BundleCacheTTL = "0s"
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
 			msg: "prune_events_older_than is correctly parsed",
 			input: func(c *Config) {
 				c.Server.Experimental.PruneEventsOlderThan = "1m"

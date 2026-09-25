@@ -488,6 +488,7 @@ func (s *Server) newEndpointsServer(ctx context.Context, catalog catalog.Catalog
 		Clock:                        clock.New(),
 		CacheReloadInterval:          s.config.CacheReloadInterval,
 		FullCacheReloadInterval:      s.config.FullCacheReloadInterval,
+		BundleCacheTTL:               s.config.BundleCacheTTL,
 		EventsBasedCache:             s.config.EventsBasedCache,
 		PruneEventsOlderThan:         s.config.PruneEventsOlderThan,
 		EventTimeout:                 s.config.EventTimeout,
@@ -512,9 +513,10 @@ func (s *Server) newEndpointsServer(ctx context.Context, catalog catalog.Catalog
 func (s *Server) newBundleManager(cat catalog.Catalog, metrics telemetry.Metrics) *bundle_client.Manager {
 	log := s.config.Log.WithField(telemetry.SubsystemName, "bundle_client")
 	return bundle_client.NewManager(bundle_client.ManagerConfig{
-		Log:       log,
-		Metrics:   metrics,
-		DataStore: cat.GetDataStore(),
+		Log:            log,
+		Metrics:        metrics,
+		DataStore:      cat.GetDataStore(),
+		BundleCacheTTL: s.config.BundleCacheTTL,
 		Source: bundle_client.MergeTrustDomainConfigSources(
 			bundle_client.NewTrustDomainConfigSet(s.config.Federation.FederatesWith),
 			bundle_client.DataStoreTrustDomainConfigSource(log, cat.GetDataStore()),
