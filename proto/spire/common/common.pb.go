@@ -375,8 +375,10 @@ type RegistrationEntry struct {
 	//* Time of creation, in seconds from epoch
 	CreatedAt            int64                                   `protobuf:"varint,15,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
 	AdditionalAttributes *RegistrationEntry_AdditionalAttributes `protobuf:"bytes,16,opt,name=additional_attributes,json=additionalAttributes,proto3,oneof" json:"additional_attributes,omitempty"`
-	unknownFields        protoimpl.UnknownFields
-	sizeCache            protoimpl.SizeCache
+	//* Time to live for WIT-SVIDs generated from this entry.
+	WitSvidTtl    int32 `protobuf:"varint,17,opt,name=wit_svid_ttl,json=witSvidTtl,proto3" json:"wit_svid_ttl,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *RegistrationEntry) Reset() {
@@ -521,6 +523,13 @@ func (x *RegistrationEntry) GetAdditionalAttributes() *RegistrationEntry_Additio
 	return nil
 }
 
+func (x *RegistrationEntry) GetWitSvidTtl() int32 {
+	if x != nil {
+		return x.WitSvidTtl
+	}
+	return 0
+}
+
 // * The RegistrationEntryMask is used to update only selected fields of the RegistrationEntry
 type RegistrationEntryMask struct {
 	state                protoimpl.MessageState `protogen:"open.v1"`
@@ -538,6 +547,7 @@ type RegistrationEntryMask struct {
 	JwtSvidTtl           bool                   `protobuf:"varint,12,opt,name=jwt_svid_ttl,json=jwtSvidTtl,proto3" json:"jwt_svid_ttl,omitempty"`
 	Hint                 bool                   `protobuf:"varint,13,opt,name=hint,proto3" json:"hint,omitempty"`
 	AdditionalAttributes bool                   `protobuf:"varint,14,opt,name=additional_attributes,json=additionalAttributes,proto3" json:"additional_attributes,omitempty"`
+	WitSvidTtl           bool                   `protobuf:"varint,15,opt,name=wit_svid_ttl,json=witSvidTtl,proto3" json:"wit_svid_ttl,omitempty"`
 	unknownFields        protoimpl.UnknownFields
 	sizeCache            protoimpl.SizeCache
 }
@@ -666,6 +676,13 @@ func (x *RegistrationEntryMask) GetHint() bool {
 func (x *RegistrationEntryMask) GetAdditionalAttributes() bool {
 	if x != nil {
 		return x.AdditionalAttributes
+	}
+	return false
+}
+
+func (x *RegistrationEntryMask) GetWitSvidTtl() bool {
+	if x != nil {
+		return x.WitSvidTtl
 	}
 	return false
 }
@@ -1200,7 +1217,7 @@ const file_spire_common_common_proto_rawDesc = "" +
 	"\x12new_cert_not_after\x18\x06 \x01(\x03R\x0fnewCertNotAfter\x124\n" +
 	"\tselectors\x18\a \x03(\v2\x16.spire.common.SelectorR\tselectors\x12!\n" +
 	"\fcan_reattest\x18\b \x01(\bR\vcanReattest\x12#\n" +
-	"\ragent_version\x18\t \x01(\tR\fagentVersion\"\x8c\x06\n" +
+	"\ragent_version\x18\t \x01(\tR\fagentVersion\"\xae\x06\n" +
 	"\x11RegistrationEntry\x124\n" +
 	"\tselectors\x18\x01 \x03(\v2\x16.spire.common.SelectorR\tselectors\x12\x1b\n" +
 	"\tparent_id\x18\x02 \x01(\tR\bparentId\x12\x1b\n" +
@@ -1223,11 +1240,13 @@ const file_spire_common_common_proto_rawDesc = "" +
 	"\x04hint\x18\x0e \x01(\tR\x04hint\x12\x1d\n" +
 	"\n" +
 	"created_at\x18\x0f \x01(\x03R\tcreatedAt\x12n\n" +
-	"\x15additional_attributes\x18\x10 \x01(\v24.spire.common.RegistrationEntry.AdditionalAttributesH\x00R\x14additionalAttributes\x88\x01\x01\x1a\x84\x01\n" +
+	"\x15additional_attributes\x18\x10 \x01(\v24.spire.common.RegistrationEntry.AdditionalAttributesH\x00R\x14additionalAttributes\x88\x01\x01\x12 \n" +
+	"\fwit_svid_ttl\x18\x11 \x01(\x05R\n" +
+	"witSvidTtl\x1a\x84\x01\n" +
 	"\x14AdditionalAttributes\x12;\n" +
 	"\x1adisable_x509_svid_prefetch\x18\x01 \x01(\bR\x17disableX509SvidPrefetch\x12/\n" +
 	"\x14jwt_svid_include_jti\x18\x02 \x01(\bR\x11jwtSvidIncludeJtiB\x18\n" +
-	"\x16_additional_attributes\"\xd4\x03\n" +
+	"\x16_additional_attributes\"\xf6\x03\n" +
 	"\x15RegistrationEntryMask\x12\x1c\n" +
 	"\tselectors\x18\x01 \x01(\bR\tselectors\x12\x1b\n" +
 	"\tparent_id\x18\x02 \x01(\bR\bparentId\x12\x1b\n" +
@@ -1247,7 +1266,9 @@ const file_spire_common_common_proto_rawDesc = "" +
 	"\fjwt_svid_ttl\x18\f \x01(\bR\n" +
 	"jwtSvidTtl\x12\x12\n" +
 	"\x04hint\x18\r \x01(\bR\x04hint\x123\n" +
-	"\x15additional_attributes\x18\x0e \x01(\bR\x14additionalAttributes\"P\n" +
+	"\x15additional_attributes\x18\x0e \x01(\bR\x14additionalAttributes\x12 \n" +
+	"\fwit_svid_ttl\x18\x0f \x01(\bR\n" +
+	"witSvidTtl\"P\n" +
 	"\x13RegistrationEntries\x129\n" +
 	"\aentries\x18\x01 \x03(\v2\x1f.spire.common.RegistrationEntryR\aentries\"K\n" +
 	"\vCertificate\x12\x1b\n" +
