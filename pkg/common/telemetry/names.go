@@ -408,6 +408,10 @@ const (
 	// LoggerAPI functionality related to logger endpoints
 	LoggerAPI = "logger_api"
 
+	// MinFederatedBundleSyncInterval tags the lower bound on how often a
+	// federated bundle is refreshed from the server
+	MinFederatedBundleSyncInterval = "min_federated_bundle_sync_interval"
+
 	// Mode tags a bundle deletion mode
 	Mode = "mode"
 

@@ -23,10 +23,12 @@ import (
 	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
 	svidv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/svid/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
+	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/api/entry/v1"
 	"github.com/spiffe/spire/proto/spire/common"
+	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -171,6 +173,323 @@ func TestSyncUpdatesBundles(t *testing.T) {
 		"spiffe://example.org":  makeCommonBundle("example.org"),
 		"spiffe://domain2.test": makeCommonBundle("domain2.test"),
 	}, cachedBundles)
+}
+
+func TestSyncUpdatesFederatedBundleRefresh(t *testing.T) {
+	// Throttling needs both a configured minimum and a published refresh hint.
+	// These are the values the behavioral subtests below configure: a 20m hint
+	// asks to be polled every 5m, which is longer than the 1m floor.
+	const (
+		hint    = 20 * time.Minute
+		minimum = time.Minute
+		refresh = 5 * time.Minute
+	)
+
+	type harness struct {
+		client        *client
+		tc            *testServer
+		clk           *clock.Mock
+		cachedEntries map[string]*common.RegistrationEntry
+		cachedBundles map[string]*common.Bundle
+	}
+
+	setup := func(t *testing.T, minInterval time.Duration, refreshHint int64) *harness {
+		c, tc := createClient(t)
+		clk := clock.NewMock(t)
+		c.clk = clk
+		c.c.MinFederatedBundleSyncInterval = minInterval
+
+		domain1 := makeAPIBundle("domain1.test")
+		domain1.RefreshHint = refreshHint
+
+		tc.bundleServer.serverBundle = makeAPIBundle("example.org")
+		tc.bundleServer.federatedBundles = map[string]*types.Bundle{
+			"domain1.test": domain1,
+			"domain2.test": makeAPIBundle("domain2.test"),
+		}
+		tc.entryServer.entries = []*types.Entry{
+			{
+				Id:            "0",
+				SpiffeId:      &types.SPIFFEID{TrustDomain: "example.org", Path: "/workload"},
+				ParentId:      &types.SPIFFEID{TrustDomain: "example.org", Path: "/agent"},
+				Selectors:     []*types.Selector{{Type: "not", Value: "relevant"}},
+				FederatesWith: []string{"domain1.test"},
+			},
+		}
+
+		return &harness{
+			client:        c,
+			tc:            tc,
+			clk:           clk,
+			cachedEntries: make(map[string]*common.RegistrationEntry),
+			cachedBundles: make(map[string]*common.Bundle),
+		}
+	}
+
+	sync := func(t *testing.T, h *harness) {
+		t.Helper()
+		_, err := h.client.SyncUpdates(ctx, h.cachedEntries, h.cachedBundles)
+		require.NoError(t, err)
+	}
+
+	// assertRefreshedAfter checks that domain1 is not refetched until the given
+	// interval has elapsed, and is refetched once it has.
+	assertRefreshedAfter := func(t *testing.T, h *harness, want time.Duration) {
+		t.Helper()
+		sync(t, h)
+		require.Equal(t, 1, h.tc.bundleServer.federatedBundleCallCount("domain1.test"))
+
+		h.clk.Add(want - time.Second)
+		sync(t, h)
+		assert.Equal(t, 1, h.tc.bundleServer.federatedBundleCallCount("domain1.test"),
+			"should not refresh before the interval elapses")
+		assert.Contains(t, h.cachedBundles, "spiffe://domain1.test", "cached bundle should be retained")
+
+		h.clk.Add(time.Second)
+		sync(t, h)
+		assert.Equal(t, 2, h.tc.bundleServer.federatedBundleCallCount("domain1.test"),
+			"should refresh once the interval elapses")
+	}
+
+	// assertRefreshedEverySync checks that domain1 is refetched on every sync,
+	// which is what an unthrottled agent does.
+	assertRefreshedEverySync := func(t *testing.T, h *harness) {
+		t.Helper()
+		sync(t, h)
+		require.Equal(t, 1, h.tc.bundleServer.federatedBundleCallCount("domain1.test"))
+
+		for i := 2; i < 5; i++ {
+			h.clk.Add(time.Second)
+			sync(t, h)
+			assert.Equal(t, i, h.tc.bundleServer.federatedBundleCallCount("domain1.test"),
+				"should refresh on every sync")
+		}
+	}
+
+	t.Run("refreshes on every sync when no minimum is configured", func(t *testing.T) {
+		// The default, and what an agent does without this setting.
+		assertRefreshedEverySync(t, setup(t, 0, int64(hint.Seconds())))
+	})
+
+	t.Run("refreshes on every sync when no refresh hint is published", func(t *testing.T) {
+		// There is nothing asking for a slower schedule, so the minimum does
+		// not apply even though it is configured.
+		assertRefreshedEverySync(t, setup(t, minimum, 0))
+	})
+
+	t.Run("honors the published refresh hint", func(t *testing.T) {
+		assertRefreshedAfter(t, setup(t, minimum, int64(hint.Seconds())), refresh)
+	})
+
+	t.Run("clamps a refresh hint below the minimum refresh hint", func(t *testing.T) {
+		// A hint under MinimumRefreshHint is raised to it before being divided,
+		// then floored by the configured minimum.
+		assertRefreshedAfter(t, setup(t, time.Second, 1),
+			bundleutil.MinimumRefreshHint/federatedBundleRefreshAttempts)
+	})
+
+	t.Run("minimum interval overrides a shorter refresh hint", func(t *testing.T) {
+		// A 4m hint asks for a 1m refresh, but the configured floor is longer.
+		assertRefreshedAfter(t, setup(t, 10*time.Minute, int64((4*time.Minute).Seconds())), 10*time.Minute)
+	})
+
+	t.Run("a longer refresh hint wins over the minimum interval", func(t *testing.T) {
+		assertRefreshedAfter(t, setup(t, time.Minute, int64((40*time.Minute).Seconds())), 10*time.Minute)
+	})
+
+	t.Run("fetches new federations immediately", func(t *testing.T) {
+		h := setup(t, minimum, int64(hint.Seconds()))
+
+		sync(t, h)
+		require.Equal(t, 1, h.tc.bundleServer.federatedBundleCallCount("domain1.test"))
+
+		h.clk.Add(time.Second)
+		h.tc.entryServer.entries[0].RevisionNumber++
+		h.tc.entryServer.entries[0].FederatesWith = []string{"domain1.test", "domain2.test"}
+
+		sync(t, h)
+		assert.Equal(t, 1, h.tc.bundleServer.federatedBundleCallCount("domain1.test"),
+			"already refreshed bundle should not be refetched")
+		assert.Equal(t, 1, h.tc.bundleServer.federatedBundleCallCount("domain2.test"),
+			"newly federated bundle should be fetched without waiting")
+		assert.Contains(t, h.cachedBundles, "spiffe://domain2.test")
+	})
+
+	t.Run("drops bundles that are no longer federated", func(t *testing.T) {
+		h := setup(t, minimum, int64(hint.Seconds()))
+
+		sync(t, h)
+		require.Contains(t, h.cachedBundles, "spiffe://domain1.test")
+
+		h.clk.Add(time.Second)
+		h.tc.entryServer.entries[0].RevisionNumber++
+		h.tc.entryServer.entries[0].FederatesWith = nil
+
+		sync(t, h)
+		assert.Equal(t, map[string]*common.Bundle{
+			"spiffe://example.org": makeCommonBundle("example.org"),
+		}, h.cachedBundles)
+		assert.NotContains(t, h.client.nextFederatedBundleSync, "spiffe://domain1.test",
+			"schedule entry should be forgotten")
+	})
+
+	t.Run("evicts a bundle the server no longer has", func(t *testing.T) {
+		h := setup(t, minimum, int64(hint.Seconds()))
+
+		sync(t, h)
+		require.Contains(t, h.cachedBundles, "spiffe://domain1.test")
+
+		// The entry still federates with domain1, but the server has dropped the
+		// bundle. The refresh must not keep serving the cached copy.
+		delete(h.tc.bundleServer.federatedBundles, "domain1.test")
+		h.tc.bundleServer.notFoundFederatedBundles = map[string]bool{"domain1.test": true}
+
+		h.clk.Add(refresh)
+		sync(t, h)
+		assert.Equal(t, 2, h.tc.bundleServer.federatedBundleCallCount("domain1.test"))
+		assert.NotContains(t, h.cachedBundles, "spiffe://domain1.test",
+			"a bundle the server no longer has should not remain cached")
+	})
+
+	t.Run("retains bundles that are not due for a refresh", func(t *testing.T) {
+		h := setup(t, minimum, int64(hint.Seconds()))
+
+		sync(t, h)
+		require.Contains(t, h.cachedBundles, "spiffe://domain1.test")
+
+		// Not due yet, so it is not refetched and must survive the eviction pass.
+		h.clk.Add(refresh - time.Second)
+		sync(t, h)
+		assert.Equal(t, 1, h.tc.bundleServer.federatedBundleCallCount("domain1.test"))
+		want := makeCommonBundle("domain1.test")
+		want.RefreshHint = int64(hint.Seconds())
+		assert.Equal(t, want, h.cachedBundles["spiffe://domain1.test"])
+	})
+
+	t.Run("retries a trust domain the server has no bundle for", func(t *testing.T) {
+		h := setup(t, minimum, int64(hint.Seconds()))
+		// NotFound is not a sync failure, so the bundle never lands in the
+		// cache. There is no hint to throttle against, so it stays due, which is
+		// what makes a newly federated trust domain take effect promptly.
+		delete(h.tc.bundleServer.federatedBundles, "domain1.test")
+		h.tc.bundleServer.notFoundFederatedBundles = map[string]bool{"domain1.test": true}
+
+		sync(t, h)
+		require.Equal(t, 1, h.tc.bundleServer.federatedBundleCallCount("domain1.test"))
+		require.NotContains(t, h.cachedBundles, "spiffe://domain1.test")
+
+		h.clk.Add(time.Second)
+		sync(t, h)
+		assert.Equal(t, 2, h.tc.bundleServer.federatedBundleCallCount("domain1.test"))
+	})
+
+	t.Run("failed sync leaves the trust domain due", func(t *testing.T) {
+		h := setup(t, minimum, int64(hint.Seconds()))
+
+		sync(t, h)
+		require.Equal(t, 1, h.tc.bundleServer.federatedBundleCallCount("domain1.test"))
+
+		h.clk.Add(refresh)
+		h.tc.bundleServer.federatedBundleErr = errors.New("oh no")
+		_, err := h.client.SyncUpdates(ctx, h.cachedEntries, h.cachedBundles)
+		require.Error(t, err)
+		require.Equal(t, 2, h.tc.bundleServer.federatedBundleCallCount("domain1.test"))
+
+		h.tc.bundleServer.federatedBundleErr = nil
+		sync(t, h)
+		assert.Equal(t, 3, h.tc.bundleServer.federatedBundleCallCount("domain1.test"),
+			"a failed refresh should not push out the next refresh")
+	})
+
+	t.Run("warns when the minimum exceeds the refresh hint", func(t *testing.T) {
+		const warning = "Federated bundle is refreshed less often than its trust domain requests; min_federated_bundle_sync_interval exceeds the bundle refresh hint"
+
+		// warnings returns the refresh hint reported by each warning logged so
+		// far, so the assertions below are not perturbed by other sync logs.
+		warnings := func() []time.Duration {
+			var out []time.Duration
+			for _, e := range logHook.AllEntries() {
+				if e.Message == warning {
+					hint, ok := e.Data[telemetry.RefreshHint].(time.Duration)
+					require.True(t, ok, "refresh hint should be logged as a duration")
+					out = append(out, hint)
+				}
+			}
+			return out
+		}
+
+		t.Run("silent when the hint is not exceeded", func(t *testing.T) {
+			logHook.Reset()
+			// A 20m hint asks for a 5m refresh, which the 1m minimum is under.
+			h := setup(t, minimum, int64(hint.Seconds()))
+
+			sync(t, h)
+			h.clk.Add(refresh)
+			sync(t, h)
+			assert.Empty(t, warnings())
+		})
+
+		t.Run("warns once while the hint is unchanged", func(t *testing.T) {
+			logHook.Reset()
+			// A 4m hint asks for a 1m refresh, but the minimum is 10m.
+			h := setup(t, 10*time.Minute, int64((4 * time.Minute).Seconds()))
+
+			sync(t, h)
+			spiretest.AssertLogsContainEntries(t, logHook.AllEntries(), []spiretest.LogEntry{
+				{
+					Level:   logrus.WarnLevel,
+					Message: warning,
+					Data: logrus.Fields{
+						telemetry.FederatedBundle:                "spiffe://domain1.test",
+						telemetry.RefreshHint:                    "4m0s",
+						telemetry.MinFederatedBundleSyncInterval: "10m0s",
+					},
+				},
+			})
+			require.Len(t, warnings(), 1)
+
+			h.clk.Add(10 * time.Minute)
+			sync(t, h)
+			require.Equal(t, 2, h.tc.bundleServer.federatedBundleCallCount("domain1.test"))
+			assert.Len(t, warnings(), 1, "should not repeat the warning for the same refresh hint")
+		})
+
+		t.Run("warns again when the published hint changes", func(t *testing.T) {
+			logHook.Reset()
+			h := setup(t, 10*time.Minute, int64((4 * time.Minute).Seconds()))
+
+			sync(t, h)
+			require.Equal(t, []time.Duration{4 * time.Minute}, warnings())
+
+			// Still short enough to be exceeded by the minimum, but a hint the
+			// warning has not reported yet.
+			h.tc.bundleServer.federatedBundles["domain1.test"].RefreshHint = int64((8 * time.Minute).Seconds())
+			h.clk.Add(10 * time.Minute)
+			sync(t, h)
+			require.Equal(t, 2, h.tc.bundleServer.federatedBundleCallCount("domain1.test"))
+			assert.Equal(t, []time.Duration{4 * time.Minute, 8 * time.Minute}, warnings())
+		})
+
+		t.Run("warns again after the condition clears", func(t *testing.T) {
+			logHook.Reset()
+			h := setup(t, 10*time.Minute, int64((4 * time.Minute).Seconds()))
+
+			sync(t, h)
+			require.Len(t, warnings(), 1)
+
+			// A hint long enough to outrank the minimum clears the warned state.
+			h.tc.bundleServer.federatedBundles["domain1.test"].RefreshHint = int64(time.Hour.Seconds())
+			h.clk.Add(10 * time.Minute)
+			sync(t, h)
+			require.Len(t, warnings(), 1)
+
+			h.tc.bundleServer.federatedBundles["domain1.test"].RefreshHint = int64((4 * time.Minute).Seconds())
+			h.clk.Add(15 * time.Minute)
+			sync(t, h)
+			require.Equal(t, 3, h.tc.bundleServer.federatedBundleCallCount("domain1.test"))
+			assert.Equal(t, []time.Duration{4 * time.Minute, 4 * time.Minute}, warnings())
+		})
+	})
 }
 
 func TestSyncUpdatesEntries(t *testing.T) {
@@ -1216,7 +1535,22 @@ type fakeBundleServer struct {
 	bundleErr          error
 	federatedBundleErr error
 
+	// notFoundFederatedBundles are trust domains the server reports as having
+	// no bundle, which is not a sync failure.
+	notFoundFederatedBundles map[string]bool
+
 	simulateRelease func()
+
+	mu                   sync.Mutex
+	federatedBundleCalls map[string]int
+}
+
+// federatedBundleCallCount returns how many times the given trust domain has
+// been requested, including requests that returned an error.
+func (c *fakeBundleServer) federatedBundleCallCount(trustDomain string) int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.federatedBundleCalls[trustDomain]
 }
 
 func (c *fakeBundleServer) GetBundle(context.Context, *bundlev1.GetBundleRequest) (*types.Bundle, error) {
@@ -1232,8 +1566,18 @@ func (c *fakeBundleServer) GetBundle(context.Context, *bundlev1.GetBundleRequest
 }
 
 func (c *fakeBundleServer) GetFederatedBundle(_ context.Context, in *bundlev1.GetFederatedBundleRequest) (*types.Bundle, error) {
+	c.mu.Lock()
+	if c.federatedBundleCalls == nil {
+		c.federatedBundleCalls = make(map[string]int)
+	}
+	c.federatedBundleCalls[in.TrustDomain]++
+	c.mu.Unlock()
+
 	if c.federatedBundleErr != nil {
 		return nil, c.federatedBundleErr
+	}
+	if c.notFoundFederatedBundles[in.TrustDomain] {
+		return nil, status.Error(codes.NotFound, "bundle not found")
 	}
 	b, ok := c.federatedBundles[in.TrustDomain]
 	if !ok {
