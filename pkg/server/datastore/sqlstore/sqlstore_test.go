@@ -450,6 +450,9 @@ func TestMigration(t *testing.T) {
 				require.NoError(err)
 				require.Len(caJournals, 1)
 				require.Equal(uint(1), caJournals[0].ID)
+			case 26:
+				// Migration from v26 to v27 adds wit_svid_ttl column
+				prepareDB(true)
 			default:
 				t.Fatalf("no migration test added for schema version %d", schemaVersion)
 			}
