@@ -98,6 +98,11 @@ var (
             CREATE INDEX idx_federated_registration_entries_registered_entry_id ON "federated_registration_entries"(registered_entry_id) ;
             COMMIT;
 		    `,
+		25: `
+			CREATE TABLE "migrations" ("id" integer primary key autoincrement,"version" integer,"code_version" varchar(255));
+			INSERT INTO migrations("version", "code_version") VALUES (25,'1.15.3');
+			CREATE TABLE "registered_entries" ("id" integer primary key autoincrement,"created_at" datetime,"updated_at" datetime,"entry_id" varchar(255),"spiffe_id" varchar(255),"parent_id" varchar(255),"ttl" integer,"admin" bool,"downstream" bool,"expiry" bigint,"revision_number" bigint,"store_svid" bool,"hint" varchar(255),"jwt_svid_ttl" integer,"additional_attributes" blob);
+		`,
 	}
 )
 

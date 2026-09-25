@@ -38,6 +38,7 @@ func TestCreate(t *testing.T) {
 					},
 					X509SvidTtl:   60,
 					JwtSvidTtl:    30,
+					WitSvidTtl:    15,
 					FederatesWith: []string{"spiffe://domaina.test", "spiffe://domainb.test"},
 					Admin:         true,
 					ExpiresAt:     1552410266,
@@ -229,6 +230,12 @@ func TestCreate(t *testing.T) {
 			expErrJSON:   "Error: a positive JWT-SVID TTL is required\n",
 		},
 		{
+			name:         "Negative witSVIDTTL",
+			args:         []string{"-selector", "unix", "-parentID", "spiffe://example.org/parent", "-spiffeID", "spiffe://example.org/workload", "-witSVIDTTL", "-10"},
+			expErrPretty: "Error: a positive WIT-SVID TTL is required\n",
+			expErrJSON:   "Error: a positive WIT-SVID TTL is required\n",
+		},
+		{
 			name:         "Federated node entries",
 			args:         []string{"-selector", "unix", "-spiffeID", "spiffe://example.org/workload", "-node", "-federatesWith", "spiffe://another.org"},
 			expErrPretty: "Error: node entries can not federate\n",
@@ -257,6 +264,7 @@ func TestCreate(t *testing.T) {
 				"-selector", "alpha:alpha:2000",
 				"-x509SVIDTTL", "60",
 				"-jwtSVIDTTL", "30",
+				"-witSVIDTTL", "15",
 				"-federatesWith", "spiffe://domaina.test",
 				"-federatesWith", "spiffe://domainb.test",
 				"-admin",
@@ -279,6 +287,7 @@ func TestCreate(t *testing.T) {
 						},
 						X509SvidTtl:   60,
 						JwtSvidTtl:    30,
+						WitSvidTtl:    15,
 						FederatesWith: []string{"spiffe://domaina.test", "spiffe://domainb.test"},
 						Admin:         true,
 						ExpiresAt:     1552410266,
@@ -300,6 +309,7 @@ Revision                : 0
 Downstream              : true
 X509-SVID TTL           : 60
 JWT-SVID TTL            : 30
+WIT-SVID TTL            : 15
 Expiration time         : %s
 Selector                : zebra:zebra:2000
 Selector                : alpha:alpha:2000
@@ -338,6 +348,7 @@ DisableX509SvidPrefetch : true
             "value": "alpha:2000"
           }
         ],
+        "wit_svid_ttl": 15,
         "x509_svid_ttl": 60,
         "federates_with": [
           "spiffe://domaina.test",
@@ -411,6 +422,7 @@ Revision                : 0
 Downstream              : true
 X509-SVID TTL           : 60
 JWT-SVID TTL            : default
+WIT-SVID TTL            : default
 Expiration time         : %s
 Selector                : zebra:zebra:2000
 Selector                : alpha:alpha:2000
@@ -449,6 +461,7 @@ StoreSvid               : true
             "value": "alpha:2000"
           }
         ],
+        "wit_svid_ttl": 0,
         "x509_svid_ttl": 60,
         "federates_with": [
           "spiffe://domaina.test",
@@ -525,6 +538,7 @@ Parent ID               : spiffe://example.org/spire/agent/join_token/TokenBlog
 Revision                : 0
 X509-SVID TTL           : 200
 JWT-SVID TTL            : 30
+WIT-SVID TTL            : default
 Selector                : unix:uid:1111
 Admin                   : true
 
@@ -534,6 +548,7 @@ Parent ID               : spiffe://example.org/spire/agent/join_token/TokenDatab
 Revision                : 0
 X509-SVID TTL           : 200
 JWT-SVID TTL            : 30
+WIT-SVID TTL            : default
 Selector                : unix:uid:1111
 Hint                    : internal
 
@@ -543,6 +558,7 @@ Parent ID               : spiffe://example.org/spire/agent/join_token/TokenDatab
 Revision                : 0
 X509-SVID TTL           : 200
 JWT-SVID TTL            : 30
+WIT-SVID TTL            : default
 Selector                : type:key1:value
 Selector                : type:key2:value
 StoreSvid               : true
@@ -553,6 +569,7 @@ Parent ID               : spiffe://example.org/spire/agent/join_token/TokenBlog
 Revision                : 0
 X509-SVID TTL           : 200
 JWT-SVID TTL            : 30
+WIT-SVID TTL            : default
 Selector                : unix:uid:1111
 Admin                   : true
 DisableX509SvidPrefetch : true
@@ -581,6 +598,7 @@ DisableX509SvidPrefetch : true
             "value": "uid:1111"
           }
         ],
+        "wit_svid_ttl": 0,
         "x509_svid_ttl": 200,
         "federates_with": [],
         "hint": "",
@@ -619,6 +637,7 @@ DisableX509SvidPrefetch : true
             "value": "uid:1111"
           }
         ],
+        "wit_svid_ttl": 0,
         "x509_svid_ttl": 200,
         "federates_with": [],
         "hint": "internal",
@@ -661,6 +680,7 @@ DisableX509SvidPrefetch : true
             "value": "key2:value"
           }
         ],
+        "wit_svid_ttl": 0,
         "x509_svid_ttl": 200,
         "federates_with": [],
         "hint": "",
@@ -699,6 +719,7 @@ DisableX509SvidPrefetch : true
             "value": "uid:1111"
           }
         ],
+        "wit_svid_ttl": 0,
         "x509_svid_ttl": 200,
         "federates_with": [],
         "hint": "",
@@ -737,6 +758,7 @@ Parent ID               : spiffe://example.org/spire/server
 Revision                : 0
 X509-SVID TTL           : default
 JWT-SVID TTL            : default
+WIT-SVID TTL            : default
 Selector                : unix:uid:1
 
 Error: failed to create one or more entries
@@ -764,6 +786,7 @@ Error: failed to create one or more entries
             "value": "uid:1"
           }
         ],
+        "wit_svid_ttl": 0,
         "x509_svid_ttl": 0,
         "federates_with": [],
         "hint": "",

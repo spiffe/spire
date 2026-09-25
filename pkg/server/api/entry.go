@@ -47,6 +47,10 @@ func (e *ReadOnlyEntry) GetJwtSvidTtl() int32 {
 	return e.entry.JwtSvidTtl
 }
 
+func (e *ReadOnlyEntry) GetWitSvidTtl() int32 {
+	return e.entry.WitSvidTtl
+}
+
 func (e *ReadOnlyEntry) GetDnsNames() []string {
 	return slices.Clone(e.entry.DnsNames)
 }
@@ -128,6 +132,10 @@ func (e *ReadOnlyEntry) Clone(mask *types.EntryMask) *types.Entry {
 		clone.JwtSvidTtl = e.entry.JwtSvidTtl
 	}
 
+	if mask.WitSvidTtl {
+		clone.WitSvidTtl = e.entry.WitSvidTtl
+	}
+
 	if mask.Hint {
 		clone.Hint = e.entry.Hint
 	}
@@ -201,6 +209,7 @@ func RegistrationEntryToProto(e *common.RegistrationEntry) (*types.Entry, error)
 		RevisionNumber: e.RevisionNumber,
 		StoreSvid:      e.StoreSvid,
 		JwtSvidTtl:     e.JwtSvidTtl,
+		WitSvidTtl:     e.WitSvidTtl,
 		Hint:           e.Hint,
 		CreatedAt:      e.CreatedAt,
 	}
@@ -337,6 +346,11 @@ func ProtoToRegistrationEntryWithMask(ctx context.Context, td spiffeid.TrustDoma
 		jwtSvidTTL = e.JwtSvidTtl
 	}
 
+	var witSvidTTL int32
+	if mask.WitSvidTtl {
+		witSvidTTL = e.WitSvidTtl
+	}
+
 	var hint string
 	if mask.Hint {
 		if len(e.Hint) > hintMaximumLength {
@@ -364,6 +378,7 @@ func ProtoToRegistrationEntryWithMask(ctx context.Context, td spiffeid.TrustDoma
 		StoreSvid:            storeSVID,
 		X509SvidTtl:          x509SvidTTL,
 		JwtSvidTtl:           jwtSvidTTL,
+		WitSvidTtl:           witSvidTTL,
 		Hint:                 hint,
 		AdditionalAttributes: additionalAttributes,
 	}, nil

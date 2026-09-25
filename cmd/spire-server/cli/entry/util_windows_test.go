@@ -39,7 +39,8 @@ const (
     	The SPIFFE ID that this record represents
   -storeSVID
     	A boolean value that, when set, indicates that the resulting issued SVID from this entry must be stored through an SVIDStore plugin
-  -x509SVIDTTL int
+  -witSVIDTTL int
+` + "    \tThe lifetime, in seconds, for WIT-SVIDs issued based on this registration entry.\n" + `  -x509SVIDTTL int
     	The lifetime, in seconds, for x509-SVIDs issued based on this registration entry.
 `
 	showUsage = `Usage of entry show:
@@ -100,7 +101,8 @@ const (
     	The SPIFFE ID that this record represents
   -storeSVID
     	A boolean value that, when set, indicates that the resulting issued SVID from this entry must be stored through an SVIDStore plugin
-  -x509SVIDTTL int
+  -witSVIDTTL int
+` + "    \tThe lifetime, in seconds, for WIT-SVIDs issued based on this registration entry.\n" + `  -x509SVIDTTL int
     	The lifetime, in seconds, for x509-SVIDs issued based on this registration entry.
 `
 	deleteUsage = `Usage of entry delete:

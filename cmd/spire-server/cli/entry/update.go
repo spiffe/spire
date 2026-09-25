@@ -53,6 +53,9 @@ type updateCommand struct {
 	// TTL for JWT SVIDs issued to this workload
 	jwtSvidTTL int
 
+	// TTL for WIT SVIDs issued to this workload
+	witSvidTTL int
+
 	// List of SPIFFE IDs of trust domains the registration entry is federated with
 	federatesWith StringsFlag
 
@@ -105,6 +108,7 @@ func (c *updateCommand) AppendFlags(f *flag.FlagSet) {
 	f.StringVar(&c.spiffeID, "spiffeID", "", "The SPIFFE ID that this record represents")
 	f.IntVar(&c.x509SvidTTL, "x509SVIDTTL", 0, "The lifetime, in seconds, for x509-SVIDs issued based on this registration entry.")
 	f.IntVar(&c.jwtSvidTTL, "jwtSVIDTTL", 0, "The lifetime, in seconds, for JWT-SVIDs issued based on this registration entry.")
+	f.IntVar(&c.witSvidTTL, "witSVIDTTL", 0, "The lifetime, in seconds, for WIT-SVIDs issued based on this registration entry.")
 	f.StringVar(&c.path, "data", "", "Path to a file containing registration JSON (optional). If set to '-', read the JSON from stdin.")
 	f.Var(&c.selectors, "selector", "A colon-delimited type:value selector. Can be used more than once")
 	f.Var(&c.federatesWith, "federatesWith", "SPIFFE ID of a trust domain to federate with. Can be used more than once")
@@ -223,6 +227,10 @@ func (c *updateCommand) validate() (err error) {
 		return errors.New("a positive JWT-SVID TTL is required")
 	}
 
+	if c.witSvidTTL < 0 {
+		return errors.New("a positive WIT-SVID TTL is required")
+	}
+
 	return nil
 }
 
@@ -247,6 +255,11 @@ func (c *updateCommand) parseConfig() ([]*types.Entry, error) {
 		return nil, fmt.Errorf("invalid value for JWT SVID TTL: %w", err)
 	}
 
+	witSvidTTL, err := util.CheckedCast[int32](c.witSvidTTL)
+	if err != nil {
+		return nil, fmt.Errorf("invalid value for WIT SVID TTL: %w", err)
+	}
+
 	e := &types.Entry{
 		Id:          c.entryID,
 		ParentId:    parentID,
@@ -256,6 +269,7 @@ func (c *updateCommand) parseConfig() ([]*types.Entry, error) {
 		DnsNames:    c.dnsNames,
 		X509SvidTtl: x509SvidTTL,
 		JwtSvidTtl:  jwtSvidTTL,
+		WitSvidTtl:  witSvidTTL,
 		Hint:        c.hint,
 	}
 

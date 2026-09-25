@@ -35,6 +35,7 @@ func TestRegistrationEntryToProto(t *testing.T) {
 				SpiffeId:    "spiffe://example.org/bar",
 				X509SvidTtl: 70,
 				JwtSvidTtl:  80,
+				WitSvidTtl:  90,
 				Selectors: []*common.Selector{
 					{Type: "unix", Value: "uid:1000"},
 					{Type: "unix", Value: "gid:1000"},
@@ -60,6 +61,7 @@ func TestRegistrationEntryToProto(t *testing.T) {
 				SpiffeId:    &types.SPIFFEID{TrustDomain: "example.org", Path: "/bar"},
 				X509SvidTtl: 70,
 				JwtSvidTtl:  80,
+				WitSvidTtl:  90,
 				Selectors: []*types.Selector{
 					{Type: "unix", Value: "uid:1000"},
 					{Type: "unix", Value: "gid:1000"},
@@ -132,6 +134,7 @@ func TestProtoToRegistrationEntryWithMask(t *testing.T) {
 				SpiffeId:    &types.SPIFFEID{TrustDomain: "example.org", Path: "/bar"},
 				X509SvidTtl: 70,
 				JwtSvidTtl:  80,
+				WitSvidTtl:  90,
 				Selectors: []*types.Selector{
 					{Type: "unix", Value: "uid:1000"},
 					{Type: "unix", Value: "gid:1000"},
@@ -156,6 +159,7 @@ func TestProtoToRegistrationEntryWithMask(t *testing.T) {
 				SpiffeId:    "spiffe://example.org/bar",
 				X509SvidTtl: 70,
 				JwtSvidTtl:  80,
+				WitSvidTtl:  90,
 				Selectors: []*common.Selector{
 					{Type: "unix", Value: "uid:1000"},
 					{Type: "unix", Value: "gid:1000"},
@@ -183,6 +187,7 @@ func TestProtoToRegistrationEntryWithMask(t *testing.T) {
 				FederatesWith:  []string{"domain.test"},
 				X509SvidTtl:    2,
 				JwtSvidTtl:     3,
+				WitSvidTtl:     4,
 				Admin:          true,
 				Downstream:     true,
 				ExpiresAt:      4,
@@ -660,6 +665,7 @@ func TestReadOnlyEntryIsReadOnly(t *testing.T) {
 		SpiffeId:    &types.SPIFFEID{TrustDomain: "example.org", Path: "/bar"},
 		X509SvidTtl: 70,
 		JwtSvidTtl:  80,
+		WitSvidTtl:  90,
 		Selectors: []*types.Selector{
 			{Type: "unix", Value: "uid:1000"},
 			{Type: "unix", Value: "gid:1000"},
@@ -695,6 +701,7 @@ func TestReadOnlyEntry(t *testing.T) {
 		SpiffeId:    &types.SPIFFEID{TrustDomain: "example.org", Path: "/bar"},
 		X509SvidTtl: 70,
 		JwtSvidTtl:  80,
+		WitSvidTtl:  90,
 		Selectors: []*types.Selector{
 			{Type: "unix", Value: "uid:1000"},
 			{Type: "unix", Value: "gid:1000"},
@@ -719,6 +726,7 @@ func TestReadOnlyEntry(t *testing.T) {
 	require.Equal(t, readOnlyEntry.GetSpiffeId(), entry.SpiffeId)
 	require.Equal(t, readOnlyEntry.GetX509SvidTtl(), entry.X509SvidTtl)
 	require.Equal(t, readOnlyEntry.GetJwtSvidTtl(), entry.JwtSvidTtl)
+	require.Equal(t, readOnlyEntry.GetWitSvidTtl(), entry.WitSvidTtl)
 	require.Equal(t, readOnlyEntry.GetDnsNames(), entry.DnsNames)
 	require.Equal(t, readOnlyEntry.GetRevisionNumber(), entry.RevisionNumber)
 	require.Equal(t, readOnlyEntry.GetCreatedAt(), entry.CreatedAt)
@@ -733,6 +741,7 @@ func TestReadOnlyEntryClone(t *testing.T) {
 		SpiffeId:    &types.SPIFFEID{TrustDomain: "example.org", Path: "/bar"},
 		X509SvidTtl: 70,
 		JwtSvidTtl:  80,
+		WitSvidTtl:  90,
 		Selectors: []*types.Selector{
 			{Type: "unix", Value: "uid:1000"},
 			{Type: "unix", Value: "gid:1000"},

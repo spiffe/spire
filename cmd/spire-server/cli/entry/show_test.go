@@ -461,6 +461,7 @@ Parent ID               : spiffe://example.org/father
 Revision                : 0
 X509-SVID TTL           : default
 JWT-SVID TTL            : default
+WIT-SVID TTL            : default
 Selector                : foo:bar
 Hint                    : internal
 
@@ -472,6 +473,7 @@ Parent ID               : spiffe://example.org/father
 Revision                : 0
 X509-SVID TTL           : default
 JWT-SVID TTL            : default
+WIT-SVID TTL            : default
 Selector                : bar:baz
 Selector                : foo:bar
 Hint                    : external
@@ -484,6 +486,7 @@ Parent ID               : spiffe://example.org/mother
 Revision                : 0
 X509-SVID TTL           : default
 JWT-SVID TTL            : default
+WIT-SVID TTL            : default
 Selector                : bar:baz
 Selector                : baz:bat
 FederatesWith           : spiffe://domain.test
@@ -496,6 +499,7 @@ Parent ID               : spiffe://example.org/mother
 Revision                : 0
 X509-SVID TTL           : default
 JWT-SVID TTL            : default
+WIT-SVID TTL            : default
 Expiration time         : %s
 Selector                : baz:bat
 
@@ -524,6 +528,7 @@ func getJSONPrintedEntry(idx int) string {
           "value": "bar"
         }
       ],
+      "wit_svid_ttl": 0,
       "x509_svid_ttl": 0,
       "federates_with": [],
       "hint": "internal",
@@ -557,6 +562,7 @@ func getJSONPrintedEntry(idx int) string {
           "value": "bar"
         }
       ],
+      "wit_svid_ttl": 0,
       "x509_svid_ttl": 0,
       "federates_with": [],
       "hint": "external",
@@ -590,6 +596,7 @@ func getJSONPrintedEntry(idx int) string {
           "value": "bat"
         }
       ],
+      "wit_svid_ttl": 0,
       "x509_svid_ttl": 0,
       "federates_with": [
         "spiffe://domain.test"
@@ -621,6 +628,7 @@ func getJSONPrintedEntry(idx int) string {
           "value": "bat"
         }
       ],
+      "wit_svid_ttl": 0,
       "x509_svid_ttl": 0,
       "federates_with": [],
       "hint": "",

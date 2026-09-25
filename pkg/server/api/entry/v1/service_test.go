@@ -1514,6 +1514,7 @@ func TestBatchCreateEntry(t *testing.T) {
 		FederatesWith: []string{"domain1.org"},
 		X509SvidTtl:   45,
 		JwtSvidTtl:    30,
+		WitSvidTtl:    15,
 		Hint:          "external",
 		AdditionalAttributes: &types.Entry_AdditionalAttributes{
 			DisableX509SvidPrefetch: true,
@@ -1535,6 +1536,7 @@ func TestBatchCreateEntry(t *testing.T) {
 		FederatesWith: []string{"spiffe://domain1.org"},
 		X509SvidTtl:   45,
 		JwtSvidTtl:    30,
+		WitSvidTtl:    15,
 		Hint:          "external",
 		AdditionalAttributes: &common.RegistrationEntry_AdditionalAttributes{
 			DisableX509SvidPrefetch: true,
@@ -1577,6 +1579,7 @@ func TestBatchCreateEntry(t *testing.T) {
 						telemetry.SPIFFEID:       "spiffe://example.org/workload",
 						telemetry.X509SVIDTTL:    "45",
 						telemetry.JWTSVIDTTL:     "30",
+						telemetry.WITSVIDTTL:     "15",
 						telemetry.StoreSvid:      "false",
 						telemetry.Hint:           "external",
 						telemetry.CreatedAt:      "0",
@@ -1606,6 +1609,7 @@ func TestBatchCreateEntry(t *testing.T) {
 						telemetry.SPIFFEID:       "spiffe://example.org/malformed",
 						telemetry.X509SVIDTTL:    "0",
 						telemetry.JWTSVIDTTL:     "0",
+						telemetry.WITSVIDTTL:     "0",
 						telemetry.StoreSvid:      "false",
 						telemetry.Hint:           "",
 						telemetry.CreatedAt:      "0",
@@ -1627,6 +1631,7 @@ func TestBatchCreateEntry(t *testing.T) {
 						telemetry.SPIFFEID:       "spiffe://example.org/workload2",
 						telemetry.X509SVIDTTL:    "0",
 						telemetry.JWTSVIDTTL:     "0",
+						telemetry.WITSVIDTTL:     "0",
 						telemetry.StoreSvid:      "false",
 						telemetry.Hint:           "",
 						telemetry.CreatedAt:      "0",
@@ -1723,6 +1728,7 @@ func TestBatchCreateEntry(t *testing.T) {
 						telemetry.SPIFFEID:       "spiffe://example.org/svidstore",
 						telemetry.X509SVIDTTL:    "0",
 						telemetry.JWTSVIDTTL:     "0",
+						telemetry.WITSVIDTTL:     "0",
 						telemetry.StoreSvid:      "false",
 						telemetry.Hint:           "internal",
 						telemetry.CreatedAt:      "0",
@@ -1795,6 +1801,7 @@ func TestBatchCreateEntry(t *testing.T) {
 						telemetry.SPIFFEID:       "spiffe://example.org/svidstore",
 						telemetry.X509SVIDTTL:    "0",
 						telemetry.JWTSVIDTTL:     "0",
+						telemetry.WITSVIDTTL:     "0",
 						telemetry.StoreSvid:      "true",
 						telemetry.Hint:           "",
 						telemetry.CreatedAt:      "0",
@@ -1857,6 +1864,7 @@ func TestBatchCreateEntry(t *testing.T) {
 						FederatesWith: []string{"domain1.org"},
 						X509SvidTtl:   45,
 						JwtSvidTtl:    30,
+						WitSvidTtl:    15,
 						StoreSvid:     false,
 						Hint:          "external",
 						AdditionalAttributes: &types.Entry_AdditionalAttributes{
@@ -1887,6 +1895,7 @@ func TestBatchCreateEntry(t *testing.T) {
 						telemetry.SPIFFEID:       "spiffe://example.org/workload",
 						telemetry.X509SVIDTTL:    "45",
 						telemetry.JWTSVIDTTL:     "30",
+						telemetry.WITSVIDTTL:     "15",
 						telemetry.StoreSvid:      "false",
 						telemetry.Hint:           "external",
 						telemetry.CreatedAt:      "0",
@@ -1926,6 +1935,7 @@ func TestBatchCreateEntry(t *testing.T) {
 						telemetry.SPIFFEID:       "spiffe://example.org/workload",
 						telemetry.X509SVIDTTL:    "45",
 						telemetry.JWTSVIDTTL:     "30",
+						telemetry.WITSVIDTTL:     "15",
 						telemetry.StoreSvid:      "false",
 						telemetry.Hint:           "external",
 						telemetry.CreatedAt:      "0",
@@ -1995,6 +2005,7 @@ func TestBatchCreateEntry(t *testing.T) {
 						telemetry.SPIFFEID:       "spiffe://example.org/bar",
 						telemetry.X509SVIDTTL:    "45",
 						telemetry.JWTSVIDTTL:     "30",
+						telemetry.WITSVIDTTL:     "0",
 						telemetry.StoreSvid:      "false",
 						telemetry.Hint:           "",
 						telemetry.CreatedAt:      "0",
@@ -2039,6 +2050,7 @@ func TestBatchCreateEntry(t *testing.T) {
 						telemetry.SPIFFEID:       "spiffe://example.org/workload",
 						telemetry.X509SVIDTTL:    "45",
 						telemetry.JWTSVIDTTL:     "30",
+						telemetry.WITSVIDTTL:     "15",
 						telemetry.StoreSvid:      "false",
 						telemetry.Hint:           "external",
 						telemetry.CreatedAt:      "0",
@@ -2119,6 +2131,7 @@ func TestBatchCreateEntry(t *testing.T) {
 						telemetry.SPIFFEID:       "spiffe://example.org/bar",
 						telemetry.X509SVIDTTL:    "45",
 						telemetry.JWTSVIDTTL:     "30",
+						telemetry.WITSVIDTTL:     "0",
 						telemetry.StatusCode:     "AlreadyExists",
 						telemetry.StatusMessage:  "similar entry already exists",
 						telemetry.StoreSvid:      "false",
@@ -2142,6 +2155,7 @@ func TestBatchCreateEntry(t *testing.T) {
 						telemetry.SPIFFEID:       "spiffe://example.org/bar",
 						telemetry.X509SVIDTTL:    "45",
 						telemetry.JWTSVIDTTL:     "30",
+						telemetry.WITSVIDTTL:     "0",
 						telemetry.StatusCode:     "AlreadyExists",
 						telemetry.StatusMessage:  "similar entry already exists",
 						telemetry.StoreSvid:      "false",
@@ -2182,6 +2196,7 @@ func TestBatchCreateEntry(t *testing.T) {
 						telemetry.RevisionNumber: "0",
 						telemetry.X509SVIDTTL:    "0",
 						telemetry.JWTSVIDTTL:     "0",
+						telemetry.WITSVIDTTL:     "0",
 						telemetry.StoreSvid:      "false",
 						telemetry.StatusCode:     "InvalidArgument",
 						telemetry.StatusMessage:  "failed to convert entry: invalid parent ID: trust domain is missing",
@@ -2237,6 +2252,7 @@ func TestBatchCreateEntry(t *testing.T) {
 						telemetry.SPIFFEID:       "spiffe://example.org/bar",
 						telemetry.X509SVIDTTL:    "45",
 						telemetry.JWTSVIDTTL:     "30",
+						telemetry.WITSVIDTTL:     "0",
 						telemetry.Hint:           "",
 						telemetry.CreatedAt:      "0",
 						telemetry.StoreSvid:      "false",
@@ -2268,6 +2284,7 @@ func TestBatchCreateEntry(t *testing.T) {
 						telemetry.SPIFFEID:       "spiffe://example.org/bar",
 						telemetry.X509SVIDTTL:    "45",
 						telemetry.JWTSVIDTTL:     "30",
+						telemetry.WITSVIDTTL:     "0",
 						telemetry.Hint:           "",
 						telemetry.CreatedAt:      "0",
 						telemetry.StoreSvid:      "false",
@@ -2329,6 +2346,7 @@ func TestBatchCreateEntry(t *testing.T) {
 						telemetry.SPIFFEID:       "spiffe://example.org/workload",
 						telemetry.X509SVIDTTL:    "45",
 						telemetry.JWTSVIDTTL:     "30",
+						telemetry.WITSVIDTTL:     "15",
 						telemetry.Hint:           "external",
 						telemetry.CreatedAt:      "0",
 						telemetry.StoreSvid:      "false",
@@ -2381,6 +2399,7 @@ func TestBatchCreateEntry(t *testing.T) {
 						telemetry.SPIFFEID:       "spiffe://example.org/workload",
 						telemetry.X509SVIDTTL:    "45",
 						telemetry.JWTSVIDTTL:     "30",
+						telemetry.WITSVIDTTL:     "15",
 						telemetry.Hint:           "external",
 						telemetry.CreatedAt:      "0",
 						telemetry.StoreSvid:      "false",
@@ -3472,6 +3491,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 		SpiffeId:    &types.SPIFFEID{TrustDomain: "example.org", Path: "/validUpdated"},
 		X509SvidTtl: 400000,
 		JwtSvidTtl:  300000,
+		WitSvidTtl:  200000,
 		Selectors: []*types.Selector{
 			{Type: "unix", Value: "uid:9999"},
 		},
@@ -3817,6 +3837,50 @@ func TestBatchUpdateEntry(t *testing.T) {
 							telemetry.Type:           "audit",
 							telemetry.RegistrationID: m[entry1SpiffeID.Path],
 							telemetry.X509SVIDTTL:    "1000",
+						},
+					},
+				}
+			},
+		},
+		{
+			name:           "Success Update WITSVIDTTL",
+			initialEntries: []*types.Entry{initialEntry},
+			inputMask: &types.EntryMask{
+				WitSvidTtl: true,
+			},
+			outputMask: &types.EntryMask{
+				WitSvidTtl: true,
+			},
+			updateEntries: []*types.Entry{
+				{
+					WitSvidTtl: 1000,
+				},
+			},
+			expectDsEntries: func(id string) []*types.Entry {
+				modifiedEntry := proto.Clone(initialEntry).(*types.Entry)
+				modifiedEntry.Id = id
+				modifiedEntry.WitSvidTtl = 1000
+				modifiedEntry.RevisionNumber = 1
+				return []*types.Entry{modifiedEntry}
+			},
+			expectResults: []*entryv1.BatchUpdateEntryResponse_Result{
+				{
+					Status: &types.Status{Code: int32(codes.OK), Message: "OK"},
+					Entry: &types.Entry{
+						WitSvidTtl: 1000,
+					},
+				},
+			},
+			expectLogs: func(m map[string]string) []spiretest.LogEntry {
+				return []spiretest.LogEntry{
+					{
+						Level:   logrus.InfoLevel,
+						Message: "API accessed",
+						Data: logrus.Fields{
+							telemetry.Status:         "success",
+							telemetry.Type:           "audit",
+							telemetry.RegistrationID: m[entry1SpiffeID.Path],
+							telemetry.WITSVIDTTL:     "1000",
 						},
 					},
 				}
@@ -4543,6 +4607,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 						SpiffeId:    &types.SPIFFEID{TrustDomain: "example.org", Path: "/validUpdated"},
 						X509SvidTtl: 400000,
 						JwtSvidTtl:  300000,
+						WitSvidTtl:  200000,
 						Selectors: []*types.Selector{
 							{Type: "unix", Value: "uid:9999"},
 						},
@@ -4575,6 +4640,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 							telemetry.SPIFFEID:       "spiffe://example.org/validUpdated",
 							telemetry.X509SVIDTTL:    "400000",
 							telemetry.JWTSVIDTTL:     "300000",
+							telemetry.WITSVIDTTL:     "200000",
 							telemetry.StoreSvid:      "false",
 							telemetry.Hint:           "newHint",
 							telemetry.CreatedAt:      "0",
