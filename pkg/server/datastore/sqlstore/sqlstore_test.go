@@ -13,6 +13,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
+	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/pkg/server/datastore/sqltest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -318,9 +319,64 @@ func TestMigration(t *testing.T) {
 			case 24:
 				// Migration from v24 to v25 adds additional_attributes column
 				prepareDB(true)
+			case 25:
+				// Migration from v25 to v26 adds journal_id column
+				prepareDB(true)
+
+				var row struct {
+					JournalID sql.NullString `gorm:"column:journal_id"`
+				}
+				require.NoError(ds.RawScan(&row, "SELECT journal_id FROM ca_journals WHERE id = 1"))
+				require.False(row.JournalID.Valid)
+
+				caJournals, err := ds.ListCAJournalsForTesting(ctx)
+				require.NoError(err)
+				require.Len(caJournals, 1)
+				require.Equal(uint(1), caJournals[0].ID)
 			default:
 				t.Fatalf("no migration test added for schema version %d", schemaVersion)
 			}
 		})
 	}
+}
+
+func TestDisableMigrationAllowsCAJournalWritesOnPreviousSchema(t *testing.T) {
+	dbPath := filepath.ToSlash(filepath.Join(t.TempDir(), "v25.sqlite3"))
+	if runtime.GOOS == "windows" {
+		dbPath = "/" + dbPath
+	}
+	dumpDB(t, dbPath, migrationDumps[25])
+
+	log, _ := test.NewNullLogger()
+	ds := New(log)
+	t.Cleanup(func() {
+		require.NoError(t, ds.Close())
+	})
+
+	err := ds.Configure(ctx, fmt.Sprintf(`
+		database_type = "sqlite3"
+		connection_string = %q
+		disable_migration = true
+	`, "file://"+dbPath))
+	require.NoError(t, err)
+
+	caJournals, err := ds.ListCAJournalsForTesting(ctx)
+	require.NoError(t, err)
+	require.Len(t, caJournals, 1)
+
+	caJournals[0].Data = []byte("updated")
+	updated, err := ds.SetCAJournal(ctx, caJournals[0])
+	require.NoError(t, err)
+	require.Equal(t, caJournals[0], updated)
+
+	created, err := ds.SetCAJournal(ctx, &datastore.CAJournal{
+		Data:                  []byte("created"),
+		ActiveX509AuthorityID: "new-authority",
+	})
+	require.NoError(t, err)
+	require.NotZero(t, created.ID)
+
+	fetched, err := ds.FetchCAJournal(ctx, "new-authority")
+	require.NoError(t, err)
+	require.Equal(t, created, fetched)
 }
