@@ -34,6 +34,7 @@ func TestAllTrueMasks(t *testing.T) {
 		Selectors:            true,
 		X509SvidTtl:          true,
 		JwtSvidTtl:           true,
+		WitSvidTtl:           true,
 		FederatesWith:        true,
 		Admin:                true,
 		CreatedAt:            true,
