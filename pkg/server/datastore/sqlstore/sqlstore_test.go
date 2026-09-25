@@ -218,6 +218,64 @@ func TestBuildListAttestedNodesQueryCTEIDSubquery(t *testing.T) {
 	}
 }
 
+func TestBuildListAttestedNodesQueryMySQLIDSubquery(t *testing.T) {
+	for _, tt := range []struct {
+		name           string
+		req            *datastore.ListAttestedNodesRequest
+		wantIDSubquery bool
+	}{
+		{
+			name: "bulk ID fetch",
+			req: &datastore.ListAttestedNodesRequest{
+				BySpiffeIDs:    []string{"spiffe://example.org/node"},
+				FetchSelectors: true,
+			},
+		},
+		{
+			name: "unfiltered full load",
+			req: &datastore.ListAttestedNodesRequest{
+				FetchSelectors: true,
+			},
+			wantIDSubquery: true,
+		},
+		{
+			name: "paginated bulk ID fetch",
+			req: &datastore.ListAttestedNodesRequest{
+				BySpiffeIDs:    []string{"spiffe://example.org/node"},
+				FetchSelectors: true,
+				Pagination: &datastore.Pagination{
+					PageSize: 100,
+				},
+			},
+			wantIDSubquery: true,
+		},
+		{
+			name: "selector-matched bulk ID fetch",
+			req: &datastore.ListAttestedNodesRequest{
+				BySpiffeIDs:    []string{"spiffe://example.org/node"},
+				FetchSelectors: true,
+				BySelectorMatch: &datastore.BySelectors{
+					Selectors: []*common.Selector{
+						{Type: "type", Value: "value"},
+					},
+					Match: datastore.MatchAny,
+				},
+			},
+			wantIDSubquery: true,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			query, _, err := buildListAttestedNodesQueryMySQL(tt.req)
+			require.NoError(t, err)
+			if tt.wantIDSubquery {
+				require.Contains(t, query, "WHERE N.id IN (")
+			} else {
+				require.NotContains(t, query, "WHERE N.id IN (")
+			}
+		})
+	}
+}
+
 func TestConfigure(t *testing.T) {
 	tests := []struct {
 		desc               string
