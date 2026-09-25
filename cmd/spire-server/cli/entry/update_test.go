@@ -46,6 +46,7 @@ func TestUpdate(t *testing.T) {
             "value": "key2:value"
           }
         ],
+        "wit_svid_ttl": 0,
         "x509_svid_ttl": 60,
         "federates_with": [
           "spiffe://domaina.test",
@@ -84,6 +85,7 @@ func TestUpdate(t *testing.T) {
             "value": "alpha:2000"
           }
         ],
+        "wit_svid_ttl": 15,
         "x509_svid_ttl": 60,
         "federates_with": [
           "spiffe://domaina.test",
@@ -118,6 +120,7 @@ func TestUpdate(t *testing.T) {
             "value": "uid:1111"
           }
         ],
+        "wit_svid_ttl": 0,
         "x509_svid_ttl": 200,
         "federates_with": [],
         "hint": "external",
@@ -147,6 +150,7 @@ func TestUpdate(t *testing.T) {
             "value": "uid:1111"
           }
         ],
+        "wit_svid_ttl": 0,
         "x509_svid_ttl": 200,
         "federates_with": [],
         "hint": "",
@@ -180,6 +184,7 @@ func TestUpdate(t *testing.T) {
             "value": "key2:value"
           }
         ],
+        "wit_svid_ttl": 0,
         "x509_svid_ttl": 200,
         "federates_with": [],
         "hint": "",
@@ -213,6 +218,7 @@ func TestUpdate(t *testing.T) {
             "value": "key2:value"
           }
         ],
+        "wit_svid_ttl": 0,
         "x509_svid_ttl": 200,
         "federates_with": [],
         "hint": "",
@@ -256,6 +262,7 @@ func TestUpdate(t *testing.T) {
         "dns_names": [],
         "revision_number": "0",
         "store_svid": false,
+        "wit_svid_ttl": 0,
         "x509_svid_ttl": 0
       }`
 
@@ -269,6 +276,7 @@ func TestUpdate(t *testing.T) {
 		},
 		X509SvidTtl:   60,
 		JwtSvidTtl:    30,
+		WitSvidTtl:    15,
 		FederatesWith: []string{"spiffe://domaina.test", "spiffe://domainb.test"},
 		Admin:         true,
 		ExpiresAt:     1552410266,
@@ -287,6 +295,7 @@ func TestUpdate(t *testing.T) {
 		},
 		X509SvidTtl:   60,
 		JwtSvidTtl:    30,
+		WitSvidTtl:    15,
 		FederatesWith: []string{"spiffe://domaina.test", "spiffe://domainb.test"},
 		Admin:         true,
 		ExpiresAt:     1552410266,
@@ -492,6 +501,7 @@ func TestUpdate(t *testing.T) {
 				"-selector", "alpha:alpha:2000",
 				"-x509SVIDTTL", "60",
 				"-jwtSVIDTTL", "30",
+				"-witSVIDTTL", "15",
 				"-federatesWith", "spiffe://domaina.test",
 				"-federatesWith", "spiffe://domainb.test",
 				"-admin",
@@ -512,6 +522,7 @@ Revision                : 0
 Downstream              : true
 X509-SVID TTL           : 60
 JWT-SVID TTL            : 30
+WIT-SVID TTL            : 15
 Expiration time         : %s
 Selector                : zebra:zebra:2000
 Selector                : alpha:alpha:2000
@@ -572,6 +583,7 @@ Parent ID               : spiffe://example.org/parent
 Revision                : 0
 X509-SVID TTL           : 60
 JWT-SVID TTL            : 30
+WIT-SVID TTL            : default
 Expiration time         : %s
 Selector                : type:key1:value
 Selector                : type:key2:value
@@ -609,6 +621,7 @@ Parent ID               : spiffe://example.org/spire/agent/join_token/TokenBlog
 Revision                : 0
 X509-SVID TTL           : 200
 JWT-SVID TTL            : 300
+WIT-SVID TTL            : default
 Selector                : unix:uid:1111
 Admin                   : true
 Hint                    : external
@@ -619,6 +632,7 @@ Parent ID               : spiffe://example.org/spire/agent/join_token/TokenDatab
 Revision                : 0
 X509-SVID TTL           : 200
 JWT-SVID TTL            : 300
+WIT-SVID TTL            : default
 Selector                : unix:uid:1111
 
 Entry ID                : entry-id-3
@@ -627,6 +641,7 @@ Parent ID               : spiffe://example.org/spire/agent/join_token/TokenDatab
 Revision                : 0
 X509-SVID TTL           : 200
 JWT-SVID TTL            : 300
+WIT-SVID TTL            : default
 Selector                : type:key1:value
 Selector                : type:key2:value
 StoreSvid               : true
@@ -637,6 +652,7 @@ Parent ID               : spiffe://example.org/spire/agent/join_token/TokenDatab
 Revision                : 0
 X509-SVID TTL           : 200
 JWT-SVID TTL            : 300
+WIT-SVID TTL            : default
 Selector                : type:key1:value
 Selector                : type:key2:value
 DisableX509SvidPrefetch : true
@@ -723,6 +739,7 @@ Parent ID               : spiffe://example.org/parent
 Revision                : 0
 X509-SVID TTL           : default
 JWT-SVID TTL            : default
+WIT-SVID TTL            : default
 Selector                : unix:uid:1
 DisableX509SvidPrefetch : true
 JwtSvidIncludeJti       : true
@@ -751,6 +768,7 @@ JwtSvidIncludeJti       : true
             "value": "uid:1"
           }
         ],
+        "wit_svid_ttl": 0,
         "x509_svid_ttl": 0,
         "federates_with": [],
         "admin": false,
@@ -822,6 +840,7 @@ Parent ID               : spiffe://example.org/parent
 Revision                : 0
 X509-SVID TTL           : default
 JWT-SVID TTL            : default
+WIT-SVID TTL            : default
 Selector                : unix:uid:1
 DisableX509SvidPrefetch : true
 JwtSvidIncludeJti       : true
@@ -850,6 +869,7 @@ JwtSvidIncludeJti       : true
             "value": "uid:1"
           }
         ],
+        "wit_svid_ttl": 0,
         "x509_svid_ttl": 0,
         "federates_with": [],
         "admin": false,
@@ -925,6 +945,7 @@ Parent ID               : spiffe://example.org/parent
 Revision                : 0
 X509-SVID TTL           : default
 JWT-SVID TTL            : default
+WIT-SVID TTL            : default
 Selector                : unix:uid:1
 DisableX509SvidPrefetch : true
 JwtSvidIncludeJti       : true
@@ -953,6 +974,7 @@ JwtSvidIncludeJti       : true
             "value": "uid:1"
           }
         ],
+        "wit_svid_ttl": 0,
         "x509_svid_ttl": 0,
         "federates_with": [],
         "admin": false,
@@ -1006,6 +1028,7 @@ Parent ID               : spiffe://example.org/parent
 Revision                : 0
 X509-SVID TTL           : default
 JWT-SVID TTL            : default
+WIT-SVID TTL            : default
 Selector                : unix:uid:1
 
 Error: failed to update one or more entries

@@ -53,6 +53,9 @@ type createCommand struct {
 	// TTL for JWT SVIDs issued to this workload
 	jwtSVIDTTL int
 
+	// TTL for WIT SVIDs issued to this workload
+	witSVIDTTL int
+
 	// List of SPIFFE IDs of trust domains the registration entry is federated with
 	federatesWith StringsFlag
 
@@ -101,6 +104,7 @@ func (c *createCommand) AppendFlags(f *flag.FlagSet) {
 	f.StringVar(&c.spiffeID, "spiffeID", "", "The SPIFFE ID that this record represents")
 	f.IntVar(&c.x509SVIDTTL, "x509SVIDTTL", 0, "The lifetime, in seconds, for x509-SVIDs issued based on this registration entry.")
 	f.IntVar(&c.jwtSVIDTTL, "jwtSVIDTTL", 0, "The lifetime, in seconds, for JWT-SVIDs issued based on this registration entry.")
+	f.IntVar(&c.witSVIDTTL, "witSVIDTTL", 0, "The lifetime, in seconds, for WIT-SVIDs issued based on this registration entry.")
 	f.StringVar(&c.path, "data", "", "Path to a file containing registration JSON (optional). If set to '-', read the JSON from stdin.")
 	f.Var(&c.selectors, "selector", "A colon-delimited type:value selector. Can be used more than once")
 	f.Var(&c.federatesWith, "federatesWith", "SPIFFE ID of a trust domain to federate with. Can be used more than once")
@@ -172,6 +176,10 @@ func (c *createCommand) validate() (err error) {
 		return errors.New("a positive JWT-SVID TTL is required")
 	}
 
+	if c.witSVIDTTL < 0 {
+		return errors.New("a positive WIT-SVID TTL is required")
+	}
+
 	return nil
 }
 
@@ -197,6 +205,11 @@ func (c *createCommand) parseConfig() ([]*types.Entry, error) {
 		return nil, fmt.Errorf("invalid value for JWT SVID TTL: %w", err)
 	}
 
+	witSvidTTL, err := util.CheckedCast[int32](c.witSVIDTTL)
+	if err != nil {
+		return nil, fmt.Errorf("invalid value for WIT SVID TTL: %w", err)
+	}
+
 	e := &types.Entry{
 		Id:          c.entryID,
 		ParentId:    parentID,
@@ -207,6 +220,7 @@ func (c *createCommand) parseConfig() ([]*types.Entry, error) {
 		StoreSvid:   c.storeSVID,
 		X509SvidTtl: x509SvidTTL,
 		JwtSvidTtl:  jwtSvidTTL,
+		WitSvidTtl:  witSvidTTL,
 		Hint:        c.hint,
 	}
 
