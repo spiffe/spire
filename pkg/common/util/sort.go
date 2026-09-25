@@ -59,7 +59,8 @@ func compareRegistrationEntries(a, b *common.RegistrationEntry) int {
 		return c
 	}
 
-	// The order of this switch clause matters. It ensures that sorting occurs by X509SvidTtl then JwtSvidTtl
+	// The order of this switch clause matters. It ensures that sorting occurs by X509SvidTtl,
+	// then JwtSvidTtl, then WitSvidTtl.
 	switch {
 	case a.X509SvidTtl < b.X509SvidTtl:
 		return -1
@@ -68,6 +69,10 @@ func compareRegistrationEntries(a, b *common.RegistrationEntry) int {
 	case a.JwtSvidTtl < b.JwtSvidTtl:
 		return -1
 	case a.JwtSvidTtl > b.JwtSvidTtl:
+		return 1
+	case a.WitSvidTtl < b.WitSvidTtl:
+		return -1
+	case a.WitSvidTtl > b.WitSvidTtl:
 		return 1
 	}
 
@@ -138,7 +143,8 @@ func compareTypesEntries(a, b *types.Entry) int {
 		return c
 	}
 
-	// The order of this switch clause matters. It ensures that sorting occurs by X509SvidTtl then JwtSvidTtl
+	// The order of this switch clause matters. It ensures that sorting occurs by X509SvidTtl,
+	// then JwtSvidTtl, then WitSvidTtl.
 	switch {
 	case a.X509SvidTtl < b.X509SvidTtl:
 		return -1
@@ -147,6 +153,10 @@ func compareTypesEntries(a, b *types.Entry) int {
 	case a.JwtSvidTtl < b.JwtSvidTtl:
 		return -1
 	case a.JwtSvidTtl > b.JwtSvidTtl:
+		return 1
+	case a.WitSvidTtl < b.WitSvidTtl:
+		return -1
+	case a.WitSvidTtl > b.WitSvidTtl:
 		return 1
 	}
 

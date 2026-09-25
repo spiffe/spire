@@ -628,6 +628,10 @@ const (
 	// with other tags to add clarity
 	JWTSVIDTTL = "jwt_svid_ttl"
 
+	// WIT SVID TTL functionality related to a time-to-live field for WIT-SVIDs; should be used
+	// with other tags to add clarity
+	WITSVIDTTL = "wit_svid_ttl"
+
 	// Type tags a type
 	Type = "type"
 

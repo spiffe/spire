@@ -62,6 +62,10 @@ func TestSortRegistrationEntries(t *testing.T) {
 		{SpiffeId: "x", ParentId: "x", X509SvidTtl: 100, JwtSvidTtl: 110, Selectors: []*common.Selector{{Type: "a", Value: "a"}, {Type: "a", Value: "b"}}},
 		// entry to assert that selectors get sorted as well
 		{SpiffeId: "x", ParentId: "x", X509SvidTtl: 100, JwtSvidTtl: 110, Selectors: []*common.Selector{{Type: "a", Value: "c"}, {Type: "a", Value: "a"}}},
+		// entries to assert that witSvidTtl is included in sorting
+		{SpiffeId: "x", ParentId: "x", X509SvidTtl: 100, JwtSvidTtl: 110, WitSvidTtl: 10, Selectors: []*common.Selector{{Type: "x", Value: "x"}}},
+		{SpiffeId: "x", ParentId: "x", X509SvidTtl: 100, JwtSvidTtl: 110, WitSvidTtl: 20, Selectors: []*common.Selector{{Type: "x", Value: "x"}}},
+		{SpiffeId: "x", ParentId: "x", X509SvidTtl: 100, JwtSvidTtl: 110, WitSvidTtl: 30, Selectors: []*common.Selector{{Type: "x", Value: "x"}}},
 	}
 
 	expected := []*common.RegistrationEntry{
@@ -85,6 +89,9 @@ func TestSortRegistrationEntries(t *testing.T) {
 		{SpiffeId: "x", ParentId: "x", X509SvidTtl: 100, JwtSvidTtl: 110, Selectors: []*common.Selector{{Type: "x", Value: "c"}}},
 		{SpiffeId: "x", ParentId: "x", X509SvidTtl: 100, JwtSvidTtl: 110, Selectors: []*common.Selector{{Type: "a", Value: "a"}, {Type: "a", Value: "b"}}},
 		{SpiffeId: "x", ParentId: "x", X509SvidTtl: 100, JwtSvidTtl: 110, Selectors: []*common.Selector{{Type: "a", Value: "a"}, {Type: "a", Value: "c"}}},
+		{SpiffeId: "x", ParentId: "x", X509SvidTtl: 100, JwtSvidTtl: 110, WitSvidTtl: 10, Selectors: []*common.Selector{{Type: "x", Value: "x"}}},
+		{SpiffeId: "x", ParentId: "x", X509SvidTtl: 100, JwtSvidTtl: 110, WitSvidTtl: 20, Selectors: []*common.Selector{{Type: "x", Value: "x"}}},
+		{SpiffeId: "x", ParentId: "x", X509SvidTtl: 100, JwtSvidTtl: 110, WitSvidTtl: 30, Selectors: []*common.Selector{{Type: "x", Value: "x"}}},
 	}
 
 	var actual []*common.RegistrationEntry
@@ -158,6 +165,10 @@ func TestSortTypesEntries(t *testing.T) {
 		{SpiffeId: idX, ParentId: idX, X509SvidTtl: 100, JwtSvidTtl: 110, Selectors: []*types.Selector{{Type: "a", Value: "a"}, {Type: "a", Value: "b"}}},
 		// entry to assert that selectors get sorted as well
 		{SpiffeId: idX, ParentId: idX, X509SvidTtl: 100, JwtSvidTtl: 110, Selectors: []*types.Selector{{Type: "a", Value: "c"}, {Type: "a", Value: "a"}}},
+		// entries to assert that witSvidTtl is included in sorting
+		{SpiffeId: idX, ParentId: idX, X509SvidTtl: 100, JwtSvidTtl: 110, WitSvidTtl: 10, Selectors: selectorsX},
+		{SpiffeId: idX, ParentId: idX, X509SvidTtl: 100, JwtSvidTtl: 110, WitSvidTtl: 20, Selectors: selectorsX},
+		{SpiffeId: idX, ParentId: idX, X509SvidTtl: 100, JwtSvidTtl: 110, WitSvidTtl: 30, Selectors: selectorsX},
 	}
 
 	expected := []*types.Entry{
@@ -181,6 +192,9 @@ func TestSortTypesEntries(t *testing.T) {
 		{SpiffeId: idX, ParentId: idX, X509SvidTtl: 100, JwtSvidTtl: 110, Selectors: []*types.Selector{{Type: "x", Value: "c"}}},
 		{SpiffeId: idX, ParentId: idX, X509SvidTtl: 100, JwtSvidTtl: 110, Selectors: []*types.Selector{{Type: "a", Value: "a"}, {Type: "a", Value: "b"}}},
 		{SpiffeId: idX, ParentId: idX, X509SvidTtl: 100, JwtSvidTtl: 110, Selectors: []*types.Selector{{Type: "a", Value: "a"}, {Type: "a", Value: "c"}}},
+		{SpiffeId: idX, ParentId: idX, X509SvidTtl: 100, JwtSvidTtl: 110, WitSvidTtl: 10, Selectors: selectorsX},
+		{SpiffeId: idX, ParentId: idX, X509SvidTtl: 100, JwtSvidTtl: 110, WitSvidTtl: 20, Selectors: selectorsX},
+		{SpiffeId: idX, ParentId: idX, X509SvidTtl: 100, JwtSvidTtl: 110, WitSvidTtl: 30, Selectors: selectorsX},
 	}
 
 	var actual []*types.Entry
