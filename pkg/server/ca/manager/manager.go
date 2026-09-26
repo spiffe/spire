@@ -68,7 +68,7 @@ type AuthorityManager interface {
 	GetCurrentX509CASlot() Slot
 	GetNextX509CASlot() Slot
 	PrepareX509CA(ctx context.Context) error
-	RotateX509CA(ctx context.Context)
+	RotateX509CA(ctx context.Context) error
 	GetCurrentWITKeySlot() Slot
 	GetNextWITKeySlot() Slot
 	PrepareWITKey(ctx context.Context) error
@@ -172,9 +172,7 @@ func NewManager(ctx context.Context, c Config) (*Manager, error) {
 	if currentX509CA, ok := slots[CurrentX509CASlot]; ok {
 		m.currentX509CA = currentX509CA.(*x509CASlot)
 
-		if !currentX509CA.IsEmpty() && !currentX509CA.ShouldActivateNext(now) {
-			// activate the X509CA immediately if it is set and not within
-			// activation time of the next X509CA.
+		if !currentX509CA.IsEmpty() {
 			m.activateX509CA(ctx)
 		}
 	}
@@ -303,7 +301,23 @@ func (m *Manager) PrepareX509CA(ctx context.Context) (err error) {
 	slot.authorityID = x509util.SubjectKeyIDToString(x509CA.Certificate.SubjectKeyId)
 	slot.upstreamAuthorityID = x509util.SubjectKeyIDToString(x509CA.Certificate.AuthorityKeyId)
 	slot.publicKey = slot.x509CA.Certificate.PublicKey
-	slot.notAfter = slot.x509CA.Certificate.NotAfter
+	slot.notAfter = slot.x509CA.NotAfter
+	if slot.notAfter.IsZero() {
+		slot.notAfter = slot.x509CA.Certificate.NotAfter
+	}
+
+	if slot.notAfter.Before(slot.x509CA.Certificate.NotAfter) {
+		log.WithFields(logrus.Fields{
+			"certificate_expiration": slot.x509CA.Certificate.NotAfter,
+			"chain_expiration":       slot.notAfter,
+		}).Warn("Upstream authority issued an X509 CA that outlives its certificate chain; rotation will use the chain expiration")
+	}
+	if slot == m.nextX509CA && !slot.notAfter.After(m.currentX509CA.notAfter) {
+		log.WithFields(logrus.Fields{
+			"current_chain_expiration":  m.currentX509CA.notAfter,
+			"prepared_chain_expiration": slot.notAfter,
+		}).Warn("Prepared X509 CA does not extend the current X509 CA lifetime")
+	}
 
 	if err := m.journal.AppendX509CA(ctx, slot.id, slot.issuedAt, slot.x509CA); err != nil {
 		log.WithError(err).Error("Unable to append X509 CA to journal")
@@ -312,7 +326,7 @@ func (m *Manager) PrepareX509CA(ctx context.Context) (err error) {
 	m.c.Log.WithFields(logrus.Fields{
 		telemetry.Slot:                slot.id,
 		telemetry.IssuedAt:            slot.issuedAt,
-		telemetry.Expiration:          slot.x509CA.Certificate.NotAfter,
+		telemetry.Expiration:          slot.notAfter,
 		telemetry.SelfSigned:          m.upstreamClient == nil,
 		telemetry.LocalAuthorityID:    slot.authorityID,
 		telemetry.UpstreamAuthorityID: slot.upstreamAuthorityID,
@@ -331,9 +345,12 @@ func (m *Manager) ActivateX509CA(ctx context.Context) {
 	m.activateX509CA(ctx)
 }
 
-func (m *Manager) RotateX509CA(ctx context.Context) {
+func (m *Manager) RotateX509CA(ctx context.Context) error {
 	m.x509CAMutex.Lock()
 	defer m.x509CAMutex.Unlock()
+	if !m.nextX509CA.NotAfter().After(m.c.Clock.Now()) {
+		return errors.New("prepared X509 CA has expired")
+	}
 
 	m.currentX509CA, m.nextX509CA = m.nextX509CA, m.currentX509CA
 	m.nextX509CA.Reset()
@@ -342,6 +359,7 @@ func (m *Manager) RotateX509CA(ctx context.Context) {
 	}
 
 	m.activateX509CA(ctx)
+	return nil
 }
 
 func (m *Manager) GetCurrentJWTKeySlot() Slot {
@@ -720,7 +738,7 @@ func (m *Manager) activateX509CA(ctx context.Context) {
 	log := m.c.Log.WithFields(logrus.Fields{
 		telemetry.Slot:                m.currentX509CA.id,
 		telemetry.IssuedAt:            m.currentX509CA.issuedAt,
-		telemetry.Expiration:          m.currentX509CA.x509CA.Certificate.NotAfter,
+		telemetry.Expiration:          m.currentX509CA.NotAfter(),
 		telemetry.LocalAuthorityID:    m.currentX509CA.authorityID,
 		telemetry.UpstreamAuthorityID: m.currentX509CA.upstreamAuthorityID,
 	})
@@ -732,7 +750,7 @@ func (m *Manager) activateX509CA(ctx context.Context) {
 		log.WithError(err).Error("Failed to update to activated status on X509CA journal entry")
 	}
 
-	expiration := m.currentX509CA.x509CA.Certificate.NotAfter
+	expiration := m.currentX509CA.NotAfter()
 	now := m.c.Clock.Now()
 	telemetry_server.SetX509CARotateGauge(m.c.Metrics, m.c.TrustDomain.Name(), expiration, now)
 	m.c.Log.WithFields(logrus.Fields{
@@ -861,7 +879,9 @@ func (m *Manager) processTaintedUpstreamAuthorities(ctx context.Context, tainted
 		}
 
 		// Activate the prepared X.509 authority
-		m.RotateX509CA(ctx)
+		if err := m.RotateX509CA(ctx); err != nil {
+			return err
+		}
 	}
 
 	// Now that we have rotated the intermediate, we can notify about the
@@ -984,7 +1004,12 @@ func (m *Manager) upstreamSignX509CA(ctx context.Context, signer crypto.Signer) 
 		Clock:         m.c.Clock,
 	}
 
-	caChain, err := m.upstreamClient.MintX509CA(ctx, csr, m.caTTL, validator.ValidateUpstreamX509CA)
+	var notAfter time.Time
+	caChain, err := m.upstreamClient.MintX509CA(ctx, csr, m.caTTL, func(x509CA, upstreamRoots []*x509.Certificate) error {
+		var err error
+		notAfter, err = validator.ValidateUpstreamX509CAWithExpiry(x509CA, upstreamRoots)
+		return err
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -993,6 +1018,7 @@ func (m *Manager) upstreamSignX509CA(ctx context.Context, signer crypto.Signer) 
 		Signer:        signer,
 		Certificate:   caChain[0],
 		UpstreamChain: caChain,
+		NotAfter:      notAfter,
 	}, nil
 }
 
@@ -1020,6 +1046,7 @@ func (m *Manager) selfSignX509CA(ctx context.Context, signer crypto.Signer) (*ca
 	return &ca.X509CA{
 		Signer:      signer,
 		Certificate: cert,
+		NotAfter:    cert.NotAfter,
 	}, nil
 }
 

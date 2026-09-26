@@ -17,6 +17,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	upstreamauthorityv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/upstreamauthority/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/coretypes/x509certificate"
 	telemetry_server "github.com/spiffe/spire/pkg/common/telemetry/server"
@@ -635,6 +636,55 @@ func TestGetNextX509CASlotUpstreamSigned(t *testing.T) {
 	require.Equal(t, expectNotAfter, slot.notAfter)
 }
 
+func TestPrepareX509CAUsesEffectiveUpstreamExpiry(t *testing.T) {
+	ctx := context.Background()
+	test := setupTest(t)
+	now := test.clock.Now()
+
+	root, rootKey := testca.CreateCACertificate(t, nil, nil,
+		testca.WithLifetime(now.Add(-time.Minute), now.Add(40*time.Minute)),
+		testca.WithKeyUsage(x509.KeyUsageCertSign|x509.KeyUsageCRLSign),
+	)
+	upstreamAuthority, _ := test.newFakeUpstreamAuthority(t, fakeupstreamauthority.Config{
+		TrustDomain: testTrustDomain,
+		MutateMintX509CAResponse: func(resp *upstreamauthorityv1.MintX509CAResponse) {
+			minted := x509certificate.RequireFromPluginProtos(resp.X509CaChain)[0].Certificate
+			template := *minted
+			template.NotAfter = now.Add(time.Hour)
+			template.AuthorityKeyId = root.SubjectKeyId
+			replacement := testca.CreateCertificate(t, &template, root, minted.PublicKey, rootKey)
+			resp.X509CaChain = x509certificate.RequireToPluginFromCertificates([]*x509.Certificate{replacement})
+			resp.UpstreamX509Roots = x509certificate.RequireToPluginProtos([]*x509certificate.X509Authority{{Certificate: root}})
+		},
+	})
+
+	test.cat.SetUpstreamAuthority(upstreamAuthority)
+	config := test.selfSignedConfig()
+	manager, err := NewManager(ctx, config)
+	require.NoError(t, err)
+	test.m = manager
+
+	require.NoError(t, manager.PrepareX509CA(ctx))
+	require.Equal(t, root.NotAfter, manager.GetCurrentX509CASlot().NotAfter())
+	require.True(t, manager.GetCurrentX509CASlot().ShouldPrepareNext(now.Add(20*time.Minute+time.Second)))
+	manager.ActivateX509CA(ctx)
+	manager.Close()
+
+	reloaded, err := NewManager(ctx, config)
+	require.NoError(t, err)
+	require.True(t, root.NotAfter.Equal(reloaded.GetCurrentX509CASlot().NotAfter()))
+	require.NotNil(t, test.ca.X509CA())
+	reloaded.Close()
+
+	test.ca.SetX509CA(nil)
+	test.clock.Set(root.NotAfter.Add(-5 * time.Minute))
+	reloaded, err = NewManager(ctx, config)
+	require.NoError(t, err)
+	defer reloaded.Close()
+	require.NotNil(t, test.ca.X509CA())
+	require.Equal(t, root.NotAfter, test.ca.X509CA().NotAfter)
+}
+
 func TestUpstreamSignedProducesInvalidChain(t *testing.T) {
 	ctx := context.Background()
 	test := setupTest(t)
@@ -792,7 +842,7 @@ func TestX509CARotation(t *testing.T) {
 
 	// Rotate "next" should become "current" and
 	// "next" should be reset.
-	test.m.RotateX509CA(ctx)
+	require.NoError(t, test.m.RotateX509CA(ctx))
 	test.requireX509CAEqual(t, second, test.currentX509CA())
 	require.Equal(t, journal.Status_ACTIVE, test.currentX509CAStatus())
 	assert.Nil(t, test.nextX509CA())
@@ -814,11 +864,39 @@ func TestX509CARotation(t *testing.T) {
 
 	// Rotate again, "next" should become "current" and
 	// "next" should be reset.
-	test.m.RotateX509CA(ctx)
+	require.NoError(t, test.m.RotateX509CA(ctx))
 	test.requireX509CAEqual(t, third, test.currentX509CA())
 	require.Equal(t, journal.Status_ACTIVE, test.currentX509CAStatus())
 	assert.Nil(t, test.nextX509CA())
 	require.Equal(t, journal.Status_OLD, test.nextX509CAStatus())
+}
+
+func TestX509CARotationRejectsExpiredPreparedCA(t *testing.T) {
+	clk := clock.NewMock(t)
+	now := clk.Now()
+	current := &x509CASlot{
+		id:       "A",
+		notAfter: now.Add(time.Hour),
+		x509CA: &ca.X509CA{
+			Certificate: &x509.Certificate{NotAfter: now.Add(time.Hour)},
+		},
+	}
+	next := &x509CASlot{
+		id:       "B",
+		notAfter: now,
+		x509CA: &ca.X509CA{
+			Certificate: &x509.Certificate{NotAfter: now},
+		},
+	}
+	m := &Manager{
+		c:             Config{Clock: clk},
+		currentX509CA: current,
+		nextX509CA:    next,
+	}
+
+	require.EqualError(t, m.RotateX509CA(context.Background()), "prepared X509 CA has expired")
+	require.Same(t, current, m.currentX509CA)
+	require.Same(t, next, m.nextX509CA)
 }
 
 func TestX509CARotationMetric(t *testing.T) {
@@ -832,7 +910,7 @@ func TestX509CARotationMetric(t *testing.T) {
 
 	// reset the metrics rotate CA to activate mark
 	test.metrics.Reset()
-	test.m.RotateX509CA(ctx)
+	require.NoError(t, test.m.RotateX509CA(ctx))
 
 	// create expected metrics with ttl from certificate
 	expected := fakemetrics.New()

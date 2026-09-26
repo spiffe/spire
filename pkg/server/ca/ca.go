@@ -128,6 +128,9 @@ type X509CA struct {
 	// chain back to the upstream trust bundle. It is only set if the CA is
 	// signed by an UpstreamCA.
 	UpstreamChain []*x509.Certificate
+
+	// NotAfter is the effective expiration of the CA chain.
+	NotAfter time.Time
 }
 
 type JWTKey struct {
@@ -204,6 +207,9 @@ func (ca *CA) X509CA() *X509CA {
 func (ca *CA) SetX509CA(x509CA *X509CA) {
 	ca.mu.Lock()
 	defer ca.mu.Unlock()
+	if x509CA != nil && x509CA.NotAfter.IsZero() {
+		x509CA.NotAfter = x509CA.Certificate.NotAfter
+	}
 	ca.x509CA = x509CA
 	switch {
 	case x509CA == nil:
@@ -264,6 +270,7 @@ func (ca *CA) SignDownstreamX509CA(ctx context.Context, params DownstreamX509CAP
 	if err != nil {
 		return nil, err
 	}
+	capX509CertificateExpiry(template, x509CA.NotAfter)
 
 	downstreamCA, err := x509util.CreateCertificate(template, x509CA.Certificate, template.PublicKey, x509CA.Signer)
 	if err != nil {
@@ -435,12 +442,19 @@ func (ca *CA) getX509CA() (*X509CA, []*x509.Certificate, error) {
 }
 
 func (ca *CA) signX509SVID(x509CA *X509CA, template *x509.Certificate) ([]*x509.Certificate, error) {
+	capX509CertificateExpiry(template, x509CA.NotAfter)
 	x509SVID, err := x509util.CreateCertificate(template, x509CA.Certificate, template.PublicKey, x509CA.Signer)
 	if err != nil {
 		return nil, fmt.Errorf("failed to sign X509 SVID: %w", err)
 	}
 	telemetry_server.IncrServerCASignX509Counter(ca.c.Metrics)
 	return makeCertChain(x509CA, x509SVID), nil
+}
+
+func capX509CertificateExpiry(template *x509.Certificate, expiration time.Time) {
+	if !expiration.IsZero() && template.NotAfter.After(expiration) {
+		template.NotAfter = expiration
+	}
 }
 
 func (ca *CA) signJWTSVID(jwtKey *JWTKey, claims map[string]any) (string, error) {

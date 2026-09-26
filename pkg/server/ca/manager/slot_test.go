@@ -17,10 +17,12 @@ import (
 	"github.com/spiffe/spire/pkg/server/credtemplate"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
 	"github.com/spiffe/spire/proto/private/server/journal"
+	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
 	"github.com/spiffe/spire/test/fakes/fakeservercatalog"
 	"github.com/spiffe/spire/test/fakes/fakeserverkeymanager"
 	"github.com/spiffe/spire/test/spiretest"
+	"github.com/spiffe/spire/test/testca"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -83,6 +85,134 @@ func TestX509CASlotShouldActivateNext(t *testing.T) {
 
 	// Advance to preparation time
 	require.True(t, slot.ShouldActivateNext(now.Add(51*time.Second)))
+}
+
+func TestX509CASlotRotationUsesEffectiveExpiry(t *testing.T) {
+	now := time.Now()
+	localNotAfter := now.Add(time.Hour)
+	effectiveNotAfter := now.Add(40 * time.Minute)
+
+	slot := &x509CASlot{
+		issuedAt: now,
+		notAfter: effectiveNotAfter,
+		x509CA: &ca.X509CA{
+			Certificate: &x509.Certificate{NotAfter: localNotAfter},
+		},
+	}
+
+	require.False(t, slot.ShouldPrepareNext(now.Add(20*time.Minute)))
+	require.True(t, slot.ShouldPrepareNext(now.Add(20*time.Minute+time.Second)))
+	require.False(t, slot.ShouldActivateNext(now.Add(33*time.Minute+20*time.Second)))
+	require.True(t, slot.ShouldActivateNext(now.Add(33*time.Minute+21*time.Second)))
+}
+
+func TestReconstructEffectiveX509CAExpiry(t *testing.T) {
+	ctx := context.Background()
+	now := time.Now().Truncate(time.Second)
+	root, rootKey := testca.CreateCACertificate(t, nil, nil,
+		testca.WithLifetime(now.Add(-time.Hour), now.Add(time.Hour)),
+		testca.WithKeyUsage(x509.KeyUsageCertSign|x509.KeyUsageCRLSign),
+	)
+	intermediate, _ := testca.CreateCACertificate(t, root, rootKey,
+		testca.WithLifetime(now.Add(-time.Minute), now.Add(2*time.Hour)),
+		testca.WithKeyUsage(x509.KeyUsageCertSign|x509.KeyUsageCRLSign),
+	)
+
+	ds := fakedatastore.New(t)
+	_, err := ds.CreateBundle(ctx, &common.Bundle{
+		TrustDomainId: testTrustDomain.IDString(),
+		RootCas: []*common.Certificate{
+			{DerBytes: intermediate.Raw},
+			{DerBytes: root.Raw},
+		},
+	})
+	require.NoError(t, err)
+	cat := fakeservercatalog.New()
+	cat.SetDataStore(ds)
+	loader := &SlotLoader{
+		TrustDomain: testTrustDomain,
+		Catalog:     cat,
+	}
+
+	effectiveNotAfter, err := loader.reconstructEffectiveX509CAExpiry(ctx, &journal.X509CAEntry{
+		IssuedAt: now.Unix(),
+	}, intermediate, []*x509.Certificate{intermediate})
+	require.NoError(t, err)
+	require.Equal(t, root.NotAfter, effectiveNotAfter)
+}
+
+func TestLegacyX509CAExpiryMigration(t *testing.T) {
+	ctx := context.Background()
+	now := time.Now().Truncate(time.Second)
+	log, _ := test.NewNullLogger()
+	ds := fakedatastore.New(t)
+	km := fakeserverkeymanager.New(t)
+	cat := fakeservercatalog.New()
+	cat.SetDataStore(ds)
+	cat.SetKeyManager(km)
+
+	root, rootKey := testca.CreateCACertificate(t, nil, nil,
+		testca.WithLifetime(now.Add(-time.Hour), now.Add(time.Hour)),
+		testca.WithKeyUsage(x509.KeyUsageCertSign|x509.KeyUsageCRLSign),
+	)
+	localTemplate, _ := testca.CreateCACertificate(t, root, rootKey,
+		testca.WithLifetime(now.Add(-time.Minute), now.Add(2*time.Hour)),
+		testca.WithKeyUsage(x509.KeyUsageCertSign|x509.KeyUsageCRLSign),
+	)
+	localKey, err := km.GenerateKey(ctx, x509CAKmKeyID("A"), keymanager.ECP256)
+	require.NoError(t, err)
+	localTemplate.SubjectKeyId, err = x509util.GetSubjectKeyID(localKey.Public())
+	require.NoError(t, err)
+	local := testca.CreateCertificate(t, localTemplate, root, localKey.Public(), rootKey)
+	authorityID := x509util.SubjectKeyIDToString(local.SubjectKeyId)
+
+	_, err = ds.CreateBundle(ctx, &common.Bundle{
+		TrustDomainId: testTrustDomain.IDString(),
+		RootCas:       []*common.Certificate{{DerBytes: root.Raw}},
+	})
+	require.NoError(t, err)
+
+	legacyEntry := &journal.X509CAEntry{
+		SlotId:        "A",
+		IssuedAt:      now.Unix(),
+		NotAfter:      local.NotAfter.Unix(),
+		Certificate:   local.Raw,
+		UpstreamChain: [][]byte{local.Raw},
+		Status:        journal.Status_ACTIVE,
+		AuthorityId:   authorityID,
+	}
+	legacyJournal := &Journal{
+		config:                &journalConfig{cat: cat, log: log},
+		activeX509AuthorityID: authorityID,
+		entries:               &journal.Entries{X509CAs: []*journal.X509CAEntry{legacyEntry}},
+	}
+	require.NoError(t, legacyJournal.save(ctx))
+
+	loader := &SlotLoader{
+		TrustDomain:    testTrustDomain,
+		Log:            log,
+		Catalog:        cat,
+		UpstreamClient: new(ca.UpstreamClient),
+	}
+
+	migratedJournal, slots, err := loader.load(ctx)
+	require.NoError(t, err)
+	require.Equal(t, root.NotAfter, slots[CurrentX509CASlot].NotAfter())
+	require.Equal(t, root.NotAfter.Unix(), migratedJournal.entries.X509CAs[0].NotAfter)
+	require.True(t, migratedJournal.entries.X509CAs[0].NotAfterIsEffective)
+
+	_, err = ds.SetBundle(ctx, &common.Bundle{TrustDomainId: testTrustDomain.IDString()})
+	require.NoError(t, err)
+	reloadedJournal, slots, err := loader.load(ctx)
+	require.NoError(t, err)
+	require.Equal(t, root.NotAfter, slots[CurrentX509CASlot].NotAfter())
+	require.Equal(t, root.NotAfter.Unix(), reloadedJournal.entries.X509CAs[0].NotAfter)
+	require.True(t, reloadedJournal.entries.X509CAs[0].NotAfterIsEffective)
+
+	require.NoError(t, legacyJournal.save(ctx))
+	_, slots, err = loader.load(ctx)
+	require.NoError(t, err)
+	require.True(t, slots[CurrentX509CASlot].IsEmpty())
 }
 
 func TestJWTKeySlotShouldPrepareNext(t *testing.T) {

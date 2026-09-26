@@ -306,6 +306,18 @@ func (s *CATestSuite) TestSignWorkloadX509SVID() {
 	s.Equal("O=SPIRE,C=US", svid.Subject.String())
 }
 
+func (s *CATestSuite) TestSignWorkloadX509SVIDUsesEffectiveCAExpiry() {
+	effectiveNotAfter := s.clock.Now().Add(30 * time.Second)
+	x509CA := s.ca.X509CA()
+	x509CA.NotAfter = effectiveNotAfter
+	s.ca.SetX509CA(x509CA)
+
+	svidChain, err := s.ca.SignWorkloadX509SVID(ctx, s.createWorkloadX509SVIDParams())
+	s.Require().NoError(err)
+	s.Require().NotEmpty(svidChain)
+	s.Equal(effectiveNotAfter, svidChain[0].NotAfter)
+}
+
 func (s *CATestSuite) TestSignWorkloadX509SVIDCannotSignTrustDomainID() {
 	params := WorkloadX509SVIDParams{
 		SPIFFEID:  spiffeid.RequireFromString("spiffe://example.org"),
@@ -603,6 +615,18 @@ func (s *CATestSuite) TestSignDownstreamX509CAUsesDefaultTTLIfTTLUnspecified() {
 	s.Require().Len(downstreamCA, 1)
 	s.Require().Equal(s.clock.Now().Add(-backdate), downstreamCA[0].NotBefore)
 	s.Require().Equal(s.clock.Now().Add(10*time.Minute), downstreamCA[0].NotAfter)
+}
+
+func (s *CATestSuite) TestSignDownstreamX509CAUsesEffectiveCAExpiry() {
+	effectiveNotAfter := s.clock.Now().Add(30 * time.Second)
+	x509CA := s.ca.X509CA()
+	x509CA.NotAfter = effectiveNotAfter
+	s.ca.SetX509CA(x509CA)
+
+	downstreamCA, err := s.ca.SignDownstreamX509CA(ctx, s.createDownstreamX509CAParams())
+	s.Require().NoError(err)
+	s.Require().NotEmpty(downstreamCA)
+	s.Equal(effectiveNotAfter, downstreamCA[0].NotAfter)
 }
 
 func (s *CATestSuite) TestHealthChecks() {
