@@ -7,11 +7,13 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"math/big"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
 	sigstoreroot "github.com/sigstore/sigstore-go/pkg/root"
+	"github.com/sigstore/sigstore-go/pkg/tuf"
 	"github.com/stretchr/testify/require"
 )
 
@@ -25,18 +27,22 @@ func TestTufOptions(t *testing.T) {
 	t.Run("defaults", func(t *testing.T) {
 		t.Setenv(tufRootEnv, "")
 		t.Setenv(sigstoreNoCacheEnv, "")
+		t.Setenv(sigstoreRootFileEnv, "")
 
-		opts := tufOptions()
+		opts, err := tufOptions()
+		require.NoError(t, err)
 		require.False(t, opts.DisableLocalCache)
 		require.True(t, filepath.IsAbs(opts.CachePath))
 		require.Contains(t, opts.CachePath, filepath.Join(".sigstore", "root"))
+		require.Equal(t, tuf.DefaultMirror, opts.RepositoryBaseURL)
 	})
 
 	t.Run("custom TUF root", func(t *testing.T) {
 		t.Setenv(tufRootEnv, "/var/lib/spire/tuf")
 		t.Setenv(sigstoreNoCacheEnv, "")
 
-		opts := tufOptions()
+		opts, err := tufOptions()
+		require.NoError(t, err)
 		require.Equal(t, "/var/lib/spire/tuf", opts.CachePath)
 	})
 
@@ -44,15 +50,86 @@ func TestTufOptions(t *testing.T) {
 		t.Setenv(tufRootEnv, "")
 		t.Setenv(sigstoreNoCacheEnv, "true")
 
-		opts := tufOptions()
+		opts, err := tufOptions()
+		require.NoError(t, err)
 		require.True(t, opts.DisableLocalCache)
 	})
 
 	t.Run("invalid no cache value", func(t *testing.T) {
 		t.Setenv(sigstoreNoCacheEnv, "not-a-bool")
 
-		opts := tufOptions()
+		opts, err := tufOptions()
+		require.NoError(t, err)
 		require.False(t, opts.DisableLocalCache)
+	})
+
+	t.Run("remote mirror from remote.json", func(t *testing.T) {
+		cacheRoot := t.TempDir()
+		t.Setenv(tufRootEnv, cacheRoot)
+		t.Setenv(sigstoreRootFileEnv, "")
+
+		require.NoError(t, os.WriteFile(
+			filepath.Join(cacheRoot, remoteCacheFile),
+			[]byte(`{"mirror":"https://private-tuf.example.com"}`),
+			0o600,
+		))
+
+		opts, err := tufOptions()
+		require.NoError(t, err)
+		require.Equal(t, "https://private-tuf.example.com", opts.RepositoryBaseURL)
+	})
+
+	t.Run("missing remote.json uses default mirror", func(t *testing.T) {
+		cacheRoot := t.TempDir()
+		t.Setenv(tufRootEnv, cacheRoot)
+
+		opts, err := tufOptions()
+		require.NoError(t, err)
+		require.Equal(t, tuf.DefaultMirror, opts.RepositoryBaseURL)
+	})
+
+	t.Run("invalid remote.json", func(t *testing.T) {
+		cacheRoot := t.TempDir()
+		t.Setenv(tufRootEnv, cacheRoot)
+
+		require.NoError(t, os.WriteFile(
+			filepath.Join(cacheRoot, remoteCacheFile),
+			[]byte(`not-json`),
+			0o600,
+		))
+
+		_, err := tufOptions()
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "parsing remote.json")
+	})
+
+	t.Run("custom mirror loads root from cache root", func(t *testing.T) {
+		cacheRoot := t.TempDir()
+		t.Setenv(tufRootEnv, cacheRoot)
+		t.Setenv(sigstoreRootFileEnv, "")
+
+		rootBytes := []byte(`{"root":"metadata"}`)
+		require.NoError(t, os.WriteFile(filepath.Join(cacheRoot, remoteCacheFile), []byte(`{"mirror":"https://private-tuf.example.com"}`), 0o600))
+		require.NoError(t, os.WriteFile(filepath.Join(cacheRoot, tufRootFile), rootBytes, 0o600))
+
+		opts, err := tufOptions()
+		require.NoError(t, err)
+		require.Equal(t, rootBytes, opts.Root)
+	})
+
+	t.Run("custom mirror loads root from SIGSTORE_ROOT_FILE", func(t *testing.T) {
+		cacheRoot := t.TempDir()
+		rootFile := filepath.Join(t.TempDir(), "custom-root.json")
+		rootBytes := []byte(`{"root":"from-env"}`)
+
+		t.Setenv(tufRootEnv, cacheRoot)
+		t.Setenv(sigstoreRootFileEnv, rootFile)
+		require.NoError(t, os.WriteFile(rootFile, rootBytes, 0o600))
+		require.NoError(t, os.WriteFile(filepath.Join(cacheRoot, remoteCacheFile), []byte(`{"mirror":"https://private-tuf.example.com"}`), 0o600))
+
+		opts, err := tufOptions()
+		require.NoError(t, err)
+		require.Equal(t, rootBytes, opts.Root)
 	})
 }
 

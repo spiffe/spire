@@ -2,9 +2,11 @@ package sigstore
 
 import (
 	"crypto/x509"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"sync"
 
@@ -18,7 +20,17 @@ const (
 
 	// sigstoreNoCacheEnv, when set, keeps TUF root data in memory only.
 	sigstoreNoCacheEnv = "SIGSTORE_NO_CACHE"
+
+	// sigstoreRootFileEnv locates an alternate TUF root trust anchor file.
+	sigstoreRootFileEnv = "SIGSTORE_ROOT_FILE"
+
+	remoteCacheFile = "remote.json"
+	tufRootFile     = "root.json"
 )
+
+type remoteCache struct {
+	Mirror string `json:"mirror"`
+}
 
 var (
 	fulcioPoolsOnce     sync.Once
@@ -39,7 +51,12 @@ func getFulcioIntermediates() (*x509.CertPool, error) {
 
 func loadFulcioCertPools() (*x509.CertPool, *x509.CertPool, error) {
 	fulcioPoolsOnce.Do(func() {
-		trustedRoot, err := sigstoreroot.FetchTrustedRootWithOptions(tufOptions())
+		opts, err := tufOptions()
+		if err != nil {
+			fulcioPoolsErr = err
+			return
+		}
+		trustedRoot, err := sigstoreroot.FetchTrustedRootWithOptions(opts)
 		if err != nil {
 			fulcioPoolsErr = fmt.Errorf("failed to fetch sigstore trusted root: %w", err)
 			return
@@ -74,15 +91,83 @@ func certPoolsFromCertificateAuthorities(cas []sigstoreroot.CertificateAuthority
 	return roots, intermediates, nil
 }
 
-// tufOptions returns TUF client options honoring TUF_ROOT and SIGSTORE_NO_CACHE,
-// matching the behavior of the deprecated sigstore/pkg/tuf.NewFromEnv path.
-func tufOptions() *tuf.Options {
-	opts := tuf.DefaultOptions()
+func tufCacheRoot() string {
 	if rootDir := os.Getenv(tufRootEnv); rootDir != "" {
-		opts.CachePath = rootDir
+		return rootDir
 	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return filepath.Join(os.TempDir(), ".sigstore", "root")
+	}
+	return filepath.Join(home, ".sigstore", "root")
+}
+
+func readRemoteMirror(cacheRoot string) (string, error) {
+	path := filepath.Join(cacheRoot, remoteCacheFile)
+	b, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "", nil
+		}
+		return "", fmt.Errorf("reading %s: %w", remoteCacheFile, err)
+	}
+
+	var remote remoteCache
+	if err := json.Unmarshal(b, &remote); err != nil {
+		return "", fmt.Errorf("parsing %s: %w", remoteCacheFile, err)
+	}
+	return remote.Mirror, nil
+}
+
+func loadTUFRootBytes(cacheRoot string) ([]byte, error) {
+	if path := os.Getenv(sigstoreRootFileEnv); path != "" {
+		// #nosec G703 -- operator-provided trust root path via SIGSTORE_ROOT_FILE
+		b, err := os.ReadFile(path)
+		if err != nil {
+			return nil, fmt.Errorf("reading %s: %w", sigstoreRootFileEnv, err)
+		}
+		return b, nil
+	}
+
+	path := filepath.Join(cacheRoot, tufRootFile)
+	b, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("reading %s: %w", tufRootFile, err)
+	}
+	return b, nil
+}
+
+// tufOptions returns TUF client options honoring TUF_ROOT, SIGSTORE_NO_CACHE, and
+// remote.json (written by cosign initialize), matching the deprecated
+// sigstore/pkg/tuf.NewFromEnv mirror selection behavior.
+func tufOptions() (*tuf.Options, error) {
+	opts := tuf.DefaultOptions()
+	opts.CachePath = tufCacheRoot()
+
 	if noCache, err := strconv.ParseBool(os.Getenv(sigstoreNoCacheEnv)); err == nil {
 		opts.DisableLocalCache = noCache
 	}
-	return opts
+
+	mirror, err := readRemoteMirror(opts.CachePath)
+	if err != nil {
+		return nil, err
+	}
+	if mirror != "" {
+		opts.RepositoryBaseURL = mirror
+	}
+
+	if opts.RepositoryBaseURL != tuf.DefaultMirror {
+		root, err := loadTUFRootBytes(opts.CachePath)
+		if err != nil {
+			return nil, err
+		}
+		if root != nil {
+			opts.Root = root
+		}
+	}
+
+	return opts, nil
 }
