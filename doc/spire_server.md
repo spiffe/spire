@@ -291,8 +291,8 @@ This optional section contains the configurables used by SPIRE Server to expose 
 |-----------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | address                                       | IP address where this server will listen for HTTP requests                                                                                                                                                                                         |
 | port                                          | TCP port number where this server will listen for HTTP requests                                                                                                                                                                                    |
-| refresh_hint                                  | Allow manually specifying a [refresh hint](https://github.com/spiffe/spiffe/blob/main/standards/SPIFFE_Trust_Domain_and_Bundle.md#412-refresh-hint). Defaults to 5 minutes. Small values allow to retrieve trust bundle updates in a timely manner |
-| profile "&lt;https_web&vert;https_spiffe&gt;" | Allow to configure bundle profile                                                                                                                                                                                                                  |
+| refresh_hint                                  | Allow manually specifying a [refresh hint](https://github.com/spiffe/spiffe/blob/main/standards/SPIFFE_Trust_Domain_and_Bundle.md#412-refresh-hint). Defaults to 5 minutes. Small values allow retrieving trust bundle updates in a timely manner |
+| profile "<https_web&vert;https_spiffe>" | Allows configuring bundle profile                                                                                                                                                                                                                  |
 
 ### Configuration options for `federation.bundle_endpoint.profile`
 
@@ -300,7 +300,7 @@ When setting a `bundle_endpoint`, it is `required` to specify the bundle profile
 
 Allowed profiles:
 
-- `https_web` allow to configure either the [Automated Certificate Management Environment](#configuration-options-for-federationbundle_endpointprofile-https_webacme) or the [serving cert file](#configuration-options-for-federationbundle_endpointprofile-https_webserving_cert_file) section.
+- `https_web` allows configuring either the [Automated Certificate Management Environment](#configuration-options-for-federationbundle_endpointprofile-https_webacme) or the [serving cert file](#configuration-options-for-federationbundle_endpointprofile-https_webserving_cert_file) section.
 - `https_spiffe`
 
 ### Configuration options for `federation.bundle_endpoint.profile "https_web".acme`
