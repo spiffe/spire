@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 
-	"github.com/jackc/pgx/v5"
 	"github.com/jinzhu/gorm"
 	"github.com/spiffe/spire/pkg/server/datastore/sqlcommon"
 	"github.com/spiffe/spire/pkg/server/datastore/sqldriver/awsrds"
@@ -27,39 +26,13 @@ func (p postgresDB) connect(ctx context.Context, cfg *sqlcommon.Configuration, i
 	var errOpen error
 	switch {
 	case cfg.DBTypeConfig.AWSPostgres != nil:
-		dsn, err := sqlcommon.BuildAWSPostgresDSN(cfg)
+		dsn, err := sqlcommon.BuildAWSPostgresDSN(cfg, isReadOnly)
 		if err != nil {
 			return nil, "", false, err
 		}
 		db, errOpen = gorm.Open(awsrds.PostgresDriverName, dsn)
 	case cfg.DBTypeConfig.AzurePostgres != nil:
-		c, err := pgx.ParseConfig(connString)
-		if err != nil {
-			return nil, "", false, err
-		}
-		if c.Password != "" {
-			return nil, "", false, errors.New("invalid postgres configuration: password should not be set when using Microsoft Entra ID authentication")
-		}
-
-		resolved, err := cfg.DBTypeConfig.AzurePostgres.Resolve()
-		if err != nil {
-			return nil, "", false, err
-		}
-
-		azurerdsConfig := &azurerds.Config{
-			AuthType:                  resolved.AuthType,
-			TenantID:                  resolved.TenantID,
-			ClientID:                  resolved.ClientID,
-			ClientSecret:              resolved.ClientSecret,
-			ClientCertificatePath:     resolved.ClientCertificatePath,
-			ClientCertificatePassword: resolved.ClientCertificatePassword,
-			SendCertificateChain:      resolved.SendCertificateChain,
-			FederatedTokenFile:        resolved.FederatedTokenFile,
-			ManagedIdentityResourceID: resolved.ManagedIdentityResourceID,
-			DriverName:                azurerds.PostgresDriverName,
-			ConnString:                connString,
-		}
-		dsn, err := azurerdsConfig.FormatDSN()
+		dsn, err := sqlcommon.BuildAzurePostgresDSN(cfg, isReadOnly)
 		if err != nil {
 			return nil, "", false, err
 		}

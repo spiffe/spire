@@ -56,7 +56,7 @@ func TestAWSPostgresDSN(t *testing.T) {
 			},
 		},
 	}
-	dsn, err := sqlcommon.BuildAWSPostgresDSN(cfg)
+	dsn, err := sqlcommon.BuildAWSPostgresDSN(cfg, false)
 	require.NoError(t, err)
 	require.Contains(t, dsn, "my-instance.rds.amazonaws.com:5432")
 }
@@ -71,7 +71,7 @@ func TestAWSPostgresRejectsPassword(t *testing.T) {
 			AWSPostgres:  &sqlcommon.AWSConfig{Region: "us-west-2"},
 		},
 	}
-	_, err := sqlcommon.BuildAWSPostgresDSN(cfg)
+	_, err := sqlcommon.BuildAWSPostgresDSN(cfg, false)
 	require.ErrorContains(t, err, "password should not be set when using IAM authentication")
 }
 

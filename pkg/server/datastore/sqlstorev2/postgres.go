@@ -8,6 +8,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/server/datastore/sqlcommon"
 	"github.com/spiffe/spire/pkg/server/datastore/sqldriver/awsrds"
+	"github.com/spiffe/spire/pkg/server/datastore/sqldriver/azurerds"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
@@ -23,23 +24,36 @@ func (p postgresDB) connect(ctx context.Context, cfg *sqlcommon.Configuration, i
 
 	switch {
 	case cfg.DBTypeConfig.AWSPostgres != nil:
-		dsn, err := sqlcommon.BuildAWSPostgresDSN(cfg)
+		dsn, err := sqlcommon.BuildAWSPostgresDSN(cfg, isReadOnly)
 		if err != nil {
 			return nil, "", false, err
 		}
 		sqlDB, err := sql.Open(awsrds.PostgresDriverName, dsn)
 		if err != nil {
-			return nil, "", false, newWrappedSQLError(err)
+			return nil, "", false, sqlcommon.NewWrappedSQLError(err)
 		}
 		db, err = gorm.Open(postgres.New(postgres.Config{Conn: sqlDB}), gormConfig(cfg, p.log))
 		if err != nil {
-			return nil, "", false, newWrappedSQLError(err)
+			return nil, "", false, sqlcommon.NewWrappedSQLError(err)
+		}
+	case cfg.DBTypeConfig.AzurePostgres != nil:
+		dsn, err := sqlcommon.BuildAzurePostgresDSN(cfg, isReadOnly)
+		if err != nil {
+			return nil, "", false, err
+		}
+		sqlDB, err := sql.Open(azurerds.PostgresDriverName, dsn)
+		if err != nil {
+			return nil, "", false, sqlcommon.NewWrappedSQLError(err)
+		}
+		db, err = gorm.Open(postgres.New(postgres.Config{Conn: sqlDB}), gormConfig(cfg, p.log))
+		if err != nil {
+			return nil, "", false, sqlcommon.NewWrappedSQLError(err)
 		}
 	default:
 		connString := sqlcommon.GetConnectionString(cfg, isReadOnly)
 		db, err = gorm.Open(postgres.Open(connString), gormConfig(cfg, p.log))
 		if err != nil {
-			return nil, "", false, newWrappedSQLError(err)
+			return nil, "", false, sqlcommon.NewWrappedSQLError(err)
 		}
 	}
 

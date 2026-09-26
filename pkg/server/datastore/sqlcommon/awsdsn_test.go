@@ -13,9 +13,21 @@ func TestBuildAWSPostgresDSNNoPassword(t *testing.T) {
 	t.Setenv("PGPASSWORD", "")
 
 	dsn, err := BuildAWSPostgresDSN(awsPostgresConfig(
-		"postgres://dbuser@my-instance.rds.amazonaws.com:5432/spire"))
+		"postgres://dbuser@my-instance.rds.amazonaws.com:5432/spire"), false)
 	require.NoError(t, err)
 	require.Contains(t, dsn, "my-instance.rds.amazonaws.com:5432")
+}
+
+func TestBuildAWSPostgresDSNUsesReadOnlyConnectionString(t *testing.T) {
+	t.Setenv("PGPASSWORD", "")
+
+	cfg := awsPostgresConfig("postgres://dbuser@rw-host:5432/spire")
+	cfg.RoConnectionString = "postgres://dbuser@ro-host:5432/spire"
+
+	dsn, err := BuildAWSPostgresDSN(cfg, true)
+	require.NoError(t, err)
+	require.Contains(t, dsn, "ro-host:5432")
+	require.NotContains(t, dsn, "rw-host")
 }
 
 func TestBuildAWSPostgresDSNRejectsPassword(t *testing.T) {
@@ -27,7 +39,7 @@ func TestBuildAWSPostgresDSNRejectsPassword(t *testing.T) {
 		"host=host port=5432 user=dbuser password=secret dbname=spire",
 		"host=host port=5432 user=dbuser password = secret dbname=spire",
 	} {
-		_, err := BuildAWSPostgresDSN(awsPostgresConfig(connString))
+		_, err := BuildAWSPostgresDSN(awsPostgresConfig(connString), false)
 		require.ErrorContains(t, err, "password should not be set when using IAM authentication",
 			"connString=%q", connString)
 	}
@@ -37,7 +49,7 @@ func TestBuildAWSPostgresDSNAllowsEmptyPassword(t *testing.T) {
 	t.Setenv("PGPASSWORD", "")
 
 	_, err := BuildAWSPostgresDSN(awsPostgresConfig(
-		"postgres://dbuser:@my-instance.rds.amazonaws.com:5432/spire"))
+		"postgres://dbuser:@my-instance.rds.amazonaws.com:5432/spire"), false)
 	require.NoError(t, err)
 }
 

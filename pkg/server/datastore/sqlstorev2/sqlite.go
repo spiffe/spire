@@ -27,7 +27,7 @@ func (s sqliteDB) connect(ctx context.Context, cfg *sqlcommon.Configuration, isR
 
 	db, err = gorm.Open(sqlite.Open(embellished), gormConfig(cfg, s.log))
 	if err != nil {
-		return nil, "", false, newWrappedSQLError(err)
+		return nil, "", false, sqlcommon.NewWrappedSQLError(err)
 	}
 
 	version, err = queryVersion(ctx, db, sqlcommon.SQLiteVersionQuery)

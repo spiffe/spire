@@ -66,7 +66,7 @@ func (ds *Plugin) RawScan(dest any, query string) error {
 	ds.mu.Lock()
 	defer ds.mu.Unlock()
 	if ds.db == nil {
-		return newSQLError("datastore is not configured")
+		return sqlcommon.NewSQLError("datastore is not configured")
 	}
 	return ds.db.Raw(query).Scan(dest).Error
 }
@@ -121,7 +121,7 @@ func (ds *Plugin) openConnection(ctx context.Context, config *sqlcommon.Configur
 
 	raw, err := gdb.DB()
 	if err != nil {
-		return newWrappedSQLError(err)
+		return sqlcommon.NewWrappedSQLError(err)
 	}
 
 	// Conn-pool options (defaults match v1).
@@ -181,7 +181,7 @@ func (ds *Plugin) newDialect(databaseType string) (dialect, error) {
 	case sqlcommon.MySQL, sqlcommon.AWSMySQL:
 		return mysqlDB{log: ds.log}, nil
 	default:
-		return nil, newSQLError("unsupported database_type: %s", databaseType)
+		return nil, sqlcommon.NewSQLError("unsupported database_type: %s", databaseType)
 	}
 }
 
@@ -200,11 +200,11 @@ func gormConfig(cfg *sqlcommon.Configuration, log logrus.FieldLogger) *gorm.Conf
 func queryVersion(ctx context.Context, db *gorm.DB, query string) (string, error) {
 	raw, err := db.DB()
 	if err != nil {
-		return "", newWrappedSQLError(err)
+		return "", sqlcommon.NewWrappedSQLError(err)
 	}
 	var version string
 	if err := raw.QueryRowContext(ctx, query).Scan(&version); err != nil {
-		return "", newWrappedSQLError(err)
+		return "", sqlcommon.NewWrappedSQLError(err)
 	}
 	return version, nil
 }

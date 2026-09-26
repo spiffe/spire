@@ -39,30 +39,7 @@ func (my mysqlDB) connect(ctx context.Context, cfg *sqlcommon.Configuration, isR
 		}
 		db, errOpen = gorm.Open(awsrds.MySQLDriverName, dsn)
 	case cfg.DBTypeConfig.AzureMySQL != nil:
-		if mysqlConfig.Passwd != "" {
-			return nil, "", false, errors.New("invalid mysql configuration: password should not be set when using Microsoft Entra ID authentication")
-		}
-
-		resolved, err := cfg.DBTypeConfig.AzureMySQL.Resolve()
-		if err != nil {
-			return nil, "", false, err
-		}
-
-		azurerdsConfig := &azurerds.Config{
-			AuthType:                  resolved.AuthType,
-			TenantID:                  resolved.TenantID,
-			ClientID:                  resolved.ClientID,
-			ClientSecret:              resolved.ClientSecret,
-			ClientCertificatePath:     resolved.ClientCertificatePath,
-			ClientCertificatePassword: resolved.ClientCertificatePassword,
-			SendCertificateChain:      resolved.SendCertificateChain,
-			FederatedTokenFile:        resolved.FederatedTokenFile,
-			ManagedIdentityResourceID: resolved.ManagedIdentityResourceID,
-			DriverName:                azurerds.MySQLDriverName,
-			ConnString:                mysqlConfig.FormatDSN(),
-		}
-
-		dsn, err := azurerdsConfig.FormatDSN()
+		dsn, err := sqlcommon.BuildAzureMySQLDSN(cfg, mysqlConfig)
 		if err != nil {
 			return nil, "", false, err
 		}

@@ -10,6 +10,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/server/datastore/sqlcommon"
 	"github.com/spiffe/spire/pkg/server/datastore/sqldriver/awsrds"
+	"github.com/spiffe/spire/pkg/server/datastore/sqldriver/azurerds"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 )
@@ -38,16 +39,29 @@ func (my mysqlDB) connect(ctx context.Context, cfg *sqlcommon.Configuration, isR
 		}
 		sqlDB, err := sql.Open(awsrds.MySQLDriverName, dsn)
 		if err != nil {
-			return nil, "", false, newWrappedSQLError(err)
+			return nil, "", false, sqlcommon.NewWrappedSQLError(err)
 		}
 		db, err = gorm.Open(mysql.New(mysql.Config{Conn: sqlDB}), gormConfig(cfg, my.log))
 		if err != nil {
-			return nil, "", false, newWrappedSQLError(err)
+			return nil, "", false, sqlcommon.NewWrappedSQLError(err)
+		}
+	case cfg.DBTypeConfig.AzureMySQL != nil:
+		dsn, err := sqlcommon.BuildAzureMySQLDSN(cfg, mysqlConfig)
+		if err != nil {
+			return nil, "", false, err
+		}
+		sqlDB, err := sql.Open(azurerds.MySQLDriverName, dsn)
+		if err != nil {
+			return nil, "", false, sqlcommon.NewWrappedSQLError(err)
+		}
+		db, err = gorm.Open(mysql.New(mysql.Config{Conn: sqlDB}), gormConfig(cfg, my.log))
+		if err != nil {
+			return nil, "", false, sqlcommon.NewWrappedSQLError(err)
 		}
 	default:
 		db, err = gorm.Open(mysql.Open(mysqlConfig.FormatDSN()), gormConfig(cfg, my.log))
 		if err != nil {
-			return nil, "", false, newWrappedSQLError(err)
+			return nil, "", false, sqlcommon.NewWrappedSQLError(err)
 		}
 	}
 
@@ -74,7 +88,7 @@ func (my mysqlDB) isConstraintViolation(err error) bool {
 func (my mysqlDB) supportsCTE(ctx context.Context, gormDB *gorm.DB) (bool, error) {
 	raw, err := gormDB.DB()
 	if err != nil {
-		return false, newWrappedSQLError(err)
+		return false, sqlcommon.NewWrappedSQLError(err)
 	}
 	var value int64
 	err = raw.QueryRowContext(ctx, "WITH a AS (SELECT 1 AS v) SELECT * FROM a;").Scan(&value)
