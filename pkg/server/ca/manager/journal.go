@@ -58,11 +58,16 @@ func (j *Journal) getEntries() *journal.Entries {
 func (j *Journal) AppendX509CA(ctx context.Context, slotID string, issuedAt time.Time, x509CA *ca.X509CA) error {
 	j.mu.Lock()
 	defer j.mu.Unlock()
+	notAfter := x509CA.NotAfter
+	if notAfter.IsZero() {
+		notAfter = x509CA.Certificate.NotAfter
+	}
 
 	j.entries.X509CAs = append(j.entries.X509CAs, &journal.X509CAEntry{
 		SlotId:              slotID,
 		IssuedAt:            issuedAt.Unix(),
-		NotAfter:            x509CA.Certificate.NotAfter.Unix(),
+		NotAfter:            notAfter.Unix(),
+		NotAfterIsEffective: true,
 		Certificate:         x509CA.Certificate.Raw,
 		UpstreamChain:       chainDER(x509CA.UpstreamChain),
 		Status:              journal.Status_PREPARED,
@@ -98,6 +103,21 @@ func (j *Journal) UpdateX509CAStatus(ctx context.Context, authorityID string, st
 
 	if !found {
 		return fmt.Errorf("no journal entry found with authority ID %q", authorityID)
+	}
+
+	return j.save(ctx)
+}
+
+// UpdateX509CAExpirations updates the expiration of stored X509CA entries.
+func (j *Journal) UpdateX509CAExpirations(ctx context.Context, expirations map[string]time.Time) error {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+
+	for _, entry := range j.entries.X509CAs {
+		if expiration, ok := expirations[string(entry.Certificate)]; ok {
+			entry.NotAfter = expiration.Unix()
+			entry.NotAfterIsEffective = true
+		}
 	}
 
 	return j.save(ctx)
@@ -329,6 +349,7 @@ func loadJournalFromDS(ctx context.Context, config *journalConfig) (*Journal, er
 	}
 
 	j.caJournalID = caJournal.ID
+	j.activeX509AuthorityID = caJournal.ActiveX509AuthorityID
 	if err := proto.Unmarshal(caJournal.Data, j.entries); err != nil {
 		return nil, fmt.Errorf("unable to unmarshal entries from CA journal record: %w", err)
 	}

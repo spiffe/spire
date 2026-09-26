@@ -85,9 +85,35 @@ func (s *SlotLoader) load(ctx context.Context) (*Journal, map[SlotPosition]Slot,
 		return nil, nil, err
 	}
 
+	legacyX509CAExpirations := make(map[*journal.X509CAEntry]struct {
+		notAfter    int64
+		isEffective bool
+	}, len(entries.X509CAs))
+	for _, entry := range entries.X509CAs {
+		legacyX509CAExpirations[entry] = struct {
+			notAfter    int64
+			isEffective bool
+		}{
+			notAfter:    entry.NotAfter,
+			isEffective: entry.NotAfterIsEffective,
+		}
+	}
+
 	currentX509CA, nextX509CA, err := s.getX509CASlots(ctx, entries.X509CAs)
 	if err != nil {
 		return nil, nil, err
+	}
+
+	migratedX509CAExpirations := make(map[string]time.Time)
+	for entry, previous := range legacyX509CAExpirations {
+		if entry.NotAfter != previous.notAfter || entry.NotAfterIsEffective != previous.isEffective {
+			migratedX509CAExpirations[string(entry.Certificate)] = time.Unix(entry.NotAfter, 0).UTC()
+		}
+	}
+	if len(migratedX509CAExpirations) > 0 {
+		if err := loadedJournal.UpdateX509CAExpirations(ctx, migratedX509CAExpirations); err != nil {
+			return nil, nil, fmt.Errorf("unable to persist effective X509 CA expirations: %w", err)
+		}
 	}
 
 	currentJWTKey, nextJWTKey, err := s.getJWTKeysSlots(ctx, entries.JwtKeys)
@@ -404,7 +430,6 @@ func (s *SlotLoader) loadX509CASlotFromEntry(ctx context.Context, entry *journal
 	if entry.SlotId == "" {
 		return nil, "no slot id", nil
 	}
-
 	if entry.GetNotAfter() < time.Now().Unix() {
 		return nil, "slot expired", nil
 	}
@@ -423,6 +448,23 @@ func (s *SlotLoader) loadX509CASlotFromEntry(ctx context.Context, entry *journal
 		upstreamChain = append(upstreamChain, cert)
 	}
 
+	notAfter := cert.NotAfter
+	if len(upstreamChain) > 0 {
+		notAfter = time.Unix(entry.NotAfter, 0).UTC()
+		if !entry.NotAfterIsEffective {
+			if effectiveNotAfter, err := s.reconstructEffectiveX509CAExpiry(ctx, entry, cert, upstreamChain); err != nil {
+				return nil, fmt.Sprintf("unable to reconstruct effective X509 CA expiration: %v", err), nil
+			} else {
+				notAfter = effectiveNotAfter
+				entry.NotAfter = effectiveNotAfter.Unix()
+				entry.NotAfterIsEffective = true
+			}
+		}
+	}
+	if notAfter.Before(time.Now()) {
+		return nil, "slot expired", nil
+	}
+
 	signer, err := s.makeSigner(ctx, x509CAKmKeyID(entry.SlotId))
 	if err != nil {
 		return nil, "", err
@@ -435,20 +477,68 @@ func (s *SlotLoader) loadX509CASlotFromEntry(ctx context.Context, entry *journal
 		return nil, "public key does not match key manager key", nil
 	}
 
+	x509CA := &ca.X509CA{
+		Signer:        signer,
+		Certificate:   cert,
+		UpstreamChain: upstreamChain,
+	}
+	if notAfter.Before(cert.NotAfter) {
+		x509CA.NotAfter = notAfter
+	}
+
 	return &x509CASlot{
-		id:       entry.SlotId,
-		issuedAt: time.Unix(entry.IssuedAt, 0),
-		x509CA: &ca.X509CA{
-			Signer:        signer,
-			Certificate:   cert,
-			UpstreamChain: upstreamChain,
-		},
+		id:                  entry.SlotId,
+		issuedAt:            time.Unix(entry.IssuedAt, 0),
+		x509CA:              x509CA,
 		status:              entry.Status,
 		authorityID:         entry.AuthorityId,
 		upstreamAuthorityID: entry.UpstreamAuthorityId,
 		publicKey:           signer.Public(),
-		notAfter:            cert.NotAfter,
+		notAfter:            notAfter,
 	}, "", nil
+}
+
+func (s *SlotLoader) reconstructEffectiveX509CAExpiry(ctx context.Context, entry *journal.X509CAEntry, cert *x509.Certificate, upstreamChain []*x509.Certificate) (time.Time, error) {
+	bundle, err := s.fetchOptionalBundle(ctx)
+	if err != nil {
+		return time.Time{}, err
+	}
+	if bundle == nil {
+		return time.Time{}, errors.New("bundle not found")
+	}
+
+	roots := x509.NewCertPool()
+	for _, root := range bundle.RootCas {
+		candidate, err := x509.ParseCertificate(root.DerBytes)
+		if err != nil {
+			return time.Time{}, fmt.Errorf("unable to parse bundle root: %w", err)
+		}
+		if !bytes.Equal(candidate.Raw, cert.Raw) {
+			roots.AddCert(candidate)
+		}
+	}
+
+	intermediates := x509.NewCertPool()
+	for _, intermediate := range upstreamChain {
+		if !bytes.Equal(intermediate.Raw, cert.Raw) {
+			intermediates.AddCert(intermediate)
+		}
+	}
+
+	verificationTime := time.Unix(entry.IssuedAt, 0)
+	if verificationTime.Before(cert.NotBefore) {
+		verificationTime = cert.NotBefore
+	}
+	verifiedChains, err := cert.Verify(x509.VerifyOptions{
+		Roots:         roots,
+		Intermediates: intermediates,
+		CurrentTime:   verificationTime,
+		KeyUsages:     []x509.ExtKeyUsage{x509.ExtKeyUsageAny},
+	})
+	if err != nil {
+		return time.Time{}, fmt.Errorf("unable to verify stored X509 CA chain: %w", err)
+	}
+	return ca.EffectiveX509ChainExpiry(verifiedChains), nil
 }
 
 func (s *SlotLoader) tryLoadJWTKeySlotFromEntry(ctx context.Context, entry *journal.JWTKeyEntry) (*jwtKeySlot, error) {
@@ -684,11 +774,11 @@ func (s *x509CASlot) Reset() {
 }
 
 func (s *x509CASlot) ShouldPrepareNext(now time.Time) bool {
-	return s.x509CA != nil && now.After(preparationThreshold(s.issuedAt, s.x509CA.Certificate.NotAfter))
+	return s.x509CA != nil && now.After(preparationThreshold(s.issuedAt, s.expiration()))
 }
 
 func (s *x509CASlot) ShouldActivateNext(now time.Time) bool {
-	return s.x509CA != nil && now.After(keyActivationThreshold(s.issuedAt, s.x509CA.Certificate.NotAfter))
+	return s.x509CA != nil && now.After(keyActivationThreshold(s.issuedAt, s.expiration()))
 }
 
 func (s *x509CASlot) Status() journal.Status {
@@ -704,7 +794,17 @@ func (s *x509CASlot) PublicKey() crypto.PublicKey {
 }
 
 func (s *x509CASlot) NotAfter() time.Time {
-	return s.notAfter
+	return s.expiration()
+}
+
+func (s *x509CASlot) expiration() time.Time {
+	if !s.notAfter.IsZero() {
+		return s.notAfter
+	}
+	if s.x509CA == nil {
+		return time.Time{}
+	}
+	return s.x509CA.Certificate.NotAfter
 }
 
 type jwtKeySlot struct {
