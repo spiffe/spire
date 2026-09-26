@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"errors"
 	"math/big"
 	"os"
 	"path/filepath"
@@ -131,6 +132,47 @@ func TestTufOptions(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, rootBytes, opts.Root)
 	})
+}
+
+func TestLoadFulcioCertPoolsRetriesAfterFailure(t *testing.T) {
+	fulcioPoolsMu.Lock()
+	fulcioRoots = nil
+	fulcioIntermediates = nil
+	fulcioPoolsMu.Unlock()
+
+	origFetch := fetchFulcioCAs
+	t.Cleanup(func() {
+		fetchFulcioCAs = origFetch
+		fulcioPoolsMu.Lock()
+		fulcioRoots = nil
+		fulcioIntermediates = nil
+		fulcioPoolsMu.Unlock()
+	})
+
+	rootKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+	rootCert := createTestCertificate(t, rootKey, rootKey, true)
+
+	calls := 0
+	fetchFulcioCAs = func(_ *tuf.Options) ([]sigstoreroot.CertificateAuthority, error) {
+		calls++
+		if calls == 1 {
+			return nil, errors.New("transient failure")
+		}
+		return []sigstoreroot.CertificateAuthority{
+			&sigstoreroot.FulcioCertificateAuthority{Root: rootCert},
+		}, nil
+	}
+
+	_, _, err = loadFulcioCertPools()
+	require.Error(t, err)
+	require.Nil(t, fulcioRoots)
+
+	roots, intermediates, err := loadFulcioCertPools()
+	require.NoError(t, err)
+	require.NotNil(t, roots)
+	require.NotNil(t, intermediates)
+	require.Equal(t, 2, calls)
 }
 
 func TestCertPoolsFromCertificateAuthorities(t *testing.T) {

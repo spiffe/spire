@@ -33,10 +33,10 @@ type remoteCache struct {
 }
 
 var (
-	fulcioPoolsOnce     sync.Once
+	fulcioPoolsMu       sync.Mutex
 	fulcioRoots         *x509.CertPool
 	fulcioIntermediates *x509.CertPool
-	fulcioPoolsErr      error
+	fetchFulcioCAs      = defaultFetchFulcioCertificateAuthorities
 )
 
 func getFulcioRoots() (*x509.CertPool, error) {
@@ -50,20 +50,39 @@ func getFulcioIntermediates() (*x509.CertPool, error) {
 }
 
 func loadFulcioCertPools() (*x509.CertPool, *x509.CertPool, error) {
-	fulcioPoolsOnce.Do(func() {
-		opts, err := tufOptions()
-		if err != nil {
-			fulcioPoolsErr = err
-			return
-		}
-		trustedRoot, err := sigstoreroot.FetchTrustedRootWithOptions(opts)
-		if err != nil {
-			fulcioPoolsErr = fmt.Errorf("failed to fetch sigstore trusted root: %w", err)
-			return
-		}
-		fulcioRoots, fulcioIntermediates, fulcioPoolsErr = certPoolsFromCertificateAuthorities(trustedRoot.FulcioCertificateAuthorities())
-	})
-	return fulcioRoots, fulcioIntermediates, fulcioPoolsErr
+	fulcioPoolsMu.Lock()
+	defer fulcioPoolsMu.Unlock()
+
+	if fulcioRoots != nil {
+		return fulcioRoots, fulcioIntermediates, nil
+	}
+
+	opts, err := tufOptions()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	cas, err := fetchFulcioCAs(opts)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	roots, intermediates, err := certPoolsFromCertificateAuthorities(cas)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	fulcioRoots = roots
+	fulcioIntermediates = intermediates
+	return fulcioRoots, fulcioIntermediates, nil
+}
+
+func defaultFetchFulcioCertificateAuthorities(opts *tuf.Options) ([]sigstoreroot.CertificateAuthority, error) {
+	trustedRoot, err := sigstoreroot.FetchTrustedRootWithOptions(opts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch sigstore trusted root: %w", err)
+	}
+	return trustedRoot.FulcioCertificateAuthorities(), nil
 }
 
 func certPoolsFromCertificateAuthorities(cas []sigstoreroot.CertificateAuthority) (*x509.CertPool, *x509.CertPool, error) {
