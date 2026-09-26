@@ -4,6 +4,7 @@ package sqlstorev2
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"testing"
@@ -13,6 +14,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/datastore/sqlcommon"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 )
 
 func TestSQLiteConnect(t *testing.T) {
@@ -130,6 +132,40 @@ func TestReadOnlyConnection(t *testing.T) {
 	require.ErrorContains(t, ro.raw.Ping(), "database is closed")
 }
 
+func TestFailedReconfigureKeepsConnections(t *testing.T) {
+	path := sqlitePath(t)
+	otherPath := sqlitePath(t)
+	ds := newSQLitePlugin(t)
+	configure(t, ds, fmt.Sprintf(`
+		database_type = "sqlite3"
+		connection_string = %q
+	`, path))
+	current := ds.db
+
+	var opened []*gorm.DB
+	ds.dialectFor = func(databaseType string, log logrus.FieldLogger) (dialect, error) {
+		dia, err := newDialect(databaseType, log)
+		return failReadOnlyDialect{dialect: dia, opened: &opened}, err
+	}
+
+	err := ds.Configure(context.Background(), fmt.Sprintf(`
+		database_type = "sqlite3"
+		connection_string = %q
+		ro_connection_string = %q
+	`, otherPath, otherPath))
+	require.EqualError(t, err, "datastore-sql: read-only connection failed")
+
+	require.Same(t, current, ds.db)
+	require.NoError(t, ds.db.raw.Ping())
+	require.Nil(t, ds.roDb)
+
+	// The read-write pool opened for the rejected configuration is closed.
+	require.Len(t, opened, 1)
+	raw, err := opened[0].DB()
+	require.NoError(t, err)
+	require.ErrorContains(t, raw.Ping(), "database is closed")
+}
+
 func TestCloseResetsConnections(t *testing.T) {
 	path := sqlitePath(t)
 	log, _ := test.NewNullLogger()
@@ -183,4 +219,22 @@ func loggedSQL(hook *test.Hook) bool {
 		}
 	}
 	return false
+}
+
+// failReadOnlyDialect fails every read-only connect and records the
+// read-write connections it opens.
+type failReadOnlyDialect struct {
+	dialect
+	opened *[]*gorm.DB
+}
+
+func (d failReadOnlyDialect) connect(ctx context.Context, cfg *sqlcommon.Configuration, isReadOnly bool) (*gorm.DB, string, bool, error) {
+	if isReadOnly {
+		return nil, "", false, errors.New("read-only connection failed")
+	}
+	db, version, supportsCTE, err := d.dialect.connect(ctx, cfg, isReadOnly)
+	if err == nil {
+		*d.opened = append(*d.opened, db)
+	}
+	return db, version, supportsCTE, err
 }

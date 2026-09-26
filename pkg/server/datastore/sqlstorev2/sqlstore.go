@@ -23,6 +23,10 @@ const PluginName = "sql_v2"
 type Plugin struct {
 	log logrus.FieldLogger
 
+	// dialectFor selects the dialect for a database type. Tests replace it
+	// to inject connection failures.
+	dialectFor func(databaseType string, log logrus.FieldLogger) (dialect, error)
+
 	mu   sync.Mutex
 	db   *sqlDB
 	roDb *sqlDB
@@ -39,7 +43,7 @@ type sqlDB struct {
 
 // New returns an unconfigured Plugin. Configure must be called before use.
 func New(log logrus.FieldLogger) *Plugin {
-	return &Plugin{log: log}
+	return &Plugin{log: log, dialectFor: newDialect}
 }
 
 // Close closes the read-write and read-only connections if open. It is safe
@@ -85,64 +89,70 @@ func (ds *Plugin) Configure(ctx context.Context, hclConfiguration string) error 
 	return ds.openConnections(ctx, config)
 }
 
+// openConnections prepares the read-write and, when configured, read-only
+// connections for config, and swaps them in only once both succeed, so a
+// failed Configure leaves the current connections untouched.
 func (ds *Plugin) openConnections(ctx context.Context, config *sqlcommon.Configuration) error {
 	ds.mu.Lock()
 	defer ds.mu.Unlock()
 
-	if err := ds.openConnection(ctx, config, false); err != nil {
+	db, err := ds.prepareConnection(ctx, config, ds.db, false)
+	if err != nil {
 		return err
 	}
-	if config.RoConnectionString == "" {
-		if ds.roDb != nil {
-			err := ds.roDb.raw.Close()
-			ds.roDb = nil
-			if err != nil {
-				return sqlcommon.NewWrappedSQLError(err)
-			}
+
+	var roDb *sqlDB
+	if config.RoConnectionString != "" {
+		roDb, err = ds.prepareConnection(ctx, config, ds.roDb, true)
+		if err != nil {
+			ds.closeUnlessReused(db, ds.db)
+			return err
 		}
-		return nil
 	}
-	return ds.openConnection(ctx, config, true)
+
+	ds.closeUnlessReused(ds.db, db)
+	ds.closeUnlessReused(ds.roDb, roDb)
+	ds.db = db
+	ds.roDb = roDb
+	return nil
 }
 
-func (ds *Plugin) openConnection(ctx context.Context, config *sqlcommon.Configuration, isReadOnly bool) error {
+// prepareConnection returns the connection to use for config. When neither
+// the connection string nor the database type differs from current, it
+// reuses current's pool with the configured log_sql setting applied;
+// otherwise it opens a new pool. It does not modify current.
+func (ds *Plugin) prepareConnection(ctx context.Context, config *sqlcommon.Configuration, current *sqlDB, isReadOnly bool) (*sqlDB, error) {
 	connectionString := sqlcommon.GetConnectionString(config, isReadOnly)
 
-	current := ds.db
-	if isReadOnly {
-		current = ds.roDb
-	}
-
-	// Keep the existing connection when neither the connection string nor
-	// the database type changed, but still apply the current log_sql setting.
 	if current != nil && current.connectionString == connectionString &&
 		current.databaseType == config.DBTypeConfig.DatabaseType {
-		current.DB = withSQLLogging(current.DB, config.LogSQL, ds.log)
-		return nil
+		reused := *current
+		reused.DB = withSQLLogging(current.DB, config.LogSQL, ds.log)
+		return &reused, nil
 	}
 
 	var connMaxLifetime time.Duration
 	if config.ConnMaxLifetime != nil {
 		d, err := time.ParseDuration(*config.ConnMaxLifetime)
 		if err != nil {
-			return fmt.Errorf("failed to parse conn_max_lifetime %q: %w", *config.ConnMaxLifetime, err)
+			return nil, fmt.Errorf("failed to parse conn_max_lifetime %q: %w", *config.ConnMaxLifetime, err)
 		}
 		connMaxLifetime = d
 	}
 
-	dia, err := ds.newDialect(config.DBTypeConfig.DatabaseType)
+	dia, err := ds.dialectFor(config.DBTypeConfig.DatabaseType, ds.log)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	gdb, version, supportsCTE, err := dia.connect(ctx, config, isReadOnly)
 	if err != nil {
-		return sqlcommon.NewWrappedSQLError(err)
+		return nil, sqlcommon.NewWrappedSQLError(err)
 	}
 
 	raw, err := gdb.DB()
 	if err != nil {
-		return sqlcommon.NewWrappedSQLError(err)
+		return nil, sqlcommon.NewWrappedSQLError(err)
 	}
 
 	const maxOpenConns = 100
@@ -161,40 +171,42 @@ func (ds *Plugin) openConnection(ctx context.Context, config *sqlcommon.Configur
 		raw.SetConnMaxLifetime(connMaxLifetime)
 	}
 
-	newDB := &sqlDB{
+	ds.log.WithFields(logrus.Fields{
+		telemetry.Type:     config.DBTypeConfig.DatabaseType,
+		telemetry.Version:  version,
+		telemetry.ReadOnly: isReadOnly,
+	}).Info("Connected to SQL database")
+
+	return &sqlDB{
 		DB:               withSQLLogging(gdb, config.LogSQL, ds.log),
 		raw:              raw,
 		databaseType:     config.DBTypeConfig.DatabaseType,
 		dialect:          dia,
 		connectionString: connectionString,
 		supportsCTE:      supportsCTE,
-	}
-
-	if current != nil {
-		current.raw.Close()
-	}
-
-	if isReadOnly {
-		ds.roDb = newDB
-	} else {
-		ds.db = newDB
-	}
-	ds.log.WithFields(logrus.Fields{
-		telemetry.Type:     config.DBTypeConfig.DatabaseType,
-		telemetry.Version:  version,
-		telemetry.ReadOnly: isReadOnly,
-	}).Info("Connected to SQL database")
-	return nil
+	}, nil
 }
 
-func (ds *Plugin) newDialect(databaseType string) (dialect, error) {
+// closeUnlessReused closes db's pool unless other shares it. A close failure
+// is logged rather than returned, since the connections that replace db are
+// already in effect.
+func (ds *Plugin) closeUnlessReused(db, other *sqlDB) {
+	if db == nil || (other != nil && other.raw == db.raw) {
+		return
+	}
+	if err := db.raw.Close(); err != nil {
+		ds.log.WithError(err).Warn("Failed to close SQL database connection")
+	}
+}
+
+func newDialect(databaseType string, log logrus.FieldLogger) (dialect, error) {
 	switch {
 	case sqlcommon.IsSQLiteDbType(databaseType):
-		return sqliteDB{log: ds.log}, nil
+		return sqliteDB{log: log}, nil
 	case sqlcommon.IsPostgresDbType(databaseType):
 		return postgresDB{}, nil
 	case sqlcommon.IsMySQLDbType(databaseType):
-		return mysqlDB{log: ds.log}, nil
+		return mysqlDB{log: log}, nil
 	default:
 		return nil, sqlcommon.NewSQLError("unsupported database_type: %s", databaseType)
 	}

@@ -24,7 +24,6 @@ func TestPluginName(t *testing.T) {
 
 func TestNewDialect(t *testing.T) {
 	log, _ := test.NewNullLogger()
-	ds := New(log)
 
 	for _, tt := range []struct {
 		databaseType string
@@ -39,13 +38,13 @@ func TestNewDialect(t *testing.T) {
 		{databaseType: sqlcommon.AzureMySQL, expected: mysqlDB{log: log}},
 	} {
 		t.Run(tt.databaseType, func(t *testing.T) {
-			dia, err := ds.newDialect(tt.databaseType)
+			dia, err := newDialect(tt.databaseType, log)
 			require.NoError(t, err)
 			require.Equal(t, tt.expected, dia)
 		})
 	}
 
-	_, err := ds.newDialect("unknown")
+	_, err := newDialect("unknown", log)
 	require.EqualError(t, err, "datastore-sql: unsupported database_type: unknown")
 }
 
