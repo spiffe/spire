@@ -78,13 +78,13 @@ func TestCertPoolsFromCertificateAuthorities(t *testing.T) {
 	require.NotNil(t, roots)
 	require.NotNil(t, intermediates)
 
-	rootsSubjects := roots.Subjects()
-	require.Len(t, rootsSubjects, 1)
-	require.Equal(t, rootCert.RawSubject, rootsSubjects[0])
+	expectedRoots := x509.NewCertPool()
+	expectedRoots.AddCert(rootCert)
+	require.True(t, roots.Equal(expectedRoots))
 
-	intermediateSubjects := intermediates.Subjects()
-	require.Len(t, intermediateSubjects, 1)
-	require.Equal(t, intermediateCert.RawSubject, intermediateSubjects[0])
+	expectedIntermediates := x509.NewCertPool()
+	expectedIntermediates.AddCert(intermediateCert)
+	require.True(t, intermediates.Equal(expectedIntermediates))
 }
 
 func TestCertPoolsFromCertificateAuthoritiesErrors(t *testing.T) {
