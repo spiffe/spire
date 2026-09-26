@@ -24,8 +24,6 @@ func (my mysqlDB) connect(ctx context.Context, cfg *sqlcommon.Configuration, isR
 		return nil, "", false, errors.New("missing datastore configuration")
 	}
 
-	// Build the driver config, injecting any custom TLS material
-	// (root_ca_path / client_cert_path / client_key_path) exactly as v1 does.
 	mysqlConfig, err := sqlcommon.ConfigureMySQLConnection(cfg, isReadOnly)
 	if err != nil {
 		return nil, "", false, err
@@ -37,37 +35,29 @@ func (my mysqlDB) connect(ctx context.Context, cfg *sqlcommon.Configuration, isR
 		if err != nil {
 			return nil, "", false, err
 		}
-		sqlDB, err := sql.Open(awsrds.MySQLDriverName, dsn)
+		db, err = openSQLDriver(awsrds.MySQLDriverName, dsn, newMySQLDialector)
 		if err != nil {
-			return nil, "", false, sqlcommon.NewWrappedSQLError(err)
-		}
-		db, err = gorm.Open(mysql.New(mysql.Config{Conn: sqlDB}), gormConfig(cfg, my.log))
-		if err != nil {
-			return nil, "", false, sqlcommon.NewWrappedSQLError(err)
+			return nil, "", false, err
 		}
 	case cfg.DBTypeConfig.AzureMySQL != nil:
 		dsn, err := sqlcommon.BuildAzureMySQLDSN(cfg, mysqlConfig)
 		if err != nil {
 			return nil, "", false, err
 		}
-		sqlDB, err := sql.Open(azurerds.MySQLDriverName, dsn)
+		db, err = openSQLDriver(azurerds.MySQLDriverName, dsn, newMySQLDialector)
 		if err != nil {
-			return nil, "", false, sqlcommon.NewWrappedSQLError(err)
-		}
-		db, err = gorm.Open(mysql.New(mysql.Config{Conn: sqlDB}), gormConfig(cfg, my.log))
-		if err != nil {
-			return nil, "", false, sqlcommon.NewWrappedSQLError(err)
+			return nil, "", false, err
 		}
 	default:
-		db, err = gorm.Open(mysql.Open(mysqlConfig.FormatDSN()), gormConfig(cfg, my.log))
+		db, err = gorm.Open(mysql.Open(mysqlConfig.FormatDSN()), gormConfig())
 		if err != nil {
-			return nil, "", false, sqlcommon.NewWrappedSQLError(err)
+			return nil, "", false, err
 		}
 	}
 
 	version, err = queryVersion(ctx, db, sqlcommon.MySQLVersionQuery)
 	if err != nil {
-		return nil, "", false, err
+		return nil, "", false, closeOnError(db, err)
 	}
 
 	if strings.HasPrefix(version, "5.7.") {
@@ -76,7 +66,7 @@ func (my mysqlDB) connect(ctx context.Context, cfg *sqlcommon.Configuration, isR
 
 	supportsCTE, err = my.supportsCTE(ctx, db)
 	if err != nil {
-		return nil, "", false, err
+		return nil, "", false, closeOnError(db, err)
 	}
 	return db, version, supportsCTE, nil
 }
@@ -88,7 +78,7 @@ func (my mysqlDB) isConstraintViolation(err error) bool {
 func (my mysqlDB) supportsCTE(ctx context.Context, gormDB *gorm.DB) (bool, error) {
 	raw, err := gormDB.DB()
 	if err != nil {
-		return false, sqlcommon.NewWrappedSQLError(err)
+		return false, err
 	}
 	var value int64
 	err = raw.QueryRowContext(ctx, "WITH a AS (SELECT 1 AS v) SELECT * FROM a;").Scan(&value)
@@ -106,4 +96,8 @@ func (my mysqlDB) isParseError(err error) bool {
 	var e *gomysql.MySQLError
 	ok := errors.As(err, &e)
 	return ok && e.Number == 1064 // ER_PARSE_ERROR
+}
+
+func newMySQLDialector(conn *sql.DB) gorm.Dialector {
+	return mysql.New(mysql.Config{Conn: conn})
 }

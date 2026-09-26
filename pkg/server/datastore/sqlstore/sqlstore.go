@@ -63,7 +63,7 @@ const (
 	defaultPruneAttestedNodesBatchSize = 1000
 )
 
-// Aliases for the database types referenced throughout the v1 query code.
+// Aliases for the database types referenced throughout the query code.
 const (
 	MySQL      = sqlcommon.MySQL
 	PostgreSQL = sqlcommon.PostgreSQL

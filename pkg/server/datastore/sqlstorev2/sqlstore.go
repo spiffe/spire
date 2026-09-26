@@ -15,10 +15,11 @@ import (
 	gormlogger "gorm.io/gorm/logger"
 )
 
-// PluginName is the catalog name of the gorm v2 datastore. It is not wired
-// into the catalog until a later issue.
+// PluginName is the catalog name of the GORM v2 SQL datastore.
 const PluginName = "sql_v2"
 
+// Plugin is a SQL datastore backed by GORM v2. It holds a read-write
+// connection and, when ro_connection_string is set, a read-only one.
 type Plugin struct {
 	log logrus.FieldLogger
 
@@ -36,6 +37,7 @@ type sqlDB struct {
 	dialect          dialect
 }
 
+// New returns an unconfigured Plugin. Configure must be called before use.
 func New(log logrus.FieldLogger) *Plugin {
 	return &Plugin{log: log}
 }
@@ -47,21 +49,21 @@ func (ds *Plugin) Close() error {
 	defer ds.mu.Unlock()
 
 	var errs error
-	if ds.db != nil && ds.db.raw != nil {
+	if ds.db != nil {
 		errs = errors.Join(errs, ds.db.raw.Close())
+		ds.db = nil
 	}
-	if ds.roDb != nil && ds.roDb.raw != nil {
+	if ds.roDb != nil {
 		errs = errors.Join(errs, ds.roDb.raw.Close())
+		ds.roDb = nil
 	}
 	return errs
 }
 
-// RawScan runs a raw query and scans the result into dest. Matches the
-// signature of the future sqltest.RawQuerier so the shared suite can consume
-// it in a later issue. It guards against being called before a successful
-// Configure and holds ds.mu for the whole query so a concurrent Configure
-// cannot swap or close the underlying connection mid-scan. This is a
-// test-support helper, so blocking a reconfigure for the duration is fine.
+// RawScan runs a raw query on the read-write connection and scans the result
+// into dest. It holds ds.mu for the whole query so a concurrent Configure or
+// Close cannot swap or close the connection mid-scan. It is intended for
+// tests, so blocking a reconfigure for the duration is acceptable.
 func (ds *Plugin) RawScan(dest any, query string) error {
 	ds.mu.Lock()
 	defer ds.mu.Unlock()
@@ -91,6 +93,13 @@ func (ds *Plugin) openConnections(ctx context.Context, config *sqlcommon.Configu
 		return err
 	}
 	if config.RoConnectionString == "" {
+		if ds.roDb != nil {
+			err := ds.roDb.raw.Close()
+			ds.roDb = nil
+			if err != nil {
+				return sqlcommon.NewWrappedSQLError(err)
+			}
+		}
 		return nil
 	}
 	return ds.openConnection(ctx, config, true)
@@ -103,10 +112,22 @@ func (ds *Plugin) openConnection(ctx context.Context, config *sqlcommon.Configur
 	if isReadOnly {
 		current = ds.roDb
 	}
-	// Reopen only when the connection string changed.
+
+	// Keep the existing connection when neither the connection string nor
+	// the database type changed, but still apply the current log_sql setting.
 	if current != nil && current.connectionString == connectionString &&
 		current.databaseType == config.DBTypeConfig.DatabaseType {
+		current.DB = withSQLLogging(current.DB, config.LogSQL, ds.log)
 		return nil
+	}
+
+	var connMaxLifetime time.Duration
+	if config.ConnMaxLifetime != nil {
+		d, err := time.ParseDuration(*config.ConnMaxLifetime)
+		if err != nil {
+			return fmt.Errorf("failed to parse conn_max_lifetime %q: %w", *config.ConnMaxLifetime, err)
+		}
+		connMaxLifetime = d
 	}
 
 	dia, err := ds.newDialect(config.DBTypeConfig.DatabaseType)
@@ -116,7 +137,7 @@ func (ds *Plugin) openConnection(ctx context.Context, config *sqlcommon.Configur
 
 	gdb, version, supportsCTE, err := dia.connect(ctx, config, isReadOnly)
 	if err != nil {
-		return err
+		return sqlcommon.NewWrappedSQLError(err)
 	}
 
 	raw, err := gdb.DB()
@@ -124,7 +145,6 @@ func (ds *Plugin) openConnection(ctx context.Context, config *sqlcommon.Configur
 		return sqlcommon.NewWrappedSQLError(err)
 	}
 
-	// Conn-pool options (defaults match v1).
 	const maxOpenConns = 100
 	raw.SetMaxOpenConns(maxOpenConns)
 	if config.MaxOpenConns != nil {
@@ -138,15 +158,11 @@ func (ds *Plugin) openConnection(ctx context.Context, config *sqlcommon.Configur
 	const connMaxIdleTime = time.Second * 30
 	raw.SetConnMaxIdleTime(connMaxIdleTime)
 	if config.ConnMaxLifetime != nil {
-		d, err := time.ParseDuration(*config.ConnMaxLifetime)
-		if err != nil {
-			return fmt.Errorf("failed to parse conn_max_lifetime %q: %w", *config.ConnMaxLifetime, err)
-		}
-		raw.SetConnMaxLifetime(d)
+		raw.SetConnMaxLifetime(connMaxLifetime)
 	}
 
 	newDB := &sqlDB{
-		DB:               gdb,
+		DB:               withSQLLogging(gdb, config.LogSQL, ds.log),
 		raw:              raw,
 		databaseType:     config.DBTypeConfig.DatabaseType,
 		dialect:          dia,
@@ -154,8 +170,7 @@ func (ds *Plugin) openConnection(ctx context.Context, config *sqlcommon.Configur
 		supportsCTE:      supportsCTE,
 	}
 
-	// Close the prior handle if reconfiguring.
-	if current != nil && current.raw != nil {
+	if current != nil {
 		current.raw.Close()
 	}
 
@@ -173,44 +188,63 @@ func (ds *Plugin) openConnection(ctx context.Context, config *sqlcommon.Configur
 }
 
 func (ds *Plugin) newDialect(databaseType string) (dialect, error) {
-	switch databaseType {
-	case sqlcommon.SQLite:
+	switch {
+	case sqlcommon.IsSQLiteDbType(databaseType):
 		return sqliteDB{log: ds.log}, nil
-	case sqlcommon.PostgreSQL, sqlcommon.AWSPostgreSQL:
-		return postgresDB{log: ds.log}, nil
-	case sqlcommon.MySQL, sqlcommon.AWSMySQL:
+	case sqlcommon.IsPostgresDbType(databaseType):
+		return postgresDB{}, nil
+	case sqlcommon.IsMySQLDbType(databaseType):
 		return mysqlDB{log: ds.log}, nil
 	default:
 		return nil, sqlcommon.NewSQLError("unsupported database_type: %s", databaseType)
 	}
 }
 
-// gormConfig builds the gorm v2 config, routing SQL logging through logrus to
-// preserve v1's behavior: statements logged via ds.log with a subsystem=gorm
-// field, gated by log_sql.
-func gormConfig(cfg *sqlcommon.Configuration, log logrus.FieldLogger) *gorm.Config {
+// gormConfig is the config every dialect opens its connection with. SQL
+// logging starts disabled so the connection probes run during connect are
+// not logged; withSQLLogging applies log_sql once the connection is set up.
+func gormConfig() *gorm.Config {
+	return &gorm.Config{Logger: gormlogger.Discard}
+}
+
+// withSQLLogging returns a handle on db's connection pool that logs SQL
+// statements through log, with a subsystem_name=gorm field, when logSQL is
+// true, and discards them otherwise.
+func withSQLLogging(db *gorm.DB, logSQL bool, log logrus.FieldLogger) *gorm.DB {
 	lg := gormlogger.Discard
-	if cfg.LogSQL {
+	if logSQL {
 		lg = newLogrusGormLogger(log.WithField(telemetry.SubsystemName, "gorm"))
 	}
-	return &gorm.Config{Logger: lg}
+	return db.Session(&gorm.Session{NewDB: true, Logger: lg})
+}
+
+// closeOnError closes db's connection pool and returns err joined with any
+// error from closing. Dialects call it when connect fails after the pool is
+// open.
+func closeOnError(db *gorm.DB, err error) error {
+	raw, rawErr := db.DB()
+	if rawErr != nil {
+		return errors.Join(err, rawErr)
+	}
+	return errors.Join(err, raw.Close())
 }
 
 // queryVersion runs the dialect version query on the raw *sql.DB.
 func queryVersion(ctx context.Context, db *gorm.DB, query string) (string, error) {
 	raw, err := db.DB()
 	if err != nil {
-		return "", sqlcommon.NewWrappedSQLError(err)
+		return "", err
 	}
 	var version string
 	if err := raw.QueryRowContext(ctx, query).Scan(&version); err != nil {
-		return "", sqlcommon.NewWrappedSQLError(err)
+		return "", err
 	}
 	return version, nil
 }
 
-// logrusGormLogger implements gorm.io/gorm/logger.Interface, routing gorm's
-// SQL output into logrus at Debug level (matching v1's gormLogger.Print).
+// logrusGormLogger implements gorm.io/gorm/logger.Interface on top of logrus.
+// SQL statements (Trace) and informational messages are logged at Debug;
+// warnings and errors keep their level.
 type logrusGormLogger struct {
 	log logrus.FieldLogger
 }

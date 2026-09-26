@@ -11,8 +11,7 @@ import (
 
 // BuildAWSPostgresDSN builds the AWS RDS / IAM DSN for a postgres connection.
 // It rejects a connection string carrying a password, since IAM auth supplies
-// a rotating token instead. Shared by the v1 and v2 datastores so IAM DSN
-// handling has a single source of truth.
+// a rotating token instead.
 func BuildAWSPostgresDSN(cfg *Configuration, isReadOnly bool) (string, error) {
 	connString := GetConnectionString(cfg, isReadOnly)
 	c, err := pgx.ParseConfig(connString)

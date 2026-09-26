@@ -2,7 +2,6 @@ package sqlstorev2
 
 import (
 	"context"
-	"fmt"
 	"path/filepath"
 	"testing"
 
@@ -23,80 +22,100 @@ func TestPluginName(t *testing.T) {
 	require.Equal(t, "sql_v2", PluginName)
 }
 
-func TestSQLiteConnect(t *testing.T) {
-	log, _ := test.NewNullLogger()
-	cfg := &sqlcommon.Configuration{
-		ConnectionString: filepath.ToSlash(filepath.Join(t.TempDir(), "db.sqlite3")),
-		DBTypeConfig:     &sqlcommon.DBTypeConfig{DatabaseType: sqlcommon.SQLite},
-	}
-	db, version, supportsCTE, err := sqliteDB{log: log}.connect(context.Background(), cfg, false)
-	require.NoError(t, err)
-	require.NotNil(t, db)
-	require.NotEmpty(t, version)
-	require.True(t, supportsCTE)
-
-	raw, err := db.DB()
-	require.NoError(t, err)
-	require.NoError(t, raw.Close())
-}
-
-func TestAWSPostgresDSN(t *testing.T) {
-	// pgx.ParseConfig merges libpq env fallbacks (PGPASSWORD); isolate so the
-	// connection string alone drives the password check, as awsrds_test.go does.
-	t.Setenv("PGPASSWORD", "")
-
-	cfg := &sqlcommon.Configuration{
-		ConnectionString: "postgres://dbuser@my-instance.rds.amazonaws.com:5432/spire",
-		DBTypeConfig: &sqlcommon.DBTypeConfig{
-			DatabaseType: sqlcommon.AWSPostgreSQL,
-			AWSPostgres: &sqlcommon.AWSConfig{
-				Region:          "us-west-2",
-				AccessKeyID:     "AKID",
-				SecretAccessKey: "SECRET",
-			},
-		},
-	}
-	dsn, err := sqlcommon.BuildAWSPostgresDSN(cfg, false)
-	require.NoError(t, err)
-	require.Contains(t, dsn, "my-instance.rds.amazonaws.com:5432")
-}
-
-func TestAWSPostgresRejectsPassword(t *testing.T) {
-	t.Setenv("PGPASSWORD", "")
-
-	cfg := &sqlcommon.Configuration{
-		ConnectionString: "postgres://dbuser:secret@host:5432/spire",
-		DBTypeConfig: &sqlcommon.DBTypeConfig{
-			DatabaseType: sqlcommon.AWSPostgreSQL,
-			AWSPostgres:  &sqlcommon.AWSConfig{Region: "us-west-2"},
-		},
-	}
-	_, err := sqlcommon.BuildAWSPostgresDSN(cfg, false)
-	require.ErrorContains(t, err, "password should not be set when using IAM authentication")
-}
-
-func TestConfigureSQLite(t *testing.T) {
+func TestNewDialect(t *testing.T) {
 	log, _ := test.NewNullLogger()
 	ds := New(log)
 
-	dir := t.TempDir()
-	// Register Close AFTER TempDir so LIFO cleanup releases the DB file
-	// handle before RemoveAll (avoids a Windows "file in use" failure).
-	t.Cleanup(func() { require.NoError(t, ds.Close()) })
+	for _, tt := range []struct {
+		databaseType string
+		expected     dialect
+	}{
+		{databaseType: sqlcommon.SQLite, expected: sqliteDB{log: log}},
+		{databaseType: sqlcommon.PostgreSQL, expected: postgresDB{}},
+		{databaseType: sqlcommon.AWSPostgreSQL, expected: postgresDB{}},
+		{databaseType: sqlcommon.AzurePostgreSQL, expected: postgresDB{}},
+		{databaseType: sqlcommon.MySQL, expected: mysqlDB{log: log}},
+		{databaseType: sqlcommon.AWSMySQL, expected: mysqlDB{log: log}},
+		{databaseType: sqlcommon.AzureMySQL, expected: mysqlDB{log: log}},
+	} {
+		t.Run(tt.databaseType, func(t *testing.T) {
+			dia, err := ds.newDialect(tt.databaseType)
+			require.NoError(t, err)
+			require.Equal(t, tt.expected, dia)
+		})
+	}
 
-	dbPath := filepath.ToSlash(filepath.Join(dir, "db.sqlite3"))
-	err := ds.Configure(context.Background(), fmt.Sprintf(`
-		database_type = "sqlite3"
-		log_sql = true
-		connection_string = "%s"
-	`, dbPath))
-	require.NoError(t, err)
+	_, err := ds.newDialect("unknown")
+	require.EqualError(t, err, "datastore-sql: unsupported database_type: unknown")
+}
 
-	var jm struct{ JournalMode string }
-	require.NoError(t, ds.RawScan(&jm, "PRAGMA journal_mode"))
-	require.Equal(t, "wal", jm.JournalMode)
+func TestConfigureAzureRejectsPassword(t *testing.T) {
+	isolatePostgresEnv(t)
 
-	var fk struct{ ForeignKeys string }
-	require.NoError(t, ds.RawScan(&fk, "PRAGMA foreign_keys"))
-	require.Equal(t, "1", fk.ForeignKeys)
+	for _, tt := range []struct {
+		name   string
+		config string
+		err    string
+	}{
+		{
+			name: "azure_postgres",
+			config: `
+				database_type "azure_postgres" {
+					auth_type = "system_managed_identity"
+				}
+				connection_string = "postgres://dbuser:secret@host:5432/spire"
+			`,
+			err: "datastore-sql: invalid postgres configuration: password should not be set when using Microsoft Entra ID authentication",
+		},
+		{
+			name: "azure_mysql",
+			config: `
+				database_type "azure_mysql" {
+					auth_type = "system_managed_identity"
+				}
+				connection_string = "dbuser:secret@tcp(host:3306)/spire?parseTime=true"
+			`,
+			err: "datastore-sql: invalid mysql configuration: password should not be set when using Microsoft Entra ID authentication",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			log, _ := test.NewNullLogger()
+			ds := New(log)
+			require.EqualError(t, ds.Configure(context.Background(), tt.config), tt.err)
+			requireNotConfigured(t, ds)
+		})
+	}
+}
+
+func TestConfigureInvalidConnMaxLifetime(t *testing.T) {
+	log, _ := test.NewNullLogger()
+	ds := New(log)
+
+	// The duration is rejected before any connection is attempted, so the
+	// unreachable host is never dialed.
+	err := ds.Configure(context.Background(), `
+		database_type = "postgres"
+		connection_string = "postgres://dbuser@unreachable.invalid:5432/spire"
+		conn_max_lifetime = "not-a-duration"
+	`)
+	require.ErrorContains(t, err, `failed to parse conn_max_lifetime "not-a-duration"`)
+	requireNotConfigured(t, ds)
+}
+
+func TestRawScanNotConfigured(t *testing.T) {
+	log, _ := test.NewNullLogger()
+	requireNotConfigured(t, New(log))
+}
+
+func requireNotConfigured(t *testing.T, ds *Plugin) {
+	t.Helper()
+	var v int
+	require.EqualError(t, ds.RawScan(&v, "SELECT 1"), "datastore-sql: datastore is not configured")
+}
+
+// isolatePostgresEnv keeps the developer's libpq environment out of the test:
+// pgx.ParseConfig falls back to PGPASSWORD and the passfile for a password.
+func isolatePostgresEnv(t *testing.T) {
+	t.Setenv("PGPASSWORD", "")
+	t.Setenv("PGPASSFILE", filepath.Join(t.TempDir(), "nonexistent"))
 }

@@ -1,16 +1,14 @@
 package sqlcommon
 
 import (
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
 
 func TestBuildAWSPostgresDSNNoPassword(t *testing.T) {
-	// Isolate from any PGPASSWORD the CI runner may have set: pgx.ParseConfig
-	// merges libpq env fallbacks, so the connection string alone would not be
-	// authoritative otherwise. Mirrors awsrds_test.go's handling.
-	t.Setenv("PGPASSWORD", "")
+	isolatePostgresEnv(t)
 
 	dsn, err := BuildAWSPostgresDSN(awsPostgresConfig(
 		"postgres://dbuser@my-instance.rds.amazonaws.com:5432/spire"), false)
@@ -19,7 +17,7 @@ func TestBuildAWSPostgresDSNNoPassword(t *testing.T) {
 }
 
 func TestBuildAWSPostgresDSNUsesReadOnlyConnectionString(t *testing.T) {
-	t.Setenv("PGPASSWORD", "")
+	isolatePostgresEnv(t)
 
 	cfg := awsPostgresConfig("postgres://dbuser@rw-host:5432/spire")
 	cfg.RoConnectionString = "postgres://dbuser@ro-host:5432/spire"
@@ -31,7 +29,7 @@ func TestBuildAWSPostgresDSNUsesReadOnlyConnectionString(t *testing.T) {
 }
 
 func TestBuildAWSPostgresDSNRejectsPassword(t *testing.T) {
-	t.Setenv("PGPASSWORD", "")
+	isolatePostgresEnv(t)
 
 	for _, connString := range []string{
 		"postgres://dbuser:secret@host:5432/spire",
@@ -46,7 +44,7 @@ func TestBuildAWSPostgresDSNRejectsPassword(t *testing.T) {
 }
 
 func TestBuildAWSPostgresDSNAllowsEmptyPassword(t *testing.T) {
-	t.Setenv("PGPASSWORD", "")
+	isolatePostgresEnv(t)
 
 	_, err := BuildAWSPostgresDSN(awsPostgresConfig(
 		"postgres://dbuser:@my-instance.rds.amazonaws.com:5432/spire"), false)
@@ -61,4 +59,11 @@ func awsPostgresConfig(connString string) *Configuration {
 			AWSPostgres:  &AWSConfig{Region: "us-west-2", AccessKeyID: "AKID", SecretAccessKey: "SECRET"},
 		},
 	}
+}
+
+// isolatePostgresEnv keeps the developer's libpq environment out of the test:
+// pgx.ParseConfig falls back to PGPASSWORD and the passfile for a password.
+func isolatePostgresEnv(t *testing.T) {
+	t.Setenv("PGPASSWORD", "")
+	t.Setenv("PGPASSFILE", filepath.Join(t.TempDir(), "nonexistent"))
 }

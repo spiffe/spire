@@ -8,7 +8,7 @@ import (
 )
 
 func TestBuildAzurePostgresDSN(t *testing.T) {
-	t.Setenv("PGPASSWORD", "")
+	isolatePostgresEnv(t)
 
 	cfg := azurePostgresConfig("postgres://dbuser@rw-host:5432/spire")
 	cfg.RoConnectionString = "postgres://dbuser@ro-host:5432/spire"
@@ -24,14 +24,14 @@ func TestBuildAzurePostgresDSN(t *testing.T) {
 }
 
 func TestBuildAzurePostgresDSNRejectsPassword(t *testing.T) {
-	t.Setenv("PGPASSWORD", "")
+	isolatePostgresEnv(t)
 
 	_, err := BuildAzurePostgresDSN(azurePostgresConfig("postgres://dbuser:secret@host:5432/spire"), false)
 	require.ErrorContains(t, err, "password should not be set when using Microsoft Entra ID authentication")
 }
 
 func TestBuildAzurePostgresDSNResolveError(t *testing.T) {
-	t.Setenv("PGPASSWORD", "")
+	isolatePostgresEnv(t)
 
 	cfg := azurePostgresConfig("postgres://dbuser@host:5432/spire")
 	cfg.DBTypeConfig.AzurePostgres.AuthType = "unknown"

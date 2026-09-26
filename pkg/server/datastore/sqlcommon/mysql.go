@@ -4,6 +4,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
+	"fmt"
 	"os"
 
 	"github.com/go-sql-driver/mysql"
@@ -22,10 +23,8 @@ func HasTLSConfig(cfg *Configuration) bool {
 // ConfigureMySQLConnection parses the connection string into a *mysql.Config
 // and, when custom TLS material is configured (root_ca_path / client_cert_path
 // / client_key_path), builds and registers a custom tls.Config with the
-// go-sql-driver/mysql driver and points the returned config at it. Shared by
-// the v1 and v2 datastores so custom-CA / mutual-TLS handling has a single
-// source of truth. The connection string must already have been validated by
-// ValidateMySQLConfig.
+// go-sql-driver/mysql driver and points the returned config at it. The
+// connection string must already have been validated by ValidateMySQLConfig.
 func ConfigureMySQLConnection(cfg *Configuration, isReadOnly bool) (*mysql.Config, error) {
 	connectionString := GetConnectionString(cfg, isReadOnly)
 	mysqlConfig, err := mysql.ParseDSN(connectionString)
@@ -45,7 +44,7 @@ func ConfigureMySQLConnection(cfg *Configuration, isReadOnly bool) (*mysql.Confi
 		rootCertPool := x509.NewCertPool()
 		pem, err := os.ReadFile(cfg.RootCAPath)
 		if err != nil {
-			return nil, errors.New("invalid mysql config: cannot find Root CA defined in root_ca_path")
+			return nil, fmt.Errorf("invalid mysql config: cannot find Root CA defined in root_ca_path: %w", err)
 		}
 
 		if ok := rootCertPool.AppendCertsFromPEM(pem); !ok {
@@ -59,7 +58,7 @@ func ConfigureMySQLConnection(cfg *Configuration, isReadOnly bool) (*mysql.Confi
 		clientCert := make([]tls.Certificate, 0, 1)
 		certs, err := tls.LoadX509KeyPair(cfg.ClientCertPath, cfg.ClientKeyPath)
 		if err != nil {
-			return nil, errors.New("invalid mysql config: failed to load client certificate defined in client_cert_path and client_key_path")
+			return nil, fmt.Errorf("invalid mysql config: failed to load client certificate defined in client_cert_path and client_key_path: %w", err)
 		}
 		clientCert = append(clientCert, certs)
 		tlsConf.Certificates = clientCert
@@ -67,7 +66,7 @@ func ConfigureMySQLConnection(cfg *Configuration, isReadOnly bool) (*mysql.Confi
 
 	// register a custom TLS config that uses custom Root CAs with the MySQL driver
 	if err := mysql.RegisterTLSConfig(TLSConfigName, &tlsConf); err != nil {
-		return nil, errors.New("failed to register mysql TLS config")
+		return nil, fmt.Errorf("failed to register mysql TLS config: %w", err)
 	}
 
 	// instruct MySQL driver to use the custom TLS config

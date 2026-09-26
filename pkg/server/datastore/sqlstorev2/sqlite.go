@@ -25,14 +25,14 @@ func (s sqliteDB) connect(ctx context.Context, cfg *sqlcommon.Configuration, isR
 		return nil, "", false, err
 	}
 
-	db, err = gorm.Open(sqlite.Open(embellished), gormConfig(cfg, s.log))
+	db, err = gorm.Open(sqlite.Open(embellished), gormConfig())
 	if err != nil {
-		return nil, "", false, sqlcommon.NewWrappedSQLError(err)
+		return nil, "", false, err
 	}
 
 	version, err = queryVersion(ctx, db, sqlcommon.SQLiteVersionQuery)
 	if err != nil {
-		return nil, "", false, err
+		return nil, "", false, closeOnError(db, err)
 	}
 
 	// The embedded version of SQLite3 unconditionally supports CTE.

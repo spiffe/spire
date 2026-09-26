@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 
-	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/server/datastore/sqlcommon"
 	"github.com/spiffe/spire/pkg/server/datastore/sqldriver/awsrds"
 	"github.com/spiffe/spire/pkg/server/datastore/sqldriver/azurerds"
@@ -13,9 +12,7 @@ import (
 	"gorm.io/gorm"
 )
 
-type postgresDB struct {
-	log logrus.FieldLogger
-}
+type postgresDB struct{}
 
 func (p postgresDB) connect(ctx context.Context, cfg *sqlcommon.Configuration, isReadOnly bool) (db *gorm.DB, version string, supportsCTE bool, err error) {
 	if cfg.DBTypeConfig == nil {
@@ -28,38 +25,30 @@ func (p postgresDB) connect(ctx context.Context, cfg *sqlcommon.Configuration, i
 		if err != nil {
 			return nil, "", false, err
 		}
-		sqlDB, err := sql.Open(awsrds.PostgresDriverName, dsn)
+		db, err = openSQLDriver(awsrds.PostgresDriverName, dsn, newPostgresDialector)
 		if err != nil {
-			return nil, "", false, sqlcommon.NewWrappedSQLError(err)
-		}
-		db, err = gorm.Open(postgres.New(postgres.Config{Conn: sqlDB}), gormConfig(cfg, p.log))
-		if err != nil {
-			return nil, "", false, sqlcommon.NewWrappedSQLError(err)
+			return nil, "", false, err
 		}
 	case cfg.DBTypeConfig.AzurePostgres != nil:
 		dsn, err := sqlcommon.BuildAzurePostgresDSN(cfg, isReadOnly)
 		if err != nil {
 			return nil, "", false, err
 		}
-		sqlDB, err := sql.Open(azurerds.PostgresDriverName, dsn)
+		db, err = openSQLDriver(azurerds.PostgresDriverName, dsn, newPostgresDialector)
 		if err != nil {
-			return nil, "", false, sqlcommon.NewWrappedSQLError(err)
-		}
-		db, err = gorm.Open(postgres.New(postgres.Config{Conn: sqlDB}), gormConfig(cfg, p.log))
-		if err != nil {
-			return nil, "", false, sqlcommon.NewWrappedSQLError(err)
+			return nil, "", false, err
 		}
 	default:
 		connString := sqlcommon.GetConnectionString(cfg, isReadOnly)
-		db, err = gorm.Open(postgres.Open(connString), gormConfig(cfg, p.log))
+		db, err = gorm.Open(postgres.Open(connString), gormConfig())
 		if err != nil {
-			return nil, "", false, sqlcommon.NewWrappedSQLError(err)
+			return nil, "", false, err
 		}
 	}
 
 	version, err = queryVersion(ctx, db, sqlcommon.PostgresVersionQuery)
 	if err != nil {
-		return nil, "", false, err
+		return nil, "", false, closeOnError(db, err)
 	}
 
 	// Supported versions of PostgreSQL all support CTE.
@@ -68,4 +57,8 @@ func (p postgresDB) connect(ctx context.Context, cfg *sqlcommon.Configuration, i
 
 func (p postgresDB) isConstraintViolation(err error) bool {
 	return sqlcommon.IsPostgresConstraintViolation(err)
+}
+
+func newPostgresDialector(conn *sql.DB) gorm.Dialector {
+	return postgres.New(postgres.Config{Conn: conn})
 }
