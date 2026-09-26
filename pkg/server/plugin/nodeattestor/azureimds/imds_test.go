@@ -34,11 +34,13 @@ import (
 )
 
 const (
-	testVMID           = "550e8400-e29b-41d4-a716-446655440000"
-	testSubscriptionID = "SUBSCRIPTIONID"
-	testTenantID       = "TENANTID"
-	testTenantDomain   = "example.com"
-	testVMSSName       = "myvmss"
+	testVMID                          = "550e8400-e29b-41d4-a716-446655440000"
+	testSubscriptionID                = "SUBSCRIPTIONID"
+	testTenantID                      = "TENANTID"
+	testTenantDomain                  = "example.com"
+	testVMSSName                      = "myvmss"
+	testFlexibleVMResourceID          = "/subscriptions/SUBSCRIPTIONID/resourceGroups/RESOURCEGROUP/providers/Microsoft.Compute/virtualMachines/VIRTUALMACHINE"
+	testUniformVMSSInstanceResourceID = "/subscriptions/SUBSCRIPTIONID/resourceGroups/RESOURCEGROUP/providers/Microsoft.Compute/virtualMachineScaleSets/myvmss/virtualMachines/0"
 )
 
 var (
@@ -221,6 +223,7 @@ func (s *IMDSAttestorSuite) TestAttestSuccessWithRegularVM() {
 		Name:          "VIRTUALMACHINE",
 		Location:      "westus",
 		ResourceGroup: "RESOURCEGROUP",
+		VMID:          testVMID,
 	})
 
 	agentID := fmt.Sprintf("spiffe://example.org/spire/agent/azure_imds/%s/%s/%s", testTenantID, testSubscriptionID, testVMID)
@@ -245,6 +248,7 @@ func (s *IMDSAttestorSuite) TestAttestSuccessWithVMSS() {
 		Name:          "VIRTUALMACHINE",
 		Location:      "westus",
 		ResourceGroup: "RESOURCEGROUP",
+		VMID:          testVMID,
 	})
 
 	agentID := fmt.Sprintf("spiffe://example.org/spire/agent/azure_imds/%s/%s/%s", testTenantID, testSubscriptionID, testVMID)
@@ -283,6 +287,7 @@ func (s *IMDSAttestorSuite) TestAttestSuccessWithVMSSNoNSG() {
 		Name:          "VIRTUALMACHINE",
 		Location:      "westus",
 		ResourceGroup: "RESOURCEGROUP",
+		VMID:          testVMID,
 		Interfaces: []*NetworkInterface{
 			{
 				Name: "nic-1",
@@ -327,11 +332,98 @@ func (s *IMDSAttestorSuite) TestAttestSuccessWithVMSSNoNSG() {
 	s.RequireProtoListEqual(expected, resp.Selectors)
 }
 
+func (s *IMDSAttestorSuite) TestAttestSuccessWithFlexibleVMSSMember() {
+	s.setVirtualMachine(&VirtualMachine{
+		Name:          "VIRTUALMACHINE",
+		Location:      "westus",
+		ResourceGroup: "RESOURCEGROUP",
+		VMID:          testVMID,
+	})
+
+	agentID := fmt.Sprintf("spiffe://example.org/spire/agent/azure_imds/%s/%s/%s", testTenantID, testSubscriptionID, testVMID)
+
+	selectorValues := slices.Clone(testVMSelectors)
+	selectorValues = append(selectorValues, fmt.Sprintf("vmss-name:%s", testVMSSName))
+	sort.Strings(selectorValues)
+
+	var expected []*common.Selector
+	for _, selectorValue := range selectorValues {
+		expected = append(expected, &common.Selector{
+			Type:  "azure_imds",
+			Value: selectorValue,
+		})
+	}
+
+	flexChallengeHandler := makeChallengeHandlerWithNonceCapture(&s.sharedNonce, func(ctx context.Context, challenge []byte) ([]byte, error) {
+		nonce := string(challenge)
+		vmssName := testVMSSName
+		rg := "RESOURCEGROUP"
+		rid := testFlexibleVMResourceID
+		return makeAttestPayloadWithMetadata(testVMID, testSubscriptionID, nonce, testTenantDomain, azure.AgentUntrustedMetadata{
+			VMSSName:          &vmssName,
+			ResourceGroupName: &rg,
+			VMResourceID:      &rid,
+		}), nil
+	})
+
+	attestor := s.loadPluginWithChallengeHandler(flexChallengeHandler, nil)
+
+	payload := []byte("initial")
+	resp, err := attestor.Attest(context.Background(), payload, flexChallengeHandler)
+	s.Require().NoError(err)
+	s.Require().NotNil(resp)
+	s.Require().Equal(agentID, resp.AgentID)
+	s.RequireProtoListEqual(expected, resp.Selectors)
+}
+
+func (s *IMDSAttestorSuite) TestAttestSuccessWithUniformVMSSInstanceResourceID() {
+	s.setVMSSInstance(&VirtualMachine{
+		Name:          "VIRTUALMACHINE",
+		Location:      "westus",
+		ResourceGroup: "RESOURCEGROUP",
+		VMID:          testVMID,
+	})
+
+	agentID := fmt.Sprintf("spiffe://example.org/spire/agent/azure_imds/%s/%s/%s", testTenantID, testSubscriptionID, testVMID)
+
+	selectorValues := slices.Clone(testVMSelectors)
+	selectorValues = append(selectorValues, fmt.Sprintf("vmss-name:%s", testVMSSName))
+	sort.Strings(selectorValues)
+
+	var expected []*common.Selector
+	for _, selectorValue := range selectorValues {
+		expected = append(expected, &common.Selector{
+			Type:  "azure_imds",
+			Value: selectorValue,
+		})
+	}
+
+	uniformChallengeHandler := makeChallengeHandlerWithNonceCapture(&s.sharedNonce, func(ctx context.Context, challenge []byte) ([]byte, error) {
+		nonce := string(challenge)
+		rg := "RESOURCEGROUP"
+		rid := testUniformVMSSInstanceResourceID
+		return makeAttestPayloadWithMetadata(testVMID, testSubscriptionID, nonce, testTenantDomain, azure.AgentUntrustedMetadata{
+			ResourceGroupName: &rg,
+			VMResourceID:      &rid,
+		}), nil
+	})
+
+	attestor := s.loadPluginWithChallengeHandler(uniformChallengeHandler, nil)
+
+	payload := []byte("initial")
+	resp, err := attestor.Attest(context.Background(), payload, uniformChallengeHandler)
+	s.Require().NoError(err)
+	s.Require().NotNil(resp)
+	s.Require().Equal(agentID, resp.AgentID)
+	s.RequireProtoListEqual(expected, resp.Selectors)
+}
+
 func (s *IMDSAttestorSuite) TestAttestSuccessWithRestrictedSubscription() {
 	s.setVirtualMachine(&VirtualMachine{
 		Name:          "VIRTUALMACHINE",
 		Location:      "westus",
 		ResourceGroup: "RESOURCEGROUP",
+		VMID:          testVMID,
 	})
 
 	s.attestor = s.loadPluginWithConfig(`
@@ -378,6 +470,7 @@ func (s *IMDSAttestorSuite) TestAttestSuccessWithCustomAgentPathTemplate() {
 		Name:          "VIRTUALMACHINE",
 		Location:      "westus",
 		ResourceGroup: "RESOURCEGROUP",
+		VMID:          testVMID,
 	})
 
 	attestorWithCustomTemplate := s.loadPluginWithConfig(`
@@ -412,6 +505,7 @@ func (s *IMDSAttestorSuite) TestAttestIncludesOnlyAllowedTags() {
 		Name:          "VIRTUALMACHINE",
 		Location:      "westus",
 		ResourceGroup: "RESOURCEGROUP",
+		VMID:          testVMID,
 		Tags: map[string]any{
 			"env":   "prod",
 			"team":  "alpha",
@@ -999,7 +1093,7 @@ func (c *fakeAPIClient) SetVMSSInstance(vmID, subscriptionID, vmssName string, v
 	c.vmssInstances[key] = vm
 }
 
-func (c *fakeAPIClient) GetVMSSInstance(_ context.Context, vmID, subscriptionID, vmssName string) (*VirtualMachine, error) {
+func (c *fakeAPIClient) GetVMSSInstance(_ context.Context, vmID, subscriptionID, vmssName string, _ *string) (*VirtualMachine, error) {
 	key := fmt.Sprintf("%s:%s:%s", vmID, subscriptionID, vmssName)
 	vm := c.vmssInstances[key]
 	if vm == nil {
@@ -1021,20 +1115,26 @@ type testAttestedDocument struct {
 }
 
 func makeAttestPayloadWithNonce(vmID, subscriptionID, nonce, agentDomain string, vmssName *string) []byte { //nolint: unparam
+	md := azure.AgentUntrustedMetadata{
+		AgentDomain: agentDomain,
+		VMSSName:    vmssName,
+	}
+	return makeAttestPayloadWithMetadata(vmID, subscriptionID, nonce, agentDomain, md)
+}
+
+func makeAttestPayloadWithMetadata(vmID, subscriptionID, nonce, agentDomain string, md azure.AgentUntrustedMetadata) []byte {
 	docBytes, _ := json.Marshal(testAttestedDocument{
 		VMID:           vmID,
 		SubscriptionID: subscriptionID,
 		Nonce:          nonce,
 	})
+	md.AgentDomain = agentDomain
 	payload := azure.IMDSAttestationPayload{
 		Document: azure.AttestedDocument{
 			Encoding:  "test-json",
 			Signature: string(docBytes),
 		},
-		Metadata: azure.AgentUntrustedMetadata{
-			AgentDomain: agentDomain,
-			VMSSName:    vmssName,
-		},
+		Metadata: md,
 	}
 	data, _ := json.Marshal(payload)
 	return data

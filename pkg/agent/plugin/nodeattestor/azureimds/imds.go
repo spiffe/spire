@@ -108,6 +108,14 @@ func (p *IMDSAttestorPlugin) AidAttestation(stream nodeattestorv1.NodeAttestor_A
 	md := azure.AgentUntrustedMetadata{
 		AgentDomain: config.TenantDomain,
 	}
+	if computeMetadata.Compute.ResourceGroupName != "" {
+		rg := computeMetadata.Compute.ResourceGroupName
+		md.ResourceGroupName = &rg
+	}
+	if computeMetadata.Compute.ResourceID != "" {
+		rid := computeMetadata.Compute.ResourceID
+		md.VMResourceID = &rid
+	}
 	if computeMetadata.Compute.VMScaleSetName != "" {
 		md.VMSSName = &computeMetadata.Compute.VMScaleSetName
 	}

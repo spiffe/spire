@@ -34,6 +34,14 @@ Each tenant in the main configuration supports the following
 If `restrict_to_subscriptions` is provided, any attestation attempt from a subscription ID
 not present in the list is rejected before selector resolution occurs.
 
+### Virtual Machine Scale Sets
+
+The server resolves Azure VM properties to produce selectors. **Flexible** scale set members are treated as standard Azure
+virtual machines; **Uniform** scale set instances use the scale set instance API. Use a current SPIRE Agent and SPIRE Server
+together so Flexible scale sets and scale sets that share a name in different resource groups (within the same subscription)
+attest successfully. Selector resolution is always checked against the subscription ID and VM ID from the verified attested
+document.
+
 ### Secret Authentication (`secret_auth`)
 
 | Field        | Required | Description                 |
