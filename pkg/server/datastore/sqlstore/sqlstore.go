@@ -1988,6 +1988,11 @@ func buildListAttestedNodesQuery(dbType string, supportsCTE bool, req *datastore
 	}
 }
 
+func isBulkAttestedNodeIDFetch(req *datastore.ListAttestedNodesRequest) bool {
+	hasSelectorMatch := req.BySelectorMatch != nil && len(req.BySelectorMatch.Selectors) > 0
+	return len(req.BySpiffeIDs) > 0 && req.Pagination == nil && !hasSelectorMatch
+}
+
 func buildListAttestedNodesQueryCTE(req *datastore.ListAttestedNodesRequest, dbType string) (string, []any, error) {
 	builder := new(strings.Builder)
 	var args []any
@@ -2107,6 +2112,14 @@ SELECT
 
 	builder.WriteString("\n")
 	builder.WriteString(fromQuery)
+
+	// Skip the wrapper only for bounded ID fetches. Keep the existing query
+	// shape for other requests to avoid changing full-load plans.
+	if isBulkAttestedNodeIDFetch(req) {
+		builder.WriteString("\nORDER BY id ASC\n")
+		return builder.String(), args, nil
+	}
+
 	builder.WriteString("\nWHERE id IN (\n")
 
 	// MySQL requires a subquery in order to apply pagination
@@ -2300,6 +2313,14 @@ FROM attested_node_entries N
 			args = append(args, buildArgs(req.BySpiffeIDs)...)
 		}
 		return nil
+	}
+
+	if fetchSelectors && isBulkAttestedNodeIDFetch(req) {
+		if err := writeFilter(); err != nil {
+			return "", nil, err
+		}
+		builder.WriteString(" ORDER BY e_id, S.id\n")
+		return builder.String(), args, nil
 	}
 
 	// Add filter by selectors
