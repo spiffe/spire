@@ -872,31 +872,26 @@ func TestX509CARotation(t *testing.T) {
 }
 
 func TestX509CARotationRejectsExpiredPreparedCA(t *testing.T) {
-	clk := clock.NewMock(t)
-	now := clk.Now()
-	current := &x509CASlot{
-		id:       "A",
-		notAfter: now.Add(time.Hour),
-		x509CA: &ca.X509CA{
-			Certificate: &x509.Certificate{NotAfter: now.Add(time.Hour)},
-		},
-	}
-	next := &x509CASlot{
-		id:       "B",
-		notAfter: now,
-		x509CA: &ca.X509CA{
-			Certificate: &x509.Certificate{NotAfter: now},
-		},
-	}
-	m := &Manager{
-		c:             Config{Clock: clk},
-		currentX509CA: current,
-		nextX509CA:    next,
-	}
+	ctx := context.Background()
+	test := setupTest(t)
+	test.initAndActivateSelfSignedManager(ctx)
+	current := test.currentX509CA()
 
-	require.EqualError(t, m.RotateX509CA(context.Background()), "prepared X509 CA has expired")
-	require.Same(t, current, m.currentX509CA)
-	require.Same(t, next, m.nextX509CA)
+	require.NoError(t, test.m.PrepareX509CA(ctx))
+	expired := test.nextX509CA()
+	require.NotNil(t, expired)
+	test.clock.Set(expired.NotAfter)
+
+	require.EqualError(t, test.m.RotateX509CA(ctx), "prepared X509 CA has expired")
+	test.requireX509CAEqual(t, current, test.currentX509CA())
+	require.Nil(t, test.nextX509CA())
+	require.Equal(t, journal.Status_OLD, test.nextX509CAStatus())
+
+	require.NoError(t, test.m.PrepareX509CA(ctx))
+	replacement := test.nextX509CA()
+	require.NotNil(t, replacement)
+	require.True(t, replacement.NotAfter.After(test.clock.Now()))
+	require.NotEqual(t, expired.Certificate.SubjectKeyId, replacement.Certificate.SubjectKeyId)
 }
 
 func TestX509CARotationMetric(t *testing.T) {

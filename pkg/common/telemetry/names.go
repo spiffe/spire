@@ -213,6 +213,12 @@ const (
 	// CertFilePath tags a certificate file path used for TLS connections.
 	CertFilePath = "cert_file_path"
 
+	// CertificateExpiration tags a certificate expiration time
+	CertificateExpiration = "certificate_expiration"
+
+	// ChainExpiration tags a certificate chain expiration time
+	ChainExpiration = "chain_expiration"
+
 	// KeyID tags a key ID
 	KeyID = "key_id"
 
@@ -247,6 +253,9 @@ const (
 
 	// Count tags some basic count; should be used with other tags and clear messaging to add clarity
 	Count = "count"
+
+	// CurrentChainExpiration tags the current certificate chain expiration time
+	CurrentChainExpiration = "current_chain_expiration"
 
 	// CreatedAt tags registration entry creation date
 	CreatedAt = "created_at"
@@ -455,6 +464,9 @@ const (
 
 	// PluginType tags type of some plugin
 	PluginType = "plugin_type"
+
+	// PreparedChainExpiration tags a prepared certificate chain expiration time
+	PreparedChainExpiration = "prepared_chain_expiration"
 
 	// PodUID tags some pod UID, most likely for use in attestation
 	PodUID = "pod_uid"

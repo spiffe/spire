@@ -308,14 +308,14 @@ func (m *Manager) PrepareX509CA(ctx context.Context) (err error) {
 
 	if slot.notAfter.Before(slot.x509CA.Certificate.NotAfter) {
 		log.WithFields(logrus.Fields{
-			"certificate_expiration": slot.x509CA.Certificate.NotAfter,
-			"chain_expiration":       slot.notAfter,
+			telemetry.CertificateExpiration: slot.x509CA.Certificate.NotAfter,
+			telemetry.ChainExpiration:       slot.notAfter,
 		}).Warn("Upstream authority issued an X509 CA that outlives its certificate chain; rotation will use the chain expiration")
 	}
 	if slot == m.nextX509CA && !slot.notAfter.After(m.currentX509CA.notAfter) {
 		log.WithFields(logrus.Fields{
-			"current_chain_expiration":  m.currentX509CA.notAfter,
-			"prepared_chain_expiration": slot.notAfter,
+			telemetry.CurrentChainExpiration:  m.currentX509CA.notAfter,
+			telemetry.PreparedChainExpiration: slot.notAfter,
 		}).Warn("Prepared X509 CA does not extend the current X509 CA lifetime")
 	}
 
@@ -349,6 +349,7 @@ func (m *Manager) RotateX509CA(ctx context.Context) error {
 	m.x509CAMutex.Lock()
 	defer m.x509CAMutex.Unlock()
 	if !m.nextX509CA.NotAfter().After(m.c.Clock.Now()) {
+		m.nextX509CA.Reset()
 		return errors.New("prepared X509 CA has expired")
 	}
 
