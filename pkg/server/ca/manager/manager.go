@@ -172,7 +172,9 @@ func NewManager(ctx context.Context, c Config) (*Manager, error) {
 	if currentX509CA, ok := slots[CurrentX509CASlot]; ok {
 		m.currentX509CA = currentX509CA.(*x509CASlot)
 
-		if !currentX509CA.IsEmpty() {
+		if !currentX509CA.IsEmpty() && !currentX509CA.ShouldActivateNext(now) {
+			// activate the X509 CA immediately if it is set and not within
+			// activation time of the next X509 CA.
 			m.activateX509CA(ctx)
 		}
 	}
@@ -302,9 +304,6 @@ func (m *Manager) PrepareX509CA(ctx context.Context) (err error) {
 	slot.upstreamAuthorityID = x509util.SubjectKeyIDToString(x509CA.Certificate.AuthorityKeyId)
 	slot.publicKey = slot.x509CA.Certificate.PublicKey
 	slot.notAfter = slot.x509CA.NotAfter
-	if slot.notAfter.IsZero() {
-		slot.notAfter = slot.x509CA.Certificate.NotAfter
-	}
 
 	if slot.notAfter.Before(slot.x509CA.Certificate.NotAfter) {
 		log.WithFields(logrus.Fields{
@@ -1008,7 +1007,7 @@ func (m *Manager) upstreamSignX509CA(ctx context.Context, signer crypto.Signer) 
 	var notAfter time.Time
 	caChain, err := m.upstreamClient.MintX509CA(ctx, csr, m.caTTL, func(x509CA, upstreamRoots []*x509.Certificate) error {
 		var err error
-		notAfter, err = validator.ValidateUpstreamX509CAWithExpiry(x509CA, upstreamRoots)
+		notAfter, err = validator.ValidateUpstreamX509CA(x509CA, upstreamRoots)
 		return err
 	})
 	if err != nil {

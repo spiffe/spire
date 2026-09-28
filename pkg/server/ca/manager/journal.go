@@ -58,15 +58,11 @@ func (j *Journal) getEntries() *journal.Entries {
 func (j *Journal) AppendX509CA(ctx context.Context, slotID string, issuedAt time.Time, x509CA *ca.X509CA) error {
 	j.mu.Lock()
 	defer j.mu.Unlock()
-	notAfter := x509CA.NotAfter
-	if notAfter.IsZero() {
-		notAfter = x509CA.Certificate.NotAfter
-	}
 
 	j.entries.X509CAs = append(j.entries.X509CAs, &journal.X509CAEntry{
 		SlotId:              slotID,
 		IssuedAt:            issuedAt.Unix(),
-		NotAfter:            notAfter.Unix(),
+		NotAfter:            x509CA.NotAfter.Unix(),
 		NotAfterIsEffective: true,
 		Certificate:         x509CA.Certificate.Raw,
 		UpstreamChain:       chainDER(x509CA.UpstreamChain),

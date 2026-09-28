@@ -152,6 +152,7 @@ func (s *RotatorTestSuite) TestForceRotation() {
 	s.serverCA.SetX509CA(&ca.X509CA{
 		Signer:      signer,
 		Certificate: newCA,
+		NotAfter:    newCA.NotAfter,
 	})
 
 	s.clock.WaitForTicker(time.Minute, "waiting for the Run() ticker")

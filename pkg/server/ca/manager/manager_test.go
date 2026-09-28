@@ -681,8 +681,8 @@ func TestPrepareX509CAUsesEffectiveUpstreamExpiry(t *testing.T) {
 	reloaded, err = NewManager(ctx, config)
 	require.NoError(t, err)
 	defer reloaded.Close()
-	require.NotNil(t, test.ca.X509CA())
-	require.Equal(t, root.NotAfter, test.ca.X509CA().NotAfter)
+	require.Nil(t, test.ca.X509CA())
+	require.True(t, reloaded.GetCurrentX509CASlot().ShouldActivateNext(test.clock.Now()))
 }
 
 func TestUpstreamSignedProducesInvalidChain(t *testing.T) {

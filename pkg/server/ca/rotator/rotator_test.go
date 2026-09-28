@@ -387,6 +387,15 @@ func TestRotateX509CARenewalFloor(t *testing.T) {
 	require.NoError(t, test.rotator.rotateX509CA(context.Background()))
 	require.Equal(t, 2, test.fakeCAManager.prepareX509CACount)
 	require.Equal(t, 0, test.fakeCAManager.rotateX509CACount)
+
+	test.clock.Add(15 * time.Second)
+	require.NoError(t, test.rotator.rotateX509CA(context.Background()))
+	require.Equal(t, 2, test.fakeCAManager.prepareX509CACount)
+
+	test.clock.Add(16 * time.Second)
+	require.NoError(t, test.rotator.rotateX509CA(context.Background()))
+	require.Equal(t, 3, test.fakeCAManager.prepareX509CACount)
+	require.Equal(t, 0, test.fakeCAManager.rotateX509CACount)
 }
 
 func TestRotateX509CAActivatesExtendingRenewal(t *testing.T) {

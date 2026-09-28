@@ -207,9 +207,6 @@ func (ca *CA) X509CA() *X509CA {
 func (ca *CA) SetX509CA(x509CA *X509CA) {
 	ca.mu.Lock()
 	defer ca.mu.Unlock()
-	if x509CA != nil && x509CA.NotAfter.IsZero() {
-		x509CA.NotAfter = x509CA.Certificate.NotAfter
-	}
 	ca.x509CA = x509CA
 	switch {
 	case x509CA == nil:
@@ -263,15 +260,14 @@ func (ca *CA) SignDownstreamX509CA(ctx context.Context, params DownstreamX509CAP
 	}
 
 	template, err := ca.c.CredBuilder.BuildDownstreamX509CATemplate(ctx, credtemplate.DownstreamX509CAParams{
-		ParentChain: caChain,
-		PublicKey:   params.PublicKey,
-		TTL:         params.TTL,
+		ParentChain:   caChain,
+		PublicKey:     params.PublicKey,
+		TTL:           params.TTL,
+		ExpirationCap: x509CA.NotAfter,
 	})
 	if err != nil {
 		return nil, err
 	}
-	capX509CertificateExpiry(template, x509CA.NotAfter)
-
 	downstreamCA, err := x509util.CreateCertificate(template, x509CA.Certificate, template.PublicKey, x509CA.Signer)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create downstream X509 CA: %w", err)
@@ -293,8 +289,9 @@ func (ca *CA) SignServerX509SVID(ctx context.Context, params ServerX509SVIDParam
 	}
 
 	template, err := ca.c.CredBuilder.BuildServerX509SVIDTemplate(ctx, credtemplate.ServerX509SVIDParams{
-		ParentChain: caChain,
-		PublicKey:   params.PublicKey,
+		ParentChain:   caChain,
+		PublicKey:     params.PublicKey,
+		ExpirationCap: x509CA.NotAfter,
 	})
 	if err != nil {
 		return nil, err
@@ -319,9 +316,10 @@ func (ca *CA) SignAgentX509SVID(ctx context.Context, params AgentX509SVIDParams)
 	}
 
 	template, err := ca.c.CredBuilder.BuildAgentX509SVIDTemplate(ctx, credtemplate.AgentX509SVIDParams{
-		ParentChain: caChain,
-		PublicKey:   params.PublicKey,
-		SPIFFEID:    params.SPIFFEID,
+		ParentChain:   caChain,
+		PublicKey:     params.PublicKey,
+		SPIFFEID:      params.SPIFFEID,
+		ExpirationCap: x509CA.NotAfter,
 	})
 	if err != nil {
 		return nil, err
@@ -346,12 +344,13 @@ func (ca *CA) SignWorkloadX509SVID(ctx context.Context, params WorkloadX509SVIDP
 	}
 
 	template, err := ca.c.CredBuilder.BuildWorkloadX509SVIDTemplate(ctx, credtemplate.WorkloadX509SVIDParams{
-		ParentChain: caChain,
-		PublicKey:   params.PublicKey,
-		SPIFFEID:    params.SPIFFEID,
-		DNSNames:    params.DNSNames,
-		TTL:         params.TTL,
-		Subject:     params.Subject,
+		ParentChain:   caChain,
+		PublicKey:     params.PublicKey,
+		SPIFFEID:      params.SPIFFEID,
+		DNSNames:      params.DNSNames,
+		TTL:           params.TTL,
+		Subject:       params.Subject,
+		ExpirationCap: x509CA.NotAfter,
 	})
 	if err != nil {
 		return nil, err
@@ -442,19 +441,12 @@ func (ca *CA) getX509CA() (*X509CA, []*x509.Certificate, error) {
 }
 
 func (ca *CA) signX509SVID(x509CA *X509CA, template *x509.Certificate) ([]*x509.Certificate, error) {
-	capX509CertificateExpiry(template, x509CA.NotAfter)
 	x509SVID, err := x509util.CreateCertificate(template, x509CA.Certificate, template.PublicKey, x509CA.Signer)
 	if err != nil {
 		return nil, fmt.Errorf("failed to sign X509 SVID: %w", err)
 	}
 	telemetry_server.IncrServerCASignX509Counter(ca.c.Metrics)
 	return makeCertChain(x509CA, x509SVID), nil
-}
-
-func capX509CertificateExpiry(template *x509.Certificate, expiration time.Time) {
-	if !expiration.IsZero() && template.NotAfter.After(expiration) {
-		template.NotAfter = expiration
-	}
 }
 
 func (ca *CA) signJWTSVID(jwtKey *JWTKey, claims map[string]any) (string, error) {

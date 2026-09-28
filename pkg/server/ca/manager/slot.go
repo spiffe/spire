@@ -85,31 +85,11 @@ func (s *SlotLoader) load(ctx context.Context) (*Journal, map[SlotPosition]Slot,
 		return nil, nil, err
 	}
 
-	legacyX509CAExpirations := make(map[*journal.X509CAEntry]struct {
-		notAfter    int64
-		isEffective bool
-	}, len(entries.X509CAs))
-	for _, entry := range entries.X509CAs {
-		legacyX509CAExpirations[entry] = struct {
-			notAfter    int64
-			isEffective bool
-		}{
-			notAfter:    entry.NotAfter,
-			isEffective: entry.NotAfterIsEffective,
-		}
-	}
-
-	currentX509CA, nextX509CA, err := s.getX509CASlots(ctx, entries.X509CAs)
+	currentX509CA, nextX509CA, migratedX509CAExpirations, err := s.getX509CASlots(ctx, entries.X509CAs)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	migratedX509CAExpirations := make(map[string]time.Time)
-	for entry, previous := range legacyX509CAExpirations {
-		if entry.NotAfter != previous.notAfter || entry.NotAfterIsEffective != previous.isEffective {
-			migratedX509CAExpirations[string(entry.Certificate)] = time.Unix(entry.NotAfter, 0).UTC()
-		}
-	}
 	if len(migratedX509CAExpirations) > 0 {
 		if err := loadedJournal.UpdateX509CAExpirations(ctx, migratedX509CAExpirations); err != nil {
 			return nil, nil, fmt.Errorf("unable to persist effective X509 CA expirations: %w", err)
@@ -158,15 +138,20 @@ func (s *SlotLoader) load(ctx context.Context) (*Journal, map[SlotPosition]Slot,
 // - If all the statuses are unknown, the two most recent slots are returned.
 // - Active entry is returned on current slot if set.
 // - The most recent Prepared or Old entry is returned on next slot.
-func (s *SlotLoader) getX509CASlots(ctx context.Context, entries []*journal.X509CAEntry) (*x509CASlot, *x509CASlot, error) {
+func (s *SlotLoader) getX509CASlots(ctx context.Context, entries []*journal.X509CAEntry) (*x509CASlot, *x509CASlot, map[string]time.Time, error) {
 	var current *x509CASlot
 	var next *x509CASlot
+	migratedExpirations := make(map[string]time.Time)
 
 	// Search from oldest
 	for _, entry := range slices.Backward(entries) {
+		wasEffective := entry.NotAfterIsEffective
 		slot, err := s.tryLoadX509CASlotFromEntry(ctx, entry)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
+		}
+		if !wasEffective && entry.NotAfterIsEffective {
+			migratedExpirations[string(entry.Certificate)] = time.Unix(entry.NotAfter, 0).UTC()
 		}
 
 		// Unable to load slot
@@ -213,7 +198,7 @@ func (s *SlotLoader) getX509CASlots(ctx context.Context, entries []*journal.X509
 		next = newX509CASlot("B")
 	}
 
-	return current, next, nil
+	return current, next, migratedExpirations, nil
 }
 
 // getJWTKeysSlots returns JWTKey slots based on the status of the slots.
@@ -453,7 +438,10 @@ func (s *SlotLoader) loadX509CASlotFromEntry(ctx context.Context, entry *journal
 		notAfter = time.Unix(entry.NotAfter, 0).UTC()
 		if !entry.NotAfterIsEffective {
 			if effectiveNotAfter, err := s.reconstructEffectiveX509CAExpiry(ctx, entry, cert, upstreamChain); err != nil {
-				return nil, fmt.Sprintf("unable to reconstruct effective X509 CA expiration: %v", err), nil
+				s.Log.WithError(err).WithFields(logrus.Fields{
+					telemetry.Slot:                  entry.SlotId,
+					telemetry.CertificateExpiration: notAfter,
+				}).Warn("Unable to reconstruct effective X509 CA expiration; using stored expiration")
 			} else {
 				notAfter = effectiveNotAfter
 				entry.NotAfter = effectiveNotAfter.Unix()
@@ -481,9 +469,7 @@ func (s *SlotLoader) loadX509CASlotFromEntry(ctx context.Context, entry *journal
 		Signer:        signer,
 		Certificate:   cert,
 		UpstreamChain: upstreamChain,
-	}
-	if notAfter.Before(cert.NotAfter) {
-		x509CA.NotAfter = notAfter
+		NotAfter:      notAfter,
 	}
 
 	return &x509CASlot{
@@ -798,13 +784,7 @@ func (s *x509CASlot) NotAfter() time.Time {
 }
 
 func (s *x509CASlot) expiration() time.Time {
-	if !s.notAfter.IsZero() {
-		return s.notAfter
-	}
-	if s.x509CA == nil {
-		return time.Time{}
-	}
-	return s.x509CA.Certificate.NotAfter
+	return s.notAfter
 }
 
 type jwtKeySlot struct {

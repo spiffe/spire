@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"errors"
 	"testing"
 	"time"
 
@@ -45,7 +46,9 @@ func TestX509CASlotShouldPrepareNext(t *testing.T) {
 		Certificate: &x509.Certificate{
 			NotAfter: now.Add(time.Minute),
 		},
+		NotAfter: now.Add(time.Minute),
 	}
+	slot.notAfter = slot.x509CA.NotAfter
 
 	// Just created no need to prepare
 	require.False(t, slot.ShouldPrepareNext(now))
@@ -75,7 +78,9 @@ func TestX509CASlotShouldActivateNext(t *testing.T) {
 		Certificate: &x509.Certificate{
 			NotAfter: now.Add(time.Minute),
 		},
+		NotAfter: now.Add(time.Minute),
 	}
+	slot.notAfter = slot.x509CA.NotAfter
 
 	// Just created no need to activate
 	require.False(t, slot.ShouldActivateNext(now))
@@ -97,6 +102,7 @@ func TestX509CASlotRotationUsesEffectiveExpiry(t *testing.T) {
 		notAfter: effectiveNotAfter,
 		x509CA: &ca.X509CA{
 			Certificate: &x509.Certificate{NotAfter: localNotAfter},
+			NotAfter:    effectiveNotAfter,
 		},
 	}
 
@@ -210,9 +216,20 @@ func TestLegacyX509CAExpiryMigration(t *testing.T) {
 	require.True(t, reloadedJournal.entries.X509CAs[0].NotAfterIsEffective)
 
 	require.NoError(t, legacyJournal.save(ctx))
-	_, slots, err = loader.load(ctx)
+	legacyLoadedJournal, slots, err := loader.load(ctx)
 	require.NoError(t, err)
-	require.True(t, slots[CurrentX509CASlot].IsEmpty())
+	require.False(t, slots[CurrentX509CASlot].IsEmpty())
+	require.Equal(t, local.NotAfter, slots[CurrentX509CASlot].NotAfter())
+	require.Equal(t, local.NotAfter.Unix(), legacyLoadedJournal.entries.X509CAs[0].NotAfter)
+	require.False(t, legacyLoadedJournal.entries.X509CAs[0].NotAfterIsEffective)
+
+	ds.SetNextError(errors.New("fetch bundle failed"))
+	slot, badReason, err := loader.loadX509CASlotFromEntry(ctx, legacyEntry)
+	require.NoError(t, err)
+	require.Empty(t, badReason)
+	require.NotNil(t, slot)
+	require.Equal(t, local.NotAfter, slot.NotAfter())
+	require.False(t, legacyEntry.NotAfterIsEffective)
 }
 
 func TestJWTKeySlotShouldPrepareNext(t *testing.T) {
@@ -461,6 +478,7 @@ func TestJournalLoad(t *testing.T) {
 					x509CA: &ca.X509CA{
 						Signer:      x509KeyB,
 						Certificate: x509RootB,
+						NotAfter:    x509RootB.NotAfter,
 					},
 					authorityID: "",
 					publicKey:   x509KeyB.Public(),
@@ -550,6 +568,7 @@ func TestJournalLoad(t *testing.T) {
 					x509CA: &ca.X509CA{
 						Signer:      x509KeyA,
 						Certificate: x509RootA,
+						NotAfter:    x509RootA.NotAfter,
 					},
 					publicKey:   x509KeyA.Public(),
 					authorityID: "1",
@@ -695,6 +714,7 @@ func TestJournalLoad(t *testing.T) {
 					x509CA: &ca.X509CA{
 						Signer:      x509KeyA,
 						Certificate: x509RootA,
+						NotAfter:    x509RootA.NotAfter,
 					},
 					authorityID: "1",
 					publicKey:   x509KeyA.Public(),
@@ -707,6 +727,7 @@ func TestJournalLoad(t *testing.T) {
 					x509CA: &ca.X509CA{
 						Signer:      x509KeyB,
 						Certificate: x509RootB,
+						NotAfter:    x509RootB.NotAfter,
 					},
 					authorityID: "2",
 					publicKey:   x509KeyB.Public(),
@@ -872,6 +893,7 @@ func TestJournalLoad(t *testing.T) {
 					x509CA: &ca.X509CA{
 						Signer:      x509KeyA,
 						Certificate: x509RootA,
+						NotAfter:    x509RootA.NotAfter,
 					},
 					publicKey:   x509KeyA.Public(),
 					authorityID: "3",
@@ -884,6 +906,7 @@ func TestJournalLoad(t *testing.T) {
 					x509CA: &ca.X509CA{
 						Signer:      x509KeyB,
 						Certificate: x509RootB,
+						NotAfter:    x509RootB.NotAfter,
 					},
 					publicKey:   x509KeyB.Public(),
 					authorityID: "1",

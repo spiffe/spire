@@ -119,6 +119,7 @@ func TestJournalPersistence(t *testing.T) {
 		Signer:        kmKeys["X509-CA-A"],
 		Certificate:   rootCerts["X509-Root-A"],
 		UpstreamChain: testChain,
+		NotAfter:      rootCerts["X509-Root-A"].NotAfter,
 	})
 	require.NoError(t, err)
 
@@ -151,6 +152,7 @@ func TestJournalPersistence(t *testing.T) {
 		Signer:        kmKeys["X509-CA-C"],
 		Certificate:   rootCerts["X509-Root-C"],
 		UpstreamChain: testChain,
+		NotAfter:      rootCerts["X509-Root-C"].NotAfter,
 	})
 	require.NoError(t, err)
 	require.NoError(t, j.UpdateX509CAStatus(ctx, authorityIDA, journal.Status_ACTIVE))
@@ -166,6 +168,7 @@ func TestJournalPersistence(t *testing.T) {
 		Signer:        kmKeys["X509-CA-C"],
 		Certificate:   rootCerts["X509-Root-C"],
 		UpstreamChain: testChain,
+		NotAfter:      rootCerts["X509-Root-C"].NotAfter,
 	})
 	require.Error(t, err)
 	require.EqualError(t, err, "could not save CA journal in the datastore: ds error")
@@ -181,6 +184,7 @@ func TestAppendSetPreparedStatus(t *testing.T) {
 		Signer:        kmKeys["X509-CA-A"],
 		Certificate:   rootCerts["X509-Root-A"],
 		UpstreamChain: testChain,
+		NotAfter:      rootCerts["X509-Root-A"].NotAfter,
 	})
 	require.NoError(t, err)
 
@@ -226,6 +230,7 @@ func TestAppendKeepsEntriesOnSaveFailure(t *testing.T) {
 		Signer:        kmKeys["X509-CA-A"],
 		Certificate:   rootCerts["X509-Root-A"],
 		UpstreamChain: testChain,
+		NotAfter:      rootCerts["X509-Root-A"].NotAfter,
 	})
 	require.EqualError(t, err, "could not save CA journal in the datastore: ds error")
 
@@ -270,6 +275,7 @@ func TestX509CAOverflow(t *testing.T) {
 		err := journal.AppendX509CA(ctx, "A", now, &ca.X509CA{
 			Signer:      kmKeys["X509-CA-A"],
 			Certificate: rootCerts["X509-Root-A"],
+			NotAfter:    rootCerts["X509-Root-A"].NotAfter,
 		})
 		require.NoError(t, err)
 	}
@@ -292,18 +298,21 @@ func TestUpdateX509CAStatus(t *testing.T) {
 	err := testJournal.AppendX509CA(ctx, "A", firstIssuedAt, &ca.X509CA{
 		Signer:      kmKeys["X509-CA-A"],
 		Certificate: rootCerts["X509-Root-A"],
+		NotAfter:    rootCerts["X509-Root-A"].NotAfter,
 	})
 	require.NoError(t, err)
 
 	err = testJournal.AppendX509CA(ctx, "B", secondIssuedAt, &ca.X509CA{
 		Signer:      kmKeys["X509-CA-B"],
 		Certificate: rootCerts["X509-Root-B"],
+		NotAfter:    rootCerts["X509-Root-B"].NotAfter,
 	})
 	require.NoError(t, err)
 
 	err = testJournal.AppendX509CA(ctx, "C", thirdIssuedAt, &ca.X509CA{
 		Signer:      kmKeys["X509-CA-C"],
 		Certificate: rootCerts["X509-Root-C"],
+		NotAfter:    rootCerts["X509-Root-C"].NotAfter,
 	})
 	require.NoError(t, err)
 
@@ -339,6 +348,7 @@ func TestUpdateX509CAStatusKeepsStatusOnSaveFailure(t *testing.T) {
 	err := testJournal.AppendX509CA(ctx, "A", now, &ca.X509CA{
 		Signer:      kmKeys["X509-CA-A"],
 		Certificate: rootCerts["X509-Root-A"],
+		NotAfter:    rootCerts["X509-Root-A"].NotAfter,
 	})
 	require.NoError(t, err)
 

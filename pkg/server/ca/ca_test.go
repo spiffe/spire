@@ -665,6 +665,7 @@ func (s *CATestSuite) setX509CA(selfSigned bool) {
 		Signer:        testSigner,
 		Certificate:   s.caCert,
 		UpstreamChain: upstreamChain,
+		NotAfter:      s.caCert.NotAfter,
 	})
 }
 

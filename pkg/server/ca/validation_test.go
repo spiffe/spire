@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestValidateUpstreamX509CAWithExpiry(t *testing.T) {
+func TestValidateUpstreamX509CA(t *testing.T) {
 	now := time.Now().Truncate(time.Second)
 	clk := testclock.NewMockAt(t, now)
 	trustDomain := spiffeid.RequireTrustDomainFromString("domain.test")
@@ -39,12 +39,12 @@ func TestValidateUpstreamX509CAWithExpiry(t *testing.T) {
 		CredValidator: validator,
 		Signer:        localKey,
 		Clock:         clk,
-	}).ValidateUpstreamX509CAWithExpiry([]*x509.Certificate{local}, []*x509.Certificate{root})
+	}).ValidateUpstreamX509CA([]*x509.Certificate{local}, []*x509.Certificate{root})
 	require.NoError(t, err)
 	require.Equal(t, root.NotAfter, effectiveNotAfter)
 }
 
-func TestValidateUpstreamX509CAWithExpiryUsesEarliestIntermediate(t *testing.T) {
+func TestValidateUpstreamX509CAUsesEarliestIntermediate(t *testing.T) {
 	now := time.Now().Truncate(time.Second)
 	clk := testclock.NewMockAt(t, now)
 	trustDomain := spiffeid.RequireTrustDomainFromString("domain.test")
@@ -74,7 +74,7 @@ func TestValidateUpstreamX509CAWithExpiryUsesEarliestIntermediate(t *testing.T) 
 		CredValidator: validator,
 		Signer:        localKey,
 		Clock:         clk,
-	}).ValidateUpstreamX509CAWithExpiry([]*x509.Certificate{local, upstreamIntermediate}, []*x509.Certificate{root})
+	}).ValidateUpstreamX509CA([]*x509.Certificate{local, upstreamIntermediate}, []*x509.Certificate{root})
 	require.NoError(t, err)
 	require.Equal(t, upstreamIntermediate.NotAfter, effectiveNotAfter)
 }

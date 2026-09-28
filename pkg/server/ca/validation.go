@@ -31,12 +31,7 @@ type X509CAValidator struct {
 	Clock         clock.Clock
 }
 
-func (v *X509CAValidator) ValidateUpstreamX509CA(x509CA, upstreamRoots []*x509.Certificate) error {
-	_, err := v.ValidateUpstreamX509CAWithExpiry(x509CA, upstreamRoots)
-	return err
-}
-
-func (v *X509CAValidator) ValidateUpstreamX509CAWithExpiry(x509CA, upstreamRoots []*x509.Certificate) (time.Time, error) {
+func (v *X509CAValidator) ValidateUpstreamX509CA(x509CA, upstreamRoots []*x509.Certificate) (time.Time, error) {
 	return v.validateX509CA(x509CA[0], upstreamRoots, x509CA)
 }
 

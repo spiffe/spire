@@ -58,9 +58,10 @@ type Config struct {
 }
 
 type Rotator struct {
-	c                    Config
-	x509CARenewalFor     time.Time
-	x509CARenewalRetryAt time.Time
+	c                       Config
+	x509CARenewalFor        time.Time
+	x509CARenewalRetryDelay time.Duration
+	x509CARenewalRetryAt    time.Time
 
 	// For keeping track of number of failed rotations since the last fully
 	// successful rotation cycle.
@@ -236,6 +237,7 @@ func (r *Rotator) rotateX509CA(ctx context.Context) error {
 	}
 	if !r.x509CARenewalFor.Equal(currentX509CA.NotAfter()) {
 		r.x509CARenewalFor = currentX509CA.NotAfter()
+		r.x509CARenewalRetryDelay = 0
 		r.x509CARenewalRetryAt = time.Time{}
 	}
 
@@ -251,6 +253,7 @@ func (r *Rotator) rotateX509CA(ctx context.Context) error {
 		nextX509CA := r.c.Manager.GetNextX509CASlot()
 		if nextX509CA.NotAfter().After(currentX509CA.NotAfter()) {
 			r.x509CARenewalFor = nextX509CA.NotAfter()
+			r.x509CARenewalRetryDelay = 0
 			r.x509CARenewalRetryAt = time.Time{}
 			return r.c.Manager.RotateX509CA(ctx)
 		}
@@ -265,19 +268,22 @@ func (r *Rotator) rotateX509CA(ctx context.Context) error {
 		nextX509CA = r.c.Manager.GetNextX509CASlot()
 		if nextX509CA.NotAfter().After(currentX509CA.NotAfter()) {
 			r.x509CARenewalFor = nextX509CA.NotAfter()
+			r.x509CARenewalRetryDelay = 0
 			r.x509CARenewalRetryAt = time.Time{}
 			return r.c.Manager.RotateX509CA(ctx)
 		}
 
-		r.x509CARenewalRetryAt = x509CARenewalRetryTime(now, currentX509CA.NotAfter())
+		if r.x509CARenewalRetryDelay == 0 {
+			r.x509CARenewalRetryDelay = x509CARenewalRetryDelay(now, currentX509CA.NotAfter())
+		}
+		r.x509CARenewalRetryAt = now.Add(r.x509CARenewalRetryDelay)
 	}
 
 	return nil
 }
 
-func x509CARenewalRetryTime(now, expiration time.Time) time.Time {
-	retryDelay := max(expiration.Sub(now)/2, rotateInterval)
-	return now.Add(retryDelay)
+func x509CARenewalRetryDelay(now, expiration time.Time) time.Duration {
+	return max(expiration.Sub(now)/2, rotateInterval)
 }
 
 func (r *Rotator) pruneBundleEvery(ctx context.Context, interval time.Duration) error {
