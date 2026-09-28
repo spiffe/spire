@@ -5060,7 +5060,7 @@ func createCAJournal(tx *gorm.DB, caJournal *datastore.CAJournal) (*datastore.CA
 		ActiveX509AuthorityID: caJournal.ActiveX509AuthorityID,
 	}
 
-	if err := tx.Create(&model).Error; err != nil {
+	if err := tx.Omit("journal_id").Create(&model).Error; err != nil {
 		return nil, sqlcommon.NewWrappedSQLError(err)
 	}
 
@@ -5101,7 +5101,7 @@ func updateCAJournal(tx *gorm.DB, caJournal *datastore.CAJournal) (*datastore.CA
 	model.ActiveX509AuthorityID = caJournal.ActiveX509AuthorityID
 	model.Data = caJournal.Data
 
-	if err := tx.Save(&model).Error; err != nil {
+	if err := tx.Omit("journal_id").Save(&model).Error; err != nil {
 		return nil, sqlcommon.NewWrappedSQLError(err)
 	}
 
