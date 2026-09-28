@@ -178,6 +178,8 @@ The `database_type` configuration allows specifying the type of database with IA
 
 _Note: Replace `dbtype-with-iam-support` with the specific database type that supports IAM authentication._
 
+The `aws_postgres` and `aws_mysql` database types resolve credentials through the default AWS credential chain. When those credentials come from the EC2 Instance Metadata Service, the SDK requests an IMDSv2 session token first and falls back to IMDSv1 if it cannot obtain one. SPIRE Server running in a container adds a network hop to the metadata request, and the token is returned over a PUT, so a `HttpPutResponseHopLimit` of 1 stops the token reaching the server. On an instance where IMDSv1 is optional the fallback then succeeds and the failure goes unnoticed; on an instance that requires IMDSv2 the fallback request is refused with a 401 and credential resolution fails once the deadline expires. Configure the instance with a `HttpPutResponseHopLimit` of at least 2 rather than relying on the IMDSv1 fallback.
+
 Supported IAM authentication database types include:
 
 #### "aws_postgres"
