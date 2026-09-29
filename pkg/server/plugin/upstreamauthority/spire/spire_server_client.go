@@ -151,6 +151,21 @@ func (c *serverClient) publishJWTAuthority(ctx context.Context, key *types.JWTKe
 	return resp.JwtAuthorities, nil
 }
 
+// publishWITAuthority publishes a WIT key to the server
+func (c *serverClient) publishWITAuthority(ctx context.Context, key *types.WITKey) ([]*types.WITKey, error) {
+	c.mtx.RLock()
+	defer c.mtx.RUnlock()
+
+	resp, err := c.bundleClient.PublishWITAuthority(ctx, &bundlev1.PublishWITAuthorityRequest{
+		WitAuthority: key,
+	})
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "failed to push WIT authority: %v", err)
+	}
+
+	return resp.WitAuthorities, nil
+}
+
 // getBundle gets the bundle for the trust domain of the server
 func (c *serverClient) getBundle(ctx context.Context) (*types.Bundle, error) {
 	c.mtx.RLock()
