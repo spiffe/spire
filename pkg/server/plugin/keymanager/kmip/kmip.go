@@ -449,7 +449,15 @@ type recoveredKey struct {
 // (e.g. because a prior stale-key disposal partially completed) never causes
 // the whole recovery to fail: its public key is simply never looked up.
 func recoverKeys(ctx context.Context, client *kmipclient.Client, logger hclog.Logger, serverID, trustDomain string) (map[string]keyEntry, error) {
-	privUIDs, err := locatePrivateKeysWithAttributes(ctx, client)
+	// Filter server-side on server ID and trust domain so private keys owned by
+	// other servers or applications are never inspected (a GetAttributes failure
+	// on a foreign key would otherwise abort recovery). The values use the same
+	// custom-attribute encoding as createKeyPairForType. The loop below still
+	// re-checks both, in case the KMIP server ignores custom-attribute filters.
+	privUIDs, err := locatePrivateKeysWithAttributes(ctx, client,
+		ovh.Attribute{AttributeName: attrServerID, AttributeValue: serverID},
+		ovh.Attribute{AttributeName: attrTrustDomain, AttributeValue: trustDomain},
+	)
 	if err != nil {
 		return nil, fmt.Errorf("locate private keys: %w", err)
 	}

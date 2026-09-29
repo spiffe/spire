@@ -46,10 +46,12 @@ attributes, set in the `Create Key Pair` request:
 | `x-spire-active`       | `true` on the key currently in use for its SPIRE key ID          |
 
 On startup, the plugin recovers the keys it previously managed. It issues a
-paginated KMIP `Locate` for private key objects (filtered on object type only),
-reads the `x-spire-*` custom attributes of each result, and keeps only the keys
-whose `x-spire-server-id` and `x-spire-trust-domain` match this server. Keys with
-missing or unparseable metadata are skipped with a warning. The server identifier
+paginated KMIP `Locate` for private key objects filtered on object type,
+`x-spire-server-id` and `x-spire-trust-domain`, so keys owned by other servers or
+applications are not inspected. It then reads the `x-spire-*` custom attributes of
+each result and re-checks the server ID and trust domain, in case the KMIP server
+does not apply custom-attribute filters. Keys with missing or unparseable metadata
+are skipped with a warning. The server identifier
 must therefore be stable across restarts and unique per SPIRE server instance that
 shares the same KMIP server. It is provided with either `server_id_value` (inline)
 or `server_id_file` (a path whose content is used, and generated as a UUID when the

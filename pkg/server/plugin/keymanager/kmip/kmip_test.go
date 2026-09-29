@@ -768,6 +768,55 @@ func TestRecoverKeysFailsOnPublicKeyLookupErrors(t *testing.T) {
 	}
 }
 
+// TestRecoverKeysScopesToServerAndTrustDomain verifies that recovery only
+// considers keys owned by this server ID and trust domain: foreign keys are
+// filtered out by Locate (so a broken foreign key cannot abort recovery), and
+// are still excluded client-side when the KMIP server ignores the filter.
+func TestRecoverKeysScopesToServerAndTrustDomain(t *testing.T) {
+	for _, tt := range []struct {
+		name          string
+		ignoreFilters bool
+	}{
+		{name: "server applies custom attribute filters"},
+		{name: "server ignores custom attribute filters", ignoreFilters: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			store := newFakeStore()
+			store.ignoreLocateAttrFilters = tt.ignoreFilters
+			addr, caPEM := kmiptest.NewServer(t, store.handler())
+			lastUpdate := time.Unix(1_700_000_000, 0).Unix()
+			store.seed("own-priv", "own-pub", spireAttrs(testServerID, testTrustDomain, "own-key", lastUpdate))
+			store.seed("other-server-priv", "other-server-pub", spireAttrs("other-server", testTrustDomain, "other-server-key", lastUpdate))
+			store.seed("other-td-priv", "other-td-pub", spireAttrs(testServerID, "other.example.org", "other-td-key", lastUpdate))
+			seedECKeyMaterial(t, store, "own-priv", "own-pub")
+			seedECKeyMaterial(t, store, "other-server-priv", "other-server-pub")
+			seedECKeyMaterial(t, store, "other-td-priv", "other-td-pub")
+			if !tt.ignoreFilters {
+				// A foreign key whose attributes cannot be read must not break
+				// recovery when Locate already excluded it.
+				store.failGetAttributes("other-server-priv", attrServerID, errors.New("permission denied"))
+			}
+
+			caFile := writeTempPEM(t, caPEM)
+			client, err := buildClient(context.Background(), &Config{
+				KMIPAddr:                addr,
+				CACertPath:              caFile,
+				InsecureSkipVerify:      true,
+				parsedStaleKeyThreshold: defaultStaleKeyThreshold,
+			})
+			require.NoError(t, err)
+			t.Cleanup(func() {
+				require.NoError(t, client.Close())
+			})
+
+			entries, err := recoverKeys(context.Background(), client, hclog.NewNullLogger(), testServerID, testTrustDomain)
+			require.NoError(t, err)
+			require.Len(t, entries, 1)
+			require.Equal(t, "own-priv", entries["own-key"].privateKeyUID)
+		})
+	}
+}
+
 // TestGenerateKeyRotationMarksExactlyOneActiveKey reproduces the scenario flagged
 // in review: SPIRE reuses key IDs across rotations, so after GenerateKey is called
 // twice with the same KeyId, two key objects sharing that spire-key-id exist on the
@@ -1343,6 +1392,9 @@ type fakeStore struct {
 	activateCalls      int
 	lastSignRequest    *payloads.SignRequestPayload
 	counter            int
+	// ignoreLocateAttrFilters makes Locate honor only the ObjectType filter,
+	// mimicking a KMIP server that ignores custom-attribute filters.
+	ignoreLocateAttrFilters bool
 }
 
 type getAttributesFailureKey struct {
@@ -1607,25 +1659,39 @@ func (s *fakeStore) handler() kmipserver.RequestHandler {
 		defer s.mu.Unlock()
 		var filterObjectType ovh.ObjectType
 		hasObjectType := false
+		var customFilters []ovh.Attribute
 		for _, a := range req.Attribute {
 			if a.AttributeName == ovh.AttributeNameObjectType {
 				if t, ok := a.AttributeValue.(ovh.ObjectType); ok {
 					filterObjectType = t
 					hasObjectType = true
 				}
+			} else if !s.ignoreLocateAttrFilters {
+				if wrapped, ok := a.AttributeValue.(ttlv.Value); ok {
+					a.AttributeValue = wrapped.Value
+				}
+				customFilters = append(customFilters, a)
 			}
 		}
-		matches := func(objectType ovh.ObjectType) bool {
-			return !hasObjectType || filterObjectType == objectType
+		matches := func(objectType ovh.ObjectType, attrs map[ovh.AttributeName]any) bool {
+			if hasObjectType && filterObjectType != objectType {
+				return false
+			}
+			for _, f := range customFilters {
+				if val, ok := attrs[f.AttributeName]; !ok || val != f.AttributeValue {
+					return false
+				}
+			}
+			return true
 		}
 		var all []string
-		for uid := range s.keys {
-			if matches(ovh.ObjectTypePrivateKey) {
+		for uid, rec := range s.keys {
+			if matches(ovh.ObjectTypePrivateKey, rec.attrs) {
 				all = append(all, uid)
 			}
 		}
-		for uid := range s.pubKeys {
-			if matches(ovh.ObjectTypePublicKey) {
+		for uid, rec := range s.pubKeys {
+			if matches(ovh.ObjectTypePublicKey, rec.pubAttrs) {
 				all = append(all, uid)
 			}
 		}
