@@ -3491,7 +3491,6 @@ func TestBatchUpdateEntry(t *testing.T) {
 		SpiffeId:    &types.SPIFFEID{TrustDomain: "example.org", Path: "/validUpdated"},
 		X509SvidTtl: 400000,
 		JwtSvidTtl:  300000,
-		WitSvidTtl:  200000,
 		Selectors: []*types.Selector{
 			{Type: "unix", Value: "uid:9999"},
 		},
@@ -3837,50 +3836,6 @@ func TestBatchUpdateEntry(t *testing.T) {
 							telemetry.Type:           "audit",
 							telemetry.RegistrationID: m[entry1SpiffeID.Path],
 							telemetry.X509SVIDTTL:    "1000",
-						},
-					},
-				}
-			},
-		},
-		{
-			name:           "Success Update WITSVIDTTL",
-			initialEntries: []*types.Entry{initialEntry},
-			inputMask: &types.EntryMask{
-				WitSvidTtl: true,
-			},
-			outputMask: &types.EntryMask{
-				WitSvidTtl: true,
-			},
-			updateEntries: []*types.Entry{
-				{
-					WitSvidTtl: 1000,
-				},
-			},
-			expectDsEntries: func(id string) []*types.Entry {
-				modifiedEntry := proto.Clone(initialEntry).(*types.Entry)
-				modifiedEntry.Id = id
-				modifiedEntry.WitSvidTtl = 1000
-				modifiedEntry.RevisionNumber = 1
-				return []*types.Entry{modifiedEntry}
-			},
-			expectResults: []*entryv1.BatchUpdateEntryResponse_Result{
-				{
-					Status: &types.Status{Code: int32(codes.OK), Message: "OK"},
-					Entry: &types.Entry{
-						WitSvidTtl: 1000,
-					},
-				},
-			},
-			expectLogs: func(m map[string]string) []spiretest.LogEntry {
-				return []spiretest.LogEntry{
-					{
-						Level:   logrus.InfoLevel,
-						Message: "API accessed",
-						Data: logrus.Fields{
-							telemetry.Status:         "success",
-							telemetry.Type:           "audit",
-							telemetry.RegistrationID: m[entry1SpiffeID.Path],
-							telemetry.WITSVIDTTL:     "1000",
 						},
 					},
 				}
@@ -4607,7 +4562,6 @@ func TestBatchUpdateEntry(t *testing.T) {
 						SpiffeId:    &types.SPIFFEID{TrustDomain: "example.org", Path: "/validUpdated"},
 						X509SvidTtl: 400000,
 						JwtSvidTtl:  300000,
-						WitSvidTtl:  200000,
 						Selectors: []*types.Selector{
 							{Type: "unix", Value: "uid:9999"},
 						},
@@ -4640,7 +4594,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 							telemetry.SPIFFEID:       "spiffe://example.org/validUpdated",
 							telemetry.X509SVIDTTL:    "400000",
 							telemetry.JWTSVIDTTL:     "300000",
-							telemetry.WITSVIDTTL:     "200000",
+							telemetry.WITSVIDTTL:     "0",
 							telemetry.StoreSvid:      "false",
 							telemetry.Hint:           "newHint",
 							telemetry.CreatedAt:      "0",

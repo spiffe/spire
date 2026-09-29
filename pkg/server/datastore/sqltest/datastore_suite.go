@@ -2586,7 +2586,6 @@ func (s *Suite) TestCreateOrReturnRegistrationEntry() {
 				},
 				X509SvidTtl: 1,
 				JwtSvidTtl:  1,
-				WitSvidTtl:  1,
 				DnsNames: []string{
 					"abcd.efg",
 					"somehost",
@@ -3659,12 +3658,10 @@ func (s *Suite) TestUpdateRegistrationEntry() {
 		ParentId:    "spiffe://example.org/bar",
 		X509SvidTtl: 1,
 		JwtSvidTtl:  20,
-		WitSvidTtl:  30,
 	})
 
 	entry.X509SvidTtl = 11
 	entry.JwtSvidTtl = 21
-	entry.WitSvidTtl = 31
 	entry.Admin = true
 	entry.Downstream = true
 	entry.Hint = "internal"
@@ -3674,7 +3671,6 @@ func (s *Suite) TestUpdateRegistrationEntry() {
 	// Verify output has expected values
 	s.Require().Equal(int32(11), updatedRegistrationEntry.X509SvidTtl)
 	s.Require().Equal(int32(21), updatedRegistrationEntry.JwtSvidTtl)
-	s.Require().Equal(int32(31), updatedRegistrationEntry.WitSvidTtl)
 	s.Require().True(updatedRegistrationEntry.Admin)
 	s.Require().True(updatedRegistrationEntry.Downstream)
 	s.Require().Equal("internal", updatedRegistrationEntry.Hint)
@@ -3739,7 +3735,6 @@ func (s *Suite) TestUpdateRegistrationEntryWithMask() {
 		SpiffeId:      "spiffe://example.org/oldSpiffeId",
 		X509SvidTtl:   1000,
 		JwtSvidTtl:    3000,
-		WitSvidTtl:    5000,
 		Selectors:     []*common.Selector{{Type: "Type1", Value: "Value1"}},
 		FederatesWith: []string{"spiffe://dom1.org"},
 		Admin:         false,
@@ -3753,7 +3748,6 @@ func (s *Suite) TestUpdateRegistrationEntryWithMask() {
 		SpiffeId:      "spiffe://example.org/newSpiffeId",
 		X509SvidTtl:   4000,
 		JwtSvidTtl:    6000,
-		WitSvidTtl:    8000,
 		Selectors:     []*common.Selector{{Type: "Type2", Value: "Value2"}},
 		FederatesWith: []string{"spiffe://dom2.org"},
 		Admin:         false,

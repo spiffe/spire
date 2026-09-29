@@ -450,7 +450,6 @@ Creates registration entries.
 | `-spiffeID`                | The SPIFFE ID that this record represents and will be set to the SVID issued.                                                                                                                     |                                                 |
 | `-x509SVIDTTL`             | A TTL, in seconds, for any X509-SVID issued as a result of this record.                                                                                                                           | The TTL configured with `default_x509_svid_ttl` |
 | `-jwtSVIDTTL`              | A TTL, in seconds, for any JWT-SVID issued as a result of this record.                                                                                                                            | The TTL configured with `default_jwt_svid_ttl`  |
-| `-witSVIDTTL`              | A TTL, in seconds, for any WIT-SVID issued as a result of this record.                                                                                                                            | The TTL configured with `default_wit_svid_ttl`  |
 | `-storeSVID`               | A boolean value that, when set, indicates that the resulting issued SVID from this entry must be stored through an SVIDStore plugin                                                               |                                                 |
 
 ### `spire-server entry update`
@@ -473,7 +472,6 @@ Updates registration entries.
 | `-spiffeID`                | The SPIFFE ID that this record represents and will be set to the SVID issued.                                                                                                                     |                                                 |
 | `-x509SVIDTTL`             | A TTL, in seconds, for any X509-SVID issued as a result of this record.                                                                                                                           | The TTL configured with `default_x509_svid_ttl` |
 | `-jwtSVIDTTL`              | A TTL, in seconds, for any JWT-SVID issued as a result of this record.                                                                                                                            | The TTL configured with `default_jwt_svid_ttl`  |
-| `-witSVIDTTL`              | A TTL, in seconds, for any WIT-SVID issued as a result of this record. Setting it to 0 restores the default WIT-SVID TTL.                                                                         | The TTL configured with `default_wit_svid_ttl`  |
 | `-storeSVID`               | A boolean value that, when set, indicates that the resulting issued SVID from this entry must be stored through an SVIDStore plugin                                                               |                                                 |
 
 ### `spire-server entry count`

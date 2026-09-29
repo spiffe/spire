@@ -2642,12 +2642,11 @@ func createRegistrationEntry(tx *gorm.DB, entry *common.RegistrationEntry) (*com
 		Expiry:               entry.EntryExpiry,
 		StoreSvid:            entry.StoreSvid,
 		JWTSvidTTL:           entry.JwtSvidTtl,
-		WITSvidTTL:           entry.WitSvidTtl,
 		Hint:                 entry.Hint,
 		AdditionalAttributes: AdditionalAttributes,
 	}
 
-	if err := tx.Create(&newRegisteredEntry).Error; err != nil {
+	if err := tx.Omit("wit_svid_ttl").Create(&newRegisteredEntry).Error; err != nil {
 		return nil, sqlcommon.NewWrappedSQLError(err)
 	}
 
@@ -2762,7 +2761,7 @@ SELECT
 	NULL AS dns_name,
 	revision_number,
 	jwt_svid_ttl AS reg_jwt_svid_ttl,
-	wit_svid_ttl AS reg_wit_svid_ttl,
+	NULL AS reg_wit_svid_ttl,
 	additional_attributes
 FROM
 	registered_entries
@@ -2828,7 +2827,7 @@ SELECT
 	NULL AS dns_name,
 	revision_number,
 	jwt_svid_ttl AS reg_jwt_svid_ttl,
-	wit_svid_ttl AS reg_wit_svid_ttl,
+	NULL AS reg_wit_svid_ttl,
 	additional_attributes
 FROM
 	registered_entries
@@ -2890,7 +2889,7 @@ SELECT
 	D.value AS dns_name,
 	E.revision_number,
 	E.jwt_svid_ttl AS reg_jwt_svid_ttl,
-	E.wit_svid_ttl AS reg_wit_svid_ttl,
+	NULL AS reg_wit_svid_ttl,
 	E.additional_attributes AS additional_attributes
 FROM
 	registered_entries E
@@ -2934,7 +2933,7 @@ SELECT
 	NULL AS dns_name,
 	revision_number,
 	jwt_svid_ttl AS reg_jwt_svid_ttl,
-	wit_svid_ttl AS reg_wit_svid_ttl,
+	NULL AS reg_wit_svid_ttl,
 	additional_attributes
 FROM
 	registered_entries
@@ -3147,7 +3146,7 @@ SELECT
 	NULL AS dns_name,
 	revision_number,
 	jwt_svid_ttl AS reg_jwt_svid_ttl,
-	wit_svid_ttl AS reg_wit_svid_ttl,
+	NULL AS reg_wit_svid_ttl,
 	additional_attributes
 FROM
 	registered_entries
@@ -3244,7 +3243,7 @@ SELECT
 	NULL AS dns_name,
 	revision_number,
 	jwt_svid_ttl AS reg_jwt_svid_ttl,
-	wit_svid_ttl AS reg_wit_svid_ttl,
+	NULL AS reg_wit_svid_ttl,
 	additional_attributes
 FROM
 	registered_entries
@@ -3339,7 +3338,7 @@ SELECT
 	D.value AS dns_name,
 	E.revision_number,
 	E.jwt_svid_ttl AS reg_jwt_svid_ttl,
-	E.wit_svid_ttl AS reg_wit_svid_ttl,
+	NULL AS reg_wit_svid_ttl,
 	E.additional_attributes AS additional_attributes
 FROM
 	registered_entries E
@@ -3415,7 +3414,7 @@ SELECT
 	NULL AS dns_name,
 	revision_number,
 	jwt_svid_ttl AS reg_jwt_svid_ttl,
-	wit_svid_ttl AS reg_wit_svid_ttl,
+	NULL AS reg_wit_svid_ttl,
 	additional_attributes
 FROM
 	registered_entries
@@ -4175,9 +4174,6 @@ func updateRegistrationEntry(tx *gorm.DB, e *common.RegistrationEntry, mask *com
 	if mask == nil || mask.JwtSvidTtl {
 		entry.JWTSvidTTL = e.JwtSvidTtl
 	}
-	if mask == nil || mask.WitSvidTtl {
-		entry.WITSvidTTL = e.WitSvidTtl
-	}
 	if mask == nil || mask.Hint {
 		entry.Hint = e.Hint
 	}
@@ -4192,7 +4188,7 @@ func updateRegistrationEntry(tx *gorm.DB, e *common.RegistrationEntry, mask *com
 	// Revision number is increased by 1 on every update call
 	entry.RevisionNumber++
 
-	if err := tx.Save(&entry).Error; err != nil {
+	if err := tx.Omit("wit_svid_ttl").Save(&entry).Error; err != nil {
 		return nil, sqlcommon.NewWrappedSQLError(err)
 	}
 
@@ -4824,7 +4820,6 @@ func modelToEntryWithFederatesWith(tx *gorm.DB, model RegisteredEntry, federates
 		RevisionNumber:       model.RevisionNumber,
 		StoreSvid:            model.StoreSvid,
 		JwtSvidTtl:           model.JWTSvidTTL,
-		WitSvidTtl:           model.WITSvidTTL,
 		Hint:                 model.Hint,
 		AdditionalAttributes: AdditionalAttributes,
 		CreatedAt:            roundedInSecondsUnix(model.CreatedAt),

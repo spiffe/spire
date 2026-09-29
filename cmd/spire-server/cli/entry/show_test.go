@@ -461,7 +461,6 @@ Parent ID               : spiffe://example.org/father
 Revision                : 0
 X509-SVID TTL           : default
 JWT-SVID TTL            : default
-WIT-SVID TTL            : default
 Selector                : foo:bar
 Hint                    : internal
 
@@ -473,7 +472,6 @@ Parent ID               : spiffe://example.org/father
 Revision                : 0
 X509-SVID TTL           : default
 JWT-SVID TTL            : default
-WIT-SVID TTL            : default
 Selector                : bar:baz
 Selector                : foo:bar
 Hint                    : external
@@ -486,7 +484,6 @@ Parent ID               : spiffe://example.org/mother
 Revision                : 0
 X509-SVID TTL           : default
 JWT-SVID TTL            : default
-WIT-SVID TTL            : default
 Selector                : bar:baz
 Selector                : baz:bat
 FederatesWith           : spiffe://domain.test
@@ -499,7 +496,6 @@ Parent ID               : spiffe://example.org/mother
 Revision                : 0
 X509-SVID TTL           : default
 JWT-SVID TTL            : default
-WIT-SVID TTL            : default
 Expiration time         : %s
 Selector                : baz:bat
 
