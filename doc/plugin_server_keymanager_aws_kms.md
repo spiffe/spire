@@ -15,6 +15,8 @@ The plugin accepts the following configuration options:
 | key_identifier_value             | string  | Required if key_identifier_file is not set  | A static identifier for the SPIRE server instance (used instead of `key_identifier_file`)                                 |                                                         |
 | key_policy_file                  | string  | no                                          | A file path location to a custom key policy in JSON format                                                                | ""                                                      |
 | enable_tag_based_key_discovery   | boolean | no                                          | Enable tag-based key discovery (recommended). See [Tag-based Key Discovery](#tag-based-key-discovery).                    | false                                                   |
+| multi_region                     | boolean | no                                          | Create new keys as [multi-Region keys](#multi-region-keys).                                                               | false                                                   |
+| replica_regions                  | list    | no                                          | Regions that each new key is replicated into. Requires `multi_region`. See [Multi-Region Keys](#multi-region-keys).       | []                                                      |
 
 ### Server Instance Identification
 
@@ -91,7 +93,76 @@ When using key tagging, you must add the `kms:TagResource` permission to the IAM
 The plugin validates all user-defined tags during configuration. If any tag violates AWS KMS tagging constraints, the plugin will fail to configure and report a detailed error message indicating the specific validation failure.
 
 **Tag lifecycle**
-When the `key_tags` configuration block is updated, only newly created keys will be tagged with the new configuration. Existing keys will not have their tags updated.
+When the `key_tags` configuration block is updated, newly-created primary keys
+use the new configuration, but existing primary keys are not updated. Current
+replicas in `replica_regions` are reconciled during configuration, so the plugin
+applies the configured tag values to them again; tags that were removed from
+the configuration are not removed from existing replicas.
+
+### Multi-Region Keys
+
+Setting `multi_region` to `true` causes the plugin to create new keys as AWS
+[multi-Region keys](https://docs.aws.amazon.com/kms/latest/developerguide/multi-region-keys-overview.html).
+Such a key is a multi-Region _primary_ key that is eligible to be replicated
+into other regions, where the resulting replica shares its key ID and key
+material and can therefore produce interchangeable signatures.
+
+`multi_region` on its own only makes keys eligible; AWS never replicates a key
+by itself. Listing regions in `replica_regions` additionally makes the plugin
+replicate each current and newly-created multi-Region primary key into those
+regions, then apply the description, policy, alias, and tags that the replica
+needs. These properties are _independent_ properties of multi-Region keys, so
+AWS does not copy or synchronize them between regions.
+
+Replication happens asynchronously on a retrying queue per replica region. Key
+generation is on the CA rotation path, so it never blocks on a replica region: a
+region that is temporarily unreachable is retried with a backoff while the SPIRE
+server continues to operate normally, and because each region has its own queue,
+one unreachable region does not delay replication into the others. The plugin
+also queues existing multi-Region primary keys during configuration, so a
+restart, reconfiguration, or newly-added replica region does not need to wait
+for the next key rotation. Existing single-Region keys and keys that are already
+replicas are not queued.
+
+AWS initially creates a replica in the `Creating` state, during which KMS allows
+its alias to be assigned even though the key cannot sign. The plugin waits for
+the replica to become `Enabled` before moving the alias. When a key is rotated,
+the replica that the destination alias actually displaced is deleted only after
+the alias has been repointed, so the alias never targets a key that is pending
+deletion.
+
+#### Limitations
+
+This supports promote-then-start disaster recovery with a **cold standby**. It
+is not active-active, and the following constraints apply.
+
+- **Do not run a SPIRE server in a replica region while the primary is
+  running.** A failover server must reuse the primary's `key_identifier_value`
+  in order to find the replicated aliases, which means both servers would
+  discover the same keys and resolve to the same CA journal record, and would
+  then rotate against each other. Note that this conflicts with the guidance
+  under [Server Instance Identification](#server-instance-identification) that
+  the identifier is unique per server; a primary and its standby are the
+  exception, and only one of them may run at a time.
+- **The datastore in the failover region must be writable before the server
+  starts.** SPIRE server startup writes, so a read-only replica database cannot
+  host a running server.
+- **Replication is not a precondition for use of a key.** The plugin has no way
+  to tell the SPIRE server that a key has not yet reached a replica region, so
+  a CA may be prepared and activated while replication is still outstanding or
+  failing. Sustained replication failures are logged but do not otherwise
+  surface.
+- **A key's multi-Region property cannot be changed after creation.** Enabling
+  `multi_region` affects only keys created from that point on, and keys created
+  earlier are never replicated. The server replaces them as it rotates, so a
+  deployment converges within roughly a day, during which the replica regions
+  have partial coverage.
+- **Key policy changes are not synchronized after creation.** The plugin supplies
+  the policy configured by `key_policy_file`, or its generated default policy,
+  when it creates each replica. However, AWS still treats each replica policy as
+  independent, so an out-of-band policy change must be applied in every region.
+- **Cost and quota scale with the number of regions**, since each rotation
+  creates a key in the primary region and one in every replica region.
 
 ### AWS KMS Access
 
@@ -111,13 +182,19 @@ The IAM role must have an attached policy with the following permissions:
 
 The following additional permissions are required depending on the configuration:
 
-| Permission         | Required when                                                           |
-|--------------------|-------------------------------------------------------------------------|
-| `kms:ListKeys`     | Using alias-based key discovery (current default)                       |
-| `kms:TagResource`  | Using tag-based key discovery or `key_tags`                             |
-| `tag:GetResources` | Using tag-based key discovery (`enable_tag_based_key_discovery = true`) |
+| Permission                    | Required when                                                               |
+|-------------------------------|-----------------------------------------------------------------------------|
+| `kms:ListKeys`                | Using alias-based key discovery (current default)                           |
+| `kms:TagResource`             | Using tag-based key discovery or `key_tags`                                 |
+| `tag:GetResources`            | Using tag-based key discovery (`enable_tag_based_key_discovery = true`)     |
+| `iam:CreateServiceLinkedRole` | Creating multi-Region keys (`multi_region = true`)                          |
+| `kms:ReplicateKey`            | Replicating keys (`replica_regions`); on the primary key, in its key policy |
 
 `tag:GetResources` belongs to the Resource Groups Tagging API, not to KMS. It is an identity-based permission and must be granted in the IAM identity's policy. It cannot be granted through the KMS key policy (including the default policy generated by the plugin).
+
+When `replica_regions` is configured, the identity also needs permissions in each replica region, because the plugin creates and maintains resources there directly: `kms:CreateKey` (which `ReplicateKey` requires in the destination region), `kms:CreateAlias`, `kms:UpdateAlias`, `kms:DescribeKey`, and `kms:ScheduleKeyDeletion` to remove replicas displaced by rotation. Add `kms:TagResource` there as well when tag-based discovery or `key_tags` is in use.
+
+`iam:CreateServiceLinkedRole` is likewise an identity-based permission and cannot be granted through a key policy. AWS KMS requires it from any principal creating a multi-Region primary key, so that it can create the `AWSServiceRoleForKeyManagementServiceMultiRegionKeys` role used to synchronize shared properties between related keys. Without it, `CreateKey` fails when `multi_region` is enabled.
 
 ### Key policy
 
