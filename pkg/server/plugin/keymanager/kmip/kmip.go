@@ -1010,6 +1010,7 @@ func (p *Plugin) disposeStaleKeys(ctx context.Context) error {
 	p.mu.RLock()
 	client := p.client
 	threshold := p.staleKeyThreshold
+	trustDomain := p.trustDomain
 	p.mu.RUnlock()
 	if client == nil {
 		return nil
@@ -1028,7 +1029,7 @@ func (p *Plugin) disposeStaleKeys(ctx context.Context) error {
 			p.logger.Warn("Failed to read metadata during disposal", "uid", privUID, "err", err)
 			continue
 		}
-		if !ok || td != p.trustDomain || lastUpdate >= staleThreshold {
+		if !ok || td != trustDomain || lastUpdate >= staleThreshold {
 			continue
 		}
 		if err := revokeAndDestroyKeyPair(ctx, client, p.logger, privUID); err != nil {
