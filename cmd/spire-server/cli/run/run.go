@@ -121,6 +121,7 @@ type experimentalConfig struct {
 	RequirePQKEM            bool                        `hcl:"require_pq_kem"`
 	WITKeyType              string                      `hcl:"wit_key_type"`
 	WITIssuer               string                      `hcl:"wit_issuer"`
+	DefaultWITSVIDTTL       string                      `hcl:"default_wit_svid_ttl"`
 
 	Flags fflag.RawConfig `hcl:"feature_flags"`
 
@@ -600,6 +601,16 @@ func newServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig, ski
 		sc.JWTSVIDTTL = credtemplate.DefaultJWTSVIDTTL
 	}
 
+	if c.Server.Experimental.DefaultWITSVIDTTL != "" {
+		ttl, err := time.ParseDuration(c.Server.Experimental.DefaultWITSVIDTTL)
+		if err != nil {
+			return nil, fmt.Errorf("could not parse default WIT SVID ttl %q: %w", c.Server.Experimental.DefaultWITSVIDTTL, err)
+		}
+		sc.WITSVIDTTL = ttl
+	} else {
+		sc.WITSVIDTTL = credtemplate.DefaultWITSVIDTTL
+	}
+
 	if c.Server.CATTL != "" {
 		ttl, err := time.ParseDuration(c.Server.CATTL)
 		if err != nil {
@@ -624,6 +635,10 @@ func newServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig, ski
 		{
 			name: "default_jwt_svid_ttl",
 			ttl:  sc.JWTSVIDTTL,
+		},
+		{
+			name: "default_wit_svid_ttl",
+			ttl:  sc.WITSVIDTTL,
 		},
 	}
 	if sc.AgentTTL != 0 {
