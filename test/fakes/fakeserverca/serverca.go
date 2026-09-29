@@ -107,6 +107,7 @@ func New(t *testing.T, trustDomain spiffeid.TrustDomain, options *Options) *CA {
 	serverCA.SetX509CA(&ca.X509CA{
 		Signer:      signer,
 		Certificate: caCert,
+		NotAfter:    caCert.NotAfter,
 	})
 	serverCA.SetJWTKey(&ca.JWTKey{
 		Signer:   signer,
