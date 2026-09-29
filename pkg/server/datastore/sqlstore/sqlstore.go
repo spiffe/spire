@@ -4685,15 +4685,15 @@ func validateRegistrationEntry(entry *common.RegistrationEntry) error {
 	}
 
 	if entry.X509SvidTtl < 0 {
-		return sqlcommon.NewValidationError("invalid registration entry: X509SvidTtl is not set")
+		return sqlcommon.NewValidationError("invalid registration entry: X509SvidTtl must be positive")
 	}
 
 	if entry.JwtSvidTtl < 0 {
-		return sqlcommon.NewValidationError("invalid registration entry: JwtSvidTtl is not set")
+		return sqlcommon.NewValidationError("invalid registration entry: JwtSvidTtl must be positive")
 	}
 
 	if entry.WitSvidTtl < 0 {
-		return sqlcommon.NewValidationError("invalid registration entry: WitSvidTtl is not set")
+		return sqlcommon.NewValidationError("invalid registration entry: WitSvidTtl must be positive")
 	}
 
 	return nil
