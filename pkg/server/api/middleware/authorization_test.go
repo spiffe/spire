@@ -100,6 +100,21 @@ func TestWithAuthorizationPreprocess(t *testing.T) {
 		},
 	}
 
+	agentID := spiffeid.RequireFromPath(td, "/spire/agent/foo")
+	agentX509SVID := &x509.Certificate{URIs: []*url.URL{agentID.URL()}}
+	agentPeer := &peer.Peer{
+		Addr: &net.TCPAddr{
+			IP:   net.ParseIP("2.2.2.2"),
+			Port: 2,
+		},
+		AuthInfo: credentials.TLSInfo{
+			State: tls.ConnectionState{
+				HandshakeComplete: true,
+				PeerCertificates:  []*x509.Certificate{agentX509SVID},
+			},
+		},
+	}
+
 	for _, tt := range []struct {
 		name            string
 		request         any
@@ -207,6 +222,21 @@ func TestWithAuthorizationPreprocess(t *testing.T) {
 			rego: simpleRego(map[string]bool{
 				"allow_if_agent": true,
 			}),
+			agentAuthorizer: yesAgentAuthorizer,
+			expectCode:      codes.OK,
+		},
+		{
+			name:       "allow_if_admin or allow_if_agent agent caller skips entry fetch",
+			fullMethod: fakeFullMethod,
+			peer:       agentPeer,
+			rego: simpleRego(map[string]bool{
+				"allow_if_admin":      true,
+				"allow_if_downstream": true,
+				"allow_if_agent":      true,
+			}),
+			entryFetcher: func(ctx context.Context, id spiffeid.ID) ([]*types.Entry, error) {
+				return nil, errors.New("entries should not be fetched for agents")
+			},
 			agentAuthorizer: yesAgentAuthorizer,
 			expectCode:      codes.OK,
 		},

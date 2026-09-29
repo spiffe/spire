@@ -8,6 +8,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
+	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/peertracker"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
@@ -77,8 +78,9 @@ func (m *authorizationMiddleware) reconcileResult(ctx context.Context, res authp
 		}
 	}
 
-	// Check entry-based admin and downstream auth
-	if res.AllowIfAdmin || res.AllowIfDownstream {
+	// Check entry-based admin and downstream auth. Entries can't have agent
+	// IDs, so skip the lookup for agents.
+	if (res.AllowIfAdmin || res.AllowIfDownstream) && !callerHasAgentID(ctx) {
 		ctx, entries, err := WithCallerEntries(ctx, m.entryFetcher)
 		if err != nil {
 			return nil, false, err
@@ -108,6 +110,11 @@ func (m *authorizationMiddleware) reconcileResult(ctx context.Context, res authp
 	}
 
 	return ctx, false, nil
+}
+
+func callerHasAgentID(ctx context.Context) bool {
+	callerID, ok := rpccontext.CallerID(ctx)
+	return ok && idutil.IsAgentPath(callerID.Path())
 }
 
 func isAdminViaConfig(ctx context.Context, adminIDs map[spiffeid.ID]struct{}) (context.Context, bool) {
