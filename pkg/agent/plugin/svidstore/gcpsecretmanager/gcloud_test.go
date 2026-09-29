@@ -251,6 +251,50 @@ func TestPutX509SVID(t *testing.T) {
 			clientConfig: &clientConfig{},
 		},
 		{
+			name: "Add payload with multiple roots in the federated bundle",
+			req: &svidstore.X509SVID{
+				SVID:     successReq.SVID,
+				Metadata: successReq.Metadata,
+				FederatedBundles: map[string][]*x509.Certificate{
+					"federated1": {federatedBundle, x509Bundle},
+				},
+			},
+			expectGetSecretReq: &secretmanagerpb.GetSecretRequest{
+				Name: "projects/project1/secrets/secret1",
+			},
+			expectAddSecretVersionReq: &secretmanagerpb.AddSecretVersionRequest{
+				Parent: "projects/project1/secrets/secret1",
+				Payload: &secretmanagerpb.SecretPayload{
+					Data: payloadWithFederatedBundles(t, secret, map[string]string{
+						"federated1": x509FederatedBundlePem + x509BundlePem,
+					}),
+				},
+			},
+			clientConfig: &clientConfig{},
+		},
+		{
+			name: "Add payload with an empty federated bundle",
+			req: &svidstore.X509SVID{
+				SVID:     successReq.SVID,
+				Metadata: successReq.Metadata,
+				FederatedBundles: map[string][]*x509.Certificate{
+					"federated1": {},
+				},
+			},
+			expectGetSecretReq: &secretmanagerpb.GetSecretRequest{
+				Name: "projects/project1/secrets/secret1",
+			},
+			expectAddSecretVersionReq: &secretmanagerpb.AddSecretVersionRequest{
+				Parent: "projects/project1/secrets/secret1",
+				Payload: &secretmanagerpb.SecretPayload{
+					Data: payloadWithFederatedBundles(t, secret, map[string]string{
+						"federated1": "",
+					}),
+				},
+			},
+			clientConfig: &clientConfig{},
+		},
+		{
 			name: "Update policy on existing secret: no bindings",
 			req: &svidstore.X509SVID{
 				SVID: successReq.SVID,
@@ -823,6 +867,16 @@ func TestPutX509SVID(t *testing.T) {
 			spiretest.AssertProtoEqual(t, tt.expectGetIamPolicyReq, client.getIamPolicyReq)
 		})
 	}
+}
+
+// payloadWithFederatedBundles returns the JSON payload of the given secret
+// using the given federated bundles instead of its own.
+func payloadWithFederatedBundles(t *testing.T, secret *svidstore.Data, federatedBundles map[string]string) []byte {
+	s := *secret
+	s.FederatedBundles = federatedBundles
+	payload, err := json.Marshal(&s)
+	require.NoError(t, err)
+	return payload
 }
 
 func TestDeleteX509SVID(t *testing.T) {

@@ -7,6 +7,7 @@ import (
 	svidstorev1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/agent/svidstore/v1"
 	"github.com/spiffe/spire/pkg/agent/plugin/svidstore"
 	"github.com/spiffe/spire/pkg/common/pemutil"
+	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/stretchr/testify/require"
 )
 
@@ -256,6 +257,85 @@ func TestSecretFromProto(t *testing.T) {
 			}
 			require.NoError(t, err)
 			require.Equal(t, tt.expect, resp)
+		})
+	}
+}
+
+func TestSecretFromProtoFederatedBundleRoots(t *testing.T) {
+	// The federated bundle of a trust domain is sent by the agent as the
+	// concatenation of the DER encoding of each of its X.509 authorities
+	// (see V1.PutX509SVID), so it can hold any number of roots.
+	root1, err := pemutil.ParseCertificate([]byte(x509FederatedBundlePem))
+	require.NoError(t, err)
+	root2, err := pemutil.ParseCertificate([]byte(x509BundlePem))
+	require.NoError(t, err)
+	root3, err := pemutil.ParseCertificate([]byte(x509CertPem))
+	require.NoError(t, err)
+
+	x509Key, err := pemutil.ParseECPrivateKey([]byte(x509KeyPem))
+	require.NoError(t, err)
+	keyByte, err := x509.MarshalPKCS8PrivateKey(x509Key)
+	require.NoError(t, err)
+
+	for _, tt := range []struct {
+		name         string
+		bundle       []byte
+		expectBundle string
+		expectErr    string
+	}{
+		{
+			name:         "one root",
+			bundle:       x509util.DERFromCertificates([]*x509.Certificate{root1}),
+			expectBundle: x509FederatedBundlePem,
+		},
+		{
+			name:         "two roots",
+			bundle:       x509util.DERFromCertificates([]*x509.Certificate{root1, root2}),
+			expectBundle: x509FederatedBundlePem + x509BundlePem,
+		},
+		{
+			name:         "three roots",
+			bundle:       x509util.DERFromCertificates([]*x509.Certificate{root1, root2, root3}),
+			expectBundle: x509FederatedBundlePem + x509BundlePem + x509CertPem,
+		},
+		{
+			name:         "no roots (nil)",
+			bundle:       x509util.DERFromCertificates(nil),
+			expectBundle: "",
+		},
+		{
+			name:         "no roots (empty)",
+			bundle:       []byte{},
+			expectBundle: "",
+		},
+		{
+			name:      "garbage after a valid root",
+			bundle:    append(x509util.DERFromCertificates([]*x509.Certificate{root1}), 1),
+			expectErr: "failed to parse FederatedBundle \"federated1\": x509: malformed certificate",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			resp, err := svidstore.SecretFromProto(&svidstorev1.PutX509SVIDRequest{
+				Svid: &svidstorev1.X509SVID{
+					SpiffeID:   "spiffe://example.org/foo",
+					CertChain:  [][]byte{root3.Raw},
+					PrivateKey: keyByte,
+					Bundle:     [][]byte{root2.Raw},
+				},
+				FederatedBundles: map[string][]byte{
+					"federated1": tt.bundle,
+				},
+			})
+			if tt.expectErr != "" {
+				require.EqualError(t, err, tt.expectErr)
+				require.Nil(t, resp)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, map[string]string{"federated1": tt.expectBundle}, resp.FederatedBundles)
+			// The rest of the secret is not affected by the federated bundle
+			require.Equal(t, x509CertPem, resp.X509SVID)
+			require.Equal(t, x509BundlePem, resp.Bundle)
 		})
 	}
 }

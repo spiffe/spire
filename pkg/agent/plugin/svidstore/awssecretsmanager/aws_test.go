@@ -276,6 +276,82 @@ func TestPutX509SVID(t *testing.T) {
 			smConfig: &smConfig{},
 		},
 		{
+			name: "Put SVID with multiple roots in the federated bundle",
+			req: &svidstore.X509SVID{
+				SVID: &svidstore.SVID{
+					SPIFFEID:   spiffeid.RequireFromString("spiffe://example.org/lambda"),
+					CertChain:  []*x509.Certificate{x509Cert},
+					PrivateKey: x509Key,
+					Bundle:     []*x509.Certificate{x509Bundle},
+					ExpiresAt:  expiresAt,
+				},
+				Metadata: []string{"arn:secret1"},
+				FederatedBundles: map[string][]*x509.Certificate{
+					"federated1": {federatedBundle, x509Bundle},
+				},
+			},
+			expectDescribeInput: &secretsmanager.DescribeSecretInput{
+				SecretId: aws.String("secret1"),
+			},
+			expectPutSecretInput: func(t *testing.T) *secretsmanager.PutSecretValueInput {
+				secret := &svidstore.Data{
+					SPIFFEID:    "spiffe://example.org/lambda",
+					X509SVID:    x509CertPem,
+					X509SVIDKey: x509KeyPem,
+					Bundle:      x509BundlePem,
+					FederatedBundles: map[string]string{
+						"federated1": x509FederatedBundlePem + x509BundlePem,
+					},
+				}
+				secretBinary, err := json.Marshal(secret)
+				assert.NoError(t, err)
+
+				return &secretsmanager.PutSecretValueInput{
+					SecretId:     aws.String("secret1-arn"),
+					SecretBinary: secretBinary,
+				}
+			},
+			smConfig: &smConfig{},
+		},
+		{
+			name: "Put SVID with an empty federated bundle",
+			req: &svidstore.X509SVID{
+				SVID: &svidstore.SVID{
+					SPIFFEID:   spiffeid.RequireFromString("spiffe://example.org/lambda"),
+					CertChain:  []*x509.Certificate{x509Cert},
+					PrivateKey: x509Key,
+					Bundle:     []*x509.Certificate{x509Bundle},
+					ExpiresAt:  expiresAt,
+				},
+				Metadata: []string{"arn:secret1"},
+				FederatedBundles: map[string][]*x509.Certificate{
+					"federated1": {},
+				},
+			},
+			expectDescribeInput: &secretsmanager.DescribeSecretInput{
+				SecretId: aws.String("secret1"),
+			},
+			expectPutSecretInput: func(t *testing.T) *secretsmanager.PutSecretValueInput {
+				secret := &svidstore.Data{
+					SPIFFEID:    "spiffe://example.org/lambda",
+					X509SVID:    x509CertPem,
+					X509SVIDKey: x509KeyPem,
+					Bundle:      x509BundlePem,
+					FederatedBundles: map[string]string{
+						"federated1": "",
+					},
+				}
+				secretBinary, err := json.Marshal(secret)
+				assert.NoError(t, err)
+
+				return &secretsmanager.PutSecretValueInput{
+					SecretId:     aws.String("secret1-arn"),
+					SecretBinary: secretBinary,
+				}
+			},
+			smConfig: &smConfig{},
+		},
+		{
 			name: "Create secret and put SVID",
 			req: &svidstore.X509SVID{
 				SVID: &svidstore.SVID{
