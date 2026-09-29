@@ -1514,7 +1514,6 @@ func TestBatchCreateEntry(t *testing.T) {
 		FederatesWith: []string{"domain1.org"},
 		X509SvidTtl:   45,
 		JwtSvidTtl:    30,
-		WitSvidTtl:    15,
 		Hint:          "external",
 		AdditionalAttributes: &types.Entry_AdditionalAttributes{
 			DisableX509SvidPrefetch: true,
@@ -1536,7 +1535,6 @@ func TestBatchCreateEntry(t *testing.T) {
 		FederatesWith: []string{"spiffe://domain1.org"},
 		X509SvidTtl:   45,
 		JwtSvidTtl:    30,
-		WitSvidTtl:    15,
 		Hint:          "external",
 		AdditionalAttributes: &common.RegistrationEntry_AdditionalAttributes{
 			DisableX509SvidPrefetch: true,
@@ -1579,7 +1577,7 @@ func TestBatchCreateEntry(t *testing.T) {
 						telemetry.SPIFFEID:       "spiffe://example.org/workload",
 						telemetry.X509SVIDTTL:    "45",
 						telemetry.JWTSVIDTTL:     "30",
-						telemetry.WITSVIDTTL:     "15",
+						telemetry.WITSVIDTTL:     "0",
 						telemetry.StoreSvid:      "false",
 						telemetry.Hint:           "external",
 						telemetry.CreatedAt:      "0",
@@ -1864,7 +1862,6 @@ func TestBatchCreateEntry(t *testing.T) {
 						FederatesWith: []string{"domain1.org"},
 						X509SvidTtl:   45,
 						JwtSvidTtl:    30,
-						WitSvidTtl:    15,
 						StoreSvid:     false,
 						Hint:          "external",
 						AdditionalAttributes: &types.Entry_AdditionalAttributes{
@@ -1895,7 +1892,7 @@ func TestBatchCreateEntry(t *testing.T) {
 						telemetry.SPIFFEID:       "spiffe://example.org/workload",
 						telemetry.X509SVIDTTL:    "45",
 						telemetry.JWTSVIDTTL:     "30",
-						telemetry.WITSVIDTTL:     "15",
+						telemetry.WITSVIDTTL:     "0",
 						telemetry.StoreSvid:      "false",
 						telemetry.Hint:           "external",
 						telemetry.CreatedAt:      "0",
@@ -1935,7 +1932,7 @@ func TestBatchCreateEntry(t *testing.T) {
 						telemetry.SPIFFEID:       "spiffe://example.org/workload",
 						telemetry.X509SVIDTTL:    "45",
 						telemetry.JWTSVIDTTL:     "30",
-						telemetry.WITSVIDTTL:     "15",
+						telemetry.WITSVIDTTL:     "0",
 						telemetry.StoreSvid:      "false",
 						telemetry.Hint:           "external",
 						telemetry.CreatedAt:      "0",
@@ -2050,7 +2047,7 @@ func TestBatchCreateEntry(t *testing.T) {
 						telemetry.SPIFFEID:       "spiffe://example.org/workload",
 						telemetry.X509SVIDTTL:    "45",
 						telemetry.JWTSVIDTTL:     "30",
-						telemetry.WITSVIDTTL:     "15",
+						telemetry.WITSVIDTTL:     "0",
 						telemetry.StoreSvid:      "false",
 						telemetry.Hint:           "external",
 						telemetry.CreatedAt:      "0",
@@ -2212,6 +2209,57 @@ func TestBatchCreateEntry(t *testing.T) {
 			},
 		},
 		{
+			name: "invalid WIT-SVID TTL",
+			expectResults: []*entryv1.BatchCreateEntryResponse_Result{
+				{
+					Status: &types.Status{
+						Code:    int32(codes.InvalidArgument),
+						Message: "failed to convert entry: WIT-SVID TTL is not supported yet",
+					},
+				},
+			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Invalid argument: failed to convert entry",
+					Data: logrus.Fields{
+						logrus.ErrorKey: "WIT-SVID TTL is not supported yet",
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:         "error",
+						telemetry.Type:           "audit",
+						telemetry.Admin:          "false",
+						telemetry.Downstream:     "false",
+						telemetry.ExpiresAt:      "0",
+						telemetry.ParentID:       "spiffe://example.org/host",
+						telemetry.RevisionNumber: "0",
+						telemetry.Selectors:      "type:value1",
+						telemetry.SPIFFEID:       "spiffe://example.org/workload",
+						telemetry.X509SVIDTTL:    "0",
+						telemetry.JWTSVIDTTL:     "0",
+						telemetry.WITSVIDTTL:     "15",
+						telemetry.StoreSvid:      "false",
+						telemetry.StatusCode:     "InvalidArgument",
+						telemetry.StatusMessage:  "failed to convert entry: WIT-SVID TTL is not supported yet",
+						telemetry.Hint:           "",
+						telemetry.CreatedAt:      "0",
+					},
+				},
+			},
+			reqEntries: []*types.Entry{
+				{
+					ParentId:   &types.SPIFFEID{TrustDomain: "example.org", Path: "/host"},
+					SpiffeId:   &types.SPIFFEID{TrustDomain: "example.org", Path: "/workload"},
+					Selectors:  []*types.Selector{{Type: "type", Value: "value1"}},
+					WitSvidTtl: 15,
+				},
+			},
+		},
+		{
 			name: "invalid entry ID",
 			expectResults: []*entryv1.BatchCreateEntryResponse_Result{
 				{
@@ -2346,7 +2394,7 @@ func TestBatchCreateEntry(t *testing.T) {
 						telemetry.SPIFFEID:       "spiffe://example.org/workload",
 						telemetry.X509SVIDTTL:    "45",
 						telemetry.JWTSVIDTTL:     "30",
-						telemetry.WITSVIDTTL:     "15",
+						telemetry.WITSVIDTTL:     "0",
 						telemetry.Hint:           "external",
 						telemetry.CreatedAt:      "0",
 						telemetry.StoreSvid:      "false",
@@ -2399,7 +2447,7 @@ func TestBatchCreateEntry(t *testing.T) {
 						telemetry.SPIFFEID:       "spiffe://example.org/workload",
 						telemetry.X509SVIDTTL:    "45",
 						telemetry.JWTSVIDTTL:     "30",
-						telemetry.WITSVIDTTL:     "15",
+						telemetry.WITSVIDTTL:     "0",
 						telemetry.Hint:           "external",
 						telemetry.CreatedAt:      "0",
 						telemetry.StoreSvid:      "false",
@@ -4279,6 +4327,50 @@ func TestBatchUpdateEntry(t *testing.T) {
 							telemetry.RegistrationID: m[entry1SpiffeID.Path],
 							telemetry.Selectors:      "type1:key1:value,type2:key2:value",
 							telemetry.StoreSvid:      "true",
+						},
+					},
+				}
+			},
+		},
+		{
+			name:           "Fail WIT-SVID TTL",
+			initialEntries: []*types.Entry{initialEntry},
+			inputMask: &types.EntryMask{
+				WitSvidTtl: true,
+			},
+			updateEntries: []*types.Entry{
+				{
+					WitSvidTtl: 1000,
+				},
+			},
+			expectResults: []*entryv1.BatchUpdateEntryResponse_Result{
+				{
+					Status: &types.Status{
+						Code:    int32(codes.InvalidArgument),
+						Message: "failed to convert entry: WIT-SVID TTL is not supported yet",
+					},
+				},
+			},
+			expectLogs: func(m map[string]string) []spiretest.LogEntry {
+				return []spiretest.LogEntry{
+					{
+						Level:   logrus.ErrorLevel,
+						Message: "Invalid argument: failed to convert entry",
+						Data: logrus.Fields{
+							telemetry.RegistrationID: m[entry1SpiffeID.Path],
+							logrus.ErrorKey:          "WIT-SVID TTL is not supported yet",
+						},
+					},
+					{
+						Level:   logrus.InfoLevel,
+						Message: "API accessed",
+						Data: logrus.Fields{
+							telemetry.Status:         "error",
+							telemetry.Type:           "audit",
+							telemetry.RegistrationID: m[entry1SpiffeID.Path],
+							telemetry.StatusCode:     "InvalidArgument",
+							telemetry.StatusMessage:  "failed to convert entry: WIT-SVID TTL is not supported yet",
+							telemetry.WITSVIDTTL:     "1000",
 						},
 					},
 				}

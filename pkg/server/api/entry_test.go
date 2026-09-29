@@ -134,7 +134,6 @@ func TestProtoToRegistrationEntryWithMask(t *testing.T) {
 				SpiffeId:    &types.SPIFFEID{TrustDomain: "example.org", Path: "/bar"},
 				X509SvidTtl: 70,
 				JwtSvidTtl:  80,
-				WitSvidTtl:  90,
 				Selectors: []*types.Selector{
 					{Type: "unix", Value: "uid:1000"},
 					{Type: "unix", Value: "gid:1000"},
@@ -159,7 +158,6 @@ func TestProtoToRegistrationEntryWithMask(t *testing.T) {
 				SpiffeId:    "spiffe://example.org/bar",
 				X509SvidTtl: 70,
 				JwtSvidTtl:  80,
-				WitSvidTtl:  90,
 				Selectors: []*common.Selector{
 					{Type: "unix", Value: "uid:1000"},
 					{Type: "unix", Value: "gid:1000"},
@@ -469,6 +467,20 @@ func TestProtoToRegistrationEntryWithMask(t *testing.T) {
 			},
 			mask: protoutil.AllTrueEntryMask,
 			err:  "hint is too long, max length is 1024 characters",
+		},
+		{
+			name: "WIT-SVID TTL set",
+			entry: &types.Entry{
+				Id:         "entry1",
+				ParentId:   &types.SPIFFEID{TrustDomain: "example.org", Path: "/foo"},
+				SpiffeId:   &types.SPIFFEID{TrustDomain: "example.org", Path: "/bar"},
+				WitSvidTtl: 90,
+				Selectors: []*types.Selector{
+					{Type: "unix", Value: "uid:1000"},
+				},
+			},
+			mask: protoutil.AllTrueEntryMask,
+			err:  "WIT-SVID TTL is not supported yet",
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {

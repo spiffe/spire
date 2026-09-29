@@ -2646,6 +2646,7 @@ func createRegistrationEntry(tx *gorm.DB, entry *common.RegistrationEntry) (*com
 		AdditionalAttributes: AdditionalAttributes,
 	}
 
+	// Omit wit_svid_ttl field until SPIRE 1.17.0
 	if err := tx.Omit("wit_svid_ttl").Create(&newRegisteredEntry).Error; err != nil {
 		return nil, sqlcommon.NewWrappedSQLError(err)
 	}
@@ -4681,15 +4682,15 @@ func validateRegistrationEntry(entry *common.RegistrationEntry) error {
 	}
 
 	if entry.X509SvidTtl < 0 {
-		return sqlcommon.NewValidationError("invalid registration entry: X509SvidTtl must be positive")
+		return sqlcommon.NewValidationError("invalid registration entry: X509SvidTtl must not be negative")
 	}
 
 	if entry.JwtSvidTtl < 0 {
-		return sqlcommon.NewValidationError("invalid registration entry: JwtSvidTtl must be positive")
+		return sqlcommon.NewValidationError("invalid registration entry: JwtSvidTtl must not be negative")
 	}
 
 	if entry.WitSvidTtl < 0 {
-		return sqlcommon.NewValidationError("invalid registration entry: WitSvidTtl must be positive")
+		return sqlcommon.NewValidationError("invalid registration entry: WitSvidTtl must not be negative")
 	}
 
 	return nil
@@ -4725,17 +4726,17 @@ func validateRegistrationEntryForUpdate(entry *common.RegistrationEntry, mask *c
 
 	if (mask == nil || mask.X509SvidTtl) &&
 		(entry.X509SvidTtl < 0) {
-		return sqlcommon.NewValidationError("invalid registration entry: X509SvidTtl is not set")
+		return sqlcommon.NewValidationError("invalid registration entry: X509SvidTtl must not be negative")
 	}
 
 	if (mask == nil || mask.JwtSvidTtl) &&
 		(entry.JwtSvidTtl < 0) {
-		return sqlcommon.NewValidationError("invalid registration entry: JwtSvidTtl is not set")
+		return sqlcommon.NewValidationError("invalid registration entry: JwtSvidTtl must not be negative")
 	}
 
 	if (mask == nil || mask.WitSvidTtl) &&
 		(entry.WitSvidTtl < 0) {
-		return sqlcommon.NewValidationError("invalid registration entry: WitSvidTtl is not set")
+		return sqlcommon.NewValidationError("invalid registration entry: WitSvidTtl must not be negative")
 	}
 
 	return nil

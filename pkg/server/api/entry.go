@@ -348,6 +348,10 @@ func ProtoToRegistrationEntryWithMask(ctx context.Context, td spiffeid.TrustDoma
 
 	var witSvidTTL int32
 	if mask.WitSvidTtl {
+		// Not persisted by the datastore yet.
+		if e.WitSvidTtl != 0 {
+			return nil, errors.New("WIT-SVID TTL is not supported yet")
+		}
 		witSvidTTL = e.WitSvidTtl
 	}
 

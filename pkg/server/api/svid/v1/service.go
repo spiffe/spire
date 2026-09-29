@@ -577,7 +577,8 @@ func (s *Service) newWITSVID(ctx context.Context, param *svidv1.NewWITSVIDParams
 			Algorithm: param.SigningAlgorithm,
 			Key:       publicKey,
 		},
-		TTL: time.Duration(entry.GetWitSvidTtl()) * time.Second,
+		// TODO: add WIT specific TTL (https://github.com/spiffe/spire/issues/6535)
+		TTL: time.Duration(entry.GetX509SvidTtl()) * time.Second,
 	})
 	if err != nil {
 		return &svidv1.BatchNewWITSVIDResponse_Result{

@@ -2238,33 +2238,24 @@ func TestServiceBatchNewWITSVID(t *testing.T) {
 		ParentId: api.ProtoFromID(agentID),
 		SpiffeId: &types.SPIFFEID{TrustDomain: "example.org", Path: "/workload2"},
 	}
-	workloadEntryWithWITTTL := &types.Entry{
-		Id:         "workload-with-wit-ttl",
-		ParentId:   api.ProtoFromID(agentID),
-		SpiffeId:   &types.SPIFFEID{TrustDomain: "example.org", Path: "/workload-with-wit-ttl"},
-		WitSvidTtl: 90,
-	}
 	invalidEntry := &types.Entry{
 		Id:       "invalid",
 		SpiffeId: &types.SPIFFEID{},
 		ParentId: api.ProtoFromID(agentID),
 	}
-	test.ef.entries = []*types.Entry{workloadEntry1, workloadEntry2, workloadEntryWithWITTTL, invalidEntry}
+	test.ef.entries = []*types.Entry{workloadEntry1, workloadEntry2, invalidEntry}
 
 	now := test.ca.Clock().Now().UTC()
 
 	expiresAtFromCA := now.Add(test.ca.WITSVIDTTL()).Unix()
 	expiresAtFromCAStr := strconv.FormatInt(expiresAtFromCA, 10)
-	expiresAtFromEntry := now.Add(time.Duration(workloadEntryWithWITTTL.WitSvidTtl) * time.Second).Unix()
-	expiresAtFromEntryStr := strconv.FormatInt(expiresAtFromEntry, 10)
 
 	_, invalidPublicKeyErr := x509.ParsePKIXPublicKey([]byte{1, 2, 3})
 	require.Error(t, invalidPublicKeyErr)
 
 	type expectResult struct {
-		entry     *types.Entry
-		status    *types.Status
-		expiresAt int64
+		entry  *types.Entry
+		status *types.Status
 	}
 
 	for _, tt := range []struct {
@@ -2300,28 +2291,6 @@ func TestServiceBatchNewWITSVID(t *testing.T) {
 						telemetry.RegistrationID: "workload1",
 						telemetry.ExpiresAt:      expiresAtFromCAStr,
 						telemetry.SPIFFEID:       "spiffe://example.org/workload1",
-					},
-				},
-			},
-		}, {
-			name: "success with entry WIT-SVID TTL",
-			reqs: []string{workloadEntryWithWITTTL.Id},
-			expectResults: []*expectResult{
-				{
-					entry:     workloadEntryWithWITTTL,
-					expiresAt: expiresAtFromEntry,
-				},
-			},
-			expectLogs: []spiretest.LogEntry{
-				{
-					Level:   logrus.InfoLevel,
-					Message: "API accessed",
-					Data: logrus.Fields{
-						telemetry.Status:         "success",
-						telemetry.Type:           "audit",
-						telemetry.RegistrationID: workloadEntryWithWITTTL.Id,
-						telemetry.ExpiresAt:      expiresAtFromEntryStr,
-						telemetry.SPIFFEID:       "spiffe://example.org/workload-with-wit-ttl",
 					},
 				},
 			},
@@ -2806,11 +2775,7 @@ func TestServiceBatchNewWITSVID(t *testing.T) {
 				require.Equal(t, entry.SpiffeId.Path, svid.Id.Path)
 				require.NotEmpty(t, svid.Token)
 				require.Equal(t, now.Unix(), svid.IssuedAt)
-				expectedExpiresAt := expiresAtFromCA
-				if expect.expiresAt != 0 {
-					expectedExpiresAt = expect.expiresAt
-				}
-				require.Equal(t, expectedExpiresAt, svid.ExpiresAt)
+				require.Equal(t, expiresAtFromCA, svid.ExpiresAt)
 			}
 		})
 	}
