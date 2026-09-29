@@ -338,6 +338,7 @@ func (s *IMDSAttestorSuite) TestAttestSuccessWithFlexibleVMSSMember() {
 		Location:      "westus",
 		ResourceGroup: "RESOURCEGROUP",
 		VMID:          testVMID,
+		VMSSName:      testVMSSName,
 	})
 
 	agentID := fmt.Sprintf("spiffe://example.org/spire/agent/azure_imds/%s/%s/%s", testTenantID, testSubscriptionID, testVMID)
@@ -356,11 +357,11 @@ func (s *IMDSAttestorSuite) TestAttestSuccessWithFlexibleVMSSMember() {
 
 	flexChallengeHandler := makeChallengeHandlerWithNonceCapture(&s.sharedNonce, func(ctx context.Context, challenge []byte) ([]byte, error) {
 		nonce := string(challenge)
-		vmssName := testVMSSName
+		forgedVMSSName := "forged-vmss-name"
 		rg := "RESOURCEGROUP"
 		rid := testFlexibleVMResourceID
 		return makeAttestPayloadWithMetadata(testVMID, testSubscriptionID, nonce, testTenantDomain, azure.AgentUntrustedMetadata{
-			VMSSName:          &vmssName,
+			VMSSName:          &forgedVMSSName,
 			ResourceGroupName: &rg,
 			VMResourceID:      &rid,
 		}), nil

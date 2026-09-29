@@ -62,7 +62,7 @@ func resolveVirtualMachine(ctx context.Context, client apiClient, md azure.Agent
 			if err := bindVirtualMachineIdentity(vm, vmID); err != nil {
 				return nil, nil, err
 			}
-			return vm, md.VMSSName, nil
+			return vm, vmScaleSetSelectorName(vm), nil
 		default:
 			return nil, nil, status.Errorf(codes.InvalidArgument, "unsupported vmResourceId hint %q", *md.VMResourceID)
 		}
@@ -86,8 +86,16 @@ func resolveVirtualMachine(ctx context.Context, client apiClient, md azure.Agent
 		if err := bindVirtualMachineIdentity(vm, vmID); err != nil {
 			return nil, nil, err
 		}
-		return vm, nil, nil
+		return vm, vmScaleSetSelectorName(vm), nil
 	}
+}
+
+func vmScaleSetSelectorName(vm *VirtualMachine) *string {
+	if vm == nil || vm.VMSSName == "" {
+		return nil
+	}
+	name := vm.VMSSName
+	return &name
 }
 
 func mergeResourceGroupHint(hint *string, fromResourceID string) (*string, error) {

@@ -274,12 +274,10 @@ func (s *IMDSAttestorSuite) makeExpectedChallengeResponse() []byte {
 		AgentDomain: "example.com",
 	}
 	if s.computeMetadata.Compute.ResourceGroupName != "" {
-		rg := s.computeMetadata.Compute.ResourceGroupName
-		md.ResourceGroupName = &rg
+		md.ResourceGroupName = &s.computeMetadata.Compute.ResourceGroupName
 	}
 	if s.computeMetadata.Compute.ResourceID != "" {
-		rid := s.computeMetadata.Compute.ResourceID
-		md.VMResourceID = &rid
+		md.VMResourceID = &s.computeMetadata.Compute.ResourceID
 	}
 	if s.computeMetadata.Compute.VMScaleSetName != "" {
 		md.VMSSName = &s.computeMetadata.Compute.VMScaleSetName

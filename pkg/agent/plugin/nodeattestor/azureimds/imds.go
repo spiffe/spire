@@ -109,12 +109,10 @@ func (p *IMDSAttestorPlugin) AidAttestation(stream nodeattestorv1.NodeAttestor_A
 		AgentDomain: config.TenantDomain,
 	}
 	if computeMetadata.Compute.ResourceGroupName != "" {
-		rg := computeMetadata.Compute.ResourceGroupName
-		md.ResourceGroupName = &rg
+		md.ResourceGroupName = &computeMetadata.Compute.ResourceGroupName
 	}
 	if computeMetadata.Compute.ResourceID != "" {
-		rid := computeMetadata.Compute.ResourceID
-		md.VMResourceID = &rid
+		md.VMResourceID = &computeMetadata.Compute.ResourceID
 	}
 	if computeMetadata.Compute.VMScaleSetName != "" {
 		md.VMSSName = &computeMetadata.Compute.VMScaleSetName

@@ -28,6 +28,7 @@ type VirtualMachine struct {
 	Tags          map[string]any      `json:"tags"`
 	VMID          string              `json:"vmId"`
 	ResourceGroup string              `json:"resourceGroup"`
+	VMSSName      string              `json:"vmssName"`
 	Interfaces    []*NetworkInterface `json:"interfaces"`
 }
 type NetworkInterface struct {
@@ -83,7 +84,9 @@ func (c *azureClient) GetVirtualMachine(ctx context.Context, vmId string, subscr
 	resources 
 	| where type =~ 'microsoft.compute/virtualmachines'
 	| where properties.vmId == '%s'
-	| project id, name, location, tags, vmId = properties.vmId, networkProfile = properties.networkProfile, resourceGroup`, vmId)
+	| extend vmssId = tostring(properties.virtualMachineScaleSet.id)
+	| extend vmssName = iif(isempty(vmssId), "", extract(@"/virtualMachineScaleSets/([^/]+)", 1, vmssId))
+	| project id, name, location, tags, vmId = properties.vmId, vmssName, networkProfile = properties.networkProfile, resourceGroup`, vmId)
 	options := &armresourcegraph.QueryRequestOptions{
 		ResultFormat: new(armresourcegraph.ResultFormatObjectArray),
 	}
@@ -152,6 +155,11 @@ func (c *azureClient) GetVMSSInstance(ctx context.Context, vmId, subscriptionID,
 func (c *azureClient) getVMSSInfo(ctx context.Context, subscriptionIDs []*string, name string, resourceGroup *string) (*VMSSInfo, error) {
 	if err := validateVMSSName(name); err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid VMSS name: %v", err)
+	}
+	if resourceGroup != nil && *resourceGroup != "" {
+		if err := validateResourceGroupName(*resourceGroup); err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "invalid resource group name: %v", err)
+		}
 	}
 
 	query := fmt.Sprintf(`
