@@ -2483,7 +2483,7 @@ func (s *Suite) TestCreateOrReturnRegistrationEntry() {
 				e.X509SvidTtl = -1
 				return e
 			},
-			expectError: "rpc error: code = InvalidArgument desc = datastore-validation: invalid registration entry: X509SvidTtl is not set",
+			expectError: "rpc error: code = InvalidArgument desc = datastore-validation: invalid registration entry: X509SvidTtl must be positive",
 		},
 		{
 			name: "negative JWT ttl",
@@ -2491,7 +2491,7 @@ func (s *Suite) TestCreateOrReturnRegistrationEntry() {
 				e.JwtSvidTtl = -1
 				return e
 			},
-			expectError: "rpc error: code = InvalidArgument desc = datastore-validation: invalid registration entry: JwtSvidTtl is not set",
+			expectError: "rpc error: code = InvalidArgument desc = datastore-validation: invalid registration entry: JwtSvidTtl must be positive",
 		},
 		{
 			name: "negative WIT ttl",
@@ -2499,7 +2499,7 @@ func (s *Suite) TestCreateOrReturnRegistrationEntry() {
 				e.WitSvidTtl = -1
 				return e
 			},
-			expectError: "rpc error: code = InvalidArgument desc = datastore-validation: invalid registration entry: WitSvidTtl is not set",
+			expectError: "rpc error: code = InvalidArgument desc = datastore-validation: invalid registration entry: WitSvidTtl must be positive",
 		},
 		{
 			name: "create entry successfully",
