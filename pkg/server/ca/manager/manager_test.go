@@ -482,7 +482,7 @@ func TestUpstreamProcessTaintedAuthority(t *testing.T) {
 
 	test := setupTest(t)
 
-	upstreamAuthority, fakeUA := fakeupstreamauthority.Load(t, fakeupstreamauthority.Config{
+	upstreamAuthority, fakeUA := test.newFakeUpstreamAuthority(t, fakeupstreamauthority.Config{
 		TrustDomain:           testTrustDomain,
 		DisallowPublishJWTKey: true,
 	})
@@ -519,7 +519,7 @@ func TestUpstreamProcessTaintedAuthorityBackoff(t *testing.T) {
 
 	test := setupTest(t)
 
-	upstreamAuthority, fakeUA := fakeupstreamauthority.Load(t, fakeupstreamauthority.Config{
+	upstreamAuthority, fakeUA := test.newFakeUpstreamAuthority(t, fakeupstreamauthority.Config{
 		TrustDomain:           testTrustDomain,
 		DisallowPublishJWTKey: true,
 	})
