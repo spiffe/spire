@@ -371,4 +371,9 @@ func TestPublishJWTKey(t *testing.T) {
 	spiretest.RequireGRPCStatus(t, err, codes.Unimplemented, "upstreamauthority(cert-manager): publishing upstream is unsupported")
 	assert.Nil(t, jwtAuthorities)
 	assert.Nil(t, stream)
+
+	witAuthorities, witStream, err := ua.PublishWITKey(context.Background(), &common.PublicKey{Kid: "ID", PkixBytes: pkixBytes})
+	spiretest.RequireGRPCStatus(t, err, codes.Unimplemented, "upstreamauthority(cert-manager): publishing upstream is unsupported")
+	assert.Nil(t, witAuthorities)
+	assert.Nil(t, witStream)
 }
