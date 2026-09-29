@@ -72,6 +72,9 @@ type Config struct {
 	// JWTSVIDTTL is default time-to-live for SVIDs (overrides SVIDTTL)
 	JWTSVIDTTL time.Duration
 
+	// WITSVIDTTL is default time-to-live for WIT-SVIDs
+	WITSVIDTTL time.Duration
+
 	// CATTL is the time-to-live for the server CA. This only applies to
 	// self-signed CA certificates, otherwise it is up to the upstream CA.
 	CATTL time.Duration

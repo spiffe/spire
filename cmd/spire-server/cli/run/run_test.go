@@ -279,6 +279,16 @@ func TestMergeInput(t *testing.T) {
 			},
 		},
 		{
+			msg: "default_wit_svid_ttl should be configurable by file",
+			fileInput: func(c *Config) {
+				c.Server.Experimental.DefaultWITSVIDTTL = "4h"
+			},
+			cliFlags: []string{},
+			test: func(t *testing.T, c *Config) {
+				require.Equal(t, "4h", c.Server.Experimental.DefaultWITSVIDTTL)
+			},
+		},
+		{
 			msg: "log_file should be configurable by file",
 			fileInput: func(c *Config) {
 				c.Server.LogFile = "foo"
@@ -1064,6 +1074,22 @@ func TestNewServerConfig(t *testing.T) {
 			},
 		},
 		{
+			msg: "default_wit_svid_ttl is correctly parsed",
+			input: func(c *Config) {
+				c.Server.Experimental.DefaultWITSVIDTTL = "4m"
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Equal(t, 4*time.Minute, c.WITSVIDTTL)
+			},
+		},
+		{
+			msg:   "default_wit_svid_ttl defaults when unset",
+			input: func(c *Config) {},
+			test: func(t *testing.T, c *server.Config) {
+				require.Equal(t, credtemplate.DefaultWITSVIDTTL, c.WITSVIDTTL)
+			},
+		},
+		{
 			msg:         "invalid default_x509_svid_ttl returns an error",
 			expectError: true,
 			input: func(c *Config) {
@@ -1078,6 +1104,16 @@ func TestNewServerConfig(t *testing.T) {
 			expectError: true,
 			input: func(c *Config) {
 				c.Server.DefaultJWTSVIDTTL = "b"
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
+			msg:         "invalid default_wit_svid_ttl returns an error",
+			expectError: true,
+			input: func(c *Config) {
+				c.Server.Experimental.DefaultWITSVIDTTL = "b"
 			},
 			test: func(t *testing.T, c *server.Config) {
 				require.Nil(t, c)

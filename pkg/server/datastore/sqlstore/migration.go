@@ -273,23 +273,25 @@ import (
 // | v1.14.0 |        |                                                                           |
 // | v1.14.1 |        |                                                                           |
 // | v1.14.2 |        |                                                                           |
-// | v1.14.3 |        |                                                                           |
+// | v1.14.3 | 24     | Added agent_version column to attested_node_entries                       |
 // | v1.14.4 |        |                                                                           |
 // | v1.14.5 |        |                                                                           |
 // | v1.14.6 |        |                                                                           |
 // | v1.14.7 |        |                                                                           |
 // |*********|********|***************************************************************************|
-// | v1.15.0 |        |                                                                           |
+// | v1.15.0 | 25     | Added additional_attributes column to registered_entries                  |
 // | v1.15.1 |        |                                                                           |
 // | v1.15.2 |        |                                                                           |
 // | v1.15.3 |        |                                                                           |
 // |*********|********|***************************************************************************|
 // | v1.16.0 | 26     | Added journal_id column to ca_journals                                    |
+// |         |--------|---------------------------------------------------------------------------|
+// |         | 27     | Added wit_svid_ttl column to registered_entries                           |
 // ================================================================================================
 
 const (
 	// the latest schema version of the database in the code
-	latestSchemaVersion = 26
+	latestSchemaVersion = 27
 
 	// lastMinorReleaseSchemaVersion is the schema version supported by the
 	// last minor release. When the migrations are opportunistically pruned
@@ -526,6 +528,8 @@ func migrateVersion(tx *gorm.DB, currVersion int, log logrus.FieldLogger) (versi
 		err = migrateToV25(tx)
 	case 25:
 		err = migrateToV26(tx)
+	case 26:
+		err = migrateToV27(tx)
 	default:
 		err = sqlcommon.NewSQLError("no migration support for unknown schema version %d", currVersion)
 	}
@@ -555,6 +559,14 @@ func migrateToV25(tx *gorm.DB) error {
 func migrateToV26(tx *gorm.DB) error {
 	// Add journal_id column to ca_journals table.
 	if err := tx.AutoMigrate(&CAJournal{}).Error; err != nil {
+		return sqlcommon.NewWrappedSQLError(err)
+	}
+	return nil
+}
+
+func migrateToV27(tx *gorm.DB) error {
+	// Add wit_svid_ttl column to registered_entries table
+	if err := tx.AutoMigrate(&RegisteredEntry{}).Error; err != nil {
 		return sqlcommon.NewWrappedSQLError(err)
 	}
 	return nil

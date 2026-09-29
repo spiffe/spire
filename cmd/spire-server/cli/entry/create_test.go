@@ -338,6 +338,7 @@ DisableX509SvidPrefetch : true
             "value": "alpha:2000"
           }
         ],
+        "wit_svid_ttl": 0,
         "x509_svid_ttl": 60,
         "federates_with": [
           "spiffe://domaina.test",
@@ -449,6 +450,7 @@ StoreSvid               : true
             "value": "alpha:2000"
           }
         ],
+        "wit_svid_ttl": 0,
         "x509_svid_ttl": 60,
         "federates_with": [
           "spiffe://domaina.test",
@@ -581,6 +583,7 @@ DisableX509SvidPrefetch : true
             "value": "uid:1111"
           }
         ],
+        "wit_svid_ttl": 0,
         "x509_svid_ttl": 200,
         "federates_with": [],
         "hint": "",
@@ -619,6 +622,7 @@ DisableX509SvidPrefetch : true
             "value": "uid:1111"
           }
         ],
+        "wit_svid_ttl": 0,
         "x509_svid_ttl": 200,
         "federates_with": [],
         "hint": "internal",
@@ -661,6 +665,7 @@ DisableX509SvidPrefetch : true
             "value": "key2:value"
           }
         ],
+        "wit_svid_ttl": 0,
         "x509_svid_ttl": 200,
         "federates_with": [],
         "hint": "",
@@ -699,6 +704,7 @@ DisableX509SvidPrefetch : true
             "value": "uid:1111"
           }
         ],
+        "wit_svid_ttl": 0,
         "x509_svid_ttl": 200,
         "federates_with": [],
         "hint": "",
@@ -764,6 +770,7 @@ Error: failed to create one or more entries
             "value": "uid:1"
           }
         ],
+        "wit_svid_ttl": 0,
         "x509_svid_ttl": 0,
         "federates_with": [],
         "hint": "",

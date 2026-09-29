@@ -2483,7 +2483,7 @@ func (s *Suite) TestCreateOrReturnRegistrationEntry() {
 				e.X509SvidTtl = -1
 				return e
 			},
-			expectError: "rpc error: code = InvalidArgument desc = datastore-validation: invalid registration entry: X509SvidTtl is not set",
+			expectError: "rpc error: code = InvalidArgument desc = datastore-validation: invalid registration entry: X509SvidTtl must not be negative",
 		},
 		{
 			name: "negative JWT ttl",
@@ -2491,7 +2491,15 @@ func (s *Suite) TestCreateOrReturnRegistrationEntry() {
 				e.JwtSvidTtl = -1
 				return e
 			},
-			expectError: "rpc error: code = InvalidArgument desc = datastore-validation: invalid registration entry: JwtSvidTtl is not set",
+			expectError: "rpc error: code = InvalidArgument desc = datastore-validation: invalid registration entry: JwtSvidTtl must not be negative",
+		},
+		{
+			name: "negative WIT ttl",
+			modifyEntry: func(e *common.RegistrationEntry) *common.RegistrationEntry {
+				e.WitSvidTtl = -1
+				return e
+			},
+			expectError: "rpc error: code = InvalidArgument desc = datastore-validation: invalid registration entry: WitSvidTtl must not be negative",
 		},
 		{
 			name: "create entry successfully",
@@ -3754,6 +3762,7 @@ func (s *Suite) TestUpdateRegistrationEntryWithMask() {
 		SpiffeId:      "",
 		X509SvidTtl:   -1000,
 		JwtSvidTtl:    -3000,
+		WitSvidTtl:    -5000,
 		Selectors:     []*common.Selector{},
 		FederatesWith: []string{"invalid federated bundle"},
 		Admin:         false,
@@ -3827,7 +3836,7 @@ func (s *Suite) TestUpdateRegistrationEntryWithMask() {
 			name:   "Update X509 SVID TTL, Bad Data, Mask True",
 			mask:   &common.RegistrationEntryMask{X509SvidTtl: true},
 			update: func(e *common.RegistrationEntry) { e.X509SvidTtl = badEntry.X509SvidTtl },
-			err:    errors.New("invalid registration entry: X509SvidTtl is not set"),
+			err:    errors.New("invalid registration entry: X509SvidTtl must not be negative"),
 		},
 		{
 			name:   "Update X509 SVID TTL, Bad Data, Mask False",
@@ -3852,12 +3861,25 @@ func (s *Suite) TestUpdateRegistrationEntryWithMask() {
 			name:   "Update JWT SVID TTL, Bad Data, Mask True",
 			mask:   &common.RegistrationEntryMask{JwtSvidTtl: true},
 			update: func(e *common.RegistrationEntry) { e.JwtSvidTtl = badEntry.JwtSvidTtl },
-			err:    errors.New("invalid registration entry: JwtSvidTtl is not set"),
+			err:    errors.New("invalid registration entry: JwtSvidTtl must not be negative"),
 		},
 		{
 			name:   "Update JWT SVID TTL, Bad Data, Mask False",
 			mask:   &common.RegistrationEntryMask{JwtSvidTtl: false},
 			update: func(e *common.RegistrationEntry) { e.JwtSvidTtl = badEntry.JwtSvidTtl },
+			result: func(e *common.RegistrationEntry) {},
+		},
+		// WIT SVID TTL FIELD -- This field is validated but not written yet, so only test bad data
+		{
+			name:   "Update WIT SVID TTL, Bad Data, Mask True",
+			mask:   &common.RegistrationEntryMask{WitSvidTtl: true},
+			update: func(e *common.RegistrationEntry) { e.WitSvidTtl = badEntry.WitSvidTtl },
+			err:    errors.New("invalid registration entry: WitSvidTtl must not be negative"),
+		},
+		{
+			name:   "Update WIT SVID TTL, Bad Data, Mask False",
+			mask:   &common.RegistrationEntryMask{WitSvidTtl: false},
+			update: func(e *common.RegistrationEntry) { e.WitSvidTtl = badEntry.WitSvidTtl },
 			result: func(e *common.RegistrationEntry) {},
 		},
 		// SELECTORS FIELD -- This field is validated so we check with good and bad data

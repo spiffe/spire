@@ -46,6 +46,7 @@ func TestUpdate(t *testing.T) {
             "value": "key2:value"
           }
         ],
+        "wit_svid_ttl": 0,
         "x509_svid_ttl": 60,
         "federates_with": [
           "spiffe://domaina.test",
@@ -84,6 +85,7 @@ func TestUpdate(t *testing.T) {
             "value": "alpha:2000"
           }
         ],
+        "wit_svid_ttl": 0,
         "x509_svid_ttl": 60,
         "federates_with": [
           "spiffe://domaina.test",
@@ -118,6 +120,7 @@ func TestUpdate(t *testing.T) {
             "value": "uid:1111"
           }
         ],
+        "wit_svid_ttl": 0,
         "x509_svid_ttl": 200,
         "federates_with": [],
         "hint": "external",
@@ -147,6 +150,7 @@ func TestUpdate(t *testing.T) {
             "value": "uid:1111"
           }
         ],
+        "wit_svid_ttl": 0,
         "x509_svid_ttl": 200,
         "federates_with": [],
         "hint": "",
@@ -180,6 +184,7 @@ func TestUpdate(t *testing.T) {
             "value": "key2:value"
           }
         ],
+        "wit_svid_ttl": 0,
         "x509_svid_ttl": 200,
         "federates_with": [],
         "hint": "",
@@ -213,6 +218,7 @@ func TestUpdate(t *testing.T) {
             "value": "key2:value"
           }
         ],
+        "wit_svid_ttl": 0,
         "x509_svid_ttl": 200,
         "federates_with": [],
         "hint": "",
@@ -256,6 +262,7 @@ func TestUpdate(t *testing.T) {
         "dns_names": [],
         "revision_number": "0",
         "store_svid": false,
+        "wit_svid_ttl": 0,
         "x509_svid_ttl": 0
       }`
 
@@ -751,6 +758,7 @@ JwtSvidIncludeJti       : true
             "value": "uid:1"
           }
         ],
+        "wit_svid_ttl": 0,
         "x509_svid_ttl": 0,
         "federates_with": [],
         "admin": false,
@@ -850,6 +858,7 @@ JwtSvidIncludeJti       : true
             "value": "uid:1"
           }
         ],
+        "wit_svid_ttl": 0,
         "x509_svid_ttl": 0,
         "federates_with": [],
         "admin": false,
@@ -953,6 +962,7 @@ JwtSvidIncludeJti       : true
             "value": "uid:1"
           }
         ],
+        "wit_svid_ttl": 0,
         "x509_svid_ttl": 0,
         "federates_with": [],
         "admin": false,

@@ -450,6 +450,9 @@ func TestMigration(t *testing.T) {
 				require.NoError(err)
 				require.Len(caJournals, 1)
 				require.Equal(uint(1), caJournals[0].ID)
+			case 26:
+				// Migration from v26 to v27 adds wit_svid_ttl column
+				prepareDB(true)
 			default:
 				t.Fatalf("no migration test added for schema version %d", schemaVersion)
 			}
@@ -496,4 +499,47 @@ func TestDisableMigrationAllowsCAJournalWritesOnPreviousSchema(t *testing.T) {
 	fetched, err := ds.FetchCAJournal(ctx, "new-authority")
 	require.NoError(t, err)
 	require.Equal(t, created, fetched)
+}
+
+func TestDisableMigrationAllowsRegistrationEntryWritesOnPreviousSchema(t *testing.T) {
+	dbPath := filepath.ToSlash(filepath.Join(t.TempDir(), "v26.sqlite3"))
+	if runtime.GOOS == "windows" {
+		dbPath = "/" + dbPath
+	}
+	dumpDB(t, dbPath, migrationDumps[26])
+
+	log, _ := test.NewNullLogger()
+	ds := New(log)
+	t.Cleanup(func() {
+		require.NoError(t, ds.Close())
+	})
+
+	err := ds.Configure(ctx, fmt.Sprintf(`
+		database_type = "sqlite3"
+		connection_string = %q
+		disable_migration = true
+	`, "file://"+dbPath))
+	require.NoError(t, err)
+
+	created, err := ds.CreateRegistrationEntry(ctx, &common.RegistrationEntry{
+		SpiffeId:    "spiffe://example.org/workload",
+		ParentId:    "spiffe://example.org/agent",
+		Selectors:   []*common.Selector{{Type: "unix", Value: "uid:1000"}},
+		X509SvidTtl: 1,
+		JwtSvidTtl:  2,
+	})
+	require.NoError(t, err)
+
+	created.JwtSvidTtl = 3
+	updated, err := ds.UpdateRegistrationEntry(ctx, created, nil)
+	require.NoError(t, err)
+	require.Equal(t, int32(3), updated.JwtSvidTtl)
+
+	fetched, err := ds.FetchRegistrationEntries(ctx, []string{created.EntryId})
+	require.NoError(t, err)
+	require.Equal(t, map[string]*common.RegistrationEntry{created.EntryId: updated}, fetched)
+
+	resp, err := ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{})
+	require.NoError(t, err)
+	require.Equal(t, []*common.RegistrationEntry{updated}, resp.Entries)
 }

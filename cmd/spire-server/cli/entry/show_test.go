@@ -524,6 +524,7 @@ func getJSONPrintedEntry(idx int) string {
           "value": "bar"
         }
       ],
+      "wit_svid_ttl": 0,
       "x509_svid_ttl": 0,
       "federates_with": [],
       "hint": "internal",
@@ -557,6 +558,7 @@ func getJSONPrintedEntry(idx int) string {
           "value": "bar"
         }
       ],
+      "wit_svid_ttl": 0,
       "x509_svid_ttl": 0,
       "federates_with": [],
       "hint": "external",
@@ -590,6 +592,7 @@ func getJSONPrintedEntry(idx int) string {
           "value": "bat"
         }
       ],
+      "wit_svid_ttl": 0,
       "x509_svid_ttl": 0,
       "federates_with": [
         "spiffe://domain.test"
@@ -621,6 +624,7 @@ func getJSONPrintedEntry(idx int) string {
           "value": "bat"
         }
       ],
+      "wit_svid_ttl": 0,
       "x509_svid_ttl": 0,
       "federates_with": [],
       "hint": "",
