@@ -1,5 +1,5 @@
 // Package kmip implements a SPIRE KeyManager plugin that stores and uses signing
-// keys via a generic KMIP 2.1-compliant server (binary TTLV over TCP/TLS).
+// keys via a generic KMIP 1.4-compliant server (binary TTLV over TCP/TLS).
 //
 // Key metadata (server ID, trust domain, SPIRE key ID, key type, last-update, active)
 // is stored as custom attributes (x-spire-*) on each key object per KMIP §3.39,

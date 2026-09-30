@@ -5,7 +5,7 @@
 This suite sets up a Kubernetes cluster using [Kind](https://kind.sigs.k8s.io)
 and an Eviden KMS instance (Docker). It then asserts the following:
 
-* SPIRE server successfully creates asymmetric key pairs in Eviden KMS via the KMIP 2.1 protocol
+* SPIRE server successfully creates asymmetric key pairs in Eviden KMS via the KMIP 1.4 protocol
 * SPIRE server successfully signs data using keys stored in Eviden KMS
 * Keys survive SPIRE server restarts (key recovery via KMIP `Locate`)
 * mTLS authentication to the KMS is exercised
