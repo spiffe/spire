@@ -65,7 +65,7 @@ A sample configuration:
 | Selector                    | Example                                                           | Description                                                                              |
 |-----------------------------|-------------------------------------------------------------------|------------------------------------------------------------------------------------------|
 | Subject common name         | `tpm_devid:subject:cn:example.org`                                | The subject's common name.                                                               |
-| Subject attribute          | `tpm_devid:subject:oid:2.5.4.5:server-123`                       | A nonempty string-valued subject attribute, identified by its numeric OID.                |
+| Subject attribute           | `tpm_devid:subject:oid:2.5.4.5:server-123`                        | A nonempty string-valued subject attribute, identified by its numeric OID.               |
 | Issuer common name          | `tpm_devid:issuer:cn:authority.org`                               | The issuer's common name.                                                                |
 | SHA1 fingerprint            | `tpm_devid:fingerprint:9ba51e2643bea24e91d24bdec3a1aaf8e967b6e5`  | The SHA1 fingerprint as a hex string for each cert in the PoP chain, excluding the leaf. |
 
