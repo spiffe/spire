@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"maps"
+	"time"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -39,6 +40,10 @@ type Config struct {
 	DataStore         datastore.DataStore
 	TrustDomain       spiffeid.TrustDomain
 	UpstreamPublisher UpstreamPublisher
+
+	// BundleCacheTTL enables caching of federated bundle datastore reads for
+	// the given duration. Caching is disabled when non-positive.
+	BundleCacheTTL time.Duration
 }
 
 // Service defines the v1 bundle service properties.
@@ -48,14 +53,17 @@ type Service struct {
 	ds datastore.DataStore
 	td spiffeid.TrustDomain
 	up UpstreamPublisher
+
+	bundleCacheTTL time.Duration
 }
 
 // New creates a new bundle service.
 func New(config Config) *Service {
 	return &Service{
-		ds: config.DataStore,
-		td: config.TrustDomain,
-		up: config.UpstreamPublisher,
+		ds:             config.DataStore,
+		td:             config.TrustDomain,
+		up:             config.UpstreamPublisher,
+		bundleCacheTTL: config.BundleCacheTTL,
 	}
 }
 
@@ -256,7 +264,7 @@ func (s *Service) GetFederatedBundle(ctx context.Context, req *bundlev1.GetFeder
 		return nil, commonapi.MakeErr(log, codes.InvalidArgument, "getting a federated bundle for the server's own trust domain is not allowed", nil)
 	}
 
-	commonBundle, err := s.ds.FetchBundle(ctx, td.IDString())
+	commonBundle, err := s.ds.FetchBundle(dscache.WithCacheTTL(ctx, s.bundleCacheTTL), td.IDString())
 	if err != nil {
 		return nil, commonapi.MakeErr(log, codes.Internal, "failed to fetch bundle", err)
 	}
