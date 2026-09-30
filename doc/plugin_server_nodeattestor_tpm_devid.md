@@ -76,6 +76,10 @@ preserved exactly, including case and whitespace. Empty strings and non-string
 values are ignored. Repeated attributes with distinct values produce separate
 selectors; identical OID/value pairs produce only one.
 
+The trusted DevID issuer must validate subject attribute claims before
+signing. Certificate validation and TPM proofs do not independently establish
+the accuracy or uniqueness of those claims.
+
 For example, the subject `serialNumber` attribute uses OID `2.5.4.5`, while the
 common name uses `2.5.4.3`. The subject `serialNumber` is distinct from the
 certificate's own serial number. The existing `subject:cn` selector is still
