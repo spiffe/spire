@@ -96,6 +96,8 @@ type X509CAEntry struct {
 	NotAfter int64 `protobuf:"varint,7,opt,name=not_after,json=notAfter,proto3" json:"not_after,omitempty"`
 	// The X.509 Authority Subject Key Identifier (SKID)
 	UpstreamAuthorityId string `protobuf:"bytes,8,opt,name=upstream_authority_id,json=upstreamAuthorityId,proto3" json:"upstream_authority_id,omitempty"`
+	// Whether not_after is the effective chain expiration
+	NotAfterIsEffective bool `protobuf:"varint,9,opt,name=not_after_is_effective,json=notAfterIsEffective,proto3" json:"not_after_is_effective,omitempty"`
 	unknownFields       protoimpl.UnknownFields
 	sizeCache           protoimpl.SizeCache
 }
@@ -184,6 +186,13 @@ func (x *X509CAEntry) GetUpstreamAuthorityId() string {
 		return x.UpstreamAuthorityId
 	}
 	return ""
+}
+
+func (x *X509CAEntry) GetNotAfterIsEffective() bool {
+	if x != nil {
+		return x.NotAfterIsEffective
+	}
+	return false
 }
 
 type JWTKeyEntry struct {
@@ -448,7 +457,7 @@ var File_private_server_journal_journal_proto protoreflect.FileDescriptor
 
 const file_private_server_journal_journal_proto_rawDesc = "" +
 	"\n" +
-	"$private/server/journal/journal.proto\"\xa1\x02\n" +
+	"$private/server/journal/journal.proto\"\xd6\x02\n" +
 	"\vX509CAEntry\x12\x17\n" +
 	"\aslot_id\x18\x01 \x01(\tR\x06slotId\x12\x1b\n" +
 	"\tissued_at\x18\x02 \x01(\x03R\bissuedAt\x12 \n" +
@@ -457,7 +466,8 @@ const file_private_server_journal_journal_proto_rawDesc = "" +
 	"\x06status\x18\x05 \x01(\x0e2\a.StatusR\x06status\x12!\n" +
 	"\fauthority_id\x18\x06 \x01(\tR\vauthorityId\x12\x1b\n" +
 	"\tnot_after\x18\a \x01(\x03R\bnotAfter\x122\n" +
-	"\x15upstream_authority_id\x18\b \x01(\tR\x13upstreamAuthorityId\"\xd5\x01\n" +
+	"\x15upstream_authority_id\x18\b \x01(\tR\x13upstreamAuthorityId\x123\n" +
+	"\x16not_after_is_effective\x18\t \x01(\bR\x13notAfterIsEffective\"\xd5\x01\n" +
 	"\vJWTKeyEntry\x12\x17\n" +
 	"\aslot_id\x18\x01 \x01(\tR\x06slotId\x12\x1b\n" +
 	"\tissued_at\x18\x02 \x01(\x03R\bissuedAt\x12\x1b\n" +

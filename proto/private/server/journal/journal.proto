@@ -25,6 +25,9 @@ message X509CAEntry {
 
     // The X.509 Authority Subject Key Identifier (SKID)
     string upstream_authority_id = 8;
+
+    // Whether not_after is the effective chain expiration
+    bool not_after_is_effective = 9;
 }
 
 message JWTKeyEntry {

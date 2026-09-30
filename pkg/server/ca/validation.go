@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math/big"
 	"net/url"
+	"time"
 
 	"github.com/andres-erbsen/clock"
 	"github.com/spiffe/go-spiffe/v2/bundle/x509bundle"
@@ -30,22 +31,23 @@ type X509CAValidator struct {
 	Clock         clock.Clock
 }
 
-func (v *X509CAValidator) ValidateUpstreamX509CA(x509CA, upstreamRoots []*x509.Certificate) error {
+func (v *X509CAValidator) ValidateUpstreamX509CA(x509CA, upstreamRoots []*x509.Certificate) (time.Time, error) {
 	return v.validateX509CA(x509CA[0], upstreamRoots, x509CA)
 }
 
 func (v *X509CAValidator) ValidateSelfSignedX509CA(x509CA *x509.Certificate) error {
-	return v.validateX509CA(x509CA, []*x509.Certificate{x509CA}, nil)
+	_, err := v.validateX509CA(x509CA, []*x509.Certificate{x509CA}, nil)
+	return err
 }
 
-func (v *X509CAValidator) validateX509CA(x509CA *x509.Certificate, x509Roots, upstreamChain []*x509.Certificate) error {
+func (v *X509CAValidator) validateX509CA(x509CA *x509.Certificate, x509Roots, upstreamChain []*x509.Certificate) (time.Time, error) {
 	if err := v.CredValidator.ValidateX509CA(x509CA); err != nil {
-		return fmt.Errorf("invalid upstream-signed X509 CA: %w", err)
+		return time.Time{}, fmt.Errorf("invalid upstream-signed X509 CA: %w", err)
 	}
 
 	spiffeID, err := spiffeid.FromPath(v.TrustDomain, "/spire/throwaway")
 	if err != nil {
-		return fmt.Errorf("unexpected error making ID for validation: %w", err)
+		return time.Time{}, fmt.Errorf("unexpected error making ID for validation: %w", err)
 	}
 
 	bundle := x509bundle.FromX509Authorities(v.TrustDomain, x509Roots)
@@ -57,13 +59,35 @@ func (v *X509CAValidator) validateX509CA(x509CA *x509.Certificate, x509Roots, up
 		URIs:         []*url.URL{spiffeID.URL()},
 	}, x509CA, validationPubkey, v.Signer)
 	if err != nil {
-		return fmt.Errorf("failed to sign validation certificate: %w", err)
+		return time.Time{}, fmt.Errorf("failed to sign validation certificate: %w", err)
 	}
 
 	svidChain := append([]*x509.Certificate{svid}, upstreamChain...)
 
-	if _, _, err := x509svid.Verify(svidChain, bundle); err != nil {
-		return fmt.Errorf("X509 CA produced an invalid X509-SVID chain: %w", err)
+	var verifyOptions []x509svid.VerifyOption
+	if v.Clock != nil {
+		verifyOptions = append(verifyOptions, x509svid.WithTime(v.Clock.Now()))
 	}
-	return nil
+	_, verifiedChains, err := x509svid.Verify(svidChain, bundle, verifyOptions...)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("X509 CA produced an invalid X509-SVID chain: %w", err)
+	}
+	return EffectiveX509ChainExpiry(verifiedChains), nil
+}
+
+// EffectiveX509ChainExpiry returns the latest expiration across verified paths.
+func EffectiveX509ChainExpiry(chains [][]*x509.Certificate) time.Time {
+	var effectiveExpiry time.Time
+	for _, chain := range chains {
+		var chainExpiry time.Time
+		for _, cert := range chain {
+			if chainExpiry.IsZero() || cert.NotAfter.Before(chainExpiry) {
+				chainExpiry = cert.NotAfter
+			}
+		}
+		if chainExpiry.After(effectiveExpiry) {
+			effectiveExpiry = chainExpiry
+		}
+	}
+	return effectiveExpiry
 }

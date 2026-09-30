@@ -417,6 +417,15 @@ func TestBuildDownstreamX509CATemplate(t *testing.T) {
 			},
 		},
 		{
+			desc: "ttl gets capped by explicit expiration",
+			overrideParams: func(params *credtemplate.DownstreamX509CAParams) {
+				params.ExpirationCap = now.Add(time.Minute)
+			},
+			overrideExpected: func(expected *x509.Certificate) {
+				expected.NotAfter = now.Add(time.Minute)
+			},
+		},
+		{
 			desc: "single composer",
 			overrideConfig: func(config *credtemplate.Config) {
 				config.CredentialComposers = []credentialcomposer.CredentialComposer{fakeCC{id: []byte{1, 2, 3, 4}}}
@@ -538,6 +547,15 @@ func TestBuildServerX509SVIDTemplate(t *testing.T) {
 			},
 			overrideExpected: func(expected *x509.Certificate) {
 				expected.NotAfter = now.Add(parentTTL)
+			},
+		},
+		{
+			desc: "ttl capped by explicit expiration",
+			overrideParams: func(params *credtemplate.ServerX509SVIDParams) {
+				params.ExpirationCap = now.Add(time.Minute)
+			},
+			overrideExpected: func(expected *x509.Certificate) {
+				expected.NotAfter = now.Add(time.Minute)
 			},
 		},
 		{
@@ -702,6 +720,15 @@ func TestBuildAgentX509SVIDTemplate(t *testing.T) {
 			},
 			overrideExpected: func(expected *x509.Certificate) {
 				expected.NotAfter = now.Add(parentTTL)
+			},
+		},
+		{
+			desc: "ttl capped by explicit expiration",
+			overrideParams: func(params *credtemplate.AgentX509SVIDParams) {
+				params.ExpirationCap = now.Add(time.Minute)
+			},
+			overrideExpected: func(expected *x509.Certificate) {
+				expected.NotAfter = now.Add(time.Minute)
 			},
 		},
 		{
@@ -938,6 +965,15 @@ func TestBuildWorkloadX509SVIDTemplate(t *testing.T) {
 			},
 			overrideExpected: func(expected *x509.Certificate) {
 				expected.NotAfter = now.Add(parentTTL)
+			},
+		},
+		{
+			desc: "ttl gets capped by explicit expiration",
+			overrideParams: func(params *credtemplate.WorkloadX509SVIDParams) {
+				params.ExpirationCap = now.Add(time.Minute)
+			},
+			overrideExpected: func(expected *x509.Certificate) {
+				expected.NotAfter = now.Add(time.Minute)
 			},
 		},
 		{

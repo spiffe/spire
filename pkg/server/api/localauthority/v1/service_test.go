@@ -1286,6 +1286,7 @@ func TestActivateX509Authority(t *testing.T) {
 		nextSlot    *fakeSlot
 
 		rotateCalled  bool
+		rotateErr     error
 		keyToActivate string
 		expectLogs    []spiretest.LogEntry
 		expectCode    codes.Code
@@ -1310,6 +1311,37 @@ func TestActivateX509Authority(t *testing.T) {
 					Message: "API accessed",
 					Data: logrus.Fields{
 						telemetry.Status:           "success",
+						telemetry.Type:             "audit",
+						telemetry.LocalAuthorityID: authorityIDKeyB,
+					},
+				},
+			},
+		},
+		{
+			name:          "prepared authority expired",
+			currentSlot:   createSlot(journal.Status_ACTIVE, authorityIDKeyA, keyA.Public(), notAfterCurrent),
+			nextSlot:      createSlot(journal.Status_PREPARED, authorityIDKeyB, keyB.Public(), notAfterNext),
+			keyToActivate: authorityIDKeyB,
+			rotateCalled:  true,
+			rotateErr:     errors.New("prepared X509 CA has expired"),
+			expectCode:    codes.FailedPrecondition,
+			expectMsg:     "failed to activate X.509 authority: prepared X509 CA has expired",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Failed to activate X.509 authority",
+					Data: logrus.Fields{
+						logrus.ErrorKey:            "prepared X509 CA has expired",
+						telemetry.LocalAuthorityID: authorityIDKeyB,
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:           "error",
+						telemetry.StatusCode:       "FailedPrecondition",
+						telemetry.StatusMessage:    "failed to activate X.509 authority: prepared X509 CA has expired",
 						telemetry.Type:             "audit",
 						telemetry.LocalAuthorityID: authorityIDKeyB,
 					},
@@ -1403,6 +1435,7 @@ func TestActivateX509Authority(t *testing.T) {
 
 			test.ca.currentX509CASlot = tt.currentSlot
 			test.ca.nextX509CASlot = tt.nextSlot
+			test.ca.rotateX509CAErr = tt.rotateErr
 
 			resp, err := test.client.ActivateX509Authority(ctx, &localauthorityv1.ActivateX509AuthorityRequest{
 				AuthorityId: tt.keyToActivate,
@@ -2608,6 +2641,7 @@ type fakeCAManager struct {
 	currentX509CASlot  *fakeSlot
 	nextX509CASlot     *fakeSlot
 	rotateX509CACalled bool
+	rotateX509CAErr    error
 
 	currentJWTKeySlot  *fakeSlot
 	nextJWTKeySlot     *fakeSlot
@@ -2663,8 +2697,9 @@ func (m *fakeCAManager) PrepareX509CA(context.Context) error {
 	return m.prepareX509CAErr
 }
 
-func (m *fakeCAManager) RotateX509CA(context.Context) {
+func (m *fakeCAManager) RotateX509CA(context.Context) error {
 	m.rotateX509CACalled = true
+	return m.rotateX509CAErr
 }
 
 func (m *fakeCAManager) IsJWTSVIDsDisabled() bool {

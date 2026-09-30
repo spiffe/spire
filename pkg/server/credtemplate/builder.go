@@ -74,29 +74,33 @@ type UpstreamSignedX509CAParams struct {
 }
 
 type DownstreamX509CAParams struct {
-	ParentChain []*x509.Certificate
-	PublicKey   crypto.PublicKey
-	TTL         time.Duration
+	ParentChain   []*x509.Certificate
+	PublicKey     crypto.PublicKey
+	TTL           time.Duration
+	ExpirationCap time.Time
 }
 
 type ServerX509SVIDParams struct {
-	ParentChain []*x509.Certificate
-	PublicKey   crypto.PublicKey
+	ParentChain   []*x509.Certificate
+	PublicKey     crypto.PublicKey
+	ExpirationCap time.Time
 }
 
 type AgentX509SVIDParams struct {
-	ParentChain []*x509.Certificate
-	PublicKey   crypto.PublicKey
-	SPIFFEID    spiffeid.ID
+	ParentChain   []*x509.Certificate
+	PublicKey     crypto.PublicKey
+	SPIFFEID      spiffeid.ID
+	ExpirationCap time.Time
 }
 
 type WorkloadX509SVIDParams struct {
-	ParentChain []*x509.Certificate
-	PublicKey   crypto.PublicKey
-	SPIFFEID    spiffeid.ID
-	DNSNames    []string
-	TTL         time.Duration
-	Subject     pkix.Name
+	ParentChain   []*x509.Certificate
+	PublicKey     crypto.PublicKey
+	SPIFFEID      spiffeid.ID
+	DNSNames      []string
+	TTL           time.Duration
+	Subject       pkix.Name
+	ExpirationCap time.Time
 }
 
 type WorkloadJWTSVIDParams struct {
@@ -192,7 +196,7 @@ func (b *Builder) Config() Config {
 }
 
 func (b *Builder) BuildSelfSignedX509CATemplate(ctx context.Context, params SelfSignedX509CAParams) (*x509.Certificate, error) {
-	tmpl, err := b.buildX509CATemplate(params.PublicKey, nil, 0)
+	tmpl, err := b.buildX509CATemplate(params.PublicKey, nil, 0, time.Time{})
 	if err != nil {
 		return nil, err
 	}
@@ -209,7 +213,7 @@ func (b *Builder) BuildSelfSignedX509CATemplate(ctx context.Context, params Self
 }
 
 func (b *Builder) BuildUpstreamSignedX509CACSR(ctx context.Context, params UpstreamSignedX509CAParams) (*x509.CertificateRequest, error) {
-	tmpl, err := b.buildX509CATemplate(params.PublicKey, nil, 0)
+	tmpl, err := b.buildX509CATemplate(params.PublicKey, nil, 0, time.Time{})
 	if err != nil {
 		return nil, err
 	}
@@ -240,7 +244,7 @@ func (b *Builder) BuildDownstreamX509CATemplate(ctx context.Context, params Down
 		return nil, errors.New("parent chain required to build downstream X509 CA template")
 	}
 
-	tmpl, err := b.buildX509CATemplate(params.PublicKey, params.ParentChain, params.TTL)
+	tmpl, err := b.buildX509CATemplate(params.PublicKey, params.ParentChain, params.TTL, params.ExpirationCap)
 	if err != nil {
 		return nil, err
 	}
@@ -259,7 +263,7 @@ func (b *Builder) BuildDownstreamX509CATemplate(ctx context.Context, params Down
 }
 
 func (b *Builder) BuildServerX509SVIDTemplate(ctx context.Context, params ServerX509SVIDParams) (*x509.Certificate, error) {
-	tmpl, err := b.buildX509SVIDTemplate(b.serverID, params.PublicKey, params.ParentChain, pkix.Name{}, 0)
+	tmpl, err := b.buildX509SVIDTemplate(b.serverID, params.PublicKey, params.ParentChain, pkix.Name{}, 0, params.ExpirationCap)
 	if err != nil {
 		return nil, err
 	}
@@ -276,7 +280,7 @@ func (b *Builder) BuildServerX509SVIDTemplate(ctx context.Context, params Server
 }
 
 func (b *Builder) BuildAgentX509SVIDTemplate(ctx context.Context, params AgentX509SVIDParams) (*x509.Certificate, error) {
-	tmpl, err := b.buildX509SVIDTemplate(params.SPIFFEID, params.PublicKey, params.ParentChain, pkix.Name{}, b.config.AgentSVIDTTL)
+	tmpl, err := b.buildX509SVIDTemplate(params.SPIFFEID, params.PublicKey, params.ParentChain, pkix.Name{}, b.config.AgentSVIDTTL, params.ExpirationCap)
 	if err != nil {
 		return nil, err
 	}
@@ -298,7 +302,7 @@ func (b *Builder) BuildWorkloadX509SVIDTemplate(ctx context.Context, params Work
 		subject = params.Subject
 	}
 
-	tmpl, err := b.buildX509SVIDTemplate(params.SPIFFEID, params.PublicKey, params.ParentChain, subject, params.TTL)
+	tmpl, err := b.buildX509SVIDTemplate(params.SPIFFEID, params.PublicKey, params.ParentChain, subject, params.TTL, params.ExpirationCap)
 	if err != nil {
 		return nil, err
 	}
@@ -418,7 +422,7 @@ func (b *Builder) BuildWorkloadWITSVIDClaims(ctx context.Context, params Workloa
 	return claims, nil
 }
 
-func (b *Builder) buildX509CATemplate(publicKey crypto.PublicKey, parentChain []*x509.Certificate, ttl time.Duration) (*x509.Certificate, error) {
+func (b *Builder) buildX509CATemplate(publicKey crypto.PublicKey, parentChain []*x509.Certificate, ttl time.Duration, expirationCap time.Time) (*x509.Certificate, error) {
 	tmpl, err := b.buildBaseTemplate(b.x509CAID, publicKey, parentChain)
 	if err != nil {
 		return nil, err
@@ -428,14 +432,14 @@ func (b *Builder) buildX509CATemplate(publicKey crypto.PublicKey, parentChain []
 	if tmpl.Subject.SerialNumber == "" {
 		tmpl.Subject.SerialNumber = tmpl.SerialNumber.String()
 	}
-	tmpl.NotBefore, tmpl.NotAfter = b.computeX509CALifetime(parentChain, ttl)
+	tmpl.NotBefore, tmpl.NotAfter = b.computeX509CALifetime(parentChain, ttl, expirationCap)
 	tmpl.KeyUsage = x509.KeyUsageCertSign | x509.KeyUsageCRLSign
 	tmpl.IsCA = true
 
 	return tmpl, nil
 }
 
-func (b *Builder) buildX509SVIDTemplate(spiffeID spiffeid.ID, publicKey crypto.PublicKey, parentChain []*x509.Certificate, subject pkix.Name, ttl time.Duration) (*x509.Certificate, error) {
+func (b *Builder) buildX509SVIDTemplate(spiffeID spiffeid.ID, publicKey crypto.PublicKey, parentChain []*x509.Certificate, subject pkix.Name, ttl time.Duration, expirationCap time.Time) (*x509.Certificate, error) {
 	if len(parentChain) == 0 {
 		return nil, errors.New("parent chain required to build X509-SVID template")
 	}
@@ -456,7 +460,7 @@ func (b *Builder) buildX509SVIDTemplate(spiffeID spiffeid.ID, publicKey crypto.P
 		tmpl.Subject = subject
 	}
 
-	tmpl.NotBefore, tmpl.NotAfter = b.computeX509SVIDLifetime(parentChain, ttl)
+	tmpl.NotBefore, tmpl.NotAfter = b.computeX509SVIDLifetime(parentChain, ttl, expirationCap)
 	tmpl.KeyUsage = x509.KeyUsageKeyEncipherment |
 		x509.KeyUsageKeyAgreement |
 		x509.KeyUsageDigitalSignature
@@ -496,18 +500,18 @@ func (b *Builder) buildBaseTemplate(spiffeID spiffeid.ID, publicKey crypto.Publi
 	}, nil
 }
 
-func (b *Builder) computeX509CALifetime(parentChain []*x509.Certificate, ttl time.Duration) (notBefore, notAfter time.Time) {
+func (b *Builder) computeX509CALifetime(parentChain []*x509.Certificate, ttl time.Duration, expirationCap time.Time) (notBefore, notAfter time.Time) {
 	if ttl <= 0 {
 		ttl = b.config.X509CATTL
 	}
-	return computeCappedLifetime(b.config.Clock, ttl, parentChainExpiration(parentChain))
+	return computeCappedLifetime(b.config.Clock, ttl, earliestExpiration(parentChainExpiration(parentChain), expirationCap))
 }
 
-func (b *Builder) computeX509SVIDLifetime(parentChain []*x509.Certificate, ttl time.Duration) (notBefore, notAfter time.Time) {
+func (b *Builder) computeX509SVIDLifetime(parentChain []*x509.Certificate, ttl time.Duration, expirationCap time.Time) (notBefore, notAfter time.Time) {
 	if ttl <= 0 {
 		ttl = b.config.X509SVIDTTL
 	}
-	return computeCappedLifetime(b.config.Clock, ttl, parentChainExpiration(parentChain))
+	return computeCappedLifetime(b.config.Clock, ttl, earliestExpiration(parentChainExpiration(parentChain), expirationCap))
 }
 
 func x509CAAttributesFromTemplate(tmpl *x509.Certificate) credentialcomposer.X509CAAttributes {
@@ -554,6 +558,16 @@ func parentChainExpiration(parentChain []*x509.Certificate) time.Time {
 		expiration = parentChain[0].NotAfter
 	}
 	return expiration
+}
+
+func earliestExpiration(expirations ...time.Time) time.Time {
+	var earliest time.Time
+	for _, expiration := range expirations {
+		if !expiration.IsZero() && (earliest.IsZero() || expiration.Before(earliest)) {
+			earliest = expiration
+		}
+	}
+	return earliest
 }
 
 func dropEmptyValues(ss []string) []string {
