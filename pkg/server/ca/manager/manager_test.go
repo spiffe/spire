@@ -770,6 +770,51 @@ func TestUpstreamAuthorityWithPublishJWTKeyImplemented(t *testing.T) {
 	)
 }
 
+func TestUpstreamAuthorityWithPublishWITKeyImplemented(t *testing.T) {
+	ctx := context.Background()
+	test := setupTest(t)
+	bundle := test.createBundle(ctx)
+	require.Len(t, bundle.WitSigningKeys, 0)
+
+	upstreamAuthority, ua := test.newFakeUpstreamAuthority(t, fakeupstreamauthority.Config{
+		TrustDomain: testTrustDomain,
+	})
+	test.initAndActivateUpstreamSignedManager(ctx, upstreamAuthority)
+
+	require.Len(t, ua.WITKeys(), 1)
+	require.Equal(t, test.currentWITKey().Kid, ua.WITKeys()[0].Kid)
+	spiretest.AssertProtoListEqual(t, ua.WITKeys(), test.fetchBundle(ctx).WitSigningKeys)
+	assert.Equal(t,
+		0,
+		test.countLogEntries(logrus.WarnLevel, "UpstreamAuthority plugin does not support WIT-SVIDs. Workloads managed "+
+			"by this server may have trouble communicating with workloads outside "+
+			"this cluster when using WIT-SVIDs."),
+	)
+}
+
+func TestUpstreamAuthorityWithPublishWITKeyNotImplemented(t *testing.T) {
+	ctx := context.Background()
+	test := setupTest(t)
+
+	upstreamAuthority, ua := test.newFakeUpstreamAuthority(t, fakeupstreamauthority.Config{
+		TrustDomain:           testTrustDomain,
+		DisallowPublishWITKey: true,
+	})
+	test.initAndActivateUpstreamSignedManager(ctx, upstreamAuthority)
+
+	// The WIT key falls back to the local bundle
+	require.Empty(t, ua.WITKeys())
+	witSigningKeys := test.fetchBundle(ctx).WitSigningKeys
+	require.Len(t, witSigningKeys, 1)
+	require.Equal(t, test.currentWITKey().Kid, witSigningKeys[0].Kid)
+	assert.Equal(t,
+		1,
+		test.countLogEntries(logrus.WarnLevel, "UpstreamAuthority plugin does not support WIT-SVIDs. Workloads managed "+
+			"by this server may have trouble communicating with workloads outside "+
+			"this cluster when using WIT-SVIDs."),
+	)
+}
+
 func TestUpstreamAuthorityWithSubscribeToBundleUpdate(t *testing.T) {
 	ctx := context.Background()
 	test := setupTest(t)
@@ -799,6 +844,7 @@ func TestUpstreamAuthorityWithSubscribeToBundleUpdate(t *testing.T) {
 	test.requireBundleRootCAs(ctx, t, ua.X509Root())
 
 	spiretest.AssertProtoListEqual(t, ua.JWTKeys(), test.fetchBundle(ctx).JwtSigningKeys)
+	spiretest.AssertProtoListEqual(t, ua.WITKeys(), test.fetchBundle(ctx).WitSigningKeys)
 }
 
 func TestX509CARotation(t *testing.T) {
