@@ -848,6 +848,45 @@ func TestGenerateKeyRotationMarksExactlyOneActiveKey(t *testing.T) {
 	require.True(t, newActive, "the newly generated key must be marked active")
 }
 
+// TestRecoverKeysSkipsDisposedKeys verifies that recovery does not resurrect a key
+// the reclamation task has already retired. A partially-completed disposal (Revoke
+// succeeded but Destroy is still pending) leaves the key in a Deactivated/Destroyed
+// state while still tagged with this server's attributes and returned by Locate;
+// such a key must be skipped rather than recovered as the active signing key.
+func TestRecoverKeysSkipsDisposedKeys(t *testing.T) {
+	store := newFakeStore()
+	addr, caPEM := kmiptest.NewServer(t, store.handler())
+	lastUpdate := time.Unix(1_700_000_000, 0).Unix()
+	store.seed("live-priv", "live-pub", spireAttrs(testServerID, testTrustDomain, "live-key", lastUpdate))
+	store.seed("disposed-priv", "disposed-pub", spireAttrs(testServerID, testTrustDomain, "disposed-key", lastUpdate-1))
+	seedECKeyMaterial(t, store, "live-priv", "live-pub")
+	seedECKeyMaterial(t, store, "disposed-priv", "disposed-pub")
+
+	// Simulate a disposal interrupted between Revoke and Destroy.
+	store.mu.Lock()
+	store.revoked["disposed-priv"] = true
+	store.revoked["disposed-pub"] = true
+	store.mu.Unlock()
+
+	caFile := writeTempPEM(t, caPEM)
+	client, err := buildClient(context.Background(), &Config{
+		KMIPAddr:                addr,
+		CACertPath:              caFile,
+		InsecureSkipVerify:      true,
+		parsedStaleKeyThreshold: defaultStaleKeyThreshold,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, client.Close())
+	})
+
+	entries, err := recoverKeys(context.Background(), client, hclog.NewNullLogger(), testServerID, testTrustDomain)
+	require.NoError(t, err)
+	require.Len(t, entries, 1)
+	require.Contains(t, entries, "live-key")
+	require.NotContains(t, entries, "disposed-key")
+}
+
 // TestKeyRecoveryAfterRotationPicksActiveKey reproduces the ambiguity flagged in
 // review end-to-end: after a rotation, both the old and new key objects for
 // "rotate-key" still exist on the KMIP server (the old one is only reclaimed later

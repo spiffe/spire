@@ -475,6 +475,7 @@ func recoverKeys(ctx context.Context, client *kmipclient.Client, logger hclog.Lo
 		keyTypeStr, hasKeyType := customAttrValue[string](attrResp.Attribute, attrKeyType)
 		lastUpdate, _ := customAttrValue[int64](attrResp.Attribute, attrLastUpdate)
 		active, _ := customAttrValue[bool](attrResp.Attribute, attrActive)
+		state, _ := customAttrValue[ovh.State](attrResp.Attribute, ovh.AttributeNameState)
 		if !hasServerID || !hasTrustDomain || !hasKeyID || !hasKeyType {
 			logger.Warn("Key metadata incomplete; skipping", "uid", privUID)
 			continue
@@ -485,6 +486,16 @@ func recoverKeys(ctx context.Context, client *kmipclient.Client, logger hclog.Lo
 			continue
 		}
 		if keyServerID != serverID || keyTrustDomain != trustDomain {
+			continue
+		}
+		// Skip disposed keys so recovery never resurrects one the reclamation task
+		// has already retired. A partially-completed disposal (e.g. Revoke succeeded
+		// but Destroy is still pending) can leave a key still tagged with this
+		// server's attributes and returned by Locate, but signing with it would fail,
+		// so it must not be recovered as the active key.
+		switch state {
+		case ovh.StateDeactivated, ovh.StateCompromised, ovh.StateDestroyed, ovh.StateDestroyedCompromised:
+			logger.Debug("Skipping disposed key during recovery", "uid", privUID, "state", state)
 			continue
 		}
 		candidates[spireKeyID] = append(candidates[spireKeyID], recoveredKey{
@@ -764,7 +775,10 @@ const (
 	attrActive      ovh.AttributeName = "x-spire-active"
 )
 
-var spireCustomAttrNames = []ovh.AttributeName{attrServerID, attrTrustDomain, attrKeyID, attrKeyType, attrLastUpdate, attrActive}
+// spireCustomAttrNames lists the attributes fetched in a single GetAttributes
+// call during recovery, including the standard KMIP State attribute so disposed
+// keys (revoked or destroyed) can be skipped client-side.
+var spireCustomAttrNames = []ovh.AttributeName{attrServerID, attrTrustDomain, attrKeyID, attrKeyType, attrLastUpdate, attrActive, ovh.AttributeNameState}
 
 // customAttrValue returns the decoded value of the named custom attribute from a GetAttributes
 // response, unwrapping the generic ttlv.Value the client library decodes unregistered attribute
