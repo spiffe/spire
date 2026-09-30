@@ -60,7 +60,10 @@ file does not exist).
 Because SPIRE reuses key IDs across rotations, several key objects may carry the
 same `x-spire-key-id`. During recovery the plugin selects the single key whose
 `x-spire-active` is `true`; if none or more than one is marked active, it selects
-the one with the newest `x-spire-last-update`, and logs a warning.
+the one with the newest `x-spire-last-update`, and logs a warning. A candidate is
+considered at all only if its KMIP state is `Active`: a key still `Pre-Active`
+(never activated, e.g. after a crash during creation), already deactivated,
+destroyed, or whose state could not be read is skipped.
 
 ### Key lifecycle
 

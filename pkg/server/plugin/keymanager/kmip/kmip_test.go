@@ -887,6 +887,50 @@ func TestRecoverKeysSkipsDisposedKeys(t *testing.T) {
 	require.NotContains(t, entries, "disposed-key")
 }
 
+// TestRecoverKeysSkipsPreActiveAndUnreadableState covers two more ways a private
+// key can end up not usable for signing despite carrying this server's
+// attributes: it never left the KMIP Pre-Active state (e.g. a crash between
+// Create Key Pair and Activate), or its State attribute could not be read at
+// all (e.g. a KMIP server response that omits it). Both must be skipped during
+// recovery, the same as an already-disposed key.
+func TestRecoverKeysSkipsPreActiveAndUnreadableState(t *testing.T) {
+	store := newFakeStore()
+	addr, caPEM := kmiptest.NewServer(t, store.handler())
+	lastUpdate := time.Unix(1_700_000_000, 0).Unix()
+	store.seed("live-priv", "live-pub", spireAttrs(testServerID, testTrustDomain, "live-key", lastUpdate))
+	store.seed("preactive-priv", "preactive-pub", spireAttrs(testServerID, testTrustDomain, "preactive-key", lastUpdate))
+	store.seed("unreadable-priv", "unreadable-pub", spireAttrs(testServerID, testTrustDomain, "unreadable-key", lastUpdate))
+	seedECKeyMaterial(t, store, "live-priv", "live-pub")
+	seedECKeyMaterial(t, store, "preactive-priv", "preactive-pub")
+	seedECKeyMaterial(t, store, "unreadable-priv", "unreadable-pub")
+
+	store.mu.Lock()
+	// seed() marks new objects Active by default; revert this one to Pre-Active,
+	// as if Activate was never called.
+	store.activated["preactive-priv"] = false
+	store.omitState["unreadable-priv"] = true
+	store.mu.Unlock()
+
+	caFile := writeTempPEM(t, caPEM)
+	client, err := buildClient(context.Background(), &Config{
+		KMIPAddr:                addr,
+		CACertPath:              caFile,
+		InsecureSkipVerify:      true,
+		parsedStaleKeyThreshold: defaultStaleKeyThreshold,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, client.Close())
+	})
+
+	entries, err := recoverKeys(context.Background(), client, hclog.NewNullLogger(), testServerID, testTrustDomain)
+	require.NoError(t, err)
+	require.Len(t, entries, 1)
+	require.Contains(t, entries, "live-key")
+	require.NotContains(t, entries, "preactive-key")
+	require.NotContains(t, entries, "unreadable-key")
+}
+
 // TestKeyRecoveryAfterRotationPicksActiveKey reproduces the ambiguity flagged in
 // review end-to-end: after a rotation, both the old and new key objects for
 // "rotate-key" still exist on the KMIP server (the old one is only reclaimed later
@@ -1434,6 +1478,9 @@ type fakeStore struct {
 	// ignoreLocateAttrFilters makes Locate honor only the ObjectType filter,
 	// mimicking a KMIP server that ignores custom-attribute filters.
 	ignoreLocateAttrFilters bool
+	// omitState makes GetAttributes leave the State attribute out of the response
+	// for the given uid, mimicking a KMIP server response that doesn't include it.
+	omitState map[string]bool
 }
 
 type getAttributesFailureKey struct {
@@ -1450,6 +1497,7 @@ func newFakeStore() *fakeStore {
 		activateFails:      make(map[int]error),
 		getAttributesFails: make(map[getAttributesFailureKey]error),
 		getFails:           make(map[string]error),
+		omitState:          make(map[string]bool),
 	}
 }
 
@@ -1656,6 +1704,9 @@ func (s *fakeStore) handler() kmipserver.RequestHandler {
 						},
 					})
 				case ovh.AttributeNameState:
+					if s.omitState[req.UniqueIdentifier] {
+						continue
+					}
 					attrs = append(attrs, ovh.Attribute{
 						AttributeName:  ovh.AttributeNameState,
 						AttributeValue: objectState(s.activated[req.UniqueIdentifier], s.revoked[req.UniqueIdentifier]),
@@ -1673,6 +1724,9 @@ func (s *fakeStore) handler() kmipserver.RequestHandler {
 			for _, want := range req.AttributeName {
 				switch want {
 				case ovh.AttributeNameState:
+					if s.omitState[req.UniqueIdentifier] {
+						continue
+					}
 					attrs = append(attrs, ovh.Attribute{
 						AttributeName:  ovh.AttributeNameState,
 						AttributeValue: objectState(s.activated[req.UniqueIdentifier], s.revoked[req.UniqueIdentifier]),
