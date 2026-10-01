@@ -63,11 +63,16 @@ const (
 	defaultPruneAttestedNodesBatchSize = 1000
 )
 
-// Aliases for the database types referenced throughout the query code.
+// Database types supported by the datastore. The definitions live in
+// sqlcommon; these aliases keep the exported identifiers of this package.
 const (
-	MySQL      = sqlcommon.MySQL
-	PostgreSQL = sqlcommon.PostgreSQL
-	SQLite     = sqlcommon.SQLite
+	MySQL           = sqlcommon.MySQL
+	PostgreSQL      = sqlcommon.PostgreSQL
+	SQLite          = sqlcommon.SQLite
+	AWSMySQL        = sqlcommon.AWSMySQL
+	AWSPostgreSQL   = sqlcommon.AWSPostgreSQL
+	AzurePostgreSQL = sqlcommon.AzurePostgreSQL
+	AzureMySQL      = sqlcommon.AzureMySQL
 )
 
 type sqlDB struct {

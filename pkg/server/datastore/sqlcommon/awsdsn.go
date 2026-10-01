@@ -35,11 +35,13 @@ func BuildAWSPostgresDSN(cfg *Configuration, isReadOnly bool) (string, error) {
 }
 
 // BuildAWSMySQLDSN builds the AWS RDS / IAM DSN for a MySQL connection.
-//
-// TODO: reject a connection string carrying a password, as
-// BuildAWSPostgresDSN does. Deferred because it would break existing
-// configurations that set one.
+// It rejects a connection string carrying a password, since IAM auth
+// supplies a rotating token instead.
 func BuildAWSMySQLDSN(cfg *Configuration, mysqlConfig *mysql.Config) (string, error) {
+	if mysqlConfig.Passwd != "" {
+		return "", errors.New("invalid mysql configuration: password should not be set when using IAM authentication")
+	}
+
 	awsrdsConfig := &awsrds.Config{
 		Region:          cfg.DBTypeConfig.AWSMySQL.Region,
 		AccessKeyID:     cfg.DBTypeConfig.AWSMySQL.AccessKeyID,

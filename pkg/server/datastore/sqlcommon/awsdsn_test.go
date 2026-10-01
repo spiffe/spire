@@ -4,6 +4,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/go-sql-driver/mysql"
 	"github.com/stretchr/testify/require"
 )
 
@@ -49,6 +50,22 @@ func TestBuildAWSPostgresDSNAllowsEmptyPassword(t *testing.T) {
 	_, err := BuildAWSPostgresDSN(awsPostgresConfig(
 		"postgres://dbuser:@my-instance.rds.amazonaws.com:5432/spire"), false)
 	require.NoError(t, err)
+}
+
+func TestBuildAWSMySQLDSN(t *testing.T) {
+	cfg := &Configuration{
+		DBTypeConfig: &DBTypeConfig{
+			DatabaseType: AWSMySQL,
+			AWSMySQL:     &AWSConfig{Region: "us-west-2", AccessKeyID: "AKID", SecretAccessKey: "SECRET"},
+		},
+	}
+
+	dsn, err := BuildAWSMySQLDSN(cfg, &mysql.Config{User: "dbuser", Net: "tcp", Addr: "my-instance.rds.amazonaws.com:3306", DBName: "spire"})
+	require.NoError(t, err)
+	require.Contains(t, dsn, "my-instance.rds.amazonaws.com:3306")
+
+	_, err = BuildAWSMySQLDSN(cfg, &mysql.Config{User: "dbuser", Passwd: "secret", Net: "tcp", Addr: "host:3306"})
+	require.ErrorContains(t, err, "password should not be set when using IAM authentication")
 }
 
 func awsPostgresConfig(connString string) *Configuration {
