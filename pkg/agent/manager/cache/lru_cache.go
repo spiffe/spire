@@ -45,6 +45,10 @@ type StaleEntry struct {
 // CachedSVID is the constraint for any SVID type storable in the generic LRU cache.
 type CachedSVID interface {
 	ExpiresAt() time.Time
+
+	// InvalidatedBy reports whether an SVID issued for the existing entry
+	// must not be served to workloads matching only the updated entry.
+	InvalidatedBy(existing, updated *common.RegistrationEntry) bool
 }
 
 // LRUCacheConfig holds configuration for creating an LRUCache instance.
@@ -353,6 +357,14 @@ func (c *LRUCache[SVID, Update]) UpdateEntries(update *UpdateEntries, checkSVID 
 		// notify set.
 		c.diffSelectors(existingEntry, newEntry, selAdd, selRem)
 		selectorsChanged := len(selAdd) > 0 || len(selRem) > 0
+
+		// Removed selectors let workloads that did not match the existing
+		// entry match the new one; they must not get the existing SVID.
+		if len(selRem) > 0 {
+			if svid, ok := c.svids[newEntry.EntryId]; ok && (*svid).InvalidatedBy(existingEntry, newEntry) {
+				delete(c.svids, newEntry.EntryId)
+			}
+		}
 		c.addSelectorIndicesRecord(selAdd, record)
 		c.delSelectorIndicesRecord(selRem, record)
 		if selectorsChanged {
