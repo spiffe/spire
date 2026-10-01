@@ -100,7 +100,9 @@ path by lifecycle state: an `Active` object is first revoked (`Revoke` with a
 non-compromise reason, moving it to the `Deactivated` state) and then destroyed
 (`Destroy`), following the KMIP requirement that an object be `Deactivated`
 before it can be `Destroyed`; objects already in a non-active state are
-destroyed directly.
+destroyed directly. Objects already in a `Destroyed` state are left untouched,
+since some KMIP servers retain destroyed objects and keep returning them from
+`Locate`.
 
 A sample configuration:
 

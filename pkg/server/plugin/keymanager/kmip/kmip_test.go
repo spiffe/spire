@@ -1138,6 +1138,47 @@ func TestDisposeStaleKeysReclaimsKeysAcrossServerIDs(t *testing.T) {
 	require.True(t, store.revoked["server-b-stale-priv"], "other server's stale key should be revoked before being destroyed")
 }
 
+// TestDisposeStaleKeysSkipsAlreadyDestroyedKeys covers a KMIP server that retains
+// destroyed objects instead of dropping them: Locate keeps returning a key a
+// previous sweep already reclaimed, and Destroy is not a valid transition out of
+// the Destroyed state. The sweep must leave those objects alone and still reclaim
+// the keys that are actually stale.
+func TestDisposeStaleKeysSkipsAlreadyDestroyedKeys(t *testing.T) {
+	store := newFakeStore()
+	store.retainDestroyed = true
+	addr, caPEM := kmiptest.NewServer(t, store.handler())
+	p, clk := newTestPluginWithServerIDAndConfig(t, addr, caPEM, "server-a", "")
+
+	staleLastUpdate := clk.Now().Add(-30 * 24 * time.Hour).Unix()
+	store.seed("stale-priv", "stale-pub", map[ovh.AttributeName]any{
+		attrServerID:    "server-a",
+		attrTrustDomain: testTrustDomain,
+		attrLastUpdate:  staleLastUpdate,
+	})
+	store.seed("gone-priv", "gone-pub", map[ovh.AttributeName]any{
+		attrServerID:    "server-a",
+		attrTrustDomain: testTrustDomain,
+		attrLastUpdate:  staleLastUpdate,
+	})
+
+	// A previous sweep already destroyed this pair, and the server kept both
+	// objects around in the Destroyed state.
+	store.mu.Lock()
+	store.destroyed["gone-priv"] = true
+	store.destroyed["gone-pub"] = true
+	store.mu.Unlock()
+
+	require.NoError(t, p.disposeStaleKeys(context.Background()))
+
+	store.mu.Lock()
+	defer store.mu.Unlock()
+	require.True(t, store.destroyed["stale-priv"], "stale key should be destroyed")
+	require.True(t, store.destroyed["stale-pub"], "stale public key should be destroyed")
+	require.Zero(t, store.destroyCalls["gone-priv"], "already-destroyed private key must not be destroyed again")
+	require.Zero(t, store.destroyCalls["gone-pub"], "already-destroyed public key must not be destroyed again")
+	require.False(t, store.revoked["gone-priv"], "already-destroyed key must not be revoked again")
+}
+
 func TestDisposeStaleKeysDoesNotReclaimKeysFromOtherTrustDomains(t *testing.T) {
 	store := newFakeStore()
 	addr, caPEM := kmiptest.NewServer(t, store.handler())
@@ -1481,6 +1522,12 @@ type fakeStore struct {
 	// omitState makes GetAttributes leave the State attribute out of the response
 	// for the given uid, mimicking a KMIP server response that doesn't include it.
 	omitState map[string]bool
+	// retainDestroyed makes Destroy keep the object and mark it Destroyed instead
+	// of removing it, mimicking a KMIP server that retains destroyed objects so
+	// they keep showing up in Locate results.
+	retainDestroyed bool
+	destroyed       map[string]bool
+	destroyCalls    map[string]int
 }
 
 type getAttributesFailureKey struct {
@@ -1498,6 +1545,8 @@ func newFakeStore() *fakeStore {
 		getAttributesFails: make(map[getAttributesFailureKey]error),
 		getFails:           make(map[string]error),
 		omitState:          make(map[string]bool),
+		destroyed:          make(map[string]bool),
+		destroyCalls:       make(map[string]int),
 	}
 }
 
@@ -1709,7 +1758,7 @@ func (s *fakeStore) handler() kmipserver.RequestHandler {
 					}
 					attrs = append(attrs, ovh.Attribute{
 						AttributeName:  ovh.AttributeNameState,
-						AttributeValue: objectState(s.activated[req.UniqueIdentifier], s.revoked[req.UniqueIdentifier]),
+						AttributeValue: objectState(s.activated[req.UniqueIdentifier], s.revoked[req.UniqueIdentifier], s.destroyed[req.UniqueIdentifier]),
 					})
 				default:
 					if val, ok := rec.attrs[want]; ok {
@@ -1729,7 +1778,7 @@ func (s *fakeStore) handler() kmipserver.RequestHandler {
 					}
 					attrs = append(attrs, ovh.Attribute{
 						AttributeName:  ovh.AttributeNameState,
-						AttributeValue: objectState(s.activated[req.UniqueIdentifier], s.revoked[req.UniqueIdentifier]),
+						AttributeValue: objectState(s.activated[req.UniqueIdentifier], s.revoked[req.UniqueIdentifier], s.destroyed[req.UniqueIdentifier]),
 					})
 				default:
 					if val, ok := rec.pubAttrs[want]; ok {
@@ -1803,6 +1852,17 @@ func (s *fakeStore) handler() kmipserver.RequestHandler {
 	exec.Route(ovh.OperationDestroy, kmipserver.HandleFunc(func(_ context.Context, req *payloads.DestroyRequestPayload) (*payloads.DestroyResponsePayload, error) {
 		s.mu.Lock()
 		defer s.mu.Unlock()
+		s.destroyCalls[req.UniqueIdentifier]++
+		// A KMIP server may either drop a destroyed object or retain it in the
+		// Destroyed state; retainDestroyed selects the latter. Destroying an
+		// already-destroyed object is not a valid transition, so it errors.
+		if s.retainDestroyed {
+			if s.destroyed[req.UniqueIdentifier] {
+				return nil, fmt.Errorf("object %s is already destroyed", req.UniqueIdentifier)
+			}
+			s.destroyed[req.UniqueIdentifier] = true
+			return &payloads.DestroyResponsePayload{UniqueIdentifier: req.UniqueIdentifier}, nil
+		}
 		// Destroy removes only the specified object (no implicit cascade), matching
 		// the KMIP spec where a client must destroy linked objects explicitly.
 		if _, ok := s.keys[req.UniqueIdentifier]; ok {
@@ -1922,8 +1982,10 @@ func generateKeyFromRequest(req *payloads.CreateKeyPairRequestPayload) (crypto.S
 	}
 }
 
-func objectState(activated, revoked bool) ovh.State {
+func objectState(activated, revoked, destroyed bool) ovh.State {
 	switch {
+	case destroyed:
+		return ovh.StateDestroyed
 	case revoked:
 		return ovh.StateDeactivated
 	case activated:

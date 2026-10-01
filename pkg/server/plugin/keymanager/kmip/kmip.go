@@ -1047,12 +1047,19 @@ func (p *Plugin) disposeStaleKeys(ctx context.Context) error {
 	staleThreshold := p.clk.Now().Add(-threshold).Unix()
 
 	for _, privUID := range privUIDs {
-		td, lastUpdate, ok, err := getKeyMetadataAndFreshness(ctx, client, privUID)
+		meta, ok, err := getKeyMetadataAndFreshness(ctx, client, privUID)
 		if err != nil {
 			p.logger.Warn("Failed to read metadata during disposal", "uid", privUID, "err", err)
 			continue
 		}
-		if !ok || td != trustDomain || lastUpdate >= staleThreshold {
+		if !ok || meta.trustDomain != trustDomain || meta.lastUpdate >= staleThreshold {
+			continue
+		}
+		// A KMIP server may retain destroyed objects, so Locate keeps returning a
+		// key this sweep already reclaimed. There is nothing left to destroy, and
+		// retrying would fail every sweep, so skip it.
+		if meta.hasState && isDestroyed(meta.state) {
+			p.logger.Debug("Skipping already-destroyed key during disposal", "uid", privUID, "state", meta.state)
 			continue
 		}
 		if err := revokeAndDestroyKeyPair(ctx, client, p.logger, privUID); err != nil {
@@ -1066,7 +1073,7 @@ func (p *Plugin) disposeStaleKeys(ctx context.Context) error {
 			}
 		}
 		p.mu.Unlock()
-		p.logger.Info("Disposed stale key", "uid", privUID, "last_update", lastUpdate)
+		p.logger.Info("Disposed stale key", "uid", privUID, "last_update", meta.lastUpdate)
 	}
 	return nil
 }
@@ -1088,23 +1095,34 @@ func revokeAndDestroy(ctx context.Context, c *kmipclient.Client, uid string) err
 
 // destroyByState chooses the correct KMIP disposal path for the object's current
 // lifecycle state. Active objects must be revoked before they can be destroyed,
-// while non-active objects can be destroyed directly.
+// while non-active objects can be destroyed directly. Objects that already
+// reached a Destroyed state are left alone: Destroy is not a valid transition
+// out of them, and some KMIP servers retain destroyed objects rather than
+// dropping them, so retrying would fail on every sweep.
 func destroyByState(ctx context.Context, c *kmipclient.Client, uid string) error {
 	state, err := getState(ctx, c, uid)
 	if err != nil {
 		return fmt.Errorf("get state for key %s: %w", uid, err)
 	}
 
-	switch state {
-	case ovh.StateActive:
+	switch {
+	case isDestroyed(state):
+		return nil
+	case state == ovh.StateActive:
 		return revokeAndDestroy(ctx, c, uid)
-	case ovh.StatePreActive:
+	case state == ovh.StatePreActive:
 		return destroyPreActive(ctx, c, uid)
-	case ovh.StateDeactivated, ovh.StateCompromised, ovh.StateDestroyed, ovh.StateDestroyedCompromised:
+	case state == ovh.StateDeactivated, state == ovh.StateCompromised:
 		return destroyWithoutRevoke(ctx, c, uid)
 	default:
 		return fmt.Errorf("unsupported state %v for key %s", state, uid)
 	}
+}
+
+// isDestroyed reports whether an object already reached a terminal Destroyed
+// state and therefore cannot be destroyed again.
+func isDestroyed(state ovh.State) bool {
+	return state == ovh.StateDestroyed || state == ovh.StateDestroyedCompromised
 }
 
 func getState(ctx context.Context, c *kmipclient.Client, uid string) (ovh.State, error) {
@@ -1179,14 +1197,32 @@ func clearActiveMarker(ctx context.Context, c *kmipclient.Client, uid string) er
 	return nil
 }
 
-// getKeyMetadataAndFreshness reads custom attributes from a key object and returns its trust domain,
-// last-update timestamp, and whether it was found.
-func getKeyMetadataAndFreshness(ctx context.Context, c *kmipclient.Client, uid string) (trustDomain string, lastUpdate int64, ok bool, err error) {
-	attrResp, err := c.GetAttributes(uid, attrTrustDomain, attrLastUpdate).ExecContext(ctx)
+// disposalMetadata is what disposeStaleKeys needs about a key object to decide
+// whether to reclaim it, read in a single GetAttributes call.
+type disposalMetadata struct {
+	trustDomain string
+	lastUpdate  int64
+	// state is only meaningful when hasState is true; a KMIP server that does
+	// not return the State attribute leaves it unset.
+	state    ovh.State
+	hasState bool
+}
+
+// getKeyMetadataAndFreshness reads the attributes a disposal sweep needs from a key
+// object: its trust domain, last-update timestamp and KMIP state. ok reports whether
+// the SPIRE-managed trust domain and last-update markers were both present.
+func getKeyMetadataAndFreshness(ctx context.Context, c *kmipclient.Client, uid string) (meta disposalMetadata, ok bool, err error) {
+	attrResp, err := c.GetAttributes(uid, attrTrustDomain, attrLastUpdate, ovh.AttributeNameState).ExecContext(ctx)
 	if err != nil {
-		return "", 0, false, err
+		return disposalMetadata{}, false, err
 	}
 	trustDomain, hasTD := customAttrValue[string](attrResp.Attribute, attrTrustDomain)
 	lastUpdate, hasLU := customAttrValue[int64](attrResp.Attribute, attrLastUpdate)
-	return trustDomain, lastUpdate, hasTD && hasLU, nil
+	state, hasState := customAttrValue[ovh.State](attrResp.Attribute, ovh.AttributeNameState)
+	return disposalMetadata{
+		trustDomain: trustDomain,
+		lastUpdate:  lastUpdate,
+		state:       state,
+		hasState:    hasState,
+	}, hasTD && hasLU, nil
 }
