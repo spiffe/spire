@@ -13,6 +13,7 @@ import (
 	"github.com/andres-erbsen/clock"
 	"github.com/hashicorp/go-hclog"
 	"github.com/valyala/fastjson"
+	corev1 "k8s.io/api/core/v1"
 )
 
 const kubeletRequestTimeout = 10 * time.Second
@@ -31,6 +32,11 @@ type podListFetcherConfig struct {
 	kubeletCAPath              string
 	nodeName                   string
 	reloadInterval             time.Duration
+	// excludeCompletedPods drops pods in a terminal status.phase (Failed or
+	// Succeeded) while parsing the kubelet response, so they never enter the
+	// cache. Such pods have no running containers and are never the target of
+	// workload attestation.
+	excludeCompletedPods bool
 }
 
 // podListFetcher coordinates access to the kubelet pod list. Concurrent callers
@@ -64,7 +70,7 @@ type podListFetcher struct {
 	cachedFetchStart time.Time
 
 	// These are callbacks purely to facilitate testing.
-	fetch       func(context.Context, *kubeletClient) (map[string]*fastjson.Value, error)
+	fetch       func(context.Context, *kubeletClient, podListFetcherConfig) (map[string]*fastjson.Value, error)
 	buildClient func(podListFetcherConfig, *kubeletClient) (*kubeletClient, error)
 }
 
@@ -305,7 +311,7 @@ func (f *podListFetcher) startFetch() {
 			clientForFetch = reloadedClient
 		}
 
-		pods, err := fetch(fetchCtx, clientForFetch)
+		pods, err := fetch(fetchCtx, clientForFetch, config)
 		result := podListFetchResult{
 			pods: pods, version: version,
 			err: err,
@@ -334,15 +340,15 @@ func (f *podListFetcher) fetchInFlight() bool {
 	return f.fetchCancel != nil
 }
 
-func (f *podListFetcher) fetchPodList(ctx context.Context, client *kubeletClient) (map[string]*fastjson.Value, error) {
+func (f *podListFetcher) fetchPodList(ctx context.Context, client *kubeletClient, config podListFetcherConfig) (map[string]*fastjson.Value, error) {
 	podListBytes, err := client.getPodList(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return f.parsePodList(podListBytes)
+	return f.parsePodList(podListBytes, config.excludeCompletedPods)
 }
 
-func (f *podListFetcher) parsePodList(podListBytes []byte) (map[string]*fastjson.Value, error) {
+func (f *podListFetcher) parsePodList(podListBytes []byte, excludeCompletedPods bool) (map[string]*fastjson.Value, error) {
 	var parser fastjson.Parser
 	podList, err := parser.ParseBytes(podListBytes)
 	if err != nil {
@@ -366,6 +372,7 @@ func (f *podListFetcher) parsePodList(podListBytes []byte) (map[string]*fastjson
 		return nil, errors.New("invalid kubelet response: expected an items array")
 	}
 	result := make(map[string]*fastjson.Value, len(items))
+	var scratch []byte
 
 	for _, podValue := range items {
 		uid := string(podValue.Get("metadata", "uid").GetStringBytes())
@@ -373,10 +380,55 @@ func (f *podListFetcher) parsePodList(podListBytes []byte) (map[string]*fastjson
 			f.log.Warn("Pod has no UID", "pod", podValue)
 			continue
 		}
-		result[uid] = podValue
+
+		if excludeCompletedPods && podIsUnattestable(podValue) {
+			continue
+		}
+
+		// Values from a single parser all alias that parser's working copy of
+		// the response and its shared value slice, so retaining any pod keeps
+		// the whole response alive. Re-parse each pod into its own parser so a
+		// cached pod costs only its own JSON.
+		scratch = podValue.MarshalTo(scratch[:0])
+		podParser := new(fastjson.Parser)
+		pod, err := podParser.ParseBytes(scratch)
+		if err != nil {
+			f.log.Warn("Unable to re-parse pod from kubelet response", "pod_uid", uid, "error", err)
+			continue
+		}
+
+		result[uid] = pod
 	}
 
 	return result, nil
+}
+
+// podIsUnattestable reports whether a pod can never again be the target of
+// workload attestation and is therefore safe to drop from the cache.
+//
+// A terminal status.phase is not sufficient on its own: an evicted pod, or one
+// left in ContainerStatusUnknown after a node problem, can sit in Failed while
+// its containers are still running. Attestation never consults the phase, it
+// matches on container ID alone (see lookUpContainerInPod), so a pod is only
+// droppable once no container status carries an ID left to match against.
+func podIsUnattestable(podValue *fastjson.Value) bool {
+	phase := string(podValue.Get("status", "phase").GetStringBytes())
+	if phase != string(corev1.PodFailed) && phase != string(corev1.PodSucceeded) {
+		return false
+	}
+
+	// Mirror the status lists lookUpContainerInPod searches. Ephemeral
+	// container statuses are deliberately excluded, since attestation never
+	// matches against them.
+	for _, statusField := range [...]string{"containerStatuses", "initContainerStatuses"} {
+		for _, containerStatus := range podValue.GetArray("status", statusField) {
+			if len(containerStatus.GetStringBytes("containerID")) > 0 {
+				return false
+			}
+		}
+	}
+
+	return true
 }
 
 func (f *podListFetcher) buildKubeletClient(config podListFetcherConfig, previousClient *kubeletClient) (*kubeletClient, error) {
