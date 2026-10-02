@@ -1,0 +1,10 @@
+#!/bin/bash
+
+source ./_common.sh
+
+# Both servers are up. The xDS policy places spire-server-1 at priority 0, so
+# the live JWT fetch must be served by it. Record the signing kid to compare
+# against the per-server kids observed in the next steps.
+kid=$(fetch-jwt-kid "$(unique-audience)")
+echo "${kid}" > ./kid_both
+log-info "both servers up: JWT-SVID issued by signing kid=${kid}"

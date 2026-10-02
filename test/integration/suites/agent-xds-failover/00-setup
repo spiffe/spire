@@ -1,0 +1,61 @@
+#!/bin/bash
+
+set -e
+
+# Node-attestation certs for the agent, plus the agent CA that the servers
+# trust. setup.sh writes the CA to the first argument (a server conf dir) and
+# the agent key/cert to the second (the agent conf dir).
+"${ROOTDIR}/setup/x509pop/setup.sh" conf/server1 conf/agent
+
+# Both servers must trust the same agent CA.
+cp conf/server1/agent-cacert.pem conf/server2/agent-cacert.pem
+
+# Shared upstream root CA mounted into both servers (EC, self-signed, CA:TRUE),
+# so their SVIDs chain to a single root and the agent can be served by either
+# server after failover.
+mkdir -p conf/upstream
+openssl ecparam -name secp384r1 -genkey -noout -out conf/upstream/root.key
+openssl req -new -x509 -key conf/upstream/root.key -out conf/upstream/root.crt -days 1825 \
+    -subj "/C=US/ST=/L=/O=SPIFFE/OU=/CN=/" -config <(
+cat <<-EOF
+[req]
+default_bits = 2048
+default_md = sha512
+distinguished_name = dn
+[ dn ]
+[alt_names]
+URI.1 = spiffe://local
+[v3_req]
+subjectKeyIdentifier=hash
+basicConstraints=critical,CA:TRUE
+keyUsage=critical,keyCertSign,cRLSign
+subjectAltName = @alt_names
+EOF
+) -extensions 'v3_req'
+chmod 644 conf/upstream/root.key conf/upstream/root.crt
+
+# TLS for the xDS control plane: agent rejects insecure non-local xDS servers.
+mkdir -p conf/xds
+openssl ecparam -name prime256v1 -genkey -noout -out conf/xds/ca.key.pem
+openssl req -new -x509 -key conf/xds/ca.key.pem -out conf/agent/xds-ca.crt.pem -days 1 \
+    -subj "/CN=xds-ca" -addext "basicConstraints=critical,CA:TRUE" \
+    -addext "keyUsage=critical,keyCertSign"
+openssl ecparam -name prime256v1 -genkey -noout -out conf/xds/xds.key.pem
+openssl req -new -key conf/xds/xds.key.pem -out conf/xds/xds.csr.pem -subj "/CN=xds-control-plane"
+openssl x509 -req -in conf/xds/xds.csr.pem -CA conf/agent/xds-ca.crt.pem -CAkey conf/xds/ca.key.pem \
+    -CAcreateserial -out conf/xds/xds.crt.pem -days 1 -extfile <(
+cat <<-EOF
+basicConstraints=critical,CA:FALSE
+keyUsage=critical,digitalSignature
+extendedKeyUsage=serverAuth
+subjectAltName=DNS:xds-control-plane
+EOF
+)
+chmod 644 conf/xds/*.pem conf/agent/xds-ca.crt.pem
+
+# Build the xDS control plane binary for linux from the repo tree into the run
+# directory, where the docker build context can pick it up. Mirrors the
+# debugserver/debugagent host-build pattern (the run dir is outside the module).
+( cd "${REPODIR}" && CGO_ENABLED=0 GOOS=linux go build \
+    -o "${RUNDIR}/xds/xds-control-plane" \
+    "./test/integration/suites/${TESTNAME}/xds" )

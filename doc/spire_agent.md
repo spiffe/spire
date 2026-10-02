@@ -121,6 +121,8 @@ When `experimental.require_pq_kem` is enabled, it overrides `min_tls_version` an
 | `broker`                       | Optional SPIFFE Broker API endpoint configuration. See [SPIFFE Broker API](#spiffe-broker-api).                                                                                     |                         |
 | `server_load_balancing_config` | The load balancing policies used for connections to the SPIRE server. See [Server Load Balancing](#server-load-balancing).                                                          | round robin             |
 | `sync_retry_backoff`           | Backoff applied between failed synchronizations with the SPIRE server. See [Sync Retry Backoff](#sync-retry-backoff).                                                               |                         |
+| `use_xds`                      | Resolve the SPIRE server via xDS instead of DNS. `server_address` becomes the xDS listener name and `server_port` is ignored; the management server endpoint and node locality come |                         |
+|                                | from the gRPC xDS bootstrap (`GRPC_XDS_BOOTSTRAP`). Each xDS server must be local (unix socket or loopback) or use `tls` channel credentials.                                       | false                   |
 
 ### Server Load Balancing
 
