@@ -176,18 +176,18 @@ func (s *DataStore) PruneAttestedExpiredNodes(ctx context.Context, expiredBefore
 	return s.ds.PruneAttestedExpiredNodes(ctx, expiredBefore, includeNonReattestable, batchSize)
 }
 
-func (s *DataStore) ListAttestedNodeEvents(ctx context.Context, req *datastore.ListAttestedNodeEventsRequest) (*datastore.ListAttestedNodeEventsResponse, error) {
+func (s *DataStore) FetchAttestedNodeChanges(ctx context.Context, req *datastore.FetchAttestedNodeChangesRequest) (*datastore.FetchAttestedNodeChangesResponse, error) {
 	if err := s.getNextError(); err != nil {
 		return nil, err
 	}
-	return s.ds.ListAttestedNodeEvents(ctx, req)
+	return s.ds.FetchAttestedNodeChanges(ctx, req)
 }
 
-func (s *DataStore) PruneAttestedNodeEvents(ctx context.Context, olderThan time.Duration) error {
+func (s *DataStore) PruneEvents(ctx context.Context, req *datastore.PruneEventsRequest) error {
 	if err := s.getNextError(); err != nil {
 		return err
 	}
-	return s.ds.PruneAttestedNodeEvents(ctx, olderThan)
+	return s.ds.PruneEvents(ctx, req)
 }
 
 func (s *DataStore) CreateAttestedNodeEventForTesting(ctx context.Context, event *datastore.AttestedNodeEvent) error {
@@ -202,13 +202,6 @@ func (s *DataStore) DeleteAttestedNodeEventForTesting(ctx context.Context, event
 		return err
 	}
 	return s.ds.DeleteAttestedNodeEventForTesting(ctx, eventID)
-}
-
-func (s *DataStore) FetchAttestedNodeEvent(ctx context.Context, eventID uint) (*datastore.AttestedNodeEvent, error) {
-	if err := s.getNextError(); err != nil {
-		return nil, err
-	}
-	return s.ds.FetchAttestedNodeEvent(ctx, eventID)
 }
 
 func (s *DataStore) TaintX509CA(ctx context.Context, trustDomainID string, subjectKeyIDToTaint string) error {
@@ -326,18 +319,11 @@ func (s *DataStore) PruneRegistrationEntries(ctx context.Context, expiresBefore 
 	return s.ds.PruneRegistrationEntries(ctx, expiresBefore)
 }
 
-func (s *DataStore) ListRegistrationEntryEvents(ctx context.Context, req *datastore.ListRegistrationEntryEventsRequest) (*datastore.ListRegistrationEntryEventsResponse, error) {
+func (s *DataStore) FetchRegistrationEntryChanges(ctx context.Context, req *datastore.FetchRegistrationEntryChangesRequest) (*datastore.FetchRegistrationEntryChangesResponse, error) {
 	if err := s.getNextError(); err != nil {
 		return nil, err
 	}
-	return s.ds.ListRegistrationEntryEvents(ctx, req)
-}
-
-func (s *DataStore) PruneRegistrationEntryEvents(ctx context.Context, olderThan time.Duration) error {
-	if err := s.getNextError(); err != nil {
-		return err
-	}
-	return s.ds.PruneRegistrationEntryEvents(ctx, olderThan)
+	return s.ds.FetchRegistrationEntryChanges(ctx, req)
 }
 
 func (s *DataStore) CreateRegistrationEntryEventForTesting(ctx context.Context, event *datastore.RegistrationEntryEvent) error {
@@ -352,13 +338,6 @@ func (s *DataStore) DeleteRegistrationEntryEventForTesting(ctx context.Context, 
 		return err
 	}
 	return s.ds.DeleteRegistrationEntryEventForTesting(ctx, eventID)
-}
-
-func (s *DataStore) FetchRegistrationEntryEvent(ctx context.Context, eventID uint) (*datastore.RegistrationEntryEvent, error) {
-	if err := s.getNextError(); err != nil {
-		return nil, err
-	}
-	return s.ds.FetchRegistrationEntryEvent(ctx, eventID)
 }
 
 func (s *DataStore) CreateJoinToken(ctx context.Context, token *datastore.JoinToken) error {
