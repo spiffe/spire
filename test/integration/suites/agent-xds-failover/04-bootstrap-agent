@@ -1,0 +1,8 @@
+#!/bin/bash
+
+log-debug "bootstrapping agent..."
+
+# The bundle from either server contains the shared upstream root, so the agent
+# will trust SVIDs presented by both servers.
+docker compose exec -T spire-server-1 \
+    /opt/spire/bin/spire-server bundle show > conf/agent/bootstrap.crt

@@ -655,6 +655,61 @@ func TestNewAgentConfig(t *testing.T) {
 			},
 		},
 		{
+			msg: "use_xds produces an xds target from server_address",
+			input: func(c *Config) {
+				t.Setenv("GRPC_XDS_BOOTSTRAP", "")
+				t.Setenv("GRPC_XDS_BOOTSTRAP_CONFIG", `{"xds_servers":[{"server_uri":"localhost:18000","channel_creds":[{"type":"insecure"}]}]}`)
+				c.Agent.ServerAddress = "spire-server"
+				c.Agent.ServerPort = 1337
+				c.Agent.Experimental.UseXDS = true
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				// server_port is intentionally ignored in xds mode; the port
+				// is delivered by the management server via EDS.
+				require.Equal(t, "xds:///spire-server", c.ServerAddress)
+			},
+		},
+		{
+			msg: "use_xds does not require server_port",
+			input: func(c *Config) {
+				t.Setenv("GRPC_XDS_BOOTSTRAP", "")
+				t.Setenv("GRPC_XDS_BOOTSTRAP_CONFIG", `{"xds_servers":[{"server_uri":"localhost:18000","channel_creds":[{"type":"insecure"}]}]}`)
+				c.Agent.ServerAddress = "spire-server"
+				c.Agent.ServerPort = 0
+				c.Agent.Experimental.UseXDS = true
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Equal(t, "xds:///spire-server", c.ServerAddress)
+			},
+		},
+		{
+			msg: "use_xds rejects server_load_balancing_config",
+			input: func(c *Config) {
+				c.Agent.ServerAddress = "spire-server"
+				c.Agent.Experimental.UseXDS = true
+				c.Agent.Experimental.ServerLoadBalancingConfig = `[ { "pick_first": {} } ]`
+			},
+			expectError:        true,
+			requireErrorPrefix: "server_load_balancing_config cannot be used with use_xds",
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
+			msg: "use_xds rejects insecure remote xDS server",
+			input: func(c *Config) {
+				t.Setenv("GRPC_XDS_BOOTSTRAP", "")
+				t.Setenv("GRPC_XDS_BOOTSTRAP_CONFIG", `{"xds_servers":[{"server_uri":"xds.example.org:18000","channel_creds":[{"type":"insecure"}]}]}`)
+				c.Agent.ServerAddress = "spire-server"
+				c.Agent.Experimental.UseXDS = true
+			},
+			expectError:        true,
+			requireErrorPrefix: "invalid xDS configuration:",
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
 			msg: "trust_domain should be correctly parsed",
 			input: func(c *Config) {
 				c.Agent.TrustDomain = "foo"

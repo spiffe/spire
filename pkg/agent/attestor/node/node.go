@@ -291,12 +291,15 @@ func (a *attestor) serverConn(bundle *spiffebundle.Bundle) (*grpc.ClientConn, er
 		},
 	}
 
-	return grpc.NewClient(
-		a.c.ServerAddress,
+	dialOpts := []grpc.DialOption{
 		grpc.WithDefaultServiceConfig(client.MakeServiceConfigJSON(a.c.LoadBalancingConfig)),
-		grpc.WithDisableServiceConfig(),
 		grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
-	)
+	}
+	if !client.IsXDSTarget(a.c.ServerAddress) {
+		dialOpts = append(dialOpts, grpc.WithDisableServiceConfig())
+	}
+
+	return grpc.NewClient(a.c.ServerAddress, dialOpts...)
 }
 
 type ServerStream struct {

@@ -1,0 +1,36 @@
+#!/bin/bash
+
+source ./_common.sh
+
+# Bring spire-server-1 back and take spire-server-2 down, so only the preferred
+# server is available. The agent should fail back to spire-server-1.
+baseline=$(count-server-api-starts spire-server-1)
+docker compose start spire-server-1
+wait-for-server-restarted spire-server-1 "${baseline}"
+
+docker-stop spire-server-2
+
+kid=$(fetch-jwt-kid "$(unique-audience)")
+echo "${kid}" > ./kid_primary
+log-info "only spire-server-1 up: JWT-SVID issued by signing kid=${kid}"
+
+# Verify the observed behavior:
+#  - the kid seen when both servers were up matches the primary's kid, proving
+#    the agent preferred spire-server-1 (priority 0) rather than server-2; and
+#  - the kid seen during failover differs from the primary's, proving
+#    spire-server-2 genuinely served the request (a real failover, not a cache
+#    hit or a still-alive connection to server-1).
+kid_both=$(cat ./kid_both)
+kid_secondary=$(cat ./kid_secondary)
+kid_primary=$(cat ./kid_primary)
+
+log-info "kids: both=${kid_both} secondary=${kid_secondary} primary=${kid_primary}"
+
+if [ "${kid_both}" != "${kid_primary}" ]; then
+    fail-now "expected the preferred server (kid ${kid_primary}) to serve when both were up, but got kid ${kid_both}"
+fi
+if [ "${kid_secondary}" == "${kid_primary}" ]; then
+    fail-now "expected failover to a different server, but the secondary's kid matched the primary's (${kid_primary})"
+fi
+
+log-info "verified: primary preferred when both up; secondary served during failover; failed back to primary"
