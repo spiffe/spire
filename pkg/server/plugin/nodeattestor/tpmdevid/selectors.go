@@ -4,6 +4,7 @@ import (
 	"crypto/sha1" //nolint: gosec // SHA1 use is according to specification
 	"crypto/x509"
 	"encoding/hex"
+	"slices"
 )
 
 func buildSelectorValues(leaf *x509.Certificate, chains [][]*x509.Certificate) []string {
@@ -11,6 +12,17 @@ func buildSelectorValues(leaf *x509.Certificate, chains [][]*x509.Certificate) [
 
 	if leaf.Subject.CommonName != "" {
 		selectorValues = append(selectorValues, "subject:cn:"+leaf.Subject.CommonName)
+	}
+
+	for _, attribute := range leaf.Subject.Names {
+		value, ok := attribute.Value.(string)
+		if !ok || value == "" {
+			continue
+		}
+		selectorValue := "subject:oid:" + attribute.Type.String() + ":" + value
+		if !slices.Contains(selectorValues, selectorValue) {
+			selectorValues = append(selectorValues, selectorValue)
+		}
 	}
 
 	if leaf.Issuer.CommonName != "" {

@@ -4,6 +4,10 @@ package tpmdevid_test
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/asn1"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -521,6 +525,22 @@ func TestAttestSucceeds(t *testing.T) {
 	devIDECC, err := sim.GenerateDevID(provisioningCA, tpmsimulator.ECC, tpmPasswords.DevIDKey)
 	require.NoError(t, err)
 
+	// Reissue the ECC certificate with standard and custom subject attributes.
+	devIDECC.Certificate.Subject.SerialNumber = "server-123"
+	devIDECC.Certificate.Subject.ExtraNames = []pkix.AttributeTypeAndValue{
+		{Type: asn1.ObjectIdentifier{1, 2, 3, 4}, Value: "rack-a"},
+		{Type: asn1.ObjectIdentifier{1, 2, 3, 4}, Value: "rack-a"},
+		{Type: asn1.ObjectIdentifier{1, 2, 3, 4}, Value: " Rack:B "},
+		{Type: asn1.ObjectIdentifier{1, 2, 3, 5}, Value: ""},
+		{Type: asn1.ObjectIdentifier{1, 2, 3, 6}, Value: 42},
+	}
+	devIDECC.Certificate.RawSubject = nil
+	certDER, err := x509.CreateCertificate(rand.Reader, devIDECC.Certificate,
+		provisioningCA.IntermediateCert, devIDECC.Certificate.PublicKey, provisioningCA.IntermediateKey)
+	require.NoError(t, err)
+	devIDECC.Certificate, err = x509.ParseCertificate(certDER)
+	require.NoError(t, err)
+
 	// Generate DevIDs with no intermediate certificates
 	provisioningCANoIntermediates, err := tpmsimulator.NewProvisioningCA(
 		&tpmsimulator.ProvisioningConf{
@@ -550,6 +570,10 @@ func TestAttestSucceeds(t *testing.T) {
 				},
 				{
 					Type:  "tpm_devid",
+					Value: "subject:oid:2.5.4.3:devid-leaf",
+				},
+				{
+					Type:  "tpm_devid",
 					Value: "issuer:cn:intermediate",
 				},
 				{
@@ -563,7 +587,7 @@ func TestAttestSucceeds(t *testing.T) {
 			},
 		},
 		{
-			name:  "Attest succeeds for ECC DevID",
+			name:  "Attest succeeds for ECC DevID with standard and custom subject attributes",
 			devID: devIDECC,
 			expectedAgentID: fmt.Sprintf("spiffe://example.org/spire/agent/tpm_devid/%v",
 				tpmdevid.Fingerprint(devIDECC.Certificate)),
@@ -571,6 +595,22 @@ func TestAttestSucceeds(t *testing.T) {
 				{
 					Type:  "tpm_devid",
 					Value: "subject:cn:devid-leaf",
+				},
+				{
+					Type:  "tpm_devid",
+					Value: "subject:oid:2.5.4.3:devid-leaf",
+				},
+				{
+					Type:  "tpm_devid",
+					Value: "subject:oid:2.5.4.5:server-123",
+				},
+				{
+					Type:  "tpm_devid",
+					Value: "subject:oid:1.2.3.4:rack-a",
+				},
+				{
+					Type:  "tpm_devid",
+					Value: "subject:oid:1.2.3.4: Rack:B ",
 				},
 				{
 					Type:  "tpm_devid",
@@ -595,6 +635,10 @@ func TestAttestSucceeds(t *testing.T) {
 				{
 					Type:  "tpm_devid",
 					Value: "subject:cn:devid-leaf",
+				},
+				{
+					Type:  "tpm_devid",
+					Value: "subject:oid:2.5.4.3:devid-leaf",
 				},
 				{
 					Type:  "tpm_devid",
