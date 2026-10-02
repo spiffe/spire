@@ -16,9 +16,6 @@ import (
 	"unicode"
 
 	"github.com/gofrs/uuid/v5"
-	"github.com/hashicorp/hcl"
-	"github.com/hashicorp/hcl/hcl/ast"
-	"github.com/hashicorp/hcl/hcl/printer"
 	"github.com/jinzhu/gorm"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire/pkg/common/util"
@@ -54,27 +51,6 @@ var validEntryIDChars = &unicode.RangeTable{
 const (
 	PluginName = "sql"
 
-	// MySQL database type
-	MySQL = "mysql"
-	// PostgreSQL database type
-	PostgreSQL = "postgres"
-	// SQLite database type
-	SQLite = "sqlite3"
-
-	// MySQL database provided by an AWS service
-	AWSMySQL = "aws_mysql"
-
-	// PostgreSQL database type provided by an AWS service
-	AWSPostgreSQL = "aws_postgres"
-
-	// PostgreSQL database type provided by an Azure service, authenticated
-	// using Microsoft Entra ID (Azure AD)
-	AzurePostgreSQL = "azure_postgres"
-
-	// MySQL database type provided by an Azure service, authenticated using
-	// Microsoft Entra ID (Azure AD)
-	AzureMySQL = "azure_mysql"
-
 	// Maximum size for preallocation in a paginated request
 	maxResultPreallocation = 1000
 
@@ -85,6 +61,18 @@ const (
 	// nodes pruned per call when no batch size (or a non-positive one) is
 	// provided.
 	defaultPruneAttestedNodesBatchSize = 1000
+)
+
+// Database types supported by the datastore. The definitions live in
+// sqlcommon; these aliases keep the exported identifiers of this package.
+const (
+	MySQL           = sqlcommon.MySQL
+	PostgreSQL      = sqlcommon.PostgreSQL
+	SQLite          = sqlcommon.SQLite
+	AWSMySQL        = sqlcommon.AWSMySQL
+	AWSPostgreSQL   = sqlcommon.AWSPostgreSQL
+	AzurePostgreSQL = sqlcommon.AzurePostgreSQL
+	AzureMySQL      = sqlcommon.AzureMySQL
 )
 
 type sqlDB struct {
@@ -856,19 +844,12 @@ checkAuthorities:
 // Configure parses HCL config payload into config struct, opens new DB based on the result, and
 // prunes all orphaned records
 func (ds *Plugin) Configure(ctx context.Context, hclConfiguration string) error {
-	config := &sqlcommon.Configuration{}
-	if err := hcl.Decode(config, hclConfiguration); err != nil {
-		return err
-	}
-
-	dbTypeConfig, err := parseDatabaseTypeASTNode(config.DatabaseTypeNode)
+	config, err := sqlcommon.BuildConfig(hclConfiguration)
 	if err != nil {
 		return err
 	}
 
-	config.DBTypeConfig = dbTypeConfig
-
-	if err := configValidate(config); err != nil {
+	if err := sqlcommon.ConfigValidate(config); err != nil {
 		return err
 	}
 
@@ -876,13 +857,13 @@ func (ds *Plugin) Configure(ctx context.Context, hclConfiguration string) error 
 }
 
 func (ds *Plugin) Validate(ctx context.Context, coreConfig catalog.CoreConfig, configuration string) (*configv1.ValidateResponse, error) {
-	config, err := buildConfig(configuration)
+	config, err := sqlcommon.BuildConfig(configuration)
 	if err != nil {
 		return &configv1.ValidateResponse{
 			Notes: []string{err.Error()},
 		}, err
 	}
-	err = configValidate(config)
+	err = sqlcommon.ConfigValidate(config)
 	if err != nil {
 		return &configv1.ValidateResponse{
 			Notes: []string{err.Error()},
@@ -892,21 +873,6 @@ func (ds *Plugin) Validate(ctx context.Context, coreConfig catalog.CoreConfig, c
 	return &configv1.ValidateResponse{
 		Valid: true,
 	}, nil
-}
-
-func buildConfig(hclConfiguration string) (*sqlcommon.Configuration, error) {
-	config := &sqlcommon.Configuration{}
-	if err := hcl.Decode(config, hclConfiguration); err != nil {
-		return nil, err
-	}
-
-	dbTypeConfig, err := parseDatabaseTypeASTNode(config.DatabaseTypeNode)
-	if err != nil {
-		return nil, err
-	}
-
-	config.DBTypeConfig = dbTypeConfig
-	return config, nil
 }
 
 func (ds *Plugin) openConnections(ctx context.Context, config *sqlcommon.Configuration) error {
@@ -993,7 +959,7 @@ func (ds *Plugin) Close() error {
 func (ds *Plugin) withReadModifyWriteTx(ctx context.Context, op func(tx *gorm.DB) error) error {
 	return ds.withTx(ctx, func(tx *gorm.DB) error {
 		switch {
-		case isMySQLDbType(ds.db.databaseType):
+		case sqlcommon.IsMySQLDbType(ds.db.databaseType):
 			// MySQL REPEATABLE READ is weaker than that of PostgreSQL. Namely,
 			// PostgreSQL, beyond providing the minimum consistency guarantees
 			// mandated for REPEATABLE READ in the standard, automatically fails
@@ -1005,7 +971,7 @@ func (ds *Plugin) withReadModifyWriteTx(ctx context.Context, op func(tx *gorm.DB
 			// isolation level, like SERIALIZABLE, which is not supported by
 			// some MySQL-compatible databases (i.e. Percona XtraDB cluster)
 			tx = tx.Set("gorm:query_option", "FOR UPDATE")
-		case isPostgresDbType(ds.db.databaseType):
+		case sqlcommon.IsPostgresDbType(ds.db.databaseType):
 			// `SELECT .. FOR UPDATE`is also required when PostgreSQL is in
 			// hot standby mode for this operation to work properly (see issue #3039).
 			tx = tx.Set("gorm:query_option", "FOR UPDATE")
@@ -1095,11 +1061,11 @@ func (ds *Plugin) openDB(ctx context.Context, cfg *sqlcommon.Configuration, isRe
 
 	ds.log.WithField(telemetry.DatabaseType, cfg.DBTypeConfig.DatabaseType).Info("Opening SQL database")
 	switch {
-	case isSQLiteDbType(cfg.DBTypeConfig.DatabaseType):
+	case sqlcommon.IsSQLiteDbType(cfg.DBTypeConfig.DatabaseType):
 		dialect = sqliteDB{log: ds.log}
-	case isPostgresDbType(cfg.DBTypeConfig.DatabaseType):
+	case sqlcommon.IsPostgresDbType(cfg.DBTypeConfig.DatabaseType):
 		dialect = postgresDB{}
-	case isMySQLDbType(cfg.DBTypeConfig.DatabaseType):
+	case sqlcommon.IsMySQLDbType(cfg.DBTypeConfig.DatabaseType):
 		dialect = mysqlDB{
 			logger: ds.log,
 		}
@@ -1968,9 +1934,9 @@ func listAttestedNodesOnce(ctx context.Context, db *sqlDB, req *datastore.ListAt
 
 func buildListAttestedNodesQuery(dbType string, supportsCTE bool, req *datastore.ListAttestedNodesRequest) (string, []any, error) {
 	switch {
-	case isSQLiteDbType(dbType):
+	case sqlcommon.IsSQLiteDbType(dbType):
 		return buildListAttestedNodesQueryCTE(req, dbType)
-	case isPostgresDbType(dbType):
+	case sqlcommon.IsPostgresDbType(dbType):
 		// The PostgreSQL queries unconditionally leverage CTE since all versions
 		// of PostgreSQL supported by the plugin support CTE.
 		query, args, err := buildListAttestedNodesQueryCTE(req, dbType)
@@ -1978,7 +1944,7 @@ func buildListAttestedNodesQuery(dbType string, supportsCTE bool, req *datastore
 			return query, args, err
 		}
 		return postgreSQLRebind(query), args, nil
-	case isMySQLDbType(dbType):
+	case sqlcommon.IsMySQLDbType(dbType):
 		if supportsCTE {
 			return buildListAttestedNodesQueryCTE(req, dbType)
 		}
@@ -2123,7 +2089,7 @@ SELECT
 	builder.WriteString("\nWHERE id IN (\n")
 
 	// MySQL requires a subquery in order to apply pagination
-	if req.Pagination != nil && isMySQLDbType(dbType) {
+	if req.Pagination != nil && sqlcommon.IsMySQLDbType(dbType) {
 		builder.WriteString("\tSELECT id FROM (\n")
 	}
 
@@ -2149,7 +2115,7 @@ SELECT
 			for i := range req.BySelectorMatch.Selectors {
 				switch {
 				// MySQL does not support INTERSECT, so use INNER JOIN instead
-				case isMySQLDbType(dbType):
+				case sqlcommon.IsMySQLDbType(dbType):
 					if len(req.BySelectorMatch.Selectors) > 1 {
 						builder.WriteString("\t\t(")
 					}
@@ -2194,7 +2160,7 @@ SELECT
 		builder.WriteString(fromQuery)
 	}
 
-	if isPostgresDbType(dbType) ||
+	if sqlcommon.IsPostgresDbType(dbType) ||
 		(req.BySelectorMatch != nil &&
 			(req.BySelectorMatch.Match == datastore.Subset || req.BySelectorMatch.Match == datastore.MatchAny || len(req.BySelectorMatch.Selectors) == 1)) {
 		builder.WriteString(" AS result_nodes")
@@ -2205,7 +2171,7 @@ SELECT
 		builder.WriteString(strconv.FormatInt(int64(req.Pagination.PageSize), 10))
 
 		// Add workaround for limit
-		if isMySQLDbType(dbType) {
+		if sqlcommon.IsMySQLDbType(dbType) {
 			builder.WriteString("\n\t) workaround_for_mysql_subquery_limit")
 		}
 	}
@@ -2719,15 +2685,15 @@ func fetchRegistrationEntries(ctx context.Context, db *sqlDB, entryIDs []string)
 
 func buildFetchRegistrationEntriesQuery(dbType string, supportsCTE bool, entryIDs []string) (string, []any, error) {
 	switch {
-	case isSQLiteDbType(dbType):
+	case sqlcommon.IsSQLiteDbType(dbType):
 		// The SQLite3 queries unconditionally leverage CTE since the
 		// embedded version of SQLite3 supports CTE.
 		return buildFetchRegistrationEntriesQuerySQLite3(entryIDs)
-	case isPostgresDbType(dbType):
+	case sqlcommon.IsPostgresDbType(dbType):
 		// The PostgreSQL queries unconditionally leverage CTE since all versions
 		// of PostgreSQL supported by the plugin support CTE.
 		return buildFetchRegistrationEntriesQueryPostgreSQL(entryIDs)
-	case isMySQLDbType(dbType):
+	case sqlcommon.IsMySQLDbType(dbType):
 		if supportsCTE {
 			return buildFetchRegistrationEntriesQueryMySQLCTE(entryIDs)
 		}
@@ -3093,15 +3059,15 @@ func listRegistrationEntriesOnce(ctx context.Context, db queryContext, databaseT
 
 func buildListRegistrationEntriesQuery(dbType string, supportsCTE bool, req *datastore.ListRegistrationEntriesRequest) (string, []any, error) {
 	switch {
-	case isSQLiteDbType(dbType):
+	case sqlcommon.IsSQLiteDbType(dbType):
 		// The SQLite3 queries unconditionally leverage CTE since the
 		// embedded version of SQLite3 supports CTE.
 		return buildListRegistrationEntriesQuerySQLite3(req)
-	case isPostgresDbType(dbType):
+	case sqlcommon.IsPostgresDbType(dbType):
 		// The PostgreSQL queries unconditionally leverage CTE since all versions
 		// of PostgreSQL supported by the plugin support CTE.
 		return buildListRegistrationEntriesQueryPostgreSQL(req)
-	case isMySQLDbType(dbType):
+	case sqlcommon.IsMySQLDbType(dbType):
 		if supportsCTE {
 			return buildListRegistrationEntriesQueryMySQLCTE(req)
 		}
@@ -3304,7 +3270,7 @@ ORDER BY e_id, selector_id, dns_name_id
 }
 
 func maybeRebind(dbType, query string) string {
-	if isPostgresDbType(dbType) {
+	if sqlcommon.IsPostgresDbType(dbType) {
 		return postgreSQLRebind(query)
 	}
 	return query
@@ -3577,7 +3543,7 @@ func (n idFilterNode) render(builder *strings.Builder, dbType string, sibling in
 			}
 			child.render(builder, dbType, i, indentation+1, true, true)
 		}
-	case !isMySQLDbType(dbType):
+	case !sqlcommon.IsMySQLDbType(dbType):
 		builder.WriteString("SELECT e_id FROM (\n")
 		for i, child := range n.children {
 			if i > 0 {
@@ -3794,7 +3760,7 @@ func appendListRegistrationEntriesFilterQuery(filterExp string, builder *strings
 	}
 
 	indentation := 1
-	if req.Pagination != nil && isMySQLDbType(dbType) {
+	if req.Pagination != nil && sqlcommon.IsMySQLDbType(dbType) {
 		filter()
 		builder.WriteString("\tSELECT e_id FROM (\n")
 		indentation = 2
@@ -3839,7 +3805,7 @@ func appendListRegistrationEntriesFilterQuery(filterExp string, builder *strings
 		builder.WriteString(strconv.FormatInt(int64(req.Pagination.PageSize), 10))
 		builder.WriteString("\n")
 
-		if isMySQLDbType(dbType) {
+		if sqlcommon.IsMySQLDbType(dbType) {
 			builder.WriteString("\t) workaround_for_mysql_subquery_limit\n")
 		}
 	}
@@ -4936,54 +4902,6 @@ func bindVarsFn(fn func(int) string, query string) string {
 	return buf.String()
 }
 
-func configValidate(cfg *sqlcommon.Configuration) error {
-	if cfg.DBTypeConfig.DatabaseType == "" {
-		return sqlcommon.NewSQLError("database_type must be set")
-	}
-
-	if cfg.ConnectionString == "" {
-		return sqlcommon.NewSQLError("connection_string must be set")
-	}
-
-	if isMySQLDbType(cfg.DBTypeConfig.DatabaseType) {
-		if err := validateMySQLConfig(cfg, false); err != nil {
-			return err
-		}
-
-		if cfg.RoConnectionString != "" {
-			if err := validateMySQLConfig(cfg, true); err != nil {
-				return err
-			}
-		}
-	}
-
-	if cfg.DBTypeConfig.AWSMySQL != nil {
-		if err := cfg.DBTypeConfig.AWSMySQL.Validate(); err != nil {
-			return err
-		}
-	}
-
-	if cfg.DBTypeConfig.AWSPostgres != nil {
-		if err := cfg.DBTypeConfig.AWSPostgres.Validate(); err != nil {
-			return err
-		}
-	}
-
-	if cfg.DBTypeConfig.AzurePostgres != nil {
-		if err := cfg.DBTypeConfig.AzurePostgres.Validate(); err != nil {
-			return err
-		}
-	}
-
-	if cfg.DBTypeConfig.AzureMySQL != nil {
-		if err := cfg.DBTypeConfig.AzureMySQL.Validate(); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
 func queryVersion(ctx context.Context, gormDB *gorm.DB, query string) (string, error) {
 	db := gormDB.DB()
 	if db == nil {
@@ -5153,71 +5071,15 @@ func deleteCAJournal(tx *gorm.DB, caJournalID uint) error {
 	return nil
 }
 
-func parseDatabaseTypeASTNode(node ast.Node) (*sqlcommon.DBTypeConfig, error) {
-	lt, ok := node.(*ast.LiteralType)
-	if ok {
-		return &sqlcommon.DBTypeConfig{DatabaseType: strings.Trim(lt.Token.Text, "\"")}, nil
-	}
-
-	// We expect the node to be *ast.ObjectList.
-	objectList, ok := node.(*ast.ObjectList)
-	if !ok {
-		return nil, errors.New("malformed database type configuration")
-	}
-
-	if len(objectList.Items) != 1 {
-		return nil, errors.New("exactly one database type is expected")
-	}
-
-	if len(objectList.Items[0].Keys) != 1 {
-		return nil, errors.New("exactly one key is expected")
-	}
-
-	var data bytes.Buffer
-	if err := printer.DefaultConfig.Fprint(&data, node); err != nil {
-		return nil, err
-	}
-
-	dbTypeConfig := new(sqlcommon.DBTypeConfig)
-	if err := hcl.Decode(dbTypeConfig, data.String()); err != nil {
-		return nil, fmt.Errorf("failed to decode configuration: %w", err)
-	}
-
-	databaseType := strings.Trim(objectList.Items[0].Keys[0].Token.Text, "\"")
-	switch databaseType {
-	case AWSMySQL:
-	case AWSPostgreSQL:
-	case AzurePostgreSQL:
-	case AzureMySQL:
-	default:
-		return nil, fmt.Errorf("unknown database type: %s", databaseType)
-	}
-
-	dbTypeConfig.DatabaseType = databaseType
-	return dbTypeConfig, nil
-}
-
-func isMySQLDbType(dbType string) bool {
-	return dbType == MySQL || dbType == AWSMySQL || dbType == AzureMySQL
-}
-
-func isPostgresDbType(dbType string) bool {
-	return dbType == PostgreSQL || dbType == AWSPostgreSQL || dbType == AzurePostgreSQL
-}
-
-func isSQLiteDbType(dbType string) bool {
-	return dbType == SQLite
-}
-
 // maxPaginationToken returns the largest ID value the dialect's primary key
 // column can represent. Models declare ID as a Go uint, which GORM maps to a
 // signed 32-bit integer on PostgreSQL and an unsigned 32-bit integer on
 // MySQL, so tokens above those bounds can never match an existing row.
 func maxPaginationToken(dbType string) uint64 {
 	switch {
-	case isPostgresDbType(dbType):
+	case sqlcommon.IsPostgresDbType(dbType):
 		return math.MaxInt32
-	case isMySQLDbType(dbType):
+	case sqlcommon.IsMySQLDbType(dbType):
 		return math.MaxUint32
 	default:
 		return math.MaxUint64
