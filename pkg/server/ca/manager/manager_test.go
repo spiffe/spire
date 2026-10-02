@@ -1939,7 +1939,7 @@ func (m *managerTest) waitForBundleUpdatedNotification(ctx context.Context, ch <
 	}
 }
 
-func (m *managerTest) countLogEntries(level logrus.Level, message string) int {
+func (m *managerTest) countLogEntries(level logrus.Level, message string) int { //nolint:unparam
 	count := 0
 	for _, e := range m.logHook.AllEntries() {
 		if e.Message == message && level == e.Level {
