@@ -15,6 +15,8 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
+	"github.com/spiffe/go-spiffe/v2/spiffetls/tlsconfig"
+	"github.com/spiffe/go-spiffe/v2/workloadapi"
 	"golang.org/x/crypto/acme"
 	"golang.org/x/crypto/acme/autocert"
 
@@ -22,6 +24,7 @@ import (
 	spirelog "github.com/spiffe/spire/pkg/common/log"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/tlspolicy"
+	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/common/version"
 )
 
@@ -78,6 +81,13 @@ func run(configPath string, expandEnv bool) error {
 
 	if cfg := config.LogFileRotation; cfg != nil && cfg.SizeRotationDisabled() {
 		log.Warn("log_file_rotation is configured with max_size_mb = 0 and the provider has no way to trigger a rotation, so the log file will not be rotated")
+	}
+
+	if config.ServingCertSource == nil && config.ACME != nil {
+		log.Warn(`The acme section is deprecated and will be removed in a future release; use serving_cert_source "acme" instead`)
+	}
+	if config.ServingCertSource == nil && config.ServingCertFile != nil {
+		log.Warn(`The serving_cert_file section is deprecated and will be removed in a future release; use serving_cert_source "cert_file" instead`)
 	}
 
 	if config.AllowInsecureScheme {
@@ -194,6 +204,12 @@ func buildNetListener(ctx context.Context, config *Config, log *spirelog.Logger,
 				telemetry.CertFilePath: config.ServingCertFile.CertFilePath,
 				telemetry.Address:      config.ServingCertFile.KeyFilePath,
 			}).Info("Serving HTTPS using certificate loaded from disk")
+	case config.servingCertWorkloadAPI() != nil:
+		listener, err = newWorkloadAPIListener(ctx, log, config, tlsPolicy)
+		if err != nil {
+			return nil, err
+		}
+		log.WithField(telemetry.Address, listener.Addr().String()).Info("Serving HTTPS using an X509-SVID obtained from the Workload API")
 	default:
 		listener, err = newACMEListener(log, config, tlsPolicy)
 		if err != nil {
@@ -259,6 +275,40 @@ func newListenerWithServingCert(ctx context.Context, logger logrus.FieldLogger, 
 	}
 
 	return &tlsListener{TCPListener: tcpListener, conf: tlsConfig}, nil
+}
+
+// newWorkloadAPIListener returns a TLS listener serving the X509-SVID obtained
+// from the Workload API. It blocks until the first X509-SVID is received or
+// the context is canceled; the SVID is then kept up to date as it is rotated.
+func newWorkloadAPIListener(ctx context.Context, logger logrus.FieldLogger, config *Config, tlsPolicy tlspolicy.Policy) (net.Listener, error) {
+	workloadAPIAddr, err := config.getServingCertWorkloadAPIAddr()
+	if err != nil {
+		return nil, err
+	}
+	clientOption, err := util.GetWorkloadAPIClientOption(workloadAPIAddr)
+	if err != nil {
+		return nil, err
+	}
+
+	logger.WithField(telemetry.Address, workloadAPIAddr.String()).Info("Waiting for an X509-SVID from the Workload API")
+	source, err := workloadapi.NewX509Source(ctx, workloadapi.WithClientOptions(clientOption))
+	if err != nil {
+		return nil, fmt.Errorf("failed to obtain an X509-SVID from the Workload API: %w", err)
+	}
+
+	tlsConfig := tlsconfig.TLSServerConfig(source)
+	if err := applyTLSPolicy(tlsConfig, tlsPolicy); err != nil {
+		_ = source.Close()
+		return nil, err
+	}
+
+	tcpListener, err := net.ListenTCP("tcp", config.servingCertWorkloadAPI().Addr)
+	if err != nil {
+		_ = source.Close()
+		return nil, fmt.Errorf("failed to create listener using X509-SVID from the Workload API: %w", err)
+	}
+
+	return &workloadAPIListener{tlsListener: &tlsListener{TCPListener: tcpListener, conf: tlsConfig}, source: source}, nil
 }
 
 func newACMEListener(logger logrus.FieldLogger, config *Config, tlsPolicy tlspolicy.Policy) (net.Listener, error) {
@@ -328,4 +378,19 @@ func (ln *tlsListener) Accept() (net.Conn, error) {
 	_ = conn.SetKeepAlive(true)
 	_ = conn.SetKeepAlivePeriod(3 * time.Minute)
 	return tls.Server(conn, ln.conf), nil
+}
+
+// workloadAPIListener is a tlsListener serving an X509-SVID obtained from the
+// Workload API. Closing the listener also closes the Workload API source.
+type workloadAPIListener struct {
+	*tlsListener
+	source *workloadapi.X509Source
+}
+
+func (ln *workloadAPIListener) Close() error {
+	err := ln.tlsListener.Close()
+	if sourceErr := ln.source.Close(); err == nil {
+		err = sourceErr
+	}
+	return err
 }

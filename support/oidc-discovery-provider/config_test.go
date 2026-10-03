@@ -2,10 +2,12 @@ package main
 
 import (
 	"crypto/tls"
+	"net"
 	"os"
 	"path/filepath"
 	"runtime"
 	"testing"
+	"time"
 
 	"github.com/spiffe/spire/pkg/common/tlspolicy"
 	"github.com/spiffe/spire/test/spiretest"
@@ -184,4 +186,92 @@ func TestApplyTLSPolicyWithInvalidServerTLSConfig(t *testing.T) {
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "invalid minTLSVersion")
 	})
+}
+
+func TestParseConfigServingCertSource(t *testing.T) {
+	serverAPI := "server_api {\n address = \"unix:///some/socket/path\"\n}"
+	workloadAPI := "workload_api {\n socket_path = \"/some/socket/path\"\n trust_domain = \"domain.test\"\n}"
+	if runtime.GOOS == "windows" {
+		serverAPI = "server_api {\n experimental {\n named_pipe_name = \"\\\\name\\\\for\\\\server\\\\api\"\n }\n}"
+		workloadAPI = "workload_api {\n experimental {\n named_pipe_name = \"\\\\name\\\\for\\\\workload\\\\api\"\n }\n trust_domain = \"domain.test\"\n}"
+	}
+	acme := "serving_cert_source \"acme\" {\n email = \"admin@domain.test\"\n tos_accepted = true\n}"
+
+	for _, tt := range []struct {
+		name  string
+		in    string
+		err   string
+		check func(t *testing.T, c *Config)
+	}{
+		{
+			name: "acme source is aliased to the acme section",
+			in:   acme + serverAPI,
+			check: func(t *testing.T, c *Config) {
+				require.Equal(t, &ACMEConfig{CacheDir: defaultCacheDir, Email: "admin@domain.test", ToSAccepted: true}, c.ServingCertSource.ACME)
+				require.Same(t, c.ServingCertSource.ACME, c.ACME)
+			},
+		},
+		{
+			name: "cert_file source is aliased to the serving_cert_file section",
+			in:   "serving_cert_source \"cert_file\" {\n cert_file_path = \"test.crt\"\n key_file_path = \"test.key\"\n}" + serverAPI,
+			check: func(t *testing.T, c *Config) {
+				require.Same(t, c.ServingCertSource.CertFile, c.ServingCertFile)
+				require.Equal(t, defaultAddr, c.ServingCertFile.RawAddr)
+				require.Equal(t, time.Minute, c.ServingCertFile.FileSyncInterval)
+			},
+		},
+		{
+			name: "workload_api source with defaults",
+			in:   "serving_cert_source \"workload_api\" {}" + workloadAPI,
+			check: func(t *testing.T, c *Config) {
+				require.Equal(t, &net.TCPAddr{Port: 443}, c.ServingCertSource.WorkloadAPI.Addr)
+				require.Equal(t, c.WorkloadAPI.SocketPath, c.ServingCertSource.WorkloadAPI.SocketPath)
+				require.Equal(t, c.WorkloadAPI.Experimental, c.ServingCertSource.WorkloadAPI.Experimental)
+				require.Nil(t, c.ACME)
+				require.Nil(t, c.ServingCertFile)
+			},
+		},
+		{
+			name: "workload_api source with addr",
+			in:   "serving_cert_source \"workload_api\" {\n addr = \"127.0.0.1:9090\"\n}" + workloadAPI,
+			check: func(t *testing.T, c *Config) {
+				require.Equal(t, &net.TCPAddr{IP: net.ParseIP("127.0.0.1"), Port: 9090}, c.ServingCertSource.WorkloadAPI.Addr)
+			},
+		},
+		{
+			name: "workload_api source without a Workload API address",
+			in:   "serving_cert_source \"workload_api\" {}" + serverAPI,
+			err:  `must be configured in the serving_cert_source "workload_api" configuration section`,
+		},
+		{
+			name: "workload_api source with insecure_addr",
+			in:   "insecure_addr = \":8080\"\nserving_cert_source \"workload_api\" {}" + workloadAPI,
+			err:  `serving_cert_source "workload_api" is mutually exclusive with insecure_addr`,
+		},
+		{
+			name: "unknown source",
+			in:   "serving_cert_source \"unknown\" {}" + serverAPI,
+			err:  `serving_cert_source must be one of "acme", "cert_file", or "workload_api"`,
+		},
+		{
+			name: "multiple sources",
+			in:   acme + "serving_cert_source \"workload_api\" {}" + workloadAPI,
+			err:  "only one serving_cert_source section can be configured",
+		},
+		{
+			name: "mixed with the deprecated acme section",
+			in:   "acme {\n email = \"admin@domain.test\"\n tos_accepted = true\n}\n" + acme + serverAPI,
+			err:  "the acme and serving_cert_file sections cannot be used together with the serving_cert_source section",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			c, err := ParseConfig("domains = [\"domain.test\"]\n" + tt.in)
+			if tt.err != "" {
+				require.ErrorContains(t, err, tt.err)
+				return
+			}
+			require.NoError(t, err)
+			tt.check(t, c)
+		})
+	}
 }

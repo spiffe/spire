@@ -17,15 +17,22 @@ func (c *Config) getWorkloadAPIAddr() (net.Addr, error) {
 	return namedpipe.AddrFromName(c.WorkloadAPI.Experimental.NamedPipeName), nil
 }
 
+func (c *Config) getServingCertWorkloadAPIAddr() (net.Addr, error) {
+	return namedpipe.AddrFromName(c.ServingCertSource.WorkloadAPI.Experimental.NamedPipeName), nil
+}
+
 func (c *Config) getServerAPITargetName() string {
 	return fmt.Sprintf(`\\.\%s`, filepath.Join("pipe", c.ServerAPI.Experimental.NamedPipeName))
 }
 
 // validateOS performs os specific validations of the configuration
 func (c *Config) validateOS() (err error) {
+	servingCertWorkloadAPI := c.servingCertWorkloadAPI()
 	switch {
-	case c.ACME == nil && c.Experimental.ListenNamedPipeName == "" && c.ServingCertFile == nil && c.InsecureAddr == "":
-		return errors.New("either acme, serving_cert_file, insecure_addr or listen_named_pipe_name must be configured")
+	case c.ACME == nil && c.Experimental.ListenNamedPipeName == "" && c.ServingCertFile == nil && servingCertWorkloadAPI == nil && c.InsecureAddr == "":
+		return errors.New("a serving_cert_source section, or either acme, serving_cert_file, insecure_addr or listen_named_pipe_name must be configured")
+	case servingCertWorkloadAPI != nil && (c.InsecureAddr != "" || c.Experimental.ListenNamedPipeName != ""):
+		return errors.New(`serving_cert_source "workload_api" is mutually exclusive with insecure_addr and listen_named_pipe_name`)
 	case c.ACME != nil && c.ServingCertFile != nil:
 		return errors.New("acme and serving_cert_file are mutually exclusive")
 	case c.ACME != nil && c.Experimental.ListenNamedPipeName != "":
@@ -49,6 +56,14 @@ func (c *Config) validateOS() (err error) {
 		if c.WorkloadAPI.Experimental.NamedPipeName == "" {
 			return errors.New("named_pipe_name must be configured in the workload_api configuration section")
 		}
+	}
+
+	if servingCertWorkloadAPI != nil && servingCertWorkloadAPI.Experimental.NamedPipeName == "" {
+		if c.WorkloadAPI == nil {
+			return errors.New(`named_pipe_name must be configured in the serving_cert_source "workload_api" configuration section`)
+		}
+		// Default to the Workload API used as the JWKS source.
+		servingCertWorkloadAPI.Experimental.NamedPipeName = c.WorkloadAPI.Experimental.NamedPipeName
 	}
 
 	return nil
