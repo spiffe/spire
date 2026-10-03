@@ -2,10 +2,12 @@ package main
 
 import (
 	"crypto/tls"
+	"net"
 	"os"
 	"path/filepath"
 	"runtime"
 	"testing"
+	"time"
 
 	"github.com/spiffe/spire/pkg/common/tlspolicy"
 	"github.com/spiffe/spire/test/spiretest"
@@ -184,4 +186,168 @@ func TestApplyTLSPolicyWithInvalidServerTLSConfig(t *testing.T) {
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "invalid minTLSVersion")
 	})
+}
+
+func TestParseConfigServingCertSource(t *testing.T) {
+	serverAPI := "server_api {\n address = \"unix:///some/socket/path\"\n}"
+	workloadAPI := "workload_api {\n socket_path = \"/some/socket/path\"\n trust_domain = \"domain.test\"\n}"
+	if runtime.GOOS == "windows" {
+		serverAPI = "server_api {\n experimental {\n named_pipe_name = \"\\\\name\\\\for\\\\server\\\\api\"\n }\n}"
+		workloadAPI = "workload_api {\n experimental {\n named_pipe_name = \"\\\\name\\\\for\\\\workload\\\\api\"\n }\n trust_domain = \"domain.test\"\n}"
+	}
+	acme := "serving_cert_source \"acme\" {\n email = \"admin@domain.test\"\n tos_accepted = true\n}"
+	certFile := "serving_cert_source \"cert_file\" {\n cert_file_path = \"test.crt\"\n key_file_path = \"test.key\"\n}"
+	deprecatedCertFile := "serving_cert_file {\n cert_file_path = \"test.crt\"\n key_file_path = \"test.key\"\n}\n"
+
+	// The local listener and the Workload API address are OS specific.
+	localListener, localListenerName := "listen_socket_path = \"/some/listen/path\"\n", "listen_socket_path"
+	workloadAPIWithOwnAddr := "serving_cert_source \"workload_api\" {\n socket_path = \"/other/socket/path\"\n}"
+	checkOwnAddr := func(t *testing.T, c *Config) {
+		require.Equal(t, "/other/socket/path", c.ServingCertSource.WorkloadAPI.SocketPath)
+	}
+	if runtime.GOOS == "windows" {
+		localListener, localListenerName = "experimental {\n listen_named_pipe_name = \"\\\\name\\\\for\\\\listener\"\n}\n", "listen_named_pipe_name"
+		workloadAPIWithOwnAddr = "serving_cert_source \"workload_api\" {\n experimental {\n named_pipe_name = \"\\\\other\\\\pipe\"\n }\n}"
+		checkOwnAddr = func(t *testing.T, c *Config) {
+			require.Equal(t, `\other\pipe`, c.ServingCertSource.WorkloadAPI.Experimental.NamedPipeName)
+		}
+	}
+
+	for _, tt := range []struct {
+		name  string
+		in    string
+		err   string
+		check func(t *testing.T, c *Config)
+	}{
+		{
+			name: "acme source is aliased to the acme section",
+			in:   acme + serverAPI,
+			check: func(t *testing.T, c *Config) {
+				require.Equal(t, &ACMEConfig{CacheDir: defaultCacheDir, Email: "admin@domain.test", ToSAccepted: true}, c.ServingCertSource.ACME)
+				require.Same(t, c.ServingCertSource.ACME, c.ACME)
+			},
+		},
+		{
+			name: "cert_file source is aliased to the serving_cert_file section",
+			in:   "serving_cert_source \"cert_file\" {\n cert_file_path = \"test.crt\"\n key_file_path = \"test.key\"\n}" + serverAPI,
+			check: func(t *testing.T, c *Config) {
+				require.Same(t, c.ServingCertSource.CertFile, c.ServingCertFile)
+				require.Equal(t, defaultAddr, c.ServingCertFile.RawAddr)
+				require.Equal(t, time.Minute, c.ServingCertFile.FileSyncInterval)
+			},
+		},
+		{
+			name: "workload_api source with defaults",
+			in:   "serving_cert_source \"workload_api\" {}" + workloadAPI,
+			check: func(t *testing.T, c *Config) {
+				require.Equal(t, &net.TCPAddr{Port: 443}, c.ServingCertSource.WorkloadAPI.Addr)
+				require.Equal(t, c.WorkloadAPI.SocketPath, c.ServingCertSource.WorkloadAPI.SocketPath)
+				require.Equal(t, c.WorkloadAPI.Experimental, c.ServingCertSource.WorkloadAPI.Experimental)
+				require.Nil(t, c.ACME)
+				require.Nil(t, c.ServingCertFile)
+			},
+		},
+		{
+			name: "workload_api source with addr",
+			in:   "serving_cert_source \"workload_api\" {\n addr = \"127.0.0.1:9090\"\n}" + workloadAPI,
+			check: func(t *testing.T, c *Config) {
+				require.Equal(t, &net.TCPAddr{IP: net.ParseIP("127.0.0.1"), Port: 9090}, c.ServingCertSource.WorkloadAPI.Addr)
+			},
+		},
+		{
+			name: "workload_api source without a Workload API address",
+			in:   "serving_cert_source \"workload_api\" {}" + serverAPI,
+			err:  `must be configured in the serving_cert_source "workload_api" configuration section`,
+		},
+		{
+			name:  "workload_api source keeps its own Workload API address",
+			in:    workloadAPIWithOwnAddr + workloadAPI,
+			check: checkOwnAddr,
+		},
+		{
+			name: "workload_api source with insecure_addr",
+			in:   "insecure_addr = \":8080\"\nserving_cert_source \"workload_api\" {}" + workloadAPI,
+			err:  `serving_cert_source "workload_api" is mutually exclusive with insecure_addr`,
+		},
+		{
+			name: "workload_api source with a local listener",
+			in:   localListener + "serving_cert_source \"workload_api\" {}" + workloadAPI,
+			err:  `serving_cert_source "workload_api" is mutually exclusive with insecure_addr and ` + localListenerName,
+		},
+		{
+			name: "acme source with insecure_addr",
+			in:   "insecure_addr = \":8080\"\n" + acme + serverAPI,
+			err:  `insecure_addr and the serving_cert_source "acme" section are mutually exclusive`,
+		},
+		{
+			name: "acme source errors name the serving_cert_source section",
+			in:   "serving_cert_source \"acme\" {\n tos_accepted = true\n}" + serverAPI,
+			err:  `email must be configured in the serving_cert_source "acme" configuration section`,
+		},
+		{
+			name: "cert_file source without cert_file_path",
+			in:   "serving_cert_source \"cert_file\" {\n key_file_path = \"test.key\"\n}" + serverAPI,
+			err:  `cert_file_path must be configured in the serving_cert_source "cert_file" configuration section`,
+		},
+		{
+			name: "cert_file source without key_file_path",
+			in:   "serving_cert_source \"cert_file\" {\n cert_file_path = \"test.crt\"\n}" + serverAPI,
+			err:  `key_file_path must be configured in the serving_cert_source "cert_file" configuration section`,
+		},
+		{
+			name: "cert_file source with a local listener",
+			in:   localListener + certFile + serverAPI,
+			err:  `serving_cert_source "cert_file" and ` + localListenerName + " are mutually exclusive",
+		},
+		{
+			name: "unknown source",
+			in:   "serving_cert_source \"unknown\" {}" + serverAPI,
+			err:  `unknown serving_cert_source "unknown": must be one of "acme", "cert_file", or "workload_api"`,
+		},
+		{
+			name: "unknown source next to a known one",
+			in:   "serving_cert_source \"workload_api\" {}\nserving_cert_source \"unknown\" {}" + workloadAPI,
+			err:  "only one serving_cert_source section can be configured",
+		},
+		{
+			name: "missing label",
+			in:   "serving_cert_source {}" + serverAPI,
+			err:  "serving_cert_source must have exactly one label",
+		},
+		{
+			name: "extra label",
+			in:   "serving_cert_source \"workload_api\" \"extra\" {}" + workloadAPI,
+			err:  "serving_cert_source must have exactly one label",
+		},
+		{
+			name: "multiple sources",
+			in:   acme + "serving_cert_source \"workload_api\" {}" + workloadAPI,
+			err:  "only one serving_cert_source section can be configured",
+		},
+		{
+			name: "duplicate sources",
+			in:   "serving_cert_source \"workload_api\" {\n addr = \":1\"\n}\nserving_cert_source \"workload_api\" {\n addr = \":2\"\n}" + workloadAPI,
+			err:  "only one serving_cert_source section can be configured",
+		},
+		{
+			name: "mixed with the deprecated acme section",
+			in:   "acme {\n email = \"admin@domain.test\"\n tos_accepted = true\n}\n" + acme + serverAPI,
+			err:  "the acme and serving_cert_file sections cannot be used together with the serving_cert_source section",
+		},
+		{
+			name: "mixed with the deprecated serving_cert_file section",
+			in:   deprecatedCertFile + acme + serverAPI,
+			err:  "the acme and serving_cert_file sections cannot be used together with the serving_cert_source section",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			c, err := ParseConfig("domains = [\"domain.test\"]\n" + tt.in)
+			if tt.err != "" {
+				require.ErrorContains(t, err, tt.err)
+				return
+			}
+			require.NoError(t, err)
+			tt.check(t, c)
+		})
+	}
 }

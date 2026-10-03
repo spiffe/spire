@@ -4,6 +4,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"net"
 	"os"
 	"strings"
@@ -15,25 +16,32 @@ func (c *Config) getWorkloadAPIAddr() (net.Addr, error) {
 	return util.GetUnixAddrWithAbsPath(c.WorkloadAPI.SocketPath)
 }
 
+func (c *Config) getServingCertWorkloadAPIAddr() (net.Addr, error) {
+	return util.GetUnixAddrWithAbsPath(c.ServingCertSource.WorkloadAPI.SocketPath)
+}
+
 func (c *Config) getServerAPITargetName() string {
 	return c.ServerAPI.Address
 }
 
 // validateOS performs os specific validations of the configuration
 func (c *Config) validateOS() (err error) {
+	servingCertWorkloadAPI := c.servingCertWorkloadAPI()
 	switch {
-	case c.ACME == nil && c.ListenSocketPath == "" && c.ServingCertFile == nil && c.InsecureAddr == "":
-		return errors.New("either acme, serving_cert_file, insecure_addr or listen_socket_path must be configured")
+	case c.ACME == nil && c.ListenSocketPath == "" && c.ServingCertFile == nil && servingCertWorkloadAPI == nil && c.InsecureAddr == "":
+		return errors.New("one of serving_cert_source, acme, serving_cert_file, insecure_addr or listen_socket_path must be configured")
+	case servingCertWorkloadAPI != nil && (c.InsecureAddr != "" || c.ListenSocketPath != ""):
+		return errors.New(`serving_cert_source "workload_api" is mutually exclusive with insecure_addr and listen_socket_path`)
 	case c.ACME != nil && c.ServingCertFile != nil:
 		return errors.New("acme and serving_cert_file are mutually exclusive")
 	case c.ACME != nil && c.ListenSocketPath != "":
-		return errors.New("listen_socket_path and the acme section are mutually exclusive")
+		return fmt.Errorf("listen_socket_path and the %s section are mutually exclusive", c.acmeSectionName())
 	case c.ServingCertFile != nil && c.InsecureAddr != "":
-		return errors.New("serving_cert_file and insecure_addr are mutually exclusive")
+		return fmt.Errorf("%s and insecure_addr are mutually exclusive", c.certFileSectionName())
 	case c.ServingCertFile != nil && c.ListenSocketPath != "":
-		return errors.New("serving_cert_file and listen_socket_path are mutually exclusive")
+		return fmt.Errorf("%s and listen_socket_path are mutually exclusive", c.certFileSectionName())
 	case c.ACME != nil && c.InsecureAddr != "":
-		return errors.New("acme and insecure_addr are mutually exclusive")
+		return fmt.Errorf("%s and insecure_addr are mutually exclusive", c.acmeSectionName())
 	case c.InsecureAddr != "" && c.ListenSocketPath != "":
 		return errors.New("insecure_addr and listen_socket_path are mutually exclusive")
 	}
@@ -51,6 +59,14 @@ func (c *Config) validateOS() (err error) {
 		if c.WorkloadAPI.SocketPath == "" {
 			return errors.New("socket_path must be configured in the workload_api configuration section")
 		}
+	}
+
+	if servingCertWorkloadAPI != nil && servingCertWorkloadAPI.SocketPath == "" {
+		if c.WorkloadAPI == nil {
+			return errors.New(`socket_path must be configured in the serving_cert_source "workload_api" configuration section`)
+		}
+		// Default to the Workload API used as the JWKS source.
+		servingCertWorkloadAPI.SocketPath = c.WorkloadAPI.SocketPath
 	}
 
 	return nil

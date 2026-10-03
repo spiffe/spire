@@ -68,7 +68,7 @@ func parseConfigCasesOS() []parseConfigCase {
 					}					
 				}
 			`,
-			err: "either acme, serving_cert_file, insecure_addr or listen_named_pipe_name must be configured",
+			err: "one of serving_cert_source, acme, serving_cert_file, insecure_addr or listen_named_pipe_name must be configured",
 		},
 		{
 			name: "ACME ToS not accepted",
