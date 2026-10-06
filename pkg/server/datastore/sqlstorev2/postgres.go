@@ -1,18 +1,15 @@
-package sqlstore
+package sqlstorev2
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 
-	"github.com/jinzhu/gorm"
 	"github.com/spiffe/spire/pkg/server/datastore/sqlcommon"
 	"github.com/spiffe/spire/pkg/server/datastore/sqldriver/awsrds"
 	"github.com/spiffe/spire/pkg/server/datastore/sqldriver/azurerds"
-
-	// gorm postgres `cloudsql` dialect, for GCP Cloud SQL Proxy
-	_ "github.com/GoogleCloudPlatform/cloudsql-proxy/proxy/dialers/postgres"
-	// gorm postgres dialect init registration
-	_ "github.com/jinzhu/gorm/dialects/postgres"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 )
 
 type postgresDB struct{}
@@ -22,39 +19,46 @@ func (p postgresDB) connect(ctx context.Context, cfg *sqlcommon.Configuration, i
 		return nil, "", false, errors.New("missing datastore configuration")
 	}
 
-	connString := sqlcommon.GetConnectionString(cfg, isReadOnly)
-	var errOpen error
 	switch {
 	case cfg.DBTypeConfig.AWSPostgres != nil:
 		dsn, err := sqlcommon.BuildAWSPostgresDSN(cfg, isReadOnly)
 		if err != nil {
 			return nil, "", false, err
 		}
-		db, errOpen = gorm.Open(awsrds.PostgresDriverName, dsn)
+		db, err = openSQLDriver(awsrds.PostgresDriverName, dsn, newPostgresDialector)
+		if err != nil {
+			return nil, "", false, err
+		}
 	case cfg.DBTypeConfig.AzurePostgres != nil:
 		dsn, err := sqlcommon.BuildAzurePostgresDSN(cfg, isReadOnly)
 		if err != nil {
 			return nil, "", false, err
 		}
-		db, errOpen = gorm.Open(azurerds.PostgresDriverName, dsn)
+		db, err = openSQLDriver(azurerds.PostgresDriverName, dsn, newPostgresDialector)
+		if err != nil {
+			return nil, "", false, err
+		}
 	default:
-		db, errOpen = gorm.Open("postgres", connString)
-	}
-
-	if errOpen != nil {
-		return nil, "", false, errOpen
+		connString := sqlcommon.GetConnectionString(cfg, isReadOnly)
+		db, err = gorm.Open(postgres.Open(connString), gormConfig())
+		if err != nil {
+			return nil, "", false, err
+		}
 	}
 
 	version, err = queryVersion(ctx, db, sqlcommon.PostgresVersionQuery)
 	if err != nil {
-		return nil, "", false, err
+		return nil, "", false, closeOnError(db, err)
 	}
 
-	// Supported versions of PostgreSQL all support CTE so unconditionally
-	// return true.
+	// Supported versions of PostgreSQL all support CTE.
 	return db, version, true, nil
 }
 
 func (p postgresDB) isConstraintViolation(err error) bool {
 	return sqlcommon.IsPostgresConstraintViolation(err)
+}
+
+func newPostgresDialector(conn *sql.DB) gorm.Dialector {
+	return postgres.New(postgres.Config{Conn: conn})
 }
