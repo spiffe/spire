@@ -15,7 +15,7 @@ transparently fails over to a secondary when the primary is unavailable.
   upstream root CA, so their SVIDs chain to the same root and either can serve
   the agent.
 - `xds-control-plane` — a minimal `go-control-plane` management server (built
-  from `xds/main.go`) serving a static ADS snapshot that places server-1 at EDS
+  from `test/integration/setup/xdscontrolplane`) serving a static ADS snapshot that places server-1 at EDS
   priority 0 and server-2 at priority 1. gRPC's priority load balancing prefers
   priority 0 and fails over to priority 1 when priority 0 is in
   TRANSIENT_FAILURE (i.e. server-1 is down).

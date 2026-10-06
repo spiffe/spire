@@ -53,9 +53,4 @@ EOF
 )
 chmod 644 conf/xds/*.pem conf/agent/xds-ca.crt.pem
 
-# Build the xDS control plane binary for linux from the repo tree into the run
-# directory, where the docker build context can pick it up. Mirrors the
-# debugserver/debugagent host-build pattern (the run dir is outside the module).
-( cd "${REPODIR}" && CGO_ENABLED=0 GOOS=linux go build \
-    -o "${RUNDIR}/xds/xds-control-plane" \
-    "./test/integration/suites/${TESTNAME}/xds" )
+"${ROOTDIR}/setup/xdscontrolplane/build.sh" "${RUNDIR}/xds-control-plane"
