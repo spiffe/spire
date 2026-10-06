@@ -21,7 +21,8 @@ type Data struct {
 	// Bundle is the PEM encoded X.509 bundle for the trust domain
 	Bundle string `json:"bundle,omitempty"`
 	// FederatedBundles is the CA certificate bundles belonging to foreign trust domains that the workload should trust,
-	// keyed by trust domain. Bundles are in encoded in PEM format.
+	// keyed by trust domain. Bundles are in encoded in PEM format. The bundle of
+	// a trust domain without X.509 authorities is an empty string.
 	FederatedBundles map[string]string `json:"federatedBundles,omitempty"`
 }
 
@@ -38,7 +39,9 @@ func SecretFromProto(req *svidstorev1.PutX509SVIDRequest) (*Data, error) {
 
 	federatedBundles := make(map[string]string, len(req.FederatedBundles))
 	for td, fBundle := range req.FederatedBundles {
-		bundle, err := rawCertToPem([][]byte{fBundle})
+		// Each federated bundle is the concatenation of the DER encoding of
+		// all of its X.509 authorities, which may be none.
+		bundle, err := derCertsToPem(fBundle)
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse FederatedBundle %q: %w", td, err)
 		}
@@ -90,6 +93,17 @@ func rawKeyToPem(rawKey []byte) (string, error) {
 
 func rawCertToPem(rawCerts [][]byte) (string, error) {
 	certs, err := x509util.RawCertsToCertificates(rawCerts)
+	if err != nil {
+		return "", err
+	}
+
+	return string(pemutil.EncodeCertificates(certs)), nil
+}
+
+// derCertsToPem converts concatenated ASN.1 DER certificates into PEM. Empty
+// input yields an empty string.
+func derCertsToPem(derCerts []byte) (string, error) {
+	certs, err := x509.ParseCertificates(derCerts)
 	if err != nil {
 		return "", err
 	}
