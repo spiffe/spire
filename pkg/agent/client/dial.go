@@ -67,13 +67,7 @@ func NewServerGRPCClient(config ServerClientConfig) (*grpc.ClientConn, error) {
 
 	dialOpts := config.dialOpts
 	if dialOpts == nil {
-		dialOpts = []grpc.DialOption{
-			grpc.WithDefaultServiceConfig(MakeServiceConfigJSON(config.LoadBalancingConfig)),
-			grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
-		}
-		if !IsXDSTarget(config.Address) {
-			dialOpts = append(dialOpts, grpc.WithDisableServiceConfig())
-		}
+		dialOpts = DialOptions(config.Address, config.LoadBalancingConfig, tlsConfig)
 	}
 
 	client, err := grpc.NewClient(config.Address, dialOpts...)
@@ -84,9 +78,23 @@ func NewServerGRPCClient(config ServerClientConfig) (*grpc.ClientConn, error) {
 	return client, nil
 }
 
-// IsXDSTarget reports whether the gRPC target uses the xds name resolver
+// DialOptions returns the gRPC dial options used to connect to the SPIRE server.
+func DialOptions(address, loadBalancingConfig string, tlsConfig *tls.Config) []grpc.DialOption {
+	dialOpts := []grpc.DialOption{
+		grpc.WithDefaultServiceConfig(MakeServiceConfigJSON(loadBalancingConfig)),
+		grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
+	}
+	// The xds resolver delivers its routing and load balancing policy as a
+	// service config; disabling service config would make xDS targets unusable.
+	if !isXDSTarget(address) {
+		dialOpts = append(dialOpts, grpc.WithDisableServiceConfig())
+	}
+	return dialOpts
+}
+
+// isXDSTarget reports whether the gRPC target uses the xds name resolver
 // (e.g. "xds:///spire-server").
-func IsXDSTarget(target string) bool {
+func isXDSTarget(target string) bool {
 	return strings.HasPrefix(target, "xds:")
 }
 

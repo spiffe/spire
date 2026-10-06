@@ -29,7 +29,6 @@ import (
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 )
 
 type Attestor interface {
@@ -291,15 +290,7 @@ func (a *attestor) serverConn(bundle *spiffebundle.Bundle) (*grpc.ClientConn, er
 		},
 	}
 
-	dialOpts := []grpc.DialOption{
-		grpc.WithDefaultServiceConfig(client.MakeServiceConfigJSON(a.c.LoadBalancingConfig)),
-		grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
-	}
-	if !client.IsXDSTarget(a.c.ServerAddress) {
-		dialOpts = append(dialOpts, grpc.WithDisableServiceConfig())
-	}
-
-	return grpc.NewClient(a.c.ServerAddress, dialOpts...)
+	return grpc.NewClient(a.c.ServerAddress, client.DialOptions(a.c.ServerAddress, a.c.LoadBalancingConfig, tlsConfig)...)
 }
 
 type ServerStream struct {
