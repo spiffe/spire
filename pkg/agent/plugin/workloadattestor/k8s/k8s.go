@@ -166,9 +166,9 @@ type HCLConfig struct {
 	DisableContainerSelectors bool `hcl:"disable_container_selectors"`
 
 	// ExcludeCompletedPods, when true, drops pods that have reached a terminal
-	// status.phase ("Failed" or "Succeeded") and whose containers have all
-	// been reaped while the kubelet response is parsed, so they never enter
-	// the pod-list cache. Such pods (e.g. evicted pods, pods left in
+	// status.phase ("Failed" or "Succeeded") and have no running containers
+	// left while the kubelet response is parsed, so they never enter the
+	// pod-list cache. Such pods (e.g. evicted pods, pods left in
 	// ContainerStatusUnknown after a node problem, or completed jobs) can
 	// accumulate in large numbers and balloon the plugin's memory footprint.
 	// Disabled by default, since a dropped pod can no longer be resolved as a

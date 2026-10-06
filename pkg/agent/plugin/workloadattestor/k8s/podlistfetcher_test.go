@@ -782,7 +782,7 @@ func TestPodListFetcherParsePodList(t *testing.T) {
 			wantUIDs: []string{"running", "failed", "succeeded"},
 		},
 		{
-			name: "drops reaped terminal-phase pods when exclusion enabled",
+			name: "drops terminal-phase pods with no running containers when exclusion enabled",
 			response: `{"items":[
 				{"metadata":{"uid":"running"},"status":{"phase":"Running"}},
 				{"metadata":{"uid":"pending"},"status":{"phase":"Pending"}},
@@ -796,27 +796,45 @@ func TestPodListFetcherParsePodList(t *testing.T) {
 			wantUIDs:             []string{"running", "pending"},
 		},
 		{
-			name: "keeps terminal-phase pods whose containers are still running",
+			name: "drops completed pods that still report container IDs",
 			response: `{"items":[
-				{"metadata":{"uid":"failed-live"},"status":{"phase":"Failed","containerStatuses":[
-					{"name":"app","containerID":"docker://abc123"}
+				{"metadata":{"uid":"job-completed"},"status":{"phase":"Succeeded","containerStatuses":[
+					{"name":"job","containerID":"docker://abc123","state":{"terminated":{"exitCode":0,"reason":"Completed","containerID":"docker://abc123"}}}
 				]}},
-				{"metadata":{"uid":"succeeded-live"},"status":{"phase":"Succeeded","containerStatuses":[
-					{"name":"app","containerID":""},
-					{"name":"sidecar","containerID":"docker://def456"}
+				{"metadata":{"uid":"status-unknown"},"status":{"phase":"Failed","containerStatuses":[
+					{"name":"app","containerID":"docker://def456","state":{"terminated":{"exitCode":137,"reason":"ContainerStatusUnknown"}}}
 				]}},
-				{"metadata":{"uid":"failed-live-init"},"status":{"phase":"Failed","initContainerStatuses":[
-					{"name":"init","containerID":"docker://ghi789"}
+				{"metadata":{"uid":"failed-waiting"},"status":{"phase":"Failed","containerStatuses":[
+					{"name":"app","containerID":"docker://ghi789","state":{"waiting":{"reason":"CrashLoopBackOff"}}}
+				]}},
+				{"metadata":{"uid":"completed-init"},"status":{"phase":"Succeeded","initContainerStatuses":[
+					{"name":"init","containerID":"docker://jkl012","state":{"terminated":{"exitCode":0}}}
 				]}}
 			]}`,
 			excludeCompletedPods: true,
-			wantUIDs:             []string{"failed-live", "succeeded-live", "failed-live-init"},
+		},
+		{
+			name: "keeps terminal-phase pods whose containers are still running",
+			response: `{"items":[
+				{"metadata":{"uid":"failed-live"},"status":{"phase":"Failed","containerStatuses":[
+					{"name":"app","containerID":"docker://abc123","state":{"running":{"startedAt":"2026-01-01T00:00:00Z"}}}
+				]}},
+				{"metadata":{"uid":"succeeded-live-sidecar"},"status":{"phase":"Succeeded","containerStatuses":[
+					{"name":"app","containerID":"docker://def456","state":{"terminated":{"exitCode":0}}},
+					{"name":"sidecar","containerID":"docker://ghi789","state":{"running":{"startedAt":"2026-01-01T00:00:00Z"}}}
+				]}},
+				{"metadata":{"uid":"failed-live-init"},"status":{"phase":"Failed","initContainerStatuses":[
+					{"name":"init","containerID":"docker://jkl012","state":{"running":{"startedAt":"2026-01-01T00:00:00Z"}}}
+				]}}
+			]}`,
+			excludeCompletedPods: true,
+			wantUIDs:             []string{"failed-live", "succeeded-live-sidecar", "failed-live-init"},
 		},
 		{
 			name: "ignores ephemeral container statuses when deciding to drop",
 			response: `{"items":[
 				{"metadata":{"uid":"failed-ephemeral-only"},"status":{"phase":"Failed","ephemeralContainerStatuses":[
-					{"name":"debugger","containerID":"docker://jkl012"}
+					{"name":"debugger","containerID":"docker://jkl012","state":{"running":{"startedAt":"2026-01-01T00:00:00Z"}}}
 				]}}
 			]}`,
 			excludeCompletedPods: true,

@@ -406,11 +406,13 @@ func (f *podListFetcher) parsePodList(podListBytes []byte, excludeCompletedPods 
 // podIsUnattestable reports whether a pod can never again be the target of
 // workload attestation and is therefore safe to drop from the cache.
 //
-// A terminal status.phase is not sufficient on its own: an evicted pod, or one
-// left in ContainerStatusUnknown after a node problem, can sit in Failed while
-// its containers are still running. Attestation never consults the phase, it
-// matches on container ID alone (see lookUpContainerInPod), so a pod is only
-// droppable once no container status carries an ID left to match against.
+// A terminal status.phase is not sufficient on its own, because a pod can sit
+// in Failed while its containers keep running, for example an evicted pod
+// still inside its termination grace period. Nor is the container ID a useful
+// signal: a container status retains its ID long after the container has
+// stopped, so a completed pod keeps reporting IDs indefinitely. Only the
+// container state distinguishes the two, so a pod is droppable once none of
+// its containers are still running.
 func podIsUnattestable(podValue *fastjson.Value) bool {
 	phase := string(podValue.Get("status", "phase").GetStringBytes())
 	if phase != string(corev1.PodFailed) && phase != string(corev1.PodSucceeded) {
@@ -422,7 +424,7 @@ func podIsUnattestable(podValue *fastjson.Value) bool {
 	// matches against them.
 	for _, statusField := range [...]string{"containerStatuses", "initContainerStatuses"} {
 		for _, containerStatus := range podValue.GetArray("status", statusField) {
-			if len(containerStatus.GetStringBytes("containerID")) > 0 {
+			if containerStatus.Get("state", "running") != nil {
 				return false
 			}
 		}
