@@ -665,20 +665,6 @@ func TestNewAgentConfig(t *testing.T) {
 			env: localXDSBootstrapEnv,
 			input: func(c *Config) {
 				c.Agent.ServerAddress = "spire-server"
-				c.Agent.ServerPort = 1337
-				c.Agent.Experimental.UseXDS = true
-			},
-			test: func(t *testing.T, c *agent.Config) {
-				// server_port is intentionally ignored in xds mode; the port
-				// is delivered by the management server via EDS.
-				require.Equal(t, "xds:///spire-server", c.ServerAddress)
-			},
-		},
-		{
-			msg: "use_xds does not require server_port",
-			env: localXDSBootstrapEnv,
-			input: func(c *Config) {
-				c.Agent.ServerAddress = "spire-server"
 				c.Agent.ServerPort = 0
 				c.Agent.Experimental.UseXDS = true
 			},
@@ -687,10 +673,39 @@ func TestNewAgentConfig(t *testing.T) {
 			},
 		},
 		{
+			msg: "use_xds rejects server_port",
+			env: localXDSBootstrapEnv,
+			input: func(c *Config) {
+				c.Agent.ServerAddress = "spire-server"
+				c.Agent.ServerPort = 1337
+				c.Agent.Experimental.UseXDS = true
+			},
+			expectError:        true,
+			requireErrorPrefix: "server_port cannot be used with use_xds",
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
+			msg: "use_xds rejects server_address gRPC would truncate",
+			env: localXDSBootstrapEnv,
+			input: func(c *Config) {
+				c.Agent.ServerAddress = "spire-server?x=1"
+				c.Agent.ServerPort = 0
+				c.Agent.Experimental.UseXDS = true
+			},
+			expectError:        true,
+			requireErrorPrefix: "invalid server_address: invalid xDS listener name",
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
 			msg: "use_xds rejects server_load_balancing_config",
 			env: localXDSBootstrapEnv,
 			input: func(c *Config) {
 				c.Agent.ServerAddress = "spire-server"
+				c.Agent.ServerPort = 0
 				c.Agent.Experimental.UseXDS = true
 				c.Agent.Experimental.ServerLoadBalancingConfig = `[ { "pick_first": {} } ]`
 			},
@@ -708,6 +723,7 @@ func TestNewAgentConfig(t *testing.T) {
 			},
 			input: func(c *Config) {
 				c.Agent.ServerAddress = "spire-server"
+				c.Agent.ServerPort = 0
 				c.Agent.Experimental.UseXDS = true
 			},
 			expectError:        true,

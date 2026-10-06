@@ -8,6 +8,56 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestXDSTarget(t *testing.T) {
+	for _, tt := range []struct {
+		name         string
+		listenerName string
+		target       string
+		err          string
+	}{
+		{
+			name:         "plain name",
+			listenerName: "spire-server",
+			target:       "xds:///spire-server",
+		},
+		{
+			name:         "host:port name",
+			listenerName: "spire-server.example.org:8081",
+			target:       "xds:///spire-server.example.org:8081",
+		},
+		{
+			name:         "query dropped",
+			listenerName: "spire-server?x=1",
+			err:          `invalid xDS listener name "spire-server?x=1": gRPC would resolve it as "spire-server"`,
+		},
+		{
+			name:         "fragment dropped",
+			listenerName: "spire-server#x",
+			err:          `invalid xDS listener name "spire-server#x": gRPC would resolve it as "spire-server"`,
+		},
+		{
+			name:         "percent escape decoded",
+			listenerName: "spire%2Dserver",
+			err:          `invalid xDS listener name "spire%2Dserver": gRPC would resolve it as "spire-server"`,
+		},
+		{
+			name:         "unparsable",
+			listenerName: "spire%zz",
+			err:          `invalid xDS listener name "spire%zz": parse "xds:///spire%zz": invalid URL escape "%zz"`,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			target, err := XDSTarget(tt.listenerName)
+			if tt.err != "" {
+				require.EqualError(t, err, tt.err)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.target, target)
+		})
+	}
+}
+
 func TestValidateXDSBootstrap(t *testing.T) {
 	for _, tt := range []struct {
 		name   string

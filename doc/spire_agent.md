@@ -121,8 +121,7 @@ When `experimental.require_pq_kem` is enabled, it overrides `min_tls_version` an
 | `broker`                       | Optional SPIFFE Broker API endpoint configuration. See [SPIFFE Broker API](#spiffe-broker-api).                                                                                     |                         |
 | `server_load_balancing_config` | The load balancing policies used for connections to the SPIRE server. See [Server Load Balancing](#server-load-balancing).                                                          | round robin             |
 | `sync_retry_backoff`           | Backoff applied between failed synchronizations with the SPIRE server. See [Sync Retry Backoff](#sync-retry-backoff).                                                               |                         |
-| `use_xds`                      | Resolve the SPIRE server via xDS instead of DNS. `server_address` becomes the xDS listener name and `server_port` is ignored; the management server endpoint and node locality come |                         |
-|                                | from the gRPC xDS bootstrap (`GRPC_XDS_BOOTSTRAP`). Each xDS server must be local (unix socket or loopback) or use `tls` channel credentials.                                       | false                   |
+| `use_xds`                      | Resolve the SPIRE server via xDS instead of DNS. See [xDS Server Resolution](#xds-server-resolution).                                                                               | false                   |
 
 ### Server Load Balancing
 
@@ -161,6 +160,55 @@ agent {
             jitter = 0.1
         }
     }
+}
+```
+
+### xDS Server Resolution
+
+When `use_xds` is enabled, the agent finds SPIRE servers through an xDS server instead of DNS. `server_address` is used as the xDS listener name, so it must not contain `?`, `#` or percent-escapes, and `server_port` must not be set; the port comes from the xDS server.
+
+The gRPC xDS bootstrap is read from the `GRPC_XDS_BOOTSTRAP` (file path) or `GRPC_XDS_BOOTSTRAP_CONFIG` (inline JSON) environment variables. These are not agent configuration. The agent fails to start if neither is set.
+
+`use_xds` cannot be used together with `server_load_balancing_config`.
+
+The xDS server decides which SPIRE server the agent connects to, so a compromised xDS server can redirect the agent or cut it off. It cannot make the agent trust a wrong server, because the agent still verifies the server's SPIFFE ID against the bundle. To protect this channel, each xDS server must be local (unix socket or loopback) or use `tls` channel credentials.
+
+For example:
+
+```hcl
+agent {
+    server_address = "spire-server"
+    experimental {
+        use_xds = true
+    }
+}
+```
+
+With a bootstrap file pointed to by `GRPC_XDS_BOOTSTRAP`:
+
+```json
+{
+  "xds_servers": [
+    {
+      "server_uri": "xds.example.org:18000",
+      "channel_creds": [
+        {
+          "type": "tls",
+          "config": {
+            "ca_certificate_file": "/opt/spire/conf/agent/xds-ca.crt.pem"
+          }
+        }
+      ],
+      "server_features": ["xds_v3"]
+    }
+  ],
+  "node": {
+    "id": "spire-agent",
+    "locality": {
+      "region": "dc1",
+      "zone": "zone1"
+    }
+  }
 }
 ```
 

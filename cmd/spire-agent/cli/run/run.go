@@ -285,7 +285,7 @@ type experimentalConfig struct {
 	SyncRetryBackoff *syncRetryBackoffConfig `hcl:"sync_retry_backoff"`
 
 	// UseXDS resolves the SPIRE server through xDS instead of DNS.
-	// server_address becomes an xDS listener name (server_port is ignored) so
+	// server_address becomes an xDS listener name (server_port must be unset) so
 	// an xDS management server can drive locality-aware routing and
 	// priority-based failover across the servers in the trust domain. The
 	// management server endpoint and this agent's node locality are configured
@@ -426,6 +426,10 @@ func (c *agentConfig) validate() error {
 
 	if c.ServerPort == 0 && !c.Experimental.UseXDS {
 		return errors.New("server_port must be configured")
+	}
+
+	if c.ServerPort != 0 && c.Experimental.UseXDS {
+		return errors.New("server_port cannot be used with use_xds; the port comes from the xDS server")
 	}
 
 	// xDS delivers its own service config, which overrides the default one.
@@ -697,8 +701,11 @@ func newAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig, skip
 		}
 		// With xDS the endpoint set (and port) is delivered by the management
 		// server via EDS, so server_address is used as the xDS listener name
-		// rather than a host:port. server_port is ignored in this mode.
-		ac.ServerAddress = fmt.Sprintf("xds:///%s", c.Agent.ServerAddress)
+		// rather than a host:port.
+		ac.ServerAddress, err = client.XDSTarget(c.Agent.ServerAddress)
+		if err != nil {
+			return nil, fmt.Errorf("invalid server_address: %w", err)
+		}
 	} else {
 		ac.ServerAddress = fmt.Sprintf("dns:///%s", net.JoinHostPort(c.Agent.ServerAddress, strconv.Itoa(c.Agent.ServerPort)))
 	}

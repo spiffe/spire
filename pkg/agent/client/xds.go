@@ -9,6 +9,7 @@ import (
 	"os"
 	"strings"
 
+	"google.golang.org/grpc/resolver"
 	xdsbootstrap "google.golang.org/grpc/xds/bootstrap"
 )
 
@@ -29,6 +30,20 @@ type xdsServer struct {
 	ChannelCreds []struct {
 		Type string `json:"type"`
 	} `json:"channel_creds"`
+}
+
+// XDSTarget returns the xds target for listenerName, failing if gRPC would
+// parse it into a different listener name (e.g. text after "?" or "#").
+func XDSTarget(listenerName string) (string, error) {
+	target := "xds:///" + listenerName
+	u, err := url.Parse(target)
+	if err != nil {
+		return "", fmt.Errorf("invalid xDS listener name %q: %w", listenerName, err)
+	}
+	if got := (resolver.Target{URL: *u}).Endpoint(); got != listenerName {
+		return "", fmt.Errorf("invalid xDS listener name %q: gRPC would resolve it as %q", listenerName, got)
+	}
+	return target, nil
 }
 
 // ValidateXDSBootstrap ensures every xDS management server in the gRPC xDS
