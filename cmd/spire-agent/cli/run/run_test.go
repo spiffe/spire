@@ -39,6 +39,7 @@ type newAgentConfigCase struct {
 	msg                string
 	expectError        bool
 	requireErrorPrefix string
+	env                map[string]string
 	input              func(*Config)
 	logOptions         func(t *testing.T) []log.Option
 	test               func(*testing.T, *agent.Config)
@@ -642,6 +643,11 @@ func TestMergeInput(t *testing.T) {
 	}
 }
 
+var localXDSBootstrapEnv = map[string]string{
+	"GRPC_XDS_BOOTSTRAP":        "",
+	"GRPC_XDS_BOOTSTRAP_CONFIG": `{"xds_servers":[{"server_uri":"localhost:18000","channel_creds":[{"type":"insecure"}]}]}`,
+}
+
 func TestNewAgentConfig(t *testing.T) {
 	cases := []newAgentConfigCase{
 		{
@@ -656,9 +662,8 @@ func TestNewAgentConfig(t *testing.T) {
 		},
 		{
 			msg: "use_xds produces an xds target from server_address",
+			env: localXDSBootstrapEnv,
 			input: func(c *Config) {
-				t.Setenv("GRPC_XDS_BOOTSTRAP", "")
-				t.Setenv("GRPC_XDS_BOOTSTRAP_CONFIG", `{"xds_servers":[{"server_uri":"localhost:18000","channel_creds":[{"type":"insecure"}]}]}`)
 				c.Agent.ServerAddress = "spire-server"
 				c.Agent.ServerPort = 1337
 				c.Agent.Experimental.UseXDS = true
@@ -671,9 +676,8 @@ func TestNewAgentConfig(t *testing.T) {
 		},
 		{
 			msg: "use_xds does not require server_port",
+			env: localXDSBootstrapEnv,
 			input: func(c *Config) {
-				t.Setenv("GRPC_XDS_BOOTSTRAP", "")
-				t.Setenv("GRPC_XDS_BOOTSTRAP_CONFIG", `{"xds_servers":[{"server_uri":"localhost:18000","channel_creds":[{"type":"insecure"}]}]}`)
 				c.Agent.ServerAddress = "spire-server"
 				c.Agent.ServerPort = 0
 				c.Agent.Experimental.UseXDS = true
@@ -684,6 +688,7 @@ func TestNewAgentConfig(t *testing.T) {
 		},
 		{
 			msg: "use_xds rejects server_load_balancing_config",
+			env: localXDSBootstrapEnv,
 			input: func(c *Config) {
 				c.Agent.ServerAddress = "spire-server"
 				c.Agent.Experimental.UseXDS = true
@@ -697,9 +702,11 @@ func TestNewAgentConfig(t *testing.T) {
 		},
 		{
 			msg: "use_xds rejects insecure remote xDS server",
+			env: map[string]string{
+				"GRPC_XDS_BOOTSTRAP":        "",
+				"GRPC_XDS_BOOTSTRAP_CONFIG": `{"xds_servers":[{"server_uri":"xds.example.org:18000","channel_creds":[{"type":"insecure"}]}]}`,
+			},
 			input: func(c *Config) {
-				t.Setenv("GRPC_XDS_BOOTSTRAP", "")
-				t.Setenv("GRPC_XDS_BOOTSTRAP_CONFIG", `{"xds_servers":[{"server_uri":"xds.example.org:18000","channel_creds":[{"type":"insecure"}]}]}`)
 				c.Agent.ServerAddress = "spire-server"
 				c.Agent.Experimental.UseXDS = true
 			},
@@ -1909,6 +1916,10 @@ func TestNewAgentConfig(t *testing.T) {
 		testCase.input(input)
 
 		t.Run(testCase.msg, func(t *testing.T) {
+			for k, v := range testCase.env {
+				t.Setenv(k, v)
+			}
+
 			var logOpts []log.Option
 			if testCase.logOptions != nil {
 				logOpts = testCase.logOptions(t)

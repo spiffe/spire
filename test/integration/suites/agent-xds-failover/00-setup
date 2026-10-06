@@ -54,3 +54,6 @@ EOF
 chmod 644 conf/xds/*.pem conf/agent/xds-ca.crt.pem
 
 "${ROOTDIR}/setup/xdscontrolplane/build.sh" "${RUNDIR}/xds-control-plane"
+
+# docker-up doesn't pass --build; rebuild so helper changes are picked up.
+retry docker compose build xds-control-plane

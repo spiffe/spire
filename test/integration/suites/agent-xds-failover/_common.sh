@@ -52,18 +52,24 @@ fetch-jwt-kid() {
     fail-now "failed to fetch a JWT-SVID for audience ${aud}"
 }
 
-# expect-jwt-fetch-fails <audience> asserts that a bounded series of fetch
-# attempts never yields a token (used when no server is available).
+# expect-jwt-fetch-fails <audience> asserts that the agent itself rejects the
+# fetch because no server is reachable, and that the agent is still running.
+# The CLI timeout exceeds the agent's 30s NewJWTSVID retry window so the error
+# comes from the agent, not from the CLI deadline.
 expect-jwt-fetch-fails() {
-    local aud="$1" out token
-    for ((i=1;i<=10;i++)); do
-        out=$(docker compose exec -u 1001 -T spire-agent \
-            /opt/spire/bin/spire-agent api fetch jwt -audience "${aud}" \
-            -socketPath /opt/spire/sockets/workload_api.sock 2>/dev/null || true)
-        token=$(echo "${out}" | extract-jwt)
-        if [ -n "${token}" ]; then
-            fail-now "expected JWT fetch to fail with no servers available, but got a token"
-        fi
-        sleep 1
-    done
+    local aud="$1" out
+    if out=$(docker compose exec -u 1001 -T spire-agent \
+        /opt/spire/bin/spire-agent api fetch jwt -audience "${aud}" -timeout 45s \
+        -socketPath /opt/spire/sockets/workload_api.sock 2>&1); then
+        fail-now "expected JWT fetch to fail with no servers available, but it succeeded: ${out}"
+    fi
+    if [ -n "$(echo "${out}" | extract-jwt)" ]; then
+        fail-now "expected JWT fetch to fail with no servers available, but got a token"
+    fi
+    if ! echo "${out}" | grep -q "code = Unavailable desc = could not fetch JWT-SVID"; then
+        fail-now "JWT fetch failed for an unexpected reason: ${out}"
+    fi
+    if [ -z "$(docker compose ps -q --status running spire-agent)" ]; then
+        fail-now "spire-agent is not running"
+    fi
 }

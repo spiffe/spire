@@ -1,7 +1,7 @@
 // Command xds-control-plane is a minimal xDS management server used by the
-// agent-xds-failover integration suite. It serves a single, static ADS
-// snapshot that steers a gRPC xDS client (the SPIRE agent) at two SPIRE
-// servers using EDS locality priorities:
+// agent-xds-failover integration suite. It serves an ADS snapshot that steers
+// a gRPC xDS client (the SPIRE agent) at two SPIRE servers using EDS locality
+// priorities:
 //
 //	priority 0 -> spire-server-1   (preferred)
 //	priority 1 -> spire-server-2   (failover)
@@ -13,9 +13,9 @@
 // verifies.
 //
 // The endpoint addresses in an EDS assignment must be IP addresses (gRPC does
-// not DNS-resolve EDS endpoints), so the two server hostnames are resolved once
-// at startup and baked into the snapshot. The suite only stop/starts the server
-// containers (never recreates them), so their addresses are stable for the run.
+// not DNS-resolve EDS endpoints), so the two server hostnames are resolved
+// periodically and a new snapshot is pushed whenever an address changes. Docker
+// may assign a new IP when a stopped container is started again.
 package main
 
 import (
@@ -24,6 +24,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"strconv"
 	"time"
 
 	clusterv3 "github.com/envoyproxy/go-control-plane/envoy/config/cluster/v3"
@@ -59,6 +60,8 @@ const (
 
 	certFile = "/opt/xds/conf/xds.crt.pem"
 	keyFile  = "/opt/xds/conf/xds.key.pem"
+
+	resolveInterval = time.Second
 )
 
 func main() {
@@ -81,17 +84,30 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	log.Printf("resolved %s=%s (priority 0), %s=%s (priority 1)", primary, primaryIP, secondary, secondaryIP)
-
-	snapshot, err := makeSnapshot(primaryIP, secondaryIP)
-	if err != nil {
-		return fmt.Errorf("building snapshot: %w", err)
-	}
 
 	snapshotCache := cachev3.NewSnapshotCache(true, cachev3.IDHash{}, nil)
-	if err := snapshotCache.SetSnapshot(context.Background(), nodeID, snapshot); err != nil {
-		return fmt.Errorf("setting snapshot: %w", err)
+	version := 1
+	if err := setSnapshot(snapshotCache, version, primary, primaryIP, secondary, secondaryIP); err != nil {
+		return err
 	}
+
+	go func() {
+		for range time.Tick(resolveInterval) {
+			// Keep the last known IP when a lookup fails: a stopped container
+			// drops out of DNS, and its stale endpoint is what failover expects.
+			newPrimaryIP := lookup(primary, primaryIP)
+			newSecondaryIP := lookup(secondary, secondaryIP)
+			if newPrimaryIP == primaryIP && newSecondaryIP == secondaryIP {
+				continue
+			}
+			if err := setSnapshot(snapshotCache, version+1, primary, newPrimaryIP, secondary, newSecondaryIP); err != nil {
+				log.Printf("updating snapshot: %v", err)
+				continue
+			}
+			version++
+			primaryIP, secondaryIP = newPrimaryIP, newSecondaryIP
+		}
+	}()
 
 	srv := serverv3.NewServer(context.Background(), snapshotCache, nil)
 	creds, err := credentials.NewServerTLSFromFile(certFile, keyFile)
@@ -109,9 +125,21 @@ func run() error {
 	return grpcServer.Serve(lis)
 }
 
-// makeSnapshot builds the static LDS/RDS/CDS/EDS resources. The EDS assignment
+func setSnapshot(snapshotCache cachev3.SnapshotCache, version int, primary, primaryIP, secondary, secondaryIP string) error {
+	snapshot, err := makeSnapshot(strconv.Itoa(version), primaryIP, secondaryIP)
+	if err != nil {
+		return fmt.Errorf("building snapshot: %w", err)
+	}
+	if err := snapshotCache.SetSnapshot(context.Background(), nodeID, snapshot); err != nil {
+		return fmt.Errorf("setting snapshot: %w", err)
+	}
+	log.Printf("snapshot version %d: %s=%s (priority 0), %s=%s (priority 1)", version, primary, primaryIP, secondary, secondaryIP)
+	return nil
+}
+
+// makeSnapshot builds the LDS/RDS/CDS/EDS resources. The EDS assignment
 // places the primary server at priority 0 and the secondary at priority 1.
-func makeSnapshot(primaryIP, secondaryIP string) (*cachev3.Snapshot, error) {
+func makeSnapshot(version, primaryIP, secondaryIP string) (*cachev3.Snapshot, error) {
 	router, err := anypb.New(&routerv3.Router{})
 	if err != nil {
 		return nil, err
@@ -169,7 +197,7 @@ func makeSnapshot(primaryIP, secondaryIP string) (*cachev3.Snapshot, error) {
 		},
 	}
 
-	return cachev3.NewSnapshot("1", map[resourcev3.Type][]cachetypes.Resource{
+	return cachev3.NewSnapshot(version, map[resourcev3.Type][]cachetypes.Resource{
 		resourcev3.ListenerType: {listener},
 		resourcev3.RouteType:    {route},
 		resourcev3.ClusterType:  {cluster},
@@ -217,6 +245,15 @@ func resolve(host string) (string, error) {
 		}
 		time.Sleep(time.Second)
 	}
+}
+
+// lookup returns the first IP for host, or fallback if it can't be resolved.
+func lookup(host, fallback string) string {
+	addrs, err := net.LookupHost(host)
+	if err != nil || len(addrs) == 0 {
+		return fallback
+	}
+	return addrs[0]
 }
 
 func envOr(key, fallback string) string {
