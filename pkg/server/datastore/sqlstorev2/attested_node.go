@@ -118,25 +118,6 @@ func (ds *Plugin) PruneAttestedExpiredNodes(ctx context.Context, expiredBefore t
 	})
 }
 
-func (ds *Plugin) ListAttestedNodeEvents(ctx context.Context, req *datastore.ListAttestedNodeEventsRequest) (resp *datastore.ListAttestedNodeEventsResponse, err error) {
-	if req.GreaterThanEventID != 0 && req.LessThanEventID != 0 {
-		return nil, sqlcommon.NewSQLError("can't set both greater and less than event id")
-	}
-	if err = ds.withReadDB(ctx, req.DataConsistency, func(tx *gorm.DB) (err error) {
-		resp, err = listAttestedNodeEvents(tx, req)
-		return err
-	}); err != nil {
-		return nil, err
-	}
-	return resp, nil
-}
-
-func (ds *Plugin) PruneAttestedNodeEvents(ctx context.Context, olderThan time.Duration) error {
-	return ds.withWriteTx(ctx, func(tx *gorm.DB) error {
-		return pruneAttestedNodeEvents(tx, olderThan)
-	})
-}
-
 func (ds *Plugin) CreateAttestedNodeEventForTesting(ctx context.Context, event *datastore.AttestedNodeEvent) error {
 	return ds.withWriteTx(ctx, func(tx *gorm.DB) error {
 		return createAttestedNodeEvent(tx, event)
@@ -147,16 +128,6 @@ func (ds *Plugin) DeleteAttestedNodeEventForTesting(ctx context.Context, eventID
 	return ds.withWriteTx(ctx, func(tx *gorm.DB) error {
 		return deleteAttestedNodeEvent(tx, eventID)
 	})
-}
-
-func (ds *Plugin) FetchAttestedNodeEvent(ctx context.Context, eventID uint) (event *datastore.AttestedNodeEvent, err error) {
-	if err = ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
-		event, err = fetchAttestedNodeEvent(tx, eventID)
-		return err
-	}); err != nil {
-		return nil, err
-	}
-	return event, nil
 }
 
 func (ds *Plugin) SetNodeSelectors(ctx context.Context, spiffeID string, selectors []*common.Selector) error {
@@ -652,44 +623,6 @@ func createAttestedNodeEvent(tx *gorm.DB, event *datastore.AttestedNodeEvent) er
 		return sqlcommon.NewWrappedSQLError(err)
 	}
 	return nil
-}
-
-func listAttestedNodeEvents(tx *gorm.DB, req *datastore.ListAttestedNodeEventsRequest) (*datastore.ListAttestedNodeEventsResponse, error) {
-	query := tx.Order("id asc")
-	if req.GreaterThanEventID != 0 {
-		query = query.Where("id > ?", req.GreaterThanEventID)
-	}
-	if req.LessThanEventID != 0 {
-		query = query.Where("id < ?", req.LessThanEventID)
-	}
-
-	var events []AttestedNodeEvent
-	if err := query.Find(&events).Error; err != nil {
-		return nil, sqlcommon.NewWrappedSQLError(err)
-	}
-
-	resp := &datastore.ListAttestedNodeEventsResponse{
-		Events: make([]datastore.AttestedNodeEvent, len(events)),
-	}
-	for i, event := range events {
-		resp.Events[i] = datastore.AttestedNodeEvent{EventID: event.ID, SpiffeID: event.SpiffeID}
-	}
-	return resp, nil
-}
-
-func pruneAttestedNodeEvents(tx *gorm.DB, olderThan time.Duration) error {
-	if err := tx.Where("created_at < ?", time.Now().Add(-olderThan)).Delete(&AttestedNodeEvent{}).Error; err != nil {
-		return sqlcommon.NewWrappedSQLError(err)
-	}
-	return nil
-}
-
-func fetchAttestedNodeEvent(tx *gorm.DB, eventID uint) (*datastore.AttestedNodeEvent, error) {
-	var event AttestedNodeEvent
-	if err := tx.Where("id = ?", eventID).Take(&event).Error; err != nil {
-		return nil, sqlcommon.NewWrappedSQLError(err)
-	}
-	return &datastore.AttestedNodeEvent{EventID: event.ID, SpiffeID: event.SpiffeID}, nil
 }
 
 func deleteAttestedNodeEvent(tx *gorm.DB, eventID uint) error {

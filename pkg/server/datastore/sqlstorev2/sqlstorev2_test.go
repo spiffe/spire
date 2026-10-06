@@ -44,6 +44,8 @@ var unimplementedTests = []string{
 	"TestDeleteAttestedNodeJoinTokenPreservesNonAliasChildEntries",
 	"TestDeleteAttestedNodeNonJoinTokenDoesNotCascade",
 	"TestPruneAttestedExpiredNodesCascadesEntries",
+	"TestFetchAttestedNodeChanges",
+	"TestPruneEvents",
 	"TestCreateRegistrationEntry",
 	"TestCreateOrReturnRegistrationEntry",
 	"TestCreateInvalidRegistrationEntry",
@@ -76,8 +78,9 @@ var unimplementedTests = []string{
 	"TestDeleteBundleRestrictedByRegistrationEntries",
 	"TestDeleteBundleDeleteRegistrationEntries",
 	"TestDeleteBundleDissociateRegistrationEntries",
-	"TestListRegistrationEntryEvents",
-	"TestPruneRegistrationEntryEvents",
+	"TestFetchRegistrationEntryChanges",
+	"TestRegistrationEntryChangeGap",
+	"TestRegistrationEntryChangeStartupBackfill",
 	"TestRace",
 }
 
