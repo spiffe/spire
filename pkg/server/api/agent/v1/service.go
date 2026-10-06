@@ -36,35 +36,38 @@ import (
 
 // Config is the service configuration
 type Config struct {
-	Catalog                 catalog.Catalog
-	Clock                   clock.Clock
-	DataStore               datastore.DataStore
-	ServerCA                ca.ServerCA
-	TrustDomain             spiffeid.TrustDomain
-	AgentSpiffeIdAsSelector bool
+	Catalog                    catalog.Catalog
+	Clock                      clock.Clock
+	DataStore                  datastore.DataStore
+	ServerCA                   ca.ServerCA
+	TrustDomain                spiffeid.TrustDomain
+	AgentSpiffeIdAsSelector    bool
+	AllowNonconformingAgentIDs bool
 }
 
 // Service implements the v1 agent service
 type Service struct {
 	agentv1.UnsafeAgentServer
 
-	cat                     catalog.Catalog
-	clk                     clock.Clock
-	ds                      datastore.DataStore
-	ca                      ca.ServerCA
-	td                      spiffeid.TrustDomain
-	AgentSpiffeIdAsSelector bool
+	cat                        catalog.Catalog
+	clk                        clock.Clock
+	ds                         datastore.DataStore
+	ca                         ca.ServerCA
+	td                         spiffeid.TrustDomain
+	AgentSpiffeIdAsSelector    bool
+	allowNonconformingAgentIDs bool
 }
 
 // New creates a new agent service
 func New(config Config) *Service {
 	return &Service{
-		cat:                     config.Catalog,
-		clk:                     config.Clock,
-		ds:                      config.DataStore,
-		ca:                      config.ServerCA,
-		td:                      config.TrustDomain,
-		AgentSpiffeIdAsSelector: config.AgentSpiffeIdAsSelector,
+		cat:                        config.Catalog,
+		clk:                        config.Clock,
+		ds:                         config.DataStore,
+		ca:                         config.ServerCA,
+		td:                         config.TrustDomain,
+		AgentSpiffeIdAsSelector:    config.AgentSpiffeIdAsSelector,
+		allowNonconformingAgentIDs: config.AllowNonconformingAgentIDs,
 	}
 }
 
@@ -344,17 +347,14 @@ func (s *Service) AttestAgent(stream agentv1.Agent_AttestAgentServer) error {
 	log = log.WithField(telemetry.AgentID, agentID)
 	rpccontext.AddRPCAuditFields(ctx, logrus.Fields{telemetry.AgentID: agentID})
 
-	// Ideally we'd do stronger validation that the ID is within the Node
-	// Attestors scoped area of the reserved agent namespace, but historically
-	// we haven't been strict here and there are deployments that are emitting
-	// such IDs.
-	// Deprecated: enforce that IDs produced by Node Attestors are in the
-	// reserved namespace for that Node Attestor starting in SPIRE 1.4.
 	if agentID.Path() == idutil.ServerIDPath {
 		return commonapi.MakeErr(log, codes.Internal, "agent ID cannot collide with the server ID", nil)
 	}
 	if err := api.VerifyTrustDomainAgentIDForNodeAttestor(s.td, agentID, params.Data.Type); err != nil {
-		log.WithError(err).Warn("The node attestor produced an invalid agent ID; future releases will enforce that agent IDs are within the reserved agent namesepace for the node attestor")
+		if !s.allowNonconformingAgentIDs {
+			return commonapi.MakeErr(log, codes.Internal, "node attestor produced an invalid agent ID", err)
+		}
+		log.WithError(err).Warn("The node attestor produced an invalid agent ID; allowed by the allow_nonconforming_agent_ids experimental setting")
 	}
 
 	// fetch the agent/node to check if it was already attested or banned

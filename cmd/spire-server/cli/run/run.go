@@ -110,18 +110,19 @@ type serverConfig struct {
 }
 
 type experimentalConfig struct {
-	AgentSpiffeIdAsSelector bool                        `hcl:"agent_spiffe_id_as_selector"`
-	AuthOpaPolicyEngine     *authpolicy.OpaEngineConfig `hcl:"auth_opa_policy_engine"`
-	CacheReloadInterval     string                      `hcl:"cache_reload_interval"`
-	FullCacheReloadInterval string                      `hcl:"full_cache_reload_interval"`
-	EventsBasedCache        bool                        `hcl:"events_based_cache"`
-	PruneEventsOlderThan    string                      `hcl:"prune_events_older_than"`
-	EventTimeout            string                      `hcl:"event_timeout"`
-	SQLTransactionTimeout   string                      `hcl:"sql_transaction_timeout"`
-	RequirePQKEM            bool                        `hcl:"require_pq_kem"`
-	WITKeyType              string                      `hcl:"wit_key_type"`
-	WITIssuer               string                      `hcl:"wit_issuer"`
-	DefaultWITSVIDTTL       string                      `hcl:"default_wit_svid_ttl"`
+	AgentSpiffeIdAsSelector    bool                        `hcl:"agent_spiffe_id_as_selector"`
+	AllowNonconformingAgentIDs bool                        `hcl:"allow_nonconforming_agent_ids"`
+	AuthOpaPolicyEngine        *authpolicy.OpaEngineConfig `hcl:"auth_opa_policy_engine"`
+	CacheReloadInterval        string                      `hcl:"cache_reload_interval"`
+	FullCacheReloadInterval    string                      `hcl:"full_cache_reload_interval"`
+	EventsBasedCache           bool                        `hcl:"events_based_cache"`
+	PruneEventsOlderThan       string                      `hcl:"prune_events_older_than"`
+	EventTimeout               string                      `hcl:"event_timeout"`
+	SQLTransactionTimeout      string                      `hcl:"sql_transaction_timeout"`
+	RequirePQKEM               bool                        `hcl:"require_pq_kem"`
+	WITKeyType                 string                      `hcl:"wit_key_type"`
+	WITIssuer                  string                      `hcl:"wit_issuer"`
+	DefaultWITSVIDTTL          string                      `hcl:"default_wit_svid_ttl"`
 
 	Flags fflag.RawConfig `hcl:"feature_flags"`
 
@@ -620,6 +621,7 @@ func newServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig, ski
 	}
 
 	sc.Experimental.AgentSpiffeIdAsSelector = c.Server.Experimental.AgentSpiffeIdAsSelector
+	sc.Experimental.AllowNonconformingAgentIDs = c.Server.Experimental.AllowNonconformingAgentIDs
 
 	// If the configured TTLs can lead to surprises, then do our best to log an
 	// accurate message and guide the user to resolution

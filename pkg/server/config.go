@@ -166,6 +166,10 @@ type Config struct {
 type ExperimentalConfig struct {
 	// AgentSpiffeIdAsSelector, if true, includes the agent spiffe id as a node selector.
 	AgentSpiffeIdAsSelector bool
+
+	// AllowNonconformingAgentIDs, if true, allows node attestors to produce agent
+	// IDs outside of their reserved namespace.
+	AllowNonconformingAgentIDs bool
 }
 
 type FederationConfig struct {

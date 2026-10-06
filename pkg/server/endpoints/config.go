@@ -117,6 +117,8 @@ type Config struct {
 	MaxAttestedNodeInfoStaleness time.Duration
 
 	AgentSpiffeIdAsSelector bool
+
+	AllowNonconformingAgentIDs bool
 }
 
 func (c *Config) maybeMakeBundleEndpointServer() (Server, func(context.Context) error) {
@@ -170,12 +172,13 @@ func (c *Config) makeAPIServers(entryFetcher api.AuthorizedEntryFetcher) APIServ
 
 	return APIServers{
 		AgentServer: agentv1.New(agentv1.Config{
-			DataStore:               ds,
-			ServerCA:                c.ServerCA,
-			TrustDomain:             c.TrustDomain,
-			Catalog:                 c.Catalog,
-			Clock:                   c.Clock,
-			AgentSpiffeIdAsSelector: c.AgentSpiffeIdAsSelector,
+			DataStore:                  ds,
+			ServerCA:                   c.ServerCA,
+			TrustDomain:                c.TrustDomain,
+			Catalog:                    c.Catalog,
+			Clock:                      c.Clock,
+			AgentSpiffeIdAsSelector:    c.AgentSpiffeIdAsSelector,
+			AllowNonconformingAgentIDs: c.AllowNonconformingAgentIDs,
 		}),
 		BundleServer: bundlev1.New(bundlev1.Config{
 			TrustDomain:       c.TrustDomain,
