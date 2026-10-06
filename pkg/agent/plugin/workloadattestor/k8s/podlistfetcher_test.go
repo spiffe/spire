@@ -882,11 +882,11 @@ func TestParsePodListDoesNotRetainWholeResponse(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, pods, podCount)
 
-	// Retain a single pod and drop the rest, as a cache holding only live pods
-	// on a node full of terminated ones would.
+	// Retain a single pod, as a cache holding only live pods on a node full of
+	// terminated ones would. The map is not referenced past this point, so it
+	// and every pod it holds are collectable before the heap is measured.
 	retained := pods["pod-uid-0"]
 	require.NotNil(t, retained)
-	pods = nil
 
 	after := liveHeapBytes()
 	runtime.KeepAlive(retained)
