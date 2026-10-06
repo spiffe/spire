@@ -52,8 +52,8 @@ var unimplementedTests = []string{
 	"TestDeleteAttestedNodeJoinTokenPreservesNonAliasChildEntries",
 	"TestPruneAttestedExpiredNodesCascadesEntries",
 	"TestDeleteAttestedNodeNonJoinTokenDoesNotCascade",
-	"TestListAttestedNodeEvents",
-	"TestPruneAttestedNodeEvents",
+	"TestFetchAttestedNodeChanges",
+	"TestPruneEvents",
 	"TestNodeSelectors",
 	"TestListNodeSelectors",
 	"TestListNodeSelectorsGroupsBySpiffeID",
@@ -90,8 +90,9 @@ var unimplementedTests = []string{
 	"TestDeleteBundleRestrictedByRegistrationEntries",
 	"TestDeleteBundleDeleteRegistrationEntries",
 	"TestDeleteBundleDissociateRegistrationEntries",
-	"TestListRegistrationEntryEvents",
-	"TestPruneRegistrationEntryEvents",
+	"TestFetchRegistrationEntryChanges",
+	"TestRegistrationEntryChangeGap",
+	"TestRegistrationEntryChangeStartupBackfill",
 	"TestRace",
 }
 
