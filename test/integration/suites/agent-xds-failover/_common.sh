@@ -9,6 +9,12 @@ unique-audience() {
     echo "aud-$(date +%s%N)-${RANDOM}"
 }
 
+# server-jwt-kid <service> prints the server's active JWT signing kid.
+server-jwt-kid() {
+    docker compose exec -T "$1" /opt/spire/bin/spire-server \
+        localauthority jwt show -output json | jq -r .active.authority_id
+}
+
 # decode-base64url decodes a base64url-encoded string (as used in JWT segments).
 decode-base64url() {
     local d="${1//-/+}"

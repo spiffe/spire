@@ -32,12 +32,9 @@ Each check fetches a JWT-SVID with a **unique audience**, which forces a
 JWT-SVID cache miss and therefore a live `NewJWTSVID` RPC to whichever server
 the xDS load balancer currently points at. The JWT header's `kid` identifies the
 signing key, which is unique per server, so it reveals which server issued the
-token:
+token. Each server's kid is read from `spire-server localauthority jwt show`:
 
 1. Both servers up → issued by server-1 (preferred / priority 0).
 2. server-1 stopped → issued by server-2 (failover / priority 1).
-3. server-1 restarted, server-2 stopped → issued by server-1 (failback).
+3. server-1 restarted, server-2 still up → issued by server-1 again (failback).
 4. Both stopped → fetch fails (proves a live server was required, not the cache).
-
-The suite asserts the "both up" kid equals the primary's kid and that the
-failover kid differs, confirming both the preference and a genuine switch.
