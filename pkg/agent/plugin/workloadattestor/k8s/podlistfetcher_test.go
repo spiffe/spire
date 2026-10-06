@@ -3,10 +3,13 @@ package k8s
 import (
 	"context"
 	"crypto/x509"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"math/big"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -441,7 +444,7 @@ func TestPodListFetcherRunProcessesRequestsWhileConfiguringKubeletClient(t *test
 		<-release
 		return fetcher.buildKubeletClient(config, previousClient)
 	}
-	fetcher.fetch = func(ctx context.Context, _ *kubeletClient) (map[string]*fastjson.Value, error) {
+	fetcher.fetch = func(ctx context.Context, _ *kubeletClient, _ podListFetcherConfig) (map[string]*fastjson.Value, error) {
 		<-ctx.Done()
 		return nil, ctx.Err()
 	}
@@ -525,7 +528,7 @@ func TestPodListFetcherReconfigurePreservesCache(t *testing.T) {
 
 	var oldRequestCount atomic.Int32
 	var newRequestCount atomic.Int32
-	fetcher.fetch = func(_ context.Context, client *kubeletClient) (map[string]*fastjson.Value, error) {
+	fetcher.fetch = func(_ context.Context, client *kubeletClient, _ podListFetcherConfig) (map[string]*fastjson.Value, error) {
 		if client.endpoint.Port() == "1" {
 			oldRequestCount.Add(1)
 		} else {
@@ -574,7 +577,7 @@ func TestPodListFetcherReconfigureUpdatesCacheLifetime(t *testing.T) {
 		fetcher, mockClock := newTestPodListFetcher(t)
 
 		var requestCount atomic.Int32
-		fetcher.fetch = func(context.Context, *kubeletClient) (map[string]*fastjson.Value, error) {
+		fetcher.fetch = func(context.Context, *kubeletClient, podListFetcherConfig) (map[string]*fastjson.Value, error) {
 			requestCount.Add(1)
 			return map[string]*fastjson.Value{}, nil
 		}
@@ -599,7 +602,7 @@ func TestPodListFetcherReconfigureUpdatesCacheLifetime(t *testing.T) {
 		fetcher, mockClock := newTestPodListFetcher(t)
 
 		var requestCount atomic.Int32
-		fetcher.fetch = func(context.Context, *kubeletClient) (map[string]*fastjson.Value, error) {
+		fetcher.fetch = func(context.Context, *kubeletClient, podListFetcherConfig) (map[string]*fastjson.Value, error) {
 			requestCount.Add(1)
 			return map[string]*fastjson.Value{}, nil
 		}
@@ -631,7 +634,7 @@ func TestPodListFetcherReloadsKubeletClient(t *testing.T) {
 		clock:    mockClock,
 		config:   &firstConfig,
 		actionCh: make(chan func(), 1),
-		fetch: func(context.Context, *kubeletClient) (map[string]*fastjson.Value, error) {
+		fetch: func(context.Context, *kubeletClient, podListFetcherConfig) (map[string]*fastjson.Value, error) {
 			return map[string]*fastjson.Value{}, nil
 		},
 	}
@@ -726,7 +729,7 @@ func TestPodListFetcherCreatesAndInstallsConfiguredKubeletClient(t *testing.T) {
 		port:              1,
 	}
 	usedClient := make(chan *kubeletClient, 1)
-	fetcher.fetch = func(_ context.Context, client *kubeletClient) (map[string]*fastjson.Value, error) {
+	fetcher.fetch = func(_ context.Context, client *kubeletClient, _ podListFetcherConfig) (map[string]*fastjson.Value, error) {
 		usedClient <- client
 		return map[string]*fastjson.Value{}, nil
 	}
@@ -755,10 +758,11 @@ func TestPodListFetcherConfiguresKubeletClientDuringFetch(t *testing.T) {
 
 func TestPodListFetcherParsePodList(t *testing.T) {
 	for _, testCase := range []struct {
-		name     string
-		response string
-		wantUIDs []string
-		wantErr  string
+		name                 string
+		response             string
+		excludeCompletedPods bool
+		wantUIDs             []string
+		wantErr              string
 	}{
 		{
 			name: "indexes pods by UID",
@@ -767,6 +771,73 @@ func TestPodListFetcherParsePodList(t *testing.T) {
 				{"metadata":{"uid":"pod-2"}}
 			]}`,
 			wantUIDs: []string{"pod-1", "pod-2"},
+		},
+		{
+			name: "keeps terminal-phase pods when exclusion disabled",
+			response: `{"items":[
+				{"metadata":{"uid":"running"},"status":{"phase":"Running"}},
+				{"metadata":{"uid":"failed"},"status":{"phase":"Failed"}},
+				{"metadata":{"uid":"succeeded"},"status":{"phase":"Succeeded"}}
+			]}`,
+			wantUIDs: []string{"running", "failed", "succeeded"},
+		},
+		{
+			name: "drops terminal-phase pods with no running containers when exclusion enabled",
+			response: `{"items":[
+				{"metadata":{"uid":"running"},"status":{"phase":"Running"}},
+				{"metadata":{"uid":"pending"},"status":{"phase":"Pending"}},
+				{"metadata":{"uid":"failed"},"status":{"phase":"Failed"}},
+				{"metadata":{"uid":"succeeded"},"status":{"phase":"Succeeded"}},
+				{"metadata":{"uid":"failed-reaped"},"status":{"phase":"Failed","containerStatuses":[
+					{"name":"app","containerID":""}
+				]}}
+			]}`,
+			excludeCompletedPods: true,
+			wantUIDs:             []string{"running", "pending"},
+		},
+		{
+			name: "drops completed pods that still report container IDs",
+			response: `{"items":[
+				{"metadata":{"uid":"job-completed"},"status":{"phase":"Succeeded","containerStatuses":[
+					{"name":"job","containerID":"docker://abc123","state":{"terminated":{"exitCode":0,"reason":"Completed","containerID":"docker://abc123"}}}
+				]}},
+				{"metadata":{"uid":"status-unknown"},"status":{"phase":"Failed","containerStatuses":[
+					{"name":"app","containerID":"docker://def456","state":{"terminated":{"exitCode":137,"reason":"ContainerStatusUnknown"}}}
+				]}},
+				{"metadata":{"uid":"failed-waiting"},"status":{"phase":"Failed","containerStatuses":[
+					{"name":"app","containerID":"docker://ghi789","state":{"waiting":{"reason":"CrashLoopBackOff"}}}
+				]}},
+				{"metadata":{"uid":"completed-init"},"status":{"phase":"Succeeded","initContainerStatuses":[
+					{"name":"init","containerID":"docker://jkl012","state":{"terminated":{"exitCode":0}}}
+				]}}
+			]}`,
+			excludeCompletedPods: true,
+		},
+		{
+			name: "keeps terminal-phase pods whose containers are still running",
+			response: `{"items":[
+				{"metadata":{"uid":"failed-live"},"status":{"phase":"Failed","containerStatuses":[
+					{"name":"app","containerID":"docker://abc123","state":{"running":{"startedAt":"2026-01-01T00:00:00Z"}}}
+				]}},
+				{"metadata":{"uid":"succeeded-live-sidecar"},"status":{"phase":"Succeeded","containerStatuses":[
+					{"name":"app","containerID":"docker://def456","state":{"terminated":{"exitCode":0}}},
+					{"name":"sidecar","containerID":"docker://ghi789","state":{"running":{"startedAt":"2026-01-01T00:00:00Z"}}}
+				]}},
+				{"metadata":{"uid":"failed-live-init"},"status":{"phase":"Failed","initContainerStatuses":[
+					{"name":"init","containerID":"docker://jkl012","state":{"running":{"startedAt":"2026-01-01T00:00:00Z"}}}
+				]}}
+			]}`,
+			excludeCompletedPods: true,
+			wantUIDs:             []string{"failed-live", "succeeded-live-sidecar", "failed-live-init"},
+		},
+		{
+			name: "ignores ephemeral container statuses when deciding to drop",
+			response: `{"items":[
+				{"metadata":{"uid":"failed-ephemeral-only"},"status":{"phase":"Failed","ephemeralContainerStatuses":[
+					{"name":"debugger","containerID":"docker://jkl012","state":{"running":{"startedAt":"2026-01-01T00:00:00Z"}}}
+				]}}
+			]}`,
+			excludeCompletedPods: true,
 		},
 		{
 			name:     "accepts null items as an empty list",
@@ -803,7 +874,7 @@ func TestPodListFetcherParsePodList(t *testing.T) {
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			fetcher := podListFetcher{log: hclog.NewNullLogger()}
-			pods, err := fetcher.parsePodList([]byte(testCase.response))
+			pods, err := fetcher.parsePodList([]byte(testCase.response), testCase.excludeCompletedPods)
 			if testCase.wantErr != "" {
 				require.ErrorContains(t, err, testCase.wantErr)
 				return
@@ -818,6 +889,93 @@ func TestPodListFetcherParsePodList(t *testing.T) {
 	}
 }
 
+func TestParsePodListDoesNotRetainWholeResponse(t *testing.T) {
+	const podCount = 2000
+
+	fetcher := podListFetcher{log: hclog.NewNullLogger()}
+	response := buildLargePodListResponse(t, podCount)
+
+	before := liveHeapBytes()
+	pods, err := fetcher.parsePodList(response, false)
+	require.NoError(t, err)
+	require.Len(t, pods, podCount)
+
+	// Retain a single pod, as a cache holding only live pods on a node full of
+	// terminated ones would. The map is not referenced past this point, so it
+	// and every pod it holds are collectable before the heap is measured.
+	retained := pods["pod-uid-0"]
+	require.NotNil(t, retained)
+
+	after := liveHeapBytes()
+	runtime.KeepAlive(retained)
+	runtime.KeepAlive(response)
+
+	// One pod is a few KiB. Allow generous headroom for allocator noise while
+	// still failing loudly if the whole multi-MiB response is pinned.
+	const maxRetainedBytes = 256 * 1024
+	retainedBytes := int64(after) - int64(before)
+	t.Logf("response %d KiB across %d pods; retaining 1 pod holds %d KiB live",
+		len(response)/1024, podCount, retainedBytes/1024)
+	require.Less(t, retainedBytes, int64(maxRetainedBytes),
+		"retaining one pod pinned %d KiB; the parser arena is being held alive by the cached pod",
+		retainedBytes/1024)
+
+	// The retained pod must still be fully usable after being decoupled.
+	require.Equal(t, "some-workload-deployment-abcdef-00000",
+		string(retained.Get("metadata", "name").GetStringBytes()))
+	require.Len(t, retained.GetArray("status", "containerStatuses"), 4)
+	require.NoError(t, json.Unmarshal(retained.MarshalTo(nil), &map[string]any{}))
+}
+
+func buildLargePodListResponse(t *testing.T, podCount int) []byte {
+	t.Helper()
+
+	items := make([]map[string]any, 0, podCount)
+	for i := range podCount {
+		containerStatuses := make([]map[string]any, 0, 4)
+		for c := range 4 {
+			containerStatuses = append(containerStatuses, map[string]any{
+				"name":        fmt.Sprintf("container-%d", c),
+				"containerID": fmt.Sprintf("containerd://%064d", i*10+c),
+				"image":       "registry.example.com/some/fairly/long/image/path:v1.2.3",
+				"imageID":     fmt.Sprintf("sha256:%064d", i),
+				"ready":       true,
+				"state":       map[string]any{"running": map[string]any{"startedAt": "2026-01-01T00:00:00Z"}},
+			})
+		}
+		items = append(items, map[string]any{
+			"metadata": map[string]any{
+				"uid":       fmt.Sprintf("pod-uid-%d", i),
+				"name":      fmt.Sprintf("some-workload-deployment-abcdef-%05d", i),
+				"namespace": "production",
+				"labels": map[string]any{
+					"app": "some-workload", "pod-template-hash": "abcdef", "team": "platform",
+				},
+				"annotations": map[string]any{
+					"kubectl.kubernetes.io/last-applied-configuration": `{"apiVersion":"v1","kind":"Pod"}`,
+				},
+			},
+			"spec": map[string]any{"nodeName": "k8s-node-1", "serviceAccountName": "default"},
+			"status": map[string]any{
+				"phase": "Running", "hostIP": "10.0.0.1", "podIP": "10.1.2.3",
+				"containerStatuses": containerStatuses,
+			},
+		})
+	}
+
+	response, err := json.Marshal(map[string]any{"items": items})
+	require.NoError(t, err)
+	return response
+}
+
+func liveHeapBytes() uint64 {
+	runtime.GC()
+	runtime.GC()
+	var stats runtime.MemStats
+	runtime.ReadMemStats(&stats)
+	return stats.HeapAlloc
+}
+
 func newTestPodListFetcher(t *testing.T) (*podListFetcher, *clock.Mock) {
 	t.Helper()
 
@@ -830,7 +988,7 @@ func newTestPodListFetcher(t *testing.T) (*podListFetcher, *clock.Mock) {
 func configureTestFetcher(t *testing.T, fetcher *podListFetcher, fetch func(context.Context) (map[string]*fastjson.Value, error)) {
 	t.Helper()
 
-	fetcher.fetch = func(ctx context.Context, _ *kubeletClient) (map[string]*fastjson.Value, error) {
+	fetcher.fetch = func(ctx context.Context, _ *kubeletClient, _ podListFetcherConfig) (map[string]*fastjson.Value, error) {
 		return fetch(ctx)
 	}
 	require.NoError(t, fetcher.configure(t.Context(), podListFetcherConfig{
