@@ -58,12 +58,6 @@ const (
 	// entry cache.
 	defaultFullCacheReloadInterval = 24 * time.Hour
 
-	// This is the default amount of time events live before they are pruned
-	defaultPruneEventsOlderThan = 12 * time.Hour
-
-	// This is the default amount of time to wait for an event before giving up
-	defaultEventTimeout = 15 * time.Minute
-
 	// This is the time to wait for graceful termination of the gRPC server
 	// before forcefully terminating.
 	gracefulStopTimeout = 10 * time.Second
@@ -95,7 +89,6 @@ type Endpoints struct {
 	RateLimit                    RateLimitConfig
 	NodeCacheRebuildTask         func(context.Context) error
 	EntryFetcherCacheRebuildTask func(context.Context) error
-	EntryFetcherPruneEventsTask  func(context.Context) error
 	CertificateReloadTask        func(context.Context) error
 	AuditLogEnabled              bool
 	AuditLogExcludeAgentSync     bool
@@ -155,14 +148,6 @@ func New(ctx context.Context, c Config) (*Endpoints, error) {
 		return nil, errors.New("full cache reload interval must be greater than cache reload interval")
 	}
 
-	if c.PruneEventsOlderThan == 0 {
-		c.PruneEventsOlderThan = defaultPruneEventsOlderThan
-	}
-
-	if c.EventTimeout == 0 {
-		c.EventTimeout = defaultEventTimeout
-	}
-
 	ds := c.Catalog.GetDataStore()
 
 	nodeCache, err := nodecache.New(ctx, c.Log, ds, c.Clock, true, c.MaxAttestedNodeInfoStaleness != 0)
@@ -171,7 +156,7 @@ func New(ctx context.Context, c Config) (*Endpoints, error) {
 	}
 
 	var ef api.AuthorizedEntryFetcher
-	var cacheRebuildTask, nodeCacheRebuildTask, pruneEventsTask func(context.Context) error
+	var cacheRebuildTask, nodeCacheRebuildTask func(context.Context) error
 	if c.EventsBasedCache {
 		efEventsBasedCache, err := NewAuthorizedEntryFetcherEvents(ctx, c.TrustDomain.String(), AuthorizedEntryFetcherEventsConfig{
 			log:                     c.Log,
@@ -181,14 +166,11 @@ func New(ctx context.Context, c Config) (*Endpoints, error) {
 			nodeCache:               nodeCache,
 			cacheReloadInterval:     c.CacheReloadInterval,
 			fullCacheReloadInterval: c.FullCacheReloadInterval,
-			pruneEventsOlderThan:    c.PruneEventsOlderThan,
-			eventTimeout:            c.EventTimeout,
 		})
 		if err != nil {
 			return nil, err
 		}
 		cacheRebuildTask = efEventsBasedCache.RunUpdateCacheTask
-		pruneEventsTask = efEventsBasedCache.PruneEventsTask
 		nodeCacheRebuildTask = nodeCache.PeriodicRebuild
 		ef = efEventsBasedCache
 	} else {
@@ -198,12 +180,11 @@ func New(ctx context.Context, c Config) (*Endpoints, error) {
 			return entrycache.BuildFromDataStore(ctx, c.TrustDomain.String(), c.Catalog.GetDataStore())
 		}
 
-		efFullCache, err := NewAuthorizedEntryFetcherWithFullCache(ctx, buildCacheFn, c.Log, c.Clock, ds, c.CacheReloadInterval, c.PruneEventsOlderThan)
+		efFullCache, err := NewAuthorizedEntryFetcherWithFullCache(ctx, buildCacheFn, c.Log, c.Clock, ds, c.CacheReloadInterval)
 		if err != nil {
 			return nil, err
 		}
 		cacheRebuildTask = efFullCache.RunRebuildCacheTask
-		pruneEventsTask = efFullCache.PruneEventsTask
 		// cacheRebuildTask will take care of rebuilding the node cache
 		nodeCacheRebuildTask = func(ctx context.Context) error { return nil }
 		ef = efFullCache
@@ -225,7 +206,6 @@ func New(ctx context.Context, c Config) (*Endpoints, error) {
 		RateLimit:                    c.RateLimit,
 		NodeCacheRebuildTask:         nodeCacheRebuildTask,
 		EntryFetcherCacheRebuildTask: cacheRebuildTask,
-		EntryFetcherPruneEventsTask:  pruneEventsTask,
 		CertificateReloadTask:        certificateReloadTask,
 		AuditLogEnabled:              c.AuditLogEnabled,
 		AuditLogExcludeAgentSync:     c.AuditLogExcludeAgentSync,
@@ -287,10 +267,6 @@ func (e *Endpoints) ListenAndServe(ctx context.Context) error {
 
 	if e.BundleEndpointServer != nil {
 		tasks = append(tasks, e.BundleEndpointServer.ListenAndServe)
-	}
-
-	if e.EntryFetcherPruneEventsTask != nil {
-		tasks = append(tasks, e.EntryFetcherPruneEventsTask)
 	}
 
 	if e.CertificateReloadTask != nil {
