@@ -20,8 +20,8 @@ func SetAgentsByExpiresAtCacheCountGauge(m telemetry.Metrics, size int) {
 	m.SetGauge([]string{telemetry.Node, telemetry.AgentsByExpiresAtCache, telemetry.Count}, float32(size))
 }
 
-// SetSkippedNodeEventIDsCacheCountGauge emits a gauge with the number of entries that are
-// currently in the skipped-node events cache.
+// SetSkippedNodeEventIDsCacheCountGauge emits a gauge with the number of node
+// event ID gaps currently pending in the datastore change tracker.
 func SetSkippedNodeEventIDsCacheCountGauge(m telemetry.Metrics, size int) {
 	m.SetGauge([]string{telemetry.Node, telemetry.SkippedNodeEventIDs, telemetry.Count}, float32(size))
 }
@@ -44,8 +44,9 @@ func SetEntriesByEntryIDCacheCountGauge(m telemetry.Metrics, size int) {
 	m.SetGauge([]string{telemetry.Entry, telemetry.EntriesByEntryIDCache, telemetry.Count}, float32(size))
 }
 
-// SetSkippedEntryEventIDsCacheCountGauge emits a gauge with the number of entries that are
-// currently in the skipped-entry events cache.
+// SetSkippedEntryEventIDsCacheCountGauge emits a gauge with the number of
+// registration entry event ID gaps currently pending in the datastore change
+// tracker.
 func SetSkippedEntryEventIDsCacheCountGauge(m telemetry.Metrics, size int) {
 	m.SetGauge([]string{telemetry.Entry, telemetry.SkippedEntryEventIDs, telemetry.Count}, float32(size))
 }

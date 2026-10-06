@@ -103,7 +103,7 @@ func TestWithMetrics(t *testing.T) {
 		},
 		{
 			key:        "datastore.node_event.fetch",
-			methodName: "FetchAttestedNodeEvent",
+			methodName: "FetchAttestedNodeChanges",
 		},
 		{
 			key:        "datastore.bundle.fetch",
@@ -119,7 +119,7 @@ func TestWithMetrics(t *testing.T) {
 		},
 		{
 			key:        "datastore.registration_entry_event.fetch",
-			methodName: "FetchRegistrationEntryEvent",
+			methodName: "FetchRegistrationEntryChanges",
 		},
 		{
 			key:        "datastore.federation_relationship.fetch",
@@ -134,10 +134,6 @@ func TestWithMetrics(t *testing.T) {
 			methodName: "ListAttestedNodes",
 		},
 		{
-			key:        "datastore.node_event.list",
-			methodName: "ListAttestedNodeEvents",
-		},
-		{
 			key:        "datastore.bundle.list",
 			methodName: "ListBundles",
 		},
@@ -150,20 +146,12 @@ func TestWithMetrics(t *testing.T) {
 			methodName: "ListRegistrationEntries",
 		},
 		{
-			key:        "datastore.registration_entry_event.list",
-			methodName: "ListRegistrationEntryEvents",
-		},
-		{
 			key:        "datastore.federation_relationship.list",
 			methodName: "ListFederationRelationships",
 		},
 		{
 			key:        "datastore.node.prune",
 			methodName: "PruneAttestedExpiredNodes",
-		},
-		{
-			key:        "datastore.node_event.prune",
-			methodName: "PruneAttestedNodeEvents",
 		},
 		{
 			key:        "datastore.bundle.prune",
@@ -176,10 +164,6 @@ func TestWithMetrics(t *testing.T) {
 		{
 			key:        "datastore.registration_entry.prune",
 			methodName: "PruneRegistrationEntries",
-		},
-		{
-			key:        "datastore.registration_entry_event.prune",
-			methodName: "PruneRegistrationEntryEvents",
 		},
 		{
 			key:        "datastore.bundle.set",
@@ -384,8 +368,8 @@ func (ds *fakeDataStore) FetchAttestedNode(context.Context, string) (*common.Att
 	return &common.AttestedNode{}, ds.err
 }
 
-func (ds *fakeDataStore) FetchAttestedNodeEvent(context.Context, uint) (*datastore.AttestedNodeEvent, error) {
-	return &datastore.AttestedNodeEvent{}, ds.err
+func (ds *fakeDataStore) FetchAttestedNodeChanges(context.Context, *datastore.FetchAttestedNodeChangesRequest) (*datastore.FetchAttestedNodeChangesResponse, error) {
+	return &datastore.FetchAttestedNodeChangesResponse{}, ds.err
 }
 
 func (ds *fakeDataStore) FetchBundle(context.Context, string) (*common.Bundle, error) {
@@ -404,8 +388,8 @@ func (ds *fakeDataStore) FetchRegistrationEntries(context.Context, []string) (ma
 	return map[string]*common.RegistrationEntry{}, ds.err
 }
 
-func (ds *fakeDataStore) FetchRegistrationEntryEvent(context.Context, uint) (*datastore.RegistrationEntryEvent, error) {
-	return &datastore.RegistrationEntryEvent{}, ds.err
+func (ds *fakeDataStore) FetchRegistrationEntryChanges(context.Context, *datastore.FetchRegistrationEntryChangesRequest) (*datastore.FetchRegistrationEntryChangesResponse, error) {
+	return &datastore.FetchRegistrationEntryChangesResponse{}, ds.err
 }
 
 func (ds *fakeDataStore) GetNodeSelectors(context.Context, string, datastore.DataConsistency) ([]*common.Selector, error) {
@@ -414,10 +398,6 @@ func (ds *fakeDataStore) GetNodeSelectors(context.Context, string, datastore.Dat
 
 func (ds *fakeDataStore) ListAttestedNodes(context.Context, *datastore.ListAttestedNodesRequest) (*datastore.ListAttestedNodesResponse, error) {
 	return &datastore.ListAttestedNodesResponse{}, ds.err
-}
-
-func (ds *fakeDataStore) ListAttestedNodeEvents(context.Context, *datastore.ListAttestedNodeEventsRequest) (*datastore.ListAttestedNodeEventsResponse, error) {
-	return &datastore.ListAttestedNodeEventsResponse{}, ds.err
 }
 
 func (ds *fakeDataStore) ListBundles(context.Context, *datastore.ListBundlesRequest) (*datastore.ListBundlesResponse, error) {
@@ -432,14 +412,6 @@ func (ds *fakeDataStore) ListRegistrationEntries(context.Context, *datastore.Lis
 	return &datastore.ListRegistrationEntriesResponse{}, ds.err
 }
 
-func (ds *fakeDataStore) ListRegistrationEntryEvents(context.Context, *datastore.ListRegistrationEntryEventsRequest) (*datastore.ListRegistrationEntryEventsResponse, error) {
-	return &datastore.ListRegistrationEntryEventsResponse{}, ds.err
-}
-
-func (ds *fakeDataStore) PruneAttestedNodeEvents(context.Context, time.Duration) error {
-	return ds.err
-}
-
 func (ds *fakeDataStore) PruneBundle(context.Context, string, time.Time) (bool, error) {
 	return false, ds.err
 }
@@ -449,10 +421,6 @@ func (ds *fakeDataStore) PruneJoinTokens(context.Context, time.Time) error {
 }
 
 func (ds *fakeDataStore) PruneRegistrationEntries(context.Context, time.Time) error {
-	return ds.err
-}
-
-func (ds *fakeDataStore) PruneRegistrationEntryEvents(context.Context, time.Duration) error {
 	return ds.err
 }
 
