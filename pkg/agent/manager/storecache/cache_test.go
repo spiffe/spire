@@ -1242,6 +1242,70 @@ func TestCheckSVID(t *testing.T) {
 	})
 }
 
+func TestUpdateEntriesDropsSVIDInvalidatedByEntry(t *testing.T) {
+	withSelectors := func(e *common.RegistrationEntry) *common.RegistrationEntry {
+		e.Selectors = []*common.Selector{{Type: "a", Value: "d:3"}}
+		return e
+	}
+	withSPIFFEID := func(e *common.RegistrationEntry) *common.RegistrationEntry {
+		e.SpiffeId = barID.String()
+		return e
+	}
+
+	for _, tt := range []struct {
+		name        string
+		updated     *common.RegistrationEntry
+		removeFirst bool
+		expectSVID  bool
+	}{
+		{name: "selectors and SPIFFE ID changed", updated: withSPIFFEID(withSelectors(createTestEntry()))},
+		{name: "removed and added back with new selectors and SPIFFE ID", updated: withSPIFFEID(withSelectors(createTestEntry())), removeFirst: true},
+		{name: "selectors changed", updated: withSelectors(createTestEntry()), expectSVID: true},
+		{name: "SPIFFE ID changed", updated: withSPIFFEID(createTestEntry()), expectSVID: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			log, _ := test.NewNullLogger()
+			c := storecache.New(&storecache.Config{
+				Log:         log,
+				TrustDomain: td,
+			})
+			bundles := map[spiffeid.TrustDomain]*spiffebundle.Bundle{td: tdBundle}
+
+			c.UpdateEntries(&cache.UpdateEntries{
+				Bundles:             bundles,
+				RegistrationEntries: map[string]*common.RegistrationEntry{"foh": createTestEntry()},
+			}, nil)
+			svid := &cache.X509SVID{Chain: []*x509.Certificate{{URIs: []*url.URL{fohID.URL()}}}}
+			c.UpdateX509SVIDs(map[string]*cache.X509SVID{"foh": svid})
+
+			if tt.removeFirst {
+				c.UpdateEntries(&cache.UpdateEntries{Bundles: bundles}, nil)
+			}
+
+			tt.updated.RevisionNumber = 2
+			c.UpdateEntries(&cache.UpdateEntries{
+				Bundles:             bundles,
+				RegistrationEntries: map[string]*common.RegistrationEntry{"foh": tt.updated},
+			}, func(_, _ *common.RegistrationEntry, xs *cache.X509SVID) bool {
+				return xs == nil
+			})
+
+			records := c.ReadyToStore()
+			require.Len(t, records, 1)
+			assert.Equal(t, tt.updated, records[0].Entry)
+			if tt.expectSVID {
+				assert.Equal(t, svid, records[0].Svid)
+				assert.Empty(t, c.GetStaleEntries())
+			} else {
+				assert.Nil(t, records[0].Svid)
+				staleEntries := c.GetStaleEntries()
+				require.Len(t, staleEntries, 1)
+				assert.True(t, staleEntries[0].SVIDExpiresAt.IsZero())
+			}
+		})
+	}
+}
+
 func TestReadyToStore(t *testing.T) {
 	log, _ := test.NewNullLogger()
 	log.Level = logrus.DebugLevel

@@ -13,6 +13,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	telemetry_agent "github.com/spiffe/spire/pkg/common/telemetry/agent"
+	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/proto/spire/common"
 )
@@ -170,6 +171,19 @@ func (c *Cache) UpdateEntries(update *cache.UpdateEntries, checkSVID func(*commo
 			isBundleRemoved(record.entry.FederatesWith, bundlesRemoved):
 			// Related bundles or entry changed, mark this record as outdated
 			record.revision++
+		}
+
+		// Selectors pick the store destination; a new destination must not
+		// get the SVID issued for the previous entry.
+		previousEntry := existingEntry
+		if previousEntry == nil {
+			// Entry marked as removed and added back
+			previousEntry = record.handledEntry
+		}
+		if previousEntry != nil && record.svid != nil &&
+			!util.EqualsSelectors(previousEntry.Selectors, newEntry.Selectors) &&
+			record.svid.InvalidatedBy(previousEntry, newEntry) {
+			record.svid = nil
 		}
 
 		// TODO: in case where entry is updated may we not increment revision and just add it to stale?
