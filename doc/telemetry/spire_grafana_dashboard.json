@@ -2039,7 +2039,7 @@
           },
           "editorMode": "code",
           "exemplar": true,
-          "expr": "present_over_time(spire_server_uptime_in_ms{kubernetes_pod_name=~\"spire-server-.*\"}[1m])",
+          "expr": "present_over_time(spire_server_uptime_in_ms[1m])",
           "format": "time_series",
           "hide": false,
           "interval": "",
