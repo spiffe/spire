@@ -15,5 +15,10 @@ agent reads, creates the DevID key under the storage root key the agent loads
 it with, and writes the DevID credentials for the agent and the CA bundles for
 the server.
 
+After the agent attests, the suite checks the selectors taken from the
+provisioned DevID certificate (`subject:cn`, `issuer:cn`, `ca:fingerprint`)
+and then points `devid_ca_path` at a CA that did not sign that certificate and
+asserts attestation is rejected.
+
 The unit tests continue to use the in-process simulator in `test/tpmsimulator`.
 This suite covers the plugin against a separate TPM implementation.

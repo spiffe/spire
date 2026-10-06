@@ -18,7 +18,12 @@ import (
 
 var _ api.AuthorizedEntryFetcher = (*AuthorizedEntryFetcherEvents)(nil)
 
+// pageSize is the SQL LIMIT page size used to load the full cache.
 const pageSize = 10000
+
+// fetchPageSize is the batch size for re-fetching changed entries/nodes by ID.
+// It is kept small to avoid huge IN (...) lists that are expensive for the DB.
+const fetchPageSize = 1000
 
 type AuthorizedEntryFetcherEventsConfig struct {
 	clk                     clock.Clock
@@ -166,12 +171,12 @@ func (a *AuthorizedEntryFetcherEvents) reloadCache(ctx context.Context) error {
 func (a *AuthorizedEntryFetcherEvents) buildCache(ctx context.Context) error {
 	cache := authorizedentries.NewCache(a.c.clk, a.trustDomain)
 
-	registrationEntries, err := buildRegistrationEntriesCache(ctx, a.c.log, a.c.metrics, a.c.ds, a.c.clk, cache, pageSize, a.c.cacheReloadInterval, a.c.eventTimeout)
+	registrationEntries, err := buildRegistrationEntriesCache(ctx, a.c.log, a.c.metrics, a.c.ds, a.c.clk, cache, pageSize, fetchPageSize, a.c.cacheReloadInterval, a.c.eventTimeout)
 	if err != nil {
 		return err
 	}
 
-	attestedNodes, err := buildAttestedNodesCache(ctx, a.c.log, a.c.metrics, a.c.ds, a.c.clk, cache, a.c.nodeCache, pageSize, a.c.cacheReloadInterval, a.c.eventTimeout)
+	attestedNodes, err := buildAttestedNodesCache(ctx, a.c.log, a.c.metrics, a.c.ds, a.c.clk, cache, a.c.nodeCache, fetchPageSize, a.c.cacheReloadInterval, a.c.eventTimeout)
 	if err != nil {
 		return err
 	}

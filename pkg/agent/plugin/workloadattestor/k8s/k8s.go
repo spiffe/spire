@@ -181,7 +181,7 @@ type HCLConfig struct {
 	UseNewContainerLocator *bool `hcl:"use_new_container_locator"`
 
 	// VerboseContainerLocatorLogs, if true, dumps extra information to the log
-	// about mountinfo and cgroup information used to locate the container.
+	// about the cgroup information used to locate the container.
 	VerboseContainerLocatorLogs bool `hcl:"verbose_container_locator_logs"`
 
 	// EnableNamespaceLabels enables fetching namespace labels from the
@@ -437,14 +437,10 @@ func buildBrokerConfig(path string, brokerConfig *k8sBrokerHCLConfig, status *pl
 
 	pluginconf.ReportUnusedKeys(status, brokerConfig.UnusedKeyPositions)
 	accessPolicy, _ := buildBrokerAccessPolicy(path, brokerConfig.AccessPolicy, status)
-	if len(brokerConfig.Brokers) == 0 {
-		status.ReportErrorf("%s.brokers: at least one broker is required", path)
-		return &k8sBrokerConfig{
-			AccessPolicy: accessPolicy,
-			Brokers:      map[string]k8sBrokerEntry{},
-		}
-	}
 
+	// The brokers list carries per-broker override configuration (e.g. pod_reference_scope).
+	// Any broker not listed here falls back to the default entry synthesized in getBrokerEntryIfPresent,
+	// so an empty (or omitted) list is valid.
 	brokers := make(map[string]k8sBrokerEntry, len(brokerConfig.Brokers))
 	seen := make(map[string]struct{}, len(brokerConfig.Brokers))
 	for i, b := range brokerConfig.Brokers {
@@ -820,7 +816,7 @@ func (p *Plugin) checkBrokerImpersonationForReference(ctx context.Context, confi
 	if brokerEntry == nil {
 		return nil
 	}
-	if config.Broker == nil || config.Broker.AccessPolicy != brokerAccessPolicyEnforced {
+	if config.Broker.AccessPolicy != brokerAccessPolicyEnforced {
 		return nil
 	}
 	objRef := result.ObjectReference
@@ -858,16 +854,34 @@ func (p *Plugin) getBrokerEntryIfPresent(ctx context.Context, config *k8sConfig)
 		return nil, status.Errorf(codes.Internal, "unable to determine broker caller identity: %v", err)
 	}
 	if !ok {
+		// Not a broker call; normal PID-based attestation applies.
 		return nil, nil
 	}
+
 	if config.Broker == nil {
 		return nil, status.Error(codes.Internal, "broker configuration missing")
 	}
-	brokerEntry, ok := config.Broker.Brokers[callerID.String()]
-	if !ok {
-		return nil, status.Errorf(codes.PermissionDenied, "broker %q is not configured", callerID.String())
+
+	// The brokers map holds per-broker overrides only. A broker that is
+	// explicitly configured uses its entry; any other broker falls back to the
+	// default entry below rather than being rejected. The agent's broker
+	// endpoint is the allowlist for which brokers may reach the plugin in the
+	// first place.
+	if brokerEntry, ok := config.Broker.Brokers[callerID.String()]; ok {
+		return &brokerEntry, nil
 	}
-	return &brokerEntry, nil
+
+	// Synthesize the default entry: node scope, which limits the broker to
+	// PID and pod references. Node scope needs the kubelet client, so fall
+	// back to cluster scope when it is disabled.
+	scope := podReferenceScopeAgentNode
+	if config.DisableKubeletClient {
+		scope = podReferenceScopeCluster
+	}
+	return &k8sBrokerEntry{
+		ID:                callerID,
+		PodReferenceScope: scope,
+	}, nil
 }
 
 // attestByPodReference handles the `pods/core` path: a Kubernetes object

@@ -22,6 +22,7 @@ This document is a configuration reference for SPIRE Server. It includes informa
 | KeyManager         | [aws_kms](/doc/plugin_server_keymanager_aws_kms.md)                                                  | A key manager which manages keys in AWS KMS                                                                                                                         |
 | KeyManager         | [disk](/doc/plugin_server_keymanager_disk.md)                                                        | A key manager which manages keys persisted on disk                                                                                                                  |
 | KeyManager         | [hashicorp_vault](/doc/plugin_server_keymanager_hashicorp_vault.md)                                  | A key manager which manages keys in HashiCorp Vault's Transit Secret Engine                                                                                         |
+| KeyManager         | [kmip](/doc/plugin_server_keymanager_kmip.md)                                                        | A key manager which manages keys in a KMIP-compliant server over binary TTLV/TCP                                                                                    |
 | KeyManager         | [memory](/doc/plugin_server_keymanager_memory.md)                                                    | A key manager which manages unpersisted keys in memory                                                                                                              |
 | CredentialComposer | [uniqueid](/doc/plugin_server_credentialcomposer_uniqueid.md)                                        | Adds the x509UniqueIdentifier attribute to workload X509-SVIDs.                                                                                                     |
 | NodeAttestor       | [aws_iid](/doc/plugin_server_nodeattestor_aws_iid.md)                                                | A node attestor which attests agent identity using an AWS Instance Identity Document                                                                                |
@@ -75,7 +76,8 @@ This may be useful for templating configuration files, for example across differ
 | `disable_jwt_svids`                | If true, completely disables JWT-SVID functionality. The server will not generate JWT keys, sign JWT-SVIDs, or implement JWT-related API calls. This is useful for deployments that don't need JWT-SVIDs support.                                                                                                                                                                      | false                                                          |
 | `jwt_key_type`                     | The key type used for the server CA (JWT), &lt;rsa-2048&vert;rsa-4096&vert;ec-p256&vert;ec-p384&gt;                                                                                                                                                                                                                                                                                    | The value of `ca_key_type` or ec-p256 if not defined           |
 | `jwt_issuer`                       | The issuer claim used when minting JWT-SVIDs                                                                                                                                                                                                                                                                                                                                           |                                                                |
-| `log_file`                         | File to write logs to                                                                                                                                                                                                                                                                                                                                                                  |                                                                |
+| `log_file`                         | File to write logs to. An external tool can move it aside on any platform, and SPIRE Server then starts a new one on receipt of `SIGUSR2` on POSIX, or of the reopen control code on Windows (see below)                                                                                                                                                                               |                                                                |
+| `log_file_rotation`                | Rotates `log_file` in process rather than relying on an external tool (below). Works on all platforms. Disabled unless configured                                                                                                                                                                                                                                                      |                                                                |
 | `log_level`                        | Sets the logging level &lt;DEBUG&vert;INFO&vert;WARN&vert;ERROR&gt;                                                                                                                                                                                                                                                                                                                    | INFO                                                           |
 | `log_format`                       | Format of logs, &lt;text&vert;json&gt;                                                                                                                                                                                                                                                                                                                                                 | text                                                           |
 | `log_source_location`              | If true, logs include source file, line number, and method name fields (adds a bit of runtime cost)                                                                                                                                                                                                                                                                                    | false                                                          |
@@ -108,6 +110,22 @@ When `experimental.require_pq_kem` is enabled, it overrides `min_tls_version` an
 | `organization`              | Array of `Organization` values |                |
 | `common_name`               | The `CommonName` value         |                |
 
+| log_file_rotation | Description                                                                                                                                                                      | Default |
+|:------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------|
+| `max_size_mb`     | Size in MiB that `log_file` may reach before it is rotated. An explicit `0` disables size based rotation, leaving it to `SIGUSR2` on POSIX or the reopen control code on Windows | 100     |
+| `max_files`       | Number of rotated files to retain, not counting the file currently being written. An explicit `0` retains every rotated file                                                     | 7       |
+
+Requires `log_file` to be set. Rotation moves the accumulated content aside to a
+timestamped sibling of `log_file` (for example `server-2026-08-18T22-43-01.123.log`)
+and keeps writing to `log_file` itself. `max_files` is applied when a rotation
+happens, not on a timer. A key left unset takes its default, so a block with no
+keys still rotates and still prunes.
+
+A reopen also forces an immediate rotation, whether it arrives as `SIGUSR2` on
+POSIX or as the reopen control code on Windows. Rotating an already-empty file is
+a no-op, so a scheduled reopen on an idle service does not consume the
+`max_files` budget.
+
 | experimental                  | Description                                                                                                                                                                                                            | Default                            |
 |:-----------------------------:|:----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------:|:----------------------------------:|
 | `agent_spiffe_id_as_selector` | Enable adding the agent spiffe_id to the list of node selectors automatically.                                                                                                                                         | false                              |
@@ -120,6 +138,7 @@ When `experimental.require_pq_kem` is enabled, it overrides `min_tls_version` an
 | `named_pipe_name`             | Pipe name of the SPIRE Server API named pipe (Windows only)                                                                                                                                                            | \spire-server\private\api          |
 | `require_pq_kem`              | Require post-quantum-safe KEM on terminating server listeners.                                                                                                                                                         | false                              |
 | `wit_issuer`                  | The issuer claim used when minting WIT-SVIDs                                                                                                                                                                           |                                    |
+| `default_wit_svid_ttl`        | The default WIT-SVID TTL                                                                                                                                                                                               | 1h                                 |
 
 | ratelimit     | Description                                                                                                                                        | Default |
 |:--------------|----------------------------------------------------------------------------------------------------------------------------------------------------|---------|
@@ -257,6 +276,7 @@ server {
             bundle_endpoint_profile "https_spiffe" {
                 endpoint_spiffe_id = "spiffe://domain2.test/beserver"
             }
+            bootstrap_bundle_path = "/etc/spire/domain2.pem"
         }
     }
 }
@@ -314,12 +334,16 @@ The optional `federates_with` section is a map of bundle endpoint profile config
 |---------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------|---------|
 | bundle_endpoint_url                                           | URL of the SPIFFE bundle endpoint that provides the trust bundle to federate with. Must use the HTTPS protocol. |         |
 | bundle_endpoint_profile "&lt;https_web&vert;https_spiffe&gt;" | Configuration of the SPIFFE endpoint profile type.                                                              |         |
+| bootstrap_bundle_path                                         | Path to a bundle used to authenticate the first `https_spiffe` fetch if none is stored yet.                     |         |
+| bootstrap_bundle_format                                       | Format of `bootstrap_bundle_path`. Either `pem` or `spiffe`.                                                    | pem     |
 
 SPIRE supports the `https_web` and `https_spiffe` bundle endpoint profiles.
 
 The `https_web` profile does not require additional settings.
 
 Trust domains configured with the `https_spiffe` bundle endpoint profile must specify the expected SPIFFE ID of the remote SPIFFE bundle endpoint server using the `endpoint_spiffe_id` setting as part of the configuration.
+
+`bootstrap_bundle_path` replaces the need to run `spire-server bundle set` before the first `https_spiffe` poll. It authenticates that first connection only. The bundle returned by the endpoint is stored with a create, not an update. Subsequent refreshes use the stored bundle. The path is not watched.
 
 For more information about the different profiles defined in SPIFFE, along with the security considerations for setting up SPIFFE Federation, please refer to the [SPIFFE Federation standard](https://github.com/spiffe/spiffe/blob/main/standards/SPIFFE_Federation.md).
 
@@ -378,6 +402,21 @@ When starting the service, all the arguments to execute SPIRE Server with the `r
 ```bash
 > sc.exe start spire-server run -config c:\spire\conf\server\server.conf
 ```
+
+##### Rotating logs on Windows
+
+A Windows service has no console, so deployments generally set `log_file`. An
+external tool can move that file aside, and the reopen is then requested with a
+user defined service control code, since Windows has no `SIGUSR2`.
+
+```bash
+> sc.exe control spire-server 128
+```
+
+Configure [`log_file_rotation`](#server-configuration-file) instead to have
+SPIRE Server rotate the file itself, with no external tool involved. Either way the
+file is opened for append, so restarting the service does not reset it. Running
+from a console has no trigger, since control codes only reach a service.
 
 ### `spire-server token generate`
 

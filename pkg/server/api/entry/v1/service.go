@@ -241,11 +241,12 @@ func (s *Service) GetEntry(ctx context.Context, req *entryv1.GetEntryRequest) (*
 	}
 	rpccontext.AddRPCAuditFields(ctx, logrus.Fields{telemetry.RegistrationID: req.Id})
 	log = log.WithField(telemetry.RegistrationID, req.Id)
-	registrationEntry, err := s.ds.FetchRegistrationEntry(ctx, req.Id)
+	registrationEntries, err := s.ds.FetchRegistrationEntries(ctx, []string{req.Id})
 	if err != nil {
 		return nil, commonapi.MakeErr(log, codes.Internal, "failed to fetch entry", err)
 	}
 
+	registrationEntry := registrationEntries[req.Id]
 	if registrationEntry == nil {
 		return nil, commonapi.MakeErr(log, codes.NotFound, "entry not found", nil)
 	}
@@ -625,6 +626,10 @@ func applyMask(e *types.Entry, mask *types.EntryMask) {
 		e.JwtSvidTtl = 0
 	}
 
+	if !mask.WitSvidTtl {
+		e.WitSvidTtl = 0
+	}
+
 	if !mask.Hint {
 		e.Hint = ""
 	}
@@ -663,6 +668,7 @@ func (s *Service) updateEntry(ctx context.Context, e *types.Entry, inputMask *ty
 			StoreSvid:            inputMask.StoreSvid,
 			X509SvidTtl:          inputMask.X509SvidTtl,
 			JwtSvidTtl:           inputMask.JwtSvidTtl,
+			WitSvidTtl:           inputMask.WitSvidTtl,
 			Hint:                 inputMask.Hint,
 			AdditionalAttributes: inputMask.AdditionalAttributes,
 		}
@@ -730,6 +736,10 @@ func fieldsFromEntryProto(ctx context.Context, proto *types.Entry, inputMask *ty
 
 	if inputMask == nil || inputMask.JwtSvidTtl {
 		fields[telemetry.JWTSVIDTTL] = proto.JwtSvidTtl
+	}
+
+	if inputMask == nil || inputMask.WitSvidTtl {
+		fields[telemetry.WITSVIDTTL] = proto.WitSvidTtl
 	}
 
 	if inputMask == nil || inputMask.FederatesWith {

@@ -737,11 +737,12 @@ func (m *Manager) verify(ctx context.Context, client *acme.Client, domain string
 			nextTyp++
 		}
 		if chal == nil {
-			errorMsg := fmt.Sprintf("acme/autocert: unable to authorize %q", domain)
+			var errorMsg strings.Builder
+			errorMsg.WriteString(fmt.Sprintf("acme/autocert: unable to authorize %q", domain))
 			for chal, err := range errs {
-				errorMsg += fmt.Sprintf("; challenge %q failed with error: %v", chal.Type, err)
+				errorMsg.WriteString(fmt.Sprintf("; challenge %q failed with error: %v", chal.Type, err))
 			}
-			return errors.New(errorMsg)
+			return errors.New(errorMsg.String())
 		}
 		cleanup, err := m.fulfill(ctx, client, chal, domain)
 		if err != nil {

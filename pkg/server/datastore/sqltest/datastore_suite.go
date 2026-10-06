@@ -207,6 +207,157 @@ func (s *Suite) TestInvalidAWSConfiguration() {
 	}
 }
 
+func (s *Suite) TestInvalidAzureConfiguration() {
+	testCases := []struct {
+		name        string
+		config      string
+		expectedErr string
+	}{
+		{
+			name: "azure_postgres - no auth_type",
+			config: `
+			database_type "azure_postgres" {}
+			connection_string = "dbname=postgres user=postgres host=the-host sslmode=require"`,
+			expectedErr: "auth_type must be set to one of",
+		},
+		{
+			name: "azure_postgres - unknown auth_type",
+			config: `
+			database_type "azure_postgres" {
+				auth_type = "bogus"
+			}
+			connection_string = "dbname=postgres user=postgres host=the-host sslmode=require"`,
+			expectedErr: `invalid auth_type "bogus"`,
+		},
+		{
+			name: "azure_postgres - client_secret missing tenant_id",
+			config: `
+			database_type "azure_postgres" {
+				auth_type = "client_secret"
+				client_id = "client-id"
+				client_secret = "client-secret"
+			}
+			connection_string = "dbname=postgres user=postgres host=the-host sslmode=require"`,
+			expectedErr: "tenant_id must be set (or the AZURE_TENANT_ID environment variable) when auth_type is \"client_secret\"",
+		},
+		{
+			name: "azure_postgres - client_secret missing client_id and client_secret",
+			config: `
+			database_type "azure_postgres" {
+				auth_type = "client_secret"
+				tenant_id = "tenant-id"
+			}
+			connection_string = "dbname=postgres user=postgres host=the-host sslmode=require"`,
+			expectedErr: "client_id must be set (or the AZURE_CLIENT_ID environment variable) when auth_type is \"client_secret\"",
+		},
+		{
+			name: "azure_postgres - client_secret missing client_secret",
+			config: `
+			database_type "azure_postgres" {
+				auth_type = "client_secret"
+				tenant_id = "tenant-id"
+				client_id = "client-id"
+			}
+			connection_string = "dbname=postgres user=postgres host=the-host sslmode=require"`,
+			expectedErr: "client_secret must be set (or the AZURE_CLIENT_SECRET environment variable) when auth_type is \"client_secret\"",
+		},
+		{
+			name: "azure_postgres - client_certificate missing tenant_id",
+			config: `
+			database_type "azure_postgres" {
+				auth_type = "client_certificate"
+				client_id = "client-id"
+				client_certificate_path = "/some/path.pem"
+			}
+			connection_string = "dbname=postgres user=postgres host=the-host sslmode=require"`,
+			expectedErr: "tenant_id must be set (or the AZURE_TENANT_ID environment variable) when auth_type is \"client_certificate\"",
+		},
+		{
+			name: "azure_postgres - client_certificate missing client_certificate_path",
+			config: `
+			database_type "azure_postgres" {
+				auth_type = "client_certificate"
+				tenant_id = "tenant-id"
+				client_id = "client-id"
+			}
+			connection_string = "dbname=postgres user=postgres host=the-host sslmode=require"`,
+			expectedErr: "client_certificate_path must be set (or the AZURE_CLIENT_CERTIFICATE_PATH environment variable) when auth_type is \"client_certificate\"",
+		},
+		{
+			name: "azure_postgres - workload_identity missing tenant_id",
+			config: `
+			database_type "azure_postgres" {
+				auth_type = "workload_identity"
+				client_id = "client-id"
+				federated_token_file = "/some/path"
+			}
+			connection_string = "dbname=postgres user=postgres host=the-host sslmode=require"`,
+			expectedErr: "tenant_id must be set (or the AZURE_TENANT_ID environment variable) when auth_type is \"workload_identity\"",
+		},
+		{
+			name: "azure_postgres - workload_identity missing federated_token_file",
+			config: `
+			database_type "azure_postgres" {
+				auth_type = "workload_identity"
+				tenant_id = "tenant-id"
+				client_id = "client-id"
+			}
+			connection_string = "dbname=postgres user=postgres host=the-host sslmode=require"`,
+			expectedErr: "federated_token_file must be set (or the AZURE_FEDERATED_TOKEN_FILE environment variable) when auth_type is \"workload_identity\"",
+		},
+		{
+			name: "azure_postgres - user_managed_identity missing client_id and resource id",
+			config: `
+			database_type "azure_postgres" {
+				auth_type = "user_managed_identity"
+			}
+			connection_string = "dbname=postgres user=postgres host=the-host sslmode=require"`,
+			expectedErr: "client_id (or the AZURE_CLIENT_ID environment variable) or managed_identity_resource_id must be set",
+		},
+		{
+			name: "azure_postgres - password already present in connection_string",
+			config: `
+			database_type "azure_postgres" {
+				auth_type = "system_managed_identity"
+			}
+			connection_string = "dbname=postgres user=postgres host=the-host sslmode=require password=should-not-be-here"`,
+			expectedErr: "invalid postgres configuration: password should not be set when using Microsoft Entra ID authentication",
+		},
+		{
+			name: "azure_mysql - no auth_type",
+			config: `
+			database_type "azure_mysql" {}
+			connection_string = "test_user@tcp(the-host:3306)/spire?parseTime=true"`,
+			expectedErr: "auth_type must be set to one of",
+		},
+		{
+			name: "azure_mysql - client_secret missing client_id and client_secret",
+			config: `
+			database_type "azure_mysql" {
+				auth_type = "client_secret"
+				tenant_id = "tenant-id"
+			}
+			connection_string = "test_user@tcp(the-host:3306)/spire?parseTime=true"`,
+			expectedErr: "client_id must be set (or the AZURE_CLIENT_ID environment variable) when auth_type is \"client_secret\"",
+		},
+		{
+			name: "azure_mysql - password already present in connection_string",
+			config: `
+			database_type "azure_mysql" {
+				auth_type = "system_managed_identity"
+			}
+			connection_string = "test_user:should-not-be-here@tcp(the-host:3306)/spire?parseTime=true"`,
+			expectedErr: "invalid mysql configuration: password should not be set when using Microsoft Entra ID authentication",
+		},
+	}
+	for _, testCase := range testCases {
+		s.T().Run(testCase.name, func(t *testing.T) {
+			err := s.ds.Configure(ctx, testCase.config)
+			s.RequireErrorContains(err, testCase.expectedErr)
+		})
+	}
+}
+
 func (s *Suite) TestInvalidMySQLConfiguration() {
 	err := s.ds.Configure(ctx, `
 		database_type = "mysql"
@@ -938,80 +1089,6 @@ func (s *Suite) TestFetchAttestedNodeMissing() {
 	attestedNode, err := s.ds.FetchAttestedNode(ctx, "missing")
 	s.Require().NoError(err)
 	s.Require().Nil(attestedNode)
-}
-
-func (s *Suite) TestFetchAttestedNodes() {
-	createNode := func(spiffeID string, selectors []*common.Selector) *common.AttestedNode {
-		node, err := s.ds.CreateAttestedNode(ctx, &common.AttestedNode{
-			SpiffeId:            spiffeID,
-			AttestationDataType: "aws-tag",
-			CertSerialNumber:    "badcafe",
-			CertNotAfter:        time.Now().Add(time.Hour).Unix(),
-		})
-		s.Require().NoError(err)
-		s.setNodeSelectors(spiffeID, selectors)
-		node.Selectors = selectors
-		return node
-	}
-
-	node1 := createNode("spiffe://example.org/node1", []*common.Selector{{Type: "a", Value: "1"}})
-	node2 := createNode("spiffe://example.org/node2", []*common.Selector{{Type: "b", Value: "2"}})
-	node3 := createNode("spiffe://example.org/node3", []*common.Selector{{Type: "c", Value: "3"}})
-
-	// Create a node and then delete it so we can test it doesn't get returned with the fetch
-	node4 := createNode("spiffe://example.org/node4", []*common.Selector{{Type: "d", Value: "4"}})
-	deletedNode, err := s.ds.DeleteAttestedNode(ctx, node4.SpiffeId)
-	s.Require().NoError(err)
-	s.Require().NotNil(deletedNode)
-
-	for _, tt := range []struct {
-		name            string
-		nodes           []*common.AttestedNode
-		deletedSpiffeID string
-	}{
-		{
-			name: "No nodes",
-		},
-		{
-			name:  "Nodes 1 and 2",
-			nodes: []*common.AttestedNode{node1, node2},
-		},
-		{
-			name:  "Nodes 1, 2, and 3",
-			nodes: []*common.AttestedNode{node1, node2, node3},
-		},
-		{
-			name:            "Deleted node",
-			nodes:           []*common.AttestedNode{node2, node3},
-			deletedSpiffeID: deletedNode.SpiffeId,
-		},
-	} {
-		s.T().Run(tt.name, func(t *testing.T) {
-			spiffeIDs := make([]string, 0, len(tt.nodes))
-			for _, node := range tt.nodes {
-				spiffeIDs = append(spiffeIDs, node.SpiffeId)
-			}
-			fetchedNodes, err := s.ds.FetchAttestedNodes(ctx, append(spiffeIDs, tt.deletedSpiffeID))
-			s.Require().NoError(err)
-
-			// Make sure all nodes we want to fetch are present, including selectors.
-			s.Require().Equal(len(tt.nodes), len(fetchedNodes))
-			for _, node := range tt.nodes {
-				fetchedNode, ok := fetchedNodes[node.SpiffeId]
-				s.Require().True(ok)
-				s.RequireProtoEqual(node, fetchedNode)
-			}
-
-			// Make sure any deleted nodes are not present.
-			_, ok := fetchedNodes[tt.deletedSpiffeID]
-			s.Require().False(ok)
-		})
-	}
-
-	// An empty request returns an empty map.
-	fetchedNodes, err := s.ds.FetchAttestedNodes(ctx, nil)
-	s.Require().NoError(err)
-	s.Require().Empty(fetchedNodes)
 }
 
 func (s *Suite) TestListAttestedNodes() {
@@ -1802,9 +1879,9 @@ func (s *Suite) TestDeleteAttestedNodeCascadesEntries() {
 	s.Require().NoError(err)
 	s.Nil(attestedNode)
 
-	fetched, err := s.ds.FetchRegistrationEntry(ctx, childEntry.EntryId)
+	entries, err := s.ds.FetchRegistrationEntries(ctx, []string{childEntry.EntryId})
 	s.Require().NoError(err)
-	s.Nil(fetched)
+	s.Nil(entries[childEntry.EntryId])
 
 	// A new registration entry event was emitted for the cascaded delete.
 	resp, err := s.ds.ListRegistrationEntryEvents(ctx, &datastore.ListRegistrationEntryEventsRequest{
@@ -1859,12 +1936,11 @@ func (s *Suite) TestDeleteAttestedNodeJoinTokenPreservesNonAliasChildEntries() {
 	s.Require().NoError(err)
 
 	// Alias child is gone; user-managed workload child survives.
-	fetchedAlias, err := s.ds.FetchRegistrationEntry(ctx, aliasChild.EntryId)
+	entries, err := s.ds.FetchRegistrationEntries(ctx, []string{aliasChild.EntryId, workloadChild.EntryId})
 	s.Require().NoError(err)
-	s.Nil(fetchedAlias)
+	s.Nil(entries[aliasChild.EntryId])
 
-	fetchedWorkload, err := s.ds.FetchRegistrationEntry(ctx, workloadChild.EntryId)
-	s.Require().NoError(err)
+	fetchedWorkload := entries[workloadChild.EntryId]
 	s.Require().NotNil(fetchedWorkload)
 	s.Equal(workloadChild.EntryId, fetchedWorkload.EntryId)
 
@@ -1931,17 +2007,15 @@ func (s *Suite) TestPruneAttestedExpiredNodesCascadesEntries() {
 	expiredNode, err := s.ds.FetchAttestedNode(ctx, expiredNodeID)
 	s.Require().NoError(err)
 	s.Nil(expiredNode)
-	fetchedExpiredChild, err := s.ds.FetchRegistrationEntry(ctx, expiredChild.EntryId)
+	entries, err := s.ds.FetchRegistrationEntries(ctx, []string{expiredChild.EntryId, validChild.EntryId})
 	s.Require().NoError(err)
-	s.Nil(fetchedExpiredChild)
+	s.Nil(entries[expiredChild.EntryId])
 
 	// Valid node and its child entry are preserved.
 	valid, err := s.ds.FetchAttestedNode(ctx, validNodeID)
 	s.Require().NoError(err)
 	s.NotNil(valid)
-	fetchedValidChild, err := s.ds.FetchRegistrationEntry(ctx, validChild.EntryId)
-	s.Require().NoError(err)
-	s.NotNil(fetchedValidChild)
+	s.NotNil(entries[validChild.EntryId])
 
 	// Exactly one new registration entry event was emitted, for the cascaded delete.
 	resp, err := s.ds.ListRegistrationEntryEvents(ctx, &datastore.ListRegistrationEntryEventsRequest{
@@ -1984,8 +2058,9 @@ func (s *Suite) TestDeleteAttestedNodeNonJoinTokenDoesNotCascade() {
 	s.Require().NoError(err)
 	s.Nil(attestedNode)
 
-	fetched, err := s.ds.FetchRegistrationEntry(ctx, childEntry.EntryId)
+	entries, err := s.ds.FetchRegistrationEntries(ctx, []string{childEntry.EntryId})
 	s.Require().NoError(err)
+	fetched := entries[childEntry.EntryId]
 	s.Require().NotNil(fetched)
 	s.Equal(childEntry.EntryId, fetched.EntryId)
 
@@ -2408,7 +2483,7 @@ func (s *Suite) TestCreateOrReturnRegistrationEntry() {
 				e.X509SvidTtl = -1
 				return e
 			},
-			expectError: "rpc error: code = InvalidArgument desc = datastore-validation: invalid registration entry: X509SvidTtl is not set",
+			expectError: "rpc error: code = InvalidArgument desc = datastore-validation: invalid registration entry: X509SvidTtl must not be negative",
 		},
 		{
 			name: "negative JWT ttl",
@@ -2416,7 +2491,15 @@ func (s *Suite) TestCreateOrReturnRegistrationEntry() {
 				e.JwtSvidTtl = -1
 				return e
 			},
-			expectError: "rpc error: code = InvalidArgument desc = datastore-validation: invalid registration entry: JwtSvidTtl is not set",
+			expectError: "rpc error: code = InvalidArgument desc = datastore-validation: invalid registration entry: JwtSvidTtl must not be negative",
+		},
+		{
+			name: "negative WIT ttl",
+			modifyEntry: func(e *common.RegistrationEntry) *common.RegistrationEntry {
+				e.WitSvidTtl = -1
+				return e
+			},
+			expectError: "rpc error: code = InvalidArgument desc = datastore-validation: invalid registration entry: WitSvidTtl must not be negative",
 		},
 		{
 			name: "create entry successfully",
@@ -2543,7 +2626,7 @@ func (s *Suite) TestCreateInvalidRegistrationEntry() {
 	// TODO: Check that no entries have been created
 }
 
-func (s *Suite) TestFetchRegistrationEntry() {
+func (s *Suite) TestFetchRegistrationEntriesWithOptionalFields() {
 	for _, tt := range []struct {
 		name  string
 		entry *common.RegistrationEntry
@@ -2595,17 +2678,11 @@ func (s *Suite) TestFetchRegistrationEntry() {
 			s.Require().NoError(err)
 			s.Require().NotNil(createdEntry)
 
-			fetchRegistrationEntry, err := s.ds.FetchRegistrationEntry(ctx, createdEntry.EntryId)
+			registrationEntries, err := s.ds.FetchRegistrationEntries(ctx, []string{createdEntry.EntryId})
 			s.Require().NoError(err)
-			s.RequireProtoEqual(createdEntry, fetchRegistrationEntry)
+			s.RequireProtoEqual(createdEntry, registrationEntries[createdEntry.EntryId])
 		})
 	}
-}
-
-func (s *Suite) TestFetchRegistrationEntryDoesNotExist() {
-	fetchRegistrationEntry, err := s.ds.FetchRegistrationEntry(ctx, "does-not-exist")
-	s.Require().NoError(err)
-	s.Require().Nil(fetchRegistrationEntry)
 }
 
 func (s *Suite) TestFetchRegistrationEntries() {
@@ -2770,8 +2847,9 @@ func (s *Suite) TestPruneRegistrationEntries() {
 			// Prune events
 			err = s.ds.PruneRegistrationEntries(ctx, tt.time)
 			require.NoError(t, err)
-			fetchedRegistrationEntry, err = s.ds.FetchRegistrationEntry(ctx, createdRegistrationEntry.EntryId)
+			registrationEntries, err := s.ds.FetchRegistrationEntries(ctx, []string{createdRegistrationEntry.EntryId})
 			require.NoError(t, err)
+			fetchedRegistrationEntry = registrationEntries[createdRegistrationEntry.EntryId]
 			assert.Equal(t, tt.expectedRegistrationEntry, fetchedRegistrationEntry)
 
 			// Verify pruning triggers event creation
@@ -2796,9 +2874,9 @@ func (s *Suite) TestPruneRegistrationEntries() {
 }
 
 func (s *Suite) TestFetchInexistentRegistrationEntry() {
-	fetchedRegistrationEntry, err := s.ds.FetchRegistrationEntry(ctx, "INEXISTENT")
+	registrationEntries, err := s.ds.FetchRegistrationEntries(ctx, []string{"INEXISTENT"})
 	s.Require().NoError(err)
-	s.Require().Nil(fetchedRegistrationEntry)
+	s.Require().Empty(registrationEntries)
 }
 
 func (s *Suite) TestListRegistrationEntries() {
@@ -3598,8 +3676,9 @@ func (s *Suite) TestUpdateRegistrationEntry() {
 	s.Require().Equal("internal", updatedRegistrationEntry.Hint)
 	s.Require().Equal(entry.CreatedAt, updatedRegistrationEntry.CreatedAt)
 
-	registrationEntry, err := s.ds.FetchRegistrationEntry(ctx, entry.EntryId)
+	registrationEntries, err := s.ds.FetchRegistrationEntries(ctx, []string{entry.EntryId})
 	s.Require().NoError(err)
+	registrationEntry := registrationEntries[entry.EntryId]
 	s.Require().NotNil(registrationEntry)
 	s.RequireProtoEqual(updatedRegistrationEntry, registrationEntry)
 
@@ -3628,9 +3707,9 @@ func (s *Suite) TestUpdateRegistrationEntryWithStoreSvid() {
 	// Verify output has expected values
 	s.Require().True(entry.StoreSvid)
 
-	fetchRegistrationEntry, err := s.ds.FetchRegistrationEntry(ctx, entry.EntryId)
+	registrationEntries, err := s.ds.FetchRegistrationEntries(ctx, []string{entry.EntryId})
 	s.Require().NoError(err)
-	s.RequireProtoEqual(updateRegistrationEntry, fetchRegistrationEntry)
+	s.RequireProtoEqual(updateRegistrationEntry, registrationEntries[entry.EntryId])
 
 	// Update with invalid selectors
 	entry.Selectors = []*common.Selector{
@@ -3683,6 +3762,7 @@ func (s *Suite) TestUpdateRegistrationEntryWithMask() {
 		SpiffeId:      "",
 		X509SvidTtl:   -1000,
 		JwtSvidTtl:    -3000,
+		WitSvidTtl:    -5000,
 		Selectors:     []*common.Selector{},
 		FederatesWith: []string{"invalid federated bundle"},
 		Admin:         false,
@@ -3756,7 +3836,7 @@ func (s *Suite) TestUpdateRegistrationEntryWithMask() {
 			name:   "Update X509 SVID TTL, Bad Data, Mask True",
 			mask:   &common.RegistrationEntryMask{X509SvidTtl: true},
 			update: func(e *common.RegistrationEntry) { e.X509SvidTtl = badEntry.X509SvidTtl },
-			err:    errors.New("invalid registration entry: X509SvidTtl is not set"),
+			err:    errors.New("invalid registration entry: X509SvidTtl must not be negative"),
 		},
 		{
 			name:   "Update X509 SVID TTL, Bad Data, Mask False",
@@ -3781,12 +3861,25 @@ func (s *Suite) TestUpdateRegistrationEntryWithMask() {
 			name:   "Update JWT SVID TTL, Bad Data, Mask True",
 			mask:   &common.RegistrationEntryMask{JwtSvidTtl: true},
 			update: func(e *common.RegistrationEntry) { e.JwtSvidTtl = badEntry.JwtSvidTtl },
-			err:    errors.New("invalid registration entry: JwtSvidTtl is not set"),
+			err:    errors.New("invalid registration entry: JwtSvidTtl must not be negative"),
 		},
 		{
 			name:   "Update JWT SVID TTL, Bad Data, Mask False",
 			mask:   &common.RegistrationEntryMask{JwtSvidTtl: false},
 			update: func(e *common.RegistrationEntry) { e.JwtSvidTtl = badEntry.JwtSvidTtl },
+			result: func(e *common.RegistrationEntry) {},
+		},
+		// WIT SVID TTL FIELD -- This field is validated but not written yet, so only test bad data
+		{
+			name:   "Update WIT SVID TTL, Bad Data, Mask True",
+			mask:   &common.RegistrationEntryMask{WitSvidTtl: true},
+			update: func(e *common.RegistrationEntry) { e.WitSvidTtl = badEntry.WitSvidTtl },
+			err:    errors.New("invalid registration entry: WitSvidTtl must not be negative"),
+		},
+		{
+			name:   "Update WIT SVID TTL, Bad Data, Mask False",
+			mask:   &common.RegistrationEntryMask{WitSvidTtl: false},
+			update: func(e *common.RegistrationEntry) { e.WitSvidTtl = badEntry.WitSvidTtl },
 			result: func(e *common.RegistrationEntry) {},
 		},
 		// SELECTORS FIELD -- This field is validated so we check with good and bad data
@@ -3954,8 +4047,9 @@ func (s *Suite) TestUpdateRegistrationEntryWithMask() {
 			s.RequireProtoEqual(expectedResult, updatedRegistrationEntry)
 
 			// Fetch and check the results match expectations
-			registrationEntry, err = s.ds.FetchRegistrationEntry(ctx, id)
+			registrationEntries, err := s.ds.FetchRegistrationEntries(ctx, []string{id})
 			s.Require().NoError(err)
+			registrationEntry = registrationEntries[id]
 			s.Require().NotNil(registrationEntry)
 
 			s.assertCreatedAtField(registrationEntry, now)
@@ -4678,9 +4772,9 @@ func (s *Suite) TestDeleteBundleDeleteRegistrationEntries() {
 	s.Require().NoError(err)
 
 	// verify that the registration entry has been deleted
-	registrationEntry, err := s.ds.FetchRegistrationEntry(context.Background(), entry.EntryId)
+	registrationEntries, err := s.ds.FetchRegistrationEntries(context.Background(), []string{entry.EntryId})
 	s.Require().NoError(err)
-	s.Require().Nil(registrationEntry)
+	s.Require().Nil(registrationEntries[entry.EntryId])
 
 	// make sure the unrelated entry still exists
 	s.fetchRegistrationEntry(unrelated.EntryId)
@@ -5704,8 +5798,74 @@ func (s *Suite) TestSetCAJournal() {
 			}
 
 			assertCAJournal(t, tt.caJournal, caJournal)
+			require.NotZero(t, caJournal.ID)
+			s.requireCAJournalIDUnset(caJournal.ID)
 		})
 	}
+}
+
+func (s *Suite) TestSetCAJournalUpdatesInPlace() {
+	created, err := s.ds.SetCAJournal(ctx, &datastore.CAJournal{
+		Data:                  []byte("first"),
+		ActiveX509AuthorityID: "x509-authority-1",
+	})
+	s.Require().NoError(err)
+	s.Require().NotZero(created.ID)
+	s.requireCAJournalIDUnset(created.ID)
+
+	updated, err := s.ds.SetCAJournal(ctx, &datastore.CAJournal{
+		ID:                    created.ID,
+		Data:                  []byte("second"),
+		ActiveX509AuthorityID: "x509-authority-2",
+	})
+	s.Require().NoError(err)
+	s.Require().Equal(created.ID, updated.ID)
+	s.requireCAJournalIDUnset(updated.ID)
+	s.Require().Equal([]byte("second"), updated.Data)
+	s.Require().Equal(1, s.countCAJournals())
+}
+
+func (s *Suite) TestCAJournalWithoutJournalID() {
+	query := s.ds.Rebind("INSERT INTO ca_journals(data, active_x509_authority_id) VALUES (?, ?)")
+	s.Require().NoError(s.ds.RawExec(query, []byte("first"), "x509-authority-1"))
+
+	var row struct{ ID uint }
+	s.Require().NoError(s.ds.RawScan(&row, "SELECT id FROM ca_journals"))
+
+	caJournal, err := s.ds.FetchCAJournal(ctx, "x509-authority-1")
+	s.Require().NoError(err)
+	s.Require().Equal(row.ID, caJournal.ID)
+
+	updated, err := s.ds.SetCAJournal(ctx, &datastore.CAJournal{
+		ID:                    caJournal.ID,
+		Data:                  []byte("second"),
+		ActiveX509AuthorityID: "x509-authority-2",
+	})
+	s.Require().NoError(err)
+	s.Require().Equal(row.ID, updated.ID)
+	s.requireCAJournalIDUnset(updated.ID)
+	s.Require().Equal([]byte("second"), updated.Data)
+	s.Require().Equal(1, s.countCAJournals())
+
+	fetched, err := s.ds.FetchCAJournal(ctx, "x509-authority-2")
+	s.Require().NoError(err)
+	s.Require().Equal(row.ID, fetched.ID)
+}
+
+func (s *Suite) requireCAJournalIDUnset(id uint) {
+	var row struct {
+		JournalID sql.NullString `gorm:"column:journal_id"`
+	}
+	s.Require().NoError(s.ds.RawScan(&row, fmt.Sprintf("SELECT journal_id FROM ca_journals WHERE id = %d", id)))
+	s.Require().False(row.JournalID.Valid)
+}
+
+func (s *Suite) countCAJournals() int {
+	var row struct {
+		Count int `gorm:"column:count"`
+	}
+	s.Require().NoError(s.ds.RawScan(&row, "SELECT COUNT(*) AS count FROM ca_journals"))
+	return row.Count
 }
 
 func (s *Suite) TestFetchCAJournal() {
@@ -5802,6 +5962,22 @@ func (s *Suite) TestPruneCAJournal() {
 	s.Require().Nil(caj)
 }
 
+func (s *Suite) TestPruneCAJournalWithoutJournalID() {
+	now := time.Now()
+	entriesBytes, err := proto.Marshal(&journal.Entries{
+		X509CAs: []*journal.X509CAEntry{
+			{NotAfter: now.Add(-time.Hour).Unix()},
+		},
+	})
+	s.Require().NoError(err)
+
+	query := s.ds.Rebind("INSERT INTO ca_journals(data, active_x509_authority_id) VALUES (?, ?)")
+	s.Require().NoError(s.ds.RawExec(query, entriesBytes, "x509-authority-1"))
+
+	s.Require().NoError(s.ds.PruneCAJournals(ctx, now.Unix()))
+	s.Require().Zero(s.countCAJournals())
+}
+
 // getTestDataFromJSONFile reads a JSON fixture using a path relative to the
 // test binary's working directory. Go sets that directory to the package dir
 // of the package whose test invoked sqltest.Run — so any package consuming this
@@ -5840,8 +6016,9 @@ func (s *Suite) deleteRegistrationEntry(entryID string) {
 }
 
 func (s *Suite) fetchRegistrationEntry(entryID string) *common.RegistrationEntry {
-	registrationEntry, err := s.ds.FetchRegistrationEntry(ctx, entryID)
+	registrationEntries, err := s.ds.FetchRegistrationEntries(ctx, []string{entryID})
 	s.Require().NoError(err)
+	registrationEntry := registrationEntries[entryID]
 	s.Require().NotNil(registrationEntry)
 	return registrationEntry
 }
@@ -6060,6 +6237,9 @@ func assertCAJournal(t *testing.T, exp, actual *datastore.CAJournal) {
 	if exp == nil {
 		assert.Nil(t, actual)
 		return
+	}
+	if exp.ID != 0 {
+		assert.Equal(t, exp.ID, actual.ID)
 	}
 	assert.Equal(t, exp.ActiveX509AuthorityID, actual.ActiveX509AuthorityID)
 	assert.Equal(t, exp.Data, actual.Data)

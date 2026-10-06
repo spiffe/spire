@@ -174,11 +174,9 @@ func TestBundleLoadedWithDefaultConfiguration(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, &corev1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace:       "spire",
-			Name:            "spire-bundle",
-			ResourceVersion: "2",
-		},
+		Namespace:       "spire",
+		Name:            "spire-bundle",
+		ResourceVersion: "2",
 		Data: map[string]string{
 			"bundle.crt": testBundleData,
 		},
@@ -202,18 +200,14 @@ clusters  = [
 	test := setupTest(t, withPlainConfig(config))
 
 	test.kubeClient.setConfigMap(&corev1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace:       "NAMESPACE",
-			Name:            "CONFIGMAP",
-			ResourceVersion: "2",
-		},
+		Namespace:       "NAMESPACE",
+		Name:            "CONFIGMAP",
+		ResourceVersion: "2",
 	})
 	test.kubeClient.setConfigMap(&corev1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace:       "NAMESPACE2",
-			Name:            "CONFIGMAP2",
-			ResourceVersion: "22",
-		},
+		Namespace:       "NAMESPACE2",
+		Name:            "CONFIGMAP2",
+		ResourceVersion: "22",
 	})
 	test.identityProvider.AppendBundle(testBundle)
 	test.identityProvider.AppendBundle(testBundle)
@@ -222,22 +216,18 @@ clusters  = [
 	require.NoError(t, err)
 
 	require.Equal(t, &corev1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace:       "NAMESPACE",
-			Name:            "CONFIGMAP",
-			ResourceVersion: "3",
-		},
+		Namespace:       "NAMESPACE",
+		Name:            "CONFIGMAP",
+		ResourceVersion: "3",
 		Data: map[string]string{
 			"CONFIGMAPKEY": testBundleData,
 		},
 	}, test.kubeClient.getConfigMap("NAMESPACE", "CONFIGMAP"))
 
 	require.Equal(t, &corev1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace:       "NAMESPACE2",
-			Name:            "CONFIGMAP2",
-			ResourceVersion: "23",
-		},
+		Namespace:       "NAMESPACE2",
+		Name:            "CONFIGMAP2",
+		ResourceVersion: "23",
 		Data: map[string]string{
 			"CONFIGMAPKEY": testBundleData,
 		},
@@ -262,10 +252,8 @@ kube_config_file_path = "/some/file/path"
 		require.NoError(collect, err)
 
 		expected := &admissionv1.MutatingWebhookConfiguration{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:            webhook.Name,
-				ResourceVersion: "1",
-			},
+			Name:            webhook.Name,
+			ResourceVersion: "1",
 			Webhooks: []admissionv1.MutatingWebhook{
 				{
 					ClientConfig: admissionv1.WebhookClientConfig{
@@ -300,10 +288,8 @@ kube_config_file_path = "/some/file/path"
 		require.NoError(collect, err)
 
 		expected := &apiregistrationv1.APIService{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:            apiService.Name,
-				ResourceVersion: "1",
-			},
+			Name:            apiService.Name,
+			ResourceVersion: "1",
 			Spec: apiregistrationv1.APIServiceSpec{
 				CABundle: []byte(testBundleData),
 			},
@@ -472,11 +458,9 @@ func TestBundleUpdatedWithDefaultConfiguration(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, &corev1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace:       "spire",
-			Name:            "spire-bundle",
-			ResourceVersion: "2",
-		},
+		Namespace:       "spire",
+		Name:            "spire-bundle",
+		ResourceVersion: "2",
 		Data: map[string]string{
 			"bundle.crt": testBundleData,
 		},
@@ -501,18 +485,14 @@ clusters  = [
 	test := setupTest(t, withPlainConfig(plainConfig))
 
 	test.kubeClient.setConfigMap(&corev1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace:       "NAMESPACE",
-			Name:            "CONFIGMAP",
-			ResourceVersion: "2",
-		},
+		Namespace:       "NAMESPACE",
+		Name:            "CONFIGMAP",
+		ResourceVersion: "2",
 	})
 	test.kubeClient.setConfigMap(&corev1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace:       "NAMESPACE2",
-			Name:            "CONFIGMAP2",
-			ResourceVersion: "22",
-		},
+		Namespace:       "NAMESPACE2",
+		Name:            "CONFIGMAP2",
+		ResourceVersion: "22",
 	})
 	test.identityProvider.AppendBundle(testBundle)
 	test.identityProvider.AppendBundle(testBundle)
@@ -521,22 +501,18 @@ clusters  = [
 	require.NoError(t, err)
 
 	require.Equal(t, &corev1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace:       "NAMESPACE",
-			Name:            "CONFIGMAP",
-			ResourceVersion: "3",
-		},
+		Namespace:       "NAMESPACE",
+		Name:            "CONFIGMAP",
+		ResourceVersion: "3",
 		Data: map[string]string{
 			"CONFIGMAPKEY": testBundleData,
 		},
 	}, test.kubeClient.getConfigMap("NAMESPACE", "CONFIGMAP"))
 
 	require.Equal(t, &corev1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace:       "NAMESPACE2",
-			Name:            "CONFIGMAP2",
-			ResourceVersion: "23",
-		},
+		Namespace:       "NAMESPACE2",
+		Name:            "CONFIGMAP2",
+		ResourceVersion: "23",
 		Data: map[string]string{
 			"CONFIGMAPKEY": testBundleData,
 		},
@@ -575,11 +551,9 @@ func TestConfigure(t *testing.T) {
 			name:        "empty configuration",
 			trustDomain: "example.org",
 			expectedConfig: &Configuration{
-				cluster: cluster{
-					Namespace:    "spire",
-					ConfigMap:    "spire-bundle",
-					ConfigMapKey: "bundle.crt",
-				},
+				Namespace:    "spire",
+				ConfigMap:    "spire-bundle",
+				ConfigMapKey: "bundle.crt",
 			},
 		},
 		{
@@ -612,14 +586,12 @@ func TestConfigure(t *testing.T) {
 			]
 			`,
 			expectedConfig: &Configuration{
-				cluster: cluster{
-					Namespace:          "root",
-					ConfigMap:          "root_config_map",
-					ConfigMapKey:       "root.pem",
-					KubeConfigFilePath: "/some/file/path",
-					WebhookLabel:       "root_webhook_label",
-					APIServiceLabel:    "root_api_label",
-				},
+				Namespace:          "root",
+				ConfigMap:          "root_config_map",
+				ConfigMapKey:       "root.pem",
+				KubeConfigFilePath: "/some/file/path",
+				WebhookLabel:       "root_webhook_label",
+				APIServiceLabel:    "root_api_label",
 				Clusters: []cluster{
 					{
 						Namespace:          "cluster1",
@@ -647,13 +619,11 @@ func TestConfigure(t *testing.T) {
 			api_service_label = "root_api_label"			
 			`,
 			expectedConfig: &Configuration{
-				cluster: cluster{
-					Namespace:          "spire",
-					ConfigMap:          "spire-bundle",
-					ConfigMapKey:       "bundle.crt",
-					KubeConfigFilePath: "",
-					APIServiceLabel:    "root_api_label",
-				},
+				Namespace:          "spire",
+				ConfigMap:          "spire-bundle",
+				ConfigMapKey:       "bundle.crt",
+				KubeConfigFilePath: "",
+				APIServiceLabel:    "root_api_label",
 			},
 		},
 		{
@@ -768,9 +738,7 @@ func (c *fakeKubeClient) CreatePatch(_ context.Context, obj runtime.Object, resp
 		return nil, status.Error(codes.InvalidArgument, "wrong type, expecting config map")
 	}
 	return &corev1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{
-			ResourceVersion: configMap.ResourceVersion,
-		},
+		ResourceVersion: configMap.ResourceVersion,
 		Data: map[string]string{
 			c.configMapKey: bundleData(resp.Bundle),
 		},
@@ -847,11 +815,9 @@ func configMapKey(namespace, configMap string) string {
 
 func newConfigMap() *corev1.ConfigMap {
 	return &corev1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace:       "spire",
-			Name:            "spire-bundle",
-			ResourceVersion: "1",
-		},
+		Namespace:       "spire",
+		Name:            "spire-bundle",
+		ResourceVersion: "1",
 	}
 }
 
@@ -863,17 +829,15 @@ type fakeWebhookClient struct {
 func newFakeWebhookClient(config *Configuration) *fakeWebhookClient {
 	client := fake.NewClientset()
 	w := &fakeWebhookClient{
-		mutatingWebhookClient: mutatingWebhookClient{
-			Interface:    client,
-			webhookLabel: config.WebhookLabel,
-			factory: informers.NewSharedInformerFactoryWithOptions(
-				client,
-				0,
-				informers.WithTweakListOptions(func(options *metav1.ListOptions) {
-					options.LabelSelector = fmt.Sprintf("%s=true", config.WebhookLabel)
-				}),
-			),
-		},
+		Interface:    client,
+		webhookLabel: config.WebhookLabel,
+		factory: informers.NewSharedInformerFactoryWithOptions(
+			client,
+			0,
+			informers.WithTweakListOptions(func(options *metav1.ListOptions) {
+				options.LabelSelector = fmt.Sprintf("%s=true", config.WebhookLabel)
+			}),
+		),
 		watcherStarted: make(chan struct{}),
 	}
 
@@ -894,10 +858,8 @@ func newFakeWebhookClient(config *Configuration) *fakeWebhookClient {
 
 func newMutatingWebhook(t *testing.T, client kubernetes.Interface, name, bundle string) *admissionv1.MutatingWebhookConfiguration {
 	webhook := &admissionv1.MutatingWebhookConfiguration{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:            name,
-			ResourceVersion: "1",
-		},
+		Name:            name,
+		ResourceVersion: "1",
 		Webhooks: []admissionv1.MutatingWebhook{
 			{
 				ClientConfig: admissionv1.WebhookClientConfig{
@@ -919,17 +881,15 @@ type fakeAPIServiceClient struct {
 func newFakeAPIServiceClient(config *Configuration) *fakeAPIServiceClient {
 	client := fakeaggregator.NewSimpleClientset()
 	a := &fakeAPIServiceClient{
-		apiServiceClient: apiServiceClient{
-			Interface:       client,
-			apiServiceLabel: config.APIServiceLabel,
-			factory: aggregatorinformers.NewSharedInformerFactoryWithOptions(
-				client,
-				0,
-				aggregatorinformers.WithTweakListOptions(func(options *metav1.ListOptions) {
-					options.LabelSelector = fmt.Sprintf("%s=true", config.APIServiceLabel)
-				}),
-			),
-		},
+		Interface:       client,
+		apiServiceLabel: config.APIServiceLabel,
+		factory: aggregatorinformers.NewSharedInformerFactoryWithOptions(
+			client,
+			0,
+			aggregatorinformers.WithTweakListOptions(func(options *metav1.ListOptions) {
+				options.LabelSelector = fmt.Sprintf("%s=true", config.APIServiceLabel)
+			}),
+		),
 		watcherStarted: make(chan struct{}),
 	}
 
@@ -950,10 +910,8 @@ func newFakeAPIServiceClient(config *Configuration) *fakeAPIServiceClient {
 
 func newAPIService(t *testing.T, client aggregator.Interface, name, bundle string) *apiregistrationv1.APIService {
 	apiService := &apiregistrationv1.APIService{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:            name,
-			ResourceVersion: "1",
-		},
+		Name:            name,
+		ResourceVersion: "1",
 		Spec: apiregistrationv1.APIServiceSpec{
 			CABundle: []byte(bundle),
 		},

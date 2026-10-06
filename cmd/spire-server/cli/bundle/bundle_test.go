@@ -284,6 +284,12 @@ func TestSet(t *testing.T) {
 						PublicKey: key1Pkix,
 					},
 				},
+				WitAuthorities: []*types.WITKey{
+					{
+						KeyId:     "WIT-KID",
+						PublicKey: key1Pkix,
+					},
+				},
 			},
 			setResponse: &bundlev1.BatchSetFederatedBundleResponse{
 				Results: []*bundlev1.BatchSetFederatedBundleResponse_Result{
@@ -368,6 +374,12 @@ func TestSet(t *testing.T) {
 				JwtAuthorities: []*types.JWTKey{
 					{
 						KeyId:     "KID",
+						PublicKey: key1Pkix,
+					},
+				},
+				WitAuthorities: []*types.WITKey{
+					{
+						KeyId:     "WIT-KID",
 						PublicKey: key1Pkix,
 					},
 				},
@@ -547,7 +559,14 @@ func TestList(t *testing.T) {
           "expires_at": "0"
         }
       ],
-      "wit_authorities": [],
+      "wit_authorities": [
+        {
+          "public_key": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEfK+wKTnKL7KFLM27lqq5DC+bxrVaH6rDV+IcCSEOeL7Cr6DdNBbFiVXnVMI8fTfTJexHG+6MPiFRRohCteTgog==",
+	  "tainted": false,
+          "key_id": "WIT-KID",
+          "expires_at": "0"
+        }
+      ],
       "refresh_hint": "0",
       "sequence_number": "0"
     },
@@ -662,6 +681,9 @@ func TestList(t *testing.T) {
 						},
 						JwtAuthorities: []*types.JWTKey{
 							{KeyId: "KID", PublicKey: test.key1Pkix},
+						},
+						WitAuthorities: []*types.WITKey{
+							{KeyId: "WIT-KID", PublicKey: test.key1Pkix},
 						},
 					},
 					{

@@ -5,6 +5,7 @@ set -e -o pipefail
 ./bin/kubectl create namespace spire
 ./bin/kubectl create secret -n spire generic vault-tls \
               --from-file=vault_ca.pem=vault_ca.pem
+./bin/kubectl apply -f ./conf/server/spire-data-pvc.yaml
 
 # Verify AppRole Auth
 log-info "verifying approle auth..."
@@ -15,6 +16,9 @@ SECRET_ID=$(./bin/kubectl exec -n vault vault-0 -- vault write --format json -f 
               --from-literal=secret_id=$SECRET_ID 
 ./bin/kubectl apply -k ./conf/server/approle-auth
 ./bin/kubectl rollout status deployment -n spire spire-server --timeout=60s
+
+BUNDLE_BASELINE=$(fetch-spire-bundle spire spire-server)
+
 ./bin/kubectl delete -k ./conf/server/approle-auth
 ./bin/kubectl delete secret -n spire vault-credential
 ./bin/kubectl wait pods -n spire -l app=spire-server --for=delete --timeout=60s
@@ -23,6 +27,9 @@ SECRET_ID=$(./bin/kubectl exec -n vault vault-0 -- vault write --format json -f 
 log-info "verifying k8s auth..."
 ./bin/kubectl apply -k ./conf/server/k8s-auth
 ./bin/kubectl rollout status deployment -n spire spire-server --timeout=60s
+
+assert-spire-bundle-unchanged "${BUNDLE_BASELINE}" "$(fetch-spire-bundle spire spire-server)" "after switching to k8s auth"
+
 ./bin/kubectl delete -k ./conf/server/k8s-auth
 ./bin/kubectl wait pods -n spire -l app=spire-server --for=delete --timeout=60s
 
@@ -33,6 +40,9 @@ log-info "verifying cert auth..."
               --from-file=client_key.pem=client_key.pem
 ./bin/kubectl apply -k ./conf/server/cert-auth
 ./bin/kubectl rollout status deployment -n spire spire-server --timeout=60s
+
+assert-spire-bundle-unchanged "${BUNDLE_BASELINE}" "$(fetch-spire-bundle spire spire-server)" "after switching to cert auth"
+
 ./bin/kubectl delete -k ./conf/server/cert-auth
 ./bin/kubectl delete secret -n spire vault-credential
 ./bin/kubectl wait pods -n spire -l app=spire-server --for=delete --timeout=60s
@@ -44,3 +54,5 @@ TOKEN=$(./bin/kubectl exec -n vault vault-0 -- vault token create -policy=spire 
               --from-literal=token=$TOKEN
 ./bin/kubectl apply -k ./conf/server/token-auth
 ./bin/kubectl rollout status deployment -n spire spire-server --timeout=60s
+
+assert-spire-bundle-unchanged "${BUNDLE_BASELINE}" "$(fetch-spire-bundle spire spire-server)" "after switching to token auth"

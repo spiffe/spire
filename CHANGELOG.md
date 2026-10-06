@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.16.0] - Unreleased
+
+### Changed
+
+- The `cache_manager`/`expiring_svids` and `cache_manager`/`outdated_svids` samples now carry an `svid_type` label (`X509` or `WIT`), so counts are reported per SVID type
+
 ## [1.15.3] - 2026-08-21
 
 ### Added

@@ -77,7 +77,7 @@ linters:
       - linters:
           - gosec
         path: (.*_test\.go$)|(^test/.*)
-        text: "G115: integer overflow conversion|G101: Potential hardcoded credentials|via taint analysis"
+        text: "G115: integer overflow conversion|G101: Potential hardcoded credentials|via taint analysis|G404: Use of weak random number generator"
       - linters:
           - revive
         text: Import alias "v1" is redundant

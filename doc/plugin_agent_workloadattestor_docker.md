@@ -14,7 +14,8 @@ then querying the container runtime API (Docker by default, or Podman when detec
 | docker_host                    | The location of the Docker Engine API endpoint (Windows only)                                                                               | "npipe:////./pipe/docker_engine"         |
 | sigstore                       | Sigstore options. See [Sigstore options](#sigstore-options). When set, enables verification of container image signatures and attestations. |                                          |
 | use_new_container_locator      | If true, enables the new container locator algorithm that has support for cgroups v2                                                        | true                                     |
-| verbose_container_locator_logs | If true, enables verbose logging of mountinfo and cgroup information used to locate containers                                              | false                                    |
+| verbose_container_locator_logs | If true, enables verbose logging of cgroup information used to locate containers                                                            | false                                    |
+| use_rootless_podman            | If true, enables rootless Podman attestation via a per-user socket from the workload cgroup; pair with unix:uid/user selectors (Unix)       | false                                    |
 
 A sample configuration:
 
@@ -27,21 +28,22 @@ A sample configuration:
 
 ## Podman support (Unix)
 
-The plugin supports Podman workloads, including rootless Podman in multi-user hosts.
+The plugin supports Podman workloads, including rootless Podman on multi-user hosts as an opt-in.
 
 At attestation time, the plugin inspects the workload cgroup path:
 
-- If a Podman cgroup path is detected and includes a user slice (`/user-<uid>.slice/`), SPIRE treats the workload as rootless Podman and calls the Podman API using `podman_socket_path_template` with `<uid>` substituted into `%d`.
+- If a Podman cgroup path is detected and includes a user slice (`/user-<uid>.slice/`), the workload is a rootless Podman container. It is attested only when `use_rootless_podman` is set to `true`, in which case SPIRE calls the Podman API using `podman_socket_path_template` with `<uid>` substituted into `%d`. When `use_rootless_podman` is `false` (the default), rootless Podman workloads are not attested by this plugin.
 - If a Podman cgroup path is detected but no user slice UID is present, SPIRE uses `podman_socket_path` (rootful Podman).
 - If no Podman cgroup path is detected, SPIRE uses `docker_socket_path` (Docker).
 
-This per-workload socket selection avoids routing rootless Podman workloads through a single global daemon socket.
+The per-user socket lives in the workload owner's own runtime directory (`/run/user/<uid>/`), which that user controls, so a rootless Podman workload can present arbitrary container labels for its own UID. For this reason `use_rootless_podman` is opt-in, and when it is enabled the resulting Podman selectors should be paired with `unix:uid` or `unix:user` selectors (produced by the `unix` workload attestor) so that a workload cannot obtain an identity scoped to a different user.
 
 Example rootless customization:
 
 ```hcl
 WorkloadAttestor "docker" {
     plugin_data {
+        use_rootless_podman = true
         podman_socket_path_template = "unix:///custom/user/%d/podman.sock"
     }
 }

@@ -28,7 +28,7 @@ type CAManager interface {
 
 	PrepareX509CA(ctx context.Context) error
 	ActivateX509CA(ctx context.Context)
-	RotateX509CA(ctx context.Context)
+	RotateX509CA(ctx context.Context) error
 
 	GetCurrentJWTKeySlot() manager.Slot
 	GetNextJWTKeySlot() manager.Slot
@@ -58,9 +58,13 @@ type Config struct {
 }
 
 type Rotator struct {
-	c Config
+	c                       Config
+	x509CARenewalFor        time.Time
+	x509CARenewalRetryDelay time.Duration
+	x509CARenewalRetryAt    time.Time
 
-	// For keeping track of number of failed rotations.
+	// For keeping track of number of failed rotations since the last fully
+	// successful rotation cycle.
 	failedRotationNum uint64
 }
 
@@ -156,7 +160,14 @@ func (r *Rotator) rotate(ctx context.Context) error {
 		r.c.Log.WithError(witKeyErr).Error("Unable to rotate WIT key")
 	}
 
-	return errors.Join(x509CAErr, jwtKeyErr, witKeyErr)
+	err := errors.Join(x509CAErr, jwtKeyErr, witKeyErr)
+	if err == nil {
+		// All keys are rotated at this time, so we can reset any failed
+		// rotation count.
+		atomic.StoreUint64(&r.failedRotationNum, 0)
+	}
+
+	return err
 }
 
 func (r *Rotator) rotateJWTKey(ctx context.Context) error {
@@ -224,6 +235,11 @@ func (r *Rotator) rotateX509CA(ctx context.Context) error {
 		}
 		r.c.Manager.ActivateX509CA(ctx)
 	}
+	if !r.x509CARenewalFor.Equal(currentX509CA.NotAfter()) {
+		r.x509CARenewalFor = currentX509CA.NotAfter()
+		r.x509CARenewalRetryDelay = 0
+		r.x509CARenewalRetryAt = time.Time{}
+	}
 
 	// if there is no next keypair set and the current is within the
 	// preparation threshold, generate one.
@@ -234,10 +250,40 @@ func (r *Rotator) rotateX509CA(ctx context.Context) error {
 	}
 
 	if currentX509CA.ShouldActivateNext(now) {
-		r.c.Manager.RotateX509CA(ctx)
+		nextX509CA := r.c.Manager.GetNextX509CASlot()
+		if nextX509CA.NotAfter().After(currentX509CA.NotAfter()) {
+			r.x509CARenewalFor = nextX509CA.NotAfter()
+			r.x509CARenewalRetryDelay = 0
+			r.x509CARenewalRetryAt = time.Time{}
+			return r.c.Manager.RotateX509CA(ctx)
+		}
+
+		if now.Before(r.x509CARenewalRetryAt) {
+			return nil
+		}
+
+		if err := r.c.Manager.PrepareX509CA(ctx); err != nil {
+			return err
+		}
+		nextX509CA = r.c.Manager.GetNextX509CASlot()
+		if nextX509CA.NotAfter().After(currentX509CA.NotAfter()) {
+			r.x509CARenewalFor = nextX509CA.NotAfter()
+			r.x509CARenewalRetryDelay = 0
+			r.x509CARenewalRetryAt = time.Time{}
+			return r.c.Manager.RotateX509CA(ctx)
+		}
+
+		if r.x509CARenewalRetryDelay == 0 {
+			r.x509CARenewalRetryDelay = x509CARenewalRetryDelay(now, currentX509CA.NotAfter())
+		}
+		r.x509CARenewalRetryAt = now.Add(r.x509CARenewalRetryDelay)
 	}
 
 	return nil
+}
+
+func x509CARenewalRetryDelay(now, expiration time.Time) time.Duration {
+	return max(expiration.Sub(now)/2, rotateInterval)
 }
 
 func (r *Rotator) pruneBundleEvery(ctx context.Context, interval time.Duration) error {

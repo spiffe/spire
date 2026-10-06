@@ -297,10 +297,8 @@ func (k *kmsClientFake) NewListKeyPropertiesPager(_ *azkeys.ListKeyPropertiesOpt
 			}
 
 			return azkeys.ListKeyPropertiesResponse{
-				KeyPropertiesListResult: azkeys.KeyPropertiesListResult{
-					NextLink: nil,
-					Value:    listResp,
-				},
+				NextLink: nil,
+				Value:    listResp,
 			}, nil
 		},
 	})
@@ -379,9 +377,8 @@ func (k *kmsClientFake) Sign(_ context.Context, keyName, _ string, parameters az
 	if err != nil {
 		return azkeys.SignResponse{}, status.Errorf(codes.Internal, "unable to sign digest: %v", err)
 	}
-	return azkeys.SignResponse{KeyOperationResult: azkeys.KeyOperationResult{
-		Result: signature,
-	}}, nil
+	return azkeys.SignResponse{
+		Result: signature}, nil
 }
 
 func toRSAKey(publicKey crypto.PublicKey, kmsKeyID string, keyOperations []*azkeys.KeyOperation) *azkeys.JSONWebKey {

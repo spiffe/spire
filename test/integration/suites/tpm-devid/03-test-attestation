@@ -14,10 +14,25 @@ for ((i=1;i<=MAXCHECKS;i++)); do
     AGENTS="$(docker compose exec -T spire-server /opt/spire/bin/spire-server agent list || true)"
     if echo "${AGENTS}" | grep -q "${EXPECTED_ID}"; then
         log-info "agent attested via tpm_devid"
-        exit 0
+        break
+    fi
+    if [ "${i}" -eq "${MAXCHECKS}" ]; then
+        log-warn "last agent list output: ${AGENTS}"
+        fail-now "agent did not attest as ${EXPECTED_ID} after ${MAXCHECKS} checks"
     fi
     sleep "${CHECKINTERVAL}"
 done
 
-log-warn "last agent list output: ${AGENTS}"
-fail-now "agent did not attest as ${EXPECTED_ID} after ${MAXCHECKS} checks"
+EXPECTED_SUBJECT="tpm_devid:subject:cn:devid-leaf"
+EXPECTED_ISSUER="tpm_devid:issuer:cn:devid-root"
+EXPECTED_CA="tpm_devid:ca:fingerprint:$(fingerprint conf/server/devid-ca.pem)"
+
+log-debug "checking selectors on ${EXPECTED_ID}"
+SHOW="$(docker compose exec -T spire-server \
+    /opt/spire/bin/spire-server agent show -spiffeID "${EXPECTED_ID}")"
+echo "${SHOW}"
+
+echo "${SHOW}" | grep -F "${EXPECTED_SUBJECT}" || fail-now "missing selector ${EXPECTED_SUBJECT}"
+echo "${SHOW}" | grep -F "${EXPECTED_ISSUER}" || fail-now "missing selector ${EXPECTED_ISSUER}"
+echo "${SHOW}" | grep -F "${EXPECTED_CA}" || fail-now "missing selector ${EXPECTED_CA}"
+log-info "tpm_devid selectors match the provisioned DevID certificate"

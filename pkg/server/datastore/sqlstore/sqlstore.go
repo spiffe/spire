@@ -67,6 +67,14 @@ const (
 	// PostgreSQL database type provided by an AWS service
 	AWSPostgreSQL = "aws_postgres"
 
+	// PostgreSQL database type provided by an Azure service, authenticated
+	// using Microsoft Entra ID (Azure AD)
+	AzurePostgreSQL = "azure_postgres"
+
+	// MySQL database type provided by an Azure service, authenticated using
+	// Microsoft Entra ID (Azure AD)
+	AzureMySQL = "azure_mysql"
+
 	// Maximum size for preallocation in a paginated request
 	maxResultPreallocation = 1000
 
@@ -325,27 +333,6 @@ func (ds *Plugin) FetchAttestedNode(ctx context.Context, spiffeID string) (attes
 	return attestedNode, nil
 }
 
-// FetchAttestedNodes fetches existing attested nodes by SPIFFE IDs, including their selectors
-func (ds *Plugin) FetchAttestedNodes(ctx context.Context, spiffeIDs []string) (map[string]*common.AttestedNode, error) {
-	nodesMap := make(map[string]*common.AttestedNode)
-	if len(spiffeIDs) == 0 {
-		return nodesMap, nil
-	}
-
-	resp, err := listAttestedNodes(ctx, ds.db, ds.log, &datastore.ListAttestedNodesRequest{
-		BySpiffeIDs:    spiffeIDs,
-		FetchSelectors: true,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	for _, node := range resp.Nodes {
-		nodesMap[node.SpiffeId] = node
-	}
-	return nodesMap, nil
-}
-
 // CountAttestedNodes counts all attested nodes
 func (ds *Plugin) CountAttestedNodes(ctx context.Context, req *datastore.CountAttestedNodesRequest) (count int32, err error) {
 	if countAttestedNodesHasFilters(req) {
@@ -536,19 +523,6 @@ func (ds *Plugin) createOrReturnRegistrationEntry(ctx context.Context,
 		return nil, false, err
 	}
 	return registrationEntry, existing, nil
-}
-
-// FetchRegistrationEntry fetches an existing registration by entry ID
-func (ds *Plugin) FetchRegistrationEntry(ctx context.Context,
-	entryID string,
-) (*common.RegistrationEntry, error) {
-	entries, err := fetchRegistrationEntries(ctx, ds.db, []string{entryID})
-	if err != nil {
-		return nil, err
-	}
-
-	// Return the last element in the list
-	return entries[entryID], nil
 }
 
 // FetchRegistrationEntries fetches existing registrations by entry IDs
@@ -1095,14 +1069,12 @@ func (ds *Plugin) gormToGRPCStatus(err error) error {
 		GRPCStatus() *status.Status
 	}
 
-	var statusError grpcStatusError
-	if errors.As(err, &statusError) {
+	if statusError, ok := errors.AsType[grpcStatusError](err); ok {
 		return statusError
 	}
 
 	code := codes.Unknown
-	var vErr *sqlcommon.ValidationError
-	if errors.As(err, &vErr) {
+	if _, ok := errors.AsType[*sqlcommon.ValidationError](err); ok {
 		code = codes.InvalidArgument
 	}
 
@@ -1788,9 +1760,7 @@ func countAttestedNodesWithFilters(ctx context.Context, db *sqlDB, _ logrus.Fiel
 
 func createAttestedNodeEvent(tx *gorm.DB, event *datastore.AttestedNodeEvent) error {
 	if err := tx.Create(&AttestedNodeEvent{
-		Model: Model{
-			ID: event.EventID,
-		},
+		ID:       event.EventID,
 		SpiffeID: event.SpiffeID,
 	}).Error; err != nil {
 		return sqlcommon.NewWrappedSQLError(err)
@@ -1900,9 +1870,7 @@ func fetchAttestedNodeEvent(db *sqlDB, eventID uint) (*datastore.AttestedNodeEve
 
 func deleteAttestedNodeEvent(tx *gorm.DB, eventID uint) error {
 	if err := tx.Delete(&AttestedNodeEvent{
-		Model: Model{
-			ID: eventID,
-		},
+		ID: eventID,
 	}).Error; err != nil {
 		return sqlcommon.NewWrappedSQLError(err)
 	}
@@ -2018,6 +1986,11 @@ func buildListAttestedNodesQuery(dbType string, supportsCTE bool, req *datastore
 	default:
 		return "", nil, sqlcommon.NewSQLError("unsupported db type: %q", dbType)
 	}
+}
+
+func isBulkAttestedNodeIDFetch(req *datastore.ListAttestedNodesRequest) bool {
+	hasSelectorMatch := req.BySelectorMatch != nil && len(req.BySelectorMatch.Selectors) > 0
+	return len(req.BySpiffeIDs) > 0 && req.Pagination == nil && !hasSelectorMatch
 }
 
 func buildListAttestedNodesQueryCTE(req *datastore.ListAttestedNodesRequest, dbType string) (string, []any, error) {
@@ -2139,6 +2112,14 @@ SELECT
 
 	builder.WriteString("\n")
 	builder.WriteString(fromQuery)
+
+	// Skip the wrapper only for bounded ID fetches. Keep the existing query
+	// shape for other requests to avoid changing full-load plans.
+	if isBulkAttestedNodeIDFetch(req) {
+		builder.WriteString("\nORDER BY id ASC\n")
+		return builder.String(), args, nil
+	}
+
 	builder.WriteString("\nWHERE id IN (\n")
 
 	// MySQL requires a subquery in order to apply pagination
@@ -2332,6 +2313,14 @@ FROM attested_node_entries N
 			args = append(args, buildArgs(req.BySpiffeIDs)...)
 		}
 		return nil
+	}
+
+	if fetchSelectors && isBulkAttestedNodeIDFetch(req) {
+		if err := writeFilter(); err != nil {
+			return "", nil, err
+		}
+		builder.WriteString(" ORDER BY e_id, S.id\n")
+		return builder.String(), args, nil
 	}
 
 	// Add filter by selectors
@@ -2657,7 +2646,8 @@ func createRegistrationEntry(tx *gorm.DB, entry *common.RegistrationEntry) (*com
 		AdditionalAttributes: AdditionalAttributes,
 	}
 
-	if err := tx.Create(&newRegisteredEntry).Error; err != nil {
+	// Omit wit_svid_ttl field until SPIRE 1.17.0
+	if err := tx.Omit("wit_svid_ttl").Create(&newRegisteredEntry).Error; err != nil {
 		return nil, sqlcommon.NewWrappedSQLError(err)
 	}
 
@@ -2772,6 +2762,7 @@ SELECT
 	NULL AS dns_name,
 	revision_number,
 	jwt_svid_ttl AS reg_jwt_svid_ttl,
+	NULL AS reg_wit_svid_ttl,
 	additional_attributes
 FROM
 	registered_entries
@@ -2780,7 +2771,7 @@ WHERE id IN (SELECT id FROM listing)
 UNION
 
 SELECT
-	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL, NULL, NULL, NULL
+	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL, NULL, NULL, NULL, NULL
 FROM
 	bundles B
 INNER JOIN
@@ -2793,7 +2784,7 @@ WHERE
 UNION
 
 SELECT
-	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL, NULL, NULL
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL, NULL, NULL, NULL
 FROM
 	dns_names
 WHERE registered_entry_id IN (SELECT id FROM listing)
@@ -2801,7 +2792,7 @@ WHERE registered_entry_id IN (SELECT id FROM listing)
 UNION
 
 SELECT
-	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL, NULL, NULL
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL, NULL, NULL, NULL
 FROM
 	selectors
 WHERE registered_entry_id IN (SELECT id FROM listing)
@@ -2837,6 +2828,7 @@ SELECT
 	NULL AS dns_name,
 	revision_number,
 	jwt_svid_ttl AS reg_jwt_svid_ttl,
+	NULL AS reg_wit_svid_ttl,
 	additional_attributes
 FROM
 	registered_entries
@@ -2845,7 +2837,7 @@ WHERE id IN (SELECT id FROM listing)
 UNION
 
 SELECT
-	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL, NULL, NULL, NULL
+	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL, NULL, NULL, NULL, NULL
 FROM
 	bundles B
 INNER JOIN
@@ -2858,7 +2850,7 @@ WHERE
 UNION
 
 SELECT
-	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL, NULL, NULL
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL, NULL, NULL, NULL
 FROM
 	dns_names
 WHERE registered_entry_id IN (SELECT id FROM listing)
@@ -2866,7 +2858,7 @@ WHERE registered_entry_id IN (SELECT id FROM listing)
 UNION
 
 SELECT
-	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL, NULL, NULL
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL, NULL, NULL, NULL
 FROM
 	selectors
 WHERE registered_entry_id IN (SELECT id FROM listing)
@@ -2898,6 +2890,7 @@ SELECT
 	D.value AS dns_name,
 	E.revision_number,
 	E.jwt_svid_ttl AS reg_jwt_svid_ttl,
+	NULL AS reg_wit_svid_ttl,
 	E.additional_attributes AS additional_attributes
 FROM
 	registered_entries E
@@ -2941,6 +2934,7 @@ SELECT
 	NULL AS dns_name,
 	revision_number,
 	jwt_svid_ttl AS reg_jwt_svid_ttl,
+	NULL AS reg_wit_svid_ttl,
 	additional_attributes
 FROM
 	registered_entries
@@ -2949,7 +2943,7 @@ WHERE id IN (SELECT id FROM listing)
 UNION ALL
 
 SELECT
-	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL, NULL, NULL, NULL
+	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL, NULL, NULL, NULL, NULL
 FROM
 	bundles B
 INNER JOIN
@@ -2962,7 +2956,7 @@ WHERE
 UNION ALL
 
 SELECT
-	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL, NULL, NULL
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL, NULL, NULL, NULL
 FROM
 	dns_names
 WHERE registered_entry_id IN (SELECT id FROM listing)
@@ -2970,7 +2964,7 @@ WHERE registered_entry_id IN (SELECT id FROM listing)
 UNION ALL
 
 SELECT
-	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL, NULL, NULL
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL, NULL, NULL, NULL
 FROM
 	selectors
 WHERE registered_entry_id IN (SELECT id FROM listing)
@@ -3153,6 +3147,7 @@ SELECT
 	NULL AS dns_name,
 	revision_number,
 	jwt_svid_ttl AS reg_jwt_svid_ttl,
+	NULL AS reg_wit_svid_ttl,
 	additional_attributes
 FROM
 	registered_entries
@@ -3172,7 +3167,7 @@ FROM
 UNION
 
 SELECT
-	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL, NULL, NULL, NULL
+	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL, NULL, NULL, NULL, NULL
 FROM
 	bundles B
 INNER JOIN
@@ -3187,7 +3182,7 @@ ON
 UNION
 
 SELECT
-	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL, NULL, NULL
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL, NULL, NULL, NULL
 FROM
 	dns_names
 `)
@@ -3198,7 +3193,7 @@ FROM
 UNION
 
 SELECT
-	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL, NULL, NULL
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL, NULL, NULL, NULL
 FROM
 	selectors
 `)
@@ -3249,6 +3244,7 @@ SELECT
 	NULL AS dns_name,
 	revision_number,
 	jwt_svid_ttl AS reg_jwt_svid_ttl,
+	NULL AS reg_wit_svid_ttl,
 	additional_attributes
 FROM
 	registered_entries
@@ -3267,7 +3263,7 @@ FROM
 UNION ALL
 
 SELECT
-	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL, NULL, NULL, NULL
+	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL, NULL, NULL, NULL, NULL
 FROM
 	bundles B
 INNER JOIN
@@ -3282,7 +3278,7 @@ ON
 UNION ALL
 
 SELECT
-	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL, NULL, NULL
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL, NULL, NULL, NULL
 FROM
 	dns_names
 `)
@@ -3293,7 +3289,7 @@ FROM
 UNION ALL
 
 SELECT
-	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL, NULL, NULL
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL, NULL, NULL, NULL
 FROM
 	selectors
 `)
@@ -3343,6 +3339,7 @@ SELECT
 	D.value AS dns_name,
 	E.revision_number,
 	E.jwt_svid_ttl AS reg_jwt_svid_ttl,
+	NULL AS reg_wit_svid_ttl,
 	E.additional_attributes AS additional_attributes
 FROM
 	registered_entries E
@@ -3418,6 +3415,7 @@ SELECT
 	NULL AS dns_name,
 	revision_number,
 	jwt_svid_ttl AS reg_jwt_svid_ttl,
+	NULL AS reg_wit_svid_ttl,
 	additional_attributes
 FROM
 	registered_entries
@@ -3436,7 +3434,7 @@ FROM
 UNION
 
 SELECT
-	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL, NULL, NULL, NULL
+	F.registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, B.trust_domain, NULL, NULL, NULL, NULL, NULL, NULL
 FROM
 	bundles B
 INNER JOIN
@@ -3451,7 +3449,7 @@ ON
 UNION
 
 SELECT
-	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL, NULL, NULL
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, value, NULL, NULL, NULL, NULL
 FROM
 	dns_names
 `)
@@ -3462,7 +3460,7 @@ FROM
 UNION
 
 SELECT
-	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL, NULL, NULL
+	registered_entry_id, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, id, type, value, NULL, NULL, NULL, NULL, NULL, NULL, NULL
 FROM
 	selectors
 `)
@@ -3979,6 +3977,7 @@ type entryRow struct {
 	DNSName              sql.NullString
 	RevisionNumber       sql.NullInt64
 	RegJwtSvidTTL        sql.NullInt64
+	RegWitSvidTTL        sql.NullInt64
 	AdditionalAttributes sql.Null[[]byte]
 }
 
@@ -4003,6 +4002,7 @@ func scanEntryRow(rs *sql.Rows, r *entryRow) error {
 		&r.DNSName,
 		&r.RevisionNumber,
 		&r.RegJwtSvidTTL,
+		&r.RegWitSvidTTL,
 		&r.AdditionalAttributes,
 	))
 }
@@ -4057,6 +4057,12 @@ func fillEntryFromRow(entry *common.RegistrationEntry, r *entryRow) error {
 		var err error
 		if entry.JwtSvidTtl, err = util.CheckedCast[int32](r.RegJwtSvidTTL.Int64); err != nil {
 			return sqlcommon.NewSQLError("invalid value for JWT SVID TTL: %s", err)
+		}
+	}
+	if r.RegWitSvidTTL.Valid {
+		var err error
+		if entry.WitSvidTtl, err = util.CheckedCast[int32](r.RegWitSvidTTL.Int64); err != nil {
+			return sqlcommon.NewSQLError("invalid value for WIT SVID TTL: %s", err)
 		}
 	}
 	if r.Hint.Valid {
@@ -4183,7 +4189,7 @@ func updateRegistrationEntry(tx *gorm.DB, e *common.RegistrationEntry, mask *com
 	// Revision number is increased by 1 on every update call
 	entry.RevisionNumber++
 
-	if err := tx.Save(&entry).Error; err != nil {
+	if err := tx.Omit("wit_svid_ttl").Save(&entry).Error; err != nil {
 		return nil, sqlcommon.NewWrappedSQLError(err)
 	}
 
@@ -4275,9 +4281,7 @@ func pruneRegistrationEntries(tx *gorm.DB, expiresBefore time.Time, logger logru
 
 func createRegistrationEntryEvent(tx *gorm.DB, event *datastore.RegistrationEntryEvent) error {
 	if err := tx.Create(&RegisteredEntryEvent{
-		Model: Model{
-			ID: event.EventID,
-		},
+		ID:      event.EventID,
 		EntryID: event.EntryID,
 	}).Error; err != nil {
 		return sqlcommon.NewWrappedSQLError(err)
@@ -4300,9 +4304,7 @@ func fetchRegistrationEntryEvent(db *sqlDB, eventID uint) (*datastore.Registrati
 
 func deleteRegistrationEntryEvent(tx *gorm.DB, eventID uint) error {
 	if err := tx.Delete(&RegisteredEntryEvent{
-		Model: Model{
-			ID: eventID,
-		},
+		ID: eventID,
 	}).Error; err != nil {
 		return sqlcommon.NewWrappedSQLError(err)
 	}
@@ -4680,11 +4682,15 @@ func validateRegistrationEntry(entry *common.RegistrationEntry) error {
 	}
 
 	if entry.X509SvidTtl < 0 {
-		return sqlcommon.NewValidationError("invalid registration entry: X509SvidTtl is not set")
+		return sqlcommon.NewValidationError("invalid registration entry: X509SvidTtl must not be negative")
 	}
 
 	if entry.JwtSvidTtl < 0 {
-		return sqlcommon.NewValidationError("invalid registration entry: JwtSvidTtl is not set")
+		return sqlcommon.NewValidationError("invalid registration entry: JwtSvidTtl must not be negative")
+	}
+
+	if entry.WitSvidTtl < 0 {
+		return sqlcommon.NewValidationError("invalid registration entry: WitSvidTtl must not be negative")
 	}
 
 	return nil
@@ -4720,12 +4726,17 @@ func validateRegistrationEntryForUpdate(entry *common.RegistrationEntry, mask *c
 
 	if (mask == nil || mask.X509SvidTtl) &&
 		(entry.X509SvidTtl < 0) {
-		return sqlcommon.NewValidationError("invalid registration entry: X509SvidTtl is not set")
+		return sqlcommon.NewValidationError("invalid registration entry: X509SvidTtl must not be negative")
 	}
 
 	if (mask == nil || mask.JwtSvidTtl) &&
 		(entry.JwtSvidTtl < 0) {
-		return sqlcommon.NewValidationError("invalid registration entry: JwtSvidTtl is not set")
+		return sqlcommon.NewValidationError("invalid registration entry: JwtSvidTtl must not be negative")
+	}
+
+	if (mask == nil || mask.WitSvidTtl) &&
+		(entry.WitSvidTtl < 0) {
+		return sqlcommon.NewValidationError("invalid registration entry: WitSvidTtl must not be negative")
 	}
 
 	return nil
@@ -4958,6 +4969,18 @@ func configValidate(cfg *sqlcommon.Configuration) error {
 		}
 	}
 
+	if cfg.DBTypeConfig.AzurePostgres != nil {
+		if err := cfg.DBTypeConfig.AzurePostgres.Validate(); err != nil {
+			return err
+		}
+	}
+
+	if cfg.DBTypeConfig.AzureMySQL != nil {
+		if err := cfg.DBTypeConfig.AzureMySQL.Validate(); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -5063,7 +5086,7 @@ func createCAJournal(tx *gorm.DB, caJournal *datastore.CAJournal) (*datastore.CA
 		ActiveX509AuthorityID: caJournal.ActiveX509AuthorityID,
 	}
 
-	if err := tx.Create(&model).Error; err != nil {
+	if err := tx.Omit("journal_id").Create(&model).Error; err != nil {
 		return nil, sqlcommon.NewWrappedSQLError(err)
 	}
 
@@ -5104,7 +5127,7 @@ func updateCAJournal(tx *gorm.DB, caJournal *datastore.CAJournal) (*datastore.CA
 	model.ActiveX509AuthorityID = caJournal.ActiveX509AuthorityID
 	model.Data = caJournal.Data
 
-	if err := tx.Save(&model).Error; err != nil {
+	if err := tx.Omit("journal_id").Save(&model).Error; err != nil {
 		return nil, sqlcommon.NewWrappedSQLError(err)
 	}
 
@@ -5164,6 +5187,8 @@ func parseDatabaseTypeASTNode(node ast.Node) (*sqlcommon.DBTypeConfig, error) {
 	switch databaseType {
 	case AWSMySQL:
 	case AWSPostgreSQL:
+	case AzurePostgreSQL:
+	case AzureMySQL:
 	default:
 		return nil, fmt.Errorf("unknown database type: %s", databaseType)
 	}
@@ -5173,11 +5198,11 @@ func parseDatabaseTypeASTNode(node ast.Node) (*sqlcommon.DBTypeConfig, error) {
 }
 
 func isMySQLDbType(dbType string) bool {
-	return dbType == MySQL || dbType == AWSMySQL
+	return dbType == MySQL || dbType == AWSMySQL || dbType == AzureMySQL
 }
 
 func isPostgresDbType(dbType string) bool {
-	return dbType == PostgreSQL || dbType == AWSPostgreSQL
+	return dbType == PostgreSQL || dbType == AWSPostgreSQL || dbType == AzurePostgreSQL
 }
 
 func isSQLiteDbType(dbType string) bool {

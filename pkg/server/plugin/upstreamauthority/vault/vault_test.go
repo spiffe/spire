@@ -231,11 +231,9 @@ func TestMintX509CA(t *testing.T) {
 	require.NoError(t, err)
 	successfulConfig := &Configuration{
 		PKIMountPoint: "test-pki",
-		BaseConfiguration: vault.BaseConfiguration{
-			CACertPath: "testdata/root-cert.pem",
-			TokenAuth: &TokenAuthConfig{
-				Token: "test-token",
-			},
+		CACertPath:    "testdata/root-cert.pem",
+		TokenAuth: &TokenAuthConfig{
+			Token: "test-token",
 		},
 	}
 
@@ -257,11 +255,9 @@ func TestMintX509CA(t *testing.T) {
 			csr:  csr.Raw,
 			config: &Configuration{
 				PKIMountPoint: "test-pki",
-				BaseConfiguration: vault.BaseConfiguration{
-					CACertPath: "testdata/root-cert.pem",
-					TokenAuth: &TokenAuthConfig{
-						Token: "test-token",
-					},
+				CACertPath:    "testdata/root-cert.pem",
+				TokenAuth: &TokenAuthConfig{
+					Token: "test-token",
 				},
 			},
 			authMethod:              TOKEN,
@@ -283,11 +279,9 @@ func TestMintX509CA(t *testing.T) {
 			ttl:  time.Minute,
 			config: &Configuration{
 				PKIMountPoint: "test-pki",
-				BaseConfiguration: vault.BaseConfiguration{
-					CACertPath: "testdata/root-cert.pem",
-					TokenAuth: &TokenAuthConfig{
-						Token: "test-token",
-					},
+				CACertPath:    "testdata/root-cert.pem",
+				TokenAuth: &TokenAuthConfig{
+					Token: "test-token",
 				},
 			},
 			authMethod:              TOKEN,
@@ -308,11 +302,9 @@ func TestMintX509CA(t *testing.T) {
 			csr:  csr.Raw,
 			config: &Configuration{
 				PKIMountPoint: "test-pki",
-				BaseConfiguration: vault.BaseConfiguration{
-					CACertPath: "testdata/root-cert.pem",
-					TokenAuth: &TokenAuthConfig{
-						Token: "test-token",
-					},
+				CACertPath:    "testdata/root-cert.pem",
+				TokenAuth: &TokenAuthConfig{
+					Token: "test-token",
 				},
 			},
 			authMethod:              TOKEN,
@@ -333,11 +325,9 @@ func TestMintX509CA(t *testing.T) {
 			csr:  csr.Raw,
 			config: &Configuration{
 				PKIMountPoint: "test-pki",
-				BaseConfiguration: vault.BaseConfiguration{
-					CACertPath: "testdata/root-cert.pem",
-					TokenAuth: &TokenAuthConfig{
-						Token: "test-token",
-					},
+				CACertPath:    "testdata/root-cert.pem",
+				TokenAuth: &TokenAuthConfig{
+					Token: "test-token",
 				},
 			},
 			authMethod:              TOKEN,
@@ -358,14 +348,12 @@ func TestMintX509CA(t *testing.T) {
 			csr:  csr.Raw,
 			config: &Configuration{
 				PKIMountPoint: "test-pki",
-				BaseConfiguration: vault.BaseConfiguration{
-					CACertPath: "testdata/root-cert.pem",
-					CertAuth: &CertAuthConfig{
-						CertAuthMountPoint: "test-cert-auth",
-						CertAuthRoleName:   "test",
-						ClientCertPath:     testClientCert,
-						ClientKeyPath:      testClientKey,
-					},
+				CACertPath:    "testdata/root-cert.pem",
+				CertAuth: &CertAuthConfig{
+					CertAuthMountPoint: "test-cert-auth",
+					CertAuthRoleName:   "test",
+					ClientCertPath:     testClientCert,
+					ClientKeyPath:      testClientKey,
 				},
 			},
 			authMethod:              CERT,
@@ -386,13 +374,11 @@ func TestMintX509CA(t *testing.T) {
 			csr:  csr.Raw,
 			config: &Configuration{
 				PKIMountPoint: "test-pki",
-				BaseConfiguration: vault.BaseConfiguration{
-					CACertPath: "testdata/root-cert.pem",
-					AppRoleAuth: &AppRoleAuthConfig{
-						AppRoleMountPoint: "test-approle-auth",
-						RoleID:            "test-approle-id",
-						SecretID:          "test-approle-secret-id",
-					},
+				CACertPath:    "testdata/root-cert.pem",
+				AppRoleAuth: &AppRoleAuthConfig{
+					AppRoleMountPoint: "test-approle-auth",
+					RoleID:            "test-approle-id",
+					SecretID:          "test-approle-secret-id",
 				},
 			},
 			authMethod:              APPROLE,
@@ -413,13 +399,11 @@ func TestMintX509CA(t *testing.T) {
 			csr:  csr.Raw,
 			config: &Configuration{
 				PKIMountPoint: "test-pki",
-				BaseConfiguration: vault.BaseConfiguration{
-					CACertPath: "testdata/root-cert.pem",
-					K8sAuth: &K8sAuthConfig{
-						K8sAuthMountPoint: "test-k8s-auth",
-						K8sAuthRoleName:   "my-role",
-						TokenPath:         "testdata/k8s/token",
-					},
+				CACertPath:    "testdata/root-cert.pem",
+				K8sAuth: &K8sAuthConfig{
+					K8sAuthMountPoint: "test-k8s-auth",
+					K8sAuthRoleName:   "my-role",
+					TokenPath:         "testdata/k8s/token",
 				},
 			},
 			authMethod:              K8S,
@@ -439,14 +423,12 @@ func TestMintX509CA(t *testing.T) {
 			csr:  csr.Raw,
 			config: &Configuration{
 				PKIMountPoint: "test-pki",
-				BaseConfiguration: vault.BaseConfiguration{
-					CACertPath: "testdata/root-cert.pem",
-					CertAuth: &CertAuthConfig{
-						CertAuthMountPoint: "test-cert-auth",
-						CertAuthRoleName:   "test",
-						ClientCertPath:     testClientCert,
-						ClientKeyPath:      testClientKey,
-					},
+				CACertPath:    "testdata/root-cert.pem",
+				CertAuth: &CertAuthConfig{
+					CertAuthMountPoint: "test-cert-auth",
+					CertAuthRoleName:   "test",
+					ClientCertPath:     testClientCert,
+					ClientKeyPath:      testClientKey,
 				},
 			},
 			authMethod:              CERT,
@@ -467,13 +449,11 @@ func TestMintX509CA(t *testing.T) {
 			csr:  csr.Raw,
 			config: &Configuration{
 				PKIMountPoint: "test-pki",
-				BaseConfiguration: vault.BaseConfiguration{
-					CACertPath: "testdata/root-cert.pem",
-					AppRoleAuth: &AppRoleAuthConfig{
-						AppRoleMountPoint: "test-approle-auth",
-						RoleID:            "test-approle-id",
-						SecretID:          "test-approle-secret-id",
-					},
+				CACertPath:    "testdata/root-cert.pem",
+				AppRoleAuth: &AppRoleAuthConfig{
+					AppRoleMountPoint: "test-approle-auth",
+					RoleID:            "test-approle-id",
+					SecretID:          "test-approle-secret-id",
 				},
 			},
 			authMethod:              APPROLE,
@@ -494,13 +474,11 @@ func TestMintX509CA(t *testing.T) {
 			csr:  csr.Raw,
 			config: &Configuration{
 				PKIMountPoint: "test-pki",
-				BaseConfiguration: vault.BaseConfiguration{
-					CACertPath: "testdata/root-cert.pem",
-					K8sAuth: &K8sAuthConfig{
-						K8sAuthMountPoint: "test-k8s-auth",
-						K8sAuthRoleName:   "my-role",
-						TokenPath:         "testdata/k8s/token",
-					},
+				CACertPath:    "testdata/root-cert.pem",
+				K8sAuth: &K8sAuthConfig{
+					K8sAuthMountPoint: "test-k8s-auth",
+					K8sAuthRoleName:   "my-role",
+					TokenPath:         "testdata/k8s/token",
 				},
 			},
 			authMethod:              K8S,
@@ -520,12 +498,10 @@ func TestMintX509CA(t *testing.T) {
 			csr:  csr.Raw,
 			config: &Configuration{
 				PKIMountPoint: "test-pki",
-				BaseConfiguration: vault.BaseConfiguration{
-					Namespace:  "test-ns",
-					CACertPath: "testdata/root-cert.pem",
-					TokenAuth: &TokenAuthConfig{
-						Token: "test-token",
-					},
+				Namespace:     "test-ns",
+				CACertPath:    "testdata/root-cert.pem",
+				TokenAuth: &TokenAuthConfig{
+					Token: "test-token",
 				},
 			},
 			authMethod:              TOKEN,
@@ -546,11 +522,9 @@ func TestMintX509CA(t *testing.T) {
 			csr:  csr.Raw,
 			config: &Configuration{
 				PKIMountPoint: "test-pki",
-				BaseConfiguration: vault.BaseConfiguration{
-					CACertPath: "testdata/root-cert.pem",
-					TokenAuth: &TokenAuthConfig{
-						Token: "test-token",
-					},
+				CACertPath:    "testdata/root-cert.pem",
+				TokenAuth: &TokenAuthConfig{
+					Token: "test-token",
 				},
 			},
 			authMethod:              TOKEN,
@@ -571,11 +545,9 @@ func TestMintX509CA(t *testing.T) {
 			csr:  csr.Raw,
 			config: &Configuration{
 				PKIMountPoint: "test-pki",
-				BaseConfiguration: vault.BaseConfiguration{
-					CACertPath: "testdata/root-cert.pem",
-					TokenAuth: &TokenAuthConfig{
-						Token: "test-token",
-					},
+				CACertPath:    "testdata/root-cert.pem",
+				TokenAuth: &TokenAuthConfig{
+					Token: "test-token",
 				},
 			},
 			authMethod:              TOKEN,
@@ -771,12 +743,10 @@ func TestMintX509CA_InvalidCSR(t *testing.T) {
 	plugintest.Load(t, builtin(p), v1,
 		plugintest.ConfigureJSON(&Configuration{
 			PKIMountPoint: "test-pki",
-			BaseConfiguration: vault.BaseConfiguration{
-				VaultAddr:  fmt.Sprintf("https://%v/", addr),
-				CACertPath: testRootCert,
-				TokenAuth: &TokenAuthConfig{
-					Token: "test-token",
-				},
+			VaultAddr:     fmt.Sprintf("https://%v/", addr),
+			CACertPath:    testRootCert,
+			TokenAuth: &TokenAuthConfig{
+				Token: "test-token",
 			},
 		}),
 		plugintest.CoreConfig(catalog.CoreConfig{TrustDomain: spiffeid.RequireTrustDomainFromString("example.org")}),
@@ -805,12 +775,10 @@ func TestPublishJWTKey(t *testing.T) {
 	plugintest.Load(t, BuiltIn(), ua,
 		plugintest.ConfigureJSON(Configuration{
 			PKIMountPoint: "test-pki",
-			BaseConfiguration: vault.BaseConfiguration{
-				VaultAddr:  fmt.Sprintf("https://%v/", addr),
-				CACertPath: testRootCert,
-				TokenAuth: &TokenAuthConfig{
-					Token: "test-token",
-				},
+			VaultAddr:     fmt.Sprintf("https://%v/", addr),
+			CACertPath:    testRootCert,
+			TokenAuth: &TokenAuthConfig{
+				Token: "test-token",
 			},
 		}),
 		plugintest.CoreConfig(catalog.CoreConfig{

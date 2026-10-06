@@ -23,6 +23,8 @@ type WorkloadAPIRateLimitConfig struct {
 	FetchJWTSVID     int
 	FetchX509Bundles int
 	FetchJWTBundles  int
+	FetchWITSVID     int
+	FetchWITBundles  int
 	StreamSecrets    int
 	FetchSecrets     int
 }

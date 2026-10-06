@@ -207,6 +207,8 @@ spec:
             - name: spire-config
               mountPath: /run/spire/config
               readOnly: true
+            - name: spire-data
+              mountPath: /run/spire/data
             - name: vault-tls
               mountPath: "/run/spire/vault"
               readOnly: true
@@ -226,6 +228,9 @@ spec:
         - name: spire-config
           configMap:
             name: spire-server
+        - name: spire-data
+          persistentVolumeClaim:
+            claimName: spire-data
         - name: vault-tls
           secret:
             secretName: vault-tls

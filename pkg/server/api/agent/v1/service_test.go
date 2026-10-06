@@ -2404,9 +2404,9 @@ func TestCascadeDeleteJoinTokenAliasEntry(t *testing.T) {
 	require.NoError(t, err)
 
 	// The alias entry is cascade-deleted...
-	deleted, err := test.ds.FetchRegistrationEntry(ctx, aliasEntryID)
+	entries, err := test.ds.FetchRegistrationEntries(ctx, []string{aliasEntryID})
 	require.NoError(t, err)
-	require.Nil(t, deleted)
+	require.Nil(t, entries[aliasEntryID])
 
 	// ...and a registration entry event is emitted for it.
 	events, err := test.ds.ListRegistrationEntryEvents(ctx, &datastore.ListRegistrationEntryEventsRequest{

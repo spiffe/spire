@@ -41,7 +41,7 @@ func (c *validateCommand) Synopsis() string {
 }
 
 func (c *validateCommand) Run(args []string) int {
-	config, err := run.LoadConfig(commandName, args, []log.Option{log.WithOutputWriter(io.Discard)}, c.env.Stderr, false)
+	config, err := run.LoadConfigForValidation(commandName, args, []log.Option{log.WithOutputWriter(io.Discard)}, c.env.Stderr)
 	if err != nil {
 		// Ignore error since a failure to write to stderr cannot very well be reported
 		_ = c.env.ErrPrintf("SPIRE server configuration file is invalid: %v\n", err)

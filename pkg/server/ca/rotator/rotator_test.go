@@ -58,6 +58,51 @@ func TestHealthChecks(t *testing.T) {
 	require.Equal(t, expectStateMap, test.healthChecker.RunChecks())
 }
 
+func TestHealthCheckRecoversAfterSuccessfulRotation(t *testing.T) {
+	ctx := context.Background()
+	test := setupTest(t)
+
+	healthy := map[string]health.State{
+		"server.ca.rotator": {
+			Live:         true,
+			Ready:        true,
+			ReadyDetails: managerHealthDetails{},
+			LiveDetails:  managerHealthDetails{},
+		},
+	}
+	unhealthy := map[string]health.State{
+		"server.ca.rotator": {
+			Live:  false,
+			Ready: false,
+			ReadyDetails: managerHealthDetails{
+				RotationErr: "rotations exceed the threshold number of failures",
+			},
+			LiveDetails: managerHealthDetails{
+				RotationErr: "rotations exceed the threshold number of failures",
+			},
+		},
+	}
+
+	// Move past the preparation mark so every authority attempts to prepare
+	// its next slot.
+	test.clock.Add(time.Minute + time.Second)
+
+	// Only the JWT key fails to rotate. The X509 CA and WIT key keep
+	// succeeding, which must not clear the failure count.
+	test.fakeCAManager.prepareJWTKeyErr = errors.New("oh no")
+	for range failedRotationThreshold + 1 {
+		require.EqualError(t, test.rotator.rotate(ctx), "oh no")
+	}
+	require.Equal(t, uint64(failedRotationThreshold+1), test.rotator.failedRotationResult())
+	require.Equal(t, unhealthy, test.healthChecker.RunChecks())
+
+	test.fakeCAManager.prepareJWTKeyErr = nil
+	require.NoError(t, test.rotator.rotate(ctx))
+
+	require.Zero(t, test.rotator.failedRotationResult())
+	require.Equal(t, healthy, test.healthChecker.RunChecks())
+}
+
 func TestInitialize(t *testing.T) {
 	for _, tt := range []struct {
 		name             string
@@ -314,6 +359,63 @@ func TestRunX509CARotation(t *testing.T) {
 	require.True(t, test.fakeCAManager.nextX509CASlot.IsEmpty())
 }
 
+func TestRotateX509CARenewalFloor(t *testing.T) {
+	test := setupTest(t)
+	now := test.clock.Now()
+	current := test.fakeCAManager.currentX509CASlot
+	next := test.fakeCAManager.nextX509CASlot
+
+	current.activationTime = now.Add(-time.Second)
+	current.notAfter = now.Add(time.Minute)
+	next.hasValue = true
+	next.notAfter = current.notAfter
+	test.fakeCAManager.prepareX509CANotAfter = current.notAfter
+
+	require.NoError(t, test.rotator.rotateX509CA(context.Background()))
+	require.Equal(t, 1, test.fakeCAManager.prepareX509CACount)
+	require.Equal(t, 0, test.fakeCAManager.rotateX509CACount)
+
+	require.NoError(t, test.rotator.rotateX509CA(context.Background()))
+	require.Equal(t, 1, test.fakeCAManager.prepareX509CACount)
+	require.Equal(t, 0, test.fakeCAManager.rotateX509CACount)
+
+	test.clock.Add(29 * time.Second)
+	require.NoError(t, test.rotator.rotateX509CA(context.Background()))
+	require.Equal(t, 1, test.fakeCAManager.prepareX509CACount)
+
+	test.clock.Add(2 * time.Second)
+	require.NoError(t, test.rotator.rotateX509CA(context.Background()))
+	require.Equal(t, 2, test.fakeCAManager.prepareX509CACount)
+	require.Equal(t, 0, test.fakeCAManager.rotateX509CACount)
+
+	test.clock.Add(15 * time.Second)
+	require.NoError(t, test.rotator.rotateX509CA(context.Background()))
+	require.Equal(t, 2, test.fakeCAManager.prepareX509CACount)
+
+	test.clock.Add(16 * time.Second)
+	require.NoError(t, test.rotator.rotateX509CA(context.Background()))
+	require.Equal(t, 3, test.fakeCAManager.prepareX509CACount)
+	require.Equal(t, 0, test.fakeCAManager.rotateX509CACount)
+}
+
+func TestRotateX509CAActivatesExtendingRenewal(t *testing.T) {
+	test := setupTest(t)
+	now := test.clock.Now()
+	current := test.fakeCAManager.currentX509CASlot
+	next := test.fakeCAManager.nextX509CASlot
+
+	current.activationTime = now.Add(-time.Second)
+	current.notAfter = now.Add(time.Minute)
+	next.hasValue = true
+	next.notAfter = current.notAfter
+	test.fakeCAManager.prepareX509CANotAfter = now.Add(time.Hour)
+
+	require.NoError(t, test.rotator.rotateX509CA(context.Background()))
+	require.Equal(t, 1, test.fakeCAManager.prepareX509CACount)
+	require.Equal(t, 1, test.fakeCAManager.rotateX509CACount)
+	require.Equal(t, now.Add(time.Hour), current.notAfter)
+}
+
 func TestRunWITKeyRotation(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
@@ -477,9 +579,12 @@ type fakeCAManager struct {
 
 	notifyBundleLoadedErr error
 
-	currentX509CASlot *fakeSlot
-	nextX509CASlot    *fakeSlot
-	prepareX509CAErr  error
+	currentX509CASlot     *fakeSlot
+	nextX509CASlot        *fakeSlot
+	prepareX509CAErr      error
+	prepareX509CANotAfter time.Time
+	prepareX509CACount    int
+	rotateX509CACount     int
 
 	disableJWTSVIDs   bool
 	currentJWTKeySlot *fakeSlot
@@ -520,6 +625,7 @@ func (f *fakeCAManager) GetNextX509CASlot() manager.Slot {
 
 func (f *fakeCAManager) PrepareX509CA(context.Context) error {
 	f.cleanX509CACh()
+	f.prepareX509CACount++
 
 	if f.prepareX509CAErr != nil {
 		return f.prepareX509CAErr
@@ -533,6 +639,11 @@ func (f *fakeCAManager) PrepareX509CA(context.Context) error {
 	slot.hasValue = true
 	slot.preparationTime = f.clk.Now().Add(time.Minute)
 	slot.activationTime = f.clk.Now().Add(2 * time.Minute)
+	if f.prepareX509CANotAfter.IsZero() {
+		slot.notAfter = f.clk.Now().Add(3 * time.Minute)
+	} else {
+		slot.notAfter = f.prepareX509CANotAfter
+	}
 
 	f.x509CACh <- struct{}{}
 
@@ -545,16 +656,21 @@ func (f *fakeCAManager) ActivateX509CA(context.Context) {
 	f.x509CACh <- struct{}{}
 }
 
-func (f *fakeCAManager) RotateX509CA(context.Context) {
+func (f *fakeCAManager) RotateX509CA(context.Context) error {
 	f.cleanX509CACh()
+	f.rotateX509CACount++
 	currentID := f.currentX509CASlot.keyID
+	currentNotAfter := f.currentX509CASlot.notAfter
 
 	f.currentX509CASlot.keyID = f.nextX509CASlot.keyID
+	f.currentX509CASlot.notAfter = f.nextX509CASlot.notAfter
 	f.currentX509CASlot.isActive = true
 	f.nextX509CASlot.keyID = currentID
+	f.nextX509CASlot.notAfter = currentNotAfter
 	f.nextX509CASlot.hasValue = false
 
 	f.x509CACh <- struct{}{}
+	return nil
 }
 
 func (f *fakeCAManager) GetCurrentJWTKeySlot() manager.Slot {
@@ -739,6 +855,7 @@ type fakeSlot struct {
 	hasValue        bool
 	isActive        bool
 	status          journal.Status
+	notAfter        time.Time
 }
 
 func (s *fakeSlot) KmKeyID() string {
@@ -767,6 +884,10 @@ func (s *fakeSlot) Status() journal.Status {
 	return s.status
 }
 
+func (s *fakeSlot) NotAfter() time.Time {
+	return s.notAfter
+}
+
 func createSlot(id string, now time.Time, hasValue bool) *fakeSlot {
 	return &fakeSlot{
 		keyID:           id,
@@ -774,5 +895,6 @@ func createSlot(id string, now time.Time, hasValue bool) *fakeSlot {
 		activationTime:  now.Add(2 * time.Minute),
 		hasValue:        hasValue,
 		isActive:        hasValue,
+		notAfter:        now.Add(3 * time.Minute),
 	}
 }

@@ -13,7 +13,9 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
+	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/pkg/server/datastore/sqltest"
+	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -154,6 +156,122 @@ func TestBuildQuestionsAndPlaceholders(t *testing.T) {
 			require.Equal(t, tt.expectedQuestions, questions)
 			placeholders := buildPlaceholders(tt.entries)
 			require.Equal(t, tt.expectedPlaceholders, placeholders)
+		})
+	}
+}
+
+func TestBuildListAttestedNodesQueryCTEIDSubquery(t *testing.T) {
+	for _, tt := range []struct {
+		name           string
+		req            *datastore.ListAttestedNodesRequest
+		wantIDSubquery bool
+	}{
+		{
+			name: "bulk ID fetch",
+			req: &datastore.ListAttestedNodesRequest{
+				BySpiffeIDs:    []string{"spiffe://example.org/node"},
+				FetchSelectors: true,
+			},
+		},
+		{
+			name: "unfiltered full load",
+			req: &datastore.ListAttestedNodesRequest{
+				FetchSelectors: true,
+			},
+			wantIDSubquery: true,
+		},
+		{
+			name: "paginated bulk ID fetch",
+			req: &datastore.ListAttestedNodesRequest{
+				BySpiffeIDs:    []string{"spiffe://example.org/node"},
+				FetchSelectors: true,
+				Pagination: &datastore.Pagination{
+					PageSize: 100,
+				},
+			},
+			wantIDSubquery: true,
+		},
+		{
+			name: "selector-matched bulk ID fetch",
+			req: &datastore.ListAttestedNodesRequest{
+				BySpiffeIDs:    []string{"spiffe://example.org/node"},
+				FetchSelectors: true,
+				BySelectorMatch: &datastore.BySelectors{
+					Selectors: []*common.Selector{
+						{Type: "type", Value: "value"},
+					},
+					Match: datastore.MatchAny,
+				},
+			},
+			wantIDSubquery: true,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			query, _, err := buildListAttestedNodesQueryCTE(tt.req, PostgreSQL)
+			require.NoError(t, err)
+			if tt.wantIDSubquery {
+				require.Contains(t, query, "WHERE id IN (")
+			} else {
+				require.NotContains(t, query, "WHERE id IN (")
+			}
+		})
+	}
+}
+
+func TestBuildListAttestedNodesQueryMySQLIDSubquery(t *testing.T) {
+	for _, tt := range []struct {
+		name           string
+		req            *datastore.ListAttestedNodesRequest
+		wantIDSubquery bool
+	}{
+		{
+			name: "bulk ID fetch",
+			req: &datastore.ListAttestedNodesRequest{
+				BySpiffeIDs:    []string{"spiffe://example.org/node"},
+				FetchSelectors: true,
+			},
+		},
+		{
+			name: "unfiltered full load",
+			req: &datastore.ListAttestedNodesRequest{
+				FetchSelectors: true,
+			},
+			wantIDSubquery: true,
+		},
+		{
+			name: "paginated bulk ID fetch",
+			req: &datastore.ListAttestedNodesRequest{
+				BySpiffeIDs:    []string{"spiffe://example.org/node"},
+				FetchSelectors: true,
+				Pagination: &datastore.Pagination{
+					PageSize: 100,
+				},
+			},
+			wantIDSubquery: true,
+		},
+		{
+			name: "selector-matched bulk ID fetch",
+			req: &datastore.ListAttestedNodesRequest{
+				BySpiffeIDs:    []string{"spiffe://example.org/node"},
+				FetchSelectors: true,
+				BySelectorMatch: &datastore.BySelectors{
+					Selectors: []*common.Selector{
+						{Type: "type", Value: "value"},
+					},
+					Match: datastore.MatchAny,
+				},
+			},
+			wantIDSubquery: true,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			query, _, err := buildListAttestedNodesQueryMySQL(tt.req)
+			require.NoError(t, err)
+			if tt.wantIDSubquery {
+				require.Contains(t, query, "WHERE N.id IN (")
+			} else {
+				require.NotContains(t, query, "WHERE N.id IN (")
+			}
 		})
 	}
 }
@@ -318,9 +436,110 @@ func TestMigration(t *testing.T) {
 			case 24:
 				// Migration from v24 to v25 adds additional_attributes column
 				prepareDB(true)
+			case 25:
+				// Migration from v25 to v26 adds journal_id column
+				prepareDB(true)
+
+				var row struct {
+					JournalID sql.NullString `gorm:"column:journal_id"`
+				}
+				require.NoError(ds.RawScan(&row, "SELECT journal_id FROM ca_journals WHERE id = 1"))
+				require.False(row.JournalID.Valid)
+
+				caJournals, err := ds.ListCAJournalsForTesting(ctx)
+				require.NoError(err)
+				require.Len(caJournals, 1)
+				require.Equal(uint(1), caJournals[0].ID)
+			case 26:
+				// Migration from v26 to v27 adds wit_svid_ttl column
+				prepareDB(true)
 			default:
 				t.Fatalf("no migration test added for schema version %d", schemaVersion)
 			}
 		})
 	}
+}
+
+func TestDisableMigrationAllowsCAJournalWritesOnPreviousSchema(t *testing.T) {
+	dbPath := filepath.ToSlash(filepath.Join(t.TempDir(), "v25.sqlite3"))
+	if runtime.GOOS == "windows" {
+		dbPath = "/" + dbPath
+	}
+	dumpDB(t, dbPath, migrationDumps[25])
+
+	log, _ := test.NewNullLogger()
+	ds := New(log)
+	t.Cleanup(func() {
+		require.NoError(t, ds.Close())
+	})
+
+	err := ds.Configure(ctx, fmt.Sprintf(`
+		database_type = "sqlite3"
+		connection_string = %q
+		disable_migration = true
+	`, "file://"+dbPath))
+	require.NoError(t, err)
+
+	caJournals, err := ds.ListCAJournalsForTesting(ctx)
+	require.NoError(t, err)
+	require.Len(t, caJournals, 1)
+
+	caJournals[0].Data = []byte("updated")
+	updated, err := ds.SetCAJournal(ctx, caJournals[0])
+	require.NoError(t, err)
+	require.Equal(t, caJournals[0], updated)
+
+	created, err := ds.SetCAJournal(ctx, &datastore.CAJournal{
+		Data:                  []byte("created"),
+		ActiveX509AuthorityID: "new-authority",
+	})
+	require.NoError(t, err)
+	require.NotZero(t, created.ID)
+
+	fetched, err := ds.FetchCAJournal(ctx, "new-authority")
+	require.NoError(t, err)
+	require.Equal(t, created, fetched)
+}
+
+func TestDisableMigrationAllowsRegistrationEntryWritesOnPreviousSchema(t *testing.T) {
+	dbPath := filepath.ToSlash(filepath.Join(t.TempDir(), "v26.sqlite3"))
+	if runtime.GOOS == "windows" {
+		dbPath = "/" + dbPath
+	}
+	dumpDB(t, dbPath, migrationDumps[26])
+
+	log, _ := test.NewNullLogger()
+	ds := New(log)
+	t.Cleanup(func() {
+		require.NoError(t, ds.Close())
+	})
+
+	err := ds.Configure(ctx, fmt.Sprintf(`
+		database_type = "sqlite3"
+		connection_string = %q
+		disable_migration = true
+	`, "file://"+dbPath))
+	require.NoError(t, err)
+
+	created, err := ds.CreateRegistrationEntry(ctx, &common.RegistrationEntry{
+		SpiffeId:    "spiffe://example.org/workload",
+		ParentId:    "spiffe://example.org/agent",
+		Selectors:   []*common.Selector{{Type: "unix", Value: "uid:1000"}},
+		X509SvidTtl: 1,
+		JwtSvidTtl:  2,
+	})
+	require.NoError(t, err)
+
+	created.JwtSvidTtl = 3
+	updated, err := ds.UpdateRegistrationEntry(ctx, created, nil)
+	require.NoError(t, err)
+	require.Equal(t, int32(3), updated.JwtSvidTtl)
+
+	fetched, err := ds.FetchRegistrationEntries(ctx, []string{created.EntryId})
+	require.NoError(t, err)
+	require.Equal(t, map[string]*common.RegistrationEntry{created.EntryId: updated}, fetched)
+
+	resp, err := ds.ListRegistrationEntries(ctx, &datastore.ListRegistrationEntriesRequest{})
+	require.NoError(t, err)
+	require.Equal(t, []*common.RegistrationEntry{updated}, resp.Entries)
 }

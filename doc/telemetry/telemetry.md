@@ -79,8 +79,8 @@ The following metrics are emitted:
 | Call Counter | `agent_key_manager`, `fetch_private_key`                                 |                              | The KeyManager is fetching a private key.                                             |
 | Call Counter | `agent_key_manager`, `store_private_key`                                 |                              | The KeyManager is storing a private key.                                              |
 | Call Counter | `agent_svid`, `rotate`                                                   |                              | The Agent's SVID is being rotated.                                                    |
-| Sample       | `cache_manager`, `expiring_svids`                                        |                              | The number of expiring SVIDs that the Cache Manager has.                              |
-| Sample       | `cache_manager`, `outdated_svids`                                        |                              | The number of outdated SVIDs that the Cache Manager has.                              |
+| Sample       | `cache_manager`, `expiring_svids`                                        | `svid_type`                  | The number of expiring SVIDs that the Cache Manager has.                              |
+| Sample       | `cache_manager`, `outdated_svids`                                        | `svid_type`                  | The number of outdated SVIDs that the Cache Manager has.                              |
 | Sample       | `cache_manager`, `tainted_jwt_svids`, `workload`                         |                              | The number of tainted JWT-SVIDs according to the agent cache manager.                 |
 | Sample       | `cache_manager`, `tainted_x509_svids`, `workload`                        |                              | The number of tainted X509-SVIDs according to the agent cache manager.                |
 | Counter      | `lru_cache_entry_add`                                                    |                              | The number of entries added to the LRU cache.                                         |
@@ -111,6 +111,7 @@ The following metrics are emitted:
 | Counter      | `delegated_identity_api`, `connection`                                   |                              | The Delegated Identity API has successfully established a connection.                 |
 | Gauge        | `delegated_identity_api`, `connections`                                  |                              | The number of active connection that the Delegated Identity API has.                  |
 | Latency      | `delegated_identity_api`, `subscribe_x509_svid` `first_x509_svid_update` |                              | The latency fetching first X.509-SVID in Delegated Identity API.                      |
+| Latency      | `broker_api`, `subscribe_x509_svids`, `first_update`                     |                              | The latency fetching first X.509-SVID in the SPIFFE Broker API.                       |
 
 Note: These are the keys and labels that SPIRE emits, but the format of the
 metric once ingested could vary depending on the metric collector. For example,

@@ -9,6 +9,7 @@ import (
 	loggerv1 "github.com/spiffe/spire/pkg/agent/api/logger/v1"
 	"github.com/spiffe/spire/pkg/agent/broker"
 	"github.com/spiffe/spire/pkg/agent/endpoints"
+	"github.com/spiffe/spire/pkg/agent/manager"
 	"github.com/spiffe/spire/pkg/agent/trustbundlesources"
 	"github.com/spiffe/spire/pkg/agent/workloadkey"
 	"github.com/spiffe/spire/pkg/common/catalog"
@@ -77,21 +78,33 @@ type Config struct {
 	// Address of SPIRE server
 	ServerAddress string
 
+	// ServerLoadBalancingConfig is an opaque payload used as the
+	// loadBalancingConfig field of the gRPC service config used to connect to
+	// the SPIRE server. If empty, round robin load balancing is used.
+	ServerLoadBalancingConfig string
+
 	// SVID key type
 	WorkloadKeyType workloadkey.KeyType
 
 	// SyncInterval controls how often the agent sync synchronizer waits
 	SyncInterval time.Duration
 
-	// UseSyncAuthorizedEntries controls if the new SyncAuthorizedEntries RPC
-	// is used to sync entries from the server.
-	UseSyncAuthorizedEntries bool
+	// SyncRetryBackoff overrides the exponential backoff applied between
+	// failed synchronizations with the server. Unset fields are derived from
+	// SyncInterval.
+	SyncRetryBackoff *manager.SyncRetryBackoffConfig
 
 	// X509SVIDCacheMaxSize is a soft limit of max number of X509-SVIDs that would be stored in cache
 	X509SVIDCacheMaxSize int
 
 	// JWTSVIDCacheMaxSize is a soft limit of max number of JWT-SVIDs that would be stored in cache
 	JWTSVIDCacheMaxSize int
+
+	// WITSVIDCacheMaxSize is a soft limit of max number of WIT-SVIDs that would be stored in cache
+	WITSVIDCacheMaxSize int
+
+	// EnableWITSVIDs controls whether WIT-SVIDs are minted and served
+	EnableWITSVIDs bool
 
 	// Trust domain and associated CA bundle
 	TrustDomain spiffeid.TrustDomain

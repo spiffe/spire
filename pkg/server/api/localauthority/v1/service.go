@@ -31,7 +31,7 @@ type CAManager interface {
 	GetCurrentX509CASlot() manager.Slot
 	GetNextX509CASlot() manager.Slot
 	PrepareX509CA(ctx context.Context) error
-	RotateX509CA(ctx context.Context)
+	RotateX509CA(ctx context.Context) error
 
 	IsUpstreamAuthority() bool
 	NotifyTaintedX509Authority(ctx context.Context, authorityID string) error
@@ -336,7 +336,9 @@ func (s *Service) ActivateX509Authority(ctx context.Context, req *localauthority
 	}
 
 	// Move next into current and reset next to clean CA
-	s.ca.RotateX509CA(ctx)
+	if err := s.ca.RotateX509CA(ctx); err != nil {
+		return nil, commonapi.MakeErr(log, codes.FailedPrecondition, "failed to activate X.509 authority", err)
+	}
 
 	current := s.ca.GetCurrentX509CASlot()
 	state := &localauthorityv1.AuthorityState{

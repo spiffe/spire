@@ -41,7 +41,6 @@ func newCache(log logrus.FieldLogger, clock clock.Clock) *cache {
 		checkerSubsystems: make(map[string]*checkerSubsystem),
 		log:               log,
 		clk:               clock,
-		startupComplete:   make(chan struct{}, 1),
 	}
 }
 
@@ -55,7 +54,6 @@ type cache struct {
 	hooks struct {
 		statusUpdated chan struct{}
 	}
-	startupComplete chan struct{}
 }
 
 func (c *cache) addCheck(name string, checkable Checkable) error {

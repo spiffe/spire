@@ -31,7 +31,6 @@ import (
 	"google.golang.org/grpc/codes"
 	authv1 "k8s.io/api/authentication/v1"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 )
 
@@ -410,11 +409,11 @@ func (s *AttestorSuite) signToken(signer jose.Signer, tokenData *TokenData) stri
 	}
 
 	// build up standard claims
-	claims := sat_common.PSATClaims{}
-	claims.Issuer = tokenData.issuer
-	claims.NotBefore = jwt.NewNumericDate(tokenData.notBefore)
-	claims.Expiry = jwt.NewNumericDate(tokenData.expiry)
-	claims.Audience = tokenData.audience
+	claims := sat_common.PSATClaims{
+		Issuer:    tokenData.issuer,
+		NotBefore: jwt.NewNumericDate(tokenData.notBefore),
+		Expiry:    jwt.NewNumericDate(tokenData.expiry),
+		Audience:  tokenData.audience}
 
 	// build up psat claims
 	claims.K8s.Namespace = tokenData.namespace
@@ -513,14 +512,12 @@ func createTokenStatus(tokenData *TokenData, authenticated bool, audience []stri
 
 func createPod(namespace, podName, podUID, nodeName, hostIP string) *corev1.Pod {
 	return &corev1.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: namespace,
-			Name:      podName,
-			UID:       types.UID(podUID),
-			Labels: map[string]string{
-				"PODLABEL-A": "A",
-				"PODLABEL-B": "B",
-			},
+		Namespace: namespace,
+		Name:      podName,
+		UID:       types.UID(podUID),
+		Labels: map[string]string{
+			"PODLABEL-A": "A",
+			"PODLABEL-B": "B",
 		},
 		Spec: corev1.PodSpec{
 			NodeName: nodeName,
@@ -533,13 +530,11 @@ func createPod(namespace, podName, podUID, nodeName, hostIP string) *corev1.Pod 
 
 func createNode(nodeName, nodeUID string) *corev1.Node {
 	return &corev1.Node{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: nodeName,
-			UID:  types.UID(nodeUID),
-			Labels: map[string]string{
-				"NODELABEL-A": "A",
-				"NODELABEL-B": "B",
-			},
+		Name: nodeName,
+		UID:  types.UID(nodeUID),
+		Labels: map[string]string{
+			"NODELABEL-A": "A",
+			"NODELABEL-B": "B",
 		},
 	}
 }

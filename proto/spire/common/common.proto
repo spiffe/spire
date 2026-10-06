@@ -119,6 +119,8 @@ message RegistrationEntry {
         bool jwt_svid_include_jti = 2;
     }
     optional AdditionalAttributes additional_attributes = 16;
+    /** Time to live for WIT-SVIDs generated from this entry. */
+    int32 wit_svid_ttl = 17;
 }
 
 /** The RegistrationEntryMask is used to update only selected fields of the RegistrationEntry */
@@ -137,6 +139,7 @@ message RegistrationEntryMask {
     bool jwt_svid_ttl = 12;
     bool hint = 13;
     bool additional_attributes = 14;
+    bool wit_svid_ttl = 15;
 }
 
 

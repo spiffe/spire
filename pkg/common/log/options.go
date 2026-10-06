@@ -54,9 +54,10 @@ func WithOutputWriter(w io.Writer) Option {
 	}
 }
 
-// WithReopenableOutputFile uses ReopenableFile to support handling a signal
-// to rotate log files (e.g. from a logrotate postrotate script).
-func WithReopenableOutputFile(reopenableFile *ReopenableFile) Option {
+// WithReopenableOutputFile takes either a ReopenableFile, to support handling a
+// signal to rotate log files (e.g. from a logrotate postrotate script), or a
+// RotatableFile, which rotates the file itself.
+func WithReopenableOutputFile(reopenableFile ReopenableWriteCloser) Option {
 	return func(logger *Logger) error {
 		logger.SetOutput(reopenableFile)
 

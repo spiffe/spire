@@ -313,8 +313,8 @@ func (f *podListFetcher) startFetch() {
 
 		pods, err := fetch(fetchCtx, clientForFetch, config)
 		result := podListFetchResult{
-			versionedPodList: versionedPodList{pods: pods, version: version},
-			err:              err,
+			pods: pods, version: version,
+			err: err,
 		}
 		f.dispatch(func() { f.completeFetch(result, originalClient, reloadedClient) })
 	})

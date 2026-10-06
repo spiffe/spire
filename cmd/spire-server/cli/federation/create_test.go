@@ -116,6 +116,18 @@ func TestCreate(t *testing.T) {
 	}
 	require.Len(t, jwtAuthorities, 1)
 
+	var witAuthorities []*types.WITKey
+	for id, key := range spiffeBundle.WITAuthorities() {
+		keyBytes, err := x509.MarshalPKIXPublicKey(key)
+		require.NoError(t, err)
+
+		witAuthorities = append(witAuthorities, &types.WITKey{
+			KeyId:     id,
+			PublicKey: keyBytes,
+		})
+	}
+	require.Len(t, witAuthorities, 1)
+
 	frSPIFFEAuthority := &types.FederationRelationship{
 		TrustDomain:       "td-4.org",
 		BundleEndpointUrl: "https://td-4.org/bundle",
@@ -128,6 +140,7 @@ func TestCreate(t *testing.T) {
 			TrustDomain:     "td-4.org",
 			X509Authorities: x509Authorities,
 			JwtAuthorities:  jwtAuthorities,
+			WitAuthorities:  witAuthorities,
 		},
 	}
 

@@ -58,11 +58,27 @@ func run(configPath string, expandEnv bool) error {
 		return err
 	}
 
-	log, err := spirelog.NewLogger(spirelog.WithLevel(config.LogLevel), spirelog.WithFormat(config.LogFormat), spirelog.WithOutputFile(config.LogPath))
+	logOptions := []spirelog.Option{
+		spirelog.WithLevel(config.LogLevel),
+		spirelog.WithFormat(config.LogFormat),
+	}
+	if config.LogPath != "" {
+		outputFile, err := spirelog.NewOutputFile(config.LogPath, config.LogFileRotation)
+		if err != nil {
+			return err
+		}
+		logOptions = append(logOptions, spirelog.WithReopenableOutputFile(outputFile))
+	}
+
+	log, err := spirelog.NewLogger(logOptions...)
 	if err != nil {
 		return err
 	}
 	defer log.Close()
+
+	if cfg := config.LogFileRotation; cfg != nil && cfg.SizeRotationDisabled() {
+		log.Warn("log_file_rotation is configured with max_size_mb = 0 and the provider has no way to trigger a rotation, so the log file will not be rotated")
+	}
 
 	if config.AllowInsecureScheme {
 		log.Warn("allow_insecure_scheme is enabled. JWKS keys will be served over HTTP. Only enable this when the network path to the provider is trusted end-to-end (for example, when TLS is terminated at a trusted reverse proxy or load balancer on a private network)")

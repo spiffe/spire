@@ -190,7 +190,7 @@ func (s *Service) SubscribeToX509SVIDs(req *delegatedidentityv1.SubscribeToX509S
 		"request_selectors":  selectors,
 	}).Debug("Subscribing to cache changes")
 
-	subscriber, err := s.manager.SubscribeToCacheChanges(ctx, selectors)
+	subscriber, err := s.manager.SubscribeToX509CacheChanges(ctx, selectors)
 	if err != nil {
 		log.WithError(err).Error("Subscribe to cache changes failed")
 		return err
@@ -435,7 +435,7 @@ func (s *Service) SubscribeToJWTBundles(_ *delegatedidentityv1.SubscribeToJWTBun
 	// send initial update....
 	jwtbundles := make(map[string][]byte)
 	for td, bundle := range subscriber.Value() {
-		jwksBytes, err := bundleutil.Marshal(bundle, bundleutil.NoX509SVIDKeys(), bundleutil.StandardJWKS())
+		jwksBytes, err := bundleutil.MarshalJWTSVIDBundle(bundle, bundleutil.StandardJWKS())
 		if err != nil {
 			return err
 		}
@@ -456,7 +456,7 @@ func (s *Service) SubscribeToJWTBundles(_ *delegatedidentityv1.SubscribeToJWTBun
 				return err
 			}
 			for td, bundle := range subscriber.Next() {
-				jwksBytes, err := bundleutil.Marshal(bundle, bundleutil.NoX509SVIDKeys(), bundleutil.StandardJWKS())
+				jwksBytes, err := bundleutil.MarshalJWTSVIDBundle(bundle, bundleutil.StandardJWKS())
 				if err != nil {
 					return err
 				}

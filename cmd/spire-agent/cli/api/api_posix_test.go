@@ -19,6 +19,18 @@ const (
   -timeout value
     	Time to wait for a response (default 5s)
 `
+	fetchWITUsage = `Usage of fetch wit:
+  -instance string
+    	Instance name to substitute into socket templates (env SPIRE_AGENT_PUBLIC_SOCKET_TEMPLATE).
+  -output value
+    	Desired output format (pretty, json); default: pretty.
+  -socketPath string
+    	Path to the SPIRE Agent API Unix domain socket (default "/tmp/spire-agent/public/api.sock")
+  -spiffeID string
+    	SPIFFE ID subject (optional)
+  -timeout value
+    	Time to wait for a response (default 5s)
+`
 	fetchX509Usage = `Usage of fetch x509:
   -instance string
     	Instance name to substitute into socket templates (env SPIRE_AGENT_PUBLIC_SOCKET_TEMPLATE).

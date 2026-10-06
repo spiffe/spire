@@ -101,6 +101,9 @@ type RegisteredEntry struct {
 	// TTL of JWT identities derived from this entry
 	JWTSvidTTL int32 `gorm:"column:jwt_svid_ttl"`
 
+	// TTL of WIT identities derived from this entry
+	WITSvidTTL int32 `gorm:"column:wit_svid_ttl"`
+
 	// AdditionalAttributes may contain a number of optional fields controlling
 	// the various aspects of the agent's behaviour with respect to a given
 	// registration entry
@@ -184,6 +187,10 @@ func (FederatedTrustDomain) TableName() string {
 // manage the rotation of the keys in each server.
 type CAJournal struct {
 	Model
+
+	// JournalID is reserved for a future externally exposed journal identifier.
+	// It is not used by the current datastore implementation.
+	JournalID string `gorm:"unique_index"`
 
 	// Information about X509 and JWT authorities of a single server.
 	Data []byte `gorm:"size:16777215"` // Make MySQL to use MEDIUMBLOB(max 16MB) - doesn't affect PostgreSQL/SQLite

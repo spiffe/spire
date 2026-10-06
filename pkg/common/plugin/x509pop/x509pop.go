@@ -29,7 +29,10 @@ const (
 var DefaultAgentPathTemplateCN = agentpathtemplate.MustParse("/{{ .PluginName }}/{{ .Fingerprint }}")
 var DefaultAgentPathTemplateSVID = agentpathtemplate.MustParse("/{{ .PluginName }}/{{ .SVIDPathTrimmed }}")
 
-type agentPathTemplateData struct {
+// TemplateData is hydrated into the templates evaluated by this plugin. The
+// same data is used for every template so that they all have access to the same
+// certificate details.
+type TemplateData struct {
 	*x509.Certificate
 	SerialNumberHex string
 	Fingerprint     string
@@ -37,6 +40,20 @@ type agentPathTemplateData struct {
 	TrustDomain     string
 	SVIDPathTrimmed string
 	URISanSelectors map[string]string
+}
+
+// NewTemplateData returns the data to hydrate templates with for the given
+// certificate.
+func NewTemplateData(td spiffeid.TrustDomain, cert *x509.Certificate, svidPathTrimmed string, sanSelectors map[string]string) TemplateData {
+	return TemplateData{
+		TrustDomain:     td.Name(),
+		Certificate:     cert,
+		PluginName:      PluginName,
+		SerialNumberHex: SerialNumberHex(cert.SerialNumber),
+		Fingerprint:     Fingerprint(cert),
+		SVIDPathTrimmed: svidPathTrimmed,
+		URISanSelectors: sanSelectors,
+	}
 }
 
 type AttestationData struct {
@@ -270,15 +287,7 @@ func Fingerprint(cert *x509.Certificate) string {
 
 // MakeAgentID creates an agent ID from X.509 certificate data.
 func MakeAgentID(td spiffeid.TrustDomain, agentPathTemplate *agentpathtemplate.Template, cert *x509.Certificate, svidPathTrimmed string, sanSelectors map[string]string) (spiffeid.ID, error) {
-	agentPath, err := agentPathTemplate.Execute(agentPathTemplateData{
-		TrustDomain:     td.Name(),
-		Certificate:     cert,
-		PluginName:      PluginName,
-		SerialNumberHex: SerialNumberHex(cert.SerialNumber),
-		Fingerprint:     Fingerprint(cert),
-		SVIDPathTrimmed: svidPathTrimmed,
-		URISanSelectors: sanSelectors,
-	})
+	agentPath, err := agentPathTemplate.Execute(NewTemplateData(td, cert, svidPathTrimmed, sanSelectors))
 	if err != nil {
 		return spiffeid.ID{}, err
 	}

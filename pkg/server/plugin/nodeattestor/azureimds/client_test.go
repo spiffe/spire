@@ -272,10 +272,8 @@ func TestExtractArmResourceGraphItemsNetworkInterface(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			resp := armresourcegraph.ClientResourcesResponse{
-				QueryResponse: armresourcegraph.QueryResponse{
-					TotalRecords: &tc.totalRecord,
-					Data:         tc.data,
-				},
+				TotalRecords: &tc.totalRecord,
+				Data:         tc.data,
 			}
 
 			items, err := extractArmResourceGraphItems[NetworkInterface](resp)

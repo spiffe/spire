@@ -107,12 +107,6 @@ func (w metricsWrapper) FetchAttestedNode(ctx context.Context, spiffeID string) 
 	return w.ds.FetchAttestedNode(ctx, spiffeID)
 }
 
-func (w metricsWrapper) FetchAttestedNodes(ctx context.Context, spiffeIDs []string) (_ map[string]*common.AttestedNode, err error) {
-	callCounter := StartFetchNodeCall(w.m)
-	defer callCounter.Done(&err)
-	return w.ds.FetchAttestedNodes(ctx, spiffeIDs)
-}
-
 func (w metricsWrapper) FetchAttestedNodeEvent(ctx context.Context, eventID uint) (_ *datastore.AttestedNodeEvent, err error) {
 	callCounter := StartFetchAttestedNodeEventCall(w.m)
 	defer callCounter.Done(&err)
@@ -129,12 +123,6 @@ func (w metricsWrapper) FetchJoinToken(ctx context.Context, token string) (_ *da
 	callCounter := StartFetchJoinTokenCall(w.m)
 	defer callCounter.Done(&err)
 	return w.ds.FetchJoinToken(ctx, token)
-}
-
-func (w metricsWrapper) FetchRegistrationEntry(ctx context.Context, entryID string) (_ *common.RegistrationEntry, err error) {
-	callCounter := StartFetchRegistrationCall(w.m)
-	defer callCounter.Done(&err)
-	return w.ds.FetchRegistrationEntry(ctx, entryID)
 }
 
 func (w metricsWrapper) FetchRegistrationEntries(ctx context.Context, entryIDs []string) (_ map[string]*common.RegistrationEntry, err error) {
