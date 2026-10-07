@@ -5,9 +5,13 @@ import (
 	"crypto/x509"
 	"encoding/hex"
 	"slices"
+	"unicode/utf8"
 )
 
-func buildSelectorValues(leaf *x509.Certificate, chains [][]*x509.Certificate) []string {
+// MySQL stores selector values in varchar(255) columns.
+const maxSubjectSelectorLength = 255
+
+func (p *Plugin) buildSelectorValues(leaf *x509.Certificate, chains [][]*x509.Certificate) []string {
 	selectorValues := []string{}
 
 	if leaf.Subject.CommonName != "" {
@@ -20,6 +24,10 @@ func buildSelectorValues(leaf *x509.Certificate, chains [][]*x509.Certificate) [
 			continue
 		}
 		selectorValue := "subject:oid:" + attribute.Type.String() + ":" + value
+		if length := utf8.RuneCountInString(selectorValue); length > maxSubjectSelectorLength {
+			p.log.Warn("Skipping oversized subject attribute selector", "oid", attribute.Type.String(), "length", length)
+			continue
+		}
 		if !slices.Contains(selectorValues, selectorValue) {
 			selectorValues = append(selectorValues, selectorValue)
 		}

@@ -14,6 +14,7 @@ import (
 	"os"
 	"path"
 	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/google/go-tpm/legacy/tpm2"
@@ -533,6 +534,11 @@ func TestAttestSucceeds(t *testing.T) {
 		{Type: asn1.ObjectIdentifier{1, 2, 3, 4}, Value: " Rack:B "},
 		{Type: asn1.ObjectIdentifier{1, 2, 3, 5}, Value: ""},
 		{Type: asn1.ObjectIdentifier{1, 2, 3, 6}, Value: 42},
+		// The prefix is 20 characters: these selectors are 255 and 256 characters.
+		{Type: asn1.ObjectIdentifier{1, 2, 3, 7}, Value: strings.Repeat("a", 235)},
+		{Type: asn1.ObjectIdentifier{1, 2, 3, 7}, Value: strings.Repeat("a", 236)},
+		{Type: asn1.ObjectIdentifier{1, 2, 3, 8}, Value: strings.Repeat("é", 235)},
+		{Type: asn1.ObjectIdentifier{1, 2, 3, 8}, Value: strings.Repeat("é", 236)},
 	}
 	devIDECC.Certificate.RawSubject = nil
 	certDER, err := x509.CreateCertificate(rand.Reader, devIDECC.Certificate,
@@ -611,6 +617,14 @@ func TestAttestSucceeds(t *testing.T) {
 				{
 					Type:  "tpm_devid",
 					Value: "subject:oid:1.2.3.4: Rack:B ",
+				},
+				{
+					Type:  "tpm_devid",
+					Value: "subject:oid:1.2.3.7:" + strings.Repeat("a", 235),
+				},
+				{
+					Type:  "tpm_devid",
+					Value: "subject:oid:1.2.3.8:" + strings.Repeat("é", 235),
 				},
 				{
 					Type:  "tpm_devid",

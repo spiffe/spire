@@ -75,6 +75,8 @@ certificate's subject, alongside the existing selectors. String values are
 preserved exactly, including case and whitespace. Empty strings and non-string
 values are ignored. Repeated attributes with distinct values produce separate
 selectors; identical OID/value pairs produce only one.
+OID selector values exceeding 255 characters (including `subject:oid:<OID>:`)
+are skipped with a warning.
 
 The trusted DevID issuer must validate subject attribute claims before
 signing. Certificate validation and TPM proofs do not independently establish
