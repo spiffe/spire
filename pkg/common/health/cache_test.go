@@ -373,7 +373,6 @@ func TestHealthFailsAndRecover(t *testing.T) {
 }
 
 func TestOnlyFailingCheckIsRetriedSooner(t *testing.T) {
-	const testTimeout = 3 * time.Second
 	log, _ := test.NewNullLogger()
 	waitFor := make(chan struct{}, 1)
 	clockMock := clock.NewMock(t)
@@ -389,34 +388,34 @@ func TestOnlyFailingCheckIsRetriedSooner(t *testing.T) {
 	require.NoError(t, c.start(context.Background()))
 
 	<-waitFor
-	require.Equal(t, 10*time.Second, waitForAfter(t, clockMock, testTimeout))
+	require.Equal(t, 10*time.Second, waitForAfter(t, clockMock))
 
 	flaky.setState(State{})
 	clockMock.Add(10 * time.Second)
 	<-waitFor
 	require.Equal(t, 2, healthy.count())
 	require.Equal(t, 2, flaky.count())
-	require.Equal(t, readyCheckFailureInterval, waitForAfter(t, clockMock, testTimeout))
+	require.Equal(t, readyCheckFailureInterval, waitForAfter(t, clockMock))
 
 	clockMock.Add(readyCheckFailureInterval)
 	<-waitFor
 	require.Equal(t, 2, healthy.count())
 	require.Equal(t, 3, flaky.count())
-	require.Equal(t, readyCheckFailureInterval, waitForAfter(t, clockMock, testTimeout))
+	require.Equal(t, readyCheckFailureInterval, waitForAfter(t, clockMock))
 
 	flaky.setState(State{Live: true, Ready: true})
 	clockMock.Add(readyCheckFailureInterval)
 	<-waitFor
 	require.Equal(t, 2, healthy.count())
 	require.Equal(t, 4, flaky.count())
-	require.Equal(t, 8*time.Second, waitForAfter(t, clockMock, testTimeout))
+	require.Equal(t, 8*time.Second, waitForAfter(t, clockMock))
 }
 
-func waitForAfter(t *testing.T, clockMock *clock.Mock, timeout time.Duration) time.Duration {
+func waitForAfter(t *testing.T, clockMock *clock.Mock) time.Duration {
 	select {
 	case d := <-clockMock.WaitForAfterCh():
 		return d
-	case <-time.After(timeout):
+	case <-time.After(3 * time.Second):
 		t.Fatal("timed out waiting for worker to call After")
 		return 0
 	}
