@@ -94,7 +94,7 @@ func newKubeletClient(config kubeletTransportConfig, token string) (*kubeletClie
 	}, nil
 }
 
-func (c *kubeletClient) getPodList(ctx context.Context) ([]byte, error) {
+func (c *kubeletClient) getPodList(ctx context.Context) (io.ReadCloser, error) {
 	url := c.endpoint
 	url.Path = "/pods"
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url.String(), nil)
@@ -113,17 +113,12 @@ func (c *kubeletClient) getPodList(ctx context.Context) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("unable to perform request: %w", err)
 	}
-	defer resp.Body.Close()
-
 	if resp.StatusCode != http.StatusOK {
+		defer resp.Body.Close()
 		return nil, fmt.Errorf("unexpected status code on pods response: %d %s", resp.StatusCode, tryRead(resp.Body))
 	}
 
-	out, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("unable to read pods response: %w", err)
-	}
-	return out, nil
+	return resp.Body, nil
 }
 
 func tryRead(r io.Reader) string {
