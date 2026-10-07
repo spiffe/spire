@@ -41,6 +41,7 @@ func newCache(log logrus.FieldLogger, clock clock.Clock) *cache {
 		checkerSubsystems: make(map[string]*checkerSubsystem),
 		log:               log,
 		clk:               clock,
+		checkInterval:     readyCheckInterval,
 	}
 }
 
@@ -49,6 +50,8 @@ type cache struct {
 
 	mtx sync.RWMutex
 	clk clock.Clock
+
+	checkInterval time.Duration
 
 	log   logrus.FieldLogger
 	hooks struct {
@@ -111,8 +114,12 @@ func (c *cache) start(ctx context.Context) error {
 func (c *cache) startRunner(ctx context.Context) {
 	c.log.Debug("Initializing health checkers")
 	seenStartupError := make(map[string]string)
-	checkFunc := func() {
+	checkFunc := func(onlyDue bool) {
+		now := c.clk.Now()
 		for name, checker := range c.getCheckerSubsystems() {
+			if onlyDue && now.Before(c.nextCheckTime(checker.state)) {
+				continue
+			}
 			state, err := verifyStatus(checker.checkable)
 
 			checkState := checkState{
@@ -147,7 +154,7 @@ func (c *cache) startRunner(ctx context.Context) {
 	// Run health check in a tighter loop until we get an initial ready + live state
 	go func() {
 		for {
-			checkFunc()
+			checkFunc(false)
 
 			allReady := true
 			allLive := true
@@ -186,26 +193,35 @@ func (c *cache) startRunner(ctx context.Context) {
 		<-startSteadyStateHealthCheckCh
 		for {
 			select {
-			case <-c.clk.After(c.nextCheckInterval()):
+			case <-c.clk.After(c.nextCheckDelay()):
 			case <-ctx.Done():
 				return
 			}
 
-			checkFunc()
+			checkFunc(true)
 		}
 	}()
 }
 
-// nextCheckInterval returns a shorter interval while any check is failing so
-// that a recovery is detected quickly.
-func (c *cache) nextCheckInterval() time.Duration {
+// nextCheckTime returns when a check is due again. A failing check is retried
+// sooner so that its recovery is detected quickly, without checking the
+// healthy ones more often.
+func (c *cache) nextCheckTime(state checkState) time.Time {
+	if state.err != nil {
+		return state.checkTime.Add(readyCheckFailureInterval)
+	}
+	return state.checkTime.Add(c.checkInterval)
+}
+
+// nextCheckDelay returns how long to wait until the next check is due.
+func (c *cache) nextCheckDelay() time.Duration {
+	var next time.Time
 	for _, status := range c.getStatuses() {
-		if status.err != nil {
-			return readyCheckFailureInterval
+		if checkTime := c.nextCheckTime(status); next.IsZero() || checkTime.Before(next) {
+			next = checkTime
 		}
 	}
-
-	return readyCheckInterval
+	return max(next.Sub(c.clk.Now()), 0)
 }
 
 func (c *cache) setStatus(name string, prevState checkState, state checkState) {

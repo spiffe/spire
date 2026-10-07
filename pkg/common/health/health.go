@@ -15,7 +15,7 @@ import (
 
 const (
 	readyCheckInitialInterval = time.Second
-	readyCheckInterval        = 5 * time.Second
+	readyCheckInterval        = time.Minute
 	readyCheckFailureInterval = time.Second
 )
 
@@ -68,6 +68,9 @@ func NewChecker(config Config, log logrus.FieldLogger) ServableChecker {
 		log:    l,
 
 		cache: newCache(l, clock.New()),
+	}
+	if config.CheckInterval > 0 {
+		c.cache.checkInterval = config.CheckInterval
 	}
 
 	// Start HTTP server if ListenerEnabled is true

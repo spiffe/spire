@@ -3,6 +3,7 @@ package health
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 	"time"
 
@@ -295,7 +296,7 @@ func TestHealthFailsAndRecover(t *testing.T) {
 					LiveDetails:  healthDetails{},
 					ReadyDetails: healthDetails{},
 				},
-				checkTime: clockMock.Now(),
+				checkTime: previousFailureDate,
 			},
 		}
 
@@ -348,7 +349,7 @@ func TestHealthFailsAndRecover(t *testing.T) {
 					LiveDetails:  healthDetails{},
 					ReadyDetails: healthDetails{},
 				},
-				checkTime: clockMock.Now(),
+				checkTime: clockMock.Now().Add(-2 * readyCheckFailureInterval),
 			},
 		}
 
@@ -371,45 +372,44 @@ func TestHealthFailsAndRecover(t *testing.T) {
 	})
 }
 
-func TestCheckIntervalShortensWhileFailing(t *testing.T) {
+func TestOnlyFailingCheckIsRetriedSooner(t *testing.T) {
 	const testTimeout = 3 * time.Second
 	log, _ := test.NewNullLogger()
 	waitFor := make(chan struct{}, 1)
 	clockMock := clock.NewMock(t)
 
 	c := newCache(log, clockMock)
+	c.checkInterval = 10 * time.Second
 	c.hooks.statusUpdated = waitFor
 
-	checker := &fakeCheckable{
-		state: State{
-			Live:  true,
-			Ready: true,
-		},
-	}
-
-	err := c.addCheck("foo", checker)
-	require.NoError(t, err)
-
-	err = c.start(context.Background())
-	require.NoError(t, err)
+	healthy := &countingCheckable{state: State{Live: true, Ready: true}}
+	flaky := &countingCheckable{state: State{Live: true, Ready: true}}
+	require.NoError(t, c.addCheck("healthy", healthy))
+	require.NoError(t, c.addCheck("flaky", flaky))
+	require.NoError(t, c.start(context.Background()))
 
 	<-waitFor
-	require.Equal(t, readyCheckInterval, waitForAfter(t, clockMock, testTimeout))
+	require.Equal(t, 10*time.Second, waitForAfter(t, clockMock, testTimeout))
 
-	checker.state = State{}
-
-	clockMock.Add(readyCheckInterval)
+	flaky.setState(State{})
+	clockMock.Add(10 * time.Second)
 	<-waitFor
+	require.Equal(t, 2, healthy.count())
+	require.Equal(t, 2, flaky.count())
 	require.Equal(t, readyCheckFailureInterval, waitForAfter(t, clockMock, testTimeout))
-
-	checker.state = State{
-		Live:  true,
-		Ready: true,
-	}
 
 	clockMock.Add(readyCheckFailureInterval)
 	<-waitFor
-	require.Equal(t, readyCheckInterval, waitForAfter(t, clockMock, testTimeout))
+	require.Equal(t, 2, healthy.count())
+	require.Equal(t, 3, flaky.count())
+	require.Equal(t, readyCheckFailureInterval, waitForAfter(t, clockMock, testTimeout))
+
+	flaky.setState(State{Live: true, Ready: true})
+	clockMock.Add(readyCheckFailureInterval)
+	<-waitFor
+	require.Equal(t, 2, healthy.count())
+	require.Equal(t, 4, flaky.count())
+	require.Equal(t, 8*time.Second, waitForAfter(t, clockMock, testTimeout))
 }
 
 func waitForAfter(t *testing.T, clockMock *clock.Mock, timeout time.Duration) time.Duration {
@@ -432,4 +432,29 @@ func (f *fakeCheckable) CheckHealth() State {
 
 type healthDetails struct {
 	Err string `json:"err,omitempty"`
+}
+
+type countingCheckable struct {
+	mtx   sync.Mutex
+	state State
+	calls int
+}
+
+func (c *countingCheckable) CheckHealth() State {
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
+	c.calls++
+	return c.state
+}
+
+func (c *countingCheckable) setState(state State) {
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
+	c.state = state
+}
+
+func (c *countingCheckable) count() int {
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
+	return c.calls
 }
