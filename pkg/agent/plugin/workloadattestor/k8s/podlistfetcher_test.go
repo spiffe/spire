@@ -9,6 +9,9 @@ import (
 	"fmt"
 	"io"
 	"math/big"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -891,6 +894,29 @@ func TestPodListFetcherParsePodList(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestPodListFetcherPreservesInitialReadError(t *testing.T) {
+	fetcher := podListFetcher{log: hclog.NewNullLogger()}
+	for _, readErr := range []error{context.Canceled, context.DeadlineExceeded, errors.New("connection reset")} {
+		pods, err := fetcher.parsePodList(iotest.ErrReader(readErr), true)
+		require.ErrorIs(t, err, readErr)
+		require.Nil(t, pods)
+	}
+}
+
+func TestPodListFetcherWrapsParseError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = io.WriteString(w, `{"items":`)
+	}))
+	t.Cleanup(server.Close)
+	endpoint, err := url.Parse(server.URL)
+	require.NoError(t, err)
+	fetcher := podListFetcher{log: hclog.NewNullLogger()}
+	pods, err := fetcher.fetchPodList(t.Context(), &kubeletClient{endpoint: *endpoint}, podListFetcherConfig{})
+	require.ErrorIs(t, err, io.EOF)
+	require.EqualError(t, err, "unable to parse kubelet response: EOF")
+	require.Nil(t, pods)
 }
 
 func TestPodListFetcherRejectsPartialResponse(t *testing.T) {

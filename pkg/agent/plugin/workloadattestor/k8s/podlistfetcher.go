@@ -348,12 +348,20 @@ func (f *podListFetcher) fetchPodList(ctx context.Context, client *kubeletClient
 		return nil, err
 	}
 	defer body.Close()
-	return f.parsePodList(body, config.excludeCompletedPods)
+	pods, err := f.parsePodList(body, config.excludeCompletedPods)
+	if err != nil {
+		return nil, fmt.Errorf("unable to parse kubelet response: %w", err)
+	}
+	return pods, nil
 }
 
 func (f *podListFetcher) parsePodList(r io.Reader, excludeCompletedPods bool) (map[string]*fastjson.Value, error) {
 	decoder := json.NewDecoder(r)
-	if token, err := decoder.Token(); err != nil || token != json.Delim('{') {
+	token, err := decoder.Token()
+	if err != nil {
+		return nil, err
+	}
+	if token != json.Delim('{') {
 		return nil, errors.New("invalid kubelet response: expected an object")
 	}
 	var result map[string]*fastjson.Value
@@ -387,7 +395,7 @@ func (f *podListFetcher) parsePodList(r io.Reader, excludeCompletedPods bool) (m
 			}
 			pod, err := parser.ParseBytes(raw)
 			if err != nil {
-				return nil, fmt.Errorf("unable to parse kubelet response: %w", err)
+				return nil, err
 			}
 			uid := string(pod.GetStringBytes("metadata", "uid"))
 			if uid == "" {
@@ -397,8 +405,8 @@ func (f *podListFetcher) parsePodList(r io.Reader, excludeCompletedPods bool) (m
 			if excludeCompletedPods && podIsUnattestable(pod) {
 				continue
 			}
-			// Copy only retained pods into independent storage. The scratch
-			// parser may have grown to fit a much larger discarded pod.
+			// The next ParseBytes call invalidates the scratch parser's values.
+			// Give cached pods independent storage, sized to their own JSON.
 			var retained fastjson.Parser
 			pod, err = retained.ParseBytes(raw)
 			if err != nil {
