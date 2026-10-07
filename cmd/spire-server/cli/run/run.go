@@ -739,6 +739,9 @@ func newServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig, ski
 		return nil, err
 	}
 	sc.Telemetry = c.Telemetry
+	if err := c.HealthChecks.ParseCheckInterval(); err != nil {
+		return nil, err
+	}
 	sc.HealthChecks = c.HealthChecks
 
 	if c.Server.PruneAttestedNodesExpiredFor != "" {

@@ -1002,6 +1002,25 @@ func TestNewAgentConfig(t *testing.T) {
 			},
 		},
 		{
+			msg: "health_checks check_interval is correctly parsed",
+			input: func(c *Config) {
+				c.HealthChecks.RawCheckInterval = "30s"
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Equal(t, 30*time.Second, c.HealthChecks.CheckInterval)
+			},
+		},
+		{
+			msg:         "invalid health_checks check_interval returns an error",
+			expectError: true,
+			input: func(c *Config) {
+				c.HealthChecks.RawCheckInterval = "b"
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
 			msg:         "invalid log_level returns an error",
 			expectError: true,
 			input: func(c *Config) {
