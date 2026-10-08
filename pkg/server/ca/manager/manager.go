@@ -214,6 +214,10 @@ func NewManager(ctx context.Context, c Config) (*Manager, error) {
 		m.nextWITKey = nextWITKey.(*witKeySlot)
 	}
 
+	if m.nextX509CA != nil && !m.nextX509CA.IsEmpty() {
+		m.setX509CARotateMaxTTLGauge(m.c.Clock.Now())
+	}
+
 	return m, nil
 }
 
@@ -317,6 +321,7 @@ func (m *Manager) PrepareX509CA(ctx context.Context) (err error) {
 			telemetry.PreparedChainExpiration: slot.notAfter,
 		}).Warn("Prepared X509 CA does not extend the current X509 CA lifetime")
 	}
+	m.setX509CARotateMaxTTLGauge(now)
 
 	if err := m.journal.AppendX509CA(ctx, slot.id, slot.issuedAt, slot.x509CA); err != nil {
 		log.WithError(err).Error("Unable to append X509 CA to journal")
@@ -753,12 +758,27 @@ func (m *Manager) activateX509CA(ctx context.Context) {
 	expiration := m.currentX509CA.NotAfter()
 	now := m.c.Clock.Now()
 	telemetry_server.SetX509CARotateGauge(m.c.Metrics, m.c.TrustDomain.Name(), expiration, now)
+	m.setX509CARotateMaxTTLGauge(now)
 	m.c.Log.WithFields(logrus.Fields{
 		telemetry.TrustDomainID: m.c.TrustDomain.IDString(),
 		telemetry.TTL:           expiration.Sub(now).Seconds(),
 	}).Debug("Successfully rotated X.509 CA")
 
 	m.c.CA.SetX509CA(m.currentX509CA.x509CA)
+}
+
+func (m *Manager) setX509CARotateMaxTTLGauge(now time.Time) {
+	var expiration time.Time
+	if m.currentX509CA != nil && !m.currentX509CA.IsEmpty() {
+		expiration = m.currentX509CA.NotAfter()
+	}
+	if m.nextX509CA != nil && !m.nextX509CA.IsEmpty() && m.nextX509CA.NotAfter().After(expiration) {
+		expiration = m.nextX509CA.NotAfter()
+	}
+	if expiration.IsZero() {
+		return
+	}
+	telemetry_server.SetX509CARotateMaxTTLGauge(m.c.Metrics, m.c.TrustDomain.Name(), expiration, now)
 }
 
 func (m *Manager) activateWITKey(ctx context.Context) {
