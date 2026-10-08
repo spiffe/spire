@@ -1,7 +1,6 @@
 package health
 
 import (
-	"errors"
 	"fmt"
 	"net"
 	"strings"
@@ -77,8 +76,8 @@ func (c *Config) ParseCheckInterval() error {
 	if err != nil {
 		return fmt.Errorf("could not parse check_interval: %w", err)
 	}
-	if interval <= 0 {
-		return errors.New("check_interval must be greater than zero")
+	if interval <= readyCheckFailureInterval {
+		return fmt.Errorf("check_interval must be longer than %s", readyCheckFailureInterval)
 	}
 	c.CheckInterval = interval
 	return nil

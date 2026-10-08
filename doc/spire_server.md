@@ -366,7 +366,7 @@ health_checks {
 }
 ```
 
-Each health check runs every `check_interval` (default `1m`) while it passes. A failing check is retried every second until it recovers; the other checks keep their own schedule.
+Each health check runs every `check_interval` (default `1m`, must be longer than `1s`) while it passes. A failing check is retried every second until it recovers, and its failure is logged once a minute; the other checks keep their own schedule.
 
 ## Command line options
 

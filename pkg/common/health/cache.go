@@ -114,10 +114,11 @@ func (c *cache) start(ctx context.Context) error {
 func (c *cache) startRunner(ctx context.Context) {
 	c.log.Debug("Initializing health checkers")
 	seenStartupError := make(map[string]string)
-	checkFunc := func(onlyDue bool) {
+	lastFailureLog := make(map[string]time.Time)
+	checkFunc := func() {
 		now := c.clk.Now()
 		for name, checker := range c.getCheckerSubsystems() {
-			if onlyDue && now.Before(c.nextCheckTime(checker.state)) {
+			if now.Before(c.nextCheckTime(checker.state)) {
 				continue
 			}
 			state, err := verifyStatus(checker.checkable)
@@ -128,9 +129,12 @@ func (c *cache) startRunner(ctx context.Context) {
 			}
 			if err != nil {
 				if state.Started == nil || *state.Started {
-					c.log.WithField("check", name).
-						WithError(err).
-						Error("Health check has failed")
+					if checker.state.err == nil || now.Sub(lastFailureLog[name]) >= failureLogInterval {
+						c.log.WithField("check", name).
+							WithError(err).
+							Error("Health check has failed")
+						lastFailureLog[name] = now
+					}
 				} else {
 					strErr := err.Error()
 					if val, ok := seenStartupError[name]; !ok || val != strErr {
@@ -150,55 +154,19 @@ func (c *cache) startRunner(ctx context.Context) {
 		}
 	}
 
-	startSteadyStateHealthCheckCh := make(chan struct{})
-	// Run health check in a tighter loop until we get an initial ready + live state
-	go func() {
-		for {
-			checkFunc(false)
-
-			allReady := true
-			allLive := true
-			for _, status := range c.getStatuses() {
-				if !status.details.Ready {
-					allReady = false
-					break
-				}
-
-				if !status.details.Live {
-					allLive = false
-					break
-				}
-			}
-
-			if allReady && allLive {
-				break
-			}
-
-			select {
-			case <-c.clk.After(readyCheckInitialInterval):
-			case <-ctx.Done():
-				return
-			}
-		}
-
-		startSteadyStateHealthCheckCh <- struct{}{}
-	}()
-
 	go func() {
 		defer func() {
 			c.log.Debug("Finishing health checker")
 		}()
 
-		// Wait until initial ready + live state is achieved, then periodically check health at a longer interval
-		<-startSteadyStateHealthCheckCh
 		for {
+			checkFunc()
+
 			select {
 			case <-c.clk.After(c.nextCheckDelay()):
 			case <-ctx.Done():
 				return
 			}
-
-			checkFunc(true)
 		}
 	}()
 }
