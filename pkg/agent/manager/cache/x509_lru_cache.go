@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto"
 	"crypto/x509"
+	"slices"
 	"sort"
 	"time"
 
@@ -28,6 +29,10 @@ func (s X509SVID) ExpiresAt() time.Time {
 		return time.Time{}
 	}
 	return s.Chain[0].NotAfter
+}
+
+func (s X509SVID) InvalidatedBy(existing, updated *common.RegistrationEntry) bool {
+	return existing.SpiffeId != updated.SpiffeId || !slices.Equal(existing.DnsNames, updated.DnsNames)
 }
 
 // X509Identity holds the data for a single X509 workload identity.
