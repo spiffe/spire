@@ -1,0 +1,15 @@
+#!/bin/bash
+
+source ./_common.sh
+
+# Bring the preferred (priority 0) server down. The xDS priority policy should
+# fail the agent's connection over to spire-server-2 (priority 1). A fetch with
+# a fresh audience forces a live RPC, which must now be served by server-2.
+want=$(server-jwt-kid spire-server-2)
+docker-stop spire-server-1
+
+kid=$(fetch-jwt-kid "$(unique-audience)")
+if [ "${kid}" != "${want}" ]; then
+    fail-now "expected kid ${want} (spire-server-2), got ${kid}"
+fi
+log-info "spire-server-1 down: JWT-SVID issued by spire-server-2 (kid=${kid})"

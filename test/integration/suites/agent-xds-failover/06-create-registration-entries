@@ -1,0 +1,11 @@
+#!/bin/bash
+
+# A single workload entry for uid 1001. The entry lives in the shared datastore,
+# so it is visible to both servers.
+docker compose exec -T spire-server-1 \
+    /opt/spire/bin/spire-server entry create \
+    -parentID "spiffe://domain.test/spire/agent/x509pop/$(fingerprint conf/agent/agent.crt.pem)" \
+    -spiffeID "spiffe://domain.test/workload" \
+    -selector "unix:uid:1001"
+
+check-synced-entry "spire-agent" "spiffe://domain.test/workload"

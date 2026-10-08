@@ -284,6 +284,15 @@ type experimentalConfig struct {
 	// applied between failed synchronizations with the server.
 	SyncRetryBackoff *syncRetryBackoffConfig `hcl:"sync_retry_backoff"`
 
+	// UseXDS resolves the SPIRE server through xDS instead of DNS.
+	// server_address becomes an xDS listener name (server_port must be unset) so
+	// an xDS management server can drive locality-aware routing and
+	// priority-based failover across the servers in the trust domain. The
+	// management server endpoint and this agent's node locality are configured
+	// out-of-band via the gRPC xDS bootstrap (GRPC_XDS_BOOTSTRAP /
+	// GRPC_XDS_BOOTSTRAP_CONFIG).
+	UseXDS bool `hcl:"use_xds"`
+
 	RateLimit workloadAPIRateLimitConfig `hcl:"ratelimit"`
 
 	// Broker holds the configuration for the SPIFFE Broker API endpoint
@@ -415,8 +424,17 @@ func (c *agentConfig) validate() error {
 		return errors.New("server_address must be configured")
 	}
 
-	if c.ServerPort == 0 {
+	if c.ServerPort == 0 && !c.Experimental.UseXDS {
 		return errors.New("server_port must be configured")
+	}
+
+	if c.ServerPort != 0 && c.Experimental.UseXDS {
+		return errors.New("server_port cannot be used with use_xds; the port comes from the xDS server")
+	}
+
+	// xDS delivers its own service config, which overrides the default one.
+	if c.Experimental.UseXDS && c.Experimental.ServerLoadBalancingConfig != "" {
+		return errors.New("server_load_balancing_config cannot be used with use_xds")
 	}
 
 	if c.TrustDomain == "" {
@@ -677,8 +695,20 @@ func newAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig, skip
 		}
 	}
 
-	serverHostPort := net.JoinHostPort(c.Agent.ServerAddress, strconv.Itoa(c.Agent.ServerPort))
-	ac.ServerAddress = fmt.Sprintf("dns:///%s", serverHostPort)
+	if c.Agent.Experimental.UseXDS {
+		if err := client.ValidateXDSBootstrap(); err != nil {
+			return nil, fmt.Errorf("invalid xDS configuration: %w", err)
+		}
+		// With xDS the endpoint set (and port) is delivered by the management
+		// server via EDS, so server_address is used as the xDS listener name
+		// rather than a host:port.
+		ac.ServerAddress, err = client.XDSTarget(c.Agent.ServerAddress)
+		if err != nil {
+			return nil, fmt.Errorf("invalid server_address: %w", err)
+		}
+	} else {
+		ac.ServerAddress = fmt.Sprintf("dns:///%s", net.JoinHostPort(c.Agent.ServerAddress, strconv.Itoa(c.Agent.ServerPort)))
+	}
 
 	if err := client.ValidateLoadBalancingConfig(c.Agent.Experimental.ServerLoadBalancingConfig); err != nil {
 		return nil, fmt.Errorf("invalid server_load_balancing_config: %w", err)
@@ -710,6 +740,10 @@ func newAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig, skip
 
 	if reopenableFile != nil {
 		ac.LogReopener = log.ReopenOnSignal(logger, reopenableFile)
+	}
+
+	if c.Agent.Experimental.UseXDS {
+		logger.Warn("use_xds is experimental and may change or be removed in a future release")
 	}
 
 	if c.Agent.Experimental.JWTSVIDCacheHitTimeout != "" {

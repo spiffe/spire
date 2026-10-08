@@ -1,0 +1,18 @@
+#!/bin/bash
+
+docker-up postgres
+
+# Wait for postgres to accept connections before starting the servers.
+MAXCHECKS=40
+CHECKINTERVAL=3
+READY=
+for ((i=1;i<=MAXCHECKS;i++)); do
+    log-info "waiting for postgres ($i of $MAXCHECKS max)..."
+    if docker compose exec -T postgres pg_isready -h localhost -U postgres >/dev/null 2>&1; then
+        READY=1
+        break
+    fi
+    sleep "${CHECKINTERVAL}"
+done
+
+[ -n "${READY}" ] || fail-now "timed out waiting for postgres to be ready"

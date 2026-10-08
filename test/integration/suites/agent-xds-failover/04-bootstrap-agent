@@ -1,0 +1,7 @@
+#!/bin/bash
+
+log-debug "bootstrapping agent..."
+
+# Both servers are up, so the shared bundle already holds both of their CAs.
+docker compose exec -T spire-server-1 \
+    /opt/spire/bin/spire-server bundle show > conf/agent/bootstrap.crt
