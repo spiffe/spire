@@ -10,10 +10,9 @@ transparently fails over to a secondary when the primary is unavailable.
 - `postgres` — a single shared datastore used by both servers, so registration
   entries and the aggregated trust bundle (both servers' JWT signing keys) are
   shared.
-- `spire-server-1`, `spire-server-2` — two SPIRE servers with identical config
-  (apart from hostname), both using the shared datastore and a shared disk
-  upstream root CA, so their SVIDs chain to the same root and either can serve
-  the agent.
+- `spire-server-1`, `spire-server-2` — two SPIRE servers sharing the same config
+  directory and datastore. Each server's CA is in the shared bundle, so either
+  can serve the agent.
 - `xds-control-plane` — a minimal `go-control-plane` management server (built
   from `test/integration/setup/xdscontrolplane`) serving an ADS snapshot that
   places server-1 at EDS priority 0 and server-2 at priority 1. It re-resolves

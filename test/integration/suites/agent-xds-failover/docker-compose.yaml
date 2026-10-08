@@ -7,25 +7,21 @@ services:
     tmpfs:
       - /var/lib/postgresql
 
-  # Two SPIRE servers backed by the shared postgres datastore and a shared
-  # disk upstream root CA. Configs are identical apart from the hostname, so
-  # both mint SVIDs that chain to the same root and share registration entries
-  # and the aggregated trust bundle.
+  # Two SPIRE servers sharing config and the postgres datastore, so they share
+  # registration entries and the aggregated trust bundle.
   spire-server-1:
     image: spire-server:latest-local
     hostname: spire-server-1
     depends_on: ["postgres"]
     volumes:
-      - ./conf/server1:/opt/spire/conf/server
-      - ./conf/upstream:/opt/spire/conf/upstream
+      - ./conf/server:/opt/spire/conf/server
     command: ["-config", "/opt/spire/conf/server/server.conf"]
   spire-server-2:
     image: spire-server:latest-local
     hostname: spire-server-2
     depends_on: ["postgres"]
     volumes:
-      - ./conf/server2:/opt/spire/conf/server
-      - ./conf/upstream:/opt/spire/conf/upstream
+      - ./conf/server:/opt/spire/conf/server
     command: ["-config", "/opt/spire/conf/server/server.conf"]
 
   # Static xDS management server: prefer spire-server-1 (priority 0), fail over

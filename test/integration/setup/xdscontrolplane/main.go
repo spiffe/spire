@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"log"
 	"net"
-	"os"
 	"strconv"
 	"time"
 
@@ -61,6 +60,10 @@ const (
 	certFile = "/opt/xds/conf/xds.crt.pem"
 	keyFile  = "/opt/xds/conf/xds.key.pem"
 
+	// SPIRE server hostnames, in priority order.
+	primary   = "spire-server-1"
+	secondary = "spire-server-2"
+
 	resolveInterval = time.Second
 )
 
@@ -71,11 +74,6 @@ func main() {
 }
 
 func run() error {
-	// The two upstream SPIRE servers, in priority order. Overridable for
-	// flexibility, but the suite relies on the defaults.
-	primary := envOr("PRIMARY_SERVER", "spire-server-1")
-	secondary := envOr("SECONDARY_SERVER", "spire-server-2")
-
 	primaryIP, err := resolve(primary)
 	if err != nil {
 		return err
@@ -87,7 +85,7 @@ func run() error {
 
 	snapshotCache := cachev3.NewSnapshotCache(true, cachev3.IDHash{}, nil)
 	version := 1
-	if err := setSnapshot(snapshotCache, version, primary, primaryIP, secondary, secondaryIP); err != nil {
+	if err := setSnapshot(snapshotCache, version, primaryIP, secondaryIP); err != nil {
 		return err
 	}
 
@@ -100,7 +98,7 @@ func run() error {
 			if newPrimaryIP == primaryIP && newSecondaryIP == secondaryIP {
 				continue
 			}
-			if err := setSnapshot(snapshotCache, version+1, primary, newPrimaryIP, secondary, newSecondaryIP); err != nil {
+			if err := setSnapshot(snapshotCache, version+1, newPrimaryIP, newSecondaryIP); err != nil {
 				log.Printf("updating snapshot: %v", err)
 				continue
 			}
@@ -125,7 +123,7 @@ func run() error {
 	return grpcServer.Serve(lis)
 }
 
-func setSnapshot(snapshotCache cachev3.SnapshotCache, version int, primary, primaryIP, secondary, secondaryIP string) error {
+func setSnapshot(snapshotCache cachev3.SnapshotCache, version int, primaryIP, secondaryIP string) error {
 	snapshot, err := makeSnapshot(strconv.Itoa(version), primaryIP, secondaryIP)
 	if err != nil {
 		return fmt.Errorf("building snapshot: %w", err)
@@ -236,12 +234,11 @@ func adsConfigSource() *corev3.ConfigSource {
 func resolve(host string) (string, error) {
 	deadline := time.Now().Add(60 * time.Second)
 	for {
-		addrs, err := net.LookupHost(host)
-		if err == nil && len(addrs) > 0 {
-			return addrs[0], nil
+		if ip := lookup(host, ""); ip != "" {
+			return ip, nil
 		}
 		if time.Now().After(deadline) {
-			return "", fmt.Errorf("could not resolve %q: %w", host, err)
+			return "", fmt.Errorf("could not resolve %q", host)
 		}
 		time.Sleep(time.Second)
 	}
@@ -254,11 +251,4 @@ func lookup(host, fallback string) string {
 		return fallback
 	}
 	return addrs[0]
-}
-
-func envOr(key, fallback string) string {
-	if v := os.Getenv(key); v != "" {
-		return v
-	}
-	return fallback
 }
