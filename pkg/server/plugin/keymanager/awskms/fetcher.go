@@ -128,16 +128,21 @@ func (kf *keyFetcher) fetchKeyEntryDetails(ctx context.Context, alias types.Alia
 		return nil, status.Error(codes.Internal, "malformed get public key response")
 	}
 
-	return &keyEntry{
-		Arn:       *describeResp.KeyMetadata.Arn,
-		AliasName: *alias.AliasName,
+	entry := &keyEntry{
+		Arn:         *describeResp.KeyMetadata.Arn,
+		AliasName:   *alias.AliasName,
+		MultiRegion: aws.ToBool(describeResp.KeyMetadata.MultiRegion),
 		PublicKey: &keymanagerv1.PublicKey{
 			Id:          spireKeyID,
 			Type:        keyType,
 			PkixData:    publicKeyResp.PublicKey,
 			Fingerprint: makeFingerprint(publicKeyResp.PublicKey),
 		},
-	}, nil
+	}
+	if describeResp.KeyMetadata.MultiRegionConfiguration != nil {
+		entry.MultiRegionKeyType = describeResp.KeyMetadata.MultiRegionConfiguration.MultiRegionKeyType
+	}
+	return entry, nil
 }
 
 func (kf *keyFetcher) spireKeyIDFromAlias(aliasName string) (string, bool) {
@@ -277,16 +282,21 @@ func (kf *keyFetcher) fetchKeyEntryDetailsFromArn(ctx context.Context, keyArn st
 	trustDomain := sanitizeTrustDomain(kf.trustDomain)
 	aliasName := path.Join(aliasPrefix, trustDomain, kf.serverID, encodeKeyID(spireKeyID))
 
-	return &keyEntry{
-		Arn:       *describeResp.KeyMetadata.Arn,
-		AliasName: aliasName,
+	entry := &keyEntry{
+		Arn:         *describeResp.KeyMetadata.Arn,
+		AliasName:   aliasName,
+		MultiRegion: aws.ToBool(describeResp.KeyMetadata.MultiRegion),
 		PublicKey: &keymanagerv1.PublicKey{
 			Id:          spireKeyID,
 			Type:        keyType,
 			PkixData:    publicKeyResp.PublicKey,
 			Fingerprint: makeFingerprint(publicKeyResp.PublicKey),
 		},
-	}, nil
+	}
+	if describeResp.KeyMetadata.MultiRegionConfiguration != nil {
+		entry.MultiRegionKeyType = describeResp.KeyMetadata.MultiRegionConfiguration.MultiRegionKeyType
+	}
+	return entry, nil
 }
 
 // fetchKeyEntriesWithMigration performs tag-based discovery with automatic
