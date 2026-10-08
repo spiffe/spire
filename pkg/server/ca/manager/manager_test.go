@@ -911,6 +911,7 @@ func TestX509CARotationMetric(t *testing.T) {
 	expected := fakemetrics.New()
 	telemetry_server.IncrActivateX509CAManagerCounter(expected)
 	telemetry_server.SetX509CARotateGauge(expected, test.m.c.TrustDomain.Name(), test.currentX509CA().Certificate.NotAfter, test.clock.Now())
+	telemetry_server.SetX509CARotateMaxExpirationGauge(expected, test.m.c.TrustDomain.Name(), test.currentX509CA().Certificate.NotAfter)
 	telemetry_server.SetX509CARotateMaxTTLGauge(expected, test.m.c.TrustDomain.Name(), test.currentX509CA().Certificate.NotAfter, test.clock.Now())
 
 	require.Equal(t, expected.AllMetrics(), test.metrics.AllMetrics())
@@ -926,8 +927,11 @@ func TestX509CARotationMaxTTLGaugeIncludesPreparedCA(t *testing.T) {
 	require.NoError(t, test.m.PrepareX509CA(ctx))
 
 	expected := fakemetrics.New()
+	telemetry_server.SetX509CARotateMaxExpirationGauge(expected, test.m.c.TrustDomain.Name(), test.nextX509CA().NotAfter)
 	telemetry_server.SetX509CARotateMaxTTLGauge(expected, test.m.c.TrustDomain.Name(), test.nextX509CA().NotAfter, test.clock.Now())
-	require.Contains(t, test.metrics.AllMetrics(), expected.AllMetrics()[0])
+	for _, metric := range expected.AllMetrics() {
+		require.Contains(t, test.metrics.AllMetrics(), metric)
+	}
 }
 
 func TestJWTKeyRotation(t *testing.T) {

@@ -778,6 +778,7 @@ func (m *Manager) setX509CARotateMaxTTLGauge(now time.Time) {
 	if expiration.IsZero() {
 		return
 	}
+	telemetry_server.SetX509CARotateMaxExpirationGauge(m.c.Metrics, m.c.TrustDomain.Name(), expiration)
 	telemetry_server.SetX509CARotateMaxTTLGauge(m.c.Metrics, m.c.TrustDomain.Name(), expiration, now)
 }
 

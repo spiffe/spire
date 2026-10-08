@@ -634,6 +634,8 @@ const (
 
 	MaxTTL = "max_ttl"
 
+	MaxExpiration = "max_expiration"
+
 	// X509 SVID TTL functionality related to a time-to-live field for X509-SVIDs; should be used
 	// with other tags to add clarity
 	X509SVIDTTL = "x509_svid_ttl"

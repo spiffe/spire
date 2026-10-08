@@ -63,6 +63,15 @@ func SetX509CARotateMaxTTLGauge(m telemetry.Metrics, trustDomain string, expirat
 		})
 }
 
+func SetX509CARotateMaxExpirationGauge(m telemetry.Metrics, trustDomain string, expiration time.Time) {
+	m.SetPrecisionGaugeWithLabels(
+		[]string{telemetry.Manager, telemetry.X509CA, telemetry.Rotate, telemetry.MaxExpiration},
+		float64(expiration.Unix()),
+		[]telemetry.Label{
+			{Name: telemetry.TrustDomainID, Value: trustDomain},
+		})
+}
+
 // End Gauge
 
 // Counters (literal increments, not call counters)
