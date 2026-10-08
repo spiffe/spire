@@ -581,6 +581,59 @@ func TestUpstreamProcessTaintedAuthorityBackoff(t *testing.T) {
 	spiretest.AssertProtoListEqual(t, expectRootCas, bundle.RootCas)
 }
 
+func TestProcessBundleUpdatesContinuesAfterTaintFailure(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+
+	test := setupTest(t)
+
+	notifier, notifyCh := fakenotifier.NotifyBundleUpdatedWaiter(t)
+	test.setNotifier(notifier)
+	test.initAndActivateSelfSignedManager(ctx)
+	test.m.dropBundleUpdated()
+	test.m.triggerBackOffCh = make(chan error, 1)
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		test.m.ProcessBundleUpdates(ctx)
+	}()
+
+	// Without an upstream authority, processing tainted authorities always fails.
+	test.m.notifyUpstreamAuthoritiesTainted([]*x509.Certificate{test.currentX509CA().Certificate})
+	gaveUp := func() bool {
+		for _, entry := range test.logHook.AllEntries() {
+			if entry.Message == "Failed to force intermediate bundle rotation" {
+				return true
+			}
+		}
+		return false
+	}
+
+	// Advance past the max elapsed time until processing gives up.
+	for !gaveUp() {
+		select {
+		case <-test.m.triggerBackOffCh:
+			test.clock.WaitForAfter(time.Second, "waiting for the retry to wait for next duration")
+			test.clock.Add(taintBackoffMaxElapsedTime)
+		case <-time.After(10 * time.Millisecond):
+		case <-ctx.Done():
+			require.Fail(t, "deadline reached")
+		}
+	}
+
+	// Bundle updates are still processed.
+	test.m.bundleUpdated()
+	select {
+	case <-notifyCh:
+	case <-ctx.Done():
+		require.Fail(t, "deadline reached")
+	}
+
+	cancel()
+	<-done
+}
+
 func TestGetCurrentX509CASlotUpstreamSigned(t *testing.T) {
 	ctx := context.Background()
 
