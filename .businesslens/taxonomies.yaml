@@ -1,0 +1,21 @@
+scenarioKinds:
+  - id: primary
+    name: Primary
+    description: The main successful path of a Capability.
+    colorSlot: 1
+  - id: alternative
+    name: Alternative
+    description: Another successful way through the same Capability.
+    colorSlot: 2
+  - id: validation
+    name: Validation
+    description: A request the Product refuses because of who asks or what is asked.
+    colorSlot: 3
+  - id: edge
+    name: Edge
+    description: A conflict, an unusual state, or an unavailable dependency the Product distinguishes.
+    colorSlot: 4
+  - id: unattended
+    name: Unattended
+    description: Behavior the Product runs on its own schedule, without an Actor.
+    colorSlot: 5
