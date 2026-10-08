@@ -17,7 +17,7 @@ import (
 // needs to do its job.
 type apiClient interface {
 	GetVirtualMachine(ctx context.Context, vmId string, subscriptionId *string) (*VirtualMachine, error)
-	GetVMSSInstance(ctx context.Context, vmId, subscriptionID, ssName string) (*VirtualMachine, error)
+	GetVMSSInstance(ctx context.Context, vmId, subscriptionID, ssName string, resourceGroup *string) (*VirtualMachine, error)
 }
 
 // VirtualMachine is a subset of the fields returned by the Resource Graph API
@@ -28,6 +28,7 @@ type VirtualMachine struct {
 	Tags          map[string]any      `json:"tags"`
 	VMID          string              `json:"vmId"`
 	ResourceGroup string              `json:"resourceGroup"`
+	VMSSName      string              `json:"vmssName"`
 	Interfaces    []*NetworkInterface `json:"interfaces"`
 }
 type NetworkInterface struct {
@@ -83,7 +84,9 @@ func (c *azureClient) GetVirtualMachine(ctx context.Context, vmId string, subscr
 	resources 
 	| where type =~ 'microsoft.compute/virtualmachines'
 	| where properties.vmId == '%s'
-	| project id, name, location, tags, vmId = properties.vmId, networkProfile = properties.networkProfile, resourceGroup`, vmId)
+	| extend vmssId = tostring(properties.virtualMachineScaleSet.id)
+	| extend vmssName = iif(isempty(vmssId), "", extract(@"/virtualMachineScaleSets/([^/]+)", 1, vmssId))
+	| project id, name, location, tags, vmId = properties.vmId, vmssName, networkProfile = properties.networkProfile, resourceGroup`, vmId)
 	options := &armresourcegraph.QueryRequestOptions{
 		ResultFormat: new(armresourcegraph.ResultFormatObjectArray),
 	}
@@ -109,8 +112,8 @@ func (c *azureClient) GetVirtualMachine(ctx context.Context, vmId string, subscr
 	return vm, nil
 }
 
-func (c *azureClient) GetVMSSInstance(ctx context.Context, vmId, subscriptionID, ssName string) (*VirtualMachine, error) {
-	info, err := c.getVMSSInfo(ctx, []*string{&subscriptionID}, ssName)
+func (c *azureClient) GetVMSSInstance(ctx context.Context, vmId, subscriptionID, ssName string, resourceGroup *string) (*VirtualMachine, error) {
+	info, err := c.getVMSSInfo(ctx, []*string{&subscriptionID}, ssName, resourceGroup)
 	if err != nil {
 		return nil, err
 	}
@@ -149,16 +152,26 @@ func (c *azureClient) GetVMSSInstance(ctx context.Context, vmId, subscriptionID,
 	return nil, status.Errorf(codes.Internal, "VMSS instance %q not found", vmId)
 }
 
-func (c *azureClient) getVMSSInfo(ctx context.Context, subscriptionIDs []*string, name string) (*VMSSInfo, error) {
+func (c *azureClient) getVMSSInfo(ctx context.Context, subscriptionIDs []*string, name string, resourceGroup *string) (*VMSSInfo, error) {
 	if err := validateVMSSName(name); err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid VMSS name: %v", err)
+	}
+	if resourceGroup != nil && *resourceGroup != "" {
+		if err := validateResourceGroupName(*resourceGroup); err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "invalid resource group name: %v", err)
+		}
 	}
 
 	query := fmt.Sprintf(`
 	resources 
 	| where type =~ 'microsoft.compute/virtualmachinescalesets'
-	| where name == '%s'
-	| project id, name, location, resourceGroup, subscriptionId`, name)
+	| where name == '%s'`, name)
+	if resourceGroup != nil && *resourceGroup != "" {
+		query += fmt.Sprintf(`
+	| where resourceGroup =~ '%s'`, *resourceGroup)
+	}
+	query += `
+	| project id, name, location, resourceGroup, subscriptionId`
 	options := &armresourcegraph.QueryRequestOptions{
 		ResultFormat: new(armresourcegraph.ResultFormatObjectArray),
 	}
