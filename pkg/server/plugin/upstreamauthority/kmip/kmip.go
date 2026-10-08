@@ -7,9 +7,12 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/pem"
 	"fmt"
+	"net"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
@@ -21,6 +24,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/coretypes/x509certificate"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/pluginconf"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -31,6 +35,9 @@ import (
 func init() {
 	ovh.RegisterOperationPayload[CertifyRequestPayload, CertifyResponsePayload](ovh.OperationCertify)
 }
+
+// kmipRequestTimeout bounds the full set of KMIP calls made to mint one CA.
+const kmipRequestTimeout = 30 * time.Second
 
 const pluginName = "kmip"
 
@@ -64,9 +71,8 @@ type Config struct {
 	// KMIP ID Placeholder mechanism for Certify.
 	CAKeyUID string `hcl:"ca_key_uid"`
 	// CACertUID is the KMIP UniqueIdentifier of the root CA certificate object.
-	// Used to populate the upstream X.509 root in MintX509CAAndSubscribe responses.
-	// If empty, the plugin attempts to auto-discover it via the CertificateLink on the
-	// signed object; if discovery fails, the signed cert is used as a self-anchored root.
+	// It is the trust anchor returned as the upstream X.509 root and is pinned by
+	// the operator; it is never discovered from the KMIP server.
 	CACertUID string `hcl:"ca_cert_uid"`
 }
 
@@ -93,7 +99,7 @@ func (p *Plugin) SetLogger(log hclog.Logger) {
 }
 
 // Configure parses HCL configuration and dials the KMIP server.
-func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
+func (p *Plugin) Configure(_ context.Context, req *configv1.ConfigureRequest) (*configv1.ConfigureResponse, error) {
 	cfg, _, err := pluginconf.Build(req, buildConfig)
 	if err != nil {
 		return nil, err
@@ -108,16 +114,34 @@ func (p *Plugin) Configure(ctx context.Context, req *configv1.ConfigureRequest) 
 		return nil, status.Errorf(codes.InvalidArgument, "failed to connect to KMIP server: %v", err)
 	}
 
-	// If ca_cert_uid is not configured, attempt to auto-discover it after the first
-	// successful Certify call (done lazily in MintX509CAAndSubscribe).
 	p.mu.Lock()
-	defer p.mu.Unlock()
+	previous := p.client
 	p.client = client
 	p.caKeyUID = cfg.CAKeyUID
 	p.caCertUID = cfg.CACertUID
+	p.mu.Unlock()
 
-	p.logger.Info("KMIP UpstreamAuthority configured", "ca_key_uid", p.caKeyUID, "ca_cert_uid", p.caCertUID)
+	if previous != nil {
+		if err := previous.Close(); err != nil {
+			p.logger.Warn("Failed to close previous KMIP client", telemetry.Error, err)
+		}
+	}
+
+	p.logger.Info("KMIP UpstreamAuthority configured", telemetry.KeyID, cfg.CAKeyUID)
 	return &configv1.ConfigureResponse{}, nil
+}
+
+// Close releases the connection to the KMIP server.
+func (p *Plugin) Close() error {
+	p.mu.Lock()
+	client := p.client
+	p.client = nil
+	p.mu.Unlock()
+
+	if client == nil {
+		return nil
+	}
+	return client.Close()
 }
 
 // Validate validates the plugin configuration without applying it.
@@ -127,8 +151,10 @@ func (p *Plugin) Validate(_ context.Context, req *configv1.ValidateRequest) (*co
 }
 
 // MintX509CAAndSubscribe signs SPIRE's intermediate CA CSR via KMIP Certify.
-// It sends one response on the stream (signed CA chain + upstream root), then
-// keeps the stream open until the context is cancelled.
+// It sends one response on the stream (signed CA certificate + the configured
+// upstream root), then keeps the stream open until the context is cancelled.
+// The upstream root is always the operator-configured ca_cert_uid; it is never
+// derived from attributes controlled by the KMIP server.
 func (p *Plugin) MintX509CAAndSubscribe(req *upstreamauthorityv1.MintX509CARequest, stream upstreamauthorityv1.UpstreamAuthority_MintX509CAAndSubscribeServer) error {
 	p.mu.RLock()
 	client := p.client
@@ -145,63 +171,27 @@ func (p *Plugin) MintX509CAAndSubscribe(req *upstreamauthorityv1.MintX509CAReque
 		return status.Errorf(codes.InvalidArgument, "failed to parse CSR: %v", err)
 	}
 
-	certifyResp, err := certify(stream.Context(), client, req.Csr, caKeyUID)
+	ctx, cancel := context.WithTimeout(stream.Context(), kmipRequestTimeout)
+	defer cancel()
+
+	certifyResp, err := certify(ctx, client, req.Csr, caKeyUID)
 	if err != nil {
 		return status.Errorf(codes.Internal, "KMIP Certify failed: %v", err)
 	}
 
-	// Retrieve the signed certificate from the KMIP server.
-	certBytes, err := getCertificateBytes(stream.Context(), client, certifyResp.UniqueIdentifier)
+	signedCert, err := fetchCertificate(ctx, client, certifyResp.UniqueIdentifier)
 	if err != nil {
 		return status.Errorf(codes.Internal, "failed to retrieve signed certificate: %v", err)
 	}
+	// Vendor-specific extension handling means a server may silently issue a
+	// non-CA certificate; refuse it here with a clear message.
+	if !signedCert.IsCA || signedCert.KeyUsage&x509.KeyUsageCertSign == 0 {
+		return status.Error(codes.Internal, "KMIP server issued a certificate that is not a CA (basicConstraints CA:TRUE and keyCertSign are required)")
+	}
 
-	signedCert, err := parseCertBytes(certBytes)
+	rootCert, err := fetchCertificate(ctx, client, caCertUID)
 	if err != nil {
-		return status.Errorf(codes.Internal, "failed to parse signed certificate: %v", err)
-	}
-
-	// Build the upstream X.509 root.
-	var upstreamRoots []*x509.Certificate
-
-	if caCertUID == "" {
-		// Attempt to discover the CA root certificate UID.
-		//
-		// Per the KMIP Certify operation semantics, the server sets the
-		// CertificateLink on the *public key* object that was certified, not
-		// on the resulting certificate itself (see the KMIP spec: "For the
-		// public key, the server SHALL create a Link attribute of Link Type
-		// Certificate pointing to the generated certificate"). Since
-		// caKeyUID identifies the CA *private* key, first follow its
-		// PublicKeyLink to reach the paired public key, then read the
-		// CertificateLink from there to find the self-signed root cert that
-		// was generated when the CA key pair was provisioned.
-		discovered, discoverErr := discoverCACertUID(stream.Context(), client, caKeyUID)
-		if discoverErr == nil {
-			caCertUID = discovered
-			p.logger.Info("Auto-discovered CA certificate UID", "ca_cert_uid", caCertUID)
-			// Cache for future calls.
-			p.mu.Lock()
-			p.caCertUID = caCertUID
-			p.mu.Unlock()
-		} else {
-			p.logger.Warn("CA cert UID not configured and auto-discovery failed; using signed cert as self-anchored root",
-				"err", discoverErr)
-		}
-	}
-
-	if caCertUID != "" {
-		caBytes, err := getCertificateBytes(stream.Context(), client, caCertUID)
-		if err != nil {
-			return status.Errorf(codes.Internal, "failed to retrieve CA certificate %q: %v", caCertUID, err)
-		}
-		caCert, err := parseCertBytes(caBytes)
-		if err != nil {
-			return status.Errorf(codes.Internal, "failed to parse CA certificate %q: %v", caCertUID, err)
-		}
-		upstreamRoots = []*x509.Certificate{caCert}
-	} else {
-		upstreamRoots = []*x509.Certificate{signedCert}
+		return status.Errorf(codes.Internal, "failed to retrieve CA certificate %q: %v", caCertUID, err)
 	}
 
 	x509CAChain, err := x509certificate.ToPluginFromCertificates([]*x509.Certificate{signedCert})
@@ -209,7 +199,7 @@ func (p *Plugin) MintX509CAAndSubscribe(req *upstreamauthorityv1.MintX509CAReque
 		return status.Errorf(codes.Internal, "unable to form X.509 CA chain: %v", err)
 	}
 
-	upstreamX509Roots, err := x509certificate.ToPluginFromCertificates(upstreamRoots)
+	upstreamX509Roots, err := x509certificate.ToPluginFromCertificates([]*x509.Certificate{rootCert})
 	if err != nil {
 		return status.Errorf(codes.Internal, "unable to form upstream X.509 roots: %v", err)
 	}
@@ -358,57 +348,30 @@ func getCertificateBytes(ctx context.Context, c *kmipclient.Client, uid string) 
 	return cert.CertificateValue, nil
 }
 
-// discoverCACertUID discovers the UID of the self-signed root certificate
-// associated with the CA private key identified by caKeyUID.
-//
-// The KMIP Certify operation sets the CertificateLink on the *public key*
-// object being certified, not on the private key or the resulting
-// certificate. So this first follows the CA private key's PublicKeyLink to
-// its paired public key, then reads that public key's CertificateLink.
-// As a fallback (in case a server mirrors the CertificateLink onto the
-// private key directly), it also checks caKeyUID itself.
-func discoverCACertUID(ctx context.Context, c *kmipclient.Client, caKeyUID string) (string, error) {
-	if certUID, err := getLinkedUID(ctx, c, caKeyUID, ovh.LinkTypeCertificateLink); err == nil {
-		return certUID, nil
-	}
-
-	pubKeyUID, err := getLinkedUID(ctx, c, caKeyUID, ovh.LinkTypePublicKeyLink)
+// fetchCertificate fetches and parses a single Certificate object.
+func fetchCertificate(ctx context.Context, c *kmipclient.Client, uid string) (*x509.Certificate, error) {
+	b, err := getCertificateBytes(ctx, c, uid)
 	if err != nil {
-		return "", fmt.Errorf("resolve public key for CA key %s: %w", caKeyUID, err)
+		return nil, err
 	}
-	certUID, err := getLinkedUID(ctx, c, pubKeyUID, ovh.LinkTypeCertificateLink)
+	cert, err := parseCertBytes(b)
 	if err != nil {
-		return "", fmt.Errorf("resolve certificate for CA public key %s: %w", pubKeyUID, err)
+		return nil, fmt.Errorf("parse certificate %s: %w", uid, err)
 	}
-	return certUID, nil
+	return cert, nil
 }
 
-// getLinkedUID returns the LinkedObjectIdentifier for a Link of the given type
-// on the specified KMIP object.
-func getLinkedUID(ctx context.Context, c *kmipclient.Client, uid string, linkType ovh.LinkType) (string, error) {
-	attrResp, err := c.GetAttributes(uid, ovh.AttributeNameLink).ExecContext(ctx)
-	if err != nil {
-		return "", fmt.Errorf("GetAttributes(Link) for %s: %w", uid, err)
-	}
-	for _, attr := range attrResp.Attribute {
-		if attr.AttributeName != ovh.AttributeNameLink {
-			continue
-		}
-		link, ok := attr.AttributeValue.(ovh.Link)
-		if !ok {
-			continue
-		}
-		if link.LinkType == linkType {
-			return link.LinkedObjectIdentifier, nil
-		}
-	}
-	return "", fmt.Errorf("no Link of type %v found on object %s", linkType, uid)
-}
-
-// parseCertBytes parses a certificate from DER or PEM bytes.
+// parseCertBytes parses a single certificate from PEM or DER bytes. A PEM
+// payload must contain exactly one certificate.
 func parseCertBytes(b []byte) (*x509.Certificate, error) {
-	certs, err := pemutil.ParseCertificates(b)
-	if err == nil && len(certs) > 0 {
+	if block, _ := pem.Decode(b); block != nil {
+		certs, err := pemutil.ParseCertificates(b)
+		if err != nil {
+			return nil, err
+		}
+		if len(certs) != 1 {
+			return nil, fmt.Errorf("expected exactly one PEM certificate, got %d", len(certs))
+		}
 		return certs[0], nil
 	}
 	return x509.ParseCertificate(b)
@@ -429,6 +392,9 @@ func buildConfig(_ catalog.CoreConfig, hclText string, s *pluginconf.Status) *Co
 	if cfg.CAKeyUID == "" {
 		s.ReportError("ca_key_uid is required")
 	}
+	if cfg.CACertUID == "" {
+		s.ReportError("ca_cert_uid is required")
+	}
 	// mTLS is optional: if one field is set, both must be set.
 	if cfg.ClientCertPath != "" && cfg.ClientKeyPath == "" {
 		s.ReportError("client_key_path is required when client_cert_path is set")
@@ -443,24 +409,27 @@ func buildConfig(_ catalog.CoreConfig, hclText string, s *pluginconf.Status) *Co
 func buildClient(cfg *Config) (*kmipclient.Client, error) {
 	var opts []kmipclient.Option
 
-	if cfg.CACertPath != "" || cfg.InsecureSkipVerify {
-		tlsCfg := &tls.Config{
-			InsecureSkipVerify: cfg.InsecureSkipVerify, //nolint:gosec // intentional; gated by config
-			MinVersion:         tls.VersionTLS12,
-		}
-		if cfg.CACertPath != "" {
-			caPEM, err := os.ReadFile(cfg.CACertPath)
-			if err != nil {
-				return nil, fmt.Errorf("read CA cert %s: %w", cfg.CACertPath, err)
-			}
-			pool := x509.NewCertPool()
-			if !pool.AppendCertsFromPEM(caPEM) {
-				return nil, fmt.Errorf("no valid certificates found in %s", cfg.CACertPath)
-			}
-			tlsCfg.RootCAs = pool
-		}
-		opts = append(opts, kmipclient.WithTlsConfig(tlsCfg))
+	host, _, err := net.SplitHostPort(cfg.KMIPAddr)
+	if err != nil {
+		return nil, fmt.Errorf("invalid kmip_addr %q: %w", cfg.KMIPAddr, err)
 	}
+	tlsCfg := &tls.Config{
+		InsecureSkipVerify: cfg.InsecureSkipVerify, //nolint:gosec // intentional; gated by config
+		MinVersion:         tls.VersionTLS12,
+		ServerName:         host,
+	}
+	if cfg.CACertPath != "" {
+		caPEM, err := os.ReadFile(cfg.CACertPath)
+		if err != nil {
+			return nil, fmt.Errorf("read CA cert %s: %w", cfg.CACertPath, err)
+		}
+		pool := x509.NewCertPool()
+		if !pool.AppendCertsFromPEM(caPEM) {
+			return nil, fmt.Errorf("no valid certificates found in %s", cfg.CACertPath)
+		}
+		tlsCfg.RootCAs = pool
+	}
+	opts = append(opts, kmipclient.WithTlsConfig(tlsCfg))
 
 	if cfg.ClientCertPath != "" && cfg.ClientKeyPath != "" {
 		opts = append(opts, kmipclient.WithClientCertFiles(cfg.ClientCertPath, cfg.ClientKeyPath))

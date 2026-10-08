@@ -18,15 +18,28 @@ The plugin uses the [ovh/kmip-go](https://github.com/ovh/kmip-go) client library
 
 The plugin accepts the following configuration options:
 
-| Key                  | Type   | Required | Description                                                                              | Default                 |
-|----------------------|--------|----------|------------------------------------------------------------------------------------------|-------------------------|
-| kmip_addr            | string | required | The TCP address of the KMIP server (e.g. `kmip.example.com:5696`).                       |                         |
-| ca_key_uid           | string | required | The KMIP UniqueIdentifier of the CA private key used to sign CSRs.                       |                         |
-| ca_cert_uid          | string |          | The KMIP UniqueIdentifier of the root CA certificate object; auto-discovered when empty. |                         |
-| ca_cert_path         | string |          | PEM file used to verify the KMIP server TLS certificate.                                 | System certificate pool |
-| client_cert_path     | string |          | PEM file of the mTLS client certificate.                                                 |                         |
-| client_key_path      | string |          | PEM file of the mTLS client private key.                                                 |                         |
-| insecure_skip_verify | bool   |          | Accept any KMIP server certificate (test environments only).                             | false                   |
+| Key                  | Type   | Required | Description                                                                                     | Default                 |
+|----------------------|--------|----------|-------------------------------------------------------------------------------------------------|-------------------------|
+| kmip_addr            | string | required | The TCP address of the KMIP server (e.g. `kmip.example.com:5696`).                              |                         |
+| ca_key_uid           | string | required | The KMIP UniqueIdentifier of the CA private key used to sign CSRs.                              |                         |
+| ca_cert_uid          | string | required | The KMIP UniqueIdentifier of the root CA certificate object, used as the upstream trust anchor. |                         |
+| ca_cert_path         | string |          | PEM file used to verify the KMIP server TLS certificate.                                        | System certificate pool |
+| client_cert_path     | string |          | PEM file of the mTLS client certificate.                                                        |                         |
+| client_key_path      | string |          | PEM file of the mTLS client private key.                                                        |                         |
+| insecure_skip_verify | bool   |          | Accept any KMIP server certificate (test environments only).                                    | false                   |
+
+The root CA certificate is pinned by `ca_cert_uid` and is never discovered from
+attributes supplied by the KMIP server. The plugin refuses to start without it.
+
+The plugin checks that the certificate returned by `Certify` is a CA
+(`basicConstraints CA:TRUE` and `keyCertSign`). The requested SPIRE CA TTL is not
+transmitted to the KMIP server: the validity of the issued certificate is set by
+the KMIP server's own policy. Each minting attempt is bounded to 30 seconds.
+
+TLS 1.2 or later is always used and the server certificate is verified against
+`ca_cert_path` (or the system pool) and the host in `kmip_addr`. Configure mTLS
+(`client_cert_path`/`client_key_path`) in production, since the connection
+carries signing requests for the SPIRE CA.
 
 A sample configuration:
 

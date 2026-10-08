@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
+	"encoding/pem"
 	"fmt"
 	"math/big"
 	"os"
@@ -25,7 +26,10 @@ import (
 	"google.golang.org/grpc/codes"
 )
 
-const testCAKeyUID = "ca-key-001"
+const (
+	testCAKeyUID  = "ca-key-001"
+	testCACertUID = "ca-cert-001"
+)
 
 // ─── Configure ───────────────────────────────────────────────────────────────
 
@@ -47,7 +51,8 @@ func TestConfigure(t *testing.T) {
 				ca_cert_path         = %q
 				insecure_skip_verify = true
 				ca_key_uid           = %q
-			`, addr, caFile, testCAKeyUID),
+				ca_cert_uid          = %q
+			`, addr, caFile, testCAKeyUID, testCACertUID),
 			expectCode: codes.OK,
 		},
 		{
@@ -58,18 +63,31 @@ func TestConfigure(t *testing.T) {
 		},
 		{
 			name:       "missing ca_key_uid",
-			config:     fmt.Sprintf(`kmip_addr = %q insecure_skip_verify = true`, addr),
+			config:     fmt.Sprintf(`kmip_addr = %q ca_cert_uid = "x" insecure_skip_verify = true`, addr),
 			expectCode: codes.InvalidArgument,
 			expectMsg:  "ca_key_uid",
+		},
+		{
+			name:       "missing ca_cert_uid",
+			config:     fmt.Sprintf(`kmip_addr = %q ca_key_uid = "x" insecure_skip_verify = true`, addr),
+			expectCode: codes.InvalidArgument,
+			expectMsg:  "ca_cert_uid",
+		},
+		{
+			name:       "kmip_addr without port",
+			config:     `kmip_addr = "localhost" ca_key_uid = "x" ca_cert_uid = "y" insecure_skip_verify = true`,
+			expectCode: codes.InvalidArgument,
+			expectMsg:  "failed to connect to KMIP server: invalid kmip_addr",
 		},
 		{
 			name: "key path set but no cert path",
 			config: fmt.Sprintf(`
 				kmip_addr            = %q
 				ca_key_uid           = %q
+				ca_cert_uid          = %q
 				client_key_path      = "some.key"
 				insecure_skip_verify = true
-			`, addr, testCAKeyUID),
+			`, addr, testCAKeyUID, testCACertUID),
 			expectCode: codes.InvalidArgument,
 			expectMsg:  "client_cert_path",
 		},
@@ -95,17 +113,65 @@ func TestMintX509CA(t *testing.T) {
 	store := newUAFakeStore(t)
 	addr, caPEM := kmiptest.NewServer(t, store.handler())
 
-	v1 := loadUAPlugin(t, addr, caPEM, "")
+	v1 := loadUAPlugin(t, addr, caPEM, testCACertUID)
 
-	csrDER := fakeCSRDER(t)
-	ctx := t.Context()
-
-	x509CAChain, x509Roots, stream, err := v1.MintX509CA(ctx, csrDER, 0)
+	x509CAChain, x509Roots, stream, err := v1.MintX509CA(t.Context(), fakeCSRDER(t), 0)
 	require.NoError(t, err)
 	require.NotNil(t, stream)
-	require.NotEmpty(t, x509CAChain)
-	require.NotEmpty(t, x509Roots)
-	stream.Close()
+	defer stream.Close()
+
+	require.Len(t, x509CAChain, 1)
+	require.Len(t, x509Roots, 1)
+	// The root is the operator-pinned certificate, and the minted CA chains to it.
+	require.Equal(t, store.caCertDER, x509Roots[0].Certificate.Raw)
+	require.NoError(t, x509CAChain[0].CheckSignatureFrom(store.caCert))
+}
+
+func TestMintX509CAUnknownRootUID(t *testing.T) {
+	store := newUAFakeStore(t)
+	addr, caPEM := kmiptest.NewServer(t, store.handler())
+
+	v1 := loadUAPlugin(t, addr, caPEM, "does-not-exist")
+
+	_, _, _, err := v1.MintX509CA(t.Context(), fakeCSRDER(t), 0)
+	spiretest.RequireGRPCStatusContains(t, err, codes.Internal, "failed to retrieve CA certificate")
+}
+
+func TestMintX509CARejectsNonCACertificate(t *testing.T) {
+	store := newUAFakeStore(t)
+	store.issueNonCA = true
+	addr, caPEM := kmiptest.NewServer(t, store.handler())
+
+	v1 := loadUAPlugin(t, addr, caPEM, testCACertUID)
+
+	_, _, _, err := v1.MintX509CA(t.Context(), fakeCSRDER(t), 0)
+	spiretest.RequireGRPCStatusContains(t, err, codes.Internal, "not a CA")
+}
+
+func TestParseCertBytes(t *testing.T) {
+	store := newUAFakeStore(t)
+	onePEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: store.caCertDER})
+
+	for _, tt := range []struct {
+		name      string
+		input     []byte
+		expectErr string
+	}{
+		{name: "DER", input: store.caCertDER},
+		{name: "single PEM", input: onePEM},
+		{name: "PEM bundle is rejected", input: append(append([]byte{}, onePEM...), onePEM...), expectErr: "expected exactly one PEM certificate, got 2"},
+		{name: "garbage", input: []byte("nope"), expectErr: "x509"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			cert, err := parseCertBytes(tt.input)
+			if tt.expectErr != "" {
+				require.ErrorContains(t, err, tt.expectErr)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, store.caCertDER, cert.Raw)
+		})
+	}
 }
 
 func TestMintX509CANotConfigured(t *testing.T) {
@@ -125,23 +191,13 @@ func loadUAPlugin(t *testing.T, addr, caPEM, caCertUID string) *upstreamauthorit
 	p := New()
 	v1 := new(upstreamauthority.V1)
 
-	var config string
-	if caCertUID != "" {
-		config = fmt.Sprintf(`
-			kmip_addr            = %q
-			ca_cert_path         = %q
-			insecure_skip_verify = true
-			ca_key_uid           = %q
-			ca_cert_uid          = %q
-		`, addr, caFile, testCAKeyUID, caCertUID)
-	} else {
-		config = fmt.Sprintf(`
-			kmip_addr            = %q
-			ca_cert_path         = %q
-			insecure_skip_verify = true
-			ca_key_uid           = %q
-		`, addr, caFile, testCAKeyUID)
-	}
+	config := fmt.Sprintf(`
+		kmip_addr            = %q
+		ca_cert_path         = %q
+		insecure_skip_verify = true
+		ca_key_uid           = %q
+		ca_cert_uid          = %q
+	`, addr, caFile, testCAKeyUID, caCertUID)
 
 	plugintest.Load(t, builtin(p), v1,
 		plugintest.Configure(config),
@@ -176,12 +232,13 @@ func writeTempPEM(t *testing.T, content string) string {
 
 // uaFakeStore holds a CA key+cert and handles Certify and Get requests.
 type uaFakeStore struct {
-	mu        sync.Mutex
-	caPriv    *rsa.PrivateKey
-	caCert    *x509.Certificate
-	caCertDER []byte
-	certs     map[string][]byte // uid → DER cert
-	certUID   string
+	mu         sync.Mutex
+	caPriv     *rsa.PrivateKey
+	caCert     *x509.Certificate
+	caCertDER  []byte
+	certs      map[string][]byte // uid → DER cert
+	certUID    string
+	issueNonCA bool
 }
 
 func newUAFakeStore(t *testing.T) *uaFakeStore {
@@ -206,7 +263,7 @@ func newUAFakeStore(t *testing.T) *uaFakeStore {
 		caCert:    caCert,
 		caCertDER: derBytes,
 		certs:     make(map[string][]byte),
-		certUID:   "ca-cert-001",
+		certUID:   testCACertUID,
 	}
 }
 
@@ -236,7 +293,7 @@ func (s *uaFakeStore) handler() kmipserver.RequestHandler {
 			SerialNumber:          big.NewInt(42),
 			Subject:               csr.Subject,
 			PublicKey:             csr.PublicKey,
-			IsCA:                  true,
+			IsCA:                  !s.issueNonCA,
 			BasicConstraintsValid: true,
 			KeyUsage:              x509.KeyUsageCertSign,
 		}
@@ -278,49 +335,6 @@ func (s *uaFakeStore) handler() kmipserver.RequestHandler {
 			}, nil
 		}
 		return nil, fmt.Errorf("object %s not found", req.UniqueIdentifier)
-	}))
-
-	// GetAttributes — return CertificateLink.
-	//
-	// Simulates the real KMIP/Eviden Certify semantics: the CertificateLink is
-	// set on the CA's *public key* object, not on the private key or on
-	// freshly-issued certificates. The CA private key (testCAKeyUID) links to
-	// its public key via PublicKeyLink; the public key links to the
-	// self-signed root cert via CertificateLink.
-	exec.Route(ovh.OperationGetAttributes, kmipserver.HandleFunc(func(_ context.Context, req *payloads.GetAttributesRequestPayload) (*payloads.GetAttributesResponsePayload, error) {
-		s.mu.Lock()
-		defer s.mu.Unlock()
-		var attrs []ovh.Attribute
-		switch req.UniqueIdentifier {
-		case testCAKeyUID:
-			for _, want := range req.AttributeName {
-				if want == ovh.AttributeNameLink {
-					attrs = append(attrs, ovh.Attribute{
-						AttributeName: ovh.AttributeNameLink,
-						AttributeValue: ovh.Link{
-							LinkType:               ovh.LinkTypePublicKeyLink,
-							LinkedObjectIdentifier: testCAKeyUID + "-pub",
-						},
-					})
-				}
-			}
-		case testCAKeyUID + "-pub":
-			for _, want := range req.AttributeName {
-				if want == ovh.AttributeNameLink {
-					attrs = append(attrs, ovh.Attribute{
-						AttributeName: ovh.AttributeNameLink,
-						AttributeValue: ovh.Link{
-							LinkType:               ovh.LinkTypeCertificateLink,
-							LinkedObjectIdentifier: s.certUID,
-						},
-					})
-				}
-			}
-		}
-		return &payloads.GetAttributesResponsePayload{
-			UniqueIdentifier: req.UniqueIdentifier,
-			Attribute:        attrs,
-		}, nil
 	}))
 
 	return exec

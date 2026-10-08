@@ -80,8 +80,8 @@ metadata:
 
 # SPIRE server configuration: UpstreamAuthority "kmip" via binary KMIP over mTLS.
 # The root CA key pair must be pre-provisioned in KMS (see 01-setup-kms).
-# ca_cert_uid is auto-discovered via CertificateLink; if absent the signed cert
-# is used as a self-anchored root.
+# ca_cert_uid is required; 02-deploy-spire-and-verify-auth injects the UID of the
+# root certificate provisioned in 01-setup-kms after ca_key_uid.
 apiVersion: v1
 kind: ConfigMap
 metadata:
