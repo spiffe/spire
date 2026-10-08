@@ -2436,6 +2436,8 @@ func TestAttestAgent(t *testing.T) {
 		expectLogs        []spiretest.LogEntry
 		rateLimiterErr    error
 		dsError           []error
+
+		allowNonconformingAgentIDs bool
 	}{
 		{
 			name:       "empty request",
@@ -3245,11 +3247,41 @@ func TestAttestAgent(t *testing.T) {
 		{
 			name:       "nodeattestor returns ID outside of its namespace",
 			request:    getAttestAgentRequest("test_type", []byte("payload_return_id_outside_namespace"), testCsr),
-			expectedID: spiffeid.RequireFromPath(td, "/id_outside_namespace"),
+			expectCode: codes.Internal,
+			expectMsg:  "node attestor produced an invalid agent ID",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Node attestor produced an invalid agent ID",
+					Data: logrus.Fields{
+						telemetry.NodeAttestorType: "test_type",
+						telemetry.AgentID:          spiffeid.RequireFromPath(td, "/id_outside_namespace").String(),
+						logrus.ErrorKey:            `"spiffe://example.org/id_outside_namespace" is not in the agent namespace for attestor "test_type"`,
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:           "error",
+						telemetry.Type:             "audit",
+						telemetry.StatusCode:       "Internal",
+						telemetry.StatusMessage:    `node attestor produced an invalid agent ID: "spiffe://example.org/id_outside_namespace" is not in the agent namespace for attestor "test_type"`,
+						telemetry.AgentID:          "spiffe://example.org/id_outside_namespace",
+						telemetry.NodeAttestorType: "test_type",
+					},
+				},
+			},
+		},
+		{
+			name:                       "nodeattestor returns ID outside of its namespace with nonconforming IDs allowed",
+			request:                    getAttestAgentRequest("test_type", []byte("payload_return_id_outside_namespace"), testCsr),
+			allowNonconformingAgentIDs: true,
+			expectedID:                 spiffeid.RequireFromPath(td, "/id_outside_namespace"),
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.WarnLevel,
-					Message: "The node attestor produced an invalid agent ID; future releases will enforce that agent IDs are within the reserved agent namesepace for the node attestor",
+					Message: "The node attestor produced an invalid agent ID; allowed by the allow_nonconforming_agent_ids experimental setting",
 					Data: logrus.Fields{
 						telemetry.NodeAttestorType: "test_type",
 						telemetry.AgentID:          spiffeid.RequireFromPath(td, "/id_outside_namespace").String(),
@@ -3313,7 +3345,9 @@ func TestAttestAgent(t *testing.T) {
 		for _, agentSpiffeIdAsSelector := range []bool{false, true} {
 			t.Run(tt.name, func(t *testing.T) {
 				// setup
-				test := setupServiceTest(t, 0, agentSpiffeIdAsSelector)
+				test := setupServiceTest(t, 0, agentSpiffeIdAsSelector, func(c *agent.Config) {
+					c.AllowNonconformingAgentIDs = tt.allowNonconformingAgentIDs
+				})
 				defer func() {
 					// Since this is a bidirectional streaming API, it's possible
 					// that the server is still emitting auditing logs even though
@@ -3399,7 +3433,7 @@ func (s *serviceTest) Cleanup() {
 	}
 }
 
-func setupServiceTest(t *testing.T, agentSVIDTTL time.Duration, agentSpiffeIdAsSelector bool) *serviceTest {
+func setupServiceTest(t *testing.T, agentSVIDTTL time.Duration, agentSpiffeIdAsSelector bool, opts ...func(*agent.Config)) *serviceTest {
 	ca := fakeserverca.New(t, td, &fakeserverca.Options{
 		AgentSVIDTTL: agentSVIDTTL,
 	})
@@ -3407,14 +3441,18 @@ func setupServiceTest(t *testing.T, agentSVIDTTL time.Duration, agentSpiffeIdAsS
 	cat := fakeservercatalog.New()
 	clk := clock.NewMock(t)
 
-	service := agent.New(agent.Config{
+	config := agent.Config{
 		ServerCA:                ca,
 		DataStore:               ds,
 		TrustDomain:             td,
 		Clock:                   clk,
 		Catalog:                 cat,
 		AgentSpiffeIdAsSelector: agentSpiffeIdAsSelector,
-	})
+	}
+	for _, opt := range opts {
+		opt(&config)
+	}
+	service := agent.New(config)
 
 	log, logHook := test.NewNullLogger()
 	log.Level = logrus.DebugLevel

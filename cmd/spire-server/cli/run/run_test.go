@@ -686,6 +686,23 @@ func TestNewServerConfig(t *testing.T) {
 			},
 		},
 		{
+			msg: "allow_nonconforming_agent_ids defaults to false",
+			input: func(c *Config) {
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.False(t, c.Experimental.AllowNonconformingAgentIDs)
+			},
+		},
+		{
+			msg: "allow_nonconforming_agent_ids is correctly configured",
+			input: func(c *Config) {
+				c.Server.Experimental.AllowNonconformingAgentIDs = true
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.True(t, c.Experimental.AllowNonconformingAgentIDs)
+			},
+		},
+		{
 			msg: "logger gets set correctly",
 			input: func(c *Config) {
 				c.Server.LogLevel = "WARN"
