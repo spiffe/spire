@@ -12,6 +12,7 @@ import (
 	"sync"
 
 	"github.com/google/go-tpm/legacy/tpm2"
+	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	nodeattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/nodeattestor/v1"
@@ -91,12 +92,18 @@ type Plugin struct {
 	nodeattestorv1.UnsafeNodeAttestorServer
 	configv1.UnsafeConfigServer
 
+	log hclog.Logger
+
 	m sync.Mutex
 	c *config
 }
 
 func New() *Plugin {
 	return &Plugin{}
+}
+
+func (p *Plugin) SetLogger(log hclog.Logger) {
+	p.log = log
 }
 
 func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
@@ -210,7 +217,7 @@ func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 	if err != nil {
 		return status.Errorf(codes.Internal, "failed to create agent ID: %v", err)
 	}
-	selectors := buildSelectorValues(devIDCert, chains)
+	selectors := p.buildSelectorValues(devIDCert, chains)
 
 	return stream.Send(&nodeattestorv1.AttestResponse{
 		Response: &nodeattestorv1.AttestResponse_AgentAttributes{
