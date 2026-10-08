@@ -30,6 +30,9 @@ var (
 	sidGroup1, _     = windows.StringToSid("S-1-5-21-759542327-988462579-1707944338-1004")
 	sidGroup2, _     = windows.StringToSid("S-1-5-21-759542327-988462579-1707944338-1005")
 	sidGroup3, _     = windows.StringToSid("S-1-2-0")
+	sidSvcUser, _    = windows.StringToSid("S-1-5-80-1234567890-1234567890-1234567890-12")
+	sidSvcGroup, _   = windows.StringToSid("S-1-5-80-1234567890-1234567890-1234567890-13")
+	sidAllSvc, _     = windows.StringToSid("S-1-5-80-0")
 	sidAndAttrGroup1 = windows.SIDAndAttributes{
 		Sid:        sidGroup1,
 		Attributes: windows.SE_GROUP_ENABLED,
@@ -41,6 +44,22 @@ var (
 	sidAndAttrGroup3 = windows.SIDAndAttributes{
 		Sid:        sidGroup3,
 		Attributes: windows.SE_GROUP_ENABLED,
+	}
+	sidAndAttrGroup4 = windows.SIDAndAttributes{
+		Sid:        sidSvcGroup,
+		Attributes: windows.SE_GROUP_ENABLED,
+	}
+	sidAndAttrGroup5 = windows.SIDAndAttributes{
+		Sid:        sidSvcGroup,
+		Attributes: windows.SE_GROUP_USE_FOR_DENY_ONLY,
+	}
+	sidAndAttrGroup6 = windows.SIDAndAttributes{
+		Sid:        sidAllSvc,
+		Attributes: windows.SE_GROUP_ENABLED,
+	}
+	sidAndAttrGroup7 = windows.SIDAndAttributes{
+		Sid:        sidAllSvc,
+		Attributes: windows.SE_GROUP_USE_FOR_DENY_ONLY,
 	}
 )
 
@@ -55,6 +74,8 @@ func TestAttest(t *testing.T) {
 		expectSelectors []string
 		config          string
 		pq              *fakeProcessQuery
+		serviceInfos    []ServiceInfo
+		serviceInfoErr  error
 		expectCode      codes.Code
 		expectMsg       string
 		expectLogs      []spiretest.LogEntry
@@ -179,6 +200,65 @@ func TestAttest(t *testing.T) {
 				fmt.Sprintf("windows:path:%s", exe),
 			},
 			expectCode: codes.OK,
+		},
+		{
+			name:        "successful with service discovery enabled",
+			trustDomain: "example.org",
+			pq: &fakeProcessQuery{
+				handle:      windows.InvalidHandle,
+				tokenUser:   &windows.Tokenuser{User: windows.SIDAndAttributes{Sid: sidUser}},
+				tokenGroups: &windows.Tokengroups{},
+				account:     "user1",
+				domain:      "domain1",
+			},
+			config: "enable_service_discovery = true",
+			serviceInfos: []ServiceInfo{
+				{
+					ServiceName:        "service1",
+					ServiceDisplayName: "Service 1",
+				},
+				{
+					ServiceName:        "service2",
+					ServiceDisplayName: "Service 2",
+				},
+			},
+			expectSelectors: []string{
+				"windows:user_name:domain1\\user1",
+				"windows:user_sid:" + sidUser.String(),
+				"windows:service_name:service1",
+				"windows:service_display_name:Service 1",
+				"windows:service_name:service2",
+				"windows:service_display_name:Service 2",
+			},
+			expectCode: codes.OK,
+		},
+		{
+			name:        "successful with service discovery error ignored",
+			trustDomain: "example.org",
+			pq: &fakeProcessQuery{
+				handle:      windows.InvalidHandle,
+				tokenUser:   &windows.Tokenuser{User: windows.SIDAndAttributes{Sid: sidUser}},
+				tokenGroups: &windows.Tokengroups{},
+				account:     "user1",
+				domain:      "domain1",
+			},
+			config:         "enable_service_discovery = true",
+			serviceInfoErr: errors.New("service discovery error"),
+			expectSelectors: []string{
+				"windows:user_name:domain1\\user1",
+				"windows:user_sid:" + sidUser.String(),
+			},
+			expectCode: codes.OK,
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.WarnLevel,
+					Message: "Unable to discover services for process",
+					Data: logrus.Fields{
+						logrus.ErrorKey: "service discovery error",
+						telemetry.PID:   fmt.Sprint(testPID),
+					},
+				},
+			},
 		},
 		{
 			name:        "failed to get binary path",
@@ -355,12 +435,92 @@ func TestAttest(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:        "successful for service with groups enabled",
+			trustDomain: "example.org",
+			pq: &fakeProcessQuery{
+				handle:             windows.InvalidHandle,
+				tokenUser:          &windows.Tokenuser{User: windows.SIDAndAttributes{Sid: sidSvcUser}},
+				tokenGroups:        &windows.Tokengroups{Groups: [1]windows.SIDAndAttributes{sidAndAttrGroup4}},
+				account:            "NetworkService",
+				domain:             "NT AUTHORITY",
+				sidAndAttributes:   []windows.SIDAndAttributes{sidAndAttrGroup4},
+				serviceDisplayName: "My Fancy Service Name",
+			},
+			expectSelectors: []string{
+				"windows:user_name:NT AUTHORITY\\NetworkService",
+				"windows:user_sid:" + sidSvcUser.String(),
+				"windows:group_sid:se_group_enabled:true:" + sidSvcGroup.String(),
+				"windows:group_name:se_group_enabled:true:My Service",
+				"windows:service_name:My Service",
+			},
+			expectCode: codes.OK,
+		},
+		{
+			name:        "successful for service with groups disabled",
+			trustDomain: "example.org",
+			pq: &fakeProcessQuery{
+				handle:             windows.InvalidHandle,
+				tokenUser:          &windows.Tokenuser{User: windows.SIDAndAttributes{Sid: sidSvcUser}},
+				tokenGroups:        &windows.Tokengroups{Groups: [1]windows.SIDAndAttributes{sidAndAttrGroup5}},
+				account:            "NetworkService",
+				domain:             "NT AUTHORITY",
+				sidAndAttributes:   []windows.SIDAndAttributes{sidAndAttrGroup5},
+				serviceDisplayName: "My Fancy Service Name",
+			},
+			expectSelectors: []string{
+				"windows:user_name:NT AUTHORITY\\NetworkService",
+				"windows:user_sid:" + sidSvcUser.String(),
+				"windows:group_sid:se_group_enabled:false:" + sidSvcGroup.String(),
+				"windows:group_name:se_group_enabled:false:My Service",
+				"windows:service_name:My Service",
+			},
+			expectCode: codes.OK,
+		},
+		{
+			name:        "successful for all service group",
+			trustDomain: "example.org",
+			pq: &fakeProcessQuery{
+				handle:           windows.InvalidHandle,
+				tokenUser:        &windows.Tokenuser{User: windows.SIDAndAttributes{Sid: sidAllSvc}},
+				tokenGroups:      &windows.Tokengroups{Groups: [1]windows.SIDAndAttributes{sidAndAttrGroup6}},
+				account:          "SYSTEM",
+				domain:           "NT AUTHORITY",
+				sidAndAttributes: []windows.SIDAndAttributes{sidAndAttrGroup6},
+			},
+			expectSelectors: []string{
+				"windows:user_name:NT AUTHORITY\\SYSTEM",
+				"windows:user_sid:" + sidAllSvc.String(),
+				"windows:group_sid:se_group_enabled:true:" + sidAllSvc.String(),
+				"windows:group_name:se_group_enabled:true:NT AUTHORITY\\SYSTEM",
+			},
+			expectCode: codes.OK,
+		},
+		{
+			name:        "successful for all service with groups disabled",
+			trustDomain: "example.org",
+			pq: &fakeProcessQuery{
+				handle:           windows.InvalidHandle,
+				tokenUser:        &windows.Tokenuser{User: windows.SIDAndAttributes{Sid: sidAllSvc}},
+				tokenGroups:      &windows.Tokengroups{Groups: [1]windows.SIDAndAttributes{sidAndAttrGroup7}},
+				account:          "SYSTEM",
+				domain:           "NT AUTHORITY",
+				sidAndAttributes: []windows.SIDAndAttributes{sidAndAttrGroup7},
+			},
+			expectSelectors: []string{
+				"windows:user_name:NT AUTHORITY\\SYSTEM",
+				"windows:user_sid:" + sidAllSvc.String(),
+				"windows:group_sid:se_group_enabled:false:" + sidAllSvc.String(),
+				"windows:group_name:se_group_enabled:false:NT AUTHORITY\\SYSTEM",
+			},
+			expectCode: codes.OK,
+		},
 	}
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
 			test := setupTest()
-			p, err := test.loadPlugin(t, testCase.pq, testCase.trustDomain, testCase.config)
+			p, err := test.loadPlugin(t, testCase.pq, testCase.serviceInfos, testCase.serviceInfoErr, testCase.trustDomain, testCase.config)
 			require.NoError(t, err)
 
 			selectors, err := p.Attest(ctx, testPID)
@@ -386,11 +546,11 @@ func TestConfigure(t *testing.T) {
 	test := setupTest()
 
 	// malformed configuration
-	_, err := test.loadPlugin(t, &fakeProcessQuery{}, "example.org", "malformed")
+	_, err := test.loadPlugin(t, &fakeProcessQuery{}, nil, nil, "example.org", "malformed")
 	spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, "failed to decode configuration")
 
 	// success
-	_, err = test.loadPlugin(t, &fakeProcessQuery{}, "example.org", "discover_workload_path = true\nworkload_size_limit = 2")
+	_, err = test.loadPlugin(t, &fakeProcessQuery{}, nil, nil, "example.org", "discover_workload_path = true\nworkload_size_limit = 2\nenable_service_discovery = true")
 	require.NoError(t, err)
 }
 
@@ -399,10 +559,13 @@ type windowsTest struct {
 	logHook *test.Hook
 }
 
-func (w *windowsTest) loadPlugin(t *testing.T, q *fakeProcessQuery, trustDomain string, config string) (workloadattestor.WorkloadAttestor, error) {
+func (w *windowsTest) loadPlugin(t *testing.T, q *fakeProcessQuery, serviceInfos []ServiceInfo, serviceInfoErr error, trustDomain string, config string) (workloadattestor.WorkloadAttestor, error) {
 	var err error
 	p := New()
 	p.q = q
+	p.findServicesForProcess = func(int32) ([]ServiceInfo, error) {
+		return serviceInfos, serviceInfoErr
+	}
 
 	v1 := new(workloadattestor.V1)
 	plugintest.Load(t, builtin(p), v1,
@@ -416,12 +579,13 @@ func (w *windowsTest) loadPlugin(t *testing.T, q *fakeProcessQuery, trustDomain 
 }
 
 type fakeProcessQuery struct {
-	handle           windows.Handle
-	tokenUser        *windows.Tokenuser
-	tokenGroups      *windows.Tokengroups
-	account, domain  string
-	sidAndAttributes []windows.SIDAndAttributes
-	exe              string
+	handle             windows.Handle
+	tokenUser          *windows.Tokenuser
+	tokenGroups        *windows.Tokengroups
+	account, domain    string
+	sidAndAttributes   []windows.SIDAndAttributes
+	exe                string
+	serviceDisplayName string
 
 	openProcessErr       error
 	openProcessTokenErr  error
@@ -455,6 +619,12 @@ func (q *fakeProcessQuery) LookupAccount(sid *windows.SID) (account, domain stri
 		return "group2", "domain2", nil
 	case sidGroup3:
 		return "LOCAL", "", nil
+	case sidSvcUser:
+		return "NetworkService", "NT AUTHORITY", nil
+	case sidSvcGroup:
+		return "My Service", "", nil
+	case sidAllSvc:
+		return "SYSTEM", "NT AUTHORITY", nil
 	}
 
 	return "", "", fmt.Errorf("sid not expected: %s", sid.String())
