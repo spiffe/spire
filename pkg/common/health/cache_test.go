@@ -155,8 +155,9 @@ func TestHealthFailsAndRecover(t *testing.T) {
 
 	t.Run("start successfully after initial failure", func(t *testing.T) {
 		clockMock.WaitForAfter(testTimeout, "timed out waiting for worker to call After")
-		// Move to next initial interval
-		clockMock.Add(readyCheckInitialInterval)
+		initialCheckTime := clockMock.Now()
+		// Move to next failure interval
+		clockMock.Add(readyCheckFailureInterval)
 
 		// Wait for initial calls
 		<-waitFor
@@ -183,7 +184,7 @@ func TestHealthFailsAndRecover(t *testing.T) {
 					LiveDetails:  healthDetails{},
 					ReadyDetails: healthDetails{},
 				},
-				checkTime: clockMock.Now(),
+				checkTime: initialCheckTime,
 			},
 			"bar": {
 				details: State{
@@ -213,8 +214,8 @@ func TestHealthFailsAndRecover(t *testing.T) {
 
 	t.Run("health start to fail", func(t *testing.T) {
 		clockMock.WaitForAfter(testTimeout, "timed out waiting for worker to call After")
-		// Move to next interval
-		clockMock.Add(readyCheckInterval)
+		// Move to when foo is due, a second before bar
+		clockMock.Add(readyCheckInterval - readyCheckFailureInterval)
 
 		<-waitFor
 
@@ -238,7 +239,7 @@ func TestHealthFailsAndRecover(t *testing.T) {
 					LiveDetails:  healthDetails{},
 					ReadyDetails: healthDetails{},
 				},
-				checkTime: clockMock.Now(),
+				checkTime: clockMock.Now().Add(-(readyCheckInterval - readyCheckFailureInterval)),
 			},
 		}
 
@@ -296,22 +297,11 @@ func TestHealthFailsAndRecover(t *testing.T) {
 					LiveDetails:  healthDetails{},
 					ReadyDetails: healthDetails{},
 				},
-				checkTime: previousFailureDate,
+				checkTime: clockMock.Now(),
 			},
 		}
 
-		expectLogs := []spiretest.LogEntry{
-			{
-				Level:   logrus.ErrorLevel,
-				Message: "Health check has failed",
-				Data: logrus.Fields{
-					telemetry.Check: "foo",
-					telemetry.Error: "subsystem is not live or ready",
-				},
-			},
-		}
-
-		spiretest.AssertLogs(t, hook.AllEntries(), expectLogs)
+		spiretest.AssertLogs(t, hook.AllEntries(), nil)
 		require.Equal(t, expectStatus, c.getStatuses())
 	})
 
@@ -349,7 +339,7 @@ func TestHealthFailsAndRecover(t *testing.T) {
 					LiveDetails:  healthDetails{},
 					ReadyDetails: healthDetails{},
 				},
-				checkTime: clockMock.Now().Add(-2 * readyCheckFailureInterval),
+				checkTime: clockMock.Now().Add(-readyCheckFailureInterval),
 			},
 		}
 
@@ -409,6 +399,45 @@ func TestOnlyFailingCheckIsRetriedSooner(t *testing.T) {
 	require.Equal(t, 2, healthy.count())
 	require.Equal(t, 4, flaky.count())
 	require.Equal(t, 8*time.Second, waitForAfter(t, clockMock))
+}
+
+func TestFailingCheckIsLoggedOncePerMinute(t *testing.T) {
+	log, hook := test.NewNullLogger()
+	waitFor := make(chan struct{}, 1)
+	clockMock := clock.NewMock(t)
+
+	c := newCache(log, clockMock)
+	c.hooks.statusUpdated = waitFor
+
+	failing := &countingCheckable{state: State{}}
+	require.NoError(t, c.addCheck("failing", failing))
+	require.NoError(t, c.start(context.Background()))
+
+	failedLogs := func() int {
+		count := 0
+		for _, entry := range hook.AllEntries() {
+			if entry.Message == "Health check has failed" {
+				count++
+			}
+		}
+		return count
+	}
+
+	<-waitFor
+	require.Equal(t, 1, failedLogs())
+
+	for range 59 {
+		waitForAfter(t, clockMock)
+		clockMock.Add(readyCheckFailureInterval)
+		<-waitFor
+	}
+	require.Equal(t, 60, failing.count())
+	require.Equal(t, 1, failedLogs())
+
+	waitForAfter(t, clockMock)
+	clockMock.Add(readyCheckFailureInterval)
+	<-waitFor
+	require.Equal(t, 2, failedLogs())
 }
 
 func waitForAfter(t *testing.T, clockMock *clock.Mock) time.Duration {
