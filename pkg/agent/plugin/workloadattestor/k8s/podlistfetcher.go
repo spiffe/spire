@@ -2,8 +2,10 @@ package k8s
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -341,65 +343,94 @@ func (f *podListFetcher) fetchInFlight() bool {
 }
 
 func (f *podListFetcher) fetchPodList(ctx context.Context, client *kubeletClient, config podListFetcherConfig) (map[string]*fastjson.Value, error) {
-	podListBytes, err := client.getPodList(ctx)
+	body, err := client.getPodList(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return f.parsePodList(podListBytes, config.excludeCompletedPods)
-}
-
-func (f *podListFetcher) parsePodList(podListBytes []byte, excludeCompletedPods bool) (map[string]*fastjson.Value, error) {
-	var parser fastjson.Parser
-	podList, err := parser.ParseBytes(podListBytes)
+	defer body.Close()
+	pods, err := f.parsePodList(body, config.excludeCompletedPods)
 	if err != nil {
 		return nil, fmt.Errorf("unable to parse kubelet response: %w", err)
 	}
+	return pods, nil
+}
 
-	if podList.Type() != fastjson.TypeObject {
+func (f *podListFetcher) parsePodList(r io.Reader, excludeCompletedPods bool) (map[string]*fastjson.Value, error) {
+	decoder := json.NewDecoder(r)
+	token, err := decoder.Token()
+	if err != nil {
+		return nil, err
+	}
+	if token != json.Delim('{') {
 		return nil, errors.New("invalid kubelet response: expected an object")
 	}
-	itemsValue := podList.Get("items")
-	if itemsValue == nil {
-		return nil, errors.New("invalid kubelet response: expected an items array")
-	}
-	var items []*fastjson.Value
-	switch itemsValue.Type() {
-	case fastjson.TypeArray:
-		items = itemsValue.GetArray()
-	case fastjson.TypeNull:
-		// encoding/json marshals a nil PodList.Items slice as null.
-	default:
-		return nil, errors.New("invalid kubelet response: expected an items array")
-	}
-	result := make(map[string]*fastjson.Value, len(items))
-	var scratch []byte
-
-	for _, podValue := range items {
-		uid := string(podValue.Get("metadata", "uid").GetStringBytes())
-		if uid == "" {
-			f.log.Warn("Pod has no UID", "pod", podValue)
-			continue
-		}
-
-		if excludeCompletedPods && podIsUnattestable(podValue) {
-			continue
-		}
-
-		// Values from a single parser all alias that parser's working copy of
-		// the response and its shared value slice, so retaining any pod keeps
-		// the whole response alive. Re-parse each pod into its own parser so a
-		// cached pod costs only its own JSON.
-		scratch = podValue.MarshalTo(scratch[:0])
-		podParser := new(fastjson.Parser)
-		pod, err := podParser.ParseBytes(scratch)
+	var result map[string]*fastjson.Value
+	var raw json.RawMessage
+	var parser fastjson.Parser
+	for decoder.More() {
+		key, err := decoder.Token()
 		if err != nil {
-			f.log.Warn("Unable to re-parse pod from kubelet response", "pod_uid", uid, "error", err)
+			return nil, err
+		}
+		if key != "items" {
+			if err := decoder.Decode(&raw); err != nil {
+				return nil, err
+			}
 			continue
 		}
-
-		result[uid] = pod
+		result = make(map[string]*fastjson.Value)
+		token, err := decoder.Token()
+		if err != nil {
+			return nil, err
+		}
+		if token == nil { // PodList.Items can be null.
+			continue
+		}
+		if token != json.Delim('[') {
+			return nil, errors.New("invalid kubelet response: expected an items array")
+		}
+		for decoder.More() {
+			if err := decoder.Decode(&raw); err != nil {
+				return nil, err
+			}
+			pod, err := parser.ParseBytes(raw)
+			if err != nil {
+				return nil, err
+			}
+			uid := string(pod.GetStringBytes("metadata", "uid"))
+			if uid == "" {
+				f.log.Warn("Pod has no UID", "pod", pod)
+				continue
+			}
+			if excludeCompletedPods && podIsUnattestable(pod) {
+				continue
+			}
+			// The next ParseBytes call invalidates the scratch parser's values.
+			// Give cached pods independent storage, sized to their own JSON.
+			var retained fastjson.Parser
+			pod, err = retained.ParseBytes(raw)
+			if err != nil {
+				return nil, err
+			}
+			result[uid] = pod
+		}
+		if _, err := decoder.Token(); err != nil { // Closing array delimiter.
+			return nil, err
+		}
 	}
-
+	if _, err := decoder.Token(); err != nil { // Closing object delimiter.
+		return nil, err
+	}
+	if result == nil {
+		return nil, errors.New("invalid kubelet response: expected an items array")
+	}
+	// A wrapped EOF may come from a truncated trailing value; require clean EOF.
+	if _, err := decoder.Token(); err != io.EOF {
+		if err != nil {
+			return nil, err
+		}
+		return nil, errors.New("unexpected data after pod list")
+	}
 	return result, nil
 }
 

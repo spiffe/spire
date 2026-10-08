@@ -1,18 +1,25 @@
 package k8s
 
 import (
+	"bytes"
 	"context"
 	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"math/big"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/iotest"
 	"time"
 
 	"github.com/hashicorp/go-hclog"
@@ -854,7 +861,7 @@ func TestPodListFetcherParsePodList(t *testing.T) {
 		{
 			name:     "rejects malformed response",
 			response: `{"items":`,
-			wantErr:  "unable to parse kubelet response",
+			wantErr:  "EOF",
 		},
 		{
 			name:     "rejects non-object response",
@@ -874,7 +881,7 @@ func TestPodListFetcherParsePodList(t *testing.T) {
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			fetcher := podListFetcher{log: hclog.NewNullLogger()}
-			pods, err := fetcher.parsePodList([]byte(testCase.response), testCase.excludeCompletedPods)
+			pods, err := fetcher.parsePodList(iotest.OneByteReader(strings.NewReader(testCase.response)), testCase.excludeCompletedPods)
 			if testCase.wantErr != "" {
 				require.ErrorContains(t, err, testCase.wantErr)
 				return
@@ -889,6 +896,70 @@ func TestPodListFetcherParsePodList(t *testing.T) {
 	}
 }
 
+func TestPodListFetcherPreservesInitialReadError(t *testing.T) {
+	fetcher := podListFetcher{log: hclog.NewNullLogger()}
+	for _, readErr := range []error{context.Canceled, context.DeadlineExceeded, errors.New("connection reset")} {
+		pods, err := fetcher.parsePodList(iotest.ErrReader(readErr), true)
+		require.ErrorIs(t, err, readErr)
+		require.Nil(t, pods)
+	}
+}
+
+func TestPodListFetcherWrapsParseError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = io.WriteString(w, `{"items":`)
+	}))
+	t.Cleanup(server.Close)
+	endpoint, err := url.Parse(server.URL)
+	require.NoError(t, err)
+	fetcher := podListFetcher{log: hclog.NewNullLogger()}
+	pods, err := fetcher.fetchPodList(t.Context(), &kubeletClient{endpoint: *endpoint}, podListFetcherConfig{})
+	require.ErrorIs(t, err, io.EOF)
+	require.EqualError(t, err, "unable to parse kubelet response: EOF")
+	require.Nil(t, pods)
+}
+
+func TestPodListFetcherRejectsPartialResponse(t *testing.T) {
+	for _, input := range []string{
+		`{"items":[{"metadata":{"uid":"ok"}}`,
+		`{"items":[{"metadata":{"uid":"ok"}},{"bad":}]}`,
+		`{"items":[]} {}`, `{"items":[]} "unfinished`,
+	} {
+		fetcher := podListFetcher{log: hclog.NewNullLogger()}
+		pods, err := fetcher.parsePodList(strings.NewReader(input), true)
+		require.Error(t, err)
+		require.Nil(t, pods)
+	}
+	for _, tail := range []string{``, `"unfinished`, `tru`, `123e`} {
+		readErr := fmt.Errorf("interrupted response: %w", io.EOF)
+		r := io.MultiReader(strings.NewReader(`{"items":[]}`+tail), iotest.ErrReader(readErr))
+		fetcher := podListFetcher{log: hclog.NewNullLogger()}
+		pods, err := fetcher.parsePodList(r, true)
+		require.Error(t, err)
+		require.Nil(t, pods)
+	}
+}
+
+func TestPodListFetcherOwnsRetainedPods(t *testing.T) {
+	// A large discarded pod must not leave its storage attached to the next
+	// retained pod. Later decoder/parser reuse must not overwrite earlier pods.
+	large := strings.Repeat("x", 1<<20)
+	input := fmt.Sprintf(`{"metadata":{},"items":[
+		{"metadata":{"uid":"before"}},
+		{"metadata":{"uid":"failed","annotations":{"data":%q}},"status":{"phase":"Failed"}},
+		{"metadata":{"uid":"after"}},
+		{"metadata":{"uid":42}},
+		{"metadata":{"uid":"last"}}
+	]}`, large)
+	fetcher := podListFetcher{log: hclog.NewNullLogger()}
+	pods, err := fetcher.parsePodList(strings.NewReader(input), true)
+	require.NoError(t, err)
+	require.Len(t, pods, 3)
+	for _, uid := range []string{"before", "after", "last"} {
+		require.Equal(t, uid, string(pods[uid].GetStringBytes("metadata", "uid")))
+	}
+}
+
 func TestParsePodListDoesNotRetainWholeResponse(t *testing.T) {
 	const podCount = 2000
 
@@ -896,7 +967,7 @@ func TestParsePodListDoesNotRetainWholeResponse(t *testing.T) {
 	response := buildLargePodListResponse(t, podCount)
 
 	before := liveHeapBytes()
-	pods, err := fetcher.parsePodList(response, false)
+	pods, err := fetcher.parsePodList(bytes.NewReader(response), false)
 	require.NoError(t, err)
 	require.Len(t, pods, podCount)
 
