@@ -1367,6 +1367,25 @@ func TestNewServerConfig(t *testing.T) {
 			},
 		},
 		{
+			msg: "health_checks check_interval is correctly parsed",
+			input: func(c *Config) {
+				c.HealthChecks.RawCheckInterval = "30s"
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Equal(t, 30*time.Second, c.HealthChecks.CheckInterval)
+			},
+		},
+		{
+			msg:         "invalid health_checks check_interval returns an error",
+			expectError: true,
+			input: func(c *Config) {
+				c.HealthChecks.RawCheckInterval = "b"
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
 			msg: "cache_reload_interval is correctly parsed",
 			input: func(c *Config) {
 				c.Server.Experimental.CacheReloadInterval = "1m"

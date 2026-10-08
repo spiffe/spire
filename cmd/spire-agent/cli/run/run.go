@@ -868,6 +868,9 @@ func newAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig, skip
 	}
 
 	ac.Telemetry = c.Telemetry
+	if err := c.HealthChecks.ParseCheckInterval(); err != nil {
+		return nil, err
+	}
 	ac.HealthChecks = c.HealthChecks
 
 	if !allowUnknownConfig {

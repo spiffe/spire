@@ -363,8 +363,11 @@ health_checks {
         bind_port = "8080"
         live_path = "/live"
         ready_path = "/ready"
+        check_interval = "1m"
 }
 ```
+
+Each health check runs every `check_interval` (default `1m`, must be longer than `1s`) while it passes. A failing check is retried every second until it recovers, and its failure is logged once a minute; the other checks keep their own schedule.
 
 ## Command line options
 

@@ -41,6 +41,7 @@ func newCache(log logrus.FieldLogger, clock clock.Clock) *cache {
 		checkerSubsystems: make(map[string]*checkerSubsystem),
 		log:               log,
 		clk:               clock,
+		checkInterval:     readyCheckInterval,
 	}
 }
 
@@ -49,6 +50,8 @@ type cache struct {
 
 	mtx sync.RWMutex
 	clk clock.Clock
+
+	checkInterval time.Duration
 
 	log   logrus.FieldLogger
 	hooks struct {
@@ -111,8 +114,13 @@ func (c *cache) start(ctx context.Context) error {
 func (c *cache) startRunner(ctx context.Context) {
 	c.log.Debug("Initializing health checkers")
 	seenStartupError := make(map[string]string)
+	lastFailureLog := make(map[string]time.Time)
 	checkFunc := func() {
+		now := c.clk.Now()
 		for name, checker := range c.getCheckerSubsystems() {
+			if now.Before(c.nextCheckTime(checker.state)) {
+				continue
+			}
 			state, err := verifyStatus(checker.checkable)
 
 			checkState := checkState{
@@ -121,9 +129,12 @@ func (c *cache) startRunner(ctx context.Context) {
 			}
 			if err != nil {
 				if state.Started == nil || *state.Started {
-					c.log.WithField("check", name).
-						WithError(err).
-						Error("Health check has failed")
+					if checker.state.err == nil || now.Sub(lastFailureLog[name]) >= failureLogInterval {
+						c.log.WithField("check", name).
+							WithError(err).
+							Error("Health check has failed")
+						lastFailureLog[name] = now
+					}
 				} else {
 					strErr := err.Error()
 					if val, ok := seenStartupError[name]; !ok || val != strErr {
@@ -143,57 +154,42 @@ func (c *cache) startRunner(ctx context.Context) {
 		}
 	}
 
-	startSteadyStateHealthCheckCh := make(chan struct{})
-	// Run health check in a tighter loop until we get an initial ready + live state
-	go func() {
-		for {
-			checkFunc()
-
-			allReady := true
-			allLive := true
-			for _, status := range c.getStatuses() {
-				if !status.details.Ready {
-					allReady = false
-					break
-				}
-
-				if !status.details.Live {
-					allLive = false
-					break
-				}
-			}
-
-			if allReady && allLive {
-				break
-			}
-
-			select {
-			case <-c.clk.After(readyCheckInitialInterval):
-			case <-ctx.Done():
-				return
-			}
-		}
-
-		startSteadyStateHealthCheckCh <- struct{}{}
-	}()
-
 	go func() {
 		defer func() {
 			c.log.Debug("Finishing health checker")
 		}()
 
-		// Wait until initial ready + live state is achieved, then periodically check health at a longer interval
-		<-startSteadyStateHealthCheckCh
 		for {
+			checkFunc()
+
 			select {
-			case <-c.clk.After(readyCheckInterval):
+			case <-c.clk.After(c.nextCheckDelay()):
 			case <-ctx.Done():
 				return
 			}
-
-			checkFunc()
 		}
 	}()
+}
+
+// nextCheckTime returns when a check is due again. A failing check is retried
+// sooner so that its recovery is detected quickly, without checking the
+// healthy ones more often.
+func (c *cache) nextCheckTime(state checkState) time.Time {
+	if state.err != nil {
+		return state.checkTime.Add(readyCheckFailureInterval)
+	}
+	return state.checkTime.Add(c.checkInterval)
+}
+
+// nextCheckDelay returns how long to wait until the next check is due.
+func (c *cache) nextCheckDelay() time.Duration {
+	var next time.Time
+	for _, status := range c.getStatuses() {
+		if checkTime := c.nextCheckTime(status); next.IsZero() || checkTime.Before(next) {
+			next = checkTime
+		}
+	}
+	return max(next.Sub(c.clk.Now()), 0)
 }
 
 func (c *cache) setStatus(name string, prevState checkState, state checkState) {
