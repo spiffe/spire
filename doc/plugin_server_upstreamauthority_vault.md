@@ -30,7 +30,7 @@ The plugin reads the following environment variables. Variables marked as standa
 | `VAULT_CACERT`            | Yes      | Path to a CA certificate file                                |
 | `VAULT_CLIENT_CERT`       | Yes      | Path to a client certificate file (cert auth)                |
 | `VAULT_CLIENT_KEY`        | Yes      | Path to a client private key file (cert auth)                |
-| `VAULT_NAMESPACE`         | Yes      | Vault/OpenBao namespace (Enterprise only)                            |
+| `VAULT_NAMESPACE`         | Yes      | Vault/OpenBao namespace (HashiCorp Vault Enterprise only)    |
 | `VAULT_TOKEN`             | Yes      | Vault/OpenBao token (token auth)                                     |
 | `VAULT_APPROLE_ID`        | **No**   | AppRole role ID — SPIRE-specific, not a Vault SDK variable   |
 | `VAULT_APPROLE_SECRET_ID` | **No**   | AppRole secret ID — SPIRE-specific, not a Vault SDK variable |
