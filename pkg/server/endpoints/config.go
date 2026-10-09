@@ -166,7 +166,6 @@ func (c *Config) maybeMakeBundleEndpointServer() (Server, func(context.Context) 
 
 func (c *Config) makeAPIServers(entryFetcher api.AuthorizedEntryFetcher) APIServers {
 	ds := c.Catalog.GetDataStore()
-	upstreamPublisher := UpstreamPublisher(c.AuthorityManager)
 
 	return APIServers{
 		AgentServer: agentv1.New(agentv1.Config{
@@ -180,7 +179,7 @@ func (c *Config) makeAPIServers(entryFetcher api.AuthorizedEntryFetcher) APIServ
 		BundleServer: bundlev1.New(bundlev1.Config{
 			TrustDomain:       c.TrustDomain,
 			DataStore:         ds,
-			UpstreamPublisher: upstreamPublisher,
+			UpstreamPublisher: c.AuthorityManager,
 		}),
 		DebugServer: debugv1.New(debugv1.Config{
 			TrustDomain:  c.TrustDomain,

@@ -1409,6 +1409,242 @@ func TestPublishJWTAuthority(t *testing.T) {
 	}
 }
 
+func TestPublishWITAuthority(t *testing.T) {
+	test := setupServiceTest(t)
+	defer test.Cleanup()
+
+	pkixBytes, err := base64.StdEncoding.DecodeString("MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEYSlUVLqTD8DEnA4F1EWMTf5RXc5lnCxw+5WKJwngEL3rPc9i4Tgzz9riR3I/NiSlkgRO1WsxBusqpC284j9dXA==")
+	pkixHashed := api.HashByte(pkixBytes)
+	require.NoError(t, err)
+	expiresAt := time.Now().Unix()
+	expiresAtStr := strconv.FormatInt(expiresAt, 10)
+	witKey1 := &types.WITKey{
+		ExpiresAt: expiresAt,
+		KeyId:     "key1",
+		PublicKey: pkixBytes,
+	}
+
+	_, expectedWITErr := x509.ParsePKIXPublicKey([]byte("malformed key"))
+	require.Error(t, expectedWITErr)
+
+	for _, tt := range []struct {
+		name string
+
+		code           codes.Code
+		err            string
+		expectLogs     []spiretest.LogEntry
+		resultKeys     []*types.WITKey
+		fakeErr        error
+		fakeExpectKey  *common.PublicKey
+		witKey         *types.WITKey
+		rateLimiterErr error
+	}{
+		{
+			name:   "success",
+			witKey: witKey1,
+			fakeExpectKey: &common.PublicKey{
+				PkixBytes: pkixBytes,
+				Kid:       "key1",
+				NotAfter:  expiresAt,
+			},
+			resultKeys: []*types.WITKey{
+				{
+					ExpiresAt: expiresAt,
+					KeyId:     "key1",
+					PublicKey: pkixBytes,
+				},
+			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:                      "success",
+						telemetry.Type:                        "audit",
+						telemetry.WITAuthorityKeyID:           "key1",
+						telemetry.WITAuthorityPublicKeySHA256: pkixHashed,
+						telemetry.WITAuthorityExpiresAt:       expiresAtStr,
+					},
+				},
+			},
+		},
+		{
+			name:           "rate limit fails",
+			witKey:         witKey1,
+			rateLimiterErr: status.Error(codes.Internal, "limit error"),
+			code:           codes.Internal,
+			err:            "rejecting request due to key publishing rate limiting: limit error",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Rejecting request due to key publishing rate limiting",
+					Data: logrus.Fields{
+						logrus.ErrorKey: "rpc error: code = Internal desc = limit error",
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:                      "error",
+						telemetry.StatusCode:                  "Internal",
+						telemetry.StatusMessage:               "rejecting request due to key publishing rate limiting: limit error",
+						telemetry.Type:                        "audit",
+						telemetry.WITAuthorityKeyID:           "key1",
+						telemetry.WITAuthorityPublicKeySHA256: pkixHashed,
+						telemetry.WITAuthorityExpiresAt:       expiresAtStr,
+					},
+				},
+			},
+		},
+		{
+			name: "missing WIT authority",
+			code: codes.InvalidArgument,
+			err:  "missing WIT authority",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Invalid argument: missing WIT authority",
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:        "error",
+						telemetry.StatusCode:    "InvalidArgument",
+						telemetry.StatusMessage: "missing WIT authority",
+						telemetry.Type:          "audit",
+					},
+				},
+			},
+		},
+		{
+			name: "malformed key",
+			code: codes.InvalidArgument,
+			err:  "invalid WIT authority: asn1:",
+			witKey: &types.WITKey{
+				ExpiresAt: expiresAt,
+				KeyId:     "key1",
+				PublicKey: []byte("malformed key"),
+			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Invalid argument: invalid WIT authority",
+					Data: logrus.Fields{
+						logrus.ErrorKey: expectedWITErr.Error(),
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:                      "error",
+						telemetry.StatusCode:                  "InvalidArgument",
+						telemetry.StatusMessage:               fmt.Sprintf("invalid WIT authority: %v", expectedWITErr),
+						telemetry.Type:                        "audit",
+						telemetry.WITAuthorityKeyID:           "key1",
+						telemetry.WITAuthorityPublicKeySHA256: api.HashByte([]byte("malformed key")),
+						telemetry.WITAuthorityExpiresAt:       expiresAtStr,
+					},
+				},
+			},
+		},
+		{
+			name: "missing key ID",
+			code: codes.InvalidArgument,
+			err:  "invalid WIT authority: missing key ID",
+			witKey: &types.WITKey{
+				ExpiresAt: expiresAt,
+				PublicKey: witKey1.PublicKey,
+			},
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Invalid argument: invalid WIT authority",
+					Data: logrus.Fields{
+						logrus.ErrorKey: "missing key ID",
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:                      "error",
+						telemetry.StatusCode:                  "InvalidArgument",
+						telemetry.StatusMessage:               "invalid WIT authority: missing key ID",
+						telemetry.Type:                        "audit",
+						telemetry.WITAuthorityKeyID:           "",
+						telemetry.WITAuthorityPublicKeySHA256: pkixHashed,
+						telemetry.WITAuthorityExpiresAt:       expiresAtStr,
+					},
+				},
+			},
+		},
+		{
+			name:    "fail to publish",
+			code:    codes.Internal,
+			err:     "failed to publish WIT key: publish error",
+			fakeErr: errors.New("publish error"),
+			witKey:  witKey1,
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Failed to publish WIT key",
+					Data: logrus.Fields{
+						logrus.ErrorKey: "publish error",
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:                      "error",
+						telemetry.StatusCode:                  "Internal",
+						telemetry.StatusMessage:               "failed to publish WIT key: publish error",
+						telemetry.Type:                        "audit",
+						telemetry.WITAuthorityKeyID:           "key1",
+						telemetry.WITAuthorityPublicKeySHA256: pkixHashed,
+						telemetry.WITAuthorityExpiresAt:       expiresAtStr,
+					},
+				},
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			test.logHook.Reset()
+
+			// Setup fake
+			test.up.t = t
+			test.up.err = tt.fakeErr
+			test.up.expectKey = tt.fakeExpectKey
+
+			// Setup rate limiter
+			test.rateLimiter.count = 1
+			test.rateLimiter.err = tt.rateLimiterErr
+
+			resp, err := test.client.PublishWITAuthority(ctx, &bundlev1.PublishWITAuthorityRequest{
+				WitAuthority: tt.witKey,
+			})
+
+			spiretest.AssertLogs(t, test.logHook.AllEntries(), tt.expectLogs)
+			if err != nil {
+				spiretest.RequireGRPCStatusContains(t, err, tt.code, tt.err)
+				require.Nil(t, resp)
+
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, resp)
+
+			spiretest.RequireProtoEqual(t, &bundlev1.PublishWITAuthorityResponse{
+				WitAuthorities: tt.resultKeys,
+			}, resp)
+		})
+	}
+}
+
 func TestListFederatedBundles(t *testing.T) {
 	test := setupServiceTest(t)
 	defer test.Cleanup()
@@ -3079,6 +3315,16 @@ func (f *fakeUpstreamPublisher) PublishJWTKey(_ context.Context, jwtKey *common.
 	spiretest.AssertProtoEqual(f.t, f.expectKey, jwtKey)
 
 	return []*common.PublicKey{jwtKey}, nil
+}
+
+func (f *fakeUpstreamPublisher) PublishWITKey(_ context.Context, witKey *common.PublicKey) ([]*common.PublicKey, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+
+	spiretest.AssertProtoEqual(f.t, f.expectKey, witKey)
+
+	return []*common.PublicKey{witKey}, nil
 }
 
 type fakeRateLimiter struct {

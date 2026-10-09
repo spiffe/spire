@@ -10,6 +10,7 @@ import (
 	upstreamauthorityv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/upstreamauthority/v1"
 	"github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/types"
 	"github.com/spiffe/spire/pkg/common/coretypes/jwtkey"
+	"github.com/spiffe/spire/pkg/common/coretypes/witkey"
 	"github.com/spiffe/spire/pkg/common/coretypes/x509certificate"
 	"github.com/spiffe/spire/pkg/common/plugin"
 	"github.com/spiffe/spire/pkg/common/util"
@@ -93,7 +94,44 @@ func (v1 *V1) PublishJWTKey(ctx context.Context, jwtKey *common.PublicKey) (_ []
 	return jwtKeys, &v1UpstreamJWTAuthorityStream{v1: v1, stream: stream, cancel: cancel}, nil
 }
 
-func (v1 *V1) SubscribeToLocalBundle(ctx context.Context) (_ []*x509certificate.X509Authority, _ []*common.PublicKey, _ LocalBundleUpdateStream, err error) {
+// PublishWITKey provides the V1 implementation of the UpstreamAuthority
+// interface method of the same name.
+func (v1 *V1) PublishWITKey(ctx context.Context, witKey *common.PublicKey) (_ []*common.PublicKey, _ UpstreamWITAuthorityStream, err error) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer func() {
+		// Only cancel the context if the function fails. Otherwise, the
+		// returned stream will be in charge of cancellation.
+		if err != nil {
+			defer cancel()
+		}
+	}()
+
+	pluginWITKey, err := witkey.ToPluginFromCommonProto(witKey)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	stream, err := v1.UpstreamAuthorityPluginClient.PublishWITKeyAndSubscribe(ctx, &upstreamauthorityv1.PublishWITKeyRequest{
+		WitKey: pluginWITKey,
+	})
+	if err != nil {
+		return nil, nil, v1.WrapErr(err)
+	}
+
+	resp, err := stream.Recv()
+	if err != nil {
+		return nil, nil, v1.streamError(err)
+	}
+
+	witKeys, err := v1.toCommonWITProtos(resp.UpstreamWitKeys)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return witKeys, &v1UpstreamWITAuthorityStream{v1: v1, stream: stream, cancel: cancel}, nil
+}
+
+func (v1 *V1) SubscribeToLocalBundle(ctx context.Context) (_ []*x509certificate.X509Authority, _ []*common.PublicKey, _ []*common.PublicKey, _ LocalBundleUpdateStream, err error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer func() {
 		// Only cancel the context if the function fails. Otherwise, the
@@ -105,25 +143,30 @@ func (v1 *V1) SubscribeToLocalBundle(ctx context.Context) (_ []*x509certificate.
 
 	stream, err := v1.UpstreamAuthorityPluginClient.SubscribeToLocalBundle(ctx, &upstreamauthorityv1.SubscribeToLocalBundleRequest{})
 	if err != nil {
-		return nil, nil, nil, v1.WrapErr(err)
+		return nil, nil, nil, nil, v1.WrapErr(err)
 	}
 
 	resp, err := stream.Recv()
 	if err != nil {
-		return nil, nil, nil, v1.streamError(err)
+		return nil, nil, nil, nil, v1.streamError(err)
 	}
 
 	jwtKeys, err := v1.toCommonProtos(resp.UpstreamJwtKeys)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
+	}
+
+	witKeys, err := v1.toCommonWITProtos(resp.UpstreamWitKeys)
+	if err != nil {
+		return nil, nil, nil, nil, err
 	}
 
 	x509Authorities, err := v1.parseX509Authorities(resp.UpstreamX509Roots)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 
-	return x509Authorities, jwtKeys, &v1LocalBundleStream{v1: v1, stream: stream, cancel: cancel}, nil
+	return x509Authorities, jwtKeys, witKeys, &v1LocalBundleStream{v1: v1, stream: stream, cancel: cancel}, nil
 }
 
 func (v1 *V1) parseMintX509CAFirstResponse(resp *upstreamauthorityv1.MintX509CAResponse) ([]*x509.Certificate, []*x509certificate.X509Authority, error) {
@@ -178,6 +221,14 @@ func (v1 *V1) toCommonProtos(pbs []*types.JWTKey) ([]*common.PublicKey, error) {
 		return nil, v1.Errorf(codes.Internal, "invalid plugin response: %v", err)
 	}
 	return jwtKeys, nil
+}
+
+func (v1 *V1) toCommonWITProtos(pbs []*types.WITKey) ([]*common.PublicKey, error) {
+	witKeys, err := witkey.ToCommonFromPluginProtos(pbs)
+	if err != nil {
+		return nil, v1.Errorf(codes.Internal, "invalid plugin response: %v", err)
+	}
+	return witKeys, nil
 }
 
 type v1UpstreamX509AuthorityStream struct {
@@ -242,22 +293,53 @@ func (s *v1UpstreamJWTAuthorityStream) Close() {
 	s.cancel()
 }
 
-type v1LocalBundleStream struct {
+type v1UpstreamWITAuthorityStream struct {
 	v1     *V1
-	stream upstreamauthorityv1.UpstreamAuthority_SubscribeToLocalBundleClient
+	stream upstreamauthorityv1.UpstreamAuthority_PublishWITKeyAndSubscribeClient
 	cancel context.CancelFunc
 }
 
-func (s *v1LocalBundleStream) RecvLocalBundleUpdate() ([]*x509certificate.X509Authority, []*common.PublicKey, error) {
+func (s *v1UpstreamWITAuthorityStream) RecvUpstreamWITAuthorities() ([]*common.PublicKey, error) {
 	for {
 		resp, err := s.stream.Recv()
 		switch {
 		case errors.Is(err, io.EOF):
 			// This is expected if the plugin does not support streaming
 			// authority updates.
-			return nil, nil, err
+			return nil, io.EOF
 		case err != nil:
-			return nil, nil, s.v1.WrapErr(err)
+			return nil, s.v1.WrapErr(err)
+		}
+
+		witKeys, err := s.v1.toCommonWITProtos(resp.UpstreamWitKeys)
+		if err != nil {
+			s.v1.Log.WithError(err).Warn("Failed to parse a WIT key update from the upstream authority plugin. Please report this bug.")
+			continue
+		}
+		return witKeys, nil
+	}
+}
+
+func (s *v1UpstreamWITAuthorityStream) Close() {
+	s.cancel()
+}
+
+type v1LocalBundleStream struct {
+	v1     *V1
+	stream upstreamauthorityv1.UpstreamAuthority_SubscribeToLocalBundleClient
+	cancel context.CancelFunc
+}
+
+func (s *v1LocalBundleStream) RecvLocalBundleUpdate() ([]*x509certificate.X509Authority, []*common.PublicKey, []*common.PublicKey, error) {
+	for {
+		resp, err := s.stream.Recv()
+		switch {
+		case errors.Is(err, io.EOF):
+			// This is expected if the plugin does not support streaming
+			// authority updates.
+			return nil, nil, nil, err
+		case err != nil:
+			return nil, nil, nil, s.v1.WrapErr(err)
 		}
 
 		x509Authorities, err := s.v1.parseX509Authorities(resp.UpstreamX509Roots)
@@ -272,7 +354,13 @@ func (s *v1LocalBundleStream) RecvLocalBundleUpdate() ([]*x509certificate.X509Au
 			continue
 		}
 
-		return x509Authorities, jwtKeys, nil
+		witKeys, err := s.v1.toCommonWITProtos(resp.UpstreamWitKeys)
+		if err != nil {
+			s.v1.Log.WithError(err).Warn("Failed to parse a WIT key update from the upstream authority plugin. Please report this bug.")
+			continue
+		}
+
+		return x509Authorities, jwtKeys, witKeys, nil
 	}
 }
 

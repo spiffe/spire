@@ -56,10 +56,6 @@ type ManagedCA interface {
 	NotifyTaintedX509Authorities([]*x509.Certificate)
 }
 
-type JwtKeyPublisher interface {
-	PublishJWTKey(ctx context.Context, jwtKey *common.PublicKey) ([]*common.PublicKey, error)
-}
-
 type AuthorityManager interface {
 	GetCurrentJWTKeySlot() Slot
 	GetNextJWTKeySlot() Slot
@@ -77,6 +73,7 @@ type AuthorityManager interface {
 	IsJWTSVIDsDisabled() bool
 	IsWITSVIDsDisabled() bool
 	PublishJWTKey(ctx context.Context, jwtKey *common.PublicKey) ([]*common.PublicKey, error)
+	PublishWITKey(ctx context.Context, witKey *common.PublicKey) ([]*common.PublicKey, error)
 	NotifyTaintedX509Authority(ctx context.Context, authorityID string) error
 	SubscribeToLocalBundle(ctx context.Context) error
 }
@@ -122,6 +119,9 @@ type Manager struct {
 
 	// Used to log a warning only once when the UpstreamAuthority does not support JWT-SVIDs.
 	jwtUnimplementedWarnOnce sync.Once
+
+	// Used to log a warning only once when the UpstreamAuthority does not support WIT-SVIDs.
+	witUnimplementedWarnOnce sync.Once
 
 	// Used for testing backoff, must not be set in regular code
 	triggerBackOffCh chan error
@@ -568,8 +568,7 @@ func (m *Manager) PrepareWITKey(ctx context.Context) (err error) {
 		return err
 	}
 
-	_, err = m.appendBundle(ctx, nil, nil, []*common.PublicKey{publicKey})
-	if err != nil {
+	if _, err := m.PublishWITKey(ctx, publicKey); err != nil {
 		return err
 	}
 
@@ -618,6 +617,38 @@ func (m *Manager) RotateWITKey(ctx context.Context) {
 	}
 
 	m.activateWITKey(ctx)
+}
+
+// PublishWITKey publishes the passed WIT key to the upstream server using the
+// configured UpstreamAuthority plugin, then appends to the bundle the WIT keys
+// returned by the upstream server, and finally it returns the updated list of
+// WIT keys contained in the bundle. It follows the same fallback rules as
+// PublishJWTKey.
+func (m *Manager) PublishWITKey(ctx context.Context, witKey *common.PublicKey) ([]*common.PublicKey, error) {
+	if m.upstreamClient != nil {
+		publishCtx, cancel := context.WithTimeout(ctx, publishJWKTimeout)
+		defer cancel()
+		upstreamWITKeys, err := m.upstreamClient.PublishWITKey(publishCtx, witKey)
+		switch {
+		case status.Code(err) == codes.Unimplemented:
+			m.witUnimplementedWarnOnce.Do(func() {
+				m.c.Log.WithField("plugin_name", m.upstreamPluginName).Warn("UpstreamAuthority plugin does not support WIT-SVIDs. Workloads managed " +
+					"by this server may have trouble communicating with workloads outside " +
+					"this cluster when using WIT-SVIDs.")
+			})
+		case err != nil:
+			return nil, err
+		default:
+			return upstreamWITKeys, nil
+		}
+	}
+
+	bundle, err := m.appendBundle(ctx, nil, nil, []*common.PublicKey{witKey})
+	if err != nil {
+		return nil, err
+	}
+
+	return bundle.WitSigningKeys, nil
 }
 
 func (m *Manager) SubscribeToLocalBundle(ctx context.Context) error {
@@ -1193,6 +1224,17 @@ func (u *bundleUpdater) AppendJWTKeys(ctx context.Context, keys []*common.Public
 		return nil, err
 	}
 	return bundle.JwtSigningKeys, nil
+}
+
+func (u *bundleUpdater) AppendWITKeys(ctx context.Context, keys []*common.PublicKey) ([]*common.PublicKey, error) {
+	bundle, err := u.appendBundle(ctx, &common.Bundle{
+		TrustDomainId:  u.trustDomainID,
+		WitSigningKeys: keys,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return bundle.WitSigningKeys, nil
 }
 
 func (u *bundleUpdater) LogError(err error, msg string) {

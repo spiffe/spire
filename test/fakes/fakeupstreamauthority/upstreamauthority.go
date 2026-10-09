@@ -15,6 +15,7 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	upstreamauthorityv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/upstreamauthority/v1"
 	"github.com/spiffe/spire/pkg/common/coretypes/jwtkey"
+	"github.com/spiffe/spire/pkg/common/coretypes/witkey"
 	"github.com/spiffe/spire/pkg/common/coretypes/x509certificate"
 	"github.com/spiffe/spire/pkg/common/x509svid"
 	"github.com/spiffe/spire/pkg/common/x509util"
@@ -36,10 +37,12 @@ type Config struct {
 	TrustDomain                 spiffeid.TrustDomain
 	UseIntermediate             bool
 	DisallowPublishJWTKey       bool
+	DisallowPublishWITKey       bool
 	UseSubscribeToLocalBundle   bool
 	KeyUsage                    x509.KeyUsage
 	MutateMintX509CAResponse    func(*upstreamauthorityv1.MintX509CAResponse)
 	MutatePublishJWTKeyResponse func(*upstreamauthorityv1.PublishJWTKeyResponse)
+	MutatePublishWITKeyResponse func(*upstreamauthorityv1.PublishWITKeyResponse)
 }
 
 type UpstreamAuthority struct {
@@ -58,9 +61,13 @@ type UpstreamAuthority struct {
 	jwtKeysMtx sync.RWMutex
 	jwtKeys    []*common.PublicKey
 
+	witKeysMtx sync.RWMutex
+	witKeys    []*common.PublicKey
+
 	streamsMtx           sync.Mutex
 	mintX509CAStreams    map[chan struct{}]struct{}
 	publishJWTKeyStreams map[chan struct{}]struct{}
+	publishWITKeyStreams map[chan struct{}]struct{}
 }
 
 func New(t *testing.T, config Config) *UpstreamAuthority {
@@ -72,6 +79,7 @@ func New(t *testing.T, config Config) *UpstreamAuthority {
 		config:               config,
 		mintX509CAStreams:    make(map[chan struct{}]struct{}),
 		publishJWTKeyStreams: make(map[chan struct{}]struct{}),
+		publishWITKeyStreams: make(map[chan struct{}]struct{}),
 	}
 	ua.RotateX509CA()
 	return ua
@@ -142,6 +150,35 @@ func (ua *UpstreamAuthority) PublishJWTKeyAndSubscribe(req *upstreamauthorityv1.
 	}
 }
 
+func (ua *UpstreamAuthority) PublishWITKeyAndSubscribe(req *upstreamauthorityv1.PublishWITKeyRequest, stream upstreamauthorityv1.UpstreamAuthority_PublishWITKeyAndSubscribeServer) error {
+	if ua.config.DisallowPublishWITKey {
+		return status.Error(codes.Unimplemented, "disallowed")
+	}
+
+	streamCh := ua.newPublishWITKeyStream()
+	defer ua.removePublishWITKeyStream(streamCh)
+
+	ua.AppendWITKey(witkey.RequireToCommonFromPluginProto(req.WitKey))
+
+	ctx := stream.Context()
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-streamCh:
+			if err := ua.sendPublishWITKeyStream(stream, &upstreamauthorityv1.PublishWITKeyResponse{
+				UpstreamWitKeys: witkey.RequireToPluginFromCommonProtos(ua.WITKeys()),
+			}); err != nil {
+				return err
+			}
+
+			if ua.config.UseSubscribeToLocalBundle {
+				return nil
+			}
+		}
+	}
+}
+
 func (ua *UpstreamAuthority) SubscribeToLocalBundle(req *upstreamauthorityv1.SubscribeToLocalBundleRequest, stream upstreamauthorityv1.UpstreamAuthority_SubscribeToLocalBundleServer) error {
 	if !ua.config.UseSubscribeToLocalBundle {
 		return status.Error(codes.Unimplemented, "fetching upstream trust bundle is unsupported")
@@ -153,10 +190,14 @@ func (ua *UpstreamAuthority) SubscribeToLocalBundle(req *upstreamauthorityv1.Sub
 	jwtStreamCh := ua.newPublishJWTKeyStream()
 	defer ua.removePublishJWTKeyStream(jwtStreamCh)
 
+	witStreamCh := ua.newPublishWITKeyStream()
+	defer ua.removePublishWITKeyStream(witStreamCh)
+
 	// Send a first update on the stream, as required.
 	if err := stream.Send(&upstreamauthorityv1.SubscribeToLocalBundleResponse{
 		UpstreamX509Roots: x509certificate.RequireToPluginProtos(ua.X509Roots()),
 		UpstreamJwtKeys:   jwtkey.RequireToPluginFromCommonProtos(ua.JWTKeys()),
+		UpstreamWitKeys:   witkey.RequireToPluginFromCommonProtos(ua.WITKeys()),
 	}); err != nil {
 		return err
 	}
@@ -168,11 +209,13 @@ func (ua *UpstreamAuthority) SubscribeToLocalBundle(req *upstreamauthorityv1.Sub
 			return nil
 		case <-x509StreamCh:
 		case <-jwtStreamCh:
+		case <-witStreamCh:
 		}
 
 		if err := stream.Send(&upstreamauthorityv1.SubscribeToLocalBundleResponse{
 			UpstreamX509Roots: x509certificate.RequireToPluginProtos(ua.X509Roots()),
 			UpstreamJwtKeys:   jwtkey.RequireToPluginFromCommonProtos(ua.JWTKeys()),
+			UpstreamWitKeys:   witkey.RequireToPluginFromCommonProtos(ua.WITKeys()),
 		}); err != nil {
 			return err
 		}
@@ -251,6 +294,19 @@ func (ua *UpstreamAuthority) AppendJWTKey(jwtKey *common.PublicKey) {
 	ua.TriggerJWTKeysChanged()
 }
 
+func (ua *UpstreamAuthority) WITKeys() []*common.PublicKey {
+	ua.witKeysMtx.RLock()
+	defer ua.witKeysMtx.RUnlock()
+	return ua.witKeys
+}
+
+func (ua *UpstreamAuthority) AppendWITKey(witKey *common.PublicKey) {
+	ua.witKeysMtx.Lock()
+	defer ua.witKeysMtx.Unlock()
+	ua.witKeys = append(ua.witKeys, witKey)
+	ua.TriggerWITKeysChanged()
+}
+
 func (ua *UpstreamAuthority) TriggerX509RootsChanged() {
 	ua.streamsMtx.Lock()
 	defer ua.streamsMtx.Unlock()
@@ -266,6 +322,17 @@ func (ua *UpstreamAuthority) TriggerJWTKeysChanged() {
 	ua.streamsMtx.Lock()
 	defer ua.streamsMtx.Unlock()
 	for streamCh := range ua.publishJWTKeyStreams {
+		select {
+		case streamCh <- struct{}{}:
+		default:
+		}
+	}
+}
+
+func (ua *UpstreamAuthority) TriggerWITKeysChanged() {
+	ua.streamsMtx.Lock()
+	defer ua.streamsMtx.Unlock()
+	for streamCh := range ua.publishWITKeyStreams {
 		select {
 		case streamCh <- struct{}{}:
 		default:
@@ -326,6 +393,27 @@ func (ua *UpstreamAuthority) removePublishJWTKeyStream(streamCh chan struct{}) {
 func (ua *UpstreamAuthority) sendPublishJWTKeyStream(stream upstreamauthorityv1.UpstreamAuthority_PublishJWTKeyAndSubscribeServer, resp *upstreamauthorityv1.PublishJWTKeyResponse) error {
 	if ua.config.MutatePublishJWTKeyResponse != nil {
 		ua.config.MutatePublishJWTKeyResponse(resp)
+	}
+	return stream.Send(resp)
+}
+
+func (ua *UpstreamAuthority) newPublishWITKeyStream() chan struct{} {
+	streamCh := make(chan struct{}, 1)
+	ua.streamsMtx.Lock()
+	ua.publishWITKeyStreams[streamCh] = struct{}{}
+	ua.streamsMtx.Unlock()
+	return streamCh
+}
+
+func (ua *UpstreamAuthority) removePublishWITKeyStream(streamCh chan struct{}) {
+	ua.streamsMtx.Lock()
+	delete(ua.publishWITKeyStreams, streamCh)
+	ua.streamsMtx.Unlock()
+}
+
+func (ua *UpstreamAuthority) sendPublishWITKeyStream(stream upstreamauthorityv1.UpstreamAuthority_PublishWITKeyAndSubscribeServer, resp *upstreamauthorityv1.PublishWITKeyResponse) error {
+	if ua.config.MutatePublishWITKeyResponse != nil {
+		ua.config.MutatePublishWITKeyResponse(resp)
 	}
 	return stream.Send(resp)
 }
