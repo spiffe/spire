@@ -2,6 +2,7 @@
 
 The vault plugin signs intermediate CA certificates for SPIRE using the Vault PKI Engine.
 The plugin does not support the `PublishJWTKey` RPC and is therefore not appropriate for use in nested SPIRE topologies where JWT-SVIDs are in use.
+This plugin is also compatible with the [OpenBao](https://openbao.org) API.
 
 ## Configuration
 
@@ -9,10 +10,10 @@ The plugin accepts the following configuration options:
 
 | key                  | type   | required | description                                                                                                | default              |
 |:---------------------|:-------|:---------|:-----------------------------------------------------------------------------------------------------------|:---------------------|
-| vault_addr           | string |          | The URL of the Vault server. (e.g., <https://vault.example.com:8443/>)                                     | `${VAULT_ADDR}`      |
-| namespace            | string |          | Name of the Vault namespace. This is only available in the Vault Enterprise.                               | `${VAULT_NAMESPACE}` |
+| vault_addr           | string |          | The URL of the Vault or OpenBao server. (e.g., <https://vault.example.com:8443/>)                                     | `${VAULT_ADDR}`      |
+| namespace            | string |          | Name of the Vault/OpenBao namespace. When using HashiCorp Vault, this is only available in the Enterprise edition.                               | `${VAULT_NAMESPACE}` |
 | pki_mount_point      | string |          | Name of the mount point where PKI secret engine is mounted                                                 | pki                  |
-| ca_cert_path         | string |          | Path to a CA certificate file used to verify the Vault server certificate. Only PEM format is supported.   | `${VAULT_CACERT}`    |
+| ca_cert_path         | string |          | Path to a CA certificate file used to verify the Vault/OpenBao server certificate. Only PEM format is supported.   | `${VAULT_CACERT}`    |
 | insecure_skip_verify | bool   |          | If true, vault client accepts any server certificates                                                      | false                |
 | cert_auth            | struct |          | Configuration for the Client Certificate authentication method                                             |                      |
 | token_auth           | struct |          | Configuration for the Token authentication method                                                          |                      |
@@ -25,21 +26,21 @@ The plugin reads the following environment variables. Variables marked as standa
 
 | Variable                  | Standard | Description                                                  |
 |:--------------------------|:---------|:-------------------------------------------------------------|
-| `VAULT_ADDR`              | Yes      | Address of the Vault server                                  |
+| `VAULT_ADDR`              | Yes      | Address of the Vault or OpenBao server                                  |
 | `VAULT_CACERT`            | Yes      | Path to a CA certificate file                                |
 | `VAULT_CLIENT_CERT`       | Yes      | Path to a client certificate file (cert auth)                |
 | `VAULT_CLIENT_KEY`        | Yes      | Path to a client private key file (cert auth)                |
-| `VAULT_NAMESPACE`         | Yes      | Vault namespace (Enterprise only)                            |
-| `VAULT_TOKEN`             | Yes      | Vault token (token auth)                                     |
+| `VAULT_NAMESPACE`         | Yes      | Vault/OpenBao namespace (Enterprise only)                            |
+| `VAULT_TOKEN`             | Yes      | Vault/OpenBao token (token auth)                                     |
 | `VAULT_APPROLE_ID`        | **No**   | AppRole role ID — SPIRE-specific, not a Vault SDK variable   |
 | `VAULT_APPROLE_SECRET_ID` | **No**   | AppRole secret ID — SPIRE-specific, not a Vault SDK variable |
 
 The plugin supports **Client Certificate**, **Token**, **AppRole** and **Kubernetes** authentication methods.
 
-- **Client Certificate** method authenticates to Vault using a TLS client certificate.
-- **Token** method authenticates to Vault using the token in an HTTP Request header.
-- **AppRole** method authenticates to Vault using a RoleID and SecretID that are issued from Vault.
-- **Kubernetes** method authenticates to Vault using a Kubernetes Service Account Token.
+- **Client Certificate** method authenticates to Vault/OpenBao using a TLS client certificate.
+- **Token** method authenticates to Vault/OpenBao using the token in an HTTP Request header.
+- **AppRole** method authenticates to Vault/OpenBao using a RoleID and SecretID that are issued from Vault/OpenBao.
+- **Kubernetes** method authenticates to Vault/OpenBao using a Kubernetes Service Account Token.
 
 The [`ca_ttl` SPIRE Server configurable](https://github.com/spiffe/spire/blob/main/doc/spire_server.md#server-configuration-file) should be less than or equal to the Vault's PKI secret engine TTL.
 To configure the TTL value, tune the engine.
@@ -63,7 +64,7 @@ path "pki/root/sign-intermediate" {
 | key                   | type   | required | description                                                                                                          | default                |
 |:----------------------|:-------|:---------|:---------------------------------------------------------------------------------------------------------------------|:-----------------------|
 | cert_auth_mount_point | string |          | Name of the mount point where TLS certificate auth method is mounted                                                 | cert                   |
-| cert_auth_role_name   | string |          | Name of the Vault role. If given, the plugin authenticates against only the named role. Default to trying all roles. |                        |
+| cert_auth_role_name   | string |          | Name of the Vault/OpenBao role. If given, the plugin authenticates against only the named role. Default to trying all roles. |                        |
 | client_cert_path      | string |          | Path to a client certificate file. Only PEM format is supported.                                                     | `${VAULT_CLIENT_CERT}` |
 | client_key_path       | string |          | Path to a client private key file. Only PEM format is supported.                                                     | `${VAULT_CLIENT_KEY}`  |
 
@@ -153,8 +154,8 @@ path "pki/root/sign-intermediate" {
 | key                  | type   | required | description                                                                       | default    |
 |:---------------------|:-------|:---------|:----------------------------------------------------------------------------------|:-----------|
 | k8s_auth_mount_point | string |          | Name of the mount point where the Kubernetes auth method is mounted               | kubernetes |
-| k8s_auth_role_name   | string | ✔        | Name of the Vault role. The plugin authenticates against the named role           |            |
-| token_path           | string | ✔        | Path to the Kubernetes Service Account Token to use authentication with the Vault |            |
+| k8s_auth_role_name   | string | ✔        | Name of the Vault/OpenBao role. The plugin authenticates against the named role           |            |
+| token_path           | string | ✔        | Path to the Kubernetes Service Account Token to use authentication with the Vault/OpenBao |            |
 
 ```hcl
     UpstreamAuthority "vault" {
