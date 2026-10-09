@@ -269,16 +269,17 @@ type syncRetryBackoffConfig struct {
 }
 
 type experimentalConfig struct {
-	SyncInterval              string `hcl:"sync_interval"`
-	JWTSVIDCacheHitTimeout    string `hcl:"jwt_svid_cache_hit_timeout"`
-	RPCTimeout                string `hcl:"rpc_timeout"`
-	MaxBundleWorkers          int    `hcl:"max_bundle_workers"`
-	NamedPipeName             string `hcl:"named_pipe_name"`
-	AdminNamedPipeName        string `hcl:"admin_named_pipe_name"`
-	RequirePQKEM              bool   `hcl:"require_pq_kem"`
-	ServerLoadBalancingConfig string `hcl:"server_load_balancing_config"`
-	EnableWITSVIDs            bool   `hcl:"enable_wit_svids"`
-	WITSVIDCacheMaxSize       int    `hcl:"wit_svid_cache_max_size"`
+	SyncInterval                   string `hcl:"sync_interval"`
+	MinFederatedBundleSyncInterval string `hcl:"min_federated_bundle_sync_interval"`
+	JWTSVIDCacheHitTimeout         string `hcl:"jwt_svid_cache_hit_timeout"`
+	RPCTimeout                     string `hcl:"rpc_timeout"`
+	MaxBundleWorkers               int    `hcl:"max_bundle_workers"`
+	NamedPipeName                  string `hcl:"named_pipe_name"`
+	AdminNamedPipeName             string `hcl:"admin_named_pipe_name"`
+	RequirePQKEM                   bool   `hcl:"require_pq_kem"`
+	ServerLoadBalancingConfig      string `hcl:"server_load_balancing_config"`
+	EnableWITSVIDs                 bool   `hcl:"enable_wit_svids"`
+	WITSVIDCacheMaxSize            int    `hcl:"wit_svid_cache_max_size"`
 
 	// SyncRetryBackoff holds the configuration of the exponential backoff
 	// applied between failed synchronizations with the server.
@@ -675,6 +676,17 @@ func newAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig, skip
 		if err != nil {
 			return nil, fmt.Errorf("could not parse synchronization interval: %w", err)
 		}
+	}
+
+	if c.Agent.Experimental.MinFederatedBundleSyncInterval != "" {
+		interval, err := time.ParseDuration(c.Agent.Experimental.MinFederatedBundleSyncInterval)
+		if err != nil {
+			return nil, fmt.Errorf("could not parse federated bundle synchronization interval: %w", err)
+		}
+		if interval <= 0 {
+			return nil, errors.New("federated bundle synchronization interval must be greater than zero")
+		}
+		ac.MinFederatedBundleSyncInterval = interval
 	}
 
 	serverHostPort := net.JoinHostPort(c.Agent.ServerAddress, strconv.Itoa(c.Agent.ServerPort))
