@@ -1,7 +1,7 @@
 # Server plugin: KeyManager "hashicorp_vault"
 
 The `hashicorp_vault` key manager plugin leverages HashiCorp Vault to create, maintain, and rotate key pairs, signing
-SVIDs as needed.
+SVIDs as needed. This plugin is also compatible with the [OpenBao](https://openbao.org) API.
 
 ## Configuration
 
@@ -11,10 +11,10 @@ The plugin accepts the following configuration options:
 |:---------------------|:-------|:--------------------------------------------|:-----------------------------------------------------------------------------------------------------------------------------------------------------|:---------------------|
 | key_identifier_file  | string | Required if key_identifier_value is not set | A file path location where information about generated keys will be persisted. See "[Management of keys](#management-of-keys)" for more information. | ""                   |
 | key_identifier_value | string | Required if key_identifier_file is not set  | A static identifier for the SPIRE server instance (used instead of `key_identifier_file`).                                                           | ""                   |
-| vault_addr           | string |                                             | The URL of the Vault server. (e.g., <https://vault.example.com:8443/>)                                                                               | `${VAULT_ADDR}`      |
-| namespace            | string |                                             | Name of the Vault namespace. This is only available in the Vault Enterprise.                                                                         | `${VAULT_NAMESPACE}` |
+| vault_addr           | string |                                             | The URL of the Vault or OpenBao server. (e.g., <https://vault.example.com:8443/>)                                                                               | `${VAULT_ADDR}`      |
+| namespace            | string |                                             | Name of the Vault/OpenBao namespace. When using HashiCorp Vault, this is only available in the Enterprise edition.                                                                         | `${VAULT_NAMESPACE}` |
 | transit_engine_path  | string |                                             | Path of the transit engine that stores the keys.                                                                                                     | transit              |
-| ca_cert_path         | string |                                             | Path to a CA certificate file used to verify the Vault server certificate. Only PEM format is supported.                                             | `${VAULT_CACERT}`    |
+| ca_cert_path         | string |                                             | Path to a CA certificate file used to verify the Vault/OpenBao server certificate. Only PEM format is supported.                                             | `${VAULT_CACERT}`    |
 | insecure_skip_verify | bool   |                                             | If true, vault client accepts any server certificates. Should only be used for test environments.                                                    | false                |
 | cert_auth            | struct |                                             | Configuration for the Client Certificate authentication method                                                                                       |                      |
 | token_auth           | struct |                                             | Configuration for the Token authentication method                                                                                                    |                      |
@@ -27,22 +27,22 @@ The plugin reads the following environment variables. Variables marked as standa
 
 | Variable                    | Standard | Description                                                   |
 |:----------------------------|:---------|:--------------------------------------------------------------|
-| `VAULT_ADDR`                | Yes      | Address of the Vault server                                   |
+| `VAULT_ADDR`                | Yes      | Address of the Vault or OpenBao server                                   |
 | `VAULT_CACERT`              | Yes      | Path to a CA certificate file                                 |
 | `VAULT_CLIENT_CERT`         | Yes      | Path to a client certificate file (cert auth)                 |
 | `VAULT_CLIENT_KEY`          | Yes      | Path to a client private key file (cert auth)                 |
-| `VAULT_NAMESPACE`           | Yes      | Vault namespace (Enterprise only)                             |
-| `VAULT_TOKEN`               | Yes      | Vault token (token auth)                                      |
+| `VAULT_NAMESPACE`           | Yes      | Vault/OpenBao namespace (Enterprise only)                             |
+| `VAULT_TOKEN`               | Yes      | Vault/OpenBao token (token auth)                                      |
 | `VAULT_APPROLE_ID`          | **No**   | AppRole role ID — SPIRE-specific, not a Vault SDK variable    |
 | `VAULT_APPROLE_SECRET_ID`   | **No**   | AppRole secret ID — SPIRE-specific, not a Vault SDK variable  |
 | `VAULT_TRANSIT_ENGINE_PATH` | **No**   | Transit engine path — SPIRE-specific, falls back to `transit` |
 
 The plugin supports **Client Certificate**, **Token**, **AppRole** and **Kubernetes** authentication methods.
 
-- **Client Certificate** method authenticates to Vault using a TLS client certificate.
-- **Token** method authenticates to Vault using the token in a HTTP Request header.
-- **AppRole** method authenticates to Vault using a RoleID and SecretID that are issued from Vault.
-- **Kubernetes** method authenticates to Vault using a Kubernetes Service Account Token.
+- **Client Certificate** method authenticates to Vault/OpenBao using a TLS client certificate.
+- **Token** method authenticates to Vault/OpenBao using the token in a HTTP Request header.
+- **AppRole** method authenticates to Vault/OpenBao using a RoleID and SecretID that are issued from Vault/OpenBao.
+- **Kubernetes** method authenticates to Vault/OpenBao using a Kubernetes Service Account Token.
 
 The configured token needs to be attached to a policy that has at least the following capabilities:
 
@@ -61,7 +61,7 @@ path "transit/sign/*" {
 | key                   | type   | required | description                                                                                                          | default                |
 |:----------------------|:-------|:---------|:---------------------------------------------------------------------------------------------------------------------|:-----------------------|
 | cert_auth_mount_point | string |          | Name of the mount point where TLS certificate auth method is mounted                                                 | cert                   |
-| cert_auth_role_name   | string |          | Name of the Vault role. If given, the plugin authenticates against only the named role. Default to trying all roles. |                        |
+| cert_auth_role_name   | string |          | Name of the Vault/OpenBao role. If given, the plugin authenticates against only the named role. Default to trying all roles. |                        |
 | client_cert_path      | string |          | Path to a client certificate file. Only PEM format is supported.                                                     | `${VAULT_CLIENT_CERT}` |
 | client_key_path       | string |          | Path to a client private key file. Only PEM format is supported.                                                     | `${VAULT_CLIENT_KEY}`  |
 
@@ -148,8 +148,8 @@ path "transit/sign/*" {
 | key                  | type   | required | description                                                                       | default    |
 |:---------------------|:-------|:---------|:----------------------------------------------------------------------------------|:-----------|
 | k8s_auth_mount_point | string |          | Name of the mount point where the Kubernetes auth method is mounted               | kubernetes |
-| k8s_auth_role_name   | string | ✔        | Name of the Vault role. The plugin authenticates against the named role           |            |
-| token_path           | string | ✔        | Path to the Kubernetes Service Account Token to use authentication with the Vault |            |
+| k8s_auth_role_name   | string | ✔        | Name of the Vault/OpenBao role. The plugin authenticates against the named role           |            |
+| token_path           | string | ✔        | Path to the Kubernetes Service Account Token to use authentication with the Vault/OpenBao |            |
 
 ```hcl
     KeyManager "hashicorp_vault" {
