@@ -1,0 +1,23 @@
+#!/bin/bash
+
+source ./_common.sh
+
+# Restart spire-server-1 with spire-server-2 still up. The agent must move back
+# to priority 0 by itself once server-1's subchannel reconnects.
+baseline=$(count-server-api-starts spire-server-1)
+docker compose start spire-server-1
+wait-for-server-restarted spire-server-1 "${baseline}"
+
+want=$(server-jwt-kid spire-server-1)
+
+# Allow for gRPC reconnect backoff (max 120s + jitter).
+deadline=$((SECONDS + 180))
+while :; do
+    kid=$(fetch-jwt-kid "$(unique-audience)")
+    [ "${kid}" == "${want}" ] && break
+    if [ "${SECONDS}" -ge "${deadline}" ]; then
+        fail-now "agent did not fail back to spire-server-1 (last kid ${kid})"
+    fi
+    sleep 1
+done
+log-info "spire-server-2 still up: JWT-SVID issued by spire-server-1 (kid=${kid}, failback)"
