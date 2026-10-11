@@ -42,7 +42,6 @@ func TestNewAuthorizedEntryFetcherEvents(t *testing.T) {
 		ds:                      ds,
 		cacheReloadInterval:     defaultCacheReloadInterval,
 		fullCacheReloadInterval: defaultFullCacheReloadInterval,
-		pruneEventsOlderThan:    defaultPruneEventsOlderThan,
 		eventTimeout:            defaultEventTimeout,
 	})
 	assert.NoError(t, err)
@@ -162,7 +161,6 @@ func TestNewAuthorizedEntryFetcherEventsErrorBuildingCache(t *testing.T) {
 		nodeCache:               nodeCache,
 		cacheReloadInterval:     defaultCacheReloadInterval,
 		fullCacheReloadInterval: defaultFullCacheReloadInterval,
-		pruneEventsOlderThan:    defaultPruneEventsOlderThan,
 		eventTimeout:            defaultEventTimeout,
 	})
 	assert.Error(t, err)
@@ -211,20 +209,16 @@ func TestBuildCacheSavesSkippedEvents(t *testing.T) {
 
 	cache := authorizedentries.NewCache(clk, "example.org")
 
-	registrationEntries, err := buildRegistrationEntriesCache(ctx, log, metrics, ds, clk, cache, pageSize, fetchPageSize, defaultCacheReloadInterval, defaultEventTimeout)
+	registrationEntries, err := buildRegistrationEntriesCache(ctx, log, metrics, ds, clk, cache, pageSize, fetchPageSize, defaultEventTimeout)
 	require.NoError(t, err)
 	require.NotNil(t, registrationEntries)
 
-	attestedNodes, err := buildAttestedNodesCache(ctx, log, metrics, ds, clk, cache, nodeCache, fetchPageSize, defaultCacheReloadInterval, defaultEventTimeout)
+	attestedNodes, err := buildAttestedNodesCache(ctx, log, metrics, ds, clk, cache, nodeCache, fetchPageSize, defaultEventTimeout)
 	require.NoError(t, err)
 	require.NotNil(t, attestedNodes)
 
-	assert.Contains(t, registrationEntries.eventTracker.events, uint(2))
-	assert.Equal(t, uint(3), registrationEntries.lastEvent)
-
-	assert.Contains(t, attestedNodes.eventTracker.events, uint(2))
-	assert.Contains(t, attestedNodes.eventTracker.events, uint(3))
-	assert.Equal(t, uint(4), attestedNodes.lastEvent)
+	assert.Equal(t, 1, registrationEntries.skippedEntryEvents)
+	assert.Equal(t, 2, attestedNodes.skippedNodeEvents)
 
 	// Assert zero metrics since the updateCache() method doesn't get called right at built time.
 	expectedMetrics := []fakemetrics.MetricItem{
@@ -255,7 +249,6 @@ func TestRunUpdateCacheTaskDoesFullUpdate(t *testing.T) {
 		ds:                      ds,
 		cacheReloadInterval:     3 * time.Second,
 		fullCacheReloadInterval: 5 * time.Second,
-		pruneEventsOlderThan:    defaultPruneEventsOlderThan,
 		eventTimeout:            defaultEventTimeout,
 	})
 	require.NoError(t, err)
@@ -314,7 +307,6 @@ func TestRunUpdateCacheTaskPrunesExpiredAgents(t *testing.T) {
 		nodeCache:               nodeCache,
 		cacheReloadInterval:     defaultCacheReloadInterval,
 		fullCacheReloadInterval: defaultFullCacheReloadInterval,
-		pruneEventsOlderThan:    defaultPruneEventsOlderThan,
 		eventTimeout:            defaultEventTimeout,
 	})
 	require.NoError(t, err)
@@ -396,7 +388,6 @@ func TestUpdateRegistrationEntriesCacheSkippedEvents(t *testing.T) {
 		nodeCache:               nodeCache,
 		cacheReloadInterval:     defaultCacheReloadInterval,
 		fullCacheReloadInterval: defaultFullCacheReloadInterval,
-		pruneEventsOlderThan:    defaultPruneEventsOlderThan,
 		eventTimeout:            defaultEventTimeout,
 	})
 	require.NoError(t, err)
@@ -533,7 +524,6 @@ func TestUpdateRegistrationEntriesCacheSkippedStartupEvents(t *testing.T) {
 		nodeCache:               nodeCache,
 		cacheReloadInterval:     defaultCacheReloadInterval,
 		fullCacheReloadInterval: defaultFullCacheReloadInterval,
-		pruneEventsOlderThan:    defaultPruneEventsOlderThan,
 		eventTimeout:            defaultEventTimeout,
 	})
 	require.NoError(t, err)
@@ -619,7 +609,6 @@ func TestUpdateAttestedNodesCacheSkippedEvents(t *testing.T) {
 		nodeCache:               nodeCache,
 		cacheReloadInterval:     defaultCacheReloadInterval,
 		fullCacheReloadInterval: defaultFullCacheReloadInterval,
-		pruneEventsOlderThan:    defaultPruneEventsOlderThan,
 		eventTimeout:            defaultEventTimeout,
 	})
 	require.NoError(t, err)
@@ -802,14 +791,13 @@ func TestUpdateAttestedNodesCacheSkippedStartupEvents(t *testing.T) {
 	require.Nil(t, err)
 
 	ef, err := NewAuthorizedEntryFetcherEvents(ctx, "example.org", AuthorizedEntryFetcherEventsConfig{
-		log:                  log,
-		metrics:              metrics,
-		clk:                  clk,
-		ds:                   ds,
-		nodeCache:            nodeCache,
-		cacheReloadInterval:  defaultCacheReloadInterval,
-		pruneEventsOlderThan: defaultPruneEventsOlderThan,
-		eventTimeout:         defaultEventTimeout,
+		log:                 log,
+		metrics:             metrics,
+		clk:                 clk,
+		ds:                  ds,
+		nodeCache:           nodeCache,
+		cacheReloadInterval: defaultCacheReloadInterval,
+		eventTimeout:        defaultEventTimeout,
 	})
 	require.NoError(t, err)
 	require.NotNil(t, ef)
@@ -888,7 +876,6 @@ func TestFullCacheReloadRecoversFromSkippedRegistrationEntryEvents(t *testing.T)
 		nodeCache:               nodeCache,
 		cacheReloadInterval:     defaultCacheReloadInterval,
 		fullCacheReloadInterval: defaultFullCacheReloadInterval,
-		pruneEventsOlderThan:    defaultPruneEventsOlderThan,
 		eventTimeout:            defaultEventTimeout,
 	})
 	require.NoError(t, err)
@@ -975,7 +962,6 @@ func TestFullCacheReloadRecoversFromSkippedAttestedNodeEvents(t *testing.T) {
 		nodeCache:               nodeCache,
 		cacheReloadInterval:     defaultCacheReloadInterval,
 		fullCacheReloadInterval: defaultFullCacheReloadInterval,
-		pruneEventsOlderThan:    defaultPruneEventsOlderThan,
 		eventTimeout:            defaultEventTimeout,
 	})
 	require.NoError(t, err)
@@ -1092,7 +1078,6 @@ func TestReloadCacheRecoversFromSkippedRegistrationEntryEvents(t *testing.T) {
 		nodeCache:               nodeCache,
 		cacheReloadInterval:     defaultCacheReloadInterval,
 		fullCacheReloadInterval: defaultFullCacheReloadInterval,
-		pruneEventsOlderThan:    defaultPruneEventsOlderThan,
 		eventTimeout:            defaultEventTimeout,
 	})
 	require.NoError(t, err)
@@ -1179,7 +1164,6 @@ func TestReloadCacheRecoversFromSkippedAttestedNodeEvents(t *testing.T) {
 		nodeCache:               nodeCache,
 		cacheReloadInterval:     defaultCacheReloadInterval,
 		fullCacheReloadInterval: defaultFullCacheReloadInterval,
-		pruneEventsOlderThan:    defaultPruneEventsOlderThan,
 		eventTimeout:            defaultEventTimeout,
 	})
 	require.NoError(t, err)
@@ -1297,7 +1281,6 @@ func TestReloadCachePreservesEventState(t *testing.T) {
 		nodeCache:               nodeCache,
 		cacheReloadInterval:     defaultCacheReloadInterval,
 		fullCacheReloadInterval: defaultFullCacheReloadInterval,
-		pruneEventsOlderThan:    defaultPruneEventsOlderThan,
 		eventTimeout:            defaultEventTimeout,
 	})
 	require.NoError(t, err)
@@ -1333,7 +1316,7 @@ func TestReloadCachePreservesEventState(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// Process events to establish lastEvent watermarks
+	// Process events to establish the datastore change watermarks.
 	err = ef.updateCache(ctx)
 	require.NoError(t, err)
 
@@ -1341,30 +1324,19 @@ func TestReloadCachePreservesEventState(t *testing.T) {
 	require.NoError(t, err)
 	compareEntries(t, entries, entry1)
 
-	// Capture event state before reload
+	// Capture the endpoint queues before reload. They are empty after successful
+	// hydration and must remain usable without resetting datastore tracking.
 	regEntries := ef.registrationEntries.(*registrationEntries)
 	nodeEntries := ef.attestedNodes.(*attestedNodes)
-	lastRegEvent := regEntries.lastEvent
-	lastNodeEvent := nodeEntries.lastEvent
-	firstRegEvent := regEntries.firstEvent
-	firstNodeEvent := nodeEntries.firstEvent
-
-	require.NotZero(t, lastRegEvent, "should have processed registration entry events")
-	require.NotZero(t, lastNodeEvent, "should have processed attested node events")
+	require.Empty(t, regEntries.fetchEntries)
+	require.Empty(t, nodeEntries.fetchNodes)
 
 	// Reload cache
 	err = ef.reloadCache(ctx)
 	require.NoError(t, err)
 
-	// Verify event state is preserved
-	require.Equal(t, lastRegEvent, regEntries.lastEvent, "lastEvent should be preserved across reload")
-	require.Equal(t, lastNodeEvent, nodeEntries.lastEvent, "lastEvent should be preserved across reload")
-	require.Equal(t, firstRegEvent, regEntries.firstEvent, "firstEvent should be preserved across reload")
-	require.Equal(t, firstNodeEvent, nodeEntries.firstEvent, "firstEvent should be preserved across reload")
-
-	// Verify fetchNodes/fetchEntries are cleared
-	require.Empty(t, regEntries.fetchEntries, "fetchEntries should be cleared after reload")
-	require.Empty(t, nodeEntries.fetchNodes, "fetchNodes should be cleared after reload")
+	// No changes are replayed by reload; tracking belongs to the datastore and
+	// is preserved across a full cache refresh.
 
 	// Verify cache still has correct data
 	entries, err = ef.FetchAuthorizedEntries(ctx, agentID)
@@ -1553,7 +1525,6 @@ func TestConcurrentReloadAndFetch(t *testing.T) {
 		nodeCache:               nodeCache,
 		cacheReloadInterval:     defaultCacheReloadInterval,
 		fullCacheReloadInterval: defaultFullCacheReloadInterval,
-		pruneEventsOlderThan:    defaultPruneEventsOlderThan,
 		eventTimeout:            defaultEventTimeout,
 	})
 	require.NoError(t, err)

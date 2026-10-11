@@ -124,7 +124,6 @@ func TestNew(t *testing.T) {
 	assert.NotNil(t, endpoints.APIServers.SVIDServer)
 	assert.NotNil(t, endpoints.BundleEndpointServer)
 	assert.NotNil(t, endpoints.APIServers.LocalAUthorityServer)
-	assert.NotNil(t, endpoints.EntryFetcherPruneEventsTask)
 	assert.True(t, endpoints.TLSPolicy.RequirePQKEM)
 	assert.Equal(t, cat.GetDataStore(), endpoints.DataStore)
 	assert.Equal(t, log, endpoints.Log)
@@ -219,7 +218,7 @@ func TestListenAndServe(t *testing.T) {
 	// - downstream registration entry
 	prepareDataStore(t, ds, []*testca.CA{ca, federatedCA}, agentSVID)
 
-	ef, err := NewAuthorizedEntryFetcherWithFullCache(context.Background(), buildCacheFn, log, clk, ds, defaultCacheReloadInterval, defaultPruneEventsOlderThan)
+	ef, err := NewAuthorizedEntryFetcherWithFullCache(context.Background(), buildCacheFn, log, clk, ds, defaultCacheReloadInterval)
 	require.NoError(t, err)
 
 	pe, err := authpolicy.DefaultAuthPolicy(ctx)
@@ -252,7 +251,6 @@ func TestListenAndServe(t *testing.T) {
 		RateLimit:                    rateLimit,
 		NodeCacheRebuildTask:         nodeCache.PeriodicRebuild,
 		EntryFetcherCacheRebuildTask: ef.RunRebuildCacheTask,
-		EntryFetcherPruneEventsTask:  ef.PruneEventsTask,
 		AuthPolicyEngine:             pe,
 		AdminIDs:                     []spiffeid.ID{foreignAdminSVID.ID},
 		nodeCache:                    nodeCache,

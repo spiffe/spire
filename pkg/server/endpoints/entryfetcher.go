@@ -2,7 +2,6 @@ package endpoints
 
 import (
 	"context"
-	"errors"
 	"sync"
 	"time"
 
@@ -19,17 +18,16 @@ var _ api.AuthorizedEntryFetcher = (*AuthorizedEntryFetcherWithFullCache)(nil)
 type entryCacheBuilderFn func(ctx context.Context) (entrycache.Cache, error)
 
 type AuthorizedEntryFetcherWithFullCache struct {
-	buildCache           entryCacheBuilderFn
-	cache                entrycache.Cache
-	clk                  clock.Clock
-	log                  logrus.FieldLogger
-	ds                   datastore.DataStore
-	mu                   sync.RWMutex
-	cacheReloadInterval  time.Duration
-	pruneEventsOlderThan time.Duration
+	buildCache          entryCacheBuilderFn
+	cache               entrycache.Cache
+	clk                 clock.Clock
+	log                 logrus.FieldLogger
+	ds                  datastore.DataStore
+	mu                  sync.RWMutex
+	cacheReloadInterval time.Duration
 }
 
-func NewAuthorizedEntryFetcherWithFullCache(ctx context.Context, buildCache entryCacheBuilderFn, log logrus.FieldLogger, clk clock.Clock, ds datastore.DataStore, cacheReloadInterval, pruneEventsOlderThan time.Duration) (*AuthorizedEntryFetcherWithFullCache, error) {
+func NewAuthorizedEntryFetcherWithFullCache(ctx context.Context, buildCache entryCacheBuilderFn, log logrus.FieldLogger, clk clock.Clock, ds datastore.DataStore, cacheReloadInterval time.Duration) (*AuthorizedEntryFetcherWithFullCache, error) {
 	log.Info("Building in-memory entry cache")
 	cache, err := buildCache(ctx)
 	if err != nil {
@@ -38,13 +36,12 @@ func NewAuthorizedEntryFetcherWithFullCache(ctx context.Context, buildCache entr
 
 	log.Info("Completed building in-memory entry cache")
 	return &AuthorizedEntryFetcherWithFullCache{
-		buildCache:           buildCache,
-		cache:                cache,
-		clk:                  clk,
-		log:                  log,
-		ds:                   ds,
-		cacheReloadInterval:  cacheReloadInterval,
-		pruneEventsOlderThan: pruneEventsOlderThan,
+		buildCache:          buildCache,
+		cache:               cache,
+		clk:                 clk,
+		log:                 log,
+		ds:                  ds,
+		cacheReloadInterval: cacheReloadInterval,
 	}, nil
 }
 
@@ -82,27 +79,4 @@ func (a *AuthorizedEntryFetcherWithFullCache) RunRebuildCacheTask(ctx context.Co
 			rebuild()
 		}
 	}
-}
-
-// PruneEventsTask start a ticker which prunes old events
-func (a *AuthorizedEntryFetcherWithFullCache) PruneEventsTask(ctx context.Context) error {
-	for {
-		select {
-		case <-ctx.Done():
-			a.log.Debug("Stopping event pruner")
-			return nil
-		case <-a.clk.After(a.pruneEventsOlderThan / 2):
-			a.log.Debug("Pruning events")
-			if err := a.pruneEvents(ctx, a.pruneEventsOlderThan); err != nil {
-				a.log.WithError(err).Error("Failed to prune events")
-			}
-		}
-	}
-}
-
-func (a *AuthorizedEntryFetcherWithFullCache) pruneEvents(ctx context.Context, olderThan time.Duration) error {
-	pruneRegistrationEntryEventsErr := a.ds.PruneRegistrationEntryEvents(ctx, olderThan)
-	pruneAttestedNodeEventsErr := a.ds.PruneAttestedNodeEvents(ctx, olderThan)
-
-	return errors.Join(pruneRegistrationEntryEventsErr, pruneAttestedNodeEventsErr)
 }

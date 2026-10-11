@@ -364,6 +364,8 @@ func (s *Server) loadCatalog(ctx context.Context, metrics telemetry.Metrics, ide
 		IdentityProvider: identityProvider,
 		AgentStore:       agentStore,
 		HealthChecker:    healthChecker,
+
+		PruneEventsOlderThan: s.config.PruneEventsOlderThan,
 	})
 }
 
@@ -490,7 +492,6 @@ func (s *Server) newEndpointsServer(ctx context.Context, catalog catalog.Catalog
 		CacheReloadInterval:          s.config.CacheReloadInterval,
 		FullCacheReloadInterval:      s.config.FullCacheReloadInterval,
 		EventsBasedCache:             s.config.EventsBasedCache,
-		PruneEventsOlderThan:         s.config.PruneEventsOlderThan,
 		EventTimeout:                 s.config.EventTimeout,
 		AuditLogEnabled:              s.config.AuditLogEnabled,
 		ProxyProtocolTrustedCIDRs:    s.config.ProxyProtocolTrustedCIDRs,

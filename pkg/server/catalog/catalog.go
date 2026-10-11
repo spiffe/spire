@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"maps"
+	"time"
 
 	"github.com/andres-erbsen/clock"
 	"github.com/sirupsen/logrus"
@@ -45,6 +46,9 @@ const (
 	upstreamAuthorityType  = "UpstreamAuthority"
 )
 
+// Default amount of time events live before they are pruned
+const defaultPruneEventsOlderThan = 12 * time.Hour
+
 var ReconfigureTask = catalog.ReconfigureTask
 
 type Catalog interface {
@@ -68,6 +72,9 @@ type Config struct {
 	IdentityProvider *identityprovider.IdentityProvider
 	AgentStore       *agentstore.AgentStore
 	HealthChecker    health.Checker
+
+	// PruneEventsOlderThan controls how long events can live before they are pruned
+	PruneEventsOlderThan time.Duration
 }
 
 type datastoreRepository struct{ datastore.Repository }
@@ -273,6 +280,11 @@ func loadSQLDataStore(ctx context.Context, config Config, coreConfig catalog.Cor
 
 	dsLog := config.Log.WithField(telemetry.SubsystemName, sqlConfig.Name)
 	ds := ds_sql.New(dsLog)
+	pruneEventsOlderThan := config.PruneEventsOlderThan
+	if pruneEventsOlderThan == 0 {
+		pruneEventsOlderThan = defaultPruneEventsOlderThan
+	}
+	ds.SetPruneEventsOlderThan(pruneEventsOlderThan)
 	dsConf := &dsConfigurer{ds: ds}
 	if _, err := catalog.ConfigurePlugin(ctx, coreConfig, dsConf, sqlConfig.DataSource, ""); err != nil {
 		return nil, err
