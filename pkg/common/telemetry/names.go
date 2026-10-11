@@ -163,6 +163,13 @@ const (
 	// AuthorizedVia indicates by what means an entity was authorized
 	AuthorizedVia = "authorized_via"
 
+	// BundleCacheTTL tags how long federated bundle reads are cached
+	BundleCacheTTL = "bundle_cache_ttl"
+
+	// BundleCacheTTLBudget tags how much of a refresh hint is left for the
+	// bundle cache to spend once the bundle refresh interval is accounted for
+	BundleCacheTTLBudget = "bundle_cache_ttl_budget"
+
 	// BundleEndpointProfile is the name of the bundle endpoint profile
 	BundleEndpointProfile = "bundle_endpoint_profile"
 

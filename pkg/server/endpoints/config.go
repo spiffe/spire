@@ -88,6 +88,10 @@ type Config struct {
 	// CacheReloadInterval controls how often the in-memory events based cache full reloads
 	FullCacheReloadInterval time.Duration
 
+	// BundleCacheTTL controls how long federated bundle datastore reads are
+	// cached. Caching is disabled when zero.
+	BundleCacheTTL time.Duration
+
 	// EventsBasedCache enabled event driven cache reloads
 	EventsBasedCache bool
 
@@ -181,6 +185,7 @@ func (c *Config) makeAPIServers(entryFetcher api.AuthorizedEntryFetcher) APIServ
 			TrustDomain:       c.TrustDomain,
 			DataStore:         ds,
 			UpstreamPublisher: upstreamPublisher,
+			BundleCacheTTL:    c.BundleCacheTTL,
 		}),
 		DebugServer: debugv1.New(debugv1.Config{
 			TrustDomain:  c.TrustDomain,
