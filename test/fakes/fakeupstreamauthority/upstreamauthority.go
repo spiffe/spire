@@ -38,6 +38,7 @@ type Config struct {
 	UseIntermediate             bool
 	DisallowPublishJWTKey       bool
 	DisallowPublishWITKey       bool
+	PublishWITKeyErr            error
 	UseSubscribeToLocalBundle   bool
 	KeyUsage                    x509.KeyUsage
 	MutateMintX509CAResponse    func(*upstreamauthorityv1.MintX509CAResponse)
@@ -153,6 +154,9 @@ func (ua *UpstreamAuthority) PublishJWTKeyAndSubscribe(req *upstreamauthorityv1.
 func (ua *UpstreamAuthority) PublishWITKeyAndSubscribe(req *upstreamauthorityv1.PublishWITKeyRequest, stream upstreamauthorityv1.UpstreamAuthority_PublishWITKeyAndSubscribeServer) error {
 	if ua.config.DisallowPublishWITKey {
 		return status.Error(codes.Unimplemented, "disallowed")
+	}
+	if ua.config.PublishWITKeyErr != nil {
+		return ua.config.PublishWITKeyErr
 	}
 
 	streamCh := ua.newPublishWITKeyStream()

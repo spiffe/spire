@@ -44,6 +44,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -809,6 +810,37 @@ func TestUpstreamAuthorityWithPublishWITKeyNotImplemented(t *testing.T) {
 	require.Equal(t, test.currentWITKey().Kid, witSigningKeys[0].Kid)
 	assert.Equal(t,
 		1,
+		test.countLogEntries(logrus.WarnLevel, "UpstreamAuthority plugin does not support WIT-SVIDs. Workloads managed "+
+			"by this server may have trouble communicating with workloads outside "+
+			"this cluster when using WIT-SVIDs."),
+	)
+}
+
+func TestUpstreamAuthorityWithPublishWITKeyError(t *testing.T) {
+	ctx := context.Background()
+	test := setupTest(t)
+
+	upstreamAuthority, ua := test.newFakeUpstreamAuthority(t, fakeupstreamauthority.Config{
+		TrustDomain:      testTrustDomain,
+		PublishWITKeyErr: status.Error(codes.Internal, "oh no"),
+	})
+	test.initUpstreamSignedManager(upstreamAuthority)
+	require.NoError(t, test.m.PrepareJWTKey(ctx))
+	test.m.ActivateJWTKey(ctx)
+	require.NoError(t, test.m.PrepareX509CA(ctx))
+	test.m.ActivateX509CA(ctx)
+
+	err := test.m.PrepareWITKey(ctx)
+	spiretest.RequireGRPCStatus(t, err, codes.Internal, "upstreamauthority(fake): oh no")
+
+	// No WIT key is stored anywhere
+	require.True(t, test.m.currentWITKey.IsEmpty())
+	require.True(t, test.m.nextWITKey.IsEmpty())
+	require.Empty(t, test.m.journal.getEntries().WitKeys)
+	require.Empty(t, ua.WITKeys())
+	require.Empty(t, test.fetchBundle(ctx).WitSigningKeys)
+	assert.Equal(t,
+		0,
 		test.countLogEntries(logrus.WarnLevel, "UpstreamAuthority plugin does not support WIT-SVIDs. Workloads managed "+
 			"by this server may have trouble communicating with workloads outside "+
 			"this cluster when using WIT-SVIDs."),
