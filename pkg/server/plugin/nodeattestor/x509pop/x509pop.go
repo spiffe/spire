@@ -4,11 +4,14 @@ import (
 	"context"
 	"crypto/rsa"
 	"crypto/x509"
+	"encoding/asn1"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
 	"net/url"
+	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -60,7 +63,12 @@ type Config struct {
 	VerifyClientIP    bool     `hcl:"verify_client_ip"`
 	GroupTemplate     string   `hcl:"group_template"`
 	AllowedGroups     []string `hcl:"allowed_groups"`
+	// ExtensionSelectors maps a certificate extension OID to a selector name.
+	// The extension value (a DER string) is exposed as ext:<name>:<value>.
+	ExtensionSelectors map[string]string `hcl:"extension_selectors"`
 }
+
+var extensionSelectorName = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
 
 type configuration struct {
 	mode             string
@@ -73,6 +81,7 @@ type configuration struct {
 	verifyClientIP   bool
 	groupTemplate    *agentpathtemplate.Template
 	allowedGroups    map[string]struct{}
+	extSelectors     map[string]string
 }
 
 func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *configuration {
@@ -172,6 +181,17 @@ func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginco
 		maxRSAKeySize = *hclConfig.MaxRSAKeySize
 	}
 
+	extSelectors := make(map[string]string, len(hclConfig.ExtensionSelectors))
+	for oid, name := range hclConfig.ExtensionSelectors {
+		if _, err := parseOID(oid); err != nil {
+			status.ReportErrorf("invalid extension_selectors OID %q: %v", oid, err)
+		}
+		if !extensionSelectorName.MatchString(name) {
+			status.ReportErrorf("invalid extension_selectors name %q for OID %q", name, oid)
+		}
+		extSelectors[oid] = name
+	}
+
 	newConfig := &configuration{
 		trustDomain:      coreConfig.TrustDomain,
 		trustBundle:      util.NewCertPool(trustBundles...),
@@ -183,6 +203,7 @@ func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginco
 		verifyClientIP:   hclConfig.VerifyClientIP,
 		groupTemplate:    groupTemplate,
 		allowedGroups:    allowedGroups,
+		extSelectors:     extSelectors,
 	}
 
 	return newConfig
@@ -370,6 +391,7 @@ func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 	}
 
 	selectors := buildSelectorValues(leaf, chains, sanSelectors)
+	selectors = append(selectors, p.extensionSelectorValues(leaf, config.extSelectors)...)
 
 	if config.groupTemplate != nil {
 		templateData := x509pop.NewTemplateData(config.trustDomain, leaf, svidPath, sanSelectors)
@@ -522,4 +544,40 @@ func validateRSAKeySize(cert *x509.Certificate, maxRSAKeySize int) error {
 		}
 	}
 	return nil
+}
+
+// extensionSelectorValues returns ext:<name>:<value> for each configured extension on the leaf.
+// Values must be DER strings (UTF8String, PrintableString, IA5String).
+func (p *Plugin) extensionSelectorValues(leaf *x509.Certificate, names map[string]string) []string {
+	var values []string
+	for _, ext := range leaf.Extensions {
+		name, ok := names[ext.Id.String()]
+		if !ok {
+			continue
+		}
+		var value string
+		rest, err := asn1.Unmarshal(ext.Value, &value)
+		if err != nil || len(rest) > 0 || value == "" {
+			p.log.Warn("Ignoring certificate extension that is not a non-empty string", "oid", ext.Id.String())
+			continue
+		}
+		values = append(values, "ext:"+name+":"+value)
+	}
+	return values
+}
+
+func parseOID(s string) (asn1.ObjectIdentifier, error) {
+	parts := strings.Split(s, ".")
+	if len(parts) < 2 {
+		return nil, errors.New("expected dotted decimal notation")
+	}
+	oid := make(asn1.ObjectIdentifier, len(parts))
+	for i, part := range parts {
+		n, err := strconv.Atoi(part)
+		if err != nil || n < 0 {
+			return nil, fmt.Errorf("invalid arc %q", part)
+		}
+		oid[i] = n
+	}
+	return oid, nil
 }

@@ -28,6 +28,7 @@ spiffe://<trust_domain>/spire/agent/x509pop/<fingerprint>
 | `verify_client_ip`    | If `true`, validates the connecting peer's IP against the leaf certificate's IP SANs. Attestation fails if no SAN matches. Reflects the immediate peer - may not represent true client origin behind load balancers.                           | false                                                          |
 | `group_template`      | Go text/template used to derive a group value from the certificate. If empty, no group selector is produced. See [Group Template](#group-template).                                                                                            |                                                                |
 | `allowed_groups`      | Allowlist of group values that may be emitted as selectors. A group produced by `group_template` must be in this list to be emitted. Required when `group_template` is set.                                                                    |                                                                |
+| `extension_selectors` | Map of certificate extension OID to selector name. Each configured extension on the leaf whose value is a DER string is exposed as `x509pop:ext:<name>:<value>`. See [Extension Selectors](#extension-selectors). | |
 
 A sample configuration:
 
@@ -57,6 +58,7 @@ A sample configuration:
 | SerialNumber     | `x509pop:serialnumber:0a1b2c3d4e5f`                               | The leaf certificate serial number as a lowercase hexadecimal string                                                                                                                                                 |
 | San              | `x509pop:san:<key>:<value>`                                       | The san selectors on the leaf certificate. The expected format of the uri san is `x509pop://<trust_domain>/<key>/<value>`. One selector is exposed per uri san corresponding to x509pop uri scheme. string           |
 | Group            | `x509pop:group:cluster/foo/identity-exchange`                     | A group derived from `group_template`. Only emitted when the derived value is in `allowed_groups`. See [Group Template](#group-template).                                                                            |
+| Extension        | `x509pop:ext:role:web`                                            | A leaf certificate extension listed in `extension_selectors`. See [Extension Selectors](#extension-selectors). |
 
 ## SVID Path Prefix
 
@@ -87,6 +89,37 @@ Some useful values are:
 | .SerialNumberHex            | The serial number field of the agent's x509 certificate represented as lowercase hexadecimal |
 | .SVIDPathTrimmed            | The SVID Path after trimming off the SVID prefix                                             |
 | .URISanSelectors.&lt;key&gt;| The value of the URI San selector with key `<key>`                                           |
+
+## Extension Selectors
+
+`extension_selectors` exposes leaf certificate extensions as node selectors, for PKIs that carry
+host attributes such as role or environment in custom extensions. Each key is an OID in dotted
+notation and each value is the selector name. A configured extension whose value is a DER string
+(UTF8String, PrintableString or IA5String) produces `x509pop:ext:<name>:<value>`. Other
+extensions, and values that are not strings, are ignored.
+
+```hcl
+    NodeAttestor "x509pop" {
+        plugin_data {
+            ca_bundle_path = "/opt/spire/conf/server/agent-cacert.pem"
+            extension_selectors = {
+                "1.3.6.1.4.1.32473.1.1" = "role"
+                "1.3.6.1.4.1.32473.1.2" = "environment"
+            }
+        }
+    }
+```
+
+A certificate with `role=web` then attests with `x509pop:ext:role:web`, which a node alias can
+select on:
+
+```shell
+spire-server entry create -node -spiffeID spiffe://example.org/nodes/web \
+    -selector x509pop:ext:role:web
+```
+
+These values are only as trustworthy as the CA's issuance policy. If the CA copies extensions
+from the CSR, make sure the signing process validates them.
 
 ## Group Template
 
