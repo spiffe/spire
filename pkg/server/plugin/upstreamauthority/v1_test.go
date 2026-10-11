@@ -587,6 +587,7 @@ func TestV1SubscribeToLocalBundle(t *testing.T) {
 
 	malformedWITKeys := &upstreamauthorityv1.SubscribeToLocalBundleResponse{
 		UpstreamX509Roots: validUpstreamX509Roots,
+		UpstreamJwtKeys:   jwtkey.RequireToPluginFromCommonProtos(expectedUpstreamJWTKeys),
 		UpstreamWitKeys: []*types.WITKey{
 			{PublicKey: pkixBytes},
 		},
@@ -603,6 +604,7 @@ func TestV1SubscribeToLocalBundle(t *testing.T) {
 		expectStreamMessage             string
 		expectLogs                      []spiretest.LogEntry
 		expectUpstreamX509RootsResponse []*x509certificate.X509Authority
+		expectNoUpstreamWITKeys         bool
 	}{
 		{
 			test:          "plugin returns before sending first response",
@@ -627,8 +629,10 @@ func TestV1SubscribeToLocalBundle(t *testing.T) {
 			builder: builder.
 				WithSubscribeToLocalBundleResponse(fullResponse).
 				WithSubscribeToLocalBundleResponse(malformedWITKeys),
-			expectCode:          codes.OK,
-			expectStreamUpdates: false, // because the second response is bad and ignored
+			expectCode:              codes.OK,
+			expectStreamUpdates:     true, // X.509 roots and JWT keys are still delivered
+			expectStreamCode:        codes.OK,
+			expectNoUpstreamWITKeys: true,
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.WarnLevel,
@@ -710,7 +714,11 @@ func TestV1SubscribeToLocalBundle(t *testing.T) {
 				}
 				assert.Equal(t, expected, upstreamX509Roots)
 				spiretest.AssertProtoListEqual(t, expectedUpstreamJWTKeys, upstreamJWTKeys)
-				spiretest.AssertProtoListEqual(t, expectedUpstreamWITKeys, upstreamWITKeys)
+				if tt.expectNoUpstreamWITKeys {
+					assert.Nil(t, upstreamWITKeys)
+				} else {
+					spiretest.AssertProtoListEqual(t, expectedUpstreamWITKeys, upstreamWITKeys)
+				}
 			default:
 				spiretest.RequireGRPCStatusHasPrefix(t, err, tt.expectStreamCode, tt.expectStreamMessage)
 				assert.Nil(t, upstreamX509Roots)

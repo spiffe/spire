@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"math/big"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -18,6 +19,7 @@ import (
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	upstreamauthorityv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/upstreamauthority/v1"
+	plugintypes "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/types"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/coretypes/x509certificate"
 	telemetry_server "github.com/spiffe/spire/pkg/common/telemetry/server"
@@ -41,6 +43,7 @@ import (
 	"github.com/spiffe/spire/test/fakes/fakeupstreamauthority"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/testca"
+	"github.com/spiffe/spire/test/testkey"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
@@ -877,6 +880,46 @@ func TestUpstreamAuthorityWithSubscribeToBundleUpdate(t *testing.T) {
 
 	spiretest.AssertProtoListEqual(t, ua.JWTKeys(), test.fetchBundle(ctx).JwtSigningKeys)
 	spiretest.AssertProtoListEqual(t, ua.WITKeys(), test.fetchBundle(ctx).WitSigningKeys)
+}
+
+func TestUpstreamAuthorityWithBadWITKeyUpdate(t *testing.T) {
+	ctx := context.Background()
+	test := setupTest(t)
+
+	var sendBadWITKey atomic.Bool
+	upstreamAuthority, ua := test.newFakeUpstreamAuthority(t, fakeupstreamauthority.Config{
+		TrustDomain:               testTrustDomain,
+		UseSubscribeToLocalBundle: true,
+		MutateSubscribeToLocalBundleResponse: func(resp *upstreamauthorityv1.SubscribeToLocalBundleResponse) {
+			if sendBadWITKey.Load() {
+				// Missing key ID
+				resp.UpstreamWitKeys = []*plugintypes.WITKey{{PublicKey: []byte("bad")}}
+			}
+		},
+	})
+	test.initAndActivateUpstreamSignedManager(ctx, upstreamAuthority)
+	require.NoError(t, test.m.upstreamClient.SubscribeToLocalBundle(ctx))
+
+	witSigningKeys := test.fetchBundle(ctx).WitSigningKeys
+	require.Len(t, witSigningKeys, 1)
+	spiretest.AssertProtoListEqual(t, ua.WITKeys(), witSigningKeys)
+
+	// Trigger a bad update. The JWT key it carries shows the update was processed.
+	sendBadWITKey.Store(true)
+	pkixBytes, err := x509.MarshalPKIXPublicKey(testkey.NewEC256(t).Public())
+	require.NoError(t, err)
+	jwtKey := &common.PublicKey{Kid: "new-jwt-key", PkixBytes: pkixBytes}
+	ua.AppendJWTKey(jwtKey)
+	require.Eventually(t, func() bool {
+		for _, key := range test.fetchBundle(ctx).JwtSigningKeys {
+			if key.Kid == jwtKey.Kid {
+				return true
+			}
+		}
+		return false
+	}, time.Minute, 10*time.Millisecond)
+
+	spiretest.AssertProtoListEqual(t, witSigningKeys, test.fetchBundle(ctx).WitSigningKeys)
 }
 
 func TestX509CARotation(t *testing.T) {

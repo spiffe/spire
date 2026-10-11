@@ -354,10 +354,11 @@ func (s *v1LocalBundleStream) RecvLocalBundleUpdate() ([]*x509certificate.X509Au
 			continue
 		}
 
+		// A bad WIT key does not block the X.509 and JWT updates.
 		witKeys, err := s.v1.toCommonWITProtos(resp.UpstreamWitKeys)
 		if err != nil {
 			s.v1.Log.WithError(err).Warn("Failed to parse a WIT key update from the upstream authority plugin. Please report this bug.")
-			continue
+			witKeys = nil
 		}
 
 		return x509Authorities, jwtKeys, witKeys, nil

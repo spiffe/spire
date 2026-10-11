@@ -33,17 +33,18 @@ var (
 )
 
 type Config struct {
-	Clock                       clock.Clock
-	TrustDomain                 spiffeid.TrustDomain
-	UseIntermediate             bool
-	DisallowPublishJWTKey       bool
-	DisallowPublishWITKey       bool
-	PublishWITKeyErr            error
-	UseSubscribeToLocalBundle   bool
-	KeyUsage                    x509.KeyUsage
-	MutateMintX509CAResponse    func(*upstreamauthorityv1.MintX509CAResponse)
-	MutatePublishJWTKeyResponse func(*upstreamauthorityv1.PublishJWTKeyResponse)
-	MutatePublishWITKeyResponse func(*upstreamauthorityv1.PublishWITKeyResponse)
+	Clock                                clock.Clock
+	TrustDomain                          spiffeid.TrustDomain
+	UseIntermediate                      bool
+	DisallowPublishJWTKey                bool
+	DisallowPublishWITKey                bool
+	PublishWITKeyErr                     error
+	UseSubscribeToLocalBundle            bool
+	KeyUsage                             x509.KeyUsage
+	MutateMintX509CAResponse             func(*upstreamauthorityv1.MintX509CAResponse)
+	MutatePublishJWTKeyResponse          func(*upstreamauthorityv1.PublishJWTKeyResponse)
+	MutatePublishWITKeyResponse          func(*upstreamauthorityv1.PublishWITKeyResponse)
+	MutateSubscribeToLocalBundleResponse func(*upstreamauthorityv1.SubscribeToLocalBundleResponse)
 }
 
 type UpstreamAuthority struct {
@@ -198,7 +199,7 @@ func (ua *UpstreamAuthority) SubscribeToLocalBundle(req *upstreamauthorityv1.Sub
 	defer ua.removePublishWITKeyStream(witStreamCh)
 
 	// Send a first update on the stream, as required.
-	if err := stream.Send(&upstreamauthorityv1.SubscribeToLocalBundleResponse{
+	if err := ua.sendSubscribeToLocalBundleStream(stream, &upstreamauthorityv1.SubscribeToLocalBundleResponse{
 		UpstreamX509Roots: x509certificate.RequireToPluginProtos(ua.X509Roots()),
 		UpstreamJwtKeys:   jwtkey.RequireToPluginFromCommonProtos(ua.JWTKeys()),
 		UpstreamWitKeys:   witkey.RequireToPluginFromCommonProtos(ua.WITKeys()),
@@ -216,7 +217,7 @@ func (ua *UpstreamAuthority) SubscribeToLocalBundle(req *upstreamauthorityv1.Sub
 		case <-witStreamCh:
 		}
 
-		if err := stream.Send(&upstreamauthorityv1.SubscribeToLocalBundleResponse{
+		if err := ua.sendSubscribeToLocalBundleStream(stream, &upstreamauthorityv1.SubscribeToLocalBundleResponse{
 			UpstreamX509Roots: x509certificate.RequireToPluginProtos(ua.X509Roots()),
 			UpstreamJwtKeys:   jwtkey.RequireToPluginFromCommonProtos(ua.JWTKeys()),
 			UpstreamWitKeys:   witkey.RequireToPluginFromCommonProtos(ua.WITKeys()),
@@ -418,6 +419,13 @@ func (ua *UpstreamAuthority) removePublishWITKeyStream(streamCh chan struct{}) {
 func (ua *UpstreamAuthority) sendPublishWITKeyStream(stream upstreamauthorityv1.UpstreamAuthority_PublishWITKeyAndSubscribeServer, resp *upstreamauthorityv1.PublishWITKeyResponse) error {
 	if ua.config.MutatePublishWITKeyResponse != nil {
 		ua.config.MutatePublishWITKeyResponse(resp)
+	}
+	return stream.Send(resp)
+}
+
+func (ua *UpstreamAuthority) sendSubscribeToLocalBundleStream(stream upstreamauthorityv1.UpstreamAuthority_SubscribeToLocalBundleServer, resp *upstreamauthorityv1.SubscribeToLocalBundleResponse) error {
+	if ua.config.MutateSubscribeToLocalBundleResponse != nil {
+		ua.config.MutateSubscribeToLocalBundleResponse(resp)
 	}
 	return stream.Send(resp)
 }
