@@ -96,7 +96,9 @@ Some useful values are:
 host attributes such as role or environment in custom extensions. Each key is an OID in dotted
 notation and each value is the selector name. A configured extension whose value is a DER string
 (UTF8String, PrintableString or IA5String) produces `x509pop:ext:<name>:<value>`. Other
-extensions, and values that are not strings, are ignored.
+extensions, other encodings, empty values and selectors longer than 255 characters are ignored.
+OIDs must be valid and in canonical form (no leading zeros or signs), and names must match
+`[A-Za-z0-9_-]+`, otherwise configuration fails.
 
 ```hcl
     NodeAttestor "x509pop" {

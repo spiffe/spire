@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"unicode/utf8"
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
@@ -69,6 +70,9 @@ type Config struct {
 }
 
 var extensionSelectorName = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
+
+// MySQL stores selector values in varchar(255) columns.
+const maxExtensionSelectorLength = 255
 
 type configuration struct {
 	mode             string
@@ -187,7 +191,7 @@ func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginco
 			status.ReportErrorf("invalid extension_selectors OID %q: %v", oid, err)
 		}
 		if !extensionSelectorName.MatchString(name) {
-			status.ReportErrorf("invalid extension_selectors name %q for OID %q", name, oid)
+			status.ReportErrorf("invalid extension_selectors name %q for OID %q: must match [A-Za-z0-9_-]+", name, oid)
 		}
 		extSelectors[oid] = name
 	}
@@ -547,30 +551,53 @@ func validateRSAKeySize(cert *x509.Certificate, maxRSAKeySize int) error {
 }
 
 // extensionSelectorValues returns ext:<name>:<value> for each configured extension on the leaf.
-// Values must be DER strings (UTF8String, PrintableString, IA5String).
+// Values must be a non-empty UTF8String, PrintableString or IA5String.
 func (p *Plugin) extensionSelectorValues(leaf *x509.Certificate, names map[string]string) []string {
 	var values []string
 	for _, ext := range leaf.Extensions {
-		name, ok := names[ext.Id.String()]
+		oid := ext.Id.String()
+		name, ok := names[oid]
 		if !ok {
 			continue
 		}
-		var value string
-		rest, err := asn1.Unmarshal(ext.Value, &value)
-		if err != nil || len(rest) > 0 || value == "" {
-			p.log.Warn("Ignoring certificate extension that is not a non-empty string", "oid", ext.Id.String())
+		value, ok := decodeExtensionString(ext.Value)
+		if !ok {
+			p.log.Warn("Ignoring certificate extension that is not a non-empty UTF8String, PrintableString or IA5String", "oid", oid)
 			continue
 		}
-		values = append(values, "ext:"+name+":"+value)
+		selectorValue := "ext:" + name + ":" + value
+		if length := utf8.RuneCountInString(selectorValue); length > maxExtensionSelectorLength {
+			p.log.Warn("Skipping oversized extension selector", "oid", oid, "length", length)
+			continue
+		}
+		values = append(values, selectorValue)
 	}
 	return values
 }
 
+func decodeExtensionString(der []byte) (string, bool) {
+	var raw asn1.RawValue
+	if rest, err := asn1.Unmarshal(der, &raw); err != nil || len(rest) > 0 {
+		return "", false
+	}
+	if raw.Class != asn1.ClassUniversal || raw.IsCompound {
+		return "", false
+	}
+	switch raw.Tag {
+	case asn1.TagUTF8String, asn1.TagPrintableString, asn1.TagIA5String:
+	default:
+		return "", false
+	}
+	var value string
+	if _, err := asn1.Unmarshal(der, &value); err != nil || value == "" {
+		return "", false
+	}
+	return value, true
+}
+
+// parseOID parses an OID in canonical dotted decimal form and checks it is a valid ASN.1 OID.
 func parseOID(s string) (asn1.ObjectIdentifier, error) {
 	parts := strings.Split(s, ".")
-	if len(parts) < 2 {
-		return nil, errors.New("expected dotted decimal notation")
-	}
 	oid := make(asn1.ObjectIdentifier, len(parts))
 	for i, part := range parts {
 		n, err := strconv.Atoi(part)
@@ -578,6 +605,12 @@ func parseOID(s string) (asn1.ObjectIdentifier, error) {
 			return nil, fmt.Errorf("invalid arc %q", part)
 		}
 		oid[i] = n
+	}
+	if oid.String() != s {
+		return nil, errors.New("must be in canonical dotted decimal form")
+	}
+	if _, err := asn1.Marshal(oid); err != nil {
+		return nil, fmt.Errorf("not a valid ASN.1 object identifier: %w", err)
 	}
 	return oid, nil
 }
