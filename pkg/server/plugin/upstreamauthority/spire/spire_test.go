@@ -27,6 +27,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 var (
@@ -497,6 +498,15 @@ func TestPublishWITKey(t *testing.T) {
 	})
 	require.Nil(t, upstreamWitKeys)
 	spiretest.RequireGRPCStatusHasPrefix(t, err, codes.Internal, "upstreamauthority(spire): failed to push WIT authority: rpc error: code = Unknown desc = some error")
+
+	// Unimplemented from older upstream servers is preserved
+	server.sAPIServer.setError(status.Error(codes.Unimplemented, "unknown method PublishWITAuthority"))
+	upstreamWitKeys, _, err = ua.PublishWITKey(ctx, &common.PublicKey{
+		Kid:       "wit-kid-4",
+		PkixBytes: pkixBytes,
+	})
+	require.Nil(t, upstreamWitKeys)
+	spiretest.RequireGRPCStatusHasPrefix(t, err, codes.Unimplemented, "upstreamauthority(spire): failed to push WIT authority: rpc error: code = Unimplemented desc = unknown method PublishWITAuthority")
 }
 
 func TestGetTrustBundle(t *testing.T) {

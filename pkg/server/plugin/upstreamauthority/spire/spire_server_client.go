@@ -160,7 +160,13 @@ func (c *serverClient) publishWITAuthority(ctx context.Context, key *types.WITKe
 		WitAuthority: key,
 	})
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to push WIT authority: %v", err)
+		// Older upstream servers return Unimplemented; preserve it so callers
+		// can fall back to the local bundle.
+		code := codes.Internal
+		if status.Code(err) == codes.Unimplemented {
+			code = codes.Unimplemented
+		}
+		return nil, status.Errorf(code, "failed to push WIT authority: %v", err)
 	}
 
 	return resp.WitAuthorities, nil
