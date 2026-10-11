@@ -91,9 +91,6 @@ type Config struct {
 	// EventsBasedCache enabled event driven cache reloads
 	EventsBasedCache bool
 
-	// PruneEventsOlderThan controls how long events can live before they are pruned
-	PruneEventsOlderThan time.Duration
-
 	// EventTimeout controls how long to wait for an event before giving up
 	EventTimeout time.Duration
 
