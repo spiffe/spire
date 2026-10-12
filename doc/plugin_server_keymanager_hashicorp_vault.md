@@ -2,6 +2,7 @@
 
 The `hashicorp_vault` key manager plugin leverages HashiCorp Vault to create, maintain, and rotate key pairs, signing
 SVIDs as needed.
+This plugin is also compatible with the [OpenBao](https://openbao.org) API.
 
 ## Configuration
 
