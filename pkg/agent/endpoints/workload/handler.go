@@ -40,6 +40,7 @@ type Manager interface {
 	MatchingRegistrationEntries(selectors []*common.Selector) []*common.RegistrationEntry
 	FetchJWTSVID(ctx context.Context, entry *common.RegistrationEntry, audience []string) (*client.JWTSVID, error)
 	FetchWorkloadUpdate([]*common.Selector) *cache.X509WorkloadUpdate
+	SubscribeToBundleChanges() *cache.BundleStream
 }
 
 type Attestor interface {
@@ -166,18 +167,18 @@ func (h *Handler) FetchJWTBundles(_ *workload.JWTBundlesRequest, stream workload
 		return err
 	}
 
-	subscriber, err := h.c.Manager.SubscribeToX509CacheChanges(ctx, selectors)
+	entries := h.c.Manager.MatchingRegistrationEntries(selectors)
+	subscriber := h.c.Manager.SubscribeToBundleChanges()
+
+	previousResp, err := h.sendJWTBundlesResponse(subscriber.Value(), entries, stream, selectors, log, nil, start)
 	if err != nil {
-		loggerWithContextInfo(ctx, log, start, err).Error("Subscribe to cache changes failed")
 		return err
 	}
-	defer subscriber.Finish()
 
-	var previousResp *workload.JWTBundlesResponse
 	for {
 		select {
-		case update := <-subscriber.Updates():
-			if previousResp, err = h.sendJWTBundlesResponse(update, stream, selectors, log, previousResp, start); err != nil {
+		case <-subscriber.Changes():
+			if previousResp, err = h.sendJWTBundlesResponse(subscriber.Next(), entries, stream, selectors, log, previousResp, start); err != nil {
 				return err
 			}
 		case <-ctx.Done():
@@ -682,14 +683,14 @@ func composeWITBundlesResponse(update *cache.WITWorkloadUpdate) (*workload.WITBu
 	}, nil
 }
 
-func (h *Handler) sendJWTBundlesResponse(update *cache.X509WorkloadUpdate, stream workload.SpiffeWorkloadAPI_FetchJWTBundlesServer, selectors []*common.Selector, log logrus.FieldLogger, previousResponse *workload.JWTBundlesResponse, start time.Time) (*workload.JWTBundlesResponse, error) {
+func (h *Handler) sendJWTBundlesResponse(bundles map[spiffeid.TrustDomain]*cache.Bundle, entries []*common.RegistrationEntry, stream workload.SpiffeWorkloadAPI_FetchJWTBundlesServer, selectors []*common.Selector, log logrus.FieldLogger, previousResponse *workload.JWTBundlesResponse, start time.Time) (*workload.JWTBundlesResponse, error) {
 	ctx := stream.Context()
-	if !h.c.AllowUnauthenticatedVerifiers && !update.HasIdentity() {
+	if !h.c.AllowUnauthenticatedVerifiers && len(entries) == 0 {
 		h.logNoIdentityIssued(ctx, log, selectors, start)
 		return nil, status.Error(codes.PermissionDenied, "no identity issued")
 	}
 
-	resp, err := composeJWTBundlesResponse(update)
+	resp, err := h.composeJWTBundlesResponse(bundles, entries, log)
 	if err != nil {
 		log.WithError(err).Error("Could not serialize JWT bundle response")
 		return nil, status.Errorf(codes.Unavailable, "could not serialize response: %v", err)
@@ -707,32 +708,53 @@ func (h *Handler) sendJWTBundlesResponse(update *cache.X509WorkloadUpdate, strea
 	return resp, nil
 }
 
-func composeJWTBundlesResponse(update *cache.X509WorkloadUpdate) (*workload.JWTBundlesResponse, error) {
-	if update.Bundle == nil {
-		// This should be purely defensive since the cache should always supply
-		// a bundle.
-		return nil, errors.New("bundle not available")
-	}
-
-	bundles := make(map[string][]byte)
-	jwksBytes, err := bundleutil.MarshalJWTSVIDBundle(update.Bundle, bundleutil.StandardJWKS())
-	if err != nil {
-		return nil, err
-	}
-	bundles[update.Bundle.TrustDomain().IDString()] = jwksBytes
-
-	if update.HasIdentity() {
-		for _, federatedBundle := range update.FederatedBundles {
-			jwksBytes, err := bundleutil.MarshalJWTSVIDBundle(federatedBundle, bundleutil.StandardJWKS())
+func (h *Handler) composeJWTBundlesResponse(bundles map[spiffeid.TrustDomain]*cache.Bundle, entries []*common.RegistrationEntry, log logrus.FieldLogger) (*workload.JWTBundlesResponse, error) {
+	federatedBundles := make(map[spiffeid.TrustDomain]*spiffebundle.Bundle)
+	for _, entry := range entries {
+		for _, federatesWith := range entry.FederatesWith {
+			td, err := spiffeid.TrustDomainFromString(federatesWith)
 			if err != nil {
-				return nil, err
+				log.WithFields(logrus.Fields{
+					telemetry.TrustDomainID: federatesWith,
+					logrus.ErrorKey:         err,
+				}).Warn("Invalid federated trust domain")
+				continue
 			}
-			bundles[federatedBundle.TrustDomain().IDString()] = jwksBytes
+			if federatedBundle := bundles[td]; federatedBundle != nil {
+				federatedBundles[td] = federatedBundle
+			} else {
+				log.WithFields(logrus.Fields{
+					telemetry.RegistrationID:  entry.EntryId,
+					telemetry.SPIFFEID:        entry.SpiffeId,
+					telemetry.FederatedBundle: federatesWith,
+				}).Warn("Federated bundle contents missing")
+			}
 		}
 	}
 
+	allBundles := make(map[string][]byte)
+
+	for _, federatedBundle := range federatedBundles {
+		jwksBytes, err := bundleutil.MarshalJWTSVIDBundle(federatedBundle, bundleutil.StandardJWKS())
+		if err != nil {
+			return nil, err
+		}
+		allBundles[federatedBundle.TrustDomain().IDString()] = jwksBytes
+	}
+
+	bundle := bundles[h.c.TrustDomain]
+	if bundle == nil {
+		// should not get here, since the cache should always have a bundle
+		return nil, errors.New("bundle not available")
+	}
+	jwksBytes, err := bundleutil.MarshalJWTSVIDBundle(bundle, bundleutil.StandardJWKS())
+	if err != nil {
+		return nil, err
+	}
+	allBundles[h.c.TrustDomain.IDString()] = jwksBytes
+
 	return &workload.JWTBundlesResponse{
-		Bundles: bundles,
+		Bundles: allBundles,
 	}, nil
 }
 
