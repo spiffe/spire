@@ -31,6 +31,9 @@ type Config struct {
 	// If true enables audit logs
 	AuditLogEnabled bool
 
+	// AuditLogExcludeControlPlaneReads omits successful control plane reads from audit logs.
+	AuditLogExcludeControlPlaneReads bool
+
 	// ProxyProtocolTrustedCIDRs is a list of trusted CIDRs for PROXY protocol.
 	// When non-empty, the server enables PROXY protocol on the TCP listener and
 	// restricts PROXY header acceptance to connections originating from these

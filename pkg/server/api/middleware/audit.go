@@ -5,6 +5,8 @@ import (
 
 	"github.com/shirou/gopsutil/v4/process"
 	"github.com/sirupsen/logrus"
+	bundlev1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/bundle/v1"
+	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
 	"github.com/spiffe/spire/pkg/common/peertracker"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/api/audit"
@@ -13,19 +15,21 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-func WithAuditLog(localTrackerEnabled bool) Middleware {
+func WithAuditLog(localTrackerEnabled, excludeControlPlaneReads bool) Middleware {
 	return auditLogMiddleware{
-		localTrackerEnabled: localTrackerEnabled,
+		localTrackerEnabled:      localTrackerEnabled,
+		excludeControlPlaneReads: excludeControlPlaneReads,
 	}
 }
 
 type auditLogMiddleware struct {
 	Middleware
 
-	localTrackerEnabled bool
+	localTrackerEnabled      bool
+	excludeControlPlaneReads bool
 }
 
-func (m auditLogMiddleware) Preprocess(ctx context.Context, _ string, _ any) (context.Context, error) {
+func (m auditLogMiddleware) Preprocess(ctx context.Context, fullMethod string, _ any) (context.Context, error) {
 	log := rpccontext.Logger(ctx)
 	if rpccontext.CallerIsLocal(ctx) && m.localTrackerEnabled {
 		fields, err := fieldsFromTracker(ctx)
@@ -36,11 +40,28 @@ func (m auditLogMiddleware) Preprocess(ctx context.Context, _ string, _ any) (co
 		log = log.WithFields(fields)
 	}
 
-	auditLog := audit.New(log)
+	var auditLog audit.Logger
+	if m.excludeControlPlaneReads && isControlPlaneRead(fullMethod) {
+		auditLog = audit.NewErrorOnly(log)
+	} else {
+		auditLog = audit.New(log)
+	}
 
 	ctx = rpccontext.WithAuditLog(ctx, auditLog)
 
 	return ctx, nil
+}
+
+func isControlPlaneRead(fullMethod string) bool {
+	switch fullMethod {
+	case bundlev1.Bundle_GetBundle_FullMethodName,
+		bundlev1.Bundle_GetFederatedBundle_FullMethodName,
+		entryv1.Entry_GetAuthorizedEntries_FullMethodName,
+		entryv1.Entry_SyncAuthorizedEntries_FullMethodName:
+		return true
+	default:
+		return false
+	}
 }
 
 func (m auditLogMiddleware) Postprocess(ctx context.Context, _ string, _ bool, rpcErr error) {

@@ -108,6 +108,27 @@ func TestParseConfigGood(t *testing.T) {
 	require.Equal(t, expectedPluginConfigs, pluginConfigs)
 }
 
+func TestControlPlaneAuditConfig(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "server.conf")
+	require.NoError(t, os.WriteFile(path, []byte(`server {
+		bind_address = "127.0.0.1"
+		bind_port = 8081
+		trust_domain = "example.org"
+		data_dir = "testdata"
+		audit_log_enabled = true
+		audit_log_exclude_control_plane_reads = true
+	}
+	plugins {}`), 0o600))
+	c, err := ParseFile(path, false)
+	require.NoError(t, err)
+	require.True(t, c.Server.AuditLogExcludeControlPlaneReads)
+	c, err = mergeInput(c, &serverConfig{})
+	require.NoError(t, err)
+	sc, err := newServerConfig(c, nil, false, true)
+	require.NoError(t, err)
+	require.True(t, sc.AuditLogExcludeControlPlaneReads)
+}
+
 func TestMergeInput(t *testing.T) {
 	cases := []mergeInputCase{
 		{
@@ -1460,6 +1481,22 @@ func TestNewServerConfig(t *testing.T) {
 			},
 			test: func(t *testing.T, c *server.Config) {
 				require.Equal(t, time.Minute, c.EventTimeout)
+			},
+		},
+		{
+			msg: "control plane audit filtering is enabled",
+			input: func(c *Config) {
+				c.Server.AuditLogExcludeControlPlaneReads = true
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.True(t, c.AuditLogExcludeControlPlaneReads)
+			},
+		},
+		{
+			msg:   "control plane audit filtering is disabled by default",
+			input: func(*Config) {},
+			test: func(t *testing.T, c *server.Config) {
+				require.False(t, c.AuditLogExcludeControlPlaneReads)
 			},
 		},
 		{
