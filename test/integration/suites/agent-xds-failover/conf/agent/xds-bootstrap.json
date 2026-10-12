@@ -1,0 +1,26 @@
+{
+  "xds_servers": [
+    {
+      "server_uri": "xds-control-plane:18000",
+      "channel_creds": [
+        {
+          "type": "tls",
+          "config": {
+            "ca_certificate_file": "/opt/spire/conf/agent/xds-ca.crt.pem"
+          }
+        }
+      ],
+      "server_features": [
+        "xds_v3"
+      ]
+    }
+  ],
+  "node": {
+    "id": "spire-agent",
+    "cluster": "spire",
+    "locality": {
+      "region": "dc1",
+      "zone": "zone1"
+    }
+  }
+}

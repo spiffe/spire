@@ -1,0 +1,7 @@
+#!/bin/bash
+
+# Start server-1 first and wait until it is ready so it performs the datastore
+# migration alone, then start server-2 against the already-migrated shared DB.
+# This avoids two servers racing to auto-migrate the same postgres database.
+docker-spire-server-up spire-server-1
+docker-spire-server-up spire-server-2
