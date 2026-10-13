@@ -251,6 +251,164 @@ func TestLRUCacheSubscribersNotifiedOnFederatedBundleRemoval(t *testing.T) {
 	assertNoX509WorkloadUpdate(t, subB)
 }
 
+func TestLRUCacheEntryAndBundleSubscriberNotifications(t *testing.T) {
+	cache := newTestLRUCache(t)
+	cache.UpdateEntries(&UpdateEntries{
+		Bundles: makeBundles(bundleV1),
+	}, nil)
+
+	// the first update is available as soon as the subscriber is created,
+	// even though no entries match yet.
+	sub := cache.SubscribeToEntryAndBundleUpdates(makeSelectors("A"))
+	defer sub.Finish()
+	assertEntriesAndBundlesUpdateEqual(t, sub, &EntriesAndBundlesUpdate{Bundle: bundleV1})
+
+	// add FOO, which matches the subscriber and federates with
+	// otherdomain.test.
+	foo := makeRegistrationEntry("FOO", "A")
+	foo.FederatesWith = makeFederatesWith(otherBundleV1)
+	cache.UpdateEntries(&UpdateEntries{
+		Bundles:             makeBundles(bundleV1, otherBundleV1),
+		RegistrationEntries: makeRegistrationEntries(foo),
+	}, nil)
+	assertEntriesAndBundlesUpdateEqual(t, sub, &EntriesAndBundlesUpdate{
+		Entries:          []*common.RegistrationEntry{foo},
+		Bundle:           bundleV1,
+		FederatedBundles: makeBundles(otherBundleV1),
+	})
+
+	// entry and bundle subscribers are not concerned with SVIDs.
+	cache.UpdateSVIDs(makeX509SVIDs(foo))
+	assertNoEntriesAndBundlesUpdate(t, sub)
+
+	// neither entries nor bundles relevant to the subscriber change.
+	bar := makeRegistrationEntry("BAR", "B")
+	unrelatedBundle := spiffebundle.FromX509Authorities(spiffeid.RequireTrustDomainFromString("unrelated.test"), []*x509.Certificate{{Raw: []byte{6}}})
+	cache.UpdateEntries(&UpdateEntries{
+		Bundles:             makeBundles(bundleV1, otherBundleV1, unrelatedBundle),
+		RegistrationEntries: makeRegistrationEntries(foo, bar),
+	}, nil)
+	assertNoEntriesAndBundlesUpdate(t, sub)
+
+	// the federated bundle is updated.
+	cache.UpdateEntries(&UpdateEntries{
+		Bundles:             makeBundles(bundleV1, otherBundleV2, unrelatedBundle),
+		RegistrationEntries: makeRegistrationEntries(foo, bar),
+	}, nil)
+	assertEntriesAndBundlesUpdateEqual(t, sub, &EntriesAndBundlesUpdate{
+		Entries:          []*common.RegistrationEntry{foo},
+		Bundle:           bundleV1,
+		FederatedBundles: makeBundles(otherBundleV2),
+	})
+
+	// the federated bundle is removed.
+	cache.UpdateEntries(&UpdateEntries{
+		Bundles:             makeBundles(bundleV1, unrelatedBundle),
+		RegistrationEntries: makeRegistrationEntries(foo, bar),
+	}, nil)
+	assertEntriesAndBundlesUpdateEqual(t, sub, &EntriesAndBundlesUpdate{
+		Entries: []*common.RegistrationEntry{foo},
+		Bundle:  bundleV1,
+	})
+
+	// the bundle for the agent trust domain is updated.
+	cache.UpdateEntries(&UpdateEntries{
+		Bundles:             makeBundles(bundleV2, unrelatedBundle),
+		RegistrationEntries: makeRegistrationEntries(foo, bar),
+	}, nil)
+	assertEntriesAndBundlesUpdateEqual(t, sub, &EntriesAndBundlesUpdate{
+		Entries: []*common.RegistrationEntry{foo},
+		Bundle:  bundleV2,
+	})
+
+	// FOO stops federating with otherdomain.test, which is added back.
+	foo = makeRegistrationEntry("FOO", "A")
+	cache.UpdateEntries(&UpdateEntries{
+		Bundles:             makeBundles(bundleV2, otherBundleV2, unrelatedBundle),
+		RegistrationEntries: makeRegistrationEntries(foo, bar),
+	}, nil)
+	assertEntriesAndBundlesUpdateEqual(t, sub, &EntriesAndBundlesUpdate{
+		Entries: []*common.RegistrationEntry{foo},
+		Bundle:  bundleV2,
+	})
+
+	// FOO no longer matches the subscriber.
+	foo = makeRegistrationEntry("FOO", "A", "B")
+	cache.UpdateEntries(&UpdateEntries{
+		Bundles:             makeBundles(bundleV2, otherBundleV2, unrelatedBundle),
+		RegistrationEntries: makeRegistrationEntries(foo, bar),
+	}, nil)
+	assertEntriesAndBundlesUpdateEqual(t, sub, &EntriesAndBundlesUpdate{Bundle: bundleV2})
+
+	// FOO matches again, then is removed.
+	foo = makeRegistrationEntry("FOO", "A")
+	cache.UpdateEntries(&UpdateEntries{
+		Bundles:             makeBundles(bundleV2, otherBundleV2, unrelatedBundle),
+		RegistrationEntries: makeRegistrationEntries(foo, bar),
+	}, nil)
+	assertEntriesAndBundlesUpdateEqual(t, sub, &EntriesAndBundlesUpdate{
+		Entries: []*common.RegistrationEntry{foo},
+		Bundle:  bundleV2,
+	})
+	cache.UpdateEntries(&UpdateEntries{
+		Bundles:             makeBundles(bundleV2, otherBundleV2, unrelatedBundle),
+		RegistrationEntries: makeRegistrationEntries(bar),
+	}, nil)
+	assertEntriesAndBundlesUpdateEqual(t, sub, &EntriesAndBundlesUpdate{Bundle: bundleV2})
+}
+
+func TestLRUCacheEntryAndBundleSubscriberDoesNotRequireSVIDs(t *testing.T) {
+	cache := newTestLRUCache(t)
+
+	// an entry and bundle subscriber that exists before the entries are
+	// created must not be counted when the entries are indexed.
+	subAB := cache.SubscribeToEntryAndBundleUpdates(makeSelectors("A", "B"))
+	defer subAB.Finish()
+
+	foo := makeRegistrationEntry("FOO", "A")
+	foo.AdditionalAttributes = &common.RegistrationEntry_AdditionalAttributes{
+		DisableX509SvidPrefetch: true,
+	}
+	bar := makeRegistrationEntry("BAR", "A", "B")
+	bar.AdditionalAttributes = &common.RegistrationEntry_AdditionalAttributes{
+		DisableX509SvidPrefetch: true,
+	}
+	cache.UpdateEntries(&UpdateEntries{
+		Bundles:             makeBundles(bundleV1),
+		RegistrationEntries: makeRegistrationEntries(foo, bar),
+	}, nil)
+	assert.Zero(t, cache.records[foo.EntryId].activeSubscriberCount)
+	assert.Zero(t, cache.records[bar.EntryId].activeSubscriberCount)
+
+	// nor must one created afterwards.
+	subA := cache.SubscribeToEntryAndBundleUpdates(makeSelectors("A"))
+	defer subA.Finish()
+	assert.Zero(t, cache.records[foo.EntryId].activeSubscriberCount)
+	assert.Zero(t, cache.records[bar.EntryId].activeSubscriberCount)
+
+	// so no SVIDs are minted for the entries.
+	cache.SyncSVIDsWithSubscribers()
+	assert.Empty(t, cache.GetStaleEntries())
+
+	// finishing an entry and bundle subscriber must not affect the count of
+	// workload update subscribers.
+	workloadSub := cache.NewSubscriber(makeSelectors("A"))
+	defer workloadSub.Finish()
+	assert.Equal(t, 1, cache.records[foo.EntryId].activeSubscriberCount)
+	subA.Finish()
+	assert.Equal(t, 1, cache.records[foo.EntryId].activeSubscriberCount)
+	workloadSub.Finish()
+	assert.Zero(t, cache.records[foo.EntryId].activeSubscriberCount)
+
+	// selector indices are cleaned up once the subscribers and entries are
+	// gone.
+	subAB.Finish()
+	cache.UpdateEntries(&UpdateEntries{
+		Bundles: makeBundles(bundleV1),
+	}, nil)
+	assert.Empty(t, cache.selectors)
+}
+
 func TestLRUCacheSubscribersGetEntriesWithSelectorSubsets(t *testing.T) {
 	cache := newTestLRUCache(t)
 
@@ -1470,6 +1628,29 @@ func assertX509WorkloadUpdateEqual(t *testing.T, sub Subscriber[X509WorkloadUpda
 		assert.Equal(t, expected.Identities, actual.Identities, "identities don't match")
 	case <-time.After(time.Minute):
 		assert.FailNow(t, "timed out waiting for workload update")
+	}
+}
+
+func assertNoEntriesAndBundlesUpdate(t *testing.T, sub Subscriber[EntriesAndBundlesUpdate]) {
+	select {
+	case update := <-sub.Updates():
+		assert.FailNow(t, "unexpected entries and bundles update", update)
+	default:
+	}
+}
+
+func assertEntriesAndBundlesUpdateEqual(t *testing.T, sub Subscriber[EntriesAndBundlesUpdate], expected *EntriesAndBundlesUpdate) {
+	select {
+	case actual := <-sub.Updates():
+		assert.NotNil(t, actual.Bundle, "bundle is not set")
+		assert.True(t, actual.Bundle.Equal(expected.Bundle), "bundles don't match")
+		assert.Equal(t, expected.Entries, actual.Entries, "entries don't match")
+		assert.Len(t, actual.FederatedBundles, len(expected.FederatedBundles), "federated bundles don't match")
+		for td, expectedBundle := range expected.FederatedBundles {
+			assert.True(t, expectedBundle.Equal(actual.FederatedBundles[td]), "federated bundle for %q doesn't match", td)
+		}
+	case <-time.After(time.Minute):
+		assert.FailNow(t, "timed out waiting for entries and bundles update")
 	}
 }
 

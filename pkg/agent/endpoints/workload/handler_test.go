@@ -1006,6 +1006,12 @@ func TestRateLimitAgentExemption(t *testing.T) {
 			Bundle:     ca.Bundle(),
 		},
 	}
+	entriesAndBundlesUpdates := []*cache.EntriesAndBundlesUpdate{
+		{
+			Entries: []*common.RegistrationEntry{identities[0].Entry},
+			Bundle:  ca.Bundle(),
+		},
+	}
 
 	for _, tt := range []struct {
 		name   string
@@ -1055,11 +1061,12 @@ func TestRateLimitAgentExemption(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			rl := &rejectAllRateLimiter{}
 			params := testParams{
-				CA:          ca,
-				Identities:  identities,
-				Updates:     updates,
-				AsPID:       os.Getpid(),
-				RateLimiter: rl,
+				CA:                       ca,
+				Identities:               identities,
+				Updates:                  updates,
+				EntriesAndBundlesUpdates: entriesAndBundlesUpdates,
+				AsPID:                    os.Getpid(),
+				RateLimiter:              rl,
 			}
 			runTest(t, params, func(ctx context.Context, c workloadPB.SpiffeWorkloadAPIClient) {
 				tt.invoke(t, ctx, c)
@@ -1143,30 +1150,37 @@ func TestRateLimitEnforced(t *testing.T) {
 }
 
 func TestFetchJWTBundles(t *testing.T) {
+	td := spiffeid.RequireTrustDomainFromString("domain.test")
 	ca := testca.New(t, td)
 
-	x509SVID := ca.CreateX509SVID(workloadID)
+	entry := &common.RegistrationEntry{EntryId: "id1", SpiffeId: workloadID.String()}
+
+	indent := func(in []byte) []byte {
+		buf := new(bytes.Buffer)
+		require.NoError(t, json.Indent(buf, in, "", "    "))
+		return buf.Bytes()
+	}
 
 	bundle := ca.Bundle()
-	bundleJWKS := indentedJWKS(t, bundle)
+	bundleJWKS, err := bundle.JWTBundle().Marshal()
+	require.NoError(t, err)
+	bundleJWKS = indent(bundleJWKS)
 	bundleWithWIT := ca.Bundle()
 	require.NoError(t, bundleWithWIT.AddWITAuthority("local-wit", bundleWithWIT.X509Authorities()[0].PublicKey))
 
-	emptyJWKSBytes := indentJSON(t, []byte(`{"keys": []}`))
+	emptyJWKSBytes := indent([]byte(`{"keys": []}`))
 
-	federatedCA := testca.New(t, td2)
+	federatedCA := testca.New(t, spiffeid.RequireTrustDomainFromString("domain2.test"))
 	federatedBundle := federatedCA.Bundle()
-	federatedBundleJWKS := indentedJWKS(t, federatedBundle)
+	federatedBundleJWKS, err := federatedBundle.JWTBundle().Marshal()
+	require.NoError(t, err)
+	federatedBundleJWKS = indent(federatedBundleJWKS)
 	federatedBundleWithWIT := federatedCA.Bundle()
 	require.NoError(t, federatedBundleWithWIT.AddWITAuthority("federated-wit", federatedBundleWithWIT.X509Authorities()[0].PublicKey))
 
-	td3 := spiffeid.RequireTrustDomainFromString("domain3.test")
-	unrelatedBundle := testca.New(t, td3).Bundle()
-
 	for _, tt := range []struct {
 		name                          string
-		identities                    []cache.X509Identity
-		bundles                       []*spiffebundle.Bundle
+		updates                       []*cache.EntriesAndBundlesUpdate
 		selectors                     []*common.Selector
 		logSelectors                  []string
 		attestErr                     error
@@ -1178,7 +1192,7 @@ func TestFetchJWTBundles(t *testing.T) {
 	}{
 		{
 			name:       "no identity issued",
-			bundles:    []*spiffebundle.Bundle{bundle},
+			updates:    []*cache.EntriesAndBundlesUpdate{{}},
 			expectCode: codes.PermissionDenied,
 			expectMsg:  "no identity issued",
 			expectLogs: []spiretest.LogEntry{
@@ -1195,7 +1209,7 @@ func TestFetchJWTBundles(t *testing.T) {
 		},
 		{
 			name:         "no identity issued with loggable selectors",
-			bundles:      []*spiffebundle.Bundle{bundle},
+			updates:      []*cache.EntriesAndBundlesUpdate{{}},
 			selectors:    []*common.Selector{k8sNamespaceSelector, k8sPodLabelSelector},
 			logSelectors: []string{"k8s:ns"},
 			expectCode:   codes.PermissionDenied,
@@ -1231,145 +1245,99 @@ func TestFetchJWTBundles(t *testing.T) {
 			},
 		},
 		{
+			name: "cache update unexpectedly missing bundle",
+			updates: []*cache.EntriesAndBundlesUpdate{
+				{
+					Entries: []*common.RegistrationEntry{entry},
+				},
+			},
+			expectCode: codes.Unavailable,
+			expectMsg:  "could not serialize response: bundle not available",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Could not serialize JWT bundle response",
+					Data: logrus.Fields{
+						"service":       "WorkloadAPI",
+						"method":        "FetchJWTBundles",
+						logrus.ErrorKey: "bundle not available",
+					},
+				},
+			},
+		},
+		{
 			name: "success",
-			identities: []cache.X509Identity{
-				federatingIdentityFromX509SVID(x509SVID, td2),
-			},
-			bundles:    []*spiffebundle.Bundle{bundle, federatedBundle},
-			expectCode: codes.OK,
-			expectResp: &workloadPB.JWTBundlesResponse{
-				Bundles: map[string][]byte{
-					td.IDString():  bundleJWKS,
-					td2.IDString(): federatedBundleJWKS,
-				},
-			},
-		},
-		{
-			// The handler authorizes on registration entries alone, so an entry
-			// whose X.509-SVID was never minted (e.g. because X.509-SVID
-			// prefetch is disabled for it) still receives bundles.
-			name: "entry without cached X509-SVID",
-			identities: []cache.X509Identity{
-				{Entry: &common.RegistrationEntry{
-					EntryId:       "id1",
-					SpiffeId:      workloadID.String(),
-					FederatesWith: []string{td2.IDString()},
-				}},
-			},
-			bundles:    []*spiffebundle.Bundle{bundle, federatedBundle},
-			expectCode: codes.OK,
-			expectResp: &workloadPB.JWTBundlesResponse{
-				Bundles: map[string][]byte{
-					td.IDString():  bundleJWKS,
-					td2.IDString(): federatedBundleJWKS,
-				},
-			},
-		},
-		{
-			name: "trust domains not federated with are excluded",
-			identities: []cache.X509Identity{
-				federatingIdentityFromX509SVID(x509SVID, td2),
-			},
-			bundles:    []*spiffebundle.Bundle{bundle, federatedBundle, unrelatedBundle},
-			expectCode: codes.OK,
-			expectResp: &workloadPB.JWTBundlesResponse{
-				Bundles: map[string][]byte{
-					td.IDString():  bundleJWKS,
-					td2.IDString(): federatedBundleJWKS,
-				},
-			},
-		},
-		{
-			name: "federated bundle missing",
-			identities: []cache.X509Identity{
-				federatingIdentityFromX509SVID(x509SVID, td2),
-			},
-			bundles:    []*spiffebundle.Bundle{bundle},
-			expectCode: codes.OK,
-			expectResp: &workloadPB.JWTBundlesResponse{
-				Bundles: map[string][]byte{
-					td.IDString(): bundleJWKS,
-				},
-			},
-			expectLogs: []spiretest.LogEntry{
+			updates: []*cache.EntriesAndBundlesUpdate{
 				{
-					Level:   logrus.WarnLevel,
-					Message: "Federated bundle contents missing",
-					Data: logrus.Fields{
-						"service":                 "WorkloadAPI",
-						"method":                  "FetchJWTBundles",
-						telemetry.RegistrationID:  "id1",
-						telemetry.SPIFFEID:        workloadID.String(),
-						telemetry.FederatedBundle: td2.IDString(),
+					Entries: []*common.RegistrationEntry{entry},
+					Bundle:  bundle,
+					FederatedBundles: map[spiffeid.TrustDomain]*spiffebundle.Bundle{
+						federatedBundle.TrustDomain(): federatedBundle,
 					},
 				},
 			},
-		},
-		{
-			name: "invalid federated trust domain",
-			identities: []cache.X509Identity{
-				{Entry: &common.RegistrationEntry{
-					EntryId:       "id1",
-					SpiffeId:      workloadID.String(),
-					FederatesWith: []string{"spiffe://"},
-				}},
-			},
-			bundles:    []*spiffebundle.Bundle{bundle},
 			expectCode: codes.OK,
 			expectResp: &workloadPB.JWTBundlesResponse{
 				Bundles: map[string][]byte{
-					td.IDString(): bundleJWKS,
-				},
-			},
-			expectLogs: []spiretest.LogEntry{
-				{
-					Level:   logrus.WarnLevel,
-					Message: "Invalid federated trust domain",
-					Data: logrus.Fields{
-						"service":               "WorkloadAPI",
-						"method":                "FetchJWTBundles",
-						telemetry.TrustDomainID: "spiffe://",
-						logrus.ErrorKey:         "trust domain is missing",
-					},
+					bundle.TrustDomain().IDString():          bundleJWKS,
+					federatedBundle.TrustDomain().IDString(): federatedBundleJWKS,
 				},
 			},
 		},
 		{
 			name: "WIT authorities excluded",
-			identities: []cache.X509Identity{
-				federatingIdentityFromX509SVID(x509SVID, td2),
+			updates: []*cache.EntriesAndBundlesUpdate{
+				{
+					Entries: []*common.RegistrationEntry{entry},
+					Bundle:  bundleWithWIT,
+					FederatedBundles: map[spiffeid.TrustDomain]*spiffebundle.Bundle{
+						federatedBundleWithWIT.TrustDomain(): federatedBundleWithWIT,
+					},
+				},
 			},
-			bundles:    []*spiffebundle.Bundle{bundleWithWIT, federatedBundleWithWIT},
 			expectCode: codes.OK,
 			expectResp: &workloadPB.JWTBundlesResponse{
 				Bundles: map[string][]byte{
-					td.IDString():  bundleJWKS,
-					td2.IDString(): federatedBundleJWKS,
+					bundleWithWIT.TrustDomain().IDString():          bundleJWKS,
+					federatedBundleWithWIT.TrustDomain().IDString(): federatedBundleJWKS,
 				},
 			},
 		},
 		{
 			name:                          "when allowed to fetch without identity",
 			allowUnauthenticatedVerifiers: true,
-			bundles:                       []*spiffebundle.Bundle{bundle, federatedBundle},
-			expectCode:                    codes.OK,
+			updates: []*cache.EntriesAndBundlesUpdate{
+				{
+					Entries: []*common.RegistrationEntry{},
+					Bundle:  bundle,
+					FederatedBundles: map[spiffeid.TrustDomain]*spiffebundle.Bundle{
+						federatedBundle.TrustDomain(): federatedBundle,
+					},
+				},
+			},
+			expectCode: codes.OK,
 			expectResp: &workloadPB.JWTBundlesResponse{
 				Bundles: map[string][]byte{
-					td.IDString(): bundleJWKS,
+					bundle.TrustDomain().IDString(): bundleJWKS,
 				},
 			},
 		},
 		{
 			name: "federated bundle with JWKS empty keys array",
-			identities: []cache.X509Identity{
-				federatingIdentityFromX509SVID(x509SVID, td2),
+			updates: []*cache.EntriesAndBundlesUpdate{
+				{
+					Entries: []*common.RegistrationEntry{entry},
+					Bundle:  bundle,
+					FederatedBundles: map[spiffeid.TrustDomain]*spiffebundle.Bundle{
+						federatedBundle.TrustDomain(): spiffebundle.New(federatedBundle.TrustDomain()),
+					},
+				},
 			},
-			bundles:    []*spiffebundle.Bundle{bundle, spiffebundle.New(td2)},
 			expectCode: codes.OK,
 			expectResp: &workloadPB.JWTBundlesResponse{
 				Bundles: map[string][]byte{
-					td.IDString():  bundleJWKS,
-					td2.IDString(): emptyJWKSBytes,
+					bundle.TrustDomain().IDString():          bundleJWKS,
+					federatedBundle.TrustDomain().IDString(): emptyJWKSBytes,
 				},
 			},
 		},
@@ -1377,9 +1345,8 @@ func TestFetchJWTBundles(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			params := testParams{
 				CA:                            ca,
-				Identities:                    tt.identities,
+				EntriesAndBundlesUpdates:      tt.updates,
 				Selectors:                     tt.selectors,
-				BundleCache:                   newBundleCache(tt.bundles...),
 				LogSelectors:                  tt.logSelectors,
 				AttestErr:                     tt.attestErr,
 				ExpectLogs:                    tt.expectLogs,
@@ -1399,22 +1366,57 @@ func TestFetchJWTBundles(t *testing.T) {
 }
 
 func TestFetchJWTBundles_MultipleUpdates(t *testing.T) {
+	td := spiffeid.RequireTrustDomainFromString("domain.test")
 	ca := testca.New(t, td)
-	x509SVID := ca.CreateX509SVID(workloadID)
+
+	entry := &common.RegistrationEntry{EntryId: "id1", SpiffeId: workloadID.String()}
+
+	indent := func(in []byte) []byte {
+		buf := new(bytes.Buffer)
+		require.NoError(t, json.Indent(buf, in, "", "    "))
+		return buf.Bytes()
+	}
 
 	bundle := ca.Bundle()
-	rotatedBundle := testca.New(t, td).Bundle()
-	federatedBundle := testca.New(t, td2).Bundle()
-	rotatedFederatedBundle := testca.New(t, td2).Bundle()
+	bundleJWKS, err := bundle.JWTBundle().Marshal()
+	require.NoError(t, err)
+	bundleJWKS = indent(bundleJWKS)
 
-	bundleCache := newBundleCache(bundle, federatedBundle)
+	otherBundle := testca.New(t, spiffeid.RequireTrustDomainFromString("domain2.test")).Bundle()
+	otherBundleJWKS, err := otherBundle.JWTBundle().Marshal()
+	require.NoError(t, err)
+	otherBundleJWKS = indent(otherBundleJWKS)
+
+	updates := []*cache.EntriesAndBundlesUpdate{
+		{
+			Entries: []*common.RegistrationEntry{entry},
+			Bundle:  bundle,
+		},
+		{
+			Entries: []*common.RegistrationEntry{entry},
+			Bundle:  otherBundle,
+		},
+	}
+
+	expectResp := []*workloadPB.JWTBundlesResponse{
+		{
+			Bundles: map[string][]byte{
+				bundle.TrustDomain().IDString(): bundleJWKS,
+			},
+		},
+		{
+			Bundles: map[string][]byte{
+				otherBundle.TrustDomain().IDString(): otherBundleJWKS,
+			},
+		},
+	}
 
 	params := testParams{
-		CA: ca,
-		Identities: []cache.X509Identity{
-			federatingIdentityFromX509SVID(x509SVID, td2),
-		},
-		BundleCache: bundleCache,
+		CA:                            ca,
+		EntriesAndBundlesUpdates:      updates,
+		AttestErr:                     nil,
+		ExpectLogs:                    nil,
+		AllowUnauthenticatedVerifiers: false,
 	}
 
 	runTest(t, params,
@@ -1424,56 +1426,70 @@ func TestFetchJWTBundles_MultipleUpdates(t *testing.T) {
 
 			resp, err := stream.Recv()
 			spiretest.RequireGRPCStatus(t, err, codes.OK, "")
-			spiretest.RequireProtoEqual(t, &workloadPB.JWTBundlesResponse{
-				Bundles: map[string][]byte{
-					td.IDString():  indentedJWKS(t, bundle),
-					td2.IDString(): indentedJWKS(t, federatedBundle),
-				},
-			}, resp)
-
-			// Rotate the local trust domain bundle.
-			bundleCache.Update(bundleMap(rotatedBundle, federatedBundle))
+			spiretest.RequireProtoEqual(t, expectResp[0], resp)
 
 			resp, err = stream.Recv()
 			spiretest.RequireGRPCStatus(t, err, codes.OK, "")
-			spiretest.RequireProtoEqual(t, &workloadPB.JWTBundlesResponse{
-				Bundles: map[string][]byte{
-					td.IDString():  indentedJWKS(t, rotatedBundle),
-					td2.IDString(): indentedJWKS(t, federatedBundle),
-				},
-			}, resp)
-
-			// Rotate the federated trust domain bundle.
-			bundleCache.Update(bundleMap(rotatedBundle, rotatedFederatedBundle))
-
-			resp, err = stream.Recv()
-			spiretest.RequireGRPCStatus(t, err, codes.OK, "")
-			spiretest.RequireProtoEqual(t, &workloadPB.JWTBundlesResponse{
-				Bundles: map[string][]byte{
-					td.IDString():  indentedJWKS(t, rotatedBundle),
-					td2.IDString(): indentedJWKS(t, rotatedFederatedBundle),
-				},
-			}, resp)
+			spiretest.RequireProtoEqual(t, expectResp[1], resp)
 		})
 }
 
 func TestFetchJWTBundles_SpuriousUpdates(t *testing.T) {
+	td := spiffeid.RequireTrustDomainFromString("domain.test")
 	ca := testca.New(t, td)
-	x509SVID := ca.CreateX509SVID(workloadID)
+
+	entry := &common.RegistrationEntry{EntryId: "id1", SpiffeId: workloadID.String()}
+
+	indent := func(in []byte) []byte {
+		buf := new(bytes.Buffer)
+		require.NoError(t, json.Indent(buf, in, "", "    "))
+		return buf.Bytes()
+	}
 
 	bundle := ca.Bundle()
-	rotatedBundle := testca.New(t, td).Bundle()
-	federatedBundle := testca.New(t, td2).Bundle()
-	unrelatedBundle := testca.New(t, spiffeid.RequireTrustDomainFromString("domain3.test")).Bundle()
+	bundleJWKS, err := bundle.JWTBundle().Marshal()
+	require.NoError(t, err)
+	bundleJWKS = indent(bundleJWKS)
 
-	bundleCache := newBundleCache(bundle, federatedBundle)
+	otherBundle := testca.New(t, spiffeid.RequireTrustDomainFromString("domain2.test")).Bundle()
+	otherBundleJWKS, err := otherBundle.JWTBundle().Marshal()
+	require.NoError(t, err)
+	otherBundleJWKS = indent(otherBundleJWKS)
+
+	updates := []*cache.EntriesAndBundlesUpdate{
+		{
+			Entries: []*common.RegistrationEntry{entry},
+			Bundle:  bundle,
+		},
+		{
+			Entries: []*common.RegistrationEntry{entry},
+			Bundle:  bundle,
+		},
+		{
+			Entries: []*common.RegistrationEntry{entry},
+			Bundle:  otherBundle,
+		},
+	}
+
+	expectResp := []*workloadPB.JWTBundlesResponse{
+		{
+			Bundles: map[string][]byte{
+				bundle.TrustDomain().IDString(): bundleJWKS,
+			},
+		},
+		{
+			Bundles: map[string][]byte{
+				otherBundle.TrustDomain().IDString(): otherBundleJWKS,
+			},
+		},
+	}
 
 	params := testParams{
-		CA: ca,
-		Identities: []cache.X509Identity{
-			federatingIdentityFromX509SVID(x509SVID, td2),
-		},
-		BundleCache: bundleCache,
+		CA:                            ca,
+		EntriesAndBundlesUpdates:      updates,
+		AttestErr:                     nil,
+		ExpectLogs:                    nil,
+		AllowUnauthenticatedVerifiers: false,
 	}
 
 	runTest(t, params,
@@ -1481,34 +1497,76 @@ func TestFetchJWTBundles_SpuriousUpdates(t *testing.T) {
 			stream, err := client.FetchJWTBundles(ctx, &workloadPB.JWTBundlesRequest{})
 			require.NoError(t, err)
 
-			// First response should be the original bundles.
+			// First response should be the original update.
+			resp, err := stream.Recv()
+			spiretest.RequireGRPCStatus(t, err, codes.OK, "")
+			spiretest.RequireProtoEqual(t, expectResp[0], resp)
+
+			// Next response should be the third update, as the second contained
+			// no bundle changes and should have been skipped.
+			resp, err = stream.Recv()
+			spiretest.RequireGRPCStatus(t, err, codes.OK, "")
+			spiretest.RequireProtoEqual(t, expectResp[1], resp)
+		})
+}
+
+func TestFetchJWTBundles_EntriesRemoved(t *testing.T) {
+	td := spiffeid.RequireTrustDomainFromString("domain.test")
+	ca := testca.New(t, td)
+
+	entry := &common.RegistrationEntry{EntryId: "id1", SpiffeId: workloadID.String()}
+
+	bundle := ca.Bundle()
+	bundleJWKS, err := bundle.JWTBundle().Marshal()
+	require.NoError(t, err)
+	buf := new(bytes.Buffer)
+	require.NoError(t, json.Indent(buf, bundleJWKS, "", "    "))
+	bundleJWKS = buf.Bytes()
+
+	updates := []*cache.EntriesAndBundlesUpdate{
+		{
+			Entries: []*common.RegistrationEntry{entry},
+			Bundle:  bundle,
+		},
+		{
+			Bundle: bundle,
+		},
+	}
+
+	params := testParams{
+		CA:                       ca,
+		EntriesAndBundlesUpdates: updates,
+		ExpectLogs: []spiretest.LogEntry{
+			{
+				Level:   logrus.ErrorLevel,
+				Message: "No identity issued",
+				Data: logrus.Fields{
+					"registered": "false",
+					"service":    "WorkloadAPI",
+					"method":     "FetchJWTBundles",
+				},
+			},
+		},
+	}
+
+	runTest(t, params,
+		func(ctx context.Context, client workloadPB.SpiffeWorkloadAPIClient) {
+			stream, err := client.FetchJWTBundles(ctx, &workloadPB.JWTBundlesRequest{})
+			require.NoError(t, err)
+
 			resp, err := stream.Recv()
 			spiretest.RequireGRPCStatus(t, err, codes.OK, "")
 			spiretest.RequireProtoEqual(t, &workloadPB.JWTBundlesResponse{
 				Bundles: map[string][]byte{
-					td.IDString():  indentedJWKS(t, bundle),
-					td2.IDString(): indentedJWKS(t, federatedBundle),
+					bundle.TrustDomain().IDString(): bundleJWKS,
 				},
 			}, resp)
 
-			// Adding a bundle for a trust domain the workload does not
-			// federate with changes the cache but not the response, so it
-			// should be skipped. The bundle stream delivers every update in
-			// order, so the handler always observes this one.
-			bundleCache.Update(bundleMap(bundle, federatedBundle, unrelatedBundle))
-
-			// Next response should reflect the rotation, not a duplicate of
-			// the first response.
-			bundleCache.Update(bundleMap(rotatedBundle, federatedBundle, unrelatedBundle))
-
+			// The stream is terminated once the workload no longer matches
+			// any registration entries.
 			resp, err = stream.Recv()
-			spiretest.RequireGRPCStatus(t, err, codes.OK, "")
-			spiretest.RequireProtoEqual(t, &workloadPB.JWTBundlesResponse{
-				Bundles: map[string][]byte{
-					td.IDString():  indentedJWKS(t, rotatedBundle),
-					td2.IDString(): indentedJWKS(t, federatedBundle),
-				},
-			}, resp)
+			spiretest.RequireGRPCStatus(t, err, codes.PermissionDenied, "no identity issued")
+			require.Nil(t, resp)
 		})
 }
 
@@ -2200,8 +2258,8 @@ type testParams struct {
 	Identities                    []cache.X509Identity
 	Updates                       []*cache.X509WorkloadUpdate
 	WITUpdates                    []*cache.WITWorkloadUpdate
+	EntriesAndBundlesUpdates      []*cache.EntriesAndBundlesUpdate
 	Selectors                     []*common.Selector
-	BundleCache                   *cache.BundleCache
 	LogSelectors                  []string
 	AttestErr                     error
 	ManagerErr                    error
@@ -2215,17 +2273,13 @@ type testParams struct {
 func runTest(t *testing.T, params testParams, fn func(ctx context.Context, client workloadPB.SpiffeWorkloadAPIClient)) {
 	log, logHook := test.NewNullLogger()
 
-	if params.BundleCache == nil {
-		params.BundleCache = newBundleCache(spiffebundle.New(td))
-	}
-
 	manager := &FakeManager{
-		ca:          params.CA,
-		identities:  params.Identities,
-		updates:     params.Updates,
-		witUpdates:  params.WITUpdates,
-		bundleCache: params.BundleCache,
-		err:         params.ManagerErr,
+		ca:                       params.CA,
+		identities:               params.Identities,
+		updates:                  params.Updates,
+		witUpdates:               params.WITUpdates,
+		entriesAndBundlesUpdates: params.EntriesAndBundlesUpdates,
+		err:                      params.ManagerErr,
 	}
 
 	handler := workload.New(workload.Config{
@@ -2267,13 +2321,13 @@ func runTest(t *testing.T, params testParams, fn func(ctx context.Context, clien
 }
 
 type FakeManager struct {
-	ca          *testca.CA
-	identities  []cache.X509Identity
-	updates     []*cache.X509WorkloadUpdate
-	witUpdates  []*cache.WITWorkloadUpdate
-	bundleCache *cache.BundleCache
-	subscribers atomic.Int32
-	err         error
+	ca                       *testca.CA
+	identities               []cache.X509Identity
+	updates                  []*cache.X509WorkloadUpdate
+	witUpdates               []*cache.WITWorkloadUpdate
+	entriesAndBundlesUpdates []*cache.EntriesAndBundlesUpdate
+	subscribers              atomic.Int32
+	err                      error
 }
 
 func (m *FakeManager) MatchingRegistrationEntries([]*common.Selector) []*common.RegistrationEntry {
@@ -2315,15 +2369,16 @@ func (m *FakeManager) SubscribeToWITCacheChanges(context.Context, cache.Selector
 	return newFakeSubscriber(m, m.witUpdates), nil
 }
 
+func (m *FakeManager) SubscribeToEntryAndBundleChanges(cache.Selectors) cache.Subscriber[cache.EntriesAndBundlesUpdate] {
+	m.subscribers.Add(1)
+	return newFakeSubscriber(m, m.entriesAndBundlesUpdates)
+}
+
 func (m *FakeManager) FetchWorkloadUpdate([]*common.Selector) *cache.X509WorkloadUpdate {
 	if len(m.updates) == 0 {
 		return &cache.X509WorkloadUpdate{}
 	}
 	return m.updates[0]
-}
-
-func (m *FakeManager) SubscribeToBundleChanges() *cache.BundleStream {
-	return m.bundleCache.SubscribeToBundleChanges()
 }
 
 func (m *FakeManager) Subscribers() int {
@@ -2384,45 +2439,6 @@ func identityFromX509SVID(svid *x509svid.SVID, entryID string) cache.X509Identit
 		PrivateKey: svid.PrivateKey,
 		SVID:       svid.Certificates,
 	}
-}
-
-func federatingIdentityFromX509SVID(svid *x509svid.SVID, federatesWith ...spiffeid.TrustDomain) cache.X509Identity {
-	identity := identityFromX509SVID(svid, "id1")
-	for _, td := range federatesWith {
-		identity.Entry.FederatesWith = append(identity.Entry.FederatesWith, td.IDString())
-	}
-	return identity
-}
-
-// newBundleCache returns a bundle cache seeded with the given bundles. The
-// bundle for the local trust domain must be among them.
-func newBundleCache(bundles ...*spiffebundle.Bundle) *cache.BundleCache {
-	bundleMap := bundleMap(bundles...)
-	bundleCache := cache.NewBundleCache(td, bundleMap[td])
-	bundleCache.Update(bundleMap)
-	return bundleCache
-}
-
-func bundleMap(bundles ...*spiffebundle.Bundle) map[spiffeid.TrustDomain]*cache.Bundle {
-	out := make(map[spiffeid.TrustDomain]*cache.Bundle, len(bundles))
-	for _, bundle := range bundles {
-		out[bundle.TrustDomain()] = bundle
-	}
-	return out
-}
-
-// indentedJWKS returns the JWT authorities of the bundle as a JWKS document,
-// formatted the way the Workload API returns it.
-func indentedJWKS(t *testing.T, bundle *spiffebundle.Bundle) []byte {
-	jwks, err := bundle.JWTBundle().Marshal()
-	require.NoError(t, err)
-	return indentJSON(t, jwks)
-}
-
-func indentJSON(t *testing.T, in []byte) []byte {
-	buf := new(bytes.Buffer)
-	require.NoError(t, json.Indent(buf, in, "", "    "))
-	return buf.Bytes()
 }
 
 func pkcs8FromSigner(t *testing.T, key crypto.Signer) []byte {

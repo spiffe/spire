@@ -64,6 +64,14 @@ type Manager interface {
 	// not enabled.
 	SubscribeToWITCacheChanges(ctx context.Context, key cache.Selectors) (cache.Subscriber[cache.WITWorkloadUpdate], error)
 
+	// SubscribeToEntryAndBundleChanges returns a Subscriber on which the
+	// registration entries matching a particular set of selectors are sent,
+	// along with the bundles they rely on, each time either of them changes.
+	// The first update is available as soon as the method returns. Unlike
+	// SubscribeToX509CacheChanges, it does not cause X509-SVIDs to be minted
+	// for the matching entries.
+	SubscribeToEntryAndBundleChanges(key cache.Selectors) cache.Subscriber[cache.EntriesAndBundlesUpdate]
+
 	// SubscribeToSVIDChanges returns a new observer.Stream on which svid.State instances are received
 	// each time an SVID rotation finishes.
 	SubscribeToSVIDChanges() observer.Stream
@@ -274,6 +282,10 @@ func (m *manager) SubscribeToWITCacheChanges(ctx context.Context, selectors cach
 		return nil, ErrWITSVIDsDisabled
 	}
 	return m.witCache.SubscribeToWorkloadUpdates(ctx, selectors)
+}
+
+func (m *manager) SubscribeToEntryAndBundleChanges(selectors cache.Selectors) cache.Subscriber[cache.EntriesAndBundlesUpdate] {
+	return m.x509Cache.SubscribeToEntryAndBundleUpdates(selectors)
 }
 
 func (m *manager) SubscribeToSVIDChanges() observer.Stream {

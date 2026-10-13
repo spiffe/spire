@@ -10,6 +10,15 @@ import (
 type baseSubscriber interface {
 	getSet() selectorSet
 	superSetOf(selectorSet) bool
+
+	// requiresSVIDs reports whether the subscriber needs SVIDs for the
+	// entries matching its selectors. Only such subscribers count as active
+	// subscribers of a record, which drives SVID minting and retention.
+	requiresSVIDs() bool
+
+	// publish builds an update from the current state of the cache and
+	// delivers it to the subscriber. Callers must hold the cache lock.
+	publish()
 }
 
 // Subscriber is the public interface for cache subscribers.
@@ -23,6 +32,10 @@ type lruCacheSubscriber[U any] struct {
 	set     selectorSet
 	setFree func()
 
+	// buildUpdate builds the update for the subscriber selector set.
+	buildUpdate func(selectorSet) *U
+	svids       bool
+
 	mu   sync.Mutex
 	c    chan *U
 	done bool
@@ -33,13 +46,15 @@ type subscriberCache interface {
 	unsubscribe(sub baseSubscriber)
 }
 
-func newLRUCacheSubscriber[U any](cache subscriberCache, selectors []*common.Selector) *lruCacheSubscriber[U] {
+func newLRUCacheSubscriber[U any](cache subscriberCache, selectors []*common.Selector, buildUpdate func(selectorSet) *U, requiresSVIDs bool) *lruCacheSubscriber[U] {
 	set, setFree := allocSelectorSet(selectors...)
 	return &lruCacheSubscriber[U]{
-		cache:   cache,
-		set:     set,
-		setFree: setFree,
-		c:       make(chan *U, 1),
+		cache:       cache,
+		set:         set,
+		setFree:     setFree,
+		buildUpdate: buildUpdate,
+		svids:       requiresSVIDs,
+		c:           make(chan *U, 1),
 	}
 }
 
@@ -83,4 +98,12 @@ func (s *lruCacheSubscriber[U]) getSet() selectorSet {
 
 func (s *lruCacheSubscriber[U]) superSetOf(other selectorSet) bool {
 	return s.set.SuperSetOf(other)
+}
+
+func (s *lruCacheSubscriber[U]) requiresSVIDs() bool {
+	return s.svids
+}
+
+func (s *lruCacheSubscriber[U]) publish() {
+	s.notify(s.buildUpdate(s.set))
 }
