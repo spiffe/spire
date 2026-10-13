@@ -97,6 +97,12 @@ type Manager interface {
 	// FetchWorkloadUpdates gets the latest workload update for the selectors
 	FetchWorkloadUpdate(selectors []*common.Selector) *cache.X509WorkloadUpdate
 
+	// FetchEntriesAndBundles gets the registration entries matching the
+	// selectors, along with the bundles they rely on. Unlike
+	// FetchWorkloadUpdate, it does not depend on X509-SVIDs having been minted
+	// for the matching entries.
+	FetchEntriesAndBundles(selectors []*common.Selector) *cache.EntriesAndBundlesUpdate
+
 	// FetchJWTSVID returns a JWT SVID for the specified SPIFFEID and audience. If there
 	// is no JWT cached, the manager will get one signed upstream.
 	FetchJWTSVID(ctx context.Context, entry *common.RegistrationEntry, audience []string) (*client.JWTSVID, error)
@@ -327,6 +333,10 @@ func (m *manager) CountSVIDStoreX509SVIDs() int {
 // FetchWorkloadUpdates gets the latest workload update for the selectors
 func (m *manager) FetchWorkloadUpdate(selectors []*common.Selector) *cache.X509WorkloadUpdate {
 	return m.x509Cache.FetchWorkloadUpdate(selectors)
+}
+
+func (m *manager) FetchEntriesAndBundles(selectors []*common.Selector) *cache.EntriesAndBundlesUpdate {
+	return m.x509Cache.FetchEntriesAndBundles(selectors)
 }
 
 func (m *manager) FetchJWTSVID(ctx context.Context, entry *common.RegistrationEntry, audience []string) (*client.JWTSVID, error) {

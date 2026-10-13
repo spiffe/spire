@@ -63,6 +63,38 @@ func TestLRUCacheFetchWorkloadUpdate(t *testing.T) {
 	}, workloadUpdate)
 }
 
+func TestLRUCacheFetchEntriesAndBundles(t *testing.T) {
+	cache := newTestLRUCache(t)
+	// populate the cache with FOO and BAR without SVIDS
+	foo := makeRegistrationEntry("FOO", "A")
+	bar := makeRegistrationEntry("BAR", "B")
+	bar.FederatesWith = makeFederatesWith(otherBundleV1)
+	cache.UpdateEntries(&UpdateEntries{
+		Bundles:             makeBundles(bundleV1, otherBundleV1),
+		RegistrationEntries: makeRegistrationEntries(foo, bar),
+	}, nil)
+
+	// entries and their federated bundles are returned even though no SVIDs
+	// have been minted for them.
+	assert.Equal(t, &EntriesAndBundlesUpdate{
+		Entries:          []*common.RegistrationEntry{bar, foo},
+		Bundle:           bundleV1,
+		FederatedBundles: makeBundles(otherBundleV1),
+	}, cache.FetchEntriesAndBundles(makeSelectors("A", "B")))
+
+	// bundles for trust domains not federated with by the matching entries
+	// are not returned.
+	assert.Equal(t, &EntriesAndBundlesUpdate{
+		Entries:          []*common.RegistrationEntry{foo},
+		Bundle:           bundleV1,
+		FederatedBundles: makeBundles(),
+	}, cache.FetchEntriesAndBundles(makeSelectors("A")))
+
+	// fetching does not cause SVIDs to be minted.
+	assert.Zero(t, cache.records[foo.EntryId].activeSubscriberCount)
+	assert.Zero(t, cache.records[bar.EntryId].activeSubscriberCount)
+}
+
 func TestLRUCacheMatchingRegistrationIdentities(t *testing.T) {
 	cache := newTestLRUCache(t)
 

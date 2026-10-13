@@ -244,6 +244,19 @@ func (c *LRUCache[SVID, Update]) MatchingRegistrationEntries(selectors []*common
 	return c.matchingEntries(set)
 }
 
+// FetchEntriesAndBundles returns the registration entries matching the given
+// selectors, along with the trust bundles they rely on. Unlike
+// FetchWorkloadUpdate, the federated bundles do not depend on SVIDs having
+// been minted for the matching entries.
+func (c *LRUCache[SVID, Update]) FetchEntriesAndBundles(selectors []*common.Selector) *EntriesAndBundlesUpdate {
+	set, setDone := allocSelectorSet(selectors...)
+	defer setDone()
+
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.buildEntriesAndBundlesUpdate(set)
+}
+
 func (c *LRUCache[SVID, Update]) FetchWorkloadUpdate(selectors []*common.Selector) *Update {
 	set, setDone := allocSelectorSet(selectors...)
 	defer setDone()

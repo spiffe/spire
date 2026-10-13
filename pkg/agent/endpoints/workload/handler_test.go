@@ -1983,11 +1983,11 @@ func TestValidateJWTSVID(t *testing.T) {
 	svid := ca.CreateJWTSVID(workloadID, []string{"AUDIENCE"})
 	federatedSVID := ca2.CreateJWTSVID(spiffeid.RequireFromPath(td2, "/federated-workload"), []string{"AUDIENCE"})
 
-	updatesWithBundleOnly := []*cache.X509WorkloadUpdate{{
+	updatesWithBundleOnly := []*cache.EntriesAndBundlesUpdate{{
 		Bundle: bundle,
 	}}
 
-	updatesWithFederatedBundle := []*cache.X509WorkloadUpdate{{
+	updatesWithFederatedBundle := []*cache.EntriesAndBundlesUpdate{{
 		Bundle: bundle,
 		FederatedBundles: map[spiffeid.TrustDomain]*spiffebundle.Bundle{
 			federatedBundle.TrustDomain(): federatedBundle,
@@ -1998,7 +1998,7 @@ func TestValidateJWTSVID(t *testing.T) {
 		name                    string
 		svid                    string
 		audience                string
-		updates                 []*cache.X509WorkloadUpdate
+		updates                 []*cache.EntriesAndBundlesUpdate
 		attestErr               error
 		expectCode              codes.Code
 		expectMsg               string
@@ -2231,10 +2231,10 @@ func TestValidateJWTSVID(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			params := testParams{
-				Updates:                 tt.updates,
-				AttestErr:               tt.attestErr,
-				ExpectLogs:              tt.expectLogs,
-				AllowedForeignJWTClaims: tt.allowedForeignJWTClaims,
+				EntriesAndBundlesUpdates: tt.updates,
+				AttestErr:                tt.attestErr,
+				ExpectLogs:               tt.expectLogs,
+				AllowedForeignJWTClaims:  tt.allowedForeignJWTClaims,
 			}
 			runTest(t, params,
 				func(ctx context.Context, client workloadPB.SpiffeWorkloadAPIClient) {
@@ -2374,11 +2374,11 @@ func (m *FakeManager) SubscribeToEntryAndBundleChanges(cache.Selectors) cache.Su
 	return newFakeSubscriber(m, m.entriesAndBundlesUpdates)
 }
 
-func (m *FakeManager) FetchWorkloadUpdate([]*common.Selector) *cache.X509WorkloadUpdate {
-	if len(m.updates) == 0 {
-		return &cache.X509WorkloadUpdate{}
+func (m *FakeManager) FetchEntriesAndBundles([]*common.Selector) *cache.EntriesAndBundlesUpdate {
+	if len(m.entriesAndBundlesUpdates) == 0 {
+		return &cache.EntriesAndBundlesUpdate{}
 	}
-	return m.updates[0]
+	return m.entriesAndBundlesUpdates[0]
 }
 
 func (m *FakeManager) Subscribers() int {

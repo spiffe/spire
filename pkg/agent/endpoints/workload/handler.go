@@ -39,7 +39,7 @@ type Manager interface {
 	SubscribeToWITCacheChanges(ctx context.Context, key cache.Selectors) (cache.Subscriber[cache.WITWorkloadUpdate], error)
 	MatchingRegistrationEntries(selectors []*common.Selector) []*common.RegistrationEntry
 	FetchJWTSVID(ctx context.Context, entry *common.RegistrationEntry, audience []string) (*client.JWTSVID, error)
-	FetchWorkloadUpdate([]*common.Selector) *cache.X509WorkloadUpdate
+	FetchEntriesAndBundles([]*common.Selector) *cache.EntriesAndBundlesUpdate
 	SubscribeToEntryAndBundleChanges(key cache.Selectors) cache.Subscriber[cache.EntriesAndBundlesUpdate]
 }
 
@@ -823,7 +823,7 @@ func renderSelector(selector *common.Selector) string {
 }
 
 func (h *Handler) getWorkloadBundles(selectors []*common.Selector) (bundles []*spiffebundle.Bundle) {
-	update := h.c.Manager.FetchWorkloadUpdate(selectors)
+	update := h.c.Manager.FetchEntriesAndBundles(selectors)
 
 	if update.Bundle != nil {
 		bundles = append(bundles, update.Bundle)
