@@ -14,7 +14,7 @@ func newDogStatsdRunner(c *MetricsConfig) (sinkRunner, error) {
 	runner := &dogStatsdRunner{}
 
 	for _, dc := range c.FileConfig.DogStatsd {
-		sink, err := datadog.NewDogStatsdSink(dc.Address, "")
+		sink, err := newDogStatsdSink(dc.Address, latencyHistogramsEnabled(c.FileConfig))
 		if err != nil {
 			return nil, err
 		}
@@ -23,6 +23,13 @@ func newDogStatsdRunner(c *MetricsConfig) (sinkRunner, error) {
 	}
 
 	return runner, nil
+}
+
+func newDogStatsdSink(addr string, latencyDistributions bool) (Sink, error) {
+	if latencyDistributions {
+		return newDogStatsdLatencySink(addr)
+	}
+	return datadog.NewDogStatsdSink(addr, "")
 }
 
 func (d *dogStatsdRunner) isConfigured() bool {

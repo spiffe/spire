@@ -50,6 +50,12 @@ func newPrometheusRunner(c *MetricsConfig) (sinkRunner, error) {
 	if err != nil {
 		return runner, err
 	}
+	if latencyHistogramsEnabled(c.FileConfig) {
+		runner.sink, err = newPrometheusLatencySink(runner.sink, latencyHistogramBuckets, prometheus.DefaultRegisterer)
+		if err != nil {
+			return runner, err
+		}
+	}
 
 	handlerOpts := promhttp.HandlerOpts{
 		ErrorLog: runner.log,

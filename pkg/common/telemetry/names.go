@@ -305,6 +305,10 @@ const (
 	// ElapsedTime tags some duration of time.
 	ElapsedTime = "elapsed_time"
 
+	// Histogram tags a latency histogram that is recorded alongside the
+	// elapsed_time sample of the same key
+	Histogram = "histogram"
+
 	// EntryAdded is the counter key for when an entry is added to LRU cache
 	EntryAdded = "lru_cache_entry_add"
 
