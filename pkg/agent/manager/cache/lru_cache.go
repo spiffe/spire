@@ -75,7 +75,7 @@ type LRUCacheConfig[SVID CachedSVID, Update any] struct {
 // 1) a registration entry related to the selectors:
 //   - is modified
 //   - has a new SVID signed for it
-//   - federates with a federated bundle that is updated
+//   - federates with a federated bundle that is updated or removed
 //
 // 2) the trust bundle for the agent trust domain is updated
 //
@@ -265,6 +265,11 @@ func (c *LRUCache[SVID, Update]) UpdateEntries(update *UpdateEntries, checkSVID 
 	defer func() { agentmetrics.SetEntriesMapSize(c.metrics, c.svidType, c.CountRecords()) }()
 	defer c.mu.Unlock()
 
+	// Populate a "changed" set with bundles that are removed or updated, which
+	// we can check when processing registration entries to know if they need
+	// to spawn a notification.
+	bundleChanged := make(map[spiffeid.TrustDomain]bool)
+
 	// Remove bundles that no longer exist. The bundle for the agent trust
 	// domain should NOT be removed even if not present (which should only be
 	// the case if there is a bug on the server) since it is necessary to
@@ -272,14 +277,12 @@ func (c *LRUCache[SVID, Update]) UpdateEntries(update *UpdateEntries, checkSVID 
 	for id := range c.bundles {
 		if _, ok := update.Bundles[id]; !ok && id != c.trustDomain {
 			c.log.WithField(telemetry.TrustDomainID, id).Debug("Bundle removed")
+			bundleChanged[id] = true
 			delete(c.bundles, id)
 		}
 	}
 
-	// Update bundles with changes, populating a "changed" set that we can
-	// check when processing registration entries to know if they need to spawn
-	// a notification.
-	bundleChanged := make(map[spiffeid.TrustDomain]bool)
+	// Update bundles with changes.
 	for id, bundle := range update.Bundles {
 		existing, ok := c.bundles[id]
 		if !(ok && existing.Equal(bundle)) {

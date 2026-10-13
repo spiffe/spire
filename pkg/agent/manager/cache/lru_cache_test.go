@@ -215,6 +215,42 @@ func TestLRUCacheSomeSubscribersNotifiedOnFederatedBundleChange(t *testing.T) {
 	assertNoX509WorkloadUpdate(t, subB)
 }
 
+func TestLRUCacheSubscribersNotifiedOnFederatedBundleRemoval(t *testing.T) {
+	cache := newTestLRUCache(t)
+
+	// initialize the cache with an entry FOO that has a valid SVID, selector
+	// "A", and federates with otherdomain.test
+	foo := makeRegistrationEntry("FOO", "A")
+	foo.FederatesWith = makeFederatesWith(otherBundleV1)
+	cache.UpdateEntries(&UpdateEntries{
+		Bundles:             makeBundles(bundleV1, otherBundleV1),
+		RegistrationEntries: makeRegistrationEntries(foo),
+	}, nil)
+	cache.UpdateSVIDs(makeX509SVIDs(foo))
+
+	// subscribe to A and B and assert initial updates are received.
+	subA := subscribeToWorkloadUpdates(t, cache, makeSelectors("A"))
+	defer subA.Finish()
+	update := requireX509WorkloadUpdate(t, subA)
+	require.Contains(t, update.FederatedBundles, trustDomain2)
+
+	subB := subscribeToWorkloadUpdates(t, cache, makeSelectors("B"))
+	defer subB.Finish()
+	assertAnyX509WorkloadUpdate(t, subB)
+
+	// remove the federated bundle and make sure subA is notified and no
+	// longer has the federated bundle, but subB is not notified.
+	cache.UpdateEntries(&UpdateEntries{
+		Bundles:             makeBundles(bundleV1),
+		RegistrationEntries: makeRegistrationEntries(foo),
+	}, nil)
+	update = requireX509WorkloadUpdate(t, subA)
+	assert.True(t, update.Bundle.Equal(bundleV1), "bundles don't match")
+	assert.Equal(t, []X509Identity{{Entry: foo}}, update.Identities)
+	assert.Empty(t, update.FederatedBundles)
+	assertNoX509WorkloadUpdate(t, subB)
+}
+
 func TestLRUCacheSubscribersGetEntriesWithSelectorSubsets(t *testing.T) {
 	cache := newTestLRUCache(t)
 
@@ -1413,6 +1449,16 @@ func assertAnyX509WorkloadUpdate(t *testing.T, sub Subscriber[X509WorkloadUpdate
 	case <-sub.Updates():
 	case <-time.After(time.Minute):
 		assert.FailNow(t, "timed out waiting for any workload update")
+	}
+}
+
+func requireX509WorkloadUpdate(t *testing.T, sub Subscriber[X509WorkloadUpdate]) *X509WorkloadUpdate {
+	select {
+	case update := <-sub.Updates():
+		return update
+	case <-time.After(time.Minute):
+		require.FailNow(t, "timed out waiting for workload update")
+		return nil
 	}
 }
 
