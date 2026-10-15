@@ -7,17 +7,19 @@ curl-with-retry() {
 
 # Unauthenticated GitHub API requests share a low rate limit per source IP,
 # and hosted runners share IPs, so the lookup below gets throttled at times.
-# Authenticating with the workflow token lifts that limit. The token is only
-# ever sent to the GitHub API, never to Docker Hub.
+# Authenticating with the workflow token lifts that limit. The function takes
+# an API path rather than a URL so the token can only be sent to the GitHub
+# API, never to Docker Hub.
 github-api() {
+    local url="https://api.github.com/$1"
     if [[ -n "${GH_TOKEN:-}" ]]; then
-        curl-with-retry -H "Authorization: Bearer ${GH_TOKEN}" "$@"
+        curl-with-retry -H "Authorization: Bearer ${GH_TOKEN}" "$url"
     else
-        curl-with-retry "$@"
+        curl-with-retry "$url"
     fi
 }
 
-kind_release_info=$(github-api https://api.github.com/repos/kubernetes-sigs/kind/releases/latest)
+kind_release_info=$(github-api repos/kubernetes-sigs/kind/releases/latest)
 kind_version=$(echo "$kind_release_info" | jq -r '.tag_name // empty')
 if [[ ! "$kind_version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
     echo "unable to determine the latest kind version, got \"$kind_version\" from: $kind_release_info" >&2
