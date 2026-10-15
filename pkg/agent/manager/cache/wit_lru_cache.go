@@ -25,8 +25,8 @@ func (s WITSVID) ExpiresAt() time.Time {
 	return s.ExpiresOn
 }
 
-func (s WITSVID) InvalidatedBy(existing, updated *common.RegistrationEntry) bool {
-	return existing.SpiffeId != updated.SpiffeId
+func (s WITSVID) InvalidatedBy(issued, updated *common.RegistrationEntry) bool {
+	return issued.SpiffeId != updated.SpiffeId
 }
 
 // WITIdentity holds the data for a single WIT-SVID workload identity.

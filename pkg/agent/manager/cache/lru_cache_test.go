@@ -1628,3 +1628,29 @@ func resetLogsAndMetrics(logHook *test.Hook, fakeMetrics *fakemetrics.FakeMetric
 	logHook.Reset()
 	fakeMetrics.Reset()
 }
+
+func TestLRUCacheSequentialIDChangeWithoutRenewal(t *testing.T) {
+	c := newTestLRUCache(t)
+	setEntry := func(e *common.RegistrationEntry) {
+		c.UpdateEntries(&UpdateEntries{
+			Bundles: makeBundles(bundleV1), RegistrationEntries: makeRegistrationEntries(e),
+		}, nil)
+	}
+	e1 := makeRegistrationEntry("FOO", "A", "B")
+	e1.RevisionNumber = 1
+	setEntry(e1)
+	c.UpdateSVIDs(makeX509SVIDs(e1))
+	require.Empty(t, c.FetchWorkloadUpdate(makeSelectors("A")).Identities)
+
+	e2 := makeRegistrationEntry("FOO", "A", "B")
+	e2.SpiffeId, e2.RevisionNumber = "spiffe://domain.test/new", 2
+	setEntry(e2)
+	require.Equal(t, 1, c.CountSVIDs())
+
+	// Renewal has not installed a replacement before the next entry update.
+	e3 := makeRegistrationEntry("FOO", "A")
+	e3.SpiffeId, e3.RevisionNumber = e2.SpiffeId, 3
+	setEntry(e3)
+	require.Equal(t, 0, c.CountSVIDs())
+	require.Empty(t, c.FetchWorkloadUpdate(makeSelectors("A")).Identities, "newly matching workload must not receive the old identity")
+}

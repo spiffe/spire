@@ -31,8 +31,8 @@ func (s X509SVID) ExpiresAt() time.Time {
 	return s.Chain[0].NotAfter
 }
 
-func (s X509SVID) InvalidatedBy(existing, updated *common.RegistrationEntry) bool {
-	return existing.SpiffeId != updated.SpiffeId || !slices.Equal(existing.DnsNames, updated.DnsNames)
+func (s X509SVID) InvalidatedBy(issued, updated *common.RegistrationEntry) bool {
+	return issued.SpiffeId != updated.SpiffeId || !slices.Equal(issued.DnsNames, updated.DnsNames)
 }
 
 // X509Identity holds the data for a single X509 workload identity.
