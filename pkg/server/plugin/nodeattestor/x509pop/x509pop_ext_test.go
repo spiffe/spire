@@ -13,6 +13,7 @@ import (
 	"math/big"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -45,9 +46,13 @@ const (
 )
 
 func rawExt(t *testing.T, oid string, value []byte) pkix.Extension {
-	parsed, err := parseOID(oid)
-	require.NoError(t, err)
-	return pkix.Extension{Id: parsed, Value: value}
+	var id asn1.ObjectIdentifier
+	for arc := range strings.SplitSeq(oid, ".") {
+		n, err := strconv.Atoi(arc)
+		require.NoError(t, err)
+		id = append(id, n)
+	}
+	return pkix.Extension{Id: id, Value: value}
 }
 
 func stringExt(t *testing.T, oid, value, params string) pkix.Extension {
@@ -60,12 +65,30 @@ func utf8Ext(t *testing.T, oid, value string) pkix.Extension {
 	return stringExt(t, oid, value, "utf8")
 }
 
-func TestAttestExtensionSelectors(t *testing.T) {
-	dir := t.TempDir()
+func critical(ext pkix.Extension) pkix.Extension {
+	ext.Critical = true
+	return ext
+}
 
-	caKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+func extSelector(oid, value string) string {
+	return "ext:oid:" + oid + ":" + value
+}
+
+// valueOfLength returns a value that makes the selector for oid n characters long.
+func valueOfLength(oid string, n int) string {
+	return strings.Repeat("a", n-len(extSelector(oid, "")))
+}
+
+type extTestCA struct {
+	cert *x509.Certificate
+	key  *ecdsa.PrivateKey
+	path string
+}
+
+func newExtTestCA(t *testing.T) *extTestCA {
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	require.NoError(t, err)
-	caTmpl := &x509.Certificate{
+	tmpl := &x509.Certificate{
 		SerialNumber:          big.NewInt(1),
 		Subject:               pkix.Name{CommonName: "example-ca"},
 		NotBefore:             time.Now().Add(-time.Minute),
@@ -74,60 +97,40 @@ func TestAttestExtensionSelectors(t *testing.T) {
 		BasicConstraintsValid: true,
 		KeyUsage:              x509.KeyUsageCertSign,
 	}
-	caDER, err := x509.CreateCertificate(rand.Reader, caTmpl, caTmpl, &caKey.PublicKey, caKey)
+	der, err := x509.CreateCertificate(rand.Reader, tmpl, tmpl, &key.PublicKey, key)
 	require.NoError(t, err)
-	caCert, err := x509.ParseCertificate(caDER)
+	cert, err := x509.ParseCertificate(der)
 	require.NoError(t, err)
-	caPath := filepath.Join(dir, "ca.pem")
-	require.NoError(t, os.WriteFile(caPath, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: caDER}), 0o600))
+	path := filepath.Join(t.TempDir(), "ca.pem")
+	require.NoError(t, os.WriteFile(path, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}), 0o600))
+	return &extTestCA{cert: cert, key: key, path: path}
+}
 
-	notString, err := asn1.Marshal(42)
-	require.NoError(t, err)
-
-	// "ext:max:" is 8 characters, so these values make selectors of 255 and 256 characters.
-	maxValue := strings.Repeat("a", 247)
-	oversizedValue := strings.Repeat("a", 242)
-
+// attest issues a leaf with exts and returns its selectors, with extension_oids set to oids.
+func (ca *extTestCA) attest(t *testing.T, exts []pkix.Extension, oids ...string) ([]string, error) {
 	leafKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	require.NoError(t, err)
 	leafTmpl := &x509.Certificate{
-		SerialNumber: big.NewInt(0x4d8),
-		Subject:      pkix.Name{CommonName: "node1.example.org"},
-		NotBefore:    time.Now().Add(-time.Minute),
-		NotAfter:     time.Now().Add(time.Hour),
-		KeyUsage:     x509.KeyUsageDigitalSignature,
-		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
-		ExtraExtensions: []pkix.Extension{
-			utf8Ext(t, oidRole, "web"),
-			utf8Ext(t, oidEnvironment, "staging"),
-			utf8Ext(t, oidRack, "r12"),                                  // not configured
-			rawExt(t, oidTeam, notString),                               // not a string
-			rawExt(t, oidBMP, []byte{0x1e, 0x04, 0x00, 'h', 0x00, 'i'}), // BMPString
-			rawExt(t, oidT61, []byte{0x14, 0x02, 'h', 'i'}),             // T61String
-			stringExt(t, oidPrintable, "dc1", "printable"),
-			stringExt(t, oidIA5, "rack-7", "ia5"),
-			utf8Ext(t, oidMax, maxValue),
-			utf8Ext(t, oidOversized, oversizedValue), // "ext:oversized:" is 14 characters, 256 in total
-		},
+		SerialNumber:    big.NewInt(0x4d8),
+		Subject:         pkix.Name{CommonName: "node1.example.org"},
+		NotBefore:       time.Now().Add(-time.Minute),
+		NotAfter:        time.Now().Add(time.Hour),
+		KeyUsage:        x509.KeyUsageDigitalSignature,
+		ExtKeyUsage:     []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
+		ExtraExtensions: exts,
 	}
-	leafDER, err := x509.CreateCertificate(rand.Reader, leafTmpl, caCert, &leafKey.PublicKey, caKey)
+	leafDER, err := x509.CreateCertificate(rand.Reader, leafTmpl, ca.cert, &leafKey.PublicKey, ca.key)
 	require.NoError(t, err)
 
+	quoted := make([]string, 0, len(oids))
+	for _, oid := range oids {
+		quoted = append(quoted, fmt.Sprintf("%q", oid))
+	}
 	config := fmt.Sprintf(`
 ca_bundle_path = %q
 agent_path_template = "/x509pop/{{ .Subject.CommonName }}"
-extension_selectors = {
-  %q = "role"
-  %q = "environment"
-  %q = "team"
-  %q = "bmp"
-  %q = "t61"
-  %q = "printable"
-  %q = "ia5"
-  %q = "max"
-  %q = "oversized"
-}
-`, caPath, oidRole, oidEnvironment, oidTeam, oidBMP, oidT61, oidPrintable, oidIA5, oidMax, oidOversized)
+extension_oids = [%s]
+`, ca.path, strings.Join(quoted, ", "))
 
 	v1 := new(nodeattestor.V1)
 	plugintest.Load(t, BuiltIn(), v1,
@@ -144,7 +147,9 @@ extension_selectors = {
 		require.NoError(t, err)
 		return marshal(t, resp), nil
 	})
-	require.NoError(t, err)
+	if err != nil {
+		return nil, err
+	}
 	require.Equal(t, "spiffe://example.org/spire/agent/x509pop/node1.example.org", result.AgentID)
 
 	var got []string
@@ -152,21 +157,105 @@ extension_selectors = {
 		require.Equal(t, "x509pop", sel.Type)
 		got = append(got, sel.Value)
 	}
-	require.ElementsMatch(t, []string{
-		"subject:cn:node1.example.org",
-		"ca:fingerprint:" + x509pop.Fingerprint(caCert),
-		"serialnumber:04d8",
-		"ext:role:web",
-		"ext:environment:staging",
-		"ext:printable:dc1",
-		"ext:ia5:rack-7",
-		"ext:max:" + maxValue,
-	}, got)
-	require.Len(t, "ext:max:"+maxValue, 255)
-	require.Len(t, "ext:oversized:"+oversizedValue, 256)
+	return got, nil
 }
 
-func TestConfigureExtensionSelectors(t *testing.T) {
+func (ca *extTestCA) baseSelectors() []string {
+	return []string{
+		"subject:cn:node1.example.org",
+		"ca:fingerprint:" + x509pop.Fingerprint(ca.cert),
+		"serialnumber:04d8",
+	}
+}
+
+func TestAttestExtensionSelectors(t *testing.T) {
+	ca := newExtTestCA(t)
+
+	notString, err := asn1.Marshal(42)
+	require.NoError(t, err)
+
+	maxValue := valueOfLength(oidMax, 255)
+	oversizedValue := valueOfLength(oidOversized, 256)
+
+	got, err := ca.attest(t, []pkix.Extension{
+		utf8Ext(t, oidRole, "web"),
+		utf8Ext(t, oidEnvironment, "staging"),
+		utf8Ext(t, oidRack, "r12"),                                  // not configured
+		rawExt(t, oidTeam, notString),                               // not a string
+		rawExt(t, oidBMP, []byte{0x1e, 0x04, 0x00, 'h', 0x00, 'i'}), // BMPString
+		rawExt(t, oidT61, []byte{0x14, 0x02, 'h', 'i'}),             // T61String
+		stringExt(t, oidPrintable, "dc1", "printable"),
+		stringExt(t, oidIA5, "rack-7", "ia5"),
+		utf8Ext(t, oidMax, maxValue),
+		utf8Ext(t, oidOversized, oversizedValue),
+	}, oidRole, oidEnvironment, oidTeam, oidBMP, oidT61, oidPrintable, oidIA5, oidMax, oidOversized)
+	require.NoError(t, err)
+
+	require.ElementsMatch(t, append(ca.baseSelectors(),
+		extSelector(oidRole, "web"),
+		extSelector(oidEnvironment, "staging"),
+		extSelector(oidPrintable, "dc1"),
+		extSelector(oidIA5, "rack-7"),
+		extSelector(oidMax, maxValue),
+	), got)
+}
+
+func TestAttestCriticalExtensionSelectors(t *testing.T) {
+	ca := newExtTestCA(t)
+
+	notString, err := asn1.Marshal(42)
+	require.NoError(t, err)
+
+	for _, tt := range []struct {
+		name      string
+		ext       pkix.Extension
+		oids      []string
+		selectors []string
+		expectErr bool
+	}{
+		{
+			name:      "configured and usable",
+			ext:       critical(utf8Ext(t, oidRole, "web")),
+			oids:      []string{oidRole},
+			selectors: []string{extSelector(oidRole, "web")},
+		},
+		{
+			name:      "configured but not a string",
+			ext:       critical(rawExt(t, oidRole, notString)),
+			oids:      []string{oidRole},
+			expectErr: true,
+		},
+		{
+			name:      "configured but oversized",
+			ext:       critical(utf8Ext(t, oidRole, valueOfLength(oidRole, 256))),
+			oids:      []string{oidRole},
+			expectErr: true,
+		},
+		{
+			name:      "not configured",
+			ext:       critical(utf8Ext(t, oidRole, "web")),
+			oids:      []string{oidEnvironment},
+			expectErr: true,
+		},
+		{
+			name:      "no extension_oids",
+			ext:       critical(utf8Ext(t, oidRole, "web")),
+			expectErr: true,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ca.attest(t, []pkix.Extension{tt.ext}, tt.oids...)
+			if tt.expectErr {
+				spiretest.RequireGRPCStatusContains(t, err, codes.PermissionDenied, "unhandled critical extension")
+				return
+			}
+			require.NoError(t, err)
+			require.ElementsMatch(t, append(ca.baseSelectors(), tt.selectors...), got)
+		})
+	}
+}
+
+func TestConfigureExtensionOIDs(t *testing.T) {
 	caPath := fixture.Join("nodeattestor", "x509pop", "root-crt.pem")
 	doConfig := func(t *testing.T, extra string) error {
 		var err error
@@ -180,28 +269,15 @@ func TestConfigureExtensionSelectors(t *testing.T) {
 	}
 
 	t.Run("valid", func(t *testing.T) {
-		require.NoError(t, doConfig(t, `extension_selectors = { "1.3.6.1.4.1.32473.1.1" = "role" }`))
+		require.NoError(t, doConfig(t, `extension_oids = ["1.3.6.1.4.1.32473.1.1", "1.3.6.1.4.1.32473.1.2"]`))
 	})
-	for _, tt := range []struct {
-		oid    string
-		expect string
-	}{
-		{oid: "role", expect: "invalid arc"},
-		{oid: "1", expect: "not a valid ASN.1 object identifier"},
-		{oid: "3.1", expect: "not a valid ASN.1 object identifier"},
-		{oid: "1.40", expect: "not a valid ASN.1 object identifier"},
-		{oid: "1.03.6.1", expect: "canonical dotted decimal form"},
-		{oid: "+1.3.6.1", expect: "canonical dotted decimal form"},
-		{oid: "1..3", expect: "invalid arc"},
-	} {
-		t.Run("bad oid "+tt.oid, func(t *testing.T) {
-			err := doConfig(t, fmt.Sprintf("extension_selectors = { %q = \"role\" }", tt.oid))
-			spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, "invalid extension_selectors OID")
-			spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, tt.expect)
+	t.Run("duplicate", func(t *testing.T) {
+		require.NoError(t, doConfig(t, `extension_oids = ["1.3.6.1.4.1.32473.1.1", "1.3.6.1.4.1.32473.1.1"]`))
+	})
+	for _, oid := range []string{"role", "1", "3.1", "1.40", "1.03.6.1", "+1.3.6.1", "1..3"} {
+		t.Run("bad oid "+oid, func(t *testing.T) {
+			err := doConfig(t, fmt.Sprintf("extension_oids = [%q]", oid))
+			spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, "invalid extension_oids entry")
 		})
 	}
-	t.Run("bad name", func(t *testing.T) {
-		err := doConfig(t, `extension_selectors = { "1.3.6.1.4.1.32473.1.1" = "ro:le" }`)
-		spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, "must match [A-Za-z0-9_-]+")
-	})
 }

@@ -10,8 +10,7 @@ import (
 	"fmt"
 	"net"
 	"net/url"
-	"regexp"
-	"strconv"
+	"slices"
 	"strings"
 	"sync"
 	"unicode/utf8"
@@ -64,12 +63,8 @@ type Config struct {
 	VerifyClientIP    bool     `hcl:"verify_client_ip"`
 	GroupTemplate     string   `hcl:"group_template"`
 	AllowedGroups     []string `hcl:"allowed_groups"`
-	// ExtensionSelectors maps a certificate extension OID to a selector name.
-	// The extension value (a DER string) is exposed as ext:<name>:<value>.
-	ExtensionSelectors map[string]string `hcl:"extension_selectors"`
+	ExtensionOIDs     []string `hcl:"extension_oids"`
 }
-
-var extensionSelectorName = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
 
 // MySQL stores selector values in varchar(255) columns.
 const maxExtensionSelectorLength = 255
@@ -85,7 +80,7 @@ type configuration struct {
 	verifyClientIP   bool
 	groupTemplate    *agentpathtemplate.Template
 	allowedGroups    map[string]struct{}
-	extSelectors     map[string]string
+	extensionOIDs    map[string]struct{}
 }
 
 func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *configuration {
@@ -185,15 +180,12 @@ func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginco
 		maxRSAKeySize = *hclConfig.MaxRSAKeySize
 	}
 
-	extSelectors := make(map[string]string, len(hclConfig.ExtensionSelectors))
-	for oid, name := range hclConfig.ExtensionSelectors {
-		if _, err := parseOID(oid); err != nil {
-			status.ReportErrorf("invalid extension_selectors OID %q: %v", oid, err)
+	extensionOIDs := make(map[string]struct{}, len(hclConfig.ExtensionOIDs))
+	for _, oid := range hclConfig.ExtensionOIDs {
+		if parsed, err := x509.ParseOID(oid); err != nil || parsed.String() != oid {
+			status.ReportErrorf("invalid extension_oids entry %q: must be an OID in canonical dotted decimal form", oid)
 		}
-		if !extensionSelectorName.MatchString(name) {
-			status.ReportErrorf("invalid extension_selectors name %q for OID %q: must match [A-Za-z0-9_-]+", name, oid)
-		}
-		extSelectors[oid] = name
+		extensionOIDs[oid] = struct{}{}
 	}
 
 	newConfig := &configuration{
@@ -207,7 +199,7 @@ func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginco
 		verifyClientIP:   hclConfig.VerifyClientIP,
 		groupTemplate:    groupTemplate,
 		allowedGroups:    allowedGroups,
-		extSelectors:     extSelectors,
+		extensionOIDs:    extensionOIDs,
 	}
 
 	return newConfig
@@ -299,6 +291,12 @@ func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 			return status.Errorf(codes.Internal, "failed to get trust bundle: %v", err)
 		}
 	}
+
+	// Configured critical extensions are handled when they produce a selector.
+	extSelectors := extensionSelectors(leaf, config.extensionOIDs)
+	leaf.UnhandledCriticalExtensions = slices.DeleteFunc(leaf.UnhandledCriticalExtensions, func(oid asn1.ObjectIdentifier) bool {
+		return extSelectors[oid.String()] != ""
+	})
 
 	// verify the chain of trust
 	chains, err := leaf.Verify(x509.VerifyOptions{
@@ -395,7 +393,13 @@ func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 	}
 
 	selectors := buildSelectorValues(leaf, chains, sanSelectors)
-	selectors = append(selectors, p.extensionSelectorValues(leaf, config.extSelectors)...)
+	for oid, selector := range extSelectors {
+		if selector == "" {
+			p.log.Warn("Ignoring certificate extension that cannot be used as a selector", "oid", oid)
+			continue
+		}
+		selectors = append(selectors, selector)
+	}
 
 	if config.groupTemplate != nil {
 		templateData := x509pop.NewTemplateData(config.trustDomain, leaf, svidPath, sanSelectors)
@@ -550,42 +554,30 @@ func validateRSAKeySize(cert *x509.Certificate, maxRSAKeySize int) error {
 	return nil
 }
 
-// extensionSelectorValues returns ext:<name>:<value> for each configured extension on the leaf.
-// Values must be a non-empty UTF8String, PrintableString or IA5String.
-func (p *Plugin) extensionSelectorValues(leaf *x509.Certificate, names map[string]string) []string {
-	var values []string
+// extensionSelectors maps each configured OID on the leaf to its ext:oid:<OID>:<value>
+// selector, or to "" if the value is not a non-empty UTF8String, PrintableString or
+// IA5String, or the selector is too long.
+func extensionSelectors(leaf *x509.Certificate, oids map[string]struct{}) map[string]string {
+	selectors := make(map[string]string)
 	for _, ext := range leaf.Extensions {
 		oid := ext.Id.String()
-		name, ok := names[oid]
-		if !ok {
+		if _, ok := oids[oid]; !ok {
 			continue
 		}
 		value, ok := decodeExtensionString(ext.Value)
-		if !ok {
-			p.log.Warn("Ignoring certificate extension that is not a non-empty UTF8String, PrintableString or IA5String", "oid", oid)
-			continue
+		selector := "ext:oid:" + oid + ":" + value
+		if !ok || utf8.RuneCountInString(selector) > maxExtensionSelectorLength {
+			selector = ""
 		}
-		selectorValue := "ext:" + name + ":" + value
-		if length := utf8.RuneCountInString(selectorValue); length > maxExtensionSelectorLength {
-			p.log.Warn("Skipping oversized extension selector", "oid", oid, "length", length)
-			continue
-		}
-		values = append(values, selectorValue)
+		selectors[oid] = selector
 	}
-	return values
+	return selectors
 }
 
 func decodeExtensionString(der []byte) (string, bool) {
 	var raw asn1.RawValue
-	if rest, err := asn1.Unmarshal(der, &raw); err != nil || len(rest) > 0 {
-		return "", false
-	}
-	if raw.Class != asn1.ClassUniversal || raw.IsCompound {
-		return "", false
-	}
-	switch raw.Tag {
-	case asn1.TagUTF8String, asn1.TagPrintableString, asn1.TagIA5String:
-	default:
+	if rest, err := asn1.Unmarshal(der, &raw); err != nil || len(rest) > 0 || raw.Class != asn1.ClassUniversal ||
+		!slices.Contains([]int{asn1.TagUTF8String, asn1.TagPrintableString, asn1.TagIA5String}, raw.Tag) {
 		return "", false
 	}
 	var value string
@@ -593,24 +585,4 @@ func decodeExtensionString(der []byte) (string, bool) {
 		return "", false
 	}
 	return value, true
-}
-
-// parseOID parses an OID in canonical dotted decimal form and checks it is a valid ASN.1 OID.
-func parseOID(s string) (asn1.ObjectIdentifier, error) {
-	parts := strings.Split(s, ".")
-	oid := make(asn1.ObjectIdentifier, len(parts))
-	for i, part := range parts {
-		n, err := strconv.Atoi(part)
-		if err != nil || n < 0 {
-			return nil, fmt.Errorf("invalid arc %q", part)
-		}
-		oid[i] = n
-	}
-	if oid.String() != s {
-		return nil, errors.New("must be in canonical dotted decimal form")
-	}
-	if _, err := asn1.Marshal(oid); err != nil {
-		return nil, fmt.Errorf("not a valid ASN.1 object identifier: %w", err)
-	}
-	return oid, nil
 }
