@@ -352,7 +352,7 @@ func (s *Service) AttestAgent(stream agentv1.Agent_AttestAgentServer) error {
 	}
 	if err := api.VerifyTrustDomainAgentIDForNodeAttestor(s.td, agentID, params.Data.Type); err != nil {
 		if !s.allowNonconformingAgentIDs {
-			return commonapi.MakeErr(log, codes.Internal, "node attestor produced an invalid agent ID", err)
+			return commonapi.MakeErr(log, codes.Internal, "node attestor produced an invalid agent ID; set the allow_nonconforming_agent_ids experimental setting to allow it", err)
 		}
 		log.WithError(err).Warn("The node attestor produced an invalid agent ID; allowed by the allow_nonconforming_agent_ids experimental setting")
 	}

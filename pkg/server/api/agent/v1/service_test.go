@@ -3248,11 +3248,11 @@ func TestAttestAgent(t *testing.T) {
 			name:       "nodeattestor returns ID outside of its namespace",
 			request:    getAttestAgentRequest("test_type", []byte("payload_return_id_outside_namespace"), testCsr),
 			expectCode: codes.Internal,
-			expectMsg:  "node attestor produced an invalid agent ID",
+			expectMsg:  "node attestor produced an invalid agent ID; set the allow_nonconforming_agent_ids experimental setting to allow it",
 			expectLogs: []spiretest.LogEntry{
 				{
 					Level:   logrus.ErrorLevel,
-					Message: "Node attestor produced an invalid agent ID",
+					Message: "Node attestor produced an invalid agent ID; set the allow_nonconforming_agent_ids experimental setting to allow it",
 					Data: logrus.Fields{
 						telemetry.NodeAttestorType: "test_type",
 						telemetry.AgentID:          spiffeid.RequireFromPath(td, "/id_outside_namespace").String(),
@@ -3266,7 +3266,7 @@ func TestAttestAgent(t *testing.T) {
 						telemetry.Status:           "error",
 						telemetry.Type:             "audit",
 						telemetry.StatusCode:       "Internal",
-						telemetry.StatusMessage:    `node attestor produced an invalid agent ID: "spiffe://example.org/id_outside_namespace" is not in the agent namespace for attestor "test_type"`,
+						telemetry.StatusMessage:    `node attestor produced an invalid agent ID; set the allow_nonconforming_agent_ids experimental setting to allow it: "spiffe://example.org/id_outside_namespace" is not in the agent namespace for attestor "test_type"`,
 						telemetry.AgentID:          "spiffe://example.org/id_outside_namespace",
 						telemetry.NodeAttestorType: "test_type",
 					},
