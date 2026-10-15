@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.14.4] - 2026-10-15
+
+### Security
+
+- Fixed a crash in the agent's SDS v3 API when a client sent a `DiscoveryRequest` whose node user agent build version had no `Version` field set. Thank you Eviatar Gerzi for reporting this issue.
+
+### Changed
+
+- Updated the Go toolchain to 1.26.9 and vulnerable dependencies
+
 ## [1.14.7] - 2026-05-28
 
 ### Security
