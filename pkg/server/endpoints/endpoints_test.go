@@ -1639,3 +1639,129 @@ func TestProxyProtocolRejectsUntrustedSource(t *testing.T) {
 	// because the source IP is not in the trusted CIDRs.
 	require.ErrorIs(t, res.err, proxyproto.ErrSuperfluousProxyHeader)
 }
+
+func TestProxyProtocolOnlyAcceptsTCPSourceAddresses(t *testing.T) {
+	for _, tt := range []struct {
+		name       string
+		header     *proxyproto.Header
+		expectErr  bool
+		expectAddr func(connAddr net.Addr) string
+	}{
+		{
+			name: "TCPv4",
+			header: &proxyproto.Header{
+				Version:           2,
+				Command:           proxyproto.PROXY,
+				TransportProtocol: proxyproto.TCPv4,
+				SourceAddr:        &net.TCPAddr{IP: net.ParseIP("10.1.2.3"), Port: 12345},
+				DestinationAddr:   &net.TCPAddr{IP: net.ParseIP("127.0.0.1"), Port: 8081},
+			},
+			expectAddr: func(net.Addr) string { return "10.1.2.3:12345" },
+		},
+		{
+			name: "TCPv6",
+			header: &proxyproto.Header{
+				Version:           2,
+				Command:           proxyproto.PROXY,
+				TransportProtocol: proxyproto.TCPv6,
+				SourceAddr:        &net.TCPAddr{IP: net.ParseIP("2001:db8::1"), Port: 12345},
+				DestinationAddr:   &net.TCPAddr{IP: net.ParseIP("::1"), Port: 8081},
+			},
+			expectAddr: func(net.Addr) string { return "[2001:db8::1]:12345" },
+		},
+		{
+			name: "LOCAL",
+			header: &proxyproto.Header{
+				Version:           2,
+				Command:           proxyproto.LOCAL,
+				TransportProtocol: proxyproto.UNSPEC,
+			},
+			expectAddr: func(connAddr net.Addr) string { return connAddr.String() },
+		},
+		{
+			name: "UNIX stream",
+			header: &proxyproto.Header{
+				Version:           2,
+				Command:           proxyproto.PROXY,
+				TransportProtocol: proxyproto.UnixStream,
+				SourceAddr:        &net.UnixAddr{Net: "unix", Name: "/tmp/src.sock"},
+				DestinationAddr:   &net.UnixAddr{Net: "unix", Name: "/tmp/dst.sock"},
+			},
+			expectErr: true,
+		},
+		{
+			name: "UNIX datagram",
+			header: &proxyproto.Header{
+				Version:           2,
+				Command:           proxyproto.PROXY,
+				TransportProtocol: proxyproto.UnixDatagram,
+				SourceAddr:        &net.UnixAddr{Net: "unixgram", Name: "/tmp/src.sock"},
+				DestinationAddr:   &net.UnixAddr{Net: "unixgram", Name: "/tmp/dst.sock"},
+			},
+			expectErr: true,
+		},
+		{
+			name: "UDPv4",
+			header: &proxyproto.Header{
+				Version:           2,
+				Command:           proxyproto.PROXY,
+				TransportProtocol: proxyproto.UDPv4,
+				SourceAddr:        &net.UDPAddr{IP: net.ParseIP("10.1.2.3"), Port: 12345},
+				DestinationAddr:   &net.UDPAddr{IP: net.ParseIP("127.0.0.1"), Port: 8081},
+			},
+			expectErr: true,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			ln, err := net.Listen("tcp", "127.0.0.1:0")
+			require.NoError(t, err)
+			defer ln.Close()
+
+			ppLn, err := wrapListenerWithProxyProtocol(ln, []string{"127.0.0.0/8"})
+			require.NoError(t, err)
+			defer ppLn.Close()
+
+			type result struct {
+				addr     net.Addr
+				realAddr net.Addr
+				err      error
+			}
+			ch := make(chan result, 1)
+			go func() {
+				conn, err := ppLn.Accept()
+				if err != nil {
+					ch <- result{err: err}
+					return
+				}
+				defer conn.Close()
+				buf := make([]byte, 1)
+				_, err = conn.Read(buf)
+				ch <- result{
+					addr:     conn.RemoteAddr(),
+					realAddr: conn.(*proxyproto.Conn).Raw().RemoteAddr(),
+					err:      err,
+				}
+			}()
+
+			conn, err := net.Dial("tcp", ln.Addr().String())
+			require.NoError(t, err)
+			defer conn.Close()
+
+			_, err = tt.header.WriteTo(conn)
+			require.NoError(t, err)
+			_, err = conn.Write([]byte{0})
+			require.NoError(t, err)
+
+			res := <-ch
+			// Whatever happens, the peer address must never become non-TCP.
+			require.Equal(t, "tcp", res.addr.Network())
+			if tt.expectErr {
+				require.Error(t, res.err)
+				require.Equal(t, res.realAddr.String(), res.addr.String())
+				return
+			}
+			require.NoError(t, res.err)
+			require.Equal(t, tt.expectAddr(res.realAddr), res.addr.String())
+		})
+	}
+}
