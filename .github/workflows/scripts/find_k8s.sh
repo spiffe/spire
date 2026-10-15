@@ -43,7 +43,7 @@ readarray -t tags_sorted < <(printf '%s\n' "${all_tags[@]}" | sort -V)
 
 lowest_target_version=$(cat ./test/integration/suites/k8s/integration_k8s_min_version.txt)
 
-declare -A tags_map
+declare -A tags_map=()
 for element in "${tags_sorted[@]}"; do
     # Only consider release tags in the form "vX.YY.ZZ"
     if [[ ! "$element" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
@@ -61,7 +61,7 @@ for element in "${tags_sorted[@]}"; do
 done
 
 if [[ ${#tags_map[@]} -eq 0 ]]; then
-    echo "no kindest/node tags at or above $lowest_target_version were found in: ${all_tags[*]}" >&2
+    echo "no kindest/node tags at or above $lowest_target_version were found in: ${tags_sorted[*]}" >&2
     exit 1
 fi
 
