@@ -10,6 +10,7 @@ import (
 
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire/pkg/common/config"
+	"github.com/spiffe/spire/pkg/common/tlspolicy"
 )
 
 const (
@@ -82,6 +83,10 @@ type Config struct {
 
 	// Experimental options that are subject to change or removal.
 	Experimental experimentalConfig `hcl:"experimental"`
+
+	// TLSConfig configures TLS settings for HTTPS listeners
+	// (disk certificate and ACME modes).
+	TLSConfig *tlspolicy.TLSConfig `hcl:"tls_config"`
 
 	// JWTIssuer specifies the issuer for the OIDC provider configuration request.
 	JWTIssuer string `hcl:"jwt_issuer"`
@@ -352,6 +357,7 @@ func ParseConfig(hclConfig string) (_ *Config, err error) {
 	if c.JWKSURI == "" && c.JWTIssuer != "" {
 		fmt.Printf("Warning: The jwt_issuer configuration will also affect the jwks_uri behavior when jwks_url is not set. This behaviour will be changed in 1.13.0.")
 	}
+
 	return c, nil
 }
 

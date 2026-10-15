@@ -62,10 +62,8 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 	}
 
 	// Set up the TLS config, setting TLS 1.2 as the minimum.
-	tlsConfig := s.c.ServerAuth.GetTLSConfig()
-	tlsConfig.MinVersion = tls.VersionTLS12
-
-	if err := tlspolicy.ApplyPolicy(tlsConfig, s.c.TLSPolicy); err != nil {
+	tlsConfig, err := buildListenerTLSConfig(s)
+	if err != nil {
 		return err
 	}
 
@@ -135,4 +133,13 @@ func chainDER(chain []*x509.Certificate) [][]byte {
 		der = append(der, cert.Raw)
 	}
 	return der
+}
+
+func buildListenerTLSConfig(s *Server) (*tls.Config, error) {
+	tlsConfig := s.c.ServerAuth.GetTLSConfig()
+	tlsConfig.MinVersion = tls.VersionTLS12
+	if err := tlspolicy.ApplyPolicy(tlsConfig, s.c.TLSPolicy, tlspolicy.WithServerTLSConfig()); err != nil {
+		return nil, err
+	}
+	return tlsConfig, nil
 }
