@@ -127,8 +127,11 @@ the issuance of a "call" to a method or RPC. The following metrics are
 produced for a call counter:
 
 - A counter representing the number of calls using the call counter key
-- A sample of the elapsed time for the call using the call counter
-  key+`".elapsed_time"`
+- A sample of the elapsed time for the call, in milliseconds, using the call
+  counter key+`".elapsed_time"`. Prometheus records it as a summary and
+  DogStatsd as a timer. With
+  [`EnableLatencyHistograms`](telemetry_config.md#latency-histograms), it is
+  also recorded as a histogram with `".histogram"` appended to the key.
 
 Additionally, the metrics emitted above each carry a `status` label (in
 addition to any other labels for specific to the individual call counter) that

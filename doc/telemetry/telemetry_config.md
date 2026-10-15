@@ -16,21 +16,22 @@ You may use all, some, or none of the collectors. The following collectors suppo
 
 ## Telemetry configuration syntax
 
-| Configuration            | Type          | Description                                                   | Default                  |
-|--------------------------|---------------|---------------------------------------------------------------|--------------------------|
-| `InMem`                  | `InMem`       | In-memory configuration                                       | running                  |
-| `Prometheus`             | `Prometheus`  | Prometheus configuration                                      |                          |
-| `DogStatsd`              | `[]DogStatsd` | List of DogStatsd configurations                              |                          |
-| `Statsd`                 | `[]Statsd`    | List of Statsd configurations                                 |                          |
-| `M3`                     | `[]M3`        | List of M3 configurations                                     |                          |
-| `MetricPrefix`           | `string`      | Prefix to add to all emitted metrics                          | spire_server/spire_agent |
-| `EnableTrustDomainLabel` | `bool`        | Enable optional trust domain label for all metrics            | false                    |
-| `EnableHostnameLabel`    | `bool`        | Enable adding hostname to labels                              | true                     |
-| `AllowedPrefixes`        | `[]string`    | A list of metric prefixes to allow, with '.' as the separator |                          |
-| `AllowedPrefixes`        | `[]string`    | A list of metric prefixes to allow, with '.' as the separator |                          |
-| `BlockedPrefixes`        | `[]string`    | A list of metric prefixes to block, with '.' as the separator |                          |
-| `AllowedLabels`          | `[]string`    | A list of metric labels to allow, with '.' as the separator   |                          |
-| `BlockedLabels`          | `[]string`    | A list of metric labels to block, with '.' as the separator   |                          |
+| Configuration             | Type          | Description                                                      | Default                  |
+|---------------------------|---------------|------------------------------------------------------------------|--------------------------|
+| `InMem`                   | `InMem`       | In-memory configuration                                          | running                  |
+| `Prometheus`              | `Prometheus`  | Prometheus configuration                                         |                          |
+| `DogStatsd`               | `[]DogStatsd` | List of DogStatsd configurations                                 |                          |
+| `Statsd`                  | `[]Statsd`    | List of Statsd configurations                                    |                          |
+| `M3`                      | `[]M3`        | List of M3 configurations                                        |                          |
+| `MetricPrefix`            | `string`      | Prefix to add to all emitted metrics                             | spire_server/spire_agent |
+| `EnableTrustDomainLabel`  | `bool`        | Enable optional trust domain label for all metrics               | false                    |
+| `EnableHostnameLabel`     | `bool`        | Enable adding hostname to labels                                 | true                     |
+| `EnableLatencyHistograms` | `bool`        | Also record latency metrics as [histograms](#latency-histograms) | false                    |
+| `AllowedPrefixes`         | `[]string`    | A list of metric prefixes to allow, with '.' as the separator    |                          |
+| `AllowedPrefixes`         | `[]string`    | A list of metric prefixes to allow, with '.' as the separator    |                          |
+| `BlockedPrefixes`         | `[]string`    | A list of metric prefixes to block, with '.' as the separator    |                          |
+| `AllowedLabels`           | `[]string`    | A list of metric labels to allow, with '.' as the separator      |                          |
+| `BlockedLabels`           | `[]string`    | A list of metric labels to block, with '.' as the separator      |                          |
 
 ### `Prometheus`
 
@@ -69,6 +70,17 @@ You may use all, some, or none of the collectors. The following collectors suppo
 | `address`     | `string` | M3 address                                   |
 | `env`         | `string` | M3 environment, e.g. `production`, `staging` |
 
+### Latency histograms
+
+The Prometheus sink records samples as summaries, and the DogStatsd sink submits them as timers. Both compute quantiles inside SPIRE, so they can't be aggregated across agents or servers, and they can't count the calls that finished within a deadline. When `EnableLatencyHistograms` is `true`, each latency sample (a metric whose key ends in `elapsed_time`, such as every call counter's latency) is also recorded under the same key with `histogram` appended:
+
+- **Prometheus** records it as a histogram, for example `spire_server_rpc_agent_v1_agent_attest_agent_elapsed_time_histogram_bucket`. The bucket upper bounds, in milliseconds, are 10, 25, 50, 75, 100, 200, 300, 400, 500, 600, 800, 1000, 2000, 5000, 10000, 15000, 20000, 25000, and 30000, the same as the M3 sink's.
+- **DogStatsd** submits it as a distribution (`|d`), for example `spire_server.rpc.agent.v1.agent.attest_agent.elapsed_time.histogram`, which the Datadog Agent aggregates globally. To query percentiles or count values below a threshold, enable percentiles for the metric in Datadog.
+- **M3** already records samples as histograms, and is not affected.
+- **Statsd** has no histogram type, and is not affected. Configure histograms (bins) in your Statsd server instead.
+
+The existing summaries and timers are still recorded, so dashboards and alerts that use them keep working. Other samples, such as counts of discovered selectors, have no histogram. Timings that plugins report through the metrics host service have a histogram only if their key ends in `elapsed_time`.
+
 Here is a sample configuration:
 
 ```hcl
@@ -103,6 +115,7 @@ telemetry {
         ]
 
         InMem {}
+        EnableLatencyHistograms = true
         AllowedLabels = []
         BlockedLabels = []
         AllowedPrefixes = []

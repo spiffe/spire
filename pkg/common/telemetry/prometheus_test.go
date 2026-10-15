@@ -110,8 +110,14 @@ func newTestPrometheusRunner(c *MetricsConfig) (sinkRunner, error) {
 
 	if runner != nil && runner.isConfigured() {
 		pr := runner.(*prometheusRunner)
-		sink := pr.sink.(*prommetrics.PrometheusSink)
-		prometheus.Unregister(sink)
+		sink := pr.sink
+		if latencySink, ok := sink.(*prometheusLatencySink); ok {
+			prometheus.Unregister(latencySink.histograms)
+			sink = latencySink.Sink
+		}
+		if goMetricsSink, ok := sink.(*prommetrics.PrometheusSink); ok {
+			prometheus.Unregister(goMetricsSink)
+		}
 	}
 
 	return runner, err
