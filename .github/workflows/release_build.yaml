@@ -219,6 +219,8 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - id: set-matrix
         name: Collect versions
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           json_array=$(bash ./.github/workflows/scripts/find_k8s.sh)
           echo "test=$json_array" >> $GITHUB_OUTPUT
