@@ -17,7 +17,7 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-func TestControlPlaneAuditMiddleware(t *testing.T) {
+func TestAgentSyncAuditMiddleware(t *testing.T) {
 	for _, tt := range []struct {
 		name       string
 		fullMethod string
@@ -54,7 +54,7 @@ func TestControlPlaneAuditMiddleware(t *testing.T) {
 							chain := middleware.Chain(middleware.WithLogger(log), middleware.WithAuditLog(false, mode.exclude))
 							auditRequest := func(ctx context.Context) error {
 								if result.err == nil {
-									rpccontext.AuditRPCWithFields(ctx, logrus.Fields{"fixture": "control-plane-read"})
+									rpccontext.AuditRPCWithFields(ctx, logrus.Fields{"fixture": "agent-sync-read"})
 								}
 								return result.err
 							}
@@ -89,7 +89,7 @@ func TestControlPlaneAuditMiddleware(t *testing.T) {
 								require.Equal(t, "datastore unavailable", entries[0].Data[telemetry.StatusMessage])
 							} else {
 								require.Equal(t, "success", entries[0].Data[telemetry.Status])
-								require.Equal(t, "control-plane-read", entries[0].Data["fixture"])
+								require.Equal(t, "agent-sync-read", entries[0].Data["fixture"])
 							}
 						})
 					}

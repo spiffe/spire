@@ -82,29 +82,29 @@ type Server interface {
 }
 
 type Endpoints struct {
-	TCPAddr                          *net.TCPAddr
-	LocalAddr                        net.Addr
-	SVIDObserver                     svid.Observer
-	TrustDomain                      spiffeid.TrustDomain
-	DataStore                        datastore.DataStore
-	BundleCache                      *bundle.Cache
-	APIServers                       APIServers
-	BundleEndpointServer             Server
-	Log                              logrus.FieldLogger
-	Metrics                          telemetry.Metrics
-	RateLimit                        RateLimitConfig
-	NodeCacheRebuildTask             func(context.Context) error
-	EntryFetcherCacheRebuildTask     func(context.Context) error
-	EntryFetcherPruneEventsTask      func(context.Context) error
-	CertificateReloadTask            func(context.Context) error
-	AuditLogEnabled                  bool
-	AuditLogExcludeControlPlaneReads bool
-	ProxyProtocolTrustedCIDRs        []string
-	AuthPolicyEngine                 *authpolicy.Engine
-	AdminIDs                         []spiffeid.ID
-	TLSPolicy                        tlspolicy.Policy
-	MaxAttestedNodeInfoStaleness     time.Duration
-	nodeCache                        api.AttestedNodeCache
+	TCPAddr                      *net.TCPAddr
+	LocalAddr                    net.Addr
+	SVIDObserver                 svid.Observer
+	TrustDomain                  spiffeid.TrustDomain
+	DataStore                    datastore.DataStore
+	BundleCache                  *bundle.Cache
+	APIServers                   APIServers
+	BundleEndpointServer         Server
+	Log                          logrus.FieldLogger
+	Metrics                      telemetry.Metrics
+	RateLimit                    RateLimitConfig
+	NodeCacheRebuildTask         func(context.Context) error
+	EntryFetcherCacheRebuildTask func(context.Context) error
+	EntryFetcherPruneEventsTask  func(context.Context) error
+	CertificateReloadTask        func(context.Context) error
+	AuditLogEnabled              bool
+	AuditLogExcludeAgentSync     bool
+	ProxyProtocolTrustedCIDRs    []string
+	AuthPolicyEngine             *authpolicy.Engine
+	AdminIDs                     []spiffeid.ID
+	TLSPolicy                    tlspolicy.Policy
+	MaxAttestedNodeInfoStaleness time.Duration
+	nodeCache                    api.AttestedNodeCache
 
 	hooks struct {
 		// test hook used to indicate that is listening
@@ -212,29 +212,29 @@ func New(ctx context.Context, c Config) (*Endpoints, error) {
 	bundleEndpointServer, certificateReloadTask := c.maybeMakeBundleEndpointServer()
 
 	return &Endpoints{
-		TCPAddr:                          c.TCPAddr,
-		LocalAddr:                        c.LocalAddr,
-		SVIDObserver:                     c.SVIDObserver,
-		TrustDomain:                      c.TrustDomain,
-		DataStore:                        ds,
-		BundleCache:                      bundle.NewCache(ds, c.Clock),
-		APIServers:                       c.makeAPIServers(ef),
-		BundleEndpointServer:             bundleEndpointServer,
-		Log:                              c.Log,
-		Metrics:                          c.Metrics,
-		RateLimit:                        c.RateLimit,
-		NodeCacheRebuildTask:             nodeCacheRebuildTask,
-		EntryFetcherCacheRebuildTask:     cacheRebuildTask,
-		EntryFetcherPruneEventsTask:      pruneEventsTask,
-		CertificateReloadTask:            certificateReloadTask,
-		AuditLogEnabled:                  c.AuditLogEnabled,
-		AuditLogExcludeControlPlaneReads: c.AuditLogExcludeControlPlaneReads,
-		ProxyProtocolTrustedCIDRs:        c.ProxyProtocolTrustedCIDRs,
-		AuthPolicyEngine:                 c.AuthPolicyEngine,
-		AdminIDs:                         c.AdminIDs,
-		TLSPolicy:                        c.TLSPolicy,
-		MaxAttestedNodeInfoStaleness:     c.MaxAttestedNodeInfoStaleness,
-		nodeCache:                        nodeCache,
+		TCPAddr:                      c.TCPAddr,
+		LocalAddr:                    c.LocalAddr,
+		SVIDObserver:                 c.SVIDObserver,
+		TrustDomain:                  c.TrustDomain,
+		DataStore:                    ds,
+		BundleCache:                  bundle.NewCache(ds, c.Clock),
+		APIServers:                   c.makeAPIServers(ef),
+		BundleEndpointServer:         bundleEndpointServer,
+		Log:                          c.Log,
+		Metrics:                      c.Metrics,
+		RateLimit:                    c.RateLimit,
+		NodeCacheRebuildTask:         nodeCacheRebuildTask,
+		EntryFetcherCacheRebuildTask: cacheRebuildTask,
+		EntryFetcherPruneEventsTask:  pruneEventsTask,
+		CertificateReloadTask:        certificateReloadTask,
+		AuditLogEnabled:              c.AuditLogEnabled,
+		AuditLogExcludeAgentSync:     c.AuditLogExcludeAgentSync,
+		ProxyProtocolTrustedCIDRs:    c.ProxyProtocolTrustedCIDRs,
+		AuthPolicyEngine:             c.AuthPolicyEngine,
+		AdminIDs:                     c.AdminIDs,
+		TLSPolicy:                    c.TLSPolicy,
+		MaxAttestedNodeInfoStaleness: c.MaxAttestedNodeInfoStaleness,
+		nodeCache:                    nodeCache,
 
 		hooks: struct {
 			listening chan struct{}
@@ -484,7 +484,7 @@ func (e *Endpoints) getTLSConfig(ctx context.Context) func(*tls.ClientHelloInfo)
 func (e *Endpoints) makeInterceptors() (grpc.UnaryServerInterceptor, grpc.StreamServerInterceptor) {
 	log := e.Log.WithField(telemetry.SubsystemName, "api")
 
-	return middleware.Interceptors(Middleware(log, e.Metrics, e.DataStore, e.nodeCache, e.MaxAttestedNodeInfoStaleness, clock.New(), e.RateLimit, e.AuthPolicyEngine, e.AuditLogEnabled, e.AuditLogExcludeControlPlaneReads, e.AdminIDs))
+	return middleware.Interceptors(Middleware(log, e.Metrics, e.DataStore, e.nodeCache, e.MaxAttestedNodeInfoStaleness, clock.New(), e.RateLimit, e.AuthPolicyEngine, e.AuditLogEnabled, e.AuditLogExcludeAgentSync, e.AdminIDs))
 }
 
 func (e *Endpoints) triggerListeningHook() {

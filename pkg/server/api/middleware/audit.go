@@ -15,18 +15,18 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-func WithAuditLog(localTrackerEnabled, excludeControlPlaneReads bool) Middleware {
+func WithAuditLog(localTrackerEnabled, excludeAgentSync bool) Middleware {
 	return auditLogMiddleware{
-		localTrackerEnabled:      localTrackerEnabled,
-		excludeControlPlaneReads: excludeControlPlaneReads,
+		localTrackerEnabled: localTrackerEnabled,
+		excludeAgentSync:    excludeAgentSync,
 	}
 }
 
 type auditLogMiddleware struct {
 	Middleware
 
-	localTrackerEnabled      bool
-	excludeControlPlaneReads bool
+	localTrackerEnabled bool
+	excludeAgentSync    bool
 }
 
 func (m auditLogMiddleware) Preprocess(ctx context.Context, fullMethod string, _ any) (context.Context, error) {
@@ -41,7 +41,7 @@ func (m auditLogMiddleware) Preprocess(ctx context.Context, fullMethod string, _
 	}
 
 	var auditLog audit.Logger
-	if m.excludeControlPlaneReads && isControlPlaneRead(fullMethod) {
+	if m.excludeAgentSync && isAgentSyncRead(fullMethod) {
 		auditLog = audit.NewErrorOnly(log)
 	} else {
 		auditLog = audit.New(log)
@@ -52,7 +52,7 @@ func (m auditLogMiddleware) Preprocess(ctx context.Context, fullMethod string, _
 	return ctx, nil
 }
 
-func isControlPlaneRead(fullMethod string) bool {
+func isAgentSyncRead(fullMethod string) bool {
 	switch fullMethod {
 	case bundlev1.Bundle_GetBundle_FullMethodName,
 		bundlev1.Bundle_GetFederatedBundle_FullMethodName,

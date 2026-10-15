@@ -97,8 +97,8 @@ type Config struct {
 	// EventTimeout controls how long to wait for an event before giving up
 	EventTimeout time.Duration
 
-	AuditLogEnabled                  bool
-	AuditLogExcludeControlPlaneReads bool
+	AuditLogEnabled          bool
+	AuditLogExcludeAgentSync bool
 
 	// ProxyProtocolTrustedCIDRs is a list of trusted CIDRs for PROXY protocol.
 	// When non-empty, PROXY protocol is enabled and only connections from

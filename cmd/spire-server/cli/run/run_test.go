@@ -68,6 +68,7 @@ func TestParseConfigGood(t *testing.T) {
 	_, ok := trustDomainConfig.EndpointProfile.(bundleClient.HTTPSWebProfile)
 	assert.True(t, ok)
 	assert.True(t, c.Server.AuditLogEnabled)
+	assert.True(t, c.Server.AuditLogExcludeAgentSync)
 	assert.Equal(t, []string{"10.0.0.0/8", "172.16.0.0/12"}, c.Server.ProxyProtocolTrustedCIDRs)
 	assert.True(t, c.Server.Experimental.RequirePQKEM)
 	testParseConfigGoodOS(t, c)
@@ -106,27 +107,6 @@ func TestParseConfigGood(t *testing.T) {
 	pluginConfigs, err := catalog.PluginConfigsFromHCLNode(c.Plugins)
 	require.NoError(t, err)
 	require.Equal(t, expectedPluginConfigs, pluginConfigs)
-}
-
-func TestControlPlaneAuditConfig(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "server.conf")
-	require.NoError(t, os.WriteFile(path, []byte(`server {
-		bind_address = "127.0.0.1"
-		bind_port = 8081
-		trust_domain = "example.org"
-		data_dir = "testdata"
-		audit_log_enabled = true
-		audit_log_exclude_control_plane_reads = true
-	}
-	plugins {}`), 0o600))
-	c, err := ParseFile(path, false)
-	require.NoError(t, err)
-	require.True(t, c.Server.AuditLogExcludeControlPlaneReads)
-	c, err = mergeInput(c, &serverConfig{})
-	require.NoError(t, err)
-	sc, err := newServerConfig(c, nil, false, true)
-	require.NoError(t, err)
-	require.True(t, sc.AuditLogExcludeControlPlaneReads)
 }
 
 func TestMergeInput(t *testing.T) {
@@ -1484,19 +1464,19 @@ func TestNewServerConfig(t *testing.T) {
 			},
 		},
 		{
-			msg: "control plane audit filtering is enabled",
+			msg: "agent sync audit filtering is enabled",
 			input: func(c *Config) {
-				c.Server.AuditLogExcludeControlPlaneReads = true
+				c.Server.AuditLogExcludeAgentSync = true
 			},
 			test: func(t *testing.T, c *server.Config) {
-				require.True(t, c.AuditLogExcludeControlPlaneReads)
+				require.True(t, c.AuditLogExcludeAgentSync)
 			},
 		},
 		{
-			msg:   "control plane audit filtering is disabled by default",
+			msg:   "agent sync audit filtering is disabled by default",
 			input: func(*Config) {},
 			test: func(t *testing.T, c *server.Config) {
-				require.False(t, c.AuditLogExcludeControlPlaneReads)
+				require.False(t, c.AuditLogExcludeAgentSync)
 			},
 		},
 		{
