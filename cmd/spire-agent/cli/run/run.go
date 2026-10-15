@@ -97,6 +97,7 @@ type agentConfig struct {
 	TrustBundleURL                string              `hcl:"trust_bundle_url"`
 	TrustDomain                   string              `hcl:"trust_domain"`
 	AllowUnauthenticatedVerifiers bool                `hcl:"allow_unauthenticated_verifiers"`
+	AllowUIDMismatch              bool                `hcl:"allow_uid_mismatch"`
 	AllowedForeignJWTClaims       []string            `hcl:"allowed_foreign_jwt_claims"`
 	AvailabilityTarget            string              `hcl:"availability_target"`
 	X509SVIDCacheMaxSize          int                 `hcl:"x509_svid_cache_max_size"`
@@ -911,6 +912,7 @@ func newAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig, skip
 	}
 
 	ac.AllowUnauthenticatedVerifiers = c.Agent.AllowUnauthenticatedVerifiers
+	ac.AllowUIDMismatch = c.Agent.AllowUIDMismatch
 
 	for _, authorizedDelegate := range c.Agent.AuthorizedDelegates {
 		if _, err := idutil.MemberFromString(ac.TrustDomain, authorizedDelegate); err != nil {
