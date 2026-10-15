@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.15.4] - 2026-10-15
+
+### Added
+
+- Support for configuring TLS policies to be applied to TLS listeners. (#7167)
+
+### Security
+
+- Fixed an issue where the server, when PROXY protocol support is enabled, accepted PROXY protocol headers carrying non-TCP source addresses (e.g. UDP or Unix socket addresses). Headers from trusted proxies may now only replace the connection's source address with a TCP address. Thank you Eviatar Gerzi for reporting this issue.
+- Fixed a crash in the agent's SDS v3 API when a client sent a `DiscoveryRequest` whose node user agent build version had no `Version` field set. Thank you Eviatar Gerzi for reporting this issue.
+
+### Changed
+
+- Updated the Go toolchain to 1.26.9.
+- Updated `golang.org/x/crypto` to v0.58.0, `golang.org/x/net` to v0.61.0, `google.golang.org/grpc` to v1.84.0, and other dependencies reported by `govulncheck`.
+
 ## [1.15.3] - 2026-08-21
 
 ### Added
