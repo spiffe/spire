@@ -493,12 +493,14 @@ func (s *Server) newEndpointsServer(ctx context.Context, catalog catalog.Catalog
 		PruneEventsOlderThan:         s.config.PruneEventsOlderThan,
 		EventTimeout:                 s.config.EventTimeout,
 		AuditLogEnabled:              s.config.AuditLogEnabled,
+		AuditLogExcludeAgentSync:     s.config.AuditLogExcludeAgentSync,
 		ProxyProtocolTrustedCIDRs:    s.config.ProxyProtocolTrustedCIDRs,
 		AuthPolicyEngine:             authPolicyEngine,
 		BundleManager:                bundleManager,
 		AdminIDs:                     s.config.AdminIDs,
 		MaxAttestedNodeInfoStaleness: s.config.MaxAttestedNodeInfoStaleness,
 		AgentSpiffeIdAsSelector:      s.config.Experimental.AgentSpiffeIdAsSelector,
+		AllowNonconformingAgentIDs:   s.config.Experimental.AllowNonconformingAgentIDs,
 		TLSPolicy:                    s.config.TLSPolicy,
 	}
 	if s.config.Federation.BundleEndpoint != nil {

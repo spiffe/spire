@@ -768,7 +768,7 @@ func setupServiceTest(t *testing.T, launchLevel logrus.Level) *serviceTest {
 	}
 	server := grpctest.StartServer(t, registerFn,
 		grpctest.OverrideContext(overrideContext),
-		grpctest.Middleware(middleware.WithAuditLog(false)))
+		grpctest.Middleware(middleware.WithAuditLog(false, false)))
 	conn := server.NewGRPCClient(t)
 	// Remove configuration logs
 	logHook.Reset()

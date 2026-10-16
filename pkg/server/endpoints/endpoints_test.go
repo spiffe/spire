@@ -92,20 +92,21 @@ func TestNew(t *testing.T) {
 	serverCA := fakeserverca.New(t, testTD, nil)
 
 	endpoints, err := New(ctx, Config{
-		TCPAddr:          tcpAddr,
-		LocalAddr:        localAddr,
-		SVIDObserver:     svidObserver,
-		TrustDomain:      testTD,
-		Catalog:          cat,
-		ServerCA:         serverCA,
-		BundleEndpoint:   bundle.EndpointConfig{Address: tcpAddr},
-		AuthorityManager: &fakeAuthorityManager{},
-		Log:              log,
-		RootLog:          log,
-		Metrics:          metrics,
-		RateLimit:        rateLimit,
-		Clock:            clk,
-		AuthPolicyEngine: pe,
+		TCPAddr:                  tcpAddr,
+		LocalAddr:                localAddr,
+		SVIDObserver:             svidObserver,
+		TrustDomain:              testTD,
+		Catalog:                  cat,
+		ServerCA:                 serverCA,
+		BundleEndpoint:           bundle.EndpointConfig{Address: tcpAddr},
+		AuthorityManager:         &fakeAuthorityManager{},
+		Log:                      log,
+		RootLog:                  log,
+		Metrics:                  metrics,
+		RateLimit:                rateLimit,
+		Clock:                    clk,
+		AuthPolicyEngine:         pe,
+		AuditLogExcludeAgentSync: true,
 		TLSPolicy: tlspolicy.Policy{
 			RequirePQKEM: true,
 		},
@@ -126,6 +127,7 @@ func TestNew(t *testing.T) {
 	assert.NotNil(t, endpoints.APIServers.LocalAUthorityServer)
 	assert.NotNil(t, endpoints.EntryFetcherPruneEventsTask)
 	assert.True(t, endpoints.TLSPolicy.RequirePQKEM)
+	assert.True(t, endpoints.AuditLogExcludeAgentSync)
 	assert.Equal(t, cat.GetDataStore(), endpoints.DataStore)
 	assert.Equal(t, log, endpoints.Log)
 	assert.Equal(t, metrics, endpoints.Metrics)

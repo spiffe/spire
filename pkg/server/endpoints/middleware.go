@@ -24,7 +24,7 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-func Middleware(log logrus.FieldLogger, metrics telemetry.Metrics, ds datastore.DataStore, nodeCache api.AttestedNodeCache, maxAttestedNodeInfoStaleness time.Duration, clk clock.Clock, rlConf RateLimitConfig, policyEngine *authpolicy.Engine, auditLogEnabled bool, adminIDs []spiffeid.ID) middleware.Middleware {
+func Middleware(log logrus.FieldLogger, metrics telemetry.Metrics, ds datastore.DataStore, nodeCache api.AttestedNodeCache, maxAttestedNodeInfoStaleness time.Duration, clk clock.Clock, rlConf RateLimitConfig, policyEngine *authpolicy.Engine, auditLogEnabled, auditLogExcludeAgentSync bool, adminIDs []spiffeid.ID) middleware.Middleware {
 	chain := []middleware.Middleware{
 		middleware.WithLogger(log),
 		middleware.WithMetrics(metrics),
@@ -34,7 +34,7 @@ func Middleware(log logrus.FieldLogger, metrics telemetry.Metrics, ds datastore.
 
 	if auditLogEnabled {
 		// Add audit log with local tracking enabled
-		chain = append(chain, middleware.WithAuditLog(true))
+		chain = append(chain, middleware.WithAuditLog(true, auditLogExcludeAgentSync))
 	}
 
 	return middleware.Chain(

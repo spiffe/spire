@@ -688,8 +688,10 @@ func (m *Manager) ProcessBundleUpdates(ctx context.Context) {
 			}
 		case taintedAuthorities := <-m.taintedUpstreamAuthoritiesCh:
 			if err := m.notifyTaintedAuthorities(ctx, taintedAuthorities); err != nil {
+				if ctx.Err() != nil {
+					return
+				}
 				m.c.Log.WithError(err).Error("Failed to force intermediate bundle rotation")
-				return
 			}
 		case <-ctx.Done():
 			return
