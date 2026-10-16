@@ -361,7 +361,7 @@ func (p *IMDSAttestorPlugin) Attest(stream nodeattestorv1.NodeAttestor_AttestSer
 	}
 
 	var selectorValues []string
-	selectorValues, err = buildSelectors(stream.Context(), tenant, untrustedMetadata.VMSSName, docData.VMID, docData.SubscriptionID)
+	selectorValues, err = buildSelectors(stream.Context(), tenant, untrustedMetadata, docData.VMID, docData.SubscriptionID)
 	if err != nil {
 		return err
 	}
@@ -407,29 +407,17 @@ func (p *IMDSAttestorPlugin) getConfig() (*imdsAttestorConfig, error) {
 	}
 	return p.config, nil
 }
-func buildSelectors(ctx context.Context, tenant *tenantConfig, vmssName *string, vmID string, subscriptionID string) ([]string, error) {
+func buildSelectors(ctx context.Context, tenant *tenantConfig, md azure.AgentUntrustedMetadata, vmID string, subscriptionID string) ([]string, error) {
 	client := tenant.client
-	// build up a unique map of selectors. this is easier than deduping
-	// individual selectors (e.g. the virtual network for each interface)
 	selectorMap := map[string]bool{}
-	// Get the VMSS Instance or Virtual Machine
-	var (
-		vm  *VirtualMachine
-		err error
-	)
 
-	switch {
-	case vmssName != nil:
-		vm, err = client.GetVMSSInstance(ctx, vmID, subscriptionID, *vmssName)
-		if err != nil {
-			return nil, err
-		}
-		selectorMap[selectorValue("vmss-name", *vmssName)] = true
-	default:
-		vm, err = client.GetVirtualMachine(ctx, vmID, &subscriptionID)
-		if err != nil {
-			return nil, err
-		}
+	vm, vmssNameForSelector, err := resolveVirtualMachine(ctx, client, md, vmID, subscriptionID)
+	if err != nil {
+		return nil, err
+	}
+
+	if vmssNameForSelector != nil {
+		selectorMap[selectorValue("vmss-name", *vmssNameForSelector)] = true
 	}
 
 	selectorMap[selectorValue("subscription-id", subscriptionID)] = true
