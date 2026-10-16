@@ -70,6 +70,7 @@ type serverConfig struct {
 	AdminIDs                     []string             `hcl:"admin_ids"`
 	AgentTTL                     string               `hcl:"agent_ttl"`
 	AuditLogEnabled              bool                 `hcl:"audit_log_enabled"`
+	AuditLogExcludeAgentSync     bool                 `hcl:"audit_log_exclude_agent_sync"`
 	BindAddress                  string               `hcl:"bind_address"`
 	BindPort                     int                  `hcl:"bind_port"`
 	CAKeyType                    string               `hcl:"ca_key_type"`
@@ -452,6 +453,7 @@ func newServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig, ski
 
 	sc.DataDir = c.Server.DataDir
 	sc.AuditLogEnabled = c.Server.AuditLogEnabled
+	sc.AuditLogExcludeAgentSync = c.Server.AuditLogExcludeAgentSync
 	sc.ProxyProtocolTrustedCIDRs = c.Server.ProxyProtocolTrustedCIDRs
 
 	td, err := spiffeid.TrustDomainFromString(c.Server.TrustDomain)

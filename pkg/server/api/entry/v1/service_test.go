@@ -4997,7 +4997,7 @@ func setupServiceTest(t *testing.T, ds datastore.DataStore, options ...serviceTe
 		entry.RegisterService(s, service)
 	},
 		grpctest.OverrideContext(overrideContext),
-		grpctest.Middleware(middleware.WithAuditLog(false)),
+		grpctest.Middleware(middleware.WithAuditLog(false, false)),
 	)
 
 	conn := server.NewGRPCClient(t)

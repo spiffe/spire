@@ -24,18 +24,29 @@ type Logger interface {
 }
 
 type logger struct {
-	fields logrus.Fields
-	log    logrus.FieldLogger
+	fields     logrus.Fields
+	log        logrus.FieldLogger
+	onlyErrors bool
 }
 
 func New(l logrus.FieldLogger) Logger {
+	return newLogger(l, false)
+}
+
+// NewErrorOnly creates an audit logger that omits successful operations.
+func NewErrorOnly(l logrus.FieldLogger) Logger {
+	return newLogger(l, true)
+}
+
+func newLogger(l logrus.FieldLogger, onlyErrors bool) Logger {
 	return &logger{
 		log: l.WithFields(logrus.Fields{
 			telemetry.Type: "audit",
 			// It is success by default, errors must change it
 			telemetry.Status: "success",
 		}),
-		fields: logrus.Fields{},
+		fields:     logrus.Fields{},
+		onlyErrors: onlyErrors,
 	}
 }
 
@@ -44,19 +55,31 @@ func (l *logger) AddFields(fields logrus.Fields) {
 }
 
 func (l *logger) Audit() {
+	if l.onlyErrors {
+		return
+	}
 	l.log.WithFields(l.fields).Info(message)
 }
 
 func (l *logger) AuditWithFields(fields logrus.Fields) {
+	if l.onlyErrors {
+		return
+	}
 	l.log.WithFields(l.fields).WithFields(fields).Info(message)
 }
 
 func (l *logger) AuditWithError(err error) {
+	if l.onlyErrors && status.Code(err) == codes.OK {
+		return
+	}
 	fields := fieldsFromError(err)
 	l.log.WithFields(l.fields).WithFields(fields).Info(message)
 }
 
 func (l *logger) AuditWithTypesStatus(fields logrus.Fields, s *types.Status) {
+	if l.onlyErrors && s.Code == int32(codes.OK) {
+		return
+	}
 	statusFields := fieldsFromStatus(s)
 	l.log.WithFields(statusFields).WithFields(fields).Info(message)
 }

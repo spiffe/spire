@@ -98,6 +98,7 @@ type Endpoints struct {
 	EntryFetcherPruneEventsTask  func(context.Context) error
 	CertificateReloadTask        func(context.Context) error
 	AuditLogEnabled              bool
+	AuditLogExcludeAgentSync     bool
 	ProxyProtocolTrustedCIDRs    []string
 	AuthPolicyEngine             *authpolicy.Engine
 	AdminIDs                     []spiffeid.ID
@@ -227,6 +228,7 @@ func New(ctx context.Context, c Config) (*Endpoints, error) {
 		EntryFetcherPruneEventsTask:  pruneEventsTask,
 		CertificateReloadTask:        certificateReloadTask,
 		AuditLogEnabled:              c.AuditLogEnabled,
+		AuditLogExcludeAgentSync:     c.AuditLogExcludeAgentSync,
 		ProxyProtocolTrustedCIDRs:    c.ProxyProtocolTrustedCIDRs,
 		AuthPolicyEngine:             c.AuthPolicyEngine,
 		AdminIDs:                     c.AdminIDs,
@@ -482,7 +484,7 @@ func (e *Endpoints) getTLSConfig(ctx context.Context) func(*tls.ClientHelloInfo)
 func (e *Endpoints) makeInterceptors() (grpc.UnaryServerInterceptor, grpc.StreamServerInterceptor) {
 	log := e.Log.WithField(telemetry.SubsystemName, "api")
 
-	return middleware.Interceptors(Middleware(log, e.Metrics, e.DataStore, e.nodeCache, e.MaxAttestedNodeInfoStaleness, clock.New(), e.RateLimit, e.AuthPolicyEngine, e.AuditLogEnabled, e.AdminIDs))
+	return middleware.Interceptors(Middleware(log, e.Metrics, e.DataStore, e.nodeCache, e.MaxAttestedNodeInfoStaleness, clock.New(), e.RateLimit, e.AuthPolicyEngine, e.AuditLogEnabled, e.AuditLogExcludeAgentSync, e.AdminIDs))
 }
 
 func (e *Endpoints) triggerListeningHook() {
