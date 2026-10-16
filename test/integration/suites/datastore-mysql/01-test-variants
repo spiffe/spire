@@ -60,7 +60,10 @@ done
 
 runs=()
 for version in "${VERSIONS[@]}"; do
-    runs+=("mysql-${version}=SQLSTORE_TEST_CONN_STRING='$(conn-string "${version}")' ./mysql.test")
+    # The read-only connection points at the same instance, as it always has
+    # in this suite, so the read-only code paths stay covered.
+    conn_string="$(conn-string "${version}")"
+    runs+=("mysql-${version}=SQLSTORE_TEST_CONN_STRING='${conn_string}' SQLSTORE_TEST_RO_CONN_STRING='${conn_string}' ./mysql.test")
 done
 
 log-info "running tests against ${services[*]}..."

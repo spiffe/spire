@@ -38,7 +38,10 @@ done
 
 runs=()
 for version in "${VERSIONS[@]}"; do
-    runs+=("postgres-${version}=SQLSTORE_TEST_CONN_STRING='$(conn-string "${version}")' ./postgres.test")
+    # The read-only connection points at the same instance, as it always has
+    # in this suite, so the read-only code paths stay covered.
+    conn_string="$(conn-string "${version}")"
+    runs+=("postgres-${version}=SQLSTORE_TEST_CONN_STRING='${conn_string}' SQLSTORE_TEST_RO_CONN_STRING='${conn_string}' ./postgres.test")
 done
 
 log-info "running tests against ${services[*]}..."
