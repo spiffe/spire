@@ -41,6 +41,8 @@ type Record struct {
 type cachedRecord struct {
 	entry *common.RegistrationEntry
 	svid  *cache.X509SVID
+	// svidEntry is the entry the SVID, if any, was issued for.
+	svidEntry *common.RegistrationEntry
 
 	revision     int64
 	handled      int64
@@ -174,15 +176,10 @@ func (c *Cache) UpdateEntries(update *cache.UpdateEntries, checkSVID func(*commo
 		}
 
 		// Selectors pick the store destination; a new destination must not
-		// get the SVID issued for the previous entry.
-		previousEntry := existingEntry
-		if previousEntry == nil {
-			// Entry marked as removed and added back
-			previousEntry = record.handledEntry
-		}
-		if previousEntry != nil && record.svid != nil &&
-			!util.EqualsSelectors(previousEntry.Selectors, newEntry.Selectors) &&
-			record.svid.InvalidatedBy(previousEntry, newEntry) {
+		// get the SVID issued for a different entry.
+		if record.svid != nil &&
+			!util.EqualsSelectors(record.svidEntry.Selectors, newEntry.Selectors) &&
+			record.svid.InvalidatedBy(record.svidEntry, newEntry) {
 			record.svid = nil
 		}
 
@@ -225,6 +222,7 @@ func (c *Cache) UpdateX509SVIDs(svids map[string]*cache.X509SVID) {
 		}
 
 		record.svid = svid
+		record.svidEntry = record.entry
 		// Increment revision since record changed
 		record.revision++
 		log := c.c.Log.WithFields(logrus.Fields{

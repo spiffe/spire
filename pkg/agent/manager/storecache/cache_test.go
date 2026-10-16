@@ -1256,12 +1256,15 @@ func TestUpdateEntriesDropsSVIDInvalidatedByEntry(t *testing.T) {
 		name        string
 		updated     *common.RegistrationEntry
 		removeFirst bool
-		expectSVID  bool
+		// intermediate is applied before updated without renewing the SVID.
+		intermediate *common.RegistrationEntry
+		expectSVID   bool
 	}{
 		{name: "selectors and SPIFFE ID changed", updated: withSPIFFEID(withSelectors(createTestEntry()))},
 		{name: "removed and added back with new selectors and SPIFFE ID", updated: withSPIFFEID(withSelectors(createTestEntry())), removeFirst: true},
 		{name: "selectors changed", updated: withSelectors(createTestEntry()), expectSVID: true},
 		{name: "SPIFFE ID changed", updated: withSPIFFEID(createTestEntry()), expectSVID: true},
+		{name: "SPIFFE ID changed, then selectors changed without renewal", updated: withSPIFFEID(withSelectors(createTestEntry())), intermediate: withSPIFFEID(createTestEntry())},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			log, _ := test.NewNullLogger()
@@ -1281,8 +1284,15 @@ func TestUpdateEntriesDropsSVIDInvalidatedByEntry(t *testing.T) {
 			if tt.removeFirst {
 				c.UpdateEntries(&cache.UpdateEntries{Bundles: bundles}, nil)
 			}
+			if tt.intermediate != nil {
+				tt.intermediate.RevisionNumber = 2
+				c.UpdateEntries(&cache.UpdateEntries{
+					Bundles:             bundles,
+					RegistrationEntries: map[string]*common.RegistrationEntry{"foh": tt.intermediate},
+				}, nil)
+			}
 
-			tt.updated.RevisionNumber = 2
+			tt.updated.RevisionNumber = 3
 			c.UpdateEntries(&cache.UpdateEntries{
 				Bundles:             bundles,
 				RegistrationEntries: map[string]*common.RegistrationEntry{"foh": tt.updated},
