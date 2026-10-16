@@ -168,8 +168,9 @@ jobs:
     permissions:
       contents: read
 
-    # Each architecture is built natively on its own runner so that neither
-    # waits for the other's compile.
+    # Each architecture is built natively on its own runner, so the two builds
+    # run in parallel instead of sharing one runner's cores. Consumers still
+    # wait for both legs, since `needs` cannot target a single matrix leg.
     strategy:
       fail-fast: false
       matrix:
