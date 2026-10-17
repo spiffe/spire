@@ -113,9 +113,9 @@ func TestMigrateDBBranches(t *testing.T) {
 			expectErr: "datastore-sql: migrations table has no row",
 		},
 		{
-			name:      "duplicate migrations rows",
-			setupSQL:  "INSERT INTO migrations (version, code_version) SELECT version, code_version FROM migrations",
-			expectErr: "datastore-sql: migrations table has more than one row; delete all but the row with the lowest id",
+			name:          "duplicate migrations rows upgrade the lowest id",
+			setupSQL:      "INSERT INTO migrations (version, code_version) SELECT version, code_version FROM migrations; UPDATE migrations SET version = 26 WHERE id = (SELECT MIN(id) FROM migrations)",
+			expectVersion: latestSchemaVersion,
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {

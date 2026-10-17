@@ -49,9 +49,10 @@ func migrateDB(db *gorm.DB, dbType string, disableMigration bool, log logrus.Fie
 	}
 	switch {
 	case len(migrations) > 1:
-		// Concurrent initializations on MySQL can each record a row, and
-		// later upgrades would update only one of them.
-		return sqlcommon.NewSQLError("migrations table has more than one row; delete all but the row with the lowest id")
+		// Concurrent initializations on MySQL can each record a row. The row
+		// with the lowest id is always the one read and updated, so the others
+		// are ignored.
+		log.Warn("Migrations table has more than one row, using the one with the lowest id")
 	case len(migrations) == 0 && sqlcommon.IsMySQLDbType(dbType):
 		// initDB records the migration row last, so a migrations table without
 		// one was left by an initialization that failed partway through on
