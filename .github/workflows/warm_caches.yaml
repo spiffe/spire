@@ -112,12 +112,12 @@ jobs:
       - name: Install msys2
         uses: msys2/setup-msys2@ec48f7c5447b3140e2b088413ae3a55687bccb6e # v2.33.0
         with:
-          msystem: MINGW64
+          msystem: UCRT64
           update: true
           # Keep the Go toolchain installed by setup-go on PATH.
           path-type: inherit
           install: >-
-            git base-devel mingw-w64-x86_64-toolchain unzip
+            git base-devel mingw-w64-ucrt-x86_64-toolchain unzip
       - name: Download modules
         run: go mod download
       - name: Compile packages and tests
