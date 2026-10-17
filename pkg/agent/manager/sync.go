@@ -148,6 +148,9 @@ func (m *manager) updateX509SVIDCache(ctx context.Context, update *cache.UpdateE
 	// the values in `update` now belong to the cache. DO NOT MODIFY.
 	var expiring int
 	var outdated int
+	// Serialize with in-flight signings so an SVID minted for a previous
+	// entry revision cannot be stored after the entry is updated.
+	m.updateSVIDMu.Lock()
 	c.UpdateEntries(update, func(existingEntry, newEntry *common.RegistrationEntry, svid *cache.X509SVID) bool {
 		switch {
 		case svid == nil:
@@ -170,6 +173,7 @@ func (m *manager) updateX509SVIDCache(ctx context.Context, update *cache.UpdateE
 
 		return true
 	})
+	m.updateSVIDMu.Unlock()
 
 	// TODO: this values are not real, we may remove
 	if expiring > 0 {
@@ -223,6 +227,8 @@ func (m *manager) updateX509SVIDs(ctx context.Context, log logrus.FieldLogger, c
 func (m *manager) updateWITSVIDCacheEntries(update *cache.UpdateEntries, log logrus.FieldLogger) {
 	// the values in `update` now belong to the cache. DO NOT MODIFY.
 	var expiring int
+	// See updateX509SVIDCache.
+	m.updateSVIDMu.Lock()
 	m.witCache.UpdateEntries(update, func(_, newEntry *common.RegistrationEntry, svid *cache.WITSVID) bool {
 		switch {
 		case svid == nil:
@@ -236,6 +242,7 @@ func (m *manager) updateWITSVIDCacheEntries(update *cache.UpdateEntries, log log
 
 		return true
 	})
+	m.updateSVIDMu.Unlock()
 
 	if expiring > 0 {
 		telemetry_agent.AddCacheManagerExpiredSVIDsSample(m.c.Metrics, telemetry_agent.CacheTypeWorkload, telemetry_agent.SVIDTypeWIT, float32(expiring))
