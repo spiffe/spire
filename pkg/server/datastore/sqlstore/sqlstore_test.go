@@ -407,7 +407,7 @@ func TestMigration(t *testing.T) {
 			}
 
 			prepareDB := func(migrationSupported bool) {
-				dump := migrationDumps[schemaVersion]
+				dump := sqltest.MigrationDumps[schemaVersion]
 				if migrationSupported {
 					require.NotEmpty(dump, "no migration dump set up for schema version")
 				} else {
@@ -465,7 +465,7 @@ func TestDisableMigrationAllowsCAJournalWritesOnPreviousSchema(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		dbPath = "/" + dbPath
 	}
-	dumpDB(t, dbPath, migrationDumps[25])
+	dumpDB(t, dbPath, sqltest.MigrationDumps[25])
 
 	log, _ := test.NewNullLogger()
 	ds := New(log)
@@ -506,7 +506,7 @@ func TestDisableMigrationAllowsRegistrationEntryWritesOnPreviousSchema(t *testin
 	if runtime.GOOS == "windows" {
 		dbPath = "/" + dbPath
 	}
-	dumpDB(t, dbPath, migrationDumps[26])
+	dumpDB(t, dbPath, sqltest.MigrationDumps[26])
 
 	log, _ := test.NewNullLogger()
 	ds := New(log)
