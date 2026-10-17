@@ -90,16 +90,24 @@ jobs:
           cache: false
       - name: Install regctl
         uses: regclient/actions/regctl-installer@dd58ad94f76adb73d8ac1bf75ed25f01545d5b32 # main
-      - name: Download archived images
+      - name: Download archived x64 images
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          name: images
-          path: .
+          name: images-x64
+          path: images/amd64
+      - name: Download archived arm64 images
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: images-arm64
+          path: images/arm64
       - name: Expand archived images
         run: |
-          tar xvf images.tar.gz
+          tar xvf images/amd64/images.tar.gz -C images/amd64
+          tar xvf images/arm64/images.tar.gz -C images/arm64
       - name: Build artifacts
-        run: ./.github/workflows/scripts/build_artifacts.sh ${{ runner.os }}
+        run: |
+          IMAGES_DIR=images/amd64 ./.github/workflows/scripts/build_artifacts.sh ${{ runner.os }} amd64
+          IMAGES_DIR=images/arm64 ./.github/workflows/scripts/build_artifacts.sh ${{ runner.os }} arm64
       - name: Archive artifacts
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -107,13 +115,27 @@ jobs:
           path: ./artifacts/
 
   images:
-    name: images (linux)
-    runs-on: ubuntu-22.04
+    name: images (linux ${{ matrix.arch }})
+    runs-on: ${{ matrix.runs-on }}
     timeout-minutes: 30
 
     permissions:
       contents: read
 
+    # Each architecture is built natively on its own runner, so the two builds
+    # run in parallel instead of sharing one runner's cores. Consumers still
+    # wait for both legs, since `needs` cannot target a single matrix leg.
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x64, arm64]
+        include:
+          - arch: x64
+            runs-on: ubuntu-22.04
+            platform: linux/amd64
+          - arch: arm64
+            runs-on: ubuntu-22.04-arm
+            platform: linux/arm64
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -122,18 +144,16 @@ jobs:
         with:
           go-version-file: 'go.mod'
           cache: false
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
       - name: Build images
-        run: make images-no-load
+        run: make images-no-load PLATFORMS=${{ matrix.platform }}
       - name: Export images
         run: tar -czvf images.tar.gz *-image.tar
       - name: Archive images
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: images
+          name: images-${{ matrix.arch }}
           path: images.tar.gz
 
   images-windows:
@@ -223,7 +243,7 @@ jobs:
       - name: Download archived images
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          name: images
+          name: images-${{ matrix.arch }}
           path: .
       - name: Load archived images
         run: |
@@ -281,7 +301,7 @@ jobs:
       - name: Download archived images
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          name: images
+          name: images-${{ matrix.arch }}
           path: .
       - name: Load archived images
         run: |
