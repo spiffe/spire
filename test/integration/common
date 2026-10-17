@@ -58,6 +58,36 @@ retry() {
     done
 }
 
+# run-concurrently runs the given commands at the same time, prints the
+# output of each one once all of them have finished, and fails if any of them
+# failed. Each argument has the form "<name>=<command>", where the command is
+# run through bash -c and the name labels its output.
+run-concurrently() {
+    local names=()
+    local pids=()
+    local entry
+    for entry in "$@"; do
+        local name="${entry%%=*}"
+        local command="${entry#*=}"
+        log-debug "starting ${name}..."
+        bash -c "${command}" > "${name}.log" 2>&1 &
+        names+=("${name}")
+        pids+=($!)
+    done
+
+    local failed=()
+    local i
+    for i in "${!names[@]}"; do
+        if ! wait "${pids[$i]}"; then
+            failed+=("${names[$i]}")
+        fi
+        log-debug "output of ${names[$i]}:"
+        cat "${names[$i]}.log"
+    done
+
+    [ ${#failed[@]} -eq 0 ] || fail-now "failed: ${failed[*]}"
+}
+
 docker-up() {
     if [ $# -eq 0 ]; then
         log-debug "bringing up services..."
@@ -309,15 +339,23 @@ build-mashup-image() {
     ENVOY_VERSION=$1
     ENVOY_IMAGE_TAG="${ENVOY_VERSION}-latest"
 
+    # The entrypoint runs the agent in the background and Envoy in the
+    # foreground, so the container lives as long as Envoy does. Nothing is
+    # installed into the Envoy image, which keeps the build off the network
+    # apart from pulling the base image.
+    cat > envoy-agent-entrypoint.sh <<'EOF'
+#!/bin/sh
+/opt/spire/bin/spire-agent run -config /opt/spire/conf/agent/agent.conf &
+exec /usr/local/bin/envoy -l debug -c /opt/envoy/conf/envoy.yaml
+EOF
+    chmod +x envoy-agent-entrypoint.sh
+
     cat > Dockerfile <<EOF
 FROM spire-agent:latest-local as spire-agent
 FROM envoyproxy/envoy:${ENVOY_IMAGE_TAG} AS envoy-agent-mashup
 COPY --from=spire-agent /opt/spire/bin/spire-agent /opt/spire/bin/spire-agent
-RUN apt-get update
-RUN apt-get install -y dumb-init
-RUN apt-get install -y supervisor
-COPY conf/supervisord.conf /etc/
-ENTRYPOINT ["/usr/bin/dumb-init", "supervisord", "--nodaemon", "--configuration", "/etc/supervisord.conf"]
+COPY envoy-agent-entrypoint.sh /opt/envoy/entrypoint.sh
+ENTRYPOINT ["/opt/envoy/entrypoint.sh"]
 CMD []
 EOF
 

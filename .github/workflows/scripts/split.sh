@@ -1,4 +1,9 @@
 #!/bin/bash
+# Splits the integration test suites across NUM_RUNNERS shards and prints the
+# suites assigned to shard THIS_RUNNER. Suites are assigned heaviest first to
+# the least loaded shard, using the approximate durations listed in
+# test/integration/suite-weights, so that every shard finishes at about the
+# same time.
 
 set -e
 
@@ -12,15 +17,39 @@ if [ -z "$THIS_RUNNER" ]; then
         exit 1
 fi
 
-declare -a job_set
-current_runner=1
-for FILE in test/integration/suites/*; do
-        job_set[current_runner]+="${FILE##test/integration/} "
+WEIGHTS_FILE=test/integration/suite-weights
+DEFAULT_WEIGHT=30
 
-        ((current_runner++))
-        if [ "$current_runner" -gt "$NUM_RUNNERS" ]; then
-                current_runner=1
+declare -A weight
+while read -r name seconds; do
+        if [[ -z "${name}" || "${name}" == \#* ]]; then
+                continue
         fi
+        weight["${name}"]="${seconds}"
+done < "${WEIGHTS_FILE}"
+
+# Heaviest first, with ties broken by name so the split is deterministic.
+weighted_suites=$(
+        for dir in test/integration/suites/*; do
+                name=$(basename "${dir}")
+                echo "${weight[${name}]:-${DEFAULT_WEIGHT}} ${name}"
+        done | sort -k1,1nr -k2,2
+)
+
+declare -a load job_set
+for ((runner=1; runner<=NUM_RUNNERS; runner++)); do
+        load[runner]=0
 done
+
+while read -r seconds name; do
+        lightest=1
+        for ((runner=2; runner<=NUM_RUNNERS; runner++)); do
+                if (( load[runner] < load[lightest] )); then
+                        lightest=${runner}
+                fi
+        done
+        load[lightest]=$(( load[lightest] + seconds ))
+        job_set[lightest]+="suites/${name} "
+done <<< "${weighted_suites}"
 
 echo "${job_set[$THIS_RUNNER]}"
