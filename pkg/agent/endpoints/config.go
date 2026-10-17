@@ -64,6 +64,11 @@ type Config struct {
 
 	DisableSDSAPI bool
 
+	// AllowUIDMismatch enables the CAP_SETUID/CAP_SETGID capability bypass in
+	// the peertracker's IsAlive() function. See TrackerConfig.AllowUIDMismatch
+	// for details.
+	AllowUIDMismatch bool
+
 	// WorkloadAPIRateLimit configures per-selector-set rate limiting for Workload API and SDS methods.
 	WorkloadAPIRateLimit WorkloadAPIRateLimitConfig
 

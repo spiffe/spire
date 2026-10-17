@@ -38,6 +38,7 @@ type Endpoints struct {
 	sdsv3Server       secret_v3.SecretDiscoveryServiceServer
 	healthServer      grpc_health_v1.HealthServer
 	apiNames          string
+	allowUIDMismatch  bool
 
 	hooks struct {
 		listening chan struct{} // Hook to signal when the server starts listening
@@ -109,6 +110,7 @@ func New(c Config) *Endpoints {
 		sdsv3Server:       sdsv3Server,
 		healthServer:      healthServer,
 		apiNames:          apiNames(c.DisableWorkloadAPI, c.DisableSDSAPI),
+		allowUIDMismatch:  c.AllowUIDMismatch,
 		hooks: struct {
 			listening chan struct{}
 		}{

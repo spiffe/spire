@@ -132,6 +132,10 @@ type Config struct {
 
 	AllowUnauthenticatedVerifiers bool
 
+	// AllowUIDMismatch enables the CAP_SETUID/CAP_SETGID bypass in the
+	// peertracker. See TrackerConfig.AllowUIDMismatch for details.
+	AllowUIDMismatch bool
+
 	// List of allowed claims response when calling ValidateJWTSVID using a foreign identity
 	AllowedForeignJWTClaims []string
 
