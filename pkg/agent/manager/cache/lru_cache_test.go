@@ -390,6 +390,117 @@ func TestLRUCacheSubscriberNotificationsOnSelectorChanges(t *testing.T) {
 	})
 }
 
+func TestLRUCacheSVIDDroppedWhenEntryInvalidatesIt(t *testing.T) {
+	cache := newTestLRUCache(t)
+
+	foo := makeRegistrationEntry("FOO", "A")
+	foo.RevisionNumber = 1
+	cache.UpdateEntries(&UpdateEntries{
+		Bundles:             makeBundles(bundleV1),
+		RegistrationEntries: makeRegistrationEntries(foo),
+	}, nil)
+	cache.UpdateSVIDs(makeX509SVIDs(foo))
+
+	subA := subscribeToWorkloadUpdates(t, cache, makeSelectors("A"))
+	defer subA.Finish()
+	assertX509WorkloadUpdateEqual(t, subA, &X509WorkloadUpdate{
+		Bundle:     bundleV1,
+		Identities: []X509Identity{{Entry: foo}},
+	})
+	subB := cache.NewSubscriber(makeSelectors("B"))
+	defer subB.Finish()
+
+	// Change both the SPIFFE ID and the selectors. Neither subscriber may get
+	// the SVID issued for the old SPIFFE ID.
+	foo = makeRegistrationEntry("FOO", "B")
+	foo.SpiffeId = "spiffe://domain.test/new"
+	foo.RevisionNumber = 2
+	cache.UpdateEntries(&UpdateEntries{
+		Bundles:             makeBundles(bundleV1),
+		RegistrationEntries: makeRegistrationEntries(foo),
+	}, nil)
+	assert.Equal(t, 0, cache.CountSVIDs())
+	assertX509WorkloadUpdateEqual(t, subA, &X509WorkloadUpdate{Bundle: bundleV1})
+	assertX509WorkloadUpdateEqual(t, subB, &X509WorkloadUpdate{Bundle: bundleV1})
+
+	staleEntries := cache.GetStaleEntries()
+	require.Len(t, staleEntries, 1)
+	assert.Equal(t, foo, staleEntries[0].Entry)
+	assert.True(t, staleEntries[0].SVIDExpiresAt.IsZero())
+
+	cache.UpdateSVIDs(makeX509SVIDs(foo))
+	assertNoX509WorkloadUpdate(t, subA)
+	assertX509WorkloadUpdateEqual(t, subB, &X509WorkloadUpdate{
+		Bundle:     bundleV1,
+		Identities: []X509Identity{{Entry: foo}},
+	})
+}
+
+func TestLRUCacheSVIDKeptWhenEntryDoesNotInvalidateIt(t *testing.T) {
+	withSPIFFEID := func(e *common.RegistrationEntry) *common.RegistrationEntry {
+		e.SpiffeId = "spiffe://domain.test/new"
+		return e
+	}
+
+	for _, tt := range []struct {
+		name    string
+		updated *common.RegistrationEntry
+	}{
+		{name: "selectors and TTL changed", updated: makeRegistrationEntryWithTTL("FOO", 1000, 2000, "B")},
+		{name: "SPIFFE ID changed", updated: withSPIFFEID(makeRegistrationEntry("FOO", "A"))},
+		{name: "SPIFFE ID changed and selector added", updated: withSPIFFEID(makeRegistrationEntry("FOO", "A", "B"))},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			cache := newTestLRUCache(t)
+
+			foo := makeRegistrationEntry("FOO", "A")
+			foo.RevisionNumber = 1
+			cache.UpdateEntries(&UpdateEntries{
+				Bundles:             makeBundles(bundleV1),
+				RegistrationEntries: makeRegistrationEntries(foo),
+			}, nil)
+			cache.UpdateSVIDs(makeX509SVIDs(foo))
+
+			tt.updated.RevisionNumber = 2
+			cache.UpdateEntries(&UpdateEntries{
+				Bundles:             makeBundles(bundleV1),
+				RegistrationEntries: makeRegistrationEntries(tt.updated),
+			}, nil)
+			assert.Equal(t, 1, cache.CountSVIDs())
+
+			staleEntries := cache.GetStaleEntries()
+			require.Len(t, staleEntries, 1)
+			assert.Equal(t, tt.updated, staleEntries[0].Entry)
+		})
+	}
+}
+
+func TestSVIDInvalidatedBy(t *testing.T) {
+	base := makeRegistrationEntry("FOO", "A")
+	withSPIFFEID := makeRegistrationEntry("FOO", "A")
+	withSPIFFEID.SpiffeId = "spiffe://domain.test/new"
+	withDNSNames := makeRegistrationEntry("FOO", "A")
+	withDNSNames.DnsNames = []string{"other"}
+	withSelectorsAndTTL := makeRegistrationEntryWithTTL("FOO", 1, 2, "B")
+
+	for _, tt := range []struct {
+		name    string
+		updated *common.RegistrationEntry
+		x509    bool
+		wit     bool
+	}{
+		{name: "unchanged", updated: base},
+		{name: "SPIFFE ID changed", updated: withSPIFFEID, x509: true, wit: true},
+		{name: "DNS names changed", updated: withDNSNames, x509: true},
+		{name: "selectors and TTL changed", updated: withSelectorsAndTTL},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.x509, X509SVID{}.InvalidatedBy(base, tt.updated))
+			assert.Equal(t, tt.wit, WITSVID{}.InvalidatedBy(base, tt.updated))
+		})
+	}
+}
+
 func TestLRUCacheSubscriberNotifiedWhenEntryDropped(t *testing.T) {
 	cache := newTestLRUCache(t)
 
@@ -1562,4 +1673,30 @@ func prepareSVIDs(t *testing.T, entries []*common.RegistrationEntry, svids map[s
 func resetLogsAndMetrics(logHook *test.Hook, fakeMetrics *fakemetrics.FakeMetrics) {
 	logHook.Reset()
 	fakeMetrics.Reset()
+}
+
+func TestLRUCacheSequentialIDChangeWithoutRenewal(t *testing.T) {
+	c := newTestLRUCache(t)
+	setEntry := func(e *common.RegistrationEntry) {
+		c.UpdateEntries(&UpdateEntries{
+			Bundles: makeBundles(bundleV1), RegistrationEntries: makeRegistrationEntries(e),
+		}, nil)
+	}
+	e1 := makeRegistrationEntry("FOO", "A", "B")
+	e1.RevisionNumber = 1
+	setEntry(e1)
+	c.UpdateSVIDs(makeX509SVIDs(e1))
+	require.Empty(t, c.FetchWorkloadUpdate(makeSelectors("A")).Identities)
+
+	e2 := makeRegistrationEntry("FOO", "A", "B")
+	e2.SpiffeId, e2.RevisionNumber = "spiffe://domain.test/new", 2
+	setEntry(e2)
+	require.Equal(t, 1, c.CountSVIDs())
+
+	// Renewal has not installed a replacement before the next entry update.
+	e3 := makeRegistrationEntry("FOO", "A")
+	e3.SpiffeId, e3.RevisionNumber = e2.SpiffeId, 3
+	setEntry(e3)
+	require.Equal(t, 0, c.CountSVIDs())
+	require.Empty(t, c.FetchWorkloadUpdate(makeSelectors("A")).Identities, "newly matching workload must not receive the old identity")
 }
