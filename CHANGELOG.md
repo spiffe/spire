@@ -156,7 +156,7 @@
 - Connections to the agent Debug service would lead to "unrecognized service" errors in logs (#6878)
 - An issue in the `aws_kms` plugin which would revert rotated aliases (#6805)
 
-## [1.14.4] - 2026-10-15
+## [1.14.8] - 2026-10-15
 
 ### Security
 
