@@ -59,6 +59,10 @@ const (
 	defaultDisableSPIFFECertValidation = false
 
 	minimumAvailabilityTarget = 24 * time.Hour
+
+	defaultAttestTimeout    = time.Minute
+	defaultKeepaliveTime    = 5 * time.Minute
+	defaultKeepaliveTimeout = 20 * time.Second
 )
 
 // Config contains all available configurables, arranged by section
@@ -799,7 +803,7 @@ func newAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig, skip
 		logger.Warn("The use of 'max_bundle_workers' is experimental")
 	}
 
-	attestTimeout := time.Minute
+	attestTimeout := defaultAttestTimeout
 	if c.Agent.Experimental.AttestTimeout != "" {
 		timeout, err := time.ParseDuration(c.Agent.Experimental.AttestTimeout)
 		if err != nil {
@@ -813,7 +817,7 @@ func newAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig, skip
 	}
 	ac.AttestTimeout = attestTimeout
 
-	pingTime, pingTimeout := 5*time.Minute, 20*time.Second
+	pingTime, pingTimeout := defaultKeepaliveTime, defaultKeepaliveTimeout
 	if c.Agent.Experimental.KeepaliveTime != "" {
 		parsed, err := time.ParseDuration(c.Agent.Experimental.KeepaliveTime)
 		if err != nil {
