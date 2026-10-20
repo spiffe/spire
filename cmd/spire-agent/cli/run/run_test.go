@@ -1951,10 +1951,10 @@ func TestNewAgentConfig(t *testing.T) {
 			input: func(c *Config) {},
 			test: func(t *testing.T, ac *agent.Config) {
 				require.NotNil(t, ac)
-				assert.Equal(t, time.Minute, ac.AttestTimeout)
+				assert.Equal(t, defaultAttestTimeout, ac.AttestTimeout)
 				require.NotNil(t, ac.Keepalive)
-				assert.Equal(t, 5*time.Minute, ac.Keepalive.Time)
-				assert.Equal(t, 20*time.Second, ac.Keepalive.Timeout)
+				assert.Equal(t, defaultKeepaliveTime, ac.Keepalive.Time)
+				assert.Equal(t, defaultKeepaliveTimeout, ac.Keepalive.Timeout)
 			},
 		},
 		{
@@ -1966,7 +1966,7 @@ func TestNewAgentConfig(t *testing.T) {
 				require.NotNil(t, ac)
 				require.NotNil(t, ac.Keepalive)
 				assert.Equal(t, 30*time.Second, ac.Keepalive.Time)
-				assert.Equal(t, 20*time.Second, ac.Keepalive.Timeout)
+				assert.Equal(t, defaultKeepaliveTimeout, ac.Keepalive.Timeout)
 			},
 		},
 		{
