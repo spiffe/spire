@@ -1108,6 +1108,22 @@ func TestNewServerConfig(t *testing.T) {
 			},
 		},
 		{
+			msg:   "WIT-SVIDs are disabled by default",
+			input: func(c *Config) {},
+			test: func(t *testing.T, c *server.Config) {
+				require.True(t, c.DisableWITSVIDs)
+			},
+		},
+		{
+			msg: "enable_wit_svids enables WIT-SVIDs",
+			input: func(c *Config) {
+				c.Server.Experimental.EnableWITSVIDs = true
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.False(t, c.DisableWITSVIDs)
+			},
+		},
+		{
 			msg:         "invalid default_x509_svid_ttl returns an error",
 			expectError: true,
 			input: func(c *Config) {
