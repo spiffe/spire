@@ -187,6 +187,7 @@ func (a *Agent) Run(ctx context.Context) error {
 	if a.c.JoinToken == "" {
 		nodeAttestor = cat.GetNodeAttestor()
 	}
+	nodeAttestor = nodeattestor.WithTimeout(nodeAttestor, a.c.AttestTimeout)
 
 	var as *node_attestor.AttestationResult
 
@@ -445,6 +446,8 @@ func (a *Agent) attest(ctx context.Context, sto storage.Storage, cat catalog.Cat
 		NodeAttestor:         na,
 		TLSPolicy:            a.c.TLSPolicy,
 		LoadBalancingConfig:  a.c.ServerLoadBalancingConfig,
+		AttestTimeout:        a.c.AttestTimeout,
+		Keepalive:            a.c.Keepalive,
 	}
 	return node_attestor.New(&config).Attest(ctx)
 }
@@ -480,6 +483,7 @@ func (a *Agent) newManager(ctx context.Context, sto storage.Storage, cat catalog
 		RotationStrategy:     rotationutil.NewRotationStrategy(a.c.AvailabilityTarget),
 		TLSPolicy:            a.c.TLSPolicy,
 		LoadBalancingConfig:  a.c.ServerLoadBalancingConfig,
+		Keepalive:            a.c.Keepalive,
 	}
 
 	mgr := manager.New(config)

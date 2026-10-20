@@ -18,7 +18,6 @@ import (
 	agentbroker "github.com/spiffe/spire/pkg/agent/broker"
 	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/agent/manager"
-	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
 	"github.com/spiffe/spire/pkg/agent/workloadkey"
 	"github.com/spiffe/spire/pkg/common/fflag"
 	"github.com/spiffe/spire/pkg/common/log"
@@ -1870,7 +1869,7 @@ func TestNewAgentConfig(t *testing.T) {
 			},
 			test: func(t *testing.T, ac *agent.Config) {
 				require.NotNil(t, ac)
-				assert.Equal(t, 90*time.Second, nodeattestor.AttestTimeout())
+				assert.Equal(t, 90*time.Second, ac.AttestTimeout)
 			},
 		},
 		{
@@ -1880,7 +1879,7 @@ func TestNewAgentConfig(t *testing.T) {
 			},
 			test: func(t *testing.T, ac *agent.Config) {
 				require.NotNil(t, ac)
-				assert.Equal(t, time.Duration(0), nodeattestor.AttestTimeout())
+				assert.Equal(t, time.Duration(0), ac.AttestTimeout)
 			},
 		},
 		{
@@ -1948,13 +1947,14 @@ func TestNewAgentConfig(t *testing.T) {
 			},
 		},
 		{
-			msg:   "keepalives are enabled by default",
+			msg:   "timeouts and keepalives are enabled by default",
 			input: func(c *Config) {},
 			test: func(t *testing.T, ac *agent.Config) {
 				require.NotNil(t, ac)
-				pingTime, pingTimeout := client.KeepaliveParams()
-				assert.Equal(t, 5*time.Minute, pingTime)
-				assert.Equal(t, 20*time.Second, pingTimeout)
+				assert.Equal(t, time.Minute, ac.AttestTimeout)
+				require.NotNil(t, ac.Keepalive)
+				assert.Equal(t, 5*time.Minute, ac.Keepalive.Time)
+				assert.Equal(t, 20*time.Second, ac.Keepalive.Timeout)
 			},
 		},
 		{
@@ -1964,9 +1964,9 @@ func TestNewAgentConfig(t *testing.T) {
 			},
 			test: func(t *testing.T, ac *agent.Config) {
 				require.NotNil(t, ac)
-				pingTime, pingTimeout := client.KeepaliveParams()
-				assert.Equal(t, 30*time.Second, pingTime)
-				assert.Equal(t, 20*time.Second, pingTimeout)
+				require.NotNil(t, ac.Keepalive)
+				assert.Equal(t, 30*time.Second, ac.Keepalive.Time)
+				assert.Equal(t, 20*time.Second, ac.Keepalive.Timeout)
 			},
 		},
 		{
@@ -1976,7 +1976,7 @@ func TestNewAgentConfig(t *testing.T) {
 			},
 			test: func(t *testing.T, ac *agent.Config) {
 				require.NotNil(t, ac)
-				assert.Empty(t, client.KeepaliveOpts())
+				assert.Nil(t, ac.Keepalive)
 			},
 		},
 		{
@@ -1987,9 +1987,9 @@ func TestNewAgentConfig(t *testing.T) {
 			},
 			test: func(t *testing.T, ac *agent.Config) {
 				require.NotNil(t, ac)
-				pingTime, pingTimeout := client.KeepaliveParams()
-				assert.Equal(t, 30*time.Second, pingTime)
-				assert.Equal(t, 10*time.Second, pingTimeout)
+				require.NotNil(t, ac.Keepalive)
+				assert.Equal(t, 30*time.Second, ac.Keepalive.Time)
+				assert.Equal(t, 10*time.Second, ac.Keepalive.Timeout)
 			},
 		},
 		{

@@ -29,6 +29,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/keepalive"
 )
 
 type Attestor interface {
@@ -47,6 +48,9 @@ type Config struct {
 	ServerAddress        string
 	NodeAttestor         nodeattestor.NodeAttestor
 	TLSPolicy            tlspolicy.Policy
+
+	AttestTimeout time.Duration
+	Keepalive     *keepalive.ClientParameters
 
 	// LoadBalancingConfig is an optional, opaque payload used as the
 	// loadBalancingConfig field of the gRPC service config.
@@ -167,9 +171,9 @@ func (a *attestor) loadBundle() (*spiffebundle.Bundle, error) {
 }
 
 func (a *attestor) getBundle(ctx context.Context, conn *grpc.ClientConn) (*spiffebundle.Bundle, error) {
-	if timeout := nodeattestor.AttestTimeout(); timeout > 0 {
+	if a.c.AttestTimeout > 0 {
 		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, timeout)
+		ctx, cancel = context.WithTimeout(ctx, a.c.AttestTimeout)
 		defer cancel()
 	}
 
@@ -257,6 +261,7 @@ func (a *attestor) serverConn(bundle *spiffebundle.Bundle) (*grpc.ClientConn, er
 			GetBundle:           bundle.X509Authorities,
 			TLSPolicy:           a.c.TLSPolicy,
 			LoadBalancingConfig: a.c.LoadBalancingConfig,
+			Keepalive:           a.c.Keepalive,
 		})
 	}
 
@@ -296,10 +301,10 @@ func (a *attestor) serverConn(bundle *spiffebundle.Bundle) (*grpc.ClientConn, er
 		},
 	}
 
-	dialOpts := append(
-		client.DialOptions(a.c.ServerAddress, a.c.LoadBalancingConfig, tlsConfig),
-		client.KeepaliveOpts()...,
-	)
+	dialOpts := client.DialOptions(a.c.ServerAddress, a.c.LoadBalancingConfig, tlsConfig)
+	if a.c.Keepalive != nil {
+		dialOpts = append(dialOpts, grpc.WithKeepaliveParams(*a.c.Keepalive))
+	}
 	return grpc.NewClient(a.c.ServerAddress, dialOpts...)
 }
 

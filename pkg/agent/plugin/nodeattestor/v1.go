@@ -4,22 +4,11 @@ import (
 	"context"
 	"errors"
 	"io"
-	"time"
 
 	nodeattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/agent/nodeattestor/v1"
 	"github.com/spiffe/spire/pkg/common/plugin"
 	"google.golang.org/grpc/codes"
 )
-
-var attestTimeout = time.Minute
-
-func SetAttestTimeout(d time.Duration) {
-	attestTimeout = d
-}
-
-func AttestTimeout() time.Duration {
-	return attestTimeout
-}
 
 type V1 struct {
 	plugin.Facade
@@ -29,12 +18,6 @@ type V1 struct {
 func (v1 *V1) Attest(ctx context.Context, serverStream ServerStream) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-
-	if attestTimeout > 0 {
-		var timeoutCancel context.CancelFunc
-		ctx, timeoutCancel = context.WithTimeout(ctx, attestTimeout)
-		defer timeoutCancel()
-	}
 
 	pluginStream, err := v1.NodeAttestorPluginClient.AidAttestation(ctx)
 	if err != nil {

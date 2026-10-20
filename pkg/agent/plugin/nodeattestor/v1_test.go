@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"testing"
-	"time"
 
 	nodeattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/agent/nodeattestor/v1"
 	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
@@ -126,46 +125,6 @@ func loadV1Plugin(t *testing.T, fake *fakeV1Plugin) nodeattestor.NodeAttestor {
 	v1 := new(nodeattestor.V1)
 	plugintest.Load(t, catalog.MakeBuiltIn("test", server), v1)
 	return v1
-}
-
-// hangingServerStream never responds: it waits for the context to be done,
-// mimicking a silently dead connection to the server.
-type hangingServerStream struct{}
-
-func (hangingServerStream) SendAttestationData(ctx context.Context, _ nodeattestor.AttestationData) ([]byte, error) {
-	<-ctx.Done()
-	return nil, ctx.Err()
-}
-
-func (hangingServerStream) SendChallengeResponse(ctx context.Context, _ []byte) ([]byte, error) {
-	<-ctx.Done()
-	return nil, ctx.Err()
-}
-
-func TestV1AttestTimeout(t *testing.T) {
-	nodeattestor.SetAttestTimeout(50 * time.Millisecond)
-	t.Cleanup(func() {
-		nodeattestor.SetAttestTimeout(time.Minute)
-	})
-
-	nodeattestor := loadV1Plugin(t, &fakeV1Plugin{payload: []byte("payload")})
-	err := nodeattestor.Attest(context.Background(), hangingServerStream{})
-	require.ErrorIs(t, err, context.DeadlineExceeded)
-}
-
-func TestV1AttestTimeoutDisabled(t *testing.T) {
-	nodeattestor.SetAttestTimeout(0)
-	t.Cleanup(func() {
-		nodeattestor.SetAttestTimeout(time.Minute)
-	})
-
-	// Without a timeout the dialog would hang; make sure it stays hung for
-	// the duration of the (short) test window instead of failing early.
-	nodeattestor := loadV1Plugin(t, &fakeV1Plugin{payload: []byte("payload")})
-	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
-	defer cancel()
-	err := nodeattestor.Attest(ctx, hangingServerStream{})
-	require.ErrorIs(t, err, context.DeadlineExceeded)
 }
 
 type fakeV1Plugin struct {

@@ -30,7 +30,6 @@ import (
 	"github.com/spiffe/spire/pkg/agent/broker"
 	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/agent/manager"
-	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
 	"github.com/spiffe/spire/pkg/agent/trustbundlesources"
 	"github.com/spiffe/spire/pkg/agent/workloadkey"
 	"github.com/spiffe/spire/pkg/common/catalog"
@@ -43,6 +42,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/log"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/tlspolicy"
+	"google.golang.org/grpc/keepalive"
 )
 
 const (
@@ -799,6 +799,7 @@ func newAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig, skip
 		logger.Warn("The use of 'max_bundle_workers' is experimental")
 	}
 
+	attestTimeout := time.Minute
 	if c.Agent.Experimental.AttestTimeout != "" {
 		timeout, err := time.ParseDuration(c.Agent.Experimental.AttestTimeout)
 		if err != nil {
@@ -807,11 +808,12 @@ func newAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig, skip
 		if timeout < 0 {
 			return nil, fmt.Errorf("attest_timeout (%s) must not be negative", timeout)
 		}
-		nodeattestor.SetAttestTimeout(timeout)
+		attestTimeout = timeout
 		logger.Warn("The use of 'attest_timeout' is experimental")
 	}
+	ac.AttestTimeout = attestTimeout
 
-	pingTime, pingTimeout := client.KeepaliveParams()
+	pingTime, pingTimeout := 5*time.Minute, 20*time.Second
 	if c.Agent.Experimental.KeepaliveTime != "" {
 		parsed, err := time.ParseDuration(c.Agent.Experimental.KeepaliveTime)
 		if err != nil {
@@ -839,7 +841,12 @@ func newAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig, skip
 	case pingTime > 0 && pingTimeout <= 0:
 		return nil, fmt.Errorf("keepalive_timeout (%s) must be positive when keepalives are enabled", pingTimeout)
 	}
-	client.SetKeepaliveParams(pingTime, pingTimeout)
+	if pingTime > 0 {
+		ac.Keepalive = &keepalive.ClientParameters{
+			Time:    pingTime,
+			Timeout: pingTimeout,
+		}
+	}
 
 	if c.Agent.X509SVIDCacheMaxSize < 0 {
 		return nil, errors.New("x509_svid_cache_max_size should not be negative")
