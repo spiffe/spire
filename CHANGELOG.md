@@ -1,6 +1,12 @@
 # Changelog
 
-## [1.14.4] - 2026-10-15
+## [1.14.9] - 2026-10-20
+
+### Security
+
+- Bump golang version to 1.26.10 which includes a fix for  CVE-2026-111943
+
+## [1.14.8] - 2026-10-15
 
 ### Security
 
