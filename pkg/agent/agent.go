@@ -51,6 +51,7 @@ const (
 	startHealthChecksTimeout         = 8 * time.Second
 	rebootstrapBackoffMaxElapsedTime = 24 * time.Hour
 	profilingServerShutdownTimeout   = 500 * time.Millisecond
+	workloadAPIHealthCheckTimeout    = 10 * time.Second
 )
 
 type Agent struct {
@@ -640,10 +641,16 @@ func (a *Agent) checkWorkloadAPI() error {
 		return err
 	}
 
-	_, err = workloadapi.FetchX509Bundles(context.TODO(), clientOption)
-	if status.Code(err) == codes.Unavailable {
+	ctx, cancel := context.WithTimeout(context.Background(), workloadAPIHealthCheckTimeout)
+	defer cancel()
+
+	_, err = workloadapi.FetchX509Bundles(ctx, clientOption)
+	switch {
+	case status.Code(err) == codes.Unavailable:
 		// Only an unavailable status fails the health check.
 		return errors.New("workload api is unavailable")
+	case errors.Is(err, context.DeadlineExceeded):
+		return fmt.Errorf("workload api did not respond within %s", workloadAPIHealthCheckTimeout)
 	}
 	return nil
 }

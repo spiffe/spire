@@ -6,6 +6,7 @@ import (
 	"crypto/x509"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/spiffe/go-spiffe/v2/bundle/x509bundle"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -16,8 +17,35 @@ import (
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/keepalive"
 	_ "google.golang.org/grpc/xds" // registers the "xds" name resolver and load balancing policies
 )
+
+var (
+	keepaliveTime    = 5 * time.Minute
+	keepaliveTimeout = 20 * time.Second
+)
+
+func SetKeepaliveParams(pingTime, pingTimeout time.Duration) {
+	keepaliveTime = pingTime
+	keepaliveTimeout = pingTimeout
+}
+
+func KeepaliveParams() (pingTime, pingTimeout time.Duration) {
+	return keepaliveTime, keepaliveTimeout
+}
+
+func KeepaliveOpts() []grpc.DialOption {
+	if keepaliveTime <= 0 {
+		return nil
+	}
+	return []grpc.DialOption{
+		grpc.WithKeepaliveParams(keepalive.ClientParameters{
+			Time:    keepaliveTime,
+			Timeout: keepaliveTimeout,
+		}),
+	}
+}
 
 type ServerClientConfig struct {
 	// Address is the SPIRE server address
@@ -69,6 +97,7 @@ func NewServerGRPCClient(config ServerClientConfig) (*grpc.ClientConn, error) {
 	if dialOpts == nil {
 		dialOpts = DialOptions(config.Address, config.LoadBalancingConfig, tlsConfig)
 	}
+	dialOpts = append(dialOpts, KeepaliveOpts()...)
 
 	client, err := grpc.NewClient(config.Address, dialOpts...)
 	if err != nil {

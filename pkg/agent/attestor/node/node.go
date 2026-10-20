@@ -167,6 +167,12 @@ func (a *attestor) loadBundle() (*spiffebundle.Bundle, error) {
 }
 
 func (a *attestor) getBundle(ctx context.Context, conn *grpc.ClientConn) (*spiffebundle.Bundle, error) {
+	if timeout := nodeattestor.AttestTimeout(); timeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, timeout)
+		defer cancel()
+	}
+
 	updatedBundle, err := bundlev1.NewBundleClient(conn).GetBundle(ctx, &bundlev1.GetBundleRequest{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get updated bundle %w", err)
@@ -290,7 +296,11 @@ func (a *attestor) serverConn(bundle *spiffebundle.Bundle) (*grpc.ClientConn, er
 		},
 	}
 
-	return grpc.NewClient(a.c.ServerAddress, client.DialOptions(a.c.ServerAddress, a.c.LoadBalancingConfig, tlsConfig)...)
+	dialOpts := append(
+		client.DialOptions(a.c.ServerAddress, a.c.LoadBalancingConfig, tlsConfig),
+		client.KeepaliveOpts()...,
+	)
+	return grpc.NewClient(a.c.ServerAddress, dialOpts...)
 }
 
 type ServerStream struct {

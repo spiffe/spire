@@ -30,6 +30,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/broker"
 	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/agent/manager"
+	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
 	"github.com/spiffe/spire/pkg/agent/trustbundlesources"
 	"github.com/spiffe/spire/pkg/agent/workloadkey"
 	"github.com/spiffe/spire/pkg/common/catalog"
@@ -271,6 +272,9 @@ type syncRetryBackoffConfig struct {
 type experimentalConfig struct {
 	SyncInterval              string `hcl:"sync_interval"`
 	JWTSVIDCacheHitTimeout    string `hcl:"jwt_svid_cache_hit_timeout"`
+	AttestTimeout             string `hcl:"attest_timeout"`
+	KeepaliveTime             string `hcl:"keepalive_time"`
+	KeepaliveTimeout          string `hcl:"keepalive_timeout"`
 	RPCTimeout                string `hcl:"rpc_timeout"`
 	MaxBundleWorkers          int    `hcl:"max_bundle_workers"`
 	NamedPipeName             string `hcl:"named_pipe_name"`
@@ -794,6 +798,48 @@ func newAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig, skip
 		client.SetMaxBundleWorkers(c.Agent.Experimental.MaxBundleWorkers)
 		logger.Warn("The use of 'max_bundle_workers' is experimental")
 	}
+
+	if c.Agent.Experimental.AttestTimeout != "" {
+		timeout, err := time.ParseDuration(c.Agent.Experimental.AttestTimeout)
+		if err != nil {
+			return nil, fmt.Errorf("could not parse attest_timeout: %w", err)
+		}
+		if timeout < 0 {
+			return nil, fmt.Errorf("attest_timeout (%s) must not be negative", timeout)
+		}
+		nodeattestor.SetAttestTimeout(timeout)
+		logger.Warn("The use of 'attest_timeout' is experimental")
+	}
+
+	pingTime, pingTimeout := client.KeepaliveParams()
+	if c.Agent.Experimental.KeepaliveTime != "" {
+		parsed, err := time.ParseDuration(c.Agent.Experimental.KeepaliveTime)
+		if err != nil {
+			return nil, fmt.Errorf("could not parse keepalive_time: %w", err)
+		}
+		if parsed < 0 {
+			return nil, fmt.Errorf("keepalive_time (%s) must not be negative", parsed)
+		}
+		pingTime = parsed
+		logger.Warn("The use of 'keepalive_time' is experimental")
+	}
+
+	if c.Agent.Experimental.KeepaliveTimeout != "" {
+		parsed, err := time.ParseDuration(c.Agent.Experimental.KeepaliveTimeout)
+		if err != nil {
+			return nil, fmt.Errorf("could not parse keepalive_timeout: %w", err)
+		}
+		pingTimeout = parsed
+		logger.Warn("The use of 'keepalive_timeout' is experimental")
+	}
+
+	switch {
+	case pingTime == 0:
+		// keepalives explicitly disabled
+	case pingTime > 0 && pingTimeout <= 0:
+		return nil, fmt.Errorf("keepalive_timeout (%s) must be positive when keepalives are enabled", pingTimeout)
+	}
+	client.SetKeepaliveParams(pingTime, pingTimeout)
 
 	if c.Agent.X509SVIDCacheMaxSize < 0 {
 		return nil, errors.New("x509_svid_cache_max_size should not be negative")

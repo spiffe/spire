@@ -122,6 +122,9 @@ When `experimental.require_pq_kem` is enabled, it overrides `min_tls_version` an
 | `server_load_balancing_config` | The load balancing policies used for connections to the SPIRE server. See [Server Load Balancing](#server-load-balancing).                                                          | round robin             |
 | `sync_retry_backoff`           | Backoff applied between failed synchronizations with the SPIRE server. See [Sync Retry Backoff](#sync-retry-backoff).                                                               |                         |
 | `use_xds`                      | Resolve the SPIRE server via xDS instead of DNS. See [xDS Server Resolution](#xds-server-resolution).                                                                               | false                   |
+| `attest_timeout`              | Timeout for the whole node attestation dialog with the server (bootstrap and re-attestation). `0` disables the timeout                                                              | 1m                      |
+| `keepalive_time`              | Client gRPC keepalive ping interval towards the SPIRE server; detects silently dead connections. `0` disables keepalives.                                                           | 5m                      |
+| `keepalive_timeout`           | How long the agent waits for a keepalive ping acknowledgment before considering the connection dead                                                                                 | 20s                     |
 
 ### Server Load Balancing
 
