@@ -4,6 +4,11 @@ The `k8s` plugin generates Kubernetes-based selectors for workloads calling the 
 It does so by retrieving the workload's pod ID from its cgroup membership, then querying
 the kubelet for information about the pod.
 
+> **Security note:** cgroup membership is an authoritative identity signal only
+> against unprivileged workloads. A process with root access on the node can
+> change cgroup membership and can access the agent's credentials, so this
+> plugin does not protect workload attestation from a compromised node.
+
 The plugin can talk to the kubelet via the insecure read-only port or the
 secure port. Both X509 client authentication and bearer token (e.g. service
 account token) authentication to the secure port is supported.
