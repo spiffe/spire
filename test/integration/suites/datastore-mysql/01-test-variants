@@ -1,55 +1,72 @@
 #!/bin/bash
 
-test-mysql() {
-    SERVICE=$1
+VERSIONS=(8-0 8-4)
 
-    docker-up "${SERVICE}"
+# Each version listens on its own host port (see docker-compose.yaml) so the
+# tests can run against all of them at the same time.
+conn-string() {
+    echo "spire:test@tcp(localhost:99${1/-/})/spire?parseTime=true"
+}
 
-    # The MySQL containers start up the MySQL instance to initialize the 
+wait-ready() {
+    local service=$1
+
+    # The MySQL containers start up the MySQL instance to initialize the
     # database. It is then brought down and started again. If we do a
     # connectivity check during the initialization step, we might
     # assume the database is ready to go prematurely. To prevent this, we
     # will check for the log message indicating that initialization is complete.
-    INITMSG="MySQL init process done. Ready for start up."
-    MAXINITCHECKS=40
-    INITCHECKINTERVAL=3
-    INIT=
-    for ((i=1;i<=MAXINITCHECKS;i++)); do
-        log-info "waiting for ${SERVICE} database initialization ($i of $MAXINITCHECKS max)..."
-        if docker compose logs "${SERVICE}" | grep "$INITMSG"; then
-            INIT=1
+    local init_msg="MySQL init process done. Ready for start up."
+    local max_init_checks=40
+    local init_check_interval=3
+    local init=
+    for ((i=1;i<=max_init_checks;i++)); do
+        log-info "waiting for ${service} database initialization ($i of $max_init_checks max)..."
+        if docker compose logs "${service}" | grep "${init_msg}"; then
+            init=1
             break
         fi
-        sleep "${INITCHECKINTERVAL}"
+        sleep "${init_check_interval}"
     done
 
-    if [ -z ${INIT} ]; then
-        fail-now "timed out waiting for ${SERVICE} database to be initialized"
+    if [ -z "${init}" ]; then
+        fail-now "timed out waiting for ${service} database to be initialized"
     fi
-
 
     # Wait up to two minutes for mysql to be available. It should come up
     # pretty quick on developer machines but CI/CD is slow.
-    MAXREADYCHECKS=40
-    READYCHECKINTERVAL=3
-    READY=
-    for ((i=1;i<=MAXREADYCHECKS;i++)); do
-        log-info "waiting for ${SERVICE} to be ready ($i of $MAXREADYCHECKS max)..."
-        if docker compose exec -T "${SERVICE}" mysql -uspire -ptest -e "show databases;" > /dev/null; then
-            READY=1
-            break
+    local max_ready_checks=40
+    local ready_check_interval=3
+    for ((i=1;i<=max_ready_checks;i++)); do
+        log-info "waiting for ${service} to be ready ($i of $max_ready_checks max)..."
+        if docker compose exec -T "${service}" mysql -uspire -ptest -e "show databases;" > /dev/null; then
+            return 0
         fi
-        sleep "${READYCHECKINTERVAL}"
+        sleep "${ready_check_interval}"
     done
 
-    if [ -z ${READY} ]; then
-        fail-now "timed out waiting for ${SERVICE} to be ready"
-    fi
-
-    log-info "running tests against ${SERVICE}..."
-    ./mysql.test || fail-now "tests failed"
-    docker-stop "${SERVICE}"
+    fail-now "timed out waiting for ${service} to be ready"
 }
 
-test-mysql mysql-8-0 || exit 1
-test-mysql mysql-8-4 || exit 1
+services=()
+for version in "${VERSIONS[@]}"; do
+    services+=("mysql-${version}")
+done
+
+docker-up "${services[@]}"
+for service in "${services[@]}"; do
+    wait-ready "${service}"
+done
+
+runs=()
+for version in "${VERSIONS[@]}"; do
+    # The read-only connection points at the same instance, as it always has
+    # in this suite, so the read-only code paths stay covered.
+    conn_string="$(conn-string "${version}")"
+    runs+=("mysql-${version}=SQLSTORE_TEST_CONN_STRING='${conn_string}' SQLSTORE_TEST_RO_CONN_STRING='${conn_string}' ./mysql.test")
+done
+
+log-info "running tests against ${services[*]}..."
+run-concurrently "${runs[@]}"
+
+docker-stop "${services[@]}"

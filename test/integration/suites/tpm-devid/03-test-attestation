@@ -24,6 +24,7 @@ for ((i=1;i<=MAXCHECKS;i++)); do
 done
 
 EXPECTED_SUBJECT="tpm_devid:subject:cn:devid-leaf"
+EXPECTED_SERIAL="tpm_devid:subject:oid:2.5.4.5:server-123"
 EXPECTED_ISSUER="tpm_devid:issuer:cn:devid-root"
 EXPECTED_CA="tpm_devid:ca:fingerprint:$(fingerprint conf/server/devid-ca.pem)"
 
@@ -33,6 +34,7 @@ SHOW="$(docker compose exec -T spire-server \
 echo "${SHOW}"
 
 echo "${SHOW}" | grep -F "${EXPECTED_SUBJECT}" || fail-now "missing selector ${EXPECTED_SUBJECT}"
+echo "${SHOW}" | grep -F "${EXPECTED_SERIAL}" || fail-now "missing selector ${EXPECTED_SERIAL}"
 echo "${SHOW}" | grep -F "${EXPECTED_ISSUER}" || fail-now "missing selector ${EXPECTED_ISSUER}"
 echo "${SHOW}" | grep -F "${EXPECTED_CA}" || fail-now "missing selector ${EXPECTED_CA}"
 log-info "tpm_devid selectors match the provisioned DevID certificate"

@@ -196,6 +196,10 @@ func (p *Plugin) PublishJWTKeyAndSubscribe(*upstreamauthorityv1.PublishJWTKeyReq
 	return status.Error(codes.Unimplemented, "publishing upstream is unsupported")
 }
 
+func (p *Plugin) PublishWITKeyAndSubscribe(*upstreamauthorityv1.PublishWITKeyRequest, upstreamauthorityv1.UpstreamAuthority_PublishWITKeyAndSubscribeServer) error {
+	return status.Error(codes.Unimplemented, "publishing upstream is unsupported")
+}
+
 func (p *Plugin) SubscribeToLocalBundle(req *upstreamauthorityv1.SubscribeToLocalBundleRequest, stream upstreamauthorityv1.UpstreamAuthority_SubscribeToLocalBundleServer) error {
 	return status.Error(codes.Unimplemented, "fetching upstream trust bundle is unsupported")
 }

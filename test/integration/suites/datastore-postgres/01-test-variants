@@ -1,36 +1,50 @@
 #!/bin/bash
 
-test-postgres() {
-    SERVICE=$1
+VERSIONS=(13 14 15 16 17 18)
 
-    docker-up "${SERVICE}"
+# Each version listens on its own host port (see docker-compose.yaml) so the
+# tests can run against all of them at the same time.
+conn-string() {
+    echo "postgres://postgres:password@localhost:99$1/postgres?sslmode=disable"
+}
+
+wait-ready() {
+    local service=$1
 
     # Wait up to two minutes for postgres to be available. It should come up
     # pretty quick on developer machines but CI/CD is slow.
-    MAXCHECKS=40
-    CHECKINTERVAL=3
-    READY=
-    for ((i=1;i<=MAXCHECKS;i++)); do
-        log-info "waiting for ${SERVICE} ($i of $MAXCHECKS max)..."
-        if docker compose exec -T "${SERVICE}" pg_isready -h localhost -U postgres >/dev/null; then
-            READY=1
-            break
+    local max_checks=40
+    local check_interval=3
+    for ((i=1;i<=max_checks;i++)); do
+        log-info "waiting for ${service} ($i of $max_checks max)..."
+        if docker compose exec -T "${service}" pg_isready -h localhost -U postgres >/dev/null; then
+            return 0
         fi
-        sleep "${CHECKINTERVAL}"
+        sleep "${check_interval}"
     done
 
-    if [ -z ${READY} ]; then
-        fail-now "timed out waiting for ${SERVICE} to be ready"
-    fi
-
-    log-info "running tests against ${SERVICE}..."
-    ./postgres.test || fail-now "tests failed"
-    docker-stop "${SERVICE}"
+    fail-now "timed out waiting for ${service} to be ready"
 }
 
-test-postgres postgres-13 || exit 1
-test-postgres postgres-14 || exit 1
-test-postgres postgres-15 || exit 1
-test-postgres postgres-16 || exit 1
-test-postgres postgres-17 || exit 1
-test-postgres postgres-18 || exit 1
+services=()
+for version in "${VERSIONS[@]}"; do
+    services+=("postgres-${version}")
+done
+
+docker-up "${services[@]}"
+for service in "${services[@]}"; do
+    wait-ready "${service}"
+done
+
+runs=()
+for version in "${VERSIONS[@]}"; do
+    # The read-only connection points at the same instance, as it always has
+    # in this suite, so the read-only code paths stay covered.
+    conn_string="$(conn-string "${version}")"
+    runs+=("postgres-${version}=SQLSTORE_TEST_CONN_STRING='${conn_string}' SQLSTORE_TEST_RO_CONN_STRING='${conn_string}' ./postgres.test")
+done
+
+log-info "running tests against ${services[*]}..."
+run-concurrently "${runs[@]}"
+
+docker-stop "${services[@]}"

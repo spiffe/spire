@@ -556,7 +556,7 @@ func (b *spiffeBuilder) buildAll(resourceName string) (*anypb.Any, error) {
 }
 
 func supportsSPIFFEAuthExtension(req *discovery_v3.DiscoveryRequest) bool {
-	if buildVersion := req.Node.GetUserAgentBuildVersion(); buildVersion != nil {
+	if buildVersion := req.Node.GetUserAgentBuildVersion(); buildVersion != nil && buildVersion.Version != nil {
 		version := buildVersion.Version
 		return (version.MajorNumber == 1 && version.MinorNumber > 17) || version.MajorNumber > 1
 	}

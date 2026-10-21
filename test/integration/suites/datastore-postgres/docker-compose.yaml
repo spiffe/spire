@@ -7,7 +7,7 @@ services:
     tmpfs:
       - /var/lib/postgresql
     ports:
-      - "9999:5432"
+      - "9913:5432"
   postgres-14:
     image: postgres:14
     command: -c fsync=off
@@ -16,7 +16,7 @@ services:
     tmpfs:
       - /var/lib/postgresql
     ports:
-      - "9999:5432"
+      - "9914:5432"
   postgres-15:
     image: postgres:15
     command: -c fsync=off
@@ -25,7 +25,7 @@ services:
     tmpfs:
       - /var/lib/postgresql
     ports:
-      - "9999:5432"
+      - "9915:5432"
   postgres-16:
     image: postgres:16
     command: -c fsync=off
@@ -34,7 +34,7 @@ services:
     tmpfs:
       - /var/lib/postgresql
     ports:
-      - "9999:5432"
+      - "9916:5432"
   postgres-17:
     image: postgres:17
     command: -c fsync=off
@@ -43,7 +43,7 @@ services:
     tmpfs:
       - /var/lib/postgresql
     ports:
-      - "9999:5432"
+      - "9917:5432"
   postgres-18:
     image: postgres:18
     command: -c fsync=off
@@ -52,4 +52,4 @@ services:
     tmpfs:
       - /var/lib/postgresql
     ports:
-      - "9999:5432"
+      - "9918:5432"

@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	"strings"
 
 	"github.com/spiffe/go-spiffe/v2/bundle/x509bundle"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -15,6 +16,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	_ "google.golang.org/grpc/xds" // registers the "xds" name resolver and load balancing policies
 )
 
 type ServerClientConfig struct {
@@ -65,11 +67,7 @@ func NewServerGRPCClient(config ServerClientConfig) (*grpc.ClientConn, error) {
 
 	dialOpts := config.dialOpts
 	if dialOpts == nil {
-		dialOpts = []grpc.DialOption{
-			grpc.WithDefaultServiceConfig(MakeServiceConfigJSON(config.LoadBalancingConfig)),
-			grpc.WithDisableServiceConfig(),
-			grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
-		}
+		dialOpts = DialOptions(config.Address, config.LoadBalancingConfig, tlsConfig)
 	}
 
 	client, err := grpc.NewClient(config.Address, dialOpts...)
@@ -78,6 +76,26 @@ func NewServerGRPCClient(config ServerClientConfig) (*grpc.ClientConn, error) {
 	}
 
 	return client, nil
+}
+
+// DialOptions returns the gRPC dial options used to connect to the SPIRE server.
+func DialOptions(address, loadBalancingConfig string, tlsConfig *tls.Config) []grpc.DialOption {
+	dialOpts := []grpc.DialOption{
+		grpc.WithDefaultServiceConfig(MakeServiceConfigJSON(loadBalancingConfig)),
+		grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
+	}
+	// The xds resolver delivers its routing and load balancing policy as a
+	// service config; disabling service config would make xDS targets unusable.
+	if !isXDSTarget(address) {
+		dialOpts = append(dialOpts, grpc.WithDisableServiceConfig())
+	}
+	return dialOpts
+}
+
+// isXDSTarget reports whether the gRPC target uses the xds name resolver
+// (e.g. "xds:///spire-server").
+func isXDSTarget(target string) bool {
+	return strings.HasPrefix(target, "xds:")
 }
 
 type bundleSource struct {

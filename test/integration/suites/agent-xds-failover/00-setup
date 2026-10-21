@@ -1,0 +1,32 @@
+#!/bin/bash
+
+set -e
+
+# Node-attestation certs for the agent, plus the agent CA that the servers
+# trust. setup.sh writes the CA to the first argument (the server conf dir) and
+# the agent key/cert to the second (the agent conf dir).
+"${ROOTDIR}/setup/x509pop/setup.sh" conf/server conf/agent
+
+# TLS for the xDS control plane: agent rejects insecure non-local xDS servers.
+mkdir -p conf/xds
+openssl ecparam -name prime256v1 -genkey -noout -out conf/xds/ca.key.pem
+openssl req -new -x509 -key conf/xds/ca.key.pem -out conf/agent/xds-ca.crt.pem -days 1 \
+    -subj "/CN=xds-ca" -addext "basicConstraints=critical,CA:TRUE" \
+    -addext "keyUsage=critical,keyCertSign"
+openssl ecparam -name prime256v1 -genkey -noout -out conf/xds/xds.key.pem
+openssl req -new -key conf/xds/xds.key.pem -out conf/xds/xds.csr.pem -subj "/CN=xds-control-plane"
+openssl x509 -req -in conf/xds/xds.csr.pem -CA conf/agent/xds-ca.crt.pem -CAkey conf/xds/ca.key.pem \
+    -CAcreateserial -out conf/xds/xds.crt.pem -days 1 -extfile <(
+cat <<-EOF
+basicConstraints=critical,CA:FALSE
+keyUsage=critical,digitalSignature
+extendedKeyUsage=serverAuth
+subjectAltName=DNS:xds-control-plane
+EOF
+)
+chmod 644 conf/xds/*.pem conf/agent/xds-ca.crt.pem
+
+"${ROOTDIR}/setup/xdscontrolplane/build.sh" "${RUNDIR}/xds-control-plane"
+
+# docker-up doesn't pass --build; rebuild so helper changes are picked up.
+retry docker compose build xds-control-plane

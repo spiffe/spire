@@ -13,6 +13,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	telemetry_agent "github.com/spiffe/spire/pkg/common/telemetry/agent"
+	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/proto/spire/common"
 )
@@ -40,6 +41,8 @@ type Record struct {
 type cachedRecord struct {
 	entry *common.RegistrationEntry
 	svid  *cache.X509SVID
+	// svidEntry is the entry the SVID, if any, was issued for.
+	svidEntry *common.RegistrationEntry
 
 	revision     int64
 	handled      int64
@@ -172,6 +175,14 @@ func (c *Cache) UpdateEntries(update *cache.UpdateEntries, checkSVID func(*commo
 			record.revision++
 		}
 
+		// Selectors pick the store destination; a new destination must not
+		// get the SVID issued for a different entry.
+		if record.svid != nil &&
+			!util.EqualsSelectors(record.svidEntry.Selectors, newEntry.Selectors) &&
+			record.svid.InvalidatedBy(record.svidEntry, newEntry) {
+			record.svid = nil
+		}
+
 		// TODO: in case where entry is updated may we not increment revision and just add it to stale?
 		// Then stale will be taken by sync and it will increment revision.
 		if checkSVID != nil && checkSVID(existingEntry, newEntry, record.svid) {
@@ -211,6 +222,7 @@ func (c *Cache) UpdateX509SVIDs(svids map[string]*cache.X509SVID) {
 		}
 
 		record.svid = svid
+		record.svidEntry = record.entry
 		// Increment revision since record changed
 		record.revision++
 		log := c.c.Log.WithFields(logrus.Fields{

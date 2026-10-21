@@ -114,13 +114,14 @@ When `experimental.require_pq_kem` is enabled, it overrides `min_tls_version` an
 | `named_pipe_name`              | Pipe name to bind the SPIRE Agent Workload API and SDS named pipe (Windows only). The named pipe is exposed unless both `disable_workload_api` and `disable_sds_api` are `true`.    | \spire-agent\public\api |
 | `sync_interval`                | Sync interval with SPIRE server with exponential backoff                                                                                                                            | 5 sec                   |
 | `require_pq_kem`               | Require post-quantum-safe KEM on outbound gRPC and terminating listeners.                                                                                                           | false                   |
-| `enable_wit_svids`             | Mint WIT-SVIDs and serve them over the Workload API. Also requires the `wit-svid` feature flag; without it the option is ignored and a warning is logged                            | false                   |
+| `enable_wit_svids`             | Mint WIT-SVIDs and serve them over the Workload API                                                                                                                                 | false                   |
 | `wit_svid_cache_max_size`      | Soft limit of max number of WIT-SVIDs that would be stored in LRU cache. Only used when WIT-SVIDs are enabled                                                                       | 1000                    |
 | `jwt_svid_cache_hit_timeout`   | Custom gRPC timeout (between 5 and 30s) when retrieving a NewJWTSVID when a valid JWT-SVID in cache                                                                                 | 30s                     |
 | `ratelimit`                    | Optional per-caller rate limiting for Workload API and SDS methods, enforced after workload attestation. See [Workload API Rate Limiting](#workload-api-rate-limiting) for details. |                         |
 | `broker`                       | Optional SPIFFE Broker API endpoint configuration. See [SPIFFE Broker API](#spiffe-broker-api).                                                                                     |                         |
 | `server_load_balancing_config` | The load balancing policies used for connections to the SPIRE server. See [Server Load Balancing](#server-load-balancing).                                                          | round robin             |
 | `sync_retry_backoff`           | Backoff applied between failed synchronizations with the SPIRE server. See [Sync Retry Backoff](#sync-retry-backoff).                                                               |                         |
+| `use_xds`                      | Resolve the SPIRE server via xDS instead of DNS. See [xDS Server Resolution](#xds-server-resolution).                                                                               | false                   |
 
 ### Server Load Balancing
 
@@ -159,6 +160,55 @@ agent {
             jitter = 0.1
         }
     }
+}
+```
+
+### xDS Server Resolution
+
+When `use_xds` is enabled, the agent finds SPIRE servers through an xDS server instead of DNS. `server_address` is used as the xDS listener name, so it must not contain `?`, `#` or percent-escapes, and `server_port` must not be set; the port comes from the xDS server.
+
+The gRPC xDS bootstrap is read from the `GRPC_XDS_BOOTSTRAP` (file path) or `GRPC_XDS_BOOTSTRAP_CONFIG` (inline JSON) environment variables. These are not agent configuration. The agent fails to start if neither is set.
+
+`use_xds` cannot be used together with `server_load_balancing_config`.
+
+The xDS server decides which SPIRE server the agent connects to, so a compromised xDS server can redirect the agent or cut it off. It cannot make the agent trust a wrong server, because the agent still verifies the server's SPIFFE ID against the bundle. To protect this channel, each xDS server must be local (unix socket or loopback) or use `tls` channel credentials.
+
+For example:
+
+```hcl
+agent {
+    server_address = "spire-server"
+    experimental {
+        use_xds = true
+    }
+}
+```
+
+With a bootstrap file pointed to by `GRPC_XDS_BOOTSTRAP`:
+
+```json
+{
+  "xds_servers": [
+    {
+      "server_uri": "xds.example.org:18000",
+      "channel_creds": [
+        {
+          "type": "tls",
+          "config": {
+            "ca_certificate_file": "/opt/spire/conf/agent/xds-ca.crt.pem"
+          }
+        }
+      ],
+      "server_features": ["xds_v3"]
+    }
+  ],
+  "node": {
+    "id": "spire-agent",
+    "locality": {
+      "region": "dc1",
+      "zone": "zone1"
+    }
+  }
 }
 ```
 

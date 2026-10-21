@@ -10,9 +10,48 @@ import (
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/api/audit"
 	"github.com/spiffe/spire/test/spiretest"
+	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
+
+func TestErrorOnlyAudit(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		emit func(audit.Logger)
+		code codes.Code
+	}{
+		{"success", func(l audit.Logger) { l.Audit() }, codes.OK},
+		{"success with fields", func(l audit.Logger) { l.AuditWithFields(logrus.Fields{"entry_id": "entry"}) }, codes.OK},
+		{"nil error", func(l audit.Logger) { l.AuditWithError(nil) }, codes.OK},
+		{"OK error", func(l audit.Logger) { l.AuditWithError(status.Error(codes.OK, "")) }, codes.OK},
+		{"OK status", func(l audit.Logger) { l.AuditWithTypesStatus(nil, &types.Status{}) }, codes.OK},
+		{"RPC error", func(l audit.Logger) { l.AuditWithError(status.Error(codes.Unavailable, "unavailable")) }, codes.Unavailable},
+		{"plain error", func(l audit.Logger) { l.AuditWithError(errors.New("unavailable")) }, codes.Unknown},
+		{"error status", func(l audit.Logger) {
+			l.AuditWithTypesStatus(nil, &types.Status{Code: int32(codes.Unavailable), Message: "unavailable"})
+		}, codes.Unavailable},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			log, hook := test.NewNullLogger()
+			// The normal logger is the positive control for every emission path.
+			tt.emit(audit.New(log))
+			require.Len(t, hook.AllEntries(), 1)
+			hook.Reset()
+
+			tt.emit(audit.NewErrorOnly(log))
+			if tt.code == codes.OK {
+				require.Empty(t, hook.AllEntries())
+				return
+			}
+			require.Len(t, hook.AllEntries(), 1)
+			require.Equal(t, "API accessed", hook.LastEntry().Message)
+			require.Equal(t, "error", hook.LastEntry().Data[telemetry.Status])
+			require.Equal(t, tt.code, hook.LastEntry().Data[telemetry.StatusCode])
+			require.Equal(t, "unavailable", hook.LastEntry().Data[telemetry.StatusMessage])
+		})
+	}
+}
 
 func TestAudit(t *testing.T) {
 	log, logHook := test.NewNullLogger()

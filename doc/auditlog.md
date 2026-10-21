@@ -2,6 +2,8 @@
 
 SPIRE Server can be configured to emit audit logs through the [audit_log_enabled](spire_server.md#server-configuration-file) configuration. Audit logs are sent to the same output as regular logs.
 
+When audit logging is enabled, [audit_log_exclude_agent_sync](spire_server.md#server-configuration-file) can omit successful `GetBundle`, `GetFederatedBundle`, `GetAuthorizedEntries`, and `SyncAuthorizedEntries` RPC audit records regardless of caller identity. Error audit records are retained.
+
 ## Fields
 
 Each entry contains fields related with the provided request to each endpoint. It also contains audit log specific fields that provide additional information.

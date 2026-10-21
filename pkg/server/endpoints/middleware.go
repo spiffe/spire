@@ -11,12 +11,10 @@ import (
 	"github.com/spiffe/spire/pkg/common/errorutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/api"
-	"github.com/spiffe/spire/pkg/server/api/bundle/v1"
 	"github.com/spiffe/spire/pkg/server/api/limits"
 	"github.com/spiffe/spire/pkg/server/api/middleware"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
 	"github.com/spiffe/spire/pkg/server/authpolicy"
-	"github.com/spiffe/spire/pkg/server/ca/manager"
 	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/clock"
@@ -24,7 +22,7 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-func Middleware(log logrus.FieldLogger, metrics telemetry.Metrics, ds datastore.DataStore, nodeCache api.AttestedNodeCache, maxAttestedNodeInfoStaleness time.Duration, clk clock.Clock, rlConf RateLimitConfig, policyEngine *authpolicy.Engine, auditLogEnabled bool, adminIDs []spiffeid.ID) middleware.Middleware {
+func Middleware(log logrus.FieldLogger, metrics telemetry.Metrics, ds datastore.DataStore, nodeCache api.AttestedNodeCache, maxAttestedNodeInfoStaleness time.Duration, clk clock.Clock, rlConf RateLimitConfig, policyEngine *authpolicy.Engine, auditLogEnabled, auditLogExcludeAgentSync bool, adminIDs []spiffeid.ID) middleware.Middleware {
 	chain := []middleware.Middleware{
 		middleware.WithLogger(log),
 		middleware.WithMetrics(metrics),
@@ -34,7 +32,7 @@ func Middleware(log logrus.FieldLogger, metrics telemetry.Metrics, ds datastore.
 
 	if auditLogEnabled {
 		// Add audit log with local tracking enabled
-		chain = append(chain, middleware.WithAuditLog(true))
+		chain = append(chain, middleware.WithAuditLog(true, auditLogExcludeAgentSync))
 	}
 
 	return middleware.Chain(
@@ -52,10 +50,6 @@ func EntryFetcher(ds datastore.DataStore) middleware.EntryFetcher {
 		}
 		return api.RegistrationEntriesToProto(resp.Entries)
 	})
-}
-
-func UpstreamPublisher(jwtKeyPublisher manager.JwtKeyPublisher) bundle.UpstreamPublisher {
-	return bundle.UpstreamPublisherFunc(jwtKeyPublisher.PublishJWTKey)
 }
 
 func AgentAuthorizer(ds datastore.DataStore, nodeCache api.AttestedNodeCache, maxAttestedNodeInfoStaleness time.Duration, clk clock.Clock) middleware.AgentAuthorizer {

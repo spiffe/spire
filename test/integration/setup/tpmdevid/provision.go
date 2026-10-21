@@ -225,9 +225,12 @@ func provisionDevID(rwc io.ReadWriter) (*x509.Certificate, *x509.Certificate, []
 
 	leaf, err := createCertificate(devIDPublicKey, &x509.Certificate{
 		SerialNumber: big.NewInt(2),
-		Subject:      pkix.Name{CommonName: "devid-leaf"},
-		KeyUsage:     x509.KeyUsageDigitalSignature,
-		NotAfter:     neverExpires,
+		Subject: pkix.Name{
+			CommonName:   "devid-leaf",
+			SerialNumber: "server-123",
+		},
+		KeyUsage: x509.KeyUsageDigitalSignature,
+		NotAfter: neverExpires,
 	}, rootKey, root)
 	if err != nil {
 		return nil, nil, nil, nil, fmt.Errorf("cannot create DevID certificate: %w", err)

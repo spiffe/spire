@@ -1,0 +1,31 @@
+# Approximate duration in seconds of the integration test suites on a CI
+# runner. split.sh uses these to spread the suites across runners so that
+# every runner finishes at about the same time. Suites not listed here are
+# assumed to take 30 seconds. The values do not need to be exact. Update them
+# when a suite becomes much slower or faster.
+broker-api-k8s 270
+datastore-mysql-replication 270
+upstream-authority-ejbca 270
+k8s-sigstore 200
+datastore-postgres-replication 180
+nested-rotation 170
+datastore-mysql 150
+datastore-postgres 150
+key-manager-vault 150
+upstream-authority-vault 140
+envoy-sds-v3 120
+envoy-sds-v3-spiffe-auth 120
+upgrade 100
+agent-cli 85
+force-rotation-self-signed 80
+k8s 80
+key-manager-kmip 80
+agent-xds-failover 75
+upstream-authority-cert-manager 70
+rotation 55
+slurm-x509 50
+debug-endpoints 45
+admin-endpoints 40
+evict-agent 40
+delegatedidentity 35
+svidstore 35
