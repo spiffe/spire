@@ -47,8 +47,10 @@ func (e *Extractor) GetPodUIDAndContainerID(pid int32, log hclog.Logger) (types.
 
 func (e *Extractor) extractInfo(pid int32, log hclog.Logger, extractPodUID bool) (types.UID, string, error) {
 	// The pod UID and container ID are read from /proc/<pid>/cgroup. The kernel
-	// controls this file and a workload cannot forge it, so it is the
-	// authoritative source of identity.
+	// controls this file, so it is an authoritative source of identity against
+	// an unprivileged workload. A process with root on the node can change
+	// cgroup membership, so this does not establish identity against a
+	// node-root attacker.
 	//
 	// /proc/<pid>/mountinfo is deliberately not consulted. It is controlled by
 	// the workload's mount namespace and can be crafted to impersonate another
