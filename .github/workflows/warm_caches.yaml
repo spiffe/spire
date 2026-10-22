@@ -50,11 +50,6 @@ jobs:
       - name: Setup go
         id: setup
         uses: ./.github/actions/setup-go
-      - name: Download modules
-        # Every job downloads the full module set so that the module cache,
-        # whose key is shared by all Linux jobs, is complete whichever job
-        # saves it first.
-        run: go mod download
       - name: Compile packages and tests
         run: |
           go build ${{ matrix.packages }}
@@ -117,8 +112,6 @@ jobs:
           path-type: inherit
           install: >-
             git base-devel mingw-w64-ucrt-x86_64-toolchain zip unzip
-      - name: Download modules
-        run: go mod download
       - name: Compile packages and tests
         run: |
           go build ./...

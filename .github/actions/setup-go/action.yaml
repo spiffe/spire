@@ -83,3 +83,15 @@ runs:
         path: .build
         key: ${{ steps.keys.outputs.tools-key }}
         restore-keys: ${{ steps.keys.outputs.tools-prefix }}
+    - name: Download modules
+      shell: bash
+      # Go does not retry a failed module download, and with the default
+      # GOPROXY it only falls back to a direct fetch on a 404 or 410, so one
+      # failed read from the proxy fails the job. The pipe makes Go fall back
+      # on any error (checksums are still verified against the sum database),
+      # and downloading everything in go.mod up front with retries means the
+      # build, test and tidy steps that follow never touch the network.
+      run: |
+        export GOPROXY="https://proxy.golang.org|direct"
+        echo "GOPROXY=${GOPROXY}" >> "$GITHUB_ENV"
+        ./.github/workflows/scripts/retry.sh go mod download
