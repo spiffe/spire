@@ -16,6 +16,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/keepalive"
 	_ "google.golang.org/grpc/xds" // registers the "xds" name resolver and load balancing policies
 )
 
@@ -40,6 +41,10 @@ type ServerClientConfig struct {
 	// loadBalancingConfig field of the gRPC service config. If empty, the
 	// default load balancing configuration is used.
 	LoadBalancingConfig string
+
+	// Keepalive optionally enables client keepalive pings on the connection;
+	// nil disables them.
+	Keepalive *keepalive.ClientParameters
 
 	// dialOpts are optional gRPC dial options
 	dialOpts []grpc.DialOption
@@ -68,6 +73,9 @@ func NewServerGRPCClient(config ServerClientConfig) (*grpc.ClientConn, error) {
 	dialOpts := config.dialOpts
 	if dialOpts == nil {
 		dialOpts = DialOptions(config.Address, config.LoadBalancingConfig, tlsConfig)
+	}
+	if config.Keepalive != nil {
+		dialOpts = append(dialOpts, grpc.WithKeepaliveParams(*config.Keepalive))
 	}
 
 	client, err := grpc.NewClient(config.Address, dialOpts...)

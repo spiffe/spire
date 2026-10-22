@@ -51,6 +51,7 @@ const (
 	startHealthChecksTimeout         = 8 * time.Second
 	rebootstrapBackoffMaxElapsedTime = 24 * time.Hour
 	profilingServerShutdownTimeout   = 500 * time.Millisecond
+	workloadAPIHealthCheckTimeout    = 10 * time.Second
 )
 
 type Agent struct {
@@ -186,6 +187,7 @@ func (a *Agent) Run(ctx context.Context) error {
 	if a.c.JoinToken == "" {
 		nodeAttestor = cat.GetNodeAttestor()
 	}
+	nodeAttestor = nodeattestor.WithTimeout(nodeAttestor, a.c.AttestTimeout)
 
 	var as *node_attestor.AttestationResult
 
@@ -444,6 +446,8 @@ func (a *Agent) attest(ctx context.Context, sto storage.Storage, cat catalog.Cat
 		NodeAttestor:         na,
 		TLSPolicy:            a.c.TLSPolicy,
 		LoadBalancingConfig:  a.c.ServerLoadBalancingConfig,
+		AttestTimeout:        a.c.AttestTimeout,
+		Keepalive:            a.c.Keepalive,
 	}
 	return node_attestor.New(&config).Attest(ctx)
 }
@@ -479,6 +483,7 @@ func (a *Agent) newManager(ctx context.Context, sto storage.Storage, cat catalog
 		RotationStrategy:     rotationutil.NewRotationStrategy(a.c.AvailabilityTarget),
 		TLSPolicy:            a.c.TLSPolicy,
 		LoadBalancingConfig:  a.c.ServerLoadBalancingConfig,
+		Keepalive:            a.c.Keepalive,
 	}
 
 	mgr := manager.New(config)
@@ -640,10 +645,16 @@ func (a *Agent) checkWorkloadAPI() error {
 		return err
 	}
 
-	_, err = workloadapi.FetchX509Bundles(context.TODO(), clientOption)
-	if status.Code(err) == codes.Unavailable {
+	ctx, cancel := context.WithTimeout(context.Background(), workloadAPIHealthCheckTimeout)
+	defer cancel()
+
+	_, err = workloadapi.FetchX509Bundles(ctx, clientOption)
+	switch {
+	case status.Code(err) == codes.Unavailable:
 		// Only an unavailable status fails the health check.
 		return errors.New("workload api is unavailable")
+	case errors.Is(err, context.DeadlineExceeded):
+		return fmt.Errorf("workload api did not respond within %s", workloadAPIHealthCheckTimeout)
 	}
 	return nil
 }
