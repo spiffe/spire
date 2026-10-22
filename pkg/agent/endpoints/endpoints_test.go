@@ -434,7 +434,7 @@ func (s FakeWorkloadAPIServer) FetchJWTSVID(ctx context.Context, _ *workload_pb.
 type FakeSDSv3Server struct {
 	Attestor    PeerTrackerAttestor
 	RateLimiter sdsv3.RateLimiter
-	*secret_v3.UnimplementedSecretDiscoveryServiceServer
+	secret_v3.UnimplementedSecretDiscoveryServiceServer
 }
 
 func (s FakeSDSv3Server) FetchSecrets(ctx context.Context, _ *discovery_v3.DiscoveryRequest) (*discovery_v3.DiscoveryResponse, error) {
