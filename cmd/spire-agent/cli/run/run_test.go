@@ -19,7 +19,6 @@ import (
 	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/agent/manager"
 	"github.com/spiffe/spire/pkg/agent/workloadkey"
-	"github.com/spiffe/spire/pkg/common/fflag"
 	"github.com/spiffe/spire/pkg/common/log"
 	"github.com/spiffe/spire/pkg/common/tlspolicy"
 	"github.com/spiffe/spire/test/spiretest"
@@ -1916,12 +1915,19 @@ func TestNewAgentConfig(t *testing.T) {
 			},
 		},
 		{
-			msg: "enable_wit_svids without the feature flag is ignored",
+			msg:   "WIT-SVIDs are disabled by default",
+			input: func(c *Config) {},
+			test: func(t *testing.T, ac *agent.Config) {
+				require.False(t, ac.EnableWITSVIDs)
+			},
+		},
+		{
+			msg: "enable_wit_svids enables WIT-SVIDs",
 			input: func(c *Config) {
 				c.Agent.Experimental.EnableWITSVIDs = true
 			},
 			test: func(t *testing.T, ac *agent.Config) {
-				require.False(t, ac.EnableWITSVIDs)
+				require.True(t, ac.EnableWITSVIDs)
 			},
 		},
 	}
@@ -2044,22 +2050,6 @@ agent {
 		{TypeURL: "type.googleapis.com/spiffe.broker.KubernetesObjectReference", AllowOverTCP: true},
 		{TypeURL: "type.googleapis.com/spiffe.broker.WorkloadPIDReference"},
 	}, c.Agent.Experimental.Broker.Brokers[0].AllowedReferenceTypes)
-}
-
-func TestNewAgentConfigEnableWITSVIDsWithFeatureFlag(t *testing.T) {
-	// Other tests in this package may have already loaded the flags.
-	_ = fflag.Unload()
-	require.NoError(t, fflag.Load(fflag.RawConfig{string(fflag.FlagWITSVID)}))
-	t.Cleanup(func() {
-		_ = fflag.Unload()
-	})
-
-	input := defaultValidConfig()
-	input.Agent.Experimental.EnableWITSVIDs = true
-
-	ac, err := NewAgentConfig(input, nil, false)
-	require.NoError(t, err)
-	require.True(t, ac.EnableWITSVIDs)
 }
 
 // defaultValidConfig returns the bare minimum config required to

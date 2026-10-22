@@ -121,6 +121,7 @@ type experimentalConfig struct {
 	EventTimeout               string                      `hcl:"event_timeout"`
 	SQLTransactionTimeout      string                      `hcl:"sql_transaction_timeout"`
 	RequirePQKEM               bool                        `hcl:"require_pq_kem"`
+	EnableWITSVIDs             bool                        `hcl:"enable_wit_svids"`
 	WITKeyType                 string                      `hcl:"wit_key_type"`
 	WITIssuer                  string                      `hcl:"wit_issuer"`
 	DefaultWITSVIDTTL          string                      `hcl:"default_wit_svid_ttl"`
@@ -763,10 +764,7 @@ func newServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig, ski
 	}
 	sc.DisableJWTSVIDs = c.Server.DisableJWTSVIDs
 
-	sc.DisableWITSVIDs = true
-	if fflag.IsSet(fflag.FlagWITSVID) {
-		sc.DisableWITSVIDs = false
-	}
+	sc.DisableWITSVIDs = !c.Server.Experimental.EnableWITSVIDs
 
 	if !allowUnknownConfig {
 		if err := checkForUnknownConfig(c, sc.Log); err != nil {
