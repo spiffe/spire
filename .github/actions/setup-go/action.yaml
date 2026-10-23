@@ -16,7 +16,7 @@ outputs:
     description: Cache key of the Go module cache
     value: ${{ steps.keys.outputs.gomod-key }}
   gomod-cache-hit:
-    description: Whether a module cache for the current go.sum files was found
+    description: Whether a module cache for the current go.sum files was found (Linux only)
     value: ${{ steps.gomod.outputs.cache-hit }}
   gobuild-key:
     description: Cache key of the Go build cache
@@ -42,12 +42,13 @@ runs:
         # The module cache holds sources, so it is shared across architectures
         # and runner images and only changes with go.sum.
         #
-        # The build cache holds compiled objects. cgo objects depend on the C
-        # toolchain of the runner image (ImageOS is ubuntu22, ubuntu24, win22,
-        # macos15...), so the key includes it. The commit is part of the key
-        # so that the Warm Caches workflow saves a fresh entry on every push
-        # to main, and consumers fall back to the newest one by prefix.
-        prefix="${RUNNER_OS}-${RUNNER_ARCH}-${ImageOS:-unknown}"
+        # The build cache holds compiled objects. They depend on the Go
+        # toolchain, and cgo objects also depend on the C toolchain of the
+        # runner image (ImageOS is ubuntu22, ubuntu24, win22, macos15...), so
+        # the key includes both. The commit is part of the key so that the
+        # Warm Caches workflow saves a fresh entry on every push to main, and
+        # consumers fall back to the newest one by prefix.
+        prefix="${RUNNER_OS}-${RUNNER_ARCH}-${ImageOS:-unknown}-$(go env GOVERSION)"
         {
           echo "gomod-key=${RUNNER_OS}-gomod-${GOSUM_HASH}"
           echo "gomod-prefix=${RUNNER_OS}-gomod-"
@@ -58,8 +59,13 @@ runs:
           echo "gomodcache=$(go env GOMODCACHE)"
           echo "gocache=$(go env GOCACHE)"
         } >> "$GITHUB_OUTPUT"
+    # Only Linux keeps a module cache. It serves about thirty jobs per run,
+    # while a macOS or Windows one would spend 0.6 to 0.7 GB of the 10 GB
+    # repository cache budget on one to three jobs that can download the
+    # modules in about a minute instead.
     - name: Restore Go module cache
       id: gomod
+      if: runner.os == 'Linux'
       uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: ${{ steps.keys.outputs.gomodcache }}
@@ -77,3 +83,15 @@ runs:
         path: .build
         key: ${{ steps.keys.outputs.tools-key }}
         restore-keys: ${{ steps.keys.outputs.tools-prefix }}
+    - name: Download modules
+      shell: bash
+      # Go does not retry a failed module download, and with the default
+      # GOPROXY it only falls back to a direct fetch on a 404 or 410, so one
+      # failed read from the proxy fails the job. The pipe makes Go fall back
+      # on any error (checksums are still verified against the sum database),
+      # and downloading everything in go.mod up front with retries means the
+      # build, test and tidy steps that follow never touch the network.
+      run: |
+        export GOPROXY="https://proxy.golang.org|direct"
+        echo "GOPROXY=${GOPROXY}" >> "$GITHUB_ENV"
+        ./.github/workflows/scripts/retry.sh go mod download
