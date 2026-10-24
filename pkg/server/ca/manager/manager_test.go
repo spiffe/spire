@@ -975,6 +975,51 @@ func TestUpstreamAuthorityWithBadWITKeyUpdate(t *testing.T) {
 	spiretest.AssertProtoListEqual(t, witSigningKeys, test.fetchBundle(ctx).WitSigningKeys)
 }
 
+func TestSubscribeToLocalBundleRetriesOnUpstreamFailure(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+
+	test := setupTest(t)
+
+	// Fail the first two subscription responses, as would happen while the
+	// upstream server is unreachable, and let the third one through.
+	var attempts atomic.Int32
+	upstreamAuthority, _ := test.newFakeUpstreamAuthority(t, fakeupstreamauthority.Config{
+		TrustDomain:               testTrustDomain,
+		UseSubscribeToLocalBundle: true,
+		MutateSubscribeToLocalBundleResponse: func(resp *upstreamauthorityv1.SubscribeToLocalBundleResponse) {
+			if attempts.Add(1) <= 2 {
+				// Unparsable root certificate, rejected by the upstream client
+				resp.UpstreamX509Roots = []*plugintypes.X509Certificate{{Asn1: []byte("OHNO")}}
+			}
+		},
+	})
+	test.initAndActivateUpstreamSignedManager(ctx, upstreamAuthority)
+	require.True(t, test.m.IsUpstreamAuthority())
+	require.Zero(t, attempts.Load())
+
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- test.m.SubscribeToLocalBundle(ctx)
+	}()
+
+	// Advance the mock clock through every backoff wait. Returning the
+	// subscription error would end the CA rotator task and take the whole
+	// server down, so it must be retried until it succeeds.
+	for {
+		select {
+		case err := <-errCh:
+			require.NoError(t, err)
+			require.GreaterOrEqual(t, attempts.Load(), int32(3), "subscription was not retried")
+			return
+		case wait := <-test.clock.WaitForAfterCh():
+			test.clock.Add(wait)
+		case <-ctx.Done():
+			t.Fatal("deadline reached waiting for the local bundle subscription to be retried")
+		}
+	}
+}
+
 func TestX509CARotation(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
