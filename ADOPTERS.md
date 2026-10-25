@@ -37,6 +37,7 @@ SPIFFE and SPIRE are being used by numerous other companies, both large and smal
 * TestifySec
 * Transferwise
 * VMware
+* [Wordfully](https://wordfully.ai)
 
 ## Ecosystem
 
