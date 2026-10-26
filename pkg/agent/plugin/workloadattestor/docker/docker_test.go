@@ -209,14 +209,14 @@ EOT
 			sigstoreConfigured: true,
 		},
 		{
-			name:        "blank public key is rejected",
+			name:        "invalid public key is rejected",
 			trustDomain: "example.org",
 			config: `
 					sigstore {
 						public_keys = [" "]
 					}`,
 			expectCode: codes.InvalidArgument,
-			expectMsg:  "sigstore public_keys entry 0 is empty",
+			expectMsg:  "sigstore public_keys: failed to parse public key 0",
 		},
 		{
 			name:        "bad hcl",
