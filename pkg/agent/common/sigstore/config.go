@@ -8,6 +8,7 @@ type Config struct {
 	RegistryCredentials map[string]*RegistryCredential
 
 	AllowedIdentities  map[string][]string
+	PublicKeys         []string
 	SkippedImages      map[string]struct{}
 	IgnoreSCT          bool
 	IgnoreTlog         bool
@@ -26,6 +27,9 @@ func NewConfig() *Config {
 type HCLConfig struct {
 	// AllowedIdentities is a list of identities (issuer and subjects) that must match for the signature to be valid.
 	AllowedIdentities map[string][]string `hcl:"allowed_identities" json:"allowed_identities"`
+
+	// PublicKeys is a list of PEM encoded public keys used to verify key-based signatures instead of keyless identities.
+	PublicKeys []string `hcl:"public_keys" json:"public_keys"`
 
 	// SkippedImages is a list of images that should skip sigstore verification
 	SkippedImages []string `hcl:"skipped_images" json:"skipped_images"`
@@ -59,6 +63,8 @@ func NewConfigFromHCL(hclConfig *HCLConfig, log hclog.Logger) *Config {
 	if hclConfig.AllowedIdentities != nil {
 		config.AllowedIdentities = hclConfig.AllowedIdentities
 	}
+
+	config.PublicKeys = hclConfig.PublicKeys
 
 	if hclConfig.SkippedImages != nil {
 		config.SkippedImages = make(map[string]struct{})
