@@ -2,6 +2,9 @@ package sigstore
 
 import (
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
 	"crypto/sha256"
 	"crypto/x509"
 	"crypto/x509/pkix"
@@ -23,6 +26,7 @@ import (
 	"github.com/sigstore/cosign/v3/pkg/oci"
 	"github.com/sigstore/rekor/pkg/client"
 	rekorclient "github.com/sigstore/rekor/pkg/generated/client"
+	"github.com/sigstore/sigstore/pkg/cryptoutils"
 	"github.com/sigstore/sigstore/pkg/signature/payload"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -131,6 +135,105 @@ func TestInitialize(t *testing.T) {
 	assert.Equal(t, 1, verifierSetup.fakeGetRekorPubs.CallCount)
 	assert.Equal(t, 1, verifierSetup.fakeGetCTLogPubs.CallCount)
 	assert.Equal(t, 1, verifierSetup.fakeGetRekorClient.CallCount)
+}
+
+func TestInitializeWithPublicKeys(t *testing.T) {
+	verifierSetup := setupVerifier()
+	verifierSetup.verifier.config.PublicKeys = []string{createPublicKeyPEM(t, elliptic.P384()), createPublicKeyPEM(t, elliptic.P256())}
+	verifierSetup.fakeGetRekorPubs.Response.PubKeys = &cosign.TrustedTransparencyLogPubKeys{}
+	verifierSetup.fakeGetRekorClient.Response.Client = &rekorclient.Rekor{}
+
+	require.NoError(t, verifierSetup.verifier.Init(context.Background()))
+
+	assert.Len(t, verifierSetup.verifier.publicKeys, 2)
+	assert.Equal(t, 0, verifierSetup.fakeGetFulcioRoots.CallCount)
+	assert.Equal(t, 0, verifierSetup.fakeGetFulcioIntermediates.CallCount)
+	assert.Equal(t, 0, verifierSetup.fakeGetCTLogPubs.CallCount)
+	assert.Equal(t, 1, verifierSetup.fakeGetRekorPubs.CallCount)
+}
+
+func TestInitializeWithPublicKeysErrors(t *testing.T) {
+	for _, tt := range []struct {
+		name      string
+		configure func(*Config)
+		err       string
+	}{
+		{
+			name:      "invalid PEM",
+			configure: func(c *Config) { c.PublicKeys = []string{"not a key"} },
+			err:       "failed to parse public key 0",
+		},
+		{
+			name: "allowed identities are set too",
+			configure: func(c *Config) {
+				c.PublicKeys = []string{createPublicKeyPEM(t, elliptic.P384())}
+				c.AllowedIdentities = map[string][]string{"issuer": {"subject"}}
+			},
+			err: "public_keys and allowed_identities cannot be used together",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			verifierSetup := setupVerifier()
+			verifierSetup.verifier.config.IgnoreTlog = true
+			tt.configure(verifierSetup.verifier.config)
+			assert.ErrorContains(t, verifierSetup.verifier.Init(context.Background()), tt.err)
+		})
+	}
+}
+
+func TestVerifyWithPublicKeys(t *testing.T) {
+	verifierSetup := setupVerifier()
+	verifierSetup.verifier.config.PublicKeys = []string{createPublicKeyPEM(t, elliptic.P384()), createPublicKeyPEM(t, elliptic.P384())}
+	verifierSetup.verifier.config.IgnoreAttestations = true
+	verifierSetup.fakeGetRekorPubs.Response.PubKeys = &cosign.TrustedTransparencyLogPubKeys{}
+	verifierSetup.fakeGetRekorClient.Response.Client = &rekorclient.Rekor{}
+	require.NoError(t, verifierSetup.verifier.Init(context.Background()))
+
+	signature := &fakeSignature{
+		payload:         createFakePayload(),
+		base64Signature: "base64signature",
+		bundle:          createFakeBundle(),
+	}
+	verifierSetup.fakeCosignVerifySignature.Responses = []fakeResponse{
+		{Err: errors.New("invalid signature")},
+		{Signatures: []oci.Signature{signature}, BundleVerified: true},
+	}
+
+	selectors, err := verifierSetup.verifier.Verify(context.Background(), "test-id@sha256:"+hex.EncodeToString(make([]byte, 32)))
+	require.NoError(t, err)
+
+	keys := verifierSetup.verifier.publicKeys
+	require.Len(t, verifierSetup.fakeCosignVerifySignature.Opts, 2)
+	assert.Equal(t, keys[0].verifier, verifierSetup.fakeCosignVerifySignature.Opts[0].SigVerifier)
+	assert.Equal(t, keys[1].verifier, verifierSetup.fakeCosignVerifySignature.Opts[1].SigVerifier)
+	assert.ElementsMatch(t, []string{
+		imageSignatureVerifiedSelector,
+		"image-signature-public-key:" + keys[1].fingerprint,
+		"image-signature-value:base64signature",
+		"image-signature-log-id:test-log-id",
+		"image-signature-log-index:9876543210",
+		"image-signature-integrated-time:1234567890",
+		"image-signature-signed-entry-timestamp:" + base64.StdEncoding.EncodeToString([]byte("test-signed-timestamp")),
+	}, selectors)
+}
+
+func TestVerifyWithPublicKeysFailsWhenNoKeyMatches(t *testing.T) {
+	verifierSetup := setupVerifier()
+	verifierSetup.verifier.config.PublicKeys = []string{createPublicKeyPEM(t, elliptic.P384())}
+	verifierSetup.verifier.config.IgnoreTlog = true
+	require.NoError(t, verifierSetup.verifier.Init(context.Background()))
+	verifierSetup.fakeCosignVerifySignature.Responses = []fakeResponse{{Err: errors.New("no signatures found")}}
+
+	_, err := verifierSetup.verifier.Verify(context.Background(), "test-id@sha256:"+hex.EncodeToString(make([]byte, 32)))
+	assert.ErrorContains(t, err, "public key "+verifierSetup.verifier.publicKeys[0].fingerprint)
+}
+
+func createPublicKeyPEM(t *testing.T, curve elliptic.Curve) string {
+	key, err := ecdsa.GenerateKey(curve, rand.Reader)
+	require.NoError(t, err)
+	pemKey, err := cryptoutils.MarshalPublicKeyToPEM(key.Public())
+	require.NoError(t, err)
+	return string(pemKey)
 }
 
 func TestVerify(t *testing.T) {
@@ -632,6 +735,7 @@ func TestProcessAllowedIdentities(t *testing.T) {
 type fakeCosignVerifySignatureFn struct {
 	Responses []fakeResponse
 	CallCount int
+	Opts      []*cosign.CheckOpts
 }
 
 type fakeResponse struct {
@@ -640,7 +744,8 @@ type fakeResponse struct {
 	Err            error
 }
 
-func (f *fakeCosignVerifySignatureFn) Verify(_ context.Context, _ name.Reference, _ *cosign.CheckOpts) ([]oci.Signature, bool, error) {
+func (f *fakeCosignVerifySignatureFn) Verify(_ context.Context, _ name.Reference, opts *cosign.CheckOpts) ([]oci.Signature, bool, error) {
+	f.Opts = append(f.Opts, opts)
 	resp := f.Responses[f.CallCount]
 	f.CallCount++
 	return resp.Signatures, resp.BundleVerified, resp.Err
