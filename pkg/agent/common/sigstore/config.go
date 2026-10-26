@@ -13,6 +13,7 @@ type Config struct {
 	IgnoreSCT          bool
 	IgnoreTlog         bool
 	IgnoreAttestations bool
+	RegistryReferrers  bool
 
 	Logger hclog.Logger
 }
@@ -46,6 +47,9 @@ type HCLConfig struct {
 
 	// IgnoreAttestations specifies whether to bypass the image attestations verification.
 	IgnoreAttestations *bool `hcl:"ignore_attestations,omitempty" json:"ignore_attestations,omitempty"`
+
+	// RegistryReferrers specifies whether to look up signatures through the OCI 1.1 referrers API before the tag scheme.
+	RegistryReferrers *bool `hcl:"registry_referrers,omitempty" json:"registry_referrers,omitempty"`
 
 	// RegistryCredentials is a map of credentials keyed by registry URL
 	RegistryCredentials map[string]*RegistryCredential `hcl:"registry_credentials,omitempty" json:"registry_credentials,omitempty"`
@@ -87,6 +91,10 @@ func NewConfigFromHCL(hclConfig *HCLConfig, log hclog.Logger) *Config {
 
 	if hclConfig.IgnoreAttestations != nil {
 		config.IgnoreAttestations = *hclConfig.IgnoreAttestations
+	}
+
+	if hclConfig.RegistryReferrers != nil {
+		config.RegistryReferrers = *hclConfig.RegistryReferrers
 	}
 
 	if hclConfig.RegistryCredentials != nil {

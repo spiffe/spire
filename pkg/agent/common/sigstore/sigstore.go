@@ -197,6 +197,7 @@ func (v *ImageVerifier) Verify(ctx context.Context, imageID string) ([]string, e
 		Identities:         v.allowedIdentities,
 		IgnoreSCT:          v.config.IgnoreSCT,
 		IgnoreTlog:         v.config.IgnoreTlog,
+		ExperimentalOCI11:  v.config.RegistryReferrers,
 		RegistryClientOpts: []cosignremote.Option{cosignremote.WithRemoteOptions(authOption)},
 	}
 
