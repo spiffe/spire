@@ -210,7 +210,7 @@ func TestVerifyWithPublicKeys(t *testing.T) {
 	assert.ElementsMatch(t, []string{
 		imageSignatureVerifiedSelector,
 		imageAttestationsVerifiedSelector,
-		"image-signature-public-key:" + keys[1].fingerprint,
+		"image-signature-public-key-sha256:" + keys[1].fingerprint,
 		"image-signature-value:base64signature",
 		"image-signature-log-id:test-log-id",
 		"image-signature-log-index:9876543210",
@@ -223,6 +223,45 @@ func TestVerifyWithPublicKeys(t *testing.T) {
 	assert.Equal(t, selectors, cached)
 	assert.Equal(t, 2, verifierSetup.fakeCosignVerifySignature.CallCount)
 	assert.Equal(t, 1, verifierSetup.fakeCosignVerifyAttestations.CallCount)
+}
+
+func TestVerifyWithEveryMatchingPublicKey(t *testing.T) {
+	verifierSetup := setupVerifier()
+	verifierSetup.verifier.config.PublicKeys = []string{newPublicKeyPEM(t), newPublicKeyPEM(t)}
+	verifierSetup.fakeGetRekorPubs.Response.PubKeys = &cosign.TrustedTransparencyLogPubKeys{}
+	verifierSetup.fakeGetRekorClient.Response.Client = &rekorclient.Rekor{}
+	require.NoError(t, verifierSetup.verifier.Init(context.Background()))
+
+	oldSignature := &fakeSignature{payload: createFakePayload(), base64Signature: "old"}
+	newSignature := &fakeSignature{payload: createFakePayload(), base64Signature: "new"}
+	verifierSetup.fakeCosignVerifySignature.Responses = []fakeResponse{
+		{Signatures: []oci.Signature{oldSignature}, BundleVerified: true},
+		{Signatures: []oci.Signature{newSignature}, BundleVerified: true},
+	}
+	verifierSetup.fakeCosignVerifyAttestations.Responses = []struct {
+		Signatures     []oci.Signature
+		BundleVerified bool
+		Err            error
+	}{
+		{Err: errors.New("no matching attestations")},
+		{Signatures: []oci.Signature{newSignature}, BundleVerified: true},
+	}
+
+	selectors, err := verifierSetup.verifier.Verify(context.Background(), testImageID)
+	require.NoError(t, err)
+
+	keys := verifierSetup.verifier.publicKeys
+	attestationOpts := verifierSetup.fakeCosignVerifyAttestations.Opts
+	require.Len(t, attestationOpts, 2)
+	assert.Equal(t, keys[1].verifier, attestationOpts[1].SigVerifier)
+	assert.ElementsMatch(t, []string{
+		imageSignatureVerifiedSelector,
+		imageAttestationsVerifiedSelector,
+		"image-signature-public-key-sha256:" + keys[0].fingerprint,
+		"image-signature-public-key-sha256:" + keys[1].fingerprint,
+		"image-signature-value:old",
+		"image-signature-value:new",
+	}, selectors)
 }
 
 func TestVerifyWithPublicKeysErrors(t *testing.T) {

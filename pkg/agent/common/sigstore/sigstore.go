@@ -201,11 +201,12 @@ func (v *ImageVerifier) Verify(ctx context.Context, imageID string) ([]string, e
 	}
 
 	var signatures []oci.Signature
-	var keyFingerprint string
+	var detailsList []*signatureDetails
+	attestationOptions := []*cosign.CheckOpts{checkOptions}
 	if len(v.publicKeys) == 0 {
 		signatures, err = v.verifySignatures(ctx, imageRef, checkOptions)
 	} else {
-		signatures, keyFingerprint, checkOptions, err = v.verifySignaturesWithKeys(ctx, imageRef, checkOptions)
+		detailsList, attestationOptions, err = v.verifySignaturesWithKeys(ctx, imageRef, checkOptions)
 	}
 	if err != nil {
 		return nil, err
@@ -214,7 +215,7 @@ func (v *ImageVerifier) Verify(ctx context.Context, imageID string) ([]string, e
 	selectors := []string{imageSignatureVerifiedSelector}
 
 	if !v.config.IgnoreAttestations {
-		attestations, err := v.verifyAttestations(ctx, imageRef, checkOptions)
+		attestations, err := v.verifyAttestationsWithOptions(ctx, imageRef, attestationOptions)
 		if err != nil {
 			return nil, err
 		}
@@ -223,9 +224,10 @@ func (v *ImageVerifier) Verify(ctx context.Context, imageID string) ([]string, e
 		}
 	}
 
-	detailsList, err := v.extractDetailsFromSignatures(signatures, keyFingerprint)
-	if err != nil {
-		return nil, fmt.Errorf("failed to extract details from signatures for image %q: %w", imageID, err)
+	if len(v.publicKeys) == 0 {
+		if detailsList, err = v.extractDetailsFromSignatures(signatures, ""); err != nil {
+			return nil, fmt.Errorf("failed to extract details from signatures for image %q: %w", imageID, err)
+		}
 	}
 
 	selectors = append(selectors, formatDetailsAsSelectors(detailsList)...)
@@ -253,19 +255,43 @@ func (v *ImageVerifier) verifySignatures(ctx context.Context, imageRef name.Refe
 	return signatures, nil
 }
 
-// verifySignaturesWithKeys returns the check options of the first matching key, so attestations use the same key.
-func (v *ImageVerifier) verifySignaturesWithKeys(ctx context.Context, imageRef name.Reference, checkOptions *cosign.CheckOpts) ([]oci.Signature, string, *cosign.CheckOpts, error) {
+// verifySignaturesWithKeys returns the details and check options of every key that verifies the image signatures.
+func (v *ImageVerifier) verifySignaturesWithKeys(ctx context.Context, imageRef name.Reference, checkOptions *cosign.CheckOpts) ([]*signatureDetails, []*cosign.CheckOpts, error) {
+	var detailsList []*signatureDetails
+	var keyOptionsList []*cosign.CheckOpts
 	var errs []error
 	for _, key := range v.publicKeys {
 		keyOptions := *checkOptions
 		keyOptions.SigVerifier = key.verifier
 		signatures, err := v.verifySignatures(ctx, imageRef, &keyOptions)
-		if err == nil {
-			return signatures, key.fingerprint, &keyOptions, nil
+		if err != nil {
+			errs = append(errs, fmt.Errorf("public key %s: %w", key.fingerprint, err))
+			continue
 		}
-		errs = append(errs, fmt.Errorf("public key %s: %w", key.fingerprint, err))
+		details, err := v.extractDetailsFromSignatures(signatures, key.fingerprint)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to extract details from signatures for image %q: %w", imageRef.Name(), err)
+		}
+		detailsList = append(detailsList, details...)
+		keyOptionsList = append(keyOptionsList, &keyOptions)
 	}
-	return nil, "", nil, fmt.Errorf("no public key verified the image signatures: %w", errors.Join(errs...))
+	if len(keyOptionsList) == 0 {
+		return nil, nil, fmt.Errorf("no public key verified the image signatures: %w", errors.Join(errs...))
+	}
+	return detailsList, keyOptionsList, nil
+}
+
+// verifyAttestationsWithOptions returns the attestations of the first check options that verify them.
+func (v *ImageVerifier) verifyAttestationsWithOptions(ctx context.Context, imageRef name.Reference, optionsList []*cosign.CheckOpts) ([]oci.Signature, error) {
+	var errs []error
+	for _, options := range optionsList {
+		attestations, err := v.verifyAttestations(ctx, imageRef, options)
+		if err == nil {
+			return attestations, nil
+		}
+		errs = append(errs, err)
+	}
+	return nil, errors.Join(errs...)
 }
 
 func (v *ImageVerifier) verifyAttestations(ctx context.Context, imageRef name.Reference, checkOptions *cosign.CheckOpts) ([]oci.Signature, error) {
@@ -346,7 +372,6 @@ func extractKeySignatureDetails(signature oci.Signature, ignoreTlog bool, keyFin
 		if err != nil {
 			return nil, fmt.Errorf("failed to get signature rekor bundle: %w", err)
 		}
-
 		// cosign verifies a signature without a bundle through an online Rekor lookup.
 		if rekorBundle != nil {
 			logID = rekorBundle.Payload.LogID
@@ -445,7 +470,7 @@ func detailsToSelectors(details *signatureDetails) []string {
 		selectors = append(selectors, fmt.Sprintf("image-signature-issuer:%s", details.Issuer))
 	}
 	if details.PublicKey != "" {
-		selectors = append(selectors, fmt.Sprintf("image-signature-public-key:%s", details.PublicKey))
+		selectors = append(selectors, fmt.Sprintf("image-signature-public-key-sha256:%s", details.PublicKey))
 	}
 	if details.Signature != "" {
 		selectors = append(selectors, fmt.Sprintf("image-signature-value:%s", details.Signature))
