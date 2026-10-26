@@ -1307,6 +1307,35 @@ func (s *Suite) TestConfigureWithSigstore() {
 			expectedError: "",
 		},
 		{
+			name:        "public key sigstore configuration",
+			trustDomain: "example.org",
+			hcl: `
+				    skip_kubelet_verification = true
+					sigstore {
+						public_keys = [<<EOT
+-----BEGIN PUBLIC KEY-----
+MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEviJ8lqUgtqWzruk4EQn9vu/L7sdf
+PfUXSEDR2XADpiECNp+cvuunA23H20EHF08s7HFPn6yycViqdfaisrsA3A==
+-----END PUBLIC KEY-----
+EOT
+						]
+						ignore_tlog = true
+						registry_referrers = true
+					}`,
+			expectedError: "",
+		},
+		{
+			name:        "public keys with allowed identities are rejected",
+			trustDomain: "example.org",
+			hcl: `
+				    skip_kubelet_verification = true
+					sigstore {
+						allowed_identities = { "test-issuer" = ["subject"] }
+						public_keys = ["key"]
+					}`,
+			expectedError: "sigstore public_keys and allowed_identities cannot be used together",
+		},
+		{
 			name:        "invalid HCL",
 			trustDomain: "example.org",
 			hcl: `

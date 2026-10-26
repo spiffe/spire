@@ -79,3 +79,29 @@ func TestNewConfigFromHCL(t *testing.T) {
 		})
 	}
 }
+
+func TestHCLConfigValidate(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		hcl  *HCLConfig
+		err  string
+	}{
+		{name: "keyless", hcl: &HCLConfig{AllowedIdentities: map[string][]string{"issuer": {"subject"}}}},
+		{name: "public keys", hcl: &HCLConfig{PublicKeys: []string{"key"}}},
+		{
+			name: "public keys and allowed identities",
+			hcl:  &HCLConfig{PublicKeys: []string{"key"}, AllowedIdentities: map[string][]string{"issuer": {"subject"}}},
+			err:  "sigstore public_keys and allowed_identities cannot be used together",
+		},
+		{name: "blank public key", hcl: &HCLConfig{PublicKeys: []string{"key", "\n "}}, err: "sigstore public_keys entry 1 is empty"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.hcl.Validate()
+			if tt.err == "" {
+				assert.NoError(t, err)
+				return
+			}
+			assert.EqualError(t, err, tt.err)
+		})
+	}
+}
