@@ -2,9 +2,12 @@ package sigstore
 
 import (
 	"context"
+	"crypto"
 	"crypto/ecdsa"
+	"crypto/ed25519"
 	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/x509"
 	"crypto/x509/pkix"
@@ -138,53 +141,41 @@ func TestInitialize(t *testing.T) {
 }
 
 func TestInitializeWithPublicKeys(t *testing.T) {
+	p384, err := ecdsa.GenerateKey(elliptic.P384(), rand.Reader)
+	require.NoError(t, err)
+	p256, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+	rsaKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+	edKey, _, err := ed25519.GenerateKey(rand.Reader)
+	require.NoError(t, err)
+
 	verifierSetup := setupVerifier()
-	verifierSetup.verifier.config.PublicKeys = []string{createPublicKeyPEM(t, elliptic.P384()), createPublicKeyPEM(t, elliptic.P256())}
+	verifierSetup.verifier.config.PublicKeys = []string{
+		publicKeyPEM(t, p384.Public()), publicKeyPEM(t, p256.Public()), publicKeyPEM(t, rsaKey.Public()), publicKeyPEM(t, edKey),
+	}
 	verifierSetup.fakeGetRekorPubs.Response.PubKeys = &cosign.TrustedTransparencyLogPubKeys{}
 	verifierSetup.fakeGetRekorClient.Response.Client = &rekorclient.Rekor{}
 
 	require.NoError(t, verifierSetup.verifier.Init(context.Background()))
 
-	assert.Len(t, verifierSetup.verifier.publicKeys, 2)
+	assert.Len(t, verifierSetup.verifier.publicKeys, 4)
 	assert.Equal(t, 0, verifierSetup.fakeGetFulcioRoots.CallCount)
 	assert.Equal(t, 0, verifierSetup.fakeGetFulcioIntermediates.CallCount)
 	assert.Equal(t, 0, verifierSetup.fakeGetCTLogPubs.CallCount)
 	assert.Equal(t, 1, verifierSetup.fakeGetRekorPubs.CallCount)
 }
 
-func TestInitializeWithPublicKeysErrors(t *testing.T) {
-	for _, tt := range []struct {
-		name      string
-		configure func(*Config)
-		err       string
-	}{
-		{
-			name:      "invalid PEM",
-			configure: func(c *Config) { c.PublicKeys = []string{"not a key"} },
-			err:       "failed to parse public key 0",
-		},
-		{
-			name: "allowed identities are set too",
-			configure: func(c *Config) {
-				c.PublicKeys = []string{createPublicKeyPEM(t, elliptic.P384())}
-				c.AllowedIdentities = map[string][]string{"issuer": {"subject"}}
-			},
-			err: "public_keys and allowed_identities cannot be used together",
-		},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			verifierSetup := setupVerifier()
-			verifierSetup.verifier.config.IgnoreTlog = true
-			tt.configure(verifierSetup.verifier.config)
-			assert.ErrorContains(t, verifierSetup.verifier.Init(context.Background()), tt.err)
-		})
-	}
+func TestInitializeWithInvalidPublicKey(t *testing.T) {
+	verifierSetup := setupVerifier()
+	verifierSetup.verifier.config.IgnoreTlog = true
+	verifierSetup.verifier.config.PublicKeys = []string{"not a key"}
+	assert.ErrorContains(t, verifierSetup.verifier.Init(context.Background()), "failed to parse public key 0")
 }
 
 func TestVerifyWithPublicKeys(t *testing.T) {
 	verifierSetup := setupVerifier()
-	verifierSetup.verifier.config.PublicKeys = []string{createPublicKeyPEM(t, elliptic.P384()), createPublicKeyPEM(t, elliptic.P384())}
-	verifierSetup.verifier.config.IgnoreAttestations = true
+	verifierSetup.verifier.config.PublicKeys = []string{newPublicKeyPEM(t), newPublicKeyPEM(t)}
 	verifierSetup.verifier.config.RegistryReferrers = true
 	verifierSetup.fakeGetRekorPubs.Response.PubKeys = &cosign.TrustedTransparencyLogPubKeys{}
 	verifierSetup.fakeGetRekorClient.Response.Client = &rekorclient.Rekor{}
@@ -199,17 +190,26 @@ func TestVerifyWithPublicKeys(t *testing.T) {
 		{Err: errors.New("invalid signature")},
 		{Signatures: []oci.Signature{signature}, BundleVerified: true},
 	}
+	verifierSetup.fakeCosignVerifyAttestations.Responses = append(verifierSetup.fakeCosignVerifyAttestations.Responses, struct {
+		Signatures     []oci.Signature
+		BundleVerified bool
+		Err            error
+	}{Signatures: []oci.Signature{signature}, BundleVerified: true})
 
-	selectors, err := verifierSetup.verifier.Verify(context.Background(), "test-id@sha256:"+hex.EncodeToString(make([]byte, 32)))
+	selectors, err := verifierSetup.verifier.Verify(context.Background(), testImageID)
 	require.NoError(t, err)
 
 	keys := verifierSetup.verifier.publicKeys
-	require.Len(t, verifierSetup.fakeCosignVerifySignature.Opts, 2)
-	assert.True(t, verifierSetup.fakeCosignVerifySignature.Opts[1].ExperimentalOCI11)
-	assert.Equal(t, keys[0].verifier, verifierSetup.fakeCosignVerifySignature.Opts[0].SigVerifier)
-	assert.Equal(t, keys[1].verifier, verifierSetup.fakeCosignVerifySignature.Opts[1].SigVerifier)
+	signatureOpts := verifierSetup.fakeCosignVerifySignature.Opts
+	require.Len(t, signatureOpts, 2)
+	assert.True(t, signatureOpts[1].ExperimentalOCI11)
+	assert.Equal(t, keys[0].verifier, signatureOpts[0].SigVerifier)
+	assert.Equal(t, keys[1].verifier, signatureOpts[1].SigVerifier)
+	require.Len(t, verifierSetup.fakeCosignVerifyAttestations.Opts, 1)
+	assert.Equal(t, keys[1].verifier, verifierSetup.fakeCosignVerifyAttestations.Opts[0].SigVerifier)
 	assert.ElementsMatch(t, []string{
 		imageSignatureVerifiedSelector,
+		imageAttestationsVerifiedSelector,
 		"image-signature-public-key:" + keys[1].fingerprint,
 		"image-signature-value:base64signature",
 		"image-signature-log-id:test-log-id",
@@ -217,23 +217,60 @@ func TestVerifyWithPublicKeys(t *testing.T) {
 		"image-signature-integrated-time:1234567890",
 		"image-signature-signed-entry-timestamp:" + base64.StdEncoding.EncodeToString([]byte("test-signed-timestamp")),
 	}, selectors)
-}
 
-func TestVerifyWithPublicKeysFailsWhenNoKeyMatches(t *testing.T) {
-	verifierSetup := setupVerifier()
-	verifierSetup.verifier.config.PublicKeys = []string{createPublicKeyPEM(t, elliptic.P384())}
-	verifierSetup.verifier.config.IgnoreTlog = true
-	require.NoError(t, verifierSetup.verifier.Init(context.Background()))
-	verifierSetup.fakeCosignVerifySignature.Responses = []fakeResponse{{Err: errors.New("no signatures found")}}
-
-	_, err := verifierSetup.verifier.Verify(context.Background(), "test-id@sha256:"+hex.EncodeToString(make([]byte, 32)))
-	assert.ErrorContains(t, err, "public key "+verifierSetup.verifier.publicKeys[0].fingerprint)
-}
-
-func createPublicKeyPEM(t *testing.T, curve elliptic.Curve) string {
-	key, err := ecdsa.GenerateKey(curve, rand.Reader)
+	cached, err := verifierSetup.verifier.Verify(context.Background(), testImageID)
 	require.NoError(t, err)
-	pemKey, err := cryptoutils.MarshalPublicKeyToPEM(key.Public())
+	assert.Equal(t, selectors, cached)
+	assert.Equal(t, 2, verifierSetup.fakeCosignVerifySignature.CallCount)
+	assert.Equal(t, 1, verifierSetup.fakeCosignVerifyAttestations.CallCount)
+}
+
+func TestVerifyWithPublicKeysErrors(t *testing.T) {
+	for _, tt := range []struct {
+		name       string
+		ignoreTlog bool
+		response   fakeResponse
+		err        string
+	}{
+		{
+			name:       "no key verifies the signatures",
+			ignoreTlog: true,
+			response:   fakeResponse{Err: errors.New("no signatures found")},
+			err:        "no public key verified the image signatures",
+		},
+		{
+			name:     "rekor bundle is not verified while the transparency log is required",
+			response: fakeResponse{Signatures: []oci.Signature{&fakeSignature{base64Signature: "base64signature"}}},
+			err:      "rekor bundle not verified",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			verifierSetup := setupVerifier()
+			verifierSetup.verifier.config.PublicKeys = []string{newPublicKeyPEM(t)}
+			verifierSetup.verifier.config.IgnoreTlog = tt.ignoreTlog
+			verifierSetup.fakeGetRekorPubs.Response.PubKeys = &cosign.TrustedTransparencyLogPubKeys{}
+			verifierSetup.fakeGetRekorClient.Response.Client = &rekorclient.Rekor{}
+			require.NoError(t, verifierSetup.verifier.Init(context.Background()))
+			verifierSetup.fakeCosignVerifySignature.Responses = []fakeResponse{tt.response}
+
+			_, err := verifierSetup.verifier.Verify(context.Background(), testImageID)
+			assert.ErrorContains(t, err, tt.err)
+			assert.ErrorContains(t, err, "public key "+verifierSetup.verifier.publicKeys[0].fingerprint)
+			assert.False(t, verifierSetup.fakeCosignVerifySignature.Opts[0].ExperimentalOCI11)
+		})
+	}
+}
+
+var testImageID = "test-id@sha256:" + hex.EncodeToString(make([]byte, 32))
+
+func newPublicKeyPEM(t *testing.T) string {
+	key, err := ecdsa.GenerateKey(elliptic.P384(), rand.Reader)
+	require.NoError(t, err)
+	return publicKeyPEM(t, key.Public())
+}
+
+func publicKeyPEM(t *testing.T, pub crypto.PublicKey) string {
+	pemKey, err := cryptoutils.MarshalPublicKeyToPEM(pub)
 	require.NoError(t, err)
 	return string(pemKey)
 }
@@ -760,9 +797,11 @@ type fakeCosignVerifyAttestationsFn struct {
 		Err            error
 	}
 	CallCount int
+	Opts      []*cosign.CheckOpts
 }
 
-func (f *fakeCosignVerifyAttestationsFn) Verify(_ context.Context, _ name.Reference, _ *cosign.CheckOpts, _ ...name.Option) ([]oci.Signature, bool, error) {
+func (f *fakeCosignVerifyAttestationsFn) Verify(_ context.Context, _ name.Reference, opts *cosign.CheckOpts, _ ...name.Option) ([]oci.Signature, bool, error) {
+	f.Opts = append(f.Opts, opts)
 	resp := f.Responses[f.CallCount]
 	f.CallCount++
 	return resp.Signatures, resp.BundleVerified, resp.Err

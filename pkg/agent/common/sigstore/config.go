@@ -1,6 +1,12 @@
 package sigstore
 
-import "github.com/hashicorp/go-hclog"
+import (
+	"errors"
+	"fmt"
+	"strings"
+
+	"github.com/hashicorp/go-hclog"
+)
 
 // Config holds configuration for the ImageVerifier.
 type Config struct {
@@ -58,6 +64,19 @@ type HCLConfig struct {
 type RegistryCredential struct {
 	Username string `hcl:"username,omitempty" json:"username,omitempty"`
 	Password string `hcl:"password,omitempty" json:"password,omitempty"`
+}
+
+// Validate reports configuration errors that the attestors surface while the plugin configuration is parsed.
+func (c *HCLConfig) Validate() error {
+	if len(c.PublicKeys) > 0 && len(c.AllowedIdentities) > 0 {
+		return errors.New("sigstore public_keys and allowed_identities cannot be used together")
+	}
+	for i, key := range c.PublicKeys {
+		if strings.TrimSpace(key) == "" {
+			return fmt.Errorf("sigstore public_keys entry %d is empty", i)
+		}
+	}
+	return nil
 }
 
 func NewConfigFromHCL(hclConfig *HCLConfig, log hclog.Logger) *Config {

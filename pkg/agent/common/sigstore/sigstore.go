@@ -113,14 +113,13 @@ func NewVerifier(config *Config) *ImageVerifier {
 func (v *ImageVerifier) Init(ctx context.Context) error {
 	var err error
 	if len(v.config.PublicKeys) > 0 {
-		if len(v.config.AllowedIdentities) > 0 {
-			return errors.New("public_keys and allowed_identities cannot be used together")
-		}
 		v.publicKeys, err = loadPublicKeys(v.config.PublicKeys)
 		if err != nil {
 			return err
 		}
+		v.config.Logger.Info("Sigstore verifier uses public keys", "count", len(v.publicKeys))
 	} else {
+		v.config.Logger.Info("Sigstore verifier uses keyless signatures", "allowed_identities", len(v.allowedIdentities))
 		v.fulcioRoots, err = v.sigstoreFunctions.getFulcioRoots()
 		if err != nil {
 			return fmt.Errorf("failed to get fulcio root certificates: %w", err)
@@ -266,7 +265,7 @@ func (v *ImageVerifier) verifySignaturesWithKeys(ctx context.Context, imageRef n
 		}
 		errs = append(errs, fmt.Errorf("public key %s: %w", key.fingerprint, err))
 	}
-	return nil, "", nil, errors.Join(errs...)
+	return nil, "", nil, fmt.Errorf("no public key verified the image signatures: %w", errors.Join(errs...))
 }
 
 func (v *ImageVerifier) verifyAttestations(ctx context.Context, imageRef name.Reference, checkOptions *cosign.CheckOpts) ([]oci.Signature, error) {
