@@ -45,6 +45,8 @@ const (
 	activationThresholdCap     = sevenDays
 	activationThresholdDivisor = 6
 
+	subscribeBundleBackoffInterval = 5 * time.Second
+
 	taintBackoffInterval       = 5 * time.Second
 	taintBackoffMaxElapsedTime = 1 * time.Minute
 )
@@ -661,21 +663,24 @@ func (m *Manager) SubscribeToLocalBundle(ctx context.Context) error {
 		return nil
 	}
 
+	// The upstream authority may be unreachable, for example when an upstream
+	// server is restarting. Bailing out here would end the task and take the
+	// whole server down, so retry with backoff until the subscription succeeds
+	// or the context is canceled.
+	subscribeBackoff := backoff.NewBackoff(m.c.Clock, subscribeBundleBackoffInterval)
+
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-time.After(5 * time.Second):
-			err := m.upstreamClient.SubscribeToLocalBundle(ctx)
-			switch {
-			case status.Code(err) == codes.Unimplemented:
-				return nil
-			case err != nil:
-				return err
-			default:
-				return nil
-			}
+		case <-m.c.Clock.After(subscribeBackoff.NextBackOff()):
 		}
+
+		err := m.upstreamClient.SubscribeToLocalBundle(ctx)
+		if err == nil || status.Code(err) == codes.Unimplemented {
+			return nil
+		}
+		m.c.Log.WithError(err).Warn("Failed to subscribe to local bundle updates on upstream authority")
 	}
 }
 
