@@ -3,7 +3,6 @@ package sigstore
 import (
 	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/hashicorp/go-hclog"
 )
@@ -71,10 +70,8 @@ func (c *HCLConfig) Validate() error {
 	if len(c.PublicKeys) > 0 && len(c.AllowedIdentities) > 0 {
 		return errors.New("sigstore public_keys and allowed_identities cannot be used together")
 	}
-	for i, key := range c.PublicKeys {
-		if strings.TrimSpace(key) == "" {
-			return fmt.Errorf("sigstore public_keys entry %d is empty", i)
-		}
+	if _, err := loadPublicKeys(c.PublicKeys); err != nil {
+		return fmt.Errorf("sigstore public_keys: %w", err)
 	}
 	return nil
 }

@@ -87,13 +87,17 @@ func TestHCLConfigValidate(t *testing.T) {
 		err  string
 	}{
 		{name: "keyless", hcl: &HCLConfig{AllowedIdentities: map[string][]string{"issuer": {"subject"}}}},
-		{name: "public keys", hcl: &HCLConfig{PublicKeys: []string{"key"}}},
+		{name: "public keys", hcl: &HCLConfig{PublicKeys: []string{newPublicKeyPEM(t)}}},
 		{
 			name: "public keys and allowed identities",
 			hcl:  &HCLConfig{PublicKeys: []string{"key"}, AllowedIdentities: map[string][]string{"issuer": {"subject"}}},
 			err:  "sigstore public_keys and allowed_identities cannot be used together",
 		},
-		{name: "blank public key", hcl: &HCLConfig{PublicKeys: []string{"key", "\n "}}, err: "sigstore public_keys entry 1 is empty"},
+		{
+			name: "invalid public key",
+			hcl:  &HCLConfig{PublicKeys: []string{newPublicKeyPEM(t), "\n "}},
+			err:  "sigstore public_keys: failed to parse public key 1: PEM decoding failed",
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			err := tt.hcl.Validate()
