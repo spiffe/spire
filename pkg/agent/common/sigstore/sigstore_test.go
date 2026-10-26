@@ -185,6 +185,7 @@ func TestVerifyWithPublicKeys(t *testing.T) {
 	verifierSetup := setupVerifier()
 	verifierSetup.verifier.config.PublicKeys = []string{createPublicKeyPEM(t, elliptic.P384()), createPublicKeyPEM(t, elliptic.P384())}
 	verifierSetup.verifier.config.IgnoreAttestations = true
+	verifierSetup.verifier.config.RegistryReferrers = true
 	verifierSetup.fakeGetRekorPubs.Response.PubKeys = &cosign.TrustedTransparencyLogPubKeys{}
 	verifierSetup.fakeGetRekorClient.Response.Client = &rekorclient.Rekor{}
 	require.NoError(t, verifierSetup.verifier.Init(context.Background()))
@@ -204,6 +205,7 @@ func TestVerifyWithPublicKeys(t *testing.T) {
 
 	keys := verifierSetup.verifier.publicKeys
 	require.Len(t, verifierSetup.fakeCosignVerifySignature.Opts, 2)
+	assert.True(t, verifierSetup.fakeCosignVerifySignature.Opts[1].ExperimentalOCI11)
 	assert.Equal(t, keys[0].verifier, verifierSetup.fakeCosignVerifySignature.Opts[0].SigVerifier)
 	assert.Equal(t, keys[1].verifier, verifierSetup.fakeCosignVerifySignature.Opts[1].SigVerifier)
 	assert.ElementsMatch(t, []string{
