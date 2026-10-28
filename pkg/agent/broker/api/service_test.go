@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net"
 	"net/url"
+	"sync"
 	"testing"
 	"time"
 
@@ -19,6 +20,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/proto/spire/common"
+	testclock "github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/fakes/fakemetrics"
 	"github.com/spiffe/spire/test/testca"
 	"github.com/stretchr/testify/assert"
@@ -225,6 +227,10 @@ type fakeManager struct {
 	subscribeErr    error
 	cacheSubscriber *fakeCacheSubscriber
 	bundleCache     *cache.BundleCache
+
+	mu                  sync.Mutex
+	subscribedSelectors []cache.Selectors
+	subscribeResults    []cache.Subscriber[cache.X509WorkloadUpdate]
 }
 
 func (m *fakeManager) MatchingRegistrationEntries([]*common.Selector) []*common.RegistrationEntry {
@@ -242,11 +248,28 @@ func (m *fakeManager) FetchJWTSVID(_ context.Context, entry *common.Registration
 	return svid, nil
 }
 
-func (m *fakeManager) SubscribeToX509CacheChanges(context.Context, cache.Selectors) (cache.Subscriber[cache.X509WorkloadUpdate], error) {
+func (m *fakeManager) SubscribeToX509CacheChanges(_ context.Context, selectors cache.Selectors) (cache.Subscriber[cache.X509WorkloadUpdate], error) {
+	m.mu.Lock()
+	m.subscribedSelectors = append(m.subscribedSelectors, selectors)
 	if m.subscribeErr != nil {
-		return nil, m.subscribeErr
+		err := m.subscribeErr
+		m.mu.Unlock()
+		return nil, err
 	}
+	if len(m.subscribeResults) > 0 {
+		sub := m.subscribeResults[0]
+		m.subscribeResults = m.subscribeResults[1:]
+		m.mu.Unlock()
+		return sub, nil
+	}
+	m.mu.Unlock()
 	return m.cacheSubscriber, nil
+}
+
+func (m *fakeManager) subscribedSelectorsSnapshot() []cache.Selectors {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return append([]cache.Selectors(nil), m.subscribedSelectors...)
 }
 
 func (m *fakeManager) SubscribeToBundleChanges() *cache.BundleStream {
@@ -255,13 +278,49 @@ func (m *fakeManager) SubscribeToBundleChanges() *cache.BundleStream {
 
 type fakeCacheSubscriber struct {
 	ch chan *cache.X509WorkloadUpdate
+
+	finishOnce sync.Once
+	finished   chan struct{}
 }
 
 func (s *fakeCacheSubscriber) Updates() <-chan *cache.X509WorkloadUpdate {
 	return s.ch
 }
 
-func (s *fakeCacheSubscriber) Finish() {}
+func (s *fakeCacheSubscriber) Finish() {
+	if s.finished == nil {
+		return
+	}
+	s.finishOnce.Do(func() { close(s.finished) })
+}
+
+type fakeAttestation struct {
+	selectors []*common.Selector
+	err       error
+}
+
+// scriptedAttestor returns a scripted sequence of attestation results. The
+// last result is repeated once the sequence is exhausted.
+type scriptedAttestor struct {
+	mu      sync.Mutex
+	results []fakeAttestation
+	calls   int
+}
+
+func (a *scriptedAttestor) Attest(ctx context.Context, _ int) ([]*common.Selector, error) {
+	return a.AttestReference(ctx, nil)
+}
+
+func (a *scriptedAttestor) AttestReference(context.Context, *anypb.Any) ([]*common.Selector, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if len(a.results) == 0 {
+		return nil, errors.New("no scripted attestation results")
+	}
+	idx := min(a.calls, len(a.results)-1)
+	a.calls++
+	return a.results[idx].selectors, a.results[idx].err
+}
 
 func TestGetCallerContext(t *testing.T) {
 	caller := spiffeid.RequireFromString("spiffe://example.org/broker")
@@ -615,6 +674,130 @@ func TestSubscribeToX509SVID(t *testing.T) {
 		cancel()
 		require.NoError(t, <-errCh)
 	})
+}
+
+func TestSubscribeToX509SVIDReattestation(t *testing.T) {
+	caller := spiffeid.RequireFromString("spiffe://example.org/broker")
+	trustDomain := spiffeid.RequireTrustDomainFromString("example.org")
+	ca := testca.New(t, trustDomain)
+	workloadID := spiffeid.RequireFromPath(trustDomain, "/workload")
+	workloadSVID := ca.CreateX509SVID(workloadID)
+
+	selectorBefore := &common.Selector{Type: "k8s", Value: "sa:before"}
+	selectorAfter := &common.Selector{Type: "k8s", Value: "sa:after"}
+
+	update := &cache.X509WorkloadUpdate{
+		Bundle: ca.Bundle(),
+		Identities: []cache.X509Identity{
+			{Entry: &common.RegistrationEntry{SpiffeId: workloadID.String()}, SVID: workloadSVID.Certificates, PrivateKey: workloadSVID.PrivateKey},
+		},
+	}
+
+	t.Run("terminates the stream when the reference no longer resolves", func(t *testing.T) {
+		sub := &fakeCacheSubscriber{ch: make(chan *cache.X509WorkloadUpdate)}
+		attestor := &scriptedAttestor{results: []fakeAttestation{
+			{selectors: []*common.Selector{selectorBefore}},
+			{err: status.Error(codes.NotFound, "pod not found")},
+		}}
+		clk := testclock.NewMock(t)
+		s := New(Config{
+			Attestor:         attestor,
+			Manager:          &fakeManager{cacheSubscriber: sub},
+			Metrics:          fakemetrics.New(),
+			Clock:            clk,
+			ReattestInterval: time.Minute,
+		})
+
+		ctx, cancel := context.WithCancel(brokerCallerContext(caller))
+		defer cancel()
+		stream := &fakeX509SVIDStream{ctx: ctx, sentCh: make(chan *broker.SubscribeToX509SVIDResponse, 1)}
+
+		errCh := make(chan error, 1)
+		go func() {
+			errCh <- s.SubscribeToX509SVID(&broker.SubscribeToX509SVIDRequest{
+				Reference: &broker.WorkloadReference{Reference: ref(k8sType)},
+			}, stream)
+		}()
+
+		clk.WaitForTicker(time.Second, "waiting for re-attestation ticker")
+		clk.Add(time.Minute)
+
+		err := <-errCh
+		require.Error(t, err)
+		assert.Equal(t, codes.NotFound, status.Code(err))
+	})
+
+	t.Run("resubscribes when selectors change", func(t *testing.T) {
+		subBefore := &fakeCacheSubscriber{
+			ch:       make(chan *cache.X509WorkloadUpdate),
+			finished: make(chan struct{}),
+		}
+		subAfter := &fakeCacheSubscriber{ch: make(chan *cache.X509WorkloadUpdate, 1)}
+		subAfter.ch <- update
+
+		attestor := &scriptedAttestor{results: []fakeAttestation{
+			{selectors: []*common.Selector{selectorBefore}},
+			{selectors: []*common.Selector{selectorAfter}},
+		}}
+		mgr := &fakeManager{
+			subscribeResults: []cache.Subscriber[cache.X509WorkloadUpdate]{subBefore, subAfter},
+		}
+		clk := testclock.NewMock(t)
+		s := New(Config{
+			Attestor:         attestor,
+			Manager:          mgr,
+			Metrics:          fakemetrics.New(),
+			Clock:            clk,
+			ReattestInterval: time.Minute,
+		})
+
+		ctx, cancel := context.WithCancel(brokerCallerContext(caller))
+		stream := &fakeX509SVIDStream{ctx: ctx, sentCh: make(chan *broker.SubscribeToX509SVIDResponse, 1)}
+
+		errCh := make(chan error, 1)
+		go func() {
+			errCh <- s.SubscribeToX509SVID(&broker.SubscribeToX509SVIDRequest{
+				Reference: &broker.WorkloadReference{Reference: ref(k8sType)},
+			}, stream)
+		}()
+
+		clk.WaitForTicker(time.Second, "waiting for re-attestation ticker")
+		clk.Add(time.Minute)
+
+		resp := <-stream.sentCh
+		require.Len(t, resp.Svids, 1)
+		assert.Equal(t, workloadID.String(), resp.Svids[0].SpiffeId)
+
+		cancel()
+		require.NoError(t, <-errCh)
+
+		select {
+		case <-subBefore.finished:
+		default:
+			t.Fatal("original subscriber was not finished")
+		}
+
+		subscribed := mgr.subscribedSelectorsSnapshot()
+		require.Len(t, subscribed, 2)
+		assert.Equal(t, cache.Selectors{selectorBefore}, subscribed[0])
+		assert.Equal(t, cache.Selectors{selectorAfter}, subscribed[1])
+	})
+}
+
+func TestSelectorsEqual(t *testing.T) {
+	assert.True(t, selectorsEqual(nil, nil))
+	assert.True(t, selectorsEqual(
+		[]*common.Selector{{Type: "k8s", Value: "a"}, {Type: "k8s", Value: "b"}},
+		[]*common.Selector{{Type: "k8s", Value: "b"}, {Type: "k8s", Value: "a"}},
+	))
+	assert.False(t, selectorsEqual(
+		[]*common.Selector{{Type: "k8s", Value: "a"}},
+		[]*common.Selector{{Type: "k8s", Value: "b"}},
+	))
+	assert.False(t, selectorsEqual(
+		[]*common.Selector{{Type: "k8s", Value: "a"}},
+		[]*common.Selector{{Type: "k8s", Value: "a"}, {Type: "k8s", Value: "b"}},
+	))
 }
 
 func TestSubscribeToX509Bundles(t *testing.T) {
