@@ -53,7 +53,7 @@ type HCLConfig struct {
 	// IgnoreAttestations specifies whether to bypass the image attestations verification.
 	IgnoreAttestations *bool `hcl:"ignore_attestations,omitempty" json:"ignore_attestations,omitempty"`
 
-	// RegistryReferrers specifies whether to look up signatures through the OCI 1.1 referrers API before the tag scheme.
+	// RegistryReferrers specifies whether to look up sigstore bundles and signatures through the OCI 1.1 referrers API.
 	RegistryReferrers *bool `hcl:"registry_referrers,omitempty" json:"registry_referrers,omitempty"`
 
 	// RegistryCredentials is a map of credentials keyed by registry URL
