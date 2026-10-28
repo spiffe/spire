@@ -1,6 +1,7 @@
 package sigstore
 
 import (
+	"bytes"
 	"context"
 	"crypto"
 	"crypto/ecdsa"
@@ -26,12 +27,20 @@ import (
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/types"
 	"github.com/hashicorp/go-hclog"
+	"github.com/secure-systems-lab/go-securesystemslib/dsse"
 	"github.com/sigstore/cosign/v3/pkg/cosign"
 	"github.com/sigstore/cosign/v3/pkg/cosign/bundle"
 	"github.com/sigstore/cosign/v3/pkg/oci"
+	cosignremote "github.com/sigstore/cosign/v3/pkg/oci/remote"
+	protobundle "github.com/sigstore/protobuf-specs/gen/pb-go/bundle/v1"
+	protocommon "github.com/sigstore/protobuf-specs/gen/pb-go/common/v1"
+	protodsse "github.com/sigstore/protobuf-specs/gen/pb-go/dsse"
 	"github.com/sigstore/rekor/pkg/client"
 	rekorclient "github.com/sigstore/rekor/pkg/generated/client"
+	sgbundle "github.com/sigstore/sigstore-go/pkg/bundle"
+	"github.com/sigstore/sigstore-go/pkg/root"
 	"github.com/sigstore/sigstore/pkg/cryptoutils"
+	"github.com/sigstore/sigstore/pkg/signature"
 	"github.com/sigstore/sigstore/pkg/signature/payload"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -320,7 +329,119 @@ func TestVerifyWithPublicKeysErrors(t *testing.T) {
 	}
 }
 
-var testImageID = "test-id@sha256:" + hex.EncodeToString(make([]byte, 32))
+func TestVerifyWithPublicKeyBundles(t *testing.T) {
+	signer, err := ecdsa.GenerateKey(elliptic.P384(), rand.Reader)
+	require.NoError(t, err)
+	verifierSetup := setupVerifier()
+	verifierSetup.verifier.config.PublicKeyPaths = []string{newPublicKeyFile(t), publicKeyFile(t, signer.Public())}
+	verifierSetup.verifier.config.RegistryReferrers = true
+	verifierSetup.verifier.config.IgnoreTlog = true
+	verifierSetup.verifier.config.IgnoreAttestations = true
+	require.NoError(t, verifierSetup.verifier.Init(context.Background()))
+	testBundle, sig := newKeyBundle(t, signer, testImageDigest)
+	verifierSetup.fakeGetBundles.Bundles = []*sgbundle.Bundle{testBundle}
+
+	selectors, err := verifierSetup.verifier.Verify(context.Background(), testImageID)
+	require.NoError(t, err)
+
+	assert.ElementsMatch(t, []string{
+		imageSignatureVerifiedSelector,
+		"image-signature-public-key-sha256:" + verifierSetup.verifier.publicKeys[1].fingerprint,
+		"image-signature-value:" + base64.StdEncoding.EncodeToString(sig),
+	}, selectors)
+	assert.Equal(t, 0, verifierSetup.fakeCosignVerifySignature.CallCount)
+	assert.Equal(t, 0, verifierSetup.fakeGetTrustedRoot.CallCount)
+}
+
+func TestVerifyWithPublicKeyBundlesErrors(t *testing.T) {
+	signer, err := ecdsa.GenerateKey(elliptic.P384(), rand.Reader)
+	require.NoError(t, err)
+	for _, tt := range []struct {
+		name   string
+		key    string
+		digest []byte
+	}{
+		{name: "bundle signed by another key", key: newPublicKeyFile(t), digest: testImageDigest},
+		{name: "bundle for another digest", key: publicKeyFile(t, signer.Public()), digest: make([]byte, 32)[:31]},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			verifierSetup := setupVerifier()
+			verifierSetup.verifier.config.PublicKeyPaths = []string{tt.key}
+			verifierSetup.verifier.config.RegistryReferrers = true
+			verifierSetup.verifier.config.IgnoreTlog = true
+			require.NoError(t, verifierSetup.verifier.Init(context.Background()))
+			testBundle, _ := newKeyBundle(t, signer, tt.digest)
+			verifierSetup.fakeGetBundles.Bundles = []*sgbundle.Bundle{testBundle}
+
+			_, err := verifierSetup.verifier.Verify(context.Background(), testImageID)
+			assert.ErrorContains(t, err, "no public key verified the image signatures")
+			assert.ErrorContains(t, err, "no sigstore bundle verified")
+			assert.Equal(t, 0, verifierSetup.fakeCosignVerifySignature.CallCount)
+		})
+	}
+}
+
+func TestInitializeTrustedRootForBundles(t *testing.T) {
+	for _, tt := range []struct {
+		name       string
+		publicKeys bool
+		ignoreTlog bool
+		calls      int
+	}{
+		{name: "keyless", ignoreTlog: true, calls: 1},
+		{name: "public keys with transparency log", publicKeys: true, calls: 1},
+		{name: "public keys without transparency log", publicKeys: true, ignoreTlog: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			verifierSetup := setupVerifier()
+			verifierSetup.verifier.config.RegistryReferrers = true
+			verifierSetup.verifier.config.IgnoreTlog = tt.ignoreTlog
+			verifierSetup.verifier.config.IgnoreSCT = true
+			if tt.publicKeys {
+				verifierSetup.verifier.config.PublicKeyPaths = []string{newPublicKeyFile(t)}
+			}
+			verifierSetup.fakeGetRekorPubs.Response.PubKeys = &cosign.TrustedTransparencyLogPubKeys{}
+			verifierSetup.fakeGetRekorClient.Response.Client = &rekorclient.Rekor{}
+
+			require.NoError(t, verifierSetup.verifier.Init(context.Background()))
+			assert.Equal(t, tt.calls, verifierSetup.fakeGetTrustedRoot.CallCount)
+		})
+	}
+}
+
+const inTotoPayloadType = "application/vnd.in-toto+json"
+
+var testImageDigest = make([]byte, 32)
+
+var testImageID = "test-id@sha256:" + hex.EncodeToString(testImageDigest)
+
+// newKeyBundle returns a sigstore bundle as cosign signs it with a key and no transparency log.
+func newKeyBundle(t *testing.T, key *ecdsa.PrivateKey, digest []byte) (*sgbundle.Bundle, []byte) {
+	statement, err := json.Marshal(map[string]any{
+		"_type":         "https://in-toto.io/Statement/v1",
+		"predicateType": "https://sigstore.dev/cosign/sign/v1",
+		"predicate":     map[string]any{},
+		"subject":       []map[string]any{{"name": "test-id", "digest": map[string]string{"sha256": hex.EncodeToString(digest)}}},
+	})
+	require.NoError(t, err)
+	signer, err := signature.LoadDefaultSignerVerifier(key)
+	require.NoError(t, err)
+	sig, err := signer.SignMessage(bytes.NewReader(dsse.PAE(inTotoPayloadType, statement)))
+	require.NoError(t, err)
+	b, err := sgbundle.NewBundle(&protobundle.Bundle{
+		MediaType: "application/vnd.dev.sigstore.bundle.v0.3+json",
+		VerificationMaterial: &protobundle.VerificationMaterial{
+			Content: &protobundle.VerificationMaterial_PublicKey{PublicKey: &protocommon.PublicKeyIdentifier{}},
+		},
+		Content: &protobundle.Bundle_DsseEnvelope{DsseEnvelope: &protodsse.Envelope{
+			Payload:     statement,
+			PayloadType: inTotoPayloadType,
+			Signatures:  []*protodsse.Signature{{Sig: sig}},
+		}},
+	})
+	require.NoError(t, err)
+	return b, sig
+}
 
 func newPublicKeyFile(t *testing.T) string {
 	key, err := ecdsa.GenerateKey(elliptic.P384(), rand.Reader)
@@ -657,7 +778,7 @@ func TestVerify(t *testing.T) {
 			expectedSelectors:             nil,
 			expectedError:                 true,
 			expectedVerifyCallCount:       1,
-			expectedAttestationsCallCount: 1,
+			expectedAttestationsCallCount: 0,
 		},
 		{
 			name: "fails to extract details from signatures missing cert subject",
@@ -691,7 +812,7 @@ func TestVerify(t *testing.T) {
 			expectedSelectors:             nil,
 			expectedError:                 true,
 			expectedVerifyCallCount:       1,
-			expectedAttestationsCallCount: 1,
+			expectedAttestationsCallCount: 0,
 		},
 		{
 			name: "fails to extract details from signatures empty names cert subject",
@@ -725,7 +846,7 @@ func TestVerify(t *testing.T) {
 			expectedSelectors:             nil,
 			expectedError:                 true,
 			expectedVerifyCallCount:       1,
-			expectedAttestationsCallCount: 1,
+			expectedAttestationsCallCount: 0,
 		},
 	}
 
@@ -830,6 +951,27 @@ func TestProcessAllowedIdentities(t *testing.T) {
 			assert.ElementsMatch(t, tt.expected, actual)
 		})
 	}
+}
+
+type fakeGetBundlesFn struct {
+	Bundles []*sgbundle.Bundle
+}
+
+func (f *fakeGetBundlesFn) Get(_ context.Context, ref name.Reference, _ []cosignremote.Option, _ ...name.Option) ([]*sgbundle.Bundle, *v1.Hash, error) {
+	if len(f.Bundles) == 0 {
+		return nil, nil, errors.New("no bundles found")
+	}
+	hash, err := v1.NewHash(ref.Identifier())
+	return f.Bundles, &hash, err
+}
+
+type fakeGetTrustedRootFn struct {
+	CallCount int
+}
+
+func (f *fakeGetTrustedRootFn) Get() (root.TrustedMaterial, error) {
+	f.CallCount++
+	return &root.BaseTrustedMaterial{}, nil
 }
 
 type fakeCosignVerifySignatureFn struct {
@@ -1005,6 +1147,8 @@ type verifierSetup struct {
 	fakeGetRekorPubs             *fakeGetRekorPubsFn
 	fakeGetCTLogPubs             *fakeGetCTLogPubsFn
 	fakeGetRekorClient           *fakeGetRekorClientFn
+	fakeGetBundles               *fakeGetBundlesFn
+	fakeGetTrustedRoot           *fakeGetTrustedRootFn
 }
 
 func setupVerifier() verifierSetup {
@@ -1020,6 +1164,8 @@ func setupVerifier() verifierSetup {
 	fakeGetRekorPubsFn := &fakeGetRekorPubsFn{}
 	fakeGetCTLogPubsFn := &fakeGetCTLogPubsFn{}
 	fakeGetRekorClientFn := &fakeGetRekorClientFn{}
+	fakeGetBundlesFn := &fakeGetBundlesFn{}
+	fakeGetTrustedRootFn := &fakeGetTrustedRootFn{}
 
 	verifier := &ImageVerifier{
 		config: config,
@@ -1031,6 +1177,8 @@ func setupVerifier() verifierSetup {
 			getFulcioIntermediates:  fakeGetFulcioIntermediatesFn.Get,
 			getRekorPublicKeys:      fakeGetRekorPubsFn.Get,
 			getCTLogPublicKeys:      fakeGetCTLogPubsFn.Get,
+			getBundles:              fakeGetBundlesFn.Get,
+			getTrustedRoot:          fakeGetTrustedRootFn.Get,
 		},
 	}
 
@@ -1043,6 +1191,8 @@ func setupVerifier() verifierSetup {
 		fakeGetRekorPubs:             fakeGetRekorPubsFn,
 		fakeGetCTLogPubs:             fakeGetCTLogPubsFn,
 		fakeGetRekorClient:           fakeGetRekorClientFn,
+		fakeGetBundles:               fakeGetBundlesFn,
+		fakeGetTrustedRoot:           fakeGetTrustedRootFn,
 	}
 }
 

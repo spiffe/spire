@@ -16,6 +16,7 @@ import (
 
 	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/name"
+	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
 	"github.com/hashicorp/go-hclog"
 	"github.com/sigstore/cosign/v3/pkg/cosign"
@@ -23,6 +24,9 @@ import (
 	cosignremote "github.com/sigstore/cosign/v3/pkg/oci/remote"
 	"github.com/sigstore/rekor/pkg/client"
 	rekorclient "github.com/sigstore/rekor/pkg/generated/client"
+	sgbundle "github.com/sigstore/sigstore-go/pkg/bundle"
+	"github.com/sigstore/sigstore-go/pkg/root"
+	"github.com/sigstore/sigstore-go/pkg/verify"
 	"github.com/sigstore/sigstore/pkg/cryptoutils"
 	"github.com/sigstore/sigstore/pkg/signature"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -57,6 +61,7 @@ type ImageVerifier struct {
 	fulcioIntermediates *x509.CertPool
 	rekorPublicKeys     *cosign.TrustedTransparencyLogPubKeys
 	ctLogPublicKeys     *cosign.TrustedTransparencyLogPubKeys
+	trustedRoot         root.TrustedMaterial
 
 	sigstoreFunctions sigstoreFunctions
 }
@@ -74,6 +79,8 @@ type sigstoreFunctions struct {
 	getFulcioIntermediates  getCertPoolFn
 	getRekorPublicKeys      getTLogPublicKeysFn
 	getCTLogPublicKeys      getTLogPublicKeysFn
+	getBundles              getBundlesFn
+	getTrustedRoot          getTrustedRootFn
 }
 
 type cosignVerifyImageSignaturesFn func(context.Context, name.Reference, *cosign.CheckOpts) ([]oci.Signature, bool, error)
@@ -81,6 +88,8 @@ type cosignVerifyImageAttestationsFn func(context.Context, name.Reference, *cosi
 type getRekorClientFn func(string, ...client.Option) (*rekorclient.Rekor, error)
 type getCertPoolFn func() (*x509.CertPool, error)
 type getTLogPublicKeysFn func(context.Context) (*cosign.TrustedTransparencyLogPubKeys, error)
+type getBundlesFn func(context.Context, name.Reference, []cosignremote.Option, ...name.Option) ([]*sgbundle.Bundle, *v1.Hash, error)
+type getTrustedRootFn func() (root.TrustedMaterial, error)
 
 func NewVerifier(config *Config) *ImageVerifier {
 	verifier := &ImageVerifier{
@@ -94,6 +103,8 @@ func NewVerifier(config *Config) *ImageVerifier {
 			getFulcioIntermediates:  getFulcioIntermediates,
 			getRekorPublicKeys:      cosign.GetRekorPubs,
 			getCTLogPublicKeys:      cosign.GetCTLogPubs,
+			getBundles:              cosign.GetBundles,
+			getTrustedRoot:          cosign.TrustedRoot,
 		},
 	}
 
@@ -150,6 +161,14 @@ func (v *ImageVerifier) Init(ctx context.Context) error {
 		}
 	}
 
+	// Sigstore bundles verify certificates and transparency log entries against the trusted root.
+	if v.config.RegistryReferrers && (len(v.publicKeys) == 0 || !v.config.IgnoreTlog) {
+		v.trustedRoot, err = v.sigstoreFunctions.getTrustedRoot()
+		if err != nil {
+			return fmt.Errorf("failed to get sigstore trusted root: %w", err)
+		}
+	}
+
 	return nil
 }
 
@@ -198,14 +217,14 @@ func (v *ImageVerifier) Verify(ctx context.Context, imageID string) ([]string, e
 		IgnoreSCT:          v.config.IgnoreSCT,
 		IgnoreTlog:         v.config.IgnoreTlog,
 		ExperimentalOCI11:  v.config.RegistryReferrers,
+		TrustedMaterial:    v.trustedRoot,
 		RegistryClientOpts: []cosignremote.Option{cosignremote.WithRemoteOptions(authOption)},
 	}
 
-	var signatures []oci.Signature
 	var detailsList []*signatureDetails
 	attestationOptions := []*cosign.CheckOpts{checkOptions}
 	if len(v.publicKeys) == 0 {
-		signatures, err = v.verifySignatures(ctx, imageRef, checkOptions)
+		detailsList, err = v.verifySignatures(ctx, imageRef, checkOptions, "")
 	} else {
 		detailsList, attestationOptions, err = v.verifySignaturesWithKeys(ctx, imageRef, checkOptions)
 	}
@@ -225,15 +244,6 @@ func (v *ImageVerifier) Verify(ctx context.Context, imageID string) ([]string, e
 		}
 	}
 
-	if len(v.publicKeys) == 0 {
-		detailsList, err = extractDetailsFromSignatures(signatures, func(signature oci.Signature) (*signatureDetails, error) {
-			return extractSignatureDetails(signature, v.config.IgnoreTlog)
-		})
-		if err != nil {
-			return nil, fmt.Errorf("failed to extract details from signatures for image %q: %w", imageID, err)
-		}
-	}
-
 	selectors = append(selectors, formatDetailsAsSelectors(detailsList)...)
 
 	v.verificationCache.Store(imageID, selectors)
@@ -241,8 +251,17 @@ func (v *ImageVerifier) Verify(ctx context.Context, imageID string) ([]string, e
 	return selectors, nil
 }
 
-func (v *ImageVerifier) verifySignatures(ctx context.Context, imageRef name.Reference, checkOptions *cosign.CheckOpts) ([]oci.Signature, error) {
+// verifySignatures returns the details of the verified image signatures, preferring sigstore bundle referrers.
+func (v *ImageVerifier) verifySignatures(ctx context.Context, imageRef name.Reference, checkOptions *cosign.CheckOpts, keyFingerprint string) ([]*signatureDetails, error) {
 	v.config.Logger.Debug("Verifying image signatures", telemetry.ImageID, imageRef.Name())
+
+	if v.config.RegistryReferrers {
+		bundles, hash, err := v.sigstoreFunctions.getBundles(ctx, imageRef, checkOptions.RegistryClientOpts)
+		if err == nil && len(bundles) > 0 {
+			checkOptions.NewBundleFormat = true
+			return v.verifyBundles(ctx, bundles, hash, checkOptions, keyFingerprint)
+		}
+	}
 
 	// Verify the image's signatures using cosign.VerifySignatures
 	signatures, bundleVerified, err := v.sigstoreFunctions.verifyImageSignatures(ctx, imageRef, checkOptions)
@@ -256,7 +275,78 @@ func (v *ImageVerifier) verifySignatures(ctx context.Context, imageRef name.Refe
 		return nil, fmt.Errorf("no verified signature returned by cosign for image: %s", imageRef.Name())
 	}
 
-	return signatures, nil
+	details, err := extractDetailsFromSignatures(signatures, func(signature oci.Signature) (*signatureDetails, error) {
+		if keyFingerprint == "" {
+			return extractSignatureDetails(signature, v.config.IgnoreTlog)
+		}
+		return extractKeySignatureDetails(signature, v.config.IgnoreTlog, keyFingerprint)
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to extract details from signatures for image %q: %w", imageRef.Name(), err)
+	}
+	return details, nil
+}
+
+// verifyBundles returns the details of every sigstore bundle that verifies for the image digest.
+func (v *ImageVerifier) verifyBundles(ctx context.Context, bundles []*sgbundle.Bundle, hash *v1.Hash, checkOptions *cosign.CheckOpts, keyFingerprint string) ([]*signatureDetails, error) {
+	digest, err := hex.DecodeString(hash.Hex)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode image digest: %w", err)
+	}
+	var detailsList []*signatureDetails
+	var errs []error
+	for _, b := range bundles {
+		if _, err := cosign.VerifyNewBundle(ctx, checkOptions, verify.WithArtifactDigest(hash.Algorithm, digest), b); err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		details, err := extractBundleDetails(b, v.config.IgnoreTlog, keyFingerprint)
+		if err != nil {
+			return nil, err
+		}
+		detailsList = append(detailsList, details)
+	}
+	if len(detailsList) == 0 {
+		return nil, fmt.Errorf("no sigstore bundle verified: %w", errors.Join(errs...))
+	}
+	return detailsList, nil
+}
+
+func extractBundleDetails(b *sgbundle.Bundle, ignoreTlog bool, keyFingerprint string) (*signatureDetails, error) {
+	signatureContent, err := b.SignatureContent()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get bundle signature: %w", err)
+	}
+	details := &signatureDetails{
+		PublicKey: keyFingerprint,
+		Signature: base64.StdEncoding.EncodeToString(signatureContent.Signature()),
+	}
+	if keyFingerprint == "" {
+		verificationContent, err := b.VerificationContent()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get bundle certificate: %w", err)
+		}
+		if details.Subject, err = extractSubject(verificationContent.Certificate()); err != nil {
+			return nil, fmt.Errorf("failed to extract subject from certificate: %w", err)
+		}
+		if details.Issuer, err = extractIssuer(verificationContent.Certificate()); err != nil {
+			return nil, fmt.Errorf("failed to extract issuer from certificate: %w", err)
+		}
+	}
+	if !ignoreTlog {
+		entries, err := b.TlogEntries()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get bundle transparency log entries: %w", err)
+		}
+		if len(entries) > 0 {
+			entry := entries[0].TransparencyLogEntry()
+			details.LogID = hex.EncodeToString(entry.GetLogId().GetKeyId())
+			details.LogIndex = strconv.FormatInt(entry.GetLogIndex(), 10)
+			details.IntegratedTime = strconv.FormatInt(entry.GetIntegratedTime(), 10)
+			details.SignedEntryTimestamp = base64.StdEncoding.EncodeToString(entry.GetInclusionPromise().GetSignedEntryTimestamp())
+		}
+	}
+	return details, nil
 }
 
 // verifySignaturesWithKeys returns the details and check options of every key that verifies the image signatures.
@@ -267,16 +357,10 @@ func (v *ImageVerifier) verifySignaturesWithKeys(ctx context.Context, imageRef n
 	for _, key := range v.publicKeys {
 		keyOptions := *checkOptions
 		keyOptions.SigVerifier = key.verifier
-		signatures, err := v.verifySignatures(ctx, imageRef, &keyOptions)
+		details, err := v.verifySignatures(ctx, imageRef, &keyOptions, key.fingerprint)
 		if err != nil {
 			errs = append(errs, fmt.Errorf("public key %s: %w", key.fingerprint, err))
 			continue
-		}
-		details, err := extractDetailsFromSignatures(signatures, func(signature oci.Signature) (*signatureDetails, error) {
-			return extractKeySignatureDetails(signature, v.config.IgnoreTlog, key.fingerprint)
-		})
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to extract details from signatures for image %q: %w", imageRef.Name(), err)
 		}
 		detailsList = append(detailsList, details...)
 		keyOptionsList = append(keyOptionsList, &keyOptions)
