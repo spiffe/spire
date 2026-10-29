@@ -10,8 +10,9 @@ import (
 var _ net.Listener = &Listener{}
 
 type ListenerFactory struct {
-	Log               logrus.FieldLogger
-	NewTracker        func(log logrus.FieldLogger) (PeerTracker, error)
+	Log              logrus.FieldLogger
+	NewTracker       func(log logrus.FieldLogger) (PeerTracker, error)
+	AllowUIDMismatch bool // passed through to TrackerConfig when NewTracker is nil
 	ListenerFactoryOS // OS specific
 }
 

@@ -585,6 +585,7 @@ func (a *Agent) newEndpoints(metrics telemetry.Metrics, mgr manager.Manager, att
 		DisableWorkloadAPI:            a.c.DisableWorkloadAPI,
 		DisableSDSAPI:                 a.c.DisableSDSAPI,
 		WorkloadAPIRateLimit:          a.c.WorkloadAPIRateLimit,
+		AllowUIDMismatch:              a.c.AllowUIDMismatch,
 	})
 }
 

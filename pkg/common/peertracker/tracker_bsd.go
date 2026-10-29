@@ -30,6 +30,12 @@ type bsdTracker struct {
 	log         logrus.FieldLogger
 }
 
+func newTrackerWithConfig(log logrus.FieldLogger, _ TrackerConfig) (*bsdTracker, error) {
+	// BSD uses kqueue for exit detection; it does not perform UID/GID
+	// comparisons in IsAlive(), so TrackerConfig has no effect here.
+	return newTracker(log)
+}
+
 func newTracker(log logrus.FieldLogger) (*bsdTracker, error) {
 	kqfd, err := unix.Kqueue()
 	if err != nil {
