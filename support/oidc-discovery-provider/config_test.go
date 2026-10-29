@@ -207,9 +207,9 @@ func TestParseConfigServingCertSource(t *testing.T) {
 	}
 	if runtime.GOOS == "windows" {
 		localListener, localListenerName = "experimental {\n listen_named_pipe_name = \"\\\\name\\\\for\\\\listener\"\n}\n", "listen_named_pipe_name"
-		workloadAPIWithOwnAddr = "serving_cert_source \"workload_api\" {\n experimental {\n named_pipe_name = \"\\\\other\\\\pipe\"\n }\n}"
+		workloadAPIWithOwnAddr = "serving_cert_source \"workload_api\" {\n experimental {\n named_pipe_name = \"\\\\custom\\\\pipe\"\n }\n}"
 		checkOwnAddr = func(t *testing.T, c *Config) {
-			require.Equal(t, `\other\pipe`, c.ServingCertSource.WorkloadAPI.Experimental.NamedPipeName)
+			require.Equal(t, `\custom\pipe`, c.ServingCertSource.WorkloadAPI.Experimental.NamedPipeName)
 		}
 	}
 
