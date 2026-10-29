@@ -19,8 +19,10 @@ import (
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/server/plugin/bundlepublisher/common"
 	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
+	"github.com/spiffe/spire/test/testkey"
 	"github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
@@ -243,6 +245,41 @@ func TestConfigure(t *testing.T) {
 			},
 			expectCode: codes.InvalidArgument,
 			expectMsg:  "could not parse refresh_hint: could not parse refresh hint \"invalid-refresh-hint\": time: invalid duration \"invalid-refresh-hint\"",
+		},
+		{
+			name: "success with jwt_keys_only and set_key_use",
+			config: &Config{
+				StorageAccountName: "myaccount",
+				ContainerName:      "my-container",
+				BlobName:           "bundle.json",
+				Format:             "jwks",
+				JWTKeysOnly:        true,
+				SetKeyUse:          true,
+			},
+		},
+		{
+			name: "jwt_keys_only with a format other than jwks",
+			config: &Config{
+				StorageAccountName: "myaccount",
+				ContainerName:      "my-container",
+				BlobName:           "bundle.json",
+				Format:             "spiffe",
+				JWTKeysOnly:        true,
+			},
+			expectCode: codes.InvalidArgument,
+			expectMsg:  `jwt_keys_only can only be used with the "jwks" bundle format`,
+		},
+		{
+			name: "set_key_use without jwt_keys_only",
+			config: &Config{
+				StorageAccountName: "myaccount",
+				ContainerName:      "my-container",
+				BlobName:           "bundle.json",
+				Format:             "jwks",
+				SetKeyUse:          true,
+			},
+			expectCode: codes.InvalidArgument,
+			expectMsg:  "set_key_use can only be used when jwt_keys_only is set",
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -527,6 +564,72 @@ func TestSetRefreshHint(t *testing.T) {
 	refreshHint, ok := publishedBundle.RefreshHint()
 	require.True(t, ok)
 	require.Equal(t, time.Hour, refreshHint)
+}
+
+// TestPublishJWKS checks that the jwks format is published as formatted by the
+// SDK by default, and as built by common.JWTKeysJWKS with jwt_keys_only.
+func TestPublishJWKS(t *testing.T) {
+	bundle := getTestBundle(t)
+	// The JWT authority of the test bundle is a P-521 key, which has no JWS
+	// algorithm, so it is replaced with a P-256 key.
+	jwtKeyPKIX, err := x509.MarshalPKIXPublicKey(testkey.MustEC256().Public())
+	require.NoError(t, err)
+	bundle.JwtAuthorities = []*types.JWTKey{{KeyId: "KID", PublicKey: jwtKeyPKIX}}
+	sdkJWKS, err := bundleformat.NewFormatter(bundle).Format(bundleformat.JWKS)
+	require.NoError(t, err)
+	jwtKeysJWKS, err := common.JWTKeysJWKS(bundle, false)
+	require.NoError(t, err)
+	jwtKeysJWKSWithUse, err := common.JWTKeysJWKS(bundle, true)
+	require.NoError(t, err)
+
+	for _, tt := range []struct {
+		name        string
+		jwtKeysOnly bool
+		setKeyUse   bool
+		expected    []byte
+	}{
+		{name: "default", expected: sdkJWKS},
+		{name: "jwt_keys_only", jwtKeysOnly: true, expected: jwtKeysJWKS},
+		{name: "jwt_keys_only and set_key_use", jwtKeysOnly: true, setKeyUse: true, expected: jwtKeysJWKSWithUse},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			config := &Config{
+				StorageAccountName: "myaccount",
+				ContainerName:      "my-container",
+				BlobName:           "bundle.json",
+				Format:             "jwks",
+				JWTKeysOnly:        tt.jwtKeysOnly,
+				SetKeyUse:          tt.setKeyUse,
+			}
+
+			var err error
+			options := []plugintest.Option{
+				plugintest.CaptureConfigureError(&err),
+				plugintest.CoreConfig(catalog.CoreConfig{
+					TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
+				}),
+				plugintest.ConfigureJSON(config),
+			}
+
+			client := &fakeClient{t: t, expectContainerName: config.ContainerName, expectBlobName: config.BlobName}
+			newClient := func(cred azcore.TokenCredential, accountURL string) (blobStorage, error) {
+				return client, nil
+			}
+			p := newPlugin(newClient)
+			p.hooks.fetchCredential = func() (azcore.TokenCredential, error) {
+				return &fakeCredential{}, nil
+			}
+			plugintest.Load(t, builtin(p), nil, options...)
+			require.NoError(t, err)
+
+			resp, err := p.PublishBundle(context.Background(), &bundlepublisherv1.PublishBundleRequest{
+				Bundle: bundle,
+			})
+			require.NoError(t, err)
+			require.NotNil(t, resp)
+			require.Equal(t, tt.expected, client.writtenBytes)
+		})
+	}
 }
 
 func TestBundleWithRefreshHintPublishedOnce(t *testing.T) {

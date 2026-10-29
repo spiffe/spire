@@ -47,6 +47,8 @@ type Config struct {
 	Format             string `hcl:"format" json:"format"`
 	ServiceAccountFile string `hcl:"service_account_file" json:"service_account_file"`
 	RefreshHint        string `hcl:"refresh_hint" json:"refresh_hint"`
+	JWTKeysOnly        bool   `hcl:"jwt_keys_only" json:"jwt_keys_only"`
+	SetKeyUse          bool   `hcl:"set_key_use" json:"set_key_use"`
 
 	// bundleFormat is used to store the content of Format, parsed
 	// as bundleformat.Format.
@@ -86,6 +88,10 @@ func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginco
 		case bundleformat.PEM:
 		default:
 			status.ReportErrorf("format not supported %q", newConfig.Format)
+		}
+
+		if err := common.ValidateJWKSOptions(bundleFormat, newConfig.JWTKeysOnly, newConfig.SetKeyUse); err != nil {
+			status.ReportError(err.Error())
 		}
 	}
 	newConfig.bundleFormat = bundleFormat
@@ -182,8 +188,7 @@ func (p *Plugin) PublishBundle(ctx context.Context, req *bundlepublisherv1.Publi
 		bundleToPublish.RefreshHint = config.parsedRefreshHint
 	}
 
-	formatter := bundleformat.NewFormatter(bundleToPublish)
-	bundleBytes, err := formatter.Format(config.bundleFormat)
+	bundleBytes, err := common.FormatBundle(bundleToPublish, config.bundleFormat, config.JWTKeysOnly, config.SetKeyUse)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "could not format bundle: %v", err.Error())
 	}
