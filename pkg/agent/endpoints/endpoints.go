@@ -38,6 +38,7 @@ type Endpoints struct {
 	sdsv3Server       secret_v3.SecretDiscoveryServiceServer
 	healthServer      grpc_health_v1.HealthServer
 	apiNames          string
+	streamLimiter     *WorkloadStreamLimiter
 
 	hooks struct {
 		listening chan struct{} // Hook to signal when the server starts listening
@@ -69,6 +70,7 @@ func New(c Config) *Endpoints {
 	}
 
 	workloadRateLimiter := NewWorkloadRateLimiter(c.WorkloadAPIRateLimit, c.Log, c.Metrics)
+	workloadStreamLimiter := NewWorkloadStreamLimiter(c.WorkloadAPIStreamLimits, c.Metrics)
 
 	var workloadAPIServer workload_pb.SpiffeWorkloadAPIServer
 	if !c.DisableWorkloadAPI {
@@ -76,6 +78,7 @@ func New(c Config) *Endpoints {
 			Manager:                       c.Manager,
 			Attestor:                      attestor,
 			RateLimiter:                   workloadRateLimiter,
+			StreamLimiter:                 workloadStreamLimiter,
 			AllowUnauthenticatedVerifiers: c.AllowUnauthenticatedVerifiers,
 			AllowedForeignJWTClaims:       allowedClaims,
 			LogSelectors:                  c.LogSelectors,
@@ -89,6 +92,7 @@ func New(c Config) *Endpoints {
 			Attestor:                    attestor,
 			Manager:                     c.Manager,
 			RateLimiter:                 workloadRateLimiter,
+			StreamLimiter:               workloadStreamLimiter,
 			DefaultSVIDName:             c.DefaultSVIDName,
 			DefaultBundleName:           c.DefaultBundleName,
 			DefaultAllBundlesName:       c.DefaultAllBundlesName,
@@ -109,6 +113,7 @@ func New(c Config) *Endpoints {
 		sdsv3Server:       sdsv3Server,
 		healthServer:      healthServer,
 		apiNames:          apiNames(c.DisableWorkloadAPI, c.DisableSDSAPI),
+		streamLimiter:     workloadStreamLimiter,
 		hooks: struct {
 			listening chan struct{}
 		}{
@@ -117,7 +122,22 @@ func New(c Config) *Endpoints {
 	}
 }
 
+// WorkloadAPIStreamStats returns a consistent instance-wide admission snapshot.
+func (e *Endpoints) WorkloadAPIStreamStats() WorkloadAPIStreamStats {
+	return e.streamLimiter.stats()
+}
+
+// UpdateWorkloadAPIStreamLimits replaces active and pending limits atomically.
+func (e *Endpoints) UpdateWorkloadAPIStreamLimits(c WorkloadAPIStreamLimitsConfig) error {
+	return e.streamLimiter.update(c)
+}
+
 func (e *Endpoints) ListenAndServe(ctx context.Context) error {
+	if e.streamLimiter != nil {
+		if err := e.streamLimiter.validate(); err != nil {
+			return err
+		}
+	}
 	unaryInterceptor, streamInterceptor := middleware.Interceptors(
 		Middleware(e.log, e.metrics),
 	)

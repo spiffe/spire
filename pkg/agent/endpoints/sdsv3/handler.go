@@ -42,6 +42,10 @@ type RateLimiter interface {
 	RateLimit(fullMethod string, selectors []*common.Selector) error
 }
 
+type StreamLimiter interface {
+	Acquire(ctx context.Context, fullMethod string, selectors []*common.Selector) (func(), error)
+}
+
 type Attestor interface {
 	Attest(ctx context.Context) ([]*common.Selector, error)
 }
@@ -55,6 +59,7 @@ type Config struct {
 	Attestor                    Attestor
 	Manager                     Manager
 	RateLimiter                 RateLimiter
+	StreamLimiter               StreamLimiter
 	DefaultAllBundlesName       string
 	DefaultBundleName           string
 	DefaultSVIDName             string
@@ -87,6 +92,13 @@ func (h *Handler) rateLimit(ctx context.Context, fullMethod string, selectors []
 	return h.c.RateLimiter.RateLimit(fullMethod, selectors)
 }
 
+func (h *Handler) acquireStream(ctx context.Context, selectors []*common.Selector) (func(), error) {
+	if h.c.StreamLimiter == nil {
+		return func() {}, nil
+	}
+	return h.c.StreamLimiter.Acquire(ctx, MethodStreamSecrets, selectors)
+}
+
 // isAgent returns true if the caller PID from the provided context is the
 // agent's own PID.
 func isAgent(ctx context.Context) bool {
@@ -105,29 +117,52 @@ func (h *Handler) StreamSecrets(stream secret_v3.SecretDiscoveryService_StreamSe
 	if err := h.rateLimit(stream.Context(), MethodStreamSecrets, selectors); err != nil {
 		return err
 	}
+	ctx, cancel := context.WithCancelCause(stream.Context())
+	type admission struct {
+		release func()
+		err     error
+	}
+	admissionCh := make(chan admission, 1)
+	go func() {
+		release, err := h.acquireStream(ctx, selectors)
+		admissionCh <- admission{release: release, err: err}
+	}()
+	defer func() {
+		// A receive-side exit can race a reservation made for this stream.
+		cancel(context.Canceled)
+		if admissionCh != nil {
+			if result := <-admissionCh; result.release != nil {
+				result.release()
+			}
+		}
+	}()
 
-	sub, err := h.c.Manager.SubscribeToX509CacheChanges(stream.Context(), selectors)
-	if err != nil {
-		log.WithError(err).Error("Subscribe to cache changes failed")
+	var updch <-chan *cache.X509WorkloadUpdate
+	reqch := make(chan *discovery_v3.DiscoveryRequest, 1)
+	streamError := func() error {
+		err := context.Cause(ctx)
+		if errors.Is(err, io.EOF) || errors.Is(err, context.Canceled) || status.Code(err) == codes.Canceled {
+			return nil
+		}
+		if errors.Is(err, context.DeadlineExceeded) {
+			err = status.FromContextError(err).Err()
+		}
+		log.WithError(err).Error("Received error from stream secrets server")
 		return err
 	}
-	defer sub.Finish()
-
-	updch := sub.Updates()
-	reqch := make(chan *discovery_v3.DiscoveryRequest, 1)
-	errch := make(chan error, 1)
 
 	go func() {
 		for {
 			req, err := stream.Recv()
 			if err != nil {
-				if status.Code(err) == codes.Canceled || errors.Is(err, io.EOF) {
-					err = nil
-				}
-				errch <- err
+				cancel(err)
 				return
 			}
-			reqch <- req
+			select {
+			case reqch <- req:
+			case <-ctx.Done():
+				return
+			}
 		}
 	}()
 
@@ -139,6 +174,27 @@ func (h *Handler) StreamSecrets(stream secret_v3.SecretDiscoveryService_StreamSe
 	var lastReq *discovery_v3.DiscoveryRequest
 	for {
 		select {
+		case <-ctx.Done():
+			return streamError()
+		case result := <-admissionCh:
+			admissionCh = nil
+			if result.release != nil {
+				defer result.release()
+			}
+			if ctx.Err() != nil {
+				return streamError()
+			}
+			if result.err != nil {
+				return result.err
+			}
+			sub, err := h.c.Manager.SubscribeToX509CacheChanges(ctx, selectors)
+			if err != nil {
+				log.WithError(err).Error("Subscribe to cache changes failed")
+				return err
+			}
+			defer sub.Finish()
+			updch = sub.Updates()
+			continue
 		case newReq := <-reqch:
 			log.WithFields(logrus.Fields{
 				telemetry.ResourceNames: newReq.ResourceNames,
@@ -204,11 +260,6 @@ func (h *Handler) StreamSecrets(stream secret_v3.SecretDiscoveryService_StreamSe
 				// Nothing has been requested yet.
 				continue
 			}
-		case err := <-errch:
-			if err != nil {
-				log.WithError(err).Error("Received error from stream secrets server")
-			}
-			return err
 		}
 
 		resp, err := h.buildResponse(versionInfo, lastReq, upd)

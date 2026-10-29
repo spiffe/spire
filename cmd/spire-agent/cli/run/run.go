@@ -29,6 +29,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent"
 	"github.com/spiffe/spire/pkg/agent/broker"
 	"github.com/spiffe/spire/pkg/agent/client"
+	"github.com/spiffe/spire/pkg/agent/endpoints"
 	"github.com/spiffe/spire/pkg/agent/manager"
 	"github.com/spiffe/spire/pkg/agent/trustbundlesources"
 	"github.com/spiffe/spire/pkg/agent/workloadkey"
@@ -268,6 +269,26 @@ type syncRetryBackoffConfig struct {
 	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions"`
 }
 
+type workloadAPIStreamPoolConfig struct {
+	Name               string                 `hcl:"name"`
+	Selectors          []string               `hcl:"selectors"`
+	Limit              int                    `hcl:"limit"`
+	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions"`
+}
+
+type workloadAPIStreamLimitsConfig struct {
+	FetchX509SVID    *int                          `hcl:"fetch_x509_svid"`
+	FetchX509Bundles *int                          `hcl:"fetch_x509_bundles"`
+	FetchJWTBundles  *int                          `hcl:"fetch_jwt_bundles"`
+	StreamSecrets    *int                          `hcl:"stream_secrets"`
+	PerWorkload      *int                          `hcl:"per_workload"`
+	Global           *int                          `hcl:"global"`
+	MaxPending       *int                          `hcl:"max_pending"`
+	Pools            []workloadAPIStreamPoolConfig `hcl:"pools"`
+
+	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions"`
+}
+
 type experimentalConfig struct {
 	SyncInterval              string `hcl:"sync_interval"`
 	JWTSVIDCacheHitTimeout    string `hcl:"jwt_svid_cache_hit_timeout"`
@@ -293,7 +314,8 @@ type experimentalConfig struct {
 	// GRPC_XDS_BOOTSTRAP_CONFIG).
 	UseXDS bool `hcl:"use_xds"`
 
-	RateLimit workloadAPIRateLimitConfig `hcl:"ratelimit"`
+	RateLimit    workloadAPIRateLimitConfig    `hcl:"ratelimit"`
+	StreamLimits workloadAPIStreamLimitsConfig `hcl:"stream_limits"`
 
 	// Broker holds the configuration for the SPIFFE Broker API endpoint
 	// (distinct from the Delegated Identity API's authorized_delegates).
@@ -1015,6 +1037,21 @@ func newAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig, skip
 	if ac.WorkloadAPIRateLimit.FetchSecrets < 0 {
 		return nil, errors.New("experimental.ratelimit.fetch_secrets must not be negative")
 	}
+	ac.WorkloadAPIStreamLimits = agent.WorkloadAPIStreamLimitsConfig{
+		FetchX509SVID:    intVal(c.Agent.Experimental.StreamLimits.FetchX509SVID),
+		FetchX509Bundles: intVal(c.Agent.Experimental.StreamLimits.FetchX509Bundles),
+		FetchJWTBundles:  intVal(c.Agent.Experimental.StreamLimits.FetchJWTBundles),
+		StreamSecrets:    intVal(c.Agent.Experimental.StreamLimits.StreamSecrets),
+		PerWorkload:      intVal(c.Agent.Experimental.StreamLimits.PerWorkload),
+		Global:           intVal(c.Agent.Experimental.StreamLimits.Global),
+		MaxPending:       intVal(c.Agent.Experimental.StreamLimits.MaxPending),
+	}
+	for _, pool := range c.Agent.Experimental.StreamLimits.Pools {
+		ac.WorkloadAPIStreamLimits.Pools = append(ac.WorkloadAPIStreamLimits.Pools, endpoints.WorkloadAPIStreamPoolConfig{Name: pool.Name, Selectors: append([]string(nil), pool.Selectors...), Limit: pool.Limit})
+	}
+	if err := ac.WorkloadAPIStreamLimits.Validate(); err != nil {
+		return nil, err
+	}
 
 	if cmp.Diff(experimentalConfig{}, c.Agent.Experimental) != "" {
 		logger.Warn("Experimental features have been enabled. Please see doc/upgrading.md for upgrade and compatibility considerations for experimental features.")
@@ -1121,6 +1158,17 @@ func checkForUnknownConfig(c *Config, l logrus.FieldLogger) (err error) {
 
 	if a := c.Agent; a != nil && len(a.Experimental.RateLimit.UnusedKeyPositions) != 0 {
 		detectedUnknown("ratelimit", a.Experimental.RateLimit.UnusedKeyPositions)
+	}
+	if a := c.Agent; a != nil && len(a.Experimental.StreamLimits.UnusedKeyPositions) != 0 {
+		detectedUnknown("stream_limits", a.Experimental.StreamLimits.UnusedKeyPositions)
+	}
+
+	if a := c.Agent; a != nil {
+		for i, pool := range a.Experimental.StreamLimits.Pools {
+			if len(pool.UnusedKeyPositions) != 0 {
+				detectedUnknown(fmt.Sprintf("stream_limits.pool[%d]", i), pool.UnusedKeyPositions)
+			}
+		}
 	}
 
 	return err

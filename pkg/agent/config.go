@@ -27,6 +27,9 @@ const (
 // WorkloadAPIRateLimitConfig is an alias for endpoints.WorkloadAPIRateLimitConfig.
 type WorkloadAPIRateLimitConfig = endpoints.WorkloadAPIRateLimitConfig
 
+// WorkloadAPIStreamLimitsConfig configures active Workload API and SDS streams.
+type WorkloadAPIStreamLimitsConfig = endpoints.WorkloadAPIStreamLimitsConfig
+
 type Config struct {
 	// Address to bind the public Workload API/SDS endpoint to. Nil disables the endpoint.
 	BindAddress net.Addr
@@ -151,6 +154,9 @@ type Config struct {
 
 	// WorkloadAPIRateLimit configures per-selector-set rate limiting for Workload API and SDS methods.
 	WorkloadAPIRateLimit WorkloadAPIRateLimitConfig
+
+	// WorkloadAPIStreamLimits bounds active Workload API and SDS streams.
+	WorkloadAPIStreamLimits WorkloadAPIStreamLimitsConfig
 }
 
 // BrokerConfig mirrors the agent's `experimental.broker {}` HCL block.

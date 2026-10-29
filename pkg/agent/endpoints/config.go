@@ -1,7 +1,9 @@
 package endpoints
 
 import (
+	"fmt"
 	"net"
+	"strings"
 
 	secret_v3 "github.com/envoyproxy/go-control-plane/envoy/service/secret/v3"
 	"github.com/sirupsen/logrus"
@@ -27,6 +29,76 @@ type WorkloadAPIRateLimitConfig struct {
 	FetchWITBundles  int
 	StreamSecrets    int
 	FetchSecrets     int
+}
+
+// WorkloadAPIStreamLimitsConfig bounds active streams and optional waiting.
+// Zero disables an active ceiling or disables waiting for MaxPending.
+type WorkloadAPIStreamLimitsConfig struct {
+	FetchX509SVID    int
+	FetchX509Bundles int
+	FetchJWTBundles  int
+	StreamSecrets    int
+	PerWorkload      int
+	Global           int
+	MaxPending       int
+	Pools            []WorkloadAPIStreamPoolConfig
+}
+
+// WorkloadAPIStreamPoolConfig caps streams matching every configured selector.
+type WorkloadAPIStreamPoolConfig struct {
+	Name      string
+	Selectors []string
+	Limit     int
+}
+
+func (c WorkloadAPIStreamLimitsConfig) clone() WorkloadAPIStreamLimitsConfig {
+	pools := c.Pools
+	c.Pools = make([]WorkloadAPIStreamPoolConfig, len(pools))
+	for i, pool := range pools {
+		c.Pools[i] = pool
+		c.Pools[i].Selectors = append([]string(nil), pool.Selectors...)
+	}
+	return c
+}
+
+// Validate checks stream policy settings before startup or policy replacement.
+func (c WorkloadAPIStreamLimitsConfig) Validate() error {
+	for _, setting := range []struct {
+		key   string
+		value int
+	}{
+		{"fetch_x509_svid", c.FetchX509SVID},
+		{"fetch_x509_bundles", c.FetchX509Bundles},
+		{"fetch_jwt_bundles", c.FetchJWTBundles},
+		{"stream_secrets", c.StreamSecrets},
+		{"per_workload", c.PerWorkload},
+		{"global", c.Global},
+		{"max_pending", c.MaxPending},
+	} {
+		if setting.value < 0 {
+			return fmt.Errorf("experimental.stream_limits.%s must not be negative", setting.key)
+		}
+	}
+	names := make(map[string]struct{}, len(c.Pools))
+	for i, pool := range c.Pools {
+		if pool.Name == "" {
+			return fmt.Errorf("experimental.stream_limits.pool[%d].name must not be empty", i)
+		}
+		if _, ok := names[pool.Name]; ok {
+			return fmt.Errorf("experimental.stream_limits.pool[%d].name duplicates %q", i, pool.Name)
+		}
+		names[pool.Name] = struct{}{}
+		if pool.Limit < 0 {
+			return fmt.Errorf("experimental.stream_limits.pool[%d].limit must not be negative", i)
+		}
+		for _, raw := range pool.Selectors {
+			kind, value, ok := strings.Cut(raw, ":")
+			if !ok || kind == "" || value == "" {
+				return fmt.Errorf("experimental.stream_limits.pool[%d].selectors contains an invalid type:value pair", i)
+			}
+		}
+	}
+	return nil
 }
 
 type Config struct {
@@ -66,6 +138,8 @@ type Config struct {
 
 	// WorkloadAPIRateLimit configures per-selector-set rate limiting for Workload API and SDS methods.
 	WorkloadAPIRateLimit WorkloadAPIRateLimitConfig
+
+	WorkloadAPIStreamLimits WorkloadAPIStreamLimitsConfig
 
 	// Hooks used by the unit tests to assert that the configuration provided
 	// to each handler is correct and return fake handlers.

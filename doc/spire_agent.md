@@ -398,6 +398,30 @@ SPIRE Agent, upon receipt of the signal, does the following:
 2. Compares the plugin data to the previous data
 3. If changed, the plugin is reconfigured with the new data
 
+## Active stream limits
+
+`experimental.stream_limits` bounds concurrent `FetchX509SVID`, `FetchX509Bundles`, `FetchJWTBundles` and SDS `StreamSecrets` calls after attestation. Limits are disabled by default. This block does not limit unary requests, WIT streams or the agent's own `FetchX509SVID` health check.
+
+```hcl
+experimental {
+    stream_limits {
+        fetch_x509_svid = 20
+        per_workload = 40
+        global = 1000
+        max_pending = 100
+        pools = [{
+            name = "production"
+            selectors = ["k8s:ns:production"]
+            limit = 400
+        }]
+    }
+}
+```
+
+The four method keys use snake case (`fetch_x509_svid`, `fetch_x509_bundles`, `fetch_jwt_bundles`, `stream_secrets`). A zero active ceiling is unlimited; negative values prevent startup. `per_workload` groups the canonical attested selector set, and `global` spans the four supported methods. Every matching selector pool must have capacity.
+
+`max_pending = 0` rejects excess calls immediately with `ResourceExhausted`. A positive value enables one bounded queue shared by the supported methods; the oldest eligible call proceeds as capacity becomes available. Cancellation, receive-side termination and handler exit release reservations. Rejections increment `workload_api.stream_limit_exceeded`, labeled by method. Rate limits remain independent of active stream limits.
+
 ## Telemetry configuration
 
 Please see the [Telemetry Configuration](./telemetry/telemetry_config.md) guide for more information about configuring SPIRE Agent to emit telemetry.

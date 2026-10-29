@@ -49,6 +49,15 @@ func IncrRateLimitExceededCounter(m telemetry.Metrics, method string) {
 	)
 }
 
+// IncrStreamLimitExceededCounter records a rejected stream opening.
+func IncrStreamLimitExceededCounter(m telemetry.Metrics, method string) {
+	m.IncrCounterWithLabels(
+		[]string{telemetry.WorkloadAPI, telemetry.StreamLimitExceeded},
+		1,
+		[]telemetry.Label{{Name: telemetry.Method, Value: method}},
+	)
+}
+
 // End Counters
 
 // Add Samples (metric on count of some object, entries, event...)

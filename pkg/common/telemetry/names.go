@@ -478,7 +478,8 @@ const (
 	Pruned = "pruned"
 
 	// RateLimitExceeded tags a rate limit exceeded event
-	RateLimitExceeded = "rate_limit_exceeded"
+	RateLimitExceeded   = "rate_limit_exceeded"
+	StreamLimitExceeded = "stream_limit_exceeded"
 
 	// ReadOnly tags something read-only
 	ReadOnly = "read_only"

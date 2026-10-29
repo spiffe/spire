@@ -51,6 +51,10 @@ type RateLimiter interface {
 	RateLimit(fullMethod string, selectors []*common.Selector) error
 }
 
+type StreamLimiter interface {
+	Acquire(ctx context.Context, fullMethod string, selectors []*common.Selector) (func(), error)
+}
+
 const (
 	MethodFetchX509SVID    = "/SpiffeWorkloadAPI/FetchX509SVID"
 	MethodFetchJWTSVID     = "/SpiffeWorkloadAPI/FetchJWTSVID"
@@ -64,6 +68,7 @@ type Config struct {
 	Manager                       Manager
 	Attestor                      Attestor
 	RateLimiter                   RateLimiter
+	StreamLimiter                 StreamLimiter
 	AllowUnauthenticatedVerifiers bool
 	AllowedForeignJWTClaims       map[string]struct{}
 	LogSelectors                  []string
@@ -93,6 +98,13 @@ func (h *Handler) rateLimit(ctx context.Context, fullMethod string, selectors []
 		return nil
 	}
 	return h.c.RateLimiter.RateLimit(fullMethod, selectors)
+}
+
+func (h *Handler) acquireStream(ctx context.Context, fullMethod string, selectors []*common.Selector) (func(), error) {
+	if h.c.StreamLimiter == nil || (fullMethod == MethodFetchX509SVID && isAgent(ctx)) {
+		return func() {}, nil
+	}
+	return h.c.StreamLimiter.Acquire(ctx, fullMethod, selectors)
 }
 
 // FetchJWTSVID processes request for a JWT-SVID. In case of multiple fetched SVIDs with same hint, the SVID that has the oldest
@@ -165,6 +177,11 @@ func (h *Handler) FetchJWTBundles(_ *workload.JWTBundlesRequest, stream workload
 	if err := h.rateLimit(ctx, MethodFetchJWTBundles, selectors); err != nil {
 		return err
 	}
+	release, err := h.acquireStream(ctx, MethodFetchJWTBundles, selectors)
+	if err != nil {
+		return err
+	}
+	defer release()
 
 	subscriber, err := h.c.Manager.SubscribeToX509CacheChanges(ctx, selectors)
 	if err != nil {
@@ -268,6 +285,11 @@ func (h *Handler) FetchX509SVID(_ *workload.X509SVIDRequest, stream workload.Spi
 	if err := h.rateLimit(ctx, MethodFetchX509SVID, selectors); err != nil {
 		return err
 	}
+	release, err := h.acquireStream(ctx, MethodFetchX509SVID, selectors)
+	if err != nil {
+		return err
+	}
+	defer release()
 
 	subscriber, err := h.c.Manager.SubscribeToX509CacheChanges(ctx, selectors)
 	if err != nil {
@@ -304,6 +326,11 @@ func (h *Handler) FetchX509Bundles(_ *workload.X509BundlesRequest, stream worklo
 	if err := h.rateLimit(ctx, MethodFetchX509Bundles, selectors); err != nil {
 		return err
 	}
+	release, err := h.acquireStream(ctx, MethodFetchX509Bundles, selectors)
+	if err != nil {
+		return err
+	}
+	defer release()
 
 	subscriber, err := h.c.Manager.SubscribeToX509CacheChanges(ctx, selectors)
 	if err != nil {
