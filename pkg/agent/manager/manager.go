@@ -228,7 +228,14 @@ func (m *manager) Initialize(ctx context.Context) error {
 
 func (m *manager) Run(ctx context.Context) error {
 	defer m.client.Release()
+	err := util.RunTasks(ctx, m.bundleCache.Run, m.runManagedTasks)
+	if err == nil || errors.Is(err, context.Canceled) || errorutil.IsSIGINTOrSIGTERMError(err) {
+		return nil
+	}
+	return err
+}
 
+func (m *manager) runManagedTasks(ctx context.Context) error {
 	for {
 		tasks := []func(context.Context) error{
 			m.runSynchronizer,

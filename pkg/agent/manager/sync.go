@@ -121,7 +121,11 @@ func (m *manager) synchronize(ctx context.Context) (err error) {
 	// observer) in sync even if a later step (e.g. SVID fetching) fails, and
 	// avoids a stale bundle view relative to the workload cache, which is
 	// updated by updateX509SVIDCache below.
-	m.bundleCache.Update(cacheUpdate.Bundles)
+	if m.c.FederatedBundleMaxStaleness <= 0 {
+		m.bundleCache.Update(cacheUpdate.Bundles)
+	} else {
+		m.bundleCache.UpdateUnconfirmed(cacheUpdate.Bundles)
+	}
 
 	// Process all tainted authorities. The bundle is shared between both caches using regular cache data.
 	var errs []error
@@ -134,6 +138,11 @@ func (m *manager) synchronize(ctx context.Context) (err error) {
 
 	if err := errors.Join(errs...); err != nil {
 		return err
+	}
+	// Only a completed synchronization confirms bundle freshness. A later SVID
+	// update failure must not extend the lifetime of the previous bundle set.
+	if m.c.FederatedBundleMaxStaleness > 0 {
+		m.bundleCache.Update(cacheUpdate.Bundles)
 	}
 
 	// Set last success sync

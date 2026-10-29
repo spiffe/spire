@@ -291,7 +291,8 @@ type experimentalConfig struct {
 	// management server endpoint and this agent's node locality are configured
 	// out-of-band via the gRPC xDS bootstrap (GRPC_XDS_BOOTSTRAP /
 	// GRPC_XDS_BOOTSTRAP_CONFIG).
-	UseXDS bool `hcl:"use_xds"`
+	UseXDS                      bool   `hcl:"use_xds"`
+	FederatedBundleMaxStaleness string `hcl:"federated_bundle_max_staleness"`
 
 	RateLimit workloadAPIRateLimitConfig `hcl:"ratelimit"`
 
@@ -714,6 +715,17 @@ func newAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig, skip
 		return nil, fmt.Errorf("invalid server_load_balancing_config: %w", err)
 	}
 	ac.ServerLoadBalancingConfig = c.Agent.Experimental.ServerLoadBalancingConfig
+
+	if c.Agent.Experimental.FederatedBundleMaxStaleness != "" {
+		maxStaleness, err := time.ParseDuration(c.Agent.Experimental.FederatedBundleMaxStaleness)
+		if err != nil {
+			return nil, fmt.Errorf("could not parse federated_bundle_max_staleness: %w", err)
+		}
+		if maxStaleness < 0 {
+			return nil, errors.New("federated_bundle_max_staleness must not be negative")
+		}
+		ac.FederatedBundleMaxStaleness = maxStaleness
+	}
 
 	logOptions = append(logOptions,
 		log.WithLevel(c.Agent.LogLevel),

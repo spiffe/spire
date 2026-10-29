@@ -82,7 +82,8 @@ type Config struct {
 
 	// LoadBalancingConfig is an optional, opaque payload used as the
 	// loadBalancingConfig field of the gRPC service config.
-	LoadBalancingConfig string
+	LoadBalancingConfig         string
+	FederatedBundleMaxStaleness time.Duration
 
 	// Clk is the clock the manager will use to get time
 	Clk clock.Clock
@@ -130,7 +131,14 @@ func newManager(c *Config) *manager {
 
 	jwtCache := managerCache.NewJWTSVIDCache(logger, c.Metrics, c.JWTSVIDCacheMaxSize)
 
-	bundleCache := managerCache.NewBundleCache(c.TrustDomain, c.Bundle)
+	bundleCache := managerCache.NewBundleCacheWithConfig(managerCache.BundleCacheConfig{
+		TrustDomain:  c.TrustDomain,
+		Bundle:       c.Bundle,
+		MaxStaleness: c.FederatedBundleMaxStaleness,
+		Clock:        c.Clk,
+		Metrics:      c.Metrics,
+		Log:          logger,
+	})
 
 	rotCfg := &svid.RotatorConfig{
 		SVIDKeyManager:   keymanager.ForSVID(c.Catalog.GetKeyManager()),

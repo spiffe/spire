@@ -398,6 +398,12 @@ SPIRE Agent, upon receipt of the signal, does the following:
 2. Compares the plugin data to the previous data
 3. If changed, the plugin is reconfigured with the new data
 
+## Federated bundle freshness
+
+`experimental.federated_bundle_max_staleness` optionally limits how long federated bundles remain visible after a complete successful synchronization. It accepts a nonnegative Go duration, such as `"30m"`; the default `"0s"` disables enforcement. The agent's own trust-domain bundle is never expired by this option.
+
+Expiration removes stale federated bundles from the shared bundle view and notifies subscribers. A later successful confirmation readmits them. Failed synchronization and unconfirmed updates do not extend a previous deadline. Choose the duration to accommodate the expected synchronization interval and server outages; expiring a bundle affects verification of identities from that trust domain.
+
 ## Telemetry configuration
 
 Please see the [Telemetry Configuration](./telemetry/telemetry_config.md) guide for more information about configuring SPIRE Agent to emit telemetry.

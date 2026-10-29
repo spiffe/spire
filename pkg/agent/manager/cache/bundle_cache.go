@@ -3,11 +3,17 @@ package cache
 import (
 	"fmt"
 	"maps"
+	"sync"
+	"time"
 
+	"github.com/andres-erbsen/clock"
+	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
 	"github.com/spiffe/go-spiffe/v2/bundle/x509bundle"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/observer"
+	"github.com/spiffe/spire/pkg/common/telemetry"
+	telemetry_agent "github.com/spiffe/spire/pkg/common/telemetry/agent"
 )
 
 type Bundle = spiffebundle.Bundle
@@ -15,43 +21,71 @@ type Bundle = spiffebundle.Bundle
 var _ x509bundle.Source = (*BundleCache)(nil)
 
 type BundleCache struct {
-	trustDomain spiffeid.TrustDomain
-	bundles     observer.Property
+	trustDomain  spiffeid.TrustDomain
+	clk          clock.Clock
+	maxStaleness time.Duration
+	metrics      telemetry.Metrics
+	log          logrus.FieldLogger
+
+	// dispatchMu serializes state transitions with observer publication. A timer
+	// firing concurrently with a successful sync can therefore never publish an
+	// older view after the newly confirmed view.
+	dispatchMu sync.Mutex
+	mu         sync.RWMutex
+
+	// source contains the accepted bundle set. It starts with the bootstrap
+	// bundle; confirmedAt and stale apply only to federated trust domains.
+	source      map[spiffeid.TrustDomain]*Bundle
+	confirmedAt map[spiffeid.TrustDomain]time.Time
+	stale       map[spiffeid.TrustDomain]struct{}
+	// bundles is the currently visible set. It always contains the agent's
+	// own trust-domain bundle and omits federated bundles that are stale.
+	bundles observer.Property
+	wake    chan struct{}
 }
 
 func NewBundleCache(trustDomain spiffeid.TrustDomain, bundle *Bundle) *BundleCache {
-	bundles := map[spiffeid.TrustDomain]*Bundle{
-		trustDomain: bundle,
-	}
-	return &BundleCache{
-		trustDomain: trustDomain,
-		bundles:     observer.NewProperty(bundles),
-	}
+	return NewBundleCacheWithConfig(BundleCacheConfig{
+		TrustDomain: trustDomain,
+		Bundle:      bundle,
+	})
 }
 
+// NewBundleCacheWithConfig constructs the manager's shared bundle source. See
+// BundleCacheConfig for freshness semantics.
+func NewBundleCacheWithConfig(config BundleCacheConfig) *BundleCache {
+	if config.Clock == nil {
+		config.Clock = clock.New()
+	}
+	if config.Metrics == nil {
+		config.Metrics = telemetry.Blackhole{}
+	}
+
+	bundles := map[spiffeid.TrustDomain]*Bundle{
+		config.TrustDomain: config.Bundle,
+	}
+	c := &BundleCache{
+		trustDomain:  config.TrustDomain,
+		clk:          config.Clock,
+		maxStaleness: config.MaxStaleness,
+		metrics:      config.Metrics,
+		log:          config.Log,
+		source:       copyBundleMap(bundles),
+		confirmedAt:  make(map[spiffeid.TrustDomain]time.Time),
+		stale:        make(map[spiffeid.TrustDomain]struct{}),
+		bundles:      observer.NewProperty(bundles),
+		wake:         make(chan struct{}, 1),
+	}
+	telemetry_agent.InitializeFederatedBundleTransitionCounters(c.metrics)
+	c.emitStateMetrics(0, 0)
+	return c
+}
+
+// Update confirms the complete bundle set returned by a successful server
+// response. Reconfirming byte-identical bundles refreshes their deadlines but
+// does not publish a bundle update unless their visibility changes.
 func (c *BundleCache) Update(bundles map[spiffeid.TrustDomain]*Bundle) {
-	current := c.Bundles()
-
-	// Copy so we never mutate the caller's map (it is shared with the LRU
-	// cache and must not be modified).
-	next := copyBundleMap(bundles)
-
-	// The bundle for the agent's own trust domain must never be dropped even if
-	// it is absent from the update (which should only happen if there is a bug
-	// on the server), since it is required to authenticate the server.
-	if _, ok := next[c.trustDomain]; !ok {
-		if existing, ok := current[c.trustDomain]; ok {
-			if next == nil {
-				next = make(map[spiffeid.TrustDomain]*Bundle, 1)
-			}
-			next[c.trustDomain] = existing
-		}
-	}
-
-	if bundleMapsEqual(current, next) {
-		return
-	}
-	c.bundles.Update(next)
+	c.confirm(bundles, c.clk.Now())
 }
 
 func bundleMapsEqual(a, b map[spiffeid.TrustDomain]*Bundle) bool {

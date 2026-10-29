@@ -106,6 +106,11 @@ type Config struct {
 	// EnableWITSVIDs controls whether WIT-SVIDs are minted and served
 	EnableWITSVIDs bool
 
+	// FederatedBundleMaxStaleness limits how long a federated bundle remains
+	// visible after it was last confirmed by the SPIRE Server. Zero disables
+	// freshness enforcement.
+	FederatedBundleMaxStaleness time.Duration
+
 	// Trust domain and associated CA bundle
 	TrustDomain spiffeid.TrustDomain
 
