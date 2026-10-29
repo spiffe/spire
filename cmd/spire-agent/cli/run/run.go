@@ -291,7 +291,8 @@ type experimentalConfig struct {
 	// management server endpoint and this agent's node locality are configured
 	// out-of-band via the gRPC xDS bootstrap (GRPC_XDS_BOOTSTRAP /
 	// GRPC_XDS_BOOTSTRAP_CONFIG).
-	UseXDS bool `hcl:"use_xds"`
+	UseXDS                   bool `hcl:"use_xds"`
+	JWTSVIDRequestCoalescing bool `hcl:"jwt_svid_request_coalescing"`
 
 	RateLimit workloadAPIRateLimitConfig `hcl:"ratelimit"`
 
@@ -761,6 +762,8 @@ func newAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig, skip
 		client.SetJWTSVIDCacheHitTimeout(timeout)
 		logger.Warn("The use of 'jwt_svid_cache_hit_timeout' is experimental")
 	}
+
+	ac.JWTSVIDRequestCoalescing = c.Agent.Experimental.JWTSVIDRequestCoalescing
 
 	if c.Agent.Experimental.SyncRetryBackoff != nil {
 		syncInterval := ac.SyncInterval

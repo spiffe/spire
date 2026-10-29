@@ -97,6 +97,11 @@ func (m *manager) processTaintedAuthorities(ctx context.Context, bundle *spiffeb
 		m.c.Log.WithField(telemetry.JWTAuthorityKeyIDs, strings.Join(newTaintedJWTAuthorities, ",")).
 			Debug("New tainted JWT authorities found")
 
+		if m.c.JWTSVIDRequestCoalescing {
+			m.jwtRequests.mu.Lock()
+			defer m.jwtRequests.mu.Unlock()
+		}
+
 		// Taint JWT-SVIDs in the cache
 		m.jwtCache.TaintJWTSVIDs(ctx, tainted.JWT)
 
@@ -114,6 +119,9 @@ func (m *manager) synchronize(ctx context.Context) (err error) {
 	cacheUpdate, storeUpdate, tainted, err := m.fetchEntries(ctx)
 	if err != nil {
 		return err
+	}
+	if m.c.JWTSVIDRequestCoalescing {
+		m.updateJWTRegistrations(cacheUpdate, storeUpdate)
 	}
 
 	// Update the shared bundle cache as soon as the latest bundles are

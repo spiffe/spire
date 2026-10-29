@@ -115,6 +115,26 @@ type Manager interface {
 	GetX509Bundle() x509bundle.Source
 }
 
+type JWTCache interface {
+	GetJWTSVIDForRequest(key string) (*client.JWTSVID, bool)
+	SetJWTSVIDForRequest(key string, registration cache.JWTRegistration, svid *client.JWTSVID) error
+	RetainJWTRegistrations(authorized map[cache.JWTRegistration]struct{})
+
+	// CountJWTSVIDs in cache stored
+	CountJWTSVIDs() int
+
+	// GetJWTSVID provides JWT-SVID
+	GetJWTSVID(id spiffeid.ID, audience []string) (*client.JWTSVID, bool)
+
+	// SetJWTSVID adds JWT-SVID to cache
+	SetJWTSVID(id spiffeid.ID, audience []string, svid *client.JWTSVID)
+
+	// TaintJWTSVIDs removes JWT-SVIDs with tainted authorities from the cache,
+	// forcing the server to issue a new JWT-SVID when one with a tainted
+	// authority is requested.
+	TaintJWTSVIDs(ctx context.Context, taintedJWTAuthorities map[string]struct{})
+}
+
 type manager struct {
 	c *Config
 
@@ -126,9 +146,10 @@ type manager struct {
 	bundleCache *cache.BundleCache
 	x509Cache   *cache.X509SVIDLRUCache
 	// witCache is nil unless WIT-SVIDs are enabled
-	witCache *cache.WITLRUCache
-	jwtCache *cache.JWTSVIDCache
-	svid     svid.Rotator
+	witCache    *cache.WITLRUCache
+	jwtCache    JWTCache
+	svid        svid.Rotator
+	jwtRequests jwtRequests
 
 	storage storage.Storage
 
@@ -318,6 +339,9 @@ func (m *manager) FetchWorkloadUpdate(selectors []*common.Selector) *cache.X509W
 }
 
 func (m *manager) FetchJWTSVID(ctx context.Context, entry *common.RegistrationEntry, audience []string) (*client.JWTSVID, error) {
+	if m.c.JWTSVIDRequestCoalescing && !entry.GetAdditionalAttributes().GetJwtSvidIncludeJti() {
+		return m.fetchCoordinatedJWTSVID(ctx, entry, audience)
+	}
 	spiffeID, err := spiffeid.FromString(entry.SpiffeId)
 	if err != nil {
 		return nil, fmt.Errorf("invalid SPIFFE ID: %w", err)

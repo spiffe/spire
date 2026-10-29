@@ -211,6 +211,7 @@ With a bootstrap file pointed to by `GRPC_XDS_BOOTSTRAP`:
   }
 }
 ```
+| `jwt_svid_request_coalescing` | Share concurrent JWT signing requests for the same registration ID, revision, SPIFFE ID and audience set. Callers keep independent cancellation; the last departing caller cancels signing. JTI requests bypass sharing. No background signing is started. | false |
 
 ### Workload API Rate Limiting
 

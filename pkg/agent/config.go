@@ -106,6 +106,9 @@ type Config struct {
 	// EnableWITSVIDs controls whether WIT-SVIDs are minted and served
 	EnableWITSVIDs bool
 
+	// JWTSVIDRequestCoalescing shares concurrent signing work for the same registration and audience set.
+	JWTSVIDRequestCoalescing bool
+
 	// Trust domain and associated CA bundle
 	TrustDomain spiffeid.TrustDomain
 

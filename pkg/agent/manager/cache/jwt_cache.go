@@ -30,12 +30,14 @@ type JWTSVIDCache struct {
 	lruList *list.List
 
 	// svidCacheMaxSize is a hard limit of max number of SVIDs that would be stored in cache
-	svidCacheMaxSize int
+	svidCacheMaxSize   int
+	taintedAuthorities map[string]struct{}
 }
 
 type jwtSvidElement struct {
-	key  string
-	svid *client.JWTSVID
+	key          string
+	svid         *client.JWTSVID
+	registration *JWTRegistration
 }
 
 func (c *JWTSVIDCache) CountJWTSVIDs() int {
@@ -50,11 +52,12 @@ func NewJWTSVIDCache(log logrus.FieldLogger, metrics telemetry.Metrics, svidCach
 		svidCacheMaxSize = DefaultSVIDCacheMaxSize
 	}
 	return &JWTSVIDCache{
-		metrics:          metrics,
-		log:              log,
-		svids:            make(map[string]*list.Element),
-		lruList:          list.New(),
-		svidCacheMaxSize: svidCacheMaxSize,
+		metrics:            metrics,
+		log:                log,
+		svids:              make(map[string]*list.Element),
+		lruList:            list.New(),
+		svidCacheMaxSize:   svidCacheMaxSize,
+		taintedAuthorities: make(map[string]struct{}),
 	}
 }
 
@@ -109,6 +112,10 @@ func (c *JWTSVIDCache) TaintJWTSVIDs(ctx context.Context, taintedJWTAuthorities 
 
 	c.mu.Lock()
 	defer c.mu.Unlock()
+
+	for kid := range taintedJWTAuthorities {
+		c.taintedAuthorities[kid] = struct{}{}
+	}
 
 	counter := telemetry.StartCall(c.metrics, telemetry.CacheManager, agent.CacheTypeWorkload, telemetry.ProcessTaintedJWTSVIDs)
 	defer counter.Done(nil)
