@@ -3,6 +3,7 @@ package awsiid
 import (
 	"context"
 	"fmt"
+	"maps"
 	"sync"
 
 	"github.com/aws/aws-sdk-go-v2/service/autoscaling"
@@ -28,11 +29,12 @@ type Client interface {
 }
 
 type clientsCache struct {
-	mtx       sync.RWMutex
-	config    *SessionConfig
-	orgConfig *orgValidationConfig
-	clients   map[string]*cacheEntry
-	newClient newClientCallback
+	mtx        sync.RWMutex
+	config     *SessionConfig
+	partitions map[string]SessionConfig
+	orgConfig  *orgValidationConfig
+	clients    map[string]*cacheEntry
+	newClient  newClientCallback
 }
 
 type cacheEntry struct {
@@ -49,20 +51,47 @@ func newClientsCache(newClient newClientCallback) *clientsCache {
 	}
 }
 
-func (cc *clientsCache) configure(config SessionConfig, orgConfig orgValidationConfig) {
+func (cc *clientsCache) configure(config SessionConfig, partitions map[string]SessionConfig, orgConfig orgValidationConfig) {
 	cc.mtx.Lock()
+	defer cc.mtx.Unlock()
 	cc.clients = make(map[string]*cacheEntry)
 	cc.config = &config
+	cc.partitions = nil
+	if partitions != nil {
+		cc.partitions = make(map[string]SessionConfig, len(partitions))
+		maps.Copy(cc.partitions, partitions)
+	}
 	cc.orgConfig = &orgConfig
-	cc.mtx.Unlock()
 }
 
 func (cc *clientsCache) getClient(ctx context.Context, region, accountID string) (Client, error) {
-	// Do an initial check to see if p client for this region already exists
-	cacheKey := accountID + "@" + region
-
-	// Grab (or create) the cache for the region
-	r := cc.getCachedClient(cacheKey)
+	cc.mtx.Lock()
+	if cc.config == nil {
+		cc.mtx.Unlock()
+		return nil, status.Error(codes.FailedPrecondition, "not configured")
+	}
+	config := *cc.config
+	orgConfig := *cc.orgConfig
+	if cc.partitions != nil {
+		partition, err := partitionForRegion(region)
+		if err != nil {
+			cc.mtx.Unlock()
+			return nil, err
+		}
+		var ok bool
+		config, ok = cc.partitions[partition]
+		if !ok {
+			cc.mtx.Unlock()
+			return nil, status.Errorf(codes.PermissionDenied, "no AWS credentials configured for partition %q", partition)
+		}
+	}
+	cacheKey := config.Partition + "@" + accountID + "@" + region
+	r, ok := cc.clients[cacheKey]
+	if !ok {
+		r = &cacheEntry{lock: make(chan struct{}, 1)}
+		cc.clients[cacheKey] = r
+	}
+	cc.mtx.Unlock()
 
 	// Obtain the "lock" to the region cache
 	select {
@@ -81,22 +110,18 @@ func (cc *clientsCache) getClient(ctx context.Context, region, accountID string)
 		return r.client, nil
 	}
 
-	if cc.config == nil {
-		return nil, status.Error(codes.FailedPrecondition, "not configured")
-	}
-
 	var assumeRoleArn string
-	if cc.config.AssumeRole != "" {
-		assumeRoleArn = fmt.Sprintf("arn:%s:iam::%s:role/%s", cc.config.Partition, accountID, cc.config.AssumeRole)
+	if config.AssumeRole != "" {
+		assumeRoleArn = fmt.Sprintf("arn:%s:iam::%s:role/%s", config.Partition, accountID, config.AssumeRole)
 	}
 
 	// If organization attestation feature is enabled, assume org role
 	var orgRoleArn string
-	if cc.orgConfig.AccountRole != "" {
-		orgRoleArn = fmt.Sprintf("arn:%s:iam::%s:role/%s", cc.config.Partition, cc.orgConfig.AccountID, cc.orgConfig.AccountRole)
+	if orgConfig.AccountRole != "" && region == orgConfig.AccountRegion {
+		orgRoleArn = fmt.Sprintf("arn:%s:iam::%s:role/%s", config.Partition, orgConfig.AccountID, orgConfig.AccountRole)
 	}
 
-	client, err := cc.newClient(ctx, cc.config, region, assumeRoleArn, orgRoleArn)
+	client, err := cc.newClient(ctx, &config, region, assumeRoleArn, orgRoleArn)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to create client: %v", err)
 	}
@@ -105,27 +130,30 @@ func (cc *clientsCache) getClient(ctx context.Context, region, accountID string)
 	return client, nil
 }
 
-func (cc *clientsCache) getCachedClient(cacheKey string) *cacheEntry {
-	cc.mtx.Lock()
-	defer cc.mtx.Unlock()
-	r, ok := cc.clients[cacheKey]
-	if !ok {
-		r = &cacheEntry{
-			lock: make(chan struct{}, 1),
-		}
-		cc.clients[cacheKey] = r
+func (cc *clientsCache) checkRegion(region string) error {
+	cc.mtx.RLock()
+	defer cc.mtx.RUnlock()
+	if cc.partitions == nil {
+		return nil
 	}
-	return r
+	partition, err := partitionForRegion(region)
+	if err != nil {
+		return err
+	}
+	if _, ok := cc.partitions[partition]; !ok {
+		return status.Errorf(codes.PermissionDenied, "no AWS credentials configured for partition %q", partition)
+	}
+	return nil
 }
 
 func newClient(ctx context.Context, config *SessionConfig, region string, assumeRoleARN string, orgRoleArn string) (Client, error) {
-	conf, err := newAWSConfig(ctx, config.AccessKeyID, config.SecretAccessKey, region, assumeRoleARN)
+	conf, err := newAWSConfig(ctx, config, region, assumeRoleARN)
 	if err != nil {
 		return nil, err
 	}
 
 	// If the organizationAttestation feature is enabled, use the role configured for feature.
-	orgConf, err := newAWSConfig(ctx, config.AccessKeyID, config.SecretAccessKey, region, orgRoleArn)
+	orgConf, err := newAWSConfig(ctx, config, region, orgRoleArn)
 	if err != nil {
 		return nil, err
 	}

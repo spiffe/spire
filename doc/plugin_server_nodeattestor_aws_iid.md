@@ -35,6 +35,31 @@ Sample configuration:
 
 If `assume_role` is set, the SPIRE server will assume the role as specified by the template `arn:{{Partition}}:iam::{{AccountID}}:role/{{AssumeRole}}` where `Partition` comes from the AWS NodeAttestor plugin configuration if specified otherwise set to 'aws', `AccountID` is taken from the AWS IID document sent by the SPIRE agent to the SPIRE server and `AssumeRole` comes from the AWS NodeAttestor plugin configuration. Details about the template engine are available in the [template engine documentation](template_engine.md).
 
+### Attesting across AWS partitions
+
+Use `partition_credentials` to attest nodes in more than one of `aws`, `aws-cn`, and `aws-us-gov` from one server. Configure an entry for every partition whose nodes may attest. The partition is chosen from the region in the verified instance identity document. A node from an unconfigured partition is rejected. The top-level `access_key_id`, `secret_access_key`, `assume_role`, and `partition` settings remain available for single-partition deployments and cannot be combined with `partition_credentials`.
+
+```hcl
+NodeAttestor "aws_iid" {
+    plugin_data {
+        partition_credentials {
+            aws {
+                web_identity_role_arn   = "arn:aws:iam::111111111111:role/spire-attestor"
+                web_identity_token_file = "/run/secrets/aws-commercial-token"
+                assume_role             = "spire-node-attestor"
+            }
+            aws-us-gov {
+                access_key_id     = "GOV_ACCESS_KEY_ID"
+                secret_access_key = "GOV_SECRET_ACCESS_KEY"
+                assume_role       = "spire-node-attestor"
+            }
+        }
+    }
+}
+```
+
+Each entry accepts exactly one credential source: `access_key_id` together with `secret_access_key`, `web_identity_role_arn` together with `web_identity_token_file`, or neither to use the normal AWS SDK credential chain. The web identity role ARN must belong to the named partition. The token file must remain readable by the SPIRE Server and contain a projected token that the partition's STS endpoint accepts. The web-identity role's trust policy must allow `sts:AssumeRoleWithWebIdentity` for that token's provider and subject. Static, ambient, and web-identity credentials need the EC2 and IAM read permissions listed below, plus EKS or Organizations permissions when those features are enabled. For `assume_role`, the selected credentials need `sts:AssumeRole` permission for the named role in the attested node's account; that role needs the API read permissions. If `verify_organization` uses the AWS Organizations API, configure credentials for its management account region too. An AWS organization cannot span partitions; use `account_list_file` when validating eligible accounts across partitions.
+
 In the following configuration,
 
 ```hcl

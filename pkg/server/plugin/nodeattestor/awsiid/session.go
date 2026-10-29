@@ -2,6 +2,7 @@ package awsiid
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -14,10 +15,12 @@ import (
 
 // SessionConfig is a common config for AWS session config.
 type SessionConfig struct {
-	AccessKeyID     string `hcl:"access_key_id"`
-	SecretAccessKey string `hcl:"secret_access_key"`
-	AssumeRole      string `hcl:"assume_role"`
-	Partition       string `hcl:"partition"`
+	AccessKeyID          string `hcl:"access_key_id"`
+	SecretAccessKey      string `hcl:"secret_access_key"`
+	AssumeRole           string `hcl:"assume_role"`
+	Partition            string `hcl:"partition"`
+	WebIdentityRoleARN   string `hcl:"web_identity_role_arn"`
+	WebIdentityTokenFile string `hcl:"web_identity_token_file"`
 }
 
 func (cfg *SessionConfig) Validate(defaultAccessKeyID, defaultSecretAccessKey string) error {
@@ -38,19 +41,31 @@ func (cfg *SessionConfig) Validate(defaultAccessKeyID, defaultSecretAccessKey st
 		return status.Error(codes.InvalidArgument, "configuration missing secret access key, but has access key id")
 	case cfg.AccessKeyID == "" && cfg.SecretAccessKey != "":
 		return status.Error(codes.InvalidArgument, "configuration missing access key id, but has secret access key")
+	case (cfg.WebIdentityRoleARN == "") != (cfg.WebIdentityTokenFile == ""):
+		return status.Error(codes.InvalidArgument, "web identity role ARN and token file must be configured together")
+	case cfg.WebIdentityRoleARN != "" && cfg.AccessKeyID != "":
+		return status.Error(codes.InvalidArgument, "static and web identity credentials cannot be combined")
 	}
 	return nil
 }
 
 // newAWSSession create an AWS config from the credentials and given region
-func newAWSConfig(ctx context.Context, accessKeyID, secretAccessKey, region, assumeRoleArn string) (aws.Config, error) {
+func newAWSConfig(ctx context.Context, session *SessionConfig, region, assumeRoleArn string) (aws.Config, error) {
 	var opts []func(*config.LoadOptions) error
 	if region != "" {
 		opts = append(opts, config.WithRegion(region))
 	}
 
-	if secretAccessKey != "" && accessKeyID != "" {
-		opts = append(opts, config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(accessKeyID, secretAccessKey, "")))
+	if session.SecretAccessKey != "" && session.AccessKeyID != "" {
+		opts = append(opts, config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(session.AccessKeyID, session.SecretAccessKey, "")))
+	} else if session.WebIdentityRoleARN != "" {
+		baseConfig, err := config.LoadDefaultConfig(ctx, config.WithRegion(region), config.WithCredentialsProvider(aws.AnonymousCredentials{}))
+		if err != nil {
+			return aws.Config{}, fmt.Errorf("could not configure web identity exchange: %w", err)
+		}
+		stsClient := sts.NewFromConfig(baseConfig)
+		provider := stscreds.NewWebIdentityRoleProvider(stsClient, session.WebIdentityRoleARN, stscreds.IdentityTokenFile(session.WebIdentityTokenFile))
+		opts = append(opts, config.WithCredentialsProvider(aws.NewCredentialsCache(provider)))
 	}
 
 	conf, err := config.LoadDefaultConfig(ctx, opts...)

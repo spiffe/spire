@@ -120,20 +120,26 @@ type IIDAttestorPlugin struct {
 // IIDAttestorConfig holds hcl configuration for IID attestor plugin
 type IIDAttestorConfig struct {
 	SessionConfig                   `hcl:",squash"`
-	SkipBlockDevice                 bool                 `hcl:"skip_block_device"`
-	DisableInstanceProfileSelectors bool                 `hcl:"disable_instance_profile_selectors"`
-	LocalValidAcctIDs               []string             `hcl:"account_ids_for_local_validation"`
-	AgentPathTemplate               string               `hcl:"agent_path_template"`
-	AssumeRole                      string               `hcl:"assume_role"`
-	Partition                       string               `hcl:"partition"`
-	ValidateOrgAccountID            *orgValidationConfig `hcl:"verify_organization"`
-	ValidateEKSClusterMembership    *eksValidationConfig `hcl:"validate_eks_cluster_membership"`
+	SkipBlockDevice                 bool                      `hcl:"skip_block_device"`
+	DisableInstanceProfileSelectors bool                      `hcl:"disable_instance_profile_selectors"`
+	LocalValidAcctIDs               []string                  `hcl:"account_ids_for_local_validation"`
+	AgentPathTemplate               string                    `hcl:"agent_path_template"`
+	AssumeRole                      string                    `hcl:"assume_role"`
+	Partition                       string                    `hcl:"partition"`
+	PartitionCredentials            map[string]*SessionConfig `hcl:"partition_credentials,block"`
+	ValidateOrgAccountID            *orgValidationConfig      `hcl:"verify_organization"`
+	ValidateEKSClusterMembership    *eksValidationConfig      `hcl:"validate_eks_cluster_membership"`
 	pathTemplate                    *agentpathtemplate.Template
 	trustDomain                     spiffeid.TrustDomain
+	partitionSessions               map[string]SessionConfig
 	getAWSCACertificate             func(string, PublicKeyType) (*x509.Certificate, error)
 }
 
 func (p *IIDAttestorPlugin) buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *IIDAttestorConfig {
+	if err := rejectDuplicatePartitionCredentials(hclText); err != nil {
+		status.ReportError(err.Error())
+		return nil
+	}
 	newConfig := new(IIDAttestorConfig)
 	if err := hcl.Decode(newConfig, hclText); err != nil {
 		status.ReportErrorf("unable to decode configuration: %v", err)
@@ -145,8 +151,45 @@ func (p *IIDAttestorPlugin) buildConfig(coreConfig catalog.CoreConfig, hclText s
 	// operation should not fail, but we check the return value just in case.
 	newConfig.getAWSCACertificate = p.hooks.getAWSCACertificate
 
-	if err := newConfig.Validate(p.hooks.getenv(accessKeyIDVarName), p.hooks.getenv(secretAccessKeyVarName)); err != nil {
-		status.ReportError(err.Error())
+	if newConfig.PartitionCredentials != nil {
+		if len(newConfig.PartitionCredentials) == 0 {
+			status.ReportError("partition_credentials must contain at least one partition")
+		}
+		if newConfig.AccessKeyID != "" || newConfig.SecretAccessKey != "" || newConfig.AssumeRole != "" || newConfig.Partition != "" || newConfig.SessionConfig.AssumeRole != "" || newConfig.SessionConfig.Partition != "" || newConfig.WebIdentityRoleARN != "" || newConfig.WebIdentityTokenFile != "" {
+			status.ReportError("partition_credentials cannot be combined with top-level AWS credentials, assume_role, or partition")
+		}
+		newConfig.partitionSessions = make(map[string]SessionConfig, len(newConfig.PartitionCredentials))
+		for partition, session := range newConfig.PartitionCredentials {
+			if !isValidAWSPartition(partition) || session == nil {
+				status.ReportErrorf("invalid partition credential entry %q", partition)
+				continue
+			}
+			credentials := *session
+			if credentials.Partition != "" && credentials.Partition != partition {
+				status.ReportErrorf("partition credential entry %q contains a different partition", partition)
+				continue
+			}
+			credentials.Partition = partition
+			if err := credentials.Validate("", ""); err != nil {
+				status.ReportErrorf("invalid credentials for partition %q: %v", partition, err)
+				continue
+			}
+			if credentials.WebIdentityRoleARN != "" {
+				roleARN, err := arn.Parse(credentials.WebIdentityRoleARN)
+				if err != nil || roleARN.Partition != partition || roleARN.Service != "iam" || !strings.HasPrefix(roleARN.Resource, "role/") {
+					status.ReportErrorf("invalid web identity role ARN for partition %q", partition)
+					continue
+				}
+			}
+			newConfig.partitionSessions[partition] = credentials
+		}
+	} else {
+		if newConfig.WebIdentityRoleARN != "" || newConfig.WebIdentityTokenFile != "" {
+			status.ReportError("web identity credentials must be configured inside partition_credentials")
+		}
+		if err := newConfig.Validate(p.hooks.getenv(accessKeyIDVarName), p.hooks.getenv(secretAccessKeyVarName)); err != nil {
+			status.ReportError(err.Error())
+		}
 	}
 
 	newConfig.trustDomain = coreConfig.TrustDomain
@@ -161,12 +204,15 @@ func (p *IIDAttestorPlugin) buildConfig(coreConfig catalog.CoreConfig, hclText s
 		}
 	}
 
-	if newConfig.Partition == "" {
-		newConfig.Partition = defaultPartition
-	}
-
-	if !isValidAWSPartition(newConfig.Partition) {
-		status.ReportErrorf("invalid partition %q, must be one of: %v", newConfig.Partition, partitions)
+	if newConfig.PartitionCredentials == nil {
+		if newConfig.Partition == "" {
+			newConfig.Partition = defaultPartition
+		}
+		if !isValidAWSPartition(newConfig.Partition) {
+			status.ReportErrorf("invalid partition %q, must be one of: %v", newConfig.Partition, partitions)
+		}
+		newConfig.SessionConfig.Partition = newConfig.Partition
+		newConfig.SessionConfig.AssumeRole = newConfig.AssumeRole
 	}
 
 	// Check if Feature flag for account belongs to organization is enabled.
@@ -210,6 +256,9 @@ func (p *IIDAttestorPlugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServ
 
 	attestationData, err := unmarshalAndValidateIdentityDocument(payload, c.getAWSCACertificate)
 	if err != nil {
+		return err
+	}
+	if err := p.clients.checkRegion(attestationData.Region); err != nil {
 		return err
 	}
 
@@ -342,9 +391,9 @@ func (p *IIDAttestorPlugin) Configure(_ context.Context, req *configv1.Configure
 
 	if newConfig.ValidateOrgAccountID == nil {
 		// unconfigure existing clients
-		p.clients.configure(p.config.SessionConfig, orgValidationConfig{})
+		p.clients.configure(p.config.SessionConfig, p.config.partitionSessions, orgValidationConfig{})
 	} else {
-		p.clients.configure(p.config.SessionConfig, *p.config.ValidateOrgAccountID)
+		p.clients.configure(p.config.SessionConfig, p.config.partitionSessions, *p.config.ValidateOrgAccountID)
 		// Setup required config, for validation and for bootstrapping org client
 		if err := p.orgValidation.configure(p.config.ValidateOrgAccountID); err != nil {
 			return nil, err
