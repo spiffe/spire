@@ -782,6 +782,107 @@ func TestSubscribeToX509SVIDReattestation(t *testing.T) {
 		assert.Equal(t, cache.Selectors{selectorBefore}, subscribed[0])
 		assert.Equal(t, cache.Selectors{selectorAfter}, subscribed[1])
 	})
+
+	t.Run("terminates the stream when the reference stops resolving before an update", func(t *testing.T) {
+		sub := &fakeCacheSubscriber{ch: make(chan *cache.X509WorkloadUpdate, 1)}
+		sub.ch <- update
+
+		attestor := &scriptedAttestor{results: []fakeAttestation{
+			{selectors: []*common.Selector{selectorBefore}},
+			{err: status.Error(codes.NotFound, "pod not found")},
+		}}
+		s := New(Config{
+			Attestor:         attestor,
+			Manager:          &fakeManager{cacheSubscriber: sub},
+			Metrics:          fakemetrics.New(),
+			Clock:            testclock.NewMock(t),
+			ReattestInterval: time.Minute,
+		})
+
+		ctx, cancel := context.WithCancel(brokerCallerContext(caller))
+		defer cancel()
+		stream := &fakeX509SVIDStream{ctx: ctx, sentCh: make(chan *broker.SubscribeToX509SVIDResponse, 1)}
+
+		err := s.SubscribeToX509SVID(&broker.SubscribeToX509SVIDRequest{
+			Reference: &broker.WorkloadReference{Reference: ref(k8sType)},
+		}, stream)
+		require.Error(t, err)
+		assert.Equal(t, codes.NotFound, status.Code(err))
+
+		select {
+		case <-stream.sentCh:
+			t.Fatal("response was sent after re-attestation failed")
+		default:
+		}
+	})
+
+	t.Run("resubscribes and drops the update when selectors change before an update", func(t *testing.T) {
+		workload2ID := spiffeid.RequireFromPath(trustDomain, "/workload2")
+		workload2SVID := ca.CreateX509SVID(workload2ID)
+		updateAfter := &cache.X509WorkloadUpdate{
+			Bundle: ca.Bundle(),
+			Identities: []cache.X509Identity{
+				{Entry: &common.RegistrationEntry{SpiffeId: workload2ID.String()}, SVID: workload2SVID.Certificates, PrivateKey: workload2SVID.PrivateKey},
+			},
+		}
+
+		subBefore := &fakeCacheSubscriber{
+			ch:       make(chan *cache.X509WorkloadUpdate, 1),
+			finished: make(chan struct{}),
+		}
+		subBefore.ch <- update
+		subAfter := &fakeCacheSubscriber{ch: make(chan *cache.X509WorkloadUpdate, 1)}
+		subAfter.ch <- updateAfter
+
+		attestor := &scriptedAttestor{results: []fakeAttestation{
+			{selectors: []*common.Selector{selectorBefore}},
+			{selectors: []*common.Selector{selectorAfter}},
+		}}
+		mgr := &fakeManager{
+			subscribeResults: []cache.Subscriber[cache.X509WorkloadUpdate]{subBefore, subAfter},
+		}
+		s := New(Config{
+			Attestor:         attestor,
+			Manager:          mgr,
+			Metrics:          fakemetrics.New(),
+			Clock:            testclock.NewMock(t),
+			ReattestInterval: time.Minute,
+		})
+
+		ctx, cancel := context.WithCancel(brokerCallerContext(caller))
+		stream := &fakeX509SVIDStream{ctx: ctx, sentCh: make(chan *broker.SubscribeToX509SVIDResponse, 1)}
+
+		errCh := make(chan error, 1)
+		go func() {
+			errCh <- s.SubscribeToX509SVID(&broker.SubscribeToX509SVIDRequest{
+				Reference: &broker.WorkloadReference{Reference: ref(k8sType)},
+			}, stream)
+		}()
+
+		resp := <-stream.sentCh
+		require.Len(t, resp.Svids, 1)
+		assert.Equal(t, workload2ID.String(), resp.Svids[0].SpiffeId)
+
+		cancel()
+		require.NoError(t, <-errCh)
+
+		select {
+		case <-subBefore.finished:
+		default:
+			t.Fatal("original subscriber was not finished")
+		}
+
+		select {
+		case resp := <-stream.sentCh:
+			t.Fatalf("sent update composed for stale selectors: %v", resp.Svids)
+		default:
+		}
+
+		subscribed := mgr.subscribedSelectorsSnapshot()
+		require.Len(t, subscribed, 2)
+		assert.Equal(t, cache.Selectors{selectorBefore}, subscribed[0])
+		assert.Equal(t, cache.Selectors{selectorAfter}, subscribed[1])
+	})
 }
 
 func TestSelectorsEqual(t *testing.T) {

@@ -209,12 +209,57 @@ func (s *Service) SubscribeToX509SVID(req *broker.SubscribeToX509SVIDRequest, st
 	// finished even after re-attestation swaps it below.
 	defer func() { subscriber.Finish() }()
 
+	// reattest re-resolves the reference and moves the subscription when the
+	// selectors change. It reports whether the subscription was replaced, in
+	// which case a cache update already read for the old selectors must not be
+	// delivered.
+	reattest := func() (bool, error) {
+		// The reference can resolve to a different selector set over time (for
+		// example, a pod is recreated or its labels change), or stop resolving
+		// altogether. Re-attest it and either move the subscription to the new
+		// selectors or terminate the stream.
+		newSelectors, err := s.constructValidSelectorsFromReference(brokercontext.WithCallerID(ctx, peer), log, req.Reference)
+		if err != nil {
+			log.WithError(err).Error("Workload re-attestation failed")
+			return false, err
+		}
+		if selectorsEqual(selectors, newSelectors) {
+			return false, nil
+		}
+
+		log.WithField(telemetry.Selectors, newSelectors).Debug("Workload reference resolved to new selectors; resubscribing")
+
+		newSubscriber, err := s.manager.SubscribeToX509CacheChanges(ctx, newSelectors)
+		if err != nil {
+			log.WithError(err).Error("Subscribe to cache changes failed")
+			return false, err
+		}
+		subscriber.Finish()
+		subscriber = newSubscriber
+		selectors = newSelectors
+		return true, nil
+	}
+
 	reattestTicker := s.clock.Ticker(s.reattestInterval)
 	defer reattestTicker.Stop()
 
 	for {
 		select {
 		case update := <-subscriber.Updates():
+			// Each response extends the identities handed to the broker, so
+			// re-attest right before sending it rather than relying only on
+			// the periodic re-attestation.
+			replaced, err := reattest()
+			if err != nil {
+				return err
+			}
+			if replaced {
+				// The update was composed for the previous selectors and no
+				// longer reflects the referenced workload. Wait for the new
+				// subscription to deliver an update.
+				continue
+			}
+
 			update.Identities = hintsfilter.FilterIdentities(update.Identities, log)
 			if len(update.Identities) > 0 && !receivedFirstUpdate {
 				// emit latency metric for first update containing an SVID.
@@ -226,29 +271,9 @@ func (s *Service) SubscribeToX509SVID(req *broker.SubscribeToX509SVIDRequest, st
 				return err
 			}
 		case <-reattestTicker.C:
-			// The reference can resolve to a different selector set over time
-			// (for example, a pod is recreated or its labels change), or stop
-			// resolving altogether. Re-attest it periodically and either move
-			// the subscription to the new selectors or terminate the stream.
-			newSelectors, err := s.constructValidSelectorsFromReference(brokercontext.WithCallerID(ctx, peer), log, req.Reference)
-			if err != nil {
-				log.WithError(err).Error("Workload re-attestation failed")
+			if _, err := reattest(); err != nil {
 				return err
 			}
-			if selectorsEqual(selectors, newSelectors) {
-				continue
-			}
-
-			log.WithField(telemetry.Selectors, newSelectors).Debug("Workload reference resolved to new selectors; resubscribing")
-
-			newSubscriber, err := s.manager.SubscribeToX509CacheChanges(ctx, newSelectors)
-			if err != nil {
-				log.WithError(err).Error("Subscribe to cache changes failed")
-				return err
-			}
-			subscriber.Finish()
-			subscriber = newSubscriber
-			selectors = newSelectors
 		case <-ctx.Done():
 			return nil
 		}
