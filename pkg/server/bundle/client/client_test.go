@@ -32,10 +32,11 @@ func TestClient(t *testing.T) {
 		serverID       spiffeid.ID
 		status         int
 		body           string
-		newClientErr   string
-		fetchBundleErr string
-		useWebAuth     bool
-		mutateConfig   func(*ClientConfig)
+		newClientErr     string
+		fetchBundleErr   string
+		useWebAuth       bool
+		mutateConfig     func(*ClientConfig)
+		expectedSequence uint64
 	}{
 		{
 			name:   "success",
@@ -46,6 +47,14 @@ func TestClient(t *testing.T) {
 			body:       `{"spiffe_refresh_hint": 10}`,
 			serverID:   serverID,
 			expectedID: serverID,
+		},
+		{
+			name:             "keeps the sequence",
+			status:           http.StatusOK,
+			body:             `{"spiffe_refresh_hint": 10, "spiffe_sequence": 42}`,
+			serverID:         serverID,
+			expectedID:       serverID,
+			expectedSequence: 42,
 		},
 		{
 			name:         "no SPIFFE ID",
@@ -154,6 +163,11 @@ func TestClient(t *testing.T) {
 			refreshHint, ok := bundle.RefreshHint()
 			require.True(t, ok)
 			require.Equal(t, 10*time.Second, refreshHint)
+			if testCase.expectedSequence > 0 {
+				sequence, ok := bundle.SequenceNumber()
+				require.True(t, ok)
+				require.Equal(t, testCase.expectedSequence, sequence)
+			}
 		})
 	}
 }
