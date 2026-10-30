@@ -7,9 +7,11 @@ import (
 	"fmt"
 
 	"github.com/go-jose/go-jose/v4"
+	"github.com/hashicorp/go-hclog"
 	"github.com/spiffe/spire-plugin-sdk/pluginsdk/support/bundleformat"
 	"github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/types"
 	"github.com/spiffe/spire/pkg/common/cryptoutil"
+	"github.com/spiffe/spire/pkg/common/telemetry"
 )
 
 // keyUse is the value of the "use" parameter set on the JWKs. It matches the
@@ -28,9 +30,9 @@ func ValidateJWKSOptions(format bundleformat.Format, jwtKeysOnly bool) error {
 // FormatBundle formats the bundle in the given format. When jwtKeysOnly is
 // set, the jwks format is built by JWTKeysJWKS; otherwise the bundle is
 // formatted by the plugin SDK bundleformat package.
-func FormatBundle(bundle *types.Bundle, format bundleformat.Format, jwtKeysOnly bool) ([]byte, error) {
+func FormatBundle(log hclog.Logger, bundle *types.Bundle, format bundleformat.Format, jwtKeysOnly bool) ([]byte, error) {
 	if jwtKeysOnly && format == bundleformat.JWKS {
-		return JWTKeysJWKS(bundle)
+		return JWTKeysJWKS(log, bundle)
 	}
 	return bundleformat.NewFormatter(bundle).Format(format)
 }
@@ -39,7 +41,9 @@ func FormatBundle(bundle *types.Bundle, format bundleformat.Format, jwtKeysOnly 
 // in the form served by the OIDC Discovery Provider, so that it can be used
 // to verify JWT-SVIDs by OIDC relying parties: X.509 authorities are not
 // included, and every key has its "kid", its "alg" and "use" set to "sig".
-func JWTKeysJWKS(bundle *types.Bundle) ([]byte, error) {
+// As on the provider, a key with no JWS algorithm is included without "alg",
+// and a warning is logged, so that the other keys are still published.
+func JWTKeysJWKS(log hclog.Logger, bundle *types.Bundle) ([]byte, error) {
 	if bundle == nil {
 		return nil, errors.New("missing bundle")
 	}
@@ -54,7 +58,7 @@ func JWTKeysJWKS(bundle *types.Bundle) ([]byte, error) {
 		}
 		alg, err := cryptoutil.JoseAlgFromPublicKey(publicKey)
 		if err != nil {
-			return nil, fmt.Errorf("unable to determine the algorithm of JWT signing key %q: %w", jwtKey.KeyId, err)
+			log.Warn("Publishing JWT signing key without an algorithm", telemetry.Kid, jwtKey.KeyId, telemetry.Error, err)
 		}
 
 		jwk := jose.JSONWebKey{

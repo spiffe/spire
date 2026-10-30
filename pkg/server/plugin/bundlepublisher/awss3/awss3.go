@@ -195,7 +195,7 @@ func (p *Plugin) PublishBundle(ctx context.Context, req *bundlepublisherv1.Publi
 		bundleToPublish.RefreshHint = config.parsedRefreshHint
 	}
 
-	bundleBytes, err := common.FormatBundle(bundleToPublish, config.bundleFormat, config.JWTKeysOnly)
+	bundleBytes, err := common.FormatBundle(p.log, bundleToPublish, config.bundleFormat, config.JWTKeysOnly)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "could not format bundle: %v", err.Error())
 	}

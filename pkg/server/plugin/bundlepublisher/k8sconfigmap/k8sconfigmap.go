@@ -198,7 +198,7 @@ func (p *Plugin) PublishBundle(ctx context.Context, req *bundlepublisherv1.Publi
 			bundleToPublish.RefreshHint = cluster.parsedRefreshHint
 		}
 
-		bundleBytes, err := common.FormatBundle(bundleToPublish, cluster.bundleFormat, cluster.JWTKeysOnly)
+		bundleBytes, err := common.FormatBundle(p.log, bundleToPublish, cluster.bundleFormat, cluster.JWTKeysOnly)
 		if err != nil {
 			allErrors = errors.Join(allErrors, fmt.Errorf("could not format bundle when publishing to cluster %q: %w", id, err))
 			continue

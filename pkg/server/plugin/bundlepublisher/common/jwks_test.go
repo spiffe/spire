@@ -9,9 +9,11 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/go-jose/go-jose/v4"
+	"github.com/hashicorp/go-hclog"
 	"github.com/spiffe/spire-plugin-sdk/pluginsdk/support/bundleformat"
 	"github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/types"
 	"github.com/spiffe/spire/test/testkey"
@@ -25,7 +27,7 @@ func TestJWTKeysJWKS(t *testing.T) {
 	ec256 := testkey.MustEC256().Public()
 	ec384 := testkey.MustEC384().Public()
 
-	rsa1024Key, err := rsa.GenerateKey(rand.Reader, 1024) //nolint: gosec // small key on purpose, to test that it is rejected
+	rsa1024Key, err := rsa.GenerateKey(rand.Reader, 1024) //nolint: gosec // small key on purpose, to test that it has no algorithm
 	require.NoError(t, err)
 	ec521Key, err := ecdsa.GenerateKey(elliptic.P521(), rand.Reader)
 	require.NoError(t, err)
@@ -39,7 +41,10 @@ func TestJWTKeysJWKS(t *testing.T) {
 		name      string
 		bundle    *types.Bundle
 		expectAlg map[string]string
-		expectErr string
+		// expectNoAlg lists the keys published without "alg", for which a
+		// warning is logged.
+		expectNoAlg []string
+		expectErr   string
 	}{
 		{
 			name: "all supported key types",
@@ -88,7 +93,7 @@ func TestJWTKeysJWKS(t *testing.T) {
 				TrustDomain:    "example.org",
 				JwtAuthorities: []*types.JWTKey{jwtKey(t, "rsa1024", rsa1024Key.Public())},
 			},
-			expectErr: `unable to determine the algorithm of JWT signing key "rsa1024": unsupported RSA key size: 128`,
+			expectNoAlg: []string{"rsa1024"},
 		},
 		{
 			name: "ec p-521 key",
@@ -96,7 +101,7 @@ func TestJWTKeysJWKS(t *testing.T) {
 				TrustDomain:    "example.org",
 				JwtAuthorities: []*types.JWTKey{jwtKey(t, "ec521", ec521Key.Public())},
 			},
-			expectErr: `unable to determine the algorithm of JWT signing key "ec521": unable to determine signature algorithm for EC public key size 521`,
+			expectNoAlg: []string{"ec521"},
 		},
 		{
 			name: "ed25519 key",
@@ -104,7 +109,23 @@ func TestJWTKeysJWKS(t *testing.T) {
 				TrustDomain:    "example.org",
 				JwtAuthorities: []*types.JWTKey{jwtKey(t, "ed25519", ed25519Key)},
 			},
-			expectErr: `unable to determine the algorithm of JWT signing key "ed25519": unable to determine signature algorithm for public key type ed25519.PublicKey`,
+			expectNoAlg: []string{"ed25519"},
+		},
+		{
+			name: "keys with and without an algorithm",
+			bundle: &types.Bundle{
+				TrustDomain: "example.org",
+				JwtAuthorities: []*types.JWTKey{
+					jwtKey(t, "ec256", ec256),
+					jwtKey(t, "ec521", ec521Key.Public()),
+					jwtKey(t, "rsa2048", rsa2048),
+				},
+			},
+			expectAlg: map[string]string{
+				"ec256":   "ES256",
+				"rsa2048": "RS256",
+			},
+			expectNoAlg: []string{"ec521"},
 		},
 		{
 			name: "malformed key",
@@ -120,7 +141,9 @@ func TestJWTKeysJWKS(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			jwksBytes, err := JWTKeysJWKS(tt.bundle)
+			logs := new(strings.Builder)
+			log := hclog.New(&hclog.LoggerOptions{Output: logs, JSONFormat: true})
+			jwksBytes, err := JWTKeysJWKS(log, tt.bundle)
 			if tt.expectErr != "" {
 				require.ErrorContains(t, err, tt.expectErr)
 				require.Nil(t, jwksBytes)
@@ -155,15 +178,32 @@ func TestJWTKeysJWKS(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, expectedKey, jwk.Key)
 
-				members := []string{"kty", "kid", "alg", "use"}
+				members := []string{"kty", "kid", "use"}
+				if jwk.Algorithm != "" {
+					members = append(members, "alg")
+				}
 				switch jwk.Key.(type) {
 				case *rsa.PublicKey:
 					members = append(members, "n", "e")
 				case *ecdsa.PublicKey:
 					members = append(members, "crv", "x", "y")
+				case ed25519.PublicKey:
+					members = append(members, "crv", "x")
 				}
 				require.ElementsMatch(t, members, mapKeys(doc.Keys[i]))
 			}
+
+			// A warning is logged for every key published without "alg".
+			var warned []string
+			for line := range strings.Lines(logs.String()) {
+				var entry map[string]any
+				require.NoError(t, json.Unmarshal([]byte(line), &entry))
+				require.Equal(t, "warn", entry["@level"])
+				require.Equal(t, "Publishing JWT signing key without an algorithm", entry["@message"])
+				require.NotEmpty(t, entry["error"])
+				warned = append(warned, entry["kid"].(string))
+			}
+			require.Equal(t, tt.expectNoAlg, warned)
 		})
 	}
 }
@@ -219,17 +259,17 @@ func TestFormatBundle(t *testing.T) {
 			expected, err := bundleformat.NewFormatter(bundle).Format(format)
 			require.NoError(t, err)
 
-			actual, err := FormatBundle(bundle, format, false)
+			actual, err := FormatBundle(hclog.NewNullLogger(), bundle, format, false)
 			require.NoError(t, err)
 			require.Equal(t, expected, actual, "format %s", format)
 		}
 	})
 
 	t.Run("with jwt_keys_only the jwks format is built from the JWT authorities", func(t *testing.T) {
-		expected, err := JWTKeysJWKS(bundle)
+		expected, err := JWTKeysJWKS(hclog.NewNullLogger(), bundle)
 		require.NoError(t, err)
 
-		actual, err := FormatBundle(bundle, bundleformat.JWKS, true)
+		actual, err := FormatBundle(hclog.NewNullLogger(), bundle, bundleformat.JWKS, true)
 		require.NoError(t, err)
 		require.Equal(t, expected, actual)
 	})

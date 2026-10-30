@@ -3,6 +3,10 @@ package main
 import (
 	"bytes"
 	"crypto"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/rsa"
 	"crypto/x509"
 	"encoding/json"
 	"net/http"
@@ -10,6 +14,7 @@ import (
 	"testing"
 
 	"github.com/andres-erbsen/clock"
+	"github.com/hashicorp/go-hclog"
 	"github.com/sirupsen/logrus/hooks/test"
 	apitypes "github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	plugintypes "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/types"
@@ -29,6 +34,12 @@ func TestBundlePublisherJWKSMatchesKeysEndpoint(t *testing.T) {
 	ca, _, err := util.LoadCAFixture()
 	require.NoError(t, err)
 
+	// Keys with no JWS algorithm are served and published without "alg".
+	rsa1024Key, err := rsa.GenerateKey(rand.Reader, 1024) //nolint: gosec // small key on purpose, to test that it has no algorithm
+	require.NoError(t, err)
+	ec521Key, err := ecdsa.GenerateKey(elliptic.P521(), rand.Reader)
+	require.NoError(t, err)
+
 	type jwtAuthority struct {
 		keyID     string
 		publicKey crypto.PublicKey
@@ -38,6 +49,8 @@ func TestBundlePublisherJWKSMatchesKeysEndpoint(t *testing.T) {
 		{keyID: "rsa4096", publicKey: testkey.MustRSA4096().Public()},
 		{keyID: "ec256", publicKey: testkey.MustEC256().Public()},
 		{keyID: "ec384", publicKey: testkey.MustEC384().Public()},
+		{keyID: "rsa1024", publicKey: rsa1024Key.Public()},
+		{keyID: "ec521", publicKey: ec521Key.Public()},
 	}
 
 	pluginBundle := &plugintypes.Bundle{
@@ -84,7 +97,7 @@ func TestBundlePublisherJWKSMatchesKeysEndpoint(t *testing.T) {
 	served := new(bytes.Buffer)
 	require.NoError(t, json.Compact(served, w.Body.Bytes()))
 
-	published, err := common.JWTKeysJWKS(pluginBundle)
+	published, err := common.JWTKeysJWKS(hclog.NewNullLogger(), pluginBundle)
 	require.NoError(t, err)
 
 	require.Equal(t, served.String(), string(published))
