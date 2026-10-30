@@ -66,9 +66,7 @@ func TestCheckerListeners(t *testing.T) {
 
 	clk := clock.NewMock(t)
 	finalChecker.cache.clk = clk
-
-	waitFor := make(chan struct{}, 1)
-	finalChecker.cache.hooks.statusUpdated = waitFor
+	runs := watchRuns(t, finalChecker.cache, clk)
 
 	ctx := context.Background()
 
@@ -81,14 +79,10 @@ func TestCheckerListeners(t *testing.T) {
 		return err == nil
 	}, time.Minute, 50*time.Millisecond, "server didn't started in the required time")
 
-	// Wait for the initial health check to complete before making HTTP requests.
+	// Wait for the initial health checks to complete before making HTTP requests.
 	// Without this, the handler may see zero-value states (Ready=false) and
-	// return 500 before the first checkFunc() has populated the cache.
-	select {
-	case <-waitFor:
-	case <-time.After(5 * time.Second):
-		require.FailNow(t, "timeout waiting for initial status update")
-	}
+	// return 500 before the checks have populated the cache.
+	runs.wait(2)
 
 	t.Run("success ready", func(t *testing.T) {
 		resp, err := http.Get("http://localhost:12345/ready")
@@ -114,28 +108,14 @@ func TestCheckerListeners(t *testing.T) {
 		require.JSONEq(t, "{\"bar\":{},\"foo\":{}}\n", string(actual))
 	})
 
-	// Drain any pending signals from the initial health check loop
-	select {
-	case <-waitFor:
-	default:
-	}
-
 	fooChecker.state.Live = false
 	fooChecker.state.LiveDetails = healthDetails{Err: "live fails"}
 
 	barChecker.state.Ready = false
 	barChecker.state.ReadyDetails = healthDetails{Err: "ready fails"}
 
-	// Advancing the mock clock only fires timers that already exist, so wait
-	// for the steady-state loop to arm its timer before advancing.
-	clk.WaitForAfter(5*time.Second, "timeout waiting for the steady-state health check timer")
 	clk.Add(readyCheckInterval)
-
-	select {
-	case <-waitFor:
-	case <-time.After(5 * time.Second):
-		require.FailNow(t, "timeout waiting for status update")
-	}
+	runs.wait(2)
 
 	t.Run("live fails", func(t *testing.T) {
 		resp, err := http.Get("http://localhost:12345/live")

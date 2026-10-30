@@ -3,6 +3,7 @@ package health
 import (
 	"context"
 	"errors"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -50,14 +51,12 @@ func TestStartNoCheckerSet(t *testing.T) {
 }
 
 func TestHealthFailsAndRecover(t *testing.T) {
-	const testTimeout = 3 * time.Second
 	log, hook := test.NewNullLogger()
 	log.Level = logrus.DebugLevel
-	waitFor := make(chan struct{}, 1)
 	clockMock := clock.NewMock(t)
 
 	c := newCache(log, clockMock)
-	c.hooks.statusUpdated = waitFor
+	runs := watchRuns(t, c, clockMock)
 
 	fooChecker := &fakeCheckable{
 		state: State{
@@ -89,7 +88,7 @@ func TestHealthFailsAndRecover(t *testing.T) {
 
 	t.Run("fail to start initially", func(t *testing.T) {
 		// Wait for initial calls
-		<-waitFor
+		runs.wait(2)
 
 		expectLogs := []spiretest.LogEntry{
 			{
@@ -154,13 +153,12 @@ func TestHealthFailsAndRecover(t *testing.T) {
 	}
 
 	t.Run("start successfully after initial failure", func(t *testing.T) {
-		clockMock.WaitForAfter(testTimeout, "timed out waiting for worker to call After")
 		initialCheckTime := clockMock.Now()
 		// Move to next failure interval
 		clockMock.Add(readyCheckFailureInterval)
 
 		// Wait for initial calls
-		<-waitFor
+		runs.wait(1)
 
 		expectLogs := []spiretest.LogEntry{
 			{
@@ -213,11 +211,10 @@ func TestHealthFailsAndRecover(t *testing.T) {
 	}
 
 	t.Run("health start to fail", func(t *testing.T) {
-		clockMock.WaitForAfter(testTimeout, "timed out waiting for worker to call After")
 		// Move to when foo is due, a second before bar
 		clockMock.Add(readyCheckInterval - readyCheckFailureInterval)
 
-		<-waitFor
+		runs.wait(1)
 
 		expectStatus := map[string]checkState{
 			"foo": {
@@ -270,12 +267,11 @@ func TestHealthFailsAndRecover(t *testing.T) {
 	t.Run("health still failing", func(t *testing.T) {
 		hook.Reset()
 		previousFailureDate := clockMock.Now()
-		clockMock.WaitForAfter(testTimeout, "timed out waiting for worker to call After")
 		// Move to next interval
 		clockMock.Add(readyCheckFailureInterval)
 
 		// Wait for new call
-		<-waitFor
+		runs.wait(2)
 
 		expectStatus := map[string]checkState{
 			"foo": {
@@ -315,12 +311,11 @@ func TestHealthFailsAndRecover(t *testing.T) {
 
 	t.Run("health recovered", func(t *testing.T) {
 		hook.Reset()
-		clockMock.WaitForAfter(testTimeout, "timed out waiting for worker to call After")
 		// Move to next interval
 		clockMock.Add(readyCheckFailureInterval)
 
 		// Wait for new call
-		<-waitFor
+		runs.wait(1)
 
 		expectStatus := map[string]checkState{
 			"foo": {
@@ -364,12 +359,11 @@ func TestHealthFailsAndRecover(t *testing.T) {
 
 func TestOnlyFailingCheckIsRetriedSooner(t *testing.T) {
 	log, _ := test.NewNullLogger()
-	waitFor := make(chan struct{}, 1)
 	clockMock := clock.NewMock(t)
 
 	c := newCache(log, clockMock)
 	c.checkInterval = 10 * time.Second
-	c.hooks.statusUpdated = waitFor
+	runs := watchRuns(t, c, clockMock)
 
 	healthy := &countingCheckable{state: State{Live: true, Ready: true}}
 	flaky := &countingCheckable{state: State{Live: true, Ready: true}}
@@ -377,37 +371,59 @@ func TestOnlyFailingCheckIsRetriedSooner(t *testing.T) {
 	require.NoError(t, c.addCheck("flaky", flaky))
 	require.NoError(t, c.start(context.Background()))
 
-	<-waitFor
-	require.Equal(t, 10*time.Second, waitForAfter(t, clockMock))
+	require.Equal(t, []time.Duration{10 * time.Second, 10 * time.Second}, runs.wait(2))
 
 	flaky.setState(State{})
 	clockMock.Add(10 * time.Second)
-	<-waitFor
+	require.Equal(t, []time.Duration{readyCheckFailureInterval, 10 * time.Second}, runs.wait(2))
 	require.Equal(t, 2, healthy.count())
 	require.Equal(t, 2, flaky.count())
-	require.Equal(t, readyCheckFailureInterval, waitForAfter(t, clockMock))
 
 	clockMock.Add(readyCheckFailureInterval)
-	<-waitFor
+	require.Equal(t, []time.Duration{readyCheckFailureInterval}, runs.wait(1))
 	require.Equal(t, 2, healthy.count())
 	require.Equal(t, 3, flaky.count())
-	require.Equal(t, readyCheckFailureInterval, waitForAfter(t, clockMock))
 
 	flaky.setState(State{Live: true, Ready: true})
 	clockMock.Add(readyCheckFailureInterval)
-	<-waitFor
+	require.Equal(t, []time.Duration{10 * time.Second}, runs.wait(1))
 	require.Equal(t, 2, healthy.count())
 	require.Equal(t, 4, flaky.count())
-	require.Equal(t, 8*time.Second, waitForAfter(t, clockMock))
+
+	clockMock.Add(8 * time.Second)
+	require.Equal(t, []time.Duration{10 * time.Second}, runs.wait(1))
+	require.Equal(t, 3, healthy.count())
+	require.Equal(t, 4, flaky.count())
+}
+
+func TestSlowCheckDoesNotDelayOthers(t *testing.T) {
+	log, _ := test.NewNullLogger()
+	clockMock := clock.NewMock(t)
+
+	c := newCache(log, clockMock)
+	runs := watchRuns(t, c, clockMock)
+
+	slow := &blockingCheckable{release: make(chan struct{})}
+	t.Cleanup(func() { close(slow.release) })
+	fast := &countingCheckable{state: State{Live: true, Ready: true}}
+	require.NoError(t, c.addCheck("slow", slow))
+	require.NoError(t, c.addCheck("fast", fast))
+	require.NoError(t, c.start(context.Background()))
+
+	runs.wait(1)
+	require.Equal(t, 1, fast.count())
+
+	clockMock.Add(readyCheckInterval)
+	runs.wait(1)
+	require.Equal(t, 2, fast.count())
 }
 
 func TestFailingCheckIsLoggedOncePerMinute(t *testing.T) {
 	log, hook := test.NewNullLogger()
-	waitFor := make(chan struct{}, 1)
 	clockMock := clock.NewMock(t)
 
 	c := newCache(log, clockMock)
-	c.hooks.statusUpdated = waitFor
+	runs := watchRuns(t, c, clockMock)
 
 	failing := &countingCheckable{state: State{}}
 	require.NoError(t, c.addCheck("failing", failing))
@@ -423,31 +439,65 @@ func TestFailingCheckIsLoggedOncePerMinute(t *testing.T) {
 		return count
 	}
 
-	<-waitFor
+	runs.wait(1)
 	require.Equal(t, 1, failedLogs())
 
 	for range 59 {
-		waitForAfter(t, clockMock)
 		clockMock.Add(readyCheckFailureInterval)
-		<-waitFor
+		runs.wait(1)
 	}
 	require.Equal(t, 60, failing.count())
 	require.Equal(t, 1, failedLogs())
 
-	waitForAfter(t, clockMock)
 	clockMock.Add(readyCheckFailureInterval)
-	<-waitFor
+	runs.wait(1)
 	require.Equal(t, 2, failedLogs())
 }
 
-func waitForAfter(t *testing.T, clockMock *clock.Mock) time.Duration {
-	select {
-	case d := <-clockMock.WaitForAfterCh():
-		return d
-	case <-time.After(3 * time.Second):
-		t.Fatal("timed out waiting for worker to call After")
-		return 0
+// checkRuns follows the checks a cache runs, each on its own goroutine.
+type checkRuns struct {
+	t       *testing.T
+	updated chan struct{}
+	waits   chan time.Duration
+}
+
+func watchRuns(t *testing.T, c *cache, clockMock *clock.Mock) *checkRuns {
+	r := &checkRuns{
+		t:       t,
+		updated: make(chan struct{}, 10),
+		waits:   make(chan time.Duration, 10),
 	}
+	c.hooks.statusUpdated = r.updated
+	clockMock.SetAfterHook(func(d time.Duration) <-chan time.Time {
+		ch := clockMock.Mock.After(d)
+		r.waits <- d
+		return ch
+	})
+	return r
+}
+
+// wait waits until n checks have run and are waiting for their next run, and
+// returns how long each of them waits, shortest first.
+func (r *checkRuns) wait(n int) []time.Duration {
+	r.t.Helper()
+	waits := make([]time.Duration, 0, n)
+	for range n {
+		select {
+		case <-r.updated:
+		case <-time.After(3 * time.Second):
+			r.t.Fatal("timed out waiting for a health check to run")
+		}
+	}
+	for range n {
+		select {
+		case d := <-r.waits:
+			waits = append(waits, d)
+		case <-time.After(3 * time.Second):
+			r.t.Fatal("timed out waiting for a health check to wait for its next run")
+		}
+	}
+	slices.Sort(waits)
+	return waits
 }
 
 type fakeCheckable struct {
@@ -460,6 +510,15 @@ func (f *fakeCheckable) CheckHealth() State {
 
 type healthDetails struct {
 	Err string `json:"err,omitempty"`
+}
+
+type blockingCheckable struct {
+	release chan struct{}
+}
+
+func (b *blockingCheckable) CheckHealth() State {
+	<-b.release
+	return State{Live: true, Ready: true}
 }
 
 type countingCheckable struct {
