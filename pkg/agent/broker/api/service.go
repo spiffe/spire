@@ -8,6 +8,7 @@ import (
 	"net"
 	"time"
 
+	"github.com/andres-erbsen/clock"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/exp/proto/spiffe/broker"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -36,6 +37,15 @@ func RegisterService(s *grpc.Server, service *Service) {
 	broker.RegisterAPIServer(s, service)
 }
 
+// defaultReattestInterval is how often an active X.509-SVID subscription
+// re-attests its workload reference. References are not immutable: a
+// Kubernetes object can be deleted or recreated with different attributes,
+// and the selectors attested from it can change while the stream is open. The
+// SPIFFE Broker API requires the server to stop sending responses once the
+// referenced workload is gone, so the reference must be re-resolved
+// periodically rather than only once at subscription time.
+const defaultReattestInterval = time.Minute
+
 type Config struct {
 	Log      logrus.FieldLogger
 	Metrics  telemetry.Metrics
@@ -47,14 +57,32 @@ type Config struct {
 	// each type is also allowed over TCP. A caller missing from the map has
 	// no restriction over UDS, but remains denied over TCP.
 	AllowedReferenceTypesByCaller map[spiffeid.ID]ReferenceTypePolicy
+
+	// ReattestInterval is how often workload references are re-attested while
+	// an X.509-SVID subscription is active. Defaults to
+	// defaultReattestInterval when unset.
+	ReattestInterval time.Duration
+
+	// Clock is used for re-attestation timing. Defaults to the system clock.
+	Clock clock.Clock
 }
 
 func New(config Config) *Service {
+	reattestInterval := config.ReattestInterval
+	if reattestInterval <= 0 {
+		reattestInterval = defaultReattestInterval
+	}
+	clk := config.Clock
+	if clk == nil {
+		clk = clock.New()
+	}
 	return &Service{
 		manager:                       config.Manager,
 		peerAttestor:                  config.Attestor,
 		metrics:                       config.Metrics,
 		allowedReferenceTypesByCaller: config.AllowedReferenceTypesByCaller,
+		reattestInterval:              reattestInterval,
+		clock:                         clk,
 	}
 }
 
@@ -86,6 +114,8 @@ type Service struct {
 	peerAttestor                  workloadattestor.Attestor
 	metrics                       telemetry.Metrics
 	allowedReferenceTypesByCaller map[spiffeid.ID]ReferenceTypePolicy
+	reattestInterval              time.Duration
+	clock                         clock.Clock
 }
 
 // authorizeReferenceType applies the per-broker reference type policy. UDS
@@ -175,11 +205,61 @@ func (s *Service) SubscribeToX509SVID(req *broker.SubscribeToX509SVIDRequest, st
 		log.WithError(err).Error("Subscribe to cache changes failed")
 		return err
 	}
-	defer subscriber.Finish()
+	// Finish through a closure so the subscriber active at return time is
+	// finished even after re-attestation swaps it below.
+	defer func() { subscriber.Finish() }()
+
+	// reattest re-resolves the reference and moves the subscription when the
+	// selectors change. It reports whether the subscription was replaced, in
+	// which case a cache update already read for the old selectors must not be
+	// delivered.
+	reattest := func() (bool, error) {
+		// The reference can resolve to a different selector set over time (for
+		// example, a pod is recreated or its labels change), or stop resolving
+		// altogether. Re-attest it and either move the subscription to the new
+		// selectors or terminate the stream.
+		newSelectors, err := s.constructValidSelectorsFromReference(brokercontext.WithCallerID(ctx, peer), log, req.Reference)
+		if err != nil {
+			log.WithError(err).Error("Workload re-attestation failed")
+			return false, err
+		}
+		if selectorsEqual(selectors, newSelectors) {
+			return false, nil
+		}
+
+		log.WithField(telemetry.Selectors, newSelectors).Debug("Workload reference resolved to new selectors; resubscribing")
+
+		newSubscriber, err := s.manager.SubscribeToX509CacheChanges(ctx, newSelectors)
+		if err != nil {
+			log.WithError(err).Error("Subscribe to cache changes failed")
+			return false, err
+		}
+		subscriber.Finish()
+		subscriber = newSubscriber
+		selectors = newSelectors
+		return true, nil
+	}
+
+	reattestTicker := s.clock.Ticker(s.reattestInterval)
+	defer reattestTicker.Stop()
 
 	for {
 		select {
 		case update := <-subscriber.Updates():
+			// Each response extends the identities handed to the broker, so
+			// re-attest right before sending it rather than relying only on
+			// the periodic re-attestation.
+			replaced, err := reattest()
+			if err != nil {
+				return err
+			}
+			if replaced {
+				// The update was composed for the previous selectors and no
+				// longer reflects the referenced workload. Wait for the new
+				// subscription to deliver an update.
+				continue
+			}
+
 			update.Identities = hintsfilter.FilterIdentities(update.Identities, log)
 			if len(update.Identities) > 0 && !receivedFirstUpdate {
 				// emit latency metric for first update containing an SVID.
@@ -188,6 +268,10 @@ func (s *Service) SubscribeToX509SVID(req *broker.SubscribeToX509SVIDRequest, st
 			}
 
 			if err := sendX509SVIDResponse(update, stream, log); err != nil {
+				return err
+			}
+		case <-reattestTicker.C:
+			if _, err := reattest(); err != nil {
 				return err
 			}
 		case <-ctx.Done():
@@ -382,6 +466,32 @@ func (s *Service) constructValidSelectorsFromReference(ctx context.Context, log 
 	}
 
 	return selectors, nil
+}
+
+// selectorsEqual reports whether two attestation results contain the same
+// selectors. Comparison is order-insensitive because workload attestors are
+// invoked concurrently and append their results in completion order.
+func selectorsEqual(a, b []*common.Selector) bool {
+	if len(a) != len(b) {
+		return false
+	}
+
+	type selectorKey struct {
+		typ   string
+		value string
+	}
+	counts := make(map[selectorKey]int, len(a))
+	for _, selector := range a {
+		counts[selectorKey{typ: selector.Type, value: selector.Value}]++
+	}
+	for _, selector := range b {
+		key := selectorKey{typ: selector.Type, value: selector.Value}
+		if counts[key] == 0 {
+			return false
+		}
+		counts[key]--
+	}
+	return true
 }
 
 func sendX509SVIDResponse(update *cache.X509WorkloadUpdate, stream broker.API_SubscribeToX509SVIDServer, log logrus.FieldLogger) (err error) {

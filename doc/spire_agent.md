@@ -768,6 +768,15 @@ its plugin-level `experimental.broker` block is required for every reference typ
 `KubernetesObjectReference`. Set `experimental.broker.access_policy = "permissive"` to
 skip those checks. The setting is required; there is no default.
 
+While an X.509-SVID subscription is open, the agent re-attests the workload
+reference before sending each update and periodically (currently every minute)
+even while no updates are flowing. This makes the stream follow
+selector changes when the same reference resolves differently over time, such
+as a pod recreated with a new UID or different labels, and terminates the
+stream with `NotFound`/`PermissionDenied` once the referenced object no longer
+exists or is no longer entitled. JWT-SVID fetches are unary and therefore
+re-attest the reference on every call.
+
 ### Transport and authentication
 
 The Broker API is gated by mutual TLS using X.509-SVIDs. A broker is
