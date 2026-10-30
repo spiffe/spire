@@ -21,8 +21,8 @@ import (
 
 // TestBundlePublisherJWKSMatchesKeysEndpoint checks that the JWKS published by
 // the BundlePublisher plugins with jwt_keys_only is the document served by the
-// keys endpoint of the provider for the same bundle, byte for byte once the
-// indentation of the provider's response is removed.
+// keys endpoint of the provider with set_key_use for the same bundle, byte for
+// byte once the indentation of the provider's response is removed.
 func TestBundlePublisherJWKSMatchesKeysEndpoint(t *testing.T) {
 	log, _ := test.NewNullLogger()
 
@@ -72,22 +72,20 @@ func TestBundlePublisherJWKSMatchesKeysEndpoint(t *testing.T) {
 	}
 	source.parseBundle(apiBundle)
 
-	for _, setKeyUse := range []bool{false, true} {
-		h, err := NewHandler(log, domainAllowlist(t, "domain.test"), source, false, setKeyUse, nil, nil, "")
-		require.NoError(t, err)
+	h, err := NewHandler(log, domainAllowlist(t, "domain.test"), source, false, true, nil, nil, "")
+	require.NoError(t, err)
 
-		r, err := http.NewRequest("GET", "https://domain.test/keys", nil)
-		require.NoError(t, err)
-		w := httptest.NewRecorder()
-		h.ServeHTTP(w, r)
-		require.Equal(t, http.StatusOK, w.Code)
+	r, err := http.NewRequest("GET", "https://domain.test/keys", nil)
+	require.NoError(t, err)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+	require.Equal(t, http.StatusOK, w.Code)
 
-		served := new(bytes.Buffer)
-		require.NoError(t, json.Compact(served, w.Body.Bytes()))
+	served := new(bytes.Buffer)
+	require.NoError(t, json.Compact(served, w.Body.Bytes()))
 
-		published, err := common.JWTKeysJWKS(pluginBundle, setKeyUse)
-		require.NoError(t, err)
+	published, err := common.JWTKeysJWKS(pluginBundle)
+	require.NoError(t, err)
 
-		require.Equal(t, served.String(), string(published), "set_key_use %t", setKeyUse)
-	}
+	require.Equal(t, served.String(), string(published))
 }

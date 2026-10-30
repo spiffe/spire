@@ -12,19 +12,15 @@ import (
 	"github.com/spiffe/spire/pkg/common/cryptoutil"
 )
 
-// keyUse is the value of the "use" parameter set on the JWKs when requested.
-// It matches the value served by the OIDC Discovery Provider.
+// keyUse is the value of the "use" parameter set on the JWKs. It matches the
+// value served by the OIDC Discovery Provider when set_key_use is enabled.
 const keyUse = "sig"
 
-// ValidateJWKSOptions checks the jwt_keys_only and set_key_use options
-// against the configured bundle format. Both options only apply to the jwks
-// format, and set_key_use only applies when jwt_keys_only is set.
-func ValidateJWKSOptions(format bundleformat.Format, jwtKeysOnly, setKeyUse bool) error {
+// ValidateJWKSOptions checks the jwt_keys_only option against the configured
+// bundle format: it only applies to the jwks format.
+func ValidateJWKSOptions(format bundleformat.Format, jwtKeysOnly bool) error {
 	if jwtKeysOnly && format != bundleformat.JWKS {
 		return fmt.Errorf("jwt_keys_only can only be used with the %q bundle format", bundleformat.JWKS)
-	}
-	if setKeyUse && !jwtKeysOnly {
-		return errors.New("set_key_use can only be used when jwt_keys_only is set")
 	}
 	return nil
 }
@@ -32,9 +28,9 @@ func ValidateJWKSOptions(format bundleformat.Format, jwtKeysOnly, setKeyUse bool
 // FormatBundle formats the bundle in the given format. When jwtKeysOnly is
 // set, the jwks format is built by JWTKeysJWKS; otherwise the bundle is
 // formatted by the plugin SDK bundleformat package.
-func FormatBundle(bundle *types.Bundle, format bundleformat.Format, jwtKeysOnly, setKeyUse bool) ([]byte, error) {
+func FormatBundle(bundle *types.Bundle, format bundleformat.Format, jwtKeysOnly bool) ([]byte, error) {
 	if jwtKeysOnly && format == bundleformat.JWKS {
-		return JWTKeysJWKS(bundle, setKeyUse)
+		return JWTKeysJWKS(bundle)
 	}
 	return bundleformat.NewFormatter(bundle).Format(format)
 }
@@ -42,9 +38,8 @@ func FormatBundle(bundle *types.Bundle, format bundleformat.Format, jwtKeysOnly,
 // JWTKeysJWKS returns a JWKS document with the JWT authorities of the bundle,
 // in the form served by the OIDC Discovery Provider, so that it can be used
 // to verify JWT-SVIDs by OIDC relying parties: X.509 authorities are not
-// included, every key has its "kid" and its "alg", and "use" is set to "sig"
-// when setKeyUse is true.
-func JWTKeysJWKS(bundle *types.Bundle, setKeyUse bool) ([]byte, error) {
+// included, and every key has its "kid", its "alg" and "use" set to "sig".
+func JWTKeysJWKS(bundle *types.Bundle) ([]byte, error) {
 	if bundle == nil {
 		return nil, errors.New("missing bundle")
 	}
@@ -66,9 +61,7 @@ func JWTKeysJWKS(bundle *types.Bundle, setKeyUse bool) ([]byte, error) {
 			Key:       publicKey,
 			KeyID:     jwtKey.KeyId,
 			Algorithm: string(alg),
-		}
-		if setKeyUse {
-			jwk.Use = keyUse
+			Use:       keyUse,
 		}
 		jwks.Keys = append(jwks.Keys, jwk)
 	}

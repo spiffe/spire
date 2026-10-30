@@ -38,7 +38,6 @@ func TestJWTKeysJWKS(t *testing.T) {
 	for _, tt := range []struct {
 		name      string
 		bundle    *types.Bundle
-		setKeyUse bool
 		expectAlg map[string]string
 		expectErr string
 	}{
@@ -58,21 +57,6 @@ func TestJWTKeysJWKS(t *testing.T) {
 				"rsa4096": "RS256",
 				"ec256":   "ES256",
 				"ec384":   "ES384",
-			},
-		},
-		{
-			name:      "set key use",
-			setKeyUse: true,
-			bundle: &types.Bundle{
-				TrustDomain: "example.org",
-				JwtAuthorities: []*types.JWTKey{
-					jwtKey(t, "rsa2048", rsa2048),
-					jwtKey(t, "ec256", ec256),
-				},
-			},
-			expectAlg: map[string]string{
-				"rsa2048": "RS256",
-				"ec256":   "ES256",
 			},
 		},
 		{
@@ -136,7 +120,7 @@ func TestJWTKeysJWKS(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			jwksBytes, err := JWTKeysJWKS(tt.bundle, tt.setKeyUse)
+			jwksBytes, err := JWTKeysJWKS(tt.bundle)
 			if tt.expectErr != "" {
 				require.ErrorContains(t, err, tt.expectErr)
 				require.Nil(t, jwksBytes)
@@ -164,24 +148,19 @@ func TestJWTKeysJWKS(t *testing.T) {
 				jwk := jwks.Keys[i]
 				require.Equal(t, jwtAuthority.KeyId, jwk.KeyID)
 				require.Equal(t, tt.expectAlg[jwk.KeyID], jwk.Algorithm)
+				require.Equal(t, "sig", jwk.Use)
 				require.Empty(t, jwk.Certificates)
 
 				expectedKey, err := x509.ParsePKIXPublicKey(jwtAuthority.PublicKey)
 				require.NoError(t, err)
 				require.Equal(t, expectedKey, jwk.Key)
 
-				members := []string{"kty", "kid", "alg"}
+				members := []string{"kty", "kid", "alg", "use"}
 				switch jwk.Key.(type) {
 				case *rsa.PublicKey:
 					members = append(members, "n", "e")
 				case *ecdsa.PublicKey:
 					members = append(members, "crv", "x", "y")
-				}
-				if tt.setKeyUse {
-					require.Equal(t, "sig", jwk.Use)
-					members = append(members, "use")
-				} else {
-					require.Empty(t, jwk.Use)
 				}
 				require.ElementsMatch(t, members, mapKeys(doc.Keys[i]))
 			}
@@ -194,14 +173,12 @@ func TestValidateJWKSOptions(t *testing.T) {
 		name        string
 		format      bundleformat.Format
 		jwtKeysOnly bool
-		setKeyUse   bool
 		expectErr   string
 	}{
 		{name: "jwks without options", format: bundleformat.JWKS},
 		{name: "spiffe without options", format: bundleformat.SPIFFE},
 		{name: "pem without options", format: bundleformat.PEM},
 		{name: "jwks with jwt_keys_only", format: bundleformat.JWKS, jwtKeysOnly: true},
-		{name: "jwks with jwt_keys_only and set_key_use", format: bundleformat.JWKS, jwtKeysOnly: true, setKeyUse: true},
 		{
 			name:        "spiffe with jwt_keys_only",
 			format:      bundleformat.SPIFFE,
@@ -214,21 +191,9 @@ func TestValidateJWKSOptions(t *testing.T) {
 			jwtKeysOnly: true,
 			expectErr:   `jwt_keys_only can only be used with the "jwks" bundle format`,
 		},
-		{
-			name:      "jwks with set_key_use only",
-			format:    bundleformat.JWKS,
-			setKeyUse: true,
-			expectErr: "set_key_use can only be used when jwt_keys_only is set",
-		},
-		{
-			name:      "spiffe with set_key_use only",
-			format:    bundleformat.SPIFFE,
-			setKeyUse: true,
-			expectErr: "set_key_use can only be used when jwt_keys_only is set",
-		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			err := ValidateJWKSOptions(tt.format, tt.jwtKeysOnly, tt.setKeyUse)
+			err := ValidateJWKSOptions(tt.format, tt.jwtKeysOnly)
 			if tt.expectErr != "" {
 				require.EqualError(t, err, tt.expectErr)
 				return
@@ -254,21 +219,19 @@ func TestFormatBundle(t *testing.T) {
 			expected, err := bundleformat.NewFormatter(bundle).Format(format)
 			require.NoError(t, err)
 
-			actual, err := FormatBundle(bundle, format, false, false)
+			actual, err := FormatBundle(bundle, format, false)
 			require.NoError(t, err)
 			require.Equal(t, expected, actual, "format %s", format)
 		}
 	})
 
 	t.Run("with jwt_keys_only the jwks format is built from the JWT authorities", func(t *testing.T) {
-		for _, setKeyUse := range []bool{false, true} {
-			expected, err := JWTKeysJWKS(bundle, setKeyUse)
-			require.NoError(t, err)
+		expected, err := JWTKeysJWKS(bundle)
+		require.NoError(t, err)
 
-			actual, err := FormatBundle(bundle, bundleformat.JWKS, true, setKeyUse)
-			require.NoError(t, err)
-			require.Equal(t, expected, actual, "set_key_use %t", setKeyUse)
-		}
+		actual, err := FormatBundle(bundle, bundleformat.JWKS, true)
+		require.NoError(t, err)
+		require.Equal(t, expected, actual)
 	})
 }
 

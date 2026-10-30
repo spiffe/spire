@@ -12,8 +12,7 @@ The plugin accepts the following configuration options:
 | object_name          | The object name inside the bucket.                                                                                                                                                   | Yes.     |                                                                 |
 | format               | Format in which the trust bundle is stored, &lt;spiffe &vert; jwks &vert; pem&gt;. See [Supported bundle formats](#supported-bundle-formats) for more details.                       | Yes.     |                                                                 |
 | refresh_hint         | Sets the refresh hint for the bundle when using the spiffe format. Specified as string e.g. '10m', '1h'. See [time.ParseDuration](https://pkg.go.dev/time#ParseDuration) for details | No.      |                                                                 |
-| jwt_keys_only        | When `true`, the `jwks` format only includes the JWT authorities, each with its `alg` parameter, as served by the OIDC Discovery Provider. See [JWKS format](#jwks-format).          | No.      | false                                                           |
-| set_key_use          | When `true`, the `use` parameter of every key in the `jwks` format is set to `sig`. Requires `jwt_keys_only`.                                                                        | No.      | false                                                           |
+| jwt_keys_only        | When `true`, the `jwks` format only includes the JWT authorities, each with its `alg` and `use`, as served by the OIDC Discovery Provider. See [JWKS format](#jwks-format).          | No.      | false                                                           |
 
 ## Supported bundle formats
 
@@ -27,7 +26,7 @@ The trust bundle is represented as an RFC 7517 compliant JWK Set, with the speci
 
 The trust bundle is encoded as an RFC 7517 compliant JWK Set, omitting SPIFFE-specific parameters. Both the JWT authorities and the X.509 authorities are included.
 
-When `jwt_keys_only` is `true`, the JWK Set only includes the JWT authorities, so that it can be used by OIDC relying parties to verify JWT-SVIDs. It has the same keys, with the same members, as the document served on the keys endpoint of the [OIDC Discovery Provider](../support/oidc-discovery-provider/README.md): the X.509 authorities are left out, and every key has its `kid` and its `alg` parameter (`RS256` for RSA keys of 2048 bits or more, `ES256` for P-256 keys and `ES384` for P-384 keys). When the bundle has no JWT authorities, an empty set (`{"keys":[]}`) is published, whereas the provider serves no document. When `set_key_use` is also `true`, every key has its `use` parameter set to `sig`. Publishing fails if the key of a JWT authority cannot be parsed or is of any other type. Both options can only be used with the `jwks` format.
+When `jwt_keys_only` is `true`, the JWK Set only includes the JWT authorities, so that it can be used by OIDC relying parties to verify JWT-SVIDs. It has the same keys, with the same members, as the document served on the keys endpoint of the [OIDC Discovery Provider](../support/oidc-discovery-provider/README.md) with `set_key_use` enabled: the X.509 authorities are left out, and every key has its `kid`, its `use` parameter set to `sig` and its `alg` parameter (`RS256` for RSA keys of 2048 bits or more, `ES256` for P-256 keys and `ES384` for P-384 keys). When the bundle has no JWT authorities, an empty set (`{"keys":[]}`) is published, whereas the provider serves no document. Publishing fails if the key of a JWT authority cannot be parsed or is of any other type. This option can only be used with the `jwks` format.
 
 ### PEM format
 

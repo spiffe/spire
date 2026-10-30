@@ -120,14 +120,13 @@ func TestConfigure(t *testing.T) {
 			expectMsg:  "could not parse bundle format from configuration: unknown bundle format: \"invalid-format\"",
 		},
 		{
-			name: "success with jwt_keys_only and set_key_use",
+			name: "success with jwt_keys_only",
 			config: &Config{
 				ServiceAccountFile: "service-account-file",
 				BucketName:         "bucket-name",
 				ObjectName:         "object-name",
 				Format:             "jwks",
 				JWTKeysOnly:        true,
-				SetKeyUse:          true,
 			},
 		},
 		{
@@ -141,18 +140,6 @@ func TestConfigure(t *testing.T) {
 			},
 			expectCode: codes.InvalidArgument,
 			expectMsg:  `jwt_keys_only can only be used with the "jwks" bundle format`,
-		},
-		{
-			name: "set_key_use without jwt_keys_only",
-			config: &Config{
-				ServiceAccountFile: "service-account-file",
-				BucketName:         "bucket-name",
-				ObjectName:         "object-name",
-				Format:             "jwks",
-				SetKeyUse:          true,
-			},
-			expectCode: codes.InvalidArgument,
-			expectMsg:  "set_key_use can only be used when jwt_keys_only is set",
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -475,20 +462,16 @@ func TestPublishJWKS(t *testing.T) {
 	bundle.JwtAuthorities = []*types.JWTKey{{KeyId: "KID", PublicKey: jwtKeyPKIX}}
 	sdkJWKS, err := bundleformat.NewFormatter(bundle).Format(bundleformat.JWKS)
 	require.NoError(t, err)
-	jwtKeysJWKS, err := common.JWTKeysJWKS(bundle, false)
-	require.NoError(t, err)
-	jwtKeysJWKSWithUse, err := common.JWTKeysJWKS(bundle, true)
+	jwtKeysJWKS, err := common.JWTKeysJWKS(bundle)
 	require.NoError(t, err)
 
 	for _, tt := range []struct {
 		name        string
 		jwtKeysOnly bool
-		setKeyUse   bool
 		expected    []byte
 	}{
 		{name: "default", expected: sdkJWKS},
 		{name: "jwt_keys_only", jwtKeysOnly: true, expected: jwtKeysJWKS},
-		{name: "jwt_keys_only and set_key_use", jwtKeysOnly: true, setKeyUse: true, expected: jwtKeysJWKSWithUse},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			config := &Config{
@@ -496,7 +479,6 @@ func TestPublishJWKS(t *testing.T) {
 				ObjectName:  "object-name",
 				Format:      "jwks",
 				JWTKeysOnly: tt.jwtKeysOnly,
-				SetKeyUse:   tt.setKeyUse,
 			}
 
 			var err error

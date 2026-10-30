@@ -200,13 +200,12 @@ func TestConfigure(t *testing.T) {
 			newClientErr: errors.New("client creation error"),
 		},
 		{
-			name: "success with jwt_keys_only and set_key_use",
+			name: "success with jwt_keys_only",
 			hclConfig: `
 				clusters = {
 					"test-cluster" = {
 						format = "jwks"
 						jwt_keys_only = true
-						set_key_use = true
 						namespace = "spire"
 						configmap_name = "spire-bundle"
 						configmap_key = "bundle.json"
@@ -223,7 +222,6 @@ func TestConfigure(t *testing.T) {
 						ConfigMapKey:   "bundle.json",
 						KubeConfigPath: "/path/to/kubeconfig",
 						JWTKeysOnly:    true,
-						SetKeyUse:      true,
 					},
 				},
 			},
@@ -244,23 +242,6 @@ func TestConfigure(t *testing.T) {
 			`,
 			expectCode: codes.InvalidArgument,
 			expectMsg:  `invalid configuration in cluster "test-cluster": jwt_keys_only can only be used with the "jwks" bundle format`,
-		},
-		{
-			name: "set_key_use without jwt_keys_only",
-			hclConfig: `
-				clusters = {
-					"test-cluster" = {
-						format = "jwks"
-						set_key_use = true
-						namespace = "spire"
-						configmap_name = "spire-bundle"
-						configmap_key = "bundle.json"
-						kubeconfig_path = "/path/to/kubeconfig"
-					}
-				}
-			`,
-			expectCode: codes.InvalidArgument,
-			expectMsg:  `invalid configuration in cluster "test-cluster": set_key_use can only be used when jwt_keys_only is set`,
 		},
 		{
 			name:       "invalid config",
@@ -303,7 +284,6 @@ func TestConfigure(t *testing.T) {
 				require.Equal(t, tt.expectCfg.Clusters[i].ConfigMapKey, cluster.ConfigMapKey)
 				require.Equal(t, tt.expectCfg.Clusters[i].KubeConfigPath, cluster.KubeConfigPath)
 				require.Equal(t, tt.expectCfg.Clusters[i].JWTKeysOnly, cluster.JWTKeysOnly)
-				require.Equal(t, tt.expectCfg.Clusters[i].SetKeyUse, cluster.SetKeyUse)
 			}
 		})
 	}
@@ -546,20 +526,16 @@ func TestPublishJWKS(t *testing.T) {
 	bundle.JwtAuthorities = []*types.JWTKey{{KeyId: "KID", PublicKey: jwtKeyPKIX}}
 	sdkJWKS, err := bundleformat.NewFormatter(bundle).Format(bundleformat.JWKS)
 	require.NoError(t, err)
-	jwtKeysJWKS, err := common.JWTKeysJWKS(bundle, false)
-	require.NoError(t, err)
-	jwtKeysJWKSWithUse, err := common.JWTKeysJWKS(bundle, true)
+	jwtKeysJWKS, err := common.JWTKeysJWKS(bundle)
 	require.NoError(t, err)
 
 	for _, tt := range []struct {
 		name        string
 		jwtKeysOnly bool
-		setKeyUse   bool
 		expected    []byte
 	}{
 		{name: "default", expected: sdkJWKS},
 		{name: "jwt_keys_only", jwtKeysOnly: true, expected: jwtKeysJWKS},
-		{name: "jwt_keys_only and set_key_use", jwtKeysOnly: true, setKeyUse: true, expected: jwtKeysJWKSWithUse},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			hclConfig := fmt.Sprintf(`
@@ -571,9 +547,8 @@ func TestPublishJWKS(t *testing.T) {
 						configmap_key = "bundle.json"
 						kubeconfig_path = "/path/to/kubeconfig"
 						jwt_keys_only = %t
-						set_key_use = %t
 					}
-				}`, tt.jwtKeysOnly, tt.setKeyUse)
+				}`, tt.jwtKeysOnly)
 
 			var err error
 			options := []plugintest.Option{
