@@ -49,7 +49,6 @@ func TestConcurrentAppendBundle(t *testing.T) {
 	require.Len(t, bundle.JwtSigningKeys, n)
 }
 
-
 func TestNoOpUpdates(t *testing.T) {
 	ctx := context.Background()
 	ds := newBundleTestPlugin(t)
