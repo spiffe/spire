@@ -1862,6 +1862,37 @@ func TestNewAgentConfig(t *testing.T) {
 			},
 		},
 		{
+			msg: "attest_timeout sets the attestation timeout",
+			input: func(c *Config) {
+				c.Agent.Experimental.AttestTimeout = "90s"
+			},
+			test: func(t *testing.T, ac *agent.Config) {
+				require.NotNil(t, ac)
+				assert.Equal(t, 90*time.Second, ac.AttestTimeout)
+			},
+		},
+		{
+			msg: "attest_timeout disables the timeout when zero",
+			input: func(c *Config) {
+				c.Agent.Experimental.AttestTimeout = "0"
+			},
+			test: func(t *testing.T, ac *agent.Config) {
+				require.NotNil(t, ac)
+				assert.Equal(t, time.Duration(0), ac.AttestTimeout)
+			},
+		},
+		{
+			msg:                "attest_timeout returns an error if negative",
+			expectError:        true,
+			requireErrorPrefix: "attest_timeout (-1s) must not be negative",
+			input: func(c *Config) {
+				c.Agent.Experimental.AttestTimeout = "-1s"
+			},
+			test: func(t *testing.T, ac *agent.Config) {
+				require.Nil(t, ac)
+			},
+		},
+		{
 			msg:         "ratelimit fetch_wit_bundles negative value returns an error",
 			expectError: true,
 			input: func(c *Config) {
@@ -1909,6 +1940,64 @@ func TestNewAgentConfig(t *testing.T) {
 			requireErrorPrefix: "experimental.wit_svid_cache_max_size should not be negative",
 			input: func(c *Config) {
 				c.Agent.Experimental.WITSVIDCacheMaxSize = -1
+			},
+			test: func(t *testing.T, ac *agent.Config) {
+				require.Nil(t, ac)
+			},
+		},
+		{
+			msg:   "timeouts and keepalives are enabled by default",
+			input: func(c *Config) {},
+			test: func(t *testing.T, ac *agent.Config) {
+				require.NotNil(t, ac)
+				assert.Equal(t, defaultAttestTimeout, ac.AttestTimeout)
+				require.NotNil(t, ac.Keepalive)
+				assert.Equal(t, defaultKeepaliveTime, ac.Keepalive.Time)
+				assert.Equal(t, defaultKeepaliveTimeout, ac.Keepalive.Timeout)
+			},
+		},
+		{
+			msg: "keepalive_time sets the client keepalive interval",
+			input: func(c *Config) {
+				c.Agent.Experimental.KeepaliveTime = "30s"
+			},
+			test: func(t *testing.T, ac *agent.Config) {
+				require.NotNil(t, ac)
+				require.NotNil(t, ac.Keepalive)
+				assert.Equal(t, 30*time.Second, ac.Keepalive.Time)
+				assert.Equal(t, defaultKeepaliveTimeout, ac.Keepalive.Timeout)
+			},
+		},
+		{
+			msg: "keepalive_time disables keepalives when zero",
+			input: func(c *Config) {
+				c.Agent.Experimental.KeepaliveTime = "0"
+			},
+			test: func(t *testing.T, ac *agent.Config) {
+				require.NotNil(t, ac)
+				assert.Nil(t, ac.Keepalive)
+			},
+		},
+		{
+			msg: "keepalive_timeout sets the ping timeout",
+			input: func(c *Config) {
+				c.Agent.Experimental.KeepaliveTime = "30s"
+				c.Agent.Experimental.KeepaliveTimeout = "10s"
+			},
+			test: func(t *testing.T, ac *agent.Config) {
+				require.NotNil(t, ac)
+				require.NotNil(t, ac.Keepalive)
+				assert.Equal(t, 30*time.Second, ac.Keepalive.Time)
+				assert.Equal(t, 10*time.Second, ac.Keepalive.Timeout)
+			},
+		},
+		{
+			msg:                "keepalive_timeout returns an error if not positive while keepalives are enabled",
+			expectError:        true,
+			requireErrorPrefix: "keepalive_timeout (0s) must be positive when keepalives are enabled",
+			input: func(c *Config) {
+				c.Agent.Experimental.KeepaliveTime = "30s"
+				c.Agent.Experimental.KeepaliveTimeout = "0"
 			},
 			test: func(t *testing.T, ac *agent.Config) {
 				require.Nil(t, ac)

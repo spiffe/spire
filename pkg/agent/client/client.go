@@ -27,6 +27,7 @@ import (
 	"github.com/spiffe/spire/proto/spire/common"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/status"
 )
 
@@ -141,6 +142,10 @@ type Config struct {
 	// LoadBalancingConfig is an optional, opaque payload used as the
 	// loadBalancingConfig field of the gRPC service config.
 	LoadBalancingConfig string
+
+	// Keepalive optionally enables client keepalive pings on connections to
+	// the SPIRE server; nil disables them.
+	Keepalive *keepalive.ClientParameters
 }
 
 type client struct {
@@ -483,6 +488,7 @@ func (c *client) newServerGRPCClient() (*grpc.ClientConn, error) {
 		},
 		TLSPolicy:           c.c.TLSPolicy,
 		LoadBalancingConfig: c.c.LoadBalancingConfig,
+		Keepalive:           c.c.Keepalive,
 		dialOpts:            c.dialOpts,
 	})
 }

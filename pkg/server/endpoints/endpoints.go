@@ -50,6 +50,12 @@ const (
 	// route to the server in the case of a change in DNS membership.
 	defaultMaxConnectionAge = 3 * time.Minute
 
+	// This is the minimum interval between agent keepalive pings that the
+	// server tolerates before it starts striking misbehaving clients with
+	// "too_many_pings". It is more permissive than the grpc-go default (5m)
+	// so that agents tuned with aggressive client keepalives are not torn down.
+	defaultKeepaliveEnforcementMinTime = 10 * time.Second
+
 	// This is the default amount of time between two reloads of the in-memory
 	// entry cache.
 	defaultCacheReloadInterval = 5 * time.Second
@@ -319,6 +325,9 @@ func (e *Endpoints) createTCPServer(ctx context.Context, unaryInterceptor grpc.U
 		grpc.Creds(credentials.NewTLS(tlsConfig)),
 		grpc.KeepaliveParams(keepalive.ServerParameters{
 			MaxConnectionAge: defaultMaxConnectionAge,
+		}),
+		grpc.KeepaliveEnforcementPolicy(keepalive.EnforcementPolicy{
+			MinTime: defaultKeepaliveEnforcementMinTime,
 		}),
 	)
 }
