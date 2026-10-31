@@ -263,6 +263,15 @@ func TestDownloadTrustBundle(t *testing.T) {
 			unixSocket:          false,
 		},
 		{
+			msg:                 "if file is too large, should be an error",
+			status:              http.StatusOK,
+			fileContents:        string(testTB) + strings.Repeat("A", maxTrustBundleSize),
+			format:              BundleFormatPEM,
+			expectDownloadError: true,
+			expectParseError:    false,
+			unixSocket:          false,
+		},
+		{
 			msg:                 "if file is valid, format is SPIFFE, unix socket true, should not be an error",
 			status:              http.StatusOK,
 			fileContents:        testTBSPIFFE,

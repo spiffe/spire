@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 
@@ -75,6 +76,14 @@ func TestClient(t *testing.T) {
 			serverID:       serverID,
 			expectedID:     serverID,
 			fetchBundleErr: "failed to decode bundle",
+		},
+		{
+			name:           "bundle too large",
+			status:         http.StatusOK,
+			body:           `{"spiffe_refresh_hint": 10, "pad": "` + strings.Repeat("A", maxBundleSize) + `"}`,
+			serverID:       serverID,
+			expectedID:     serverID,
+			fetchBundleErr: fmt.Sprintf("bundle response exceeds %d bytes", maxBundleSize),
 		},
 		{
 			name:           "hostname validation fails",
