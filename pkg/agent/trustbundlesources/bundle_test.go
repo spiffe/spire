@@ -1,6 +1,7 @@
 package trustbundlesources
 
 import (
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -195,7 +196,7 @@ func TestDownloadTrustBundle(t *testing.T) {
 		status              int
 		fileContents        string
 		format              string
-		expectDownloadError bool
+		expectDownloadErr   string
 		expectParseError    bool
 		unixSocket          bool
 	}{
@@ -204,7 +205,7 @@ func TestDownloadTrustBundle(t *testing.T) {
 			status:              http.StatusNotFound,
 			fileContents:        "",
 			format:              BundleFormatPEM,
-			expectDownloadError: true,
+			expectDownloadErr:   "error downloading trust bundle: 404 Not Found",
 			expectParseError:    false,
 			unixSocket:          false,
 		},
@@ -213,7 +214,7 @@ func TestDownloadTrustBundle(t *testing.T) {
 			status:              http.StatusInternalServerError,
 			fileContents:        "",
 			format:              BundleFormatPEM,
-			expectDownloadError: true,
+			expectDownloadErr:   "error downloading trust bundle: 500 Internal Server Error",
 			expectParseError:    false,
 			unixSocket:          false,
 		},
@@ -222,7 +223,7 @@ func TestDownloadTrustBundle(t *testing.T) {
 			status:              http.StatusOK,
 			fileContents:        "NON PEM PARSEABLE TEXT HERE",
 			format:              BundleFormatPEM,
-			expectDownloadError: false,
+			expectDownloadErr:   "",
 			expectParseError:    true,
 			unixSocket:          false,
 		},
@@ -231,7 +232,7 @@ func TestDownloadTrustBundle(t *testing.T) {
 			status:              http.StatusOK,
 			fileContents:        "",
 			format:              BundleFormatPEM,
-			expectDownloadError: false,
+			expectDownloadErr:   "",
 			expectParseError:    true,
 			unixSocket:          false,
 		},
@@ -240,7 +241,7 @@ func TestDownloadTrustBundle(t *testing.T) {
 			status:              http.StatusOK,
 			fileContents:        string(testTB),
 			format:              BundleFormatPEM,
-			expectDownloadError: false,
+			expectDownloadErr:   "",
 			expectParseError:    false,
 			unixSocket:          false,
 		},
@@ -249,7 +250,7 @@ func TestDownloadTrustBundle(t *testing.T) {
 			status:              http.StatusOK,
 			fileContents:        "[}",
 			format:              BundleFormatSPIFFE,
-			expectDownloadError: false,
+			expectDownloadErr:   "",
 			expectParseError:    true,
 			unixSocket:          false,
 		},
@@ -258,7 +259,16 @@ func TestDownloadTrustBundle(t *testing.T) {
 			status:              http.StatusOK,
 			fileContents:        testTBSPIFFE,
 			format:              BundleFormatSPIFFE,
-			expectDownloadError: false,
+			expectDownloadErr:   "",
+			expectParseError:    false,
+			unixSocket:          false,
+		},
+		{
+			msg:                 "if file is too large, should be an error",
+			status:              http.StatusOK,
+			fileContents:        string(testTB) + strings.Repeat("A", maxTrustBundleSize),
+			format:              BundleFormatPEM,
+			expectDownloadErr:   fmt.Sprintf("exceeds %d bytes", maxTrustBundleSize),
 			expectParseError:    false,
 			unixSocket:          false,
 		},
@@ -267,7 +277,7 @@ func TestDownloadTrustBundle(t *testing.T) {
 			status:              http.StatusOK,
 			fileContents:        testTBSPIFFE,
 			format:              BundleFormatSPIFFE,
-			expectDownloadError: false,
+			expectDownloadErr:   "",
 			expectParseError:    false,
 			unixSocket:          true,
 		},
@@ -301,8 +311,8 @@ func TestDownloadTrustBundle(t *testing.T) {
 				testServer.Start()
 				bundleBytes, err = downloadTrustBundle(testServer.URL, "")
 			}
-			if testCase.expectDownloadError {
-				require.Error(t, err)
+			if testCase.expectDownloadErr != "" {
+				require.ErrorContains(t, err, testCase.expectDownloadErr)
 			} else {
 				require.NoError(t, err)
 
