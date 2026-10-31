@@ -14,6 +14,11 @@ name: assign-reviewer
 #     back to the pool member who reviewed most recently. Contributors rarely
 #     use the re-request button, so author activity is treated as the signal
 #     that the changes are ready to look at.
+#   - the author pushes commits while a pool member holds the ball with a
+#     pool review newer than that assignment -> the assignee flips to the
+#     pool member who reviewed most recently. The review's own flip was
+#     dropped (see the synchronize handler for how that happens), and the
+#     push lands where the dropped flip plus this push would have left it.
 #   - the author comments while holding the ball -> same flip as a push, so
 #     the maintainer sees that an author question awaits a response.
 #   - a pool member comments while holding the ball -> the assignee flips to
@@ -21,7 +26,10 @@ name: assign-reviewer
 #
 # Activity-driven flips only happen when the acting user currently holds the
 # ball, so repeated pushes or comments by the same person are no-ops and
-# manual assignee changes are never overridden.
+# manual assignee changes are never overridden. The catch-up for a dropped
+# review flip keeps that guarantee by comparing the review against the time
+# the holder was assigned, so an assignment made after the review, by a
+# person or by the flow, is the later decision and stays.
 #
 # Review submissions (the flip to the author on changes requested, the
 # reviewer staying assigned on approval, and the flip back when the author
@@ -167,16 +175,47 @@ jobs:
             //    ball hands it back to the pool member who reviewed most
             //    recently. If the reviewer looks too early the cost is one
             //    glance, while a missed hand-back stalls the PR.
+            //
+            //    A pool member can also hold the ball with a pool review that
+            //    never moved it. GitHub skips pull_request workflows while
+            //    the PR has a merge conflict, and pull_request_review runs
+            //    are skipped the same way (seen on #7369), so the capture
+            //    never ran. The apply workflow also stands down when a push
+            //    races the review. Either way the flip that review owed was
+            //    dropped. A pool review newer than the holder's assignment
+            //    is the trace of such a drop, and the push then lands where
+            //    the dropped flip plus this push would have left it, with
+            //    the latest pool reviewer. An assignment newer than the
+            //    latest review is the later decision and stays.
             if (action === 'synchronize') {
-              if (!authorHoldsBall) {
-                core.info(`Ball is not in the author's court on PR #${pr.number}, nothing to flip.`);
-                return;
-              }
-              const reviewer = await court.lastPoolReviewer(pr);
-              if (reviewer === null) {
+              const review = await court.lastPoolReview(pr);
+              if (review === null) {
                 core.info(`No pool member has reviewed PR #${pr.number} yet, leaving court unchanged.`);
                 return;
               }
+              const reviewer = review.user.login;
+              if (authorHoldsBall) {
+                await court.setCourt(pr, reviewer);
+                return;
+              }
+              if (holder === null) {
+                core.info(`PR #${pr.number} has no unambiguous ball holder, nothing to flip.`);
+                return;
+              }
+              const assignedAt = await court.lastAssignedAt(pr, holder);
+              if (assignedAt === null) {
+                core.info(`No assignment event for ${holder} on PR #${pr.number}, leaving court unchanged.`);
+                return;
+              }
+              if (Date.parse(review.submitted_at) <= assignedAt) {
+                core.info(`Ball is not in the author's court on PR #${pr.number}, nothing to flip.`);
+                return;
+              }
+              if (court.eq(holder, reviewer)) {
+                core.info(`Latest review on PR #${pr.number} is by the holder ${holder}, nothing to flip.`);
+                return;
+              }
+              core.info(`The ${review.state.toLowerCase()} review by ${reviewer} on PR #${pr.number} never moved the ball off ${holder}.`);
               await court.setCourt(pr, reviewer);
               return;
             }

@@ -117,7 +117,8 @@ jobs:
             // the triggering run's head SHA limits any forged artifact to the
             // attacker's own PR (whose head is the only one that can match),
             // rather than letting it act on a victim PR. A legitimate apply that
-            // races a fresh push is skipped and reconciles on the next event.
+            // races a fresh push is skipped, and the synchronize handler in
+            // assign_reviewer.yaml catches the dropped flip up on that push.
             if (pr.head.sha !== context.payload.workflow_run.head_sha) {
               core.info(`PR #${prNumber} head does not match the capture run head; ignoring (forged or stale artifact).`);
               return;

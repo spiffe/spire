@@ -53,22 +53,50 @@ module.exports = async function ({ github, context, core }) {
     return null;
   }
 
-  // The pool member (other than the author) who most recently submitted a
-  // review, or null when nobody from the pool has reviewed yet. Used as
-  // the flip-back target when the author acts without re-requesting a
-  // review. Callers that already listed the PR's reviews can pass them to
-  // skip the refetch.
-  async function lastPoolReviewer(pr, reviews = null) {
+  // The review most recently submitted by a pool member other than the
+  // author, or null when nobody from the pool has reviewed yet. Callers
+  // that already listed the PR's reviews can pass them to skip the refetch.
+  async function lastPoolReview(pr, reviews = null) {
     reviews ??= await github.paginate(github.rest.pulls.listReviews, {
       owner, repo, pull_number: pr.number, per_page: 100,
     });
     for (let i = reviews.length - 1; i >= 0; i--) {
       const login = reviews[i].user && reviews[i].user.login;
       if (login && inPool(login) && !eq(login, pr.user.login)) {
-        return login;
+        return reviews[i];
       }
     }
     return null;
+  }
+
+  // The pool member (other than the author) who most recently submitted a
+  // review, or null when nobody from the pool has reviewed yet. Used as
+  // the flip-back target when the author acts without re-requesting a
+  // review.
+  async function lastPoolReviewer(pr, reviews = null) {
+    const review = await lastPoolReview(pr, reviews);
+    return review === null ? null : review.user.login;
+  }
+
+  // When `login` was most recently made an assignee of the PR, in
+  // milliseconds since the epoch, or null when the issue events record no
+  // such assignment. Lets a handler tell a review the flow already acted
+  // on (older than the assignment) from one whose flip was dropped.
+  async function lastAssignedAt(pr, login) {
+    const events = await github.paginate(github.rest.issues.listEvents, {
+      owner, repo, issue_number: pr.number, per_page: 100,
+    });
+    let latest = null;
+    for (const event of events) {
+      if (event.event !== 'assigned' || !event.assignee || !eq(event.assignee.login, login)) {
+        continue;
+      }
+      const at = Date.parse(event.created_at);
+      if (latest === null || at > latest) {
+        latest = at;
+      }
+    }
+    return latest;
   }
 
   // Make `login` the sole ball-in-court assignee among flow participants
@@ -92,5 +120,5 @@ module.exports = async function ({ github, context, core }) {
     core.info(`Ball in court: ${login}, PR #${pr.number}.`);
   }
 
-  return { pool, eq, inPool, isBot, courtHolder, lastPoolReviewer, setCourt };
+  return { pool, eq, inPool, isBot, courtHolder, lastPoolReview, lastPoolReviewer, lastAssignedAt, setCourt };
 };
