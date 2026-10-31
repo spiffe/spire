@@ -45,7 +45,7 @@ run-v2-tests() {
         return 1
     fi
 
-    SQLSTORE_TEST_CONN_STRING="$1" SQLSTORE_TEST_RO_CONN_STRING="$1" ./postgres-v2.test -test.run '^(TestPlugin|TestNoOpUpdates|TestConcurrentAppendBundle)$' -test.v
+    SQLSTORE_TEST_CONN_STRING="$1" SQLSTORE_TEST_RO_CONN_STRING="$1" ./postgres-v2.test -test.run '^(TestPlugin|TestNoOpUpdates|TestConcurrentAppendBundle|TestListFederationRelationshipsBundleOnLaterPage)$' -test.v
 }
 export -f run-v2-tests
 

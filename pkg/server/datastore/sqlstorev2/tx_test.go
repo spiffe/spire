@@ -4,12 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/pkg/server/datastore/sqlcommon"
 	"github.com/stretchr/testify/require"
@@ -22,10 +20,8 @@ import (
 )
 
 func newTxTestPlugin(t *testing.T) *Plugin {
-	log, _ := test.NewNullLogger()
-	ds := New(log)
-	t.Cleanup(func() { ds.Close() })
-	dbPath := filepath.ToSlash(filepath.Join(t.TempDir(), "db.sqlite3"))
+	dbPath := sqlitePath(t)
+	ds := newSQLitePlugin(t)
 	require.NoError(t, ds.Configure(context.Background(), fmt.Sprintf(`
 		database_type = "sqlite3"
 		connection_string = "%s"
@@ -63,11 +59,9 @@ func TestWithWriteTxRollsBackOnError(t *testing.T) {
 }
 
 func TestUseServerTimestampsRoundsToSecond(t *testing.T) {
-	log, _ := test.NewNullLogger()
-	ds := New(log)
-	t.Cleanup(func() { ds.Close() })
+	dbPath := sqlitePath(t)
+	ds := newSQLitePlugin(t)
 	ds.SetUseServerTimestamps(true)
-	dbPath := filepath.ToSlash(filepath.Join(t.TempDir(), "db.sqlite3"))
 	require.NoError(t, ds.Configure(context.Background(), fmt.Sprintf(`
 		database_type = "sqlite3"
 		connection_string = "%s"
@@ -156,7 +150,7 @@ func TestLockForUpdate(t *testing.T) {
 	}{
 		{sqlcommon.PostgreSQL, postgres.New(postgres.Config{DSN: "host=invalid"}), true},
 		{sqlcommon.MySQL, mysql.New(mysql.Config{DSN: "u:p@tcp(invalid)/db", SkipInitializeWithVersion: true}), true},
-		{sqlcommon.SQLite, sqlite.Open(filepath.Join(t.TempDir(), "db.sqlite3")), false},
+		{sqlcommon.SQLite, sqlite.Open(":memory:"), false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.dbType, func(t *testing.T) {

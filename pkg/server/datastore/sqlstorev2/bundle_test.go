@@ -3,11 +3,13 @@ package sqlstorev2_test
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"path/filepath"
 	"sync"
 	"testing"
 
 	"github.com/sirupsen/logrus/hooks/test"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/server/datastore"
 	v2 "github.com/spiffe/spire/pkg/server/datastore/sqlstorev2"
 	"github.com/spiffe/spire/pkg/server/datastore/sqltest"
@@ -16,8 +18,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestConcurrentAppendBundle checks that concurrent read-modify-write updates
-// of one bundle do not lose each other's changes.
 func TestConcurrentAppendBundle(t *testing.T) {
 	ctx := context.Background()
 	ds := newBundleTestPlugin(t)
@@ -49,26 +49,7 @@ func TestConcurrentAppendBundle(t *testing.T) {
 	require.Len(t, bundle.JwtSigningKeys, n)
 }
 
-// newBundleTestPlugin returns a configured datastore on the external database
-// when one is set, or on a SQLite file otherwise.
-func newBundleTestPlugin(t *testing.T) *v2.Plugin {
-	log, _ := test.NewNullLogger()
 
-	var config string
-	if v2.TestDialect != "" {
-		sqltest.WipeDatabase(t, v2.TestDialect, v2.TestConnString)
-		config = externalDBConfig()
-	} else {
-		config = "database_type = \"sqlite3\"\nconnection_string = \"" + filepath.ToSlash(filepath.Join(t.TempDir(), "spire.db")) + "\"\n"
-	}
-	ds := v2.New(log)
-	require.NoError(t, ds.Configure(context.Background(), config))
-	t.Cleanup(func() { require.NoError(t, ds.Close()) })
-	return ds
-}
-
-// TestNoOpUpdates is a smoke test that re-applying identical values neither
-// fails nor duplicates rows.
 func TestNoOpUpdates(t *testing.T) {
 	ctx := context.Background()
 	ds := newBundleTestPlugin(t)
@@ -105,4 +86,50 @@ func TestNoOpUpdates(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, journal, fetched)
 	})
+}
+
+func TestListFederationRelationshipsBundleOnLaterPage(t *testing.T) {
+	ctx := context.Background()
+	ds := newBundleTestPlugin(t)
+
+	bundle, err := ds.CreateBundle(ctx, &common.Bundle{TrustDomainId: "spiffe://b.org"})
+	require.NoError(t, err)
+	for _, td := range []string{"a.org", "b.org"} {
+		_, err := ds.CreateFederationRelationship(ctx, &datastore.FederationRelationship{
+			TrustDomain:           spiffeid.RequireTrustDomainFromString(td),
+			BundleEndpointURL:     &url.URL{Scheme: "https", Host: td},
+			BundleEndpointProfile: datastore.BundleEndpointWeb,
+		})
+		require.NoError(t, err)
+	}
+
+	pagination := &datastore.Pagination{PageSize: 1}
+	page1, err := ds.ListFederationRelationships(ctx, &datastore.ListFederationRelationshipsRequest{Pagination: pagination})
+	require.NoError(t, err)
+	require.Len(t, page1.FederationRelationships, 1)
+	require.Equal(t, "a.org", page1.FederationRelationships[0].TrustDomain.Name())
+
+	page2, err := ds.ListFederationRelationships(ctx, &datastore.ListFederationRelationshipsRequest{Pagination: page1.Pagination})
+	require.NoError(t, err)
+	require.Len(t, page2.FederationRelationships, 1)
+	require.Equal(t, "b.org", page2.FederationRelationships[0].TrustDomain.Name())
+	require.Equal(t, bundle.TrustDomainId, page2.FederationRelationships[0].TrustDomainBundle.GetTrustDomainId())
+}
+
+// newBundleTestPlugin returns a configured datastore on the external database
+// when one is set, or on a SQLite file otherwise.
+func newBundleTestPlugin(t *testing.T) *v2.Plugin {
+	log, _ := test.NewNullLogger()
+
+	var config string
+	if v2.TestDialect != "" {
+		sqltest.WipeDatabase(t, v2.TestDialect, v2.TestConnString)
+		config = externalDBConfig()
+	} else {
+		config = "database_type = \"sqlite3\"\nconnection_string = \"" + filepath.ToSlash(filepath.Join(t.TempDir(), "spire.db")) + "\"\n"
+	}
+	ds := v2.New(log)
+	require.NoError(t, ds.Configure(context.Background(), config))
+	t.Cleanup(func() { require.NoError(t, ds.Close()) })
+	return ds
 }
