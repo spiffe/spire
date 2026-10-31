@@ -1,7 +1,9 @@
 package sqlstorev2
 
 import (
+	"cmp"
 	"context"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -16,12 +18,18 @@ const (
 	LastMinorReleaseSchemaVersion = lastMinorReleaseSchemaVersion
 )
 
-// The following are set by the linker during integration tests to run the
-// external-database tests against various SQL backends.
+// The following are set during integration tests to run the external-database
+// tests against various SQL backends: TestDialect by the linker, and
+// TestConnString by the linker or the SQLSTORE_TEST_CONN_STRING environment
+// variable, which takes precedence.
 var (
 	TestDialect    string
 	TestConnString string
 )
+
+func init() {
+	TestConnString = cmp.Or(os.Getenv("SQLSTORE_TEST_CONN_STRING"), TestConnString)
+}
 
 func TestNewAndClose(t *testing.T) {
 	log, _ := test.NewNullLogger()

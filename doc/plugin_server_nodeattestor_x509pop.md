@@ -28,6 +28,7 @@ spiffe://<trust_domain>/spire/agent/x509pop/<fingerprint>
 | `verify_client_ip`    | If `true`, validates the connecting peer's IP against the leaf certificate's IP SANs. Attestation fails if no SAN matches. Reflects the immediate peer - may not represent true client origin behind load balancers.                           | false                                                          |
 | `group_template`      | Go text/template used to derive a group value from the certificate. If empty, no group selector is produced. See [Group Template](#group-template).                                                                                            |                                                                |
 | `allowed_groups`      | Allowlist of group values that may be emitted as selectors. A group produced by `group_template` must be in this list to be emitted. Required when `group_template` is set.                                                                    |                                                                |
+| `extension_oids`      | List of certificate extension OIDs to expose as selectors. Each listed extension on the leaf whose value is a DER string is exposed as `x509pop:ext:oid:<OID>:<value>`. See [Extension Selectors](#extension-selectors).                       |                                                                |
 
 A sample configuration:
 
@@ -37,7 +38,7 @@ A sample configuration:
             ca_bundle_path = "/opt/spire/conf/server/agent-cacert.pem"
 
             # Change the agent's SPIFFE ID format
-            # agent_path_template = "/cn/{{ .Subject.CommonName }}"
+            # agent_path_template = "/{{ .PluginName }}/cn/{{ .Subject.CommonName }}"
 
             # Optional: Maximum number of intermediate certificates (default: 4)
             # max_intermediates = 4
@@ -57,6 +58,7 @@ A sample configuration:
 | SerialNumber     | `x509pop:serialnumber:0a1b2c3d4e5f`                               | The leaf certificate serial number as a lowercase hexadecimal string                                                                                                                                                 |
 | San              | `x509pop:san:<key>:<value>`                                       | The san selectors on the leaf certificate. The expected format of the uri san is `x509pop://<trust_domain>/<key>/<value>`. One selector is exposed per uri san corresponding to x509pop uri scheme. string           |
 | Group            | `x509pop:group:cluster/foo/identity-exchange`                     | A group derived from `group_template`. Only emitted when the derived value is in `allowed_groups`. See [Group Template](#group-template).                                                                            |
+| Extension        | `x509pop:ext:oid:1.3.6.1.4.1.32473.1.1:web`                       | A leaf certificate extension listed in `extension_oids`. See [Extension Selectors](#extension-selectors).                                                                                                            |
 
 ## SVID Path Prefix
 
@@ -68,10 +70,12 @@ When `mode="spiffe"` the SPIFFE ID being exchanged must be prefixed by the speci
 
 Specifying the value of `agent_path_template` provides a way of customizing the format of generated SPIFFE IDs for agents. The default format for every mode is shown below
 
-| `mode`         | `agent_path_template`                      |
-|----------------|--------------------------------------------|
-| `spiffe`       | `{{ .PluginName }}/{{ .SVIDPathTrimmed }}` |
-| `external_pki` | `{{ .PluginName }}/{{ .Fingerprint }}`     |
+| `mode`         | `agent_path_template`                       |
+|----------------|---------------------------------------------|
+| `spiffe`       | `/{{ .PluginName }}/{{ .SVIDPathTrimmed }}` |
+| `external_pki` | `/{{ .PluginName }}/{{ .Fingerprint }}`     |
+
+The rendered template is appended to `/spire/agent`. It must start with `/{{ .PluginName }}/` so the agent ID stays under `/spire/agent/x509pop/`; otherwise the server rejects the attestation unless the `allow_nonconforming_agent_ids` [experimental server setting](spire_server.md) is enabled.
 
 The template formatter is using Golang text/template conventions. It can reference values provided by the plugin or in a [golang x509.Certificate](https://pkg.go.dev/crypto/x509#Certificate).
 Details about the template engine are available in the [template engine documentation](template_engine.md).
@@ -87,6 +91,44 @@ Some useful values are:
 | .SerialNumberHex            | The serial number field of the agent's x509 certificate represented as lowercase hexadecimal |
 | .SVIDPathTrimmed            | The SVID Path after trimming off the SVID prefix                                             |
 | .URISanSelectors.&lt;key&gt;| The value of the URI San selector with key `<key>`                                           |
+
+## Extension Selectors
+
+`extension_oids` exposes leaf certificate extensions as node selectors, for PKIs that carry
+host attributes such as role or environment in custom extensions. Each entry is an OID in
+canonical dotted decimal form (no leading zeros or signs); invalid OIDs fail configuration.
+A listed extension whose value is a DER string (UTF8String, PrintableString or IA5String)
+produces `x509pop:ext:oid:<OID>:<value>`. Other extensions, other encodings, empty values and
+selectors longer than 255 characters are ignored.
+
+```hcl
+    NodeAttestor "x509pop" {
+        plugin_data {
+            ca_bundle_path = "/opt/spire/conf/server/agent-cacert.pem"
+            extension_oids = [
+                "1.3.6.1.4.1.32473.1.1", # role
+                "1.3.6.1.4.1.32473.1.2", # environment
+            ]
+        }
+    }
+```
+
+A certificate with `web` in the `1.3.6.1.4.1.32473.1.1` extension then attests with
+`x509pop:ext:oid:1.3.6.1.4.1.32473.1.1:web`, which a node alias can select on:
+
+```shell
+spire-server entry create -node -spiffeID spiffe://example.org/nodes/web \
+    -selector x509pop:ext:oid:1.3.6.1.4.1.32473.1.1:web
+```
+
+Listed extensions may be marked critical. A critical extension listed in `extension_oids` is
+treated as handled by the plugin only when it produces a selector. If its value is not a
+supported string, or the selector would be longer than 255 characters, attestation fails with
+an unhandled critical extension error. Critical extensions that are not listed always fail
+verification.
+
+These values are only as trustworthy as the CA's issuance policy. If the CA copies extensions
+from the CSR, make sure the signing process validates them.
 
 ## Group Template
 

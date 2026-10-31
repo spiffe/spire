@@ -197,6 +197,38 @@ func TestVerify(t *testing.T) {
 			expectedAttestationsCallCount: 1,
 		},
 		{
+			name: "generates selectors without log details for a signature without a rekor bundle",
+			configureTest: func(ctx context.Context, _ *ImageVerifier, signatureVerifyFake *fakeCosignVerifySignatureFn, attestationsVerifyFake *fakeCosignVerifyAttestationsFn) {
+				signature := &fakeSignature{
+					payload:         createFakePayload(),
+					base64Signature: "base64signature",
+					cert:            createTestCert(),
+				}
+				attestationsVerifyFake.Responses = append(attestationsVerifyFake.Responses, struct {
+					Signatures     []oci.Signature
+					BundleVerified bool
+					Err            error
+				}{})
+
+				signatureVerifyFake.Responses = append(signatureVerifyFake.Responses, struct {
+					Signatures     []oci.Signature
+					BundleVerified bool
+					Err            error
+				}{
+					Signatures:     []oci.Signature{signature},
+					BundleVerified: true,
+				})
+			},
+			expectedSelectors: []string{
+				imageSignatureVerifiedSelector,
+				"image-signature-subject:test-subject-san",
+				"image-signature-issuer:test-issuer",
+				"image-signature-value:base64signature",
+			},
+			expectedVerifyCallCount:       1,
+			expectedAttestationsCallCount: 1,
+		},
+		{
 			name: "generates selectors from verified signature and bundle, but ignore attestations",
 			configureTest: func(ctx context.Context, verifier *ImageVerifier, signatureVerifyFake *fakeCosignVerifySignatureFn, _ *fakeCosignVerifyAttestationsFn) {
 				verifier.config.IgnoreAttestations = true

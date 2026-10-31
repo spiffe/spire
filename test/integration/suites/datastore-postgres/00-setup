@@ -7,10 +7,10 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 PKGDIR="${REPODIR}/pkg/server/datastore/sqlstore"
 
 log-debug "building postgres test harness..."
-(cd "${PKGDIR}"; go test -c -o "${DIR}"/postgres.test -ldflags "-X github.com/spiffe/spire/pkg/server/datastore/sqlstore.TestDialect=postgres -X github.com/spiffe/spire/pkg/server/datastore/sqlstore.TestConnString=postgres://postgres:password@localhost:9999/postgres?sslmode=disable -X github.com/spiffe/spire/pkg/server/datastore/sqlstore.TestROConnString=postgres://postgres:password@localhost:9999/postgres?sslmode=disable")
+(cd "${PKGDIR}"; go test -c -o "${DIR}"/postgres.test -ldflags "-X github.com/spiffe/spire/pkg/server/datastore/sqlstore.TestDialect=postgres")
 
 log-debug "building postgres test harness for the gorm v2 datastore..."
-(cd "${REPODIR}/pkg/server/datastore/sqlstorev2"; go test -c -o "${DIR}"/postgres-v2.test -ldflags "-X github.com/spiffe/spire/pkg/server/datastore/sqlstorev2.TestDialect=postgres -X github.com/spiffe/spire/pkg/server/datastore/sqlstorev2.TestConnString=postgres://postgres:password@localhost:9999/postgres?sslmode=disable")
+(cd "${REPODIR}/pkg/server/datastore/sqlstorev2"; go test -c -o "${DIR}"/postgres-v2.test -ldflags "-X github.com/spiffe/spire/pkg/server/datastore/sqlstorev2.TestDialect=postgres")
 
 log-debug "copying over test data..."
 cp -r "${PKGDIR}"/testdata .

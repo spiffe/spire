@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/andres-erbsen/clock"
 	logtest "github.com/sirupsen/logrus/hooks/test"
+	"github.com/spiffe/spire/test/clock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -64,7 +64,7 @@ func TestCheckerListeners(t *testing.T) {
 	finalChecker, ok := servableChecker.(*checker)
 	require.True(t, ok)
 
-	clk := clock.NewMock()
+	clk := clock.NewMock(t)
 	finalChecker.cache.clk = clk
 
 	waitFor := make(chan struct{}, 1)
@@ -126,6 +126,9 @@ func TestCheckerListeners(t *testing.T) {
 	barChecker.state.Ready = false
 	barChecker.state.ReadyDetails = healthDetails{Err: "ready fails"}
 
+	// Advancing the mock clock only fires timers that already exist, so wait
+	// for the steady-state loop to arm its timer before advancing.
+	clk.WaitForAfter(5*time.Second, "timeout waiting for the steady-state health check timer")
 	clk.Add(readyCheckInterval)
 
 	select {

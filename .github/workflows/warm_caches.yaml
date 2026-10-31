@@ -1,0 +1,144 @@
+name: Warm Caches
+# Compiles the tree on every push to main and saves the Go module cache, the
+# Go build cache and the .build tool cache under the main branch scope.
+# Caches saved by a pull request or merge queue run are only readable by that
+# same branch, so without this workflow every PR Build job would start cold.
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+# A newer push to main supersedes a warm run still in progress.
+concurrency:
+  group: warm-caches
+  cancel-in-progress: true
+
+jobs:
+  warm:
+    name: warm (${{ matrix.runs-on }})
+    runs-on: ${{ matrix.runs-on }}
+    timeout-minutes: 45
+
+    permissions:
+      contents: read
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Runner image of the lint and unit test jobs.
+          - runs-on: ubuntu-22.04
+            packages: ./...
+            full: true
+          # Runner images of the integration test shards, which only compile
+          # the datastore test binaries.
+          - runs-on: ubuntu-24.04
+            packages: ./pkg/server/datastore/...
+            full: false
+          - runs-on: ubuntu-24.04-arm
+            packages: ./pkg/server/datastore/...
+            full: false
+          - runs-on: macos-latest
+            packages: ./...
+            full: false
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Setup go
+        id: setup
+        uses: ./.github/actions/setup-go
+      - name: Download modules
+        # Every job downloads the full module set so that the module cache,
+        # whose key is shared by all Linux jobs, is complete whichever job
+        # saves it first.
+        run: go mod download
+      - name: Compile packages and tests
+        run: |
+          go build ${{ matrix.packages }}
+          go test -run '^$' ${{ matrix.packages }}
+      - name: Compile tests with race detection
+        if: matrix.full
+        run: go test -race -run '^$' ${{ matrix.packages }}
+      - name: Lint
+        if: matrix.full
+        run: make lint-code
+      - name: Install build tools
+        if: matrix.full
+        run: make install-toolchain install-protoc-gen-go-grpc install-protoc-gen-go-spire
+      - name: Save Go module cache
+        if: steps.setup.outputs.gomod-cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.setup.outputs.gomodcache }}
+          key: ${{ steps.setup.outputs.gomod-key }}
+      - name: Save Go build cache
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.setup.outputs.gocache }}
+          key: ${{ steps.setup.outputs.gobuild-key }}
+      - name: Save build tool cache
+        if: matrix.full
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .build
+          key: ${{ steps.setup.outputs.tools-key }}
+
+  warm-windows:
+    name: warm (windows-2022)
+    runs-on: windows-2022
+    timeout-minutes: 45
+
+    env:
+      GOPATH: 'D:\golang\go'
+      GOCACHE: 'D:\golang\cache'
+      GOMODCACHE: 'D:\golang\modcache'
+
+    permissions:
+      contents: read
+
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Setup go
+        id: setup
+        uses: ./.github/actions/setup-go
+      - name: Install msys2
+        uses: msys2/setup-msys2@ec48f7c5447b3140e2b088413ae3a55687bccb6e # v2.33.0
+        with:
+          msystem: UCRT64
+          update: true
+          # Keep the Go toolchain installed by setup-go on PATH.
+          path-type: inherit
+          install: >-
+            git base-devel mingw-w64-ucrt-x86_64-toolchain unzip
+      - name: Download modules
+        run: go mod download
+      - name: Compile packages and tests
+        run: |
+          go build ./...
+          go test -run '^$' ./...
+      - name: Lint
+        run: make lint-code
+      - name: Save Go module cache
+        if: steps.setup.outputs.gomod-cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.setup.outputs.gomodcache }}
+          key: ${{ steps.setup.outputs.gomod-key }}
+      - name: Save Go build cache
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.setup.outputs.gocache }}
+          key: ${{ steps.setup.outputs.gobuild-key }}
+      - name: Save build tool cache
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .build
+          key: ${{ steps.setup.outputs.tools-key }}

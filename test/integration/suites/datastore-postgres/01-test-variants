@@ -1,45 +1,78 @@
 #!/bin/bash
 
-test-postgres() {
-    SERVICE=$1
+VERSIONS=(13 14 15 16 17 18)
 
-    docker-up "${SERVICE}"
+# Each version listens on its own host port (see docker-compose.yaml) so the
+# tests can run against all of them at the same time.
+conn-string() {
+    echo "postgres://postgres:password@localhost:99$1/postgres?sslmode=disable"
+}
+
+wait-ready() {
+    local service=$1
 
     # Wait up to two minutes for postgres to be available. It should come up
     # pretty quick on developer machines but CI/CD is slow.
-    MAXCHECKS=40
-    CHECKINTERVAL=3
-    READY=
-    for ((i=1;i<=MAXCHECKS;i++)); do
-        log-info "waiting for ${SERVICE} ($i of $MAXCHECKS max)..."
-        if docker compose exec -T "${SERVICE}" pg_isready -h localhost -U postgres >/dev/null; then
-            READY=1
-            break
+    local max_checks=40
+    local check_interval=3
+    for ((i=1;i<=max_checks;i++)); do
+        log-info "waiting for ${service} ($i of $max_checks max)..."
+        if docker compose exec -T "${service}" pg_isready -h localhost -U postgres >/dev/null; then
+            return 0
         fi
-        sleep "${CHECKINTERVAL}"
+        sleep "${check_interval}"
     done
 
-    if [ -z ${READY} ]; then
-        fail-now "timed out waiting for ${SERVICE} to be ready"
-    fi
-
-    log-info "running tests against ${SERVICE}..."
-    ./postgres.test || fail-now "tests failed"
-    # -test.v output is checked because the tests skip, rather than fail,
-    # when the linker flags that point them at the database are missing.
-    ./postgres-v2.test -test.run ExternalDB -test.v | tee postgres-v2.out
-    [ "${PIPESTATUS[0]}" -eq 0 ] || fail-now "gorm v2 tests failed"
-    EXPECTED=$(./postgres-v2.test -test.list ExternalDB | wc -l)
-    PASSED=$(grep -c -- "^--- PASS" postgres-v2.out)
-    if grep -q -- "--- SKIP" postgres-v2.out || [ "${PASSED}" -ne "${EXPECTED}" ] || [ "${EXPECTED}" -eq 0 ]; then
-        fail-now "gorm v2 external database tests did not all run: ${PASSED} of ${EXPECTED} passed"
-    fi
-    docker-stop "${SERVICE}"
+    fail-now "timed out waiting for ${service} to be ready"
 }
 
-test-postgres postgres-13 || exit 1
-test-postgres postgres-14 || exit 1
-test-postgres postgres-15 || exit 1
-test-postgres postgres-16 || exit 1
-test-postgres postgres-17 || exit 1
-test-postgres postgres-18 || exit 1
+# run-v2-tests runs the gorm v2 datastore tests against the database at the
+# given connection string. The output is checked because the tests skip,
+# rather than fail, when no database is configured.
+run-v2-tests() {
+    local out status expected passed
+    out=$(SQLSTORE_TEST_CONN_STRING="$1" ./postgres-v2.test -test.run ExternalDB -test.v 2>&1)
+    status=$?
+    echo "${out}"
+    [ "${status}" -eq 0 ] || return 1
+    expected=$(./postgres-v2.test -test.list ExternalDB | wc -l)
+    passed=$(grep -c -- "^--- PASS" <<< "${out}")
+    if grep -q -- "--- SKIP" <<< "${out}" || [ "${passed}" -ne "${expected}" ] || [ "${expected}" -eq 0 ]; then
+        echo "gorm v2 external database tests did not all run: ${passed} of ${expected} passed"
+        return 1
+    fi
+}
+export -f run-v2-tests
+
+services=()
+for version in "${VERSIONS[@]}"; do
+    services+=("postgres-${version}")
+done
+
+docker-up "${services[@]}"
+for service in "${services[@]}"; do
+    wait-ready "${service}"
+done
+
+runs=()
+for version in "${VERSIONS[@]}"; do
+    # The read-only connection points at the same instance, as it always has
+    # in this suite, so the read-only code paths stay covered.
+    conn_string="$(conn-string "${version}")"
+    runs+=("postgres-${version}=SQLSTORE_TEST_CONN_STRING='${conn_string}' SQLSTORE_TEST_RO_CONN_STRING='${conn_string}' ./postgres.test")
+done
+
+log-info "running tests against ${services[*]}..."
+run-concurrently "${runs[@]}"
+
+# The gorm v2 tests wipe the database too, so they run once the tests above
+# have finished with each instance.
+v2_runs=()
+for version in "${VERSIONS[@]}"; do
+    v2_runs+=("postgres-v2-${version}=run-v2-tests '$(conn-string "${version}")'")
+done
+
+log-info "running gorm v2 tests against ${services[*]}..."
+run-concurrently "${v2_runs[@]}"
+
+docker-stop "${services[@]}"

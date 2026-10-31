@@ -1,6 +1,7 @@
 package sqlstore
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"fmt"
@@ -24,7 +25,9 @@ var (
 	ctx = context.Background()
 
 	// The following are set by the linker during integration tests to
-	// run these unit tests against various SQL backends.
+	// run these unit tests against various SQL backends. The connection
+	// strings can also be set through the environment, which lets one test
+	// binary run against several database instances at the same time.
 	TestDialect      string
 	TestConnString   string
 	TestROConnString string
@@ -38,8 +41,8 @@ func TestPlugin(t *testing.T) {
 			return New(log)
 		},
 		Dialect:               TestDialect,
-		ConnString:            TestConnString,
-		ROConnString:          TestROConnString,
+		ConnString:            cmp.Or(os.Getenv("SQLSTORE_TEST_CONN_STRING"), TestConnString),
+		ROConnString:          cmp.Or(os.Getenv("SQLSTORE_TEST_RO_CONN_STRING"), TestROConnString),
 		ExpectedSchemaVersion: latestSchemaVersion,
 		ExpectedCodeVersion:   codeVersion.String(),
 	})

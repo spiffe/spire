@@ -1,11 +1,13 @@
 #!/bin/bash
-# Builds all SPIRE artifacts for all supported architectures for the provided operating system.
-# Usage: build_artifacts.sh <Linux|Windows|macOS>
+# Builds the SPIRE artifacts for the provided operating system. On Linux, the
+# architectures to build default to all supported ones and can be narrowed
+# with extra arguments.
+# Usage: build_artifacts.sh <Linux|Windows> [arch...]
 
 set -e
 
 usage() {
-    echo "usage: ${BASH_SOURCE[0]} <Linux|Windows>"
+    echo "usage: ${BASH_SOURCE[0]} <Linux|Windows> [arch...]"
     exit 1
 }
 
@@ -19,12 +21,13 @@ if [[ "$GITHUB_REF" =~ ^refs/tags/v[0-9.]+$ ]]; then
     TAG="${GITHUB_REF##refs/tags/v}"
 fi
 
-[[ $# -eq 1 ]] || usage
+[[ $# -ge 1 ]] || usage
 
 os="$1"
+shift
 case "${os}" in
     Linux)
-        "${SCRIPTDIR}"/build_linux_artifacts.sh
+        "${SCRIPTDIR}"/build_linux_artifacts.sh "$@"
         ;;
     Windows)
         "${SCRIPTDIR}"/build_windows_artifacts.sh

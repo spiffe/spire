@@ -4,13 +4,16 @@ import (
 	"context"
 	"crypto/rsa"
 	"crypto/x509"
+	"encoding/asn1"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
 	"net/url"
+	"slices"
 	"strings"
 	"sync"
+	"unicode/utf8"
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/hcl"
@@ -60,7 +63,11 @@ type Config struct {
 	VerifyClientIP    bool     `hcl:"verify_client_ip"`
 	GroupTemplate     string   `hcl:"group_template"`
 	AllowedGroups     []string `hcl:"allowed_groups"`
+	ExtensionOIDs     []string `hcl:"extension_oids"`
 }
+
+// MySQL stores selector values in varchar(255) columns.
+const maxExtensionSelectorLength = 255
 
 type configuration struct {
 	mode             string
@@ -73,6 +80,7 @@ type configuration struct {
 	verifyClientIP   bool
 	groupTemplate    *agentpathtemplate.Template
 	allowedGroups    map[string]struct{}
+	extensionOIDs    map[string]struct{}
 }
 
 func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *configuration {
@@ -172,6 +180,14 @@ func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginco
 		maxRSAKeySize = *hclConfig.MaxRSAKeySize
 	}
 
+	extensionOIDs := make(map[string]struct{}, len(hclConfig.ExtensionOIDs))
+	for _, oid := range hclConfig.ExtensionOIDs {
+		if parsed, err := x509.ParseOID(oid); err != nil || parsed.String() != oid {
+			status.ReportErrorf("invalid extension_oids entry %q: must be an OID in canonical dotted decimal form", oid)
+		}
+		extensionOIDs[oid] = struct{}{}
+	}
+
 	newConfig := &configuration{
 		trustDomain:      coreConfig.TrustDomain,
 		trustBundle:      util.NewCertPool(trustBundles...),
@@ -183,6 +199,7 @@ func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginco
 		verifyClientIP:   hclConfig.VerifyClientIP,
 		groupTemplate:    groupTemplate,
 		allowedGroups:    allowedGroups,
+		extensionOIDs:    extensionOIDs,
 	}
 
 	return newConfig
@@ -274,6 +291,12 @@ func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 			return status.Errorf(codes.Internal, "failed to get trust bundle: %v", err)
 		}
 	}
+
+	// Configured critical extensions are handled when they produce a selector.
+	extSelectors := extensionSelectors(leaf, config.extensionOIDs)
+	leaf.UnhandledCriticalExtensions = slices.DeleteFunc(leaf.UnhandledCriticalExtensions, func(oid asn1.ObjectIdentifier) bool {
+		return extSelectors[oid.String()] != ""
+	})
 
 	// verify the chain of trust
 	chains, err := leaf.Verify(x509.VerifyOptions{
@@ -370,6 +393,13 @@ func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 	}
 
 	selectors := buildSelectorValues(leaf, chains, sanSelectors)
+	for oid, selector := range extSelectors {
+		if selector == "" {
+			p.log.Warn("Ignoring certificate extension that cannot be used as a selector", "oid", oid)
+			continue
+		}
+		selectors = append(selectors, selector)
+	}
 
 	if config.groupTemplate != nil {
 		templateData := x509pop.NewTemplateData(config.trustDomain, leaf, svidPath, sanSelectors)
@@ -522,4 +552,37 @@ func validateRSAKeySize(cert *x509.Certificate, maxRSAKeySize int) error {
 		}
 	}
 	return nil
+}
+
+// extensionSelectors maps each configured OID on the leaf to its ext:oid:<OID>:<value>
+// selector, or to "" if the value is not a non-empty UTF8String, PrintableString or
+// IA5String, or the selector is too long.
+func extensionSelectors(leaf *x509.Certificate, oids map[string]struct{}) map[string]string {
+	selectors := make(map[string]string)
+	for _, ext := range leaf.Extensions {
+		oid := ext.Id.String()
+		if _, ok := oids[oid]; !ok {
+			continue
+		}
+		value, ok := decodeExtensionString(ext.Value)
+		selector := "ext:oid:" + oid + ":" + value
+		if !ok || utf8.RuneCountInString(selector) > maxExtensionSelectorLength {
+			selector = ""
+		}
+		selectors[oid] = selector
+	}
+	return selectors
+}
+
+func decodeExtensionString(der []byte) (string, bool) {
+	var raw asn1.RawValue
+	if rest, err := asn1.Unmarshal(der, &raw); err != nil || len(rest) > 0 || raw.Class != asn1.ClassUniversal ||
+		!slices.Contains([]int{asn1.TagUTF8String, asn1.TagPrintableString, asn1.TagIA5String}, raw.Tag) {
+		return "", false
+	}
+	var value string
+	if _, err := asn1.Unmarshal(der, &value); err != nil || value == "" {
+		return "", false
+	}
+	return value, true
 }

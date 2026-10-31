@@ -632,6 +632,14 @@ const (
 	// with other tags to add clarity
 	TTL = "ttl"
 
+	// MaxTTL functionality related to a maximum time-to-live field; should be
+	// used with other tags to add clarity
+	MaxTTL = "max_ttl"
+
+	// MaxExpiration functionality related to a maximum expiration field; should
+	// be used with other tags to add clarity
+	MaxExpiration = "max_expiration"
+
 	// X509 SVID TTL functionality related to a time-to-live field for X509-SVIDs; should be used
 	// with other tags to add clarity
 	X509SVIDTTL = "x509_svid_ttl"

@@ -2,6 +2,7 @@ package main
 
 import (
 	"net/http"
+	"sync/atomic"
 	"time"
 )
 
@@ -15,6 +16,7 @@ type HealthChecksHandler struct {
 	healthChecks HealthChecksConfig
 	jwkThreshold time.Duration
 	initTime     time.Time
+	listening    atomic.Bool
 
 	http.Handler
 }
@@ -35,6 +37,12 @@ func NewHealthChecksHandler(source JWKSSource, config *Config) *HealthChecksHand
 	return h
 }
 
+// SetListening marks the provider listener as up. Until then the ready check
+// reports not ready, e.g. while waiting for the first X509-SVID.
+func (h *HealthChecksHandler) SetListening() {
+	h.listening.Store(true)
+}
+
 // jwkThreshold determines the duration from the last successful poll before the server is considered unhealthy
 func jwkThreshold(config *Config) time.Duration {
 	var duration time.Duration
@@ -52,7 +60,8 @@ func jwkThreshold(config *Config) time.Duration {
 	return duration
 }
 
-// readyCheck is a health check that returns 200 if the server can successfully fetch a jwt keyset
+// readyCheck is a health check that returns 200 if the listener is up and the
+// server can successfully fetch a jwt keyset
 func (h *HealthChecksHandler) readyCheck(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "GET" {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -62,7 +71,7 @@ func (h *HealthChecksHandler) readyCheck(w http.ResponseWriter, r *http.Request)
 	statusCode := http.StatusOK
 	lastPoll := h.source.LastSuccessfulPoll()
 	elapsed := time.Since(lastPoll)
-	isReady := !lastPoll.IsZero() && elapsed < h.jwkThreshold
+	isReady := h.listening.Load() && !lastPoll.IsZero() && elapsed < h.jwkThreshold
 
 	if !isReady {
 		statusCode = http.StatusInternalServerError

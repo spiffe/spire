@@ -68,6 +68,7 @@ func TestParseConfigGood(t *testing.T) {
 	_, ok := trustDomainConfig.EndpointProfile.(bundleClient.HTTPSWebProfile)
 	assert.True(t, ok)
 	assert.True(t, c.Server.AuditLogEnabled)
+	assert.True(t, c.Server.AuditLogExcludeAgentSync)
 	assert.Equal(t, []string{"10.0.0.0/8", "172.16.0.0/12"}, c.Server.ProxyProtocolTrustedCIDRs)
 	assert.True(t, c.Server.Experimental.RequirePQKEM)
 	testParseConfigGoodOS(t, c)
@@ -686,6 +687,23 @@ func TestNewServerConfig(t *testing.T) {
 			},
 		},
 		{
+			msg: "allow_nonconforming_agent_ids defaults to false",
+			input: func(c *Config) {
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.False(t, c.Experimental.AllowNonconformingAgentIDs)
+			},
+		},
+		{
+			msg: "allow_nonconforming_agent_ids is correctly configured",
+			input: func(c *Config) {
+				c.Server.Experimental.AllowNonconformingAgentIDs = true
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.True(t, c.Experimental.AllowNonconformingAgentIDs)
+			},
+		},
+		{
 			msg: "logger gets set correctly",
 			input: func(c *Config) {
 				c.Server.LogLevel = "WARN"
@@ -1090,6 +1108,22 @@ func TestNewServerConfig(t *testing.T) {
 			},
 		},
 		{
+			msg:   "WIT-SVIDs are disabled by default",
+			input: func(c *Config) {},
+			test: func(t *testing.T, c *server.Config) {
+				require.True(t, c.DisableWITSVIDs)
+			},
+		},
+		{
+			msg: "enable_wit_svids enables WIT-SVIDs",
+			input: func(c *Config) {
+				c.Server.Experimental.EnableWITSVIDs = true
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.False(t, c.DisableWITSVIDs)
+			},
+		},
+		{
 			msg:         "invalid default_x509_svid_ttl returns an error",
 			expectError: true,
 			input: func(c *Config) {
@@ -1460,6 +1494,22 @@ func TestNewServerConfig(t *testing.T) {
 			},
 			test: func(t *testing.T, c *server.Config) {
 				require.Equal(t, time.Minute, c.EventTimeout)
+			},
+		},
+		{
+			msg: "agent sync audit filtering is enabled",
+			input: func(c *Config) {
+				c.Server.AuditLogExcludeAgentSync = true
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.True(t, c.AuditLogExcludeAgentSync)
+			},
+		},
+		{
+			msg:   "agent sync audit filtering is disabled by default",
+			input: func(*Config) {},
+			test: func(t *testing.T, c *server.Config) {
+				require.False(t, c.AuditLogExcludeAgentSync)
 			},
 		},
 		{

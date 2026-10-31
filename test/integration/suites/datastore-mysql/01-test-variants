@@ -1,64 +1,100 @@
 #!/bin/bash
 
-test-mysql() {
-    SERVICE=$1
+VERSIONS=(8-0 8-4)
 
-    docker-up "${SERVICE}"
+# Each version listens on its own host port (see docker-compose.yaml) so the
+# tests can run against all of them at the same time.
+conn-string() {
+    echo "spire:test@tcp(localhost:99${1/-/})/spire?parseTime=true"
+}
 
-    # The MySQL containers start up the MySQL instance to initialize the 
+wait-ready() {
+    local service=$1
+
+    # The MySQL containers start up the MySQL instance to initialize the
     # database. It is then brought down and started again. If we do a
     # connectivity check during the initialization step, we might
     # assume the database is ready to go prematurely. To prevent this, we
     # will check for the log message indicating that initialization is complete.
-    INITMSG="MySQL init process done. Ready for start up."
-    MAXINITCHECKS=40
-    INITCHECKINTERVAL=3
-    INIT=
-    for ((i=1;i<=MAXINITCHECKS;i++)); do
-        log-info "waiting for ${SERVICE} database initialization ($i of $MAXINITCHECKS max)..."
-        if docker compose logs "${SERVICE}" | grep "$INITMSG"; then
-            INIT=1
+    local init_msg="MySQL init process done. Ready for start up."
+    local max_init_checks=40
+    local init_check_interval=3
+    local init=
+    for ((i=1;i<=max_init_checks;i++)); do
+        log-info "waiting for ${service} database initialization ($i of $max_init_checks max)..."
+        if docker compose logs "${service}" | grep "${init_msg}"; then
+            init=1
             break
         fi
-        sleep "${INITCHECKINTERVAL}"
+        sleep "${init_check_interval}"
     done
 
-    if [ -z ${INIT} ]; then
-        fail-now "timed out waiting for ${SERVICE} database to be initialized"
+    if [ -z "${init}" ]; then
+        fail-now "timed out waiting for ${service} database to be initialized"
     fi
-
 
     # Wait up to two minutes for mysql to be available. It should come up
     # pretty quick on developer machines but CI/CD is slow.
-    MAXREADYCHECKS=40
-    READYCHECKINTERVAL=3
-    READY=
-    for ((i=1;i<=MAXREADYCHECKS;i++)); do
-        log-info "waiting for ${SERVICE} to be ready ($i of $MAXREADYCHECKS max)..."
-        if docker compose exec -T "${SERVICE}" mysql -uspire -ptest -e "show databases;" > /dev/null; then
-            READY=1
-            break
+    local max_ready_checks=40
+    local ready_check_interval=3
+    for ((i=1;i<=max_ready_checks;i++)); do
+        log-info "waiting for ${service} to be ready ($i of $max_ready_checks max)..."
+        if docker compose exec -T "${service}" mysql -uspire -ptest -e "show databases;" > /dev/null; then
+            return 0
         fi
-        sleep "${READYCHECKINTERVAL}"
+        sleep "${ready_check_interval}"
     done
 
-    if [ -z ${READY} ]; then
-        fail-now "timed out waiting for ${SERVICE} to be ready"
-    fi
-
-    log-info "running tests against ${SERVICE}..."
-    ./mysql.test || fail-now "tests failed"
-    # -test.v output is checked because the tests skip, rather than fail,
-    # when the linker flags that point them at the database are missing.
-    ./mysql-v2.test -test.run ExternalDB -test.v | tee mysql-v2.out
-    [ "${PIPESTATUS[0]}" -eq 0 ] || fail-now "gorm v2 tests failed"
-    EXPECTED=$(./mysql-v2.test -test.list ExternalDB | wc -l)
-    PASSED=$(grep -c -- "^--- PASS" mysql-v2.out)
-    if grep -q -- "--- SKIP" mysql-v2.out || [ "${PASSED}" -ne "${EXPECTED}" ] || [ "${EXPECTED}" -eq 0 ]; then
-        fail-now "gorm v2 external database tests did not all run: ${PASSED} of ${EXPECTED} passed"
-    fi
-    docker-stop "${SERVICE}"
+    fail-now "timed out waiting for ${service} to be ready"
 }
 
-test-mysql mysql-8-0 || exit 1
-test-mysql mysql-8-4 || exit 1
+# run-v2-tests runs the gorm v2 datastore tests against the database at the
+# given connection string. The output is checked because the tests skip,
+# rather than fail, when no database is configured.
+run-v2-tests() {
+    local out status expected passed
+    out=$(SQLSTORE_TEST_CONN_STRING="$1" ./mysql-v2.test -test.run ExternalDB -test.v 2>&1)
+    status=$?
+    echo "${out}"
+    [ "${status}" -eq 0 ] || return 1
+    expected=$(./mysql-v2.test -test.list ExternalDB | wc -l)
+    passed=$(grep -c -- "^--- PASS" <<< "${out}")
+    if grep -q -- "--- SKIP" <<< "${out}" || [ "${passed}" -ne "${expected}" ] || [ "${expected}" -eq 0 ]; then
+        echo "gorm v2 external database tests did not all run: ${passed} of ${expected} passed"
+        return 1
+    fi
+}
+export -f run-v2-tests
+
+services=()
+for version in "${VERSIONS[@]}"; do
+    services+=("mysql-${version}")
+done
+
+docker-up "${services[@]}"
+for service in "${services[@]}"; do
+    wait-ready "${service}"
+done
+
+runs=()
+for version in "${VERSIONS[@]}"; do
+    # The read-only connection points at the same instance, as it always has
+    # in this suite, so the read-only code paths stay covered.
+    conn_string="$(conn-string "${version}")"
+    runs+=("mysql-${version}=SQLSTORE_TEST_CONN_STRING='${conn_string}' SQLSTORE_TEST_RO_CONN_STRING='${conn_string}' ./mysql.test")
+done
+
+log-info "running tests against ${services[*]}..."
+run-concurrently "${runs[@]}"
+
+# The gorm v2 tests wipe the database too, so they run once the tests above
+# have finished with each instance.
+v2_runs=()
+for version in "${VERSIONS[@]}"; do
+    v2_runs+=("mysql-v2-${version}=run-v2-tests '$(conn-string "${version}")'")
+done
+
+log-info "running gorm v2 tests against ${services[*]}..."
+run-concurrently "${v2_runs[@]}"
+
+docker-stop "${services[@]}"
