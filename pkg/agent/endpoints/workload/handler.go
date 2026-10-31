@@ -39,7 +39,8 @@ type Manager interface {
 	SubscribeToWITCacheChanges(ctx context.Context, key cache.Selectors) (cache.Subscriber[cache.WITWorkloadUpdate], error)
 	MatchingRegistrationEntries(selectors []*common.Selector) []*common.RegistrationEntry
 	FetchJWTSVID(ctx context.Context, entry *common.RegistrationEntry, audience []string) (*client.JWTSVID, error)
-	FetchWorkloadUpdate([]*common.Selector) *cache.X509WorkloadUpdate
+	FetchEntriesAndBundles([]*common.Selector) *cache.EntriesAndBundlesUpdate
+	SubscribeToEntryAndBundleChanges(key cache.Selectors) cache.Subscriber[cache.EntriesAndBundlesUpdate]
 }
 
 type Attestor interface {
@@ -166,11 +167,11 @@ func (h *Handler) FetchJWTBundles(_ *workload.JWTBundlesRequest, stream workload
 		return err
 	}
 
-	subscriber, err := h.c.Manager.SubscribeToX509CacheChanges(ctx, selectors)
-	if err != nil {
-		loggerWithContextInfo(ctx, log, start, err).Error("Subscribe to cache changes failed")
-		return err
-	}
+	// Subscribe to entry and bundle changes rather than X509 cache changes, so
+	// that bundles are served based on registration entries alone, and the
+	// stream does not cause X509-SVIDs to be minted. Bundle rotations are
+	// delivered through the same subscription, together with the entries.
+	subscriber := h.c.Manager.SubscribeToEntryAndBundleChanges(selectors)
 	defer subscriber.Finish()
 
 	var previousResp *workload.JWTBundlesResponse
@@ -682,9 +683,9 @@ func composeWITBundlesResponse(update *cache.WITWorkloadUpdate) (*workload.WITBu
 	}, nil
 }
 
-func (h *Handler) sendJWTBundlesResponse(update *cache.X509WorkloadUpdate, stream workload.SpiffeWorkloadAPI_FetchJWTBundlesServer, selectors []*common.Selector, log logrus.FieldLogger, previousResponse *workload.JWTBundlesResponse, start time.Time) (*workload.JWTBundlesResponse, error) {
+func (h *Handler) sendJWTBundlesResponse(update *cache.EntriesAndBundlesUpdate, stream workload.SpiffeWorkloadAPI_FetchJWTBundlesServer, selectors []*common.Selector, log logrus.FieldLogger, previousResponse *workload.JWTBundlesResponse, start time.Time) (*workload.JWTBundlesResponse, error) {
 	ctx := stream.Context()
-	if !h.c.AllowUnauthenticatedVerifiers && !update.HasIdentity() {
+	if !h.c.AllowUnauthenticatedVerifiers && !update.HasEntries() {
 		h.logNoIdentityIssued(ctx, log, selectors, start)
 		return nil, status.Error(codes.PermissionDenied, "no identity issued")
 	}
@@ -707,7 +708,7 @@ func (h *Handler) sendJWTBundlesResponse(update *cache.X509WorkloadUpdate, strea
 	return resp, nil
 }
 
-func composeJWTBundlesResponse(update *cache.X509WorkloadUpdate) (*workload.JWTBundlesResponse, error) {
+func composeJWTBundlesResponse(update *cache.EntriesAndBundlesUpdate) (*workload.JWTBundlesResponse, error) {
 	if update.Bundle == nil {
 		// This should be purely defensive since the cache should always supply
 		// a bundle.
@@ -721,7 +722,7 @@ func composeJWTBundlesResponse(update *cache.X509WorkloadUpdate) (*workload.JWTB
 	}
 	bundles[update.Bundle.TrustDomain().IDString()] = jwksBytes
 
-	if update.HasIdentity() {
+	if update.HasEntries() {
 		for _, federatedBundle := range update.FederatedBundles {
 			jwksBytes, err := bundleutil.MarshalJWTSVIDBundle(federatedBundle, bundleutil.StandardJWKS())
 			if err != nil {
@@ -822,7 +823,7 @@ func renderSelector(selector *common.Selector) string {
 }
 
 func (h *Handler) getWorkloadBundles(selectors []*common.Selector) (bundles []*spiffebundle.Bundle) {
-	update := h.c.Manager.FetchWorkloadUpdate(selectors)
+	update := h.c.Manager.FetchEntriesAndBundles(selectors)
 
 	if update.Bundle != nil {
 		bundles = append(bundles, update.Bundle)

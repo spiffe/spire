@@ -64,6 +64,14 @@ type Manager interface {
 	// not enabled.
 	SubscribeToWITCacheChanges(ctx context.Context, key cache.Selectors) (cache.Subscriber[cache.WITWorkloadUpdate], error)
 
+	// SubscribeToEntryAndBundleChanges returns a Subscriber on which the
+	// registration entries matching a particular set of selectors are sent,
+	// along with the bundles they rely on, each time either of them changes.
+	// The first update is available as soon as the method returns. Unlike
+	// SubscribeToX509CacheChanges, it does not cause X509-SVIDs to be minted
+	// for the matching entries.
+	SubscribeToEntryAndBundleChanges(key cache.Selectors) cache.Subscriber[cache.EntriesAndBundlesUpdate]
+
 	// SubscribeToSVIDChanges returns a new observer.Stream on which svid.State instances are received
 	// each time an SVID rotation finishes.
 	SubscribeToSVIDChanges() observer.Stream
@@ -88,6 +96,12 @@ type Manager interface {
 
 	// FetchWorkloadUpdates gets the latest workload update for the selectors
 	FetchWorkloadUpdate(selectors []*common.Selector) *cache.X509WorkloadUpdate
+
+	// FetchEntriesAndBundles gets the registration entries matching the
+	// selectors, along with the bundles they rely on. Unlike
+	// FetchWorkloadUpdate, it does not depend on X509-SVIDs having been minted
+	// for the matching entries.
+	FetchEntriesAndBundles(selectors []*common.Selector) *cache.EntriesAndBundlesUpdate
 
 	// FetchJWTSVID returns a JWT SVID for the specified SPIFFEID and audience. If there
 	// is no JWT cached, the manager will get one signed upstream.
@@ -276,6 +290,10 @@ func (m *manager) SubscribeToWITCacheChanges(ctx context.Context, selectors cach
 	return m.witCache.SubscribeToWorkloadUpdates(ctx, selectors)
 }
 
+func (m *manager) SubscribeToEntryAndBundleChanges(selectors cache.Selectors) cache.Subscriber[cache.EntriesAndBundlesUpdate] {
+	return m.x509Cache.SubscribeToEntryAndBundleUpdates(selectors)
+}
+
 func (m *manager) SubscribeToSVIDChanges() observer.Stream {
 	return m.svid.Subscribe()
 }
@@ -315,6 +333,10 @@ func (m *manager) CountSVIDStoreX509SVIDs() int {
 // FetchWorkloadUpdates gets the latest workload update for the selectors
 func (m *manager) FetchWorkloadUpdate(selectors []*common.Selector) *cache.X509WorkloadUpdate {
 	return m.x509Cache.FetchWorkloadUpdate(selectors)
+}
+
+func (m *manager) FetchEntriesAndBundles(selectors []*common.Selector) *cache.EntriesAndBundlesUpdate {
+	return m.x509Cache.FetchEntriesAndBundles(selectors)
 }
 
 func (m *manager) FetchJWTSVID(ctx context.Context, entry *common.RegistrationEntry, audience []string) (*client.JWTSVID, error) {
