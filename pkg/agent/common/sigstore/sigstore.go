@@ -286,10 +286,13 @@ func extractSignatureDetails(signature oci.Signature, ignoreTlog bool) (*signatu
 			return nil, fmt.Errorf("failed to get signature rekor bundle: %w", err)
 		}
 
-		logID = rekorBundle.Payload.LogID
-		logIndex = strconv.FormatInt(rekorBundle.Payload.LogIndex, 10)
-		integratedTime = strconv.FormatInt(rekorBundle.Payload.IntegratedTime, 10)
-		signedEntryTimestamp = base64.StdEncoding.EncodeToString(rekorBundle.SignedEntryTimestamp)
+		// cosign verifies a signature without a bundle through an online Rekor lookup.
+		if rekorBundle != nil {
+			logID = rekorBundle.Payload.LogID
+			logIndex = strconv.FormatInt(rekorBundle.Payload.LogIndex, 10)
+			integratedTime = strconv.FormatInt(rekorBundle.Payload.IntegratedTime, 10)
+			signedEntryTimestamp = base64.StdEncoding.EncodeToString(rekorBundle.SignedEntryTimestamp)
+		}
 	}
 
 	return &signatureDetails{

@@ -146,7 +146,7 @@ Sigstore enabled selectors (available when configured to use `sigstore`)
 | k8s:image-signature-integrated-time        | The time (in Unix timestamp format) when the image signature was integrated into the signature transparency log (eg. `k8s:image-signature-integrated-time:1719237832`)                                                                    |
 | k8s:image-signature-signed-entry-timestamp | The base64 encoded signed entry (signature over the logID, logIndex, body and integratedTime) (eg. `k8s:image-signature-signed-entry-timestamp:MEQCIDP77vB0/MEbR1QK...`).                                                                 |
 
-If `ignore_tlog` is set to `true`, the selectors based on the Rekor bundle (`-log-id`, `-log-index`, `-integrated-time`, and `-signed-entry-timestamp`) are not generated.
+If `ignore_tlog` is set to `true`, the selectors based on the Rekor bundle (`-log-id`, `-log-index`, `-integrated-time`, and `-signed-entry-timestamp`) are not generated. They are also not generated for a signature without a Rekor bundle, which cosign checks through an online Rekor lookup.
 
 > **Note** `container-image` will ONLY match against the specific container in the pod that is contacting SPIRE on behalf of
 > the pod, whereas `pod-image` and `pod-init-image` will match against ANY container or init container in the Pod,

@@ -2,6 +2,7 @@
 
 The vault plugin signs intermediate CA certificates for SPIRE using the Vault PKI Engine.
 The plugin does not support the `PublishJWTKey` RPC and is therefore not appropriate for use in nested SPIRE topologies where JWT-SVIDs are in use.
+This plugin is also compatible with the [OpenBao](https://openbao.org) API.
 
 ## Configuration
 
