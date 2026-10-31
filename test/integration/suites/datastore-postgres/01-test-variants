@@ -27,8 +27,11 @@ wait-ready() {
 }
 
 # run-v2-tests runs the gorm v2 datastore tests against the database at the
-# given connection string. The output is checked because the tests skip,
-# rather than fail, when no database is configured.
+# given connection string, followed by the gorm v2 shared suite. The external
+# database output is checked because those tests skip, rather than fail, when
+# no database is configured. The shared suite fails when no database is
+# configured, so its exit status is enough. Both wipe the database, so they
+# run one after the other.
 run-v2-tests() {
     local out status expected passed
     out=$(SQLSTORE_TEST_CONN_STRING="$1" ./postgres-v2.test -test.run ExternalDB -test.v 2>&1)
@@ -41,6 +44,8 @@ run-v2-tests() {
         echo "gorm v2 external database tests did not all run: ${passed} of ${expected} passed"
         return 1
     fi
+
+    SQLSTORE_TEST_CONN_STRING="$1" SQLSTORE_TEST_RO_CONN_STRING="$1" ./postgres-v2.test -test.run '^(TestPlugin|TestNoOpUpdates|TestConcurrentAppendBundle)$' -test.v
 }
 export -f run-v2-tests
 

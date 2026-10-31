@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -99,6 +100,15 @@ func (s *Suite) SetupSuite() {
 }
 
 func (s *Suite) SetupTest() {
+	name := s.T().Name()
+	if i := strings.LastIndex(name, "/"); i >= 0 {
+		name = name[i+1:]
+	}
+	s.ds = nil
+	if slices.Contains(s.cfg.SkipTests, name) {
+		s.T().Skip("not yet supported by this datastore")
+	}
+
 	s.dir = s.TempDir()
 	s.ds = s.newDataStore()
 }
