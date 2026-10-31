@@ -27,11 +27,11 @@ var (
 
 func TestClient(t *testing.T) {
 	testCases := []struct {
-		name           string
-		expectedID     spiffeid.ID
-		serverID       spiffeid.ID
-		status         int
-		body           string
+		name             string
+		expectedID       spiffeid.ID
+		serverID         spiffeid.ID
+		status           int
+		body             string
 		newClientErr     string
 		fetchBundleErr   string
 		useWebAuth       bool
