@@ -27,6 +27,11 @@ var (
 )
 
 func TestClient(t *testing.T) {
+	// body whose total length is exactly maxBundleSize, to guard the +1/> boundary
+	wrapper := len(`{"spiffe_refresh_hint": 10, "pad": ""}`)
+	exactBody := `{"spiffe_refresh_hint": 10, "pad": "` + strings.Repeat("A", maxBundleSize-wrapper) + `"}`
+	require.Len(t, exactBody, maxBundleSize)
+
 	testCases := []struct {
 		name           string
 		expectedID     spiffeid.ID
@@ -84,6 +89,13 @@ func TestClient(t *testing.T) {
 			serverID:       serverID,
 			expectedID:     serverID,
 			fetchBundleErr: fmt.Sprintf("bundle response exceeds %d bytes", maxBundleSize),
+		},
+		{
+			name:       "bundle exactly at size limit",
+			status:     http.StatusOK,
+			body:       exactBody,
+			serverID:   serverID,
+			expectedID: serverID,
 		},
 		{
 			name:           "hostname validation fails",
