@@ -21,7 +21,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestJWTKeysJWKS(t *testing.T) {
+func TestOIDCJWKS(t *testing.T) {
 	rsa2048 := testkey.MustRSA2048().Public()
 	rsa4096 := testkey.MustRSA4096().Public()
 	ec256 := testkey.MustEC256().Public()
@@ -143,7 +143,7 @@ func TestJWTKeysJWKS(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			logs := new(strings.Builder)
 			log := hclog.New(&hclog.LoggerOptions{Output: logs, JSONFormat: true})
-			jwksBytes, err := JWTKeysJWKS(log, tt.bundle)
+			jwksBytes, err := OIDCJWKS(log, tt.bundle)
 			if tt.expectErr != "" {
 				require.ErrorContains(t, err, tt.expectErr)
 				require.Nil(t, jwksBytes)
@@ -210,30 +210,30 @@ func TestJWTKeysJWKS(t *testing.T) {
 
 func TestValidateJWKSOptions(t *testing.T) {
 	for _, tt := range []struct {
-		name        string
-		format      bundleformat.Format
-		jwtKeysOnly bool
-		expectErr   string
+		name           string
+		format         bundleformat.Format
+		oidcCompatible bool
+		expectErr      string
 	}{
 		{name: "jwks without options", format: bundleformat.JWKS},
 		{name: "spiffe without options", format: bundleformat.SPIFFE},
 		{name: "pem without options", format: bundleformat.PEM},
-		{name: "jwks with jwt_keys_only", format: bundleformat.JWKS, jwtKeysOnly: true},
+		{name: "jwks with oidc_compatible", format: bundleformat.JWKS, oidcCompatible: true},
 		{
-			name:        "spiffe with jwt_keys_only",
-			format:      bundleformat.SPIFFE,
-			jwtKeysOnly: true,
-			expectErr:   `jwt_keys_only can only be used with the "jwks" bundle format`,
+			name:           "spiffe with oidc_compatible",
+			format:         bundleformat.SPIFFE,
+			oidcCompatible: true,
+			expectErr:      `oidc_compatible can only be used with the "jwks" bundle format`,
 		},
 		{
-			name:        "pem with jwt_keys_only",
-			format:      bundleformat.PEM,
-			jwtKeysOnly: true,
-			expectErr:   `jwt_keys_only can only be used with the "jwks" bundle format`,
+			name:           "pem with oidc_compatible",
+			format:         bundleformat.PEM,
+			oidcCompatible: true,
+			expectErr:      `oidc_compatible can only be used with the "jwks" bundle format`,
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			err := ValidateJWKSOptions(tt.format, tt.jwtKeysOnly)
+			err := ValidateJWKSOptions(tt.format, tt.oidcCompatible)
 			if tt.expectErr != "" {
 				require.EqualError(t, err, tt.expectErr)
 				return
@@ -254,7 +254,7 @@ func TestFormatBundle(t *testing.T) {
 		SequenceNumber:  42,
 	}
 
-	t.Run("without jwt_keys_only the bundle is formatted by the SDK", func(t *testing.T) {
+	t.Run("without oidc_compatible the bundle is formatted by the SDK", func(t *testing.T) {
 		for _, format := range []bundleformat.Format{bundleformat.JWKS, bundleformat.SPIFFE, bundleformat.PEM} {
 			expected, err := bundleformat.NewFormatter(bundle).Format(format)
 			require.NoError(t, err)
@@ -265,8 +265,8 @@ func TestFormatBundle(t *testing.T) {
 		}
 	})
 
-	t.Run("with jwt_keys_only the jwks format is built from the JWT authorities", func(t *testing.T) {
-		expected, err := JWTKeysJWKS(hclog.NewNullLogger(), bundle)
+	t.Run("with oidc_compatible the jwks format is built from the JWT authorities", func(t *testing.T) {
+		expected, err := OIDCJWKS(hclog.NewNullLogger(), bundle)
 		require.NoError(t, err)
 
 		actual, err := FormatBundle(hclog.NewNullLogger(), bundle, bundleformat.JWKS, true)

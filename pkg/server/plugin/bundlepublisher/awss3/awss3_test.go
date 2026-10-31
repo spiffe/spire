@@ -147,7 +147,7 @@ func TestConfigure(t *testing.T) {
 			expectMsg:  "could not parse endpoint url",
 		},
 		{
-			name: "success with jwt_keys_only",
+			name: "success with oidc_compatible",
 			config: &Config{
 				AccessKeyID:     "access-key-id",
 				SecretAccessKey: "secret-access-key",
@@ -155,11 +155,11 @@ func TestConfigure(t *testing.T) {
 				Bucket:          "bucket",
 				ObjectKey:       "object-key",
 				Format:          "jwks",
-				JWTKeysOnly:     true,
+				OIDCCompatible:  true,
 			},
 		},
 		{
-			name: "jwt_keys_only with a format other than jwks",
+			name: "oidc_compatible with a format other than jwks",
 			config: &Config{
 				AccessKeyID:     "access-key-id",
 				SecretAccessKey: "secret-access-key",
@@ -167,10 +167,10 @@ func TestConfigure(t *testing.T) {
 				Bucket:          "bucket",
 				ObjectKey:       "object-key",
 				Format:          "spiffe",
-				JWTKeysOnly:     true,
+				OIDCCompatible:  true,
 			},
 			expectCode: codes.InvalidArgument,
-			expectMsg:  `jwt_keys_only can only be used with the "jwks" bundle format`,
+			expectMsg:  `oidc_compatible can only be used with the "jwks" bundle format`,
 		},
 		{
 			name: "invalid refresh hint",
@@ -512,7 +512,7 @@ func TestSetRefreshHint(t *testing.T) {
 }
 
 // TestPublishJWKS checks that the jwks format is published as formatted by the
-// SDK by default, and as built by common.JWTKeysJWKS with jwt_keys_only.
+// SDK by default, and as built by common.OIDCJWKS with oidc_compatible.
 func TestPublishJWKS(t *testing.T) {
 	bundle := getTestBundle(t)
 	// The JWT authority of the test bundle is a P-521 key, which has no JWS
@@ -522,16 +522,16 @@ func TestPublishJWKS(t *testing.T) {
 	bundle.JwtAuthorities = []*types.JWTKey{{KeyId: "KID", PublicKey: jwtKeyPKIX}}
 	sdkJWKS, err := bundleformat.NewFormatter(bundle).Format(bundleformat.JWKS)
 	require.NoError(t, err)
-	jwtKeysJWKS, err := common.JWTKeysJWKS(hclog.NewNullLogger(), bundle)
+	oidcJWKS, err := common.OIDCJWKS(hclog.NewNullLogger(), bundle)
 	require.NoError(t, err)
 
 	for _, tt := range []struct {
-		name        string
-		jwtKeysOnly bool
-		expected    []byte
+		name           string
+		oidcCompatible bool
+		expected       []byte
 	}{
 		{name: "default", expected: sdkJWKS},
-		{name: "jwt_keys_only", jwtKeysOnly: true, expected: jwtKeysJWKS},
+		{name: "oidc_compatible", oidcCompatible: true, expected: oidcJWKS},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			config := &Config{
@@ -541,7 +541,7 @@ func TestPublishJWKS(t *testing.T) {
 				Bucket:          "bucket",
 				ObjectKey:       "object-key",
 				Format:          "jwks",
-				JWTKeysOnly:     tt.jwtKeysOnly,
+				OIDCCompatible:  tt.oidcCompatible,
 			}
 
 			var err error

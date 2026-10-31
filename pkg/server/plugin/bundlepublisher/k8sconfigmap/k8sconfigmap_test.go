@@ -201,12 +201,12 @@ func TestConfigure(t *testing.T) {
 			newClientErr: errors.New("client creation error"),
 		},
 		{
-			name: "success with jwt_keys_only",
+			name: "success with oidc_compatible",
 			hclConfig: `
 				clusters = {
 					"test-cluster" = {
 						format = "jwks"
-						jwt_keys_only = true
+						oidc_compatible = true
 						namespace = "spire"
 						configmap_name = "spire-bundle"
 						configmap_key = "bundle.json"
@@ -222,18 +222,18 @@ func TestConfigure(t *testing.T) {
 						ConfigMapName:  "spire-bundle",
 						ConfigMapKey:   "bundle.json",
 						KubeConfigPath: "/path/to/kubeconfig",
-						JWTKeysOnly:    true,
+						OIDCCompatible: true,
 					},
 				},
 			},
 		},
 		{
-			name: "jwt_keys_only with a format other than jwks",
+			name: "oidc_compatible with a format other than jwks",
 			hclConfig: `
 				clusters = {
 					"test-cluster" = {
 						format = "spiffe"
-						jwt_keys_only = true
+						oidc_compatible = true
 						namespace = "spire"
 						configmap_name = "spire-bundle"
 						configmap_key = "bundle.json"
@@ -242,7 +242,7 @@ func TestConfigure(t *testing.T) {
 				}
 			`,
 			expectCode: codes.InvalidArgument,
-			expectMsg:  `invalid configuration in cluster "test-cluster": jwt_keys_only can only be used with the "jwks" bundle format`,
+			expectMsg:  `invalid configuration in cluster "test-cluster": oidc_compatible can only be used with the "jwks" bundle format`,
 		},
 		{
 			name:       "invalid config",
@@ -284,7 +284,7 @@ func TestConfigure(t *testing.T) {
 				require.Equal(t, tt.expectCfg.Clusters[i].ConfigMapName, cluster.ConfigMapName)
 				require.Equal(t, tt.expectCfg.Clusters[i].ConfigMapKey, cluster.ConfigMapKey)
 				require.Equal(t, tt.expectCfg.Clusters[i].KubeConfigPath, cluster.KubeConfigPath)
-				require.Equal(t, tt.expectCfg.Clusters[i].JWTKeysOnly, cluster.JWTKeysOnly)
+				require.Equal(t, tt.expectCfg.Clusters[i].OIDCCompatible, cluster.OIDCCompatible)
 			}
 		})
 	}
@@ -517,7 +517,7 @@ func TestSetRefreshHint(t *testing.T) {
 }
 
 // TestPublishJWKS checks that the jwks format is published as formatted by the
-// SDK by default, and as built by common.JWTKeysJWKS with jwt_keys_only.
+// SDK by default, and as built by common.OIDCJWKS with oidc_compatible.
 func TestPublishJWKS(t *testing.T) {
 	bundle := getTestBundle(t)
 	// The JWT authority of the test bundle is a P-521 key, which has no JWS
@@ -527,16 +527,16 @@ func TestPublishJWKS(t *testing.T) {
 	bundle.JwtAuthorities = []*types.JWTKey{{KeyId: "KID", PublicKey: jwtKeyPKIX}}
 	sdkJWKS, err := bundleformat.NewFormatter(bundle).Format(bundleformat.JWKS)
 	require.NoError(t, err)
-	jwtKeysJWKS, err := common.JWTKeysJWKS(hclog.NewNullLogger(), bundle)
+	oidcJWKS, err := common.OIDCJWKS(hclog.NewNullLogger(), bundle)
 	require.NoError(t, err)
 
 	for _, tt := range []struct {
-		name        string
-		jwtKeysOnly bool
-		expected    []byte
+		name           string
+		oidcCompatible bool
+		expected       []byte
 	}{
 		{name: "default", expected: sdkJWKS},
-		{name: "jwt_keys_only", jwtKeysOnly: true, expected: jwtKeysJWKS},
+		{name: "oidc_compatible", oidcCompatible: true, expected: oidcJWKS},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			hclConfig := fmt.Sprintf(`
@@ -547,9 +547,9 @@ func TestPublishJWKS(t *testing.T) {
 						configmap_name = "spire-bundle"
 						configmap_key = "bundle.json"
 						kubeconfig_path = "/path/to/kubeconfig"
-						jwt_keys_only = %t
+						oidc_compatible = %t
 					}
-				}`, tt.jwtKeysOnly)
+				}`, tt.oidcCompatible)
 
 			var err error
 			options := []plugintest.Option{

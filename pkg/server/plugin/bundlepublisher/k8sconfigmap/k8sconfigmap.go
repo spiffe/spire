@@ -51,7 +51,7 @@ type Cluster struct {
 	ConfigMapKey   string `hcl:"configmap_key" json:"configmap_key"`
 	KubeConfigPath string `hcl:"kubeconfig_path" json:"kubeconfig_path"`
 	RefreshHint    string `hcl:"refresh_hint" json:"refresh_hint"`
-	JWTKeysOnly    bool   `hcl:"jwt_keys_only" json:"jwt_keys_only"`
+	OIDCCompatible bool   `hcl:"oidc_compatible" json:"oidc_compatible"`
 
 	// bundleFormat is used to store the content of BundleFormat, parsed
 	// as bundleformat.Format.
@@ -112,7 +112,7 @@ func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginco
 		}
 		cluster.bundleFormat = bundleFormat
 
-		if err := common.ValidateJWKSOptions(bundleFormat, cluster.JWTKeysOnly); err != nil {
+		if err := common.ValidateJWKSOptions(bundleFormat, cluster.OIDCCompatible); err != nil {
 			status.ReportErrorf("invalid configuration in cluster %q: %v", id, err)
 			return nil
 		}
@@ -198,7 +198,7 @@ func (p *Plugin) PublishBundle(ctx context.Context, req *bundlepublisherv1.Publi
 			bundleToPublish.RefreshHint = cluster.parsedRefreshHint
 		}
 
-		bundleBytes, err := common.FormatBundle(p.log, bundleToPublish, cluster.bundleFormat, cluster.JWTKeysOnly)
+		bundleBytes, err := common.FormatBundle(p.log, bundleToPublish, cluster.bundleFormat, cluster.OIDCCompatible)
 		if err != nil {
 			allErrors = errors.Join(allErrors, fmt.Errorf("could not format bundle when publishing to cluster %q: %w", id, err))
 			continue

@@ -25,7 +25,7 @@ import (
 )
 
 // TestBundlePublisherJWKSMatchesKeysEndpoint checks that the JWKS published by
-// the BundlePublisher plugins with jwt_keys_only is the document served by the
+// the BundlePublisher plugins with oidc_compatible is the document served by the
 // keys endpoint of the provider with set_key_use for the same bundle, byte for
 // byte once the indentation of the provider's response is removed.
 func TestBundlePublisherJWKSMatchesKeysEndpoint(t *testing.T) {
@@ -97,7 +97,7 @@ func TestBundlePublisherJWKSMatchesKeysEndpoint(t *testing.T) {
 	served := new(bytes.Buffer)
 	require.NoError(t, json.Compact(served, w.Body.Bytes()))
 
-	published, err := common.JWTKeysJWKS(hclog.NewNullLogger(), pluginBundle)
+	published, err := common.OIDCJWKS(hclog.NewNullLogger(), pluginBundle)
 	require.NoError(t, err)
 
 	require.Equal(t, served.String(), string(published))

@@ -54,7 +54,7 @@ type Config struct {
 	AppID              string `hcl:"app_id" json:"app_id"`
 	AppSecret          string `hcl:"app_secret" json:"app_secret"`
 	RefreshHint        string `hcl:"refresh_hint" json:"refresh_hint"`
-	JWTKeysOnly        bool   `hcl:"jwt_keys_only" json:"jwt_keys_only"`
+	OIDCCompatible     bool   `hcl:"oidc_compatible" json:"oidc_compatible"`
 
 	bundleFormat      bundleformat.Format
 	parsedRefreshHint int64
@@ -95,7 +95,7 @@ func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginco
 		}
 		newConfig.bundleFormat = bundleFormat
 
-		if err := common.ValidateJWKSOptions(bundleFormat, newConfig.JWTKeysOnly); err != nil {
+		if err := common.ValidateJWKSOptions(bundleFormat, newConfig.OIDCCompatible); err != nil {
 			status.ReportError(err.Error())
 		}
 	}
@@ -244,7 +244,7 @@ func (p *Plugin) PublishBundle(ctx context.Context, req *bundlepublisherv1.Publi
 		bundleToPublish.RefreshHint = config.parsedRefreshHint
 	}
 
-	bundleBytes, err := common.FormatBundle(p.log, bundleToPublish, config.bundleFormat, config.JWTKeysOnly)
+	bundleBytes, err := common.FormatBundle(p.log, bundleToPublish, config.bundleFormat, config.OIDCCompatible)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "could not format bundle: %v", err.Error())
 	}
