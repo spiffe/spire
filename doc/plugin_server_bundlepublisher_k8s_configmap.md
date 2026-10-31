@@ -22,6 +22,7 @@ Each cluster in the main configuration has the following configuration options:
 | kubeconfig_path | The path on disk to the kubeconfig containing configuration to enable interaction with the Kubernetes API server. If unset, in-cluster credentials will be used.                                       | No.      |         |
 | format          | Format in which the trust bundle is stored, &lt;spiffe &vert; jwks &vert; pem&gt;. See [Supported bundle formats](#supported-bundle-formats) for more details.                                         | Yes.     |         |
 | refresh_hint    | Sets the refresh hint for the bundle when using the spiffe format. Specified as string e.g. '10m', '1h'. See [time.ParseDuration](https://pkg.go.dev/time#ParseDuration) for details                   | No.      |         |
+| oidc_compatible | When `true`, the `jwks` format is the JWK Set served by the OIDC Discovery Provider: only the JWT authorities, each with its `alg` and `use`. See [JWKS format](#jwks-format).                         | No.      | false   |
 
 ## Supported bundle formats
 
@@ -34,6 +35,8 @@ The trust bundle is represented as an RFC 7517 compliant JWK Set, with the speci
 ### JWKS format
 
 The trust bundle is encoded as an RFC 7517 compliant JWK Set, omitting SPIFFE-specific parameters. Both the JWT authorities and the X.509 authorities are included.
+
+When `oidc_compatible` is `true`, the JWK Set only includes the JWT authorities, so that it can be used by OIDC relying parties to verify JWT-SVIDs. It has the same keys, with the same members, as the document served on the keys endpoint of the [OIDC Discovery Provider](../support/oidc-discovery-provider/README.md) with `set_key_use` enabled: the X.509 authorities are left out, and every key has its `kid`, its `use` parameter set to `sig` and its `alg` parameter (`RS256` for RSA keys of 2048 bits or more, `ES256` for P-256 keys and `ES384` for P-384 keys). When the bundle has no JWT authorities, an empty set (`{"keys":[]}`) is published, whereas the provider serves no document. A key with no algorithm in that list, such as an RSA key under 2048 bits, is published without `alg`, as the provider does, and a warning is logged. Publishing fails if the key of a JWT authority cannot be parsed. This option can only be used with the `jwks` format.
 
 ### PEM format
 

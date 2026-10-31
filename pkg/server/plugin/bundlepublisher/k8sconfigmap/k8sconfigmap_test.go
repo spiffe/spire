@@ -9,14 +9,18 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hashicorp/go-hclog"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	"github.com/spiffe/spire-plugin-sdk/pluginsdk/support/bundleformat"
 	bundlepublisherv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/bundlepublisher/v1"
 	"github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/types"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/server/plugin/bundlepublisher/common"
 	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
+	"github.com/spiffe/spire/test/testkey"
 	"github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
@@ -197,6 +201,50 @@ func TestConfigure(t *testing.T) {
 			newClientErr: errors.New("client creation error"),
 		},
 		{
+			name: "success with oidc_compatible",
+			hclConfig: `
+				clusters = {
+					"test-cluster" = {
+						format = "jwks"
+						oidc_compatible = true
+						namespace = "spire"
+						configmap_name = "spire-bundle"
+						configmap_key = "bundle.json"
+						kubeconfig_path = "/path/to/kubeconfig"
+					}
+				}
+			`,
+			expectCfg: &Config{
+				Clusters: map[string]*Cluster{
+					"test-cluster": {
+						Format:         "jwks",
+						Namespace:      "spire",
+						ConfigMapName:  "spire-bundle",
+						ConfigMapKey:   "bundle.json",
+						KubeConfigPath: "/path/to/kubeconfig",
+						OIDCCompatible: true,
+					},
+				},
+			},
+		},
+		{
+			name: "oidc_compatible with a format other than jwks",
+			hclConfig: `
+				clusters = {
+					"test-cluster" = {
+						format = "spiffe"
+						oidc_compatible = true
+						namespace = "spire"
+						configmap_name = "spire-bundle"
+						configmap_key = "bundle.json"
+						kubeconfig_path = "/path/to/kubeconfig"
+					}
+				}
+			`,
+			expectCode: codes.InvalidArgument,
+			expectMsg:  `invalid configuration in cluster "test-cluster": oidc_compatible can only be used with the "jwks" bundle format`,
+		},
+		{
 			name:       "invalid config",
 			hclConfig:  "invalid config",
 			expectCode: codes.InvalidArgument,
@@ -236,6 +284,7 @@ func TestConfigure(t *testing.T) {
 				require.Equal(t, tt.expectCfg.Clusters[i].ConfigMapName, cluster.ConfigMapName)
 				require.Equal(t, tt.expectCfg.Clusters[i].ConfigMapKey, cluster.ConfigMapKey)
 				require.Equal(t, tt.expectCfg.Clusters[i].KubeConfigPath, cluster.KubeConfigPath)
+				require.Equal(t, tt.expectCfg.Clusters[i].OIDCCompatible, cluster.OIDCCompatible)
 			}
 		})
 	}
@@ -465,6 +514,69 @@ func TestSetRefreshHint(t *testing.T) {
 	refreshHint, ok := publishedBundle.RefreshHint()
 	require.True(t, ok)
 	require.Equal(t, time.Hour, refreshHint)
+}
+
+// TestPublishJWKS checks that the jwks format is published as formatted by the
+// SDK by default, and as built by common.OIDCJWKS with oidc_compatible.
+func TestPublishJWKS(t *testing.T) {
+	bundle := getTestBundle(t)
+	// The JWT authority of the test bundle is a P-521 key, which has no JWS
+	// algorithm, so it is replaced with a P-256 key.
+	jwtKeyPKIX, err := x509.MarshalPKIXPublicKey(testkey.MustEC256().Public())
+	require.NoError(t, err)
+	bundle.JwtAuthorities = []*types.JWTKey{{KeyId: "KID", PublicKey: jwtKeyPKIX}}
+	sdkJWKS, err := bundleformat.NewFormatter(bundle).Format(bundleformat.JWKS)
+	require.NoError(t, err)
+	oidcJWKS, err := common.OIDCJWKS(hclog.NewNullLogger(), bundle)
+	require.NoError(t, err)
+
+	for _, tt := range []struct {
+		name           string
+		oidcCompatible bool
+		expected       []byte
+	}{
+		{name: "default", expected: sdkJWKS},
+		{name: "oidc_compatible", oidcCompatible: true, expected: oidcJWKS},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			hclConfig := fmt.Sprintf(`
+				clusters = {
+					"test-cluster" = {
+						format = "jwks"
+						namespace = "spire"
+						configmap_name = "spire-bundle"
+						configmap_key = "bundle.json"
+						kubeconfig_path = "/path/to/kubeconfig"
+						oidc_compatible = %t
+					}
+				}`, tt.oidcCompatible)
+
+			var err error
+			options := []plugintest.Option{
+				plugintest.CaptureConfigureError(&err),
+				plugintest.CoreConfig(catalog.CoreConfig{
+					TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
+				}),
+				plugintest.Configure(hclConfig),
+			}
+
+			client := &fakeClient{t: t}
+			newClientFunc := func(kubeconfigPath string) (kubernetesClient, error) {
+				return client, nil
+			}
+
+			p := newPlugin(newClientFunc)
+			plugintest.Load(t, builtin(p), nil, options...)
+			require.NoError(t, err)
+
+			resp, err := p.PublishBundle(t.Context(), &bundlepublisherv1.PublishBundleRequest{
+				Bundle: bundle,
+			})
+			require.NoError(t, err)
+			require.NotNil(t, resp)
+			require.Equal(t, tt.expected, client.writtenBytes["spire/spire-bundle/bundle.json"])
+		})
+	}
 }
 
 // If the refresh hint is set, the bundle we publish is different from the one we received.

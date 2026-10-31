@@ -12,6 +12,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
+	"github.com/hashicorp/go-hclog"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire-plugin-sdk/pluginsdk/support/bundleformat"
 	bundlepublisherv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/bundlepublisher/v1"
@@ -19,8 +20,10 @@ import (
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/server/plugin/bundlepublisher/common"
 	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
+	"github.com/spiffe/spire/test/testkey"
 	"github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
@@ -243,6 +246,28 @@ func TestConfigure(t *testing.T) {
 			},
 			expectCode: codes.InvalidArgument,
 			expectMsg:  "could not parse refresh_hint: could not parse refresh hint \"invalid-refresh-hint\": time: invalid duration \"invalid-refresh-hint\"",
+		},
+		{
+			name: "success with oidc_compatible",
+			config: &Config{
+				StorageAccountName: "myaccount",
+				ContainerName:      "my-container",
+				BlobName:           "bundle.json",
+				Format:             "jwks",
+				OIDCCompatible:     true,
+			},
+		},
+		{
+			name: "oidc_compatible with a format other than jwks",
+			config: &Config{
+				StorageAccountName: "myaccount",
+				ContainerName:      "my-container",
+				BlobName:           "bundle.json",
+				Format:             "spiffe",
+				OIDCCompatible:     true,
+			},
+			expectCode: codes.InvalidArgument,
+			expectMsg:  `oidc_compatible can only be used with the "jwks" bundle format`,
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -527,6 +552,67 @@ func TestSetRefreshHint(t *testing.T) {
 	refreshHint, ok := publishedBundle.RefreshHint()
 	require.True(t, ok)
 	require.Equal(t, time.Hour, refreshHint)
+}
+
+// TestPublishJWKS checks that the jwks format is published as formatted by the
+// SDK by default, and as built by common.OIDCJWKS with oidc_compatible.
+func TestPublishJWKS(t *testing.T) {
+	bundle := getTestBundle(t)
+	// The JWT authority of the test bundle is a P-521 key, which has no JWS
+	// algorithm, so it is replaced with a P-256 key.
+	jwtKeyPKIX, err := x509.MarshalPKIXPublicKey(testkey.MustEC256().Public())
+	require.NoError(t, err)
+	bundle.JwtAuthorities = []*types.JWTKey{{KeyId: "KID", PublicKey: jwtKeyPKIX}}
+	sdkJWKS, err := bundleformat.NewFormatter(bundle).Format(bundleformat.JWKS)
+	require.NoError(t, err)
+	oidcJWKS, err := common.OIDCJWKS(hclog.NewNullLogger(), bundle)
+	require.NoError(t, err)
+
+	for _, tt := range []struct {
+		name           string
+		oidcCompatible bool
+		expected       []byte
+	}{
+		{name: "default", expected: sdkJWKS},
+		{name: "oidc_compatible", oidcCompatible: true, expected: oidcJWKS},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			config := &Config{
+				StorageAccountName: "myaccount",
+				ContainerName:      "my-container",
+				BlobName:           "bundle.json",
+				Format:             "jwks",
+				OIDCCompatible:     tt.oidcCompatible,
+			}
+
+			var err error
+			options := []plugintest.Option{
+				plugintest.CaptureConfigureError(&err),
+				plugintest.CoreConfig(catalog.CoreConfig{
+					TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
+				}),
+				plugintest.ConfigureJSON(config),
+			}
+
+			client := &fakeClient{t: t, expectContainerName: config.ContainerName, expectBlobName: config.BlobName}
+			newClient := func(cred azcore.TokenCredential, accountURL string) (blobStorage, error) {
+				return client, nil
+			}
+			p := newPlugin(newClient)
+			p.hooks.fetchCredential = func() (azcore.TokenCredential, error) {
+				return &fakeCredential{}, nil
+			}
+			plugintest.Load(t, builtin(p), nil, options...)
+			require.NoError(t, err)
+
+			resp, err := p.PublishBundle(context.Background(), &bundlepublisherv1.PublishBundleRequest{
+				Bundle: bundle,
+			})
+			require.NoError(t, err)
+			require.NotNil(t, resp)
+			require.Equal(t, tt.expected, client.writtenBytes)
+		})
+	}
 }
 
 func TestBundleWithRefreshHintPublishedOnce(t *testing.T) {
