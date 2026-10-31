@@ -1,6 +1,11 @@
 package sigstore
 
-import "github.com/hashicorp/go-hclog"
+import (
+	"errors"
+	"fmt"
+
+	"github.com/hashicorp/go-hclog"
+)
 
 // Config holds configuration for the ImageVerifier.
 type Config struct {
@@ -8,10 +13,12 @@ type Config struct {
 	RegistryCredentials map[string]*RegistryCredential
 
 	AllowedIdentities  map[string][]string
+	PublicKeys         []string
 	SkippedImages      map[string]struct{}
 	IgnoreSCT          bool
 	IgnoreTlog         bool
 	IgnoreAttestations bool
+	RegistryReferrers  bool
 
 	Logger hclog.Logger
 }
@@ -26,6 +33,9 @@ func NewConfig() *Config {
 type HCLConfig struct {
 	// AllowedIdentities is a list of identities (issuer and subjects) that must match for the signature to be valid.
 	AllowedIdentities map[string][]string `hcl:"allowed_identities" json:"allowed_identities"`
+
+	// PublicKeys is a list of PEM encoded public keys used to verify key-based signatures instead of keyless identities.
+	PublicKeys []string `hcl:"public_keys" json:"public_keys"`
 
 	// SkippedImages is a list of images that should skip sigstore verification
 	SkippedImages []string `hcl:"skipped_images" json:"skipped_images"`
@@ -43,6 +53,9 @@ type HCLConfig struct {
 	// IgnoreAttestations specifies whether to bypass the image attestations verification.
 	IgnoreAttestations *bool `hcl:"ignore_attestations,omitempty" json:"ignore_attestations,omitempty"`
 
+	// RegistryReferrers specifies whether to look up signatures through the OCI 1.1 referrers API before the tag scheme.
+	RegistryReferrers *bool `hcl:"registry_referrers,omitempty" json:"registry_referrers,omitempty"`
+
 	// RegistryCredentials is a map of credentials keyed by registry URL
 	RegistryCredentials map[string]*RegistryCredential `hcl:"registry_credentials,omitempty" json:"registry_credentials,omitempty"`
 }
@@ -52,6 +65,17 @@ type RegistryCredential struct {
 	Password string `hcl:"password,omitempty" json:"password,omitempty"`
 }
 
+// Validate reports configuration errors that the attestors surface while the plugin configuration is parsed.
+func (c *HCLConfig) Validate() error {
+	if len(c.PublicKeys) > 0 && len(c.AllowedIdentities) > 0 {
+		return errors.New("sigstore public_keys and allowed_identities cannot be used together")
+	}
+	if _, err := loadPublicKeys(c.PublicKeys); err != nil {
+		return fmt.Errorf("sigstore public_keys: %w", err)
+	}
+	return nil
+}
+
 func NewConfigFromHCL(hclConfig *HCLConfig, log hclog.Logger) *Config {
 	config := NewConfig()
 	config.Logger = log
@@ -59,6 +83,8 @@ func NewConfigFromHCL(hclConfig *HCLConfig, log hclog.Logger) *Config {
 	if hclConfig.AllowedIdentities != nil {
 		config.AllowedIdentities = hclConfig.AllowedIdentities
 	}
+
+	config.PublicKeys = hclConfig.PublicKeys
 
 	if hclConfig.SkippedImages != nil {
 		config.SkippedImages = make(map[string]struct{})
@@ -81,6 +107,10 @@ func NewConfigFromHCL(hclConfig *HCLConfig, log hclog.Logger) *Config {
 
 	if hclConfig.IgnoreAttestations != nil {
 		config.IgnoreAttestations = *hclConfig.IgnoreAttestations
+	}
+
+	if hclConfig.RegistryReferrers != nil {
+		config.RegistryReferrers = *hclConfig.RegistryReferrers
 	}
 
 	if hclConfig.RegistryCredentials != nil {

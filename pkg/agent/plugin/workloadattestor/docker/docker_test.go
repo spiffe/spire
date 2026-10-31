@@ -193,6 +193,32 @@ func TestDockerConfig(t *testing.T) {
 			sigstoreConfigured: true,
 		},
 		{
+			name:        "public key sigstore configuration",
+			trustDomain: "example.org",
+			config: `
+					sigstore {
+						public_keys = [<<EOT
+-----BEGIN PUBLIC KEY-----
+MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEviJ8lqUgtqWzruk4EQn9vu/L7sdf
+PfUXSEDR2XADpiECNp+cvuunA23H20EHF08s7HFPn6yycViqdfaisrsA3A==
+-----END PUBLIC KEY-----
+EOT
+						]
+						ignore_tlog = true
+					}`,
+			sigstoreConfigured: true,
+		},
+		{
+			name:        "invalid public key is rejected",
+			trustDomain: "example.org",
+			config: `
+					sigstore {
+						public_keys = [" "]
+					}`,
+			expectCode: codes.InvalidArgument,
+			expectMsg:  "sigstore public_keys: failed to parse public key 0",
+		},
+		{
 			name:        "bad hcl",
 			trustDomain: "example.org",
 			config: `

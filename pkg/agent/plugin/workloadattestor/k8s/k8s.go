@@ -336,6 +336,9 @@ func (p *Plugin) buildConfig(coreConfig catalog.CoreConfig, hclText string, stat
 
 	var sigstoreConfig *sigstore.Config
 	if newConfig.Sigstore != nil {
+		if err := newConfig.Sigstore.Validate(); err != nil {
+			status.ReportError(err.Error())
+		}
 		sigstoreConfig = sigstore.NewConfigFromHCL(newConfig.Sigstore, p.log)
 	}
 

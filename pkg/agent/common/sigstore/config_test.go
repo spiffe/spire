@@ -20,6 +20,8 @@ func TestNewConfigFromHCL(t *testing.T) {
 					"test-issuer-1": {"*@example.com", "subject@otherdomain.com"},
 					"test-issuer-2": {"domain/ci.yaml@refs/tags/*"},
 				},
+				PublicKeys:         []string{"test-public-key"},
+				RegistryReferrers:  new(true),
 				SkippedImages:      []string{"registry/image@sha256:examplehash"},
 				RekorURL:           new("https://test.dev"),
 				IgnoreSCT:          new(true),
@@ -37,6 +39,8 @@ func TestNewConfigFromHCL(t *testing.T) {
 					"test-issuer-1": {"*@example.com", "subject@otherdomain.com"},
 					"test-issuer-2": {"domain/ci.yaml@refs/tags/*"},
 				},
+				PublicKeys:         []string{"test-public-key"},
+				RegistryReferrers:  true,
 				SkippedImages:      map[string]struct{}{"registry/image@sha256:examplehash": {}},
 				RekorURL:           "https://test.dev",
 				IgnoreSCT:          true,
@@ -72,6 +76,36 @@ func TestNewConfigFromHCL(t *testing.T) {
 			log := hclog.NewNullLogger()
 			got := NewConfigFromHCL(tt.hcl, log)
 			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestHCLConfigValidate(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		hcl  *HCLConfig
+		err  string
+	}{
+		{name: "keyless", hcl: &HCLConfig{AllowedIdentities: map[string][]string{"issuer": {"subject"}}}},
+		{name: "public keys", hcl: &HCLConfig{PublicKeys: []string{newPublicKeyPEM(t)}}},
+		{
+			name: "public keys and allowed identities",
+			hcl:  &HCLConfig{PublicKeys: []string{"key"}, AllowedIdentities: map[string][]string{"issuer": {"subject"}}},
+			err:  "sigstore public_keys and allowed_identities cannot be used together",
+		},
+		{
+			name: "invalid public key",
+			hcl:  &HCLConfig{PublicKeys: []string{newPublicKeyPEM(t), "\n "}},
+			err:  "sigstore public_keys: failed to parse public key 1: PEM decoding failed",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.hcl.Validate()
+			if tt.err == "" {
+				assert.NoError(t, err)
+				return
+			}
+			assert.EqualError(t, err, tt.err)
 		})
 	}
 }
