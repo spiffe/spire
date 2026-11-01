@@ -55,6 +55,9 @@ type Config struct {
 	// Server CA for signing SVIDs
 	ServerCA ca.ServerCA
 
+	// CATTL is the configured CA/signing key lifetime, used for TTL warnings.
+	CATTL time.Duration
+
 	// Bundle endpoint configuration
 	BundleEndpoint bundle.EndpointConfig
 
@@ -193,6 +196,7 @@ func (c *Config) makeAPIServers(entryFetcher api.AuthorizedEntryFetcher) APIServ
 			Uptime:       c.Uptime,
 		}),
 		EntryServer: entryv1.New(entryv1.Config{
+			CATTL:        c.CATTL,
 			TrustDomain:  c.TrustDomain,
 			DataStore:    ds,
 			EntryFetcher: entryFetcher,
@@ -205,6 +209,8 @@ func (c *Config) makeAPIServers(entryFetcher api.AuthorizedEntryFetcher) APIServ
 			Log: c.RootLog,
 		}),
 		SVIDServer: svidv1.New(svidv1.Config{
+			CATTL:        c.CATTL,
+			Clock:        c.Clock,
 			TrustDomain:  c.TrustDomain,
 			EntryFetcher: entryFetcher,
 			ServerCA:     c.ServerCA,

@@ -7,6 +7,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -16,6 +17,8 @@ import (
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
+	"github.com/spiffe/spire/pkg/server/ca"
+	"github.com/spiffe/spire/pkg/server/credtemplate"
 	"github.com/spiffe/spire/pkg/server/datastore"
 	"github.com/spiffe/spire/proto/spire/common"
 	"google.golang.org/grpc"
@@ -31,6 +34,7 @@ type Config struct {
 	EntryFetcher  api.AuthorizedEntryFetcher
 	DataStore     datastore.DataStore
 	EntryPageSize int
+	CATTL         time.Duration
 }
 
 // Service defines the v1 entry service.
@@ -41,10 +45,14 @@ type Service struct {
 	ds            datastore.DataStore
 	ef            api.AuthorizedEntryFetcher
 	entryPageSize int
+	caTTL         time.Duration
 }
 
 // New creates a new v1 entry service.
 func New(config Config) *Service {
+	if config.CATTL == 0 {
+		config.CATTL = credtemplate.DefaultX509CATTL
+	}
 	if config.EntryPageSize == 0 {
 		config.EntryPageSize = defaultEntryPageSize
 	}
@@ -53,6 +61,7 @@ func New(config Config) *Service {
 		ds:            config.DataStore,
 		ef:            config.EntryFetcher,
 		entryPageSize: config.EntryPageSize,
+		caTTL:         config.CATTL,
 	}
 }
 
@@ -311,6 +320,7 @@ func (s *Service) createEntry(ctx context.Context, e *types.Entry, outputMask *t
 		}
 	}
 
+	s.warnOnEntryTTLs(log, regEntry)
 	applyMask(tEntry, outputMask)
 
 	return &entryv1.BatchCreateEntryResponse_Result{
@@ -691,12 +701,23 @@ func (s *Service) updateEntry(ctx context.Context, e *types.Entry, inputMask *ty
 		}
 	}
 
+	s.warnOnEntryTTLs(log, dsEntry)
 	applyMask(tEntry, outputMask)
 
 	return &entryv1.BatchUpdateEntryResponse_Result{
 		Status: commonapi.OK(),
 		Entry:  tEntry,
 	}
+}
+
+func (s *Service) warnOnEntryTTLs(log logrus.FieldLogger, e *common.RegistrationEntry) {
+	log = log.WithFields(logrus.Fields{
+		telemetry.RegistrationID: e.EntryId,
+		telemetry.SPIFFEID:       e.SpiffeId,
+	})
+	ca.WarnOnIncompatibleTTL(log, s.caTTL, time.Duration(e.X509SvidTtl)*time.Second, telemetry.X509SVIDTTL)
+	ca.WarnOnIncompatibleTTL(log, s.caTTL, time.Duration(e.JwtSvidTtl)*time.Second, telemetry.JWTSVIDTTL)
+	ca.WarnOnIncompatibleTTL(log, s.caTTL, time.Duration(e.WitSvidTtl)*time.Second, telemetry.WITSVIDTTL)
 }
 
 func fieldsFromEntryProto(ctx context.Context, proto *types.Entry, inputMask *types.EntryMask) logrus.Fields {

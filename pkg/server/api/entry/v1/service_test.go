@@ -1542,6 +1542,13 @@ func TestBatchCreateEntry(t *testing.T) {
 		CreatedAt: 1678731397,
 	}
 
+	longTTLEntry := proto.Clone(testEntry).(*types.Entry)
+	longTTLEntry.X509SvidTtl = 18000
+	longTTLEntry.JwtSvidTtl = 18000
+	longTTLDSEntry := proto.Clone(testDSEntry).(*common.RegistrationEntry)
+	longTTLDSEntry.X509SvidTtl = 18000
+	longTTLDSEntry.JwtSvidTtl = 18000
+
 	for _, tt := range []struct {
 		name          string
 		expectLogs    []spiretest.LogEntry
@@ -1892,6 +1899,48 @@ func TestBatchCreateEntry(t *testing.T) {
 						telemetry.SPIFFEID:       "spiffe://example.org/workload",
 						telemetry.X509SVIDTTL:    "45",
 						telemetry.JWTSVIDTTL:     "30",
+						telemetry.WITSVIDTTL:     "0",
+						telemetry.StoreSvid:      "false",
+						telemetry.Hint:           "external",
+						telemetry.CreatedAt:      "0",
+					},
+				},
+			},
+		},
+		{
+			name: "warn on incompatible TTLs",
+			expectResults: []*entryv1.BatchCreateEntryResponse_Result{
+				{
+					Status: &types.Status{Code: int32(codes.OK), Message: "OK"},
+					Entry: &types.Entry{
+						Id: "entry1",
+					},
+				},
+			},
+			outputMask:      &types.EntryMask{},
+			reqEntries:      []*types.Entry{longTTLEntry},
+			expectDsEntries: map[string]*common.RegistrationEntry{"entry1": longTTLDSEntry},
+			expectLogs: []spiretest.LogEntry{
+				entryLifetimeWarning(telemetry.X509SVIDTTL, "entry1"),
+				entryLifetimeWarning(telemetry.JWTSVIDTTL, "entry1"),
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:         "success",
+						telemetry.Type:           "audit",
+						telemetry.Admin:          "true",
+						telemetry.DNSName:        "dns1",
+						telemetry.Downstream:     "true",
+						telemetry.RegistrationID: "entry1",
+						telemetry.ExpiresAt:      strconv.FormatInt(testEntry.ExpiresAt, 10),
+						telemetry.FederatesWith:  "domain1.org",
+						telemetry.ParentID:       "spiffe://example.org/host",
+						telemetry.RevisionNumber: "0",
+						telemetry.Selectors:      "type:value1,type:value2",
+						telemetry.SPIFFEID:       "spiffe://example.org/workload",
+						telemetry.X509SVIDTTL:    "18000",
+						telemetry.JWTSVIDTTL:     "18000",
 						telemetry.WITSVIDTTL:     "0",
 						telemetry.StoreSvid:      "false",
 						telemetry.Hint:           "external",
@@ -3537,8 +3586,8 @@ func TestBatchUpdateEntry(t *testing.T) {
 	updateEverythingEntry := &types.Entry{
 		ParentId:    &types.SPIFFEID{TrustDomain: "example.org", Path: "/validUpdated"},
 		SpiffeId:    &types.SPIFFEID{TrustDomain: "example.org", Path: "/validUpdated"},
-		X509SvidTtl: 400000,
-		JwtSvidTtl:  300000,
+		X509SvidTtl: 4000,
+		JwtSvidTtl:  3000,
 		Selectors: []*types.Selector{
 			{Type: "unix", Value: "uid:9999"},
 		},
@@ -3846,7 +3895,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 			},
 		},
 		{
-			name:           "Success Update X509SVIDTTL",
+			name:           "Success Update X509SVIDTTL with incompatible TTL warning",
 			initialEntries: []*types.Entry{initialEntry},
 			inputMask: &types.EntryMask{
 				X509SvidTtl: true,
@@ -3856,13 +3905,13 @@ func TestBatchUpdateEntry(t *testing.T) {
 			},
 			updateEntries: []*types.Entry{
 				{
-					X509SvidTtl: 1000,
+					X509SvidTtl: 18000,
 				},
 			},
 			expectDsEntries: func(id string) []*types.Entry {
 				modifiedEntry := proto.Clone(initialEntry).(*types.Entry)
 				modifiedEntry.Id = id
-				modifiedEntry.X509SvidTtl = 1000
+				modifiedEntry.X509SvidTtl = 18000
 				modifiedEntry.RevisionNumber = 1
 				return []*types.Entry{modifiedEntry}
 			},
@@ -3870,12 +3919,13 @@ func TestBatchUpdateEntry(t *testing.T) {
 				{
 					Status: &types.Status{Code: int32(codes.OK), Message: "OK"},
 					Entry: &types.Entry{
-						X509SvidTtl: 1000,
+						X509SvidTtl: 18000,
 					},
 				},
 			},
 			expectLogs: func(m map[string]string) []spiretest.LogEntry {
 				return []spiretest.LogEntry{
+					entryLifetimeWarning(telemetry.X509SVIDTTL, m[entry1SpiffeID.Path]),
 					{
 						Level:   logrus.InfoLevel,
 						Message: "API accessed",
@@ -3883,7 +3933,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 							telemetry.Status:         "success",
 							telemetry.Type:           "audit",
 							telemetry.RegistrationID: m[entry1SpiffeID.Path],
-							telemetry.X509SVIDTTL:    "1000",
+							telemetry.X509SVIDTTL:    "18000",
 						},
 					},
 				}
@@ -4244,7 +4294,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 			},
 		},
 		{
-			name:           "Success Don't Update X509SVIDTTL",
+			name:           "Success Don't Update X509SVIDTTL or warn about ignored value",
 			initialEntries: []*types.Entry{initialEntry},
 			inputMask:      &types.EntryMask{
 				// With this empty, the update operation should be a no-op
@@ -4254,7 +4304,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 			},
 			updateEntries: []*types.Entry{
 				{
-					X509SvidTtl: 500000,
+					X509SvidTtl: 18000,
 				},
 			},
 			expectDsEntries: func(m string) []*types.Entry {
@@ -4652,8 +4702,8 @@ func TestBatchUpdateEntry(t *testing.T) {
 					Entry: &types.Entry{
 						ParentId:    &types.SPIFFEID{TrustDomain: "example.org", Path: "/validUpdated"},
 						SpiffeId:    &types.SPIFFEID{TrustDomain: "example.org", Path: "/validUpdated"},
-						X509SvidTtl: 400000,
-						JwtSvidTtl:  300000,
+						X509SvidTtl: 4000,
+						JwtSvidTtl:  3000,
 						Selectors: []*types.Selector{
 							{Type: "unix", Value: "uid:9999"},
 						},
@@ -4684,8 +4734,8 @@ func TestBatchUpdateEntry(t *testing.T) {
 							telemetry.RevisionNumber: "0",
 							telemetry.Selectors:      "unix:uid:9999",
 							telemetry.SPIFFEID:       "spiffe://example.org/validUpdated",
-							telemetry.X509SVIDTTL:    "400000",
-							telemetry.JWTSVIDTTL:     "300000",
+							telemetry.X509SVIDTTL:    "4000",
+							telemetry.JWTSVIDTTL:     "3000",
 							telemetry.WITSVIDTTL:     "0",
 							telemetry.StoreSvid:      "false",
 							telemetry.Hint:           "newHint",
@@ -4704,7 +4754,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 			outputMask: nil,
 			updateEntries: []*types.Entry{
 				{
-					X509SvidTtl: 500000,
+					X509SvidTtl: 5000,
 				},
 			},
 			expectResults: []*entryv1.BatchUpdateEntryResponse_Result{
@@ -4713,7 +4763,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 					Entry: &types.Entry{
 						ParentId:    parent,
 						SpiffeId:    entry1SpiffeID,
-						X509SvidTtl: 500000,
+						X509SvidTtl: 5000,
 						Selectors: []*types.Selector{
 							{Type: "unix", Value: "uid:1000"},
 							{Type: "unix", Value: "uid:2000"},
@@ -4738,7 +4788,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 							telemetry.Status:         "success",
 							telemetry.Type:           "audit",
 							telemetry.RegistrationID: m[entry1SpiffeID.Path],
-							telemetry.X509SVIDTTL:    "500000",
+							telemetry.X509SVIDTTL:    "5000",
 						},
 					},
 				}
@@ -4793,13 +4843,13 @@ func TestBatchUpdateEntry(t *testing.T) {
 			outputMask: &types.EntryMask{},
 			updateEntries: []*types.Entry{
 				{
-					X509SvidTtl: 500000,
+					X509SvidTtl: 5000,
 				},
 			},
 			expectDsEntries: func(m string) []*types.Entry {
 				modifiedEntry := proto.Clone(initialEntry).(*types.Entry)
 				modifiedEntry.Id = m
-				modifiedEntry.X509SvidTtl = 500000
+				modifiedEntry.X509SvidTtl = 5000
 				modifiedEntry.RevisionNumber = 1
 				return []*types.Entry{modifiedEntry}
 			},
@@ -4818,7 +4868,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 							telemetry.Status:         "success",
 							telemetry.Type:           "audit",
 							telemetry.RegistrationID: m[entry1SpiffeID.Path],
-							telemetry.X509SVIDTTL:    "500000",
+							telemetry.X509SVIDTTL:    "5000",
 						},
 					},
 				}
@@ -5109,4 +5159,21 @@ func appendEntryIDs[T HasID](ids []string, entries []T) []string {
 		ids = append(ids, entry.GetId())
 	}
 	return ids
+}
+
+func entryLifetimeWarning(name, entryID string) spiretest.LogEntry {
+	return spiretest.LogEntry{
+		Level:   logrus.WarnLevel,
+		Message: "Requested TTL exceeds the lifetime guaranteed by scheduled authority rotation; shorter lifetimes may be issued",
+		Data: logrus.Fields{
+			telemetry.Alert:          "true",
+			telemetry.AlertType:      telemetry.ShortenedLifetimeAlertType,
+			telemetry.TTLName:        name,
+			telemetry.RequestedTTL:   "18000",
+			telemetry.MaxTTL:         "14400",
+			telemetry.CATTL:          "86400",
+			telemetry.SPIFFEID:       "spiffe://example.org/workload",
+			telemetry.RegistrationID: entryID,
+		},
+	}
 }
