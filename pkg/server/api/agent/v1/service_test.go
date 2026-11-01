@@ -2391,12 +2391,10 @@ func TestCascadeDeleteJoinTokenAliasEntry(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	beforeEvents, err := test.ds.ListRegistrationEntryEvents(ctx, &datastore.ListRegistrationEntryEventsRequest{})
+	_, err = test.ds.FetchRegistrationEntryChanges(ctx, &datastore.FetchRegistrationEntryChangesRequest{
+		EventTimeout: time.Minute,
+	})
 	require.NoError(t, err)
-	var lastEventID uint
-	if n := len(beforeEvents.Events); n > 0 {
-		lastEventID = beforeEvents.Events[n-1].EventID
-	}
 
 	_, err = test.client.DeleteAgent(ctx, &agentv1.DeleteAgentRequest{
 		Id: &types.SPIFFEID{TrustDomain: "example.org", Path: "/spire/agent/join_token/" + token.Value},
@@ -2409,12 +2407,11 @@ func TestCascadeDeleteJoinTokenAliasEntry(t *testing.T) {
 	require.Nil(t, entries[aliasEntryID])
 
 	// ...and a registration entry event is emitted for it.
-	events, err := test.ds.ListRegistrationEntryEvents(ctx, &datastore.ListRegistrationEntryEventsRequest{
-		GreaterThanEventID: lastEventID,
+	changes, err := test.ds.FetchRegistrationEntryChanges(ctx, &datastore.FetchRegistrationEntryChangesRequest{
+		EventTimeout: time.Minute,
 	})
 	require.NoError(t, err)
-	require.Len(t, events.Events, 1)
-	require.Equal(t, aliasEntryID, events.Events[0].EntryID)
+	require.Equal(t, []string{aliasEntryID}, changes.EntryIDs)
 }
 
 func TestAttestAgent(t *testing.T) {

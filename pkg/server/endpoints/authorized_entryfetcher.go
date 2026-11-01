@@ -30,7 +30,6 @@ type AuthorizedEntryFetcherEventsConfig struct {
 	log                     logrus.FieldLogger
 	cacheReloadInterval     time.Duration
 	fullCacheReloadInterval time.Duration
-	pruneEventsOlderThan    time.Duration
 	eventTimeout            time.Duration
 	ds                      datastore.DataStore
 	nodeCache               *nodecache.Cache
@@ -117,29 +116,6 @@ func (a *AuthorizedEntryFetcherEvents) RunUpdateCacheTask(ctx context.Context) e
 	}
 }
 
-// PruneEventsTask start a ticker which prunes old events
-func (a *AuthorizedEntryFetcherEvents) PruneEventsTask(ctx context.Context) error {
-	for {
-		select {
-		case <-ctx.Done():
-			a.c.log.Debug("Stopping event pruner")
-			return ctx.Err()
-		case <-a.c.clk.After(a.c.pruneEventsOlderThan / 2):
-			a.c.log.Debug("Pruning events")
-			if err := a.pruneEvents(ctx, a.c.pruneEventsOlderThan); err != nil {
-				a.c.log.WithError(err).Error("Failed to prune events")
-			}
-		}
-	}
-}
-
-func (a *AuthorizedEntryFetcherEvents) pruneEvents(ctx context.Context, olderThan time.Duration) error {
-	pruneRegistrationEntryEventsErr := a.c.ds.PruneRegistrationEntryEvents(ctx, olderThan)
-	pruneAttestedNodeEventsErr := a.c.ds.PruneAttestedNodeEvents(ctx, olderThan)
-
-	return errors.Join(pruneRegistrationEntryEventsErr, pruneAttestedNodeEventsErr)
-}
-
 func (a *AuthorizedEntryFetcherEvents) updateCache(ctx context.Context) error {
 	updateRegistrationEntriesCacheErr := a.registrationEntries.updateCache(ctx)
 	updateAttestedNodesCacheErr := a.attestedNodes.updateCache(ctx)
@@ -171,12 +147,12 @@ func (a *AuthorizedEntryFetcherEvents) reloadCache(ctx context.Context) error {
 func (a *AuthorizedEntryFetcherEvents) buildCache(ctx context.Context) error {
 	cache := authorizedentries.NewCache(a.c.clk, a.trustDomain)
 
-	registrationEntries, err := buildRegistrationEntriesCache(ctx, a.c.log, a.c.metrics, a.c.ds, a.c.clk, cache, pageSize, fetchPageSize, a.c.cacheReloadInterval, a.c.eventTimeout)
+	registrationEntries, err := buildRegistrationEntriesCache(ctx, a.c.log, a.c.metrics, a.c.ds, a.c.clk, cache, pageSize, fetchPageSize, a.c.eventTimeout)
 	if err != nil {
 		return err
 	}
 
-	attestedNodes, err := buildAttestedNodesCache(ctx, a.c.log, a.c.metrics, a.c.ds, a.c.clk, cache, a.c.nodeCache, fetchPageSize, a.c.cacheReloadInterval, a.c.eventTimeout)
+	attestedNodes, err := buildAttestedNodesCache(ctx, a.c.log, a.c.metrics, a.c.ds, a.c.clk, cache, a.c.nodeCache, fetchPageSize, a.c.eventTimeout)
 	if err != nil {
 		return err
 	}
