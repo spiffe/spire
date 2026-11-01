@@ -306,19 +306,18 @@ func (h *Handler) FetchX509Bundles(_ *workload.X509BundlesRequest, stream worklo
 		return err
 	}
 
-	subscriber, err := h.c.Manager.SubscribeToX509CacheChanges(ctx, selectors)
-	if err != nil {
-		loggerWithContextInfo(ctx, log, start, err).Error("Subscribe to cache changes failed")
-		return err
-	}
+	// Subscribe to entry and bundle changes rather than X509 cache changes, so
+	// that bundles are served based on registration entries alone, and the
+	// stream does not cause X509-SVIDs to be minted. Bundle rotations are
+	// delivered through the same subscription, together with the entries.
+	subscriber := h.c.Manager.SubscribeToEntryAndBundleChanges(selectors)
 	defer subscriber.Finish()
 
 	var previousResp *workload.X509BundlesResponse
 	for {
 		select {
 		case update := <-subscriber.Updates():
-			previousResp, err = h.sendX509BundlesResponse(update, stream, selectors, log, previousResp, start)
-			if err != nil {
+			if previousResp, err = h.sendX509BundlesResponse(update, stream, selectors, log, previousResp, start); err != nil {
 				return err
 			}
 		case <-ctx.Done():
@@ -456,12 +455,12 @@ func (h *Handler) fetchJWTSVID(ctx context.Context, log logrus.FieldLogger, entr
 	}, nil
 }
 
-func (h *Handler) sendX509BundlesResponse(update *cache.X509WorkloadUpdate, stream workload.SpiffeWorkloadAPI_FetchX509BundlesServer, selectors []*common.Selector, log logrus.FieldLogger, previousResponse *workload.X509BundlesResponse, start time.Time) (*workload.X509BundlesResponse, error) {
+func (h *Handler) sendX509BundlesResponse(update *cache.EntriesAndBundlesUpdate, stream workload.SpiffeWorkloadAPI_FetchX509BundlesServer, selectors []*common.Selector, log logrus.FieldLogger, previousResponse *workload.X509BundlesResponse, start time.Time) (*workload.X509BundlesResponse, error) {
 	ctx := stream.Context()
 	// The agent health check currently exercises the Workload API.
 	// Only log if it is not the agent itself.
 	quietLogging := isAgent(ctx)
-	if !h.c.AllowUnauthenticatedVerifiers && !update.HasIdentity() {
+	if !h.c.AllowUnauthenticatedVerifiers && !update.HasEntries() {
 		if !quietLogging {
 			h.logNoIdentityIssued(ctx, log, selectors, start)
 		}
@@ -486,7 +485,7 @@ func (h *Handler) sendX509BundlesResponse(update *cache.X509WorkloadUpdate, stre
 	return resp, nil
 }
 
-func composeX509BundlesResponse(update *cache.X509WorkloadUpdate) (*workload.X509BundlesResponse, error) {
+func composeX509BundlesResponse(update *cache.EntriesAndBundlesUpdate) (*workload.X509BundlesResponse, error) {
 	if update.Bundle == nil {
 		// This should be purely defensive since the cache should always supply
 		// a bundle.
@@ -495,7 +494,7 @@ func composeX509BundlesResponse(update *cache.X509WorkloadUpdate) (*workload.X50
 
 	bundles := make(map[string][]byte)
 	bundles[update.Bundle.TrustDomain().IDString()] = marshalBundle(update.Bundle.X509Authorities())
-	if update.HasIdentity() {
+	if update.HasEntries() {
 		for _, federatedBundle := range update.FederatedBundles {
 			bundles[federatedBundle.TrustDomain().IDString()] = marshalBundle(federatedBundle.X509Authorities())
 		}
