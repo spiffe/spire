@@ -33,8 +33,8 @@ type lruCacheSubscriber[U any] struct {
 	setFree func()
 
 	// buildUpdate builds the update for the subscriber selector set.
-	buildUpdate func(selectorSet) *U
-	svids       bool
+	buildUpdate      func(selectorSet) *U
+	subRequiresSVIDs bool
 
 	mu   sync.Mutex
 	c    chan *U
@@ -49,12 +49,12 @@ type subscriberCache interface {
 func newLRUCacheSubscriber[U any](cache subscriberCache, selectors []*common.Selector, buildUpdate func(selectorSet) *U, requiresSVIDs bool) *lruCacheSubscriber[U] {
 	set, setFree := allocSelectorSet(selectors...)
 	return &lruCacheSubscriber[U]{
-		cache:       cache,
-		set:         set,
-		setFree:     setFree,
-		buildUpdate: buildUpdate,
-		svids:       requiresSVIDs,
-		c:           make(chan *U, 1),
+		cache:            cache,
+		set:              set,
+		setFree:          setFree,
+		buildUpdate:      buildUpdate,
+		subRequiresSVIDs: requiresSVIDs,
+		c:                make(chan *U, 1),
 	}
 }
 
@@ -101,7 +101,7 @@ func (s *lruCacheSubscriber[U]) superSetOf(other selectorSet) bool {
 }
 
 func (s *lruCacheSubscriber[U]) requiresSVIDs() bool {
-	return s.svids
+	return s.subRequiresSVIDs
 }
 
 func (s *lruCacheSubscriber[U]) publish() {
