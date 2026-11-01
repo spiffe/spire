@@ -66,7 +66,8 @@ type Manager interface {
 
 	// SubscribeToEntryAndBundleChanges returns a Subscriber on which the
 	// registration entries matching a particular set of selectors are sent,
-	// along with the bundles they rely on, each time either of them changes.
+	// along with the bundles they rely on. Updates are sent each time selectors,
+	// federation relationships or bundles are changed.
 	// The first update is available as soon as the method returns. Unlike
 	// SubscribeToX509CacheChanges, it does not cause X509-SVIDs to be minted
 	// for the matching entries.
