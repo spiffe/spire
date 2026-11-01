@@ -24,14 +24,7 @@ import (
 // UpstreamPublisher defines the publisher interface.
 type UpstreamPublisher interface {
 	PublishJWTKey(ctx context.Context, jwtKey *common.PublicKey) ([]*common.PublicKey, error)
-}
-
-// UpstreamPublisherFunc defines the function.
-type UpstreamPublisherFunc func(ctx context.Context, jwtKey *common.PublicKey) ([]*common.PublicKey, error)
-
-// PublishJWTKey publishes the JWT key with the given function.
-func (fn UpstreamPublisherFunc) PublishJWTKey(ctx context.Context, jwtKey *common.PublicKey) ([]*common.PublicKey, error) {
-	return fn(ctx, jwtKey)
+	PublishWITKey(ctx context.Context, witKey *common.PublicKey) ([]*common.PublicKey, error)
 }
 
 // Config defines the bundle service configuration.
@@ -189,8 +182,40 @@ func (s *Service) PublishJWTAuthority(ctx context.Context, req *bundlev1.Publish
 
 // PublishWITAuthority published the WIT key on the server.
 func (s *Service) PublishWITAuthority(ctx context.Context, req *bundlev1.PublishWITAuthorityRequest) (*bundlev1.PublishWITAuthorityResponse, error) {
+	parseRequest := func() logrus.Fields {
+		fields := logrus.Fields{}
+		if req.WitAuthority != nil {
+			fields[telemetry.WITAuthorityExpiresAt] = req.WitAuthority.ExpiresAt
+			fields[telemetry.WITAuthorityKeyID] = req.WitAuthority.KeyId
+			fields[telemetry.WITAuthorityPublicKeySHA256] = api.HashByte(req.WitAuthority.PublicKey)
+		}
+		return fields
+	}
+	rpccontext.AddRPCAuditFields(ctx, parseRequest())
 	log := rpccontext.Logger(ctx)
-	return nil, commonapi.MakeErr(log, codes.Unimplemented, "WIT-SVID functionality is not yet implemented", nil)
+
+	if err := rpccontext.RateLimit(ctx, 1); err != nil {
+		return nil, commonapi.MakeErr(log, status.Code(err), "rejecting request due to key publishing rate limiting", err)
+	}
+
+	if req.WitAuthority == nil {
+		return nil, commonapi.MakeErr(log, codes.InvalidArgument, "missing WIT authority", nil)
+	}
+
+	keys, err := api.ParseWITAuthorities([]*types.WITKey{req.WitAuthority})
+	if err != nil {
+		return nil, commonapi.MakeErr(log, codes.InvalidArgument, "invalid WIT authority", err)
+	}
+
+	resp, err := s.up.PublishWITKey(ctx, keys[0])
+	if err != nil {
+		return nil, commonapi.MakeErr(log, codes.Internal, "failed to publish WIT key", err)
+	}
+	rpccontext.AuditRPC(ctx)
+
+	return &bundlev1.PublishWITAuthorityResponse{
+		WitAuthorities: api.PublicKeysToWITKeys(resp),
+	}, nil
 }
 
 // ListFederatedBundles returns an optionally paginated list of federated bundles.

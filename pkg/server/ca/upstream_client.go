@@ -20,6 +20,7 @@ import (
 type BundleUpdater interface {
 	SyncX509Roots(ctx context.Context, roots []*x509certificate.X509Authority) error
 	AppendJWTKeys(ctx context.Context, keys []*common.PublicKey) ([]*common.PublicKey, error)
+	AppendWITKeys(ctx context.Context, keys []*common.PublicKey) ([]*common.PublicKey, error)
 	LogError(err error, msg string)
 }
 
@@ -43,6 +44,8 @@ type UpstreamClient struct {
 	mintX509CAStream                *streamState
 	publishJWTKeyMtx                sync.Mutex
 	publishJWTKeyStream             *streamState
+	publishWITKeyMtx                sync.Mutex
+	publishWITKeyStream             *streamState
 	subscribeToLocalBundleStreamMtx sync.Mutex
 	subscribeToLocalBundleStream    *streamState
 }
@@ -53,6 +56,7 @@ func NewUpstreamClient(config UpstreamClientConfig) *UpstreamClient {
 		c:                            config,
 		mintX509CAStream:             newStreamState(),
 		publishJWTKeyStream:          newStreamState(),
+		publishWITKeyStream:          newStreamState(),
 		subscribeToLocalBundleStream: newStreamState(),
 	}
 }
@@ -69,6 +73,11 @@ func (u *UpstreamClient) Close() error {
 		u.publishJWTKeyMtx.Lock()
 		defer u.publishJWTKeyMtx.Unlock()
 		u.publishJWTKeyStream.Stop()
+	}()
+	func() {
+		u.publishWITKeyMtx.Lock()
+		defer u.publishWITKeyMtx.Unlock()
+		u.publishWITKeyStream.Stop()
 	}()
 	func() {
 		u.subscribeToLocalBundleStreamMtx.Lock()
@@ -125,6 +134,32 @@ func (u *UpstreamClient) PublishJWTKey(ctx context.Context, jwtKey *common.Publi
 	select {
 	case result := <-firstResultCh:
 		return result.jwtKeys, result.err
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+}
+
+// PublishWITKey publishes the WIT key to the UpstreamAuthority. It maintains
+// an open stream to the UpstreamAuthority plugin to receive and append WIT key
+// updates to the bundle. The stream remains open until another call to
+// PublishWITKey happens or the client is closed.
+func (u *UpstreamClient) PublishWITKey(ctx context.Context, witKey *common.PublicKey) (_ []*common.PublicKey, err error) {
+	u.publishWITKeyMtx.Lock()
+	defer u.publishWITKeyMtx.Unlock()
+
+	firstResultCh := make(chan publishWITKeyResult, 1)
+	u.publishWITKeyStream.Start(func(streamCtx context.Context) {
+		u.runPublishWITKeyStream(streamCtx, witKey, firstResultCh)
+	})
+	defer func() {
+		if err != nil {
+			u.publishWITKeyStream.Stop()
+		}
+	}()
+
+	select {
+	case result := <-firstResultCh:
+		return result.witKeys, result.err
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	}
@@ -243,8 +278,46 @@ func (u *UpstreamClient) runPublishJWTKeyStream(ctx context.Context, jwtKey *com
 	}
 }
 
+func (u *UpstreamClient) runPublishWITKeyStream(ctx context.Context, witKey *common.PublicKey, firstResultCh chan<- publishWITKeyResult) {
+	witKeys, witKeysStream, err := u.c.UpstreamAuthority.PublishWITKey(ctx, witKey)
+	if err != nil {
+		firstResultCh <- publishWITKeyResult{err: err}
+		return
+	}
+	defer witKeysStream.Close()
+
+	updatedKeys, err := u.c.BundleUpdater.AppendWITKeys(ctx, witKeys)
+	if err != nil {
+		firstResultCh <- publishWITKeyResult{err: err}
+		return
+	}
+	firstResultCh <- publishWITKeyResult{witKeys: updatedKeys}
+
+	for {
+		witKeys, err := witKeysStream.RecvUpstreamWITAuthorities()
+		if err != nil {
+			switch {
+			case errors.Is(err, io.EOF):
+				// This is normal if the plugin does not support streaming
+				// bundle updates.
+			case status.Code(err) == codes.Canceled:
+				// This is normal. This client cancels this stream when opening
+				// a new stream.
+			default:
+				u.c.BundleUpdater.LogError(err, "The upstream authority plugin stopped streaming WIT key updates prematurely. Please report this bug. Will retry later.")
+			}
+			return
+		}
+
+		if _, err := u.c.BundleUpdater.AppendWITKeys(ctx, witKeys); err != nil {
+			u.c.BundleUpdater.LogError(err, "Failed to store WIT keys received by the upstream authority plugin.")
+			continue
+		}
+	}
+}
+
 func (u *UpstreamClient) runSubscribeToLocalBundleStream(ctx context.Context, firstResultCh chan<- bundleUpdatesResult) {
-	x509CAs, jwtKeys, authorityStream, err := u.c.UpstreamAuthority.SubscribeToLocalBundle(ctx)
+	x509CAs, jwtKeys, witKeys, authorityStream, err := u.c.UpstreamAuthority.SubscribeToLocalBundle(ctx)
 	if err != nil {
 		firstResultCh <- bundleUpdatesResult{err: err}
 		return
@@ -256,7 +329,12 @@ func (u *UpstreamClient) runSubscribeToLocalBundleStream(ctx context.Context, fi
 		firstResultCh <- bundleUpdatesResult{err: err}
 		return
 	}
-	updatedKeys, err := u.c.BundleUpdater.AppendJWTKeys(ctx, jwtKeys)
+	updatedJWTKeys, err := u.c.BundleUpdater.AppendJWTKeys(ctx, jwtKeys)
+	if err != nil {
+		firstResultCh <- bundleUpdatesResult{err: err}
+		return
+	}
+	updatedWITKeys, err := u.c.BundleUpdater.AppendWITKeys(ctx, witKeys)
 	if err != nil {
 		firstResultCh <- bundleUpdatesResult{err: err}
 		return
@@ -269,11 +347,12 @@ func (u *UpstreamClient) runSubscribeToLocalBundleStream(ctx context.Context, fi
 
 	firstResultCh <- bundleUpdatesResult{
 		x509CA:  x509CA,
-		jwtKeys: updatedKeys,
+		jwtKeys: updatedJWTKeys,
+		witKeys: updatedWITKeys,
 	}
 
 	for {
-		x509CA, jwtKeys, err := authorityStream.RecvLocalBundleUpdate()
+		x509CA, jwtKeys, witKeys, err := authorityStream.RecvLocalBundleUpdate()
 		if err != nil {
 			switch {
 			case errors.Is(err, io.EOF):
@@ -297,6 +376,11 @@ func (u *UpstreamClient) runSubscribeToLocalBundleStream(ctx context.Context, fi
 			u.c.BundleUpdater.LogError(err, "Failed to store JWT keys received by the upstream authority plugin.")
 			continue
 		}
+
+		if _, err := u.c.BundleUpdater.AppendWITKeys(ctx, witKeys); err != nil {
+			u.c.BundleUpdater.LogError(err, "Failed to store WIT keys received by the upstream authority plugin.")
+			continue
+		}
 	}
 }
 
@@ -310,9 +394,15 @@ type publishJWTKeyResult struct {
 	err     error
 }
 
+type publishWITKeyResult struct {
+	witKeys []*common.PublicKey
+	err     error
+}
+
 type bundleUpdatesResult struct {
 	x509CA  []*x509.Certificate
 	jwtKeys []*common.PublicKey
+	witKeys []*common.PublicKey
 	err     error
 }
 

@@ -2481,8 +2481,8 @@ func TestNewSynchronizeBackoff(t *testing.T) {
 				7500 * time.Millisecond,
 				11250 * time.Millisecond,
 				16875 * time.Millisecond,
-				25312 * time.Millisecond,
-				37968 * time.Millisecond,
+				25312500 * time.Microsecond,
+				37968750 * time.Microsecond,
 			},
 		},
 		{

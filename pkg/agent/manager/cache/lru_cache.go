@@ -58,6 +58,10 @@ func (u *EntriesAndBundlesUpdate) HasEntries() bool {
 // CachedSVID is the constraint for any SVID type storable in the generic LRU cache.
 type CachedSVID interface {
 	ExpiresAt() time.Time
+
+	// InvalidatedBy reports whether an SVID issued for the issued entry
+	// must not be served to workloads matching only the updated entry.
+	InvalidatedBy(issued, updated *common.RegistrationEntry) bool
 }
 
 // LRUCacheConfig holds configuration for creating an LRUCache instance.
@@ -409,6 +413,16 @@ func (c *LRUCache[SVID, Update]) UpdateEntries(update *UpdateEntries, checkSVID 
 		// notify set.
 		c.diffSelectors(existingEntry, newEntry, selAdd, selRem)
 		selectorsChanged := len(selAdd) > 0 || len(selRem) > 0
+
+		// Removed selectors let workloads that did not match the existing
+		// entry match the new one; they must not get the cached SVID. Compare
+		// against the entry the SVID was issued for, since the entry may have
+		// been updated several times without the SVID being renewed.
+		if len(selRem) > 0 {
+			if svid, ok := c.svids[newEntry.EntryId]; ok && (*svid).InvalidatedBy(record.svidEntry, newEntry) {
+				delete(c.svids, newEntry.EntryId)
+			}
+		}
 		c.addSelectorIndicesRecord(selAdd, record)
 		c.delSelectorIndicesRecord(selRem, record)
 		if selectorsChanged {
@@ -554,6 +568,7 @@ func (c *LRUCache[SVID, Update]) UpdateSVIDs(svids map[string]*SVID) {
 		}
 
 		c.svids[entryID] = svid
+		record.svidEntry = record.entry
 		notifySet.Merge(record.entry.Selectors...)
 		log := c.log.WithFields(logrus.Fields{
 			telemetry.Entry:    record.entry.EntryId,
@@ -1014,7 +1029,9 @@ func (c *LRUCache[SVID, Update]) GatherFederatedBundles(entries []*common.Regist
 }
 
 type lruCacheRecord struct {
-	entry                 *common.RegistrationEntry
+	entry *common.RegistrationEntry
+	// svidEntry is the entry the cached SVID, if any, was issued for.
+	svidEntry             *common.RegistrationEntry
 	activeSubscriberCount int
 	lastAccessTimestamp   int64
 }

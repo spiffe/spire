@@ -98,7 +98,7 @@ Sigstore enabled selectors (available when configured to use `sigstore`)
 | docker:image-signature-integrated-time        | The time (in Unix timestamp format) when the image signature was integrated into the signature transparency log (eg. `k8s:image-signature-integrated-time:1719237832`)                                                                    |
 | docker:image-signature-signed-entry-timestamp | The base64 encoded signed entry (signature over the logID, logIndex, body and integratedTime) (eg. `k8s:image-signature-integrated-time:MEQCIDP77vB0/MEbR1QKZ7Ol8PgFwGEEvnQJiv5cO7ATDYRwAiB9eBLYZjclxRNaaNJVBdQfP9Y8vGVJjwdbisme2cKabc`)  |
 
-If `ignore_tlog` is set to `true`, the selectors based on the Rekor bundle (`-log-id`, `-log-index`, `-integrated-time`, and `-signed-entry-timestamp`) are not generated.
+If `ignore_tlog` is set to `true`, the selectors based on the Rekor bundle (`-log-id`, `-log-index`, `-integrated-time`, and `-signed-entry-timestamp`) are not generated. They are also not generated for a signature without a Rekor bundle, which cosign checks through an online Rekor lookup.
 
 ## Container ID CGroup Matchers
 

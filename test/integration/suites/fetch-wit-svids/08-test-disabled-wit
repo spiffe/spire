@@ -29,18 +29,6 @@ test-wit-disabled-command() {
 }
 
 ##########################################################################
-# The agent requires the wit-svid feature flag on top of enable_wit_svids
-##########################################################################
-
-sed -i.bak 's#feature_flags = \["wit-svid"\]##g' conf/agent/agent.conf
-docker compose restart spire-agent || fail-now "failed to restart the agent"
-
-check-log-line "spire-agent" "WIT-SVIDs remain disabled"
-
-test-wit-disabled-command "WIT fetch without the feature flag" "code = Unimplemented desc = WIT-SVIDs are not enabled" \
-    docker compose exec -u 1001 -T spire-agent /opt/spire/bin/spire-agent api fetch wit -socketPath /opt/spire/sockets/workload_api.sock
-
-##########################################################################
 # The agent serves no WIT-SVIDs when the profile is turned off
 ##########################################################################
 
@@ -51,11 +39,11 @@ test-wit-disabled-command "WIT fetch" "code = Unimplemented desc = WIT-SVIDs are
     docker compose exec -u 1001 -T spire-agent /opt/spire/bin/spire-agent api fetch wit -socketPath /opt/spire/sockets/workload_api.sock
 
 ##########################################################################
-# The server rejects WIT operations without the wit-svid feature flag
+# The server rejects WIT operations when the profile is turned off
 ##########################################################################
 
-sed -i.bak 's#feature_flags = \["wit-svid"\]##g' conf/server/server.conf
+sed -i.bak 's#enable_wit_svids = true#enable_wit_svids = false#g' conf/server/server.conf
 docker-spire-server-restart spire-server
 
 test-wit-disabled-command "WIT mint" "WIT functionality is disabled" \
-    docker compose exec -T -e SPIRE_SERVER_FFLAGS="wit-svid" spire-server /opt/spire/bin/spire-server wit mint -spiffeID spiffe://domain.test/workload
+    docker compose exec -T spire-server /opt/spire/bin/spire-server wit mint -spiffeID spiffe://domain.test/workload

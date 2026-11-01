@@ -255,6 +255,10 @@ MC2hK9d8Z5ENZc9lFW48vObdcHcHdHvAaA8z2GM02pDkTt5pgUvRHlsf
 			},
 		},
 	}
+
+	userAgentVersionTypeNoVersion = &core_v3.Node_UserAgentBuildVersion{
+		UserAgentBuildVersion: &core_v3.BuildVersion{},
+	}
 )
 
 func TestStreamSecrets(t *testing.T) {
@@ -276,6 +280,19 @@ func TestStreamSecrets(t *testing.T) {
 			expectSecrets: []*tls_v3.Secret{
 				tdValidationContext,
 				fedValidationContext,
+				workloadTLSCertificate1,
+			},
+		},
+		{
+			name: "All Secrets: build version without version",
+			req: &discovery_v3.DiscoveryRequest{
+				Node: &core_v3.Node{
+					UserAgentVersionType: userAgentVersionTypeNoVersion,
+				},
+			},
+			expectSecrets: []*tls_v3.Secret{
+				tdValidationContextSpiffeValidator,
+				fedValidationContextSpiffeValidator,
 				workloadTLSCertificate1,
 			},
 		},
@@ -888,6 +905,20 @@ func TestFetchSecrets(t *testing.T) {
 			expectSecrets: []*tls_v3.Secret{
 				tdValidationContext,
 				fedValidationContext,
+				workloadTLSCertificate1,
+			},
+		},
+		{
+			name: "Fetch all secrets: build version without version",
+			req: &discovery_v3.DiscoveryRequest{
+				TypeUrl: "TYPEURL",
+				Node: &core_v3.Node{
+					UserAgentVersionType: userAgentVersionTypeNoVersion,
+				},
+			},
+			expectSecrets: []*tls_v3.Secret{
+				tdValidationContextSpiffeValidator,
+				fedValidationContextSpiffeValidator,
 				workloadTLSCertificate1,
 			},
 		},

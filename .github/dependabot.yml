@@ -33,7 +33,9 @@ updates:
     update-types: ["version-update:semver-patch"]
   open-pull-requests-limit: 20
 - package-ecosystem: "github-actions"
-  directory: "/"
+  directories:
+    - "/"
+    - "/.github/actions/*"
   schedule:
     interval: "weekly"
   # Wait for new action releases to age before opening update PRs, so

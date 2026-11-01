@@ -155,6 +155,10 @@ func (ds *Plugin) prepareConnection(ctx context.Context, config *sqlcommon.Confi
 		return nil, sqlcommon.NewWrappedSQLError(err)
 	}
 
+	if err := setupJoinTables(gdb); err != nil {
+		return nil, errors.Join(sqlcommon.NewWrappedSQLError(err), raw.Close())
+	}
+
 	const maxOpenConns = 100
 	raw.SetMaxOpenConns(maxOpenConns)
 	if config.MaxOpenConns != nil {
@@ -177,8 +181,18 @@ func (ds *Plugin) prepareConnection(ctx context.Context, config *sqlcommon.Confi
 		telemetry.ReadOnly: isReadOnly,
 	}).Info("Connected to SQL database")
 
+	gdb = withSQLLogging(gdb, config.LogSQL, ds.log)
+
+	// The read-only connection points at the same schema and must not
+	// attempt DDL, so only the read-write connection is migrated.
+	if !isReadOnly {
+		if err := migrateDB(gdb, config.DBTypeConfig.DatabaseType, config.DisableMigration, ds.log); err != nil {
+			return nil, errors.Join(err, raw.Close())
+		}
+	}
+
 	return &sqlDB{
-		DB:               withSQLLogging(gdb, config.LogSQL, ds.log),
+		DB:               gdb,
 		raw:              raw,
 		databaseType:     config.DBTypeConfig.DatabaseType,
 		dialect:          dia,
@@ -215,8 +229,13 @@ func newDialect(databaseType string, log logrus.FieldLogger) (dialect, error) {
 // gormConfig is the config every dialect opens its connection with. SQL
 // logging starts disabled so the connection probes run during connect are
 // not logged; withSQLLogging applies log_sql once the connection is set up.
+// Foreign keys are not created because gorm v1 created none, and the schema
+// must match the one it left behind.
 func gormConfig() *gorm.Config {
-	return &gorm.Config{Logger: gormlogger.Discard}
+	return &gorm.Config{
+		Logger:                                   gormlogger.Discard,
+		DisableForeignKeyConstraintWhenMigrating: true,
+	}
 }
 
 // withSQLLogging returns a handle on db's connection pool that logs SQL

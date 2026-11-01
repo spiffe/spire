@@ -810,14 +810,7 @@ func newAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig, skip
 	}
 	ac.WITSVIDCacheMaxSize = c.Agent.Experimental.WITSVIDCacheMaxSize
 
-	// WIT-SVIDs need both the feature flag and the experimental config option
-	// while the profile is under development.
-	if c.Agent.Experimental.EnableWITSVIDs {
-		ac.EnableWITSVIDs = fflag.IsSet(fflag.FlagWITSVID)
-		if !ac.EnableWITSVIDs {
-			logger.Warnf("The experimental.enable_wit_svids configuration requires the %q feature flag; WIT-SVIDs remain disabled", fflag.FlagWITSVID)
-		}
-	}
+	ac.EnableWITSVIDs = c.Agent.Experimental.EnableWITSVIDs
 
 	td, err := common_cli.ParseTrustDomain(c.Agent.TrustDomain, logger)
 	if err != nil {

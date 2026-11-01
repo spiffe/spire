@@ -1153,3 +1153,22 @@ func domainAllowlist(t *testing.T, domains ...string) DomainPolicy {
 	require.NoError(t, err)
 	return policy
 }
+
+func TestHandlerMethodNotAllowedSetsAllowHeader(t *testing.T) {
+	log, _ := test.NewNullLogger()
+	source := new(FakeKeySetSource)
+	now := time.Now()
+	source.SetKeySet(&jose.JSONWebKeySet{}, now, now)
+	h, err := NewHandler(log, domainAllowlist(t, "localhost"), source, false, false, nil, nil, "")
+	require.NoError(t, err)
+
+	for _, path := range []string{"/.well-known/openid-configuration", "/keys"} {
+		t.Run(path, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			r := httptest.NewRequest(http.MethodPost, "http://localhost"+path, nil)
+			h.ServeHTTP(w, r)
+			require.Equal(t, http.StatusMethodNotAllowed, w.Code)
+			require.Equal(t, http.MethodGet, w.Header().Get("Allow"))
+		})
+	}
+}

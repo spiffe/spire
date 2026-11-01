@@ -11,7 +11,7 @@ services:
     volumes:
       - ./principal/init.sh:/docker-entrypoint-initdb.d/init.sh
     ports:
-      - "9999:5432"
+      - "9913:5432"
   postgres-13-readonly:
     image: postgres:13
     command: -c fsync=off
@@ -26,7 +26,7 @@ services:
     volumes:
       - ./replica/docker-entrypoint.sh:/docker-entrypoint.sh
     ports:
-      - "10000:5432"
+      - "10013:5432"
   postgres-14-readwrite:
     image: postgres:14
     command: -c fsync=off
@@ -39,7 +39,7 @@ services:
     volumes:
       - ./principal/init.sh:/docker-entrypoint-initdb.d/init.sh
     ports:
-      - "9999:5432"
+      - "9914:5432"
   postgres-14-readonly:
     image: postgres:14
     command: -c fsync=off
@@ -54,7 +54,7 @@ services:
     volumes:
       - ./replica/docker-entrypoint.sh:/docker-entrypoint.sh
     ports:
-      - "10000:5432"
+      - "10014:5432"
   postgres-15-readwrite:
     image: postgres:15
     command: -c fsync=off
@@ -67,7 +67,7 @@ services:
     volumes:
       - ./principal/init.sh:/docker-entrypoint-initdb.d/init.sh
     ports:
-      - "9999:5432"
+      - "9915:5432"
   postgres-15-readonly:
     image: postgres:15
     command: -c fsync=off
@@ -82,7 +82,7 @@ services:
     volumes:
       - ./replica/docker-entrypoint.sh:/docker-entrypoint.sh
     ports:
-      - "10000:5432"
+      - "10015:5432"
   postgres-16-readwrite:
     image: postgres:16
     command: -c fsync=off
@@ -95,7 +95,7 @@ services:
     volumes:
       - ./principal/init.sh:/docker-entrypoint-initdb.d/init.sh
     ports:
-      - "9999:5432"
+      - "9916:5432"
   postgres-16-readonly:
     image: postgres:16
     command: -c fsync=off
@@ -110,7 +110,7 @@ services:
     volumes:
       - ./replica/docker-entrypoint.sh:/docker-entrypoint.sh
     ports:
-      - "10000:5432"
+      - "10016:5432"
   postgres-17-readwrite:
     image: postgres:17
     command: -c fsync=off
@@ -123,7 +123,7 @@ services:
     volumes:
       - ./principal/init.sh:/docker-entrypoint-initdb.d/init.sh
     ports:
-      - "9999:5432"
+      - "9917:5432"
   postgres-17-readonly:
     image: postgres:17
     command: -c fsync=off
@@ -138,7 +138,7 @@ services:
     volumes:
       - ./replica/docker-entrypoint.sh:/docker-entrypoint.sh
     ports:
-      - "10000:5432"
+      - "10017:5432"
   postgres-18-readwrite:
     image: postgres:18
     command: -c fsync=off
@@ -151,7 +151,7 @@ services:
     volumes:
       - ./principal/init.sh:/docker-entrypoint-initdb.d/init.sh
     ports:
-      - "9999:5432"
+      - "9918:5432"
   postgres-18-readonly:
     image: postgres:18
     command: -c fsync=off
@@ -166,4 +166,4 @@ services:
     volumes:
       - ./replica/docker-entrypoint.sh:/docker-entrypoint.sh
     ports:
-      - "10000:5432"
+      - "10018:5432"

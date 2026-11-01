@@ -36,8 +36,9 @@ The configuration file is **required** by the provider. It contains
 
 | Key                     | Type    | Required?          | Description                                                                                    | Default  |
 | ----------------------- | ------- | ------------------ | ---------------------------------------------------------------------------------------------- | -------- |
-| `acme`                  | section | required[1]        | Provides the ACME configuration.                                                               |          |
-| `serving_cert_file`     | section | required\[1\]\[4\] | Provides the serving certificate configuration.                                                |          |
+| `serving_cert_source`   | section | required\[1\]      | Provides the [serving certificate source](#serving-certificate-source-section) configuration.  |          |
+| `acme`                  | section | required[1]        | Provides the ACME configuration. Deprecated, use `serving_cert_source "acme"` instead.         |          |
+| `serving_cert_file`     | section | required\[1\]\[4\] | Serving certificate configuration. Deprecated, use `serving_cert_source "cert_file"` instead.  |          |
 | `allow_insecure_scheme` | bool    | optional\[3\]      | Serves OIDC configuration response with HTTP url. A warning is logged at startup when enabled. | `false`  |
 | `domains`               | strings | required           | One or more domains the provider is being served from.                                         |          |
 | `experimental`          | section | optional           | The experimental options that are subject to change or removal.                                |          |
@@ -56,7 +57,7 @@ The configuration file is **required** by the provider. It contains
 | `jwt_issuer`            | string  | optional           | Specifies the issuer for the OIDC provider configuration request                               |          |
 | `jwks_uri`              | string  | optional           | Specifies the JWKS URI returned in the discovery document                                      |          |
 | `server_path_prefix`    | string  | optional           | If specified, all endpoints listened to will be prefixed by this value                         | `"/"`    |
-| `tls_config`            | section | optional           | TLS config for terminating HTTPS listeners (disk certificate and ACME modes).                  |          |
+| `tls_config`            | section | optional           | TLS config for terminating HTTPS listeners (disk certificate, ACME and Workload API modes).    |          |
 
 | experimental             | Type   | Required?          | Description                                          | Default |
 |--------------------------|--------|--------------------|------------------------------------------------------|---------|
@@ -80,13 +81,13 @@ the only way to bound growth of `log_path`.
 
 #### Considerations for Unix platforms
 
-[1]: One of `acme`, `serving_cert_file` or `listen_socket_path` must be defined.
+[1]: One of `serving_cert_source`, `acme`, `serving_cert_file` or `listen_socket_path` must be defined.
 
 [3]: The `allow_insecure_scheme` should only be enabled when the network path to the provider is trusted end-to-end (for example, when TLS is terminated at a trusted reverse proxy or load balancer on a private network). It only works in conjunction with `insecure_addr` or `listen_socket_path`.
 
 #### Considerations for Windows platforms
 
-[1]: One of `acme`, `serving_cert_file` or `listen_named_pipe_name` must be defined.
+[1]: One of `serving_cert_source`, `acme`, `serving_cert_file` or `listen_named_pipe_name` must be defined.
 
 [3]: The `allow_insecure_scheme` should only be enabled when the network path to the provider is trusted end-to-end (for example, when TLS is terminated at a trusted reverse proxy or load balancer on a private network). It only works in conjunction with `insecure_addr` or `listen_named_pipe_name`.
 
@@ -102,6 +103,41 @@ allowed domains for which certificates will be obtained. The TLS handshake
 will terminate if another domain is requested.
 
 [4]: SPIRE OIDC Discovery provider monitors and reloads the files provided in the `serving_cert_file` configuration at runtime.
+
+#### Serving Certificate Source Section
+
+The `serving_cert_source` section selects where the certificate used to serve
+HTTPS comes from. The section label selects the source and the body holds its
+configuration: `serving_cert_source "acme" {}` takes the options of the
+[ACME Section](#acme-section), `serving_cert_source "cert_file" {}` takes the
+options of the [Serving Certificate Section](#serving-certificate-section), and
+`serving_cert_source "workload_api" {}` serves an X509-SVID obtained from the
+SPIFFE Workload API, kept up to date as it is rotated, with the options below.
+Only one `serving_cert_source` section can be configured, and it cannot be used
+together with the deprecated `acme` and `serving_cert_file` sections. The
+`workload_api` source cannot be combined with `insecure_addr`,
+`listen_socket_path` or `listen_named_pipe_name`; the provider fails to start
+in that case.
+
+Note that clients need the trust domain's X.509 bundle to authenticate an
+X509-SVID, and that they check the certificate's DNS names against the host
+they connect to. An X509-SVID only carries the DNS names set on its
+registration entry (`-dns` on `spire-server entry create`), so the entry of the
+provider must set DNS names matching the configured `domains`; otherwise
+clients such as the Kubernetes API server fail to fetch the JWKS. If the
+Workload API returns more than one X509-SVID, the first one is served.
+
+| Key            | Type    | Required?     | Description                                                               | Default |
+|----------------|---------|---------------|---------------------------------------------------------------------------|---------|
+| `experimental` | section | optional      | The experimental options that are subject to change or removal.           |         |
+| `socket_path`  | string  | required\[5\] | Path on disk to the Workload API Unix Domain socket. Unix platforms only. |         |
+| `addr`         | string  | optional      | Exposes the service on the given address.                                 | `:443`  |
+
+| experimental      | Type   | Required?     | Description                                             | Default |
+|:------------------|--------|---------------|---------------------------------------------------------|---------|
+| `named_pipe_name` | string | required\[5\] | Pipe name of the Workload API named pipe. Windows only. |         |
+
+[5]: Optional when the `workload_api` section is configured, in which case it defaults to the value configured in that section.
 
 #### ACME Section
 
@@ -123,7 +159,7 @@ will terminate if another domain is requested.
 
 #### TLS Config Section
 
-Applied to **terminating** HTTPS listeners when using `serving_cert_file` or `acme`.
+Applied to **terminating** HTTPS listeners when using `serving_cert_source`, `serving_cert_file` or `acme`.
 Not applied to `insecure_addr`, `listen_socket_path`, named pipe modes, or any
 outbound TLS client connections. Parsed once at startup; invalid values prevent
 the provider from starting.
@@ -238,6 +274,20 @@ domains = ["mypublicdomain.test"]
 serving_cert_file {
  cert_file_path = "/some/path/on/disk/to/cert.pem"
  key_file_path = "/some/path/on/disk/to/key.pem"
+}
+workload_api {
+    socket_path = "/tmp/spire-agent/public/api.sock"
+    trust_domain = "domain.test"
+}
+```
+
+#### Workload API and Serving Certificate from the Workload API
+
+```hcl
+log_level = "debug"
+domains = ["mypublicdomain.test"]
+serving_cert_source "workload_api" {
+    addr = ":8443"
 }
 workload_api {
     socket_path = "/tmp/spire-agent/public/api.sock"

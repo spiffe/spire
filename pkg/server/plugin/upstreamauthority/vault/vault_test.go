@@ -792,6 +792,11 @@ func TestPublishJWTKey(t *testing.T) {
 	spiretest.RequireGRPCStatus(t, err, codes.Unimplemented, "upstreamauthority(vault): publishing upstream is unsupported")
 	assert.Nil(t, jwtAuthorities)
 	assert.Nil(t, stream)
+
+	witAuthorities, witStream, err := ua.PublishWITKey(context.Background(), &common.PublicKey{Kid: "ID", PkixBytes: pkixBytes})
+	spiretest.RequireGRPCStatus(t, err, codes.Unimplemented, "upstreamauthority(vault): publishing upstream is unsupported")
+	assert.Nil(t, witAuthorities)
+	assert.Nil(t, witStream)
 }
 
 func getTestConfigureRequest(t *testing.T, addr string, tpl string) string {

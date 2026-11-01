@@ -141,11 +141,11 @@ func getSPIREKeyIDFromCryptoKeyName(cryptoKeyName, serverID string) (string, boo
 	// offset.
 
 	// Get the CryptoKeyID (last element of the path).
-	i := strings.LastIndex(cryptoKeyName, "/")
-	if i < 0 {
+	_, after, ok := strings.CutLast(cryptoKeyName, "/")
+	if !ok {
 		return "", false
 	}
-	cryptoKeyID := cryptoKeyName[i+1:]
+	cryptoKeyID := after
 	prefix := fmt.Sprintf("%s-%s-", cryptoKeyNamePrefix, serverID)
 	spireKeyID, ok := strings.CutPrefix(cryptoKeyID, prefix)
 	if !ok || spireKeyID == "" {
