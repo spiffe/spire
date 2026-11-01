@@ -22,8 +22,10 @@ var DefaultIMDSAgentPathTemplate = agentpathtemplate.MustParse("/{{ .PluginName 
 // AgentUntrustedMetadata is the untrusted metadata for the IMDS attestation payload.
 // Used to help point the server to the correct tenant and VMSS
 type AgentUntrustedMetadata struct {
-	AgentDomain string  `json:"agentDomain"`
-	VMSSName    *string `json:"vmssName"`
+	AgentDomain       string  `json:"agentDomain"`
+	VMSSName          *string `json:"vmssName,omitempty"`
+	ResourceGroupName *string `json:"resourceGroupName,omitempty"`
+	VMResourceID      *string `json:"vmResourceId,omitempty"`
 }
 
 type IMDSAttestationPayload struct {
