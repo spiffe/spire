@@ -346,6 +346,11 @@ build-mashup-image() {
     cat > envoy-agent-entrypoint.sh <<'EOF'
 #!/bin/sh
 /opt/spire/bin/spire-agent run -config /opt/spire/conf/agent/agent.conf &
+# Envoy backs off failed SDS requests, so start it once the agent can hand out the workload SVID.
+for i in $(seq 60); do
+    /opt/spire/bin/spire-agent api fetch x509 -socketPath /opt/shared/agent.sock && break
+    sleep 1
+done
 exec /usr/local/bin/envoy -l debug -c /opt/envoy/conf/envoy.yaml
 EOF
     chmod +x envoy-agent-entrypoint.sh
