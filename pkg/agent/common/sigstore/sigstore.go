@@ -7,9 +7,11 @@ import (
 	"encoding/asn1"
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -22,6 +24,7 @@ import (
 	"github.com/sigstore/cosign/v3/pkg/cosign"
 	"github.com/sigstore/cosign/v3/pkg/oci"
 	cosignremote "github.com/sigstore/cosign/v3/pkg/oci/remote"
+	cosigntypes "github.com/sigstore/cosign/v3/pkg/types"
 	"github.com/sigstore/rekor/pkg/client"
 	rekorclient "github.com/sigstore/rekor/pkg/generated/client"
 	sgbundle "github.com/sigstore/sigstore-go/pkg/bundle"
@@ -396,7 +399,14 @@ func (v *ImageVerifier) verifyAttestations(ctx context.Context, imageRef name.Re
 		return nil, fmt.Errorf("rekor bundle not verified for image: %s", imageRef.Name())
 	}
 
-	return attestations, nil
+	// A sigstore bundle from cosign sign carries a sign statement, which signs the image and attests nothing.
+	return slices.DeleteFunc(attestations, func(attestation oci.Signature) bool {
+		var envelope struct{ Payload []byte }
+		var statement struct{ PredicateType string }
+		payload, err := attestation.Payload()
+		return err == nil && json.Unmarshal(payload, &envelope) == nil && json.Unmarshal(envelope.Payload, &statement) == nil &&
+			statement.PredicateType == cosigntypes.CosignSignPredicateType
+	}), nil
 }
 
 func extractDetailsFromSignatures(signatures []oci.Signature, extract func(oci.Signature) (*signatureDetails, error)) ([]*signatureDetails, error) {
