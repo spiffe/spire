@@ -308,8 +308,9 @@ func (m *Manager) PrepareX509CA(ctx context.Context) (err error) {
 	slot.notAfter = slot.x509CA.NotAfter
 
 	// Compare against request time, rather than NotBefore (which may be
-	// backdated), and tolerate certificate timestamp truncation to seconds.
-	if m.upstreamClient != nil && slot.notAfter.Add(time.Second).Before(now.Add(m.caTTL)) {
+	// backdated), and allow for upstream clock skew plus certificate timestamp
+	// truncation to seconds.
+	if m.upstreamClient != nil && slot.notAfter.Add(credtemplate.NotBeforeCushion+time.Second).Before(now.Add(m.caTTL)) {
 		log.WithFields(logrus.Fields{
 			telemetry.Alert:           true,
 			telemetry.AlertType:       telemetry.ShortenedLifetimeAlertType,

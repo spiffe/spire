@@ -3035,7 +3035,7 @@ func TestNewDownstreamX509CA(t *testing.T) {
 			},
 		},
 		{
-			name:           "Successful CA Request with default TTL warning",
+			name:           "Successful CA Request with default TTL",
 			rateLimiterErr: nil,
 			err:            "",
 			failSigning:    false,
@@ -3047,9 +3047,6 @@ func TestNewDownstreamX509CA(t *testing.T) {
 			entry:      downstreamEntry1,
 			expectLogs: func(csr []byte) []spiretest.LogEntry {
 				return []spiretest.LogEntry{
-					lifetimeWarning("downstream_ca_ttl", "3600", logrus.Fields{
-						telemetry.SPIFFEID: "spiffe://example.org",
-					}),
 					{
 						Level:   logrus.InfoLevel,
 						Message: "API accessed",

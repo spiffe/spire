@@ -665,10 +665,10 @@ func (s *Service) NewDownstreamX509CA(ctx context.Context, req *svidv1.NewDownst
 		return nil, commonapi.MakeErr(log, codes.Internal, "failed to sign downstream X.509 CA", err)
 	}
 	requestedTTL := time.Duration(ttl) * time.Second
+	ca.WarnOnIncompatibleTTL(log.WithField(telemetry.SPIFFEID, x509CASvid[0].URIs[0].String()), s.caTTL, requestedTTL, "downstream_ca_ttl")
 	if requestedTTL <= 0 {
 		requestedTTL = s.caTTL
 	}
-	ca.WarnOnIncompatibleTTL(log.WithField(telemetry.SPIFFEID, x509CASvid[0].URIs[0].String()), s.caTTL, requestedTTL, "downstream_ca_ttl")
 	if x509CASvid[0].NotAfter.Add(time.Second).Before(requestedAt.Add(requestedTTL)) {
 		log.WithFields(logrus.Fields{
 			telemetry.Alert:        true,
