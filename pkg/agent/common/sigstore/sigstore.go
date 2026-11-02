@@ -228,6 +228,9 @@ func (v *ImageVerifier) Verify(ctx context.Context, imageID string) ([]string, e
 	attestationOptions := []*cosign.CheckOpts{checkOptions}
 	if len(v.publicKeys) == 0 {
 		detailsList, err = v.verifySignatures(ctx, imageRef, checkOptions, "")
+		if checkOptions.NewBundleFormat {
+			attestationOptions = identityOptions(checkOptions)
+		}
 	} else {
 		detailsList, attestationOptions, err = v.verifySignaturesWithKeys(ctx, imageRef, checkOptions)
 	}
@@ -298,9 +301,13 @@ func (v *ImageVerifier) verifyBundles(ctx context.Context, bundles []*sgbundle.B
 	}
 	var detailsList []*signatureDetails
 	var errs []error
+	options := identityOptions(checkOptions)
 	for _, b := range bundles {
-		if _, err := cosign.VerifyNewBundle(ctx, checkOptions, verify.WithArtifactDigest(hash.Algorithm, digest), b); err != nil {
+		if !slices.ContainsFunc(options, func(o *cosign.CheckOpts) bool {
+			_, err := cosign.VerifyNewBundle(ctx, o, verify.WithArtifactDigest(hash.Algorithm, digest), b)
 			errs = append(errs, err)
+			return err == nil
+		}) {
 			continue
 		}
 		details, err := extractBundleDetails(b, v.config.IgnoreTlog, keyFingerprint)
@@ -313,6 +320,24 @@ func (v *ImageVerifier) verifyBundles(ctx context.Context, bundles []*sgbundle.B
 		return nil, fmt.Errorf("no sigstore bundle verified: %w", errors.Join(errs...))
 	}
 	return detailsList, nil
+}
+
+// identityOptions splits keyless check options into one per allowed identity, as cosign checks a bundle against one.
+func identityOptions(checkOptions *cosign.CheckOpts) []*cosign.CheckOpts {
+	if checkOptions.SigVerifier != nil {
+		return []*cosign.CheckOpts{checkOptions}
+	}
+	identities := checkOptions.Identities
+	if len(identities) == 0 {
+		identities = []cosign.Identity{{IssuerRegExp: ".*", SubjectRegExp: ".*"}}
+	}
+	options := make([]*cosign.CheckOpts, 0, len(identities))
+	for _, identity := range identities {
+		identityOptions := *checkOptions
+		identityOptions.Identities = []cosign.Identity{identity}
+		options = append(options, &identityOptions)
+	}
+	return options
 }
 
 func extractBundleDetails(b *sgbundle.Bundle, ignoreTlog bool, keyFingerprint string) (*signatureDetails, error) {
