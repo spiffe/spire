@@ -152,7 +152,8 @@ func TestMetricsServedDuringAttestationRetry(t *testing.T) {
 
 	cancel()
 	select {
-	case <-runErr:
+	case err := <-runErr:
+		require.ErrorIs(t, err, context.Canceled)
 	case <-time.After(30 * time.Second):
 		t.Fatal("timeout waiting for Run to return after context cancellation")
 	}

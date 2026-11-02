@@ -33,11 +33,9 @@ func main() {
 		)
 	case "bad":
 		goplugin.Serve(&goplugin.ServeConfig{
-			HandshakeConfig: goplugin.HandshakeConfig{
-				ProtocolVersion:  99,
-				MagicCookieKey:   "BAD",
-				MagicCookieValue: "BAD",
-			},
+			ProtocolVersion:  99,
+			MagicCookieKey:   "BAD",
+			MagicCookieValue: "BAD",
 			Plugins: map[string]goplugin.Plugin{
 				"BAD": &badHCServerPlugin{},
 			},

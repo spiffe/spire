@@ -56,7 +56,7 @@ func main() {
 		},
 	}
 
-	proc, err := os.StartProcess(os.Args[0], []string{os.Args[0]}, procattr)
+	proc, err := os.StartProcess(os.Args[0], []string{os.Args[0]}, procattr) //nolint:gosec // G702: re-execute this test helper to create a grandchild.
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to produce grandchild: %v", err)
 		os.Exit(7)
