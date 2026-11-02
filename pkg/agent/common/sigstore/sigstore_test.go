@@ -20,6 +20,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 	"time"
 
@@ -32,6 +33,8 @@ import (
 	"github.com/sigstore/cosign/v3/pkg/cosign/bundle"
 	"github.com/sigstore/cosign/v3/pkg/oci"
 	cosignremote "github.com/sigstore/cosign/v3/pkg/oci/remote"
+	"github.com/sigstore/cosign/v3/pkg/oci/static"
+	cosigntypes "github.com/sigstore/cosign/v3/pkg/types"
 	protobundle "github.com/sigstore/protobuf-specs/gen/pb-go/bundle/v1"
 	protocommon "github.com/sigstore/protobuf-specs/gen/pb-go/common/v1"
 	protodsse "github.com/sigstore/protobuf-specs/gen/pb-go/dsse"
@@ -351,6 +354,51 @@ func TestVerifyWithPublicKeyBundles(t *testing.T) {
 	}, selectors)
 	assert.Equal(t, 0, verifierSetup.fakeCosignVerifySignature.CallCount)
 	assert.Equal(t, 0, verifierSetup.fakeGetTrustedRoot.CallCount)
+}
+
+func TestVerifyIgnoresSignStatementAttestations(t *testing.T) {
+	statement := func(predicateType string) oci.Signature {
+		body, err := json.Marshal(map[string]any{"_type": "https://in-toto.io/Statement/v1", "predicateType": predicateType})
+		require.NoError(t, err)
+		envelope, err := json.Marshal(dsse.Envelope{PayloadType: "application/vnd.in-toto+json", Payload: base64.StdEncoding.EncodeToString(body)})
+		require.NoError(t, err)
+		att, err := static.NewAttestation(envelope)
+		require.NoError(t, err)
+		return att
+	}
+	signOnly := statement(cosigntypes.CosignSignPredicateType)
+	provenance := statement("https://slsa.dev/provenance/v1")
+
+	for _, tt := range []struct {
+		name         string
+		attestations []oci.Signature
+		attested     bool
+	}{
+		{name: "sign statement only", attestations: []oci.Signature{signOnly}},
+		{name: "sign statement and provenance", attestations: []oci.Signature{signOnly, provenance}, attested: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			signer, err := ecdsa.GenerateKey(elliptic.P384(), rand.Reader)
+			require.NoError(t, err)
+			verifierSetup := setupVerifier()
+			verifierSetup.verifier.config.PublicKeyPaths = []string{publicKeyFile(t, signer.Public())}
+			verifierSetup.verifier.config.RegistryReferrers = true
+			verifierSetup.verifier.config.IgnoreTlog = true
+			require.NoError(t, verifierSetup.verifier.Init(context.Background()))
+			testBundle, _ := newKeyBundle(t, signer, testImageDigest)
+			verifierSetup.fakeGetBundles.Bundles = []*sgbundle.Bundle{testBundle}
+			verifierSetup.fakeCosignVerifyAttestations.Responses = append(verifierSetup.fakeCosignVerifyAttestations.Responses, struct {
+				Signatures     []oci.Signature
+				BundleVerified bool
+				Err            error
+			}{Signatures: tt.attestations, BundleVerified: true})
+
+			selectors, err := verifierSetup.verifier.Verify(context.Background(), testImageID)
+			require.NoError(t, err)
+
+			assert.Equal(t, tt.attested, slices.Contains(selectors, imageAttestationsVerifiedSelector))
+		})
+	}
 }
 
 func TestVerifyWithPublicKeyBundlesErrors(t *testing.T) {
