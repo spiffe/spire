@@ -177,6 +177,22 @@ func TestInitializeWithInvalidPublicKey(t *testing.T) {
 	assert.ErrorContains(t, verifierSetup.verifier.Init(context.Background()), fmt.Sprintf("failed to parse public key %q", keyPath))
 }
 
+func TestLoadPublicKeyFingerprint(t *testing.T) {
+	keyPath := filepath.Join(t.TempDir(), "cosign.pub")
+	require.NoError(t, os.WriteFile(keyPath, []byte(`-----BEGIN PUBLIC KEY-----
+MHYwEAYHKoZIzj0CAQYFK4EEACIDYgAExnBQnv1+wfjvRJ9Utuqg2h/cEhQTKx47
+b9oHBt9NX/fm3sIHm/YWV0105hJniHt7s4FCdQM1fR+qVqkd96h290rTiyCLv9a/
+LTE8lMVS8UnK+d+RkTicX9QFZCnPpV/V
+-----END PUBLIC KEY-----
+`), 0o600))
+
+	keys, err := loadPublicKeys([]string{keyPath})
+	require.NoError(t, err)
+	require.Len(t, keys, 1)
+	// openssl pkey -pubin -in cosign.pub -outform DER | sha256sum
+	assert.Equal(t, "e15b738569e71ea8abac546d1e52722c0a64a6d081d4c3596f83584923ceceb6", keys[0].fingerprint)
+}
+
 func TestVerifyWithPublicKeys(t *testing.T) {
 	verifierSetup := setupVerifier()
 	verifierSetup.verifier.config.PublicKeyPaths = []string{newPublicKeyFile(t), newPublicKeyFile(t)}
