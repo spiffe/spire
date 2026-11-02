@@ -93,11 +93,11 @@ func (c *cache) start(ctx context.Context) error {
 		return errors.New("no health checks defined")
 	}
 
-	c.startRunner(ctx)
+	c.startRunners(ctx)
 	return nil
 }
 
-func (c *cache) startRunner(ctx context.Context) {
+func (c *cache) startRunners(ctx context.Context) {
 	c.log.Debug("Initializing health checkers")
 	for name, checker := range c.checkerSubsystems {
 		go c.runCheck(ctx, name, checker.checkable)
@@ -124,13 +124,13 @@ func (c *cache) runCheck(ctx context.Context, name string, checkable Checkable) 
 		if err != nil {
 			if state.Started == nil || *state.Started {
 				if prevState.err == nil || now.Sub(lastFailureLog) >= failureLogInterval {
-					c.log.WithField("check", name).
+					c.log.WithField(telemetry.Check, name).
 						WithError(err).
 						Error("Health check has failed")
 					lastFailureLog = now
 				}
 			} else if strErr := err.Error(); strErr != seenStartupError {
-				c.log.WithField("check", name).
+				c.log.WithField(telemetry.Check, name).
 					WithError(err).
 					Warn("Health check has failed. Starting up still.")
 				seenStartupError = strErr

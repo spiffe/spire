@@ -1,7 +1,6 @@
 package health
 
 import (
-	"context"
 	"io"
 	"net"
 	"net/http"
@@ -68,7 +67,7 @@ func TestCheckerListeners(t *testing.T) {
 	finalChecker.cache.clk = clk
 	runs := watchRuns(t, finalChecker.cache, clk)
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	go func() {
 		_ = servableChecker.ListenAndServe(ctx)

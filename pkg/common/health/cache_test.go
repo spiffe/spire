@@ -1,7 +1,6 @@
 package health
 
 import (
-	"context"
 	"errors"
 	"slices"
 	"sync"
@@ -45,7 +44,7 @@ func TestStartNoCheckerSet(t *testing.T) {
 
 	c := newCache(log, clockMock)
 
-	err := c.start(context.Background())
+	err := c.start(t.Context())
 	require.EqualError(t, err, "no health checks defined")
 	require.Empty(t, hook.Entries)
 }
@@ -81,7 +80,7 @@ func TestHealthFailsAndRecover(t *testing.T) {
 	err = c.addCheck("bar", barChecker)
 	require.NoError(t, err)
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	err = c.start(ctx)
 	require.NoError(t, err)
@@ -369,7 +368,7 @@ func TestOnlyFailingCheckIsRetriedSooner(t *testing.T) {
 	flaky := &countingCheckable{state: State{Live: true, Ready: true}}
 	require.NoError(t, c.addCheck("healthy", healthy))
 	require.NoError(t, c.addCheck("flaky", flaky))
-	require.NoError(t, c.start(context.Background()))
+	require.NoError(t, c.start(t.Context()))
 
 	require.Equal(t, []time.Duration{10 * time.Second, 10 * time.Second}, runs.wait(2))
 
@@ -408,7 +407,7 @@ func TestSlowCheckDoesNotDelayOthers(t *testing.T) {
 	fast := &countingCheckable{state: State{Live: true, Ready: true}}
 	require.NoError(t, c.addCheck("slow", slow))
 	require.NoError(t, c.addCheck("fast", fast))
-	require.NoError(t, c.start(context.Background()))
+	require.NoError(t, c.start(t.Context()))
 
 	runs.wait(1)
 	require.Equal(t, 1, fast.count())
@@ -427,7 +426,7 @@ func TestFailingCheckIsLoggedOncePerMinute(t *testing.T) {
 
 	failing := &countingCheckable{state: State{}}
 	require.NoError(t, c.addCheck("failing", failing))
-	require.NoError(t, c.start(context.Background()))
+	require.NoError(t, c.start(t.Context()))
 
 	failedLogs := func() int {
 		count := 0
