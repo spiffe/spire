@@ -118,9 +118,9 @@ func (v *ImageVerifier) Init(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		v.config.Logger.Info("Sigstore verifier uses public keys", "count", len(v.publicKeys))
+		v.config.Logger.Info("Sigstore verifier uses public keys", telemetry.Count, len(v.publicKeys))
 	} else {
-		v.config.Logger.Info("Sigstore verifier uses keyless signatures", "allowed_identities", len(v.allowedIdentities))
+		v.config.Logger.Info("Sigstore verifier uses keyless signatures", telemetry.AllowedIdentities, len(v.allowedIdentities))
 		v.fulcioRoots, err = v.sigstoreFunctions.getFulcioRoots()
 		if err != nil {
 			return fmt.Errorf("failed to get fulcio root certificates: %w", err)
