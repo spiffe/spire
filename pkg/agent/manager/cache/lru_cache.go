@@ -295,11 +295,11 @@ func (c *LRUCache[SVID, Update]) NewSubscriber(selectors []*common.Selector) Sub
 
 // SubscribeToEntryAndBundleUpdates creates a subscriber that receives the
 // registration entries matching the given selectors, along with the trust
-// bundles they rely on, whenever either of them changes. Unlike workload
-// update subscribers, entry and bundle subscribers do not cause SVIDs to be
-// minted or retained for the matching entries, and are not notified when SVIDs
-// are updated. The subscriber receives its first update before this method
-// returns.
+// bundles they rely on. Updates are sent each time selectors, federation
+// relationships or bundles are changed. Unlike workload update subscribers,
+// entry and bundle subscribers do not cause SVIDs to be minted or retained for
+// the matching entries, and are not notified when SVIDs are updated. The
+// subscriber receives its first update before this method returns.
 func (c *LRUCache[SVID, Update]) SubscribeToEntryAndBundleUpdates(selectors []*common.Selector) Subscriber[EntriesAndBundlesUpdate] {
 	c.mu.Lock()
 	defer c.mu.Unlock()
