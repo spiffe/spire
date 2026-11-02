@@ -29,6 +29,9 @@ func Unmarshal(trustDomain spiffeid.TrustDomain, data []byte) (*spiffebundle.Bun
 func unmarshal(trustDomain spiffeid.TrustDomain, doc *bundleDoc) (*spiffebundle.Bundle, error) {
 	bundle := spiffebundle.New(trustDomain)
 	bundle.SetRefreshHint(time.Second * time.Duration(doc.RefreshHint))
+	if doc.Sequence != 0 {
+		bundle.SetSequenceNumber(doc.Sequence)
+	}
 
 	for i, key := range doc.Keys {
 		switch key.Use {
