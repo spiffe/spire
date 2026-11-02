@@ -82,7 +82,11 @@ test-envoy() {
     mTLSSocat=$1
     tlsSocat=$2
 
-    local max_checks_per_port=15
+    # The agents in the proxy containers start before the server entry cache
+    # has picked up the freshly created entries, so the first SDS requests are
+    # rejected and Envoy backs off exponentially between retries. Allow the same
+    # budget as the envoy-sds-v3 suite so that backoff fits in the window.
+    local max_checks_per_port=30
     local check_interval=1
 
     # Remove howdy, it i necessary for VERIFY to get again messages
@@ -97,7 +101,7 @@ test-envoy() {
         log-debug "Checking MTLS proxy ($i of $max_checks_per_port max)..."
         if TRY && VERIFY ; then
             mtls_federated_ok=1
-            log-info "MTLS proxy OK"
+            log-info "MTLS proxy OK (succeeded after $i attempts)"
             break
         fi
         sleep "${check_interval}"
@@ -112,7 +116,7 @@ test-envoy() {
         log-debug "Checking TLS proxy ($i of $max_checks_per_port max)..."
         if TRY && VERIFY ; then
             tls_federated_ok=1
-            log-info "TLS proxy OK"
+            log-info "TLS proxy OK (succeeded after $i attempts)"
             break
         fi
         sleep "${check_interval}"
