@@ -98,7 +98,7 @@ This feature extends the `k8s` workload attestor with the ability to validate co
 | Option                 | Description                                                                                                                                                                                                                                                       |
 |------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `allowed_identities`   | Maps OIDC Provider URIs to lists of allowed subjects. Supports regular expressions patterns. Defaults to empty. If unspecified, signatures from any issuer are accepted. (eg. `"https://accounts.google.com" = ["subject1@example.com","subject2@example.com"]`). |
-| `public_keys`          | Lists PEM encoded public keys that verify key-based signatures, such as `cosign sign --key`. A signature verified by any listed key is accepted. Cannot be combined with `allowed_identities`. Defaults to empty.                                                 |
+| `public_key_paths`     | Lists paths to PEM encoded public keys that verify key-based signatures, such as `cosign sign --key`. A signature verified by any listed key is accepted. Cannot be combined with `allowed_identities`. Defaults to empty.                                        |
 | `skipped_images`       | Lists image IDs to exclude from Sigstore signature verification. For these images, no Sigstore selectors will be generated. Defaults to an empty list.                                                                                                            |
 | `rekor_url`            | Specifies the Rekor URL for transparency log verification. Default is the public Rekor instance [https://rekor.sigstore.dev](https://rekor.sigstore.dev).                                                                                                         |
 | `ignore_tlog`          | If set to true, bypasses the transparency log verification and the selectors based on the Rekor bundle are not generated.                                                                                                                                         |
@@ -151,7 +151,7 @@ Sigstore enabled selectors (available when configured to use `sigstore`)
 
 If `ignore_tlog` is set to `true`, the selectors based on the Rekor bundle (`-log-id`, `-log-index`, `-integrated-time`, and `-signed-entry-timestamp`) are not generated. They are also not generated for a signature without a Rekor bundle, which cosign checks through an online Rekor lookup.
 
-With `public_keys` set, the subject and issuer selectors are not generated, and attestations are accepted when any listed key verifies them. The `-public-key-sha256` value of a key is the output of `openssl pkey -pubin -in key.pub -outform DER | sha256sum`.
+With `public_key_paths` set, the subject and issuer selectors are not generated, and attestations are accepted when any listed key verifies them. The `-public-key-sha256` value of a key is the output of `openssl pkey -pubin -in key.pub -outform DER | sha256sum`.
 
 > **Note** `container-image` will ONLY match against the specific container in the pod that is contacting SPIRE on behalf of
 > the pod, whereas `pod-image` and `pod-init-image` will match against ANY container or init container in the Pod,

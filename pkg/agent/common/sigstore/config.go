@@ -13,7 +13,7 @@ type Config struct {
 	RegistryCredentials map[string]*RegistryCredential
 
 	AllowedIdentities  map[string][]string
-	PublicKeys         []string
+	PublicKeyPaths     []string
 	SkippedImages      map[string]struct{}
 	IgnoreSCT          bool
 	IgnoreTlog         bool
@@ -34,8 +34,8 @@ type HCLConfig struct {
 	// AllowedIdentities is a list of identities (issuer and subjects) that must match for the signature to be valid.
 	AllowedIdentities map[string][]string `hcl:"allowed_identities" json:"allowed_identities"`
 
-	// PublicKeys is a list of PEM encoded public keys used to verify key-based signatures instead of keyless identities.
-	PublicKeys []string `hcl:"public_keys" json:"public_keys"`
+	// PublicKeyPaths is a list of paths to PEM encoded public keys that verify key-based signatures instead of keyless identities.
+	PublicKeyPaths []string `hcl:"public_key_paths" json:"public_key_paths"`
 
 	// SkippedImages is a list of images that should skip sigstore verification
 	SkippedImages []string `hcl:"skipped_images" json:"skipped_images"`
@@ -67,11 +67,11 @@ type RegistryCredential struct {
 
 // Validate reports configuration errors that the attestors surface while the plugin configuration is parsed.
 func (c *HCLConfig) Validate() error {
-	if len(c.PublicKeys) > 0 && len(c.AllowedIdentities) > 0 {
-		return errors.New("sigstore public_keys and allowed_identities cannot be used together")
+	if len(c.PublicKeyPaths) > 0 && len(c.AllowedIdentities) > 0 {
+		return errors.New("sigstore public_key_paths and allowed_identities cannot be used together")
 	}
-	if _, err := loadPublicKeys(c.PublicKeys); err != nil {
-		return fmt.Errorf("sigstore public_keys: %w", err)
+	if _, err := loadPublicKeys(c.PublicKeyPaths); err != nil {
+		return fmt.Errorf("sigstore public_key_paths: %w", err)
 	}
 	return nil
 }
@@ -84,7 +84,7 @@ func NewConfigFromHCL(hclConfig *HCLConfig, log hclog.Logger) *Config {
 		config.AllowedIdentities = hclConfig.AllowedIdentities
 	}
 
-	config.PublicKeys = hclConfig.PublicKeys
+	config.PublicKeyPaths = hclConfig.PublicKeyPaths
 
 	if hclConfig.SkippedImages != nil {
 		config.SkippedImages = make(map[string]struct{})

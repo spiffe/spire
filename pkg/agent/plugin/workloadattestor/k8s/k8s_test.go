@@ -1267,6 +1267,12 @@ func (s *Suite) TestConfigureWithSigstore() {
 	// Make sure sigstore caches things in memory instead of trying
 	// to cache them to some directory.
 	s.T().Setenv("SIGSTORE_NO_CACHE", "true")
+	keyPath := filepath.Join(s.T().TempDir(), "cosign.pub")
+	require.NoError(s.T(), os.WriteFile(keyPath, []byte(`-----BEGIN PUBLIC KEY-----
+MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEviJ8lqUgtqWzruk4EQn9vu/L7sdf
+PfUXSEDR2XADpiECNp+cvuunA23H20EHF08s7HFPn6yycViqdfaisrsA3A==
+-----END PUBLIC KEY-----
+`), 0o600))
 
 	cases := []struct {
 		name          string
@@ -1309,19 +1315,13 @@ func (s *Suite) TestConfigureWithSigstore() {
 		{
 			name:        "public key sigstore configuration",
 			trustDomain: "example.org",
-			hcl: `
+			hcl: fmt.Sprintf(`
 				    skip_kubelet_verification = true
 					sigstore {
-						public_keys = [<<EOT
------BEGIN PUBLIC KEY-----
-MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEviJ8lqUgtqWzruk4EQn9vu/L7sdf
-PfUXSEDR2XADpiECNp+cvuunA23H20EHF08s7HFPn6yycViqdfaisrsA3A==
------END PUBLIC KEY-----
-EOT
-						]
+						public_key_paths = [%q]
 						ignore_tlog = true
 						registry_referrers = true
-					}`,
+					}`, keyPath),
 			expectedError: "",
 		},
 		{
@@ -1331,9 +1331,9 @@ EOT
 				    skip_kubelet_verification = true
 					sigstore {
 						allowed_identities = { "test-issuer" = ["subject"] }
-						public_keys = ["key"]
+						public_key_paths = ["key"]
 					}`,
-			expectedError: "sigstore public_keys and allowed_identities cannot be used together",
+			expectedError: "sigstore public_key_paths and allowed_identities cannot be used together",
 		},
 		{
 			name:        "invalid HCL",

@@ -17,6 +17,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -151,8 +153,8 @@ func TestInitializeWithPublicKeys(t *testing.T) {
 	require.NoError(t, err)
 
 	verifierSetup := setupVerifier()
-	verifierSetup.verifier.config.PublicKeys = []string{
-		publicKeyPEM(t, p384.Public()), publicKeyPEM(t, p256.Public()), publicKeyPEM(t, rsaKey.Public()), publicKeyPEM(t, edKey),
+	verifierSetup.verifier.config.PublicKeyPaths = []string{
+		publicKeyFile(t, p384.Public()), publicKeyFile(t, p256.Public()), publicKeyFile(t, rsaKey.Public()), publicKeyFile(t, edKey),
 	}
 	verifierSetup.fakeGetRekorPubs.Response.PubKeys = &cosign.TrustedTransparencyLogPubKeys{}
 	verifierSetup.fakeGetRekorClient.Response.Client = &rekorclient.Rekor{}
@@ -169,13 +171,15 @@ func TestInitializeWithPublicKeys(t *testing.T) {
 func TestInitializeWithInvalidPublicKey(t *testing.T) {
 	verifierSetup := setupVerifier()
 	verifierSetup.verifier.config.IgnoreTlog = true
-	verifierSetup.verifier.config.PublicKeys = []string{"not a key"}
-	assert.ErrorContains(t, verifierSetup.verifier.Init(context.Background()), "failed to parse public key 0")
+	keyPath := filepath.Join(t.TempDir(), "invalid.pub")
+	require.NoError(t, os.WriteFile(keyPath, []byte("not a key"), 0o600))
+	verifierSetup.verifier.config.PublicKeyPaths = []string{keyPath}
+	assert.ErrorContains(t, verifierSetup.verifier.Init(context.Background()), fmt.Sprintf("failed to parse public key %q", keyPath))
 }
 
 func TestVerifyWithPublicKeys(t *testing.T) {
 	verifierSetup := setupVerifier()
-	verifierSetup.verifier.config.PublicKeys = []string{newPublicKeyPEM(t), newPublicKeyPEM(t)}
+	verifierSetup.verifier.config.PublicKeyPaths = []string{newPublicKeyFile(t), newPublicKeyFile(t)}
 	verifierSetup.verifier.config.RegistryReferrers = true
 	verifierSetup.fakeGetRekorPubs.Response.PubKeys = &cosign.TrustedTransparencyLogPubKeys{}
 	verifierSetup.fakeGetRekorClient.Response.Client = &rekorclient.Rekor{}
@@ -227,7 +231,7 @@ func TestVerifyWithPublicKeys(t *testing.T) {
 
 func TestVerifyWithEveryMatchingPublicKey(t *testing.T) {
 	verifierSetup := setupVerifier()
-	verifierSetup.verifier.config.PublicKeys = []string{newPublicKeyPEM(t), newPublicKeyPEM(t)}
+	verifierSetup.verifier.config.PublicKeyPaths = []string{newPublicKeyFile(t), newPublicKeyFile(t)}
 	verifierSetup.fakeGetRekorPubs.Response.PubKeys = &cosign.TrustedTransparencyLogPubKeys{}
 	verifierSetup.fakeGetRekorClient.Response.Client = &rekorclient.Rekor{}
 	require.NoError(t, verifierSetup.verifier.Init(context.Background()))
@@ -285,7 +289,7 @@ func TestVerifyWithPublicKeysErrors(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			verifierSetup := setupVerifier()
-			verifierSetup.verifier.config.PublicKeys = []string{newPublicKeyPEM(t)}
+			verifierSetup.verifier.config.PublicKeyPaths = []string{newPublicKeyFile(t)}
 			verifierSetup.verifier.config.IgnoreTlog = tt.ignoreTlog
 			verifierSetup.fakeGetRekorPubs.Response.PubKeys = &cosign.TrustedTransparencyLogPubKeys{}
 			verifierSetup.fakeGetRekorClient.Response.Client = &rekorclient.Rekor{}
@@ -302,16 +306,18 @@ func TestVerifyWithPublicKeysErrors(t *testing.T) {
 
 var testImageID = "test-id@sha256:" + hex.EncodeToString(make([]byte, 32))
 
-func newPublicKeyPEM(t *testing.T) string {
+func newPublicKeyFile(t *testing.T) string {
 	key, err := ecdsa.GenerateKey(elliptic.P384(), rand.Reader)
 	require.NoError(t, err)
-	return publicKeyPEM(t, key.Public())
+	return publicKeyFile(t, key.Public())
 }
 
-func publicKeyPEM(t *testing.T, pub crypto.PublicKey) string {
+func publicKeyFile(t *testing.T, pub crypto.PublicKey) string {
 	pemKey, err := cryptoutils.MarshalPublicKeyToPEM(pub)
 	require.NoError(t, err)
-	return string(pemKey)
+	path := filepath.Join(t.TempDir(), "key.pub")
+	require.NoError(t, os.WriteFile(path, pemKey, 0o600))
+	return path
 }
 
 func TestVerify(t *testing.T) {

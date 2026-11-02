@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -112,8 +113,8 @@ func NewVerifier(config *Config) *ImageVerifier {
 // Init loads the configured public keys, or else the Fulcio certificates and CT keys, and the Rekor public keys.
 func (v *ImageVerifier) Init(ctx context.Context) error {
 	var err error
-	if len(v.config.PublicKeys) > 0 {
-		v.publicKeys, err = loadPublicKeys(v.config.PublicKeys)
+	if len(v.config.PublicKeyPaths) > 0 {
+		v.publicKeys, err = loadPublicKeys(v.config.PublicKeyPaths)
 		if err != nil {
 			return err
 		}
@@ -544,20 +545,24 @@ func containsRegexChars(s string) bool {
 	return strings.ContainsAny(s, "*+?^${}[]|()")
 }
 
-func loadPublicKeys(pemKeys []string) ([]publicKey, error) {
-	keys := make([]publicKey, 0, len(pemKeys))
-	for i, pemKey := range pemKeys {
-		pub, err := cryptoutils.UnmarshalPEMToPublicKey([]byte(pemKey))
+func loadPublicKeys(paths []string) ([]publicKey, error) {
+	keys := make([]publicKey, 0, len(paths))
+	for _, path := range paths {
+		pemKey, err := os.ReadFile(path)
 		if err != nil {
-			return nil, fmt.Errorf("failed to parse public key %d: %w", i, err)
+			return nil, fmt.Errorf("failed to read public key %q: %w", path, err)
+		}
+		pub, err := cryptoutils.UnmarshalPEMToPublicKey(pemKey)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse public key %q: %w", path, err)
 		}
 		verifier, err := signature.LoadDefaultVerifier(pub)
 		if err != nil {
-			return nil, fmt.Errorf("failed to load verifier for public key %d: %w", i, err)
+			return nil, fmt.Errorf("failed to load verifier for public key %q: %w", path, err)
 		}
 		der, err := x509.MarshalPKIXPublicKey(pub)
 		if err != nil {
-			return nil, fmt.Errorf("failed to marshal public key %d: %w", i, err)
+			return nil, fmt.Errorf("failed to marshal public key %q: %w", path, err)
 		}
 		sum := sha256.Sum256(der)
 		keys = append(keys, publicKey{verifier: verifier, fingerprint: hex.EncodeToString(sum[:])})
