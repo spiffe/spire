@@ -3,6 +3,7 @@ package spireplugin
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sync"
 	"time"
 
@@ -17,6 +18,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/coretypes/bundle"
 	"github.com/spiffe/spire/pkg/common/coretypes/jwtkey"
+	"github.com/spiffe/spire/pkg/common/coretypes/witkey"
 	"github.com/spiffe/spire/pkg/common/coretypes/x509certificate"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/pluginconf"
@@ -228,9 +230,15 @@ func (p *Plugin) SubscribeToLocalBundle(req *upstreamauthorityv1.SubscribeToLoca
 		jwtKeys = append(jwtKeys, pluginKey)
 	}
 
+	witKeys, err := witkey.ToPluginFromAPIProtos(serverBundle.WitAuthorities)
+	if err != nil {
+		return err
+	}
+
 	err = stream.Send(&upstreamauthorityv1.SubscribeToLocalBundleResponse{
 		UpstreamX509Roots: rootCAs,
 		UpstreamJwtKeys:   jwtKeys,
+		UpstreamWitKeys:   witKeys,
 	})
 	if err != nil {
 		return err
@@ -238,6 +246,7 @@ func (p *Plugin) SubscribeToLocalBundle(req *upstreamauthorityv1.SubscribeToLoca
 
 	p.setBundleX509Authorities(rootCAs)
 	p.setBundleJWTAuthorities(jwtKeys)
+	p.setBundleWITAuthorities(witKeys)
 
 	ticker := p.clk.Ticker(internalPollFreq)
 	defer ticker.Stop()
@@ -249,16 +258,20 @@ func (p *Plugin) SubscribeToLocalBundle(req *upstreamauthorityv1.SubscribeToLoca
 		// the next internalPollFreq tick.
 		updateCh := p.getBundleUpdateCh()
 
-		newRootCAs := p.getBundle().X509Authorities
-		newJWTKeys := p.getBundle().JwtAuthorities
-		if !areRootsEqual(rootCAs, newRootCAs) || !arePublicKeysEqual(jwtKeys, newJWTKeys) {
+		currentBundle := p.getBundle()
+		newRootCAs := currentBundle.X509Authorities
+		newJWTKeys := currentBundle.JwtAuthorities
+		newWITKeys := currentBundle.WitAuthorities
+		if !areProtosEqual(rootCAs, newRootCAs) || !areProtosEqual(jwtKeys, newJWTKeys) || !areProtosEqual(witKeys, newWITKeys) {
 			err := stream.Send(&upstreamauthorityv1.SubscribeToLocalBundleResponse{
 				UpstreamX509Roots: newRootCAs,
 				UpstreamJwtKeys:   newJWTKeys,
+				UpstreamWitKeys:   newWITKeys,
 			})
 			if err == nil {
 				rootCAs = newRootCAs
 				jwtKeys = newJWTKeys
+				witKeys = newWITKeys
 			}
 		}
 		select {
@@ -310,6 +323,40 @@ func (p *Plugin) PublishJWTKeyAndSubscribe(req *upstreamauthorityv1.PublishJWTKe
 	return nil
 }
 
+func (p *Plugin) PublishWITKeyAndSubscribe(req *upstreamauthorityv1.PublishWITKeyRequest, stream upstreamauthorityv1.UpstreamAuthority_PublishWITKeyAndSubscribeServer) error {
+	err := p.subscribeToPolling(stream.Context())
+	if err != nil {
+		return err
+	}
+	defer p.unsubscribeToPolling()
+
+	witKey, err := witkey.ToAPIFromPluginProto(req.WitKey)
+	if err != nil {
+		return status.Errorf(codes.Internal, "unable to parse WITKey into api WITKey: %v", err)
+	}
+
+	resp, err := p.serverClient.publishWITAuthority(stream.Context(), witKey)
+	if err != nil {
+		return err
+	}
+
+	witKeys, err := witkey.ToPluginFromAPIProtos(resp)
+	if err != nil {
+		return err
+	}
+
+	p.setBundleWITAuthorities(witKeys)
+
+	err = stream.Send(&upstreamauthorityv1.PublishWITKeyResponse{
+		UpstreamWitKeys: witKeys,
+	})
+	if err != nil {
+		p.log.Error("Cannot send upstream WIT keys", "error", err)
+		return err
+	}
+	return nil
+}
+
 func (p *Plugin) pollBundleUpdates(ctx context.Context) {
 	ticker := p.clk.Ticker(upstreamPollFreq)
 	defer ticker.Stop()
@@ -348,10 +395,10 @@ func (p *Plugin) pollBundleUpdates(ctx context.Context) {
 
 // setBundleIfVersionMatches updates currentBundle only when bundleVersion
 // still equals expectedVersion. This prevents a fetch that started before a
-// local mutation (setBundleJWTAuthorities / setBundleX509Authorities) from
-// overwriting the newer local state. bundleVersion is intentionally not
-// incremented here; it is only incremented by the local-mutation helpers so
-// that it remains a reliable guard against concurrent upstream fetches.
+// local mutation (setBundle*Authorities) from overwriting the newer local
+// state. bundleVersion is intentionally not incremented here; it is only
+// incremented by the local-mutation helpers so that it remains a reliable
+// guard against concurrent upstream fetches.
 func (p *Plugin) setBundleIfVersionMatches(b *types.Bundle, expectedVersion uint64) error {
 	p.bundleMtx.Lock()
 	defer p.bundleMtx.Unlock()
@@ -394,6 +441,14 @@ func (p *Plugin) setBundleJWTAuthorities(keys []*plugintypes.JWTKey) {
 	p.bundleMtx.Lock()
 	defer p.bundleMtx.Unlock()
 	p.currentBundle.JwtAuthorities = keys
+	p.bundleVersion++
+	p.signalBundleUpdate()
+}
+
+func (p *Plugin) setBundleWITAuthorities(keys []*plugintypes.WITKey) {
+	p.bundleMtx.Lock()
+	defer p.bundleMtx.Unlock()
+	p.currentBundle.WitAuthorities = keys
 	p.bundleVersion++
 	p.signalBundleUpdate()
 }
@@ -455,26 +510,8 @@ func (p *Plugin) startPolling(streamCtx context.Context) error {
 	return nil
 }
 
-func areRootsEqual(a, b []*plugintypes.X509Certificate) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i, root := range a {
-		if !proto.Equal(root, b[i]) {
-			return false
-		}
-	}
-	return true
-}
-
-func arePublicKeysEqual(a, b []*plugintypes.JWTKey) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i, pk := range a {
-		if !proto.Equal(pk, b[i]) {
-			return false
-		}
-	}
-	return true
+func areProtosEqual[T proto.Message](a, b []T) bool {
+	return slices.EqualFunc(a, b, func(x, y T) bool {
+		return proto.Equal(x, y)
+	})
 }

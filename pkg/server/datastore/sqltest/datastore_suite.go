@@ -6116,6 +6116,19 @@ func assertBundlesEqual(t *testing.T, expected, actual []*common.Bundle) {
 	}
 }
 
+// WipeDatabase drops every table in the "spire" schema on MySQL or the
+// "public" schema on PostgreSQL of the database at connString.
+func WipeDatabase(t *testing.T, dialect, connString string) {
+	switch dialect {
+	case "mysql":
+		wipeMySQL(t, connString)
+	case "postgres":
+		wipePostgres(t, connString)
+	default:
+		t.Fatalf("unsupported dialect %q", dialect)
+	}
+}
+
 func wipePostgres(t *testing.T, connString string) {
 	db, err := sql.Open("postgres", connString)
 	require.NoError(t, err)

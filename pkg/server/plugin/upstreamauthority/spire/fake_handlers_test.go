@@ -161,6 +161,13 @@ func (h *handler) appendKey(key *types.JWTKey) *types.Bundle {
 	return cloneBundle(h.bundle)
 }
 
+func (h *handler) appendWITKey(key *types.WITKey) *types.Bundle {
+	h.mtx.Lock()
+	defer h.mtx.Unlock()
+	h.bundle.WitAuthorities = append(h.bundle.WitAuthorities, key)
+	return cloneBundle(h.bundle)
+}
+
 func (h *handler) appendRootCA(rootCA *types.X509Certificate) *types.Bundle { //nolint: unparam // Keeping return for future use
 	h.mtx.Lock()
 	defer h.mtx.Unlock()
@@ -227,6 +234,17 @@ func (h *handler) PublishJWTAuthority(_ context.Context, req *bundlev1.PublishJW
 	b := h.appendKey(req.JwtAuthority)
 	return &bundlev1.PublishJWTAuthorityResponse{
 		JwtAuthorities: b.JwtAuthorities,
+	}, nil
+}
+
+func (h *handler) PublishWITAuthority(_ context.Context, req *bundlev1.PublishWITAuthorityRequest) (*bundlev1.PublishWITAuthorityResponse, error) {
+	if err := h.getError(); err != nil {
+		return nil, err
+	}
+
+	b := h.appendWITKey(req.WitAuthority)
+	return &bundlev1.PublishWITAuthorityResponse{
+		WitAuthorities: b.WitAuthorities,
 	}, nil
 }
 

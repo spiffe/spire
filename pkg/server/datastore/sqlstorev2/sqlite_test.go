@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"reflect"
 	"testing"
 
 	"github.com/sirupsen/logrus"
@@ -132,6 +133,46 @@ func TestReadOnlyConnection(t *testing.T) {
 	require.ErrorContains(t, ro.raw.Ping(), "database is closed")
 }
 
+func TestReadOnlyConnectionIsNotMigrated(t *testing.T) {
+	path := sqlitePath(t)
+	roPath := sqlitePath(t)
+	ds := newSQLitePlugin(t)
+	ds.dialectFor = func(databaseType string, log logrus.FieldLogger) (dialect, error) {
+		dia, err := newDialect(databaseType, log)
+		return readOnlyToROConnStringDialect{dia}, err
+	}
+	configure(t, ds, fmt.Sprintf(`
+		database_type = "sqlite3"
+		connection_string = %q
+		ro_connection_string = %q
+	`, path, roPath))
+
+	var tables int
+	require.NoError(t, ds.roDb.raw.QueryRow("SELECT COUNT(*) FROM sqlite_master WHERE type = 'table'").Scan(&tables))
+	require.Zero(t, tables)
+}
+
+func TestJoinModelOnExistingDatabase(t *testing.T) {
+	path := sqlitePath(t)
+	configure(t, newSQLitePlugin(t), fmt.Sprintf(`
+		database_type = "sqlite3"
+		connection_string = %q
+	`, path))
+
+	ds := newSQLitePlugin(t)
+	configure(t, ds, fmt.Sprintf(`
+		database_type = "sqlite3"
+		connection_string = %q
+		ro_connection_string = %q
+	`, path, path))
+	for _, db := range []*gorm.DB{ds.db.DB, ds.roDb.DB} {
+		stmt := &gorm.Statement{DB: db}
+		require.NoError(t, stmt.Parse(&RegisteredEntry{}))
+		joinTable := stmt.Schema.Relationships.Relations["FederatesWith"].JoinTable
+		require.Equal(t, reflect.TypeFor[FederatedRegistrationEntry](), joinTable.ModelType)
+	}
+}
+
 func TestFailedReconfigureKeepsConnections(t *testing.T) {
 	path := sqlitePath(t)
 	otherPath := sqlitePath(t)
@@ -237,4 +278,19 @@ func (d failReadOnlyDialect) connect(ctx context.Context, cfg *sqlcommon.Configu
 		*d.opened = append(*d.opened, db)
 	}
 	return db, version, supportsCTE, err
+}
+
+// readOnlyToROConnStringDialect opens read-only connections on
+// ro_connection_string, which the sqlite dialect otherwise ignores.
+type readOnlyToROConnStringDialect struct {
+	dialect
+}
+
+func (d readOnlyToROConnStringDialect) connect(ctx context.Context, cfg *sqlcommon.Configuration, isReadOnly bool) (*gorm.DB, string, bool, error) {
+	if isReadOnly {
+		roCfg := *cfg
+		roCfg.ConnectionString = cfg.RoConnectionString
+		cfg = &roCfg
+	}
+	return d.dialect.connect(ctx, cfg, isReadOnly)
 }

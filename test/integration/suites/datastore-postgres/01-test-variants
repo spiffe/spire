@@ -26,6 +26,24 @@ wait-ready() {
     fail-now "timed out waiting for ${service} to be ready"
 }
 
+# run-v2-tests runs the gorm v2 datastore tests against the database at the
+# given connection string. The output is checked because the tests skip,
+# rather than fail, when no database is configured.
+run-v2-tests() {
+    local out status expected passed
+    out=$(SQLSTORE_TEST_CONN_STRING="$1" ./postgres-v2.test -test.run ExternalDB -test.v 2>&1)
+    status=$?
+    echo "${out}"
+    [ "${status}" -eq 0 ] || return 1
+    expected=$(./postgres-v2.test -test.list ExternalDB | wc -l)
+    passed=$(grep -c -- "^--- PASS" <<< "${out}")
+    if grep -q -- "--- SKIP" <<< "${out}" || [ "${passed}" -ne "${expected}" ] || [ "${expected}" -eq 0 ]; then
+        echo "gorm v2 external database tests did not all run: ${passed} of ${expected} passed"
+        return 1
+    fi
+}
+export -f run-v2-tests
+
 services=()
 for version in "${VERSIONS[@]}"; do
     services+=("postgres-${version}")
@@ -46,5 +64,15 @@ done
 
 log-info "running tests against ${services[*]}..."
 run-concurrently "${runs[@]}"
+
+# The gorm v2 tests wipe the database too, so they run once the tests above
+# have finished with each instance.
+v2_runs=()
+for version in "${VERSIONS[@]}"; do
+    v2_runs+=("postgres-v2-${version}=run-v2-tests '$(conn-string "${version}")'")
+done
+
+log-info "running gorm v2 tests against ${services[*]}..."
+run-concurrently "${v2_runs[@]}"
 
 docker-stop "${services[@]}"

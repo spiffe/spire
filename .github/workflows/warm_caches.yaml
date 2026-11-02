@@ -34,12 +34,11 @@ jobs:
           - runs-on: ubuntu-22.04
             packages: ./...
             full: true
-          # Runner images of the integration test shards, which only compile
-          # the datastore test binaries.
+          # Runner image of the x64 integration test shards, which only compile
+          # the datastore test binaries. The arm64 shards compile them cold:
+          # their cache would cost 0.5 GB of the 10 GB repository budget for
+          # about a minute on three shards.
           - runs-on: ubuntu-24.04
-            packages: ./pkg/server/datastore/...
-            full: false
-          - runs-on: ubuntu-24.04-arm
             packages: ./pkg/server/datastore/...
             full: false
           - runs-on: macos-latest
@@ -51,11 +50,6 @@ jobs:
       - name: Setup go
         id: setup
         uses: ./.github/actions/setup-go
-      - name: Download modules
-        # Every job downloads the full module set so that the module cache,
-        # whose key is shared by all Linux jobs, is complete whichever job
-        # saves it first.
-        run: go mod download
       - name: Compile packages and tests
         run: |
           go build ${{ matrix.packages }}
@@ -70,7 +64,7 @@ jobs:
         if: matrix.full
         run: make install-toolchain install-protoc-gen-go-grpc install-protoc-gen-go-spire
       - name: Save Go module cache
-        if: steps.setup.outputs.gomod-cache-hit != 'true'
+        if: matrix.full && steps.setup.outputs.gomod-cache-hit != 'true'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ steps.setup.outputs.gomodcache }}
@@ -117,21 +111,13 @@ jobs:
           # Keep the Go toolchain installed by setup-go on PATH.
           path-type: inherit
           install: >-
-            git base-devel mingw-w64-ucrt-x86_64-toolchain unzip
-      - name: Download modules
-        run: go mod download
+            git base-devel mingw-w64-ucrt-x86_64-toolchain zip unzip
       - name: Compile packages and tests
         run: |
           go build ./...
           go test -run '^$' ./...
       - name: Lint
         run: make lint-code
-      - name: Save Go module cache
-        if: steps.setup.outputs.gomod-cache-hit != 'true'
-        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ${{ steps.setup.outputs.gomodcache }}
-          key: ${{ steps.setup.outputs.gomod-key }}
       - name: Save Go build cache
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:

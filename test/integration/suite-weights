@@ -3,24 +3,24 @@
 # every runner finishes at about the same time. Suites not listed here are
 # assumed to take 30 seconds. The values do not need to be exact. Update them
 # when a suite becomes much slower or faster.
-broker-api-k8s 270
-datastore-mysql-replication 270
-upstream-authority-ejbca 270
+datastore-mysql-replication 260
+upstream-authority-ejbca 250
+datastore-postgres 240
+datastore-mysql 230
+broker-api-k8s 220
 k8s-sigstore 200
-datastore-postgres-replication 180
+datastore-postgres-replication 190
 nested-rotation 170
-datastore-mysql 150
-datastore-postgres 150
 key-manager-vault 150
-upstream-authority-vault 140
+upstream-authority-vault 150
 envoy-sds-v3 120
 envoy-sds-v3-spiffe-auth 120
 upgrade 100
 agent-cli 85
 force-rotation-self-signed 80
 k8s 80
-key-manager-kmip 80
 agent-xds-failover 75
+key-manager-kmip 70
 upstream-authority-cert-manager 70
 rotation 55
 slurm-x509 50
