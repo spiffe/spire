@@ -19,6 +19,7 @@ type Config struct {
 	IgnoreTlog         bool
 	IgnoreAttestations bool
 	RegistryReferrers  bool
+	TrustedRootPath    string
 
 	Logger hclog.Logger
 }
@@ -56,6 +57,9 @@ type HCLConfig struct {
 	// RegistryReferrers specifies whether to look up sigstore bundles and signatures through the OCI 1.1 referrers API.
 	RegistryReferrers *bool `hcl:"registry_referrers,omitempty" json:"registry_referrers,omitempty"`
 
+	// TrustedRootPath is the path to a Sigstore trusted_root.json that verifies sigstore bundles instead of the TUF repository.
+	TrustedRootPath string `hcl:"trusted_root_path,omitempty" json:"trusted_root_path,omitempty"`
+
 	// RegistryCredentials is a map of credentials keyed by registry URL
 	RegistryCredentials map[string]*RegistryCredential `hcl:"registry_credentials,omitempty" json:"registry_credentials,omitempty"`
 }
@@ -85,6 +89,7 @@ func NewConfigFromHCL(hclConfig *HCLConfig, log hclog.Logger) *Config {
 	}
 
 	config.PublicKeyPaths = hclConfig.PublicKeyPaths
+	config.TrustedRootPath = hclConfig.TrustedRootPath
 
 	if hclConfig.SkippedImages != nil {
 		config.SkippedImages = make(map[string]struct{})

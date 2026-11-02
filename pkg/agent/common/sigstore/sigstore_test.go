@@ -345,6 +345,7 @@ func TestVerifyWithPublicKeyBundles(t *testing.T) {
 	require.NoError(t, verifierSetup.verifier.Init(context.Background()))
 	testBundle, sig := newKeyBundle(t, signer, nil, testImageDigest)
 	verifierSetup.fakeGetBundles.Bundles = []*sgbundle.Bundle{testBundle}
+	verifierSetup.fakeCosignVerifySignature.Responses = []fakeResponse{{Err: errors.New("no signatures found")}}
 
 	selectors, err := verifierSetup.verifier.Verify(context.Background(), testImageID)
 	require.NoError(t, err)
@@ -354,7 +355,7 @@ func TestVerifyWithPublicKeyBundles(t *testing.T) {
 		"image-signature-public-key-sha256:" + verifierSetup.verifier.publicKeys[1].fingerprint,
 		"image-signature-value:" + base64.StdEncoding.EncodeToString(sig),
 	}, selectors)
-	assert.Equal(t, 0, verifierSetup.fakeCosignVerifySignature.CallCount)
+	assert.Equal(t, 1, verifierSetup.fakeCosignVerifySignature.CallCount)
 	assert.Equal(t, 0, verifierSetup.fakeGetTrustedRoot.CallCount)
 }
 
@@ -403,7 +404,7 @@ func TestVerifyIgnoresSignStatementAttestations(t *testing.T) {
 	}
 }
 
-func TestVerifyWithKeylessBundles(t *testing.T) {
+func newTestTrustedRoot(t *testing.T) (*x509.Certificate, *ecdsa.PrivateKey, *root.TrustedRoot) {
 	now := time.Now()
 	caKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	require.NoError(t, err)
@@ -413,6 +414,73 @@ func TestVerifyWithKeylessBundles(t *testing.T) {
 	require.NoError(t, err)
 	ca, err := x509.ParseCertificate(caDER)
 	require.NoError(t, err)
+	trustedRoot, err := root.NewTrustedRoot(root.TrustedRootMediaType01,
+		[]root.CertificateAuthority{&root.FulcioCertificateAuthority{Root: ca, ValidityPeriodStart: now.Add(-time.Hour)}}, nil, nil, nil)
+	require.NoError(t, err)
+	return ca, caKey, trustedRoot
+}
+
+func TestInitTrustedRootSources(t *testing.T) {
+	_, _, trustedRoot := newTestTrustedRoot(t)
+	trustedRootJSON, err := trustedRoot.MarshalJSON()
+	require.NoError(t, err)
+	trustedRootPath := filepath.Join(t.TempDir(), "trusted_root.json")
+	require.NoError(t, os.WriteFile(trustedRootPath, trustedRootJSON, 0o600))
+
+	for _, tt := range []struct {
+		name     string
+		env      string
+		path     string
+		loaded   bool
+		tufCalls int
+	}{
+		{name: "TUF by default", loaded: true, tufCalls: 1},
+		{name: "trusted root file", path: trustedRootPath, loaded: true},
+		{name: "pinned roots", env: "SIGSTORE_ROOT_FILE"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.env != "" {
+				t.Setenv(tt.env, filepath.Join(t.TempDir(), "roots.pem"))
+			}
+			verifierSetup := setupVerifier()
+			verifierSetup.verifier.config.RegistryReferrers = true
+			verifierSetup.verifier.config.IgnoreTlog = true
+			verifierSetup.verifier.config.IgnoreSCT = true
+			verifierSetup.verifier.config.TrustedRootPath = tt.path
+			require.NoError(t, verifierSetup.verifier.Init(context.Background()))
+
+			assert.Equal(t, tt.loaded, verifierSetup.verifier.trustedRoot != nil)
+			assert.Equal(t, tt.tufCalls, verifierSetup.fakeGetTrustedRoot.CallCount)
+		})
+	}
+}
+
+func TestVerifyFallsBackToTagSignatures(t *testing.T) {
+	signer, err := ecdsa.GenerateKey(elliptic.P384(), rand.Reader)
+	require.NoError(t, err)
+	verifierSetup := setupVerifier()
+	verifierSetup.verifier.config.PublicKeyPaths = []string{newPublicKeyFile(t)}
+	verifierSetup.verifier.config.RegistryReferrers = true
+	verifierSetup.verifier.config.IgnoreTlog = true
+	verifierSetup.verifier.config.IgnoreAttestations = true
+	require.NoError(t, verifierSetup.verifier.Init(context.Background()))
+	otherKeyBundle, _ := newKeyBundle(t, signer, nil, testImageDigest)
+	verifierSetup.fakeGetBundles.Bundles = []*sgbundle.Bundle{otherKeyBundle}
+	verifierSetup.fakeCosignVerifySignature.Responses = []fakeResponse{
+		{Signatures: []oci.Signature{&fakeSignature{payload: createFakePayload(), base64Signature: "tagsignature"}}},
+	}
+
+	selectors, err := verifierSetup.verifier.Verify(context.Background(), testImageID)
+	require.NoError(t, err)
+
+	assert.Contains(t, selectors, "image-signature-value:tagsignature")
+	require.Len(t, verifierSetup.fakeCosignVerifySignature.Opts, 1)
+	assert.False(t, verifierSetup.fakeCosignVerifySignature.Opts[0].NewBundleFormat)
+}
+
+func TestVerifyWithKeylessBundles(t *testing.T) {
+	now := time.Now()
+	ca, caKey, trustedRoot := newTestTrustedRoot(t)
 	issuerV2, err := asn1.MarshalWithParams("https://issuer.test", "utf8")
 	require.NoError(t, err)
 	leafKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
@@ -423,9 +491,6 @@ func TestVerifyWithKeylessBundles(t *testing.T) {
 	leafDER, err := x509.CreateCertificate(rand.Reader, leafTemplate, ca, leafKey.Public(), caKey)
 	require.NoError(t, err)
 	leaf, err := x509.ParseCertificate(leafDER)
-	require.NoError(t, err)
-	trustedRoot, err := root.NewTrustedRoot(root.TrustedRootMediaType01,
-		[]root.CertificateAuthority{&root.FulcioCertificateAuthority{Root: ca, ValidityPeriodStart: now.Add(-time.Hour)}}, nil, nil, nil)
 	require.NoError(t, err)
 
 	for _, tt := range []struct {
@@ -448,6 +513,7 @@ func TestVerifyWithKeylessBundles(t *testing.T) {
 			require.NoError(t, verifierSetup.verifier.Init(context.Background()))
 			testBundle, _ := newKeyBundle(t, leafKey, leaf, testImageDigest)
 			verifierSetup.fakeGetBundles.Bundles = []*sgbundle.Bundle{testBundle}
+			verifierSetup.fakeCosignVerifySignature.Responses = []fakeResponse{{Err: errors.New("no signatures found")}}
 			verifierSetup.fakeCosignVerifyAttestations.Responses = append(verifierSetup.fakeCosignVerifyAttestations.Responses, struct {
 				Signatures     []oci.Signature
 				BundleVerified bool
@@ -487,11 +553,12 @@ func TestVerifyWithPublicKeyBundlesErrors(t *testing.T) {
 			require.NoError(t, verifierSetup.verifier.Init(context.Background()))
 			testBundle, _ := newKeyBundle(t, signer, nil, tt.digest)
 			verifierSetup.fakeGetBundles.Bundles = []*sgbundle.Bundle{testBundle}
+			verifierSetup.fakeCosignVerifySignature.Responses = []fakeResponse{{Err: errors.New("no signatures found")}}
 
 			_, err := verifierSetup.verifier.Verify(context.Background(), testImageID)
 			assert.ErrorContains(t, err, "no public key verified the image signatures")
 			assert.ErrorContains(t, err, "no sigstore bundle verified")
-			assert.Equal(t, 0, verifierSetup.fakeCosignVerifySignature.CallCount)
+			assert.ErrorContains(t, err, "no signatures found")
 		})
 	}
 }
