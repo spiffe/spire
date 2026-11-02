@@ -31,13 +31,8 @@ func TestWithTimeoutAppliesDeadline(t *testing.T) {
 
 func TestWithTimeoutDisabled(t *testing.T) {
 	att := loadV1Plugin(t, &fakeV1Plugin{payload: []byte("payload")})
-	// A non-positive timeout returns inner unchanged: the hang is only
-	// bounded by the parent context's own deadline.
-	wrapped := nodeattestor.WithTimeout(att, 0)
-	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
-	defer cancel()
-	err := wrapped.Attest(ctx, hangingServerStream{})
-	require.ErrorIs(t, err, context.DeadlineExceeded)
+	require.Same(t, att, nodeattestor.WithTimeout(att, 0))
+	require.Same(t, att, nodeattestor.WithTimeout(att, -time.Second))
 }
 
 func TestWithTimeoutForwardsPluginInfo(t *testing.T) {

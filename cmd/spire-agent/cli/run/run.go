@@ -106,6 +106,9 @@ type agentConfig struct {
 	AvailabilityTarget            string              `hcl:"availability_target"`
 	X509SVIDCacheMaxSize          int                 `hcl:"x509_svid_cache_max_size"`
 	JWTSVIDCacheMaxSize           int                 `hcl:"jwt_svid_cache_max_size"`
+	AttestTimeout                 string              `hcl:"attest_timeout"`
+	KeepaliveTime                 string              `hcl:"keepalive_time"`
+	KeepaliveTimeout              string              `hcl:"keepalive_timeout"`
 
 	AuthorizedDelegates []string `hcl:"authorized_delegates"`
 
@@ -276,9 +279,6 @@ type syncRetryBackoffConfig struct {
 type experimentalConfig struct {
 	SyncInterval              string `hcl:"sync_interval"`
 	JWTSVIDCacheHitTimeout    string `hcl:"jwt_svid_cache_hit_timeout"`
-	AttestTimeout             string `hcl:"attest_timeout"`
-	KeepaliveTime             string `hcl:"keepalive_time"`
-	KeepaliveTimeout          string `hcl:"keepalive_timeout"`
 	RPCTimeout                string `hcl:"rpc_timeout"`
 	MaxBundleWorkers          int    `hcl:"max_bundle_workers"`
 	NamedPipeName             string `hcl:"named_pipe_name"`
@@ -804,8 +804,8 @@ func newAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig, skip
 	}
 
 	attestTimeout := defaultAttestTimeout
-	if c.Agent.Experimental.AttestTimeout != "" {
-		timeout, err := time.ParseDuration(c.Agent.Experimental.AttestTimeout)
+	if c.Agent.AttestTimeout != "" {
+		timeout, err := time.ParseDuration(c.Agent.AttestTimeout)
 		if err != nil {
 			return nil, fmt.Errorf("could not parse attest_timeout: %w", err)
 		}
@@ -813,13 +813,12 @@ func newAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig, skip
 			return nil, fmt.Errorf("attest_timeout (%s) must not be negative", timeout)
 		}
 		attestTimeout = timeout
-		logger.Warn("The use of 'attest_timeout' is experimental")
 	}
 	ac.AttestTimeout = attestTimeout
 
 	pingTime, pingTimeout := defaultKeepaliveTime, defaultKeepaliveTimeout
-	if c.Agent.Experimental.KeepaliveTime != "" {
-		parsed, err := time.ParseDuration(c.Agent.Experimental.KeepaliveTime)
+	if c.Agent.KeepaliveTime != "" {
+		parsed, err := time.ParseDuration(c.Agent.KeepaliveTime)
 		if err != nil {
 			return nil, fmt.Errorf("could not parse keepalive_time: %w", err)
 		}
@@ -827,16 +826,14 @@ func newAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig, skip
 			return nil, fmt.Errorf("keepalive_time (%s) must not be negative", parsed)
 		}
 		pingTime = parsed
-		logger.Warn("The use of 'keepalive_time' is experimental")
 	}
 
-	if c.Agent.Experimental.KeepaliveTimeout != "" {
-		parsed, err := time.ParseDuration(c.Agent.Experimental.KeepaliveTimeout)
+	if c.Agent.KeepaliveTimeout != "" {
+		parsed, err := time.ParseDuration(c.Agent.KeepaliveTimeout)
 		if err != nil {
 			return nil, fmt.Errorf("could not parse keepalive_timeout: %w", err)
 		}
 		pingTimeout = parsed
-		logger.Warn("The use of 'keepalive_timeout' is experimental")
 	}
 
 	switch {

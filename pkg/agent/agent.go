@@ -51,8 +51,9 @@ const (
 	startHealthChecksTimeout         = 8 * time.Second
 	rebootstrapBackoffMaxElapsedTime = 24 * time.Hour
 	profilingServerShutdownTimeout   = 500 * time.Millisecond
-	workloadAPIHealthCheckTimeout    = 10 * time.Second
 )
+
+var workloadAPIHealthCheckTimeout = 10 * time.Second
 
 type Agent struct {
 	c       *Config
@@ -649,11 +650,10 @@ func (a *Agent) checkWorkloadAPI() error {
 	defer cancel()
 
 	_, err = workloadapi.FetchX509Bundles(ctx, clientOption)
-	switch {
-	case status.Code(err) == codes.Unavailable:
-		// Only an unavailable status fails the health check.
+	switch status.Code(err) {
+	case codes.Unavailable:
 		return errors.New("workload api is unavailable")
-	case errors.Is(err, context.DeadlineExceeded):
+	case codes.DeadlineExceeded:
 		return fmt.Errorf("workload api did not respond within %s", workloadAPIHealthCheckTimeout)
 	}
 	return nil

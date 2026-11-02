@@ -1864,7 +1864,7 @@ func TestNewAgentConfig(t *testing.T) {
 		{
 			msg: "attest_timeout sets the attestation timeout",
 			input: func(c *Config) {
-				c.Agent.Experimental.AttestTimeout = "90s"
+				c.Agent.AttestTimeout = "90s"
 			},
 			test: func(t *testing.T, ac *agent.Config) {
 				require.NotNil(t, ac)
@@ -1874,7 +1874,7 @@ func TestNewAgentConfig(t *testing.T) {
 		{
 			msg: "attest_timeout disables the timeout when zero",
 			input: func(c *Config) {
-				c.Agent.Experimental.AttestTimeout = "0"
+				c.Agent.AttestTimeout = "0"
 			},
 			test: func(t *testing.T, ac *agent.Config) {
 				require.NotNil(t, ac)
@@ -1886,7 +1886,7 @@ func TestNewAgentConfig(t *testing.T) {
 			expectError:        true,
 			requireErrorPrefix: "attest_timeout (-1s) must not be negative",
 			input: func(c *Config) {
-				c.Agent.Experimental.AttestTimeout = "-1s"
+				c.Agent.AttestTimeout = "-1s"
 			},
 			test: func(t *testing.T, ac *agent.Config) {
 				require.Nil(t, ac)
@@ -1959,7 +1959,7 @@ func TestNewAgentConfig(t *testing.T) {
 		{
 			msg: "keepalive_time sets the client keepalive interval",
 			input: func(c *Config) {
-				c.Agent.Experimental.KeepaliveTime = "30s"
+				c.Agent.KeepaliveTime = "30s"
 			},
 			test: func(t *testing.T, ac *agent.Config) {
 				require.NotNil(t, ac)
@@ -1971,7 +1971,7 @@ func TestNewAgentConfig(t *testing.T) {
 		{
 			msg: "keepalive_time disables keepalives when zero",
 			input: func(c *Config) {
-				c.Agent.Experimental.KeepaliveTime = "0"
+				c.Agent.KeepaliveTime = "0"
 			},
 			test: func(t *testing.T, ac *agent.Config) {
 				require.NotNil(t, ac)
@@ -1981,8 +1981,8 @@ func TestNewAgentConfig(t *testing.T) {
 		{
 			msg: "keepalive_timeout sets the ping timeout",
 			input: func(c *Config) {
-				c.Agent.Experimental.KeepaliveTime = "30s"
-				c.Agent.Experimental.KeepaliveTimeout = "10s"
+				c.Agent.KeepaliveTime = "30s"
+				c.Agent.KeepaliveTimeout = "10s"
 			},
 			test: func(t *testing.T, ac *agent.Config) {
 				require.NotNil(t, ac)
@@ -1996,8 +1996,8 @@ func TestNewAgentConfig(t *testing.T) {
 			expectError:        true,
 			requireErrorPrefix: "keepalive_timeout (0s) must be positive when keepalives are enabled",
 			input: func(c *Config) {
-				c.Agent.Experimental.KeepaliveTime = "30s"
-				c.Agent.Experimental.KeepaliveTimeout = "0"
+				c.Agent.KeepaliveTime = "30s"
+				c.Agent.KeepaliveTimeout = "0"
 			},
 			test: func(t *testing.T, ac *agent.Config) {
 				require.Nil(t, ac)
