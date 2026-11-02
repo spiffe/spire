@@ -226,7 +226,10 @@ func (v *ImageVerifier) Verify(ctx context.Context, imageID string) ([]string, e
 	}
 
 	if len(v.publicKeys) == 0 {
-		if detailsList, err = v.extractDetailsFromSignatures(signatures, ""); err != nil {
+		detailsList, err = extractDetailsFromSignatures(signatures, func(signature oci.Signature) (*signatureDetails, error) {
+			return extractSignatureDetails(signature, v.config.IgnoreTlog)
+		})
+		if err != nil {
 			return nil, fmt.Errorf("failed to extract details from signatures for image %q: %w", imageID, err)
 		}
 	}
@@ -269,7 +272,9 @@ func (v *ImageVerifier) verifySignaturesWithKeys(ctx context.Context, imageRef n
 			errs = append(errs, fmt.Errorf("public key %s: %w", key.fingerprint, err))
 			continue
 		}
-		details, err := v.extractDetailsFromSignatures(signatures, key.fingerprint)
+		details, err := extractDetailsFromSignatures(signatures, func(signature oci.Signature) (*signatureDetails, error) {
+			return extractKeySignatureDetails(signature, v.config.IgnoreTlog, key.fingerprint)
+		})
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to extract details from signatures for image %q: %w", imageRef.Name(), err)
 		}
@@ -310,16 +315,10 @@ func (v *ImageVerifier) verifyAttestations(ctx context.Context, imageRef name.Re
 	return attestations, nil
 }
 
-func (v *ImageVerifier) extractDetailsFromSignatures(signatures []oci.Signature, keyFingerprint string) ([]*signatureDetails, error) {
+func extractDetailsFromSignatures(signatures []oci.Signature, extract func(oci.Signature) (*signatureDetails, error)) ([]*signatureDetails, error) {
 	var detailsList []*signatureDetails
 	for _, signature := range signatures {
-		var details *signatureDetails
-		var err error
-		if keyFingerprint == "" {
-			details, err = extractSignatureDetails(signature, v.config.IgnoreTlog)
-		} else {
-			details, err = extractKeySignatureDetails(signature, v.config.IgnoreTlog, keyFingerprint)
-		}
+		details, err := extract(signature)
 		if err != nil {
 			return nil, err
 		}
@@ -344,7 +343,7 @@ func extractSignatureDetails(signature oci.Signature, ignoreTlog bool) (*signatu
 		return nil, fmt.Errorf("failed to extract issuer from certificate: %w", err)
 	}
 
-	details, err := extractKeySignatureDetails(signature, ignoreTlog, "")
+	details, err := extractBaseSignatureDetails(signature, ignoreTlog)
 	if err != nil {
 		return nil, err
 	}
@@ -353,8 +352,17 @@ func extractSignatureDetails(signature oci.Signature, ignoreTlog bool) (*signatu
 	return details, nil
 }
 
-// extractKeySignatureDetails extracts the details that do not depend on a Fulcio certificate.
 func extractKeySignatureDetails(signature oci.Signature, ignoreTlog bool, keyFingerprint string) (*signatureDetails, error) {
+	details, err := extractBaseSignatureDetails(signature, ignoreTlog)
+	if err != nil {
+		return nil, err
+	}
+	details.PublicKey = keyFingerprint
+	return details, nil
+}
+
+// extractBaseSignatureDetails extracts the details that keyless and key-based signatures share.
+func extractBaseSignatureDetails(signature oci.Signature, ignoreTlog bool) (*signatureDetails, error) {
 	if signature == nil {
 		return nil, errors.New("signature is nil")
 	}
@@ -383,7 +391,6 @@ func extractKeySignatureDetails(signature oci.Signature, ignoreTlog bool, keyFin
 	}
 
 	return &signatureDetails{
-		PublicKey:            keyFingerprint,
 		Signature:            base64Signature,
 		LogID:                logID,
 		LogIndex:             logIndex,
