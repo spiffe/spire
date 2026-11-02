@@ -151,6 +151,9 @@ const (
 	// AgentVersion is the version of the SPIRE agent
 	AgentVersion = "agent_version"
 
+	// AllowedIdentities tags the allowed identities of a verifier
+	AllowedIdentities = "allowed_identities"
+
 	// Attempt tags some count of attempts
 	Attempt = "attempt"
 

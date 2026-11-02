@@ -2,11 +2,14 @@ package sigstore
 
 import (
 	"context"
+	"crypto/sha256"
 	"crypto/x509"
 	"encoding/asn1"
 	"encoding/base64"
+	"encoding/hex"
 	"errors"
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -21,6 +24,7 @@ import (
 	"github.com/sigstore/rekor/pkg/client"
 	rekorclient "github.com/sigstore/rekor/pkg/generated/client"
 	"github.com/sigstore/sigstore/pkg/cryptoutils"
+	"github.com/sigstore/sigstore/pkg/signature"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 )
 
@@ -45,6 +49,7 @@ type ImageVerifier struct {
 
 	verificationCache sync.Map
 	allowedIdentities []cosign.Identity
+	publicKeys        []publicKey
 	authOptions       map[string]remote.Option
 
 	rekorClient         *rekorclient.Rekor
@@ -54,6 +59,11 @@ type ImageVerifier struct {
 	ctLogPublicKeys     *cosign.TrustedTransparencyLogPubKeys
 
 	sigstoreFunctions sigstoreFunctions
+}
+
+type publicKey struct {
+	verifier    signature.Verifier
+	fingerprint string
 }
 
 type sigstoreFunctions struct {
@@ -100,17 +110,26 @@ func NewVerifier(config *Config) *ImageVerifier {
 	return verifier
 }
 
-// Init prepares the verifier by retrieving the Fulcio certificates and Rekor and CT public keys.
+// Init loads the configured public keys, or else the Fulcio certificates and CT keys, and the Rekor public keys.
 func (v *ImageVerifier) Init(ctx context.Context) error {
 	var err error
-	v.fulcioRoots, err = v.sigstoreFunctions.getFulcioRoots()
-	if err != nil {
-		return fmt.Errorf("failed to get fulcio root certificates: %w", err)
-	}
+	if len(v.config.PublicKeyPaths) > 0 {
+		v.publicKeys, err = loadPublicKeys(v.config.PublicKeyPaths)
+		if err != nil {
+			return err
+		}
+		v.config.Logger.Info("Sigstore verifier uses public keys", telemetry.Count, len(v.publicKeys))
+	} else {
+		v.config.Logger.Info("Sigstore verifier uses keyless signatures", telemetry.AllowedIdentities, len(v.allowedIdentities))
+		v.fulcioRoots, err = v.sigstoreFunctions.getFulcioRoots()
+		if err != nil {
+			return fmt.Errorf("failed to get fulcio root certificates: %w", err)
+		}
 
-	v.fulcioIntermediates, err = v.sigstoreFunctions.getFulcioIntermediates()
-	if err != nil {
-		return fmt.Errorf("failed to get fulcio intermediate certificates: %w", err)
+		v.fulcioIntermediates, err = v.sigstoreFunctions.getFulcioIntermediates()
+		if err != nil {
+			return fmt.Errorf("failed to get fulcio intermediate certificates: %w", err)
+		}
 	}
 
 	if !v.config.IgnoreTlog {
@@ -124,7 +143,7 @@ func (v *ImageVerifier) Init(ctx context.Context) error {
 		}
 	}
 
-	if !v.config.IgnoreSCT {
+	if !v.config.IgnoreSCT && len(v.publicKeys) == 0 {
 		v.ctLogPublicKeys, err = v.sigstoreFunctions.getCTLogPublicKeys(ctx)
 		if err != nil {
 			return fmt.Errorf("failed to get CT log public keys: %w", err)
@@ -178,10 +197,18 @@ func (v *ImageVerifier) Verify(ctx context.Context, imageID string) ([]string, e
 		Identities:         v.allowedIdentities,
 		IgnoreSCT:          v.config.IgnoreSCT,
 		IgnoreTlog:         v.config.IgnoreTlog,
+		ExperimentalOCI11:  v.config.RegistryReferrers,
 		RegistryClientOpts: []cosignremote.Option{cosignremote.WithRemoteOptions(authOption)},
 	}
 
-	signatures, err := v.verifySignatures(ctx, imageRef, checkOptions)
+	var signatures []oci.Signature
+	var detailsList []*signatureDetails
+	attestationOptions := []*cosign.CheckOpts{checkOptions}
+	if len(v.publicKeys) == 0 {
+		signatures, err = v.verifySignatures(ctx, imageRef, checkOptions)
+	} else {
+		detailsList, attestationOptions, err = v.verifySignaturesWithKeys(ctx, imageRef, checkOptions)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -189,7 +216,7 @@ func (v *ImageVerifier) Verify(ctx context.Context, imageID string) ([]string, e
 	selectors := []string{imageSignatureVerifiedSelector}
 
 	if !v.config.IgnoreAttestations {
-		attestations, err := v.verifyAttestations(ctx, imageRef, checkOptions)
+		attestations, err := v.verifyAttestationsWithOptions(ctx, imageRef, attestationOptions)
 		if err != nil {
 			return nil, err
 		}
@@ -198,9 +225,13 @@ func (v *ImageVerifier) Verify(ctx context.Context, imageID string) ([]string, e
 		}
 	}
 
-	detailsList, err := v.extractDetailsFromSignatures(signatures)
-	if err != nil {
-		return nil, fmt.Errorf("failed to extract details from signatures for image %q: %w", imageID, err)
+	if len(v.publicKeys) == 0 {
+		detailsList, err = extractDetailsFromSignatures(signatures, func(signature oci.Signature) (*signatureDetails, error) {
+			return extractSignatureDetails(signature, v.config.IgnoreTlog)
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to extract details from signatures for image %q: %w", imageID, err)
+		}
 	}
 
 	selectors = append(selectors, formatDetailsAsSelectors(detailsList)...)
@@ -228,6 +259,47 @@ func (v *ImageVerifier) verifySignatures(ctx context.Context, imageRef name.Refe
 	return signatures, nil
 }
 
+// verifySignaturesWithKeys returns the details and check options of every key that verifies the image signatures.
+func (v *ImageVerifier) verifySignaturesWithKeys(ctx context.Context, imageRef name.Reference, checkOptions *cosign.CheckOpts) ([]*signatureDetails, []*cosign.CheckOpts, error) {
+	var detailsList []*signatureDetails
+	var keyOptionsList []*cosign.CheckOpts
+	var errs []error
+	for _, key := range v.publicKeys {
+		keyOptions := *checkOptions
+		keyOptions.SigVerifier = key.verifier
+		signatures, err := v.verifySignatures(ctx, imageRef, &keyOptions)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("public key %s: %w", key.fingerprint, err))
+			continue
+		}
+		details, err := extractDetailsFromSignatures(signatures, func(signature oci.Signature) (*signatureDetails, error) {
+			return extractKeySignatureDetails(signature, v.config.IgnoreTlog, key.fingerprint)
+		})
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to extract details from signatures for image %q: %w", imageRef.Name(), err)
+		}
+		detailsList = append(detailsList, details...)
+		keyOptionsList = append(keyOptionsList, &keyOptions)
+	}
+	if len(keyOptionsList) == 0 {
+		return nil, nil, fmt.Errorf("no public key verified the image signatures: %w", errors.Join(errs...))
+	}
+	return detailsList, keyOptionsList, nil
+}
+
+// verifyAttestationsWithOptions returns the attestations of the first check options that verify them.
+func (v *ImageVerifier) verifyAttestationsWithOptions(ctx context.Context, imageRef name.Reference, optionsList []*cosign.CheckOpts) ([]oci.Signature, error) {
+	var errs []error
+	for _, options := range optionsList {
+		attestations, err := v.verifyAttestations(ctx, imageRef, options)
+		if err == nil {
+			return attestations, nil
+		}
+		errs = append(errs, err)
+	}
+	return nil, errors.Join(errs...)
+}
+
 func (v *ImageVerifier) verifyAttestations(ctx context.Context, imageRef name.Reference, checkOptions *cosign.CheckOpts) ([]oci.Signature, error) {
 	v.config.Logger.Debug("Verifying image attestations", telemetry.ImageID, imageRef.Name())
 
@@ -243,10 +315,10 @@ func (v *ImageVerifier) verifyAttestations(ctx context.Context, imageRef name.Re
 	return attestations, nil
 }
 
-func (v *ImageVerifier) extractDetailsFromSignatures(signatures []oci.Signature) ([]*signatureDetails, error) {
+func extractDetailsFromSignatures(signatures []oci.Signature, extract func(oci.Signature) (*signatureDetails, error)) ([]*signatureDetails, error) {
 	var detailsList []*signatureDetails
 	for _, signature := range signatures {
-		details, err := extractSignatureDetails(signature, v.config.IgnoreTlog)
+		details, err := extract(signature)
 		if err != nil {
 			return nil, err
 		}
@@ -271,6 +343,30 @@ func extractSignatureDetails(signature oci.Signature, ignoreTlog bool) (*signatu
 		return nil, fmt.Errorf("failed to extract issuer from certificate: %w", err)
 	}
 
+	details, err := extractBaseSignatureDetails(signature, ignoreTlog)
+	if err != nil {
+		return nil, err
+	}
+	details.Subject = subject
+	details.Issuer = issuer
+	return details, nil
+}
+
+func extractKeySignatureDetails(signature oci.Signature, ignoreTlog bool, keyFingerprint string) (*signatureDetails, error) {
+	details, err := extractBaseSignatureDetails(signature, ignoreTlog)
+	if err != nil {
+		return nil, err
+	}
+	details.PublicKey = keyFingerprint
+	return details, nil
+}
+
+// extractBaseSignatureDetails extracts the details that keyless and key-based signatures share.
+func extractBaseSignatureDetails(signature oci.Signature, ignoreTlog bool) (*signatureDetails, error) {
+	if signature == nil {
+		return nil, errors.New("signature is nil")
+	}
+
 	base64Signature, err := signature.Base64Signature()
 	if err != nil {
 		return nil, fmt.Errorf("failed to extract base64 signature from certificate: %w", err)
@@ -285,7 +381,6 @@ func extractSignatureDetails(signature oci.Signature, ignoreTlog bool) (*signatu
 		if err != nil {
 			return nil, fmt.Errorf("failed to get signature rekor bundle: %w", err)
 		}
-
 		// cosign verifies a signature without a bundle through an online Rekor lookup.
 		if rekorBundle != nil {
 			logID = rekorBundle.Payload.LogID
@@ -296,8 +391,6 @@ func extractSignatureDetails(signature oci.Signature, ignoreTlog bool) (*signatu
 	}
 
 	return &signatureDetails{
-		Subject:              subject,
-		Issuer:               issuer,
 		Signature:            base64Signature,
 		LogID:                logID,
 		LogIndex:             logIndex,
@@ -360,6 +453,7 @@ func extractIssuer(cert *x509.Certificate) (string, error) {
 type signatureDetails struct {
 	Subject              string
 	Issuer               string
+	PublicKey            string
 	Signature            string
 	LogID                string
 	LogIndex             string
@@ -382,6 +476,9 @@ func detailsToSelectors(details *signatureDetails) []string {
 	}
 	if details.Issuer != "" {
 		selectors = append(selectors, fmt.Sprintf("image-signature-issuer:%s", details.Issuer))
+	}
+	if details.PublicKey != "" {
+		selectors = append(selectors, fmt.Sprintf("image-signature-public-key-sha256:%s", details.PublicKey))
 	}
 	if details.Signature != "" {
 		selectors = append(selectors, fmt.Sprintf("image-signature-value:%s", details.Signature))
@@ -453,4 +550,29 @@ func processAllowedIdentities(allowedIdentities map[string][]string) []cosign.Id
 func containsRegexChars(s string) bool {
 	// check for characters commonly used in regex.
 	return strings.ContainsAny(s, "*+?^${}[]|()")
+}
+
+func loadPublicKeys(paths []string) ([]publicKey, error) {
+	keys := make([]publicKey, 0, len(paths))
+	for _, path := range paths {
+		pemKey, err := os.ReadFile(path)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read public key %q: %w", path, err)
+		}
+		pub, err := cryptoutils.UnmarshalPEMToPublicKey(pemKey)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse public key %q: %w", path, err)
+		}
+		verifier, err := signature.LoadDefaultVerifier(pub)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load verifier for public key %q: %w", path, err)
+		}
+		der, err := x509.MarshalPKIXPublicKey(pub)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal public key %q: %w", path, err)
+		}
+		sum := sha256.Sum256(der)
+		keys = append(keys, publicKey{verifier: verifier, fingerprint: hex.EncodeToString(sum[:])})
+	}
+	return keys, nil
 }
