@@ -88,6 +88,7 @@ func TestHCLConfigValidate(t *testing.T) {
 	invalidKeyPath := filepath.Join(t.TempDir(), "invalid.pub")
 	require.NoError(t, os.WriteFile(invalidKeyPath, []byte("\n "), 0o600))
 	missingKeyPath := filepath.Join(t.TempDir(), "missing.pub")
+	_, missingKeyErr := os.ReadFile(missingKeyPath)
 
 	for _, tt := range []struct {
 		name string
@@ -109,8 +110,7 @@ func TestHCLConfigValidate(t *testing.T) {
 		{
 			name: "missing public key file",
 			hcl:  &HCLConfig{PublicKeyPaths: []string{missingKeyPath}},
-			err: fmt.Sprintf("sigstore public_key_paths: failed to read public key %q: open %s: no such file or directory",
-				missingKeyPath, missingKeyPath),
+			err:  fmt.Sprintf("sigstore public_key_paths: failed to read public key %q: %v", missingKeyPath, missingKeyErr),
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
