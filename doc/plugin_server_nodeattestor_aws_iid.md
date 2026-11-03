@@ -18,7 +18,10 @@ this plugin resolves the agent's AWS IID-based SPIFFE ID into a set of selectors
 | `skip_block_device`                  | Skip anti-tampering mechanism which checks to make sure that the underlying root volume has not been detached prior to attestation.                           | false                                                 |
 | `disable_instance_profile_selectors` | Disables retrieving the attesting instance profile information that is used in the selectors. Useful in cases where the server cannot reach iam.amazonaws.com | false                                                 |
 | `assume_role`                        | The role to assume                                                                                                                                            | Empty string, Optional parameter.                     |
-| `partition`                          | The AWS partition SPIRE server is running in &lt;aws&vert;aws-cn&vert;aws-us-gov&gt;                                                                          | aws                                                   |
+| `partition`                          | The AWS partition of the attested nodes, used to build the `assume_role` ARN &lt;aws&vert;aws-cn&vert;aws-us-gov&vert;aws-eusc&gt;                            | aws                                                   |
+| `web_identity_role_arn`              | IAM role to assume with `AssumeRoleWithWebIdentity` and `web_identity_token_file`. Cannot be combined with `access_key_id`; ignores the env access keys.      | Empty string, Optional parameter.                     |
+| `web_identity_token_file`            | Path to the web identity token file. Required with `web_identity_role_arn`.                                                                                   | Empty string, Optional parameter.                     |
+| `partitions`                         | Credentials for each AWS partition, to attest nodes from more than one partition [see below](#attesting-nodes-from-more-than-one-aws-partition)               |                                                       |
 | `verify_organization`                | Verify that nodes belong to a specified AWS Organization [see below](#enabling-aws-node-attestation-organization-validation)                                  |                                                       |
 | `validate_eks_cluster_membership`    | Verify that nodes belong to specified EKS clusters [see below](#enabling-aws-node-attestation-eks-cluster-validation)                                         |                                                       |
 
@@ -46,6 +49,41 @@ In the following configuration,
 ```
 
 assuming AWS IID document sent from the spire agent contains `accountId : 12345678`, the spire server will assume "arn:aws:iam::12345678:role/spire-server-delegate" role before making any AWS call for the node attestation. If `assume_role` is configured, the spire server will always assume the role even if the both the spire-server and the spire agent is deployed in the same account.
+
+## Attesting nodes from more than one AWS partition
+
+By default, all nodes are attested with the credentials and `partition` configured at the top level. To attest nodes from more than one AWS partition (e.g. commercial AWS and GovCloud), configure the credentials of each partition in a `partitions` block, keyed by partition name. The partition of a node is derived from the region in its instance identity document (`cn-` regions are in `aws-cn`, `us-gov-` regions in `aws-us-gov`, `eusc-` regions in `aws-eusc`, and all others in `aws`). Nodes from a partition without an entry are rejected before any AWS API call.
+
+Each entry accepts the following fields. `access_key_id`, `secret_access_key`, `assume_role`, `partition`, `web_identity_role_arn` and `web_identity_token_file` cannot be set at the top level together with `partitions`. The `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` environment variables are not copied into the entries as defaults. An entry without static credentials or a web identity role falls back to the AWS SDK default credential chain, which includes the environment, so those variables can still apply to it.
+
+| Field Name              | Description                                                                                                      | Constraints                                   |
+|-------------------------|------------------------------------------------------------------------------------------------------------------|-----------------------------------------------|
+| access_key_id           | AWS access key id for the partition                                                                              | optional, requires `secret_access_key`        |
+| secret_access_key       | AWS secret access key for the partition                                                                          | optional, requires `access_key_id`            |
+| web_identity_role_arn   | IAM role in the partition to assume with `AssumeRoleWithWebIdentity`                                             | optional, requires `web_identity_token_file`  |
+| web_identity_token_file | Path to the web identity token file                                                                              | optional, requires `web_identity_role_arn`    |
+| assume_role             | Role to assume in the node's account, as `arn:{{Partition}}:iam::{{AccountID}}:role/{{AssumeRole}}`              | optional                                      |
+
+Sample configuration:
+
+```hcl
+    NodeAttestor "aws_iid" {
+        plugin_data {
+            partitions = {
+                "aws" = {
+                    assume_role = "spire-server-delegate"
+                }
+                "aws-us-gov" = {
+                    web_identity_role_arn = "arn:aws-us-gov:iam::123456789012:role/spire-server"
+                    web_identity_token_file = "/var/run/secrets/spire-server/aws-us-gov-token"
+                    assume_role = "spire-server-delegate"
+                }
+            }
+        }
+    }
+```
+
+If `verify_organization` is enabled, the management account is accessed with the entry of the partition of `management_account_region`.
 
 ## Enabling AWS Node Attestation Organization Validation
 
