@@ -66,6 +66,7 @@ type ImageVerifier struct {
 	rekorPublicKeys     *cosign.TrustedTransparencyLogPubKeys
 	ctLogPublicKeys     *cosign.TrustedTransparencyLogPubKeys
 	trustedRoot         root.TrustedMaterial
+	bundleLookup        bool
 
 	sigstoreFunctions sigstoreFunctions
 }
@@ -166,7 +167,8 @@ func (v *ImageVerifier) Init(ctx context.Context) error {
 	}
 
 	// Bundles verify against the trusted root; like cosign, root files pinned through the environment skip the TUF fetch.
-	if v.config.RegistryReferrers && (len(v.publicKeys) == 0 || !v.config.IgnoreTlog) {
+	needsTrustedRoot := len(v.publicKeys) == 0 || !v.config.IgnoreTlog
+	if v.config.RegistryReferrers && needsTrustedRoot {
 		switch {
 		case v.config.TrustedRootPath != "":
 			v.trustedRoot, err = root.NewTrustedRootFromPath(v.config.TrustedRootPath)
@@ -177,6 +179,10 @@ func (v *ImageVerifier) Init(ctx context.Context) error {
 		if err != nil {
 			return fmt.Errorf("failed to get sigstore trusted root: %w", err)
 		}
+	}
+	v.bundleLookup = v.config.RegistryReferrers && (!needsTrustedRoot || v.trustedRoot != nil)
+	if v.config.RegistryReferrers && !v.bundleLookup {
+		v.config.Logger.Warn("Sigstore bundle lookup is off without a trusted root; set trusted_root_path to verify bundles")
 	}
 
 	return nil
@@ -234,7 +240,8 @@ func (v *ImageVerifier) Verify(ctx context.Context, imageID string) ([]string, e
 	var detailsList []*signatureDetails
 	attestationOptions := []*cosign.CheckOpts{checkOptions}
 	if len(v.publicKeys) == 0 {
-		detailsList, err = v.verifySignatures(ctx, imageRef, checkOptions, detailExtractors{
+		var usedBundles bool
+		detailsList, usedBundles, err = v.verifySignatures(ctx, imageRef, checkOptions, detailExtractors{
 			signature: func(signature oci.Signature) (*signatureDetails, error) {
 				return extractSignatureDetails(signature, v.config.IgnoreTlog)
 			},
@@ -242,7 +249,8 @@ func (v *ImageVerifier) Verify(ctx context.Context, imageID string) ([]string, e
 				return extractKeylessBundleDetails(b, v.config.IgnoreTlog)
 			},
 		})
-		if checkOptions.NewBundleFormat {
+		if usedBundles {
+			checkOptions.NewBundleFormat = true
 			attestationOptions = identityOptions(checkOptions)
 		}
 	} else {
@@ -277,42 +285,42 @@ type detailExtractors struct {
 	bundle    func(*sgbundle.Bundle) (*signatureDetails, error)
 }
 
-// verifySignatures returns the details of the verified image signatures, preferring sigstore bundle referrers.
-func (v *ImageVerifier) verifySignatures(ctx context.Context, imageRef name.Reference, checkOptions *cosign.CheckOpts, extract detailExtractors) ([]*signatureDetails, error) {
+// verifySignatures returns the details of the verified image signatures and whether sigstore bundles verified them.
+func (v *ImageVerifier) verifySignatures(ctx context.Context, imageRef name.Reference, checkOptions *cosign.CheckOpts, extract detailExtractors) ([]*signatureDetails, bool, error) {
 	v.config.Logger.Debug("Verifying image signatures", telemetry.ImageID, imageRef.Name())
 
 	var bundleErr error
-	if v.config.RegistryReferrers {
+	if v.bundleLookup {
 		bundles, hash, err := v.sigstoreFunctions.getBundles(ctx, imageRef, checkOptions.RegistryClientOpts)
 		if err == nil && len(bundles) > 0 {
 			bundleOptions := *checkOptions
 			bundleOptions.NewBundleFormat = true
 			details, err := v.verifyBundles(ctx, bundles, hash, &bundleOptions, extract.bundle)
 			if err == nil {
-				checkOptions.NewBundleFormat = true
-				return details, nil
+				return details, true, nil
 			}
 			bundleErr = err
 		}
+		v.config.Logger.Debug("Sigstore bundles did not verify the image, checking signatures", telemetry.ImageID, imageRef.Name(), telemetry.Error, errors.Join(err, bundleErr))
 	}
 
 	// Verify the image's signatures using cosign.VerifySignatures
 	signatures, bundleVerified, err := v.sigstoreFunctions.verifyImageSignatures(ctx, imageRef, checkOptions)
 	if err != nil {
-		return nil, errors.Join(bundleErr, fmt.Errorf("failed to verify signatures: %w", err))
+		return nil, false, errors.Join(bundleErr, fmt.Errorf("failed to verify signatures: %w", err))
 	}
 	if !bundleVerified && !v.config.IgnoreTlog {
-		return nil, fmt.Errorf("rekor bundle not verified for image: %s", imageRef.Name())
+		return nil, false, fmt.Errorf("rekor bundle not verified for image: %s", imageRef.Name())
 	}
 	if len(signatures) == 0 {
-		return nil, fmt.Errorf("no verified signature returned by cosign for image: %s", imageRef.Name())
+		return nil, false, fmt.Errorf("no verified signature returned by cosign for image: %s", imageRef.Name())
 	}
 
 	details, err := extractDetailsFromSignatures(signatures, extract.signature)
 	if err != nil {
-		return nil, fmt.Errorf("failed to extract details from signatures for image %q: %w", imageRef.Name(), err)
+		return nil, false, fmt.Errorf("failed to extract details from signatures for image %q: %w", imageRef.Name(), err)
 	}
-	return details, nil
+	return details, false, nil
 }
 
 // verifyBundles returns the details of every sigstore bundle that verifies for the image digest.
@@ -424,7 +432,7 @@ func (v *ImageVerifier) verifySignaturesWithKeys(ctx context.Context, imageRef n
 	for _, key := range v.publicKeys {
 		keyOptions := *checkOptions
 		keyOptions.SigVerifier = key.verifier
-		details, err := v.verifySignatures(ctx, imageRef, &keyOptions, detailExtractors{
+		details, usedBundles, err := v.verifySignatures(ctx, imageRef, &keyOptions, detailExtractors{
 			signature: func(signature oci.Signature) (*signatureDetails, error) {
 				return extractKeySignatureDetails(signature, v.config.IgnoreTlog, key.fingerprint)
 			},
@@ -436,6 +444,7 @@ func (v *ImageVerifier) verifySignaturesWithKeys(ctx context.Context, imageRef n
 			errs = append(errs, fmt.Errorf("public key %s: %w", key.fingerprint, err))
 			continue
 		}
+		keyOptions.NewBundleFormat = usedBundles
 		detailsList = append(detailsList, details...)
 		keyOptionsList = append(keyOptionsList, &keyOptions)
 	}
@@ -445,17 +454,22 @@ func (v *ImageVerifier) verifySignaturesWithKeys(ctx context.Context, imageRef n
 	return detailsList, keyOptionsList, nil
 }
 
-// verifyAttestationsWithOptions returns the attestations of the first check options that verify them.
+// verifyAttestationsWithOptions returns the attestations that any of the check options verify.
 func (v *ImageVerifier) verifyAttestationsWithOptions(ctx context.Context, imageRef name.Reference, optionsList []*cosign.CheckOpts) ([]oci.Signature, error) {
+	var all []oci.Signature
 	var errs []error
 	for _, options := range optionsList {
 		attestations, err := v.verifyAttestations(ctx, imageRef, options)
-		if err == nil {
-			return attestations, nil
+		if err != nil {
+			errs = append(errs, err)
+			continue
 		}
-		errs = append(errs, err)
+		all = append(all, attestations...)
 	}
-	return nil, errors.Join(errs...)
+	if len(errs) == len(optionsList) {
+		return nil, errors.Join(errs...)
+	}
+	return all, nil
 }
 
 func (v *ImageVerifier) verifyAttestations(ctx context.Context, imageRef name.Reference, checkOptions *cosign.CheckOpts) ([]oci.Signature, error) {

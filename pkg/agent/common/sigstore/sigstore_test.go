@@ -359,18 +359,19 @@ func TestVerifyWithPublicKeyBundles(t *testing.T) {
 	assert.Equal(t, 0, verifierSetup.fakeGetTrustedRoot.CallCount)
 }
 
+func newStatement(t *testing.T, predicateType string) oci.Signature {
+	body, err := json.Marshal(map[string]any{"_type": "https://in-toto.io/Statement/v1", "predicateType": predicateType})
+	require.NoError(t, err)
+	envelope, err := json.Marshal(dsse.Envelope{PayloadType: "application/vnd.in-toto+json", Payload: base64.StdEncoding.EncodeToString(body)})
+	require.NoError(t, err)
+	att, err := static.NewAttestation(envelope)
+	require.NoError(t, err)
+	return att
+}
+
 func TestVerifyIgnoresSignStatementAttestations(t *testing.T) {
-	statement := func(predicateType string) oci.Signature {
-		body, err := json.Marshal(map[string]any{"_type": "https://in-toto.io/Statement/v1", "predicateType": predicateType})
-		require.NoError(t, err)
-		envelope, err := json.Marshal(dsse.Envelope{PayloadType: "application/vnd.in-toto+json", Payload: base64.StdEncoding.EncodeToString(body)})
-		require.NoError(t, err)
-		att, err := static.NewAttestation(envelope)
-		require.NoError(t, err)
-		return att
-	}
-	signOnly := statement(cosigntypes.CosignSignPredicateType)
-	provenance := statement("https://slsa.dev/provenance/v1")
+	signOnly := newStatement(t, cosigntypes.CosignSignPredicateType)
+	provenance := newStatement(t, "https://slsa.dev/provenance/v1")
 
 	for _, tt := range []struct {
 		name         string
@@ -478,6 +479,30 @@ func TestVerifyFallsBackToTagSignatures(t *testing.T) {
 	assert.False(t, verifierSetup.fakeCosignVerifySignature.Opts[0].NewBundleFormat)
 }
 
+func TestVerifySkipsBundlesWithoutTrustedRoot(t *testing.T) {
+	t.Setenv("SIGSTORE_ROOT_FILE", filepath.Join(t.TempDir(), "roots.pem"))
+	signer, err := ecdsa.GenerateKey(elliptic.P384(), rand.Reader)
+	require.NoError(t, err)
+	verifierSetup := setupVerifier()
+	verifierSetup.verifier.config.PublicKeyPaths = []string{publicKeyFile(t, signer.Public())}
+	verifierSetup.verifier.config.RegistryReferrers = true
+	verifierSetup.verifier.config.IgnoreAttestations = true
+	verifierSetup.fakeGetRekorPubs.Response.PubKeys = &cosign.TrustedTransparencyLogPubKeys{}
+	verifierSetup.fakeGetRekorClient.Response.Client = &rekorclient.Rekor{}
+	require.NoError(t, verifierSetup.verifier.Init(context.Background()))
+	testBundle, _ := newKeyBundle(t, signer, nil, testImageDigest)
+	verifierSetup.fakeGetBundles.Bundles = []*sgbundle.Bundle{testBundle}
+	verifierSetup.fakeCosignVerifySignature.Responses = []fakeResponse{
+		{Signatures: []oci.Signature{&fakeSignature{payload: createFakePayload(), base64Signature: "tagsignature"}}, BundleVerified: true},
+	}
+
+	selectors, err := verifierSetup.verifier.Verify(context.Background(), testImageID)
+	require.NoError(t, err)
+
+	assert.Contains(t, selectors, "image-signature-value:tagsignature")
+	assert.Zero(t, verifierSetup.fakeGetBundles.CallCount)
+}
+
 func TestVerifyWithKeylessBundles(t *testing.T) {
 	now := time.Now()
 	ca, caKey, trustedRoot := newTestTrustedRoot(t)
@@ -493,13 +518,18 @@ func TestVerifyWithKeylessBundles(t *testing.T) {
 	leaf, err := x509.ParseCertificate(leafDER)
 	require.NoError(t, err)
 
+	twoIdentities := map[string][]string{"https://other.test": {"other@test"}, "https://issuer.test": {"dev@test"}}
 	for _, tt := range []struct {
-		name       string
-		identities map[string][]string
-		err        string
+		name         string
+		identities   map[string][]string
+		attestations [][]oci.Signature
+		attested     bool
+		err          string
 	}{
-		{name: "any identity when none is configured"},
-		{name: "second of two identities", identities: map[string][]string{"https://other.test": {"other@test"}, "https://issuer.test": {"dev@test"}}},
+		{name: "any identity when none is configured", attestations: [][]oci.Signature{nil}},
+		{name: "second of two identities", identities: twoIdentities, attestations: [][]oci.Signature{nil, nil}},
+		{name: "attestation from the other identity", identities: twoIdentities, attested: true,
+			attestations: [][]oci.Signature{{newStatement(t, cosigntypes.CosignSignPredicateType)}, {newStatement(t, "https://slsa.dev/provenance/v1")}}},
 		{name: "no matching identity", identities: map[string][]string{"https://other.test": {"other@test"}}, err: "no sigstore bundle verified"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -514,11 +544,13 @@ func TestVerifyWithKeylessBundles(t *testing.T) {
 			testBundle, _ := newKeyBundle(t, leafKey, leaf, testImageDigest)
 			verifierSetup.fakeGetBundles.Bundles = []*sgbundle.Bundle{testBundle}
 			verifierSetup.fakeCosignVerifySignature.Responses = []fakeResponse{{Err: errors.New("no signatures found")}}
-			verifierSetup.fakeCosignVerifyAttestations.Responses = append(verifierSetup.fakeCosignVerifyAttestations.Responses, struct {
-				Signatures     []oci.Signature
-				BundleVerified bool
-				Err            error
-			}{BundleVerified: true})
+			for _, attestations := range tt.attestations {
+				verifierSetup.fakeCosignVerifyAttestations.Responses = append(verifierSetup.fakeCosignVerifyAttestations.Responses, struct {
+					Signatures     []oci.Signature
+					BundleVerified bool
+					Err            error
+				}{Signatures: attestations, BundleVerified: true})
+			}
 
 			selectors, err := verifierSetup.verifier.Verify(context.Background(), testImageID)
 			if tt.err != "" {
@@ -527,6 +559,7 @@ func TestVerifyWithKeylessBundles(t *testing.T) {
 			}
 			require.NoError(t, err)
 			assert.Subset(t, selectors, []string{imageSignatureVerifiedSelector, "image-signature-subject:dev@test", "image-signature-issuer:https://issuer.test"})
+			assert.Equal(t, tt.attested, slices.Contains(selectors, imageAttestationsVerifiedSelector))
 			for _, opts := range verifierSetup.fakeCosignVerifyAttestations.Opts {
 				assert.Len(t, opts.Identities, 1)
 			}
@@ -1140,10 +1173,12 @@ func TestProcessAllowedIdentities(t *testing.T) {
 }
 
 type fakeGetBundlesFn struct {
-	Bundles []*sgbundle.Bundle
+	Bundles   []*sgbundle.Bundle
+	CallCount int
 }
 
 func (f *fakeGetBundlesFn) Get(_ context.Context, ref name.Reference, _ []cosignremote.Option, _ ...name.Option) ([]*sgbundle.Bundle, *v1.Hash, error) {
+	f.CallCount++
 	if len(f.Bundles) == 0 {
 		return nil, nil, errors.New("no bundles found")
 	}
