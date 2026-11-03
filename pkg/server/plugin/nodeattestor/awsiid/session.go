@@ -23,12 +23,15 @@ type SessionConfig struct {
 }
 
 func (cfg *SessionConfig) Validate(defaultAccessKeyID, defaultSecretAccessKey string) error {
-	if cfg.AccessKeyID == "" {
-		cfg.AccessKeyID = defaultAccessKeyID
-	}
+	// A configured web identity role wins over the default access keys from the environment.
+	if cfg.WebIdentityRoleARN == "" {
+		if cfg.AccessKeyID == "" {
+			cfg.AccessKeyID = defaultAccessKeyID
+		}
 
-	if cfg.SecretAccessKey == "" {
-		cfg.SecretAccessKey = defaultSecretAccessKey
+		if cfg.SecretAccessKey == "" {
+			cfg.SecretAccessKey = defaultSecretAccessKey
+		}
 	}
 
 	if cfg.Partition == "" {
@@ -50,6 +53,11 @@ func (cfg *SessionConfig) Validate(defaultAccessKeyID, defaultSecretAccessKey st
 	return nil
 }
 
+// newWebIdentitySTSClient creates the STS client used to assume the web identity role. Tests replace it.
+var newWebIdentitySTSClient = func(conf aws.Config) stscreds.AssumeRoleWithWebIdentityAPIClient {
+	return sts.NewFromConfig(conf)
+}
+
 // newAWSConfig creates an AWS config from the session config and given region
 func newAWSConfig(ctx context.Context, sessionConfig *SessionConfig, region, assumeRoleArn string) (aws.Config, error) {
 	var opts []func(*config.LoadOptions) error
@@ -67,7 +75,7 @@ func newAWSConfig(ctx context.Context, sessionConfig *SessionConfig, region, ass
 			return aws.Config{}, err
 		}
 		opts = append(opts, config.WithCredentialsProvider(aws.NewCredentialsCache(
-			stscreds.NewWebIdentityRoleProvider(sts.NewFromConfig(stsConf), sessionConfig.WebIdentityRoleARN,
+			stscreds.NewWebIdentityRoleProvider(newWebIdentitySTSClient(stsConf), sessionConfig.WebIdentityRoleARN,
 				stscreds.IdentityTokenFile(sessionConfig.WebIdentityTokenFile)))),
 		)
 	}

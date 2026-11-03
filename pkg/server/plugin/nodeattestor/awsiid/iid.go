@@ -750,6 +750,13 @@ func validateOrganizationConfig(config *IIDAttestorConfig) error {
 		if cfg.AccountRegion == "" {
 			cfg.AccountRegion = orgDefaultAccRegion
 		}
+
+		// The Organizations API is called with the credentials of the region's partition.
+		if len(config.Partitions) > 0 {
+			if _, ok := config.Partitions[partitionForRegion(cfg.AccountRegion)]; !ok {
+				return status.Errorf(codes.InvalidArgument, "%q %q is in partition %q, which has no entry in %q", orgAccRegion, cfg.AccountRegion, partitionForRegion(cfg.AccountRegion), "partitions")
+			}
+		}
 	}
 
 	// check TTL if specified

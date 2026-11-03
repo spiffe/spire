@@ -888,6 +888,47 @@ func TestConfigure(t *testing.T) {
 		spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, "\"assume_role\" cannot be set together with \"partitions\"")
 	})
 
+	t.Run("web identity takes precedence over environment credentials", func(t *testing.T) {
+		env[accessKeyIDVarName] = "ACCESSKEYID"
+		env[secretAccessKeyVarName] = "SECRETACCESSKEY"
+		defer func() {
+			delete(env, accessKeyIDVarName)
+			delete(env, secretAccessKeyVarName)
+		}()
+		err := doConfig(t, coreConfig, `
+		web_identity_role_arn = "arn:aws:iam::123456789012:role/spire-server"
+		web_identity_token_file = "/var/run/secrets/token"
+		`)
+		require.NoError(t, err)
+	})
+
+	t.Run("success with organization region in a configured partition", func(t *testing.T) {
+		err := doConfig(t, coreConfig, `
+		partitions = {
+			"aws-us-gov" = {}
+		}
+		verify_organization = {
+			management_account_id = "12345"
+			assume_org_role = "test-orgrole"
+			management_account_region = "us-gov-west-1"
+		}
+		`)
+		require.NoError(t, err)
+	})
+
+	t.Run("fails with organization region in a partition without an entry", func(t *testing.T) {
+		err := doConfig(t, coreConfig, `
+		partitions = {
+			"aws-us-gov" = {}
+		}
+		verify_organization = {
+			management_account_id = "12345"
+			assume_org_role = "test-orgrole"
+		}
+		`)
+		spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, `"management_account_region" "us-west-2" is in partition "aws", which has no entry in "partitions"`)
+	})
+
 	t.Run("environment credentials are not applied to partitions", func(t *testing.T) {
 		env[accessKeyIDVarName] = "ACCESSKEYID"
 		defer delete(env, accessKeyIDVarName)
