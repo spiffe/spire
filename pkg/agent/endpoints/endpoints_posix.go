@@ -15,7 +15,8 @@ func (e *Endpoints) createUDSListener() (net.Listener, error) {
 	os.Remove(e.addr.String())
 
 	unixListener := &peertracker.ListenerFactory{
-		Log: e.log,
+		Log:              e.log,
+		AllowUIDMismatch: e.allowUIDMismatch,
 	}
 
 	unixAddr, ok := e.addr.(*net.UnixAddr)
