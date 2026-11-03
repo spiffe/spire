@@ -666,10 +666,7 @@ func (s *Service) NewDownstreamX509CA(ctx context.Context, req *svidv1.NewDownst
 	}
 	requestedTTL := time.Duration(ttl) * time.Second
 	ca.WarnOnIncompatibleTTL(log.WithField(telemetry.SPIFFEID, x509CASvid[0].URIs[0].String()), s.caTTL, requestedTTL, "downstream_ca_ttl")
-	if requestedTTL <= 0 {
-		requestedTTL = s.caTTL
-	}
-	if x509CASvid[0].NotAfter.Add(time.Second).Before(requestedAt.Add(requestedTTL)) {
+	if requestedTTL > 0 && x509CASvid[0].NotAfter.Add(time.Second).Before(requestedAt.Add(requestedTTL)) {
 		log.WithFields(logrus.Fields{
 			telemetry.Alert:        true,
 			telemetry.AlertType:    telemetry.ShortenedLifetimeAlertType,
