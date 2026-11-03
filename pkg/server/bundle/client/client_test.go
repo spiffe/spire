@@ -27,7 +27,6 @@ var (
 )
 
 func TestClient(t *testing.T) {
-	// body whose total length is exactly maxBundleSize, to guard the +1/> boundary
 	wrapper := len(`{"spiffe_refresh_hint": 10, "pad": ""}`)
 	exactBody := `{"spiffe_refresh_hint": 10, "pad": "` + strings.Repeat("A", maxBundleSize-wrapper) + `"}`
 	require.Len(t, exactBody, maxBundleSize)
