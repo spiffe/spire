@@ -18,7 +18,6 @@ import (
 	svidstorev1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/agent/svidstore/v1"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/test/spiretest"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -44,7 +43,7 @@ func TestPutDeleteX509SVID(t *testing.T) {
 		CoreConfiguration: &configv1.CoreConfiguration{TrustDomain: "example.org"},
 		HclConfiguration:  `svids_path = "/tmp/svids"`,
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	require.NoError(t, err)
@@ -82,7 +81,7 @@ func TestPutDeleteX509SVID(t *testing.T) {
 	_, err = ssClient.DeleteX509SVID(ctx, &svidstorev1.DeleteX509SVIDRequest{
 		Metadata: []string{`name:workload`},
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	data, err = os.ReadFile("/tmp/svids")
 	require.NoError(t, err)

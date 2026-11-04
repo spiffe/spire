@@ -75,7 +75,7 @@ func TestNewVerifier(t *testing.T) {
 	verifier := NewVerifier(config)
 	require.NotNil(t, verifier)
 	require.NotNil(t, verifier.config.Logger)
-	require.Equal(t, verifier.config.RekorURL, publicRekorURL) // verify default public RekorURL
+	require.Equal(t, publicRekorURL, verifier.config.RekorURL) // verify default public RekorURL
 
 	identityPlainValues := cosign.Identity{
 		Issuer:  "test-issuer",
@@ -313,8 +313,8 @@ func TestVerifyWithPublicKeysErrors(t *testing.T) {
 			verifierSetup.fakeCosignVerifySignature.Responses = []fakeResponse{tt.response}
 
 			_, err := verifierSetup.verifier.Verify(context.Background(), testImageID)
-			assert.ErrorContains(t, err, tt.err)
-			assert.ErrorContains(t, err, "public key "+verifierSetup.verifier.publicKeys[0].fingerprint)
+			require.ErrorContains(t, err, tt.err)
+			require.ErrorContains(t, err, "public key "+verifierSetup.verifier.publicKeys[0].fingerprint)
 			assert.False(t, verifierSetup.fakeCosignVerifySignature.Opts[0].ExperimentalOCI11)
 		})
 	}
@@ -749,7 +749,7 @@ func TestVerify(t *testing.T) {
 				return
 			}
 
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.ElementsMatch(t, tt.expectedSelectors, selectors)
 		})
 	}

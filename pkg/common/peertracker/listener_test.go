@@ -112,9 +112,9 @@ func (p *ListenerTestSuite) TestAcceptDoesntFailWhenTrackerFails() {
 	case logEntry := <-logCh:
 		p.Require().NotNil(logEntry)
 		p.Require().Equal("Connection failed during accept", logEntry.Message)
-		logErr := logEntry.Data["error"]
-		p.Require().IsType(errors.New(""), logErr)
-		p.Require().EqualError(logErr.(error), "create new watcher failed")
+		logErr, ok := logEntry.Data["error"].(error)
+		p.Require().True(ok, "log field must contain an error")
+		p.Require().EqualError(logErr, "create new watcher failed")
 	case <-time.After(time.Second):
 		p.Require().Fail("waited too long for logs")
 	}

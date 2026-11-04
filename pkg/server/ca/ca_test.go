@@ -404,7 +404,8 @@ func (s *CATestSuite) TestSignWorkloadX509SVIDWithSubject() {
 	}
 
 	for _, testCase := range testCases {
-		s.T().Run(testCase.name, func(t *testing.T) {
+		s.Run(testCase.name, func() {
+			t := s.T()
 			params := s.createWorkloadX509SVIDParams()
 			params.Subject = testCase.subject
 			params.DNSNames = testCase.dns

@@ -3,12 +3,11 @@ package k8s
 import (
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-	authv1 "k8s.io/api/authentication/v1"
-
 	"github.com/go-jose/go-jose/v4"
 	"github.com/go-jose/go-jose/v4/jwt"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	authv1 "k8s.io/api/authentication/v1"
 )
 
 const (
@@ -61,7 +60,7 @@ func TestGetNamesFromTokenStatusFailIfUsernameIsEmpty(t *testing.T) {
 	namespace, serviceAccount, err := GetNamesFromTokenStatus(status)
 	assert.Empty(t, namespace)
 	assert.Empty(t, serviceAccount)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "empty username")
 }
 
@@ -70,7 +69,7 @@ func TestGetNamesFromTokenStatusFailIfUsernameHasWrongFormat(t *testing.T) {
 	namespace, serviceAccount, err := GetNamesFromTokenStatus(status)
 	assert.Empty(t, namespace)
 	assert.Empty(t, serviceAccount)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "unexpected username format")
 }
 
@@ -79,7 +78,7 @@ func TestGetNamesFromTokenStatusFailIfMissingNamespace(t *testing.T) {
 	namespace, serviceAccount, err := GetNamesFromTokenStatus(status)
 	assert.Empty(t, namespace)
 	assert.Empty(t, serviceAccount)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "missing namespace")
 }
 
@@ -88,7 +87,7 @@ func TestGetNamesFromTokenStatusFailIfMissingAccountName(t *testing.T) {
 	namespace, serviceAccount, err := GetNamesFromTokenStatus(status)
 	assert.Empty(t, namespace)
 	assert.Empty(t, serviceAccount)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "missing service account name")
 }
 
@@ -106,7 +105,7 @@ func TestGetPodNameFromTokenStatusFailsIfMissingPodNameValue(t *testing.T) {
 
 	podName, err := GetPodNameFromTokenStatus(status)
 	assert.Empty(t, podName)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "missing pod name")
 }
 
@@ -117,7 +116,7 @@ func TestGetPodNameFromTokenStatusFailsIfMoreThanOnePodNameExists(t *testing.T) 
 
 	podName, err := GetPodNameFromTokenStatus(status)
 	assert.Empty(t, podName)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "expected 1 name but got: 2")
 }
 
@@ -128,7 +127,7 @@ func TestGetPodNameFromTokenStatusFailsIfPodNameIsEmpty(t *testing.T) {
 
 	podName, err := GetPodNameFromTokenStatus(status)
 	assert.Empty(t, podName)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "pod name is empty")
 }
 
@@ -148,7 +147,7 @@ func TestGetPodUIDFromTokenStatusFailsIfMissingPodUIDValue(t *testing.T) {
 
 	podUID, err := GetPodUIDFromTokenStatus(status)
 	assert.Empty(t, podUID)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "missing pod UID")
 }
 
@@ -159,7 +158,7 @@ func TestGetPodUIDFromTokenStatusFailsIfMoreThanOnePodUIDExists(t *testing.T) {
 
 	podUID, err := GetPodUIDFromTokenStatus(status)
 	assert.Empty(t, podUID)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "expected 1 UID but got: 2")
 }
 
@@ -170,7 +169,7 @@ func TestGetPodUIDFromTokenStatusFailsIfPodUIDIsEmpty(t *testing.T) {
 
 	podUID, err := GetPodUIDFromTokenStatus(status)
 	assert.Empty(t, podUID)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "pod UID is empty")
 }
 

@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -75,7 +76,7 @@ func TestValidateChallenge(t *testing.T) {
 
 			testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
 				_, err := res.Write([]byte(tt.nonce))
-				require.NoError(t, err)
+				assert.NoError(t, err)
 			}))
 			defer func() { testServer.Close() }()
 

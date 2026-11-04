@@ -355,7 +355,7 @@ func TestWorkloadRateLimiterMetricsOnRejection(t *testing.T) {
 	require.Len(t, items, 1)
 	assert.Equal(t, fakemetrics.IncrCounterWithLabelsType, items[0].Type)
 	assert.Equal(t, []string{telemetry.WorkloadAPI, telemetry.RateLimitExceeded}, items[0].Key)
-	assert.Equal(t, float64(1), items[0].Val)
+	assert.InDelta(t, 1, items[0].Val, 1e-9)
 	require.Len(t, items[0].Labels, 1)
 	assert.Equal(t, telemetry.Method, items[0].Labels[0].Name)
 	// Label values are sanitized by the telemetry layer: '/' → '_'.

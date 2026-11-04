@@ -193,14 +193,14 @@ func Test_MintX509CA(t *testing.T) {
 				// Plugin does not support streaming back changes so assert the
 				// stream returns EOF.
 				_, streamErr := stream.RecvUpstreamX509Authorities()
-				assert.True(t, errors.Is(streamErr, io.EOF))
+				require.ErrorIs(t, streamErr, io.EOF)
 			}
 
 			// ensure that CertificateRequests are cleaned up
 			<-staleCRsDeleted
 			crList := &cmapi.CertificateRequestList{}
 			require.NoError(t, cmclient.List(context.TODO(), crList))
-			require.Len(t, crList.Items, 0, "expected no CertificateRequests to remain")
+			require.Empty(t, crList.Items, "expected no CertificateRequests to remain")
 		})
 	}
 }

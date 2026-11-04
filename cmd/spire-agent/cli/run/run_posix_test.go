@@ -135,7 +135,7 @@ func TestCommand_Run(t *testing.T) {
 			if testCase.want.agentUdsDirCreated {
 				assert.DirExistsf(t, testAgentSocketDir, "spire-agent uds dir should be created")
 				currentUmask := unix.Umask(0)
-				assert.Equalf(t, currentUmask, 0o027, "spire-agent process should be created with 0027 umask")
+				assert.Equalf(t, 0o027, currentUmask, "spire-agent process should be created with 0027 umask")
 			} else {
 				assert.NoDirExistsf(t, testAgentSocketDir, "spire-agent uds dir should not be created")
 			}
@@ -163,17 +163,17 @@ func TestParseFlagsGood(t *testing.T) {
 		"-allowUnauthenticatedVerifiers",
 	}, os.Stderr)
 	require.NoError(t, err)
-	assert.Equal(t, c.DataDir, ".")
-	assert.Equal(t, c.LogLevel, "INFO")
-	assert.Equal(t, c.ServerAddress, "127.0.0.1")
-	assert.Equal(t, c.ServerPort, 8081)
-	assert.Equal(t, c.SocketPath, "/tmp/spire-agent/public/api.sock")
+	assert.Equal(t, ".", c.DataDir)
+	assert.Equal(t, "INFO", c.LogLevel)
+	assert.Equal(t, "127.0.0.1", c.ServerAddress)
+	assert.Equal(t, 8081, c.ServerPort)
+	assert.Equal(t, "/tmp/spire-agent/public/api.sock", c.SocketPath)
 	assert.True(t, c.DisableWorkloadAPI)
 	assert.True(t, c.DisableSDSAPI)
-	assert.Equal(t, c.TrustBundlePath, "conf/agent/dummy_root_ca.crt")
-	assert.Equal(t, c.TrustBundleURL, "https://test.url")
-	assert.Equal(t, c.TrustDomain, "example.org")
-	assert.Equal(t, c.AllowUnauthenticatedVerifiers, true)
+	assert.Equal(t, "conf/agent/dummy_root_ca.crt", c.TrustBundlePath)
+	assert.Equal(t, "https://test.url", c.TrustBundleURL)
+	assert.Equal(t, "example.org", c.TrustDomain)
+	assert.True(t, c.AllowUnauthenticatedVerifiers)
 }
 
 func TestParseConfigGood(t *testing.T) {
@@ -186,7 +186,7 @@ func TestParseConfigGood(t *testing.T) {
 	assert.Equal(t, "/tmp/spire-agent/public/api.sock", c.Agent.SocketPath)
 	assert.Equal(t, "conf/agent/dummy_root_ca.crt", c.Agent.TrustBundlePath)
 	assert.Equal(t, "example.org", c.Agent.TrustDomain)
-	assert.Equal(t, true, c.Agent.AllowUnauthenticatedVerifiers)
+	assert.True(t, c.Agent.AllowUnauthenticatedVerifiers)
 	assert.Equal(t, []string{"c1", "c2", "c3"}, c.Agent.AllowedForeignJWTClaims)
 
 	// Parse/reprint cycle trims outer whitespace

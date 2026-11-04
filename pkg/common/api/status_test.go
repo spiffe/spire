@@ -15,10 +15,10 @@ import (
 )
 
 func TestOK(t *testing.T) {
-	require.Equal(t, api.OK(), &types.Status{
+	require.Equal(t, &types.Status{
 		Message: "OK",
 		Code:    int32(codes.OK),
-	})
+	}, api.OK())
 }
 
 func TestMakeStatus_OK(t *testing.T) {
@@ -30,7 +30,7 @@ func TestMakeStatus_OK(t *testing.T) {
 		Code:    int32(codes.OK),
 	}, sts)
 
-	require.Empty(t, len(hook.AllEntries()))
+	require.Empty(t, hook.AllEntries())
 }
 
 func TestMakeStatus_Error(t *testing.T) {
@@ -141,7 +141,7 @@ func TestMakeErr(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			log, hook := test.NewNullLogger()
 			err := api.MakeErr(log, tt.code, tt.msg, tt.err)
-			require.Equal(t, err, tt.expErr)
+			require.Equal(t, tt.expErr, err)
 			spiretest.AssertLogs(t, hook.AllEntries(), tt.expLog)
 		})
 	}

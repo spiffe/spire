@@ -52,7 +52,7 @@ func (s *HealthCheckSuite) TestHelp() {
 func (s *HealthCheckSuite) TestBadFlags() {
 	code := s.cmd.Run([]string{"-badflag"})
 	s.NotEqual(0, code, "exit code")
-	s.Equal("", s.stdout.String(), "stdout")
+	s.Empty(s.stdout.String(), "stdout")
 	s.Equal(`flag provided but not defined: -badflag
 `+healthcheckUsage, s.stderr.String(), "stderr")
 }
@@ -60,7 +60,7 @@ func (s *HealthCheckSuite) TestBadFlags() {
 func (s *HealthCheckSuite) TestFailsIfEndpointDoesNotExist() {
 	code := s.cmd.Run([]string{clitest.AddrArg, clitest.AddrValue})
 	s.NotEqual(0, code, "exit code")
-	s.Equal("", s.stdout.String(), "stdout")
+	s.Empty(s.stdout.String(), "stdout")
 	spiretest.AssertHasPrefix(s.T(), s.stderr.String(), "Error: server is unhealthy: unable to determine health\n")
 }
 
@@ -78,7 +78,7 @@ func (s *HealthCheckSuite) TestSucceedsIfServingStatusServing() {
 	code := s.cmd.Run([]string{clitest.AddrArg, clitest.GetAddr(addr)})
 	s.Equal(0, code, "exit code")
 	s.Equal("Server is healthy.\n", s.stdout.String(), "stdout")
-	s.Equal("", s.stderr.String(), "stderr")
+	s.Empty(s.stderr.String(), "stderr")
 }
 
 func (s *HealthCheckSuite) TestSucceedsIfServingStatusServingVerbose() {
@@ -90,7 +90,7 @@ func (s *HealthCheckSuite) TestSucceedsIfServingStatusServingVerbose() {
 	s.Equal(`Checking server health...
 Server is healthy.
 `, s.stdout.String(), "stdout")
-	s.Equal("", s.stderr.String(), "stderr")
+	s.Empty(s.stderr.String(), "stderr")
 }
 
 func (s *HealthCheckSuite) TestFailsIfServiceStatusOther() {

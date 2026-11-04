@@ -294,7 +294,7 @@ func (s *AttestorSuite) TestAttestSuccess() {
 	result, err := s.attestor.Attest(context.Background(), makePayload("FOO", token), expectNoChallenge)
 	s.Require().NoError(err)
 	s.Require().NotNil(result)
-	s.Require().Equal(result.AgentID, "spiffe://example.org/spire/agent/k8s_psat/FOO/NODEUID-1")
+	s.Require().Equal("spiffe://example.org/spire/agent/k8s_psat/FOO/NODEUID-1", result.AgentID)
 	s.RequireProtoListEqual([]*common.Selector{
 		{Type: "k8s_psat", Value: "cluster:FOO"},
 		{Type: "k8s_psat", Value: "agent_ns:NS1"},
@@ -324,7 +324,7 @@ func (s *AttestorSuite) TestAttestSuccess() {
 	result, err = s.attestor.Attest(context.Background(), makePayload("BAR", token), expectNoChallenge)
 	s.Require().NoError(err)
 	s.Require().NotNil(result)
-	s.Require().Equal(result.AgentID, "spiffe://example.org/spire/agent/k8s_psat/BAR/NODEUID-2")
+	s.Require().Equal("spiffe://example.org/spire/agent/k8s_psat/BAR/NODEUID-2", result.AgentID)
 	s.RequireProtoListEqual([]*common.Selector{
 		{Type: "k8s_psat", Value: "cluster:BAR"},
 		{Type: "k8s_psat", Value: "agent_ns:NS2"},

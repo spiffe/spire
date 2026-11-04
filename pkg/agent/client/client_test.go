@@ -343,7 +343,7 @@ func TestRenewSVID(t *testing.T) {
 				return
 			}
 
-			require.Nil(t, err)
+			require.NoError(t, err)
 			require.Equal(t, tt.expectSVID, svid)
 
 			assertConnectionIsNotNil(t, client)
@@ -646,7 +646,7 @@ func TestSyncUpdatesReleaseConnectionIfItFailsToFetch(t *testing.T) {
 	cachedBundles := make(map[string]*common.Bundle)
 	stats, err := client.SyncUpdates(ctx, cachedEntries, cachedBundles)
 	assert.Zero(t, stats)
-	assert.EqualError(t, err, "failed to fetch bundle: rpc error: code = Unknown desc = an error")
+	require.EqualError(t, err, "failed to fetch bundle: rpc error: code = Unknown desc = an error")
 	assertConnectionIsNil(t, client)
 }
 
@@ -659,7 +659,7 @@ func TestSyncUpdatesAddStructuredLoggingIfCallToFetchBundlesFails(t *testing.T) 
 	cachedBundles := make(map[string]*common.Bundle)
 	stats, err := client.SyncUpdates(ctx, cachedEntries, cachedBundles)
 	assert.Zero(t, stats)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assertConnectionIsNil(t, client)
 
 	var entries []spiretest.LogEntry
@@ -702,7 +702,7 @@ func TestSyncUpdatesWithManyFederations(t *testing.T) {
 	_, err := client.SyncUpdates(ctx, cachedEntries, cachedBundles)
 
 	// Assert results
-	require.Nil(t, err)
+	require.NoError(t, err)
 	wantBundles := map[string]*common.Bundle{
 		"spiffe://example.org": makeCommonBundle("example.org"),
 	}

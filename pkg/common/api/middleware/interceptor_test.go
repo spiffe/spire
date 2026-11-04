@@ -57,7 +57,7 @@ func testUnaryInterceptor(t *testing.T, makeInterceptor func(m middleware.Middle
 		// 1) Interceptor returned the response and no error
 		// 2) Preprocess was called
 		// 3) Postprocess was called with "handlerInvoked" and no error
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "response", resp)
 		assert.Equal(t, preprocessArgs{wrapCount: 0, req: "request", fullMethod: fakeFullMethod}, m.lastPreprocess)
 		assert.Equal(t, postprocessArgs{wrapCount: 1, fullMethod: fakeFullMethod, handlerInvoked: true, rpcErr: nil}, m.lastPostprocess)
@@ -130,7 +130,7 @@ func testStreamInterceptor(t *testing.T, makeInterceptor func(m middleware.Middl
 		// 1) Interceptor returned no error
 		// 2) Preprocess was called
 		// 3) Postprocess was called with "handlerInvoked" and no error
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, preprocessArgs{wrapCount: 0, req: nil, fullMethod: fakeFullMethod}, m.lastPreprocess)
 		assert.Equal(t, postprocessArgs{wrapCount: 1, fullMethod: fakeFullMethod, handlerInvoked: true, rpcErr: nil}, m.lastPostprocess)
 	})

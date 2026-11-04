@@ -126,7 +126,7 @@ func TestCache(t *testing.T) {
 	setNodeSelectors(ctx, t, ds, entryIDs[1], a1, b2)
 
 	cache, err := BuildFromDataStore(context.Background(), "example.org", ds)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	expected := entries[:3]
 	expected = append(expected, entries[4])
@@ -178,7 +178,7 @@ func TestCacheAfterRenamingTrustDomain(t *testing.T) {
 	setNodeSelectors(ctx, t, ds, "spiffe://example2.org/agent", a1, b2)
 
 	cache, err := BuildFromDataStore(context.Background(), "example2.org", ds)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	expected := entries[2:3]
 	assertAuthorizedEntries(t, cache, spiffeid.RequireFromString("spiffe://example2.org/agent"), entries, expected...)
@@ -259,7 +259,7 @@ func TestFullCacheNodeAliasing(t *testing.T) {
 	setNodeSelectors(ctx, t, ds, agentIDs[1].String(), s1, s3)
 
 	cache, err := BuildFromDataStore(context.Background(), "example.org", ds)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	assertAuthorizedEntries(t, cache, agentIDs[0], workloadEntries, workloadEntries[:2]...)
 	assertAuthorizedEntries(t, cache, agentIDs[1], workloadEntries, workloadEntries[1])
@@ -490,7 +490,7 @@ func TestBuildIteratorError(t *testing.T) {
 		agentIt := tt.agentIt
 		t.Run(tt.desc, func(t *testing.T) {
 			cache, err := Build(ctx, "example.org", entryIt, agentIt)
-			assert.Error(t, err)
+			require.Error(t, err)
 			assert.Nil(t, cache)
 		})
 	}
@@ -940,12 +940,12 @@ func TestLookupEntries(t *testing.T) {
 	cache, entries := setupLookupTest(t, 8)
 
 	found := cache.LookupAuthorizedEntries(agentID, make(map[string]struct{}))
-	require.Len(t, found, 0)
+	require.Empty(t, found)
 
 	found = cache.LookupAuthorizedEntries(agentID, map[string]struct{}{
 		"does-not-exist": {},
 	})
-	require.Len(t, found, 0)
+	require.Empty(t, found)
 
 	found = cache.LookupAuthorizedEntries(agentID, map[string]struct{}{
 		"does-not-exist": {},

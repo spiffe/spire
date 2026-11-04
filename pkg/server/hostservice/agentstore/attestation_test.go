@@ -8,20 +8,21 @@ import (
 	agentstorev1 "github.com/spiffe/spire-plugin-sdk/proto/spire/hostservice/server/agentstore/v1"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
 func TestEnsureNotAttested(t *testing.T) {
-	assert := assert.New(t)
+	require := require.New(t)
 	store := fakeAgentStore{}
 
 	err := EnsureNotAttested(context.Background(), store, "spiffe://domain.test/spire/agent/test/attested")
-	assert.EqualError(err, "agent has already attested")
+	require.EqualError(err, "agent has already attested")
 
 	err = EnsureNotAttested(context.Background(), store, "spiffe://domain.test/spire/agent/test/notattested")
-	assert.NoError(err)
+	require.NoError(err)
 
 	err = EnsureNotAttested(context.Background(), store, "spiffe://domain.test/spire/agent/test/bad")
 	spiretest.AssertGRPCStatus(t, err, codes.Unknown, "unable to get agent info: ohno")
@@ -29,14 +30,15 @@ func TestEnsureNotAttested(t *testing.T) {
 
 func TestIsAttested(t *testing.T) {
 	assert := assert.New(t)
+	require := require.New(t)
 	store := fakeAgentStore{}
 
 	attested, err := IsAttested(context.Background(), store, "spiffe://domain.test/spire/agent/test/attested")
-	assert.NoError(err)
+	require.NoError(err)
 	assert.True(attested)
 
 	attested, err = IsAttested(context.Background(), store, "spiffe://domain.test/spire/agent/test/notattested")
-	assert.NoError(err)
+	require.NoError(err)
 	assert.False(attested)
 
 	attested, err = IsAttested(context.Background(), store, "spiffe://domain.test/spire/agent/test/bad")

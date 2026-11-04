@@ -216,7 +216,7 @@ func (s *Suite) TestAttestWithBrokerCallerRunsBrokerRBACWhenEnforced() {
 	assert.Equal(s.T(), testBrokerID, review.Spec.User)
 	assert.Empty(s.T(), review.Spec.Groups)
 	if assert.NotNil(s.T(), review.Spec.ResourceAttributes) {
-		assert.Equal(s.T(), "", review.Spec.ResourceAttributes.Group)
+		assert.Empty(s.T(), review.Spec.ResourceAttributes.Group)
 		assert.Equal(s.T(), "pods", review.Spec.ResourceAttributes.Resource)
 		assert.Equal(s.T(), "default", review.Spec.ResourceAttributes.Namespace)
 		assert.Equal(s.T(), "blog-24ck7", review.Spec.ResourceAttributes.Name)
@@ -242,7 +242,7 @@ func (s *Suite) TestAttestWithPidInPodAfterRetry() {
 
 	select {
 	case result := <-resultCh:
-		s.Require().Nil(result.err)
+		s.Require().NoError(result.err)
 		s.requireSelectorsEqual(testPodAndContainerSelectors, result.selectors)
 	case <-time.After(time.Minute):
 		s.FailNow("timed out waiting for attest response")
@@ -935,7 +935,7 @@ func (s *Suite) TestConfigure() {
 				return
 			}
 			require.NotNil(t, testCase.config, "test case missing expected config")
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			c, _, _, err := p.getConfig()
 			require.NoError(t, err)
@@ -1971,7 +1971,7 @@ func (s *Suite) TestAttestReferenceWithPIDBrokerRBACAllowedWhenEnforced() {
 	assert.Equal(s.T(), testBrokerID, review.Spec.User)
 	assert.Empty(s.T(), review.Spec.Groups)
 	if assert.NotNil(s.T(), review.Spec.ResourceAttributes) {
-		assert.Equal(s.T(), "", review.Spec.ResourceAttributes.Group)
+		assert.Empty(s.T(), review.Spec.ResourceAttributes.Group)
 		assert.Equal(s.T(), "pods", review.Spec.ResourceAttributes.Resource)
 		assert.Equal(s.T(), "default", review.Spec.ResourceAttributes.Namespace)
 		assert.Equal(s.T(), "blog-24ck7", review.Spec.ResourceAttributes.Name)
@@ -2581,7 +2581,7 @@ func (s *Suite) TestAttestReferenceBrokerRBACUsesResolvedObject() {
 	assert.Equal(s.T(), testBrokerID, review.Spec.User)
 	assert.Empty(s.T(), review.Spec.Groups)
 	if assert.NotNil(s.T(), review.Spec.ResourceAttributes) {
-		assert.Equal(s.T(), "", review.Spec.ResourceAttributes.Group)
+		assert.Empty(s.T(), review.Spec.ResourceAttributes.Group)
 		assert.Equal(s.T(), "pods", review.Spec.ResourceAttributes.Resource)
 		assert.Equal(s.T(), "default", review.Spec.ResourceAttributes.Namespace)
 		assert.Equal(s.T(), "blog-24ck7", review.Spec.ResourceAttributes.Name)

@@ -220,7 +220,7 @@ func TestPutX509SVID(t *testing.T) {
 		},
 	}
 	payload, err := json.Marshal(secret)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	for _, tt := range []struct {
 		name            string

@@ -11,10 +11,8 @@ import (
 
 func TestEntryPoint(t *testing.T) {
 	assert.Equal(t,
-		NewEntryPoint(func(ctx context.Context, args []string) int { return 0 }).Main(),
-		0)
+		0, NewEntryPoint(func(ctx context.Context, args []string) int { return 0 }).Main())
 
 	assert.Equal(t,
-		NewEntryPoint(func(ctx context.Context, args []string) int { return 1 }).Main(),
-		1)
+		1, NewEntryPoint(func(ctx context.Context, args []string) int { return 1 }).Main())
 }

@@ -20,7 +20,7 @@ func TestPolicy(t *testing.T) {
 	// Make temp directory for testing NewEngineFromConfigOrDefault to load in config
 	// from file
 	tmpDir, err := os.MkdirTemp("", "spire-test")
-	require.Nil(t, err, "failed to create temp directory")
+	require.NoError(t, err, "failed to create temp directory")
 	defer os.RemoveAll(tmpDir) // clean up
 
 	for _, tt := range []struct {
@@ -232,7 +232,7 @@ func TestPolicy(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var json map[string]any
 			err := util.UnmarshalJSON([]byte(tt.jsonData), &json)
-			require.Nil(t, err, "failed to unmarshal data JSON")
+			require.NoError(t, err, "failed to unmarshal data JSON")
 
 			ctxIn := context.Background()
 			store := inmem.NewFromObject(json)
@@ -240,21 +240,21 @@ func TestPolicy(t *testing.T) {
 
 			// Check with NewEngineFromRego
 			pe, err := authpolicy.NewEngineFromRego(ctx, tt.rego, store)
-			require.Nil(t, err, "failed to create policy engine")
+			require.NoError(t, err, "failed to create policy engine")
 
 			res, err := pe.Eval(ctxIn, tt.input)
-			require.Nil(t, err, "failed to evaluate")
+			require.NoError(t, err, "failed to evaluate")
 
 			require.Equal(t, tt.expectResult, res)
 
 			// Check with NewEngineFromConfigOrDefault
 			regoFile := filepath.Join(tmpDir, "rego_file")
 			err = os.WriteFile(regoFile, []byte(tt.rego), 0o600)
-			require.Nil(t, err, "failed to create rego_file")
+			require.NoError(t, err, "failed to create rego_file")
 
 			permsFile := filepath.Join(tmpDir, "perms_file")
 			err = os.WriteFile(permsFile, []byte(tt.jsonData), 0o600)
-			require.Nil(t, err, "failed to create perms_file")
+			require.NoError(t, err, "failed to create perms_file")
 
 			ec := authpolicy.OpaEngineConfig{
 				LocalOpaProvider: &authpolicy.LocalOpaProviderConfig{
@@ -265,10 +265,10 @@ func TestPolicy(t *testing.T) {
 			log, _ := test.NewNullLogger()
 			pe, err = authpolicy.NewEngineFromConfigOrDefault(ctx, log, &ec)
 
-			require.Nil(t, err, "failed to create policy engine")
+			require.NoError(t, err, "failed to create policy engine")
 
 			res, err = pe.Eval(ctxIn, tt.input)
-			require.Nil(t, err, "failed to evaluate")
+			require.NoError(t, err, "failed to evaluate")
 
 			require.Equal(t, tt.expectResult, res)
 		})
@@ -283,7 +283,7 @@ func TestNewEngineFromConfig(t *testing.T) {
 	// Make temp directory for testing NewEngineFromConfigOrDefault to load in config
 	// from file
 	tmpDir, err := os.MkdirTemp("", "spire-test")
-	require.Nil(t, err, "failed to create temp directory")
+	require.NoError(t, err, "failed to create temp directory")
 	defer os.RemoveAll(tmpDir) // clean up
 
 	rego := simpleRego(map[string]bool{})
@@ -292,20 +292,20 @@ func TestNewEngineFromConfig(t *testing.T) {
 	// Create good policy/perms files
 	validRegoFile := filepath.Join(tmpDir, "valid_rego_file")
 	err = os.WriteFile(validRegoFile, []byte(rego), 0o600)
-	require.Nil(t, err, "failed to create valid_rego_file")
+	require.NoError(t, err, "failed to create valid_rego_file")
 
 	validPermsFile := filepath.Join(tmpDir, "valid_perms_file")
 	err = os.WriteFile(validPermsFile, []byte(jsonData), 0o600)
-	require.Nil(t, err, "failed to create valid_perms_file")
+	require.NoError(t, err, "failed to create valid_perms_file")
 
 	// Create bad policy/perms files
 	invalidRegoFile := filepath.Join(tmpDir, "invalid_rego_file")
 	err = os.WriteFile(invalidRegoFile, []byte("invalid rego"), 0o600)
-	require.Nil(t, err, "failed to create invalid_rego_file")
+	require.NoError(t, err, "failed to create invalid_rego_file")
 
 	invalidPermsFile := filepath.Join(tmpDir, "invalid_perms_file")
 	err = os.WriteFile(invalidPermsFile, []byte("{"), 0o600)
-	require.Nil(t, err, "failed to create invalid_perms_file")
+	require.NoError(t, err, "failed to create invalid_perms_file")
 
 	// Create permissions tmp file
 	for _, tt := range []struct {

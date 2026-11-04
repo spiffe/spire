@@ -164,7 +164,7 @@ func TestGcpCAS(t *testing.T) {
 
 	require.NotNil(t, x509Authorities)
 	// Confirm that we don't have unexpected CAs
-	require.Equal(t, 2, len(x509Authorities))
+	require.Len(t, x509Authorities, 2)
 	require.Equal(t, "caX", x509Authorities[0].Certificate.Subject.CommonName)
 	require.Equal(t, "caX", x509Authorities[0].Certificate.Issuer.CommonName)
 	// We intentionally return the root externalcaY rather than intermediate caZ
@@ -172,7 +172,7 @@ func TestGcpCAS(t *testing.T) {
 	require.Equal(t, "externalcaY", x509Authorities[1].Certificate.Issuer.CommonName)
 
 	require.NotNil(t, x509CA)
-	require.Equal(t, 1, len(x509CA))
+	require.Len(t, x509CA, 1)
 
 	require.Equal(t, "caX", x509CA[0].Issuer.CommonName)
 
@@ -259,7 +259,7 @@ func (client *fakeClient) CreateCertificate(_ context.Context, req *privatecapb.
 	commonName := req.Certificate.GetConfig().GetSubjectConfig().GetSubject().GetCommonName()
 	x509ca, _, err := generateCert(client.t, commonName, client.mockX509CAs[0][0],
 		*client.privKeyOfEarliestCA, 1 /* TTL */, testkey.NewEC256)
-	assert.NoError(client.t, err)
+	require.NoError(client.t, err)
 	assert.NotNil(client.t, x509ca)
 
 	ca := new(privatecapb.Certificate)

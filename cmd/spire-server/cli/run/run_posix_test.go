@@ -171,7 +171,7 @@ func TestCommand_Run(t *testing.T) {
 			if testCase.want.dataDirCreated != "" {
 				assert.DirExistsf(t, testCase.want.dataDirCreated, "data directory should be created")
 				currentUmask := unix.Umask(0)
-				assert.Equalf(t, currentUmask, 0o027, "spire-server process should have been created with 0027 umask")
+				assert.Equalf(t, 0o027, currentUmask, "spire-server process should have been created with 0027 umask")
 			} else {
 				assert.NoDirExistsf(t, testCase.want.dataDirCreated, "data directory should not be created")
 			}
@@ -187,10 +187,10 @@ func TestParseFlagsGood(t *testing.T) {
 		"-logLevel=INFO",
 	}, os.Stderr)
 	require.NoError(t, err)
-	assert.Equal(t, c.BindAddress, "127.0.0.1")
-	assert.Equal(t, c.SocketPath, "/tmp/flag.sock")
-	assert.Equal(t, c.TrustDomain, "example.org")
-	assert.Equal(t, c.LogLevel, "INFO")
+	assert.Equal(t, "127.0.0.1", c.BindAddress)
+	assert.Equal(t, "/tmp/flag.sock", c.SocketPath)
+	assert.Equal(t, "example.org", c.TrustDomain)
+	assert.Equal(t, "INFO", c.LogLevel)
 }
 
 func killServerOnStart(t *testing.T, testLogFile string) {
@@ -284,7 +284,7 @@ func newServerConfigCasesOS(t *testing.T) []newServerConfigCase {
 }
 
 func testParseConfigGoodOS(t *testing.T, c *Config) {
-	assert.Equal(t, c.Server.SocketPath, "/tmp/spire-server/private/api-test.sock")
+	assert.Equal(t, "/tmp/spire-server/private/api-test.sock", c.Server.SocketPath)
 }
 
 func getAvailablePort() (string, error) {

@@ -3446,7 +3446,7 @@ func FuzzSyncAuthorizedStreams(f *testing.F) {
 	}
 	recvEOF := func(tb testing.TB, stream entryv1.Entry_SyncAuthorizedEntriesClient) {
 		_, err := stream.Recv()
-		require.True(tb, errors.Is(err, io.EOF))
+		require.ErrorIs(tb, err, io.EOF)
 	}
 
 	const maxEntries = 40
@@ -3505,7 +3505,7 @@ func FuzzSyncAuthorizedStreams(f *testing.F) {
 		var actualIDs []string
 		for range calculatePageCount(totalEntries) - 1 {
 			resp := recvNoError(t, stream)
-			require.Equal(t, len(resp.EntryRevisions), entryPageSize)
+			require.Len(t, resp.EntryRevisions, entryPageSize)
 			require.Zero(t, resp.Entries)
 			require.True(t, resp.More)
 			actualIDs = appendEntryIDs(actualIDs, resp.EntryRevisions)
@@ -3528,7 +3528,7 @@ func FuzzSyncAuthorizedStreams(f *testing.F) {
 		actualIDs = actualIDs[:0]
 		for range calculatePageCount(len(staleIDs)) - 1 {
 			resp = recvNoError(t, stream)
-			require.Equal(t, len(resp.Entries), entryPageSize)
+			require.Len(t, resp.Entries, entryPageSize)
 			require.Zero(t, resp.EntryRevisions)
 			require.True(t, resp.More)
 			actualIDs = appendEntryIDs(actualIDs, resp.Entries)
@@ -4887,7 +4887,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 				Entries: tt.initialEntries,
 			})
 			require.NoError(t, err)
-			require.Equal(t, len(createResp.Results), len(tt.updateEntries))
+			require.Len(t, tt.updateEntries, len(createResp.Results))
 
 			// Then copy the IDs of the created entries onto the entries to be updated
 			spiffeToIDMap := make(map[string]string)
@@ -4915,7 +4915,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 				require.Nil(t, resp)
 				return
 			}
-			require.Equal(t, len(tt.updateEntries), len(resp.Results))
+			require.Len(t, resp.Results, len(tt.updateEntries))
 
 			// The updated entries contain IDs, which we don't know before running the test.
 			// To make things easy we set all the IDs to empty before checking the results.

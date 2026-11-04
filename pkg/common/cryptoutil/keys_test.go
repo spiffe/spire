@@ -21,15 +21,15 @@ func TestJoseAlgFromPublicKey(t *testing.T) {
 
 	algo, err = JoseAlgFromPublicKey(testkey.NewRSA2048(t).Public())
 	require.NoError(t, err)
-	require.Equal(t, algo, jose.RS256)
+	require.Equal(t, jose.RS256, algo)
 
 	algo, err = JoseAlgFromPublicKey(testkey.NewEC256(t).Public())
 	require.NoError(t, err)
-	require.Equal(t, algo, jose.ES256)
+	require.Equal(t, jose.ES256, algo)
 
 	algo, err = JoseAlgFromPublicKey(testkey.NewEC384(t).Public())
 	require.NoError(t, err)
-	require.Equal(t, algo, jose.ES384)
+	require.Equal(t, jose.ES384, algo)
 
 	algo, err = JoseAlgFromPublicKey(genEC(elliptic.P224()).Public())
 	require.EqualError(t, err, "unable to determine signature algorithm for EC public key size 224")

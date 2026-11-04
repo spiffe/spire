@@ -163,7 +163,7 @@ func TestToPluginFromAPIProto(t *testing.T) {
 
 	assertFail := func(t *testing.T, in *apitypes.Bundle, expectErr string) {
 		actualOut, err := bundle.ToPluginFromAPIProto(in)
-		spiretest.RequireErrorContains(t, err, expectErr)
+		require.ErrorContains(t, err, expectErr)
 		assert.Empty(t, actualOut)
 	}
 
@@ -184,7 +184,7 @@ func TestToCommonFromPluginProto(t *testing.T) {
 
 	assertFail := func(t *testing.T, in *plugintypes.Bundle, expectErr string) {
 		actualOut, err := bundle.ToCommonFromPluginProto(in)
-		spiretest.RequireErrorContains(t, err, expectErr)
+		require.ErrorContains(t, err, expectErr)
 		assert.Empty(t, actualOut)
 		assert.Panics(t, func() { bundle.RequireToCommonFromPluginProto(in) })
 	}
@@ -205,7 +205,7 @@ func TestToPluginProtoFromCommon(t *testing.T) {
 
 	assertFail := func(t *testing.T, in *common.Bundle, expectErr string) {
 		actualOut, err := bundle.ToPluginProtoFromCommon(in)
-		spiretest.RequireErrorContains(t, err, expectErr)
+		require.ErrorContains(t, err, expectErr)
 		assert.Empty(t, actualOut)
 	}
 
