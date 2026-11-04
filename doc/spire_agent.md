@@ -769,12 +769,14 @@ its plugin-level `experimental.broker` block is required for every reference typ
 skip those checks. The setting is required; there is no default.
 
 While an X.509-SVID subscription is open, the agent periodically re-attests
-the workload reference (currently every minute). This makes the stream follow
-selector changes when the same reference resolves differently over time, such
-as a pod recreated with a new UID or different labels, and terminates the
-stream with `NotFound`/`PermissionDenied` once the referenced object no longer
-exists or is no longer entitled. JWT-SVID fetches are unary and therefore
-re-attest the reference on every call.
+the workload reference: every 10 minutes by default, with 10% jitter. Both
+are configurable with `reattest_interval` and `reattest_jitter` in the
+`broker` block. This makes the stream follow selector changes when the same
+reference resolves differently over time, such as a pod recreated with a new
+UID or different labels, and terminates the stream with
+`NotFound`/`PermissionDenied` once the referenced object no longer exists or is
+no longer entitled. JWT-SVID fetches are unary and therefore re-attest the
+reference on every call.
 
 ### Transport and authentication
 
@@ -820,8 +822,10 @@ agent {
     ...
     experimental {
         broker {
-            socket_path  = "/run/spire/broker-sockets/broker.sock"  # POSIX UDS
-            bind_address = "0.0.0.0:8443"                           # optional TCP
+            socket_path       = "/run/spire/broker-sockets/broker.sock"  # POSIX UDS
+            bind_address      = "0.0.0.0:8443"                           # optional TCP
+            reattest_interval = "10m"                                    # default
+            reattest_jitter   = 0.1                                      # default
 
             brokers = [
                 {

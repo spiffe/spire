@@ -5,6 +5,7 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"math/rand"
 	"net"
 	"time"
 
@@ -44,7 +45,11 @@ func RegisterService(s *grpc.Server, service *Service) {
 // SPIFFE Broker API requires the server to stop sending responses once the
 // referenced workload is gone, so the reference must be re-resolved
 // periodically rather than only once at subscription time.
-const defaultReattestInterval = time.Minute
+const defaultReattestInterval = 10 * time.Minute
+
+// defaultReattestJitter is the fraction of the re-attestation interval used
+// to spread re-attestations out over time.
+const defaultReattestJitter = 0.1
 
 type Config struct {
 	Log      logrus.FieldLogger
@@ -63,6 +68,11 @@ type Config struct {
 	// defaultReattestInterval when unset.
 	ReattestInterval time.Duration
 
+	// ReattestJitter is the fraction of ReattestInterval used to jitter each
+	// re-attestation interval. Must be in the [0, 1) range. Defaults to
+	// defaultReattestJitter when unset.
+	ReattestJitter *float64
+
 	// Clock is used for re-attestation timing. Defaults to the system clock.
 	Clock clock.Clock
 }
@@ -71,6 +81,10 @@ func New(config Config) *Service {
 	reattestInterval := config.ReattestInterval
 	if reattestInterval <= 0 {
 		reattestInterval = defaultReattestInterval
+	}
+	reattestJitter := defaultReattestJitter
+	if config.ReattestJitter != nil {
+		reattestJitter = *config.ReattestJitter
 	}
 	clk := config.Clock
 	if clk == nil {
@@ -82,6 +96,7 @@ func New(config Config) *Service {
 		metrics:                       config.Metrics,
 		allowedReferenceTypesByCaller: config.AllowedReferenceTypesByCaller,
 		reattestInterval:              reattestInterval,
+		reattestJitter:                reattestJitter,
 		clock:                         clk,
 	}
 }
@@ -115,6 +130,7 @@ type Service struct {
 	metrics                       telemetry.Metrics
 	allowedReferenceTypesByCaller map[spiffeid.ID]ReferenceTypePolicy
 	reattestInterval              time.Duration
+	reattestJitter                float64
 	clock                         clock.Clock
 }
 
@@ -209,8 +225,35 @@ func (s *Service) SubscribeToX509SVID(req *broker.SubscribeToX509SVIDRequest, st
 	// finished even after re-attestation swaps it below.
 	defer func() { subscriber.Finish() }()
 
-	reattestTicker := s.clock.Ticker(s.reattestInterval)
-	defer reattestTicker.Stop()
+	// The reference can resolve to a different selector set over time (for
+	// example, a pod is recreated or its labels change), or stop resolving
+	// altogether. Re-attest it periodically and either move the subscription
+	// to the new selectors or terminate the stream.
+	reattest := func() error {
+		newSelectors, err := s.constructValidSelectorsFromReference(brokercontext.WithCallerID(ctx, peer), log, req.Reference)
+		if err != nil {
+			log.WithError(err).Error("Workload re-attestation failed")
+			return err
+		}
+		if selectorsEqual(selectors, newSelectors) {
+			return nil
+		}
+
+		log.WithField(telemetry.Selectors, newSelectors).Debug("Workload reference resolved to new selectors; resubscribing")
+
+		newSubscriber, err := s.manager.SubscribeToX509CacheChanges(ctx, newSelectors)
+		if err != nil {
+			log.WithError(err).Error("Subscribe to cache changes failed")
+			return err
+		}
+		subscriber.Finish()
+		subscriber = newSubscriber
+		selectors = newSelectors
+		return nil
+	}
+
+	reattestTimer := s.clock.Timer(s.jitteredReattestInterval())
+	defer reattestTimer.Stop()
 
 	for {
 		select {
@@ -225,34 +268,26 @@ func (s *Service) SubscribeToX509SVID(req *broker.SubscribeToX509SVIDRequest, st
 			if err := sendX509SVIDResponse(update, stream, log); err != nil {
 				return err
 			}
-		case <-reattestTicker.C:
-			// The reference can resolve to a different selector set over time
-			// (for example, a pod is recreated or its labels change), or stop
-			// resolving altogether. Re-attest it periodically and either move
-			// the subscription to the new selectors or terminate the stream.
-			newSelectors, err := s.constructValidSelectorsFromReference(brokercontext.WithCallerID(ctx, peer), log, req.Reference)
-			if err != nil {
-				log.WithError(err).Error("Workload re-attestation failed")
+		case <-reattestTimer.C:
+			if err := reattest(); err != nil {
 				return err
 			}
-			if selectorsEqual(selectors, newSelectors) {
-				continue
-			}
-
-			log.WithField(telemetry.Selectors, newSelectors).Debug("Workload reference resolved to new selectors; resubscribing")
-
-			newSubscriber, err := s.manager.SubscribeToX509CacheChanges(ctx, newSelectors)
-			if err != nil {
-				log.WithError(err).Error("Subscribe to cache changes failed")
-				return err
-			}
-			subscriber.Finish()
-			subscriber = newSubscriber
-			selectors = newSelectors
+			reattestTimer.Reset(s.jitteredReattestInterval())
 		case <-ctx.Done():
 			return nil
 		}
 	}
+}
+
+// jitteredReattestInterval returns the re-attestation interval with the
+// configured jitter so that streams established around the same time do not
+// re-attest at the same instant.
+func (s *Service) jitteredReattestInterval() time.Duration {
+	maxJitter := time.Duration(float64(s.reattestInterval) * s.reattestJitter)
+	if maxJitter <= 0 {
+		return s.reattestInterval
+	}
+	return s.reattestInterval + time.Duration(rand.Int63n(int64(2*maxJitter))) - maxJitter //nolint // gosec: no need for cryptographic randomness here
 }
 
 func (s *Service) SubscribeToX509Bundles(req *broker.SubscribeToX509BundlesRequest, stream broker.API_SubscribeToX509BundlesServer) error {
