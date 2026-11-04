@@ -719,8 +719,8 @@ func TestSubscribeToX509SVIDReattestation(t *testing.T) {
 			}, stream)
 		}()
 
-		clk.WaitForTicker(time.Second, "waiting for re-attestation ticker")
-		clk.Add(time.Minute)
+		clk.WaitForTimer(time.Second, "waiting for re-attestation timer")
+		clk.Add(time.Minute + time.Minute/10)
 
 		err := <-errCh
 		require.Error(t, err)
@@ -761,8 +761,8 @@ func TestSubscribeToX509SVIDReattestation(t *testing.T) {
 			}, stream)
 		}()
 
-		clk.WaitForTicker(time.Second, "waiting for re-attestation ticker")
-		clk.Add(time.Minute)
+		clk.WaitForTimer(time.Second, "waiting for re-attestation timer")
+		clk.Add(time.Minute + time.Minute/10)
 
 		resp := <-stream.sentCh
 		require.Len(t, resp.Svids, 1)
@@ -782,6 +782,31 @@ func TestSubscribeToX509SVIDReattestation(t *testing.T) {
 		assert.Equal(t, cache.Selectors{selectorBefore}, subscribed[0])
 		assert.Equal(t, cache.Selectors{selectorAfter}, subscribed[1])
 	})
+}
+
+func TestJitteredReattestInterval(t *testing.T) {
+	const interval = 10 * time.Minute
+
+	assertWithinJitter := func(t *testing.T, s *Service, jitter float64) {
+		maxJitter := time.Duration(float64(interval) * jitter)
+		for range 1000 {
+			got := s.jitteredReattestInterval()
+			assert.GreaterOrEqual(t, got, interval-maxJitter)
+			assert.LessOrEqual(t, got, interval+maxJitter)
+		}
+	}
+
+	defaultService := New(Config{ReattestInterval: interval})
+	assert.Equal(t, defaultReattestInterval, defaultService.reattestInterval)
+	assert.Equal(t, defaultReattestJitter, defaultService.reattestJitter)
+	assertWithinJitter(t, defaultService, defaultReattestJitter)
+
+	noJitter := 0.0
+	noJitterService := New(Config{ReattestInterval: interval, ReattestJitter: &noJitter})
+	assert.Equal(t, interval, noJitterService.jitteredReattestInterval())
+
+	customJitter := 0.5
+	assertWithinJitter(t, New(Config{ReattestInterval: interval, ReattestJitter: &customJitter}), customJitter)
 }
 
 func TestSelectorsEqual(t *testing.T) {
