@@ -5,6 +5,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"strconv"
 
 	"github.com/mitchellh/cli"
 	entryv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/entry/v1"
@@ -115,16 +116,24 @@ func (c *updateCommand) AppendFlags(f *flag.FlagSet) {
 	f.Var(&c.dnsNames, "dns", "A DNS name that will be included in SVIDs issued based on this entry, where appropriate. Can be used more than once")
 	f.StringVar(&c.hint, "hint", "", "The entry hint, used to disambiguate entries with the same SPIFFE ID")
 	f.BoolFunc("disableX509SVIDPrefetch", "A boolean value that, when set, disables prefetching X509 SVID for this entry",
-		func(_ string) error {
+		func(s string) error {
+			v, err := strconv.ParseBool(s)
+			if err != nil {
+				return err
+			}
 			c.disableX509SVIDPrefetchSet = true
-			c.disableX509SVIDPrefetch = true
+			c.disableX509SVIDPrefetch = v
 			c.additionalAttributesSet = true
 			return nil
 		})
 	f.BoolFunc("jwtSVIDIncludeJTI", "A boolean value that, when set, includes a unique 'jti' claim in JWT-SVIDs issued for this entry and bypasses the agent JWT-SVID cache",
-		func(_ string) error {
+		func(s string) error {
+			v, err := strconv.ParseBool(s)
+			if err != nil {
+				return err
+			}
 			c.jwtSVIDIncludeJTISet = true
-			c.jwtSVIDIncludeJTI = true
+			c.jwtSVIDIncludeJTI = v
 			c.additionalAttributesSet = true
 			return nil
 		})

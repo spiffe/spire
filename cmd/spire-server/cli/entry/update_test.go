@@ -984,6 +984,100 @@ JwtSvidIncludeJti       : true
 }`,
 		},
 		{
+			name: "Update clears additional attributes set to false",
+			args: []string{
+				"-entryID", "entry-id",
+				"-spiffeID", "spiffe://example.org/workload",
+				"-parentID", "spiffe://example.org/parent",
+				"-selector", "unix:uid:1",
+				"-disableX509SVIDPrefetch=false",
+				"-jwtSVIDIncludeJTI=false",
+			},
+			expGetReq: &entryv1.GetEntryRequest{Id: "entry-id"},
+			fakeGetResp: &types.Entry{
+				Id: "entry-id",
+				AdditionalAttributes: &types.Entry_AdditionalAttributes{
+					DisableX509SvidPrefetch: true,
+					JwtSvidIncludeJti:       true,
+				},
+			},
+			expReq: &entryv1.BatchUpdateEntryRequest{Entries: []*types.Entry{
+				{
+					Id:                   "entry-id",
+					SpiffeId:             &types.SPIFFEID{TrustDomain: "example.org", Path: "/workload"},
+					ParentId:             &types.SPIFFEID{TrustDomain: "example.org", Path: "/parent"},
+					Selectors:            []*types.Selector{{Type: "unix", Value: "uid:1"}},
+					AdditionalAttributes: &types.Entry_AdditionalAttributes{},
+				},
+			}},
+			fakeResp: &entryv1.BatchUpdateEntryResponse{
+				Results: []*entryv1.BatchUpdateEntryResponse_Result{
+					{
+						Status: &types.Status{Code: int32(codes.OK), Message: "OK"},
+						Entry: &types.Entry{
+							Id:                   "entry-id",
+							SpiffeId:             &types.SPIFFEID{TrustDomain: "example.org", Path: "/workload"},
+							ParentId:             &types.SPIFFEID{TrustDomain: "example.org", Path: "/parent"},
+							Selectors:            []*types.Selector{{Type: "unix", Value: "uid:1"}},
+							AdditionalAttributes: &types.Entry_AdditionalAttributes{},
+						},
+					},
+				},
+			},
+			expOutPretty: `Entry ID                : entry-id
+SPIFFE ID               : spiffe://example.org/workload
+Parent ID               : spiffe://example.org/parent
+Revision                : 0
+X509-SVID TTL           : default
+JWT-SVID TTL            : default
+Selector                : unix:uid:1
+
+`,
+			expOutJSON: `{
+  "results": [
+    {
+      "status": {
+        "code": 0,
+        "message": "OK"
+      },
+      "entry": {
+        "id": "entry-id",
+        "spiffe_id": {
+          "trust_domain": "example.org",
+          "path": "/workload"
+        },
+        "parent_id": {
+          "trust_domain": "example.org",
+          "path": "/parent"
+        },
+        "selectors": [
+          {
+            "type": "unix",
+            "value": "uid:1"
+          }
+        ],
+        "wit_svid_ttl": 0,
+        "x509_svid_ttl": 0,
+        "federates_with": [],
+        "admin": false,
+        "downstream": false,
+        "expires_at": "0",
+        "dns_names": [],
+        "revision_number": "0",
+        "store_svid": false,
+        "jwt_svid_ttl": 0,
+        "hint": "",
+        "created_at": "0",
+        "additional_attributes": {
+          "disable_x509_svid_prefetch": false,
+          "jwt_svid_include_jti": false
+        }
+      }
+    }
+  ]
+}`,
+		},
+		{
 			name: "Update with partial additional attribute aborts when GetEntry fails",
 			args: []string{
 				"-entryID", "entry-id",
