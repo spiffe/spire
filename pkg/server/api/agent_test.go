@@ -76,7 +76,7 @@ func TestProtoFromAttestedNode(t *testing.T) {
 				return
 			}
 
-			require.Nil(t, err)
+			require.NoError(t, err)
 			spiretest.RequireProtoEqual(t, tt.expectAgent, a)
 		})
 	}

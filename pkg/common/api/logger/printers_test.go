@@ -74,9 +74,9 @@ func TestPrettyPrintLogger(t *testing.T) {
 				Stdout: &tt.outWriter,
 				Stderr: &tt.errWriter,
 			}
-			require.Equal(t, logger.PrettyPrintLogger(tt.env, tt.logger), tt.expectedError)
-			require.Equal(t, tt.outWriter.String(), tt.expectedStdout)
-			require.Equal(t, tt.errWriter.String(), tt.expectedStderr)
+			require.Equal(t, tt.expectedError, logger.PrettyPrintLogger(tt.env, tt.logger))
+			require.Equal(t, tt.expectedStdout, tt.outWriter.String())
+			require.Equal(t, tt.expectedStderr, tt.errWriter.String())
 		})
 	}
 }

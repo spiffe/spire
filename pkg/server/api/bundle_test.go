@@ -346,7 +346,7 @@ func TestHashByte(t *testing.T) {
 	require.NotEmpty(t, resp)
 
 	resp = api.HashByte([]byte{})
-	require.Equal(t, "", resp)
+	require.Empty(t, resp)
 }
 
 func TestFieldsFromBundleProto(t *testing.T) {

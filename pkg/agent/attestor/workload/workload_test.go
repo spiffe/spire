@@ -76,22 +76,22 @@ func (s *WorkloadAttestorTestSuite) TestAttestWorkload() {
 
 	// both attestors succeed but with no selectors
 	selectors, err := s.attestor.Attest(ctx, 1)
-	s.Nil(err)
+	s.Require().NoError(err)
 	s.Empty(selectors)
 
 	// attestor1 has selectors, but not attestor2
 	selectors, err = s.attestor.Attest(ctx, 2)
-	s.Nil(err)
+	s.Require().NoError(err)
 	spiretest.AssertProtoListEqual(s.T(), selectors1, selectors)
 
 	// attestor2 has selectors, attestor1 fails
 	selectors, err = s.attestor.Attest(ctx, 3)
-	s.Nil(err)
+	s.Require().NoError(err)
 	spiretest.AssertProtoListEqual(s.T(), selectors2, selectors)
 
 	// both have selectors
 	selectors, err = s.attestor.Attest(ctx, 4)
-	s.Nil(err)
+	s.Require().NoError(err)
 	util.SortSelectors(selectors)
 	combined := slices.Concat(selectors1, selectors2)
 	util.SortSelectors(combined)
@@ -99,10 +99,10 @@ func (s *WorkloadAttestorTestSuite) TestAttestWorkload() {
 
 	// neither attestor can attest the workload
 	selectors, err = s.attestor.Attest(ctx, 5)
-	spiretest.AssertErrorContains(s.T(), err, `workload attestor "fake1" failed`)
-	spiretest.AssertErrorContains(s.T(), err, `workloadattestor(fake1): cannot attest pid 5`)
-	spiretest.AssertErrorContains(s.T(), err, `workload attestor "fake2" failed`)
-	spiretest.AssertErrorContains(s.T(), err, `workloadattestor(fake2): cannot attest pid 5`)
+	s.Require().ErrorContains(err, `workload attestor "fake1" failed`)
+	s.Require().ErrorContains(err, `workloadattestor(fake1): cannot attest pid 5`)
+	s.Require().ErrorContains(err, `workload attestor "fake2" failed`)
+	s.Require().ErrorContains(err, `workloadattestor(fake2): cannot attest pid 5`)
 	s.Nil(selectors)
 }
 
@@ -113,7 +113,7 @@ func (s *WorkloadAttestorTestSuite) TestAttestLogsOnPartialFailure() {
 	)
 
 	selectors, err := s.attestor.Attest(ctx, 3)
-	s.Nil(err)
+	s.Require().NoError(err)
 	spiretest.AssertProtoListEqual(s.T(), selectors2, selectors)
 	spiretest.AssertLogsAnyOrder(s.T(), s.loggerHook.AllEntries(), []spiretest.LogEntry{
 		{
@@ -174,7 +174,7 @@ func (s *WorkloadAttestorTestSuite) TestAttestWorkloadMetrics() {
 	s.attestor.c.Metrics = metrics
 
 	selectors, err := s.attestor.Attest(ctx, 2)
-	s.Nil(err)
+	s.Require().NoError(err)
 
 	// Create expected metrics
 	expected := fakemetrics.New()
@@ -192,8 +192,8 @@ func (s *WorkloadAttestorTestSuite) TestAttestWorkloadMetrics() {
 
 	// No selectors expected
 	selectors, err = s.attestor.Attest(ctx, 3)
-	spiretest.AssertErrorContains(s.T(), err, `workload attestor "fake1" failed`)
-	spiretest.AssertErrorContains(s.T(), err, `workloadattestor(fake1): cannot attest pid 3`)
+	s.Require().ErrorContains(err, `workload attestor "fake1" failed`)
+	s.Require().ErrorContains(err, `workloadattestor(fake1): cannot attest pid 3`)
 	s.Empty(selectors)
 
 	// Create expected metrics with error key
@@ -244,8 +244,8 @@ func (s *WorkloadAttestorTestSuite) TestAttestLogsOnContextCancellation() {
 	// Wait for attestation goroutine to complete execution
 	<-attestCh
 
-	s.Assert().Nil(selectors)
-	s.Assert().Error(attestErr)
+	s.Nil(selectors)
+	s.Require().Error(attestErr)
 	spiretest.AssertLogsAnyOrder(s.T(), s.loggerHook.AllEntries(), []spiretest.LogEntry{
 		{
 			Level:   logrus.ErrorLevel,

@@ -13,7 +13,7 @@ import (
 func TestResetHelp(t *testing.T) {
 	test := setupCliTest(t, &mockLoggerService{}, logger.NewResetCommandWithEnv)
 	test.client.Help()
-	require.Equal(t, "", test.stdout.String())
+	require.Empty(t, test.stdout.String())
 	require.Equal(t, resetUsage, test.stderr.String())
 }
 

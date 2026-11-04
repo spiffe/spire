@@ -80,9 +80,9 @@ func (s *UpstreamCASuite) TestSignCSRSuccess() {
 	cert, err := s.upstreamCA.SignCSR(context.Background(), csr, 0)
 	s.Require().NoError(err)
 
-	s.Require().EqualValues(cert.URIs, []*url.URL{
+	s.Require().Equal([]*url.URL{
 		{Scheme: "spiffe", Host: "example.org"},
-	})
+	}, cert.URIs)
 	s.Require().True(cert.IsCA)
 	s.Require().Equal("COMMONNAME", cert.Subject.CommonName)
 	s.Require().NotEmpty(cert.SubjectKeyId)
@@ -136,12 +136,12 @@ func (s *UpstreamCASuite) TestSignCSRKeepsRDNorder() {
 	s.Require().Len(rdns, 6, "Subject RDN should have 6 parts (C,O,3OU,CN)")
 
 	// RDNs are in reverse order
-	s.Assert().Equal("C=US", rdns[5])
-	s.Assert().Equal("O=SPIRE", rdns[4])
-	s.Assert().Equal("OU=ABC Unit", rdns[3])
-	s.Assert().Equal("OU=DEF:Department", rdns[2])
-	s.Assert().Equal("OU=example.com", rdns[1])
-	s.Assert().Equal("CN=COMMONNAME", rdns[0])
+	s.Equal("C=US", rdns[5])
+	s.Equal("O=SPIRE", rdns[4])
+	s.Equal("OU=ABC Unit", rdns[3])
+	s.Equal("OU=DEF:Department", rdns[2])
+	s.Equal("OU=example.com", rdns[1])
+	s.Equal("CN=COMMONNAME", rdns[0])
 }
 
 func (s *UpstreamCASuite) TestSignCSRExtensionIsCopied() {

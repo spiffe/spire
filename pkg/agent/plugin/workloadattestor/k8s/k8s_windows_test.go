@@ -88,7 +88,7 @@ func TestContainerHelper(t *testing.T) {
 		spiretest.RequireGRPCStatus(t, err, codes.Internal, "failed to get container ID: oh no")
 
 		assert.Empty(t, podID)
-		assert.Equal(t, "", containerID)
+		assert.Empty(t, containerID)
 	})
 }
 

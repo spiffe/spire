@@ -7,6 +7,7 @@ import (
 
 	agentapi "github.com/spiffe/spire-api-sdk/proto/spire/api/server/agent/v1"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -49,7 +50,7 @@ func TestPrint(t *testing.T) {
 			stderr := &bytes.Buffer{}
 			err := Print(c.protoFunc(t), stdout, stderr)
 
-			assert.Nil(t, err)
+			require.NoError(t, err)
 			assert.True(t, c.stdoutRegexp.Match(stdout.Bytes()))
 			assert.True(t, c.stderrRegexp.Match(stderr.Bytes()))
 		})

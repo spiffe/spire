@@ -19,5 +19,5 @@ func TestEqualSet(t *testing.T) {
 	a.True(set1.Equal(set2))
 	a.True(set2.Equal(set1))
 	set2.Remove(selector1)
-	a.True(!set1.Equal(set2))
+	a.False(set1.Equal(set2))
 }
