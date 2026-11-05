@@ -5,7 +5,7 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
-	"math/rand"
+	"math/rand/v2"
 	"net"
 	"time"
 
@@ -23,6 +23,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	brokertelemetry "github.com/spiffe/spire/pkg/common/telemetry/agent/broker"
+	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/proto/spire/common"
 	"google.golang.org/grpc"
@@ -232,10 +233,9 @@ func (s *Service) SubscribeToX509SVID(req *broker.SubscribeToX509SVIDRequest, st
 	reattest := func() error {
 		newSelectors, err := s.constructValidSelectorsFromReference(brokercontext.WithCallerID(ctx, peer), log, req.Reference)
 		if err != nil {
-			log.WithError(err).Error("Workload re-attestation failed")
 			return err
 		}
-		if selectorsEqual(selectors, newSelectors) {
+		if util.EqualsSelectors(selectors, newSelectors) {
 			return nil
 		}
 
@@ -287,7 +287,7 @@ func (s *Service) jitteredReattestInterval() time.Duration {
 	if maxJitter <= 0 {
 		return s.reattestInterval
 	}
-	return s.reattestInterval + time.Duration(rand.Int63n(int64(2*maxJitter))) - maxJitter //nolint // gosec: no need for cryptographic randomness here
+	return s.reattestInterval + time.Duration(rand.Int64N(int64(2*maxJitter))) - maxJitter //nolint // gosec: no need for cryptographic randomness here
 }
 
 func (s *Service) SubscribeToX509Bundles(req *broker.SubscribeToX509BundlesRequest, stream broker.API_SubscribeToX509BundlesServer) error {
@@ -476,32 +476,6 @@ func (s *Service) constructValidSelectorsFromReference(ctx context.Context, log 
 	}
 
 	return selectors, nil
-}
-
-// selectorsEqual reports whether two attestation results contain the same
-// selectors. Comparison is order-insensitive because workload attestors are
-// invoked concurrently and append their results in completion order.
-func selectorsEqual(a, b []*common.Selector) bool {
-	if len(a) != len(b) {
-		return false
-	}
-
-	type selectorKey struct {
-		typ   string
-		value string
-	}
-	counts := make(map[selectorKey]int, len(a))
-	for _, selector := range a {
-		counts[selectorKey{typ: selector.Type, value: selector.Value}]++
-	}
-	for _, selector := range b {
-		key := selectorKey{typ: selector.Type, value: selector.Value}
-		if counts[key] == 0 {
-			return false
-		}
-		counts[key]--
-	}
-	return true
 }
 
 func sendX509SVIDResponse(update *cache.X509WorkloadUpdate, stream broker.API_SubscribeToX509SVIDServer, log logrus.FieldLogger) (err error) {
