@@ -305,6 +305,7 @@ type scriptedAttestor struct {
 	mu      sync.Mutex
 	results []fakeAttestation
 	calls   int
+	called  chan<- struct{}
 }
 
 func (a *scriptedAttestor) Attest(ctx context.Context, _ int) ([]*common.Selector, error) {
@@ -319,6 +320,12 @@ func (a *scriptedAttestor) AttestReference(context.Context, *anypb.Any) ([]*comm
 	}
 	idx := min(a.calls, len(a.results)-1)
 	a.calls++
+	if a.called != nil {
+		select {
+		case a.called <- struct{}{}:
+		default:
+		}
+	}
 	return a.results[idx].selectors, a.results[idx].err
 }
 
@@ -782,6 +789,52 @@ func TestSubscribeToX509SVIDReattestation(t *testing.T) {
 		assert.Equal(t, cache.Selectors{selectorBefore}, subscribed[0])
 		assert.Equal(t, cache.Selectors{selectorAfter}, subscribed[1])
 	})
+
+	t.Run("does not resubscribe when selectors do not change", func(t *testing.T) {
+		sub := &fakeCacheSubscriber{ch: make(chan *cache.X509WorkloadUpdate, 1)}
+		attested := make(chan struct{}, 2)
+		attestor := &scriptedAttestor{
+			results: []fakeAttestation{
+				{selectors: []*common.Selector{selectorBefore}},
+				{selectors: []*common.Selector{selectorBefore}},
+			},
+			called: attested,
+		}
+		mgr := &fakeManager{cacheSubscriber: sub}
+		clk := testclock.NewMock(t)
+		s := New(Config{
+			Attestor:         attestor,
+			Manager:          mgr,
+			Metrics:          fakemetrics.New(),
+			Clock:            clk,
+			ReattestInterval: time.Minute,
+		})
+
+		ctx, cancel := context.WithCancel(brokerCallerContext(caller))
+		stream := &fakeX509SVIDStream{ctx: ctx, sentCh: make(chan *broker.SubscribeToX509SVIDResponse, 1)}
+
+		errCh := make(chan error, 1)
+		go func() {
+			errCh <- s.SubscribeToX509SVID(&broker.SubscribeToX509SVIDRequest{
+				Reference: &broker.WorkloadReference{Reference: ref(k8sType)},
+			}, stream)
+		}()
+
+		<-attested // Initial attestation
+		clk.WaitForTimer(time.Second, "waiting for re-attestation timer")
+		clk.Add(time.Minute + time.Minute/10)
+		<-attested // Re-attestation
+
+		assert.Len(t, mgr.subscribedSelectorsSnapshot(), 1)
+
+		// The stream keeps delivering updates through the original subscriber.
+		sub.ch <- update
+		resp := <-stream.sentCh
+		require.Len(t, resp.Svids, 1)
+
+		cancel()
+		require.NoError(t, <-errCh)
+	})
 }
 
 func TestJitteredReattestInterval(t *testing.T) {
@@ -807,22 +860,6 @@ func TestJitteredReattestInterval(t *testing.T) {
 
 	customJitter := 0.5
 	assertWithinJitter(t, New(Config{ReattestInterval: interval, ReattestJitter: &customJitter}), customJitter)
-}
-
-func TestSelectorsEqual(t *testing.T) {
-	assert.True(t, selectorsEqual(nil, nil))
-	assert.True(t, selectorsEqual(
-		[]*common.Selector{{Type: "k8s", Value: "a"}, {Type: "k8s", Value: "b"}},
-		[]*common.Selector{{Type: "k8s", Value: "b"}, {Type: "k8s", Value: "a"}},
-	))
-	assert.False(t, selectorsEqual(
-		[]*common.Selector{{Type: "k8s", Value: "a"}},
-		[]*common.Selector{{Type: "k8s", Value: "b"}},
-	))
-	assert.False(t, selectorsEqual(
-		[]*common.Selector{{Type: "k8s", Value: "a"}},
-		[]*common.Selector{{Type: "k8s", Value: "a"}, {Type: "k8s", Value: "b"}},
-	))
 }
 
 func TestSubscribeToX509Bundles(t *testing.T) {
