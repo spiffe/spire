@@ -26,7 +26,7 @@
 ### Changed
 
 - Agent SPIFFE IDs must now reside under `/spire/agent`; attestations producing other IDs fail unless the experimental configuration `allow_nonconforming_agent_ids` is set (#7314)
-  > :rotating_light: **_This is a potentially breaking change for users of external plugins_** :rotating_light:
+  > :rotating_light: **_This is a potentially breaking change for users of external plugins and custom `agent_path_template` values_** :rotating_light:
 - Rootless Podman workload attestation now requires the `use_rootless_podman` option in the `docker` workload attestor (#7293)
   > :rotating_light: **_This is a potentially breaking change, make sure to enable it if you use rootless podman_** :rotating_light:
 - Removed the mountinfo fallback from the container locator used by the `docker` and `k8s` workload attestors, as it could be forged (#7288)
