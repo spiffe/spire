@@ -617,7 +617,8 @@ func TestProcessBundleUpdatesContinuesAfterTaintFailure(t *testing.T) {
 	// Advance past the max elapsed time until processing gives up.
 	for !gaveUp() {
 		select {
-		case <-test.m.triggerBackOffCh:
+		case err := <-test.m.triggerBackOffCh:
+			require.EqualError(t, err, "processing of tainted upstream authorities must not be reached when not using an upstream authority; please report this bug")
 			test.clock.WaitForAfter(time.Second, "waiting for the retry to wait for next duration")
 			test.clock.Add(taintBackoffMaxElapsedTime)
 		case <-time.After(10 * time.Millisecond):
