@@ -721,7 +721,7 @@ func preparationThreshold(issuedAt, notAfter time.Time) time.Time {
 
 func keyActivationThreshold(issuedAt, notAfter time.Time) time.Time {
 	lifetime := notAfter.Sub(issuedAt)
-	threshold := min(lifetime/activationThresholdDivisor, activationThresholdCap)
+	threshold := ca.MaxSVIDTTLForCATTL(lifetime)
 	return notAfter.Add(-threshold)
 }
 

@@ -693,6 +693,87 @@ func TestGetNextX509CASlotUpstreamSigned(t *testing.T) {
 	require.Equal(t, expectNotAfter, slot.notAfter)
 }
 
+func TestPrepareX509CALifetimeWarning(t *testing.T) {
+	for _, tt := range []struct {
+		name           string
+		loss           time.Duration
+		parentLifetime time.Duration
+		warn           bool
+	}{
+		{name: "full lifetime", parentLifetime: 2 * time.Hour},
+		{name: "timestamp rounding", loss: 500 * time.Millisecond, parentLifetime: 2 * time.Hour},
+		{name: "short certificate", loss: 20 * time.Minute, parentLifetime: 2 * time.Hour, warn: true},
+		{name: "short parent chain", parentLifetime: 40 * time.Minute, warn: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			test := setupTest(t)
+			now := test.clock.Now().Truncate(time.Second)
+			test.clock.Set(now)
+			root, rootKey := testca.CreateCACertificate(t, nil, nil,
+				testca.WithLifetime(now.Add(-time.Minute), now.Add(tt.parentLifetime)),
+				testca.WithKeyUsage(x509.KeyUsageCertSign|x509.KeyUsageCRLSign),
+			)
+			upstreamAuthority, _ := test.newFakeUpstreamAuthority(t, fakeupstreamauthority.Config{
+				TrustDomain: testTrustDomain,
+				MutateMintX509CAResponse: func(resp *upstreamauthorityv1.MintX509CAResponse) {
+					minted := x509certificate.RequireFromPluginProtos(resp.X509CaChain)[0].Certificate
+					template := *minted
+					template.NotAfter = now.Add(testCATTL - tt.loss)
+					template.AuthorityKeyId = root.SubjectKeyId
+					replacement := testca.CreateCertificate(t, &template, root, minted.PublicKey, rootKey)
+					resp.X509CaChain = x509certificate.RequireToPluginFromCertificates([]*x509.Certificate{replacement})
+					resp.UpstreamX509Roots = x509certificate.RequireToPluginProtos([]*x509certificate.X509Authority{{Certificate: root}})
+				},
+			})
+			test.initUpstreamSignedManager(upstreamAuthority)
+			t.Cleanup(test.m.Close)
+			require.NoError(t, test.m.PrepareX509CA(context.Background()))
+			count := test.countLogEntries(logrus.WarnLevel, "Upstream authority issued an X509 CA with a shorter usable lifetime than requested")
+			if tt.warn {
+				require.Equal(t, 1, count)
+			} else {
+				require.Zero(t, count)
+			}
+		})
+	}
+}
+
+func TestActivateX509CALifetimeWarning(t *testing.T) {
+	for _, tt := range []struct {
+		name      string
+		remaining time.Duration
+		agentTTL  time.Duration
+		warn      bool
+	}{
+		{name: "full lifetime", remaining: time.Hour},
+		{name: "timestamp rounding", remaining: time.Hour - 500*time.Millisecond},
+		{name: "insufficient workload lifetime", remaining: 40 * time.Minute, warn: true},
+		{name: "insufficient agent lifetime", remaining: time.Hour, agentTTL: 2 * time.Hour, warn: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			test := setupTest(t)
+			test.initSelfSignedManager()
+			if tt.agentTTL != 0 {
+				config := test.m.c.CredBuilder.Config()
+				config.AgentSVIDTTL = tt.agentTTL
+				builder, err := credtemplate.NewBuilder(config)
+				require.NoError(t, err)
+				test.m.c.CredBuilder = builder
+			}
+			require.NoError(t, test.m.PrepareX509CA(context.Background()))
+			test.clock.Set(test.m.currentX509CA.NotAfter().Add(-tt.remaining))
+			test.m.ActivateX509CA(context.Background())
+			require.NotNil(t, test.ca.X509CA())
+			count := test.countLogEntries(logrus.WarnLevel, "Activating X509 CA with insufficient remaining lifetime for configured workload or agent SVID TTLs; shorter lifetimes may be issued")
+			if tt.warn {
+				require.Equal(t, 1, count)
+			} else {
+				require.Zero(t, count)
+			}
+		})
+	}
+}
+
 func TestPrepareX509CAUsesEffectiveUpstreamExpiry(t *testing.T) {
 	ctx := context.Background()
 	test := setupTest(t)
@@ -1532,7 +1613,7 @@ func TestActivationThresholdCap(t *testing.T) {
 	// Expect the activation threshold to get capped since 1/6 of the lifetime
 	// exceeds the seven day cap.
 	threshold := keyActivationThreshold(issuedAt, notAfter)
-	require.Equal(t, sevenDays, notAfter.Sub(threshold))
+	require.Equal(t, 7*24*time.Hour, notAfter.Sub(threshold))
 }
 
 func TestDisableJWTSVIDs(t *testing.T) {

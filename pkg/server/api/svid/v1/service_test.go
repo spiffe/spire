@@ -10,6 +10,7 @@ import (
 	"crypto/x509/pkix"
 	"errors"
 	"fmt"
+	"maps"
 	"net/url"
 	"strconv"
 	"testing"
@@ -58,7 +59,7 @@ func TestServiceMintX509SVID(t *testing.T) {
 	now := test.ca.Clock().Now().UTC()
 	expiredAt := now.Add(test.ca.X509SVIDTTL())
 	expiresAtStr := expiredAt.Format(time.RFC3339)
-	customExpiresAt := now.Add(10 * time.Second)
+	customExpiresAt := now.Add(20 * time.Minute)
 	expiresAtCustomStr := customExpiresAt.Format(time.RFC3339)
 
 	for _, tt := range []struct {
@@ -101,15 +102,20 @@ func TestServiceMintX509SVID(t *testing.T) {
 			},
 		},
 		{
-			name: "custom ttl",
+			name: "custom ttl with rotation warning",
 			csrTemplate: &x509.CertificateRequest{
 				URIs: []*url.URL{workloadID.URL()},
 			},
 			expiredAt: customExpiresAt,
 			subject:   "O=SPIRE,C=US",
-			ttl:       10 * time.Second,
+			ttl:       20 * time.Minute,
 			expectLogs: func(csr []byte) []spiretest.LogEntry {
 				return []spiretest.LogEntry{
+					lifetimeWarning(telemetry.X509SVIDTTL, "1200", logrus.Fields{
+						telemetry.SPIFFEID: "spiffe://example.org/workload1",
+						telemetry.DNSName:  "",
+						telemetry.Subject:  "",
+					}),
 					{
 						Level:   logrus.InfoLevel,
 						Message: "API accessed",
@@ -118,7 +124,7 @@ func TestServiceMintX509SVID(t *testing.T) {
 							telemetry.Type:      "audit",
 							telemetry.SPIFFEID:  "spiffe://example.org/workload1",
 							telemetry.Csr:       api.HashByte(csr),
-							telemetry.TTL:       "10",
+							telemetry.TTL:       "1200",
 							telemetry.DNSName:   "",
 							telemetry.Subject:   "",
 							telemetry.ExpiresAt: expiresAtCustomStr,
@@ -627,12 +633,17 @@ func TestServiceMintJWTSVID(t *testing.T) {
 			},
 		},
 		{
-			name:      "success custom TTL",
+			name:      "success custom TTL with rotation warning",
 			audience:  []string{"AUDIENCE"},
-			ttl:       10 * time.Second,
-			expiresAt: now.Add(10 * time.Second),
+			ttl:       20 * time.Minute,
+			expiresAt: now.Add(20 * time.Minute),
 			id:        workloadID,
 			expectLogs: []spiretest.LogEntry{
+				lifetimeWarning(telemetry.JWTSVIDTTL, "1200", logrus.Fields{
+					telemetry.SPIFFEID: "spiffe://example.org/workload1",
+					telemetry.TTL:      "1200",
+					telemetry.Audience: "AUDIENCE",
+				}),
 				{
 					Level:   logrus.InfoLevel,
 					Message: "API accessed",
@@ -641,7 +652,7 @@ func TestServiceMintJWTSVID(t *testing.T) {
 						telemetry.Type:     "audit",
 						telemetry.Audience: "AUDIENCE",
 						telemetry.SPIFFEID: "spiffe://example.org/workload1",
-						telemetry.TTL:      "10",
+						telemetry.TTL:      "1200",
 					},
 				},
 			},
@@ -886,11 +897,15 @@ func TestServiceMintWITSVID(t *testing.T) {
 			},
 		},
 		{
-			name:      "success custom TTL",
-			ttl:       10 * time.Second,
-			expiresAt: now.Add(10 * time.Second),
+			name:      "success custom TTL with rotation warning",
+			ttl:       20 * time.Minute,
+			expiresAt: now.Add(20 * time.Minute),
 			id:        workloadID,
 			expectLogs: []spiretest.LogEntry{
+				lifetimeWarning(telemetry.WITSVIDTTL, "1200", logrus.Fields{
+					telemetry.SPIFFEID: "spiffe://example.org/workload1",
+					telemetry.TTL:      "1200",
+				}),
 				{
 					Level:   logrus.InfoLevel,
 					Message: "API accessed",
@@ -898,7 +913,7 @@ func TestServiceMintWITSVID(t *testing.T) {
 						telemetry.Status:   "success",
 						telemetry.Type:     "audit",
 						telemetry.SPIFFEID: "spiffe://example.org/workload1",
-						telemetry.TTL:      "10",
+						telemetry.TTL:      "1200",
 					},
 				},
 			},
@@ -2819,6 +2834,7 @@ func TestServiceBatchNewWITSVID(t *testing.T) {
 func TestNewDownstreamX509CA(t *testing.T) {
 	type downstreamCaTest struct {
 		name           string
+		ttl            int32
 		err            string
 		failSigning    bool
 		failDataStore  bool
@@ -2844,7 +2860,7 @@ func TestNewDownstreamX509CA(t *testing.T) {
 	_, csrErr := x509.ParseCertificateRequest([]byte{1, 2, 3})
 
 	now := test.ca.Clock().Now().UTC()
-	expiresAtFromCA := now.Add(test.ca.X509CATTL()).Unix()
+	expiresAt := now.Add(test.ca.X509CATTL()).Unix()
 
 	for _, tt := range []downstreamCaTest{
 		{
@@ -2945,6 +2961,7 @@ func TestNewDownstreamX509CA(t *testing.T) {
 		},
 		{
 			name:           "Fail Data Store",
+			ttl:            600,
 			rateLimiterErr: nil,
 			err:            "bundle not found",
 			failSigning:    false,
@@ -2975,7 +2992,50 @@ func TestNewDownstreamX509CA(t *testing.T) {
 			},
 		},
 		{
-			name:           "Successful CA Request",
+			name:           "Requested CA lifetime is shortened",
+			ttl:            7200,
+			rateLimiterErr: nil,
+			err:            "",
+			failSigning:    false,
+			failDataStore:  false,
+			csrTemplate: &x509.CertificateRequest{
+				URIs: []*url.URL{workloadID.URL()},
+			},
+			fetcherErr: "",
+			entry:      downstreamEntry1,
+			expectLogs: func(csr []byte) []spiretest.LogEntry {
+				return []spiretest.LogEntry{
+					lifetimeWarning("downstream_ca_ttl", "7200", logrus.Fields{
+						telemetry.SPIFFEID: "spiffe://example.org",
+					}),
+					{
+						Level:   logrus.WarnLevel,
+						Message: "Issued downstream X509 CA with a shorter lifetime than requested",
+						Data: logrus.Fields{
+							telemetry.Alert:        "true",
+							telemetry.AlertType:    telemetry.ShortenedLifetimeAlertType,
+							telemetry.SPIFFEID:     "spiffe://example.org",
+							telemetry.RequestedTTL: "7200",
+							telemetry.EffectiveTTL: "3600",
+							telemetry.Expiration:   now.Add(time.Hour).Format(time.RFC3339),
+						},
+					},
+					{
+						Level:   logrus.InfoLevel,
+						Message: "API accessed",
+						Data: logrus.Fields{
+							telemetry.Status:        "success",
+							telemetry.Type:          "audit",
+							telemetry.Csr:           api.HashByte(csr),
+							telemetry.TrustDomainID: "spiffe://example.org",
+							telemetry.ExpiresAt:     strconv.FormatInt(expiresAt, 10),
+						},
+					},
+				}
+			},
+		},
+		{
+			name:           "Successful CA Request with default TTL",
 			rateLimiterErr: nil,
 			err:            "",
 			failSigning:    false,
@@ -2995,7 +3055,7 @@ func TestNewDownstreamX509CA(t *testing.T) {
 							telemetry.Type:          "audit",
 							telemetry.Csr:           api.HashByte(csr),
 							telemetry.TrustDomainID: "spiffe://example.org",
-							telemetry.ExpiresAt:     strconv.FormatInt(expiresAtFromCA, 10),
+							telemetry.ExpiresAt:     strconv.FormatInt(expiresAt, 10),
 						},
 					},
 				}
@@ -3041,7 +3101,8 @@ func TestNewDownstreamX509CA(t *testing.T) {
 			}
 
 			resp, err := test.client.NewDownstreamX509CA(ctx, &svidv1.NewDownstreamX509CARequest{
-				Csr: csr,
+				Csr:          csr,
+				PreferredTtl: tt.ttl,
 			})
 			expectLogs := tt.expectLogs(csr)
 			spiretest.AssertLogs(t, test.logHook.AllEntries(), expectLogs)
@@ -3147,6 +3208,8 @@ func setupServiceTest(t *testing.T) *serviceTest {
 		ServerCA:     ca,
 		TrustDomain:  trustDomain,
 		DataStore:    ds,
+		CATTL:        ca.X509CATTL(),
+		Clock:        ca.Clock(),
 	})
 
 	log, logHook := test.NewNullLogger()
@@ -3305,4 +3368,21 @@ func (f *fakeRateLimiter) RateLimit(_ context.Context, count int) error {
 	}
 
 	return f.err
+}
+
+func lifetimeWarning(name, requestedTTL string, fields logrus.Fields) spiretest.LogEntry {
+	data := logrus.Fields{
+		telemetry.Alert:        "true",
+		telemetry.AlertType:    telemetry.ShortenedLifetimeAlertType,
+		telemetry.TTLName:      name,
+		telemetry.RequestedTTL: requestedTTL,
+		telemetry.MaxTTL:       "600",
+		telemetry.CATTL:        "3600",
+	}
+	maps.Copy(data, fields)
+	return spiretest.LogEntry{
+		Level:   logrus.WarnLevel,
+		Message: "Requested TTL exceeds the lifetime guaranteed by scheduled authority rotation; shorter lifetimes may be issued",
+		Data:    data,
+	}
 }

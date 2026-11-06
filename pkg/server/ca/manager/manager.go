@@ -41,10 +41,6 @@ const (
 	preparationThresholdCap     = thirtyDays
 	preparationThresholdDivisor = 2
 
-	sevenDays                  = 7 * 24 * time.Hour
-	activationThresholdCap     = sevenDays
-	activationThresholdDivisor = 6
-
 	subscribeBundleBackoffInterval = 5 * time.Second
 
 	taintBackoffInterval       = 5 * time.Second
@@ -311,14 +307,32 @@ func (m *Manager) PrepareX509CA(ctx context.Context) (err error) {
 	slot.publicKey = slot.x509CA.Certificate.PublicKey
 	slot.notAfter = slot.x509CA.NotAfter
 
+	// Compare against request time, rather than NotBefore (which may be
+	// backdated), and allow for upstream clock skew plus certificate timestamp
+	// truncation to seconds.
+	if m.upstreamClient != nil && slot.notAfter.Add(credtemplate.NotBeforeCushion+time.Second).Before(now.Add(m.caTTL)) {
+		log.WithFields(logrus.Fields{
+			telemetry.Alert:           true,
+			telemetry.AlertType:       telemetry.ShortenedLifetimeAlertType,
+			telemetry.RequestedTTL:    m.caTTL.Seconds(),
+			telemetry.EffectiveTTL:    slot.notAfter.Sub(now).Seconds(),
+			telemetry.ChainExpiration: slot.notAfter,
+			telemetry.PluginName:      m.upstreamPluginName,
+		}).Warn("Upstream authority issued an X509 CA with a shorter usable lifetime than requested")
+	}
+
 	if slot.notAfter.Before(slot.x509CA.Certificate.NotAfter) {
 		log.WithFields(logrus.Fields{
+			telemetry.Alert:                 true,
+			telemetry.AlertType:             telemetry.ShortenedLifetimeAlertType,
 			telemetry.CertificateExpiration: slot.x509CA.Certificate.NotAfter,
 			telemetry.ChainExpiration:       slot.notAfter,
 		}).Warn("Upstream authority issued an X509 CA that outlives its certificate chain; rotation will use the chain expiration")
 	}
 	if slot == m.nextX509CA && !slot.notAfter.After(m.currentX509CA.notAfter) {
 		log.WithFields(logrus.Fields{
+			telemetry.Alert:                   true,
+			telemetry.AlertType:               telemetry.ShortenedLifetimeAlertType,
 			telemetry.CurrentChainExpiration:  m.currentX509CA.notAfter,
 			telemetry.PreparedChainExpiration: slot.notAfter,
 		}).Warn("Prepared X509 CA does not extend the current X509 CA lifetime")
@@ -785,6 +799,23 @@ func (m *Manager) activateX509CA(ctx context.Context) {
 		telemetry.LocalAuthorityID:    m.currentX509CA.authorityID,
 		telemetry.UpstreamAuthorityID: m.currentX509CA.upstreamAuthorityID,
 	})
+	now := m.c.Clock.Now()
+	config := m.c.CredBuilder.Config()
+	requiredTTL := max(config.X509SVIDTTL, config.AgentSVIDTTL)
+	ttlName := "default_x509_svid_ttl"
+	if config.AgentSVIDTTL > config.X509SVIDTTL {
+		ttlName = "agent_ttl"
+	}
+	remainingTTL := m.currentX509CA.NotAfter().Sub(now)
+	if remainingTTL+time.Second < requiredTTL {
+		log.WithFields(logrus.Fields{
+			telemetry.Alert:        true,
+			telemetry.AlertType:    telemetry.ShortenedLifetimeAlertType,
+			telemetry.TTLName:      ttlName,
+			telemetry.RequestedTTL: requiredTTL.Seconds(),
+			telemetry.EffectiveTTL: remainingTTL.Seconds(),
+		}).Warn("Activating X509 CA with insufficient remaining lifetime for configured workload or agent SVID TTLs; shorter lifetimes may be issued")
+	}
 	log.Info("X509 CA activated")
 	telemetry_server.IncrActivateX509CAManagerCounter(m.c.Metrics)
 
@@ -794,7 +825,6 @@ func (m *Manager) activateX509CA(ctx context.Context) {
 	}
 
 	expiration := m.currentX509CA.NotAfter()
-	now := m.c.Clock.Now()
 	telemetry_server.SetX509CARotateGauge(m.c.Metrics, m.c.TrustDomain.Name(), expiration, now)
 	m.setX509CARotateMaxTTLGauge(now)
 	m.c.Log.WithFields(logrus.Fields{
@@ -1144,28 +1174,6 @@ func (m *Manager) shouldPrepareX509CA(taintedAuthorities []*x509.Certificate) bo
 	default:
 		return false
 	}
-}
-
-// MaxSVIDTTL returns the maximum SVID lifetime that can be guaranteed to not
-// be cut artificially short by a scheduled rotation.
-func MaxSVIDTTL() time.Duration {
-	return activationThresholdCap
-}
-
-// MaxSVIDTTLForCATTL returns the maximum SVID TTL that can be guaranteed given
-// a specific CA TTL. In other words, given a CA TTL, what is the largest SVID
-// TTL that is guaranteed to not be cut artificially short by a scheduled
-// rotation?
-func MaxSVIDTTLForCATTL(caTTL time.Duration) time.Duration {
-	return min(caTTL/activationThresholdDivisor, activationThresholdCap)
-}
-
-// MinCATTLForSVIDTTL returns the minimum CA TTL necessary to guarantee an SVID
-// TTL of the provided value. In other words, given an SVID TTL, what is the
-// minimum CA TTL that will guarantee that the SVIDs lifetime won't be cut
-// artificially short by a scheduled rotation?
-func MinCATTLForSVIDTTL(svidTTL time.Duration) time.Duration {
-	return svidTTL * activationThresholdDivisor
 }
 
 type bundleUpdater struct {

@@ -49,7 +49,7 @@ When a breaking change is introduced to a plugin interface, existing plugins com
 
 #### Deprecation Log Markers
 
-Deprecation warnings include structured fields to make them easier to find and alert on. All deprecation alerts include `alert=true`. Configuration deprecation warnings include `alert_type=deprecated_config`, and deprecated plugin service warnings include `alert_type=deprecated_service`.
+Deprecation warnings include structured fields to make them easier to find and alert on. Configuration deprecation warnings include `alert_type=deprecated_config`, and deprecated plugin service warnings include `alert_type=deprecated_service`. See [Logging](logging.md#alert-markers) for the general alert marker convention.
 
 ## Supported Upgrade Paths
 

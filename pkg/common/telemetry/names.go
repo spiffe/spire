@@ -281,6 +281,9 @@ const (
 	// AlertType tags the category of an alert log event.
 	AlertType = "alert_type"
 
+	// ShortenedLifetimeAlertType tags alerts about potentially shortened credential lifetimes.
+	ShortenedLifetimeAlertType = "shortened_lifetime"
+
 	// DeprecatedConfigAlertType tags alerts for deprecated configuration settings.
 	DeprecatedConfigAlertType = "deprecated_config"
 
@@ -634,6 +637,18 @@ const (
 	// TTL functionality related to a time-to-live field; should be used
 	// with other tags to add clarity
 	TTL = "ttl"
+
+	// TTLName identifies the configuration or request field containing a TTL.
+	TTLName = "ttl_name"
+
+	// CATTL is the configured CA/signing key lifetime, in seconds.
+	CATTL = "ca_ttl"
+
+	// RequestedTTL is the requested credential lifetime, in seconds.
+	RequestedTTL = "requested_ttl"
+
+	// EffectiveTTL is the usable credential lifetime, in seconds.
+	EffectiveTTL = "effective_ttl"
 
 	// MaxTTL functionality related to a maximum time-to-live field; should be
 	// used with other tags to add clarity

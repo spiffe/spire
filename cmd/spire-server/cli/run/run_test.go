@@ -549,6 +549,30 @@ func TestNewServerConfig(t *testing.T) {
 
 	cases := []newServerConfigCase{
 		{
+			msg: "incompatible TTL includes lifetime alert fields",
+			input: func(c *Config) {
+				c.Server.CATTL = "1h"
+				c.Server.DefaultX509SVIDTTL = "20m"
+			},
+			logOptions: assertLogsContainEntries([]spiretest.LogEntry{
+				{
+					Level:   logrus.WarnLevel,
+					Message: "default_x509_svid_ttl is too high for the configured ca_ttl value. SVIDs with shorter lifetimes may be issued. Please set default_x509_svid_ttl to 10m or less, or the ca_ttl to 2h or more, to guarantee the full default_x509_svid_ttl lifetime when CA rotations are scheduled.",
+					Data: logrus.Fields{
+						telemetry.Alert:        "true",
+						telemetry.AlertType:    telemetry.ShortenedLifetimeAlertType,
+						telemetry.TTLName:      "default_x509_svid_ttl",
+						telemetry.RequestedTTL: "1200",
+						telemetry.MaxTTL:       "600",
+						telemetry.CATTL:        "3600",
+					},
+				},
+			}),
+			test: func(t *testing.T, c *server.Config) {
+				require.Equal(t, time.Hour, c.CATTL)
+			},
+		},
+		{
 			msg: "prune_attested_nodes_batch_size should be correctly parsed",
 			input: func(c *Config) {
 				c.Server.PruneAttestedNodesExpiredFor = "1h"
