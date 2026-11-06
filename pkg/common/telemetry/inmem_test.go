@@ -67,7 +67,7 @@ func TestInMem(t *testing.T) {
 				assert.Len(t, runner.sinks(), 1)
 			} else {
 				assert.False(t, runner.isConfigured())
-				assert.Len(t, runner.sinks(), 0)
+				assert.Empty(t, runner.sinks())
 			}
 
 			spiretest.AssertLogs(t, hook.AllEntries(), tt.expectLogs)

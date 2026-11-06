@@ -135,21 +135,21 @@ func (s *ClientSuite) SetupTest() {
 func (s *ClientSuite) TestGetPodFailsIfNamespaceIsEmpty() {
 	client := New("")
 	pod, err := client.GetPod(ctx, "", "POD-NAME")
-	s.AssertErrorContains(err, "empty namespace")
+	s.Require().ErrorContains(err, "empty namespace")
 	s.Nil(pod)
 }
 
 func (s *ClientSuite) TestGetPodFailsIfPodNameIsEmpty() {
 	client := New("")
 	pod, err := client.GetPod(ctx, "NAMESPACE", "")
-	s.AssertErrorContains(err, "empty pod name")
+	s.Require().ErrorContains(err, "empty pod name")
 	s.Nil(pod)
 }
 
 func (s *ClientSuite) TestGetPodFailsToLoadClient() {
 	client := s.createDefectiveClient("")
 	pod, err := client.GetPod(ctx, "NAMESPACE", "PODNAME")
-	s.AssertErrorContains(err, "unable to get clientset")
+	s.Require().ErrorContains(err, "unable to get clientset")
 	s.Nil(pod)
 }
 
@@ -158,7 +158,7 @@ func (s *ClientSuite) TestGetPodFailsIfGetsErrorFromAPIServer() {
 
 	client := s.createClient(fakeClient)
 	pod, err := client.GetPod(ctx, "NAMESPACE", "PODNAME")
-	s.AssertErrorContains(err, "unable to query pods API")
+	s.Require().ErrorContains(err, "unable to query pods API")
 	s.Nil(pod)
 }
 
@@ -171,7 +171,7 @@ func (s *ClientSuite) TestGetPodIsEmptyIfGetsNilPod() {
 
 	client := s.createClient(fakeClient)
 	pod, err := client.GetPod(ctx, "NAMESPACE", "PODNAME")
-	s.NoError(err)
+	s.Require().NoError(err)
 	s.Require().Empty(pod)
 }
 
@@ -181,21 +181,21 @@ func (s *ClientSuite) TestGetPodSucceeds() {
 
 	client := s.createClient(fakeClient)
 	pod, err := client.GetPod(ctx, "NAMESPACE", "PODNAME")
-	s.NoError(err)
+	s.Require().NoError(err)
 	s.Equal(expectedPod, pod)
 }
 
 func (s *ClientSuite) TestGetNodeFailsIfNodeNameIsEmpty() {
 	client := New("")
 	node, err := client.GetNode(ctx, "")
-	s.AssertErrorContains(err, "empty node name")
+	s.Require().ErrorContains(err, "empty node name")
 	s.Nil(node)
 }
 
 func (s *ClientSuite) TestGetNodeFailsToLoadClient() {
 	client := s.createDefectiveClient("")
 	node, err := client.GetNode(ctx, "NODENAME")
-	s.AssertErrorContains(err, "unable to get clientset")
+	s.Require().ErrorContains(err, "unable to get clientset")
 	s.Nil(node)
 }
 
@@ -204,7 +204,7 @@ func (s *ClientSuite) TestGetNodeFailsIfGetsErrorFromAPIServer() {
 
 	client := s.createClient(fakeClient)
 	node, err := client.GetNode(ctx, "NODENAME")
-	s.AssertErrorContains(err, "unable to query nodes API")
+	s.Require().ErrorContains(err, "unable to query nodes API")
 	s.Nil(node)
 }
 
@@ -227,14 +227,14 @@ func (s *ClientSuite) TestGetNodeSucceeds() {
 
 	client := s.createClient(fakeClient)
 	node, err := client.GetNode(ctx, "NODENAME")
-	s.NoError(err)
+	s.Require().NoError(err)
 	s.Equal(expectedNode, node)
 }
 
 func (s *ClientSuite) TestValidateTokenFailsToLoadClient() {
 	client := s.createDefectiveClient("")
 	status, err := client.ValidateToken(ctx, testToken, []string{"aud1", "aud2"})
-	s.AssertErrorContains(err, "unable to get clientset")
+	s.Require().ErrorContains(err, "unable to get clientset")
 	s.Nil(status)
 }
 
@@ -247,7 +247,7 @@ func (s *ClientSuite) TestValidateTokenFailsIfGetsErrorFromAPIServer() {
 
 	client := s.createClient(fakeClient)
 	status, err := client.ValidateToken(ctx, testToken, []string{"aud1"})
-	s.AssertErrorContains(err, "unable to query token review API")
+	s.Require().ErrorContains(err, "unable to query token review API")
 	s.Nil(status)
 }
 
@@ -273,7 +273,7 @@ func (s *ClientSuite) TestValidateTokenFailsIfStatusContainsError() {
 
 	client := s.createClient(fakeClient)
 	status, err := client.ValidateToken(ctx, testToken, []string{"aud1"})
-	s.AssertErrorContains(err, "token review API response contains an error")
+	s.Require().ErrorContains(err, "token review API response contains an error")
 	s.Nil(status)
 }
 
@@ -291,7 +291,7 @@ func (s *ClientSuite) TestValidateTokenFailsDueToAudienceUnawareValidator() {
 
 	client := s.createClient(fakeClient)
 	status, err := client.ValidateToken(ctx, testToken, wantAudiences)
-	s.AssertErrorContains(err, `token review API did not validate audience: wanted one of ["aud1" "aud2"] but got ["aud3"]`)
+	s.Require().ErrorContains(err, `token review API did not validate audience: wanted one of ["aud1" "aud2"] but got ["aud3"]`)
 	s.Nil(status)
 }
 
@@ -309,7 +309,7 @@ func (s *ClientSuite) TestValidateTokenSucceeds() {
 
 	client := s.createClient(fakeClient)
 	status, err := client.ValidateToken(ctx, testToken, wantAudiences)
-	s.NoError(err)
+	s.Require().NoError(err)
 	s.NotNil(status)
 	s.True(status.Authenticated)
 }
@@ -317,7 +317,7 @@ func (s *ClientSuite) TestValidateTokenSucceeds() {
 func (s *ClientSuite) TestLoadClientFailsIfConfigCannotBeCreated() {
 	kubeConfigPath := filepath.Join(s.dir, "not-valid-config-path")
 	clientset, err := loadClient(kubeConfigPath)
-	s.AssertErrorContains(err, "unable to create client config")
+	s.Require().ErrorContains(err, "unable to create client config")
 	s.Nil(clientset)
 }
 
@@ -325,7 +325,7 @@ func (s *ClientSuite) TestLoadClientSucceeds() {
 	kubeConfigPath := filepath.Join(s.dir, "config")
 	s.createSampleKubeConfigFile(kubeConfigPath)
 	clientset, err := loadClient(kubeConfigPath)
-	s.NoError(err)
+	s.Require().NoError(err)
 	s.NotNil(clientset)
 }
 

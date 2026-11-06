@@ -13,12 +13,12 @@ import (
 func TestDogStatsdIsConfigured(t *testing.T) {
 	config := testDogStatsdConfig()
 	dr, err := newDogStatsdRunner(config)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	assert.True(t, dr.isConfigured())
 
 	config.FileConfig.DogStatsd = []DogStatsdConfig{}
 	dr, err = newDogStatsdRunner(config)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	assert.False(t, dr.isConfigured())
 }
 
@@ -30,14 +30,14 @@ func TestDogStatsdSinks(t *testing.T) {
 	config.FileConfig.DogStatsd = append(config.FileConfig.DogStatsd, sink2)
 
 	dr, err := newDogStatsdRunner(config)
-	require.Nil(t, err)
-	assert.Equal(t, 2, len(dr.sinks()))
+	require.NoError(t, err)
+	assert.Len(t, dr.sinks(), 2)
 }
 
 func TestDogStatsdRun(t *testing.T) {
 	config := testDogStatsdConfig()
 	dr, err := newDogStatsdRunner(config)
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	errCh := make(chan error)
 	go func() {
@@ -46,7 +46,7 @@ func TestDogStatsdRun(t *testing.T) {
 
 	select {
 	case err = <-errCh:
-		assert.Nil(t, err)
+		require.NoError(t, err)
 	case <-time.After(time.Minute):
 		t.Error("run should return nil immediately")
 	}

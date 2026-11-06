@@ -20,17 +20,17 @@ func TestDiscoverKeySetURI(t *testing.T) {
 	// not found
 	uri, err := DiscoverKeySetURI(context.Background(), server.URL+"/whatever")
 	require.EqualError(t, err, "unexpected status code 404: not found\n")
-	require.Equal(t, "", uri)
+	require.Empty(t, uri)
 
 	// malformed response
 	uri, err = DiscoverKeySetURI(context.Background(), server.URL+"/malformed")
 	require.EqualError(t, err, "failed to decode configuration: unexpected EOF")
-	require.Equal(t, "", uri)
+	require.Empty(t, uri)
 
 	// no URL in response
 	uri, err = DiscoverKeySetURI(context.Background(), server.URL+"/empty")
 	require.EqualError(t, err, "configuration missing JWKS URI")
-	require.Equal(t, "", uri)
+	require.Empty(t, uri)
 
 	// success
 	uri, err = DiscoverKeySetURI(context.Background(), server.URL+wellKnownOpenIDConfiguration)

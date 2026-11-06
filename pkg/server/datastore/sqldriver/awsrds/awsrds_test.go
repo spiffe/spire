@@ -422,7 +422,7 @@ func TestFormatDSN(t *testing.T) {
 
 	dsn, err := config.FormatDSN()
 	require.NoError(t, err)
-	require.Equal(t, "{\"region\":\"region\",\"access_key_id\":\"access-key-id\",\"secret_access_key\":\"secret-access-key\",\"endpoint\":\"endpoint\",\"dbuser\":\"dbUser\",\"driver_name\":\"driver-name\",\"conn_string\":\"connection-string\"}", dsn)
+	require.JSONEq(t, "{\"region\":\"region\",\"access_key_id\":\"access-key-id\",\"secret_access_key\":\"secret-access-key\",\"endpoint\":\"endpoint\",\"dbuser\":\"dbUser\",\"driver_name\":\"driver-name\",\"conn_string\":\"connection-string\"}", dsn)
 }
 
 type fakeTokenBuilder struct {

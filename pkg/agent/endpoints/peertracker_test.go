@@ -10,6 +10,7 @@ import (
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
@@ -32,7 +33,7 @@ func TestPeerTrackerAttestor(t *testing.T) {
 
 	t.Run("succeeds if peer is alive", func(t *testing.T) {
 		selectors, err := attestor.Attest(WithFakeWatcher(true))
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, []*common.Selector{{Type: "Type", Value: "Value"}}, selectors)
 	})
 }

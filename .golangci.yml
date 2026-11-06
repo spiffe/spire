@@ -21,6 +21,7 @@ linters:
     - predeclared
     - reassign
     - revive
+    - testifylint
     - unconvert
     - unparam
     - wastedassign

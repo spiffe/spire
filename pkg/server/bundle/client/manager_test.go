@@ -102,7 +102,7 @@ func TestManagerOnDemandBundleRefresh(t *testing.T) {
 	// Assert the trust domain is not known to the manager
 	has, err := test.RefreshBundleFor(trustDomain)
 	assert.False(t, has, "manager should not know about the trust domain")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, -1, test.UpdateCount(trustDomain))
 
 	// Now, add the trust domain configuration to the source and assert
@@ -114,12 +114,12 @@ func TestManagerOnDemandBundleRefresh(t *testing.T) {
 
 	has, err = test.RefreshBundleFor(trustDomain)
 	assert.True(t, has, "manager should know about the trust domain")
-	assert.EqualError(t, err, "OHNO")
+	require.EqualError(t, err, "OHNO")
 
 	// The update count may be more than 1, since RefreshBundle will update the
 	// bundle, but also, since the trust domain is newly managed, kick off a
 	// goroutine that will refresh it as well.
-	assert.Greater(t, test.UpdateCount(trustDomain), 0)
+	assert.Positive(t, test.UpdateCount(trustDomain))
 }
 
 func TestManagerConfigPeriodicRefresh(t *testing.T) {

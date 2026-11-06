@@ -52,7 +52,7 @@ func TestAPILevelValues(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			require.Equal(t, logger.APILevel[tt.logrusLevel], tt.expectedLevel)
+			require.Equal(t, tt.expectedLevel, logger.APILevel[tt.logrusLevel])
 		})
 	}
 }
@@ -100,7 +100,7 @@ func TestLogrusLevelValues(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			require.Equal(t, logger.LogrusLevel[tt.apiLevel], tt.expectedLevel)
+			require.Equal(t, tt.expectedLevel, logger.LogrusLevel[tt.apiLevel])
 		})
 	}
 }

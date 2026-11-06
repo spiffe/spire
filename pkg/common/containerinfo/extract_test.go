@@ -38,7 +38,7 @@ func TestExtractPodUIDAndContainerID(t *testing.T) {
 	assertErrorContains := func(t *testing.T, rootDir string, wantErr string) {
 		extractor := Extractor{RootDir: rootDir}
 		gotPodUID, gotContainerID, err := extractor.GetPodUIDAndContainerID(123, log)
-		assert.ErrorContains(t, err, wantErr)
+		require.ErrorContains(t, err, wantErr)
 		assert.Empty(t, gotPodUID)
 		assert.Empty(t, gotContainerID)
 	}

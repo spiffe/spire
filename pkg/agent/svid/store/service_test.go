@@ -20,6 +20,7 @@ import (
 	"github.com/spiffe/spire/proto/spire/common"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/util"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -118,7 +119,7 @@ func TestRun(t *testing.T) {
 
 			go func() {
 				err := test.service.Run(ctx)
-				require.NoError(t, err)
+				assert.NoError(t, err)
 			}()
 
 			// Wait until storeSVID finished
@@ -369,7 +370,7 @@ func TestRunDeleteSecrets(t *testing.T) {
 
 			go func() {
 				err := test.service.Run(ctx)
-				require.NoError(t, err)
+				assert.NoError(t, err)
 			}()
 
 			// Wait until storeSVID finished

@@ -605,7 +605,7 @@ func TestDisposeStaleCryptoKeys(t *testing.T) {
 		storedFakeCryptoKeyVersions := fakeKey.fetchFakeCryptoKeyVersions()
 		for _, fakeKeyVersion := range storedFakeCryptoKeyVersions {
 			// The status should be changed to CryptoKeyVersion_DESTROY_SCHEDULED.
-			require.Equal(t, kmspb.CryptoKeyVersion_DESTROY_SCHEDULED, fakeKeyVersion.State, fmt.Sprintf("state mismatch in CryptokeyVersion %q", fakeKeyVersion.Name))
+			require.Equal(t, kmspb.CryptoKeyVersion_DESTROY_SCHEDULED, fakeKeyVersion.State, "state mismatch in CryptokeyVersion %q", fakeKeyVersion.Name)
 		}
 	}
 
@@ -1238,7 +1238,7 @@ func TestKeepActiveCryptoKeys(t *testing.T) {
 			err = waitForSignal(t, ts.plugin.hooks.keepActiveCryptoKeysSignal)
 
 			if tt.updateCryptoKeyErr != nil {
-				require.NotNil(t, err)
+				require.Error(t, err)
 				require.EqualError(t, err, err.Error())
 				return
 			}
@@ -1246,7 +1246,7 @@ func TestKeepActiveCryptoKeys(t *testing.T) {
 
 			storedFakeCryptoKeys := ts.fakeKMSClient.store.fetchFakeCryptoKeys()
 			for _, fakeKey := range storedFakeCryptoKeys {
-				require.EqualValues(t, fakeKey.getLabelValue(labelNameLastUpdate), fmt.Sprint(currentTime.Unix()), fakeKey.CryptoKey.Name)
+				require.Equal(t, fakeKey.getLabelValue(labelNameLastUpdate), fmt.Sprint(currentTime.Unix()), fakeKey.CryptoKey.Name)
 			}
 		})
 	}

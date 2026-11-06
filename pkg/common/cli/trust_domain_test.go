@@ -8,6 +8,7 @@ import (
 	logtest "github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestParseTrustDomain(t *testing.T) {
@@ -41,7 +42,7 @@ func TestParseTrustDomain(t *testing.T) {
 		t.Run(testCase.msg, func(t *testing.T) {
 			logger, hook := logtest.NewNullLogger()
 			td, err := ParseTrustDomain(testCase.domain, logger)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, testCase.expectedDomain, td.Name())
 			spiretest.AssertLogs(t, hook.AllEntries(), testCase.expectedLogEntries)
 		})

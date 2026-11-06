@@ -62,7 +62,7 @@ func (s *ManagerSuite) TestPruning() {
 
 	registrationEntry1, err := s.ds.CreateRegistrationEntry(ctx, entry1)
 
-	s.NoError(err)
+	s.Require().NoError(err)
 
 	// expires in pruning time + one minute
 	entry2 := &common.RegistrationEntry{
@@ -80,7 +80,7 @@ func (s *ManagerSuite) TestPruning() {
 
 	registrationEntry2, err := s.ds.CreateRegistrationEntry(ctx, entry2)
 
-	s.NoError(err)
+	s.Require().NoError(err)
 
 	// expires in pruning time + two minutes
 	entry3 := &common.RegistrationEntry{
@@ -98,7 +98,7 @@ func (s *ManagerSuite) TestPruning() {
 
 	registrationEntry3, err := s.ds.CreateRegistrationEntry(ctx, entry3)
 
-	s.NoError(err)
+	s.Require().NoError(err)
 
 	// no pruning yet
 	s.clock.Add(_pruningCadence)

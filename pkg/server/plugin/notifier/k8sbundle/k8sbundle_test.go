@@ -314,7 +314,7 @@ kube_config_file_path = "/some/file/path"
 		require.NoError(t, err)
 
 		err = test.rawPlugin.updateBundle(context.Background(), client, objectMeta.GetNamespace(), objectMeta.GetName())
-		require.Equal(t, status.Code(err), codes.AlreadyExists)
+		require.Equal(t, codes.AlreadyExists, status.Code(err))
 		updateDone <- struct{}{}
 	}))
 	require.NotNil(t, test.rawPlugin.stopCh)
@@ -342,7 +342,7 @@ kube_config_file_path = "/some/file/path"
 		require.NoError(t, err)
 
 		err = test.rawPlugin.updateBundle(context.Background(), client, objectMeta.GetNamespace(), objectMeta.GetName())
-		require.Equal(t, status.Code(err), codes.AlreadyExists)
+		require.Equal(t, codes.AlreadyExists, status.Code(err))
 		updateDone <- struct{}{}
 	}))
 	require.NotNil(t, test.rawPlugin.stopCh)
@@ -976,7 +976,7 @@ func setupTest(t *testing.T, options ...testOption) *test {
 
 	config := new(Configuration)
 	err := hcl.Decode(&config, args.plainConfig)
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	raw := New()
 	notifier := new(notifier.V1)

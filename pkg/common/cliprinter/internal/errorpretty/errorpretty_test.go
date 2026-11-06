@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestPrint(t *testing.T) {
@@ -41,7 +42,7 @@ func TestPrint(t *testing.T) {
 			stderr := &bytes.Buffer{}
 			err := Print(c.err, stdout, stderr)
 
-			assert.Nil(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, c.stdout, stdout.String())
 			assert.Equal(t, c.stderr, stderr.String())
 		})

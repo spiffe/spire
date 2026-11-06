@@ -18,24 +18,6 @@ var (
 	protoMessageType = reflect.TypeFor[proto.Message]()
 )
 
-func RequireErrorContains(tb testing.TB, err error, contains string) {
-	tb.Helper()
-	if !AssertErrorContains(tb, err, contains) {
-		tb.FailNow()
-	}
-}
-
-func AssertErrorContains(tb testing.TB, err error, contains string) bool {
-	tb.Helper()
-	if !assert.Error(tb, err) {
-		return false
-	}
-	if !assert.Contains(tb, err.Error(), contains) {
-		return false
-	}
-	return true
-}
-
 func RequireGRPCStatus(tb testing.TB, err error, code codes.Code, message string) {
 	tb.Helper()
 	if !AssertGRPCStatus(tb, err, code, message) {
@@ -64,7 +46,7 @@ func AssertGRPCStatusContains(tb testing.TB, err error, code codes.Code, contain
 
 	if code == codes.OK {
 		if contains != "" {
-			return assert.Fail(tb, "cannot assert that an OK status has message %q", contains)
+			return assert.Fail(tb, fmt.Sprintf("cannot assert that an OK status has message %q", contains))
 		}
 		return AssertGRPCStatus(tb, err, code, "")
 	}

@@ -122,9 +122,9 @@ func TestNewAuthenticatedClientCertAuth(t *testing.T) {
 
 			select {
 			case <-renewCh:
-				require.Equal(t, false, tt.renew)
+				require.False(t, tt.renew)
 			default:
-				require.Equal(t, true, tt.renew)
+				require.True(t, tt.renew)
 			}
 
 			if cp.Namespace != "" {
@@ -210,9 +210,9 @@ func TestNewAuthenticatedClientTokenAuth(t *testing.T) {
 
 			select {
 			case <-renewCh:
-				require.Equal(t, false, tt.renew)
+				require.False(t, tt.renew)
 			default:
-				require.Equal(t, true, tt.renew)
+				require.True(t, tt.renew)
 			}
 
 			if cp.Namespace != "" {
@@ -273,9 +273,9 @@ func TestNewAuthenticatedClientAppRoleAuth(t *testing.T) {
 
 			select {
 			case <-renewCh:
-				require.Equal(t, false, tt.renew)
+				require.False(t, tt.renew)
 			default:
-				require.Equal(t, true, tt.renew)
+				require.True(t, tt.renew)
 			}
 
 			if cp.Namespace != "" {
@@ -336,9 +336,9 @@ func TestNewAuthenticatedClientK8sAuth(t *testing.T) {
 
 			select {
 			case <-renewCh:
-				require.Equal(t, false, tt.renew)
+				require.False(t, tt.renew)
 			default:
-				require.Equal(t, true, tt.renew)
+				require.True(t, tt.renew)
 			}
 
 			if cp.Namespace != "" {

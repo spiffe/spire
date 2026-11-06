@@ -107,7 +107,7 @@ func (s *Suite) TestUnexpectedStatus() {
 	s.status = http.StatusBadGateway
 	s.docBody = ""
 	err := s.p.Attest(context.Background(), streamBuilder.Build())
-	s.RequireErrorContains(err, "StatusCode: 502")
+	s.Require().ErrorContains(err, "StatusCode: 502")
 }
 
 func (s *Suite) TestSuccessfulIdentityProcessing() {

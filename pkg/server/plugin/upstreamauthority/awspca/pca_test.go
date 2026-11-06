@@ -455,7 +455,7 @@ func TestMintX509CA(t *testing.T) {
 			// Plugin does not support streaming back changes so assert the
 			// stream returns EOF.
 			_, streamErr := stream.RecvUpstreamX509Authorities()
-			assert.True(t, errors.Is(streamErr, io.EOF))
+			assert.ErrorIs(t, streamErr, io.EOF)
 		})
 	}
 }

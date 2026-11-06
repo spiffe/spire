@@ -151,7 +151,7 @@ func TestBundleUpdaterUpdateBundle(t *testing.T) {
 
 			localBundle, endpointBundle, err := updater.UpdateBundle(context.Background())
 			if testCase.err != "" {
-				spiretest.RequireErrorContains(t, err, testCase.err)
+				require.ErrorContains(t, err, testCase.err)
 				return
 			}
 			require.NoError(t, err)
@@ -262,7 +262,7 @@ func TestBundleUpdaterBootstrapCreateAlreadyExists(t *testing.T) {
 	})
 
 	localBundle, endpointBundle, err := updater.UpdateBundle(context.Background())
-	spiretest.RequireErrorContains(t, err, "failed to store fetched federated bundle")
+	require.ErrorContains(t, err, "failed to store fetched federated bundle")
 	require.Nil(t, localBundle)
 	require.Nil(t, endpointBundle)
 	require.Equal(t, 1, ds.creates)
@@ -320,7 +320,7 @@ func TestBundleUpdaterBootstrapRequiresSelfServingEndpoint(t *testing.T) {
 	})
 
 	_, _, err := updater.UpdateBundle(context.Background())
-	spiretest.RequireErrorContains(t, err, "bootstrap bundle cannot be used because the endpoint SPIFFE ID is in a different trust domain")
+	require.ErrorContains(t, err, "bootstrap bundle cannot be used because the endpoint SPIFFE ID is in a different trust domain")
 }
 
 func TestBundleUpdaterHTTPSWebFirstStoreUsesSet(t *testing.T) {

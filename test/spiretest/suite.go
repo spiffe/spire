@@ -24,11 +24,6 @@ func (s *Suite) TempDir() string {
 	return TempDir(s.T())
 }
 
-func (s *Suite) RequireErrorContains(err error, contains string) {
-	s.T().Helper()
-	RequireErrorContains(s.T(), err, contains)
-}
-
 func (s *Suite) RequireGRPCStatus(err error, code codes.Code, message string) {
 	s.T().Helper()
 	RequireGRPCStatus(s.T(), err, code, message)
@@ -47,11 +42,6 @@ func (s *Suite) RequireProtoListEqual(expected, actual any) {
 func (s *Suite) RequireProtoEqual(expected, actual proto.Message) {
 	s.T().Helper()
 	RequireProtoEqual(s.T(), expected, actual)
-}
-
-func (s *Suite) AssertErrorContains(err error, contains string) bool {
-	s.T().Helper()
-	return AssertErrorContains(s.T(), err, contains)
 }
 
 func (s *Suite) AssertGRPCStatus(err error, code codes.Code, message string) bool {

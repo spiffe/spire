@@ -57,7 +57,7 @@ func (s *ManagerSuite) TestPruning() {
 	}
 
 	attestedNodeBanned, err := s.ds.CreateAttestedNode(ctx, nodeBanned)
-	s.NoError(err)
+	s.Require().NoError(err)
 
 	// non-reattestable node is pruned when IncludeNonReattestable == true
 	nodeNonReattestable := &common.AttestedNode{
@@ -68,7 +68,7 @@ func (s *ManagerSuite) TestPruning() {
 		CertNotAfter:        s.clock.Now().Unix(),
 	}
 	attestedNodeNonReattestable, err := s.ds.CreateAttestedNode(ctx, nodeNonReattestable)
-	s.NoError(err)
+	s.Require().NoError(err)
 
 	// expired on pruning time
 	expired0 := &common.AttestedNode{
@@ -80,7 +80,7 @@ func (s *ManagerSuite) TestPruning() {
 	}
 
 	attestedNodeExpired0, err := s.ds.CreateAttestedNode(ctx, expired0)
-	s.NoError(err)
+	s.Require().NoError(err)
 
 	// expires in pruning time + one minute
 	expired1 := &common.AttestedNode{
@@ -92,7 +92,7 @@ func (s *ManagerSuite) TestPruning() {
 	}
 
 	attestedNodeExpired1, err := s.ds.CreateAttestedNode(ctx, expired1)
-	s.NoError(err)
+	s.Require().NoError(err)
 
 	// no pruning yet
 	s.clock.Add(defaultJobInterval)

@@ -272,24 +272,28 @@ func (s *IITAttestorSuite) TestConfigure() {
 		TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
 	}
 
-	s.T().Run("malformed", func(t *testing.T) {
+	s.Run("malformed", func() {
+		t := s.T()
 		err := doConfig(t, coreConfig, "trust_domain")
 		spiretest.AssertGRPCStatusContains(t, err, codes.InvalidArgument, "unable to decode configuration")
 	})
 
-	s.T().Run("missing trust domain", func(t *testing.T) {
+	s.Run("missing trust domain", func() {
+		t := s.T()
 		err := doConfig(t, catalog.CoreConfig{}, `
 projectid_allow_list = ["bar"]
 		`)
 		spiretest.AssertGRPCStatusContains(t, err, codes.InvalidArgument, "server core configuration must contain trust_domain")
 	})
 
-	s.T().Run("missing projectID allow list", func(t *testing.T) {
+	s.Run("missing projectID allow list", func() {
+		t := s.T()
 		err := doConfig(t, coreConfig, "")
 		spiretest.AssertGRPCStatusContains(t, err, codes.InvalidArgument, "projectid_allow_list is required")
 	})
 
-	s.T().Run("bad SVID template", func(t *testing.T) {
+	s.Run("bad SVID template", func() {
+		t := s.T()
 		err := doConfig(t, coreConfig, `
 projectid_allow_list = ["test-project"]
 agent_path_template = "/{{ .InstanceID "
@@ -297,7 +301,8 @@ agent_path_template = "/{{ .InstanceID "
 		spiretest.AssertGRPCStatusContains(t, err, codes.InvalidArgument, "failed to parse agent path template")
 	})
 
-	s.T().Run("success", func(t *testing.T) {
+	s.Run("success", func() {
+		t := s.T()
 		err := doConfig(t, coreConfig, `
 projectid_allow_list = ["bar"]
 		`)

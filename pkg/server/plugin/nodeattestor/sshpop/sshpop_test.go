@@ -94,14 +94,14 @@ func (s *Suite) TestAttestSuccess() {
 	// receive the attestation result
 	require.NoError(s.T(), err)
 	require.Equal(s.T(), "spiffe://example.org/spire/agent/sshpop/21Aic_muK032oJMhLfU1_CMNcGmfAnvESeuH5zyFw_g", result.AgentID)
-	require.Len(s.T(), result.Selectors, 0)
+	require.Empty(s.T(), result.Selectors)
 }
 
 func (s *Suite) TestAttestFailure() {
 	attestFails := func(t *testing.T, attestor nodeattestor.NodeAttestor, payload []byte, expectCode codes.Code, expectMessage string) {
 		result, err := attestor.Attest(context.Background(), payload, expectNoChallenge)
 		spiretest.RequireGRPCStatusContains(t, err, expectCode, expectMessage)
-		require.Nil(nil, result)
+		require.Nil(t, result)
 	}
 
 	challengeResponseFails := func(t *testing.T, attestor nodeattestor.NodeAttestor, response string, expectCode codes.Code, expectMessage string) {

@@ -19,12 +19,12 @@ const (
 func TestStatsdIsConfigured(t *testing.T) {
 	config := testStatsdConfig()
 	dr, err := newStatsdRunner(config)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	assert.True(t, dr.isConfigured())
 
 	config.FileConfig.Statsd = []StatsdConfig{}
 	dr, err = newStatsdRunner(config)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	assert.False(t, dr.isConfigured())
 }
 
@@ -36,14 +36,14 @@ func TestStatsdSinks(t *testing.T) {
 	config.FileConfig.Statsd = append(config.FileConfig.Statsd, sink2)
 
 	dr, err := newStatsdRunner(config)
-	require.Nil(t, err)
-	assert.Equal(t, 2, len(dr.sinks()))
+	require.NoError(t, err)
+	assert.Len(t, dr.sinks(), 2)
 }
 
 func TestStatsdRun(t *testing.T) {
 	config := testStatsdConfig()
 	dr, err := newStatsdRunner(config)
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	errCh := make(chan error)
 	go func() {
@@ -52,7 +52,7 @@ func TestStatsdRun(t *testing.T) {
 
 	select {
 	case err = <-errCh:
-		assert.Nil(t, err)
+		require.NoError(t, err)
 	case <-time.After(time.Minute):
 		t.Error("run should return nil immediately")
 	}
