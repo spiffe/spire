@@ -1870,7 +1870,6 @@ func TestValidateConfig(t *testing.T) {
 			testCase.applyConf(conf)
 			err := validateConfig(conf)
 			if testCase.expectedErr != "" {
-				require.Error(t, err)
 				assert.ErrorContains(t, err, testCase.expectedErr)
 			} else {
 				require.NoError(t, err)

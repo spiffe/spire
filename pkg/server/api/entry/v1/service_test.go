@@ -4887,7 +4887,7 @@ func TestBatchUpdateEntry(t *testing.T) {
 				Entries: tt.initialEntries,
 			})
 			require.NoError(t, err)
-			require.Len(t, tt.updateEntries, len(createResp.Results))
+			require.Len(t, createResp.Results, len(tt.updateEntries))
 
 			// Then copy the IDs of the created entries onto the entries to be updated
 			spiffeToIDMap := make(map[string]string)
