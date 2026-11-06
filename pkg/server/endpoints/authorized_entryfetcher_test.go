@@ -22,6 +22,7 @@ import (
 	"github.com/spiffe/spire/test/fakes/fakemetrics"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sync/errgroup"
 )
 
 func TestNewAuthorizedEntryFetcherEvents(t *testing.T) {
@@ -1572,25 +1573,29 @@ func TestConcurrentReloadAndFetch(t *testing.T) {
 	const numIterations = 50
 	const numGoroutines = numReaders*2 + 1
 
-	var start, done sync.WaitGroup
+	var start sync.WaitGroup
+	var done errgroup.Group
 	start.Add(numGoroutines)
 
 	// Readers calling FetchAuthorizedEntries
 	for range numReaders {
-		done.Go(func() {
+		done.Go(func() error {
 			start.Done()
 			start.Wait()
 			for range numIterations {
 				fetched, err := ef.FetchAuthorizedEntries(ctx, agentID)
-				require.NoError(t, err)
+				if err != nil {
+					return err
+				}
 				assert.NotEmpty(t, fetched)
 			}
+			return nil
 		})
 	}
 
 	// Readers calling LookupAuthorizedEntries
 	for range numReaders {
-		done.Go(func() {
+		done.Go(func() error {
 			start.Done()
 			start.Wait()
 			entryIDs := map[string]struct{}{
@@ -1599,23 +1604,29 @@ func TestConcurrentReloadAndFetch(t *testing.T) {
 			}
 			for range numIterations {
 				looked, err := ef.LookupAuthorizedEntries(ctx, agentID, entryIDs)
-				require.NoError(t, err)
+				if err != nil {
+					return err
+				}
 				assert.NotEmpty(t, looked)
 			}
+			return nil
 		})
 	}
 
 	// Writer calling reloadCache concurrently
-	done.Go(func() {
+	done.Go(func() error {
 		start.Done()
 		start.Wait()
 		for range numIterations {
 			err := ef.reloadCache(ctx)
-			assert.NoError(t, err)
+			if err != nil {
+				return err
+			}
 		}
+		return nil
 	})
 
-	done.Wait()
+	require.NoError(t, done.Wait())
 
 	// Verify cache is still correct after all the concurrent activity
 	entries, err = ef.FetchAuthorizedEntries(ctx, agentID)
@@ -1626,7 +1637,7 @@ func TestConcurrentReloadAndFetch(t *testing.T) {
 func compareEntries(t *testing.T, authorizedEntries []api.ReadOnlyEntry, entries ...*common.RegistrationEntry) {
 	t.Helper()
 
-	require.Len(t, entries, len(authorizedEntries))
+	require.Len(t, authorizedEntries, len(entries))
 	entryIDs := make([]string, 0, len(authorizedEntries))
 	spiffeIDs := make([]string, 0, len(authorizedEntries))
 	for _, entry := range authorizedEntries {
