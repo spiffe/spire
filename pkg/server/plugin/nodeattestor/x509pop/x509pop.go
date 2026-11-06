@@ -64,6 +64,7 @@ type Config struct {
 	GroupTemplate     string   `hcl:"group_template"`
 	AllowedGroups     []string `hcl:"allowed_groups"`
 	ExtensionOIDs     []string `hcl:"extension_oids"`
+	HashAlgorithm     string   `hcl:"hash_algorithm"`
 }
 
 // MySQL stores selector values in varchar(255) columns.
@@ -81,6 +82,7 @@ type configuration struct {
 	groupTemplate    *agentpathtemplate.Template
 	allowedGroups    map[string]struct{}
 	extensionOIDs    map[string]struct{}
+	hashAlgorithm    string
 }
 
 func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *configuration {
@@ -188,6 +190,14 @@ func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginco
 		extensionOIDs[oid] = struct{}{}
 	}
 
+	hashAlgorithm := x509pop.HashSHA256
+	if hclConfig.HashAlgorithm != "" {
+		hashAlgorithm = hclConfig.HashAlgorithm
+		if _, err := x509pop.ParseHashAlgorithm(hashAlgorithm); err != nil {
+			status.ReportErrorf("invalid hash_algorithm %q: must be one of %q or %q", hclConfig.HashAlgorithm, x509pop.HashSHA256, x509pop.HashSHA384)
+		}
+	}
+
 	newConfig := &configuration{
 		trustDomain:      coreConfig.TrustDomain,
 		trustBundle:      util.NewCertPool(trustBundles...),
@@ -200,6 +210,7 @@ func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginco
 		groupTemplate:    groupTemplate,
 		allowedGroups:    allowedGroups,
 		extensionOIDs:    extensionOIDs,
+		hashAlgorithm:    hashAlgorithm,
 	}
 
 	return newConfig
@@ -334,7 +345,7 @@ func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 
 	// now that the leaf certificate is trusted, issue a challenge to the node
 	// to prove possession of the private key.
-	challenge, err := x509pop.GenerateChallenge(leaf)
+	challenge, err := x509pop.GenerateChallengeWithHash(leaf, config.hashAlgorithm)
 	if err != nil {
 		return status.Errorf(codes.Internal, "unable to generate challenge: %v", err)
 	}
