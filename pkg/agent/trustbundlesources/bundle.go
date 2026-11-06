@@ -26,6 +26,8 @@ import (
 // SPIFFE Workload API. The agent retries with backoff on failure.
 const spiffeWorkloadAPIFetchTimeout = time.Minute
 
+const defaultTrustBundleDownloadTimeout = 30 * time.Second
+
 type Bundle struct {
 	config             *Config
 	use                int
@@ -272,9 +274,10 @@ func parseTrustBundle(bundleBytes []byte, trustBundleContentType string) ([]*x50
 
 func downloadTrustBundle(trustBundleURL string, trustBundleUnixSocket string) ([]byte, error) {
 	var req *http.Request
-	client := http.DefaultClient
+	client := &http.Client{Timeout: defaultTrustBundleDownloadTimeout}
 	if trustBundleUnixSocket != "" {
 		client = &http.Client{
+			Timeout: defaultTrustBundleDownloadTimeout,
 			Transport: &http.Transport{
 				DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
 					return net.Dial("unix", trustBundleUnixSocket)

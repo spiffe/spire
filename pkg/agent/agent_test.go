@@ -64,6 +64,18 @@ func TestCheckHealth(t *testing.T) {
 			expectLive:  false,
 			expectErr:   "workload api is unavailable",
 		},
+		{
+			name:               "workload API disabled with hanging endpoint",
+			disableWorkloadAPI: true,
+			started:            true,
+			setupBindAddress: func(t *testing.T) net.Addr {
+				shortenWorkloadAPIHealthCheckTimeout(t, 250*time.Millisecond)
+				return spiretest.StartWorkloadAPI(t, hangingWorkloadAPI{})
+			},
+			expectReady: false,
+			expectLive:  false,
+			expectErr:   "workload api did not respond within 250ms",
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			c := &Config{
@@ -260,4 +272,21 @@ type unavailableWorkloadAPI struct {
 
 func (unavailableWorkloadAPI) FetchX509Bundles(_ *workload_pb.X509BundlesRequest, _ workload_pb.SpiffeWorkloadAPI_FetchX509BundlesServer) error {
 	return status.Error(codes.Unavailable, "")
+}
+
+type hangingWorkloadAPI struct {
+	workload_pb.UnimplementedSpiffeWorkloadAPIServer
+}
+
+func (hangingWorkloadAPI) FetchX509Bundles(_ *workload_pb.X509BundlesRequest, stream workload_pb.SpiffeWorkloadAPI_FetchX509BundlesServer) error {
+	<-stream.Context().Done()
+	return stream.Context().Err()
+}
+
+func shortenWorkloadAPIHealthCheckTimeout(t *testing.T, timeout time.Duration) {
+	original := workloadAPIHealthCheckTimeout
+	workloadAPIHealthCheckTimeout = timeout
+	t.Cleanup(func() {
+		workloadAPIHealthCheckTimeout = original
+	})
 }
