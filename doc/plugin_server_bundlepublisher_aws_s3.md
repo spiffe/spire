@@ -15,6 +15,7 @@ The plugin accepts the following configuration options:
 | format            | Format in which the trust bundle is stored, &lt;spiffe &vert; jwks &vert; pem&gt;. See [Supported bundle formats](#supported-bundle-formats) for more details.                       | Yes.                                                                   |                                                     |
 | endpoint          | A custom S3 endpoint should be set when using third-party object storage providers, such as Minio.                                                                                   | No.                                                                    |                                                     |
 | refresh_hint      | Sets the refresh hint for the bundle when using the spiffe format. Specified as string e.g. '10m', '1h'. See [time.ParseDuration](https://pkg.go.dev/time#ParseDuration) for details | No.                                                                    |                                                     |
+| oidc_compatible   | When `true`, the `jwks` format is OIDC-compatible: only the JWT authorities, each with its `kid`, `use` and `alg`. See [JWKS format](#jwks-format).                                  | No.                                                                    | false                                               |
 
 ## Supported bundle formats
 
@@ -27,6 +28,8 @@ The trust bundle is represented as an RFC 7517 compliant JWK Set, with the speci
 ### JWKS format
 
 The trust bundle is encoded as an RFC 7517 compliant JWK Set, omitting SPIFFE-specific parameters. Both the JWT authorities and the X.509 authorities are included.
+
+When `oidc_compatible` is `true`, the JWK Set is OIDC-compatible, so that OIDC relying parties can use it to verify JWT-SVIDs: it only includes the JWT authorities, leaving out the X.509 authorities, and every key has its `kid`, its `use` parameter set to `sig` and its `alg` parameter. These are the same keys, with the same members, as the keys endpoint of the [OIDC Discovery Provider](../support/oidc-discovery-provider/README.md) returns with `set_key_use` enabled. The `alg` parameter is optional in a JWK, and OIDC does not mandate a set of algorithms: SPIRE derives it from the key type, as the OIDC Discovery Provider does, mapping RSA keys of 2048 bits or more to `RS256`, P-256 keys to `ES256` and P-384 keys to `ES384`. Any other key, such as an RSA key under 2048 bits, is published without `alg`, and a warning is logged. When the bundle has no JWT authorities, an empty set (`{"keys":[]}`) is published, whereas the provider serves no document. Publishing fails if the key of a JWT authority cannot be parsed. This option can only be used with the `jwks` format.
 
 ### PEM format
 
