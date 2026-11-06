@@ -96,6 +96,7 @@ func (s *Server) WaitForListening() {
 
 func (s *Server) serveHTTP(w http.ResponseWriter, req *http.Request) {
 	if req.Method != "GET" {
+		w.Header().Set("Allow", http.MethodGet)
 		http.Error(w, "405 method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
