@@ -725,6 +725,18 @@ func keyActivationThreshold(issuedAt, notAfter time.Time) time.Time {
 	return notAfter.Add(-threshold)
 }
 
+func keyActivationTime(issuedAt, notAfter, replacementIssuedAt time.Time, activationDelay time.Duration) time.Time {
+	deadline := keyActivationThreshold(issuedAt, notAfter)
+	if activationDelay == 0 || replacementIssuedAt.IsZero() {
+		return deadline
+	}
+	activationTime := replacementIssuedAt.Add(activationDelay)
+	if activationTime.Before(deadline) {
+		return activationTime
+	}
+	return deadline
+}
+
 type x509CASlot struct {
 	id                  string
 	issuedAt            time.Time
@@ -734,6 +746,7 @@ type x509CASlot struct {
 	publicKey           crypto.PublicKey
 	notAfter            time.Time
 	upstreamAuthorityID string
+	activationTime      time.Time
 }
 
 func newX509CASlot(id string) *x509CASlot {
@@ -757,6 +770,7 @@ func (s *x509CASlot) IsEmpty() bool {
 func (s *x509CASlot) Reset() {
 	s.x509CA = nil
 	s.status = journal.Status_OLD
+	s.activationTime = time.Time{}
 }
 
 func (s *x509CASlot) ShouldPrepareNext(now time.Time) bool {
@@ -764,7 +778,14 @@ func (s *x509CASlot) ShouldPrepareNext(now time.Time) bool {
 }
 
 func (s *x509CASlot) ShouldActivateNext(now time.Time) bool {
-	return s.x509CA != nil && now.After(keyActivationThreshold(s.issuedAt, s.expiration()))
+	return s.x509CA != nil && now.After(s.activationTimeForNext())
+}
+
+func (s *x509CASlot) activationTimeForNext() time.Time {
+	if !s.activationTime.IsZero() {
+		return s.activationTime
+	}
+	return keyActivationThreshold(s.issuedAt, s.expiration())
 }
 
 func (s *x509CASlot) Status() journal.Status {
@@ -788,12 +809,13 @@ func (s *x509CASlot) expiration() time.Time {
 }
 
 type jwtKeySlot struct {
-	id          string
-	issuedAt    time.Time
-	jwtKey      *ca.JWTKey
-	status      journal.Status
-	authorityID string
-	notAfter    time.Time
+	id             string
+	issuedAt       time.Time
+	jwtKey         *ca.JWTKey
+	status         journal.Status
+	authorityID    string
+	notAfter       time.Time
+	activationTime time.Time
 }
 
 func newJWTKeySlot(id string) *jwtKeySlot {
@@ -832,6 +854,7 @@ func (s *jwtKeySlot) IsEmpty() bool {
 func (s *jwtKeySlot) Reset() {
 	s.jwtKey = nil
 	s.status = journal.Status_OLD
+	s.activationTime = time.Time{}
 }
 
 func (s *jwtKeySlot) ShouldPrepareNext(now time.Time) bool {
@@ -839,7 +862,14 @@ func (s *jwtKeySlot) ShouldPrepareNext(now time.Time) bool {
 }
 
 func (s *jwtKeySlot) ShouldActivateNext(now time.Time) bool {
-	return s.jwtKey == nil || now.After(keyActivationThreshold(s.issuedAt, s.jwtKey.NotAfter))
+	return s.jwtKey == nil || now.After(s.activationTimeForNext())
+}
+
+func (s *jwtKeySlot) activationTimeForNext() time.Time {
+	if !s.activationTime.IsZero() {
+		return s.activationTime
+	}
+	return keyActivationThreshold(s.issuedAt, s.jwtKey.NotAfter)
 }
 
 func (s *jwtKeySlot) NotAfter() time.Time {
@@ -847,12 +877,13 @@ func (s *jwtKeySlot) NotAfter() time.Time {
 }
 
 type witKeySlot struct {
-	id          string
-	issuedAt    time.Time
-	witKey      *ca.WITKey
-	status      journal.Status
-	authorityID string
-	notAfter    time.Time
+	id             string
+	issuedAt       time.Time
+	witKey         *ca.WITKey
+	status         journal.Status
+	authorityID    string
+	notAfter       time.Time
+	activationTime time.Time
 }
 
 func newWITKeySlot(id string) *witKeySlot {
@@ -891,6 +922,7 @@ func (s *witKeySlot) IsEmpty() bool {
 func (s *witKeySlot) Reset() {
 	s.witKey = nil
 	s.status = journal.Status_OLD
+	s.activationTime = time.Time{}
 }
 
 func (s *witKeySlot) ShouldPrepareNext(now time.Time) bool {
@@ -898,7 +930,14 @@ func (s *witKeySlot) ShouldPrepareNext(now time.Time) bool {
 }
 
 func (s *witKeySlot) ShouldActivateNext(now time.Time) bool {
-	return s.witKey == nil || now.After(keyActivationThreshold(s.issuedAt, s.witKey.NotAfter))
+	return s.witKey == nil || now.After(s.activationTimeForNext())
+}
+
+func (s *witKeySlot) activationTimeForNext() time.Time {
+	if !s.activationTime.IsZero() {
+		return s.activationTime
+	}
+	return keyActivationThreshold(s.issuedAt, s.witKey.NotAfter)
 }
 
 func (s *witKeySlot) NotAfter() time.Time {

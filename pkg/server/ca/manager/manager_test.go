@@ -326,6 +326,27 @@ func TestPersistence(t *testing.T) {
 	test.requireWITKeyEqual(t, secondWITKey, test.nextWITKey())
 }
 
+func TestActivationDelay(t *testing.T) {
+	ctx := context.Background()
+	test := setupTest(t)
+	test.initAndActivateSelfSignedManager(ctx)
+	test.m.activationDelay = 10 * time.Minute
+
+	test.clock.Add(prepareAfter + time.Minute)
+	preparedAt := test.clock.Now()
+	require.NoError(t, test.m.PrepareX509CA(ctx))
+	require.NoError(t, test.m.PrepareJWTKey(ctx))
+	require.NoError(t, test.m.PrepareWITKey(ctx))
+
+	activationTime := preparedAt.Add(10 * time.Minute)
+	require.Equal(t, activationTime, test.m.currentX509CA.activationTime)
+	require.Equal(t, activationTime, test.m.currentJWTKey.activationTime)
+	require.Equal(t, activationTime, test.m.currentWITKey.activationTime)
+
+	require.False(t, test.m.currentX509CA.ShouldActivateNext(activationTime))
+	require.True(t, test.m.currentX509CA.ShouldActivateNext(activationTime.Add(time.Nanosecond)))
+}
+
 func TestSlotLoadedWhenJournalIsLost(t *testing.T) {
 	ctx := context.Background()
 
