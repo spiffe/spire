@@ -22,6 +22,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/tlspolicy"
 	"github.com/spiffe/spire/pkg/server"
 	bundleClient "github.com/spiffe/spire/pkg/server/bundle/client"
+	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/pkg/server/credtemplate"
 	"github.com/spiffe/spire/pkg/server/endpoints/bundle"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
@@ -1307,6 +1308,25 @@ func TestNewServerConfig(t *testing.T) {
 			},
 		},
 		{
+			msg: "activation_threshold_cap is correctly parsed",
+			input: func(c *Config) {
+				c.Server.ActivationThresholdCap = "4h"
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Equal(t, 4*time.Hour, c.ActivationThresholdCap)
+			},
+		},
+		{
+			msg:         "non-positive activation_threshold_cap returns an error",
+			expectError: true,
+			input: func(c *Config) {
+				c.Server.ActivationThresholdCap = "0s"
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
 			msg:         "invalid ca_ttl returns an error",
 			expectError: true,
 			input: func(c *Config) {
@@ -2306,8 +2326,8 @@ func TestHasCompatibleTTLs(t *testing.T) {
 		}
 
 		t.Run(testCase.msg, func(t *testing.T) {
-			require.Equal(t, testCase.hasCompatibleX509SvidTTL, hasCompatibleTTL(testCase.caTTL, testCase.x509SvidTTL))
-			require.Equal(t, testCase.hasCompatibleJwtSvidTTL, hasCompatibleTTL(testCase.caTTL, testCase.jwtSvidTTL))
+			require.Equal(t, testCase.hasCompatibleX509SvidTTL, hasCompatibleTTL(testCase.caTTL, ca.DefaultActivationThresholdCap, testCase.x509SvidTTL))
+			require.Equal(t, testCase.hasCompatibleJwtSvidTTL, hasCompatibleTTL(testCase.caTTL, ca.DefaultActivationThresholdCap, testCase.jwtSvidTTL))
 		})
 	}
 }
@@ -2346,7 +2366,7 @@ func TestMaxSVIDTTL(t *testing.T) {
 			v.caTTL = credtemplate.DefaultX509CATTL
 		}
 
-		assert.Equal(t, v.expect, printMaxSVIDTTL(v.caTTL))
+		assert.Equal(t, v.expect, printMaxSVIDTTL(v.caTTL, ca.DefaultActivationThresholdCap))
 	}
 }
 

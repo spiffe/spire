@@ -30,22 +30,24 @@ const defaultEntryPageSize = 500
 
 // Config defines the service configuration.
 type Config struct {
-	TrustDomain   spiffeid.TrustDomain
-	EntryFetcher  api.AuthorizedEntryFetcher
-	DataStore     datastore.DataStore
-	EntryPageSize int
-	CATTL         time.Duration
+	TrustDomain            spiffeid.TrustDomain
+	EntryFetcher           api.AuthorizedEntryFetcher
+	DataStore              datastore.DataStore
+	EntryPageSize          int
+	CATTL                  time.Duration
+	ActivationThresholdCap time.Duration
 }
 
 // Service defines the v1 entry service.
 type Service struct {
 	entryv1.UnsafeEntryServer
 
-	td            spiffeid.TrustDomain
-	ds            datastore.DataStore
-	ef            api.AuthorizedEntryFetcher
-	entryPageSize int
-	caTTL         time.Duration
+	td                     spiffeid.TrustDomain
+	ds                     datastore.DataStore
+	ef                     api.AuthorizedEntryFetcher
+	entryPageSize          int
+	caTTL                  time.Duration
+	activationThresholdCap time.Duration
 }
 
 // New creates a new v1 entry service.
@@ -57,11 +59,12 @@ func New(config Config) *Service {
 		config.EntryPageSize = defaultEntryPageSize
 	}
 	return &Service{
-		td:            config.TrustDomain,
-		ds:            config.DataStore,
-		ef:            config.EntryFetcher,
-		entryPageSize: config.EntryPageSize,
-		caTTL:         config.CATTL,
+		td:                     config.TrustDomain,
+		ds:                     config.DataStore,
+		ef:                     config.EntryFetcher,
+		entryPageSize:          config.EntryPageSize,
+		caTTL:                  config.CATTL,
+		activationThresholdCap: config.ActivationThresholdCap,
 	}
 }
 
@@ -715,9 +718,9 @@ func (s *Service) warnOnEntryTTLs(log logrus.FieldLogger, e *common.Registration
 		telemetry.RegistrationID: e.EntryId,
 		telemetry.SPIFFEID:       e.SpiffeId,
 	})
-	ca.WarnOnIncompatibleTTL(log, s.caTTL, time.Duration(e.X509SvidTtl)*time.Second, telemetry.X509SVIDTTL)
-	ca.WarnOnIncompatibleTTL(log, s.caTTL, time.Duration(e.JwtSvidTtl)*time.Second, telemetry.JWTSVIDTTL)
-	ca.WarnOnIncompatibleTTL(log, s.caTTL, time.Duration(e.WitSvidTtl)*time.Second, telemetry.WITSVIDTTL)
+	ca.WarnOnIncompatibleTTL(log, s.caTTL, s.activationThresholdCap, time.Duration(e.X509SvidTtl)*time.Second, telemetry.X509SVIDTTL)
+	ca.WarnOnIncompatibleTTL(log, s.caTTL, s.activationThresholdCap, time.Duration(e.JwtSvidTtl)*time.Second, telemetry.JWTSVIDTTL)
+	ca.WarnOnIncompatibleTTL(log, s.caTTL, s.activationThresholdCap, time.Duration(e.WitSvidTtl)*time.Second, telemetry.WITSVIDTTL)
 }
 
 func fieldsFromEntryProto(ctx context.Context, proto *types.Entry, inputMask *types.EntryMask) logrus.Fields {

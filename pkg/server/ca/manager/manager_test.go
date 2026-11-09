@@ -1612,8 +1612,16 @@ func TestActivationThresholdCap(t *testing.T) {
 
 	// Expect the activation threshold to get capped since 1/6 of the lifetime
 	// exceeds the seven day cap.
-	threshold := keyActivationThreshold(issuedAt, notAfter)
+	threshold := keyActivationThreshold(issuedAt, notAfter, ca.DefaultActivationThresholdCap)
 	require.Equal(t, 7*24*time.Hour, notAfter.Sub(threshold))
+}
+
+func TestActivationThresholdCustomCap(t *testing.T) {
+	issuedAt := time.Now()
+	notAfter := issuedAt.Add(365 * 24 * time.Hour)
+
+	threshold := keyActivationThreshold(issuedAt, notAfter, 4*time.Hour)
+	require.Equal(t, 4*time.Hour, notAfter.Sub(threshold))
 }
 
 func TestDisableJWTSVIDs(t *testing.T) {

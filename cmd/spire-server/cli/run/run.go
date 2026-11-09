@@ -76,6 +76,7 @@ type serverConfig struct {
 	CAKeyType                    string               `hcl:"ca_key_type"`
 	CASubject                    *caSubjectConfig     `hcl:"ca_subject"`
 	CATTL                        string               `hcl:"ca_ttl"`
+	ActivationThresholdCap       string               `hcl:"activation_threshold_cap"`
 	DataDir                      string               `hcl:"data_dir"`
 	DefaultX509SVIDTTL           string               `hcl:"default_x509_svid_ttl"`
 	DefaultJWTSVIDTTL            string               `hcl:"default_jwt_svid_ttl"`
@@ -622,6 +623,16 @@ func newServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig, ski
 		}
 		sc.CATTL = ttl
 	}
+	if c.Server.ActivationThresholdCap != "" {
+		cap, err := time.ParseDuration(c.Server.ActivationThresholdCap)
+		if err != nil {
+			return nil, fmt.Errorf("could not parse activation threshold cap %q: %w", c.Server.ActivationThresholdCap, err)
+		}
+		if cap <= 0 {
+			return nil, errors.New("activation threshold cap must be positive")
+		}
+		sc.ActivationThresholdCap = cap
+	}
 
 	sc.Experimental.AgentSpiffeIdAsSelector = c.Server.Experimental.AgentSpiffeIdAsSelector
 	sc.Experimental.AllowNonconformingAgentIDs = c.Server.Experimental.AllowNonconformingAgentIDs
@@ -654,11 +665,11 @@ func newServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig, ski
 	}
 
 	for _, ttlCheck := range ttlChecks {
-		if !hasCompatibleTTL(sc.CATTL, ttlCheck.ttl) {
+		if !hasCompatibleTTL(sc.CATTL, sc.ActivationThresholdCap, ttlCheck.ttl) {
 			var message string
 
 			switch {
-			case ttlCheck.ttl < ca.MaxSVIDTTL():
+			case ttlCheck.ttl < ca.MaxSVIDTTL(sc.ActivationThresholdCap):
 				// TTL is smaller than our cap, but the CA TTL
 				// is not large enough to accommodate it
 				message = fmt.Sprintf("%s is too high for the configured "+
@@ -666,9 +677,9 @@ func newServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig, ski
 					"be issued. Please set %s to %v or less, or the ca_ttl "+
 					"to %v or more, to guarantee the full %s lifetime "+
 					"when CA rotations are scheduled.",
-					ttlCheck.name, ttlCheck.name, printMaxSVIDTTL(sc.CATTL), printMinCATTL(ttlCheck.ttl), ttlCheck.name,
+					ttlCheck.name, ttlCheck.name, printMaxSVIDTTL(sc.CATTL, sc.ActivationThresholdCap), printMinCATTL(ttlCheck.ttl), ttlCheck.name,
 				)
-			case sc.CATTL < ca.MinCATTLForSVIDTTL(ca.MaxSVIDTTL()):
+			case sc.CATTL < ca.MinCATTLForSVIDTTL(ca.MaxSVIDTTL(sc.ActivationThresholdCap)):
 				// TTL is larger than our cap, it needs to be
 				// decreased no matter what. Additionally, the CA TTL is
 				// too small to accommodate the maximum SVID TTL.
@@ -677,7 +688,7 @@ func newServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig, ski
 					"may be issued. Please set %s to %v or less, and the "+
 					"ca_ttl to %v or more, to guarantee the full %s "+
 					"lifetime when CA rotations are scheduled.",
-					ttlCheck.name, ttlCheck.name, printDuration(ca.MaxSVIDTTL()), printMinCATTL(ca.MaxSVIDTTL()), ttlCheck.name,
+					ttlCheck.name, ttlCheck.name, printDuration(ca.MaxSVIDTTL(sc.ActivationThresholdCap)), printMinCATTL(ca.MaxSVIDTTL(sc.ActivationThresholdCap)), ttlCheck.name,
 				)
 			default:
 				// TTL is larger than our cap and needs to be
@@ -686,7 +697,7 @@ func newServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig, ski
 					"lifetimes may be issued. Please set %s to %v or less "+
 					"to guarantee the full %s lifetime when CA rotations "+
 					"are scheduled.",
-					ttlCheck.name, ttlCheck.name, printMaxSVIDTTL(sc.CATTL), ttlCheck.name,
+					ttlCheck.name, ttlCheck.name, printMaxSVIDTTL(sc.CATTL, sc.ActivationThresholdCap), ttlCheck.name,
 				)
 			}
 			sc.Log.WithFields(logrus.Fields{
@@ -694,7 +705,7 @@ func newServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig, ski
 				telemetry.AlertType:    telemetry.ShortenedLifetimeAlertType,
 				telemetry.TTLName:      ttlCheck.name,
 				telemetry.RequestedTTL: ttlCheck.ttl.Seconds(),
-				telemetry.MaxTTL:       ca.MaxSVIDTTLForCATTL(sc.CATTL).Seconds(),
+				telemetry.MaxTTL:       ca.MaxSVIDTTLForCATTL(sc.CATTL, sc.ActivationThresholdCap).Seconds(),
 				telemetry.CATTL:        sc.CATTL.Seconds(),
 			}).Warn(message)
 		}
@@ -1191,12 +1202,13 @@ func checkForUnknownConfig(c *Config, l logrus.FieldLogger) (err error) {
 func defaultConfig() *Config {
 	return &Config{
 		Server: &serverConfig{
-			BindAddress:  "0.0.0.0",
-			BindPort:     8081,
-			CATTL:        credtemplate.DefaultX509CATTL.String(),
-			LogLevel:     defaultLogLevel,
-			LogFormat:    log.DefaultFormat,
-			Experimental: experimentalConfig{},
+			BindAddress:            "0.0.0.0",
+			BindPort:               8081,
+			CATTL:                  credtemplate.DefaultX509CATTL.String(),
+			ActivationThresholdCap: ca.DefaultActivationThresholdCap.String(),
+			LogLevel:               defaultLogLevel,
+			LogFormat:              log.DefaultFormat,
+			Experimental:           experimentalConfig{},
 		},
 	}
 }
@@ -1205,13 +1217,13 @@ func defaultConfig() *Config {
 // configured CA TTL. If we detect that a new SVID TTL may be cut short due to
 // a scheduled CA rotation, this function will return false. This method should
 // be called for each SVID TTL we may use
-func hasCompatibleTTL(caTTL time.Duration, svidTTL time.Duration) bool {
-	return svidTTL <= ca.MaxSVIDTTLForCATTL(caTTL)
+func hasCompatibleTTL(caTTL, activationThresholdCap, svidTTL time.Duration) bool {
+	return svidTTL <= ca.MaxSVIDTTLForCATTL(caTTL, activationThresholdCap)
 }
 
 // printMaxSVIDTTL calculates the display string for a sufficiently short SVID TTL
-func printMaxSVIDTTL(caTTL time.Duration) string {
-	return printDuration(ca.MaxSVIDTTLForCATTL(caTTL))
+func printMaxSVIDTTL(caTTL, activationThresholdCap time.Duration) string {
+	return printDuration(ca.MaxSVIDTTLForCATTL(caTTL, activationThresholdCap))
 }
 
 // printMinCATTL calculates the display string for a sufficiently large CA TTL
