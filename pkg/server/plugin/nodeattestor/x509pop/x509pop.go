@@ -345,7 +345,7 @@ func (p *Plugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServer) error {
 
 	// now that the leaf certificate is trusted, issue a challenge to the node
 	// to prove possession of the private key.
-	challenge, err := x509pop.GenerateChallengeWithHash(leaf, config.hashAlgorithm)
+	challenge, err := x509pop.GenerateChallenge(leaf, config.hashAlgorithm)
 	if err != nil {
 		return status.Errorf(codes.Internal, "unable to generate challenge: %v", err)
 	}

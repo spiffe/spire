@@ -28,7 +28,7 @@ func TestChallengeResponse(t *testing.T) {
 	require.NoError(err)
 
 	// verify the RSA challenge/response flow
-	rsaChallenge, err := GenerateChallenge(rsaCert)
+	rsaChallenge, err := GenerateChallenge(rsaCert, HashSHA256)
 	require.NoError(err)
 	rsaResponse, err := CalculateResponse(rsaPrivateKey, rsaChallenge)
 	require.NoError(err)
@@ -42,7 +42,7 @@ func TestChallengeResponse(t *testing.T) {
 	require.NoError(err)
 
 	// verify the ECDSA challenge/response flow
-	ecdsaChallenge, err := GenerateChallenge(ecdsaCert)
+	ecdsaChallenge, err := GenerateChallenge(ecdsaCert, HashSHA256)
 	require.NoError(err)
 	ecdsaResponse, err := CalculateResponse(ecdsaPrivateKey, ecdsaChallenge)
 	require.NoError(err)
@@ -74,7 +74,7 @@ func TestChallengeResponse(t *testing.T) {
 	// assert a challenge cannot be generated for an inappropriate certificate
 	badCert, err := createBadCertificate(rsaPrivateKey, rsaPublicKey)
 	require.NoError(err)
-	_, err = GenerateChallenge(badCert)
+	_, err = GenerateChallenge(badCert, HashSHA256)
 	require.EqualError(err, "certificate not intended for digital signature use")
 }
 

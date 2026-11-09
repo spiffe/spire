@@ -30,12 +30,12 @@ func legacyCalculateResponse(t *testing.T, privateKey any, challengeBytes []byte
 	switch privateKey := privateKey.(type) {
 	case *rsa.PrivateKey:
 		require.NotNil(t, challenge.RSASignature)
-		resp, err := CalculateRSASignatureResponse(privateKey, challenge.RSASignature)
+		resp, err := CalculateRSASignatureResponse(privateKey, challenge.RSASignature, crypto.SHA256)
 		require.NoError(t, err)
 		return &Response{RSASignature: resp}
 	case *ecdsa.PrivateKey:
 		require.NotNil(t, challenge.ECDSASignature)
-		resp, err := CalculateECDSASignatureResponse(privateKey, challenge.ECDSASignature)
+		resp, err := CalculateECDSASignatureResponse(privateKey, challenge.ECDSASignature, crypto.SHA256)
 		require.NoError(t, err)
 		return &Response{ECDSASignature: resp}
 	default:
@@ -98,7 +98,7 @@ func TestChallengeResponseWithHash(t *testing.T) {
 			{hash: HashSHA384, expectWireHash: HashSHA384, expectDigestSize: 48},
 		} {
 			t.Run(key.name+"/hash="+tt.hash, func(t *testing.T) {
-				challenge, err := GenerateChallengeWithHash(cert, tt.hash)
+				challenge, err := GenerateChallenge(cert, tt.hash)
 				require.NoError(t, err)
 				require.Equal(t, tt.expectWireHash, challenge.Hash)
 
@@ -142,12 +142,8 @@ func TestDefaultChallengeWireFormatUnchanged(t *testing.T) {
 	cert, err := createCertificate(testRSAKey, &testRSAKey.PublicKey)
 	require.NoError(t, err)
 
-	for _, generate := range []func() (*Challenge, error){
-		func() (*Challenge, error) { return GenerateChallenge(cert) },
-		func() (*Challenge, error) { return GenerateChallengeWithHash(cert, "") },
-		func() (*Challenge, error) { return GenerateChallengeWithHash(cert, HashSHA256) },
-	} {
-		challenge, err := generate()
+	for _, algorithm := range []string{"", HashSHA256} {
+		challenge, err := GenerateChallenge(cert, algorithm)
 		require.NoError(t, err)
 		challengeBytes, err := json.Marshal(challenge)
 		require.NoError(t, err)
@@ -161,7 +157,7 @@ func TestDefaultChallengeWireFormatUnchanged(t *testing.T) {
 		require.JSONEq(t, string(legacyBytes), string(challengeBytes))
 	}
 
-	challenge, err := GenerateChallengeWithHash(cert, HashSHA384)
+	challenge, err := GenerateChallenge(cert, HashSHA384)
 	require.NoError(t, err)
 	challengeBytes, err := json.Marshal(challenge)
 	require.NoError(t, err)
@@ -194,14 +190,14 @@ func TestHashCompatibility(t *testing.T) {
 
 			switch pub := key.privateKey.Public().(type) {
 			case *rsa.PublicKey:
-				require.NoError(t, VerifyRSASignatureResponse(pub, legacy.RSASignature, response.RSASignature))
+				require.NoError(t, VerifyRSASignatureResponse(pub, legacy.RSASignature, response.RSASignature, crypto.SHA256))
 			case *ecdsa.PublicKey:
-				require.NoError(t, VerifyECDSASignatureResponse(pub, legacy.ECDSASignature, response.ECDSASignature))
+				require.NoError(t, VerifyECDSASignatureResponse(pub, legacy.ECDSASignature, response.ECDSASignature, crypto.SHA256))
 			}
 		})
 
 		t.Run(key.name+"/new SHA-256 verifier accepts legacy response", func(t *testing.T) {
-			challenge, err := GenerateChallengeWithHash(cert, HashSHA256)
+			challenge, err := GenerateChallenge(cert, HashSHA256)
 			require.NoError(t, err)
 			challengeBytes, err := json.Marshal(challenge)
 			require.NoError(t, err)
@@ -210,7 +206,7 @@ func TestHashCompatibility(t *testing.T) {
 		})
 
 		t.Run(key.name+"/new SHA-384 verifier rejects legacy response", func(t *testing.T) {
-			challenge, err := GenerateChallengeWithHash(cert, HashSHA384)
+			challenge, err := GenerateChallenge(cert, HashSHA384)
 			require.NoError(t, err)
 			challengeBytes, err := json.Marshal(challenge)
 			require.NoError(t, err)
@@ -219,7 +215,7 @@ func TestHashCompatibility(t *testing.T) {
 		})
 
 		t.Run(key.name+"/SHA-256 verifier rejects SHA-384 response", func(t *testing.T) {
-			challenge, err := GenerateChallengeWithHash(cert, HashSHA384)
+			challenge, err := GenerateChallenge(cert, HashSHA384)
 			require.NoError(t, err)
 			response, err := CalculateResponse(key.privateKey, challenge)
 			require.NoError(t, err)
@@ -238,10 +234,10 @@ func TestUnsupportedChallengeHash(t *testing.T) {
 			cert, err := createCertificate(key.privateKey, key.privateKey.Public())
 			require.NoError(t, err)
 
-			_, err = GenerateChallengeWithHash(cert, "sha512")
+			_, err = GenerateChallenge(cert, "sha512")
 			require.EqualError(t, err, `unsupported hash algorithm "sha512"`)
 
-			challenge, err := GenerateChallengeWithHash(cert, HashSHA384)
+			challenge, err := GenerateChallenge(cert, HashSHA384)
 			require.NoError(t, err)
 			response, err := CalculateResponse(key.privateKey, challenge)
 			require.NoError(t, err)
@@ -260,7 +256,7 @@ func TestTamperedSignatureWithSHA384(t *testing.T) {
 		t.Run(key.name, func(t *testing.T) {
 			cert, err := createCertificate(key.privateKey, key.privateKey.Public())
 			require.NoError(t, err)
-			challenge, err := GenerateChallengeWithHash(cert, HashSHA384)
+			challenge, err := GenerateChallenge(cert, HashSHA384)
 			require.NoError(t, err)
 
 			response, err := CalculateResponse(key.privateKey, challenge)
@@ -315,7 +311,7 @@ func TestInvalidNonceLengthsWithHash(t *testing.T) {
 
 	cert, err := createCertificate(testECDSAP384Key, &testECDSAP384Key.PublicKey)
 	require.NoError(t, err)
-	challenge, err := GenerateChallengeWithHash(cert, HashSHA384)
+	challenge, err := GenerateChallenge(cert, HashSHA384)
 	require.NoError(t, err)
 	challenge.ECDSASignature.Nonce = challenge.ECDSASignature.Nonce[:16]
 	_, err = CalculateResponse(testECDSAP384Key, challenge)

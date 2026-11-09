@@ -56,9 +56,9 @@ func legacyAgentResponder(t *testing.T, key crypto.Signer, challengeBytes []byte
 	var err error
 	switch key := key.(type) {
 	case *rsa.PrivateKey:
-		response.RSASignature, err = x509pop.CalculateRSASignatureResponse(key, challenge.RSASignature)
+		response.RSASignature, err = x509pop.CalculateRSASignatureResponse(key, challenge.RSASignature, crypto.SHA256)
 	case *ecdsa.PrivateKey:
-		response.ECDSASignature, err = x509pop.CalculateECDSASignatureResponse(key, challenge.ECDSASignature)
+		response.ECDSASignature, err = x509pop.CalculateECDSASignatureResponse(key, challenge.ECDSASignature, crypto.SHA256)
 	default:
 		require.FailNow(t, "unexpected key type")
 	}

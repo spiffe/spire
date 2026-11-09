@@ -12,6 +12,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"hash"
 	"math/big"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -132,14 +133,9 @@ type Response struct {
 	ECDSASignature *ECDSASignatureResponse `json:"ecdsa_signature"`
 }
 
-// GenerateChallenge generates a SHA-256 challenge for the given certificate.
-func GenerateChallenge(cert *x509.Certificate) (*Challenge, error) {
-	return GenerateChallengeWithHash(cert, HashSHA256)
-}
-
-// GenerateChallengeWithHash generates a challenge for the given certificate
-// that requires the response to be computed with the given hash algorithm.
-func GenerateChallengeWithHash(cert *x509.Certificate, hashAlg string) (*Challenge, error) {
+// GenerateChallenge generates a challenge for the given certificate that
+// requires the response to be computed with the given hash algorithm.
+func GenerateChallenge(cert *x509.Certificate, hashAlg string) (*Challenge, error) {
 	hash, err := ParseHashAlgorithm(hashAlg)
 	if err != nil {
 		return nil, err
@@ -191,7 +187,7 @@ func CalculateResponse(privateKey any, challenge *Challenge) (*Response, error) 
 		if rsaChallenge == nil {
 			return nil, errors.New("expecting RSA challenge")
 		}
-		response, err := calculateRSASignatureResponse(privateKey, rsaChallenge, hash)
+		response, err := CalculateRSASignatureResponse(privateKey, rsaChallenge, hash)
 		if err != nil {
 			return nil, err
 		}
@@ -202,7 +198,7 @@ func CalculateResponse(privateKey any, challenge *Challenge) (*Response, error) 
 		if challenge.ECDSASignature == nil {
 			return nil, errors.New("expecting ECDSA challenge")
 		}
-		response, err := calculateECDSASignatureResponse(privateKey, challenge.ECDSASignature, hash)
+		response, err := CalculateECDSASignatureResponse(privateKey, challenge.ECDSASignature, hash)
 		if err != nil {
 			return nil, err
 		}
@@ -231,7 +227,7 @@ func VerifyChallengeResponse(publicKey any, challenge *Challenge, response *Resp
 		if response.RSASignature == nil {
 			return errors.New("expecting RSA response")
 		}
-		return verifyRSASignatureResponse(publicKey, challenge.RSASignature, response.RSASignature, hash)
+		return VerifyRSASignatureResponse(publicKey, challenge.RSASignature, response.RSASignature, hash)
 	case *ecdsa.PublicKey:
 		if challenge.ECDSASignature == nil {
 			return errors.New("expecting ECDSA challenge")
@@ -239,7 +235,7 @@ func VerifyChallengeResponse(publicKey any, challenge *Challenge, response *Resp
 		if response.ECDSASignature == nil {
 			return errors.New("expecting ECDSA response")
 		}
-		return verifyECDSASignatureResponse(publicKey, challenge.ECDSASignature, response.ECDSASignature, hash)
+		return VerifyECDSASignatureResponse(publicKey, challenge.ECDSASignature, response.ECDSASignature, hash)
 	default:
 		return fmt.Errorf("unsupported private key type %T", publicKey)
 	}
@@ -256,12 +252,8 @@ func GenerateRSASignatureChallenge() (*RSASignatureChallenge, error) {
 	}, nil
 }
 
-// CalculateRSASignatureResponse calculates a SHA-256 RSA-PSS response.
-func CalculateRSASignatureResponse(privateKey *rsa.PrivateKey, challenge *RSASignatureChallenge) (*RSASignatureResponse, error) {
-	return calculateRSASignatureResponse(privateKey, challenge, crypto.SHA256)
-}
-
-func calculateRSASignatureResponse(privateKey *rsa.PrivateKey, challenge *RSASignatureChallenge, hash crypto.Hash) (*RSASignatureResponse, error) {
+// CalculateRSASignatureResponse calculates an RSA-PSS response using the given hash.
+func CalculateRSASignatureResponse(privateKey *rsa.PrivateKey, challenge *RSASignatureChallenge, hash crypto.Hash) (*RSASignatureResponse, error) {
 	nonce, err := generateNonce()
 	if err != nil {
 		return nil, err
@@ -283,12 +275,8 @@ func calculateRSASignatureResponse(privateKey *rsa.PrivateKey, challenge *RSASig
 	}, nil
 }
 
-// VerifyRSASignatureResponse verifies a SHA-256 RSA-PSS response.
-func VerifyRSASignatureResponse(publicKey *rsa.PublicKey, challenge *RSASignatureChallenge, response *RSASignatureResponse) error {
-	return verifyRSASignatureResponse(publicKey, challenge, response, crypto.SHA256)
-}
-
-func verifyRSASignatureResponse(publicKey *rsa.PublicKey, challenge *RSASignatureChallenge, response *RSASignatureResponse, hash crypto.Hash) error {
+// VerifyRSASignatureResponse verifies an RSA-PSS response using the given hash.
+func VerifyRSASignatureResponse(publicKey *rsa.PublicKey, challenge *RSASignatureChallenge, response *RSASignatureResponse, hash crypto.Hash) error {
 	combined, err := combineNoncesWithHash(challenge.Nonce, response.Nonce, hash)
 	if err != nil {
 		return err
@@ -311,12 +299,8 @@ func GenerateECDSASignatureChallenge() (*ECDSASignatureChallenge, error) {
 	}, nil
 }
 
-// CalculateECDSASignatureResponse calculates a SHA-256 ECDSA response.
-func CalculateECDSASignatureResponse(privateKey *ecdsa.PrivateKey, challenge *ECDSASignatureChallenge) (*ECDSASignatureResponse, error) {
-	return calculateECDSASignatureResponse(privateKey, challenge, crypto.SHA256)
-}
-
-func calculateECDSASignatureResponse(privateKey *ecdsa.PrivateKey, challenge *ECDSASignatureChallenge, hash crypto.Hash) (*ECDSASignatureResponse, error) {
+// CalculateECDSASignatureResponse calculates an ECDSA response using the given hash.
+func CalculateECDSASignatureResponse(privateKey *ecdsa.PrivateKey, challenge *ECDSASignatureChallenge, hash crypto.Hash) (*ECDSASignatureResponse, error) {
 	nonce, err := generateNonce()
 	if err != nil {
 		return nil, err
@@ -339,12 +323,8 @@ func calculateECDSASignatureResponse(privateKey *ecdsa.PrivateKey, challenge *EC
 	}, nil
 }
 
-// VerifyECDSASignatureResponse verifies a SHA-256 ECDSA response.
-func VerifyECDSASignatureResponse(publicKey *ecdsa.PublicKey, challenge *ECDSASignatureChallenge, response *ECDSASignatureResponse) error {
-	return verifyECDSASignatureResponse(publicKey, challenge, response, crypto.SHA256)
-}
-
-func verifyECDSASignatureResponse(publicKey *ecdsa.PublicKey, challenge *ECDSASignatureChallenge, response *ECDSASignatureResponse, hash crypto.Hash) error {
+// VerifyECDSASignatureResponse verifies an ECDSA response using the given hash.
+func VerifyECDSASignatureResponse(publicKey *ecdsa.PublicKey, challenge *ECDSASignatureChallenge, response *ECDSASignatureResponse, hash crypto.Hash) error {
 	combined, err := combineNoncesWithHash(challenge.Nonce, response.Nonce, hash)
 	if err != nil {
 		return err
@@ -395,24 +375,24 @@ func generateNonce() ([]byte, error) {
 	return b, nil
 }
 
-func combineNoncesWithHash(challenge, response []byte, hash crypto.Hash) ([]byte, error) {
+func combineNoncesWithHash(challenge, response []byte, hashAlg crypto.Hash) ([]byte, error) {
 	if len(challenge) != nonceLen {
 		return nil, errors.New("invalid challenge nonce")
 	}
 	if len(response) != nonceLen {
 		return nil, errors.New("invalid response nonce")
 	}
-	combined := make([]byte, 0, len(challenge)+len(response))
-	combined = append(combined, challenge...)
-	combined = append(combined, response...)
-	switch hash {
+	var h hash.Hash
+	switch hashAlg {
 	case crypto.SHA256:
-		sum := sha256.Sum256(combined)
-		return sum[:], nil
+		h = sha256.New()
 	case crypto.SHA384:
-		sum := sha512.Sum384(combined)
-		return sum[:], nil
+		h = sha512.New384()
 	default:
-		return nil, fmt.Errorf("unsupported hash algorithm %v", hash)
+		return nil, fmt.Errorf("unsupported hash algorithm %v", hashAlg)
 	}
+	// Writing to a digest never fails.
+	_, _ = h.Write(challenge)
+	_, _ = h.Write(response)
+	return h.Sum(nil), nil
 }

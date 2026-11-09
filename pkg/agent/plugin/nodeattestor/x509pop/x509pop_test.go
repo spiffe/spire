@@ -123,7 +123,7 @@ func (s *Suite) TestAttestSuccessWithWorkloadAPI() {
 		Certificates: certArray,
 	})
 
-	challenge, err := x509pop.GenerateChallenge(svidLeaf)
+	challenge, err := x509pop.GenerateChallenge(svidLeaf, x509pop.HashSHA256)
 	s.Require().NoError(err)
 	challengeBytes := s.marshal(challenge)
 
@@ -260,7 +260,7 @@ func (s *Suite) testAttestSuccess(p nodeattestor.NodeAttestor, expectBundle [][]
 		Certificates: expectBundle,
 	})
 
-	challenge, err := x509pop.GenerateChallenge(s.leafCert)
+	challenge, err := x509pop.GenerateChallenge(s.leafCert, x509pop.HashSHA256)
 	s.Require().NoError(err)
 	challengeBytes := s.marshal(challenge)
 

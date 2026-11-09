@@ -44,7 +44,7 @@ func (s *Suite) TestAttestSuccessWithHashAlgorithm() {
 		cert, p := s.loadPluginWithKey(key.key)
 		for _, hash := range []string{"", x509pop.HashSHA256, x509pop.HashSHA384} {
 			s.Run(fmt.Sprintf("%s/hash=%q", key.name, hash), func() {
-				challenge, err := x509pop.GenerateChallengeWithHash(cert, hash)
+				challenge, err := x509pop.GenerateChallenge(cert, hash)
 				s.Require().NoError(err)
 				s.attestWithChallenge(p, cert, s.marshal(challenge), func(response *x509pop.Response) error {
 					return x509pop.VerifyChallengeResponse(cert.PublicKey, challenge, response)
@@ -62,7 +62,7 @@ func (s *Suite) TestAttestLegacyServerChallenge() {
 	rsaChallenge, err := x509pop.GenerateRSASignatureChallenge()
 	s.Require().NoError(err)
 	s.attestWithChallenge(rsaPlugin, rsaCert, s.marshal(legacyChallenge{RSASignature: rsaChallenge}), func(response *x509pop.Response) error {
-		return x509pop.VerifyRSASignatureResponse(&rsaKey.PublicKey, rsaChallenge, response.RSASignature)
+		return x509pop.VerifyRSASignatureResponse(&rsaKey.PublicKey, rsaChallenge, response.RSASignature, crypto.SHA256)
 	})
 
 	ecKey := testkey.MustEC256()
@@ -70,14 +70,14 @@ func (s *Suite) TestAttestLegacyServerChallenge() {
 	ecChallenge, err := x509pop.GenerateECDSASignatureChallenge()
 	s.Require().NoError(err)
 	s.attestWithChallenge(ecPlugin, ecCert, s.marshal(legacyChallenge{ECDSASignature: ecChallenge}), func(response *x509pop.Response) error {
-		return x509pop.VerifyECDSASignatureResponse(&ecKey.PublicKey, ecChallenge, response.ECDSASignature)
+		return x509pop.VerifyECDSASignatureResponse(&ecKey.PublicKey, ecChallenge, response.ECDSASignature, crypto.SHA256)
 	})
 }
 
 func (s *Suite) TestAttestSHA384ResponseFailsSHA256Verification() {
 	key := testkey.MustEC384()
 	cert, p := s.loadPluginWithKey(key)
-	challenge, err := x509pop.GenerateChallengeWithHash(cert, x509pop.HashSHA384)
+	challenge, err := x509pop.GenerateChallenge(cert, x509pop.HashSHA384)
 	s.Require().NoError(err)
 
 	err = p.Attest(context.Background(), streamBuilder.
@@ -87,14 +87,14 @@ func (s *Suite) TestAttestSHA384ResponseFailsSHA256Verification() {
 			if err := json.Unmarshal(challengeResponse, response); err != nil {
 				return nil, err
 			}
-			return nil, x509pop.VerifyECDSASignatureResponse(&key.PublicKey, challenge.ECDSASignature, response.ECDSASignature)
+			return nil, x509pop.VerifyECDSASignatureResponse(&key.PublicKey, challenge.ECDSASignature, response.ECDSASignature, crypto.SHA256)
 		}).Build())
 	s.Require().ErrorContains(err, "ECDSA signature verify failed")
 }
 
 func (s *Suite) TestAttestFailureUnsupportedHash() {
 	p := s.loadAndConfigurePlugin(false)
-	challenge, err := x509pop.GenerateChallenge(s.leafCert)
+	challenge, err := x509pop.GenerateChallenge(s.leafCert, x509pop.HashSHA256)
 	s.Require().NoError(err)
 
 	for _, hash := range []string{"sha512", "SHA384", "md5"} {
