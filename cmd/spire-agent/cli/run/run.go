@@ -152,7 +152,8 @@ type brokerHCLConfig struct {
 	BindAddress string `hcl:"bind_address"`
 
 	// ReattestInterval is how often active X.509-SVID subscriptions re-attest
-	// their workload reference. Defaults to 10 minutes.
+	// their workload reference. Defaults to 10 minutes and must be at least
+	// 1 minute.
 	ReattestInterval string `hcl:"reattest_interval"`
 
 	// ReattestJitter is the fraction of ReattestInterval used to jitter each
@@ -222,6 +223,8 @@ func (c *agentConfig) brokerBindAddrs() ([]net.Addr, error) {
 	return addrs, nil
 }
 
+const minBrokerReattestInterval = time.Minute
+
 func brokerReattestIntervalFromHCL(in string) (time.Duration, error) {
 	if in == "" {
 		return 0, nil
@@ -230,8 +233,8 @@ func brokerReattestIntervalFromHCL(in string) (time.Duration, error) {
 	if err != nil {
 		return 0, fmt.Errorf("experimental.broker.reattest_interval: %w", err)
 	}
-	if interval <= 0 {
-		return 0, errors.New("experimental.broker.reattest_interval must be positive")
+	if interval < minBrokerReattestInterval {
+		return 0, fmt.Errorf("experimental.broker.reattest_interval must be at least %s", minBrokerReattestInterval)
 	}
 	return interval, nil
 }

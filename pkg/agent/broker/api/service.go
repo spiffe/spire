@@ -287,7 +287,7 @@ func (s *Service) jitteredReattestInterval() time.Duration {
 	if maxJitter <= 0 {
 		return s.reattestInterval
 	}
-	return s.reattestInterval + time.Duration(rand.Int64N(int64(2*maxJitter))) - maxJitter //nolint // gosec: no need for cryptographic randomness here
+	return s.reattestInterval + time.Duration(rand.Int64N(int64(2*maxJitter))) - maxJitter //nolint:gosec // no need for cryptographic randomness here
 }
 
 func (s *Service) SubscribeToX509Bundles(req *broker.SubscribeToX509BundlesRequest, stream broker.API_SubscribeToX509BundlesServer) error {

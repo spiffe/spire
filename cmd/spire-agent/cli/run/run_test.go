@@ -1556,13 +1556,13 @@ func TestNewAgentConfig(t *testing.T) {
 			},
 		},
 		{
-			msg:                "broker reattest interval must be positive",
+			msg:                "broker reattest interval must be at least one minute",
 			expectError:        true,
-			requireErrorPrefix: "experimental.broker.reattest_interval must be positive",
+			requireErrorPrefix: "experimental.broker.reattest_interval must be at least 1m",
 			input: func(c *Config) {
 				c.Agent.Experimental.Broker = &brokerHCLConfig{
 					BindAddress:      "127.0.0.1:8443",
-					ReattestInterval: "-1m",
+					ReattestInterval: "30s",
 					Brokers: []brokerHCLEntry{
 						{
 							ID: "spiffe://example.org/broker",

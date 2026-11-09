@@ -774,7 +774,8 @@ skip those checks. The setting is required; there is no default.
 While an X.509-SVID subscription is open, the agent periodically re-attests
 the workload reference: every 10 minutes by default, with 10% jitter. Both
 are configurable with `reattest_interval` and `reattest_jitter` in the
-`broker` block. This makes the stream follow selector changes when the same
+`broker` block; `reattest_interval` must be at least 1 minute. This makes the
+stream follow selector changes when the same
 reference resolves differently over time, such as a pod recreated with a new
 UID or different labels, and terminates the stream with
 `NotFound`/`PermissionDenied` once the referenced object no longer exists or is
