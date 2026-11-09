@@ -26,7 +26,7 @@ func TestWarnOnIncompatibleTTL(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			log, hook := test.NewNullLogger()
-			WarnOnIncompatibleTTL(log, tt.caTTL, tt.ttl, "x509_svid_ttl")
+			WarnOnIncompatibleTTL(log, tt.caTTL, DefaultActivationThresholdDivisor, tt.ttl, "x509_svid_ttl")
 			if !tt.warn {
 				require.Empty(t, hook.AllEntries())
 				return
@@ -39,7 +39,7 @@ func TestWarnOnIncompatibleTTL(t *testing.T) {
 				telemetry.AlertType:    telemetry.ShortenedLifetimeAlertType,
 				telemetry.TTLName:      "x509_svid_ttl",
 				telemetry.RequestedTTL: tt.ttl.Seconds(),
-				telemetry.MaxTTL:       MaxSVIDTTLForCATTL(tt.caTTL).Seconds(),
+				telemetry.MaxTTL:       MaxSVIDTTLForCATTL(tt.caTTL, DefaultActivationThresholdDivisor).Seconds(),
 				telemetry.CATTL:        tt.caTTL.Seconds(),
 			}, entry.Data)
 		})

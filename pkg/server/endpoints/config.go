@@ -56,7 +56,8 @@ type Config struct {
 	ServerCA ca.ServerCA
 
 	// CATTL is the configured CA/signing key lifetime, used for TTL warnings.
-	CATTL time.Duration
+	CATTL                      time.Duration
+	ActivationThresholdDivisor float64
 
 	// Bundle endpoint configuration
 	BundleEndpoint bundle.EndpointConfig
@@ -196,10 +197,11 @@ func (c *Config) makeAPIServers(entryFetcher api.AuthorizedEntryFetcher) APIServ
 			Uptime:       c.Uptime,
 		}),
 		EntryServer: entryv1.New(entryv1.Config{
-			CATTL:        c.CATTL,
-			TrustDomain:  c.TrustDomain,
-			DataStore:    ds,
-			EntryFetcher: entryFetcher,
+			CATTL:                      c.CATTL,
+			ActivationThresholdDivisor: c.ActivationThresholdDivisor,
+			TrustDomain:                c.TrustDomain,
+			DataStore:                  ds,
+			EntryFetcher:               entryFetcher,
 		}),
 		HealthServer: healthv1.New(healthv1.Config{
 			TrustDomain: c.TrustDomain,
@@ -209,12 +211,13 @@ func (c *Config) makeAPIServers(entryFetcher api.AuthorizedEntryFetcher) APIServ
 			Log: c.RootLog,
 		}),
 		SVIDServer: svidv1.New(svidv1.Config{
-			CATTL:        c.CATTL,
-			Clock:        c.Clock,
-			TrustDomain:  c.TrustDomain,
-			EntryFetcher: entryFetcher,
-			ServerCA:     c.ServerCA,
-			DataStore:    ds,
+			CATTL:                      c.CATTL,
+			ActivationThresholdDivisor: c.ActivationThresholdDivisor,
+			Clock:                      c.Clock,
+			TrustDomain:                c.TrustDomain,
+			EntryFetcher:               entryFetcher,
+			ServerCA:                   c.ServerCA,
+			DataStore:                  ds,
 		}),
 		TrustDomainServer: trustdomainv1.New(trustdomainv1.Config{
 			TrustDomain:     c.TrustDomain,

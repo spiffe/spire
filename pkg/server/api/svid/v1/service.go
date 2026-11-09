@@ -44,12 +44,13 @@ func RegisterService(s grpc.ServiceRegistrar, service *Service) {
 
 // Config is the service configuration
 type Config struct {
-	EntryFetcher api.AuthorizedEntryFetcher
-	ServerCA     ca.ServerCA
-	TrustDomain  spiffeid.TrustDomain
-	DataStore    datastore.DataStore
-	CATTL        time.Duration
-	Clock        clock.Clock
+	EntryFetcher               api.AuthorizedEntryFetcher
+	ServerCA                   ca.ServerCA
+	TrustDomain                spiffeid.TrustDomain
+	DataStore                  datastore.DataStore
+	CATTL                      time.Duration
+	ActivationThresholdDivisor float64
+	Clock                      clock.Clock
 }
 
 // New creates a new SVID service
@@ -61,12 +62,13 @@ func New(config Config) *Service {
 		config.CATTL = credtemplate.DefaultX509CATTL
 	}
 	return &Service{
-		ca:    config.ServerCA,
-		ef:    config.EntryFetcher,
-		td:    config.TrustDomain,
-		ds:    config.DataStore,
-		caTTL: config.CATTL,
-		clock: config.Clock,
+		ca:                         config.ServerCA,
+		ef:                         config.EntryFetcher,
+		td:                         config.TrustDomain,
+		ds:                         config.DataStore,
+		caTTL:                      config.CATTL,
+		activationThresholdDivisor: config.ActivationThresholdDivisor,
+		clock:                      config.Clock,
 	}
 }
 
@@ -80,6 +82,7 @@ type Service struct {
 	ds                           datastore.DataStore
 	useLegacyDownstreamX509CATTL bool
 	caTTL                        time.Duration
+	activationThresholdDivisor   float64
 	clock                        clock.Clock
 }
 
@@ -148,7 +151,7 @@ func (s *Service) MintX509SVID(ctx context.Context, req *svidv1.MintX509SVIDRequ
 		telemetry.DNSName:  strings.Join(csr.DNSNames, ","),
 		telemetry.Subject:  csr.Subject,
 	}
-	ca.WarnOnIncompatibleTTL(log.WithFields(commonX509SVIDLogFields), s.caTTL, time.Duration(req.Ttl)*time.Second, telemetry.X509SVIDTTL)
+	ca.WarnOnIncompatibleTTL(log.WithFields(commonX509SVIDLogFields), s.caTTL, s.activationThresholdDivisor, time.Duration(req.Ttl)*time.Second, telemetry.X509SVIDTTL)
 
 	rpccontext.AddRPCAuditFields(ctx, logrus.Fields{
 		telemetry.ExpiresAt: x509SVID[0].NotAfter.Format(time.RFC3339),
@@ -181,7 +184,7 @@ func (s *Service) MintJWTSVID(ctx context.Context, req *svidv1.MintJWTSVIDReques
 	if err != nil {
 		return nil, err
 	}
-	ca.WarnOnIncompatibleTTL(log.WithFields(fields), s.caTTL, time.Duration(req.Ttl)*time.Second, telemetry.JWTSVIDTTL)
+	ca.WarnOnIncompatibleTTL(log.WithFields(fields), s.caTTL, s.activationThresholdDivisor, time.Duration(req.Ttl)*time.Second, telemetry.JWTSVIDTTL)
 	rpccontext.AuditRPC(ctx)
 
 	return &svidv1.MintJWTSVIDResponse{
@@ -201,7 +204,7 @@ func (s *Service) MintWITSVID(ctx context.Context, req *svidv1.MintWITSVIDReques
 	if err != nil {
 		return nil, err
 	}
-	ca.WarnOnIncompatibleTTL(log.WithFields(fields), s.caTTL, time.Duration(req.Ttl)*time.Second, telemetry.WITSVIDTTL)
+	ca.WarnOnIncompatibleTTL(log.WithFields(fields), s.caTTL, s.activationThresholdDivisor, time.Duration(req.Ttl)*time.Second, telemetry.WITSVIDTTL)
 	rpccontext.AuditRPC(ctx)
 
 	return &svidv1.MintWITSVIDResponse{
@@ -665,7 +668,7 @@ func (s *Service) NewDownstreamX509CA(ctx context.Context, req *svidv1.NewDownst
 		return nil, commonapi.MakeErr(log, codes.Internal, "failed to sign downstream X.509 CA", err)
 	}
 	requestedTTL := time.Duration(ttl) * time.Second
-	ca.WarnOnIncompatibleTTL(log.WithField(telemetry.SPIFFEID, x509CASvid[0].URIs[0].String()), s.caTTL, requestedTTL, "downstream_ca_ttl")
+	ca.WarnOnIncompatibleTTL(log.WithField(telemetry.SPIFFEID, x509CASvid[0].URIs[0].String()), s.caTTL, s.activationThresholdDivisor, requestedTTL, "downstream_ca_ttl")
 	if requestedTTL > 0 && x509CASvid[0].NotAfter.Add(time.Second).Before(requestedAt.Add(requestedTTL)) {
 		log.WithFields(logrus.Fields{
 			telemetry.Alert:        true,
