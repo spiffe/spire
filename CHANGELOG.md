@@ -1,10 +1,79 @@
 # Changelog
 
-## [1.16.0] - Unreleased
+## [1.16.0] - 2026-11-05
+
+### Added
+
+- Experimental WIT-SVID support, enabled with the `enable_wit_svids` server and agent options, including Workload API methods, a `spire-agent api fetch wit` CLI command, an agent-side WIT-SVID cache, per-entry and default (`default_wit_svid_ttl`) WIT-SVID TTLs, and publishing of WIT signing keys through the `spire` UpstreamAuthority plugin (#7243, #7244, #7273, #7282, #7302, #7306, #7354)
+- `kmip` KeyManager plugin for storing keys in KMIP-compliant servers (#7235)
+- Microsoft Entra ID authentication for Azure PostgreSQL and MySQL in the `sql` datastore (#7279)
+- In-process log file rotation via the `log_file_rotation` agent and server option (#7229)
+- Support for triggering a log file reopen on Windows, and external tools can now move or delete the log file on Windows (#7248, #7269)
+- Experimental `use_xds` agent option to resolve the SPIRE server via xDS (#7256)
+- Experimental `server_load_balancing_config` agent option to configure the load balancing policy used for connections to the server (#7241)
+- Experimental agent options to configure the sync retry backoff (`sync_retry_backoff`), `rpc_timeout` and `max_bundle_workers` (#7093, #7286)
+- `bootstrap_bundle_path` option on `federates_with` to bootstrap `https_spiffe` federation trust from a file (#7260)
+- `serving_cert_source` section in the OIDC Discovery Provider, including a `workload_api` variant that serves HTTPS using an X509-SVID from the Workload API (#7285)
+- `audit_log_exclude_agent_sync` server option to omit successful bundle and authorized-entry read audit records (#7328)
+- `group_template` and `allowed_groups` options in the `x509pop` node attestor to produce group selectors (#7002)
+- `extension_oids` option in the `x509pop` node attestor to expose certificate extensions as selectors (#7327)
+- Subject attribute selectors by OID in the `tpm_devid` node attestor (#7312)
+- Optional `verify_client_ip` in the `sshpop` and `http_challenge` node attestors (#7191, #7240)
+- `trust_bundle_path` option in the `azure_imds` node attestor for additional root CAs (#7143)
+- `exclude_completed_pods` option in the `k8s` workload attestor to drop completed pods from the kubelet cache (#7177)
+- CA rotation horizon metrics (#7325)
 
 ### Changed
 
 - The `cache_manager`/`expiring_svids` and `cache_manager`/`outdated_svids` samples now carry an `svid_type` label (`X509` or `WIT`), so counts are reported per SVID type
+- Agent SPIFFE IDs must now reside under `/spire/agent`; attestations producing other IDs fail unless the experimental configuration `allow_nonconforming_agent_ids` is set (#7314)
+  > :rotating_light: **_This is a potentially breaking change for users of external plugins and custom `agent_path_template` values_** :rotating_light:
+- Rootless Podman workload attestation now requires the `use_rootless_podman` option in the `docker` workload attestor (#7293)
+  > :rotating_light: **_This is a potentially breaking change, make sure to enable it if you use rootless podman_** :rotating_light:
+- Removed the mountinfo fallback from the container locator used by the `docker` and `k8s` workload attestors, as it could be forged (#7288)
+- The `k8s` workload attestor broker configuration now applies sensible defaults, so brokers no longer need to be specified twice (#7187)
+- The `k8s_psat` node attestor now rejects attestations when the fetched pod UID does not match the token's pod UID (#7117)
+- The Broker API no longer serves JWT-SVIDs for admin or downstream entries (#7259)
+- The agent retries `NewJWTSVID` with backoff on transient errors (#7169)
+- The `cache_manager`/`expiring_svids` and `cache_manager`/`outdated_svids` samples now carry an `svid_type` label (`X509` or `WIT`), so counts are reported per SVID type (#7244)
+- DNS names are case-folded before IDNA validation (#7255)
+- Reduced database load for entry writes, attested node cache rebuilds and agent authorization (#7182, #7218, #7304)
+- Reduced memory usage when fetching kubelet pod lists (#7320)
+- The `ca_journals` table in the `sql` datastore gains a `journal_id` column, reserved for future use; deployments with `disable_migration` set should plan for this schema migration (#7290)
+- Fulcio roots are now loaded through sigstore-go TUF APIs, honoring `TUF_ROOT` and `SIGSTORE_NO_CACHE` (#7263)
+- Updated Go to 1.27.3 (#7252, #7267, #7346, #7353)
+
+### Deprecated
+
+- Notifier plugins, in favor of BundlePublisher plugins (#7222)
+- `acme` and `serving_cert_file` sections in the OIDC Discovery Provider, in favor of `serving_cert_source` (#7285)
+
+### Removed
+
+- `use_sync_authorized_entries` agent option (#7221)
+
+### Fixed
+
+- Cached SVIDs are invalidated when their registration entry changes substantially, preventing workloads from receiving SVIDs issued for a different entry (#7310)
+- LRU cache subscribers now match on complete selector sets (#7257)
+- `aws_secretsmanager` and `gcp_secretmanager` SVIDStore plugins now handle federated bundles with multiple or no roots (#7309)
+- The server keeps processing bundle updates after a single failure (#7319)
+- Bundle subscribers are notified when a bundle is removed (#7331)
+- The OIDC Discovery Provider now allows CORS (#7224)
+- The rotator failure count is reset after a successful rotation (#7254)
+- `log_file` is no longer opened when validating configuration (#7247)
+- The agent and server no longer exit as crashed on gRPC context canceled errors during startup (#7274)
+- No more spurious warning on profiling server shutdown (#7211)
+- Pagination tokens larger than 32 bits are now accepted by the datastore (#7201)
+- The server CA now honors upstream X.509 chain expiry during rotation (#7303)
+- The agent no longer panics during workload attestation when sigstore verification meets a signature that has a Rekor entry but no Rekor bundle (#7363)
+- A nested server using the `spire` UpstreamAuthority plugin no longer exits when the upstream server is unreachable after a restart, and instead retries the local bundle subscription with backoff (#7359)
+
+## [1.15.5] - 2026-10-20
+
+### Security
+
+- Bump golang version to 1.26.10 which includes a fix for CVE-2026-111943
 
 ## [1.15.4] - 2026-10-15
 
