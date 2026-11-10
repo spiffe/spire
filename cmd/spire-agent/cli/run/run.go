@@ -125,8 +125,10 @@ type agentConfig struct {
 //	    # At least one of these MUST be set; both MAY be set to expose the
 //	    # broker endpoint over both transports simultaneously (e.g., UDS
 //	    # for a local sidecar broker AND TCP for a remote broker).
-//	    socket_path  = "/run/spire/agent/broker.sock"   # POSIX-only UDS
-//	    bind_address = "0.0.0.0:8443"                   # TCP, both platforms
+//	    socket_path       = "/run/spire/agent/broker.sock"   # POSIX-only UDS
+//	    bind_address      = "0.0.0.0:8443"                   # TCP, both platforms
+//	    reattest_interval = "10m"                             # default
+//	    reattest_jitter   = 0.1                               # default
 //
 //	    brokers = [
 //	        {
@@ -148,6 +150,15 @@ type brokerHCLConfig struct {
 	// BindAddress binds the broker endpoint to a TCP address ("host:port").
 	// Works on both POSIX and Windows.
 	BindAddress string `hcl:"bind_address"`
+
+	// ReattestInterval is how often active X.509-SVID subscriptions re-attest
+	// their workload reference. Defaults to 10 minutes and must be at least
+	// 1 minute.
+	ReattestInterval string `hcl:"reattest_interval"`
+
+	// ReattestJitter is the fraction of ReattestInterval used to jitter each
+	// re-attestation interval. Defaults to 0.1.
+	ReattestJitter *float64 `hcl:"reattest_jitter"`
 
 	// Brokers enumerates the brokers authorized to talk to this agent's
 	// broker endpoint. Each entry's `id` is any valid SPIFFE ID; cross-
@@ -210,6 +221,33 @@ func (c *agentConfig) brokerBindAddrs() ([]net.Addr, error) {
 		addrs = append(addrs, tcp)
 	}
 	return addrs, nil
+}
+
+const minBrokerReattestInterval = time.Minute
+
+func brokerReattestIntervalFromHCL(in string) (time.Duration, error) {
+	if in == "" {
+		return 0, nil
+	}
+	interval, err := time.ParseDuration(in)
+	if err != nil {
+		return 0, fmt.Errorf("experimental.broker.reattest_interval: %w", err)
+	}
+	if interval < minBrokerReattestInterval {
+		return 0, fmt.Errorf("experimental.broker.reattest_interval must be at least %s", minBrokerReattestInterval)
+	}
+	return interval, nil
+}
+
+func brokerReattestJitterFromHCL(in *float64) (*float64, error) {
+	if in == nil {
+		return nil, nil
+	}
+	if *in < 0 || *in >= 1 {
+		return nil, fmt.Errorf("experimental.broker.reattest_jitter (%.2f) must be in the [0, 1) range", *in)
+	}
+	jitter := *in
+	return &jitter, nil
 }
 
 func brokerAllowedReferenceTypesFromHCL(brokerID string, in []brokerAllowedReferenceTypeHCLEntry) ([]broker.AllowedReferenceType, error) {
@@ -952,9 +990,19 @@ func newAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig, skip
 				AllowedReferenceTypes: allowedReferenceTypes,
 			})
 		}
+		reattestInterval, err := brokerReattestIntervalFromHCL(c.Agent.Experimental.Broker.ReattestInterval)
+		if err != nil {
+			return nil, err
+		}
+		reattestJitter, err := brokerReattestJitterFromHCL(c.Agent.Experimental.Broker.ReattestJitter)
+		if err != nil {
+			return nil, err
+		}
 		ac.Broker = agent.BrokerConfig{
-			BindAddresses: bindAddrs,
-			Brokers:       brokers,
+			BindAddresses:    bindAddrs,
+			Brokers:          brokers,
+			ReattestInterval: reattestInterval,
+			ReattestJitter:   reattestJitter,
 		}
 	}
 
