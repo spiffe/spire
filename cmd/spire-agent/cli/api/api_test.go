@@ -505,21 +505,21 @@ Writing bundle #0 to file %s
 
 				if tt.expectedFileResult && format == "pretty" {
 					content, err := os.ReadFile(filepath.Join(testDir, "svid.0.pem"))
-					assert.NoError(t, err)
+					require.NoError(t, err)
 					assert.Equal(t, pem.EncodeToMemory(&pem.Block{
 						Type:  "CERTIFICATE",
 						Bytes: svid.Certificates[0].Raw,
 					}), content)
 
 					content, err = os.ReadFile(filepath.Join(testDir, "svid.0.key"))
-					assert.NoError(t, err)
+					require.NoError(t, err)
 					assert.Equal(t, string(pem.EncodeToMemory(&pem.Block{
 						Type:  "PRIVATE KEY",
 						Bytes: pkcs8FromSigner(t, svid.PrivateKey),
 					})), string(content))
 
 					content, err = os.ReadFile(filepath.Join(testDir, "bundle.0.pem"))
-					assert.NoError(t, err)
+					require.NoError(t, err)
 					assert.Equal(t, pem.EncodeToMemory(&pem.Block{
 						Type:  "CERTIFICATE",
 						Bytes: ca.Bundle().X509Authorities()[0].Raw,

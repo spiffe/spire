@@ -50,7 +50,6 @@ import (
 	"github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
@@ -145,7 +144,7 @@ func TestStoreBundleOnStartup(t *testing.T) {
 		bundles := sub.Value()
 		require.NotNil(t, bundles)
 		bundle := bundles[trustDomain]
-		require.Equal(t, bundle.X509Authorities(), []*x509.Certificate{ca})
+		require.Equal(t, []*x509.Certificate{ca}, bundle.X509Authorities())
 	})
 
 	require.Error(t, m.Initialize(context.Background()))
@@ -1628,7 +1627,7 @@ func TestSyncSVIDsWithLRUCache(t *testing.T) {
 	}(ctx)
 
 	subErr := <-subErrCh
-	assert.NoError(t, subErr, "subscriber error")
+	require.NoError(t, subErr, "subscriber error")
 
 	// ensure 2 SVIDs corresponding to selectors are cached.
 	assert.Equal(t, 2, m.x509Cache.CountSVIDs())

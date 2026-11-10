@@ -206,7 +206,7 @@ func (s *MSIAttestorSuite) TestAttestTokenExpiration() {
 	// within 5m leeway (token expires at 1m + 5m leeway = 6m)
 	s.adjustTime(6 * time.Minute)
 	_, err := s.attestor.Attest(context.Background(), token, expectNoChallenge)
-	s.Require().NotNil(err)
+	s.Require().Error(err)
 
 	// just after 5m leeway
 	s.adjustTime(time.Second)
@@ -452,7 +452,7 @@ func (s *MSIAttestorSuite) TestConfigure() {
 
 	s.T().Run("malformed configuration", func(t *testing.T) {
 		err := doConfig(t, coreConfig, "blah", nil)
-		spiretest.RequireErrorContains(t, err, "unable to decode configuration")
+		require.ErrorContains(t, err, "unable to decode configuration")
 	})
 
 	s.T().Run("missing trust domain", func(t *testing.T) {

@@ -166,7 +166,7 @@ func TestMakeAgentID(t *testing.T) {
 				require.EqualError(t, err, test.errWanted.Error())
 				return
 			}
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, test.want, got.String())
 		})
 	}

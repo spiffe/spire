@@ -10,6 +10,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/api/rpccontext"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestWithLogger(t *testing.T) {
@@ -17,7 +18,7 @@ func TestWithLogger(t *testing.T) {
 	m := middleware.WithLogger(log)
 
 	ctx, err := m.Preprocess(context.Background(), fakeFullMethod, nil)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	rpccontext.Logger(ctx).Info("HELLO")
 
 	// Assert the log contents

@@ -101,7 +101,7 @@ func TestWriteFile(t *testing.T) {
 
 			info, err := os.Stat(file)
 			require.NoError(t, err)
-			require.EqualValues(t, tt.expectMode, info.Mode())
+			require.Equal(t, tt.expectMode, info.Mode())
 
 			content, err := os.ReadFile(file)
 			require.NoError(t, err)

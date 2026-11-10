@@ -133,14 +133,14 @@ func (s *Suite) newDataStore() DataStoreUnderTest {
 			JournalMode string
 		}{}
 		s.Require().NoError(ds.RawScan(&jm, "PRAGMA journal_mode"))
-		s.Require().Equal(jm.JournalMode, "wal")
+		s.Require().Equal("wal", jm.JournalMode)
 
 		// assert that foreign_key support is enabled
 		fk := struct {
 			ForeignKeys string
 		}{}
 		s.Require().NoError(ds.RawScan(&fk, "PRAGMA foreign_keys"))
-		s.Require().Equal(fk.ForeignKeys, "1")
+		s.Require().Equal("1", fk.ForeignKeys)
 	case "mysql":
 		s.T().Logf("CONN STRING: %q", s.cfg.ConnString)
 		s.Require().NotEmpty(s.cfg.ConnString, "connection string must be set")
@@ -175,7 +175,7 @@ func (s *Suite) TestInvalidPluginConfiguration() {
 		database_type = "wrong"
 		connection_string = "bad"
 	`)
-	s.RequireErrorContains(err, "datastore-sql: unsupported database_type: wrong")
+	s.Require().ErrorContains(err, "datastore-sql: unsupported database_type: wrong")
 }
 
 func (s *Suite) TestInvalidAWSConfiguration() {
@@ -202,7 +202,7 @@ func (s *Suite) TestInvalidAWSConfiguration() {
 	for _, testCase := range testCases {
 		s.T().Run(testCase.name, func(t *testing.T) {
 			err := s.ds.Configure(ctx, testCase.config)
-			s.RequireErrorContains(err, testCase.expectedErr)
+			s.Require().ErrorContains(err, testCase.expectedErr)
 		})
 	}
 }
@@ -353,7 +353,7 @@ func (s *Suite) TestInvalidAzureConfiguration() {
 	for _, testCase := range testCases {
 		s.T().Run(testCase.name, func(t *testing.T) {
 			err := s.ds.Configure(ctx, testCase.config)
-			s.RequireErrorContains(err, testCase.expectedErr)
+			s.Require().ErrorContains(err, testCase.expectedErr)
 		})
 	}
 }
@@ -363,18 +363,18 @@ func (s *Suite) TestInvalidMySQLConfiguration() {
 		database_type = "mysql"
 		connection_string = "username:@tcp(127.0.0.1)/spire_test"
 	`)
-	s.RequireErrorContains(err, "datastore-sql: invalid mysql config: missing parseTime=true param in connection_string")
+	s.Require().ErrorContains(err, "datastore-sql: invalid mysql config: missing parseTime=true param in connection_string")
 
 	err = s.ds.Configure(ctx, `
 		database_type = "mysql"
 		ro_connection_string = "username:@tcp(127.0.0.1)/spire_test"
 	`)
-	s.RequireErrorContains(err, "datastore-sql: connection_string must be set")
+	s.Require().ErrorContains(err, "datastore-sql: connection_string must be set")
 
 	err = s.ds.Configure(ctx, `
 		database_type = "mysql"
 	`)
-	s.RequireErrorContains(err, "datastore-sql: connection_string must be set")
+	s.Require().ErrorContains(err, "datastore-sql: connection_string must be set")
 }
 
 func (s *Suite) TestBundleCRUD() {
@@ -399,7 +399,7 @@ func (s *Suite) TestBundleCRUD() {
 
 	// create again (constraint violation)
 	_, err = s.ds.CreateBundle(ctx, bundle)
-	s.Equal(status.Code(err), codes.AlreadyExists)
+	s.Equal(codes.AlreadyExists, status.Code(err))
 
 	// fetch
 	fb, err = s.ds.FetchBundle(ctx, "spiffe://foo")
@@ -409,7 +409,7 @@ func (s *Suite) TestBundleCRUD() {
 	// list
 	lresp, err := s.ds.ListBundles(ctx, &datastore.ListBundlesRequest{})
 	s.Require().NoError(err)
-	s.Equal(1, len(lresp.Bundles))
+	s.Len(lresp.Bundles, 1)
 	s.AssertProtoEqual(bundle, lresp.Bundles[0])
 
 	bundle2 := bundleutil.BundleProtoFromRootCA(bundle.TrustDomainId, s.cacert)
@@ -496,7 +496,7 @@ func (s *Suite) TestBundleCRUD() {
 
 	lresp, err = s.ds.ListBundles(ctx, &datastore.ListBundlesRequest{})
 	s.Require().NoError(err)
-	s.Equal(1, len(lresp.Bundles))
+	s.Len(lresp.Bundles, 1)
 	s.AssertProtoEqual(bundle3, lresp.Bundles[0])
 }
 
@@ -766,7 +766,7 @@ func (s *Suite) TestBundlePrune() {
 	// prune non existent bundle should not return error, no bundle to prune
 	expiration := time.Now()
 	changed, err := s.ds.PruneBundle(ctx, "spiffe://notexistent", expiration)
-	s.NoError(err)
+	s.Require().NoError(err)
 	s.False(changed)
 
 	// prune fails if internal prune bundle fails. For instance, if all certs are expired
@@ -777,7 +777,7 @@ func (s *Suite) TestBundlePrune() {
 
 	// prune should remove expired certs
 	changed, err = s.ds.PruneBundle(ctx, bundle.TrustDomainId, middleTime)
-	s.NoError(err)
+	s.Require().NoError(err)
 	s.True(changed)
 
 	// Fetch and verify pruned bundle is the expected
@@ -1650,9 +1650,9 @@ func (s *Suite) TestPruneAttestedExpiredNodes() {
 
 	for _, node := range nodes {
 		_, err := s.ds.CreateAttestedNode(ctx, node)
-		s.NoError(err)
+		s.Require().NoError(err)
 		err = s.ds.SetNodeSelectors(ctx, node.SpiffeId, selectors)
-		s.NoError(err)
+		s.Require().NoError(err)
 	}
 
 	s.Run("prune before expiry", func() {
@@ -2258,7 +2258,7 @@ func (s *Suite) TestNodeSelectors() {
 	s.EventuallyWithT(func(collect *assert.CollectT) {
 		selectors, err := s.ds.GetNodeSelectors(ctx, "foo", datastore.TolerateStale)
 		require.NoError(collect, err)
-		assert.Len(collect, selectors, 0)
+		assert.Empty(collect, selectors)
 	}, time.Second, 10*time.Millisecond)
 
 	// set selectors on foo and bar
@@ -2291,7 +2291,7 @@ func (s *Suite) TestNodeSelectors() {
 	s.EventuallyWithT(func(collect *assert.CollectT) {
 		selectors, err := s.ds.GetNodeSelectors(ctx, "foo", datastore.TolerateStale)
 		require.NoError(collect, err)
-		assert.Len(collect, selectors, 0)
+		assert.Empty(collect, selectors)
 	}, time.Second, 10*time.Millisecond)
 
 	// get bar selectors (make sure they weren't impacted by deleting foo)
@@ -2763,7 +2763,7 @@ func (s *Suite) TestFetchRegistrationEntries() {
 			s.Require().NoError(err)
 
 			// Make sure all entries we want to fetch are present
-			s.Require().Equal(len(tt.entries), len(fetchedRegistrationEntries))
+			s.Require().Len(fetchedRegistrationEntries, len(tt.entries))
 			for _, entry := range tt.entries {
 				fetchedRegistrationEntry, ok := fetchedRegistrationEntries[entry.EntryId]
 				s.Require().True(ok)
@@ -2801,7 +2801,7 @@ func (s *Suite) TestPruneRegistrationEntries() {
 
 	resp, err := s.ds.ListRegistrationEntryEvents(ctx, &datastore.ListRegistrationEntryEventsRequest{})
 	s.Require().NoError(err)
-	s.Require().Equal(1, len(resp.Events))
+	s.Require().Len(resp.Events, 1)
 	s.Require().Equal(createdRegistrationEntry.EntryId, resp.Events[0].EntryID)
 
 	for _, tt := range []struct {
@@ -2841,7 +2841,7 @@ func (s *Suite) TestPruneRegistrationEntries() {
 			// Get latest event id
 			resp, err := s.ds.ListRegistrationEntryEvents(ctx, &datastore.ListRegistrationEntryEventsRequest{})
 			require.NoError(t, err)
-			require.Greater(t, len(resp.Events), 0)
+			require.NotEmpty(t, resp.Events)
 			lastEventID := resp.Events[len(resp.Events)-1].EventID
 
 			// Prune events
@@ -2858,9 +2858,9 @@ func (s *Suite) TestPruneRegistrationEntries() {
 			})
 			require.NoError(t, err)
 			if tt.expectedRegistrationEntry != nil {
-				require.Equal(t, 0, len(resp.Events))
+				require.Empty(t, resp.Events)
 			} else {
-				require.Equal(t, 1, len(resp.Events))
+				require.Len(t, resp.Events, 1)
 				require.Equal(t, createdRegistrationEntry.EntryId, resp.Events[0].EntryID)
 			}
 
@@ -4670,7 +4670,7 @@ func (s *Suite) TestListEntriesByFederatesWithSuperset() {
 func (s *Suite) TestRegistrationEntriesFederatesWithAgainstMissingBundle() {
 	// cannot federate with a trust bundle that does not exist
 	_, err := s.ds.CreateRegistrationEntry(ctx, makeFederatedRegistrationEntry())
-	s.RequireErrorContains(err, `unable to find federated bundle "spiffe://otherdomain.org"`)
+	s.Require().ErrorContains(err, `unable to find federated bundle "spiffe://otherdomain.org"`)
 }
 
 func (s *Suite) TestRegistrationEntriesFederatesWithSuccess() {
@@ -4752,7 +4752,7 @@ func (s *Suite) TestDeleteBundleRestrictedByRegistrationEntries() {
 
 	// delete the bundle in RESTRICTED mode
 	err := s.ds.DeleteBundle(context.Background(), "spiffe://otherdomain.org", datastore.Restrict)
-	s.RequireErrorContains(err, "datastore-sql: cannot delete bundle; federated with 1 registration entries")
+	s.Require().ErrorContains(err, "datastore-sql: cannot delete bundle; federated with 1 registration entries")
 }
 
 func (s *Suite) TestDeleteBundleDeleteRegistrationEntries() {
@@ -4981,7 +4981,7 @@ func (s *Suite) TestCreateJoinToken() {
 
 	// Make sure we can't re-register
 	err = s.ds.CreateJoinToken(ctx, req)
-	s.NotNil(err)
+	s.Error(err)
 }
 
 func (s *Suite) TestCreateAndFetchJoinToken() {
@@ -6088,7 +6088,7 @@ func (s *Suite) checkAttestedNodeEvents(expectedEvents []datastore.AttestedNodeE
 // assertBundlesEqual asserts that the two bundle lists are equal independent
 // of ordering.
 func assertBundlesEqual(t *testing.T, expected, actual []*common.Bundle) {
-	if !assert.Equal(t, len(expected), len(actual)) {
+	if !assert.Len(t, actual, len(expected)) {
 		return
 	}
 

@@ -10,6 +10,7 @@ import (
 	"github.com/spiffe/spire/test/clock"
 	"github.com/spiffe/spire/test/fakes/fakedatastore"
 	"github.com/spiffe/spire/test/spiretest"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -127,7 +128,7 @@ func TestCachePeriodicRebuild(t *testing.T) {
 	go func() {
 		defer close(done)
 		err := cache.PeriodicRebuild(rebuildCtx)
-		require.ErrorIs(t, err, context.Canceled)
+		assert.ErrorIs(t, err, context.Canceled)
 	}()
 	clk.WaitForTicker(time.Minute, "timed out waiting for rebuild task to start")
 

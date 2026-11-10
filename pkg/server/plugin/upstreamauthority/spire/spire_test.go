@@ -387,9 +387,9 @@ func TestPublishJWTKey(t *testing.T) {
 
 	require.Len(t, upstreamJwtKeys, 3)
 	require.Equal(t, upstreamJwtKeys, upstreamJwtKeysFromPublish)
-	assert.Equal(t, upstreamJwtKeys[0].Kid, "C6vs25welZOx6WksNYfbMfiw9l96pMnD")
-	assert.Equal(t, upstreamJwtKeys[1].Kid, "gHTCunJbefYtnZnTctd84xeRWyMrEsWD")
-	assert.Equal(t, upstreamJwtKeys[2].Kid, "kid-2")
+	assert.Equal(t, "C6vs25welZOx6WksNYfbMfiw9l96pMnD", upstreamJwtKeys[0].Kid)
+	assert.Equal(t, "gHTCunJbefYtnZnTctd84xeRWyMrEsWD", upstreamJwtKeys[1].Kid)
+	assert.Equal(t, "kid-2", upstreamJwtKeys[2].Kid)
 
 	// Update bundle to trigger another response. Advance the clock past the
 	// upstream poll frequency to trigger a fetch; the plugin notifies
@@ -402,7 +402,7 @@ func TestPublishJWTKey(t *testing.T) {
 	_, resp, _, err := stream.RecvLocalBundleUpdate()
 	require.NoError(t, err)
 	require.Len(t, resp, 4)
-	require.Equal(t, resp[3].Kid, "kid-3")
+	require.Equal(t, "kid-3", resp[3].Kid)
 	require.Equal(t, resp[3].PkixBytes, pkixBytes2)
 
 	// Cancel ctx to stop getting updates
@@ -535,8 +535,8 @@ func TestGetTrustBundle(t *testing.T) {
 	require.Len(t, upstreamX509Roots, 1)
 	require.Len(t, upstreamJwtKeys, 2)
 	require.Empty(t, upstreamWitKeys)
-	assert.Equal(t, upstreamJwtKeys[0].Kid, "C6vs25welZOx6WksNYfbMfiw9l96pMnD")
-	assert.Equal(t, upstreamJwtKeys[1].Kid, "gHTCunJbefYtnZnTctd84xeRWyMrEsWD")
+	assert.Equal(t, "C6vs25welZOx6WksNYfbMfiw9l96pMnD", upstreamJwtKeys[0].Kid)
+	assert.Equal(t, "gHTCunJbefYtnZnTctd84xeRWyMrEsWD", upstreamJwtKeys[1].Kid)
 
 	key := testkey.NewEC256(t)
 	pkixBytes, err := x509.MarshalPKIXPublicKey(key.Public())
@@ -554,7 +554,7 @@ func TestGetTrustBundle(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, upstreamX509Roots, 1)
 	require.Len(t, upstreamJwtKeys, 3)
-	require.Equal(t, upstreamJwtKeys[2].Kid, "kid")
+	require.Equal(t, "kid", upstreamJwtKeys[2].Kid)
 	require.Equal(t, upstreamJwtKeys[2].PkixBytes, pkixBytes)
 	require.Empty(t, upstreamWitKeys)
 

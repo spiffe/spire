@@ -66,7 +66,7 @@ func TestNewAuthorizedEntryFetcherWithFullCache(t *testing.T) {
 	}
 
 	ef, err := NewAuthorizedEntryFetcherWithFullCache(ctx, buildCache, log, clk, ds, defaultCacheReloadInterval, defaultPruneEventsOlderThan)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, ef)
 }
 
@@ -81,7 +81,7 @@ func TestNewAuthorizedEntryFetcherWithFullCacheErrorBuildingCache(t *testing.T) 
 	}
 
 	ef, err := NewAuthorizedEntryFetcherWithFullCache(ctx, buildCache, log, clk, ds, defaultCacheReloadInterval, defaultPruneEventsOlderThan)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Nil(t, ef)
 }
 
@@ -114,7 +114,7 @@ func TestFetchRegistrationEntries(t *testing.T) {
 	require.NotNil(t, ef)
 
 	entries, err := ef.FetchAuthorizedEntries(ctx, agentID)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, expected, entriesFromReadOnlyEntries(entries))
 }
 
@@ -125,7 +125,7 @@ func TestRunRebuildCacheTask(t *testing.T) {
 		cancel()
 		select {
 		case err := <-watchErr:
-			assert.NoError(t, err)
+			require.NoError(t, err)
 		case <-time.After(5 * time.Second):
 			t.Fatal("timed out waiting for watch to return")
 		}
@@ -219,7 +219,7 @@ func TestRunRebuildCacheTask(t *testing.T) {
 	var req buildCacheRequest
 	req = waitForRequest()
 	entries, err := ef.FetchAuthorizedEntries(ctx, agentID)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Empty(t, entries)
 	buildCacheErr := errors.New("some cache build error")
 	sendResult(req, nil, buildCacheErr)
@@ -227,7 +227,7 @@ func TestRunRebuildCacheTask(t *testing.T) {
 	// Verify that rebuild task gracefully handles downstream errors and retries after the reload interval elapses again
 	req = waitForRequest()
 	entries, err = ef.FetchAuthorizedEntries(ctx, agentID)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Empty(t, entries)
 	expectedEntries = setupExpectedEntriesData(t, agentID)
 	entryMap := map[spiffeid.ID][]*types.Entry{
@@ -240,7 +240,7 @@ func TestRunRebuildCacheTask(t *testing.T) {
 	// the cache should now contain the Agent's new authorized entries
 	req = waitForRequest()
 	entries, err = ef.FetchAuthorizedEntries(ctx, agentID)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, expectedEntries, entriesFromReadOnlyEntries(entries))
 	sendResult(req, entryMap, nil)
 }

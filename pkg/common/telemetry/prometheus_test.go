@@ -28,13 +28,13 @@ import (
 func TestNewPrometheusRunner(t *testing.T) {
 	config := testPrometheusConfig()
 	pr, err := newTestPrometheusRunner(config)
-	assert.Nil(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, pr)
 
 	// It works when not configured
 	config.FileConfig.Prometheus = nil
 	pr, err = newTestPrometheusRunner(config)
-	assert.Nil(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, pr)
 }
 
@@ -83,7 +83,7 @@ func TestRun(t *testing.T) {
 	// It doesn't run if it's not configured
 	select {
 	case err := <-errCh:
-		assert.Nil(t, err, "should be nil if not configured")
+		require.NoError(t, err, "should be nil if not configured")
 	case <-time.After(time.Minute):
 		t.Fatal("prometheus running but not configured")
 	}

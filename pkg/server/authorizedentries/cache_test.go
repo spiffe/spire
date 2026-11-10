@@ -526,12 +526,12 @@ func TestLookupEntries(t *testing.T) {
 	cache := setupLookupTest(t, 8)
 
 	found := cache.LookupAuthorizedEntries(agent1, make(map[string]struct{}))
-	require.Len(t, found, 0)
+	require.Empty(t, found)
 
 	found = cache.LookupAuthorizedEntries(agent1, map[string]struct{}{
 		"does-not-exist": {},
 	})
-	require.Len(t, found, 0)
+	require.Empty(t, found)
 
 	found = cache.LookupAuthorizedEntries(agent1, map[string]struct{}{
 		"does-not-exist":   {},

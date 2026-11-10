@@ -30,6 +30,7 @@ import (
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/testkey"
 	"github.com/spiffe/spire/test/util"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 )
@@ -497,21 +498,23 @@ func TestMintX509CAAndSubscribe(t *testing.T) {
 				func(w http.ResponseWriter, r *http.Request) {
 					enrollRestRequest := ejbcaclient.EnrollCertificateRestRequest{}
 					err := json.NewDecoder(r.Body).Decode(&enrollRestRequest)
-					require.NoError(t, err)
+					if !assert.NoError(t, err) {
+						return
+					}
 
 					// Perform assertions before fake enrollment
-					require.Equal(t, tt.caName, enrollRestRequest.GetCertificateAuthorityName())
-					require.Equal(t, tt.endEntityProfileName, enrollRestRequest.GetEndEntityProfileName())
-					require.Equal(t, tt.certificateProfileName, enrollRestRequest.GetCertificateProfileName())
-					require.Equal(t, tt.accountBindingID, enrollRestRequest.GetAccountBindingId())
-					require.Equal(t, tt.expectedEndEntityName, enrollRestRequest.GetUsername())
+					assert.Equal(t, tt.caName, enrollRestRequest.GetCertificateAuthorityName())
+					assert.Equal(t, tt.endEntityProfileName, enrollRestRequest.GetEndEntityProfileName())
+					assert.Equal(t, tt.certificateProfileName, enrollRestRequest.GetCertificateProfileName())
+					assert.Equal(t, tt.accountBindingID, enrollRestRequest.GetAccountBindingId())
+					assert.Equal(t, tt.expectedEndEntityName, enrollRestRequest.GetUsername())
 
 					response := certificateRestResponseFromExpectedCerts(t, tt.expectedCaAndChain, tt.expectedRootCAs, tt.certificateResponseFormat)
 
 					w.Header().Add("Content-Type", "application/json")
 					w.WriteHeader(tt.ejbcaStatusCode)
 					err = json.NewEncoder(w).Encode(response)
-					require.NoError(t, err)
+					assert.NoError(t, err)
 				}))
 			defer testServer.Close()
 
@@ -566,7 +569,7 @@ func TestMintX509CAAndSubscribe(t *testing.T) {
 }
 
 func certificateRestResponseFromExpectedCerts(t *testing.T, issuingCaAndChain []*x509.Certificate, rootCAs []*x509.Certificate, format string) *ejbcaclient.CertificateRestResponse {
-	require.NotEqual(t, 0, len(issuingCaAndChain))
+	require.NotEmpty(t, issuingCaAndChain)
 	var issuingCa string
 	if format == "PEM" {
 		issuingCa = string(pem.EncodeToMemory(&pem.Block{Bytes: issuingCaAndChain[0].Raw, Type: "CERTIFICATE"}))

@@ -57,7 +57,7 @@ func TestWatchLogReportsRotationFailure(t *testing.T) {
 	entry := hook.LastEntry()
 	assert.Equal(t, logrus.ErrorLevel, entry.Level)
 	assert.Equal(t, failedToRotateMsg, entry.Message)
-	assert.ErrorIs(t, entry.Data[logrus.ErrorKey].(error), renameErr)
+	require.ErrorIs(t, entry.Data[logrus.ErrorKey].(error), renameErr)
 
 	// Draining clears it, so a single failure is not reported forever.
 	assert.NoError(t, rf.TakeRotateError())

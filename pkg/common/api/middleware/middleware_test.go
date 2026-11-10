@@ -6,6 +6,7 @@ import (
 
 	"github.com/spiffe/spire/pkg/common/api/middleware"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestChain(t *testing.T) {
@@ -45,7 +46,7 @@ func TestChain(t *testing.T) {
 
 		// Preprocess and assert the wrap count for the returned context
 		ctx, err := chain.Preprocess(context.Background(), fakeFullMethod, nil)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, 4, wrapCount(ctx))
 
 		// Assert the preprocess call order and the wrap count at each invocation
@@ -120,7 +121,7 @@ func TestPostprocess(t *testing.T) {
 func testPreprocess(t *testing.T, f *fakeMiddleware, m middleware.Middleware) {
 	// Assert that the wrapped context is returned from the callback.
 	ctx, err := m.Preprocess(context.Background(), "FIRST", nil)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, 1, wrapCount(ctx))
 
 	assert.Equal(t, preprocessArgs{wrapCount: 0, fullMethod: "FIRST"}, f.lastPreprocess)
@@ -153,6 +154,6 @@ func testPostprocess(t *testing.T, f *fakeMiddleware, m middleware.Middleware) {
 	// Assert that Preprocess returns the passed in context
 	ctx = wrapContext(ctx)
 	ctx, err := m.Preprocess(ctx, fakeFullMethod, nil)
-	assert.NoError(t, err, nil)
+	require.NoError(t, err, nil)
 	assert.Equal(t, 3, wrapCount(ctx))
 }

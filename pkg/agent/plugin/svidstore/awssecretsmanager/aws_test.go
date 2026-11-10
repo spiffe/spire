@@ -266,7 +266,7 @@ func TestPutX509SVID(t *testing.T) {
 					},
 				}
 				secretBinary, err := json.Marshal(secret)
-				assert.NoError(t, err)
+				require.NoError(t, err)
 
 				return &secretsmanager.PutSecretValueInput{
 					SecretId:     aws.String("secret1-arn"),
@@ -304,7 +304,7 @@ func TestPutX509SVID(t *testing.T) {
 					},
 				}
 				secretBinary, err := json.Marshal(secret)
-				assert.NoError(t, err)
+				require.NoError(t, err)
 
 				return &secretsmanager.PutSecretValueInput{
 					SecretId:     aws.String("secret1-arn"),
@@ -342,7 +342,7 @@ func TestPutX509SVID(t *testing.T) {
 					},
 				}
 				secretBinary, err := json.Marshal(secret)
-				assert.NoError(t, err)
+				require.NoError(t, err)
 
 				return &secretsmanager.PutSecretValueInput{
 					SecretId:     aws.String("secret1-arn"),
@@ -380,7 +380,7 @@ func TestPutX509SVID(t *testing.T) {
 					},
 				}
 				secretBinary, err := json.Marshal(expectSecret)
-				assert.NoError(t, err)
+				require.NoError(t, err)
 
 				return &secretsmanager.CreateSecretInput{
 					Name:         aws.String("secret1"),
@@ -511,7 +511,7 @@ func TestPutX509SVID(t *testing.T) {
 					},
 				}
 				secretBinary, err := json.Marshal(secret)
-				assert.NoError(t, err)
+				require.NoError(t, err)
 
 				return &secretsmanager.PutSecretValueInput{
 					SecretId:     aws.String("secret1-arn"),
@@ -544,7 +544,7 @@ func TestPutX509SVID(t *testing.T) {
 					},
 				}
 				secretBinary, err := json.Marshal(secret)
-				assert.NoError(t, err)
+				require.NoError(t, err)
 
 				return &secretsmanager.PutSecretValueInput{
 					SecretId:     aws.String("secret1-arn"),

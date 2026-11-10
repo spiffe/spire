@@ -1194,8 +1194,8 @@ func TestBanAgent(t *testing.T) {
 				attestedNode, err := test.ds.FetchAttestedNode(ctx, node.SpiffeId)
 				require.NoError(t, err)
 				require.NotNil(t, attestedNode)
-				require.NotZero(t, attestedNode.CertSerialNumber)
-				require.NotZero(t, attestedNode.NewCertSerialNumber)
+				require.NotEmpty(t, attestedNode.CertSerialNumber)
+				require.NotEmpty(t, attestedNode.NewCertSerialNumber)
 				return
 			}
 
@@ -3616,7 +3616,7 @@ func (s *serviceTest) assertAgentWasStored(t *testing.T, expectedID string, expe
 	}
 
 	require.ElementsMatch(t, eSelectors, agentSelectors)
-	require.Equal(t, attestedAgent.AgentVersion, expectedVersion)
+	require.Equal(t, expectedVersion, attestedAgent.AgentVersion)
 }
 
 type fakeRateLimiter struct {

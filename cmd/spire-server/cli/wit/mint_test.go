@@ -469,7 +469,7 @@ func TestValidateKeyTypeAndAlgorithm(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			keyType, err := validateKeyTypeAndSigningAlgorithm(tt.keyType, tt.signingAlgorithm)
 			require.Equal(t, err, tt.err)
-			require.Equal(t, keyType, tt.expectedKeyType)
+			require.Equal(t, tt.expectedKeyType, keyType)
 		})
 	}
 }

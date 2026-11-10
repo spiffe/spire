@@ -42,7 +42,7 @@ func TestNoContainerID(t *testing.T) {
 	)
 
 	selectorValues, err := doAttest(t, p)
-	require.NoError(nil, err)
+	require.NoError(t, err)
 	require.Empty(t, selectorValues)
 }
 

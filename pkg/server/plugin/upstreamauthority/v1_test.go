@@ -227,7 +227,7 @@ func TestV1MintX509CA(t *testing.T) {
 				assert.Nil(t, upstreamX509Roots, "no roots should be received")
 			case tt.expectStreamCode == codes.OK:
 				upstreamX509Roots, err = upstreamX509RootsStream.RecvUpstreamX509Authorities()
-				assert.NoError(t, err, "stream should have returned update")
+				require.NoError(t, err, "stream should have returned update")
 				expected := expectUpstreamX509Roots
 				if tt.expectUpstreamX509RootsResponse != nil {
 					expected = tt.expectUpstreamX509RootsResponse
@@ -386,7 +386,7 @@ func TestV1PublishJWTKey(t *testing.T) {
 				assert.Nil(t, upstreamJWTKeys, "no JWT keys should be received")
 			case tt.expectStreamCode == codes.OK:
 				upstreamJWTKeys, err := upstreamJWTKeysStream.RecvUpstreamJWTAuthorities()
-				assert.NoError(t, err, "stream should have returned update")
+				require.NoError(t, err, "stream should have returned update")
 				spiretest.AssertProtoListEqual(t, expectedUpstreamJWTKeys, upstreamJWTKeys)
 			default:
 				upstreamJWTKeys, err = upstreamJWTKeysStream.RecvUpstreamJWTAuthorities()
@@ -535,7 +535,7 @@ func TestV1PublishWITKey(t *testing.T) {
 				assert.Nil(t, upstreamWITKeys, "no WIT keys should be received")
 			case tt.expectStreamCode == codes.OK:
 				upstreamWITKeys, err := upstreamWITKeysStream.RecvUpstreamWITAuthorities()
-				assert.NoError(t, err, "stream should have returned update")
+				require.NoError(t, err, "stream should have returned update")
 				spiretest.AssertProtoListEqual(t, expectedUpstreamWITKeys, upstreamWITKeys)
 			default:
 				upstreamWITKeys, err = upstreamWITKeysStream.RecvUpstreamWITAuthorities()
@@ -707,7 +707,7 @@ func TestV1SubscribeToLocalBundle(t *testing.T) {
 				assert.Nil(t, upstreamJWTKeys, "no keys should be received")
 				assert.Nil(t, upstreamWITKeys, "no keys should be received")
 			case tt.expectStreamCode == codes.OK:
-				assert.NoError(t, err, "stream should have returned update")
+				require.NoError(t, err, "stream should have returned update")
 				expected := expectUpstreamX509Roots
 				if tt.expectUpstreamX509RootsResponse != nil {
 					expected = tt.expectUpstreamX509RootsResponse
