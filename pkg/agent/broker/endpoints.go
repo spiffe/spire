@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"strings"
+	"time"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -56,6 +57,14 @@ type Config struct {
 	// TLSPolicy controls the post-quantum-safe TLS policy applied to the
 	// inbound mTLS listener.
 	TLSPolicy tlspolicy.Policy
+
+	// ReattestInterval is how often active X.509-SVID subscriptions re-attest
+	// their workload reference. Defaults to 10 minutes when unset.
+	ReattestInterval time.Duration
+
+	// ReattestJitter is the fraction of ReattestInterval used to jitter each
+	// re-attestation interval. Defaults to 10% when unset.
+	ReattestJitter *float64
 }
 
 // Broker identifies a broker authorized to talk to the SPIFFE Broker API
@@ -223,6 +232,8 @@ func (e *Endpoints) registerBrokerAPI(server *grpc.Server) {
 		Metrics:                       e.c.Metrics,
 		Log:                           e.c.Log.WithField(telemetry.SubsystemName, telemetry.BrokerAPI),
 		AllowedReferenceTypesByCaller: buildAllowedReferenceTypeMap(e.c.Brokers),
+		ReattestInterval:              e.c.ReattestInterval,
+		ReattestJitter:                e.c.ReattestJitter,
 	})
 
 	brokerapi.RegisterService(server, service)

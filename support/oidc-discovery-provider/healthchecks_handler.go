@@ -64,6 +64,7 @@ func jwkThreshold(config *Config) time.Duration {
 // server can successfully fetch a jwt keyset
 func (h *HealthChecksHandler) readyCheck(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "GET" {
+		w.Header().Set("Allow", http.MethodGet)
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
@@ -82,6 +83,7 @@ func (h *HealthChecksHandler) readyCheck(w http.ResponseWriter, r *http.Request)
 // liveCheck is a health check that returns 200 if the server is able to reply to http requests
 func (h *HealthChecksHandler) liveCheck(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "GET" {
+		w.Header().Set("Allow", http.MethodGet)
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}

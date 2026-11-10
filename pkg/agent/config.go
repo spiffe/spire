@@ -164,6 +164,14 @@ type BrokerConfig struct {
 	// Brokers enumerates the brokers authorized to talk to this agent's
 	// broker endpoint.
 	Brokers []broker.Broker
+
+	// ReattestInterval is how often active X.509-SVID subscriptions re-attest
+	// their workload reference. Zero uses the default.
+	ReattestInterval time.Duration
+
+	// ReattestJitter is the fraction of ReattestInterval used to jitter each
+	// re-attestation interval. Nil uses the default.
+	ReattestJitter *float64
 }
 
 func New(c *Config) *Agent {
