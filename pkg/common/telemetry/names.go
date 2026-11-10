@@ -989,12 +989,6 @@ const (
 	// ListAgents functionality related to listing agents
 	ListAgents = "list_agents"
 
-	// SkippedEntryEventIDs functionality related to counting missed entry event IDs
-	SkippedEntryEventIDs = "skipped_entry_event_ids"
-
-	// SkippedNodeEventIDs functionality related to counting missed node event IDs
-	SkippedNodeEventIDs = "skipped_node_event_ids"
-
 	// ListAllEntriesWithPages functionality related to listing all registration entries with pagination
 	ListAllEntriesWithPages = "list_all_entries_with_pages"
 

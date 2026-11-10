@@ -20,12 +20,6 @@ func SetAgentsByExpiresAtCacheCountGauge(m telemetry.Metrics, size int) {
 	m.SetGauge([]string{telemetry.Node, telemetry.AgentsByExpiresAtCache, telemetry.Count}, float32(size))
 }
 
-// SetSkippedNodeEventIDsCacheCountGauge emits a gauge with the number of entries that are
-// currently in the skipped-node events cache.
-func SetSkippedNodeEventIDsCacheCountGauge(m telemetry.Metrics, size int) {
-	m.SetGauge([]string{telemetry.Node, telemetry.SkippedNodeEventIDs, telemetry.Count}, float32(size))
-}
-
 // SetNodeAliasesByEntryIDCacheCountGauge emits a gauge with the number of Node Aliases by EntryID that are
 // currently in the entry cache.
 func SetNodeAliasesByEntryIDCacheCountGauge(m telemetry.Metrics, size int) {
@@ -42,10 +36,4 @@ func SetNodeAliasesBySelectorCacheCountGauge(m telemetry.Metrics, size int) {
 // currently in the entry cache.
 func SetEntriesByEntryIDCacheCountGauge(m telemetry.Metrics, size int) {
 	m.SetGauge([]string{telemetry.Entry, telemetry.EntriesByEntryIDCache, telemetry.Count}, float32(size))
-}
-
-// SetSkippedEntryEventIDsCacheCountGauge emits a gauge with the number of entries that are
-// currently in the skipped-entry events cache.
-func SetSkippedEntryEventIDsCacheCountGauge(m telemetry.Metrics, size int) {
-	m.SetGauge([]string{telemetry.Entry, telemetry.SkippedEntryEventIDs, telemetry.Count}, float32(size))
 }
