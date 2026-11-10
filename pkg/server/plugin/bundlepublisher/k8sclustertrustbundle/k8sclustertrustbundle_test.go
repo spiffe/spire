@@ -18,7 +18,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes/fake"
+	k8stesting "k8s.io/client-go/testing"
 )
 
 func TestConfigure(t *testing.T) {
@@ -420,11 +422,6 @@ func TestPublishMultipleClusters(t *testing.T) {
 }
 
 func TestApplyClusterTrustBundle(t *testing.T) {
-	clientset := fake.NewClientset()
-	newClientFunc := func(kubeconfigPath string) (kubernetesClient, error) {
-		return &k8sClient{clientset: clientset}, nil
-	}
-
 	hclConfig := `
 		clusters = {
 			"test-cluster" = {
@@ -434,43 +431,114 @@ func TestApplyClusterTrustBundle(t *testing.T) {
 			}
 		}`
 
-	var err error
-	options := []plugintest.Option{
-		plugintest.CaptureConfigureError(&err),
-		plugintest.CoreConfig(catalog.CoreConfig{
-			TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
-		}),
-		plugintest.Configure(hclConfig),
+	ctbResources := func(groupVersion string) *metav1.APIResourceList {
+		return &metav1.APIResourceList{
+			GroupVersion: groupVersion,
+			APIResources: []metav1.APIResource{{Name: "clustertrustbundles", Kind: "ClusterTrustBundle"}},
+		}
 	}
 
-	p := newPlugin(newClientFunc)
-	plugintest.Load(t, builtin(p), nil, options...)
-	require.NoError(t, err)
+	for _, tt := range []struct {
+		name         string
+		resources    []*metav1.APIResourceList
+		discoveryErr error
+		expectMsg    string
+		getCTB       func(context.Context, *fake.Clientset) (string, string, error)
+	}{
+		{
+			name: "v1",
+			resources: []*metav1.APIResourceList{
+				ctbResources("certificates.k8s.io/v1"),
+				ctbResources("certificates.k8s.io/v1beta1"),
+			},
+			getCTB: func(ctx context.Context, clientset *fake.Clientset) (string, string, error) {
+				ctb, err := clientset.CertificatesV1().ClusterTrustBundles().Get(ctx, "example.org:spire:bundle", metav1.GetOptions{})
+				if err != nil {
+					return "", "", err
+				}
+				return ctb.Spec.SignerName, ctb.Spec.TrustBundle, nil
+			},
+		},
+		{
+			name: "v1beta1 when v1 is not served",
+			resources: []*metav1.APIResourceList{
+				{GroupVersion: "certificates.k8s.io/v1", APIResources: []metav1.APIResource{{Name: "certificatesigningrequests"}}},
+				ctbResources("certificates.k8s.io/v1beta1"),
+			},
+			getCTB: func(ctx context.Context, clientset *fake.Clientset) (string, string, error) {
+				ctb, err := clientset.CertificatesV1beta1().ClusterTrustBundles().Get(ctx, "example.org:spire:bundle", metav1.GetOptions{})
+				if err != nil {
+					return "", "", err
+				}
+				return ctb.Spec.SignerName, ctb.Spec.TrustBundle, nil
+			},
+		},
+		{
+			name: "not served",
+			resources: []*metav1.APIResourceList{
+				{GroupVersion: "certificates.k8s.io/v1", APIResources: []metav1.APIResource{{Name: "certificatesigningrequests"}}},
+			},
+			expectMsg: "the API server does not serve ClusterTrustBundle in certificates.k8s.io/v1 or certificates.k8s.io/v1beta1",
+		},
+		{
+			name:         "discovery error",
+			discoveryErr: errors.New("connection refused"),
+			expectMsg:    "failed to discover resources in certificates.k8s.io/v1: connection refused",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			clientset := fake.NewClientset()
+			clientset.Resources = tt.resources
+			if tt.discoveryErr != nil {
+				clientset.PrependReactor("get", "resource", func(k8stesting.Action) (bool, runtime.Object, error) {
+					return true, nil, tt.discoveryErr
+				})
+			}
+			newClientFunc := func(kubeconfigPath string) (kubernetesClient, error) {
+				return &k8sClient{clientset: clientset}, nil
+			}
 
-	bundle := getTestBundle(t)
-	_, err = p.PublishBundle(t.Context(), &bundlepublisherv1.PublishBundleRequest{
-		Bundle: bundle,
-	})
-	require.NoError(t, err)
+			var err error
+			p := newPlugin(newClientFunc)
+			plugintest.Load(t, builtin(p), nil,
+				plugintest.CaptureConfigureError(&err),
+				plugintest.CoreConfig(catalog.CoreConfig{
+					TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
+				}),
+				plugintest.Configure(hclConfig),
+			)
+			require.NoError(t, err)
 
-	ctb, err := clientset.CertificatesV1().ClusterTrustBundles().Get(t.Context(), "example.org:spire:bundle", metav1.GetOptions{})
-	require.NoError(t, err)
-	require.Equal(t, "example.org/spire", ctb.Spec.SignerName)
-	require.Equal(t, []*x509.Certificate{parseCertificate(t, bundle.X509Authorities[0].Asn1)}, parsePEMCertificates(t, ctb.Spec.TrustBundle))
+			bundle := getTestBundle(t)
+			_, err = p.PublishBundle(t.Context(), &bundlepublisherv1.PublishBundleRequest{
+				Bundle: bundle,
+			})
+			if tt.expectMsg != "" {
+				spiretest.RequireGRPCStatusContains(t, err, codes.Internal, tt.expectMsg)
+				return
+			}
+			require.NoError(t, err)
 
-	// A rotated bundle replaces the trust bundle of the existing object.
-	cert2, _, err := util.LoadSVIDFixture()
-	require.NoError(t, err)
-	bundle = getTestBundle(t)
-	bundle.X509Authorities = append(bundle.X509Authorities, &types.X509Certificate{Asn1: cert2.Raw})
-	_, err = p.PublishBundle(t.Context(), &bundlepublisherv1.PublishBundleRequest{
-		Bundle: bundle,
-	})
-	require.NoError(t, err)
+			signerName, trustBundle, err := tt.getCTB(t.Context(), clientset)
+			require.NoError(t, err)
+			require.Equal(t, "example.org/spire", signerName)
+			require.Equal(t, []*x509.Certificate{parseCertificate(t, bundle.X509Authorities[0].Asn1)}, parsePEMCertificates(t, trustBundle))
 
-	ctb, err = clientset.CertificatesV1().ClusterTrustBundles().Get(t.Context(), "example.org:spire:bundle", metav1.GetOptions{})
-	require.NoError(t, err)
-	require.Len(t, parsePEMCertificates(t, ctb.Spec.TrustBundle), 2)
+			// A rotated bundle replaces the trust bundle of the existing object.
+			cert2, _, err := util.LoadSVIDFixture()
+			require.NoError(t, err)
+			bundle = getTestBundle(t)
+			bundle.X509Authorities = append(bundle.X509Authorities, &types.X509Certificate{Asn1: cert2.Raw})
+			_, err = p.PublishBundle(t.Context(), &bundlepublisherv1.PublishBundleRequest{
+				Bundle: bundle,
+			})
+			require.NoError(t, err)
+
+			_, trustBundle, err = tt.getCTB(t.Context(), clientset)
+			require.NoError(t, err)
+			require.Len(t, parsePEMCertificates(t, trustBundle), 2)
+		})
+	}
 }
 
 func TestBuiltIn(t *testing.T) {

@@ -4,6 +4,8 @@ The `k8s_clustertrustbundle` plugin puts the X.509 authorities of the current tr
 
 ClusterTrustBundles are cluster-scoped and readable by any authenticated user, so workloads that are not SPIRE-aware can mount the trust bundle with a `clusterTrustBundle` projected volume.
 
+The plugin uses the `certificates.k8s.io/v1` API, available since Kubernetes 1.37. On a cluster that does not serve it, the plugin falls back to `certificates.k8s.io/v1beta1`, which Kubernetes 1.33 to 1.36 serve once the `ClusterTrustBundle` feature gate and the `certificates.k8s.io/v1beta1/clustertrustbundles` API are enabled on the API server.
+
 The plugin accepts the following configuration:
 
 | Configuration | Description                                                                                       | Default |
