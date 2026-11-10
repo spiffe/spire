@@ -1514,6 +1514,138 @@ func TestNewAgentConfig(t *testing.T) {
 			},
 		},
 		{
+			msg: "broker reattest interval parses a duration",
+			input: func(c *Config) {
+				c.Agent.Experimental.Broker = &brokerHCLConfig{
+					BindAddress:      "127.0.0.1:8443",
+					ReattestInterval: "2m",
+					Brokers: []brokerHCLEntry{
+						{
+							ID: "spiffe://example.org/broker",
+							AllowedReferenceTypes: []brokerAllowedReferenceTypeHCLEntry{
+								{TypeURL: "type.googleapis.com/spiffe.broker.WorkloadPIDReference"},
+							},
+						},
+					},
+				}
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Equal(t, 2*time.Minute, c.Broker.ReattestInterval)
+			},
+		},
+		{
+			msg:                "broker reattest interval must parse",
+			expectError:        true,
+			requireErrorPrefix: "experimental.broker.reattest_interval:",
+			input: func(c *Config) {
+				c.Agent.Experimental.Broker = &brokerHCLConfig{
+					BindAddress:      "127.0.0.1:8443",
+					ReattestInterval: "nope",
+					Brokers: []brokerHCLEntry{
+						{
+							ID: "spiffe://example.org/broker",
+							AllowedReferenceTypes: []brokerAllowedReferenceTypeHCLEntry{
+								{TypeURL: "type.googleapis.com/spiffe.broker.WorkloadPIDReference"},
+							},
+						},
+					},
+				}
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
+			msg:                "broker reattest interval must be at least one minute",
+			expectError:        true,
+			requireErrorPrefix: "experimental.broker.reattest_interval must be at least 1m",
+			input: func(c *Config) {
+				c.Agent.Experimental.Broker = &brokerHCLConfig{
+					BindAddress:      "127.0.0.1:8443",
+					ReattestInterval: "30s",
+					Brokers: []brokerHCLEntry{
+						{
+							ID: "spiffe://example.org/broker",
+							AllowedReferenceTypes: []brokerAllowedReferenceTypeHCLEntry{
+								{TypeURL: "type.googleapis.com/spiffe.broker.WorkloadPIDReference"},
+							},
+						},
+					},
+				}
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
+			msg: "broker reattest jitter parses a fraction",
+			input: func(c *Config) {
+				jitter := 0.2
+				c.Agent.Experimental.Broker = &brokerHCLConfig{
+					BindAddress:    "127.0.0.1:8443",
+					ReattestJitter: &jitter,
+					Brokers: []brokerHCLEntry{
+						{
+							ID: "spiffe://example.org/broker",
+							AllowedReferenceTypes: []brokerAllowedReferenceTypeHCLEntry{
+								{TypeURL: "type.googleapis.com/spiffe.broker.WorkloadPIDReference"},
+							},
+						},
+					},
+				}
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.NotNil(t, c.Broker.ReattestJitter)
+				require.Equal(t, 0.2, *c.Broker.ReattestJitter)
+			},
+		},
+		{
+			msg:                "broker reattest jitter must be in range",
+			expectError:        true,
+			requireErrorPrefix: "experimental.broker.reattest_jitter (1.00) must be in the [0, 1) range",
+			input: func(c *Config) {
+				jitter := 1.0
+				c.Agent.Experimental.Broker = &brokerHCLConfig{
+					BindAddress:    "127.0.0.1:8443",
+					ReattestJitter: &jitter,
+					Brokers: []brokerHCLEntry{
+						{
+							ID: "spiffe://example.org/broker",
+							AllowedReferenceTypes: []brokerAllowedReferenceTypeHCLEntry{
+								{TypeURL: "type.googleapis.com/spiffe.broker.WorkloadPIDReference"},
+							},
+						},
+					},
+				}
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
+			msg:                "broker reattest jitter must not be negative",
+			expectError:        true,
+			requireErrorPrefix: "experimental.broker.reattest_jitter (-0.10) must be in the [0, 1) range",
+			input: func(c *Config) {
+				jitter := -0.1
+				c.Agent.Experimental.Broker = &brokerHCLConfig{
+					BindAddress:    "127.0.0.1:8443",
+					ReattestJitter: &jitter,
+					Brokers: []brokerHCLEntry{
+						{
+							ID: "spiffe://example.org/broker",
+							AllowedReferenceTypes: []brokerAllowedReferenceTypeHCLEntry{
+								{TypeURL: "type.googleapis.com/spiffe.broker.WorkloadPIDReference"},
+							},
+						},
+					},
+				}
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
 			msg:                "broker allowed_reference_types is required",
 			expectError:        true,
 			requireErrorPrefix: "experimental.broker.brokers[spiffe://example.org/broker].allowed_reference_types: must list at least one reference type URL",
@@ -2040,7 +2172,9 @@ func TestParseBrokerAllowedReferenceTypes(t *testing.T) {
 agent {
     experimental {
         broker {
-            bind_address = "127.0.0.1:8443"
+            bind_address      = "127.0.0.1:8443"
+            reattest_interval = "2m"
+            reattest_jitter   = 0.2
             brokers = [
                 {
                     id = "spiffe://example.org/broker"
@@ -2065,6 +2199,9 @@ agent {
 	c, err := ParseFile(file.Name(), false)
 	require.NoError(t, err)
 	require.NotNil(t, c.Agent.Experimental.Broker)
+	require.Equal(t, "2m", c.Agent.Experimental.Broker.ReattestInterval)
+	require.NotNil(t, c.Agent.Experimental.Broker.ReattestJitter)
+	require.Equal(t, 0.2, *c.Agent.Experimental.Broker.ReattestJitter)
 	require.Equal(t, []brokerAllowedReferenceTypeHCLEntry{
 		{TypeURL: "type.googleapis.com/spiffe.broker.KubernetesObjectReference", AllowOverTCP: true},
 		{TypeURL: "type.googleapis.com/spiffe.broker.WorkloadPIDReference"},
