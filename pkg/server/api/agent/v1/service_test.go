@@ -1689,6 +1689,14 @@ func TestRenewAgent(t *testing.T) {
 	require.Error(t, malformedError)
 	malformedCsrHash := api.HashByte(malformedCsr)
 
+	invalidSignatureCSR := append([]byte(nil), csr...)
+	invalidSignatureCSR[len(invalidSignatureCSR)-1] ^= 0xff
+	parsedCSR, err := x509.ParseCertificateRequest(invalidSignatureCSR)
+	require.NoError(t, err)
+	invalidSignatureError := parsedCSR.CheckSignature()
+	require.Error(t, invalidSignatureError)
+	invalidSignatureCSRHash := api.HashByte(invalidSignatureCSR)
+
 	for _, tt := range []struct {
 		name string
 
@@ -1866,6 +1874,39 @@ func TestRenewAgent(t *testing.T) {
 			},
 			expectCode: codes.InvalidArgument,
 			expectMsg:  fmt.Sprintf("failed to parse CSR: %v", malformedError),
+		},
+		{
+			name:        "invalid CSR signature",
+			createNode:  cloneAttestedNode(defaultNode),
+			failSigning: true,
+			expectLogs: []spiretest.LogEntry{
+				renewingMessage,
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Invalid argument: failed to verify CSR signature",
+					Data: logrus.Fields{
+						logrus.ErrorKey: invalidSignatureError.Error(),
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:        "error",
+						telemetry.Type:          "audit",
+						telemetry.Csr:           invalidSignatureCSRHash,
+						telemetry.StatusCode:    "InvalidArgument",
+						telemetry.StatusMessage: fmt.Sprintf("failed to verify CSR signature: %v", invalidSignatureError),
+					},
+				},
+			},
+			req: &agentv1.RenewAgentRequest{
+				Params: &agentv1.AgentX509SVIDParams{
+					Csr: invalidSignatureCSR,
+				},
+			},
+			expectCode: codes.InvalidArgument,
+			expectMsg:  fmt.Sprintf("failed to verify CSR signature: %v", invalidSignatureError),
 		},
 		{
 			name:       "request has nil param",
@@ -2421,6 +2462,13 @@ func TestAttestAgent(t *testing.T) {
 	testCsr, err := x509.CreateCertificateRequest(rand.Reader, &x509.CertificateRequest{}, testKey)
 	require.NoError(t, err)
 
+	invalidSignatureCSR := append([]byte(nil), testCsr...)
+	invalidSignatureCSR[len(invalidSignatureCSR)-1] ^= 0xff
+	parsedCSR, err := x509.ParseCertificateRequest(invalidSignatureCSR)
+	require.NoError(t, err)
+	invalidSignatureError := parsedCSR.CheckSignature()
+	require.Error(t, invalidSignatureError)
+
 	_, expectedCsrErr := x509.ParseCertificateRequest([]byte("not a csr"))
 	require.Error(t, expectedCsrErr)
 
@@ -2436,6 +2484,7 @@ func TestAttestAgent(t *testing.T) {
 		expectLogs        []spiretest.LogEntry
 		rateLimiterErr    error
 		dsError           []error
+		failSigning       bool
 
 		allowNonconformingAgentIDs bool
 	}{
@@ -3012,6 +3061,36 @@ func TestAttestAgent(t *testing.T) {
 		},
 
 		{
+			name:        "invalid CSR signature",
+			request:     getAttestAgentRequest("test_type", []byte("payload_with_result"), invalidSignatureCSR),
+			failSigning: true,
+			expectCode:  codes.InvalidArgument,
+			expectMsg:   fmt.Sprintf("failed to verify CSR signature: %v", invalidSignatureError),
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Invalid argument: failed to verify CSR signature",
+					Data: logrus.Fields{
+						telemetry.NodeAttestorType: "test_type",
+						logrus.ErrorKey:            invalidSignatureError.Error(),
+						telemetry.AgentID:          spiffeid.RequireFromPath(td, "/spire/agent/test_type/id_with_result").String(),
+					},
+				},
+				{
+					Level:   logrus.InfoLevel,
+					Message: "API accessed",
+					Data: logrus.Fields{
+						telemetry.Status:           "error",
+						telemetry.Type:             "audit",
+						telemetry.StatusCode:       "InvalidArgument",
+						telemetry.StatusMessage:    fmt.Sprintf("failed to verify CSR signature: %v", invalidSignatureError),
+						telemetry.AgentID:          "spiffe://example.org/spire/agent/test_type/id_with_result",
+						telemetry.NodeAttestorType: "test_type",
+					},
+				},
+			},
+		},
+		{
 			name:       "ds: fails to fetch join token",
 			request:    getAttestAgentRequest("join_token", []byte("test_token"), testCsr),
 			expectCode: codes.Internal,
@@ -3372,6 +3451,9 @@ func TestAttestAgent(t *testing.T) {
 				test.setupAttestor(t)
 				test.setupJoinTokens(ctx, t)
 				test.setupNodes(ctx, t)
+				if tt.failSigning {
+					test.ca.SetX509CA(nil)
+				}
 
 				test.rateLimiter.count = 1
 				test.rateLimiter.err = tt.rateLimiterErr

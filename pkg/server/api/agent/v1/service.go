@@ -629,6 +629,9 @@ func (s *Service) signSvid(ctx context.Context, agentID spiffeid.ID, csr []byte,
 	if err != nil {
 		return nil, commonapi.MakeErr(log, codes.InvalidArgument, "failed to parse CSR", err)
 	}
+	if err := parsedCsr.CheckSignature(); err != nil {
+		return nil, commonapi.MakeErr(log, codes.InvalidArgument, "failed to verify CSR signature", err)
+	}
 
 	// Sign a new X509 SVID
 	x509Svid, err := s.ca.SignAgentX509SVID(ctx, ca.AgentX509SVIDParams{
