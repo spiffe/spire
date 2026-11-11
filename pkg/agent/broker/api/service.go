@@ -5,9 +5,11 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"math/rand/v2"
 	"net"
 	"time"
 
+	"github.com/andres-erbsen/clock"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/exp/proto/spiffe/broker"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -21,6 +23,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	brokertelemetry "github.com/spiffe/spire/pkg/common/telemetry/agent/broker"
+	"github.com/spiffe/spire/pkg/common/util"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/proto/spire/common"
 	"google.golang.org/grpc"
@@ -36,6 +39,19 @@ func RegisterService(s *grpc.Server, service *Service) {
 	broker.RegisterAPIServer(s, service)
 }
 
+// defaultReattestInterval is how often an active X.509-SVID subscription
+// re-attests its workload reference. References are not immutable: a
+// Kubernetes object can be deleted or recreated with different attributes,
+// and the selectors attested from it can change while the stream is open. The
+// SPIFFE Broker API requires the server to stop sending responses once the
+// referenced workload is gone, so the reference must be re-resolved
+// periodically rather than only once at subscription time.
+const defaultReattestInterval = 10 * time.Minute
+
+// defaultReattestJitter is the fraction of the re-attestation interval used
+// to spread re-attestations out over time.
+const defaultReattestJitter = 0.1
+
 type Config struct {
 	Log      logrus.FieldLogger
 	Metrics  telemetry.Metrics
@@ -47,14 +63,42 @@ type Config struct {
 	// each type is also allowed over TCP. A caller missing from the map has
 	// no restriction over UDS, but remains denied over TCP.
 	AllowedReferenceTypesByCaller map[spiffeid.ID]ReferenceTypePolicy
+
+	// ReattestInterval is how often workload references are re-attested while
+	// an X.509-SVID subscription is active. Defaults to
+	// defaultReattestInterval when unset.
+	ReattestInterval time.Duration
+
+	// ReattestJitter is the fraction of ReattestInterval used to jitter each
+	// re-attestation interval. Must be in the [0, 1) range. Defaults to
+	// defaultReattestJitter when unset.
+	ReattestJitter *float64
+
+	// Clock is used for re-attestation timing. Defaults to the system clock.
+	Clock clock.Clock
 }
 
 func New(config Config) *Service {
+	reattestInterval := config.ReattestInterval
+	if reattestInterval <= 0 {
+		reattestInterval = defaultReattestInterval
+	}
+	reattestJitter := defaultReattestJitter
+	if config.ReattestJitter != nil {
+		reattestJitter = *config.ReattestJitter
+	}
+	clk := config.Clock
+	if clk == nil {
+		clk = clock.New()
+	}
 	return &Service{
 		manager:                       config.Manager,
 		peerAttestor:                  config.Attestor,
 		metrics:                       config.Metrics,
 		allowedReferenceTypesByCaller: config.AllowedReferenceTypesByCaller,
+		reattestInterval:              reattestInterval,
+		reattestJitter:                reattestJitter,
+		clock:                         clk,
 	}
 }
 
@@ -86,6 +130,9 @@ type Service struct {
 	peerAttestor                  workloadattestor.Attestor
 	metrics                       telemetry.Metrics
 	allowedReferenceTypesByCaller map[spiffeid.ID]ReferenceTypePolicy
+	reattestInterval              time.Duration
+	reattestJitter                float64
+	clock                         clock.Clock
 }
 
 // authorizeReferenceType applies the per-broker reference type policy. UDS
@@ -175,7 +222,38 @@ func (s *Service) SubscribeToX509SVID(req *broker.SubscribeToX509SVIDRequest, st
 		log.WithError(err).Error("Subscribe to cache changes failed")
 		return err
 	}
-	defer subscriber.Finish()
+	// Finish through a closure so the subscriber active at return time is
+	// finished even after re-attestation swaps it below.
+	defer func() { subscriber.Finish() }()
+
+	// The reference can resolve to a different selector set over time (for
+	// example, a pod is recreated or its labels change), or stop resolving
+	// altogether. Re-attest it periodically and either move the subscription
+	// to the new selectors or terminate the stream.
+	reattest := func() error {
+		newSelectors, err := s.constructValidSelectorsFromReference(brokercontext.WithCallerID(ctx, peer), log, req.Reference)
+		if err != nil {
+			return err
+		}
+		if util.EqualsSelectors(selectors, newSelectors) {
+			return nil
+		}
+
+		log.WithField(telemetry.Selectors, newSelectors).Debug("Workload reference resolved to new selectors; resubscribing")
+
+		newSubscriber, err := s.manager.SubscribeToX509CacheChanges(ctx, newSelectors)
+		if err != nil {
+			log.WithError(err).Error("Subscribe to cache changes failed")
+			return err
+		}
+		subscriber.Finish()
+		subscriber = newSubscriber
+		selectors = newSelectors
+		return nil
+	}
+
+	reattestTimer := s.clock.Timer(s.jitteredReattestInterval())
+	defer reattestTimer.Stop()
 
 	for {
 		select {
@@ -190,10 +268,26 @@ func (s *Service) SubscribeToX509SVID(req *broker.SubscribeToX509SVIDRequest, st
 			if err := sendX509SVIDResponse(update, stream, log); err != nil {
 				return err
 			}
+		case <-reattestTimer.C:
+			if err := reattest(); err != nil {
+				return err
+			}
+			reattestTimer.Reset(s.jitteredReattestInterval())
 		case <-ctx.Done():
 			return nil
 		}
 	}
+}
+
+// jitteredReattestInterval returns the re-attestation interval with the
+// configured jitter so that streams established around the same time do not
+// re-attest at the same instant.
+func (s *Service) jitteredReattestInterval() time.Duration {
+	maxJitter := time.Duration(float64(s.reattestInterval) * s.reattestJitter)
+	if maxJitter <= 0 {
+		return s.reattestInterval
+	}
+	return s.reattestInterval + time.Duration(rand.Int64N(int64(2*maxJitter))) - maxJitter //nolint:gosec // no need for cryptographic randomness here
 }
 
 func (s *Service) SubscribeToX509Bundles(req *broker.SubscribeToX509BundlesRequest, stream broker.API_SubscribeToX509BundlesServer) error {
