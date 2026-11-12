@@ -6,13 +6,12 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha1" //nolint: gosec // SHA1 use is according to specification
-	"crypto/sha256"
-	"crypto/sha512"
+	_ "crypto/sha256"
+	_ "crypto/sha512"
 	"crypto/x509"
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"hash"
 	"math/big"
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -176,7 +175,7 @@ func GenerateChallenge(cert *x509.Certificate, hashAlg string) (*Challenge, erro
 }
 
 func CalculateResponse(privateKey any, challenge *Challenge) (*Response, error) {
-	hash, err := ParseHashAlgorithm(challenge.Hash)
+	hashAlg, err := ParseHashAlgorithm(challenge.Hash)
 	if err != nil {
 		return nil, err
 	}
@@ -187,7 +186,7 @@ func CalculateResponse(privateKey any, challenge *Challenge) (*Response, error) 
 		if rsaChallenge == nil {
 			return nil, errors.New("expecting RSA challenge")
 		}
-		response, err := CalculateRSASignatureResponse(privateKey, rsaChallenge, hash)
+		response, err := CalculateRSASignatureResponse(privateKey, rsaChallenge, hashAlg)
 		if err != nil {
 			return nil, err
 		}
@@ -198,7 +197,7 @@ func CalculateResponse(privateKey any, challenge *Challenge) (*Response, error) 
 		if challenge.ECDSASignature == nil {
 			return nil, errors.New("expecting ECDSA challenge")
 		}
-		response, err := CalculateECDSASignatureResponse(privateKey, challenge.ECDSASignature, hash)
+		response, err := CalculateECDSASignatureResponse(privateKey, challenge.ECDSASignature, hashAlg)
 		if err != nil {
 			return nil, err
 		}
@@ -214,7 +213,7 @@ func CalculateResponse(privateKey any, challenge *Challenge) (*Response, error) 
 // hash algorithm is always taken from the challenge, which is generated and
 // retained by the verifier, so a response cannot select a different algorithm.
 func VerifyChallengeResponse(publicKey any, challenge *Challenge, response *Response) error {
-	hash, err := ParseHashAlgorithm(challenge.Hash)
+	hashAlg, err := ParseHashAlgorithm(challenge.Hash)
 	if err != nil {
 		return err
 	}
@@ -227,7 +226,7 @@ func VerifyChallengeResponse(publicKey any, challenge *Challenge, response *Resp
 		if response.RSASignature == nil {
 			return errors.New("expecting RSA response")
 		}
-		return VerifyRSASignatureResponse(publicKey, challenge.RSASignature, response.RSASignature, hash)
+		return VerifyRSASignatureResponse(publicKey, challenge.RSASignature, response.RSASignature, hashAlg)
 	case *ecdsa.PublicKey:
 		if challenge.ECDSASignature == nil {
 			return errors.New("expecting ECDSA challenge")
@@ -235,7 +234,7 @@ func VerifyChallengeResponse(publicKey any, challenge *Challenge, response *Resp
 		if response.ECDSASignature == nil {
 			return errors.New("expecting ECDSA response")
 		}
-		return VerifyECDSASignatureResponse(publicKey, challenge.ECDSASignature, response.ECDSASignature, hash)
+		return VerifyECDSASignatureResponse(publicKey, challenge.ECDSASignature, response.ECDSASignature, hashAlg)
 	default:
 		return fmt.Errorf("unsupported private key type %T", publicKey)
 	}
@@ -382,15 +381,11 @@ func combineNoncesWithHash(challenge, response []byte, hashAlg crypto.Hash) ([]b
 	if len(response) != nonceLen {
 		return nil, errors.New("invalid response nonce")
 	}
-	var h hash.Hash
-	switch hashAlg {
-	case crypto.SHA256:
-		h = sha256.New()
-	case crypto.SHA384:
-		h = sha512.New384()
-	default:
+	// Only the algorithms negotiated by x509pop are supported.
+	if hashAlg != crypto.SHA256 && hashAlg != crypto.SHA384 {
 		return nil, fmt.Errorf("unsupported hash algorithm %v", hashAlg)
 	}
+	h := hashAlg.New()
 	// Writing to a digest never fails.
 	_, _ = h.Write(challenge)
 	_, _ = h.Write(response)
