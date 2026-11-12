@@ -1,6 +1,7 @@
 package client
 
 import (
+	"bytes"
 	"context"
 	"crypto/x509"
 	"errors"
@@ -15,6 +16,8 @@ import (
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/tlspolicy"
 )
+
+const maxBundleSize = 4 << 20
 
 type SPIFFEAuthConfig struct {
 	// EndpointSpiffeID is the expected SPIFFE ID of the bundle endpoint server.
@@ -102,7 +105,15 @@ func (c *client) FetchBundle(context.Context) (*spiffebundle.Bundle, error) {
 		return nil, fmt.Errorf("unexpected status %d fetching bundle: %s", resp.StatusCode, tryRead(resp.Body))
 	}
 
-	b, err := bundleutil.Decode(c.c.TrustDomain, resp.Body)
+	data, err := io.ReadAll(io.LimitReader(resp.Body, maxBundleSize+1))
+	if err != nil {
+		return nil, fmt.Errorf("failed to read bundle: %w", err)
+	}
+	if len(data) > maxBundleSize {
+		return nil, fmt.Errorf("bundle response exceeds %d bytes", maxBundleSize)
+	}
+
+	b, err := bundleutil.Decode(c.c.TrustDomain, bytes.NewReader(data))
 	if err != nil {
 		return nil, err
 	}

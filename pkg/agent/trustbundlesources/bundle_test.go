@@ -1,6 +1,7 @@
 package trustbundlesources
 
 import (
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -191,85 +192,94 @@ func TestDownloadTrustBundle(t *testing.T) {
 }`
 
 	cases := []struct {
-		msg                 string
-		status              int
-		fileContents        string
-		format              string
-		expectDownloadError bool
-		expectParseError    bool
-		unixSocket          bool
+		msg               string
+		status            int
+		fileContents      string
+		format            string
+		expectDownloadErr string
+		expectParseError  bool
+		unixSocket        bool
 	}{
 		{
-			msg:                 "if URL is not found, should be an error",
-			status:              http.StatusNotFound,
-			fileContents:        "",
-			format:              BundleFormatPEM,
-			expectDownloadError: true,
-			expectParseError:    false,
-			unixSocket:          false,
+			msg:               "if URL is not found, should be an error",
+			status:            http.StatusNotFound,
+			fileContents:      "",
+			format:            BundleFormatPEM,
+			expectDownloadErr: "error downloading trust bundle: 404 Not Found",
+			expectParseError:  false,
+			unixSocket:        false,
 		},
 		{
-			msg:                 "if URL returns error 500, should be an error",
-			status:              http.StatusInternalServerError,
-			fileContents:        "",
-			format:              BundleFormatPEM,
-			expectDownloadError: true,
-			expectParseError:    false,
-			unixSocket:          false,
+			msg:               "if URL returns error 500, should be an error",
+			status:            http.StatusInternalServerError,
+			fileContents:      "",
+			format:            BundleFormatPEM,
+			expectDownloadErr: "error downloading trust bundle: 500 Internal Server Error",
+			expectParseError:  false,
+			unixSocket:        false,
 		},
 		{
-			msg:                 "if file is not parseable, should be an error",
-			status:              http.StatusOK,
-			fileContents:        "NON PEM PARSEABLE TEXT HERE",
-			format:              BundleFormatPEM,
-			expectDownloadError: false,
-			expectParseError:    true,
-			unixSocket:          false,
+			msg:               "if file is not parseable, should be an error",
+			status:            http.StatusOK,
+			fileContents:      "NON PEM PARSEABLE TEXT HERE",
+			format:            BundleFormatPEM,
+			expectDownloadErr: "",
+			expectParseError:  true,
+			unixSocket:        false,
 		},
 		{
-			msg:                 "if file is empty, should be an error",
-			status:              http.StatusOK,
-			fileContents:        "",
-			format:              BundleFormatPEM,
-			expectDownloadError: false,
-			expectParseError:    true,
-			unixSocket:          false,
+			msg:               "if file is empty, should be an error",
+			status:            http.StatusOK,
+			fileContents:      "",
+			format:            BundleFormatPEM,
+			expectDownloadErr: "",
+			expectParseError:  true,
+			unixSocket:        false,
 		},
 		{
-			msg:                 "if file is valid, should not be an error",
-			status:              http.StatusOK,
-			fileContents:        string(testTB),
-			format:              BundleFormatPEM,
-			expectDownloadError: false,
-			expectParseError:    false,
-			unixSocket:          false,
+			msg:               "if file is valid, should not be an error",
+			status:            http.StatusOK,
+			fileContents:      string(testTB),
+			format:            BundleFormatPEM,
+			expectDownloadErr: "",
+			expectParseError:  false,
+			unixSocket:        false,
 		},
 		{
-			msg:                 "if file is not parseable, format is SPIFFE, should not be an error",
-			status:              http.StatusOK,
-			fileContents:        "[}",
-			format:              BundleFormatSPIFFE,
-			expectDownloadError: false,
-			expectParseError:    true,
-			unixSocket:          false,
+			msg:               "if file is not parseable, format is SPIFFE, should not be an error",
+			status:            http.StatusOK,
+			fileContents:      "[}",
+			format:            BundleFormatSPIFFE,
+			expectDownloadErr: "",
+			expectParseError:  true,
+			unixSocket:        false,
 		},
 		{
-			msg:                 "if file is valid, format is SPIFFE, should not be an error",
-			status:              http.StatusOK,
-			fileContents:        testTBSPIFFE,
-			format:              BundleFormatSPIFFE,
-			expectDownloadError: false,
-			expectParseError:    false,
-			unixSocket:          false,
+			msg:               "if file is valid, format is SPIFFE, should not be an error",
+			status:            http.StatusOK,
+			fileContents:      testTBSPIFFE,
+			format:            BundleFormatSPIFFE,
+			expectDownloadErr: "",
+			expectParseError:  false,
+			unixSocket:        false,
 		},
 		{
-			msg:                 "if file is valid, format is SPIFFE, unix socket true, should not be an error",
-			status:              http.StatusOK,
-			fileContents:        testTBSPIFFE,
-			format:              BundleFormatSPIFFE,
-			expectDownloadError: false,
-			expectParseError:    false,
-			unixSocket:          true,
+			msg:               "if file is too large, should be an error",
+			status:            http.StatusOK,
+			fileContents:      string(testTB) + strings.Repeat("A", maxTrustBundleSize),
+			format:            BundleFormatPEM,
+			expectDownloadErr: fmt.Sprintf("exceeds %d bytes", maxTrustBundleSize),
+			expectParseError:  false,
+			unixSocket:        false,
+		},
+		{
+			msg:               "if file is valid, format is SPIFFE, unix socket true, should not be an error",
+			status:            http.StatusOK,
+			fileContents:      testTBSPIFFE,
+			format:            BundleFormatSPIFFE,
+			expectDownloadErr: "",
+			expectParseError:  false,
+			unixSocket:        true,
 		},
 	}
 
@@ -301,8 +311,8 @@ func TestDownloadTrustBundle(t *testing.T) {
 				testServer.Start()
 				bundleBytes, err = downloadTrustBundle(testServer.URL, "")
 			}
-			if testCase.expectDownloadError {
-				require.Error(t, err)
+			if testCase.expectDownloadErr != "" {
+				require.ErrorContains(t, err, testCase.expectDownloadErr)
 			} else {
 				require.NoError(t, err)
 
