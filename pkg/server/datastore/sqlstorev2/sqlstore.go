@@ -101,8 +101,7 @@ func (ds *Plugin) RawExec(query string, args ...any) error {
 }
 
 // DatabaseType returns the configured database type (e.g. "sqlite3",
-// "postgres", "mysql").
-// Test-support escape hatch for the shared sqltest suite.
+// "postgres", "mysql"), or "" when the datastore is not configured.
 func (ds *Plugin) DatabaseType() string {
 	ds.mu.Lock()
 	defer ds.mu.Unlock()
@@ -113,7 +112,8 @@ func (ds *Plugin) DatabaseType() string {
 }
 
 // Rebind rewrites "?" placeholders to the configured dialect's positional
-// placeholder form using the same logic production queries use.
+// placeholder form, for queries passed to RawExec, which runs on the bare
+// sql.DB. Queries issued through gorm are rebound by gorm itself.
 // Test-support escape hatch for the shared sqltest suite.
 func (ds *Plugin) Rebind(query string) string {
 	ds.mu.Lock()
@@ -124,9 +124,9 @@ func (ds *Plugin) Rebind(query string) string {
 	return maybeRebind(ds.db.databaseType, query)
 }
 
-// SetUseServerTimestamps controls whether server-generated timestamps should be used in the database.
-// This is only intended to be used by tests in order to produce deterministic timestamp data,
-// since some databases round off timestamp data with lower precision.
+// SetUseServerTimestamps makes GORM's clock round timestamps to the second, so
+// stored timestamps compare equal across databases that keep less precision.
+// It is only intended for tests and must be called before Configure.
 func (ds *Plugin) SetUseServerTimestamps(useServerTimestamps bool) {
 	ds.mu.Lock()
 	defer ds.mu.Unlock()

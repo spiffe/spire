@@ -10,8 +10,8 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-// errNotImplemented is returned by the datastore.DataStore methods that have
-// not been ported to this datastore yet.
+// errNotImplemented is returned by the datastore.DataStore methods this
+// datastore does not implement.
 var errNotImplemented = status.Error(codes.Unimplemented, "datastore-sql: not implemented")
 
 func (ds *Plugin) CountRegistrationEntries(_ context.Context, _ *datastore.CountRegistrationEntriesRequest) (int32, error) {

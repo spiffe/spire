@@ -36,9 +36,9 @@ func init() {
 
 var _ sqltest.DataStoreUnderTest = (*Plugin)(nil)
 
-// unportedTests lists the shared suite tests skipped until the areas they
-// cover are ported to this datastore.
-var unportedTests = []string{
+// unimplementedTests lists the shared suite tests that call methods this
+// datastore does not implement.
+var unimplementedTests = []string{
 	"TestCountAttestedNodes",
 	"TestCountRegistrationEntries",
 	"TestCreateAttestedNode",
@@ -85,8 +85,8 @@ var unportedTests = []string{
 	"TestRegistrationEntriesFederatesWithMultipleBundles",
 	"TestRegistrationEntriesFederatesWithDuplicateTrustDomain",
 	"TestRegistrationEntriesWithoutFederatesWith",
-	// DeleteBundle is ported, but these need registration entries to seed the
-	// bundle's federated entries.
+	// DeleteBundle is implemented, but these seed the bundle's federated
+	// entries through registration entry methods.
 	"TestDeleteBundleRestrictedByRegistrationEntries",
 	"TestDeleteBundleDeleteRegistrationEntries",
 	"TestDeleteBundleDissociateRegistrationEntries",
@@ -107,7 +107,7 @@ func TestPlugin(t *testing.T) {
 		ROConnString:          cmp.Or(os.Getenv("SQLSTORE_TEST_RO_CONN_STRING"), TestROConnString),
 		ExpectedSchemaVersion: latestSchemaVersion,
 		ExpectedCodeVersion:   codeVersion.String(),
-		SkipTests:             unportedTests,
+		SkipTests:             unimplementedTests,
 	})
 }
 

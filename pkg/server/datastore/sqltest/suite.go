@@ -39,7 +39,7 @@ type Config struct {
 	ExpectedCodeVersion string
 
 	// SkipTests lists suite test method names (e.g. "TestListAttestedNodes")
-	// to skip. It is temporary, used while a datastore is being ported.
+	// to skip, for a datastore that does not implement every method.
 	SkipTests []string
 }
 

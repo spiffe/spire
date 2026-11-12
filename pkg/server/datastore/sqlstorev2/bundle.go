@@ -34,8 +34,8 @@ func (ds *Plugin) CreateBundle(ctx context.Context, b *common.Bundle) (bundle *c
 	return bundle, nil
 }
 
-// UpdateBundle updates an existing bundle with the given CAs. Overwrites any
-// existing certificates.
+// UpdateBundle updates an existing bundle, replacing only the fields set in
+// mask. A nil mask replaces every field.
 func (ds *Plugin) UpdateBundle(ctx context.Context, b *common.Bundle, mask *common.BundleMask) (bundle *common.Bundle, err error) {
 	if err = ds.withReadModifyWriteTx(ctx, func(tx *gorm.DB) (err error) {
 		bundle, err = updateBundle(tx, b, mask)
@@ -68,7 +68,8 @@ func (ds *Plugin) AppendBundle(ctx context.Context, b *common.Bundle) (bundle *c
 	return bundle, nil
 }
 
-// DeleteBundle deletes the bundle with the matching TrustDomain. Any CACert data passed is ignored.
+// DeleteBundle deletes the bundle with the matching trust domain. mode decides
+// what happens to registration entries federated with it.
 func (ds *Plugin) DeleteBundle(ctx context.Context, trustDomainID string, mode datastore.DeleteMode) (err error) {
 	return ds.withWriteTx(ctx, func(tx *gorm.DB) (err error) {
 		err = deleteBundle(tx, trustDomainID, mode)
@@ -121,25 +122,25 @@ func (ds *Plugin) PruneBundle(ctx context.Context, trustDomainID string, expires
 	return changed, nil
 }
 
-// TaintX509CAByKey taints an X.509 CA signed using the provided public key
-func (ds *Plugin) TaintX509CA(ctx context.Context, trustDoaminID string, subjectKeyIDToTaint string) error {
+// TaintX509CA taints the X.509 CA in the bundle with the given subject key ID.
+func (ds *Plugin) TaintX509CA(ctx context.Context, trustDomainID string, subjectKeyIDToTaint string) error {
 	return ds.withReadModifyWriteTx(ctx, func(tx *gorm.DB) (err error) {
-		return taintX509CA(tx, trustDoaminID, subjectKeyIDToTaint)
+		return taintX509CA(tx, trustDomainID, subjectKeyIDToTaint)
 	})
 }
 
-// RevokeX509CA removes a Root CA from the bundle
-func (ds *Plugin) RevokeX509CA(ctx context.Context, trustDoaminID string, subjectKeyIDToRevoke string) error {
+// RevokeX509CA removes the X.509 CA with the given subject key ID from the bundle.
+func (ds *Plugin) RevokeX509CA(ctx context.Context, trustDomainID string, subjectKeyIDToRevoke string) error {
 	return ds.withReadModifyWriteTx(ctx, func(tx *gorm.DB) (err error) {
-		return revokeX509CA(tx, trustDoaminID, subjectKeyIDToRevoke)
+		return revokeX509CA(tx, trustDomainID, subjectKeyIDToRevoke)
 	})
 }
 
-// TaintJWTKey taints a JWT Authority key
-func (ds *Plugin) TaintJWTKey(ctx context.Context, trustDoaminID string, authorityID string) (*common.PublicKey, error) {
+// TaintJWTKey taints the JWT key with the given authority ID.
+func (ds *Plugin) TaintJWTKey(ctx context.Context, trustDomainID string, authorityID string) (*common.PublicKey, error) {
 	var taintedKey *common.PublicKey
 	if err := ds.withReadModifyWriteTx(ctx, func(tx *gorm.DB) (err error) {
-		taintedKey, err = taintJWTKey(tx, trustDoaminID, authorityID)
+		taintedKey, err = taintJWTKey(tx, trustDomainID, authorityID)
 		return err
 	}); err != nil {
 		return nil, err
@@ -147,11 +148,11 @@ func (ds *Plugin) TaintJWTKey(ctx context.Context, trustDoaminID string, authori
 	return taintedKey, nil
 }
 
-// RevokeJWTAuthority removes JWT key from the bundle
-func (ds *Plugin) RevokeJWTKey(ctx context.Context, trustDoaminID string, authorityID string) (*common.PublicKey, error) {
+// RevokeJWTKey removes the JWT key with the given authority ID from the bundle.
+func (ds *Plugin) RevokeJWTKey(ctx context.Context, trustDomainID string, authorityID string) (*common.PublicKey, error) {
 	var revokedKey *common.PublicKey
 	if err := ds.withReadModifyWriteTx(ctx, func(tx *gorm.DB) (err error) {
-		revokedKey, err = revokeJWTKey(tx, trustDoaminID, authorityID)
+		revokedKey, err = revokeJWTKey(tx, trustDomainID, authorityID)
 		return err
 	}); err != nil {
 		return nil, err
@@ -188,7 +189,7 @@ func updateBundle(tx *gorm.DB, newBundle *common.Bundle, mask *common.BundleMask
 		return nil, sqlcommon.NewWrappedSQLError(err)
 	}
 
-	if err := tx.Model(model).Select("data", "updated_at").Updates(model).Error; err != nil {
+	if err := tx.Model(model).Select("data").Updates(model).Error; err != nil {
 		return nil, sqlcommon.NewWrappedSQLError(err)
 	}
 
@@ -239,7 +240,6 @@ func setBundle(tx *gorm.DB, b *common.Bundle) (*common.Bundle, error) {
 		return nil, err
 	}
 
-	// fetch existing or create new
 	model := &Bundle{}
 	err = tx.Where("trust_domain = ?", newModel.TrustDomain).Take(model).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -265,7 +265,6 @@ func appendBundle(tx *gorm.DB, b *common.Bundle) (*common.Bundle, error) {
 		return nil, err
 	}
 
-	// fetch existing or create new
 	model := &Bundle{}
 	err = tx.Where("trust_domain = ?", newModel.TrustDomain).Take(model).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -278,7 +277,6 @@ func appendBundle(tx *gorm.DB, b *common.Bundle) (*common.Bundle, error) {
 		return nil, sqlcommon.NewWrappedSQLError(err)
 	}
 
-	// parse the bundle data and add missing elements
 	bundle, err := modelToBundle(model)
 	if err != nil {
 		return nil, err
@@ -292,7 +290,7 @@ func appendBundle(tx *gorm.DB, b *common.Bundle) (*common.Bundle, error) {
 			return nil, err
 		}
 		model.Data = newModel.Data
-		if err := tx.Model(model).Select("data", "updated_at").Updates(model).Error; err != nil {
+		if err := tx.Model(model).Select("data").Updates(model).Error; err != nil {
 			return nil, sqlcommon.NewWrappedSQLError(err)
 		}
 	}
@@ -306,20 +304,20 @@ func deleteBundle(tx *gorm.DB, trustDomainID string, mode datastore.DeleteMode) 
 		return sqlcommon.NewWrappedSQLError(err)
 	}
 
-	// Get a count of associated registration entries
 	entriesAssociation := tx.Model(model).Association("FederatedEntries")
 	entriesCount := entriesAssociation.Count()
 	if err := entriesAssociation.Error; err != nil {
 		return sqlcommon.NewWrappedSQLError(err)
 	}
 
-	// TODO: the branches below are only exercised by the shared suite's
-	// TestDeleteBundle*RegistrationEntries tests, which are skipped until
-	// registration entries are ported to this datastore.
+	// TODO: no test reaches the branches below yet. The shared suite's
+	// TestDeleteBundle*RegistrationEntries tests cover them, but they stay
+	// skipped until this datastore implements registration entries.
 	if entriesCount > 0 {
 		switch mode {
 		case datastore.Delete:
-			// TODO: figure out how to do this gracefully with GORM.
+			// The association API only removes the join rows; deleting the
+			// entries themselves takes a subquery on the join table.
 			if err := tx.Exec(`DELETE FROM registered_entries WHERE id in (
 				SELECT
 					registered_entry_id
@@ -423,24 +421,20 @@ func listBundles(tx *gorm.DB, req *datastore.ListBundlesRequest, dbType string) 
 }
 
 func pruneBundle(tx *gorm.DB, trustDomainID string, expiry time.Time, log logrus.FieldLogger) (bool, error) {
-	// Get current bundle
 	currentBundle, err := fetchBundle(tx, trustDomainID)
 	if err != nil {
 		return false, fmt.Errorf("unable to fetch current bundle: %w", err)
 	}
 
 	if currentBundle == nil {
-		// No bundle to prune
 		return false, nil
 	}
 
-	// Prune
 	newBundle, changed, err := bundleutil.PruneBundle(currentBundle, expiry, log)
 	if err != nil {
 		return false, fmt.Errorf("prune failed: %w", err)
 	}
 
-	// Update only if bundle was modified
 	if changed {
 		newBundle.SequenceNumber = currentBundle.SequenceNumber + 1
 		_, err := updateBundle(tx, newBundle, nil)
@@ -641,7 +635,9 @@ func applyPagination(p *datastore.Pagination, tx *gorm.DB, dbType string) (*gorm
 // maxPaginationToken returns the largest ID value the dialect's primary key
 // column can represent. Models declare ID as a Go uint, which GORM maps to a
 // signed 32-bit integer on PostgreSQL and an unsigned 32-bit integer on
-// MySQL, so tokens above those bounds can never match an existing row.
+// MySQL; SQLite integers are signed 64-bit. Tokens above those bounds can
+// never match an existing row. The bound also keeps the value within what
+// database/sql accepts, which rejects uint64 values with the high bit set.
 func maxPaginationToken(dbType string) uint64 {
 	switch {
 	case sqlcommon.IsPostgresDbType(dbType):
@@ -649,7 +645,7 @@ func maxPaginationToken(dbType string) uint64 {
 	case sqlcommon.IsMySQLDbType(dbType):
 		return math.MaxUint32
 	default:
-		return math.MaxUint64
+		return math.MaxInt64
 	}
 }
 

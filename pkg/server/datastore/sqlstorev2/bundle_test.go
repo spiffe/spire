@@ -26,18 +26,23 @@ func TestConcurrentAppendBundle(t *testing.T) {
 	_, err := ds.CreateBundle(ctx, &common.Bundle{TrustDomainId: trustDomain})
 	require.NoError(t, err)
 
-	const n = 10
+	// The goroutines wait on start so their read-modify-write transactions
+	// overlap instead of running one after another.
+	const n = 50
+	start := make(chan struct{})
 	var wg sync.WaitGroup
 	errs := make(chan error, n)
 	for i := range n {
 		wg.Go(func() {
+			<-start
 			_, err := ds.AppendBundle(ctx, &common.Bundle{
 				TrustDomainId:  trustDomain,
-				JwtSigningKeys: []*common.PublicKey{{Kid: fmt.Sprintf("kid-%d", i), PkixBytes: []byte{byte(i)}}},
+				JwtSigningKeys: []*common.PublicKey{{Kid: fmt.Sprintf("kid-%d", i), PkixBytes: fmt.Appendf(nil, "%d", i)}},
 			})
 			errs <- err
 		})
 	}
+	close(start)
 	wg.Wait()
 	close(errs)
 	for err := range errs {
@@ -131,4 +136,20 @@ func newBundleTestPlugin(t *testing.T) *v2.Plugin {
 	require.NoError(t, ds.Configure(context.Background(), config))
 	t.Cleanup(func() { require.NoError(t, ds.Close()) })
 	return ds
+}
+
+// TestListBundlesTokenBeyondMaxID checks that a token past every representable
+// ID returns an empty page rather than an error.
+func TestListBundlesTokenBeyondMaxID(t *testing.T) {
+	ctx := context.Background()
+	ds := newBundleTestPlugin(t)
+
+	_, err := ds.CreateBundle(ctx, &common.Bundle{TrustDomainId: "spiffe://a.org"})
+	require.NoError(t, err)
+
+	resp, err := ds.ListBundles(ctx, &datastore.ListBundlesRequest{
+		Pagination: &datastore.Pagination{Token: "18446744073709551615", PageSize: 10},
+	})
+	require.NoError(t, err)
+	require.Empty(t, resp.Bundles)
 }

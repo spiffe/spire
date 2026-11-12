@@ -23,6 +23,12 @@ func TestParsePaginationToken(t *testing.T) {
 			expectedID: 5000000000,
 		},
 		{
+			name:       "sqlite token beyond signed 64 bits is clamped",
+			token:      "18446744073709551615",
+			dbType:     sqlcommon.SQLite,
+			expectedID: math.MaxInt64,
+		},
+		{
 			name:       "postgres token within range",
 			token:      "42",
 			dbType:     sqlcommon.PostgreSQL,

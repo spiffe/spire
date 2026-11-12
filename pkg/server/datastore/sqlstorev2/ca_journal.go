@@ -57,7 +57,6 @@ func (ds *Plugin) SetCAJournal(ctx context.Context, caJournal *datastore.CAJourn
 			return err
 		}
 
-		// The CA journal already exists, update it.
 		caj, err = updateCAJournal(tx, caJournal)
 		return err
 	}); err != nil {
@@ -168,7 +167,7 @@ func updateCAJournal(tx *gorm.DB, caJournal *datastore.CAJournal) (*datastore.CA
 	model.ActiveX509AuthorityID = caJournal.ActiveX509AuthorityID
 	model.Data = caJournal.Data
 
-	if err := tx.Model(&model).Select("active_x509_authority_id", "data", "updated_at").Updates(&model).Error; err != nil {
+	if err := tx.Model(&model).Select("active_x509_authority_id", "data").Updates(&model).Error; err != nil {
 		return nil, sqlcommon.NewWrappedSQLError(err)
 	}
 

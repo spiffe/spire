@@ -16,11 +16,9 @@ import (
 	"gorm.io/gorm"
 )
 
-// CreateFederationRelationship creates a new federation relationship. If the bundle endpoint
-// profile is 'https_spiffe' and the given federation relationship contains a bundle, the current
-// stored bundle is overridden.
-// If no bundle is provided and there is not a previously stored bundle in the datastore, the
-// federation relationship is not created.
+// CreateFederationRelationship creates a new federation relationship. If it
+// carries a trust domain bundle, that bundle replaces the stored bundle for the
+// trust domain.
 func (ds *Plugin) CreateFederationRelationship(ctx context.Context, fr *datastore.FederationRelationship) (newFr *datastore.FederationRelationship, err error) {
 	if err := validateFederationRelationship(fr, protoutil.AllTrueFederationRelationshipMask); err != nil {
 		return nil, err
@@ -104,7 +102,6 @@ func createFederationRelationship(tx *gorm.DB, fr *datastore.FederationRelations
 	}
 
 	if fr.TrustDomainBundle != nil {
-		// overwrite current bundle
 		_, err := setBundle(tx, fr.TrustDomainBundle)
 		if err != nil {
 			return nil, fmt.Errorf("unable to set bundle: %w", err)
@@ -209,7 +206,6 @@ func updateFederationRelationship(tx *gorm.DB, fr *datastore.FederationRelations
 	}
 
 	if mask.TrustDomainBundle && fr.TrustDomainBundle != nil {
-		// overwrite current bundle
 		_, err := setBundle(tx, fr.TrustDomainBundle)
 		if err != nil {
 			return nil, fmt.Errorf("unable to set bundle: %w", err)

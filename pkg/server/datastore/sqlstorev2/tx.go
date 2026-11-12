@@ -93,7 +93,7 @@ func (ds *Plugin) withTx(ctx context.Context, op func(tx *gorm.DB) error, readOn
 
 	if err := op(opTx); err != nil {
 		tx.Rollback()
-		return ds.gormToGRPCStatus(err)
+		return gormToGRPCStatus(db.dialect, err)
 	}
 
 	if readOnly {
@@ -105,11 +105,11 @@ func (ds *Plugin) withTx(ctx context.Context, op func(tx *gorm.DB) error, readOn
 	return sqlcommon.NewWrappedSQLError(tx.Commit().Error)
 }
 
-// gormToGRPCStatus takes an error, and converts it to a GRPC error.  If the
-// error is already a gRPC status , it will be returned unmodified. Otherwise
+// gormToGRPCStatus takes an error, and converts it to a GRPC error. If the
+// error is already a gRPC status, it will be returned unmodified. Otherwise
 // if the error is a gorm error type with a known mapping to a GRPC status,
 // that code will be set, otherwise the code will be set to Unknown.
-func (ds *Plugin) gormToGRPCStatus(err error) error {
+func gormToGRPCStatus(dia dialect, err error) error {
 	type grpcStatusError interface {
 		error
 		GRPCStatus() *status.Status
@@ -128,19 +128,10 @@ func (ds *Plugin) gormToGRPCStatus(err error) error {
 	switch {
 	case errors.Is(unwrapped, gorm.ErrRecordNotFound):
 		code = codes.NotFound
-	case ds.isConstraintViolation(unwrapped):
+	case dia.isConstraintViolation(unwrapped):
 		code = codes.AlreadyExists
 	default:
 	}
 
 	return status.Error(code, err.Error())
-}
-
-// isConstraintViolation reports whether err is a unique constraint violation
-// for the configured database.
-func (ds *Plugin) isConstraintViolation(err error) bool {
-	ds.mu.Lock()
-	db := ds.db
-	ds.mu.Unlock()
-	return db != nil && db.dialect.isConstraintViolation(err)
 }

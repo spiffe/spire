@@ -10,7 +10,7 @@ import (
 	"gorm.io/gorm"
 )
 
-// CreateJoinToken takes a Token message and stores it
+// CreateJoinToken stores the given join token.
 func (ds *Plugin) CreateJoinToken(ctx context.Context, token *datastore.JoinToken) (err error) {
 	if token == nil || token.Token == "" || token.Expiry.IsZero() {
 		return errors.New("token and expiry are required")
@@ -21,8 +21,8 @@ func (ds *Plugin) CreateJoinToken(ctx context.Context, token *datastore.JoinToke
 	})
 }
 
-// FetchJoinToken takes a Token message and returns one, populating the fields
-// we have knowledge of. If the token is not found, nil is returned.
+// FetchJoinToken returns the join token with the given value. If the token is
+// not found, nil is returned.
 func (ds *Plugin) FetchJoinToken(ctx context.Context, token string) (resp *datastore.JoinToken, err error) {
 	if err = ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
 		resp, err = fetchJoinToken(tx, token)
@@ -41,8 +41,7 @@ func (ds *Plugin) DeleteJoinToken(ctx context.Context, token string) error {
 	})
 }
 
-// PruneJoinTokens takes a Token message, and deletes all tokens which have expired
-// before the date in the message
+// PruneJoinTokens deletes all join tokens that expire before expiry.
 func (ds *Plugin) PruneJoinTokens(ctx context.Context, expiry time.Time) error {
 	return ds.withWriteTx(ctx, func(tx *gorm.DB) error {
 		return pruneJoinTokens(tx, expiry)

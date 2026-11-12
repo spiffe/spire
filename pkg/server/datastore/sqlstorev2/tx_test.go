@@ -79,7 +79,7 @@ func TestGormToGRPCStatus(t *testing.T) {
 
 	requireCode := func(err error, code codes.Code) {
 		t.Helper()
-		require.Equal(t, code, status.Code(ds.gormToGRPCStatus(err)))
+		require.Equal(t, code, status.Code(gormToGRPCStatus(ds.db.dialect, err)))
 	}
 
 	requireCode(sqlcommon.NewWrappedSQLError(gorm.ErrRecordNotFound), codes.NotFound)
@@ -87,7 +87,7 @@ func TestGormToGRPCStatus(t *testing.T) {
 	requireCode(errors.New("boom"), codes.Unknown)
 
 	orig := status.Error(codes.FailedPrecondition, "x")
-	require.Equal(t, orig, ds.gormToGRPCStatus(orig))
+	require.Equal(t, orig, gormToGRPCStatus(ds.db.dialect, orig))
 
 	insert := func(tx *gorm.DB) error {
 		return tx.Create(&JoinToken{Token: "dup", Expiry: 1}).Error
