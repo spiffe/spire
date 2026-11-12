@@ -346,6 +346,12 @@ func (s *Service) FetchJWTSVID(ctx context.Context, req *broker.FetchJWTSVIDRequ
 		log.Error("Missing required audience parameter")
 		return nil, status.Error(codes.InvalidArgument, "audience must be specified")
 	}
+	if req.SpiffeId != "" {
+		if _, err := spiffeid.FromString(req.SpiffeId); err != nil {
+			log.WithField(telemetry.SPIFFEID, req.SpiffeId).WithError(err).Error("Invalid requested SPIFFE ID")
+			return nil, status.Errorf(codes.InvalidArgument, "invalid requested SPIFFE ID: %v", err)
+		}
+	}
 
 	peer, err := s.getCallerContext(ctx)
 	if err != nil {
@@ -370,11 +376,14 @@ func (s *Service) FetchJWTSVID(ctx context.Context, req *broker.FetchJWTSVIDRequ
 		if entry.Admin || entry.Downstream {
 			continue
 		}
+		if req.SpiffeId != "" && entry.SpiffeId != req.SpiffeId {
+			continue
+		}
 
 		spiffeID, err := spiffeid.FromString(entry.SpiffeId)
 		if err != nil {
-			log.WithField(telemetry.SPIFFEID, entry.SpiffeId).WithError(err).Error("Invalid requested SPIFFE ID")
-			return nil, status.Errorf(codes.InvalidArgument, "invalid requested SPIFFE ID: %v", err)
+			log.WithField(telemetry.SPIFFEID, entry.SpiffeId).WithError(err).Error("Invalid entry SPIFFE ID")
+			return nil, status.Errorf(codes.Internal, "invalid entry SPIFFE ID: %v", err)
 		}
 
 		loopLog := log.WithField(telemetry.SPIFFEID, spiffeID.String())

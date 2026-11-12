@@ -949,6 +949,7 @@ func TestFetchJWTSVID(t *testing.T) {
 	for _, tt := range []struct {
 		name        string
 		audience    []string
+		spiffeID    string
 		byCaller    map[spiffeid.ID]ReferenceTypePolicy
 		attestErr   error
 		fetchErr    error
@@ -959,6 +960,20 @@ func TestFetchJWTSVID(t *testing.T) {
 		{
 			name:       "missing audience",
 			expectCode: codes.InvalidArgument,
+		},
+		{
+			name:       "invalid spiffe id",
+			audience:   []string{"aud"},
+			spiffeID:   "foo",
+			expectCode: codes.InvalidArgument,
+		},
+		{
+			name:     "invalid entry spiffe id",
+			audience: []string{"aud"},
+			entries: []*common.RegistrationEntry{
+				{EntryId: "1", SpiffeId: "foo"},
+			},
+			expectCode: codes.Internal,
 		},
 		{
 			name:       "attestation error",
@@ -997,6 +1012,28 @@ func TestFetchJWTSVID(t *testing.T) {
 				{SpiffeId: workloadID, Svid: jwtSVID.Token},
 				{SpiffeId: workload2ID, Svid: jwtSVID2.Token},
 			},
+		},
+		{
+			name:     "success with requested spiffe id",
+			audience: []string{"aud"},
+			spiffeID: workload2ID,
+			entries: []*common.RegistrationEntry{
+				{EntryId: "1", SpiffeId: workloadID},
+				{EntryId: "2", SpiffeId: workload2ID},
+			},
+			expectCode: codes.OK,
+			expectSvids: []*broker.JWTSVID{
+				{SpiffeId: workload2ID, Svid: jwtSVID2.Token},
+			},
+		},
+		{
+			name:     "requested spiffe id not entitled",
+			audience: []string{"aud"},
+			spiffeID: workload2ID,
+			entries: []*common.RegistrationEntry{
+				{EntryId: "1", SpiffeId: workloadID},
+			},
+			expectCode: codes.PermissionDenied,
 		},
 		{
 			name:     "fetch error",
@@ -1053,6 +1090,7 @@ func TestFetchJWTSVID(t *testing.T) {
 
 			resp, err := s.FetchJWTSVID(brokerCallerContext(caller), &broker.FetchJWTSVIDRequest{
 				Audience:  tt.audience,
+				SpiffeId:  tt.spiffeID,
 				Reference: &broker.WorkloadReference{Reference: ref(k8sType)},
 			})
 
