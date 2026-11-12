@@ -382,8 +382,8 @@ func (s *Service) FetchJWTSVID(ctx context.Context, req *broker.FetchJWTSVIDRequ
 
 		spiffeID, err := spiffeid.FromString(entry.SpiffeId)
 		if err != nil {
-			log.WithField(telemetry.SPIFFEID, entry.SpiffeId).WithError(err).Error("Invalid requested SPIFFE ID")
-			return nil, status.Errorf(codes.InvalidArgument, "invalid requested SPIFFE ID: %v", err)
+			log.WithField(telemetry.SPIFFEID, entry.SpiffeId).WithError(err).Error("Invalid entry SPIFFE ID")
+			return nil, status.Errorf(codes.Internal, "invalid entry SPIFFE ID: %v", err)
 		}
 
 		loopLog := log.WithField(telemetry.SPIFFEID, spiffeID.String())

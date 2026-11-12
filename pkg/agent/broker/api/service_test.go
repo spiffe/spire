@@ -968,6 +968,14 @@ func TestFetchJWTSVID(t *testing.T) {
 			expectCode: codes.InvalidArgument,
 		},
 		{
+			name:     "invalid entry spiffe id",
+			audience: []string{"aud"},
+			entries: []*common.RegistrationEntry{
+				{EntryId: "1", SpiffeId: "foo"},
+			},
+			expectCode: codes.Internal,
+		},
+		{
 			name:       "attestation error",
 			audience:   []string{"aud"},
 			attestErr:  errors.New("attest failed"),
