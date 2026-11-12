@@ -2,7 +2,11 @@
 
 package peertracker
 
-import "net"
+import (
+	"net"
+
+	"github.com/sirupsen/logrus"
+)
 
 type ListenerFactoryOS struct {
 	NewUnixListener func(network string, laddr *net.UnixAddr) (*net.UnixListener, error)
@@ -13,7 +17,14 @@ func (lf *ListenerFactory) ListenUnix(network string, laddr *net.UnixAddr) (*Lis
 		lf.NewUnixListener = net.ListenUnix
 	}
 	if lf.NewTracker == nil {
-		lf.NewTracker = NewTracker
+		if lf.AllowUIDMismatch {
+			cfg := TrackerConfig{AllowUIDMismatch: true}
+			lf.NewTracker = func(log logrus.FieldLogger) (PeerTracker, error) {
+				return NewTrackerWithConfig(log, cfg)
+			}
+		} else {
+			lf.NewTracker = NewTracker
+		}
 	}
 	if lf.Log == nil {
 		lf.Log = newNoopLogger()
