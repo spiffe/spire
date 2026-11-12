@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -30,6 +32,11 @@ type Plugin struct {
 	mu   sync.Mutex
 	db   *sqlDB
 	roDb *sqlDB
+
+	// useServerTimestamps rounds the timestamps GORM writes to the nearest
+	// second, matching the precision some databases store, so tests get
+	// deterministic timestamp data.
+	useServerTimestamps bool
 }
 
 type sqlDB struct {
@@ -39,6 +46,10 @@ type sqlDB struct {
 	connectionString string
 	supportsCTE      bool
 	dialect          dialect
+
+	// opMu serializes write transactions on SQLite, which allows a single
+	// writer at a time. It is shared by every sqlDB reusing the same pool.
+	opMu *sync.Mutex
 }
 
 // New returns an unconfigured Plugin. Configure must be called before use.
@@ -75,6 +86,51 @@ func (ds *Plugin) RawScan(dest any, query string) error {
 		return sqlcommon.NewSQLError("datastore is not configured")
 	}
 	return ds.db.Raw(query).Scan(dest).Error
+}
+
+// RawExec runs a raw statement against the underlying *sql.DB.
+// Test-support escape hatch for the shared sqltest suite.
+func (ds *Plugin) RawExec(query string, args ...any) error {
+	ds.mu.Lock()
+	defer ds.mu.Unlock()
+	if ds.db == nil {
+		return sqlcommon.NewSQLError("datastore is not configured")
+	}
+	_, err := ds.db.raw.Exec(query, args...)
+	return err
+}
+
+// DatabaseType returns the configured database type (e.g. "sqlite3",
+// "postgres", "mysql"), or "" when the datastore is not configured.
+func (ds *Plugin) DatabaseType() string {
+	ds.mu.Lock()
+	defer ds.mu.Unlock()
+	if ds.db == nil {
+		return ""
+	}
+	return ds.db.databaseType
+}
+
+// Rebind rewrites "?" placeholders to the configured dialect's positional
+// placeholder form, for queries passed to RawExec, which runs on the bare
+// sql.DB. Queries issued through gorm are rebound by gorm itself.
+// Test-support escape hatch for the shared sqltest suite.
+func (ds *Plugin) Rebind(query string) string {
+	ds.mu.Lock()
+	defer ds.mu.Unlock()
+	if ds.db == nil {
+		return ""
+	}
+	return maybeRebind(ds.db.databaseType, query)
+}
+
+// SetUseServerTimestamps makes GORM's clock round timestamps to the second, so
+// stored timestamps compare equal across databases that keep less precision.
+// It is only intended for tests and must be called before Configure.
+func (ds *Plugin) SetUseServerTimestamps(useServerTimestamps bool) {
+	ds.mu.Lock()
+	defer ds.mu.Unlock()
+	ds.useServerTimestamps = useServerTimestamps
 }
 
 // Configure parses the HCL config, validates it, and opens the connection(s).
@@ -181,6 +237,12 @@ func (ds *Plugin) prepareConnection(ctx context.Context, config *sqlcommon.Confi
 		telemetry.ReadOnly: isReadOnly,
 	}).Info("Connected to SQL database")
 
+	if ds.useServerTimestamps {
+		gdb.Config.NowFunc = func() time.Time {
+			return time.Now().Round(time.Second)
+		}
+	}
+
 	gdb = withSQLLogging(gdb, config.LogSQL, ds.log)
 
 	// The read-only connection points at the same schema and must not
@@ -198,6 +260,7 @@ func (ds *Plugin) prepareConnection(ctx context.Context, config *sqlcommon.Confi
 		dialect:          dia,
 		connectionString: connectionString,
 		supportsCTE:      supportsCTE,
+		opMu:             new(sync.Mutex),
 	}, nil
 }
 
@@ -306,4 +369,30 @@ func (l logrusGormLogger) Trace(_ context.Context, _ time.Time, fc func() (strin
 		return
 	}
 	entry.Debug(sql)
+}
+
+// maybeRebind rewrites "?" placeholders to PostgreSQL's positional form when
+// dbType is a PostgreSQL variant, and returns query unchanged otherwise.
+func maybeRebind(dbType, query string) string {
+	if sqlcommon.IsPostgresDbType(dbType) {
+		return bindVarsFn(func(n int) string {
+			return "$" + strconv.Itoa(n)
+		}, query)
+	}
+	return query
+}
+
+// bindVarsFn replaces each "?" in query with the placeholder fn returns for
+// its 1-based position.
+func bindVarsFn(fn func(int) string, query string) string {
+	var buf strings.Builder
+	var n int
+	for i := strings.Index(query, "?"); i != -1; i = strings.Index(query, "?") {
+		n++
+		buf.WriteString(query[:i])
+		buf.WriteString(fn(n))
+		query = query[i+1:]
+	}
+	buf.WriteString(query)
+	return buf.String()
 }
