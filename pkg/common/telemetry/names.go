@@ -290,6 +290,11 @@ const (
 	// DeprecatedServiceAlertType tags alerts for deprecated plugin services.
 	DeprecatedServiceAlertType = "deprecated_service"
 
+	// AgentIdentityAlertType tags alerts about the agent losing, or being about
+	// to lose, its own identity, such as an expired SVID, a failed
+	// re-attestation, being banned, or a forced rebootstrap.
+	AgentIdentityAlertType = "agent_identity"
+
 	// DeprecatedServiceName tags the deprecated service name
 	DeprecatedServiceName = "deprecated_service_name"
 

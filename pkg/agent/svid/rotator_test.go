@@ -330,7 +330,7 @@ func TestRotationFails(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			svidKM := keymanager.ForSVID(fakeagentkeymanager.New(t, ""))
 			clk := clock.NewMock(t)
-			log, _ := test.NewNullLogger()
+			log, hook := test.NewNullLogger()
 			mockClient := &fakeClient{
 				clk:      clk,
 				caCert:   caCert,
@@ -383,6 +383,13 @@ func TestRotationFails(t *testing.T) {
 			defer cancel()
 			err = rotator.Run(ctx)
 			spiretest.RequireErrorPrefix(t, err, tt.expectErr)
+
+			// The failure that stops the rotator is marked as an agent identity alert
+			entry := hook.LastEntry()
+			require.NotNil(t, entry)
+			require.Equal(t, logrus.ErrorLevel, entry.Level)
+			require.Equal(t, true, entry.Data[telemetry.Alert])
+			require.Equal(t, telemetry.AgentIdentityAlertType, entry.Data[telemetry.AlertType])
 		})
 	}
 }
