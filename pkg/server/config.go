@@ -82,6 +82,8 @@ type Config struct {
 	// self-signed CA certificates, otherwise it is up to the upstream CA.
 	CATTL time.Duration
 
+	ActivationDelay time.Duration
+
 	// JWTIssuer is used as the issuer claim in JWT-SVIDs minted by the server.
 	// If unset, the JWT-SVID will not have an issuer claim.
 	JWTIssuer string
