@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hashicorp/go-hclog"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire-plugin-sdk/pluginsdk/support/bundleformat"
 	bundlepublisherv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/bundlepublisher/v1"
@@ -17,7 +16,6 @@ import (
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/catalog"
-	"github.com/spiffe/spire/pkg/server/plugin/bundlepublisher/common"
 	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/testkey"
@@ -201,12 +199,11 @@ func TestConfigure(t *testing.T) {
 			newClientErr: errors.New("client creation error"),
 		},
 		{
-			name: "success with oidc_compatible",
+			name: "success with oidc_jwks format",
 			hclConfig: `
 				clusters = {
 					"test-cluster" = {
-						format = "jwks"
-						oidc_compatible = true
+						format = "oidc_jwks"
 						namespace = "spire"
 						configmap_name = "spire-bundle"
 						configmap_key = "bundle.json"
@@ -217,32 +214,14 @@ func TestConfigure(t *testing.T) {
 			expectCfg: &Config{
 				Clusters: map[string]*Cluster{
 					"test-cluster": {
-						Format:         "jwks",
+						Format:         "oidc_jwks",
 						Namespace:      "spire",
 						ConfigMapName:  "spire-bundle",
 						ConfigMapKey:   "bundle.json",
 						KubeConfigPath: "/path/to/kubeconfig",
-						OIDCCompatible: true,
 					},
 				},
 			},
-		},
-		{
-			name: "oidc_compatible with a format other than jwks",
-			hclConfig: `
-				clusters = {
-					"test-cluster" = {
-						format = "spiffe"
-						oidc_compatible = true
-						namespace = "spire"
-						configmap_name = "spire-bundle"
-						configmap_key = "bundle.json"
-						kubeconfig_path = "/path/to/kubeconfig"
-					}
-				}
-			`,
-			expectCode: codes.InvalidArgument,
-			expectMsg:  `invalid configuration in cluster "test-cluster": oidc_compatible can only be used with the "jwks" bundle format`,
 		},
 		{
 			name:       "invalid config",
@@ -284,7 +263,6 @@ func TestConfigure(t *testing.T) {
 				require.Equal(t, tt.expectCfg.Clusters[i].ConfigMapName, cluster.ConfigMapName)
 				require.Equal(t, tt.expectCfg.Clusters[i].ConfigMapKey, cluster.ConfigMapKey)
 				require.Equal(t, tt.expectCfg.Clusters[i].KubeConfigPath, cluster.KubeConfigPath)
-				require.Equal(t, tt.expectCfg.Clusters[i].OIDCCompatible, cluster.OIDCCompatible)
 			}
 		})
 	}
@@ -516,8 +494,8 @@ func TestSetRefreshHint(t *testing.T) {
 	require.Equal(t, time.Hour, refreshHint)
 }
 
-// TestPublishJWKS checks that the jwks format is published as formatted by the
-// SDK by default, and as built by common.OIDCJWKS with oidc_compatible.
+// TestPublishJWKS checks that the jwks and oidc_jwks formats are published as
+// formatted by the SDK.
 func TestPublishJWKS(t *testing.T) {
 	bundle := getTestBundle(t)
 	// The JWT authority of the test bundle is a P-521 key, which has no JWS
@@ -527,29 +505,27 @@ func TestPublishJWKS(t *testing.T) {
 	bundle.JwtAuthorities = []*types.JWTKey{{KeyId: "KID", PublicKey: jwtKeyPKIX}}
 	sdkJWKS, err := bundleformat.NewFormatter(bundle).Format(bundleformat.JWKS)
 	require.NoError(t, err)
-	oidcJWKS, err := common.OIDCJWKS(hclog.NewNullLogger(), bundle)
+	oidcJWKS, err := bundleformat.NewFormatter(bundle).Format(bundleformat.OIDCJWKS)
 	require.NoError(t, err)
 
 	for _, tt := range []struct {
-		name           string
-		oidcCompatible bool
-		expected       []byte
+		format   string
+		expected []byte
 	}{
-		{name: "default", expected: sdkJWKS},
-		{name: "oidc_compatible", oidcCompatible: true, expected: oidcJWKS},
+		{format: "jwks", expected: sdkJWKS},
+		{format: "oidc_jwks", expected: oidcJWKS},
 	} {
-		t.Run(tt.name, func(t *testing.T) {
+		t.Run(tt.format, func(t *testing.T) {
 			hclConfig := fmt.Sprintf(`
 				clusters = {
 					"test-cluster" = {
-						format = "jwks"
+						format = %q
 						namespace = "spire"
 						configmap_name = "spire-bundle"
 						configmap_key = "bundle.json"
 						kubeconfig_path = "/path/to/kubeconfig"
-						oidc_compatible = %t
 					}
-				}`, tt.oidcCompatible)
+				}`, tt.format)
 
 			var err error
 			options := []plugintest.Option{

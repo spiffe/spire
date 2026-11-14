@@ -14,20 +14,19 @@ import (
 	"testing"
 
 	"github.com/andres-erbsen/clock"
-	"github.com/hashicorp/go-hclog"
 	"github.com/sirupsen/logrus/hooks/test"
 	apitypes "github.com/spiffe/spire-api-sdk/proto/spire/api/types"
+	"github.com/spiffe/spire-plugin-sdk/pluginsdk/support/bundleformat"
 	plugintypes "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/types"
-	"github.com/spiffe/spire/pkg/server/plugin/bundlepublisher/common"
 	"github.com/spiffe/spire/test/testkey"
 	"github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/require"
 )
 
 // TestBundlePublisherJWKSMatchesKeysEndpoint checks that the JWKS published by
-// the BundlePublisher plugins with oidc_compatible is the document served by the
-// keys endpoint of the provider with set_key_use for the same bundle, byte for
-// byte once the indentation of the provider's response is removed.
+// the BundlePublisher plugins in the oidc_jwks format is the document served by
+// the keys endpoint of the provider with set_key_use for the same bundle, byte
+// for byte once the indentation of the provider's response is removed.
 func TestBundlePublisherJWKSMatchesKeysEndpoint(t *testing.T) {
 	log, _ := test.NewNullLogger()
 
@@ -97,7 +96,7 @@ func TestBundlePublisherJWKSMatchesKeysEndpoint(t *testing.T) {
 	served := new(bytes.Buffer)
 	require.NoError(t, json.Compact(served, w.Body.Bytes()))
 
-	published, err := common.OIDCJWKS(hclog.NewNullLogger(), pluginBundle)
+	published, err := bundleformat.NewFormatter(pluginBundle).Format(bundleformat.OIDCJWKS)
 	require.NoError(t, err)
 
 	require.Equal(t, served.String(), string(published))
