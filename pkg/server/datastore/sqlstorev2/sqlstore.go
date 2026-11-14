@@ -136,7 +136,12 @@ func (ds *Plugin) SetUseServerTimestamps(useServerTimestamps bool) {
 
 // Configure parses the HCL config, validates it, and opens the connection(s).
 func (ds *Plugin) Configure(ctx context.Context, hclConfiguration string) error {
-	config, err := sqlcommon.BuildConfig(hclConfiguration, catalog.ConfigFormatHCL)
+	return ds.ConfigureFormat(ctx, hclConfiguration, catalog.ConfigFormatHCL)
+}
+
+// ConfigureFormat is Configure for a configuration in the given format.
+func (ds *Plugin) ConfigureFormat(ctx context.Context, configuration string, format catalog.ConfigFormat) error {
+	config, err := sqlcommon.BuildConfig(configuration, format)
 	if err != nil {
 		return err
 	}

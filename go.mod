@@ -344,4 +344,4 @@ require (
 )
 
 // TODO: remove replace once spire-plugin-sdk PR is merged and published
-replace github.com/spiffe/spire-plugin-sdk => /Users/marcosyacob/opensource/spire-plugin-sdk
+replace github.com/spiffe/spire-plugin-sdk => github.com/MarcosDY/spire-plugin-sdk v0.0.0-20261114190549-a39606ebee5b

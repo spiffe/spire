@@ -89,6 +89,8 @@ github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapp
 github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapping v0.57.0/go.mod h1:YqwkQPrWSC7+byyc1VlKbWLBF5JsW5IoL6xUkemYSXk=
 github.com/Keyfactor/ejbca-go-client-sdk v1.1.0 h1:d84RX+9QRO+b9nV/1jNo3t0/Xg92A4gXG+7fsG/WDgI=
 github.com/Keyfactor/ejbca-go-client-sdk v1.1.0/go.mod h1:WtJ+IY1LjAuJjvwDy+oQ/UJ+bktHen1igaaSqOdIcQE=
+github.com/MarcosDY/spire-plugin-sdk v0.0.0-20261114190549-a39606ebee5b h1:nNAhttZLEORESzXLqvOl6hOoBCKmVjXjFCBrnauJbaA=
+github.com/MarcosDY/spire-plugin-sdk v0.0.0-20261114190549-a39606ebee5b/go.mod h1:QvrRDiBlXiJ7kNd176ZHsF5eklxxeTRgJSu2CXe0MKw=
 github.com/Masterminds/goutils v1.1.1 h1:5nUrii3FMTL5diU80unEVvNevw1nH4+ZV4DSLVJLSYI=
 github.com/Masterminds/goutils v1.1.1/go.mod h1:8cTjp+g8YejhMuvIA5y2vz3BpJxksy863GQaJW2MFNU=
 github.com/Masterminds/semver/v3 v3.1.1/go.mod h1:VPu/7SZ7ePZ3QOrcuXROw5FAcLl4a0cBrbBpGY/8hQs=

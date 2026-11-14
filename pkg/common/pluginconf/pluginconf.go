@@ -2,7 +2,7 @@ package pluginconf
 
 import (
 	"fmt"
-	"slices"
+	"sort"
 	"strings"
 
 	"github.com/hashicorp/hcl/hcl/token"
@@ -13,7 +13,8 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-// ReportUnusedKeys reports an error on s listing any keys present in unused.
+// ReportUnusedKeys reports an error on s listing any keys present in
+// unused. If unused is empty, no error is reported.
 func ReportUnusedKeys(s *Status, unused map[string][]token.Pos) {
 	if len(unused) == 0 {
 		return
@@ -22,7 +23,7 @@ func ReportUnusedKeys(s *Status, unused map[string][]token.Pos) {
 	for k := range unused {
 		keys = append(keys, k)
 	}
-	slices.Sort(keys)
+	sort.Strings(keys)
 	s.ReportErrorf("unknown configurations detected: %s", strings.Join(keys, ","))
 }
 
@@ -57,22 +58,18 @@ type Request interface {
 	GetConfigFormat() configv1.ConfigFormat
 }
 
-// configText returns the configuration text from the request, preferring
-// the new Configuration field over the legacy HclConfiguration field.
-func configText(req Request) string {
-	if c := req.GetConfiguration(); c != "" {
-		return c
+// Config returns the configuration text and format of a request. The text is
+// taken from the Configuration field, falling back to HclConfiguration for
+// requests from SPIRE versions that only set the latter.
+func Config(req Request) (string, catalog.ConfigFormat, error) {
+	format, err := catalog.ConfigFormatFromProto(req.GetConfigFormat())
+	if err != nil {
+		return "", 0, err
 	}
-	return req.GetHclConfiguration()
-}
-
-// configFormat returns the ConfigFormat from the request, defaulting to HCL
-// when the new field is unset (old SPIRE sending only hcl_configuration).
-func configFormat(req Request) catalog.ConfigFormat {
-	if req.GetConfigFormat() == configv1.ConfigFormat_CONFIG_FORMAT_YAML {
-		return catalog.ConfigFormatYAML
+	if text := req.GetConfiguration(); text != "" {
+		return text, format, nil
 	}
-	return catalog.ConfigFormatHCL
+	return req.GetHclConfiguration(), format, nil
 }
 
 func Build[C any](req Request, build func(coreConfig catalog.CoreConfig, text string, format catalog.ConfigFormat, s *Status) *C) (*C, []string, error) {
@@ -94,6 +91,11 @@ func Build[C any](req Request, build func(coreConfig catalog.CoreConfig, text st
 		}
 	}
 
-	config := build(coreConfig, configText(req), configFormat(req), &s)
+	text, format, err := Config(req)
+	if err != nil {
+		s.ReportError(err.Error())
+		return nil, s.notes, s.err
+	}
+	config := build(coreConfig, text, format, &s)
 	return config, s.notes, s.err
 }

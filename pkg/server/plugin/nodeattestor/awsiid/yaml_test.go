@@ -6,14 +6,14 @@ import (
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/pluginconf"
-	"github.com/spiffe/spire/pkg/common/plugindecode"
+	"github.com/spiffe/spire/pkg/common/yamlconfig"
 	"github.com/stretchr/testify/require"
 )
 
 // TestConfigYAMLInline checks that YAML keys of the embedded configuration decode into it.
 func TestConfigYAMLInline(t *testing.T) {
 	config := new(IIDAttestorConfig)
-	require.NoError(t, plugindecode.DecodeYAML("accessKeyId: AKID\n", config))
+	require.NoError(t, yamlconfig.Decode("accessKeyId: AKID\n", config))
 	require.Equal(t, "AKID", config.AccessKeyID)
 }
 

@@ -169,28 +169,26 @@ func (v1 *configurerV1) InitLog(logrus.FieldLogger) {
 }
 
 func (v1 *configurerV1) Configure(ctx context.Context, coreConfig CoreConfig, configuration string, format ConfigFormat) error {
+	// HclConfiguration is set for every format so that plugins built with an
+	// SDK that predates YAML support fail on a YAML configuration instead of
+	// running with an empty one.
 	req := &configv1.ConfigureRequest{
 		CoreConfiguration: coreConfig.v1(),
+		HclConfiguration:  configuration, //nolint:staticcheck // read by plugins built with older SDKs
 		Configuration:     configuration,
 		ConfigFormat:      format.ToProto(),
-	}
-	if format == ConfigFormatHCL {
-		req.HclConfiguration = configuration //nolint:staticcheck // for plugins built against older SDKs
 	}
 	_, err := v1.ConfigServiceClient.Configure(ctx, req)
 	return err
 }
 
 func (v1 *configurerV1) Validate(ctx context.Context, coreConfig CoreConfig, configuration string, format ConfigFormat) (*configv1.ValidateResponse, error) {
-	req := &configv1.ValidateRequest{
+	return v1.ConfigServiceClient.Validate(ctx, &configv1.ValidateRequest{
 		CoreConfiguration: coreConfig.v1(),
+		HclConfiguration:  configuration, //nolint:staticcheck // read by plugins built with older SDKs
 		Configuration:     configuration,
 		ConfigFormat:      format.ToProto(),
-	}
-	if format == ConfigFormatHCL {
-		req.HclConfiguration = configuration //nolint:staticcheck // for plugins built against older SDKs
-	}
-	return v1.ConfigServiceClient.Validate(ctx, req)
+	})
 }
 
 func hashData(data string) string {

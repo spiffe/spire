@@ -7,8 +7,8 @@ import (
 	"github.com/hashicorp/hcl"
 	"github.com/hashicorp/hcl/hcl/ast"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
+	"github.com/spiffe/spire/pkg/common/yamlconfig"
 	"github.com/stretchr/testify/require"
-	"go.yaml.in/yaml/v3"
 )
 
 func TestParsePluginConfigsFromHCLNode(t *testing.T) {
@@ -281,6 +281,34 @@ func TestConfigFormat_toProto(t *testing.T) {
 	require.Equal(t, configv1.ConfigFormat_CONFIG_FORMAT_YAML, ConfigFormatYAML.ToProto())
 }
 
+func TestConfigFormatFromPath(t *testing.T) {
+	for path, want := range map[string]ConfigFormat{
+		"spire.yaml":             ConfigFormatYAML,
+		"spire.yml":              ConfigFormatYAML,
+		"SPIRE.YAML":             ConfigFormatYAML,
+		"/etc/spire/server.yaml": ConfigFormatYAML,
+		"spire.conf":             ConfigFormatHCL,
+		"spire.hcl":              ConfigFormatHCL,
+		"spire":                  ConfigFormatHCL,
+	} {
+		require.Equal(t, want, ConfigFormatFromPath(path), path)
+	}
+}
+
+func TestConfigFormatFromProto(t *testing.T) {
+	for proto, want := range map[configv1.ConfigFormat]ConfigFormat{
+		configv1.ConfigFormat_CONFIG_FORMAT_UNSPECIFIED: ConfigFormatHCL,
+		configv1.ConfigFormat_CONFIG_FORMAT_HCL:         ConfigFormatHCL,
+		configv1.ConfigFormat_CONFIG_FORMAT_YAML:        ConfigFormatYAML,
+	} {
+		got, err := ConfigFormatFromProto(proto)
+		require.NoError(t, err)
+		require.Equal(t, want, got)
+	}
+	_, err := ConfigFormatFromProto(configv1.ConfigFormat(42))
+	require.EqualError(t, err, "unsupported configuration format 42")
+}
+
 func TestFixedData_Load(t *testing.T) {
 	d := FixedData{Data: "hello", Format: ConfigFormatYAML}
 	data, format, err := d.Load()
@@ -289,10 +317,10 @@ func TestFixedData_Load(t *testing.T) {
 	require.Equal(t, ConfigFormatYAML, format)
 }
 
-func yamlNode(t *testing.T, text string) *RawYAML {
-	var doc yaml.Node
-	require.NoError(t, yaml.Unmarshal([]byte(text), &doc))
-	return &RawYAML{Node: doc.Content[0]}
+func yamlNode(t *testing.T, text string) *yamlconfig.Raw {
+	var raw yamlconfig.Raw
+	require.NoError(t, yamlconfig.Decode(text, &raw))
+	return &raw
 }
 
 func TestPluginConfigsFromYAML(t *testing.T) {
@@ -313,6 +341,8 @@ KeyManager:
     pluginDataFile: keymanager.yaml
   memory:
     pluginData: {}
+  hcl_file:
+    pluginDataFile: keymanager.conf
 `)
 
 	configs, err := PluginConfigsFromYAML(node)
@@ -341,6 +371,11 @@ KeyManager:
 			Type: "KeyManager",
 			Name: "memory",
 		},
+		{
+			Type:       "KeyManager",
+			Name:       "hcl_file",
+			DataSource: FileData{Path: "keymanager.conf", Format: ConfigFormatHCL},
+		},
 	}, configs)
 }
 
@@ -358,6 +393,7 @@ func TestPluginConfigsFromYAML_Errors(t *testing.T) {
 		{"unknown key", "T:\n  n:\n    plugin_cmd: ./p\n", "field plugin_cmd not found"},
 		{"plugins not a mapping", "[a]", "plugins must be a mapping"},
 		{"type not a mapping", "T: [a]", `plugins of type "T" must be a mapping`},
+		{"unknown nested key", "T:\n  n:\n    pluginData: {a: 1}\n    pluginDataFil: f.yaml\n", "field pluginDataFil not found"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			_, err := PluginConfigsFromYAML(yamlNode(t, tt.config))

@@ -5,16 +5,20 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/hashicorp/hcl"
 	"github.com/hashicorp/hcl/hcl/ast"
 	"github.com/hashicorp/hcl/hcl/printer"
 	"github.com/hashicorp/hcl/hcl/token"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
+	"github.com/spiffe/spire/pkg/common/yamlconfig"
 	"go.yaml.in/yaml/v3"
 )
 
-// ConfigFormat identifies the serialization format of a plugin configuration string.
+// ConfigFormat identifies the serialization format of a plugin configuration
+// string. The zero value is HCL, the default format.
 type ConfigFormat int
 
 const (
@@ -23,11 +27,33 @@ const (
 )
 
 func (f ConfigFormat) ToProto() configv1.ConfigFormat {
-	switch f {
-	case ConfigFormatYAML:
+	if f == ConfigFormatYAML {
 		return configv1.ConfigFormat_CONFIG_FORMAT_YAML
+	}
+	return configv1.ConfigFormat_CONFIG_FORMAT_HCL
+}
+
+// ConfigFormatFromPath returns the format of a configuration file, based on
+// its extension.
+func ConfigFormatFromPath(path string) ConfigFormat {
+	switch strings.ToLower(filepath.Ext(path)) {
+	case ".yaml", ".yml":
+		return ConfigFormatYAML
 	default:
-		return configv1.ConfigFormat_CONFIG_FORMAT_HCL
+		return ConfigFormatHCL
+	}
+}
+
+// ConfigFormatFromProto converts the format of a Configure or Validate
+// request. An unspecified format means HCL, as sent by older SPIRE versions.
+func ConfigFormatFromProto(f configv1.ConfigFormat) (ConfigFormat, error) {
+	switch f {
+	case configv1.ConfigFormat_CONFIG_FORMAT_UNSPECIFIED, configv1.ConfigFormat_CONFIG_FORMAT_HCL:
+		return ConfigFormatHCL, nil
+	case configv1.ConfigFormat_CONFIG_FORMAT_YAML:
+		return ConfigFormatYAML, nil
+	default:
+		return 0, fmt.Errorf("unsupported configuration format %v", f)
 	}
 }
 
@@ -288,6 +314,8 @@ func pluginConfigFromHCL(pluginType, pluginName string, hclPluginConfig hclPlugi
 	}
 
 	if hclPluginConfig.PluginDataFile != nil {
+		// Always HCL, whatever the extension, so existing HCL configurations
+		// keep their behavior.
 		dataSource = FileData{Path: *hclPluginConfig.PluginDataFile, Format: ConfigFormatHCL}
 	}
 
@@ -302,29 +330,18 @@ func pluginConfigFromHCL(pluginType, pluginName string, hclPluginConfig hclPlugi
 	}, nil
 }
 
-// RawYAML captures a YAML value without decoding it. Unlike a yaml.Node
-// field, it is not subject to the decoder's unknown-field checks.
-type RawYAML struct {
-	Node *yaml.Node
-}
-
-func (r *RawYAML) UnmarshalYAML(node *yaml.Node) error {
-	r.Node = node
-	return nil
-}
-
 type yamlPluginConfig struct {
-	PluginCmd      string   `yaml:"pluginCmd"`
-	PluginArgs     []string `yaml:"pluginArgs"`
-	PluginChecksum string   `yaml:"pluginChecksum"`
-	PluginData     *RawYAML `yaml:"pluginData"`
-	PluginDataFile *string  `yaml:"pluginDataFile"`
-	Enabled        *bool    `yaml:"enabled"`
+	PluginCmd      string          `yaml:"pluginCmd"`
+	PluginArgs     []string        `yaml:"pluginArgs"`
+	PluginChecksum string          `yaml:"pluginChecksum"`
+	PluginData     *yamlconfig.Raw `yaml:"pluginData"`
+	PluginDataFile *string         `yaml:"pluginDataFile"`
+	Enabled        *bool           `yaml:"enabled"`
 }
 
 // PluginConfigsFromYAML parses the plugins section of a YAML config, laid out
 // as plugins.<pluginType>.<pluginName>. Plugins keep their order in the file.
-func PluginConfigsFromYAML(raw *RawYAML) (PluginConfigs, error) {
+func PluginConfigsFromYAML(raw *yamlconfig.Raw) (PluginConfigs, error) {
 	if raw == nil || raw.Node == nil {
 		return nil, nil
 	}
@@ -353,7 +370,7 @@ func PluginConfigsFromYAML(raw *RawYAML) (PluginConfigs, error) {
 
 func pluginConfigFromYAML(pluginType, pluginName string, node *yaml.Node) (PluginConfig, error) {
 	var ypc yamlPluginConfig
-	if err := decodeYAMLNodeStrict(node, &ypc); err != nil {
+	if err := yamlconfig.DecodeNode(node, &ypc); err != nil {
 		return PluginConfig{}, err
 	}
 	if ypc.PluginData != nil && ypc.PluginDataFile != nil {
@@ -369,7 +386,7 @@ func pluginConfigFromYAML(pluginType, pluginName string, node *yaml.Node) (Plugi
 		dataSource = FixedData{Data: string(data), Format: ConfigFormatYAML}
 	}
 	if ypc.PluginDataFile != nil {
-		dataSource = FileData{Path: *ypc.PluginDataFile, Format: ConfigFormatYAML}
+		dataSource = FileData{Path: *ypc.PluginDataFile, Format: ConfigFormatFromPath(*ypc.PluginDataFile)}
 	}
 
 	return PluginConfig{
@@ -386,17 +403,6 @@ func pluginConfigFromYAML(pluginType, pluginName string, node *yaml.Node) (Plugi
 func isEmptyYAMLNode(node *yaml.Node) bool {
 	return (node.Kind == yaml.MappingNode || node.Kind == yaml.SequenceNode) && len(node.Content) == 0 ||
 		node.Kind == yaml.ScalarNode && node.Tag == "!!null"
-}
-
-// decodeYAMLNodeStrict decodes node into out, rejecting unknown keys.
-func decodeYAMLNodeStrict(node *yaml.Node, out any) error {
-	data, err := yaml.Marshal(node)
-	if err != nil {
-		return err
-	}
-	dec := yaml.NewDecoder(bytes.NewReader(data))
-	dec.KnownFields(true)
-	return dec.Decode(out)
 }
 
 func stringFromToken(keyToken token.Token) (string, error) {
