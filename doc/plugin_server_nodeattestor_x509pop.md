@@ -29,6 +29,7 @@ spiffe://<trust_domain>/spire/agent/x509pop/<fingerprint>
 | `group_template`      | Go text/template used to derive a group value from the certificate. If empty, no group selector is produced. See [Group Template](#group-template).                                                                                            |                                                                |
 | `allowed_groups`      | Allowlist of group values that may be emitted as selectors. A group produced by `group_template` must be in this list to be emitted. Required when `group_template` is set.                                                                    |                                                                |
 | `extension_oids`      | List of certificate extension OIDs to expose as selectors. Each listed extension on the leaf whose value is a DER string is exposed as `x509pop:ext:oid:<OID>:<value>`. See [Extension Selectors](#extension-selectors).                       |                                                                |
+| `hash_algorithm`      | Hash algorithm the agent must use to sign the proof-of-possession challenge. Supported values are `sha256` and `sha384`. See [Challenge Hash Algorithm](#challenge-hash-algorithm).                                                            | sha256                                                         |
 
 A sample configuration:
 
@@ -45,6 +46,9 @@ A sample configuration:
 
             # Optional: Maximum RSA key size in bits (default: 8192)
             # max_rsa_key_size = 8192
+
+            # Optional: Challenge-response hash algorithm (default: sha256)
+            # hash_algorithm = "sha384"
         }
     }
 ```
@@ -91,6 +95,54 @@ Some useful values are:
 | .SerialNumberHex            | The serial number field of the agent's x509 certificate represented as lowercase hexadecimal |
 | .SVIDPathTrimmed            | The SVID Path after trimming off the SVID prefix                                             |
 | .URISanSelectors.&lt;key&gt;| The value of the URI San selector with key `<key>`                                           |
+
+## Challenge Hash Algorithm
+
+To prove possession of the private key, the agent signs a digest of the
+server and agent nonces. For RSA keys the digest is signed using RSA-PSS with
+the same hash; for ECDSA keys the digest itself is signed. `hash_algorithm`
+selects the hash used for both the digest and the signature:
+
+| Value    | Digest size |
+|----------|-------------|
+| `sha256` | 32 bytes    |
+| `sha384` | 48 bytes    |
+
+The server decides the algorithm and includes it in the challenge it sends to
+the agent. Verification always uses the algorithm the server selected, so an
+agent can not choose a different one. Any other value, including different
+casing, fails configuration.
+
+```hcl
+    NodeAttestor "x509pop" {
+        plugin_data {
+            ca_bundle_path = "/opt/spire/conf/server/agent-cacert.pem"
+            hash_algorithm = "sha384"
+        }
+    }
+```
+
+No agent-side configuration is needed; agents that support hash selection
+follow the algorithm in the challenge.
+
+### Compatibility
+
+When `hash_algorithm` is unset or `sha256`, the challenge is identical to the one
+sent by servers that predate this setting, so agents of any version can attest.
+
+Agents that predate this setting ignore the hash selection and always respond
+with SHA-256. When `hash_algorithm = "sha384"`, attestation of those agents fails
+with a challenge response verification error; the server never falls back to
+SHA-256. To roll out SHA-384, upgrade every agent that uses this plugin first,
+then change the server setting. In a deployment with multiple servers, the
+algorithm each agent must use depends on which server handles its attestation,
+so keep the setting consistent across servers.
+
+Selecting `sha384` only changes the proof-of-possession signature. It does not
+change certificate chain verification, certificate signature algorithms, or the
+SHA-1 fingerprints used in agent IDs and selectors, and does not by itself make
+a deployment compliant with any particular regulatory or certification
+requirement.
 
 ## Extension Selectors
 
