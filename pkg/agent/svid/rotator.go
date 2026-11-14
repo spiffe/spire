@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/andres-erbsen/clock"
+	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
 	agentv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/agent/v1"
 	node_attestor "github.com/spiffe/spire/pkg/agent/attestor/node"
@@ -100,14 +101,14 @@ func (r *rotator) runRotation(ctx context.Context) error {
 
 		switch {
 		case err != nil && rotationutil.X509Expired(r.clk.Now(), state.SVID[0]):
-			r.c.Log.WithError(err).Errorf("Could not %s", rotationError(state))
+			r.alertLog().WithError(err).Errorf("Could not %s", rotationError(state))
 			// Since our X509 cert has expired, and we weren't able to carry out a rotation request, we're probably unrecoverable without re-attesting.
 			return fmt.Errorf("current SVID has already expired and %s failed: %w", rotationError(state), err)
 		case err != nil && nodeutil.ShouldAgentReattest(err):
-			r.c.Log.WithError(err).Errorf("Could not %s", rotationError(state))
+			r.alertLog().WithError(err).Errorf("Could not %s", rotationError(state))
 			return err
 		case err != nil && nodeutil.ShouldAgentShutdown(err):
-			r.c.Log.WithError(err).Errorf("Could not %s", rotationError(state))
+			r.alertLog().WithError(err).Errorf("Could not %s", rotationError(state))
 			return err
 		case err != nil:
 			// Just log the error and wait for next rotation
@@ -369,6 +370,14 @@ func (r *rotator) serverConn(bundle *spiffebundle.Bundle) (*grpc.ClientConn, err
 		GetBundle:           bundle.X509Authorities,
 		TLSPolicy:           r.c.TLSPolicy,
 		LoadBalancingConfig: r.c.LoadBalancingConfig,
+	})
+}
+
+// alertLog returns a logger that marks the record as an agent identity alert.
+func (r *rotator) alertLog() logrus.FieldLogger {
+	return r.c.Log.WithFields(logrus.Fields{
+		telemetry.Alert:     true,
+		telemetry.AlertType: telemetry.AgentIdentityAlertType,
 	})
 }
 

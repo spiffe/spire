@@ -264,7 +264,10 @@ func (a *Agent) Run(ctx context.Context) error {
 							"time_left": a.c.RebootstrapDelay - seconds,
 						}).Info("Trust Bundle and Server don't agree, ignoring for now")
 					} else {
-						a.c.Log.Warn("Trust Bundle and Server don't agree, rebootstrapping")
+						a.c.Log.WithFields(logrus.Fields{
+							telemetry.Alert:     true,
+							telemetry.AlertType: telemetry.AgentIdentityAlertType,
+						}).Warn("Trust Bundle and Server don't agree, rebootstrapping")
 						err = sto.StoreBundle(nil)
 						if err != nil {
 							return err

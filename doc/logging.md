@@ -54,6 +54,7 @@ The following alert types are currently emitted:
 
 | Alert type | Component | Meaning |
 | --- | --- | --- |
+| `agent_identity` | Agent | The agent has lost, or is about to lose, its own identity: its SVID expired before it could be renewed, it was banned or has to re-attest and failed to, or it is rebootstrapping its trust bundle. Without operator action the agent may stop serving workloads. |
 | `deprecated_config` | Server and Agent | A deprecated configuration setting or behavior is in use. See [upgrade guidance](upgrading.md#configuration-and-behavior-compatibility). |
 | `deprecated_service` | Server and Agent | A plugin implements a deprecated service interface. See [plugin interface compatibility](upgrading.md#interface-compatibility). |
 | `shortened_lifetime` | Server | Requested credential lifetimes may be shortened, or CA rotation is constrained by usable certificate lifetimes. See [CA and SVID lifetimes](spire_server.md#ca-and-svid-lifetimes). |

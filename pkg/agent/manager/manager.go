@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/andres-erbsen/clock"
+	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
 	"github.com/spiffe/go-spiffe/v2/bundle/x509bundle"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -231,11 +232,11 @@ func (m *manager) Initialize(ctx context.Context) error {
 		}
 	}
 	if nodeutil.ShouldAgentReattest(err) {
-		m.c.Log.WithError(err).Error("Agent needs to re-attest: removing SVID and shutting down")
+		m.alertLog().WithError(err).Error("Agent needs to re-attest: removing SVID and shutting down")
 		m.deleteSVID()
 	}
 	if nodeutil.ShouldAgentShutdown(err) {
-		m.c.Log.WithError(err).Error("Agent is banned: removing SVID and shutting down")
+		m.alertLog().WithError(err).Error("Agent is banned: removing SVID and shutting down")
 		m.deleteSVID()
 	}
 	return err
@@ -265,12 +266,12 @@ func (m *manager) Run(ctx context.Context) error {
 			m.c.Log.WithError(err).Warn("Agent needs to re-attest; will attempt to re-attest")
 			reattestError := m.svid.Reattest(ctx)
 			if reattestError != nil {
-				m.c.Log.WithError(reattestError).Error("Agent failed re-attestation; removing SVID and shutting down")
+				m.alertLog().WithError(reattestError).Error("Agent failed re-attestation; removing SVID and shutting down")
 				m.deleteSVID()
 				return err
 			}
 		case nodeutil.ShouldAgentShutdown(err):
-			m.c.Log.WithError(err).Warn("Agent is banned: removing SVID and shutting down")
+			m.alertLog().WithError(err).Warn("Agent is banned: removing SVID and shutting down")
 			m.deleteSVID()
 			return err
 		default:
@@ -413,7 +414,7 @@ func (m *manager) runSynchronizer(ctx context.Context) error {
 			if seconds < m.c.RebootstrapDelay {
 				m.c.Log.WithField("time_left", m.c.RebootstrapDelay-seconds).Info("Trust Bundle and Server don't agree, ignoring for now")
 			} else {
-				m.c.Log.Warn("Trust Bundle and Server don't agree, rebootstrapping")
+				m.alertLog().Warn("Trust Bundle and Server don't agree, rebootstrapping")
 				err = m.c.TrustBundleSources.SetForceRebootstrap()
 				if err != nil {
 					return err
@@ -556,4 +557,12 @@ func (m *manager) deleteSVID() {
 	if err := m.storage.DeleteSVID(); err != nil {
 		m.c.Log.WithError(err).Error("Failed to remove SVID")
 	}
+}
+
+// alertLog returns a logger that marks the record as an agent identity alert.
+func (m *manager) alertLog() logrus.FieldLogger {
+	return m.c.Log.WithFields(logrus.Fields{
+		telemetry.Alert:     true,
+		telemetry.AlertType: telemetry.AgentIdentityAlertType,
+	})
 }
