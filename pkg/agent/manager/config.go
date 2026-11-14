@@ -20,6 +20,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/rotationutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/tlspolicy"
+	"google.golang.org/grpc/keepalive"
 )
 
 // SyncRetryBackoffConfig configures the exponential backoff applied between
@@ -83,6 +84,10 @@ type Config struct {
 	// LoadBalancingConfig is an optional, opaque payload used as the
 	// loadBalancingConfig field of the gRPC service config.
 	LoadBalancingConfig string
+
+	// Keepalive optionally enables client keepalive pings on connections to
+	// the SPIRE server; nil disables them.
+	Keepalive *keepalive.ClientParameters
 
 	// Clk is the clock the manager will use to get time
 	Clk clock.Clock
@@ -149,6 +154,7 @@ func newManager(c *Config) *manager {
 		TLSPolicy:        c.TLSPolicy,
 
 		LoadBalancingConfig: c.LoadBalancingConfig,
+		Keepalive:           c.Keepalive,
 	}
 	svidRotator, client := svid.NewRotator(rotCfg)
 

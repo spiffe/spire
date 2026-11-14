@@ -23,6 +23,10 @@
 - `exclude_completed_pods` option in the `k8s` workload attestor to drop completed pods from the kubelet cache (#7177)
 - CA rotation horizon metrics (#7325)
 
+### Added
+
+- Agent configurables `attest_timeout`, `keepalive_time`, and `keepalive_timeout`. They are enabled by default (`1m`, `5m`, `20s`): the node attestation dialog with the server is now bounded, and gRPC client keepalive pings detect silently dead connections to the server.
+
 ### Changed
 
 - The `cache_manager`/`expiring_svids` and `cache_manager`/`outdated_svids` samples now carry an `svid_type` label (`X509` or `WIT`), so counts are reported per SVID type

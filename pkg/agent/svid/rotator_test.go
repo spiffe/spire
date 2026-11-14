@@ -23,6 +23,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
 	"github.com/spiffe/spire/pkg/agent/plugin/keymanager"
+	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/observer"
 	"github.com/spiffe/spire/pkg/common/rotationutil"
@@ -544,6 +545,88 @@ func TestTaintedSVIDIsRotated(t *testing.T) {
 	require.False(t, rotator.IsTainted(), "SVID must not be tainted after rotation")
 }
 
+func TestReattestTimeoutReleasesRotationMtx(t *testing.T) {
+	caCert, caKey := testca.CreateCACertificate(t, nil, nil)
+	serverCert, serverKey := testca.CreateX509Certificate(t, caCert, caKey, testca.WithID(idutil.RequireServerID(trustDomain)))
+
+	tlsConfig := &tls.Config{
+		Certificates: []tls.Certificate{
+			{
+				Certificate: [][]byte{serverCert.Raw},
+				PrivateKey:  serverKey,
+			},
+		},
+		MinVersion: tls.VersionTLS12,
+	}
+
+	svidKM := keymanager.ForSVID(fakeagentkeymanager.New(t, ""))
+	clk := clock.NewMock(t)
+	log, _ := test.NewNullLogger()
+
+	bundle := make(map[spiffeid.TrustDomain]*spiffebundle.Bundle)
+	bundle[trustDomain] = spiffebundle.FromX509Authorities(trustDomain, []*x509.Certificate{caCert})
+
+	svidKey, err := svidKM.GenerateKey(context.Background(), nil)
+	require.NoError(t, err)
+	svid, err := createTestSVID(svidKey.Public(), caCert, caKey, clk.Now(), clk.Now().Add(time.Hour))
+	require.NoError(t, err)
+
+	attestStarted := make(chan struct{})
+	listener := createTestListener(t, &hangingAttestAgentService{attestStarted: attestStarted}, tlsConfig)
+
+	rotator, apiClient := newRotator(&RotatorConfig{
+		SVIDKeyManager:   svidKM,
+		Log:              log,
+		Metrics:          telemetry.Blackhole{},
+		TrustDomain:      trustDomain,
+		BundleStream:     cache.NewBundleStream(observer.NewProperty(bundle).Observe()),
+		Clk:              clk,
+		SVID:             svid,
+		SVIDKey:          svidKey,
+		Reattestable:     true,
+		NodeAttestor:     nodeattestor.WithTimeout(fakeagentnodeattestor.New(t, fakeagentnodeattestor.Config{}), time.Second),
+		ServerAddr:       listener.Addr().String(),
+		RotationStrategy: rotationutil.NewRotationStrategy(0),
+	})
+
+	reattestErr := make(chan error, 1)
+	go func() {
+		reattestErr <- rotator.Reattest(context.Background())
+	}()
+
+	// From this point on the rotation mutex is held: the handler runs only
+	// after reattest has locked it.
+	<-attestStarted
+
+	// While the attest RPC hangs, any other client call stays blocked on the
+	// mutex. Its own RPC timeout only starts once the lock is acquired, so
+	// nothing cuts this wait short.
+	callDone := make(chan error, 1)
+	go func() {
+		callDone <- apiClient.PostStatus(context.Background(), "test")
+	}()
+	select {
+	case err := <-callDone:
+		t.Fatalf("PostStatus completed while the rotation mutex should be held: %v", err)
+	case <-time.After(200 * time.Millisecond):
+	}
+
+	// The attest timeout must break the hang.
+	select {
+	case err := <-reattestErr:
+		require.Equal(t, codes.DeadlineExceeded, status.Code(err), "reattest should fail with the attest timeout")
+	case <-time.After(10 * time.Second):
+		t.Fatal("reattest never returned: the rotation mutex would be held forever")
+	}
+
+	select {
+	case err := <-callDone:
+		require.Equal(t, codes.Unimplemented, status.Code(err), "PostStatus should reach the server once the mutex is released")
+	case <-time.After(10 * time.Second):
+		t.Fatal("PostStatus stuck after reattest: the rotation mutex was not released")
+	}
+}
+
 type fakeClient struct {
 	clk          clock.Clock
 	caCert       *x509.Certificate
@@ -580,6 +663,18 @@ func (c *fakeClient) RenewSVID(_ context.Context, csrBytes []byte) (*client.X509
 
 func (c *fakeClient) Release() {
 	c.releaseCount++
+}
+
+type hangingAttestAgentService struct {
+	agentv1.UnimplementedAgentServer
+
+	attestStarted chan struct{}
+}
+
+func (s *hangingAttestAgentService) AttestAgent(stream agentv1.Agent_AttestAgentServer) error {
+	close(s.attestStarted)
+	<-stream.Context().Done()
+	return stream.Context().Err()
 }
 
 type fakeAgentService struct {
