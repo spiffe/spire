@@ -530,9 +530,18 @@ func (c *LRUCache[SVID, Update]) UpdateEntries(update *UpdateEntries, checkSVID 
 		}
 	}
 
-	// Update all stale svids or svids whose registration entry is outdated
+	// Update all stale svids or svids whose registration entry is outdated.
+	// SVIDs for entries that are not eligible for prefetch and have no active
+	// subscribers are removed instead of renewed; they are minted again on
+	// demand when a workload subscribes.
 	for id, svid := range c.svids {
 		if _, ok := outdatedEntries[id]; ok || (checkSVID != nil && checkSVID(nil, c.records[id].entry, svid)) {
+			if _, hasSubs := activeSubsByEntryID[id]; !hasSubs && c.shouldPrefetch != nil && !c.shouldPrefetch(c.records[id].entry) {
+				c.log.WithField(telemetry.Entry, id).Debug("Removing SVID not eligible for prefetch without active subscribers")
+				delete(c.svids, id)
+				delete(c.staleEntries, id)
+				continue
+			}
 			c.staleEntries[id] = true
 		}
 	}
