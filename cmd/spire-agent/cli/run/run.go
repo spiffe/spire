@@ -40,9 +40,9 @@ import (
 	"github.com/spiffe/spire/pkg/common/health"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/log"
-	"github.com/spiffe/spire/pkg/common/plugindecode"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/tlspolicy"
+	"github.com/spiffe/spire/pkg/common/yamlconfig"
 )
 
 const (
@@ -64,8 +64,9 @@ const (
 // Config contains all available configurables, arranged by section
 type Config struct {
 	Agent              *agentConfig           `hcl:"agent"        yaml:"agent"`
-	Plugins            ast.Node               `hcl:"plugins"      yaml:"-"    json:"-"`
-	PluginsRaw         *catalog.RawYAML       `hcl:"-" yaml:"plugins"`
+	Plugins            ast.Node               `hcl:"plugins"      yaml:"-"`
+	PluginsRaw         *yamlconfig.Raw        `hcl:"-" yaml:"plugins"`
+	YAMLUnknownKeys    []string               `hcl:"-" yaml:"-"`
 	Telemetry          telemetry.FileConfig   `hcl:"telemetry"    yaml:"telemetry"`
 	HealthChecks       health.Config          `hcl:"health_checks" yaml:"healthChecks"`
 	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions" yaml:"-"`
@@ -562,15 +563,6 @@ func (c *agentConfig) validate() error {
 	return c.validateOS()
 }
 
-func detectFormat(path string) catalog.ConfigFormat {
-	switch strings.ToLower(filepath.Ext(path)) {
-	case ".yaml", ".yml":
-		return catalog.ConfigFormatYAML
-	default:
-		return catalog.ConfigFormatHCL
-	}
-}
-
 func ParseFile(path string, expandEnv bool) (*Config, error) {
 	c := &Config{}
 
@@ -578,13 +570,17 @@ func ParseFile(path string, expandEnv bool) (*Config, error) {
 		path = defaultConfigPath
 	}
 
+	// Return a friendly error if the file is missing
 	byteData, err := os.ReadFile(path)
 	if os.IsNotExist(err) {
 		absPath, err := filepath.Abs(path)
 		if err != nil {
-			return nil, fmt.Errorf("could not determine CWD; config file not found at %s: use -config", path)
+			msg := "could not determine CWD; config file not found at %s: use -config"
+			return nil, fmt.Errorf(msg, path)
 		}
-		return nil, fmt.Errorf("could not find config file %s: please use the -config flag", absPath)
+
+		msg := "could not find config file %s: please use the -config flag"
+		return nil, fmt.Errorf(msg, absPath)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("unable to read configuration at %q: %w", path, err)
@@ -596,15 +592,17 @@ func ParseFile(path string, expandEnv bool) (*Config, error) {
 		data = config.ExpandEnv(data)
 	}
 
-	switch detectFormat(path) {
-	case catalog.ConfigFormatYAML:
-		if err := plugindecode.DecodeYAML(data, c); err != nil {
-			return nil, fmt.Errorf("unable to decode YAML configuration at %q: %w", path, err)
-		}
-	default:
-		if err := hcl.Decode(c, data); err != nil {
+	if catalog.ConfigFormatFromPath(path) == catalog.ConfigFormatYAML {
+		unknownKeys, err := yamlconfig.DecodeLenient(data, c)
+		if err != nil {
 			return nil, fmt.Errorf("unable to decode configuration at %q: %w", path, err)
 		}
+		c.YAMLUnknownKeys = unknownKeys
+		return c, nil
+	}
+
+	if err := hcl.Decode(&c, data); err != nil {
+		return nil, fmt.Errorf("unable to decode configuration at %q: %w", path, err)
 	}
 
 	return c, nil
@@ -949,7 +947,7 @@ func newAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig, skip
 		pluginConfigs, err = catalog.PluginConfigsFromHCLNode(c.Plugins)
 	}
 	if err != nil {
-		return nil, fmt.Errorf("error parsing plugin config: %w", err)
+		return nil, err
 	}
 	ac.PluginConfigs = pluginConfigs
 
@@ -1100,9 +1098,6 @@ func newAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig, skip
 }
 
 func validateConfig(c *Config) error {
-	if c.Plugins != nil && c.PluginsRaw != nil {
-		return errors.New("plugins section must not be configured in both HCL and YAML formats simultaneously")
-	}
 	if c.Plugins == nil && c.PluginsRaw == nil {
 		return errors.New("plugins section must be configured")
 	}
@@ -1122,6 +1117,11 @@ func checkForUnknownConfig(c *Config, l logrus.FieldLogger) (err error) {
 			"section": section,
 			"keys":    strings.Join(keys, ","),
 		}).Error("Unknown configuration detected")
+		err = errors.New("unknown configuration detected")
+	}
+
+	if len(c.YAMLUnknownKeys) != 0 {
+		l.WithField("keys", strings.Join(c.YAMLUnknownKeys, ",")).Error("Unknown configuration detected")
 		err = errors.New("unknown configuration detected")
 	}
 

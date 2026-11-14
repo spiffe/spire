@@ -23,15 +23,19 @@ YAML keys are the HCL keys written in lowerCamelCase: each underscore is removed
 
 Acronyms follow the same rule, so `access_key_id` becomes `accessKeyId` and not `accessKeyID`.
 
-Plugin types (e.g. `KeyManager`), plugin names (e.g. `join_token`), trust domain names and other values are not keys, and are written exactly as in HCL.
+The rule only applies to option names. Plugin types (e.g. `KeyManager`), plugin names (e.g. `join_token`), the trust domain names under `federatesWith`, and all values are written exactly as in HCL.
 
-Unknown keys are rejected. A misspelled option, or an option written with its HCL name, prevents SPIRE from starting:
+Unknown keys are rejected. A misspelled option, or an option written with its HCL name, prevents SPIRE from starting. In the server and agent sections the unknown keys are logged, the same way as unknown HCL options; in plugin data, the plugin fails to configure:
 
 ```bash
-$ spire-server validate -config server.yaml
-SPIRE server configuration file is invalid: unable to decode YAML configuration at "server.yaml": yaml: unmarshal errors:
-  line 5: field trust_domain not found in type run.serverConfig
+$ spire-server run -config server.yaml
+time="2026-11-14T15:57:20-03:00" level=error msg="Unknown configuration detected" keys="log_level (line 7)"
+unknown configuration detected
 ```
+
+Error messages that refer to configuration options, such as `trust_domain must be configured`, use the HCL option names.
+
+Anchors, aliases and merge keys (`<<`) can be used. Aliases that refer to themselves, or that expand into an excessively large document, are rejected. A configuration file must contain a single YAML document.
 
 The `-expandEnv` flag is supported for YAML configuration files in the same way as for HCL.
 
@@ -59,7 +63,7 @@ The following configuration options are available to configure a plugin:
 | pluginData     | Plugin-specific data (mutually exclusive with `pluginDataFile`)                       |
 | pluginDataFile | Path to a file containing plugin-specific data (mutually exclusive with `pluginData`) |
 
-For built-in plugins, plugin-specific data follows the same key naming rules as the rest of the file; external plugins define their own keys. When `pluginDataFile` is used, the file must also contain YAML, since its format is taken from the configuration file that references it.
+For built-in plugins, plugin-specific data follows the same key naming rules as the rest of the file; external plugins define their own keys. A file referenced by `pluginDataFile` is parsed as YAML when its name ends in `.yaml` or `.yml`, and as HCL otherwise. This only applies to YAML configuration files: with an HCL configuration file, a file referenced by `plugin_data_file` is always parsed as HCL, whatever its extension.
 
 ### Examples
 
@@ -76,14 +80,14 @@ plugins:
 
 #### External Plugin with Dynamic Configuration
 
-In the `agent.yaml`, declare the plugin using the `pluginDataFile` option to source the plugin configuration from file.
+In the configuration file, declare the plugin using the `pluginDataFile` option to source the plugin configuration from file.
 
 ```yaml
 plugins:
   SomeType:
     some_plugin:
       pluginCmd: "./path/to/plugin"
-      pluginChecksum: "4e1243bd22c66e76c2ba9eddc1f91394e57f9f83"
+      pluginChecksum: "5f2a1c86b0d5a1a6c2e2e1e0e5c9e0b14c1ad8e5a3c0fbb3b5d7f2f3c4a1e9d8"
       pluginDataFile: "some_plugin.yaml"
 ```
 
@@ -96,11 +100,11 @@ option2: 3
 
 ### External plugins
 
-SPIRE sends the plugin configuration to external plugins together with its format. Plugins built with a version of the [SPIRE Plugin SDK](https://github.com/spiffe/spire-plugin-sdk) that predates YAML support only read the HCL configuration field, which SPIRE leaves empty when the configuration is in YAML.
+SPIRE sends the plugin configuration to external plugins together with its format. Plugins built with a version of the [SPIRE Plugin SDK](https://github.com/spiffe/spire-plugin-sdk) that predates YAML support only read the `hcl_configuration` field, and try to parse the YAML configuration as HCL.
 
-**Note** An external plugin built with an older SDK receives an empty configuration when SPIRE uses a YAML configuration file. SPIRE cannot detect this, so no error is reported by SPIRE itself; depending on the plugin, it either fails to configure or runs with its default settings. Before switching to YAML, make sure that every external plugin is built with an SDK version that supports YAML and that the plugin handles YAML configuration, or keep using HCL.
+**Note** An external plugin built with an older SDK fails to configure when its plugin data is in YAML, usually with an `illegal char` error from the HCL parser. Before switching to YAML, make sure that every external plugin is built with an SDK version that supports YAML and handles YAML configuration, or keep its data in HCL by using `pluginDataFile` with a file that does not end in `.yaml` or `.yml`.
 
-Plugin authors can support both formats by reading the `configuration` and `config_format` fields of the `Configure` and `Validate` requests. For HCL configuration files, SPIRE also keeps setting the `hcl_configuration` field, so plugins built with older SDKs continue to work.
+Plugin authors can support both formats by reading the `configuration` and `config_format` fields of the `Configure` and `Validate` requests. SPIRE sets `hcl_configuration` to the same value as `configuration` for backward compatibility.
 
 ## Options with a different shape
 
@@ -184,11 +188,6 @@ plugins:
       pluginData:
         keyFilePath: "./conf/server/dummy_upstream_ca.key"
         certFilePath: "./conf/server/dummy_upstream_ca.crt"
-
-healthChecks:
-  listenerEnabled: true
-  bindAddress: "0.0.0.0"
-  bindPort: "8080"
 ```
 
 ### SPIRE Agent

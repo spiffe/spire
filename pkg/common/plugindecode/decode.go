@@ -1,40 +1,22 @@
 package plugindecode
 
 import (
-	"errors"
-	"io"
-	"strings"
+	"fmt"
 
 	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire/pkg/common/catalog"
-	"go.yaml.in/yaml/v3"
+	"github.com/spiffe/spire/pkg/common/yamlconfig"
 )
 
-// DecodeConfig decodes text into out using the given format.
+// DecodeConfig decodes a plugin configuration in the given format into out.
+// YAML configurations are decoded using yaml tags and reject unknown keys.
 func DecodeConfig(text string, format catalog.ConfigFormat, out any) error {
-	if format == catalog.ConfigFormatYAML {
-		return DecodeYAML(text, out)
+	switch format {
+	case catalog.ConfigFormatHCL:
+		return hcl.Decode(out, text)
+	case catalog.ConfigFormatYAML:
+		return yamlconfig.Decode(text, out)
+	default:
+		return fmt.Errorf("unsupported configuration format %d", format)
 	}
-	return hcl.Decode(out, text)
-}
-
-// DecodeYAML decodes YAML text into out using its yaml struct tags. Unknown
-// keys are rejected so that misspelled options are not silently ignored.
-func DecodeYAML(text string, out any) error {
-	dec := yaml.NewDecoder(strings.NewReader(text))
-	dec.KnownFields(true)
-	if err := dec.Decode(out); err != nil && !errors.Is(err, io.EOF) {
-		return err
-	}
-	return nil
-}
-
-// DecodeYAMLNode strictly decodes a YAML node into out. Use it from custom
-// UnmarshalYAML methods, where yaml.Node.Decode would accept unknown keys.
-func DecodeYAMLNode(node *yaml.Node, out any) error {
-	data, err := yaml.Marshal(node)
-	if err != nil {
-		return err
-	}
-	return DecodeYAML(string(data), out)
 }

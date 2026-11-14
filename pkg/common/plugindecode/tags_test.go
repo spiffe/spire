@@ -5,6 +5,7 @@ import (
 	"go/parser"
 	"go/token"
 	"io/fs"
+	"path"
 	"path/filepath"
 	"reflect"
 	"strconv"
@@ -12,59 +13,192 @@ import (
 	"testing"
 )
 
+const (
+	repoRoot   = "../../.."
+	modulePath = "github.com/spiffe/spire"
+)
+
+// yamlOptOut lists HCL options that are deliberately not YAML keys, with the
+// reason. Keys are "<package path>.<struct>.<field>".
+var yamlOptOut = map[string]string{
+	"pkg/server/plugin/nodeattestor/awsiid.IIDAttestorConfig.AssumeRole": "copied from the embedded SessionConfig",
+	"pkg/server/plugin/nodeattestor/awsiid.IIDAttestorConfig.Partition":  "copied from the embedded SessionConfig",
+}
+
 // TestYAMLTags requires every struct field that HCL decodes to carry the
-// matching yaml tag: the lowerCamelCase form of its HCL key, or "-" for
-// fields that are deliberately set another way in YAML.
+// matching yaml tag: the lowerCamelCase form of its HCL key. Structs without
+// hcl tags are checked too when a decoded field refers to them.
 func TestYAMLTags(t *testing.T) {
-	for _, root := range []string{"../../../pkg", "../../../cmd/spire-server", "../../../cmd/spire-agent"} {
-		err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
-			if err != nil || d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+	structs := parseStructs(t, "pkg", "cmd/spire-server", "cmd/spire-agent")
+
+	var queue []*structInfo
+	for _, s := range structs {
+		if s.hasHCLTag() {
+			queue = append(queue, s)
+		}
+	}
+	checked := make(map[*structInfo]bool)
+	for len(queue) > 0 {
+		s := queue[0]
+		queue = queue[1:]
+		if checked[s] {
+			continue
+		}
+		checked[s] = true
+		for _, f := range s.node.Fields.List {
+			if !checkField(t, s, f) {
+				continue
+			}
+			for _, name := range referencedTypes(s, f.Type) {
+				if ref, ok := structs[name]; ok {
+					queue = append(queue, ref)
+				}
+			}
+		}
+	}
+}
+
+// checkField reports a missing or wrong yaml tag, and returns whether the
+// field is decoded from YAML.
+func checkField(t *testing.T, s *structInfo, f *ast.Field) bool {
+	tag := fieldTag(f)
+	got, hasYAML := tag.Lookup("yaml")
+	hcl, hasHCL := tag.Lookup("hcl")
+	pos := s.fset.Position(f.Pos())
+
+	if !hasHCL {
+		if !isExported(f) {
+			return false
+		}
+		if !hasYAML {
+			if s.hasHCLTag() {
+				t.Errorf("%s: field has no hcl tag; add a yaml tag (yaml:\"-\" if not configurable)", pos)
+			} else {
+				t.Errorf("%s: field of %s, which is decoded from HCL, has no hcl or yaml tag", pos, s.name)
+			}
+			return false
+		}
+		return got != "-"
+	}
+
+	name, opts, _ := strings.Cut(hcl, ",")
+	var want string
+	switch {
+	case name == "-":
+		// YAML-only fields, decoded by hand-written YAML types.
+		return false
+	case isASTNode(f.Type):
+		want = "-"
+	case name == "" && opts == "squash":
+		want = ",inline"
+	case name == "":
+		want = "-"
+	default:
+		want = lowerCamel(name)
+	}
+
+	if got == "-" && want != "-" {
+		if _, ok := yamlOptOut[s.name+"."+fieldName(f)]; ok {
+			return false
+		}
+	}
+	if got != want {
+		t.Errorf("%s: want yaml:%q, got yaml:%q", pos, want, got)
+	}
+	return want != "-"
+}
+
+type structInfo struct {
+	name    string // "<package path>.<type>"
+	pkg     string
+	node    *ast.StructType
+	fset    *token.FileSet
+	imports map[string]string // import name to package path, relative to the module
+}
+
+func (s *structInfo) hasHCLTag() bool {
+	for _, f := range s.node.Fields.List {
+		if _, ok := fieldTag(f).Lookup("hcl"); ok {
+			return true
+		}
+	}
+	return false
+}
+
+func parseStructs(t *testing.T, dirs ...string) map[string]*structInfo {
+	structs := make(map[string]*structInfo)
+	fset := token.NewFileSet()
+	for _, dir := range dirs {
+		err := filepath.WalkDir(filepath.Join(repoRoot, dir), func(p string, d fs.DirEntry, err error) error {
+			if err != nil || d.IsDir() || !strings.HasSuffix(p, ".go") || strings.HasSuffix(p, "_test.go") {
 				return err
 			}
-			checkYAMLTags(t, path)
+			file, err := parser.ParseFile(fset, p, nil, 0)
+			if err != nil {
+				return err
+			}
+			rel, err := filepath.Rel(repoRoot, filepath.Dir(p))
+			if err != nil {
+				return err
+			}
+			pkg := filepath.ToSlash(rel)
+			imports := make(map[string]string)
+			for _, imp := range file.Imports {
+				importPath, _ := strconv.Unquote(imp.Path.Value)
+				local, ok := strings.CutPrefix(importPath, modulePath+"/")
+				if !ok {
+					continue
+				}
+				name := path.Base(local)
+				if imp.Name != nil {
+					name = imp.Name.Name
+				}
+				imports[name] = local
+			}
+			for _, decl := range file.Decls {
+				gen, ok := decl.(*ast.GenDecl)
+				if !ok {
+					continue
+				}
+				for _, spec := range gen.Specs {
+					ts, ok := spec.(*ast.TypeSpec)
+					if !ok {
+						continue
+					}
+					if st, ok := ts.Type.(*ast.StructType); ok {
+						name := pkg + "." + ts.Name.Name
+						structs[name] = &structInfo{name: name, pkg: pkg, node: st, fset: fset, imports: imports}
+					}
+				}
+			}
 			return nil
 		})
 		if err != nil {
 			t.Fatal(err)
 		}
 	}
+	return structs
 }
 
-func checkYAMLTags(t *testing.T, path string) {
-	fset := token.NewFileSet()
-	file, err := parser.ParseFile(fset, path, nil, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	ast.Inspect(file, func(n ast.Node) bool {
-		st, ok := n.(*ast.StructType)
-		if !ok || !hasHCLTag(st) {
-			return true
-		}
-		for _, f := range st.Fields.List {
-			want, ok := wantYAMLTag(f)
-			if !ok {
-				continue
-			}
-			got, has := fieldTag(f).Lookup("yaml")
-			switch {
-			case want == "" && !has:
-				t.Errorf("%s: exported field has no hcl tag; add a yaml tag (yaml:\"-\" if not configurable)", fset.Position(f.Pos()))
-			case want != "" && got != want && got != "-":
-				t.Errorf("%s: want yaml:%q, got yaml:%q", fset.Position(f.Pos()), want, got)
+// referencedTypes returns the names of the named types that expr refers to.
+func referencedTypes(s *structInfo, expr ast.Expr) []string {
+	switch e := expr.(type) {
+	case *ast.Ident:
+		return []string{s.pkg + "." + e.Name}
+	case *ast.SelectorExpr:
+		if x, ok := e.X.(*ast.Ident); ok {
+			if pkg, ok := s.imports[x.Name]; ok {
+				return []string{pkg + "." + e.Sel.Name}
 			}
 		}
-		return true
-	})
-}
-
-func hasHCLTag(st *ast.StructType) bool {
-	for _, f := range st.Fields.List {
-		if _, ok := fieldTag(f).Lookup("hcl"); ok {
-			return true
-		}
+	case *ast.StarExpr:
+		return referencedTypes(s, e.X)
+	case *ast.ArrayType:
+		return referencedTypes(s, e.Elt)
+	case *ast.MapType:
+		return referencedTypes(s, e.Value)
 	}
-	return false
+	return nil
 }
 
 func fieldTag(f *ast.Field) reflect.StructTag {
@@ -75,31 +209,27 @@ func fieldTag(f *ast.Field) reflect.StructTag {
 	return reflect.StructTag(tag)
 }
 
-// wantYAMLTag returns the required yaml tag, "" when any yaml tag will do, or
-// ok=false when the field needs none.
-func wantYAMLTag(f *ast.Field) (string, bool) {
-	hcl, ok := fieldTag(f).Lookup("hcl")
-	if !ok {
-		for _, name := range f.Names {
-			if name.IsExported() {
-				return "", true
-			}
-		}
-		return "", false
+func fieldName(f *ast.Field) string {
+	if len(f.Names) > 0 {
+		return f.Names[0].Name
 	}
-	if isASTNode(f.Type) {
-		return "-", true
+	return types(f.Type)
+}
+
+func types(e ast.Expr) string {
+	switch t := e.(type) {
+	case *ast.Ident:
+		return t.Name
+	case *ast.StarExpr:
+		return types(t.X)
+	case *ast.SelectorExpr:
+		return t.Sel.Name
 	}
-	name, opts, _ := strings.Cut(hcl, ",")
-	switch {
-	case name == "-":
-		return "", false
-	case name == "" && opts == "squash":
-		return ",inline", true
-	case name == "":
-		return "-", true
-	}
-	return lowerCamel(name), true
+	return ""
+}
+
+func isExported(f *ast.Field) bool {
+	return ast.IsExported(fieldName(f))
 }
 
 func isASTNode(e ast.Expr) bool {

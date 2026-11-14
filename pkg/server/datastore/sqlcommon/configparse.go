@@ -12,6 +12,7 @@ import (
 	"github.com/hashicorp/hcl/hcl/printer"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugindecode"
+	"github.com/spiffe/spire/pkg/common/yamlconfig"
 	"go.yaml.in/yaml/v3"
 )
 
@@ -49,8 +50,8 @@ func IsSQLiteDbType(dbType string) bool {
 	return dbType == SQLite
 }
 
-// BuildConfig decodes the datastore configuration and resolves the
-// database_type node into a DBTypeConfig.
+// BuildConfig decodes the datastore configuration and resolves its database
+// type into a DBTypeConfig.
 func BuildConfig(configuration string, format catalog.ConfigFormat) (*Configuration, error) {
 	config := &Configuration{}
 	if err := plugindecode.DecodeConfig(configuration, format, config); err != nil {
@@ -147,7 +148,7 @@ func (d *DatabaseTypeYAML) UnmarshalYAML(node *yaml.Node) error {
 	if !ok {
 		return fmt.Errorf("unknown database type: %s", key)
 	}
-	if err := plugindecode.DecodeYAMLNode(node, &d.DBTypeConfig); err != nil {
+	if err := yamlconfig.DecodeNode(node, &d.DBTypeConfig); err != nil {
 		return fmt.Errorf("failed to decode configuration: %w", err)
 	}
 	d.DatabaseType = databaseType
