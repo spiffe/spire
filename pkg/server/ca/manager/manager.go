@@ -8,6 +8,7 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
+	"math"
 	"sync"
 	"time"
 
@@ -77,25 +78,27 @@ type AuthorityManager interface {
 }
 
 type Config struct {
-	CredBuilder     *credtemplate.Builder
-	CredValidator   *credvalidator.Validator
-	CA              ManagedCA
-	Catalog         catalog.Catalog
-	TrustDomain     spiffeid.TrustDomain
-	X509CAKeyType   keymanager.KeyType
-	DisableJWTSVIDs bool
-	DisableWITSVIDs bool
-	JWTKeyType      keymanager.KeyType
-	WITKeyType      keymanager.KeyType
-	Dir             string
-	Log             logrus.FieldLogger
-	Metrics         telemetry.Metrics
-	Clock           clock.Clock
+	CredBuilder                *credtemplate.Builder
+	CredValidator              *credvalidator.Validator
+	CA                         ManagedCA
+	Catalog                    catalog.Catalog
+	TrustDomain                spiffeid.TrustDomain
+	X509CAKeyType              keymanager.KeyType
+	DisableJWTSVIDs            bool
+	DisableWITSVIDs            bool
+	JWTKeyType                 keymanager.KeyType
+	WITKeyType                 keymanager.KeyType
+	Dir                        string
+	Log                        logrus.FieldLogger
+	Metrics                    telemetry.Metrics
+	Clock                      clock.Clock
+	ActivationThresholdDivisor float64
 }
 
 type Manager struct {
 	c                            Config
 	caTTL                        time.Duration
+	activationThresholdDivisor   float64
 	bundleUpdatedCh              chan struct{}
 	taintedUpstreamAuthoritiesCh chan []*x509.Certificate
 	upstreamClient               *ca.UpstreamClient
@@ -129,10 +132,17 @@ func NewManager(ctx context.Context, c Config) (*Manager, error) {
 	if c.Clock == nil {
 		c.Clock = clock.New()
 	}
+	if math.IsNaN(c.ActivationThresholdDivisor) || math.IsInf(c.ActivationThresholdDivisor, 0) || c.ActivationThresholdDivisor < 0 || (c.ActivationThresholdDivisor > 0 && c.ActivationThresholdDivisor <= 2) {
+		return nil, errors.New("activation threshold divisor must be finite and greater than 2")
+	}
+	if c.ActivationThresholdDivisor == 0 {
+		c.ActivationThresholdDivisor = ca.DefaultActivationThresholdDivisor
+	}
 
 	m := &Manager{
 		c:                            c,
 		caTTL:                        c.CredBuilder.Config().X509CATTL,
+		activationThresholdDivisor:   c.ActivationThresholdDivisor,
 		bundleUpdatedCh:              make(chan struct{}, 1),
 		taintedUpstreamAuthoritiesCh: make(chan []*x509.Certificate, 1),
 	}
@@ -169,6 +179,7 @@ func NewManager(ctx context.Context, c Config) (*Manager, error) {
 	m.journal = journal
 	if currentX509CA, ok := slots[CurrentX509CASlot]; ok {
 		m.currentX509CA = currentX509CA.(*x509CASlot)
+		m.currentX509CA.activationThresholdDivisor = m.activationThresholdDivisor
 
 		if !currentX509CA.IsEmpty() && !currentX509CA.ShouldActivateNext(now) {
 			// activate the X509 CA immediately if it is set and not within
@@ -179,10 +190,12 @@ func NewManager(ctx context.Context, c Config) (*Manager, error) {
 
 	if nextX509CA, ok := slots[NextX509CASlot]; ok {
 		m.nextX509CA = nextX509CA.(*x509CASlot)
+		m.nextX509CA.activationThresholdDivisor = m.activationThresholdDivisor
 	}
 
 	if currentJWTKey, ok := slots[CurrentJWTKeySlot]; ok {
 		m.currentJWTKey = currentJWTKey.(*jwtKeySlot)
+		m.currentJWTKey.activationThresholdDivisor = m.activationThresholdDivisor
 
 		// TODO: Activation on journal depends on dates, it will need to be
 		// refactored to allow to set a status, because when forcing a rotation,
@@ -196,10 +209,12 @@ func NewManager(ctx context.Context, c Config) (*Manager, error) {
 
 	if nextJWTKey, ok := slots[NextJWTKeySlot]; ok {
 		m.nextJWTKey = nextJWTKey.(*jwtKeySlot)
+		m.nextJWTKey.activationThresholdDivisor = m.activationThresholdDivisor
 	}
 
 	if currentWITKey, ok := slots[CurrentWITKeySlot]; ok {
 		m.currentWITKey = currentWITKey.(*witKeySlot)
+		m.currentWITKey.activationThresholdDivisor = m.activationThresholdDivisor
 
 		if !currentWITKey.IsEmpty() && !currentWITKey.ShouldActivateNext(now) {
 			// activate the WIT key immediately if it is set and not within
@@ -210,6 +225,7 @@ func NewManager(ctx context.Context, c Config) (*Manager, error) {
 
 	if nextWITKey, ok := slots[NextWITKeySlot]; ok {
 		m.nextWITKey = nextWITKey.(*witKeySlot)
+		m.nextWITKey.activationThresholdDivisor = m.activationThresholdDivisor
 	}
 
 	if m.nextX509CA != nil && !m.nextX509CA.IsEmpty() {

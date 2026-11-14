@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -22,6 +23,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/tlspolicy"
 	"github.com/spiffe/spire/pkg/server"
 	bundleClient "github.com/spiffe/spire/pkg/server/bundle/client"
+	"github.com/spiffe/spire/pkg/server/ca"
 	"github.com/spiffe/spire/pkg/server/credtemplate"
 	"github.com/spiffe/spire/pkg/server/endpoints/bundle"
 	"github.com/spiffe/spire/pkg/server/plugin/keymanager"
@@ -107,6 +109,31 @@ func TestParseConfigGood(t *testing.T) {
 	pluginConfigs, err := catalog.PluginConfigsFromHCLNode(c.Plugins)
 	require.NoError(t, err)
 	require.Equal(t, expectedPluginConfigs, pluginConfigs)
+}
+
+func TestParseActivationThresholdDivisor(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "server.conf")
+	require.NoError(t, os.WriteFile(path, []byte(`server {
+    activation_threshold_divisor = 3.5
+}
+`), 0600))
+
+	c, err := ParseFile(path, false)
+	require.NoError(t, err)
+	require.NotNil(t, c.Server.ActivationThresholdDivisor)
+	require.Equal(t, 3.5, *c.Server.ActivationThresholdDivisor)
+}
+
+func TestActivationThresholdDivisorValidation(t *testing.T) {
+	for _, divisor := range []float64{-1, 0, 1, 2} {
+		t.Run(strconv.FormatFloat(divisor, 'f', -1, 64), func(t *testing.T) {
+			c := defaultValidConfig()
+			c.Server.ActivationThresholdDivisor = &divisor
+
+			_, err := NewServerConfig(c, nil, false)
+			require.EqualError(t, err, "activation threshold divisor must be finite and greater than 2")
+		})
+	}
 }
 
 func TestMergeInput(t *testing.T) {
@@ -1307,6 +1334,27 @@ func TestNewServerConfig(t *testing.T) {
 			},
 		},
 		{
+			msg: "activation_threshold_divisor is correctly parsed",
+			input: func(c *Config) {
+				divisor := 3.5
+				c.Server.ActivationThresholdDivisor = &divisor
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Equal(t, 3.5, c.ActivationThresholdDivisor)
+			},
+		},
+		{
+			msg:         "activation_threshold_divisor of two returns an error",
+			expectError: true,
+			input: func(c *Config) {
+				divisor := 2.0
+				c.Server.ActivationThresholdDivisor = &divisor
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
 			msg:         "invalid ca_ttl returns an error",
 			expectError: true,
 			input: func(c *Config) {
@@ -2306,8 +2354,8 @@ func TestHasCompatibleTTLs(t *testing.T) {
 		}
 
 		t.Run(testCase.msg, func(t *testing.T) {
-			require.Equal(t, testCase.hasCompatibleX509SvidTTL, hasCompatibleTTL(testCase.caTTL, testCase.x509SvidTTL))
-			require.Equal(t, testCase.hasCompatibleJwtSvidTTL, hasCompatibleTTL(testCase.caTTL, testCase.jwtSvidTTL))
+			require.Equal(t, testCase.hasCompatibleX509SvidTTL, hasCompatibleTTL(testCase.caTTL, ca.DefaultActivationThresholdDivisor, testCase.x509SvidTTL))
+			require.Equal(t, testCase.hasCompatibleJwtSvidTTL, hasCompatibleTTL(testCase.caTTL, ca.DefaultActivationThresholdDivisor, testCase.jwtSvidTTL))
 		})
 	}
 }
@@ -2346,7 +2394,7 @@ func TestMaxSVIDTTL(t *testing.T) {
 			v.caTTL = credtemplate.DefaultX509CATTL
 		}
 
-		assert.Equal(t, v.expect, printMaxSVIDTTL(v.caTTL))
+		assert.Equal(t, v.expect, printMaxSVIDTTL(v.caTTL, ca.DefaultActivationThresholdDivisor))
 	}
 }
 
@@ -2427,9 +2475,9 @@ func TestMinCATTL(t *testing.T) {
 
 		// The expected value is the MinCATTL calculated from the largest of the available TTLs
 		if v.x509SVIDTTL > v.jwtSVIDTTL {
-			assert.Equal(t, v.expect, printMinCATTL(v.x509SVIDTTL))
+			assert.Equal(t, v.expect, printMinCATTL(v.x509SVIDTTL, ca.DefaultActivationThresholdDivisor))
 		} else {
-			assert.Equal(t, v.expect, printMinCATTL(v.jwtSVIDTTL))
+			assert.Equal(t, v.expect, printMinCATTL(v.jwtSVIDTTL, ca.DefaultActivationThresholdDivisor))
 		}
 	}
 }

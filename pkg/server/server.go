@@ -404,19 +404,20 @@ func (s *Server) newCA(metrics telemetry.Metrics, credBuilder *credtemplate.Buil
 
 func (s *Server) newCAManager(ctx context.Context, cat catalog.Catalog, metrics telemetry.Metrics, serverCA *ca.CA, credBuilder *credtemplate.Builder, credValidator *credvalidator.Validator) (*manager.Manager, error) {
 	caManager, err := manager.NewManager(ctx, manager.Config{
-		CA:              serverCA,
-		Catalog:         cat,
-		TrustDomain:     s.config.TrustDomain,
-		Log:             s.config.Log.WithField(telemetry.SubsystemName, telemetry.CAManager),
-		Metrics:         metrics,
-		CredBuilder:     credBuilder,
-		CredValidator:   credValidator,
-		Dir:             s.config.DataDir,
-		X509CAKeyType:   s.config.CAKeyType,
-		DisableJWTSVIDs: s.config.DisableJWTSVIDs,
-		DisableWITSVIDs: s.config.DisableWITSVIDs,
-		JWTKeyType:      s.config.JWTKeyType,
-		WITKeyType:      s.config.WITKeyType,
+		CA:                         serverCA,
+		Catalog:                    cat,
+		TrustDomain:                s.config.TrustDomain,
+		Log:                        s.config.Log.WithField(telemetry.SubsystemName, telemetry.CAManager),
+		Metrics:                    metrics,
+		CredBuilder:                credBuilder,
+		CredValidator:              credValidator,
+		Dir:                        s.config.DataDir,
+		X509CAKeyType:              s.config.CAKeyType,
+		DisableJWTSVIDs:            s.config.DisableJWTSVIDs,
+		DisableWITSVIDs:            s.config.DisableWITSVIDs,
+		JWTKeyType:                 s.config.JWTKeyType,
+		WITKeyType:                 s.config.WITKeyType,
+		ActivationThresholdDivisor: s.config.ActivationThresholdDivisor,
 	})
 	if err != nil {
 		return nil, err
@@ -481,6 +482,7 @@ func (s *Server) newEndpointsServer(ctx context.Context, catalog catalog.Catalog
 		Catalog:                      catalog,
 		ServerCA:                     serverCA,
 		CATTL:                        s.config.CATTL,
+		ActivationThresholdDivisor:   s.config.ActivationThresholdDivisor,
 		Log:                          s.config.Log.WithField(telemetry.SubsystemName, telemetry.Endpoints),
 		RootLog:                      s.config.Log,
 		Metrics:                      metrics,
