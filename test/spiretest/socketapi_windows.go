@@ -76,6 +76,6 @@ func ServeGRPCServerOnListener(t *testing.T, server *grpc.Server, listener net.L
 		server.GracefulStop()
 		// Wait for Serve to return. We expect an error since we closed the listener,
 		// so we don't need to check it.
-		<-errCh
+		<-errCh //nolint:errcheck // Serve errors are expected after closing the listener.
 	})
 }

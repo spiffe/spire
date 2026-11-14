@@ -795,7 +795,7 @@ func TestGenerateKey(t *testing.T) {
 			}
 
 			select {
-			case <-deleteSignal:
+			case <-deleteSignal: //nolint:errcheck // Deletion errors are checked through the expected logs below.
 				// The logs emitted by the deletion goroutine and those that
 				// enqueue deletion can be intermixed, so we cannot depend
 				// on the exact order of the logs, so we just assert that

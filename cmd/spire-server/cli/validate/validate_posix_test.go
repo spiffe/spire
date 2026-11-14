@@ -263,8 +263,8 @@ UpstreamAuthority "disk" {}
 				expectedReturn = 1
 			}
 			require.Equal(t, expectedReturn, rcode)
-			for _, error := range testCase.expectedErrors {
-				require.Contains(t, stderr.String(), error)
+			for _, expectedError := range testCase.expectedErrors {
+				require.Contains(t, stderr.String(), expectedError)
 			}
 			if testCase.expectedStderr != "" {
 				require.Equal(t, testCase.expectedStderr, stderr.String())

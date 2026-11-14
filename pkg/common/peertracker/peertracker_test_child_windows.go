@@ -39,7 +39,7 @@ func main() {
 	fder, ok := conn.(Fder)
 	if !ok {
 		conn.Close()
-		fmt.Fprintf(os.Stderr, "invalid connection", err)
+		fmt.Fprint(os.Stderr, "invalid connection")
 		os.Exit(6)
 	}
 
@@ -53,7 +53,7 @@ func main() {
 		},
 	}
 
-	proc, err := os.StartProcess(os.Args[0], []string{os.Args[0]}, procattr)
+	proc, err := os.StartProcess(os.Args[0], []string{os.Args[0]}, procattr) //nolint:gosec // G702: re-execute this test helper to create a grandchild.
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to produce grandchild: %v", err)
 		os.Exit(7)

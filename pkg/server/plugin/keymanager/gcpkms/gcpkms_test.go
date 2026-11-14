@@ -707,8 +707,8 @@ func TestDisposeActiveCryptoKeys(t *testing.T) {
 
 	// Verify that no active keys have been queued for destruction.
 	select {
-	case <-enqueueDestructionSignal:
-		require.Fail(t, "Active key should not be queued for destruction")
+	case err := <-enqueueDestructionSignal:
+		require.Failf(t, "Active key should not be queued for destruction", "enqueue error: %v", err)
 	default:
 	}
 
@@ -1131,7 +1131,7 @@ func TestGenerateKey(t *testing.T) {
 			}
 
 			select {
-			case <-ts.plugin.hooks.scheduleDestroySignal:
+			case <-ts.plugin.hooks.scheduleDestroySignal: //nolint:errcheck // Destruction errors are checked through the expected logs below.
 				// The logs emitted by the deletion goroutine and those that
 				// enqueue deletion can be intermixed, so we cannot depend
 				// on the exact order of the logs, so we just assert that
