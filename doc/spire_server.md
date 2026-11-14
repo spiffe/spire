@@ -48,6 +48,7 @@ This document is a configuration reference for SPIRE Server. It includes informa
 | BundlePublisher    | [aws_rolesanywhere_trustanchor](/doc/plugin_server_bundlepublisher_aws_rolesanywhere_trustanchor.md) | Publishes the trust bundle to an AWS IAM Roles Anywhere trust anchor.                                                                                               |
 | BundlePublisher    | [azure_blob](/doc/plugin_server_bundlepublisher_azure_blob.md)                                       | Publishes the trust bundle to an Azure Blob Storage account.                                                                                                        |
 | BundlePublisher    | [k8s_configmap](/doc/plugin_server_bundlepublisher_k8s_configmap.md)                                 | Publishes the trust bundle to a Kubernetes ConfigMap.                                                                                                               |
+| BundlePublisher    | [k8s_clustertrustbundle](/doc/plugin_server_bundlepublisher_k8s_clustertrustbundle.md)               | Publishes the X.509 authorities of the trust bundle to a Kubernetes ClusterTrustBundle.                                                                             |
 
 ## Server configuration file
 
