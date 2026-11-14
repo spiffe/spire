@@ -11,7 +11,7 @@ The plugin accepts the following configuration options:
 | storage_account_key  | The base64-encoded access key for the Azure Storage account. Used for shared key authentication (found in the Azure Portal, **Access keys**).                                        | Required only when using shared key authentication.  |                       |
 | container_name       | The name of the blob container to which the trust bundle is uploaded.                                                                                                                | Yes.                                                 |                       |
 | blob_name            | The blob name inside the container.                                                                                                                                                  | Yes.                                                 |                       |
-| format               | Format in which the trust bundle is stored, &lt;spiffe &vert; jwks &vert; pem&gt;. See [Supported bundle formats](#supported-bundle-formats) for more details.                       | Yes.                                                 |                       |
+| format               | Format in which the trust bundle is stored, &lt;spiffe &vert; jwks &vert; oidc_jwks &vert; pem&gt;. See [Supported bundle formats](#supported-bundle-formats).                       | Yes.                                                 |                       |
 | service_endpoint     | The Azure Blob Storage service endpoint.                                                                                                                                             | No.                                                  | blob.core.windows.net |
 | tenant_id            | The Azure tenant ID for client secret credential authentication.                                                                                                                     | Required only when using client secret credentials.  |                       |
 | app_id               | The Azure application (client) ID for client secret credential authentication.                                                                                                       | Required only when using client secret credentials.  |                       |
@@ -29,6 +29,10 @@ The trust bundle is represented as an RFC 7517 compliant JWK Set, with the speci
 ### JWKS format
 
 The trust bundle is encoded as an RFC 7517 compliant JWK Set, omitting SPIFFE-specific parameters. Both the JWT authorities and the X.509 authorities are included.
+
+### OIDC JWKS format
+
+The trust bundle is encoded as an RFC 7517 compliant JWK Set that OIDC relying parties can use to verify JWT-SVIDs. Only the JWT authorities are included. Every key has its `kid`, its `use` parameter set to `sig` and, when SPIRE can derive it from the key type, its `alg` parameter: `RS256` for RSA keys of 2048 bits or more, `ES256` for P-256 keys and `ES384` for P-384 keys. Any other key, such as an RSA key under 2048 bits, is published without `alg`. These are the same keys, with the same members, as the keys endpoint of the [OIDC Discovery Provider](../support/oidc-discovery-provider/README.md) returns with `set_key_use` enabled. When the bundle has no JWT authorities, an empty set (`{"keys":[]}`) is published. Publishing fails if the key of a JWT authority cannot be parsed.
 
 ### PEM format
 

@@ -103,6 +103,7 @@ func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginco
 
 		switch bundleFormat {
 		case bundleformat.JWKS:
+		case bundleformat.OIDCJWKS:
 		case bundleformat.SPIFFE:
 		case bundleformat.PEM:
 		default:
