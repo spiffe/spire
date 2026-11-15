@@ -2652,6 +2652,62 @@ func (s *Suite) TestAttestReferenceGenericObject_NamespaceLabels() {
 	assert.Contains(s.T(), selectorValues, "name:tenant-a")
 }
 
+func (s *Suite) TestAttestReferenceGenericObjectRefreshesMapperOnNotFound() {
+	s.startInsecureKubelet()
+
+	group := "example.org"
+	oldGVK := schema.GroupVersionKind{Group: group, Version: "v1beta1", Kind: "Widget"}
+	newGVK := schema.GroupVersionKind{Group: group, Version: "v1", Kind: "Widget"}
+
+	refreshes := 0
+	mapper := newRefreshableRESTMapper(testRESTMapperFor(oldGVK), func() (meta.RESTMapper, error) {
+		refreshes++
+		return testRESTMapperFor(newGVK), nil
+	})
+	mapper.refreshCooldown = 0
+
+	obj := &metav1.PartialObjectMetadata{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "widget-a",
+			Namespace: "default",
+			UID:       "widget-uid",
+		},
+	}
+	obj.SetGroupVersionKind(newGVK)
+
+	p := s.loadPluginWithKubeClient(fmt.Sprintf(`
+		kubelet_read_only_port = %d
+		max_poll_attempts = 5
+		poll_retry_interval = "1s"
+		%s
+	`, s.kubeletPort(), testBrokerConfigWithClusterPodReferenceScope()),
+		fakeKubeClientWithSubjectAccessReviewAndRESTMapper(true, nil, mapper, obj))
+
+	anyRef, err := anypb.New(&broker.KubernetesObjectReference{
+		Type: &broker.KubernetesObjectType{
+			Plural: "widgets",
+			Group:  group,
+		},
+		Key: &broker.KubernetesObjectKey{
+			Namespace: "default",
+			Name:      "widget-a",
+		},
+	})
+	s.Require().NoError(err)
+
+	selectors, err := p.AttestReference(testBrokerContext(), anyRef)
+	s.Require().NoError(err)
+	s.Require().Equal(1, refreshes)
+
+	selectorValues := make([]string, 0, len(selectors))
+	for _, selector := range selectors {
+		selectorValues = append(selectorValues, selector.Value)
+	}
+	assert.Contains(s.T(), selectorValues, "version:v1")
+	assert.Contains(s.T(), selectorValues, "apiVersion:example.org/v1")
+	assert.Contains(s.T(), selectorValues, "name:widget-a")
+}
+
 func (s *Suite) TestAttestReferenceBrokerRBACUsesResolvedGenericObject() {
 	s.startInsecureKubelet()
 

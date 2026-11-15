@@ -1110,16 +1110,37 @@ func decodePodFromKubelet(podValue *fastjson.Value) (*corev1.Pod, error) {
 // PartialObjectMetadata, and emits a uniform set of selectors derived from
 // `ObjectMeta` (resource, namespace, name, uid, labels, owner references).
 func (p *Plugin) attestByObjectReference(ctx context.Context, objRef *broker.KubernetesObjectReference) (*attestReferenceResult, error) {
+	kubeClient, err := p.getOrCreateKubeMetadataClient(ctx)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "unable to set up Kubernetes client: %v", err)
+	}
+
+	result, err := p.attestObjectReference(ctx, kubeClient, objRef)
+	if err == nil || status.Code(err) != codes.NotFound {
+		return result, err
+	}
+
+	// A NotFound can mean the cached discovery information still points at an
+	// API version that no longer serves the resource. Refresh the mapper and
+	// retry once so a CRD that started serving a new version is picked up
+	// without restarting the agent.
+	refreshed, refreshErr := refreshRESTMapperAfterMiss(kubeClient.RESTMapper())
+	if refreshErr != nil {
+		return nil, status.Errorf(codes.Internal, "unable to refresh Kubernetes REST mapper: %v", refreshErr)
+	}
+	if !refreshed {
+		return nil, err
+	}
+	return p.attestObjectReference(ctx, kubeClient, objRef)
+}
+
+func (p *Plugin) attestObjectReference(ctx context.Context, kubeClient client.Client, objRef *broker.KubernetesObjectReference) (*attestReferenceResult, error) {
 	r := objRef.GetType()
 	key := objRef.GetKey()
 	namespace := key.GetNamespace()
 	name := key.GetName()
 	uid := types.UID(objRef.GetUid())
 
-	kubeClient, err := p.getOrCreateKubeMetadataClient(ctx)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "unable to set up Kubernetes client: %v", err)
-	}
 	mapper := kubeClient.RESTMapper()
 
 	// Per the SPIFFE Broker API spec, `core` is the canonical group string
@@ -1177,6 +1198,19 @@ func (p *Plugin) attestByObjectReference(ctx context.Context, objRef *broker.Kub
 	}, nil
 }
 
+// refreshRESTMapperAfterMiss refreshes a mapper that supports discovery
+// invalidation. It reports whether the mapper was refreshable, so callers know
+// whether retrying the lookup can make a difference.
+func refreshRESTMapperAfterMiss(mapper meta.RESTMapper) (bool, error) {
+	refresher, ok := mapper.(interface {
+		refreshAfterMiss() error
+	})
+	if !ok {
+		return false, nil
+	}
+	return true, refresher.refreshAfterMiss()
+}
+
 func kubernetesAPIGroup(group string) string {
 	if group == "core" {
 		return ""
@@ -1206,6 +1240,9 @@ func (p *Plugin) findObject(ctx context.Context, kubeClient client.Client, gvk s
 	// UnsafeDisableDeepCopy lets the cache return references into its store.
 	// This path only reads metadata and never mutates returned objects.
 	if err := kubeClient.List(ctx, list, client.UnsafeDisableDeepCopy); err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil, status.Errorf(codes.NotFound, "%s not found", gvk.Kind)
+		}
 		return nil, status.Errorf(codes.Internal, "unable to list %s: %v", gvk.Kind, err)
 	}
 	for i := range list.Items {
@@ -1423,6 +1460,9 @@ func buildKubeClientOptions() (*rest.Config, client.Options, error) {
 	if err != nil {
 		return nil, client.Options{}, fmt.Errorf("unable to build Kubernetes REST mapper: %w", err)
 	}
+	mapper = newRefreshableRESTMapper(mapper, func() (meta.RESTMapper, error) {
+		return apiutil.NewDynamicRESTMapper(restConfig, httpClient)
+	})
 
 	return restConfig, client.Options{
 		Scheme:     k8sScheme,
