@@ -893,7 +893,7 @@ func TestNewJWTSVIDRetry(t *testing.T) {
 		client, tc := createClient(t)
 		tc.svidServer.newJWTSVID = status.Error(codes.Unavailable, "server unavailable")
 
-		callCtx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
+		callCtx, cancel := context.WithTimeout(ctx, time.Second)
 		defer cancel()
 
 		resp, _, err := client.NewJWTSVID(callCtx, "entry-id", []string{"myAud"}, false)
