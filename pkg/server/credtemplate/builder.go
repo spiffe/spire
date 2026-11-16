@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"math"
 	"math/big"
 	"net/url"
 	"time"
@@ -386,9 +387,53 @@ func (b *Builder) BuildWorkloadJWTSVIDClaims(ctx context.Context, params Workloa
 		if exp, ok := attributes.Claims["exp"].(float64); ok {
 			attributes.Claims["exp"] = int64(exp)
 		}
+
+		// The same applies to every other number a composer plugin hands
+		// back, so write the ones that are safely integral as integers too.
+		for name, value := range attributes.Claims {
+			attributes.Claims[name] = integralFloatsToInt64(value)
+		}
 	}
 
 	return attributes.Claims, nil
+}
+
+// maxSafeInteger is the largest integer n such that n and every integer
+// below it can be represented exactly as a float64 (2^53 - 1).
+const maxSafeInteger = 1<<53 - 1
+
+// integralFloatsToInt64 returns value with float64 numbers converted to int64
+// where that loses nothing: the number has no fractional part, lies within
+// [-maxSafeInteger, maxSafeInteger], and is not negative zero. Objects and
+// arrays are walked and updated in place. Anything else, including NaN,
+// infinities and integers outside the safe range, is returned unchanged.
+//
+// This does not recover the type a claim had before it went through a plugin:
+// a plugin that deliberately returns 3.0 gets 3, and an integer beyond the
+// safe range has already been rounded by the time it gets here.
+func integralFloatsToInt64(value any) any {
+	switch v := value.(type) {
+	case float64:
+		if v != math.Trunc(v) || math.Abs(v) > maxSafeInteger {
+			return v
+		}
+		if v == 0 && math.Signbit(v) {
+			return v
+		}
+		return int64(v)
+	case map[string]any:
+		for name, elem := range v {
+			v[name] = integralFloatsToInt64(elem)
+		}
+		return v
+	case []any:
+		for i, elem := range v {
+			v[i] = integralFloatsToInt64(elem)
+		}
+		return v
+	default:
+		return value
+	}
 }
 
 func (b *Builder) BuildWorkloadWITSVIDClaims(ctx context.Context, params WorkloadWITSVIDParams) (map[string]any, error) {
