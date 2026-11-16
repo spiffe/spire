@@ -1110,16 +1110,44 @@ func decodePodFromKubelet(podValue *fastjson.Value) (*corev1.Pod, error) {
 // PartialObjectMetadata, and emits a uniform set of selectors derived from
 // `ObjectMeta` (resource, namespace, name, uid, labels, owner references).
 func (p *Plugin) attestByObjectReference(ctx context.Context, objRef *broker.KubernetesObjectReference) (*attestReferenceResult, error) {
+	kubeClient, err := p.getOrCreateKubeMetadataClient(ctx)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "unable to set up Kubernetes client: %v", err)
+	}
+
+	mapper := kubeClient.RESTMapper()
+	generation, refreshable := restMapperGeneration(mapper)
+
+	result, err := p.attestObjectReference(ctx, kubeClient, objRef)
+	if err == nil || status.Code(err) != codes.NotFound || !refreshable {
+		return result, err
+	}
+
+	// A NotFound can mean the cached discovery information still points at an
+	// API version that no longer serves the resource. Refresh the mapper and
+	// retry only if it was actually replaced, so a CRD that started serving a
+	// new version is picked up without restarting the agent.
+	//
+	// This covers the uncached path. With experimental.api_server.cache.enabled,
+	// an object already in the informer store can keep resolving at the old
+	// version, so NotFound may never fire; removing the stale informer is a
+	// follow-up.
+	if refreshErr := refreshRESTMapperAfterMiss(mapper); refreshErr != nil {
+		return nil, status.Errorf(codes.Internal, "unable to refresh Kubernetes REST mapper: %v", refreshErr)
+	}
+	if newGeneration, _ := restMapperGeneration(mapper); newGeneration == generation {
+		return nil, err
+	}
+	return p.attestObjectReference(ctx, kubeClient, objRef)
+}
+
+func (p *Plugin) attestObjectReference(ctx context.Context, kubeClient client.Client, objRef *broker.KubernetesObjectReference) (*attestReferenceResult, error) {
 	r := objRef.GetType()
 	key := objRef.GetKey()
 	namespace := key.GetNamespace()
 	name := key.GetName()
 	uid := types.UID(objRef.GetUid())
 
-	kubeClient, err := p.getOrCreateKubeMetadataClient(ctx)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "unable to set up Kubernetes client: %v", err)
-	}
 	mapper := kubeClient.RESTMapper()
 
 	// Per the SPIFFE Broker API spec, `core` is the canonical group string
@@ -1177,6 +1205,31 @@ func (p *Plugin) attestByObjectReference(ctx context.Context, objRef *broker.Kub
 	}, nil
 }
 
+// restMapperGeneration returns the mapper's refresh generation and whether the
+// mapper supports discovery refresh. A changed generation means the mapper was
+// replaced, so a failed lookup is worth retrying.
+func restMapperGeneration(mapper meta.RESTMapper) (uint64, bool) {
+	refresher, ok := mapper.(interface {
+		generation() uint64
+	})
+	if !ok {
+		return 0, false
+	}
+	return refresher.generation(), true
+}
+
+// refreshRESTMapperAfterMiss refreshes a mapper that supports discovery
+// invalidation.
+func refreshRESTMapperAfterMiss(mapper meta.RESTMapper) error {
+	refresher, ok := mapper.(interface {
+		refreshAfterMiss() error
+	})
+	if !ok {
+		return nil
+	}
+	return refresher.refreshAfterMiss()
+}
+
 func kubernetesAPIGroup(group string) string {
 	if group == "core" {
 		return ""
@@ -1206,6 +1259,9 @@ func (p *Plugin) findObject(ctx context.Context, kubeClient client.Client, gvk s
 	// UnsafeDisableDeepCopy lets the cache return references into its store.
 	// This path only reads metadata and never mutates returned objects.
 	if err := kubeClient.List(ctx, list, client.UnsafeDisableDeepCopy); err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil, status.Errorf(codes.NotFound, "%s not found", gvk.Kind)
+		}
 		return nil, status.Errorf(codes.Internal, "unable to list %s: %v", gvk.Kind, err)
 	}
 	for i := range list.Items {
@@ -1423,6 +1479,9 @@ func buildKubeClientOptions() (*rest.Config, client.Options, error) {
 	if err != nil {
 		return nil, client.Options{}, fmt.Errorf("unable to build Kubernetes REST mapper: %w", err)
 	}
+	mapper = newRefreshableRESTMapper(mapper, func() (meta.RESTMapper, error) {
+		return apiutil.NewDynamicRESTMapper(restConfig, httpClient)
+	})
 
 	return restConfig, client.Options{
 		Scheme:     k8sScheme,
