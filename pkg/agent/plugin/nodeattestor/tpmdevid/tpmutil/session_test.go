@@ -3,6 +3,7 @@
 package tpmutil_test
 
 import (
+	"bytes"
 	"crypto/x509"
 	"io"
 	"os"
@@ -179,6 +180,66 @@ func TestNewSession(t *testing.T) {
 
 			require.NoError(t, err)
 			require.NotNil(t, tpm)
+		})
+	}
+}
+
+func TestNewSessionFallsBackToRSAStorageRootKey(t *testing.T) {
+	setupSimulator(t)
+
+	// TPM_ECC_NONE is not a valid curve for a key, so the ECC storage root key
+	// cannot be created
+	tpmutil.SetAKSRKTemplateECC(t, func() tpm2.Public {
+		template := tpmutil.SRKTemplateHighECC()
+		template.ECCParameters.CurveID = tpm2.EllipticCurve(0x0000)
+		return template
+	})
+
+	var devicePath string
+	if !isWindows {
+		devicePath = "/dev/tpmrm0"
+	}
+
+	for _, devID := range []struct {
+		name string
+		cred *tpmsimulator.Credential
+	}{
+		{name: "RSA", cred: devIDRSA},
+		{name: "ECC", cred: devIDECC},
+	} {
+		t.Run(devID.name, func(t *testing.T) {
+			logBuf := new(bytes.Buffer)
+			tpm, err := tpmutil.NewSession(&tpmutil.SessionConfig{
+				DevIDPriv:  devID.cred.PrivateBlob,
+				DevIDPub:   devID.cred.PublicBlob,
+				DevicePath: devicePath,
+				Log:        hclog.New(&hclog.LoggerOptions{Output: logBuf}),
+				Passwords:  tpmPasswords,
+			})
+			require.NoError(t, err)
+			defer tpm.Close()
+
+			require.Contains(t, logBuf.String(), "falling back to RSA")
+
+			akPub, err := tpm2.DecodePublic(tpm.GetAKPublic())
+			require.NoError(t, err)
+			devIDPub, err := tpm2.DecodePublic(devID.cred.PublicBlob)
+			require.NoError(t, err)
+
+			attData, signature, err := tpm.CertifyDevIDKey()
+			require.NoError(t, err)
+			require.NoError(t, server_devid.VerifyDevIDCertification(&akPub, &devIDPub, attData, signature))
+
+			ekPubBytes, err := tpm.GetEKPublic()
+			require.NoError(t, err)
+			ekPub, err := tpm2.DecodePublic(ekPubBytes)
+			require.NoError(t, err)
+
+			challenge, expectedNonce, err := server_devid.NewCredActivationChallenge(akPub, ekPub)
+			require.NoError(t, err)
+			nonce, err := tpm.SolveCredActivationChallenge(challenge.Credential, challenge.Secret)
+			require.NoError(t, err)
+			require.NoError(t, server_devid.VerifyCredActivationChallenge(expectedNonce, nonce))
 		})
 	}
 }

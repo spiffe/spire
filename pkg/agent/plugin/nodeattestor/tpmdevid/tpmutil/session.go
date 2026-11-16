@@ -56,6 +56,10 @@ type SessionConfig struct {
 
 var OpenTPM = openTPM
 
+// akSRKTemplateECC is the preferred storage root key template for the
+// attestation key. It is a variable so tests can exercise the RSA fallback.
+var akSRKTemplateECC = SRKTemplateHighECC
+
 // NewSession opens a connection to a TPM and configures it to be used for
 // node attestation.
 func NewSession(scfg *SessionConfig) (*Session, error) {
@@ -107,15 +111,13 @@ func NewSession(scfg *SessionConfig) (*Session, error) {
 	if err != nil {
 		return nil, fmt.Errorf("cannot generate random password for attesation key: %w", err)
 	}
-	akPriv, akPub, err := tpm.createAttestationKey(srkPassword, akPassword)
+	akPriv, akPub, akSRKTemplate, err := tpm.createAttestationKey(srkPassword, akPassword)
 	if err != nil {
 		return nil, fmt.Errorf("cannot create attestation key: %w", err)
 	}
 	tpm.akPub = akPub
 
-	// Load Attestation Key. It was created under an ECC storage parent, so it
-	// must be loaded under the same one.
-	akSRKTemplate := SRKTemplateHighECC()
+	// Load Attestation Key under the same storage parent it was created under.
 	tpm.ak, err = tpm.loadKey(
 		akPub,
 		akPriv,
@@ -331,23 +333,27 @@ func (c *Session) loadKey(publicKey, privateKey []byte, parentKeyPassword, keyPa
 	}, nil
 }
 
-// createAttestationKey creates the attestation key under an ECC storage root
-// key.
+// createAttestationKey creates the attestation key under a storage root key and
+// returns the key blobs along with the template of the storage root key, which
+// is needed to load the attestation key afterwards.
 //
 // The attestation key itself must be RSA as the server currently only verifies
 // RSA certification signatures. The storage parent wrapping it is only
 // agent-local, never transmitted to the server, so it may use the more
-// performant ECC.
-func (c *Session) createAttestationKey(parentKeyPassword, keyPassword string) ([]byte, []byte, error) {
-	srkHandle, _, _, _, _, _, err :=
-		tpm2.CreatePrimaryEx(c.rwc,
-			tpm2.HandleOwner,
-			tpm2.PCRSelection{},
-			c.ownerHierarchyPassword,
-			parentKeyPassword,
-			SRKTemplateHighECC())
+// performant ECC. ECC is only mandated by the TCG PC Client Platform TPM
+// Profile, so RSA is used as a fallback on TPMs that cannot create the ECC
+// storage root key.
+func (c *Session) createAttestationKey(parentKeyPassword, keyPassword string) ([]byte, []byte, tpm2.Public, error) {
+	srkTemplate := akSRKTemplateECC()
+	srkHandle, err := c.createSRK(parentKeyPassword, srkTemplate)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to create SRK: %w", err)
+		c.log.Warn(fmt.Sprintf("Failed to create ECC storage root key for the attestation key, falling back to RSA: %v", err))
+
+		srkTemplate = SRKTemplateHighRSA()
+		srkHandle, err = c.createSRK(parentKeyPassword, srkTemplate)
+		if err != nil {
+			return nil, nil, tpm2.Public{}, fmt.Errorf("failed to create SRK: %w", err)
+		}
 	}
 	defer c.flushContext(srkHandle)
 
@@ -360,10 +366,21 @@ func (c *Session) createAttestationKey(parentKeyPassword, keyPassword string) ([
 		client.AKTemplateRSA(),
 	)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to create AK: %w", err)
+		return nil, nil, tpm2.Public{}, fmt.Errorf("failed to create AK: %w", err)
 	}
 
-	return privBlob, pubBlob, nil
+	return privBlob, pubBlob, srkTemplate, nil
+}
+
+func (c *Session) createSRK(password string, template tpm2.Public) (tpmutil.Handle, error) {
+	srkHandle, _, _, _, _, _, err :=
+		tpm2.CreatePrimaryEx(c.rwc,
+			tpm2.HandleOwner,
+			tpm2.PCRSelection{},
+			c.ownerHierarchyPassword,
+			password,
+			template)
+	return srkHandle, err
 }
 
 // createPolicySessionForEK creates a session-based authorization to access EK.
