@@ -569,7 +569,7 @@ func (s *Suite) TestValidate() {
 		CoreConfiguration: &configv1.CoreConfiguration{
 			TrustDomain: "example.org",
 		},
-		HclConfiguration: "kubelet_read_only_port = 10255",
+		Configuration: "kubelet_read_only_port = 10255",
 	})
 	s.Require().NoError(err)
 	s.Require().True(resp.Valid)
@@ -580,7 +580,7 @@ func (s *Suite) TestValidate() {
 		CoreConfiguration: &configv1.CoreConfiguration{
 			TrustDomain: "example.org",
 		},
-		HclConfiguration: "disable_kubelet_client = true",
+		Configuration: "disable_kubelet_client = true",
 	})
 	s.Require().NoError(err)
 	s.Require().True(resp.Valid)
@@ -591,7 +591,7 @@ func (s *Suite) TestValidate() {
 		CoreConfiguration: &configv1.CoreConfiguration{
 			TrustDomain: "example.org",
 		},
-		HclConfiguration: `
+		Configuration: `
 			skip_kubelet_verification = true
 			token_path = "no-such-file"
 		`,
@@ -994,7 +994,7 @@ func (s *Suite) TestGetOrCreateKubeMetadataClientReturnsLiveClientWhenAPIServerC
 		CoreConfiguration: &configv1.CoreConfiguration{
 			TrustDomain: "example.org",
 		},
-		HclConfiguration: `
+		Configuration: `
 			kubelet_read_only_port = 12345
 		`,
 	})
@@ -1021,7 +1021,7 @@ func (s *Suite) TestGetOrCreateKubeMetadataClientReturnsMetadataClientWhenAPISer
 		CoreConfiguration: &configv1.CoreConfiguration{
 			TrustDomain: "example.org",
 		},
-		HclConfiguration: `
+		Configuration: `
 			kubelet_read_only_port = 12345
 			experimental {
 				api_server {

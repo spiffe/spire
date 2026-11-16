@@ -185,7 +185,7 @@ func (s *IMDSAttestorSuite) TestValidate() {
 			CoreConfiguration: &configv1.CoreConfiguration{
 				TrustDomain: "example.org",
 			},
-			HclConfiguration: `tenant_domain = "example.com"`,
+			Configuration: `tenant_domain = "example.com"`,
 		})
 		require.NoError(t, err)
 		require.NotNil(t, resp)
@@ -199,7 +199,7 @@ func (s *IMDSAttestorSuite) TestValidate() {
 			CoreConfiguration: &configv1.CoreConfiguration{
 				TrustDomain: "example.org",
 			},
-			HclConfiguration: "blah",
+			Configuration: "blah",
 		})
 		require.NoError(t, err)
 		require.NotNil(t, resp)
@@ -216,7 +216,7 @@ func (s *IMDSAttestorSuite) TestValidate() {
 			CoreConfiguration: &configv1.CoreConfiguration{
 				TrustDomain: "example.org",
 			},
-			HclConfiguration: "",
+			Configuration: "",
 		})
 		require.NoError(t, err)
 		require.NotNil(t, resp)

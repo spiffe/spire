@@ -184,7 +184,7 @@ func TestConfigureCommon(t *testing.T) {
 				CoreConfiguration: &configv1.CoreConfiguration{
 					TrustDomain: tt.trustDomain,
 				},
-				HclConfiguration: tt.hclConf,
+				Configuration: tt.hclConf,
 			})
 			if tt.expErr != "" {
 				require.Contains(t, err.Error(), tt.expErr)
@@ -278,7 +278,7 @@ func TestConfigurePosix(t *testing.T) {
 				CoreConfiguration: &configv1.CoreConfiguration{
 					TrustDomain: tt.trustDomain,
 				},
-				HclConfiguration: tt.hclConf,
+				Configuration: tt.hclConf,
 			})
 			if tt.expErr != "" {
 				require.Contains(t, err.Error(), tt.expErr)
@@ -368,7 +368,7 @@ func TestConfigureWindows(t *testing.T) {
 				CoreConfiguration: &configv1.CoreConfiguration{
 					TrustDomain: tt.trustDomain,
 				},
-				HclConfiguration: tt.hclConf,
+				Configuration: tt.hclConf,
 			})
 			if tt.expErr != "" {
 				require.Contains(t, err.Error(), tt.expErr)
