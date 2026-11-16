@@ -57,15 +57,16 @@ func init() {
 }
 
 const (
-	pluginName                    = "k8s"
-	brokerImpersonationReviewVerb = "impersonate-via-spire"
-	defaultMaxPollAttempts        = 60
-	defaultPollRetryInterval      = time.Millisecond * 500
-	defaultSecureKubeletPort      = 10250
-	defaultKubeletCAPath          = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
-	defaultTokenPath              = "/var/run/secrets/kubernetes.io/serviceaccount/token" //nolint: gosec // false positive
-	defaultNodeNameEnv            = "MY_NODE_NAME"
-	defaultReloadInterval         = time.Minute
+	pluginName                           = "k8s"
+	brokerImpersonationReviewVerb        = "impersonate-via-spire"
+	defaultMaxPollAttempts               = 60
+	defaultPollRetryInterval             = time.Millisecond * 500
+	defaultSecureKubeletPort             = 10250
+	defaultKubeletCAPath                 = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+	defaultTokenPath                     = "/var/run/secrets/kubernetes.io/serviceaccount/token" //nolint: gosec // false positive
+	defaultNodeNameEnv                   = "MY_NODE_NAME"
+	defaultReloadInterval                = time.Minute
+	defaultAPIServerCacheRefreshInterval = 5 * time.Minute
 
 	workloadPIDReferenceTypeURL      = "type.googleapis.com/spiffe.broker.WorkloadPIDReference"
 	kubernetesObjectReferenceTypeURL = "type.googleapis.com/spiffe.broker.KubernetesObjectReference"
@@ -235,21 +236,27 @@ type k8sAPIServerHCLConfig struct {
 type k8sAPIServerCacheHCLConfig struct {
 	Enabled bool `hcl:"enabled"`
 
+	// RestMapperRefreshInterval controls how often the REST mapper is refreshed
+	// for object-reference lookups. Refreshing picks up API version changes
+	// that would otherwise leave the cache pointing at a stale informer.
+	RestMapperRefreshInterval string `hcl:"rest_mapper_refresh_interval"`
+
 	UnusedKeyPositions map[string][]hcltoken.Pos `hcl:",unusedKeyPositions"`
 }
 
 // k8sConfig holds the configuration distilled from HCL
 type k8sConfig struct {
-	MaxPollAttempts           int
-	PollRetryInterval         time.Duration
-	DisableKubeletClient      bool
-	DisableContainerSelectors bool
-	EnableNamespaceLabels     bool
-	ContainerHelper           ContainerHelper
-	sigstoreConfig            *sigstore.Config
-	APIServerCacheEnabled     bool
-	Broker                    *k8sBrokerConfig
-	podListFetcherConfig      podListFetcherConfig
+	MaxPollAttempts               int
+	PollRetryInterval             time.Duration
+	DisableKubeletClient          bool
+	DisableContainerSelectors     bool
+	EnableNamespaceLabels         bool
+	ContainerHelper               ContainerHelper
+	sigstoreConfig                *sigstore.Config
+	APIServerCacheEnabled         bool
+	APIServerCacheRefreshInterval time.Duration
+	Broker                        *k8sBrokerConfig
+	podListFetcherConfig          podListFetcherConfig
 }
 
 func (p *Plugin) buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *k8sConfig {
@@ -262,6 +269,7 @@ func (p *Plugin) buildConfig(coreConfig catalog.CoreConfig, hclText string, stat
 
 	pluginconf.ReportUnusedKeys(status, newConfig.UnusedKeyPositions)
 	var apiServerCacheEnabled bool
+	var apiServerCacheRefreshInterval time.Duration
 	var brokerConfig *k8sBrokerConfig
 	if newConfig.Experimental != nil {
 		pluginconf.ReportUnusedKeys(status, newConfig.Experimental.UnusedKeyPositions)
@@ -270,9 +278,20 @@ func (p *Plugin) buildConfig(coreConfig catalog.CoreConfig, hclText string, stat
 			if newConfig.Experimental.APIServer.Cache != nil {
 				pluginconf.ReportUnusedKeys(status, newConfig.Experimental.APIServer.Cache.UnusedKeyPositions)
 				apiServerCacheEnabled = newConfig.Experimental.APIServer.Cache.Enabled
+				if newConfig.Experimental.APIServer.Cache.RestMapperRefreshInterval != "" {
+					parsed, parseErr := time.ParseDuration(newConfig.Experimental.APIServer.Cache.RestMapperRefreshInterval)
+					if parseErr != nil {
+						status.ReportErrorf("unable to parse REST mapper refresh interval: %v", parseErr)
+					} else {
+						apiServerCacheRefreshInterval = parsed
+					}
+				}
 			}
 		}
 		brokerConfig = buildBrokerConfig("experimental.broker", newConfig.Experimental.Broker, status)
+	}
+	if apiServerCacheRefreshInterval <= 0 {
+		apiServerCacheRefreshInterval = defaultAPIServerCacheRefreshInterval
 	}
 	validateDisableKubeletClientConfig(newConfig, brokerConfig, status)
 
@@ -353,15 +372,16 @@ func (p *Plugin) buildConfig(coreConfig catalog.CoreConfig, hclText string, stat
 
 	// Return the plugin and pod list fetcher configuration.
 	return &k8sConfig{
-		MaxPollAttempts:           maxPollAttempts,
-		PollRetryInterval:         pollRetryInterval,
-		DisableKubeletClient:      newConfig.DisableKubeletClient,
-		DisableContainerSelectors: newConfig.DisableContainerSelectors,
-		EnableNamespaceLabels:     newConfig.EnableNamespaceLabels,
-		ContainerHelper:           containerHelper,
-		sigstoreConfig:            sigstoreConfig,
-		APIServerCacheEnabled:     apiServerCacheEnabled,
-		Broker:                    brokerConfig,
+		MaxPollAttempts:               maxPollAttempts,
+		PollRetryInterval:             pollRetryInterval,
+		DisableKubeletClient:          newConfig.DisableKubeletClient,
+		DisableContainerSelectors:     newConfig.DisableContainerSelectors,
+		EnableNamespaceLabels:         newConfig.EnableNamespaceLabels,
+		ContainerHelper:               containerHelper,
+		sigstoreConfig:                sigstoreConfig,
+		APIServerCacheEnabled:         apiServerCacheEnabled,
+		APIServerCacheRefreshInterval: apiServerCacheRefreshInterval,
+		Broker:                        brokerConfig,
 		podListFetcherConfig: podListFetcherConfig{
 			pollRetryInterval:          pollRetryInterval,
 			secure:                     secure,
@@ -512,6 +532,17 @@ type ContainerHelper interface {
 	GetPodUIDAndContainerID(pID int32, log hclog.Logger) (types.UID, string, error)
 }
 
+// kubeInformerRemover removes a cached informer. It is implemented by the
+// controller-runtime cache and kept narrow for testing.
+type kubeInformerRemover interface {
+	RemoveInformer(ctx context.Context, obj client.Object) error
+}
+
+type kubeInformerMapping struct {
+	gvk        schema.GroupVersionKind
+	generation uint64
+}
+
 type Plugin struct {
 	workloadattestorv1.UnsafeWorkloadAttestorServer
 	configv1.UnsafeConfigServer
@@ -538,6 +569,8 @@ type Plugin struct {
 	kubeMu             sync.RWMutex
 	kubeClient         client.Client
 	kubeMetadataClient client.Client
+	kubeCache          kubeInformerRemover
+	kubeInformerGVKs   map[schema.GroupResource]kubeInformerMapping
 	kubeCacheCancel    context.CancelFunc
 	kubeCacheDone      chan struct{}
 
@@ -547,8 +580,9 @@ type Plugin struct {
 func New() *Plugin {
 	pluginClock := clock.New()
 	p := &Plugin{
-		clock:  pluginClock,
-		getenv: os.Getenv,
+		clock:            pluginClock,
+		getenv:           os.Getenv,
+		kubeInformerGVKs: make(map[schema.GroupResource]kubeInformerMapping),
 	}
 	p.podListFetcher = newPodListFetcher(pluginClock, p.rootDir)
 	return p
@@ -1115,10 +1149,23 @@ func (p *Plugin) attestByObjectReference(ctx context.Context, objRef *broker.Kub
 		return nil, status.Errorf(codes.Internal, "unable to set up Kubernetes client: %v", err)
 	}
 
+	config, _, _, err := p.getConfig()
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "unable to get config: %v", err)
+	}
+
 	mapper := kubeClient.RESTMapper()
+	if config.APIServerCacheEnabled {
+		// With the cache enabled, an object can keep resolving from an informer
+		// for a version that is no longer served, so NotFound never fires.
+		// Refresh the mapper periodically to pick up version changes.
+		if refreshErr := refreshRESTMapperIfStale(mapper, config.APIServerCacheRefreshInterval); refreshErr != nil {
+			return nil, status.Errorf(codes.Internal, "unable to refresh Kubernetes REST mapper: %v", refreshErr)
+		}
+	}
 	generation, refreshable := restMapperGeneration(mapper)
 
-	result, err := p.attestObjectReference(ctx, kubeClient, objRef)
+	result, err := p.attestObjectReference(ctx, kubeClient, objRef, generation)
 	if err == nil || status.Code(err) != codes.NotFound || !refreshable {
 		return result, err
 	}
@@ -1127,21 +1174,17 @@ func (p *Plugin) attestByObjectReference(ctx context.Context, objRef *broker.Kub
 	// API version that no longer serves the resource. Refresh the mapper and
 	// retry only if it was actually replaced, so a CRD that started serving a
 	// new version is picked up without restarting the agent.
-	//
-	// This covers the uncached path. With experimental.api_server.cache.enabled,
-	// an object already in the informer store can keep resolving at the old
-	// version, so NotFound may never fire; removing the stale informer is a
-	// follow-up.
 	if refreshErr := refreshRESTMapperAfterMiss(mapper); refreshErr != nil {
 		return nil, status.Errorf(codes.Internal, "unable to refresh Kubernetes REST mapper: %v", refreshErr)
 	}
-	if newGeneration, _ := restMapperGeneration(mapper); newGeneration == generation {
+	newGeneration, _ := restMapperGeneration(mapper)
+	if newGeneration == generation {
 		return nil, err
 	}
-	return p.attestObjectReference(ctx, kubeClient, objRef)
+	return p.attestObjectReference(ctx, kubeClient, objRef, newGeneration)
 }
 
-func (p *Plugin) attestObjectReference(ctx context.Context, kubeClient client.Client, objRef *broker.KubernetesObjectReference) (*attestReferenceResult, error) {
+func (p *Plugin) attestObjectReference(ctx context.Context, kubeClient client.Client, objRef *broker.KubernetesObjectReference, generation uint64) (*attestReferenceResult, error) {
 	r := objRef.GetType()
 	key := objRef.GetKey()
 	namespace := key.GetNamespace()
@@ -1163,6 +1206,8 @@ func (p *Plugin) attestObjectReference(ctx context.Context, kubeClient client.Cl
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "no REST mapping for %s.%s: %v", r.GetPlural(), r.GetGroup(), err)
 	}
+
+	p.transitionKubeInformer(ctx, gvr.GroupResource(), gvk, generation)
 
 	namespaced := mapping.Scope.Name() == meta.RESTScopeNameNamespace
 	switch {
@@ -1228,6 +1273,71 @@ func refreshRESTMapperAfterMiss(mapper meta.RESTMapper) error {
 		return nil
 	}
 	return refresher.refreshAfterMiss()
+}
+
+// refreshRESTMapperIfStale refreshes a mapper that supports discovery
+// invalidation when its discovery information is older than the given TTL.
+func refreshRESTMapperIfStale(mapper meta.RESTMapper, ttl time.Duration) error {
+	refresher, ok := mapper.(interface {
+		refreshIfStale(ttl time.Duration) error
+	})
+	if !ok {
+		return nil
+	}
+	return refresher.refreshIfStale(ttl)
+}
+
+// transitionKubeInformer removes the cached informer for the previous API
+// version of a resource when the REST mapper resolves that resource to a
+// different version. Without this, the old informer keeps serving the old
+// version from its store after the mapper has moved on.
+func (p *Plugin) transitionKubeInformer(ctx context.Context, gr schema.GroupResource, gvk schema.GroupVersionKind, generation uint64) {
+	p.kubeMu.Lock()
+	cache := p.kubeCache
+	if cache == nil {
+		p.kubeMu.Unlock()
+		return
+	}
+	if p.kubeInformerGVKs == nil {
+		p.kubeInformerGVKs = make(map[schema.GroupResource]kubeInformerMapping)
+	}
+	previous, ok := p.kubeInformerGVKs[gr]
+	if ok && generation < previous.generation {
+		// A request that started before the mapper was refreshed must not
+		// move the cache back to the previous version.
+		p.kubeMu.Unlock()
+		return
+	}
+	if !ok || previous.gvk == gvk {
+		p.kubeInformerGVKs[gr] = kubeInformerMapping{gvk: gvk, generation: generation}
+		p.kubeMu.Unlock()
+		return
+	}
+	p.kubeMu.Unlock()
+
+	obj := &metav1.PartialObjectMetadata{}
+	obj.SetGroupVersionKind(previous.gvk)
+	err := cache.RemoveInformer(ctx, obj)
+	if err != nil && p.log != nil {
+		p.log.Warn("Unable to remove stale Kubernetes informer",
+			telemetry.Error, err,
+			"kind", previous.gvk.Kind,
+			"version", previous.gvk.Version)
+	}
+
+	// Only advance the recorded mapping once the stale informer is gone, so a
+	// removal failure is retried on the next lookup. Never overwrite a mapping
+	// recorded by a newer mapper generation.
+	p.kubeMu.Lock()
+	if err == nil {
+		if p.kubeInformerGVKs == nil {
+			p.kubeInformerGVKs = make(map[schema.GroupResource]kubeInformerMapping)
+		}
+		if current, ok := p.kubeInformerGVKs[gr]; !ok || current.generation <= generation {
+			p.kubeInformerGVKs[gr] = kubeInformerMapping{gvk: gvk, generation: generation}
+		}
+	}
+	p.kubeMu.Unlock()
 }
 
 func kubernetesAPIGroup(group string) string {
@@ -1461,6 +1571,8 @@ func (p *Plugin) getOrCreateKubeMetadataClient(ctx context.Context) (client.Clie
 		p.kubeClient = liveClient
 	}
 	p.kubeMetadataClient = c
+	p.kubeCache = kubeCache
+	p.kubeInformerGVKs = make(map[schema.GroupResource]kubeInformerMapping)
 	p.kubeCacheCancel = cacheCancel
 	p.kubeCacheDone = cacheDone
 	return c, nil
@@ -1497,6 +1609,8 @@ func (p *Plugin) Close() error {
 	cacheDone := p.kubeCacheDone
 	p.kubeClient = nil
 	p.kubeMetadataClient = nil
+	p.kubeCache = nil
+	p.kubeInformerGVKs = nil
 	p.kubeCacheCancel = nil
 	p.kubeCacheDone = nil
 	p.kubeMu.Unlock()

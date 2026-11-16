@@ -188,7 +188,8 @@ data:
           experimental {
             api_server {
               cache {
-                enabled = true
+                enabled                      = true
+                rest_mapper_refresh_interval = "5s"
               }
             }
 

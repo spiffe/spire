@@ -61,6 +61,39 @@ func TestRefreshableRESTMapperRateLimitsRefresh(t *testing.T) {
 	require.NotEqual(t, generation, mapper.generation())
 }
 
+func TestRefreshableRESTMapperRefreshIfStale(t *testing.T) {
+	gvk := schema.GroupVersionKind{Group: "example.org", Version: "v1", Kind: "Widget"}
+	now := time.Unix(0, 0)
+
+	refreshes := 0
+	mapper := newRefreshableRESTMapper(meta.NewDefaultRESTMapper(nil), func() (meta.RESTMapper, error) {
+		refreshes++
+		return testRESTMapperFor(gvk), nil
+	})
+	mapper.now = func() time.Time { return now }
+	mapper.lastRefresh = now
+	mapper.refreshCooldown = 0
+
+	require.NoError(t, mapper.refreshIfStale(time.Minute))
+	require.Equal(t, 0, refreshes)
+	generation := mapper.generation()
+
+	now = now.Add(30 * time.Second)
+	require.NoError(t, mapper.refreshIfStale(time.Minute))
+	require.Equal(t, 0, refreshes)
+
+	now = now.Add(30 * time.Second)
+	require.NoError(t, mapper.refreshIfStale(time.Minute))
+	require.Equal(t, 1, refreshes)
+	require.NotEqual(t, generation, mapper.generation())
+
+	generation = mapper.generation()
+	now = now.Add(2 * time.Minute)
+	require.NoError(t, mapper.refreshIfStale(2*time.Minute))
+	require.Equal(t, 2, refreshes)
+	require.NotEqual(t, generation, mapper.generation())
+}
+
 func testRESTMapperFor(gvk schema.GroupVersionKind) meta.RESTMapper {
 	resource := schema.GroupVersionResource{
 		Group:    gvk.Group,

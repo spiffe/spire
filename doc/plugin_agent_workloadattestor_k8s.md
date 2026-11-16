@@ -87,6 +87,7 @@ These are the current experimental configurations.
 | experimental               | Description                                                                                                                                           | Default |
 |:---------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------|---------|
 | `api_server.cache.enabled` | If true, enables a controller-runtime Kubernetes API server cache for object-reference lookups.                                                       | false   |
+| `api_server.cache.rest_mapper_refresh_interval` | How often the REST mapper is refreshed for cached object-reference lookups. Refreshing picks up Kubernetes API version changes and removes stale informers. | `5m`    |
 | `broker`                   | Broker API options for `AttestReference`. Required when this plugin handles Broker API references. See [Broker API](#broker-api).                     |         |
 
 ## Sigstore feature
@@ -493,6 +494,11 @@ WorkloadAttestor "k8s" {
   }
 }
 ```
+
+When the cache is enabled, the plugin periodically refreshes Kubernetes API
+discovery. If a resource starts being served at a different API version, the
+plugin moves lookups to the new version and removes the informer for the old
+one. `rest_mapper_refresh_interval` controls how often this refresh happens.
 
 ## Platform support
 

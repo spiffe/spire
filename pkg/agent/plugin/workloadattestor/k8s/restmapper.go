@@ -30,16 +30,19 @@ type refreshableRESTMapper struct {
 
 	refreshCooldown time.Duration
 	lastMissRefresh time.Time
+	lastRefresh     time.Time
 	now             func() time.Time
 }
 
 func newRefreshableRESTMapper(mapper meta.RESTMapper, newMapper func() (meta.RESTMapper, error)) *refreshableRESTMapper {
-	return &refreshableRESTMapper{
+	m := &refreshableRESTMapper{
 		mapper:          mapper,
 		newMapper:       newMapper,
 		refreshCooldown: restMapperRefreshCooldown,
 		now:             time.Now,
 	}
+	m.lastRefresh = m.now()
+	return m
 }
 
 func (m *refreshableRESTMapper) current() meta.RESTMapper {
@@ -70,6 +73,33 @@ func (m *refreshableRESTMapper) refreshAfterMiss() error {
 		return err
 	}
 	m.lastMissRefresh = now
+	m.lastRefresh = now
+	m.mapper = mapper
+	m.gen++
+	return nil
+}
+
+// refreshIfStale replaces the mapper when its discovery information is older
+// than ttl. Replacing the mapper does not perform discovery; the next mapping
+// request does.
+func (m *refreshableRESTMapper) refreshIfStale(ttl time.Duration) error {
+	if ttl <= 0 {
+		return nil
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	now := m.now()
+	if now.Sub(m.lastRefresh) < ttl {
+		return nil
+	}
+
+	mapper, err := m.newMapper()
+	if err != nil {
+		return err
+	}
+	m.lastRefresh = now
 	m.mapper = mapper
 	m.gen++
 	return nil
