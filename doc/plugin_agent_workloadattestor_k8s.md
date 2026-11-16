@@ -84,11 +84,11 @@ since [hostprocess](https://kubernetes.io/docs/tasks/configure-pod-container/cre
 
 These are the current experimental configurations.
 
-| experimental               | Description                                                                                                                                           | Default |
-|:---------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------|---------|
-| `api_server.cache.enabled` | If true, enables a controller-runtime Kubernetes API server cache for object-reference lookups.                                                       | false   |
+| experimental                                    | Description                                                                                                                                                 | Default |
+|:------------------------------------------------|:------------------------------------------------------------------------------------------------------------------------------------------------------------|---------|
+| `api_server.cache.enabled`                      | If true, enables a controller-runtime Kubernetes API server cache for object-reference lookups.                                                             | false   |
 | `api_server.cache.rest_mapper_refresh_interval` | How often the REST mapper is refreshed for cached object-reference lookups. Refreshing picks up Kubernetes API version changes and removes stale informers. | `5m`    |
-| `broker`                   | Broker API options for `AttestReference`. Required when this plugin handles Broker API references. See [Broker API](#broker-api).                     |         |
+| `broker`                                        | Broker API options for `AttestReference`. Required when this plugin handles Broker API references. See [Broker API](#broker-api).                           |         |
 
 ## Sigstore feature
 
