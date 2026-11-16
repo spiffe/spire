@@ -42,6 +42,7 @@ import (
 	"google.golang.org/protobuf/types/known/anypb"
 	authv1 "k8s.io/api/authorization/v1"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -2705,6 +2706,69 @@ func (s *Suite) TestAttestReferenceGenericObjectRefreshesMapperOnNotFound() {
 	}
 	assert.Contains(s.T(), selectorValues, "version:v1")
 	assert.Contains(s.T(), selectorValues, "apiVersion:example.org/v1")
+	assert.Contains(s.T(), selectorValues, "name:widget-a")
+}
+
+func (s *Suite) TestAttestReferenceGenericObjectRefreshesMapperOnListNotFound() {
+	s.startInsecureKubelet()
+
+	group := "example.org"
+	oldGVK := schema.GroupVersionKind{Group: group, Version: "v1beta1", Kind: "Widget"}
+	newGVK := schema.GroupVersionKind{Group: group, Version: "v1", Kind: "Widget"}
+
+	refreshes := 0
+	mapper := newRefreshableRESTMapper(testRESTMapperFor(oldGVK), func() (meta.RESTMapper, error) {
+		refreshes++
+		return testRESTMapperFor(newGVK), nil
+	})
+	mapper.refreshCooldown = 0
+
+	obj := &metav1.PartialObjectMetadata{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "widget-a",
+			Namespace: "default",
+			UID:       "widget-uid",
+		},
+	}
+	obj.SetGroupVersionKind(newGVK)
+
+	listCalls := 0
+	kubeClient := fakeKubeClientWithSubjectAccessReviewAndRESTMapperAndInterceptors(true, nil, mapper, interceptor.Funcs{
+		List: func(ctx context.Context, c client.WithWatch, list client.ObjectList, opts ...client.ListOption) error {
+			listCalls++
+			if listCalls == 1 {
+				return apierrors.NewNotFound(schema.GroupResource{Group: group, Resource: "widgets"}, "")
+			}
+			return c.List(ctx, list, opts...)
+		},
+	}, obj)
+
+	p := s.loadPluginWithKubeClient(fmt.Sprintf(`
+		kubelet_read_only_port = %d
+		max_poll_attempts = 5
+		poll_retry_interval = "1s"
+		%s
+	`, s.kubeletPort(), testBrokerConfigWithClusterPodReferenceScope()), kubeClient)
+
+	anyRef, err := anypb.New(&broker.KubernetesObjectReference{
+		Type: &broker.KubernetesObjectType{
+			Plural: "widgets",
+			Group:  group,
+		},
+		Uid: "widget-uid",
+	})
+	s.Require().NoError(err)
+
+	selectors, err := p.AttestReference(testBrokerContext(), anyRef)
+	s.Require().NoError(err)
+	s.Require().Equal(1, refreshes)
+	s.Require().Equal(2, listCalls)
+
+	selectorValues := make([]string, 0, len(selectors))
+	for _, selector := range selectors {
+		selectorValues = append(selectorValues, selector.Value)
+	}
+	assert.Contains(s.T(), selectorValues, "version:v1")
 	assert.Contains(s.T(), selectorValues, "name:widget-a")
 }
 

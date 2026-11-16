@@ -8,23 +8,25 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
-// restMapperRefreshCooldown bounds how often a failed lookup can trigger a
-// fresh discovery round. Genuinely unknown resources would otherwise cause a
-// discovery request on every lookup.
+// restMapperRefreshCooldown bounds how often a failed object lookup can trigger
+// a fresh discovery round. Repeated lookups of objects that truly do not exist
+// would otherwise cause a discovery request each time.
 const restMapperRefreshCooldown = 30 * time.Second
 
 // refreshableRESTMapper wraps a RESTMapper whose cached discovery information
-// can become stale, for example when a CRD starts serving a new version or
-// stops serving an old one. A NoMatch result triggers a refresh and one retry;
-// callers can also refresh explicitly when an object read returns NotFound.
+// can become stale, for example when a CRD stops serving an old version.
+// Callers can request a fresh mapper after an object read returns NotFound.
 //
-// Refresh is rate limited so repeated lookups of resources that truly do not
-// exist do not hammer the Kubernetes API server.
+// Refresh is rate limited so repeated lookups of objects that truly do not
+// exist do not hammer the Kubernetes API server. The generation changes only
+// when the mapper is actually replaced, allowing callers to retry only when
+// the mapping could have changed.
 type refreshableRESTMapper struct {
 	mu sync.RWMutex
 
 	mapper    meta.RESTMapper
 	newMapper func() (meta.RESTMapper, error)
+	gen       uint64
 
 	refreshCooldown time.Duration
 	lastMissRefresh time.Time
@@ -46,6 +48,12 @@ func (m *refreshableRESTMapper) current() meta.RESTMapper {
 	return m.mapper
 }
 
+func (m *refreshableRESTMapper) generation() uint64 {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.gen
+}
+
 // refreshAfterMiss replaces the mapper with a fresh one unless a refresh was
 // already attempted within the cooldown window.
 func (m *refreshableRESTMapper) refreshAfterMiss() error {
@@ -56,84 +64,39 @@ func (m *refreshableRESTMapper) refreshAfterMiss() error {
 	if !m.lastMissRefresh.IsZero() && now.Sub(m.lastMissRefresh) < m.refreshCooldown {
 		return nil
 	}
+
 	mapper, err := m.newMapper()
 	if err != nil {
 		return err
 	}
 	m.lastMissRefresh = now
 	m.mapper = mapper
+	m.gen++
 	return nil
 }
 
-func (m *refreshableRESTMapper) retryOnNoMatch(lookup func(meta.RESTMapper) error) error {
-	err := lookup(m.current())
-	if err == nil || !meta.IsNoMatchError(err) {
-		return err
-	}
-	if refreshErr := m.refreshAfterMiss(); refreshErr != nil {
-		return refreshErr
-	}
-	return lookup(m.current())
-}
-
 func (m *refreshableRESTMapper) KindFor(resource schema.GroupVersionResource) (schema.GroupVersionKind, error) {
-	var gvk schema.GroupVersionKind
-	err := m.retryOnNoMatch(func(mapper meta.RESTMapper) error {
-		var err error
-		gvk, err = mapper.KindFor(resource)
-		return err
-	})
-	return gvk, err
+	return m.current().KindFor(resource)
 }
 
 func (m *refreshableRESTMapper) KindsFor(resource schema.GroupVersionResource) ([]schema.GroupVersionKind, error) {
-	var gvks []schema.GroupVersionKind
-	err := m.retryOnNoMatch(func(mapper meta.RESTMapper) error {
-		var err error
-		gvks, err = mapper.KindsFor(resource)
-		return err
-	})
-	return gvks, err
+	return m.current().KindsFor(resource)
 }
 
 func (m *refreshableRESTMapper) ResourceFor(input schema.GroupVersionResource) (schema.GroupVersionResource, error) {
-	var gvr schema.GroupVersionResource
-	err := m.retryOnNoMatch(func(mapper meta.RESTMapper) error {
-		var err error
-		gvr, err = mapper.ResourceFor(input)
-		return err
-	})
-	return gvr, err
+	return m.current().ResourceFor(input)
 }
 
 func (m *refreshableRESTMapper) ResourcesFor(input schema.GroupVersionResource) ([]schema.GroupVersionResource, error) {
-	var gvrs []schema.GroupVersionResource
-	err := m.retryOnNoMatch(func(mapper meta.RESTMapper) error {
-		var err error
-		gvrs, err = mapper.ResourcesFor(input)
-		return err
-	})
-	return gvrs, err
+	return m.current().ResourcesFor(input)
 }
 
 func (m *refreshableRESTMapper) RESTMapping(gk schema.GroupKind, versions ...string) (*meta.RESTMapping, error) {
-	var mapping *meta.RESTMapping
-	err := m.retryOnNoMatch(func(mapper meta.RESTMapper) error {
-		var err error
-		mapping, err = mapper.RESTMapping(gk, versions...)
-		return err
-	})
-	return mapping, err
+	return m.current().RESTMapping(gk, versions...)
 }
 
 func (m *refreshableRESTMapper) RESTMappings(gk schema.GroupKind, versions ...string) ([]*meta.RESTMapping, error) {
-	var mappings []*meta.RESTMapping
-	err := m.retryOnNoMatch(func(mapper meta.RESTMapper) error {
-		var err error
-		mappings, err = mapper.RESTMappings(gk, versions...)
-		return err
-	})
-	return mappings, err
+	return m.current().RESTMappings(gk, versions...)
 }
 
 func (m *refreshableRESTMapper) ResourceSingularizer(resource string) (string, error) {

@@ -9,7 +9,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
-func TestRefreshableRESTMapperRefreshesOnNoMatch(t *testing.T) {
+func TestRefreshableRESTMapperRefresh(t *testing.T) {
 	gvk := schema.GroupVersionKind{Group: "example.org", Version: "v1", Kind: "Widget"}
 	gvr := schema.GroupVersionResource{Group: gvk.Group, Version: gvk.Version, Resource: "widgets"}
 
@@ -18,12 +18,21 @@ func TestRefreshableRESTMapperRefreshesOnNoMatch(t *testing.T) {
 		refreshes++
 		return testRESTMapperFor(gvk), nil
 	})
-	mapper.refreshCooldown = 0
+
+	_, err := mapper.KindFor(gvr)
+	require.Error(t, err)
+	require.True(t, meta.IsNoMatchError(err))
+	require.Equal(t, uint64(0), mapper.generation())
+	require.Equal(t, 0, refreshes)
+
+	generation := mapper.generation()
+	require.NoError(t, mapper.refreshAfterMiss())
+	require.NotEqual(t, generation, mapper.generation())
+	require.Equal(t, 1, refreshes)
 
 	got, err := mapper.KindFor(gvr)
 	require.NoError(t, err)
 	require.Equal(t, gvk, got)
-	require.Equal(t, 1, refreshes)
 }
 
 func TestRefreshableRESTMapperRateLimitsRefresh(t *testing.T) {
@@ -38,20 +47,18 @@ func TestRefreshableRESTMapperRateLimitsRefresh(t *testing.T) {
 	mapper.now = func() time.Time { return now }
 	mapper.refreshCooldown = time.Minute
 
-	_, err := mapper.KindFor(schema.GroupVersionResource{Group: gvk.Group, Resource: "widgets"})
-	require.NoError(t, err)
+	require.NoError(t, mapper.refreshAfterMiss())
 	require.Equal(t, 1, refreshes)
+	generation := mapper.generation()
 
-	unknown := schema.GroupVersionResource{Group: "other.org", Resource: "things"}
-	_, err = mapper.KindFor(unknown)
-	require.Error(t, err)
-	require.True(t, meta.IsNoMatchError(err))
+	require.NoError(t, mapper.refreshAfterMiss())
 	require.Equal(t, 1, refreshes, "refresh should be rate limited")
+	require.Equal(t, generation, mapper.generation())
 
 	now = now.Add(time.Minute)
-	_, err = mapper.KindFor(unknown)
-	require.Error(t, err)
+	require.NoError(t, mapper.refreshAfterMiss())
 	require.Equal(t, 2, refreshes, "refresh should be allowed after the cooldown")
+	require.NotEqual(t, generation, mapper.generation())
 }
 
 func testRESTMapperFor(gvk schema.GroupVersionKind) meta.RESTMapper {

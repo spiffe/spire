@@ -1115,20 +1115,27 @@ func (p *Plugin) attestByObjectReference(ctx context.Context, objRef *broker.Kub
 		return nil, status.Errorf(codes.Internal, "unable to set up Kubernetes client: %v", err)
 	}
 
+	mapper := kubeClient.RESTMapper()
+	generation, refreshable := restMapperGeneration(mapper)
+
 	result, err := p.attestObjectReference(ctx, kubeClient, objRef)
-	if err == nil || status.Code(err) != codes.NotFound {
+	if err == nil || status.Code(err) != codes.NotFound || !refreshable {
 		return result, err
 	}
 
 	// A NotFound can mean the cached discovery information still points at an
 	// API version that no longer serves the resource. Refresh the mapper and
-	// retry once so a CRD that started serving a new version is picked up
-	// without restarting the agent.
-	refreshed, refreshErr := refreshRESTMapperAfterMiss(kubeClient.RESTMapper())
-	if refreshErr != nil {
+	// retry only if it was actually replaced, so a CRD that started serving a
+	// new version is picked up without restarting the agent.
+	//
+	// This covers the uncached path. With experimental.api_server.cache.enabled,
+	// an object already in the informer store can keep resolving at the old
+	// version, so NotFound may never fire; removing the stale informer is a
+	// follow-up.
+	if refreshErr := refreshRESTMapperAfterMiss(mapper); refreshErr != nil {
 		return nil, status.Errorf(codes.Internal, "unable to refresh Kubernetes REST mapper: %v", refreshErr)
 	}
-	if !refreshed {
+	if newGeneration, _ := restMapperGeneration(mapper); newGeneration == generation {
 		return nil, err
 	}
 	return p.attestObjectReference(ctx, kubeClient, objRef)
@@ -1198,17 +1205,29 @@ func (p *Plugin) attestObjectReference(ctx context.Context, kubeClient client.Cl
 	}, nil
 }
 
+// restMapperGeneration returns the mapper's refresh generation and whether the
+// mapper supports discovery refresh. A changed generation means the mapper was
+// replaced, so a failed lookup is worth retrying.
+func restMapperGeneration(mapper meta.RESTMapper) (uint64, bool) {
+	refresher, ok := mapper.(interface {
+		generation() uint64
+	})
+	if !ok {
+		return 0, false
+	}
+	return refresher.generation(), true
+}
+
 // refreshRESTMapperAfterMiss refreshes a mapper that supports discovery
-// invalidation. It reports whether the mapper was refreshable, so callers know
-// whether retrying the lookup can make a difference.
-func refreshRESTMapperAfterMiss(mapper meta.RESTMapper) (bool, error) {
+// invalidation.
+func refreshRESTMapperAfterMiss(mapper meta.RESTMapper) error {
 	refresher, ok := mapper.(interface {
 		refreshAfterMiss() error
 	})
 	if !ok {
-		return false, nil
+		return nil
 	}
-	return true, refresher.refreshAfterMiss()
+	return refresher.refreshAfterMiss()
 }
 
 func kubernetesAPIGroup(group string) string {
