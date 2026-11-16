@@ -357,7 +357,7 @@ func TestValidate(t *testing.T) {
 				CoreConfiguration: &configv1.CoreConfiguration{
 					TrustDomain: spiffeid.RequireTrustDomainFromString("localhost").Name(),
 				},
-				HclConfiguration: plainConfig,
+				Configuration: plainConfig,
 			}
 
 			p := new(Plugin)

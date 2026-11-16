@@ -54,11 +54,12 @@ func TestConfigureSQLite(t *testing.T) {
 }
 
 func TestConfigureSQLiteYAML(t *testing.T) {
+	path := sqlitePath(t)
 	ds := newSQLitePlugin(t)
 	require.NoError(t, ds.ConfigureFormat(context.Background(), fmt.Sprintf(`
 databaseType: sqlite3
 connectionString: %q
-`, sqlitePath(t)), catalog.ConfigFormatYAML))
+`, path), catalog.ConfigFormatYAML))
 
 	var fk struct{ ForeignKeys string }
 	require.NoError(t, ds.RawScan(&fk, "PRAGMA foreign_keys"))

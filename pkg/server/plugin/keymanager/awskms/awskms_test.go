@@ -2477,7 +2477,7 @@ func TestBuildKeyTagsEmpty(t *testing.T) {
 func configureRequestWithString(config string) *configv1.ConfigureRequest {
 	return &configv1.ConfigureRequest{
 		CoreConfiguration: &configv1.CoreConfiguration{TrustDomain: "test.example.org"},
-		HclConfiguration:  config,
+		Configuration:     config,
 	}
 }
 
@@ -2491,7 +2491,7 @@ const (
 func configureRequestWithVars(accessKeyID, secretAccessKey, region, keyIdentifierConfigName KeyIdentifierConfigName, keyIdentifierConfigValue, keyPolicyFile string) *configv1.ConfigureRequest {
 	return &configv1.ConfigureRequest{
 		CoreConfiguration: &configv1.CoreConfiguration{TrustDomain: "test.example.org"},
-		HclConfiguration: fmt.Sprintf(`{
+		Configuration: fmt.Sprintf(`{
 			"access_key_id": "%s",
 			"secret_access_key": "%s",
 			"region":"%s",
@@ -2510,7 +2510,7 @@ func configureRequestWithVars(accessKeyID, secretAccessKey, region, keyIdentifie
 func configureRequestWithDefaults(t *testing.T) *configv1.ConfigureRequest {
 	return &configv1.ConfigureRequest{
 		CoreConfiguration: &configv1.CoreConfiguration{TrustDomain: "test.example.org"},
-		HclConfiguration:  serializedConfiguration(validAccessKeyID, validSecretAccessKey, validRegion, KeyIdentifierFile, getKeyIdentifierFile(t)),
+		Configuration:     serializedConfiguration(validAccessKeyID, validSecretAccessKey, validRegion, KeyIdentifierFile, getKeyIdentifierFile(t)),
 	}
 }
 
@@ -2578,7 +2578,7 @@ func waitForSignal(t *testing.T, ch chan error) error {
 func configureTagBasedRequest(t *testing.T) *configv1.ConfigureRequest {
 	return &configv1.ConfigureRequest{
 		CoreConfiguration: &configv1.CoreConfiguration{TrustDomain: "test.example.org"},
-		HclConfiguration: fmt.Sprintf(`{
+		Configuration: fmt.Sprintf(`{
 			"access_key_id": %q,
 			"secret_access_key": %q,
 			"region": %q,

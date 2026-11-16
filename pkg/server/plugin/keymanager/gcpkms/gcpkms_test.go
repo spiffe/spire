@@ -1089,7 +1089,7 @@ func TestGenerateKey(t *testing.T) {
 			plugintest.Load(t, builtin(ts.plugin), km,
 				plugintest.CaptureConfigureError(&err),
 				plugintest.CoreConfig(coreConfig),
-				plugintest.Configure(configureReq.HclConfiguration),
+				plugintest.Configure(configureReq.Configuration),
 				plugintest.Log(ts.log),
 			)
 			require.NoError(t, err)
@@ -1793,7 +1793,7 @@ func configureRequestFromConfig(c *Config) *configv1.ConfigureRequest {
 		keyIdentifierValueHcl = ""
 	}
 	return &configv1.ConfigureRequest{
-		HclConfiguration: fmt.Sprintf(`{
+		Configuration: fmt.Sprintf(`{
 			%s
 			%s
 			"key_policy_file":"%s",
@@ -1811,21 +1811,21 @@ func configureRequestFromConfig(c *Config) *configv1.ConfigureRequest {
 
 func configureRequestWithDefaults(t *testing.T) *configv1.ConfigureRequest {
 	return &configv1.ConfigureRequest{
-		HclConfiguration:  serializedConfiguration(KeyIdentifierFile, createKeyIdentifierFile(t, validServerID), validKeyRing),
+		Configuration:     serializedConfiguration(KeyIdentifierFile, createKeyIdentifierFile(t, validServerID), validKeyRing),
 		CoreConfiguration: &configv1.CoreConfiguration{TrustDomain: "test.example.org"},
 	}
 }
 
 func configureRequestWithString(config string) *configv1.ConfigureRequest {
 	return &configv1.ConfigureRequest{
-		HclConfiguration:  config,
+		Configuration:     config,
 		CoreConfiguration: &configv1.CoreConfiguration{TrustDomain: "test.example.org"},
 	}
 }
 
 func configureRequestWithVars(keyIdentifierConfigName KeyIdentifierConfigName, keyIdentifierConfigValue, keyPolicyFile, keyRing, serviceAccountFile string) *configv1.ConfigureRequest {
 	return &configv1.ConfigureRequest{
-		HclConfiguration: fmt.Sprintf(`{
+		Configuration: fmt.Sprintf(`{
 			"%s":"%s",
 			"key_policy_file":"%s",
 			"key_ring":"%s"
