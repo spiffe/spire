@@ -39,6 +39,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/anypb"
 	authv1 "k8s.io/api/authorization/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -2766,6 +2767,62 @@ func (s *Suite) TestAttestReferenceGenericObjectRefreshesMapperOnListNotFound() 
 	}
 	assert.Contains(s.T(), selectorValues, "version:v1")
 	assert.Contains(s.T(), selectorValues, "name:widget-a")
+}
+
+func (s *Suite) TestAttestReferenceGenericObjectDoesNotRetryWithinCooldown() {
+	s.startInsecureKubelet()
+
+	group := "example.org"
+	oldGVK := schema.GroupVersionKind{Group: group, Version: "v1beta1", Kind: "Widget"}
+	newGVK := schema.GroupVersionKind{Group: group, Version: "v1", Kind: "Widget"}
+
+	now := time.Unix(0, 0)
+	refreshes := 0
+	mapper := newRefreshableRESTMapper(testRESTMapperFor(oldGVK), func() (meta.RESTMapper, error) {
+		refreshes++
+		return testRESTMapperFor(newGVK), nil
+	})
+	mapper.now = func() time.Time { return now }
+	mapper.refreshCooldown = time.Minute
+
+	gets := 0
+	kubeClient := fakeKubeClientWithSubjectAccessReviewAndRESTMapperAndInterceptors(true, nil, mapper, interceptor.Funcs{
+		Get: func(ctx context.Context, c client.WithWatch, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+			gets++
+			return c.Get(ctx, key, obj, opts...)
+		},
+	})
+
+	p := s.loadPluginWithKubeClient(fmt.Sprintf(`
+		kubelet_read_only_port = %d
+		max_poll_attempts = 5
+		poll_retry_interval = "1s"
+		%s
+	`, s.kubeletPort(), testBrokerConfigWithClusterPodReferenceScope()), kubeClient)
+
+	anyRef, err := anypb.New(&broker.KubernetesObjectReference{
+		Type: &broker.KubernetesObjectType{
+			Plural: "widgets",
+			Group:  group,
+		},
+		Key: &broker.KubernetesObjectKey{
+			Namespace: "default",
+			Name:      "missing-widget",
+		},
+	})
+	s.Require().NoError(err)
+
+	_, err = p.AttestReference(testBrokerContext(), anyRef)
+	s.Require().Error(err)
+	s.Require().Equal(codes.NotFound, status.Code(err))
+	s.Require().Equal(1, refreshes)
+	s.Require().Equal(2, gets)
+
+	_, err = p.AttestReference(testBrokerContext(), anyRef)
+	s.Require().Error(err)
+	s.Require().Equal(codes.NotFound, status.Code(err))
+	s.Require().Equal(1, refreshes, "mapper should not be refreshed again within the cooldown")
+	s.Require().Equal(3, gets, "lookup should not be retried within the cooldown")
 }
 
 func (s *Suite) TestAttestReferenceBrokerRBACUsesResolvedGenericObject() {
