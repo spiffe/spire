@@ -2668,11 +2668,9 @@ func (s *Suite) TestAttestReferenceGenericObjectRefreshesMapperOnNotFound() {
 	mapper.refreshCooldown = 0
 
 	obj := &metav1.PartialObjectMetadata{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "widget-a",
-			Namespace: "default",
-			UID:       "widget-uid",
-		},
+		Name:      "widget-a",
+		Namespace: "default",
+		UID:       "widget-uid",
 	}
 	obj.SetGroupVersionKind(newGVK)
 
@@ -2724,11 +2722,9 @@ func (s *Suite) TestAttestReferenceGenericObjectRefreshesMapperOnListNotFound() 
 	mapper.refreshCooldown = 0
 
 	obj := &metav1.PartialObjectMetadata{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "widget-a",
-			Namespace: "default",
-			UID:       "widget-uid",
-		},
+		Name:      "widget-a",
+		Namespace: "default",
+		UID:       "widget-uid",
 	}
 	obj.SetGroupVersionKind(newGVK)
 
