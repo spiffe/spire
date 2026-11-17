@@ -184,46 +184,102 @@ func TestNewSession(t *testing.T) {
 	}
 }
 
-func TestNewSessionFallsBackToRSAStorageRootKey(t *testing.T) {
-	setupSimulator(t)
-
-	// TPM_ECC_NONE is not a valid curve for a key, so the ECC storage root key
-	// cannot be created
-	tpmutil.SetAKSRKTemplateECC(t, func() tpm2.Public {
-		template := tpmutil.SRKTemplateHighECC()
+func TestNewSessionAKStorageRootKey(t *testing.T) {
+	// TPM_ECC_NONE is not a valid curve for a key, so the TPM rejects the
+	// template
+	invalidCurve := func(template tpm2.Public) tpm2.Public {
 		template.ECCParameters.CurveID = tpm2.EllipticCurve(0x0000)
 		return template
-	})
-
-	var devicePath string
-	if !isWindows {
-		devicePath = "/dev/tpmrm0"
 	}
 
-	for _, devID := range []struct {
-		name string
-		cred *tpmsimulator.Credential
+	tests := []struct {
+		name        string
+		eccDevID    bool
+		template    func(tpm2.Public) tpm2.Public
+		fillSlots   bool
+		expErr      string
+		expFallback bool
 	}{
-		{name: "RSA", cred: devIDRSA},
-		{name: "ECC", cred: devIDECC},
-	} {
-		t.Run(devID.name, func(t *testing.T) {
+		{
+			name:        "falls back to RSA if the ECC template is rejected with an RSA DevID",
+			template:    invalidCurve,
+			expFallback: true,
+		},
+		{
+			name:        "falls back to RSA if the ECC template is rejected with an ECC DevID",
+			eccDevID:    true,
+			template:    invalidCurve,
+			expFallback: true,
+		},
+		{
+			name:      "does not fall back to RSA if the error is not caused by the template",
+			template:  func(template tpm2.Public) tpm2.Public { return template },
+			fillSlots: true,
+			expErr:    "cannot create attestation key: failed to create SRK: warning code 0x2 : out of memory for object contexts",
+		},
+		{
+			name:        "returns both errors if the RSA fallback fails",
+			template:    invalidCurve,
+			fillSlots:   true,
+			expErr:      "cannot create attestation key: failed to create SRK: ECC: parameter 2, error code 0x26 : curve not supported\nRSA: warning code 0x2 : out of memory for object contexts",
+			expFallback: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sim := setupSimulator(t)
+
+			devID := devIDRSA
+			if tt.eccDevID {
+				devID = devIDECC
+			}
+
+			tpmutil.SetAKSRKTemplateECC(t, func() tpm2.Public {
+				// The DevID key already occupies one of the three object slots
+				// of the simulator. Fill the remaining two once the DevID is
+				// loaded, so that no storage root key can be created for the AK.
+				if tt.fillSlots {
+					for range 2 {
+						closer := createTPMKey(t, sim)
+						t.Cleanup(func() { closer.Close() })
+					}
+				}
+				return tt.template(tpmutil.SRKTemplateHighECC())
+			})
+
+			var devicePath string
+			if !isWindows {
+				devicePath = "/dev/tpmrm0"
+			}
+
 			logBuf := new(bytes.Buffer)
 			tpm, err := tpmutil.NewSession(&tpmutil.SessionConfig{
-				DevIDPriv:  devID.cred.PrivateBlob,
-				DevIDPub:   devID.cred.PublicBlob,
+				DevIDPriv:  devID.PrivateBlob,
+				DevIDPub:   devID.PublicBlob,
 				DevicePath: devicePath,
 				Log:        hclog.New(&hclog.LoggerOptions{Output: logBuf}),
 				Passwords:  tpmPasswords,
 			})
+
+			if tt.expFallback {
+				require.Contains(t, logBuf.String(), "falling back to RSA")
+			} else {
+				require.NotContains(t, logBuf.String(), "falling back to RSA")
+			}
+
+			if tt.expErr != "" {
+				require.EqualError(t, err, tt.expErr)
+				require.Nil(t, tpm)
+				return
+			}
+
 			require.NoError(t, err)
 			defer tpm.Close()
 
-			require.Contains(t, logBuf.String(), "falling back to RSA")
-
 			akPub, err := tpm2.DecodePublic(tpm.GetAKPublic())
 			require.NoError(t, err)
-			devIDPub, err := tpm2.DecodePublic(devID.cred.PublicBlob)
+			devIDPub, err := tpm2.DecodePublic(devID.PublicBlob)
 			require.NoError(t, err)
 
 			attData, signature, err := tpm.CertifyDevIDKey()

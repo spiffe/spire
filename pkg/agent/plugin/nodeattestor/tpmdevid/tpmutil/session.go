@@ -341,18 +341,25 @@ func (c *Session) loadKey(publicKey, privateKey []byte, parentKeyPassword, keyPa
 // RSA certification signatures. The storage parent wrapping it is only
 // agent-local, never transmitted to the server, so it may use the more
 // performant ECC. ECC is only mandated by the TCG PC Client Platform TPM
-// Profile, so RSA is used as a fallback on TPMs that cannot create the ECC
-// storage root key.
+// Profile, so RSA is used as a fallback on TPMs that reject the ECC storage
+// root key template.
 func (c *Session) createAttestationKey(parentKeyPassword, keyPassword string) ([]byte, []byte, tpm2.Public, error) {
 	srkTemplate := akSRKTemplateECC()
-	srkHandle, err := c.createSRK(parentKeyPassword, srkTemplate)
-	if err != nil {
-		c.log.Warn(fmt.Sprintf("Failed to create ECC storage root key for the attestation key, falling back to RSA: %v", err))
+	srkHandle, eccErr := c.createSRK(parentKeyPassword, srkTemplate)
+	if eccErr != nil {
+		if !isTemplateError(eccErr) {
+			return nil, nil, tpm2.Public{}, fmt.Errorf("failed to create SRK: %w", eccErr)
+		}
 
+		c.log.Warn(fmt.Sprintf("Failed to create ECC storage root key for the attestation key, falling back to RSA: %v", eccErr))
+
+		var rsaErr error
 		srkTemplate = SRKTemplateHighRSA()
-		srkHandle, err = c.createSRK(parentKeyPassword, srkTemplate)
-		if err != nil {
-			return nil, nil, tpm2.Public{}, fmt.Errorf("failed to create SRK: %w", err)
+		srkHandle, rsaErr = c.createSRK(parentKeyPassword, srkTemplate)
+		if rsaErr != nil {
+			return nil, nil, tpm2.Public{}, fmt.Errorf("failed to create SRK: %w", errors.Join(
+				fmt.Errorf("ECC: %w", eccErr),
+				fmt.Errorf("RSA: %w", rsaErr)))
 		}
 	}
 	defer c.flushContext(srkHandle)
@@ -381,6 +388,14 @@ func (c *Session) createSRK(password string, template tpm2.Public) (tpmutil.Hand
 			password,
 			template)
 	return srkHandle, err
+}
+
+// isTemplateError returns true if the TPM rejected the inPublic parameter of
+// TPM2_CreatePrimary, which is how a TPM reports an unsupported algorithm or
+// curve in the key template.
+func isTemplateError(err error) bool {
+	var paramErr tpm2.ParameterError
+	return errors.As(err, &paramErr) && paramErr.Parameter == tpm2.RC2
 }
 
 // createPolicySessionForEK creates a session-based authorization to access EK.
