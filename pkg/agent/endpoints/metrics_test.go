@@ -9,6 +9,7 @@ import (
 	secret_v3 "github.com/envoyproxy/go-control-plane/envoy/service/secret/v3"
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
+	"github.com/spiffe/go-spiffe/v2/exp/proto/spiffe/broker"
 	workload_pb "github.com/spiffe/go-spiffe/v2/proto/spiffe/workload"
 	debugv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/agent/debug/v1"
 	delegatedidentityv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/agent/delegatedidentity/v1"
@@ -94,6 +95,7 @@ func TestAllAgentServicesHandledByConnectionMetrics(t *testing.T) {
 			debugv1.RegisterDebugServer(s, &fakeDebugServer{})
 			loggerv1.RegisterLoggerServer(s, &fakeLoggerServer{})
 			delegatedidentityv1.RegisterDelegatedIdentityServer(s, &fakeDelegatedIdentityServer{})
+			broker.RegisterAPIServer(s, &broker.UnimplementedAPIServer{})
 		},
 		grpctest.Middleware(Middleware(log, metrics)),
 	)
@@ -142,6 +144,13 @@ func TestAllAgentServicesHandledByConnectionMetrics(t *testing.T) {
 		hook.Reset()
 		client := delegatedidentityv1.NewDelegatedIdentityClient(conn)
 		_, _ = client.FetchJWTSVIDs(ctx, &delegatedidentityv1.FetchJWTSVIDsRequest{})
+		assertNoMisconfigurationLog(t, hook)
+	})
+
+	t.Run("Broker", func(t *testing.T) {
+		hook.Reset()
+		client := broker.NewAPIClient(conn)
+		_, _ = client.FetchJWTSVID(ctx, &broker.FetchJWTSVIDRequest{})
 		assertNoMisconfigurationLog(t, hook)
 	})
 }
