@@ -123,7 +123,7 @@ func (p *MSIAttestorPlugin) buildConfig(coreConfig catalog.CoreConfig, hclText s
 
 		// Use tenant-specific credentials for resolving selectors
 		switch {
-		case tenant.SubscriptionID != "", tenant.AppID != "", tenant.AppSecret != "":
+		case tenant.AppID != "", tenant.AppSecret != "":
 			if tenant.SubscriptionID == "" {
 				status.ReportErrorf("misconfigured tenant %q: missing subscription id", tenantID)
 			}
@@ -145,15 +145,25 @@ func (p *MSIAttestorPlugin) buildConfig(coreConfig catalog.CoreConfig, hclText s
 			}
 
 		default:
-			instanceMetadata, err := p.hooks.fetchInstanceMetadata(http.DefaultClient)
-			if err != nil {
-				status.ReportError(err.Error())
+			// Without app credentials, use the default credential (e.g.
+			// managed identity or workload identity). The subscription is
+			// taken from the configuration when set, which avoids depending
+			// on the VM instance metadata service. Otherwise it is discovered
+			// from the instance metadata.
+			subscriptionID := tenant.SubscriptionID
+			if subscriptionID == "" {
+				instanceMetadata, err := p.hooks.fetchInstanceMetadata(http.DefaultClient)
+				if err != nil {
+					status.ReportErrorf("unable to discover subscription id for tenant %q from instance metadata, consider setting subscription_id: %v", tenantID, err)
+					continue
+				}
+				subscriptionID = instanceMetadata.Compute.SubscriptionID
 			}
 			cred, err := p.hooks.fetchCredential(tenantID)
 			if err != nil {
 				status.ReportErrorf("unable to fetch client credential: %v", err)
 			}
-			client, err = p.hooks.newClient(instanceMetadata.Compute.SubscriptionID, cred)
+			client, err = p.hooks.newClient(subscriptionID, cred)
 			if err != nil {
 				status.ReportErrorf("unable to create client with default credential: %v", err)
 			}
