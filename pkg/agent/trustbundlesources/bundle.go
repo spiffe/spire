@@ -94,6 +94,13 @@ func (b *Bundle) SetSuccessIfRunning() error {
 }
 
 func (b *Bundle) SetSuccess() error {
+	if b.startTime.IsZero() {
+		// No bootstrap is in progress (the start time is unset), so there is
+		// nothing to mark as successful. Returning early avoids logging a
+		// spurious success duration measured from the zero time and avoids
+		// overwriting the cached trust bundle with an empty one.
+		return nil
+	}
 	b.log.Info(fmt.Sprintf("Success after %s attempts=%d", time.Since(b.startTime), b.connectionAttempts))
 	b.use = UseRebootstrap
 	b.connectionAttempts = 0
