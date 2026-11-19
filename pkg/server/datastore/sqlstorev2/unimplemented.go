@@ -46,18 +46,6 @@ func (ds *Plugin) UpdateRegistrationEntry(_ context.Context, _ *common.Registrat
 	return nil, errNotImplemented
 }
 
-func (ds *Plugin) ListRegistrationEntryEvents(_ context.Context, _ *datastore.ListRegistrationEntryEventsRequest) (*datastore.ListRegistrationEntryEventsResponse, error) {
-	return nil, errNotImplemented
-}
-
-func (ds *Plugin) PruneRegistrationEntryEvents(_ context.Context, _ time.Duration) error {
-	return errNotImplemented
-}
-
-func (ds *Plugin) FetchRegistrationEntryEvent(_ context.Context, _ uint) (*datastore.RegistrationEntryEvent, error) {
-	return nil, errNotImplemented
-}
-
 func (ds *Plugin) CountAttestedNodes(_ context.Context, _ *datastore.CountAttestedNodesRequest) (int32, error) {
 	return 0, errNotImplemented
 }
@@ -86,15 +74,11 @@ func (ds *Plugin) PruneAttestedExpiredNodes(_ context.Context, _ time.Time, _ bo
 	return errNotImplemented
 }
 
-func (ds *Plugin) ListAttestedNodeEvents(_ context.Context, _ *datastore.ListAttestedNodeEventsRequest) (*datastore.ListAttestedNodeEventsResponse, error) {
+func (ds *Plugin) FetchAttestedNodeChanges(_ context.Context, _ *datastore.FetchAttestedNodeChangesRequest) (*datastore.FetchAttestedNodeChangesResponse, error) {
 	return nil, errNotImplemented
 }
 
-func (ds *Plugin) PruneAttestedNodeEvents(_ context.Context, _ time.Duration) error {
-	return errNotImplemented
-}
-
-func (ds *Plugin) FetchAttestedNodeEvent(_ context.Context, _ uint) (*datastore.AttestedNodeEvent, error) {
+func (ds *Plugin) FetchRegistrationEntryChanges(_ context.Context, _ *datastore.FetchRegistrationEntryChangesRequest) (*datastore.FetchRegistrationEntryChangesResponse, error) {
 	return nil, errNotImplemented
 }
 
@@ -107,5 +91,25 @@ func (ds *Plugin) ListNodeSelectors(_ context.Context, _ *datastore.ListNodeSele
 }
 
 func (ds *Plugin) SetNodeSelectors(_ context.Context, _ string, _ []*common.Selector) error {
+	return errNotImplemented
+}
+
+func (ds *Plugin) CreateRegistrationEntryEventForTesting(_ context.Context, _ *datastore.RegistrationEntryEvent) error {
+	return errNotImplemented
+}
+
+func (ds *Plugin) DeleteRegistrationEntryEventForTesting(_ context.Context, _ uint) error {
+	return errNotImplemented
+}
+
+func (ds *Plugin) CreateAttestedNodeEventForTesting(_ context.Context, _ *datastore.AttestedNodeEvent) error {
+	return errNotImplemented
+}
+
+func (ds *Plugin) DeleteAttestedNodeEventForTesting(_ context.Context, _ uint) error {
+	return errNotImplemented
+}
+
+func (ds *Plugin) PruneEventsForTesting(_ context.Context, _ time.Duration) error {
 	return errNotImplemented
 }
