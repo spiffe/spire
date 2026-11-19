@@ -1458,6 +1458,27 @@ func TestNewServerConfig(t *testing.T) {
 			},
 		},
 		{
+			msg: "ml-dsa-65 ca_key_type is correctly parsed and is set as default for jwt key",
+			input: func(c *Config) {
+				c.Server.CAKeyType = "ml-dsa-65"
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Equal(t, keymanager.MLDSA65, c.CAKeyType)
+				require.Equal(t, keymanager.MLDSA65, c.JWTKeyType)
+			},
+		},
+		{
+			msg: "ml-dsa-44 jwt_key_type overrides ml-dsa-87 ca_key_type",
+			input: func(c *Config) {
+				c.Server.CAKeyType = "ml-dsa-87"
+				c.Server.JWTKeyType = "ml-dsa-44"
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Equal(t, keymanager.MLDSA87, c.CAKeyType)
+				require.Equal(t, keymanager.MLDSA44, c.JWTKeyType)
+			},
+		},
+		{
 			msg:         "unsupported ca_key_type is rejected",
 			expectError: true,
 			input: func(c *Config) {

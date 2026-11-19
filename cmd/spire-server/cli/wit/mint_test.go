@@ -425,6 +425,30 @@ func TestValidateKeyTypeAndAlgorithm(t *testing.T) {
 			expectedKeyType:  keymanager.ECP384,
 		},
 		{
+			name:             "key type 'ml-dsa-44' with signing algorithm 'ML-DSA-44'",
+			keyType:          "ml-dsa-44",
+			signingAlgorithm: "ML-DSA-44",
+			expectedKeyType:  keymanager.MLDSA44,
+		},
+		{
+			name:             "key type 'ml-dsa-65' with signing algorithm 'ML-DSA-65'",
+			keyType:          "ml-dsa-65",
+			signingAlgorithm: "ML-DSA-65",
+			expectedKeyType:  keymanager.MLDSA65,
+		},
+		{
+			name:             "key type 'ml-dsa-87' with signing algorithm 'ML-DSA-87'",
+			keyType:          "ml-dsa-87",
+			signingAlgorithm: "ML-DSA-87",
+			expectedKeyType:  keymanager.MLDSA87,
+		},
+		{
+			name:             "mismatched ML-DSA key type and signing algorithm",
+			keyType:          "ml-dsa-44",
+			signingAlgorithm: "ML-DSA-65",
+			err:              errors.New("unsupported key type 'ml-dsa-44' for 'ML-DSA-65' signing algorithm"),
+		},
+		{
 			name:             "valid key type with invalid signing algorithm",
 			keyType:          "ec-p256",
 			signingAlgorithm: "ES1",
