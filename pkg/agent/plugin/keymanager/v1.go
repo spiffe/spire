@@ -3,6 +3,7 @@ package keymanager
 import (
 	"context"
 	"crypto"
+	"crypto/mldsa"
 	"crypto/rsa"
 	"crypto/x509"
 	"io"
@@ -112,6 +113,12 @@ func (v1 *V1) convertKeyType(t KeyType) (keymanagerv1.KeyType, error) {
 		return keymanagerv1.KeyType_RSA_2048, nil
 	case RSA4096:
 		return keymanagerv1.KeyType_RSA_4096, nil
+	case MLDSA44:
+		return keymanagerv1.KeyType_ML_DSA_44, nil
+	case MLDSA65:
+		return keymanagerv1.KeyType_ML_DSA_65, nil
+	case MLDSA87:
+		return keymanagerv1.KeyType_ML_DSA_87, nil
 	default:
 		return keymanagerv1.KeyType_UNSPECIFIED_KEY_TYPE, v1.Errorf(codes.Internal, "facade does not support key type %q", t)
 	}
@@ -148,6 +155,12 @@ func (s *v1Key) signContext(ctx context.Context, digest []byte, opts crypto.Sign
 	ctx, cancel := context.WithTimeout(ctx, rpcTimeout)
 	defer cancel()
 
+	if _, ok := s.publicKey.(*mldsa.PublicKey); ok {
+		if _, isPSS := opts.(*rsa.PSSOptions); isPSS || (opts != nil && opts.HashFunc() != crypto.Hash(0)) {
+			return nil, status.Error(codes.InvalidArgument, "ML-DSA keys sign the full message; hash algorithm must not be set")
+		}
+	}
+
 	req := &keymanagerv1.SignDataRequest{
 		KeyId: s.id,
 		Data:  digest,
@@ -160,6 +173,12 @@ func (s *v1Key) signContext(ctx context.Context, digest []byte, opts crypto.Sign
 				HashAlgorithm: s.v1.convertHashAlgorithm(opts.Hash),
 			},
 		}
+	case *mldsa.Options:
+		// Context can't be sent to plugins.
+		if opts.Context != "" {
+			return nil, status.Error(codes.InvalidArgument, "ML-DSA context is not supported")
+		}
+		req.SignerOpts = &keymanagerv1.SignDataRequest_HashAlgorithm{}
 	case nil:
 		return nil, status.Error(codes.InvalidArgument, "signer opts cannot be nil")
 	default:

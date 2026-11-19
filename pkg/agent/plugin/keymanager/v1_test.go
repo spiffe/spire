@@ -3,6 +3,7 @@ package keymanager_test
 import (
 	"context"
 	"crypto"
+	"crypto/mldsa"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
@@ -25,8 +26,10 @@ import (
 )
 
 var (
-	testKey            = testkey.MustRSA2048()
-	testKeyPKIXData, _ = x509.MarshalPKIXPublicKey(testKey.Public())
+	testKey              = testkey.MustRSA2048()
+	testKeyPKIXData, _   = x509.MarshalPKIXPublicKey(testKey.Public())
+	testMLDSAKey, _      = mldsa.GenerateKey(mldsa.MLDSA44())
+	testMLDSAPKIXData, _ = x509.MarshalPKIXPublicKey(testMLDSAKey.Public())
 )
 
 func TestV1GenerateKey(t *testing.T) {
@@ -222,12 +225,14 @@ func TestV1SignData(t *testing.T) {
 	hashAlgorithm := &keymanagerv1.SignDataRequest_HashAlgorithm{
 		HashAlgorithm: keymanagerv1.HashAlgorithm_SHA256,
 	}
+	noHashAlgorithm := &keymanagerv1.SignDataRequest_HashAlgorithm{}
 	pssOptions := &keymanagerv1.SignDataRequest_PssOptions{
 		PssOptions: &keymanagerv1.SignDataRequest_PSSOptions{HashAlgorithm: keymanagerv1.HashAlgorithm_SHA384, SaltLength: 123},
 	}
 
 	for _, tt := range []struct {
 		test             string
+		pkixData         []byte
 		err              error
 		signerOpts       crypto.SignerOpts
 		signature        string
@@ -287,13 +292,71 @@ func TestV1SignData(t *testing.T) {
 			expectSignerOpts: pssOptions,
 			expectCode:       codes.OK,
 		},
+		{
+			test:             "success with no hash",
+			signerOpts:       crypto.Hash(0),
+			fingerprint:      "foo1",
+			signature:        "SIGNATURE",
+			expectSignerOpts: noHashAlgorithm,
+			expectCode:       codes.OK,
+		},
+		{
+			test:             "success with ML-DSA options",
+			signerOpts:       &mldsa.Options{},
+			fingerprint:      "foo1",
+			signature:        "SIGNATURE",
+			expectSignerOpts: noHashAlgorithm,
+			expectCode:       codes.OK,
+		},
+		{
+			test:             "success with ML-DSA key",
+			pkixData:         testMLDSAPKIXData,
+			signerOpts:       crypto.Hash(0),
+			fingerprint:      "foo1",
+			signature:        "SIGNATURE",
+			expectSignerOpts: noHashAlgorithm,
+			expectCode:       codes.OK,
+		},
+		{
+			test:          "ML-DSA key with hash",
+			pkixData:      testMLDSAPKIXData,
+			signerOpts:    crypto.SHA256,
+			expectCode:    codes.InvalidArgument,
+			expectMessage: "ML-DSA keys sign the full message; hash algorithm must not be set",
+		},
+		{
+			test:          "ML-DSA key with mu",
+			pkixData:      testMLDSAPKIXData,
+			signerOpts:    crypto.MLDSAMu,
+			expectCode:    codes.InvalidArgument,
+			expectMessage: "ML-DSA keys sign the full message; hash algorithm must not be set",
+		},
+		{
+			test:          "ML-DSA key with PSS options",
+			pkixData:      testMLDSAPKIXData,
+			signerOpts:    &rsa.PSSOptions{Hash: crypto.SHA256},
+			expectCode:    codes.InvalidArgument,
+			expectMessage: "ML-DSA keys sign the full message; hash algorithm must not be set",
+		},
+		{
+			test:          "ML-DSA context not supported",
+			signerOpts:    &mldsa.Options{Context: "ctx"},
+			fingerprint:   "foo1",
+			signature:     "SIGNATURE",
+			expectCode:    codes.InvalidArgument,
+			expectMessage: "ML-DSA context is not supported",
+		},
 	} {
 		t.Run(tt.test, func(t *testing.T) {
+			pkixData := testKeyPKIXData
+			if tt.pkixData != nil {
+				pkixData = tt.pkixData
+			}
 			plugin := fakeV1Plugin{
 				expectSignerOpts: tt.expectSignerOpts,
 				getPublicKeysResponse: &keymanagerv1.GetPublicKeysResponse{
 					PublicKeys: []*keymanagerv1.PublicKey{
-						{Id: "foo", PkixData: testKeyPKIXData, Fingerprint: "foo1"},
+						{Id: "foo", PkixData: pkixData, Fingerprint: "foo1"},
 					},
 				},
 				signDataResponse: &keymanagerv1.SignDataResponse{

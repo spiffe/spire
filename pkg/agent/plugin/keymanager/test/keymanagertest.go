@@ -5,6 +5,7 @@ import (
 	"crypto"
 	"crypto/ecdsa"
 	"crypto/elliptic"
+	"crypto/mldsa"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
@@ -29,6 +30,7 @@ type keyAlgorithm int
 const (
 	keyAlgorithmEC keyAlgorithm = iota
 	keyAlgorithmRSA
+	keyAlgorithmMLDSA
 )
 
 var (
@@ -39,11 +41,20 @@ var (
 		keymanager.ECP384:  keyAlgorithmEC,
 		keymanager.RSA2048: keyAlgorithmRSA,
 		keymanager.RSA4096: keyAlgorithmRSA,
+		keymanager.MLDSA44: keyAlgorithmMLDSA,
+		keymanager.MLDSA65: keyAlgorithmMLDSA,
+		keymanager.MLDSA87: keyAlgorithmMLDSA,
 	}
 
 	expectCurve = map[keymanager.KeyType]elliptic.Curve{
 		keymanager.ECP256: elliptic.P256(),
 		keymanager.ECP384: elliptic.P384(),
+	}
+
+	expectMLDSAParameters = map[keymanager.KeyType]mldsa.Parameters{
+		keymanager.MLDSA44: mldsa.MLDSA44(),
+		keymanager.MLDSA65: mldsa.MLDSA65(),
+		keymanager.MLDSA87: mldsa.MLDSA87(),
 	}
 
 	expectBits = map[keymanager.KeyType]int{
@@ -85,6 +96,8 @@ func (config *Config) testKeyWithID(t *testing.T, key keymanager.Key, keyType ke
 		assertRSAKey(t, key, expectBits[keyType])
 	case keyAlgorithmEC:
 		assertECKey(t, key, expectCurve[keyType])
+	case keyAlgorithmMLDSA:
+		assertMLDSAKey(t, key, expectMLDSAParameters[keyType])
 	default:
 		require.Fail(t, "unexpected key algorithm", "key algorithm", keyAlgorithm)
 	}
@@ -122,6 +135,9 @@ func Test(t *testing.T, config Config) {
 		keymanager.ECP384:  ecdsaAlgorithms,
 		keymanager.RSA2048: rsaAlgorithms,
 		keymanager.RSA4096: rsaAlgorithms,
+		keymanager.MLDSA44: {x509.MLDSA44},
+		keymanager.MLDSA65: {x509.MLDSA65},
+		keymanager.MLDSA87: {x509.MLDSA87},
 	}
 
 	config.signatureAlgorithms = make(map[keymanager.KeyType][]x509.SignatureAlgorithm)
@@ -253,6 +269,12 @@ func assertECKey(t *testing.T, key keymanager.Key, curve elliptic.Curve) {
 	publicKey, ok := key.Public().(*ecdsa.PublicKey)
 	require.True(t, ok, "type %T is not ECDSA public key", key.Public())
 	require.Equal(t, curve, publicKey.Curve, "unexpected curve")
+}
+
+func assertMLDSAKey(t *testing.T, key keymanager.Key, params mldsa.Parameters) {
+	publicKey, ok := key.Public().(*mldsa.PublicKey)
+	require.True(t, ok, "type %T is not ML-DSA public key", key.Public())
+	require.Equal(t, params, publicKey.Parameters(), "unexpected parameters")
 }
 
 func assertRSAKey(t *testing.T, key keymanager.Key, bits int) {
