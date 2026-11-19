@@ -3,6 +3,7 @@ package cryptoutil
 import (
 	"crypto"
 	"crypto/ecdsa"
+	"crypto/mldsa"
 	"crypto/rsa"
 	"fmt"
 
@@ -15,6 +16,8 @@ func PublicKeyEqual(a, b crypto.PublicKey) (bool, error) {
 		return a.Equal(b), nil
 	case *ecdsa.PublicKey:
 		return a.Equal(b), nil
+	case *mldsa.PublicKey:
+		return a.Equal(b), nil
 	default:
 		return false, fmt.Errorf("unsupported public key type %T", a)
 	}
@@ -26,6 +29,8 @@ func KeyMatches(privateKey crypto.PrivateKey, publicKey crypto.PublicKey) (bool,
 		return privateKey.PublicKey.Equal(publicKey), nil
 	case *ecdsa.PrivateKey:
 		return privateKey.PublicKey.Equal(publicKey), nil
+	case *mldsa.PrivateKey:
+		return privateKey.PublicKey().Equal(publicKey), nil
 	default:
 		return false, fmt.Errorf("unsupported private key type %T", privateKey)
 	}
@@ -49,6 +54,17 @@ func JoseAlgFromPublicKey(publicKey any) (jose.SignatureAlgorithm, error) {
 			alg = jose.ES384
 		default:
 			return "", fmt.Errorf("unable to determine signature algorithm for EC public key size %d", params.BitSize)
+		}
+	case *mldsa.PublicKey:
+		switch params := publicKey.Parameters(); params {
+		case mldsa.MLDSA44():
+			alg = jose.MLDSA44
+		case mldsa.MLDSA65():
+			alg = jose.MLDSA65
+		case mldsa.MLDSA87():
+			alg = jose.MLDSA87
+		default:
+			return "", fmt.Errorf("unable to determine signature algorithm for ML-DSA parameters %s", params)
 		}
 	default:
 		return "", fmt.Errorf("unable to determine signature algorithm for public key type %T", publicKey)
