@@ -223,7 +223,7 @@ func TestRotator(t *testing.T) {
 			cancel()
 			select {
 			case err = <-errCh:
-				require.True(t, errors.Is(err, context.Canceled), "expected %v, not %v", context.Canceled, err)
+				require.ErrorIs(t, err, context.Canceled, "expected %v, not %v", context.Canceled, err)
 			case <-time.After(testTimeout):
 				t.Fatal("timed out waiting for the rotator to shut down")
 			}

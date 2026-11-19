@@ -143,7 +143,7 @@ func TestMergeInput(t *testing.T) {
 			fileInput: func(c *Config) {},
 			cliInput:  func(ac *agentConfig) {},
 			test: func(t *testing.T, c *Config) {
-				require.Equal(t, false, c.Agent.SDS.DisableSPIFFECertValidation)
+				require.False(t, c.Agent.SDS.DisableSPIFFECertValidation)
 			},
 		},
 		{
@@ -155,7 +155,7 @@ func TestMergeInput(t *testing.T) {
 			},
 			cliInput: func(ac *agentConfig) {},
 			test: func(t *testing.T, c *Config) {
-				require.Equal(t, true, c.Agent.SDS.DisableSPIFFECertValidation)
+				require.True(t, c.Agent.SDS.DisableSPIFFECertValidation)
 			},
 		},
 		{
@@ -407,7 +407,7 @@ func TestMergeInput(t *testing.T) {
 			fileInput: func(c *Config) {},
 			cliInput:  func(c *agentConfig) {},
 			test: func(t *testing.T, c *Config) {
-				require.Equal(t, "", c.Agent.ServerAddress)
+				require.Empty(t, c.Agent.ServerAddress)
 			},
 		},
 		{
@@ -521,7 +521,7 @@ func TestMergeInput(t *testing.T) {
 			fileInput: func(c *Config) {},
 			cliInput:  func(c *agentConfig) {},
 			test: func(t *testing.T, c *Config) {
-				require.Equal(t, "", c.Agent.TrustDomain)
+				require.Empty(t, c.Agent.TrustDomain)
 			},
 		},
 		{
@@ -1214,7 +1214,7 @@ func TestNewAgentConfig(t *testing.T) {
 				c.Agent.Experimental.ServerLoadBalancingConfig = `[ { "pick_first": {} } ]`
 			},
 			test: func(t *testing.T, c *agent.Config) {
-				require.Equal(t, `[ { "pick_first": {} } ]`, c.ServerLoadBalancingConfig)
+				require.JSONEq(t, `[ { "pick_first": {} } ]`, c.ServerLoadBalancingConfig)
 			},
 		},
 		{
@@ -1356,7 +1356,7 @@ func TestNewAgentConfig(t *testing.T) {
 				c.Agent.X509SVIDCacheMaxSize = 100
 			},
 			test: func(t *testing.T, c *agent.Config) {
-				require.EqualValues(t, 100, c.X509SVIDCacheMaxSize)
+				require.Equal(t, 100, c.X509SVIDCacheMaxSize)
 			},
 		},
 		{
@@ -1364,7 +1364,7 @@ func TestNewAgentConfig(t *testing.T) {
 			input: func(c *Config) {
 			},
 			test: func(t *testing.T, c *agent.Config) {
-				require.EqualValues(t, 0, c.X509SVIDCacheMaxSize)
+				require.Equal(t, 0, c.X509SVIDCacheMaxSize)
 			},
 		},
 		{
@@ -1373,7 +1373,7 @@ func TestNewAgentConfig(t *testing.T) {
 				c.Agent.X509SVIDCacheMaxSize = 0
 			},
 			test: func(t *testing.T, c *agent.Config) {
-				require.EqualValues(t, 0, c.X509SVIDCacheMaxSize)
+				require.Equal(t, 0, c.X509SVIDCacheMaxSize)
 			},
 		},
 		{
@@ -1404,9 +1404,9 @@ func TestNewAgentConfig(t *testing.T) {
 				c.Agent.SDS.DisableSPIFFECertValidation = true
 			},
 			test: func(t *testing.T, c *agent.Config) {
-				assert.Equal(t, c.DefaultSVIDName, "DefaultSVIDName")
-				assert.Equal(t, c.DefaultBundleName, "DefaultBundleName")
-				assert.Equal(t, c.DefaultAllBundlesName, "DefaultAllBundlesName")
+				assert.Equal(t, "DefaultSVIDName", c.DefaultSVIDName)
+				assert.Equal(t, "DefaultBundleName", c.DefaultBundleName)
+				assert.Equal(t, "DefaultAllBundlesName", c.DefaultAllBundlesName)
 				assert.True(t, c.DisableSPIFFECertValidation)
 			},
 		},
@@ -1710,7 +1710,7 @@ func TestNewAgentConfig(t *testing.T) {
 				c.Agent.AvailabilityTarget = "24h"
 			},
 			test: func(t *testing.T, c *agent.Config) {
-				require.EqualValues(t, 24*time.Hour, c.AvailabilityTarget)
+				require.Equal(t, 24*time.Hour, c.AvailabilityTarget)
 			},
 		},
 		{
@@ -1728,7 +1728,7 @@ func TestNewAgentConfig(t *testing.T) {
 			msg:   "require PQ KEM is disabled (default)",
 			input: func(c *Config) {},
 			test: func(t *testing.T, c *agent.Config) {
-				require.Equal(t, false, c.TLSPolicy.RequirePQKEM)
+				require.False(t, c.TLSPolicy.RequirePQKEM)
 			},
 		},
 		{
@@ -1737,7 +1737,7 @@ func TestNewAgentConfig(t *testing.T) {
 				c.Agent.Experimental.RequirePQKEM = true
 			},
 			test: func(t *testing.T, c *agent.Config) {
-				require.Equal(t, true, c.TLSPolicy.RequirePQKEM)
+				require.True(t, c.TLSPolicy.RequirePQKEM)
 			},
 		},
 		{
@@ -1787,7 +1787,7 @@ func TestNewAgentConfig(t *testing.T) {
 			},
 			test: func(t *testing.T, ac *agent.Config) {
 				require.NotNil(t, ac)
-				assert.Equal(t, client.RPCTimeoutWithCacheHit, 10*time.Second)
+				assert.Equal(t, 10*time.Second, client.RPCTimeoutWithCacheHit)
 			},
 		},
 		{
@@ -2371,7 +2371,7 @@ func TestWarnOnUnknownConfig(t *testing.T) {
 		t.Run(testCase.msg, func(t *testing.T) {
 			log, hook := test.NewNullLogger()
 			err := checkForUnknownConfig(c, log)
-			assert.EqualError(t, err, "unknown configuration detected")
+			require.EqualError(t, err, "unknown configuration detected")
 
 			var logEntries []spiretest.LogEntry
 			for _, expectedLogEntry := range testCase.expectedLogEntries {

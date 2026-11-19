@@ -14,7 +14,6 @@ import (
 	"github.com/spiffe/spire/test/clitest"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/util"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 )
@@ -50,9 +49,9 @@ func TestParseEntryJSON(t *testing.T) {
 
 			if testCase.in != nil {
 				data, err := os.ReadFile(testCase.testDataPath)
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				_, err = testCase.in.Write(data)
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				p = "-"
 			}
 

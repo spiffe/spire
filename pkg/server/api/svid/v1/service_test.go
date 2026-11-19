@@ -16,10 +16,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
-
 	svidv1 "github.com/spiffe/spire-api-sdk/proto/spire/api/server/svid/v1"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/common/idutil"
@@ -38,8 +38,6 @@ import (
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/testkey"
 	"github.com/stretchr/testify/require"
-
-	"github.com/go-jose/go-jose/v4/jwt"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -3123,7 +3121,7 @@ func TestNewDownstreamX509CA(t *testing.T) {
 			require.NotEmpty(t, certChain[0].URIs)
 			require.Equal(t, certChain[0].URIs[0].String(), td.IDString())
 
-			require.Equal(t, string(resp.X509Authorities[0]), "RootCa1")
+			require.Equal(t, "RootCa1", string(resp.X509Authorities[0]))
 		})
 	}
 }
@@ -3169,7 +3167,7 @@ func TestValidatePublicKeyAndSigningAlgorithm(t *testing.T) {
 
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
-			require.Equal(t, len(tt.signingAlgorithms), len(tt.expectedErrors))
+			require.Len(t, tt.expectedErrors, len(tt.signingAlgorithms))
 
 			for ind, signingAlgorithm := range tt.signingAlgorithms {
 				err := svid.ValidatePublicKeyAndSigningAlgorithm(tt.key, signingAlgorithm)

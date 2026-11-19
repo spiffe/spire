@@ -14,12 +14,12 @@ import (
 func TestNewM3Runner(t *testing.T) {
 	config := testM3Config()
 	runner, err := newM3Runner(config)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	assert.True(t, runner.isConfigured())
 
 	config.FileConfig.M3 = []M3Config{}
 	runner, err = newM3Runner(config)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	assert.False(t, runner.isConfigured())
 }
 
@@ -32,8 +32,8 @@ func TestMultipleM3Sinks(t *testing.T) {
 
 	config.FileConfig.M3 = append(config.FileConfig.M3, sink2)
 	runner, err := newM3Runner(config)
-	require.Nil(t, err)
-	assert.Equal(t, 2, len(runner.sinks()))
+	require.NoError(t, err)
+	assert.Len(t, runner.sinks(), 2)
 }
 
 func TestRunM3(t *testing.T) {
@@ -68,7 +68,7 @@ func TestRunM3(t *testing.T) {
 	// It doesn't run if it's not configured
 	select {
 	case err := <-errCh:
-		assert.Nil(t, err, "should be nil if not configured")
+		require.NoError(t, err, "should be nil if not configured")
 	case <-time.After(time.Minute):
 		t.Fatal("m3 running but not configured")
 	}

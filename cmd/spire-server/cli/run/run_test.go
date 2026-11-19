@@ -1,6 +1,7 @@
 package run
 
 import (
+	"crypto/tls"
 	"crypto/x509/pkix"
 	"io"
 	"os"
@@ -8,8 +9,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"crypto/tls"
 
 	"github.com/hashicorp/hcl"
 	"github.com/hashicorp/hcl/hcl/ast"
@@ -50,21 +49,21 @@ func TestParseConfigGood(t *testing.T) {
 	require.NoError(t, err)
 
 	// Check for server configurations
-	assert.Equal(t, c.Server.BindAddress, "127.0.0.1")
-	assert.Equal(t, c.Server.BindPort, 8081)
-	assert.Equal(t, c.Server.TrustDomain, "example.org")
-	assert.Equal(t, c.Server.LogLevel, "INFO")
-	assert.Equal(t, c.Server.Federation.BundleEndpoint.Address, "0.0.0.0")
-	assert.Equal(t, c.Server.Federation.BundleEndpoint.Port, 8443)
-	assert.Equal(t, c.Server.Federation.BundleEndpoint.ACME.DomainName, "example.org")
-	assert.Equal(t, 4, len(c.Server.Federation.FederatesWith))
-	assert.Equal(t, c.Server.Federation.FederatesWith["domain3.test"].BundleEndpointURL, "https://9.10.11.12:8443")
+	assert.Equal(t, "127.0.0.1", c.Server.BindAddress)
+	assert.Equal(t, 8081, c.Server.BindPort)
+	assert.Equal(t, "example.org", c.Server.TrustDomain)
+	assert.Equal(t, "INFO", c.Server.LogLevel)
+	assert.Equal(t, "0.0.0.0", c.Server.Federation.BundleEndpoint.Address)
+	assert.Equal(t, 8443, c.Server.Federation.BundleEndpoint.Port)
+	assert.Equal(t, "example.org", c.Server.Federation.BundleEndpoint.ACME.DomainName)
+	assert.Len(t, c.Server.Federation.FederatesWith, 4)
+	assert.Equal(t, "https://9.10.11.12:8443", c.Server.Federation.FederatesWith["domain3.test"].BundleEndpointURL)
 	trustDomainConfig, err := parseBundleEndpointProfile(c.Server.Federation.FederatesWith["domain3.test"])
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, trustDomainConfig.EndpointProfile.(bundleClient.HTTPSSPIFFEProfile).EndpointSPIFFEID, spiffeid.RequireFromString("spiffe://different-domain.test/my-spiffe-bundle-endpoint-server"))
-	assert.Equal(t, c.Server.Federation.FederatesWith["domain4.test"].BundleEndpointURL, "https://13.14.15.16:8444")
+	assert.Equal(t, "https://13.14.15.16:8444", c.Server.Federation.FederatesWith["domain4.test"].BundleEndpointURL)
 	trustDomainConfig, err = parseBundleEndpointProfile(c.Server.Federation.FederatesWith["domain4.test"])
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	_, ok := trustDomainConfig.EndpointProfile.(bundleClient.HTTPSWebProfile)
 	assert.True(t, ok)
 	assert.True(t, c.Server.AuditLogEnabled)
@@ -256,7 +255,7 @@ func TestMergeInput(t *testing.T) {
 			},
 			cliFlags: []string{},
 			test: func(t *testing.T, c *Config) {
-				require.Equal(t, true, c.Server.DisableJWTSVIDs)
+				require.True(t, c.Server.DisableJWTSVIDs)
 			},
 		},
 		{
@@ -450,7 +449,7 @@ func TestMergeInput(t *testing.T) {
 			fileInput: func(c *Config) {},
 			cliFlags:  []string{},
 			test: func(t *testing.T, c *Config) {
-				require.Equal(t, "", c.Server.TrustDomain)
+				require.Empty(t, c.Server.TrustDomain)
 			},
 		},
 		{
@@ -689,7 +688,7 @@ func TestNewServerConfig(t *testing.T) {
 				c.Server.DisableJWTSVIDs = true
 			},
 			test: func(t *testing.T, c *server.Config) {
-				require.Equal(t, true, c.DisableJWTSVIDs)
+				require.True(t, c.DisableJWTSVIDs)
 			},
 		},
 		{
@@ -1624,7 +1623,7 @@ func TestNewServerConfig(t *testing.T) {
 			msg:   "require PQ KEM is disabled (default)",
 			input: func(c *Config) {},
 			test: func(t *testing.T, c *server.Config) {
-				require.Equal(t, false, c.TLSPolicy.RequirePQKEM)
+				require.False(t, c.TLSPolicy.RequirePQKEM)
 			},
 		},
 		{
@@ -1633,7 +1632,7 @@ func TestNewServerConfig(t *testing.T) {
 				c.Server.Experimental.RequirePQKEM = true
 			},
 			test: func(t *testing.T, c *server.Config) {
-				require.Equal(t, true, c.TLSPolicy.RequirePQKEM)
+				require.True(t, c.TLSPolicy.RequirePQKEM)
 			},
 		},
 		{
@@ -1871,8 +1870,7 @@ func TestValidateConfig(t *testing.T) {
 			testCase.applyConf(conf)
 			err := validateConfig(conf)
 			if testCase.expectedErr != "" {
-				require.Error(t, err)
-				spiretest.AssertErrorContains(t, err, testCase.expectedErr)
+				assert.ErrorContains(t, err, testCase.expectedErr)
 			} else {
 				require.NoError(t, err)
 			}
@@ -2094,7 +2092,7 @@ func TestWarnOnUnknownConfig(t *testing.T) {
 		t.Run(testCase.msg, func(t *testing.T) {
 			log, hook := test.NewNullLogger()
 			err := checkForUnknownConfig(c, log)
-			assert.EqualError(t, err, "unknown configuration detected")
+			require.EqualError(t, err, "unknown configuration detected")
 
 			var logEntries []spiretest.LogEntry
 			for _, expectedLogEntry := range testCase.expectedLogEntries {
@@ -2475,7 +2473,7 @@ func TestAgentTTL(t *testing.T) {
 		config := defaultValidConfig()
 		config.Server.AgentTTL = c.agentTTL
 		sconfig, err := NewServerConfig(config, []log.Option{}, false)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, c.expectedDuration, sconfig.AgentTTL)
 	}
 }
