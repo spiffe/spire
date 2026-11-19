@@ -112,7 +112,7 @@ server to the `bundle.crt` key in the `spire:spire-bundle` ConfigMap.
 ### Out-Of-Cluster
 
 The following configuration pushes bundle contents from an out-of-cluster SPIRE
-server to the `boostrap.crt` key in the `infra:agents` ConfigMap using
+server to the `bootstrap.crt` key in the `infra:agents` ConfigMap using
 the credentials found in the `/path/to/kubeconfig` file.
 
 ```hcl

@@ -263,7 +263,7 @@ There are two cases where this can not happen and Server Attestation must be per
 
 The first case is when bootstrapping a new agent. It's never securely talked to a SPIRE Server, so it can not download up to date trust bundles.
 
-The second case is when trust is lost and must be reestablished, known as Reboostrapping. This can happen if an agent was unable to contact a server for too long that its trust bundle is too far out of date, or the server needed to be reinstalled in a way that couldn't allow continuity in the trust bundle.
+The second case is when trust is lost and must be reestablished, known as Rebootstrapping. This can happen if an agent was unable to contact a server for too long that its trust bundle is too far out of date, or the server needed to be reinstalled in a way that couldn't allow continuity in the trust bundle.
 
 ### Configuring the source for Server Attestation
 
