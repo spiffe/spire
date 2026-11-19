@@ -5,6 +5,7 @@ import (
 	"crypto"
 	"crypto/ecdsa"
 	"crypto/elliptic"
+	"crypto/mldsa"
 	"crypto/rsa"
 	"crypto/x509"
 	"fmt"
@@ -782,6 +783,10 @@ func ValidatePublicKeyAndSigningAlgorithm(publicKey crypto.PublicKey, signingAlg
 			if signingAlgorithm != "ES512" {
 				return fmt.Errorf("unsupported signing algorithm for ec-p521 key: %s", signingAlgorithm)
 			}
+		}
+	case *mldsa.PublicKey:
+		if signingAlgorithm != publicKey.Parameters().String() {
+			return fmt.Errorf("unsupported signing algorithm for %s key: %s", publicKey.Parameters(), signingAlgorithm)
 		}
 	default:
 		return fmt.Errorf("unsupported key type '%T'", publicKey)
