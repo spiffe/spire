@@ -1069,6 +1069,33 @@ func TestNewAgentConfig(t *testing.T) {
 			},
 		},
 		{
+			msg: "workload_key_type is set to ml-dsa-44",
+			input: func(c *Config) {
+				c.Agent.WorkloadX509SVIDKeyType = "ml-dsa-44"
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Equal(t, workloadkey.MLDSA44, c.WorkloadKeyType)
+			},
+		},
+		{
+			msg: "workload_key_type is set to ml-dsa-65",
+			input: func(c *Config) {
+				c.Agent.WorkloadX509SVIDKeyType = "ml-dsa-65"
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Equal(t, workloadkey.MLDSA65, c.WorkloadKeyType)
+			},
+		},
+		{
+			msg: "workload_key_type is set to ml-dsa-87",
+			input: func(c *Config) {
+				c.Agent.WorkloadX509SVIDKeyType = "ml-dsa-87"
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Equal(t, workloadkey.MLDSA87, c.WorkloadKeyType)
+			},
+		},
+		{
 			msg:         "workload_key_type invalid value",
 			expectError: true,
 			input: func(c *Config) {
