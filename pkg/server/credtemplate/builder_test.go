@@ -14,14 +14,17 @@ import (
 	"math"
 	"math/big"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/go-jose/go-jose/v4"
+	"github.com/go-jose/go-jose/v4/cryptosigner"
 	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	credentialcomposerv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/credentialcomposer/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
+	"github.com/spiffe/spire/pkg/common/cryptoutil"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/pkg/server/credtemplate"
 	"github.com/spiffe/spire/pkg/server/plugin/credentialcomposer"
@@ -1252,6 +1255,208 @@ func TestBuildWorkloadJWTSVIDClaims(t *testing.T) {
 	}
 }
 
+func TestBuildWorkloadJWTSVIDClaimsNumbersAfterComposer(t *testing.T) {
+	const (
+		maxSafeInteger = 1<<53 - 1
+		claimName      = "n"
+	)
+
+	grpcLast := func(t *testing.T, value any) []credentialcomposer.CredentialComposer {
+		return []credentialcomposer.CredentialComposer{claimCC{name: claimName, value: value}, loadGrpcPlugin(t)}
+	}
+	grpcFirst := func(t *testing.T, value any) []credentialcomposer.CredentialComposer {
+		return []credentialcomposer.CredentialComposer{loadGrpcPlugin(t), claimCC{name: claimName, value: value}}
+	}
+	noGrpc := func(_ *testing.T, value any) []credentialcomposer.CredentialComposer {
+		return []credentialcomposer.CredentialComposer{claimCC{name: claimName, value: value}}
+	}
+
+	for _, tc := range []struct {
+		desc      string
+		composers func(*testing.T, any) []credentialcomposer.CredentialComposer
+		value     any
+		// expectClaim is the Go value the builder returns for the claim.
+		expectClaim any
+		// expectJSON is the claim as it is written in the signed token payload.
+		expectJSON string
+		// expectErr is the error returned by the builder, if any.
+		expectErr string
+		// expectSignErr is the error returned when signing the claims, if any.
+		expectSignErr string
+	}{
+		{
+			desc:        "max int32",
+			composers:   grpcLast,
+			value:       math.MaxInt32,
+			expectClaim: int64(math.MaxInt32),
+			expectJSON:  "2147483647",
+		},
+		{
+			desc:        "min int32",
+			composers:   grpcLast,
+			value:       math.MinInt32,
+			expectClaim: int64(math.MinInt32),
+			expectJSON:  "-2147483648",
+		},
+		{
+			desc:        "unix timestamp in a custom claim",
+			composers:   grpcLast,
+			value:       1700000000,
+			expectClaim: int64(1700000000),
+			expectJSON:  "1700000000",
+		},
+		{
+			desc:        "largest safe integer",
+			composers:   grpcLast,
+			value:       int64(maxSafeInteger),
+			expectClaim: int64(maxSafeInteger),
+			expectJSON:  "9007199254740991",
+		},
+		{
+			desc:        "smallest safe integer",
+			composers:   grpcLast,
+			value:       int64(-maxSafeInteger),
+			expectClaim: int64(-maxSafeInteger),
+			expectJSON:  "-9007199254740991",
+		},
+		{
+			desc:        "zero",
+			composers:   grpcLast,
+			value:       0,
+			expectClaim: int64(0),
+			expectJSON:  "0",
+		},
+		{
+			desc:        "nested object and array",
+			composers:   grpcLast,
+			value:       map[string]any{"a": 1700000000, "b": []any{1700000000, 1.5}},
+			expectClaim: map[string]any{"a": int64(1700000000), "b": []any{int64(1700000000), 1.5}},
+			expectJSON:  `{"a":1700000000,"b":[1700000000,1.5]}`,
+		},
+		{
+			desc:        "one past the largest safe integer is left alone",
+			composers:   grpcLast,
+			value:       int64(maxSafeInteger + 1),
+			expectClaim: float64(maxSafeInteger + 1),
+			expectJSON:  "9.007199254740992e+15",
+		},
+		{
+			desc:        "integer above the safe range is left alone",
+			composers:   grpcLast,
+			value:       int64(maxSafeInteger + 3),
+			expectClaim: float64(maxSafeInteger + 3),
+			expectJSON:  "9.007199254740994e+15",
+		},
+		{
+			desc:        "one past the smallest safe integer is left alone",
+			composers:   grpcLast,
+			value:       int64(-maxSafeInteger - 1),
+			expectClaim: float64(-maxSafeInteger - 1),
+			expectJSON:  "-9.007199254740992e+15",
+		},
+		{
+			desc:        "max int64 is left alone",
+			composers:   grpcLast,
+			value:       math.MaxInt64,
+			expectClaim: float64(math.MaxInt64),
+			expectJSON:  "9.223372036854776e+18",
+		},
+		{
+			desc:        "fraction is left alone",
+			composers:   grpcLast,
+			value:       1.5,
+			expectClaim: 1.5,
+			expectJSON:  "1.5",
+		},
+		{
+			desc:        "negative zero is left alone",
+			composers:   grpcLast,
+			value:       math.Copysign(0, -1),
+			expectClaim: math.Copysign(0, -1),
+			expectJSON:  "-0",
+		},
+		{
+			desc:      "positive infinity is rejected by the plugin wrapper",
+			composers: grpcLast,
+			value:     math.Inf(1),
+			expectErr: "rpc error: code = Internal desc = credentialcomposer(grpcPlugin): invalid workload JWTSVID attributes: failed to marshal claims: json: unsupported value: +Inf",
+		},
+		{
+			desc:      "NaN is rejected by the plugin wrapper",
+			composers: grpcLast,
+			value:     math.NaN(),
+			expectErr: "rpc error: code = Internal desc = credentialcomposer(grpcPlugin): invalid workload JWTSVID attributes: failed to marshal claims: json: unsupported value: NaN",
+		},
+		{
+			desc:          "positive infinity set after the plugin is left alone",
+			composers:     grpcFirst,
+			value:         math.Inf(1),
+			expectClaim:   math.Inf(1),
+			expectSignErr: "json: unsupported value: +Inf",
+		},
+		{
+			desc:          "NaN set after the plugin is left alone",
+			composers:     grpcFirst,
+			value:         math.NaN(),
+			expectClaim:   math.NaN(),
+			expectSignErr: "json: unsupported value: NaN",
+		},
+		{
+			desc:        "integer set after the plugin keeps its type",
+			composers:   grpcFirst,
+			value:       math.MaxInt32,
+			expectClaim: math.MaxInt32,
+			expectJSON:  "2147483647",
+		},
+		{
+			desc:        "integer set without a plugin keeps its type",
+			composers:   noGrpc,
+			value:       math.MaxInt32,
+			expectClaim: math.MaxInt32,
+			expectJSON:  "2147483647",
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			overrideConfig := func(config *credtemplate.Config) {
+				config.CredentialComposers = tc.composers(t, tc.value)
+			}
+			testBuilder(t, overrideConfig, func(t *testing.T, credBuilder *credtemplate.Builder) {
+				claims, err := credBuilder.BuildWorkloadJWTSVIDClaims(ctx, credtemplate.WorkloadJWTSVIDParams{
+					SPIFFEID: workloadID,
+					Audience: []string{"AUDIENCE"},
+				})
+				if tc.expectErr != "" {
+					require.EqualError(t, err, tc.expectErr)
+					return
+				}
+				require.NoError(t, err)
+
+				if expected, ok := tc.expectClaim.(float64); ok {
+					// Compare bits so that -0 differs from 0 and NaN equals NaN.
+					actual, ok := claims[claimName].(float64)
+					require.True(t, ok, "claim should be a float64, got %T", claims[claimName])
+					require.Equal(t, math.Float64bits(expected), math.Float64bits(actual))
+				} else {
+					require.Equal(t, tc.expectClaim, claims[claimName])
+				}
+
+				payload, err := signedJWTPayload(claims)
+				if tc.expectSignErr != "" {
+					require.EqualError(t, err, tc.expectSignErr)
+					return
+				}
+				require.NoError(t, err)
+
+				// Compare the payload text of the signed token. Decoding it
+				// again would turn every number back into a float64.
+				expectedPayload := fmt.Sprintf(`{"aud":["AUDIENCE"],"exp":%d,"iat":%d,"n":%s,"sub":%q}`,
+					jwtSVIDNotAfter.Unix(), now.Unix(), tc.expectJSON, workloadID.String())
+				require.Equal(t, expectedPayload, payload)
+			})
+		})
+	}
+}
+
 func TestBuildWorkloadWITSVIDClaims(t *testing.T) {
 	for _, tc := range []struct {
 		desc             string
@@ -1501,6 +1706,58 @@ func makeOID(ids ...byte) []int {
 
 func idURIs(id spiffeid.ID) []*url.URL {
 	return []*url.URL{id.URL()}
+}
+
+// claimCC is an in-process composer that sets a single JWT-SVID claim.
+type claimCC struct {
+	fakeCC
+
+	name  string
+	value any
+}
+
+func (cc claimCC) ComposeWorkloadJWTSVID(_ context.Context, _ spiffeid.ID, attributes credentialcomposer.JWTSVIDAttributes) (credentialcomposer.JWTSVIDAttributes, error) {
+	attributes.Claims[cc.name] = cc.value
+	return attributes, nil
+}
+
+// signedJWTPayload signs the claims the same way the server CA does and
+// returns the decoded payload segment of the token as text.
+func signedJWTPayload(claims map[string]any) (string, error) {
+	key := testkey.MustEC256()
+	alg, err := cryptoutil.JoseAlgFromPublicKey(key.Public())
+	if err != nil {
+		return "", err
+	}
+
+	signer, err := jose.NewSigner(
+		jose.SigningKey{
+			Algorithm: alg,
+			Key: jose.JSONWebKey{
+				Key:   cryptosigner.Opaque(key),
+				KeyID: "kid",
+			},
+		},
+		new(jose.SignerOptions).WithType("JWT"),
+	)
+	if err != nil {
+		return "", err
+	}
+
+	token, err := jwt.Signed(signer).Claims(claims).Serialize()
+	if err != nil {
+		return "", err
+	}
+
+	parts := strings.Split(token, ".")
+	if len(parts) != 3 {
+		return "", fmt.Errorf("expected 3 token segments, got %d", len(parts))
+	}
+	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return "", err
+	}
+	return string(payload), nil
 }
 
 func loadNoopV1Plugin(t *testing.T) credentialcomposer.CredentialComposer {
