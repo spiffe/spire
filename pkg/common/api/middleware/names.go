@@ -26,6 +26,7 @@ const (
 	DebugServiceShortName              = "Debug"
 	DelegatedIdentityServiceName       = "spire.api.agent.delegatedidentity.v1.DelegatedIdentity"
 	DelegatedIdentityServiceShortName  = "DelegatedIdentity"
+	BrokerAPIServiceName               = "spiffe.broker.API"
 	ServerReflectionServiceName        = "grpc.reflection.v1.ServerReflection"
 	ServerReflectionV1AlphaServiceName = "grpc.reflection.v1alpha.ServerReflection"
 	SubscribeToX509SVIDsMethodName     = "SubscribeToX509SVIDs"
