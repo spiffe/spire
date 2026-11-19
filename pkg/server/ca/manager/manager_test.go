@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto"
 	"crypto/ecdsa"
+	"crypto/mldsa"
 	"crypto/rsa"
 	"crypto/x509"
 	"crypto/x509/pkix"
@@ -1706,6 +1707,15 @@ func TestAlternateKeyTypes(t *testing.T) {
 		expectEC(t, signer, 384)
 	}
 
+	expectMLDSA := func(params mldsa.Parameters) func(*testing.T, crypto.Signer) {
+		return func(t *testing.T, signer crypto.Signer) {
+			publicKey, ok := signer.Public().(*mldsa.PublicKey)
+			if assert.True(t, ok, "Signer is not ML-DSA") {
+				assert.Equal(t, params, publicKey.Parameters(), "Incorrect ML-DSA parameters")
+			}
+		}
+	}
+
 	testCases := []struct {
 		name              string
 		upstreamAuthority bool
@@ -1751,6 +1761,33 @@ func TestAlternateKeyTypes(t *testing.T) {
 			checkX509CA:   expectEC384,
 			checkJWTKey:   expectEC384,
 			checkWITKey:   expectEC384,
+		},
+		{
+			name:          "self-signed with ML-DSA-44",
+			x509CAKeyType: keymanager.MLDSA44,
+			jwtKeyType:    keymanager.MLDSA44,
+			witKeyType:    keymanager.MLDSA44,
+			checkX509CA:   expectMLDSA(mldsa.MLDSA44()),
+			checkJWTKey:   expectMLDSA(mldsa.MLDSA44()),
+			checkWITKey:   expectMLDSA(mldsa.MLDSA44()),
+		},
+		{
+			name:          "self-signed with ML-DSA-65",
+			x509CAKeyType: keymanager.MLDSA65,
+			jwtKeyType:    keymanager.MLDSA65,
+			witKeyType:    keymanager.MLDSA65,
+			checkX509CA:   expectMLDSA(mldsa.MLDSA65()),
+			checkJWTKey:   expectMLDSA(mldsa.MLDSA65()),
+			checkWITKey:   expectMLDSA(mldsa.MLDSA65()),
+		},
+		{
+			name:          "self-signed with ML-DSA-87",
+			x509CAKeyType: keymanager.MLDSA87,
+			jwtKeyType:    keymanager.MLDSA87,
+			witKeyType:    keymanager.MLDSA87,
+			checkX509CA:   expectMLDSA(mldsa.MLDSA87()),
+			checkJWTKey:   expectMLDSA(mldsa.MLDSA87()),
+			checkWITKey:   expectMLDSA(mldsa.MLDSA87()),
 		},
 		{
 			name:          "self-signed JWT with RSA 2048, X509 with EC P384, and WIT with RSA 4096",
@@ -1800,6 +1837,16 @@ func TestAlternateKeyTypes(t *testing.T) {
 			checkX509CA:       expectEC384,
 			checkJWTKey:       expectEC384,
 			checkWITKey:       expectEC384,
+		},
+		{
+			name:              "upstream-signed with ML-DSA-65",
+			upstreamAuthority: true,
+			x509CAKeyType:     keymanager.MLDSA65,
+			jwtKeyType:        keymanager.MLDSA65,
+			witKeyType:        keymanager.MLDSA65,
+			checkX509CA:       expectMLDSA(mldsa.MLDSA65()),
+			checkJWTKey:       expectMLDSA(mldsa.MLDSA65()),
+			checkWITKey:       expectMLDSA(mldsa.MLDSA65()),
 		},
 	}
 
