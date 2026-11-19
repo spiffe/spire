@@ -1,6 +1,7 @@
 package health
 
 import (
+	"context"
 	"errors"
 	"slices"
 	"sync"
@@ -453,6 +454,55 @@ func TestFailingCheckIsLoggedOncePerMinute(t *testing.T) {
 	require.Equal(t, 2, failedLogs())
 }
 
+func TestCheckResultIsDroppedAfterShutdown(t *testing.T) {
+	log, hook := test.NewNullLogger()
+	log.SetLevel(logrus.DebugLevel)
+	clockMock := clock.NewMock(t)
+
+	c := newCache(log, clockMock)
+	updated := make(chan struct{}, 1)
+	c.hooks.statusUpdated = updated
+
+	// The check fails because the subsystem it checks is torn down while
+	// the check is running.
+	checkable := &gatedCheckable{
+		started: make(chan struct{}),
+		release: make(chan struct{}),
+		state:   State{},
+	}
+	require.NoError(t, c.addCheck("shutting-down", checkable))
+
+	ctx, cancel := context.WithCancel(t.Context())
+	require.NoError(t, c.start(ctx))
+
+	select {
+	case <-checkable.started:
+	case <-time.After(3 * time.Second):
+		t.Fatal("timed out waiting for the health check to start")
+	}
+	cancel()
+	close(checkable.release)
+
+	require.Eventually(t, func() bool {
+		for _, entry := range hook.AllEntries() {
+			if entry.Message == "Finishing health checker" {
+				return true
+			}
+		}
+		return false
+	}, 3*time.Second, 10*time.Millisecond)
+
+	for _, entry := range hook.AllEntries() {
+		require.NotContains(t, []string{
+			"Health check has failed",
+			"Health check failed",
+			"Health check has failed. Starting up still.",
+		}, entry.Message)
+	}
+	require.Empty(t, updated)
+	require.Equal(t, map[string]checkState{"shutting-down": {}}, c.getStatuses())
+}
+
 // checkRuns follows the checks a cache runs, each on its own goroutine.
 type checkRuns struct {
 	t       *testing.T
@@ -518,6 +568,19 @@ type blockingCheckable struct {
 func (b *blockingCheckable) CheckHealth() State {
 	<-b.release
 	return State{Live: true, Ready: true}
+}
+
+// gatedCheckable signals when a check starts and blocks it until released.
+type gatedCheckable struct {
+	started chan struct{}
+	release chan struct{}
+	state   State
+}
+
+func (g *gatedCheckable) CheckHealth() State {
+	close(g.started)
+	<-g.release
+	return g.state
 }
 
 type countingCheckable struct {
