@@ -1307,6 +1307,25 @@ func TestNewServerConfig(t *testing.T) {
 			},
 		},
 		{
+			msg: "activation_delay is correctly parsed",
+			input: func(c *Config) {
+				c.Server.ActivationDelay = "4h"
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Equal(t, 4*time.Hour, c.ActivationDelay)
+			},
+		},
+		{
+			msg:         "non-positive activation_delay returns an error",
+			expectError: true,
+			input: func(c *Config) {
+				c.Server.ActivationDelay = "0s"
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
 			msg:         "invalid ca_ttl returns an error",
 			expectError: true,
 			input: func(c *Config) {

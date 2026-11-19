@@ -91,11 +91,13 @@ type Config struct {
 	Log             logrus.FieldLogger
 	Metrics         telemetry.Metrics
 	Clock           clock.Clock
+	ActivationDelay time.Duration
 }
 
 type Manager struct {
 	c                            Config
 	caTTL                        time.Duration
+	activationDelay              time.Duration
 	bundleUpdatedCh              chan struct{}
 	taintedUpstreamAuthoritiesCh chan []*x509.Certificate
 	upstreamClient               *ca.UpstreamClient
@@ -133,6 +135,7 @@ func NewManager(ctx context.Context, c Config) (*Manager, error) {
 	m := &Manager{
 		c:                            c,
 		caTTL:                        c.CredBuilder.Config().X509CATTL,
+		activationDelay:              c.ActivationDelay,
 		bundleUpdatedCh:              make(chan struct{}, 1),
 		taintedUpstreamAuthoritiesCh: make(chan []*x509.Certificate, 1),
 	}
@@ -169,47 +172,34 @@ func NewManager(ctx context.Context, c Config) (*Manager, error) {
 	m.journal = journal
 	if currentX509CA, ok := slots[CurrentX509CASlot]; ok {
 		m.currentX509CA = currentX509CA.(*x509CASlot)
-
-		if !currentX509CA.IsEmpty() && !currentX509CA.ShouldActivateNext(now) {
-			// activate the X509 CA immediately if it is set and not within
-			// activation time of the next X509 CA.
-			m.activateX509CA(ctx)
-		}
 	}
-
 	if nextX509CA, ok := slots[NextX509CASlot]; ok {
 		m.nextX509CA = nextX509CA.(*x509CASlot)
 	}
-
 	if currentJWTKey, ok := slots[CurrentJWTKeySlot]; ok {
 		m.currentJWTKey = currentJWTKey.(*jwtKeySlot)
-
-		// TODO: Activation on journal depends on dates, it will need to be
-		// refactored to allow to set a status, because when forcing a rotation,
-		// we are no longer able to depend on a date.
-		if !currentJWTKey.IsEmpty() && !currentJWTKey.ShouldActivateNext(now) {
-			// activate the JWT key immediately if it is set and not within
-			// activation time of the next JWT key.
-			m.activateJWTKey(ctx)
-		}
 	}
-
 	if nextJWTKey, ok := slots[NextJWTKeySlot]; ok {
 		m.nextJWTKey = nextJWTKey.(*jwtKeySlot)
 	}
-
 	if currentWITKey, ok := slots[CurrentWITKeySlot]; ok {
 		m.currentWITKey = currentWITKey.(*witKeySlot)
-
-		if !currentWITKey.IsEmpty() && !currentWITKey.ShouldActivateNext(now) {
-			// activate the WIT key immediately if it is set and not within
-			// activation time of the next WIT key.
-			m.activateWITKey(ctx)
-		}
 	}
-
 	if nextWITKey, ok := slots[NextWITKeySlot]; ok {
 		m.nextWITKey = nextWITKey.(*witKeySlot)
+	}
+	m.scheduleX509CAActivation()
+	m.scheduleJWTKeyActivation()
+	m.scheduleWITKeyActivation()
+
+	if !m.currentX509CA.IsEmpty() && !m.currentX509CA.ShouldActivateNext(now) {
+		m.activateX509CA(ctx)
+	}
+	if !m.currentJWTKey.IsEmpty() && !m.currentJWTKey.ShouldActivateNext(now) {
+		m.activateJWTKey(ctx)
+	}
+	if !m.currentWITKey.IsEmpty() && !m.currentWITKey.ShouldActivateNext(now) {
+		m.activateWITKey(ctx)
 	}
 
 	if m.nextX509CA != nil && !m.nextX509CA.IsEmpty() {
@@ -223,6 +213,27 @@ func (m *Manager) Close() {
 	if m.upstreamClient != nil {
 		_ = m.upstreamClient.Close()
 	}
+}
+
+func (m *Manager) scheduleX509CAActivation() {
+	if m.activationDelay == 0 || m.currentX509CA.IsEmpty() || m.nextX509CA.IsEmpty() {
+		return
+	}
+	m.currentX509CA.activationTime = keyActivationTime(m.currentX509CA.issuedAt, m.currentX509CA.expiration(), m.nextX509CA.issuedAt, m.activationDelay)
+}
+
+func (m *Manager) scheduleJWTKeyActivation() {
+	if m.activationDelay == 0 || m.currentJWTKey.IsEmpty() || m.nextJWTKey.IsEmpty() {
+		return
+	}
+	m.currentJWTKey.activationTime = keyActivationTime(m.currentJWTKey.issuedAt, m.currentJWTKey.jwtKey.NotAfter, m.nextJWTKey.issuedAt, m.activationDelay)
+}
+
+func (m *Manager) scheduleWITKeyActivation() {
+	if m.activationDelay == 0 || m.currentWITKey.IsEmpty() || m.nextWITKey.IsEmpty() {
+		return
+	}
+	m.currentWITKey.activationTime = keyActivationTime(m.currentWITKey.issuedAt, m.currentWITKey.witKey.NotAfter, m.nextWITKey.issuedAt, m.activationDelay)
 }
 
 func (m *Manager) NotifyTaintedX509Authority(ctx context.Context, authorityID string) error {
@@ -306,6 +317,7 @@ func (m *Manager) PrepareX509CA(ctx context.Context) (err error) {
 	slot.upstreamAuthorityID = x509util.SubjectKeyIDToString(x509CA.Certificate.AuthorityKeyId)
 	slot.publicKey = slot.x509CA.Certificate.PublicKey
 	slot.notAfter = slot.x509CA.NotAfter
+	m.scheduleX509CAActivation()
 
 	// Compare against request time, rather than NotBefore (which may be
 	// backdated), and allow for upstream clock skew plus certificate timestamp
@@ -447,6 +459,7 @@ func (m *Manager) PrepareJWTKey(ctx context.Context) (err error) {
 	slot.status = journal.Status_PREPARED
 	slot.authorityID = jwtKey.Kid
 	slot.notAfter = jwtKey.NotAfter
+	m.scheduleJWTKeyActivation()
 
 	if err := m.journal.AppendJWTKey(ctx, slot.id, slot.issuedAt, slot.jwtKey); err != nil {
 		log.WithError(err).Error("Unable to append JWT key to journal")
@@ -598,6 +611,7 @@ func (m *Manager) PrepareWITKey(ctx context.Context) (err error) {
 	slot.status = journal.Status_PREPARED
 	slot.authorityID = witKey.Kid
 	slot.notAfter = witKey.NotAfter
+	m.scheduleWITKeyActivation()
 
 	if err := m.journal.AppendWITKey(ctx, slot.id, slot.issuedAt, slot.witKey); err != nil {
 		log.WithError(err).Error("Unable to append WIT key to journal")
