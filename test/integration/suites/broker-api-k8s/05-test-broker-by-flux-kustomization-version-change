@@ -1,0 +1,67 @@
+#!/bin/bash
+
+set -e
+
+source init-kubectl
+
+log-info "Test: cached object-reference lookups follow a Kubernetes API version change"
+
+# Populate the cached informer for the v1 Kustomization before changing the
+# served version. The generic target-kustomization entry matches regardless of
+# version, so this also verifies the v1 path still works.
+./bin/kubectl -nspire exec -t cluster-broker -- /brokerclient \
+    -ref-type object \
+    -plural kustomizations -group kustomize.toolkit.fluxcd.io \
+    -namespace spire -name target-kustomization \
+    -expected-spiffe spiffe://example.org/target-kustomization \
+    || fail-now "cluster-scoped broker failed to fetch SVID for the v1 Flux Kustomization"
+
+# Create a v2-specific entry. Before the mapper refreshes, the agent still emits
+# version:v1 selectors and this entry does not match.
+NODEUIDS=()
+while IFS= read -r nodeUID; do
+    NODEUIDS+=("${nodeUID}")
+done < <(./bin/kubectl get nodes -o jsonpath='{range .items[*]}{.metadata.uid}{"\n"}{end}')
+
+if [ "${#NODEUIDS[@]}" -eq 0 ]; then
+    fail-now "no Kubernetes nodes found for agent parent IDs"
+fi
+
+for nodeUID in "${NODEUIDS[@]}"; do
+    [ -n "${nodeUID}" ] || continue
+    ./bin/kubectl -nspire exec -t deployment/spire-server -- \
+        /opt/spire/bin/spire-server entry create \
+            -spiffeID spiffe://example.org/target-kustomization-v2 \
+            -parentID "spiffe://example.org/spire/agent/k8s_psat/example-cluster/${nodeUID}" \
+            -selector "k8s:version:v2" \
+            -selector "k8s:namespace:spire" \
+            -selector "k8s:name:target-kustomization"
+done
+
+# v1 is no longer served. The agent's REST mapper must refresh, drop the stale
+# v1 informer, and read the object through v2.
+./bin/kubectl apply -f ./conf/flux-kustomization-crd-v2.yaml
+for ((i=1; i<=30; i++)); do
+    if ! ./bin/kubectl get --raw /apis/kustomize.toolkit.fluxcd.io/v1 >/dev/null 2>&1; then
+        break
+    fi
+    if [[ $i -eq 30 ]]; then
+        fail-now "v1 of kustomizations.kustomize.toolkit.fluxcd.io is still served"
+    fi
+    sleep 1
+done
+
+log-info "waiting for the agent to serve the Kustomization from v2..."
+for ((i=1; i<=30; i++)); do
+    if ./bin/kubectl -nspire exec -t cluster-broker -- /brokerclient \
+        -ref-type object \
+        -plural kustomizations -group kustomize.toolkit.fluxcd.io \
+        -namespace spire -name target-kustomization \
+        -expected-spiffe spiffe://example.org/target-kustomization-v2; then
+        log-success "cluster-scoped broker fetched the v2 Kustomization after the API version change"
+        exit 0
+    fi
+    sleep 1
+done
+
+fail-now "agent did not transition the cached Kustomization to v2"

@@ -20,6 +20,9 @@ real workloads. Covers:
   (`kustomizations.kustomize.toolkit.fluxcd.io`) — exercises the generic
   object-attestation path that resolves the resource via the REST mapper and
   emits the uniform object-meta selector vocabulary.
+* After the Kustomization CRD stops serving `v1` and starts serving `v2`, the
+  agent's cache-backed generic object path refreshes discovery, drops the stale
+  `v1` informer, and resolves the object through `v2` without an agent restart.
 * A broker whose `allowed_reference_types` is restricted to PID references
   gets `PermissionDenied` at the gRPC layer when it asks for a
   `KubernetesObjectReference`.
