@@ -3,6 +3,7 @@ package cryptoutil
 import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
+	"crypto/mldsa"
 	"crypto/rand"
 	"crypto/rsa"
 	"testing"
@@ -31,6 +32,19 @@ func TestJoseAlgFromPublicKey(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, jose.ES384, algo)
 
+	for _, tt := range []struct {
+		params mldsa.Parameters
+		alg    jose.SignatureAlgorithm
+	}{
+		{params: mldsa.MLDSA44(), alg: jose.MLDSA44},
+		{params: mldsa.MLDSA65(), alg: jose.MLDSA65},
+		{params: mldsa.MLDSA87(), alg: jose.MLDSA87},
+	} {
+		algo, err = JoseAlgFromPublicKey(genMLDSA(tt.params).Public())
+		require.NoError(t, err)
+		require.Equal(t, tt.alg, algo)
+	}
+
 	algo, err = JoseAlgFromPublicKey(genEC(elliptic.P224()).Public())
 	require.EqualError(t, err, "unable to determine signature algorithm for EC public key size 224")
 	require.Empty(t, algo)
@@ -48,6 +62,42 @@ func genRSA(bits int) *rsa.PrivateKey {
 
 func genEC(curve elliptic.Curve) *ecdsa.PrivateKey {
 	key, err := ecdsa.GenerateKey(curve, rand.Reader)
+	check(err)
+	return key
+}
+
+func TestPublicKeyEqual(t *testing.T) {
+	a := genMLDSA(mldsa.MLDSA44())
+	b := genMLDSA(mldsa.MLDSA44())
+
+	equal, err := PublicKeyEqual(a.Public(), a.Public())
+	require.NoError(t, err)
+	require.True(t, equal)
+
+	equal, err = PublicKeyEqual(a.Public(), b.Public())
+	require.NoError(t, err)
+	require.False(t, equal)
+
+	equal, err = PublicKeyEqual(a.Public(), testkey.NewEC256(t).Public())
+	require.NoError(t, err)
+	require.False(t, equal)
+}
+
+func TestKeyMatches(t *testing.T) {
+	a := genMLDSA(mldsa.MLDSA65())
+	b := genMLDSA(mldsa.MLDSA65())
+
+	matches, err := KeyMatches(a, a.Public())
+	require.NoError(t, err)
+	require.True(t, matches)
+
+	matches, err = KeyMatches(a, b.Public())
+	require.NoError(t, err)
+	require.False(t, matches)
+}
+
+func genMLDSA(params mldsa.Parameters) *mldsa.PrivateKey {
+	key, err := mldsa.GenerateKey(params)
 	check(err)
 	return key
 }
