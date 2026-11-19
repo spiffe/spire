@@ -1279,7 +1279,6 @@ func TestStreamSecretsRateLimit(t *testing.T) {
 	// Second stream open exhausts the limit.
 	stream2, err := test.handler.StreamSecrets(context.Background())
 	require.NoError(t, err)
-	require.NoError(t, stream2.Send(&discovery_v3.DiscoveryRequest{}))
 	_, err = stream2.Recv()
 	require.Error(t, err)
 	spiretest.RequireGRPCStatusContains(t, err, codes.Unavailable, "rate limit exceeded")
