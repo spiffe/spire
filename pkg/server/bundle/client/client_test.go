@@ -192,6 +192,26 @@ func TestClient(t *testing.T) {
 	}
 }
 
+func TestClientFetchBundleCanceled(t *testing.T) {
+	release := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		<-release
+	}))
+	defer server.Close()
+	defer close(release)
+
+	client, err := NewClient(ClientConfig{
+		TrustDomain: trustDomain,
+		EndpointURL: server.URL,
+	})
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	time.AfterFunc(100*time.Millisecond, cancel)
+	_, err = client.FetchBundle(ctx)
+	require.ErrorIs(t, err, context.Canceled)
+}
+
 func createServerCertificate(t *testing.T, serverID spiffeid.ID) (*x509.Certificate, crypto.Signer) {
 	return spiretest.SelfSignCertificate(t, &x509.Certificate{
 		SerialNumber: big.NewInt(0),
