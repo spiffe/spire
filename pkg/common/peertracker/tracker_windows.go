@@ -23,6 +23,12 @@ type windowsTracker struct {
 	sc  systemCaller
 }
 
+func newTrackerWithConfig(log logrus.FieldLogger, _ TrackerConfig) (*windowsTracker, error) {
+	// Windows uses process handles for exit detection; it does not perform
+	// UID/GID comparisons in IsAlive(), so TrackerConfig has no effect here.
+	return newTracker(log)
+}
+
 func newTracker(log logrus.FieldLogger) (*windowsTracker, error) {
 	return &windowsTracker{
 		log: log.WithField(telemetry.Type, windowsType),

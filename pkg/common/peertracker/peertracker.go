@@ -32,8 +32,36 @@ type Watcher interface {
 	PID() int32
 }
 
+// TrackerConfig holds optional configuration for the peer tracker.
+type TrackerConfig struct {
+	// AllowUIDMismatch, when true, enables an additional check in IsAlive()
+	// for UID and GID mismatches that cannot be explained by user-namespace
+	// remapping. When the flag is set and the connecting process holds
+	// CAP_SETUID (or CAP_SETGID) in its effective capability set, the
+	// mismatch is accepted with a warning log.
+	//
+	// This is required when workloads run inside sandbox container runtimes
+	// such as gVisor (runsc) configured with --host-uds=open. In that
+	// configuration the gofer process holds CAP_SETUID/CAP_SETGID so it can
+	// call setresuid on the connecting thread to impersonate the workload
+	// before forwarding the connect() to the host socket; /proc/<pid>/status
+	// still shows the gofer running as root.
+	//
+	// A UID or GID mismatch where the process does NOT hold the corresponding
+	// capability is still treated as an error (possible PID recycling). The
+	// primary TOCTOU safeguards (ReadDirent + starttime comparison) remain
+	// active regardless of this setting.
+	AllowUIDMismatch bool
+}
+
 // NewTracker creates a new platform-specific peer tracker. Close() must
 // be called when done to release associated resources.
 func NewTracker(log logrus.FieldLogger) (PeerTracker, error) {
-	return newTracker(log)
+	return newTrackerWithConfig(log, TrackerConfig{})
+}
+
+// NewTrackerWithConfig creates a new platform-specific peer tracker with
+// the provided configuration. Close() must be called when done.
+func NewTrackerWithConfig(log logrus.FieldLogger, config TrackerConfig) (PeerTracker, error) {
+	return newTrackerWithConfig(log, config)
 }
