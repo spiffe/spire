@@ -3,6 +3,7 @@ package azureimds
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -518,6 +519,85 @@ func TestValidateVMSSName(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := validateVMSSName(tt.vmssName)
+
+			if tt.expectErr {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), tt.errorContains)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestValidateResourceGroupName(t *testing.T) {
+	tests := []struct {
+		name          string
+		resourceGroup string
+		expectErr     bool
+		errorContains string
+	}{
+		{
+			name:          "valid - typical name",
+			resourceGroup: "RESOURCEGROUP",
+			expectErr:     false,
+		},
+		{
+			name:          "valid - with hyphen and underscore",
+			resourceGroup: "prod-rg_1",
+			expectErr:     false,
+		},
+		{
+			name:          "valid - with parentheses",
+			resourceGroup: "rg(1)",
+			expectErr:     false,
+		},
+		{
+			name:          "valid - max length",
+			resourceGroup: strings.Repeat("a", 90),
+			expectErr:     false,
+		},
+		{
+			name:          "invalid - empty",
+			resourceGroup: "",
+			expectErr:     true,
+			errorContains: "must be at least 1 character(s) long",
+		},
+		{
+			name:          "invalid - too long",
+			resourceGroup: strings.Repeat("a", 91),
+			expectErr:     true,
+			errorContains: "must be at most 90 characters long",
+		},
+		{
+			name:          "invalid - ends with period",
+			resourceGroup: "prod-rg.",
+			expectErr:     true,
+			errorContains: "must not end with a period",
+		},
+		{
+			name:          "invalid - single quote (kusto injection)",
+			resourceGroup: "rg' or 1==1 or name=='",
+			expectErr:     true,
+			errorContains: "can only contain alphanumeric characters",
+		},
+		{
+			name:          "invalid - pipe",
+			resourceGroup: "rg|take",
+			expectErr:     true,
+			errorContains: "can only contain alphanumeric characters",
+		},
+		{
+			name:          "invalid - space",
+			resourceGroup: "my rg",
+			expectErr:     true,
+			errorContains: "can only contain alphanumeric characters",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateResourceGroupName(tt.resourceGroup)
 
 			if tt.expectErr {
 				require.Error(t, err)
