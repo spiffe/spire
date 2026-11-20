@@ -28,6 +28,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/endpoints/workload"
 	"github.com/spiffe/spire/pkg/agent/manager"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
+	"github.com/spiffe/spire/pkg/common/api"
 	"github.com/spiffe/spire/pkg/common/api/middleware"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/x509util"
@@ -888,6 +889,52 @@ func TestFetchJWTSVID(t *testing.T) {
 						"method":        "FetchJWTSVID",
 						"registered":    "true",
 						logrus.ErrorKey: "ohno",
+					},
+				},
+			},
+		},
+		{
+			name:     "fetch error from credential composer",
+			audience: []string{"AUDIENCE"},
+			identities: []cache.X509Identity{
+				identities[1],
+			},
+			managerErr: api.MarkCredentialComposerError(status.Error(codes.PermissionDenied, "not authorized")),
+			expectCode: codes.PermissionDenied,
+			expectMsg:  "could not fetch JWT-SVID: rpc error: code = PermissionDenied desc = not authorized",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Could not fetch JWT-SVID",
+					Data: logrus.Fields{
+						"service":       "WorkloadAPI",
+						"spiffe_id":     "spiffe://domain.test/one",
+						"method":        "FetchJWTSVID",
+						"registered":    "true",
+						logrus.ErrorKey: "rpc error: code = PermissionDenied desc = not authorized",
+					},
+				},
+			},
+		},
+		{
+			name:     "fetch error permission denied",
+			audience: []string{"AUDIENCE"},
+			identities: []cache.X509Identity{
+				identities[1],
+			},
+			managerErr: status.Error(codes.PermissionDenied, "agent is banned"),
+			expectCode: codes.Unavailable,
+			expectMsg:  "could not fetch JWT-SVID: rpc error: code = PermissionDenied desc = agent is banned",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Could not fetch JWT-SVID",
+					Data: logrus.Fields{
+						"service":       "WorkloadAPI",
+						"spiffe_id":     "spiffe://domain.test/one",
+						"method":        "FetchJWTSVID",
+						"registered":    "true",
+						logrus.ErrorKey: "rpc error: code = PermissionDenied desc = agent is banned",
 					},
 				},
 			},

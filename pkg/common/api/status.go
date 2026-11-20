@@ -7,6 +7,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/pkg/common/util"
+	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -95,4 +96,39 @@ func capitalize(s string) string {
 		return s
 	}
 	return strings.ToUpper(string(s[0])) + s[1:]
+}
+
+const (
+	composerErrorDomain = "spire.spiffe.io"
+	composerErrorReason = "CREDENTIAL_COMPOSER_ERROR"
+)
+
+// MarkCredentialComposerError annotates an error returned by a credential
+// composer so that its status code can be preserved when it is reported back
+// to callers, instead of being treated as an internal error. Errors without a
+// meaningful gRPC status code are returned unchanged.
+func MarkCredentialComposerError(err error) error {
+	st, ok := status.FromError(err)
+	if !ok || st.Code() == codes.OK || st.Code() == codes.Unknown {
+		return err
+	}
+	st, detailsErr := st.WithDetails(&errdetails.ErrorInfo{
+		Domain: composerErrorDomain,
+		Reason: composerErrorReason,
+	})
+	if detailsErr != nil {
+		return err
+	}
+	return st.Err()
+}
+
+// IsCredentialComposerError reports whether err was annotated by
+// MarkCredentialComposerError.
+func IsCredentialComposerError(err error) bool {
+	for _, detail := range status.Convert(err).Details() {
+		if info, ok := detail.(*errdetails.ErrorInfo); ok && info.Domain == composerErrorDomain && info.Reason == composerErrorReason {
+			return true
+		}
+	}
+	return false
 }

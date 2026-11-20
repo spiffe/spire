@@ -21,6 +21,7 @@ import (
 	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	credentialcomposerv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/credentialcomposer/v1"
+	"github.com/spiffe/spire/pkg/common/api"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"github.com/spiffe/spire/pkg/server/credtemplate"
@@ -30,6 +31,8 @@ import (
 	"github.com/spiffe/spire/test/testkey"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 var (
@@ -1387,6 +1390,20 @@ func TestBuildWorkloadJWTSVIDClaimsIncludeJTI(t *testing.T) {
 	})
 }
 
+func TestBuildWorkloadJWTSVIDClaimsComposerError(t *testing.T) {
+	overrideConfig := func(config *credtemplate.Config) {
+		config.CredentialComposers = []credentialcomposer.CredentialComposer{denyingCC{}}
+	}
+	testBuilder(t, overrideConfig, func(t *testing.T, credBuilder *credtemplate.Builder) {
+		_, err := credBuilder.BuildWorkloadJWTSVIDClaims(ctx, credtemplate.WorkloadJWTSVIDParams{
+			SPIFFEID: workloadID,
+			Audience: []string{"AUDIENCE"},
+		})
+		require.Equal(t, codes.PermissionDenied, status.Code(err))
+		require.True(t, api.IsCredentialComposerError(err))
+	})
+}
+
 func testBuilder(t *testing.T, overrideConfig func(config *credtemplate.Config), fn func(*testing.T, *credtemplate.Builder)) {
 	config := credtemplate.Config{
 		TrustDomain:     td,
@@ -1525,4 +1542,12 @@ func loadGrpcPlugin(t *testing.T) credentialcomposer.CredentialComposer {
 	cc := new(credentialcomposer.V1)
 	plugintest.Load(t, catalog.MakeBuiltIn("grpcPlugin", server), cc)
 	return cc
+}
+
+type denyingCC struct {
+	badCC
+}
+
+func (denyingCC) ComposeWorkloadJWTSVID(context.Context, spiffeid.ID, credentialcomposer.JWTSVIDAttributes) (credentialcomposer.JWTSVIDAttributes, error) {
+	return credentialcomposer.JWTSVIDAttributes{}, status.Error(codes.PermissionDenied, "not authorized")
 }

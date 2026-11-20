@@ -2,6 +2,7 @@ package api_test
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/sirupsen/logrus"
@@ -144,5 +145,18 @@ func TestMakeErr(t *testing.T) {
 			require.Equal(t, err, tt.expErr)
 			spiretest.AssertLogs(t, hook.AllEntries(), tt.expLog)
 		})
+	}
+}
+
+func TestCredentialComposerError(t *testing.T) {
+	err := api.MarkCredentialComposerError(status.Error(codes.PermissionDenied, "not authorized"))
+	require.Equal(t, codes.PermissionDenied, status.Code(err))
+	require.Equal(t, "not authorized", status.Convert(err).Message())
+	require.True(t, api.IsCredentialComposerError(err))
+	require.True(t, api.IsCredentialComposerError(fmt.Errorf("failed to fetch JWT SVID: %w", err)))
+
+	require.False(t, api.IsCredentialComposerError(status.Error(codes.PermissionDenied, "agent is banned")))
+	for _, err := range []error{nil, errors.New("oh no"), status.Error(codes.Unknown, "oh no")} {
+		require.False(t, api.IsCredentialComposerError(api.MarkCredentialComposerError(err)))
 	}
 }
