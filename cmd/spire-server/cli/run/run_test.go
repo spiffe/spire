@@ -939,6 +939,18 @@ func TestNewServerConfig(t *testing.T) {
 			},
 		},
 		{
+			msg: "bundle endpoint has web profile with certs on disk and no file sync interval",
+			input: func(c *Config) {
+				c.Server.Federation = &federationConfig{
+					BundleEndpoint: bundleEndpointProfileHTTPSWebServingCertFileNoSyncIntervalTest(t),
+				}
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Nil(t, c.Federation.BundleEndpoint.ACME)
+				require.NotNil(t, c.Federation.BundleEndpoint.DiskCertManager)
+			},
+		},
+		{
 			msg: "bundle endpoint has empty web profile",
 			input: func(c *Config) {
 				c.Server.Federation = &federationConfig{
@@ -2509,6 +2521,22 @@ func bundleEndpointProfileHTTPSWebServingCertFileTest(t *testing.T) *bundleEndpo
         		cert_file_path = "../../../../test/fixture/certs/svid.pem"
         		key_file_path = "../../../../test/fixture/certs/svid_key.pem"
         		file_sync_interval = "5m"
+        	}
+        }`
+	config := new(bundleEndpointConfig)
+	require.NoError(t, hcl.Decode(config, configString))
+
+	return config
+}
+
+func bundleEndpointProfileHTTPSWebServingCertFileNoSyncIntervalTest(t *testing.T) *bundleEndpointConfig {
+	configString := `address = "0.0.0.0"
+        port = 8443
+        refresh_hint = "10m"
+        profile "https_web" {
+        	serving_cert_file {
+        		cert_file_path = "../../../../test/fixture/certs/svid.pem"
+        		key_file_path = "../../../../test/fixture/certs/svid_key.pem"
         	}
         }`
 	config := new(bundleEndpointConfig)

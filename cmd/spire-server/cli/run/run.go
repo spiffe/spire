@@ -909,12 +909,15 @@ func configToACMEConfig(acme *bundleEndpointACMEConfig, dataDir string) *bundle.
 }
 
 func configToDiskCertManager(serviceCertFile *bundleEndpointServingCertFile, log logrus.FieldLogger) (*diskcertmanager.DiskCertManager, error) {
-	fileSyncInterval, err := time.ParseDuration(serviceCertFile.RawFileSyncInterval)
-	if err != nil {
-		return nil, err
+	// file_sync_interval is optional. When it is not set, the default below applies.
+	if serviceCertFile.RawFileSyncInterval != "" {
+		fileSyncInterval, err := time.ParseDuration(serviceCertFile.RawFileSyncInterval)
+		if err != nil {
+			return nil, err
+		}
+		serviceCertFile.FileSyncInterval = fileSyncInterval
 	}
 
-	serviceCertFile.FileSyncInterval = fileSyncInterval
 	if serviceCertFile.FileSyncInterval == time.Duration(0) {
 		serviceCertFile.FileSyncInterval = time.Hour
 	}
