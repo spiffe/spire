@@ -265,8 +265,9 @@ func (a *Agent) Run(ctx context.Context) error {
 						}).Info("Trust Bundle and Server don't agree, ignoring for now")
 					} else {
 						a.c.Log.WithFields(logrus.Fields{
-							telemetry.Alert:     true,
-							telemetry.AlertType: telemetry.AgentIdentityAlertType,
+							telemetry.Alert:          true,
+							telemetry.AlertType:      telemetry.AgentIdentityAlertType,
+							telemetry.AlertCondition: telemetry.RebootstrapAlertCondition,
 						}).Warn("Trust Bundle and Server don't agree, rebootstrapping")
 						err = sto.StoreBundle(nil)
 						if err != nil {

@@ -47,6 +47,7 @@ Some log records include fields identifying conditions that may require operator
 | --- | --- |
 | `alert` | Set to `true` on records marked for operator attention. |
 | `alert_type` | Identifies the category of the condition. |
+| `alert_condition` | Names the specific condition within the category. Only set on some alert types, such as `agent_identity`. |
 
 Filter on `alert=true` to find marked records, and use `alert_type` to distinguish the conditions you want to monitor. The fields are present in both text and JSON output, and normal `log_level` filtering applies.
 
@@ -54,7 +55,19 @@ The following alert types are currently emitted:
 
 | Alert type | Component | Meaning |
 | --- | --- | --- |
-| `agent_identity` | Agent | The agent has lost, or is about to lose, its own identity: its SVID expired before it could be renewed, it was banned or has to re-attest and failed to, or it is rebootstrapping its trust bundle. Without operator action the agent may stop serving workloads. |
+| `agent_identity` | Agent | A condition affecting the agent's own identity. The `alert_condition` field names which one; see [agent identity conditions](#agent-identity-conditions). |
 | `deprecated_config` | Server and Agent | A deprecated configuration setting or behavior is in use. See [upgrade guidance](upgrading.md#configuration-and-behavior-compatibility). |
 | `deprecated_service` | Server and Agent | A plugin implements a deprecated service interface. See [plugin interface compatibility](upgrading.md#interface-compatibility). |
 | `shortened_lifetime` | Server | Requested credential lifetimes may be shortened, or CA rotation is constrained by usable certificate lifetimes. See [CA and SVID lifetimes](spire_server.md#ca-and-svid-lifetimes). |
+
+### Agent identity conditions
+
+Records with `alert_type=agent_identity` carry one of these `alert_condition` values:
+
+| Alert condition | Meaning |
+| --- | --- |
+| `svid_expired` | The agent SVID expired and the agent couldn't renew it or re-attest. The agent stops. |
+| `agent_banned` | The server reports the agent as banned. The agent removes its SVID and shuts down. |
+| `reattestation_required` | The server asked the agent to re-attest while the agent was starting up. The agent removes its SVID and shuts down without attempting re-attestation. |
+| `reattestation_failed` | The server asked the running agent to re-attest and re-attestation failed. The agent removes its SVID and shuts down. |
+| `rebootstrap` | The agent's trust bundle and the server have disagreed for longer than `rebootstrap_delay`, so the agent is rebootstrapping its trust bundle on its own, as allowed by `rebootstrap_mode`. No action is needed unless this repeats. |

@@ -29,6 +29,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/manager/storecache"
 	"github.com/spiffe/spire/pkg/agent/plugin/keymanager"
 	"github.com/spiffe/spire/pkg/agent/storage"
+	agentsvid "github.com/spiffe/spire/pkg/agent/svid"
 	"github.com/spiffe/spire/pkg/agent/trustbundlesources"
 	"github.com/spiffe/spire/pkg/agent/workloadkey"
 	commonapi "github.com/spiffe/spire/pkg/common/api"
@@ -1009,6 +1010,179 @@ func TestForceRotation(t *testing.T) {
 	}
 
 	require.Equal(t, clk.Now(), m.GetLastSync())
+}
+
+func TestInitializeIdentityLossAlerts(t *testing.T) {
+	for _, tt := range []struct {
+		name          string
+		reason        types.PermissionDeniedDetails_Reason
+		expectMessage string
+		condition     string
+	}{
+		{
+			name:          "banned",
+			reason:        types.PermissionDeniedDetails_AGENT_BANNED,
+			expectMessage: "Agent is banned: removing SVID and shutting down",
+			condition:     telemetry.AgentBannedAlertCondition,
+		},
+		{
+			name:          "reattestation required",
+			reason:        types.PermissionDeniedDetails_AGENT_MUST_REATTEST,
+			expectMessage: "Agent needs to re-attest: removing SVID and shutting down",
+			condition:     telemetry.ReattestationRequiredAlertCondition,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			deniedErr := permissionDeniedError(t, tt.reason)
+			m, logHook := newAlertTestManager(t, func(*mockAPI, int32, *entryv1.GetAuthorizedEntriesRequest) (*entryv1.GetAuthorizedEntriesResponse, error) {
+				return nil, deniedErr
+			})
+
+			err := m.Initialize(context.Background())
+			require.Error(t, err)
+
+			spiretest.AssertLogsContainEntries(t, logHook.AllEntries(), []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: tt.expectMessage,
+					Data: logrus.Fields{
+						logrus.ErrorKey:          err.Error(),
+						telemetry.Alert:          "true",
+						telemetry.AlertType:      telemetry.AgentIdentityAlertType,
+						telemetry.AlertCondition: tt.condition,
+					},
+				},
+			})
+		})
+	}
+}
+
+func TestRunIdentityLossAlerts(t *testing.T) {
+	for _, tt := range []struct {
+		name          string
+		runErr        error
+		reattestErr   error
+		expectLevel   logrus.Level
+		expectMessage string
+		expectError   string
+		condition     string
+	}{
+		{
+			name:          "banned",
+			runErr:        fmt.Errorf("client fails: %w", permissionDeniedError(t, types.PermissionDeniedDetails_AGENT_BANNED)),
+			expectLevel:   logrus.WarnLevel,
+			expectMessage: "Agent is banned: removing SVID and shutting down",
+			condition:     telemetry.AgentBannedAlertCondition,
+		},
+		{
+			name:          "reattestation failed",
+			runErr:        fmt.Errorf("client fails: %w", permissionDeniedError(t, types.PermissionDeniedDetails_AGENT_MUST_REATTEST)),
+			reattestErr:   errors.New("reattestation failed by test"),
+			expectLevel:   logrus.ErrorLevel,
+			expectMessage: "Agent failed re-attestation; removing SVID and shutting down",
+			expectError:   "reattestation failed by test",
+			condition:     telemetry.ReattestationFailedAlertCondition,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			m, logHook := newAlertTestManager(t, func(*mockAPI, int32, *entryv1.GetAuthorizedEntriesRequest) (*entryv1.GetAuthorizedEntriesResponse, error) {
+				return makeGetAuthorizedEntriesResponse(t, "resp1", "resp2"), nil
+			})
+			require.NoError(t, m.Initialize(context.Background()))
+
+			m.svid = &failingRotator{
+				Rotator:     m.svid,
+				runErr:      tt.runErr,
+				reattestErr: tt.reattestErr,
+			}
+
+			ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+			defer cancel()
+			err := m.Run(ctx)
+			require.ErrorIs(t, err, tt.runErr)
+
+			expectError := tt.expectError
+			if expectError == "" {
+				expectError = tt.runErr.Error()
+			}
+			spiretest.AssertLogsContainEntries(t, logHook.AllEntries(), []spiretest.LogEntry{
+				{
+					Level:   tt.expectLevel,
+					Message: tt.expectMessage,
+					Data: logrus.Fields{
+						logrus.ErrorKey:          expectError,
+						telemetry.Alert:          "true",
+						telemetry.AlertType:      telemetry.AgentIdentityAlertType,
+						telemetry.AlertCondition: tt.condition,
+					},
+				},
+			})
+		})
+	}
+}
+
+// failingRotator wraps a rotator so Run and Reattest return canned errors.
+type failingRotator struct {
+	agentsvid.Rotator
+	runErr      error
+	reattestErr error
+}
+
+func (r *failingRotator) Run(context.Context) error {
+	return r.runErr
+}
+
+func (r *failingRotator) Reattest(context.Context) error {
+	return r.reattestErr
+}
+
+func permissionDeniedError(t *testing.T, reason types.PermissionDeniedDetails_Reason) error {
+	st, err := status.New(codes.PermissionDenied, "permission denied by test").WithDetails(&types.PermissionDeniedDetails{
+		Reason: reason,
+	})
+	require.NoError(t, err)
+	return st.Err()
+}
+
+func newAlertTestManager(t *testing.T, getAuthorizedEntries func(*mockAPI, int32, *entryv1.GetAuthorizedEntriesRequest) (*entryv1.GetAuthorizedEntriesResponse, error)) (*manager, *testlog.Hook) {
+	dir := spiretest.TempDir(t)
+	km := fakeagentkeymanager.New(t, dir)
+	clk := clock.NewMock(t)
+	api := newMockAPI(t, &mockAPIConfig{
+		km:                   km,
+		getAuthorizedEntries: getAuthorizedEntries,
+		batchNewX509SVIDEntries: func(*mockAPI, int32) []*common.RegistrationEntry {
+			return makeBatchNewX509SVIDEntries("resp1", "resp2")
+		},
+		svidTTL: 200,
+		clk:     clk,
+	})
+
+	baseSVID, baseSVIDKey := api.newSVID(joinTokenID, 1*time.Hour)
+	cat := fakeagentcatalog.New()
+	cat.SetKeyManager(km)
+
+	log, logHook := testlog.NewNullLogger()
+
+	c := &Config{
+		ServerAddr:       api.addr,
+		SVID:             baseSVID,
+		SVIDKey:          baseSVIDKey,
+		Log:              log,
+		TrustDomain:      trustDomain,
+		Storage:          openStorage(t, dir),
+		Bundle:           api.bundle,
+		Metrics:          &telemetry.Blackhole{},
+		RotationInterval: time.Hour,
+		SyncInterval:     time.Hour,
+		Clk:              clk,
+		Catalog:          cat,
+		WorkloadKeyType:  workloadkey.ECP256,
+		SVIDStoreCache:   storecache.New(&storecache.Config{TrustDomain: trustDomain, Log: testLogger, Metrics: &telemetry.Blackhole{}}),
+		RotationStrategy: rotationutil.NewRotationStrategy(0),
+	}
+
+	return newManager(c), logHook
 }
 
 func TestSubscribersGetUpToDateBundle(t *testing.T) {

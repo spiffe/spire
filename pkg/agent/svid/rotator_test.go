@@ -289,6 +289,7 @@ func TestRotationFails(t *testing.T) {
 		expectErr         string
 		expiration        time.Duration
 		bundleTrustDomain spiffeid.TrustDomain
+		expectLogs        []spiretest.LogEntry
 	}{
 		{
 			name:              "renew svid is expired",
@@ -296,18 +297,50 @@ func TestRotationFails(t *testing.T) {
 			bundleTrustDomain: trustDomain,
 			err:               errors.New("oh no"),
 			expectErr:         "current SVID has already expired and rotate agent SVID failed: oh no",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Could not rotate agent SVID",
+					Data: logrus.Fields{
+						logrus.ErrorKey:          "oh no",
+						telemetry.Alert:          "true",
+						telemetry.AlertType:      telemetry.AgentIdentityAlertType,
+						telemetry.AlertCondition: telemetry.SVIDExpiredAlertCondition,
+					},
+				},
+			},
 		},
 		{
 			name:              "expired agent",
 			bundleTrustDomain: trustDomain,
 			err:               fmt.Errorf("client fails: %w", expiredStatus.Err()),
 			expectErr:         "client fails: rpc error: code = PermissionDenied desc = agent is not active",
+			// The manager handles this case and marks its own record.
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Could not rotate agent SVID",
+					Data: logrus.Fields{
+						logrus.ErrorKey: "client fails: rpc error: code = PermissionDenied desc = agent is not active",
+					},
+				},
+			},
 		},
 		{
 			name:              "banned agent",
 			bundleTrustDomain: trustDomain,
 			err:               fmt.Errorf("client fails: %w", bannedStatus.Err()),
 			expectErr:         "client fails: rpc error: code = PermissionDenied desc = agent is banned",
+			// The manager handles this case and marks its own record.
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Could not rotate agent SVID",
+					Data: logrus.Fields{
+						logrus.ErrorKey: "client fails: rpc error: code = PermissionDenied desc = agent is banned",
+					},
+				},
+			},
 		},
 		{
 			name:              "reattest svid is expired",
@@ -317,6 +350,18 @@ func TestRotationFails(t *testing.T) {
 			err:               errors.New("reattestation failed by test"),
 			expectErr: "current SVID has already expired and reattest agent failed: failed to receive attestation response: " +
 				"rpc error: code = Unknown desc = reattestation failed by test",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Could not reattest agent",
+					Data: logrus.Fields{
+						logrus.ErrorKey:          "failed to receive attestation response: rpc error: code = Unknown desc = reattestation failed by test",
+						telemetry.Alert:          "true",
+						telemetry.AlertType:      telemetry.AgentIdentityAlertType,
+						telemetry.AlertCondition: telemetry.SVIDExpiredAlertCondition,
+					},
+				},
+			},
 		},
 		{
 			name:              "reattest bad bundle",
@@ -325,6 +370,18 @@ func TestRotationFails(t *testing.T) {
 			bundleTrustDomain: badTrustDomain,
 			err:               errors.New(bundleError),
 			expectErr:         "current SVID has already expired and reattest agent failed: bundle not found",
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Could not reattest agent",
+					Data: logrus.Fields{
+						logrus.ErrorKey:          "bundle not found",
+						telemetry.Alert:          "true",
+						telemetry.AlertType:      telemetry.AgentIdentityAlertType,
+						telemetry.AlertCondition: telemetry.SVIDExpiredAlertCondition,
+					},
+				},
+			},
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -384,12 +441,7 @@ func TestRotationFails(t *testing.T) {
 			err = rotator.Run(ctx)
 			spiretest.RequireErrorPrefix(t, err, tt.expectErr)
 
-			// The failure that stops the rotator is marked as an agent identity alert
-			entry := hook.LastEntry()
-			require.NotNil(t, entry)
-			require.Equal(t, logrus.ErrorLevel, entry.Level)
-			require.Equal(t, true, entry.Data[telemetry.Alert])
-			require.Equal(t, telemetry.AgentIdentityAlertType, entry.Data[telemetry.AlertType])
+			spiretest.AssertLogsContainEntries(t, hook.AllEntries(), tt.expectLogs)
 		})
 	}
 }
