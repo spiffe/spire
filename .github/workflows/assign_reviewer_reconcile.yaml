@@ -69,8 +69,12 @@ on:
         type: string
 
 # Serialize passes so a dispatch and a scheduled run cannot race on the
-# assignee. Queueing rather than cancelling keeps a maintainer's dispatch from
-# being dropped by the next scheduled run.
+# assignee. A running pass is never cancelled. The group holds a single
+# pending run, though, and a newer one replaces it, so a dispatch that is
+# waiting behind a running pass is dropped if another run arrives before it
+# starts. A pass takes seconds and the schedule fires twice an hour, so that
+# takes two dispatches in quick succession, and the dropped one shows up as
+# cancelled and can be dispatched again.
 concurrency:
   group: assign-reviewer-reconcile
   cancel-in-progress: false
@@ -238,7 +242,11 @@ jobs:
 
               // A review against an older commit means the author has pushed
               // since, and the synchronize handler already decided the court
-              // for that push.
+              // for that push. A review that was started before a push and
+              // submitted after it also carries the older commit and is
+              // skipped here. GitHub exposes no reliable push time to tell
+              // the two apart, and skipping leaves the ball with the
+              // maintainer, which is the safe direction.
               if (review.commit_id !== pr.head.sha) {
                 core.info(`PR #${pr.number} was pushed to after its latest review; skipping.`);
                 return;
