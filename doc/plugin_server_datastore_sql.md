@@ -444,6 +444,20 @@ Using an explicit service principal with a client certificate:
 
 Read Only connection will be used when the optional `ro_connection_string` is set. The formatted string takes the same form as connection_string. This option is not applicable for SQLite3.
 
+## Replication
+
+SPIRE Server uses two database connections:
+
+* `connection_string` is used for writes and for reads that must return up-to-date data. This connection must always see the most up-to-date data. SPIRE Server uses transactions on it so that different server instances do not step on each other.
+* `ro_connection_string`, when set, is used for reads that can tolerate stale data. How stale is not specified, but staleness delays how soon changes propagate through the system. The registration entry cache reads through this connection, so data that is too stale means agents do not learn about new workloads, or still consider removed workloads valid.
+
+Replication arrangements:
+
+* Replication to read replicas, used through `ro_connection_string`, is tested.
+* Multi-master replication is not tested. It requires the properties above to hold.
+* A primary with standbys should generally work, if the properties above hold.
+* Asynchronous multi-master replication with last-write-wins conflict resolution is not expected to work. For example, server instance A publishes a bundle with its new key X, and right after that instance B publishes a bundle with its new key Y. The bundle in the datastore must contain both X and Y. Last-write-wins keeps only one of them.
+
 ## SQLite and CGO
 
 SQLite support requires the use of CGO. This is not a concern for users downloading SPIRE or using the official SPIRE container images. However, if you are building SPIRE from the source code, please note that compiling SPIRE without CGO (e.g. `CGO_ENABLED=0`) will disable SQLite support.
