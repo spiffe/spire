@@ -251,29 +251,8 @@ func (a *Agent) Run(ctx context.Context) error {
 			}
 
 			if x509util.IsUnknownAuthorityError(err) {
-				if a.c.TrustBundleSources.IsBootstrap() {
-					a.c.Log.Info("Trust Bundle and Server don't agree, bootstrapping again")
-				} else if a.c.RebootstrapMode != RebootstrapNever {
-					startTime, err := a.c.TrustBundleSources.GetStartTime()
-					if err != nil {
-						return err
-					}
-					seconds := time.Since(startTime)
-					if seconds < a.c.RebootstrapDelay {
-						a.c.Log.WithFields(logrus.Fields{
-							"time_left": a.c.RebootstrapDelay - seconds,
-						}).Info("Trust Bundle and Server don't agree, ignoring for now")
-					} else {
-						a.c.Log.WithFields(logrus.Fields{
-							telemetry.Alert:          true,
-							telemetry.AlertType:      telemetry.AgentIdentityAlertType,
-							telemetry.AlertCondition: telemetry.RebootstrapAlertCondition,
-						}).Warn("Trust Bundle and Server don't agree, rebootstrapping")
-						err = sto.StoreBundle(nil)
-						if err != nil {
-							return err
-						}
-					}
+				if uaErr := a.handleUnknownAuthority(sto); uaErr != nil {
+					return uaErr
 				}
 			}
 
@@ -434,6 +413,36 @@ func (a *Agent) setupProfiling(ctx context.Context) (stop func()) {
 		cancel()
 		wg.Wait()
 	}
+}
+
+// handleUnknownAuthority runs when attestation fails because the trust bundle
+// and the server don't agree. Once the rebootstrap delay has passed it drops
+// the stored bundle so the next attempt bootstraps again.
+func (a *Agent) handleUnknownAuthority(sto storage.Storage) error {
+	if a.c.TrustBundleSources.IsBootstrap() {
+		a.c.Log.Info("Trust Bundle and Server don't agree, bootstrapping again")
+		return nil
+	}
+	if a.c.RebootstrapMode == RebootstrapNever {
+		return nil
+	}
+	startTime, err := a.c.TrustBundleSources.GetStartTime()
+	if err != nil {
+		return err
+	}
+	seconds := time.Since(startTime)
+	if seconds < a.c.RebootstrapDelay {
+		a.c.Log.WithFields(logrus.Fields{
+			"time_left": a.c.RebootstrapDelay - seconds,
+		}).Info("Trust Bundle and Server don't agree, ignoring for now")
+		return nil
+	}
+	a.c.Log.WithFields(logrus.Fields{
+		telemetry.Alert:          true,
+		telemetry.AlertType:      telemetry.AgentIdentityAlertType,
+		telemetry.AlertCondition: telemetry.RebootstrapAlertCondition,
+	}).Warn("Trust Bundle and Server don't agree, rebootstrapping")
+	return sto.StoreBundle(nil)
 }
 
 func (a *Agent) attest(ctx context.Context, sto storage.Storage, cat catalog.Catalog, metrics telemetry.Metrics, na nodeattestor.NodeAttestor, bootstrapTrustBundle []*x509.Certificate, insecureBootstrap bool) (*node_attestor.AttestationResult, error) {

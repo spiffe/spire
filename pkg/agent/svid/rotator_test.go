@@ -343,6 +343,41 @@ func TestRotationFails(t *testing.T) {
 			},
 		},
 		{
+			name:              "renew svid is expired and agent must re-attest",
+			expiration:        -time.Second,
+			bundleTrustDomain: trustDomain,
+			err:               fmt.Errorf("client fails: %w", expiredStatus.Err()),
+			expectErr:         "current SVID has already expired and rotate agent SVID failed: client fails: rpc error: code = PermissionDenied desc = agent is not active",
+			// The manager re-attests and alerts if that fails, so this
+			// record isn't marked.
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Could not rotate agent SVID",
+					Data: logrus.Fields{
+						logrus.ErrorKey: "client fails: rpc error: code = PermissionDenied desc = agent is not active",
+					},
+				},
+			},
+		},
+		{
+			name:              "renew svid is expired and agent is banned",
+			expiration:        -time.Second,
+			bundleTrustDomain: trustDomain,
+			err:               fmt.Errorf("client fails: %w", bannedStatus.Err()),
+			expectErr:         "current SVID has already expired and rotate agent SVID failed: client fails: rpc error: code = PermissionDenied desc = agent is banned",
+			// The manager marks its own agent_banned record.
+			expectLogs: []spiretest.LogEntry{
+				{
+					Level:   logrus.ErrorLevel,
+					Message: "Could not rotate agent SVID",
+					Data: logrus.Fields{
+						logrus.ErrorKey: "client fails: rpc error: code = PermissionDenied desc = agent is banned",
+					},
+				},
+			},
+		},
+		{
 			name:              "reattest svid is expired",
 			expiration:        -time.Second,
 			reattest:          true,

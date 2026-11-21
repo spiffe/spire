@@ -1121,6 +1121,85 @@ func TestRunIdentityLossAlerts(t *testing.T) {
 	}
 }
 
+func TestRunExpiredSVIDReattestFailsAlertsOnce(t *testing.T) {
+	m, logHook := newAlertTestManager(t, func(*mockAPI, int32, *entryv1.GetAuthorizedEntriesRequest) (*entryv1.GetAuthorizedEntriesResponse, error) {
+		return makeGetAuthorizedEntriesResponse(t, "resp1", "resp2"), nil
+	})
+	require.NoError(t, m.Initialize(context.Background()))
+
+	// This is what the rotator returns when the server rejects the renewal of
+	// an expired SVID and asks the agent to re-attest.
+	runErr := fmt.Errorf("current SVID has already expired and rotate agent SVID failed: %w",
+		fmt.Errorf("client fails: %w", permissionDeniedError(t, types.PermissionDeniedDetails_AGENT_NOT_ACTIVE)))
+	m.svid = &failingRotator{
+		Rotator:     m.svid,
+		runErr:      runErr,
+		reattestErr: errors.New("reattestation failed by test"),
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	require.ErrorIs(t, m.Run(ctx), runErr)
+
+	var alerts []*logrus.Entry
+	for _, entry := range logHook.AllEntries() {
+		if _, ok := entry.Data[telemetry.Alert]; ok {
+			alerts = append(alerts, entry)
+		}
+	}
+	require.Len(t, alerts, 1)
+	require.Equal(t, telemetry.ReattestationFailedAlertCondition, alerts[0].Data[telemetry.AlertCondition])
+}
+
+func TestRunSynchronizerRebootstrapAlert(t *testing.T) {
+	ca := testca.New(t, spiffeid.RequireTrustDomainFromString("test.td"))
+	ca2 := testca.New(t, spiffeid.RequireTrustDomainFromString("test.td"))
+	svid := ca2.CreateX509SVID(spiffeid.RequireFromString("spiffe://test.td/w1"))
+	_, _, unknownAuthorityErr := x509svid.Verify(svid.Certificates, ca.X509Bundle())
+	require.Error(t, unknownAuthorityErr)
+
+	var getAuthorizedEntriesAttempts atomic.Int32
+	m, logHook := newAlertTestManager(t, func(*mockAPI, int32, *entryv1.GetAuthorizedEntriesRequest) (*entryv1.GetAuthorizedEntriesResponse, error) {
+		if getAuthorizedEntriesAttempts.Add(1) > 1 {
+			return nil, unknownAuthorityErr
+		}
+		return makeGetAuthorizedEntriesResponse(t, "resp1", "resp2"), nil
+	})
+
+	tbs := trustbundlesources.New(&trustbundlesources.Config{TrustDomain: "example.org"}, testLogger)
+	tbs.SetMetrics(&telemetry.Blackhole{})
+	require.NoError(t, tbs.SetStorage(m.c.Storage))
+	m.c.TrustBundleSources = tbs
+	m.c.RebootstrapMode = "auto"
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	require.NoError(t, m.Initialize(ctx))
+
+	// Fire every sync timer right away.
+	clk := m.c.Clk.(*clock.Mock)
+	clk.SetAfterHook(func(time.Duration) <-chan time.Time {
+		c := make(chan time.Time, 1)
+		c <- clk.Now()
+		return c
+	})
+
+	err := m.runSynchronizer(ctx)
+	require.EqualError(t, err, "shutting down for rebootstrapping")
+
+	spiretest.AssertLogsContainEntries(t, logHook.AllEntries(), []spiretest.LogEntry{
+		{
+			Level:   logrus.WarnLevel,
+			Message: "Trust Bundle and Server don't agree, rebootstrapping",
+			Data: logrus.Fields{
+				telemetry.Alert:          "true",
+				telemetry.AlertType:      telemetry.AgentIdentityAlertType,
+				telemetry.AlertCondition: telemetry.RebootstrapAlertCondition,
+			},
+		},
+	})
+}
+
 // failingRotator wraps a rotator so Run and Reattest return canned errors.
 type failingRotator struct {
 	agentsvid.Rotator

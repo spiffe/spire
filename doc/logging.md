@@ -66,7 +66,7 @@ Records with `alert_type=agent_identity` carry one of these `alert_condition` va
 
 | Alert condition | Meaning |
 | --- | --- |
-| `svid_expired` | The agent SVID expired and the agent couldn't renew it or re-attest. The agent stops. |
+| `svid_expired` | The agent SVID expired and the agent couldn't renew it or re-attest. The agent stops. If the server rejected the renewal with a ban or a re-attest request, the record is `agent_banned` or `reattestation_failed` instead. |
 | `agent_banned` | The server reports the agent as banned. The agent removes its SVID and shuts down. |
 | `reattestation_required` | The server asked the agent to re-attest while the agent was starting up. The agent removes its SVID and shuts down without attempting re-attestation. |
 | `reattestation_failed` | The server asked the running agent to re-attest and re-attestation failed. The agent removes its SVID and shuts down. |
