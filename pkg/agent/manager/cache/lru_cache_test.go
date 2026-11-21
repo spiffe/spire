@@ -21,6 +21,7 @@ import (
 	"github.com/spiffe/spire/test/testca"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 )
 
 var (
@@ -863,6 +864,93 @@ func TestLRUCacheGetStaleEntriesDisablePrefetch(t *testing.T) {
 		{Entry: cache.records[qux.EntryId].entry},
 	}
 	assert.ElementsMatch(t, expectedEntries, cache.GetStaleEntries())
+}
+
+func TestLRUCacheDisablePrefetchDropsSVIDsWithoutSubscribers(t *testing.T) {
+	disablePrefetch := &common.RegistrationEntry_AdditionalAttributes{
+		DisableX509SvidPrefetch: true,
+	}
+
+	for _, tt := range []struct {
+		name string
+		// update applies an update to the cache that requires the cached SVIDs
+		// to be renewed.
+		update func(cache *X509SVIDLRUCache, entries ...*common.RegistrationEntry)
+	}{
+		{
+			name: "svid needs rotation",
+			update: func(cache *X509SVIDLRUCache, entries ...*common.RegistrationEntry) {
+				cache.UpdateEntries(&UpdateEntries{
+					Bundles:             makeBundles(bundleV1),
+					RegistrationEntries: makeRegistrationEntries(entries...),
+				}, func(existingEntry, newEntry *common.RegistrationEntry, svid *X509SVID) bool {
+					return true
+				})
+			},
+		},
+		{
+			name: "entry revision changed",
+			update: func(cache *X509SVIDLRUCache, entries ...*common.RegistrationEntry) {
+				updated := make([]*common.RegistrationEntry, 0, len(entries))
+				for _, entry := range entries {
+					entry = proto.Clone(entry).(*common.RegistrationEntry)
+					entry.RevisionNumber++
+					updated = append(updated, entry)
+				}
+				cache.UpdateEntries(&UpdateEntries{
+					Bundles:             makeBundles(bundleV1),
+					RegistrationEntries: makeRegistrationEntries(updated...),
+				}, nil)
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			cache := newTestLRUCache(t)
+
+			// FOO does not have prefetch enabled and has no subscribers
+			foo := makeRegistrationEntry("FOO", "F")
+			foo.AdditionalAttributes = disablePrefetch
+			// BAR does not have prefetch enabled but has a subscriber
+			bar := makeRegistrationEntry("BAR", "B")
+			bar.AdditionalAttributes = disablePrefetch
+			// BAZ has prefetch enabled and has no subscribers
+			baz := makeRegistrationEntry("BAZ", "Z")
+
+			cache.UpdateEntries(&UpdateEntries{
+				Bundles:             makeBundles(bundleV1),
+				RegistrationEntries: makeRegistrationEntries(foo, bar, baz),
+			}, nil)
+			subBar := cache.NewSubscriber(makeSelectors("B"))
+			defer subBar.Finish()
+
+			// SVIDs were cached for all of them, e.g. before prefetch was
+			// disabled or because a workload previously subscribed
+			cache.UpdateSVIDs(makeX509SVIDs(foo, bar, baz))
+			require.Empty(t, cache.GetStaleEntries())
+
+			tt.update(cache, foo, bar, baz)
+
+			// The SVID for FOO is removed instead of being renewed
+			assert.NotContains(t, cache.svids, foo.EntryId)
+			assert.Contains(t, cache.svids, bar.EntryId)
+			assert.Contains(t, cache.svids, baz.EntryId)
+			assert.ElementsMatch(t, []string{bar.EntryId, baz.EntryId}, staleEntryIDs(cache.GetStaleEntries()))
+
+			// Once a workload subscribes to FOO, the SVID is minted on demand
+			subFoo := cache.NewSubscriber(makeSelectors("F"))
+			defer subFoo.Finish()
+			cache.SyncSVIDsWithSubscribers()
+			assert.ElementsMatch(t, []string{foo.EntryId, bar.EntryId, baz.EntryId}, staleEntryIDs(cache.GetStaleEntries()))
+		})
+	}
+}
+
+func staleEntryIDs(staleEntries []*StaleEntry) []string {
+	ids := make([]string, 0, len(staleEntries))
+	for _, staleEntry := range staleEntries {
+		ids = append(ids, staleEntry.Entry.EntryId)
+	}
+	return ids
 }
 
 func TestLRUCacheGetStaleEntries(t *testing.T) {
