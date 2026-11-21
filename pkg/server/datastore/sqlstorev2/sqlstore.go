@@ -298,6 +298,8 @@ func gormConfig() *gorm.Config {
 	return &gorm.Config{
 		Logger:                                   gormlogger.Discard,
 		DisableForeignKeyConstraintWhenMigrating: true,
+		// gorm caches prepared statements without limit by default.
+		PrepareStmtMaxSize: 100,
 	}
 }
 

@@ -39,25 +39,11 @@ var _ sqltest.DataStoreUnderTest = (*Plugin)(nil)
 // unimplementedTests lists the shared suite tests that call methods this
 // datastore does not implement.
 var unimplementedTests = []string{
-	"TestCountAttestedNodes",
 	"TestCountRegistrationEntries",
-	"TestCreateAttestedNode",
-	"TestFetchAttestedNodeMissing",
-	"TestListAttestedNodes",
-	"TestUpdateAttestedNode",
-	"TestPruneAttestedExpiredNodes",
-	"TestPruneAttestedExpiredNodesBatchSize",
-	"TestDeleteAttestedNode",
 	"TestDeleteAttestedNodeCascadesEntries",
 	"TestDeleteAttestedNodeJoinTokenPreservesNonAliasChildEntries",
-	"TestPruneAttestedExpiredNodesCascadesEntries",
 	"TestDeleteAttestedNodeNonJoinTokenDoesNotCascade",
-	"TestListAttestedNodeEvents",
-	"TestPruneAttestedNodeEvents",
-	"TestNodeSelectors",
-	"TestListNodeSelectors",
-	"TestListNodeSelectorsGroupsBySpiffeID",
-	"TestSetNodeSelectorsUnderLoad",
+	"TestPruneAttestedExpiredNodesCascadesEntries",
 	"TestCreateRegistrationEntry",
 	"TestCreateOrReturnRegistrationEntry",
 	"TestCreateInvalidRegistrationEntry",
@@ -218,4 +204,16 @@ func requireNotConfigured(t *testing.T, ds *Plugin) {
 func isolatePostgresEnv(t *testing.T) {
 	t.Setenv("PGPASSWORD", "")
 	t.Setenv("PGPASSFILE", filepath.Join(t.TempDir(), "nonexistent"))
+}
+
+func TestWithDescribeExecMode(t *testing.T) {
+	for _, tt := range []struct{ dsn, expected string }{
+		{"postgres://u@h/db?sslmode=disable", "postgres://u@h/db?default_query_exec_mode=cache_describe&sslmode=disable"},
+		{"postgresql://u@h/db", "postgresql://u@h/db?default_query_exec_mode=cache_describe"},
+		{"host=h dbname=db", "host=h dbname=db default_query_exec_mode=cache_describe"},
+		{"host=h default_query_exec_mode=exec", "host=h default_query_exec_mode=exec"},
+		{"postgres://u@h:bad/db", "postgres://u@h:bad/db"},
+	} {
+		require.Equal(t, tt.expected, withDescribeExecMode(tt.dsn), tt.dsn)
+	}
 }
