@@ -47,6 +47,13 @@ environment variables, Workload Identity, and Managed Identity; stopping when on
 When using Workload Identity or Managed Identity, the plugin must be able to fetch the credential for the configured
 tenant ID, or else the attestation of nodes using this attestor will fail.
 
+When using the default credential, the subscription is discovered from the
+Azure Instance Metadata Service (IMDS) of the host the server runs on. If the
+server runs somewhere IMDS isn't available (e.g. Azure Container Apps or
+Kubernetes with Workload Identity), set `subscription_id` on the tenant and
+leave `app_id` and `app_secret` unset. The configured subscription is then used
+with the default credential and IMDS isn't contacted.
+
 Alternatively, the plugin can be configured to use static credentials for an application
 registered within the tenant (`subscription_id`, `app_id`, and `app_secret`).
 
@@ -80,6 +87,20 @@ required, however, it will be in a future release.
             tenants = {
                 "00000000-1111-2222-3333-444444444444" = {
                     resource_id = "http://example.org/app/"
+                }
+            }
+        }
+    }
+```
+
+#### Managed Identity Authentication Without IMDS
+
+```hcl
+    NodeAttestor "azure_msi" {
+        plugin_data {
+            tenants = {
+                "00000000-1111-2222-3333-444444444444" = {
+                    subscription_id = SUBSCRIPTION_ID
                 }
             }
         }

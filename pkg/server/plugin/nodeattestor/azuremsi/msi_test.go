@@ -401,15 +401,18 @@ func (s *MSIAttestorSuite) TestAttestFailsWhenAttestedBefore() {
 func (s *MSIAttestorSuite) TestConfigure() {
 	var clients []string
 	var logEntries []*logrus.Entry
+	var imdsCalls int
 
 	type testOpts struct {
-		fetchCredential func(string) (azcore.TokenCredential, error)
+		fetchCredential       func(string) (azcore.TokenCredential, error)
+		fetchInstanceMetadata func(azure.HTTPClient) (*azure.InstanceMetadata, error)
 	}
 
 	doConfig := func(t *testing.T, coreConfig catalog.CoreConfig, config string, opt *testOpts) error {
 		// reset the clients list and log entries
 		clients = nil
 		logEntries = nil
+		imdsCalls = 0
 
 		if opt == nil {
 			opt = new(testOpts)
@@ -418,7 +421,11 @@ func (s *MSIAttestorSuite) TestConfigure() {
 		attestor := New()
 		attestor.hooks.now = func() time.Time { return s.now }
 		attestor.hooks.keySetProvider = jwtutil.KeySetProviderFunc(func(ctx context.Context) (*jose.JSONWebKeySet, error) { return s.jwks, nil })
-		attestor.hooks.fetchInstanceMetadata = func(azure.HTTPClient) (*azure.InstanceMetadata, error) {
+		attestor.hooks.fetchInstanceMetadata = func(cl azure.HTTPClient) (*azure.InstanceMetadata, error) {
+			imdsCalls++
+			if opt.fetchInstanceMetadata != nil {
+				return opt.fetchInstanceMetadata(cl)
+			}
 			return instanceMetadata, nil
 		}
 		attestor.hooks.fetchCredential = func(tenantID string) (azcore.TokenCredential, error) {
@@ -532,6 +539,54 @@ func (s *MSIAttestorSuite) TestConfigure() {
 		}
 		`, nil)
 		spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, `misconfigured tenant "TENANTID": missing subscription id`)
+	})
+
+	s.T().Run("success with subscription id and default credential", func(t *testing.T) {
+		err := doConfig(t, coreConfig, `
+		tenants = {
+			"TENANTID" = {
+				resource_id = "https://example.org/app/"
+				subscription_id = "TENANTSUBSCRIPTIONID"
+			}
+		}
+		`, &testOpts{
+			fetchInstanceMetadata: func(azure.HTTPClient) (*azure.InstanceMetadata, error) {
+				return nil, errors.New("IMDS not available")
+			},
+		})
+		require.NoError(t, err)
+		require.ElementsMatch(t, []string{"TENANTSUBSCRIPTIONID"}, clients)
+		require.Zero(t, imdsCalls)
+	})
+
+	s.T().Run("success with subscription id and default credential mixed with IMDS", func(t *testing.T) {
+		err := doConfig(t, coreConfig, `
+		tenants = {
+			"TENANTID" = {
+				subscription_id = "TENANTSUBSCRIPTIONID"
+			}
+			"TENANTID2" = { }
+		}
+		`, nil)
+		require.NoError(t, err)
+		require.ElementsMatch(t, []string{"TENANTSUBSCRIPTIONID", "SUBSCRIPTIONID"}, clients)
+		require.Equal(t, 1, imdsCalls)
+	})
+
+	s.T().Run("error when subscription id cannot be discovered from IMDS", func(t *testing.T) {
+		err := doConfig(t, coreConfig, `
+		tenants = {
+			"TENANTID" = {
+				resource_id = "https://example.org/app/"
+			}
+		}
+		`, &testOpts{
+			fetchInstanceMetadata: func(azure.HTTPClient) (*azure.InstanceMetadata, error) {
+				return nil, errors.New("IMDS not available")
+			},
+		})
+		spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, `unable to discover subscription id for tenant "TENANTID" from instance metadata, consider setting subscription_id: IMDS not available`)
+		require.Empty(t, clients)
 	})
 
 	s.T().Run("failure with tenant missing app id", func(t *testing.T) {
