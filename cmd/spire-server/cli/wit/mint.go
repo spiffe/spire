@@ -7,6 +7,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/go-jose/go-jose/v4"
@@ -234,6 +235,11 @@ func validateKeyTypeAndSigningAlgorithm(keyType string, signingAlgorithm string)
 			return keymanager.KeyTypeUnset, fmt.Errorf("unsupported key type '%s' for '%s' signing algorithm", keyType, signingAlgorithm)
 		}
 		return keymanager.ECP384, nil
+	case "ML-DSA-44", "ML-DSA-65", "ML-DSA-87":
+		if keyType != strings.ToLower(signingAlgorithm) {
+			return keymanager.KeyTypeUnset, fmt.Errorf("unsupported key type '%s' for '%s' signing algorithm", keyType, signingAlgorithm)
+		}
+		return keymanager.KeyTypeFromString(keyType)
 	default:
 		return keymanager.KeyTypeUnset, fmt.Errorf("unsupported signing algorithm: %s", signingAlgorithm)
 	}

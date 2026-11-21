@@ -45,7 +45,7 @@ require (
 	github.com/envoyproxy/go-control-plane v0.14.0
 	github.com/envoyproxy/go-control-plane/envoy v1.40.0
 	github.com/fullsailor/pkcs7 v0.0.0-20190404230743-d7302db945fa
-	github.com/go-jose/go-jose/v4 v4.1.8
+	github.com/go-jose/go-jose/v4 v4.1.9
 	github.com/go-sql-driver/mysql v1.10.1
 	github.com/godbus/dbus/v5 v5.2.4
 	github.com/gofrs/uuid/v5 v5.5.1
@@ -342,3 +342,7 @@ require (
 	sigs.k8s.io/structured-merge-diff/v6 v6.4.2 // indirect
 	sigs.k8s.io/yaml v1.6.0 // indirect
 )
+
+replace github.com/spiffe/go-spiffe/v2 => github.com/sorindumitru/go-spiffe/v2 v2.0.0-20261112174137-fdfe334039f0
+
+replace github.com/spiffe/spire-plugin-sdk => github.com/sorindumitru/spire-plugin-sdk v1.4.4-0.20261118160057-8ff57cb0cdd9

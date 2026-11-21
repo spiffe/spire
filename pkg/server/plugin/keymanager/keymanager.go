@@ -5,6 +5,7 @@ import (
 	"crypto"
 	"crypto/ecdsa"
 	"crypto/elliptic"
+	"crypto/mldsa"
 	"crypto/rand"
 	"crypto/rsa"
 	"fmt"
@@ -46,6 +47,9 @@ const (
 	ECP384
 	RSA2048
 	RSA4096
+	MLDSA44
+	MLDSA65
+	MLDSA87
 )
 
 func KeyTypeFromString(s string) (KeyType, error) {
@@ -58,8 +62,14 @@ func KeyTypeFromString(s string) (KeyType, error) {
 		return ECP256, nil
 	case "ec-p384":
 		return ECP384, nil
+	case "ml-dsa-44":
+		return MLDSA44, nil
+	case "ml-dsa-65":
+		return MLDSA65, nil
+	case "ml-dsa-87":
+		return MLDSA87, nil
 	default:
-		return KeyTypeUnset, fmt.Errorf("key type %q is unknown; must be one of [rsa-2048, rsa-4096, ec-p256, ec-p384]", s)
+		return KeyTypeUnset, fmt.Errorf("key type %q is unknown; must be one of [rsa-2048, rsa-4096, ec-p256, ec-p384, ml-dsa-44, ml-dsa-65, ml-dsa-87]", s)
 	}
 }
 
@@ -74,6 +84,12 @@ func (keyType KeyType) GenerateSigner() (crypto.Signer, error) {
 		return rsa.GenerateKey(rand.Reader, 2048)
 	case RSA4096:
 		return rsa.GenerateKey(rand.Reader, 4096)
+	case MLDSA44:
+		return mldsa.GenerateKey(mldsa.MLDSA44())
+	case MLDSA65:
+		return mldsa.GenerateKey(mldsa.MLDSA65())
+	case MLDSA87:
+		return mldsa.GenerateKey(mldsa.MLDSA87())
 	}
 	return nil, fmt.Errorf("unknown key type %q", keyType)
 }
@@ -90,6 +106,12 @@ func (keyType KeyType) String() string {
 		return "rsa-2048"
 	case RSA4096:
 		return "rsa-4096"
+	case MLDSA44:
+		return "ml-dsa-44"
+	case MLDSA65:
+		return "ml-dsa-65"
+	case MLDSA87:
+		return "ml-dsa-87"
 	default:
 		return fmt.Sprintf("UNKNOWN(%d)", int(keyType))
 	}

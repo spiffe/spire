@@ -26,6 +26,7 @@ func TestKeyManagerContract(t *testing.T) {
 			require.NoError(t, err)
 			return km
 		},
+		SupportsMLDSA: true,
 	})
 }
 

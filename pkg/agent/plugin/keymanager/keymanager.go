@@ -5,6 +5,7 @@ import (
 	"crypto"
 	"crypto/ecdsa"
 	"crypto/elliptic"
+	"crypto/mldsa"
 	"crypto/rand"
 	"crypto/rsa"
 	"fmt"
@@ -45,6 +46,9 @@ const (
 	ECP384
 	RSA2048
 	RSA4096
+	MLDSA44
+	MLDSA65
+	MLDSA87
 )
 
 // GenerateSigner generates a new key for the given key type
@@ -58,6 +62,12 @@ func (keyType KeyType) GenerateSigner() (crypto.Signer, error) {
 		return rsa.GenerateKey(rand.Reader, 2048)
 	case RSA4096:
 		return rsa.GenerateKey(rand.Reader, 4096)
+	case MLDSA44:
+		return mldsa.GenerateKey(mldsa.MLDSA44())
+	case MLDSA65:
+		return mldsa.GenerateKey(mldsa.MLDSA65())
+	case MLDSA87:
+		return mldsa.GenerateKey(mldsa.MLDSA87())
 	}
 	return nil, fmt.Errorf("unknown key type %q", keyType)
 }
@@ -75,6 +85,12 @@ func (keyType KeyType) String() string {
 		return "rsa-2048"
 	case RSA4096:
 		return "rsa-4096"
+	case MLDSA44:
+		return "ml-dsa-44"
+	case MLDSA65:
+		return "ml-dsa-65"
+	case MLDSA87:
+		return "ml-dsa-87"
 	default:
 		return fmt.Sprintf("UNKNOWN(%d)", int(keyType))
 	}
