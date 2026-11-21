@@ -81,6 +81,14 @@ func TestContainerExtraction(t *testing.T) {
 			hasMatch:    true,
 		},
 		{
+			desc:        "cgroups with entries that have no container id",
+			trustDomain: "example.org",
+			cgroups: testCgroupEntries + "\n" +
+				"11:rdma:/" + "\n" +
+				"1:name=systemd:/docker/6469646e742065787065637420616e796f6e6520746f20726561642074686973",
+			hasMatch: true,
+		},
+		{
 			desc:        "more than one id",
 			trustDomain: "example.org",
 			cgroups:     testCgroupEntries + "\n" + "4:devices:/system.slice/docker-41e4ab61d2860b0e1467de0da0a9c6068012761febec402dc04a5a94f32ea867.scope",

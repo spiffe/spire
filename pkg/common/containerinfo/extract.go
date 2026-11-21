@@ -102,6 +102,13 @@ func (e *extractor) ContainerID() string {
 func (e *extractor) Extract(cgroupPathOrMountRoot string, log hclog.Logger) error {
 	podUID, containerID := e.extract(cgroupPathOrMountRoot)
 
+	// An entry without a container ID (e.g. "11:rdma:/") says nothing about the
+	// workload's container, so ignore it instead of treating it as an answer
+	// that conflicts with the container ID found in other entries.
+	if containerID == "" {
+		return nil
+	}
+
 	// An entry with a pod UID overrides an entry without. If we currently have
 	// a pod UID and the new entry does not, then ignore it. If we currently
 	// don't have a pod UID and the new entry does, then override what we have

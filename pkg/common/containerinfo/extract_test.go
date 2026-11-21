@@ -71,6 +71,10 @@ func TestExtractPodUIDAndContainerID(t *testing.T) {
 		assertFound(t, "testdata/cgroup/pod-uid-override", testPodUID, testContainerID)
 	})
 
+	t.Run("entries without a container ID are ignored", func(t *testing.T) {
+		assertFound(t, "testdata/cgroup/container-with-unrelated-entries", "", testContainerID)
+	})
+
 	t.Run("mountinfo is ignored", func(t *testing.T) {
 		// The cgroup file carries no container ID and the mountinfo file has been
 		// crafted to point at another workload's cgroup. mountinfo must not be
@@ -106,6 +110,10 @@ func TestExtractContainerID(t *testing.T) {
 
 	t.Run("no cgroup file", func(t *testing.T) {
 		assertNotFound(t, "testdata/does-not-exist")
+	})
+
+	t.Run("entries without a container ID are ignored", func(t *testing.T) {
+		assertFound(t, "testdata/cgroup/container-with-unrelated-entries", testContainerID)
 	})
 
 	t.Run("mountinfo is ignored", func(t *testing.T) {
