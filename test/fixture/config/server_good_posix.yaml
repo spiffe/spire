@@ -28,6 +28,7 @@ server:
         bundleEndpointProfile:
           httpsWeb: {}
   experimental:
+    enableYamlConfig: true
     requirePqKem: true
 
 plugins:

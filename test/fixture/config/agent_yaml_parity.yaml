@@ -25,6 +25,7 @@ agent:
   tlsConfig:
     minTlsVersion: "VersionTLS12"
   experimental:
+    enableYamlConfig: true
     syncInterval: "10s"
     jwtSvidCacheHitTimeout: "1s"
     rpcTimeout: "30s"

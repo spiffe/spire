@@ -64,6 +64,7 @@ type Config struct {
 	Plugins            ast.Node               `hcl:"plugins"       yaml:"-"`
 	PluginsRaw         *yamlconfig.Raw        `hcl:"-" yaml:"plugins"`
 	YAMLUnknownKeys    []string               `hcl:"-" yaml:"-"`
+	ConfigFormat       catalog.ConfigFormat   `hcl:"-" yaml:"-"`
 	Telemetry          telemetry.FileConfig   `hcl:"telemetry"     yaml:"telemetry"`
 	HealthChecks       health.Config          `hcl:"health_checks" yaml:"healthChecks"`
 	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions" yaml:"-"`
@@ -114,6 +115,7 @@ type serverConfig struct {
 }
 
 type experimentalConfig struct {
+	EnableYAMLConfig           bool                        `hcl:"-" yaml:"enableYamlConfig"`
 	AgentSpiffeIdAsSelector    bool                        `hcl:"agent_spiffe_id_as_selector" yaml:"agentSpiffeIdAsSelector"`
 	AllowNonconformingAgentIDs bool                        `hcl:"allow_nonconforming_agent_ids" yaml:"allowNonconformingAgentIds"`
 	AuthOpaPolicyEngine        *authpolicy.OpaEngineConfig `hcl:"auth_opa_policy_engine" yaml:"authOpaPolicyEngine"`
@@ -359,6 +361,7 @@ func ParseFile(path string, expandEnv bool) (*Config, error) {
 			return nil, fmt.Errorf("unable to decode configuration at %q: %w", path, err)
 		}
 		c.YAMLUnknownKeys = unknownKeys
+		c.ConfigFormat = catalog.ConfigFormatYAML
 		return c, nil
 	}
 
@@ -763,7 +766,7 @@ func newServerConfig(c *Config, logOptions []log.Option, allowUnknownConfig, ski
 	}
 
 	var pluginConfigs catalog.PluginConfigs
-	if c.PluginsRaw != nil {
+	if c.ConfigFormat == catalog.ConfigFormatYAML {
 		sc.Log.Warn("YAML configuration support is experimental and may change in future versions")
 		pluginConfigs, err = catalog.PluginConfigsFromYAML(c.PluginsRaw)
 	} else {
@@ -1052,6 +1055,10 @@ func parseBundleEndpointProfileASTNode(node ast.Node) (string, error) {
 func validateConfig(c *Config) error {
 	if c.Server == nil {
 		return errors.New("server section must be configured")
+	}
+
+	if c.ConfigFormat == catalog.ConfigFormatYAML && !c.Server.Experimental.EnableYAMLConfig {
+		return errors.New("YAML configuration is experimental: set experimental.enableYamlConfig to true to use it")
 	}
 
 	if c.Server.BindAddress == "" || c.Server.BindPort == 0 {

@@ -8,6 +8,8 @@ agent:
   trustDomain: "example.org"
   allowUnauthenticatedVerifiers: true
   allowedForeignJwtClaims: ["c1", "c2", "c3"]
+  experimental:
+    enableYamlConfig: true
 
 plugins:
   plugin_type_agent:

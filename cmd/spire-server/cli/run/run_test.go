@@ -124,6 +124,8 @@ func TestParseFile_YAML(t *testing.T) {
 			require.Empty(t, yamlConf.YAMLUnknownKeys)
 
 			setYAMLProfilesFromHCL(t, hclConf)
+			hclConf.ConfigFormat = catalog.ConfigFormatYAML
+			hclConf.Server.Experimental.EnableYAMLConfig = true
 			configtest.RequireYAMLParity(t, hclConf, yamlConf, hclConf.Plugins, yamlConf.PluginsRaw, decodeServerPluginData)
 		})
 	}
@@ -183,6 +185,8 @@ func TestNewServerConfig_YAMLProfiles(t *testing.T) {
   trustDomain: example.org
   logLevel: INFO
   dataDir: ` + t.TempDir() + `
+  experimental:
+    enableYamlConfig: true
   federation:
 ` + federation + `
 plugins:
@@ -303,9 +307,21 @@ func TestParseFile_YAMLExpandEnv(t *testing.T) {
 	require.Equal(t, "example.org", c.Server.TrustDomain)
 }
 
+func TestValidateConfig_YAMLRequiresExperimentalFlag(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	config := "server:\n  bindAddress: 127.0.0.1\n  bindPort: 8081\n  trustDomain: example.org\n  dataDir: /tmp\nplugins:\n  KeyManager:\n    memory: {}\n"
+	require.NoError(t, os.WriteFile(path, []byte(config), 0o600))
+	c, err := ParseFile(path, false)
+	require.NoError(t, err)
+	require.EqualError(t, validateConfig(c), "YAML configuration is experimental: set experimental.enableYamlConfig to true to use it")
+
+	c.Server.Experimental.EnableYAMLConfig = true
+	require.NoError(t, validateConfig(c))
+}
+
 func TestValidateConfig_YAMLWithoutPlugins(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.yaml")
-	require.NoError(t, os.WriteFile(path, []byte("server:\n  bindAddress: 127.0.0.1\n  bindPort: 8081\n  trustDomain: example.org\n  dataDir: /tmp\n"), 0o600))
+	require.NoError(t, os.WriteFile(path, []byte("server:\n  bindAddress: 127.0.0.1\n  bindPort: 8081\n  trustDomain: example.org\n  dataDir: /tmp\n  experimental:\n    enableYamlConfig: true\n"), 0o600))
 	c, err := ParseFile(path, false)
 	require.NoError(t, err)
 	require.EqualError(t, validateConfig(c), "plugins section must be configured")
