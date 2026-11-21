@@ -16,6 +16,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/health"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/tlspolicy"
+	"google.golang.org/grpc/keepalive"
 )
 
 const (
@@ -77,6 +78,14 @@ type Config struct {
 
 	// Address of SPIRE server
 	ServerAddress string
+
+	// AttestTimeout bounds the whole node attestation dialog with the server
+	// (bootstrap and re-attestation); zero disables the timeout.
+	AttestTimeout time.Duration
+
+	// Keepalive configures gRPC client keepalive pings on connections to the
+	// SPIRE server; nil disables them.
+	Keepalive *keepalive.ClientParameters
 
 	// ServerLoadBalancingConfig is an opaque payload used as the
 	// loadBalancingConfig field of the gRPC service config used to connect to
