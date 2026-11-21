@@ -56,6 +56,10 @@ type SessionConfig struct {
 
 var OpenTPM = openTPM
 
+// akSRKTemplateECC is the preferred storage root key template for the
+// attestation key. It is a variable so tests can exercise the RSA fallback.
+var akSRKTemplateECC = SRKTemplateHighECC
+
 // NewSession opens a connection to a TPM and configures it to be used for
 // node attestation.
 func NewSession(scfg *SessionConfig) (*Session, error) {
@@ -90,12 +94,14 @@ func NewSession(scfg *SessionConfig) (*Session, error) {
 		return nil, fmt.Errorf("cannot generate random password for storage root key: %w", err)
 	}
 
-	// Load DevID
+	// Load DevID. The storage parent is derived from the DevID key type so that
+	// it matches the one used at provisioning time.
 	tpm.devID, err = tpm.loadKey(
 		scfg.DevIDPub,
 		scfg.DevIDPriv,
 		srkPassword,
-		scfg.Passwords.DevIDKey)
+		scfg.Passwords.DevIDKey,
+		nil)
 	if err != nil {
 		return nil, fmt.Errorf("cannot load DevID key on TPM: %w", err)
 	}
@@ -105,18 +111,19 @@ func NewSession(scfg *SessionConfig) (*Session, error) {
 	if err != nil {
 		return nil, fmt.Errorf("cannot generate random password for attesation key: %w", err)
 	}
-	akPriv, akPub, err := tpm.createAttestationKey(srkPassword, akPassword)
+	akPriv, akPub, akSRKTemplate, err := tpm.createAttestationKey(srkPassword, akPassword)
 	if err != nil {
 		return nil, fmt.Errorf("cannot create attestation key: %w", err)
 	}
 	tpm.akPub = akPub
 
-	// Load Attestation Key
+	// Load Attestation Key under the same storage parent it was created under.
 	tpm.ak, err = tpm.loadKey(
 		akPub,
 		akPriv,
 		srkPassword,
-		akPassword)
+		akPassword,
+		&akSRKTemplate)
 	if err != nil {
 		return nil, fmt.Errorf("cannot load attestation key: %w", err)
 	}
@@ -255,8 +262,13 @@ func (c *Session) GetAKPublic() []byte {
 	return c.akPub
 }
 
-// loadKey loads a key pair into the TPM.
-func (c *Session) loadKey(publicKey, privateKey []byte, parentKeyPassword, keyPassword string) (*SigningKey, error) {
+// loadKey loads a key pair into the TPM under a freshly created storage root
+// key.
+//
+// srkTemplate selects the storage parent. For the DevID key it must match the
+// template used when the key was provisioned, otherwise the TPM cannot unwrap
+// the private blob; pass nil to derive it from the key type.
+func (c *Session) loadKey(publicKey, privateKey []byte, parentKeyPassword, keyPassword string, srkTemplate *tpm2.Public) (*SigningKey, error) {
 	pub, err := tpm2.DecodePublic(publicKey)
 	if err != nil {
 		return nil, fmt.Errorf("tpm2.DecodePublic failed: %w", err)
@@ -268,17 +280,17 @@ func (c *Session) loadKey(publicKey, privateKey []byte, parentKeyPassword, keyPa
 	}
 
 	var sigHashAlg tpm2.Algorithm
-	var srkTemplate tpm2.Public
+	var defaultSRKTemplate tpm2.Public
 	switch pub.Type {
 	case tpm2.AlgRSA:
-		srkTemplate = SRKTemplateHighRSA()
+		defaultSRKTemplate = SRKTemplateHighRSA()
 		rsaParams := pub.RSAParameters
 		if rsaParams != nil {
 			sigHashAlg = rsaParams.Sign.Hash
 		}
 
 	case tpm2.AlgECC:
-		srkTemplate = SRKTemplateHighECC()
+		defaultSRKTemplate = SRKTemplateHighECC()
 		eccParams := pub.ECCParameters
 		if eccParams != nil {
 			sigHashAlg = eccParams.Sign.Hash
@@ -286,6 +298,10 @@ func (c *Session) loadKey(publicKey, privateKey []byte, parentKeyPassword, keyPa
 
 	default:
 		return nil, fmt.Errorf("bad key type: 0x%04x", pub.Type)
+	}
+
+	if srkTemplate == nil {
+		srkTemplate = &defaultSRKTemplate
 	}
 
 	if sigHashAlg.IsNull() {
@@ -297,7 +313,7 @@ func (c *Session) loadKey(publicKey, privateKey []byte, parentKeyPassword, keyPa
 			tpm2.PCRSelection{},
 			c.ownerHierarchyPassword,
 			parentKeyPassword,
-			srkTemplate)
+			*srkTemplate)
 	if err != nil {
 		return nil, fmt.Errorf("tpm2.CreatePrimaryEx failed: %w", err)
 	}
@@ -317,16 +333,34 @@ func (c *Session) loadKey(publicKey, privateKey []byte, parentKeyPassword, keyPa
 	}, nil
 }
 
-func (c *Session) createAttestationKey(parentKeyPassword, keyPassword string) ([]byte, []byte, error) {
-	srkHandle, _, _, _, _, _, err :=
-		tpm2.CreatePrimaryEx(c.rwc,
-			tpm2.HandleOwner,
-			tpm2.PCRSelection{},
-			c.ownerHierarchyPassword,
-			parentKeyPassword,
-			SRKTemplateHighRSA())
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to create SRK: %w", err)
+// createAttestationKey creates the attestation key under a storage root key and
+// returns the key blobs along with the template of the storage root key, which
+// is needed to load the attestation key afterwards.
+//
+// The attestation key itself must be RSA as the server currently only verifies
+// RSA certification signatures. The storage parent wrapping it is only
+// agent-local, never transmitted to the server, so it may use the more
+// performant ECC. ECC is only mandated by the TCG PC Client Platform TPM
+// Profile, so RSA is used as a fallback on TPMs that reject the ECC storage
+// root key template.
+func (c *Session) createAttestationKey(parentKeyPassword, keyPassword string) ([]byte, []byte, tpm2.Public, error) {
+	srkTemplate := akSRKTemplateECC()
+	srkHandle, eccErr := c.createSRK(parentKeyPassword, srkTemplate)
+	if eccErr != nil {
+		if !isTemplateError(eccErr) {
+			return nil, nil, tpm2.Public{}, fmt.Errorf("failed to create SRK: %w", eccErr)
+		}
+
+		c.log.Warn(fmt.Sprintf("Failed to create ECC storage root key for the attestation key, falling back to RSA: %v", eccErr))
+
+		var rsaErr error
+		srkTemplate = SRKTemplateHighRSA()
+		srkHandle, rsaErr = c.createSRK(parentKeyPassword, srkTemplate)
+		if rsaErr != nil {
+			return nil, nil, tpm2.Public{}, fmt.Errorf("failed to create SRK: %w", errors.Join(
+				fmt.Errorf("ECC: %w", eccErr),
+				fmt.Errorf("RSA: %w", rsaErr)))
+		}
 	}
 	defer c.flushContext(srkHandle)
 
@@ -339,10 +373,29 @@ func (c *Session) createAttestationKey(parentKeyPassword, keyPassword string) ([
 		client.AKTemplateRSA(),
 	)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to create AK: %w", err)
+		return nil, nil, tpm2.Public{}, fmt.Errorf("failed to create AK: %w", err)
 	}
 
-	return privBlob, pubBlob, nil
+	return privBlob, pubBlob, srkTemplate, nil
+}
+
+func (c *Session) createSRK(password string, template tpm2.Public) (tpmutil.Handle, error) {
+	srkHandle, _, _, _, _, _, err :=
+		tpm2.CreatePrimaryEx(c.rwc,
+			tpm2.HandleOwner,
+			tpm2.PCRSelection{},
+			c.ownerHierarchyPassword,
+			password,
+			template)
+	return srkHandle, err
+}
+
+// isTemplateError returns true if the TPM rejected the inPublic parameter of
+// TPM2_CreatePrimary, which is how a TPM reports an unsupported algorithm or
+// curve in the key template.
+func isTemplateError(err error) bool {
+	var paramErr tpm2.ParameterError
+	return errors.As(err, &paramErr) && paramErr.Parameter == tpm2.RC2
 }
 
 // createPolicySessionForEK creates a session-based authorization to access EK.
