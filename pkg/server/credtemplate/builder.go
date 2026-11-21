@@ -17,6 +17,7 @@ import (
 	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/gofrs/uuid/v5"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
+	commonapi "github.com/spiffe/spire/pkg/common/api"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/tlspolicy"
 	"github.com/spiffe/spire/pkg/common/x509util"
@@ -372,7 +373,7 @@ func (b *Builder) BuildWorkloadJWTSVIDClaims(ctx context.Context, params Workloa
 		var err error
 		attributes, err = cc.ComposeWorkloadJWTSVID(ctx, params.SPIFFEID, attributes)
 		if err != nil {
-			return nil, err
+			return nil, commonapi.MarkCredentialComposerError(err)
 		}
 	}
 

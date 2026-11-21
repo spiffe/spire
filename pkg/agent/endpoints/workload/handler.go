@@ -22,6 +22,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/common/hintsfilter"
 	"github.com/spiffe/spire/pkg/agent/manager"
 	"github.com/spiffe/spire/pkg/agent/manager/cache"
+	"github.com/spiffe/spire/pkg/common/api"
 	"github.com/spiffe/spire/pkg/common/bundleutil"
 	"github.com/spiffe/spire/pkg/common/jwtsvid"
 	"github.com/spiffe/spire/pkg/common/telemetry"
@@ -442,7 +443,11 @@ func (h *Handler) fetchJWTSVID(ctx context.Context, log logrus.FieldLogger, entr
 	svid, err := h.c.Manager.FetchJWTSVID(ctx, entry, audience)
 	if err != nil {
 		loggerWithContextInfo(ctx, log, start, err).Error("Could not fetch JWT-SVID")
-		return nil, status.Errorf(codes.Unavailable, "could not fetch JWT-SVID: %v", err)
+		code := codes.Unavailable
+		if api.IsCredentialComposerError(err) {
+			code = status.Code(err)
+		}
+		return nil, status.Errorf(code, "could not fetch JWT-SVID: %v", err)
 	}
 
 	ttl := time.Until(svid.ExpiresAt)

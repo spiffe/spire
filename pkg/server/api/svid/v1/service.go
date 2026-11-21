@@ -372,6 +372,10 @@ func (s *Service) mintJWTSVID(ctx context.Context, protoID *types.SPIFFEID, audi
 		IncludeJTI: includeJTI,
 	})
 	if err != nil {
+		if commonapi.IsCredentialComposerError(err) {
+			// Keep the status code returned by the credential composer.
+			return nil, commonapi.MarkCredentialComposerError(commonapi.MakeErr(log, status.Code(err), "failed to sign JWT-SVID", err))
+		}
 		return nil, commonapi.MakeErr(log, codes.Internal, "failed to sign JWT-SVID", err)
 	}
 
