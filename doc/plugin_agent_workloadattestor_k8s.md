@@ -104,8 +104,22 @@ This feature extends the `k8s` workload attestor with the ability to validate co
 | `ignore_tlog`          | If set to true, bypasses the transparency log verification and the selectors based on the Rekor bundle are not generated.                                                                                                                                         |
 | `ignore_attestations`  | If set to true, bypasses the image attestations verification and the selector `image-attestations:verified` is not generated.                                                                                                                                     |
 | `ignore_sct`           | If set to true, bypasses the Signed Certificate Timestamp (SCT) verification.                                                                                                                                                                                     |
-| `registry_referrers`   | If set to true, looks up signatures through the OCI 1.1 referrers API first and falls back to the tag scheme. Attestations always use the tag scheme. Defaults to false.                                                                                          |
+| `registry_referrers`   | If set to true, looks up sigstore bundles through the OCI 1.1 referrers API first, then cosign signatures through the referrers API and the tag scheme. See [Sigstore bundles](#sigstore-bundles). Defaults to false.                                             |
+| `trusted_root_path`    | Specifies the path to a Sigstore `trusted_root.json` that verifies bundles and keyless signatures. See [Sigstore bundles](#sigstore-bundles). Defaults to empty.                                                                                                  |
 | `registry_credentials` | Maps each registry URL to its corresponding authentication credentials. Example: `{"docker.io": {"username": "user", "password": "pass"}}`.                                                                                                                       |
+
+#### Sigstore bundles
+
+With `registry_referrers` set, a verified bundle covers both the signature and the attestations of the image.
+When no bundle verifies, the attestor checks cosign signatures and attestations as it does without bundles.
+Keyless bundles must match one of `allowed_identities`, or any identity when it is empty.
+A bundle from plain `cosign sign` signs the image and does not count as an attestation.
+
+Keyless bundles and bundles with a transparency log entry verify against the Sigstore trusted root.
+Once loaded, the trusted root also verifies the keyless signatures and log entries from the referrers API and the tag scheme.
+The trusted root comes from `trusted_root_path`, or else from the Sigstore TUF repository.
+When `SIGSTORE_ROOT_FILE`, `SIGSTORE_REKOR_PUBLIC_KEY`, `SIGSTORE_CT_LOG_PUBLIC_KEY_FILE` or `SIGSTORE_TSA_CERTIFICATE_FILE`
+is set and `trusted_root_path` is not, the attestor skips bundles that need the trusted root and those variables apply.
 
 #### Custom CA Roots
 
