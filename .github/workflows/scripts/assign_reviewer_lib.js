@@ -1,5 +1,6 @@
 // Shared ball-in-court helpers for the assign-reviewer workflows
-// (assign_reviewer.yaml and assign_reviewer_review_apply.yaml).
+// (assign_reviewer.yaml, assign_reviewer_review_apply.yaml and
+// assign_reviewer_reconcile.yaml).
 //
 // The ball is tracked through the PR assignee. The court holder is the
 // single flow participant (a pool member or the PR author) currently
@@ -12,8 +13,9 @@
 // manually-added assignees in place.
 //
 // This file is always loaded from a trusted ref (the PR base branch, or
-// the default branch on workflow_run and issue_comment), never from PR
-// code. See the checkout step in each workflow.
+// the default branch on workflow_run, issue_comment, schedule and
+// workflow_dispatch), never from PR code. See the checkout step in each
+// workflow.
 
 module.exports = async function ({ github, context, core }) {
   const { owner, repo } = context.repo;

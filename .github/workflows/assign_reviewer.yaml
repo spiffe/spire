@@ -29,7 +29,10 @@ name: assign-reviewer
 # assign-reviewer-review-capture and assign-reviewer-review-apply workflows.
 # That split exists because review handling needs a write token on PRs from
 # forks, which the pull_request_review event does not provide. See those
-# files.
+# files. Review transitions that those workflows drop, most often because the
+# first-time-contributor approval setting gates the capture run or because
+# the pull request has a merge conflict, are picked up by
+# assign-reviewer-reconcile.
 #
 # The maintainer is picked at random from the pool, which evens out over
 # time. The selection is stateless, with no persisted index or external

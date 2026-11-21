@@ -18,6 +18,12 @@ name: assign-reviewer-review-apply
 #     threads create an implicit "commented" review, so this mirrors the push
 #     and conversation-comment flips in assign_reviewer.yaml.
 #
+# A capture run that is gated by the first-time-contributor approval setting,
+# that is never created because the pull request has a merge conflict, or
+# that fails or is cancelled, never reaches this workflow. The
+# assign-reviewer-reconcile workflow reproduces the transitions those runs
+# would have applied.
+#
 # Security. This never checks out or runs any PR code (the checkout below
 # fetches only the shared helper script from the default branch). The capture
 # artifact is treated as untrusted (a fork PR can run a modified capture,

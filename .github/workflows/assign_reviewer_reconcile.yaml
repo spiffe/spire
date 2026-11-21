@@ -1,0 +1,303 @@
+name: assign-reviewer-reconcile
+
+# Catch-up pass for the ball-in-court assignee.
+#
+# The review half of the flow (assign-reviewer-review-capture and
+# assign-reviewer-review-apply) hangs off pull_request_review, and GitHub does
+# not always run that event. Two causes are known. The event is covered by the
+# repository's "require approval for first-time contributors" Actions
+# setting, so on a first pull request from a new contributor the capture run
+# lands in action_required and does not execute until a maintainer approves
+# it. And while a pull request has a merge conflict there is no merge commit
+# to run the event against, so no capture run is created at all. A cancelled
+# or failed capture or apply run loses the review transition the same way.
+# There is no privileged counterpart to pull_request_review and secrets are
+# withheld from fork-originated runs, so no rearrangement of those two
+# workflows avoids this.
+#
+# Most dropped transitions fail in the safe direction, leaving the ball with
+# the maintainer. One stalls. A pool member comments in the conversation, which
+# moves the ball to the author through the ungated issue_comment handler, and
+# the author then answers on the review threads rather than in the
+# conversation. The implicit "commented" review that would hand the ball back
+# is the transition that never runs, and nothing else arrives to correct it.
+#
+# Scheduled and workflow_dispatch runs execute from the default branch with a
+# write-scoped token and are never subject to the approval gate, which is what
+# lets this pass finish the work. It runs with or without a merge conflict,
+# since it reads pull request metadata instead of running against a merge
+# commit. It reproduces the review transition for recently reviewed pull
+# requests and corrects the assignee where one was dropped. When the assignee
+# already matches it writes nothing.
+#
+# Standing down is the default. Four rules keep this pass from fighting either
+# the event-driven workflows or a person.
+#   - it acts only when the latest review from a flow participant is the last
+#     court-relevant thing that happened. A push or a conversation comment
+#     after that review means an ungated handler has already had the last
+#     word, and a review pending from the current assignee means the court is
+#     theirs regardless of the older reviews.
+#   - it acts only when the assignee is the one the dropped transition would
+#     have moved the ball away from. Any other assignee is somebody's
+#     deliberate choice.
+#   - it acts only when no assignee was added or removed after that review. A
+#     later change means a handler or a person already decided the court. It
+#     also means this pass corrects a given review at most once, so a
+#     maintainer who moves the ball back by hand is not overridden on the
+#     next pass.
+#   - it only looks back one day, which bounds the work of each pass. An older
+#     mismatch is left for a maintainer to correct or dispatch by hand.
+#
+# Security. Scheduled and workflow_dispatch runs always execute from the
+# default branch, never from pull request code, and the checkout below fetches
+# only the shared helper script. The job otherwise reads pull request metadata
+# and calls the assignee API, the dispatch input is validated as a positive
+# integer, and pull-request-controlled text is never interpolated into a
+# shell.
+
+on:
+  schedule:
+    # Random minute numbers to avoid GH scheduler stampede
+    - cron: '13,43 * * * *'
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: Reconcile only this pull request, ignoring the one-day window
+        required: false
+        type: string
+
+# Serialize passes so a dispatch and a scheduled run cannot race on the
+# assignee. Queueing rather than cancelling keeps a maintainer's dispatch from
+# being dropped by the next scheduled run.
+concurrency:
+  group: assign-reviewer-reconcile
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  reconcile:
+    # Scheduled workflows also fire in forks that enable Actions, where
+    # there is no rotation to maintain.
+    if: github.repository == 'spiffe/spire'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read       # check out the helper script, read .github/reviewer-pool.json
+      issues: write        # add/remove assignees (the issues API endpoint)
+      pull-requests: write # add/remove assignees on the pull request
+    steps:
+      # Check out only the shared helper script. Scheduled and
+      # workflow_dispatch runs always check out the default branch, never pull
+      # request code.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: .github/workflows/scripts
+      - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          # Passed through the environment rather than interpolated into the
+          # script body, and validated below before it reaches the API.
+          PR_NUMBER: ${{ inputs.pr_number }}
+        with:
+          script: |
+            const courtLib = require('./.github/workflows/scripts/assign_reviewer_lib.js');
+            const court = await courtLib({ github, context, core });
+            const { owner, repo } = context.repo;
+
+            const catchUpWindowMs = 24 * 60 * 60 * 1000;
+            const courtMovingStates = ['approved', 'changes_requested', 'commented'];
+            const anyReviewAge = 0; // the epoch, so no review is too old to act on
+
+            // The latest review submitted by a flow participant, meaning a
+            // pool member other than the author or the author themselves.
+            // Reviews from anybody else (an AI reviewer, a drive-by
+            // contributor) never move the court.
+            function latestFlowReview(reviews, author) {
+              for (let i = reviews.length - 1; i >= 0; i--) {
+                const review = reviews[i];
+                const login = review.user && review.user.login;
+                if (!login || !courtMovingStates.includes((review.state || '').toLowerCase())) {
+                  continue;
+                }
+                if (court.inPool(login) || court.eq(login, author)) {
+                  return review;
+                }
+              }
+              return null;
+            }
+
+            // Whether a human posted a conversation comment at or after the
+            // given time. Such a comment means the issue_comment handler in
+            // assign_reviewer.yaml already ran, so the assignee it left is
+            // the newer decision. The API filters on last update rather than
+            // creation, so an edited older comment counts too, which only
+            // makes this pass stand down more often.
+            async function commentedSince(pr, since) {
+              const comments = await github.paginate(github.rest.issues.listComments, {
+                owner, repo, issue_number: pr.number, since, per_page: 100,
+              });
+              return comments.some(c => c.user && !court.isBot(c.user));
+            }
+
+            // Whether an assignee was added or removed at or after the given
+            // time. Either means a handler or a person has decided the court
+            // since, so this pass has nothing to correct. It also covers the
+            // assignment this pass itself made on an earlier run.
+            async function assigneeChangedSince(pr, since) {
+              const sinceMs = Date.parse(since);
+              const events = await github.paginate(github.rest.issues.listEvents, {
+                owner, repo, issue_number: pr.number, per_page: 100,
+              });
+              return events.some(e =>
+                (e.event === 'assigned' || e.event === 'unassigned') &&
+                Date.parse(e.created_at) >= sinceMs);
+            }
+
+            // The transition assign_reviewer_review_apply.yaml would have
+            // applied for this review, as the assignee it acts on and the one
+            // it would set, or null when the review moves no court. Naming
+            // the expected assignee is what keeps this pass from overriding a
+            // deliberate manual assignment, since it then only reproduces the
+            // transition from the state that transition acts on.
+            async function transitionFor(pr, review, reviews) {
+              const author = pr.user.login;
+              const submitter = review.user.login;
+              const state = review.state.toLowerCase();
+
+              if (court.eq(submitter, author)) {
+                // GitHub only allows "commented" self-reviews, and they
+                // mostly carry inline replies to review threads. Those hand
+                // the ball back to the pool member who reviewed most
+                // recently, mirroring the push and comment flips.
+                if (state !== 'commented') {
+                  return null;
+                }
+                const reviewer = await court.lastPoolReviewer(pr, reviews);
+                return reviewer === null ? null : { from: author, to: reviewer };
+              }
+
+              // A pool member reviewed. Approve keeps the reviewer assigned
+              // (a maintainer merges), otherwise the author owns it.
+              return state === 'approved'
+                ? { from: author, to: submitter }
+                : { from: submitter, to: author };
+            }
+
+            // `reviewCutoff` is the oldest review submission this pass will
+            // act on, as a timestamp in milliseconds.
+            async function reconcile(pr, reviewCutoff) {
+              const author = pr.user.login;
+              if (court.isBot(pr.user)) {
+                core.info(`PR #${pr.number} authored by bot ${author}; skipping.`);
+                return;
+              }
+              if (pr.state !== 'open' || pr.draft) {
+                core.info(`PR #${pr.number} is ${pr.draft ? 'a draft' : pr.state}; skipping.`);
+                return;
+              }
+
+              // An ambiguous court (nobody assigned, or a maintainer manually
+              // co-assigned next to the author) is left alone, as in the
+              // handlers this pass backs up.
+              const holder = court.courtHolder(pr);
+              if (holder === null) {
+                core.info(`PR #${pr.number} has no unambiguous ball holder; skipping.`);
+                return;
+              }
+
+              // A review still pending from the assignee means they owe one,
+              // so the court is theirs whatever the older reviews say.
+              if ((pr.requested_reviewers || []).some(r => court.eq(r.login, holder))) {
+                core.info(`PR #${pr.number} has a review pending from ${holder}; skipping.`);
+                return;
+              }
+
+              const reviews = await github.paginate(github.rest.pulls.listReviews, {
+                owner, repo, pull_number: pr.number, per_page: 100,
+              });
+              const review = latestFlowReview(reviews, author);
+              if (review === null) {
+                core.info(`PR #${pr.number} has no review from a flow participant; skipping.`);
+                return;
+              }
+              if (Date.parse(review.submitted_at) < reviewCutoff) {
+                core.info(`Latest review on PR #${pr.number} predates the catch-up window; skipping.`);
+                return;
+              }
+
+              // A review against an older commit means the author has pushed
+              // since, and the synchronize handler already decided the court
+              // for that push.
+              if (review.commit_id !== pr.head.sha) {
+                core.info(`PR #${pr.number} was pushed to after its latest review; skipping.`);
+                return;
+              }
+              if (await commentedSince(pr, review.submitted_at)) {
+                core.info(`PR #${pr.number} was commented on after its latest review; skipping.`);
+                return;
+              }
+
+              const transition = await transitionFor(pr, review, reviews);
+              if (transition === null) {
+                core.info(`Latest review on PR #${pr.number} moves no court; skipping.`);
+                return;
+              }
+              if (!court.eq(holder, transition.from)) {
+                core.info(`PR #${pr.number} is assigned to ${holder} rather than ${transition.from}; skipping.`);
+                return;
+              }
+              if (await assigneeChangedSince(pr, review.submitted_at)) {
+                core.info(`PR #${pr.number} had its assignees changed after its latest review; skipping.`);
+                return;
+              }
+
+              const state = review.state.toLowerCase();
+              core.info(`PR #${pr.number}: ${state} review by ${review.user.login} never moved the ball off ${holder}.`);
+              await court.setCourt(pr, transition.to);
+            }
+
+            // A dispatch names one pull request and skips the window, since a
+            // maintainer asking for a specific one has already decided it is
+            // worth a look.
+            const requested = (process.env.PR_NUMBER || '').trim();
+            if (requested !== '') {
+              const prNumber = Number(requested);
+              if (!Number.isInteger(prNumber) || prNumber <= 0) {
+                core.setFailed(`Requested pr_number "${requested}" is not a positive integer.`);
+                return;
+              }
+              const { data: pr } = await github.rest.pulls.get({
+                owner, repo, pull_number: prNumber,
+              });
+              await reconcile(pr, anyReviewAge);
+              return;
+            }
+
+            // A scheduled pass only has to look at pull requests that saw
+            // activity inside the catch-up window. The listing is newest
+            // first, so the first page that reaches past the window ends it.
+            // One pull request failing (an API error, say) must not keep the
+            // pass from reaching the others, so failures are collected and
+            // reported once the pass is done.
+            const cutoff = Date.now() - catchUpWindowMs;
+            const failed = [];
+            for await (const page of github.paginate.iterator(github.rest.pulls.list, {
+              owner, repo, state: 'open', sort: 'updated', direction: 'desc', per_page: 100,
+            })) {
+              const recent = page.data.filter(pr => Date.parse(pr.updated_at) >= cutoff);
+              for (const pr of recent) {
+                try {
+                  await reconcile(pr, cutoff);
+                } catch (e) {
+                  core.warning(`Could not reconcile PR #${pr.number}: ${e.message}`);
+                  failed.push(pr.number);
+                }
+              }
+              if (recent.length < page.data.length) {
+                break;
+              }
+            }
+            if (failed.length > 0) {
+              core.setFailed(`Could not reconcile ${failed.length} pull request(s).`);
+            }
