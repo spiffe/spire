@@ -49,8 +49,8 @@ tenant ID, or else the attestation of nodes using this attestor will fail.
 
 When using the default credential, the subscription is discovered from the
 Azure Instance Metadata Service (IMDS) of the host the server runs on. If the
-server runs somewhere IMDS isn't available (e.g. Azure Container Apps or
-Kubernetes with Workload Identity), set `subscription_id` on the tenant and
+server runs somewhere IMDS isn't available (e.g. Azure Container Apps, or a
+server running outside Azure), set `subscription_id` on the tenant and
 leave `app_id` and `app_secret` unset. The configured subscription is then used
 with the default credential and IMDS isn't contacted.
 
