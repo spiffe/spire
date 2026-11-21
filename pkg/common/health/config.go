@@ -3,6 +3,7 @@ package health
 import (
 	"fmt"
 	"net"
+	"net/http"
 	"strings"
 	"time"
 
@@ -64,6 +65,43 @@ func (c *Config) getLivePath() string {
 // Details are additional data to be used when the system is ready
 type Details struct {
 	Message string `json:"message,omitempty"`
+}
+
+// Validate checks that the HTTP paths of the health check listener can be
+// served. It does nothing when the listener is disabled, since the paths are
+// not used then.
+//
+// http.ServeMux panics instead of returning an error when it is given a path
+// it does not accept (for example one without a leading slash) or when the
+// same path is registered twice, so the paths have to be checked before the
+// checker is created.
+func (c *Config) Validate() error {
+	if !c.ListenerEnabled {
+		return nil
+	}
+
+	readyPath, livePath := c.getReadyPath(), c.getLivePath()
+	if readyPath == livePath {
+		return fmt.Errorf("health_checks ready_path and live_path must be different, both are %q", readyPath)
+	}
+	if err := validatePath(readyPath); err != nil {
+		return fmt.Errorf("invalid health_checks ready_path: %w", err)
+	}
+	if err := validatePath(livePath); err != nil {
+		return fmt.Errorf("invalid health_checks live_path: %w", err)
+	}
+	return nil
+}
+
+// validatePath returns an error if http.ServeMux does not accept the path.
+func validatePath(path string) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("%v", r)
+		}
+	}()
+	http.NewServeMux().HandleFunc(path, func(http.ResponseWriter, *http.Request) {})
+	return nil
 }
 
 // ParseCheckInterval sets CheckInterval from RawCheckInterval.

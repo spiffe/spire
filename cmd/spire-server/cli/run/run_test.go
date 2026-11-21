@@ -1444,6 +1444,38 @@ func TestNewServerConfig(t *testing.T) {
 			},
 		},
 		{
+			msg:         "health_checks ready_path without a leading slash returns an error",
+			expectError: true,
+			input: func(c *Config) {
+				c.HealthChecks.ListenerEnabled = true
+				c.HealthChecks.ReadyPath = "ready"
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
+			msg:         "health_checks ready_path and live_path that are the same return an error",
+			expectError: true,
+			input: func(c *Config) {
+				c.HealthChecks.ListenerEnabled = true
+				c.HealthChecks.ReadyPath = "/health"
+				c.HealthChecks.LivePath = "/health"
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
+			msg: "health_checks paths are not checked when the listener is disabled",
+			input: func(c *Config) {
+				c.HealthChecks.ReadyPath = "ready"
+			},
+			test: func(t *testing.T, c *server.Config) {
+				require.NotNil(t, c)
+			},
+		},
+		{
 			msg: "cache_reload_interval is correctly parsed",
 			input: func(c *Config) {
 				c.Server.Experimental.CacheReloadInterval = "1m"
