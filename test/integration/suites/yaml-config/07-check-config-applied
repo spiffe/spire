@@ -1,0 +1,11 @@
+#!/bin/bash
+
+log-info "checking the disk KeyManager was configured from its YAML data file..."
+logs=$(docker compose logs spire-server)
+grep "Configured plugin" <<< "${logs}" | grep -q "plugin_name=disk" || fail-now "disk KeyManager was not configured"
+
+log-info "checking server and agent health..."
+docker compose exec -T spire-server \
+    /opt/spire/bin/spire-server healthcheck || fail-now "server health check failed"
+docker compose exec -T spire-agent \
+    /opt/spire/bin/spire-agent healthcheck || fail-now "agent health check failed"
