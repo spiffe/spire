@@ -588,6 +588,10 @@ func TestServiceGetSCMRegisteredPid(t *testing.T) {
 		expectParentPIDs   []uint32
 		expectOpenedPIDs   []int32
 		expectTokenHandles []windows.Handle
+		// handleCreatedAt is the creation time read through the handle opened
+		// on the service process. Defaults to the one seen during the walk.
+		handleCreatedAt    uint64
+		handleCreatedAtErr error
 	}{
 		{
 			name:             "direct service does not query token",
@@ -638,6 +642,25 @@ func TestServiceGetSCMRegisteredPid(t *testing.T) {
 			expectOpenedPIDs: []int32{101},
 		},
 		{
+			name:             "service process PID reused before it is opened",
+			pid:              102,
+			pq:               &fakeProcessQuery{handle: 1234, tokenUser: &windows.Tokenuser{User: windows.SIDAndAttributes{Sid: sidUser}}},
+			handleCreatedAt:  500,
+			expectParentPIDs: []uint32{101, 100},
+			expectOpenedPIDs: []int32{101},
+			expectHandle:     1234,
+		},
+		{
+			name:               "read service process creation time error",
+			pid:                102,
+			pq:                 &fakeProcessQuery{handle: 1234, tokenUser: &windows.Tokenuser{User: windows.SIDAndAttributes{Sid: sidUser}}},
+			handleCreatedAtErr: errors.New("get process times error"),
+			expectMsg:          "failed to read creation time for service process 101: get process times error",
+			expectParentPIDs:   []uint32{101, 100},
+			expectOpenedPIDs:   []int32{101},
+			expectHandle:       1234,
+		},
+		{
 			name:               "open ancestor process token error",
 			pid:                102,
 			pq:                 &fakeProcessQuery{handle: 1234, openProcessTokenErr: errors.New("open token error")},
@@ -663,10 +686,12 @@ func TestServiceGetSCMRegisteredPid(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			oldSnapshotProcessesFunc := snapshotProcessesFunc
 			oldProcessCreationTimeFunc := processCreationTimeFunc
+			oldProcessHandleCreationTimeFunc := processHandleCreationTimeFunc
 			oldIsProcessSystemServicesRootFunc := isProcessSystemServicesRootFunc
 			t.Cleanup(func() {
 				snapshotProcessesFunc = oldSnapshotProcessesFunc
 				processCreationTimeFunc = oldProcessCreationTimeFunc
+				processHandleCreationTimeFunc = oldProcessHandleCreationTimeFunc
 				isProcessSystemServicesRootFunc = oldIsProcessSystemServicesRootFunc
 			})
 
@@ -681,6 +706,17 @@ func TestServiceGetSCMRegisteredPid(t *testing.T) {
 			}
 			processCreationTimeFunc = func(pid uint32) (uint64, error) {
 				return uint64(pid), nil
+			}
+			processHandleCreationTimeFunc = func(handle windows.Handle) (uint64, error) {
+				require.Equal(t, testCase.pq.handle, handle)
+				if testCase.handleCreatedAtErr != nil {
+					return 0, testCase.handleCreatedAtErr
+				}
+				if testCase.handleCreatedAt != 0 {
+					return testCase.handleCreatedAt, nil
+				}
+				// The service process in the fixture is always PID 101.
+				return 101, nil
 			}
 			var parentPIDs []uint32
 			isProcessSystemServicesRootFunc = func(s *windowsService, pid uint32, process processSnapshotEntry) (bool, error) {
