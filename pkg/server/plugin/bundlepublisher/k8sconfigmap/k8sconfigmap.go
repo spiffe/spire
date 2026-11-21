@@ -7,13 +7,13 @@ import (
 	"sync"
 
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire-plugin-sdk/pluginsdk/support/bundleformat"
 	bundlepublisherv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/bundlepublisher/v1"
 	"github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/types"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/pluginconf"
+	"github.com/spiffe/spire/pkg/common/plugindecode"
 	"github.com/spiffe/spire/pkg/server/plugin/bundlepublisher/common"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -40,17 +40,17 @@ func New() *Plugin {
 
 // Config holds the configuration of the plugin.
 type Config struct {
-	Clusters map[string]*Cluster `hcl:"clusters,block" json:"clusters"`
+	Clusters map[string]*Cluster `hcl:"clusters,block" json:"clusters" yaml:"clusters"`
 }
 
-// Config holds the configuration of the plugin.
+// Cluster holds the configuration for a single cluster.
 type Cluster struct {
-	Format         string `hcl:"format" json:"format"`
-	Namespace      string `hcl:"namespace" json:"namespace"`
-	ConfigMapName  string `hcl:"configmap_name" json:"configmap_name"`
-	ConfigMapKey   string `hcl:"configmap_key" json:"configmap_key"`
-	KubeConfigPath string `hcl:"kubeconfig_path" json:"kubeconfig_path"`
-	RefreshHint    string `hcl:"refresh_hint" json:"refresh_hint"`
+	Format         string `hcl:"format" json:"format" yaml:"format"`
+	Namespace      string `hcl:"namespace" json:"namespace" yaml:"namespace"`
+	ConfigMapName  string `hcl:"configmap_name" json:"configmap_name" yaml:"configmapName"`
+	ConfigMapKey   string `hcl:"configmap_key" json:"configmap_key" yaml:"configmapKey"`
+	KubeConfigPath string `hcl:"kubeconfig_path" json:"kubeconfig_path" yaml:"kubeconfigPath"`
+	RefreshHint    string `hcl:"refresh_hint" json:"refresh_hint" yaml:"refreshHint"`
 
 	// bundleFormat is used to store the content of BundleFormat, parsed
 	// as bundleformat.Format.
@@ -65,11 +65,11 @@ type Cluster struct {
 	parsedRefreshHint int64
 }
 
-// buildConfig builds the plugin configuration from the provided HCL config.
-func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *Config {
+// buildConfig builds the plugin configuration from the provided config text.
+func buildConfig(coreConfig catalog.CoreConfig, text string, format catalog.ConfigFormat, status *pluginconf.Status) *Config {
 	newConfig := new(Config)
 
-	if err := hcl.Decode(newConfig, hclText); err != nil {
+	if err := plugindecode.DecodeConfig(text, format, newConfig); err != nil {
 		status.ReportErrorf("unable to decode configuration: %v", err)
 		return nil
 	}

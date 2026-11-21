@@ -9,13 +9,13 @@ import (
 	"sync"
 
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/hcl"
 	nodeattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/agent/nodeattestor/v1"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/agent/plugin/nodeattestor/tpmdevid/tpmutil"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	common_devid "github.com/spiffe/spire/pkg/common/plugin/tpmdevid"
 	"github.com/spiffe/spire/pkg/common/pluginconf"
+	"github.com/spiffe/spire/pkg/common/plugindecode"
 	"github.com/spiffe/spire/pkg/common/util"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -40,21 +40,21 @@ func builtin(p *Plugin) catalog.BuiltIn {
 }
 
 type Config struct {
-	DevIDPrivPath string `hcl:"devid_priv_path"`
-	DevIDPubPath  string `hcl:"devid_pub_path"`
-	DevIDCertPath string `hcl:"devid_cert_path"`
+	DevIDPrivPath string `hcl:"devid_priv_path" yaml:"devidPrivPath"`
+	DevIDPubPath  string `hcl:"devid_pub_path" yaml:"devidPubPath"`
+	DevIDCertPath string `hcl:"devid_cert_path" yaml:"devidCertPath"`
 
-	DevIDKeyPassword             string `hcl:"devid_password"`
-	OwnerHierarchyPassword       string `hcl:"owner_hierarchy_password"`
-	EndorsementHierarchyPassword string `hcl:"endorsement_hierarchy_password"`
+	DevIDKeyPassword             string `hcl:"devid_password" yaml:"devidPassword"`
+	OwnerHierarchyPassword       string `hcl:"owner_hierarchy_password" yaml:"ownerHierarchyPassword"`
+	EndorsementHierarchyPassword string `hcl:"endorsement_hierarchy_password" yaml:"endorsementHierarchyPassword"`
 
-	DevicePath string `hcl:"tpm_device_path"`
-	Autodetect bool
+	DevicePath string `hcl:"tpm_device_path" yaml:"tpmDevicePath"`
+	Autodetect bool   `yaml:"-"`
 }
 
-func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *Config {
+func buildConfig(coreConfig catalog.CoreConfig, text string, format catalog.ConfigFormat, status *pluginconf.Status) *Config {
 	newConfig := new(Config)
-	if err := hcl.Decode(newConfig, hclText); err != nil {
+	if err := plugindecode.DecodeConfig(text, format, newConfig); err != nil {
 		status.ReportErrorf("unable to decode configuration: %v", err)
 		return nil
 	}

@@ -9,7 +9,6 @@ import (
 
 	"github.com/andres-erbsen/clock"
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/hcl"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	upstreamauthorityv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/upstreamauthority/v1"
@@ -22,6 +21,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/coretypes/x509certificate"
 	"github.com/spiffe/spire/pkg/common/idutil"
 	"github.com/spiffe/spire/pkg/common/pluginconf"
+	"github.com/spiffe/spire/pkg/common/plugindecode"
 	"github.com/spiffe/spire/pkg/common/tlspolicy"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -35,15 +35,15 @@ const (
 )
 
 type Configuration struct {
-	ServerAddr        string             `hcl:"server_address" json:"server_address"`
-	ServerPort        string             `hcl:"server_port" json:"server_port"`
-	WorkloadAPISocket string             `hcl:"workload_api_socket" json:"workload_api_socket"`
-	Experimental      experimentalConfig `hcl:"experimental"`
+	ServerAddr        string             `hcl:"server_address" json:"server_address" yaml:"serverAddress"`
+	ServerPort        string             `hcl:"server_port" json:"server_port" yaml:"serverPort"`
+	WorkloadAPISocket string             `hcl:"workload_api_socket" json:"workload_api_socket" yaml:"workloadApiSocket"`
+	Experimental      experimentalConfig `hcl:"experimental" yaml:"experimental"`
 }
 
-func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *Configuration {
+func buildConfig(coreConfig catalog.CoreConfig, text string, format catalog.ConfigFormat, status *pluginconf.Status) *Configuration {
 	newConfig := new(Configuration)
-	if err := hcl.Decode(newConfig, hclText); err != nil {
+	if err := plugindecode.DecodeConfig(text, format, newConfig); err != nil {
 		status.ReportError("plugin configuration is malformed")
 		return nil
 	}
@@ -59,8 +59,8 @@ func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginco
 }
 
 type experimentalConfig struct {
-	WorkloadAPINamedPipeName string `hcl:"workload_api_named_pipe_name" json:"workload_api_named_pipe_name"`
-	RequirePQKEM             bool   `hcl:"require_pq_kem" json:"require_pq_kem"`
+	WorkloadAPINamedPipeName string `hcl:"workload_api_named_pipe_name" json:"workload_api_named_pipe_name" yaml:"workloadApiNamedPipeName"`
+	RequirePQKEM             bool   `hcl:"require_pq_kem" json:"require_pq_kem" yaml:"requirePqKem"`
 }
 
 func BuiltIn() catalog.BuiltIn {

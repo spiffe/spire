@@ -597,7 +597,7 @@ func TestValidate(t *testing.T) {
 				CoreConfiguration: &configv1.CoreConfiguration{
 					TrustDomain: "example.org",
 				},
-				HclConfiguration: `
+				Configuration: `
 					clusters = {
 						"test-cluster" = {
 							format = "spiffe"

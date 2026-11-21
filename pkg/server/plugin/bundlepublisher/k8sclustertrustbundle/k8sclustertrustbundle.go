@@ -8,13 +8,13 @@ import (
 	"sync"
 
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire-plugin-sdk/pluginsdk/support/bundleformat"
 	bundlepublisherv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/bundlepublisher/v1"
 	"github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/types"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/pluginconf"
+	"github.com/spiffe/spire/pkg/common/plugindecode"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
@@ -40,25 +40,25 @@ func New() *Plugin {
 
 // Config holds the configuration of the plugin.
 type Config struct {
-	Clusters map[string]*Cluster `hcl:"clusters,block" json:"clusters"`
+	Clusters map[string]*Cluster `hcl:"clusters,block" json:"clusters" yaml:"clusters"`
 }
 
 // Cluster holds the configuration for a single Kubernetes cluster.
 type Cluster struct {
-	ClusterTrustBundleName string `hcl:"cluster_trust_bundle_name" json:"cluster_trust_bundle_name"`
-	SignerName             string `hcl:"signer_name" json:"signer_name"`
-	KubeConfigPath         string `hcl:"kubeconfig_path" json:"kubeconfig_path"`
+	ClusterTrustBundleName string `hcl:"cluster_trust_bundle_name" json:"cluster_trust_bundle_name" yaml:"clusterTrustBundleName"`
+	SignerName             string `hcl:"signer_name" json:"signer_name" yaml:"signerName"`
+	KubeConfigPath         string `hcl:"kubeconfig_path" json:"kubeconfig_path" yaml:"kubeconfigPath"`
 
 	// k8sClient is the Kubernetes client used to interact with the cluster, set
 	// when the plugin is configured.
 	k8sClient kubernetesClient
 }
 
-// buildConfig builds the plugin configuration from the provided HCL config.
-func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *Config {
+// buildConfig builds the plugin configuration from the provided config text.
+func buildConfig(coreConfig catalog.CoreConfig, text string, format catalog.ConfigFormat, status *pluginconf.Status) *Config {
 	newConfig := new(Config)
 
-	if err := hcl.Decode(newConfig, hclText); err != nil {
+	if err := plugindecode.DecodeConfig(text, format, newConfig); err != nil {
 		status.ReportErrorf("unable to decode configuration: %v", err)
 		return nil
 	}

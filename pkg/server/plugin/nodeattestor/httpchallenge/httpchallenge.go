@@ -11,13 +11,13 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/hcl"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	nodeattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/nodeattestor/v1"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/httpchallenge"
 	"github.com/spiffe/spire/pkg/common/pluginconf"
+	"github.com/spiffe/spire/pkg/common/plugindecode"
 	"github.com/spiffe/spire/pkg/server/plugin/nodeattestor"
 	nodeattestorbase "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/base"
 	"google.golang.org/grpc/codes"
@@ -69,9 +69,9 @@ type configuration struct {
 	verifyClientIP    bool
 }
 
-func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *configuration {
+func buildConfig(coreConfig catalog.CoreConfig, text string, format catalog.ConfigFormat, status *pluginconf.Status) *configuration {
 	hclConfig := new(Config)
-	if err := hcl.Decode(hclConfig, hclText); err != nil {
+	if err := plugindecode.DecodeConfig(text, format, hclConfig); err != nil {
 		status.ReportErrorf("unable to decode configuration: %v", err)
 		return nil
 	}
@@ -124,11 +124,11 @@ func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginco
 }
 
 type Config struct {
-	AllowedDNSPatterns []string `hcl:"allowed_dns_patterns"`
-	RequiredPort       *int     `hcl:"required_port"`
-	AllowNonRootPorts  *bool    `hcl:"allow_non_root_ports"`
-	TOFU               *bool    `hcl:"tofu"`
-	VerifyClientIP     bool     `hcl:"verify_client_ip"`
+	AllowedDNSPatterns []string `hcl:"allowed_dns_patterns" yaml:"allowedDnsPatterns"`
+	RequiredPort       *int     `hcl:"required_port" yaml:"requiredPort"`
+	AllowNonRootPorts  *bool    `hcl:"allow_non_root_ports" yaml:"allowNonRootPorts"`
+	TOFU               *bool    `hcl:"tofu" yaml:"tofu"`
+	VerifyClientIP     bool     `hcl:"verify_client_ip" yaml:"verifyClientIp"`
 }
 
 type Plugin struct {

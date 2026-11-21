@@ -1,0 +1,141 @@
+server:
+  adminIds: ["spiffe://example.org/admin"]
+  agentTtl: "1h"
+  auditLogEnabled: true
+  auditLogExcludeAgentSync: true
+  disableJwtSvids: false
+  jwtKeyType: "ec-p256"
+  logSourceLocation: true
+  pruneAttestedNodesBatchSize: 500
+  pruneTofuNodes: true
+  profilingEnabled: true
+  profilingPort: 6060
+  profilingFreq: 5
+  profilingNames: ["heap"]
+  bindAddress: "127.0.0.1"
+  bindPort: 8081
+  caKeyType: "ec-p384"
+  caSubject:
+    country: ["US"]
+    organization: ["SPIFFE"]
+    commonName: "ca"
+  caTtl: "48h"
+  dataDir: "/var/lib/spire"
+  defaultX509SvidTtl: "2h"
+  defaultJwtSvidTtl: "10m"
+  jwtIssuer: "https://issuer.example.org"
+  logFile: "/var/log/spire.log"
+  logFileRotation:
+    maxSizeMb: 10
+    maxFiles: 3
+  logLevel: "DEBUG"
+  logFormat: "json"
+  pruneAttestedNodesExpiredFor: "24h"
+  ratelimit:
+    attestation: false
+    signing: true
+  socketPath: "/tmp/spire-server.sock"
+  trustDomain: "example.org"
+  maxAttestedNodeInfoStaleness: "1m"
+  tlsConfig:
+    minTlsVersion: "VersionTLS13"
+    curvePreferences: ["X25519"]
+  federation:
+    bundleEndpoint:
+      address: "0.0.0.0"
+      port: 8443
+      refreshHint: "5m"
+      profile:
+        httpsWeb:
+          servingCertFile:
+            certFilePath: "/cert.pem"
+            keyFilePath: "/key.pem"
+            fileSyncInterval: "1h"
+    federatesWith:
+      "domain1.test":
+        bundleEndpointUrl: "https://1.2.3.4:8443"
+        bundleEndpointProfile:
+          httpsSpiffe:
+            endpointSpiffeId: "spiffe://domain1.test/beserver"
+        bootstrapBundlePath: "/bundle.pem"
+      "domain2.test":
+        bundleEndpointUrl: "https://example.org:8443"
+        bundleEndpointProfile:
+          httpsWeb: {}
+  experimental:
+    enableYamlConfig: true
+    cacheReloadInterval: "10s"
+    fullCacheReloadInterval: "1m"
+    pruneEventsOlderThan: "12h"
+    eventTimeout: "15m"
+    sqlTransactionTimeout: "24h"
+    agentSpiffeIdAsSelector: true
+    allowNonconformingAgentIds: true
+    enableWitSvids: true
+    witKeyType: "ec-p256"
+    witIssuer: "https://wit.example.org"
+    defaultWitSvidTtl: "5m"
+    namedPipeName: "\\spire-server\\private\\api"
+    eventsBasedCache: true
+    requirePqKem: true
+    featureFlags: ["flag1"]
+    authOpaPolicyEngine:
+      local:
+        regoPath: "/policy.rego"
+        policyDataPath: "/policy.json"
+
+plugins:
+  DataStore:
+    sql:
+      pluginData:
+        databaseType:
+          awsPostgres:
+            region: "us-east-1"
+        connectionString: "dbname=spire"
+        maxOpenConns: 10
+  KeyManager:
+    disk:
+      pluginDataFile: "keymanager.conf"
+  UpstreamAuthority:
+    disk:
+      pluginCmd: "./upstream"
+      pluginArgs: ["-v"]
+      pluginChecksum: "abc"
+      enabled: false
+      pluginData:
+        certFilePath: "/ca.crt"
+        keyFilePath: "/ca.key"
+
+telemetry:
+  Prometheus:
+    host: "localhost"
+    port: 9988
+    tls:
+      certFile: "/cert.pem"
+      keyFile: "/key.pem"
+      clientCaFile: "/ca.pem"
+      useSpireSvid: false
+      authorizedSpiffeIds: ["spiffe://example.org/scraper"]
+  M3:
+    - address: "localhost:9000"
+      env: "prod"
+  DogStatsd:
+    - address: "localhost:8125"
+  Statsd:
+    - address: "localhost:1337"
+  InMem: {}
+  MetricPrefix: "spire"
+  AllowedPrefixes: ["spire_server"]
+  BlockedPrefixes: ["spire_server_ca"]
+  AllowedLabels: ["method"]
+  BlockedLabels: ["status"]
+  EnableTrustDomainLabel: true
+  EnableHostnameLabel: false
+
+healthChecks:
+  listenerEnabled: true
+  bindAddress: "0.0.0.0"
+  bindPort: "8080"
+  livePath: "/live"
+  readyPath: "/ready"
+  checkInterval: "30s"

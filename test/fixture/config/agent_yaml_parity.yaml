@@ -1,0 +1,72 @@
+agent:
+  dataDir: "/var/lib/spire"
+  adminSocketPath: "/tmp/admin.sock"
+  insecureBootstrap: false
+  joinTokenFile: "/token"
+  logFileRotation:
+    maxSizeMb: 5
+    maxFiles: 2
+  logLevel: "INFO"
+  logSelectors: ["unix:uid"]
+  sds:
+    defaultSvidName: "svid"
+    defaultBundleName: "bundle"
+    defaultAllBundlesName: "ALL"
+    disableSpiffeCertValidation: true
+  serverAddress: "spire-server"
+  serverPort: 8081
+  socketPath: "/tmp/agent.sock"
+  trustBundleUrl: "https://example.org/bundle"
+  trustBundleFormat: "spiffe"
+  trustDomain: "example.org"
+  allowedForeignJwtClaims: ["c1"]
+  availabilityTarget: "24h"
+  authorizedDelegates: ["spiffe://example.org/delegate"]
+  tlsConfig:
+    minTlsVersion: "VersionTLS12"
+  experimental:
+    enableYamlConfig: true
+    syncInterval: "10s"
+    jwtSvidCacheHitTimeout: "1s"
+    rpcTimeout: "30s"
+    maxBundleWorkers: 4
+    serverLoadBalancingConfig: '[{"round_robin":{}}]'
+    enableWitSvids: true
+    witSvidCacheMaxSize: 100
+    useXds: false
+    syncRetryBackoff:
+      maxInterval: "1m"
+      backoffMultiplier: 2.5
+      jitter: 0.2
+    ratelimit:
+      fetchX509Svid: 10
+      fetchJwtBundles: 5
+    broker:
+      socketPath: "/tmp/broker.sock"
+      reattestInterval: "10m"
+      reattestJitter: 0.1
+      brokers:
+        - id: "spiffe://example.org/broker"
+    requirePqKem: true
+    featureFlags: ["flag1"]
+
+plugins:
+  NodeAttestor:
+    join_token:
+      pluginData: {}
+  KeyManager:
+    disk:
+      pluginData:
+        directory: "/var/lib/spire"
+  WorkloadAttestor:
+    unix:
+      pluginDataFile: "unix.conf"
+
+telemetry:
+  Prometheus:
+    host: "localhost"
+    port: 9988
+
+healthChecks:
+  listenerEnabled: true
+  bindPort: "8080"

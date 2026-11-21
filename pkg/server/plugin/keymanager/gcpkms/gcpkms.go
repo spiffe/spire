@@ -22,12 +22,12 @@ import (
 	"github.com/andres-erbsen/clock"
 	"github.com/gofrs/uuid/v5"
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/hcl"
 	keymanagerv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/keymanager/v1"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/diskutil"
 	"github.com/spiffe/spire/pkg/common/pluginconf"
+	"github.com/spiffe/spire/pkg/common/plugindecode"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 	"google.golang.org/grpc/codes"
@@ -132,28 +132,28 @@ type Plugin struct {
 // Config provides configuration context for the plugin.
 type Config struct {
 	// File path location where information about generated keys will be persisted.
-	KeyIdentifierFile string `hcl:"key_identifier_file" json:"key_identifier_file"`
+	KeyIdentifierFile string `hcl:"key_identifier_file" json:"key_identifier_file" yaml:"keyIdentifierFile"`
 
 	// Key metadata used by the plugin.
-	KeyIdentifierValue string `hcl:"key_identifier_value" json:"key_identifier_value"`
+	KeyIdentifierValue string `hcl:"key_identifier_value" json:"key_identifier_value" yaml:"keyIdentifierValue"`
 
 	// File path location to a custom IAM Policy (v3) that will be set to
 	// created CryptoKeys.
-	KeyPolicyFile string `hcl:"key_policy_file" json:"key_policy_file"`
+	KeyPolicyFile string `hcl:"key_policy_file" json:"key_policy_file" yaml:"keyPolicyFile"`
 
 	// KeyRing is the resource ID of the key ring where the keys managed by this
 	// plugin reside, in the format projects/*/locations/*/keyRings/*.
-	KeyRing string `hcl:"key_ring" json:"key_ring"`
+	KeyRing string `hcl:"key_ring" json:"key_ring" yaml:"keyRing"`
 
 	// Path to the service account file used to authenticate with the Cloud KMS
 	// API. If not specified, the value of the GOOGLE_APPLICATION_CREDENTIALS
 	// environment variable is used.
-	ServiceAccountFile string `hcl:"service_account_file" json:"service_account_file"`
+	ServiceAccountFile string `hcl:"service_account_file" json:"service_account_file" yaml:"serviceAccountFile"`
 }
 
-func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *Config {
+func buildConfig(coreConfig catalog.CoreConfig, text string, format catalog.ConfigFormat, status *pluginconf.Status) *Config {
 	newConfig := new(Config)
-	if err := hcl.Decode(newConfig, hclText); err != nil {
+	if err := plugindecode.DecodeConfig(text, format, newConfig); err != nil {
 		status.ReportErrorf("unable to decode configuration: %v", err)
 	}
 

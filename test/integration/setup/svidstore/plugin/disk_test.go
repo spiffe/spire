@@ -42,7 +42,7 @@ func TestPutDeleteX509SVID(t *testing.T) {
 
 	_, err := configClient.Configure(ctx, &configv1.ConfigureRequest{
 		CoreConfiguration: &configv1.CoreConfiguration{TrustDomain: "example.org"},
-		HclConfiguration:  `svids_path = "/tmp/svids"`,
+		Configuration:     `svids_path = "/tmp/svids"`,
 	})
 	assert.NoError(t, err)
 

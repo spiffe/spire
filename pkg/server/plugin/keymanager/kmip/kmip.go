@@ -23,7 +23,6 @@ import (
 	"github.com/andres-erbsen/clock"
 	"github.com/gofrs/uuid/v5"
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/hcl"
 	ovh "github.com/ovh/kmip-go"
 	"github.com/ovh/kmip-go/kmipclient"
 	"github.com/ovh/kmip-go/payloads"
@@ -33,6 +32,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/diskutil"
 	"github.com/spiffe/spire/pkg/common/pluginconf"
+	"github.com/spiffe/spire/pkg/common/plugindecode"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -71,26 +71,26 @@ func builtin(p *Plugin) catalog.BuiltIn {
 // Config is the HCL plugin configuration.
 type Config struct {
 	// KMIPAddr is the TCP address of the KMIP server (e.g. "kmip.example.com:5696").
-	KMIPAddr string `hcl:"kmip_addr"`
+	KMIPAddr string `hcl:"kmip_addr" yaml:"kmipAddr"`
 	// CACertPath is the PEM file used to verify the KMIP server TLS certificate.
 	// Optional; when empty the system certificate pool is used.
-	CACertPath string `hcl:"ca_cert_path"`
+	CACertPath string `hcl:"ca_cert_path" yaml:"caCertPath"`
 	// ClientCertPath is the PEM file of the mTLS client certificate.
-	ClientCertPath string `hcl:"client_cert_path"`
+	ClientCertPath string `hcl:"client_cert_path" yaml:"clientCertPath"`
 	// ClientKeyPath is the PEM file of the mTLS client private key.
-	ClientKeyPath string `hcl:"client_key_path"`
+	ClientKeyPath string `hcl:"client_key_path" yaml:"clientKeyPath"`
 	// InsecureSkipVerify disables TLS certificate verification (test environments only).
-	InsecureSkipVerify bool `hcl:"insecure_skip_verify"`
+	InsecureSkipVerify bool `hcl:"insecure_skip_verify" yaml:"insecureSkipVerify"`
 	// ServerIDValue is a stable identifier for this SPIRE server instance, provided
 	// directly. Mutually exclusive with ServerIDFile.
-	ServerIDValue string `hcl:"server_id_value"`
+	ServerIDValue string `hcl:"server_id_value" yaml:"serverIdValue"`
 	// ServerIDFile is a path to a file containing the stable server identifier. If the
 	// file does not exist, a new server ID is generated and persisted there. Mutually
 	// exclusive with ServerIDValue.
-	ServerIDFile string `hcl:"server_id_file"`
+	ServerIDFile string `hcl:"server_id_file" yaml:"serverIdFile"`
 	// StaleKeyThreshold is how old a key's x-spire-last-update attribute must be before the
 	// reclamation task considers it orphaned and destroys it.
-	StaleKeyThreshold string `hcl:"stale_key_threshold"`
+	StaleKeyThreshold string `hcl:"stale_key_threshold" yaml:"staleKeyThreshold"`
 
 	parsedStaleKeyThreshold time.Duration
 }
@@ -837,9 +837,9 @@ func fingerprint(pkixData []byte) string {
 // ── Config helpers ────────────────────────────────────────────────────────────
 
 // buildConfig is the pluginconf.Builder for this plugin's Config.
-func buildConfig(_ catalog.CoreConfig, hclText string, s *pluginconf.Status) *Config {
+func buildConfig(_ catalog.CoreConfig, text string, format catalog.ConfigFormat, s *pluginconf.Status) *Config {
 	cfg := new(Config)
-	if err := hcl.Decode(cfg, hclText); err != nil {
+	if err := plugindecode.DecodeConfig(text, format, cfg); err != nil {
 		s.ReportErrorf("unable to decode configuration: %v", err)
 		return nil
 	}

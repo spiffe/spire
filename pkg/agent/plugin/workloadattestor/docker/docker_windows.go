@@ -12,7 +12,7 @@ import (
 
 type OSConfig struct {
 	// DockerHost is the location of the Docker Engine API endpoint on Windows (default: "npipe:////./pipe/docker_engine").
-	DockerHost string `hcl:"docker_host" json:"docker_host"`
+	DockerHost string `hcl:"docker_host" json:"docker_host" yaml:"dockerHost"`
 }
 
 func (p *Plugin) createHelper(*dockerPluginConfig, *pluginconf.Status) *containerHelper {

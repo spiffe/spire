@@ -350,7 +350,7 @@ func TestConcurrentConfigureAndPublish(t *testing.T) {
 	require.NoError(t, err)
 	configureReq := &configv1.ConfigureRequest{
 		CoreConfiguration: &configv1.CoreConfiguration{TrustDomain: "example.org"},
-		HclConfiguration:  string(hclConfig),
+		Configuration:     string(hclConfig),
 	}
 
 	bundle := getTestBundle(t)

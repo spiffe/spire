@@ -39,11 +39,11 @@ var (
 )
 
 type orgValidationConfig struct {
-	AccountID       string `hcl:"management_account_id"`
-	AccountRole     string `hcl:"assume_org_role"`
-	AccountRegion   string `hcl:"management_account_region"`
-	AccountListTTL  string `hcl:"org_account_map_ttl"`
-	AccountListFile string `hcl:"account_list_file"`
+	AccountID       string `hcl:"management_account_id" yaml:"managementAccountId"`
+	AccountRole     string `hcl:"assume_org_role" yaml:"assumeOrgRole"`
+	AccountRegion   string `hcl:"management_account_region" yaml:"managementAccountRegion"`
+	AccountListTTL  string `hcl:"org_account_map_ttl" yaml:"orgAccountMapTtl"`
+	AccountListFile string `hcl:"account_list_file" yaml:"accountListFile"`
 }
 
 // useAccountListFile reports whether the org account list should be sourced from

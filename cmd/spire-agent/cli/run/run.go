@@ -42,6 +42,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/log"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/tlspolicy"
+	"github.com/spiffe/spire/pkg/common/yamlconfig"
 )
 
 const (
@@ -62,61 +63,64 @@ const (
 
 // Config contains all available configurables, arranged by section
 type Config struct {
-	Agent              *agentConfig           `hcl:"agent"`
-	Plugins            ast.Node               `hcl:"plugins"`
-	Telemetry          telemetry.FileConfig   `hcl:"telemetry"`
-	HealthChecks       health.Config          `hcl:"health_checks"`
-	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions"`
+	Agent              *agentConfig           `hcl:"agent"        yaml:"agent"`
+	Plugins            ast.Node               `hcl:"plugins"      yaml:"-"`
+	PluginsRaw         *yamlconfig.Raw        `hcl:"-" yaml:"plugins"`
+	YAMLUnknownKeys    []string               `hcl:"-" yaml:"-"`
+	ConfigFormat       catalog.ConfigFormat   `hcl:"-" yaml:"-"`
+	Telemetry          telemetry.FileConfig   `hcl:"telemetry"    yaml:"telemetry"`
+	HealthChecks       health.Config          `hcl:"health_checks" yaml:"healthChecks"`
+	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions" yaml:"-"`
 }
 
 type agentConfig struct {
-	DataDir                       string              `hcl:"data_dir"`
-	AdminSocketPath               string              `hcl:"admin_socket_path"`
-	InsecureBootstrap             bool                `hcl:"insecure_bootstrap"`
-	RebootstrapMode               string              `hcl:"rebootstrap_mode"`
-	RebootstrapDelay              string              `hcl:"rebootstrap_delay"`
-	JoinToken                     string              `hcl:"join_token"`
-	JoinTokenFile                 string              `hcl:"join_token_file"`
-	LogFile                       string              `hcl:"log_file"`
-	LogFileRotation               *log.RotationConfig `hcl:"log_file_rotation"`
-	LogFormat                     string              `hcl:"log_format"`
-	LogLevel                      string              `hcl:"log_level"`
-	LogSelectors                  []string            `hcl:"log_selectors"`
-	LogSourceLocation             bool                `hcl:"log_source_location"`
-	SDS                           sdsConfig           `hcl:"sds"`
-	ServerAddress                 string              `hcl:"server_address"`
-	ServerPort                    int                 `hcl:"server_port"`
-	SocketPath                    string              `hcl:"socket_path"`
-	DisableWorkloadAPI            bool                `hcl:"disable_workload_api"`
-	DisableSDSAPI                 bool                `hcl:"disable_sds_api"`
-	WorkloadX509SVIDKeyType       string              `hcl:"workload_x509_svid_key_type"`
-	TrustBundleFormat             string              `hcl:"trust_bundle_format"`
-	TrustBundlePath               string              `hcl:"trust_bundle_path"`
-	TrustBundleSpiffeWorkloadAPI  string              `hcl:"trust_bundle_spiffe_workload_api"`
-	TrustBundleUnixSocket         string              `hcl:"trust_bundle_unix_socket"`
-	TrustBundleURL                string              `hcl:"trust_bundle_url"`
-	TrustDomain                   string              `hcl:"trust_domain"`
-	AllowUnauthenticatedVerifiers bool                `hcl:"allow_unauthenticated_verifiers"`
-	AllowedForeignJWTClaims       []string            `hcl:"allowed_foreign_jwt_claims"`
-	AvailabilityTarget            string              `hcl:"availability_target"`
-	X509SVIDCacheMaxSize          int                 `hcl:"x509_svid_cache_max_size"`
-	JWTSVIDCacheMaxSize           int                 `hcl:"jwt_svid_cache_max_size"`
+	DataDir                       string              `hcl:"data_dir" yaml:"dataDir"`
+	AdminSocketPath               string              `hcl:"admin_socket_path" yaml:"adminSocketPath"`
+	InsecureBootstrap             bool                `hcl:"insecure_bootstrap" yaml:"insecureBootstrap"`
+	RebootstrapMode               string              `hcl:"rebootstrap_mode" yaml:"rebootstrapMode"`
+	RebootstrapDelay              string              `hcl:"rebootstrap_delay" yaml:"rebootstrapDelay"`
+	JoinToken                     string              `hcl:"join_token" yaml:"joinToken"`
+	JoinTokenFile                 string              `hcl:"join_token_file" yaml:"joinTokenFile"`
+	LogFile                       string              `hcl:"log_file" yaml:"logFile"`
+	LogFileRotation               *log.RotationConfig `hcl:"log_file_rotation" yaml:"logFileRotation"`
+	LogFormat                     string              `hcl:"log_format" yaml:"logFormat"`
+	LogLevel                      string              `hcl:"log_level" yaml:"logLevel"`
+	LogSelectors                  []string            `hcl:"log_selectors" yaml:"logSelectors"`
+	LogSourceLocation             bool                `hcl:"log_source_location" yaml:"logSourceLocation"`
+	SDS                           sdsConfig           `hcl:"sds" yaml:"sds"`
+	ServerAddress                 string              `hcl:"server_address" yaml:"serverAddress"`
+	ServerPort                    int                 `hcl:"server_port" yaml:"serverPort"`
+	SocketPath                    string              `hcl:"socket_path" yaml:"socketPath"`
+	DisableWorkloadAPI            bool                `hcl:"disable_workload_api" yaml:"disableWorkloadApi"`
+	DisableSDSAPI                 bool                `hcl:"disable_sds_api" yaml:"disableSdsApi"`
+	WorkloadX509SVIDKeyType       string              `hcl:"workload_x509_svid_key_type" yaml:"workloadX509SvidKeyType"`
+	TrustBundleFormat             string              `hcl:"trust_bundle_format" yaml:"trustBundleFormat"`
+	TrustBundlePath               string              `hcl:"trust_bundle_path" yaml:"trustBundlePath"`
+	TrustBundleSpiffeWorkloadAPI  string              `hcl:"trust_bundle_spiffe_workload_api" yaml:"trustBundleSpiffeWorkloadApi"`
+	TrustBundleUnixSocket         string              `hcl:"trust_bundle_unix_socket" yaml:"trustBundleUnixSocket"`
+	TrustBundleURL                string              `hcl:"trust_bundle_url" yaml:"trustBundleUrl"`
+	TrustDomain                   string              `hcl:"trust_domain" yaml:"trustDomain"`
+	AllowUnauthenticatedVerifiers bool                `hcl:"allow_unauthenticated_verifiers" yaml:"allowUnauthenticatedVerifiers"`
+	AllowedForeignJWTClaims       []string            `hcl:"allowed_foreign_jwt_claims" yaml:"allowedForeignJwtClaims"`
+	AvailabilityTarget            string              `hcl:"availability_target" yaml:"availabilityTarget"`
+	X509SVIDCacheMaxSize          int                 `hcl:"x509_svid_cache_max_size" yaml:"x509SvidCacheMaxSize"`
+	JWTSVIDCacheMaxSize           int                 `hcl:"jwt_svid_cache_max_size" yaml:"jwtSvidCacheMaxSize"`
 
-	AuthorizedDelegates []string `hcl:"authorized_delegates"`
+	AuthorizedDelegates []string `hcl:"authorized_delegates" yaml:"authorizedDelegates"`
 
-	TLSConfig *tlspolicy.TLSConfig `hcl:"tls_config"`
+	TLSConfig *tlspolicy.TLSConfig `hcl:"tls_config" yaml:"tlsConfig"`
 
-	ConfigPath string
-	ExpandEnv  bool
+	ConfigPath string `yaml:"-"`
+	ExpandEnv  bool   `yaml:"-"`
 
 	// Undocumented configurables
-	ProfilingEnabled bool               `hcl:"profiling_enabled"`
-	ProfilingPort    int                `hcl:"profiling_port"`
-	ProfilingFreq    int                `hcl:"profiling_freq"`
-	ProfilingNames   []string           `hcl:"profiling_names"`
-	Experimental     experimentalConfig `hcl:"experimental"`
+	ProfilingEnabled bool               `hcl:"profiling_enabled" yaml:"profilingEnabled"`
+	ProfilingPort    int                `hcl:"profiling_port"    yaml:"profilingPort"`
+	ProfilingFreq    int                `hcl:"profiling_freq"    yaml:"profilingFreq"`
+	ProfilingNames   []string           `hcl:"profiling_names"   yaml:"profilingNames"`
+	Experimental     experimentalConfig `hcl:"experimental"      yaml:"experimental"`
 
-	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions"`
+	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions" yaml:"-"`
 }
 
 // brokerHCLConfig is the HCL block for the SPIFFE Broker API endpoint:
@@ -145,51 +149,51 @@ type agentConfig struct {
 type brokerHCLConfig struct {
 	// SocketPath binds the broker endpoint to a Unix domain socket at the
 	// given path. POSIX-only.
-	SocketPath string `hcl:"socket_path"`
+	SocketPath string `hcl:"socket_path" yaml:"socketPath"`
 
 	// BindAddress binds the broker endpoint to a TCP address ("host:port").
 	// Works on both POSIX and Windows.
-	BindAddress string `hcl:"bind_address"`
+	BindAddress string `hcl:"bind_address" yaml:"bindAddress"`
 
 	// ReattestInterval is how often active X.509-SVID subscriptions re-attest
 	// their workload reference. Defaults to 10 minutes and must be at least
 	// 1 minute.
-	ReattestInterval string `hcl:"reattest_interval"`
+	ReattestInterval string `hcl:"reattest_interval" yaml:"reattestInterval"`
 
 	// ReattestJitter is the fraction of ReattestInterval used to jitter each
 	// re-attestation interval. Defaults to 0.1.
-	ReattestJitter *float64 `hcl:"reattest_jitter"`
+	ReattestJitter *float64 `hcl:"reattest_jitter" yaml:"reattestJitter"`
 
 	// Brokers enumerates the brokers authorized to talk to this agent's
 	// broker endpoint. Each entry's `id` is any valid SPIFFE ID; cross-
 	// trust-domain broker identities are allowed.
-	Brokers []brokerHCLEntry `hcl:"brokers"`
+	Brokers []brokerHCLEntry `hcl:"brokers" yaml:"brokers"`
 
-	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions"`
+	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions" yaml:"-"`
 }
 
 type brokerHCLEntry struct {
-	ID string `hcl:"id"`
+	ID string `hcl:"id" yaml:"id"`
 
 	// AllowedReferenceTypes restricts which WorkloadReference types this
 	// broker may use. Each entry's type_url is the verbatim protobuf type
 	// URL that the workload attestor plugin inspects. Use `"*"` to allow
 	// any reference type. Must list at least one entry.
-	AllowedReferenceTypes []brokerAllowedReferenceTypeHCLEntry `hcl:"allowed_reference_types"`
+	AllowedReferenceTypes []brokerAllowedReferenceTypeHCLEntry `hcl:"allowed_reference_types" yaml:"allowedReferenceTypes"`
 
-	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions"`
+	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions" yaml:"-"`
 }
 
 type brokerAllowedReferenceTypeHCLEntry struct {
 	// TypeURL is the verbatim protobuf type URL the workload attestor plugin
 	// inspects. The wildcard `"*"` allows any reference type.
-	TypeURL string `hcl:"type_url"`
+	TypeURL string `hcl:"type_url" yaml:"typeUrl"`
 
 	// AllowOverTCP permits this reference type over the TCP listener. The
 	// default is false, so the reference type is only allowed over UDS.
-	AllowOverTCP bool `hcl:"allow_over_tcp"`
+	AllowOverTCP bool `hcl:"allow_over_tcp" yaml:"allowOverTcp"`
 
-	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions"`
+	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions" yaml:"-"`
 }
 
 // brokerBindAddrs resolves the broker endpoint's listener addresses from
@@ -271,56 +275,57 @@ func brokerAllowedReferenceTypesFromHCL(brokerID string, in []brokerAllowedRefer
 }
 
 type sdsConfig struct {
-	DefaultSVIDName             string `hcl:"default_svid_name"`
-	DefaultBundleName           string `hcl:"default_bundle_name"`
-	DefaultAllBundlesName       string `hcl:"default_all_bundles_name"`
-	DisableSPIFFECertValidation bool   `hcl:"disable_spiffe_cert_validation"`
+	DefaultSVIDName             string `hcl:"default_svid_name"              yaml:"defaultSvidName"`
+	DefaultBundleName           string `hcl:"default_bundle_name"            yaml:"defaultBundleName"`
+	DefaultAllBundlesName       string `hcl:"default_all_bundles_name"       yaml:"defaultAllBundlesName"`
+	DisableSPIFFECertValidation bool   `hcl:"disable_spiffe_cert_validation" yaml:"disableSpiffeCertValidation"`
 }
 
 type workloadAPIRateLimitConfig struct {
-	FetchX509SVID    *int `hcl:"fetch_x509_svid"`
-	FetchJWTSVID     *int `hcl:"fetch_jwt_svid"`
-	FetchX509Bundles *int `hcl:"fetch_x509_bundles"`
-	FetchJWTBundles  *int `hcl:"fetch_jwt_bundles"`
-	FetchWITSVID     *int `hcl:"fetch_wit_svid"`
-	FetchWITBundles  *int `hcl:"fetch_wit_bundles"`
-	StreamSecrets    *int `hcl:"stream_secrets"`
-	FetchSecrets     *int `hcl:"fetch_secrets"`
+	FetchX509SVID    *int `hcl:"fetch_x509_svid" yaml:"fetchX509Svid"`
+	FetchJWTSVID     *int `hcl:"fetch_jwt_svid" yaml:"fetchJwtSvid"`
+	FetchX509Bundles *int `hcl:"fetch_x509_bundles" yaml:"fetchX509Bundles"`
+	FetchJWTBundles  *int `hcl:"fetch_jwt_bundles" yaml:"fetchJwtBundles"`
+	FetchWITSVID     *int `hcl:"fetch_wit_svid" yaml:"fetchWitSvid"`
+	FetchWITBundles  *int `hcl:"fetch_wit_bundles" yaml:"fetchWitBundles"`
+	StreamSecrets    *int `hcl:"stream_secrets" yaml:"streamSecrets"`
+	FetchSecrets     *int `hcl:"fetch_secrets" yaml:"fetchSecrets"`
 
-	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions"`
+	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions" yaml:"-"`
 }
 
 type syncRetryBackoffConfig struct {
 	// MaxInterval is the upper limit of the interval between retries.
 	// Defaults to 48 times the sync interval, capped at 8 minutes.
-	MaxInterval string `hcl:"max_interval"`
+	MaxInterval string `hcl:"max_interval" yaml:"maxInterval"`
 
 	// BackoffMultiplier is the factor the interval is multiplied by after
 	// each failed synchronization. Defaults to 1.5.
-	BackoffMultiplier *float64 `hcl:"backoff_multiplier"`
+	BackoffMultiplier *float64 `hcl:"backoff_multiplier" yaml:"backoffMultiplier"`
 
 	// Jitter is the fraction of the interval the interval is randomized by.
 	// Defaults to 0.10.
-	Jitter *float64 `hcl:"jitter"`
+	Jitter *float64 `hcl:"jitter" yaml:"jitter"`
 
-	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions"`
+	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions" yaml:"-"`
 }
 
 type experimentalConfig struct {
-	SyncInterval              string `hcl:"sync_interval"`
-	JWTSVIDCacheHitTimeout    string `hcl:"jwt_svid_cache_hit_timeout"`
-	RPCTimeout                string `hcl:"rpc_timeout"`
-	MaxBundleWorkers          int    `hcl:"max_bundle_workers"`
-	NamedPipeName             string `hcl:"named_pipe_name"`
-	AdminNamedPipeName        string `hcl:"admin_named_pipe_name"`
-	RequirePQKEM              bool   `hcl:"require_pq_kem"`
-	ServerLoadBalancingConfig string `hcl:"server_load_balancing_config"`
-	EnableWITSVIDs            bool   `hcl:"enable_wit_svids"`
-	WITSVIDCacheMaxSize       int    `hcl:"wit_svid_cache_max_size"`
+	EnableYAMLConfig          bool   `hcl:"-" yaml:"enableYamlConfig"`
+	SyncInterval              string `hcl:"sync_interval" yaml:"syncInterval"`
+	JWTSVIDCacheHitTimeout    string `hcl:"jwt_svid_cache_hit_timeout" yaml:"jwtSvidCacheHitTimeout"`
+	RPCTimeout                string `hcl:"rpc_timeout" yaml:"rpcTimeout"`
+	MaxBundleWorkers          int    `hcl:"max_bundle_workers" yaml:"maxBundleWorkers"`
+	NamedPipeName             string `hcl:"named_pipe_name" yaml:"namedPipeName"`
+	AdminNamedPipeName        string `hcl:"admin_named_pipe_name" yaml:"adminNamedPipeName"`
+	RequirePQKEM              bool   `hcl:"require_pq_kem" yaml:"requirePqKem"`
+	ServerLoadBalancingConfig string `hcl:"server_load_balancing_config" yaml:"serverLoadBalancingConfig"`
+	EnableWITSVIDs            bool   `hcl:"enable_wit_svids" yaml:"enableWitSvids"`
+	WITSVIDCacheMaxSize       int    `hcl:"wit_svid_cache_max_size" yaml:"witSvidCacheMaxSize"`
 
 	// SyncRetryBackoff holds the configuration of the exponential backoff
 	// applied between failed synchronizations with the server.
-	SyncRetryBackoff *syncRetryBackoffConfig `hcl:"sync_retry_backoff"`
+	SyncRetryBackoff *syncRetryBackoffConfig `hcl:"sync_retry_backoff" yaml:"syncRetryBackoff"`
 
 	// UseXDS resolves the SPIRE server through xDS instead of DNS.
 	// server_address becomes an xDS listener name (server_port must be unset) so
@@ -329,17 +334,17 @@ type experimentalConfig struct {
 	// management server endpoint and this agent's node locality are configured
 	// out-of-band via the gRPC xDS bootstrap (GRPC_XDS_BOOTSTRAP /
 	// GRPC_XDS_BOOTSTRAP_CONFIG).
-	UseXDS bool `hcl:"use_xds"`
+	UseXDS bool `hcl:"use_xds" yaml:"useXds"`
 
-	RateLimit workloadAPIRateLimitConfig `hcl:"ratelimit"`
+	RateLimit workloadAPIRateLimitConfig `hcl:"ratelimit" yaml:"ratelimit"`
 
 	// Broker holds the configuration for the SPIFFE Broker API endpoint
 	// (distinct from the Delegated Identity API's authorized_delegates).
 	// Kept under `experimental` while the spec stabilizes — breaking
 	// changes may land before this moves to the top-level config.
-	Broker *brokerHCLConfig `hcl:"broker"`
+	Broker *brokerHCLConfig `hcl:"broker" yaml:"broker"`
 
-	Flags fflag.RawConfig `hcl:"feature_flags"`
+	Flags fflag.RawConfig `hcl:"feature_flags" yaml:"featureFlags"`
 }
 
 type Command struct {
@@ -587,6 +592,16 @@ func ParseFile(path string, expandEnv bool) (*Config, error) {
 	// If envTemplate flag is passed, substitute $VARIABLES in configuration file
 	if expandEnv {
 		data = config.ExpandEnv(data)
+	}
+
+	if catalog.ConfigFormatFromPath(path) == catalog.ConfigFormatYAML {
+		unknownKeys, err := yamlconfig.DecodeLenient(data, c)
+		if err != nil {
+			return nil, fmt.Errorf("unable to decode configuration at %q: %w", path, err)
+		}
+		c.YAMLUnknownKeys = unknownKeys
+		c.ConfigFormat = catalog.ConfigFormatYAML
+		return c, nil
 	}
 
 	if err := hcl.Decode(&c, data); err != nil {
@@ -927,10 +942,17 @@ func newAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig, skip
 	ac.LogSelectors = c.Agent.LogSelectors
 	ac.AllowedForeignJWTClaims = c.Agent.AllowedForeignJWTClaims
 
-	ac.PluginConfigs, err = catalog.PluginConfigsFromHCLNode(c.Plugins)
+	var pluginConfigs catalog.PluginConfigs
+	if c.ConfigFormat == catalog.ConfigFormatYAML {
+		logger.Warn("YAML configuration support is experimental and may change in future versions")
+		pluginConfigs, err = catalog.PluginConfigsFromYAML(c.PluginsRaw)
+	} else {
+		pluginConfigs, err = catalog.PluginConfigsFromHCLNode(c.Plugins)
+	}
 	if err != nil {
 		return nil, err
 	}
+	ac.PluginConfigs = pluginConfigs
 
 	ac.Telemetry = c.Telemetry
 	if err := c.HealthChecks.ParseCheckInterval(); err != nil {
@@ -1079,7 +1101,11 @@ func newAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig, skip
 }
 
 func validateConfig(c *Config) error {
-	if c.Plugins == nil {
+	if c.ConfigFormat == catalog.ConfigFormatYAML && (c.Agent == nil || !c.Agent.Experimental.EnableYAMLConfig) {
+		return errors.New("YAML configuration is experimental: set experimental.enableYamlConfig to true to use it")
+	}
+
+	if c.Plugins == nil && c.PluginsRaw == nil {
 		return errors.New("plugins section must be configured")
 	}
 
@@ -1098,6 +1124,11 @@ func checkForUnknownConfig(c *Config, l logrus.FieldLogger) (err error) {
 			"section": section,
 			"keys":    strings.Join(keys, ","),
 		}).Error("Unknown configuration detected")
+		err = errors.New("unknown configuration detected")
+	}
+
+	if len(c.YAMLUnknownKeys) != 0 {
+		l.WithField("keys", strings.Join(c.YAMLUnknownKeys, ",")).Error("Unknown configuration detected")
 		err = errors.New("unknown configuration detected")
 	}
 

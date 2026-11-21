@@ -31,7 +31,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/organizations"
 	"github.com/fullsailor/pkcs7"
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/hcl"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	nodeattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/nodeattestor/v1"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
@@ -39,6 +38,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 	caws "github.com/spiffe/spire/pkg/common/plugin/aws"
 	"github.com/spiffe/spire/pkg/common/pluginconf"
+	"github.com/spiffe/spire/pkg/common/plugindecode"
 	nodeattestorbase "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/base"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -131,27 +131,34 @@ type IIDAttestorPlugin struct {
 
 // IIDAttestorConfig holds hcl configuration for IID attestor plugin
 type IIDAttestorConfig struct {
-	SessionConfig                   `hcl:",squash"`
-	SkipBlockDevice                 bool                 `hcl:"skip_block_device"`
-	DisableInstanceProfileSelectors bool                 `hcl:"disable_instance_profile_selectors"`
-	LocalValidAcctIDs               []string             `hcl:"account_ids_for_local_validation"`
-	AgentPathTemplate               string               `hcl:"agent_path_template"`
-	AssumeRole                      string               `hcl:"assume_role"`
-	Partition                       string               `hcl:"partition"`
-	ValidateOrgAccountID            *orgValidationConfig `hcl:"verify_organization"`
-	ValidateEKSClusterMembership    *eksValidationConfig `hcl:"validate_eks_cluster_membership"`
+	SessionConfig                   `hcl:",squash" yaml:",inline"`
+	SkipBlockDevice                 bool     `hcl:"skip_block_device" yaml:"skipBlockDevice"`
+	DisableInstanceProfileSelectors bool     `hcl:"disable_instance_profile_selectors" yaml:"disableInstanceProfileSelectors"`
+	LocalValidAcctIDs               []string `hcl:"account_ids_for_local_validation" yaml:"accountIdsForLocalValidation"`
+	AgentPathTemplate               string   `hcl:"agent_path_template" yaml:"agentPathTemplate"`
+	// AssumeRole and Partition duplicate the SessionConfig keys, which HCL
+	// decodes into both fields; YAML forbids duplicate keys, so they are
+	// copied from SessionConfig instead.
+	AssumeRole                   string               `hcl:"assume_role" yaml:"-"`
+	Partition                    string               `hcl:"partition" yaml:"-"`
+	ValidateOrgAccountID         *orgValidationConfig `hcl:"verify_organization" yaml:"verifyOrganization"`
+	ValidateEKSClusterMembership *eksValidationConfig `hcl:"validate_eks_cluster_membership" yaml:"validateEksClusterMembership"`
 	// Partitions configures the credentials for the nodes of each AWS partition, keyed by partition name.
-	Partitions          map[string]*SessionConfig `hcl:"partitions"`
+	Partitions          map[string]*SessionConfig `hcl:"partitions" yaml:"partitions"`
 	pathTemplate        *agentpathtemplate.Template
 	trustDomain         spiffeid.TrustDomain
 	getAWSCACertificate func(string, PublicKeyType) (*x509.Certificate, error)
 }
 
-func (p *IIDAttestorPlugin) buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *IIDAttestorConfig {
+func (p *IIDAttestorPlugin) buildConfig(coreConfig catalog.CoreConfig, text string, format catalog.ConfigFormat, status *pluginconf.Status) *IIDAttestorConfig {
 	newConfig := new(IIDAttestorConfig)
-	if err := hcl.Decode(newConfig, hclText); err != nil {
+	if err := plugindecode.DecodeConfig(text, format, newConfig); err != nil {
 		status.ReportErrorf("unable to decode configuration: %v", err)
 		return nil
+	}
+	if format == catalog.ConfigFormatYAML {
+		newConfig.AssumeRole = newConfig.SessionConfig.AssumeRole
+		newConfig.Partition = newConfig.SessionConfig.Partition
 	}
 
 	// Function to get the AWS CA certificate. We do this lazily on configure so deployments

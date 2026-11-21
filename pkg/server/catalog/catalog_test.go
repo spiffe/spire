@@ -55,10 +55,13 @@ func Test(t *testing.T) {
 					{
 						Type: "DataStore",
 						Name: "sql",
-						DataSource: commoncatalog.FixedData(fmt.Sprintf(`
+						DataSource: commoncatalog.FixedData{
+							Data: fmt.Sprintf(`
 						database_type = "sqlite3"
 						connection_string = %q
-					`, filepath.Join(dir, "test.sql"))),
+					`, filepath.Join(dir, "test.sql")),
+							Format: commoncatalog.ConfigFormatHCL,
+						},
 					},
 					{
 						Type: "KeyManager",

@@ -8,8 +8,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hashicorp/hcl"
-
 	"github.com/go-jose/go-jose/v4"
 	"github.com/go-jose/go-jose/v4/jwt"
 	hclog "github.com/hashicorp/go-hclog"
@@ -20,6 +18,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/gcp"
 	"github.com/spiffe/spire/pkg/common/pluginconf"
+	"github.com/spiffe/spire/pkg/common/plugindecode"
 	nodeattestorbase "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/base"
 	"google.golang.org/api/compute/v1"
 	"google.golang.org/api/option"
@@ -77,18 +76,18 @@ type IITAttestorConfig struct {
 	allowedLabelKeys    map[string]bool
 	allowedMetadataKeys map[string]bool
 
-	ProjectIDAllowList   []string `hcl:"projectid_allow_list"`
-	AgentPathTemplate    string   `hcl:"agent_path_template"`
-	UseInstanceMetadata  bool     `hcl:"use_instance_metadata"`
-	AllowedLabelKeys     []string `hcl:"allowed_label_keys"`
-	AllowedMetadataKeys  []string `hcl:"allowed_metadata_keys"`
-	MaxMetadataValueSize int      `hcl:"max_metadata_value_size"`
-	ServiceAccountFile   string   `hcl:"service_account_file"`
+	ProjectIDAllowList   []string `hcl:"projectid_allow_list" yaml:"projectidAllowList"`
+	AgentPathTemplate    string   `hcl:"agent_path_template" yaml:"agentPathTemplate"`
+	UseInstanceMetadata  bool     `hcl:"use_instance_metadata" yaml:"useInstanceMetadata"`
+	AllowedLabelKeys     []string `hcl:"allowed_label_keys" yaml:"allowedLabelKeys"`
+	AllowedMetadataKeys  []string `hcl:"allowed_metadata_keys" yaml:"allowedMetadataKeys"`
+	MaxMetadataValueSize int      `hcl:"max_metadata_value_size" yaml:"maxMetadataValueSize"`
+	ServiceAccountFile   string   `hcl:"service_account_file" yaml:"serviceAccountFile"`
 }
 
-func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *IITAttestorConfig {
+func buildConfig(coreConfig catalog.CoreConfig, text string, format catalog.ConfigFormat, status *pluginconf.Status) *IITAttestorConfig {
 	newConfig := new(IITAttestorConfig)
-	if err := hcl.Decode(newConfig, hclText); err != nil {
+	if err := plugindecode.DecodeConfig(text, format, newConfig); err != nil {
 		status.ReportErrorf("unable to decode configuration: %v", err)
 		return nil
 	}

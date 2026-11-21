@@ -14,13 +14,13 @@ import (
 
 	ejbcaclient "github.com/Keyfactor/ejbca-go-client-sdk/api/ejbca"
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire-plugin-sdk/pluginsdk"
 	upstreamauthorityv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/upstreamauthority/v1"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/coretypes/x509certificate"
 	"github.com/spiffe/spire/pkg/common/pluginconf"
+	"github.com/spiffe/spire/pkg/common/plugindecode"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -75,23 +75,23 @@ func builtin(p *Plugin) catalog.BuiltIn {
 
 // Config defines the configuration for the plugin.
 type Config struct {
-	Hostname               string `hcl:"hostname" json:"hostname"`
-	CaCertPath             string `hcl:"ca_cert_path" json:"ca_cert_path"`
-	ClientCertPath         string `hcl:"client_cert_path" json:"client_cert_path"`
-	ClientCertKeyPath      string `hcl:"client_cert_key_path" json:"client_cert_key_path"`
-	CAName                 string `hcl:"ca_name" json:"ca_name"`
-	EndEntityProfileName   string `hcl:"end_entity_profile_name" json:"end_entity_profile_name"`
-	CertificateProfileName string `hcl:"certificate_profile_name" json:"certificate_profile_name"`
-	DefaultEndEntityName   string `hcl:"end_entity_name" json:"end_entity_name"`
-	AccountBindingID       string `hcl:"account_binding_id" json:"account_binding_id"`
+	Hostname               string `hcl:"hostname" json:"hostname" yaml:"hostname"`
+	CaCertPath             string `hcl:"ca_cert_path" json:"ca_cert_path" yaml:"caCertPath"`
+	ClientCertPath         string `hcl:"client_cert_path" json:"client_cert_path" yaml:"clientCertPath"`
+	ClientCertKeyPath      string `hcl:"client_cert_key_path" json:"client_cert_key_path" yaml:"clientCertKeyPath"`
+	CAName                 string `hcl:"ca_name" json:"ca_name" yaml:"caName"`
+	EndEntityProfileName   string `hcl:"end_entity_profile_name" json:"end_entity_profile_name" yaml:"endEntityProfileName"`
+	CertificateProfileName string `hcl:"certificate_profile_name" json:"certificate_profile_name" yaml:"certificateProfileName"`
+	DefaultEndEntityName   string `hcl:"end_entity_name" json:"end_entity_name" yaml:"endEntityName"`
+	AccountBindingID       string `hcl:"account_binding_id" json:"account_binding_id" yaml:"accountBindingId"`
 }
 
-func (p *Plugin) buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *Config {
+func (p *Plugin) buildConfig(coreConfig catalog.CoreConfig, text string, format catalog.ConfigFormat, status *pluginconf.Status) *Config {
 	logger := p.logger.Named("parseConfig")
 	logger.Debug("Decoding EJBCA configuration")
 
 	newConfig := &Config{}
-	if err := hcl.Decode(&newConfig, hclText); err != nil {
+	if err := plugindecode.DecodeConfig(text, format, &newConfig); err != nil {
 		status.ReportErrorf("failed to decode configuration: %v", err)
 		return nil
 	}

@@ -19,8 +19,10 @@ import (
 	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/agent/manager"
 	"github.com/spiffe/spire/pkg/agent/workloadkey"
+	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/log"
 	"github.com/spiffe/spire/pkg/common/tlspolicy"
+	"github.com/spiffe/spire/test/configtest"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/assert"
@@ -42,6 +44,58 @@ type newAgentConfigCase struct {
 	input              func(*Config)
 	logOptions         func(t *testing.T) []log.Option
 	test               func(*testing.T, *agent.Config)
+}
+
+func TestParseFile_YAML(t *testing.T) {
+	for _, name := range []string{"agent_good_posix", "agent_yaml_parity"} {
+		t.Run(name, func(t *testing.T) {
+			hclConf, err := ParseFile("../../../../test/fixture/config/"+name+".conf", false)
+			require.NoError(t, err)
+			yamlConf, err := ParseFile("../../../../test/fixture/config/"+name+".yaml", false)
+			require.NoError(t, err)
+			require.NotNil(t, yamlConf.PluginsRaw)
+			require.Empty(t, yamlConf.YAMLUnknownKeys)
+			hclConf.ConfigFormat = catalog.ConfigFormatYAML
+			hclConf.Agent.Experimental.EnableYAMLConfig = true
+			configtest.RequireYAMLParity(t, hclConf, yamlConf, hclConf.Plugins, yamlConf.PluginsRaw, nil)
+		})
+	}
+}
+
+func TestParseFile_YAMLUnknownKeys(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	require.NoError(t, os.WriteFile(path, []byte("agent:\n  trust_domain: example.org\n"), 0o600))
+	c, err := ParseFile(path, false)
+	require.NoError(t, err)
+	require.Equal(t, []string{"trust_domain (line 2)"}, c.YAMLUnknownKeys)
+
+	log, _ := test.NewNullLogger()
+	require.EqualError(t, checkForUnknownConfig(c, log), "unknown configuration detected")
+}
+
+func TestParseFile_YAMLExpandEnv(t *testing.T) {
+	t.Setenv("TEST_YAML_TRUST_DOMAIN", "example.org")
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	require.NoError(t, os.WriteFile(path, []byte("agent:\n  trustDomain: $TEST_YAML_TRUST_DOMAIN\n"), 0o600))
+	c, err := ParseFile(path, true)
+	require.NoError(t, err)
+	require.Equal(t, "example.org", c.Agent.TrustDomain)
+}
+
+func TestValidateConfig_YAMLRequiresExperimentalFlag(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	require.NoError(t, os.WriteFile(path, []byte("agent:\n  trustDomain: example.org\nplugins:\n  KeyManager:\n    memory: {}\n"), 0o600))
+	c, err := ParseFile(path, false)
+	require.NoError(t, err)
+	require.EqualError(t, validateConfig(c), "YAML configuration is experimental: set experimental.enableYamlConfig to true to use it")
+}
+
+func TestValidateConfig_YAMLWithoutPlugins(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	require.NoError(t, os.WriteFile(path, []byte("agent:\n  dataDir: /tmp\n  serverAddress: localhost\n  serverPort: 8081\n  trustDomain: example.org\n  trustBundlePath: bundle.pem\n  experimental:\n    enableYamlConfig: true\n"), 0o600))
+	c, err := ParseFile(path, false)
+	require.NoError(t, err)
+	require.EqualError(t, validateConfig(c), "plugins section must be configured")
 }
 
 func TestMergeInput(t *testing.T) {

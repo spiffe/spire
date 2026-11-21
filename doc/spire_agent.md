@@ -40,6 +40,8 @@ The following table outlines the configuration options for SPIRE agent. These ma
 
 SPIRE configuration files may be represented in either HCL or JSON. Please see the [sample configuration file](#sample-configuration-file) section for a complete example.
 
+YAML configuration files are also supported as an experimental feature. Please see [YAML Configuration](yaml_configuration.md) for details, including the requirements for external plugins.
+
 If the -expandEnv flag is passed to SPIRE, `$VARIABLE` or `${VARIABLE}` style environment variables are expanded before parsing.
 This may be useful for templating configuration files, for example across different trust domains, or for inserting secrets like join tokens.
 
@@ -115,6 +117,7 @@ When `experimental.require_pq_kem` is enabled, it overrides `min_tls_version` an
 | `sync_interval`                | Sync interval with SPIRE server with exponential backoff                                                                                                                            | 5 sec                   |
 | `require_pq_kem`               | Require post-quantum-safe KEM on outbound gRPC and terminating listeners.                                                                                                           | false                   |
 | `enable_wit_svids`             | Mint WIT-SVIDs and serve them over the Workload API                                                                                                                                 | false                   |
+| `enableYamlConfig` (YAML only) | Must be set to true to use a YAML configuration file; only available in YAML. See [YAML Configuration](yaml_configuration.md).                                                      | false                   |
 | `wit_svid_cache_max_size`      | Soft limit of max number of WIT-SVIDs that would be stored in LRU cache. Only used when WIT-SVIDs are enabled                                                                       | 1000                    |
 | `jwt_svid_cache_hit_timeout`   | Custom gRPC timeout (between 5 and 30s) when retrieving a NewJWTSVID when a valid JWT-SVID in cache                                                                                 | 30s                     |
 | `ratelimit`                    | Optional per-caller rate limiting for Workload API and SDS methods, enforced after workload attestation. See [Workload API Rate Limiting](#workload-api-rate-limiting) for details. |                         |

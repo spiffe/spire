@@ -1,0 +1,17 @@
+#!/bin/bash
+
+# YAML configuration must be enabled through experimental.enableYamlConfig.
+sed '/enableYamlConfig/d' conf/server/server.yaml > conf/server/server-noflag.yaml
+sed '/enableYamlConfig/d' conf/agent/agent.yaml > conf/agent/agent-noflag.yaml
+
+log-info "checking that the server refuses YAML without the experimental flag..."
+OUTPUT=$(docker compose run --rm -T --entrypoint /opt/spire/bin/spire-server spire-server \
+    validate -config /opt/spire/conf/server/server-noflag.yaml 2>&1) || true
+echo "${OUTPUT}"
+echo "${OUTPUT}" | grep -q "set experimental.enableYamlConfig to true" || fail-now "server accepted YAML without the experimental flag"
+
+log-info "checking that the agent refuses YAML without the experimental flag..."
+OUTPUT=$(docker compose run --rm -T --entrypoint /opt/spire/bin/spire-agent spire-agent \
+    validate -config /opt/spire/conf/agent/agent-noflag.yaml 2>&1) || true
+echo "${OUTPUT}"
+echo "${OUTPUT}" | grep -q "set experimental.enableYamlConfig to true" || fail-now "agent accepted YAML without the experimental flag"

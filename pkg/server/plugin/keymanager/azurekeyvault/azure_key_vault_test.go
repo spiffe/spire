@@ -1163,7 +1163,7 @@ func setupTest(t *testing.T) *pluginTest {
 
 func configureRequestWithDefaults(t *testing.T) *configv1.ConfigureRequest {
 	return &configv1.ConfigureRequest{
-		HclConfiguration:  serializedConfiguration(KeyIdentifierFile, createKeyIdentifierFile(t), validKeyVaultURI, validTenantID, validSubscriptionID, validAppID, validAppSecret),
+		Configuration:     serializedConfiguration(KeyIdentifierFile, createKeyIdentifierFile(t), validKeyVaultURI, validTenantID, validSubscriptionID, validAppID, validAppSecret),
 		CoreConfiguration: &configv1.CoreConfiguration{TrustDomain: trustDomain},
 	}
 }
@@ -1202,14 +1202,14 @@ func serializedConfiguration(keyIdentifierConfigName KeyIdentifierConfigName, ke
 func configureRequestWithVars(keyIdentifierConfigName KeyIdentifierConfigName, keyIdentifierConfigValue, keyVaultURI, tenantID, subscriptionID, appID, appSecret string) *configv1.ConfigureRequest {
 	return &configv1.ConfigureRequest{
 		CoreConfiguration: &configv1.CoreConfiguration{TrustDomain: trustDomain},
-		HclConfiguration:  serializedConfiguration(keyIdentifierConfigName, keyIdentifierConfigValue, keyVaultURI, tenantID, subscriptionID, appID, appSecret),
+		Configuration:     serializedConfiguration(keyIdentifierConfigName, keyIdentifierConfigValue, keyVaultURI, tenantID, subscriptionID, appID, appSecret),
 	}
 }
 
 func configureRequestWithString(config string) *configv1.ConfigureRequest {
 	return &configv1.ConfigureRequest{
 		CoreConfiguration: &configv1.CoreConfiguration{TrustDomain: trustDomain},
-		HclConfiguration:  config,
+		Configuration:     config,
 	}
 }
 

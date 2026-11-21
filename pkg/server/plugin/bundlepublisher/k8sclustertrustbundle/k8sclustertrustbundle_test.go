@@ -572,7 +572,7 @@ func TestValidate(t *testing.T) {
 				CoreConfiguration: &configv1.CoreConfiguration{
 					TrustDomain: "example.org",
 				},
-				HclConfiguration: `
+				Configuration: `
 					clusters = {
 						"test-cluster" = {
 							cluster_trust_bundle_name = "spire-bundle"
@@ -598,7 +598,7 @@ func TestValidate(t *testing.T) {
 				CoreConfiguration: &configv1.CoreConfiguration{
 					TrustDomain: "example.org",
 				},
-				HclConfiguration: `
+				Configuration: `
 					clusters = {
 						"test-cluster" = {
 							cluster_trust_bundle_name = "spire-bundle"

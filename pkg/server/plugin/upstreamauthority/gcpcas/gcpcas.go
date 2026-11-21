@@ -17,7 +17,6 @@ import (
 	privateca "cloud.google.com/go/security/privateca/apiv1"
 	"cloud.google.com/go/security/privateca/apiv1/privatecapb"
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/hcl"
 	"github.com/spiffe/spire-plugin-sdk/pluginsdk"
 	upstreamauthorityv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/upstreamauthority/v1"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
@@ -25,6 +24,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/coretypes/x509certificate"
 	"github.com/spiffe/spire/pkg/common/pemutil"
 	"github.com/spiffe/spire/pkg/common/pluginconf"
+	"github.com/spiffe/spire/pkg/common/plugindecode"
 	"github.com/spiffe/spire/pkg/common/x509util"
 	"google.golang.org/api/iterator"
 	"google.golang.org/grpc/codes"
@@ -51,11 +51,11 @@ func builtin(p *Plugin) catalog.BuiltIn {
 }
 
 type CertificateAuthoritySpec struct {
-	Project    string `hcl:"project_name"`
-	Location   string `hcl:"region_name"`
-	CaPool     string `hcl:"ca_pool"`
-	LabelKey   string `hcl:"label_key"`
-	LabelValue string `hcl:"label_value"`
+	Project    string `hcl:"project_name" yaml:"projectName"`
+	Location   string `hcl:"region_name" yaml:"regionName"`
+	CaPool     string `hcl:"ca_pool" yaml:"caPool"`
+	LabelKey   string `hcl:"label_key" yaml:"labelKey"`
+	LabelValue string `hcl:"label_value" yaml:"labelValue"`
 }
 
 func (spec *CertificateAuthoritySpec) caParentPath(caPool string) string {
@@ -67,12 +67,12 @@ func (spec *CertificateAuthoritySpec) caPoolParentPath() string {
 }
 
 type Configuration struct {
-	RootSpec CertificateAuthoritySpec `hcl:"root_cert_spec,block"`
+	RootSpec CertificateAuthoritySpec `hcl:"root_cert_spec,block" yaml:"rootCertSpec"`
 }
 
-func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *Configuration {
+func buildConfig(coreConfig catalog.CoreConfig, text string, format catalog.ConfigFormat, status *pluginconf.Status) *Configuration {
 	newConfig := new(Configuration)
-	if err := hcl.Decode(newConfig, hclText); err != nil {
+	if err := plugindecode.DecodeConfig(text, format, newConfig); err != nil {
 		status.ReportError("plugin configuration is malformed")
 		return nil
 	}

@@ -12,7 +12,6 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/hcl"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	nodeattestorv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/plugin/server/nodeattestor/v1"
 	configv1 "github.com/spiffe/spire-plugin-sdk/proto/spire/service/common/config/v1"
@@ -20,6 +19,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/plugin/azure"
 	"github.com/spiffe/spire/pkg/common/pluginconf"
+	"github.com/spiffe/spire/pkg/common/plugindecode"
 	"github.com/spiffe/spire/pkg/common/util"
 	nodeattestorbase "github.com/spiffe/spire/pkg/server/plugin/nodeattestor/base"
 	"google.golang.org/grpc/codes"
@@ -42,28 +42,28 @@ func builtin(p *IMDSAttestorPlugin) catalog.BuiltIn {
 }
 
 type SecretAuthConfig struct {
-	AppID     string `hcl:"app_id" json:"app_id"`
-	AppSecret string `hcl:"app_secret" json:"app_secret"`
+	AppID     string `hcl:"app_id" json:"app_id" yaml:"appId"`
+	AppSecret string `hcl:"app_secret" json:"app_secret" yaml:"appSecret"`
 }
 
 type TokenAuthConfig struct {
-	TokenPath string `hcl:"token_path" json:"token_path"`
-	AppID     string `hcl:"app_id" json:"app_id"`
+	TokenPath string `hcl:"token_path" json:"token_path" yaml:"tokenPath"`
+	AppID     string `hcl:"app_id" json:"app_id" yaml:"appId"`
 }
 
 type TenantConfig struct {
-	AuthType                string            `hcl:"auth_type" json:"auth_type"`
-	SecretAuth              *SecretAuthConfig `hcl:"secret_auth" json:"secret_auth"`
-	TokenAuth               *TokenAuthConfig  `hcl:"token_auth" json:"token_auth"`
-	AllowedTags             []string          `hcl:"allowed_vm_tags" json:"allowed_vm_tags"`
-	RestrictToSubscriptions []*string         `hcl:"restrict_to_subscriptions" json:"restrict_to_subscriptions"`
+	AuthType                string            `hcl:"auth_type" json:"auth_type" yaml:"authType"`
+	SecretAuth              *SecretAuthConfig `hcl:"secret_auth" json:"secret_auth" yaml:"secretAuth"`
+	TokenAuth               *TokenAuthConfig  `hcl:"token_auth" json:"token_auth" yaml:"tokenAuth"`
+	AllowedTags             []string          `hcl:"allowed_vm_tags" json:"allowed_vm_tags" yaml:"allowedVmTags"`
+	RestrictToSubscriptions []*string         `hcl:"restrict_to_subscriptions" json:"restrict_to_subscriptions" yaml:"restrictToSubscriptions"`
 }
 
 type IMDSAttestorConfig struct {
-	Tenants                map[string]*TenantConfig `hcl:"tenants" json:"tenants"`
-	AgentPathTemplate      string                   `hcl:"agent_path_template" json:"agent_path_template"`
-	AllowedMetadataDomains []string                 `hcl:"allowed_metadata_domains" json:"allowed_metadata_domains"`
-	TrustBundlePath        string                   `hcl:"trust_bundle_path" json:"trust_bundle_path"`
+	Tenants                map[string]*TenantConfig `hcl:"tenants" json:"tenants" yaml:"tenants"`
+	AgentPathTemplate      string                   `hcl:"agent_path_template" json:"agent_path_template" yaml:"agentPathTemplate"`
+	AllowedMetadataDomains []string                 `hcl:"allowed_metadata_domains" json:"allowed_metadata_domains" yaml:"allowedMetadataDomains"`
+	TrustBundlePath        string                   `hcl:"trust_bundle_path" json:"trust_bundle_path" yaml:"trustBundlePath"`
 }
 
 type tenantConfig struct {
@@ -88,10 +88,10 @@ func (t *tenantConfig) subscriptionAllowed(subscriptionID string) bool {
 	return ok
 }
 
-func (p *IMDSAttestorPlugin) buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *imdsAttestorConfig {
+func (p *IMDSAttestorPlugin) buildConfig(coreConfig catalog.CoreConfig, text string, format catalog.ConfigFormat, status *pluginconf.Status) *imdsAttestorConfig {
 	newConfig := new(IMDSAttestorConfig)
 
-	if err := hcl.Decode(newConfig, hclText); err != nil {
+	if err := plugindecode.DecodeConfig(text, format, newConfig); err != nil {
 		status.ReportErrorf("unable to decode configuration: %v", err)
 		return nil
 	}

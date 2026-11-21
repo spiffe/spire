@@ -52,7 +52,7 @@ func Load(t *testing.T, builtIn catalog.BuiltIn, pluginFacade catalog.Facade, op
 	require.NoError(t, err)
 
 	if conf.doConfigure {
-		err := configurer.Configure(context.Background(), conf.coreConfig, conf.makeConfigData(t))
+		err := configurer.Configure(context.Background(), conf.coreConfig, conf.makeConfigData(t), conf.configFormat)
 		if conf.configureErr != nil {
 			*conf.configureErr = err
 		} else {

@@ -182,7 +182,7 @@ func TestConfigureClosesPreviousClient(t *testing.T) {
 	})
 
 	req := &configv1.ConfigureRequest{
-		HclConfiguration: fmt.Sprintf(`
+		Configuration: fmt.Sprintf(`
 			kmip_addr            = %q
 			ca_cert_path         = %q
 			insecure_skip_verify = true
@@ -230,7 +230,7 @@ func TestConfigureReconfigures(t *testing.T) {
 
 	makeReq := func(addr, caFile, serverID string) *configv1.ConfigureRequest {
 		return &configv1.ConfigureRequest{
-			HclConfiguration: fmt.Sprintf(`
+			Configuration: fmt.Sprintf(`
 				kmip_addr            = %q
 				ca_cert_path         = %q
 				insecure_skip_verify = true
@@ -293,7 +293,7 @@ func TestConfigureFailedReconfigureLeavesPreviousStateIntact(t *testing.T) {
 
 	caFile := writeTempPEM(t, caPEM)
 	_, err = p.Configure(context.Background(), &configv1.ConfigureRequest{
-		HclConfiguration: fmt.Sprintf(`
+		Configuration: fmt.Sprintf(`
 			kmip_addr            = %q
 			ca_cert_path         = %q
 			insecure_skip_verify = true

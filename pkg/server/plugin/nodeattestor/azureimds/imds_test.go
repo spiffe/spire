@@ -789,7 +789,7 @@ func (s *IMDSAttestorSuite) TestValidate() {
 
 		// Then test Validate with invalid config
 		resp, err := attestor.Validate(context.Background(), &configv1.ValidateRequest{
-			HclConfiguration: "blah",
+			Configuration: "blah",
 		})
 		require.NoError(t, err)
 		require.NotNil(t, resp)
@@ -815,7 +815,7 @@ func (s *IMDSAttestorSuite) TestValidate() {
 			CoreConfiguration: &configv1.CoreConfiguration{
 				TrustDomain: "example.org",
 			},
-			HclConfiguration: `
+			Configuration: `
 				tenants = {
 					"example.com" = {}
 				}
