@@ -63,6 +63,7 @@ server:
         bundleEndpointProfile:
           httpsWeb: {}
   experimental:
+    enableYamlConfig: true
     cacheReloadInterval: "10s"
     fullCacheReloadInterval: "1m"
     pruneEventsOlderThan: "12h"

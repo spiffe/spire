@@ -2,7 +2,13 @@
 
 SPIRE Server and SPIRE Agent can read their configuration file in YAML as an alternative to HCL. YAML is selected by the file extension: a configuration file ending in `.yaml` or `.yml` is parsed as YAML, and any other file is parsed as HCL.
 
-YAML configuration support is experimental. SPIRE logs a warning on startup when a YAML configuration file is used, and the configuration shape described in this document may change in future releases. Please see the [experimental features](upgrading.md#experimental-features) section of the upgrade guide for considerations about experimental features.
+YAML configuration support is experimental and must be enabled by setting `enableYamlConfig` to `true` in the `experimental` section of the `server` or `agent` section. SPIRE refuses to start from a YAML configuration file without it, and logs a warning on startup when it is used. The configuration shape described in this document may change in future releases. Please see the [experimental features](upgrading.md#experimental-features) section of the upgrade guide for considerations about experimental features.
+
+```yaml
+server:
+  experimental:
+    enableYamlConfig: true
+```
 
 Every option documented in the [SPIRE Server](spire_server.md) and [SPIRE Agent](spire_agent.md) configuration references, as well as every built-in plugin option, can be set in YAML. HCL configuration files are not affected and keep working as before.
 
@@ -167,6 +173,8 @@ server:
   trustDomain: "example.org"
   dataDir: "./.data"
   logLevel: "DEBUG"
+  experimental:
+    enableYamlConfig: true
 
 plugins:
   DataStore:
@@ -201,6 +209,8 @@ agent:
   socketPath: "/tmp/spire-agent/public/api.sock"
   trustBundlePath: "./conf/agent/dummy_root_ca.crt"
   trustDomain: "example.org"
+  experimental:
+    enableYamlConfig: true
 
 plugins:
   NodeAttestor:

@@ -67,6 +67,7 @@ type Config struct {
 	Plugins            ast.Node               `hcl:"plugins"      yaml:"-"`
 	PluginsRaw         *yamlconfig.Raw        `hcl:"-" yaml:"plugins"`
 	YAMLUnknownKeys    []string               `hcl:"-" yaml:"-"`
+	ConfigFormat       catalog.ConfigFormat   `hcl:"-" yaml:"-"`
 	Telemetry          telemetry.FileConfig   `hcl:"telemetry"    yaml:"telemetry"`
 	HealthChecks       health.Config          `hcl:"health_checks" yaml:"healthChecks"`
 	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions" yaml:"-"`
@@ -310,6 +311,7 @@ type syncRetryBackoffConfig struct {
 }
 
 type experimentalConfig struct {
+	EnableYAMLConfig          bool   `hcl:"-" yaml:"enableYamlConfig"`
 	SyncInterval              string `hcl:"sync_interval" yaml:"syncInterval"`
 	JWTSVIDCacheHitTimeout    string `hcl:"jwt_svid_cache_hit_timeout" yaml:"jwtSvidCacheHitTimeout"`
 	RPCTimeout                string `hcl:"rpc_timeout" yaml:"rpcTimeout"`
@@ -598,6 +600,7 @@ func ParseFile(path string, expandEnv bool) (*Config, error) {
 			return nil, fmt.Errorf("unable to decode configuration at %q: %w", path, err)
 		}
 		c.YAMLUnknownKeys = unknownKeys
+		c.ConfigFormat = catalog.ConfigFormatYAML
 		return c, nil
 	}
 
@@ -940,7 +943,7 @@ func newAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig, skip
 	ac.AllowedForeignJWTClaims = c.Agent.AllowedForeignJWTClaims
 
 	var pluginConfigs catalog.PluginConfigs
-	if c.PluginsRaw != nil {
+	if c.ConfigFormat == catalog.ConfigFormatYAML {
 		logger.Warn("YAML configuration support is experimental and may change in future versions")
 		pluginConfigs, err = catalog.PluginConfigsFromYAML(c.PluginsRaw)
 	} else {
@@ -1098,6 +1101,10 @@ func newAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig, skip
 }
 
 func validateConfig(c *Config) error {
+	if c.ConfigFormat == catalog.ConfigFormatYAML && (c.Agent == nil || !c.Agent.Experimental.EnableYAMLConfig) {
+		return errors.New("YAML configuration is experimental: set experimental.enableYamlConfig to true to use it")
+	}
+
 	if c.Plugins == nil && c.PluginsRaw == nil {
 		return errors.New("plugins section must be configured")
 	}

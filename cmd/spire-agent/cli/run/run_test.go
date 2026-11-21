@@ -19,6 +19,7 @@ import (
 	"github.com/spiffe/spire/pkg/agent/client"
 	"github.com/spiffe/spire/pkg/agent/manager"
 	"github.com/spiffe/spire/pkg/agent/workloadkey"
+	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/pkg/common/log"
 	"github.com/spiffe/spire/pkg/common/tlspolicy"
 	"github.com/spiffe/spire/test/configtest"
@@ -54,6 +55,8 @@ func TestParseFile_YAML(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, yamlConf.PluginsRaw)
 			require.Empty(t, yamlConf.YAMLUnknownKeys)
+			hclConf.ConfigFormat = catalog.ConfigFormatYAML
+			hclConf.Agent.Experimental.EnableYAMLConfig = true
 			configtest.RequireYAMLParity(t, hclConf, yamlConf, hclConf.Plugins, yamlConf.PluginsRaw, nil)
 		})
 	}
@@ -79,9 +82,17 @@ func TestParseFile_YAMLExpandEnv(t *testing.T) {
 	require.Equal(t, "example.org", c.Agent.TrustDomain)
 }
 
+func TestValidateConfig_YAMLRequiresExperimentalFlag(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	require.NoError(t, os.WriteFile(path, []byte("agent:\n  trustDomain: example.org\nplugins:\n  KeyManager:\n    memory: {}\n"), 0o600))
+	c, err := ParseFile(path, false)
+	require.NoError(t, err)
+	require.EqualError(t, validateConfig(c), "YAML configuration is experimental: set experimental.enableYamlConfig to true to use it")
+}
+
 func TestValidateConfig_YAMLWithoutPlugins(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.yaml")
-	require.NoError(t, os.WriteFile(path, []byte("agent:\n  dataDir: /tmp\n  serverAddress: localhost\n  serverPort: 8081\n  trustDomain: example.org\n  trustBundlePath: bundle.pem\n"), 0o600))
+	require.NoError(t, os.WriteFile(path, []byte("agent:\n  dataDir: /tmp\n  serverAddress: localhost\n  serverPort: 8081\n  trustDomain: example.org\n  trustBundlePath: bundle.pem\n  experimental:\n    enableYamlConfig: true\n"), 0o600))
 	c, err := ParseFile(path, false)
 	require.NoError(t, err)
 	require.EqualError(t, validateConfig(c), "plugins section must be configured")
