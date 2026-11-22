@@ -1596,6 +1596,7 @@ func TestNewAgentConfig(t *testing.T) {
 			},
 			test: func(t *testing.T, c *agent.Config) {
 				require.NotNil(t, c.Broker.ReattestJitter)
+				//nolint:testifylint // float-compare flags exact float equality. Config conversion copies the value unchanged.
 				require.Equal(t, 0.2, *c.Broker.ReattestJitter)
 			},
 		},
@@ -2201,6 +2202,7 @@ agent {
 	require.NotNil(t, c.Agent.Experimental.Broker)
 	require.Equal(t, "2m", c.Agent.Experimental.Broker.ReattestInterval)
 	require.NotNil(t, c.Agent.Experimental.Broker.ReattestJitter)
+	//nolint:testifylint // float-compare flags exact float equality. HCL and the Go literal round 0.2 to the same float64.
 	require.Equal(t, 0.2, *c.Agent.Experimental.Broker.ReattestJitter)
 	require.Equal(t, []brokerAllowedReferenceTypeHCLEntry{
 		{TypeURL: "type.googleapis.com/spiffe.broker.KubernetesObjectReference", AllowOverTCP: true},
