@@ -504,6 +504,7 @@ func (s *windowsService) getServiceInfo(pid uint32, userSID string, q processQue
 var (
 	snapshotProcessesFunc           = snapshotProcesses
 	processCreationTimeFunc         = processCreationTime
+	processHandleCreationTimeFunc   = processHandleCreationTime
 	isProcessSystemServicesRootFunc = func(s *windowsService, pid uint32, process processSnapshotEntry) (bool, error) {
 		return s.isProcessSystemServicesRoot(pid, process)
 	}
@@ -571,6 +572,19 @@ func (s *windowsService) serviceGetSCMRegisteredPid(pid uint32, userSID string, 
 				}
 				// avoid closing the handle until after we are done with the scm enumeration
 				// in this way we make sure the PID was not reused.
+
+				// The creation time checked during the walk was read through
+				// a different handle, so the PID could have been reused before
+				// this handle was opened. Reading it again through the handle
+				// that stays open confirms this is the process that was walked.
+				createdAt, err := processHandleCreationTimeFunc(h)
+				if err != nil {
+					return 0, false, h, fmt.Errorf("failed to read creation time for service process %d: %w", currentPID, err)
+				}
+				if createdAt != currentCreatedAt {
+					// Service PID was reused; treat it as not being a service.
+					return 0, false, h, nil
+				}
 
 				// Retrieve an access token to describe the security context of
 				// the process from which we obtained the handle.
@@ -694,6 +708,10 @@ func processCreationTime(pid uint32) (uint64, error) {
 		_ = windows.CloseHandle(handle)
 	}(process)
 
+	return processHandleCreationTime(process)
+}
+
+func processHandleCreationTime(process windows.Handle) (uint64, error) {
 	var createdAt, exitedAt, kernelTime, userTime windows.Filetime
 	if err := windows.GetProcessTimes(process, &createdAt, &exitedAt, &kernelTime, &userTime); err != nil {
 		return 0, err
