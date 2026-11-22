@@ -589,8 +589,8 @@ func TestVerifyWithPublicKeyBundlesErrors(t *testing.T) {
 			verifierSetup.fakeCosignVerifySignature.Responses = []fakeResponse{{Err: errors.New("no signatures found")}}
 
 			_, err := verifierSetup.verifier.Verify(context.Background(), testImageID)
-			assert.ErrorContains(t, err, "no public key verified the image signatures")
-			assert.ErrorContains(t, err, "no sigstore bundle verified")
+			require.ErrorContains(t, err, "no public key verified the image signatures")
+			require.ErrorContains(t, err, "no sigstore bundle verified")
 			assert.ErrorContains(t, err, "no signatures found")
 		})
 	}
