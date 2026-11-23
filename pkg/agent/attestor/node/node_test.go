@@ -332,7 +332,7 @@ func TestAttestor(t *testing.T) {
 			// perform attestation
 			result, err := attestor.Attest(context.Background())
 			if testCase.err != "" {
-				spiretest.RequireErrorContains(t, err, testCase.err)
+				require.ErrorContains(err, testCase.err)
 				return
 			}
 			require.NoError(err)

@@ -103,6 +103,7 @@ func (c *mintCommand) Run(ctx context.Context, env *commoncli.Env, serverClient 
 	}
 
 	client := serverClient.NewSVIDClient()
+	requestedAt := time.Now()
 	resp, err := client.MintWITSVID(ctx, &svidv1.MintWITSVIDRequest{
 		Id: &types.SPIFFEID{
 			TrustDomain: spiffeID.TrustDomain().Name(),
@@ -116,7 +117,7 @@ func (c *mintCommand) Run(ctx context.Context, env *commoncli.Env, serverClient 
 		return fmt.Errorf("unable to mint SVID: %w", err)
 	}
 	token := resp.Svid.Token
-	if err := c.validateToken(token, env); err != nil {
+	if err := c.validateToken(token, requestedAt, env); err != nil {
 		return err
 	}
 
@@ -151,7 +152,7 @@ func (c *mintCommand) Run(ctx context.Context, env *commoncli.Env, serverClient 
 	return env.Printf("Private key written to %s\n", keyPath)
 }
 
-func (c *mintCommand) validateToken(token string, env *commoncli.Env) error {
+func (c *mintCommand) validateToken(token string, requestedAt time.Time, env *commoncli.Env) error {
 	if token == "" {
 		return errors.New("server response missing token")
 	}
@@ -162,7 +163,7 @@ func (c *mintCommand) validateToken(token string, env *commoncli.Env) error {
 		return nil
 	}
 
-	if time.Until(eol) < c.ttl {
+	if serverutil.LifetimeCapped(requestedAt, c.ttl, eol) {
 		env.ErrPrintf("WIT-SVID lifetime was capped shorter than specified ttl; expires %q\n", eol.UTC().Format(time.RFC3339))
 	}
 

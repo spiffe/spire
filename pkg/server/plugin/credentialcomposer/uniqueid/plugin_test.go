@@ -12,6 +12,7 @@ import (
 	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/testkey"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 var (
@@ -29,7 +30,7 @@ func TestPlugin(t *testing.T) {
 		t.Run("attributes unchanged", func(t *testing.T) {
 			want := credentialcomposer.X509CAAttributes{}
 			got, err := cc.ComposeServerX509CA(ctx, want)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, want, got)
 		})
 	})
@@ -38,7 +39,7 @@ func TestPlugin(t *testing.T) {
 		t.Run("attributes unchanged", func(t *testing.T) {
 			want := credentialcomposer.X509SVIDAttributes{}
 			got, err := cc.ComposeServerX509SVID(ctx, want)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, want, got)
 		})
 	})
@@ -47,7 +48,7 @@ func TestPlugin(t *testing.T) {
 		t.Run("attributes unchanged", func(t *testing.T) {
 			want := credentialcomposer.X509SVIDAttributes{}
 			got, err := cc.ComposeAgentX509SVID(ctx, id1, key.Public(), want)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, want, got)
 		})
 	})
@@ -61,7 +62,7 @@ func TestPlugin(t *testing.T) {
 			// The plugin should add the unique ID attribute
 			want.Subject.ExtraNames = append(want.Subject.ExtraNames, x509svid.UniqueIDAttribute(id1))
 
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, want, got)
 		})
 
@@ -79,7 +80,7 @@ func TestPlugin(t *testing.T) {
 			// The plugin should replace the unique ID attribute
 			want.Subject.ExtraNames[0] = x509svid.UniqueIDAttribute(id2)
 
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, want, got)
 		})
 	})
@@ -88,7 +89,7 @@ func TestPlugin(t *testing.T) {
 		t.Run("attributes unchanged", func(t *testing.T) {
 			want := credentialcomposer.JWTSVIDAttributes{Claims: map[string]any{"sub": id1.String()}}
 			got, err := cc.ComposeWorkloadJWTSVID(ctx, id1, want)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, want, got)
 		})
 	})

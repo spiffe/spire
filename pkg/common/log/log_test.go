@@ -152,10 +152,10 @@ func TestOutputFile(t *testing.T) {
 		if format == JSONFormat {
 			var data map[string]string
 			require.NoError(t, json.Unmarshal(log, &data))
-			assert.Equal(t, data["level"], "warning")
+			assert.Equal(t, "warning", data["level"])
 			assert.Equal(t, data["msg"], msg)
 			assert.Contains(t, data, "time")
-			assert.EqualValues(t, len(data), 3, "%q", data)
+			assert.Len(t, data, 3, "%q", data)
 		} else {
 			expected := fmt.Sprintf("level=warning msg=\"%s\"", msg)
 			require.Contains(t, string(log), expected)
@@ -189,10 +189,10 @@ func TestReopenableOutputFile(t *testing.T) {
 		if format == JSONFormat {
 			var data map[string]string
 			require.NoError(t, json.Unmarshal(log, &data))
-			assert.Equal(t, data["level"], "warning")
+			assert.Equal(t, "warning", data["level"])
 			assert.Equal(t, data["msg"], msg)
 			assert.Contains(t, data, "time")
-			assert.EqualValues(t, len(data), 3, "%q", data)
+			assert.Len(t, data, 3, "%q", data)
 		} else {
 			expected := fmt.Sprintf("level=warning msg=\"%s\"", msg)
 			require.Contains(t, string(log), expected)

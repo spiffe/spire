@@ -16,6 +16,10 @@ rules:
   - apiGroups: [""]
     resources: ["pods", "nodes"]
     verbs: ["get", "list", "watch"]
+  - apiGroups: ["certificates.k8s.io"]
+    resources: ["clustertrustbundles"]
+    resourceNames: ["spire-bundle"]
+    verbs: ["create", "patch"]
 
 ---
 

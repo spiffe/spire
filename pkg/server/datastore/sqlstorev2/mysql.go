@@ -15,6 +15,11 @@ import (
 	"gorm.io/gorm"
 )
 
+// defaultStringSize makes string fields without a size varchar(255), as gorm
+// v1 created them. Without it gorm v2 uses longtext for most of them, which
+// MySQL cannot index without a key length.
+const defaultStringSize = 255
+
 type mysqlDB struct {
 	log logrus.FieldLogger
 }
@@ -49,7 +54,7 @@ func (my mysqlDB) connect(ctx context.Context, cfg *sqlcommon.Configuration, isR
 			return nil, "", false, err
 		}
 	default:
-		db, err = gorm.Open(mysql.Open(mysqlConfig.FormatDSN()), gormConfig())
+		db, err = gorm.Open(mySQLDialector(mysql.Config{DSN: mysqlConfig.FormatDSN()}), gormConfig())
 		if err != nil {
 			return nil, "", false, err
 		}
@@ -98,6 +103,15 @@ func (my mysqlDB) isParseError(err error) bool {
 	return ok && e.Number == 1064 // ER_PARSE_ERROR
 }
 
+// mySQLDialector applies the settings every MySQL connection needs to cfg.
+// DisableDatetimePrecision keeps gorm v1's datetime columns instead of
+// datetime(3).
+func mySQLDialector(cfg mysql.Config) gorm.Dialector {
+	cfg.DefaultStringSize = defaultStringSize
+	cfg.DisableDatetimePrecision = true
+	return mysql.New(cfg)
+}
+
 func newMySQLDialector(conn *sql.DB) gorm.Dialector {
-	return mysql.New(mysql.Config{Conn: conn})
+	return mySQLDialector(mysql.Config{Conn: conn})
 }

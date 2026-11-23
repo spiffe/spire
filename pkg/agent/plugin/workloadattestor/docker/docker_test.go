@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"sort"
 	"testing"
 	"time"
@@ -159,6 +161,14 @@ func TestDockerConfig(t *testing.T) {
 	// Make sure sigstore caches things in memory instead of trying
 	// to cache them to some directory.
 	t.Setenv("SIGSTORE_NO_CACHE", "true")
+	keyPath := filepath.Join(t.TempDir(), "cosign.pub")
+	require.NoError(t, os.WriteFile(keyPath, []byte(`-----BEGIN PUBLIC KEY-----
+MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEviJ8lqUgtqWzruk4EQn9vu/L7sdf
+PfUXSEDR2XADpiECNp+cvuunA23H20EHF08s7HFPn6yycViqdfaisrsA3A==
+-----END PUBLIC KEY-----
+`), 0o600))
+	invalidKeyPath := filepath.Join(t.TempDir(), "invalid.pub")
+	require.NoError(t, os.WriteFile(invalidKeyPath, []byte(" "), 0o600))
 
 	for _, tt := range []struct {
 		name               string
@@ -191,6 +201,26 @@ func TestDockerConfig(t *testing.T) {
 						registry_password = "pass"
 					}`,
 			sigstoreConfigured: true,
+		},
+		{
+			name:        "public key sigstore configuration",
+			trustDomain: "example.org",
+			config: fmt.Sprintf(`
+					sigstore {
+						public_key_paths = [%q]
+						ignore_tlog = true
+					}`, keyPath),
+			sigstoreConfigured: true,
+		},
+		{
+			name:        "invalid public key is rejected",
+			trustDomain: "example.org",
+			config: fmt.Sprintf(`
+					sigstore {
+						public_key_paths = [%q]
+					}`, invalidKeyPath),
+			expectCode: codes.InvalidArgument,
+			expectMsg:  fmt.Sprintf("sigstore public_key_paths: failed to parse public key %q", invalidKeyPath),
 		},
 		{
 			name:        "bad hcl",

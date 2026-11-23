@@ -355,6 +355,7 @@ func TestWorkloadRateLimiterMetricsOnRejection(t *testing.T) {
 	require.Len(t, items, 1)
 	assert.Equal(t, fakemetrics.IncrCounterWithLabelsType, items[0].Type)
 	assert.Equal(t, []string{telemetry.WorkloadAPI, telemetry.RateLimitExceeded}, items[0].Key)
+	//nolint:testifylint // float-compare flags exact float equality. The counter emits an increment of exactly 1.
 	assert.Equal(t, float64(1), items[0].Val)
 	require.Len(t, items[0].Labels, 1)
 	assert.Equal(t, telemetry.Method, items[0].Labels[0].Name)

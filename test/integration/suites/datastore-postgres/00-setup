@@ -9,6 +9,9 @@ PKGDIR="${REPODIR}/pkg/server/datastore/sqlstore"
 log-debug "building postgres test harness..."
 (cd "${PKGDIR}"; go test -c -o "${DIR}"/postgres.test -ldflags "-X github.com/spiffe/spire/pkg/server/datastore/sqlstore.TestDialect=postgres")
 
+log-debug "building postgres test harness for the gorm v2 datastore..."
+(cd "${REPODIR}/pkg/server/datastore/sqlstorev2"; go test -c -o "${DIR}"/postgres-v2.test -ldflags "-X github.com/spiffe/spire/pkg/server/datastore/sqlstorev2.TestDialect=postgres")
+
 log-debug "copying over test data..."
 cp -r "${PKGDIR}"/testdata .
 

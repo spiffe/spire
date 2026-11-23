@@ -98,12 +98,28 @@ This feature extends the `k8s` workload attestor with the ability to validate co
 | Option                 | Description                                                                                                                                                                                                                                                       |
 |------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `allowed_identities`   | Maps OIDC Provider URIs to lists of allowed subjects. Supports regular expressions patterns. Defaults to empty. If unspecified, signatures from any issuer are accepted. (eg. `"https://accounts.google.com" = ["subject1@example.com","subject2@example.com"]`). |
+| `public_key_paths`     | Lists paths to PEM encoded public keys that verify key-based signatures, such as `cosign sign --key`. A signature verified by any listed key is accepted. Cannot be combined with `allowed_identities`. Defaults to empty.                                        |
 | `skipped_images`       | Lists image IDs to exclude from Sigstore signature verification. For these images, no Sigstore selectors will be generated. Defaults to an empty list.                                                                                                            |
 | `rekor_url`            | Specifies the Rekor URL for transparency log verification. Default is the public Rekor instance [https://rekor.sigstore.dev](https://rekor.sigstore.dev).                                                                                                         |
 | `ignore_tlog`          | If set to true, bypasses the transparency log verification and the selectors based on the Rekor bundle are not generated.                                                                                                                                         |
 | `ignore_attestations`  | If set to true, bypasses the image attestations verification and the selector `image-attestations:verified` is not generated.                                                                                                                                     |
 | `ignore_sct`           | If set to true, bypasses the Signed Certificate Timestamp (SCT) verification.                                                                                                                                                                                     |
+| `registry_referrers`   | If set to true, looks up sigstore bundles through the OCI 1.1 referrers API first, then cosign signatures through the referrers API and the tag scheme. See [Sigstore bundles](#sigstore-bundles). Defaults to false.                                             |
+| `trusted_root_path`    | Specifies the path to a Sigstore `trusted_root.json` that verifies bundles and keyless signatures. See [Sigstore bundles](#sigstore-bundles). Defaults to empty.                                                                                                  |
 | `registry_credentials` | Maps each registry URL to its corresponding authentication credentials. Example: `{"docker.io": {"username": "user", "password": "pass"}}`.                                                                                                                       |
+
+#### Sigstore bundles
+
+With `registry_referrers` set, a verified bundle covers both the signature and the attestations of the image.
+When no bundle verifies, the attestor checks cosign signatures and attestations as it does without bundles.
+Keyless bundles must match one of `allowed_identities`, or any identity when it is empty.
+A bundle from plain `cosign sign` signs the image and does not count as an attestation.
+
+Keyless bundles and bundles with a transparency log entry verify against the Sigstore trusted root.
+Once loaded, the trusted root also verifies the keyless signatures and log entries from the referrers API and the tag scheme.
+The trusted root comes from `trusted_root_path`, or else from the Sigstore TUF repository.
+When `SIGSTORE_ROOT_FILE`, `SIGSTORE_REKOR_PUBLIC_KEY`, `SIGSTORE_CT_LOG_PUBLIC_KEY_FILE` or `SIGSTORE_TSA_CERTIFICATE_FILE`
+is set and `trusted_root_path` is not, the attestor skips bundles that need the trusted root and those variables apply.
 
 #### Custom CA Roots
 
@@ -141,12 +157,15 @@ Sigstore enabled selectors (available when configured to use `sigstore`)
 | k8s:image-signature-value                  | The base64 encoded value of the signature (eg. `k8s:image-signature-value:MEUCIQCyem8Gcr0sPFMP7fTXazCN57NcN5+MjxJw9Oo0x2eM+AIg...`).                                                                                                      |
 | k8s:image-signature-subject                | The OIDC principal that signed the image (e.g., `k8s:image-signature-subject:spirex@example.com`)                                                                                                                                         |
 | k8s:image-signature-issuer                 | The OIDC issuer of the signature (e.g., `k8s:image-signature-issuer:https://accounts.google.com`)                                                                                                                                         |
+| k8s:image-signature-public-key-sha256      | The hex encoded SHA-256 of the DER encoded public key, for each listed key that verified a signature.                                                                                                                                     |
 | k8s:image-signature-log-id                 | A unique LogID for the Rekor transparency log entry (eg. `k8s:image-signature-log-id:c0d23d6ad406973f9559f3ba2d1ca01f84147d8ffc5b8445c224f98b95918123`)                                                                                   |
 | k8s:image-signature-log-index              | The log index for the Rekor transparency log entry (eg. `k8s:image-signature-log-index:105695637`)                                                                                                                                        |
 | k8s:image-signature-integrated-time        | The time (in Unix timestamp format) when the image signature was integrated into the signature transparency log (eg. `k8s:image-signature-integrated-time:1719237832`)                                                                    |
 | k8s:image-signature-signed-entry-timestamp | The base64 encoded signed entry (signature over the logID, logIndex, body and integratedTime) (eg. `k8s:image-signature-signed-entry-timestamp:MEQCIDP77vB0/MEbR1QK...`).                                                                 |
 
-If `ignore_tlog` is set to `true`, the selectors based on the Rekor bundle (`-log-id`, `-log-index`, `-integrated-time`, and `-signed-entry-timestamp`) are not generated.
+If `ignore_tlog` is set to `true`, the selectors based on the Rekor bundle (`-log-id`, `-log-index`, `-integrated-time`, and `-signed-entry-timestamp`) are not generated. They are also not generated for a signature without a Rekor bundle, which cosign checks through an online Rekor lookup.
+
+With `public_key_paths` set, the subject and issuer selectors are not generated, and attestations are accepted when any listed key verifies them. The `-public-key-sha256` value of a key is the output of `openssl pkey -pubin -in key.pub -outform DER | sha256sum`.
 
 > **Note** `container-image` will ONLY match against the specific container in the pod that is contacting SPIRE on behalf of
 > the pod, whereas `pod-image` and `pod-init-image` will match against ANY container or init container in the Pod,

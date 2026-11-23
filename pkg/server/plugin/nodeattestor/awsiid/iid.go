@@ -63,6 +63,18 @@ var (
 		defaultPartition,
 		"aws-cn",
 		"aws-us-gov",
+		"aws-eusc",
+	}
+
+	// regionPrefixPartitions maps the region name prefixes of the partitions other than the default one, as in the
+	// SDK's partition metadata (internal/endpoints/awsrulesfn/partitions.json).
+	regionPrefixPartitions = []struct {
+		prefix    string
+		partition string
+	}{
+		{"cn-", "aws-cn"},
+		{"us-gov-", "aws-us-gov"},
+		{"eusc-", "aws-eusc"},
 	}
 )
 
@@ -128,9 +140,11 @@ type IIDAttestorConfig struct {
 	Partition                       string               `hcl:"partition"`
 	ValidateOrgAccountID            *orgValidationConfig `hcl:"verify_organization"`
 	ValidateEKSClusterMembership    *eksValidationConfig `hcl:"validate_eks_cluster_membership"`
-	pathTemplate                    *agentpathtemplate.Template
-	trustDomain                     spiffeid.TrustDomain
-	getAWSCACertificate             func(string, PublicKeyType) (*x509.Certificate, error)
+	// Partitions configures the credentials for the nodes of each AWS partition, keyed by partition name.
+	Partitions          map[string]*SessionConfig `hcl:"partitions"`
+	pathTemplate        *agentpathtemplate.Template
+	trustDomain         spiffeid.TrustDomain
+	getAWSCACertificate func(string, PublicKeyType) (*x509.Certificate, error)
 }
 
 func (p *IIDAttestorPlugin) buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginconf.Status) *IIDAttestorConfig {
@@ -145,7 +159,9 @@ func (p *IIDAttestorPlugin) buildConfig(coreConfig catalog.CoreConfig, hclText s
 	// operation should not fail, but we check the return value just in case.
 	newConfig.getAWSCACertificate = p.hooks.getAWSCACertificate
 
-	if err := newConfig.Validate(p.hooks.getenv(accessKeyIDVarName), p.hooks.getenv(secretAccessKeyVarName)); err != nil {
+	if len(newConfig.Partitions) > 0 {
+		validatePartitionsConfig(newConfig, status)
+	} else if err := newConfig.Validate(p.hooks.getenv(accessKeyIDVarName), p.hooks.getenv(secretAccessKeyVarName)); err != nil {
 		status.ReportError(err.Error())
 	}
 
@@ -165,7 +181,7 @@ func (p *IIDAttestorPlugin) buildConfig(coreConfig catalog.CoreConfig, hclText s
 		newConfig.Partition = defaultPartition
 	}
 
-	if !isValidAWSPartition(newConfig.Partition) {
+	if len(newConfig.Partitions) == 0 && !isValidAWSPartition(newConfig.Partition) {
 		status.ReportErrorf("invalid partition %q, must be one of: %v", newConfig.Partition, partitions)
 	}
 
@@ -210,6 +226,11 @@ func (p *IIDAttestorPlugin) Attest(stream nodeattestorv1.NodeAttestor_AttestServ
 
 	attestationData, err := unmarshalAndValidateIdentityDocument(payload, c.getAWSCACertificate)
 	if err != nil {
+		return err
+	}
+
+	// Reject nodes of a partition without configuration before calling any AWS API.
+	if _, err := p.clients.sessionConfig(attestationData.Region); err != nil {
 		return err
 	}
 
@@ -342,9 +363,9 @@ func (p *IIDAttestorPlugin) Configure(_ context.Context, req *configv1.Configure
 
 	if newConfig.ValidateOrgAccountID == nil {
 		// unconfigure existing clients
-		p.clients.configure(p.config.SessionConfig, orgValidationConfig{})
+		p.clients.configure(p.config.SessionConfig, p.config.Partitions, orgValidationConfig{})
 	} else {
-		p.clients.configure(p.config.SessionConfig, *p.config.ValidateOrgAccountID)
+		p.clients.configure(p.config.SessionConfig, p.config.Partitions, *p.config.ValidateOrgAccountID)
 		// Setup required config, for validation and for bootstrapping org client
 		if err := p.orgValidation.configure(p.config.ValidateOrgAccountID); err != nil {
 			return nil, err
@@ -657,6 +678,56 @@ func isValidAWSPartition(partition string) bool {
 	return slices.Contains(partitions, partition)
 }
 
+// partitionForRegion returns the AWS partition of the region.
+func partitionForRegion(region string) string {
+	for _, p := range regionPrefixPartitions {
+		if strings.HasPrefix(region, p.prefix) {
+			return p.partition
+		}
+	}
+	return defaultPartition
+}
+
+// validatePartitionsConfig validates the partitions block. The credentials for each partition are set inside its
+// entry, so they cannot also be set at the top level.
+func validatePartitionsConfig(config *IIDAttestorConfig, st *pluginconf.Status) {
+	topLevel := []struct {
+		name  string
+		value string
+	}{
+		{"access_key_id", config.AccessKeyID},
+		{"secret_access_key", config.SecretAccessKey},
+		{"assume_role", config.SessionConfig.AssumeRole},
+		{"partition", config.SessionConfig.Partition},
+		{"web_identity_role_arn", config.WebIdentityRoleARN},
+		{"web_identity_token_file", config.WebIdentityTokenFile},
+	}
+	for _, field := range topLevel {
+		if field.value != "" {
+			st.ReportErrorf("%q cannot be set together with \"partitions\", set it inside each partition instead", field.name)
+		}
+	}
+
+	for name, partitionConfig := range config.Partitions {
+		if !isValidAWSPartition(name) {
+			st.ReportErrorf("invalid partition %q in \"partitions\", must be one of: %v", name, partitions)
+			continue
+		}
+		if partitionConfig == nil {
+			partitionConfig = new(SessionConfig)
+			config.Partitions[name] = partitionConfig
+		}
+		if partitionConfig.Partition != "" && partitionConfig.Partition != name {
+			st.ReportErrorf("partition %q in \"partitions\" sets a different partition: %q", name, partitionConfig.Partition)
+			continue
+		}
+		partitionConfig.Partition = name
+		if err := partitionConfig.Validate("", ""); err != nil {
+			st.ReportErrorf("partition %q: %v", name, status.Convert(err).Message())
+		}
+	}
+}
+
 func validateOrganizationConfig(config *IIDAttestorConfig) error {
 	cfg := config.ValidateOrgAccountID
 
@@ -678,6 +749,13 @@ func validateOrganizationConfig(config *IIDAttestorConfig) error {
 
 		if cfg.AccountRegion == "" {
 			cfg.AccountRegion = orgDefaultAccRegion
+		}
+
+		// The Organizations API is called with the credentials of the region's partition.
+		if len(config.Partitions) > 0 {
+			if _, ok := config.Partitions[partitionForRegion(cfg.AccountRegion)]; !ok {
+				return status.Errorf(codes.InvalidArgument, "%q %q is in partition %q, which has no entry in %q", orgAccRegion, cfg.AccountRegion, partitionForRegion(cfg.AccountRegion), "partitions")
+			}
 		}
 	}
 

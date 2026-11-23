@@ -58,7 +58,7 @@ func parseConfigCasesOS() []parseConfigCase {
 					socket_path = "/other/socket/path"
 				}
 			`,
-			err: "either acme, serving_cert_file, insecure_addr or listen_socket_path must be configured",
+			err: "one of serving_cert_source, acme, serving_cert_file, insecure_addr or listen_socket_path must be configured",
 		},
 		{
 			name: "ACME ToS not accepted",

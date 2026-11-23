@@ -143,7 +143,7 @@ func TestMergeInput(t *testing.T) {
 			fileInput: func(c *Config) {},
 			cliInput:  func(ac *agentConfig) {},
 			test: func(t *testing.T, c *Config) {
-				require.Equal(t, false, c.Agent.SDS.DisableSPIFFECertValidation)
+				require.False(t, c.Agent.SDS.DisableSPIFFECertValidation)
 			},
 		},
 		{
@@ -155,7 +155,7 @@ func TestMergeInput(t *testing.T) {
 			},
 			cliInput: func(ac *agentConfig) {},
 			test: func(t *testing.T, c *Config) {
-				require.Equal(t, true, c.Agent.SDS.DisableSPIFFECertValidation)
+				require.True(t, c.Agent.SDS.DisableSPIFFECertValidation)
 			},
 		},
 		{
@@ -407,7 +407,7 @@ func TestMergeInput(t *testing.T) {
 			fileInput: func(c *Config) {},
 			cliInput:  func(c *agentConfig) {},
 			test: func(t *testing.T, c *Config) {
-				require.Equal(t, "", c.Agent.ServerAddress)
+				require.Empty(t, c.Agent.ServerAddress)
 			},
 		},
 		{
@@ -521,7 +521,7 @@ func TestMergeInput(t *testing.T) {
 			fileInput: func(c *Config) {},
 			cliInput:  func(c *agentConfig) {},
 			test: func(t *testing.T, c *Config) {
-				require.Equal(t, "", c.Agent.TrustDomain)
+				require.Empty(t, c.Agent.TrustDomain)
 			},
 		},
 		{
@@ -1079,6 +1079,25 @@ func TestNewAgentConfig(t *testing.T) {
 			},
 		},
 		{
+			msg: "health_checks check_interval is correctly parsed",
+			input: func(c *Config) {
+				c.HealthChecks.RawCheckInterval = "30s"
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Equal(t, 30*time.Second, c.HealthChecks.CheckInterval)
+			},
+		},
+		{
+			msg:         "invalid health_checks check_interval returns an error",
+			expectError: true,
+			input: func(c *Config) {
+				c.HealthChecks.RawCheckInterval = "b"
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
 			msg:         "invalid log_level returns an error",
 			expectError: true,
 			input: func(c *Config) {
@@ -1195,7 +1214,7 @@ func TestNewAgentConfig(t *testing.T) {
 				c.Agent.Experimental.ServerLoadBalancingConfig = `[ { "pick_first": {} } ]`
 			},
 			test: func(t *testing.T, c *agent.Config) {
-				require.Equal(t, `[ { "pick_first": {} } ]`, c.ServerLoadBalancingConfig)
+				require.JSONEq(t, `[ { "pick_first": {} } ]`, c.ServerLoadBalancingConfig)
 			},
 		},
 		{
@@ -1337,7 +1356,7 @@ func TestNewAgentConfig(t *testing.T) {
 				c.Agent.X509SVIDCacheMaxSize = 100
 			},
 			test: func(t *testing.T, c *agent.Config) {
-				require.EqualValues(t, 100, c.X509SVIDCacheMaxSize)
+				require.Equal(t, 100, c.X509SVIDCacheMaxSize)
 			},
 		},
 		{
@@ -1345,7 +1364,7 @@ func TestNewAgentConfig(t *testing.T) {
 			input: func(c *Config) {
 			},
 			test: func(t *testing.T, c *agent.Config) {
-				require.EqualValues(t, 0, c.X509SVIDCacheMaxSize)
+				require.Equal(t, 0, c.X509SVIDCacheMaxSize)
 			},
 		},
 		{
@@ -1354,7 +1373,7 @@ func TestNewAgentConfig(t *testing.T) {
 				c.Agent.X509SVIDCacheMaxSize = 0
 			},
 			test: func(t *testing.T, c *agent.Config) {
-				require.EqualValues(t, 0, c.X509SVIDCacheMaxSize)
+				require.Equal(t, 0, c.X509SVIDCacheMaxSize)
 			},
 		},
 		{
@@ -1385,9 +1404,9 @@ func TestNewAgentConfig(t *testing.T) {
 				c.Agent.SDS.DisableSPIFFECertValidation = true
 			},
 			test: func(t *testing.T, c *agent.Config) {
-				assert.Equal(t, c.DefaultSVIDName, "DefaultSVIDName")
-				assert.Equal(t, c.DefaultBundleName, "DefaultBundleName")
-				assert.Equal(t, c.DefaultAllBundlesName, "DefaultAllBundlesName")
+				assert.Equal(t, "DefaultSVIDName", c.DefaultSVIDName)
+				assert.Equal(t, "DefaultBundleName", c.DefaultBundleName)
+				assert.Equal(t, "DefaultAllBundlesName", c.DefaultAllBundlesName)
 				assert.True(t, c.DisableSPIFFECertValidation)
 			},
 		},
@@ -1495,6 +1514,139 @@ func TestNewAgentConfig(t *testing.T) {
 			},
 		},
 		{
+			msg: "broker reattest interval parses a duration",
+			input: func(c *Config) {
+				c.Agent.Experimental.Broker = &brokerHCLConfig{
+					BindAddress:      "127.0.0.1:8443",
+					ReattestInterval: "2m",
+					Brokers: []brokerHCLEntry{
+						{
+							ID: "spiffe://example.org/broker",
+							AllowedReferenceTypes: []brokerAllowedReferenceTypeHCLEntry{
+								{TypeURL: "type.googleapis.com/spiffe.broker.WorkloadPIDReference"},
+							},
+						},
+					},
+				}
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Equal(t, 2*time.Minute, c.Broker.ReattestInterval)
+			},
+		},
+		{
+			msg:                "broker reattest interval must parse",
+			expectError:        true,
+			requireErrorPrefix: "experimental.broker.reattest_interval:",
+			input: func(c *Config) {
+				c.Agent.Experimental.Broker = &brokerHCLConfig{
+					BindAddress:      "127.0.0.1:8443",
+					ReattestInterval: "nope",
+					Brokers: []brokerHCLEntry{
+						{
+							ID: "spiffe://example.org/broker",
+							AllowedReferenceTypes: []brokerAllowedReferenceTypeHCLEntry{
+								{TypeURL: "type.googleapis.com/spiffe.broker.WorkloadPIDReference"},
+							},
+						},
+					},
+				}
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
+			msg:                "broker reattest interval must be at least one minute",
+			expectError:        true,
+			requireErrorPrefix: "experimental.broker.reattest_interval must be at least 1m",
+			input: func(c *Config) {
+				c.Agent.Experimental.Broker = &brokerHCLConfig{
+					BindAddress:      "127.0.0.1:8443",
+					ReattestInterval: "30s",
+					Brokers: []brokerHCLEntry{
+						{
+							ID: "spiffe://example.org/broker",
+							AllowedReferenceTypes: []brokerAllowedReferenceTypeHCLEntry{
+								{TypeURL: "type.googleapis.com/spiffe.broker.WorkloadPIDReference"},
+							},
+						},
+					},
+				}
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
+			msg: "broker reattest jitter parses a fraction",
+			input: func(c *Config) {
+				jitter := 0.2
+				c.Agent.Experimental.Broker = &brokerHCLConfig{
+					BindAddress:    "127.0.0.1:8443",
+					ReattestJitter: &jitter,
+					Brokers: []brokerHCLEntry{
+						{
+							ID: "spiffe://example.org/broker",
+							AllowedReferenceTypes: []brokerAllowedReferenceTypeHCLEntry{
+								{TypeURL: "type.googleapis.com/spiffe.broker.WorkloadPIDReference"},
+							},
+						},
+					},
+				}
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.NotNil(t, c.Broker.ReattestJitter)
+				//nolint:testifylint // float-compare flags exact float equality. Config conversion copies the value unchanged.
+				require.Equal(t, 0.2, *c.Broker.ReattestJitter)
+			},
+		},
+		{
+			msg:                "broker reattest jitter must be in range",
+			expectError:        true,
+			requireErrorPrefix: "experimental.broker.reattest_jitter (1.00) must be in the [0, 1) range",
+			input: func(c *Config) {
+				jitter := 1.0
+				c.Agent.Experimental.Broker = &brokerHCLConfig{
+					BindAddress:    "127.0.0.1:8443",
+					ReattestJitter: &jitter,
+					Brokers: []brokerHCLEntry{
+						{
+							ID: "spiffe://example.org/broker",
+							AllowedReferenceTypes: []brokerAllowedReferenceTypeHCLEntry{
+								{TypeURL: "type.googleapis.com/spiffe.broker.WorkloadPIDReference"},
+							},
+						},
+					},
+				}
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
+			msg:                "broker reattest jitter must not be negative",
+			expectError:        true,
+			requireErrorPrefix: "experimental.broker.reattest_jitter (-0.10) must be in the [0, 1) range",
+			input: func(c *Config) {
+				jitter := -0.1
+				c.Agent.Experimental.Broker = &brokerHCLConfig{
+					BindAddress:    "127.0.0.1:8443",
+					ReattestJitter: &jitter,
+					Brokers: []brokerHCLEntry{
+						{
+							ID: "spiffe://example.org/broker",
+							AllowedReferenceTypes: []brokerAllowedReferenceTypeHCLEntry{
+								{TypeURL: "type.googleapis.com/spiffe.broker.WorkloadPIDReference"},
+							},
+						},
+					},
+				}
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
 			msg:                "broker allowed_reference_types is required",
 			expectError:        true,
 			requireErrorPrefix: "experimental.broker.brokers[spiffe://example.org/broker].allowed_reference_types: must list at least one reference type URL",
@@ -1559,7 +1711,7 @@ func TestNewAgentConfig(t *testing.T) {
 				c.Agent.AvailabilityTarget = "24h"
 			},
 			test: func(t *testing.T, c *agent.Config) {
-				require.EqualValues(t, 24*time.Hour, c.AvailabilityTarget)
+				require.Equal(t, 24*time.Hour, c.AvailabilityTarget)
 			},
 		},
 		{
@@ -1577,7 +1729,7 @@ func TestNewAgentConfig(t *testing.T) {
 			msg:   "require PQ KEM is disabled (default)",
 			input: func(c *Config) {},
 			test: func(t *testing.T, c *agent.Config) {
-				require.Equal(t, false, c.TLSPolicy.RequirePQKEM)
+				require.False(t, c.TLSPolicy.RequirePQKEM)
 			},
 		},
 		{
@@ -1586,7 +1738,7 @@ func TestNewAgentConfig(t *testing.T) {
 				c.Agent.Experimental.RequirePQKEM = true
 			},
 			test: func(t *testing.T, c *agent.Config) {
-				require.Equal(t, true, c.TLSPolicy.RequirePQKEM)
+				require.True(t, c.TLSPolicy.RequirePQKEM)
 			},
 		},
 		{
@@ -1636,7 +1788,7 @@ func TestNewAgentConfig(t *testing.T) {
 			},
 			test: func(t *testing.T, ac *agent.Config) {
 				require.NotNil(t, ac)
-				assert.Equal(t, client.RPCTimeoutWithCacheHit, 10*time.Second)
+				assert.Equal(t, 10*time.Second, client.RPCTimeoutWithCacheHit)
 			},
 		},
 		{
@@ -2110,7 +2262,9 @@ func TestParseBrokerAllowedReferenceTypes(t *testing.T) {
 agent {
     experimental {
         broker {
-            bind_address = "127.0.0.1:8443"
+            bind_address      = "127.0.0.1:8443"
+            reattest_interval = "2m"
+            reattest_jitter   = 0.2
             brokers = [
                 {
                     id = "spiffe://example.org/broker"
@@ -2135,6 +2289,10 @@ agent {
 	c, err := ParseFile(file.Name(), false)
 	require.NoError(t, err)
 	require.NotNil(t, c.Agent.Experimental.Broker)
+	require.Equal(t, "2m", c.Agent.Experimental.Broker.ReattestInterval)
+	require.NotNil(t, c.Agent.Experimental.Broker.ReattestJitter)
+	//nolint:testifylint // float-compare flags exact float equality. HCL and the Go literal round 0.2 to the same float64.
+	require.Equal(t, 0.2, *c.Agent.Experimental.Broker.ReattestJitter)
 	require.Equal(t, []brokerAllowedReferenceTypeHCLEntry{
 		{TypeURL: "type.googleapis.com/spiffe.broker.KubernetesObjectReference", AllowOverTCP: true},
 		{TypeURL: "type.googleapis.com/spiffe.broker.WorkloadPIDReference"},
@@ -2304,7 +2462,7 @@ func TestWarnOnUnknownConfig(t *testing.T) {
 		t.Run(testCase.msg, func(t *testing.T) {
 			log, hook := test.NewNullLogger()
 			err := checkForUnknownConfig(c, log)
-			assert.EqualError(t, err, "unknown configuration detected")
+			require.EqualError(t, err, "unknown configuration detected")
 
 			var logEntries []spiretest.LogEntry
 			for _, expectedLogEntry := range testCase.expectedLogEntries {

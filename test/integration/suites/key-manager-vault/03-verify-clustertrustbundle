@@ -1,0 +1,19 @@
+#!/bin/bash
+
+set -eo pipefail
+
+log-debug "verifying ClusterTrustBundle..."
+
+expected=$(./bin/kubectl exec -n spire deployment/spire-server -- \
+    /opt/spire/bin/spire-server bundle show -format pem)
+
+for ((i=0; i<30; i++)); do
+  actual=$(./bin/kubectl get clustertrustbundle spire-bundle -o jsonpath='{.spec.trustBundle}' 2>/dev/null || true)
+  if [ -n "${actual}" ] && [ "${actual}" == "${expected}" ]; then
+    log-info "ClusterTrustBundle is verified"
+    exit 0
+  fi
+  sleep 2
+done
+
+fail-now "ClusterTrustBundle spire-bundle does not match the trust bundle"

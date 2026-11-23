@@ -480,6 +480,7 @@ func (s *Server) newEndpointsServer(ctx context.Context, catalog catalog.Catalog
 		TrustDomain:                  s.config.TrustDomain,
 		Catalog:                      catalog,
 		ServerCA:                     serverCA,
+		CATTL:                        s.config.CATTL,
 		Log:                          s.config.Log.WithField(telemetry.SubsystemName, telemetry.Endpoints),
 		RootLog:                      s.config.Log,
 		Metrics:                      metrics,

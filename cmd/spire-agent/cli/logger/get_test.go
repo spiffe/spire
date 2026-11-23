@@ -12,7 +12,7 @@ import (
 func TestGetHelp(t *testing.T) {
 	test := setupCliTest(t, &mockLoggerService{}, logger.NewGetCommandWithEnv)
 	test.client.Help()
-	require.Equal(t, "", test.stdout.String())
+	require.Empty(t, test.stdout.String())
 	require.Equal(t, getUsage, test.stderr.String())
 }
 

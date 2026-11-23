@@ -206,6 +206,24 @@ func TestAttest(t *testing.T) {
 			},
 		},
 		{
+			name:     "success with the node's partition configured",
+			config:   `partitions = { "aws" = {} }`,
+			expectID: "spiffe://example.org/spire/agent/aws_iid/test-account/test-region/test-instance",
+			expectSelectors: []*common.Selector{
+				{Type: caws.PluginName, Value: "account_id:test-account"},
+				{Type: caws.PluginName, Value: "az:test-az"},
+				{Type: caws.PluginName, Value: "image:id:test-image-id"},
+				{Type: caws.PluginName, Value: "instance:id:test-instance"},
+				{Type: caws.PluginName, Value: "region:test-region"},
+			},
+		},
+		{
+			name:            "node's partition not configured",
+			config:          `partitions = { "aws-us-gov" = {} }`,
+			expectCode:      codes.PermissionDenied,
+			expectMsgPrefix: `nodeattestor(aws_iid): region "test-region" is in partition "aws", which is not configured`,
+		},
+		{
 			name: "success with RSA-1024 signature",
 			overrideAttestationData: func(data caws.IIDAttestationData) caws.IIDAttestationData {
 				data.SignatureRSA2048 = ""
@@ -778,7 +796,148 @@ func TestConfigure(t *testing.T) {
 		err := doConfig(t, coreConfig, `
 		partition = "invalid-aws-partition"
 		`)
-		spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, "invalid partition \"invalid-aws-partition\", must be one of: [aws aws-cn aws-us-gov]")
+		spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, "invalid partition \"invalid-aws-partition\", must be one of: [aws aws-cn aws-us-gov aws-eusc]")
+	})
+
+	t.Run("fails with web identity role ARN but no token file", func(t *testing.T) {
+		err := doConfig(t, coreConfig, `
+		web_identity_role_arn = "arn:aws:iam::123456789012:role/spire-server"
+		`)
+		spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, "configuration missing web identity token file, but has web identity role ARN")
+	})
+
+	t.Run("fails with web identity token file but no role ARN", func(t *testing.T) {
+		err := doConfig(t, coreConfig, `
+		web_identity_token_file = "/var/run/secrets/token"
+		`)
+		spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, "configuration missing web identity role ARN, but has web identity token file")
+	})
+
+	t.Run("fails with access key and web identity", func(t *testing.T) {
+		err := doConfig(t, coreConfig, `
+		access_key_id = "ACCESSKEYID"
+		secret_access_key = "SECRETACCESSKEY"
+		web_identity_role_arn = "arn:aws:iam::123456789012:role/spire-server"
+		web_identity_token_file = "/var/run/secrets/token"
+		`)
+		spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, "configuration has both an access key id and a web identity role ARN, only one can be used")
+	})
+
+	t.Run("success with web identity", func(t *testing.T) {
+		err := doConfig(t, coreConfig, `
+		web_identity_role_arn = "arn:aws:iam::123456789012:role/spire-server"
+		web_identity_token_file = "/var/run/secrets/token"
+		`)
+		require.NoError(t, err)
+	})
+
+	t.Run("success with partitions", func(t *testing.T) {
+		err := doConfig(t, coreConfig, `
+		partitions = {
+			"aws" = {
+				assume_role = "spire-server-delegate"
+			}
+			"aws-us-gov" = {
+				web_identity_role_arn = "arn:aws-us-gov:iam::123456789012:role/spire-server"
+				web_identity_token_file = "/var/run/secrets/token"
+				assume_role = "spire-server-delegate"
+			}
+		}
+		`)
+		require.NoError(t, err)
+	})
+
+	t.Run("fails with invalid partition in partitions", func(t *testing.T) {
+		err := doConfig(t, coreConfig, `
+		partitions = {
+			"invalid-aws-partition" = {}
+		}
+		`)
+		spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, "invalid partition \"invalid-aws-partition\" in \"partitions\"")
+	})
+
+	t.Run("fails with partition entry setting a different partition", func(t *testing.T) {
+		err := doConfig(t, coreConfig, `
+		partitions = {
+			"aws" = {
+				partition = "aws-cn"
+			}
+		}
+		`)
+		spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, "partition \"aws\" in \"partitions\" sets a different partition: \"aws-cn\"")
+	})
+
+	t.Run("fails with invalid credentials in partitions", func(t *testing.T) {
+		err := doConfig(t, coreConfig, `
+		partitions = {
+			"aws-cn" = {
+				access_key_id = "ACCESSKEYID"
+			}
+		}
+		`)
+		spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, "partition \"aws-cn\": configuration missing secret access key, but has access key id")
+	})
+
+	t.Run("fails with top-level credentials and partitions", func(t *testing.T) {
+		err := doConfig(t, coreConfig, `
+		assume_role = "spire-server-delegate"
+		partitions = {
+			"aws" = {}
+		}
+		`)
+		spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, "\"assume_role\" cannot be set together with \"partitions\"")
+	})
+
+	t.Run("web identity takes precedence over environment credentials", func(t *testing.T) {
+		env[accessKeyIDVarName] = "ACCESSKEYID"
+		env[secretAccessKeyVarName] = "SECRETACCESSKEY"
+		defer func() {
+			delete(env, accessKeyIDVarName)
+			delete(env, secretAccessKeyVarName)
+		}()
+		err := doConfig(t, coreConfig, `
+		web_identity_role_arn = "arn:aws:iam::123456789012:role/spire-server"
+		web_identity_token_file = "/var/run/secrets/token"
+		`)
+		require.NoError(t, err)
+	})
+
+	t.Run("success with organization region in a configured partition", func(t *testing.T) {
+		err := doConfig(t, coreConfig, `
+		partitions = {
+			"aws-us-gov" = {}
+		}
+		verify_organization = {
+			management_account_id = "12345"
+			assume_org_role = "test-orgrole"
+			management_account_region = "us-gov-west-1"
+		}
+		`)
+		require.NoError(t, err)
+	})
+
+	t.Run("fails with organization region in a partition without an entry", func(t *testing.T) {
+		err := doConfig(t, coreConfig, `
+		partitions = {
+			"aws-us-gov" = {}
+		}
+		verify_organization = {
+			management_account_id = "12345"
+			assume_org_role = "test-orgrole"
+		}
+		`)
+		spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, `"management_account_region" "us-west-2" is in partition "aws", which has no entry in "partitions"`)
+	})
+
+	t.Run("environment credentials are not applied to partitions", func(t *testing.T) {
+		env[accessKeyIDVarName] = "ACCESSKEYID"
+		defer delete(env, accessKeyIDVarName)
+		err := doConfig(t, coreConfig, `
+		partitions = {
+			"aws" = {}
+		}
+		`)
+		require.NoError(t, err)
 	})
 
 	t.Run("success when valid partitions specified ", func(t *testing.T) {
@@ -804,28 +963,28 @@ func TestConfigure(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	orgVerificationFeatureErr := fmt.Errorf("make %v, %v & %v are present inside block : %v for feature node attestation using account id verification", "verify_organization", orgAccountID, orgAccountRole, orgAccRegion)
-	orgVerificationFeatureTTLErr := fmt.Errorf("make %v if configured, should be in hours and is suffix with required `h` for time duration in hour ex. 1h. or remove the : %v, in the block : %v. Default TTL will be : %v,  for feature node attestation using account id verification", orgAccountListTTL, orgAccountListTTL, "verify_organization", orgAccountDefaultListTTL)
-	orgVerificationFeatureMinTTLErr := fmt.Errorf("make %v if configured, should be more than >= %v. or remove the : %v, in the block : %v. Default TTL will be : %v,  for feature node attestation using account id verification", orgAccountListTTL, orgAccountMinListTTL, orgAccountListTTL, "verify_organization", orgAccountDefaultListTTL)
+	orgVerificationFeatureMessage := fmt.Sprintf("please ensure that %q & %q are present inside block or remove the block: %q for feature node attestation using account id verification", orgAccountID, orgAccountRole, "verify_organization")
+	orgVerificationFeatureTTLMessage := fmt.Sprintf("please ensure that %q if configured, it should be in duration and is suffixed with required 'm' for time duration in minute ex. '5m'. Otherwise, remove the: %q, in the block: %q. Default TTL will be: %q", orgAccountListTTL, orgAccountListTTL, "verify_organization", orgAccountDefaultListTTL)
+	orgVerificationFeatureMinTTLMessage := fmt.Sprintf("please ensure that %q if configured, it should be greater than or equal to %q. Otherwise remove the: %q, in the block: %q. Default TTL will be: %q", orgAccountListTTL, orgAccountMinListTTL, orgAccountListTTL, "verify_organization", orgAccountDefaultListTTL)
 
 	t.Run("fail, account belongs to org, if params are not specified and feature enabled", func(t *testing.T) {
 		err := doConfig(t, coreConfig, `verify_organization = {}`)
-		require.Error(t, err, orgVerificationFeatureErr)
+		spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, orgVerificationFeatureMessage)
 	})
 
 	t.Run("fail, account belongs to org, if only account id is specified, roles & region are not specified", func(t *testing.T) {
 		err := doConfig(t, coreConfig, `verify_organization = { management_account_id = "dummy_account" }`)
-		require.Error(t, err, orgVerificationFeatureErr)
+		spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, orgVerificationFeatureMessage)
 	})
 
 	t.Run("fail, account belongs to org, if ttl is not specified in proper format", func(t *testing.T) {
 		err := doConfig(t, coreConfig, `verify_organization = { management_account_id = "dummy_account" assume_org_role = "dummy_role" org_account_map_ttl = "2" }`)
-		require.Error(t, err, orgVerificationFeatureTTLErr)
+		spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, orgVerificationFeatureTTLMessage)
 	})
 
 	t.Run("fail, account belongs to org, if ttl is specified and is less than min ttl required", func(t *testing.T) {
 		err := doConfig(t, coreConfig, `verify_organization = { management_account_id = "dummy_account" assume_org_role = "dummy_role" org_account_map_ttl = "30s" }`)
-		require.Error(t, err, orgVerificationFeatureMinTTLErr)
+		spiretest.RequireGRPCStatusContains(t, err, codes.InvalidArgument, orgVerificationFeatureMinTTLMessage)
 	})
 
 	t.Run("success, verify_organization featured enabled with required params", func(t *testing.T) {

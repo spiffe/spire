@@ -9,6 +9,9 @@ PKGDIR="${REPODIR}/pkg/server/datastore/sqlstore"
 log-debug "building mysql test harness..."
 (cd "${PKGDIR}"; go test -c -o "${DIR}"/mysql.test -ldflags "-X github.com/spiffe/spire/pkg/server/datastore/sqlstore.TestDialect=mysql")
 
+log-debug "building mysql test harness for the gorm v2 datastore..."
+(cd "${REPODIR}/pkg/server/datastore/sqlstorev2"; go test -c -o "${DIR}"/mysql-v2.test -ldflags "-X github.com/spiffe/spire/pkg/server/datastore/sqlstorev2.TestDialect=mysql")
+
 log-debug "copying over test data..."
 cp -r "${PKGDIR}"/testdata .
 

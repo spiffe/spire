@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/andres-erbsen/clock"
 	"github.com/go-jose/go-jose/v4"
 	"github.com/sirupsen/logrus"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -25,6 +26,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/api"
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
 	"github.com/spiffe/spire/pkg/server/ca"
+	"github.com/spiffe/spire/pkg/server/credtemplate"
 	"github.com/spiffe/spire/pkg/server/datastore"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -46,15 +48,25 @@ type Config struct {
 	ServerCA     ca.ServerCA
 	TrustDomain  spiffeid.TrustDomain
 	DataStore    datastore.DataStore
+	CATTL        time.Duration
+	Clock        clock.Clock
 }
 
 // New creates a new SVID service
 func New(config Config) *Service {
+	if config.Clock == nil {
+		config.Clock = clock.New()
+	}
+	if config.CATTL == 0 {
+		config.CATTL = credtemplate.DefaultX509CATTL
+	}
 	return &Service{
-		ca: config.ServerCA,
-		ef: config.EntryFetcher,
-		td: config.TrustDomain,
-		ds: config.DataStore,
+		ca:    config.ServerCA,
+		ef:    config.EntryFetcher,
+		td:    config.TrustDomain,
+		ds:    config.DataStore,
+		caTTL: config.CATTL,
+		clock: config.Clock,
 	}
 }
 
@@ -67,6 +79,8 @@ type Service struct {
 	td                           spiffeid.TrustDomain
 	ds                           datastore.DataStore
 	useLegacyDownstreamX509CATTL bool
+	caTTL                        time.Duration
+	clock                        clock.Clock
 }
 
 func (s *Service) MintX509SVID(ctx context.Context, req *svidv1.MintX509SVIDRequest) (*svidv1.MintX509SVIDResponse, error) {
@@ -134,6 +148,7 @@ func (s *Service) MintX509SVID(ctx context.Context, req *svidv1.MintX509SVIDRequ
 		telemetry.DNSName:  strings.Join(csr.DNSNames, ","),
 		telemetry.Subject:  csr.Subject,
 	}
+	ca.WarnOnIncompatibleTTL(log.WithFields(commonX509SVIDLogFields), s.caTTL, time.Duration(req.Ttl)*time.Second, telemetry.X509SVIDTTL)
 
 	rpccontext.AddRPCAuditFields(ctx, logrus.Fields{
 		telemetry.ExpiresAt: x509SVID[0].NotAfter.Format(time.RFC3339),
@@ -160,11 +175,13 @@ func (s *Service) MintJWTSVID(ctx context.Context, req *svidv1.MintJWTSVIDReques
 		return nil, commonapi.MakeErr(log, codes.Unimplemented, "JWT functionality is disabled", nil)
 	}
 
-	rpccontext.AddRPCAuditFields(ctx, s.fieldsFromJWTSvidParams(ctx, req.Id, req.Audience, req.Ttl))
+	fields := s.fieldsFromJWTSvidParams(ctx, req.Id, req.Audience, req.Ttl)
+	rpccontext.AddRPCAuditFields(ctx, fields)
 	jwtsvid, err := s.mintJWTSVID(ctx, req.Id, req.Audience, req.Ttl, false)
 	if err != nil {
 		return nil, err
 	}
+	ca.WarnOnIncompatibleTTL(log.WithFields(fields), s.caTTL, time.Duration(req.Ttl)*time.Second, telemetry.JWTSVIDTTL)
 	rpccontext.AuditRPC(ctx)
 
 	return &svidv1.MintJWTSVIDResponse{
@@ -178,11 +195,13 @@ func (s *Service) MintWITSVID(ctx context.Context, req *svidv1.MintWITSVIDReques
 		return nil, commonapi.MakeErr(log, codes.Unimplemented, "WIT functionality is disabled", nil)
 	}
 
-	rpccontext.AddRPCAuditFields(ctx, s.fieldsFromWITSvidParams(ctx, req.Id, req.Ttl))
+	fields := s.fieldsFromWITSvidParams(ctx, req.Id, req.Ttl)
+	rpccontext.AddRPCAuditFields(ctx, fields)
 	witsvid, err := s.mintWITSVID(ctx, req.Id, req.PublicKey, req.SigningAlgorithm, req.Ttl)
 	if err != nil {
 		return nil, err
 	}
+	ca.WarnOnIncompatibleTTL(log.WithFields(fields), s.caTTL, time.Duration(req.Ttl)*time.Second, telemetry.WITSVIDTTL)
 	rpccontext.AuditRPC(ctx)
 
 	return &svidv1.MintWITSVIDResponse{
@@ -637,12 +656,25 @@ func (s *Service) NewDownstreamX509CA(ctx context.Context, req *svidv1.NewDownst
 		ttl = entry.X509SvidTtl
 	}
 
+	requestedAt := s.clock.Now()
 	x509CASvid, err := s.ca.SignDownstreamX509CA(ctx, ca.DownstreamX509CAParams{
 		PublicKey: csr.PublicKey,
 		TTL:       time.Duration(ttl) * time.Second,
 	})
 	if err != nil {
 		return nil, commonapi.MakeErr(log, codes.Internal, "failed to sign downstream X.509 CA", err)
+	}
+	requestedTTL := time.Duration(ttl) * time.Second
+	ca.WarnOnIncompatibleTTL(log.WithField(telemetry.SPIFFEID, x509CASvid[0].URIs[0].String()), s.caTTL, requestedTTL, "downstream_ca_ttl")
+	if requestedTTL > 0 && x509CASvid[0].NotAfter.Add(time.Second).Before(requestedAt.Add(requestedTTL)) {
+		log.WithFields(logrus.Fields{
+			telemetry.Alert:        true,
+			telemetry.AlertType:    telemetry.ShortenedLifetimeAlertType,
+			telemetry.SPIFFEID:     x509CASvid[0].URIs[0].String(),
+			telemetry.RequestedTTL: requestedTTL.Seconds(),
+			telemetry.EffectiveTTL: x509CASvid[0].NotAfter.Sub(requestedAt).Seconds(),
+			telemetry.Expiration:   x509CASvid[0].NotAfter.Format(time.RFC3339),
+		}).Warn("Issued downstream X509 CA with a shorter lifetime than requested")
 	}
 
 	log.WithFields(logrus.Fields{

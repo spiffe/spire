@@ -46,7 +46,7 @@ func TestMakeSpiffeID(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := makeAgentID(trustDomain, tt.agentPathTemplate, tt.doc, tt.tags)
 			require.NoError(t, err)
-			require.Equal(t, got.String(), tt.want)
+			require.Equal(t, tt.want, got.String())
 		})
 	}
 }

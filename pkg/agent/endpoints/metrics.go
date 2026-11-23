@@ -9,6 +9,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	sdsAPITelemetry "github.com/spiffe/spire/pkg/common/telemetry/agent"
 	"github.com/spiffe/spire/pkg/common/telemetry/agent/adminapi"
+	brokerAPITelemetry "github.com/spiffe/spire/pkg/common/telemetry/agent/broker"
 	workloadAPITelemetry "github.com/spiffe/spire/pkg/common/telemetry/agent/workloadapi"
 )
 
@@ -25,6 +26,7 @@ type connectionMetrics struct {
 	debugAPIConns             int32
 	loggerAPIConns            int32
 	delegatedIdentityAPIConns int32
+	brokerAPIConns            int32
 }
 
 func (m *connectionMetrics) Preprocess(ctx context.Context, _ string, _ any) (context.Context, error) {
@@ -39,6 +41,9 @@ func (m *connectionMetrics) Preprocess(ctx context.Context, _ string, _ any) (co
 		case middleware.DelegatedIdentityServiceName:
 			adminapi.IncrDelegatedIdentityAPIConnectionCounter(m.metrics)
 			adminapi.SetDelegatedIdentityAPIConnectionGauge(m.metrics, atomic.AddInt32(&m.delegatedIdentityAPIConns, 1))
+		case middleware.BrokerAPIServiceName:
+			brokerAPITelemetry.IncrBrokerAPIConnectionCounter(m.metrics)
+			brokerAPITelemetry.SetBrokerAPIConnectionGauge(m.metrics, atomic.AddInt32(&m.brokerAPIConns, 1))
 		case middleware.DebugServiceName:
 			adminapi.IncrDebugAPIConnectionCounter(m.metrics)
 			adminapi.SetDebugAPIConnectionGauge(m.metrics, atomic.AddInt32(&m.debugAPIConns, 1))
@@ -63,6 +68,8 @@ func (m *connectionMetrics) Postprocess(ctx context.Context, _ string, _ bool, _
 			sdsAPITelemetry.SetSDSAPIConnectionTotalGauge(m.metrics, atomic.AddInt32(&m.sdsAPIConns, -1))
 		case middleware.DelegatedIdentityServiceName:
 			adminapi.SetDelegatedIdentityAPIConnectionGauge(m.metrics, atomic.AddInt32(&m.delegatedIdentityAPIConns, -1))
+		case middleware.BrokerAPIServiceName:
+			brokerAPITelemetry.SetBrokerAPIConnectionGauge(m.metrics, atomic.AddInt32(&m.brokerAPIConns, -1))
 		case middleware.DebugServiceName:
 			adminapi.SetDebugAPIConnectionGauge(m.metrics, atomic.AddInt32(&m.debugAPIConns, -1))
 		case middleware.AgentLoggerServiceName:

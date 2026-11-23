@@ -55,7 +55,7 @@ func TestReopenOnSignalWithReopenableOutputFileSuccess(t *testing.T) {
 	go func() {
 		// emulate logrotate
 		err = os.Rename(logFileName, rotatedLogFileName)
-		require.NoError(t, err)
+		assert.NoError(t, err)
 		signalCh <- reopenSignal
 		close(renamedCh)
 	}()

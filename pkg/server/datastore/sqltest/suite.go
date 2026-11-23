@@ -37,6 +37,10 @@ type Config struct {
 
 	// ExpectedCodeVersion is the SPIRE code version string it should record.
 	ExpectedCodeVersion string
+
+	// SkipTests lists suite test method names (e.g. "TestListAttestedNodes")
+	// to skip, for a datastore that does not implement every method.
+	SkipTests []string
 }
 
 // Run executes the shared datastore conformance suite against the datastore

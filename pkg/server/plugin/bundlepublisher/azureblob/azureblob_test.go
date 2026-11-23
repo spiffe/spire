@@ -21,6 +21,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/catalog"
 	"github.com/spiffe/spire/test/plugintest"
 	"github.com/spiffe/spire/test/spiretest"
+	"github.com/spiffe/spire/test/testkey"
 	"github.com/spiffe/spire/test/util"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
@@ -243,6 +244,15 @@ func TestConfigure(t *testing.T) {
 			},
 			expectCode: codes.InvalidArgument,
 			expectMsg:  "could not parse refresh_hint: could not parse refresh hint \"invalid-refresh-hint\": time: invalid duration \"invalid-refresh-hint\"",
+		},
+		{
+			name: "success with oidc_jwks format",
+			config: &Config{
+				StorageAccountName: "myaccount",
+				ContainerName:      "my-container",
+				BlobName:           "bundle.json",
+				Format:             "oidc_jwks",
+			},
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -527,6 +537,65 @@ func TestSetRefreshHint(t *testing.T) {
 	refreshHint, ok := publishedBundle.RefreshHint()
 	require.True(t, ok)
 	require.Equal(t, time.Hour, refreshHint)
+}
+
+// TestPublishJWKS checks that the jwks and oidc_jwks formats are published as
+// formatted by the SDK.
+func TestPublishJWKS(t *testing.T) {
+	bundle := getTestBundle(t)
+	// The JWT authority of the test bundle is a P-521 key, which has no JWS
+	// algorithm, so it is replaced with a P-256 key.
+	jwtKeyPKIX, err := x509.MarshalPKIXPublicKey(testkey.MustEC256().Public())
+	require.NoError(t, err)
+	bundle.JwtAuthorities = []*types.JWTKey{{KeyId: "KID", PublicKey: jwtKeyPKIX}}
+	sdkJWKS, err := bundleformat.NewFormatter(bundle).Format(bundleformat.JWKS)
+	require.NoError(t, err)
+	oidcJWKS, err := bundleformat.NewFormatter(bundle).Format(bundleformat.OIDCJWKS)
+	require.NoError(t, err)
+
+	for _, tt := range []struct {
+		format   string
+		expected []byte
+	}{
+		{format: "jwks", expected: sdkJWKS},
+		{format: "oidc_jwks", expected: oidcJWKS},
+	} {
+		t.Run(tt.format, func(t *testing.T) {
+			config := &Config{
+				StorageAccountName: "myaccount",
+				ContainerName:      "my-container",
+				BlobName:           "bundle.json",
+				Format:             tt.format,
+			}
+
+			var err error
+			options := []plugintest.Option{
+				plugintest.CaptureConfigureError(&err),
+				plugintest.CoreConfig(catalog.CoreConfig{
+					TrustDomain: spiffeid.RequireTrustDomainFromString("example.org"),
+				}),
+				plugintest.ConfigureJSON(config),
+			}
+
+			client := &fakeClient{t: t, expectContainerName: config.ContainerName, expectBlobName: config.BlobName}
+			newClient := func(cred azcore.TokenCredential, accountURL string) (blobStorage, error) {
+				return client, nil
+			}
+			p := newPlugin(newClient)
+			p.hooks.fetchCredential = func() (azcore.TokenCredential, error) {
+				return &fakeCredential{}, nil
+			}
+			plugintest.Load(t, builtin(p), nil, options...)
+			require.NoError(t, err)
+
+			resp, err := p.PublishBundle(context.Background(), &bundlepublisherv1.PublishBundleRequest{
+				Bundle: bundle,
+			})
+			require.NoError(t, err)
+			require.NotNil(t, resp)
+			require.Equal(t, tt.expected, client.writtenBytes)
+		})
+	}
 }
 
 func TestBundleWithRefreshHintPublishedOnce(t *testing.T) {

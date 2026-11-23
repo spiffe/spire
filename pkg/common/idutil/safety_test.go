@@ -5,61 +5,64 @@ import (
 
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestIDProtoString(t *testing.T) {
 	assert := assert.New(t)
+	require := require.New(t)
 
 	id, err := IDProtoString(&types.SPIFFEID{})
-	assert.EqualError(err, "trust domain is missing")
+	require.EqualError(err, "trust domain is missing")
 	assert.Empty(id)
 
 	id, err = IDProtoString(&types.SPIFFEID{TrustDomain: "example.org"})
-	assert.NoError(err)
+	require.NoError(err)
 	assert.Equal("spiffe://example.org", id)
 
 	id, err = IDProtoString(&types.SPIFFEID{TrustDomain: "example.org", Path: "/"})
-	assert.EqualError(err, "path cannot have a trailing slash")
+	require.EqualError(err, "path cannot have a trailing slash")
 	assert.Empty(id)
 
 	id, err = IDProtoString(&types.SPIFFEID{TrustDomain: "example.org", Path: "workload"})
-	assert.EqualError(err, "path must have a leading slash")
+	require.EqualError(err, "path must have a leading slash")
 	assert.Empty(id)
 
 	id, err = IDProtoString(&types.SPIFFEID{TrustDomain: "example.org", Path: "/workload"})
-	assert.NoError(err)
+	require.NoError(err)
 	assert.Equal("spiffe://example.org/workload", id)
 
 	id, err = IDProtoString(&types.SPIFFEID{TrustDomain: "example.org", Path: "/workload/foo"})
-	assert.NoError(err)
+	require.NoError(err)
 	assert.Equal("spiffe://example.org/workload/foo", id)
 }
 
 func TestIDProtoFromString(t *testing.T) {
 	assert := assert.New(t)
+	require := require.New(t)
 
 	id, err := IDProtoFromString("other://whocares")
-	assert.EqualError(err, "scheme is missing or invalid")
+	require.EqualError(err, "scheme is missing or invalid")
 	assert.Nil(id)
 
 	id, err = IDProtoFromString("spiffe://")
-	assert.EqualError(err, "trust domain is missing")
+	require.EqualError(err, "trust domain is missing")
 	assert.Nil(id)
 
 	id, err = IDProtoFromString("spiffe://example.org")
-	assert.NoError(err)
+	require.NoError(err)
 	assert.Equal(&types.SPIFFEID{TrustDomain: "example.org"}, id)
 
 	id, err = IDProtoFromString("spiffe://example.org/")
-	assert.EqualError(err, "path cannot have a trailing slash")
+	require.EqualError(err, "path cannot have a trailing slash")
 	assert.Nil(id)
 
 	id, err = IDProtoFromString("spiffe://example.org/workload")
-	assert.NoError(err)
+	require.NoError(err)
 	assert.Equal(&types.SPIFFEID{TrustDomain: "example.org", Path: "/workload"}, id)
 
 	id, err = IDProtoFromString("spiffe://example.org/workload/foo")
-	assert.NoError(err)
+	require.NoError(err)
 	assert.Equal(&types.SPIFFEID{TrustDomain: "example.org", Path: "/workload/foo"}, id)
 }
 
@@ -113,14 +116,15 @@ func TestIDFromProto(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			assert := assert.New(t)
+			require := require.New(t)
 
 			id, err := IDFromProto(tt.proto)
 			if tt.expectErr != "" {
-				assert.EqualError(err, tt.expectErr)
+				require.EqualError(err, tt.expectErr)
 				assert.Empty(id)
 				return
 			}
-			assert.NoError(err)
+			require.NoError(err)
 			assert.Equal(tt.expected, id.String())
 		})
 	}

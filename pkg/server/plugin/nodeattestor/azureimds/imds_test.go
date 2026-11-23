@@ -464,7 +464,7 @@ func (s *IMDSAttestorSuite) TestConfigure() {
 			plugintest.CoreConfig(coreConfig),
 			plugintest.Configure("blah"),
 		)
-		spiretest.RequireErrorContains(t, err, "unable to decode configuration")
+		require.ErrorContains(t, err, "unable to decode configuration")
 	})
 
 	s.T().Run("missing tenants", func(t *testing.T) {

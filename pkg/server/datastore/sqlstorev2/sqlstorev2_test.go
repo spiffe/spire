@@ -1,14 +1,115 @@
 package sqlstorev2
 
 import (
+	"cmp"
 	"context"
+	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/sirupsen/logrus"
 	"github.com/sirupsen/logrus/hooks/test"
 	"github.com/spiffe/spire/pkg/server/datastore/sqlcommon"
+	"github.com/spiffe/spire/pkg/server/datastore/sqltest"
 	"github.com/stretchr/testify/require"
 )
+
+// Schema versions exported to the external test package.
+const (
+	LatestSchemaVersion           = latestSchemaVersion
+	LastMinorReleaseSchemaVersion = lastMinorReleaseSchemaVersion
+)
+
+// The following are set during integration tests to run the external-database
+// tests against various SQL backends: TestDialect by the linker, and
+// TestConnString by the linker or the SQLSTORE_TEST_CONN_STRING environment
+// variable, which takes precedence.
+var (
+	TestDialect      string
+	TestConnString   string
+	TestROConnString string
+)
+
+func init() {
+	TestConnString = cmp.Or(os.Getenv("SQLSTORE_TEST_CONN_STRING"), TestConnString)
+}
+
+var _ sqltest.DataStoreUnderTest = (*Plugin)(nil)
+
+// unimplementedTests lists the shared suite tests that call methods this
+// datastore does not implement.
+var unimplementedTests = []string{
+	"TestCountAttestedNodes",
+	"TestCountRegistrationEntries",
+	"TestCreateAttestedNode",
+	"TestFetchAttestedNodeMissing",
+	"TestListAttestedNodes",
+	"TestUpdateAttestedNode",
+	"TestPruneAttestedExpiredNodes",
+	"TestPruneAttestedExpiredNodesBatchSize",
+	"TestDeleteAttestedNode",
+	"TestDeleteAttestedNodeCascadesEntries",
+	"TestDeleteAttestedNodeJoinTokenPreservesNonAliasChildEntries",
+	"TestPruneAttestedExpiredNodesCascadesEntries",
+	"TestDeleteAttestedNodeNonJoinTokenDoesNotCascade",
+	"TestListAttestedNodeEvents",
+	"TestPruneAttestedNodeEvents",
+	"TestNodeSelectors",
+	"TestListNodeSelectors",
+	"TestListNodeSelectorsGroupsBySpiffeID",
+	"TestSetNodeSelectorsUnderLoad",
+	"TestCreateRegistrationEntry",
+	"TestCreateOrReturnRegistrationEntry",
+	"TestCreateInvalidRegistrationEntry",
+	"TestFetchRegistrationEntriesWithOptionalFields",
+	"TestFetchRegistrationEntries",
+	"TestPruneRegistrationEntries",
+	"TestFetchInexistentRegistrationEntry",
+	"TestListRegistrationEntries",
+	"TestListRegistrationEntriesWhenCruftRowsExist",
+	"TestUpdateRegistrationEntry",
+	"TestUpdateRegistrationEntryWithStoreSvid",
+	"TestUpdateRegistrationEntryWithMask",
+	"TestDeleteRegistrationEntry",
+	"TestListParentIDEntries",
+	"TestListSelectorEntries",
+	"TestListEntriesBySelectorSubset",
+	"TestListSelectorEntriesSuperset",
+	"TestListEntriesBySelectorMatchAny",
+	"TestListEntriesByFederatesWithExact",
+	"TestListEntriesByFederatesWithSubset",
+	"TestListEntriesByFederatesWithMatchAny",
+	"TestListEntriesByFederatesWithSuperset",
+	"TestRegistrationEntriesFederatesWithAgainstMissingBundle",
+	"TestRegistrationEntriesFederatesWithSuccess",
+	"TestRegistrationEntriesFederatesWithMultipleBundles",
+	"TestRegistrationEntriesFederatesWithDuplicateTrustDomain",
+	"TestRegistrationEntriesWithoutFederatesWith",
+	// DeleteBundle is implemented, but these seed the bundle's federated
+	// entries through registration entry methods.
+	"TestDeleteBundleRestrictedByRegistrationEntries",
+	"TestDeleteBundleDeleteRegistrationEntries",
+	"TestDeleteBundleDissociateRegistrationEntries",
+	"TestListRegistrationEntryEvents",
+	"TestPruneRegistrationEntryEvents",
+	"TestRace",
+}
+
+// TestPlugin runs the shared datastore conformance suite against the
+// sqlstorev2 plugin.
+func TestPlugin(t *testing.T) {
+	sqltest.Run(t, sqltest.Config{
+		NewDataStore: func(log logrus.FieldLogger) sqltest.DataStoreUnderTest {
+			return New(log)
+		},
+		Dialect:               TestDialect,
+		ConnString:            TestConnString,
+		ROConnString:          cmp.Or(os.Getenv("SQLSTORE_TEST_RO_CONN_STRING"), TestROConnString),
+		ExpectedSchemaVersion: latestSchemaVersion,
+		ExpectedCodeVersion:   codeVersion.String(),
+		SkipTests:             unimplementedTests,
+	})
+}
 
 func TestNewAndClose(t *testing.T) {
 	log, _ := test.NewNullLogger()

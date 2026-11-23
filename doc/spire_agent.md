@@ -61,7 +61,7 @@ This may be useful for templating configuration files, for example across differ
 | `log_file`                        | File to write logs to. An external tool can move it aside on any platform, and SPIRE Agent then starts a new one on receipt of `SIGUSR2` on POSIX, or of the reopen control code on Windows (see below)                                           |                                  |
 | `log_file_rotation`               | Rotates `log_file` in process rather than relying on an external tool (below). Works on all platforms. Disabled unless configured                                                                                                                 |                                  |
 | `log_level`                       | Sets the logging level &lt;DEBUG&vert;INFO&vert;WARN&vert;ERROR&gt;                                                                                                                                                                               | INFO                             |
-| `log_format`                      | Format of logs, &lt;text&vert;json&gt;                                                                                                                                                                                                            | Text                             |
+| `log_format`                      | Format of logs, &lt;text&vert;json&gt;. See [Logging](logging.md).                                                                                                                                                                                | Text                             |
 | `log_selectors`                   | Workload selector prefixes allowed in diagnostic logs. Selector values can contain sensitive information; only configure prefixes whose values are acceptable to write to logs. Example: `["k8s:ns", "k8s:sa", "unix:user"]`                      |                                  |
 | `log_source_location`             | If true, logs include source file, line number, and method name fields (adds a bit of runtime cost)                                                                                                                                               | false                            |
 | `profiling_enabled`               | If true, enables a [net/http/pprof](https://pkg.go.dev/net/http/pprof) endpoint                                                                                                                                                                   | false                            |
@@ -266,7 +266,7 @@ There are two cases where this can not happen and Server Attestation must be per
 
 The first case is when bootstrapping a new agent. It's never securely talked to a SPIRE Server, so it can not download up to date trust bundles.
 
-The second case is when trust is lost and must be reestablished, known as Reboostrapping. This can happen if an agent was unable to contact a server for too long that its trust bundle is too far out of date, or the server needed to be reinstalled in a way that couldn't allow continuity in the trust bundle.
+The second case is when trust is lost and must be reestablished, known as Rebootstrapping. This can happen if an agent was unable to contact a server for too long that its trust bundle is too far out of date, or the server needed to be reinstalled in a way that couldn't allow continuity in the trust bundle.
 
 ### Configuring the source for Server Attestation
 
@@ -416,8 +416,11 @@ health_checks {
         bind_port = "8080"
         live_path = "/live"
         ready_path = "/ready"
+        check_interval = "1m"
 }
 ```
+
+Each health check runs every `check_interval` (default `1m`, must be longer than `1s`) while it passes. A failing check is retried every second until it recovers, and its failure is logged once a minute; the other checks keep their own schedule.
 
 ## Command line options
 
@@ -771,6 +774,17 @@ its plugin-level `experimental.broker` block is required for every reference typ
 `KubernetesObjectReference`. Set `experimental.broker.access_policy = "permissive"` to
 skip those checks. The setting is required; there is no default.
 
+While an X.509-SVID subscription is open, the agent periodically re-attests
+the workload reference: every 10 minutes by default, with 10% jitter. Both
+are configurable with `reattest_interval` and `reattest_jitter` in the
+`broker` block; `reattest_interval` must be at least 1 minute. This makes the
+stream follow selector changes when the same
+reference resolves differently over time, such as a pod recreated with a new
+UID or different labels, and terminates the stream with
+`NotFound`/`PermissionDenied` once the referenced object no longer exists or is
+no longer entitled. JWT-SVID fetches are unary and therefore re-attest the
+reference on every call.
+
 ### Transport and authentication
 
 The Broker API is gated by mutual TLS using X.509-SVIDs. A broker is
@@ -815,8 +829,10 @@ agent {
     ...
     experimental {
         broker {
-            socket_path  = "/run/spire/broker-sockets/broker.sock"  # POSIX UDS
-            bind_address = "0.0.0.0:8443"                           # optional TCP
+            socket_path       = "/run/spire/broker-sockets/broker.sock"  # POSIX UDS
+            bind_address      = "0.0.0.0:8443"                           # optional TCP
+            reattest_interval = "10m"                                    # default
+            reattest_jitter   = 0.1                                      # default
 
             brokers = [
                 {

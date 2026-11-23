@@ -23,7 +23,9 @@ func TestHealthCheckHandler(t *testing.T) {
 		jwks     *jose.JSONWebKeySet
 		modTime  time.Time
 		pollTime time.Time
-		code     int
+		// notListening leaves the provider listener marked as not up.
+		notListening bool
+		code         int
 	}{
 		{
 			name:   "Check Live State with no Keyset and valid threshold",
@@ -102,6 +104,30 @@ func TestHealthCheckHandler(t *testing.T) {
 			code:   http.StatusInternalServerError,
 			jwks:   nil,
 		},
+		{
+			name:   "Check Ready State with Keyset while the listener is not up",
+			method: "GET",
+			path:   "/ready",
+			code:   http.StatusInternalServerError,
+			jwks: &jose.JSONWebKeySet{
+				Keys: []jose.JSONWebKey{
+					{
+						Key:       ec256Pubkey,
+						KeyID:     "KEYID",
+						Algorithm: "ES256",
+					},
+				},
+			},
+			pollTime:     time.Now(),
+			notListening: true,
+		},
+		{
+			name:         "Check Live State without Keyset while the listener is not up",
+			method:       "GET",
+			path:         "/live",
+			code:         http.StatusOK,
+			notListening: true,
+		},
 	}
 
 	for _, testCase := range testCases {
@@ -116,10 +142,31 @@ func TestHealthCheckHandler(t *testing.T) {
 				ServerAPI:    &ServerAPIConfig{},
 				HealthChecks: &HealthChecksConfig{BindPort: 8008, ReadyPath: "/ready", LivePath: "/live"}}
 			h := NewHealthChecksHandler(source, &c)
+			if !testCase.notListening {
+				h.SetListening()
+			}
 			h.ServeHTTP(w, r)
 
 			t.Logf("HEADERS: %q", w.Header())
 			assert.Equal(t, testCase.code, w.Code)
+		})
+	}
+}
+
+func TestHealthCheckHandlerMethodNotAllowedSetsAllowHeader(t *testing.T) {
+	source := new(FakeKeySetSource)
+	c := Config{
+		ServerAPI:    &ServerAPIConfig{},
+		HealthChecks: &HealthChecksConfig{BindPort: 8008, ReadyPath: "/ready", LivePath: "/live"}}
+	h := NewHealthChecksHandler(source, &c)
+
+	for _, path := range []string{"/ready", "/live"} {
+		t.Run(path, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			r := httptest.NewRequest(http.MethodPost, "http://localhost"+path, nil)
+			h.ServeHTTP(w, r)
+			require.Equal(t, http.StatusMethodNotAllowed, w.Code)
+			require.Equal(t, http.MethodGet, w.Header().Get("Allow"))
 		})
 	}
 }

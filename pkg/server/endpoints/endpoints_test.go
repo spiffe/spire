@@ -181,7 +181,7 @@ func TestNewErrorCreatingAuthorizedEntryFetcher(t *testing.T) {
 		AuthPolicyEngine: pe,
 	})
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Nil(t, endpoints)
 }
 
@@ -334,10 +334,11 @@ func TestListenAndServe(t *testing.T) {
 		// Call an API using the server clientConn to cause gRPC to attempt to dial the server
 		healthClient := grpc_health_v1.NewHealthClient(badConn)
 		_, err = healthClient.Check(ctx, &grpc_health_v1.HealthCheckRequest{})
-		if !assert.Error(t, err, "dialing should have failed") {
+		if err == nil {
 			// close the conn if the dialing unexpectedly succeeded
 			badConn.Close()
 		}
+		require.Error(t, err, "dialing should have failed")
 	})
 
 	conns := testConns{

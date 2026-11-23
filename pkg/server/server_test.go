@@ -26,7 +26,7 @@ func (suite *ServerTestSuite) SetupTest() {
 
 	suite.stdout = new(bytes.Buffer)
 	logrusLevel, err := logrus.ParseLevel("DEBUG")
-	suite.Nil(err)
+	suite.Require().NoError(err)
 
 	logger := logrus.New()
 	logger.Out = suite.stdout
@@ -48,7 +48,7 @@ func (suite *ServerTestSuite) TestValidateTrustDomain() {
 
 	// Create default trust domain
 	trustDomain, err := spiffeid.TrustDomainFromString("spiffe://test.com")
-	suite.NoError(err)
+	suite.Require().NoError(err)
 
 	// Create new trust domain
 	newTrustDomain, err := spiffeid.TrustDomainFromString("spiffe://new_test.com")
@@ -60,7 +60,7 @@ func (suite *ServerTestSuite) TestValidateTrustDomain() {
 
 	// No attested nodes, not error expected
 	err = suite.server.validateTrustDomain(ctx, ds)
-	suite.NoError(err)
+	suite.Require().NoError(err)
 
 	// create attested node with current trust domain
 	attestedNode, err := ds.CreateAttestedNode(ctx, &common.AttestedNode{
@@ -69,11 +69,11 @@ func (suite *ServerTestSuite) TestValidateTrustDomain() {
 		CertNotAfter:        time.Now().Add(time.Hour).Unix(),
 		CertSerialNumber:    "18392437442709699290",
 	})
-	suite.NoError(err)
+	suite.Require().NoError(err)
 
 	// Validate created trust domain, no error expected
 	err = suite.server.validateTrustDomain(ctx, ds)
-	suite.NoError(err)
+	suite.Require().NoError(err)
 
 	// Update server trust domain to force errors
 	suite.server.config.TrustDomain = newTrustDomain
@@ -81,7 +81,7 @@ func (suite *ServerTestSuite) TestValidateTrustDomain() {
 	// Validate new trust domain
 	err = suite.server.validateTrustDomain(ctx, ds)
 	// no error expected, warning is displaying in this case
-	suite.NoError(err)
+	suite.Require().NoError(err)
 	suite.Require().Contains(suite.stdout.String(), fmt.Sprintf(invalidTrustDomainAttestedNode, "test.com", "new_test.com"))
 
 	// Restore original trust domain
@@ -92,26 +92,26 @@ func (suite *ServerTestSuite) TestValidateTrustDomain() {
 		SpiffeId:  "spiffe://test.com/foo",
 		Selectors: []*common.Selector{{Type: "TYPE", Value: "VALUE"}},
 	})
-	suite.NoError(err)
+	suite.Require().NoError(err)
 
 	// Attested node and registration entry have the same trust domain as server, no error expected
 	err = suite.server.validateTrustDomain(ctx, ds)
-	suite.NoError(err)
+	suite.Require().NoError(err)
 
 	// Update server's trust domain, error expected because invalid trust domain
 	suite.server.config.TrustDomain = newTrustDomain
 	err = suite.server.validateTrustDomain(ctx, ds)
-	suite.EqualError(err, fmt.Sprintf(invalidTrustDomainRegistrationEntry, "test.com", "new_test.com"))
+	suite.Require().EqualError(err, fmt.Sprintf(invalidTrustDomainRegistrationEntry, "test.com", "new_test.com"))
 
 	// Create a registration entry with an invalid url
 	_, err = ds.DeleteRegistrationEntry(ctx, registrationEntry.EntryId)
-	suite.NoError(err)
+	suite.Require().NoError(err)
 	suite.server.config.TrustDomain = trustDomain
 	registrationEntry, err = ds.CreateRegistrationEntry(ctx, &common.RegistrationEntry{
 		SpiffeId:  "spiffe://inv%ild/test",
 		Selectors: []*common.Selector{{Type: "TYPE", Value: "VALUE"}},
 	})
-	suite.NoError(err)
+	suite.Require().NoError(err)
 	err = suite.server.validateTrustDomain(ctx, ds)
 	expectedError := fmt.Sprintf(invalidSpiffeIDRegistrationEntry, registrationEntry.EntryId, "")
 	if suite.Error(err) {
@@ -120,21 +120,21 @@ func (suite *ServerTestSuite) TestValidateTrustDomain() {
 
 	// remove entry to solve error
 	_, err = ds.DeleteRegistrationEntry(ctx, registrationEntry.EntryId)
-	suite.NoError(err)
+	suite.Require().NoError(err)
 
 	// create attested node with current trust domain
 	// drop resp
 	_, err = ds.DeleteAttestedNode(ctx, attestedNode.SpiffeId)
-	suite.NoError(err)
+	suite.Require().NoError(err)
 	_, err = ds.CreateAttestedNode(ctx, &common.AttestedNode{
 		SpiffeId:            "spiffe://inv%ild/host",
 		AttestationDataType: "fake_nodeattestor_1",
 		CertNotAfter:        time.Now().Add(time.Hour).Unix(),
 		CertSerialNumber:    "18392437442709699290",
 	})
-	suite.NoError(err)
+	suite.Require().NoError(err)
 	// Attested now with same trust domain created, no error expected
 	err = suite.server.validateTrustDomain(ctx, ds)
-	suite.NoError(err)
+	suite.Require().NoError(err)
 	suite.Require().Contains(suite.stdout.String(), invalidSpiffeIDAttestedNode)
 }

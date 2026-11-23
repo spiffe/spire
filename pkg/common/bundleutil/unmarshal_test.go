@@ -146,3 +146,24 @@ func TestUnmarshalRoundTripsWITAuthorities(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, bundle, unmarshaled)
 }
+
+func TestUnmarshalPreservesSequenceNumber(t *testing.T) {
+	trustDomain := spiffeid.RequireTrustDomainFromString("domain.test")
+
+	bundle := spiffebundle.New(trustDomain)
+	bundle.SetRefreshHint(0)
+	bundle.SetSequenceNumber(42)
+
+	marshaled, err := Marshal(bundle)
+	require.NoError(t, err)
+	require.Contains(t, string(marshaled), `"spiffe_sequence": 42`)
+
+	unmarshaled, err := Unmarshal(trustDomain, marshaled)
+	require.NoError(t, err)
+
+	sequenceNumber, ok := unmarshaled.SequenceNumber()
+	require.True(t, ok, "decoded bundle lost the spiffe_sequence value")
+	require.Equal(t, uint64(42), sequenceNumber)
+
+	require.Equal(t, bundle, unmarshaled)
+}

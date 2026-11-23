@@ -200,6 +200,10 @@ func buildConfig(coreConfig catalog.CoreConfig, hclText string, status *pluginco
 		newConfig.KeyIdentifierValue = serverID
 	}
 
+	if err := newConfig.BaseConfiguration.Validate(); err != nil {
+		status.ReportError(err.Error())
+	}
+
 	return newConfig
 }
 

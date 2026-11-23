@@ -218,6 +218,9 @@ func TestServer(t *testing.T) {
 			require.NoError(t, err)
 
 			require.Equal(t, testCase.status, resp.StatusCode)
+			if testCase.status == http.StatusMethodNotAllowed {
+				require.Equal(t, http.MethodGet, resp.Header.Get("Allow"))
+			}
 			if testCase.status == http.StatusOK {
 				// we expect a JSON payload for 200
 				require.JSONEq(t, testCase.body, string(actual))

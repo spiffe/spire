@@ -352,7 +352,7 @@ func TestFetchX509SVID(t *testing.T) {
 
 func TestFetchX509Bundles(t *testing.T) {
 	ca := testca.New(t, td)
-	x509SVID := ca.CreateX509SVID(workloadID)
+	entry := &common.RegistrationEntry{EntryId: "id1", SpiffeId: workloadID.String()}
 
 	bundle := ca.Bundle()
 	bundleX509 := x509util.DERFromCertificates(bundle.X509Authorities())
@@ -362,11 +362,10 @@ func TestFetchX509Bundles(t *testing.T) {
 
 	for _, tt := range []struct {
 		testName                      string
-		updates                       []*cache.X509WorkloadUpdate
+		updates                       []*cache.EntriesAndBundlesUpdate
 		selectors                     []*common.Selector
 		logSelectors                  []string
 		attestErr                     error
-		managerErr                    error
 		expectCode                    codes.Code
 		expectMsg                     string
 		expectResp                    *workloadPB.X509BundlesResponse
@@ -375,7 +374,7 @@ func TestFetchX509Bundles(t *testing.T) {
 	}{
 		{
 			testName:   "no identity issued",
-			updates:    []*cache.X509WorkloadUpdate{{}},
+			updates:    []*cache.EntriesAndBundlesUpdate{{}},
 			expectCode: codes.PermissionDenied,
 			expectMsg:  "no identity issued",
 			expectLogs: []spiretest.LogEntry{
@@ -392,7 +391,7 @@ func TestFetchX509Bundles(t *testing.T) {
 		},
 		{
 			testName:     "no identity issued with loggable selectors",
-			updates:      []*cache.X509WorkloadUpdate{{}},
+			updates:      []*cache.EntriesAndBundlesUpdate{{}},
 			selectors:    []*common.Selector{k8sNamespaceSelector, k8sPodLabelSelector},
 			logSelectors: []string{"k8s:ns"},
 			expectCode:   codes.PermissionDenied,
@@ -428,29 +427,10 @@ func TestFetchX509Bundles(t *testing.T) {
 			},
 		},
 		{
-			testName:   "subscribe to cache changes error",
-			managerErr: errors.New("err"),
-			expectCode: codes.Unknown,
-			expectMsg:  "err",
-			expectLogs: []spiretest.LogEntry{
-				{
-					Level:   logrus.ErrorLevel,
-					Message: "Subscribe to cache changes failed",
-					Data: logrus.Fields{
-						"service":       "WorkloadAPI",
-						"method":        "FetchX509Bundles",
-						logrus.ErrorKey: "err",
-					},
-				},
-			},
-		},
-		{
 			testName: "cache update unexpectedly missing bundle",
-			updates: []*cache.X509WorkloadUpdate{
+			updates: []*cache.EntriesAndBundlesUpdate{
 				{
-					Identities: []cache.X509Identity{
-						identityFromX509SVID(x509SVID, "id1"),
-					},
+					Entries: []*common.RegistrationEntry{entry},
 				},
 			},
 			expectCode: codes.Unavailable,
@@ -469,12 +449,10 @@ func TestFetchX509Bundles(t *testing.T) {
 		},
 		{
 			testName: "success",
-			updates: []*cache.X509WorkloadUpdate{
+			updates: []*cache.EntriesAndBundlesUpdate{
 				{
-					Identities: []cache.X509Identity{
-						identityFromX509SVID(x509SVID, "id1"),
-					},
-					Bundle: bundle,
+					Entries: []*common.RegistrationEntry{entry},
+					Bundle:  bundle,
 					FederatedBundles: map[spiffeid.TrustDomain]*spiffebundle.Bundle{
 						federatedBundle.TrustDomain(): federatedBundle,
 					},
@@ -491,10 +469,10 @@ func TestFetchX509Bundles(t *testing.T) {
 		{
 			testName:                      "when allowed to fetch without identity",
 			allowUnauthenticatedVerifiers: true,
-			updates: []*cache.X509WorkloadUpdate{
+			updates: []*cache.EntriesAndBundlesUpdate{
 				{
-					Identities: []cache.X509Identity{},
-					Bundle:     bundle,
+					Entries: []*common.RegistrationEntry{},
+					Bundle:  bundle,
 					FederatedBundles: map[spiffeid.TrustDomain]*spiffebundle.Bundle{
 						federatedBundle.TrustDomain(): federatedBundle,
 					},
@@ -511,13 +489,12 @@ func TestFetchX509Bundles(t *testing.T) {
 		t.Run(tt.testName, func(t *testing.T) {
 			params := testParams{
 				CA:                            ca,
-				Updates:                       tt.updates,
+				EntriesAndBundlesUpdates:      tt.updates,
 				Selectors:                     tt.selectors,
 				LogSelectors:                  tt.logSelectors,
 				AttestErr:                     tt.attestErr,
 				ExpectLogs:                    tt.expectLogs,
 				AllowUnauthenticatedVerifiers: tt.allowUnauthenticatedVerifiers,
-				ManagerErr:                    tt.managerErr,
 			}
 			runTest(t, params,
 				func(ctx context.Context, client workloadPB.SpiffeWorkloadAPIClient) {
@@ -534,7 +511,7 @@ func TestFetchX509Bundles(t *testing.T) {
 
 func TestFetchX509Bundles_MultipleUpdates(t *testing.T) {
 	ca := testca.New(t, td)
-	x509SVID := ca.CreateX509SVID(workloadID)
+	entry := &common.RegistrationEntry{EntryId: "id1", SpiffeId: workloadID.String()}
 
 	bundle := ca.Bundle()
 	bundleX509 := x509util.DERFromCertificates(bundle.X509Authorities())
@@ -542,18 +519,14 @@ func TestFetchX509Bundles_MultipleUpdates(t *testing.T) {
 	otherBundle := testca.New(t, td).Bundle()
 	otherBundleX509 := x509util.DERFromCertificates(otherBundle.X509Authorities())
 
-	updates := []*cache.X509WorkloadUpdate{
+	updates := []*cache.EntriesAndBundlesUpdate{
 		{
-			Identities: []cache.X509Identity{
-				identityFromX509SVID(x509SVID, "id1"),
-			},
-			Bundle: bundle,
+			Entries: []*common.RegistrationEntry{entry},
+			Bundle:  bundle,
 		},
 		{
-			Identities: []cache.X509Identity{
-				identityFromX509SVID(x509SVID, "id1"),
-			},
-			Bundle: otherBundle,
+			Entries: []*common.RegistrationEntry{entry},
+			Bundle:  otherBundle,
 		},
 	}
 
@@ -572,7 +545,7 @@ func TestFetchX509Bundles_MultipleUpdates(t *testing.T) {
 
 	params := testParams{
 		CA:                            ca,
-		Updates:                       updates,
+		EntriesAndBundlesUpdates:      updates,
 		AttestErr:                     nil,
 		ExpectLogs:                    nil,
 		AllowUnauthenticatedVerifiers: false,
@@ -595,7 +568,7 @@ func TestFetchX509Bundles_MultipleUpdates(t *testing.T) {
 
 func TestFetchX509Bundles_SpuriousUpdates(t *testing.T) {
 	ca := testca.New(t, td)
-	x509SVID := ca.CreateX509SVID(workloadID)
+	entry := &common.RegistrationEntry{EntryId: "id1", SpiffeId: workloadID.String()}
 
 	bundle := ca.Bundle()
 	bundleX509 := x509util.DERFromCertificates(bundle.X509Authorities())
@@ -603,24 +576,18 @@ func TestFetchX509Bundles_SpuriousUpdates(t *testing.T) {
 	otherBundle := testca.New(t, td).Bundle()
 	otherBundleX509 := x509util.DERFromCertificates(otherBundle.X509Authorities())
 
-	updates := []*cache.X509WorkloadUpdate{
+	updates := []*cache.EntriesAndBundlesUpdate{
 		{
-			Identities: []cache.X509Identity{
-				identityFromX509SVID(x509SVID, "id1"),
-			},
-			Bundle: bundle,
+			Entries: []*common.RegistrationEntry{entry},
+			Bundle:  bundle,
 		},
 		{
-			Identities: []cache.X509Identity{
-				identityFromX509SVID(x509SVID, "id1"),
-			},
-			Bundle: bundle,
+			Entries: []*common.RegistrationEntry{entry},
+			Bundle:  bundle,
 		},
 		{
-			Identities: []cache.X509Identity{
-				identityFromX509SVID(x509SVID, "id1"),
-			},
-			Bundle: otherBundle,
+			Entries: []*common.RegistrationEntry{entry},
+			Bundle:  otherBundle,
 		},
 	}
 
@@ -639,7 +606,7 @@ func TestFetchX509Bundles_SpuriousUpdates(t *testing.T) {
 
 	params := testParams{
 		CA:                            ca,
-		Updates:                       updates,
+		EntriesAndBundlesUpdates:      updates,
 		AttestErr:                     nil,
 		ExpectLogs:                    nil,
 		AllowUnauthenticatedVerifiers: false,
@@ -660,6 +627,84 @@ func TestFetchX509Bundles_SpuriousUpdates(t *testing.T) {
 			resp, err = stream.Recv()
 			spiretest.RequireGRPCStatus(t, err, codes.OK, "")
 			spiretest.RequireProtoEqual(t, expectResp[1], resp)
+		})
+}
+
+func TestFetchX509Bundles_EntriesRemoved(t *testing.T) {
+	ca := testca.New(t, td)
+	entry := &common.RegistrationEntry{EntryId: "id1", SpiffeId: workloadID.String()}
+
+	bundle := ca.Bundle()
+	bundleX509 := x509util.DERFromCertificates(bundle.X509Authorities())
+
+	params := testParams{
+		CA: ca,
+		EntriesAndBundlesUpdates: []*cache.EntriesAndBundlesUpdate{
+			{
+				Entries: []*common.RegistrationEntry{entry},
+				Bundle:  bundle,
+			},
+			{
+				Bundle: bundle,
+			},
+		},
+		ExpectLogs: []spiretest.LogEntry{
+			{
+				Level:   logrus.ErrorLevel,
+				Message: "No identity issued",
+				Data: logrus.Fields{
+					"registered": "false",
+					"service":    "WorkloadAPI",
+					"method":     "FetchX509Bundles",
+				},
+			},
+		},
+	}
+
+	runTest(t, params,
+		func(ctx context.Context, client workloadPB.SpiffeWorkloadAPIClient) {
+			stream, err := client.FetchX509Bundles(ctx, &workloadPB.X509BundlesRequest{})
+			require.NoError(t, err)
+
+			resp, err := stream.Recv()
+			spiretest.RequireGRPCStatus(t, err, codes.OK, "")
+			spiretest.RequireProtoEqual(t, &workloadPB.X509BundlesResponse{
+				Bundles: map[string][]byte{
+					bundle.TrustDomain().IDString(): bundleX509,
+				},
+			}, resp)
+
+			// The stream is terminated once the workload no longer matches
+			// any registration entries.
+			resp, err = stream.Recv()
+			spiretest.RequireGRPCStatus(t, err, codes.PermissionDenied, "no identity issued")
+			require.Nil(t, resp)
+		})
+}
+
+func TestFetchX509Bundles_AgentNoIdentityNotLogged(t *testing.T) {
+	ca := testca.New(t, td)
+
+	// The agent health check calls FetchX509Bundles, typically without any
+	// registration entries matching the agent process. The denial must not be
+	// logged, and must not be reported as Unavailable, which would fail the
+	// health check.
+	params := testParams{
+		CA: ca,
+		EntriesAndBundlesUpdates: []*cache.EntriesAndBundlesUpdate{
+			{Bundle: ca.Bundle()},
+		},
+		AsPID: os.Getpid(),
+	}
+
+	runTest(t, params,
+		func(ctx context.Context, client workloadPB.SpiffeWorkloadAPIClient) {
+			stream, err := client.FetchX509Bundles(ctx, &workloadPB.X509BundlesRequest{})
+			require.NoError(t, err)
+
+			resp, err := stream.Recv()
+			spiretest.RequireGRPCStatus(t, err, codes.PermissionDenied, "no identity issued")
+			require.Nil(t, resp)
 		})
 }
 
@@ -1006,6 +1051,12 @@ func TestRateLimitAgentExemption(t *testing.T) {
 			Bundle:     ca.Bundle(),
 		},
 	}
+	entriesAndBundlesUpdates := []*cache.EntriesAndBundlesUpdate{
+		{
+			Entries: []*common.RegistrationEntry{identities[0].Entry},
+			Bundle:  ca.Bundle(),
+		},
+	}
 
 	for _, tt := range []struct {
 		name   string
@@ -1055,11 +1106,12 @@ func TestRateLimitAgentExemption(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			rl := &rejectAllRateLimiter{}
 			params := testParams{
-				CA:          ca,
-				Identities:  identities,
-				Updates:     updates,
-				AsPID:       os.Getpid(),
-				RateLimiter: rl,
+				CA:                       ca,
+				Identities:               identities,
+				Updates:                  updates,
+				EntriesAndBundlesUpdates: entriesAndBundlesUpdates,
+				AsPID:                    os.Getpid(),
+				RateLimiter:              rl,
 			}
 			runTest(t, params, func(ctx context.Context, c workloadPB.SpiffeWorkloadAPIClient) {
 				tt.invoke(t, ctx, c)
@@ -1146,7 +1198,7 @@ func TestFetchJWTBundles(t *testing.T) {
 	td := spiffeid.RequireTrustDomainFromString("domain.test")
 	ca := testca.New(t, td)
 
-	x509SVID := ca.CreateX509SVID(workloadID)
+	entry := &common.RegistrationEntry{EntryId: "id1", SpiffeId: workloadID.String()}
 
 	indent := func(in []byte) []byte {
 		buf := new(bytes.Buffer)
@@ -1173,11 +1225,10 @@ func TestFetchJWTBundles(t *testing.T) {
 
 	for _, tt := range []struct {
 		name                          string
-		updates                       []*cache.X509WorkloadUpdate
+		updates                       []*cache.EntriesAndBundlesUpdate
 		selectors                     []*common.Selector
 		logSelectors                  []string
 		attestErr                     error
-		managerErr                    error
 		expectCode                    codes.Code
 		expectMsg                     string
 		expectResp                    *workloadPB.JWTBundlesResponse
@@ -1186,7 +1237,7 @@ func TestFetchJWTBundles(t *testing.T) {
 	}{
 		{
 			name:       "no identity issued",
-			updates:    []*cache.X509WorkloadUpdate{{}},
+			updates:    []*cache.EntriesAndBundlesUpdate{{}},
 			expectCode: codes.PermissionDenied,
 			expectMsg:  "no identity issued",
 			expectLogs: []spiretest.LogEntry{
@@ -1203,7 +1254,7 @@ func TestFetchJWTBundles(t *testing.T) {
 		},
 		{
 			name:         "no identity issued with loggable selectors",
-			updates:      []*cache.X509WorkloadUpdate{{}},
+			updates:      []*cache.EntriesAndBundlesUpdate{{}},
 			selectors:    []*common.Selector{k8sNamespaceSelector, k8sPodLabelSelector},
 			logSelectors: []string{"k8s:ns"},
 			expectCode:   codes.PermissionDenied,
@@ -1239,29 +1290,10 @@ func TestFetchJWTBundles(t *testing.T) {
 			},
 		},
 		{
-			name:       "subscribe to cache changes error",
-			managerErr: errors.New("err"),
-			expectCode: codes.Unknown,
-			expectMsg:  "err",
-			expectLogs: []spiretest.LogEntry{
-				{
-					Level:   logrus.ErrorLevel,
-					Message: "Subscribe to cache changes failed",
-					Data: logrus.Fields{
-						"service":       "WorkloadAPI",
-						"method":        "FetchJWTBundles",
-						logrus.ErrorKey: "err",
-					},
-				},
-			},
-		},
-		{
 			name: "cache update unexpectedly missing bundle",
-			updates: []*cache.X509WorkloadUpdate{
+			updates: []*cache.EntriesAndBundlesUpdate{
 				{
-					Identities: []cache.X509Identity{
-						identityFromX509SVID(x509SVID, "id1"),
-					},
+					Entries: []*common.RegistrationEntry{entry},
 				},
 			},
 			expectCode: codes.Unavailable,
@@ -1280,12 +1312,10 @@ func TestFetchJWTBundles(t *testing.T) {
 		},
 		{
 			name: "success",
-			updates: []*cache.X509WorkloadUpdate{
+			updates: []*cache.EntriesAndBundlesUpdate{
 				{
-					Identities: []cache.X509Identity{
-						identityFromX509SVID(x509SVID, "id1"),
-					},
-					Bundle: bundle,
+					Entries: []*common.RegistrationEntry{entry},
+					Bundle:  bundle,
 					FederatedBundles: map[spiffeid.TrustDomain]*spiffebundle.Bundle{
 						federatedBundle.TrustDomain(): federatedBundle,
 					},
@@ -1301,12 +1331,10 @@ func TestFetchJWTBundles(t *testing.T) {
 		},
 		{
 			name: "WIT authorities excluded",
-			updates: []*cache.X509WorkloadUpdate{
+			updates: []*cache.EntriesAndBundlesUpdate{
 				{
-					Identities: []cache.X509Identity{
-						identityFromX509SVID(x509SVID, "id1"),
-					},
-					Bundle: bundleWithWIT,
+					Entries: []*common.RegistrationEntry{entry},
+					Bundle:  bundleWithWIT,
 					FederatedBundles: map[spiffeid.TrustDomain]*spiffebundle.Bundle{
 						federatedBundleWithWIT.TrustDomain(): federatedBundleWithWIT,
 					},
@@ -1323,10 +1351,10 @@ func TestFetchJWTBundles(t *testing.T) {
 		{
 			name:                          "when allowed to fetch without identity",
 			allowUnauthenticatedVerifiers: true,
-			updates: []*cache.X509WorkloadUpdate{
+			updates: []*cache.EntriesAndBundlesUpdate{
 				{
-					Identities: []cache.X509Identity{},
-					Bundle:     bundle,
+					Entries: []*common.RegistrationEntry{},
+					Bundle:  bundle,
 					FederatedBundles: map[spiffeid.TrustDomain]*spiffebundle.Bundle{
 						federatedBundle.TrustDomain(): federatedBundle,
 					},
@@ -1341,12 +1369,10 @@ func TestFetchJWTBundles(t *testing.T) {
 		},
 		{
 			name: "federated bundle with JWKS empty keys array",
-			updates: []*cache.X509WorkloadUpdate{
+			updates: []*cache.EntriesAndBundlesUpdate{
 				{
-					Identities: []cache.X509Identity{
-						identityFromX509SVID(x509SVID, "id1"),
-					},
-					Bundle: bundle,
+					Entries: []*common.RegistrationEntry{entry},
+					Bundle:  bundle,
 					FederatedBundles: map[spiffeid.TrustDomain]*spiffebundle.Bundle{
 						federatedBundle.TrustDomain(): spiffebundle.New(federatedBundle.TrustDomain()),
 					},
@@ -1364,13 +1390,12 @@ func TestFetchJWTBundles(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			params := testParams{
 				CA:                            ca,
-				Updates:                       tt.updates,
+				EntriesAndBundlesUpdates:      tt.updates,
 				Selectors:                     tt.selectors,
 				LogSelectors:                  tt.logSelectors,
 				AttestErr:                     tt.attestErr,
 				ExpectLogs:                    tt.expectLogs,
 				AllowUnauthenticatedVerifiers: tt.allowUnauthenticatedVerifiers,
-				ManagerErr:                    tt.managerErr,
 			}
 			runTest(t, params,
 				func(ctx context.Context, client workloadPB.SpiffeWorkloadAPIClient) {
@@ -1389,7 +1414,7 @@ func TestFetchJWTBundles_MultipleUpdates(t *testing.T) {
 	td := spiffeid.RequireTrustDomainFromString("domain.test")
 	ca := testca.New(t, td)
 
-	x509SVID := ca.CreateX509SVID(workloadID)
+	entry := &common.RegistrationEntry{EntryId: "id1", SpiffeId: workloadID.String()}
 
 	indent := func(in []byte) []byte {
 		buf := new(bytes.Buffer)
@@ -1407,18 +1432,14 @@ func TestFetchJWTBundles_MultipleUpdates(t *testing.T) {
 	require.NoError(t, err)
 	otherBundleJWKS = indent(otherBundleJWKS)
 
-	updates := []*cache.X509WorkloadUpdate{
+	updates := []*cache.EntriesAndBundlesUpdate{
 		{
-			Identities: []cache.X509Identity{
-				identityFromX509SVID(x509SVID, "id1"),
-			},
-			Bundle: bundle,
+			Entries: []*common.RegistrationEntry{entry},
+			Bundle:  bundle,
 		},
 		{
-			Identities: []cache.X509Identity{
-				identityFromX509SVID(x509SVID, "id1"),
-			},
-			Bundle: otherBundle,
+			Entries: []*common.RegistrationEntry{entry},
+			Bundle:  otherBundle,
 		},
 	}
 
@@ -1437,7 +1458,7 @@ func TestFetchJWTBundles_MultipleUpdates(t *testing.T) {
 
 	params := testParams{
 		CA:                            ca,
-		Updates:                       updates,
+		EntriesAndBundlesUpdates:      updates,
 		AttestErr:                     nil,
 		ExpectLogs:                    nil,
 		AllowUnauthenticatedVerifiers: false,
@@ -1462,7 +1483,7 @@ func TestFetchJWTBundles_SpuriousUpdates(t *testing.T) {
 	td := spiffeid.RequireTrustDomainFromString("domain.test")
 	ca := testca.New(t, td)
 
-	x509SVID := ca.CreateX509SVID(workloadID)
+	entry := &common.RegistrationEntry{EntryId: "id1", SpiffeId: workloadID.String()}
 
 	indent := func(in []byte) []byte {
 		buf := new(bytes.Buffer)
@@ -1480,24 +1501,18 @@ func TestFetchJWTBundles_SpuriousUpdates(t *testing.T) {
 	require.NoError(t, err)
 	otherBundleJWKS = indent(otherBundleJWKS)
 
-	updates := []*cache.X509WorkloadUpdate{
+	updates := []*cache.EntriesAndBundlesUpdate{
 		{
-			Identities: []cache.X509Identity{
-				identityFromX509SVID(x509SVID, "id1"),
-			},
-			Bundle: bundle,
+			Entries: []*common.RegistrationEntry{entry},
+			Bundle:  bundle,
 		},
 		{
-			Identities: []cache.X509Identity{
-				identityFromX509SVID(x509SVID, "id1"),
-			},
-			Bundle: bundle,
+			Entries: []*common.RegistrationEntry{entry},
+			Bundle:  bundle,
 		},
 		{
-			Identities: []cache.X509Identity{
-				identityFromX509SVID(x509SVID, "id1"),
-			},
-			Bundle: otherBundle,
+			Entries: []*common.RegistrationEntry{entry},
+			Bundle:  otherBundle,
 		},
 	}
 
@@ -1516,7 +1531,7 @@ func TestFetchJWTBundles_SpuriousUpdates(t *testing.T) {
 
 	params := testParams{
 		CA:                            ca,
-		Updates:                       updates,
+		EntriesAndBundlesUpdates:      updates,
 		AttestErr:                     nil,
 		ExpectLogs:                    nil,
 		AllowUnauthenticatedVerifiers: false,
@@ -1537,6 +1552,66 @@ func TestFetchJWTBundles_SpuriousUpdates(t *testing.T) {
 			resp, err = stream.Recv()
 			spiretest.RequireGRPCStatus(t, err, codes.OK, "")
 			spiretest.RequireProtoEqual(t, expectResp[1], resp)
+		})
+}
+
+func TestFetchJWTBundles_EntriesRemoved(t *testing.T) {
+	td := spiffeid.RequireTrustDomainFromString("domain.test")
+	ca := testca.New(t, td)
+
+	entry := &common.RegistrationEntry{EntryId: "id1", SpiffeId: workloadID.String()}
+
+	bundle := ca.Bundle()
+	bundleJWKS, err := bundle.JWTBundle().Marshal()
+	require.NoError(t, err)
+	buf := new(bytes.Buffer)
+	require.NoError(t, json.Indent(buf, bundleJWKS, "", "    "))
+	bundleJWKS = buf.Bytes()
+
+	updates := []*cache.EntriesAndBundlesUpdate{
+		{
+			Entries: []*common.RegistrationEntry{entry},
+			Bundle:  bundle,
+		},
+		{
+			Bundle: bundle,
+		},
+	}
+
+	params := testParams{
+		CA:                       ca,
+		EntriesAndBundlesUpdates: updates,
+		ExpectLogs: []spiretest.LogEntry{
+			{
+				Level:   logrus.ErrorLevel,
+				Message: "No identity issued",
+				Data: logrus.Fields{
+					"registered": "false",
+					"service":    "WorkloadAPI",
+					"method":     "FetchJWTBundles",
+				},
+			},
+		},
+	}
+
+	runTest(t, params,
+		func(ctx context.Context, client workloadPB.SpiffeWorkloadAPIClient) {
+			stream, err := client.FetchJWTBundles(ctx, &workloadPB.JWTBundlesRequest{})
+			require.NoError(t, err)
+
+			resp, err := stream.Recv()
+			spiretest.RequireGRPCStatus(t, err, codes.OK, "")
+			spiretest.RequireProtoEqual(t, &workloadPB.JWTBundlesResponse{
+				Bundles: map[string][]byte{
+					bundle.TrustDomain().IDString(): bundleJWKS,
+				},
+			}, resp)
+
+			// The stream is terminated once the workload no longer matches
+			// any registration entries.
+			resp, err = stream.Recv()
+			spiretest.RequireGRPCStatus(t, err, codes.PermissionDenied, "no identity issued")
+			require.Nil(t, resp)
 		})
 }
 
@@ -1953,11 +2028,11 @@ func TestValidateJWTSVID(t *testing.T) {
 	svid := ca.CreateJWTSVID(workloadID, []string{"AUDIENCE"})
 	federatedSVID := ca2.CreateJWTSVID(spiffeid.RequireFromPath(td2, "/federated-workload"), []string{"AUDIENCE"})
 
-	updatesWithBundleOnly := []*cache.X509WorkloadUpdate{{
+	updatesWithBundleOnly := []*cache.EntriesAndBundlesUpdate{{
 		Bundle: bundle,
 	}}
 
-	updatesWithFederatedBundle := []*cache.X509WorkloadUpdate{{
+	updatesWithFederatedBundle := []*cache.EntriesAndBundlesUpdate{{
 		Bundle: bundle,
 		FederatedBundles: map[spiffeid.TrustDomain]*spiffebundle.Bundle{
 			federatedBundle.TrustDomain(): federatedBundle,
@@ -1968,7 +2043,7 @@ func TestValidateJWTSVID(t *testing.T) {
 		name                    string
 		svid                    string
 		audience                string
-		updates                 []*cache.X509WorkloadUpdate
+		updates                 []*cache.EntriesAndBundlesUpdate
 		attestErr               error
 		expectCode              codes.Code
 		expectMsg               string
@@ -2201,10 +2276,10 @@ func TestValidateJWTSVID(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			params := testParams{
-				Updates:                 tt.updates,
-				AttestErr:               tt.attestErr,
-				ExpectLogs:              tt.expectLogs,
-				AllowedForeignJWTClaims: tt.allowedForeignJWTClaims,
+				EntriesAndBundlesUpdates: tt.updates,
+				AttestErr:                tt.attestErr,
+				ExpectLogs:               tt.expectLogs,
+				AllowedForeignJWTClaims:  tt.allowedForeignJWTClaims,
 			}
 			runTest(t, params,
 				func(ctx context.Context, client workloadPB.SpiffeWorkloadAPIClient) {
@@ -2228,6 +2303,7 @@ type testParams struct {
 	Identities                    []cache.X509Identity
 	Updates                       []*cache.X509WorkloadUpdate
 	WITUpdates                    []*cache.WITWorkloadUpdate
+	EntriesAndBundlesUpdates      []*cache.EntriesAndBundlesUpdate
 	Selectors                     []*common.Selector
 	LogSelectors                  []string
 	AttestErr                     error
@@ -2243,11 +2319,12 @@ func runTest(t *testing.T, params testParams, fn func(ctx context.Context, clien
 	log, logHook := test.NewNullLogger()
 
 	manager := &FakeManager{
-		ca:         params.CA,
-		identities: params.Identities,
-		updates:    params.Updates,
-		witUpdates: params.WITUpdates,
-		err:        params.ManagerErr,
+		ca:                       params.CA,
+		identities:               params.Identities,
+		updates:                  params.Updates,
+		witUpdates:               params.WITUpdates,
+		entriesAndBundlesUpdates: params.EntriesAndBundlesUpdates,
+		err:                      params.ManagerErr,
 	}
 
 	handler := workload.New(workload.Config{
@@ -2289,12 +2366,13 @@ func runTest(t *testing.T, params testParams, fn func(ctx context.Context, clien
 }
 
 type FakeManager struct {
-	ca          *testca.CA
-	identities  []cache.X509Identity
-	updates     []*cache.X509WorkloadUpdate
-	witUpdates  []*cache.WITWorkloadUpdate
-	subscribers atomic.Int32
-	err         error
+	ca                       *testca.CA
+	identities               []cache.X509Identity
+	updates                  []*cache.X509WorkloadUpdate
+	witUpdates               []*cache.WITWorkloadUpdate
+	entriesAndBundlesUpdates []*cache.EntriesAndBundlesUpdate
+	subscribers              atomic.Int32
+	err                      error
 }
 
 func (m *FakeManager) MatchingRegistrationEntries([]*common.Selector) []*common.RegistrationEntry {
@@ -2336,11 +2414,16 @@ func (m *FakeManager) SubscribeToWITCacheChanges(context.Context, cache.Selector
 	return newFakeSubscriber(m, m.witUpdates), nil
 }
 
-func (m *FakeManager) FetchWorkloadUpdate([]*common.Selector) *cache.X509WorkloadUpdate {
-	if len(m.updates) == 0 {
-		return &cache.X509WorkloadUpdate{}
+func (m *FakeManager) SubscribeToEntryAndBundleChanges(cache.Selectors) cache.Subscriber[cache.EntriesAndBundlesUpdate] {
+	m.subscribers.Add(1)
+	return newFakeSubscriber(m, m.entriesAndBundlesUpdates)
+}
+
+func (m *FakeManager) FetchEntriesAndBundles([]*common.Selector) *cache.EntriesAndBundlesUpdate {
+	if len(m.entriesAndBundlesUpdates) == 0 {
+		return &cache.EntriesAndBundlesUpdate{}
 	}
-	return m.updates[0]
+	return m.entriesAndBundlesUpdates[0]
 }
 
 func (m *FakeManager) Subscribers() int {

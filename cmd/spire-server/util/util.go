@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/spiffe/go-spiffe/v2/bundle/spiffebundle"
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
@@ -119,6 +120,14 @@ func Pluralizer(msg string, singular string, plural string, val int) string {
 	}
 
 	return result
+}
+
+// LifetimeCapped returns true if an SVID that expires at expiresAt was issued
+// with a lifetime shorter than the ttl requested at requestedAt. SVID
+// expirations only have a precision of one second, so a difference of up to
+// one second is not considered a cap.
+func LifetimeCapped(requestedAt time.Time, ttl time.Duration, expiresAt time.Time) bool {
+	return expiresAt.Add(time.Second).Before(requestedAt.Add(ttl))
 }
 
 // Command is a common interface for commands in this package. the adapter

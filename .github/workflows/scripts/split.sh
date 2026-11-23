@@ -3,7 +3,8 @@
 # suites assigned to shard THIS_RUNNER. Suites are assigned heaviest first to
 # the least loaded shard, using the approximate durations listed in
 # test/integration/suite-weights, so that every shard finishes at about the
-# same time.
+# same time. Suites listed in IGNORE_SUITES are left out, since test.sh skips
+# them and they would otherwise hold a slot on a shard for nothing.
 
 set -e
 
@@ -32,6 +33,9 @@ done < "${WEIGHTS_FILE}"
 weighted_suites=$(
         for dir in test/integration/suites/*; do
                 name=$(basename "${dir}")
+                if [[ " ${IGNORE_SUITES} " == *" suites/${name} "* ]]; then
+                        continue
+                fi
                 echo "${weight[${name}]:-${DEFAULT_WEIGHT}} ${name}"
         done | sort -k1,1nr -k2,2
 )

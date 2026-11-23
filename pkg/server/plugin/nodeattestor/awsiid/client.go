@@ -28,11 +28,12 @@ type Client interface {
 }
 
 type clientsCache struct {
-	mtx       sync.RWMutex
-	config    *SessionConfig
-	orgConfig *orgValidationConfig
-	clients   map[string]*cacheEntry
-	newClient newClientCallback
+	mtx        sync.RWMutex
+	config     *SessionConfig
+	partitions map[string]*SessionConfig
+	orgConfig  *orgValidationConfig
+	clients    map[string]*cacheEntry
+	newClient  newClientCallback
 }
 
 type cacheEntry struct {
@@ -49,12 +50,36 @@ func newClientsCache(newClient newClientCallback) *clientsCache {
 	}
 }
 
-func (cc *clientsCache) configure(config SessionConfig, orgConfig orgValidationConfig) {
+// configure sets the session config used for every region, or, if partitions is not empty, the session config used
+// for the regions of each partition.
+func (cc *clientsCache) configure(config SessionConfig, partitions map[string]*SessionConfig, orgConfig orgValidationConfig) {
 	cc.mtx.Lock()
 	cc.clients = make(map[string]*cacheEntry)
 	cc.config = &config
+	cc.partitions = partitions
 	cc.orgConfig = &orgConfig
 	cc.mtx.Unlock()
+}
+
+// sessionConfig returns the session config used for the region. If partitions are configured, it is the config of the
+// region's partition, and an error is returned if that partition is not configured.
+func (cc *clientsCache) sessionConfig(region string) (*SessionConfig, error) {
+	cc.mtx.RLock()
+	defer cc.mtx.RUnlock()
+
+	if cc.config == nil {
+		return nil, status.Error(codes.FailedPrecondition, "not configured")
+	}
+	if len(cc.partitions) == 0 {
+		return cc.config, nil
+	}
+
+	partition := partitionForRegion(region)
+	config, ok := cc.partitions[partition]
+	if !ok {
+		return nil, status.Errorf(codes.PermissionDenied, "region %q is in partition %q, which is not configured", region, partition)
+	}
+	return config, nil
 }
 
 func (cc *clientsCache) getClient(ctx context.Context, region, accountID string) (Client, error) {
@@ -81,22 +106,23 @@ func (cc *clientsCache) getClient(ctx context.Context, region, accountID string)
 		return r.client, nil
 	}
 
-	if cc.config == nil {
-		return nil, status.Error(codes.FailedPrecondition, "not configured")
+	config, err := cc.sessionConfig(region)
+	if err != nil {
+		return nil, err
 	}
 
 	var assumeRoleArn string
-	if cc.config.AssumeRole != "" {
-		assumeRoleArn = fmt.Sprintf("arn:%s:iam::%s:role/%s", cc.config.Partition, accountID, cc.config.AssumeRole)
+	if config.AssumeRole != "" {
+		assumeRoleArn = fmt.Sprintf("arn:%s:iam::%s:role/%s", config.Partition, accountID, config.AssumeRole)
 	}
 
 	// If organization attestation feature is enabled, assume org role
 	var orgRoleArn string
 	if cc.orgConfig.AccountRole != "" {
-		orgRoleArn = fmt.Sprintf("arn:%s:iam::%s:role/%s", cc.config.Partition, cc.orgConfig.AccountID, cc.orgConfig.AccountRole)
+		orgRoleArn = fmt.Sprintf("arn:%s:iam::%s:role/%s", config.Partition, cc.orgConfig.AccountID, cc.orgConfig.AccountRole)
 	}
 
-	client, err := cc.newClient(ctx, cc.config, region, assumeRoleArn, orgRoleArn)
+	client, err := cc.newClient(ctx, config, region, assumeRoleArn, orgRoleArn)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to create client: %v", err)
 	}
@@ -119,13 +145,13 @@ func (cc *clientsCache) getCachedClient(cacheKey string) *cacheEntry {
 }
 
 func newClient(ctx context.Context, config *SessionConfig, region string, assumeRoleARN string, orgRoleArn string) (Client, error) {
-	conf, err := newAWSConfig(ctx, config.AccessKeyID, config.SecretAccessKey, region, assumeRoleARN)
+	conf, err := newAWSConfig(ctx, config, region, assumeRoleARN)
 	if err != nil {
 		return nil, err
 	}
 
 	// If the organizationAttestation feature is enabled, use the role configured for feature.
-	orgConf, err := newAWSConfig(ctx, config.AccessKeyID, config.SecretAccessKey, region, orgRoleArn)
+	orgConf, err := newAWSConfig(ctx, config, region, orgRoleArn)
 	if err != nil {
 		return nil, err
 	}

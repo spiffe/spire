@@ -60,7 +60,7 @@ func (e *Endpoints) ListenAndServe(ctx context.Context) error {
 	case <-ctx.Done():
 		log.Info("Stopping Admin APIs")
 		server.Stop()
-		<-errChan
+		<-errChan //nolint:errcheck // Only wait for Serve to finish during shutdown.
 		log.Info("Admin APIs have stopped")
 		return nil
 	}
