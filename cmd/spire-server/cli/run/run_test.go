@@ -1,6 +1,7 @@
 package run
 
 import (
+	"context"
 	"crypto/x509/pkix"
 	"io"
 	"os"
@@ -2489,6 +2490,48 @@ func TestAgentTTL(t *testing.T) {
 		sconfig, err := NewServerConfig(config, []log.Option{}, false)
 		assert.NoError(t, err)
 		assert.Equal(t, c.expectedDuration, sconfig.AgentTTL)
+	}
+}
+
+func TestBundleEndpointServingCertFileSyncInterval(t *testing.T) {
+	for _, tt := range []struct {
+		name     string
+		config   *bundleEndpointConfig
+		expected string
+	}{
+		{
+			name:     "file_sync_interval is used when set",
+			config:   bundleEndpointProfileHTTPSWebServingCertFileTest(t),
+			expected: "5m0s",
+		},
+		{
+			name:     "file_sync_interval defaults to 1h when not set",
+			config:   bundleEndpointProfileHTTPSWebServingCertFileNoSyncIntervalTest(t),
+			expected: "1h0m0s",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			log, hook := test.NewNullLogger()
+			federationConfig := &server.FederationConfig{BundleEndpoint: &bundle.EndpointConfig{}}
+			require.NoError(t, setBundleEndpointConfigProfile(tt.config, t.TempDir(), log, federationConfig))
+			certManager := federationConfig.BundleEndpoint.DiskCertManager
+			require.NotNil(t, certManager)
+
+			// The cert manager does not expose its sync interval, but it logs
+			// the interval when it starts watching the files. Start it with a
+			// canceled context so that it returns right away.
+			ctx, cancel := context.WithCancel(context.Background())
+			cancel()
+			certManager.WatchFileChanges(ctx)
+
+			spiretest.AssertLogsContainEntries(t, hook.AllEntries(), []spiretest.LogEntry{
+				{
+					Level:   logrus.InfoLevel,
+					Message: "Started watching certificate files",
+					Data:    logrus.Fields{"interval": tt.expected},
+				},
+			})
+		})
 	}
 }
 
