@@ -18,6 +18,7 @@ import (
 	"github.com/spiffe/spire/pkg/common/rotationutil"
 	"github.com/spiffe/spire/pkg/common/telemetry"
 	"github.com/spiffe/spire/pkg/common/tlspolicy"
+	"google.golang.org/grpc/keepalive"
 )
 
 const DefaultRotatorInterval = 5 * time.Second
@@ -51,6 +52,10 @@ type RotatorConfig struct {
 	// LoadBalancingConfig is an optional, opaque payload used as the
 	// loadBalancingConfig field of the gRPC service config.
 	LoadBalancingConfig string
+
+	// Keepalive optionally enables client keepalive pings on connections to
+	// the SPIRE server; nil disables them.
+	Keepalive *keepalive.ClientParameters
 }
 
 func NewRotator(c *RotatorConfig) (Rotator, client.Client) {
@@ -95,6 +100,7 @@ func newRotator(c *RotatorConfig) (*rotator, client.Client) {
 		},
 		TLSPolicy:           c.TLSPolicy,
 		LoadBalancingConfig: c.LoadBalancingConfig,
+		Keepalive:           c.Keepalive,
 	}
 	client := client.New(cfg)
 
