@@ -29,12 +29,12 @@ func TestIsMemberAccount(t *testing.T) {
 	// pass valid account
 	ok, err := testOrgValidator.IsMemberAccount(context.Background(), testClient, testAccountID)
 	require.NoError(t, err)
-	require.Equal(t, ok, true)
+	require.True(t, ok)
 
 	// fail valid account doesnt exist
 	ok, err = testOrgValidator.IsMemberAccount(context.Background(), testClient, "9999999")
 	require.NoError(t, err)
-	require.Equal(t, ok, false)
+	require.False(t, ok)
 }
 
 func TestCheckIfOrgAccountListIsStale(t *testing.T) {
@@ -59,7 +59,7 @@ func TestReloadAccountList(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, testOrgValidator.orgAccountList, 1)
 	require.Greater(t, testOrgValidator.orgAccountListValidDuration, time.Now())
-	require.Equal(t, testOrgValidator.retries, orgAccountRetries)
+	require.Equal(t, orgAccountRetries, testOrgValidator.retries)
 
 	// check if the list of accounts is updated when catchburst is true
 	// but the timestamp is not updated
@@ -86,10 +86,10 @@ func TestReloadAccountList(t *testing.T) {
 	require.Len(t, testOrgValidator.orgAccountList, 1)
 	testOrgValidator.clk = buildNewMockClock(10*time.Minute, testClockMutAfter)
 	testOrgValidator.retries = 0 // trigger refresh to reset retries
-	require.Equal(t, testOrgValidator.retries, 0)
+	require.Equal(t, 0, testOrgValidator.retries)
 	_, err = testOrgValidator.reloadAccountList(context.Background(), testClient, false)
 	require.NoError(t, err)
-	require.Equal(t, testOrgValidator.retries, orgAccountRetries)
+	require.Equal(t, orgAccountRetries, testOrgValidator.retries)
 
 	// make sure errors is handled when list accounts call fails
 	// while making subsequent calls

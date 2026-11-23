@@ -167,7 +167,7 @@ func TestGetBundle(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, insecureBootstrap, testCase.insecureBootstrap)
 				if testCase.trustBundlePath != "" {
-					require.Equal(t, len(trustBundle), 1)
+					require.Len(t, trustBundle, 1)
 				}
 			}
 		})

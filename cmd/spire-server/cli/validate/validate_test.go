@@ -53,7 +53,7 @@ func (s *ValidateSuite) TestHelp() {
 func (s *ValidateSuite) TestBadFlags() {
 	code := s.cmd.Run([]string{"-badflag"})
 	s.NotEqual(0, code, "exit code")
-	s.Equal("", s.stdout.String(), "stdout")
+	s.Empty(s.stdout.String(), "stdout")
 	s.Contains(s.stderr.String(), "flag provided but not defined: -badflag")
 }
 

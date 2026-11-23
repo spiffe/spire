@@ -1,7 +1,6 @@
 package plugin_test
 
 import (
-	"errors"
 	"testing"
 
 	"github.com/spiffe/spire/pkg/common/plugin"
@@ -33,25 +32,25 @@ func TestPrefixMessage(t *testing.T) {
 
 func TestFacadeWrapErr(t *testing.T) {
 	t.Run("nil error", func(t *testing.T) {
-		assert.Nil(t, facade.WrapErr(nil))
+		assert.NoError(t, facade.WrapErr(nil))
 	})
 
 	t.Run("standard error without prefix", func(t *testing.T) {
 		err := facade.WrapErr(ohnoError(""))
-		assert.EqualError(t, err, "type(name): ohno")
-		assert.True(t, errors.Is(err, ohnoError("")))
+		require.EqualError(t, err, "type(name): ohno")
+		assert.ErrorIs(t, err, ohnoError(""))
 	})
 
 	t.Run("standard error with old prefix prefixed", func(t *testing.T) {
 		err := facade.WrapErr(ohnoError("name: "))
-		assert.EqualError(t, err, "type(name): ohno")
-		assert.True(t, errors.Is(err, ohnoError("name: ")))
+		require.EqualError(t, err, "type(name): ohno")
+		assert.ErrorIs(t, err, ohnoError("name: "))
 	})
 
 	t.Run("standard error already prefixed", func(t *testing.T) {
 		err := facade.WrapErr(ohnoError("type(name): "))
-		assert.EqualError(t, err, "type(name): ohno")
-		assert.True(t, errors.Is(err, ohnoError("type(name): ")))
+		require.EqualError(t, err, "type(name): ohno")
+		assert.ErrorIs(t, err, ohnoError("type(name): "))
 	})
 
 	t.Run("grpc status without prefix", func(t *testing.T) {

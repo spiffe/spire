@@ -16,8 +16,8 @@ func TestDomainAllowlist(t *testing.T) {
 	t.Run("punycode", func(t *testing.T) {
 		policy, err := DomainAllowlist("xn--n38h.test")
 		require.NoError(t, err)
-		assert.EqualError(t, policy("😬.test"), `domain "😬.test" must already be punycode encoded`)
-		assert.NoError(t, policy("xn--n38h.test"))
+		require.EqualError(t, policy("😬.test"), `domain "😬.test" must already be punycode encoded`)
+		require.NoError(t, policy("xn--n38h.test"))
 		assert.EqualError(t, policy("bad.test"), `domain "bad.test" is not allowed`)
 	})
 

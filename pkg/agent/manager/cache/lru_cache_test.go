@@ -48,7 +48,7 @@ func TestLRUCacheFetchWorkloadUpdate(t *testing.T) {
 	cache.UpdateEntries(updateEntries, nil)
 
 	workloadUpdate := cache.FetchWorkloadUpdate(makeSelectors("A", "B"))
-	assert.Len(t, workloadUpdate.Identities, 0, "identities should not be returned that don't have SVIDs")
+	assert.Empty(t, workloadUpdate.Identities, "identities should not be returned that don't have SVIDs")
 
 	cache.UpdateSVIDs(makeX509SVIDs(foo, bar))
 
@@ -1049,7 +1049,7 @@ func TestLRUCacheMaxSVIDCacheSize(t *testing.T) {
 	require.Len(t, cache.GetStaleEntries(), svidCacheMaxSize)
 
 	cache.UpdateSVIDs(makeX509SVIDsFromStaleEntries(cache.GetStaleEntries()))
-	require.Len(t, cache.GetStaleEntries(), 0)
+	require.Empty(t, cache.GetStaleEntries())
 	assert.Equal(t, svidCacheMaxSize, cache.CountSVIDs())
 
 	// Validate that active subscriber will still get SVID even if SVID count is at maxSvidCacheSize
@@ -1065,7 +1065,7 @@ func TestLRUCacheMaxSVIDCacheSize(t *testing.T) {
 
 	cache.UpdateSVIDs(makeX509SVIDs(foo))
 	assert.Equal(t, svidCacheMaxSize+1, cache.CountSVIDs())
-	require.Len(t, cache.GetStaleEntries(), 0)
+	require.Empty(t, cache.GetStaleEntries())
 }
 
 func TestSyncSVIDsWithSubscribers(t *testing.T) {
@@ -1087,7 +1087,7 @@ func TestSyncSVIDsWithSubscribers(t *testing.T) {
 	// Create a subscriber for foo
 	subA := cache.NewSubscriber(foo.Selectors)
 	defer subA.Finish()
-	require.Len(t, cache.GetStaleEntries(), 0)
+	require.Empty(t, cache.GetStaleEntries())
 
 	// After SyncSVIDsWithSubscribers foo should be marked as stale, requiring signing
 	cache.SyncSVIDsWithSubscribers()
@@ -1273,7 +1273,7 @@ func TestSubscribeToX509WorkloadUpdatesLRUNoSelectors(t *testing.T) {
 
 	select {
 	case err := <-subErrCh:
-		assert.NoError(t, err, "subscriber failed")
+		require.NoError(t, err, "subscriber failed")
 	case <-time.After(10 * time.Second):
 		require.FailNow(t, "timed out waiting for notification")
 	}
@@ -1343,14 +1343,14 @@ func TestSubscribeToLRUCacheChanges(t *testing.T) {
 
 	select {
 	case sub1Err := <-sub1ErrCh:
-		assert.NoError(t, sub1Err, "subscriber 1 error")
+		require.NoError(t, sub1Err, "subscriber 1 error")
 	case <-time.After(10 * time.Second):
 		require.FailNow(t, "timed out waiting for SVID")
 	}
 
 	select {
 	case sub2Err := <-sub2ErrCh:
-		assert.NoError(t, sub2Err, "subscriber 2 error")
+		require.NoError(t, sub2Err, "subscriber 2 error")
 	case <-time.After(10 * time.Second):
 		require.FailNow(t, "timed out waiting for SVID")
 	}

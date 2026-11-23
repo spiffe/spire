@@ -4,16 +4,15 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/spiffe/spire-api-sdk/proto/spire/api/types"
 	"github.com/spiffe/spire/cmd/spire-server/cli/logger"
+	"github.com/stretchr/testify/require"
 )
 
 func TestGetHelp(t *testing.T) {
 	test := setupCliTest(t, &mockLoggerService{}, logger.NewGetCommandWithEnv)
 	test.client.Help()
-	require.Equal(t, "", test.stdout.String())
+	require.Empty(t, test.stdout.String())
 	require.Equal(t, getUsage, test.stderr.String())
 }
 

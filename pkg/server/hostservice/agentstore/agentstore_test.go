@@ -65,7 +65,7 @@ func TestAgentStore(t *testing.T) {
 			if testCase.deps != nil {
 				err := s.SetDeps(*testCase.deps)
 				if testCase.depsErr != "" {
-					spiretest.AssertErrorContains(t, err, testCase.depsErr)
+					assert.ErrorContains(err, testCase.depsErr)
 					return
 				}
 			}

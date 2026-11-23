@@ -136,7 +136,7 @@ func TestContainerIDFinders(t *testing.T) {
 			for _, noMatch := range tt.expectNoMatch {
 				id, ok := cf.FindContainerID(noMatch)
 				assert.False(t, ok, "expected to not find %q but did", noMatch)
-				assert.Equal(t, "", id)
+				assert.Empty(t, id)
 			}
 
 			for _, m := range tt.expectMatches {

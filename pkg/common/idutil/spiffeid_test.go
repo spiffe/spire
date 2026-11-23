@@ -5,6 +5,7 @@ import (
 
 	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 var td = spiffeid.RequireTrustDomainFromString("domain.test")
@@ -12,7 +13,7 @@ var td = spiffeid.RequireTrustDomainFromString("domain.test")
 func TestMemberFromString(t *testing.T) {
 	t.Run("is member", func(t *testing.T) {
 		id, err := MemberFromString(td, "spiffe://domain.test/foo")
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "spiffe://domain.test/foo", id.String())
 	})
 	t.Run("is not a member", func(t *testing.T) {
@@ -45,7 +46,7 @@ func TestIsReservedPath(t *testing.T) {
 func TestAgentID(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		id, err := AgentID(td, "/suffix")
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "spiffe://domain.test/spire/agent/suffix", id.String())
 	})
 	t.Run("trust domain is empty", func(t *testing.T) {
@@ -61,7 +62,7 @@ func TestAgentID(t *testing.T) {
 func TestServerID(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		id, err := ServerID(td)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "spiffe://domain.test/spire/server", id.String())
 	})
 	t.Run("trust domain is empty", func(t *testing.T) {

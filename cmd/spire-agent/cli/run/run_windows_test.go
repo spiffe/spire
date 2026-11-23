@@ -159,7 +159,7 @@ func TestParseFlagsGood(t *testing.T) {
 	assert.Equal(t, "conf/agent/dummy_root_ca.crt", c.TrustBundlePath)
 	assert.Equal(t, "https://test.url", c.TrustBundleURL)
 	assert.Equal(t, "example.org", c.TrustDomain)
-	assert.Equal(t, true, c.AllowUnauthenticatedVerifiers)
+	assert.True(t, c.AllowUnauthenticatedVerifiers)
 }
 
 func TestParseConfigGood(t *testing.T) {
@@ -172,7 +172,7 @@ func TestParseConfigGood(t *testing.T) {
 	assert.Equal(t, "\\spire-agent\\public\\api", c.Agent.Experimental.NamedPipeName)
 	assert.Equal(t, "conf/agent/dummy_root_ca.crt", c.Agent.TrustBundlePath)
 	assert.Equal(t, "example.org", c.Agent.TrustDomain)
-	assert.Equal(t, true, c.Agent.AllowUnauthenticatedVerifiers)
+	assert.True(t, c.Agent.AllowUnauthenticatedVerifiers)
 	assert.Equal(t, []string{"c1", "c2", "c3"}, c.Agent.AllowedForeignJWTClaims)
 
 	// Parse/reprint cycle trims outer whitespace

@@ -13,6 +13,7 @@ import (
 	"github.com/spiffe/spire/pkg/server/api/rpccontext"
 	"github.com/spiffe/spire/test/spiretest"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 )
 
@@ -43,7 +44,7 @@ func TestWithCallerEntries(t *testing.T) {
 		// Assert that the call succeeds and returns a new context and the entries.
 		assert.NotEqual(t, ctxIn, ctxOut1)
 		assert.Equal(t, adminEntries, entries)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		// Now call again and make sure it returns the same context. The failing
 		// fetcher is used to ensure it is not called because the context

@@ -285,7 +285,7 @@ func setupTest(t *testing.T, bundlePublishers []bundlepublisher.BundlePublisher)
 func runManager(t *testing.T, test *managerTest) (done func()) {
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
-		require.NoError(t, test.m.Run(ctx))
+		assert.NoError(t, test.m.Run(ctx))
 	}()
 	return func() {
 		cancel()

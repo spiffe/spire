@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type (
@@ -55,10 +56,11 @@ func TestCheckedCast(t *testing.T) {
 func assertCastOK[To, From Int](t *testing.T, v From) {
 	t.Helper()
 	assert := assert.New(t)
+	require := require.New(t)
 
 	x, err := CheckedCast[To](v)
 	assert.Equal(To(v), x)
-	assert.NoError(err)
+	require.NoError(err)
 
 	var y To
 	assert.NotPanics(func() { y = MustCast[To](v) })
@@ -68,9 +70,10 @@ func assertCastOK[To, From Int](t *testing.T, v From) {
 func assertCastFail[To, From Int](t *testing.T, v From) {
 	t.Helper()
 	assert := assert.New(t)
+	require := require.New(t)
 
 	x, err := CheckedCast[To](v)
-	assert.ErrorContains(err, "overflow")
+	require.ErrorContains(err, "overflow")
 	assert.Equal(To(0), x)
 
 	assert.Panics(func() { MustCast[To](v) })

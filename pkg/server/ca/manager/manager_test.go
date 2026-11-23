@@ -893,7 +893,7 @@ func TestUpstreamAuthorityWithPublishJWTKeyImplemented(t *testing.T) {
 	ctx := context.Background()
 	test := setupTest(t)
 	bundle := test.createBundle(ctx)
-	require.Len(t, bundle.JwtSigningKeys, 0)
+	require.Empty(t, bundle.JwtSigningKeys)
 
 	upstreamAuthority, ua := test.newFakeUpstreamAuthority(t, fakeupstreamauthority.Config{
 		TrustDomain: testTrustDomain,
@@ -913,7 +913,7 @@ func TestUpstreamAuthorityWithPublishWITKeyImplemented(t *testing.T) {
 	ctx := context.Background()
 	test := setupTest(t)
 	bundle := test.createBundle(ctx)
-	require.Len(t, bundle.WitSigningKeys, 0)
+	require.Empty(t, bundle.WitSigningKeys)
 
 	upstreamAuthority, ua := test.newFakeUpstreamAuthority(t, fakeupstreamauthority.Config{
 		TrustDomain: testTrustDomain,
@@ -994,7 +994,7 @@ func TestUpstreamAuthorityWithSubscribeToBundleUpdate(t *testing.T) {
 		UseIntermediate:           true,
 	})
 	bundle := test.createBundle(ctx)
-	require.Len(t, bundle.JwtSigningKeys, 0)
+	require.Empty(t, bundle.JwtSigningKeys)
 
 	test.initAndActivateUpstreamSignedManager(ctx, upstreamAuthority)
 
