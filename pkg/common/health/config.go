@@ -1,14 +1,20 @@
 package health
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 
 	"github.com/hashicorp/hcl/hcl/token"
 )
+
+// registeredAt matches the source location that http.ServeMux adds to the
+// message of a conflict, which is of no use in a configuration error.
+var registeredAt = regexp.MustCompile(` \(registered at [^)]*\)`)
 
 type Config struct {
 	ListenerEnabled bool `hcl:"listener_enabled"`
@@ -72,35 +78,36 @@ type Details struct {
 // not used then.
 //
 // http.ServeMux panics instead of returning an error when it is given a path
-// it does not accept (for example one without a leading slash) or when the
-// same path is registered twice, so the paths have to be checked before the
-// checker is created.
+// it does not accept (for example one without a leading slash) or a path that
+// conflicts with one it already has (for example the same path twice, or
+// "/a/{x}" and "/a/{y}"), so the paths have to be checked before the checker
+// is created.
 func (c *Config) Validate() error {
 	if !c.ListenerEnabled {
 		return nil
 	}
 
-	readyPath, livePath := c.getReadyPath(), c.getLivePath()
-	if readyPath == livePath {
-		return fmt.Errorf("health_checks ready_path and live_path must be different, both are %q", readyPath)
-	}
-	if err := validatePath(readyPath); err != nil {
+	// Register both paths on the same mux, as NewChecker does, so that a
+	// conflict between them is reported too.
+	mux := http.NewServeMux()
+	if err := registerPath(mux, c.getReadyPath()); err != nil {
 		return fmt.Errorf("invalid health_checks ready_path: %w", err)
 	}
-	if err := validatePath(livePath); err != nil {
+	if err := registerPath(mux, c.getLivePath()); err != nil {
 		return fmt.Errorf("invalid health_checks live_path: %w", err)
 	}
 	return nil
 }
 
-// validatePath returns an error if http.ServeMux does not accept the path.
-func validatePath(path string) (err error) {
+// registerPath registers the path on the mux and returns an error instead of
+// panicking if the mux does not accept it.
+func registerPath(mux *http.ServeMux, path string) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
-			err = fmt.Errorf("%v", r)
+			err = errors.New(registeredAt.ReplaceAllString(fmt.Sprint(r), ""))
 		}
 	}()
-	http.NewServeMux().HandleFunc(path, func(http.ResponseWriter, *http.Request) {})
+	mux.HandleFunc(path, func(http.ResponseWriter, *http.Request) {})
 	return nil
 }
 

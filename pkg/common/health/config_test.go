@@ -74,18 +74,31 @@ func TestValidate(t *testing.T) {
 		{
 			name:        "same paths",
 			config:      Config{ListenerEnabled: true, ReadyPath: "/health", LivePath: "/health"},
-			expectedErr: `health_checks ready_path and live_path must be different, both are "/health"`,
+			expectedErr: `invalid health_checks live_path: pattern "/health" conflicts with pattern "/health":`,
 		},
 		{
 			name:        "live_path is the default ready_path",
 			config:      Config{ListenerEnabled: true, LivePath: "/ready"},
-			expectedErr: `health_checks ready_path and live_path must be different, both are "/ready"`,
+			expectedErr: `invalid health_checks live_path: pattern "/ready" conflicts with pattern "/ready":`,
+		},
+		{
+			name:        "different paths that match the same requests",
+			config:      Config{ListenerEnabled: true, ReadyPath: "/health/{probe}", LivePath: "/health/{check}"},
+			expectedErr: `/health/{check} matches the same requests as /health/{probe}`,
+		},
+		{
+			name:        "different paths that overlap and neither is more specific",
+			config:      Config{ListenerEnabled: true, ReadyPath: "/health/{probe}", LivePath: "/{check}/live"},
+			expectedErr: `neither is more specific than the other`,
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			err := tt.config.Validate()
 			if tt.expectedErr != "" {
-				require.EqualError(t, err, tt.expectedErr)
+				// The message of a conflict between the two paths comes from
+				// http.ServeMux and has several lines, so only part of it is
+				// compared.
+				require.ErrorContains(t, err, tt.expectedErr)
 				return
 			}
 			require.NoError(t, err)
