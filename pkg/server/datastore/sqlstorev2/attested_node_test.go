@@ -320,6 +320,7 @@ func TestTolerateStaleReadsUseReadOnlyConnection(t *testing.T) {
 	ro := newSQLitePlugin(t)
 	configure(t, ro, fmt.Sprintf("database_type = \"sqlite3\"\nconnection_string = %q\n", roPath))
 	require.NoError(t, ro.SetNodeSelectors(ctx, id, []*common.Selector{{Type: "db", Value: "ro"}}))
+	require.NoError(t, ro.CreateAttestedNodeEventForTesting(ctx, &datastore.AttestedNodeEvent{SpiffeID: "spiffe://example.org/ro"}))
 
 	ds := newSQLitePlugin(t)
 	ds.dialectFor = func(databaseType string, log logrus.FieldLogger) (dialect, error) {
@@ -328,6 +329,7 @@ func TestTolerateStaleReadsUseReadOnlyConnection(t *testing.T) {
 	}
 	configure(t, ds, fmt.Sprintf("database_type = \"sqlite3\"\nconnection_string = %q\nro_connection_string = %q\n", rwPath, roPath))
 	require.NoError(t, ds.SetNodeSelectors(ctx, id, []*common.Selector{{Type: "db", Value: "rw"}}))
+	require.NoError(t, ds.CreateAttestedNodeEventForTesting(ctx, &datastore.AttestedNodeEvent{SpiffeID: "spiffe://example.org/rw"}))
 
 	for _, tt := range []struct {
 		consistency datastore.DataConsistency
@@ -347,7 +349,7 @@ func TestTolerateStaleReadsUseReadOnlyConnection(t *testing.T) {
 
 		events, err := ds.ListAttestedNodeEvents(ctx, &datastore.ListAttestedNodeEventsRequest{DataConsistency: tt.consistency})
 		require.NoError(t, err)
-		require.Len(t, events.Events, 1)
+		require.Equal(t, []string{id, "spiffe://example.org/" + tt.expected}, eventSpiffeIDs(events))
 	}
 }
 
@@ -379,6 +381,24 @@ func TestNodeReadsNullColumns(t *testing.T) {
 	fetched, err := ds.FetchAttestedNode(ctx, node.SpiffeId)
 	require.NoError(t, err)
 	spiretest.AssertProtoEqual(t, expected, fetched)
+
+	require.NoError(t, ds.SetNodeSelectors(ctx, "spiffe://example.org/orphan", []*common.Selector{{Type: "b", Value: "2"}}))
+	require.NoError(t, ds.RawExec("UPDATE node_resolver_map_entries SET spiffe_id = NULL WHERE type = 'b'"))
+	listed, err = ds.ListNodeSelectors(ctx, &datastore.ListNodeSelectorsRequest{})
+	require.NoError(t, err)
+	spiretest.AssertProtoListEqual(t, []*common.Selector{{Type: "b", Value: "2"}}, listed.Selectors[""])
+
+	// A NULL-type selector row does not keep a node out of Subset or Exact.
+	other := &common.AttestedNode{SpiffeId: "spiffe://example.org/other", CertNotAfter: 1}
+	_, err = ds.CreateAttestedNode(ctx, other)
+	require.NoError(t, err)
+	require.NoError(t, ds.SetNodeSelectors(ctx, other.SpiffeId, []*common.Selector{{Type: "a", Value: "1"}, {Type: "z", Value: "x"}}))
+	require.NoError(t, ds.RawExec("UPDATE node_resolver_map_entries SET type = NULL WHERE type = 'z'"))
+	for _, match := range []datastore.MatchBehavior{datastore.Subset, datastore.Exact} {
+		resp, err := ds.ListAttestedNodes(ctx, &datastore.ListAttestedNodesRequest{BySelectorMatch: &datastore.BySelectors{Match: match, Selectors: []*common.Selector{{Type: "a", Value: "1"}}}})
+		require.NoError(t, err)
+		require.Equal(t, []string{other.SpiffeId}, nodeIDs(resp.Nodes), "match %d", match)
+	}
 }
 
 func newNodeTestPlugin(t *testing.T) *Plugin {

@@ -45,7 +45,7 @@ func (ds *Plugin) CreateAttestedNode(ctx context.Context, node *common.AttestedN
 
 // FetchAttestedNode returns nil if the node does not exist.
 func (ds *Plugin) FetchAttestedNode(ctx context.Context, spiffeID string) (attestedNode *common.AttestedNode, err error) {
-	if err = ds.withReadTx(ctx, func(tx *gorm.DB) (err error) {
+	if err = ds.withReadDB(ctx, datastore.RequireCurrent, func(tx *gorm.DB) (err error) {
 		attestedNode, err = fetchAttestedNode(tx, spiffeID)
 		return err
 	}); err != nil {
@@ -208,12 +208,11 @@ func (ds *Plugin) ListNodeSelectors(ctx context.Context, req *datastore.ListNode
 		}
 		defer rows.Close()
 		for rows.Next() {
-			var id string
-			var selectorType, value sql.NullString
+			var id, selectorType, value sql.NullString
 			if err := rows.Scan(&id, &selectorType, &value); err != nil {
 				return sqlcommon.NewWrappedSQLError(err)
 			}
-			resp.Selectors[id] = append(resp.Selectors[id], &common.Selector{Type: selectorType.String, Value: value.String})
+			resp.Selectors[id.String] = append(resp.Selectors[id.String], &common.Selector{Type: selectorType.String, Value: value.String})
 		}
 		return sqlcommon.NewWrappedSQLError(rows.Err())
 	}); err != nil {
@@ -320,7 +319,7 @@ func filterNodesBySelectors(query *gorm.DB, dbType string, by *datastore.BySelec
 	// NOT EXISTS rather than NOT IN: PostgreSQL rescans a NOT IN subquery per
 	// row once its result outgrows work_mem.
 	outside := query.Session(&gorm.Session{NewDB: true}).Table("node_resolver_map_entries AS o").Select("1").
-		Where("o.spiffe_id = attested_node_entries.spiffe_id").Where("NOT ("+inSetExact+")", args...)
+		Where("o.spiffe_id = attested_node_entries.spiffe_id").Where("o.type IS NOT NULL").Where("NOT ("+inSetExact+")", args...)
 
 	// Joining the matching set, rather than IN (subquery), lets PostgreSQL
 	// build it once with a hash join instead of probing the selector index
