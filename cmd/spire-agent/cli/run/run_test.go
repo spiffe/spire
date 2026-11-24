@@ -1098,6 +1098,38 @@ func TestNewAgentConfig(t *testing.T) {
 			},
 		},
 		{
+			msg:         "health_checks live_path without a leading slash returns an error",
+			expectError: true,
+			input: func(c *Config) {
+				c.HealthChecks.ListenerEnabled = true
+				c.HealthChecks.LivePath = "live"
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
+			msg:         "health_checks ready_path and live_path that are the same return an error",
+			expectError: true,
+			input: func(c *Config) {
+				c.HealthChecks.ListenerEnabled = true
+				c.HealthChecks.ReadyPath = "/health"
+				c.HealthChecks.LivePath = "/health"
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.Nil(t, c)
+			},
+		},
+		{
+			msg: "health_checks paths are not checked when the listener is disabled",
+			input: func(c *Config) {
+				c.HealthChecks.LivePath = "live"
+			},
+			test: func(t *testing.T, c *agent.Config) {
+				require.NotNil(t, c)
+			},
+		},
+		{
 			msg:         "invalid log_level returns an error",
 			expectError: true,
 			input: func(c *Config) {

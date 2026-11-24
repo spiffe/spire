@@ -936,6 +936,9 @@ func newAgentConfig(c *Config, logOptions []log.Option, allowUnknownConfig, skip
 	if err := c.HealthChecks.ParseCheckInterval(); err != nil {
 		return nil, err
 	}
+	if err := c.HealthChecks.Validate(); err != nil {
+		return nil, err
+	}
 	ac.HealthChecks = c.HealthChecks
 
 	if !allowUnknownConfig {
