@@ -88,3 +88,46 @@ func TestAliasAbuse(t *testing.T) {
 	require.NoError(t, yaml.Unmarshal([]byte("a: &a\n  x: *a\n"), node))
 	require.ErrorContains(t, yamlconfig.DecodeNode(node, new(any)), "contains itself")
 }
+
+type cluster struct {
+	Name string `yaml:"name"`
+}
+
+type clustersConfig struct {
+	Clusters map[string]*cluster `yaml:"clusters"`
+	List     []*cluster          `yaml:"list"`
+	Values   map[string]any      `yaml:"values"`
+}
+
+func TestNullEntries(t *testing.T) {
+	require.EqualError(t, yamlconfig.Decode("clusters:\n  prod:\n", new(clustersConfig)),
+		"clusters.prod must not be null; use {} for an entry without options")
+	require.EqualError(t, yamlconfig.Decode("list: [~]\n", new(clustersConfig)),
+		"list[0] must not be null; use {} for an entry without options")
+	_, err := yamlconfig.DecodeLenient("clusters: {prod: null}\n", new(clustersConfig))
+	require.ErrorContains(t, err, "clusters.prod must not be null")
+
+	var c clustersConfig
+	require.NoError(t, yamlconfig.Decode("clusters:\n  prod: {}\nvalues:\n  key: null\n", &c))
+	require.Equal(t, &cluster{}, c.Clusters["prod"])
+
+	ptr := &cluster{Name: "kept"}
+	require.NoError(t, yamlconfig.Decode("", ptr))
+	require.Equal(t, "kept", ptr.Name)
+}
+
+type nodeWrapper struct {
+	Inner cluster
+}
+
+func (w *nodeWrapper) UnmarshalYAML(node *yaml.Node) error {
+	return yamlconfig.DecodeNode(node, &w.Inner)
+}
+
+func TestDecodeNodeLines(t *testing.T) {
+	var c struct {
+		Wrapped nodeWrapper `yaml:"wrapped"`
+	}
+	err := yamlconfig.Decode("# comment\n\n\nwrapped:\n  name: a\n\n  bogus: 1\n", &c)
+	require.ErrorContains(t, err, "line 7: field bogus not found")
+}

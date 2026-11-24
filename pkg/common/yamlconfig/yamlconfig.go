@@ -8,6 +8,7 @@ import (
 	"io"
 	"reflect"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"go.yaml.in/yaml/v3"
@@ -47,11 +48,55 @@ func DecodeNode(node *yaml.Node, out any) error {
 	if err := checkAliases(node); err != nil {
 		return err
 	}
-	data, err := yaml.Marshal(resolveAliases(node))
+	resolved := resolveAliases(node)
+	data, err := yaml.Marshal(resolved)
 	if err != nil {
 		return err
 	}
-	return Decode(string(data), out)
+	if err := Decode(string(data), out); err != nil {
+		return remapLines(err, data, resolved)
+	}
+	return nil
+}
+
+var errLineRe = regexp.MustCompile(`^line (\d+): `)
+
+// remapLines rewrites the line numbers of err, which refer to the re-marshaled
+// data, to the lines of the original node.
+func remapLines(err error, data []byte, original *yaml.Node) error {
+	var typeErr *yaml.TypeError
+	if !errors.As(err, &typeErr) {
+		return err
+	}
+	var doc yaml.Node
+	if yaml.Unmarshal(data, &doc) != nil || len(doc.Content) == 0 {
+		return err
+	}
+	lines := make(map[int]int)
+	mapLines(doc.Content[0], original, lines)
+
+	msgs := make([]string, len(typeErr.Errors))
+	for i, msg := range typeErr.Errors {
+		msgs[i] = errLineRe.ReplaceAllStringFunc(msg, func(prefix string) string {
+			n, _ := strconv.Atoi(errLineRe.FindStringSubmatch(prefix)[1])
+			if line, ok := lines[n]; ok {
+				return fmt.Sprintf("line %d: ", line)
+			}
+			return ""
+		})
+	}
+	return &yaml.TypeError{Errors: msgs}
+}
+
+// mapLines records the line of each node in original, keyed by the line of the
+// corresponding node in remarshaled.
+func mapLines(remarshaled, original *yaml.Node, lines map[int]int) {
+	if _, ok := lines[remarshaled.Line]; !ok {
+		lines[remarshaled.Line] = original.Line
+	}
+	for i := 0; i < len(remarshaled.Content) && i < len(original.Content); i++ {
+		mapLines(remarshaled.Content[i], original.Content[i], lines)
+	}
 }
 
 // Raw captures a YAML value without decoding it. A *yaml.Node field would
@@ -89,7 +134,68 @@ func decode(text string, out any, strict bool) error {
 	if err := dec.Decode(new(yaml.Node)); !errors.Is(err, io.EOF) {
 		return errors.New("multiple YAML documents are not supported")
 	}
+	return checkNullEntries(reflect.ValueOf(out), "")
+}
+
+// checkNullEntries rejects map and list entries left nil by a null value,
+// since configuration code expects every entry to be set.
+func checkNullEntries(v reflect.Value, path string) error {
+	switch v.Kind() {
+	case reflect.Pointer, reflect.Interface:
+		if !v.IsNil() {
+			return checkNullEntries(v.Elem(), path)
+		}
+	case reflect.Struct:
+		t := v.Type()
+		for i := range t.NumField() {
+			f := t.Field(i)
+			if !f.IsExported() {
+				continue
+			}
+			name, opts, _ := strings.Cut(f.Tag.Get("yaml"), ",")
+			if name == "-" {
+				continue
+			}
+			fieldPath := path
+			if opts != "inline" {
+				if name == "" {
+					name = strings.ToLower(f.Name)
+				}
+				fieldPath = joinPath(path, name)
+			}
+			if err := checkNullEntries(v.Field(i), fieldPath); err != nil {
+				return err
+			}
+		}
+	case reflect.Map:
+		iter := v.MapRange()
+		for iter.Next() {
+			if err := checkEntry(iter.Value(), joinPath(path, fmt.Sprint(iter.Key()))); err != nil {
+				return err
+			}
+		}
+	case reflect.Slice, reflect.Array:
+		for i := range v.Len() {
+			if err := checkEntry(v.Index(i), fmt.Sprintf("%s[%d]", path, i)); err != nil {
+				return err
+			}
+		}
+	}
 	return nil
+}
+
+func checkEntry(v reflect.Value, path string) error {
+	if v.Kind() == reflect.Pointer && v.IsNil() {
+		return fmt.Errorf("%s must not be null; use {} for an entry without options", path)
+	}
+	return checkNullEntries(v, path)
+}
+
+func joinPath(path, name string) string {
+	if path == "" {
+		return name
+	}
+	return path + "." + name
 }
 
 // resolveAliases returns a copy of node in which every alias is replaced by a

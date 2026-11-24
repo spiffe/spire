@@ -91,7 +91,7 @@ func (p *Plugin) buildConfig(coreConfig catalog.CoreConfig, text string, format 
 	logger.Debug("Decoding EJBCA configuration")
 
 	newConfig := &Config{}
-	if err := plugindecode.DecodeConfig(text, format, &newConfig); err != nil {
+	if err := plugindecode.DecodeConfig(text, format, newConfig); err != nil {
 		status.ReportErrorf("failed to decode configuration: %v", err)
 		return nil
 	}

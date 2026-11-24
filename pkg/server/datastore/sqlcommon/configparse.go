@@ -148,6 +148,13 @@ func (d *DatabaseTypeYAML) UnmarshalYAML(node *yaml.Node) error {
 	if !ok {
 		return fmt.Errorf("unknown database type: %s", key)
 	}
+	value := node.Content[1]
+	if value.Kind == yaml.AliasNode {
+		value = value.Alias
+	}
+	if value.Kind != yaml.MappingNode {
+		return fmt.Errorf("%s options must be a mapping; use {} for no options", key)
+	}
 	if err := yamlconfig.DecodeNode(node, &d.DBTypeConfig); err != nil {
 		return fmt.Errorf("failed to decode configuration: %w", err)
 	}

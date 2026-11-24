@@ -940,7 +940,7 @@ func TestValidate(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			resp, err := New().Validate(context.Background(), &configv1.ValidateRequest{
 				CoreConfiguration: &configv1.CoreConfiguration{TrustDomain: "example.org"},
-				HclConfiguration:  getTestConfigureRequest(t, "https://localhost:8200/", tt.configTmpl),
+				Configuration:     getTestConfigureRequest(t, "https://localhost:8200/", tt.configTmpl),
 			})
 			require.NoError(t, err)
 			require.Equal(t, tt.expectResp, resp)

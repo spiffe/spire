@@ -66,7 +66,7 @@ func Config(req Request) (string, catalog.ConfigFormat, error) {
 	if err != nil {
 		return "", 0, err
 	}
-	if text := req.GetConfiguration(); text != "" {
+	if text := req.GetConfiguration(); text != "" || format != catalog.ConfigFormatHCL {
 		return text, format, nil
 	}
 	return req.GetHclConfiguration(), format, nil

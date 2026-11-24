@@ -96,6 +96,7 @@ func TestBuildConfigYAMLErrors(t *testing.T) {
 	}{
 		{"unknown type", "databaseType:\n  oracle: {}\n", "unknown database type: oracle"},
 		{"two types", "databaseType:\n  awsMysql: {}\n  awsPostgres: {}\n", "exactly one database type is expected"},
+		{"null options", "databaseType:\n  awsPostgres:\n", "awsPostgres options must be a mapping; use {} for no options"},
 		{"unknown nested key", "databaseType:\n  awsMysql:\n    regoin: x\n", "field regoin not found"},
 		{"snake_case key", "connection_string: x\n", "field connection_string not found"},
 	} {

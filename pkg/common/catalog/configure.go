@@ -169,12 +169,9 @@ func (v1 *configurerV1) InitLog(logrus.FieldLogger) {
 }
 
 func (v1 *configurerV1) Configure(ctx context.Context, coreConfig CoreConfig, configuration string, format ConfigFormat) error {
-	// HclConfiguration is set for every format so that plugins built with an
-	// SDK that predates YAML support fail on a YAML configuration instead of
-	// running with an empty one.
 	req := &configv1.ConfigureRequest{
 		CoreConfiguration: coreConfig.v1(),
-		HclConfiguration:  configuration, //nolint:staticcheck // read by plugins built with older SDKs
+		HclConfiguration:  legacyConfiguration(configuration, format), //nolint:staticcheck // read by plugins built with older SDKs
 		Configuration:     configuration,
 		ConfigFormat:      format.ToProto(),
 	}
@@ -185,10 +182,27 @@ func (v1 *configurerV1) Configure(ctx context.Context, coreConfig CoreConfig, co
 func (v1 *configurerV1) Validate(ctx context.Context, coreConfig CoreConfig, configuration string, format ConfigFormat) (*configv1.ValidateResponse, error) {
 	return v1.ConfigServiceClient.Validate(ctx, &configv1.ValidateRequest{
 		CoreConfiguration: coreConfig.v1(),
-		HclConfiguration:  configuration, //nolint:staticcheck // read by plugins built with older SDKs
+		HclConfiguration:  legacyConfiguration(configuration, format), //nolint:staticcheck // read by plugins built with older SDKs
 		Configuration:     configuration,
 		ConfigFormat:      format.ToProto(),
 	})
+}
+
+// yamlNotSupportedHCL fails to parse as HCL with an error that quotes it.
+const yamlNotSupportedHCL = `"YAML configuration requires a plugin built with a SPIRE plugin SDK that supports it"`
+
+// legacyConfiguration returns the value of hcl_configuration, the only field
+// read by plugins built with an SDK that predates YAML support. Non-empty YAML
+// is replaced so that those plugins fail instead of parsing it as HCL or JSON.
+func legacyConfiguration(configuration string, format ConfigFormat) string {
+	if format != ConfigFormatYAML {
+		return configuration
+	}
+	switch strings.TrimSpace(configuration) {
+	case "", "{}":
+		return ""
+	}
+	return yamlNotSupportedHCL
 }
 
 func hashData(data string) string {

@@ -179,7 +179,7 @@ func (p *Plugin) Validate(ctx context.Context, req *configv1.ValidateRequest) (*
 func buildConfig(coreConfig catalog.CoreConfig, text string, format catalog.ConfigFormat, status *pluginconf.Status) *Config {
 	newConfig := new(Config)
 
-	if err := plugindecode.DecodeConfig(text, format, &newConfig); err != nil {
+	if err := plugindecode.DecodeConfig(text, format, newConfig); err != nil {
 		status.ReportErrorf("unable to decode configuration: %v", err)
 		return nil
 	}

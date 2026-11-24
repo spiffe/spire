@@ -33,11 +33,20 @@ func TestConfig(t *testing.T) {
 		{
 			name: "YAML",
 			req: &configv1.ConfigureRequest{
-				HclConfiguration: "a: 1", //nolint:staticcheck // legacy field
+				HclConfiguration: "legacy", //nolint:staticcheck // legacy field
 				Configuration:    "a: 1",
 				ConfigFormat:     configv1.ConfigFormat_CONFIG_FORMAT_YAML,
 			},
 			wantText:   "a: 1",
+			wantFormat: catalog.ConfigFormatYAML,
+		},
+		{
+			name: "empty YAML ignores the legacy field",
+			req: &configv1.ConfigureRequest{
+				HclConfiguration: "legacy", //nolint:staticcheck // legacy field
+				ConfigFormat:     configv1.ConfigFormat_CONFIG_FORMAT_YAML,
+			},
+			wantText:   "",
 			wantFormat: catalog.ConfigFormatYAML,
 		},
 		{

@@ -43,6 +43,8 @@ Error messages that refer to configuration options, such as `trust_domain must b
 
 Anchors, aliases and merge keys (`<<`) can be used. Aliases that refer to themselves, or that expand into an excessively large document, are rejected. A configuration file must contain a single YAML document.
 
+Entries of a map or list that hold options, such as the clusters of `k8s_psat`, must not be null. An entry written without a value (e.g. `prod:`) is rejected; use an empty mapping (`{}`) for an entry without options.
+
 The `-expandEnv` flag is supported for YAML configuration files in the same way as for HCL.
 
 ## Plugin configuration
@@ -106,11 +108,11 @@ option2: 3
 
 ### External plugins
 
-SPIRE sends the plugin configuration to external plugins together with its format. Plugins built with a version of the [SPIRE Plugin SDK](https://github.com/spiffe/spire-plugin-sdk) that predates YAML support only read the `hcl_configuration` field, and try to parse the YAML configuration as HCL.
+SPIRE sends the plugin configuration to external plugins together with its format. Plugins built with a version of the [SPIRE Plugin SDK](https://github.com/spiffe/spire-plugin-sdk) that predates YAML support only read the `hcl_configuration` field. When the plugin data is in YAML, SPIRE sets that field to a value that cannot be parsed as HCL, so those plugins fail to configure instead of running with a misread configuration.
 
-**Note** An external plugin built with an older SDK fails to configure when its plugin data is in YAML, usually with an `illegal char` error from the HCL parser. Before switching to YAML, make sure that every external plugin is built with an SDK version that supports YAML and handles YAML configuration, or keep its data in HCL by using `pluginDataFile` with a file that does not end in `.yaml` or `.yml`.
+**Note** An external plugin built with an older SDK fails to configure when its plugin data is in YAML, with an error that contains `YAML configuration requires a plugin built with a SPIRE plugin SDK that supports it`. Empty plugin data (`pluginData: {}`) is not affected. Before switching to YAML, make sure that every external plugin is built with an SDK version that supports YAML and handles YAML configuration, or keep its data in HCL by using `pluginDataFile` with a file that does not end in `.yaml` or `.yml`.
 
-Plugin authors can support both formats by reading the `configuration` and `config_format` fields of the `Configure` and `Validate` requests. SPIRE sets `hcl_configuration` to the same value as `configuration` for backward compatibility.
+Plugin authors can support both formats by reading the `configuration` and `config_format` fields of the `Configure` and `Validate` requests.
 
 ## Options with a different shape
 
