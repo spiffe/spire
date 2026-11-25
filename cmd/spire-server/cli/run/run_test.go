@@ -196,6 +196,7 @@ plugins:
 		require.NoError(t, os.WriteFile(path, []byte(config), 0o600))
 		c, err := ParseFile(path, false)
 		require.NoError(t, err)
+		require.Empty(t, c.YAMLUnknownKeys)
 		return c
 	}
 
@@ -257,7 +258,7 @@ plugins:
       domain1.test:
         bundle_endpoint_url: https://1.2.3.4:8443
         bundle_endpoint_profile:
-          httpsWeb:`,
+          https_web:`,
 			err: "no bundle endpoint profile defined",
 		},
 	} {

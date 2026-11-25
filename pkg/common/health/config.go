@@ -22,7 +22,7 @@ type Config struct {
 
 	// How often a healthy subsystem is checked, defaulting to one minute.
 	// A failing subsystem is checked every second until it recovers.
-	CheckInterval    time.Duration `hcl:"-"`
+	CheckInterval    time.Duration `hcl:"-" yaml:"-"`
 	RawCheckInterval string        `hcl:"check_interval" yaml:"check_interval"`
 
 	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions" yaml:"-"`
