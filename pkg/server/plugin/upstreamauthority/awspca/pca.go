@@ -55,11 +55,11 @@ func builtin(p *PCAPlugin) catalog.BuiltIn {
 type Configuration struct {
 	Region                  string `hcl:"region" json:"region" yaml:"region"`
 	Endpoint                string `hcl:"endpoint" json:"endpoint" yaml:"endpoint"`
-	CertificateAuthorityARN string `hcl:"certificate_authority_arn" json:"certificate_authority_arn" yaml:"certificateAuthorityArn"`
-	SigningAlgorithm        string `hcl:"signing_algorithm" json:"signing_algorithm" yaml:"signingAlgorithm"`
-	CASigningTemplateARN    string `hcl:"ca_signing_template_arn" json:"ca_signing_template_arn" yaml:"caSigningTemplateArn"`
-	AssumeRoleARN           string `hcl:"assume_role_arn" json:"assume_role_arn" yaml:"assumeRoleArn"`
-	SupplementalBundlePath  string `hcl:"supplemental_bundle_path" json:"supplemental_bundle_path" yaml:"supplementalBundlePath"`
+	CertificateAuthorityARN string `hcl:"certificate_authority_arn" json:"certificate_authority_arn" yaml:"certificate_authority_arn"`
+	SigningAlgorithm        string `hcl:"signing_algorithm" json:"signing_algorithm" yaml:"signing_algorithm"`
+	CASigningTemplateARN    string `hcl:"ca_signing_template_arn" json:"ca_signing_template_arn" yaml:"ca_signing_template_arn"`
+	AssumeRoleARN           string `hcl:"assume_role_arn" json:"assume_role_arn" yaml:"assume_role_arn"`
+	SupplementalBundlePath  string `hcl:"supplemental_bundle_path" json:"supplemental_bundle_path" yaml:"supplemental_bundle_path"`
 }
 
 func buildConfig(coreConfig catalog.CoreConfig, text string, format catalog.ConfigFormat, status *pluginconf.Status) *Configuration {

@@ -52,11 +52,11 @@ type PrometheusConfig struct {
 }
 
 type TLSConfig struct {
-	CertFile            string   `hcl:"cert_file" yaml:"certFile"`
-	KeyFile             string   `hcl:"key_file" yaml:"keyFile"`
-	ClientCAFile        string   `hcl:"client_ca_file" yaml:"clientCaFile"` // optional
-	UseSPIRESVID        bool     `hcl:"use_spire_svid" yaml:"useSpireSvid"`
-	AuthorizedSPIFFEIDs []string `hcl:"authorized_spiffe_ids" yaml:"authorizedSpiffeIds"`
+	CertFile            string   `hcl:"cert_file" yaml:"cert_file"`
+	KeyFile             string   `hcl:"key_file" yaml:"key_file"`
+	ClientCAFile        string   `hcl:"client_ca_file" yaml:"client_ca_file"` // optional
+	UseSPIRESVID        bool     `hcl:"use_spire_svid" yaml:"use_spire_svid"`
+	AuthorizedSPIFFEIDs []string `hcl:"authorized_spiffe_ids" yaml:"authorized_spiffe_ids"`
 }
 
 type StatsdConfig struct {

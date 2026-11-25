@@ -40,15 +40,15 @@ func builtin(p *Plugin) catalog.BuiltIn {
 }
 
 type Config struct {
-	DevIDPrivPath string `hcl:"devid_priv_path" yaml:"devidPrivPath"`
-	DevIDPubPath  string `hcl:"devid_pub_path" yaml:"devidPubPath"`
-	DevIDCertPath string `hcl:"devid_cert_path" yaml:"devidCertPath"`
+	DevIDPrivPath string `hcl:"devid_priv_path" yaml:"devid_priv_path"`
+	DevIDPubPath  string `hcl:"devid_pub_path" yaml:"devid_pub_path"`
+	DevIDCertPath string `hcl:"devid_cert_path" yaml:"devid_cert_path"`
 
-	DevIDKeyPassword             string `hcl:"devid_password" yaml:"devidPassword"`
-	OwnerHierarchyPassword       string `hcl:"owner_hierarchy_password" yaml:"ownerHierarchyPassword"`
-	EndorsementHierarchyPassword string `hcl:"endorsement_hierarchy_password" yaml:"endorsementHierarchyPassword"`
+	DevIDKeyPassword             string `hcl:"devid_password" yaml:"devid_password"`
+	OwnerHierarchyPassword       string `hcl:"owner_hierarchy_password" yaml:"owner_hierarchy_password"`
+	EndorsementHierarchyPassword string `hcl:"endorsement_hierarchy_password" yaml:"endorsement_hierarchy_password"`
 
-	DevicePath string `hcl:"tpm_device_path" yaml:"tpmDevicePath"`
+	DevicePath string `hcl:"tpm_device_path" yaml:"tpm_device_path"`
 	Autodetect bool   `yaml:"-"`
 }
 

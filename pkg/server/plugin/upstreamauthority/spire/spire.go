@@ -35,9 +35,9 @@ const (
 )
 
 type Configuration struct {
-	ServerAddr        string             `hcl:"server_address" json:"server_address" yaml:"serverAddress"`
-	ServerPort        string             `hcl:"server_port" json:"server_port" yaml:"serverPort"`
-	WorkloadAPISocket string             `hcl:"workload_api_socket" json:"workload_api_socket" yaml:"workloadApiSocket"`
+	ServerAddr        string             `hcl:"server_address" json:"server_address" yaml:"server_address"`
+	ServerPort        string             `hcl:"server_port" json:"server_port" yaml:"server_port"`
+	WorkloadAPISocket string             `hcl:"workload_api_socket" json:"workload_api_socket" yaml:"workload_api_socket"`
 	Experimental      experimentalConfig `hcl:"experimental" yaml:"experimental"`
 }
 
@@ -59,8 +59,8 @@ func buildConfig(coreConfig catalog.CoreConfig, text string, format catalog.Conf
 }
 
 type experimentalConfig struct {
-	WorkloadAPINamedPipeName string `hcl:"workload_api_named_pipe_name" json:"workload_api_named_pipe_name" yaml:"workloadApiNamedPipeName"`
-	RequirePQKEM             bool   `hcl:"require_pq_kem" json:"require_pq_kem" yaml:"requirePqKem"`
+	WorkloadAPINamedPipeName string `hcl:"workload_api_named_pipe_name" json:"workload_api_named_pipe_name" yaml:"workload_api_named_pipe_name"`
+	RequirePQKEM             bool   `hcl:"require_pq_kem" json:"require_pq_kem" yaml:"require_pq_kem"`
 }
 
 func BuiltIn() catalog.BuiltIn {

@@ -132,17 +132,17 @@ type IIDAttestorPlugin struct {
 // IIDAttestorConfig holds hcl configuration for IID attestor plugin
 type IIDAttestorConfig struct {
 	SessionConfig                   `hcl:",squash" yaml:",inline"`
-	SkipBlockDevice                 bool     `hcl:"skip_block_device" yaml:"skipBlockDevice"`
-	DisableInstanceProfileSelectors bool     `hcl:"disable_instance_profile_selectors" yaml:"disableInstanceProfileSelectors"`
-	LocalValidAcctIDs               []string `hcl:"account_ids_for_local_validation" yaml:"accountIdsForLocalValidation"`
-	AgentPathTemplate               string   `hcl:"agent_path_template" yaml:"agentPathTemplate"`
+	SkipBlockDevice                 bool     `hcl:"skip_block_device" yaml:"skip_block_device"`
+	DisableInstanceProfileSelectors bool     `hcl:"disable_instance_profile_selectors" yaml:"disable_instance_profile_selectors"`
+	LocalValidAcctIDs               []string `hcl:"account_ids_for_local_validation" yaml:"account_ids_for_local_validation"`
+	AgentPathTemplate               string   `hcl:"agent_path_template" yaml:"agent_path_template"`
 	// AssumeRole and Partition duplicate the SessionConfig keys, which HCL
 	// decodes into both fields; YAML forbids duplicate keys, so they are
 	// copied from SessionConfig instead.
 	AssumeRole                   string               `hcl:"assume_role" yaml:"-"`
 	Partition                    string               `hcl:"partition" yaml:"-"`
-	ValidateOrgAccountID         *orgValidationConfig `hcl:"verify_organization" yaml:"verifyOrganization"`
-	ValidateEKSClusterMembership *eksValidationConfig `hcl:"validate_eks_cluster_membership" yaml:"validateEksClusterMembership"`
+	ValidateOrgAccountID         *orgValidationConfig `hcl:"verify_organization" yaml:"verify_organization"`
+	ValidateEKSClusterMembership *eksValidationConfig `hcl:"validate_eks_cluster_membership" yaml:"validate_eks_cluster_membership"`
 	// Partitions configures the credentials for the nodes of each AWS partition, keyed by partition name.
 	Partitions          map[string]*SessionConfig `hcl:"partitions" yaml:"partitions"`
 	pathTemplate        *agentpathtemplate.Template

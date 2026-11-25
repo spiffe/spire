@@ -58,8 +58,8 @@ type Server struct {
 
 // ClientConfig configures the client.
 type ClientConfig struct {
-	HostKeyPath  string `hcl:"host_key_path" yaml:"hostKeyPath"`
-	HostCertPath string `hcl:"host_cert_path" yaml:"hostCertPath"`
+	HostKeyPath  string `hcl:"host_key_path" yaml:"host_key_path"`
+	HostCertPath string `hcl:"host_cert_path" yaml:"host_cert_path"`
 
 	cert   *ssh.Certificate
 	signer ssh.Signer
@@ -103,16 +103,16 @@ func (scr *ServerConfigRequest) GetConfigFormat() configv1.ConfigFormat {
 
 // ServerConfig configures the server.
 type ServerConfig struct {
-	CertAuthorities     []string `hcl:"cert_authorities" yaml:"certAuthorities"`
-	CertAuthoritiesPath string   `hcl:"cert_authorities_path" yaml:"certAuthoritiesPath"`
+	CertAuthorities     []string `hcl:"cert_authorities" yaml:"cert_authorities"`
+	CertAuthoritiesPath string   `hcl:"cert_authorities_path" yaml:"cert_authorities_path"`
 	// CanonicalDomain specifies the domain suffix for validating the hostname against
 	// the certificate's valid principals. See CanonicalDomains in ssh_config(5).
-	CanonicalDomain   string `hcl:"canonical_domain" yaml:"canonicalDomain"`
-	AgentPathTemplate string `hcl:"agent_path_template" yaml:"agentPathTemplate"`
+	CanonicalDomain   string `hcl:"canonical_domain" yaml:"canonical_domain"`
+	AgentPathTemplate string `hcl:"agent_path_template" yaml:"agent_path_template"`
 	// VerifyClientIP, when true, requires the host certificate to carry a
 	// source-address critical option and checks the connecting peer's IP
 	// against it. Certificates without source-address are rejected.
-	VerifyClientIP bool `hcl:"verify_client_ip" yaml:"verifyClientIp"`
+	VerifyClientIP bool `hcl:"verify_client_ip" yaml:"verify_client_ip"`
 
 	certChecker       *ssh.CertChecker
 	agentPathTemplate *agentpathtemplate.Template

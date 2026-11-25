@@ -47,10 +47,10 @@ type Config struct {
 type Cluster struct {
 	Format         string `hcl:"format" json:"format" yaml:"format"`
 	Namespace      string `hcl:"namespace" json:"namespace" yaml:"namespace"`
-	ConfigMapName  string `hcl:"configmap_name" json:"configmap_name" yaml:"configmapName"`
-	ConfigMapKey   string `hcl:"configmap_key" json:"configmap_key" yaml:"configmapKey"`
-	KubeConfigPath string `hcl:"kubeconfig_path" json:"kubeconfig_path" yaml:"kubeconfigPath"`
-	RefreshHint    string `hcl:"refresh_hint" json:"refresh_hint" yaml:"refreshHint"`
+	ConfigMapName  string `hcl:"configmap_name" json:"configmap_name" yaml:"configmap_name"`
+	ConfigMapKey   string `hcl:"configmap_key" json:"configmap_key" yaml:"configmap_key"`
+	KubeConfigPath string `hcl:"kubeconfig_path" json:"kubeconfig_path" yaml:"kubeconfig_path"`
+	RefreshHint    string `hcl:"refresh_hint" json:"refresh_hint" yaml:"refresh_hint"`
 
 	// bundleFormat is used to store the content of BundleFormat, parsed
 	// as bundleformat.Format.

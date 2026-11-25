@@ -122,13 +122,13 @@ type Plugin struct {
 
 // Config provides configuration context for the plugin
 type Config struct {
-	AccessKeyID        string            `hcl:"access_key_id" json:"access_key_id" yaml:"accessKeyId"`
-	SecretAccessKey    string            `hcl:"secret_access_key" json:"secret_access_key" yaml:"secretAccessKey"`
+	AccessKeyID        string            `hcl:"access_key_id" json:"access_key_id" yaml:"access_key_id"`
+	SecretAccessKey    string            `hcl:"secret_access_key" json:"secret_access_key" yaml:"secret_access_key"`
 	Region             string            `hcl:"region" json:"region" yaml:"region"`
-	KeyIdentifierFile  string            `hcl:"key_identifier_file" json:"key_identifier_file" yaml:"keyIdentifierFile"`
-	KeyIdentifierValue string            `hcl:"key_identifier_value" json:"key_identifier_value" yaml:"keyIdentifierValue"`
-	KeyPolicyFile      string            `hcl:"key_policy_file" json:"key_policy_file" yaml:"keyPolicyFile"`
-	KeyTags            map[string]string `hcl:"key_tags" json:"key_tags" yaml:"keyTags"`
+	KeyIdentifierFile  string            `hcl:"key_identifier_file" json:"key_identifier_file" yaml:"key_identifier_file"`
+	KeyIdentifierValue string            `hcl:"key_identifier_value" json:"key_identifier_value" yaml:"key_identifier_value"`
+	KeyPolicyFile      string            `hcl:"key_policy_file" json:"key_policy_file" yaml:"key_policy_file"`
+	KeyTags            map[string]string `hcl:"key_tags" json:"key_tags" yaml:"key_tags"`
 
 	// EnableTagBasedKeyDiscovery enables the use of AWS Resource Groups Tagging API
 	// for efficient key discovery instead of the legacy alias-based approach.
@@ -142,7 +142,7 @@ type Config struct {
 	//
 	// Note: When enabled, the plugin requires the tag:GetResources IAM
 	// permission (from the AWS Resource Groups Tagging API).
-	EnableTagBasedKeyDiscovery bool `hcl:"enable_tag_based_key_discovery" json:"enable_tag_based_key_discovery" yaml:"enableTagBasedKeyDiscovery"`
+	EnableTagBasedKeyDiscovery bool `hcl:"enable_tag_based_key_discovery" json:"enable_tag_based_key_discovery" yaml:"enable_tag_based_key_discovery"`
 }
 
 func buildConfig(coreConfig catalog.CoreConfig, text string, format catalog.ConfigFormat, status *pluginconf.Status) *Config {

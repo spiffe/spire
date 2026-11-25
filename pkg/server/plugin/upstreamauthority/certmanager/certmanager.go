@@ -40,13 +40,13 @@ func builtin(p *Plugin) catalog.BuiltIn {
 type Configuration struct {
 	// Options which are used for configuring the target issuer to sign requests.
 	// The CertificateRequest will be created in the configured namespace.
-	IssuerName  string `hcl:"issuer_name" json:"issuer_name" yaml:"issuerName"`
-	IssuerKind  string `hcl:"issuer_kind" json:"issuer_kind" yaml:"issuerKind"`
-	IssuerGroup string `hcl:"issuer_group" json:"issuer_group" yaml:"issuerGroup"`
+	IssuerName  string `hcl:"issuer_name" json:"issuer_name" yaml:"issuer_name"`
+	IssuerKind  string `hcl:"issuer_kind" json:"issuer_kind" yaml:"issuer_kind"`
+	IssuerGroup string `hcl:"issuer_group" json:"issuer_group" yaml:"issuer_group"`
 	Namespace   string `hcl:"namespace" json:"namespace" yaml:"namespace"`
 
 	// File path to the kubeconfig used to build the generic Kubernetes client.
-	KubeConfigFilePath string `hcl:"kube_config_file" json:"kube_config_file" yaml:"kubeConfigFile"`
+	KubeConfigFilePath string `hcl:"kube_config_file" json:"kube_config_file" yaml:"kube_config_file"`
 }
 
 func (p *Plugin) buildConfig(coreConfig catalog.CoreConfig, text string, format catalog.ConfigFormat, status *pluginconf.Status) *Configuration {

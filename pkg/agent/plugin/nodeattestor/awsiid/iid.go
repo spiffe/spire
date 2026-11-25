@@ -38,7 +38,7 @@ func builtin(p *IIDAttestorPlugin) catalog.BuiltIn {
 
 // IIDAttestorConfig configures a IIDAttestorPlugin.
 type IIDAttestorConfig struct {
-	EC2MetadataEndpoint string `hcl:"ec2_metadata_endpoint" yaml:"ec2MetadataEndpoint"`
+	EC2MetadataEndpoint string `hcl:"ec2_metadata_endpoint" yaml:"ec2_metadata_endpoint"`
 }
 
 func buildConfig(coreConfig catalog.CoreConfig, text string, format catalog.ConfigFormat, status *pluginconf.Status) *IIDAttestorConfig {

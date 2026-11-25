@@ -12,6 +12,6 @@ import (
 // TestConfigYAMLInline checks that YAML keys of the embedded configuration decode into it.
 func TestConfigYAMLInline(t *testing.T) {
 	config := new(dockerPluginConfig)
-	require.NoError(t, yamlconfig.Decode("dockerSocketPath: unix:///docker.sock\n", config))
+	require.NoError(t, yamlconfig.Decode("docker_socket_path: unix:///docker.sock\n", config))
 	require.Equal(t, "unix:///docker.sock", config.DockerSocketPath)
 }

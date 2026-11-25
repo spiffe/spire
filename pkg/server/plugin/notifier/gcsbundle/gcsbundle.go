@@ -44,8 +44,8 @@ type bucketClient interface {
 
 type configuration struct {
 	Bucket             string `hcl:"bucket" yaml:"bucket"`
-	ObjectPath         string `hcl:"object_path" yaml:"objectPath"`
-	ServiceAccountFile string `hcl:"service_account_file" yaml:"serviceAccountFile"`
+	ObjectPath         string `hcl:"object_path" yaml:"object_path"`
+	ServiceAccountFile string `hcl:"service_account_file" yaml:"service_account_file"`
 }
 
 func buildConfig(coreConfig catalog.CoreConfig, text string, format catalog.ConfigFormat, status *pluginconf.Status) *configuration {

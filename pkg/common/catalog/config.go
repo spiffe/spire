@@ -129,11 +129,11 @@ func (d FileData) Load() (string, ConfigFormat, error) {
 func (d FileData) IsDynamic() bool { return true }
 
 type hclPluginConfig struct {
-	PluginCmd      string   `hcl:"plugin_cmd" yaml:"pluginCmd"`
-	PluginArgs     []string `hcl:"plugin_args" yaml:"pluginArgs"`
-	PluginChecksum string   `hcl:"plugin_checksum" yaml:"pluginChecksum"`
+	PluginCmd      string   `hcl:"plugin_cmd" yaml:"plugin_cmd"`
+	PluginArgs     []string `hcl:"plugin_args" yaml:"plugin_args"`
+	PluginChecksum string   `hcl:"plugin_checksum" yaml:"plugin_checksum"`
 	PluginData     ast.Node `hcl:"plugin_data" yaml:"-"`
-	PluginDataFile *string  `hcl:"plugin_data_file" yaml:"pluginDataFile"`
+	PluginDataFile *string  `hcl:"plugin_data_file" yaml:"plugin_data_file"`
 	Enabled        *bool    `hcl:"enabled" yaml:"enabled"`
 }
 
@@ -331,11 +331,11 @@ func pluginConfigFromHCL(pluginType, pluginName string, hclPluginConfig hclPlugi
 }
 
 type yamlPluginConfig struct {
-	PluginCmd      string          `yaml:"pluginCmd"`
-	PluginArgs     []string        `yaml:"pluginArgs"`
-	PluginChecksum string          `yaml:"pluginChecksum"`
-	PluginData     *yamlconfig.Raw `yaml:"pluginData"`
-	PluginDataFile *string         `yaml:"pluginDataFile"`
+	PluginCmd      string          `yaml:"plugin_cmd"`
+	PluginArgs     []string        `yaml:"plugin_args"`
+	PluginChecksum string          `yaml:"plugin_checksum"`
+	PluginData     *yamlconfig.Raw `yaml:"plugin_data"`
+	PluginDataFile *string         `yaml:"plugin_data_file"`
 	Enabled        *bool           `yaml:"enabled"`
 }
 
@@ -374,7 +374,7 @@ func pluginConfigFromYAML(pluginType, pluginName string, node *yaml.Node) (Plugi
 		return PluginConfig{}, err
 	}
 	if ypc.PluginData != nil && ypc.PluginDataFile != nil {
-		return PluginConfig{}, errors.New("only one of [pluginData, pluginDataFile] can be used")
+		return PluginConfig{}, errors.New("only one of [plugin_data, plugin_data_file] can be used")
 	}
 
 	var dataSource DataSource

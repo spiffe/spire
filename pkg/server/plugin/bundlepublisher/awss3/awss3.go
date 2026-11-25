@@ -40,14 +40,14 @@ func New() *Plugin {
 
 // Config holds the configuration of the plugin.
 type Config struct {
-	AccessKeyID     string `hcl:"access_key_id" json:"access_key_id" yaml:"accessKeyId"`
-	SecretAccessKey string `hcl:"secret_access_key" json:"secret_access_key" yaml:"secretAccessKey"`
+	AccessKeyID     string `hcl:"access_key_id" json:"access_key_id" yaml:"access_key_id"`
+	SecretAccessKey string `hcl:"secret_access_key" json:"secret_access_key" yaml:"secret_access_key"`
 	Region          string `hcl:"region" json:"region" yaml:"region"`
 	Bucket          string `hcl:"bucket" json:"bucket" yaml:"bucket"`
-	ObjectKey       string `hcl:"object_key" json:"object_key" yaml:"objectKey"`
+	ObjectKey       string `hcl:"object_key" json:"object_key" yaml:"object_key"`
 	Format          string `hcl:"format" json:"format" yaml:"format"`
 	Endpoint        string `hcl:"endpoint" json:"endpoint" yaml:"endpoint"`
-	RefreshHint     string `hcl:"refresh_hint" json:"refresh_hint" yaml:"refreshHint"`
+	RefreshHint     string `hcl:"refresh_hint" json:"refresh_hint" yaml:"refresh_hint"`
 
 	// bundleFormat is used to store the content of Format, parsed
 	// as bundleformat.Format.

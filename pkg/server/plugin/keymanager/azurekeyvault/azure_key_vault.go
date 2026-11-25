@@ -78,13 +78,13 @@ type pluginHooks struct {
 
 // Config provides configuration context for the plugin.
 type Config struct {
-	KeyIdentifierFile  string `hcl:"key_identifier_file" json:"key_identifier_file" yaml:"keyIdentifierFile"`
-	KeyIdentifierValue string `hcl:"key_identifier_value" json:"key_identifier_value" yaml:"keyIdentifierValue"`
-	KeyVaultURI        string `hcl:"key_vault_uri" json:"key_vault_uri" yaml:"keyVaultUri"`
-	TenantID           string `hcl:"tenant_id" json:"tenant_id" yaml:"tenantId"`
-	SubscriptionID     string `hcl:"subscription_id" json:"subscription_id" yaml:"subscriptionId"`
-	AppID              string `hcl:"app_id" json:"app_id" yaml:"appId"`
-	AppSecret          string `hcl:"app_secret" json:"app_secret" yaml:"appSecret"`
+	KeyIdentifierFile  string `hcl:"key_identifier_file" json:"key_identifier_file" yaml:"key_identifier_file"`
+	KeyIdentifierValue string `hcl:"key_identifier_value" json:"key_identifier_value" yaml:"key_identifier_value"`
+	KeyVaultURI        string `hcl:"key_vault_uri" json:"key_vault_uri" yaml:"key_vault_uri"`
+	TenantID           string `hcl:"tenant_id" json:"tenant_id" yaml:"tenant_id"`
+	SubscriptionID     string `hcl:"subscription_id" json:"subscription_id" yaml:"subscription_id"`
+	AppID              string `hcl:"app_id" json:"app_id" yaml:"app_id"`
+	AppSecret          string `hcl:"app_secret" json:"app_secret" yaml:"app_secret"`
 }
 
 func buildConfig(coreConfig catalog.CoreConfig, text string, format catalog.ConfigFormat, status *pluginconf.Status) *Config {

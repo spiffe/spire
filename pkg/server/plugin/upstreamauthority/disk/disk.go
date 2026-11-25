@@ -44,9 +44,9 @@ func builtin(p *Plugin) catalog.BuiltIn {
 type Configuration struct {
 	trustDomain spiffeid.TrustDomain
 
-	CertFilePath   string `hcl:"cert_file_path" json:"cert_file_path" yaml:"certFilePath"`
-	KeyFilePath    string `hcl:"key_file_path" json:"key_file_path" yaml:"keyFilePath"`
-	BundleFilePath string `hcl:"bundle_file_path" json:"bundle_file_path" yaml:"bundleFilePath"`
+	CertFilePath   string `hcl:"cert_file_path" json:"cert_file_path" yaml:"cert_file_path"`
+	KeyFilePath    string `hcl:"key_file_path" json:"key_file_path" yaml:"key_file_path"`
+	BundleFilePath string `hcl:"bundle_file_path" json:"bundle_file_path" yaml:"bundle_file_path"`
 }
 
 func buildConfig(coreConfig catalog.CoreConfig, text string, format catalog.ConfigFormat, status *pluginconf.Status) *Configuration {

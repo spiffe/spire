@@ -88,8 +88,8 @@ func (ps PSProcessInfo) Groups() ([]string, error) {
 }
 
 type Configuration struct {
-	DiscoverWorkloadPath bool  `hcl:"discover_workload_path" yaml:"discoverWorkloadPath"`
-	WorkloadSizeLimit    int64 `hcl:"workload_size_limit" yaml:"workloadSizeLimit"`
+	DiscoverWorkloadPath bool  `hcl:"discover_workload_path" yaml:"discover_workload_path"`
+	WorkloadSizeLimit    int64 `hcl:"workload_size_limit" yaml:"workload_size_limit"`
 }
 
 func buildConfig(coreConfig catalog.CoreConfig, text string, format catalog.ConfigFormat, status *pluginconf.Status) *Configuration {

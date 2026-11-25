@@ -10,20 +10,20 @@ import (
 )
 
 type Config struct {
-	ListenerEnabled bool `hcl:"listener_enabled" yaml:"listenerEnabled"`
+	ListenerEnabled bool `hcl:"listener_enabled" yaml:"listener_enabled"`
 
 	// Address and port to listen on, defaulting to localhost:80
-	BindAddress string `hcl:"bind_address" yaml:"bindAddress"`
-	BindPort    string `hcl:"bind_port" yaml:"bindPort"`
+	BindAddress string `hcl:"bind_address" yaml:"bind_address"`
+	BindPort    string `hcl:"bind_port" yaml:"bind_port"`
 
 	// Paths for /ready and /live
-	ReadyPath string `hcl:"ready_path" yaml:"readyPath"`
-	LivePath  string `hcl:"live_path" yaml:"livePath"`
+	ReadyPath string `hcl:"ready_path" yaml:"ready_path"`
+	LivePath  string `hcl:"live_path" yaml:"live_path"`
 
 	// How often a healthy subsystem is checked, defaulting to one minute.
 	// A failing subsystem is checked every second until it recovers.
 	CheckInterval    time.Duration `hcl:"-"`
-	RawCheckInterval string        `hcl:"check_interval" yaml:"checkInterval"`
+	RawCheckInterval string        `hcl:"check_interval" yaml:"check_interval"`
 
 	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions" yaml:"-"`
 }

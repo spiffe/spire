@@ -40,10 +40,10 @@ type configData struct {
 }
 
 type Config struct {
-	PrivateKeyPath       string `hcl:"private_key_path" yaml:"privateKeyPath"`
-	CertificatePath      string `hcl:"certificate_path" yaml:"certificatePath"`
-	IntermediatesPath    string `hcl:"intermediates_path" yaml:"intermediatesPath"`
-	SpiffeEndpointSocket string `hcl:"spiffe_endpoint_socket" yaml:"spiffeEndpointSocket"`
+	PrivateKeyPath       string `hcl:"private_key_path" yaml:"private_key_path"`
+	CertificatePath      string `hcl:"certificate_path" yaml:"certificate_path"`
+	IntermediatesPath    string `hcl:"intermediates_path" yaml:"intermediates_path"`
+	SpiffeEndpointSocket string `hcl:"spiffe_endpoint_socket" yaml:"spiffe_endpoint_socket"`
 }
 
 func buildConfig(coreConfig catalog.CoreConfig, text string, format catalog.ConfigFormat, status *pluginconf.Status) *Config {

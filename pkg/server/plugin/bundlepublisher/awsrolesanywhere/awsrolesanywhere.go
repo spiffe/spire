@@ -38,10 +38,10 @@ func New() *Plugin {
 
 // Config holds the configuration of the plugin.
 type Config struct {
-	AccessKeyID     string `hcl:"access_key_id" json:"access_key_id" yaml:"accessKeyId"`
-	SecretAccessKey string `hcl:"secret_access_key" json:"secret_access_key" yaml:"secretAccessKey"`
+	AccessKeyID     string `hcl:"access_key_id" json:"access_key_id" yaml:"access_key_id"`
+	SecretAccessKey string `hcl:"secret_access_key" json:"secret_access_key" yaml:"secret_access_key"`
 	Region          string `hcl:"region" json:"region" yaml:"region"`
-	TrustAnchorID   string `hcl:"trust_anchor_id" json:"trust_anchor_id" yaml:"trustAnchorId"`
+	TrustAnchorID   string `hcl:"trust_anchor_id" json:"trust_anchor_id" yaml:"trust_anchor_id"`
 }
 
 func buildConfig(coreConfig catalog.CoreConfig, text string, format catalog.ConfigFormat, status *pluginconf.Status) *Config {

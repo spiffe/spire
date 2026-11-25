@@ -42,11 +42,11 @@ func New() *Plugin {
 
 // Config holds the configuration of the plugin.
 type Config struct {
-	BucketName         string `hcl:"bucket_name" json:"bucket_name" yaml:"bucketName"`
-	ObjectName         string `hcl:"object_name" json:"object_name" yaml:"objectName"`
+	BucketName         string `hcl:"bucket_name" json:"bucket_name" yaml:"bucket_name"`
+	ObjectName         string `hcl:"object_name" json:"object_name" yaml:"object_name"`
 	Format             string `hcl:"format" json:"format" yaml:"format"`
-	ServiceAccountFile string `hcl:"service_account_file" json:"service_account_file" yaml:"serviceAccountFile"`
-	RefreshHint        string `hcl:"refresh_hint" json:"refresh_hint" yaml:"refreshHint"`
+	ServiceAccountFile string `hcl:"service_account_file" json:"service_account_file" yaml:"service_account_file"`
+	RefreshHint        string `hcl:"refresh_hint" json:"refresh_hint" yaml:"refresh_hint"`
 
 	// bundleFormat is used to store the content of Format, parsed
 	// as bundleformat.Format.

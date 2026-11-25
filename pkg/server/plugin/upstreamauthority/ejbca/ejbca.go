@@ -76,14 +76,14 @@ func builtin(p *Plugin) catalog.BuiltIn {
 // Config defines the configuration for the plugin.
 type Config struct {
 	Hostname               string `hcl:"hostname" json:"hostname" yaml:"hostname"`
-	CaCertPath             string `hcl:"ca_cert_path" json:"ca_cert_path" yaml:"caCertPath"`
-	ClientCertPath         string `hcl:"client_cert_path" json:"client_cert_path" yaml:"clientCertPath"`
-	ClientCertKeyPath      string `hcl:"client_cert_key_path" json:"client_cert_key_path" yaml:"clientCertKeyPath"`
-	CAName                 string `hcl:"ca_name" json:"ca_name" yaml:"caName"`
-	EndEntityProfileName   string `hcl:"end_entity_profile_name" json:"end_entity_profile_name" yaml:"endEntityProfileName"`
-	CertificateProfileName string `hcl:"certificate_profile_name" json:"certificate_profile_name" yaml:"certificateProfileName"`
-	DefaultEndEntityName   string `hcl:"end_entity_name" json:"end_entity_name" yaml:"endEntityName"`
-	AccountBindingID       string `hcl:"account_binding_id" json:"account_binding_id" yaml:"accountBindingId"`
+	CaCertPath             string `hcl:"ca_cert_path" json:"ca_cert_path" yaml:"ca_cert_path"`
+	ClientCertPath         string `hcl:"client_cert_path" json:"client_cert_path" yaml:"client_cert_path"`
+	ClientCertKeyPath      string `hcl:"client_cert_key_path" json:"client_cert_key_path" yaml:"client_cert_key_path"`
+	CAName                 string `hcl:"ca_name" json:"ca_name" yaml:"ca_name"`
+	EndEntityProfileName   string `hcl:"end_entity_profile_name" json:"end_entity_profile_name" yaml:"end_entity_profile_name"`
+	CertificateProfileName string `hcl:"certificate_profile_name" json:"certificate_profile_name" yaml:"certificate_profile_name"`
+	DefaultEndEntityName   string `hcl:"end_entity_name" json:"end_entity_name" yaml:"end_entity_name"`
+	AccountBindingID       string `hcl:"account_binding_id" json:"account_binding_id" yaml:"account_binding_id"`
 }
 
 func (p *Plugin) buildConfig(coreConfig catalog.CoreConfig, text string, format catalog.ConfigFormat, status *pluginconf.Status) *Config {

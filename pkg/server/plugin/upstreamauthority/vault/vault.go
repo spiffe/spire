@@ -43,7 +43,7 @@ type Configuration struct {
 	vault.BaseConfiguration `hcl:",squash" yaml:",inline"`
 
 	// Name of the mount point where PKI secret engine is mounted. (e.g., /<mount_point>/ca/pem)
-	PKIMountPoint string `hcl:"pki_mount_point" json:"pki_mount_point" yaml:"pkiMountPoint"`
+	PKIMountPoint string `hcl:"pki_mount_point" json:"pki_mount_point" yaml:"pki_mount_point"`
 }
 
 func buildConfig(coreConfig catalog.CoreConfig, text string, format catalog.ConfigFormat, status *pluginconf.Status) *Configuration {

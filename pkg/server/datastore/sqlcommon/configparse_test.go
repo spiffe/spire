@@ -52,9 +52,9 @@ func TestBuildConfigAzure(t *testing.T) {
 
 func TestBuildConfigYAML(t *testing.T) {
 	cfg, err := BuildConfig(`
-databaseType: sqlite3
-connectionString: file:test.db
-maxOpenConns: 5
+database_type: sqlite3
+connection_string: file:test.db
+max_open_conns: 5
 `, catalog.ConfigFormatYAML)
 	require.NoError(t, err)
 	require.Equal(t, SQLite, cfg.DBTypeConfig.DatabaseType)
@@ -63,11 +63,11 @@ maxOpenConns: 5
 	require.NoError(t, ConfigValidate(cfg))
 
 	cfg, err = BuildConfig(`
-databaseType:
-  awsPostgres:
+database_type:
+  aws_postgres:
     region: us-west-2
-    accessKeyId: AKID
-connectionString: postgres://host:5432/db
+    access_key_id: AKID
+connection_string: postgres://host:5432/db
 `, catalog.ConfigFormatYAML)
 	require.NoError(t, err)
 	require.Equal(t, AWSPostgreSQL, cfg.DBTypeConfig.DatabaseType)
@@ -76,16 +76,16 @@ connectionString: postgres://host:5432/db
 	require.NoError(t, ConfigValidate(cfg))
 
 	cfg, err = BuildConfig(`
-databaseType:
-  azureMysql:
-    authType: system_managed_identity
-connectionString: user@tcp(host:3306)/db?parseTime=true
+database_type:
+  azure_mysql:
+    auth_type: system_managed_identity
+connection_string: user@tcp(host:3306)/db?parseTime=true
 `, catalog.ConfigFormatYAML)
 	require.NoError(t, err)
 	require.Equal(t, AzureMySQL, cfg.DBTypeConfig.DatabaseType)
 	require.NoError(t, ConfigValidate(cfg))
 
-	cfg, err = BuildConfig("connectionString: file:test.db\n", catalog.ConfigFormatYAML)
+	cfg, err = BuildConfig("connection_string: file:test.db\n", catalog.ConfigFormatYAML)
 	require.NoError(t, err)
 	require.EqualError(t, ConfigValidate(cfg), "datastore-sql: database_type must be set")
 }
@@ -94,11 +94,11 @@ func TestBuildConfigYAMLErrors(t *testing.T) {
 	for _, tt := range []struct {
 		name, config, err string
 	}{
-		{"unknown type", "databaseType:\n  oracle: {}\n", "unknown database type: oracle"},
-		{"two types", "databaseType:\n  awsMysql: {}\n  awsPostgres: {}\n", "exactly one database type is expected"},
-		{"null options", "databaseType:\n  awsPostgres:\n", "awsPostgres options must be a mapping; use {} for no options"},
-		{"unknown nested key", "databaseType:\n  awsMysql:\n    regoin: x\n", "field regoin not found"},
-		{"snake_case key", "connection_string: x\n", "field connection_string not found"},
+		{"unknown type", "database_type:\n  oracle: {}\n", "unknown database type: oracle"},
+		{"two types", "database_type:\n  aws_mysql: {}\n  aws_postgres: {}\n", "exactly one database type is expected"},
+		{"null options", "database_type:\n  aws_postgres:\n", "aws_postgres options must be a mapping; use {} for no options"},
+		{"unknown nested key", "database_type:\n  aws_mysql:\n    regoin: x\n", "field regoin not found"},
+		{"camelCase key", "connectionString: x\n", "field connectionString not found"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			_, err := BuildConfig(tt.config, catalog.ConfigFormatYAML)

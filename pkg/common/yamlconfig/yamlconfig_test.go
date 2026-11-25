@@ -11,44 +11,44 @@ import (
 )
 
 type config struct {
-	KeysPath string         `yaml:"keysPath"`
-	MaxKeys  int            `yaml:"maxKeys"`
+	KeysPath string         `yaml:"keys_path"`
+	MaxKeys  int            `yaml:"max_keys"`
 	Plugins  yamlconfig.Raw `yaml:"plugins"`
 }
 
 func TestDecode(t *testing.T) {
 	var c config
-	require.NoError(t, yamlconfig.Decode("keysPath: /tmp/keys\nmaxKeys: 10\n", &c))
+	require.NoError(t, yamlconfig.Decode("keys_path: /tmp/keys\nmax_keys: 10\n", &c))
 	require.Equal(t, "/tmp/keys", c.KeysPath)
 	require.Equal(t, 10, c.MaxKeys)
 
 	require.NoError(t, yamlconfig.Decode("", &c))
 
-	require.ErrorContains(t, yamlconfig.Decode("keys_path: /tmp/keys\n", &c), "field keys_path not found")
+	require.ErrorContains(t, yamlconfig.Decode("keysPath: /tmp/keys\n", &c), "field keysPath not found")
 	require.ErrorContains(t, yamlconfig.Decode(":\n  - bad: [yaml", &c), "yaml:")
-	require.EqualError(t, yamlconfig.Decode("maxKeys: 1\n---\nmaxKeys: 2\n", &c), "multiple YAML documents are not supported")
+	require.EqualError(t, yamlconfig.Decode("max_keys: 1\n---\nmax_keys: 2\n", &c), "multiple YAML documents are not supported")
 }
 
 func TestDecodeLenient(t *testing.T) {
 	var c config
-	unknown, err := yamlconfig.DecodeLenient("keysPath: /tmp/keys\nkeys_path: x\nmax_keys: 1\n", &c)
+	unknown, err := yamlconfig.DecodeLenient("keys_path: /tmp/keys\nkeysPath: x\nmaxKeys: 1\n", &c)
 	require.NoError(t, err)
-	require.Equal(t, []string{"keys_path (line 2)", "max_keys (line 3)"}, unknown)
+	require.Equal(t, []string{"keysPath (line 2)", "maxKeys (line 3)"}, unknown)
 	require.Equal(t, "/tmp/keys", c.KeysPath)
 
-	_, err = yamlconfig.DecodeLenient("maxKeys: notanumber\nbogus: 1\n", &c)
+	_, err = yamlconfig.DecodeLenient("max_keys: notanumber\nbogus: 1\n", &c)
 	require.ErrorContains(t, err, "cannot unmarshal")
 }
 
 func TestAliases(t *testing.T) {
 	text := `
 base: &base
-  keysPath: /tmp/keys
+  keys_path: /tmp/keys
 plugins:
   a: *base
   b:
     <<: *base
-    maxKeys: 3
+    max_keys: 3
 `
 	var doc struct {
 		Base    any            `yaml:"base"`

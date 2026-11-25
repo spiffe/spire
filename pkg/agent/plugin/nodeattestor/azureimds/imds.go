@@ -33,7 +33,7 @@ func builtin(p *IMDSAttestorPlugin) catalog.BuiltIn {
 
 type IMDSAttestorConfig struct {
 	// TenantDomain is the domain of the tenant in which the VM is running.
-	TenantDomain string `hcl:"tenant_domain" yaml:"tenantDomain"`
+	TenantDomain string `hcl:"tenant_domain" yaml:"tenant_domain"`
 }
 
 func buildConfig(coreConfig catalog.CoreConfig, text string, format catalog.ConfigFormat, status *pluginconf.Status) *IMDSAttestorConfig {

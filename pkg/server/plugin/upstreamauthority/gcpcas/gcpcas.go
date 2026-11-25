@@ -51,11 +51,11 @@ func builtin(p *Plugin) catalog.BuiltIn {
 }
 
 type CertificateAuthoritySpec struct {
-	Project    string `hcl:"project_name" yaml:"projectName"`
-	Location   string `hcl:"region_name" yaml:"regionName"`
-	CaPool     string `hcl:"ca_pool" yaml:"caPool"`
-	LabelKey   string `hcl:"label_key" yaml:"labelKey"`
-	LabelValue string `hcl:"label_value" yaml:"labelValue"`
+	Project    string `hcl:"project_name" yaml:"project_name"`
+	Location   string `hcl:"region_name" yaml:"region_name"`
+	CaPool     string `hcl:"ca_pool" yaml:"ca_pool"`
+	LabelKey   string `hcl:"label_key" yaml:"label_key"`
+	LabelValue string `hcl:"label_value" yaml:"label_value"`
 }
 
 func (spec *CertificateAuthoritySpec) caParentPath(caPool string) string {
@@ -67,7 +67,7 @@ func (spec *CertificateAuthoritySpec) caPoolParentPath() string {
 }
 
 type Configuration struct {
-	RootSpec CertificateAuthoritySpec `hcl:"root_cert_spec,block" yaml:"rootCertSpec"`
+	RootSpec CertificateAuthoritySpec `hcl:"root_cert_spec,block" yaml:"root_cert_spec"`
 }
 
 func buildConfig(coreConfig catalog.CoreConfig, text string, format catalog.ConfigFormat, status *pluginconf.Status) *Configuration {

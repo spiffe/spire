@@ -50,7 +50,7 @@ func newPlugin(newSecretManagerClient func(context.Context, string) (secretManag
 }
 
 type Configuration struct {
-	ServiceAccountFile string                 `hcl:"service_account_file" json:"service_account_file" yaml:"serviceAccountFile"`
+	ServiceAccountFile string                 `hcl:"service_account_file" json:"service_account_file" yaml:"service_account_file"`
 	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions" json:",omitempty" yaml:"-"`
 }
 

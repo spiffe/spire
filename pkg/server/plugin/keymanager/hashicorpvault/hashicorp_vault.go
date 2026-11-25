@@ -56,10 +56,10 @@ type pluginHooks struct {
 type Config struct {
 	vault.BaseConfiguration `hcl:",squash" yaml:",inline"`
 
-	KeyIdentifierFile  string `hcl:"key_identifier_file" json:"key_identifier_file" yaml:"keyIdentifierFile"`
-	KeyIdentifierValue string `hcl:"key_identifier_value" json:"key_identifier_value" yaml:"keyIdentifierValue"`
+	KeyIdentifierFile  string `hcl:"key_identifier_file" json:"key_identifier_file" yaml:"key_identifier_file"`
+	KeyIdentifierValue string `hcl:"key_identifier_value" json:"key_identifier_value" yaml:"key_identifier_value"`
 	// TransitEnginePath specifies the path to the transit engine to perform key operations.
-	TransitEnginePath string `hcl:"transit_engine_path" json:"transit_engine_path" yaml:"transitEnginePath"`
+	TransitEnginePath string `hcl:"transit_engine_path" json:"transit_engine_path" yaml:"transit_engine_path"`
 }
 
 // Plugin is the main representation of this keymanager plugin

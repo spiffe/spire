@@ -124,11 +124,11 @@ func buildConfig(coreConfig catalog.CoreConfig, text string, format catalog.Conf
 }
 
 type Config struct {
-	AllowedDNSPatterns []string `hcl:"allowed_dns_patterns" yaml:"allowedDnsPatterns"`
-	RequiredPort       *int     `hcl:"required_port" yaml:"requiredPort"`
-	AllowNonRootPorts  *bool    `hcl:"allow_non_root_ports" yaml:"allowNonRootPorts"`
+	AllowedDNSPatterns []string `hcl:"allowed_dns_patterns" yaml:"allowed_dns_patterns"`
+	RequiredPort       *int     `hcl:"required_port" yaml:"required_port"`
+	AllowNonRootPorts  *bool    `hcl:"allow_non_root_ports" yaml:"allow_non_root_ports"`
 	TOFU               *bool    `hcl:"tofu" yaml:"tofu"`
-	VerifyClientIP     bool     `hcl:"verify_client_ip" yaml:"verifyClientIp"`
+	VerifyClientIP     bool     `hcl:"verify_client_ip" yaml:"verify_client_ip"`
 }
 
 type Plugin struct {

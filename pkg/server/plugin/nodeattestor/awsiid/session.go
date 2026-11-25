@@ -14,12 +14,12 @@ import (
 
 // SessionConfig is a common config for AWS session config.
 type SessionConfig struct {
-	AccessKeyID          string `hcl:"access_key_id" yaml:"accessKeyId"`
-	SecretAccessKey      string `hcl:"secret_access_key" yaml:"secretAccessKey"`
-	AssumeRole           string `hcl:"assume_role" yaml:"assumeRole"`
+	AccessKeyID          string `hcl:"access_key_id" yaml:"access_key_id"`
+	SecretAccessKey      string `hcl:"secret_access_key" yaml:"secret_access_key"`
+	AssumeRole           string `hcl:"assume_role" yaml:"assume_role"`
 	Partition            string `hcl:"partition" yaml:"partition"`
-	WebIdentityRoleARN   string `hcl:"web_identity_role_arn" yaml:"webIdentityRoleArn"`
-	WebIdentityTokenFile string `hcl:"web_identity_token_file" yaml:"webIdentityTokenFile"`
+	WebIdentityRoleARN   string `hcl:"web_identity_role_arn" yaml:"web_identity_role_arn"`
+	WebIdentityTokenFile string `hcl:"web_identity_token_file" yaml:"web_identity_token_file"`
 }
 
 func (cfg *SessionConfig) Validate(defaultAccessKeyID, defaultSecretAccessKey string) error {

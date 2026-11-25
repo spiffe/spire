@@ -10,6 +10,6 @@ import (
 // TestConfigYAMLInline checks that YAML keys of the embedded configuration decode into it.
 func TestConfigYAMLInline(t *testing.T) {
 	config := new(Configuration)
-	require.NoError(t, yamlconfig.Decode("vaultAddr: https://vault\npkiMountPoint: pki\n", config))
+	require.NoError(t, yamlconfig.Decode("vault_addr: https://vault\npki_mount_point: pki\n", config))
 	require.Equal(t, "https://vault", config.VaultAddr)
 }

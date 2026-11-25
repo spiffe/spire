@@ -78,15 +78,15 @@ func builtin(p *MSIAttestorPlugin) catalog.BuiltIn {
 }
 
 type TenantConfig struct {
-	ResourceID     string `hcl:"resource_id" json:"resource_id" yaml:"resourceId"`
-	SubscriptionID string `hcl:"subscription_id" json:"subscription_id" yaml:"subscriptionId"`
-	AppID          string `hcl:"app_id" json:"app_id" yaml:"appId"`
-	AppSecret      string `hcl:"app_secret" json:"app_secret" yaml:"appSecret"`
+	ResourceID     string `hcl:"resource_id" json:"resource_id" yaml:"resource_id"`
+	SubscriptionID string `hcl:"subscription_id" json:"subscription_id" yaml:"subscription_id"`
+	AppID          string `hcl:"app_id" json:"app_id" yaml:"app_id"`
+	AppSecret      string `hcl:"app_secret" json:"app_secret" yaml:"app_secret"`
 }
 
 type MSIAttestorConfig struct {
 	Tenants           map[string]*TenantConfig `hcl:"tenants" json:"tenants" yaml:"tenants"`
-	AgentPathTemplate string                   `hcl:"agent_path_template" json:"agent_path_template" yaml:"agentPathTemplate"`
+	AgentPathTemplate string                   `hcl:"agent_path_template" json:"agent_path_template" yaml:"agent_path_template"`
 }
 
 type tenantConfig struct {

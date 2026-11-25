@@ -1,51 +1,51 @@
 server:
-  bindAddress: "127.0.0.1"
-  bindPort: 8081
-  socketPath: "/tmp/spire-server/private/api-test.sock"
-  trustDomain: "example.org"
-  logLevel: "INFO"
-  auditLogEnabled: true
-  auditLogExcludeAgentSync: true
-  proxyProtocolTrustedCidrs: ["10.0.0.0/8", "172.16.0.0/12"]
+  bind_address: "127.0.0.1"
+  bind_port: 8081
+  socket_path: "/tmp/spire-server/private/api-test.sock"
+  trust_domain: "example.org"
+  log_level: "INFO"
+  audit_log_enabled: true
+  audit_log_exclude_agent_sync: true
+  proxy_protocol_trusted_cidrs: ["10.0.0.0/8", "172.16.0.0/12"]
   federation:
-    bundleEndpoint:
+    bundle_endpoint:
       address: "0.0.0.0"
       port: 8443
       acme:
-        domainName: "example.org"
-    federatesWith:
+        domain_name: "example.org"
+    federates_with:
       # Mirrors the HCL fixture, whose bundle_endpoint blocks here are no
       # longer supported options.
       "domain1.test": {}
       "domain2.test": {}
       "domain3.test":
-        bundleEndpointUrl: "https://9.10.11.12:8443"
-        bundleEndpointProfile:
-          httpsSpiffe:
-            endpointSpiffeId: "spiffe://different-domain.test/my-spiffe-bundle-endpoint-server"
+        bundle_endpoint_url: "https://9.10.11.12:8443"
+        bundle_endpoint_profile:
+          https_spiffe:
+            endpoint_spiffe_id: "spiffe://different-domain.test/my-spiffe-bundle-endpoint-server"
       "domain4.test":
-        bundleEndpointUrl: "https://13.14.15.16:8444"
-        bundleEndpointProfile:
-          httpsWeb: {}
+        bundle_endpoint_url: "https://13.14.15.16:8444"
+        bundle_endpoint_profile:
+          https_web: {}
   experimental:
-    enableYamlConfig: true
-    requirePqKem: true
+    enable_yaml_config: true
+    require_pq_kem: true
 
 plugins:
   plugin_type_server:
     plugin_name_server:
-      pluginCmd: "./pluginServerCmd"
-      pluginChecksum: "pluginServerChecksum"
-      pluginData:
+      plugin_cmd: "./pluginServerCmd"
+      plugin_checksum: "pluginServerChecksum"
+      plugin_data:
         join_token: "PLUGIN-SERVER-NOT-A-SECRET"
     plugin_disabled:
-      pluginCmd: "./pluginServerCmd"
+      plugin_cmd: "./pluginServerCmd"
       enabled: false
-      pluginChecksum: "pluginServerChecksum"
-      pluginData:
+      plugin_checksum: "pluginServerChecksum"
+      plugin_data:
         join_token: "PLUGIN-SERVER-NOT-A-SECRET"
     plugin_enabled:
-      pluginCmd: "./pluginServerCmd"
+      plugin_cmd: "./pluginServerCmd"
       enabled: true
-      pluginChecksum: "pluginServerChecksum"
-      pluginDataFile: "plugin.conf"
+      plugin_checksum: "pluginServerChecksum"
+      plugin_data_file: "plugin.conf"

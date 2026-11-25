@@ -82,7 +82,7 @@ type dockerPluginConfig struct {
 	OSConfig `hcl:",squash" yaml:",inline"`
 
 	// DockerVersion is the API version of the docker daemon. If not specified, the version is negotiated by the client.
-	DockerVersion string `hcl:"docker_version" json:"docker_version" yaml:"dockerVersion"`
+	DockerVersion string `hcl:"docker_version" json:"docker_version" yaml:"docker_version"`
 
 	UnusedKeyPositions map[string][]token.Pos `hcl:",unusedKeyPositions" yaml:"-"`
 

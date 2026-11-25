@@ -47,8 +47,8 @@ type IITAttestorPlugin struct {
 
 // IITAttestorConfig configures a IITAttestorPlugin.
 type IITAttestorConfig struct {
-	IdentityTokenHost string `hcl:"identity_token_host" yaml:"identityTokenHost"`
-	ServiceAccount    string `hcl:"service_account" yaml:"serviceAccount"`
+	IdentityTokenHost string `hcl:"identity_token_host" yaml:"identity_token_host"`
+	ServiceAccount    string `hcl:"service_account" yaml:"service_account"`
 }
 
 func buildConfig(coreConfig catalog.CoreConfig, text string, format catalog.ConfigFormat, status *pluginconf.Status) *IITAttestorConfig {

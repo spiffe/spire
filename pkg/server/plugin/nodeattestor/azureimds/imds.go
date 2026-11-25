@@ -42,28 +42,28 @@ func builtin(p *IMDSAttestorPlugin) catalog.BuiltIn {
 }
 
 type SecretAuthConfig struct {
-	AppID     string `hcl:"app_id" json:"app_id" yaml:"appId"`
-	AppSecret string `hcl:"app_secret" json:"app_secret" yaml:"appSecret"`
+	AppID     string `hcl:"app_id" json:"app_id" yaml:"app_id"`
+	AppSecret string `hcl:"app_secret" json:"app_secret" yaml:"app_secret"`
 }
 
 type TokenAuthConfig struct {
-	TokenPath string `hcl:"token_path" json:"token_path" yaml:"tokenPath"`
-	AppID     string `hcl:"app_id" json:"app_id" yaml:"appId"`
+	TokenPath string `hcl:"token_path" json:"token_path" yaml:"token_path"`
+	AppID     string `hcl:"app_id" json:"app_id" yaml:"app_id"`
 }
 
 type TenantConfig struct {
-	AuthType                string            `hcl:"auth_type" json:"auth_type" yaml:"authType"`
-	SecretAuth              *SecretAuthConfig `hcl:"secret_auth" json:"secret_auth" yaml:"secretAuth"`
-	TokenAuth               *TokenAuthConfig  `hcl:"token_auth" json:"token_auth" yaml:"tokenAuth"`
-	AllowedTags             []string          `hcl:"allowed_vm_tags" json:"allowed_vm_tags" yaml:"allowedVmTags"`
-	RestrictToSubscriptions []*string         `hcl:"restrict_to_subscriptions" json:"restrict_to_subscriptions" yaml:"restrictToSubscriptions"`
+	AuthType                string            `hcl:"auth_type" json:"auth_type" yaml:"auth_type"`
+	SecretAuth              *SecretAuthConfig `hcl:"secret_auth" json:"secret_auth" yaml:"secret_auth"`
+	TokenAuth               *TokenAuthConfig  `hcl:"token_auth" json:"token_auth" yaml:"token_auth"`
+	AllowedTags             []string          `hcl:"allowed_vm_tags" json:"allowed_vm_tags" yaml:"allowed_vm_tags"`
+	RestrictToSubscriptions []*string         `hcl:"restrict_to_subscriptions" json:"restrict_to_subscriptions" yaml:"restrict_to_subscriptions"`
 }
 
 type IMDSAttestorConfig struct {
 	Tenants                map[string]*TenantConfig `hcl:"tenants" json:"tenants" yaml:"tenants"`
-	AgentPathTemplate      string                   `hcl:"agent_path_template" json:"agent_path_template" yaml:"agentPathTemplate"`
-	AllowedMetadataDomains []string                 `hcl:"allowed_metadata_domains" json:"allowed_metadata_domains" yaml:"allowedMetadataDomains"`
-	TrustBundlePath        string                   `hcl:"trust_bundle_path" json:"trust_bundle_path" yaml:"trustBundlePath"`
+	AgentPathTemplate      string                   `hcl:"agent_path_template" json:"agent_path_template" yaml:"agent_path_template"`
+	AllowedMetadataDomains []string                 `hcl:"allowed_metadata_domains" json:"allowed_metadata_domains" yaml:"allowed_metadata_domains"`
+	TrustBundlePath        string                   `hcl:"trust_bundle_path" json:"trust_bundle_path" yaml:"trust_bundle_path"`
 }
 
 type tenantConfig struct {

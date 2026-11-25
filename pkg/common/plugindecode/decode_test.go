@@ -9,8 +9,8 @@ import (
 )
 
 type testConfig struct {
-	KeysPath string `hcl:"keys_path"  yaml:"keysPath"`
-	MaxKeys  int    `hcl:"max_keys"   yaml:"maxKeys"`
+	KeysPath string `hcl:"keys_path"  yaml:"keys_path"`
+	MaxKeys  int    `hcl:"max_keys"   yaml:"max_keys"`
 }
 
 func TestDecodeConfig_HCL(t *testing.T) {
@@ -24,8 +24,8 @@ max_keys = 10`
 }
 
 func TestDecodeConfig_YAML(t *testing.T) {
-	yamlText := `keysPath: /tmp/keys
-maxKeys: 10`
+	yamlText := `keys_path: /tmp/keys
+max_keys: 10`
 	var cfg testConfig
 	err := plugindecode.DecodeConfig(yamlText, catalog.ConfigFormatYAML, &cfg)
 	require.NoError(t, err)
@@ -59,6 +59,6 @@ func TestDecodeConfig_InvalidYAML(t *testing.T) {
 
 func TestDecodeConfig_YAMLUnknownKey(t *testing.T) {
 	var cfg testConfig
-	err := plugindecode.DecodeConfig("keys_path: /tmp/keys\n", catalog.ConfigFormatYAML, &cfg)
-	require.ErrorContains(t, err, "field keys_path not found")
+	err := plugindecode.DecodeConfig("keysPath: /tmp/keys\n", catalog.ConfigFormatYAML, &cfg)
+	require.ErrorContains(t, err, "field keysPath not found")
 }

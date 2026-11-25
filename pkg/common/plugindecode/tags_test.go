@@ -26,7 +26,7 @@ var yamlOptOut = map[string]string{
 }
 
 // TestYAMLTags requires every struct field that HCL decodes to carry the
-// matching yaml tag: the lowerCamelCase form of its HCL key. Structs without
+// matching yaml tag, named like its HCL key. Structs without
 // hcl tags are checked too when a decoded field refers to them.
 func TestYAMLTags(t *testing.T) {
 	structs := parseStructs(t, "pkg", "cmd/spire-server", "cmd/spire-agent")
@@ -94,7 +94,7 @@ func checkField(t *testing.T, s *structInfo, f *ast.Field) bool {
 	case name == "":
 		want = "-"
 	default:
-		want = lowerCamel(name)
+		want = name
 	}
 
 	if got == "-" && want != "-" {
@@ -243,14 +243,4 @@ func isASTNode(e ast.Expr) bool {
 		return ok && x.Name == "ast" && t.Sel.Name == "Node"
 	}
 	return false
-}
-
-func lowerCamel(s string) string {
-	parts := strings.Split(s, "_")
-	for i := 1; i < len(parts); i++ {
-		if parts[i] != "" {
-			parts[i] = strings.ToUpper(parts[i][:1]) + parts[i][1:]
-		}
-	}
-	return strings.Join(parts, "")
 }

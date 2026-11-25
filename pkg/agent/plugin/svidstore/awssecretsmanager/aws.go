@@ -49,8 +49,8 @@ func newPlugin(newClient func(ctx context.Context, secretAccessKey, accessKeyID,
 }
 
 type Configuration struct {
-	AccessKeyID     string `hcl:"access_key_id" json:"access_key_id" yaml:"accessKeyId"`
-	SecretAccessKey string `hcl:"secret_access_key" json:"secret_access_key" yaml:"secretAccessKey"`
+	AccessKeyID     string `hcl:"access_key_id" json:"access_key_id" yaml:"access_key_id"`
+	SecretAccessKey string `hcl:"secret_access_key" json:"secret_access_key" yaml:"secret_access_key"`
 	Region          string `hcl:"region" json:"region" yaml:"region"`
 }
 

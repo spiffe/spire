@@ -57,11 +57,11 @@ func builtIn(p *Plugin) catalog.BuiltIn {
 
 type cluster struct {
 	Namespace          string `hcl:"namespace" yaml:"namespace"`
-	ConfigMap          string `hcl:"config_map" yaml:"configMap"`
-	ConfigMapKey       string `hcl:"config_map_key" yaml:"configMapKey"`
-	WebhookLabel       string `hcl:"webhook_label" yaml:"webhookLabel"`
-	APIServiceLabel    string `hcl:"api_service_label" yaml:"apiServiceLabel"`
-	KubeConfigFilePath string `hcl:"kube_config_file_path" yaml:"kubeConfigFilePath"`
+	ConfigMap          string `hcl:"config_map" yaml:"config_map"`
+	ConfigMapKey       string `hcl:"config_map_key" yaml:"config_map_key"`
+	WebhookLabel       string `hcl:"webhook_label" yaml:"webhook_label"`
+	APIServiceLabel    string `hcl:"api_service_label" yaml:"api_service_label"`
+	KubeConfigFilePath string `hcl:"kube_config_file_path" yaml:"kube_config_file_path"`
 }
 
 type Configuration struct {

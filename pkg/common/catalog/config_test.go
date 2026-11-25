@@ -327,22 +327,22 @@ func TestPluginConfigsFromYAML(t *testing.T) {
 	node := yamlNode(t, `
 NodeAttestor:
   k8s_psat:
-    pluginCmd: ./attestor
-    pluginChecksum: abc123
-    pluginArgs: ["--arg1", "--arg2"]
-    pluginData:
+    plugin_cmd: ./attestor
+    plugin_checksum: abc123
+    plugin_args: ["--arg1", "--arg2"]
+    plugin_data:
       cluster: prod
     enabled: true
   disabled_plugin:
-    pluginCmd: ./attestor2
+    plugin_cmd: ./attestor2
     enabled: false
 KeyManager:
   disk:
-    pluginDataFile: keymanager.yaml
+    plugin_data_file: keymanager.yaml
   memory:
-    pluginData: {}
+    plugin_data: {}
   hcl_file:
-    pluginDataFile: keymanager.conf
+    plugin_data_file: keymanager.conf
 `)
 
 	configs, err := PluginConfigsFromYAML(node)
@@ -389,11 +389,11 @@ func TestPluginConfigsFromYAML_Errors(t *testing.T) {
 	for _, tt := range []struct {
 		name, config, err string
 	}{
-		{"both data sources", "T:\n  n:\n    pluginData: {k: v}\n    pluginDataFile: f.yaml\n", "only one of"},
-		{"unknown key", "T:\n  n:\n    plugin_cmd: ./p\n", "field plugin_cmd not found"},
+		{"both data sources", "T:\n  n:\n    plugin_data: {k: v}\n    plugin_data_file: f.yaml\n", "only one of"},
+		{"unknown key", "T:\n  n:\n    pluginCmd: ./p\n", "field pluginCmd not found"},
 		{"plugins not a mapping", "[a]", "plugins must be a mapping"},
 		{"type not a mapping", "T: [a]", `plugins of type "T" must be a mapping`},
-		{"unknown nested key", "T:\n  n:\n    pluginData: {a: 1}\n    pluginDataFil: f.yaml\n", "field pluginDataFil not found"},
+		{"unknown nested key", "T:\n  n:\n    plugin_data: {a: 1}\n    pluginDataFil: f.yaml\n", "field pluginDataFil not found"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			_, err := PluginConfigsFromYAML(yamlNode(t, tt.config))

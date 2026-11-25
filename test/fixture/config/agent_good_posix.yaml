@@ -1,31 +1,31 @@
 agent:
-  dataDir: "."
-  logLevel: "INFO"
-  serverAddress: "127.0.0.1"
-  serverPort: 8081
-  socketPath: "/tmp/spire-agent/public/api.sock"
-  trustBundlePath: "conf/agent/dummy_root_ca.crt"
-  trustDomain: "example.org"
-  allowUnauthenticatedVerifiers: true
-  allowedForeignJwtClaims: ["c1", "c2", "c3"]
+  data_dir: "."
+  log_level: "INFO"
+  server_address: "127.0.0.1"
+  server_port: 8081
+  socket_path: "/tmp/spire-agent/public/api.sock"
+  trust_bundle_path: "conf/agent/dummy_root_ca.crt"
+  trust_domain: "example.org"
+  allow_unauthenticated_verifiers: true
+  allowed_foreign_jwt_claims: ["c1", "c2", "c3"]
   experimental:
-    enableYamlConfig: true
+    enable_yaml_config: true
 
 plugins:
   plugin_type_agent:
     plugin_name_agent:
-      pluginCmd: "./pluginAgentCmd"
-      pluginChecksum: "pluginAgentChecksum"
-      pluginData:
+      plugin_cmd: "./pluginAgentCmd"
+      plugin_checksum: "pluginAgentChecksum"
+      plugin_data:
         join_token: "PLUGIN-AGENT-NOT-A-SECRET"
     plugin_disabled:
-      pluginCmd: "./pluginAgentCmd"
+      plugin_cmd: "./pluginAgentCmd"
       enabled: false
-      pluginChecksum: "pluginAgentChecksum"
-      pluginData:
+      plugin_checksum: "pluginAgentChecksum"
+      plugin_data:
         join_token: "PLUGIN-AGENT-NOT-A-SECRET"
     plugin_enabled:
-      pluginCmd: "./pluginAgentCmd"
+      plugin_cmd: "./pluginAgentCmd"
       enabled: true
-      pluginChecksum: "pluginAgentChecksum"
-      pluginDataFile: "plugin.conf"
+      plugin_checksum: "pluginAgentChecksum"
+      plugin_data_file: "plugin.conf"

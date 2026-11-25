@@ -35,7 +35,7 @@ func asBuiltIn(p *KeyManager) catalog.BuiltIn {
 }
 
 type configuration struct {
-	KeysPath string `hcl:"keys_path" yaml:"keysPath"`
+	KeysPath string `hcl:"keys_path" yaml:"keys_path"`
 }
 
 func buildConfig(coreConfig catalog.CoreConfig, text string, format catalog.ConfigFormat, status *pluginconf.Status) *configuration {

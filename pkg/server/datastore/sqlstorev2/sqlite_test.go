@@ -57,8 +57,8 @@ func TestConfigureSQLiteYAML(t *testing.T) {
 	path := sqlitePath(t)
 	ds := newSQLitePlugin(t)
 	require.NoError(t, ds.ConfigureFormat(context.Background(), fmt.Sprintf(`
-databaseType: sqlite3
-connectionString: %q
+database_type: sqlite3
+connection_string: %q
 `, path), catalog.ConfigFormatYAML))
 
 	var fk struct{ ForeignKeys string }

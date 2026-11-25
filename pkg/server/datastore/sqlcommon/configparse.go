@@ -121,7 +121,7 @@ func ParseDatabaseTypeASTNode(node ast.Node) (*DBTypeConfig, error) {
 }
 
 // DatabaseTypeYAML is the YAML form of database_type: either a scalar such as
-// "sqlite3", or a mapping with a single key such as "awsPostgres".
+// "sqlite3", or a mapping with a single key such as "aws_postgres".
 type DatabaseTypeYAML struct {
 	DBTypeConfig
 }
@@ -139,13 +139,9 @@ func (d *DatabaseTypeYAML) UnmarshalYAML(node *yaml.Node) error {
 	}
 
 	key := node.Content[0].Value
-	databaseType, ok := map[string]string{
-		"awsMysql":      AWSMySQL,
-		"awsPostgres":   AWSPostgreSQL,
-		"azureMysql":    AzureMySQL,
-		"azurePostgres": AzurePostgreSQL,
-	}[key]
-	if !ok {
+	switch key {
+	case AWSMySQL, AWSPostgreSQL, AzureMySQL, AzurePostgreSQL:
+	default:
 		return fmt.Errorf("unknown database type: %s", key)
 	}
 	value := node.Content[1]
@@ -158,7 +154,7 @@ func (d *DatabaseTypeYAML) UnmarshalYAML(node *yaml.Node) error {
 	if err := yamlconfig.DecodeNode(node, &d.DBTypeConfig); err != nil {
 		return fmt.Errorf("failed to decode configuration: %w", err)
 	}
-	d.DatabaseType = databaseType
+	d.DatabaseType = key
 	return nil
 }
 

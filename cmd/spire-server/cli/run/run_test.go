@@ -179,19 +179,19 @@ func TestNewServerConfig_YAMLProfiles(t *testing.T) {
 	parse := func(t *testing.T, federation string) *Config {
 		path := filepath.Join(t.TempDir(), "server.yaml")
 		config := `server:
-  bindAddress: 127.0.0.1
-  bindPort: 8081
-  trustDomain: example.org
-  logLevel: INFO
-  dataDir: ` + t.TempDir() + `
+  bind_address: 127.0.0.1
+  bind_port: 8081
+  trust_domain: example.org
+  log_level: INFO
+  data_dir: ` + t.TempDir() + `
   experimental:
-    enableYamlConfig: true
+    enable_yaml_config: true
   federation:
 ` + federation + `
 plugins:
   KeyManager:
     memory:
-      pluginData: {}
+      plugin_data: {}
 `
 		require.NoError(t, os.WriteFile(path, []byte(config), 0o600))
 		c, err := ParseFile(path, false)
@@ -200,25 +200,25 @@ plugins:
 	}
 
 	t.Run("valid", func(t *testing.T) {
-		c := parse(t, `    bundleEndpoint:
+		c := parse(t, `    bundle_endpoint:
       address: 0.0.0.0
       port: 8443
       profile:
-        httpsWeb:
-          servingCertFile:
-            certFilePath: `+certPath+`
-            keyFilePath: `+keyPath+`
-            fileSyncInterval: 1h
-    federatesWith:
+        https_web:
+          serving_cert_file:
+            cert_file_path: `+certPath+`
+            key_file_path: `+keyPath+`
+            file_sync_interval: 1h
+    federates_with:
       domain1.test:
-        bundleEndpointUrl: https://1.2.3.4:8443
-        bundleEndpointProfile:
-          httpsSpiffe:
-            endpointSpiffeId: spiffe://domain1.test/beserver
+        bundle_endpoint_url: https://1.2.3.4:8443
+        bundle_endpoint_profile:
+          https_spiffe:
+            endpoint_spiffe_id: spiffe://domain1.test/beserver
       domain2.test:
-        bundleEndpointUrl: https://example.org:8443
-        bundleEndpointProfile:
-          httpsWeb: {}`)
+        bundle_endpoint_url: https://example.org:8443
+        bundle_endpoint_profile:
+          https_web: {}`)
 		sc, err := NewServerConfig(c, nil, false)
 		require.NoError(t, err)
 		require.NotNil(t, sc.Federation.BundleEndpoint.DiskCertManager)
@@ -233,30 +233,30 @@ plugins:
 	}{
 		{
 			name: "two bundle endpoint profiles",
-			federation: `    bundleEndpoint:
+			federation: `    bundle_endpoint:
       profile:
-        httpsSpiffe: {}
-        httpsWeb: {}`,
+        https_spiffe: {}
+        https_web: {}`,
 			err: "exactly one bundle endpoint profile is expected",
 		},
 		{
 			name: "two federates_with profiles",
-			federation: `    federatesWith:
+			federation: `    federates_with:
       domain1.test:
-        bundleEndpointUrl: https://1.2.3.4:8443
-        bundleEndpointProfile:
-          httpsSpiffe:
-            endpointSpiffeId: spiffe://domain1.test/beserver
-          httpsWeb: {}`,
+        bundle_endpoint_url: https://1.2.3.4:8443
+        bundle_endpoint_profile:
+          https_spiffe:
+            endpoint_spiffe_id: spiffe://domain1.test/beserver
+          https_web: {}`,
 			err: "exactly one bundle endpoint profile is expected",
 		},
 		{
 			// A profile key without a value is not considered set.
 			name: "profile without value",
-			federation: `    federatesWith:
+			federation: `    federates_with:
       domain1.test:
-        bundleEndpointUrl: https://1.2.3.4:8443
-        bundleEndpointProfile:
+        bundle_endpoint_url: https://1.2.3.4:8443
+        bundle_endpoint_profile:
           httpsWeb:`,
 			err: "no bundle endpoint profile defined",
 		},
@@ -270,22 +270,22 @@ plugins:
 
 func TestParseFile_YAMLUnknownKeys(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.yaml")
-	require.NoError(t, os.WriteFile(path, []byte("server:\n  trustDomain: example.org\n  trust_domain: example.org\n"), 0o600))
+	require.NoError(t, os.WriteFile(path, []byte("server:\n  trust_domain: example.org\n  trustDomain: example.org\n"), 0o600))
 	c, err := ParseFile(path, false)
 	require.NoError(t, err)
 	require.Equal(t, "example.org", c.Server.TrustDomain)
-	require.Equal(t, []string{"trust_domain (line 3)"}, c.YAMLUnknownKeys)
+	require.Equal(t, []string{"trustDomain (line 3)"}, c.YAMLUnknownKeys)
 
 	log, hook := test.NewNullLogger()
 	require.EqualError(t, checkForUnknownConfig(c, log), "unknown configuration detected")
-	require.Equal(t, "trust_domain (line 3)", hook.LastEntry().Data["keys"])
+	require.Equal(t, "trustDomain (line 3)", hook.LastEntry().Data["keys"])
 }
 
 func TestParseFile_YAMLErrors(t *testing.T) {
 	for _, tt := range []struct {
 		name, config, err string
 	}{
-		{"wrong type", "server:\n  bindPort: notanumber\n", "cannot unmarshal"},
+		{"wrong type", "server:\n  bind_port: notanumber\n", "cannot unmarshal"},
 		{"multiple documents", "server: {}\n---\nserver: {}\n", "multiple YAML documents are not supported"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -300,7 +300,7 @@ func TestParseFile_YAMLErrors(t *testing.T) {
 func TestParseFile_YAMLExpandEnv(t *testing.T) {
 	t.Setenv("TEST_YAML_TRUST_DOMAIN", "example.org")
 	path := filepath.Join(t.TempDir(), "config.yaml")
-	require.NoError(t, os.WriteFile(path, []byte("server:\n  trustDomain: $TEST_YAML_TRUST_DOMAIN\n"), 0o600))
+	require.NoError(t, os.WriteFile(path, []byte("server:\n  trust_domain: $TEST_YAML_TRUST_DOMAIN\n"), 0o600))
 	c, err := ParseFile(path, true)
 	require.NoError(t, err)
 	require.Equal(t, "example.org", c.Server.TrustDomain)
@@ -308,11 +308,11 @@ func TestParseFile_YAMLExpandEnv(t *testing.T) {
 
 func TestValidateConfig_YAMLRequiresExperimentalFlag(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.yaml")
-	config := "server:\n  bindAddress: 127.0.0.1\n  bindPort: 8081\n  trustDomain: example.org\n  dataDir: /tmp\nplugins:\n  KeyManager:\n    memory: {}\n"
+	config := "server:\n  bind_address: 127.0.0.1\n  bind_port: 8081\n  trust_domain: example.org\n  data_dir: /tmp\nplugins:\n  KeyManager:\n    memory: {}\n"
 	require.NoError(t, os.WriteFile(path, []byte(config), 0o600))
 	c, err := ParseFile(path, false)
 	require.NoError(t, err)
-	require.EqualError(t, validateConfig(c), "YAML configuration is experimental: set experimental.enableYamlConfig to true to use it")
+	require.EqualError(t, validateConfig(c), "YAML configuration is experimental: set experimental.enable_yaml_config to true to use it")
 
 	c.Server.Experimental.EnableYAMLConfig = true
 	require.NoError(t, validateConfig(c))
@@ -320,7 +320,7 @@ func TestValidateConfig_YAMLRequiresExperimentalFlag(t *testing.T) {
 
 func TestValidateConfig_YAMLWithoutPlugins(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.yaml")
-	require.NoError(t, os.WriteFile(path, []byte("server:\n  bindAddress: 127.0.0.1\n  bindPort: 8081\n  trustDomain: example.org\n  dataDir: /tmp\n  experimental:\n    enableYamlConfig: true\n"), 0o600))
+	require.NoError(t, os.WriteFile(path, []byte("server:\n  bind_address: 127.0.0.1\n  bind_port: 8081\n  trust_domain: example.org\n  data_dir: /tmp\n  experimental:\n    enable_yaml_config: true\n"), 0o600))
 	c, err := ParseFile(path, false)
 	require.NoError(t, err)
 	require.EqualError(t, validateConfig(c), "plugins section must be configured")

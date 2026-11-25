@@ -38,7 +38,7 @@ type MSIAttestorConfig struct {
 	// application they registered with the active directory to limit the scope
 	// of use of the token. A bogus value cannot be used; Azure makes sure the
 	// resource ID is either an azure service ID or a registered app ID.
-	ResourceID string `hcl:"resource_id" yaml:"resourceId"`
+	ResourceID string `hcl:"resource_id" yaml:"resource_id"`
 }
 
 func buildConfig(coreConfig catalog.CoreConfig, text string, format catalog.ConfigFormat, status *pluginconf.Status) *MSIAttestorConfig {

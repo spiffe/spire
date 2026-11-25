@@ -42,8 +42,8 @@ func builtin(p *Plugin) catalog.BuiltIn {
 }
 
 type Config struct {
-	DevIDBundlePath       string `hcl:"devid_ca_path" yaml:"devidCaPath"`
-	EndorsementBundlePath string `hcl:"endorsement_ca_path" yaml:"endorsementCaPath"`
+	DevIDBundlePath       string `hcl:"devid_ca_path" yaml:"devid_ca_path"`
+	EndorsementBundlePath string `hcl:"endorsement_ca_path" yaml:"endorsement_ca_path"`
 }
 
 type config struct {

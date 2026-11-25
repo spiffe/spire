@@ -132,23 +132,23 @@ type Plugin struct {
 // Config provides configuration context for the plugin.
 type Config struct {
 	// File path location where information about generated keys will be persisted.
-	KeyIdentifierFile string `hcl:"key_identifier_file" json:"key_identifier_file" yaml:"keyIdentifierFile"`
+	KeyIdentifierFile string `hcl:"key_identifier_file" json:"key_identifier_file" yaml:"key_identifier_file"`
 
 	// Key metadata used by the plugin.
-	KeyIdentifierValue string `hcl:"key_identifier_value" json:"key_identifier_value" yaml:"keyIdentifierValue"`
+	KeyIdentifierValue string `hcl:"key_identifier_value" json:"key_identifier_value" yaml:"key_identifier_value"`
 
 	// File path location to a custom IAM Policy (v3) that will be set to
 	// created CryptoKeys.
-	KeyPolicyFile string `hcl:"key_policy_file" json:"key_policy_file" yaml:"keyPolicyFile"`
+	KeyPolicyFile string `hcl:"key_policy_file" json:"key_policy_file" yaml:"key_policy_file"`
 
 	// KeyRing is the resource ID of the key ring where the keys managed by this
 	// plugin reside, in the format projects/*/locations/*/keyRings/*.
-	KeyRing string `hcl:"key_ring" json:"key_ring" yaml:"keyRing"`
+	KeyRing string `hcl:"key_ring" json:"key_ring" yaml:"key_ring"`
 
 	// Path to the service account file used to authenticate with the Cloud KMS
 	// API. If not specified, the value of the GOOGLE_APPLICATION_CREDENTIALS
 	// environment variable is used.
-	ServiceAccountFile string `hcl:"service_account_file" json:"service_account_file" yaml:"serviceAccountFile"`
+	ServiceAccountFile string `hcl:"service_account_file" json:"service_account_file" yaml:"service_account_file"`
 }
 
 func buildConfig(coreConfig catalog.CoreConfig, text string, format catalog.ConfigFormat, status *pluginconf.Status) *Config {

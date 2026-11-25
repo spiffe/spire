@@ -11,34 +11,34 @@ import (
 // Pointer values are used to distinguish between "unset" and "zero" values.
 type Configuration struct {
 	DatabaseTypeNode   ast.Node          `hcl:"database_type" json:"database_type" yaml:"-"`
-	DatabaseTypeYAML   *DatabaseTypeYAML `hcl:"-" json:"-" yaml:"databaseType"`
-	ConnectionString   string            `hcl:"connection_string" json:"connection_string" yaml:"connectionString"`
-	RoConnectionString string            `hcl:"ro_connection_string" json:"ro_connection_string" yaml:"roConnectionString"`
-	RootCAPath         string            `hcl:"root_ca_path" json:"root_ca_path" yaml:"rootCaPath"`
-	ClientCertPath     string            `hcl:"client_cert_path" json:"client_cert_path" yaml:"clientCertPath"`
-	ClientKeyPath      string            `hcl:"client_key_path" json:"client_key_path" yaml:"clientKeyPath"`
-	ConnMaxLifetime    *string           `hcl:"conn_max_lifetime" json:"conn_max_lifetime" yaml:"connMaxLifetime"`
-	MaxOpenConns       *int              `hcl:"max_open_conns" json:"max_open_conns" yaml:"maxOpenConns"`
-	MaxIdleConns       *int              `hcl:"max_idle_conns" json:"max_idle_conns" yaml:"maxIdleConns"`
-	DisableMigration   bool              `hcl:"disable_migration" json:"disable_migration" yaml:"disableMigration"`
+	DatabaseTypeYAML   *DatabaseTypeYAML `hcl:"-" json:"-" yaml:"database_type"`
+	ConnectionString   string            `hcl:"connection_string" json:"connection_string" yaml:"connection_string"`
+	RoConnectionString string            `hcl:"ro_connection_string" json:"ro_connection_string" yaml:"ro_connection_string"`
+	RootCAPath         string            `hcl:"root_ca_path" json:"root_ca_path" yaml:"root_ca_path"`
+	ClientCertPath     string            `hcl:"client_cert_path" json:"client_cert_path" yaml:"client_cert_path"`
+	ClientKeyPath      string            `hcl:"client_key_path" json:"client_key_path" yaml:"client_key_path"`
+	ConnMaxLifetime    *string           `hcl:"conn_max_lifetime" json:"conn_max_lifetime" yaml:"conn_max_lifetime"`
+	MaxOpenConns       *int              `hcl:"max_open_conns" json:"max_open_conns" yaml:"max_open_conns"`
+	MaxIdleConns       *int              `hcl:"max_idle_conns" json:"max_idle_conns" yaml:"max_idle_conns"`
+	DisableMigration   bool              `hcl:"disable_migration" json:"disable_migration" yaml:"disable_migration"`
 
 	DBTypeConfig *DBTypeConfig `yaml:"-"`
 	// Undocumented flags
-	LogSQL bool `hcl:"log_sql" json:"log_sql" yaml:"logSql"`
+	LogSQL bool `hcl:"log_sql" json:"log_sql" yaml:"log_sql"`
 }
 
 type DBTypeConfig struct {
-	AWSMySQL      *AWSConfig   `hcl:"aws_mysql" json:"aws_mysql" yaml:"awsMysql"`
-	AWSPostgres   *AWSConfig   `hcl:"aws_postgres" json:"aws_postgres" yaml:"awsPostgres"`
-	AzureMySQL    *AzureConfig `hcl:"azure_mysql" json:"azure_mysql" yaml:"azureMysql"`
-	AzurePostgres *AzureConfig `hcl:"azure_postgres" json:"azure_postgres" yaml:"azurePostgres"`
+	AWSMySQL      *AWSConfig   `hcl:"aws_mysql" json:"aws_mysql" yaml:"aws_mysql"`
+	AWSPostgres   *AWSConfig   `hcl:"aws_postgres" json:"aws_postgres" yaml:"aws_postgres"`
+	AzureMySQL    *AzureConfig `hcl:"azure_mysql" json:"azure_mysql" yaml:"azure_mysql"`
+	AzurePostgres *AzureConfig `hcl:"azure_postgres" json:"azure_postgres" yaml:"azure_postgres"`
 	DatabaseType  string       `yaml:"-"`
 }
 
 type AWSConfig struct {
 	Region          string `hcl:"region" yaml:"region"`
-	AccessKeyID     string `hcl:"access_key_id" yaml:"accessKeyId"`
-	SecretAccessKey string `hcl:"secret_access_key" yaml:"secretAccessKey"`
+	AccessKeyID     string `hcl:"access_key_id" yaml:"access_key_id"`
+	SecretAccessKey string `hcl:"secret_access_key" yaml:"secret_access_key"`
 }
 
 func (a *AWSConfig) Validate() error {
@@ -80,32 +80,32 @@ type AzureConfig struct {
 	// AuthType is one of "client_secret", "client_certificate",
 	// "workload_identity", "system_managed_identity", or
 	// "user_managed_identity".
-	AuthType string `hcl:"auth_type" json:"auth_type" yaml:"authType"`
+	AuthType string `hcl:"auth_type" json:"auth_type" yaml:"auth_type"`
 
 	// TenantID is required for auth_type "client_secret",
 	// "client_certificate", and "workload_identity". Falls back to
 	// AZURE_TENANT_ID.
-	TenantID string `hcl:"tenant_id" json:"tenant_id" yaml:"tenantId"`
+	TenantID string `hcl:"tenant_id" json:"tenant_id" yaml:"tenant_id"`
 
 	// ClientID is required for auth_type "client_secret",
 	// "client_certificate", and "workload_identity", and for
 	// "user_managed_identity" when managed_identity_resource_id is not set.
 	// Falls back to AZURE_CLIENT_ID.
-	ClientID string `hcl:"client_id" json:"client_id" yaml:"clientId"`
+	ClientID string `hcl:"client_id" json:"client_id" yaml:"client_id"`
 
 	// ClientSecret is required for auth_type "client_secret". Falls back to
 	// AZURE_CLIENT_SECRET.
-	ClientSecret string `hcl:"client_secret" json:"client_secret" yaml:"clientSecret"`
+	ClientSecret string `hcl:"client_secret" json:"client_secret" yaml:"client_secret"`
 
 	// ClientCertificatePath is required for auth_type "client_certificate".
 	// It must point to a PEM or PKCS#12 file containing the client
 	// certificate and private key. Falls back to
 	// AZURE_CLIENT_CERTIFICATE_PATH.
-	ClientCertificatePath string `hcl:"client_certificate_path" json:"client_certificate_path" yaml:"clientCertificatePath"`
+	ClientCertificatePath string `hcl:"client_certificate_path" json:"client_certificate_path" yaml:"client_certificate_path"`
 
 	// ClientCertificatePassword decrypts ClientCertificatePath, if needed.
 	// Falls back to AZURE_CLIENT_CERTIFICATE_PASSWORD.
-	ClientCertificatePassword string `hcl:"client_certificate_password" json:"client_certificate_password" yaml:"clientCertificatePassword"`
+	ClientCertificatePassword string `hcl:"client_certificate_password" json:"client_certificate_password" yaml:"client_certificate_password"`
 
 	// SendCertificateChain is optional and only applies to auth_type
 	// "client_certificate". When true, the certificate chain from
@@ -113,17 +113,17 @@ type AzureConfig struct {
 	// Subject Name/Issuer (SNI) authentication. Defaults to false. Falls back
 	// to AZURE_CLIENT_SEND_CERTIFICATE_CHAIN ("1" or "true", case-insensitive)
 	// when not set to true here.
-	SendCertificateChain bool `hcl:"send_certificate_chain" json:"send_certificate_chain" yaml:"sendCertificateChain"`
+	SendCertificateChain bool `hcl:"send_certificate_chain" json:"send_certificate_chain" yaml:"send_certificate_chain"`
 
 	// FederatedTokenFile is required for auth_type "workload_identity". It is
 	// the path to the Kubernetes service account token mounted by the AKS
 	// workload identity webhook. Falls back to AZURE_FEDERATED_TOKEN_FILE.
-	FederatedTokenFile string `hcl:"federated_token_file" json:"federated_token_file" yaml:"federatedTokenFile"`
+	FederatedTokenFile string `hcl:"federated_token_file" json:"federated_token_file" yaml:"federated_token_file"`
 
 	// ManagedIdentityResourceID is an alternative to ClientID for selecting
 	// which user-assigned managed identity to use when auth_type is
 	// "user_managed_identity".
-	ManagedIdentityResourceID string `hcl:"managed_identity_resource_id" json:"managed_identity_resource_id" yaml:"managedIdentityResourceId"`
+	ManagedIdentityResourceID string `hcl:"managed_identity_resource_id" json:"managed_identity_resource_id" yaml:"managed_identity_resource_id"`
 }
 
 // ResolvedAzureAuth holds the concrete Microsoft Entra ID authentication

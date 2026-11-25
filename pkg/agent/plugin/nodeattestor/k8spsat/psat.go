@@ -52,7 +52,7 @@ type AttestorConfig struct {
 	// Cluster name where the agent lives
 	Cluster string `hcl:"cluster" yaml:"cluster"`
 	// File path of PSAT
-	TokenPath string `hcl:"token_path" yaml:"tokenPath"`
+	TokenPath string `hcl:"token_path" yaml:"token_path"`
 }
 
 func buildConfig(coreConfig catalog.CoreConfig, text string, format catalog.ConfigFormat, status *pluginconf.Status) *attestorConfig {

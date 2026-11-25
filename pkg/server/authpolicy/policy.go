@@ -32,8 +32,8 @@ type OpaEngineConfig struct {
 }
 
 type LocalOpaProviderConfig struct {
-	RegoPath       string `hcl:"rego_path" yaml:"regoPath"`
-	PolicyDataPath string `hcl:"policy_data_path" yaml:"policyDataPath"`
+	RegoPath       string `hcl:"rego_path" yaml:"rego_path"`
+	PolicyDataPath string `hcl:"policy_data_path" yaml:"policy_data_path"`
 }
 
 // Input represents context associated with an access request.

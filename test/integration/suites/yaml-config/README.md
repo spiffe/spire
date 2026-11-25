@@ -10,4 +10,4 @@ YAML configuration files:
   `pluginDataFile`
 - An agent configured in YAML, with an anchor shared by two plugins, attests
   with a join token and fetches an X509-SVID
-- Both refuse a YAML configuration that does not set `experimental.enableYamlConfig`
+- Both refuse a YAML configuration that does not set `experimental.enable_yaml_config`

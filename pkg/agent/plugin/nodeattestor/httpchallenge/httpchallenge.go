@@ -46,7 +46,7 @@ type Config struct {
 	HostName       string `hcl:"hostname" yaml:"hostname"`
 	AgentName      string `hcl:"agentname" yaml:"agentname"`
 	Port           int    `hcl:"port" yaml:"port"`
-	AdvertisedPort int    `hcl:"advertised_port" yaml:"advertisedPort"`
+	AdvertisedPort int    `hcl:"advertised_port" yaml:"advertised_port"`
 }
 
 func (p *Plugin) buildConfig(coreConfig catalog.CoreConfig, text string, format catalog.ConfigFormat, status *pluginconf.Status) *configData {

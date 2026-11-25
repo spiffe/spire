@@ -54,17 +54,17 @@ func builtin(p *Plugin) catalog.BuiltIn {
 
 type Config struct {
 	Mode              string   `hcl:"mode" yaml:"mode"`
-	SVIDPrefix        *string  `hcl:"spiffe_prefix" yaml:"spiffePrefix"`
-	CABundlePath      string   `hcl:"ca_bundle_path" yaml:"caBundlePath"`
-	CABundlePaths     []string `hcl:"ca_bundle_paths" yaml:"caBundlePaths"`
-	AgentPathTemplate string   `hcl:"agent_path_template" yaml:"agentPathTemplate"`
-	MaxIntermediates  *int     `hcl:"max_intermediates" yaml:"maxIntermediates"`
-	MaxRSAKeySize     *int     `hcl:"max_rsa_key_size" yaml:"maxRsaKeySize"`
-	VerifyClientIP    bool     `hcl:"verify_client_ip" yaml:"verifyClientIp"`
-	GroupTemplate     string   `hcl:"group_template" yaml:"groupTemplate"`
-	AllowedGroups     []string `hcl:"allowed_groups" yaml:"allowedGroups"`
-	ExtensionOIDs     []string `hcl:"extension_oids" yaml:"extensionOids"`
-	HashAlgorithm     string   `hcl:"hash_algorithm" yaml:"hashAlgorithm"`
+	SVIDPrefix        *string  `hcl:"spiffe_prefix" yaml:"spiffe_prefix"`
+	CABundlePath      string   `hcl:"ca_bundle_path" yaml:"ca_bundle_path"`
+	CABundlePaths     []string `hcl:"ca_bundle_paths" yaml:"ca_bundle_paths"`
+	AgentPathTemplate string   `hcl:"agent_path_template" yaml:"agent_path_template"`
+	MaxIntermediates  *int     `hcl:"max_intermediates" yaml:"max_intermediates"`
+	MaxRSAKeySize     *int     `hcl:"max_rsa_key_size" yaml:"max_rsa_key_size"`
+	VerifyClientIP    bool     `hcl:"verify_client_ip" yaml:"verify_client_ip"`
+	GroupTemplate     string   `hcl:"group_template" yaml:"group_template"`
+	AllowedGroups     []string `hcl:"allowed_groups" yaml:"allowed_groups"`
+	ExtensionOIDs     []string `hcl:"extension_oids" yaml:"extension_oids"`
+	HashAlgorithm     string   `hcl:"hash_algorithm" yaml:"hash_algorithm"`
 }
 
 // MySQL stores selector values in varchar(255) columns.

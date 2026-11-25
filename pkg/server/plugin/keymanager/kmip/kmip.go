@@ -71,26 +71,26 @@ func builtin(p *Plugin) catalog.BuiltIn {
 // Config is the HCL plugin configuration.
 type Config struct {
 	// KMIPAddr is the TCP address of the KMIP server (e.g. "kmip.example.com:5696").
-	KMIPAddr string `hcl:"kmip_addr" yaml:"kmipAddr"`
+	KMIPAddr string `hcl:"kmip_addr" yaml:"kmip_addr"`
 	// CACertPath is the PEM file used to verify the KMIP server TLS certificate.
 	// Optional; when empty the system certificate pool is used.
-	CACertPath string `hcl:"ca_cert_path" yaml:"caCertPath"`
+	CACertPath string `hcl:"ca_cert_path" yaml:"ca_cert_path"`
 	// ClientCertPath is the PEM file of the mTLS client certificate.
-	ClientCertPath string `hcl:"client_cert_path" yaml:"clientCertPath"`
+	ClientCertPath string `hcl:"client_cert_path" yaml:"client_cert_path"`
 	// ClientKeyPath is the PEM file of the mTLS client private key.
-	ClientKeyPath string `hcl:"client_key_path" yaml:"clientKeyPath"`
+	ClientKeyPath string `hcl:"client_key_path" yaml:"client_key_path"`
 	// InsecureSkipVerify disables TLS certificate verification (test environments only).
-	InsecureSkipVerify bool `hcl:"insecure_skip_verify" yaml:"insecureSkipVerify"`
+	InsecureSkipVerify bool `hcl:"insecure_skip_verify" yaml:"insecure_skip_verify"`
 	// ServerIDValue is a stable identifier for this SPIRE server instance, provided
 	// directly. Mutually exclusive with ServerIDFile.
-	ServerIDValue string `hcl:"server_id_value" yaml:"serverIdValue"`
+	ServerIDValue string `hcl:"server_id_value" yaml:"server_id_value"`
 	// ServerIDFile is a path to a file containing the stable server identifier. If the
 	// file does not exist, a new server ID is generated and persisted there. Mutually
 	// exclusive with ServerIDValue.
-	ServerIDFile string `hcl:"server_id_file" yaml:"serverIdFile"`
+	ServerIDFile string `hcl:"server_id_file" yaml:"server_id_file"`
 	// StaleKeyThreshold is how old a key's x-spire-last-update attribute must be before the
 	// reclamation task considers it orphaned and destroys it.
-	StaleKeyThreshold string `hcl:"stale_key_threshold" yaml:"staleKeyThreshold"`
+	StaleKeyThreshold string `hcl:"stale_key_threshold" yaml:"stale_key_threshold"`
 
 	parsedStaleKeyThreshold time.Duration
 }

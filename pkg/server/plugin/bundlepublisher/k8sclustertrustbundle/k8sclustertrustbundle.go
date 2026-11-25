@@ -45,9 +45,9 @@ type Config struct {
 
 // Cluster holds the configuration for a single Kubernetes cluster.
 type Cluster struct {
-	ClusterTrustBundleName string `hcl:"cluster_trust_bundle_name" json:"cluster_trust_bundle_name" yaml:"clusterTrustBundleName"`
-	SignerName             string `hcl:"signer_name" json:"signer_name" yaml:"signerName"`
-	KubeConfigPath         string `hcl:"kubeconfig_path" json:"kubeconfig_path" yaml:"kubeconfigPath"`
+	ClusterTrustBundleName string `hcl:"cluster_trust_bundle_name" json:"cluster_trust_bundle_name" yaml:"cluster_trust_bundle_name"`
+	SignerName             string `hcl:"signer_name" json:"signer_name" yaml:"signer_name"`
+	KubeConfigPath         string `hcl:"kubeconfig_path" json:"kubeconfig_path" yaml:"kubeconfig_path"`
 
 	// k8sClient is the Kubernetes client used to interact with the cluster, set
 	// when the plugin is configured.

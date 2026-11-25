@@ -44,16 +44,16 @@ func New() *Plugin {
 
 // Config holds the configuration of the plugin.
 type Config struct {
-	StorageAccountName string `hcl:"storage_account_name" json:"storage_account_name" yaml:"storageAccountName"`
-	StorageAccountKey  string `hcl:"storage_account_key" json:"storage_account_key" yaml:"storageAccountKey"`
-	ServiceEndpoint    string `hcl:"service_endpoint" json:"service_endpoint" yaml:"serviceEndpoint"`
-	ContainerName      string `hcl:"container_name" json:"container_name" yaml:"containerName"`
-	BlobName           string `hcl:"blob_name" json:"blob_name" yaml:"blobName"`
+	StorageAccountName string `hcl:"storage_account_name" json:"storage_account_name" yaml:"storage_account_name"`
+	StorageAccountKey  string `hcl:"storage_account_key" json:"storage_account_key" yaml:"storage_account_key"`
+	ServiceEndpoint    string `hcl:"service_endpoint" json:"service_endpoint" yaml:"service_endpoint"`
+	ContainerName      string `hcl:"container_name" json:"container_name" yaml:"container_name"`
+	BlobName           string `hcl:"blob_name" json:"blob_name" yaml:"blob_name"`
 	Format             string `hcl:"format" json:"format" yaml:"format"`
-	TenantID           string `hcl:"tenant_id" json:"tenant_id" yaml:"tenantId"`
-	AppID              string `hcl:"app_id" json:"app_id" yaml:"appId"`
-	AppSecret          string `hcl:"app_secret" json:"app_secret" yaml:"appSecret"`
-	RefreshHint        string `hcl:"refresh_hint" json:"refresh_hint" yaml:"refreshHint"`
+	TenantID           string `hcl:"tenant_id" json:"tenant_id" yaml:"tenant_id"`
+	AppID              string `hcl:"app_id" json:"app_id" yaml:"app_id"`
+	AppSecret          string `hcl:"app_secret" json:"app_secret" yaml:"app_secret"`
+	RefreshHint        string `hcl:"refresh_hint" json:"refresh_hint" yaml:"refresh_hint"`
 
 	bundleFormat      bundleformat.Format
 	parsedRefreshHint int64

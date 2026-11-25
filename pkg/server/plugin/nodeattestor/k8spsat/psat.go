@@ -49,7 +49,7 @@ type AttestorConfig struct {
 type ClusterConfig struct {
 	// Array of allowed service accounts names
 	// Attestation is denied if coming from a service account that is not in the list
-	ServiceAccountAllowList []string `hcl:"service_account_allow_list" yaml:"serviceAccountAllowList"`
+	ServiceAccountAllowList []string `hcl:"service_account_allow_list" yaml:"service_account_allow_list"`
 
 	// Audience for PSAT token validation
 	// If audience is not configured, defaultAudience will be used
@@ -58,16 +58,16 @@ type ClusterConfig struct {
 
 	// Kubernetes configuration file path
 	// Used to create a k8s client to query the API server. If string is empty, in-cluster configuration is used
-	KubeConfigFile string `hcl:"kube_config_file" yaml:"kubeConfigFile"`
+	KubeConfigFile string `hcl:"kube_config_file" yaml:"kube_config_file"`
 
 	// Node labels that are allowed to use as selectors
-	AllowedNodeLabelKeys []string `hcl:"allowed_node_label_keys" yaml:"allowedNodeLabelKeys"`
+	AllowedNodeLabelKeys []string `hcl:"allowed_node_label_keys" yaml:"allowed_node_label_keys"`
 
 	// Pod labels that are allowed to use as selectors
-	AllowedPodLabelKeys []string `hcl:"allowed_pod_label_keys" yaml:"allowedPodLabelKeys"`
+	AllowedPodLabelKeys []string `hcl:"allowed_pod_label_keys" yaml:"allowed_pod_label_keys"`
 
 	// UsePodUIDForAgentID uses the pod UID instead of the node UID in generated agent SPIFFE IDs.
-	UsePodUIDForAgentID bool `hcl:"use_pod_uid_for_agent_id" yaml:"usePodUidForAgentId"`
+	UsePodUIDForAgentID bool `hcl:"use_pod_uid_for_agent_id" yaml:"use_pod_uid_for_agent_id"`
 }
 
 type attestorConfig struct {

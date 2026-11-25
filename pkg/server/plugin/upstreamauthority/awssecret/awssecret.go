@@ -44,13 +44,13 @@ func builtin(p *Plugin) catalog.BuiltIn {
 
 type Configuration struct {
 	Region          string `hcl:"region" json:"region" yaml:"region"`
-	CertFileARN     string `hcl:"cert_file_arn" json:"cert_file_arn" yaml:"certFileArn"`
-	KeyFileARN      string `hcl:"key_file_arn" json:"key_file_arn" yaml:"keyFileArn"`
-	BundleFileARN   string `hcl:"bundle_file_arn" json:"bundle_file_arn" yaml:"bundleFileArn"`
-	AccessKeyID     string `hcl:"access_key_id" json:"access_key_id" yaml:"accessKeyId"`
-	SecretAccessKey string `hcl:"secret_access_key" json:"secret_access_key" yaml:"secretAccessKey"`
-	SecurityToken   string `hcl:"secret_token" json:"secret_token" yaml:"secretToken"`
-	AssumeRoleARN   string `hcl:"assume_role_arn" json:"assume_role_arn" yaml:"assumeRoleArn"`
+	CertFileARN     string `hcl:"cert_file_arn" json:"cert_file_arn" yaml:"cert_file_arn"`
+	KeyFileARN      string `hcl:"key_file_arn" json:"key_file_arn" yaml:"key_file_arn"`
+	BundleFileARN   string `hcl:"bundle_file_arn" json:"bundle_file_arn" yaml:"bundle_file_arn"`
+	AccessKeyID     string `hcl:"access_key_id" json:"access_key_id" yaml:"access_key_id"`
+	SecretAccessKey string `hcl:"secret_access_key" json:"secret_access_key" yaml:"secret_access_key"`
+	SecurityToken   string `hcl:"secret_token" json:"secret_token" yaml:"secret_token"`
+	AssumeRoleARN   string `hcl:"assume_role_arn" json:"assume_role_arn" yaml:"assume_role_arn"`
 }
 
 func (p *Plugin) buildConfig(coreConfig catalog.CoreConfig, text string, format catalog.ConfigFormat, status *pluginconf.Status) *Configuration {

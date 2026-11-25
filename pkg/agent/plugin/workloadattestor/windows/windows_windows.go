@@ -45,10 +45,10 @@ func New() *Plugin {
 }
 
 type Configuration struct {
-	DiscoverWorkloadPath      bool  `hcl:"discover_workload_path" yaml:"discoverWorkloadPath"`
-	WorkloadSizeLimit         int64 `hcl:"workload_size_limit" yaml:"workloadSizeLimit"`
-	DisableGroupNameSelectors bool  `hcl:"disable_group_name_selectors" yaml:"disableGroupNameSelectors"`
-	EnableServiceDiscovery    bool  `hcl:"enable_service_discovery" yaml:"enableServiceDiscovery"`
+	DiscoverWorkloadPath      bool  `hcl:"discover_workload_path" yaml:"discover_workload_path"`
+	WorkloadSizeLimit         int64 `hcl:"workload_size_limit" yaml:"workload_size_limit"`
+	DisableGroupNameSelectors bool  `hcl:"disable_group_name_selectors" yaml:"disable_group_name_selectors"`
+	EnableServiceDiscovery    bool  `hcl:"enable_service_discovery" yaml:"enable_service_discovery"`
 }
 
 func buildConfig(coreConfig catalog.CoreConfig, text string, format catalog.ConfigFormat, status *pluginconf.Status) *Configuration {
