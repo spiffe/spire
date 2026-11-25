@@ -30,24 +30,32 @@ import (
 )
 
 type kmsClientFake struct {
-	t                        *testing.T
-	store                    fakeStore
-	mu                       sync.RWMutex
-	testKeys                 testkey.Keys
-	validAliasName           *regexp.Regexp
-	createKeyErr             error
-	describeKeyErr           error
-	describeKeyMalformed     bool
-	getPublicKeyErr          error
-	listAliasesErr           error
-	createAliasErr           error
-	updateAliasErr           error
-	scheduleKeyDeletionErr   error
-	signErr                  error
-	listKeysErr              error
-	deleteAliasErr           error
-	tagResourceErr           error
-	tagResourceCalls         []kms.TagResourceInput
+	t                      *testing.T
+	store                  fakeStore
+	mu                     sync.RWMutex
+	testKeys               testkey.Keys
+	validAliasName         *regexp.Regexp
+	createKeyErr           error
+	describeKeyErr         error
+	describeKeyMalformed   bool
+	getPublicKeyErr        error
+	listAliasesErr         error
+	createAliasErr         error
+	updateAliasErr         error
+	scheduleKeyDeletionErr error
+	signErr                error
+	listKeysErr            error
+	deleteAliasErr         error
+	tagResourceErr         error
+	replicateKeyErr        error
+	replicateKeyState      types.KeyState
+	tagResourceCalls       []kms.TagResourceInput
+	replicateKeyCalls      []kms.ReplicateKeyInput
+
+	// peers maps a replica region to the fake client standing in for KMS in
+	// that region, so ReplicateKey can materialise the replica where the
+	// plugin will look for it.
+	peers                    map[string]*kmsClientFake
 	createKeyCalls           []kms.CreateKeyInput
 	scheduleKeyDeletionCalls []string
 
@@ -68,8 +76,9 @@ type taggingClientFake struct {
 
 func newKMSClientFake(t *testing.T, c *clock.Mock) *kmsClientFake {
 	return &kmsClientFake{
-		t:     t,
-		store: newFakeStore(c),
+		t:                 t,
+		store:             newFakeStore(c),
+		replicateKeyState: types.KeyStateEnabled,
 
 		// Valid KMS alias name must match the expression below:
 		// https://docs.aws.amazon.com/kms/latest/APIReference/API_CreateAlias.html#API_CreateAlias_RequestSyntax
@@ -170,6 +179,7 @@ func (k *kmsClientFake) CreateKey(_ context.Context, input *kms.CreateKeyInput, 
 		return nil, err
 	}
 
+	multiRegion := input.MultiRegion != nil && *input.MultiRegion
 	keyEntry := &fakeKeyEntry{
 		Description:  input.Description,
 		CreationDate: aws.Time(time.Unix(0, 0)),
@@ -177,16 +187,25 @@ func (k *kmsClientFake) CreateKey(_ context.Context, input *kms.CreateKeyInput, 
 		privateKey:   privateKey,
 		KeySpec:      input.KeySpec,
 		Enabled:      true,
+		KeyState:     types.KeyStateEnabled,
+		MultiRegion:  multiRegion,
+	}
+	if multiRegion {
+		keyEntry.MultiRegionKeyType = types.MultiRegionKeyTypePrimary
 	}
 
 	k.store.SaveKeyEntry(keyEntry)
 
 	return &kms.CreateKeyOutput{
 		KeyMetadata: &types.KeyMetadata{
-			KeyId:        keyEntry.KeyID,
-			Arn:          keyEntry.Arn,
-			Description:  keyEntry.Description,
-			CreationDate: keyEntry.CreationDate,
+			KeyId:                    keyEntry.KeyID,
+			Arn:                      keyEntry.Arn,
+			Description:              keyEntry.Description,
+			CreationDate:             keyEntry.CreationDate,
+			Enabled:                  keyEntry.Enabled,
+			KeyState:                 keyEntry.KeyState,
+			MultiRegion:              aws.Bool(keyEntry.MultiRegion),
+			MultiRegionConfiguration: keyEntry.multiRegionConfiguration(),
 		},
 	}, nil
 }
@@ -203,17 +222,20 @@ func (k *kmsClientFake) DescribeKey(_ context.Context, input *kms.DescribeKeyInp
 
 	keyEntry, err := k.store.FetchKeyEntry(*input.KeyId)
 	if err != nil {
-		return nil, err
+		return nil, &types.NotFoundException{Message: aws.String(err.Error())}
 	}
 
 	return &kms.DescribeKeyOutput{
 		KeyMetadata: &types.KeyMetadata{
-			KeyId:        keyEntry.KeyID,
-			Arn:          keyEntry.Arn,
-			KeySpec:      keyEntry.KeySpec,
-			Enabled:      keyEntry.Enabled,
-			Description:  keyEntry.Description,
-			CreationDate: keyEntry.CreationDate,
+			KeyId:                    keyEntry.KeyID,
+			Arn:                      keyEntry.Arn,
+			KeySpec:                  keyEntry.KeySpec,
+			Enabled:                  keyEntry.Enabled,
+			KeyState:                 keyEntry.KeyState,
+			Description:              keyEntry.Description,
+			CreationDate:             keyEntry.CreationDate,
+			MultiRegion:              aws.Bool(keyEntry.MultiRegion),
+			MultiRegionConfiguration: keyEntry.multiRegionConfiguration(),
 		},
 	}, nil
 }
@@ -417,6 +439,16 @@ func (k *kmsClientFake) setEntries(entries []fakeKeyEntry) {
 		return
 	}
 	for _, e := range entries {
+		if e.KeyState == "" {
+			if e.Enabled {
+				e.KeyState = types.KeyStateEnabled
+			} else {
+				e.KeyState = types.KeyStateDisabled
+			}
+		}
+		if e.MultiRegion && e.MultiRegionKeyType == "" {
+			e.MultiRegionKeyType = types.MultiRegionKeyTypePrimary
+		}
 		if e.KeyID != nil {
 			newEntry := e
 			k.store.SaveKeyEntry(&newEntry)
@@ -526,6 +558,88 @@ func (k *kmsClientFake) TagResource(_ context.Context, input *kms.TagResourceInp
 	return &kms.TagResourceOutput{}, nil
 }
 
+// ReplicateKey models AWS replication: the replica is a distinct key resource
+// in another region that shares the primary's key id and key material. It is
+// created in the peer fake standing in for that region.
+func (k *kmsClientFake) ReplicateKey(_ context.Context, input *kms.ReplicateKeyInput, _ ...func(*kms.Options)) (*kms.ReplicateKeyOutput, error) {
+	k.mu.Lock()
+	k.replicateKeyCalls = append(k.replicateKeyCalls, *input)
+	replicateKeyErr := k.replicateKeyErr
+	replicateKeyState := k.replicateKeyState
+	peer := k.peers[*input.ReplicaRegion]
+	k.mu.Unlock()
+
+	if replicateKeyErr != nil {
+		return nil, replicateKeyErr
+	}
+	if peer == nil {
+		return nil, fmt.Errorf("no fake KMS client registered for replica region %q", *input.ReplicaRegion)
+	}
+
+	primary, err := k.store.FetchKeyEntry(*input.KeyId)
+	if err != nil {
+		return nil, err
+	}
+
+	// Related multi-Region keys share a key id, so a second replication into
+	// the same region is a conflict rather than a second key.
+	if existing, err := peer.store.FetchKeyEntry(*primary.KeyID); err == nil && existing != nil {
+		return nil, &types.AlreadyExistsException{}
+	}
+
+	replica := &fakeKeyEntry{
+		KeyID:              primary.KeyID,
+		Description:        input.Description,
+		CreationDate:       primary.CreationDate,
+		PublicKey:          primary.PublicKey,
+		privateKey:         primary.privateKey,
+		KeySpec:            primary.KeySpec,
+		Enabled:            replicateKeyState == types.KeyStateEnabled,
+		KeyState:           replicateKeyState,
+		MultiRegion:        true,
+		MultiRegionKeyType: types.MultiRegionKeyTypeReplica,
+	}
+	peer.store.SaveKeyEntry(replica)
+
+	return &kms.ReplicateKeyOutput{
+		ReplicaKeyMetadata: &types.KeyMetadata{
+			KeyId:                    replica.KeyID,
+			Arn:                      replica.Arn,
+			KeySpec:                  replica.KeySpec,
+			Enabled:                  replica.Enabled,
+			KeyState:                 replica.KeyState,
+			MultiRegion:              aws.Bool(true),
+			MultiRegionConfiguration: replica.multiRegionConfiguration(),
+		},
+	}, nil
+}
+
+func (k *kmsClientFake) setReplicateKeyErr(err error) {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	k.replicateKeyErr = err
+}
+
+func (k *kmsClientFake) setReplicateKeyState(state types.KeyState) {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	k.replicateKeyState = state
+}
+
+func (k *kmsClientFake) setKeyState(keyID string, state types.KeyState) {
+	require.NoError(k.t, k.store.SetKeyState(keyID, state))
+}
+
+// setPeer registers the fake standing in for KMS in the given replica region.
+func (k *kmsClientFake) setPeer(region string, peer *kmsClientFake) {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	if k.peers == nil {
+		k.peers = make(map[string]*kmsClientFake)
+	}
+	k.peers[region] = peer
+}
+
 func (k *kmsClientFake) setTagResourceErr(fakeError string) {
 	k.mu.Lock()
 	defer k.mu.Unlock()
@@ -565,7 +679,17 @@ type fakeKeyEntry struct {
 	PublicKey            []byte
 	privateKey           crypto.Signer
 	Enabled              bool
+	KeyState             types.KeyState
 	KeySpec              types.KeySpec
+	MultiRegion          bool
+	MultiRegionKeyType   types.MultiRegionKeyType
+}
+
+func (e *fakeKeyEntry) multiRegionConfiguration() *types.MultiRegionConfiguration {
+	if !e.MultiRegion {
+		return nil
+	}
+	return &types.MultiRegionConfiguration{MultiRegionKeyType: e.MultiRegionKeyType}
 }
 
 type fakeAlias struct {
@@ -599,6 +723,22 @@ func (fs *fakeStore) DeleteKeyEntry(keyID string) {
 			delete(fs.aliases, k)
 		}
 	}
+}
+
+func (fs *fakeStore) SetKeyState(keyID string, state types.KeyState) error {
+	fs.mu.Lock()
+	defer fs.mu.Unlock()
+
+	keyEntry, ok := fs.keyEntries[keyID]
+	if !ok {
+		keyEntry, ok = fs.keyEntries[keyIDFromArn(keyID)]
+	}
+	if !ok {
+		return fmt.Errorf("no such key %q", keyID)
+	}
+	keyEntry.KeyState = state
+	keyEntry.Enabled = state == types.KeyStateEnabled
+	return nil
 }
 
 func (fs *fakeStore) SaveAlias(targetKeyID, aliasName string) error {
@@ -659,7 +799,10 @@ func (fs *fakeStore) ListAliases() []fakeAlias {
 				PublicKey:            v.KeyEntry.PublicKey,
 				privateKey:           v.KeyEntry.privateKey,
 				Enabled:              v.KeyEntry.Enabled,
+				KeyState:             v.KeyEntry.KeyState,
 				KeySpec:              v.KeyEntry.KeySpec,
+				MultiRegion:          v.KeyEntry.MultiRegion,
+				MultiRegionKeyType:   v.KeyEntry.MultiRegionKeyType,
 			},
 		})
 	}
